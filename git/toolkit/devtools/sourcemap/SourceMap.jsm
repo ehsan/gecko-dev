@@ -69,17 +69,13 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
 
     var version = util.getArg(sourceMap, 'version');
     var sources = util.getArg(sourceMap, 'sources');
-    // Sass 3.3 leaves out the 'names' array, so we deviate from the spec (which
-    // requires the array) to play nice here.
-    var names = util.getArg(sourceMap, 'names', []);
+    var names = util.getArg(sourceMap, 'names');
     var sourceRoot = util.getArg(sourceMap, 'sourceRoot', null);
     var sourcesContent = util.getArg(sourceMap, 'sourcesContent', null);
     var mappings = util.getArg(sourceMap, 'mappings');
     var file = util.getArg(sourceMap, 'file', null);
 
-    // Once again, Sass deviates from the spec and supplies the version as a
-    // string rather than a number, so we use loose equality checking here.
-    if (version != this._version) {
+    if (version !== this._version) {
       throw new Error('Unsupported version: ' + version);
     }
 
@@ -1297,7 +1293,7 @@ define('source-map/source-map-generator', ['require', 'exports', 'module' ,  'so
         throw new Error('Invalid mapping: ' + JSON.stringify({
           generated: aGenerated,
           source: aSource,
-          original: aOriginal,
+          orginal: aOriginal,
           name: aName
         }));
       }

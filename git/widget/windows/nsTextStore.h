@@ -14,7 +14,6 @@
 #include "nsWindowBase.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/TextRange.h"
-#include "mozilla/WindowsVersion.h"
 
 #include <msctf.h>
 #include <textstor.h>
@@ -38,12 +37,6 @@ class nsWindow;
 class MetroWidget;
 #endif
 
-namespace mozilla {
-namespace widget {
-struct MSGResult;
-} // namespace widget
-} // namespace mozilla
-
 // It doesn't work well when we notify TSF of text change
 // during a mutation observer call because things get broken.
 // So we post a message and notify TSF when we get it later.
@@ -54,8 +47,7 @@ struct MSGResult;
  */
 
 class nsTextStore MOZ_FINAL : public ITextStoreACP,
-                              public ITfContextOwnerCompositionSink,
-                              public ITfInputProcessorProfileActivationSink
+                              public ITfContextOwnerCompositionSink
 {
 public: /*IUnknown*/
   STDMETHODIMP_(ULONG)  AddRef(void);
@@ -100,10 +92,6 @@ public: /*ITfContextOwnerCompositionSink*/
   STDMETHODIMP OnUpdateComposition(ITfCompositionView*, ITfRange*);
   STDMETHODIMP OnEndComposition(ITfCompositionView*);
 
-public: /*ITfInputProcessorProfileActivationSink*/
-  STDMETHODIMP OnActivated(DWORD, LANGID, REFCLSID, REFGUID, REFGUID,
-                           HKL, DWORD);
-
 protected:
   typedef mozilla::widget::IMEState IMEState;
   typedef mozilla::widget::InputContext InputContext;
@@ -114,10 +102,6 @@ public:
   static void     Terminate(void);
 
   static bool     ProcessRawKeyMessage(const MSG& aMsg);
-  static void     ProcessMessage(nsWindowBase* aWindow, UINT aMessage,
-                                 WPARAM& aWParam, LPARAM& aLParam,
-                                 mozilla::widget::MSGResult& aResult);
-
 
   static void     SetIMEOpenState(bool);
   static bool     GetIMEOpenState(void);
@@ -141,6 +125,14 @@ public:
   {
     NS_ENSURE_TRUE(sTsfTextStore, NS_ERROR_NOT_AVAILABLE);
     return sTsfTextStore->OnTextChangeInternal(aStart, aOldEnd, aNewEnd);
+  }
+
+  static void     OnTextChangeMsg(void)
+  {
+    NS_ENSURE_TRUE_VOID(sTsfTextStore);
+    // Notify TSF text change
+    // (see comments on WM_USER_TSF_TEXTCHANGE in nsTextStore.h)
+    sTsfTextStore->OnTextChangeMsgInternal();
   }
 
   static nsresult OnSelectionChange(void)
@@ -198,17 +190,6 @@ public:
     return (IsComposing() && sTsfTextStore->mWidget == aWidget);
   }
 
-  static bool     IsIMM_IME()
-  {
-    return sTsfTextStore ? sTsfTextStore->mIsIMM_IME :
-                           IsIMM_IME(::GetKeyboardLayout(0));
-  }
-
-  static bool     IsIMM_IME(HKL aHKL)
-  {
-     return (::ImmGetIMEFileNameW(aHKL, nullptr, 0) > 0);
-  }
-
 #ifdef DEBUG
   // Returns true when keyboard layout has IME (TIP).
   static bool     CurrentKeyboardLayoutHasIME();
@@ -246,7 +227,7 @@ protected:
                                          TS_TEXTCHANGE* aTextChange);
   void     CommitCompositionInternal(bool);
   nsresult OnTextChangeInternal(uint32_t, uint32_t, uint32_t);
-  void     OnTextChangeMsg();
+  void     OnTextChangeMsgInternal(void);
   nsresult OnSelectionChangeInternal(void);
   HRESULT  GetDisplayAttribute(ITfProperty* aProperty,
                                ITfRange* aRange,
@@ -277,8 +258,6 @@ protected:
   nsRefPtr<ITfDocumentMgr>     mDocumentMgr;
   // Edit cookie associated with the current editing context
   DWORD                        mEditCookie;
-  // Cookie of installing ITfInputProcessorProfileActivationSink
-  DWORD                        mIPProfileCookie;
   // Editing context at the bottom of mDocumentMgr's context stack
   nsRefPtr<ITfContext>         mContext;
   // Currently installed notification sink
@@ -653,9 +632,6 @@ protected:
   // mSink->OnSelectionChange().
   bool                         mNotifySelectionChange;
 
-  // True if current IME is implemented with IMM.
-  bool mIsIMM_IME;
-
   // TSF thread manager object for the current application
   static ITfThreadMgr*  sTsfThreadMgr;
   // sMessagePump is QI'ed from sTsfThreadMgr
@@ -677,8 +653,6 @@ protected:
   // For IME (keyboard) disabled state:
   static ITfDocumentMgr* sTsfDisabledDocumentMgr;
   static ITfContext* sTsfDisabledContext;
-
-  static ITfInputProcessorProfiles* sInputProcessorProfiles;
 
   // Message the Tablet Input Panel uses to flush text during blurring.
   // See comments in Destroy

@@ -1925,7 +1925,6 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
                              NS_ConvertASCIItoUTF16(fileName),
                              scriptSample,
                              lineNum,
-                             EmptyString(),
                              EmptyString());
   }
 

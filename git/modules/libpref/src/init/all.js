@@ -2552,10 +2552,7 @@ pref("intl.keyboard.per_window_layout", false);
 
 #ifdef NS_ENABLE_TSF
 // Enable/Disable TSF support
-pref("intl.tsf.enable", false);
-
-// Support IMEs implemented with IMM in TSF mode.
-pref("intl.tsf.support_imm", true);
+pref("intl.enable_tsf_support", false);
 
 // We need to notify the layout change to TSF, but we cannot check the actual
 // change now, therefore, we always notify it by this fequency.

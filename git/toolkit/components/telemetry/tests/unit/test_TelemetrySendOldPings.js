@@ -10,16 +10,16 @@
  *    overdue and recent pings.
  */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-const Cu = Components.utils;
+Components.utils.import("resource://gre/modules/Services.jsm");
 
-Cu.import("resource://gre/modules/Services.jsm");
+// Get the TelemetryPing definitions directly so we can test it without going through xpcom.
+// That gives us Cc, Ci, Cr and Cu, as well as a number of consts like PREF_ENABLED,
+// and PREF_SERVER.
+Services.scriptloader.loadSubScript("resource://gre/components/TelemetryPing.js");
+
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/TelemetryFile.jsm");
-Cu.import("resource://gre/modules/TelemetryPing.jsm");
 
 // We increment TelemetryFile's MAX_PING_FILE_AGE and
 // OVERDUE_PING_FILE_AGE by 1ms so that our test pings exceed
@@ -54,10 +54,11 @@ function createSavedPings(aNum, aAge) {
   // Create a TelemetryPing service that we can generate payloads from.
   // Luckily, the TelemetryPing constructor does nothing that we need to
   // clean up.
+  let pingService = new TelemetryPing();
   let pings = [];
   let age = Date.now() - aAge;
   for (let i = 0; i < aNum; ++i) {
-    let payload = TelemetryPing.getPayload();
+    let payload = pingService.getPayload();
     let ping = { slug: "test-ping-" + gCreatedPings, reason: "test", payload: payload };
     TelemetryFile.savePing(ping);
     if (aAge) {
@@ -189,8 +190,8 @@ function stopHttpServer() {
  * Teardown a TelemetryPing instance and clear out any pending
  * pings to put as back in the starting state.
  */
-function resetTelemetry() {
-  TelemetryPing.uninstall();
+function resetTelemetry(aPingService) {
+  aPingService.uninstall();
   // Quick and dirty way to clear TelemetryFile's pendingPings
   // collection, and put it back in its initial state.
   let gen = TelemetryFile.popPendingPings();
@@ -202,15 +203,17 @@ function resetTelemetry() {
  * mode.
  */
 function startTelemetry() {
-  TelemetryPing.setup();
+  let service = new TelemetryPing();
+  service.setup(true);
+  return service;
 }
 
 function run_test() {
   gHttpServer.registerPrefixHandler("/submit/telemetry/", pingHandler);
   gHttpServer.start(-1);
   do_get_profile();
-  Services.prefs.setBoolPref(TelemetryPing.Constants.PREF_ENABLED, true);
-  Services.prefs.setCharPref(TelemetryPing.Constants.PREF_SERVER,
+  Services.prefs.setBoolPref(PREF_ENABLED, true);
+  Services.prefs.setCharPref(PREF_SERVER,
                              "http://localhost:" + gHttpServer.identity.primaryPort);
   run_next_test();
 }
@@ -221,20 +224,20 @@ function run_test() {
  */
 add_task(function test_expired_pings_are_deleted() {
   let expiredPings = createSavedPings(EXPIRED_PINGS, EXPIRED_PING_FILE_AGE);
-  startTelemetry();
+  let pingService = startTelemetry();
   yield assertReceivedNoPings();
   assertNotSaved(expiredPings);
-  resetTelemetry();
-});
+  resetTelemetry(pingService);
+})
 
 /**
  * Test that really recent pings are not sent on Telemetry initialization.
  */
 add_task(function test_recent_pings_not_sent() {
   let recentPings = createSavedPings(RECENT_PINGS);
-  startTelemetry();
+  let pingService = startTelemetry();
   yield assertReceivedNoPings();
-  resetTelemetry();
+  resetTelemetry(pingService);
   clearPings(recentPings);
 });
 
@@ -248,14 +251,14 @@ add_task(function test_overdue_pings_trigger_send() {
   let expiredPings = createSavedPings(EXPIRED_PINGS, EXPIRED_PING_FILE_AGE);
   let overduePings = createSavedPings(OVERDUE_PINGS, OVERDUE_PING_FILE_AGE);
 
-  startTelemetry();
+  let pingService = startTelemetry();
   yield assertReceivedPings(TOTAL_EXPECTED_PINGS);
 
   assertNotSaved(recentPings);
   assertNotSaved(expiredPings);
   assertNotSaved(overduePings);
-  resetTelemetry();
-});
+  resetTelemetry(pingService);
+})
 
 add_task(function teardown() {
   yield stopHttpServer();
