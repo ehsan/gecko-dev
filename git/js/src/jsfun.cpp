@@ -239,7 +239,7 @@ js_GetArgsObject(JSContext *cx, JSStackFrame *fp)
      */
     JS_ASSERT_IF(fp->fun()->isHeavyweight(), fp->hasCallObj());
 
-    while (fp->isEvalOrDebuggerFrame())
+    while (fp->isDirectEvalOrDebuggerFrame())
         fp = fp->prev();
 
     /* Create an arguments object for fp only if it lacks one. */
@@ -1584,7 +1584,7 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     /* Find fun's top-most activation record. */
     JSStackFrame *fp;
     for (fp = js_GetTopStackFrame(cx);
-         fp && (fp->maybeFun() != fun || fp->isEvalOrDebuggerFrame());
+         fp && (fp->maybeFun() != fun || fp->isDirectEvalOrDebuggerFrame());
          fp = fp->prev()) {
         continue;
     }
@@ -2023,7 +2023,7 @@ JS_PUBLIC_DATA(Class) js_FunctionClass = {
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
     NULL,                 /* construct   */
-    NULL,
+    js_XDRFunctionObject,
     fun_hasInstance,
     fun_trace
 };
