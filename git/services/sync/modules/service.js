@@ -514,7 +514,7 @@ WeaveSvc.prototype = {
       engine.sync(self.cb);
       yield;
     } catch(e) {
-      this._log.error(Utils.exceptionStr(e));
+      this._log.error(e.toString());
     }
   },
 
