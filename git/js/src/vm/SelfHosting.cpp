@@ -43,9 +43,7 @@ static const JSClass self_hosting_global_class = {
     JS_PropertyStub,  JS_DeletePropertyStub,
     JS_PropertyStub,  JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub,
-    JS_ConvertStub,   nullptr,
-    nullptr, nullptr, nullptr,
-    JS_GlobalObjectTraceHook
+    JS_ConvertStub,   nullptr
 };
 
 bool
@@ -750,8 +748,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
               JSNativeThreadSafeWrapper<js::AttachTypedObject>,
               &js::AttachTypedObjectJitInfo, 3, 0),
     JS_FNINFO("SetTypedObjectOffset",
-              intrinsic_SetTypedObjectOffset,
-              &js::intrinsic_SetTypedObjectOffsetJitInfo, 2, 0),
+              JSNativeThreadSafeWrapper<js::SetTypedObjectOffset>,
+              &js::SetTypedObjectOffsetJitInfo, 2, 0),
     JS_FNINFO("ObjectIsTypeDescr",
               intrinsic_ObjectIsTypeDescr,
               &js::ObjectIsTypeDescrJitInfo, 1, 0),

@@ -353,7 +353,9 @@ function copyRawDataToClipboard(button) {
         message: stringBundle().GetStringFromName("rawDataCopied"),
         duration: "short"
       };
-      Services.androidBridge.handleGeckoMessage(message);
+      Cc["@mozilla.org/android/bridge;1"].
+        getService(Ci.nsIAndroidBridge).
+        handleGeckoMessage(JSON.stringify(message));
 #endif
     });
   }
@@ -407,7 +409,9 @@ function copyContentsToClipboard() {
     message: stringBundle().GetStringFromName("textCopied"),
     duration: "short"
   };
-  Services.androidBridge.handleGeckoMessage(message);
+  Cc["@mozilla.org/android/bridge;1"].
+    getService(Ci.nsIAndroidBridge).
+    handleGeckoMessage(JSON.stringify(message));
 #endif
 }
 

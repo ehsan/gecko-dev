@@ -17,15 +17,10 @@
 namespace mozilla {
 namespace gl {
 
-class TextureGarbageBin MOZ_FINAL {
+class TextureGarbageBin {
     NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TextureGarbageBin)
 
-private:
-    // Private destructor, to discourage deletion outside of Release():
-    ~TextureGarbageBin()
-    {
-    }
-
+protected:
     GLContext* mGL;
     Mutex mMutex;
     std::stack<GLuint> mGarbageTextures;

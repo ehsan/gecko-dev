@@ -39,11 +39,9 @@ class Layer;
 class Composer2D {
   NS_INLINE_DECL_REFCOUNTING(Composer2D)
 
-protected:
-  // Protected destructor, to discourage deletion outside of Release():
+public:
   virtual ~Composer2D() {}
 
-public:
   /**
    * Return true if |aRoot| met the implementation's criteria for fast
    * composition and the render was successful.  Return false to fall

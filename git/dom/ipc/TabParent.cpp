@@ -38,7 +38,6 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMWindow.h"
-#include "nsIDOMWindowUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPromptFactory.h"
 #include "nsIURI.h"
@@ -1503,18 +1502,6 @@ TabParent::RecvSetInputContext(const int32_t& aIMEEnabled,
   observerService->NotifyObservers(nullptr, "ime-enabled-state-changed", state.get());
 
   return true;
-}
-
-bool
-TabParent::RecvIsParentWindowMainWidgetVisible(bool* aIsVisible)
-{
-  nsCOMPtr<nsIContent> frame = do_QueryInterface(mFrameElement);
-  if (!frame)
-    return true;
-  nsCOMPtr<nsIDOMWindowUtils> windowUtils =
-    do_QueryInterface(frame->OwnerDoc()->GetWindow());
-  nsresult rv = windowUtils->GetIsParentWindowMainWidgetVisible(aIsVisible);
-  return NS_SUCCEEDED(rv);
 }
 
 bool

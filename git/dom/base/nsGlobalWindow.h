@@ -1299,6 +1299,9 @@ protected:
 
   virtual void UpdateParentTarget();
 
+  // Outer windows only.
+  bool GetIsTabModalPromptAllowed();
+
   inline int32_t DOMMinTimeoutValue() const;
 
   nsresult CloneStorageEvent(const nsAString& aType,

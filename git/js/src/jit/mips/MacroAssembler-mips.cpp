@@ -12,7 +12,6 @@
 #include "jit/Bailouts.h"
 #include "jit/BaselineFrame.h"
 #include "jit/BaselineRegisters.h"
-#include "jit/IonFrames.h"
 #include "jit/MoveEmitter.h"
 
 using namespace js;

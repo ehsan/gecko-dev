@@ -649,12 +649,6 @@ JSObject::global() const
     return *compartment()->maybeGlobal();
 }
 
-inline bool
-JSObject::isOwnGlobal() const
-{
-    return &global() == this;
-}
-
 namespace js {
 
 PropDesc::PropDesc(const Value &getter, const Value &setter,

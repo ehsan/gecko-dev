@@ -405,13 +405,6 @@ TryNewNurseryObject(ThreadSafeContext *cxArg, size_t thingSize, size_t nDynamicS
 }
 #endif /* JSGC_GENERATIONAL */
 
-static inline bool
-PossiblyFail()
-{
-    JS_OOM_POSSIBLY_FAIL();
-    return true;
-}
-
 template <AllowGC allowGC>
 static inline bool
 CheckAllocatorState(ThreadSafeContext *cx, AllocKind kind)
@@ -431,10 +424,7 @@ CheckAllocatorState(ThreadSafeContext *cx, AllocKind kind)
 #endif
 
     // For testing out of memory conditions
-    if (!PossiblyFail()) {
-        js_ReportOutOfMemory(cx);
-        return false;
-    }
+    JS_OOM_POSSIBLY_FAIL();
 
     if (allowGC) {
 #ifdef JS_GC_ZEAL

@@ -28,6 +28,7 @@ class nsUserFontSet : public gfxUserFontSet
 {
 public:
   nsUserFontSet(nsPresContext* aContext);
+  ~nsUserFontSet();
 
   // Called when this font set is no longer associated with a presentation.
   void Destroy();
@@ -53,10 +54,6 @@ public:
   nsCSSFontFaceRule* FindRuleForEntry(gfxFontEntry* aFontEntry);
 
 protected:
-  // Protected destructor, to discourage deletion outside of Release()
-  // (since we inherit from refcounted class gfxUserFontSet):
-  ~nsUserFontSet();
-
   // The font-set keeps track of the collection of rules, and their
   // corresponding font entries (whether proxies or real entries),
   // so that we can update the set without having to throw away

@@ -141,6 +141,7 @@ public:
     NS_INLINE_DECL_REFCOUNTING(gfxUserFontSet)
 
     gfxUserFontSet();
+    virtual ~gfxUserFontSet();
 
     enum {
         // no flags ==> no hint set
@@ -377,9 +378,6 @@ public:
     };
 
 protected:
-    // Protected destructor, to discourage deletion outside of Release():
-    virtual ~gfxUserFontSet();
-
     // Return whether the font set is associated with a private-browsing tab.
     virtual bool GetPrivateBrowsing() = 0;
 

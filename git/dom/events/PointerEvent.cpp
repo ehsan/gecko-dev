@@ -48,21 +48,26 @@ ConvertStringToPointerType(const nsAString& aPointerTypeArg)
   return nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
 }
 
-// static
+//static
 already_AddRefed<PointerEvent>
-PointerEvent::Constructor(EventTarget* aOwner,
+PointerEvent::Constructor(const GlobalObject& aGlobal,
                           const nsAString& aType,
-                          const PointerEventInit& aParam)
+                          const PointerEventInit& aParam,
+                          ErrorResult& aRv)
 {
-  nsRefPtr<PointerEvent> e = new PointerEvent(aOwner, nullptr, nullptr);
-  bool trusted = e->Init(aOwner);
+  nsCOMPtr<EventTarget> t = do_QueryInterface(aGlobal.GetAsSupports());
+  nsRefPtr<PointerEvent> e = new PointerEvent(t, nullptr, nullptr);
+  bool trusted = e->Init(t);
 
-  e->InitMouseEvent(aType, aParam.mBubbles, aParam.mCancelable,
-                    aParam.mView, aParam.mDetail, aParam.mScreenX,
-                    aParam.mScreenY, aParam.mClientX, aParam.mClientY,
-                    aParam.mCtrlKey, aParam.mAltKey, aParam.mShiftKey,
-                    aParam.mMetaKey, aParam.mButton,
-                    aParam.mRelatedTarget);
+  aRv = e->InitMouseEvent(aType, aParam.mBubbles, aParam.mCancelable,
+                          aParam.mView, aParam.mDetail, aParam.mScreenX,
+                          aParam.mScreenY, aParam.mClientX, aParam.mClientY,
+                          aParam.mCtrlKey, aParam.mAltKey, aParam.mShiftKey,
+                          aParam.mMetaKey, aParam.mButton,
+                          aParam.mRelatedTarget);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
 
   WidgetPointerEvent* widgetEvent = e->mEvent->AsPointerEvent();
   widgetEvent->pointerId = aParam.mPointerId;
@@ -77,17 +82,6 @@ PointerEvent::Constructor(EventTarget* aOwner,
 
   e->SetTrusted(trusted);
   return e.forget();
-}
-
-// static
-already_AddRefed<PointerEvent>
-PointerEvent::Constructor(const GlobalObject& aGlobal,
-                          const nsAString& aType,
-                          const PointerEventInit& aParam,
-                          ErrorResult& aRv)
-{
-  nsCOMPtr<EventTarget> owner = do_QueryInterface(aGlobal.GetAsSupports());
-  return Constructor(owner, aType, aParam);
 }
 
 void
