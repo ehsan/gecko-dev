@@ -159,9 +159,6 @@ nsEditor::nsEditor()
 ,  mPhonetic(nsnull)
 {
   //initialize member variables here
-#ifdef NS_DEBUG
-    printf("xxxehsan Editor 0x%p created\n", this);
-#endif
 }
 
 nsEditor::~nsEditor()
@@ -171,10 +168,6 @@ nsEditor::~nsEditor()
   delete mPhonetic;
  
   NS_IF_RELEASE(mViewManager);
-
-#ifdef NS_DEBUG
-    printf("xxxehsan Editor 0x%p created\n", this);
-#endif
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsEditor)
@@ -231,13 +224,10 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIPresShell* aPresShell, nsIContent *aRoot
   if ((nsnull==aDoc) || (nsnull==aPresShell))
     return NS_ERROR_NULL_POINTER;
 
+  mFlags = aFlags;
   mDocWeak = do_GetWeakReference(aDoc);  // weak reference to doc
   mPresShellWeak = do_GetWeakReference(aPresShell);   // weak reference to pres shell
   mSelConWeak = do_GetWeakReference(aSelCon);   // weak reference to selectioncontroller
-
-  nsresult rv = SetFlags(aFlags);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "SetFlags() failed");
-
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
   
@@ -247,13 +237,6 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIPresShell* aPresShell, nsIContent *aRoot
 
   nsCOMPtr<nsINode> document = do_QueryInterface(aDoc);
   document->AddMutationObserver(this);
-#ifdef NS_DEBUG
-  {
-    nsCOMPtr<nsISupports> docSupports = do_QueryInterface(document);
-    printf("xxxehsan Editor 0x%p registered a mutation observer 0x%p\n",
-           this, docSupports.get());
-  }
-#endif
 
   // Set up the DTD
   // XXX - in the long run we want to get this from the document, but there
@@ -486,7 +469,11 @@ nsEditor::GetDesiredSpellCheckState()
 
   // Check for password/readonly/disabled, which are not spellchecked
   // regardless of DOM
-  if (IsPasswordEditor() || IsReadonly() || IsDisabled()) {
+  PRUint32 flags;
+  if (NS_SUCCEEDED(GetFlags(&flags)) &&
+      flags & (nsIPlaintextEditor::eEditorPasswordMask |
+               nsIPlaintextEditor::eEditorReadonlyMask |
+               nsIPlaintextEditor::eEditorDisabledMask)) {
     return PR_FALSE;
   }
 
@@ -539,14 +526,8 @@ nsEditor::PreDestroy(PRBool aDestroyingFrames)
   NotifyDocumentListeners(eDocumentToBeDestroyed);
 
   nsCOMPtr<nsINode> document = do_QueryReferent(mDocWeak);
-  if (document) {
+  if (document)
     document->RemoveMutationObserver(this);
-#ifdef NS_DEBUG
-    nsCOMPtr<nsISupports> docSupports = do_QueryInterface(document);
-    printf("xxxehsan Editor 0x%p removed a mutation observer 0x%p\n",
-           this, docSupports.get());
-#endif
-  }
 
   // Unregister event listeners
   RemoveEventListeners();
@@ -2114,9 +2095,8 @@ nsEditor::ForceCompositionEnd()
 #endif
 
 #ifdef XP_UNIX
-  if(IsPasswordEditor()) {
-    return NS_OK;
-  }
+  if(mFlags & nsIPlaintextEditor::eEditorPasswordMask)
+	return NS_OK;
 #endif
 
   nsCOMPtr<nsIWidget> widget;
@@ -2139,7 +2119,12 @@ nsEditor::GetPreferredIMEState(PRUint32 *aState)
   NS_ENSURE_ARG_POINTER(aState);
   *aState = nsIContent::IME_STATUS_ENABLE;
 
-  if (IsReadonly() || IsDisabled()) {
+  PRUint32 flags;
+  nsresult rv = GetFlags(&flags);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (flags & (nsIPlaintextEditor::eEditorReadonlyMask |
+               nsIPlaintextEditor::eEditorDisabledMask)) {
     *aState = nsIContent::IME_STATUS_DISABLE;
     return NS_OK;
   }
@@ -2152,7 +2137,7 @@ nsEditor::GetPreferredIMEState(PRUint32 *aState)
 
   switch (frame->GetStyleUIReset()->mIMEMode) {
     case NS_STYLE_IME_MODE_AUTO:
-      if (IsPasswordEditor())
+      if (flags & (nsIPlaintextEditor::eEditorPasswordMask))
         *aState = nsIContent::IME_STATUS_PASSWORD;
       break;
     case NS_STYLE_IME_MODE_DISABLED:

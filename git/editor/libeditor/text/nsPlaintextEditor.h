@@ -111,6 +111,9 @@ public:
 
   NS_IMETHOD SetDocumentCharacterSet(const nsACString & characterSet);
 
+  NS_IMETHOD GetFlags(PRUint32 *aFlags);
+  NS_IMETHOD SetFlags(PRUint32 aFlags);
+
   NS_IMETHOD Undo(PRUint32 aCount);
   NS_IMETHOD Redo(PRUint32 aCount);
 
