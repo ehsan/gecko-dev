@@ -81,7 +81,7 @@ PRBool nsAccessNode::gIsFormFillEnabled = PR_FALSE;
 nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible>
   nsAccessNode::gGlobalDocAccessibleCache;
 
-nsApplicationAccessible *nsAccessNode::gApplicationAccessible = nsnull;
+nsApplicationAccessibleWrap *nsAccessNode::gApplicationAccessible = nsnull;
 
 /*
  * Class nsAccessNode
@@ -221,7 +221,7 @@ NS_IMETHODIMP nsAccessNode::GetOwnerWindow(void **aWindow)
   return docAccessible->GetWindowHandle(aWindow);
 }
 
-nsApplicationAccessible*
+already_AddRefed<nsApplicationAccessibleWrap>
 nsAccessNode::GetApplicationAccessible()
 {
   NS_ASSERTION(!nsAccessibilityService::gIsShutdown,
@@ -239,12 +239,13 @@ nsAccessNode::GetApplicationAccessible()
 
     nsresult rv = gApplicationAccessible->Init();
     if (NS_FAILED(rv)) {
-      gApplicationAccessible->Shutdown();
       NS_RELEASE(gApplicationAccessible);
+      gApplicationAccessible = nsnull;
       return nsnull;
     }
   }
 
+  NS_ADDREF(gApplicationAccessible);   // Addref because we're a getter
   return gApplicationAccessible;
 }
 
@@ -297,15 +298,13 @@ void nsAccessNode::ShutdownXPAccessibility()
   NS_IF_RELEASE(gKeyStringBundle);
   NS_IF_RELEASE(gLastFocusedNode);
 
+  nsApplicationAccessibleWrap::Unload();
   ClearCache(gGlobalDocAccessibleCache);
 
   // Release gApplicationAccessible after everything else is shutdown
   // so we don't accidently create it again while tearing down root accessibles
-  nsApplicationAccessibleWrap::Unload();
-  if (gApplicationAccessible) {
-    gApplicationAccessible->Shutdown();
-    NS_RELEASE(gApplicationAccessible);
-  }
+  NS_IF_RELEASE(gApplicationAccessible);
+  gApplicationAccessible = nsnull;  
 
   NotifyA11yInitOrShutdown(PR_FALSE);
 }
@@ -428,21 +427,11 @@ nsAccessNode::GetNumChildren(PRInt32 *aNumChildren)
 }
 
 NS_IMETHODIMP
-nsAccessNode::GetDocument(nsIAccessibleDocument **aDocument)
+nsAccessNode::GetAccessibleDocument(nsIAccessibleDocument **aAccessibleDocument)
 {
-  NS_ENSURE_ARG_POINTER(aDocument);
+  NS_ENSURE_ARG_POINTER(aAccessibleDocument);
 
-  NS_IF_ADDREF(*aDocument = GetDocAccessibleFor(mWeakShell));
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessNode::GetRootDocument(nsIAccessibleDocument **aRootDocument)
-{
-  NS_ENSURE_ARG_POINTER(aRootDocument);
-
-  nsRefPtr<nsRootAccessible> rootDocument = GetRootAccessible();
-  NS_IF_ADDREF(*aRootDocument = rootDocument.get());
+  NS_IF_ADDREF(*aAccessibleDocument = GetDocAccessibleFor(mWeakShell));
   return NS_OK;
 }
 
