@@ -2265,10 +2265,9 @@ public:
    * tree composite.
    */
   enum {
-    PAINT_DEFAULT = 0,
-    PAINT_COMPOSITE_ONLY = 1 << 0
+    PAINT_COMPOSITE_ONLY
   };
-  void SchedulePaint(uint32_t aFlags = PAINT_DEFAULT);
+  void SchedulePaint(uint32_t aFlags = 0);
 
   /**
    * Checks if the layer tree includes a dedicated layer for this 
