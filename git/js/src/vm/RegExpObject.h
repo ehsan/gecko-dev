@@ -11,7 +11,6 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "jscntxt.h"
-#include "jsproxy.h"
 
 #include "gc/Marking.h"
 #if ENABLE_YARR_JIT

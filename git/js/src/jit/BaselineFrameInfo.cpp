@@ -6,9 +6,8 @@
 
 #include "jit/BaselineFrameInfo.h"
 
-#ifdef DEBUG
-# include "jit/BytecodeAnalysis.h"
-#endif
+#include "jit/IonSpewer.h"
+#include "jit/shared/BaselineCompiler-shared.h"
 
 using namespace js;
 using namespace js::jit;

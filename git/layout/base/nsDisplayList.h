@@ -2112,12 +2112,6 @@ public:
    */
   nsRect GetPositioningArea();
 
-  /**
-   * Return whether our frame's document does not have the state
-   * NS_DOCUMENT_STATE_WINDOW_INACTIVE.
-   */
-  bool IsWindowActive();
-
   virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
   {
     return new nsDisplayThemedBackgroundGeometry(this, aBuilder);

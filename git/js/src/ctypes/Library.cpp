@@ -6,6 +6,8 @@
 
 #include "ctypes/Library.h"
 
+#include "jscntxt.h"
+#include "jsstr.h"
 #include "prlink.h"
 
 #include "ctypes/CTypes.h"

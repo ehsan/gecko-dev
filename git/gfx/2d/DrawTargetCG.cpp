@@ -152,6 +152,7 @@ DrawTargetCG::~DrawTargetCG()
     CGColorSpaceRelease(mColorSpace);
   if (mCg)
     CGContextRelease(mCg);
+  free(mData);
 }
 
 BackendType
@@ -1187,6 +1188,7 @@ DrawTargetCG::Init(BackendType aType,
       aSize.width > 32767 || aSize.height > 32767) {
     mColorSpace = nullptr;
     mCg = nullptr;
+    mData = nullptr;
     return false;
   }
 
@@ -1197,9 +1199,12 @@ DrawTargetCG::Init(BackendType aType,
 
   if (aData == nullptr && aType != BACKEND_COREGRAPHICS_ACCELERATED) {
     // XXX: Currently, Init implicitly clears, that can often be a waste of time
-    mData.Realloc(aStride * aSize.height);
-    aData = static_cast<unsigned char*>(mData);
-    memset(aData, 0, aStride * aSize.height);
+    mData = calloc(aSize.height * aStride, 1);
+    aData = static_cast<unsigned char*>(mData);  
+  } else {
+    // mData == nullptr means DrawTargetCG doesn't own the image data and will not
+    // delete it in the destructor
+    mData = nullptr;
   }
 
   mSize = aSize;
@@ -1209,6 +1214,7 @@ DrawTargetCG::Init(BackendType aType,
     mCg = ioSurface->CreateIOSurfaceContext();
     // If we don't have the symbol for 'CreateIOSurfaceContext' mCg will be null
     // and we will fallback to software below
+    mData = nullptr;
   }
 
   mFormat = FORMAT_B8G8R8A8;
@@ -1281,6 +1287,7 @@ DrawTargetCG::Init(CGContextRef cgContext, const IntSize &aSize)
   if (aSize.width == 0 || aSize.height == 0) {
     mColorSpace = nullptr;
     mCg = nullptr;
+    mData = nullptr;
     return false;
   }
 
@@ -1293,6 +1300,8 @@ DrawTargetCG::Init(CGContextRef cgContext, const IntSize &aSize)
 
   mCg = cgContext;
   CGContextRetain(mCg);
+
+  mData = nullptr;
 
   assert(mCg);
 
@@ -1322,7 +1331,7 @@ DrawTargetCG::Init(CGContextRef cgContext, const IntSize &aSize)
 bool
 DrawTargetCG::Init(BackendType aType, const IntSize &aSize, SurfaceFormat &aFormat)
 {
-  int32_t stride = GetAlignedStride<16>(aSize.width * BytesPerPixel(aFormat));
+  int stride = aSize.width*4;
   
   // Calling Init with aData == nullptr will allocate.
   return Init(aType, nullptr, aSize, stride, aFormat);

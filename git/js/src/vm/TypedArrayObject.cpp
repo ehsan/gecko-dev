@@ -2251,29 +2251,26 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         if (ar->is<TypedArrayObject>())
             return copyFromTypedArray(cx, thisTypedArray, ar, offset);
 
-        JSRuntime *runtime = cx->runtime();
-        uint64_t gcNumber = runtime->gcNumber;
-
+        const Value *src = NULL;
         NativeType *dest = static_cast<NativeType*>(thisTypedArray->viewData()) + offset;
+
+        // The only way the code below can GC is if nativeFromValue fails, but
+        // in that case we return false immediately, so we do not need to root
+        // |src| and |dest|. These SkipRoots are to protect from the
+        // unconditional MaybeCheckStackRoots done by ToNumber.
         SkipRoot skipDest(cx, &dest);
+        SkipRoot skipSrc(cx, &src);
 
         if (ar->is<ArrayObject>() && !ar->isIndexed() && ar->getDenseInitializedLength() >= len) {
             JS_ASSERT(ar->as<ArrayObject>().length() == len);
 
-            /*
-             * The only way the code below can GC is if nativeFromValue fails,
-             * but in that case we return false immediately, so we do not need
-             * to root |src| and |dest|.
-             */
-            const Value *src = ar->getDenseElements();
-            SkipRoot skipSrc(cx, &src);
+            src = ar->getDenseElements();
             for (uint32_t i = 0; i < len; ++i) {
                 NativeType n;
                 if (!nativeFromValue(cx, src[i], &n))
                     return false;
                 dest[i] = n;
             }
-            JS_ASSERT(runtime->gcNumber == gcNumber);
         } else {
             RootedValue v(cx);
 
@@ -2283,15 +2280,6 @@ class TypedArrayObjectTemplate : public TypedArrayObject
                 NativeType n;
                 if (!nativeFromValue(cx, v, &n))
                     return false;
-
-                /*
-                 * Detect when a GC has occurred so we can update the dest
-                 * pointers in case it has been moved.
-                 */
-                if (runtime->gcNumber != gcNumber) {
-                    dest = static_cast<NativeType*>(thisTypedArray->viewData()) + offset;
-                    gcNumber = runtime->gcNumber;
-                }
                 dest[i] = n;
             }
         }

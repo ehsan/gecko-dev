@@ -30,7 +30,9 @@ inline bool
 EmulatesUndefined(JSObject *obj)
 {
     JSObject *actual = MOZ_LIKELY(!obj->is<WrapperObject>()) ? obj : UncheckedUnwrap(obj);
-    return actual->getClass()->emulatesUndefined();
+    bool emulatesUndefined = actual->getClass()->emulatesUndefined();
+    MOZ_ASSERT_IF(emulatesUndefined, obj->type()->flags & types::OBJECT_FLAG_EMULATES_UNDEFINED);
+    return emulatesUndefined;
 }
 
 } /* namespace js */

@@ -6,12 +6,15 @@
 
 #include "jit/MIRGraph.h"
 
+#include "jsanalyze.h"
+
 #include "jit/AsmJS.h"
-#include "jit/BytecodeAnalysis.h"
 #include "jit/Ion.h"
+#include "jit/IonBuilder.h"
 #include "jit/IonSpewer.h"
 #include "jit/MIR.h"
-#include "jit/MIRGenerator.h"
+
+#include "jsinferinlines.h"
 
 using namespace js;
 using namespace js::jit;

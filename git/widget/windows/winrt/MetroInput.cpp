@@ -255,11 +255,11 @@ MetroInput::OnEdgeGestureStarted(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  WidgetSimpleGestureEvent geckoEvent(true,
-                                      NS_SIMPLE_GESTURE_EDGE_STARTED,
-                                      mWidget.Get(),
-                                      0,
-                                      0.0);
+  nsSimpleGestureEvent geckoEvent(true,
+                                  NS_SIMPLE_GESTURE_EDGE_STARTED,
+                                  mWidget.Get(),
+                                  0,
+                                  0.0);
   mModifierKeyState.Update();
   mModifierKeyState.InitInputEvent(geckoEvent);
   geckoEvent.time = ::GetMessageTime();
@@ -287,11 +287,11 @@ MetroInput::OnEdgeGestureCanceled(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  WidgetSimpleGestureEvent geckoEvent(true,
-                                      NS_SIMPLE_GESTURE_EDGE_CANCELED,
-                                      mWidget.Get(),
-                                      0,
-                                      0.0);
+  nsSimpleGestureEvent geckoEvent(true,
+                                  NS_SIMPLE_GESTURE_EDGE_CANCELED,
+                                  mWidget.Get(),
+                                  0,
+                                  0.0);
   mModifierKeyState.Update();
   mModifierKeyState.InitInputEvent(geckoEvent);
   geckoEvent.time = ::GetMessageTime();
@@ -318,11 +318,11 @@ MetroInput::OnEdgeGestureCompleted(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  WidgetSimpleGestureEvent geckoEvent(true,
-                                      NS_SIMPLE_GESTURE_EDGE_COMPLETED,
-                                      mWidget.Get(),
-                                      0,
-                                      0.0);
+  nsSimpleGestureEvent geckoEvent(true,
+                                  NS_SIMPLE_GESTURE_EDGE_COMPLETED,
+                                  mWidget.Get(),
+                                  0,
+                                  0.0);
   mModifierKeyState.Update();
   mModifierKeyState.InitInputEvent(geckoEvent);
   geckoEvent.time = ::GetMessageTime();
@@ -398,7 +398,7 @@ MetroInput::OnPointerNonTouch(UI::Input::IPointerPoint* aPoint) {
 }
 
 void
-MetroInput::InitTouchEventTouchList(WidgetTouchEvent* aEvent)
+MetroInput::InitTouchEventTouchList(nsTouchEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
   mTouches.Enumerate(&AppendToTouchList,
@@ -439,8 +439,8 @@ MetroInput::OnPointerPressed(UI::Core::ICoreWindow* aSender,
   touch->mChanged = true;
   mTouches.Put(pointerId, touch);
 
-  WidgetTouchEvent* touchEvent =
-    new WidgetTouchEvent(true, NS_TOUCH_START, mWidget.Get());
+  nsTouchEvent* touchEvent =
+    new nsTouchEvent(true, NS_TOUCH_START, mWidget.Get());
 
   if (mTouches.Count() == 1) {
     // If this is the first touchstart of a touch session reset some
@@ -544,8 +544,8 @@ MetroInput::OnPointerMoved(UI::Core::ICoreWindow* aSender,
   // If we've accumulated a batch of pointer moves and we're now on a new batch
   // at a new position send the previous batch. (perf opt)
   if (!mIsFirstTouchMove && touch->mChanged) {
-    WidgetTouchEvent* touchEvent =
-      new WidgetTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
+    nsTouchEvent* touchEvent =
+      new nsTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
     InitTouchEventTouchList(touchEvent);
     DispatchAsyncTouchEventIgnoreStatus(touchEvent);
   }
@@ -555,8 +555,8 @@ MetroInput::OnPointerMoved(UI::Core::ICoreWindow* aSender,
   // replacing old touch point in mTouches map
   mTouches.Put(pointerId, touch);
 
-  WidgetTouchEvent* touchEvent =
-    new WidgetTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
+  nsTouchEvent* touchEvent =
+    new nsTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
 
   // If this is the first touch move of our session, we should check the result.
   // Note we may lose some touch move data here for the recognizer since we want
@@ -623,8 +623,8 @@ MetroInput::OnPointerReleased(UI::Core::ICoreWindow* aSender,
 
   // Purge any pending moves for this pointer
   if (touch->mChanged) {
-    WidgetTouchEvent* touchEvent =
-      new WidgetTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
+    nsTouchEvent* touchEvent =
+      new nsTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
     InitTouchEventTouchList(touchEvent);
     DispatchAsyncTouchEventIgnoreStatus(touchEvent);
   }
@@ -635,8 +635,8 @@ MetroInput::OnPointerReleased(UI::Core::ICoreWindow* aSender,
   mTouches.Remove(pointerId);
 
   // touchend events only have a single touch; the touch that has been removed
-  WidgetTouchEvent* touchEvent =
-    new WidgetTouchEvent(true, NS_TOUCH_END, mWidget.Get());
+  nsTouchEvent* touchEvent =
+    new nsTouchEvent(true, NS_TOUCH_END, mWidget.Get());
   touchEvent->touches.AppendElement(CreateDOMTouch(currentPoint.Get()));
   DispatchAsyncTouchEventIgnoreStatus(touchEvent);
 
@@ -821,8 +821,8 @@ MetroInput::ProcessManipulationDelta(
   }
 
   // Send a gecko event indicating the magnification since the last update.
-  WidgetSimpleGestureEvent* magEvent =
-    new WidgetSimpleGestureEvent(true, aMagEventType, mWidget.Get(), 0, 0.0);
+  nsSimpleGestureEvent* magEvent =
+    new nsSimpleGestureEvent(true, aMagEventType, mWidget.Get(), 0, 0.0);
 
   magEvent->delta = aDelta.Expansion;
   magEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
@@ -830,8 +830,8 @@ MetroInput::ProcessManipulationDelta(
   DispatchAsyncEventIgnoreStatus(magEvent);
 
   // Send a gecko event indicating the rotation since the last update.
-  WidgetSimpleGestureEvent* rotEvent =
-    new WidgetSimpleGestureEvent(true, aRotEventType, mWidget.Get(), 0, 0.0);
+  nsSimpleGestureEvent* rotEvent =
+    new nsSimpleGestureEvent(true, aRotEventType, mWidget.Get(), 0, 0.0);
 
   rotEvent->delta = aDelta.Rotation;
   rotEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
@@ -961,9 +961,9 @@ MetroInput::OnManipulationCompleted(
   }
 
   if (isHorizontalSwipe) {
-    WidgetSimpleGestureEvent* swipeEvent =
-      new WidgetSimpleGestureEvent(true, NS_SIMPLE_GESTURE_SWIPE,
-                                   mWidget.Get(), 0, 0.0);
+    nsSimpleGestureEvent* swipeEvent =
+      new nsSimpleGestureEvent(true, NS_SIMPLE_GESTURE_SWIPE,
+                               mWidget.Get(), 0, 0.0);
     swipeEvent->direction = delta.Translation.X > 0
                          ? nsIDOMSimpleGestureEvent::DIRECTION_RIGHT
                          : nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
@@ -974,9 +974,9 @@ MetroInput::OnManipulationCompleted(
   }
 
   if (isVerticalSwipe) {
-    WidgetSimpleGestureEvent* swipeEvent =
-      new WidgetSimpleGestureEvent(true, NS_SIMPLE_GESTURE_SWIPE,
-                                   mWidget.Get(), 0, 0.0);
+    nsSimpleGestureEvent* swipeEvent =
+      new nsSimpleGestureEvent(true, NS_SIMPLE_GESTURE_SWIPE,
+                               mWidget.Get(), 0, 0.0);
     swipeEvent->direction = delta.Translation.Y > 0
                          ? nsIDOMSimpleGestureEvent::DIRECTION_DOWN
                          : nsIDOMSimpleGestureEvent::DIRECTION_UP;
@@ -1148,7 +1148,7 @@ MetroInput::DeliverNextQueuedEventIgnoreStatus()
 }
 
 void
-MetroInput::DispatchAsyncTouchEventIgnoreStatus(WidgetTouchEvent* aEvent)
+MetroInput::DispatchAsyncTouchEventIgnoreStatus(nsTouchEvent* aEvent)
 {
   aEvent->time = ::GetMessageTime();
   mModifierKeyState.Update();
@@ -1163,8 +1163,7 @@ nsEventStatus
 MetroInput::DeliverNextQueuedTouchEvent()
 {
   nsEventStatus status;
-  WidgetTouchEvent* event =
-    static_cast<WidgetTouchEvent*>(mInputEventQueue.PopFront());
+  nsTouchEvent* event = static_cast<nsTouchEvent*>(mInputEventQueue.PopFront());
   MOZ_ASSERT(event);
 
   AutoDeleteEvent wrap(event);
@@ -1213,7 +1212,7 @@ MetroInput::DeliverNextQueuedTouchEvent()
 
   // Forward event data to apz. If the apz consumes the event, don't forward to
   // content if this is not a cancelable event.
-  WidgetTouchEvent transformedEvent(*event);
+  nsTouchEvent transformedEvent(*event);
   status = mWidget->ApzReceiveInputEvent(event, &transformedEvent);
   if (!mCancelable && status == nsEventStatus_eConsumeNoDefault) {
     if (!mTouchCancelSent) {
@@ -1238,14 +1237,13 @@ MetroInput::DispatchTouchCancel()
   // not be included in the touches and targetTouches attributes. 
   // (We are 'removing' all touch points that have been sent to content
   // thus far.)
-  WidgetTouchEvent touchEvent(true, NS_TOUCH_CANCEL, mWidget.Get());
+  nsTouchEvent touchEvent(true, NS_TOUCH_CANCEL, mWidget.Get());
   InitTouchEventTouchList(&touchEvent);
   mWidget->DispatchEvent(&touchEvent, sThrowawayStatus);
 }
 
 void
-MetroInput::DispatchAsyncTouchEventWithCallback(WidgetTouchEvent* aEvent,
-                                                void (MetroInput::*Callback)())
+MetroInput::DispatchAsyncTouchEventWithCallback(nsTouchEvent* aEvent, void (MetroInput::*Callback)())
 {
   aEvent->time = ::GetMessageTime();
   mModifierKeyState.Update();

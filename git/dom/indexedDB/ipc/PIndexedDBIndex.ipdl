@@ -22,6 +22,12 @@ struct GetKeyParams
   KeyRange keyRange;
 };
 
+struct GetAllKeysParams
+{
+  OptionalKeyRange optionalKeyRange;
+  uint32_t limit;
+};
+
 struct OpenKeyCursorParams
 {
   OptionalKeyRange optionalKeyRange;

@@ -12,7 +12,8 @@
 
 #include "jit/IonSpewer.h"
 #include "jit/MIR.h"
-#include "jit/MIRGenerator.h"
+#include "jit/MIRGraph.h"
+#include "jit/shared/CodeGenerator-shared.h"
 
 using namespace js;
 using namespace js::jit;

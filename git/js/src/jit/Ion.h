@@ -15,6 +15,7 @@
 #include "jscompartment.h"
 
 #include "jit/CompileInfo.h"
+#include "jit/IonCode.h"
 
 namespace js {
 namespace jit {

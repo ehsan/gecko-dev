@@ -11,6 +11,7 @@
 
 #include "jit/IonCompartment.h"
 #include "jit/IonFrames.h"
+#include "jit/ParallelFunctions.h"
 #include "jit/RangeAnalysis.h"
 
 #include "jit/shared/CodeGenerator-shared-inl.h"

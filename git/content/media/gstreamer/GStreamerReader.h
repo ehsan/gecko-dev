@@ -44,7 +44,7 @@ public:
   virtual bool DecodeAudioData();
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
                                 int64_t aTimeThreshold);
-  virtual nsresult ReadMetadata(MediaInfo* aInfo,
+  virtual nsresult ReadMetadata(VideoInfo* aInfo,
                                 MetadataTags** aTags);
   virtual nsresult Seek(int64_t aTime,
                         int64_t aStartTime,
@@ -53,11 +53,11 @@ public:
   virtual nsresult GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime);
 
   virtual bool HasAudio() {
-    return mInfo.HasAudio();
+    return mInfo.mHasAudio;
   }
 
   virtual bool HasVideo() {
-    return mInfo.HasVideo();
+    return mInfo.mHasVideo;
   }
 
 private:

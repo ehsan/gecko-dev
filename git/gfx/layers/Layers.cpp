@@ -1171,10 +1171,9 @@ void WriteSnapshotToDumpFile(LayerManager* aManager, gfxASurface* aSurf)
   WriteSnapshotToDumpFile_internal(aManager, aSurf);
 }
 
-void WriteSnapshotToDumpFile(Compositor* aCompositor, DrawTarget* aTarget)
+void WriteSnapshotToDumpFile(Compositor* aCompositor, gfxASurface* aSurf)
 {
-  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aTarget);
-  WriteSnapshotToDumpFile_internal(aCompositor, surf);
+  WriteSnapshotToDumpFile_internal(aCompositor, aSurf);
 }
 #endif
 

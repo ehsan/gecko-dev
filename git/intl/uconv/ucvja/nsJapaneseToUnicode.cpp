@@ -9,7 +9,7 @@
 #include "japanese.map"
 
 #include "nsICharsetConverterManager.h"
-#include "nsServiceManagerUtils.h"
+#include "nsIServiceManager.h"
 
 #include "mozilla/Assertions.h"
 

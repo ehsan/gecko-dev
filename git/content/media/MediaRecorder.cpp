@@ -183,12 +183,6 @@ public:
     if (!mReadThread) {
       nsresult rv = NS_NewNamedThread("Media Encoder", getter_AddRefs(mReadThread));
       if (NS_FAILED(rv)) {
-        if (mInputPort.get()) {
-          mInputPort->Destroy();
-        }
-        if (mTrackUnionStream.get()) {
-          mTrackUnionStream->Destroy();
-        }
         mRecorder->NotifyError(rv);
         return;
       }
@@ -369,16 +363,6 @@ MediaRecorder::Start(const Optional<int32_t>& aTimeSlice, ErrorResult& aResult)
     return;
   }
 
-  if (!mStream->GetPrincipal()) {
-    aResult.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return;
-  }
-
-  if (!CheckPrincipal()) {
-    aResult.Throw(NS_ERROR_DOM_SECURITY_ERR);
-    return;
-  }
-
   int32_t timeSlice = 0;
   if (aTimeSlice.WasPassed()) {
     if (aTimeSlice.Value() < 0) {
@@ -387,6 +371,11 @@ MediaRecorder::Start(const Optional<int32_t>& aTimeSlice, ErrorResult& aResult)
     }
 
     timeSlice = aTimeSlice.Value();
+  }
+
+  if (!CheckPrincipal()) {
+    aResult.Throw(NS_ERROR_DOM_SECURITY_ERR);
+    return;
   }
 
   mState = RecordingState::Recording;

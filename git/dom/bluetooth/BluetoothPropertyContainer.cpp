@@ -10,7 +10,6 @@
 #include "DOMRequest.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
-#include "nsServiceManagerUtils.h"
 
 USING_BLUETOOTH_NAMESPACE
 

@@ -8,6 +8,7 @@
 #define jit_x64_CodeGenerator_x64_h
 
 #include "jit/shared/CodeGenerator-x86-shared.h"
+#include "jit/x64/Assembler-x64.h"
 
 namespace js {
 namespace jit {

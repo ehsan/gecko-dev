@@ -11,10 +11,12 @@
 #include "jsproxy.h"
 
 #include "builtin/TypeRepresentation.h"
+#include "jit/CodeGenerator.h"
 #include "jit/Ion.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
 #include "jit/Lowering.h"
+#include "jit/PerfSpewer.h"
 #include "jit/VMFunctions.h"
 #include "vm/Shape.h"
 

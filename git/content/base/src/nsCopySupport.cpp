@@ -649,7 +649,7 @@ nsCopySupport::FireClipboardEvent(int32_t aType, int32_t aClipboardType, nsIPres
     clipboardData = new nsDOMDataTransfer(aType, aType == NS_PASTE, aClipboardType);
 
     nsEventStatus status = nsEventStatus_eIgnore;
-    InternalClipboardEvent evt(true, aType);
+    nsClipboardEvent evt(true, aType);
     evt.clipboardData = clipboardData;
     nsEventDispatcher::Dispatch(content, presShell->GetPresContext(), &evt, nullptr,
                                 &status);

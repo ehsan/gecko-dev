@@ -9,9 +9,7 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "jsobj.h"
-
-#include "gc/Barrier.h"
+#include "jsfun.h"
 
 namespace js {
 

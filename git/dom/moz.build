@@ -74,7 +74,6 @@ PARALLEL_DIRS += [
     'promise',
     'wappush',
     'telephony',
-    'inputmethod',
     'webidl',
 ]
 

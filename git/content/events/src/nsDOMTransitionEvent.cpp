@@ -7,15 +7,14 @@
 #include "prtime.h"
 #include "mozilla/ContentEvents.h"
 
-using namespace mozilla;
-
 nsDOMTransitionEvent::nsDOMTransitionEvent(mozilla::dom::EventTarget* aOwner,
                                            nsPresContext *aPresContext,
-                                           InternalTransitionEvent* aEvent)
+                                           nsTransitionEvent *aEvent)
   : nsDOMEvent(aOwner, aPresContext,
-               aEvent ? aEvent :
-                        new InternalTransitionEvent(false, 0, EmptyString(),
-                                                    0.0, EmptyString()))
+               aEvent ? aEvent : new nsTransitionEvent(false, 0,
+                                                       EmptyString(),
+                                                       0.0,
+                                                       EmptyString()))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -87,7 +86,7 @@ nsresult
 NS_NewDOMTransitionEvent(nsIDOMEvent **aInstancePtrResult,
                          mozilla::dom::EventTarget* aOwner,
                          nsPresContext *aPresContext,
-                         InternalTransitionEvent* aEvent)
+                         nsTransitionEvent *aEvent)
 {
   nsDOMTransitionEvent *it =
     new nsDOMTransitionEvent(aOwner, aPresContext, aEvent);

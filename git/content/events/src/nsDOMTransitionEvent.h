@@ -18,7 +18,7 @@ class nsDOMTransitionEvent : public nsDOMEvent,
 public:
   nsDOMTransitionEvent(mozilla::dom::EventTarget* aOwner,
                        nsPresContext *aPresContext,
-                       mozilla::InternalTransitionEvent* aEvent);
+                       nsTransitionEvent *aEvent);
   ~nsDOMTransitionEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -47,10 +47,10 @@ public:
   }
 
 private:
-  mozilla::InternalTransitionEvent* TransitionEvent() {
+  nsTransitionEvent* TransitionEvent() {
     NS_ABORT_IF_FALSE(mEvent->eventStructType == NS_TRANSITION_EVENT,
                       "unexpected struct type");
-    return static_cast<mozilla::InternalTransitionEvent*>(mEvent);
+    return static_cast<nsTransitionEvent*>(mEvent);
   }
 };
 

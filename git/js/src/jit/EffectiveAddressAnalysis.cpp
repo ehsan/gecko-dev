@@ -5,8 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jit/EffectiveAddressAnalysis.h"
-#include "jit/MIR.h"
-#include "jit/MIRGraph.h"
 
 using namespace js;
 using namespace jit;

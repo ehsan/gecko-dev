@@ -347,8 +347,9 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     if (aVisitor.mItemFlags & NS_OUTER_ACTIVATE_EVENT) {
       if (mForm && (mType == NS_FORM_BUTTON_SUBMIT ||
                     mType == NS_FORM_BUTTON_RESET)) {
-        InternalFormEvent event(true,
-          (mType == NS_FORM_BUTTON_RESET) ? NS_FORM_RESET : NS_FORM_SUBMIT);
+        nsFormEvent event(true,
+                          (mType == NS_FORM_BUTTON_RESET)
+                          ? NS_FORM_RESET : NS_FORM_SUBMIT);
         event.originator     = this;
         nsEventStatus status = nsEventStatus_eIgnore;
 

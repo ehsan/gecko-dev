@@ -232,7 +232,6 @@ this.OperatorAppsRegistry = {
       }
       this.eraseVariantAppsNotInList(aIdsApp);
       Services.prefs.setBoolPref(PREF_FIRST_RUN_WITH_SIM, false);
-      Services.prefs.savePrefFile(null);
     }.bind(this)).then(null, function(aError) {
         debug("Error: " + aError);
     });

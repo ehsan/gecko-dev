@@ -6,6 +6,7 @@
 
 #include "jit/BaselineFrame-inl.h"
 
+#include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
 #include "vm/Debugger.h"

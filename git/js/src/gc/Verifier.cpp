@@ -456,8 +456,6 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
         r.front()->bitmap.clear();
 
     VerifyPreTracer *trc = js_new<VerifyPreTracer>();
-    if (!trc)
-        return;
 
     rt->gcNumber++;
     trc->number = rt->gcNumber;
@@ -660,9 +658,6 @@ gc::StartVerifyPostBarriers(JSRuntime *rt)
     MinorGC(rt, JS::gcreason::API);
 
     VerifyPostTracer *trc = js_new<VerifyPostTracer>();
-    if (!trc)
-        return;
-
     rt->gcVerifyPostData = trc;
     rt->gcNumber++;
     trc->number = rt->gcNumber;
