@@ -584,10 +584,7 @@ InspectorPanel.prototype = {
    * Disable the delete item if needed. Update the pseudo classes.
    */
   _setupNodeMenu: function InspectorPanel_setupNodeMenu() {
-    let isSelectionElement = this.selection.isElementNode() &&
-                             !this.selection.isPseudoElementNode();
-    let isEditableElement = isSelectionElement &&
-                            !this.selection.isAnonymousNode();
+    let isSelectionElement = this.selection.isElementNode();
 
     // Set the pseudo classes
     for (let name of ["hover", "active", "focus"]) {
@@ -604,10 +601,10 @@ InspectorPanel.prototype = {
 
     // Disable delete item if needed
     let deleteNode = this.panelDoc.getElementById("node-menu-delete");
-    if (isEditableElement) {
-      deleteNode.removeAttribute("disabled");
-    } else {
+    if (this.selection.isRoot() || this.selection.isDocumentTypeNode()) {
       deleteNode.setAttribute("disabled", "true");
+    } else {
+      deleteNode.removeAttribute("disabled");
     }
 
     // Disable / enable "Copy Unique Selector", "Copy inner HTML" &
@@ -628,7 +625,7 @@ InspectorPanel.prototype = {
     // Enable the "edit HTML" item if the selection is an element and the root
     // actor has the appropriate trait (isOuterHTMLEditable)
     let editHTML = this.panelDoc.getElementById("node-menu-edithtml");
-    if (isEditableElement && this.isOuterHTMLEditable) {
+    if (this.isOuterHTMLEditable && isSelectionElement) {
       editHTML.removeAttribute("disabled");
     } else {
       editHTML.setAttribute("disabled", "true");
@@ -638,7 +635,7 @@ InspectorPanel.prototype = {
     // the root actor has the appropriate trait (isOuterHTMLEditable) and if
     // the clipbard content is appropriate.
     let pasteOuterHTML = this.panelDoc.getElementById("node-menu-pasteouterhtml");
-    if (isEditableElement && this.isOuterHTMLEditable &&
+    if (this.isOuterHTMLEditable && isSelectionElement &&
         this._getClipboardContentForOuterHTML()) {
       pasteOuterHTML.removeAttribute("disabled");
     } else {
@@ -649,7 +646,7 @@ InspectorPanel.prototype = {
     // which essentially checks if it's an image or canvas tag
     let copyImageData = this.panelDoc.getElementById("node-menu-copyimagedatauri");
     let markupContainer = this.markup.getContainer(this.selection.nodeFront);
-    if (isSelectionElement && markupContainer && markupContainer.isPreviewable()) {
+    if (markupContainer && markupContainer.isPreviewable()) {
       copyImageData.removeAttribute("disabled");
     } else {
       copyImageData.setAttribute("disabled", "true");

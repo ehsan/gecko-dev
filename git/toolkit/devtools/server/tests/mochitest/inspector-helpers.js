@@ -3,7 +3,6 @@ var Cu = Components.utils;
 Cu.import("resource://gre/modules/devtools/Loader.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
 
 const Services = devtools.require("Services");
 const {_documentWalker} = devtools.require("devtools/server/actors/inspector");
@@ -289,10 +288,6 @@ function waitForMutation(walker, test, mutations=[]) {
 var _tests = [];
 function addTest(test) {
   _tests.push(test);
-}
-
-function addAsyncTest(generator) {
-  _tests.push(() => Task.spawn(generator).then(null, ok.bind(null, false)));
 }
 
 function runNextTest() {

@@ -45,11 +45,9 @@ function getL10nStrings() {
   if (!path.exists()) {
     // see if we're on a mac
     path = path.parent;
-    path = path.parent;
-    path.append("MacOS");
     path.append("crashreporter.app");
     path.append("Contents");
-    path.append("Resources");
+    path.append("MacOS");
     path.append("crashreporter.ini");
     if (!path.exists()) {
       // very bad, but I don't know how to recover

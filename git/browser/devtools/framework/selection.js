@@ -8,7 +8,6 @@
 
 const {Cu, Ci} = require("chrome");
 let EventEmitter = require("devtools/toolkit/event-emitter");
-Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
 
 /**
  * API
@@ -226,18 +225,11 @@ Selection.prototype = {
     if (rawNode) {
       try {
         let doc = this.document;
-        if (doc && doc.defaultView) {
-          let docEl = doc.documentElement;
-          let bindingParent = LayoutHelpers.getRootBindingParent(rawNode);
-
-          if (docEl.contains(bindingParent)) {
-            return true;
-          }
-        }
+        return (doc && doc.defaultView && doc.documentElement.contains(rawNode));
       } catch (e) {
         // "can't access dead object" error
+        return false;
       }
-      return false;
     }
 
     while(node) {
@@ -258,14 +250,6 @@ Selection.prototype = {
 
   isElementNode: function() {
     return this.isNode() && this.nodeFront.nodeType == Ci.nsIDOMNode.ELEMENT_NODE;
-  },
-
-  isPseudoElementNode: function() {
-    return this.isNode() && this.nodeFront.isPseudoElement;
-  },
-
-  isAnonymousNode: function() {
-    return this.isNode() && this.nodeFront.isAnonymous;
   },
 
   isAttributeNode: function() {

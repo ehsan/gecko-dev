@@ -775,7 +775,7 @@ class Install(MachCommandBase):
         return self._run_make(directory=".", target='install', ensure_exit_code=False)
 
 
-def get_run_args(mach_command, params, remote, background, noprofile):
+def get_run_args(mach_command, params, remote, background):
     """
     Parses the given options to create an args array for running firefox.
     Creates a scratch profile and uses that if one is not specified.
@@ -794,7 +794,7 @@ def get_run_args(mach_command, params, remote, background, noprofile):
     if not background and sys.platform == 'darwin':
         args.append('-foreground')
 
-    if '-profile' not in params and '-P' not in params and not noprofile:
+    if '-profile' not in params and '-P' not in params:
         path = os.path.join(mach_command.topobjdir, 'tmp', 'scratch_user')
         if not os.path.isdir(path):
             os.makedirs(path)
@@ -821,10 +821,8 @@ class RunProgram(MachCommandBase):
         help='Do not pass the -no-remote argument by default.')
     @CommandArgument('+background', '+b', action='store_true',
         help='Do not pass the -foreground argument by default on Mac')
-    @CommandArgument('+noprofile', '+n', action='store_true',
-        help='Do not pass the -profile argument by default.')
-    def run(self, params, remote, background, noprofile):
-        args = get_run_args(self, params, remote, background, noprofile)
+    def run(self, params, remote, background):
+        args = get_run_args(self, params, remote, background)
         if not args:
             return 1
 
@@ -854,9 +852,7 @@ class DebugProgram(MachCommandBase):
     # automatic resuming; see the bug.
     @CommandArgument('+slowscript', action='store_true',
         help='Do not set the JS_DISABLE_SLOW_SCRIPT_SIGNALS env variable; when not set, recoverable but misleading SIGSEGV instances may occur in Ion/Odin JIT code')
-    @CommandArgument('+noprofile', '+n', action='store_true',
-        help='Do not pass the -profile argument by default.')
-    def debug(self, params, remote, background, debugger, debugparams, slowscript, noprofile):
+    def debug(self, params, remote, background, debugger, debugparams, slowscript):
         # Parameters come from the CLI. We need to convert them before their use.
         if debugparams:
             import pymake.process
@@ -902,7 +898,7 @@ class DebugProgram(MachCommandBase):
             args.append('-foreground')
         if params:
             args.extend(params)
-        if '-profile' not in params and '-P' not in params and not noprofile:
+        if '-profile' not in params and '-P' not in params:
             path = os.path.join(self.topobjdir, 'tmp', 'scratch_user')
             if not os.path.isdir(path):
                 os.makedirs(path)

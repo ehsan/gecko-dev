@@ -132,9 +132,7 @@ protected:
   void Append(nsIFile* aDirectory);
 
   nsCOMPtr<nsIDirectoryServiceProvider> mAppProvider;
-  // On OSX, mGREDir points to .app/Contents/Resources
   nsCOMPtr<nsIFile>      mGREDir;
-  // On OSX, mXULAppDir points to .app/Contents/Resources/browser
   nsCOMPtr<nsIFile>      mXULAppDir;
   nsCOMPtr<nsIFile>      mProfileDir;
   nsCOMPtr<nsIFile>      mProfileLocalDir;

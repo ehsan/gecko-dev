@@ -153,9 +153,7 @@ ElementStyle.prototype = {
     // engine, we will set properties on a dummy element and observe
     // how their .style attribute reflects them as computed values.
     return this.dummyElementPromise = createDummyDocument().then(document => {
-      // ::before and ::after do not have a namespaceURI
-      let namespaceURI = this.element.namespaceURI || document.documentElement.namespaceURI;
-      this.dummyElement = document.createElementNS(namespaceURI,
+      this.dummyElement = document.createElementNS(this.element.namespaceURI,
                                                    this.element.tagName);
       document.documentElement.appendChild(this.dummyElement);
       return this.dummyElement;
@@ -165,7 +163,9 @@ ElementStyle.prototype = {
   destroy: function() {
     this.dummyElement = null;
     this.dummyElementPromise.then(dummyElement => {
-      dummyElement.remove();
+      if (dummyElement.parentNode) {
+        dummyElement.parentNode.removeChild(dummyElement);
+      }
       this.dummyElementPromise = null;
     }, console.error);
   },
@@ -1236,8 +1236,6 @@ CssRuleView.prototype = {
     let accessKey = label + ".accessKey";
     this.menuitemSources.setAttribute("accesskey",
                                       _strings.GetStringFromName(accessKey));
-
-    this.menuitemAddRule.disabled = this.inspector.selection.isAnonymousNode();
   },
 
   /**
@@ -1833,14 +1831,10 @@ function RuleEditor(aRuleView, aRule) {
 RuleEditor.prototype = {
   get isSelectorEditable() {
     let toolbox = this.ruleView.inspector.toolbox;
-    let trait = this.isEditable &&
+    return this.isEditable &&
       toolbox.target.client.traits.selectorEditable &&
       this.rule.domRule.type !== ELEMENT_STYLE &&
-      this.rule.domRule.type !== Ci.nsIDOMCSSRule.KEYFRAME_RULE;
-
-    // Do not allow editing anonymousselectors until we can
-    // detect mutations on  pseudo elements in Bug 1034110.
-    return trait && !this.rule.elementStyle.element.isAnonymous;
+      this.rule.domRule.type !== Ci.nsIDOMCSSRule.KEYFRAME_RULE
   },
 
   _create: function() {

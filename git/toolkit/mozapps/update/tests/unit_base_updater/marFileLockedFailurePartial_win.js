@@ -9,21 +9,19 @@ function run_test() {
   gTestFiles = gTestFilesPartialSuccess;
   gTestDirs = gTestDirsPartialSuccess;
   setTestFilesAndDirsForFailure();
-  setupUpdaterTest(FILE_PARTIAL_MAR);
+  setupUpdaterTest(FILE_PARTIAL_MAR, false, false);
 
   // Exclusively lock an existing file so it is in use during the update.
   let helperBin = getTestDirFile(FILE_HELPER_BIN);
-  let helperDestDir = getApplyDirFile(DIR_RESOURCES);
+  let helperDestDir = getApplyDirFile("a/b/");
   helperBin.copyTo(helperDestDir, FILE_HELPER_BIN);
-  helperBin = getApplyDirFile(DIR_RESOURCES + FILE_HELPER_BIN);
+  helperBin = getApplyDirFile("a/b/" + FILE_HELPER_BIN);
   // Strip off the first two directories so the path has to be from the helper's
   // working directory.
   let lockFileRelPath = gTestFiles[2].relPathDir.split("/");
-  if (IS_MACOSX) {
-    lockFileRelPath = lockFileRelPath.slice(2);
-  }
+  lockFileRelPath = lockFileRelPath.slice(2);
   lockFileRelPath = lockFileRelPath.join("/") + "/" + gTestFiles[2].fileName;
-  let args = [getApplyDirPath() + DIR_RESOURCES, "input", "output", "-s",
+  let args = [getApplyDirPath() + "a/b/", "input", "output", "-s",
               HELPER_SLEEP_TIMEOUT, lockFileRelPath];
   let lockFileProcess = AUS_Cc["@mozilla.org/process/util;1"].
                      createInstance(AUS_Ci.nsIProcess);
@@ -42,7 +40,7 @@ function checkUpdateApplied() {
 }
 
 function checkUpdate() {
-  checkFilesAfterUpdateFailure(getApplyDirFile, false, false);
+  checkFilesAfterUpdateFailure();
   checkUpdateLogContains(ERR_UNABLE_OPEN_DEST);
   checkCallbackAppLog();
 }

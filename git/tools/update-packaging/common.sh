@@ -130,9 +130,11 @@ append_remove_instructions() {
   filev3="$3"
 
   if [ -f "$dir/removed-files" ]; then
+    prefix=
     listfile="$dir/removed-files"
-  elif [ -f "$dir/Contents/Resources/removed-files" ]; then
-    listfile="$dir/Contents/Resources/removed-files"
+  elif [ -f "$dir/Contents/MacOS/removed-files" ]; then
+    prefix=Contents/MacOS/
+    listfile="$dir/Contents/MacOS/removed-files"
   fi
   if [ -n "$listfile" ]; then
     # Map spaces to pipes so that we correctly handle filenames with spaces.
@@ -147,20 +149,33 @@ append_remove_instructions() {
       if [ -n "$f" ]; then
         # Exclude comments
         if [ ! $(echo "$f" | grep -c '^#') = 1 ]; then
+          # Normalize the path to the root of the Mac OS X bundle if necessary
+          fixedprefix="$prefix"
+          if [ $prefix ]; then
+            if [ $(echo "$f" | grep -c '^\.\./') = 1 ]; then
+              if [ $(echo "$f" | grep -c '^\.\./\.\./') = 1 ]; then
+                f=$(echo $f | sed -e 's:^\.\.\/\.\.\/::')
+                fixedprefix=""
+              else
+                f=$(echo $f | sed -e 's:^\.\.\/::')
+                fixedprefix=$(echo "$prefix" | sed -e 's:[^\/]*\/$::')
+              fi
+            fi
+          fi
           if [ $(echo "$f" | grep -c '\/$') = 1 ]; then
-            notice "      rmdir \"$f\""
-            echo "rmdir \"$f\"" >> $filev2
-            echo "rmdir \"$f\"" >> $filev3
+            notice "      rmdir \"$fixedprefix$f\""
+            echo "rmdir \"$fixedprefix$f\"" >> $filev2
+            echo "rmdir \"$fixedprefix$f\"" >> $filev3
           elif [ $(echo "$f" | grep -c '\/\*$') = 1 ]; then
             # Remove the *
             f=$(echo "$f" | sed -e 's:\*$::')
-            notice "    rmrfdir \"$f\""
-            echo "rmrfdir \"$f\"" >> $filev2
-            echo "rmrfdir \"$f\"" >> $filev3
+            notice "    rmrfdir \"$fixedprefix$f\""
+            echo "rmrfdir \"$fixedprefix$f\"" >> $filev2
+            echo "rmrfdir \"$fixedprefix$f\"" >> $filev3
           else
-            notice "     remove \"$f\""
-            echo "remove \"$f\"" >> $filev2
-            echo "remove \"$f\"" >> $filev3
+            notice "     remove \"$fixedprefix$f\""
+            echo "remove \"$fixedprefix$f\"" >> $filev2
+            echo "remove \"$fixedprefix$f\"" >> $filev3
           fi
         fi
       fi

@@ -38,8 +38,7 @@ const char WEBAPPINI_NAME[] = "webapp.ini";
 const char WEBRTINI_NAME[] = "webapprt.ini";
 
 //need the correct relative path here
-const char APP_MACOS_PATH[]     = "/Contents/MacOS/";
-const char APP_RESOURCES_PATH[] = "/Contents/Resources/";
+const char APP_CONTENTS_PATH[] = "/Contents/MacOS/";
 
 //the path to the WebappRT subdir within the Firefox app contents dir
 const char WEBAPPRT_PATH[] = "webapprt/";
@@ -120,21 +119,13 @@ main(int argc, char **argv)
     }
 
     //GET FIREFOX BUILD ID
-    NSString *firefoxINIFilePath =
-      [NSString stringWithFormat:@"%@%s%s", firefoxPath, APP_RESOURCES_PATH,
-                                            FXAPPINI_NAME];
+    NSString *firefoxINIFilePath = [NSString stringWithFormat:@"%@%s%s", firefoxPath, APP_CONTENTS_PATH, FXAPPINI_NAME];
     nsINIParser ffparser;
     NSLog(@"Looking for firefox ini file here: %@", firefoxINIFilePath);
+
     if (NS_FAILED(ffparser.Init([firefoxINIFilePath UTF8String]))) {
-      firefoxINIFilePath = [NSString stringWithFormat:@"%@%s%s", firefoxPath,
-                                                                 APP_MACOS_PATH,
-                                                                 FXAPPINI_NAME];
-      NSLog(@"Looking for firefox ini file here: %@", firefoxINIFilePath);
-      if (NS_FAILED(ffparser.Init([firefoxINIFilePath UTF8String]))) {
-        NSLog(@"Unable to locate Firefox application.ini");
-        @throw MakeException(@"Error",
-          @"Unable to parse environment files for application startup");
-      }
+      NSLog(@"Unable to locate Firefox application.ini");
+      @throw MakeException(@"Error", @"Unable to parse environment files for application startup");
     }
 
     char ffVersChars[MAXPATHLEN];
@@ -158,9 +149,7 @@ main(int argc, char **argv)
       NSError *errorDesc = nil;
 
       //we know the firefox path, so copy the new webapprt here
-      NSString *newWebRTPath =
-        [NSString stringWithFormat: @"%@%s%s", firefoxPath, APP_MACOS_PATH,
-                                               WEBAPPRT_EXECUTABLE];
+      NSString *newWebRTPath = [NSString stringWithFormat: @"%@%s%s", firefoxPath, APP_CONTENTS_PATH, WEBAPPRT_EXECUTABLE];
       NSLog(@"### Firefox webapprt path: %@", newWebRTPath);
       if (![fileClerk fileExistsAtPath:newWebRTPath]) {
         NSString* msg = [NSString stringWithFormat: @"This version of Firefox (%@) cannot run web applications, because it is not recent enough or damaged", firefoxVersion];
@@ -195,8 +184,7 @@ main(int argc, char **argv)
 
       // Set up our environment to know where webapp.ini was loaded from.
       char appEnv[MAXPATHLEN];
-      snprintf(appEnv, MAXPATHLEN, "%s%s%s", [myBundlePath UTF8String],
-                                             APP_MACOS_PATH, WEBAPPINI_NAME);
+      snprintf(appEnv, MAXPATHLEN, "%s%s%s", [myBundlePath UTF8String], APP_CONTENTS_PATH, WEBAPPINI_NAME);
       if (setenv("XUL_APP_FILE", appEnv, 1)) {
         NSLog(@"Couldn't set XUL_APP_FILE to: %s", appEnv);
         @throw MakeException(@"Error", @"Unable to set Web Runtime INI file.");
@@ -205,8 +193,7 @@ main(int argc, char **argv)
 
       //CONSTRUCT GREDIR AND CALL XPCOMGLUE WITH IT
       char greDir[MAXPATHLEN];
-      snprintf(greDir, MAXPATHLEN, "%s%s", [firefoxPath UTF8String],
-                                           APP_RESOURCES_PATH);
+      snprintf(greDir, MAXPATHLEN, "%s%s", [firefoxPath UTF8String], APP_CONTENTS_PATH);
       if (!NS_SUCCEEDED(AttemptGRELoad(greDir))) {
           @throw MakeException(@"Error", @"Unable to load XUL files for application startup");
       }
@@ -218,16 +205,11 @@ main(int argc, char **argv)
 
         // Get the path to the runtime directory.
         char rtDir[MAXPATHLEN];
-        snprintf(rtDir, MAXPATHLEN, "%s%s%s", [firefoxPath UTF8String],
-                                              APP_RESOURCES_PATH,
-                                              WEBAPPRT_PATH);
+        snprintf(rtDir, MAXPATHLEN, "%s%s%s", [firefoxPath UTF8String], APP_CONTENTS_PATH, WEBAPPRT_PATH);
 
         // Get the path to the runtime's INI file.  This is in the runtime
         // directory.
-        snprintf(rtINIPath, MAXPATHLEN, "%s%s%s%s", [firefoxPath UTF8String],
-                                                    APP_RESOURCES_PATH,
-                                                    WEBAPPRT_PATH,
-                                                    WEBRTINI_NAME);
+        snprintf(rtINIPath, MAXPATHLEN, "%s%s%s%s", [firefoxPath UTF8String], APP_CONTENTS_PATH, WEBAPPRT_PATH, WEBRTINI_NAME);
         NSLog(@"WebappRT application.ini path: %s", rtINIPath);
 
         // Load the runtime's INI from its path.
@@ -338,9 +320,8 @@ NSString
 
   // We're run from the Firefox bundle during WebappRT chrome and content tests.
   NSString *myBundlePath = [[NSBundle mainBundle] bundlePath];
-  NSString *fxPath =
-    [NSString stringWithFormat:@"%@%sfirefox-bin", myBundlePath,
-                                                   APP_MACOS_PATH];
+  NSString *fxPath = [NSString stringWithFormat:@"%@%sfirefox-bin",
+                                 myBundlePath, APP_CONTENTS_PATH];
   if ([[NSFileManager defaultManager] fileExistsAtPath:fxPath]) {
     return myBundlePath;
   }

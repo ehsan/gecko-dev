@@ -390,10 +390,7 @@ def environment(xrePath, env=None, crashreporter=True, debugger=False, dmdPath=N
 
   assert os.path.isabs(xrePath)
 
-  if mozinfo.isMac:
-    ldLibraryPath = os.path.join(os.path.dirname(xrePath), "MacOS")
-  else:
-    ldLibraryPath = xrePath
+  ldLibraryPath = xrePath
 
   envVar = None
   dmdLibrary = None
