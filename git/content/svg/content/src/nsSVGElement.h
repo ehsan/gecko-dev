@@ -80,7 +80,7 @@ class SVGAnimatedPathSegList;
 class SVGAnimatedPreserveAspectRatio;
 }
 
-typedef nsStyledElementNotElementCSSInlineStyle nsSVGElementBase;
+typedef nsStyledElement nsSVGElementBase;
 
 class nsSVGElement : public nsSVGElementBase,    // nsIContent
                      public nsISVGValueObserver  // :nsISupportsWeakReference

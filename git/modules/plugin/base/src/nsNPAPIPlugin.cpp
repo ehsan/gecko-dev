@@ -910,16 +910,12 @@ OnShutdown()
 
 AsyncCallbackAutoLock::AsyncCallbackAutoLock()
 {
-  if (sPluginThreadAsyncCallLock) {
-    sPluginThreadAsyncCallLock->Lock();
-  }
+  sPluginThreadAsyncCallLock->Lock();
 }
 
 AsyncCallbackAutoLock::~AsyncCallbackAutoLock()
 {
-  if (sPluginThreadAsyncCallLock) {
-    sPluginThreadAsyncCallLock->Unlock();
-  }
+  sPluginThreadAsyncCallLock->Unlock();
 }
 
 
@@ -2366,11 +2362,6 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
     case NPPVpluginWantsAllNetworkStreams: {
       PRBool bWantsAllNetworkStreams = (result != nsnull);
       return inst->SetWantsAllNetworkStreams(bWantsAllNetworkStreams);
-    }
-
-    case NPPVpluginUsesDOMForCursorBool: {
-      PRBool useDOMForCursor = (result != nsnull);
-      return inst->SetUsesDOMForCursor(useDOMForCursor);
     }
 
 #ifdef XP_MACOSX

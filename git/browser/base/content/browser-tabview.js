@@ -320,10 +320,8 @@ let TabView = {
   // ----------
   // On move to group pop showing.
   moveToGroupPopupShowing: function TabView_moveToGroupPopupShowing(event) {
-    // Update the context menu only if Panorama was already initialized or if
-    // there are hidden tabs.
-    let numHiddenTabs = gBrowser.tabs.length - gBrowser.visibleTabs.length;
-    if (this._window || numHiddenTabs > 0)
+    // there are hidden tabs so initialize the iframe and update the context menu
+    if ((gBrowser.tabs.length - gBrowser.visibleTabs.length) > 0)
       this.updateContextMenu(TabContextMenu.contextTab, event.target);
   },
 

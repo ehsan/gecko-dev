@@ -288,7 +288,7 @@ nsSVGElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
        aName == nsGkAtoms::requiredExtensions ||
        aName == nsGkAtoms::systemLanguage)) {
 
-    nsIContent* parent = GetFlattenedTreeParent();
+    nsIContent* parent = nsSVGUtils::GetParentElement(this);
   
     if (parent &&
         parent->NodeInfo()->Equals(nsGkAtoms::svgSwitch, kNameSpaceID_SVG)) {
@@ -1411,7 +1411,7 @@ nsIAtom* nsSVGElement::GetEventNameForAttr(nsIAtom* aAttr)
 nsSVGSVGElement *
 nsSVGElement::GetCtx()
 {
-  nsIContent* ancestor = GetFlattenedTreeParent();
+  dom::Element* ancestor = nsSVGUtils::GetParentElement(this);
 
   while (ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG) {
     nsIAtom* tag = ancestor->Tag();
@@ -1421,7 +1421,7 @@ nsSVGElement::GetCtx()
     if (tag == nsGkAtoms::svg) {
       return static_cast<nsSVGSVGElement*>(ancestor);
     }
-    ancestor = ancestor->GetFlattenedTreeParent();
+    ancestor = nsSVGUtils::GetParentElement(ancestor);
   }
 
   // we don't have an ancestor <svg> element...

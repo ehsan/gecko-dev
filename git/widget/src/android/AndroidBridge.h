@@ -224,8 +224,6 @@ public:
 
     void SetKeepScreenOn(bool on);
 
-    void ScanMedia(const nsAString& aFile, const nsACString& aMimeType);
-
 protected:
     static AndroidBridge *sBridge;
 
@@ -280,7 +278,6 @@ protected:
     jmethodID jIsNetworkLinkUp;
     jmethodID jIsNetworkLinkKnown;
     jmethodID jSetSelectedLocale;
-    jmethodID jScanMedia;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

@@ -60,7 +60,7 @@ typedef RenderFrameParent::ViewMap ViewMap;
 
 // Represents (affine) transforms that are calculated from a content view.
 struct ViewTransform {
-  ViewTransform(nsIntPoint aTranslation = nsIntPoint(0, 0), float aXScale = 1, float aYScale = 1)
+  ViewTransform(nsIntPoint aTranslation, float aXScale, float aYScale)
     : mTranslation(aTranslation)
     , mXScale(aXScale)
     , mYScale(aYScale)
@@ -99,13 +99,6 @@ static void Scale(gfx3DMatrix& aTransform, double aXScale, double aYScale)
   aTransform._11 *= aXScale;
   aTransform._22 *= aYScale;
 }
-
-static void ReverseTranslate(gfx3DMatrix& aTransform, ViewTransform& aViewTransform)
-{
-  aTransform._41 -= aViewTransform.mTranslation.x / aViewTransform.mXScale;
-  aTransform._42 -= aViewTransform.mTranslation.y / aViewTransform.mYScale;
-}
-
 
 static void ApplyTransform(nsRect& aRect,
                            gfx3DMatrix& aTransform,
@@ -263,7 +256,7 @@ BuildListForLayer(Layer* aLayer,
 static void
 TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
                     nsIFrame* aFrame, Layer* aLayer,
-                    ViewTransform& aTransform)
+                    float aXScale = 1, float aYScale = 1)
 {
   ShadowLayer* shadow = aLayer->AsShadowLayer();
   shadow->SetShadowClipRect(aLayer->GetClipRect());
@@ -281,11 +274,10 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
 
     ViewTransform viewTransform = ComputeShadowTreeTransform(
       aFrame, aFrameLoader, metrics, view->GetViewConfig(),
-      1 / aTransform.mXScale, 1 / aTransform.mYScale
+      1 / aXScale, 1 / aYScale
     );
 
     if (metrics->IsRootScrollable()) {
-      aTransform.mTranslation = viewTransform.mTranslation;
       viewTransform.mTranslation += GetRootFrameOffset(aFrame, aBuilder);
     }
 
@@ -295,24 +287,13 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
     shadowTransform = aLayer->GetTransform();
   }
 
-  if (aLayer->GetIsFixedPosition() &&
-      !aLayer->GetParent()->GetIsFixedPosition()) {
-    ReverseTranslate(shadowTransform, aTransform);
-    const nsIntRect* clipRect = shadow->GetShadowClipRect();
-    if (clipRect) {
-      nsIntRect transformedClipRect(*clipRect);
-      transformedClipRect.MoveBy(shadowTransform._41, shadowTransform._42);
-      shadow->SetShadowClipRect(&transformedClipRect);
-    }
-  }
-
   shadow->SetShadowTransform(shadowTransform);
-  aTransform.mXScale *= GetXScale(shadowTransform);
-  aTransform.mYScale *= GetYScale(shadowTransform);
+  aXScale *= GetXScale(shadowTransform);
+  aYScale *= GetYScale(shadowTransform);
 
   for (Layer* child = aLayer->GetFirstChild();
        child; child = child->GetNextSibling()) {
-    TransformShadowTree(aBuilder, aFrameLoader, aFrame, child, aTransform);
+    TransformShadowTree(aBuilder, aFrameLoader, aFrame, child, aXScale, aYScale);
   }
 }
 
@@ -662,8 +643,7 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
   mContainer->InsertAfter(shadowRoot, nsnull);
 
   AssertInTopLevelChromeDoc(mContainer, aFrame);
-  ViewTransform transform;
-  TransformShadowTree(aBuilder, mFrameLoader, aFrame, shadowRoot, transform);
+  TransformShadowTree(aBuilder, mFrameLoader, aFrame, shadowRoot);
   mContainer->SetClipRect(nsnull);
 
   if (mFrameLoader->AsyncScrollEnabled()) {

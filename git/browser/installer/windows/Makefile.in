@@ -94,8 +94,7 @@ installer::
 # For building the uninstaller during the application build so it can be
 # included for mar file generation.
 uninstaller::
-	$(RM) -r $(CONFIG_DIR)
-	$(MKDIR) $(CONFIG_DIR)
+	$(RM) -rf $(CONFIG_DIR) && mkdir $(CONFIG_DIR)
 	$(INSTALL) $(addprefix $(srcdir)/,$(INSTALLER_FILES)) $(CONFIG_DIR)
 	$(INSTALL) $(addprefix $(DIST)/branding/,$(BRANDING_FILES)) $(CONFIG_DIR)
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) \
@@ -105,8 +104,7 @@ uninstaller::
 	  $(PPL_LOCALE_ARGS) $(AB_CD) $(CONFIG_DIR)
 
 $(CONFIG_DIR)/setup.exe::
-	$(RM) -r $(CONFIG_DIR)
-	$(MKDIR) $(CONFIG_DIR)
+	$(RM) -rf $(CONFIG_DIR) && mkdir $(CONFIG_DIR)
 	$(INSTALL) $(addprefix $(srcdir)/,$(INSTALLER_FILES)) $(CONFIG_DIR)
 	$(INSTALL) $(addprefix $(DIST)/branding/,$(BRANDING_FILES)) $(CONFIG_DIR)
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) \

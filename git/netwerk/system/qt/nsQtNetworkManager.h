@@ -38,47 +38,21 @@
 #ifndef NSQTNETWORKMANAGER_H_
 #define NSQTNETWORKMANAGER_H_
 
-#include <QNetworkConfigurationManager>
-#include <QObject>
-#include <QTimer>
-#include <QNetworkConfiguration>
-#include <QNetworkSession>
 #include "nscore.h"
 
-class nsQtNetworkManager;
-
-static nsQtNetworkManager* gQtNetworkManager = nsnull;
-
-class nsQtNetworkManager : public QObject
+class nsQtNetworkManager
 {
-  Q_OBJECT
-  public:
-    explicit nsQtNetworkManager(QObject* parent = 0);
+public:
+  // Can be called from any thread, most likely the socket transport thread
+  static PRBool OpenConnectionSync();
+  static void CloseConnection();
 
-    virtual ~nsQtNetworkManager();
+  static PRBool IsConnected();
+  static PRBool GetLinkStatusKnown();
 
-    static PRBool IsConnected();
-    static PRBool GetLinkStatusKnown();
-    static void enableInstance();
-    PRBool openConnection(const QString&);
-    PRBool isOnline();
-  signals:
-    void openConnectionSignal();
-
-  public slots:
-    void closeSession();
-    void onlineStateChanged(bool);
-
-  private slots:
-    void openSession();
-
-  private:
-    QNetworkSession* networkSession;
-    QNetworkConfiguration networkConfiguration;
-    QNetworkConfigurationManager networkConfigurationManager;
-    QTimer mBlockTimer;
-    bool mOnline;
+  // Called from the nsQtNetworkLinkService (main thread only)
+  static PRBool Startup();
+  static void Shutdown();
 };
 
 #endif /* NSQTNETWORKMANAGER_H_ */
-

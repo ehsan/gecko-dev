@@ -12,10 +12,9 @@ case "$1" in
 #ifdef MOZ_PLATFORM_MAEMO
         /bin/su -l user -c "/usr/bin/fennec -silent" > /dev/null 2>&1  || echo -n ""
 #endif
-#if MOZ_PLATFORM_MAEMO == 5
         # for fennec icons
-        gtk-update-icon-cache -f /usr/share/icons/hicolor
-#endif
+	gtk-update-icon-cache -f /usr/share/icons/hicolor
+		
         # select where to install fennec menu
         if [ "$2" == "" ]; then
 

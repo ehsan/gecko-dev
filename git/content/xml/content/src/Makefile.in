@@ -64,7 +64,7 @@ INCLUDES	+= \
 		$(NULL)
 
 EXPORT_RESOURCE_CONTENT = \
-		$(srcdir)/htmlmathml-f.ent \
+		$(srcdir)/xhtml11.dtd \
 		$(NULL)
 libs::
 	$(INSTALL) $(EXPORT_RESOURCE_CONTENT) $(DIST)/bin/res/dtd

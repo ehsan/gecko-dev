@@ -138,7 +138,6 @@ public:
     nsresult PushBack(const char *data, PRUint32 length) { NS_NOTREACHED("PushBack"); return NS_ERROR_UNEXPECTED; }
     nsresult ResumeSend();
     nsresult ResumeRecv();
-    PRInt64  MaxBytesRead() {return mMaxBytesRead;}
 
     static NS_METHOD ReadFromStream(nsIInputStream *, void *, const char *,
                                     PRUint32, PRUint32, PRUint32 *);
@@ -181,8 +180,6 @@ private:
     PRUint16                        mIdleTimeout;    // value of keep-alive: timeout=
     PRIntervalTime                  mConsiderReusedAfterInterval;
     PRIntervalTime                  mConsiderReusedAfterEpoch;
-    PRInt64                         mCurrentBytesRead;   // data read per activation
-    PRInt64                         mMaxBytesRead;       // max read in 1 activation
 
     PRPackedBool                    mKeepAlive;
     PRPackedBool                    mKeepAliveMask;

@@ -272,7 +272,7 @@ protected:
    * another non-foreignObject SVG element.
    */
   PRBool IsInner() {
-    const nsIContent *parent = GetFlattenedTreeParent();
+    const mozilla::dom::Element *parent = nsSVGUtils::GetParentElement(this);
     return parent && parent->GetNameSpaceID() == kNameSpaceID_SVG &&
            parent->Tag() != nsGkAtoms::foreignObject;
   }

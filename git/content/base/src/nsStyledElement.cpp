@@ -63,19 +63,19 @@ namespace css = mozilla::css;
 // nsIContent methods
 
 nsIAtom*
-nsStyledElementNotElementCSSInlineStyle::GetClassAttributeName() const
+nsStyledElement::GetClassAttributeName() const
 {
   return nsGkAtoms::_class;
 }
 
 nsIAtom*
-nsStyledElementNotElementCSSInlineStyle::GetIDAttributeName() const
+nsStyledElement::GetIDAttributeName() const
 {
   return nsGkAtoms::id;
 }
 
 nsIAtom*
-nsStyledElementNotElementCSSInlineStyle::DoGetID() const
+nsStyledElement::DoGetID() const
 {
   NS_ASSERTION(HasID(), "Unexpected call");
 
@@ -89,17 +89,15 @@ nsStyledElementNotElementCSSInlineStyle::DoGetID() const
 }
 
 const nsAttrValue*
-nsStyledElementNotElementCSSInlineStyle::DoGetClasses() const
+nsStyledElement::DoGetClasses() const
 {
   NS_ASSERTION(HasFlag(NODE_MAY_HAVE_CLASS), "Unexpected call");
   return mAttrsAndChildren.GetAttr(nsGkAtoms::_class);
 }
 
 PRBool
-nsStyledElementNotElementCSSInlineStyle::ParseAttribute(PRInt32 aNamespaceID,
-                                                        nsIAtom* aAttribute,
-                                                        const nsAString& aValue,
-                                                        nsAttrValue& aResult)
+nsStyledElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
+                                const nsAString& aValue, nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::style) {
@@ -132,9 +130,8 @@ nsStyledElementNotElementCSSInlineStyle::ParseAttribute(PRInt32 aNamespaceID,
 }
 
 nsresult
-nsStyledElementNotElementCSSInlineStyle::UnsetAttr(PRInt32 aNameSpaceID,
-                                                   nsIAtom* aAttribute,
-                                                   PRBool aNotify)
+nsStyledElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                           PRBool aNotify)
 {
   nsAutoRemovableScriptBlocker scriptBlocker;
   if (aAttribute == nsGkAtoms::id && aNameSpaceID == kNameSpaceID_None) {
@@ -146,10 +143,8 @@ nsStyledElementNotElementCSSInlineStyle::UnsetAttr(PRInt32 aNameSpaceID,
 }
 
 nsresult
-nsStyledElementNotElementCSSInlineStyle::AfterSetAttr(PRInt32 aNamespaceID,
-                                                      nsIAtom* aAttribute,
-                                                      const nsAString* aValue,
-                                                      PRBool aNotify)
+nsStyledElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aAttribute,
+                              const nsAString* aValue, PRBool aNotify)
 {
   if (aNamespaceID == kNameSpaceID_None && !aValue &&
       aAttribute == nsGkAtoms::id) {
@@ -164,8 +159,7 @@ nsStyledElementNotElementCSSInlineStyle::AfterSetAttr(PRInt32 aNamespaceID,
 }
 
 NS_IMETHODIMP
-nsStyledElementNotElementCSSInlineStyle::SetInlineStyleRule(css::StyleRule* aStyleRule,
-                                                            PRBool aNotify)
+nsStyledElement::SetInlineStyleRule(css::StyleRule* aStyleRule, PRBool aNotify)
 {
   SetMayHaveStyle();
   PRBool modification = PR_FALSE;
@@ -204,7 +198,7 @@ nsStyledElementNotElementCSSInlineStyle::SetInlineStyleRule(css::StyleRule* aSty
 }
 
 css::StyleRule*
-nsStyledElementNotElementCSSInlineStyle::GetInlineStyleRule()
+nsStyledElement::GetInlineStyleRule()
 {
   if (!MayHaveStyle()) {
     return nsnull;
@@ -219,10 +213,9 @@ nsStyledElementNotElementCSSInlineStyle::GetInlineStyleRule()
 }
 
 nsresult
-nsStyledElementNotElementCSSInlineStyle::BindToTree(nsIDocument* aDocument,
-                                                    nsIContent* aParent,
-                                                    nsIContent* aBindingParent,
-                                                    PRBool aCompileEventHandlers)
+nsStyledElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                            nsIContent* aBindingParent,
+                            PRBool aCompileEventHandlers)
 {
   nsresult rv = nsStyledElementBase::BindToTree(aDocument, aParent,
                                                 aBindingParent,
@@ -243,8 +236,7 @@ nsStyledElementNotElementCSSInlineStyle::BindToTree(nsIDocument* aDocument,
 }
 
 void
-nsStyledElementNotElementCSSInlineStyle::UnbindFromTree(PRBool aDeep,
-                                                        PRBool aNullParent)
+nsStyledElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   RemoveFromIdTable();
 
@@ -256,7 +248,7 @@ nsStyledElementNotElementCSSInlineStyle::UnbindFromTree(PRBool aDeep,
 // Others and helpers
 
 nsIDOMCSSStyleDeclaration*
-nsStyledElementNotElementCSSInlineStyle::GetStyle(nsresult* retval)
+nsStyledElement::GetStyle(nsresult* retval)
 {
   nsXULElement* xulElement = nsXULElement::FromContent(this);
   if (xulElement) {
@@ -286,7 +278,7 @@ nsStyledElementNotElementCSSInlineStyle::GetStyle(nsresult* retval)
 }
 
 nsresult
-nsStyledElementNotElementCSSInlineStyle::ReparseStyleAttribute(PRBool aForceInDataDoc)
+nsStyledElement::ReparseStyleAttribute(PRBool aForceInDataDoc)
 {
   if (!MayHaveStyle()) {
     return NS_OK;
@@ -308,9 +300,9 @@ nsStyledElementNotElementCSSInlineStyle::ReparseStyleAttribute(PRBool aForceInDa
 }
 
 void
-nsStyledElementNotElementCSSInlineStyle::ParseStyleAttribute(const nsAString& aValue,
-                                                             nsAttrValue& aResult,
-                                                             PRBool aForceInDataDoc)
+nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
+                                     nsAttrValue& aResult,
+                                     PRBool aForceInDataDoc)
 {
   nsIDocument* doc = GetOwnerDoc();
 

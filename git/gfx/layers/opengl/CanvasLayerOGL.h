@@ -43,10 +43,6 @@
 
 #include "LayerManagerOGL.h"
 #include "gfxASurface.h"
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-#include "GLXLibrary.h"
-#include "mozilla/X11Util.h"
-#endif
 
 namespace mozilla {
 namespace layers {
@@ -61,9 +57,6 @@ public:
       LayerOGL(aManager),
       mTexture(0),
       mDelayedUpdates(PR_FALSE)
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-      ,mPixmap(0)
-#endif
   { 
       mImplData = static_cast<LayerOGL*>(this);
   }
@@ -91,9 +84,6 @@ protected:
   PRPackedBool mDelayedUpdates;
   PRPackedBool mGLBufferIsPremultiplied;
   PRPackedBool mNeedsYFlip;
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  GLXPixmap mPixmap;
-#endif
 };
 
 // NB: eventually we'll have separate shadow canvas2d and shadow

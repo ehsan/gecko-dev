@@ -1779,12 +1779,7 @@ MRESULT nsWindow::ProcessMessage(ULONG msg, MPARAM mp1, MPARAM mp2)
 
     case WM_BUTTON1DOWN:
       WinSetCapture(HWND_DESKTOP, mWnd);
-      isDone = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, mp1, mp2);
-      // If this msg is forwarded to a popup's owner, Moz will cause the
-      // popup to be rolled-up in error when the owner processes the msg.
-      if (mWindowType == eWindowType_popup) {
-        isDone = PR_TRUE;
-      }
+      DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, mp1, mp2);
       // there's no need to clear this on button-up
       sLastButton1Down.x = XFROMMP(mp1);
       sLastButton1Down.y = YFROMMP(mp1);

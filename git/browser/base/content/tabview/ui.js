@@ -714,9 +714,9 @@ let UI = {
         // if not closing the last tab
         if (gBrowser.tabs.length > 1) {
           // Don't return to TabView if there are any app tabs
-          for (let a = 0; a < gBrowser._numPinnedTabs; a++) {
+          for (let a = 0; a < gBrowser.tabs.length; a++) {
             let theTab = gBrowser.tabs[a]; 
-            if (gBrowser._removingTabs.indexOf(theTab) == -1) 
+            if (theTab.pinned && gBrowser._removingTabs.indexOf(theTab) == -1) 
               return;
           }
 
@@ -755,16 +755,9 @@ let UI = {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
-      if (GroupItems.groupItems.length > 0) {
-        if (tab.pinned) {
-          if (gBrowser._numPinnedTabs > 1)
-            GroupItems.arrangeAppTab(tab);
-        } else {
-          let activeGroupItem = GroupItems.getActiveGroupItem();
-          if (activeGroupItem)
-            self.setReorderTabItemsOnShow(activeGroupItem);
-        }
-      }
+      let activeGroupItem = GroupItems.getActiveGroupItem();
+      if (activeGroupItem)
+        self.setReorderTabItemsOnShow(activeGroupItem);
     };
 
     // TabSelect

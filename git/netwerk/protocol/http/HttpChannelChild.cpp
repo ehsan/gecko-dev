@@ -273,114 +273,65 @@ HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
     Cancel(rv);
 }
 
-class TransportAndDataEvent : public ChannelEvent
+class DataAvailableEvent : public ChannelEvent
 {
  public:
-  TransportAndDataEvent(HttpChannelChild* child,
-                        const nsresult& status,
-                        const PRUint64& progress,
-                        const PRUint64& progressMax,
-                        const nsCString& data,
-                        const PRUint32& offset,
-                        const PRUint32& count)
+  DataAvailableEvent(HttpChannelChild* child,
+                     const nsCString& data,
+                     const PRUint32& offset,
+                     const PRUint32& count)
   : mChild(child)
-  , mStatus(status)
-  , mProgress(progress)
-  , mProgressMax(progressMax)
   , mData(data)
   , mOffset(offset)
   , mCount(count) {}
 
-  void Run() { mChild->OnTransportAndData(mStatus, mProgress, mProgressMax,
-                                          mData, mOffset, mCount); }
+  void Run() { mChild->OnDataAvailable(mData, mOffset, mCount); }
  private:
   HttpChannelChild* mChild;
-  nsresult mStatus;
-  PRUint64 mProgress;
-  PRUint64 mProgressMax;
   nsCString mData;
   PRUint32 mOffset;
   PRUint32 mCount;
 };
 
-bool
-HttpChannelChild::RecvOnTransportAndData(const nsresult& status,
-                                         const PRUint64& progress,
-                                         const PRUint64& progressMax,
-                                         const nsCString& data,
-                                         const PRUint32& offset,
-                                         const PRUint32& count)
+bool 
+HttpChannelChild::RecvOnDataAvailable(const nsCString& data,
+                                      const PRUint32& offset,
+                                      const PRUint32& count)
 {
   if (ShouldEnqueue()) {
-    EnqueueEvent(new TransportAndDataEvent(this, status, progress, progressMax,
-                                           data, offset, count));
+    EnqueueEvent(new DataAvailableEvent(this, data, offset, count));
   } else {
-    OnTransportAndData(status, progress, progressMax, data, offset, count);
+    OnDataAvailable(data, offset, count);
   }
   return true;
 }
 
-void
-HttpChannelChild::OnTransportAndData(const nsresult& status,
-                                     const PRUint64 progress,
-                                     const PRUint64& progressMax,
-                                     const nsCString& data,
-                                     const PRUint32& offset,
-                                     const PRUint32& count)
+void 
+HttpChannelChild::OnDataAvailable(const nsCString& data,
+                                  const PRUint32& offset,
+                                  const PRUint32& count)
 {
-  LOG(("HttpChannelChild::OnTransportAndData [this=%x]\n", this));
+  LOG(("HttpChannelChild::OnDataAvailable [this=%x]\n", this));
 
   if (mCanceled)
     return;
 
-  // cache the progress sink so we don't have to query for it each time.
-  if (!mProgressSink)
-    GetCallback(mProgressSink);
-
-  // Hold queue lock throughout all three calls, else we might process a later
-  // necko msg in between them.
-  AutoEventEnqueuer ensureSerialDispatch(this);
-
-  // block status/progress after Cancel or OnStopRequest has been called,
-  // or if channel has LOAD_BACKGROUND set.
-  // - JDUELL: may not need mStatus/mIsPending checks, given this is always called
-  //   during OnDataAvailable, and we've already checked mCanceled.  Code
-  //   dupe'd from nsHttpChannel
-  if (mProgressSink && NS_SUCCEEDED(mStatus) && mIsPending &&
-      !(mLoadFlags & LOAD_BACKGROUND))
-  {
-    // OnStatus
-    //
-    NS_ASSERTION(status == nsISocketTransport::STATUS_RECEIVING_FROM ||
-                 status == nsITransport::STATUS_READING,
-                 "unexpected status code");
-
-    nsCAutoString host;
-    mURI->GetHost(host);
-    mProgressSink->OnStatus(this, nsnull, status,
-                            NS_ConvertUTF8toUTF16(host).get());
-    // OnProgress
-    //
-    if (progress > 0) {
-      NS_ASSERTION(progress <= progressMax, "unexpected progress values");
-      mProgressSink->OnProgress(this, nsnull, progress, progressMax);
-    }
-  }
-
-  // OnDataAvailable
-  //
   // NOTE: the OnDataAvailable contract requires the client to read all the data
   // in the inputstream.  This code relies on that ('data' will go away after
   // this function).  Apparently the previous, non-e10s behavior was to actually
   // support only reading part of the data, allowing later calls to read the
   // rest.
   nsCOMPtr<nsIInputStream> stringStream;
-  nsresult rv = NS_NewByteInputStream(getter_AddRefs(stringStream), data.get(),
-                                      count, NS_ASSIGNMENT_DEPEND);
+  nsresult rv = NS_NewByteInputStream(getter_AddRefs(stringStream),
+                                      data.get(),
+                                      count,
+                                      NS_ASSIGNMENT_DEPEND);
   if (NS_FAILED(rv)) {
     Cancel(rv);
     return;
   }
+
+  AutoEventEnqueuer ensureSerialDispatch(this);
 
   rv = mListener->OnDataAvailable(this, mListenerContext,
                                   stringStream, offset, count);
@@ -496,8 +447,7 @@ HttpChannelChild::OnProgress(const PRUint64& progress,
 
   AutoEventEnqueuer ensureSerialDispatch(this);
 
-  // block socket status event after Cancel or OnStopRequest has been called,
-  // or if channel has LOAD_BACKGROUND set
+  // block socket status event after Cancel or OnStopRequest has been called.
   if (mProgressSink && NS_SUCCEEDED(mStatus) && mIsPending && 
       !(mLoadFlags & LOAD_BACKGROUND)) 
   {
@@ -512,29 +462,34 @@ class StatusEvent : public ChannelEvent
 {
  public:
   StatusEvent(HttpChannelChild* child,
-              const nsresult& status)
+              const nsresult& status,
+              const nsString& statusArg)
   : mChild(child)
-  , mStatus(status) {}
+  , mStatus(status)
+  , mStatusArg(statusArg) {}
 
-  void Run() { mChild->OnStatus(mStatus); }
+  void Run() { mChild->OnStatus(mStatus, mStatusArg); }
  private:
   HttpChannelChild* mChild;
   nsresult mStatus;
+  nsString mStatusArg;
 };
 
 bool
-HttpChannelChild::RecvOnStatus(const nsresult& status)
+HttpChannelChild::RecvOnStatus(const nsresult& status,
+                               const nsString& statusArg)
 {
   if (ShouldEnqueue()) {
-    EnqueueEvent(new StatusEvent(this, status));
+    EnqueueEvent(new StatusEvent(this, status, statusArg));
   } else {
-    OnStatus(status);
+    OnStatus(status, statusArg);
   }
   return true;
 }
 
 void
-HttpChannelChild::OnStatus(const nsresult& status)
+HttpChannelChild::OnStatus(const nsresult& status,
+                           const nsString& statusArg)
 {
   LOG(("HttpChannelChild::OnStatus [this=%p status=%x]\n", this, status));
 
@@ -546,16 +501,12 @@ HttpChannelChild::OnStatus(const nsresult& status)
     GetCallback(mProgressSink);
 
   AutoEventEnqueuer ensureSerialDispatch(this);
-
-  // block socket status event after Cancel or OnStopRequest has been called,
-  // or if channel has LOAD_BACKGROUND set
+  
+  // block socket status event after Cancel or OnStopRequest has been called.
   if (mProgressSink && NS_SUCCEEDED(mStatus) && mIsPending && 
       !(mLoadFlags & LOAD_BACKGROUND)) 
   {
-    nsCAutoString host;
-    mURI->GetHost(host);
-    mProgressSink->OnStatus(this, nsnull, status,
-                            NS_ConvertUTF8toUTF16(host).get());
+    mProgressSink->OnStatus(this, nsnull, status, statusArg.get());
   }
 }
 
@@ -1054,36 +1005,6 @@ HttpChannelChild::SetupFallbackChannel(const char *aFallbackKey)
 {
   DROP_DEAD();
 }
-
-// The next four _should_ be implemented, but we need to figure out how
-// to transfer the data from the chrome process first.
-
-NS_IMETHODIMP
-HttpChannelChild::GetRemoteAddress(nsACString & _result)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-HttpChannelChild::GetRemotePort(PRInt32 * _result)
-{
-  NS_ENSURE_ARG_POINTER(_result);
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-HttpChannelChild::GetLocalAddress(nsACString & _result)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-HttpChannelChild::GetLocalPort(PRInt32 * _result)
-{
-  NS_ENSURE_ARG_POINTER(_result);
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
 
 //-----------------------------------------------------------------------------
 // HttpChannelChild::nsICacheInfoChannel

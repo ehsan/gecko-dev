@@ -159,9 +159,6 @@ endif
 
 CC := $(CC_WRAPPER) $(CC)
 CXX := $(CXX_WRAPPER) $(CXX)
-MKDIR ?= mkdir
-SLEEP ?= sleep
-TOUCH ?= touch
 
 # determine debug-related options
 _DEBUG_CFLAGS :=

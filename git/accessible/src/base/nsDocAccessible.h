@@ -115,8 +115,8 @@ public:
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
-  virtual void ApplyARIAState(PRUint64* aState);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
 
@@ -443,7 +443,7 @@ protected:
    * Update the accessible tree for content insertion or removal.
    */
   void UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
-                  bool aIsInsert);
+                  PRBool aIsInsert);
 
   /**
    * Helper for UpdateTree() method. Go down to DOM subtree and updates
@@ -455,7 +455,9 @@ protected:
     eAlertAccessible = 2
   };
 
-  PRUint32 UpdateTreeInternal(nsAccessible* aChild, bool aIsInsert);
+  PRUint32 UpdateTreeInternal(nsIContent* aStartNode,
+                              nsIContent* aEndNode,
+                              PRBool aIsInsert);
 
   /**
    * Create accessible tree.
@@ -501,7 +503,7 @@ protected:
    */
   PRPackedBool mIsLoaded;
 
-  static PRUint64 gLastFocusedAccessiblesState;
+    static PRUint32 gLastFocusedAccessiblesState;
 
   nsTArray<nsRefPtr<nsDocAccessible> > mChildDocuments;
 
