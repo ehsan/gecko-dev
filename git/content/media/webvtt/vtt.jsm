@@ -8,7 +8,7 @@ this.EXPORTED_SYMBOLS = ["WebVTT"];
  * Code below is vtt.js the JS WebVTT implementation.
  * Current source code can be found at http://github.com/mozilla/vtt.js
  *
- * Code taken from commit 65ae2daaf6ec7e710f591214893bb03d8b7a94b5
+ * Code taken from commit 2edc263af6003d539eb2ce442d6102e5d8b75fb5
  */
 /**
  * Copyright 2013 vtt.js Contributors
@@ -129,7 +129,8 @@ this.EXPORTED_SYMBOLS = ["WebVTT"];
     // Accept a setting if its a valid (signed) integer.
     integer: function(k, v) {
       if (/^-?\d+$/.test(v)) { // integer
-        this.set(k, parseInt(v, 10));
+        // Only take values in the range of -1000 ~ 1000
+        this.set(k, Math.min(Math.max(parseInt(v, 10), -1000), 1000));
       }
     },
     // Accept a setting if its a valid percentage.
@@ -809,6 +810,8 @@ this.EXPORTED_SYMBOLS = ["WebVTT"];
   // compute things with such as if it overlaps or intersects with another Element.
   // Can initialize it with either a StyleBox or another BoxPosition.
   function BoxPosition(obj) {
+    var self = this;
+
     // Either a BoxPosition was passed in and we need to copy it, or a StyleBox
     // was passed in and we need to copy the results of 'getBoundingClientRect'
     // as the object returned is readonly. All co-ordinate values are in reference
@@ -834,27 +837,26 @@ this.EXPORTED_SYMBOLS = ["WebVTT"];
     this.lineHeight = lh !== undefined ? lh : obj.lineHeight;
   }
 
-  // Move the box along a particular axis. Optionally pass in an amount to move
-  // the box. If no amount is passed then the default is the line height of the
-  // box.
-  BoxPosition.prototype.move = function(axis, toMove) {
-    toMove = toMove !== undefined ? toMove : this.lineHeight;
+  // Move the box along a particular axis. If no amount to move is passed, via
+  // the val parameter, then the default amount is the line height of the box.
+  BoxPosition.prototype.move = function(axis, val) {
+    val = val !== undefined ? val : this.lineHeight;
     switch (axis) {
     case "+x":
-      this.left += toMove;
-      this.right += toMove;
+      this.left += val;
+      this.right += val;
       break;
     case "-x":
-      this.left -= toMove;
-      this.right -= toMove;
+      this.left -= val;
+      this.right -= val;
       break;
     case "+y":
-      this.top += toMove;
-      this.bottom += toMove;
+      this.top += val;
+      this.bottom += val;
       break;
     case "-y":
-      this.top -= toMove;
-      this.bottom -= toMove;
+      this.top -= val;
+      this.bottom -= val;
       break;
     }
   };
@@ -979,6 +981,12 @@ this.EXPORTED_SYMBOLS = ["WebVTT"];
       return bestPosition || specifiedPosition;
     }
 
+    function reverseAxis(axis) {
+      return axis.map(function(a) {
+        return a.indexOf("+") !== -1 ? a.replace("+", "-") : a.replace("-", "+");
+      });
+    }
+
     var boxPosition = new BoxPosition(styleBox),
         cue = styleBox.cue,
         linePos = computeLinePos(cue),
@@ -986,47 +994,32 @@ this.EXPORTED_SYMBOLS = ["WebVTT"];
 
     // If we have a line number to align the cue to.
     if (cue.snapToLines) {
-      var size;
       switch (cue.vertical) {
       case "":
         axis = [ "+y", "-y" ];
-        size = "height";
         break;
       case "rl":
         axis = [ "+x", "-x" ];
-        size = "width";
         break;
       case "lr":
         axis = [ "-x", "+x" ];
-        size = "width";
         break;
-      }
-
-      var step = boxPosition.lineHeight,
-          position = step * Math.round(linePos),
-          maxPosition = containerBox[size] + step,
-          initialAxis = axis[0];
-
-      // If the specified intial position is greater then the max position then
-      // clamp the box to the amount of steps it would take for the box to
-      // reach the max position.
-      if (Math.abs(position) > maxPosition) {
-        position = position < 0 ? -1 : 1;
-        position *= Math.ceil(maxPosition / step) * step;
       }
 
       // If computed line position returns negative then line numbers are
       // relative to the bottom of the video instead of the top. Therefore, we
       // need to increase our initial position by the length or width of the
       // video, depending on the writing direction, and reverse our axis directions.
+      var initialPosition = boxPosition.lineHeight * Math.floor(linePos + 0.5),
+          initialAxis = axis[0];
       if (linePos < 0) {
-        position += cue.vertical === "" ? containerBox.height : containerBox.width;
-        axis = axis.reverse();
+        initialPosition += cue.vertical === "" ? containerBox.height : containerBox.width;
+        axis = reverseAxis(axis);
       }
 
       // Move the box to the specified position. This may not be its best
       // position.
-      boxPosition.move(initialAxis, position);
+      boxPosition.move(initialAxis, initialPosition);
 
     } else {
       // If we have a percentage line value for the cue.

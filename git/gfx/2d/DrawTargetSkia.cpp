@@ -309,15 +309,8 @@ DrawTargetSkia::DrawSurface(SourceSurface *aSurface,
                             const DrawSurfaceOptions &aSurfOptions,
                             const DrawOptions &aOptions)
 {
-  RefPtr<SourceSurface> dataSurface;
-
   if (!(aSurface->GetType() == SurfaceType::SKIA || aSurface->GetType() == SurfaceType::DATA)) {
-    dataSurface = aSurface->GetDataSurface();
-    if (!dataSurface) {
-      gfxDebug() << *this << ": DrawSurface() can't draw surface";
-      return;
-    }
-    aSurface = dataSurface.get();
+    return;
   }
 
   if (aSource.IsEmpty()) {

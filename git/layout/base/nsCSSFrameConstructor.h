@@ -1801,7 +1801,6 @@ private:
   bool                mIsDestroyingFrameTree : 1;
   // This is true if mDocElementContainingBlock supports absolute positioning
   bool                mHasRootAbsPosContainingBlock : 1;
-  bool                mAlwaysCreateFramesForIgnorableWhitespace : 1;
 
   nsCOMPtr<nsILayoutHistoryState> mTempFrameTreeState;
 };

@@ -15,7 +15,7 @@
 #include <math.h>
 #include "common.h"
 
-#if (defined(_WIN32) || defined(__WIN32__))
+#if defined ( WIN32 )
 #define __func__ __FUNCTION__
 #endif
 
@@ -488,23 +488,15 @@ test_drain(void)
 
 int is_windows_7()
 {
-#if (defined(_WIN32) || defined(__WIN32__))
-   OSVERSIONINFOEX osvi;
-   DWORDLONG condition_mask = 0;
+#ifdef __WIN32__
+#include <windows.h>
+    DWORD version = GetVersion();
+    DWORD major = (DWORD) (LOBYTE(LOWORD(version)));
+    DWORD minor = (DWORD) (HIBYTE(LOWORD(version)));
 
-   ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
-   osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-
-   // NT 6.1 is Windows 7
-   osvi.dwMajorVersion = 6;
-   osvi.dwMinorVersion = 1;
-
-   VER_SET_CONDITION(condition_mask, VER_MAJORVERSION, VER_EQUAL);
-   VER_SET_CONDITION(condition_mask, VER_MINORVERSION, VER_EQUAL);
-
-   return VerifyVersionInfo(&osvi, VER_MAJORVERSION | VER_MINORVERSION, condition_mask);
+    return (major == 6) && (minor == 1);
 #else
-  return 0;
+  return-0;
 #endif
 }
 

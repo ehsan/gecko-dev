@@ -168,7 +168,6 @@ JSScript::setBaselineScript(JSContext *maybecx, js::jit::BaselineScript *baselin
     if (hasBaselineScript())
         js::jit::BaselineScript::writeBarrierPre(tenuredZone(), baseline);
 #endif
-    MOZ_ASSERT(!hasIonScript());
     baseline = baselineScript;
     updateBaselineOrIonRaw();
 }

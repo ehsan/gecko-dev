@@ -241,7 +241,6 @@ NS_DECLARE_FRAME_PROPERTY_FRAMELIST(OverflowOutOfFlowsProperty)
 NS_DECLARE_FRAME_PROPERTY_FRAMELIST(PushedFloatProperty)
 NS_DECLARE_FRAME_PROPERTY_FRAMELIST(OutsideBulletProperty)
 NS_DECLARE_FRAME_PROPERTY(InsideBulletProperty, nullptr)
-NS_DECLARE_FRAME_PROPERTY(BottomEdgeOfChildrenProperty, nullptr)
 
 //----------------------------------------------------------------------
 
@@ -1453,36 +1452,12 @@ nsBlockFrame::ComputeFinalSize(const nsHTMLReflowState& aReflowState,
   aMetrics.Height() = std::max(0, aMetrics.Height());
   *aBottomEdgeOfChildren = bottomEdgeOfChildren;
 
-  FrameProperties properties = Properties();
-  if (bottomEdgeOfChildren != aMetrics.Height() - borderPadding.bottom) {
-    properties.Set(BottomEdgeOfChildrenProperty(),
-                   NS_INT32_TO_PTR(bottomEdgeOfChildren));
-  } else {
-    properties.Delete(BottomEdgeOfChildrenProperty());
-  }
-
 #ifdef DEBUG_blocks
   if (CRAZY_SIZE(aMetrics.Width()) || CRAZY_SIZE(aMetrics.Height())) {
     ListTag(stdout);
     printf(": WARNING: desired:%d,%d\n", aMetrics.Width(), aMetrics.Height());
   }
 #endif
-}
-
-static void
-ConsiderBottomEdgeOfChildren(nscoord aBottomEdgeOfChildren,
-                             nsOverflowAreas& aOverflowAreas)
-{
-  // Factor in the bottom edge of the children.  Child frames will be added
-  // to the overflow area as we iterate through the lines, but their margins
-  // won't, so we need to account for bottom margins here.
-  // REVIEW: For now, we do this for both visual and scrollable area,
-  // although when we make scrollable overflow area not be a subset of
-  // visual, we can change this.
-  NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
-    nsRect& o = aOverflowAreas.Overflow(otype);
-    o.height = std::max(o.YMost(), aBottomEdgeOfChildren) - o.y;
-  }
 }
 
 void
@@ -1512,9 +1487,17 @@ nsBlockFrame::ComputeOverflowAreas(const nsRect&         aBounds,
       areas.UnionAllWith(outsideBullet->GetRect());
     }
 
-    ConsiderBottomEdgeOfChildren(aBottomEdgeOfChildren, areas);
+    // Factor in the bottom edge of the children.  Child frames will be added
+    // to the overflow area as we iterate through the lines, but their margins
+    // won't, so we need to account for bottom margins here.
+    // REVIEW: For now, we do this for both visual and scrollable area,
+    // although when we make scrollable overflow area not be a subset of
+    // visual, we can change this.
+    NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
+      nsRect& o = areas.Overflow(otype);
+      o.height = std::max(o.YMost(), aBottomEdgeOfChildren) - o.y;
+    }
   }
-
 #ifdef NOISY_COMBINED_AREA
   ListTag(stdout);
   printf(": ca=%d,%d,%d,%d\n", area.x, area.y, area.width, area.height);
@@ -1526,9 +1509,6 @@ nsBlockFrame::ComputeOverflowAreas(const nsRect&         aBounds,
 bool
 nsBlockFrame::UpdateOverflow()
 {
-  nsRect rect(nsPoint(0, 0), GetSize());
-  nsOverflowAreas overflowAreas(rect, rect);
-
   // We need to update the overflow areas of lines manually, as they
   // get cached and re-used otherwise. Lines aren't exposed as normal
   // frame children, so calling UnionChildOverflow alone will end up
@@ -1536,8 +1516,7 @@ nsBlockFrame::UpdateOverflow()
   for (line_iterator line = begin_lines(), line_end = end_lines();
        line != line_end;
        ++line) {
-    nsRect bounds = line->mBounds;
-    nsOverflowAreas lineAreas(bounds, bounds);
+    nsOverflowAreas lineAreas;
 
     int32_t n = line->GetChildCount();
     for (nsIFrame* lineFrame = line->mFirstChild;
@@ -1553,26 +1532,13 @@ nsBlockFrame::UpdateOverflow()
     }
 
     line->SetOverflowAreas(lineAreas);
-    overflowAreas.UnionWith(lineAreas);
   }
 
   // Line cursor invariants depend on the overflow areas of the lines, so
   // we must clear the line cursor since those areas may have changed.
   ClearLineCursor();
 
-  // Union with child frames, skipping the principal and float lists
-  // since we already handled those using the line boxes.
-  nsLayoutUtils::UnionChildOverflow(this, overflowAreas,
-                                    kPrincipalList | kFloatList);
-
-  bool found;
-  nscoord bottomEdgeOfChildren = NS_PTR_TO_INT32(
-    Properties().Get(BottomEdgeOfChildrenProperty(), &found));
-  if (found) {
-    ConsiderBottomEdgeOfChildren(bottomEdgeOfChildren, overflowAreas);
-  }
-
-  return FinishAndStoreOverflow(overflowAreas, GetSize());
+  return nsBlockFrameSuper::UpdateOverflow();
 }
 
 void

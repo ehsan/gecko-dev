@@ -73,7 +73,6 @@
 #include "nsInterfaceHashtable.h"
 #include "nsWeakReference.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozHunspellAllocator.h"
 
 #define MOZ_HUNSPELL_CONTRACTID "@mozilla.org/spellchecker/engine;1"
 #define MOZ_HUNSPELL_CID         \
@@ -102,11 +101,17 @@ public:
   // helper method for converting a word to the charset of the dictionary
   nsresult ConvertCharset(const char16_t* aStr, char ** aDst);
 
+  MOZ_DEFINE_MALLOC_SIZE_OF_ON_ALLOC(MallocSizeOfOnAlloc)
+  MOZ_DEFINE_MALLOC_SIZE_OF_ON_FREE(MallocSizeOfOnFree)
+
+  static void OnAlloc(void* ptr) { sAmount += MallocSizeOfOnAlloc(ptr); }
+  static void OnFree (void* ptr) { sAmount -= MallocSizeOfOnFree (ptr); }
+
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
                             nsISupports* aData)
   {
     return MOZ_COLLECT_REPORT(
-      "explicit/spell-check", KIND_HEAP, UNITS_BYTES, HunspellAllocator::MemoryAllocated(),
+      "explicit/spell-check", KIND_HEAP, UNITS_BYTES, sAmount,
       "Memory used by the spell-checking engine.");
   }
 
@@ -126,6 +131,8 @@ protected:
   nsCOMArray<nsIFile> mDynamicDirectories;
 
   Hunspell  *mHunspell;
+
+  static int64_t sAmount;
 };
 
 #endif
