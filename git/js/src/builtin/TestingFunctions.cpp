@@ -19,8 +19,8 @@
 #endif
 #include "jswrapper.h"
 
-#include "asmjs/AsmJSLink.h"
-#include "asmjs/AsmJSValidate.h"
+#include "jit/AsmJS.h"
+#include "jit/AsmJSLink.h"
 #include "js/HashTable.h"
 #include "js/StructuredClone.h"
 #include "js/UbiNode.h"

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -33,7 +32,7 @@ using dom::ConstrainLongRange;
 NS_IMPL_ISUPPORTS(MediaEngineTabVideoSource, nsIDOMEventListener, nsITimerCallback)
 
 MediaEngineTabVideoSource::MediaEngineTabVideoSource()
-: mMonitor("MediaEngineTabVideoSource"), mTabSource(nullptr)
+: mMonitor("MediaEngineTabVideoSource")
 {
 }
 
@@ -43,9 +42,7 @@ MediaEngineTabVideoSource::StartRunnable::Run()
   mVideoSource->Draw();
   mVideoSource->mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   mVideoSource->mTimer->InitWithCallback(mVideoSource, mVideoSource->mTimePerFrame, nsITimer:: TYPE_REPEATING_SLACK);
-  if (mVideoSource->mTabSource) {
-    mVideoSource->mTabSource->NotifyStreamStart(mVideoSource->mWindow);
-  }
+  mVideoSource->mTabSource->NotifyStreamStart(mVideoSource->mWindow);
   return NS_OK;
 }
 
@@ -58,9 +55,7 @@ MediaEngineTabVideoSource::StopRunnable::Run()
     mVideoSource->mTimer->Cancel();
     mVideoSource->mTimer = nullptr;
   }
-  if (mVideoSource->mTabSource) {
-    mVideoSource->mTabSource->NotifyStreamStop(mVideoSource->mWindow);
-  }
+  mVideoSource->mTabSource->NotifyStreamStop(mVideoSource->mWindow);
   return NS_OK;
 }
 
@@ -81,25 +76,18 @@ nsresult
 MediaEngineTabVideoSource::InitRunnable::Run()
 {
   mVideoSource->mData = (unsigned char*)malloc(mVideoSource->mBufW * mVideoSource->mBufH * 4);
-  if (mVideoSource->mWindowId != -1) {
-    nsCOMPtr<nsPIDOMWindow> window  = nsGlobalWindow::GetOuterWindowWithId(mVideoSource->mWindowId);
-    if (window) {
-      mVideoSource->mWindow = window;
-    }
-  }
-  if (!mVideoSource->mWindow) {
-    nsresult rv;
-    mVideoSource->mTabSource = do_GetService(NS_TABSOURCESERVICE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIDOMWindow> win;
-    rv = mVideoSource->mTabSource->GetTabToStream(getter_AddRefs(win));
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!win)
-      return NS_OK;
+  nsresult rv;
+  mVideoSource->mTabSource = do_GetService(NS_TABSOURCESERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    mVideoSource->mWindow = win;
-  }
+  nsCOMPtr<nsIDOMWindow> win;
+  rv = mVideoSource->mTabSource->GetTabToStream(getter_AddRefs(win));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!win)
+    return NS_OK;
+
+  mVideoSource->mWindow = win;
   nsCOMPtr<nsIRunnable> start(new StartRunnable(mVideoSource));
   start->Run();
   return NS_OK;
@@ -125,26 +113,13 @@ MediaEngineTabVideoSource::Allocate(const VideoTrackConstraintsN& aConstraints,
   ConstrainLongRange cWidth(aConstraints.mRequired.mWidth);
   ConstrainLongRange cHeight(aConstraints.mRequired.mHeight);
 
-  mWindowId = aConstraints.mBrowserWindow.WasPassed() ? aConstraints.mBrowserWindow.Value() : -1;
-  bool haveScrollWithPage = aConstraints.mScrollWithPage.WasPassed();
-  mScrollWithPage =  haveScrollWithPage ? aConstraints.mScrollWithPage.Value() : true;
-
   if (aConstraints.mAdvanced.WasPassed()) {
     const auto& advanced = aConstraints.mAdvanced.Value();
     for (uint32_t i = 0; i < advanced.Length(); i++) {
       if (cWidth.mMax >= advanced[i].mWidth.mMin && cWidth.mMin <= advanced[i].mWidth.mMax &&
-         cHeight.mMax >= advanced[i].mHeight.mMin && cHeight.mMin <= advanced[i].mHeight.mMax) {
-        cWidth.mMin = std::max(cWidth.mMin, advanced[i].mWidth.mMin);
-        cHeight.mMin = std::max(cHeight.mMin, advanced[i].mHeight.mMin);
-      }
-
-      if (mWindowId == -1 && advanced[i].mBrowserWindow.WasPassed()) {
-        mWindowId = advanced[i].mBrowserWindow.Value();
-      }
-
-      if (!haveScrollWithPage && advanced[i].mScrollWithPage.WasPassed()) {
-        mScrollWithPage = advanced[i].mScrollWithPage.Value();
-        haveScrollWithPage = true;
+	  cHeight.mMax >= advanced[i].mHeight.mMin && cHeight.mMin <= advanced[i].mHeight.mMax) {
+	cWidth.mMin = std::max(cWidth.mMin, advanced[i].mWidth.mMin);
+	cHeight.mMin = std::max(cHeight.mMin, advanced[i].mHeight.mMin);
       }
     }
   }
@@ -165,6 +140,7 @@ MediaEngineTabVideoSource::Allocate(const VideoTrackConstraintsN& aConstraints,
   }
 
   mTimePerFrame = aPrefs.mFPS ? 1000 / aPrefs.mFPS : aPrefs.mFPS;
+
   return NS_OK;
 }
 
@@ -250,13 +226,6 @@ MediaEngineTabVideoSource::Draw() {
   rect->GetTop(&top);
   rect->GetWidth(&width);
   rect->GetHeight(&height);
-
-  if (mScrollWithPage) {
-    nsPoint point;
-    utils->GetScrollXY(false, &point.x, &point.y);
-    left += point.x;
-    top += point.y;
-  }
 
   if (width == 0 || height == 0) {
     return;

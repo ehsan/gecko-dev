@@ -17,7 +17,6 @@ namespace JSC {
 
 class MacroAssemblerNone
 {
-  public:
     static bool supportsFloatingPoint() { return false; }
 };
 

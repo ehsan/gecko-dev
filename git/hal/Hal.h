@@ -49,7 +49,6 @@ class WindowIdentifier;
 
 extern PRLogModuleInfo *GetHalLog();
 #define HAL_LOG(msg) PR_LOG(mozilla::hal::GetHalLog(), PR_LOG_DEBUG, msg)
-#define HAL_ERR(msg) PR_LOG(mozilla::hal::GetHalLog(), PR_LOG_ERROR, msg)
 
 typedef Observer<int64_t> SystemClockChangeObserver;
 typedef Observer<SystemTimezoneChangeInformation> SystemTimezoneChangeObserver;

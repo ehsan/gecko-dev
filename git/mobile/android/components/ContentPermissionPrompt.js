@@ -10,21 +10,9 @@ const Cc = Components.classes;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-const kEntities = {
-  "contacts": "contacts",
-  "desktop-notification": "desktopNotification",
-  "device-storage:music": "deviceStorageMusic",
-  "device-storage:pictures": "deviceStoragePictures",
-  "device-storage:sdcard": "deviceStorageSdcard",
-  "device-storage:videos": "deviceStorageVideos",
-  "geolocation": "geolocation",
-};
-
-// For these types, prompt for permission if action is unknown.
-const PROMPT_FOR_UNKNOWN = [
-  "desktop-notification",
-  "geolocation",
-];
+const kEntities = { "geolocation": "geolocation",
+                    "desktop-notification": "desktopNotification",
+                    "contacts": "contacts" };
 
 function ContentPermissionPrompt() {}
 
@@ -33,19 +21,18 @@ ContentPermissionPrompt.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionPrompt]),
 
-  handleExistingPermission: function handleExistingPermission(request, type, denyUnknown) {
+  handleExistingPermission: function handleExistingPermission(request, type, isApp) {
     let result = Services.perms.testExactPermissionFromPrincipal(request.principal, type);
     if (result == Ci.nsIPermissionManager.ALLOW_ACTION) {
       request.allow();
       return true;
     }
-
     if (result == Ci.nsIPermissionManager.DENY_ACTION) {
       request.cancel();
       return true;
     }
 
-    if (denyUnknown && result == Ci.nsIPermissionManager.UNKNOWN_ACTION) {
+    if (isApp && (result == Ci.nsIPermissionManager.UNKNOWN_ACTION && !!kEntities[type])) {
       request.cancel();
       return true;
     }
@@ -84,10 +71,7 @@ ContentPermissionPrompt.prototype = {
     let perm = types.queryElementAt(0, Ci.nsIContentPermissionType);
 
     // Returns true if the request was handled
-    let access = (perm.access && perm.access !== "unused") ?
-                 (perm.type + "-" + perm.access) : perm.type;
-    if (this.handleExistingPermission(request, access,
-          /* denyUnknown */ isApp || PROMPT_FOR_UNKNOWN.indexOf(perm.type) < 0))
+    if (this.handleExistingPermission(request, perm.type, isApp))
        return;
 
     let chromeWin = this.getChromeForRequest(request);

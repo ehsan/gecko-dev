@@ -91,9 +91,8 @@ public:
   already_AddRefed<nsIEventTarget> Thread() const;
   mozilla::Mutex& Lock() { return mLock; }
 
-  // Tracks entries that may be forced valid in a pruned hashtable.
+  // Tracks entries that may be forced valid.
   nsDataHashtable<nsCStringHashKey, TimeStamp> mForcedValidEntries;
-  void ForcedValidEntriesPrune(TimeStamp &now);
 
   // Helper thread-safe interface to pass entry info, only difference from
   // nsICacheStorageVisitor is that instead of nsIURI only the uri spec is
