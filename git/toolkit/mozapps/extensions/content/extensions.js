@@ -1998,8 +1998,7 @@ var gDiscoverView = {
     // If there was an error loading the page or the new hostname is not the
     // same as the default hostname or the default scheme is secure and the new
     // scheme is insecure then show the error page
-    const NS_ERROR_PARSED_DATA_CACHED = 0x805D0021;
-    if (!(Components.isSuccessCode(aStatus) || aStatus == NS_ERROR_PARSED_DATA_CACHED) ||
+    if (!Components.isSuccessCode(aStatus) ||
         (aRequest && aRequest instanceof Ci.nsIHttpChannel && !aRequest.requestSucceeded)) {
       this.showError();
     } else {

@@ -1068,8 +1068,7 @@ gfxFont::RunMetrics::CombineWith(const RunMetrics& aOther, bool aOtherIsOnLeft)
 }
 
 gfxFont::gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
-                 AntialiasOption anAAOption, cairo_scaled_font_t *aScaledFont) :
-    mScaledFont(aScaledFont),
+                 AntialiasOption anAAOption) :
     mFontEntry(aFontEntry), mIsValid(true),
     mApplySyntheticBold(false),
     mStyle(*aFontStyle),

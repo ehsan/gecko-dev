@@ -58,7 +58,8 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
                        bool aNeedsBold)
     : gfxFont(aFontEntry, aFontStyle),
       mCGFont(nsnull),
-      mFontFace(nsnull)
+      mFontFace(nsnull),
+      mScaledFont(nsnull)
 {
     mApplySyntheticBold = aNeedsBold;
 

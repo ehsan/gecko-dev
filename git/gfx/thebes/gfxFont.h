@@ -58,8 +58,6 @@
 #include "nsIAtom.h"
 #include "nsISupportsImpl.h"
 
-typedef struct _cairo_scaled_font cairo_scaled_font_t;
-
 #ifdef DEBUG
 #include <stdio.h>
 #endif
@@ -957,7 +955,6 @@ public:
 
 protected:
     nsAutoRefCnt mRefCnt;
-    cairo_scaled_font_t *mScaledFont;
 
     void NotifyReleased() {
         gfxFontCache *cache = gfxFontCache::GetCache();
@@ -972,8 +969,7 @@ protected:
     }
 
     gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
-            AntialiasOption anAAOption = kAntialiasDefault,
-            cairo_scaled_font_t *aScaledFont = nsnull);
+            AntialiasOption anAAOption = kAntialiasDefault);
 
 public:
     virtual ~gfxFont();
