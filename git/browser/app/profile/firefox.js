@@ -860,6 +860,8 @@ pref("browser.sessionstore.restore_pinned_tabs_on_demand", false);
 pref("browser.sessionstore.upgradeBackup.latestBuildID", "");
 // End-users should not run sessionstore in debug mode
 pref("browser.sessionstore.debug", false);
+// Enable asynchronous data collection by default.
+pref("browser.sessionstore.async", true);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);
@@ -1094,7 +1096,6 @@ pref("devtools.inspector.show_pseudo_elements", true);
 pref("devtools.defaultColorUnit", "hex");
 
 // Enable the Responsive UI tool
-pref("devtools.responsiveUI.enabled", true);
 pref("devtools.responsiveUI.no-reload-notification", false);
 
 // Enable the Debugger
@@ -1133,9 +1134,6 @@ pref("devtools.netmonitor.panes-network-details-height", 450);
 pref("devtools.tilt.enabled", true);
 pref("devtools.tilt.intro_transition", true);
 pref("devtools.tilt.outro_transition", true);
-
-// Enable the Scratchpad tool.
-pref("devtools.scratchpad.enabled", true);
 
 // The maximum number of recently-opened files stored.
 // Setting this preference to 0 will not clear any recent files, but rather hide
