@@ -2673,12 +2673,7 @@ function FillInHTMLTooltip(tipElement)
   while (!titleText && !XLinkTitleText && !SVGTitleText && tipElement) {
     if (tipElement.nodeType == Node.ELEMENT_NODE) {
       titleText = tipElement.getAttribute("title");
-      if ((tipElement instanceof HTMLAnchorElement && tipElement.href) ||
-          (tipElement instanceof HTMLAreaElement && tipElement.href) ||
-          (tipElement instanceof HTMLLinkElement && tipElement.href) ||
-          (tipElement instanceof SVGAElement && tipElement.hasAttributeNS(XLinkNS, "href"))) {
-        XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
-      }
+      XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
       if (tipElement instanceof SVGElement) {
         let length = tipElement.childNodes.length;
         for (let i = 0; i < length; i++) {

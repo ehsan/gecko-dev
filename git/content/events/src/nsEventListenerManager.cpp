@@ -94,7 +94,6 @@
 #include "nsCOMArray.h"
 #include "nsEventListenerService.h"
 #include "nsDOMEvent.h"
-#include "nsIContentSecurityPolicy.h"
 
 #define EVENT_TYPE_EQUALS( ls, type, userType ) \
   (ls->mEventType && ls->mEventType == type && \
@@ -664,8 +663,6 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
     return NS_ERROR_FAILURE;
   }
 
-  nsresult rv;
-
   nsCOMPtr<nsINode> node(do_QueryInterface(aObject));
 
   nsCOMPtr<nsIDocument> doc;
@@ -700,31 +697,7 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
     // loaded as data.
     return NS_OK;
   }
-
-  // return early preventing the event listener from being added
-  // 'doc' is fetched above
-  if (doc) {
-    nsCOMPtr<nsIContentSecurityPolicy> csp;
-    rv = doc->NodePrincipal()->GetCsp(getter_AddRefs(csp));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (csp) {
-      PRBool inlineOK;
-      // this call will trigger violaton reports if necessary
-      rv = csp->GetAllowsInlineScript(&inlineOK);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      if ( !inlineOK ) {
-        //can log something here too.
-        //nsAutoString attr;
-        //aName->ToString(attr);
-        //printf(" *** CSP bailing on adding event listener for: %s\n",
-        //       ToNewCString(attr));
-        return NS_OK;
-      }
-    }
-  }
-
+  
   // This might be the first reference to this language in the global
   // We must init the language before we attempt to fetch its context.
   if (NS_FAILED(global->EnsureScriptEnvironment(aLanguage))) {
@@ -736,6 +709,7 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
   NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
   void *scope = global->GetScriptGlobal(aLanguage);
+  nsresult rv;
 
   if (!aDeferCompilation) {
     nsCOMPtr<nsIScriptEventHandlerOwner> handlerOwner =

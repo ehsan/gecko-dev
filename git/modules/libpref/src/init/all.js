@@ -60,7 +60,7 @@ pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
 #ifndef WINCE
-pref("browser.cache.disk.capacity",         102400);
+pref("browser.cache.disk.capacity",         51200);
 #else
 pref("browser.cache.disk.capacity",         20000);
 #endif
@@ -1224,14 +1224,6 @@ pref("dom.ipc.plugins.timeoutSecs", 10);
 #else
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
-#endif
-
-#ifndef XP_MACOSX
-#ifdef XP_UNIX
-// Linux plugins using Xt instead of Xembed don't work out-of-process yet.
-pref("dom.ipc.plugins.enabled.libvlcplugin.so", false);
-pref("dom.ipc.plugins.enabled.nppdf.so", false);
-#endif
 #endif
 
 pref("svg.enabled", true);

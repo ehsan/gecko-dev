@@ -307,7 +307,7 @@ nsGenericHTMLElement::SetAttribute(const nsAString& aName,
     nsCOMPtr<nsIAtom> nameAtom;
     if (IsInHTMLDocument()) {
       nsAutoString lower;
-      nsContentUtils::ASCIIToLower(aName, lower);
+      ToLowerCase(aName, lower);
       nameAtom = do_GetAtom(lower);
     }
     else {
@@ -328,7 +328,7 @@ nsGenericHTMLElement::GetNodeName(nsAString& aNodeName)
   mNodeInfo->GetQualifiedName(aNodeName);
 
   if (IsInHTMLDocument())
-    nsContentUtils::ASCIIToUpper(aNodeName);
+    ToUpperCase(aNodeName);
 
   return NS_OK;
 }
@@ -337,14 +337,13 @@ nsresult
 nsGenericHTMLElement::GetElementsByTagName(const nsAString& aTagname,
                                            nsIDOMNodeList** aReturn)
 {
-  // Only lowercase the name if this is an HTML document.
-  if (IsInHTMLDocument()) {
-    nsAutoString lower;
-    nsContentUtils::ASCIIToLower(aTagname, lower);
-    return nsGenericHTMLElementBase::GetElementsByTagName(lower, aReturn);
-  }
+  nsAutoString tagName(aTagname);
 
-  return nsGenericHTMLElementBase::GetElementsByTagName(aTagname, aReturn);
+  // Only lowercase the name if this is an HTML document.
+  if (IsInHTMLDocument())
+    ToLowerCase(tagName);
+
+  return nsGenericHTMLElementBase::GetElementsByTagName(tagName, aReturn);
 }
 
 // Implementation for nsIDOMHTMLElement
@@ -3356,7 +3355,7 @@ nsGenericHTMLElement::InternalGetExistingAttrNameFromQName(const nsAString& aStr
 {
   if (IsInHTMLDocument()) {
     nsAutoString lower;
-    nsContentUtils::ASCIIToLower(aStr, lower);
+    ToLowerCase(aStr, lower);
     return mAttrsAndChildren.GetExistingAttrNameFromQName(
       NS_ConvertUTF16toUTF8(lower));
   }

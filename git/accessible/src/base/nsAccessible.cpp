@@ -2498,7 +2498,7 @@ nsAccessible::DoCommand(nsIContent *aContent, PRUint32 aActionIndex)
 {
   nsCOMPtr<nsIContent> content = aContent;
   if (!content)
-    content = nsCoreUtils::GetRoleContent(mDOMNode);
+    content = do_QueryInterface(mDOMNode);
 
   NS_DISPATCH_RUNNABLEMETHOD_ARG2(DispatchClickEvent, this,
                                   content, aActionIndex)

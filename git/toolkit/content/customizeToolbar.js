@@ -806,8 +806,10 @@ function onToolbarDrop(aEvent)
     if (wrapper == gCurrentDragOverItem)
        return;
 
-    // Don't allow non-removable kids (e.g., the menubar) to move.
-    if (wrapper.firstChild.getAttribute("removable") != "true")
+    // Don't allow static kids (e.g., the menubar) to move.
+    if (wrapper.parentNode.firstPermanentChild && wrapper.parentNode.firstPermanentChild.id == wrapper.firstChild.id)
+      return;
+    if (wrapper.parentNode.lastPermanentChild && wrapper.parentNode.lastPermanentChild.id == wrapper.firstChild.id)
       return;
 
     // Remove the item from its place in the toolbar.
@@ -903,8 +905,10 @@ function onPaletteDrop(aEvent)
 
   var wrapper = gToolboxDocument.getElementById("wrapper-"+itemId);
   if (wrapper) {
-    // Don't allow non-removable kids (e.g., the menubar) to move.
-    if (wrapper.firstChild.getAttribute("removable") != "true")
+    // Don't allow static kids (e.g., the menubar) to move.
+    if (wrapper.parentNode.firstPermanentChild && wrapper.parentNode.firstPermanentChild.id == wrapper.firstChild.id)
+      return;
+    if (wrapper.parentNode.lastPermanentChild && wrapper.parentNode.lastPermanentChild.id == wrapper.firstChild.id)
       return;
 
     var wrapperType = wrapper.getAttribute("type");
