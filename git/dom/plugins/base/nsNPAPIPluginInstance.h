@@ -224,6 +224,7 @@ protected:
   PRPackedBool mWindowlessLocal;
   PRPackedBool mTransparent;
   PRPackedBool mCached;
+  PRPackedBool mWantsAllNetworkStreams;
   PRPackedBool mUsesDOMForCursor;
 
 public:
