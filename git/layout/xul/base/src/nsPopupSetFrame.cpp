@@ -74,11 +74,10 @@ nsPopupSetFrame::Init(nsIContent*      aContent,
 {
   nsresult  rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
 
-  // Normally the root box is our grandparent, but in case of wrapping
-  // it can be our great-grandparent.
-  nsIRootBox *rootBox = nsIRootBox::GetRootBox(PresContext()->GetPresShell());
-  NS_ASSERTION(rootBox, "must have root box");
-  if (rootBox) {
+  nsIRootBox *rootBox;
+  nsresult res = CallQueryInterface(aParent->GetParent(), &rootBox);
+  NS_ASSERTION(NS_SUCCEEDED(res), "grandparent should be root box");
+  if (NS_SUCCEEDED(res)) {
     rootBox->SetPopupSetFrame(this);
   }
 
@@ -145,11 +144,10 @@ nsPopupSetFrame::Destroy()
     delete temp;
   }
 
-  // Normally the root box is our grandparent, but in case of wrapping
-  // it can be our great-grandparent.
-  nsIRootBox *rootBox = nsIRootBox::GetRootBox(PresContext()->GetPresShell());
-  NS_ASSERTION(rootBox, "must have root box");
-  if (rootBox) {
+  nsIRootBox *rootBox;
+  nsresult res = CallQueryInterface(mParent->GetParent(), &rootBox);
+  NS_ASSERTION(NS_SUCCEEDED(res), "grandparent should be root box");
+  if (NS_SUCCEEDED(res)) {
     rootBox->SetPopupSetFrame(nsnull);
   }
 
