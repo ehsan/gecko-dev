@@ -45,12 +45,6 @@
 txUnknownHandler::txUnknownHandler(txExecutionState* aEs)
     : mEs(aEs)
 {
-    MOZ_COUNT_CTOR_INHERITED(txUnknownHandler, txBufferingHandler);
-}
-
-txUnknownHandler::~txUnknownHandler()
-{
-    MOZ_COUNT_DTOR_INHERITED(txUnknownHandler, txBufferingHandler);
 }
 
 nsresult
@@ -153,17 +147,14 @@ nsresult txUnknownHandler::createHandlerAndFlush(PRBool aHTMLRoot,
         format.mMethod = aHTMLRoot ? eHTMLOutput : eXMLOutput;
     }
 
-    nsAutoPtr<txAXMLEventHandler> handler;
+    txAXMLEventHandler *handler = nsnull;
     nsresult rv = mEs->mOutputHandlerFactory->createHandlerWith(&format, aName,
                                                                 aNsID,
-                                                                getter_Transfers(handler));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = mBuffer->flushToHandler(handler);
+                                                                &handler);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mEs->mOutputHandler = handler;
-    mEs->mResultHandler = handler.forget();
+    mEs->mResultHandler = handler;
 
-    return NS_OK;
+    return mBuffer->flushToHandler(&handler);
 }
