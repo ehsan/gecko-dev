@@ -42,7 +42,6 @@
 #include "jscntxt.h"
 #include "jsfriendapi.h"
 
-#include "Exceptions.h"
 #include "WorkerPrivate.h"
 #include "XMLHttpRequestPrivate.h"
 
@@ -276,12 +275,10 @@ class XMLHttpRequest
     SLOT_status,
     SLOT_statusText,
     SLOT_readyState,
-    SLOT_response,
     SLOT_multipart,
     SLOT_mozBackgroundRequest,
     SLOT_withCredentials,
     SLOT_upload,
-    SLOT_responseType,
 
     SLOT_COUNT
   };
@@ -345,7 +342,6 @@ public:
     HANDLE_STATE_VALUE(mStatus, SLOT_status)
     HANDLE_STATE_VALUE(mStatusText, SLOT_statusText)
     HANDLE_STATE_VALUE(mReadyState, SLOT_readyState)
-    HANDLE_STATE_VALUE(mResponse, SLOT_response)
 
 #undef HANDLE_STATE_VALUE
 
@@ -399,11 +395,6 @@ private:
       return false;
     }
 
-    JSString* textStr = JS_NewStringCopyN(aCx, "text", 4);
-    if (!textStr) {
-      return false;
-    }
-
     jsval emptyString = JS_GetEmptyStringValue(aCx);
     jsval zero = INT_TO_JSVAL(0);
 
@@ -416,9 +407,7 @@ private:
         !JS_SetReservedSlot(aCx, obj, SLOT_multipart, JSVAL_FALSE) ||
         !JS_SetReservedSlot(aCx, obj, SLOT_mozBackgroundRequest, JSVAL_FALSE) ||
         !JS_SetReservedSlot(aCx, obj, SLOT_withCredentials, JSVAL_FALSE) ||
-        !JS_SetReservedSlot(aCx, obj, SLOT_upload, JSVAL_NULL) ||
-        !JS_SetReservedSlot(aCx, obj, SLOT_responseType,
-                            STRING_TO_JSVAL(textStr))) {
+        !JS_SetReservedSlot(aCx, obj, SLOT_upload, JSVAL_NULL)) {
       return false;
     }
 
@@ -473,7 +462,7 @@ private:
 
     if (JSVAL_IS_VOID(rval)) {
       // Throw an exception.
-      exceptions::ThrowDOMExceptionForCode(aCx, INVALID_STATE_ERR);
+      JS_ReportError(aCx, "Unable to retrieve %s property", name);
       return false;
     }
 
@@ -546,13 +535,8 @@ private:
       return false;                                                            \
     }                                                                          \
                                                                                \
-    jsval oldVal;                                                              \
-    if (!JS_GetReservedSlot(aCx, aObj, slot, &oldVal)) {                       \
-      return false;                                                            \
-    }                                                                          \
-                                                                               \
     jsval rval = *aVp;                                                         \
-    if (!priv->Set##_name (aCx, oldVal, &rval) ||                              \
+    if (!priv->Set##_name (aCx, &rval) ||                                      \
         !JS_SetReservedSlot(aCx, aObj, slot, rval)) {                          \
       return false;                                                            \
     }                                                                          \
@@ -564,7 +548,6 @@ private:
   IMPL_SETTER(Multipart)
   IMPL_SETTER(MozBackgroundRequest)
   IMPL_SETTER(WithCredentials)
-  IMPL_SETTER(ResponseType)
 
 #undef IMPL_SETTER
 
@@ -800,17 +783,13 @@ JSPropertySpec XMLHttpRequest::sProperties[] = {
   GENERIC_READONLY_PROPERTY(status)
   GENERIC_READONLY_PROPERTY(statusText)
   GENERIC_READONLY_PROPERTY(readyState)
-  GENERIC_READONLY_PROPERTY(response)
 
-  { "multipart", SLOT_multipart, PROPERTY_FLAGS, GetProperty, SetMultipart },
-  { "mozBackgroundRequest", SLOT_mozBackgroundRequest, PROPERTY_FLAGS,
-    GetProperty, SetMozBackgroundRequest },
-  { "withCredentials", SLOT_withCredentials, PROPERTY_FLAGS, GetProperty,
-    SetWithCredentials },
-  { "upload", SLOT_upload, PROPERTY_FLAGS, GetUpload,
+  { "multipart", 7, PROPERTY_FLAGS, GetProperty, SetMultipart },
+  { "mozBackgroundRequest", 8, PROPERTY_FLAGS, GetProperty,
+    SetMozBackgroundRequest },
+  { "withCredentials", 9, PROPERTY_FLAGS, GetProperty, SetWithCredentials },
+  { "upload", SLOT_upload, PROPERTY_FLAGS, GetUpload, 
     js_GetterOnlyPropertyStub },
-  { "responseType", SLOT_responseType, PROPERTY_FLAGS, GetProperty,
-    SetResponseType },
   { sEventStrings[STRING_onreadystatechange], STRING_onreadystatechange,
     PROPERTY_FLAGS, GetEventListener, SetEventListener },
   { sEventStrings[STRING_onabort], STRING_onabort, PROPERTY_FLAGS,

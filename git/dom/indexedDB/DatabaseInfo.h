@@ -46,31 +46,18 @@
 #include "Key.h"
 #include "IDBObjectStore.h"
 
-#include "nsClassHashtable.h"
-#include "nsHashKeys.h"
-
 BEGIN_INDEXEDDB_NAMESPACE
-
-struct ObjectStoreInfo;
-
-typedef nsClassHashtable<nsStringHashKey, ObjectStoreInfo>
-        ObjectStoreInfoHash;
-
-class IDBDatabase;
-class OpenDatabaseHelper;
 
 struct DatabaseInfo
 {
-  friend class IDBDatabase;
-  friend class OpenDatabaseHelper;
-
-private:
-  DatabaseInfo()
-  : nextObjectStoreId(1),
-    nextIndexId(1),
-    cloned(false)
-  { }
+#ifdef NS_BUILD_REFCNT_LOGGING
+  DatabaseInfo();
   ~DatabaseInfo();
+#else
+  DatabaseInfo()
+  : nextObjectStoreId(1), nextIndexId(1), runningVersionChange(false)
+  { }
+#endif
 
   static bool Get(nsIAtom* aId,
                   DatabaseInfo** aInfo);
@@ -79,18 +66,8 @@ private:
 
   static void Remove(nsIAtom* aId);
 
-public:
   bool GetObjectStoreNames(nsTArray<nsString>& aNames);
   bool ContainsStoreName(const nsAString& aName);
-
-  bool GetObjectStore(const nsAString& aName,
-                      ObjectStoreInfo** aInfo);
-
-  bool PutObjectStore(ObjectStoreInfo* aInfo);
-
-  void RemoveObjectStore(const nsAString& aName);
-
-  already_AddRefed<DatabaseInfo> Clone();
 
   nsString name;
   PRUint64 version;
@@ -98,18 +75,15 @@ public:
   nsString filePath;
   PRInt64 nextObjectStoreId;
   PRInt64 nextIndexId;
-  bool cloned;
+  bool runningVersionChange;
 
-  nsAutoPtr<ObjectStoreInfoHash> objectStoreHash;
-
-  NS_INLINE_DECL_REFCOUNTING(DatabaseInfo)
+  nsAutoRefCnt referenceCount;
 };
 
 struct IndexInfo
 {
 #ifdef NS_BUILD_REFCNT_LOGGING
   IndexInfo();
-  IndexInfo(const IndexInfo& aOther);
   ~IndexInfo();
 #else
   IndexInfo()
@@ -127,12 +101,20 @@ struct ObjectStoreInfo
 {
 #ifdef NS_BUILD_REFCNT_LOGGING
   ObjectStoreInfo();
-  ObjectStoreInfo(ObjectStoreInfo& aOther);
   ~ObjectStoreInfo();
 #else
   ObjectStoreInfo()
   : id(0), autoIncrement(false), databaseId(0) { }
 #endif
+
+  static bool Get(nsIAtom* aDatabaseId,
+                  const nsAString& aName,
+                  ObjectStoreInfo** aInfo);
+
+  static bool Put(ObjectStoreInfo* aInfo);
+
+  static void Remove(nsIAtom* aDatabaseId,
+                     const nsAString& aName);
 
   nsString name;
   PRInt64 id;

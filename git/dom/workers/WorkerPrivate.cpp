@@ -538,13 +538,6 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
     AssertIsOnMainThread();
 
     JSObject* clone =
-      MainThreadWorkerStructuredCloneCallbacks::Read(aCx, aReader, aTag, aData,
-                                                     aClosure);
-    if (clone) {
-      return clone;
-    }
-
-    clone =
       ChromeWorkerStructuredCloneCallbacks::Read(aCx, aReader, aTag, aData,
                                                  aClosure);
     if (clone) {
@@ -561,15 +554,14 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
   {
     AssertIsOnMainThread();
 
-    if (MainThreadWorkerStructuredCloneCallbacks::Write(aCx, aWriter, aObj,
-                                                        aClosure) ||
-        ChromeWorkerStructuredCloneCallbacks::Write(aCx, aWriter, aObj,
-                                                    aClosure) ||
-        NS_DOMWriteStructuredClone(aCx, aWriter, aObj, nsnull)) {
-      return true;
+    JSBool ok =
+      ChromeWorkerStructuredCloneCallbacks::Write(aCx, aWriter, aObj, aClosure);
+    if (ok) {
+      return ok;
     }
 
-    return false;
+    JS_ClearPendingException(aCx);
+    return NS_DOMWriteStructuredClone(aCx, aWriter, aObj, nsnull);
   }
 
   static void

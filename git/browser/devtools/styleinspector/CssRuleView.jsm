@@ -89,25 +89,11 @@ var EXPORTED_SYMBOLS = ["CssRuleView",
 /**
  * ElementStyle maintains a list of Rule objects for a given element.
  *
- * @param Element aElement
- *        The element whose style we are viewing.
- * @param object aStore
- *        The ElementStyle can use this object to store metadata
- *        that might outlast the rule view, particularly the current
- *        set of disabled properties.
- *
  * @constructor
  */
-function ElementStyle(aElement, aStore)
+function ElementStyle(aElement)
 {
   this.element = aElement;
-  this.store = aStore || {};
-  if (this.store.disabled) {
-    this.store.disabled = aStore.disabled;
-  } else {
-    this.store.disabled = WeakMap();
-  }
-
   let doc = aElement.ownerDocument;
 
   // To figure out how shorthand properties are interpreted by the
@@ -130,17 +116,6 @@ ElementStyle.prototype = {
   dummyElement: null,
 
   domUtils: Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils),
-
-  /**
-   * Called by the Rule object when it has been changed through the
-   * setProperty* methods.
-   */
-  _changed: function ElementStyle_changed()
-  {
-    if (this.onChanged) {
-      this.onChanged();
-    }
-  },
 
   /**
    * Refresh the list of rules to be displayed for the active element.
@@ -397,20 +372,12 @@ Rule.prototype = {
 
   /**
    * Reapply all the properties in this rule, and update their
-   * computed styles.  Store disabled properties in the element
-   * style's store.  Will re-mark overridden properties.
+   * computed styles.  Will re-mark overridden properties.
    */
   applyProperties: function Rule_applyProperties()
   {
-    let disabledProps = [];
-
     for each (let prop in this.textProps) {
       if (!prop.enabled) {
-        disabledProps.push({
-          name: prop.name,
-          value: prop.value,
-          priority: prop.priority
-        });
         continue;
       }
 
@@ -421,11 +388,6 @@ Rule.prototype = {
       prop.priority = this.style.getPropertyPriority(prop.name);
       prop.updateComputed();
     }
-    this.elementStyle._changed();
-
-    // Store disabled properties in the disabled store.
-    let disabled = this.elementStyle.store.disabled;
-    disabled.set(this.style, disabledProps);
 
     this.elementStyle.markOverridden();
   },
@@ -514,19 +476,6 @@ Rule.prototype = {
 
       let prop = new TextProperty(this, name, matches[2], matches[3] || "");
       this.textProps.push(prop);
-    }
-
-    // Include properties from the disabled property store, if any.
-    let disabledProps = this.elementStyle.store.disabled.get(this.style);
-    if (!disabledProps) {
-      return;
-    }
-
-    for each (let prop in disabledProps) {
-      let textProp = new TextProperty(this, prop.name,
-                                      prop.value, prop.priority);
-      textProp.enabled = false;
-      this.textProps.push(textProp);
     }
   },
 }
@@ -644,24 +593,15 @@ TextProperty.prototype = {
  *
  * @param Document aDocument
  *        The document that will contain the rule view.
- * @param object aStore
- *        The CSS rule view can use this object to store metadata
- *        that might outlast the rule view, particularly the current
- *        set of disabled properties.
  * @constructor
  */
-function CssRuleView(aDoc, aStore)
+function CssRuleView(aDoc)
 {
   this.doc = aDoc;
-  this.store = aStore;
 
   this.element = this.doc.createElementNS(HTML_NS, "div");
   this.element.setAttribute("tabindex", "0");
   this.element.classList.add("ruleview");
-
-  // Give a relative position for the inplace editor's measurement
-  // span to be placed absolutely against.
-  this.element.style.position = "relative";
 }
 
 CssRuleView.prototype = {
@@ -687,15 +627,7 @@ CssRuleView.prototype = {
       return;
     }
 
-    if (this._elementStyle) {
-      delete this._elementStyle.onChanged;
-    }
-
-    this._elementStyle = new ElementStyle(aElement, this.store);
-    this._elementStyle.onChanged = function() {
-      this._changed();
-    }.bind(this);
-
+    this._elementStyle = new ElementStyle(aElement);
     this._createEditors();
   },
 
@@ -709,17 +641,6 @@ CssRuleView.prototype = {
     }
     this._viewedElement = null;
     this._elementStyle = null;
-  },
-
-  /**
-   * Called when the user has made changes to the ElementStyle.
-   * Emits an event that clients can listen to.
-   */
-  _changed: function CssRuleView_changed()
-  {
-    var evt = this.doc.createEvent("Events");
-    evt.initEvent("CssRuleViewChanged", true, false);
-    this.element.dispatchEvent(evt);
   },
 
   /**
@@ -1082,12 +1003,10 @@ TextPropertyEditor.prototype = {
    */
   _parseValue: function TextPropertyEditor_parseValue(aValue)
   {
-    let pieces = aValue.split("!", 2);
-    let value = pieces[0];
-    let priority = pieces.length > 1 ? pieces[1] : "";
+    let [value, priority] = aValue.split("!", 2);
     return {
-      value: pieces[0].trim(),
-      priority: (pieces.length > 1 ? pieces[1].trim() : "")
+      value: value.trim(),
+      priority: (priority ? priority.trim() : "")
     };
   },
 
