@@ -106,6 +106,12 @@
 
 #include "nsIDOMSimpleGestureEvent.h" //Gesture support
 
+#if MOZ_PLATFORM_MAEMO > 5
+#include "nsIDOMWindow.h"
+#include "nsIDOMElement.h"
+#include "nsIFocusManager.h"
+#endif
+
 #ifdef MOZ_X11
 #include "keysym2ucs.h"
 #endif //MOZ_X11
@@ -334,6 +340,11 @@ nsWindow::Destroy(void)
         gRollupListener = nsnull;
         NS_IF_RELEASE(gMenuRollup);
     }
+
+    if (mLayerManager) {
+        mLayerManager->Destroy();
+    }
+    mLayerManager = nsnull;
 
     Show(PR_FALSE);
 
@@ -1284,6 +1295,22 @@ nsWindow::OnFocusOutEvent(QEvent *aEvent)
     if (!mWidget)
         return nsEventStatus_eIgnore;
 
+#if MOZ_PLATFORM_MAEMO > 5
+    if (((QFocusEvent*)aEvent)->reason() == Qt::OtherFocusReason
+         && mWidget->isVKBOpen()) {
+        // We assume that the VKB was open in this case, because of the focus
+        // reason and clear the focus in the active window.
+        nsCOMPtr<nsIFocusManager> fm = do_GetService("@mozilla.org/focus-manager;1");
+        if (fm) {
+            nsCOMPtr<nsIDOMWindow> domWindow;
+            fm->GetActiveWindow(getter_AddRefs(domWindow));
+            fm->ClearFocus(domWindow);
+        }
+
+        return nsEventStatus_eIgnore;
+    }
+#endif
+
     DispatchDeactivateEventOnTopLevelWindow();
 
     LOGFOCUS(("Done with container focus out [%p]\n", (void *)this));
@@ -1972,6 +1999,26 @@ nsWindow::Create(nsIWidget        *aParent,
     return NS_OK;
 }
 
+already_AddRefed<nsIWidget>
+nsWindow::CreateChild(const nsIntRect&  aRect,
+                      EVENT_CALLBACK    aHandleEventFunction,
+                      nsIDeviceContext* aContext,
+                      nsIAppShell*      aAppShell,
+                      nsIToolkit*       aToolkit,
+                      nsWidgetInitData* aInitData,
+                      PRBool            /*aForceUseIWidgetParent*/)
+{
+    //We need to force parent widget, otherwise GetTopLevelWindow doesn't work
+    return nsBaseWidget::CreateChild(aRect,
+                                     aHandleEventFunction,
+                                     aContext,
+                                     aAppShell,
+                                     aToolkit,
+                                     aInitData,
+                                     PR_TRUE); // Force parent
+}
+
+
 NS_IMETHODIMP
 nsWindow::SetWindowClass(const nsAString &xulWinType)
 {
@@ -2403,23 +2450,6 @@ nsWindow::SetAcceleratedRendering(PRBool aEnabled)
     }
 
     return NS_OK;
-}
-
-
-mozilla::layers::LayerManager*
-nsWindow::GetLayerManager()
-{
-    nsWindow *topWindow = static_cast<nsWindow*>(GetTopLevelWidget());
-    if (!topWindow)
-        return nsBaseWidget::GetLayerManager();
-
-    if (mUseAcceleratedRendering != topWindow->GetAcceleratedRendering()
-        && IsAcceleratedQView(static_cast<QGraphicsView*>(GetViewWidget()))) {
-        mLayerManager = NULL;
-        mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
-    }
-
-    return nsBaseWidget::GetLayerManager();
 }
 
 // return the gfxASurface for rendering to this widget
