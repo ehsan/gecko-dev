@@ -231,11 +231,6 @@ public:
   mozilla::a11y::role ARIARole();
 
   /**
-   * Return a landmark role if applied.
-   */
-  virtual nsIAtom* LandmarkRole() const;
-
-  /**
    * Returns enumerated accessible role from native markup (see constants in
    * Role.h). Doesn't take into account ARIA roles.
    */
@@ -625,8 +620,6 @@ public:
 
   bool IsRoot() const { return mType == eRootType; }
   a11y::RootAccessible* AsRoot();
-
-  bool IsSearchbox() const;
 
   bool IsSelect() const { return HasGenericType(eSelect); }
 
@@ -1105,7 +1098,7 @@ protected:
   static const uint8_t kStateFlagsBits = 9;
   static const uint8_t kContextFlagsBits = 2;
   static const uint8_t kTypeBits = 6;
-  static const uint8_t kGenericTypesBits = 14;
+  static const uint8_t kGenericTypesBits = 13;
 
   /**
    * Keep in sync with ChildrenFlags, StateFlags, ContextFlags, and AccTypes.

@@ -4,7 +4,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "ClearKeyDecryptionManager.h"
 #include "ClearKeySessionManager.h"
@@ -12,9 +11,6 @@
 #include "ClearKeyStorage.h"
 #include "ClearKeyPersistence.h"
 #include "gmp-task-utils.h"
-#if defined(ENABLE_WMF)
-#include "WMFUtils.h"
-#endif
 
 #include "mozilla/Assertions.h"
 

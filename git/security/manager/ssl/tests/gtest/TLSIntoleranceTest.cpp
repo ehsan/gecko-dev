@@ -601,9 +601,6 @@ TEST_F(TLSIntoleranceTest, TLS_Static_Fallback_List)
 {
   NS_NAMED_LITERAL_CSTRING(fallback_test, "fallback.test");
   NS_NAMED_LITERAL_CSTRING(no_fallback_test, "no.fallback.test");
-  NS_NAMED_LITERAL_CSTRING(wildcard_test, "wildcard.test");
-  NS_NAMED_LITERAL_CSTRING(a_wildcard_test, "a.wildcard.test");
-  NS_NAMED_LITERAL_CSTRING(long_example_wildcard_test, "long.example.wildcard.test");
 
   helpers.mVersionFallbackLimit = SSL_LIBRARY_VERSION_TLS_1_0;
   helpers.mUseStaticFallbackList = false;
@@ -614,15 +611,6 @@ TEST_F(TLSIntoleranceTest, TLS_Static_Fallback_List)
   ASSERT_FALSE(helpers.fallbackLimitReached(no_fallback_test, SSL_LIBRARY_VERSION_TLS_1_2));
   ASSERT_FALSE(helpers.fallbackLimitReached(no_fallback_test, SSL_LIBRARY_VERSION_TLS_1_1));
   ASSERT_TRUE(helpers.fallbackLimitReached(no_fallback_test, SSL_LIBRARY_VERSION_TLS_1_0));
-  ASSERT_FALSE(helpers.fallbackLimitReached(wildcard_test, SSL_LIBRARY_VERSION_TLS_1_2));
-  ASSERT_FALSE(helpers.fallbackLimitReached(wildcard_test, SSL_LIBRARY_VERSION_TLS_1_1));
-  ASSERT_TRUE(helpers.fallbackLimitReached(wildcard_test, SSL_LIBRARY_VERSION_TLS_1_0));
-  ASSERT_FALSE(helpers.fallbackLimitReached(a_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_2));
-  ASSERT_FALSE(helpers.fallbackLimitReached(a_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_1));
-  ASSERT_TRUE(helpers.fallbackLimitReached(a_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_0));
-  ASSERT_FALSE(helpers.fallbackLimitReached(long_example_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_2));
-  ASSERT_FALSE(helpers.fallbackLimitReached(long_example_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_1));
-  ASSERT_TRUE(helpers.fallbackLimitReached(long_example_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_0));
 
   helpers.mVersionFallbackLimit = SSL_LIBRARY_VERSION_TLS_1_2;
 
@@ -632,15 +620,6 @@ TEST_F(TLSIntoleranceTest, TLS_Static_Fallback_List)
   ASSERT_TRUE(helpers.fallbackLimitReached(no_fallback_test, SSL_LIBRARY_VERSION_TLS_1_2));
   ASSERT_TRUE(helpers.fallbackLimitReached(no_fallback_test, SSL_LIBRARY_VERSION_TLS_1_1));
   ASSERT_TRUE(helpers.fallbackLimitReached(no_fallback_test, SSL_LIBRARY_VERSION_TLS_1_0));
-  ASSERT_TRUE(helpers.fallbackLimitReached(wildcard_test, SSL_LIBRARY_VERSION_TLS_1_2));
-  ASSERT_TRUE(helpers.fallbackLimitReached(wildcard_test, SSL_LIBRARY_VERSION_TLS_1_1));
-  ASSERT_TRUE(helpers.fallbackLimitReached(wildcard_test, SSL_LIBRARY_VERSION_TLS_1_0));
-  ASSERT_TRUE(helpers.fallbackLimitReached(a_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_2));
-  ASSERT_TRUE(helpers.fallbackLimitReached(a_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_1));
-  ASSERT_TRUE(helpers.fallbackLimitReached(a_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_0));
-  ASSERT_TRUE(helpers.fallbackLimitReached(long_example_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_2));
-  ASSERT_TRUE(helpers.fallbackLimitReached(long_example_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_1));
-  ASSERT_TRUE(helpers.fallbackLimitReached(long_example_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_0));
 
   helpers.mUseStaticFallbackList = true;
 
@@ -650,13 +629,4 @@ TEST_F(TLSIntoleranceTest, TLS_Static_Fallback_List)
   ASSERT_TRUE(helpers.fallbackLimitReached(no_fallback_test, SSL_LIBRARY_VERSION_TLS_1_2));
   ASSERT_TRUE(helpers.fallbackLimitReached(no_fallback_test, SSL_LIBRARY_VERSION_TLS_1_1));
   ASSERT_TRUE(helpers.fallbackLimitReached(no_fallback_test, SSL_LIBRARY_VERSION_TLS_1_0));
-  ASSERT_TRUE(helpers.fallbackLimitReached(wildcard_test, SSL_LIBRARY_VERSION_TLS_1_2));
-  ASSERT_TRUE(helpers.fallbackLimitReached(wildcard_test, SSL_LIBRARY_VERSION_TLS_1_1));
-  ASSERT_TRUE(helpers.fallbackLimitReached(wildcard_test, SSL_LIBRARY_VERSION_TLS_1_0));
-  ASSERT_FALSE(helpers.fallbackLimitReached(a_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_2));
-  ASSERT_FALSE(helpers.fallbackLimitReached(a_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_1));
-  ASSERT_TRUE(helpers.fallbackLimitReached(a_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_0));
-  ASSERT_FALSE(helpers.fallbackLimitReached(long_example_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_2));
-  ASSERT_FALSE(helpers.fallbackLimitReached(long_example_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_1));
-  ASSERT_TRUE(helpers.fallbackLimitReached(long_example_wildcard_test, SSL_LIBRARY_VERSION_TLS_1_0));
 }

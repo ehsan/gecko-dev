@@ -688,7 +688,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         callPreBarrier(address, type);
         jump(&done);
 
-        haltingAlign(8);
+        align(8);
         bind(&done);
     }
 

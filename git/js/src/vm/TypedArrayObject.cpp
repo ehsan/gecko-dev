@@ -1062,7 +1062,7 @@ DataViewObject::construct(JSContext *cx, JSObject *bufobj, const CallArgs &args,
             return false;
         }
 
-        if (!args.get(2).isUndefined()) {
+        if (args.length() > 2) {
             if (!ToUint32(cx, args[2], &byteLength))
                 return false;
             if (byteLength > INT32_MAX) {

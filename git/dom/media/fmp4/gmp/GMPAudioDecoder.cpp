@@ -9,7 +9,7 @@
 namespace mozilla {
 
 #if defined(DEBUG)
-bool IsOnGMPThread()
+static bool IsOnGMPThread()
 {
   nsCOMPtr<mozIGeckoMediaPluginService> mps = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
   MOZ_ASSERT(mps);

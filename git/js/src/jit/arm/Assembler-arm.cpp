@@ -1405,14 +1405,7 @@ Assembler::WriteInstStatic(uint32_t x, uint32_t *dest)
 }
 
 void
-Assembler::haltingAlign(int alignment)
-{
-    // TODO: Implement a proper halting align.
-    nopAlign(alignment);
-}
-
-void
-Assembler::nopAlign(int alignment)
+Assembler::align(int alignment)
 {
     m_buffer.align(alignment);
 }

@@ -1923,8 +1923,8 @@ TelemetryImpl::ReflectSQL(const SlowSQLEntryType *entry,
   if (!arrayObj) {
     return false;
   }
-  return (JS_DefineElement(cx, arrayObj, 0, stat->hitCount, JSPROP_ENUMERATE)
-          && JS_DefineElement(cx, arrayObj, 1, stat->totalTime, JSPROP_ENUMERATE)
+  return (JS_SetElement(cx, arrayObj, 0, stat->hitCount)
+          && JS_SetElement(cx, arrayObj, 1, stat->totalTime)
           && JS_DefineProperty(cx, obj, sql.BeginReading(), arrayObj,
                                JSPROP_ENUMERATE));
 }
@@ -2523,16 +2523,13 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, JS::MutableHandle<JS::Value> ret)
 
   const size_t length = stacks.GetStackCount();
   for (size_t i = 0; i < length; ++i) {
-    if (!JS_DefineElement(cx, durationArray, i, mHangReports.GetDuration(i),
-                          JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, durationArray, i, mHangReports.GetDuration(i))) {
       return NS_ERROR_FAILURE;
     }
-    if (!JS_DefineElement(cx, systemUptimeArray, i, mHangReports.GetSystemUptime(i),
-                          JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, systemUptimeArray, i, mHangReports.GetSystemUptime(i))) {
       return NS_ERROR_FAILURE;
     }
-    if (!JS_DefineElement(cx, firefoxUptimeArray, i, mHangReports.GetFirefoxUptime(i),
-                          JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, firefoxUptimeArray, i, mHangReports.GetFirefoxUptime(i))) {
       return NS_ERROR_FAILURE;
     }
     const nsTArray<HangReports::AnnotationInfo>& annotationInfo =
@@ -2545,7 +2542,7 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, JS::MutableHandle<JS::Value> ret)
       }
       JS::RootedValue indexValue(cx);
       indexValue.setNumber(annotationInfo[iterIndex].mHangIndex);
-      if (!JS_DefineElement(cx, keyValueArray, 0, indexValue, JSPROP_ENUMERATE)) {
+      if (!JS_SetElement(cx, keyValueArray, 0, indexValue)) {
         return NS_ERROR_FAILURE;
       }
       JS::Rooted<JSObject*> jsAnnotation(cx, JS_NewPlainObject(cx));
@@ -2567,11 +2564,11 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, JS::MutableHandle<JS::Value> ret)
           return NS_ERROR_FAILURE;
         }
       }
-      if (!JS_DefineElement(cx, keyValueArray, 1, jsAnnotation, JSPROP_ENUMERATE)) {
+      if (!JS_SetElement(cx, keyValueArray, 1, jsAnnotation)) {
         return NS_ERROR_FAILURE;
       }
-      if (!JS_DefineElement(cx, annotationsArray, iterIndex,
-                         keyValueArray, JSPROP_ENUMERATE)) {
+      if (!JS_SetElement(cx, annotationsArray, iterIndex,
+                         keyValueArray)) {
         return NS_ERROR_FAILURE;
       }
     }
@@ -2607,8 +2604,7 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
     if (!moduleInfoArray) {
       return nullptr;
     }
-    if (!JS_DefineElement(cx, moduleArray, moduleIndex, moduleInfoArray,
-                          JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, moduleArray, moduleIndex, moduleInfoArray)) {
       return nullptr;
     }
 
@@ -2619,7 +2615,7 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
     if (!str) {
       return nullptr;
     }
-    if (!JS_DefineElement(cx, moduleInfoArray, index++, str, JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, moduleInfoArray, index++, str)) {
       return nullptr;
     }
 
@@ -2628,7 +2624,7 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
     if (!id) {
       return nullptr;
     }
-    if (!JS_DefineElement(cx, moduleInfoArray, index++, id, JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, moduleInfoArray, index++, id)) {
       return nullptr;
     }
   }
@@ -2650,7 +2646,7 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
       return nullptr;
     }
 
-    if (!JS_DefineElement(cx, reportArray, i, pcArray, JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, reportArray, i, pcArray)) {
       return nullptr;
     }
 
@@ -2664,14 +2660,13 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
       }
       int modIndex = (std::numeric_limits<uint16_t>::max() == frame.mModIndex) ?
         -1 : frame.mModIndex;
-      if (!JS_DefineElement(cx, framePair, 0, modIndex, JSPROP_ENUMERATE)) {
+      if (!JS_SetElement(cx, framePair, 0, modIndex)) {
         return nullptr;
       }
-      if (!JS_DefineElement(cx, framePair, 1, static_cast<double>(frame.mOffset),
-                            JSPROP_ENUMERATE)) {
+      if (!JS_SetElement(cx, framePair, 1, static_cast<double>(frame.mOffset))) {
         return nullptr;
       }
-      if (!JS_DefineElement(cx, pcArray, pcIndex, framePair, JSPROP_ENUMERATE)) {
+      if (!JS_SetElement(cx, pcArray, pcIndex, framePair)) {
         return nullptr;
       }
     }
@@ -2804,14 +2799,13 @@ CreateJSTimeHistogram(JSContext* cx, const Telemetry::TimeHistogram& time)
   }
   /* In a Chromium-style histogram, the first bucket is an "under" bucket
      that represents all values below the histogram's range. */
-  if (!JS_DefineElement(cx, ranges, 0, time.GetBucketMin(0), JSPROP_ENUMERATE) ||
-      !JS_DefineElement(cx, counts, 0, 0, JSPROP_ENUMERATE)) {
+  if (!JS_SetElement(cx, ranges, 0, time.GetBucketMin(0)) ||
+      !JS_SetElement(cx, counts, 0, 0)) {
     return nullptr;
   }
   for (size_t i = 0; i < ArrayLength(time); i++) {
-    if (!JS_DefineElement(cx, ranges, i + 1, time.GetBucketMax(i),
-                          JSPROP_ENUMERATE) ||
-        !JS_DefineElement(cx, counts, i + 1, time[i], JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, ranges, i + 1, time.GetBucketMax(i)) ||
+        !JS_SetElement(cx, counts, i + 1, time[i])) {
       return nullptr;
     }
   }
@@ -2831,7 +2825,7 @@ CreateJSHangStack(JSContext* cx, const Telemetry::HangStack& stack)
   }
   for (size_t i = 0; i < stack.length(); i++) {
     JS::RootedString string(cx, JS_NewStringCopyZ(cx, stack[i]));
-    if (!JS_DefineElement(cx, ret, i, string, JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, ret, i, string)) {
       return nullptr;
     }
   }
@@ -2891,7 +2885,7 @@ CreateJSThreadHangStats(JSContext* cx, const Telemetry::ThreadHangStats& thread)
   }
   for (size_t i = 0; i < thread.mHangs.length(); i++) {
     JS::RootedObject obj(cx, CreateJSHangHistogram(cx, thread.mHangs[i]));
-    if (!JS_DefineElement(cx, hangs, i, obj, JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, hangs, i, obj)) {
       return nullptr;
     }
   }
@@ -2920,7 +2914,7 @@ TelemetryImpl::GetThreadHangStats(JSContext* cx, JS::MutableHandle<JS::Value> re
        histogram; histogram = iter.GetNext()) {
     JS::RootedObject obj(cx,
       CreateJSThreadHangStats(cx, *histogram));
-    if (!JS_DefineElement(cx, retObj, threadIndex++, obj, JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, retObj, threadIndex++, obj)) {
       return NS_ERROR_FAILURE;
     }
   }
@@ -2931,7 +2925,7 @@ TelemetryImpl::GetThreadHangStats(JSContext* cx, JS::MutableHandle<JS::Value> re
   for (size_t i = 0; i < mThreadHangStats.length(); i++) {
     JS::RootedObject obj(cx,
       CreateJSThreadHangStats(cx, mThreadHangStats[i]));
-    if (!JS_DefineElement(cx, retObj, threadIndex++, obj, JSPROP_ENUMERATE)) {
+    if (!JS_SetElement(cx, retObj, threadIndex++, obj)) {
       return NS_ERROR_FAILURE;
     }
   }
