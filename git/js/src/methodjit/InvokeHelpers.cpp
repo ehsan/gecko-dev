@@ -51,6 +51,7 @@
 #include "jsiter.h"
 #include "jstypes.h"
 #include "methodjit/StubCalls.h"
+#include "jstracer.h"
 #include "jspropertycache.h"
 #include "methodjit/MonoIC.h"
 #include "jsanalyze.h"

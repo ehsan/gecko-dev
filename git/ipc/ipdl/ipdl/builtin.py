@@ -92,7 +92,6 @@ Types = (
 
 
 Includes = (
-    'mozilla/Attributes.h',
     'base/basictypes.h',
     'prtime.h',
     'nscore.h',

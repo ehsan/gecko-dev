@@ -223,6 +223,7 @@ function optionsInit() {
     atline:     true,
     xml:        true,
     relimit:    true,
+    tracejit:   true,
     methodjit:  true,
     jitprofiling: true,
     methodjit_always: true
@@ -262,6 +263,13 @@ function gczeal(z)
 
 function jit(on)
 {
+  // XXX do what shell.js does, namely equate "jit" with "tracejit"
+  // only
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  var tracejitEnabled = Components.utils.tracejit;
+  if ((on && !tracejitEnabled) ||
+      (!on && tracejitEnabled))
+    options('tracejit');
 }
 
 function jsTestDriverBrowserInit()

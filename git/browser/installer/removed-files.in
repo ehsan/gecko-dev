@@ -14,7 +14,6 @@
 @DLL_PREFIX@mozjs@DLL_SUFFIX@
 #endif
 LICENSE
-update.locale
 browserconfig.properties
 chrome/US.jar
 chrome/app-chrome.manifest

@@ -84,8 +84,7 @@ nsAudioAvailableEventManager::nsAudioAvailableEventManager(nsBuiltinDecoder* aDe
   mSignalBufferLength(mDecoder->GetFrameBufferLength()),
   mNewSignalBufferLength(mSignalBufferLength),
   mSignalBufferPosition(0),
-  mReentrantMonitor("media.audioavailableeventmanager"),
-  mHasListener(false)
+  mReentrantMonitor("media.audioavailableeventmanager")
 {
   MOZ_COUNT_CTOR(nsAudioAvailableEventManager);
 }
@@ -105,10 +104,6 @@ void nsAudioAvailableEventManager::DispatchPendingEvents(PRUint64 aCurrentTime)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
-  if (!mHasListener) {
-    return;
-  }
-
   while (mPendingEvents.Length() > 0) {
     nsAudioAvailableEventRunner* e =
       (nsAudioAvailableEventRunner*)mPendingEvents[0].get();
@@ -126,10 +121,6 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
                                                          PRUint64 aEndTimeSampleOffset)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-
-  if (!mHasListener) {
-    return;
-  }
 
   PRUint32 currentBufferSize = mNewSignalBufferLength;
   if (currentBufferSize == 0) {
@@ -221,10 +212,6 @@ void nsAudioAvailableEventManager::Drain(PRUint64 aEndTime)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
-  if (!mHasListener) {
-    return;
-  }
-
   // Force all pending events to go now.
   for (PRUint32 i = 0; i < mPendingEvents.Length(); ++i) {
     nsCOMPtr<nsIRunnable> event = mPendingEvents[i];
@@ -258,9 +245,3 @@ void nsAudioAvailableEventManager::SetSignalBufferLength(PRUint32 aLength)
   mNewSignalBufferLength = aLength;
 }
 
-void nsAudioAvailableEventManager::NotifyAudioAvailableListener()
-{
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-
-  mHasListener = true;
-}

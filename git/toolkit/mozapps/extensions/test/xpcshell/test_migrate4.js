@@ -76,18 +76,6 @@ var addon6 = {
   }]
 };
 
-var defaultTheme = {
-  id: "default@tests.mozilla.org",
-  version: "1.0",
-  name: "Default",
-  internalName: "classic/1.0",
-  targetApplications: [{
-    id: "xpcshell@tests.mozilla.org",
-    minVersion: "1",
-    maxVersion: "2"
-  }]
-};
-
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
 
@@ -111,10 +99,9 @@ function prepare_profile() {
   writeInstallRDFForExtension(addon4, profileDir);
   writeInstallRDFForExtension(addon5, profileDir);
   writeInstallRDFForExtension(addon6, profileDir);
-  writeInstallRDFForExtension(defaultTheme, profileDir);
 
   startupManager();
-  installAllFiles([do_get_addon("test_migrate8"), do_get_addon("test_migrate9")],
+  installAllFiles([do_get_addon("test_migrate8")],
                   function() {
     restartManager();
 
@@ -123,14 +110,12 @@ function prepare_profile() {
                                  "addon3@tests.mozilla.org",
                                  "addon4@tests.mozilla.org",
                                  "addon5@tests.mozilla.org",
-                                 "addon6@tests.mozilla.org",
-                                 "addon9@tests.mozilla.org"],
-                                 function([a1, a2, a3, a4, a5, a6, a9]) {
+                                 "addon6@tests.mozilla.org"],
+                                 function([a1, a2, a3, a4, a5, a6]) {
       a2.userDisabled = true;
       a2.applyBackgroundUpdates = false;
       a4.userDisabled = true;
       a6.userDisabled = true;
-      a9.userDisabled = false;
 
       for each (let addon in [a1, a2, a3, a4, a5, a6]) {
         oldSyncGUIDs[addon.id] = addon.syncGUID;
@@ -169,9 +154,6 @@ function prepare_profile() {
 }
 
 function perform_migration() {
-  // Turn on disabling for all scopes
-  Services.prefs.setIntPref("extensions.autoDisableScopes", 15);
-
   let dbfile = gProfD.clone();
   dbfile.append("extensions.sqlite");
   let db = AM_Cc["@mozilla.org/storage/service;1"].
@@ -200,9 +182,8 @@ function test_results() {
                                "addon5@tests.mozilla.org",
                                "addon6@tests.mozilla.org",
                                "addon7@tests.mozilla.org",
-                               "addon8@tests.mozilla.org",
-                               "addon9@tests.mozilla.org"],
-                               function([a1, a2, a3, a4, a5, a6, a7, a8, a9]) {
+                               "addon8@tests.mozilla.org"],
+                               function([a1, a2, a3, a4, a5, a6, a7, a8]) {
     // addon1 was enabled
     do_check_neq(a1, null);
     do_check_eq(a1.syncGUID, oldSyncGUIDs[a1.id]);
@@ -289,18 +270,8 @@ function test_results() {
     do_check_false(a8.userDisabled);
     do_check_false(a8.appDisabled);
     do_check_true(a8.isActive);
-    do_check_false(a8.foreignInstall);
     do_check_true(a8.hasBinaryComponents);
     do_check_false(a8.strictCompatibility);
-
-    // addon9 is the active theme
-    do_check_neq(a9, null);
-    do_check_false(a9.userDisabled);
-    do_check_false(a9.appDisabled);
-    do_check_true(a9.isActive);
-    do_check_false(a9.foreignInstall);
-    do_check_false(a9.hasBinaryComponents);
-    do_check_true(a9.strictCompatibility);
 
     testserver.stop(do_test_finished);
   });

@@ -58,6 +58,7 @@
 #include "jscompartment.h"
 #include "jsobjinlines.h"
 #include "jsopcodeinlines.h"
+#include "jshotloop.h"
 
 #include "builtin/RegExp.h"
 #include "frontend/BytecodeEmitter.h"

@@ -44,8 +44,6 @@
 #ifndef nsCSSStyleSheet_h_
 #define nsCSSStyleSheet_h_
 
-#include "mozilla/Attributes.h"
-
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -134,9 +132,9 @@ struct ChildSheetListBuilder;
  { 0x84, 0x67, 0x80, 0x3f, 0xb3, 0x2a, 0xf2, 0x0a } }
 
 
-class nsCSSStyleSheet : public nsIStyleSheet,
-                        public nsIDOMCSSStyleSheet,
-                        public nsICSSLoaderObserver
+class NS_FINAL_CLASS nsCSSStyleSheet : public nsIStyleSheet,
+                                       public nsIDOMCSSStyleSheet,
+                                       public nsICSSLoaderObserver
 {
 public:
   nsCSSStyleSheet();
@@ -273,8 +271,9 @@ private:
                   nsIDocument* aDocumentToUse,
                   nsIDOMNode* aOwningNodeToUse);
 
-  nsCSSStyleSheet(const nsCSSStyleSheet& aCopy) MOZ_DELETE;
-  nsCSSStyleSheet& operator=(const nsCSSStyleSheet& aCopy) MOZ_DELETE;
+  // These are not supported and are not implemented! 
+  nsCSSStyleSheet(const nsCSSStyleSheet& aCopy); 
+  nsCSSStyleSheet& operator=(const nsCSSStyleSheet& aCopy); 
 
 protected:
   virtual ~nsCSSStyleSheet();

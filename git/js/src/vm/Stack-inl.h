@@ -62,7 +62,7 @@ StackFrame::initPrev(JSContext *cx)
         prev_ = regs->fp();
         prevpc_ = regs->pc;
         prevInline_ = regs->inlined();
-        JS_ASSERT_IF(!prev_->isDummyFrame(),
+        JS_ASSERT_IF(!prev_->isDummyFrame() && !prev_->hasImacropc(),
                      uint32(prevpc_ - prev_->script()->code) < prev_->script()->length);
     } else {
         prev_ = NULL;
@@ -120,6 +120,7 @@ StackFrame::initCallFrame(JSContext *cx, JSObject &callee, JSFunction *fun,
     scopeChain_ = callee.getParent();
     ncode_ = NULL;
     initPrev(cx);
+    JS_ASSERT(!hasImacropc());
     JS_ASSERT(!hasHookData());
     JS_ASSERT(annotation() == NULL);
     JS_ASSERT(!hasCallObj());
@@ -444,6 +445,16 @@ StackFrame::markFunctionEpilogueDone()
 
 /*****************************************************************************/
 
+#ifdef JS_TRACER
+JS_ALWAYS_INLINE bool
+StackSpace::ensureEnoughSpaceToEnterTrace(JSContext *cx)
+{
+    ptrdiff_t needed = TraceNativeStorage::MAX_NATIVE_STACK_SLOTS +
+                       TraceNativeStorage::MAX_CALL_STACK_ENTRIES * VALUES_PER_STACK_FRAME;
+    return ensureSpace(cx, DONT_REPORT_ERROR, firstUnused(), needed);
+}
+#endif
+
 STATIC_POSTCONDITION(!return || ubound(from) >= nvals)
 JS_ALWAYS_INLINE bool
 StackSpace::ensureSpace(JSContext *cx, MaybeReportError report, Value *from, ptrdiff_t nvals,
@@ -627,8 +638,12 @@ ContextStack::currentScript(jsbytecode **ppc) const
     if (script->compartment() != cx_->compartment)
         return NULL;
 
-    if (ppc)
-        *ppc = fp->pcQuadratic(*this);
+    if (ppc) {
+        if (fp->hasImacropc())
+            *ppc = fp->imacropc();
+        else
+            *ppc = fp->pcQuadratic(*this);
+    }
     return script;
 }
 
@@ -673,6 +688,13 @@ ArgumentsObject::getElement(uint32 i, Value *vp)
         return false;
 
     /*
+     * If this arguments object was created on trace the actual argument value
+     * could be in a register or something, so we can't optimize.
+     */
+    if (onTrace())
+        return false;
+
+    /*
      * If this arguments object has an associated stack frame, that contains
      * the canonical argument value.  Note that strict arguments objects do not
      * alias named arguments and never have a stack frame.
@@ -707,6 +729,10 @@ ArgumentsObject::getElements(uint32 start, uint32 count, Value *vp)
         }
         return true;
     }
+
+    /* If we're on trace, there's no canonical location for elements: fail. */
+    if (onTrace())
+        return false;
 
     /* Otherwise, element values are on the stack. */
     JS_ASSERT(fp->numActualArgs() <= StackSpace::ARGS_LENGTH_MAX);

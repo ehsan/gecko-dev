@@ -766,6 +766,7 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
   mRunningTimeout(nsnull), mMutationBits(0), mIsDocumentLoaded(false),
   mIsHandlingResizeEvent(false), mIsInnerWindow(aOuterWindow != nsnull),
   mMayHavePaintEventListener(false), mMayHaveTouchEventListener(false),
+  mMayHaveAudioAvailableEventListener(false),
   mMayHaveMouseEnterLeaveEventListener(false),
   mIsModalContentWindow(false),
   mIsActive(false), mIsBackground(false),
@@ -10673,14 +10674,6 @@ nsGlobalModalWindow::SetNewDocument(nsIDocument *aDocument,
 
   return nsGlobalWindow::SetNewDocument(aDocument, aState,
                                         aForceReuseInnerWindow);
-}
-
-void
-nsGlobalWindow::SetHasAudioAvailableEventListeners()
-{
-  if (mDoc) {
-    mDoc->NotifyAudioAvailableListener();
-  }
 }
 
 //*****************************************************************************

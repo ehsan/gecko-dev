@@ -1476,7 +1476,7 @@ nsXMLHttpRequest::IsSystemXHR()
 bool
 nsXMLHttpRequest::IsWaitingForHTMLCharset()
 {
-  if (!mIsHtml || !mResponseXML) {
+  if (!mIsHtml) {
     return false;
   }
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(mResponseXML);

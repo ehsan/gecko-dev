@@ -2201,8 +2201,4 @@ nsIThread* nsBuiltinDecoderStateMachine::GetStateMachineThread()
   return StateMachineTracker::Instance().GetGlobalStateMachineThread();
 }
 
-void nsBuiltinDecoderStateMachine::NotifyAudioAvailableListener()
-{
-  mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
-  mEventManager.NotifyAudioAvailableListener();
-}
+

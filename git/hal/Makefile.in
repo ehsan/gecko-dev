@@ -66,7 +66,7 @@ CPPSRCS = \
   SandboxHal.cpp \
   $(NULL)
 
-ifeq (android,$(MOZ_WIDGET_TOOLKIT))
+ifeq (Android,$(OS_TARGET))
 CPPSRCS += AndroidHal.cpp
 else ifeq (Linux,$(OS_TARGET))
 CPPSRCS += LinuxHal.cpp

@@ -2683,7 +2683,6 @@ var ActivityObserver = {
   _inBackground : false,
   _notActive : false,
   _isDisplayOff : false,
-  _timeoutID: 0,
   observe: function ao_observe(aSubject, aTopic, aData) {
     if (aTopic == "application-background") {
       this._inBackground = true;
@@ -2699,13 +2698,11 @@ var ActivityObserver = {
       this._isDisplayOff = true;
     }
     let activeTabState = !this._inBackground && !this._notActive && !this._isDisplayOff;
-    if (this._timeoutID)
-      clearTimeout(this._timeoutID);
     if (Browser.selectedTab.active != activeTabState) {
       // On Maemo all backgrounded applications getting portrait orientation
       // so if browser had landscape mode then we need timeout in order
       // to finish last rotate/paint operation and have nice lookine browser in TS
-      this._timeoutID = setTimeout(function() { Browser.selectedTab.active = activeTabState; }, activeTabState ? 0 : kSetInactiveStateTimeout);
+      setTimeout(function() { Browser.selectedTab.active = activeTabState; }, activeTabState ? 0 : kSetInactiveStateTimeout);
     }
   }
 };
