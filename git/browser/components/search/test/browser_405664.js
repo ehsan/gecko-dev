@@ -1,10 +1,7 @@
 function test() {
   var searchBar = BrowserSearch.searchBar;
   ok(searchBar, "got search bar");
-
-  if (searchBar.getAttribute("oneoffui"))
-    return; // The oneoffui removes the menu that's being tested here.
-
+  
   searchBar.focus();
 
   var pbo = searchBar._popup.popupBoxObject;

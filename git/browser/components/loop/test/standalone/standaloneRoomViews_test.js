@@ -311,19 +311,6 @@ describe("loop.standaloneRoomViews", function() {
             sinon.assert.calledWithExactly(dispatch, new sharedActions.FeedbackComplete());
           });
       });
-
-      describe("Mute", function() {
-        it("should render local media as audio-only if video is muted",
-          function() {
-            activeRoomStore.setStoreState({
-              roomState: ROOM_STATES.SESSION_CONNECTED,
-              videoMuted: true
-            });
-
-            expect(view.getDOMNode().querySelector(".local-stream-audio"))
-              .not.eql(null);
-          });
-      });
     });
   });
 });

@@ -171,11 +171,8 @@ BodyRule::MapRuleInfoInto(nsRuleData* aData)
 /* virtual */ void
 BodyRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString indent;
-  for (int32_t index = aIndent; --index >= 0; ) {
-    indent.AppendLiteral("  ");
-  }
-  fprintf_stderr(out, "%s[body rule] {}\n", indent.get());
+  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
+  fputs("[body rule] {}\n", out);
 }
 #endif
 

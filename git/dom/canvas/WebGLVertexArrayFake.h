@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef WEBGL_VERTEX_ARRAY_FAKE_H_
-#define WEBGL_VERTEX_ARRAY_FAKE_H_
+#ifndef WEBGLVERTEXARRAYFAKE_H_
+#define WEBGLVERTEXARRAYFAKE_H_
 
 #include "WebGLVertexArray.h"
 
@@ -15,12 +15,12 @@ class WebGLVertexArrayFake MOZ_FINAL
 {
 public:
     virtual void BindVertexArrayImpl() MOZ_OVERRIDE;
-    virtual void DeleteImpl() MOZ_OVERRIDE {};
-    virtual void GenVertexArray() MOZ_OVERRIDE {};
+    virtual void DeleteImpl() MOZ_OVERRIDE { };
+    virtual void GenVertexArray() MOZ_OVERRIDE { };
 
 private:
-    explicit WebGLVertexArrayFake(WebGLContext* webgl)
-        : WebGLVertexArray(webgl)
+    explicit WebGLVertexArrayFake(WebGLContext* aContext)
+        : WebGLVertexArray(aContext)
     { }
 
     ~WebGLVertexArrayFake() {
@@ -32,4 +32,4 @@ private:
 
 } // namespace mozilla
 
-#endif // WEBGL_VERTEX_ARRAY_FAKE_H_
+#endif

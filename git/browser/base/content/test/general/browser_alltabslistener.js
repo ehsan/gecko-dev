@@ -81,14 +81,13 @@ var gAllProgressListener = {
 var gFrontNotifications, gAllNotifications, gFrontNotificationsPos, gAllNotificationsPos;
 var gBackgroundTab, gForegroundTab, gBackgroundBrowser, gForegroundBrowser, gTestBrowser;
 var gTestPage = "/browser/browser/base/content/test/general/alltabslistener.html";
-const kBasePage = "http://example.org/browser/browser/base/content/test/general/dummy_page.html";
 var gNextTest;
 
 function test() {
   waitForExplicitFinish();
 
-  gBackgroundTab = gBrowser.addTab(kBasePage);
-  gForegroundTab = gBrowser.addTab(kBasePage);
+  gBackgroundTab = gBrowser.addTab("about:blank");
+  gForegroundTab = gBrowser.addTab("about:blank");
   gBackgroundBrowser = gBrowser.getBrowserForTab(gBackgroundTab);
   gForegroundBrowser = gBrowser.getBrowserForTab(gForegroundTab);
   gBrowser.selectedTab = gForegroundTab;

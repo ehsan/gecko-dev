@@ -548,19 +548,6 @@ HandleClosingGeneratorReturn(JSContext *cx, const JitFrameIterator &frame, jsbyt
     ForcedReturn(cx, frame, pc, rfe, calledDebugEpilogue);
 }
 
-struct AutoDebuggerHandlingException
-{
-    BaselineFrame *frame;
-    AutoDebuggerHandlingException(BaselineFrame *frame)
-      : frame(frame)
-    {
-        frame->setIsDebuggerHandlingException();
-    }
-    ~AutoDebuggerHandlingException() {
-        frame->unsetIsDebuggerHandlingException();
-    }
-};
-
 static void
 HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFromException *rfe,
                         jsbytecode **unwoundScopeToPc, bool *calledDebugEpilogue)
@@ -584,10 +571,6 @@ HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFrom
     if (cx->isExceptionPending() && cx->compartment()->isDebuggee() &&
         cx->getPendingException(&exception) && !exception.isMagic(JS_GENERATOR_CLOSING))
     {
-        // Set for debug mode OSR. See note concerning
-        // 'isDebuggerHandlingException' in CollectJitStackScripts.
-        AutoDebuggerHandlingException debuggerHandling(frame.baselineFrame());
-
         switch (Debugger::onExceptionUnwind(cx, frame.baselineFrame())) {
           case JSTRAP_ERROR:
             // Uncatchable exception.

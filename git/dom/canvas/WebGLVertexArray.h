@@ -3,16 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef WEBGL_VERTEX_ARRAY_H_
-#define WEBGL_VERTEX_ARRAY_H_
+#ifndef WEBGLVERTEXARRAY_H_
+#define WEBGLVERTEXARRAY_H_
+
+#include "WebGLBindableName.h"
+#include "WebGLObjectModel.h"
+#include "WebGLBuffer.h"
+#include "WebGLVertexAttribData.h"
+#include "WebGLStrongTypes.h"
+
+#include "nsWrapperCache.h"
 
 #include "mozilla/LinkedList.h"
-#include "nsWrapperCache.h"
-#include "WebGLBindableName.h"
-#include "WebGLBuffer.h"
-#include "WebGLObjectModel.h"
-#include "WebGLStrongTypes.h"
-#include "WebGLVertexAttribData.h"
 
 namespace mozilla {
 
@@ -25,57 +27,74 @@ class WebGLVertexArray
     , public LinkedListElement<WebGLVertexArray>
     , public WebGLContextBoundObject
 {
+// -----------------------------------------------------------------------------
+// PUBLIC
 public:
-    static WebGLVertexArray* Create(WebGLContext* webgl);
+    static WebGLVertexArray* Create(WebGLContext* context);
 
     void BindVertexArray() {
-        // Bind to dummy value to signal that this vertex array has ever been
-        // bound.
+        /* Bind to dummy value to signal that this vertex array has
+           ever been bound */
         BindTo(LOCAL_GL_VERTEX_ARRAY_BINDING);
         BindVertexArrayImpl();
     };
 
     virtual void GenVertexArray() = 0;
     virtual void BindVertexArrayImpl() = 0;
-    virtual void DeleteImpl() = 0;
 
-    void EnsureAttrib(GLuint index);
-    bool HasAttrib(GLuint index) const {
-        return index < mAttribs.Length();
-    }
-    bool IsAttribArrayEnabled(GLuint index) const {
-        return HasAttrib(index) && mAttribs[index].enabled;
-    }
+    // -------------------------------------------------------------------------
+    // IMPLEMENT PARENT CLASSES
 
-    // Implement parent classes:
     void Delete();
+
+    virtual void DeleteImpl() = 0;
 
     WebGLContext* GetParentObject() const {
         return Context();
     }
 
-    virtual JSObject* WrapObject(JSContext* cx) MOZ_OVERRIDE;
+    virtual JSObject* WrapObject(JSContext *cx) MOZ_OVERRIDE;
 
     NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLVertexArray)
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLVertexArray)
 
+    // -------------------------------------------------------------------------
+    // MEMBER FUNCTIONS
+
     GLuint GLName() const { return mGLName; }
 
+    void EnsureAttrib(GLuint index);
+    bool HasAttrib(GLuint index) {
+        return index < mAttribs.Length();
+    }
+    bool IsAttribArrayEnabled(GLuint index) {
+        return HasAttrib(index) && mAttribs[index].enabled;
+    }
+
+
+// -----------------------------------------------------------------------------
+// PROTECTED
 protected:
-    explicit WebGLVertexArray(WebGLContext* webgl);
+    explicit WebGLVertexArray(WebGLContext* aContext);
 
     virtual ~WebGLVertexArray() {
         MOZ_ASSERT(IsDeleted());
-    }
+    };
+
+    // -------------------------------------------------------------------------
+    // MEMBERS
 
     GLuint mGLName;
     nsTArray<WebGLVertexAttribData> mAttribs;
     WebGLRefPtr<WebGLBuffer> mElementArrayBuffer;
 
-    friend class WebGLContext;
+    // -------------------------------------------------------------------------
+    // FRIENDSHIPS
+
     friend class WebGLVertexArrayFake;
+    friend class WebGLContext;
 };
 
 } // namespace mozilla
 
-#endif // WEBGL_VERTEX_ARRAY_H_
+#endif

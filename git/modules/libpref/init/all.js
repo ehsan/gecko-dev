@@ -3569,17 +3569,14 @@ pref("font.name.monospace.x-western", "Fira Mono");
 pref("font.name.serif.zh-CN", "Charis SIL Compact");
 pref("font.name.sans-serif.zh-CN", "Fira Sans");
 pref("font.name.monospace.zh-CN", "Fira Mono");
-pref("font.name-list.sans-serif.zh-CN", "Fira Sans,Droid Sans Fallback");
 
 pref("font.name.serif.zh-HK", "Charis SIL Compact");
 pref("font.name.sans-serif.zh-HK", "Fira Sans");
 pref("font.name.monospace.zh-HK", "Fira Mono");
-pref("font.name-list.sans-serif.zh-HK", "Fira Sans,Droid Sans Fallback");
 
 pref("font.name.serif.zh-TW", "Charis SIL Compact");
 pref("font.name.sans-serif.zh-TW", "Fira Sans");
 pref("font.name.monospace.zh-TW", "Fira Mono");
-pref("font.name-list.sans-serif.zh-TW", "Fira Sans,Droid Sans Fallback");
 
 #elif defined(ANDROID)
 // We use the bundled fonts for Firefox for Android
@@ -3803,21 +3800,14 @@ pref("image.mem.hard_limit_decoded_image_kb", 0);
 pref("image.mem.surfacecache.min_expiration_ms", 60000); // 60ms
 
 // Maximum size for the surface cache, in kilobytes.
-pref("image.mem.surfacecache.max_size_kb", 1048576); // 1GB
+pref("image.mem.surfacecache.max_size_kb", 102400); // 100MB
 
 // The surface cache's size, within the constraints of the maximum size set
-// above, is determined as a fraction of main memory size. The size factor is
-// interpreted as a reciprocal, so a size factor of 4 means to use no more than
-// 1/4 of main memory.  The default should be a good balance for most systems.
-pref("image.mem.surfacecache.size_factor", 4);
-
-// How much of the data in the surface cache is discarded when we get a memory
-// pressure notification, as a fraction. The discard factor is interpreted as a
-// reciprocal, so a discard factor of 1 means to discard everything in the
-// surface cache on memory pressure, a discard factor of 2 means to discard half
-// of the data, and so forth. The default should be a good balance for desktop
-// and laptop systems, where we never discard visible images.
-pref("image.mem.surfacecache.discard_factor", 1);
+// above, is determined using a formula based on system capabilities like memory
+// size. The size factor is used to tune this formula. Larger size factors
+// result in smaller caches. The default should be a good balance for most
+// systems.
+pref("image.mem.surfacecache.size_factor", 64);
 
 // Whether we decode images on multiple background threads rather than the
 // foreground thread.

@@ -191,8 +191,15 @@ ParseEvalStringAsJSON(JSContext *cx, const mozilla::Range<const CharT> chars, Mu
 }
 
 static EvalJSONResult
-TryEvalJSON(JSContext *cx, JSFlatString *str, MutableHandleValue rval)
+TryEvalJSON(JSContext *cx, JSScript *callerScript, JSFlatString *str, MutableHandleValue rval)
 {
+    // Don't use the JSON parser if the caller is strict mode code, because in
+    // strict mode object literals must not have repeated properties, and the
+    // JSON parser cheerfully (and correctly) accepts them.  If you're parsing
+    // JSON with eval and using strict mode, you deserve to be slow.
+    if (callerScript && callerScript->strict())
+        return EvalJSON_NotJSON;
+
     if (str->hasLatin1Chars()) {
         AutoCheckCannotGC nogc;
         if (!EvalStringMightBeJSON(str->latin1Range(nogc)))
@@ -282,7 +289,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
         return false;
 
     RootedScript callerScript(cx, caller ? caller.script() : nullptr);
-    EvalJSONResult ejr = TryEvalJSON(cx, flatStr, args.rval());
+    EvalJSONResult ejr = TryEvalJSON(cx, callerScript, flatStr, args.rval());
     if (ejr != EvalJSON_NotJSON)
         return ejr == EvalJSON_Success;
 
@@ -313,8 +320,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
                .setForEval(true)
                .setNoScriptRval(false)
                .setMutedErrors(mutedErrors)
-               .setIntroductionInfo(introducerFilename, "eval", lineno, maybeScript, pcOffset)
-               .maybeMakeStrictMode(evalType == DIRECT_EVAL && IsStrictEvalPC(pc));
+               .setIntroductionInfo(introducerFilename, "eval", lineno, maybeScript, pcOffset);
 
         AutoStableStringChars flatChars(cx);
         if (!flatChars.initTwoByte(cx, flatStr))
@@ -360,7 +366,7 @@ js::DirectEvalStringFromIon(JSContext *cx,
     if (!flatStr)
         return false;
 
-    EvalJSONResult ejr = TryEvalJSON(cx, flatStr, vp);
+    EvalJSONResult ejr = TryEvalJSON(cx, callerScript, flatStr, vp);
     if (ejr != EvalJSON_NotJSON)
         return ejr == EvalJSON_Success;
 
@@ -387,8 +393,7 @@ js::DirectEvalStringFromIon(JSContext *cx,
                .setForEval(true)
                .setNoScriptRval(false)
                .setMutedErrors(mutedErrors)
-               .setIntroductionInfo(introducerFilename, "eval", lineno, maybeScript, pcOffset)
-               .maybeMakeStrictMode(IsStrictEvalPC(pc));
+               .setIntroductionInfo(introducerFilename, "eval", lineno, maybeScript, pcOffset);
 
         AutoStableStringChars flatChars(cx);
         if (!flatChars.initTwoByte(cx, flatStr))
@@ -449,9 +454,7 @@ js::DirectEval(JSContext *cx, const CallArgs &args)
 
     MOZ_ASSERT(caller.scopeChain()->global().valueIsEval(args.calleev()));
     MOZ_ASSERT(JSOp(*iter.pc()) == JSOP_EVAL ||
-               JSOp(*iter.pc()) == JSOP_STRICTEVAL ||
-               JSOp(*iter.pc()) == JSOP_SPREADEVAL ||
-               JSOp(*iter.pc()) == JSOP_STRICTSPREADEVAL);
+               JSOp(*iter.pc()) == JSOP_SPREADEVAL);
     MOZ_ASSERT_IF(caller.isFunctionFrame(),
                   caller.compartment() == caller.callee()->compartment());
 

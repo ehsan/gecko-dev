@@ -12,7 +12,6 @@
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
-#include "nsStyleUtil.h"
 #include "Layers.h"
 #include "ActiveLayerTracker.h"
 
@@ -76,28 +75,12 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aSnap) MOZ_OVERRIDE {
     *aSnap = false;
-    nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(Frame());
-    HTMLCanvasElement* canvas =
+    nsIFrame* f = Frame();
+    HTMLCanvasElement *canvas =
       HTMLCanvasElement::FromContent(f->GetContent());
     nsRegion result;
     if (canvas->GetIsOpaque()) {
-      // OK, the entire region painted by the canvas is opaque. But what is
-      // that region? It's the canvas's "dest rect" (controlled by the
-      // object-fit/object-position CSS properties), clipped to the container's
-      // content box (which is what GetBounds() returns). So, we grab those
-      // rects and intersect them.
-      nsRect constraintRect = GetBounds(aBuilder, aSnap);
-
-      // Need intrinsic size & ratio, for ComputeObjectDestRect:
-      nsIntSize canvasSize = f->GetCanvasSize();
-      IntrinsicSize intrinsicSize = IntrinsicSizeFromCanvasSize(canvasSize);
-      nsSize intrinsicRatio = IntrinsicRatioFromCanvasSize(canvasSize);
-
-      const nsRect destRect =
-        nsLayoutUtils::ComputeObjectDestRect(constraintRect,
-                                             intrinsicSize, intrinsicRatio,
-                                             f->StylePosition());
-      return nsRegion(destRect.Intersect(constraintRect));
+      result = GetBounds(aBuilder, aSnap);
     }
     return result;
   }
@@ -323,12 +306,12 @@ nsHTMLCanvasFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
 {
   nsRect area = GetContentRectRelativeToSelf() + aItem->ToReferenceFrame();
   HTMLCanvasElement* element = static_cast<HTMLCanvasElement*>(GetContent());
-  nsIntSize canvasSizeInPx = GetCanvasSize();
+  nsIntSize canvasSize = GetCanvasSize();
 
   nsPresContext* presContext = PresContext();
   element->HandlePrintCallback(presContext->Type());
 
-  if (canvasSizeInPx.width <= 0 || canvasSizeInPx.height <= 0 || area.IsEmpty())
+  if (canvasSize.width <= 0 || canvasSize.height <= 0 || area.IsEmpty())
     return nullptr;
 
   CanvasLayer* oldLayer = static_cast<CanvasLayer*>
@@ -337,20 +320,16 @@ nsHTMLCanvasFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   if (!layer)
     return nullptr;
 
-  IntrinsicSize intrinsicSize = IntrinsicSizeFromCanvasSize(canvasSizeInPx);
-  nsSize intrinsicRatio = IntrinsicRatioFromCanvasSize(canvasSizeInPx);
-
-  nsRect dest =
-    nsLayoutUtils::ComputeObjectDestRect(area, intrinsicSize, intrinsicRatio,
-                                         StylePosition());
-
-  gfxRect destGFXRect = presContext->AppUnitsToGfxUnits(dest);
+  gfxRect r = gfxRect(presContext->AppUnitsToGfxUnits(area.x),
+                      presContext->AppUnitsToGfxUnits(area.y),
+                      presContext->AppUnitsToGfxUnits(area.width),
+                      presContext->AppUnitsToGfxUnits(area.height));
 
   // Transform the canvas into the right place
-  gfxPoint p = destGFXRect.TopLeft() + aContainerParameters.mOffset;
+  gfxPoint p = r.TopLeft() + aContainerParameters.mOffset;
   Matrix transform = Matrix::Translation(p.x, p.y);
-  transform.PreScale(destGFXRect.Width() / canvasSizeInPx.width,
-                     destGFXRect.Height() / canvasSizeInPx.height);
+  transform.PreScale(r.Width() / canvasSize.width,
+                     r.Height() / canvasSize.height);
   layer->SetBaseTransform(gfx::Matrix4x4::From2D(transform));
   layer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
 
@@ -367,12 +346,8 @@ nsHTMLCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
-  uint32_t clipFlags =
-    nsStyleUtil::ObjectPropsMightCauseOverflow(StylePosition()) ?
-    0 : DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT;
-
   DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox
-    clip(aBuilder, this, clipFlags);
+    clip(aBuilder, this, DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT);
 
   aLists.Content()->AppendNewToTop(
     new (aBuilder) nsDisplayCanvas(aBuilder, this));

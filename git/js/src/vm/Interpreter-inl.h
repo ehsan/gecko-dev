@@ -305,14 +305,10 @@ inline bool
 SetNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, HandleObject scope,
                  HandleValue val)
 {
-    MOZ_ASSERT(*pc == JSOP_SETNAME ||
-               *pc == JSOP_STRICTSETNAME ||
-               *pc == JSOP_SETGNAME ||
-               *pc == JSOP_STRICTSETGNAME);
+    MOZ_ASSERT(*pc == JSOP_SETNAME || *pc == JSOP_SETGNAME);
     MOZ_ASSERT_IF(*pc == JSOP_SETGNAME, scope == cx->global());
-    MOZ_ASSERT_IF(*pc == JSOP_STRICTSETGNAME, scope == cx->global());
 
-    bool strict = *pc == JSOP_STRICTSETNAME || *pc == JSOP_STRICTSETGNAME;
+    bool strict = script->strict();
     RootedPropertyName name(cx, script->getName(pc));
     RootedValue valCopy(cx, val);
 

@@ -129,7 +129,6 @@ LayerTransactionChild::SendFenceHandle(AsyncTransactionTracker* aTracker,
 void
 LayerTransactionChild::ActorDestroy(ActorDestroyReason why)
 {
-  mDestroyed = true;
   DestroyAsyncTransactionTrackersHolder();
 #ifdef MOZ_B2G
   // Due to poor lifetime management of gralloc (and possibly shmems) we will

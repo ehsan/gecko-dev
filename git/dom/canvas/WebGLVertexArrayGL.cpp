@@ -5,8 +5,8 @@
 
 #include "WebGLVertexArrayGL.h"
 
-#include "GLContext.h"
 #include "WebGLContext.h"
+#include "GLContext.h"
 
 namespace mozilla {
 

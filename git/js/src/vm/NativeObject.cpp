@@ -1917,14 +1917,13 @@ static bool
 MaybeReportUndeclaredVarAssignment(JSContext *cx, JSString *propname)
 {
     {
-        jsbytecode *pc;
-        JSScript *script = cx->currentScript(&pc, JSContext::ALLOW_CROSS_COMPARTMENT);
+        JSScript *script = cx->currentScript(nullptr, JSContext::ALLOW_CROSS_COMPARTMENT);
         if (!script)
             return true;
 
         // If the code is not strict and extra warnings aren't enabled, then no
         // check is needed.
-        if (!IsStrictSetPC(pc) && !cx->compartment()->options().extraWarnings(cx))
+        if (!script->strict() && !cx->compartment()->options().extraWarnings(cx))
             return true;
     }
 

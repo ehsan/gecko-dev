@@ -2142,17 +2142,11 @@ static bool SelectorMatches(Element* aElement,
               HasState(NS_DOCUMENT_STATE_RTL_LOCALE);
 
           nsDependentString dirString(pseudoClass->u.mString);
+          NS_ASSERTION(dirString.EqualsLiteral("ltr") ||
+                       dirString.EqualsLiteral("rtl"),
+                       "invalid value for -moz-locale-dir");
 
-          if (dirString.EqualsLiteral("rtl")) {
-            if (!docIsRTL) {
-              return false;
-            }
-          } else if (dirString.EqualsLiteral("ltr")) {
-            if (docIsRTL) {
-              return false;
-            }
-          } else {
-            // Selectors specifying other directions never match.
+          if (dirString.EqualsLiteral("rtl") != docIsRTL) {
             return false;
           }
         }
@@ -2217,25 +2211,22 @@ static bool SelectorMatches(Element* aElement,
             }
           }
 
-          // If we only had to consider HTML, directionality would be
-          // exclusively LTR or RTL.
+          // if we only had to consider HTML, directionality would be exclusively
+          // LTR or RTL, and this could be just
+          //
+          //  if (dirString.EqualsLiteral("rtl") !=
+          //    aElement->StyleState().HasState(NS_EVENT_STATE_RTL)
           //
           // However, in markup languages where there is no direction attribute
           // we have to consider the possibility that neither -moz-dir(rtl) nor
           // -moz-dir(ltr) matches.
           EventStates state = aElement->StyleState();
+          bool elementIsRTL = state.HasState(NS_EVENT_STATE_RTL);
+          bool elementIsLTR = state.HasState(NS_EVENT_STATE_LTR);
           nsDependentString dirString(pseudoClass->u.mString);
 
-          if (dirString.EqualsLiteral("rtl")) {
-            if (!state.HasState(NS_EVENT_STATE_RTL)) {
-              return false;
-            }
-          } else if (dirString.EqualsLiteral("ltr")) {
-            if (!state.HasState(NS_EVENT_STATE_LTR)) {
-              return false;
-            }
-          } else {
-            // Selectors specifying other directions never match.
+          if ((dirString.EqualsLiteral("rtl") && !elementIsRTL) ||
+              (dirString.EqualsLiteral("ltr") && !elementIsLTR)) {
             return false;
           }
         }

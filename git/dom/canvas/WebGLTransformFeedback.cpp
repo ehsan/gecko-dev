@@ -3,17 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "WebGL2Context.h"
 #include "WebGLTransformFeedback.h"
 
 #include "GLContext.h"
+
 #include "mozilla/dom/WebGL2RenderingContextBinding.h"
-#include "WebGL2Context.h"
 
-namespace mozilla {
+using namespace mozilla;
 
-WebGLTransformFeedback::WebGLTransformFeedback(WebGLContext* webgl)
+WebGLTransformFeedback::WebGLTransformFeedback(WebGLContext* context)
     : WebGLBindableName<GLenum>(0)
-    , WebGLContextBoundObject(webgl)
+    , WebGLContextBoundObject(context)
 {
     MOZ_CRASH("Not Implemented.");
 }
@@ -44,5 +45,3 @@ WebGLTransformFeedback::WrapObject(JSContext* cx)
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLTransformFeedback)
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(WebGLTransformFeedback, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(WebGLTransformFeedback, Release)
-
-} // namespace mozilla

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -14,7 +14,6 @@
 #include "secasn1.h"
 #include "pk11pqg.h"
 #include "nsKeygenHandler.h"
-#include "nsKeygenHandlerContent.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIContent.h"
@@ -25,7 +24,6 @@
 #include "nsITokenDialogs.h"
 #include "nsIGenKeypairInfoDlg.h"
 #include "nsNSSShutDown.h"
-#include "nsXULAppAPI.h"
 
 //These defines are taken from the PKCS#11 spec
 #define CKM_RSA_PKCS_KEY_PAIR_GEN     0x00000000
@@ -270,11 +268,6 @@ nsKeygenFormProcessor::~nsKeygenFormProcessor()
 nsresult
 nsKeygenFormProcessor::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult)
 {
-  if (GeckoProcessType_Content == XRE_GetProcessType()) {
-    nsCOMPtr<nsISupports> contentProcessor = new nsKeygenFormProcessorContent();
-    return contentProcessor->QueryInterface(aIID, aResult);
-  }
-
   nsresult rv;
   NS_ENSURE_NO_AGGREGATION(aOuter);
   nsKeygenFormProcessor* formProc = new nsKeygenFormProcessor();
@@ -465,11 +458,9 @@ loser:
 }
 
 nsresult
-nsKeygenFormProcessor::GetPublicKey(const nsAString& aValue,
-                                    const nsAString& aChallenge,
-                                    const nsAFlatString& aKeyType,
-                                    nsAString& aOutPublicKey,
-                                    const nsAString& aKeyParams)
+nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge, 
+				    nsAFlatString& aKeyType,
+				    nsAString& aOutPublicKey, nsAString& aKeyParams)
 {
     nsNSSShutDownPreventionLock locker;
     nsresult rv = NS_ERROR_FAILURE;
@@ -769,20 +760,22 @@ loser:
     return rv;
 }
 
-// static
-void
-nsKeygenFormProcessor::ExtractParams(nsIDOMHTMLElement* aElement,
-                                     nsAString& challengeValue,
-                                     nsAString& keyTypeValue,
-                                     nsAString& keyParamsValue)
-{
+NS_METHOD 
+nsKeygenFormProcessor::ProcessValue(nsIDOMHTMLElement *aElement, 
+				    const nsAString& aName, 
+				    nsAString& aValue) 
+{ 
+    nsAutoString challengeValue;
+    nsAutoString keyTypeValue;
+    nsAutoString keyParamsValue;
+    
     aElement->GetAttribute(NS_LITERAL_STRING("keytype"), keyTypeValue);
     if (keyTypeValue.IsEmpty()) {
         // If this field is not present, we default to rsa.
         keyTypeValue.AssignLiteral("rsa");
     }
-
-    aElement->GetAttribute(NS_LITERAL_STRING("pqg"),
+    
+    aElement->GetAttribute(NS_LITERAL_STRING("pqg"), 
                            keyParamsValue);
     /* XXX We can still support the pqg attribute in the keygen 
      * tag for backward compatibility while introducing a more 
@@ -794,40 +787,17 @@ nsKeygenFormProcessor::ExtractParams(nsIDOMHTMLElement* aElement,
     }
 
     aElement->GetAttribute(NS_LITERAL_STRING("challenge"), challengeValue);
-}
-
-nsresult
-nsKeygenFormProcessor::ProcessValue(nsIDOMHTMLElement* aElement,
-                                    const nsAString& aName,
-                                    nsAString& aValue)
-{
-    nsAutoString challengeValue;
-    nsAutoString keyTypeValue;
-    nsAutoString keyParamsValue;
-    ExtractParams(aElement, challengeValue, keyTypeValue, keyParamsValue);
 
     return GetPublicKey(aValue, challengeValue, keyTypeValue, 
                         aValue, keyParamsValue);
-}
+} 
 
-nsresult
-nsKeygenFormProcessor::ProcessValueIPC(const nsAString& aOldValue,
-                                       const nsAString& aChallenge,
-                                       const nsAString& aKeyType,
-                                       const nsAString& aKeyParams,
-                                       nsAString& newValue)
-{
-    return GetPublicKey(aOldValue, aChallenge, PromiseFlatString(aKeyType),
-                        newValue, aKeyParams);
-}
-
-nsresult
-nsKeygenFormProcessor::ProvideContent(const nsAString& aFormType,
-                                      nsTArray<nsString>& aContent,
-                                      nsAString& aAttribute)
+NS_METHOD nsKeygenFormProcessor::ProvideContent(const nsAString& aFormType, 
+						nsTArray<nsString>& aContent, 
+						nsAString& aAttribute) 
 { 
-  if (Compare(aFormType, NS_LITERAL_STRING("SELECT"),
-              nsCaseInsensitiveStringComparator()) == 0) {
+  if (Compare(aFormType, NS_LITERAL_STRING("SELECT"), 
+    nsCaseInsensitiveStringComparator()) == 0) {
 
     for (size_t i = 0; i < number_of_key_size_choices; ++i) {
       aContent.AppendElement(mSECKeySizeChoiceList[i].name);

@@ -141,7 +141,6 @@ function* prepareTest() {
       searchBar.removeEventListener("focus", onFocus);
       deferred.resolve();
     });
-    gURLBar.focus();
     searchBar.focus();
   } else {
     deferred.resolve();
@@ -229,10 +228,11 @@ add_task(function testShiftMiddleClick() {
 
 add_task(function testDropText() {
   yield prepareTest();
+  let promisePreventPopup = promiseEvent(searchBar, "popupshowing", true);
   // drop on the search button so that we don't need to worry about the
   // default handlers for textboxes.
-  let searchButton = document.getAnonymousElementByAttribute(searchBar, "anonid", "searchbar-search-button");
-  ChromeUtils.synthesizeDrop(searchButton, searchButton, [[ {type: "text/plain", data: "Some Text" } ]], "copy", window);
+  ChromeUtils.synthesizeDrop(searchBar.searchButton, searchBar.searchButton, [[ {type: "text/plain", data: "Some Text" } ]], "copy", window);
+  yield promisePreventPopup;
   let event = yield promiseOnLoad();
   is(event.originalTarget.URL, expectedURL(searchBar.value), "testDropText opened correct search page");
   is(searchBar.value, "Some Text", "drop text/plain on searchbar");
@@ -240,8 +240,9 @@ add_task(function testDropText() {
 
 add_task(function testDropInternalText() {
   yield prepareTest();
-  let searchButton = document.getAnonymousElementByAttribute(searchBar, "anonid", "searchbar-search-button");
-  ChromeUtils.synthesizeDrop(searchButton, searchButton, [[ {type: "text/x-moz-text-internal", data: "More Text" } ]], "copy", window);
+  let promisePreventPopup = promiseEvent(searchBar, "popupshowing", true);
+  ChromeUtils.synthesizeDrop(searchBar.searchButton, searchBar.searchButton, [[ {type: "text/x-moz-text-internal", data: "More Text" } ]], "copy", window);
+  yield promisePreventPopup;
   let event = yield promiseOnLoad();
   is(event.originalTarget.URL, expectedURL(searchBar.value), "testDropInternalText opened correct search page");
   is(searchBar.value, "More Text", "drop text/x-moz-text-internal on searchbar");
@@ -250,7 +251,9 @@ add_task(function testDropInternalText() {
   // were merged so that if testDropInternalText failed it wouldn't cause testDropLink
   // to fail unexplainably.
   yield prepareTest();
+  promisePreventPopup = promiseEvent(searchBar, "popupshowing", true);
   ChromeUtils.synthesizeDrop(searchBar.searchButton, searchBar.searchButton, [[ {type: "text/uri-list", data: "http://www.mozilla.org" } ]], "copy", window);
+  yield promisePreventPopup;
   is(searchBar.value, "More Text", "drop text/uri-list on searchbar shouldn't change anything");
 });
 
@@ -265,9 +268,6 @@ add_task(function testRightClick() {
     deferred.resolve();
   }, 5000);
   yield deferred.promise;
-  // The click in the searchbox focuses it, which opens the suggestion
-  // panel. Clean up after ourselves.
-  searchBar.textbox.popup.hidePopup();
 });
 
 add_task(function testSearchHistory() {
@@ -302,3 +302,4 @@ add_task(function asyncCleanup() {
   content.location.href = "about:blank";
   yield promiseRemoveEngine();
 });
+

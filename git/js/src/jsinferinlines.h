@@ -154,17 +154,15 @@ GetValueType(const Value &val)
     return Type::PrimitiveType(val.extractNonDoubleType());
 }
 
-inline bool
-IsUntrackedValue(const Value &val)
-{
-    return val.isMagic() && (val.whyMagic() == JS_OPTIMIZED_OUT ||
-                             val.whyMagic() == JS_UNINITIALIZED_LEXICAL);
-}
-
 inline Type
 GetMaybeUntrackedValueType(const Value &val)
 {
-    return IsUntrackedValue(val) ? Type::UnknownType() : GetValueType(val);
+    if (val.isMagic() && (val.whyMagic() == JS_OPTIMIZED_OUT ||
+                          val.whyMagic() == JS_UNINITIALIZED_LEXICAL))
+    {
+        return Type::UnknownType();
+    }
+    return GetValueType(val);
 }
 
 inline TypeFlags
