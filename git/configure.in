@@ -130,7 +130,7 @@ GCONF_VERSION=1.2.1
 LIBGNOME_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.6.13
+SQLITE_VERSION=3.6.10
 LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
@@ -5903,10 +5903,10 @@ if test -n "$MOZ_TREE_FREETYPE"; then
    AC_SUBST(MOZ_TREE_FREETYPE)
    MOZ_ENABLE_CAIRO_FT=1       
    FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
-   FT2_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
-   CAIRO_FT_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
-   FT2_LIBS='$(LIBXUL_DIST)/lib/freetype2.lib'
-   CAIRO_FT_LIBS='$(LIBXUL_DIST)/lib/freetype2.lib'
+   FT2_CFLAGS="-I${topsrcdir}/modules/freetype2/include"
+   CAIRO_FT_CFLAGS="-I${topsrcdir}/modules/freetype2/include"
+   FT2_LIBS="${LIBXUL_DIST}/lib/freetype2.lib"
+   CAIRO_FT_LIBS = "${LIBXUL_DIST}/lib/freetype2.lib"
    AC_DEFINE(HAVE_FT_BITMAP_SIZE_Y_PPEM)
    AC_DEFINE(HAVE_FT_GLYPHSLOT_EMBOLDEN)
    AC_DEFINE(HAVE_FT_LOAD_SFNT_TABLE)

@@ -4069,25 +4069,7 @@ js_FindProperty(JSContext *cx, jsid id, JSObject **objp, JSObject **pobjp,
     return js_FindPropertyHelper(cx, id, objp, pobjp, propp, NULL) >= 0;
 }
 
-/*
- * We cache property lookup results for JSOP_BIND only for the global object or
- * for native non-global objects without resolve hooks, see bug 462734.
- */
-static inline bool
-IsCacheableNonGlobalScope(JSObject *obj)
-{
-    JS_ASSERT(STOBJ_GET_PARENT(obj));
-
-    JSClass *clasp = STOBJ_GET_CLASS(obj);
-    bool cacheable = (clasp == &js_CallClass ||
-                      clasp == &js_BlockClass ||
-                      clasp == &js_DeclEnvClass);
-
-    JS_ASSERT_IF(cacheable, obj->map->ops->lookupProperty == js_LookupProperty);
-    return cacheable;
-}
-
-JSObject *
+JS_REQUIRES_STACK JSObject *
 js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id,
                       JSPropCacheEntry *entry)
 {
@@ -4095,29 +4077,31 @@ js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id,
      * This function should not be called for a global object or from the
      * trace and should have a valid cache entry for native scopeChain.
      */
-    JS_ASSERT(OBJ_GET_PARENT(cx, scopeChain));
+    JSObject *parent = OBJ_GET_PARENT(cx, scopeChain);
+    JS_ASSERT(parent);
     JS_ASSERT(!JS_ON_TRACE(cx));
     JS_ASSERT_IF(OBJ_IS_NATIVE(scopeChain), entry);
 
-    JSObject *obj = scopeChain;
-
     /*
-     * Loop over cacheable objects on the scope chain until we find a
-     * property. We also stop when we reach the global object skipping any
-     * farther checks or lookups. For details see the JSOP_BINDNAME case of
-     * js_Interpret.
+     * Optimize and cache only for classes that do not have resolve hooks and
+     * where the prototype is used only to implement a shared scope, bug 462734
+     * and bug 487039.
      */
-    for (int scopeIndex = 0; IsCacheableNonGlobalScope(obj); scopeIndex++) {
+    JSObject *obj = scopeChain;
+    for (int scopeIndex = 0; ; scopeIndex++) {
+        JSClass *clasp = OBJ_GET_CLASS(cx, obj);
+        if (clasp != &js_CallClass && clasp != &js_BlockClass)
+            break;
+
         JSObject *pobj;
         JSProperty *prop;
-        int protoIndex = js_LookupPropertyWithFlags(cx, obj, id,
-                                                    cx->resolveFlags,
+        int protoIndex = js_LookupPropertyWithFlags(cx, obj, id, 0,
                                                     &pobj, &prop);
         if (protoIndex < 0)
             return NULL;
         if (prop) {
             JS_ASSERT(OBJ_IS_NATIVE(pobj));
-            JS_ASSERT(OBJ_GET_CLASS(cx, pobj) == OBJ_GET_CLASS(cx, obj));
+            JS_ASSERT(OBJ_GET_CLASS(cx, pobj) == clasp);
             js_FillPropertyCache(cx, scopeChain, OBJ_SHAPE(scopeChain),
                                  scopeIndex, protoIndex, pobj,
                                  (JSScopeProperty *) prop, &entry);
@@ -4125,13 +4109,17 @@ js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id,
             return obj;
         }
 
-        /* Call and other cacheable objects always have a parent. */
-        obj = OBJ_GET_PARENT(cx, obj);
-        if (!OBJ_GET_PARENT(cx, obj))
+        obj = parent;
+        parent = OBJ_GET_PARENT(cx, parent);
+        if (!parent) {
+            /*
+             * Here obj is the global one and we can skip any checks for it,
+             * see comments in the JSOP_BINDNAME case of js_Interpret.
+             */
             return obj;
+        }
     }
 
-    /* Loop until we find a property or reach the global object. */
     do {
         JSObject *pobj;
         JSProperty *prop;
@@ -4141,17 +4129,9 @@ js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id,
             OBJ_DROP_PROPERTY(cx, pobj, prop);
             break;
         }
-
-        /*
-         * We conservatively assume that a resolve hook could mutate the scope
-         * chain during OBJ_LOOKUP_PROPERTY. So we must check if parent is not
-         * null here even if it wasn't before the lookup.
-         */
-        JSObject *parent = OBJ_GET_PARENT(cx, obj);
-        if (!parent)
-            break;
         obj = parent;
-    } while (OBJ_GET_PARENT(cx, obj));
+        parent = OBJ_GET_PARENT(cx, parent);
+    } while (parent);
     return obj;
 }
 
