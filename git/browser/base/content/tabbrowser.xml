@@ -1340,6 +1340,8 @@
             if (isRemote == aRemote)
               return false;
 
+            let wasActive = document.activeElement == aBrowser;
+
             // Unhook our progress listener.
             let tab = this._getTabForBrowser(aBrowser);
             let index = tab._tPos;
@@ -1359,6 +1361,9 @@
               tab.setAttribute("remote", "true");
             else
               tab.removeAttribute("remote");
+
+            if (wasActive)
+              aBrowser.focus();
 
             return true;
           ]]>
