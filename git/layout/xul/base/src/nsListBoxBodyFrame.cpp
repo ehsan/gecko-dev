@@ -59,7 +59,7 @@
 #include "nsIViewManager.h"
 #include "nsStyleContext.h"
 #include "nsIDeviceContext.h"
-#include "nsFontMetrics.h"
+#include "nsIFontMetrics.h"
 #include "nsITimer.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
@@ -225,9 +225,9 @@ nsListBoxBodyFrame::Init(nsIContent*     aContent,
       scrollbarFrame->SetScrollbarMediatorContent(GetContent());
     }
   }
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  mRowHeight = fm->MaxHeight();
+  fm->GetHeight(mRowHeight);
 
   return rv;
 }

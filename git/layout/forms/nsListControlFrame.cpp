@@ -69,7 +69,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsIComponentManager.h"
 #include "nsILookAndFeel.h"
-#include "nsFontMetrics.h"
+#include "nsIFontMetrics.h"
 #include "nsIScrollableFrame.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
@@ -1878,11 +1878,11 @@ nscoord
 nsListControlFrame::CalcFallbackRowHeight()
 {
   nscoord rowHeight = 0;
-
-  nsRefPtr<nsFontMetrics> fontMet;
+  
+  nsCOMPtr<nsIFontMetrics> fontMet;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet));
   if (fontMet) {
-    rowHeight = fontMet->MaxHeight();
+    fontMet->GetHeight(rowHeight);
   }
 
   return rowHeight;

@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsLayoutUtils.h"
+#include "nsIFontMetrics.h"
 #include "nsIFormControlFrame.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
@@ -1644,7 +1645,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     nsIWidget *widget = aFrame->GetNearestWidget();
     if (widget) {
       PRInt32 pixelRatio = presContext->AppUnitsPerDevPixel();
-      nsIntRegion visibleWindowRegion(visibleRegion.ToOutsidePixels(pixelRatio));
+      nsIntRegion visibleWindowRegion(visibleRegion.ToOutsidePixels(presContext->AppUnitsPerDevPixel()));
       widget->UpdateTransparentRegion(visibleWindowRegion);
     }
   }
@@ -1867,7 +1868,7 @@ nsLayoutUtils::GetTextShadowRectsUnion(const nsRect& aTextAndDecorationsRect,
 
 nsresult
 nsLayoutUtils::GetFontMetricsForFrame(const nsIFrame* aFrame,
-                                      nsFontMetrics** aFontMetrics)
+                                      nsIFontMetrics** aFontMetrics)
 {
   return nsLayoutUtils::GetFontMetricsForStyleContext(aFrame->GetStyleContext(),
                                                       aFontMetrics);
@@ -1875,7 +1876,7 @@ nsLayoutUtils::GetFontMetricsForFrame(const nsIFrame* aFrame,
 
 nsresult
 nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
-                                             nsFontMetrics** aFontMetrics)
+                                             nsIFontMetrics** aFontMetrics)
 {
   // pass the user font set object into the device context to pass along to CreateFontGroup
   gfxUserFontSet* fs = aStyleContext->PresContext()->GetUserFontSet();
@@ -2842,11 +2843,12 @@ nsLayoutUtils::GetStringWidth(const nsIFrame*      aFrame,
 }
 
 /* static */ nscoord
-nsLayoutUtils::GetCenteredFontBaseline(nsFontMetrics* aFontMetrics,
+nsLayoutUtils::GetCenteredFontBaseline(nsIFontMetrics* aFontMetrics,
                                        nscoord         aLineHeight)
 {
-  nscoord fontAscent = aFontMetrics->MaxAscent();
-  nscoord fontHeight = aFontMetrics->MaxHeight();
+  nscoord fontAscent, fontHeight;
+  aFontMetrics->GetMaxAscent(fontAscent);
+  aFontMetrics->GetHeight(fontHeight);
 
   nscoord leading = aLineHeight - fontHeight;
   return fontAscent + leading/2;

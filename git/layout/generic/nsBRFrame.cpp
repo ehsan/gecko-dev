@@ -44,6 +44,7 @@
 #include "nsLineLayout.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
+#include "nsIFontMetrics.h"
 #include "nsRenderingContext.h"
 #include "nsLayoutUtils.h"
 
@@ -151,7 +152,7 @@ BRFrame::Reflow(nsPresContext* aPresContext,
       // normal inline frame.  That line-height is used is important
       // here for cases where the line-height is less than 1.
       nsLayoutUtils::SetFontFromStyle(aReflowState.rendContext, mStyleContext);
-      nsFontMetrics *fm = aReflowState.rendContext->FontMetrics();
+      nsIFontMetrics *fm = aReflowState.rendContext->FontMetrics();
       if (fm) {
         nscoord logicalHeight = aReflowState.CalcLineHeight();
         aMetrics.height = logicalHeight;
@@ -232,14 +233,15 @@ nscoord
 BRFrame::GetBaseline() const
 {
   nscoord ascent = 0;
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   if (fm) {
     nscoord logicalHeight = GetRect().height;
     if (GetStateBits() & BR_USING_CENTERED_FONT_BASELINE) {
       ascent = nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
     } else {
-      ascent = fm->MaxAscent() + GetUsedBorderAndPadding().top;
+      fm->GetMaxAscent(ascent);
+      ascent += GetUsedBorderAndPadding().top;
     }
   }
   return NS_MIN(mRect.height, ascent);

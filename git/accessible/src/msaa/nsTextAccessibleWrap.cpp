@@ -42,7 +42,7 @@
 #include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
 #include "nsIFrame.h"
-#include "nsFontMetrics.h"
+#include "nsIThebesFontMetrics.h"
 #include "nsPresContext.h"
 
 #include "gfxFont.h"
@@ -255,14 +255,16 @@ __try {
     return E_FAIL;
   }
 
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   frame->PresContext()->DeviceContext()->
     GetMetricsFor(frame->GetStyleFont()->mFont,
                   frame->GetStyleVisibility()->mLanguage,
                   frame->PresContext()->GetUserFontSet(),
                   *getter_AddRefs(fm));
 
-  const nsString& name = fm->GetThebesFontGroup()->GetFontAt(0)->GetName();
+  nsCOMPtr<nsIThebesFontMetrics> tfm = do_QueryInterface(fm);
+  const nsString& name = tfm->GetThebesFontGroup()->GetFontAt(0)->GetName();
+
   if (name.IsEmpty())
     return S_FALSE;
 

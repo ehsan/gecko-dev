@@ -44,6 +44,7 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmsubFrame.h"
 
@@ -153,10 +154,10 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
   // get min subscript shift limit from x-height
   // = h(x) - 4/5 * sigma_5, Rule 18b, App. G, TeXbook
   nscoord xHeight = 0;
-  nsRefPtr<nsFontMetrics> fm =
+  nsCOMPtr<nsIFontMetrics> fm =
     aPresContext->GetMetricsFor(baseFrame->GetStyleFont()->mFont);
 
-  xHeight = fm->XHeight();
+  fm->GetXHeight (xHeight);
   nscoord minShiftFromXHeight = (nscoord) 
     (bmSubScript.ascent - (4.0f/5.0f) * xHeight);
 

@@ -144,7 +144,7 @@
 
 #include "nsServiceManagerUtils.h"
 #include "nsITimer.h"
-#include "nsFontMetrics.h"
+#include "nsIFontMetrics.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDragService.h"
 #include "nsIDragSession.h"
@@ -2490,11 +2490,12 @@ GetScrollableLineHeight(nsIFrame* aTargetFrame)
   // Fall back to the font height of the target frame.
   const nsStyleFont* font = aTargetFrame->GetStyleFont();
   const nsFont& f = font->mFont;
-  nsRefPtr<nsFontMetrics> fm = aTargetFrame->PresContext()->GetMetricsFor(f);
+  nsCOMPtr<nsIFontMetrics> fm = aTargetFrame->PresContext()->GetMetricsFor(f);
   NS_ASSERTION(fm, "FontMetrics is null!");
+  nscoord lineHeight = 0;
   if (fm)
-    return fm->MaxHeight();
-  return 0;
+    fm->GetHeight(lineHeight);
+  return lineHeight;
 }
 
 void

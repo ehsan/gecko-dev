@@ -164,6 +164,7 @@ nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
   mInfo.mHasVideo = PR_FALSE;
   mInfo.mAudioRate = mSampleRate;
   mInfo.mAudioChannels = mChannels;
+  mInfo.mDataOffset = -1;
 
   *aInfo = mInfo;
 

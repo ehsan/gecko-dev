@@ -46,6 +46,7 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmrootFrame.h"
 
@@ -155,13 +156,14 @@ nsMathMLmrootFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 static void
 GetRadicalXOffsets(nscoord aIndexWidth, nscoord aSqrWidth,
-                   nsFontMetrics* aFontMetrics,
+                   nsIFontMetrics* aFontMetrics,
                    nscoord* aIndexOffset, nscoord* aSqrOffset)
 {
   // The index is tucked in closer to the radical while making sure
   // that the kern does not make the index and radical collide
   nscoord dxIndex, dxSqr;
-  nscoord xHeight = aFontMetrics->XHeight();
+  nscoord xHeight = 0;
+  aFontMetrics->GetXHeight(xHeight);
   nscoord indexRadicalKern = NSToCoordRound(1.35f * xHeight);
   if (indexRadicalKern > aIndexWidth) {
     dxIndex = indexRadicalKern - aIndexWidth;
@@ -259,7 +261,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
 
   renderingContext.SetFont(GetStyleFont()->mFont,
                            aPresContext->GetUserFontSet());
-  nsFontMetrics* fm = renderingContext.FontMetrics();
+  nsIFontMetrics* fm = renderingContext.FontMetrics();
 
   // For radical glyphs from TeX fonts and some of the radical glyphs from
   // Mathematica fonts, the thickness of the overline can be obtained from the
@@ -280,7 +282,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   // psi = clearance between rule and content
   nscoord phi = 0, psi = 0;
   if (NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags))
-    phi = fm->XHeight();
+    fm->GetXHeight(phi);
   else
     phi = ruleThickness;
   psi = ruleThickness + phi/4;

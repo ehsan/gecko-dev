@@ -45,6 +45,7 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmmultiscriptsFrame.h"
 
@@ -162,9 +163,10 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
   const nsStyleFont* font = GetStyleFont();
   aRenderingContext.SetFont(font->mFont,
                             PresContext()->GetUserFontSet());
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
+  nsIFontMetrics* fm = aRenderingContext.FontMetrics();
 
-  nscoord xHeight = fm->XHeight();
+  nscoord xHeight;
+  fm->GetXHeight (xHeight);
 
   nscoord ruleSize;
   GetRuleThickness (aRenderingContext, fm, ruleSize);

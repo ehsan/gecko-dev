@@ -43,6 +43,7 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmsupFrame.h"
 
@@ -154,10 +155,10 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
   // get min supscript shift limit from x-height
   // = d(x) + 1/4 * sigma_5, Rule 18c, App. G, TeXbook
   nscoord xHeight = 0;
-  nsRefPtr<nsFontMetrics> fm =
+  nsCOMPtr<nsIFontMetrics> fm =
     aPresContext->GetMetricsFor(baseFrame->GetStyleFont()->mFont);
 
-  xHeight = fm->XHeight();
+  fm->GetXHeight (xHeight);
   nscoord minShiftFromXHeight = (nscoord) 
     (bmSupScript.descent + (1.0f/4.0f) * xHeight);
   nscoord italicCorrection;

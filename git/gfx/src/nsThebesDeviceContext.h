@@ -50,6 +50,9 @@
 #include "nsWeakReference.h"
 #include "gfxContext.h"
 
+#include "nsRefPtrHashtable.h"
+#include "nsHashKeys.h"
+
 #include "prlog.h"
 
 #ifdef PR_LOGGING
@@ -62,6 +65,7 @@ extern PRLogModuleInfo* gThebesGFXLog;
 #include "gfxOS2Surface.h"
 #endif
 
+class nsHashtable;
 class nsFontCache;
 
 class nsThebesDeviceContext : public nsIDeviceContext,
@@ -86,10 +90,10 @@ public:
 
     NS_IMETHOD GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
                              gfxUserFontSet* aUserFontSet,
-                             nsFontMetrics*& aMetrics);
+                             nsIFontMetrics*& aMetrics);
     NS_IMETHOD GetMetricsFor(const nsFont& aFont,
                              gfxUserFontSet* aUserFontSet,
-                             nsFontMetrics*& aMetrics);
+                             nsIFontMetrics*& aMetrics);
 
     NS_IMETHOD FirstExistingFont(const nsFont& aFont, nsString& aFaceName);
 
@@ -97,7 +101,7 @@ public:
                                 PRBool& aAliased);
 
     NS_IMETHOD CreateFontCache();
-    NS_IMETHOD FontMetricsDeleted(const nsFontMetrics* aFontMetrics);
+    NS_IMETHOD FontMetricsDeleted(const nsIFontMetrics* aFontMetrics);
     NS_IMETHOD FlushFontCache(void);
 
     NS_IMETHOD PrepareNativeWidget(nsIWidget *aWidget, void **aOut);
@@ -139,6 +143,10 @@ public:
 #endif
 
 protected:
+    virtual nsresult CreateFontAliasTable();
+    nsresult AliasFont(const nsString& aFont, 
+                       const nsString& aAlias, const nsString& aAltAlias,
+                       PRBool aForceAlias);
     void GetLocaleLanguage(void);
     nsresult SetDPI();
     void ComputeClientRectUsingScreen(nsRect *outRect);
@@ -150,6 +158,7 @@ protected:
     PRUint32          mDepth;
     nsFontCache*      mFontCache;
     nsCOMPtr<nsIAtom> mLocaleLanguage; // XXX temp fix for performance bug
+    nsHashtable*      mFontAliasTable;
     nsCOMPtr<nsIWidget> mWidget;
 
 private:

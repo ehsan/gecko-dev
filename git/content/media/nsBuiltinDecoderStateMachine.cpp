@@ -1557,9 +1557,10 @@ VideoData* nsBuiltinDecoderStateMachine::FindStartTime()
   PRInt64 startTime = 0;
   mStartTime = 0;
   VideoData* v = nsnull;
+  PRInt64 dataOffset = mInfo.mDataOffset;
   {
     MonitorAutoExit exitMon(mDecoder->GetMonitor());
-    v = mReader->FindStartTime(0, startTime);
+    v = mReader->FindStartTime(dataOffset, startTime);
   }
   if (startTime != 0) {
     mStartTime = startTime;

@@ -56,7 +56,7 @@
  # SVGNumberListAndInfo has not been given an element yet.
  */
 
-namespace mozilla {
+using namespace mozilla;
 
 /*static*/ SVGNumberListSMILType SVGNumberListSMILType::sSingleton;
 
@@ -240,5 +240,3 @@ SVGNumberListSMILType::Interpolate(const nsSMILValue& aStartVal,
   }
   return NS_OK;
 }
-
-} // namespace mozilla

@@ -46,6 +46,7 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmfencedFrame.h"
 
@@ -244,7 +245,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   const nsStyleFont* font = GetStyleFont();
   aReflowState.rendContext->SetFont(font->mFont,
                                     aPresContext->GetUserFontSet());
-  nsFontMetrics* fm = aReflowState.rendContext->FontMetrics();
+  nsIFontMetrics* fm = aReflowState.rendContext->FontMetrics();
   nscoord axisHeight, em;
   GetAxisHeight(*aReflowState.rendContext, fm, axisHeight);
   GetEmHeight(fm, em);
@@ -269,11 +270,10 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   nsIFrame* childFrame = firstChild;
   nscoord ascent = 0, descent = 0;
   if (firstChild || mOpenChar || mCloseChar || mSeparatorsCount > 0) {
-    // We use the ASCII metrics to get our minimum height. This way,
-    // if we have borders or a background, they will fit better with
-    // other elements on the line.
-    ascent = fm->MaxAscent();
-    descent = fm->MaxDescent();
+    // We use the ASCII metrics to get our minimum height. This way, if we have
+    // borders or a background, they will fit better with other elements on the line
+    fm->GetMaxAscent(ascent);
+    fm->GetMaxDescent(descent);
   }
   while (childFrame) {
     nsHTMLReflowMetrics childDesiredSize(aDesiredSize.mFlags
@@ -590,7 +590,7 @@ nsMathMLmfencedFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
 
   nsPresContext* presContext = PresContext();
   const nsStyleFont* font = GetStyleFont();
-  nsRefPtr<nsFontMetrics> fm = presContext->GetMetricsFor(font->mFont);
+  nsCOMPtr<nsIFontMetrics> fm = presContext->GetMetricsFor(font->mFont);
   nscoord em;
   GetEmHeight(fm, em);
 

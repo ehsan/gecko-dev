@@ -53,6 +53,7 @@
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
 #endif
+#include "nsIFontMetrics.h"
 #include "nsIPrintSettings.h"
 #include "nsRegion.h"
 
@@ -510,7 +511,7 @@ nsPageFrame::PaintHeaderFooter(nsRenderingContext& aRenderingContext,
   aRenderingContext.SetColor(NS_RGB(0,0,0));
 
   // Get the FontMetrics to determine width.height of strings
-  nsRefPtr<nsFontMetrics> fontMet;
+  nsCOMPtr<nsIFontMetrics> fontMet;
   pc->DeviceContext()->GetMetricsFor(*mPD->mHeadFootFont,
                                      pc->GetUserFontSet(),
                                      *getter_AddRefs(fontMet));
@@ -520,8 +521,8 @@ nsPageFrame::PaintHeaderFooter(nsRenderingContext& aRenderingContext,
   nscoord ascent = 0;
   nscoord visibleHeight = 0;
   if (fontMet) {
-    visibleHeight = fontMet->MaxHeight();
-    ascent = fontMet->MaxAscent();
+    fontMet->GetHeight(visibleHeight);
+    fontMet->GetMaxAscent(ascent);
   }
 
   // print document headers and footers

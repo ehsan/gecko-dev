@@ -42,6 +42,7 @@
 #include "nsGkAtoms.h"
 #include "nsHTMLParts.h"
 #include "nsHTMLContainerFrame.h"
+#include "nsIFontMetrics.h"
 #include "nsGenericHTMLElement.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
@@ -289,7 +290,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
     }
   }
 
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   aRenderingContext.SetColor(GetVisitedDependentColor(eCSSProperty_color));
 
   mTextIsRTL = PR_FALSE;
@@ -388,7 +389,8 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
     GetListItemText(*myList, text);
     aRenderingContext.SetFont(fm);
-    nscoord ascent = fm->MaxAscent();
+    nscoord ascent;
+    fm->GetMaxAscent(ascent);
     aRenderingContext.SetTextRunRTL(mTextIsRTL);
     aRenderingContext.DrawString(text, mPadding.left + aPt.x,
                                  mPadding.top + aPt.y + ascent);
@@ -1346,7 +1348,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   // match the image size).
   mIntrinsicSize.SizeTo(0, 0);
 
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   nscoord bulletSize;
 
@@ -1360,7 +1362,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
     case NS_STYLE_LIST_STYLE_DISC:
     case NS_STYLE_LIST_STYLE_CIRCLE:
     case NS_STYLE_LIST_STYLE_SQUARE:
-      ascent = fm->MaxAscent();
+      fm->GetMaxAscent(ascent);
       bulletSize = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
                           NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
       mPadding.bottom = NSToCoordRound(float(ascent) / 8.0f);
@@ -1421,13 +1423,11 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
     case NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ER:
     case NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ET:
       GetListItemText(*myList, text);
-      aMetrics.height = fm->MaxHeight();
+      fm->GetHeight(aMetrics.height);
       aRenderingContext->SetFont(fm);
-      aMetrics.width =
-        nsLayoutUtils::GetStringWidth(this, aRenderingContext,
-                                      text.get(), text.Length());
+      aMetrics.width = nsLayoutUtils::GetStringWidth(this, aRenderingContext, text.get(), text.Length());
       aMetrics.width += mPadding.right;
-      aMetrics.ascent = fm->MaxAscent();
+      fm->GetMaxAscent(aMetrics.ascent);
       break;
   }
 }
@@ -1592,7 +1592,7 @@ nsBulletFrame::GetBaseline() const
   if (GetStateBits() & BULLET_FRAME_IMAGE_LOADING) {
     ascent = GetRect().height;
   } else {
-    nsRefPtr<nsFontMetrics> fm;
+    nsCOMPtr<nsIFontMetrics> fm;
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
     const nsStyleList* myList = GetStyleList();
     switch (myList->mListStyleType) {
@@ -1602,7 +1602,7 @@ nsBulletFrame::GetBaseline() const
       case NS_STYLE_LIST_STYLE_DISC:
       case NS_STYLE_LIST_STYLE_CIRCLE:
       case NS_STYLE_LIST_STYLE_SQUARE:
-        ascent = fm->MaxAscent();
+        fm->GetMaxAscent(ascent);
         bottomPadding = NSToCoordRound(float(ascent) / 8.0f);
         ascent = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
                         NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
@@ -1610,7 +1610,7 @@ nsBulletFrame::GetBaseline() const
         break;
 
       default:
-        ascent = fm->MaxAscent();
+        fm->GetMaxAscent(ascent);
         break;
     }
   }

@@ -277,7 +277,7 @@ nsMathMLFrame::GetAttribute(nsIContent* aContent,
 
 /* static */ void
 nsMathMLFrame::GetRuleThickness(nsRenderingContext& aRenderingContext,
-                                nsFontMetrics*      aFontMetrics,
+                                nsIFontMetrics*      aFontMetrics,
                                 nscoord&             aRuleThickness)
 {
   // get the bounding metrics of the overbar char, the rendering context
@@ -286,7 +286,8 @@ nsMathMLFrame::GetRuleThickness(nsRenderingContext& aRenderingContext,
                Equals(aFontMetrics->Font()),
                "unexpected state");
 
-  nscoord xHeight = aFontMetrics->XHeight();
+  nscoord xHeight;
+  aFontMetrics->GetXHeight(xHeight);
   PRUnichar overBar = 0x00AF;
   nsBoundingMetrics bm = aRenderingContext.GetBoundingMetrics(&overBar, 1);
   aRuleThickness = bm.ascent + bm.descent;
@@ -298,7 +299,7 @@ nsMathMLFrame::GetRuleThickness(nsRenderingContext& aRenderingContext,
 
 /* static */ void
 nsMathMLFrame::GetAxisHeight(nsRenderingContext& aRenderingContext,
-                             nsFontMetrics*      aFontMetrics,
+                             nsIFontMetrics*      aFontMetrics,
                              nscoord&             aAxisHeight)
 {
   // get the bounding metrics of the minus sign, the rendering context
@@ -307,7 +308,8 @@ nsMathMLFrame::GetAxisHeight(nsRenderingContext& aRenderingContext,
                Equals(aFontMetrics->Font()),
                "unexpected state");
 
-  nscoord xHeight = aFontMetrics->XHeight();
+  nscoord xHeight;
+  aFontMetrics->GetXHeight(xHeight);
   PRUnichar minus = 0x2212; // not '-', but official Unicode minus sign
   nsBoundingMetrics bm = aRenderingContext.GetBoundingMetrics(&minus, 1);
   aAxisHeight = bm.ascent - (bm.ascent + bm.descent)/2;
@@ -338,9 +340,10 @@ nsMathMLFrame::CalcLength(nsPresContext*   aPresContext,
     return NSToCoordRound(aCSSValue.GetFloatValue() * (float)font->mFont.size);
   }
   else if (eCSSUnit_XHeight == unit) {
+    nscoord xHeight;
     const nsStyleFont* font = aStyleContext->GetStyleFont();
-    nsRefPtr<nsFontMetrics> fm = aPresContext->GetMetricsFor(font->mFont);
-    nscoord xHeight = fm->XHeight();
+    nsCOMPtr<nsIFontMetrics> fm = aPresContext->GetMetricsFor(font->mFont);
+    fm->GetXHeight(xHeight);
     return NSToCoordRound(aCSSValue.GetFloatValue() * (float)xHeight);
   }
 

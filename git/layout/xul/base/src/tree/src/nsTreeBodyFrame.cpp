@@ -76,6 +76,7 @@
 #include "nsIContent.h"
 #include "mozilla/css/StyleRule.h"
 #include "nsCSSRendering.h"
+#include "nsIFontMetrics.h"
 #include "nsIDeviceContext.h"
 #include "nsIXULTemplateBuilder.h"
 #include "nsXPIDLString.h"
@@ -1261,10 +1262,11 @@ nsTreeBodyFrame::GetCoordsForCellItem(PRInt32 aRow, nsITreeColumn* aCol, const n
     // we add in borders and padding to the text dimension and give that back. 
     nsStyleContext* textContext = GetPseudoStyleContext(nsCSSAnonBoxes::moztreecelltext);
 
-    nsRefPtr<nsFontMetrics> fm;
+    nsCOMPtr<nsIFontMetrics> fm;
     nsLayoutUtils::GetFontMetricsForStyleContext(textContext,
                                                  getter_AddRefs(fm));
-    nscoord height = fm->MaxHeight();
+    nscoord height;
+    fm->GetHeight(height);
 
     nsMargin textMargin;
     textContext->GetStyleMargin()->GetMargin(textMargin);
@@ -3567,12 +3569,13 @@ nsTreeBodyFrame::PaintText(PRInt32              aRowIndex,
   textRect.Deflate(bp);
 
   // Compute our text size.
-  nsRefPtr<nsFontMetrics> fontMet;
+  nsCOMPtr<nsIFontMetrics> fontMet;
   nsLayoutUtils::GetFontMetricsForStyleContext(textContext,
                                                getter_AddRefs(fontMet));
 
-  nscoord height = fontMet->MaxHeight();
-  nscoord baseline = fontMet->MaxAscent();
+  nscoord height, baseline;
+  fontMet->GetHeight(height);
+  fontMet->GetMaxAscent(baseline);
 
   // Center the text. XXX Obey vertical-align style prop?
   if (height < textRect.height) {

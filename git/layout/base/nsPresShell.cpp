@@ -142,7 +142,7 @@
 #include "nsRenderingContext.h"
 
 #ifdef MOZ_REFLOW_PERF
-#include "nsFontMetrics.h"
+#include "nsIFontMetrics.h"
 #endif
 
 #include "nsIReflowCallback.h"
@@ -8805,14 +8805,16 @@ void ReflowCountMgr::PaintCount(const char*     aName,
                   NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0,
                   nsPresContext::CSSPixelsToAppUnits(11));
 
-      nsRefPtr<nsFontMetrics> fm = aPresContext->GetMetricsFor(font);
+      nsCOMPtr<nsIFontMetrics> fm = aPresContext->GetMetricsFor(font);
       aRenderingContext->SetFont(fm);
       char buf[16];
       sprintf(buf, "%d", counter->mCount);
-      nscoord x = 0, y = fm->MaxAscent();
-      nscoord width, height = fm->MaxHeight();
+      nscoord x = 0, y;
+      nscoord width, height;
       aRenderingContext->SetTextRunRTL(PR_FALSE);
       aRenderingContext->GetWidth((char*)buf, width);
+      fm->GetHeight(height);
+      fm->GetMaxAscent(y);
 
       PRUint32 color;
       PRUint32 color2;

@@ -60,6 +60,9 @@ public:
   NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
+  // nsAccessNode
+  virtual PRBool Init();
+
   // nsAccessible
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();

@@ -83,7 +83,7 @@ struct nsRect;
 
 class imgIRequest;
 
-class nsFontMetrics;
+class nsIFontMetrics;
 class nsIFrame;
 class nsFrameManager;
 class nsILinkHandler;
@@ -328,7 +328,7 @@ public:
    * (which is used from media query matching, which is in turn called
    * when building the user font set).
    */
-  NS_HIDDEN_(already_AddRefed<nsFontMetrics>)
+  NS_HIDDEN_(already_AddRefed<nsIFontMetrics>)
   GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet = PR_TRUE);
 
   /**

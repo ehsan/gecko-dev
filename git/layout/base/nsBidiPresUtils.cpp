@@ -55,6 +55,7 @@
 #include "nsContainerFrame.h"
 #include "nsFirstLetterFrame.h"
 #include "gfxUnicodeProperties.h"
+#include "nsIThebesFontMetrics.h"
 #include "nsTextFrame.h"
 
 #undef NOISY_BIDI
@@ -1764,7 +1765,7 @@ public:
 
   ~nsIRenderingContextBidiProcessor()
   {
-    mCtx->SetTextRunRTL(PR_FALSE);
+    mCtx->SetRightToLeftText(PR_FALSE);
   }
 
   virtual void SetText(const PRUnichar* aText,

@@ -50,6 +50,7 @@
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
 #include "nsRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsIDOMText.h"
 #include "nsIDOMMutationEvent.h"
@@ -85,6 +86,8 @@ nsresult
 nsMathMLContainerFrame::ReflowError(nsRenderingContext& aRenderingContext,
                                     nsHTMLReflowMetrics& aDesiredSize)
 {
+  nsresult rv;
+
   // clear all other flags and record that there is an error with this frame
   mEmbellishData.flags = 0;
   mPresentationData.flags = NS_MATHML_ERROR;
@@ -99,9 +102,10 @@ nsMathMLContainerFrame::ReflowError(nsRenderingContext& aRenderingContext,
     aRenderingContext.GetBoundingMetrics(errorMsg.get(), errorMsg.Length());
 
   // reflow metrics
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
-  aDesiredSize.ascent = fm->MaxAscent();
-  nscoord descent = fm->MaxDescent();
+  nsIFontMetrics* fm = aRenderingContext.FontMetrics();
+  fm->GetMaxAscent(aDesiredSize.ascent);
+  nscoord descent;
+  fm->GetMaxDescent(descent);
   aDesiredSize.height = aDesiredSize.ascent + descent;
   aDesiredSize.width = mBoundingMetrics.width;
 
@@ -139,11 +143,11 @@ void nsDisplayMathMLError::Paint(nsDisplayListBuilder* aBuilder,
   aCtx->FillRect(nsRect(pt, mFrame->GetSize()));
   aCtx->SetColor(NS_RGB(255,255,255));
 
-  nscoord ascent = aCtx->FontMetrics()->MaxAscent();
+  nscoord ascent;
+  aCtx->FontMetrics()->GetMaxAscent(ascent);
 
-  NS_NAMED_LITERAL_STRING(errorMsg, "invalid-markup");
-  aCtx->DrawString(errorMsg.get(), PRUint32(errorMsg.Length()),
-                   pt.x, pt.y+ascent);
+  nsAutoString errorMsg; errorMsg.AssignLiteral("invalid-markup");
+  aCtx->DrawString(errorMsg.get(), PRUint32(errorMsg.Length()), pt.x, pt.y+ascent);
 }
 
 /* /////////////

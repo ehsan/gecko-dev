@@ -49,6 +49,7 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLForeignFrameWrapper.h"
 

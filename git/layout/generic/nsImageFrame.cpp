@@ -67,6 +67,7 @@
 #include "nsNetUtil.h"
 #include "nsHTMLContainerFrame.h"
 #include "prprf.h"
+#include "nsIFontMetrics.h"
 #include "nsCSSRendering.h"
 #include "nsILink.h"
 #include "nsIDOMHTMLAnchorElement.h"
@@ -974,11 +975,12 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
   nsLayoutUtils::SetFontFromStyle(&aRenderingContext, mStyleContext);
 
   // Format the text to display within the formatting rect
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
+  nsIFontMetrics* fm = aRenderingContext.FontMetrics();
 
-  nscoord maxAscent = fm->MaxAscent();
-  nscoord maxDescent = fm->MaxDescent();
-  nscoord height = fm->MaxHeight();
+  nscoord maxAscent, maxDescent, height;
+  fm->GetMaxAscent(maxAscent);
+  fm->GetMaxDescent(maxDescent);
+  fm->GetHeight(height);
 
   // XXX It would be nice if there was a way to have the font metrics tell
   // use where to break the text given a maximum width. At a minimum we need
@@ -1123,6 +1125,7 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
     // if we could not draw the icon, flag that we're waiting for it and
     // just draw some graffiti in the mean time
     if (!iconUsed) {
+      nscolor oldColor;
       nscoord iconXPos = (vis->mDirection ==   NS_STYLE_DIRECTION_RTL) ?
                          inner.XMost() - size : inner.x;
       nscoord twoPX = nsPresContext::CSSPixelsToAppUnits(2);
