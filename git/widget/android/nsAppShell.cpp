@@ -776,8 +776,7 @@ nsresult
 nsAppShell::AddObserver(const nsAString &aObserverKey, nsIObserver *aObserver)
 {
     NS_ASSERTION(aObserver != nsnull, "nsAppShell::AddObserver: aObserver is null!");
-    mObserversHash.Put(aObserverKey, aObserver);
-    return NS_OK;
+    return mObserversHash.Put(aObserverKey, aObserver) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 /**

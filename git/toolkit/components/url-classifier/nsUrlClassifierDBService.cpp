@@ -4397,7 +4397,9 @@ nsUrlClassifierDBService::SetHashCompleter(const nsACString &tableName,
                                            nsIUrlClassifierHashCompleter *completer)
 {
   if (completer) {
-    mCompleters.Put(tableName, completer);
+    if (!mCompleters.Put(tableName, completer)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   } else {
     mCompleters.Remove(tableName);
   }

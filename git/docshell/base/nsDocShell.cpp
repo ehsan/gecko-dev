@@ -877,7 +877,8 @@ nsDocShell::Init()
     rv = mContentListener->Init();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mStorages.Init();
+    if (!mStorages.Init())
+        return NS_ERROR_OUT_OF_MEMORY;
 
     // We want to hold a strong ref to the loadgroup, so it better hold a weak
     // ref to us...  use an InterfaceRequestorProxy to do this.
@@ -2441,7 +2442,8 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
         if (NS_FAILED(rv))
             return rv;
 
-        mStorages.Put(origin, newstorage);
+        if (!mStorages.Put(origin, newstorage))
+            return NS_ERROR_OUT_OF_MEMORY;
 
         newstorage.swap(*aStorage);
 #if defined(PR_LOGGING) && defined(DEBUG)
@@ -2578,7 +2580,8 @@ nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal,
                    ("nsDocShell[%p]: was added a sessionStorage %p",
                     this, aStorage));
 #endif
-            mStorages.Put(origin, aStorage);
+            if (!mStorages.Put(origin, aStorage))
+                return NS_ERROR_OUT_OF_MEMORY;
         }
         else {
             return topDocShell->AddSessionStorage(aPrincipal, aStorage);

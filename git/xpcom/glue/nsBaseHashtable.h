@@ -82,8 +82,6 @@ template<class KeyClass,class DataType,class UserDataType>
 class nsBaseHashtable :
   protected nsTHashtable< nsBaseHashtableET<KeyClass,DataType> >
 {
-  typedef mozilla::fallible_t fallible_t;
-
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef nsBaseHashtableET<KeyClass,DataType> EntryType;
@@ -97,16 +95,8 @@ public:
    * locking on all class methods
    * @return    true if the object was initialized properly.
    */
-  void Init(PRUint32 initSize = PL_DHASH_MIN_SIZE)
-  { nsTHashtable<EntryType>::Init(initSize); }
-
-  bool Init(const fallible_t&) NS_WARN_UNUSED_RESULT
-  { return Init(PL_DHASH_MIN_SIZE, fallible_t()); }
-
-  bool Init(PRUint32 initSize, const fallible_t&) NS_WARN_UNUSED_RESULT
-  { return nsTHashtable<EntryType>::Init(initSize, fallible_t()); }
-
-
+  bool Init(PRUint32 initSize = PL_DHASH_MIN_SIZE)
+  { return nsTHashtable<EntryType>::Init(initSize); }
 
   /**
    * Check whether the table has been initialized.
@@ -168,13 +158,7 @@ public:
    * @param aData the new data
    * @return always true, unless memory allocation failed
    */
-  void Put(KeyType aKey, UserDataType aData)
-  {
-    if (!Put(aKey, aData, fallible_t()))
-      NS_RUNTIMEABORT("OOM");
-  }
-
-  bool Put(KeyType aKey, UserDataType aData, const fallible_t&) NS_WARN_UNUSED_RESULT
+  bool Put(KeyType aKey, UserDataType aData)
   {
     EntryType* ent = this->PutEntry(aKey);
 
@@ -341,8 +325,7 @@ protected:
 };
 
 /**
- * This class is a thread-safe version of nsBaseHashtable. It only exposes
- * an infallible API.
+ * This class is a thread-safe version of nsBaseHashtable.
  */
 template<class KeyClass,class DataType,class UserDataType>
 class nsBaseHashtableMT :
@@ -361,11 +344,11 @@ public:
   nsBaseHashtableMT() : mLock(nsnull) { }
   ~nsBaseHashtableMT();
 
-  void Init(PRUint32 initSize = PL_DHASH_MIN_SIZE);
+  bool Init(PRUint32 initSize = PL_DHASH_MIN_SIZE);
   bool IsInitialized() const { return mLock != nsnull; }
   PRUint32 Count() const;
   bool Get(KeyType aKey, UserDataType* pData) const;
-  void Put(KeyType aKey, UserDataType aData);
+  bool Put(KeyType aKey, UserDataType aData);
   void Remove(KeyType aKey);
 
   PRUint32 EnumerateRead(EnumReadFunction enumFunc, void* userArg) const;
@@ -455,15 +438,16 @@ nsBaseHashtableMT<KeyClass,DataType,UserDataType>::~nsBaseHashtableMT()
 }
 
 template<class KeyClass,class DataType,class UserDataType>
-void
+bool
 nsBaseHashtableMT<KeyClass,DataType,UserDataType>::Init(PRUint32 initSize)
 {
-  if (!nsTHashtable<EntryType>::IsInitialized())
-    nsTHashtable<EntryType>::Init(initSize);
+  if (!nsTHashtable<EntryType>::IsInitialized() && !nsTHashtable<EntryType>::Init(initSize))
+    return false;
 
   this->mLock = PR_NewLock();
-  if (!this->mLock)
-    NS_RUNTIMEABORT("OOM");
+  NS_ASSERTION(this->mLock, "Error creating lock during nsBaseHashtableL::Init()");
+
+  return (this->mLock != nsnull);
 }
 
 template<class KeyClass,class DataType,class UserDataType>
@@ -491,13 +475,16 @@ nsBaseHashtableMT<KeyClass,DataType,UserDataType>::Get(KeyType       aKey,
 }
 
 template<class KeyClass,class DataType,class UserDataType>
-void
+bool
 nsBaseHashtableMT<KeyClass,DataType,UserDataType>::Put(KeyType      aKey,
                                                            UserDataType aData)
 {
   PR_Lock(this->mLock);
-  nsBaseHashtable<KeyClass,DataType,UserDataType>::Put(aKey, aData);
+  bool res =
+    nsBaseHashtable<KeyClass,DataType,UserDataType>::Put(aKey, aData);
   PR_Unlock(this->mLock);
+
+  return res;
 }
 
 template<class KeyClass,class DataType,class UserDataType>

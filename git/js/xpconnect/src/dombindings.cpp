@@ -440,8 +440,8 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope,
             xpc_UnmarkGrayObject(interfacePrototype);
             return interfacePrototype;
         }
-    } else {
-        cache.Init();
+    } else if (!cache.Init()) {
+        return NULL;
     }
 
     JSObject* proto = Base::getPrototype(cx, scope, receiver);
@@ -491,7 +491,7 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope,
     // overwrite the value set by InvalidateProtoShape_add when we set our own properties.
     js::SetReservedSlot(interfacePrototype, 0, PrivateUint32Value(USE_CACHE));
 
-    if (!cache.Put(sInterfaceClass.name, interfacePrototype, fallible_t()))
+    if (!cache.Put(sInterfaceClass.name, interfacePrototype))
         return NULL;
 
     return interfacePrototype;

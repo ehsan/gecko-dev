@@ -155,8 +155,9 @@ nsChromeRegistryChrome::Init()
   if (NS_FAILED(rv))
     return rv;
 
-  mOverlayHash.Init();
-  mStyleHash.Init();
+  if (!mOverlayHash.Init() ||
+      !mStyleHash.Init())
+    return NS_ERROR_FAILURE;
   
   mSelectedLocale = NS_LITERAL_CSTRING("en-US");
   mSelectedSkin = NS_LITERAL_CSTRING("classic/1.0");

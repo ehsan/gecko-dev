@@ -497,7 +497,8 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
     return NS_ERROR_FAILURE;
 
   nsTHashtable<nsCStringHashKey> allHostPortOverrideKeys;
-  allHostPortOverrideKeys.Init();
+  if (!allHostPortOverrideKeys.Init())
+    return NS_ERROR_OUT_OF_MEMORY;
 
   if (aWantedType == nsIX509Cert::SERVER_CERT) {
     mOriginalOverrideService->

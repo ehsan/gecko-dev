@@ -767,7 +767,9 @@ PresShell::Init(nsIDocument* aDocument,
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
-  mFramesToDirty.Init();
+  if (!mFramesToDirty.Init()) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   mDocument = aDocument;
   NS_ADDREF(mDocument);

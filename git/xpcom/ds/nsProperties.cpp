@@ -62,8 +62,8 @@ NS_IMETHODIMP
 nsProperties::Set(const char* prop, nsISupports* value)
 {
     NS_ENSURE_ARG(prop);
-    Put(prop, value);
-    return NS_OK;
+
+    return Put(prop, value) ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP

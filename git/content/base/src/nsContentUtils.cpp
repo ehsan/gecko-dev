@@ -548,14 +548,30 @@ nsContentUtils::InitializeEventTable() {
   sAtomEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
   sStringEventTable = new nsDataHashtable<nsStringHashKey, EventNameMapping>;
   sUserDefinedEvents = new nsCOMArray<nsIAtom>(64);
-  sAtomEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1);
-  sStringEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1);
+
+  if (!sAtomEventTable || !sStringEventTable || !sUserDefinedEvents ||
+      !sAtomEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1) ||
+      !sStringEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1)) {
+    delete sAtomEventTable;
+    sAtomEventTable = nsnull;
+    delete sStringEventTable;
+    sStringEventTable = nsnull;
+    delete sUserDefinedEvents;
+    sUserDefinedEvents = nsnull;
+    return false;
+  }
 
   // Subtract one from the length because of the trailing null
   for (PRUint32 i = 0; i < ArrayLength(eventArray) - 1; ++i) {
-    sAtomEventTable->Put(eventArray[i].mAtom, eventArray[i]);
-    sStringEventTable->Put(Substring(nsDependentAtomString(eventArray[i].mAtom), 2),
-                           eventArray[i]);
+    if (!sAtomEventTable->Put(eventArray[i].mAtom, eventArray[i]) ||
+        !sStringEventTable->Put(Substring(nsDependentAtomString(eventArray[i].mAtom), 2),
+                                eventArray[i])) {
+      delete sAtomEventTable;
+      sAtomEventTable = nsnull;
+      delete sStringEventTable;
+      sStringEventTable = nsnull;
+      return false;
+    }
   }
 
   return true;
@@ -578,9 +594,15 @@ nsContentUtils::InitializeTouchEventTable()
     };
     // Subtract one from the length because of the trailing null
     for (PRUint32 i = 0; i < ArrayLength(touchEventArray) - 1; ++i) {
-      sAtomEventTable->Put(touchEventArray[i].mAtom, touchEventArray[i]);
-      sStringEventTable->Put(Substring(nsDependentAtomString(touchEventArray[i].mAtom), 2),
-                             touchEventArray[i]);
+      if (!sAtomEventTable->Put(touchEventArray[i].mAtom, touchEventArray[i]) ||
+          !sStringEventTable->Put(Substring(nsDependentAtomString(touchEventArray[i].mAtom), 2),
+                                  touchEventArray[i])) {
+        delete sAtomEventTable;
+        sAtomEventTable = nsnull;
+        delete sStringEventTable;
+        sStringEventTable = nsnull;
+        return;
+      }
     }
   }
 }

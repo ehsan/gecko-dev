@@ -1182,15 +1182,16 @@ nsOfflineCacheDevice::Init()
 nsresult
 nsOfflineCacheDevice::InitActiveCaches()
 {
-  mCaches.Init();
-  mActiveCachesByGroup.Init();
+  NS_ENSURE_TRUE(mCaches.Init(), NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(mActiveCachesByGroup.Init(), NS_ERROR_OUT_OF_MEMORY);
 
-  mActiveCaches.Init(5);
+  nsresult rv = mActiveCaches.Init(5);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   AutoResetStatement statement(mStatement_EnumerateGroups);
 
   bool hasRows;
-  nsresult rv = statement->ExecuteStep(&hasRows);
+  rv = statement->ExecuteStep(&hasRows);
   NS_ENSURE_SUCCESS(rv, rv);
 
   while (hasRows)

@@ -726,7 +726,9 @@ nsExternalResourceMap::RequestResource(nsIURI* aURI,
 
   load = new PendingLoad(aDisplayDocument);
 
-  mPendingLoads.Put(clone, load);
+  if (!mPendingLoads.Put(clone, load)) {
+    return nsnull;
+  }
 
   if (NS_FAILED(load->StartLoad(clone, aRequestingNode))) {
     // Make sure we don't thrash things by trying this load again, since
@@ -918,14 +920,22 @@ nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
   }
 
   ExternalResource* newResource = new ExternalResource();
-  mMap.Put(aURI, newResource);
+  if (newResource && !mMap.Put(aURI, newResource)) {
+    delete newResource;
+    newResource = nsnull;
+    if (NS_SUCCEEDED(rv)) {
+      rv = NS_ERROR_OUT_OF_MEMORY;
+    }
+  }
 
-  newResource->mDocument = doc;
-  newResource->mViewer = aViewer;
-  newResource->mLoadGroup = aLoadGroup;
-  if (doc) {
-    TransferZoomLevels(aDisplayDocument, doc);
-    TransferShowingState(aDisplayDocument, doc);
+  if (newResource) {
+    newResource->mDocument = doc;
+    newResource->mViewer = aViewer;
+    newResource->mLoadGroup = aLoadGroup;
+    if (doc) {
+      TransferZoomLevels(aDisplayDocument, doc);
+      TransferShowingState(aDisplayDocument, doc);
+    }
   }
 
   const nsTArray< nsCOMPtr<nsIObserver> > & obs = load->Observers();
@@ -1990,7 +2000,7 @@ nsDocument::Init()
   }
 
   mIdentifierMap.Init();
-  mStyledLinks.Init();
+  (void)mStyledLinks.Init();
   mRadioGroups.Init();
 
   // Force initialization.
@@ -2031,8 +2041,10 @@ nsDocument::Init()
   mScriptLoader = new nsScriptLoader(this);
   NS_ENSURE_TRUE(mScriptLoader, NS_ERROR_OUT_OF_MEMORY);
 
-  mImageTracker.Init();
-  mPlugins.Init();
+  if (!mImageTracker.Init() ||
+      !mPlugins.Init()) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   return NS_OK;
 }
@@ -5343,7 +5355,9 @@ nsDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
 
   if (!mBoxObjectTable) {
     mBoxObjectTable = new nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject>;
-    mBoxObjectTable->Init(12);
+    if (mBoxObjectTable && !mBoxObjectTable->Init(12)) {
+      mBoxObjectTable = nsnull;
+    }
   } else {
     // Want to use Get(content, aResult); but it's the wrong type
     *aResult = mBoxObjectTable->GetWeak(content);
@@ -6488,7 +6502,7 @@ nsDocument::GetRadioGroup(const nsAString& aName)
   }
 
   nsAutoPtr<nsRadioGroupStruct> newRadioGroup(new nsRadioGroupStruct());
-  mRadioGroups.Put(tmKey, newRadioGroup);
+  NS_ENSURE_TRUE(mRadioGroups.Put(tmKey, newRadioGroup), nsnull);
 
   return newRadioGroup.forget();
 }
@@ -8271,7 +8285,9 @@ nsDocument::AddImage(imgIRequest* aImage)
   mImageTracker.Get(aImage, &oldCount);
 
   // Put the image in the hashtable, with the proper count.
-  mImageTracker.Put(aImage, oldCount + 1);
+  bool success = mImageTracker.Put(aImage, oldCount + 1);
+  if (!success)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv = NS_OK;
 

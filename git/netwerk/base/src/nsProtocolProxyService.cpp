@@ -336,7 +336,8 @@ nsProtocolProxyService::~nsProtocolProxyService()
 nsresult
 nsProtocolProxyService::Init()
 {
-    mFailedProxies.Init();
+    if (!mFailedProxies.Init())
+        return NS_ERROR_OUT_OF_MEMORY;
 
     // failure to access prefs is non-fatal
     nsCOMPtr<nsIPrefBranch> prefBranch =

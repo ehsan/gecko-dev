@@ -110,10 +110,11 @@ class nsHtml5AtomTable
     ~nsHtml5AtomTable();
     
     /**
-     * Must be called after the constructor before use.
+     * Must be called after the constructor before use. Returns true
+     * when successful and false on OOM failure.
      */
-    inline void Init() {
-      mTable.Init();
+    inline bool Init() {
+      return mTable.Init();
     }
     
     /**

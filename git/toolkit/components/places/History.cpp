@@ -1938,7 +1938,8 @@ History::RegisterVisitedCallback(nsIURI* aURI,
 
   // First, ensure that our hash table is setup.
   if (!mObservers.IsInitialized()) {
-    mObservers.Init(VISIT_OBSERVERS_INITIAL_CACHE_SIZE);
+    NS_ENSURE_TRUE(mObservers.Init(VISIT_OBSERVERS_INITIAL_CACHE_SIZE),
+                   NS_ERROR_OUT_OF_MEMORY);
   }
 
   // Obtain our array of observers for this URI.

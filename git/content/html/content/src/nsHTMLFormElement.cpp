@@ -289,9 +289,12 @@ nsHTMLFormElement::Init()
     return rv;
   }
   
-  mSelectedRadioButtons.Init(4);
-  mRequiredRadioButtonCounts.Init(4);
-  mValueMissingRadioGroups.Init(4);
+  NS_ENSURE_TRUE(mSelectedRadioButtons.Init(4),
+                 NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(mRequiredRadioButtonCounts.Init(4),
+                 NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(mValueMissingRadioGroups.Init(4),
+                 NS_ERROR_OUT_OF_MEMORY);
 
   return NS_OK;
 }
@@ -1891,7 +1894,8 @@ NS_IMETHODIMP
 nsHTMLFormElement::SetCurrentRadioButton(const nsAString& aName,
                                          nsIDOMHTMLInputElement* aRadio)
 {
-  mSelectedRadioButtons.Put(aName, aRadio);
+  NS_ENSURE_TRUE(mSelectedRadioButtons.Put(aName, aRadio),
+                 NS_ERROR_OUT_OF_MEMORY);
 
   return NS_OK;
 }
@@ -2140,7 +2144,10 @@ nsFormControlList::~nsFormControlList()
 
 nsresult nsFormControlList::Init()
 {
-  mNameLookupTable.Init(NS_FORM_CONTROL_LIST_HASHTABLE_SIZE);
+  NS_ENSURE_TRUE(
+    mNameLookupTable.Init(NS_FORM_CONTROL_LIST_HASHTABLE_SIZE),
+    NS_ERROR_OUT_OF_MEMORY);
+
   return NS_OK;
 }
 
@@ -2303,7 +2310,9 @@ nsFormControlList::AddElementToTable(nsGenericHTMLFormElement* aChild,
 
   if (!supports) {
     // No entry found, add the form control
-    mNameLookupTable.Put(aName, NS_ISUPPORTS_CAST(nsIContent*, aChild));
+    NS_ENSURE_TRUE(mNameLookupTable.Put(aName,
+                                        NS_ISUPPORTS_CAST(nsIContent*, aChild)),
+                   NS_ERROR_FAILURE);
   } else {
     // Found something in the hash, check its type
     nsCOMPtr<nsIContent> content = do_QueryInterface(supports);
@@ -2336,7 +2345,8 @@ nsFormControlList::AddElementToTable(nsGenericHTMLFormElement* aChild,
       nsCOMPtr<nsISupports> listSupports = do_QueryObject(list);
 
       // Replace the element with the list.
-      mNameLookupTable.Put(aName, listSupports);
+      NS_ENSURE_TRUE(mNameLookupTable.Put(aName, listSupports),
+                     NS_ERROR_FAILURE);
     } else {
       // There's already a list in the hash, add the child to the list
       nsCOMPtr<nsIDOMNodeList> nodeList = do_QueryInterface(supports);
@@ -2445,7 +2455,7 @@ nsFormControlList::RemoveElementFromTable(nsGenericHTMLFormElement* aChild,
     // single element.
     nsIContent* node = list->GetNodeAt(0);
     if (node) {
-      mNameLookupTable.Put(aName, node);
+      NS_ENSURE_TRUE(mNameLookupTable.Put(aName, node),NS_ERROR_FAILURE);
     }
   }
 

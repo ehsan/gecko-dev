@@ -105,8 +105,8 @@ nsNativeModuleLoader::Init()
     NS_ASSERTION(NS_IsMainThread(), "Startup not on main thread?");
 
     LOG(PR_LOG_DEBUG, ("nsNativeModuleLoader::Init()"));
-    mLibraries.Init();
-    return NS_OK;
+
+    return mLibraries.Init() ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 class LoadModuleMainThreadRunnable : public nsRunnable

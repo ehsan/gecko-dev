@@ -1395,8 +1395,9 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
                               ELEMENT_IS_POTENTIAL_ANIMATION_RESTYLE_ROOT, this)
 {
   // XXXbz this should be in Init() or something!
-  mPendingRestyles.Init();
-  mPendingAnimationRestyles.Init();
+  if (!mPendingRestyles.Init() || !mPendingAnimationRestyles.Init()) {
+    // now what?
+  }
 
 #ifdef DEBUG
   static bool gFirstTime = true;

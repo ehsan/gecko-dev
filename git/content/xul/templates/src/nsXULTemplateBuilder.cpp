@@ -211,8 +211,8 @@ nsXULTemplateBuilder::InitGlobals()
         gXULTemplateLog = PR_NewLogModule("nsXULTemplateBuilder");
 #endif
 
-    if (!mMatchMap.IsInitialized())
-        mMatchMap.Init();
+    if (!mMatchMap.IsInitialized() && !mMatchMap.Init())
+        return NS_ERROR_OUT_OF_MEMORY;
 
     const size_t bucketsizes[] = { sizeof(nsTemplateMatch) };
     return mPool.Init("nsXULTemplateBuilder", bucketsizes, 1, 256);
@@ -791,7 +791,8 @@ nsXULTemplateBuilder::UpdateResultInContainer(nsIXULTemplateResult* aOldResult,
                 if (oldmatch == firstmatch) {
                     // the match to remove is at the beginning
                     if (oldmatch->mNext) {
-                        mMatchMap.Put(aOldId, oldmatch->mNext);
+                        if (!mMatchMap.Put(aOldId, oldmatch->mNext))
+                            return NS_ERROR_OUT_OF_MEMORY;
                     }
                     else {
                         mMatchMap.Remove(aOldId);
@@ -964,7 +965,13 @@ nsXULTemplateBuilder::UpdateResultInContainer(nsIXULTemplateResult* aOldResult,
 
                 // put the match in the map if there isn't a previous match
                 if (! prevmatch) {
-                    mMatchMap.Put(aNewId, newmatch);
+                    if (!mMatchMap.Put(aNewId, newmatch)) {
+                        // The match may have already matched a rule above, so
+                        // HasBeenRemoved should be called to indicate that it
+                        // is being removed again.
+                        nsTemplateMatch::Destroy(mPool, newmatch, true);
+                        return rv;
+                    }
                 }
             }
 
@@ -993,7 +1000,10 @@ nsXULTemplateBuilder::UpdateResultInContainer(nsIXULTemplateResult* aOldResult,
                 acceptedmatch = newmatch;
             }
 
-            mMatchMap.Put(aNewId, newmatch);
+            if (!mMatchMap.Put(aNewId, newmatch)) {
+                nsTemplateMatch::Destroy(mPool, newmatch, true);
+                return NS_ERROR_OUT_OF_MEMORY;
+            }
         }
     }
 
