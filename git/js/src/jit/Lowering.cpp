@@ -703,16 +703,13 @@ LIRGenerator::visitTest(MTest *test)
         if (comp->compareType() == MCompare::Compare_Null ||
             comp->compareType() == MCompare::Compare_Undefined)
         {
-            if (left->type() == MIRType_Object || left->type() == MIRType_ObjectOrNull) {
-                MOZ_ASSERT(left->type() == MIRType_ObjectOrNull ||
-                           comp->operandMightEmulateUndefined(),
+            if (left->type() == MIRType_Object) {
+                MOZ_ASSERT(comp->operandMightEmulateUndefined(),
                            "MCompare::tryFold should handle the never-emulates-undefined case");
 
-                LDefinition tmp =
-                    comp->operandMightEmulateUndefined() ? temp() : LDefinition::BogusTemp();
-                LIsNullOrLikeUndefinedAndBranchT *lir =
-                    new(alloc()) LIsNullOrLikeUndefinedAndBranchT(comp, useRegister(left),
-                                                                  ifTrue, ifFalse, tmp);
+                LEmulatesUndefinedAndBranch *lir =
+                    new(alloc()) LEmulatesUndefinedAndBranch(comp, useRegister(left),
+                                                             ifTrue, ifFalse, temp());
                 add(lir, test);
                 return;
             }
@@ -726,10 +723,10 @@ LIRGenerator::visitTest(MTest *test)
                 tmpToUnbox = LDefinition::BogusTemp();
             }
 
-            LIsNullOrLikeUndefinedAndBranchV *lir =
-                new(alloc()) LIsNullOrLikeUndefinedAndBranchV(comp, ifTrue, ifFalse,
-                                                              tmp, tmpToUnbox);
-            useBox(lir, LIsNullOrLikeUndefinedAndBranchV::Value, left);
+            LIsNullOrLikeUndefinedAndBranch *lir =
+                new(alloc()) LIsNullOrLikeUndefinedAndBranch(comp, ifTrue, ifFalse,
+                                                             tmp, tmpToUnbox);
+            useBox(lir, LIsNullOrLikeUndefinedAndBranch::Value, left);
             add(lir, test);
             return;
         }
@@ -942,12 +939,11 @@ LIRGenerator::visitCompare(MCompare *comp)
     if (comp->compareType() == MCompare::Compare_Null ||
         comp->compareType() == MCompare::Compare_Undefined)
     {
-        if (left->type() == MIRType_Object || left->type() == MIRType_ObjectOrNull) {
-            MOZ_ASSERT(left->type() == MIRType_ObjectOrNull ||
-                       comp->operandMightEmulateUndefined(),
+        if (left->type() == MIRType_Object) {
+            MOZ_ASSERT(comp->operandMightEmulateUndefined(),
                        "MCompare::tryFold should have folded this away");
 
-            define(new(alloc()) LIsNullOrLikeUndefinedT(useRegister(left)), comp);
+            define(new(alloc()) LEmulatesUndefined(useRegister(left)), comp);
             return;
         }
 
@@ -960,8 +956,8 @@ LIRGenerator::visitCompare(MCompare *comp)
             tmpToUnbox = LDefinition::BogusTemp();
         }
 
-        LIsNullOrLikeUndefinedV *lir = new(alloc()) LIsNullOrLikeUndefinedV(tmp, tmpToUnbox);
-        useBox(lir, LIsNullOrLikeUndefinedV::Value, left);
+        LIsNullOrLikeUndefined *lir = new(alloc()) LIsNullOrLikeUndefined(tmp, tmpToUnbox);
+        useBox(lir, LIsNullOrLikeUndefined::Value, left);
         define(lir, comp);
         return;
     }
@@ -2631,7 +2627,7 @@ LIRGenerator::visitLoadUnboxedObjectOrNull(MLoadUnboxedObjectOrNull *ins)
     MOZ_ASSERT(IsValidElementsType(ins->elements(), ins->offsetAdjustment()));
     MOZ_ASSERT(ins->index()->type() == MIRType_Int32);
 
-    if (ins->type() == MIRType_Object || ins->type() == MIRType_ObjectOrNull) {
+    if (ins->type() == MIRType_Object) {
         LLoadUnboxedPointerT *lir = new(alloc()) LLoadUnboxedPointerT(useRegister(ins->elements()),
                                                                       useRegisterOrConstant(ins->index()));
         if (ins->nullBehavior() == MLoadUnboxedObjectOrNull::BailOnNull)
@@ -3154,8 +3150,7 @@ LIRGenerator::visitBindNameCache(MBindNameCache *ins)
 void
 LIRGenerator::visitGuardObjectIdentity(MGuardObjectIdentity *ins)
 {
-    LGuardObjectIdentity *guard = new(alloc()) LGuardObjectIdentity(useRegister(ins->obj()),
-                                                                    useRegister(ins->expected()));
+    LGuardObjectIdentity *guard = new(alloc()) LGuardObjectIdentity(useRegister(ins->obj()));
     assignSnapshot(guard, Bailout_ObjectIdentityOrTypeGuard);
     add(guard, ins);
     redefine(ins, ins->obj());

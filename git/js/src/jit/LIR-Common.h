@@ -2498,15 +2498,12 @@ class LBitAndAndBranch : public LControlInstructionHelper<2, 2, 0>
     }
 };
 
-// Takes a value and tests whether it is null, undefined, or is an object that
-// emulates |undefined|, as determined by the JSCLASS_EMULATES_UNDEFINED class
-// flag on unwrapped objects.  See also js::EmulatesUndefined.
-class LIsNullOrLikeUndefinedV : public LInstructionHelper<1, BOX_PIECES, 2>
+class LIsNullOrLikeUndefined : public LInstructionHelper<1, BOX_PIECES, 2>
 {
   public:
-    LIR_HEADER(IsNullOrLikeUndefinedV)
+    LIR_HEADER(IsNullOrLikeUndefined)
 
-    LIsNullOrLikeUndefinedV(const LDefinition &temp, const LDefinition &tempToUnbox)
+    LIsNullOrLikeUndefined(const LDefinition &temp, const LDefinition &tempToUnbox)
     {
         setTemp(0, temp);
         setTemp(1, tempToUnbox);
@@ -2527,32 +2524,15 @@ class LIsNullOrLikeUndefinedV : public LInstructionHelper<1, BOX_PIECES, 2>
     }
 };
 
-// Takes an object or object-or-null pointer and tests whether it is null or is
-// an object that emulates |undefined|, as above.
-class LIsNullOrLikeUndefinedT : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(IsNullOrLikeUndefinedT)
-
-    explicit LIsNullOrLikeUndefinedT(const LAllocation &input)
-    {
-        setOperand(0, input);
-    }
-
-    MCompare *mir() {
-        return mir_->toCompare();
-    }
-};
-
-class LIsNullOrLikeUndefinedAndBranchV : public LControlInstructionHelper<2, BOX_PIECES, 2>
+class LIsNullOrLikeUndefinedAndBranch : public LControlInstructionHelper<2, BOX_PIECES, 2>
 {
     MCompare *cmpMir_;
 
   public:
-    LIR_HEADER(IsNullOrLikeUndefinedAndBranchV)
+    LIR_HEADER(IsNullOrLikeUndefinedAndBranch)
 
-    LIsNullOrLikeUndefinedAndBranchV(MCompare *cmpMir, MBasicBlock *ifTrue, MBasicBlock *ifFalse,
-                                     const LDefinition &temp, const LDefinition &tempToUnbox)
+    LIsNullOrLikeUndefinedAndBranch(MCompare *cmpMir, MBasicBlock *ifTrue, MBasicBlock *ifFalse,
+                                    const LDefinition &temp, const LDefinition &tempToUnbox)
       : cmpMir_(cmpMir)
     {
         setSuccessor(0, ifTrue);
@@ -2583,16 +2563,34 @@ class LIsNullOrLikeUndefinedAndBranchV : public LControlInstructionHelper<2, BOX
     }
 };
 
-class LIsNullOrLikeUndefinedAndBranchT : public LControlInstructionHelper<2, 1, 1>
+// Takes an object and tests whether it emulates |undefined|, as determined by
+// the JSCLASS_EMULATES_UNDEFINED class flag on unwrapped objects.  See also
+// js::EmulatesUndefined.
+class LEmulatesUndefined : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(EmulatesUndefined)
+
+    explicit LEmulatesUndefined(const LAllocation &input)
+    {
+        setOperand(0, input);
+    }
+
+    MCompare *mir() {
+        return mir_->toCompare();
+    }
+};
+
+class LEmulatesUndefinedAndBranch : public LControlInstructionHelper<2, 1, 1>
 {
     MCompare *cmpMir_;
 
   public:
-    LIR_HEADER(IsNullOrLikeUndefinedAndBranchT)
+    LIR_HEADER(EmulatesUndefinedAndBranch)
 
-    LIsNullOrLikeUndefinedAndBranchT(MCompare *cmpMir, const LAllocation &input,
-                                     MBasicBlock *ifTrue, MBasicBlock *ifFalse,
-                                     const LDefinition &temp)
+    LEmulatesUndefinedAndBranch(MCompare *cmpMir, const LAllocation &input,
+                                MBasicBlock *ifTrue, MBasicBlock *ifFalse,
+                                const LDefinition &temp)
       : cmpMir_(cmpMir)
     {
         setOperand(0, input);
@@ -4486,24 +4484,6 @@ class LLoadUnboxedPointerT : public LInstructionHelper<1, 2, 0>
     }
 };
 
-class LUnboxObjectOrNull : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(UnboxObjectOrNull);
-
-    explicit LUnboxObjectOrNull(const LAllocation &input)
-    {
-        setOperand(0, input);
-    }
-
-    MUnbox *mir() const {
-        return mir_->toUnbox();
-    }
-    const LAllocation *input() {
-        return getOperand(0);
-    }
-};
-
 // Store a boxed value to a dense array's element vector.
 class LStoreElementV : public LInstructionHelper<0, 2 + BOX_PIECES, 0>
 {
@@ -6140,20 +6120,13 @@ class LPostWriteBarrierV : public LInstructionHelper<0, 1 + BOX_PIECES, 1>
 };
 
 // Guard against an object's identity.
-class LGuardObjectIdentity : public LInstructionHelper<0, 2, 0>
+class LGuardObjectIdentity : public LInstructionHelper<0, 1, 0>
 {
   public:
     LIR_HEADER(GuardObjectIdentity)
 
-    explicit LGuardObjectIdentity(const LAllocation &in, const LAllocation &expected) {
+    explicit LGuardObjectIdentity(const LAllocation &in) {
         setOperand(0, in);
-        setOperand(1, expected);
-    }
-    const LAllocation *input() {
-        return getOperand(0);
-    }
-    const LAllocation *expected() {
-        return getOperand(1);
     }
     const MGuardObjectIdentity *mir() const {
         return mir_->toGuardObjectIdentity();

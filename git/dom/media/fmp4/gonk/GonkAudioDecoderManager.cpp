@@ -37,9 +37,8 @@ typedef android::MediaCodecProxy MediaCodecProxy;
 namespace mozilla {
 
 GonkAudioDecoderManager::GonkAudioDecoderManager(
-  MediaTaskQueue* aTaskQueue,
   const mp4_demuxer::AudioDecoderConfig& aConfig)
-  : GonkDecoderManager(aTaskQueue)
+  : GonkDecoderManager()
   , mAudioChannels(aConfig.channel_count)
   , mAudioRate(aConfig.samples_per_second)
   , mAudioProfile(aConfig.aac_profile)
@@ -108,7 +107,7 @@ GonkAudioDecoderManager::SendSampleToOMX(mp4_demuxer::MP4Sample* aSample)
                          0);
 }
 
-bool
+void
 GonkAudioDecoderManager::PerformFormatSpecificProcess(mp4_demuxer::MP4Sample* aSample)
 {
   if (aSample && mUseAdts) {
@@ -120,11 +119,8 @@ GonkAudioDecoderManager::PerformFormatSpecificProcess(mp4_demuxer::MP4Sample* aS
                                                aSample);
     if (!rv) {
       GADM_LOG("Failed to apply ADTS header");
-      return false;
     }
   }
-
-  return true;
 }
 
 nsresult

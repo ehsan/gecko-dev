@@ -820,10 +820,14 @@ nsSSLIOLayerHelpers::rememberTolerantAtVersion(const nsACString& hostName,
       entry.intolerant = entry.tolerant + 1;
       entry.intoleranceReason = 0; // lose the reason
     }
+    if (entry.strongCipherStatus == StrongCipherStatusUnknown) {
+      entry.strongCipherStatus = StrongCiphersWorked;
+    }
   } else {
     entry.tolerant = tolerant;
     entry.intolerant = 0;
     entry.intoleranceReason = 0;
+    entry.strongCipherStatus = StrongCiphersWorked;
   }
 
   entry.AssertInvariant();
@@ -848,6 +852,9 @@ nsSSLIOLayerHelpers::forgetIntolerance(const nsACString& hostName,
     tolerant = entry.tolerant;
     entry.intolerant = 0;
     entry.intoleranceReason = 0;
+    if (entry.strongCipherStatus != StrongCiphersWorked) {
+      entry.strongCipherStatus = StrongCipherStatusUnknown;
+    }
 
     entry.AssertInvariant();
     mTLSIntoleranceInfo.Put(key, entry);
@@ -938,6 +945,7 @@ nsSSLIOLayerHelpers::rememberIntolerantAtVersion(const nsACString& hostName,
     }
   } else {
     entry.tolerant = 0;
+    entry.strongCipherStatus = StrongCipherStatusUnknown;
   }
 
   entry.intolerant = intolerant;
@@ -948,10 +956,42 @@ nsSSLIOLayerHelpers::rememberIntolerantAtVersion(const nsACString& hostName,
   return true;
 }
 
+// returns true if we should retry the handshake
+bool
+nsSSLIOLayerHelpers::rememberStrongCiphersFailed(const nsACString& hostName,
+                                                 int16_t port,
+                                                 PRErrorCode intoleranceReason)
+{
+  nsCString key;
+  getSiteKey(hostName, port, key);
+
+  MutexAutoLock lock(mutex);
+
+  IntoleranceEntry entry;
+  if (mTLSIntoleranceInfo.Get(key, &entry)) {
+    entry.AssertInvariant();
+    if (entry.strongCipherStatus != StrongCipherStatusUnknown) {
+      // We already know if the server supports a strong cipher.
+      return false;
+    }
+  } else {
+    entry.tolerant = 0;
+    entry.intolerant = 0;
+    entry.intoleranceReason = intoleranceReason;
+  }
+
+  entry.strongCipherStatus = StrongCiphersFailed;
+  entry.AssertInvariant();
+  mTLSIntoleranceInfo.Put(key, entry);
+
+  return true;
+}
+
 void
 nsSSLIOLayerHelpers::adjustForTLSIntolerance(const nsACString& hostName,
                                              int16_t port,
-                                             /*in/out*/ SSLVersionRange& range)
+                                             /*in/out*/ SSLVersionRange& range,
+                                             /*out*/ StrongCipherStatus& strongCipherStatus)
 {
   IntoleranceEntry entry;
 
@@ -974,6 +1014,7 @@ nsSSLIOLayerHelpers::adjustForTLSIntolerance(const nsACString& hostName,
       range.max = entry.intolerant - 1;
     }
   }
+  strongCipherStatus = entry.strongCipherStatus;
 }
 
 PRErrorCode
@@ -2570,9 +2611,10 @@ nsSSLIOLayerSetOptions(PRFileDesc* fd, bool forSTARTTLS,
   }
 
   uint16_t maxEnabledVersion = range.max;
+  StrongCipherStatus strongCiphersStatus = StrongCipherStatusUnknown;
   infoObject->SharedState().IOLayerHelpers()
     .adjustForTLSIntolerance(infoObject->GetHostName(), infoObject->GetPort(),
-                             range);
+                             range, strongCiphersStatus);
   bool useWeakCiphers = range.max <= SSL_LIBRARY_VERSION_TLS_1_0 &&
                         nsNSSComponent::AreAnyWeakCiphersEnabled();
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,

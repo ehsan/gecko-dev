@@ -357,7 +357,6 @@ Debugger::Debugger(JSContext *cx, NativeObject *dbg)
   : object(dbg),
     uncaughtExceptionHook(nullptr),
     enabled(true),
-    allowUnobservedAsmJS(false),
     trackingAllocationSites(false),
     allocationSamplingProbability(1.0),
     allocationsLogLength(0),
@@ -450,7 +449,7 @@ Debugger::getScriptFrameWithIter(JSContext *cx, AbstractFramePtr frame,
     FrameMap::AddPtr p = frames.lookupForAdd(frame);
     if (!p) {
         /* Create and populate the Debugger.Frame object. */
-        RootedObject proto(cx, &object->getReservedSlot(JSSLOT_DEBUG_FRAME_PROTO).toObject());
+        JSObject *proto = &object->getReservedSlot(JSSLOT_DEBUG_FRAME_PROTO).toObject();
         RootedNativeObject frameobj(cx, NewNativeObjectWithGivenProto(cx, &DebuggerFrame_class,
                                                                       proto, NullPtr()));
         if (!frameobj)
@@ -770,7 +769,7 @@ Debugger::wrapEnvironment(JSContext *cx, Handle<Env*> env, MutableHandleValue rv
         envobj = &p->value()->as<NativeObject>();
     } else {
         /* Create a new Debugger.Environment for env. */
-        RootedObject proto(cx, &object->getReservedSlot(JSSLOT_DEBUG_ENV_PROTO).toObject());
+        JSObject *proto = &object->getReservedSlot(JSSLOT_DEBUG_ENV_PROTO).toObject();
         envobj = NewNativeObjectWithGivenProto(cx, &DebuggerEnv_class, proto, NullPtr(),
                                                TenuredObject);
         if (!envobj)
@@ -812,7 +811,7 @@ Debugger::wrapDebuggeeValue(JSContext *cx, MutableHandleValue vp)
             vp.setObject(*p->value());
         } else {
             /* Create a new Debugger.Object for obj. */
-            RootedObject proto(cx, &object->getReservedSlot(JSSLOT_DEBUG_OBJECT_PROTO).toObject());
+            JSObject *proto = &object->getReservedSlot(JSSLOT_DEBUG_OBJECT_PROTO).toObject();
             NativeObject *dobj =
                 NewNativeObjectWithGivenProto(cx, &DebuggerObject_class, proto, NullPtr(),
                                               TenuredObject);
@@ -1994,12 +1993,12 @@ Debugger::ensureExecutionObservabilityOfFrame(JSContext *cx, AbstractFramePtr fr
 /* static */ bool
 Debugger::ensureExecutionObservabilityOfCompartment(JSContext *cx, JSCompartment *comp)
 {
-    if (comp->debuggerObservesAllExecution())
+    if (comp->debugObservesAllExecution())
         return true;
     ExecutionObservableCompartments obs(cx);
     if (!obs.init() || !obs.add(comp))
         return false;
-    comp->updateDebuggerObservesAllExecution();
+    comp->setDebugObservesAllExecution();
     return updateExecutionObservability(cx, obs, Observing);
 }
 
@@ -2009,62 +2008,64 @@ Debugger::hookObservesAllExecution(Hook which)
     return which == OnEnterFrame;
 }
 
-Debugger::IsObserving
-Debugger::observesAllExecution() const
+bool
+Debugger::hasAnyLiveHooksThatObserveAllExecution() const
 {
-    if (enabled && !!getHook(OnEnterFrame))
-        return Observing;
-    return NotObserving;
+    if (!enabled)
+        return false;
+    return hasAnyHooksThatObserveAllExecution();
 }
 
-Debugger::IsObserving
-Debugger::observesAsmJS() const
+bool
+Debugger::hasAnyHooksThatObserveAllExecution() const
 {
-    if (enabled && !allowUnobservedAsmJS)
-        return Observing;
-    return NotObserving;
+    return !!getHook(OnEnterFrame);
+}
+
+/* static */ bool
+Debugger::anyOtherDebuggerObservingAllExecution(GlobalObject *global) const
+{
+    // If we are toggling from Observing to NotObserving, add the
+    // compartment to the observable set only if none of its other
+    // debuggers are observing all execution.
+    GlobalObject::DebuggerVector *debuggers = global->getDebuggers();
+    for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++) {
+        Debugger *dbg = *p;
+        if (dbg != this && dbg->hasAnyLiveHooksThatObserveAllExecution())
+            return true;
+    }
+    return false;
 }
 
 // Toggle whether this Debugger's debuggees observe all execution. This is
 // called when a hook that observes all execution is set or unset. See
 // hookObservesAllExecution.
 bool
-Debugger::updateObservesAllExecutionOnDebuggees(JSContext *cx, IsObserving observing)
+Debugger::setObservesAllExecution(JSContext *cx, IsObserving observing)
 {
     ExecutionObservableCompartments obs(cx);
     if (!obs.init())
         return false;
 
     for (GlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
-        GlobalObject *global = r.front();
+        GlobalObject * global = r.front();
         JSCompartment *comp = global->compartment();
 
-        if (comp->debuggerObservesAllExecution() == observing)
+        if (comp->debugObservesAllExecution() == observing)
             continue;
 
-        // It's expensive to eagerly invalidate and recompile a compartment,
-        // so add the compartment to the set only if we are observing.
-        if (observing && !obs.add(comp))
-            return false;
-
-        comp->updateDebuggerObservesAllExecution();
+        if (observing) {
+            if (!obs.add(comp))
+                return false;
+            comp->setDebugObservesAllExecution();
+        } else if (!anyOtherDebuggerObservingAllExecution(global)) {
+            // It's expensive to eagerly invalidate and recompile a
+            // compartment, so don't add the compartment to the set.
+            comp->unsetDebugObservesAllExecution();
+        }
     }
 
     return updateExecutionObservability(cx, obs, observing);
-}
-
-void
-Debugger::updateObservesAsmJSOnDebuggees(IsObserving observing)
-{
-    for (GlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
-        GlobalObject *global = r.front();
-        JSCompartment *comp = global->compartment();
-
-        if (comp->debuggerObservesAsmJS() == observing)
-            continue;
-
-        comp->updateDebuggerObservesAsmJS();
-    }
 }
 
 
@@ -2392,12 +2393,11 @@ Debugger::setEnabled(JSContext *cx, unsigned argc, Value *vp)
     if (!args.requireAtLeast(cx, "Debugger.set enabled", 1))
         return false;
 
-    bool wasEnabled = dbg->enabled;
-    dbg->enabled = ToBoolean(args[0]);
+    bool enabled = ToBoolean(args[0]);
 
-    if (wasEnabled != dbg->enabled) {
+    if (enabled != dbg->enabled) {
         for (Breakpoint *bp = dbg->firstBreakpoint(); bp; bp = bp->nextInDebugger()) {
-            if (!wasEnabled)
+            if (enabled)
                 bp->site->inc(cx->runtime()->defaultFreeOp());
             else
                 bp->site->dec(cx->runtime()->defaultFreeOp());
@@ -2408,7 +2408,7 @@ Debugger::setEnabled(JSContext *cx, unsigned argc, Value *vp)
          * that care about new globals.
          */
         if (dbg->getHook(OnNewGlobalObject)) {
-            if (!wasEnabled) {
+            if (enabled) {
                 /* If we were not enabled, the link should be a singleton list. */
                 MOZ_ASSERT(JS_CLIST_IS_EMPTY(&dbg->onNewGlobalObjectWatchersLink));
                 JS_APPEND_LINK(&dbg->onNewGlobalObjectWatchersLink,
@@ -2422,12 +2422,18 @@ Debugger::setEnabled(JSContext *cx, unsigned argc, Value *vp)
 
         // Ensure the compartment is observable if we are re-enabling a
         // Debugger with hooks that observe all execution.
-        if (!dbg->updateObservesAllExecutionOnDebuggees(cx, dbg->observesAllExecution()))
-            return false;
-
-        dbg->updateObservesAsmJSOnDebuggees(dbg->observesAsmJS());
+        if (enabled) {
+            if (dbg->hasAnyHooksThatObserveAllExecution()) {
+                if (!dbg->setObservesAllExecution(cx, Observing))
+                    return false;
+            }
+        } else {
+            if (!dbg->setObservesAllExecution(cx, NotObserving))
+                return false;
+        }
     }
 
+    dbg->enabled = enabled;
     args.rval().setUndefined();
     return true;
 }
@@ -2457,8 +2463,11 @@ Debugger::setHookImpl(JSContext *cx, unsigned argc, Value *vp, Hook which)
     }
     dbg->object->setReservedSlot(JSSLOT_DEBUG_HOOK_START + which, args[0]);
     if (hookObservesAllExecution(which)) {
-        if (!dbg->updateObservesAllExecutionOnDebuggees(cx, dbg->observesAllExecution()))
+        if (!dbg->setObservesAllExecution(cx, dbg->hasAnyLiveHooksThatObserveAllExecution()
+                                              ? Observing : NotObserving))
+        {
             return false;
+        }
     }
     args.rval().setUndefined();
     return true;
@@ -2592,32 +2601,6 @@ Debugger::setUncaughtExceptionHook(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
     dbg->uncaughtExceptionHook = args[0].toObjectOrNull();
-    args.rval().setUndefined();
-    return true;
-}
-
-/* static */ bool
-Debugger::getAllowUnobservedAsmJS(JSContext *cx, unsigned argc, Value *vp)
-{
-    THIS_DEBUGGER(cx, argc, vp, "get allowUnobservedAsmJS", args, dbg);
-    args.rval().setBoolean(dbg->allowUnobservedAsmJS);
-    return true;
-}
-
-/* static */ bool
-Debugger::setAllowUnobservedAsmJS(JSContext *cx, unsigned argc, Value *vp)
-{
-    THIS_DEBUGGER(cx, argc, vp, "set allowUnobservedAsmJS", args, dbg);
-    if (!args.requireAtLeast(cx, "Debugger.set allowUnobservedAsmJS", 1))
-        return false;
-    dbg->allowUnobservedAsmJS = ToBoolean(args[0]);
-
-    for (GlobalObjectSet::Range r = dbg->debuggees.all(); !r.empty(); r.popFront()) {
-        GlobalObject *global = r.front();
-        JSCompartment *comp = global->compartment();
-        comp->updateDebuggerObservesAsmJS();
-    }
-
     args.rval().setUndefined();
     return true;
 }
@@ -3005,8 +2988,7 @@ Debugger::addDebuggeeGlobal(JSContext *cx, Handle<GlobalObject*> global)
             js_ReportOutOfMemory(cx);
         } else {
             debuggeeCompartment->setIsDebuggee();
-            debuggeeCompartment->updateDebuggerObservesAsmJS();
-            if (!observesAllExecution())
+            if (!hasAnyLiveHooksThatObserveAllExecution())
                 return true;
             if (ensureExecutionObservabilityOfCompartment(cx, debuggeeCompartment))
                 return true;
@@ -3090,12 +3072,13 @@ Debugger::removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global, GlobalObjectSe
     if (trackingAllocationSites)
         global->compartment()->forgetObjectMetadataCallback();
 
-    if (global->getDebuggers()->empty()) {
+    /*
+     * The debuggee needs to be removed from the compartment last, as this can
+     * trigger GCs if the compartment's debug mode is being changed, and the
+     * global cannot be rooted on the stack without a cx.
+     */
+    if (global->getDebuggers()->empty())
         global->compartment()->unsetIsDebuggee();
-    } else {
-        global->compartment()->updateDebuggerObservesAllExecution();
-        global->compartment()->updateDebuggerObservesAsmJS();
-    }
 }
 
 static inline ScriptSourceObject *GetSourceReferent(JSObject *obj);
@@ -3358,7 +3341,7 @@ class MOZ_STACK_CLASS Debugger::ScriptQuery
             // All scripts in the debuggee compartment must be visible, so
             // delazify everything.
             AutoCompartment ac(cx, comp);
-            if (!comp->ensureDelazifyScriptsForDebugger(cx))
+            if (!comp->ensureDelazifyScriptsForDebugMode(cx))
                 return false;
         }
         return compartments.put(comp);
@@ -3908,7 +3891,7 @@ Debugger::drainTraceLogger(JSContext *cx, unsigned argc, Value *vp)
     /* Add all events to the array. */
     uint32_t index = 0;
     for (EventEntry *eventItem = events; eventItem < events + num; eventItem++, index++) {
-        RootedObject item(cx, NewObjectWithGivenProto(cx, &PlainObject::class_, NullPtr(),
+        RootedObject item(cx, NewObjectWithGivenProto(cx, &PlainObject::class_, nullptr,
                                                       GlobalObject::upcast(cx->global())));
         if (!item)
             return false;
@@ -4007,8 +3990,7 @@ Debugger::drainTraceLoggerScriptCalls(JSContext *cx, unsigned argc, Value *vp)
     /* Add all events to the array. */
     uint32_t index = 0;
     for (EventEntry *eventItem = events; eventItem < events + num; eventItem++) {
-        RootedObject item(cx, NewObjectWithGivenProto(cx, &PlainObject::class_, NullPtr(),
-                                                      cx->global()));
+        RootedObject item(cx, NewObjectWithGivenProto(cx, &PlainObject::class_, nullptr, cx->global()));
         if (!item)
             return false;
 
@@ -4065,8 +4047,6 @@ const JSPropertySpec Debugger::properties[] = {
     JS_PSGS("onNewGlobalObject", Debugger::getOnNewGlobalObject, Debugger::setOnNewGlobalObject, 0),
     JS_PSGS("uncaughtExceptionHook", Debugger::getUncaughtExceptionHook,
             Debugger::setUncaughtExceptionHook, 0),
-    JS_PSGS("allowUnobservedAsmJS", Debugger::getAllowUnobservedAsmJS,
-            Debugger::setAllowUnobservedAsmJS, 0),
     JS_PSG("memory", Debugger::getMemory, 0),
     JS_PS_END
 };
@@ -4133,7 +4113,7 @@ Debugger::newDebuggerScript(JSContext *cx, HandleScript script)
 {
     assertSameCompartment(cx, object.get());
 
-    RootedObject proto(cx, &object->getReservedSlot(JSSLOT_DEBUG_SCRIPT_PROTO).toObject());
+    JSObject *proto = &object->getReservedSlot(JSSLOT_DEBUG_SCRIPT_PROTO).toObject();
     MOZ_ASSERT(proto);
     NativeObject *scriptobj = NewNativeObjectWithGivenProto(cx, &DebuggerScript_class,
                                                             proto, NullPtr(), TenuredObject);
@@ -5155,7 +5135,7 @@ Debugger::newDebuggerSource(JSContext *cx, HandleScriptSource source)
 {
     assertSameCompartment(cx, object.get());
 
-    RootedObject proto(cx, &object->getReservedSlot(JSSLOT_DEBUG_SOURCE_PROTO).toObject());
+    JSObject *proto = &object->getReservedSlot(JSSLOT_DEBUG_SOURCE_PROTO).toObject();
     MOZ_ASSERT(proto);
     NativeObject *sourceobj = NewNativeObjectWithGivenProto(cx, &DebuggerSource_class,
                                                             proto, NullPtr(), TenuredObject);
@@ -5795,7 +5775,7 @@ DebuggerFrame_getArguments(JSContext *cx, unsigned argc, Value *vp)
     if (frame.hasArgs()) {
         /* Create an arguments object. */
         Rooted<GlobalObject*> global(cx, &args.callee().global());
-        RootedObject proto(cx, GlobalObject::getOrCreateArrayPrototype(cx, global));
+        JSObject *proto = GlobalObject::getOrCreateArrayPrototype(cx, global);
         if (!proto)
             return false;
         argsobj = NewNativeObjectWithGivenProto(cx, &DebuggerArguments_class, proto,
@@ -6132,7 +6112,7 @@ DebuggerGenericEval(JSContext *cx, const char *fullMethodName, const Value &code
     /* If evalWithBindings, create the inner environment. */
     if (evalWithBindings) {
         /* TODO - This should probably be a Call object, like ES5 strict eval. */
-        RootedPlainObject nenv(cx, NewObjectWithGivenProto<PlainObject>(cx, NullPtr(), env));
+        RootedPlainObject nenv(cx, NewObjectWithGivenProto<PlainObject>(cx, nullptr, env));
         if (!nenv)
             return false;
         RootedId id(cx);

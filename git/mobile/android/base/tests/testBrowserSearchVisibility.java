@@ -8,8 +8,6 @@ import android.support.v4.app.Fragment;
 import android.view.KeyEvent;
 import android.view.View;
 
-import com.jayway.android.robotium.solo.Condition;
-
 /**
  * Test for browser search visibility.
  * Sends queries from url bar input and verifies that browser search
@@ -46,9 +44,9 @@ public class testBrowserSearchVisibility extends BaseTest {
     }
 
     private void assertBrowserSearchVisibility(final boolean isVisible) {
-        waitForCondition(new Condition() {
+        waitForTest(new BooleanTest() {
             @Override
-            public boolean isSatisfied() {
+            public boolean test() {
                 final Fragment browserSearch = getBrowserSearch();
 
                 // The fragment should not be present at all. Testing if the

@@ -1850,7 +1850,7 @@ class nsIWidget : public nsISupports {
      * @param aModifierFlags *platform-specific* modifier flags (ignored
      * on Windows)
      */
-    virtual nsresult SynthesizeNativeMouseEvent(mozilla::LayoutDeviceIntPoint aPoint,
+    virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                                 uint32_t aNativeMessage,
                                                 uint32_t aModifierFlags) = 0;
 
@@ -1858,7 +1858,7 @@ class nsIWidget : public nsISupports {
      * A shortcut to SynthesizeNativeMouseEvent, abstracting away the native message.
      * aPoint is location in device pixels to which the mouse pointer moves to.
      */
-    virtual nsresult SynthesizeNativeMouseMove(mozilla::LayoutDeviceIntPoint aPoint) = 0;
+    virtual nsresult SynthesizeNativeMouseMove(nsIntPoint aPoint) = 0;
 
     /**
      * Utility method intended for testing. Dispatching native mouse scroll
@@ -1881,7 +1881,7 @@ class nsIWidget : public nsISupports {
      * @param aAdditionalFlags  See nsIDOMWidnowUtils' consts and their
      *                          document.
      */
-    virtual nsresult SynthesizeNativeMouseScrollEvent(mozilla::LayoutDeviceIntPoint aPoint,
+    virtual nsresult SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
                                                       uint32_t aNativeMessage,
                                                       double aDeltaX,
                                                       double aDeltaY,

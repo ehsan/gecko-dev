@@ -6,7 +6,6 @@
 #include "nsTextRunTransformations.h"
 
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/Move.h"
 
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
@@ -19,8 +18,6 @@
 #include "nsNetUtil.h"
 #include "GreekCasing.h"
 #include "IrishCasing.h"
-
-using namespace mozilla;
 
 // Unicode characters needing special casing treatment in tr/az languages
 #define LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE  0x0130

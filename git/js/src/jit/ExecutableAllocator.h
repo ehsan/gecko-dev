@@ -78,8 +78,7 @@ namespace jit {
   class ExecutablePool {
 
     friend class ExecutableAllocator;
-
-  private:
+private:
     struct Allocation {
         char* pages;
         size_t size;
@@ -99,7 +98,7 @@ namespace jit {
     size_t m_regexpCodeBytes;
     size_t m_otherCodeBytes;
 
-  public:
+public:
     void release(bool willDestroy = false)
     {
         MOZ_ASSERT(m_refCount != 0);
@@ -141,10 +140,7 @@ namespace jit {
 
     ~ExecutablePool();
 
-  private:
-    ExecutablePool(const ExecutablePool &) = delete;
-    void operator=(const ExecutablePool &) = delete;
-
+private:
     // It should be impossible for us to roll over, because only small
     // pools have multiple holders, and they have one holder per chunk
     // of generated code, and they only hold 16KB or so of code.
@@ -181,9 +177,9 @@ class ExecutableAllocator {
     enum ProtectionSetting { Writable, Executable };
     DestroyCallback destroyCallback;
 
-  public:
+public:
     ExecutableAllocator()
-      : destroyCallback(nullptr)
+      : destroyCallback(NULL)
     {
         if (!pageSize) {
             pageSize = determinePageSize();
@@ -233,13 +229,13 @@ class ExecutableAllocator {
         MOZ_ASSERT(roundUpAllocationSize(n, sizeof(void*)) == n);
 
         if (n == OVERSIZE_ALLOCATION) {
-            *poolp = nullptr;
-            return nullptr;
+            *poolp = NULL;
+            return NULL;
         }
 
         *poolp = poolForSize(n);
         if (!*poolp)
-            return nullptr;
+            return NULL;
 
         // This alloc is infallible because poolForSize() just obtained
         // (found, or created if necessary) a pool that had enough space.
@@ -263,7 +259,7 @@ class ExecutableAllocator {
         this->destroyCallback = destroyCallback;
     }
 
-  private:
+private:
     static size_t pageSize;
     static size_t largeAllocSize;
 #ifdef XP_WIN
@@ -290,7 +286,7 @@ class ExecutableAllocator {
         return size;
     }
 
-    // On OOM, this will return an Allocation where pages is nullptr.
+    // On OOM, this will return an Allocation where pages is NULL.
     ExecutablePool::Allocation systemAlloc(size_t n);
     static void systemRelease(const ExecutablePool::Allocation& alloc);
     void *computeRandomAllocationAddress();
@@ -299,25 +295,25 @@ class ExecutableAllocator {
     {
         size_t allocSize = roundUpAllocationSize(n, pageSize);
         if (allocSize == OVERSIZE_ALLOCATION)
-            return nullptr;
+            return NULL;
 
         if (!m_pools.initialized() && !m_pools.init())
-            return nullptr;
+            return NULL;
 
         ExecutablePool::Allocation a = systemAlloc(allocSize);
         if (!a.pages)
-            return nullptr;
+            return NULL;
 
         ExecutablePool *pool = js_new<ExecutablePool>(this, a);
         if (!pool) {
             systemRelease(a);
-            return nullptr;
+            return NULL;
         }
         m_pools.put(pool);
         return pool;
     }
 
-  public:
+public:
     ExecutablePool* poolForSize(size_t n)
     {
         // Try to fit in an existing small allocator.  Use the pool with the
@@ -325,7 +321,7 @@ class ExecutableAllocator {
         // best strategy because (a) it maximizes the chance of the next
         // allocation fitting in a small pool, and (b) it minimizes the
         // potential waste when a small pool is next abandoned.
-        ExecutablePool *minPool = nullptr;
+        ExecutablePool *minPool = NULL;
         for (size_t i = 0; i < m_smallPools.length(); i++) {
             ExecutablePool *pool = m_smallPools[i];
             if (n <= pool->available() && (!minPool || pool->available() < minPool->available()))
@@ -343,7 +339,7 @@ class ExecutableAllocator {
         // Create a new allocator
         ExecutablePool* pool = createPool(largeAllocSize);
         if (!pool)
-            return nullptr;
+            return NULL;
         // At this point, local |pool| is the owner.
 
         if (m_smallPools.length() < maxSmallPools) {
@@ -353,13 +349,12 @@ class ExecutableAllocator {
         } else {
             // Find the pool with the least space.
             int iMin = 0;
-            for (size_t i = 1; i < m_smallPools.length(); i++) {
+            for (size_t i = 1; i < m_smallPools.length(); i++)
                 if (m_smallPools[i]->available() <
                     m_smallPools[iMin]->available())
                 {
                     iMin = i;
                 }
-	    }
 
             // If the new allocator will result in more free space than the small
             // pool with the least space, then we will use it instead
@@ -438,9 +433,7 @@ class ExecutableAllocator {
     }
 #endif
 
-  private:
-    ExecutableAllocator(const ExecutableAllocator &) = delete;
-    void operator=(const ExecutableAllocator &) = delete;
+private:
 
 #if ENABLE_ASSEMBLER_WX_EXCLUSIVE
     static void reprotectRegion(void*, size_t, ProtectionSetting);

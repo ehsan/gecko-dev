@@ -49,10 +49,9 @@ enum {
 };
 
 GonkVideoDecoderManager::GonkVideoDecoderManager(
-  MediaTaskQueue* aTaskQueue,
   mozilla::layers::ImageContainer* aImageContainer,
   const mp4_demuxer::VideoDecoderConfig& aConfig)
-  : GonkDecoderManager(aTaskQueue)
+  : GonkDecoderManager()
   , mImageContainer(aImageContainer)
   , mReaderCallback(nullptr)
   , mColorConverterBufferSize(0)
@@ -125,8 +124,7 @@ GonkVideoDecoderManager::Init(MediaDataDecoderCallback* aCallback)
 void
 GonkVideoDecoderManager::QueueFrameTimeIn(int64_t aPTS, int64_t aDuration)
 {
-  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
-
+  ReentrantMonitorAutoEnter mon(mMonitor);
   FrameTimeInfo timeInfo = {aPTS, aDuration};
   mFrameTimeInfo.AppendElement(timeInfo);
 }
@@ -134,7 +132,7 @@ GonkVideoDecoderManager::QueueFrameTimeIn(int64_t aPTS, int64_t aDuration)
 nsresult
 GonkVideoDecoderManager::QueueFrameTimeOut(int64_t aPTS, int64_t& aDuration)
 {
-  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
+  ReentrantMonitorAutoEnter mon(mMonitor);
 
   // Set default to 1 here.
   // During seeking, frames could still in MediaCodec and the mFrameTimeInfo could
@@ -370,7 +368,7 @@ GonkVideoDecoderManager::Output(int64_t aStreamOffset,
       nsRefPtr<VideoData> data;
       nsresult rv = CreateVideoData(aStreamOffset, getter_AddRefs(data));
       if (rv == NS_ERROR_NOT_AVAILABLE) {
-        // Decoder outputs a empty video buffer, try again
+	// Decoder outputs a empty video buffer, try again
         return NS_ERROR_NOT_AVAILABLE;
       } else if (rv != NS_OK || data == nullptr) {
         GVDM_LOG("Failed to create VideoData");
@@ -405,7 +403,7 @@ GonkVideoDecoderManager::Output(int64_t aStreamOffset,
       nsRefPtr<VideoData> data;
       nsresult rv = CreateVideoData(aStreamOffset, getter_AddRefs(data));
       if (rv == NS_ERROR_NOT_AVAILABLE) {
-        // For EOS, no need to do any thing.
+	// For EOS, no need to do any thing.
         return NS_ERROR_ABORT;
       }
       if (rv != NS_OK || data == nullptr) {
@@ -452,25 +450,13 @@ GonkVideoDecoderManager::SendSampleToOMX(mp4_demuxer::MP4Sample* aSample)
                          0);
 }
 
-bool
+void
 GonkVideoDecoderManager::PerformFormatSpecificProcess(mp4_demuxer::MP4Sample* aSample)
 {
   if (aSample != nullptr) {
     // We must prepare samples in AVC Annex B.
-    if (!mp4_demuxer::AnnexB::ConvertSampleToAnnexB(aSample)) {
-      GVDM_LOG("Failed to convert sample to annex B!");
-      return false;
-    }
+    mp4_demuxer::AnnexB::ConvertSampleToAnnexB(aSample);
   }
-
-  return true;
-}
-
-void
-GonkVideoDecoderManager::ClearQueueFrameTime()
-{
-  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
-  mFrameTimeInfo.Clear();
 }
 
 nsresult
@@ -478,27 +464,13 @@ GonkVideoDecoderManager::Flush()
 {
   GonkDecoderManager::Flush();
 
-  class ClearFrameTimeRunnable : public nsRunnable
-  {
-  public:
-    explicit ClearFrameTimeRunnable(GonkVideoDecoderManager* aManager)
-      : mManager(aManager) {}
-
-    NS_IMETHOD Run()
-    {
-      mManager->ClearQueueFrameTime();
-      return NS_OK;
-    }
-
-    GonkVideoDecoderManager* mManager;
-  };
-
-  mTaskQueue->SyncDispatch(new ClearFrameTimeRunnable(this));
-
   status_t err = mDecoder->flush();
   if (err != OK) {
     return NS_ERROR_FAILURE;
   }
+
+  ReentrantMonitorAutoEnter mon(mMonitor);
+  mFrameTimeInfo.Clear();
   return NS_OK;
 }
 

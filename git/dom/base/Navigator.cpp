@@ -2609,10 +2609,6 @@ Navigator::RequestMediaKeySystemAccess(const nsAString& aKeySystem,
   }
 
   if (!Preferences::GetBool("media.eme.enabled", false)) {
-    // EME disabled by user, send notification to chrome so UI can
-    // inform user.
-    MediaKeySystemAccess::NotifyObservers(aKeySystem,
-                                          MediaKeySystemStatus::Api_disabled);
     p->MaybeReject(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return p.forget();
   }
@@ -2623,14 +2619,7 @@ Navigator::RequestMediaKeySystemAccess(const nsAString& aKeySystem,
     return p.forget();
   }
 
-  MediaKeySystemStatus status = MediaKeySystemAccess::GetKeySystemStatus(aKeySystem);
-  if (status != MediaKeySystemStatus::Available) {
-    if (status != MediaKeySystemStatus::Error) {
-      // Failed due to user disabling something, send a notification to
-      // chrome, so we can show some UI to explain how the user can rectify
-      // the situation.
-      MediaKeySystemAccess::NotifyObservers(aKeySystem, status);
-    }
+  if (!MediaKeySystemAccess::IsKeySystemSupported(aKeySystem)) {
     p->MaybeReject(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return p.forget();
   }

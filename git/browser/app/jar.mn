@@ -1,3 +1,4 @@
 browser.jar:
-% resource app %
-  defaults/permissions (permissions)
+
+# The file that holds the default permissions (which is loaded by nsPermissionManager) for the browser.
+    default_permissions (default_permissions)

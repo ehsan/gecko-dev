@@ -384,7 +384,6 @@ class IonBuilder
 
     MDefinition *createThisScripted(MDefinition *callee);
     MDefinition *createThisScriptedSingleton(JSFunction *target, MDefinition *callee);
-    MDefinition *createThisScriptedBaseline(MDefinition *callee);
     MDefinition *createThis(JSFunction *target, MDefinition *callee);
     MInstruction *createDeclEnvObject(MDefinition *callee, MDefinition *scopeObj);
     MInstruction *createCallObject(MDefinition *callee, MDefinition *scopeObj);
@@ -757,7 +756,6 @@ class IonBuilder
 
     // String natives.
     InliningStatus inlineStringObject(CallInfo &callInfo);
-    InliningStatus inlineConstantStringSplit(CallInfo &callInfo);
     InliningStatus inlineStringSplit(CallInfo &callInfo);
     InliningStatus inlineStrCharCodeAt(CallInfo &callInfo);
     InliningStatus inlineConstantCharCodeAt(CallInfo &callInfo);

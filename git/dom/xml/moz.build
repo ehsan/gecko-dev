@@ -6,7 +6,7 @@
 
 DIRS += ['resources']
 
-MOCHITEST_MANIFESTS += ['test/mochitest.ini']
+TEST_DIRS += ['test']
 
 EXPORTS += [
     'nsIXMLContentSink.h',

@@ -324,16 +324,6 @@ class JSFunction : public js::NativeObject
         return u.i.s.script_;
     }
 
-    bool getLength(JSContext *cx, uint16_t *length) {
-        JS::RootedFunction self(cx, this);
-        if (self->isInterpretedLazy() && !self->getOrCreateScript(cx))
-            return false;
-
-        *length = self->hasScript() ? self->nonLazyScript()->funLength()
-                                    : (self->nargs() - self->hasRest());
-        return true;
-    }
-
     js::HeapPtrScript &mutableScript() {
         MOZ_ASSERT(isInterpreted());
         return *(js::HeapPtrScript *)&u.i.s.script_;
@@ -520,7 +510,7 @@ NewFunction(ExclusiveContext *cx, HandleObject funobj, JSNative native, unsigned
 extern JSFunction *
 NewFunctionWithProto(ExclusiveContext *cx, HandleObject funobj, JSNative native, unsigned nargs,
                      JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
-                     HandleObject proto, gc::AllocKind allocKind = JSFunction::FinalizeKind,
+                     JSObject *proto, gc::AllocKind allocKind = JSFunction::FinalizeKind,
                      NewObjectKind newKind = GenericObject);
 
 extern JSAtom *

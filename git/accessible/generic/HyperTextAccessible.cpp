@@ -50,7 +50,6 @@ HyperTextAccessible::
   HyperTextAccessible(nsIContent* aNode, DocAccessible* aDoc) :
   AccessibleWrap(aNode, aDoc)
 {
-  mType = eHyperTextType;
   mGenericTypes |= eHyperText;
 }
 

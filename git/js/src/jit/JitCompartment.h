@@ -141,8 +141,16 @@ class JitRuntime
 {
     friend class JitCompartment;
 
-    // Executable allocator for all code except asm.js code.
-    ExecutableAllocator execAlloc_;
+    // Executable allocator for all code except the main code in an IonScript.
+    // Shared with the runtime.
+    ExecutableAllocator *execAlloc_;
+
+    // Executable allocator used for allocating the main code in an IonScript.
+    // All accesses on this allocator must be protected by the runtime's
+    // interrupt lock, as the executable memory may be protected() when
+    // requesting an interrupt to force a fault in the Ion code and avoid the
+    // need for explicit interrupt checks.
+    ExecutableAllocator *ionAlloc_;
 
     // Shared exception-handler tail.
     JitCode *exceptionTail_;
@@ -246,6 +254,8 @@ class JitRuntime
     JitCode *generateBaselineDebugModeOSRHandler(JSContext *cx, uint32_t *noFrameRegPopOffsetOut);
     JitCode *generateVMWrapper(JSContext *cx, const VMFunction &f);
 
+    ExecutableAllocator *createIonAlloc(JSContext *cx);
+
   public:
     JitRuntime();
     ~JitRuntime();
@@ -256,8 +266,17 @@ class JitRuntime
 
     static void Mark(JSTracer *trc);
 
-    ExecutableAllocator &execAlloc() {
+    ExecutableAllocator *execAlloc() const {
         return execAlloc_;
+    }
+    ExecutableAllocator *getIonAlloc(JSContext *cx) {
+        return ionAlloc_ ? ionAlloc_ : createIonAlloc(cx);
+    }
+    ExecutableAllocator *ionAlloc(JSRuntime *rt) {
+        return ionAlloc_;
+    }
+    bool hasIonAlloc() const {
+        return !!ionAlloc_;
     }
 
     class AutoMutateBackedges
@@ -478,6 +497,8 @@ class JitCompartment
     }
 
     void toggleBarriers(bool enabled);
+
+    ExecutableAllocator *createIonAlloc();
 
   public:
     JitCompartment();

@@ -39,9 +39,10 @@ using mozilla::Nothing;
 /* static */ DebuggerMemory *
 DebuggerMemory::create(JSContext *cx, Debugger *dbg)
 {
-    Value memoryProtoValue = dbg->object->getReservedSlot(Debugger::JSSLOT_DEBUG_MEMORY_PROTO);
-    RootedObject memoryProto(cx, &memoryProtoValue.toObject());
-    RootedNativeObject memory(cx, NewNativeObjectWithGivenProto(cx, &class_, memoryProto,
+
+    Value memoryProto = dbg->object->getReservedSlot(Debugger::JSSLOT_DEBUG_MEMORY_PROTO);
+    RootedNativeObject memory(cx, NewNativeObjectWithGivenProto(cx, &class_,
+                                                                &memoryProto.toObject(),
                                                                 NullPtr()));
     if (!memory)
         return nullptr;

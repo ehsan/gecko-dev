@@ -6556,7 +6556,7 @@ nsWindow::GdkRectToDevicePixels(GdkRectangle rect) {
 }
 
 nsresult
-nsWindow::SynthesizeNativeMouseEvent(LayoutDeviceIntPoint aPoint,
+nsWindow::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                      uint32_t aNativeMessage,
                                      uint32_t aModifierFlags)
 {
