@@ -1060,14 +1060,6 @@ TraceRecorder::~TraceRecorder()
 {
     JS_ASSERT(nextRecorderToAbort == NULL);
     JS_ASSERT(treeInfo && (fragment || wasDeepAborted()));
-#ifdef DEBUG
-    TraceRecorder* tr = JS_TRACE_MONITOR(cx).abortStack;
-    while (tr != NULL)
-    {
-        JS_ASSERT(this != tr);
-        tr = tr->nextRecorderToAbort;
-    }
-#endif
     if (fragment) {
         if (wasRootFragment && !fragment->root->code()) {
             JS_ASSERT(!fragment->root->vmprivate);
@@ -4168,7 +4160,7 @@ TraceRecorder::stringify(jsval& v)
     } else if (JSVAL_TAG(v) == JSVAL_BOOLEAN) {
         ci = &js_BooleanOrUndefinedToString_ci;
     } else {
-        JS_NOT_REACHED("caller of stringify should have used an imacro here");
+        /* We can't stringify objects here (use imacros instead), just return NULL. */
         return NULL;
     }
     v_ins = lir->insCall(ci, args);

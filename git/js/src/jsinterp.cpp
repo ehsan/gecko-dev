@@ -2579,10 +2579,7 @@ js_Interpret(JSContext *cx)
         tr = TRACE_RECORDER(cx);
         SET_TRACE_RECORDER(cx, NULL);
         JS_TRACE_MONITOR(cx).onTrace = JS_FALSE;
-        if (tr->wasDeepAborted())
-            tr->removeFragmentoReferences();
-        else
-            tr->pushAbortStack();
+        tr->pushAbortStack();
     }
 #endif
 
