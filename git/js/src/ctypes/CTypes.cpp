@@ -1422,8 +1422,8 @@ StringToInteger(JSContext* cx, JSString* string, IntegerType* result)
 {
   JS_STATIC_ASSERT(numeric_limits<IntegerType>::is_exact);
 
-  const jschar* cp = string->chars();
-  const jschar* end = cp + string->length();
+  const jschar* cp = JS_GetStringChars(string);
+  const jschar* end = cp + JS_GetStringLength(string);
   if (cp == end)
     return false;
 
@@ -1664,10 +1664,13 @@ ImplicitConvert(JSContext* cx,
     type result;                                                               \
     if (JSVAL_IS_STRING(val)) {                                                \
       JSString* str = JSVAL_TO_STRING(val);                                    \
-      if (str->length() != 1)                                                  \
+      if (JS_GetStringLength(str) != 1)                                        \
         return TypeError(cx, #name, val);                                      \
                                                                                \
-      result = str->chars()[0];                                                \
+      jschar c = *JS_GetStringChars(str);                                      \
+      result = c;                                                              \
+      if (jschar(result) != c)                                                 \
+        return TypeError(cx, #name, val);                                      \
                                                                                \
     } else if (!jsvalToInteger(cx, val, &result)) {                            \
       return TypeError(cx, #name, val);                                        \
@@ -1712,8 +1715,8 @@ ImplicitConvert(JSContext* cx,
       // which the caller assumes ownership of.
       // TODO: Extend this so we can safely convert strings at other times also.
       JSString* sourceString = JSVAL_TO_STRING(val);
-      const jschar* sourceChars = sourceString->chars();
-      size_t sourceLength = sourceString->length();
+      const jschar* sourceChars = JS_GetStringChars(sourceString);
+      size_t sourceLength = JS_GetStringLength(sourceString);
 
       switch (CType::GetTypeCode(cx, baseType)) {
       case TYPE_char:
@@ -1775,8 +1778,8 @@ ImplicitConvert(JSContext* cx,
 
     if (JSVAL_IS_STRING(val)) {
       JSString* sourceString = JSVAL_TO_STRING(val);
-      const jschar* sourceChars = sourceString->chars();
-      size_t sourceLength = sourceString->length();
+      const jschar* sourceChars = JS_GetStringChars(sourceString);
+      size_t sourceLength = JS_GetStringLength(sourceString);
 
       switch (CType::GetTypeCode(cx, baseType)) {
       case TYPE_char:
@@ -1898,9 +1901,12 @@ ImplicitConvert(JSContext* cx,
         if (!field)
           return false;
 
-        JSString* name = JSVAL_TO_STRING(fieldVal.value());
+        JSString* nameStr = JSVAL_TO_STRING(fieldVal.value());
+        const jschar* name = JS_GetStringChars(nameStr);
+        size_t namelen = JS_GetStringLength(nameStr);
+
         js::AutoValueRooter prop(cx);
-        if (!JS_GetUCProperty(cx, obj, name->chars(), name->length(), prop.addr()))
+        if (!JS_GetUCProperty(cx, obj, name, namelen, prop.addr()))
           return false;
 
         // Convert the field via ImplicitConvert().
@@ -3491,8 +3497,8 @@ ArrayType::ConstructData(JSContext* cx,
       // We were given a string. Size the array to the appropriate length,
       // including space for the terminator.
       JSString* sourceString = JSVAL_TO_STRING(argv[0]);
-      const jschar* sourceChars = sourceString->chars();
-      size_t sourceLength = sourceString->length();
+      const jschar* sourceChars = JS_GetStringChars(sourceString);
+      size_t sourceLength = JS_GetStringLength(sourceString);
 
       switch (CType::GetTypeCode(cx, baseType)) {
       case TYPE_char:
@@ -3792,7 +3798,9 @@ ExtractStructField(JSContext* cx, jsval val, FieldInfo* field)
   AppendString(field->mName, name);
 
   js::AutoValueRooter propVal(cx);
-  if (!JS_GetUCProperty(cx, obj, name->chars(), name->length(), propVal.addr()))
+  const jschar* nameChars = JS_GetStringChars(name);
+  size_t namelen = JS_GetStringLength(name);
+  if (!JS_GetUCProperty(cx, obj, nameChars, namelen, propVal.addr()))
     return false;
 
   if (JSVAL_IS_PRIMITIVE(propVal.value()) ||
@@ -4363,9 +4371,9 @@ IsEllipsis(jsval v)
   if (!JSVAL_IS_STRING(v))
     return false;
   JSString* str = JSVAL_TO_STRING(v);
-  if (str->length() != 3)
+  if (JS_GetStringLength(str) != 3)
     return false;
-  const jschar* chars = str->chars(), dot('.');
+  jschar* chars = JS_GetStringChars(str), dot('.');
   return (chars[0] == dot &&
           chars[1] == dot &&
           chars[2] == dot);
