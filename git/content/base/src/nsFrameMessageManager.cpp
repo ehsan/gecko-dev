@@ -1133,7 +1133,9 @@ namespace dom {
 class MessageManagerReporter MOZ_FINAL : public MemoryMultiReporter
 {
 public:
-  MessageManagerReporter() {}
+  MessageManagerReporter()
+    : MemoryMultiReporter("message-manager")
+  {}
 
   NS_IMETHOD CollectReports(nsIMemoryReporterCallback* aCallback,
                             nsISupports* aData);

@@ -1530,8 +1530,7 @@ TabChild::RecvUpdateFrame(const FrameMetrics& aFrameMetrics)
     nsCOMPtr<nsIContent> content = nsLayoutUtils::FindContentFor(
                                       aFrameMetrics.mScrollId);
     if (content) {
-      FrameMetrics newSubFrameMetrics(aFrameMetrics);
-      APZCCallbackHelper::UpdateSubFrame(content, newSubFrameMetrics);
+      APZCCallbackHelper::UpdateSubFrame(content, aFrameMetrics);
       return true;
     }
   }

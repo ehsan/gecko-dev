@@ -67,7 +67,6 @@ interface PeerConnectionImpl  {
   void close();
 
   /* Attributes */
-  readonly attribute DOMString fingerprint;
   readonly attribute DOMString localDescription;
   readonly attribute DOMString remoteDescription;
 

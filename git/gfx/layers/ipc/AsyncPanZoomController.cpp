@@ -1418,9 +1418,7 @@ void AsyncPanZoomController::UpdateCompositionBounds(const ScreenIntRect& aCompo
   if (aCompositionBounds.width && aCompositionBounds.height &&
       oldCompositionBounds.width && oldCompositionBounds.height) {
     float adjustmentFactor = float(aCompositionBounds.width) / float(oldCompositionBounds.width);
-    mFrameMetrics.mZoom.scale =
-      clamped(mFrameMetrics.mZoom.scale * adjustmentFactor,
-              mMinZoom.scale, mMaxZoom.scale);
+    mFrameMetrics.mZoom.scale *= adjustmentFactor;
 
     // Repaint on a rotation so that our new resolution gets properly updated.
     RequestContentRepaint();

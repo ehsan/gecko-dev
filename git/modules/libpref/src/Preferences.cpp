@@ -226,7 +226,9 @@ Preferences::SizeOfIncludingThisAndOtherStuff(mozilla::MallocSizeOf aMallocSizeO
 class PreferenceServiceReporter MOZ_FINAL : public MemoryMultiReporter
 {
 public:
-  PreferenceServiceReporter() {}
+  PreferenceServiceReporter()
+    : MemoryMultiReporter("preference-service")
+  {}
 
   NS_IMETHOD CollectReports(nsIMemoryReporterCallback* aCallback,
                             nsISupports* aData);

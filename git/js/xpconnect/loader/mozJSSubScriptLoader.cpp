@@ -155,12 +155,12 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
 
         if (!reuseGlobal) {
             *scriptp = JS::Compile(cx, target_obj, options,
-                                   script.get(),
+                                   reinterpret_cast<const jschar*>(script.get()),
                                    script.Length());
         } else {
             *functionp = JS::CompileFunction(cx, target_obj, options,
                                              nullptr, 0, nullptr,
-                                             script.get(),
+                                             reinterpret_cast<const jschar*>(script.get()),
                                              script.Length());
         }
     } else {

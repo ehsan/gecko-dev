@@ -7739,7 +7739,6 @@ let Reader = {
     let browser = document.createElement("browser");
     browser.setAttribute("type", "content");
     browser.setAttribute("collapsed", "true");
-    browser.setAttribute("disablehistory", "true");
 
     document.documentElement.appendChild(browser);
     browser.stop();

@@ -573,7 +573,7 @@ IonBuilder::inlineMathFloor(CallInfo &callInfo)
 
     if (IsFloatingPointType(argType) && returnType == MIRType_Int32) {
         callInfo.unwrapArgs();
-        MFloor *ins = MFloor::New(alloc(), callInfo.getArg(0));
+        MFloor *ins = new MFloor(callInfo.getArg(0));
         current->add(ins);
         current->push(ins);
         return InliningStatus_Inlined;
@@ -611,7 +611,7 @@ IonBuilder::inlineMathRound(CallInfo &callInfo)
 
     if (argType == MIRType_Double && returnType == MIRType_Int32) {
         callInfo.unwrapArgs();
-        MRound *ins = MRound::New(alloc(), callInfo.getArg(0));
+        MRound *ins = new MRound(callInfo.getArg(0));
         current->add(ins);
         current->push(ins);
         return InliningStatus_Inlined;
@@ -1367,7 +1367,7 @@ IonBuilder::inlineParallelArrayTail(CallInfo &callInfo,
 
     // Place an MPrepareCall before the first passed argument, before we
     // potentially perform rearrangement.
-    MPrepareCall *start = MPrepareCall::New(alloc());
+    MPrepareCall *start = new MPrepareCall;
     oldThis->block()->insertBefore(oldThis, start);
     call->initPrepareCall(start);
 
@@ -1439,10 +1439,9 @@ IonBuilder::inlineNewDenseArrayForParallelExecution(CallInfo &callInfo)
 
     callInfo.unwrapArgs();
 
-    MNewDenseArrayPar *newObject = MNewDenseArrayPar::New(alloc(),
-                                                          graph().forkJoinSlice(),
-                                                          callInfo.getArg(0),
-                                                          templateObject);
+    MNewDenseArrayPar *newObject = new MNewDenseArrayPar(graph().forkJoinSlice(),
+                                                         callInfo.getArg(0),
+                                                         templateObject);
     current->add(newObject);
     current->push(newObject);
 
