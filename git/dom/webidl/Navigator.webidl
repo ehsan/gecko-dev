@@ -254,7 +254,7 @@ partial interface Navigator {
 
 // nsIDOMNavigatorDesktopNotification
 partial interface Navigator {
-  [Throws, Pref="notification.feature.enabled", UnsafeInPrerendering]
+  [Throws, Pref="notification.feature.enabled"]
   readonly attribute DesktopNotificationCenter mozNotification;
 };
 
@@ -273,7 +273,7 @@ partial interface Navigator {
 
 // nsIDOMNavigatorCamera
 partial interface Navigator {
-  [Throws, Func="Navigator::HasCameraSupport", UnsafeInPrerendering]
+  [Throws, Func="Navigator::HasCameraSupport"]
   readonly attribute CameraManager mozCameras;
 };
 
@@ -289,27 +289,27 @@ partial interface Navigator {
 
 #ifdef MOZ_B2G_RIL
 partial interface Navigator {
-  [Throws, Pref="dom.mobileconnection.enabled", CheckPermissions="mobileconnection mobilenetwork", UnsafeInPrerendering]
+  [Throws, Pref="dom.mobileconnection.enabled", CheckPermissions="mobileconnection mobilenetwork"]
   readonly attribute MozMobileConnectionArray mozMobileConnections;
 };
 
 partial interface Navigator {
-  [Throws, Pref="dom.cellbroadcast.enabled", CheckPermissions="cellbroadcast", UnsafeInPrerendering]
+  [Throws, Pref="dom.cellbroadcast.enabled", CheckPermissions="cellbroadcast"]
   readonly attribute MozCellBroadcast mozCellBroadcast;
 };
 
 partial interface Navigator {
-  [Throws, Pref="dom.voicemail.enabled", CheckPermissions="voicemail", UnsafeInPrerendering]
+  [Throws, Pref="dom.voicemail.enabled", CheckPermissions="voicemail"]
   readonly attribute MozVoicemail mozVoicemail;
 };
 
 partial interface Navigator {
-  [Throws, Pref="dom.icc.enabled", CheckPermissions="mobileconnection", UnsafeInPrerendering]
+  [Throws, Pref="dom.icc.enabled", CheckPermissions="mobileconnection"]
   readonly attribute MozIccManager? mozIccManager;
 };
 
 partial interface Navigator {
-  [Throws, Pref="dom.telephony.enabled", CheckPermissions="telephony", UnsafeInPrerendering]
+  [Throws, Pref="dom.telephony.enabled", CheckPermissions="telephony"]
   readonly attribute Telephony? mozTelephony;
 };
 #endif // MOZ_B2G_RIL
@@ -329,14 +329,14 @@ partial interface Navigator {
 
 #ifdef MOZ_B2G_BT
 partial interface Navigator {
-  [Throws, CheckPermissions="bluetooth", UnsafeInPrerendering]
+  [Throws, CheckPermissions="bluetooth"]
   readonly attribute BluetoothManager mozBluetooth;
 };
 #endif // MOZ_B2G_BT
 
 #ifdef MOZ_B2G_FM
 partial interface Navigator {
-  [Throws, CheckPermissions="fmradio", UnsafeInPrerendering]
+  [Throws, CheckPermissions="fmradio"]
   readonly attribute FMRadio mozFMRadio;
 };
 #endif // MOZ_B2G_FM
@@ -366,7 +366,7 @@ partial interface Navigator {
   readonly attribute MediaDevices mediaDevices;
 
   // Deprecated. Use mediaDevices.getUserMedia instead.
-  [Throws, Func="Navigator::HasUserMediaSupport", UnsafeInPrerendering]
+  [Throws, Func="Navigator::HasUserMediaSupport"]
   void mozGetUserMedia(MediaStreamConstraints constraints,
                        NavigatorUserMediaSuccessCallback successCallback,
                        NavigatorUserMediaErrorCallback errorCallback);

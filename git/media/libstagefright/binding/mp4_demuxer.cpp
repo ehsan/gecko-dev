@@ -73,8 +73,8 @@ private:
   nsRefPtr<Stream> mSource;
 };
 
-MP4Demuxer::MP4Demuxer(Stream* source, Monitor* aMonitor)
-  : mPrivate(new StageFrightPrivate()), mSource(source), mMonitor(aMonitor)
+MP4Demuxer::MP4Demuxer(Stream* source)
+  : mPrivate(new StageFrightPrivate()), mSource(source)
 {
   mPrivate->mExtractor = new MPEG4Extractor(new DataSourceAdapter(source));
 }
@@ -109,7 +109,7 @@ MP4Demuxer::Init()
       mPrivate->mAudio = track;
       mAudioConfig.Update(metaData, mimeType);
       nsRefPtr<Index> index = new Index(mPrivate->mAudio->exportIndex(),
-                                        mSource, mAudioConfig.mTrackId, mMonitor);
+                                        mSource, mAudioConfig.mTrackId);
       mPrivate->mIndexes.AppendElement(index);
       if (index->IsFragmented()) {
         mPrivate->mAudioIterator = new SampleIterator(index);
@@ -122,7 +122,7 @@ MP4Demuxer::Init()
       mPrivate->mVideo = track;
       mVideoConfig.Update(metaData, mimeType);
       nsRefPtr<Index> index = new Index(mPrivate->mVideo->exportIndex(),
-                                        mSource, mVideoConfig.mTrackId, mMonitor);
+                                        mSource, mVideoConfig.mTrackId);
       mPrivate->mIndexes.AppendElement(index);
       if (index->IsFragmented()) {
         mPrivate->mVideoIterator = new SampleIterator(index);

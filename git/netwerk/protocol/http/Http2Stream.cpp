@@ -538,8 +538,7 @@ Http2Stream::ParseHttpRequestHeaders(const char *buf,
     outputOffset += Http2Session::kFrameHeaderBytes;
 
     if (!idx) {
-      uint32_t wireDep = PR_htonl(mPriorityDependency);
-      memcpy(mTxInlineFrame.get() + outputOffset, &wireDep, 4);
+      memcpy(mTxInlineFrame.get() + outputOffset, &mPriorityDependency, 4);
       memcpy(mTxInlineFrame.get() + outputOffset + 4, &mPriorityWeight, 1);
       outputOffset += 5;
     }

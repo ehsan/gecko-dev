@@ -69,7 +69,6 @@ enum Tag
   SET = UNIVERSAL | CONSTRUCTED | 0x11, // 0x31
   PrintableString = UNIVERSAL | 0x13,
   TeletexString = UNIVERSAL | 0x14,
-  IA5String = UNIVERSAL | 0x16,
   UTCTime = UNIVERSAL | 0x17,
   GENERALIZED_TIME = UNIVERSAL | 0x18,
 };

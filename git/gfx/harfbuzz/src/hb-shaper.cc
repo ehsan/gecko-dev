@@ -100,7 +100,7 @@ retry:
       goto retry;
     }
 
-#ifdef HB_USE_ATEXIT
+#ifdef HAVE_ATEXIT
     atexit (free_static_shapers); /* First person registers atexit() callback. */
 #endif
   }

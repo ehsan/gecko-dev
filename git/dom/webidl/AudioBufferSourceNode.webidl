@@ -20,10 +20,10 @@ interface AudioBufferSourceNode : AudioNode {
     attribute double loopStart;
     attribute double loopEnd;
 
-    [Throws, UnsafeInPrerendering]
+    [Throws]
     void start(optional double when = 0, optional double grainOffset = 0,
                optional double grainDuration);
-    [Throws, UnsafeInPrerendering]
+    [Throws]
     void stop(optional double when = 0);
 
     attribute EventHandler onended;

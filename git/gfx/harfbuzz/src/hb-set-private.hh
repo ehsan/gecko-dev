@@ -150,7 +150,7 @@ struct hb_set_t
   bool in_error;
 
   inline void init (void) {
-    hb_object_init (this);
+    header.init ();
     clear ();
   }
   inline void fini (void) {
