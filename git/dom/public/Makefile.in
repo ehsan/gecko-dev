@@ -1,3 +1,4 @@
+#
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -11,15 +12,14 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is sessionstore test code.
+# The Original Code is mozilla.org code.
 #
 # The Initial Developer of the Original Code is
-# Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2008
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Simon Bünzli <zeniko@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -35,46 +35,43 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../../../..
+DEPTH		= ../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir  = browser/components/sessionstore/test/browser 
 
 include $(DEPTH)/config/autoconf.mk
-include $(topsrcdir)/config/rules.mk
 
-_BROWSER_TEST_FILES = \
-	browser_248970_a.js \
-	browser_248970_b.js \
-	browser_248970_b_sample.html \
-	browser_339445.js \
-	browser_339445_sample.html \
-	browser_345898.js \
-	browser_346337.js \
-	browser_346337_sample.html \
-	browser_350525.js \
-	browser_367052.js \
-	browser_393716.js \
-	browser_408470.js \
-	browser_408470_sample.html \
-	browser_447951.js \
-	browser_447951_sample.html \
-	browser_448741.js \
-	browser_454908.js \
-	browser_454908_sample.html \
-	browser_456342.js \
-	browser_456342_sample.xhtml \
-	browser_463206.js \
-	browser_463206_sample.html \
-	browser_464199.js \
-	browser_465215.js \
-	browser_465223.js \
-	browser_466937.js \
-	browser_466937_sample.html \
-	browser_476161.js \
-	browser_476161_sample.html \
+MODULE		= dom
+GRE_MODULE	= 1
+
+DIRS		= coreEvents base
+
+XPIDLSRCS	= nsIEntropyCollector.idl \
+		  nsIScriptChannel.idl \
+		  $(NULL)
+
+EXPORTS=nsIScriptContext.h		\
+	nsIJSNativeInitializer.h	\
+	nsIScriptRuntime.h		\
+	nsIScriptObjectOwner.h		\
+	nsIScriptObjectPrincipal.h	\
+	nsIScriptGlobalObject.h		\
+	nsIScriptGlobalObjectOwner.h	\
+	nsIScriptTimeoutHandler.h	\
+	nsIDOMScriptObjectFactory.h	\
+	nsDOMCID.h			\
+	nsIScriptExternalNameSet.h	\
+	nsIScriptNameSpaceManager.h	\
+	nsDOMError.h			\
+	nsIJSEventListener.h		\
+	nsIDOMClassInfo.h		\
+	nsDOMClassInfoID.h		\
+	nsIBaseDOMException.h		\
+	nsDOMString.h			\
+	nsDOMJSUtils.h			\
+	nsDOMScriptObjectHolder.h	\
+	nsWrapperCache.h	\
 	$(NULL)
 
-libs:: $(_BROWSER_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
+include $(topsrcdir)/config/rules.mk

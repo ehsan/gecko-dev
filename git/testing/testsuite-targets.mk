@@ -85,7 +85,7 @@ include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 PKG_STAGE = $(DIST)/test-package-stage
 
-package-tests: stage-mochitest stage-reftest
+package-tests: stage-mochitest
 	@(cd $(PKG_STAGE) && tar $(TAR_CREATE_FLAGS) - *) | bzip2 -f > $(DIST)/$(PKG_PATH)$(TEST_PACKAGE)
 
 make-stage-dir:
@@ -93,9 +93,6 @@ make-stage-dir:
 
 stage-mochitest: make-stage-dir
 	$(MAKE) -C $(DEPTH)/testing/mochitest stage-package
-
-stage-reftest: make-stage-dir
-	$(MAKE) -C $(DEPTH)/layout/tools/reftest stage-package
 
 .PHONY: mochitest mochitest-plain mochitest-chrome mochitest-a11y \
   package-tests make-stage-dir stage-mochitest

@@ -311,11 +311,10 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
     }
   }
 
-  nsPresContext* presContext = PresContext();
-  nsIPresShell* shell = presContext->PresShell();
+  nsPresContext* aPresContext = PresContext();
 
   // create the view. a view is needed since it needs to be a mouse grabber
-  nsIViewManager* viewMan = shell->GetViewManager();
+  nsIViewManager* viewMan = aPresContext->GetViewManager();
 
   nsIView *parView = GetAncestorWithView()->GetView();
   nsRect boundBox(0, 0, 0, 0); 
@@ -326,9 +325,11 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
   // XXX Put it last in document order until we can do better
   viewMan->InsertChild(parView, view, nsnull, PR_TRUE);
   SetView(view);
+
+  nsIPresShell *shell = aPresContext->PresShell();
   
   nsFrameborder  frameborder = GetFrameBorder();
-  PRInt32 borderWidth = GetBorderWidth(presContext, PR_FALSE);
+  PRInt32 borderWidth = GetBorderWidth(aPresContext, PR_FALSE);
   nscolor borderColor = GetBorderColor();
  
   // Get the rows= cols= data
@@ -1574,7 +1575,7 @@ nsHTMLFramesetFrame::MouseDrag(nsPresContext* aPresContext,
     }
 
     // Update the view immediately (make drag appear snappier)
-    nsIViewManager* vm = aPresContext->GetPresShell()->GetViewManager();
+    nsIViewManager* vm = aPresContext->GetViewManager();
     if (vm) {
       nsIView* root;
       vm->GetRootView(root);
