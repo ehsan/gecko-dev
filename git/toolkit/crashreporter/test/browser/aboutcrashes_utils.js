@@ -1,3 +1,6 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 function create_subdir(dir, subdirname) {
   let subdir = dir.clone();
   subdir.append(subdirname);

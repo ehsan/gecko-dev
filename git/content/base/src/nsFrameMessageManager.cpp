@@ -462,7 +462,6 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
       }
     }
   }
-  nsRefPtr<nsFrameMessageManager> kungfuDeathGrip = mParentManager;
   return mParentManager ? mParentManager->ReceiveMessage(aTarget, aMessage,
                                                          aSync, aJSON, aObjectsArray,
                                                          aJSONRetVal, mContext) : NS_OK;
@@ -602,18 +601,11 @@ nsFrameScriptExecutor::DidCreateCx()
 void
 nsFrameScriptExecutor::DestroyCx()
 {
-  if (mCxStackRefCnt) {
-    mDelayedCxDestroy = PR_TRUE;
-    return;
-  }
-  mDelayedCxDestroy = PR_FALSE;
-  if (mCx) {
-    nsIXPConnect* xpc = nsContentUtils::XPConnect();
-    if (xpc) {
-      xpc->ReleaseJSContext(mCx, PR_TRUE);
-    } else {
-      JS_DestroyContext(mCx);
-    }
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  if (xpc) {
+    xpc->ReleaseJSContext(mCx, PR_TRUE);
+  } else {
+    JS_DestroyContext(mCx);
   }
   mCx = nsnull;
   mGlobal = nsnull;

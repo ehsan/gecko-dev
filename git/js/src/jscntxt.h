@@ -657,6 +657,12 @@ struct JSRuntime {
 #endif
 
 #ifdef DEBUG
+    /* Function invocation metering. */
+    jsrefcount          inlineCalls;
+    jsrefcount          nativeCalls;
+    jsrefcount          nonInlineCalls;
+    jsrefcount          constructs;
+
     /*
      * NB: emptyShapes (in JSCompartment) is init'ed iff at least one
      * of these envars is set:

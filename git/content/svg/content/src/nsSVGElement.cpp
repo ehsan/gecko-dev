@@ -1405,7 +1405,7 @@ nsIAtom* nsSVGElement::GetEventNameForAttr(nsIAtom* aAttr)
 }
 
 nsSVGSVGElement *
-nsSVGElement::GetCtx() const
+nsSVGElement::GetCtx()
 {
   nsIContent* ancestor = GetFlattenedTreeParent();
 
@@ -1425,7 +1425,7 @@ nsSVGElement::GetCtx() const
 }
 
 /* virtual */ gfxMatrix
-nsSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix) const
+nsSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
 {
   return aMatrix;
 }

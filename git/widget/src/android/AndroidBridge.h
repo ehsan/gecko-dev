@@ -245,15 +245,6 @@ public:
 
     void ScanMedia(const nsAString& aFile, const nsACString& aMimeType);
 
-    // These next four functions are for native Bitmap access in Android 2.2+
-    bool HasNativeBitmapAccess();
-
-    bool ValidateBitmap(jobject bitmap, int width, int height);
-
-    void *LockBitmap(jobject bitmap);
-
-    void UnlockBitmap(jobject bitmap);
-
 protected:
     static AndroidBridge *sBridge;
 
@@ -274,9 +265,6 @@ protected:
     PRBool Init(JNIEnv *jEnv, jclass jGeckoApp);
 
     void EnsureJNIThread();
-
-    bool mOpenedBitmapLibrary;
-    bool mHasNativeBitmapAccess;
 
     // other things
     jmethodID jNotifyIME;
@@ -321,11 +309,6 @@ protected:
     jclass jEGLDisplayImplClass;
     jclass jEGLContextClass;
     jclass jEGL10Class;
-
-    // calls we've dlopened from libjnigraphics.so
-    int (* AndroidBitmap_getInfo)(JNIEnv *env, jobject bitmap, void *info);
-    int (* AndroidBitmap_lockPixels)(JNIEnv *env, jobject bitmap, void **buffer);
-    int (* AndroidBitmap_unlockPixels)(JNIEnv *env, jobject bitmap);
 };
 
 }

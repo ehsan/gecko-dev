@@ -220,7 +220,7 @@ ContentParent::OnChannelConnected(int32 pid)
         }
 
         if (nice != 0) {
-           setpriority(PRIO_PROCESS, pid, getpriority(PRIO_PROCESS, pid) + nice);
+            setpriority(PRIO_PROCESS, pid, getpriority(PRIO_PROCESS, pid) + nice);
         }
 #endif
     }
