@@ -12,6 +12,7 @@
 #include "base/non_thread_safe.h"
 #include "base/stats_counters.h"
 #include "base/win_util.h"
+#include "chrome/common/chrome_counters.h"
 #include "chrome/common/ipc_logging.h"
 #include "chrome/common/ipc_message_utils.h"
 #include "mozilla/ipc/ProtocolUtils.h"
@@ -126,6 +127,7 @@ bool Channel::ChannelImpl::Send(Message* message) {
   if (thread_check_.get()) {
     DCHECK(thread_check_->CalledOnValidThread());
   }
+  chrome::Counters::ipc_send_counter().Increment();
 #ifdef IPC_MESSAGE_DEBUG_EXTRA
   DLOG(INFO) << "sending message @" << message << " on channel @" << this
              << " with type " << message->type()

@@ -28,6 +28,7 @@
 
 #include "gfxPlatform.h"
 #include "gfxContext.h"
+#include "gfxMatrix.h"
 #include "gfxWindowsPlatform.h"
 #include "gfxWindowsSurface.h"
 #include "gfxWindowsNativeDrawing.h"

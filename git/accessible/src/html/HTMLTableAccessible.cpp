@@ -20,6 +20,7 @@
 
 #include "mozilla/dom/HTMLTableElement.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMRange.h"
 #include "nsISelectionPrivate.h"
 #include "nsINameSpaceManager.h"

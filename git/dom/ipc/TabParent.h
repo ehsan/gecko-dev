@@ -20,6 +20,7 @@
 #include "Units.h"
 #include "js/TypeDecls.h"
 
+struct gfxMatrix;
 class nsFrameLoader;
 class nsIContent;
 class nsIPrincipal;
