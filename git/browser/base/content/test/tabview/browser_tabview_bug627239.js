@@ -1,12 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
-
-const PREF_DISK_CACHE_SSL = "browser.cache.disk_cache_ssl";
-
-let pb = Cc["@mozilla.org/privatebrowsing;1"].
-         getService(Ci.nsIPrivateBrowsingService);
-
 let contentWindow;
+let enablePersistentHttpsCaching;
 let newTab;
 
 function test() {
@@ -22,8 +17,8 @@ function test() {
       gBrowser.removeTab(gBrowser.tabs[1]);
     hideTabView();
 
-    Services.prefs.clearUserPref(PREF_DISK_CACHE_SSL);
-    pb.privateBrowsingEnabled = false;
+    contentWindow.ThumbnailStorage.enablePersistentHttpsCaching =
+        enablePersistentHttpsCaching;
   });
 
   showTabView(function() {
@@ -36,19 +31,18 @@ function test() {
 function test1() {
   // page with cache-control: no-store, should not save thumbnail
   HttpRequestObserver.cacheControlValue = "no-store";
+  newTab.linkedBrowser.loadURI("http://www.example.com/browser/browser/base/content/test/tabview/dummy_page.html");
 
-  whenStorageDenied(newTab, function () {
+  afterAllTabsLoaded(function() {
     let tabItem = newTab._tabViewTabItem;
 
-    ok(!contentWindow.StoragePolicy.canStoreThumbnailForTab(newTab), 
+    ok(!contentWindow.ThumbnailStorage._shouldSaveThumbnail(newTab), 
        "Should not save the thumbnail for tab");
 
-    whenDeniedToSaveImageData(tabItem, test2);
-    tabItem.saveThumbnail({synchronously: true});
+    whenDeniedToCacheImageData(tabItem, test2);
+    tabItem.save(true);
     HttpRequestObserver.cacheControlValue = null;
   });
-
-  newTab.linkedBrowser.loadURI("http://www.example.com/browser/browser/base/content/test/tabview/dummy_page.html");
 }
 
 function test2() {
@@ -59,11 +53,11 @@ function test2() {
   afterAllTabsLoaded(function() {
     let tabItem = newTab._tabViewTabItem;
 
-    ok(contentWindow.StoragePolicy.canStoreThumbnailForTab(newTab), 
+    ok(contentWindow.ThumbnailStorage._shouldSaveThumbnail(newTab), 
        "Should save the thumbnail for tab");
 
     whenSavedCachedImageData(tabItem, test3);
-    tabItem.saveThumbnail({synchronously: true});
+    tabItem.save(true);
   });
 }
 
@@ -71,17 +65,19 @@ function test3() {
   // page with cache-control: private with https caching enabled, should save thumbnail
   HttpRequestObserver.cacheControlValue = "private";
 
-  Services.prefs.setBoolPref(PREF_DISK_CACHE_SSL, true);
+  enablePersistentHttpsCaching =
+    contentWindow.ThumbnailStorage.enablePersistentHttpsCaching;
+  contentWindow.ThumbnailStorage.enablePersistentHttpsCaching = true;
 
   newTab.linkedBrowser.loadURI("https://example.com/browser/browser/base/content/test/tabview/dummy_page.html");
   afterAllTabsLoaded(function() {
     let tabItem = newTab._tabViewTabItem;
 
-    ok(contentWindow.StoragePolicy.canStoreThumbnailForTab(newTab),
+    ok(contentWindow.ThumbnailStorage._shouldSaveThumbnail(newTab),
        "Should save the thumbnail for tab");
 
     whenSavedCachedImageData(tabItem, test4);
-    tabItem.saveThumbnail({synchronously: true});
+    tabItem.save(true);
   });
 }
 
@@ -89,52 +85,38 @@ function test4() {
   // page with cache-control: public with https caching disabled, should save thumbnail
   HttpRequestObserver.cacheControlValue = "public";
 
-  Services.prefs.setBoolPref(PREF_DISK_CACHE_SSL, false);
+  contentWindow.ThumbnailStorage.enablePersistentHttpsCaching = false;
 
   newTab.linkedBrowser.loadURI("https://example.com/browser/browser/base/content/test/tabview/");
   afterAllTabsLoaded(function() {
     let tabItem = newTab._tabViewTabItem;
 
-    ok(contentWindow.StoragePolicy.canStoreThumbnailForTab(newTab),
+    ok(contentWindow.ThumbnailStorage._shouldSaveThumbnail(newTab),
        "Should save the thumbnail for tab");
 
     whenSavedCachedImageData(tabItem, test5);
-    tabItem.saveThumbnail({synchronously: true});
+    tabItem.save(true);
   });
 }
 
 function test5() {
   // page with cache-control: private with https caching disabled, should not save thumbnail
   HttpRequestObserver.cacheControlValue = "private";
-
-  whenStorageDenied(newTab, function () {
+ 
+  newTab.linkedBrowser.loadURI("https://example.com/");
+  afterAllTabsLoaded(function() {
     let tabItem = newTab._tabViewTabItem;
 
-    ok(!contentWindow.StoragePolicy.canStoreThumbnailForTab(newTab),
-       "Should not save the thumbnail for tab");
+    ok(!contentWindow.ThumbnailStorage._shouldSaveThumbnail(newTab),
+       "Should not the thumbnail for tab");
 
-    whenDeniedToSaveImageData(tabItem, function () {
-      gBrowser.removeTab(newTab);
-      test6();
+    whenDeniedToCacheImageData(tabItem, function () {
+      hideTabView(function () {
+        gBrowser.removeTab(gBrowser.tabs[1]);
+        finish();
+      });
     });
-
-    tabItem.saveThumbnail({synchronously: true});
-  });
-
-  newTab.linkedBrowser.loadURI("https://example.com/");
-}
-
-// ensure that no thumbnails are saved while in private browsing mode
-function test6() {
-  HttpRequestObserver.cacheControlValue = "public";
-
-  togglePrivateBrowsing(function () {
-    let tab = gBrowser.tabs[0];
-
-    ok(!contentWindow.StoragePolicy.canStoreThumbnailForTab(tab),
-       "Should not save the thumbnail for tab");
-
-    togglePrivateBrowsing(finish);
+    tabItem.save(true);
   });
 }
 
@@ -164,18 +146,9 @@ function whenSavedCachedImageData(tabItem, callback) {
   });
 }
 
-function whenDeniedToSaveImageData(tabItem, callback) {
-  tabItem.addSubscriber("deniedToSaveImageData", function onDenied() {
-    tabItem.removeSubscriber("deniedToSaveImageData", onDenied);
+function whenDeniedToCacheImageData(tabItem, callback) {
+  tabItem.addSubscriber("deniedToCacheImageData", function onDenied() {
+    tabItem.removeSubscriber("deniedToCacheImageData", onDenied);
     callback();
-  });
-}
-
-function whenStorageDenied(tab, callback) {
-  let mm = tab.linkedBrowser.messageManager;
-
-  mm.addMessageListener("Panorama:StoragePolicy:denied", function onDenied() {
-    mm.removeMessageListener("Panorama:StoragePolicy:denied", onDenied);
-    executeSoon(callback);
   });
 }
