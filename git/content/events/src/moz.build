@@ -16,7 +16,6 @@ EXPORTS += [
 ]
 
 EXPORTS.mozilla.dom += [
-    'SpeechRecognitionError.h',
     'Touch.h',
 ]
 
@@ -60,5 +59,4 @@ CPP_SOURCES += [
     'nsIMEStateManager.cpp',
     'nsPaintRequest.cpp',
     'nsPrivateTextRange.cpp',
-    'SpeechRecognitionError.cpp',
 ]

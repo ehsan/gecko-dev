@@ -29,11 +29,9 @@ var tests = {
 
     function triggerIconPanel() {
       waitForCondition(function() {
-        let mButton = document.getElementById("social-mark-button");
-        let pButton = document.getElementById("social-provider-button");
-        // wait for a new button to be inserted inbetween the provider and mark
-        // button
-        return pButton.nextSibling != mButton;
+        let button = document.getElementById("social-toolbar-item");
+        // by default, button has two children.  wait for a 3rd to be added
+        return button.childNodes.length > 2;
       }, function() {
         // Click the button to trigger its contentPanel
         let statusIcon = document.getElementById("social-provider-button").nextSibling;

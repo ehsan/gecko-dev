@@ -200,8 +200,9 @@ GetLengthProperty(const Value &lval, MutableHandleValue vp)
     }
     if (lval.isObject()) {
         JSObject *obj = &lval.toObject();
-        if (obj->is<ArrayObject>()) {
-            vp.setNumber(obj->as<ArrayObject>().length());
+        if (obj->isArray()) {
+            uint32_t length = obj->getArrayLength();
+            vp.setNumber(length);
             return true;
         }
 
@@ -579,7 +580,7 @@ GetObjectElementOperation(JSContext *cx, JSOp op, JSObject *objArg, bool wasObje
             if (script->hasAnalysis()) {
                 script->analysis()->getCode(pc).getStringElement = true;
 
-                if (!objArg->is<ArrayObject>() && !objArg->isNative() && !objArg->isTypedArray())
+                if (!objArg->isArray() && !objArg->isNative() && !objArg->isTypedArray())
                     script->analysis()->getCode(pc).nonNativeGetElement = true;
             }
         }
@@ -746,7 +747,7 @@ InitArrayElemOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, uint32_t
     JSOp op = JSOp(*pc);
     JS_ASSERT(op == JSOP_INITELEM_ARRAY || op == JSOP_INITELEM_INC);
 
-    JS_ASSERT(obj->is<ArrayObject>());
+    JS_ASSERT(obj->isArray());
 
     /*
      * If val is a hole, do not call JSObject::defineElement. In this case,

@@ -180,13 +180,9 @@ class DeviceManager(object):
         """
 
     @abstractmethod
-    def pullFile(self, remoteFilename, offset=None, length=None):
+    def pullFile(self, remoteFilename):
         """
         Returns contents of remoteFile using the "pull" command.
-
-        :param remoteFilename: Path to file to pull from remote device.
-        :param offset: Offset in bytes from which to begin reading (optional)
-        :param length: Number of bytes to read (optional)
         """
 
     @abstractmethod

@@ -14,10 +14,6 @@
 #include "jsprototypes.h"
 #include "jstypes.h"
 
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING) || defined(DEBUG)
-# define JSGC_TRACK_EXACT_ROOTS
-#endif
-
 namespace JS {
 
 /*
@@ -300,7 +296,7 @@ struct ContextFriendFields
         return reinterpret_cast<ContextFriendFields *>(cx);
     }
 
-#ifdef JSGC_TRACK_EXACT_ROOTS
+#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.
@@ -348,7 +344,7 @@ struct PerThreadDataFriendFields
 
     PerThreadDataFriendFields();
 
-#ifdef JSGC_TRACK_EXACT_ROOTS
+#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.

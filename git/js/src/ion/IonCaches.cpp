@@ -1165,7 +1165,7 @@ GetPropertyIC::attachCallGetter(JSContext *cx, IonScript *ion, JSObject *obj,
 bool
 GetPropertyIC::attachArrayLength(JSContext *cx, IonScript *ion, JSObject *obj)
 {
-    JS_ASSERT(obj->is<ArrayObject>());
+    JS_ASSERT(obj->isArray());
     JS_ASSERT(!idempotent());
 
     Label failures;
@@ -1429,7 +1429,7 @@ TryAttachNativeGetPropStub(JSContext *cx, IonScript *ion,
 
     if (readSlot)
         return cache.attachReadSlot(cx, ion, obj, holder, shape);
-    else if (obj->is<ArrayObject>() && !cache.hasArrayLengthStub() && cx->names().length == name)
+    else if (obj->isArray() && !cache.hasArrayLengthStub() && cx->names().length == name)
         return cache.attachArrayLength(cx, ion, obj);
     return cache.attachCallGetter(cx, ion, obj, holder, shape, safepointIndex, returnAddr);
 }
@@ -2577,7 +2577,7 @@ GetElementIC::reset()
 static bool
 IsElementSetInlineable(HandleObject obj, HandleValue index)
 {
-    if (!obj->is<ArrayObject>())
+    if (!obj->isArray())
         return false;
 
     if (obj->watched())
@@ -3035,10 +3035,11 @@ CallsiteCloneIC::attach(JSContext *cx, IonScript *ion, HandleFunction original,
     RepatchStubAppender attacher(*this);
 
     // Guard against object identity on the original.
-    attacher.branchNextStub(masm, Assembler::NotEqual, calleeReg(), ImmGCPtr(original));
+    attacher.branchNextStub(masm, Assembler::NotEqual, calleeReg(),
+                            ImmWord(uintptr_t(original.get())));
 
     // Load the clone.
-    masm.movePtr(ImmGCPtr(clone), outputReg());
+    masm.movePtr(ImmWord(uintptr_t(clone.get())), outputReg());
 
     attacher.jumpRejoin(masm);
 

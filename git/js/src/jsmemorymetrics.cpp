@@ -175,7 +175,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         CompartmentStats *cStats = GetCompartmentStats(obj->compartment());
         if (obj->is<JSFunction>())
             cStats->gcHeapObjectsFunction += thingSize;
-        else if (obj->is<ArrayObject>())
+        else if (obj->isArray())
             cStats->gcHeapObjectsDenseArray += thingSize;
         else if (obj->isCrossCompartmentWrapper())
             cStats->gcHeapObjectsCrossCompartmentWrapper += thingSize;

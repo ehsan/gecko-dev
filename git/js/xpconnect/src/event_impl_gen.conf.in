@@ -57,6 +57,7 @@ simple_events = [
 #endif
 #ifdef MOZ_WEBSPEECH
     'SpeechRecognitionEvent',
+    'SpeechRecognitionError',
 #endif
   ]
 

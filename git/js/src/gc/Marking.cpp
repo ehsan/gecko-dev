@@ -8,13 +8,10 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "jstypedarray.h"
-
 #include "ion/IonCode.h"
 #include "vm/Shape.h"
 
 #include "jscompartmentinlines.h"
-#include "jsinferinlines.h"
 
 #include "gc/Nursery-inl.h"
 #include "vm/Shape-inl.h"
@@ -601,12 +598,6 @@ gc::IsValueAboutToBeFinalized(Value *v)
 }
 
 /*** Slot Marking ***/
-
-bool
-gc::IsSlotMarked(HeapSlot *s)
-{
-    return IsMarked(s);
-}
 
 void
 gc::MarkSlot(JSTracer *trc, HeapSlot *s, const char *name)
@@ -1254,7 +1245,7 @@ GCMarker::restoreValueArray(JSObject *obj, void **vpp, void **endp)
     HeapSlot::Kind kind = (HeapSlot::Kind) stack.pop();
 
     if (kind == HeapSlot::Element) {
-        if (!obj->is<ArrayObject>())
+        if (obj->getClass() != &ArrayClass)
             return false;
 
         uint32_t initlen = obj->getDenseInitializedLength();

@@ -21,7 +21,6 @@
                  android:paddingBottom="8dip"
                  android:scaleType="centerInside"
                  android:background="@drawable/action_bar_button"
-                 android:layout_gravity="center_vertical"
-                 android:visibility="gone"/>
+                 android:layout_gravity="center_vertical"/>
 
 </merge>

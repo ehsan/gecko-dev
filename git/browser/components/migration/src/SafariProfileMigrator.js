@@ -212,17 +212,10 @@ History.prototype = {
         for (let entry of entries) {
           if (entry.has("lastVisitedDate")) {
             let visitDate = this._parseCocoaDate(entry.get("lastVisitedDate"));
-            try {
-              places.push({ uri: NetUtil.newURI(entry.get("")),
-                            title: entry.get("title"),
-                            visits: [{ transitionType: transType,
-                                       visitDate: visitDate }] });
-            }
-            catch(ex) {
-              // Safari's History file may contain malformed URIs which
-              // will be ignored.
-              Cu.reportError(ex)
-            }
+            places.push({ uri: NetUtil.newURI(entry.get("")),
+                          title: entry.get("title"),
+                          visits: [{ transitionType: transType,
+                                     visitDate: visitDate }] });
           }
         }
         if (places.length > 0) {
