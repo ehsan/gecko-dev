@@ -24,6 +24,9 @@
 #include "nsIObjectFrame.h"
 #include "nsIPermissionManager.h"
 #include "nsPluginHost.h"
+#include "nsJSNPRuntime.h"
+#include "jswrapper.h"
+#include "nsIJSContextStack.h"
 #include "nsIPresShell.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
@@ -1758,26 +1761,20 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
     }
   }
 
-  // Items resolved as Image/Document will not be checked for previews, as well
-  // as invalid plugins (they will not have the mContentType set).
-  if ((mType == eType_Null || mType == eType_Plugin) && ShouldPreview()) {
-    // If plugin preview exists, we shall use it
-    LOG(("OBJLC [%p]: Using plugin preview", this));
-    mType = eType_Null;
-    fallbackType = eFallbackPlayPreview;
-  }
-
   // If we're a plugin but shouldn't start yet, load fallback with
-  // reason click-to-play instead
+  // reason click-to-play instead. Items resolved as Image/Document
+  // will not be checked for previews, as well as invalid plugins
+  // (they will not have the mContentType set).
   FallbackType clickToPlayReason;
-  if (mType == eType_Plugin && !ShouldPlay(clickToPlayReason)) {
+  if ((mType == eType_Null || mType == eType_Plugin) &&
+      !ShouldPlay(clickToPlayReason)) {
     LOG(("OBJLC [%p]: Marking plugin as click-to-play", this));
     mType = eType_Null;
     fallbackType = clickToPlayReason;
   }
 
   if (!mActivated && mType == eType_Plugin) {
-    // Object passed ShouldPlay and !ShouldPreview, so it should be considered
+    // Object passed ShouldPlay, so it should be considered
     // activated until it changes content type
     LOG(("OBJLC [%p]: Object implicitly activated", this));
     mActivated = true;
@@ -2265,6 +2262,19 @@ nsObjectLoadingContent::GetPrintFrame(nsIFrame** aFrame)
 }
 
 NS_IMETHODIMP
+nsObjectLoadingContent::PluginDestroyed()
+{
+  // Called when our plugin is destroyed from under us, usually when reloading
+  // plugins in plugin host. Invalidate instance owner / prototype but otherwise
+  // don't take any action.
+  TeardownProtoChain();
+  DisconnectFrame();
+  mInstanceOwner->Destroy();
+  mInstanceOwner = nullptr;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
                                       const nsAString& pluginDumpID,
                                       const nsAString& browserDumpID,
@@ -2273,9 +2283,7 @@ nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
   LOG(("OBJLC [%p]: Plugin Crashed, queuing crash event", this));
   NS_ASSERTION(mType == eType_Plugin, "PluginCrashed at non-plugin type");
 
-  // Instance is dead, clean up
-  mInstanceOwner = nullptr;
-  CloseChannel();
+  PluginDestroyed();
 
   // Switch to fallback/crashed state, notify
   LoadFallback(eFallbackCrashed, true);
@@ -2508,8 +2516,9 @@ nsObjectLoadingContent::DoStopPlugin(nsPluginInstanceOwner* aInstanceOwner,
     NS_ASSERTION(pluginHost, "No plugin host?");
     pluginHost->StopPluginInstance(inst);
   }
-
+  TeardownProtoChain();
   aInstanceOwner->Destroy();
+
   mIsStopping = false;
 }
 
@@ -2550,9 +2559,11 @@ nsObjectLoadingContent::StopPluginInstance()
   }
 #endif
 
-  DoStopPlugin(mInstanceOwner, delayedStop);
-
+  nsRefPtr<nsPluginInstanceOwner> ownerGrip(mInstanceOwner);
   mInstanceOwner = nullptr;
+
+  // This can/will re-enter
+  DoStopPlugin(ownerGrip, delayedStop);
 
   return NS_OK;
 }
@@ -2650,18 +2661,6 @@ nsObjectLoadingContent::CancelPlayPreview()
 }
 
 bool
-nsObjectLoadingContent::ShouldPreview()
-{
-  if (mPlayPreviewCanceled || mActivated)
-    return false;
-
-  nsRefPtr<nsPluginHost> pluginHost =
-    already_AddRefed<nsPluginHost>(nsPluginHost::GetInst());
-
-  return pluginHost->IsPluginPlayPreviewForType(mContentType.get());
-}
-
-bool
 nsObjectLoadingContent::ShouldPlay(FallbackType &aReason)
 {
   // mActivated is true if we've been activated via PlayPlugin() (e.g. user has
@@ -2670,6 +2669,25 @@ nsObjectLoadingContent::ShouldPlay(FallbackType &aReason)
 
   nsRefPtr<nsPluginHost> pluginHost =
     already_AddRefed<nsPluginHost>(nsPluginHost::GetInst());
+
+  nsCOMPtr<nsIPluginPlayPreviewInfo> playPreviewInfo;
+  bool isPlayPreviewSpecified = NS_SUCCEEDED(pluginHost->GetPlayPreviewInfo(
+    mContentType, getter_AddRefs(playPreviewInfo)));
+  bool ignoreCTP = false;
+  if (isPlayPreviewSpecified) {
+    playPreviewInfo->GetIgnoreCTP(&ignoreCTP);
+  }
+  if (isPlayPreviewSpecified && !mPlayPreviewCanceled && !mActivated &&
+      ignoreCTP) {
+    // play preview in ignoreCTP mode is shown even if the native plugin
+    // is not present/installed
+    aReason = eFallbackPlayPreview;
+    return false;
+  }
+  // at this point if it's not a plugin, we let it play/fallback
+  if (mType != eType_Plugin) {
+    return true;
+  }
 
   bool isCTP;
   nsresult rv = pluginHost->IsPluginClickToPlayForType(mContentType, &isCTP);
@@ -2735,6 +2753,70 @@ nsObjectLoadingContent::ShouldPlay(FallbackType &aReason)
     allowPerm = permission == nsIPermissionManager::ALLOW_ACTION;
   }
 
+  if (aReason == eFallbackClickToPlay && isPlayPreviewSpecified &&
+      !mPlayPreviewCanceled && !ignoreCTP) {
+    // play preview in click-to-play mode is shown instead of standard CTP UI
+    aReason = eFallbackPlayPreview;
+  }
+
   return allowPerm;
 }
 
+void
+nsObjectLoadingContent::TeardownProtoChain()
+{
+  nsCOMPtr<nsIContent> thisContent =
+    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID()));
+  NS_ENSURE_TRUE(xpc, /* void */);
+
+  // Use the safe JSContext here as we're not always able to find the
+  // JSContext associated with the NPP any more.
+  JSContext *cx = nsContentUtils::GetSafeJSContext();
+  nsIDocument* doc = thisContent->OwnerDoc();
+  NS_ENSURE_TRUE(doc, /* void */);
+  nsIScriptGlobalObject* sgo = doc->GetScriptGlobalObject();
+  NS_ENSURE_TRUE(sgo, /* void */);
+
+  nsCOMPtr<nsIXPConnectWrappedNative> holder;
+  xpc->GetWrappedNativeOfNativeObject(cx, sgo->GetGlobalJSObject(), thisContent,
+                                      NS_GET_IID(nsISupports),
+                                      getter_AddRefs(holder));
+  NS_ENSURE_TRUE(holder, /* void */);
+
+  JSObject *obj;
+  holder->GetJSObject(&obj);
+  NS_ENSURE_TRUE(obj, /* void */);
+
+  JSObject *proto;
+  JSAutoRequest ar(cx);
+  JSAutoCompartment ac(cx, obj);
+
+  // Loop over the DOM element's JS object prototype chain and remove
+  // all JS objects of the class sNPObjectJSWrapperClass
+  bool removed = false;
+  while (obj) {
+    if (!::JS_GetPrototype(cx, obj, &proto)) {
+      return;
+    }
+    if (!proto) {
+      break;
+    }
+    // Unwrap while checking the jsclass - if the prototype is a wrapper for
+    // an NP object, that counts too.
+    if (JS_GetClass(js::UnwrapObject(proto)) == &sNPObjectJSWrapperClass) {
+      // We found an NPObject on the proto chain, get its prototype...
+      if (!::JS_GetPrototype(cx, proto, &proto)) {
+        return;
+      }
+
+      MOZ_ASSERT(!removed, "more than one NPObject in prototype chain");
+      removed = true;
+
+      // ... and pull it out of the chain.
+      ::JS_SetPrototype(cx, obj, proto);
+    }
+
+    obj = proto;
+  }
+}

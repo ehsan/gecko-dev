@@ -6,8 +6,6 @@ package org.mozilla.gecko;
 
 import android.app.Application;
 
-import java.util.ArrayList;
-
 public class GeckoApplication extends Application {
 
     private boolean mInited;
@@ -32,6 +30,7 @@ public class GeckoApplication extends Application {
         GeckoBatteryManager.getInstance().start();
         GeckoNetworkManager.getInstance().init(getApplicationContext());
         MemoryMonitor.getInstance().init(getApplicationContext());
+
         mInited = true;
     }
 

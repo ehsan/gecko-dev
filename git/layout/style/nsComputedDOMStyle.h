@@ -95,8 +95,8 @@ private:
   }
 
 #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)                  \
-  const nsStyle##name_ * GetStyle##name_() {                            \
-    return mStyleContextHolder->GetStyle##name_();                      \
+  const nsStyle##name_ * Style##name_() {                               \
+    return mStyleContextHolder->Style##name_();                         \
   }
 #include "nsStyleStructList.h"
 #undef STYLE_STRUCT
@@ -348,6 +348,7 @@ private:
 
   /* Column properties */
   mozilla::dom::CSSValue* DoGetColumnCount();
+  mozilla::dom::CSSValue* DoGetColumnFill();
   mozilla::dom::CSSValue* DoGetColumnWidth();
   mozilla::dom::CSSValue* DoGetColumnGap();
   mozilla::dom::CSSValue* DoGetColumnRuleWidth();
@@ -421,6 +422,7 @@ private:
   mozilla::dom::CSSValue* DoGetFilter();
   mozilla::dom::CSSValue* DoGetMask();
   mozilla::dom::CSSValue* DoGetMaskType();
+  mozilla::dom::CSSValue* DoGetPaintOrder();
 
   nsROCSSPrimitiveValue* GetROCSSPrimitiveValue();
   nsDOMCSSValueList* GetROCSSValueList(bool aCommaDelimited);

@@ -1403,6 +1403,16 @@ CSS_PROP_COLUMN(
     offsetof(nsStyleColumn, mColumnCount),
     eStyleAnimType_Custom)
 CSS_PROP_COLUMN(
+    -moz-column-fill,
+    _moz_column_fill,
+    CSS_PROP_DOMPROP_PREFIXED(ColumnFill),
+    CSS_PROPERTY_PARSE_VALUE,
+    "",
+    VARIANT_HK,
+    kColumnFillKTable,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_COLUMN(
     -moz-column-width,
     _moz_column_width,
     CSS_PROP_DOMPROP_PREFIXED(ColumnWidth),
@@ -2486,6 +2496,16 @@ CSS_PROP_DISPLAY(
     kPageBreakInsideKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
+CSS_PROP_SVG(
+    paint-order,
+    paint_order,
+    PaintOrder,
+    CSS_PROPERTY_PARSE_FUNCTION,
+    "svg.paint-order.enabled",
+    0,
+    nullptr,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_VISIBILITY(
     pointer-events,
     pointer_events,
@@ -3459,22 +3479,11 @@ CSS_PROP_SHORTHAND(
 #ifdef CSS_PROP_STUB_NOT_CSS
 CSS_PROP_STUB_NOT_CSS
 CSS_PROP_STUB_NOT_CSS
-CSS_PROP_STUB_NOT_CSS
 #else
 CSS_PROP_FONT(
     -x-lang,
     _x_lang,
     Lang,
-    CSS_PROPERTY_PARSE_INACCESSIBLE,
-    "",
-    0,
-    nullptr,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_TABLE(
-    -x-cols,
-    _x_cols,
-    Cols,
     CSS_PROPERTY_PARSE_INACCESSIBLE,
     "",
     0,
