@@ -11,7 +11,6 @@
 #define jscntxt_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/LinkedList.h"
 
 #include <string.h>
 
@@ -782,10 +781,10 @@ struct JSRuntime : js::RuntimeFriendFields
     js::PropertyName    *emptyString;
 
     /* List of active contexts sharing this runtime. */
-    mozilla::LinkedList<JSContext> contextList;
+    JSCList             contextList;
 
     bool hasContexts() const {
-        return !contextList.isEmpty();
+        return !JS_CLIST_IS_EMPTY(&contextList);
     }
 
     JS_SourceHook       sourceHook;
@@ -1234,12 +1233,14 @@ FreeOp::free_(void* p) {
 
 } /* namespace js */
 
-struct JSContext : js::ContextFriendFields,
-                   public mozilla::LinkedListElement<JSContext>
+struct JSContext : js::ContextFriendFields
 {
     explicit JSContext(JSRuntime *rt);
     JSContext *thisDuringConstruction() { return this; }
     ~JSContext();
+
+    /* JSRuntime contextList linkage. */
+    JSCList             link;
 
   private:
     /* See JSContext::findVersion. */
@@ -1600,6 +1601,11 @@ struct JSContext : js::ContextFriendFields,
 
     JS_FRIEND_API(size_t) sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const;
 
+    static inline JSContext *fromLinkField(JSCList *link) {
+        JS_ASSERT(link);
+        return reinterpret_cast<JSContext *>(uintptr_t(link) - offsetof(JSContext, link));
+    }
+
     void mark(JSTracer *trc);
 
   private:
@@ -1817,25 +1823,27 @@ namespace js {
  * Enumerate all contexts in a runtime.
  */
 class ContextIter {
-    JSContext *iter;
+    JSCList *begin;
+    JSCList *end;
 
 public:
     explicit ContextIter(JSRuntime *rt) {
-        iter = rt->contextList.getFirst();
+        end = &rt->contextList;
+        begin = end->next;
     }
 
     bool done() const {
-        return !iter;
+        return begin == end;
     }
 
     void next() {
         JS_ASSERT(!done());
-        iter = iter->getNext();
+        begin = begin->next;
     }
 
     JSContext *get() const {
         JS_ASSERT(!done());
-        return iter;
+        return JSContext::fromLinkField(begin);
     }
 
     operator JSContext *() const {

@@ -867,6 +867,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     useHelperThreads_(useHelperThreads)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
+    JS_INIT_CLIST(&contextList);
     JS_INIT_CLIST(&debuggerList);
     JS_INIT_CLIST(&onNewGlobalObjectWatchers);
 
@@ -974,7 +975,7 @@ JSRuntime::~JSRuntime()
 
 #ifdef DEBUG
     /* Don't hurt everyone in leaky ol' Mozilla with a fatal JS_ASSERT! */
-    if (hasContexts()) {
+    if (!JS_CLIST_IS_EMPTY(&contextList)) {
         unsigned cxcount = 0;
         for (ContextIter acx(this); !acx.done(); acx.next()) {
             fprintf(stderr,
@@ -1270,7 +1271,8 @@ JS_PUBLIC_API(JSContext *)
 JS_ContextIterator(JSRuntime *rt, JSContext **iterp)
 {
     JSContext *cx = *iterp;
-    cx = cx ? cx->getNext() : rt->contextList.getFirst();
+    JSCList *next = cx ? cx->link.next : rt->contextList.next;
+    cx = (next == &rt->contextList) ? NULL : JSContext::fromLinkField(next);
     *iterp = cx;
     return cx;
 }

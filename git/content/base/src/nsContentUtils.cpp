@@ -6665,34 +6665,30 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
   NS_ASSERTION(aDocument, "aDocument should be a valid pointer (not null)");
   NS_ENSURE_TRUE(aDocument->GetScriptGlobalObject(), true);
 
-  JSContext* cx = aDocument->GetScriptGlobalObject()->
+  JSContext* ctx = (JSContext*) aDocument->GetScriptGlobalObject()->
                                   GetContext()->GetNativeContext();
-  NS_ENSURE_TRUE(cx, true);
+  NS_ENSURE_TRUE(ctx, true);
 
-  JSAutoRequest ar(cx);
+  JSAutoRequest ar(ctx);
 
   // The pattern has to match the entire value.
   aPattern.Insert(NS_LITERAL_STRING("^(?:"), 0);
   aPattern.Append(NS_LITERAL_STRING(")$"));
 
-  JSObject* re = JS_NewUCRegExpObjectNoStatics(cx, static_cast<jschar*>
+  JSObject* re = JS_NewUCRegExpObjectNoStatics(ctx, reinterpret_cast<jschar*>
                                                  (aPattern.BeginWriting()),
-                                               aPattern.Length(), 0);
-  if (!re) {
-    JS_ClearPendingException(cx);
-    return true;
-  }
+                                                aPattern.Length(), 0);
+  NS_ENSURE_TRUE(re, true);
 
-  JS::Value rval = JS::NullValue();
+  jsval rval = JSVAL_NULL;
   size_t idx = 0;
-  if (!JS_ExecuteRegExpNoStatics(cx, re,
-                                 static_cast<jschar*>(aValue.BeginWriting()),
-                                 aValue.Length(), &idx, true, &rval)) {
-    JS_ClearPendingException(cx);
-    return true;
-  }
+  JSBool res;
 
-  return !rval.isNull();
+  res = JS_ExecuteRegExpNoStatics(ctx, re, reinterpret_cast<jschar*>
+                                    (aValue.BeginWriting()),
+                                  aValue.Length(), &idx, JS_TRUE, &rval);
+
+  return res == JS_FALSE || rval != JSVAL_NULL;
 }
 
 // static

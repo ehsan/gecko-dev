@@ -2,12 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from __future__ import print_function, unicode_literals
-
-import collections
 import json
 import os
 import sys
+import collections
 
 import writeMakefile
 
@@ -56,15 +54,15 @@ def writeMakefiles(files):
         dirp, leaf = path.rsplit('/', 1)
         pathmap.setdefault(dirp, []).append(leaf)
 
-    for k, v in pathmap.items():
+    for k, v in pathmap.iteritems():
         result = writeMakefile.substMakefile('parseFailures.py', [], v)
 
-        fp = open(k + '/Makefile.in', 'w')
+        fp = open(k + '/Makefile.in', 'wb')
         fp.write(result)
         fp.close()
 
 def main(logPath):
-    fp = open(logPath, 'r')
+    fp = open(logPath, 'rb')
     lines = extractLines(fp)
     fp.close()
 
@@ -73,5 +71,5 @@ def main(logPath):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Please pass the path to the logfile from which failures should be extracted.")
+        print "Please pass the path to the logfile from which failures should be extracted."
     main(sys.argv[1])
