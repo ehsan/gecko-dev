@@ -7728,8 +7728,8 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
           !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
         if (aChange & nsChangeHint_UpdateEffects) {
           needInvalidatingPaint = true;
-          nsSVGEffects::InvalidateRenderingObservers(aFrame);
-          // Need to update our overflow rects:
+          // Invalidate and update our area:
+          nsSVGUtils::InvalidateBounds(aFrame, false);
           nsSVGUtils::ScheduleReflowSVG(aFrame);
         } else {
           needInvalidatingPaint = true;
@@ -10008,22 +10008,19 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
     // XXXbz we could do this on the FrameConstructionItemList level,
     // no?  And if we cared we could look through the item list
     // instead of groveling through the framelist here..
+    nsIContent *badKid = AnyKidsNeedBlockParent(aFrameItems.FirstChild());
+    nsDependentAtomString parentTag(aContent->Tag()), kidTag(badKid->Tag());
+    const PRUnichar* params[] = { parentTag.get(), kidTag.get() };
     nsStyleContext *frameStyleContext = aFrame->StyleContext();
-    // Report a warning for non-GC frames:
-    if (!aFrame->IsGeneratedContentFrame()) {
-      nsIContent *badKid = AnyKidsNeedBlockParent(aFrameItems.FirstChild());
-      nsDependentAtomString parentTag(aContent->Tag()), kidTag(badKid->Tag());
-      const PRUnichar* params[] = { parentTag.get(), kidTag.get() };
-      const nsStyleDisplay *display = frameStyleContext->StyleDisplay();
-      const char *message =
-        (display->mDisplay == NS_STYLE_DISPLAY_INLINE_BOX)
-          ? "NeededToWrapXULInlineBox" : "NeededToWrapXUL";
-      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      "FrameConstructor", mDocument,
-                                      nsContentUtils::eXUL_PROPERTIES,
-                                      message,
-                                      params, ArrayLength(params));
-    }
+    const nsStyleDisplay *display = frameStyleContext->StyleDisplay();
+    const char *message =
+      (display->mDisplay == NS_STYLE_DISPLAY_INLINE_BOX)
+        ? "NeededToWrapXULInlineBox" : "NeededToWrapXUL";
+    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                    "FrameConstructor", mDocument,
+                                    nsContentUtils::eXUL_PROPERTIES,
+                                    message,
+                                    params, ArrayLength(params));
 
     nsRefPtr<nsStyleContext> blockSC = mPresShell->StyleSet()->
       ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozXULAnonymousBlock,

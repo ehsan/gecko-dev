@@ -11,17 +11,20 @@ extern cc_int32_t VCMDebug;
 extern cc_int32_t PLATDebug;
 
 #ifndef PLAT_ERROR
-#define PLAT_ERROR(format, ...) CSFLogError("plat" , format , ## __VA_ARGS__ )
+#define PLAT_ERROR        err_msg
 #endif
 
 #ifndef VCM_ERR
-#define VCM_ERR(format, ...) CSFLogError("vcm" , format , ## __VA_ARGS__ )
+#define VCM_ERR           err_msg
 #endif
 
 #ifndef VCM_DEBUG
-#define VCM_DEBUG(format, ...) CSFLogDebug("vcm" , format , ## __VA_ARGS__ )
+#define VCM_DEBUG     if (VCMDebug)    buginf
 #endif
 
+#ifndef PLAT_DEBUG
+#define PLAT_DEBUG    if (PLATDebug)  buginf
+#endif
 
 //DEBUG message prefixes
 #define PLAT_F_PREFIX "PLAT : %s : "

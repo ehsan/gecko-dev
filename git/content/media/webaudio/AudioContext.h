@@ -19,7 +19,6 @@
 #include "MediaBufferDecoder.h"
 #include "StreamBuffer.h"
 #include "MediaStreamGraph.h"
-#include "nsTHashtable.h"
 
 // X11 has a #define for CurrentTime. Unbelievable :-(.
 // See content/media/DOMMediaStream.h for more fun!
@@ -70,8 +69,7 @@ public:
   void Suspend();
   void Resume();
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   static already_AddRefed<AudioContext>
   Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
@@ -169,14 +167,11 @@ private:
   nsRefPtr<AudioListener> mListener;
   MediaBufferDecoder mDecoder;
   nsTArray<nsAutoPtr<WebAudioDecodeJob> > mDecodeJobs;
-  // Two hashsets containing all the PannerNodes and AudioBufferSourceNodes,
-  // to compute the doppler shift, and also to stop AudioBufferSourceNodes.
-  // These are all weak pointers.
-  nsTHashtable<nsPtrHashKey<PannerNode> > mPannerNodes;
-  nsTHashtable<nsPtrHashKey<AudioBufferSourceNode> > mAudioBufferSourceNodes;
-  // Hashset containing all ScriptProcessorNodes in order to stop them.
-  // These are all weak pointers.
-  nsTHashtable<nsPtrHashKey<ScriptProcessorNode> > mScriptProcessorNodes;
+  // Two arrays containing all the PannerNodes and AudioBufferSourceNodes,
+  // to compute the doppler shift. Those are weak pointers.
+  nsTArray<PannerNode*> mPannerNodes;
+  nsTArray<AudioBufferSourceNode*> mAudioBufferSourceNodes;
+  nsTArray<ScriptProcessorNode*> mScriptProcessorNodes;
 };
 
 }

@@ -380,20 +380,12 @@ void* MacIOSurface::GetBaseAddress() {
 
 size_t MacIOSurface::GetWidth() {
   size_t intScaleFactor = ceil(mContentsScaleFactor);
-  return GetDevicePixelWidth() / intScaleFactor;
+  return MacIOSurfaceLib::IOSurfaceGetWidth(mIOSurfacePtr) / intScaleFactor;
 }
 
 size_t MacIOSurface::GetHeight() {
   size_t intScaleFactor = ceil(mContentsScaleFactor);
-  return GetDevicePixelHeight() / intScaleFactor;
-}
-
-size_t MacIOSurface::GetDevicePixelWidth() {
-  return MacIOSurfaceLib::IOSurfaceGetWidth(mIOSurfacePtr);
-}
-
-size_t MacIOSurface::GetDevicePixelHeight() {
-  return MacIOSurfaceLib::IOSurfaceGetHeight(mIOSurfacePtr);
+  return MacIOSurfaceLib::IOSurfaceGetHeight(mIOSurfacePtr) / intScaleFactor;
 }
 
 size_t MacIOSurface::GetBytesPerRow() { 
@@ -418,8 +410,9 @@ TemporaryRef<SourceSurface>
 MacIOSurface::GetAsSurface() {
   Lock();
   size_t bytesPerRow = GetBytesPerRow();
-  size_t ioWidth = GetDevicePixelWidth();
-  size_t ioHeight = GetDevicePixelHeight();
+  size_t intScaleFactor = ceil(mContentsScaleFactor);
+  size_t ioWidth = GetWidth() * intScaleFactor;
+  size_t ioHeight = GetHeight() * intScaleFactor;
 
   unsigned char* ioData = (unsigned char*)GetBaseAddress();
   unsigned char* dataCpy = (unsigned char*)malloc(bytesPerRow*ioHeight);
@@ -442,11 +435,12 @@ MacIOSurface::CGLTexImageIOSurface2D(void *c,
                                     GLenum type, GLuint plane)
 {
   NSOpenGLContext *ctxt = static_cast<NSOpenGLContext*>(c);
+  size_t intScaleFactor = ceil(mContentsScaleFactor);
   return MacIOSurfaceLib::CGLTexImageIOSurface2D((CGLContextObj)[ctxt CGLContextObj],
                                                 GL_TEXTURE_RECTANGLE_ARB,
                                                 internalFormat,
-                                                GetDevicePixelWidth(),
-                                                GetDevicePixelHeight(),
+                                                GetWidth() * intScaleFactor,
+                                                GetHeight() * intScaleFactor,
                                                 format, type,
                                                 mIOSurfacePtr, plane);
 }
@@ -468,9 +462,10 @@ CGColorSpaceRef CreateSystemColorSpace() {
 }
 
 CGContextRef MacIOSurface::CreateIOSurfaceContext() {
+  size_t intScaleFactor = ceil(mContentsScaleFactor);
   CGContextRef ref = MacIOSurfaceLib::IOSurfaceContextCreate(mIOSurfacePtr,
-                                                GetDevicePixelWidth(),
-                                                GetDevicePixelHeight(),
+                                                GetWidth() * intScaleFactor,
+                                                GetHeight() * intScaleFactor,
                                                 8, 32, CreateSystemColorSpace(), 0x2002);
   return ref;
 }
@@ -800,8 +795,8 @@ void nsCARenderer::AttachIOSurface(RefPtr<MacIOSurface> aSurface) {
     ::CGLSetCurrentContext(mOpenGLContext);
     ::glBindTexture(GL_TEXTURE_RECTANGLE_ARB, mIOTexture);
     MacIOSurfaceLib::CGLTexImageIOSurface2D(mOpenGLContext, GL_TEXTURE_RECTANGLE_ARB,
-                                           GL_RGBA, mIOSurface->GetDevicePixelWidth(),
-                                           mIOSurface->GetDevicePixelHeight(),
+                                           GL_RGBA, mIOSurface->GetWidth() * intScaleFactor,
+                                           mIOSurface->GetHeight() * intScaleFactor,
                                            GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
                                            mIOSurface->mIOSurfacePtr, 0);
     ::glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);

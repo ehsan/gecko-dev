@@ -30,7 +30,6 @@
 #include "nsJSEnvironment.h"
 #include "xpcpublic.h"
 #include "nsLayoutStatics.h"
-#include "js/RootingAPI.h"
 
 namespace mozilla {
 namespace dom {
@@ -57,10 +56,10 @@ public:
     DropCallback();
   }
 
-  JS::Handle<JSObject*> Callback() const
+  JSObject* Callback() const
   {
     xpc_UnmarkGrayObject(mCallback);
-    return CallbackPreserveColor();
+    return mCallback;
   }
 
   /*
@@ -70,12 +69,10 @@ public:
    * This should only be called if you are certain that the return value won't
    * be passed into a JS API function and that it won't be stored without being
    * rooted (or otherwise signaling the stored value to the CC).
-   *
-   * This can return a handle because we trace our mCallback.
    */
-  JS::Handle<JSObject*> CallbackPreserveColor() const
+  JSObject* CallbackPreserveColor() const
   {
-    return JS::Handle<JSObject*>::fromMarkedLocation(&mCallback);
+    return mCallback;
   }
 
   enum ExceptionHandling {

@@ -98,8 +98,7 @@ public:
   }
   bool Equals(nsIDOMTouch* aTouch);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-			       JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
   EventTarget* GetParentObject() { return mTarget; }
 
   // WebIDL

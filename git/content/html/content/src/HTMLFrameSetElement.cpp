@@ -18,7 +18,7 @@ HTMLFrameSetElement::~HTMLFrameSetElement()
 }
 
 JSObject*
-HTMLFrameSetElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLFrameSetElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLFrameSetElementBinding::Wrap(aCx, aScope, this);
 }

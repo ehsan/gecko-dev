@@ -184,7 +184,7 @@ nsSVGImageFrame::AttributeChanged(int32_t         aNameSpaceID,
         aAttribute == nsGkAtoms::y ||
         aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsSVGEffects::InvalidateRenderingObservers(this);
+      nsSVGUtils::InvalidateBounds(this, false);
       nsSVGUtils::ScheduleReflowSVG(this);
       return NS_OK;
     }
@@ -559,7 +559,7 @@ nsSVGImageListener::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect
     return NS_ERROR_FAILURE;
 
   if (aType == imgINotificationObserver::LOAD_COMPLETE) {
-    nsSVGEffects::InvalidateRenderingObservers(mFrame);
+    nsSVGUtils::InvalidateBounds(mFrame, false);
     nsSVGUtils::ScheduleReflowSVG(mFrame);
   }
 
@@ -567,12 +567,13 @@ nsSVGImageListener::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect
     // No new dimensions, so we don't need to call
     // nsSVGUtils::InvalidateAndScheduleBoundsUpdate.
     nsSVGEffects::InvalidateRenderingObservers(mFrame);
+    nsSVGUtils::InvalidateBounds(mFrame);
   }
 
   if (aType == imgINotificationObserver::SIZE_AVAILABLE) {
     // Called once the resource's dimensions have been obtained.
     aRequest->GetImage(getter_AddRefs(mFrame->mImageContainer));
-    nsSVGEffects::InvalidateRenderingObservers(mFrame);
+    nsSVGUtils::InvalidateBounds(mFrame, false);
     nsSVGUtils::ScheduleReflowSVG(mFrame);
   }
 

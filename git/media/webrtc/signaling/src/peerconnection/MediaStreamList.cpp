@@ -33,7 +33,7 @@ MediaStreamList::WrapObject(JSContext* cx, bool* aTookOwnership)
 #ifdef MOZILLA_INTERNAL_API
   nsCOMPtr<nsIScriptGlobalObject> global =
     do_QueryInterface(mPeerConnection->GetWindow());
-  JS::Rooted<JSObject*> scope(cx, global->GetGlobalJSObject());
+  JSObject* scope = global->GetGlobalJSObject();
   if (!scope) {
     return nullptr;
   }

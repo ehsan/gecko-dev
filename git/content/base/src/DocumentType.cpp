@@ -60,7 +60,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-DocumentType::WrapNode(JSContext *cx, JS::Handle<JSObject*> scope)
+DocumentType::WrapNode(JSContext *cx, JSObject *scope)
 {
   return DocumentTypeBinding::Wrap(cx, scope, this);
 }

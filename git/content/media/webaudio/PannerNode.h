@@ -30,8 +30,7 @@ public:
   explicit PannerNode(AudioContext* aContext);
   virtual ~PannerNode();
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
 
   virtual bool SupportsMediaStreams() const MOZ_OVERRIDE
   {

@@ -54,8 +54,7 @@ public:
     return mHostNode;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-			       JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::UndoManagerBinding::Wrap(aCx, aScope, this);
   }

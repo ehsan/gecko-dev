@@ -341,7 +341,7 @@ Element::GetBindingURL(nsIDocument *aDocument, css::URLValue **aResult)
 }
 
 JSObject*
-Element::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
+Element::WrapObject(JSContext *aCx, JSObject *aScope)
 {
   JSObject* obj = nsINode::WrapObject(aCx, aScope);
   if (!obj) {
@@ -790,7 +790,14 @@ Element::SetAttributeNode(Attr& aNewAttr, ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eSetAttributeNode);
 
-  return Attributes()->SetNamedItem(aNewAttr, aError);
+  nsCOMPtr<nsIDOMAttr> attr;
+  aError = Attributes()->SetNamedItem(&aNewAttr, getter_AddRefs(attr));
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  nsRefPtr<Attr> returnAttr = static_cast<Attr*>(attr.get());
+  return returnAttr.forget();
 }
 
 already_AddRefed<Attr>
@@ -798,7 +805,22 @@ Element::RemoveAttributeNode(Attr& aAttribute,
                              ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eRemoveAttributeNode);
-  return Attributes()->RemoveNamedItem(aAttribute.NodeName(), aError);
+
+  nsAutoString name;
+
+  aError = aAttribute.GetName(name);
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  nsCOMPtr<nsIDOMAttr> attr;
+  aError = Attributes()->RemoveNamedItem(name, getter_AddRefs(attr));
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  nsRefPtr<Attr> returnAttr = static_cast<Attr*>(attr.get());
+  return returnAttr.forget();
 }
 
 void
@@ -882,7 +904,7 @@ Element::SetAttributeNodeNS(Attr& aNewAttr,
                             ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eSetAttributeNodeNS);
-  return Attributes()->SetNamedItemNS(aNewAttr, aError);
+  return Attributes()->SetNamedItemNS(&aNewAttr, aError);
 }
 
 already_AddRefed<nsIHTMLCollection>

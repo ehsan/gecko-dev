@@ -27,13 +27,12 @@ public:
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLExtensionBase)
 };
 
-#define DECL_WEBGL_EXTENSION_GOOP                                           \
-    virtual JSObject* WrapObject(JSContext *cx,                             \
-                                 JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+#define DECL_WEBGL_EXTENSION_GOOP \
+    JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 #define IMPL_WEBGL_EXTENSION_GOOP(WebGLExtensionType) \
     JSObject* \
-    WebGLExtensionType::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope) { \
+    WebGLExtensionType::WrapObject(JSContext *cx, JSObject *scope) { \
         return dom::WebGLExtensionType##Binding::Wrap(cx, scope, this); \
     }
 

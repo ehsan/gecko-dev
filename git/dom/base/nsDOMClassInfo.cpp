@@ -102,6 +102,7 @@
 #include "nsError.h"
 #include "nsIDOMDOMException.h"
 #include "nsIDOMNode.h"
+#include "nsIDOMMozNamedAttrMap.h"
 #include "nsIDOMDOMStringList.h"
 
 // HTMLFormElement helper includes
@@ -236,7 +237,10 @@
 #include "nsIDOMDataTransfer.h"
 
 // Geolocation
+#include "nsIDOMGeoGeolocation.h"
+#include "nsIDOMGeoPosition.h"
 #include "nsIDOMGeoPositionCoords.h"
+#include "nsIDOMGeoPositionError.h"
 
 // User media
 #ifdef MOZ_MEDIA_NAVIGATOR
@@ -559,6 +563,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(Attr, nsAttributeSH,
                            NODE_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(MozNamedAttrMap, nsNamedNodeMapSH,
+                           ARRAY_SCRIPTABLE_FLAGS)
 
   // Misc Core related classes
 
@@ -777,7 +783,16 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(DeviceStorage, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
 
+  NS_DEFINE_CLASSINFO_DATA(GeoGeolocation, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
+  NS_DEFINE_CLASSINFO_DATA(GeoPosition, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
   NS_DEFINE_CLASSINFO_DATA(GeoPositionCoords, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
+  NS_DEFINE_CLASSINFO_DATA(GeoPositionError, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(MozPowerManager, nsDOMGenericSH,
@@ -1722,6 +1737,10 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(MozNamedAttrMap, nsIDOMMozNamedAttrMap)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozNamedAttrMap)
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(Event, nsIDOMEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
@@ -2067,8 +2086,20 @@ nsDOMClassInfo::Init()
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(GeoGeolocation, nsIDOMGeoGeolocation)
+     DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeoGeolocation)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(GeoPosition, nsIDOMGeoPosition)
+     DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeoPosition)
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(GeoPositionCoords, nsIDOMGeoPositionCoords)
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeoPositionCoords)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(GeoPositionError, nsIDOMGeoPositionError)
+     DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeoPositionError)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MozPowerManager, nsIDOMMozPowerManager)
@@ -3376,7 +3407,7 @@ NS_IMETHODIMP
 nsWindowSH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                       JSObject *obj, bool *_retval)
 {
-  if (!xpc::WrapperFactory::IsXrayWrapper(obj)) {
+  if (!ObjectIsNativeWrapper(cx, obj)) {
     *_retval = JS_EnumerateStandardClasses(cx, obj);
     if (!*_retval) {
       return NS_OK;
@@ -3413,8 +3444,6 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
                     const nsGlobalNameStruct *name_struct, JSContext *cx,
                     JSObject *obj, unsigned argc, jsval *argv, jsval *rval)
 {
-  MOZ_ASSERT(obj);
-
   nsresult rv;
   nsCOMPtr<nsISupports> native;
   if (name_struct->mType == nsGlobalNameStruct::eTypeClassConstructor) {
@@ -3930,7 +3959,11 @@ nsDOMConstructor::Construct(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
                             JSObject * obj, uint32_t argc, jsval * argv,
                             jsval * vp, bool *_retval)
 {
-  MOZ_ASSERT(obj);
+  JSObject* class_obj = JSVAL_TO_OBJECT(argv[-2]);
+  if (!class_obj) {
+    NS_ERROR("nsDOMConstructor::Construct couldn't get constructor object.");
+    return NS_ERROR_UNEXPECTED;
+  }
 
   const nsGlobalNameStruct *name_struct = GetNameStruct();
   NS_ENSURE_TRUE(name_struct, NS_ERROR_FAILURE);
@@ -4472,7 +4505,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
 
       Maybe<JSAutoCompartment> ac;
       JSObject* global;
-      bool defineOnXray = xpc::WrapperFactory::IsXrayWrapper(obj);
+      bool defineOnXray = ObjectIsNativeWrapper(cx, obj);
       if (defineOnXray) {
         global = js::CheckedUnwrap(obj, /* stopAtOuter = */ false);
         if (!global) {
@@ -4906,24 +4939,37 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   nsIScriptContext *my_context = win->GetContextInternal();
 
-  // Don't resolve standard classes on XrayWrappers, only resolve them if we're
-  // resolving on the real global object.
-  if (!xpc::WrapperFactory::IsXrayWrapper(obj)) {
+  // Resolve standard classes on my_context's JSContext (or on cx,
+  // if we don't have a my_context yet), in case the two contexts
+  // have different origins.  We want lazy standard class
+  // initialization to behave as if it were done eagerly, on each
+  // window's own context (not on some other window-caller's
+  // context).
+  if (!ObjectIsNativeWrapper(cx, obj)) {
     JSBool did_resolve = JS_FALSE;
     JSBool ok = JS_TRUE;
     JS::Value exn = JSVAL_VOID;
 
     {
-      // Resolve standard classes on my_context's JSContext (or on cx,
-      // if we don't have a my_context yet), in case the two contexts
-      // have different origins.  We want lazy standard class
-      // initialization to behave as if it were done eagerly, on each
-      // window's own context (not on some other window-caller's
-      // context).
-      AutoPushJSContext my_cx(my_context ? my_context->GetNativeContext() : cx);
-      JSAutoRequest ar(my_cx);
-      JSAutoCompartment ac(my_cx, obj);
+      nsCxPusher pusher;
+      Maybe<JSAutoCompartment> ac;
 
+      JSContext* my_cx;
+      if (!my_context) {
+        my_cx = cx;
+      } else {
+        my_cx = my_context->GetNativeContext();
+
+        if (my_cx != cx) {
+          pusher.Push(my_cx);
+          ac.construct(my_cx, obj);
+        }
+      }
+
+      JSAutoRequest transfer(my_cx);
+
+      // Don't resolve standard classes on XPCNativeWrapper etc, only
+      // resolve them if we're resolving on the real global object.
       ok = JS_ResolveStandardClass(my_cx, obj, id, &did_resolve);
 
       if (!ok) {
@@ -6058,6 +6104,31 @@ nsNamedArraySH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   return nsArraySH::GetProperty(wrapper, cx, obj, id, vp, _retval);
 }
 
+
+// NamedNodeMap helper
+
+nsISupports*
+nsNamedNodeMapSH::GetItemAt(nsISupports *aNative, uint32_t aIndex,
+                            nsWrapperCache **aCache, nsresult *aResult)
+{
+  *aResult = NS_OK;
+  nsDOMAttributeMap* map = nsDOMAttributeMap::FromSupports(aNative);
+
+  nsINode *attr;
+  *aCache = attr = map->GetItemAt(aIndex);
+  return attr;
+}
+
+nsISupports*
+nsNamedNodeMapSH::GetNamedItem(nsISupports *aNative, const nsAString& aName,
+                               nsWrapperCache **aCache, nsresult *aResult)
+{
+  nsDOMAttributeMap* map = nsDOMAttributeMap::FromSupports(aNative);
+
+  nsINode *attr;
+  *aCache = attr = map->GetNamedItem(aName);
+  return attr;
+}
 
 NS_IMETHODIMP
 nsDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
@@ -7429,8 +7500,6 @@ nsDOMConstructorSH::Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, uint32_t argc, jsval *argv, jsval *vp,
                          bool *_retval)
 {
-  MOZ_ASSERT(obj);
-
   nsDOMConstructor *wrapped =
     static_cast<nsDOMConstructor *>(wrapper->Native());
 
@@ -7450,8 +7519,6 @@ nsDOMConstructorSH::Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                               JSObject *obj, uint32_t argc, jsval *argv,
                               jsval *vp, bool *_retval)
 {
-  MOZ_ASSERT(obj);
-
   nsDOMConstructor *wrapped =
     static_cast<nsDOMConstructor *>(wrapper->Native());
 

@@ -51,7 +51,8 @@ const STR = Services.strings.createBundle(DBG_STRINGS_URI);
  *        e.g. { lazyEmpty: true, searchEnabled: true ... }
  */
 this.VariablesView = function VariablesView(aParentNode, aFlags = {}) {
-  this._store = [];
+  this._store = new Map();
+  this._items = [];
   this._itemsByElement = new WeakMap();
   this._prevHierarchy = new Map();
   this._currHierarchy = new Map();
@@ -102,9 +103,10 @@ VariablesView.prototype = {
     this._toggleSearchVisibility(true);
 
     let scope = new Scope(this, aName);
-    this._store.push(scope);
-    this._itemsByElement.set(scope._target, scope);
+    this._store.set(scope.id, scope);
+    this._items.push(scope);
     this._currHierarchy.set(aName, scope);
+    this._itemsByElement.set(scope._target, scope);
     scope.header = !!aName;
     return scope;
   },
@@ -118,7 +120,7 @@ VariablesView.prototype = {
    */
   empty: function VV_empty(aTimeout = this.lazyEmptyDelay) {
     // If there are no items in this container, emptying is useless.
-    if (!this._store.length) {
+    if (!this._store.size) {
       return;
     }
     // Check if this empty operation may be executed lazily.
@@ -134,7 +136,8 @@ VariablesView.prototype = {
       list.removeChild(firstChild);
     }
 
-    this._store.length = 0;
+    this._store.clear();
+    this._items.length = 0;
     this._itemsByElement.clear();
 
     this._appendEmptyNotice();
@@ -160,7 +163,8 @@ VariablesView.prototype = {
     let prevList = this._list;
     let currList = this._list = this.document.createElement("scrollbox");
 
-    this._store.length = 0;
+    this._store.clear();
+    this._items.length = 0;
     this._itemsByElement.clear();
 
     this._emptyTimeout = this.window.setTimeout(function() {
@@ -174,7 +178,7 @@ VariablesView.prototype = {
       this._parent.appendChild(currList);
       this._boxObject = currList.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
 
-      if (!this._store.length) {
+      if (!this._store.size) {
         this._appendEmptyNotice();
         this._toggleSearchVisibility(false);
       }
@@ -301,7 +305,7 @@ VariablesView.prototype = {
   set enumVisible(aFlag) {
     this._enumVisible = aFlag;
 
-    for (let scope of this._store) {
+    for (let [, scope] of this._store) {
       scope._enumVisible = aFlag;
     }
   },
@@ -314,7 +318,7 @@ VariablesView.prototype = {
   set nonEnumVisible(aFlag) {
     this._nonEnumVisible = aFlag;
 
-    for (let scope of this._store) {
+    for (let [, scope] of this._store) {
       scope._nonEnumVisible = aFlag;
     }
   },
@@ -380,7 +384,7 @@ VariablesView.prototype = {
 
     // Hide the variables searchbox container if there are no variables or
     // properties to display.
-    container.hidden = !this._store.length;
+    container.hidden = !this._store.size;
 
     let searchbox = this._searchboxNode = document.createElement("textbox");
     searchbox.className = "variables-view-searchinput devtools-searchinput";
@@ -500,7 +504,7 @@ VariablesView.prototype = {
    *        The variable or property to search for.
    */
   _startSearch: function VV__startSearch(aQuery) {
-    for (let scope of this._store) {
+    for (let [, scope] of this._store) {
       switch (aQuery) {
         case "":
           scope.expand();
@@ -520,7 +524,7 @@ VariablesView.prototype = {
    * Expands the first search results in this container.
    */
   expandFirstSearchResults: function VV_expandFirstSearchResults() {
-    for (let scope of this._store) {
+    for (let [, scope] of this._store) {
       let match = scope._firstMatch;
       if (match) {
         match.expand();
@@ -540,7 +544,7 @@ VariablesView.prototype = {
    *         is found.
    */
   _findInVisibleItems: function VV__findInVisibleItems(aPredicate) {
-    for (let scope of this._store) {
+    for (let scope of this._items) {
       let result = scope._findInVisibleItems(aPredicate);
       if (result) {
         return result;
@@ -562,8 +566,8 @@ VariablesView.prototype = {
    *         is found.
    */
   _findInVisibleItemsReverse: function VV__findInVisibleItemsReverse(aPredicate) {
-    for (let i = this._store.length - 1; i >= 0; i--) {
-      let scope = this._store[i];
+    for (let i = this._items.length - 1; i >= 0; i--) {
+      let scope = this._items[i];
       let result = scope._findInVisibleItemsReverse(aPredicate);
       if (result) {
         return result;
@@ -897,6 +901,7 @@ VariablesView.prototype = {
   _window: null,
 
   _store: null,
+  _items: null,
   _prevHierarchy: null,
   _currHierarchy: null,
   _enumVisible: true,
@@ -1126,8 +1131,8 @@ Scope.prototype = {
 
     let variable = new Variable(this, aName, aDescriptor);
     this._store.set(aName, variable);
-    this._variablesView._itemsByElement.set(variable._target, variable);
     this._variablesView._currHierarchy.set(variable._absoluteName, variable);
+    this._variablesView._itemsByElement.set(variable._target, variable);
     variable.header = !!aName;
     return variable;
   },
@@ -1237,8 +1242,7 @@ Scope.prototype = {
     // even if they were already displayed before. In this case, show a throbber
     // to suggest that this scope is expanding.
     if (!this._isExpanding &&
-         this._variablesView.lazyAppend &&
-         this._store.size > LAZY_APPEND_BATCH) {
+         this._variablesView.lazyAppend && this._store.size > LAZY_APPEND_BATCH) {
       this._isExpanding = true;
 
       // Start spinning a throbber in this scope's title and allow a few
@@ -1929,8 +1933,6 @@ Scope.prototype = {
   separatorStr: "",
 
   _store: null,
-  _enumItems: null,
-  _nonEnumItems: null,
   _fetched: false,
   _retrieved: false,
   _committed: false,
@@ -1951,7 +1953,9 @@ Scope.prototype = {
   _name: null,
   _title: null,
   _enum: null,
+  _enumItems: null,
   _nonenum: null,
+  _nonEnumItems: null,
   _throbber: null
 };
 
@@ -2007,8 +2011,8 @@ ViewHelpers.create({ constructor: Variable, proto: Scope.prototype }, {
 
     let property = new Property(this, aName, aDescriptor);
     this._store.set(aName, property);
-    this._variablesView._itemsByElement.set(property._target, property);
     this._variablesView._currHierarchy.set(property._absoluteName, property);
+    this._variablesView._itemsByElement.set(property._target, property);
     property.header = !!aName;
     return property;
   },
