@@ -191,10 +191,8 @@ nsHTMLTableSectionElement::InsertRow(PRInt32 aIndex,
     rows->Item(aIndex, getter_AddRefs(refRow));
 
     rv = InsertBefore(rowNode, refRow, getter_AddRefs(retChild));
-    NS_ENSURE_SUCCESS(rv, rv);
   } else {
     rv = AppendChild(rowNode, getter_AddRefs(retChild));
-    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (retChild) {

@@ -559,7 +559,7 @@ nsXULRadioButtonAccessible::ContainerWidget() const
 
 nsXULRadioGroupAccessible::
   nsXULRadioGroupAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  XULSelectControlAccessible(aContent, aShell)
+  nsXULSelectableAccessible(aContent, aShell)
 { 
 }
 

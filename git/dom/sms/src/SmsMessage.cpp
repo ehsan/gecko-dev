@@ -57,13 +57,6 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF(SmsMessage)
 NS_IMPL_RELEASE(SmsMessage)
 
-SmsMessage::SmsMessage(PRInt32 aId, DeliveryState aDelivery,
-                       const nsString& aSender, const nsString& aReceiver,
-                       const nsString& aBody, PRUint64 aTimestamp)
-  : mData(aId, aDelivery, aSender, aReceiver, aBody, aTimestamp)
-{
-}
-
 SmsMessage::SmsMessage(const SmsMessageData& aData)
   : mData(aData)
 {
@@ -138,15 +131,14 @@ SmsMessage::GetDelivery(nsAString& aDelivery)
 {
   switch (mData.delivery()) {
     case eDeliveryState_Received:
-      aDelivery = DELIVERY_RECEIVED;
+      aDelivery.AssignLiteral("received");
       break;
     case eDeliveryState_Sent:
-      aDelivery = DELIVERY_SENT;
+      aDelivery.AssignLiteral("sent");
       break;
     case eDeliveryState_Unknown:
-    case eDeliveryState_EndGuard:
     default:
-      NS_ASSERTION(true, "We shouldn't get any other delivery state!");
+      NS_ASSERTION(true, "We shouldn't get an unknown delivery state!");
       return NS_ERROR_UNEXPECTED;
   }
 

@@ -590,7 +590,7 @@ class SSAValue
         return (Kind) (u.pushed.kind & 0x3);
     }
 
-    bool operator==(const SSAValue &o) const {
+    bool equals(const SSAValue &o) const {
         return !memcmp(this, &o, sizeof(SSAValue));
     }
 

@@ -88,6 +88,7 @@ abstract public class GeckoApp
     private IntentFilter mConnectivityFilter;
     private BroadcastReceiver mConnectivityReceiver;
     private BroadcastReceiver mBatteryReceiver;
+    private BroadcastReceiver mSmsReceiver;
 
     enum LaunchState {PreLaunch, Launching, WaitForDebugger,
                       Launched, GeckoRunning, GeckoExiting};
@@ -413,11 +414,10 @@ abstract public class GeckoApp
         mBatteryReceiver = new GeckoBatteryManager();
         registerReceiver(mBatteryReceiver, batteryFilter);
 
-        if (SmsManager.getInstance() != null) {
-            SmsManager.getInstance().init();
-        }
-
-        GeckoNetworkManager.getInstance().init();
+        IntentFilter smsFilter = new IntentFilter();
+        smsFilter.addAction("android.provider.Telephony.SMS_RECEIVED");
+        mSmsReceiver = new GeckoSmsManager();
+        registerReceiver(mSmsReceiver, smsFilter);
 
         if (!checkAndSetLaunchState(LaunchState.PreLaunch,
                                     LaunchState.Launching))
@@ -511,7 +511,6 @@ abstract public class GeckoApp
         super.onPause();
 
         unregisterReceiver(mConnectivityReceiver);
-        GeckoNetworkManager.getInstance().stop();
     }
 
     @Override
@@ -530,7 +529,6 @@ abstract public class GeckoApp
             onNewIntent(getIntent());
 
         registerReceiver(mConnectivityReceiver, mConnectivityFilter);
-        GeckoNetworkManager.getInstance().start();
     }
 
     @Override
@@ -579,14 +577,9 @@ abstract public class GeckoApp
         if (isFinishing())
             GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_SHUTDOWN));
 
-        if (SmsManager.getInstance() != null) {
-            SmsManager.getInstance().shutdown();
-        }
-
-        GeckoNetworkManager.getInstance().stop();
-
         super.onDestroy();
 
+        unregisterReceiver(mSmsReceiver);
         unregisterReceiver(mBatteryReceiver);
     }
 

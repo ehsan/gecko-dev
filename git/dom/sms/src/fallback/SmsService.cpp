@@ -62,8 +62,7 @@ SmsService::GetNumberOfMessagesForText(const nsAString& aText, PRUint16* aResult
 }
 
 NS_IMETHODIMP
-SmsService::Send(const nsAString& aNumber, const nsAString& aMessage,
-                 PRInt32 aRequestId, PRUint64 aProcessId)
+SmsService::Send(const nsAString& aNumber, const nsAString& aMessage)
 {
   NS_ERROR("We should not be here!");
   return NS_OK;

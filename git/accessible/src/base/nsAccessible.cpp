@@ -1006,7 +1006,7 @@ NS_IMETHODIMP nsAccessible::SetSelected(bool aSelect)
     return NS_ERROR_FAILURE;
 
   if (State() & states::SELECTABLE) {
-    nsAccessible* multiSelect =
+    nsCOMPtr<nsIAccessible> multiSelect =
       nsAccUtils::GetMultiSelectableContainer(mContent);
     if (!multiSelect) {
       return aSelect ? TakeFocus() : NS_ERROR_FAILURE;
@@ -1034,11 +1034,12 @@ NS_IMETHODIMP nsAccessible::TakeSelection()
     return NS_ERROR_FAILURE;
 
   if (State() & states::SELECTABLE) {
-    nsAccessible* multiSelect =
+    nsCOMPtr<nsIAccessible> multiSelect =
       nsAccUtils::GetMultiSelectableContainer(mContent);
-    if (multiSelect)
-      multiSelect->ClearSelection();
-
+    if (multiSelect) {
+      nsCOMPtr<nsIAccessibleSelectable> selectable = do_QueryInterface(multiSelect);
+      selectable->ClearSelection();
+    }
     return SetSelected(true);
   }
 

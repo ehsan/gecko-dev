@@ -69,8 +69,6 @@ jfieldID AndroidGeckoEvent::jRangeForeColorField = 0;
 jfieldID AndroidGeckoEvent::jRangeBackColorField = 0;
 jfieldID AndroidGeckoEvent::jLocationField = 0;
 jfieldID AndroidGeckoEvent::jAddressField = 0;
-jfieldID AndroidGeckoEvent::jBandwidthField = 0;
-jfieldID AndroidGeckoEvent::jCanBeMeteredField = 0;
 
 jclass AndroidPoint::jPointClass = 0;
 jfieldID AndroidPoint::jXField = 0;
@@ -179,8 +177,6 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
     jRangeBackColorField = getField("mRangeBackColor", "I");
     jLocationField = getField("mLocation", "Landroid/location/Location;");
     jAddressField = getField("mAddress", "Landroid/location/Address;");
-    jBandwidthField = getField("mBandwidth", "D");
-    jCanBeMeteredField = getField("mCanBeMetered", "Z");
 }
 
 void
@@ -492,12 +488,6 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
         case BROADCAST: {
             ReadCharactersField(jenv);
             ReadCharactersExtraField(jenv);
-            break;
-        }
-
-        case NETWORK_CHANGED: {
-            mBandwidth = jenv->GetDoubleField(jobj, jBandwidthField);
-            mCanBeMetered = jenv->GetBooleanField(jobj, jCanBeMeteredField);
             break;
         }
 

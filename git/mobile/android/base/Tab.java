@@ -38,28 +38,31 @@
 package org.mozilla.gecko;
 
 import android.content.ContentResolver;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.Bitmap;
 import android.os.AsyncTask;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.graphics.Bitmap;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.db.BrowserDB;
 
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public final class Tab {
+import org.mozilla.gecko.db.BrowserDB;
+
+public class Tab {
     private static final String LOGTAG = "GeckoTab";
     private static final int kThumbnailWidth = 120;
     private static final int kThumbnailHeight = 80;
 
-    private static int sMinDim = 0;
-    private static float sDensity = 1;
+    static int sMinDim = 0;
+    static float sDensity = 1;
     private int mId;
     private String mUrl;
     private String mTitle;
@@ -79,8 +82,8 @@ public final class Tab {
     private String mDocumentURI;
     private String mContentType;
 
-    public static final class HistoryEntry {
-        public String mUri;         // must never be null
+    static class HistoryEntry {
+        public final String mUri;   // must never be null
         public String mTitle;       // must never be null
 
         public HistoryEntry(String uri, String title) {
@@ -145,7 +148,6 @@ public final class Tab {
     }
 
     public void updateThumbnail(final Bitmap b) {
-        final Tab tab = this;
         GeckoAppShell.getHandler().post(new Runnable() {
             public void run() {
                 if (sMinDim == 0) {
@@ -171,11 +173,6 @@ public final class Tab {
                 } else {
                     mThumbnail = null;
                 }
-                GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-                    public void run() {
-                        GeckoApp.mAppContext.onTabsChanged(tab);
-                    }
-                });
             }
         });
     }
@@ -205,7 +202,6 @@ public final class Tab {
             mUrl = url;
             Log.i(LOGTAG, "Updated url: " + url + " for tab with id: " + mId);
             updateBookmark();
-            updateHistoryEntry(mUrl, mTitle);
         }
     }
 
@@ -229,17 +225,13 @@ public final class Tab {
         mTitle = (title == null ? "" : title);
 
         Log.i(LOGTAG, "Updated title: " + mTitle + " for tab with id: " + mId);
-        updateHistoryEntry(mUrl, mTitle);
-    }
 
-    private void updateHistoryEntry(final String uri, final String title) {
         final HistoryEntry he = getLastHistoryEntry();
         if (he != null) {
-            he.mUri = uri;
-            he.mTitle = title;
+            he.mTitle = mTitle;
             GeckoAppShell.getHandler().post(new Runnable() {
                 public void run() {
-                    GlobalHistory.getInstance().update(uri, title);
+                    GlobalHistory.getInstance().update(he.mUri, he.mTitle);
                 }
             });
         } else {
@@ -341,7 +333,7 @@ public final class Tab {
 
     public void addDoorHanger(String value, DoorHanger dh) {
         mDoorHangers.put(value, dh);
-    }
+    } 
 
     public void removeDoorHanger(String value) {
         mDoorHangers.remove(value);
@@ -356,7 +348,7 @@ public final class Tab {
             DoorHanger dh = mDoorHangers.get(value);
             if (dh.shouldRemove())
                 mDoorHangers.remove(value);
-        }
+        }   
     }
 
     public DoorHanger getDoorHanger(String value) {
@@ -367,7 +359,7 @@ public final class Tab {
             return mDoorHangers.get(value);
 
         return null;
-    }
+    } 
 
     public HashMap<String, DoorHanger> getDoorHangers() {
         return mDoorHangers;
@@ -412,7 +404,7 @@ public final class Tab {
         }
     }
 
-    private final class CheckBookmarkTask extends AsyncTask<Void, Void, Boolean> {
+    private class CheckBookmarkTask extends AsyncTask<Void, Void, Boolean> {
         private final String mUrl;
 
         public CheckBookmarkTask(String url) {
@@ -447,7 +439,7 @@ public final class Tab {
         }
     }
 
-    private final class AddBookmarkTask extends GeckoAsyncTask<Void, Void, Void> {
+    private class AddBookmarkTask extends GeckoAsyncTask<Void, Void, Void> {
         @Override
         protected Void doInBackground(Void... unused) {
             ContentResolver resolver = Tabs.getInstance().getContentResolver();
@@ -470,7 +462,7 @@ public final class Tab {
         }
     }
 
-    private final class RemoveBookmarkTask extends GeckoAsyncTask<Void, Void, Void> {
+    private class RemoveBookmarkTask extends GeckoAsyncTask<Void, Void, Void> {
         @Override
         protected Void doInBackground(Void... unused) {
             ContentResolver resolver = Tabs.getInstance().getContentResolver();

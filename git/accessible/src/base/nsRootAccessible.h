@@ -41,6 +41,7 @@
 #include "nsCaretAccessible.h"
 #include "nsDocAccessibleWrap.h"
 
+#include "nsIAccessibleDocument.h"
 #ifdef MOZ_XUL
 #include "nsXULTreeAccessible.h"
 #endif

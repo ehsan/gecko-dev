@@ -106,12 +106,10 @@ GfxInfo::GetData()
     int glxtest_status = 0;
     bool wait_for_glxtest_process = true;
     bool waiting_for_glxtest_process_failed = false;
-    int waitpid_errno = 0;
     while(wait_for_glxtest_process) {
         wait_for_glxtest_process = false;
         if (waitpid(glxtest_pid, &glxtest_status, 0) == -1) {
-            waitpid_errno = errno;
-            if (waitpid_errno == EINTR)
+            if (errno == EINTR)
                 wait_for_glxtest_process = true;
             else
                 waiting_for_glxtest_process_failed = true;
@@ -169,7 +167,7 @@ GfxInfo::GetData()
     {
         mAdapterDescription.AppendLiteral("GLXtest process failed");
         if (waiting_for_glxtest_process_failed)
-            mAdapterDescription.AppendPrintf(" (waitpid failed with errno=%d for pid %d)", waitpid_errno, glxtest_pid);
+            mAdapterDescription.AppendLiteral(" (waitpid failed)");
         if (exited_with_error_code)
             mAdapterDescription.AppendPrintf(" (exited with status %d)", WEXITSTATUS(glxtest_status));
         if (received_signal)

@@ -1530,12 +1530,10 @@ FrameState::merge(Assembler &masm, Changes changes) const
      * do not require stub paths to always generate a double when needed.
      * :FIXME: we check this on OOL stub calls, but not inline stub calls.
      */
-    if (cx->typeInferenceEnabled()) {
-        for (unsigned i = 0; i < changes.nchanges; i++) {
-            FrameEntry *fe = a->sp - 1 - i;
-            if (fe->isTracked() && fe->isType(JSVAL_TYPE_DOUBLE))
-                masm.ensureInMemoryDouble(addressOf(fe));
-        }
+    for (unsigned i = 0; i < changes.nchanges; i++) {
+        FrameEntry *fe = a->sp - 1 - i;
+        if (fe->isTracked() && fe->isType(JSVAL_TYPE_DOUBLE))
+            masm.ensureInMemoryDouble(addressOf(fe));
     }
 
     uint32_t mask = Registers::AvailAnyRegs & ~freeRegs.freeMask;

@@ -95,7 +95,6 @@ public class TabsTray extends Activity implements GeckoApp.OnTabsChangedListener
             }
         });
 
-        Tabs.getInstance().refreshThumbnails();
         GeckoApp.registerOnTabsChangedListener(this);
         onTabsChanged(null);
     }

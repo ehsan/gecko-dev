@@ -150,8 +150,7 @@ public:
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
-  PRUint32 GetANPDrawingModel() { return mANPDrawingModel; }
-  void SetANPDrawingModel(PRUint32 aModel);
+  void SetDrawingModel(PRUint32 aModel);
   void* GetJavaSurface();
   void SetJavaSurface(void* aSurface);
   void RequestJavaSurface();
@@ -230,7 +229,7 @@ protected:
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
-  PRUint32 mANPDrawingModel;
+  PRUint32 mDrawingModel;
   nsCOMPtr<nsIRunnable> mSurfaceGetter;
 #endif
 

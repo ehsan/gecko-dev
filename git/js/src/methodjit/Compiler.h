@@ -638,7 +638,6 @@ private:
     bool jsop_tableswitch(jsbytecode *pc);
 
     /* Fast arithmetic. */
-    bool jsop_binary_slow(JSOp op, VoidStub stub, JSValueType type, FrameEntry *lhs, FrameEntry *rhs);
     bool jsop_binary(JSOp op, VoidStub stub, JSValueType type, types::TypeSet *typeSet);
     void jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op, VoidStub stub,
                           JSValueType type, bool cannotOverflow, bool ignoreOverflow);

@@ -35,19 +35,29 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "Utils.h"
-#include "mozilla/Preferences.h"
+#include "SmsServiceFactory.h"
+#include "nsXULAppAPI.h"
+#include "SmsService.h"
+#include "SmsIPCService.h"
 
 namespace mozilla {
 namespace dom {
-namespace network {
+namespace sms {
 
-/* extern */ bool
-IsAPIEnabled()
+/* static */ already_AddRefed<nsISmsService>
+SmsServiceFactory::Create()
 {
-  return Preferences::GetBool("dom.network.enabled", true);
+  nsCOMPtr<nsISmsService> smsService;
+
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    smsService = new SmsIPCService();
+  } else {
+    smsService = new SmsService();
+  }
+
+  return smsService.forget();
 }
 
-} // namespace network
+} // namespace sms
 } // namespace dom
 } // namespace mozilla

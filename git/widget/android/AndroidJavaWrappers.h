@@ -455,8 +455,6 @@ public:
     int RangeBackColor() { return mRangeBackColor; }
     nsGeoPosition* GeoPosition() { return mGeoPosition; }
     nsGeoPositionAddress* GeoAddress() { return mGeoAddress; }
-    double Bandwidth() { return mBandwidth; }
-    bool CanBeMetered() { return mCanBeMetered; }
 
 protected:
     int mAction;
@@ -475,8 +473,6 @@ protected:
     nsString mCharacters, mCharactersExtra;
     nsRefPtr<nsGeoPosition> mGeoPosition;
     nsRefPtr<nsGeoPositionAddress> mGeoAddress;
-    double mBandwidth;
-    bool mCanBeMetered;
 
     void ReadP0Field(JNIEnv *jenv);
     void ReadP1Field(JNIEnv *jenv);
@@ -514,9 +510,6 @@ protected:
     static jfieldID jLocationField;
     static jfieldID jAddressField;
 
-    static jfieldID jBandwidthField;
-    static jfieldID jCanBeMeteredField;
-
 public:
     enum {
         NATIVE_POKE = 0,
@@ -541,7 +534,6 @@ public:
         VIEWPORT = 20,
         TILE_SIZE = 21,
         VISITED = 22,
-        NETWORK_CHANGED = 23,
         dummy_java_enum_list_end
     };
 

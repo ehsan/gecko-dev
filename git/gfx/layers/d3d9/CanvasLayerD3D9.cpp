@@ -90,17 +90,14 @@ CanvasLayerD3D9::Initialize(const Data& aData)
 void
 CanvasLayerD3D9::UpdateSurface()
 {
-  if (!mDirty && mTexture)
+  if (!mDirty)
     return;
   mDirty = false;
 
   if (!mTexture) {
     CreateTexture();
-
-    if (!mTexture) {
-      NS_WARNING("CanvasLayerD3D9::Updated called but no texture present and creation failed!");
-      return;
-    }
+    NS_WARNING("CanvasLayerD3D9::Updated called but no texture present!");
+    return;
   }
 
   if (mGLContext) {

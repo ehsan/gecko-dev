@@ -60,20 +60,12 @@
 // #define DEBUG_ANDROID_WIDGET
 
 class nsWindow;
-class nsIDOMMozSmsMessage;
 
 namespace mozilla {
 
 namespace hal {
 class BatteryInformation;
-class NetworkInformation;
 } // namespace hal
-
-namespace dom {
-namespace sms {
-struct SmsFilterData;
-} // namespace sms
-} // namespace dom
 
 // The order and number of the members in this structure must correspond
 // to the attrsAppearance array in GeckoAppShell.getSystemColors()
@@ -342,19 +334,9 @@ public:
     void GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo);
 
     PRUint16 GetNumberOfMessagesForText(const nsAString& aText);
-    void SendMessage(const nsAString& aNumber, const nsAString& aText, PRInt32 aRequestId, PRUint64 aProcessId);
-    PRInt32 SaveSentMessage(const nsAString& aRecipient, const nsAString& aBody, PRUint64 aDate);
-    void GetMessage(PRInt32 aMessageId, PRInt32 aRequestId, PRUint64 aProcessId);
-    void DeleteMessage(PRInt32 aMessageId, PRInt32 aRequestId, PRUint64 aProcessId);
-    void CreateMessageList(const dom::sms::SmsFilterData& aFilter, bool aReverse, PRInt32 aRequestId, PRUint64 aProcessId);
-    void GetNextMessageInList(PRInt32 aListId, PRInt32 aRequestId, PRUint64 aProcessId);
-    void ClearMessageList(PRInt32 aListId);
+    void SendMessage(const nsAString& aNumber, const nsAString& aText);
 
     bool IsTablet();
-
-    void GetCurrentNetworkInformation(hal::NetworkInformation* aNetworkInfo);
-    void EnableNetworkNotifications();
-    void DisableNetworkNotifications();
 
 protected:
     static AndroidBridge *sBridge;
@@ -443,16 +425,6 @@ protected:
 
     jmethodID jNumberOfMessages;
     jmethodID jSendMessage;
-    jmethodID jSaveSentMessage;
-    jmethodID jGetMessage;
-    jmethodID jDeleteMessage;
-    jmethodID jCreateMessageList;
-    jmethodID jGetNextMessageinList;
-    jmethodID jClearMessageList;
-
-    jmethodID jGetCurrentNetworkInformation;
-    jmethodID jEnableNetworkNotifications;
-    jmethodID jDisableNetworkNotifications;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

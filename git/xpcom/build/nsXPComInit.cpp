@@ -117,6 +117,8 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 
 #include "nsIOUtil.h"
 
+#include "nsRecyclingAllocator.h"
+
 #include "SpecialSystemDirectory.h"
 
 #if defined(XP_WIN)
@@ -205,6 +207,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsVersionComparatorImpl)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptableBase64Encoder)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVariant)
+
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsRecyclingAllocatorImpl)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHashPropertyBag, Init)
 

@@ -36,7 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Hal.h"
 #include "nsAppShell.h"
 #include "nsWindow.h"
 #include "nsThreadUtils.h"
@@ -454,12 +453,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 #ifdef MOZ_ANDROID_HISTORY
         nsAndroidHistory::NotifyURIVisited(nsString(curEvent->Characters()));
 #endif
-        break;
-    }
-
-    case AndroidGeckoEvent::NETWORK_CHANGED: {
-        hal::NotifyNetworkChange(hal::NetworkInformation(curEvent->Bandwidth(),
-                                                         curEvent->CanBeMetered()));
         break;
     }
 

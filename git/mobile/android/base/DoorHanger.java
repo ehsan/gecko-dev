@@ -38,6 +38,8 @@
 
 package org.mozilla.gecko;
 
+import java.util.Date;
+
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -154,7 +156,7 @@ public class DoorHanger extends LinearLayout implements Button.OnClickListener {
             return false;
         }
 
-        if (System.currentTimeMillis() <= mTimeout) {
+        if (new Date().getTime() <= mTimeout) {
             return false;
         }
 

@@ -88,13 +88,13 @@ StackFrame::initExecuteFrame(JSScript *script, StackFrame *prev, FrameRegs *regs
     if (isFunctionFrame()) {
         dstvp[0] = prev->calleev();
         exec = prev->exec;
-        u.evalScript = script;
+        args.script = script;
     } else {
         JS_ASSERT(isGlobalFrame());
         dstvp[0] = NullValue();
         exec.script = script;
 #ifdef DEBUG
-        u.evalScript = (JSScript *)0xbad;
+        args.script = (JSScript *)0xbad;
 #endif
     }
 
@@ -234,7 +234,26 @@ StackSegment::contains(const CallArgsList *call) const
 
     /* NB: this depends on the continuity of segments in memory. */
     Value *vp = call->array();
-    return vp > slotsBegin() && vp <= calls_->array();
+    bool ret = vp > slotsBegin() && vp <= calls_->array();
+
+    /*
+     * :XXX: Disabled. Including this check changes the asymptotic complexity
+     * of code which calls this function.
+     */
+#if 0
+#ifdef DEBUG
+    bool found = false;
+    for (CallArgsList *c = maybeCalls(); c->argv() > slotsBegin(); c = c->prev()) {
+        if (c == call) {
+            found = true;
+            break;
+        }
+    }
+    JS_ASSERT(found == ret);
+#endif
+#endif
+
+    return ret;
 }
 
 StackFrame *

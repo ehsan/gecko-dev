@@ -42,7 +42,6 @@
 // NOTE: alphabetically ordered
 #include "nsBaseWidgetAccessible.h"
 #include "nsXULMenuAccessible.h"
-#include "XULSelectControlAccessible.h"
 
 /**
  * An individual tab, xul:tab element.
@@ -73,7 +72,7 @@ public:
 /**
  * A container of tab objects, xul:tabs element.
  */
-class nsXULTabsAccessible : public XULSelectControlAccessible
+class nsXULTabsAccessible : public nsXULSelectableAccessible
 {
 public:
   nsXULTabsAccessible(nsIContent *aContent, nsIWeakReference *aShell);

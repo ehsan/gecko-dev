@@ -157,7 +157,7 @@ StackFrame::initCallFrame(JSContext *cx, JSFunction &callee,
     /* Initialize stack frame members. */
     flags_ = FUNCTION | HAS_PREVPC | HAS_SCOPECHAIN | HAS_BLOCKCHAIN | flagsArg;
     exec.fun = &callee;
-    u.nactual = nactual;
+    args.nactual = nactual;
     scopeChain_ = callee.environment();
     ncode_ = NULL;
     initPrev(cx);
@@ -223,7 +223,7 @@ inline void
 StackFrame::initJitFrameEarlyPrologue(JSFunction *fun, uint32_t nactual)
 {
     exec.fun = fun;
-    u.nactual = nactual;
+    args.nactual = nactual;
 }
 
 /*
@@ -326,16 +326,16 @@ inline uintN
 StackFrame::numActualArgs() const
 {
     /*
-     * u.nactual is always coherent, except for method JIT frames where the
+     * args.nactual is always coherent, except for method JIT frames where the
      * callee does not access its arguments and the number of actual arguments
      * matches the number of formal arguments. The JIT requires that all frames
      * which do not have an arguments object and use their arguments have a
-     * coherent u.nactual (even though the below code may not use it), as
+     * coherent args.nactual (even though the below code may not use it), as
      * JIT code may access the field directly.
      */
     JS_ASSERT(hasArgs());
     if (JS_UNLIKELY(flags_ & (OVERFLOW_ARGS | UNDERFLOW_ARGS)))
-        return u.nactual;
+        return hasArgsObj() ? argsObj().initialLength() : args.nactual;
     return numFormalArgs();
 }
 
@@ -344,8 +344,10 @@ StackFrame::actualArgs() const
 {
     JS_ASSERT(hasArgs());
     Value *argv = formalArgs();
-    if (JS_UNLIKELY(flags_ & OVERFLOW_ARGS))
-        return argv - (2 + u.nactual);
+    if (JS_UNLIKELY(flags_ & OVERFLOW_ARGS)) {
+        uintN nactual = hasArgsObj() ? argsObj().initialLength() : args.nactual;
+        return argv - (2 + nactual);
+    }
     return argv;
 }
 
@@ -361,9 +363,9 @@ StackFrame::actualArgsEnd() const
 inline void
 StackFrame::setArgsObj(ArgumentsObject &obj)
 {
-    JS_ASSERT_IF(hasArgsObj(), &obj == argsObj_);
+    JS_ASSERT_IF(hasArgsObj(), &obj == args.obj);
     JS_ASSERT_IF(!hasArgsObj(), numActualArgs() == obj.initialLength());
-    argsObj_ = &obj;
+    args.obj = &obj;
     flags_ |= HAS_ARGS_OBJ;
 }
 
@@ -462,8 +464,10 @@ inline void
 StackFrame::updateEpilogueFlags()
 {
     if (flags_ & (HAS_ARGS_OBJ | HAS_CALL_OBJ)) {
-        if (hasArgsObj() && !argsObj().maybeStackFrame())
+        if (hasArgsObj() && !argsObj().maybeStackFrame()) {
+            args.nactual = args.obj->initialLength();
             flags_ &= ~HAS_ARGS_OBJ;
+        }
         if (hasCallObj() && !callObj().maybeStackFrame()) {
             /*
              * For function frames, the call object may or may not have have an

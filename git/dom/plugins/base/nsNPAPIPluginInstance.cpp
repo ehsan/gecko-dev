@@ -89,7 +89,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
 #endif
 #ifdef MOZ_WIDGET_ANDROID
     mSurface(nsnull),
-    mANPDrawingModel(0),
+    mDrawingModel(0),
 #endif
     mRunning(NOT_STARTED),
     mWindowless(false),
@@ -731,11 +731,10 @@ void nsNPAPIPluginInstance::SetEventModel(NPEventModel aModel)
 #endif
 
 #if defined(MOZ_WIDGET_ANDROID)
-void nsNPAPIPluginInstance::SetANPDrawingModel(PRUint32 aModel)
+void nsNPAPIPluginInstance::SetDrawingModel(PRUint32 aModel)
 {
-  mANPDrawingModel = aModel;
+  mDrawingModel = aModel;
 }
-
 class SurfaceGetter : public nsRunnable {
 public:
   SurfaceGetter(nsNPAPIPluginInstance* aInstance, NPPluginFuncs* aPluginFunctions, NPP_t aNPP) : 
@@ -761,7 +760,7 @@ private:
 
 void* nsNPAPIPluginInstance::GetJavaSurface()
 {
-  if (mANPDrawingModel != kSurface_ANPDrawingModel)
+  if (mDrawingModel != kSurface_ANPDrawingModel)
     return nsnull;
   
   return mSurface;
@@ -786,7 +785,7 @@ void nsNPAPIPluginInstance::RequestJavaSurface()
 
 nsresult nsNPAPIPluginInstance::GetDrawingModel(PRInt32* aModel)
 {
-#if defined(XP_MACOSX)
+#if defined(XP_MACOSX) || defined(MOZ_WIDGET_ANDROID)
   *aModel = (PRInt32)mDrawingModel;
   return NS_OK;
 #else

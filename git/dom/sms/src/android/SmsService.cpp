@@ -67,15 +67,13 @@ SmsService::GetNumberOfMessagesForText(const nsAString& aText, PRUint16* aResult
 }
 
 NS_IMETHODIMP
-SmsService::Send(const nsAString& aNumber, const nsAString& aMessage,
-                 PRInt32 aRequestId, PRUint64 aProcessId)
+SmsService::Send(const nsAString& aNumber, const nsAString& aMessage)
 {
   if (!AndroidBridge::Bridge()) {
     return NS_OK;
   }
 
-  AndroidBridge::Bridge()->SendMessage(aNumber, aMessage, aRequestId,
-                                       aProcessId);
+  AndroidBridge::Bridge()->SendMessage(aNumber, aMessage);
   return NS_OK;
 }
 
