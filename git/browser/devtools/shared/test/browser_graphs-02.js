@@ -22,7 +22,7 @@ function* performTest() {
   testDataAndRegions(graph);
   testHighlights(graph);
 
-  yield graph.destroy();
+  graph.destroy();
   host.destroy();
 }
 

@@ -10,7 +10,6 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIPipe.h"
-#include "nsICloneableInputStream.h"
 #include "nsIEventTarget.h"
 #include "nsIRunnable.h"
 #include "nsISafeOutputStream.h"

@@ -8711,15 +8711,12 @@ nsIFrame::RemoveInPopupStateBitFromDescendants(nsIFrame* aFrame)
 void
 nsIFrame::SetParent(nsContainerFrame* aParent)
 {
-  // Note that the current mParent may already be destroyed at this point.
+  bool wasBoxWrapped = ::IsBoxWrapped(this);
   mParent = aParent;
-  if (::IsBoxWrapped(this)) {
+  if (!wasBoxWrapped && ::IsBoxWrapped(this)) {
     ::InitBoxMetrics(this, true);
-  } else {
-    // We could call Properties().Delete(BoxMetricsProperty()); here but
-    // that's kind of slow and re-parenting in such a way that we were
-    // IsBoxWrapped() before but not now should be very rare, so we'll just
-    // keep this unused frame property until this frame dies instead.
+  } else if (wasBoxWrapped && !::IsBoxWrapped(this)) {
+    Properties().Delete(BoxMetricsProperty());
   }
 
   if (GetStateBits() & (NS_FRAME_HAS_VIEW | NS_FRAME_HAS_CHILD_WITH_VIEW)) {

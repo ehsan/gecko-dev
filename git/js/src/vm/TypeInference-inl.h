@@ -605,7 +605,7 @@ TypeScript::MonitorAssign(JSContext *cx, HandleObject obj, jsid id)
          * specific properties.
          */
         uint32_t i;
-        if (IdIsIndex(id, &i))
+        if (js_IdIsIndex(id, &i))
             return;
 
         // But if we don't have too many properties yet, don't do anything.  The
@@ -997,6 +997,21 @@ TypeSet::getObjectClass(unsigned i) const
     if (ObjectGroup *group = getGroup(i))
         return group->clasp();
     return nullptr;
+}
+
+/////////////////////////////////////////////////////////////////////
+// TypeNewScript
+/////////////////////////////////////////////////////////////////////
+
+inline void
+TypeNewScript::writeBarrierPre(TypeNewScript *newScript)
+{
+    if (!newScript->function()->runtimeFromAnyThread()->needsIncrementalBarrier())
+        return;
+
+    JS::Zone *zone = newScript->function()->zoneFromAnyThread();
+    if (zone->needsIncrementalBarrier())
+        newScript->trace(zone->barrierTracer());
 }
 
 /////////////////////////////////////////////////////////////////////

@@ -252,11 +252,6 @@ let SidebarUI = {
         this._fireFocusedEvent();
         resolve();
       }
-
-      let selBrowser = gBrowser.selectedBrowser;
-      selBrowser.messageManager.sendAsyncMessage("Sidebar:VisibilityChange",
-        {commandID: commandID, isOpen: true}
-      );
     });
   },
 
@@ -288,12 +283,7 @@ let SidebarUI = {
     this._title.value = "";
     this._box.hidden = true;
     this._splitter.hidden = true;
-
-    let selBrowser = gBrowser.selectedBrowser;
-    selBrowser.focus();
-    selBrowser.messageManager.sendAsyncMessage("Sidebar:VisibilityChange",
-      {commandID: commandID, isOpen: false}
-    );
+    gBrowser.selectedBrowser.focus();
   },
 };
 

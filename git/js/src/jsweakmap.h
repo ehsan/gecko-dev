@@ -322,9 +322,9 @@ WeakMap_delete(JSContext *cx, unsigned argc, Value *vp);
 extern bool
 WeakMap_clear(JSContext *cx, unsigned argc, Value *vp);
 
-extern JSObject *
-InitWeakMapClass(JSContext *cx, HandleObject obj);
-
 } /* namespace js */
+
+extern JSObject *
+js_InitWeakMapClass(JSContext *cx, js::HandleObject obj);
 
 #endif /* jsweakmap_h */

@@ -42,3 +42,14 @@ add_task(function test_label_and_icon() {
   // Cleanup.
   gBrowser.removeTab(tab);
 });
+
+function promiseTabRestoring(tab) {
+  let deferred = Promise.defer();
+
+  tab.addEventListener("SSTabRestoring", function onRestoring() {
+    tab.removeEventListener("SSTabRestoring", onRestoring);
+    deferred.resolve();
+  });
+
+  return deferred.promise;
+}

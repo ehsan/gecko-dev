@@ -50,10 +50,6 @@ public:
                          nsIAtom *aAttrName,
                          const nsAString& aAttrValue);
 
-  static void SetAccAttr(nsIPersistentProperties *aAttributes,
-                         nsIAtom* aAttrName,
-                         nsIAtom* aAttrValue);
-
   /**
    * Set group attributes ('level', 'setsize', 'posinset').
    */

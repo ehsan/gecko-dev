@@ -8,7 +8,6 @@
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/SizePrintfMacros.h"
 #include "mozilla/UniquePtr.h"
 #include "jsprf.h"
 #include "gc/Marking.h"
@@ -312,7 +311,7 @@ JitcodeGlobalEntry::createScriptString(JSContext *cx, JSScript *script, size_t *
     size_t linenoLength = 0;
     char linenoStr[15];
     if (hasName || (script->functionNonDelazifying() || script->isForEval())) {
-        linenoLength = JS_snprintf(linenoStr, 15, "%" PRIuSIZE, script->lineno());
+        linenoLength = JS_snprintf(linenoStr, 15, "%u", (unsigned) script->lineno());
         hasLineno = true;
     }
 
@@ -1237,14 +1236,14 @@ JitcodeIonTable::WriteIonTable(CompactBufferWriter &writer,
     MOZ_ASSERT(writer.length() == 0);
     MOZ_ASSERT(scriptListSize > 0);
 
-    JitSpew(JitSpew_Profiling, "Writing native to bytecode map for %s:%" PRIuSIZE " (%" PRIuSIZE " entries)",
+    JitSpew(JitSpew_Profiling, "Writing native to bytecode map for %s:%d (%d entries)",
             scriptList[0]->filename(), scriptList[0]->lineno(),
-            mozilla::PointerRangeSize(start, end));
+            int(end - start));
 
     JitSpew(JitSpew_Profiling, "  ScriptList of size %d", int(scriptListSize));
     for (uint32_t i = 0; i < scriptListSize; i++) {
-        JitSpew(JitSpew_Profiling, "  Script %d - %s:%" PRIuSIZE,
-                int(i), scriptList[i]->filename(), scriptList[i]->lineno());
+        JitSpew(JitSpew_Profiling, "  Script %d - %s:%d",
+                int(i), scriptList[i]->filename(), int(scriptList[i]->lineno()));
     }
 
     // Write out runs first.  Keep a vector tracking the positive offsets from payload

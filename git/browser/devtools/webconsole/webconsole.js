@@ -3116,25 +3116,10 @@ JSTerm.prototype = {
   },
 
   /**
-   * Clear the console history altogether.  Note that this will not affect
-   * other consoles that are already opened (since they have their own copy),
-   * but it will reset the array for all newly-opened consoles.
-   * @returns Promise
-   *          Resolves once the changes have been persisted.
-   */
-  clearHistory: function() {
-    this.history = [];
-    this.historyIndex = this.historyPlaceHolder = 0;
-    return this.storeHistory();
-  },
-
-  /**
-   * Stores the console history for future console instances.
-   * @returns Promise
-   *          Resolves once the changes have been persisted.
+   * Stores the console history for future sessions.
    */
   storeHistory: function() {
-    return asyncStorage.setItem("webConsoleHistory", this.history);
+    asyncStorage.setItem("webConsoleHistory", this.history);
   },
 
   /**
@@ -3326,9 +3311,6 @@ JSTerm.prototype = {
       switch (helperResult.type) {
         case "clearOutput":
           this.clearOutput();
-          break;
-        case "clearHistory":
-          this.clearHistory();
           break;
         case "inspectObject":
           if (aAfterMessage) {

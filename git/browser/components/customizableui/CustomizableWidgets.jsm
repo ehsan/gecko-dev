@@ -756,10 +756,9 @@ const CustomizableWidgets = [
     }
   }, {
     id: "characterencoding-button",
-    label: "characterencoding-button2.label",
     type: "view",
     viewId: "PanelUI-characterEncodingView",
-    tooltiptext: "characterencoding-button2.tooltiptext",
+    tooltiptext: "characterencoding-button.tooltiptext2",
     defaultArea: CustomizableUI.AREA_PANEL,
     maybeDisableMenu: function(aDocument) {
       let window = aDocument.defaultView;

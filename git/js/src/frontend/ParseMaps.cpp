@@ -62,7 +62,7 @@ DefinitionList::allocNode(ExclusiveContext *cx, LifoAlloc &alloc, uintptr_t head
 {
     Node *result = alloc.new_<Node>(head, tail);
     if (!result)
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
     return result;
 }
 

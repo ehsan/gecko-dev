@@ -348,7 +348,6 @@ class ICEntry
                                 \
     _(NewArray_Fallback)        \
     _(NewObject_Fallback)       \
-    _(NewObject_WithTemplate)   \
                                 \
     _(Compare_Fallback)         \
     _(Compare_Int32)            \
@@ -1770,42 +1769,31 @@ class ICNewObject_Fallback : public ICFallbackStub
 {
     friend class ICStubSpace;
 
-    HeapPtrObject templateObject_;
+    HeapPtrPlainObject templateObject_;
 
-    explicit ICNewObject_Fallback(JitCode *stubCode)
-      : ICFallbackStub(ICStub::NewObject_Fallback, stubCode), templateObject_(nullptr)
+    ICNewObject_Fallback(JitCode *stubCode, PlainObject *templateObject)
+      : ICFallbackStub(ICStub::NewObject_Fallback, stubCode), templateObject_(templateObject)
     {}
 
   public:
     class Compiler : public ICStubCompiler {
+        RootedPlainObject templateObject;
         bool generateStubCode(MacroAssembler &masm);
 
       public:
-        explicit Compiler(JSContext *cx)
-          : ICStubCompiler(cx, ICStub::NewObject_Fallback)
+        Compiler(JSContext *cx, PlainObject *templateObject)
+          : ICStubCompiler(cx, ICStub::NewObject_Fallback),
+            templateObject(cx, templateObject)
         {}
 
         ICStub *getStub(ICStubSpace *space) {
-            return ICStub::New<ICNewObject_Fallback>(space, getStubCode());
+            return ICStub::New<ICNewObject_Fallback>(space, getStubCode(), templateObject);
         }
     };
 
-    HeapPtrObject &templateObject() {
+    HeapPtrPlainObject &templateObject() {
         return templateObject_;
     }
-
-    void setTemplateObject(JSObject *obj) {
-        templateObject_ = obj;
-    }
-};
-
-class ICNewObject_WithTemplate : public ICStub
-{
-    friend class ICStubSpace;
-
-    explicit ICNewObject_WithTemplate(JitCode *stubCode)
-      : ICStub(ICStub::NewObject_WithTemplate, stubCode)
-    {}
 };
 
 // Compare

@@ -260,13 +260,13 @@ JS_DefineFunctionsWithHelp(JSContext *cx, HandleObject obj, const JSFunctionSpec
 }
 
 JS_FRIEND_API(bool)
-js::ObjectClassIs(JSContext *cx, HandleObject obj, ESClassValue classValue)
+js_ObjectClassIs(JSContext *cx, HandleObject obj, ESClassValue classValue)
 {
     return ObjectClassIs(obj, classValue, cx);
 }
 
 JS_FRIEND_API(const char *)
-js::ObjectClassName(JSContext *cx, HandleObject obj)
+js_ObjectClassName(JSContext *cx, HandleObject obj)
 {
     return GetObjectClassName(cx, obj);
 }
@@ -622,10 +622,10 @@ JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallba
 }
 
 JS_FRIEND_API(JSObject *)
-JS_CloneObject(JSContext *cx, HandleObject obj, HandleObject protoArg)
+JS_CloneObject(JSContext *cx, HandleObject obj, HandleObject protoArg, HandleObject parent)
 {
     Rooted<TaggedProto> proto(cx, TaggedProto(protoArg.get()));
-    return CloneObject(cx, obj, proto);
+    return CloneObject(cx, obj, proto, parent);
 }
 
 #ifdef DEBUG
@@ -1184,12 +1184,12 @@ js::GetObjectMetadata(JSObject *obj)
 }
 
 JS_FRIEND_API(bool)
-js::DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
-                      JS::Handle<js::PropertyDescriptor> descriptor, bool *bp)
+js_DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
+                     JS::Handle<js::PropertyDescriptor> descriptor, bool *bp)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
-    AssertHeapIsIdle(cx);
+    js::AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id, descriptor.value());
     if (descriptor.hasGetterObject())
@@ -1201,9 +1201,9 @@ js::DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
 }
 
 JS_FRIEND_API(bool)
-js::ReportIsNotFunction(JSContext *cx, HandleValue v)
+js_ReportIsNotFunction(JSContext *cx, JS::HandleValue v)
 {
-    return ReportIsNotFunction(cx, v, -1);
+    return ReportIsNotFunction(cx, v);
 }
 
 JS_FRIEND_API(void)

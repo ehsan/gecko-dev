@@ -738,7 +738,8 @@ typedef bool
  * guaranteed not to wrap a function.
  */
 typedef JSObject *
-(* JSWrapObjectCallback)(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj);
+(* JSWrapObjectCallback)(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj,
+                         JS::HandleObject parent);
 
 /*
  * Callback used by the wrap hook to ask the embedding to prepare an object
@@ -2244,6 +2245,9 @@ JS_SetPrototype(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto);
 extern JS_PUBLIC_API(JSObject *)
 JS_GetParent(JSObject *obj);
 
+extern JS_PUBLIC_API(bool)
+JS_SetParent(JSContext *cx, JS::HandleObject obj, JS::HandleObject parent);
+
 extern JS_PUBLIC_API(JSObject *)
 JS_GetConstructor(JSContext *cx, JS::Handle<JSObject*> proto);
 
@@ -3635,7 +3639,7 @@ JS_DecompileFunctionBody(JSContext *cx, JS::Handle<JSFunction*> fun, unsigned in
  * names) of the execution context for script.
  *
  * Using obj as the variables object is problematic if obj's parent (which is
- * the scope chain link) is not null, which in practice is always true: in
+ * the scope chain link; see JS_SetParent and JS_NewObject) is not null: in
  * this case, variables created by 'var x = 0', e.g., go in obj, but variables
  * created by assignment to an unbound id, 'x = 0', go in the last object on
  * the scope chain linked by parent.

@@ -143,7 +143,7 @@ void
 MacroAssemblerX64::finish()
 {
     if (!doubles_.empty())
-        masm.haltingAlign(sizeof(double));
+        masm.align(sizeof(double));
     for (size_t i = 0; i < doubles_.length(); i++) {
         Double &dbl = doubles_[i];
         bind(&dbl.uses);
@@ -151,7 +151,7 @@ MacroAssemblerX64::finish()
     }
 
     if (!floats_.empty())
-        masm.haltingAlign(sizeof(float));
+        masm.align(sizeof(float));
     for (size_t i = 0; i < floats_.length(); i++) {
         Float &flt = floats_[i];
         bind(&flt.uses);
@@ -160,7 +160,7 @@ MacroAssemblerX64::finish()
 
     // SIMD memory values must be suitably aligned.
     if (!simds_.empty())
-        masm.haltingAlign(SimdMemoryAlignment);
+        masm.align(SimdMemoryAlignment);
     for (size_t i = 0; i < simds_.length(); i++) {
         SimdData &v = simds_[i];
         bind(&v.uses);

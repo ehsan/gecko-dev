@@ -63,8 +63,8 @@ const GMP_PLUGINS = [
     id:              "gmp-eme-adobe",
     name:            "eme-adobe_name",
     description:     "eme-adobe_description",
-    licenseURL:      "http://help.adobe.com/en_US/primetime/drm/HTML5_CDM_EULA/index.html",
-    homepageURL:     "http://help.adobe.com/en_US/primetime/drm/index.html",
+    licenseURL:      null,
+    homepageURL:     "https://www.adobe.com/",
     optionsURL:      "chrome://mozapps/content/extensions/gmpPrefs.xul",
     isEME:           true
   }];

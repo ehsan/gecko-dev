@@ -116,13 +116,7 @@
 
 'use strict';
 
-const { classes: Cc, interfaces: Ci, manager: Cm, results: Cr,
-        utils: Cu } = Components;
-
-Cu.import("resource://gre/modules/AddonManager.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-
-const IS_MACOSX = ("nsILocalFileMac" in Ci);
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
 // The tests have to use the pageid instead of the pageIndex due to the
 // app update wizard's access method being random.
@@ -208,8 +202,7 @@ var gDisableNoUpdateAddon = false;
 // onload function.
 var DEBUG_AUS_TEST = true;
 
-const DATA_URI_SPEC = "chrome://mochitests/content/chrome/toolkit/mozapps/update/tests/data/";
-Services.scriptloader.loadSubScript(DATA_URI_SPEC + "shared.js", this);
+#include ../shared.js
 
 /**
  * The current test in TESTS array.
@@ -276,7 +269,7 @@ this.__defineGetter__("gIncompatibleListbox", function() {
 function runTestDefault() {
   debugDump("entering");
 
-  if (!("@mozilla.org/zipwriter;1" in Cc)) {
+  if (!("@mozilla.org/zipwriter;1" in AUS_Cc)) {
     ok(false, "nsIZipWriter is required to run these tests");
     return;
   }
@@ -309,7 +302,8 @@ function runTestDefaultWaitForWindowClosed() {
   // |closeUpdateWindow| will close it and cause the test to fail.
   if (closeUpdateWindow()) {
     SimpleTest.executeSoon(runTestDefaultWaitForWindowClosed);
-  } else {
+  }
+  else {
     Services.ww.registerNotification(gWindowObserver);
 
     gCloseWindowTimeoutCounter = 0;
@@ -394,7 +388,8 @@ function finishTestDefaultWaitForWindowClosed() {
   // |closeUpdateWindow| will close it and cause the test to fail.
   if (closeUpdateWindow()) {
     SimpleTest.executeSoon(finishTestDefaultWaitForWindowClosed);
-  } else {
+  }
+  else {
     SimpleTest.finish();
   }
 }
@@ -500,7 +495,8 @@ function delayedDefaultCallback() {
       throw("Tests cannot have a buttonClick and an extraDelayedFinishFunction property");
     }
     gDocElem.getButton(gTest.buttonClick).click();
-  } else if (gTest.extraDelayedFinishFunction) {
+  }
+  else if (gTest.extraDelayedFinishFunction) {
     debugDump("calling extraDelayedFinishFunction " +
               gTest.extraDelayedFinishFunction.name);
     gTest.extraDelayedFinishFunction();
@@ -514,9 +510,9 @@ function delayedDefaultCallback() {
  * @return nsILocalFile for the continue file.
  */
 function getContinueFile() {
-  let continueFile = Cc["@mozilla.org/file/directory_service;1"].
-                     getService(Ci.nsIProperties).
-                     get("CurWorkD", Ci.nsILocalFile);
+  let continueFile = AUS_Cc["@mozilla.org/file/directory_service;1"].
+                     getService(AUS_Ci.nsIProperties).
+                     get("CurWorkD", AUS_Ci.nsILocalFile);
   let continuePath = REL_PATH_DATA + "/continue";
   let continuePathParts = continuePath.split("/");
   for (let i = 0; i < continuePathParts.length; ++i) {
@@ -950,13 +946,12 @@ function resetFiles() {
   // Not being able to remove the "updated" directory will not adversely affect
   // subsequent tests so wrap it in a try block and don't test whether its
   // removal was successful.
-  let updatedDir;
-  if (IS_MACOSX) {
-    updatedDir = getUpdatesDir();
-    updatedDir.append(DIR_PATCH);
-  } else {
-    updatedDir = getAppBaseDir();
-  }
+#ifdef XP_MACOSX
+  let updatedDir = getUpdatesDir();
+  updatedDir.append(DIR_PATCH);
+#else
+  let updatedDir = getAppBaseDir();
+#endif
   updatedDir.append(DIR_UPDATED);
   if (updatedDir.exists()) {
     try {
@@ -975,7 +970,8 @@ function resetFiles() {
 function resetPrefs() {
   if (gAppUpdateURL !== undefined) {
     Services.prefs.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE, gAppUpdateURL);
-  } else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
+  }
+  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_URL_OVERRIDE);
   }
 
@@ -985,31 +981,36 @@ function resetPrefs() {
 
   if (gAppUpdateEnabled !== undefined) {
     Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, gAppUpdateEnabled);
-  } else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
+  }
+  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_ENABLED);
   }
 
   if (gAppUpdateMetroEnabled !== undefined) {
     Services.prefs.setBoolPref(PREF_APP_UPDATE_METRO_ENABLED, gAppUpdateMetroEnabled);
-  } else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_METRO_ENABLED)) {
+  }
+  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_METRO_ENABLED)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_METRO_ENABLED);
   }
 
   if (gAppUpdateServiceEnabled !== undefined) {
     Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, gAppUpdateServiceEnabled);
-  } else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_SERVICE_ENABLED)) {
+  }
+  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_SERVICE_ENABLED)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_SERVICE_ENABLED);
   }
 
   if (gAppUpdateStagingEnabled !== undefined) {
     Services.prefs.setBoolPref(PREF_APP_UPDATE_STAGING_ENABLED, gAppUpdateStagingEnabled);
-  } else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_STAGING_ENABLED)) {
+  }
+  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_STAGING_ENABLED)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_STAGING_ENABLED);
   }
 
   if (gExtUpdateURL !== undefined) {
     Services.prefs.setCharPref(PREF_EXTENSIONS_UPDATE_URL, gExtUpdateURL);
-  } else if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_UPDATE_URL)) {
+  }
+  else if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_UPDATE_URL)) {
     Services.prefs.clearUserPref(PREF_EXTENSIONS_UPDATE_URL);
   }
 
@@ -1099,10 +1100,10 @@ function setupTimer(aTestTimeout) {
     gTimeoutTimer.cancel();
     gTimeoutTimer = null;
   }
-  gTimeoutTimer = Cc["@mozilla.org/timer;1"].
-                  createInstance(Ci.nsITimer);
+  gTimeoutTimer = AUS_Cc["@mozilla.org/timer;1"].
+                  createInstance(AUS_Ci.nsITimer);
   gTimeoutTimer.initWithCallback(finishTestTimeout, gTestTimeout,
-                                 Ci.nsITimer.TYPE_ONE_SHOT);
+                                 AUS_Ci.nsITimer.TYPE_ONE_SHOT);
 }
 
 /**
@@ -1124,15 +1125,15 @@ function setupAddons(aCallback) {
   function setNoUpdateAddonsDisabledState() {
     AddonManager.getAllAddons(function(aAddons) {
       aAddons.forEach(function(aAddon) {
-        if (aAddon.name.indexOf("noupdate") != 0) {
+        if (aAddon.name.indexOf("noupdate") != 0)
           return;
-        }
 
         if (gDisableNoUpdateAddon) {
           if (!aAddon.userDisabled) {
             aAddon.userDisabled = true;
           }
-        } else {
+        }
+        else {
           if (aAddon.userDisabled) {
             aAddon.userDisabled = false;
           }
@@ -1291,7 +1292,7 @@ function getAddonTestType(aName) {
  */
 function getTestAddonXPIFiles() {
   let addonPrepDir = Services.dirsvc.get(NS_APP_USER_PROFILE_50_DIR,
-                                         Ci.nsILocalFile);
+                                         AUS_Ci.nsILocalFile);
   addonPrepDir.append(ADDON_PREP_DIR);
 
   let bootstrap = addonPrepDir.clone();
@@ -1313,16 +1314,15 @@ function getTestAddonXPIFiles() {
     let xpiFile = addonPrepDir.clone();
     xpiFile.append(aName + ".xpi");
 
-    if (installRDF.exists()) {
+    if (installRDF.exists())
       installRDF.remove(false);
-    }
     writeFile(installRDF, getInstallRDFString(aName));
     gZipW.open(xpiFile, PR_RDWR | PR_CREATE_FILE | PR_TRUNCATE);
     gZipW.addEntryFile(installRDF.leafName,
-                       Ci.nsIZipWriter.COMPRESSION_DEFAULT, installRDF,
+                       AUS_Ci.nsIZipWriter.COMPRESSION_DEFAULT, installRDF,
                        false);
     gZipW.addEntryFile(bootstrap.leafName,
-                       Ci.nsIZipWriter.COMPRESSION_DEFAULT, bootstrap,
+                       AUS_Ci.nsIZipWriter.COMPRESSION_DEFAULT, bootstrap,
                        false);
     gZipW.close();
     xpiFiles.push(xpiFile);
@@ -1380,9 +1380,8 @@ function getInstallRDFString(aName) {
  */
 function closeUpdateWindow() {
   let updateWindow = getUpdateWindow();
-  if (!updateWindow) {
+  if (!updateWindow)
     return false;
-  }
 
   ok(false, "Found an existing Update Window from the current or a previous " +
             "test... attempting to close it.");
@@ -1403,7 +1402,7 @@ function getUpdateWindow() {
 /**
  * Helper for background check errors.
  */
-const errorsPrefObserver = {
+var errorsPrefObserver = {
   observedPref: null,
   maxErrorPref: null,
 
@@ -1437,7 +1436,8 @@ const errorsPrefObserver = {
       if (errCount >= errMax) {
         debugDump("removing pref observer");
         Services.prefs.removeObserver(this.observedPref, this);
-      } else {
+      }
+      else {
         debugDump("notifying AUS");
         SimpleTest.executeSoon(function() {
           gAUS.notify(null);
@@ -1450,9 +1450,9 @@ const errorsPrefObserver = {
 /**
  * nsIObserver for receiving window open and close notifications.
  */
-const gWindowObserver = {
+var gWindowObserver = {
   observe: function WO_observe(aSubject, aTopic, aData) {
-    let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
+    let win = aSubject.QueryInterface(AUS_Ci.nsIDOMEventTarget);
 
     if (aTopic == "domwindowclosed") {
       if (win.location != URI_UPDATE_PROMPT_DIALOG) {

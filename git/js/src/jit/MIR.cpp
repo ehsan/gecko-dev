@@ -8,7 +8,6 @@
 
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/SizePrintfMacros.h"
 
 #include <ctype.h>
 
@@ -762,8 +761,8 @@ MConstant::printOpcode(FILE *fp) const
             }
             if (fun->hasScript()) {
                 JSScript *script = fun->nonLazyScript();
-                fprintf(fp, " (%s:%" PRIuSIZE ")",
-                        script->filename() ? script->filename() : "", script->lineno());
+                fprintf(fp, " (%s:%d)",
+                        script->filename() ? script->filename() : "", (int) script->lineno());
             }
             fprintf(fp, " at %p", (void *) fun);
             break;
@@ -886,7 +885,7 @@ MSimdValueX4::foldsTo(TempAllocator &alloc)
     }
 
     MOZ_ASSERT(allSame);
-    return MSimdSplatX4::New(alloc, getOperand(0), type());
+    return MSimdSplatX4::New(alloc, type(), getOperand(0));
 }
 
 MDefinition*
@@ -946,42 +945,6 @@ MSimdSwizzle::foldsTo(TempAllocator &alloc)
     if (lanesMatch(0, 1, 2, 3))
         return input();
     return this;
-}
-
-template <typename T>
-static void
-PrintOpcodeOperation(T *mir, FILE *fp)
-{
-    mir->MDefinition::printOpcode(fp);
-    fprintf(fp, " (%s)", T::OperationName(mir->operation()));
-}
-
-void
-MSimdBinaryArith::printOpcode(FILE *fp) const
-{
-    PrintOpcodeOperation(this, fp);
-}
-void
-MSimdBinaryBitwise::printOpcode(FILE *fp) const
-{
-    PrintOpcodeOperation(this, fp);
-}
-void
-MSimdUnaryArith::printOpcode(FILE *fp) const
-{
-    PrintOpcodeOperation(this, fp);
-}
-void
-MSimdBinaryComp::printOpcode(FILE *fp) const
-{
-    PrintOpcodeOperation(this, fp);
-}
-
-void
-MSimdInsertElement::printOpcode(FILE *fp) const
-{
-    MDefinition::printOpcode(fp);
-    fprintf(fp, " (%s)", MSimdInsertElement::LaneName(lane()));
 }
 
 MCloneLiteral *
@@ -1371,7 +1334,7 @@ MFloor::trySpecializeFloat32(TempAllocator &alloc)
 {
     MOZ_ASSERT(type() == MIRType_Int32);
     if (EnsureFloatInputOrConvert(this, alloc))
-        specialization_ = MIRType_Float32;
+        setPolicyType(MIRType_Float32);
 }
 
 void
@@ -1379,7 +1342,7 @@ MCeil::trySpecializeFloat32(TempAllocator &alloc)
 {
     MOZ_ASSERT(type() == MIRType_Int32);
     if (EnsureFloatInputOrConvert(this, alloc))
-        specialization_ = MIRType_Float32;
+        setPolicyType(MIRType_Float32);
 }
 
 void
@@ -1387,7 +1350,7 @@ MRound::trySpecializeFloat32(TempAllocator &alloc)
 {
     MOZ_ASSERT(type() == MIRType_Int32);
     if (EnsureFloatInputOrConvert(this, alloc))
-        specialization_ = MIRType_Float32;
+        setPolicyType(MIRType_Float32);
 }
 
 MCompare *
@@ -2320,7 +2283,7 @@ MMathFunction::trySpecializeFloat32(TempAllocator &alloc)
     }
 
     setResultType(MIRType_Float32);
-    specialization_ = MIRType_Float32;
+    setPolicyType(MIRType_Float32);
 }
 
 MHypot *MHypot::New(TempAllocator &alloc, const MDefinitionVector & vector)
@@ -2851,7 +2814,6 @@ MTypeOf::foldsTo(TempAllocator &alloc)
 
     switch (inputType()) {
       case MIRType_Double:
-      case MIRType_Float32:
       case MIRType_Int32:
         type = JSTYPE_NUMBER;
         break;
@@ -3307,79 +3269,8 @@ MCompare::tryFoldEqualOperands(bool *result)
             return false;
     }
 
-    if (DeadIfUnused(lhs()))
-        lhs()->setGuardRangeBailouts();
-
     *result = (jsop() == JSOP_STRICTEQ);
     return true;
-}
-
-bool
-MCompare::tryFoldTypeOf(bool *result)
-{
-    if (!lhs()->isTypeOf() && !rhs()->isTypeOf())
-        return false;
-    if (!lhs()->isConstantValue() && !rhs()->isConstantValue())
-        return false;
-
-    MTypeOf *typeOf = lhs()->isTypeOf() ? lhs()->toTypeOf() : rhs()->toTypeOf();
-    const Value *constant = lhs()->isConstantValue() ? lhs()->constantVp() : rhs()->constantVp();
-
-    if (!constant->isString())
-        return false;
-
-    if (jsop() != JSOP_STRICTEQ && jsop() != JSOP_STRICTNE &&
-        jsop() != JSOP_EQ && jsop() != JSOP_NE)
-    {
-        return false;
-    }
-
-    const JSAtomState &names = GetJitContext()->runtime->names();
-    if (constant->toString() == TypeName(JSTYPE_VOID, names)) {
-        if (!typeOf->input()->mightBeType(MIRType_Undefined) &&
-            !typeOf->inputMaybeCallableOrEmulatesUndefined())
-        {
-            *result = (jsop() == JSOP_STRICTNE || jsop() == JSOP_NE);
-            return true;
-        }
-    } else if (constant->toString() == TypeName(JSTYPE_BOOLEAN, names)) {
-        if (!typeOf->input()->mightBeType(MIRType_Boolean)) {
-            *result = (jsop() == JSOP_STRICTNE || jsop() == JSOP_NE);
-            return true;
-        }
-    } else if (constant->toString() == TypeName(JSTYPE_NUMBER, names)) {
-        if (!typeOf->input()->mightBeType(MIRType_Int32) &&
-            !typeOf->input()->mightBeType(MIRType_Float32) &&
-            !typeOf->input()->mightBeType(MIRType_Double))
-        {
-            *result = (jsop() == JSOP_STRICTNE || jsop() == JSOP_NE);
-            return true;
-        }
-    } else if (constant->toString() == TypeName(JSTYPE_STRING, names)) {
-        if (!typeOf->input()->mightBeType(MIRType_String)) {
-            *result = (jsop() == JSOP_STRICTNE || jsop() == JSOP_NE);
-            return true;
-        }
-    } else if (constant->toString() == TypeName(JSTYPE_SYMBOL, names)) {
-        if (!typeOf->input()->mightBeType(MIRType_Symbol)) {
-            *result = (jsop() == JSOP_STRICTNE || jsop() == JSOP_NE);
-            return true;
-        }
-    } else if (constant->toString() == TypeName(JSTYPE_OBJECT, names)) {
-        if (!typeOf->input()->mightBeType(MIRType_Object) &&
-            !typeOf->input()->mightBeType(MIRType_Null))
-        {
-            *result = (jsop() == JSOP_STRICTNE || jsop() == JSOP_NE);
-            return true;
-        }
-    } else if (constant->toString() == TypeName(JSTYPE_FUNCTION, names)) {
-        if (!typeOf->inputMaybeCallableOrEmulatesUndefined()) {
-            *result = (jsop() == JSOP_STRICTNE || jsop() == JSOP_NE);
-            return true;
-        }
-    }
-
-    return false;
 }
 
 bool
@@ -3388,9 +3279,6 @@ MCompare::tryFold(bool *result)
     JSOp op = jsop();
 
     if (tryFoldEqualOperands(result))
-        return true;
-
-    if (tryFoldTypeOf(result))
         return true;
 
     if (compareType_ == Compare_Null || compareType_ == Compare_Undefined) {
@@ -3777,9 +3665,8 @@ MBeta::printOpcode(FILE *fp) const
 bool
 MNewObject::shouldUseVM() const
 {
-    if (JSObject *obj = templateObject())
-        return obj->is<PlainObject>() && obj->as<PlainObject>().hasDynamicSlots();
-    return true;
+    PlainObject *obj = templateObject();
+    return obj->isSingleton() || obj->hasDynamicSlots();
 }
 
 bool
@@ -3798,7 +3685,7 @@ MObjectState::MObjectState(MDefinition *obj)
     setRecoveredOnBailout();
     NativeObject *templateObject = nullptr;
     if (obj->isNewObject())
-        templateObject = &obj->toNewObject()->templateObject()->as<PlainObject>();
+        templateObject = obj->toNewObject()->templateObject();
     else if (obj->isCreateThisWithTemplate())
         templateObject = &obj->toCreateThisWithTemplate()->templateObject()->as<PlainObject>();
     else
@@ -4342,7 +4229,7 @@ MSqrt::trySpecializeFloat32(TempAllocator &alloc) {
     }
 
     setResultType(MIRType_Float32);
-    specialization_ = MIRType_Float32;
+    setPolicyType(MIRType_Float32);
 }
 
 MDefinition *

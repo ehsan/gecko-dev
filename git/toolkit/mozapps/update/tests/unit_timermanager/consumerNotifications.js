@@ -7,10 +7,12 @@
 
 'use strict';
 
-const { classes: Cc, interfaces: Ci, manager: Cm, results: Cr,
-        utils: Cu } = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cm = Components.manager;
+const Cr = Components.results;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const CATEGORY_UPDATE_TIMER = "update-timer";
 
@@ -213,7 +215,7 @@ function run_test1thru7() {
 
 function finished_test1thru7() {
   if (TESTS[4].notified && TESTS[5].notified && TESTS[6].notified) {
-    do_execute_soon(gNextFunc);
+    do_timeout(0, gNextFunc);
   }
 }
 
@@ -268,7 +270,7 @@ function check_test1thru7() {
            "registered");
   do_check_eq(count, 0);
 
-  do_execute_soon(run_test8);
+  do_timeout(0, run_test8);
 }
 
 function run_test8() {
@@ -314,9 +316,9 @@ const gTest1TimerCallback = {
 };
 
 const gTest1Factory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter == null) {
-      return gTest1TimerCallback.QueryInterface(aIID);
+  createInstance: function (outer, iid) {
+    if (outer == null) {
+      return gTest1TimerCallback.QueryInterface(iid);
     }
     throw Cr.NS_ERROR_NO_AGGREGATION;
   }
@@ -330,9 +332,9 @@ const gTest2TimerCallback = {
 };
 
 const gTest2Factory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter == null) {
-      return gTest2TimerCallback.QueryInterface(aIID);
+  createInstance: function (outer, iid) {
+    if (outer == null) {
+      return gTest2TimerCallback.QueryInterface(iid);
     }
     throw Cr.NS_ERROR_NO_AGGREGATION;
   }
@@ -346,9 +348,9 @@ const gTest3TimerCallback = {
 };
 
 const gTest3Factory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter == null) {
-      return gTest3TimerCallback.QueryInterface(aIID);
+  createInstance: function (outer, iid) {
+    if (outer == null) {
+      return gTest3TimerCallback.QueryInterface(iid);
     }
     throw Cr.NS_ERROR_NO_AGGREGATION;
   }
@@ -359,9 +361,9 @@ const gTest4TimerCallback = {
 };
 
 const gTest4Factory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter == null) {
-      return gTest4TimerCallback.QueryInterface(aIID);
+  createInstance: function (outer, iid) {
+    if (outer == null) {
+      return gTest4TimerCallback.QueryInterface(iid);
     }
     throw Cr.NS_ERROR_NO_AGGREGATION;
   }
@@ -377,9 +379,9 @@ const gTest5TimerCallback = {
 };
 
 const gTest5Factory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter == null) {
-      return gTest5TimerCallback.QueryInterface(aIID);
+  createInstance: function (outer, iid) {
+    if (outer == null) {
+      return gTest5TimerCallback.QueryInterface(iid);
     }
     throw Cr.NS_ERROR_NO_AGGREGATION;
   }
@@ -395,9 +397,9 @@ const gTest6TimerCallback = {
 };
 
 const gTest6Factory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter == null) {
-      return gTest6TimerCallback.QueryInterface(aIID);
+  createInstance: function (outer, iid) {
+    if (outer == null) {
+      return gTest6TimerCallback.QueryInterface(iid);
     }
     throw Cr.NS_ERROR_NO_AGGREGATION;
   }
@@ -413,9 +415,9 @@ const gTest7TimerCallback = {
 };
 
 const gTest7Factory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter == null) {
-      return gTest7TimerCallback.QueryInterface(aIID);
+  createInstance: function (outer, iid) {
+    if (outer == null) {
+      return gTest7TimerCallback.QueryInterface(iid);
     }
     throw Cr.NS_ERROR_NO_AGGREGATION;
   }
@@ -425,7 +427,7 @@ const gTest8TimerCallback = {
   notify: function T8CB_notify(aTimer) {
     TESTS[7].notified = true;
     TESTS[7].notifyTime = Date.now();
-    do_execute_soon(function() {
+    do_timeout(0, function() {
       check_test8(gTest8TimerCallback);
     });
   },
@@ -433,9 +435,9 @@ const gTest8TimerCallback = {
 };
 
 const gTest8Factory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter == null) {
-      return gTest8TimerCallback.QueryInterface(aIID);
+  createInstance: function (outer, iid) {
+    if (outer == null) {
+      return gTest8TimerCallback.QueryInterface(iid);
     }
     throw Cr.NS_ERROR_NO_AGGREGATION;
   }
@@ -445,7 +447,7 @@ const gTest9TimerCallback = {
   notify: function T9CB_notify(aTimer) {
     TESTS[8].notified = true;
     TESTS[8].notifyTime = Date.now();
-    do_execute_soon(function() {
+    do_timeout(0, function() {
       check_test8(gTest9TimerCallback);
     });
   },
@@ -453,9 +455,9 @@ const gTest9TimerCallback = {
 };
 
 const gTest9Factory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter == null) {
-      return gTest9TimerCallback.QueryInterface(aIID);
+  createInstance: function (outer, iid) {
+    if (outer == null) {
+      return gTest9TimerCallback.QueryInterface(iid);
     }
     throw Cr.NS_ERROR_NO_AGGREGATION;
   }

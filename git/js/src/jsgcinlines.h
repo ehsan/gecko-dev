@@ -474,7 +474,7 @@ CheckAllocatorState(ExclusiveContext *cx, AllocKind kind)
 
     // For testing out of memory conditions
     if (!PossiblyFail()) {
-        ReportOutOfMemory(ncx);
+        js_ReportOutOfMemory(ncx);
         return false;
     }
 
@@ -676,25 +676,25 @@ NewGCAccessorShape(ExclusiveContext *cx)
     return gc::AllocateNonObject<AccessorShape, CanGC>(cx);
 }
 
-inline JSScript *
-NewGCScript(ExclusiveContext *cx)
-{
-    return gc::AllocateNonObject<JSScript, CanGC>(cx);
-}
-
-inline LazyScript *
-NewGCLazyScript(ExclusiveContext *cx)
-{
-    return gc::AllocateNonObject<LazyScript, CanGC>(cx);
-}
-
-template <AllowGC allowGC>
-inline BaseShape *
-NewGCBaseShape(ExclusiveContext *cx)
-{
-    return gc::AllocateNonObject<BaseShape, allowGC>(cx);
-}
-
 } /* namespace js */
+
+inline JSScript *
+js_NewGCScript(js::ExclusiveContext *cx)
+{
+    return js::gc::AllocateNonObject<JSScript, js::CanGC>(cx);
+}
+
+inline js::LazyScript *
+js_NewGCLazyScript(js::ExclusiveContext *cx)
+{
+    return js::gc::AllocateNonObject<js::LazyScript, js::CanGC>(cx);
+}
+
+template <js::AllowGC allowGC>
+inline js::BaseShape *
+js_NewGCBaseShape(js::ExclusiveContext *cx)
+{
+    return js::gc::AllocateNonObject<js::BaseShape, allowGC>(cx);
+}
 
 #endif /* jsgcinlines_h */

@@ -92,7 +92,7 @@ static inline bool
 GuardFunApplyArgumentsOptimization(JSContext *cx, AbstractFramePtr frame, CallArgs &args)
 {
     if (args.length() == 2 && IsOptimizedArguments(frame, args[1])) {
-        if (!IsNativeFunction(args.calleev(), js::fun_apply)) {
+        if (!IsNativeFunction(args.calleev(), js_fun_apply)) {
             RootedScript script(cx, frame.script());
             if (!JSScript::argumentsOptimizationFailed(cx, script))
                 return false;
@@ -186,7 +186,7 @@ ValuePropertyBearer(JSContext *cx, InterpreterFrame *fp, HandleValue v, int spin
         return GlobalObject::getOrCreateBooleanPrototype(cx, global);
 
     MOZ_ASSERT(v.isNull() || v.isUndefined());
-    ReportIsNullOrUndefined(cx, spindex, v, NullPtr());
+    js_ReportIsNullOrUndefined(cx, spindex, v, NullPtr());
     return nullptr;
 }
 
@@ -230,7 +230,7 @@ FetchName(JSContext *cx, HandleObject obj, HandleObject obj2, HandlePropertyName
         }
         JSAutoByteString printable;
         if (AtomToPrintableString(cx, name, &printable))
-            ReportIsNotDefined(cx, printable.ptr());
+            js_ReportIsNotDefined(cx, printable.ptr());
         return false;
     }
 
@@ -329,20 +329,6 @@ SetNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, HandleObject s
 }
 
 inline bool
-InitPropertyOperation(JSContext *cx, JSOp op, HandleObject obj, HandleId id, HandleValue rhs)
-{
-    if (obj->is<PlainObject>() || obj->is<JSFunction>()) {
-        unsigned propAttrs = GetInitDataPropAttrs(op);
-        return NativeDefineProperty(cx, obj.as<NativeObject>(), id, rhs, nullptr, nullptr,
-                                    propAttrs);
-    }
-
-    MOZ_ASSERT(obj->as<UnboxedPlainObject>().layout().lookup(id));
-    RootedValue v(cx, rhs);
-    return SetProperty(cx, obj, obj, id, &v, false);
-}
-
-inline bool
 DefVarOrConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName dn, unsigned attrs)
 {
     MOZ_ASSERT(varobj->isQualifiedVarObj());
@@ -369,7 +355,7 @@ DefVarOrConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName dn
         JSAutoByteString bytes;
         if (AtomToPrintableString(cx, dn, &bytes)) {
             JS_ALWAYS_FALSE(JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR,
-                                                         GetErrorMessage,
+                                                         js_GetErrorMessage,
                                                          nullptr, JSMSG_REDECLARED_VAR,
                                                          desc.isReadonly() ? "const" : "var",
                                                          bytes.ptr()));
@@ -650,7 +636,7 @@ InitArrayElemOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, uint32_t
     }
 
     if (op == JSOP_INITELEM_INC && index == INT32_MAX) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SPREAD_TOO_LARGE);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SPREAD_TOO_LARGE);
         return false;
     }
 

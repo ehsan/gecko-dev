@@ -148,7 +148,8 @@ extern JS_FRIEND_API(JSObject *)
 JS_ObjectToOuterObject(JSContext *cx, JS::HandleObject obj);
 
 extern JS_FRIEND_API(JSObject *)
-JS_CloneObject(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto);
+JS_CloneObject(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto,
+               JS::HandleObject parent);
 
 /*
  * Copy the own properties of src to dst in a fast way.  src and dst must both
@@ -171,16 +172,16 @@ JS_InitializePropertiesFromCompatibleNativeObject(JSContext *cx,
 extern JS_FRIEND_API(JSString *)
 JS_BasicObjectToString(JSContext *cx, JS::HandleObject obj);
 
-namespace js {
+JS_FRIEND_API(void)
+js_ReportOverRecursed(JSContext *maybecx);
 
 JS_FRIEND_API(bool)
-ObjectClassIs(JSContext *cx, JS::HandleObject obj, ESClassValue classValue);
+js_ObjectClassIs(JSContext *cx, JS::HandleObject obj, js::ESClassValue classValue);
 
 JS_FRIEND_API(const char *)
-ObjectClassName(JSContext *cx, JS::HandleObject obj);
+js_ObjectClassName(JSContext *cx, JS::HandleObject obj);
 
-JS_FRIEND_API(void)
-ReportOverRecursed(JSContext *maybecx);
+namespace js {
 
 JS_FRIEND_API(bool)
 AddRawValueRoot(JSContext *cx, JS::Value *vp, const char *name);
@@ -998,7 +999,7 @@ GetNativeStackLimit(JSContext *cx, int extraAllowance = 0)
     JS_BEGIN_MACRO                                                              \
         int stackDummy_;                                                        \
         if (!JS_CHECK_STACK_SIZE(limit, &stackDummy_)) {                        \
-            js::ReportOverRecursed(cx);                                         \
+            js_ReportOverRecursed(cx);                                          \
             onerror;                                                            \
         }                                                                       \
     JS_END_MACRO
@@ -1024,7 +1025,7 @@ GetNativeStackLimit(JSContext *cx, int extraAllowance = 0)
 #define JS_CHECK_RECURSION_WITH_SP(cx, sp, onerror)                             \
     JS_BEGIN_MACRO                                                              \
         if (!JS_CHECK_STACK_SIZE(js::GetNativeStackLimit(cx), sp)) {            \
-            js::ReportOverRecursed(cx);                                         \
+            js_ReportOverRecursed(cx);                                          \
             onerror;                                                            \
         }                                                                       \
     JS_END_MACRO
@@ -1271,10 +1272,10 @@ typedef enum JSErrNum {
     JSErr_Limit
 } JSErrNum;
 
-namespace js {
-
 extern JS_FRIEND_API(const JSErrorFormatString *)
-GetErrorMessage(void *userRef, const unsigned errorNumber);
+js_GetErrorMessage(void *userRef, const unsigned errorNumber);
+
+namespace js {
 
 // AutoStableStringChars is here so we can use it in ErrorReport.  It
 // should get moved out of here if we can manage it.  See bug 1040316.
@@ -1411,10 +1412,15 @@ struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)
     bool ownsMessageAndReport;
 };
 
-/* Implemented in vm/StructuredClone.cpp. */
-extern JS_FRIEND_API(uint64_t)
-GetSCOffset(JSStructuredCloneWriter *writer);
+} /* namespace js */
 
+
+/* Implemented in jsclone.cpp. */
+
+extern JS_FRIEND_API(uint64_t)
+js_GetSCOffset(JSStructuredCloneWriter* writer);
+
+namespace js {
 namespace Scalar {
 
 /* Scalar types which can appear in typed arrays and typed objects.  The enum
@@ -2671,14 +2677,14 @@ GetSavedFramePrincipals(JS::HandleObject savedFrame);
 extern JS_FRIEND_API(JSObject *)
 GetFirstSubsumedSavedFrame(JSContext *cx, JS::HandleObject savedFrame);
 
-extern JS_FRIEND_API(bool)
-ReportIsNotFunction(JSContext *cx, JS::HandleValue v);
-
-extern JS_FRIEND_API(bool)
-DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
-                  JS::Handle<JSPropertyDescriptor> descriptor, bool *bp);
-
 } /* namespace js */
+
+extern JS_FRIEND_API(bool)
+js_DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
+                     JS::Handle<JSPropertyDescriptor> descriptor, bool *bp);
+
+extern JS_FRIEND_API(bool)
+js_ReportIsNotFunction(JSContext *cx, JS::HandleValue v);
 
 extern JS_FRIEND_API(void)
 JS_StoreObjectPostBarrierCallback(JSContext* cx,

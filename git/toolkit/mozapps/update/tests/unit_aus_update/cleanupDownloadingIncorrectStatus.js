@@ -10,20 +10,20 @@ function run_test() {
               "STATE_DOWNLOADING (Bug 539717).");
 
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
-  let patches = getLocalPatchString(null, null, null, null, null, null,
+  var patches = getLocalPatchString(null, null, null, null, null, null,
                                     STATE_DOWNLOADING);
-  let updates = getLocalUpdateString(patches);
+  var updates = getLocalUpdateString(patches);
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
   writeStatusFile(STATE_NONE);
 
   standardInit();
 
-  let dir = getUpdatesDir();
+  var dir = getUpdatesDir();
   dir.append("0");
   logTestInfo("testing " + dir.path + " should exist");
   do_check_true(dir.exists());
 
-  let statusFile = dir.clone();
+  var statusFile = dir.clone();
   statusFile.append(FILE_UPDATE_STATUS);
   logTestInfo("testing " + statusFile.path + " should not exist");
   do_check_false(statusFile.exists());

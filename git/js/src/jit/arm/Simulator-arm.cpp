@@ -33,7 +33,6 @@
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/SizePrintfMacros.h"
 
 #include "asmjs/AsmJSValidate.h"
 #include "jit/arm/Assembler-arm.h"
@@ -1046,7 +1045,7 @@ Simulator::setLastDebuggerInput(char *input)
 void
 Simulator::FlushICache(void *start_addr, size_t size)
 {
-    JitSpewCont(JitSpew_CacheFlush, "[%p %" PRIxSIZE "]", start_addr, size);
+    JitSpewCont(JitSpew_CacheFlush, "[%p %zx]", start_addr, size);
     if (Simulator::ICacheCheckingEnabled) {
         Simulator *sim = Simulator::Current();
 

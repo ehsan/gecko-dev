@@ -209,7 +209,7 @@ EmitCheck(ExclusiveContext *cx, BytecodeEmitter *bce, ptrdiff_t delta)
 
     jsbytecode dummy = 0;
     if (!bce->code().appendN(dummy, delta)) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return -1;
     }
     return offset;
@@ -2818,7 +2818,7 @@ EmitSwitch(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                     intmap_bitlen = JS_BIT(16);
                     intmap = cx->pod_malloc<jsbitmap>(JS_BIT(16) / JS_BITMAP_NBITS);
                     if (!intmap) {
-                        ReportOutOfMemory(cx);
+                        js_ReportOutOfMemory(cx);
                         return false;
                     }
                 }
@@ -6579,15 +6579,6 @@ EmitPropertyList(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn,
             continue;
         }
 
-        bool extraPop = false;
-        if (type == ClassBody && propdef->as<ClassMethod>().isStatic()) {
-            extraPop = true;
-            if (Emit1(cx, bce, JSOP_DUP2) < 0)
-                return false;
-            if (Emit1(cx, bce, JSOP_POP) < 0)
-                return false;
-        }
-
         /* Emit an index for t[2] for later consumption by JSOP_INITELEM. */
         ParseNode *key = propdef->pn_left;
         bool isIndex = false;
@@ -6659,11 +6650,6 @@ EmitPropertyList(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn,
             }
 
             if (!EmitIndex32(cx, op, index, bce))
-                return false;
-        }
-
-        if (extraPop) {
-            if (Emit1(cx, bce, JSOP_POP) < 0)
                 return false;
         }
     }
@@ -7481,7 +7467,7 @@ AllocSrcNote(ExclusiveContext *cx, SrcNotesVector &notes)
 
     jssrcnote dummy = 0;
     if (!notes.append(dummy)) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return -1;
     }
     return notes.length() - 1;
@@ -7615,7 +7601,7 @@ SetSrcNoteOffset(ExclusiveContext *cx, BytecodeEmitter *bce, unsigned index, uns
                 !(sn = notes.insert(sn, dummy)) ||
                 !(sn = notes.insert(sn, dummy)))
             {
-                ReportOutOfMemory(cx);
+                js_ReportOutOfMemory(cx);
                 return false;
             }
         }

@@ -936,7 +936,7 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
     for (size_t i = 0; i < parseTask->errors.length(); i++)
         parseTask->errors[i]->throwError(cx);
     if (parseTask->overRecursed)
-        ReportOverRecursed(cx);
+        js_ReportOverRecursed(cx);
     if (cx->isExceptionPending())
         return nullptr;
 
@@ -1244,7 +1244,7 @@ js::StartOffThreadCompression(ExclusiveContext *cx, SourceCompressionTask *task)
 
     if (!HelperThreadState().compressionWorklist().append(task)) {
         if (JSContext *maybecx = cx->maybeJSContext())
-            ReportOutOfMemory(maybecx);
+            js_ReportOutOfMemory(maybecx);
         return false;
     }
 
@@ -1291,7 +1291,7 @@ SourceCompressionTask::complete()
         js_free(compressed);
 
         if (result == OOM)
-            ReportOutOfMemory(cx);
+            js_ReportOutOfMemory(cx);
         else if (result == Aborted && !ss->ensureOwnsSource(cx))
             result = OOM;
     }

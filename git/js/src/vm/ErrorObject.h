@@ -14,13 +14,13 @@
 
 struct JSExnPrivate;
 
-namespace js {
-
 /*
  * Initialize the exception constructor/prototype hierarchy.
  */
 extern JSObject *
-InitExceptionClasses(JSContext *cx, HandleObject obj);
+js_InitExceptionClasses(JSContext *cx, JS::HandleObject obj);
+
+namespace js {
 
 class ErrorObject : public NativeObject
 {
@@ -32,7 +32,7 @@ class ErrorObject : public NativeObject
 
     /* For access to createProto. */
     friend JSObject *
-    js::InitExceptionClasses(JSContext *cx, HandleObject global);
+    ::js_InitExceptionClasses(JSContext *cx, JS::HandleObject global);
 
     static bool
     init(JSContext *cx, Handle<ErrorObject*> obj, JSExnType type,

@@ -73,7 +73,7 @@ PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
 
         KidsHash *hash = HashChildren(shape, child);
         if (!hash) {
-            ReportOutOfMemory(cx);
+            js_ReportOutOfMemory(cx);
             return false;
         }
         kidp->setHash(hash);
@@ -82,7 +82,7 @@ PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
     }
 
     if (!kidp->toHash()->putNew(StackShape(child), child)) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return false;
     }
 

@@ -9,14 +9,14 @@ function run_test() {
   logTestInfo("testing update logs are first in first out deleted");
 
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
-  let patches = getLocalPatchString(null, null, null, null, null, null,
+  var patches = getLocalPatchString(null, null, null, null, null, null,
                                     STATE_PENDING);
-  let updates = getLocalUpdateString(patches);
+  var updates = getLocalUpdateString(patches);
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
   writeStatusFile(STATE_SUCCEEDED);
 
-  let dir = getUpdatesDir();
-  let log = dir.clone();
+  var dir = getUpdatesDir();
+  var log = dir.clone();
   log.append(FILE_LAST_LOG);
   writeFile(log, "Backup Update Log");
 

@@ -116,9 +116,7 @@ CStringArrayToXPCArray(nsTArray<nsCString> & aArray,
 {
   uint32_t count = aArray.Length();
   if (!count) {
-    *aResults = nullptr;
-    *aCount = 0;
-    return NS_OK;
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
   *aResults =

@@ -15,14 +15,6 @@ namespace mozilla { namespace psm {
 
 struct ChainValidationCallbackState;
 
-// These values correspond to the CERT_CHAIN_KEY_SIZE_STATUS telemetry.
-enum class KeySizeStatus {
-  NeverChecked = 0,
-  LargeMinimumSucceeded = 1,
-  CompatibilityRisk = 2,
-  AlreadyBad = 3,
-};
-
 class CertVerifier
 {
 public:
@@ -52,8 +44,7 @@ public:
        /*optional in*/ const SECItem* stapledOCSPResponse = nullptr,
       /*optional out*/ ScopedCERTCertList* builtChain = nullptr,
       /*optional out*/ SECOidTag* evOidPolicy = nullptr,
-      /*optional out*/ OCSPStaplingStatus* ocspStaplingStatus = nullptr,
-      /*optional out*/ KeySizeStatus* keySizeStatus = nullptr);
+      /*optional out*/ OCSPStaplingStatus* ocspStaplingStatus = nullptr);
 
   SECStatus VerifySSLServerCert(
                     CERTCertificate* peerCert,
@@ -65,8 +56,7 @@ public:
                     Flags flags = 0,
    /*optional out*/ ScopedCERTCertList* builtChain = nullptr,
    /*optional out*/ SECOidTag* evOidPolicy = nullptr,
-   /*optional out*/ OCSPStaplingStatus* ocspStaplingStatus = nullptr,
-   /*optional out*/ KeySizeStatus* keySizeStatus = nullptr);
+   /*optional out*/ OCSPStaplingStatus* ocspStaplingStatus = nullptr);
 
   enum PinningMode {
     pinningDisabled = 0,

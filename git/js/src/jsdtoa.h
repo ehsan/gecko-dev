@@ -16,15 +16,11 @@
 
 struct DtoaState;
 
-namespace js {
+DtoaState *
+js_NewDtoaState();
 
-extern DtoaState *
-NewDtoaState();
-
-extern void
-DestroyDtoaState(DtoaState *state);
-
-} // namespace js
+void
+js_DestroyDtoaState(DtoaState *state);
 
 /*
  * js_strtod_harder() returns as a double-precision floating-point number the

@@ -4,8 +4,13 @@
 
 /* Shared code for xpcshell and mochitests-chrome */
 
-Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+// const Cc, Ci, and Cr are defined in netwerk/test/httpserver/httpd.js so we
+// need to define unique ones.
+const AUS_Cc = Components.classes;
+const AUS_Ci = Components.interfaces;
+const AUS_Cr = Components.results;
+const AUS_Cu = Components.utils;
+const AUS_Cm = Components.manager;
 
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
 const PREF_APP_UPDATE_BACKGROUNDERRORS    = "app.update.backgroundErrors";
@@ -57,7 +62,11 @@ const WRITE_ERROR = 7;
 const DIR_PATCH        = "0";
 const DIR_TOBEDELETED  = "tobedeleted";
 const DIR_UPDATES      = "updates";
-const DIR_UPDATED      = IS_MACOSX ? "Updated.app" : "updated";
+#ifdef XP_MACOSX
+const DIR_UPDATED      = "Updated.app";
+#else
+const DIR_UPDATED      = "updated";
+#endif
 
 const FILE_APPLICATION_INI           = "application.ini";
 const FILE_BACKUP_LOG                = "backup-update.log";
@@ -86,7 +95,11 @@ const DEFAULT_UPDATE_VERSION = "999999.0";
 
 var gChannel;
 
-Services.scriptloader.loadSubScript(DATA_URI_SPEC + "sharedUpdateXML.js", this);
+#include sharedUpdateXML.js
+
+AUS_Cu.import("resource://gre/modules/FileUtils.jsm");
+AUS_Cu.import("resource://gre/modules/Services.jsm");
+AUS_Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const PERMS_FILE      = FileUtils.PERMS_FILE;
 const PERMS_DIRECTORY = FileUtils.PERMS_DIRECTORY;
@@ -102,11 +115,11 @@ const URI_UPDATES_PROPERTIES = "chrome://mozapps/locale/update/updates.propertie
 const gUpdateBundle = Services.strings.createBundle(URI_UPDATES_PROPERTIES);
 
 XPCOMUtils.defineLazyGetter(this, "gAUS", function test_gAUS() {
-  return Cc["@mozilla.org/updates/update-service;1"].
-         getService(Ci.nsIApplicationUpdateService).
-         QueryInterface(Ci.nsITimerCallback).
-         QueryInterface(Ci.nsIObserver).
-         QueryInterface(Ci.nsIUpdateCheckListener);
+  return AUS_Cc["@mozilla.org/updates/update-service;1"].
+         getService(AUS_Ci.nsIApplicationUpdateService).
+         QueryInterface(AUS_Ci.nsITimerCallback).
+         QueryInterface(AUS_Ci.nsIObserver).
+         QueryInterface(AUS_Ci.nsIUpdateCheckListener);
 });
 
 XPCOMUtils.defineLazyServiceGetter(this, "gUpdateManager",
@@ -114,13 +127,13 @@ XPCOMUtils.defineLazyServiceGetter(this, "gUpdateManager",
                                    "nsIUpdateManager");
 
 XPCOMUtils.defineLazyGetter(this, "gUpdateChecker", function test_gUC() {
-  return Cc["@mozilla.org/updates/update-checker;1"].
-         createInstance(Ci.nsIUpdateChecker);
+  return AUS_Cc["@mozilla.org/updates/update-checker;1"].
+         createInstance(AUS_Ci.nsIUpdateChecker);
 });
 
 XPCOMUtils.defineLazyGetter(this, "gUP", function test_gUP() {
-  return Cc["@mozilla.org/updates/update-prompt;1"].
-         createInstance(Ci.nsIUpdatePrompt);
+  return AUS_Cc["@mozilla.org/updates/update-prompt;1"].
+         createInstance(AUS_Ci.nsIUpdatePrompt);
 });
 
 XPCOMUtils.defineLazyGetter(this, "gDefaultPrefBranch", function test_gDPB() {
@@ -132,19 +145,19 @@ XPCOMUtils.defineLazyGetter(this, "gPrefRoot", function test_gPR() {
 });
 
 XPCOMUtils.defineLazyGetter(this, "gZipW", function test_gZipW() {
-  return Cc["@mozilla.org/zipwriter;1"].
-         createInstance(Ci.nsIZipWriter);
+  return AUS_Cc["@mozilla.org/zipwriter;1"].
+         createInstance(AUS_Ci.nsIZipWriter);
 });
 
 /* Initializes the update service stub */
 function initUpdateServiceStub() {
-  Cc["@mozilla.org/updates/update-service-stub;1"].
-  createInstance(Ci.nsISupports);
+  AUS_Cc["@mozilla.org/updates/update-service-stub;1"].
+  createInstance(AUS_Ci.nsISupports);
 }
 
 /* Reloads the update metadata from disk */
 function reloadUpdateManagerData() {
-  gUpdateManager.QueryInterface(Ci.nsIObserver).
+  gUpdateManager.QueryInterface(AUS_Ci.nsIObserver).
   observe(null, "um-reload-update-data", "");
 }
 
@@ -161,17 +174,17 @@ function setUpdateChannel(aChannel) {
   gPrefRoot.addObserver(PREF_APP_UPDATE_CHANNEL, observer, false);
 }
 
-const observer = {
+var observer = {
   observe: function(aSubject, aTopic, aData) {
     if (aTopic == "nsPref:changed" && aData == PREF_APP_UPDATE_CHANNEL) {
-      let channel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
+      var channel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
       if (channel != gChannel) {
         debugDump("Changing channel from " + channel + " to " + gChannel);
         gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_CHANNEL, gChannel);
       }
     }
   },
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver])
+  QueryInterface: XPCOMUtils.generateQI([AUS_Ci.nsIObserver])
 };
 
 /**
@@ -195,7 +208,7 @@ function setUpdateURLOverride(aURL) {
  *         return the updates.xml file.
  */
 function getUpdatesXMLFile(aIsActiveUpdate) {
-  let file = getUpdatesRootDir();
+  var file = getUpdatesRootDir();
   file.append(aIsActiveUpdate ? FILE_UPDATE_ACTIVE : FILE_UPDATES_DB);
   return file;
 }
@@ -247,7 +260,7 @@ function writeVersionFile(aVersion) {
  * @return nsIFile for the updates root directory.
  */
 function getUpdatesRootDir() {
-  return Services.dirsvc.get(XRE_UPDATE_ROOT_DIR, Ci.nsIFile);
+  return Services.dirsvc.get(XRE_UPDATE_ROOT_DIR, AUS_Ci.nsIFile);
 }
 
 /**
@@ -256,7 +269,7 @@ function getUpdatesRootDir() {
  * @return nsIFile for the updates directory.
  */
 function getUpdatesDir() {
-  let dir = getUpdatesRootDir();
+  var dir = getUpdatesRootDir();
   dir.append(DIR_UPDATES);
   return dir;
 }
@@ -283,11 +296,10 @@ function getUpdatesPatchDir() {
  *         replaced.
  */
 function writeFile(aFile, aText) {
-  let fos = Cc["@mozilla.org/network/file-output-stream;1"].
-            createInstance(Ci.nsIFileOutputStream);
-  if (!aFile.exists()) {
-    aFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
-  }
+  var fos = AUS_Cc["@mozilla.org/network/file-output-stream;1"].
+            createInstance(AUS_Ci.nsIFileOutputStream);
+  if (!aFile.exists())
+    aFile.create(AUS_Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
   fos.init(aFile, MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE, PERMS_FILE, 0);
   fos.write(aText, aText.length);
   fos.close();
@@ -339,16 +351,15 @@ function readStatusFailedCode() {
  * @return The string of text read from the file.
  */
 function readFile(aFile) {
-  let fis = Cc["@mozilla.org/network/file-input-stream;1"].
-            createInstance(Ci.nsIFileInputStream);
-  if (!aFile.exists()) {
+  var fis = AUS_Cc["@mozilla.org/network/file-input-stream;1"].
+            createInstance(AUS_Ci.nsIFileInputStream);
+  if (!aFile.exists())
     return null;
-  }
   fis.init(aFile, MODE_RDONLY, PERMS_FILE, 0);
-  let sis = Cc["@mozilla.org/scriptableinputstream;1"].
-            createInstance(Ci.nsIScriptableInputStream);
+  var sis = AUS_Cc["@mozilla.org/scriptableinputstream;1"].
+            createInstance(AUS_Ci.nsIScriptableInputStream);
   sis.init(fis);
-  let text = sis.read(sis.available());
+  var text = sis.read(sis.available());
   sis.close();
   return text;
 }
@@ -361,21 +372,20 @@ function readFile(aFile) {
  * @return The contents of the file as a string.
  */
 function readFileBytes(aFile) {
-  let fis = Cc["@mozilla.org/network/file-input-stream;1"].
-            createInstance(Ci.nsIFileInputStream);
+  var fis = AUS_Cc["@mozilla.org/network/file-input-stream;1"].
+            createInstance(AUS_Ci.nsIFileInputStream);
   fis.init(aFile, -1, -1, false);
-  let bis = Cc["@mozilla.org/binaryinputstream;1"].
-            createInstance(Ci.nsIBinaryInputStream);
+  var bis = AUS_Cc["@mozilla.org/binaryinputstream;1"].
+            createInstance(AUS_Ci.nsIBinaryInputStream);
   bis.setInputStream(fis);
-  let data = [];
-  let count = fis.available();
+  var data = [];
+  var count = fis.available();
   while (count > 0) {
-    let bytes = bis.readByteArray(Math.min(65535, count));
+    var bytes = bis.readByteArray(Math.min(65535, count));
     data.push(String.fromCharCode.apply(null, bytes));
     count -= bytes.length;
-    if (bytes.length == 0) {
+    if (bytes.length == 0)
       throw "Nothing read from input stream!";
-    }
   }
   data.join('');
   fis.close();
@@ -404,7 +414,7 @@ function getString(aName) {
  * @return The file extension.
  */
 function getFileExtension(aFile) {
-  return Services.io.newFileURI(aFile).QueryInterface(Ci.nsIURL).
+  return Services.io.newFileURI(aFile).QueryInterface(AUS_Ci.nsIURL).
          fileExtension;
 }
 
@@ -415,11 +425,10 @@ function getFileExtension(aFile) {
  * tests are interrupted.
  */
 function removeUpdateDirsAndFiles() {
-  let file = getUpdatesXMLFile(true);
+  var file = getUpdatesXMLFile(true);
   try {
-    if (file.exists()) {
+    if (file.exists())
       file.remove(false);
-    }
   } catch (e) {
     logTestInfo("Unable to remove file. Path: " + file.path +
                 ", Exception: " + e);
@@ -427,16 +436,15 @@ function removeUpdateDirsAndFiles() {
 
   file = getUpdatesXMLFile(false);
   try {
-    if (file.exists()) {
+    if (file.exists())
       file.remove(false);
-    }
   } catch (e) {
     logTestInfo("Unable to remove file. Path: " + file.path +
                 ", Exception: " + e);
   }
 
   // This fails sporadically on Mac OS X so wrap it in a try catch
-  let updatesDir = getUpdatesDir();
+  var updatesDir = getUpdatesDir();
   try {
     cleanUpdatesDir(updatesDir);
   } catch (e) {
@@ -453,13 +461,12 @@ function removeUpdateDirsAndFiles() {
  *         nsIFile for the directory to be deleted.
  */
 function cleanUpdatesDir(aDir) {
-  if (!aDir.exists()) {
+  if (!aDir.exists())
     return;
-  }
 
-  let dirEntries = aDir.directoryEntries;
+  var dirEntries = aDir.directoryEntries;
   while (dirEntries.hasMoreElements()) {
-    let entry = dirEntries.getNext().QueryInterface(Ci.nsIFile);
+    var entry = dirEntries.getNext().QueryInterface(AUS_Ci.nsIFile);
 
     if (entry.isDirectory()) {
       if (entry.leafName == DIR_PATCH && entry.parent.leafName == DIR_UPDATES) {
@@ -515,9 +522,9 @@ function removeDirRecursive(aDir) {
     logTestInfo("non-fatal error removing directory. Exception: " + e);
   }
 
-  let dirEntries = aDir.directoryEntries;
+  var dirEntries = aDir.directoryEntries;
   while (dirEntries.hasMoreElements()) {
-    let entry = dirEntries.getNext().QueryInterface(Ci.nsIFile);
+    var entry = dirEntries.getNext().QueryInterface(AUS_Ci.nsIFile);
 
     if (entry.isDirectory()) {
       removeDirRecursive(entry);
@@ -551,7 +558,7 @@ function removeDirRecursive(aDir) {
  * @return nsIFile for the current process directory.
  */
 function getCurrentProcessDir() {
-  return Services.dirsvc.get(NS_XPCOM_CURRENT_PROCESS_DIR, Ci.nsIFile);
+  return Services.dirsvc.get(NS_XPCOM_CURRENT_PROCESS_DIR, AUS_Ci.nsIFile);
 }
 
 /**
@@ -560,7 +567,7 @@ function getCurrentProcessDir() {
  * @return  nsIFile object for the application base directory.
  */
 function getAppBaseDir() {
-  return Services.dirsvc.get(XRE_EXECUTABLE_FILE, Ci.nsIFile).parent;
+  return Services.dirsvc.get(XRE_EXECUTABLE_FILE, AUS_Ci.nsIFile).parent;
 }
 
 /**
@@ -571,7 +578,7 @@ function getAppBaseDir() {
  * @return nsIFile for the Gecko Runtime Engine directory.
  */
 function getGREDir() {
-  return Services.dirsvc.get(NS_GRE_DIR, Ci.nsIFile);
+  return Services.dirsvc.get(NS_GRE_DIR, AUS_Ci.nsIFile);
 }
 
 /**
@@ -584,7 +591,7 @@ function getGREDir() {
  * @return nsIFile for the Gecko Runtime Engine Binary directory.
  */
 function getGREBinDir() {
-  return Services.dirsvc.get(NS_GRE_BIN_DIR, Ci.nsIFile);
+  return Services.dirsvc.get(NS_GRE_BIN_DIR, AUS_Ci.nsIFile);
 }
 
 /**
