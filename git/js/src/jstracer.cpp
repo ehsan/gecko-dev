@@ -956,6 +956,31 @@ TraceRecorder::closeLoop(Fragmento* fragmento)
     compile(fragmento->assm(), fragment);
 }
 
+bool
+TraceRecorder::loopEdge()
+{
+    if (cx->fp->regs->pc == entryRegs.pc) {
+        closeLoop(JS_TRACE_MONITOR(cx).fragmento);
+        return false; /* done recording */
+    }
+    /* make sure the type map gets trashed if this was the root fragment that didn't complete */
+    stop(); 
+    return false; /* abort recording */
+}
+
+void
+TraceRecorder::stop()
+{
+    fragment->blacklist();
+    if (fragment->root == fragment) {
+#ifdef DEBUG
+        printf("Root fragment aborted, trashing the type map.\n");
+#endif        
+        JS_ASSERT(fragmentInfo->typeMap);
+        fragmentInfo->typeMap = NULL;
+    }
+}
+
 int
 nanojit::StackFilter::getTop(LInsp guard)
 {
@@ -1051,7 +1076,6 @@ js_LoopEdge(JSContext* cx)
 
     /* is the recorder currently active? */
     if (tm->recorder) {
-        TraceRecorder* r = tm->recorder;
 #ifdef JS_THREADSAFE
         /* XXX should this test not be earlier, to avoid even recording? */
         if (OBJ_SCOPE(JS_GetGlobalForObject(cx, cx->fp->scopeChain))->title.ownercx != cx) {
@@ -1061,11 +1085,9 @@ js_LoopEdge(JSContext* cx)
             return false; /* we stay away from shared global objects */
         }
 #endif
-        if (cx->fp->regs->pc == r->getFragment()->ip) { /* did we hit the start point? */
-            r->closeLoop(JS_TRACE_MONITOR(cx).fragmento);
-            js_DeleteRecorder(cx);
-        } else 
-            js_AbortRecording(cx, "Loop edge does not return to header.");
+        if (tm->recorder->loopEdge())
+            return true; /* keep recording */
+        js_DeleteRecorder(cx);
         return false; /* done recording */
     }
 
@@ -1188,17 +1210,7 @@ js_AbortRecording(JSContext* cx, const char* reason)
 #ifdef DEBUG
     printf("Abort recording: %s.\n", reason);
 #endif
-    JS_ASSERT(JS_TRACE_MONITOR(cx).recorder != NULL);
-    Fragment* f = JS_TRACE_MONITOR(cx).recorder->getFragment();
-    f->blacklist();
-    if (f->root == f) {
-#ifdef DEBUG
-        printf("Root fragment aborted, trashing the type map.\n");
-#endif 
-        VMFragmentInfo* fi = (VMFragmentInfo*)f->vmprivate;
-        JS_ASSERT(fi->typeMap);
-        fi->typeMap = NULL;
-    }
+    JS_TRACE_MONITOR(cx).recorder->stop();
     js_DeleteRecorder(cx);
 }
 
