@@ -105,7 +105,7 @@ function searchTest(contentWindow) {
   let tabItems = contentWindow.TabItems.getItems();
   is(tabItems.length, 1, "Have only one tab in the current window's tab items"); 
   tabItems.forEach(function(tab) {
-    tabNames.push(tab.$tabTitle[0].innerHTML);
+    tabNames.push(tab.nameEl.innerHTML);
   });
 
   newWindows.forEach(function(win) {

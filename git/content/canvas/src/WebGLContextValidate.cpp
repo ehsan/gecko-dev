@@ -83,13 +83,14 @@ WebGLProgram::UpdateInfo(gl::GLContext *gl)
 }
 
 /*
- * Verify that state is consistent for drawing, and compute max number of elements (maxAllowedCount)
- * that will be legal to be read from bound VBOs.
+ * Verify that we can read count consecutive elements from each bound VBO.
  */
 
 PRBool
-WebGLContext::ValidateBuffers(PRInt32 *maxAllowedCount, const char *info)
+WebGLContext::ValidateBuffers(PRUint32 count)
 {
+    NS_ENSURE_TRUE(count > 0, PR_TRUE);
+
 #ifdef DEBUG
     GLuint currentProgram = 0;
     MakeContextCurrent();
@@ -99,8 +100,6 @@ WebGLContext::ValidateBuffers(PRInt32 *maxAllowedCount, const char *info)
     if (currentProgram != mCurrentProgram->GLName())
         return PR_FALSE;
 #endif
-
-    *maxAllowedCount = -1;
 
     PRUint32 attribs = mAttribBuffers.Length();
     for (PRUint32 i = 0; i < attribs; ++i) {
@@ -112,7 +111,7 @@ WebGLContext::ValidateBuffers(PRInt32 *maxAllowedCount, const char *info)
             continue;
 
         if (vd.buf == nsnull) {
-            ErrorInvalidOperation("%s: no VBO bound to enabled vertex attrib index %d!", info, i);
+            LogMessageIfVerbose("No VBO bound to enabled attrib index %d!", i);
             return PR_FALSE;
         }
 
@@ -121,32 +120,20 @@ WebGLContext::ValidateBuffers(PRInt32 *maxAllowedCount, const char *info)
         if (!mCurrentProgram->IsAttribInUse(i))
             continue;
 
-        // the base offset
-        CheckedUint32 checked_byteLength
-          = CheckedUint32(vd.buf->ByteLength()) - vd.byteOffset;
-        CheckedUint32 checked_sizeOfLastElement
-          = CheckedUint32(vd.componentSize()) * vd.size;
+        // compute the number of bytes we actually need
+        CheckedUint32 checked_needed = CheckedUint32(vd.byteOffset) + // the base offset
+            CheckedUint32(vd.actualStride()) * (count-1) + // to stride to the start of the last element group
+            CheckedUint32(vd.componentSize()) * vd.size;   // and the number of bytes needed for these components
 
-        if (!checked_byteLength.valid() ||
-            !checked_sizeOfLastElement.valid())
-        {
-          ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
-          return PR_FALSE;
+        if (!checked_needed.valid()) {
+            LogMessageIfVerbose("Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
+            return PR_FALSE;
         }
 
-        if (checked_byteLength.value() < checked_sizeOfLastElement.value()) {
-          *maxAllowedCount = 0;
-        } else {
-          CheckedUint32 checked_maxAllowedCount
-            = ((checked_byteLength - checked_sizeOfLastElement) / vd.actualStride()) + 1;
-
-          if (!checked_maxAllowedCount.valid()) {
-            ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
+        if (vd.buf->ByteLength() < checked_needed.value()) {
+            LogMessageIfVerbose("VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
+                       i, checked_needed.value(), vd.buf->ByteLength());
             return PR_FALSE;
-          }
-
-          if (*maxAllowedCount == -1 || *maxAllowedCount > checked_maxAllowedCount.value())
-              *maxAllowedCount = checked_maxAllowedCount.value();
         }
     }
 

@@ -80,11 +80,6 @@ public:
     mIndexUpdateInfo.SwapElements(aIndexUpdateInfo);
   }
 
-  ~AddHelper()
-  {
-    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
-  }
-
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
@@ -122,11 +117,6 @@ public:
     mKey(aKey)
   { }
 
-  ~GetHelper()
-  {
-    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
-  }
-
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
@@ -159,6 +149,7 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
+  nsresult OnSuccess();
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
 };
@@ -200,11 +191,6 @@ public:
     mLowerKey(aLowerKey), mUpperKey(aUpperKey), mLowerOpen(aLowerOpen),
     mUpperOpen(aUpperOpen), mDirection(aDirection)
   { }
-
-  ~OpenCursorHelper()
-  {
-    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
-  }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
@@ -316,13 +302,6 @@ public:
     mLowerKey(aLowerKey), mUpperKey(aUpperKey), mLowerOpen(aLowerOpen),
     mUpperOpen(aUpperOpen), mLimit(aLimit)
   { }
-
-  ~GetAllHelper()
-  {
-    for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
-      IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffers[index]);
-    }
-  }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
@@ -1731,9 +1710,6 @@ AddHelper::GetSuccessResult(JSContext* aCx,
                             jsval* aVal)
 {
   NS_ASSERTION(!mKey.IsUnset(), "Badness!");
-
-  mCloneBuffer.clear(aCx);
-
   return IDBObjectStore::GetJSValFromKey(mKey, aCx, aVal);
 }
 
@@ -1837,12 +1813,7 @@ nsresult
 GetHelper::GetSuccessResult(JSContext* aCx,
                             jsval* aVal)
 {
-  nsresult rv = ConvertCloneBufferToJSVal(aCx, mCloneBuffer, aVal);
-
-  mCloneBuffer.clear(aCx);
-
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
+  return ConvertCloneBufferToJSVal(aCx, mCloneBuffer, aVal);
 }
 
 nsresult
@@ -1875,10 +1846,17 @@ DeleteHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   }
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
+  // Search for it!
   rv = stmt->Execute();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   return NS_OK;
+}
+
+nsresult
+DeleteHelper::OnSuccess()
+{
+  return AsyncConnectionHelper::OnSuccess();
 }
 
 nsresult
@@ -2103,8 +2081,6 @@ OpenCursorHelper::GetSuccessResult(JSContext* aCx,
                       mRangeKey, mContinueQuery, mContinueToQuery, mKey,
                       mCloneBuffer);
   NS_ENSURE_TRUE(cursor, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  NS_ASSERTION(!mCloneBuffer.data(), "Should have swapped!");
 
   return WrapNative(aCx, cursor, aVal);
 }
@@ -2410,13 +2386,5 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
                                jsval* aVal)
 {
   NS_ASSERTION(mCloneBuffers.Length() <= mLimit, "Too many results!");
-
-  nsresult rv = ConvertCloneBuffersToArray(aCx, mCloneBuffers, aVal);
-
-  for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
-    mCloneBuffers[index].clear(aCx);
-  }
-
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
+  return ConvertCloneBuffersToArray(aCx, mCloneBuffers, aVal);
 }

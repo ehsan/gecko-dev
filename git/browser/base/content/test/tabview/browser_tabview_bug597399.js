@@ -49,13 +49,9 @@ function onTabViewWindowLoaded() {
   let number = -1;
 
   let onSearchEnabled = function() {
-    // ensure the dom changes (textbox get focused with number entered) complete 
-    // before doing a check.
-    executeSoon(function() { 
-      let searchBox = contentWindow.document.getElementById("searchbox");
-      is(searchBox.value, number, "The seach box matches the number: " + number);
-      contentWindow.hideSearch(null);
-    });
+    let searchBox = contentWindow.document.getElementById("searchbox");
+    is(searchBox.value, number, "The seach box matches the number: " + number);
+    contentWindow.hideSearch(null);
   }
   let onSearchDisabled = function() {
     if (++number <= 9) {

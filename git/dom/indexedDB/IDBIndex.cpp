@@ -96,14 +96,15 @@ public:
   : GetKeyHelper(aTransaction, aRequest, aIndex, aKey)
   { }
 
-  ~GetHelper()
-  {
-    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
-  }
-
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
+
+  void ReleaseMainThreadObjects()
+  {
+    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
+    GetKeyHelper::ReleaseMainThreadObjects();
+  }
 
 protected:
   JSAutoStructuredCloneBuffer mCloneBuffer;
@@ -140,19 +141,15 @@ public:
   : GetKeyHelper(aTransaction, aRequest, aIndex, aKey), mLimit(aLimit)
   { }
 
-  ~GetAllHelper()
-  {
-    for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
-      IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffers[index]);
-    }
-  }
-
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
 
   void ReleaseMainThreadObjects()
   {
+    for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
+      IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffers[index]);
+    }
     GetKeyHelper::ReleaseMainThreadObjects();
   }
 
@@ -220,11 +217,6 @@ public:
     mUpperOpen(aUpperOpen), mDirection(aDirection)
   { }
 
-  ~OpenCursorHelper()
-  {
-    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
-  }
-
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
@@ -232,6 +224,7 @@ public:
   void ReleaseMainThreadObjects()
   {
     mIndex = nsnull;
+    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
     AsyncConnectionHelper::ReleaseMainThreadObjects();
   }
 
@@ -780,12 +773,7 @@ nsresult
 GetHelper::GetSuccessResult(JSContext* aCx,
                             jsval* aVal)
 {
-  nsresult rv = ConvertCloneBufferToJSVal(aCx, mCloneBuffer, aVal);
-
-  mCloneBuffer.clear(aCx);
-
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
+  return ConvertCloneBufferToJSVal(aCx, mCloneBuffer, aVal);
 }
 
 nsresult
@@ -1052,15 +1040,7 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
                                jsval* aVal)
 {
   NS_ASSERTION(mCloneBuffers.Length() <= mLimit, "Too many results!");
-
-  nsresult rv = ConvertCloneBuffersToArray(aCx, mCloneBuffers, aVal);
-
-  for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
-    mCloneBuffers[index].clear(aCx);
-  }
-
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
+  return ConvertCloneBuffersToArray(aCx, mCloneBuffers, aVal);
 }
 
 nsresult
@@ -1570,8 +1550,6 @@ OpenCursorHelper::GetSuccessResult(JSContext* aCx,
                       mContinueQuery, mContinueToQuery, mKey, mObjectKey,
                       mCloneBuffer);
   NS_ENSURE_TRUE(cursor, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  NS_ASSERTION(!mCloneBuffer.data(), "Should have swapped!");
 
   return WrapNative(aCx, cursor, aVal);
 }

@@ -136,8 +136,7 @@ gfxQuartzSurface::GetCGContextWithClip(gfxContext *ctx)
 PRInt32 gfxQuartzSurface::GetDefaultContextFlags() const
 {
     if (mForPrinting)
-        return gfxContext::FLAG_DISABLE_SNAPPING |
-               gfxContext::FLAG_DISABLE_COPY_BACKGROUND;
+        return gfxContext::FLAG_DISABLE_SNAPPING;
 
     return 0;
 }

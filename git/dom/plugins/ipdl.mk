@@ -42,5 +42,4 @@ IPDLSRCS = \
   PBrowserStream.ipdl \
   PPluginStream.ipdl \
   PStreamNotify.ipdl \
-  PPluginSurface.ipdl \
   $(NULL)

@@ -1001,14 +1001,14 @@ nsSHEntry::SetDocshellID(PRUint64 aID)
 
 
 NS_IMETHODIMP
-nsSHEntry::GetLastTouched(PRUint32 *aLastTouched)
+nsSHEntry::GetLastTouched(unsigned int *aLastTouched)
 {
   *aLastTouched = mLastTouched;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSHEntry::SetLastTouched(PRUint32 aLastTouched)
+nsSHEntry::SetLastTouched(unsigned int aLastTouched)
 {
   mLastTouched = aLastTouched;
   return NS_OK;

@@ -512,7 +512,8 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
     if (!fe)
         return 1;
 
-    ff->AddFontEntry(fe);
+    ff->mAvailableFonts.AppendElement(fe);
+    fe->SetFamily(ff);
 
     // mark the charset bit
     fe->mCharset.set(metrics.tmCharSet);

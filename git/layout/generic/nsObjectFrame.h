@@ -321,8 +321,7 @@ public:
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion,
-                                   PRBool& aContainsRootContentDocBG);
+                                   nsRegion* aVisibleRegion);
 
   NS_DISPLAY_DECL_NAME("Plugin", TYPE_PLUGIN)
 

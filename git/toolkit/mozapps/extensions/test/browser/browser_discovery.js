@@ -100,7 +100,7 @@ function getHash(aBrowser) {
   return null;
 }
 
-function testHash(aBrowser, aTestAddonVisible, aCallback) {
+function testHash(aBrowser, aCallback) {
   var hash = getHash(aBrowser);
   isnot(hash, null, "There should be a hash");
   try {
@@ -114,31 +114,19 @@ function testHash(aBrowser, aTestAddonVisible, aCallback) {
   is(typeof data, "object", "Hash should be a JS object");
 
   // Ensure that at least the test add-ons are present
-  if (aTestAddonVisible[0])
-    ok("addon1@tests.mozilla.org" in data, "Test add-on 1 should be listed");
-  else
-    ok(!("addon1@tests.mozilla.org" in data), "Test add-on 1 should not be listed");
-  if (aTestAddonVisible[1])
-    ok("addon2@tests.mozilla.org" in data, "Test add-on 2 should be listed");
-  else
-    ok(!("addon2@tests.mozilla.org" in data), "Test add-on 2 should not be listed");
-  if (aTestAddonVisible[2])
-    ok("addon3@tests.mozilla.org" in data, "Test add-on 3 should be listed");
-  else
-    ok(!("addon3@tests.mozilla.org" in data), "Test add-on 3 should not be listed");
+  ok("addon1@tests.mozilla.org" in data, "Test add-on 1 should be listed");
+  ok("addon2@tests.mozilla.org" in data, "Test add-on 2 should be listed");
+  ok("addon3@tests.mozilla.org" in data, "Test add-on 3 should be listed");
 
   // Test against all the add-ons the manager knows about since plugins and
   // app extensions may exist
   AddonManager.getAllAddons(function(aAddons) {
     aAddons.forEach(function(aAddon) {
-      if (!(aAddon.id in data)) {
-        // Test add-ons will have shown an error if necessary above
-        if (aAddon.id.substring(6) != "@tests.mozilla.org")
-          ok(false, "Add-on " + aAddon.id + " was not included in the data");
+      info("Testing data for add-on " + aAddon.id);
+      if (!aAddon.id in data) {
+        ok(false, "Add-on was not included in the data");
         return;
       }
-
-      info("Testing data for add-on " + aAddon.id);
       var addonData = data[aAddon.id];
       is(addonData.name, aAddon.name, "Name should be correct");
       is(addonData.version, aAddon.version, "Version should be correct");
@@ -190,7 +178,7 @@ add_test(function() {
       var browser = gManagerWindow.document.getElementById("discover-browser");
       is(getURL(browser), MAIN_URL, "Should have loaded the right url");
 
-      testHash(browser, [true, true, true], function() {
+      testHash(browser, function() {
         close_manager(gManagerWindow, run_next_test);
       });
     });
@@ -202,10 +190,6 @@ add_test(function() {
 // Tests that loading the add-ons manager with the discovery view as the last
 // selected view displays the right url
 add_test(function() {
-  // Hide one of the test add-ons
-  Services.prefs.setBoolPref("extensions.addon2@tests.mozilla.org.getAddons.cache.enabled", false);
-  Services.prefs.setBoolPref("extensions.addon3@tests.mozilla.org.getAddons.cache.enabled", true);
-
   open_manager(null, function(aWindow) {
     gCategoryUtilities = new CategoryUtilities(gManagerWindow);
     is(gCategoryUtilities.selectedCategory, "discover", "Should have loaded the right view");
@@ -213,7 +197,7 @@ add_test(function() {
     var browser = gManagerWindow.document.getElementById("discover-browser");
     is(getURL(browser), MAIN_URL, "Should have loaded the right url");
 
-    testHash(browser, [true, false, true], function() {
+    testHash(browser, function() {
       close_manager(gManagerWindow, run_next_test);
     });
   }, function(aWindow) {
@@ -225,9 +209,6 @@ add_test(function() {
 // Tests that loading the add-ons manager with the discovery view as the initial
 // view displays the right url
 add_test(function() {
-  Services.prefs.clearUserPref("extensions.addon2@tests.mozilla.org.getAddons.cache.enabled");
-  Services.prefs.setBoolPref("extensions.addon3@tests.mozilla.org.getAddons.cache.enabled", false);
-
   open_manager(null, function(aWindow) {
     gManagerWindow = aWindow;
     gCategoryUtilities = new CategoryUtilities(gManagerWindow);
@@ -240,8 +221,7 @@ add_test(function() {
           var browser = gManagerWindow.document.getElementById("discover-browser");
           is(getURL(browser), MAIN_URL, "Should have loaded the right url");
 
-          testHash(browser, [true, true, false], function() {
-            Services.prefs.clearUserPref("extensions.addon3@tests.mozilla.org.getAddons.cache.enabled");
+          testHash(browser, function() {
             close_manager(gManagerWindow, run_next_test);
           });
         }, function(aWindow) {

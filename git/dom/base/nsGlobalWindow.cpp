@@ -221,7 +221,6 @@
 #include "nsXPCOMCID.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozIThirdPartyUtil.h"
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -1160,36 +1159,42 @@ nsGlobalWindow::ClearControllers()
   }
 }
 
-// static
-void
-nsGlobalWindow::TryClearWindowScope(nsISupports *aWindow)
+class ClearScopeEvent : public nsRunnable
 {
-  nsGlobalWindow *window =
-          static_cast<nsGlobalWindow *>(static_cast<nsIDOMWindow*>(aWindow));
+public:
+  ClearScopeEvent(nsGlobalWindow *innerWindow)
+    : mInnerWindow(innerWindow) {
+  }
 
-  // This termination function might be called when any script evaluation in our
-  // context terminated, even if there are other scripts in the stack. Thus, we
-  // have to check again if a script is executing and post a new termination
-  // function if necessary.
-  window->ClearScopeWhenAllScriptsStop();
-}
+  NS_IMETHOD Run()
+  {
+    mInnerWindow->ReallyClearScope(this);
+    return NS_OK;
+  }
+
+private:
+  nsRefPtr<nsGlobalWindow> mInnerWindow;
+};
 
 void
-nsGlobalWindow::ClearScopeWhenAllScriptsStop()
+nsGlobalWindow::ReallyClearScope(nsRunnable *aRunnable)
 {
   NS_ASSERTION(IsInnerWindow(), "Must be an inner window");
 
-  // We cannot clear scope safely until all the scripts in our script context
-  // stopped. This might be a long wait, for example if one script is busy
-  // because it started a nested event loop for a modal dialog.
   nsIScriptContext *jsscx = GetContextInternal();
   if (jsscx && jsscx->GetExecutingScript()) {
-    // We ignore the return value because the only reason that we clear scope
-    // here is to try to prevent leaks. Failing to clear scope might mean that
-    // we'll leak more but if we don't have enough memory to allocate a
-    // termination function we probably don't have to worry about this anyway.
-    jsscx->SetTerminationFunction(TryClearWindowScope,
-                                  static_cast<nsIDOMWindow *>(this));
+    if (!aRunnable) {
+      aRunnable = new ClearScopeEvent(this);
+      if (!aRunnable) {
+        // The only reason that we clear scope here is to try to prevent
+        // leaks. Failing to clear scope might mean that we'll leak more
+        // but if we don't have enough memory to allocate a ClearScopeEvent
+        // we probably don't have to worry about this anyway.
+        return;
+      }
+    }
+
+    NS_DispatchToMainThread(aRunnable);
     return;
   }
 
@@ -1223,7 +1228,7 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
   indexedDB::IndexedDatabaseManager* idbManager =
     indexedDB::IndexedDatabaseManager::Get();
   if (idbManager) {
-    idbManager->AbortCloseDatabasesForWindow(this);
+    idbManager->CloseDatabasesForWindow(this);
   }
 
   ClearAllTimeouts();
@@ -1264,7 +1269,9 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
   mIndexedDB = nsnull;
 
   if (aClearScope) {
-    ClearScopeWhenAllScriptsStop();
+    // NB: This might not clear our scope, but fire an event to do so
+    // instead.
+    ReallyClearScope(nsnull);
   }
 
   if (mDummyJavaPluginOwner) {
@@ -8029,23 +8036,8 @@ NS_IMETHODIMP
 nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
 {
   if (!mIndexedDB) {
-    nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
-      do_GetService(THIRDPARTYUTIL_CONTRACTID);
-    NS_ENSURE_TRUE(thirdPartyUtil, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-    PRBool isThirdParty;
-    nsresult rv = thirdPartyUtil->IsThirdPartyWindow(this, nsnull,
-                                                     &isThirdParty);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-    if (isThirdParty) {
-      NS_WARNING("IndexedDB is not permitted in a third-party window.");
-      *_retval = nsnull;
-      return NS_OK;
-    }
-
-    mIndexedDB = indexedDB::IDBFactory::Create(this);
-    NS_ENSURE_TRUE(mIndexedDB, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    mIndexedDB = indexedDB::IDBFactory::Create();
+    NS_ENSURE_TRUE(mIndexedDB, NS_ERROR_FAILURE);
   }
 
   nsCOMPtr<nsIIDBFactory> request(mIndexedDB);

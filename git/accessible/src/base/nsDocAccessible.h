@@ -199,14 +199,6 @@ public:
   }
 
   /**
-   * Bind the child document to the tree.
-   */
-  inline void BindChildDocument(nsDocAccessible* aDocument)
-  {
-    mNotificationController->ScheduleChildDocBinding(aDocument);
-  }
-
-  /**
    * Process the generic notification.
    *
    * @note  The caller must guarantee that the given instance still exists when

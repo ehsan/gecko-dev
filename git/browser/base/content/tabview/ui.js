@@ -474,21 +474,10 @@ let UI = {
 
     gBrowser.updateTitlebar();
 #ifdef XP_MACOSX
-    this.setTitlebarColors(true);
+    this._setActiveTitleColor(true);
 #endif
     let event = document.createEvent("Events");
     event.initEvent("tabviewshown", true, false);
-
-    // Close the active group if it was empty. This will happen when the
-    // user returns to Panorama after looking at an app tab, having
-    // closed all other tabs. (If the user is looking at an orphan tab, then
-    // there is no active group for the purposes of this check.)
-    let activeGroupItem = null;
-    if (!GroupItems.getActiveOrphanTab()) {
-      activeGroupItem = GroupItems.getActiveGroupItem();
-      if (activeGroupItem && activeGroupItem.closeIfEmpty())
-        activeGroupItem = null;
-    }
 
     if (zoomOut && currentTab && currentTab._tabViewTabItem) {
       item = currentTab._tabViewTabItem;
@@ -503,8 +492,11 @@ let UI = {
 
         self.setActiveTab(item);
 
-        if (activeGroupItem && item.parent)
-          activeGroupItem.setTopChild(item);
+        if (item.parent) {
+          var activeGroupItem = GroupItems.getActiveGroupItem();
+          if (activeGroupItem)
+            activeGroupItem.setTopChild(item);
+        }
 
         self._resize(true);
         dispatchEvent(event);
@@ -559,7 +551,7 @@ let UI = {
 
     gBrowser.updateTitlebar();
 #ifdef XP_MACOSX
-    this.setTitlebarColors(false);
+    this._setActiveTitleColor(false);
 #endif
     let event = document.createEvent("Events");
     event.initEvent("tabviewhidden", true, false);
@@ -570,27 +562,19 @@ let UI = {
 
 #ifdef XP_MACOSX
   // ----------
-  // Function: setTitlebarColors
+  // Function: _setActiveTitleColor
   // Used on the Mac to make the title bar match the gradient in the rest of the
   // TabView UI.
   //
   // Parameters:
-  //   colors - (bool or object) true for the special TabView color, false for
-  //         the normal color, and an object with "active" and "inactive"
-  //         properties to specify directly.
-  setTitlebarColors: function UI_setTitlebarColors(colors) {
+  //   set - true for the special TabView color, false for the normal color.
+  _setActiveTitleColor: function UI__setActiveTitleColor(set) {
     // Mac Only
     var mainWindow = gWindow.document.getElementById("main-window");
-    if (colors === true) {
+    if (set)
       mainWindow.setAttribute("activetitlebarcolor", "#C4C4C4");
-      mainWindow.setAttribute("inactivetitlebarcolor", "#EDEDED");
-    } else if (colors && "active" in colors && "inactive" in colors) {
-      mainWindow.setAttribute("activetitlebarcolor", colors.active);
-      mainWindow.setAttribute("inactivetitlebarcolor", colors.inactive);
-    } else {
+    else
       mainWindow.removeAttribute("activetitlebarcolor");
-      mainWindow.removeAttribute("inactivetitlebarcolor");
-    }
   },
 #endif
 
@@ -599,10 +583,8 @@ let UI = {
   // Pauses the storage activity that conflicts with sessionstore updates and 
   // private browsing mode switches. Calls can be nested. 
   storageBusy: function UI_storageBusy() {
-    if (!this._storageBusyCount) {
+    if (!this._storageBusyCount)
       TabItems.pauseReconnecting();
-      GroupItems.pauseAutoclose();
-    }
     
     this._storageBusyCount++;
   },
@@ -620,7 +602,6 @@ let UI = {
   
       TabItems.resumeReconnecting();
       GroupItems._updateTabBar();
-      GroupItems.resumeAutoclose();
     }
   },
 
@@ -1008,7 +989,7 @@ let UI = {
       if (norm != null) {
         var nextTab = getClosestTabBy(norm);
         if (nextTab) {
-          if (nextTab.isStacked && !nextTab.parent.expanded)
+          if (nextTab.inStack() && !nextTab.parent.expanded)
             nextTab = nextTab.parent.getChild(0);
           self.setActiveTab(nextTab);
         }
@@ -1072,7 +1053,7 @@ let UI = {
   //   event - the event triggers this action.
   enableSearch: function UI_enableSearch(event) {
     if (!isSearchEnabled()) {
-      ensureSearchShown();
+      ensureSearchShown(null);
       SearchEventHandler.switchToInMode();
       
       if (event) {
