@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,16 +14,16 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2005
+ * The Initial Developer of the Original Code is
+ * Marco Pesenti Gritti <marco@gnome.org>
+ * Portions created by the Initial Developer are Copyright (C) 2004
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Darin Fisher <darin@meer.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -36,26 +35,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef READSTRINGS_H__
-#define READSTRINGS_H__
+#ifndef widgetCore_h__
+#define widgetCore_h__
 
-#define MAX_TEXT_LEN 200
+#include "nscore.h"
 
-#if defined(XP_WIN) || defined(XP_OS2)
-# include <windows.h>
-  typedef WCHAR NS_tchar;
+#ifdef _IMPL_NS_WIDGET
+#define NS_WIDGET NS_EXPORT
 #else
-  typedef char NS_tchar;
+#define NS_WIDGET NS_IMPORT
 #endif
 
-struct StringTable {
-  char title[MAX_TEXT_LEN];
-  char info[MAX_TEXT_LEN];
-};
-
-/**
- * This function reads in localized strings from updater.ini
- */
-int ReadStrings(const NS_tchar *path, StringTable *results);
-
-#endif  // READSTRINGS_H__
+#endif

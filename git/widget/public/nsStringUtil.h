@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
+/* -*- Mode: c++; tab-width: 2; indent-tabs-mode: nil; -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,12 +14,12 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2005
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Darin Fisher <darin@meer.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,26 +35,26 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef READSTRINGS_H__
-#define READSTRINGS_H__
+// Convience macros for converting nsString's to chars +
+// creating temporary char[] bufs.
 
-#define MAX_TEXT_LEN 200
+#ifndef NS_STR_UTIL_H
+#define NS_STR_UTIL_H
 
-#if defined(XP_WIN) || defined(XP_OS2)
-# include <windows.h>
-  typedef WCHAR NS_tchar;
-#else
-  typedef char NS_tchar;
-#endif
+// temporary char[] macro
 
-struct StringTable {
-  char title[MAX_TEXT_LEN];
-  char info[MAX_TEXT_LEN];
-};
+// Convience MACROS which use a static char array if possible to reduce
+// memory fragmentation, otherwise they allocate a char[] which must be
+// freed.  REMEMBER to always use the NS_FREE_CHAR_BUF after using the
+// NS_ALLOC_CHAR_BUF. You can not nest NS_ALLOC_CHAR_BUF's. 
 
-/**
- * This function reads in localized strings from updater.ini
- */
-int ReadStrings(const NS_tchar *path, StringTable *results);
+#define NS_ALLOC_CHAR_BUF(aBuf, aSize, aActualSize) \
+  int _ns_tmpActualSize = aActualSize;              \
+  char _ns_smallBuffer[aSize];                      \
+  char * const aBuf = _ns_tmpActualSize <= aSize ? _ns_smallBuffer : new char[_ns_tmpActualSize]; 
 
-#endif  // READSTRINGS_H__
+#define NS_FREE_CHAR_BUF(aBuf)   \
+  if (aBuf != _ns_smallBuffer) \
+   delete[] aBuf;
+
+#endif // !defined(NS_STR_UTIL_H)
