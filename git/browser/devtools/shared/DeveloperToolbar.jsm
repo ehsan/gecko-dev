@@ -550,7 +550,7 @@ function OutputPanel(aChromeDoc, aInput, aLoadCallback)
   this._loadCallback = aLoadCallback;
 
   /*
-  <tooltip id="gcli-output"
+  <panel id="gcli-output"
          noautofocus="true"
          noautohide="true"
          class="gcli-panel">
@@ -558,15 +558,13 @@ function OutputPanel(aChromeDoc, aInput, aLoadCallback)
                  id="gcli-output-frame"
                  src="chrome://browser/content/devtools/gclioutput.xhtml"
                  flex="1"/>
-  </tooltip>
+  </panel>
   */
-
-  // TODO: Switch back from tooltip to panel when metacity focus issue is fixed:
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=780102
-  this._panel = aChromeDoc.createElement("tooltip");
-
+  this._panel = aChromeDoc.createElement("panel");
   this._panel.id = "gcli-output";
   this._panel.classList.add("gcli-panel");
+  this._panel.setAttribute("noautofocus", "true");
+  this._panel.setAttribute("noautohide", "true");
   this._toolbar.parentElement.insertBefore(this._panel, this._toolbar);
 
   this._frame = aChromeDoc.createElementNS(NS_XHTML, "iframe");
@@ -581,10 +579,6 @@ function OutputPanel(aChromeDoc, aInput, aLoadCallback)
   this._frame.addEventListener("load", this._onload, true);
 
   this.loaded = false;
-  this.canHide = false;
-
-  this._onpopuphiding = this._onpopuphiding.bind(this);
-  this._panel.addEventListener("popuphiding", this._onpopuphiding, true);
 }
 
 /**
@@ -613,18 +607,6 @@ OutputPanel.prototype._onload = function OP_onload()
 };
 
 /**
- * Prevent the popup from hiding if it is not permitted via this.canHide.
- */
-OutputPanel.prototype._onpopuphiding = function OP_onpopuphiding(aEvent)
-{
-  // TODO: When we switch back from tooltip to panel we can remove this hack:
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=780102
-  if (!this.canHide) {
-    aEvent.preventDefault();
-  }
-};
-
-/**
  * Display the OutputPanel.
  */
 OutputPanel.prototype.show = function OP_show()
@@ -635,8 +617,6 @@ OutputPanel.prototype.show = function OP_show()
   this._panel.ownerDocument.defaultView.setTimeout(function() {
     this._resize();
   }.bind(this), 0);
-
-  this.canHide = false;
 
   this._panel.openPopup(this._input, "before_start", 0, 0, false, false, null);
   this._resize();
@@ -697,7 +677,6 @@ OutputPanel.prototype.update = function OP_update()
  */
 OutputPanel.prototype.remove = function OP_remove()
 {
-  this.canHide = true;
   this._panel.hidePopup();
 
   if (this.displayedOutput) {
@@ -714,15 +693,11 @@ OutputPanel.prototype.destroy = function OP_destroy()
 {
   this.remove();
 
-  this._panel.removeEventListener("popuphiding", this._onpopuphiding, true);
-
   this._panel.removeChild(this._frame);
   this._toolbar.parentElement.removeChild(this._panel);
 
   delete this._input;
   delete this._toolbar;
-  delete this._onload;
-  delete this._onpopuphiding;
   delete this._panel;
   delete this._frame;
   delete this._content;
@@ -739,7 +714,6 @@ OutputPanel.prototype._visibilityChanged = function OP_visibilityChanged(aEvent)
   if (aEvent.outputVisible === true) {
     // this.show is called by _outputChanged
   } else {
-    this.canHide = true;
     this._panel.hidePopup();
   }
 };
@@ -760,7 +734,7 @@ function TooltipPanel(aChromeDoc, aInput, aLoadCallback)
   this._onload = this._onload.bind(this);
   this._loadCallback = aLoadCallback;
   /*
-  <tooltip id="gcli-tooltip"
+  <panel id="gcli-tooltip"
          type="arrow"
          noautofocus="true"
          noautohide="true"
@@ -769,15 +743,13 @@ function TooltipPanel(aChromeDoc, aInput, aLoadCallback)
                  id="gcli-tooltip-frame"
                  src="chrome://browser/content/devtools/gclitooltip.xhtml"
                  flex="1"/>
-  </tooltip>
+  </panel>
   */
-
-  // TODO: Switch back from tooltip to panel when metacity focus issue is fixed:
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=780102
-  this._panel = aChromeDoc.createElement("tooltip");
-
+  this._panel = aChromeDoc.createElement("panel");
   this._panel.id = "gcli-tooltip";
   this._panel.classList.add("gcli-panel");
+  this._panel.setAttribute("noautofocus", "true");
+  this._panel.setAttribute("noautohide", "true");
   this._toolbar.parentElement.insertBefore(this._panel, this._toolbar);
 
   this._frame = aChromeDoc.createElementNS(NS_XHTML, "iframe");
@@ -787,12 +759,7 @@ function TooltipPanel(aChromeDoc, aInput, aLoadCallback)
   this._panel.appendChild(this._frame);
 
   this._frame.addEventListener("load", this._onload, true);
-
   this.loaded = false;
-  this.canHide = false;
-
-  this._onpopuphiding = this._onpopuphiding.bind(this);
-  this._panel.addEventListener("popuphiding", this._onpopuphiding, true);
 }
 
 /**
@@ -819,18 +786,6 @@ TooltipPanel.prototype._onload = function TP_onload()
 };
 
 /**
- * Prevent the popup from hiding if it is not permitted via this.canHide.
- */
-TooltipPanel.prototype._onpopuphiding = function TP_onpopuphiding(aEvent)
-{
-  // TODO: When we switch back from tooltip to panel we can remove this hack:
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=780102
-  if (!this.canHide) {
-    aEvent.preventDefault();
-  }
-};
-
-/**
  * Display the TooltipPanel.
  */
 TooltipPanel.prototype.show = function TP_show(aDimensions)
@@ -846,8 +801,6 @@ TooltipPanel.prototype.show = function TP_show(aDimensions)
   this._panel.ownerDocument.defaultView.setTimeout(function() {
     this._resize();
   }.bind(this), 0);
-
-  this.canHide = false;
 
   this._resize();
   this._panel.openPopup(this._input, "before_start", aDimensions.start * 10, 0, false, false, null);
@@ -892,7 +845,6 @@ TooltipPanel.prototype._resize = function TP_resize()
  */
 TooltipPanel.prototype.remove = function TP_remove()
 {
-  this.canHide = true;
   this._panel.hidePopup();
 };
 
@@ -903,8 +855,6 @@ TooltipPanel.prototype.destroy = function TP_destroy()
 {
   this.remove();
 
-  this._panel.removeEventListener("popuphiding", this._onpopuphiding, true);
-
   this._panel.removeChild(this._frame);
   this._toolbar.parentElement.removeChild(this._panel);
 
@@ -912,7 +862,6 @@ TooltipPanel.prototype.destroy = function TP_destroy()
   delete this._dimensions;
   delete this._input;
   delete this._onload;
-  delete this._onpopuphiding;
   delete this._panel;
   delete this._frame;
   delete this._toolbar;
@@ -930,7 +879,6 @@ TooltipPanel.prototype._visibilityChanged = function TP_visibilityChanged(aEvent
   if (aEvent.tooltipVisible === true) {
     this.show(aEvent.dimensions);
   } else {
-    this.canHide = true;
     this._panel.hidePopup();
   }
 };

@@ -25,14 +25,9 @@ function ThreadActor(aHooks)
   this._frameActors = [];
   this._environmentActors = [];
   this._hooks = aHooks ? aHooks : {};
+  this._breakpointStore = {};
   this._scripts = {};
 }
-
-/**
- * The breakpoint store must be shared across instances of ThreadActor so that
- * page reloads don't blow away all of our breakpoints.
- */
-ThreadActor._breakpointStore = {};
 
 ThreadActor.prototype = {
   actorPrefix: "context",
@@ -40,8 +35,6 @@ ThreadActor.prototype = {
   get state() { return this._state; },
 
   get dbg() { return this._dbg; },
-
-  get _breakpointStore() { return ThreadActor._breakpointStore; },
 
   get threadLifetimePool() {
     if (!this._threadLifetimePool) {
