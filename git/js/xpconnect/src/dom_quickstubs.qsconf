@@ -61,6 +61,8 @@ members = [
     'nsIBoxObject.width',
     'nsIBoxObject.height',
 
+    # dom/indexedDB
+    'nsIIndexedDatabaseManager.*',
     ]
 
 # Most interfaces can be found by searching the includePath; to find
@@ -72,6 +74,8 @@ members = [
 irregularFilenames = {
     # stowaways
     'nsIDOMBlob': 'nsIDOMFile',
+    'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
+    'nsITelephoneCallback': 'nsITelephone',
     }
 
 customIncludes = [

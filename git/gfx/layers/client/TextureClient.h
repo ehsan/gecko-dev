@@ -53,8 +53,7 @@ class TextureClient;
 
 enum TextureAllocationFlags {
   ALLOC_DEFAULT = 0,
-  ALLOC_CLEAR_BUFFER = 1,
-  ALLOC_CLEAR_BUFFER_WHITE = 2
+  ALLOC_CLEAR_BUFFER = 1
 };
 
 /**

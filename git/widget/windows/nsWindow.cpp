@@ -5728,9 +5728,9 @@ nsWindow::GetMessageTimeStamp(LONG aEventTime)
     cyclesToAdd++;
   }
 
-  if (cyclesToAdd > 0) {
+  if (timesWrapped > 0) {
     eventTimeStamp +=
-      TimeDuration::FromMilliseconds(kEventTimeRange * cyclesToAdd);
+      TimeDuration::FromMilliseconds(kEventTimeRange * timesWrapped);
   }
 
   return eventTimeStamp;

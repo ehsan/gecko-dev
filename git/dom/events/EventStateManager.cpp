@@ -5545,31 +5545,24 @@ AutoHandlingUserInputStatePusher::AutoHandlingUserInputStatePusher(
                                     nsIDocument* aDocument) :
   mIsHandlingUserInput(aIsHandlingUserInput),
   mIsMouseDown(aEvent && aEvent->message == NS_MOUSE_BUTTON_DOWN),
-  mResetFMMouseButtonHandlingState(false)
+  mResetFMMouseDownState(false)
 {
   if (!aIsHandlingUserInput) {
     return;
   }
   EventStateManager::StartHandlingUserInput();
-  if (mIsMouseDown) {
-    nsIPresShell::SetCapturingContent(nullptr, 0);
-    nsIPresShell::AllowMouseCapture(true);
-  }
-  if (!aDocument || !aEvent || !aEvent->mFlags.mIsTrusted) {
+  if (!mIsMouseDown) {
     return;
   }
-  mResetFMMouseButtonHandlingState = (aEvent->message == NS_MOUSE_BUTTON_DOWN ||
-                                      aEvent->message == NS_MOUSE_BUTTON_UP);
-  if (mResetFMMouseButtonHandlingState) {
-    nsFocusManager* fm = nsFocusManager::GetFocusManager();
-    NS_ENSURE_TRUE_VOID(fm);
-    // If it's in modal state, mouse button event handling may be nested.
-    // E.g., a modal dialog is opened at mousedown or mouseup event handler
-    // and the dialog is clicked.  Therefore, we should store current
-    // mouse button event handling document if nsFocusManager already has it.
-    mMouseButtonEventHandlingDocument =
-      fm->SetMouseButtonHandlingDocument(aDocument);
+  nsIPresShell::SetCapturingContent(nullptr, 0);
+  nsIPresShell::AllowMouseCapture(true);
+  if (!aDocument || !aEvent->mFlags.mIsTrusted) {
+    return;
   }
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  NS_ENSURE_TRUE_VOID(fm);
+  fm->SetMouseButtonDownHandlingDocument(aDocument);
+  mResetFMMouseDownState = true;
 }
 
 AutoHandlingUserInputStatePusher::~AutoHandlingUserInputStatePusher()
@@ -5578,15 +5571,16 @@ AutoHandlingUserInputStatePusher::~AutoHandlingUserInputStatePusher()
     return;
   }
   EventStateManager::StopHandlingUserInput();
-  if (mIsMouseDown) {
-    nsIPresShell::AllowMouseCapture(false);
+  if (!mIsMouseDown) {
+    return;
   }
-  if (mResetFMMouseButtonHandlingState) {
-    nsFocusManager* fm = nsFocusManager::GetFocusManager();
-    NS_ENSURE_TRUE_VOID(fm);
-    nsCOMPtr<nsIDocument> handlingDocument =
-      fm->SetMouseButtonHandlingDocument(mMouseButtonEventHandlingDocument);
+  nsIPresShell::AllowMouseCapture(false);
+  if (!mResetFMMouseDownState) {
+    return;
   }
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  NS_ENSURE_TRUE_VOID(fm);
+  fm->SetMouseButtonDownHandlingDocument(nullptr);
 }
 
 } // namespace mozilla

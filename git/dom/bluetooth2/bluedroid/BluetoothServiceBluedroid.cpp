@@ -67,8 +67,6 @@ static nsTArray<nsRefPtr<BluetoothReplyRunnable> > sUnbondingRunnableArray;
 
 // Atomic static variables
 static Atomic<bool> sAdapterDiscoverable(false);
-static Atomic<bool> sAdapterDiscovering(false);
-static Atomic<bool> sAdapterEnabled(false);
 static Atomic<uint32_t> sAdapterDiscoverableTimeout(0);
 
 /**
@@ -305,22 +303,23 @@ AdapterStateChangeCallback(bt_state_t aStatus)
   MOZ_ASSERT(!NS_IsMainThread());
 
   BT_LOGR("BT_STATE: %d", aStatus);
-  sAdapterEnabled = (aStatus == BT_STATE_ON);
 
-  if (!sAdapterEnabled &&
+  bool isBtEnabled = (aStatus == BT_STATE_ON);
+
+  if (!isBtEnabled &&
       NS_FAILED(NS_DispatchToMainThread(new CleanupTask()))) {
     BT_WARNING("Failed to dispatch to main thread!");
     return;
   }
 
   nsRefPtr<nsRunnable> runnable =
-    new BluetoothService::ToggleBtAck(sAdapterEnabled);
+    new BluetoothService::ToggleBtAck(isBtEnabled);
   if (NS_FAILED(NS_DispatchToMainThread(runnable))) {
     BT_WARNING("Failed to dispatch to main thread!");
     return;
   }
 
-  if (sAdapterEnabled &&
+  if (isBtEnabled &&
       NS_FAILED(NS_DispatchToMainThread(new SetupAfterEnabledTask()))) {
     BT_WARNING("Failed to dispatch to main thread!");
     return;
@@ -382,8 +381,13 @@ AdapterPropertiesCallback(bt_status_t aStatus, int aNumProperties,
       BT_APPEND_NAMED_VALUE(props, "Name", propertyValue);
     } else if (p.type == BT_PROPERTY_ADAPTER_SCAN_MODE) {
       bt_scan_mode_t newMode = *(bt_scan_mode_t*)p.val;
-      propertyValue = sAdapterDiscoverable =
-        (newMode == BT_SCAN_MODE_CONNECTABLE_DISCOVERABLE);
+
+      if (newMode == BT_SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
+        propertyValue = sAdapterDiscoverable = true;
+      } else {
+        propertyValue = sAdapterDiscoverable = false;
+      }
+
       BT_APPEND_NAMED_VALUE(props, "Discoverable", propertyValue);
     } else if (p.type == BT_PROPERTY_ADAPTER_DISCOVERY_TIMEOUT) {
       propertyValue = sAdapterDiscoverableTimeout = *(uint32_t*)p.val;
@@ -594,8 +598,6 @@ DiscoveryStateChangedCallback(bt_discovery_state_t aState)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  sAdapterDiscovering = (aState == BT_DISCOVERY_STARTED);
-
   // Redirect to main thread to avoid racing problem
   NS_DispatchToMainThread(new DiscoveryStateChangedCallbackTask());
 }
@@ -712,15 +714,19 @@ BondStateChangedCallback(bt_status_t aStatus, bt_bdaddr_t* aRemoteBdAddress,
   nsAutoString remoteBdAddress;
   BdAddressTypeToString(aRemoteBdAddress, remoteBdAddress);
 
-  bool bonded = (aState == BT_BOND_STATE_BONDED);
-  if (bonded) {
-    if (sAdapterBondedAddressArray.Contains(remoteBdAddress)) {
-      // See bug 940271 for more details about this case.
-      return;
-    }
-    sAdapterBondedAddressArray.AppendElement(remoteBdAddress);
-  } else {
+  if (aState == BT_BOND_STATE_BONDED &&
+      sAdapterBondedAddressArray.Contains(remoteBdAddress)) {
+    // See bug 940271 for more details about this case.
+    return;
+  }
+
+  bool bonded;
+  if (aState == BT_BOND_STATE_NONE) {
+    bonded = false;
     sAdapterBondedAddressArray.RemoveElement(remoteBdAddress);
+  } else if (aState == BT_BOND_STATE_BONDED) {
+    bonded = true;
+    sAdapterBondedAddressArray.AppendElement(remoteBdAddress);
   }
 
   // Update bonded address list to BluetoothAdapter
@@ -946,20 +952,24 @@ BluetoothServiceBluedroid::GetAdaptersInternal(
   uint32_t numAdapters = 1; // Bluedroid supports single adapter only
 
   for (uint32_t i = 0; i < numAdapters; i++) {
+    // Since Atomic<*> is not acceptable for BT_APPEND_NAMED_VALUE(),
+    // create another variable to store data.
+    bool discoverable = sAdapterDiscoverable;
+    uint32_t discoverableTimeout = sAdapterDiscoverableTimeout;
+
     BluetoothValue properties = InfallibleTArray<BluetoothNamedValue>();
 
-    BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
-                          "State", BluetoothValue(sAdapterEnabled));
+    // TODO: Revise here based on new BluetoothAdapter interface
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
                           "Address", sAdapterBdAddress);
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
                           "Name", sAdapterBdName);
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
-                          "Discoverable",
-                          BluetoothValue(sAdapterDiscoverable));
+                          "Discoverable", discoverable);
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
-                          "Discovering",
-                          BluetoothValue(sAdapterDiscovering));
+                          "DiscoverableTimeout", discoverableTimeout);
+    BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
+                          "Devices", sAdapterBondedAddressArray);
 
     BT_APPEND_NAMED_VALUE(adaptersProperties.get_ArrayOfBluetoothNamedValue(),
                           "Adapter", properties);
@@ -1264,16 +1274,29 @@ BluetoothServiceBluedroid::SetPairingConfirmationInternal(
   return true;
 }
 
+bool
+BluetoothServiceBluedroid::SetAuthorizationInternal(
+  const nsAString& aDeviceAddress, bool aAllow,
+  BluetoothReplyRunnable* aRunnable)
+{
+  return true;
+}
+
+nsresult
+BluetoothServiceBluedroid::PrepareAdapterInternal()
+{
+  return NS_OK;
+}
+
 static void
 NextBluetoothProfileController()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  // Remove the completed task at the head
+  // First, remove the task at the front which has been already done.
   NS_ENSURE_FALSE_VOID(sControllerArray.IsEmpty());
   sControllerArray.RemoveElementAt(0);
-
-  // Start the next task if task array is not empty
+  // Re-check if the task array is empty, if it's not, the next task will begin.
   if (!sControllerArray.IsEmpty()) {
     sControllerArray[0]->StartSession();
   }

@@ -933,18 +933,14 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
       mReparseForbidden = true;
       mFeedChardet = false; // can't restart anyway
     }
-  }
 
-  // Attempt to retarget delivery of data (via OnDataAvailable) to the parser
-  // thread, rather than through the main thread.
-  nsCOMPtr<nsIThreadRetargetableRequest> threadRetargetableRequest =
-    do_QueryInterface(mRequest, &rv);
-  if (threadRetargetableRequest) {
-    rv = threadRetargetableRequest->RetargetDeliveryTo(mThread);
-  }
-
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to retarget HTML data delivery to the parser thread.");
+    // Attempt to retarget delivery of data (via OnDataAvailable) to the parser
+    // thread, rather than through the main thread.
+    nsCOMPtr<nsIThreadRetargetableRequest> threadRetargetableRequest =
+      do_QueryInterface(mRequest);
+    if (threadRetargetableRequest) {
+      threadRetargetableRequest->RetargetDeliveryTo(mThread);
+    }
   }
 
   if (mCharsetSource == kCharsetFromParentFrame) {
