@@ -1214,10 +1214,9 @@
               "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
                                              "tab");
 
-            var uriIsBlankPage = !aURI || isBlankPageURL(aURI);
-            var uriIsNotAboutBlank = aURI && aURI != "about:blank";
+            var blank = !aURI || (aURI == "about:blank");
 
-            if (uriIsBlankPage)
+            if (blank)
               t.setAttribute("label", this.mStringBundle.getString("tabs.emptyTabTitle"));
             else
               t.setAttribute("label", aURI);
@@ -1329,15 +1328,8 @@
 
             this.tabContainer.updateVisibility();
 
-            if (uriIsNotAboutBlank) {
-              // Stop the existing about:blank load.  Otherwise, if aURI
-              // doesn't stop in-progress loads on its own, we'll get into
-              // trouble with multiple parallel loads running at once.
-              b.stop();
-            }
-
             // wire up a progress listener for the new browser object.
-            var tabListener = this.mTabProgressListener(t, b, uriIsBlankPage);
+            var tabListener = this.mTabProgressListener(t, b, blank);
             const filter = Components.classes["@mozilla.org/appshell/component/browser-status-filter;1"]
                                      .createInstance(Components.interfaces.nsIWebProgress);
             filter.addProgressListener(tabListener, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
@@ -1359,10 +1351,15 @@
             evt.initEvent("TabOpen", true, false);
             t.dispatchEvent(evt);
 
-            if (uriIsNotAboutBlank) {
+            if (!blank) {
+              // Stop the existing about:blank load.  Otherwise, if aURI
+              // doesn't stop in-progress loads on its own, we'll get into
+              // trouble with multiple parallel loads running at once.
+              b.stop();
+
               // pretend the user typed this so it'll be available till
               // the document successfully loads
-              if (!uriIsBlankPage)
+              if (!isBlankPageURL(aURI))
                 b.userTypedValue = aURI;
 
               let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
