@@ -8,10 +8,13 @@ XPIDL_SOURCES += [
     'nsITypeAheadFind.idl',
 ]
 
-XPIDL_MODULE = 'fastfind'
+MODULE = 'fastfind'
 
 SOURCES += [
     'nsTypeAheadFind.cpp',
 ]
 
-FINAL_LIBRARY = 'toolkitcomps'
+LIBRARY_NAME = 'fastfind_s'
+
+LIBXUL_LIBRARY = True
+

@@ -7,6 +7,8 @@
 DIRS += ['idl']
 TEST_TOOL_DIRS += ['test']
 
+MODULE = 'jsdebug'
+
 EXPORTS += [
     'jsdebug.h',
 ]
@@ -34,4 +36,9 @@ DEFINES['EXPORT_JSD_API'] = True
 if CONFIG['JS_THREADSAFE']:
     DEFINES['JS_THREADSAFE'] = True
 
-FINAL_LIBRARY = 'xul'
+LIBRARY_NAME = 'jsd'
+
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
+

@@ -6,4 +6,6 @@
 
 DIRS += ['src']
 
+MODULE = 'widgetutils'
+
 XPI_NAME = 'widgetutils'

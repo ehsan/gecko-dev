@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'gfxipc'
+
 EXPORTS.mozilla += [
     'GfxMessageUtils.h'
 ]
@@ -26,6 +28,11 @@ SOURCES += [
     'SharedDIB.cpp',
 ]
 
+LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'gfxipc_s'
+
+EXPORT_LIBRARY = True
+
 include('/ipc/chromium/chromium-config.mozbuild')
 
-FINAL_LIBRARY = 'xul'

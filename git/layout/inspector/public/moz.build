@@ -16,5 +16,5 @@ XPIDL_SOURCES += [
     'nsIDOMFontFaceList.idl',
 ]
 
-XPIDL_MODULE = 'inspector'
+MODULE = 'inspector'
 

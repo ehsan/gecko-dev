@@ -8,7 +8,7 @@ XPIDL_SOURCES += [
     'nsIIconURI.idl',
 ]
 
-XPIDL_MODULE = 'imgicon'
+MODULE = 'imgicon'
 
 SOURCES += [
     'nsIconModule.cpp',
@@ -20,4 +20,7 @@ LIBRARY_NAME = 'imgicon'
 
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'xul'
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
+

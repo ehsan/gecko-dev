@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'breakpad_solaris_common'
+
 SOURCES += [
     'dump_symbols.cc',
     'file_id.cc',
@@ -22,4 +24,5 @@ HOST_SOURCES += [
     'guid_creator.cc',
 ]
 
-FINAL_LIBRARY = 'xulapp_s'
+# need static lib
+FORCE_STATIC_LIB = True

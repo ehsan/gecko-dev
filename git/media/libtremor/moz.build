@@ -6,3 +6,5 @@
 
 DIRS += ['include/tremor', 'lib']
 
+MODULE = 'tremor'
+

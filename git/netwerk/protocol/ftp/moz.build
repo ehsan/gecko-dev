@@ -10,6 +10,8 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'necko_ftp'
 
+MODULE = 'necko'
+
 EXPORTS += [
     'ftpCore.h',
 ]
@@ -34,8 +36,11 @@ IPDL_SOURCES += [
 
 FAIL_ON_WARNINGS = True
 
+LIBXUL_LIBRARY = True
+
 MSVC_ENABLE_PGO = True
+
+LIBRARY_NAME = 'nkftp_s'
 
 include('/ipc/chromium/chromium-config.mozbuild')
 
-FINAL_LIBRARY = 'necko'

@@ -31,6 +31,8 @@ if CONFIG['NS_PRINTING']:
 
 XPIDL_MODULE = 'webBrowser_core'
 
+MODULE = 'webbrwsr'
+
 EXPORTS += [
     'nsCTooltipTextProvider.h',
 ]
@@ -44,9 +46,12 @@ SOURCES += [
     'nsWebBrowserContentPolicy.cpp',
 ]
 
+LIBRARY_NAME = 'nsWebBrowser_s'
+
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'webbrwsr'
+LIBXUL_LIBRARY = True
+
 LOCAL_INCLUDES += [
     '../../../content/base/src',
     '../../../content/svg/content/src',

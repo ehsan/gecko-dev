@@ -32,4 +32,6 @@ PARALLEL_DIRS += ['locales']
 DIRS += ['build']
 TEST_TOOL_DIRS += ['test']
 
+MODULE = 'necko'
+
 CONFIGURE_DEFINE_FILES += ['necko-config.h']

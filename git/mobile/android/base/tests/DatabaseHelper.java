@@ -1,13 +1,13 @@
 package org.mozilla.gecko.tests;
 
 import org.mozilla.gecko.*;
-import org.mozilla.gecko.db.BrowserDB;
 
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.test.ActivityInstrumentationTestCase2;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 
 class DatabaseHelper {
@@ -23,8 +23,16 @@ class DatabaseHelper {
     * This method can be used to check if an URL is present in the bookmarks database
     */
     protected boolean isBookmark(String url) {
-        final ContentResolver resolver = mActivity.getContentResolver();
-        return BrowserDB.isBookmark(resolver, url);
+        try {
+            ContentResolver resolver = mActivity.getContentResolver();
+            ClassLoader classLoader = mActivity.getClassLoader();
+            Class browserDB = classLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+            Method isBookmarked = browserDB.getMethod("isBookmark", ContentResolver.class, String.class);
+            return (Boolean)isBookmarked.invoke(null, resolver, url);
+        } catch (Exception e) {
+            mAsserter.ok(false, "Exception while checking if url is bookmarked", e.toString());
+            return false;
+        }
     }
 
     protected Uri buildUri(BrowserDataType dataType) {
@@ -45,9 +53,16 @@ class DatabaseHelper {
      * The LocalBrowserDB.addBookmark implementation handles updating existing bookmarks.
      */
     protected void addOrUpdateMobileBookmark(String title, String url) {
-        final ContentResolver resolver = mActivity.getContentResolver();
-        BrowserDB.addBookmark(resolver, title, url);
-        mAsserter.ok(true, "Inserting/updating a new bookmark", "Inserting/updating the bookmark with the title = " + title + " and the url = " + url);
+        try {
+            ContentResolver resolver = mActivity.getContentResolver();
+            ClassLoader classLoader = mActivity.getClassLoader();
+            Class browserDB = classLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+            Method addBookmark = browserDB.getMethod("addBookmark", ContentResolver.class, String.class, String.class);
+            addBookmark.invoke(null, resolver, title, url);
+            mAsserter.ok(true, "Inserting/updating a new bookmark", "Inserting/updating the bookmark with the title = " + title + " and the url = " + url);
+        } catch (Exception e) {
+            mAsserter.ok(false, "Exception adding bookmark: ", e.toString());
+        }
     }
 
     /**
@@ -56,35 +71,58 @@ class DatabaseHelper {
      * Warning: This method assumes that there's only one bookmark with the given URL.
      */
     protected void updateBookmark(String url, String title, String keyword) {
-        final ContentResolver resolver = mActivity.getContentResolver();
-        // Get the id for the bookmark with the given URL.
-        Cursor c = null;
         try {
-            c = BrowserDB.getBookmarkForUrl(resolver, url);
-            if (!c.moveToFirst()) {
-                mAsserter.ok(false, "Getting bookmark with url", "Couldn't find bookmark with url = " + url);
-                return;
-            }
+            ContentResolver resolver = mActivity.getContentResolver();
+            ClassLoader classLoader = mActivity.getClassLoader();
+            Class browserDB = classLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+            Method getBookmarkForUrl = browserDB.getMethod("getBookmarkForUrl", ContentResolver.class, String.class);
 
-            int id = c.getInt(c.getColumnIndexOrThrow("_id"));
-            BrowserDB.updateBookmark(resolver, id, url, title, keyword);
+            // Get the id for the bookmark with the given URL.
+            Cursor c = null;
+            try {
+                c = (Cursor) getBookmarkForUrl.invoke(null, resolver, url);
+                if (!c.moveToFirst()) {
+                    mAsserter.ok(false, "Getting bookmark with url", "Couldn't find bookmark with url = " + url);
+                    return;
+                }
 
-            mAsserter.ok(true, "Updating bookmark", "Updating bookmark with url = " + url);
-        } finally {
-            if (c != null) {
-                c.close();
+                int id = c.getInt(c.getColumnIndexOrThrow("_id"));
+                Method updateBookmark = browserDB.getMethod("updateBookmark", ContentResolver.class, int.class, String.class, String.class, String.class);
+                updateBookmark.invoke(null, resolver, id, url, title, keyword);
+
+                mAsserter.ok(true, "Updating bookmark", "Updating bookmark with url = " + url);
+            } finally {
+                if (c != null) {
+                    c.close();
+                }
             }
+        } catch (Exception e) {
+            mAsserter.ok(false, "Exception updating bookmark: ", e.toString());
         }
     }
 
     protected void deleteBookmark(String url) {
-        final ContentResolver resolver = mActivity.getContentResolver();
-        BrowserDB.removeBookmarksWithURL(resolver, url);
+        try {
+            ContentResolver resolver = mActivity.getContentResolver();
+            ClassLoader classLoader = mActivity.getClassLoader();
+            Class browserDB = classLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+            Method removeBookmark = browserDB.getMethod("removeBookmarksWithURL", ContentResolver.class, String.class);
+            removeBookmark.invoke(null, resolver, url);
+        } catch (Exception e) {
+            mAsserter.ok(false, "Exception deleting bookmark", e.toString());
+        }
     }
 
     protected void deleteHistoryItem(String url) {
-        final ContentResolver resolver = mActivity.getContentResolver();
-        BrowserDB.removeHistoryEntry(resolver, url);
+        try {
+            ContentResolver resolver = mActivity.getContentResolver();
+            ClassLoader classLoader = mActivity.getClassLoader();
+            Class browserDB = classLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+            Method removeHistory = browserDB.getMethod("removeHistoryEntry", ContentResolver.class, String.class);
+            removeHistory.invoke(null, resolver, url);
+        } catch (Exception e) {
+            mAsserter.ok(false, "Exception deleting history item", e.toString());
+        }
     }
 
     // About the same implementation as getFolderIdFromGuid from LocalBrowserDB because it is declared private and we can't use reflections to access it
@@ -120,12 +158,25 @@ class DatabaseHelper {
     protected ArrayList<String> getBrowserDBUrls(BrowserDataType dataType) {
         ArrayList<String> browserData = new ArrayList<String>();
         ContentResolver resolver = mActivity.getContentResolver();
+        ClassLoader classLoader = mActivity.getClassLoader();
         Cursor cursor = null;
         Uri uri = buildUri(dataType);
         if (dataType == BrowserDataType.HISTORY) {
-            cursor = BrowserDB.getAllVisitedHistory(resolver);
+            try {
+                Class browserDBClass = classLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+                Method getAllVisitedHistory = browserDBClass.getMethod("getAllVisitedHistory", ContentResolver.class);
+                cursor = (Cursor)getAllVisitedHistory.invoke(null, resolver);
+            } catch (Exception e) {
+                mAsserter.ok(false, "Exception while getting history", e.toString());
+            }
         } else if (dataType == BrowserDataType.BOOKMARKS) {
-            cursor = BrowserDB.getBookmarksInFolder(resolver, getFolderIdFromGuid("mobile"));
+            try {
+                Class browserDBClass = classLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+                Method getBookmarks = browserDBClass.getMethod("getBookmarksInFolder", ContentResolver.class, Long.TYPE);
+                cursor = (Cursor)getBookmarks.invoke(null, resolver, getFolderIdFromGuid("mobile"));
+            } catch (Exception e) {
+                mAsserter.ok(false, "Exception while getting bookmarks", e.toString());
+            }
         }
         if (cursor != null) {
             cursor.moveToFirst();

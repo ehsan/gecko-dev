@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'protobuf'
+
 EXPORTS.protobuf.google.protobuf += [
     'google/protobuf/extension_set.h',
     'google/protobuf/generated_message_util.h',
@@ -43,4 +45,6 @@ SOURCES += [
     'google/protobuf/wire_format_lite.cc',
 ]
 
-FINAL_LIBRARY = 'toolkitcomps'
+LIBRARY_NAME = 'protobuf_s'
+
+FORCE_STATIC_LIB = True

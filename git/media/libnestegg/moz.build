@@ -6,3 +6,5 @@
 
 DIRS += ['include', 'src']
 
+MODULE = 'nestegg'
+

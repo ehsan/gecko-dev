@@ -15,8 +15,15 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'commandlines'
 
+MODULE = 'toolkitcomps'
+
 SOURCES += [
     'nsCommandLine.cpp',
 ]
 
-FINAL_LIBRARY = 'xul'
+LIBRARY_NAME = 'commandlines'
+
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
+

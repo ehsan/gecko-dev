@@ -95,7 +95,7 @@ if CONFIG['MOZ_METRO']:
         'nsIWinMetroUtils.idl',
     ]
 
-XPIDL_MODULE = 'widget'
+MODULE = 'widget'
 
 EXPORTS += [
     'InputData.h',

@@ -8,3 +8,5 @@ PARALLEL_DIRS += ['public', 'src', 'decoders', 'encoders']
 DIRS += ['build']
 TEST_DIRS += ['test']
 
+MODULE = 'imglib2'
+

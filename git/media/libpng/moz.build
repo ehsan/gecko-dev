@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'png'
+
 EXPORTS += [
     'mozpngconf.h',
     'png.h',
@@ -47,7 +49,7 @@ LIBRARY_NAME = 'mozpng'
 
 MSVC_ENABLE_PGO = True
 
+FORCE_STATIC_LIB = True
+
 if CONFIG['OS_TARGET'] == 'WINNT':
     NO_VISIBILITY_FLAGS = True
-
-FINAL_LIBRARY = 'gkmedias'

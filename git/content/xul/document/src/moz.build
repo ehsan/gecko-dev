@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'xuldoc'
+
 SOURCES += [
     'nsXULControllers.cpp',
 ]
@@ -17,7 +19,11 @@ if CONFIG['MOZ_XUL']:
         'XULDocument.cpp',
     ]
 
+LIBRARY_NAME = 'gkconxuldoc_s'
+
 FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
 
 MSVC_ENABLE_PGO = True
 
@@ -35,5 +41,3 @@ LOCAL_INCLUDES += [
     '/layout/xul/base/src',
     '/xpcom/ds',
 ]
-
-FINAL_LIBRARY = 'gklayout'

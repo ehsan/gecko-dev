@@ -46,3 +46,5 @@ DIRS += ['build', 'media']
 if CONFIG['MOZ_DEBUG']:
     TEST_DIRS += ['tools/layout-debug']
 
+MODULE = 'layout'
+

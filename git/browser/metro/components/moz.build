@@ -8,7 +8,7 @@ XPIDL_SOURCES += [
     'SessionStore.idl',
 ]
 
-XPIDL_MODULE = 'components'
+MODULE = 'components'
 
 # metro/components.manifest
 EXTRA_COMPONENTS += [

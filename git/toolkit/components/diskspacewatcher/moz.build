@@ -13,12 +13,17 @@ EXPORTS += [
 ]
 
 XPIDL_MODULE = 'diskspacewatcher'
-XPIDL_MODULE = 'toolkitcomps'
+MODULE = 'toolkitcomps'
 
 SOURCES = [
     'DiskSpaceWatcher.cpp',
 ]
 
+LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'diskspacewatcher'
+
+EXPORT_LIBRARY = True
+
 include('/ipc/chromium/chromium-config.mozbuild')
 
-FINAL_LIBRARY = 'xul'

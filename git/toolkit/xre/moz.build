@@ -15,7 +15,7 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'nsIWinAppHelper.idl',
     ]
 
-XPIDL_MODULE = 'xulapp'
+MODULE = 'xulapp'
 
 if CONFIG['MOZ_INSTRUMENT_EVENT_LOOP']:
     EXPORTS += ['EventTracer.h']
@@ -95,10 +95,11 @@ if CONFIG['MOZ_UPDATER']:
             'nsUpdateDriver.cpp',
         ]
 
+LIBXUL_LIBRARY = True
+
 MSVC_ENABLE_PGO = True
 
 LIBRARY_NAME = 'xulapp_s'
 
 include('/ipc/chromium/chromium-config.mozbuild')
 
-FINAL_LIBRARY = 'xul'

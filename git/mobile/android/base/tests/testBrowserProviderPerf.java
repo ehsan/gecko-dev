@@ -5,10 +5,9 @@ import android.content.ContentValues;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.SystemClock;
+import java.lang.reflect.Method;
 import java.util.UUID;
 import java.util.Random;
-
-import org.mozilla.gecko.db.BrowserDB;
 
 /*
  * This test is meant to exercise the performance of Fennec's
@@ -26,6 +25,7 @@ public class testBrowserProviderPerf extends ContentProviderTest {
     // multiple constraint words
     private final String KNOWN_PREFIX = "my mozilla test ";
 
+    private Method mFilterMethod;
     private Random mGenerator;
 
     private final String MOBILE_FOLDER_GUID = "mobile";
@@ -59,6 +59,22 @@ public class testBrowserProviderPerf extends ContentProviderTest {
     @Override
     protected int getTestType() {
         return TEST_TALOS;
+    }
+
+    private void loadFilterMethod() throws Exception {
+        Class browserDBClass = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+
+        mFilterMethod =
+            browserDBClass.getDeclaredMethod("filter", ContentResolver.class,
+                                             CharSequence.class, int.class);
+    }
+
+    private void initializeBrowserProvider() throws Exception {
+        Class browserDBClass = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+
+        Method initializeMethod =
+            browserDBClass.getDeclaredMethod("initialize", String.class);
+        initializeMethod.invoke(null, "default");
     }
 
     private void loadContractInfo() throws Exception {
@@ -238,17 +254,18 @@ public class testBrowserProviderPerf extends ContentProviderTest {
         mGenerator = new Random(19580427);
 
         loadContractInfo();
+        loadFilterMethod();
     }
 
     public void testBrowserProviderPerf() throws Exception {
-        BrowserDB.initialize("default");
+        initializeBrowserProvider();
 
         loadMobileFolderId();
         addTonsOfUrls();
 
         long start = SystemClock.uptimeMillis();
 
-        final Cursor c = BrowserDB.filter(mResolver, KNOWN_PREFIX, 100);
+        Cursor c = (Cursor) mFilterMethod.invoke(null, mResolver, KNOWN_PREFIX, 100);
         c.getCount(); // ensure query is not lazy loaded
 
         long end = SystemClock.uptimeMillis();

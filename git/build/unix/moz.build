@@ -12,3 +12,5 @@ if CONFIG['USE_ELF_HACK']:
 
 TEST_DIRS += ['test']
 
+MODULE = 'build'
+

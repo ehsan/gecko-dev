@@ -20,6 +20,7 @@
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "nsContentUtils.h"
+#include "nsIAudioManager.h"
 #include "nsIObserverService.h"
 #include "nsISettingsService.h"
 #include "nsServiceManagerUtils.h"

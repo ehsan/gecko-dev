@@ -6,3 +6,5 @@
 
 DIRS += ['src', 'public', 'tests']
 
+MODULE = 'pipnss'
+

@@ -6,6 +6,8 @@
 
 TEST_DIRS += ['test']
 
+MODULE = 'dom'
+
 EXPORTS.mozilla.dom += [
     'EncodingUtils.h',
     'FallbackEncoding.h',
@@ -22,7 +24,10 @@ SOURCES += [
 
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'gklayout'
+LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'domencoding_s'
+
 LOCAL_INCLUDES += [
     '/intl/locale/src',
 ]

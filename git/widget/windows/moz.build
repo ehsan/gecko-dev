@@ -9,6 +9,8 @@ if CONFIG['MOZ_METRO']:
 
 TEST_DIRS += ['tests']
 
+MODULE = 'widget'
+
 EXPORTS += [
     'nsdefs.h',
     'WindowHook.h',
@@ -81,10 +83,13 @@ if CONFIG['NS_ENABLE_TSF']:
         'nsTextStore.cpp',
     ]
 
+LIBXUL_LIBRARY = True
+
 MSVC_ENABLE_PGO = True
 
 LIBRARY_NAME = 'widget_windows'
 
+EXPORT_LIBRARY = True
+
 include('/ipc/chromium/chromium-config.mozbuild')
 
-FINAL_LIBRARY = 'xul'

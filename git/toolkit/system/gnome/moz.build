@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'mozgnome'
+
 SOURCES += [
     'nsGnomeModule.cpp',
 ]
@@ -29,4 +31,3 @@ LIBRARY_NAME = 'mozgnome'
 FAIL_ON_WARNINGS = True
 IS_COMPONENT = True
 
-FORCE_SHARED_LIB = True

@@ -6,3 +6,5 @@
 
 DIRS += ['theora']
 
+MODULE = 'theora'
+

@@ -35,7 +35,7 @@ XPIDL_SOURCES += [
     'nsIXBLAccessible.idl',
 ]
 
-XPIDL_MODULE = 'accessibility'
+MODULE = 'accessibility'
 
 EXPORTS += [
     'nsIAccessibilityService.h',

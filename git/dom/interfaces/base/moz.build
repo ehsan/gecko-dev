@@ -60,3 +60,5 @@ if CONFIG['MOZ_WEBSPEECH']:
 
 XPIDL_MODULE = 'dom_base'
 
+MODULE = 'dom'
+

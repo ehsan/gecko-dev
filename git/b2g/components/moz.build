@@ -6,6 +6,8 @@
 
 TEST_DIRS += ['test']
 
+MODULE = 'B2GComponents'
+
 EXTRA_COMPONENTS += [
     'ActivitiesGlue.js',
     'AlertsService.js',

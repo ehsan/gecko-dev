@@ -10,11 +10,13 @@ XPIDL_SOURCES += [
     'nsIIdentityCryptoService.idl',
 ]
 
-XPIDL_MODULE = 'identity'
+MODULE = 'identity'
 
 SOURCES += [
     'IdentityCryptoService.cpp',
 ]
+
+LIBRARY_NAME = 'identity'
 
 JS_MODULES_PATH = 'modules/identity'
 
@@ -32,4 +34,7 @@ EXTRA_JS_MODULES += [
 
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'xul'
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
+

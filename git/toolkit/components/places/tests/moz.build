@@ -13,6 +13,8 @@ TEST_DIRS += [
 
 TEST_TOOL_DIRS += ['cpp']
 
+MODULE = 'test_places'
+
 XPCSHELL_TESTS_MANIFESTS += [
     'autocomplete/xpcshell.ini',
     'bookmarks/xpcshell.ini',

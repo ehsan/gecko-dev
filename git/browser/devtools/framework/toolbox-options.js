@@ -115,10 +115,10 @@ OptionsPanel.prototype = {
     };
 
     // Populating the default tools lists
-    let toggleableTools = gDevTools.getDefaultTools().filter(tool => {
-      return tool.visibilityswitch
-    });
-    for (let tool of toggleableTools) {
+    for (let tool of gDevTools.getDefaultTools()) {
+      if (tool.id == "options") {
+        continue;
+      }
       defaultToolsBox.appendChild(createToolCheckbox(tool));
     }
 
