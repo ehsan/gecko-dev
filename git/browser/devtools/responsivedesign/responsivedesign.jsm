@@ -28,10 +28,10 @@ let ResponsiveUIManager = {
    * @param aTab the tab targeted.
    */
   toggle: function(aWindow, aTab) {
-    if (aTab.__responsiveUI) {
-      aTab.__responsiveUI.close();
+    if (aTab.responsiveUI) {
+      aTab.responsiveUI.close();
     } else {
-      aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
+      aTab.responsiveUI = new ResponsiveUI(aWindow, aTab);
     }
   },
 }
@@ -169,7 +169,7 @@ ResponsiveUI.prototype = {
     this.container.removeAttribute("responsivemode");
     this.stack.removeAttribute("responsivemode");
 
-    delete this.tab.__responsiveUI;
+    delete this.tab.responsiveUI;
   },
 
   /**
