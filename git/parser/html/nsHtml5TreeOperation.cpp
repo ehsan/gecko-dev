@@ -274,9 +274,10 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                                      aBuilder->GetDocument());
         PRUint32 pos = parent->IndexOf(node);
         NS_ASSERTION((pos >= 0), "Element not found as child of its parent");
-        parent->RemoveChildAt(pos, true);
+        rv = parent->RemoveChildAt(pos, true);
+        NS_ENSURE_SUCCESS(rv, rv);
       }
-      return NS_OK;
+      return rv;
     }
     case eTreeOpAppendChildrenToNewParent: {
       nsCOMPtr<nsIContent> node = *(mOne.node);
@@ -290,7 +291,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       bool didAppend = false;
       while (node->HasChildren()) {
         nsCOMPtr<nsIContent> child = node->GetFirstChild();
-        node->RemoveChildAt(0, true);
+        rv = node->RemoveChildAt(0, true);
+        NS_ENSURE_SUCCESS(rv, rv);
         rv = parent->AppendChildTo(child, false);
         NS_ENSURE_SUCCESS(rv, rv);
         didAppend = true;

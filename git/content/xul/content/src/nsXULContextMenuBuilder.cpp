@@ -189,8 +189,7 @@ nsXULContextMenuBuilder::UndoAddSeparator()
     return NS_OK;
   }
 
-  mCurrentNode->RemoveChildAt(count - 1, false);
-  return NS_OK;
+  return mCurrentNode->RemoveChildAt(count - 1, false);
 }
 
 NS_IMETHODIMP

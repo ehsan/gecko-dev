@@ -9319,7 +9319,8 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
       bool is_undefined;
       scx->EvaluateString(nsDependentString(script), FastGetGlobalJSObject(),
                           timeout->mPrincipal, timeout->mPrincipal,
-                          filename, lineNo, JSVERSION_DEFAULT, nsnull,
+                          filename, lineNo,
+                          handler->GetScriptVersion(), nsnull,
                           &is_undefined);
     } else {
       nsCOMPtr<nsIVariant> dummy;

@@ -230,11 +230,15 @@ nsHTMLSelectElement::InsertChildAt(nsIContent* aKid,
   return rv;
 }
 
-void
+nsresult
 nsHTMLSelectElement::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 {
   nsSafeOptionListMutation safeMutation(this, this, nsnull, aIndex, aNotify);
-  nsGenericHTMLFormElement::RemoveChildAt(aIndex, aNotify);
+  nsresult rv = nsGenericHTMLFormElement::RemoveChildAt(aIndex, aNotify);
+  if (NS_FAILED(rv)) {
+    safeMutation.MutationFailed();
+  }
+  return rv;
 }
 
 

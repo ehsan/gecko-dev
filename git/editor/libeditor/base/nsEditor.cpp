@@ -3139,10 +3139,26 @@ nsresult
 nsEditor::GetLengthOfDOMNode(nsIDOMNode *aNode, PRUint32 &aCount) 
 {
   aCount = 0;
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
-  aCount = node->Length();
-  return NS_OK;
+  if (!aNode) { return NS_ERROR_NULL_POINTER; }
+  nsresult result=NS_OK;
+  nsCOMPtr<nsIDOMCharacterData>nodeAsChar = do_QueryInterface(aNode);
+  if (nodeAsChar) {
+    nodeAsChar->GetLength(&aCount);
+  }
+  else
+  {
+    bool hasChildNodes;
+    aNode->HasChildNodes(&hasChildNodes);
+    if (hasChildNodes)
+    {
+      nsCOMPtr<nsIDOMNodeList>nodeList;
+      result = aNode->GetChildNodes(getter_AddRefs(nodeList));
+      if (NS_SUCCEEDED(result) && nodeList) {
+        nodeList->GetLength(&aCount);
+      }
+    }
+  }
+  return result;
 }
 
 
@@ -4156,8 +4172,17 @@ nsEditor::JoinNodeDeep(nsIDOMNode *aLeftNode,
   {
     // adjust out params
     PRUint32 length;
-    res = GetLengthOfDOMNode(leftNodeToJoin, length);
-    NS_ENSURE_SUCCESS(res, res);
+    if (IsTextNode(leftNodeToJoin))
+    {
+      nsCOMPtr<nsIDOMCharacterData>nodeAsText;
+      nodeAsText = do_QueryInterface(leftNodeToJoin);
+      nodeAsText->GetLength(&length);
+    }
+    else
+    {
+      res = GetLengthOfDOMNode(leftNodeToJoin, length);
+      NS_ENSURE_SUCCESS(res, res);
+    }
     
     *aOutJoinNode = rightNodeToJoin;
     *outOffset = length;

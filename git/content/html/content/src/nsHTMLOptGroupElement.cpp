@@ -72,10 +72,10 @@ public:
   // nsIDOMHTMLOptGroupElement
   NS_DECL_NSIDOMHTMLOPTGROUPELEMENT
 
-  // nsINode
+  // nsGenericElement
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  bool aNotify);
-  virtual void RemoveChildAt(PRUint32 aIndex, bool aNotify);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, bool aNotify);
 
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
@@ -187,12 +187,16 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
   return rv;
 }
 
-void
+nsresult
 nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 {
   nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex,
                                         aNotify);
-  nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify);
+  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify);
+  if (NS_FAILED(rv)) {
+    safeMutation.MutationFailed();
+  }
+  return rv;
 }
 
 nsEventStates

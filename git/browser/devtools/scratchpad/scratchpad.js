@@ -487,8 +487,7 @@ var Scratchpad = {
    */
   writeAsErrorComment: function SP_writeAsErrorComment(aError)
   {
-    let stack = aError.stack || aError.fileName + ":" + aError.lineNumber;
-    let newComment = "Exception: " + aError.message + "\n" + stack.replace(/\n$/, "");
+    let newComment = "Exception: " + aError.message + "\n" + aError.stack.substring(0, aError.stack.length - 1);
     
     this.writeAsComment(newComment);
   },

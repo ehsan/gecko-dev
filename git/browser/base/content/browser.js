@@ -5415,7 +5415,6 @@ var TabsOnTop = {
     document.documentElement.setAttribute("tabsontop", enabled);
     document.getElementById("navigator-toolbox").setAttribute("tabsontop", enabled);
     document.getElementById("TabsToolbar").setAttribute("tabsontop", enabled);
-    document.getElementById("nav-bar").setAttribute("tabsontop", enabled);
     gBrowser.tabContainer.setAttribute("tabsontop", enabled);
     TabsInTitlebar.allowedBy("tabs-on-top", enabled);
   },
@@ -7825,20 +7824,13 @@ function undoCloseWindow(aIndex) {
  * if it's ok to close the tab.
  */
 function isTabEmpty(aTab) {
-  if (aTab.hasAttribute("busy"))
-    return false;
-
   let browser = aTab.linkedBrowser;
-  if (!isBlankPageURL(browser.currentURI.spec))
-    return false;
-
-  if (browser.contentWindow.opener)
-    return false;
-
-  if (browser.sessionHistory && browser.sessionHistory.count >= 2)
-    return false;
-
-  return true;
+  let uri = browser.currentURI.spec;
+  let body = browser.contentDocument.body;
+  return browser.sessionHistory.count < 2 &&
+         isBlankPageURL(uri) &&
+         (!body || !body.hasChildNodes()) &&
+         !aTab.hasAttribute("busy");
 }
 
 #ifdef MOZ_SERVICES_SYNC
