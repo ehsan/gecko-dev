@@ -120,8 +120,8 @@ nsCanvasFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Append all existing AnonymousContent nodes stored at document level if any.
-  size_t len = doc->GetAnonymousContents().Length();
-  for (size_t i = 0; i < len; ++i) {
+  int32_t anonymousContentCount = doc->GetAnonymousContents().Length();
+  for (int32_t i = 0; i < anonymousContentCount; ++i) {
     nsCOMPtr<Element> node = doc->GetAnonymousContents()[i]->GetContentNode();
     mCustomContentContainer->AppendChildTo(node->AsContent(), true);
   }
@@ -167,10 +167,8 @@ nsCanvasFrame::DestroyFrom(nsIFrame* aDestructRoot)
     nsCOMPtr<nsIDocument> doc = mContent->OwnerDoc();
     ErrorResult rv;
 
-    nsTArray<nsRefPtr<mozilla::dom::AnonymousContent>>& docAnonContents =
-      doc->GetAnonymousContents();
-    for (size_t i = 0, len = docAnonContents.Length(); i < len; ++i) {
-      AnonymousContent* content = docAnonContents[i];
+    for (int32_t i = doc->GetAnonymousContents().Length() - 1; i >= 0; --i) {
+      AnonymousContent* content = doc->GetAnonymousContents()[i];
       nsCOMPtr<nsINode> clonedElement = content->GetContentNode()->CloneNode(true, rv);
       content->SetContentNode(clonedElement->AsElement());
     }

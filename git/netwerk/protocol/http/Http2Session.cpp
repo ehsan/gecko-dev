@@ -2682,8 +2682,8 @@ Http2Session::WriteSegments(nsAHttpSegmentWriter *writer,
             "needscleanup=%p. cleanup stream based on "
             "stream->writeSegments returning code %x\n",
             this, streamID, mNeedsCleanup, rv));
-      MOZ_ASSERT(!mNeedsCleanup || mNeedsCleanup->StreamID() == streamID);
       CleanupStream(streamID, NS_OK, CANCEL_ERROR);
+      MOZ_ASSERT(!mNeedsCleanup || mNeedsCleanup->StreamID() == streamID);
       mNeedsCleanup = nullptr;
       return NS_OK;
     }

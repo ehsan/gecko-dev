@@ -127,6 +127,8 @@ function startTest(test, token)
     }
   );
 
+  v.addEventListener("error", bail(token + " got error event"));
+
   LoadTest(test, v, token);
 }
 

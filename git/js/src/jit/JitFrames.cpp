@@ -506,7 +506,7 @@ HandleClosingGeneratorReturn(JSContext *cx, const JitFrameIterator &frame, jsbyt
         return;
 
     cx->clearPendingException();
-    SetReturnValueForClosingGenerator(cx, frame.baselineFrame());
+    frame.baselineFrame()->setReturnValue(UndefinedValue());
 
     if (unwoundScopeToPc) {
         if (frame.baselineFrame()->isDebuggee())

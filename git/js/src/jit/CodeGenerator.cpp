@@ -6997,6 +6997,13 @@ CodeGenerator::generate()
 
     masm.bind(&skipPrologue);
 
+#ifdef JS_TRACE_LOGGING
+    if (!gen->compilingAsmJS()) {
+        emitTracelogScriptStart();
+        emitTracelogStartEvent(TraceLogger_IonMonkey);
+    }
+#endif
+
 #ifdef DEBUG
     // Assert that the argument types are correct.
     generateArgumentsChecks(/* bailout = */ false);

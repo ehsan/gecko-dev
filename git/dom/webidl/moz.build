@@ -331,7 +331,6 @@ WEBIDL_FILES = [
     'PopupBoxObject.webidl',
     'Position.webidl',
     'PositionError.webidl',
-    'PresentationDeviceInfoManager.webidl',
     'ProcessingInstruction.webidl',
     'ProfileTimelineMarker.webidl',
     'Promise.webidl',
@@ -341,8 +340,6 @@ WEBIDL_FILES = [
     'Range.webidl',
     'Rect.webidl',
     'Request.webidl',
-    'RequestSyncManager.webidl',
-    'RequestSyncScheduler.webidl',
     'ResourceStats.webidl',
     'ResourceStatsManager.webidl',
     'Response.webidl',
@@ -651,6 +648,7 @@ if CONFIG['MOZ_B2G_RIL']:
 
 if CONFIG['MOZ_NFC']:
     WEBIDL_FILES += [
+         'MozIsoDepTech.webidl',
          'MozNDEFRecord.webidl',
          'MozNFC.webidl',
          'MozNFCPeer.webidl',

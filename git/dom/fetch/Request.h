@@ -26,8 +26,8 @@ class Promise;
 class RequestOrUSVString;
 
 class Request MOZ_FINAL : public nsISupports
-                        , public FetchBody<Request>
                         , public nsWrapperCache
+                        , public FetchBody<Request>
 {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Request)
@@ -56,9 +56,6 @@ public:
   RequestMode
   Mode() const
   {
-    if (mRequest->mMode == RequestMode::Cors_with_forced_preflight) {
-      return RequestMode::Cors;
-    }
     return mRequest->mMode;
   }
 
@@ -66,12 +63,6 @@ public:
   Credentials() const
   {
     return mRequest->mCredentialsMode;
-  }
-
-  RequestCache
-  Cache() const
-  {
-    return mRequest->GetCacheMode();
   }
 
   void
