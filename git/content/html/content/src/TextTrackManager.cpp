@@ -12,8 +12,7 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_3(TextTrackManager, mTextTracks,
-                           mPendingTextTracks, mNewCues)
+NS_IMPL_CYCLE_COLLECTION_2(TextTrackManager, mTextTracks, mPendingTextTracks)
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(TextTrackManager, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(TextTrackManager, Release)
 
@@ -21,7 +20,6 @@ TextTrackManager::TextTrackManager(HTMLMediaElement *aMediaElement)
   : mMediaElement(aMediaElement)
 {
   MOZ_COUNT_CTOR(TextTrackManager);
-  mNewCues = new TextTrackCueList(mMediaElement->OwnerDoc()->GetParentObject());
   mTextTracks = new TextTrackList(mMediaElement->OwnerDoc()->GetParentObject());
   mPendingTextTracks =
     new TextTrackList(mMediaElement->OwnerDoc()->GetParentObject());
@@ -45,7 +43,6 @@ TextTrackManager::AddTextTrack(TextTrackKind aKind, const nsAString& aLabel,
   nsRefPtr<TextTrack> ttrack =
     mTextTracks->AddTextTrack(mMediaElement, aKind, aLabel, aLanguage);
   ttrack->SetReadyState(HTMLTrackElement::LOADED);
-  AddCues(ttrack);
   return ttrack.forget();
 }
 
@@ -53,19 +50,6 @@ void
 TextTrackManager::AddTextTrack(TextTrack* aTextTrack)
 {
   mTextTracks->AddTextTrack(aTextTrack);
-  AddCues(aTextTrack);
-}
-
-void
-TextTrackManager::AddCues(TextTrack* aTextTrack)
-{
-  TextTrackCueList* cueList = aTextTrack->GetCues();
-  if (cueList) {
-    bool dummy;
-    for (uint32_t i = 0; i < cueList->Length(); ++i) {
-      mNewCues->AddCue(*cueList->IndexedGetter(i, dummy));
-    }
-  }
 }
 
 void
@@ -89,12 +73,6 @@ void
 TextTrackManager::Update(double aTime)
 {
   mTextTracks->Update(aTime);
-}
-
-void
-TextTrackManager::AddCue(TextTrackCue& aCue)
-{
-  mNewCues->AddCue(aCue);
 }
 
 void

@@ -486,36 +486,24 @@ MarkTypeObjectUnknownProperties(JSContext *cx, TypeObject *obj,
     }
 }
 
+/*
+ * Mark any property which has been deleted or configured to be non-writable or
+ * have a getter/setter.
+ */
 inline void
-MarkTypePropertyNonData(ExclusiveContext *cx, JSObject *obj, jsid id)
+MarkTypePropertyConfigured(ExclusiveContext *cx, JSObject *obj, jsid id)
 {
     if (cx->typeInferenceEnabled()) {
         id = IdToTypeId(id);
         if (TrackPropertyTypes(cx, obj, id))
-            obj->type()->markPropertyNonData(cx, id);
-    }
-}
-
-inline void
-MarkTypePropertyNonWritable(ExclusiveContext *cx, JSObject *obj, jsid id)
-{
-    if (cx->typeInferenceEnabled()) {
-        id = IdToTypeId(id);
-        if (TrackPropertyTypes(cx, obj, id))
-            obj->type()->markPropertyNonWritable(cx, id);
+            obj->type()->markPropertyConfigured(cx, id);
     }
 }
 
 inline bool
-IsTypePropertyIdMarkedNonData(JSObject *obj, jsid id)
+IsTypePropertyIdMarkedConfigured(JSObject *obj, jsid id)
 {
-    return obj->type()->isPropertyNonData(id);
-}
-
-inline bool
-IsTypePropertyIdMarkedNonWritable(JSObject *obj, jsid id)
-{
-    return obj->type()->isPropertyNonWritable(id);
+    return obj->type()->isPropertyConfigured(id);
 }
 
 /* Mark a state change on a particular object. */
@@ -1152,8 +1140,13 @@ ConstraintTypeSet::addType(ExclusiveContext *cxArg, Type type)
 }
 
 inline void
-HeapTypeSet::newPropertyState(ExclusiveContext *cxArg)
+HeapTypeSet::setConfiguredProperty(ExclusiveContext *cxArg)
 {
+    if (flags & TYPE_FLAG_CONFIGURED_PROPERTY)
+        return;
+
+    flags |= TYPE_FLAG_CONFIGURED_PROPERTY;
+
     /* Propagate the change to all constraints. */
     if (JSContext *cx = cxArg->maybeJSContext()) {
         TypeConstraint *constraint = constraintList;
@@ -1164,26 +1157,6 @@ HeapTypeSet::newPropertyState(ExclusiveContext *cxArg)
     } else {
         JS_ASSERT(!constraintList);
     }
-}
-
-inline void
-HeapTypeSet::setNonDataProperty(ExclusiveContext *cx)
-{
-    if (flags & TYPE_FLAG_NON_DATA_PROPERTY)
-        return;
-
-    flags |= TYPE_FLAG_NON_DATA_PROPERTY;
-    newPropertyState(cx);
-}
-
-inline void
-HeapTypeSet::setNonWritableProperty(ExclusiveContext *cx)
-{
-    if (flags & TYPE_FLAG_NON_WRITABLE_PROPERTY)
-        return;
-
-    flags |= TYPE_FLAG_NON_WRITABLE_PROPERTY;
-    newPropertyState(cx);
 }
 
 inline unsigned
@@ -1329,7 +1302,7 @@ TypeObject::getProperty(ExclusiveContext *cx, jsid id)
 
         /*
          * Return an arbitrary property in the object, as all have unknown
-         * type and are treated as non-data properties.
+         * type and are treated as configured.
          */
         unsigned count = getPropertyCount();
         for (unsigned i = 0; i < count; i++) {
