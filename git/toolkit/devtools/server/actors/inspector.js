@@ -39,15 +39,6 @@
  * (like querySelector) will include the extra nodes needed to satisfy this
  * requirement.  The client keeps track of this parent relationship, so the
  * node fronts form a tree that is a subset of the actual DOM tree.
- *
- *
- * We maintain this guarantee to support the ability to release subtrees on
- * the client - when a node is disconnected from the DOM tree we want to be
- * able to free the client objects for all the children nodes.
- *
- * So to be able to answer "all the children of a given node that we have
- * seen on the client side", we guarantee that every time we've seen a node,
- * we connect it up through its parents.
  */
 
 const {Cc, Ci, Cu} = require("chrome");
@@ -514,7 +505,7 @@ types.addDictType("disconnectedNode", {
   node: "domnode",
 
   // Nodes that are needed to connect the node to a node the client has already seen
-  newParents: "array:domnode"
+  newNodes: "array:domnode"
 });
 
 types.addDictType("disconnectedNodeArray", {
@@ -522,7 +513,7 @@ types.addDictType("disconnectedNodeArray", {
   nodes: "array:domnode",
 
   // Nodes that are needed to connect those nodes to the root.
-  newParents: "array:domnode"
+  newNodes: "array:domnode"
 });
 
 types.addDictType("dommutation", {});
@@ -571,10 +562,10 @@ var NodeListActor = exports.NodeListActor = protocol.ActorClass({
    */
   item: method(function(index) {
     let node = this.walker._ref(this.nodeList[index]);
-    let newParents = [node for (node of this.walker.ensurePathToRoot(node))];
+    let newNodes = [node for (node of this.walker.ensurePathToRoot(node))];
     return {
       node: node,
-      newParents: newParents
+      newNodes: newNodes
     }
   }, {
     request: { item: Arg(0) },
@@ -586,20 +577,20 @@ var NodeListActor = exports.NodeListActor = protocol.ActorClass({
    */
   items: method(function(start=0, end=this.nodeList.length) {
     let items = [this.walker._ref(item) for (item of Array.prototype.slice.call(this.nodeList, start, end))];
-    let newParents = new Set();
+    let newNodes = new Set();
     for (let item of items) {
-      this.walker.ensurePathToRoot(item, newParents);
+      this.walker.ensurePathToRoot(item, newNodes);
     }
     return {
       nodes: items,
-      newParents: [node for (node of newParents)]
+      newNodes: [node for (node of newNodes)]
     }
   }, {
     request: {
       start: Arg(0, "number", { optional: true }),
       end: Arg(1, "number", { optional: true })
     },
-    response: RetVal("disconnectedNodeArray")
+    response: { nodes: RetVal("disconnectedNodeArray") }
   }),
 
   release: method(function() {}, { release: true })
@@ -1208,7 +1199,7 @@ var WalkerActor = protocol.ActorClass({
     let newParents = this.ensurePathToRoot(node);
     return {
       node: node,
-      newParents: [parent for (parent of newParents)]
+      newNodes: [parent for (parent of newParents)]
     }
   }, {
     request: {

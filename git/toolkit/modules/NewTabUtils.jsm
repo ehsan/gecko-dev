@@ -254,26 +254,25 @@ let AllPages = {
 
   /**
    * Implements the nsIObserver interface to get notified when the preference
-   * value changes or when a new copy of a page thumbnail is available.
+   * value changes.
    */
-  observe: function AllPages_observe(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed") {
-      // Clear the cached value.
-      this._enabled = null;
-    }
-    // and all notifications get forwarded to each page.
+  observe: function AllPages_observe() {
+    // Clear the cached value.
+    this._enabled = null;
+
+    let args = Array.slice(arguments);
+
     this._pages.forEach(function (aPage) {
-      aPage.observe(aSubject, aTopic, aData);
+      aPage.observe.apply(aPage, args);
     }, this);
   },
 
   /**
-   * Adds a preference and new thumbnail observer and turns itself into a
-   * no-op after the first invokation.
+   * Adds a preference observer and turns itself into a no-op after the first
+   * invokation.
    */
   _addObserver: function AllPages_addObserver() {
     Services.prefs.addObserver(PREF_NEWTAB_ENABLED, this, true);
-    Services.obs.addObserver(this, "page-thumbnail:create", true);
     this._addObserver = function () {};
   },
 

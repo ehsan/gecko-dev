@@ -115,9 +115,6 @@ private:
 
 MediaRecorder::~MediaRecorder()
 {
-  if (mTrackUnionStream) {
-    mTrackUnionStream->Destroy();
-  }
 }
 
 void

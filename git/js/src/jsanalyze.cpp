@@ -419,10 +419,6 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             isIonInlineable = false;
             break;
 
-          case JSOP_FINALLY:
-            hasTryFinally_ = true;
-            break;
-
           /* Additional opcodes which can be both compiled both normally and inline. */
           case JSOP_ARGUMENTS:
           case JSOP_FUNCALL:

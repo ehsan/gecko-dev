@@ -162,21 +162,22 @@ let TopSites = {
     };
   }
 };
-
-function TopSitesView(aGrid, aMaxSites) {
+// The value of useThumbs should not be changed over the lifetime of
+//   the object.
+function TopSitesView(aGrid, aMaxSites, aUseThumbnails) {
   this._set = aGrid;
   this._set.controller = this;
   this._topSitesMax = aMaxSites;
-
+  this._useThumbs = aUseThumbnails;
   // clean up state when the appbar closes
   window.addEventListener('MozAppbarDismissing', this, false);
   let history = Cc["@mozilla.org/browser/nav-history-service;1"].
                 getService(Ci.nsINavHistoryService);
   history.addObserver(this, false);
-
-  PageThumbs.addExpirationFilter(this);
-  Services.obs.addObserver(this, "Metro:RefreshTopsiteThumbnail", false);
-  Services.obs.addObserver(this, "metro_viewstate_changed", false);
+  if (this._useThumbs) {
+    PageThumbs.addExpirationFilter(this);
+    Services.obs.addObserver(this, "Metro:RefreshTopsiteThumbnail", false);
+  }
 
   NewTabUtils.allPages.register(this);
   TopSites.prepareCache().then(function(){
@@ -308,16 +309,19 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
   updateTile: function(aTileNode, aSite, aArrangeGrid) {
     this._updateFavicon(aTileNode, Util.makeURI(aSite.url));
 
-    Task.spawn(function() {
-      let filepath = PageThumbsStorage.getFilePathForURL(aSite.url);
-      if (yield OS.File.exists(filepath)) {
-        aSite.backgroundImage = 'url("'+PageThumbs.getThumbnailURL(aSite.url)+'")';
-        if ("isBound" in aTileNode && aTileNode.isBound) {
-          aTileNode.backgroundImage = aSite.backgroundImage;
+    if (this._useThumbs) {
+      Task.spawn(function() {
+        let filepath = PageThumbsStorage.getFilePathForURL(aSite.url);
+        if (yield OS.File.exists(filepath)) {
+          aSite.backgroundImage = 'url("'+PageThumbs.getThumbnailURL(aSite.url)+'")';
+          if ("isBound" in aTileNode && aTileNode.isBound) {
+            aTileNode.backgroundImage = aSite.backgroundImage;
+          }
         }
-      }
-    });
-
+      });
+    } else {
+      delete aSite.backgroundImage;
+    }
     aSite.applyToTileNode(aTileNode);
     if (aArrangeGrid) {
       this._set.arrangeItems();
@@ -357,7 +361,6 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
         item.refreshBackgroundImage();
       }
   },
-
   filterForThumbnailExpiration: function filterForThumbnailExpiration(aCallback) {
     aCallback([item.getAttribute("value") for (item of this._set.children)]);
   },
@@ -367,9 +370,10 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
   },
 
   destruct: function destruct() {
-    Services.obs.removeObserver(this, "Metro:RefreshTopsiteThumbnail");
-    PageThumbs.removeExpirationFilter(this);
-    Services.obs.removeObserver(this, "metro_viewstate_changed");
+    if (this._useThumbs) {
+      Services.obs.removeObserver(this, "Metro:RefreshTopsiteThumbnail");
+      PageThumbs.removeExpirationFilter(this);
+    }
     window.removeEventListener('MozAppbarDismissing', this, false);
   },
 
@@ -378,15 +382,6 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
     switch(aTopic) {
       case "Metro:RefreshTopsiteThumbnail":
         this.forceReloadOfThumbnail(aState);
-        break;
-      case "metro_viewstate_changed":
-        for (let item of this._set.children) {
-          if (aState == "snapped") {
-            item.removeAttribute("tiletype");
-          } else {
-            item.setAttribute("tiletype", "thumbnail");
-          }
-        }
         break;
     }
   },
@@ -433,18 +428,47 @@ let TopSitesStartView = {
   get _grid() { return document.getElementById("start-topsites-grid"); },
 
   init: function init() {
-    this._view = new TopSitesView(this._grid, 8);
+    this._view = new TopSitesView(this._grid, 8, true);
     if (this._view.isFirstRun()) {
       let topsitesVbox = document.getElementById("start-topsites");
       topsitesVbox.setAttribute("hidden", "true");
     }
   },
-
   uninit: function uninit() {
     this._view.destruct();
   },
 
   show: function show() {
     this._grid.arrangeItems();
-  }
+  },
+};
+
+let TopSitesSnappedView = {
+  get _grid() { return document.getElementById("snapped-topsites-grid"); },
+
+  show: function show() {
+    this._grid.arrangeItems();
+  },
+
+  init: function() {
+    this._view = new TopSitesView(this._grid, 8);
+    if (this._view.isFirstRun()) {
+      let topsitesVbox = document.getElementById("snapped-topsites");
+      topsitesVbox.setAttribute("hidden", "true");
+    }
+    Services.obs.addObserver(this, "metro_viewstate_dom_snapped", false);
+  },
+
+  uninit: function uninit() {
+    this._view.destruct();
+    Services.obs.removeObserver(this, "metro_viewstate_dom_snapped");
+  },
+
+  observe: function(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "metro_viewstate_dom_snapped":
+          this._grid.arrangeItems();
+        break;
+    }
+  },
 };

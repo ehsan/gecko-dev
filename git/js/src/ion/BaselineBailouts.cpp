@@ -1243,12 +1243,10 @@ ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
 
     // Do stack check.
     bool overRecursed = false;
-    uint8_t *newsp = info->incomingStack - (info->copyStackTop - info->copyStackBottom);
-    JS_CHECK_RECURSION_WITH_SP_DONT_REPORT(cx, newsp, overRecursed = true);
-    if (overRecursed) {
-        IonSpew(IonSpew_BaselineBailouts, "  Overrecursion check failed!");
+    JS_CHECK_RECURSION_WITH_EXTRA_DONT_REPORT(cx, info->copyStackTop - info->copyStackBottom,
+                                              overRecursed = true);
+    if (overRecursed)
         return BAILOUT_RETURN_OVERRECURSED;
-    }
 
     info->bailoutKind = bailoutKind;
     *bailoutInfo = info;

@@ -550,12 +550,14 @@ var BrowserUI = {
         let autocomplete = document.getElementById("urlbar-autocomplete");
         if (aData == "snapped") {
           FlyoutPanelsUI.hide();
+          // Order matters (need grids to get dimensions, etc), now
+          // let snapped grid know to refresh/redraw
+          Services.obs.notifyObservers(null, "metro_viewstate_dom_snapped", null);
           autocomplete.setAttribute("orient", "vertical");
         }
         else {
           autocomplete.setAttribute("orient", "horizontal");
         }
-
         break;
     }
   },
@@ -1098,6 +1100,7 @@ var StartUI = {
 
   sections: [
     "TopSitesStartView",
+    "TopSitesSnappedView",
     "BookmarksStartView",
     "HistoryStartView",
     "RemoteTabsStartView"
@@ -1182,18 +1185,6 @@ var StartUI = {
       ContextUI.dismissTabs();
   },
 
-  onNarrowTitleClick: function onNarrowTitleClick(gridId) {
-    let grid = document.getElementById(gridId);
-
-    if (grid.hasAttribute("expanded"))
-      return;
-
-    for (let expandedGrid of Elements.startUI.querySelectorAll("[expanded]"))
-      expandedGrid.removeAttribute("expanded")
-
-    grid.setAttribute("expanded", "true");
-  },
-
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
       case "contextmenu":
@@ -1209,11 +1200,7 @@ var StartUI = {
         let startBox = document.getElementById("start-scrollbox");
         let [, scrollInterface] = ScrollUtils.getScrollboxFromElement(startBox);
 
-        if (Elements.windowState.getAttribute("viewstate") == "snapped") {
-          scrollInterface.scrollBy(0, aEvent.detail);
-        } else {
-          scrollInterface.scrollBy(aEvent.detail, 0);
-        }
+        scrollInterface.scrollBy(aEvent.detail, 0);
 
         aEvent.preventDefault();
         aEvent.stopPropagation();
