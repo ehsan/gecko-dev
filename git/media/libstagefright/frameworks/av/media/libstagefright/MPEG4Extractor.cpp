@@ -3724,12 +3724,6 @@ status_t MPEG4Source::fragmentedRead(
     }
 }
 
-static int compositionOrder(MediaSource::Indice* const* indice0,
-        MediaSource::Indice* const* indice1)
-{
-  return (*indice0)->start_composition - (*indice1)->start_composition;
-}
-
 Vector<MediaSource::Indice> MPEG4Source::exportIndex()
 {
   Vector<Indice> index;
@@ -3754,31 +3748,12 @@ Vector<MediaSource::Indice> MPEG4Source::exportIndex()
       Indice indice;
       indice.start_offset = offset;
       indice.end_offset = offset + size;
-      indice.start_composition = (compositionTime * 1000000ll) / mTimescale;
-      // end_composition is overwritten everywhere except the last frame, where
-      // the presentation duration is equal to the sample duration.
+      indice.start_composition = (compositionTime * 1000000ll) / mTimescale,
       indice.end_composition = ((compositionTime + duration) * 1000000ll) /
               mTimescale;
       indice.sync = isSyncSample;
       index.add(indice);
   }
-
-  // Fix up composition durations so we don't end up with any unsightly gaps.
-  if (index.size() != 0) {
-      Indice* array = index.editArray();
-      Vector<Indice*> composition_order;
-      composition_order.reserve(index.size());
-      for (uint32_t i = 0; i < index.size(); i++) {
-          composition_order.add(&array[i]);
-      }
-
-      composition_order.sort(compositionOrder);
-      for (uint32_t i = 0; i + 1 < composition_order.size(); i++) {
-        composition_order[i]->end_composition =
-                composition_order[i + 1]->start_composition;
-      }
-  }
-
   return index;
 }
 

@@ -103,7 +103,8 @@ private:
   bool mIsStart;  // whether the callback is for a marker-start marker
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM() MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
+                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
 
   // A helper class to allow us to paint markers safely. The helper
   // automatically sets and clears the mInUse flag on the marker frame (to
@@ -173,9 +174,11 @@ public:
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM() MOZ_OVERRIDE
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
+                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE
   {
-    return static_cast<nsSVGMarkerFrame*>(GetParent())->GetCanvasTM();
+    nsSVGMarkerFrame* marker = static_cast<nsSVGMarkerFrame*>(GetParent());
+    return marker->GetCanvasTM(aFor, aTransformRoot);
   }
 };
 #endif

@@ -36,12 +36,13 @@ BasicCanvasLayer::Paint(DrawTarget* aDT,
     return;
   }
 
-  Matrix oldTM;
+  Matrix m;
   if (mNeedsYFlip) {
-    oldTM = aDT->GetTransform();
-    aDT->SetTransform(Matrix(oldTM).
-                        PreTranslate(0.0f, mBounds.height).
-                        PreScale(1.0f, -1.0f));
+    m = aDT->GetTransform();
+    Matrix newTransform = m;
+    newTransform.Translate(0.0f, mBounds.height);
+    newTransform.Scale(1.0f, -1.0f);
+    aDT->SetTransform(newTransform);
   }
 
   FillRectWithMask(aDT, aDeviceOffset,
@@ -51,7 +52,7 @@ BasicCanvasLayer::Paint(DrawTarget* aDT,
                    aMaskLayer);
 
   if (mNeedsYFlip) {
-    aDT->SetTransform(oldTM);
+    aDT->SetTransform(m);
   }
 }
 

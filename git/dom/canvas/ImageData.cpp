@@ -37,7 +37,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(ImageData)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 //static
-already_AddRefed<ImageData>
+ImageData*
 ImageData::Constructor(const GlobalObject& aGlobal,
                        const uint32_t aWidth,
                        const uint32_t aHeight,
@@ -59,12 +59,11 @@ ImageData::Constructor(const GlobalObject& aGlobal,
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return nullptr;
   }
-  nsRefPtr<ImageData> imageData = new ImageData(aWidth, aHeight, *data);
-  return imageData.forget();
+  return new ImageData(aWidth, aHeight, *data);
 }
 
 //static
-already_AddRefed<ImageData>
+ImageData*
 ImageData::Constructor(const GlobalObject& aGlobal,
                        const Uint8ClampedArray& aData,
                        const uint32_t aWidth,
@@ -89,8 +88,7 @@ ImageData::Constructor(const GlobalObject& aGlobal,
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
   }
-  nsRefPtr<ImageData> imageData = new ImageData(aWidth, height, *aData.Obj());
-  return imageData.forget();
+  return new ImageData(aWidth, height, *aData.Obj());
 }
 
 void

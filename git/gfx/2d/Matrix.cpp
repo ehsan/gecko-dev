@@ -62,7 +62,7 @@ Matrix::TransformBounds(const Rect &aRect) const
   return Rect(min_x, min_y, max_x - min_x, max_y - min_y);
 }
 
-Matrix&
+void
 Matrix::NudgeToIntegers()
 {
   NudgeToInteger(&_11);
@@ -71,7 +71,6 @@ Matrix::NudgeToIntegers()
   NudgeToInteger(&_22);
   NudgeToInteger(&_31);
   NudgeToInteger(&_32);
-  return *this;
 }
 
 Rect

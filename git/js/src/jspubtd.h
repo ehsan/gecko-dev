@@ -21,6 +21,10 @@
 
 #include "js/TypeDecls.h"
 
+#if defined(JSGC_USE_EXACT_ROOTING) || defined(JS_DEBUG)
+# define JSGC_TRACK_EXACT_ROOTS
+#endif
+
 #if (defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)) || \
     (defined(JSGC_COMPACTING) && defined(DEBUG))
 # define JSGC_HASH_TABLE_CHECKS
@@ -405,7 +409,9 @@ struct ContextFriendFields
     explicit ContextFriendFields(JSRuntime *rt)
       : runtime_(rt), compartment_(nullptr), zone_(nullptr), autoGCRooters(nullptr)
     {
+#ifdef JSGC_TRACK_EXACT_ROOTS
         mozilla::PodArrayZero(thingGCRooters);
+#endif
     }
 
     static const ContextFriendFields *get(const JSContext *cx) {
@@ -416,6 +422,7 @@ struct ContextFriendFields
         return reinterpret_cast<ContextFriendFields *>(cx);
     }
 
+#ifdef JSGC_TRACK_EXACT_ROOTS
   private:
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
@@ -429,6 +436,8 @@ struct ContextFriendFields
         js::ThingRootKind kind = RootKind<T>::rootKind();
         return reinterpret_cast<JS::Rooted<T> *>(thingGCRooters[kind]);
     }
+
+#endif
 
     void checkNoGCRooters();
 
@@ -492,6 +501,7 @@ struct PerThreadDataFriendFields
 
     PerThreadDataFriendFields();
 
+#ifdef JSGC_TRACK_EXACT_ROOTS
   private:
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
@@ -505,6 +515,7 @@ struct PerThreadDataFriendFields
         js::ThingRootKind kind = RootKind<T>::rootKind();
         return reinterpret_cast<JS::Rooted<T> *>(thingGCRooters[kind]);
     }
+#endif
 
     /* Limit pointer for checking native stack consumption. */
     uintptr_t nativeStackLimit[StackKindCount];

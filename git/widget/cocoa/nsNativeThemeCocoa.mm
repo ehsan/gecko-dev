@@ -2253,8 +2253,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
     // Use high-resolution drawing.
     nativeWidgetRect.ScaleInverse(2.0f);
     nativeDirtyRect.ScaleInverse(2.0f);
-    thebesCtx->SetMatrix(
-      thebesCtx->CurrentMatrix().Scale(2.0f, 2.0f));
+    thebesCtx->Scale(2.0f, 2.0f);
   }
 
   gfxQuartzNativeDrawing nativeDrawing(thebesCtx, nativeDirtyRect);

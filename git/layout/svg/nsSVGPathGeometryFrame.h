@@ -89,7 +89,8 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   // nsSVGPathGeometryFrame methods
-  gfxMatrix GetCanvasTM();
+  gfxMatrix GetCanvasTM(uint32_t aFor,
+                        nsIFrame* aTransformRoot = nullptr);
 protected:
   // nsISVGChildFrame interface:
   virtual nsresult PaintSVG(nsRenderingContext *aContext,

@@ -386,16 +386,7 @@ public:
   {
     BasicLayerManager* basic = static_cast<BasicLayerManager*>(mLayerManager);
     basic->SetTarget(aContext->ThebesContext());
-
-    gfxContext* ctx = aContext->ThebesContext();
-
-    gfxPoint devPixelOffset =
-      nsLayoutUtils::PointToGfxPoint(-mOffset,
-                                     aTarget->PresContext()->AppUnitsPerDevPixel());
-
-    gfxContextMatrixAutoSaveRestore autoSR(ctx);
-    ctx->SetMatrix(ctx->CurrentMatrix().Translate(devPixelOffset));
-
+    nsRenderingContext::AutoPushTranslation push(aContext, -mOffset);
     mLayerManager->EndTransaction(FrameLayerBuilder::DrawThebesLayer, mBuilder);
   }
 
@@ -503,10 +494,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   NS_ASSERTION(hasSVGLayout || offsetToBoundingBox == offsetToUserSpace,
                "For non-SVG frames there shouldn't be any additional offset");
 
-  gfxPoint devPixelOffsetToUserSpace =
-    nsLayoutUtils::PointToGfxPoint(offsetToUserSpace,
-                                   aFrame->PresContext()->AppUnitsPerDevPixel());
-  gfx->SetMatrix(gfx->CurrentMatrix().Translate(devPixelOffsetToUserSpace));
+  aCtx->Translate(offsetToUserSpace);
 
   gfxMatrix cssPxToDevPxMatrix = GetCSSPxToDevPxMatrix(aFrame);
 
@@ -541,7 +529,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   } else {
     gfx->SetMatrix(matrixAutoSaveRestore.Matrix());
     aLayerManager->EndTransaction(FrameLayerBuilder::DrawThebesLayer, aBuilder);
-    gfx->SetMatrix(gfx->CurrentMatrix().Translate(devPixelOffsetToUserSpace));
+    aCtx->Translate(offsetToUserSpace);
   }
 
   if (clipPathFrame && isTrivialClip) {
@@ -655,7 +643,7 @@ PaintFrameCallback::operator()(gfxContext* aContext,
   int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   nsPoint offset = GetOffsetToBoundingBox(mFrame);
   gfxPoint devPxOffset = gfxPoint(offset.x, offset.y) / appUnitsPerDevPixel;
-  aContext->Multiply(gfxMatrix::Translation(devPxOffset));
+  aContext->Multiply(gfxMatrix().Translate(devPxOffset));
 
   gfxSize paintServerSize =
     gfxSize(mPaintServerSize.width, mPaintServerSize.height) /
@@ -665,7 +653,8 @@ PaintFrameCallback::operator()(gfxContext* aContext,
   // want it to render with mRenderSize, so we need to set up a scale transform.
   gfxFloat scaleX = mRenderSize.width / paintServerSize.width;
   gfxFloat scaleY = mRenderSize.height / paintServerSize.height;
-  aContext->Multiply(gfxMatrix::Scaling(scaleX, scaleY));
+  gfxMatrix scaleMatrix = gfxMatrix().Scale(scaleX, scaleY);
+  aContext->Multiply(scaleMatrix);
 
   // Draw.
   nsRect dirty(-offset.x, -offset.y,

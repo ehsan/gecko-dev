@@ -200,7 +200,7 @@ nsSVGMaskFrame::GetMaskForMaskedFrame(gfxContext* aContext,
   // and maskArea) is important for performance.
   aContext->Save();
   nsSVGUtils::SetClipRect(aContext, aMatrix, maskArea);
-  aContext->SetMatrix(gfxMatrix());
+  aContext->IdentityMatrix();
   gfxRect maskSurfaceRect = aContext->GetClipExtents();
   maskSurfaceRect.RoundOut();
   aContext->Restore();
@@ -223,7 +223,7 @@ nsSVGMaskFrame::GetMaskForMaskedFrame(gfxContext* aContext,
   }
 
   gfxMatrix maskSurfaceMatrix =
-    aContext->CurrentMatrix() * gfxMatrix::Translation(-maskSurfaceRect.TopLeft());
+    aContext->CurrentMatrix() * gfxMatrix().Translate(-maskSurfaceRect.TopLeft());
 
   nsRefPtr<nsRenderingContext> tmpCtx = new nsRenderingContext();
   tmpCtx->Init(this->PresContext()->DeviceContext(), maskDT);
@@ -317,7 +317,7 @@ nsSVGMaskFrame::GetType() const
 }
 
 gfxMatrix
-nsSVGMaskFrame::GetCanvasTM()
+nsSVGMaskFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
 {
   return mMatrixForChildren;
 }

@@ -473,7 +473,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(URL)
 NS_INTERFACE_MAP_END
 
 // static
-already_AddRefed<URL>
+URL*
 URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
                  URL& aBase, ErrorResult& aRv)
 {
@@ -493,12 +493,11 @@ URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
     return nullptr;
   }
 
-  nsRefPtr<URL> url = new URL(workerPrivate, proxy);
-  return url.forget();
+  return new URL(workerPrivate, proxy);
 }
 
 // static
-already_AddRefed<URL>
+URL*
 URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
                  const nsAString& aBase, ErrorResult& aRv)
 {
@@ -518,8 +517,7 @@ URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
     return nullptr;
   }
 
-  nsRefPtr<URL> url = new URL(workerPrivate, proxy);
-  return url.forget();
+  return new URL(workerPrivate, proxy);
 }
 
 URL::URL(WorkerPrivate* aWorkerPrivate, URLProxy* aURLProxy)

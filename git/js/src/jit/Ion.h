@@ -148,10 +148,8 @@ CodeGenerator *GenerateCode(MIRGenerator *mir, LIRGraph *lir);
 CodeGenerator *CompileBackEnd(MIRGenerator *mir);
 
 void AttachFinishedCompilations(JSContext *cx);
-void FinishOffThreadBuilder(JSContext *cx, IonBuilder *builder);
+void FinishOffThreadBuilder(IonBuilder *builder);
 void StopAllOffThreadCompilations(JSCompartment *comp);
-
-uint8_t *LazyLinkTopActivation(JSContext *cx);
 
 static inline bool
 IsIonEnabled(JSContext *cx)

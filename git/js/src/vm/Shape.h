@@ -1452,4 +1452,9 @@ IsImplicitDenseOrTypedArrayElement(Shape *prop)
 #pragma warning(pop)
 #endif
 
+namespace JS {
+template<> class AnchorPermitted<js::Shape *> { };
+template<> class AnchorPermitted<const js::Shape *> { };
+}
+
 #endif /* vm_Shape_h */

@@ -126,9 +126,8 @@ let NCI = (function() {
 let TAG = (function() {
   function setData(re, flag, tnf, type, payload) {
     let deferred = Promise.defer();
-    let tnfNum = NDEF.getTNFNum(tnf);
     let cmd = "nfc tag set " + re +
-              " [" + flag + "," + tnfNum + "," + type + ",," + payload + "]";
+              " [" + flag + "," + tnf + "," + type + ",," + payload + "]";
 
     emulator.run(cmd, function(result) {
       is(result.pop(), "OK", "set NDEF data of tag" + re);
@@ -157,9 +156,8 @@ let TAG = (function() {
 let SNEP = (function() {
   function put(dsap, ssap, flags, tnf, type, id, payload) {
     let deferred = Promise.defer();
-    let tnfNum = NDEF.getTNFNum(tnf);
     let cmd = "nfc snep put " + dsap + " " + ssap + " [" + flags + "," +
-                                                           tnfNum + "," +
+                                                           tnf + "," +
                                                            type + "," +
                                                            id + "," +
                                                            payload + "]";
@@ -247,18 +245,7 @@ function runTests() {
 }
 
 const NDEF = {
-  TNF_WELL_KNOWN: "well-known",
-
-  tnfValues: ["empty", "well-known", "media-type", "absolute-uri", "external",
-    "unknown", "unchanged", "reserved"],
-
-  getTNFNum: function (tnfString) {
-    return this.tnfValues.indexOf(tnfString);
-  },
-
-  getTNFString: function(tnfNum) {
-    return this.tnfValues[tnfNum];
-  },
+  TNF_WELL_KNOWN: 1,
 
   // compares two NDEF messages
   compare: function(ndef1, ndef2) {
@@ -303,7 +290,7 @@ const NDEF = {
         let type = NfcUtils.fromUTF8(this.atob(value.type));
         let id = NfcUtils.fromUTF8(this.atob(value.id));
         let payload = NfcUtils.fromUTF8(this.atob(value.payload));
-        return new MozNDEFRecord({tnf: NDEF.getTNFString(value.tnf), type: type, id: id, payload: payload});
+        return new MozNDEFRecord({tnf: value.tnf, type: type, id: id, payload: payload});
       }, window);
     return ndef;
   }

@@ -107,11 +107,11 @@ nsDisplaySVGPathGeometry::Paint(nsDisplayListBuilder* aBuilder,
   gfxPoint devPixelOffset =
     nsLayoutUtils::PointToGfxPoint(offset, appUnitsPerDevPixel);
 
-  aCtx->ThebesContext()->Save();
+  aCtx->PushState();
   gfxMatrix tm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(mFrame) *
                    gfxMatrix::Translation(devPixelOffset);
   static_cast<nsSVGPathGeometryFrame*>(mFrame)->PaintSVG(aCtx, tm);
-  aCtx->ThebesContext()->Restore();
+  aCtx->PopState();
 }
 
 //----------------------------------------------------------------------
@@ -321,7 +321,7 @@ nsRect
 nsSVGPathGeometryFrame::GetCoveredRegion()
 {
   return nsSVGUtils::TransformFrameRectToOuterSVG(
-           mRect, GetCanvasTM(), PresContext());
+           mRect, GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
 }
 
 void
@@ -363,12 +363,12 @@ nsSVGPathGeometryFrame::ReflowSVG()
   // transforms between us and our nsSVGOuterSVGFrame, even though the
   // overwhelming number of SVGs will never have this problem.
   // XXX Will Azure eventually save us from having to do this?
-  gfxSize scaleFactors = GetCanvasTM().ScaleFactors(true);
+  gfxSize scaleFactors = GetCanvasTM(FOR_OUTERSVG_TM).ScaleFactors(true);
   bool applyScaling = fabs(scaleFactors.width) >= 1e-6 &&
                       fabs(scaleFactors.height) >= 1e-6;
   gfx::Matrix scaling;
   if (applyScaling) {
-    scaling.PreScale(scaleFactors.width, scaleFactors.height);
+    scaling.Scale(scaleFactors.width, scaleFactors.height);
   }
   gfxRect extent = GetBBoxContribution(scaling, flags).ToThebesRect();
   if (applyScaling) {
@@ -466,7 +466,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
   nsRefPtr<gfxContext> tmpCtx = new gfxContext(tmpDT);
 
   GeneratePath(tmpCtx, aToBBoxUserspace);
-  tmpCtx->SetMatrix(gfxMatrix());
+  tmpCtx->IdentityMatrix();
 
   // Be careful when replacing the following logic to get the fill and stroke
   // extents independently (instead of computing the stroke extents from the
@@ -552,14 +552,22 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
 // nsSVGPathGeometryFrame methods:
 
 gfxMatrix
-nsSVGPathGeometryFrame::GetCanvasTM()
+nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
 {
+  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY) && !aTransformRoot) {
+    if (aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) {
+      return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
+    }
+  }
+
   NS_ASSERTION(GetParent(), "null parent");
 
   nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(GetParent());
   dom::SVGGraphicsElement *content = static_cast<dom::SVGGraphicsElement*>(mContent);
 
-  return content->PrependLocalTransformsTo(parent->GetCanvasTM());
+  return content->PrependLocalTransformsTo(
+      this == aTransformRoot ? gfxMatrix() :
+                               parent->GetCanvasTM(aFor, aTransformRoot));
 }
 
 nsSVGPathGeometryFrame::MarkerProperties
@@ -703,14 +711,12 @@ nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
                                      const Matrix &aTransform)
 {
   if (aTransform.IsSingular()) {
-    aContext->SetMatrix(gfxMatrix());
+    aContext->IdentityMatrix();
     aContext->NewPath();
     return;
   }
 
-  aContext->SetMatrix(
-    aContext->CurrentMatrix().PreMultiply(ThebesMatrix(aTransform)).
-                              NudgeToIntegers());
+  aContext->MultiplyAndNudgeToIntegers(ThebesMatrix(aTransform));
 
   // Hack to let SVGPathData::ConstructPath know if we have square caps:
   const nsStyleSVG* style = StyleSVG();

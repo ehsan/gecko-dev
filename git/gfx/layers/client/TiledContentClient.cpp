@@ -929,9 +929,8 @@ ClientTiledLayerBuffer::PaintThebes(const nsIntRegion& aNewValidRegion,
       mSinglePaintBufferOffset = nsIntPoint(bounds.x, bounds.y);
     }
     ctxt->NewPath();
-    ctxt->SetMatrix(
-      ctxt->CurrentMatrix().Scale(mResolution, mResolution).
-                            Translate(-bounds.x, -bounds.y));
+    ctxt->Scale(mResolution, mResolution);
+    ctxt->Translate(gfxPoint(-bounds.x, -bounds.y));
 #ifdef GFX_TILEDLAYER_PREF_WARNINGS
     if (PR_IntervalNow() - start > 3) {
       printf_stderr("Slow alloc %i\n", PR_IntervalNow() - start);
@@ -1301,10 +1300,8 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
 
     ctxt->NewPath();
     ctxt->Clip(gfxRect(bounds.x, bounds.y, bounds.width, bounds.height));
-    ctxt->SetMatrix(
-      ctxt->CurrentMatrix().Translate(-unscaledTileOrigin.x,
-                                      -unscaledTileOrigin.y).
-                            Scale(mResolution, mResolution));
+    ctxt->Translate(gfxPoint(-unscaledTileOrigin.x, -unscaledTileOrigin.y));
+    ctxt->Scale(mResolution, mResolution);
     mCallback(mThebesLayer, ctxt,
               tileRegion.GetBounds(),
               DrawRegionClip::CLIP_NONE,

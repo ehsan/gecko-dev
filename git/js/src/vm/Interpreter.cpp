@@ -468,11 +468,10 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
         if (MOZ_UNLIKELY(clasp == &js_NoSuchMethodClass))
             return NoSuchMethod(cx, args.length(), args.base());
 #endif
-        JS_ASSERT_IF(construct, !callee.constructHook());
-        JSNative call = callee.callHook();
-        if (!call)
+        JS_ASSERT_IF(construct, !clasp->construct);
+        if (!clasp->call)
             return ReportIsNotFunction(cx, args.calleev(), args.length() + 1, construct);
-        return CallJSNative(cx, call, args);
+        return CallJSNative(cx, clasp->call, args);
     }
 
     /* Invoke native functions. */
@@ -572,11 +571,11 @@ js::InvokeConstructor(JSContext *cx, CallArgs args)
         return true;
     }
 
-    JSNative construct = callee.constructHook();
-    if (!construct)
+    const Class *clasp = callee.getClass();
+    if (!clasp->construct)
         return ReportIsNotFunction(cx, args.calleev(), args.length() + 1, CONSTRUCT);
 
-    return CallJSNativeConstructor(cx, construct, args);
+    return CallJSNativeConstructor(cx, clasp->construct, args);
 }
 
 bool

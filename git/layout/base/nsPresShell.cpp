@@ -4785,20 +4785,17 @@ PresShell::RenderDocument(const nsRect& aRect, uint32_t aFlags,
     }
   }
 
+  aThebesContext->Translate(gfxPoint(-nsPresContext::AppUnitsToFloatCSSPixels(aRect.x),
+                                     -nsPresContext::AppUnitsToFloatCSSPixels(aRect.y)));
+
   nsDeviceContext* devCtx = mPresContext->DeviceContext();
-
-  gfxPoint offset(-nsPresContext::AppUnitsToFloatCSSPixels(aRect.x),
-                  -nsPresContext::AppUnitsToFloatCSSPixels(aRect.y));
   gfxFloat scale = gfxFloat(devCtx->AppUnitsPerDevPixel())/nsPresContext::AppUnitsPerCSSPixel();
+  aThebesContext->Scale(scale, scale);
 
-  // Since canvas APIs use floats to set up their matrices, we may have some
-  // slight rounding errors here.  We use NudgeToIntegers() here to adjust
-  // matrix components that are integers up to the accuracy of floats to be
-  // those integers.
-  gfxMatrix newTM = aThebesContext->CurrentMatrix().Translate(offset).
-                                                    Scale(scale, scale).
-                                                    NudgeToIntegers();
-  aThebesContext->SetMatrix(newTM);
+  // Since canvas APIs use floats to set up their matrices, we may have
+  // some slight inaccuracy here. Adjust matrix components that are
+  // integers up to the accuracy of floats to be those integers.
+  aThebesContext->NudgeCurrentMatrixToIntegers();
 
   AutoSaveRestoreRenderingState _(this);
 
@@ -5121,15 +5118,11 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
     rc->SetClip(region);
   }
 
-  gfxMatrix initialTM = ctx->CurrentMatrix();
-
   if (resize)
-    initialTM.Scale(scale, scale);
+    rc->Scale(scale, scale);
 
   // translate so that points are relative to the surface area
-  gfxPoint surfaceOffset =
-    nsLayoutUtils::PointToGfxPoint(-aArea.TopLeft(), pc->AppUnitsPerDevPixel());
-  initialTM.Translate(surfaceOffset);
+  rc->Translate(-aArea.TopLeft());
 
   // temporarily hide the selection so that text is drawn normally. If a
   // selection is being rendered, use that, otherwise use the presshell's
@@ -5149,11 +5142,10 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   for (int32_t i = 0; i < count; i++) {
     RangePaintInfo* rangeInfo = (*aItems)[i];
     // the display lists paint relative to the offset from the reference
-    // frame, so account for that translation too:
-    gfxPoint rootOffset =
-      nsLayoutUtils::PointToGfxPoint(rangeInfo->mRootOffset,
-                                     pc->AppUnitsPerDevPixel());
-    ctx->SetMatrix(initialTM.Translate(rootOffset));
+    // frame, so translate the rendering context
+    nsRenderingContext::AutoPushTranslation
+      translate(rc, rangeInfo->mRootOffset);
+
     aArea.MoveBy(-rangeInfo->mRootOffset.x, -rangeInfo->mRootOffset.y);
     nsRegion visible(aArea);
     rangeInfo->mList.PaintRoot(&rangeInfo->mBuilder, rc, nsDisplayList::PAINT_DEFAULT);
@@ -9971,12 +9963,8 @@ void ReflowCountMgr::PaintCount(const char*     aName,
     IndiReflowCounter * counter =
       (IndiReflowCounter *)PL_HashTableLookup(mIndiFrameCounts, key);
     if (counter != nullptr && counter->mName.EqualsASCII(aName)) {
-      aRenderingContext->ThebesContext()->Save();
-      gfxPoint devPixelOffset =
-        nsLayoutUtils::PointToGfxPoint(aOffset,
-                                       aPresContext->AppUnitsPerDevPixel());
-      aRenderingContext->ThebesContext()->SetMatrix(
-        aRenderingContext->ThebesContext()->CurrentMatrix().Translate(devPixelOffset));
+      aRenderingContext->PushState();
+      aRenderingContext->Translate(aOffset);
       nsFont font(eFamily_serif, NS_FONT_STYLE_NORMAL,
                   NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0,
                   nsPresContext::CSSPixelsToAppUnits(11));
@@ -10025,7 +10013,7 @@ void ReflowCountMgr::PaintCount(const char*     aName,
       aRenderingContext->SetColor(color);
       aRenderingContext->DrawString(buf, strlen(buf), x,y);
 
-      aRenderingContext->ThebesContext()->Restore();
+      aRenderingContext->PopState();
     }
   }
 }

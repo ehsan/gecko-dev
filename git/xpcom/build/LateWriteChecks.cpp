@@ -34,7 +34,7 @@
 
 #include "LateWriteChecks.h"
 
-#if defined(MOZ_STACKWALKING)
+#if !defined(XP_WIN) || (!defined(MOZ_OPTIMIZE) || defined(MOZ_PROFILING) || defined(DEBUG))
 #define OBSERVE_LATE_WRITES
 #endif
 

@@ -203,11 +203,11 @@ Zone::discardJitCode(FreeOp *fop)
             jit::FinishDiscardBaselineScript(fop, script);
 
             /*
-             * Warm-up counter for scripts are reset on GC. After discarding code we
+             * Use counts for scripts are reset on GC. After discarding code we
              * need to let it warm back up to get information such as which
              * opcodes are setting array holes or accessing getter properties.
              */
-            script->resetWarmUpCounter();
+            script->resetUseCount();
         }
 
         jitZone()->optimizedStubSpace()->free();

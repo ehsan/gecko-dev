@@ -307,9 +307,9 @@ MediaEngineTabVideoSource::Draw() {
     return;
   }
   nsRefPtr<gfxContext> context = new gfxContext(dt);
-  context->SetMatrix(
-    context->CurrentMatrix().Scale(scale * size.width / srcW,
-                                   scale * size.height / srcH));
+  gfxPoint pt(0, 0);
+  context->Translate(pt);
+  context->Scale(scale * size.width / srcW, scale * size.height / srcH);
   rv = presShell->RenderDocument(r, renderDocFlags, bgColor, context);
 
   NS_ENSURE_SUCCESS_VOID(rv);

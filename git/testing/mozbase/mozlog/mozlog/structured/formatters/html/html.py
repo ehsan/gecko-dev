@@ -61,7 +61,7 @@ class HTMLFormatter(base.BaseFormatter):
         debug = data.get("extra", {})
         links_html = []
 
-        status = status_name = data["status"]
+        status = data["status"]
         expected = data.get("expected", status)
 
         if status != expected:

@@ -49,10 +49,10 @@ public:
 
   // Methods for WebIDL
 
-  static already_AddRefed<URL>
+  static URL*
   Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
               URL& aBase, ErrorResult& aRv);
-  static already_AddRefed<URL>
+  static URL*
   Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
               const nsAString& aBase, ErrorResult& aRv);
 

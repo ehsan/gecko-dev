@@ -27,9 +27,7 @@ interface ServiceWorkerGlobalScope : WorkerGlobalScope {
   // ResponsePromise<any> fetch((Request or [EnsureUTF16] DOMString) request);
 
   void update();
-
-  [Throws]
-  Promise<boolean> unregister();
+  void unregister();
 
   attribute EventHandler oninstall;
   attribute EventHandler onactivate;

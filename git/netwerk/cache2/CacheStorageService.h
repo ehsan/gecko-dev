@@ -162,13 +162,19 @@ private:
   friend class CacheIndex;
 
   /**
+   * Gets the mutex lock for CacheStorageService then calls through to
+   * IsForcedValidEntryInternal. See below for details.
+   */
+  bool IsForcedValidEntry(nsACString &aCacheEntryKey);
+
+  /**
    * Retrieves the status of the cache entry to see if it has been forced valid
    * (so it will loaded directly from cache without further validation)
    * CacheIndex uses this to prevent a cache entry from being prememptively
    * thrown away when forced valid
    * See nsICacheEntry.idl for more details
    */
-  bool IsForcedValidEntry(nsACString &aCacheEntryKey);
+  bool IsForcedValidEntryInternal(nsACString &aCacheEntryKey);
 
 private:
   // These are helpers for telemetry monitorying of the memory pools.
@@ -287,7 +293,6 @@ private:
   static CacheStorageService* sSelf;
 
   mozilla::Mutex mLock;
-  mozilla::Mutex mForcedValidEntriesLock;
 
   bool mShutdown;
 
