@@ -69,8 +69,8 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
+
 #include "jsdbgapi.h"   /* whether or not JS_HAS_OBJ_WATCHPOINT */
-#include "jsstaticcheck.h"
 
 #if JS_HAS_GENERATORS
 #include "jsiter.h"
@@ -635,7 +635,7 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
 
     JS_CHECK_RECURSION(cx, return JS_FALSE);
 
-    MUST_FLOW_THROUGH("out");
+    /* After this, control must flow through out: to exit. */
     JS_PUSH_TEMP_ROOT(cx, 4, localroot, &tvr);
 
     /* If outermost, we need parentheses to be an expression, not a block. */
@@ -1235,7 +1235,6 @@ js_obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     }
 
     /* From here on, control must exit through label out with ok set. */
-    MUST_FLOW_THROUGH("out");
     if (!scopeobj) {
 #if JS_HAS_EVAL_THIS_SCOPE
         /* If obj.eval(str), emulate 'with (obj) eval(str)' in the caller. */
@@ -2840,7 +2839,6 @@ js_ConstructObject(JSContext *cx, JSClass *clasp, JSObject *proto,
      * this point, all control flow must exit through label out with obj set.
      */
     JS_PUSH_SINGLE_TEMP_ROOT(cx, cval, &tvr);
-    MUST_FLOW_THROUGH("out");
 
     /*
      * If proto or parent are NULL, set them to Constructor.prototype and/or
@@ -3638,7 +3636,7 @@ js_NativeSet(JSContext *cx, JSObject *obj, JSScopeProperty *sprop, jsval *vp)
     jsval pval;
     int32 sample;
     JSTempValueRooter tvr;
-    bool ok;
+    JSBool ok;
 
     JS_ASSERT(OBJ_IS_NATIVE(obj));
     JS_ASSERT(JS_IS_OBJ_LOCKED(cx, obj));
@@ -3899,7 +3897,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
                     return JS_TRUE;
                 }
 
-                return !!SPROP_SET(cx, sprop, obj, pobj, vp);
+                return SPROP_SET(cx, sprop, obj, pobj, vp);
             }
 
             /* Restore attrs to the ECMA default for new properties. */

@@ -665,7 +665,9 @@ public:
    * @param aContent The content node to test.
    * @return whether it's draggable
    */
-  static PRBool ContentIsDraggable(nsIContent* aContent);
+  static PRBool ContentIsDraggable(nsIContent* aContent) {
+    return IsDraggableImage(aContent) || IsDraggableLink(aContent);
+  }
 
   /**
    * Method that decides whether a content node is a draggable image
