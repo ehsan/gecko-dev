@@ -235,10 +235,13 @@ class AutoVectorRooter : protected AutoGCRooter
         return vector.reserve(newLength);
     }
 
-    JS::MutableHandle<T> operator[](size_t i) {
+    T &operator[](size_t i) { return vector[i]; }
+    const T &operator[](size_t i) const { return vector[i]; }
+
+    JS::MutableHandle<T> handleAt(size_t i) {
         return JS::MutableHandle<T>::fromMarkedLocation(&vector[i]);
     }
-    JS::Handle<T> operator[](size_t i) const {
+    JS::Handle<T> handleAt(size_t i) const {
         return JS::Handle<T>::fromMarkedLocation(&vector[i]);
     }
 

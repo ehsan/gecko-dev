@@ -213,7 +213,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitGuardClass(MGuardClass *ins);
     bool visitGuardObject(MGuardObject *ins);
     bool visitGuardString(MGuardString *ins);
-    bool visitGuardShapePolymorphic(MGuardShapePolymorphic *ins);
     bool visitAssertRange(MAssertRange *ins);
     bool visitCallGetProperty(MCallGetProperty *ins);
     bool visitDeleteProperty(MDeleteProperty *ins);

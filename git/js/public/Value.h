@@ -236,7 +236,7 @@ typedef enum JSWhyMagic
     JS_BLOCK_NEEDS_CLONE,        /* value of static block object slot */
     JS_HASH_KEY_EMPTY,           /* see class js::HashableValue */
     JS_ION_ERROR,                /* error while running Ion code */
-    JS_ION_BAILOUT,              /* missing recover instruction result */
+    JS_ION_BAILOUT,              /* status code to signal EnterIon will OSR into Interpret */
     JS_OPTIMIZED_OUT,            /* optimized out slot */
     JS_GENERIC_MAGIC             /* for local use */
 } JSWhyMagic;
@@ -1610,7 +1610,6 @@ class ValueOperations
     JSObject &toObject() const { return value()->toObject(); }
     JSObject *toObjectOrNull() const { return value()->toObjectOrNull(); }
     void *toGCThing() const { return value()->toGCThing(); }
-    uint64_t asRawBits() const { return value()->asRawBits(); }
 
     JSValueType extractNonDoubleType() const { return value()->extractNonDoubleType(); }
     uint32_t toPrivateUint32() const { return value()->toPrivateUint32(); }

@@ -584,12 +584,6 @@ class TypeSet
      */
     bool isSubset(TypeSet *other);
 
-    /*
-     * Get whether the objects in this TypeSet are a subset of the objects
-     * in other.
-     */
-    bool objectsAreSubset(TypeSet *other);
-
     /* Forward all types in this set to the specified constraint. */
     bool addTypesToConstraint(JSContext *cx, TypeConstraint *constraint);
 
@@ -987,7 +981,7 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
      *   some number of properties to the object in a definite order
      *   before the object escapes.
      */
-    HeapPtrTypeObjectAddendum addendum;
+    HeapPtr<TypeObjectAddendum> addendum;
   public:
 
     TypeObjectFlags flags() const {
@@ -1188,7 +1182,7 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
  */
 struct TypeObjectWithNewScriptEntry
 {
-    ReadBarrieredTypeObject object;
+    ReadBarriered<TypeObject> object;
 
     // Note: This pointer is only used for equality and does not need a read barrier.
     JSFunction *newFunction;
@@ -1333,20 +1327,14 @@ void
 FinishDefinitePropertiesAnalysis(JSContext *cx, CompilerConstraintList *constraints);
 
 struct ArrayTableKey;
-typedef HashMap<ArrayTableKey,
-                ReadBarrieredTypeObject,
-                ArrayTableKey,
-                SystemAllocPolicy> ArrayTypeTable;
+typedef HashMap<ArrayTableKey,ReadBarriered<TypeObject>,ArrayTableKey,SystemAllocPolicy> ArrayTypeTable;
 
 struct ObjectTableKey;
 struct ObjectTableEntry;
 typedef HashMap<ObjectTableKey,ObjectTableEntry,ObjectTableKey,SystemAllocPolicy> ObjectTypeTable;
 
 struct AllocationSiteKey;
-typedef HashMap<AllocationSiteKey,
-                ReadBarrieredTypeObject,
-                AllocationSiteKey,
-                SystemAllocPolicy> AllocationSiteTable;
+typedef HashMap<AllocationSiteKey,ReadBarriered<TypeObject>,AllocationSiteKey,SystemAllocPolicy> AllocationSiteTable;
 
 class HeapTypeSetKey;
 

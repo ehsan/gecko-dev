@@ -97,9 +97,7 @@ function createMediaElement(type, label) {
  *        The error callback if the stream fails to be retrieved
  */
 function getUserMedia(constraints, onSuccess, onError) {
-  if (!("fake" in constraints)) {
-    constraints["fake"] = FAKE_ENABLED;
-  }
+  constraints["fake"] = FAKE_ENABLED;
 
   info("Call getUserMedia for " + JSON.stringify(constraints));
   navigator.mozGetUserMedia(constraints, onSuccess, onError);

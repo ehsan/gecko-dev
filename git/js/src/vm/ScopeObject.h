@@ -726,8 +726,8 @@ class ScopeIterVal
     friend class DebugScopes;
 
     AbstractFramePtr frame_;
-    RelocatablePtrObject cur_;
-    RelocatablePtrNestedScopeObject staticScope_;
+    RelocatablePtr<JSObject> cur_;
+    RelocatablePtr<NestedScopeObject> staticScope_;
     ScopeIter::Type type_;
     bool hasScopeObject_;
 
@@ -807,17 +807,17 @@ class DebugScopeObject : public ProxyObject
 class DebugScopes
 {
     /* The map from (non-debug) scopes to debug scopes. */
-    typedef WeakMap<PreBarrieredObject, RelocatablePtrObject> ObjectWeakMap;
+    typedef WeakMap<EncapsulatedPtrObject, RelocatablePtrObject> ObjectWeakMap;
     ObjectWeakMap proxiedScopes;
     static MOZ_ALWAYS_INLINE void proxiedScopesPostWriteBarrier(JSRuntime *rt, ObjectWeakMap *map,
-                                                               const PreBarrieredObject &key);
+                                                               const EncapsulatedPtrObject &key);
 
     /*
      * The map from live frames which have optimized-away scopes to the
      * corresponding debug scopes.
      */
     typedef HashMap<ScopeIterKey,
-                    ReadBarrieredDebugScopeObject,
+                    ReadBarriered<DebugScopeObject>,
                     ScopeIterKey,
                     RuntimeAllocPolicy> MissingScopeMap;
     MissingScopeMap missingScopes;

@@ -415,12 +415,16 @@ class SPSInstrumentation
     bool push(JSScript *script, Assembler &masm, Register scratch, bool inlinedFunction = false) {
         if (!enabled())
             return true;
-        if (!inlinedFunction) {
+#ifdef JS_ION
+        if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames) {
+#endif
             const char *string = profiler_->profileString(script, script->functionNonDelazifying());
             if (string == nullptr)
                 return false;
             masm.spsPushFrame(profiler_, string, script, scratch);
+#ifdef JS_ION
         }
+#endif
         setPushed(script);
         return true;
     }
@@ -436,7 +440,9 @@ class SPSInstrumentation
         if (!enabled())
             return;
 
-        if (!inlinedFunction)
+#ifdef JS_ION
+        if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames)
+#endif
             masm.spsUpdatePCIdx(profiler_, ProfileEntry::NullPCIndex, scratch);
 
         setPushed(script);
@@ -453,17 +459,22 @@ class SPSInstrumentation
         if (enabled() && frame->script && frame->left++ == 0) {
             jsbytecode *updatePC = pc;
             JSScript *script = frame->script;
+#ifdef JS_ION
             if (!inlinedFunction) {
-                // We may be leaving an inlined frame for entry into a C++ frame.
-                // Use the top script's pc offset instead of the innermost script's.
-                if (inliningDepth() > 0) {
+                // We may be leaving an inlined frame for entry into a C++
+                // frame.  If profileInlineFrames is turned off, use the top
+                // script's pc offset instead of the innermost script's.
+                if (!jit::js_JitOptions.profileInlineFrames && inliningDepth() > 0) {
                     JS_ASSERT(frames[0].pc);
                     updatePC = frames[0].pc;
                     script = frames[0].script;
                 }
             }
+#endif
 
-            if (!inlinedFunction)
+#ifdef JS_ION
+            if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames)
+#endif
                 masm.spsUpdatePCIdx(profiler_, script->pcToOffset(updatePC), scratch);
         }
     }
@@ -478,7 +489,9 @@ class SPSInstrumentation
         if (frame->skipNext) {
             frame->skipNext = false;
         } else {
-             if (!inlinedFunction)
+#ifdef JS_ION
+             if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames)
+#endif
                  masm.spsUpdatePCIdx(profiler_, ProfileEntry::NullPCIndex, scratch);
         }
     }
@@ -492,7 +505,9 @@ class SPSInstrumentation
         if (enabled()) {
             JS_ASSERT(frame->left == 0);
             JS_ASSERT(frame->script);
-            if (!inlinedFunction)
+#ifdef JS_ION
+            if (!inlinedFunction || jit::js_JitOptions.profileInlineFrames)
+#endif
                 masm.spsPopFrame(profiler_, scratch);
         }
     }

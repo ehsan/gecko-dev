@@ -89,9 +89,7 @@ public:
       return false;
     }
 
-    if (MaybeSwitchVideoReaders(aTimeThreshold)) {
-      GetVideoReader()->DecodeToTarget(aTimeThreshold);
-    }
+    MaybeSwitchVideoReaders(aTimeThreshold);
 
     bool rv = GetVideoReader()->DecodeVideoFrame(aKeyFrameSkip, aTimeThreshold);
 
@@ -131,7 +129,7 @@ public:
   void CallDecoderInitialization();
 
 private:
-  bool MaybeSwitchVideoReaders(int64_t aTimeThreshold) {
+  void MaybeSwitchVideoReaders(int64_t aTimeThreshold) {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     MOZ_ASSERT(mActiveVideoDecoder != -1);
 
@@ -148,11 +146,10 @@ private:
         MSE_DEBUG("%p MSR::DecodeVF switching to %d", this, mActiveVideoDecoder);
 
         GetVideoReader()->SetActive();
-        return true;
+        GetVideoReader()->DecodeToTarget(aTimeThreshold);
+        break;
       }
     }
-
-    return false;
   }
 
   MediaDecoderReader* GetAudioReader() {

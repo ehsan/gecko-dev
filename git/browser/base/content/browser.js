@@ -5180,8 +5180,7 @@ function UpdateCurrentCharset(target) {
 }
 
 function charsetLoadListener() {
-  let currCharset = gBrowser.selectedBrowser.characterSet;
-  let charset = CharsetMenu.foldCharset(currCharset);
+  var charset = CharsetMenu.foldCharset(window.content.document.characterSet);
 
   if (charset.length > 0 && (charset != gLastBrowserCharset)) {
     gPrevCharset = gLastBrowserCharset;
@@ -6949,12 +6948,6 @@ var TabContextMenu = {
     var menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-multiple");
     for (let menuItem of menuItems)
       menuItem.disabled = disabled;
-
-#ifdef NIGHTLY_BUILD
-    menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-remote");
-    for (let menuItem of menuItems)
-      menuItem.hidden = !gMultiProcessBrowser;
-#endif
 
     disabled = gBrowser.visibleTabs.length == 1;
     menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-multiple-visible");

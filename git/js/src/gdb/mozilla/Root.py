@@ -63,12 +63,12 @@ class Handle(Common):
 class MutableHandle(Common):
     handle = True
 
-@template_pretty_printer("js::PreBarriered")
-class PreBarriered(Common):
+@template_pretty_printer("js::EncapsulatedPtr")
+class EncapsulatedPtr(Common):
     member = 'value'
 
-@pretty_printer("js::PreBarrieredValue")
-class PreBarrieredValue(Common):
+@pretty_printer("js::EncapsulatedValue")
+class EncapsulatedValue(Common):
     member = 'value'
 
 @pretty_printer("js::BarrieredValue")

@@ -2290,13 +2290,6 @@ QuotaManager::ClearStoragesForURI(nsIURI* aURI,
 
   NS_ENSURE_ARG_POINTER(aURI);
 
-  Nullable<PersistenceType> persistenceType;
-  nsresult rv =
-    NullablePersistenceTypeFromText(aPersistenceType, &persistenceType);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
   // This only works from the main process.
   NS_ENSURE_TRUE(IsMainProcess(), NS_ERROR_NOT_AVAILABLE);
 
@@ -2306,12 +2299,16 @@ QuotaManager::ClearStoragesForURI(nsIURI* aURI,
 
   // Figure out which origin we're dealing with.
   nsCString origin;
-  rv = GetInfoFromURI(aURI, aAppId, aInMozBrowserOnly, nullptr, &origin,
-                      nullptr, nullptr);
+  nsresult rv = GetInfoFromURI(aURI, aAppId, aInMozBrowserOnly, nullptr, &origin,
+                               nullptr, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoCString pattern;
   GetOriginPatternString(aAppId, aInMozBrowserOnly, origin, pattern);
+
+  Nullable<PersistenceType> persistenceType;
+  rv = NullablePersistenceTypeFromText(aPersistenceType, &persistenceType);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // If there is a pending or running clear operation for this origin, return
   // immediately.
@@ -2690,9 +2687,7 @@ QuotaManager::AcquireExclusiveAccess(const nsACString& aPattern,
         nsIOfflineStorage*& storage = matches[index];
         if (!storage->IsClosed() &&
             storage != aStorage &&
-            storage->Id() == aStorage->Id() &&
-            (aPersistenceType.IsNull() ||
-             aPersistenceType.Value() == storage->Type())) {
+            storage->Id() == aStorage->Id()) {
           liveStorages.AppendElement(storage);
         }
       }
@@ -2713,23 +2708,14 @@ QuotaManager::AcquireExclusiveAccess(const nsACString& aPattern,
       matches.Find(mLiveStorages, aPattern);
     }
 
-    NS_ASSERTION(op->mStorages.IsEmpty(),
-               "How do we already have storages here?");
-
-    // We want *all* storages that match the given persistence type, even those
-    // that are closed, when we're going to clear the origin.
     if (!matches.IsEmpty()) {
-      for (uint32_t i = 0; i < Client::TYPE_MAX; i++) {
-        nsTArray<nsIOfflineStorage*>& storages = matches.ArrayAt(i);
-        for (uint32_t j = 0; j < storages.Length(); j++) {
-          nsIOfflineStorage* storage = storages[j];
-          if (aPersistenceType.IsNull() ||
-              aPersistenceType.Value() == storage->Type()) {
-            liveStorages.AppendElement(storage);
-            op->mStorages[i].AppendElement(storage);
-          }
-        }
-      }
+      // We want *all* storages, even those that are closed, when we're going to
+      // clear the origin.
+      matches.AppendElementsTo(liveStorages);
+
+      NS_ASSERTION(op->mStorages.IsEmpty(),
+                   "How do we already have storages here?");
+      matches.SwapElements(op->mStorages);
     }
   }
 

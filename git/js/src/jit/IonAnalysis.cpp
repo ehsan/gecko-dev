@@ -171,9 +171,6 @@ jit::EliminateDeadCode(MIRGenerator *mir, MIRGraph &graph)
                 !inst->hasUses() && !inst->isGuard() &&
                 !inst->isControlInstruction()) {
                 inst = block->discardAt(inst);
-            } else if (!inst->hasLiveDefUses() && inst->canRecoverOnBailout()) {
-                inst->setRecoveredOnBailout();
-                inst++;
             } else {
                 inst++;
             }
@@ -1385,6 +1382,11 @@ jit::AssertBasicGraphCoherency(MIRGraph &graph)
         for (size_t i = 0; i < block->numPredecessors(); i++)
             JS_ASSERT(CheckPredecessorImpliesSuccessor(*block, block->getPredecessor(i)));
 
+        // Assert that use chains are valid for this instruction.
+        for (MDefinitionIterator iter(*block); iter; iter++) {
+            for (uint32_t i = 0, e = iter->numOperands(); i < e; i++)
+                JS_ASSERT(CheckOperandImpliesUse(*iter, iter->getOperand(i)));
+        }
         for (MResumePointIterator iter(block->resumePointsBegin()); iter != block->resumePointsEnd(); iter++) {
             for (uint32_t i = 0, e = iter->numOperands(); i < e; i++) {
                 if (iter->getUseFor(i)->hasProducer())
@@ -1393,16 +1395,11 @@ jit::AssertBasicGraphCoherency(MIRGraph &graph)
         }
         for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd(); phi++) {
             JS_ASSERT(phi->numOperands() == block->numPredecessors());
-            MOZ_ASSERT(!phi->isRecoveredOnBailout());
         }
         for (MDefinitionIterator iter(*block); iter; iter++) {
             JS_ASSERT(iter->block() == *block);
-
-            // Assert that use chains are valid for this instruction.
-            for (uint32_t i = 0, end = iter->numOperands(); i < end; i++)
-                JS_ASSERT(CheckOperandImpliesUse(*iter, iter->getOperand(i)));
-            for (MUseIterator use(iter->usesBegin()); use != iter->usesEnd(); use++)
-                JS_ASSERT(CheckUseImpliesOperand(*iter, *use));
+            for (MUseIterator i(iter->usesBegin()); i != iter->usesEnd(); i++)
+                JS_ASSERT(CheckUseImpliesOperand(*iter, *i));
 
             if (iter->isInstruction()) {
                 if (MResumePoint *resume = iter->toInstruction()->resumePoint()) {
@@ -1410,9 +1407,6 @@ jit::AssertBasicGraphCoherency(MIRGraph &graph)
                         JS_ASSERT(ins->block() == iter->block());
                 }
             }
-
-            if (iter->isRecoveredOnBailout())
-                MOZ_ASSERT(!iter->hasLiveDefUses());
         }
     }
 
@@ -2258,15 +2252,10 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
     types::TypeScript::SetThis(cx, script, types::Type::ObjectType(type));
 
     MIRGraph graph(&temp);
-    InlineScriptTree *inlineScriptTree = InlineScriptTree::New(&temp, nullptr, nullptr, script);
-    if (!inlineScriptTree)
-        return false;
-
     CompileInfo info(script, fun,
                      /* osrPc = */ nullptr, /* constructing = */ false,
                      DefinitePropertiesAnalysis,
-                     script->needsArgsObj(),
-                     inlineScriptTree);
+                     script->needsArgsObj());
 
     AutoTempAllocatorRooter root(cx, &temp);
 
@@ -2427,14 +2416,10 @@ jit::AnalyzeArgumentsUsage(JSContext *cx, JSScript *scriptArg)
         return false;
 
     MIRGraph graph(&temp);
-    InlineScriptTree *inlineScriptTree = InlineScriptTree::New(&temp, nullptr, nullptr, script);
-    if (!inlineScriptTree)
-        return false;
     CompileInfo info(script, script->functionNonDelazifying(),
                      /* osrPc = */ nullptr, /* constructing = */ false,
                      ArgumentsUsageAnalysis,
-                     /* needsArgsObj = */ true,
-                     inlineScriptTree);
+                     /* needsArgsObj = */ true);
 
     AutoTempAllocatorRooter root(cx, &temp);
 

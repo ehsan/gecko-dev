@@ -129,7 +129,6 @@ namespace jit {
     _(SetElementCache)                                                      \
     _(BindNameCache)                                                        \
     _(GuardShape)                                                           \
-    _(GuardShapePolymorphic)                                                \
     _(GuardObjectType)                                                      \
     _(GuardObjectIdentity)                                                  \
     _(GuardClass)                                                           \

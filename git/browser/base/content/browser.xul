@@ -101,10 +101,6 @@
                 accesskey="&moveToNewWindow.accesskey;"
                 tbattr="tabbrowser-multiple"
                 oncommand="gBrowser.replaceTabWithWindow(TabContextMenu.contextTab);"/>
-      <menuitem id="context_openNonRemoteWindow" label="Open in new non-e10s window"
-                tbattr="tabbrowser-remote"
-                hidden="true"
-                oncommand="gBrowser.openNonRemoteWindow(TabContextMenu.contextTab);"/>
       <menuseparator/>
       <menuitem id="context_reloadAllTabs" label="&reloadAllTabs.label;" accesskey="&reloadAllTabs.accesskey;"
                 tbattr="tabbrowser-multiple-visible"
@@ -643,7 +639,7 @@
 
       <hbox id="nav-bar-customization-target" flex="1">
         <toolbaritem id="urlbar-container" flex="400" persist="width"
-                     title="&locationItem.title;" removable="false"
+                     forwarddisabled="true" title="&locationItem.title;" removable="false"
                      cui-areatype="toolbar"
                      class="chromeclass-location" overflows="false">
           <toolbarbutton id="back-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
