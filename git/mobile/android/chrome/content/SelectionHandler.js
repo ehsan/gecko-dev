@@ -355,7 +355,7 @@ var SelectionHandler = {
     }
 
     this._positionHandles(positions);
-    this._sendMessage("TextSelection:ShowHandles", [this.HANDLE_TYPE_START, this.HANDLE_TYPE_END]);
+    this._sendMessage("TextSelection:ShowHandles", [this.HANDLE_TYPE_START, this.HANDLE_TYPE_END], aOptions.x, aOptions.y);
     return true;
   },
 
@@ -433,11 +433,11 @@ var SelectionHandler = {
     return obj[name];
   },
 
-  _sendMessage: function(msgType, handles) {
+  _sendMessage: function(type, handles, aX, aY) {
     let actions = [];
     for (let type in this.actions) {
       let action = this.actions[type];
-      if (action.selector.matches(this._targetElement)) {
+      if (action.selector.matches(this._targetElement, aX, aY)) {
         let a = {
           id: action.id,
           label: this._getValue(action, "label", ""),
@@ -452,7 +452,7 @@ var SelectionHandler = {
     actions.sort((a, b) => b.order - a.order);
 
     sendMessageToJava({
-      type: msgType,
+      type: type,
       handles: handles,
       actions: actions,
     });
@@ -477,23 +477,16 @@ var SelectionHandler = {
     delete this.actions[id];
   },
 
-  /*
-   * Actionbar methods.
-   */
   actions: {
     SELECT_ALL: {
       label: Strings.browser.GetStringFromName("contextmenu.selectAll"),
       id: "selectall_action",
       icon: "drawable://ab_select_all",
       action: function(aElement) {
-        SelectionHandler.startSelection(aElement)
+        SelectionHandler.selectAll(aElement);
       },
+      selector: ClipboardHelper.selectAllContext,
       order: 5,
-      selector: {
-        matches: function(aElement) {
-          return (aElement.textLength != 0);
-        }
-      }
     },
 
     CUT: {
@@ -511,12 +504,7 @@ var SelectionHandler = {
         SelectionHandler.attachCaret(aElement);
       },
       order: 4,
-      selector: {
-        matches: function(aElement) {
-          return SelectionHandler.isElementEditableText(aElement) ?
-            SelectionHandler.isSelectionActive() : false;
-        }
-      }
+      selector: ClipboardHelper.cutContext,
     },
 
     COPY: {
@@ -527,16 +515,7 @@ var SelectionHandler = {
         SelectionHandler.copySelection();
       },
       order: 3,
-      selector: {
-        matches: function(aElement) {
-          // Don't include "copy" for password fields.
-          // mozIsTextField(true) tests for only non-password fields.
-          if (aElement instanceof Ci.nsIDOMHTMLInputElement && !aElement.mozIsTextField(true)) {
-            return false;
-          }
-          return SelectionHandler.isSelectionActive();
-        }
-      }
+      selector: ClipboardHelper.getCopyContext(false)
     },
 
     PASTE: {
@@ -544,23 +523,11 @@ var SelectionHandler = {
       id: "paste_action",
       icon: "drawable://ab_paste",
       action: function(aElement) {
-        if (aElement && (aElement instanceof Ci.nsIDOMNSEditableElement)) {
-          let target = aElement.QueryInterface(Ci.nsIDOMNSEditableElement);
-          target.editor.paste(Ci.nsIClipboard.kGlobalClipboard);
-          target.focus();
-          SelectionHandler._closeSelection();
-        }
+        ClipboardHelper.paste(aElement);
+        SelectionHandler._closeSelection();
       },
       order: 2,
-      selector: {
-        matches: function(aElement) {
-          if (SelectionHandler.isElementEditableText(aElement)) {
-            let flavors = ["text/unicode"];
-            return Services.clipboard.hasDataMatchingFlavors(flavors, flavors.length, Ci.nsIClipboard.kGlobalClipboard);
-          }
-          return false;
-        }
-      }
+      selector: ClipboardHelper.pasteContext,
     },
 
     SHARE: {
@@ -570,11 +537,7 @@ var SelectionHandler = {
       action: function() {
         SelectionHandler.shareSelection();
       },
-      selector: {
-        matches: function() {
-          return SelectionHandler.isSelectionActive();
-        }
-      }
+      selector: ClipboardHelper.shareContext,
     },
 
     SEARCH: {
@@ -588,11 +551,7 @@ var SelectionHandler = {
         SelectionHandler._closeSelection();
       },
       order: 1,
-      selector: {
-        matches: function() {
-          return SelectionHandler.isSelectionActive();
-        }
-      }
+      selector: ClipboardHelper.searchWithContext,
     },
 
     CALL: {
@@ -604,11 +563,11 @@ var SelectionHandler = {
       },
       order: 1,
       selector: {
-        matches: function () {
-          return SelectionHandler._getSelectedPhoneNumber() != null;
+        matches: function isPhoneNumber(aElement, aX, aY) {
+          return null != SelectionHandler._getSelectedPhoneNumber();
         }
-      }
-    }
+      },
+    },
   },
 
   /*
@@ -618,10 +577,12 @@ var SelectionHandler = {
    * @param aX, aY tap location in client coordinates.
    */
   attachCaret: function sh_attachCaret(aElement) {
-    // Ensure it isn't disabled, isn't handled by Android native dialog, and is editable text element
-    if (aElement.disabled || InputWidgetHelper.hasInputWidget(aElement) || !this.isElementEditableText(aElement)) {
+    // See if its an input element, and it isn't disabled, nor handled by Android native dialog
+    if (aElement.disabled ||
+        InputWidgetHelper.hasInputWidget(aElement) ||
+        !((aElement instanceof HTMLInputElement && aElement.mozIsTextField(false)) ||
+          (aElement instanceof HTMLTextAreaElement)))
       return;
-    }
 
     this._initTargetInfo(aElement, this.TYPE_CURSOR);
 
@@ -696,9 +657,8 @@ var SelectionHandler = {
     return (this._activeType == this.TYPE_SELECTION);
   },
 
-  isElementEditableText: function (aElement) {
-    return ((aElement instanceof HTMLInputElement && aElement.mozIsTextField(false)) ||
-            (aElement instanceof HTMLTextAreaElement));
+  selectAll: function sh_selectAll(aElement) {
+    this.startSelection(aElement, { mode : this.SELECT_ALL });
   },
 
   /*

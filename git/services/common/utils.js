@@ -429,8 +429,10 @@ this.CommonUtils = {
    * @return a promise that resolves to the JSON contents of the named file.
    */
   readJSON: function(path) {
-    return OS.File.read(path, { encoding: "utf-8" }).then((data) => {
-      return JSON.parse(data);
+    let decoder = new TextDecoder();
+    let promise = OS.File.read(path);
+    return promise.then(function onSuccess(array) {
+      return JSON.parse(decoder.decode(array));
     });
   },
 
