@@ -1206,7 +1206,6 @@ this.GECKO_ICC_SERVICES = {
     PNN: 51,
     OPL: 52,
     MDN: 53,
-    MWIS: 54,
     SPDI: 56
   },
   usim: {
@@ -1222,7 +1221,6 @@ this.GECKO_ICC_SERVICES = {
     PNN: 45,
     OPL: 46,
     MDN: 47,
-    MWIS: 48,
     SPDI: 51
   },
   ruim: {
