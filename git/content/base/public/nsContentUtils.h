@@ -128,7 +128,6 @@ class nsIBidiKeyboard;
 #endif
 class nsIMIMEHeaderParam;
 class nsIObserver;
-class nsPresContext;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);

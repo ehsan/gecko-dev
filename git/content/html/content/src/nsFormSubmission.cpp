@@ -38,6 +38,7 @@
 
 #include "nsIFormSubmission.h"
 
+#include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsIForm.h"
 #include "nsILinkHandler.h"

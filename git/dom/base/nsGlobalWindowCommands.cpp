@@ -51,6 +51,7 @@
 
 #include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
+#include "nsPresContext.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsISelectionController.h"

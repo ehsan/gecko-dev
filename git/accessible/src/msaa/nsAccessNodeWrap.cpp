@@ -50,6 +50,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPresShell.h"
 #include "nsPIDOMWindow.h"
 #include "nsRootAccessible.h"
 #include "nsIServiceManager.h"

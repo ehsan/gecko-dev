@@ -44,6 +44,7 @@
 #include "nsIDOMXULElement.h"
 #include "nsIDocument.h"
 #include "nsGkAtoms.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsIPopupBoxObject.h"
 #include "nsIServiceManager.h"
@@ -53,6 +54,7 @@
 #endif
 #include "nsGUIEvent.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsPresContext.h"
 #include "nsIScriptContext.h"
 #include "nsPIDOMWindow.h"
 #include "nsContentUtils.h"
