@@ -53,12 +53,6 @@ class PluginHangUIParent;
  * This class /also/ implements a version of the NPN API, because the
  * child process needs to make these calls back into Gecko proper.
  * This class is responsible for "actually" making those function calls.
- *
- * If a plugin is running, there will always be one PluginModuleParent for it in
- * the chrome process. In addition, any content process using the plugin will
- * have its own PluginModuleParent. The subclasses PluginModuleChromeParent and
- * PluginModuleContentParent implement functionality that is specific to one
- * case or the other.
  */
 class PluginModuleParent
     : public PPluginModuleParent
@@ -66,11 +60,14 @@ class PluginModuleParent
 #ifdef MOZ_CRASHREPORTER_INJECTOR
     , public CrashReporter::InjectorCrashCallback
 #endif
+    , public mozilla::HangMonitor::Annotator
 {
-protected:
+private:
     typedef mozilla::PluginLibrary PluginLibrary;
     typedef mozilla::dom::PCrashReporterParent PCrashReporterParent;
     typedef mozilla::dom::CrashReporterParent CrashReporterParent;
+
+protected:
 
     PPluginInstanceParent*
     AllocPPluginInstanceParent(const nsCString& aMimeType,
@@ -83,10 +80,9 @@ protected:
     DeallocPPluginInstanceParent(PPluginInstanceParent* aActor) MOZ_OVERRIDE;
 
 public:
-    explicit PluginModuleParent(bool aIsChrome);
+    // aFilePath is UTF8, not native!
+    explicit PluginModuleParent(const char* aFilePath);
     virtual ~PluginModuleParent();
-
-    bool IsChrome() const { return mIsChrome; }
 
     virtual void SetPlugin(nsNPAPIPlugin* plugin) MOZ_OVERRIDE
     {
@@ -95,9 +91,20 @@ public:
 
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
+    /**
+     * LoadModule
+     *
+     * This may or may not launch a plugin child process,
+     * and may or may not be very expensive.
+     */
+    static PluginLibrary* LoadModule(const char* aFilePath);
+
     const NPNetscapeFuncs* GetNetscapeFuncs() {
         return mNPNIface;
     }
+
+    PluginProcessParent* Process() const { return mSubprocess; }
+    base::ProcessHandle ChildProcessHandle() { return mSubprocess->GetChildProcessHandle(); }
 
     bool OkToCleanup() const {
         return !IsOnCxxStack();
@@ -105,12 +112,34 @@ public:
 
     void ProcessRemoteNativeEventsInInterruptCall();
 
+    void TerminateChildProcess(MessageLoop* aMsgLoop);
+
+    virtual void
+    EnteredCxxStack() MOZ_OVERRIDE;
+
+    virtual void
+    ExitedCxxStack() MOZ_OVERRIDE;
+
+    virtual void
+    AnnotateHang(mozilla::HangMonitor::HangAnnotations& aAnnotations) MOZ_OVERRIDE;
+
+#ifdef XP_WIN
+    /**
+     * Called by Plugin Hang UI to notify that the user has clicked continue.
+     * Used for chrome hang annotations.
+     */
+    void
+    OnHangUIContinue();
+#endif // XP_WIN
+
 protected:
     virtual mozilla::ipc::RacyInterruptPolicy
     MediateInterruptRace(const Message& parent, const Message& child) MOZ_OVERRIDE
     {
         return MediateRace(parent, child);
     }
+
+    virtual bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
 
     virtual bool
     RecvBackUpXResources(const FileDescriptor& aXSocketFd) MOZ_OVERRIDE;
@@ -158,7 +187,8 @@ protected:
     RecvGetNativeCursorsSupported(bool* supported) MOZ_OVERRIDE;
 
     virtual bool
-    RecvNPN_SetException(const nsCString& aMessage) MOZ_OVERRIDE;
+    RecvNPN_SetException(PPluginScriptableObjectParent* aActor,
+                         const nsCString& aMessage) MOZ_OVERRIDE;
 
     virtual bool
     RecvNPN_ReloadPlugins(const bool& aReloadPages) MOZ_OVERRIDE;
@@ -166,12 +196,18 @@ protected:
     static PluginInstanceParent* InstCast(NPP instance);
     static BrowserStreamParent* StreamCast(NPP instance, NPStream* s);
 
-protected:
-    virtual void UpdatePluginTimeout() {}
-
-    virtual bool RecvNotifyContentModuleDestroyed() MOZ_OVERRIDE { return true; }
-
+private:
     void SetPluginFuncs(NPPluginFuncs* aFuncs);
+
+    // Implement the module-level functions from NPAPI; these are
+    // normally resolved directly from the DSO.
+#ifdef OS_LINUX
+    NPError NP_Initialize(const NPNetscapeFuncs* npnIface,
+                          NPPluginFuncs* nppIface);
+#else
+    NPError NP_Initialize(const NPNetscapeFuncs* npnIface);
+    NPError NP_GetEntryPoints(NPPluginFuncs* nppIface);
+#endif
 
     // NPP-like API that Gecko calls are trampolined into.  These 
     // messages then get forwarded along to the plugin instance,
@@ -219,7 +255,6 @@ protected:
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error);
 #endif
     virtual nsresult NP_Shutdown(NPError* error);
-
     virtual nsresult NP_GetMIMEDescription(const char** mimeDesc);
     virtual nsresult NP_GetValue(void *future, NPPVariable aVariable,
                                  void *aValue, NPError* error);
@@ -239,10 +274,24 @@ protected:
     virtual nsresult ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor);
 #endif
 
-protected:
+private:
+    CrashReporterParent* CrashReporter();
+
+#ifdef MOZ_CRASHREPORTER
+    void ProcessFirstMinidump();
+    void WriteExtraDataForMinidump(CrashReporter::AnnotationTable& notes);
+#endif
+    void CleanupFromTimeout(const bool aByHangUI);
+    void SetChildTimeout(const int32_t aChildTimeout);
+    static void TimeoutChanged(const char* aPref, void* aModule);
     void NotifyPluginCrashed();
 
-    bool mIsChrome;
+#ifdef MOZ_ENABLE_PROFILER_SPS
+    void InitPluginProfiling();
+    void ShutdownPluginProfiling();
+#endif
+
+    PluginProcessParent* mSubprocess;
     bool mShutdown;
     bool mClearSiteDataSupported;
     bool mGetSitesWithDataSupported;
@@ -253,120 +302,6 @@ protected:
     nsString mBrowserDumpID;
     nsString mHangID;
     nsRefPtr<nsIObserver> mProfilerObserver;
-    nsCString mPluginName;
-    nsCString mPluginVersion;
-
-#ifdef MOZ_X11
-    // Dup of plugin's X socket, used to scope its resources to this
-    // object instead of the plugin process's lifetime
-    ScopedClose mPluginXSocketFdDup;
-#endif
-
-    bool
-    GetPluginDetails(nsACString& aPluginName, nsACString& aPluginVersion);
-
-    friend class mozilla::dom::CrashReporterParent;
-};
-
-class PluginModuleContentParent : public PluginModuleParent
-{
-  public:
-    static PluginLibrary* LoadModule(uint32_t aPluginId);
-
-    static PluginModuleContentParent* Create(mozilla::ipc::Transport* aTransport,
-                                             base::ProcessId aOtherProcess);
-
-  private:
-    explicit PluginModuleContentParent();
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-    void OnCrash(DWORD processID) MOZ_OVERRIDE {}
-#endif
-
-    static PluginModuleContentParent* sSavedModuleParent;
-};
-
-class PluginModuleChromeParent
-    : public PluginModuleParent
-    , public mozilla::HangMonitor::Annotator
-{
-  public:
-    /**
-     * LoadModule
-     *
-     * This may or may not launch a plugin child process,
-     * and may or may not be very expensive.
-     */
-    static PluginLibrary* LoadModule(const char* aFilePath, uint32_t aPluginId);
-
-    virtual ~PluginModuleChromeParent();
-
-    void TerminateChildProcess(MessageLoop* aMsgLoop);
-
-#ifdef XP_WIN
-    /**
-     * Called by Plugin Hang UI to notify that the user has clicked continue.
-     * Used for chrome hang annotations.
-     */
-    void
-    OnHangUIContinue();
-#endif // XP_WIN
-
-private:
-    virtual void
-    EnteredCxxStack() MOZ_OVERRIDE;
-
-    void
-    ExitedCxxStack() MOZ_OVERRIDE;
-
-    virtual void
-    AnnotateHang(mozilla::HangMonitor::HangAnnotations& aAnnotations) MOZ_OVERRIDE;
-
-    virtual bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
-
-#ifdef MOZ_CRASHREPORTER
-    void ProcessFirstMinidump();
-    void WriteExtraDataForMinidump(CrashReporter::AnnotationTable& notes);
-#endif
-
-    virtual PCrashReporterParent*
-    AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
-                              uint32_t* processType) MOZ_OVERRIDE;
-    virtual bool
-    DeallocPCrashReporterParent(PCrashReporterParent* actor) MOZ_OVERRIDE;
-
-    PluginProcessParent* Process() const { return mSubprocess; }
-    base::ProcessHandle ChildProcessHandle() { return mSubprocess->GetChildProcessHandle(); }
-
-#if !defined(XP_UNIX) || defined(XP_MACOSX) || defined(MOZ_WIDGET_GONK)
-    virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error);
-#endif
-
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
-
-    // aFilePath is UTF8, not native!
-    explicit PluginModuleChromeParent(const char* aFilePath, uint32_t aPluginId);
-
-    CrashReporterParent* CrashReporter();
-
-    void CleanupFromTimeout(const bool aByHangUI);
-    void SetChildTimeout(const int32_t aChildTimeout);
-    static void TimeoutChanged(const char* aPref, void* aModule);
-
-    virtual void UpdatePluginTimeout() MOZ_OVERRIDE;
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    void InitPluginProfiling();
-    void ShutdownPluginProfiling();
-#endif
-
-    virtual bool RecvNotifyContentModuleDestroyed() MOZ_OVERRIDE;
-
-    PluginProcessParent* mSubprocess;
-    uint32_t mPluginId;
-
-    ScopedMethodFactory<PluginModuleChromeParent> mChromeTaskFactory;
-
     enum HangAnnotationFlags
     {
         kInPluginCall = (1u << 0),
@@ -375,6 +310,8 @@ private:
         kHangUIDontShow = (1u << 3)
     };
     Atomic<uint32_t> mHangAnnotationFlags;
+    nsCString mPluginName;
+    nsCString mPluginVersion;
 #ifdef XP_WIN
     InfallibleTArray<float> mPluginCpuUsageOnHang;
     PluginHangUIParent *mHangUIParent;
@@ -410,6 +347,15 @@ private:
      */
     void
     FinishHangUI();
+#endif
+
+    bool
+    GetPluginDetails(nsACString& aPluginName, nsACString& aPluginVersion);
+
+#ifdef MOZ_X11
+    // Dup of plugin's X socket, used to scope its resources to this
+    // object instead of the plugin process's lifetime
+    ScopedClose mPluginXSocketFdDup;
 #endif
 
     friend class mozilla::dom::CrashReporterParent;

@@ -56,7 +56,7 @@ HttpBaseChannel::HttpBaseChannel()
   , mResponseHeadersModified(false)
   , mAllowPipelining(true)
   , mAllowSTS(true)
-  , mThirdPartyFlags(0)
+  , mForceAllowThirdPartyCookie(false)
   , mUploadStreamHasHeaders(false)
   , mInheritApplicationCache(true)
   , mChooseApplicationCache(false)
@@ -1429,25 +1429,9 @@ HttpBaseChannel::SetCookie(const char *aCookieHeader)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetThirdPartyFlags(uint32_t  *aFlags)
-{
-  *aFlags = mThirdPartyFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::SetThirdPartyFlags(uint32_t aFlags)
-{
-  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
-
-  mThirdPartyFlags = aFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 HttpBaseChannel::GetForceAllowThirdPartyCookie(bool *aForce)
 {
-  *aForce = !!(mThirdPartyFlags & nsIHttpChannelInternal::THIRD_PARTY_FORCE_ALLOW);
+  *aForce = mForceAllowThirdPartyCookie;
   return NS_OK;
 }
 
@@ -1456,11 +1440,7 @@ HttpBaseChannel::SetForceAllowThirdPartyCookie(bool aForce)
 {
   ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
-  if (aForce)
-    mThirdPartyFlags |= nsIHttpChannelInternal::THIRD_PARTY_FORCE_ALLOW;
-  else
-    mThirdPartyFlags &= ~nsIHttpChannelInternal::THIRD_PARTY_FORCE_ALLOW;
-
+  mForceAllowThirdPartyCookie = aForce;
   return NS_OK;
 }
 
@@ -2060,8 +2040,9 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
 
   nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(newChannel);
   if (httpInternal) {
-    // Convey third party cookie and spdy flags.
-    httpInternal->SetThirdPartyFlags(mThirdPartyFlags);
+    // convey the mForceAllowThirdPartyCookie flag
+    httpInternal->SetForceAllowThirdPartyCookie(mForceAllowThirdPartyCookie);
+    // convey the spdy flag
     httpInternal->SetAllowSpdy(mAllowSpdy);
 
     // update the DocumentURI indicator since we are being redirected.

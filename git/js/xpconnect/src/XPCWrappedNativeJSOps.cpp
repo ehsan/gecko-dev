@@ -314,7 +314,7 @@ DefinePropertyIfFound(XPCCallContext& ccx,
             if (resolved)
                 *resolved = true;
             return JS_DefinePropertyById(ccx, obj, id, UndefinedHandleValue, propFlags,
-                                         JS_DATA_TO_FUNC_PTR(JSNative, funobj.get()),
+                                         JS_DATA_TO_FUNC_PTR(JSPropertyOp, funobj.get()),
                                          nullptr);
         }
 
@@ -363,13 +363,8 @@ DefinePropertyIfFound(XPCCallContext& ccx,
             AutoResolveName arn(ccx, id);
             if (resolved)
                 *resolved = true;
-            return JS_DefinePropertyById(ccx, obj, id, desc.value(),
-                                         // Descriptors never store JSNatives
-                                         // for accessors: they have either
-                                         // JSFunctions or JSPropertyOps.
-                                         desc.attributes(),
-                                         JS_PROPERTYOP_GETTER(desc.getter()),
-                                         JS_PROPERTYOP_SETTER(desc.setter()));
+            return JS_DefinePropertyById(ccx, obj, id, desc.value(), desc.attributes(),
+                                         desc.getter(), desc.setter());
         }
     }
 
@@ -398,11 +393,11 @@ DefinePropertyIfFound(XPCCallContext& ccx,
     propFlags |= JSPROP_GETTER | JSPROP_SHARED;
     propFlags &= ~JSPROP_READONLY;
     JSObject* funobj = funval.toObjectOrNull();
-    JSNative getter = JS_DATA_TO_FUNC_PTR(JSNative, funobj);
-    JSNative setter;
+    JSPropertyOp getter = JS_DATA_TO_FUNC_PTR(JSPropertyOp, funobj);
+    JSStrictPropertyOp setter;
     if (member->IsWritableAttribute()) {
         propFlags |= JSPROP_SETTER;
-        setter = JS_DATA_TO_FUNC_PTR(JSNative, funobj);
+        setter = JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, funobj);
     } else {
         setter = nullptr;
     }

@@ -93,7 +93,7 @@ public class LayerMarginsAnimator {
                 + ", \"bottom\" : " + bottom + ", \"left\" : " + left + " }"));
     }
 
-    synchronized RectF getMaxMargins() {
+    RectF getMaxMargins() {
         return mMaxMargins;
     }
 

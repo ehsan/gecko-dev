@@ -13,11 +13,10 @@ BEGIN_TEST(testSetProperty_NativeGetterStubSetter)
     CHECK(obj);
 
     CHECK(JS_DefineProperty(cx, global, "globalProp", obj, JSPROP_ENUMERATE,
-                            JS_STUBGETTER, JS_STUBSETTER));
+                            JS_PropertyStub, JS_StrictPropertyStub));
 
-    CHECK(JS_DefineProperty(cx, obj, "prop", JS::UndefinedHandleValue,
-                            JSPROP_SHARED | JSPROP_PROPOP_ACCESSORS,
-                            JS_PROPERTYOP_GETTER(NativeGet), JS_STUBSETTER));
+    CHECK(JS_DefineProperty(cx, obj, "prop", JS::UndefinedHandleValue, JSPROP_SHARED,
+                            NativeGet, JS_StrictPropertyStub));
 
     EXEC("'use strict';                                     \n"
          "var error, passed = false;                        \n"

@@ -539,7 +539,7 @@ PluginScriptableObjectChild::~PluginScriptableObjectChild()
   AssertPluginThread();
 
   if (mObject) {
-    UnregisterActor(mObject);
+    PluginModuleChild::current()->UnregisterActorForNPObject(mObject);
 
     if (mObject->_class == GetClass()) {
       NS_ASSERTION(mType == Proxy, "Wrong type!");
@@ -569,8 +569,8 @@ PluginScriptableObjectChild::InitializeProxy()
     return false;
   }
 
-  if (!RegisterActor(object)) {
-    NS_ERROR("RegisterActor failed");
+  if (!PluginModuleChild::current()->RegisterActorForNPObject(object, this)) {
+    NS_ERROR("RegisterActorForNPObject failed");
     return false;
   }
 
@@ -594,8 +594,8 @@ PluginScriptableObjectChild::InitializeLocal(NPObject* aObject)
   NS_ASSERTION(!mProtectCount, "Should be zero!");
   mProtectCount++;
 
-  if (!RegisterActor(aObject)) {
-    NS_ERROR("RegisterActor failed");
+  if (!PluginModuleChild::current()->RegisterActorForNPObject(aObject, this)) {
+    NS_ERROR("RegisterActorForNPObject failed");
   }
 
   mObject = aObject;
@@ -688,7 +688,7 @@ PluginScriptableObjectChild::DropNPObject()
 
   // We think we're about to be deleted, but we could be racing with the other
   // process.
-  UnregisterActor(mObject);
+  PluginModuleChild::current()->UnregisterActorForNPObject(mObject);
   mObject = nullptr;
 
   SendUnprotect();
@@ -1180,106 +1180,4 @@ PluginScriptableObjectChild::Evaluate(NPString* aScript,
 
   ConvertToVariant(result, *aResult);
   return true;
-}
-
-nsTHashtable<PluginScriptableObjectChild::NPObjectData>* PluginScriptableObjectChild::sObjectMap;
-
-bool
-PluginScriptableObjectChild::RegisterActor(NPObject* aObject)
-{
-  AssertPluginThread();
-  MOZ_ASSERT(aObject, "Null pointer!");
-
-  NPObjectData* d = sObjectMap->GetEntry(aObject);
-  if (!d) {
-    NS_ERROR("NPObject not in object table");
-    return false;
-  }
-
-  d->actor = this;
-  return true;
-}
-
-void
-PluginScriptableObjectChild::UnregisterActor(NPObject* aObject)
-{
-  AssertPluginThread();
-  MOZ_ASSERT(aObject, "Null pointer!");
-
-  NPObjectData* d = sObjectMap->GetEntry(aObject);
-  MOZ_ASSERT(d, "NPObject not in object table");
-  if (d) {
-    d->actor = nullptr;
-  }
-}
-
-/* static */ PluginScriptableObjectChild*
-PluginScriptableObjectChild::GetActorForNPObject(NPObject* aObject)
-{
-  AssertPluginThread();
-  MOZ_ASSERT(aObject, "Null pointer!");
-
-  NPObjectData* d = sObjectMap->GetEntry(aObject);
-  if (!d) {
-    NS_ERROR("Plugin using object not created with NPN_CreateObject?");
-    return nullptr;
-  }
-
-  return d->actor;
-}
-
-/* static */ void
-PluginScriptableObjectChild::RegisterObject(NPObject* aObject, PluginInstanceChild* aInstance)
-{
-  AssertPluginThread();
-
-  if (!sObjectMap) {
-    sObjectMap = new nsTHashtable<PluginScriptableObjectChild::NPObjectData>();
-  }
-
-  NPObjectData* d = sObjectMap->PutEntry(aObject);
-  MOZ_ASSERT(!d->instance, "New NPObject already mapped?");
-  d->instance = aInstance;
-}
-
-/* static */ void
-PluginScriptableObjectChild::UnregisterObject(NPObject* aObject)
-{
-  AssertPluginThread();
-
-  sObjectMap->RemoveEntry(aObject);
-
-  if (!sObjectMap->Count()) {
-    delete sObjectMap;
-    sObjectMap = nullptr;
-  }
-}
-
-/* static */ PluginInstanceChild*
-PluginScriptableObjectChild::GetInstanceForNPObject(NPObject* aObject)
-{
-  AssertPluginThread();
-  NPObjectData* d = sObjectMap->GetEntry(aObject);
-  if (!d) {
-    return nullptr;
-  }
-  return d->instance;
-}
-
-/* static */ PLDHashOperator
-PluginScriptableObjectChild::CollectForInstance(NPObjectData* d, void* userArg)
-{
-    PluginInstanceChild* instance = static_cast<PluginInstanceChild*>(userArg);
-    if (d->instance == instance) {
-        NPObject* o = d->GetKey();
-        instance->mDeletingHash->PutEntry(o);
-    }
-    return PL_DHASH_NEXT;
-}
-
-/* static */ void
-PluginScriptableObjectChild::NotifyOfInstanceShutdown(PluginInstanceChild* aInstance)
-{
-  AssertPluginThread();
-  sObjectMap->EnumerateEntries(CollectForInstance, aInstance);
 }

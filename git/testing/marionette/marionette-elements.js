@@ -20,9 +20,7 @@ this.EXPORTED_SYMBOLS = [
   "LINK_TEXT",
   "PARTIAL_LINK_TEXT",
   "TAG",
-  "XPATH",
-  "ANON",
-  "ANON_ATTRIBUTE"
+  "XPATH"
 ];
 
 const DOCUMENT_POSITION_DISCONNECTED = 1;
@@ -38,8 +36,6 @@ this.LINK_TEXT = "link text";
 this.PARTIAL_LINK_TEXT = "partial link text";
 this.TAG = "tag name";
 this.XPATH = "xpath";
-this.ANON= "anon";
-this.ANON_ATTRIBUTE = "anon attribute";
 
 function ElementException(msg, num, stack) {
   this.message = msg;
@@ -50,7 +46,7 @@ function ElementException(msg, num, stack) {
 this.ElementManager = function ElementManager(notSupported) {
   this.seenItems = {};
   this.timer = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);
-  this.elementStrategies = [CLASS_NAME, SELECTOR, ID, NAME, LINK_TEXT, PARTIAL_LINK_TEXT, TAG, XPATH, ANON, ANON_ATTRIBUTE];
+  this.elementStrategies = [CLASS_NAME, SELECTOR, ID, NAME, LINK_TEXT, PARTIAL_LINK_TEXT, TAG, XPATH];
   for (let i = 0; i < notSupported.length; i++) {
     this.elementStrategies.splice(this.elementStrategies.indexOf(notSupported[i]), 1);
   }
@@ -313,14 +309,7 @@ ElementManager.prototype = {
       return;
     } else {
       if (!searchTimeout || new Date().getTime() - startTime > searchTimeout) {
-        // Format message depending on strategy if necessary
-        let message = "Unable to locate element: " + values.value;
-        if (values.using == ANON) {
-          message = "Unable to locate anonymous children";
-        } else if (values.using == ANON_ATTRIBUTE) {
-          message = "Unable to locate anonymous element: " + JSON.stringify(values.value);
-        }
-        on_error(message, 7, null, command_id);
+        on_error("Unable to locate element: " + values.value, 7, null, command_id);
       } else {
         values.time = startTime;
         this.timer.initWithCallback(this.find.bind(this, win, values,
@@ -430,16 +419,6 @@ ElementManager.prototype = {
       case SELECTOR:
         element = startNode.querySelector(value);
         break;
-      case ANON:
-        element = rootNode.getAnonymousNodes(startNode);
-        if (element != null) {
-          element = element[0];
-        }
-        break;
-      case ANON_ATTRIBUTE:
-        let attr = Object.keys(value)[0];
-        element = rootNode.getAnonymousElementByAttribute(startNode, attr, value[attr]);
-        break;
       default:
         throw new ElementException("No such strategy", 500, null);
     }
@@ -496,16 +475,6 @@ ElementManager.prototype = {
         break;
       case SELECTOR:
         elements = Array.slice(startNode.querySelectorAll(value));
-        break;
-      case ANON:
-        elements = rootNode.getAnonymousNodes(startNode) || [];
-        break;
-      case ANON_ATTRIBUTE:
-        let attr = Object.keys(value)[0];
-        let el = rootNode.getAnonymousElementByAttribute(startNode, attr, value[attr]);
-        if (el != null) {
-          elements = [el];
-        }
         break;
       default:
         throw new ElementException("No such strategy", 500, null);

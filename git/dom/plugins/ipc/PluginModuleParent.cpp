@@ -15,12 +15,9 @@
 
 #include "base/process_util.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/PCrashReporterParent.h"
 #include "mozilla/ipc/MessageChannel.h"
 #include "mozilla/plugins/BrowserStreamParent.h"
-#include "mozilla/plugins/PluginBridge.h"
 #include "mozilla/plugins/PluginInstanceParent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -86,82 +83,16 @@ struct RunnableMethodTraits<mozilla::plugins::PluginModuleParent>
     static void ReleaseCallee(Class* obj) { }
 };
 
-bool
-mozilla::plugins::SetupBridge(uint32_t aPluginId, dom::ContentParent* aContentParent)
-{
-    nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst();
-    nsRefPtr<nsNPAPIPlugin> plugin;
-    nsresult rv = host->GetPluginForContentProcess(aPluginId, getter_AddRefs(plugin));
-    if (NS_FAILED(rv)) {
-        return false;
-    }
-    PluginModuleParent* chromeParent = static_cast<PluginModuleParent*>(plugin->GetLibrary());
-    return PPluginModule::Bridge(aContentParent, chromeParent);
-}
-
-PluginModuleContentParent* PluginModuleContentParent::sSavedModuleParent;
-
-/* static */ PluginLibrary*
-PluginModuleContentParent::LoadModule(uint32_t aPluginId)
-{
-    MOZ_ASSERT(!sSavedModuleParent);
-    MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Content);
-
-    /*
-     * We send a LoadPlugin message to the chrome process using an intr
-     * message. Before it sends its response, it sends a message to create
-     * PluginModuleParent instance. That message is handled by
-     * PluginModuleContentParent::Create, which saves the instance in
-     * sSavedModuleParent. We fetch it from there after LoadPlugin finishes.
-     */
-    dom::ContentChild* cp = dom::ContentChild::GetSingleton();
-    if (!cp->CallLoadPlugin(aPluginId)) {
-        return nullptr;
-    }
-
-    PluginModuleContentParent* parent = sSavedModuleParent;
-    MOZ_ASSERT(parent);
-    sSavedModuleParent = nullptr;
-
-    return parent;
-}
-
-/* static */ PluginModuleContentParent*
-PluginModuleContentParent::Create(mozilla::ipc::Transport* aTransport,
-                                  base::ProcessId aOtherProcess)
-{
-    nsAutoPtr<PluginModuleContentParent> parent(new PluginModuleContentParent());
-    ProcessHandle handle;
-    if (!base::OpenProcessHandle(aOtherProcess, &handle)) {
-        // Bug 1090578 - need to kill |aOtherProcess|, it's boned.
-        return nullptr;
-    }
-
-    MOZ_ASSERT(!sSavedModuleParent);
-    sSavedModuleParent = parent;
-
-    DebugOnly<bool> ok = parent->Open(aTransport, handle, XRE_GetIOMessageLoop(),
-                                      mozilla::ipc::ParentSide);
-    MOZ_ASSERT(ok);
-
-    // Request Windows message deferral behavior on our channel. This
-    // applies to the top level and all sub plugin protocols since they
-    // all share the same channel.
-    parent->GetIPCChannel()->SetChannelFlags(MessageChannel::REQUIRE_DEFERRED_MESSAGE_PROTECTION);
-
-    return parent.forget();
-}
-
 // static
 PluginLibrary*
-PluginModuleChromeParent::LoadModule(const char* aFilePath, uint32_t aPluginId)
+PluginModuleParent::LoadModule(const char* aFilePath)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
     int32_t prefSecs = Preferences::GetInt(kLaunchTimeoutPref, 0);
 
     // Block on the child process being launched and initialized.
-    nsAutoPtr<PluginModuleChromeParent> parent(new PluginModuleChromeParent(aFilePath, aPluginId));
+    nsAutoPtr<PluginModuleParent> parent(new PluginModuleParent(aFilePath));
     bool launched = parent->mSubprocess->Launch(prefSecs * 1000);
     if (!launched) {
         // We never reached open
@@ -193,40 +124,15 @@ PluginModuleChromeParent::LoadModule(const char* aFilePath, uint32_t aPluginId)
     return parent.forget();
 }
 
-PluginModuleParent::PluginModuleParent(bool aIsChrome)
-    : mIsChrome(aIsChrome)
+
+PluginModuleParent::PluginModuleParent(const char* aFilePath)
+    : mSubprocess(new PluginProcessParent(aFilePath))
     , mShutdown(false)
     , mClearSiteDataSupported(false)
     , mGetSitesWithDataSupported(false)
     , mNPNIface(nullptr)
     , mPlugin(nullptr)
     , mTaskFactory(MOZ_THIS_IN_INITIALIZER_LIST())
-{
-}
-
-PluginModuleParent::~PluginModuleParent()
-{
-    if (!OkToCleanup()) {
-        NS_RUNTIMEABORT("unsafe destruction");
-    }
-
-    if (!mShutdown) {
-        NS_WARNING("Plugin host deleted the module without shutting down.");
-        NPError err;
-        NP_Shutdown(&err);
-    }
-}
-
-PluginModuleContentParent::PluginModuleContentParent()
-    : PluginModuleParent(false)
-{
-}
-
-PluginModuleChromeParent::PluginModuleChromeParent(const char* aFilePath, uint32_t aPluginId)
-    : PluginModuleParent(true)
-    , mSubprocess(new PluginProcessParent(aFilePath))
-    , mPluginId(aPluginId)
-    , mChromeTaskFactory(MOZ_THIS_IN_INITIALIZER_LIST())
     , mHangAnnotationFlags(0)
 #ifdef XP_WIN
     , mPluginCpuUsageOnHang()
@@ -259,7 +165,7 @@ PluginModuleChromeParent::PluginModuleChromeParent(const char* aFilePath, uint32
     mozilla::HangMonitor::RegisterAnnotator(*this);
 }
 
-PluginModuleChromeParent::~PluginModuleChromeParent()
+PluginModuleParent::~PluginModuleParent()
 {
     if (!OkToCleanup()) {
         NS_RUNTIMEABORT("unsafe destruction");
@@ -306,7 +212,7 @@ PluginModuleChromeParent::~PluginModuleChromeParent()
 
 #ifdef MOZ_CRASHREPORTER
 void
-PluginModuleChromeParent::WriteExtraDataForMinidump(AnnotationTable& notes)
+PluginModuleParent::WriteExtraDataForMinidump(AnnotationTable& notes)
 {
 #ifdef XP_WIN
     // mCrashReporterMutex is already held by the caller
@@ -351,7 +257,7 @@ PluginModuleChromeParent::WriteExtraDataForMinidump(AnnotationTable& notes)
 #endif  // MOZ_CRASHREPORTER
 
 void
-PluginModuleChromeParent::SetChildTimeout(const int32_t aChildTimeout)
+PluginModuleParent::SetChildTimeout(const int32_t aChildTimeout)
 {
     int32_t timeoutMs = (aChildTimeout > 0) ? (1000 * aChildTimeout) :
                       MessageChannel::kNoTimeout;
@@ -359,29 +265,29 @@ PluginModuleChromeParent::SetChildTimeout(const int32_t aChildTimeout)
 }
 
 void
-PluginModuleChromeParent::TimeoutChanged(const char* aPref, void* aModule)
+PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 #ifndef XP_WIN
     if (!strcmp(aPref, kChildTimeoutPref)) {
       // The timeout value used by the parent for children
       int32_t timeoutSecs = Preferences::GetInt(kChildTimeoutPref, 0);
-      static_cast<PluginModuleChromeParent*>(aModule)->SetChildTimeout(timeoutSecs);
+      static_cast<PluginModuleParent*>(aModule)->SetChildTimeout(timeoutSecs);
 #else
     if (!strcmp(aPref, kChildTimeoutPref) ||
         !strcmp(aPref, kHangUIMinDisplayPref) ||
         !strcmp(aPref, kHangUITimeoutPref)) {
-      static_cast<PluginModuleChromeParent*>(aModule)->EvaluateHangUIState(true);
+      static_cast<PluginModuleParent*>(aModule)->EvaluateHangUIState(true);
 #endif // XP_WIN
     } else if (!strcmp(aPref, kParentTimeoutPref)) {
       // The timeout value used by the child for its parent
       int32_t timeoutSecs = Preferences::GetInt(kParentTimeoutPref, 0);
-      unused << static_cast<PluginModuleChromeParent*>(aModule)->SendSetParentHangTimeout(timeoutSecs);
+      unused << static_cast<PluginModuleParent*>(aModule)->SendSetParentHangTimeout(timeoutSecs);
     }
 }
 
 void
-PluginModuleChromeParent::CleanupFromTimeout(const bool aFromHangUI)
+PluginModuleParent::CleanupFromTimeout(const bool aFromHangUI)
 {
     if (mShutdown) {
       return;
@@ -391,8 +297,8 @@ PluginModuleChromeParent::CleanupFromTimeout(const bool aFromHangUI)
         // there's still plugin code on the C++ stack, try again
         MessageLoop::current()->PostDelayedTask(
             FROM_HERE,
-            mChromeTaskFactory.NewRunnableMethod(
-                &PluginModuleChromeParent::CleanupFromTimeout, aFromHangUI), 10);
+            mTaskFactory.NewRunnableMethod(
+                &PluginModuleParent::CleanupFromTimeout, aFromHangUI), 10);
         return;
     }
 
@@ -479,13 +385,13 @@ GetProcessCpuUsage(const InfallibleTArray<base::ProcessHandle>& processHandles, 
 #endif // #ifdef XP_WIN
 
 void
-PluginModuleChromeParent::EnteredCxxStack()
+PluginModuleParent::EnteredCxxStack()
 {
     mHangAnnotationFlags |= kInPluginCall;
 }
 
 void
-PluginModuleChromeParent::ExitedCxxStack()
+PluginModuleParent::ExitedCxxStack()
 {
     mHangAnnotationFlags = 0;
 #ifdef XP_WIN
@@ -497,7 +403,7 @@ PluginModuleChromeParent::ExitedCxxStack()
  * This function is always called by the HangMonitor thread.
  */
 void
-PluginModuleChromeParent::AnnotateHang(mozilla::HangMonitor::HangAnnotations& aAnnotations)
+PluginModuleParent::AnnotateHang(mozilla::HangMonitor::HangAnnotations& aAnnotations)
 {
     uint32_t flags = mHangAnnotationFlags;
     if (flags) {
@@ -545,7 +451,7 @@ CreateFlashMinidump(DWORD processId, ThreadId childThread,
 #endif
 
 bool
-PluginModuleChromeParent::ShouldContinueFromReplyTimeout()
+PluginModuleParent::ShouldContinueFromReplyTimeout()
 {
 #ifdef XP_WIN
     if (LaunchHangUI()) {
@@ -560,7 +466,7 @@ PluginModuleChromeParent::ShouldContinueFromReplyTimeout()
 }
 
 void
-PluginModuleChromeParent::TerminateChildProcess(MessageLoop* aMsgLoop)
+PluginModuleParent::TerminateChildProcess(MessageLoop* aMsgLoop)
 {
 #ifdef MOZ_CRASHREPORTER
 #ifdef XP_WIN
@@ -650,8 +556,8 @@ PluginModuleChromeParent::TerminateChildProcess(MessageLoop* aMsgLoop)
     bool isFromHangUI = aMsgLoop != MessageLoop::current();
     aMsgLoop->PostTask(
         FROM_HERE,
-        mChromeTaskFactory.NewRunnableMethod(
-            &PluginModuleChromeParent::CleanupFromTimeout, isFromHangUI));
+        mTaskFactory.NewRunnableMethod(
+            &PluginModuleParent::CleanupFromTimeout, isFromHangUI));
 
     if (!KillProcess(OtherProcess(), 1, false))
         NS_WARNING("failed to kill subprocess!");
@@ -676,7 +582,7 @@ PluginModuleParent::GetPluginDetails(nsACString& aPluginName,
 
 #ifdef XP_WIN
 void
-PluginModuleChromeParent::EvaluateHangUIState(const bool aReset)
+PluginModuleParent::EvaluateHangUIState(const bool aReset)
 {
     int32_t minDispSecs = Preferences::GetInt(kHangUIMinDisplayPref, 10);
     int32_t autoStopSecs = Preferences::GetInt(kChildTimeoutPref, 0);
@@ -710,7 +616,7 @@ PluginModuleChromeParent::EvaluateHangUIState(const bool aReset)
 }
 
 bool
-PluginModuleChromeParent::LaunchHangUI()
+PluginModuleParent::LaunchHangUI()
 {
     if (!mHangUIEnabled) {
         return false;
@@ -747,7 +653,7 @@ PluginModuleChromeParent::LaunchHangUI()
 }
 
 void
-PluginModuleChromeParent::FinishHangUI()
+PluginModuleParent::FinishHangUI()
 {
     if (mHangUIEnabled && mHangUIParent) {
         bool needsCancel = mHangUIParent->IsShowing();
@@ -768,7 +674,7 @@ PluginModuleChromeParent::FinishHangUI()
 }
 
 void
-PluginModuleChromeParent::OnHangUIContinue()
+PluginModuleParent::OnHangUIContinue()
 {
     mHangAnnotationFlags |= kHangUIContinued;
 }
@@ -776,7 +682,7 @@ PluginModuleChromeParent::OnHangUIContinue()
 
 #ifdef MOZ_CRASHREPORTER
 CrashReporterParent*
-PluginModuleChromeParent::CrashReporter()
+PluginModuleParent::CrashReporter()
 {
     return static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
 }
@@ -798,7 +704,7 @@ RemoveMinidump(nsIFile* minidump)
 #endif // MOZ_CRASHREPORTER_INJECTOR
 
 void
-PluginModuleChromeParent::ProcessFirstMinidump()
+PluginModuleParent::ProcessFirstMinidump()
 {
 #ifdef XP_WIN
     mozilla::MutexAutoLock lock(mCrashReporterMutex);
@@ -875,6 +781,10 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
 {
     switch (why) {
     case AbnormalShutdown: {
+#ifdef MOZ_CRASHREPORTER
+        ProcessFirstMinidump();
+#endif
+
         mShutdown = true;
         // Defer the PluginCrashed method so that we don't re-enter
         // and potentially modify the actor child list while enumerating it.
@@ -892,18 +802,6 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
     default:
         NS_RUNTIMEABORT("Unexpected shutdown reason for toplevel actor.");
     }
-}
-
-void
-PluginModuleChromeParent::ActorDestroy(ActorDestroyReason why)
-{
-    if (why == AbnormalShutdown) {
-#ifdef MOZ_CRASHREPORTER
-        ProcessFirstMinidump();
-#endif
-    }
-
-    PluginModuleParent::ActorDestroy(why);
 }
 
 void
@@ -1275,16 +1173,13 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
         return NS_ERROR_FAILURE;
     }
 
-    *error = NPERR_NO_ERROR;
-    if (IsChrome()) {
-        if (!CallNP_Initialize(error)) {
-            Close();
-            return NS_ERROR_FAILURE;
-        }
-        else if (*error != NPERR_NO_ERROR) {
-            Close();
-            return NS_OK;
-        }
+    if (!CallNP_Initialize(error)) {
+        Close();
+        return NS_ERROR_FAILURE;
+    }
+    else if (*error != NPERR_NO_ERROR) {
+        Close();
+        return NS_OK;
     }
 
     SetPluginFuncs(pFuncs);
@@ -1303,17 +1198,6 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
         *error = NPERR_GENERIC_ERROR;
         return NS_ERROR_FAILURE;
     }
-
-    *error = NPERR_NO_ERROR;
-    return NS_OK;
-}
-
-nsresult
-PluginModuleChromeParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
-{
-    nsresult rv = PluginModuleParent::NP_Initialize(bFuncs, error);
-    if (NS_FAILED(rv))
-        return rv;
 
     if (!CallNP_Initialize(error)) {
         Close();
@@ -1354,10 +1238,7 @@ PluginModuleParent::NP_Shutdown(NPError* error)
         return NS_ERROR_FAILURE;
     }
 
-    bool ok = true;
-    if (IsChrome()) {
-        ok = CallNP_Shutdown(error);
-    }
+    bool ok = CallNP_Shutdown(error);
 
     // if NP_Shutdown() is nested within another interrupt call, this will
     // break things.  but lord help us if we're doing that anyway; the
@@ -1395,21 +1276,16 @@ PluginModuleParent::NP_GetEntryPoints(NPPluginFuncs* pFuncs, NPError* error)
 {
     NS_ASSERTION(pFuncs, "Null pointer!");
 
-    // We need to have the plugin process update its function table here by
-    // actually calling NP_GetEntryPoints. The parent's function table will
-    // reflect nullptr entries in the child's table once SetPluginFuncs is
-    // called.
-
-    if (IsChrome()) {
-        if (!CallNP_GetEntryPoints(error)) {
-            return NS_ERROR_FAILURE;
-        }
-        else if (*error != NPERR_NO_ERROR) {
-            return NS_OK;
-        }
+    // We need to have the child process update its function table
+    // here by actually calling NP_GetEntryPoints since the parent's
+    // function table can reflect nullptr entries in the child's table.
+    if (!CallNP_GetEntryPoints(error)) {
+        return NS_ERROR_FAILURE;
+    }
+    else if (*error != NPERR_NO_ERROR) {
+        return NS_OK;
     }
 
-    *error = NPERR_NO_ERROR;
     SetPluginFuncs(pFuncs);
 
     return NS_OK;
@@ -1471,15 +1347,9 @@ PluginModuleParent::NPP_New(NPMIMEType pluginType, NPP instance,
         return NS_ERROR_FAILURE;
     }
 
-    UpdatePluginTimeout();
-
-    return NS_OK;
-}
-
-void
-PluginModuleChromeParent::UpdatePluginTimeout()
-{
     TimeoutChanged(kParentTimeoutPref, this);
+    
+    return NS_OK;
 }
 
 nsresult
@@ -1658,19 +1528,6 @@ PCrashReporterParent*
 PluginModuleParent::AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
                                               uint32_t* processType)
 {
-    MOZ_CRASH("unreachable");
-}
-
-bool
-PluginModuleParent::DeallocPCrashReporterParent(PCrashReporterParent* actor)
-{
-    MOZ_CRASH("unreachable");
-}
-
-PCrashReporterParent*
-PluginModuleChromeParent::AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
-                                                    uint32_t* processType)
-{
 #ifdef MOZ_CRASHREPORTER
     return new CrashReporterParent();
 #else
@@ -1679,7 +1536,7 @@ PluginModuleChromeParent::AllocPCrashReporterParent(mozilla::dom::NativeThreadId
 }
 
 bool
-PluginModuleChromeParent::DeallocPCrashReporterParent(PCrashReporterParent* actor)
+PluginModuleParent::DeallocPCrashReporterParent(PCrashReporterParent* actor)
 {
 #ifdef MOZ_CRASHREPORTER
 #ifdef XP_WIN
@@ -1765,12 +1622,20 @@ PluginModuleParent::RecvGetNativeCursorsSupported(bool* supported)
 }
 
 bool
-PluginModuleParent::RecvNPN_SetException(const nsCString& aMessage)
+PluginModuleParent::RecvNPN_SetException(PPluginScriptableObjectParent* aActor,
+                                         const nsCString& aMessage)
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 
-    // This function ignores its first argument.
-    mozilla::plugins::parent::_setexception(nullptr, NullableStringGet(aMessage));
+    NPObject* aNPObj = nullptr;
+    if (aActor) {
+        aNPObj = static_cast<PluginScriptableObjectParent*>(aActor)->GetObject(true);
+        if (!aNPObj) {
+            NS_ERROR("Failed to get object!");
+            return false;
+        }
+    }
+    mozilla::plugins::parent::_setexception(aNPObj, NullableStringGet(aMessage));
     return true;
 }
 
@@ -1780,16 +1645,6 @@ PluginModuleParent::RecvNPN_ReloadPlugins(const bool& aReloadPages)
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 
     mozilla::plugins::parent::_reloadplugins(aReloadPages);
-    return true;
-}
-
-bool
-PluginModuleChromeParent::RecvNotifyContentModuleDestroyed()
-{
-    nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst();
-    if (host) {
-        host->NotifyContentModuleDestroyed(mPluginId);
-    }
     return true;
 }
 
@@ -1823,7 +1678,7 @@ GetFlashChildOfPID(DWORD pid, HANDLE snapshot)
 #define FLASH_PLUGIN_PREFIX "NPSWF"
 
 void
-PluginModuleChromeParent::InitializeInjector()
+PluginModuleParent::InitializeInjector()
 {
     if (!Preferences::GetBool("dom.ipc.plugins.flash.subprocess.crashreporter.enabled", false))
         return;
@@ -1855,7 +1710,7 @@ PluginModuleChromeParent::InitializeInjector()
 }
 
 void
-PluginModuleChromeParent::OnCrash(DWORD processID)
+PluginModuleParent::OnCrash(DWORD processID)
 {
     if (!mShutdown) {
         GetIPCChannel()->CloseWithError();
@@ -1901,7 +1756,7 @@ PluginProfilerObserver::Observe(nsISupports *aSubject,
 }
 
 void
-PluginModuleChromeParent::InitPluginProfiling()
+PluginModuleParent::InitPluginProfiling()
 {
     nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
     if (observerService) {
@@ -1911,7 +1766,7 @@ PluginModuleChromeParent::InitPluginProfiling()
 }
 
 void
-PluginModuleChromeParent::ShutdownPluginProfiling()
+PluginModuleParent::ShutdownPluginProfiling()
 {
     nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
     if (observerService) {

@@ -2181,6 +2181,8 @@ WorkerPrivateParent<Derived>::DisableDebugger()
   if (NS_FAILED(UnregisterWorkerDebugger(self->mDebugger))) {
     NS_WARNING("Failed to unregister worker debugger!");
   }
+
+  self->mDebugger = nullptr;
 }
 
 template <class Derived>
@@ -3502,22 +3504,6 @@ WorkerDebugger::WorkerDebugger(WorkerPrivate* aWorkerPrivate)
 WorkerDebugger::~WorkerDebugger()
 {
   MOZ_ASSERT(!mWorkerPrivate);
-  MOZ_ASSERT(!mIsEnabled);
-
-  if (!NS_IsMainThread()) {
-    nsCOMPtr<nsIThread> mainThread;
-    if (NS_FAILED(NS_GetMainThread(getter_AddRefs(mainThread)))) {
-      NS_WARNING("Failed to proxy release of listeners, leaking instead!");
-    }
-
-    for (size_t index = 0; index < mListeners.Length(); ++index) {
-      nsIWorkerDebuggerListener* listener = nullptr;
-      mListeners[index].forget(&listener);
-      if (NS_FAILED(NS_ProxyRelease(mainThread, listener))) {
-        NS_WARNING("Failed to proxy release of listener, leaking instead!");
-      }
-    }
-  }
 }
 
 NS_IMPL_ISUPPORTS(WorkerDebugger, nsIWorkerDebugger)
@@ -3534,60 +3520,6 @@ WorkerDebugger::GetIsClosed(bool* aResult)
 }
 
 NS_IMETHODIMP
-WorkerDebugger::GetIsChrome(bool* aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  *aResult = mWorkerPrivate->IsChromeWorker();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::GetParent(nsIWorkerDebugger** aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  WorkerPrivate* parent = mWorkerPrivate->GetParent();
-  if (!parent) {
-    *aResult = nullptr;
-    return NS_OK;
-  }
-
-  MOZ_ASSERT(mWorkerPrivate->IsDedicatedWorker());
-
-  nsCOMPtr<nsIWorkerDebugger> debugger = parent->Debugger();
-  debugger.forget(aResult);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::GetType(uint32_t* aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  *aResult = mWorkerPrivate->Type();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 WorkerDebugger::GetUrl(nsAString& aResult)
 {
   AssertIsOnMainThread();
@@ -3599,53 +3531,6 @@ WorkerDebugger::GetUrl(nsAString& aResult)
   }
 
   aResult = mWorkerPrivate->ScriptURL();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::GetWindow(nsIDOMWindow** aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  if (mWorkerPrivate->GetParent() || !mWorkerPrivate->IsDedicatedWorker()) {
-    *aResult = nullptr;
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsPIDOMWindow> window = mWorkerPrivate->GetWindow();
-  window.forget(aResult);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::AddListener(nsIWorkerDebuggerListener* aListener)
-{
-  AssertIsOnMainThread();
-
-  if (mListeners.Contains(aListener)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  mListeners.AppendElement(aListener);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::RemoveListener(nsIWorkerDebuggerListener* aListener)
-{
-  AssertIsOnMainThread();
-
-  if (!mListeners.Contains(aListener)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  mListeners.RemoveElement(aListener);
   return NS_OK;
 }
 
@@ -3690,15 +3575,6 @@ WorkerDebugger::Disable()
 
   MOZ_ASSERT(mWorkerPrivate);
   mWorkerPrivate = nullptr;
-
-  {
-    MutexAutoUnlock unlock(mMutex);
-
-    nsTArray<nsCOMPtr<nsIWorkerDebuggerListener>> listeners(mListeners);
-    for (size_t index = 0; index < listeners.Length(); ++index) {
-      listeners[index]->OnClose();
-    }
-  }
 
   NotifyIsEnabled(false);
 }

@@ -361,6 +361,11 @@ void CCAppInit()
     return;
   }
 
+  /*
+   * Adjust relative priority of CCApp thread.
+   */
+  (void) cprAdjustRelativeThreadPriority(CCPROVIDER_THREAD_RELATIVE_PRIORITY);
+
   debug_bind_keyword("cclog", &g_CCLogDebug);
   srvcState.cause = gCCApp.cause;  // XXX set but not used
   srvcState.mode = gCCApp.mode;  // XXX set but not used

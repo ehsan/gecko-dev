@@ -243,16 +243,6 @@ class gcstats::StatisticsSerializer
 JS_STATIC_ASSERT(JS::gcreason::NUM_TELEMETRY_REASONS >= JS::gcreason::NUM_REASONS);
 
 const char *
-js::gcstats::ExplainInvocationKind(JSGCInvocationKind gckind)
-{
-    MOZ_ASSERT(gckind == GC_NORMAL || gckind == GC_SHRINK);
-    if (gckind == GC_NORMAL)
-         return "Normal";
-    else
-         return "Shrinking";
-}
-
-const char *
 js::gcstats::ExplainReason(JS::gcreason::Reason reason)
 {
     switch (reason) {
@@ -470,7 +460,6 @@ Statistics::formatDescription()
 
     const char *format =
 "=================================================================\n\
-  Invocation Kind: %s\n\
   Reason: %s\n\
   Incremental: %s%s\n\
   Zones Collected: %d of %d\n\
@@ -484,7 +473,6 @@ Statistics::formatDescription()
     char buffer[1024];
     memset(buffer, 0, sizeof(buffer));
     JS_snprintf(buffer, sizeof(buffer), format,
-                ExplainInvocationKind(gckind),
                 ExplainReason(slices[0].reason),
                 nonincrementalReason ? "no - " : "yes",
                                                   nonincrementalReason ? nonincrementalReason : "",
@@ -721,14 +709,13 @@ Statistics::printStats()
 }
 
 void
-Statistics::beginGC(JSGCInvocationKind kind)
+Statistics::beginGC()
 {
     PodArrayZero(phaseStartTimes);
     PodArrayZero(phaseTimes);
 
     slices.clearAndFree();
     sccTimes.clearAndFree();
-    gckind = kind;
     nonincrementalReason = nullptr;
 
     preBytes = runtime->gc.usage.gcBytes();
@@ -770,14 +757,13 @@ Statistics::endGC()
 }
 
 void
-Statistics::beginSlice(const ZoneGCStats &zoneStats, JSGCInvocationKind gckind,
-                       JS::gcreason::Reason reason)
+Statistics::beginSlice(const ZoneGCStats &zoneStats, JS::gcreason::Reason reason)
 {
     this->zoneStats = zoneStats;
 
     bool first = runtime->gc.state() == gc::NO_INCREMENTAL;
     if (first)
-        beginGC(gckind);
+        beginGC();
 
     SliceData data(reason, PRMJ_Now(), GetPageFaultCount());
     if (!slices.append(data))

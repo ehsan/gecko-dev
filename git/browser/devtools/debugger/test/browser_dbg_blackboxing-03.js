@@ -9,12 +9,13 @@
 const TAB_URL = EXAMPLE_URL + "doc_blackboxing.html";
 const BLACKBOXME_URL = EXAMPLE_URL + "code_blackboxing_blackboxme.js"
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gFrames;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gFrames = gDebugger.DebuggerView.StackFrames;
@@ -27,7 +28,7 @@ function test() {
         ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
       });
 
-    callInTab(gTab, "runTest");
+    gDebuggee.runTest();
   });
 }
 
@@ -51,6 +52,7 @@ function testBlackBoxSource() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gFrames = null;

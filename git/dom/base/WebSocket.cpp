@@ -76,7 +76,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIEVENTTARGET
 
-  explicit WebSocketImpl(WebSocket* aWebSocket)
+  WebSocketImpl(WebSocket* aWebSocket)
   : mWebSocket(aWebSocket)
   , mOnCloseScheduled(false)
   , mFailed(false)
@@ -325,19 +325,11 @@ WebSocketImpl::PrintErrorOnConsole(const char *aBundleURI,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mInnerWindowID) {
-    rv = errorObject->InitWithWindowID(message,
-                                       NS_ConvertUTF8toUTF16(mScriptFile),
-                                       EmptyString(), mScriptLine, 0,
-                                       nsIScriptError::errorFlag, "Web Socket",
-                                       mInnerWindowID);
-  } else {
-    rv = errorObject->Init(message,
-                           NS_ConvertUTF8toUTF16(mScriptFile),
-                           EmptyString(), mScriptLine, 0,
-                           nsIScriptError::errorFlag, "Web Socket");
-  }
-
+  rv = errorObject->InitWithWindowID(message,
+                                     NS_ConvertUTF8toUTF16(mScriptFile),
+                                     EmptyString(), mScriptLine, 0,
+                                     nsIScriptError::errorFlag, "Web Socket",
+                                     mInnerWindowID);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // print the error message directly to the JS console
@@ -471,7 +463,7 @@ namespace {
 class DisconnectInternalRunnable MOZ_FINAL : public WorkerMainThreadRunnable
 {
 public:
-  explicit DisconnectInternalRunnable(WebSocketImpl* aImpl)
+  DisconnectInternalRunnable(WebSocketImpl* aImpl)
     : WorkerMainThreadRunnable(aImpl->mWorkerPrivate)
     , mImpl(aImpl)
   { }
@@ -874,25 +866,20 @@ public:
     }
 
     nsPIDOMWindow* window = wp->GetWindow();
-    if (window) {
-      return InitWithWindow(window);
+    if (!window) {
+      mRv.Throw(NS_ERROR_FAILURE);
+      return true;
     }
 
-    return InitWindowless();
-  }
-
-private:
-  bool InitWithWindow(nsPIDOMWindow* aWindow)
-  {
     AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.Init(aWindow))) {
+    if (NS_WARN_IF(!jsapi.Init(window))) {
       mRv.Throw(NS_ERROR_FAILURE);
       return true;
     }
 
     ClearException ce(jsapi.cx());
 
-    nsIDocument* doc = aWindow->GetExtantDoc();
+    nsIDocument* doc = window->GetExtantDoc();
     if (!doc) {
       mRv.Throw(NS_ERROR_FAILURE);
       return true;
@@ -909,22 +896,7 @@ private:
     return true;
   }
 
-  bool InitWindowless()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-
-    WorkerPrivate* wp = mWorkerPrivate;
-    while (wp->GetParent()) {
-      wp = wp->GetParent();
-    }
-
-    MOZ_ASSERT(!wp->GetWindow());
-
-    mImpl->Init(nullptr, wp->GetPrincipal(), mURL, mProtocolArray, mScriptFile,
-                mScriptLine, mRv, mConnectionFailed);
-    return true;
-  }
-
+private:
   // Raw pointer. This worker runs synchronously.
   WebSocketImpl* mImpl;
 
@@ -1064,7 +1036,7 @@ WebSocket::Constructor(const GlobalObject& aGlobal,
   class MOZ_STACK_CLASS ClearWebSocket
   {
   public:
-    explicit ClearWebSocket(WebSocketImpl* aWebSocketImpl)
+    ClearWebSocket(WebSocketImpl* aWebSocketImpl)
       : mWebSocketImpl(aWebSocketImpl)
       , mDone(false)
     {
@@ -1230,8 +1202,6 @@ WebSocketImpl::Init(JSContext* aCx,
     mScriptFile = aScriptFile;
     mScriptLine = aScriptLine;
   } else {
-    MOZ_ASSERT(aCx);
-
     unsigned lineno;
     JS::AutoFilename file;
     if (JS::DescribeScriptedCaller(aCx, &file, &lineno)) {
@@ -1240,12 +1210,8 @@ WebSocketImpl::Init(JSContext* aCx,
     }
   }
 
-  // If we don't have aCx, we are window-less, so we don't have a
-  // inner-windowID. This can happen in sharedWorkers and ServiceWorkers or in
-  // DedicateWorkers created by JSM.
-  if (aCx) {
-    mInnerWindowID = nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(aCx);
-  }
+  // Get WindowID
+  mInnerWindowID = nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(aCx);
 
   // parses the url
   aRv = ParseURL(PromiseFlatString(aURL));
@@ -1621,7 +1587,7 @@ namespace {
 class PrefEnabledRunnable MOZ_FINAL : public WorkerMainThreadRunnable
 {
 public:
-  explicit PrefEnabledRunnable(WorkerPrivate* aWorkerPrivate)
+  PrefEnabledRunnable(WorkerPrivate* aWorkerPrivate)
     : WorkerMainThreadRunnable(aWorkerPrivate)
     , mEnabled(false)
   { }

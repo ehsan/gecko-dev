@@ -3127,15 +3127,6 @@ nsDocShell::NotifyAsyncPanZoomStarted(const mozilla::CSSIntPoint aScrollPos)
             mScrollObservers.RemoveElement(ref);
         }
     }
-
-    // Also notify child docshell
-    for (uint32_t i = 0; i < mChildList.Length(); ++i) {
-        nsCOMPtr<nsIDocShell> kid = do_QueryInterface(ChildAt(i));
-        if (kid) {
-            nsDocShell* docShell = static_cast<nsDocShell*>(kid.get());
-            docShell->NotifyAsyncPanZoomStarted(aScrollPos);
-        }
-    }
 }
 
 void
@@ -3149,15 +3140,6 @@ nsDocShell::NotifyAsyncPanZoomStopped(const mozilla::CSSIntPoint aScrollPos)
             obs->AsyncPanZoomStopped(aScrollPos);
         } else {
             mScrollObservers.RemoveElement(ref);
-        }
-    }
-
-    // Also notify child docshell
-    for (uint32_t i = 0; i < mChildList.Length(); ++i) {
-        nsCOMPtr<nsIDocShell> kid = do_QueryInterface(ChildAt(i));
-        if (kid) {
-            nsDocShell* docShell = static_cast<nsDocShell*>(kid.get());
-            docShell->NotifyAsyncPanZoomStopped(aScrollPos);
         }
     }
 }
@@ -10409,8 +10391,8 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal(do_QueryInterface(channel));
     if (httpChannelInternal) {
       if (aForceAllowCookies) {
-        httpChannelInternal->SetThirdPartyFlags(nsIHttpChannelInternal::THIRD_PARTY_FORCE_ALLOW);
-      }
+        httpChannelInternal->SetForceAllowThirdPartyCookie(true);
+      } 
       if (aFirstParty) {
         httpChannelInternal->SetDocumentURI(aURI);
       } else {

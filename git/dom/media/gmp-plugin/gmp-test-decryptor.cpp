@@ -12,8 +12,8 @@
 #include <istream>
 #include <iterator>
 #include <sstream>
+#include <assert.h>
 
-#include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/NullPtr.h"
 
@@ -36,7 +36,7 @@ MaybeFinish()
 FakeDecryptor::FakeDecryptor()
   : mCallback(nullptr)
 {
-  MOZ_ASSERT(!sInstance);
+  assert(!sInstance);
   sInstance = this;
 }
 
@@ -49,7 +49,7 @@ void FakeDecryptor::DecryptingComplete()
 void
 FakeDecryptor::Message(const std::string& aMessage)
 {
-  MOZ_ASSERT(sInstance);
+  assert(sInstance);
   const static std::string sid("fake-session-id");
   sInstance->mCallback->SessionMessage(sid.c_str(), sid.size(),
                                        (const uint8_t*)aMessage.c_str(), aMessage.size(),
@@ -109,7 +109,7 @@ public:
 
 class VerifyAndFinishContinuation : public ReadContinuation {
 public:
-  explicit VerifyAndFinishContinuation(string aValue)
+  VerifyAndFinishContinuation(string aValue)
     : mValue(aValue)
   {}
   void ReadComplete(GMPErr aErr, const std::string& aData) MOZ_OVERRIDE {
@@ -146,7 +146,7 @@ static const string OpenAgainRecordId = "open-again-record-id";
 
 class OpenedSecondTimeContinuation : public OpenContinuation {
 public:
-  explicit OpenedSecondTimeContinuation(GMPRecord* aRecord)
+  OpenedSecondTimeContinuation(GMPRecord* aRecord)
     : mRecord(aRecord)
   {
   }
@@ -248,7 +248,7 @@ public:
 
 class ReportReadStatusContinuation : public ReadContinuation {
 public:
-  explicit ReportReadStatusContinuation(const string& aRecordId)
+  ReportReadStatusContinuation(const string& aRecordId)
     : mRecordId(aRecordId)
   {}
   void ReadComplete(GMPErr aErr, const std::string& aData) MOZ_OVERRIDE {
@@ -269,7 +269,7 @@ public:
 
 class ReportReadRecordContinuation : public ReadContinuation {
 public:
-  explicit ReportReadRecordContinuation(const string& aRecordId)
+  ReportReadRecordContinuation(const string& aRecordId)
     : mRecordId(aRecordId)
   {}
   void ReadComplete(GMPErr aErr, const std::string& aData) MOZ_OVERRIDE {
@@ -330,7 +330,7 @@ FakeDecryptor::UpdateSession(uint32_t aPromiseId,
 
 class CompleteShutdownTask : public GMPTask {
 public:
-  explicit CompleteShutdownTask(GMPAsyncShutdownHost* aHost)
+  CompleteShutdownTask(GMPAsyncShutdownHost* aHost)
     : mHost(aHost)
   {
   }

@@ -536,9 +536,6 @@ js::gc::GCRuntime::markRuntime(JSTracer *trc,
         /* Mark debug scopes, if present */
         if (c->debugScopes)
             c->debugScopes->mark(trc);
-
-        if (c->lazyArrayBuffers)
-            c->lazyArrayBuffers->trace(trc);
     }
 
     MarkInterpreterActivations(&rt->mainThread, trc);

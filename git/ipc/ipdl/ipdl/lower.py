@@ -2647,9 +2647,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         cf.addthings((
             [ Whitespace.NL ]
-            + [ CppDirective(
-                'include',
-                '"%s.h"' % (inc)) for inc in self.protocolCxxIncludes ]
+            + self.protocolCxxIncludes
             + [ Whitespace.NL ]
             + cppheaders
             + [ Whitespace.NL ]))
@@ -2690,19 +2688,17 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         self.actorForwardDecls.extend([
             _makeForwardDeclForActor(ip.decl.type, self.side),
-            _makeForwardDeclForActor(ip.decl.type, _otherSide(self.side)),
             Whitespace.NL
         ])
-        self.protocolCxxIncludes.append(_protocolHeaderName(ip, self.side))
+        self.protocolCxxIncludes.append(
+            CppDirective(
+                'include',
+                '"%s.h"'% (_protocolHeaderName(ip, self.side))))
 
         if ip.decl.fullname is not None:
             self.includedActorTypedefs.append(Typedef(
-                Type(_actorName(ip.decl.fullname, self.side.title())),
-                _actorName(ip.decl.shortname, self.side.title())))
-
-            self.includedActorTypedefs.append(Typedef(
-                Type(_actorName(ip.decl.fullname, _otherSide(self.side).title())),
-                _actorName(ip.decl.shortname, _otherSide(self.side).title())))
+                Type(_actorName(ip.decl.fullname, self.prettyside)),
+                _actorName(ip.decl.shortname, self.prettyside)))
 
 
     def visitProtocol(self, p):
@@ -4229,9 +4225,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         ])
 
         def makeHandlerCase(actor):
-            self.protocolCxxIncludes.append(_protocolHeaderName(actor.ptype._ast,
-                                                                actor.side))
-
             case = StmtBlock()
             modevar = _sideToTransportMode(actor.side)
             tvar = ExprVar('t')

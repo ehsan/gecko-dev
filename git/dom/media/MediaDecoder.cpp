@@ -499,9 +499,8 @@ void MediaDecoder::Shutdown()
 
   ChangeState(PLAY_STATE_SHUTDOWN);
 
-  if (mProgressTimer) {
-    StopProgress();
-  }
+  // If we hit this assertion, there might be a bug in network state transition.
+  NS_ASSERTION(!mProgressTimer, "Progress timer should've been stopped.");
   mOwner = nullptr;
 
   MediaShutdownManager::Instance().Unregister(this);

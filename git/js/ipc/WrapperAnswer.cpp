@@ -180,13 +180,8 @@ WrapperAnswer::RecvDefineProperty(const ObjectId &objId, const JSIDVariant &idVa
         return fail(cx, rs);
     }
 
-    if (!JS_DefinePropertyById(cx, obj, id, desc.value(),
-                               // Descrriptors never store JSNatives for
-                               // accessors: they have either JSFunctions or
-                               // JSPropertyOps.
-                               desc.attributes() | JSPROP_PROPOP_ACCESSORS,
-                               JS_PROPERTYOP_GETTER(desc.getter()),
-                               JS_PROPERTYOP_SETTER(desc.setter())))
+    if (!JS_DefinePropertyById(cx, obj, id, desc.value(), desc.attributes(),
+                               desc.getter(), desc.setter()))
     {
         return fail(cx, rs);
     }

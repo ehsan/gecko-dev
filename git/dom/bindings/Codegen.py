@@ -2412,7 +2412,7 @@ class AttrDefiner(PropertyDefiner):
 
         def flags(attr):
             unforgeable = " | JSPROP_PERMANENT" if self.unforgeable else ""
-            return ("JSPROP_SHARED | JSPROP_ENUMERATE" +
+            return ("JSPROP_SHARED | JSPROP_ENUMERATE | JSPROP_NATIVE_ACCESSORS" +
                     unforgeable)
 
         def getter(attr):
@@ -2430,14 +2430,14 @@ class AttrDefiner(PropertyDefiner):
                     accessor = "GenericBindingGetter"
                 jitinfo = ("&%s_getterinfo" %
                            IDLToCIdentifier(attr.identifier.name))
-            return "{ { %s, %s } }" % \
+            return "{ { JS_CAST_NATIVE_TO(%s, JSPropertyOp), %s } }" % \
                    (accessor, jitinfo)
 
         def setter(attr):
             if (attr.readonly and
                 attr.getExtendedAttribute("PutForwards") is None and
                 attr.getExtendedAttribute("Replaceable") is None):
-                return "JSNATIVE_WRAPPER(nullptr)"
+                return "JSOP_NULLWRAPPER"
             if self.static:
                 accessor = 'set_' + IDLToCIdentifier(attr.identifier.name)
                 jitinfo = "nullptr"
@@ -2451,7 +2451,7 @@ class AttrDefiner(PropertyDefiner):
                 else:
                     accessor = "GenericBindingSetter"
                 jitinfo = "&%s_setterinfo" % IDLToCIdentifier(attr.identifier.name)
-            return "{ { %s, %s } }" % \
+            return "{ { JS_CAST_NATIVE_TO(%s, JSStrictPropertyOp), %s } }" % \
                    (accessor, jitinfo)
 
         def specData(attr):
@@ -7631,9 +7631,8 @@ class CGNewResolveHook(CGAbstractBindingMethod):
             // define it.
             if (!desc.value().isUndefined() &&
                 !JS_DefinePropertyById(cx, obj, id, desc.value(),
-                                       desc.attributes() | JSPROP_PROPOP_ACCESSORS,
-                                       JS_PROPERTYOP_GETTER(desc.getter()),
-                                       JS_PROPERTYOP_SETTER(desc.setter()))) {
+                                       desc.attributes(),
+                                       desc.getter(), desc.setter())) {
               return false;
             }
             objp.set(obj);
@@ -9604,9 +9603,8 @@ class CGResolveOwnPropertyViaNewresolve(CGAbstractBindingMethod):
               if (objDesc.object() &&
                   !objDesc.value().isUndefined() &&
                   !JS_DefinePropertyById(cx, obj, id, objDesc.value(),
-                                         objDesc.attributes() | JSPROP_PROPOP_ACCESSORS,
-                                         JS_PROPERTYOP_GETTER(objDesc.getter()),
-                                         JS_PROPERTYOP_SETTER(objDesc.setter()))) {
+                                         objDesc.attributes(),
+                                         objDesc.getter(), objDesc.setter())) {
                 return false;
               }
             }

@@ -71,7 +71,7 @@ class MainThreadFetchResolver MOZ_FINAL : public FetchDriverObserver
 
   NS_DECL_OWNINGTHREAD
 public:
-  explicit MainThreadFetchResolver(Promise* aPromise);
+  MainThreadFetchResolver(Promise* aPromise);
 
   void
   OnResponseAvailable(InternalResponse* aResponse) MOZ_OVERRIDE;
@@ -188,7 +188,7 @@ class WorkerFetchResponseRunnable : public WorkerRunnable
 {
   nsRefPtr<WorkerFetchResolver> mResolver;
 public:
-  explicit WorkerFetchResponseRunnable(WorkerFetchResolver* aResolver)
+  WorkerFetchResponseRunnable(WorkerFetchResolver* aResolver)
     : WorkerRunnable(aResolver->GetWorkerPrivate(), WorkerThreadModifyBusyCount)
     , mResolver(aResolver)
   {
