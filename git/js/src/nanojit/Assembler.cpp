@@ -2033,9 +2033,6 @@ namespace nanojit
                 }
                #endif // VMCFG_VTUNE
 
-                case LIR_comment: 
-                    // Do nothing.
-                    break;
             }
 
 #ifdef NJ_VERBOSE
@@ -2048,10 +2045,7 @@ namespace nanojit
             if (_logc->lcbits & LC_AfterDCE) {
                 InsBuf b;
                 LInsPrinter* printer = _thisfrag->lirbuf->printer;
-                if (ins->isop(LIR_comment)) 
-                    outputf("%s", printer->formatIns(&b, ins));
-                else
-                    outputf("    %s", printer->formatIns(&b, ins));
+                outputf("    %s", printer->formatIns(&b, ins));
             }
 #endif
 

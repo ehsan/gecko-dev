@@ -987,10 +987,10 @@ class nsGenericHTMLFrameElement : public nsGenericHTMLElement,
 {
 public:
   nsGenericHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                            mozilla::dom::FromParser aFromParser)
+                            PRUint32 aFromParser)
     : nsGenericHTMLElement(aNodeInfo)
   {
-    mNetworkCreated = aFromParser == mozilla::dom::FROM_PARSER_NETWORK;
+    mNetworkCreated = aFromParser == NS_FROM_PARSER_NETWORK;
   }
   virtual ~nsGenericHTMLFrameElement();
 
@@ -1046,6 +1046,25 @@ protected:
 //----------------------------------------------------------------------
 
 /**
+ * A macro to implement the NS_NewHTMLXXXElement() functions.
+ */
+#define NS_IMPL_NS_NEW_HTML_ELEMENT(_elementName)                            \
+nsGenericHTMLElement*                                                        \
+NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
+                                  PRUint32 aFromParser)                      \
+{                                                                            \
+  return new nsHTML##_elementName##Element(aNodeInfo);                       \
+}
+
+#define NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(_elementName)               \
+nsGenericHTMLElement*                                                        \
+NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
+                                  PRUint32 aFromParser)                      \
+{                                                                            \
+  return new nsHTML##_elementName##Element(aNodeInfo, aFromParser);          \
+}
+
+/**
  * A macro to implement the getter and setter for a given string
  * valued content property. The method uses the generic GetAttr and
  * SetAttr methods.
@@ -1054,12 +1073,12 @@ protected:
   NS_IMETHODIMP                                                      \
   _class::Get##_method(nsAString& aValue)                            \
   {                                                                  \
-    return GetAttrHelper(nsGkAtoms::_atom, aValue);                  \
+    return GetAttrHelper(nsGkAtoms::_atom, aValue);                \
   }                                                                  \
   NS_IMETHODIMP                                                      \
   _class::Set##_method(const nsAString& aValue)                      \
   {                                                                  \
-    return SetAttrHelper(nsGkAtoms::_atom, aValue);                  \
+    return SetAttrHelper(nsGkAtoms::_atom, aValue);                \
   }
 
 /**
@@ -1411,46 +1430,26 @@ protected:
   NS_OFFSET_AND_INTERFACE_TABLE_END
 
 
-/**
- * A macro to declare the NS_NewHTMLXXXElement() functions.
- */
+// Element class factory methods
+
 #define NS_DECLARE_NS_NEW_HTML_ELEMENT(_elementName)                       \
 nsGenericHTMLElement*                                                      \
 NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo, \
-                                  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                                  PRUint32 aFromParser = 0);
 
 #define NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(_elementName)             \
 inline nsGenericHTMLElement*                                               \
 NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo, \
-                                  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER) \
+                                  PRUint32 aFromParser = 0)                \
 {                                                                          \
   return NS_NewHTMLSharedElement(aNodeInfo, aFromParser);                  \
-}
-
-/**
- * A macro to implement the NS_NewHTMLXXXElement() functions.
- */
-#define NS_IMPL_NS_NEW_HTML_ELEMENT(_elementName)                            \
-nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
-                                  mozilla::dom::FromParser aFromParser)      \
-{                                                                            \
-  return new nsHTML##_elementName##Element(aNodeInfo);                       \
-}
-
-#define NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(_elementName)               \
-nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
-                                  mozilla::dom::FromParser aFromParser)      \
-{                                                                            \
-  return new nsHTML##_elementName##Element(aNodeInfo, aFromParser);          \
 }
 
 // Here, we expand 'NS_DECLARE_NS_NEW_HTML_ELEMENT()' by hand.
 // (Calling the macro directly (with no args) produces compiler warnings.)
 nsGenericHTMLElement*
 NS_NewHTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                  PRUint32 aFromParser = 0);
 
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Shared)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedList)

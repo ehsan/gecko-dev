@@ -58,7 +58,7 @@ class nsIScriptElement : public nsIScriptLoaderObserver {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTELEMENT_IID)
 
-  nsIScriptElement(mozilla::dom::FromParser aFromParser)
+  nsIScriptElement(PRUint32 aFromParser)
     : mLineNumber(0),
       mAlreadyStarted(PR_FALSE),
       mMalformed(PR_FALSE),
@@ -66,10 +66,7 @@ public:
       mFrozen(PR_FALSE),
       mDefer(PR_FALSE),
       mAsync(PR_FALSE),
-      mParserCreated(aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT ?
-                     mozilla::dom::NOT_FROM_PARSER : aFromParser),
-                     // Fragment parser-created scripts (if executable)
-                     // behave like script-created scripts.
+      mParserCreated((PRUint8)aFromParser),
       mCreatorParser(nsnull)
   {
   }
@@ -123,9 +120,10 @@ public:
   }
 
   /**
-   * Returns how the element was created.
+   * Returns a constant defined in nsContentCreatorFunctions.h. Non-zero
+   * values mean parser-created and zero means not parser-created.
    */
-  mozilla::dom::FromParser GetParserCreated()
+  PRUint32 GetParserCreated()
   {
     return mParserCreated;
   }
@@ -158,7 +156,7 @@ public:
     mFrozen = PR_FALSE;
     mUri = nsnull;
     mCreatorParser = nsnull;
-    mParserCreated = mozilla::dom::NOT_FROM_PARSER;
+    mParserCreated = NS_NOT_FROM_PARSER;
   }
 
   void SetCreatorParser(nsIParser* aParser)
@@ -236,7 +234,7 @@ protected:
   /**
    * Whether this element was parser-created.
    */
-  mozilla::dom::FromParser mParserCreated;
+  PRUint8 mParserCreated;
 
   /**
    * The effective src (or null if no src).

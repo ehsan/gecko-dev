@@ -68,11 +68,9 @@
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
 
-using namespace mozilla::dom;
-
 nsGenericHTMLElement*
 NS_NewHTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                       FromParser aFromParser)
+                       PRUint32 aFromParser)
 {
   /*
    * nsHTMLAudioElement's will be created without a nsINodeInfo passed in
@@ -109,7 +107,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLAudioElement)
 
 
 nsHTMLAudioElement::nsHTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
+                                       PRUint32 aFromParser)
   : nsHTMLMediaElement(aNodeInfo, aFromParser)
 {
 }

@@ -315,7 +315,7 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(cx, scopeSupports,
                                          NS_GET_IID(nsISupports),
-                                         GetPrincipal(), nsnull,
+                                         GetPrincipal(), EmptyCString(),
                                          flags, getter_AddRefs(mGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 

@@ -85,8 +85,6 @@
 
 #include "nsIDOMHTMLButtonElement.h"
 
-using namespace mozilla::dom;
-
 static const int NS_FORM_CONTROL_LIST_HASHTABLE_SIZE = 16;
 
 static const PRUint8 NS_FORM_AUTOCOMPLETE_ON  = 1;
@@ -236,9 +234,12 @@ ShouldBeInElements(nsIFormControl* aFormControl)
 // construction, destruction
 nsGenericHTMLElement*
 NS_NewHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      FromParser aFromParser)
+                      PRUint32 aFromParser)
 {
   nsHTMLFormElement* it = new nsHTMLFormElement(aNodeInfo);
+  if (!it) {
+    return nsnull;
+  }
 
   nsresult rv = it->Init();
 

@@ -3696,9 +3696,8 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
         PRInt32 ns = newNodeInfo->NamespaceID();
         nsCOMPtr<nsINodeInfo> xtfNi = newNodeInfo;
         rv = NS_NewElement(getter_AddRefs(content), ns, newNodeInfo.forget(),
-                           NOT_FROM_PARSER);
-        if (NS_FAILED(rv))
-            return rv;
+                           PR_FALSE);
+        if (NS_FAILED(rv)) return rv;
 
         result = content->AsElement();
 

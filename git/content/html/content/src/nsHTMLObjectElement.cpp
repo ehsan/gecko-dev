@@ -52,21 +52,20 @@
 #include "nsIPluginInstance.h"
 #include "nsIConstraintValidation.h"
 
-using namespace mozilla::dom;
 
-class nsHTMLObjectElement : public nsGenericHTMLFormElement
-                          , public nsObjectLoadingContent
-                          , public nsIDOMHTMLObjectElement
-                          , public nsIConstraintValidation
+class nsHTMLObjectElement : public nsGenericHTMLFormElement,
+                            public nsObjectLoadingContent,
+                            public nsIDOMHTMLObjectElement,
+                            public nsIConstraintValidation
 #ifdef MOZ_SVG
-                          , public nsIDOMGetSVGDocument
+                            , public nsIDOMGetSVGDocument
 #endif
 {
 public:
   using nsIConstraintValidation::GetValidationMessage;
 
   nsHTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                      PRUint32 aFromParser = 0);
   virtual ~nsHTMLObjectElement();
 
   // nsISupports
@@ -159,12 +158,12 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Object)
 
 
 nsHTMLObjectElement::nsHTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                         FromParser aFromParser)
+                                         PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mIsDoneAddingChildren(!aFromParser)
 {
   RegisterFreezableElement();
-  SetIsNetworkCreated(aFromParser == FROM_PARSER_NETWORK);
+  SetIsNetworkCreated(aFromParser == NS_FROM_PARSER_NETWORK);
 
   // <object> is always barred from constraint validation.
   SetBarredFromConstraintValidation(PR_TRUE);

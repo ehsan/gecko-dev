@@ -81,8 +81,6 @@
 
 #include "nsTextEditorState.h"
 
-using namespace mozilla::dom;
-
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 
 #define NS_NO_CONTENT_DISPATCH (1 << 0)
@@ -99,7 +97,7 @@ public:
   using nsIConstraintValidation::GetValidationMessage;
 
   nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                        PRUint32 aFromParser = 0);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -280,12 +278,12 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(TextArea)
 
 
 nsHTMLTextAreaElement::nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                             FromParser aFromParser)
+                                             PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mValueChanged(PR_FALSE),
     mHandlingSelect(PR_FALSE),
     mDoneAddingChildren(!aFromParser),
-    mInhibitStateRestoration(!!(aFromParser & FROM_PARSER_FRAGMENT)),
+    mInhibitStateRestoration(!!(aFromParser & NS_FROM_PARSER_FRAGMENT)),
     mDisabledChanged(PR_FALSE),
     mState(new nsTextEditorState(this))
 {

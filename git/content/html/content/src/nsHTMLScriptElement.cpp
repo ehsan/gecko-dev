@@ -58,8 +58,6 @@
 #include "nsTArray.h"
 #include "nsDOMJSUtils.h"
 
-using namespace mozilla::dom;
-
 //
 // Helper class used to support <SCRIPT FOR=object EVENT=handler ...>
 // style script tags...
@@ -310,7 +308,7 @@ class nsHTMLScriptElement : public nsGenericHTMLElement,
 {
 public:
   nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      FromParser aFromParser);
+                      PRUint32 aFromParser);
   virtual ~nsHTMLScriptElement();
 
   // nsISupports
@@ -363,7 +361,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Script)
 
 
 nsHTMLScriptElement::nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                         FromParser aFromParser)
+                                         PRUint32 aFromParser)
   : nsGenericHTMLElement(aNodeInfo)
   , nsScriptElement(aFromParser)
 {
@@ -421,8 +419,10 @@ nsHTMLScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   *aResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsHTMLScriptElement* it =
-    new nsHTMLScriptElement(ni.forget(), NOT_FROM_PARSER);
+  nsHTMLScriptElement* it = new nsHTMLScriptElement(ni.forget(), PR_FALSE);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = CopyInnerTo(it);

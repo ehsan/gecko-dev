@@ -20,8 +20,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=404320
 
 /** Test for Bug 404320 **/
 
-SimpleTest.waitForExplicitFinish();
-
 var win = document.getElementById("testIframe").contentWindow;
 var doc = document.getElementById("testIframe").contentDocument;
 
@@ -78,13 +76,8 @@ var badTags =  [ "b",
                  "span",
                  "foo" ];
 
-function runTests() {
-  formatBlockTests(goodTags, true);
-  formatBlockTests(badTags, false);
-  SimpleTest.finish();
-}
-
-addLoadEvent(runTests);
+formatBlockTests(goodTags, true);
+formatBlockTests(badTags, false);
 
 </script>
 </pre>

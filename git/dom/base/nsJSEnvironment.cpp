@@ -993,6 +993,10 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
     if (NS_SUCCEEDED(rv)) {
       jsds->GetDebuggerHook(getter_AddRefs(jsdHook));
       jsds->GetIsOn(&jsds_IsOn);
+      if (jsds_IsOn) { // If this is not true, the next call would start jsd...
+        rv = jsds->OnForRuntime(cx->runtime);
+        jsds_IsOn = NS_SUCCEEDED(rv);
+      }
     }
 
     // If there is a debug handler registered for this runtime AND
@@ -2530,7 +2534,7 @@ nsJSContext::CreateNativeGlobalForInner(
           InitClassesWithNewWrappedGlobal(mContext,
                                           aNewInner, NS_GET_IID(nsISupports),
                                           aIsChrome ? systemPrincipal.get() : aPrincipal,
-                                          nsnull, flags,
+                                          EmptyCString(), flags,
                                           getter_AddRefs(jsholder));
   if (NS_FAILED(rv))
     return rv;

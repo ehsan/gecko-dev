@@ -850,7 +850,7 @@ TabChild::InitTabChildGlobal()
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(cx, scopeSupports,
                                          NS_GET_IID(nsISupports),
-                                         scope->GetPrincipal(), nsnull,
+                                         scope->GetPrincipal(), EmptyCString(),
                                          flags, getter_AddRefs(mGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 

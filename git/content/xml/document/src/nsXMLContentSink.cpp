@@ -102,8 +102,6 @@
 #include "nsHtml5SVGLoadDispatcher.h"
 #endif
 
-using namespace mozilla::dom;
-
 // XXX Open Issues:
 // 1) what's not allowed - We need to figure out which HTML tags
 //    (prefixed with a HTML namespace qualifier) are explicitly not
@@ -493,7 +491,7 @@ nsresult
 nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                FromParser aFromParser)
+                                PRUint32 aFromParser)
 {
   NS_ASSERTION(aNodeInfo, "can't create element without nodeinfo");
 
@@ -1022,8 +1020,7 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   result = CreateElement(aAtts, aAttsCount, nodeInfo, aLineNumber,
-                         getter_AddRefs(content), &appendContent,
-                         FROM_PARSER_NETWORK);
+                         getter_AddRefs(content), &appendContent, PR_TRUE);
   NS_ENSURE_SUCCESS(result, result);
 
   // Have to do this before we push the new content on the stack... and have to
