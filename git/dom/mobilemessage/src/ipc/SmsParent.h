@@ -120,9 +120,6 @@ protected:
   bool
   DoRequest(const GetSegmentInfoForTextRequest& aRequest);
 
-  bool
-  DoRequest(const GetSmscAddressRequest& aRequest);
-
   nsresult
   SendReply(const MessageReply& aReply);
 };

@@ -18,7 +18,6 @@ const self = require("sdk/self");
 const windowUtils = require("sdk/deprecated/window-utils");
 const { getMostRecentBrowserWindow } = require('sdk/window/utils');
 const { close } = require("sdk/window/helpers");
-const fixtures = require("./fixtures");
 
 let jetpackID = "testID";
 try {
@@ -244,7 +243,7 @@ exports.testConstructor = function(assert, done) {
   tests.push(function testImageURLWidget() testSingleWidget({
     id: "image",
     label: "image url widget",
-    contentURL: fixtures.url("test.html"),
+    contentURL: require("sdk/self").data.url("test.html"),
     contentScript: "self.postMessage({title: document.title, " +
                    "tag: document.body.firstElementChild.tagName, " +
                    "content: document.body.firstElementChild.innerHTML});",
@@ -262,7 +261,7 @@ exports.testConstructor = function(assert, done) {
   tests.push(function testWebURIWidget() testSingleWidget({
     id: "web",
     label: "web uri widget",
-    contentURL: fixtures.url("test.html"),
+    contentURL: require("sdk/self").data.url("test.html"),
     contentScript: "self.postMessage({title: document.title, " +
                    "tag: document.body.firstElementChild.tagName, " +
                    "content: document.body.firstElementChild.innerHTML});",
@@ -325,7 +324,7 @@ exports.testConstructor = function(assert, done) {
   tests.push(function testOnclickEventImage() testSingleWidget({
     id: "click",
     label: "click test widget - image",
-    contentURL: fixtures.url("moz_favicon.ico"),
+    contentURL: require("sdk/self").data.url("moz_favicon.ico"),
     contentScript: "var evt = new MouseEvent('click'); " +
                    "document.body.firstElementChild.dispatchEvent(evt);",
     contentScriptWhen: "end",
@@ -340,7 +339,7 @@ exports.testConstructor = function(assert, done) {
   tests.push(function testOnmouseoverEventImage() testSingleWidget({
     id: "mouseover",
     label: "mouseover test widget - image",
-    contentURL: fixtures.url("moz_favicon.ico"),
+    contentURL: require("sdk/self").data.url("moz_favicon.ico"),
     contentScript: "var evt = new MouseEvent('mouseover');" +
                    "document.body.firstElementChild.dispatchEvent(evt);",
     contentScriptWhen: "end",
@@ -355,7 +354,7 @@ exports.testConstructor = function(assert, done) {
   tests.push(function testOnmouseoutEventImage() testSingleWidget({
     id: "mouseout",
     label: "mouseout test widget - image",
-    contentURL: fixtures.url("moz_favicon.ico"),
+    contentURL: require("sdk/self").data.url("moz_favicon.ico"),
     contentScript: "var evt = new MouseEvent('mouseout'); " +
                    "document.body.firstElementChild.dispatchEvent(evt);",
     contentScriptWhen: "end",
@@ -1035,7 +1034,7 @@ exports.testPostMessageOnLocationChange = function(assert, done) {
 
 exports.testSVGWidget = function(assert, done) {
   // use of capital SVG here is intended, that was failing..
-  let SVG_URL = fixtures.url("mofo_logo.SVG");
+  let SVG_URL = self.data.url("mofo_logo.SVG");
 
   let widget = require("sdk/widget").Widget({
     id: "mozilla-svg-logo",

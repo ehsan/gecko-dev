@@ -62,7 +62,7 @@ public class TwoLinePageRow extends LinearLayout
                 return;
             }
 
-            v.updateImage(favicon, faviconURL);
+            v.updateImage(favicon, url);
         }
     }
 

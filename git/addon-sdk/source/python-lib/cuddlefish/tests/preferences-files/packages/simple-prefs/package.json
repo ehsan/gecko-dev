@@ -1,6 +1,6 @@
 {
     "id": "jid1-fZHqN9JfrDBa8A",
-    "title": "Simple Prefs Test",
+    "fullName": "Simple Prefs Test",
     "author": "Erik Vold",
     "preferences": [{
         "name": "test",

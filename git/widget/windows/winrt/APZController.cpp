@@ -16,7 +16,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsIDOMWindowUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsLayoutUtils.h"
 
 //#define DEBUG_CONTROLLER 1
 
@@ -50,16 +49,31 @@ IsTab(nsCOMPtr<nsIDocument>& aSubDocument)
  * Returns the sub document associated with the scroll id.
  */
 static bool
-GetDOMTargets(uint64_t aScrollId,
+GetDOMTargets(nsIPresShell* aPresShell, uint64_t aScrollId,
               nsCOMPtr<nsIDocument>& aSubDocument,
-              nsCOMPtr<nsIContent>& aTargetContent)
+              nsCOMPtr<nsIDOMElement>& aTargetElement)
 {
-  // For tabs and subframes this will return the HTML sub document
-  aTargetContent = nsLayoutUtils::FindContentFor(aScrollId);
-  if (!aTargetContent) {
+  MOZ_ASSERT(aPresShell);
+  nsRefPtr<nsIDocument> rootDocument = aPresShell->GetDocument();
+  if (!rootDocument) {
     return false;
   }
-  nsCOMPtr<mozilla::dom::Element> domElement = do_QueryInterface(aTargetContent);
+  nsCOMPtr<nsIDOMWindowUtils> rootUtils;
+  nsCOMPtr<nsIDOMWindow> rootWindow = rootDocument->GetDefaultView();
+  if (!rootWindow) {
+    return false;
+  }
+  rootUtils = do_GetInterface(rootWindow);
+  if (!rootUtils) {
+    return false;
+  }
+
+  // For tabs and subframes this will return the HTML sub document
+  rootUtils->FindElementWithViewId(aScrollId, getter_AddRefs(aTargetElement));
+  if (!aTargetElement) {
+    return false;
+  }
+  nsCOMPtr<mozilla::dom::Element> domElement = do_QueryInterface(aTargetElement);
   if (!domElement) {
     return false;
   }
@@ -73,7 +87,7 @@ GetDOMTargets(uint64_t aScrollId,
   // If the root element equals domElement, FindElementWithViewId found
   // a document, vs. an element within a document.
   if (aSubDocument->GetRootElement() == domElement && IsTab(aSubDocument)) {
-    aTargetContent = nullptr;
+    aTargetElement = nullptr;
   }
 
   return true;
@@ -102,20 +116,28 @@ public:
       mFrameMetrics.mScrollOffset.y);
 #endif
 
+    nsIPresShell* presShell = mWidgetListener->GetPresShell();
+    if (!presShell) {
+      return NS_OK;
+    }
+
     nsCOMPtr<nsIDocument> subDocument;
-    nsCOMPtr<nsIContent> targetContent;
-    if (!GetDOMTargets(mFrameMetrics.mScrollId,
-                       subDocument, targetContent)) {
+    nsCOMPtr<nsIDOMElement> targetElement;
+    if (!GetDOMTargets(presShell, mFrameMetrics.mScrollId,
+                       subDocument, targetElement)) {
       return NS_OK;
     }
 
     // If we're dealing with a sub frame or content editable element,
     // call UpdateSubFrame.
-    if (targetContent) {
+    if (targetElement) {
 #ifdef DEBUG_CONTROLLER
       WinUtils::Log("APZController: detected subframe or content editable");
 #endif
-      APZCCallbackHelper::UpdateSubFrame(targetContent, mFrameMetrics);
+      nsCOMPtr<nsIContent> content = do_QueryInterface(targetElement);
+      if (content) {
+        APZCCallbackHelper::UpdateSubFrame(content, mFrameMetrics);
+      }
       return NS_OK;
     }
 

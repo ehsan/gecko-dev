@@ -811,7 +811,12 @@ function readFile(path, encoding, callback) {
     let readStream = new ReadStream(path);
     readStream.on("data", function(data) {
       if (!buffer) buffer = data;
-      else buffer = Buffer.concat([buffer, data], 2);
+      else {
+        let bufferred = buffer
+        buffer = new Buffer(buffer.length + data.length);
+        bufferred.copy(buffer, 0);
+        data.copy(buffer, bufferred.length);
+      }
     });
     readStream.on("error", function onError(error) {
       callback(error);

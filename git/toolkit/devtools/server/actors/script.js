@@ -497,8 +497,8 @@ ThreadActor.prototype = {
     return this._prettyPrintWorker;
   },
 
-  _onPrettyPrintError: function ({ message, filename, lineno }) {
-    reportError(new Error(message + " @ " + filename + ":" + lineno));
+  _onPrettyPrintError: function (error) {
+    reportError(new Error(error));
   },
 
   _onPrettyPrintMsg: function ({ data }) {
@@ -1561,18 +1561,19 @@ ThreadActor.prototype = {
 
   /**
    * Get the script and source lists from the debugger.
+   *
+   * TODO bug 637572: we should be dealing with sources directly, not inferring
+   * them through scripts.
    */
   _discoverSources: function TA__discoverSources() {
     // Only get one script per url.
-    const sourcesToScripts = new Map();
+    let scriptsByUrl = {};
     for (let s of this.dbg.findScripts()) {
-      if (s.source) {
-        sourcesToScripts.set(s.source, s);
-      }
+      scriptsByUrl[s.url] = s;
     }
 
-    return all([this.sources.sourcesForScript(script)
-                for (script of sourcesToScripts.values())]);
+    return all([this.sources.sourcesForScript(scriptsByUrl[s])
+                for (s of Object.keys(scriptsByUrl))]);
   },
 
   onSources: function TA_onSources(aRequest) {
@@ -2459,6 +2460,7 @@ SourceActor.prototype = {
   onPrettyPrint: function ({ indent }) {
     this.threadActor.sources.prettyPrint(this._url, indent);
     return this._getSourceText()
+      .then(this._parseAST)
       .then(this._sendToPrettyPrintWorker(indent))
       .then(this._invertSourceMap)
       .then(this._saveMap)
@@ -2480,6 +2482,13 @@ SourceActor.prototype = {
   },
 
   /**
+   * Parse the source content into an AST.
+   */
+  _parseAST: function SA__parseAST({ content}) {
+    return Reflect.parse(content);
+  },
+
+  /**
    * Return a function that sends a request to the pretty print worker, waits on
    * the worker's response, and then returns the pretty printed code.
    *
@@ -2492,7 +2501,7 @@ SourceActor.prototype = {
    *          printed code, and `mappings` is an array of source mappings.
    */
   _sendToPrettyPrintWorker: function SA__sendToPrettyPrintWorker(aIndent) {
-    return ({ content }) => {
+    return aAST => {
       const deferred = promise.defer();
       const id = Math.random();
 
@@ -2514,7 +2523,7 @@ SourceActor.prototype = {
         id: id,
         url: this._url,
         indent: aIndent,
-        source: content
+        ast: aAST
       });
 
       return deferred.promise;

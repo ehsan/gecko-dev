@@ -15,8 +15,7 @@ const unload = require('../system/unload');
 const { getDocShell } = require("../frame/utils");
 const { ignoreWindow } = require('../private-browsing/utils');
 
-// Everything coming from add-on's xpi considered an asset.
-const assetsURI = require('../self').data.url().replace(/data\/$/, "");
+const assetsURI = require('../self').data.url();
 
 /**
  * This trait is layered on top of `Worker` and in contrast to symbiont

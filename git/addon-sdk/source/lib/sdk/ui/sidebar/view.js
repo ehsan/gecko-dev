@@ -72,15 +72,7 @@ function updateTitle(sidebar, title) {
 exports.updateTitle = updateTitle;
 
 function updateURL(sidebar, url) {
-  let eleID = makeID(sidebar.id);
-
   for (let window of windows(null, { includePrivate: true })) {
-    // update the menuitem
-    let mi = window.document.getElementById(eleID);
-    if (mi) {
-      mi.setAttribute('sidebarurl', url)
-    }
-
     // update sidebar, if showing
     if (isSidebarShowing(window, sidebar)) {
       showSidebar(window, sidebar, url);
@@ -142,10 +134,7 @@ function showSidebar(window, sidebar, newURL) {
   let { promise, resolve, reject } = defer();
   let model = modelFor(sidebar);
 
-  if (!newURL && isSidebarShowing(window, sidebar)) {
-    resolve({});
-  }
-  else if (!isPrivateBrowsingSupported && isWindowPrivate(window)) {
+  if (!isPrivateBrowsingSupported && isWindowPrivate(window)) {
     reject(Error('You cannot show a sidebar on private windows'));
   }
   else {
