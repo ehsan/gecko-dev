@@ -106,8 +106,10 @@ js_GetArgsValue(JSContext *cx, JSStackFrame *fp, jsval *vp)
 
     if (TEST_OVERRIDE_BIT(fp, CALL_ARGUMENTS)) {
         JS_ASSERT(fp->callobj);
-        return fp->callobj->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.argumentsAtom),
-                                        vp);
+        return OBJ_GET_PROPERTY(cx, fp->callobj,
+                                ATOM_TO_JSID(cx->runtime->atomState
+                                             .argumentsAtom),
+                                vp);
     }
     argsobj = js_GetArgsObject(cx, fp);
     if (!argsobj)
@@ -187,8 +189,10 @@ js_GetArgsProperty(JSContext *cx, JSStackFrame *fp, jsid id, jsval *vp)
 
     if (TEST_OVERRIDE_BIT(fp, CALL_ARGUMENTS)) {
         JS_ASSERT(fp->callobj);
-        if (!fp->callobj->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.argumentsAtom),
-                                      &val)) {
+        if (!OBJ_GET_PROPERTY(cx, fp->callobj,
+                              ATOM_TO_JSID(cx->runtime->atomState
+                                           .argumentsAtom),
+                              &val)) {
             return JS_FALSE;
         }
         if (JSVAL_IS_PRIMITIVE(val)) {
@@ -198,7 +202,7 @@ js_GetArgsProperty(JSContext *cx, JSStackFrame *fp, jsid id, jsval *vp)
         } else {
             obj = JSVAL_TO_OBJECT(val);
         }
-        return obj->getProperty(cx, id, vp);
+        return OBJ_GET_PROPERTY(cx, obj, id, vp);
     }
 
     *vp = JSVAL_VOID;
@@ -206,7 +210,7 @@ js_GetArgsProperty(JSContext *cx, JSStackFrame *fp, jsid id, jsval *vp)
         slot = (uintN) JSID_TO_INT(id);
         if (slot < fp->argc) {
             if (fp->argsobj && ArgWasDeleted(cx, fp, slot))
-                return JSVAL_TO_OBJECT(fp->argsobj)->getProperty(cx, id, vp);
+                return OBJ_GET_PROPERTY(cx, JSVAL_TO_OBJECT(fp->argsobj), id, vp);
             *vp = fp->argv[slot];
         } else {
             /*
@@ -222,12 +226,12 @@ js_GetArgsProperty(JSContext *cx, JSStackFrame *fp, jsid id, jsval *vp)
              * undefined in *vp.
              */
             if (fp->argsobj)
-                return JSVAL_TO_OBJECT(fp->argsobj)->getProperty(cx, id, vp);
+                return OBJ_GET_PROPERTY(cx, JSVAL_TO_OBJECT(fp->argsobj), id, vp);
         }
     } else {
         if (id == ATOM_TO_JSID(cx->runtime->atomState.lengthAtom)) {
             if (fp->argsobj && TEST_OVERRIDE_BIT(fp, ARGS_LENGTH))
-                return JSVAL_TO_OBJECT(fp->argsobj)->getProperty(cx, id, vp);
+                return OBJ_GET_PROPERTY(cx, JSVAL_TO_OBJECT(fp->argsobj), id, vp);
             *vp = INT_TO_JSVAL((jsint) fp->argc);
         }
     }
@@ -665,7 +669,7 @@ args_enumerate(JSContext *cx, JSObject *obj)
         if (!js_LookupProperty(cx, obj, id, &pobj, &prop))
             return false;
         if (prop)
-            pobj->dropProperty(cx, prop);
+            OBJ_DROP_PROPERTY(cx, pobj, prop);
     }
     return true;
 }
@@ -971,7 +975,7 @@ call_enumerate(JSContext *cx, JSObject *obj)
          */
         JS_ASSERT(prop);
         JS_ASSERT(pobj == obj);
-        pobj->dropProperty(cx, prop);
+        OBJ_DROP_PROPERTY(cx, pobj, prop);
     }
     ok = JS_TRUE;
 
@@ -1408,10 +1412,10 @@ fun_enumerate(JSContext *cx, JSObject *obj)
     JSProperty *prop;
 
     prototypeId = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
-    if (!obj->lookupProperty(cx, prototypeId, &pobj, &prop))
+    if (!OBJ_LOOKUP_PROPERTY(cx, obj, prototypeId, &pobj, &prop))
         return JS_FALSE;
     if (prop)
-        pobj->dropProperty(cx, prop);
+        OBJ_DROP_PROPERTY(cx, pobj, prop);
     return JS_TRUE;
 }
 
@@ -1716,8 +1720,12 @@ fun_hasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 {
     jsval pval;
 
-    if (!obj->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom), &pval))
+    if (!OBJ_GET_PROPERTY(cx, obj,
+                          ATOM_TO_JSID(cx->runtime->atomState
+                                       .classPrototypeAtom),
+                          &pval)) {
         return JS_FALSE;
+    }
 
     if (JSVAL_IS_PRIMITIVE(pval)) {
         /*
@@ -1905,7 +1913,7 @@ js_fun_call(JSContext *cx, uintN argc, jsval *vp)
     js_LeaveTrace(cx);
 
     obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj || !obj->defaultValue(cx, JSTYPE_FUNCTION, &vp[1]))
+    if (!obj || !OBJ_DEFAULT_VALUE(cx, obj, JSTYPE_FUNCTION, &vp[1]))
         return JS_FALSE;
     fval = vp[1];
 
@@ -1973,7 +1981,7 @@ js_fun_apply(JSContext *cx, uintN argc, jsval *vp)
     js_LeaveTrace(cx);
 
     obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj || !obj->defaultValue(cx, JSTYPE_FUNCTION, &vp[1]))
+    if (!obj || !OBJ_DEFAULT_VALUE(cx, obj, JSTYPE_FUNCTION, &vp[1]))
         return JS_FALSE;
     fval = vp[1];
 
@@ -2512,7 +2520,9 @@ js_DefineFunction(JSContext *cx, JSObject *obj, JSAtom *atom, JSNative native,
     fun = js_NewFunction(cx, NULL, native, nargs, attrs, obj, atom);
     if (!fun)
         return NULL;
-    if (!obj->defineProperty(cx, ATOM_TO_JSID(atom), OBJECT_TO_JSVAL(FUN_OBJECT(fun)), gsop, gsop,
+    if (!OBJ_DEFINE_PROPERTY(cx, obj, ATOM_TO_JSID(atom),
+                             OBJECT_TO_JSVAL(FUN_OBJECT(fun)),
+                             gsop, gsop,
                              attrs & ~JSFUN_FLAGS_MASK, NULL)) {
         return NULL;
     }
@@ -2534,7 +2544,7 @@ js_ValueToFunction(JSContext *cx, jsval *vp, uintN flags)
     if (JSVAL_IS_OBJECT(v)) {
         obj = JSVAL_TO_OBJECT(v);
         if (obj && OBJ_GET_CLASS(cx, obj) != &js_FunctionClass) {
-            if (!obj->defaultValue(cx, JSTYPE_FUNCTION, &v))
+            if (!OBJ_DEFAULT_VALUE(cx, obj, JSTYPE_FUNCTION, &v))
                 return NULL;
             obj = VALUE_IS_FUNCTION(cx, v) ? JSVAL_TO_OBJECT(v) : NULL;
         }

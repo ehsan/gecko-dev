@@ -1601,7 +1601,8 @@ LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
             } else {
                 JS_ASSERT(cg->flags & TCF_COMPILE_N_GO);
                 obj = cg->scopeChain;
-                ok = obj->lookupProperty(cx, ATOM_TO_JSID(atom), &objbox, &prop);
+                ok = OBJ_LOOKUP_PROPERTY(cx, obj, ATOM_TO_JSID(atom), &objbox,
+                                         &prop);
                 if (!ok)
                     return JS_FALSE;
                 if (objbox == obj) {
@@ -1611,14 +1612,15 @@ LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
                      * variable object.  Therefore we can get constant values
                      * from our variable object here.
                      */
-                    ok = obj->getAttributes(cx, ATOM_TO_JSID(atom), prop, &attrs);
+                    ok = OBJ_GET_ATTRIBUTES(cx, obj, ATOM_TO_JSID(atom), prop,
+                                            &attrs);
                     if (ok && IS_CONSTANT_PROPERTY(attrs)) {
-                        ok = obj->getProperty(cx, ATOM_TO_JSID(atom), vp);
+                        ok = OBJ_GET_PROPERTY(cx, obj, ATOM_TO_JSID(atom), vp);
                         JS_ASSERT_IF(ok, *vp != JSVAL_HOLE);
                     }
                 }
                 if (prop)
-                    objbox->dropProperty(cx, prop);
+                    OBJ_DROP_PROPERTY(cx, objbox, prop);
                 if (!ok)
                     return JS_FALSE;
                 if (prop)
@@ -3850,7 +3852,7 @@ EmitGroupAssignment(JSContext *cx, JSCodeGenerator *cg, JSOp prologOp,
         }
 
         /* MaybeEmitGroupAssignment won't call us if rhs is holey. */
-        JS_ASSERT(!(pn->pn_type == TOK_COMMA && pn->pn_arity == PN_NULLARY));
+        JS_ASSERT(pn->pn_type != TOK_COMMA);
         if (!js_EmitTree(cx, cg, pn))
             return JS_FALSE;
         ++limit;

@@ -445,11 +445,11 @@
             }
             obj = JSVAL_TO_OBJECT(rval);
             FETCH_ELEMENT_ID(obj, -2, id);
-            if (!obj->lookupProperty(cx, id, &obj2, &prop))
+            if (!OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
                 goto error;
             cond = prop != NULL;
             if (prop)
-                obj2->dropProperty(cx, prop);
+                OBJ_DROP_PROPERTY(cx, obj2, prop);
             TRY_BRANCH_AFTER_COND(cond, 2);
             regs.sp--;
             STORE_OPND(-1, BOOLEAN_TO_JSVAL(cond));
@@ -508,8 +508,8 @@
             if (!js_FindProperty(cx, id, &obj, &obj2, &prop))
                 goto error;
             if (prop)
-                obj2->dropProperty(cx, prop);
-            ok = obj->setProperty(cx, id, &regs.sp[-1]);
+                OBJ_DROP_PROPERTY(cx, obj2, prop);
+            ok = OBJ_SET_PROPERTY(cx, obj, id, &regs.sp[-1]);
             if (!ok)
                 goto error;
           END_CASE(JSOP_FORNAME)
@@ -519,7 +519,7 @@
             LOAD_ATOM(0);
             id = ATOM_TO_JSID(atom);
             FETCH_OBJECT(cx, -1, lval, obj);
-            ok = obj->setProperty(cx, id, &regs.sp[-2]);
+            ok = OBJ_SET_PROPERTY(cx, obj, id, &regs.sp[-2]);
             if (!ok)
                 goto error;
             regs.sp--;
@@ -652,9 +652,10 @@
             LOAD_ATOM(0);
             obj = fp->varobj;
             rval = FETCH_OPND(-1);
-            if (!obj->defineProperty(cx, ATOM_TO_JSID(atom), rval,
+            if (!OBJ_DEFINE_PROPERTY(cx, obj, ATOM_TO_JSID(atom), rval,
                                      JS_PropertyStub, JS_PropertyStub,
-                                     JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY,
+                                     JSPROP_ENUMERATE | JSPROP_PERMANENT |
+                                     JSPROP_READONLY,
                                      NULL)) {
                 goto error;
             }
@@ -665,9 +666,10 @@
             rval = FETCH_OPND(-3);
             FETCH_OBJECT(cx, -2, lval, obj);
             FETCH_ELEMENT_ID(obj, -1, id);
-            if (!obj->defineProperty(cx, id, rval,
+            if (!OBJ_DEFINE_PROPERTY(cx, obj, id, rval,
                                      JS_PropertyStub, JS_PropertyStub,
-                                     JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY,
+                                     JSPROP_ENUMERATE | JSPROP_PERMANENT |
+                                     JSPROP_READONLY,
                                      NULL)) {
                 goto error;
             }
@@ -1127,8 +1129,8 @@
             /* ECMA says to return true if name is undefined or inherited. */
             PUSH_OPND(JSVAL_TRUE);
             if (prop) {
-                obj2->dropProperty(cx, prop);
-                if (!obj->deleteProperty(cx, id, &regs.sp[-1]))
+                OBJ_DROP_PROPERTY(cx, obj2, prop);
+                if (!OBJ_DELETE_PROPERTY(cx, obj, id, &regs.sp[-1]))
                     goto error;
             }
           END_CASE(JSOP_DELNAME)
@@ -1136,12 +1138,12 @@
           BEGIN_CASE(JSOP_DELPROP)
             LOAD_ATOM(0);
             id = ATOM_TO_JSID(atom);
-            PROPERTY_OP(-1, obj->deleteProperty(cx, id, &rval));
+            PROPERTY_OP(-1, OBJ_DELETE_PROPERTY(cx, obj, id, &rval));
             STORE_OPND(-1, rval);
           END_CASE(JSOP_DELPROP)
 
           BEGIN_CASE(JSOP_DELELEM)
-            ELEMENT_OP(-1, obj->deleteProperty(cx, id, &rval));
+            ELEMENT_OP(-1, OBJ_DELETE_PROPERTY(cx, obj, id, &rval));
             regs.sp--;
             STORE_OPND(-1, rval);
           END_CASE(JSOP_DELELEM)
@@ -1223,7 +1225,7 @@
                 goto error;
             if (!prop)
                 goto atom_not_defined;
-            obj2->dropProperty(cx, prop);
+            OBJ_DROP_PROPERTY(cx, obj2, prop);
           }
 
           do_incop:
@@ -1233,10 +1235,10 @@
 
             /*
              * We need a root to store the value to leave on the stack until
-             * we have done with obj->setProperty.
+             * we have done with OBJ_SET_PROPERTY.
              */
             PUSH_OPND(JSVAL_NULL);
-            if (!obj->getProperty(cx, id, &regs.sp[-1]))
+            if (!OBJ_GET_PROPERTY(cx, obj, id, &regs.sp[-1]))
                 goto error;
 
             cs = &js_CodeSpec[op];
@@ -1254,7 +1256,7 @@
                     regs.sp[-1] = v;
                 }
                 fp->flags |= JSFRAME_ASSIGNING;
-                ok = obj->setProperty(cx, id, &regs.sp[-1]);
+                ok = OBJ_SET_PROPERTY(cx, obj, id, &regs.sp[-1]);
                 fp->flags &= ~JSFRAME_ASSIGNING;
                 if (!ok)
                     goto error;
@@ -1270,7 +1272,7 @@
                 if (!js_DoIncDec(cx, cs, &regs.sp[-2], &regs.sp[-1]))
                     goto error;
                 fp->flags |= JSFRAME_ASSIGNING;
-                ok = obj->setProperty(cx, id, &regs.sp[-1]);
+                ok = OBJ_SET_PROPERTY(cx, obj, id, &regs.sp[-1]);
                 fp->flags &= ~JSFRAME_ASSIGNING;
                 if (!ok)
                     goto error;
@@ -1474,7 +1476,7 @@
                 id = ATOM_TO_JSID(atom);
                 if (entry
                     ? !js_GetPropertyHelper(cx, obj, id, true, &rval)
-                    : !obj->getProperty(cx, id, &rval)) {
+                    : !OBJ_GET_PROPERTY(cx, obj, id, &rval)) {
                     goto error;
                 }
             } while (0);
@@ -1811,7 +1813,7 @@
                     if (!js_SetPropertyHelper(cx, obj, id, true, &rval))
                         goto error;
                 } else {
-                    if (!obj->setProperty(cx, id, &rval))
+                    if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                         goto error;
                     ABORT_RECORDING(cx, "Non-native set");
                 }
@@ -1857,7 +1859,7 @@
                     goto error;
             }
 
-            if (!obj->getProperty(cx, id, &rval))
+            if (!OBJ_GET_PROPERTY(cx, obj, id, &rval))
                 goto error;
           end_getelem:
             regs.sp--;
@@ -1903,7 +1905,7 @@
                     }
                 }
             } while (0);
-            if (!obj->setProperty(cx, id, &rval))
+            if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                 goto error;
         end_setelem:
           END_SET_CASE_STORE_RVAL(JSOP_SETELEM, 3)
@@ -1913,7 +1915,7 @@
             rval = FETCH_OPND(-3);
             FETCH_OBJECT(cx, -2, lval, obj);
             FETCH_ELEMENT_ID(obj, -1, id);
-            if (!obj->setProperty(cx, id, &rval))
+            if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                 goto error;
             regs.sp -= 3;
           END_CASE(JSOP_ENUMELEM)
@@ -1935,8 +1937,9 @@
                 fun = GET_FUNCTION_PRIVATE(cx, obj);
                 if (FUN_INTERPRETED(fun)) {
                     /* Root as we go using vp[1]. */
-                    if (!obj->getProperty(cx,
-                                          ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
+                    if (!OBJ_GET_PROPERTY(cx, obj,
+                                          ATOM_TO_JSID(cx->runtime->atomState
+                                                       .classPrototypeAtom),
                                           &vp[1])) {
                         goto error;
                     }
@@ -2222,7 +2225,7 @@
                  * below for the left-hand-side case.
                  */
                 PUSH_OPND(cx->rval2);
-                ELEMENT_OP(-1, obj->getProperty(cx, id, &rval));
+                ELEMENT_OP(-1, OBJ_GET_PROPERTY(cx, obj, id, &rval));
 
                 regs.sp--;
                 STORE_OPND(-1, rval);
@@ -2312,14 +2315,14 @@
 
             /* Take the slow path if prop was not found in a native object. */
             if (!OBJ_IS_NATIVE(obj) || !OBJ_IS_NATIVE(obj2)) {
-                obj2->dropProperty(cx, prop);
-                if (!obj->getProperty(cx, id, &rval))
+                OBJ_DROP_PROPERTY(cx, obj2, prop);
+                if (!OBJ_GET_PROPERTY(cx, obj, id, &rval))
                     goto error;
             } else {
                 sprop = (JSScopeProperty *)prop;
           do_native_get:
                 NATIVE_GET(cx, obj, obj2, sprop, &rval);
-                obj2->dropProperty(cx, (JSProperty *) sprop);
+                OBJ_DROP_PROPERTY(cx, obj2, (JSProperty *) sprop);
             }
 
           do_push_rval:
@@ -2779,10 +2782,10 @@
                 goto atom_not_defined;
 
             /* Minimize footprint with generic code instead of NATIVE_GET. */
-            obj2->dropProperty(cx, prop);
+            OBJ_DROP_PROPERTY(cx, obj2, prop);
             vp = regs.sp;
             PUSH_OPND(JSVAL_NULL);
-            if (!obj->getProperty(cx, id, vp))
+            if (!OBJ_GET_PROPERTY(cx, obj, id, vp))
                 goto error;
 
             if (op == JSOP_CALLUPVAR_DBG)
@@ -2842,7 +2845,7 @@
 #endif
                 LOAD_ATOM(0);
                 id = ATOM_TO_JSID(atom);
-                if (!obj->setProperty(cx, id, &rval))
+                if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                     goto error;
             } else {
                 slot = JSVAL_TO_INT(lval);
@@ -2877,7 +2880,8 @@
 
             /* Bind a variable only if it's not yet defined. */
             if (!prop) {
-                if (!obj->defineProperty(cx, id, JSVAL_VOID, JS_PropertyStub, JS_PropertyStub,
+                if (!OBJ_DEFINE_PROPERTY(cx, obj, id, JSVAL_VOID,
+                                         JS_PropertyStub, JS_PropertyStub,
                                          attrs, &prop)) {
                     goto error;
                 }
@@ -2911,7 +2915,7 @@
                 }
             }
 
-            obj2->dropProperty(cx, prop);
+            OBJ_DROP_PROPERTY(cx, obj2, prop);
           END_CASE(JSOP_DEFVAR)
 
           BEGIN_CASE(JSOP_DEFFUN)
@@ -2971,10 +2975,9 @@
             }
 
             /*
-             * Protect obj from any GC hiding below JSObject::setProperty or
-             * JSObject::defineProperty.  All paths from here must flow through
-             * the "Restore fp->scopeChain" code below the
-             * parent->defineProperty call.
+             * Protect obj from any GC hiding below OBJ_DEFINE_PROPERTY.  All
+             * paths from here must flow through the "Restore fp->scopeChain"
+             * code below the OBJ_DEFINE_PROPERTY call.
              */
             MUST_FLOW_THROUGH("restore_scope");
             fp->scopeChain = obj;
@@ -3030,12 +3033,11 @@
 
             /*
              * We deviate from 10.1.2 in ECMA 262 v3 and under eval use for
-             * function declarations JSObject::setProperty, not
-             * JSObject::defineProperty, to preserve the JSOP_PERMANENT
-             * attribute of existing properties and make sure that such
-             * properties cannot be deleted.
+             * function declarations OBJ_SET_PROPERTY, not OBJ_DEFINE_PROPERTY,
+             * to preserve the JSOP_PERMANENT attribute of existing properties
+             * and make sure that such properties cannot be deleted.
              *
-             * We also use JSObject::setProperty for the existing properties of
+             * We also use OBJ_SET_PROPERTY for the existing properties of
              * Call objects with matching attributes to preserve the native
              * getters and setters that store the value of the property in the
              * interpreter frame, see bug 467495.
@@ -3057,11 +3059,12 @@
                     JS_ASSERT(!(old & JSPROP_READONLY));
                     doSet = JS_TRUE;
                 }
-                pobj->dropProperty(cx, prop);
+                OBJ_DROP_PROPERTY(cx, pobj, prop);
             }
             ok = doSet
-                 ? parent->setProperty(cx, id, &rval)
-                 : parent->defineProperty(cx, id, rval, getter, setter, attrs, NULL);
+                 ? OBJ_SET_PROPERTY(cx, parent, id, &rval)
+                 : OBJ_DEFINE_PROPERTY(cx, parent, id, rval, getter, setter,
+                                       attrs, NULL);
 
           restore_scope:
             /* Restore fp->scopeChain now that obj is defined in fp->varobj. */
@@ -3102,19 +3105,19 @@
             if (ok) {
                 if (attrs == JSPROP_ENUMERATE) {
                     JS_ASSERT(fp->flags & JSFRAME_EVAL);
-                    ok = parent->setProperty(cx, id, &rval);
+                    ok = OBJ_SET_PROPERTY(cx, parent, id, &rval);
                 } else {
                     JS_ASSERT(attrs & JSPROP_PERMANENT);
 
-                    ok = parent->defineProperty(cx, id, rval,
-                                                (flags & JSPROP_GETTER)
-                                                ? JS_EXTENSION (JSPropertyOp) obj
-                                                : JS_PropertyStub,
-                                                (flags & JSPROP_SETTER)
-                                                ? JS_EXTENSION (JSPropertyOp) obj
-                                                : JS_PropertyStub,
-                                                attrs,
-                                                NULL);
+                    ok = OBJ_DEFINE_PROPERTY(cx, parent, id, rval,
+                                             (flags & JSPROP_GETTER)
+                                             ? JS_EXTENSION (JSPropertyOp) obj
+                                             : JS_PropertyStub,
+                                             (flags & JSPROP_SETTER)
+                                             ? JS_EXTENSION (JSPropertyOp) obj
+                                             : JS_PropertyStub,
+                                             attrs,
+                                             NULL);
                 }
             }
 
@@ -3309,7 +3312,7 @@
              * Getters and setters are just like watchpoints from an access
              * control point of view.
              */
-            if (!obj->checkAccess(cx, id, JSACC_WATCH, &rtmp, &attrs))
+            if (!OBJ_CHECK_ACCESS(cx, obj, id, JSACC_WATCH, &rtmp, &attrs))
                 goto error;
 
             if (op == JSOP_GETTER) {
@@ -3327,8 +3330,10 @@
             if (!js_CheckRedeclaration(cx, obj, id, attrs, NULL, NULL))
                 goto error;
 
-            if (!obj->defineProperty(cx, id, JSVAL_VOID, getter, setter, attrs, NULL))
+            if (!OBJ_DEFINE_PROPERTY(cx, obj, id, JSVAL_VOID, getter, setter,
+                                     attrs, NULL)) {
                 goto error;
+            }
 
             regs.sp += i;
             if (js_CodeSpec[op2].ndefs)
@@ -3537,7 +3542,7 @@
                 goto error;
 
             /*
-             * If rval is a hole, do not call JSObject::defineProperty. In this case,
+             * If rval is a hole, do not call OBJ_DEFINE_PROPERTY. In this case,
              * obj must be an array, so if the current op is the last element
              * initialiser, set the array length to one greater than id.
              */
@@ -3550,7 +3555,7 @@
                     goto error;
                 }
             } else {
-                if (!obj->defineProperty(cx, id, rval, NULL, NULL, JSPROP_ENUMERATE, NULL))
+                if (!OBJ_DEFINE_PROPERTY(cx, obj, id, rval, NULL, NULL, JSPROP_ENUMERATE, NULL))
                     goto error;
             }
             regs.sp -= 2;
@@ -3575,7 +3580,7 @@
                                      JSMSG_BAD_SHARP_DEF, numBuf);
                 goto error;
             }
-            if (!obj->defineProperty(cx, id, rval, NULL, NULL, JSPROP_ENUMERATE, NULL))
+            if (!OBJ_DEFINE_PROPERTY(cx, obj, id, rval, NULL, NULL, JSPROP_ENUMERATE, NULL))
                 goto error;
           END_CASE(JSOP_DEFSHARP)
 
@@ -3586,7 +3591,7 @@
             if (!obj) {
                 rval = JSVAL_VOID;
             } else {
-                if (!obj->getProperty(cx, id, &rval))
+                if (!OBJ_GET_PROPERTY(cx, obj, id, &rval))
                     goto error;
             }
             if (!JSVAL_IS_OBJECT(rval)) {
@@ -3830,7 +3835,7 @@
             obj = JSVAL_TO_OBJECT(FETCH_OPND(-3));
             rval = FETCH_OPND(-1);
             FETCH_ELEMENT_ID(obj, -2, id);
-            if (!obj->setProperty(cx, id, &rval))
+            if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                 goto error;
             rval = FETCH_OPND(-1);
             regs.sp -= 2;
@@ -3842,7 +3847,7 @@
             lval = FETCH_OPND(-1);
             if (!js_FindXMLProperty(cx, lval, &obj, &id))
                 goto error;
-            if (!obj->getProperty(cx, id, &rval))
+            if (!OBJ_GET_PROPERTY(cx, obj, id, &rval))
                 goto error;
             STORE_OPND(-1, rval);
             if (op == JSOP_CALLXMLNAME)

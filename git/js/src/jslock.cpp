@@ -734,7 +734,7 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
      * passed to the JS_Get/SetReservedSlot APIs.
      */
     if (!OBJ_IS_NATIVE(obj))
-        return obj->getRequiredSlot(cx, slot);
+        return OBJ_GET_REQUIRED_SLOT(cx, obj, slot);
 
     /*
      * Native object locking is inlined here to optimize the single-threaded
@@ -827,7 +827,7 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
      * for the Get case.
      */
     if (!OBJ_IS_NATIVE(obj)) {
-        obj->setRequiredSlot(cx, slot, v);
+        OBJ_SET_REQUIRED_SLOT(cx, obj, slot, v);
         return;
     }
 
