@@ -85,7 +85,7 @@ Store.prototype = {
   applyIncoming: function BStore_applyIncoming(onComplete, record) {
     let fn = function(rec) {
       let self = yield;
-      if (rec.payload == null)
+      if (!rec.cleartext)
         this.remove(rec);
       else if (!this.itemExists(rec.id))
         this.create(rec);
