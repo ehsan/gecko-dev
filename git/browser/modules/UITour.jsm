@@ -255,11 +255,7 @@ this.UITour = {
     if (uri.schemeIs("chrome"))
       return true;
 
-    let allowedSchemes = new Set(["https"]);
-    if (!Services.prefs.getBoolPref("browser.uitour.requireSecure"))
-      allowedSchemes.add("http");
-
-    if (!allowedSchemes.has(uri.scheme))
+    if (!uri.schemeIs("https"))
       return false;
 
     this.importPermissions();

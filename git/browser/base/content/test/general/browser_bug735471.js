@@ -15,20 +15,24 @@ function test() {
   // Verify that about:preferences tab is displayed when
   // browser.preferences.inContent is set to true
   Services.prefs.setBoolPref("browser.preferences.inContent", true);
-
-  // Open a new tab.
-  whenNewTabLoaded(window, testPreferences);
-}
-
-function testPreferences() {
-  whenTabLoaded(gBrowser.selectedTab, function () {
-    is(Services.prefs.getBoolPref("browser.preferences.inContent"), true, "In-content prefs are enabled");
-    is(content.location.href, "about:preferences", "Checking if the preferences tab was opened");
-
-    gBrowser.removeCurrentTab();
-    Services.prefs.setBoolPref("browser.preferences.inContent", false);
-    openPreferences();
-  });
+    
+  gBrowser.tabContainer.addEventListener("TabOpen", function(aEvent) {
+    
+    gBrowser.tabContainer.removeEventListener("TabOpen", arguments.callee, true);
+    let browser = aEvent.originalTarget.linkedBrowser;
+    browser.addEventListener("load", function(aEvent) {
+      browser.removeEventListener("load", arguments.callee, true);
+      
+      is(Services.prefs.getBoolPref("browser.preferences.inContent"), true, "In-content prefs are enabled");
+      is(browser.contentWindow.location.href, "about:preferences", "Checking if the preferences tab was opened");
+      
+      gBrowser.removeCurrentTab();
+      Services.prefs.setBoolPref("browser.preferences.inContent", false);
+      openPreferences();
+      
+    }, true);
+  }, true);
+  
   
   let observer = {
     observe: function(aSubject, aTopic, aData) {

@@ -1208,7 +1208,7 @@ public class GeckoAppShell
                                         context.getResources().getString(R.string.share_title)); 
         }
 
-        final Uri uri = normalizeUriScheme(targetURI.indexOf(':') >= 0 ? Uri.parse(targetURI) : new Uri.Builder().scheme(targetURI).build());
+        final Uri uri = normalizeUriScheme(Uri.parse(targetURI));
         if (mimeType.length() > 0) {
             Intent intent = getIntentForActionString(action);
             intent.setDataAndType(uri, mimeType);

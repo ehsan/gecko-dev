@@ -32,12 +32,13 @@ function is_element_hidden(element, msg) {
   ok(is_hidden(element), msg);
 }
 
-function loadTestPage(callback, host = "https://example.com/") {
+function loadTestPage(callback, untrustedHost = false) {
    if (gTestTab)
     gBrowser.removeTab(gTestTab);
 
   let url = getRootDirectory(gTestPath) + "uitour.html";
-  url = url.replace("chrome://mochitests/content/", host);
+  if (untrustedHost)
+    url = url.replace("chrome://mochitests/content/", "http://example.com/");
 
   gTestTab = gBrowser.addTab(url);
   gBrowser.selectedTab = gTestTab;
@@ -54,8 +55,6 @@ function loadTestPage(callback, host = "https://example.com/") {
 
 function test() {
   Services.prefs.setBoolPref("browser.uitour.enabled", true);
-  let testUri = Services.io.newURI("http://example.com", null, null);
-  Services.perms.add(testUri, "uitour", Services.perms.ALLOW_ACTION);
 
   waitForExplicitFinish();
 
@@ -66,7 +65,6 @@ function test() {
       gBrowser.removeTab(gTestTab);
     delete window.gTestTab;
     Services.prefs.clearUserPref("browser.uitour.enabled", true);
-    Services.perms.remove("example.com", "uitour");
   });
 
   function done() {
@@ -100,41 +98,6 @@ function test() {
 }
 
 let tests = [
-  function test_untrusted_host(done) {
-    loadTestPage(function() {
-      let highlight = document.getElementById("UITourHighlight");
-      is_element_hidden(highlight, "Highlight should initially be hidden");
-
-      gContentAPI.showHighlight("urlbar");
-      is_element_hidden(highlight, "Highlight should not be shown on a untrusted host");
-
-      done();
-    }, "http://mochi.test:8888/");
-  },
-  function test_unsecure_host(done) {
-    loadTestPage(function() {
-      let highlight = document.getElementById("UITourHighlight");
-      is_element_hidden(highlight, "Highlight should initially be hidden");
-
-      gContentAPI.showHighlight("urlbar");
-      is_element_hidden(highlight, "Highlight should not be shown on a unsecure host");
-
-      done();
-    }, "http://example.com/");
-  },
-  function test_unsecure_host_override(done) {
-    Services.prefs.setBoolPref("browser.uitour.requireSecure", false);
-    loadTestPage(function() {
-      let highlight = document.getElementById("UITourHighlight");
-      is_element_hidden(highlight, "Highlight should initially be hidden");
-
-      gContentAPI.showHighlight("urlbar");
-      is_element_visible(highlight, "Highlight should be shown on a unsecure host when override pref is set");
-
-      Services.prefs.setBoolPref("browser.uitour.requireSecure", true);
-      done();
-    }, "http://example.com/");
-  },
   function test_disabled(done) {
     Services.prefs.setBoolPref("browser.uitour.enabled", false);
 
@@ -146,6 +109,17 @@ let tests = [
 
     Services.prefs.setBoolPref("browser.uitour.enabled", true);
     done();
+  },
+  function test_untrusted_host(done) {
+    loadTestPage(function() {
+      let highlight = document.getElementById("UITourHighlight");
+      is_element_hidden(highlight, "Highlight should initially be hidden");
+
+      gContentAPI.showHighlight("urlbar");
+      is_element_hidden(highlight, "Highlight should not be shown on a untrusted domain");
+
+      done();
+    }, true);
   },
   function test_highlight(done) {
     let highlight = document.getElementById("UITourHighlight");
