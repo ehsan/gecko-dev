@@ -235,14 +235,20 @@ mjit::Compiler::finishThisUp()
         branchPatches[i].jump.linkTo(label, &masm);
     }
 
+#ifdef JS_CPU_ARM
+    masm.forceFlushConstantPool();
+    stubcc.masm.forceFlushConstantPool();
+#endif
+    JaegerSpew(JSpew_Insns, "## Fast code (masm) size = %u, Slow code (stubcc) size = %u.\n", masm.size(), stubcc.size());
+
     JSC::ExecutablePool *execPool = getExecPool(masm.size() + stubcc.size());
     if (!execPool)
         return Compile_Abort;
 
     uint8 *result = (uint8 *)execPool->alloc(masm.size() + stubcc.size());
     JSC::ExecutableAllocator::makeWritable(result, masm.size() + stubcc.size());
-    memcpy(result, masm.buffer(), masm.size());
-    memcpy(result + masm.size(), stubcc.buffer(), stubcc.size());
+    masm.executableCopy(result);
+    stubcc.masm.executableCopy(result + masm.size());
 
     /* Build the pc -> ncode mapping. */
     void **nmap = (void **)cx->calloc(sizeof(void *) * (script->length + 1));
@@ -1102,7 +1108,7 @@ mjit::Compiler::generateMethod()
             // :FIXME: x64
             RegisterID reg = frame.allocReg();
             masm.loadPtr(Address(JSFrameReg, offsetof(JSStackFrame, argv)), reg);
-            masm.loadData32(Address(reg, int32(sizeof(Value)) * -2), reg);
+            masm.loadPayload(Address(reg, int32(sizeof(Value)) * -2), reg);
             masm.loadPtr(Address(reg, offsetof(JSObject, dslots)), reg);
             frame.freeReg(reg);
             frame.push(Address(reg, GET_UINT16(PC) * sizeof(Value)));
@@ -1605,7 +1611,7 @@ mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
     /* Get function private pointer. */
     Address funPrivate(data, offsetof(JSObject, fslots) +
                              JSSLOT_PRIVATE * sizeof(Value));
-    masm.loadData32(funPrivate, data);
+    masm.loadPayload(funPrivate, data);
 
     frame.takeReg(data);
     RegisterID t0 = frame.allocReg();
@@ -1697,7 +1703,7 @@ mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
         FrameEntry *fe = frame.peek(-int(argc + 1));
         Address thisv(frame.addressOf(fe));
         stubcc.masm.loadTypeTag(thisv, JSReturnReg_Type);
-        stubcc.masm.loadData32(thisv, JSReturnReg_Data);
+        stubcc.masm.loadPayload(thisv, JSReturnReg_Data);
         Jump primFix = stubcc.masm.jump();
         stubcc.crossJump(primFix, masm.label());
         invokeCallDone.linkTo(stubcc.masm.label(), &stubcc.masm);
@@ -1945,7 +1951,7 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
     Address slot(objReg, 1 << 24);
     frame.pop();
     masm.loadTypeTag(slot, shapeReg);
-    masm.loadData32(slot, objReg);
+    masm.loadPayload(slot, objReg);
     pic.objReg = objReg;
     frame.pushRegs(shapeReg, objReg);
     pic.storeBack = masm.label();
@@ -1994,7 +2000,7 @@ mjit::Compiler::jsop_getelem_pic(FrameEntry *obj, FrameEntry *id, RegisterID obj
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
     masm.loadTypeTag(slot, shapeReg);
-    masm.loadData32(slot, objReg);
+    masm.loadPayload(slot, objReg);
     pic.storeBack = masm.label();
     pic.objReg = objReg;
     pic.idReg = idReg;
@@ -2051,7 +2057,7 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
     uint32 thisvSlot = frame.frameDepth();
     Address thisv = Address(JSFrameReg, sizeof(JSStackFrame) + thisvSlot * sizeof(Value));
     masm.storeTypeTag(pic.typeReg, thisv);
-    masm.storeData32(pic.objReg, thisv);
+    masm.storePayload(pic.objReg, thisv);
     frame.freeReg(pic.typeReg);
 
     /* Guard on shape. */
@@ -2080,7 +2086,7 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
     masm.loadTypeTag(slot, shapeReg);
-    masm.loadData32(slot, objReg);
+    masm.loadPayload(slot, objReg);
     pic.storeBack = masm.label();
 
     stubcc.rejoin(Changes(2));
@@ -2126,7 +2132,7 @@ mjit::Compiler::jsop_callprop_str(JSAtom *atom)
     Jump notFun2 = masm.testFunction(Assembler::NotEqual, funReg);
 
     Address fslot(funReg, offsetof(JSObject, fslots) + JSSLOT_PRIVATE * sizeof(Value));
-    masm.loadData32(fslot, temp);
+    masm.loadPayload(fslot, temp);
     masm.load16(Address(temp, offsetof(JSFunction, flags)), temp);
     masm.and32(Imm32(JSFUN_THISP_STRING), temp);
     Jump noPrim = masm.branchTest32(Assembler::Zero, temp, temp);
@@ -2186,7 +2192,7 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
     masm.loadTypeTag(slot, shapeReg);
-    masm.loadData32(slot, objReg);
+    masm.loadPayload(slot, objReg);
     pic.objReg = objReg;
     pic.storeBack = masm.label();
 
@@ -2278,7 +2284,7 @@ mjit::Compiler::jsop_setprop(JSAtom *atom)
         vr.isConstant = false;
         vr.u.s.isTypeKnown = rhs->isTypeKnown();
         if (vr.u.s.isTypeKnown) {
-            vr.u.s.type.tag = rhs->getKnownTag();
+            vr.u.s.type.knownType = rhs->getKnownType();
         } else {
             vr.u.s.type.reg = frame.tempRegForType(rhs);
             frame.pinReg(vr.u.s.type.reg);
@@ -2324,10 +2330,10 @@ mjit::Compiler::jsop_setprop(JSAtom *atom)
         masm.storeValue(Valueify(vr.u.v), slot);
     } else {
         if (vr.u.s.isTypeKnown)
-            masm.storeTypeTag(ImmTag(vr.u.s.type.tag), slot);
+            masm.storeTypeTag(ImmType(vr.u.s.type.knownType), slot);
         else
             masm.storeTypeTag(vr.u.s.type.reg, slot);
-        masm.storeData32(vr.u.s.data, slot);
+        masm.storePayload(vr.u.s.data, slot);
     }
     frame.freeReg(objReg);
     frame.freeReg(shapeReg);
@@ -2389,7 +2395,7 @@ mjit::Compiler::jsop_bindname(uint32 index)
     pic.hotPathBegin = masm.label();
 
     Address parent(pic.objReg, offsetof(JSObject, fslots) + JSSLOT_PARENT * sizeof(jsval));
-    masm.loadData32(Address(JSFrameReg, offsetof(JSStackFrame, scopeChain)), pic.objReg);
+    masm.loadPayload(Address(JSFrameReg, offsetof(JSStackFrame, scopeChain)), pic.objReg);
 
     pic.shapeGuard = masm.label();
     Jump j = masm.branchPtr(Assembler::NotEqual, masm.payloadOf(parent), ImmPtr(0));
@@ -2443,7 +2449,7 @@ mjit::Compiler::jsop_bindname(uint32 index)
 {
     RegisterID reg = frame.allocReg();
     Address scopeChain(JSFrameReg, offsetof(JSStackFrame, scopeChain));
-    masm.loadData32(scopeChain, reg);
+    masm.loadPayload(scopeChain, reg);
 
     Address address(reg, offsetof(JSObject, fslots) + JSSLOT_PARENT * sizeof(jsval));
 
@@ -2480,7 +2486,7 @@ mjit::Compiler::jsop_this()
         stubcc.rejoin(Changes(1));
 
         RegisterID reg = frame.allocReg();
-        masm.loadData32(thisvAddr, reg);
+        masm.loadPayload(thisvAddr, reg);
         frame.pushTypedPayload(JSVAL_TYPE_OBJECT, reg);
     } else {
         frame.push(thisvAddr);
@@ -2691,7 +2697,7 @@ mjit::Compiler::iterNext()
 
     /* Get private from iter obj. :FIXME: X64 */
     Address privSlot(reg, offsetof(JSObject, fslots) + sizeof(Value) * JSSLOT_PRIVATE);
-    masm.loadData32(privSlot, T1);
+    masm.loadPayload(privSlot, T1);
 
     RegisterID T3 = frame.allocReg();
     RegisterID T4 = frame.allocReg();
@@ -2748,7 +2754,7 @@ mjit::Compiler::iterMore()
 
     /* Get private from iter obj. :FIXME: X64 */
     Address privSlot(reg, offsetof(JSObject, fslots) + sizeof(Value) * JSSLOT_PRIVATE);
-    masm.loadData32(privSlot, T1);
+    masm.loadPayload(privSlot, T1);
 
     /* Get props_cursor, test */
     RegisterID T2 = frame.allocReg();
@@ -2965,7 +2971,7 @@ mjit::Compiler::jsop_setgname(uint32 index)
             masm.storeTypeTag(ImmType(typeTag), address);
         else
             masm.storeTypeTag(typeReg, address);
-        masm.storeData32(dataReg, address);
+        masm.storePayload(dataReg, address);
     }
 
     if (objFe->isConstant())
@@ -3071,7 +3077,7 @@ mjit::Compiler::jsop_instanceof()
     Label loop = masm.label();
 
     /* Walk prototype chain, break out on NULL or hit. */
-    masm.loadData32(protoAddr, obj);
+    masm.loadPayload(protoAddr, obj);
     Jump isFalse2 = masm.branchTestPtr(Assembler::Zero, obj, obj);
     Jump isTrue = masm.branchPtr(Assembler::NotEqual, obj, proto);
     isTrue.linkTo(loop, &masm);

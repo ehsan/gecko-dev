@@ -318,7 +318,7 @@ mjit::Compiler::jsop_globalinc(JSOp op, uint32 index)
         Jump notInt = masm.testInt32(Assembler::NotEqual, addr);
         stubcc.linkExit(notInt, Uses(0));
         data = frame.allocReg();
-        masm.loadData32(addr, data);
+        masm.loadPayload(addr, data);
     }
 
     Jump ovf;
@@ -332,7 +332,7 @@ mjit::Compiler::jsop_globalinc(JSOp op, uint32 index)
     stubcc.masm.lea(addr, Registers::ArgReg1);
     stubcc.vpInc(op, depth);
 
-    masm.storeData32(data, addr);
+    masm.storePayload(data, addr);
 
     if (!post && !popped)
         frame.pushUntypedPayload(JSVAL_TYPE_INT32, data);
@@ -387,19 +387,19 @@ mjit::Compiler::jsop_equality(JSOp op, BoolStub stub, jsbytecode *target, JSOp f
 
             if ((op == JSOP_EQ && fused == JSOP_IFNE) ||
                 (op == JSOP_NE && fused == JSOP_IFEQ)) {
-                Jump j = masm.branch32(Assembler::Equal, reg, ImmTag(JSVAL_TAG_UNDEFINED));
+                Jump j = masm.branch32(Assembler::Equal, reg, ImmType(JSVAL_TYPE_UNDEFINED));
                 jumpAndTrace(j, target);
-                j = masm.branch32(Assembler::Equal, reg, ImmTag(JSVAL_TAG_NULL));
+                j = masm.branch32(Assembler::Equal, reg, ImmType(JSVAL_TYPE_NULL));
                 jumpAndTrace(j, target);
             } else {
-                Jump j = masm.branch32(Assembler::Equal, reg, ImmTag(JSVAL_TAG_UNDEFINED));
-                Jump j2 = masm.branch32(Assembler::NotEqual, reg, ImmTag(JSVAL_TAG_NULL));
+                Jump j = masm.branch32(Assembler::Equal, reg, ImmType(JSVAL_TYPE_UNDEFINED));
+                Jump j2 = masm.branch32(Assembler::NotEqual, reg, ImmType(JSVAL_TYPE_NULL));
                 jumpAndTrace(j2, target);
                 j.linkTo(masm.label(), &masm);
             }
         } else {
-            Jump j = masm.branch32(Assembler::Equal, reg, ImmTag(JSVAL_TAG_UNDEFINED));
-            Jump j2 = masm.branch32(Assembler::Equal, reg, ImmTag(JSVAL_TAG_NULL));
+            Jump j = masm.branch32(Assembler::Equal, reg, ImmType(JSVAL_TYPE_UNDEFINED));
+            Jump j2 = masm.branch32(Assembler::Equal, reg, ImmType(JSVAL_TYPE_NULL));
             masm.move(Imm32(op == JSOP_NE), reg);
             Jump j3 = masm.jump();
             j2.linkTo(masm.label(), &masm);
@@ -658,7 +658,7 @@ mjit::Compiler::jsop_not()
           {
             RegisterID data = frame.allocReg(Registers::SingleByteRegs);
             if (frame.shouldAvoidDataRemat(top))
-                masm.loadData32(frame.addressOf(top), data);
+                masm.loadPayload(frame.addressOf(top), data);
             else
                 masm.move(frame.tempRegForData(top), data);
 
@@ -707,7 +707,7 @@ mjit::Compiler::jsop_not()
 
     RegisterID data = frame.allocReg(Registers::SingleByteRegs);
     if (frame.shouldAvoidDataRemat(top))
-        masm.loadData32(frame.addressOf(top), data);
+        masm.loadPayload(frame.addressOf(top), data);
     else
         masm.move(frame.tempRegForData(top), data);
     RegisterID type = frame.tempRegForType(top);
@@ -1085,7 +1085,7 @@ mjit::Compiler::jsop_setelem()
 
         /* guard not a hole */
         Address slot(objReg, id->getValue().toInt32() * sizeof(Value));
-        Jump notHole = masm.branch32(Assembler::Equal, masm.tagOf(slot), ImmTag(JSVAL_TAG_MAGIC));
+        Jump notHole = masm.branch32(Assembler::Equal, masm.tagOf(slot), ImmType(JSVAL_TYPE_MAGIC));
         stubcc.linkExit(notHole, Uses(3));
 
         stubcc.leave();
@@ -1099,9 +1099,9 @@ mjit::Compiler::jsop_setelem()
         if (fe->isConstant()) {
             masm.storeValue(fe->getValue(), slot);
         } else {
-            masm.storeData32(frame.tempRegForData(fe), slot);
+            masm.storePayload(frame.tempRegForData(fe), slot);
             if (fe->isTypeKnown())
-                masm.storeTypeTag(ImmTag(fe->getKnownTag()), slot);
+                masm.storeTypeTag(ImmType(fe->getKnownType()), slot);
             else
                 masm.storeTypeTag(frame.tempRegForType(fe), slot);
         }
@@ -1114,7 +1114,7 @@ mjit::Compiler::jsop_setelem()
 
         /* guard not a hole */
         BaseIndex slot(objReg, idReg, Assembler::JSVAL_SCALE);
-        Jump notHole = masm.branch32(Assembler::Equal, masm.tagOf(slot), ImmTag(JSVAL_TAG_MAGIC));
+        Jump notHole = masm.branch32(Assembler::Equal, masm.tagOf(slot), ImmType(JSVAL_TYPE_MAGIC));
         stubcc.linkExit(notHole, Uses(3));
 
         stubcc.leave();
@@ -1128,9 +1128,9 @@ mjit::Compiler::jsop_setelem()
         if (fe->isConstant()) {
             masm.storeValue(fe->getValue(), slot);
         } else {
-            masm.storeData32(frame.tempRegForData(fe), slot);
+            masm.storePayload(frame.tempRegForData(fe), slot);
             if (fe->isTypeKnown())
-                masm.storeTypeTag(ImmTag(fe->getKnownTag()), slot);
+                masm.storeTypeTag(ImmType(fe->getKnownType()), slot);
             else
                 masm.storeTypeTag(frame.tempRegForType(fe), slot);
         }
@@ -1167,12 +1167,12 @@ mjit::Compiler::jsop_getelem_dense(FrameEntry *obj, FrameEntry *id, RegisterID o
 
         /* guard not a hole */
         Address slot(objReg, id->getValue().toInt32() * sizeof(Value));
-        Jump notHole = masm.branch32(Assembler::Equal, masm.tagOf(slot), ImmTag(JSVAL_TAG_MAGIC));
+        Jump notHole = masm.branch32(Assembler::Equal, masm.tagOf(slot), ImmType(JSVAL_TYPE_MAGIC));
         stubcc.linkExit(notHole, Uses(2));
 
         /* Load slot address into regs. */
         masm.loadTypeTag(slot, tmpReg);
-        masm.loadData32(slot, objReg);
+        masm.loadPayload(slot, objReg);
     } else {
         JS_ASSERT(idReg.isSet());
         Jump inRange = masm.branch32(Assembler::AboveOrEqual,
@@ -1182,11 +1182,11 @@ mjit::Compiler::jsop_getelem_dense(FrameEntry *obj, FrameEntry *id, RegisterID o
 
         /* guard not a hole */
         BaseIndex slot(objReg, idReg.getReg(), Assembler::JSVAL_SCALE);
-        Jump notHole = masm.branch32(Assembler::Equal, masm.tagOf(slot), ImmTag(JSVAL_TAG_MAGIC));
+        Jump notHole = masm.branch32(Assembler::Equal, masm.tagOf(slot), ImmType(JSVAL_TYPE_MAGIC));
         stubcc.linkExit(notHole, Uses(2));
 
         masm.loadTypeTag(slot, tmpReg);
-        masm.loadData32(slot, objReg);
+        masm.loadPayload(slot, objReg);
     }
     /* Postcondition: type must be in tmpReg, data must be in objReg. */
 

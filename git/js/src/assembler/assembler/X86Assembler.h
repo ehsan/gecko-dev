@@ -2170,6 +2170,11 @@ public:
         return copy;
     }
 
+    void* executableCopy(void* buffer)
+    {
+        return memcpy(buffer, m_formatter.buffer(), size());
+    }
+
 private:
 
     static void setPointer(void* where, void* value)
