@@ -825,11 +825,11 @@ nsresult
 PeerConnectionImpl::ConvertConstraints(
   const JS::Value& aConstraints, MediaConstraints* aObj, JSContext* aCx)
 {
-  JS::Rooted<JS::Value> mandatory(aCx), optional(aCx);
-  JS::Rooted<JSObject*> constraints(aCx, &aConstraints.toObject());
+  JS::Value mandatory, optional;
+  JSObject& constraints = aConstraints.toObject();
 
   // Mandatory constraints.  Note that we only care if the constraint array exists
-  if (!JS_GetProperty(aCx, constraints, "mandatory", mandatory.address())) {
+  if (!JS_GetProperty(aCx, &constraints, "mandatory", &mandatory)) {
     return NS_ERROR_FAILURE;
   }
   if (!mandatory.isNullOrUndefined()) {
@@ -837,14 +837,14 @@ PeerConnectionImpl::ConvertConstraints(
       return NS_ERROR_FAILURE;
     }
 
-    JS::Rooted<JSObject*> opts(aCx, &mandatory.toObject());
+    JSObject* opts = &mandatory.toObject();
     JS::AutoIdArray mandatoryOpts(aCx, JS_Enumerate(aCx, opts));
 
     // Iterate over each property.
     for (size_t i = 0; i < mandatoryOpts.length(); i++) {
-      JS::Rooted<JS::Value> option(aCx), optionName(aCx);
-      if (!JS_GetPropertyById(aCx, opts, mandatoryOpts[i], option.address()) ||
-          !JS_IdToValue(aCx, mandatoryOpts[i], optionName.address()) ||
+      JS::Value option, optionName;
+      if (!JS_GetPropertyById(aCx, opts, mandatoryOpts[i], &option) ||
+          !JS_IdToValue(aCx, mandatoryOpts[i], &optionName) ||
           // We only support boolean constraints for now.
           !option.isBoolean()) {
         return NS_ERROR_FAILURE;
@@ -859,7 +859,7 @@ PeerConnectionImpl::ConvertConstraints(
   }
 
   // Optional constraints.
-  if (!JS_GetProperty(aCx, constraints, "optional", optional.address())) {
+  if (!JS_GetProperty(aCx, &constraints, "optional", &optional)) {
     return NS_ERROR_FAILURE;
   }
   if (!optional.isNullOrUndefined()) {
@@ -867,26 +867,26 @@ PeerConnectionImpl::ConvertConstraints(
       return NS_ERROR_FAILURE;
     }
 
-    JS::Rooted<JSObject*> array(aCx, &optional.toObject());
+    JSObject* array = &optional.toObject();
     uint32_t length;
     if (!JS_GetArrayLength(aCx, array, &length)) {
       return NS_ERROR_FAILURE;
     }
     for (uint32_t i = 0; i < length; i++) {
-      JS::Rooted<JS::Value> element(aCx);
-      if (!JS_GetElement(aCx, array, i, element.address()) ||
+      JS::Value element;
+      if (!JS_GetElement(aCx, array, i, &element) ||
           !element.isObject()) {
         return NS_ERROR_FAILURE;
       }
-      JS::Rooted<JSObject*> opts(aCx, &element.toObject());
+      JSObject* opts = &element.toObject();
       JS::AutoIdArray optionalOpts(aCx, JS_Enumerate(aCx, opts));
       // Expect one property per entry.
       if (optionalOpts.length() != 1) {
         return NS_ERROR_FAILURE;
       }
-      JS::Rooted<JS::Value> option(aCx), optionName(aCx);
-      if (!JS_GetPropertyById(aCx, opts, optionalOpts[0], option.address()) ||
-          !JS_IdToValue(aCx, optionalOpts[0], optionName.address())) {
+      JS::Value option, optionName;
+      if (!JS_GetPropertyById(aCx, opts, optionalOpts[0], &option) ||
+          !JS_IdToValue(aCx, optionalOpts[0], &optionName)) {
         return NS_ERROR_FAILURE;
       }
       // Ignore constraints other than boolean, as that's all we support.

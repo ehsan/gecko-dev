@@ -4966,18 +4966,16 @@ nsIDocument::CreateAttributeNS(const nsAString& aNamespaceURI,
 static JSBool
 CustomElementConstructor(JSContext *aCx, unsigned aArgc, JS::Value* aVp)
 {
-  JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
+  JS::Value calleeVal = JS_CALLEE(aCx, aVp);
 
-  JS::Rooted<JSObject*> global(aCx,
-    JS_GetGlobalForObject(aCx, &args.callee()));
+  JSObject* global = JS_GetGlobalForObject(aCx, &calleeVal.toObject());
   nsCOMPtr<nsPIDOMWindow> window = do_QueryWrapper(aCx, global);
   MOZ_ASSERT(window, "Should have a non-null window");
 
   nsIDocument* document = window->GetDoc();
 
   // Function name is the type of the custom element.
-  JSString* jsFunName =
-    JS_GetFunctionId(JS_ValueToFunction(aCx, args.calleev()));
+  JSString* jsFunName = JS_GetFunctionId(JS_ValueToFunction(aCx, calleeVal));
   nsDependentJSString elemName;
   if (!elemName.init(aCx, jsFunName)) {
     return false;
@@ -4986,10 +4984,11 @@ CustomElementConstructor(JSContext *aCx, unsigned aArgc, JS::Value* aVp)
   nsCOMPtr<nsIContent> newElement;
   nsresult rv = document->CreateElem(elemName, nullptr, kNameSpaceID_XHTML,
                                      getter_AddRefs(newElement));
-  rv = nsContentUtils::WrapNative(aCx, global, newElement, newElement,
-                                  args.rval().address());
+  JS::Value v;
+  rv = nsContentUtils::WrapNative(aCx, global, newElement, newElement, &v);
   NS_ENSURE_SUCCESS(rv, false);
 
+  JS_SET_RVAL(aCx, aVp, v);
   return true;
 }
 
@@ -5047,18 +5046,17 @@ nsDocument::Register(JSContext* aCx, const nsAString& aName,
     rv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
   }
-  JS::Rooted<JSObject*> global(aCx, sgo->GetGlobalJSObject());
+  JSObject* global = sgo->GetGlobalJSObject();
 
   JSAutoCompartment ac(aCx, global);
 
-  JS::Handle<JSObject*> htmlProto(
-    HTMLElementBinding::GetProtoObject(aCx, global));
+  JSObject* htmlProto = HTMLElementBinding::GetProtoObject(aCx, global);
   if (!htmlProto) {
     rv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return nullptr;
   }
 
-  JS::Rooted<JSObject*> protoObject(aCx);
+  JSObject* protoObject;
   if (!aOptions.mPrototype) {
     protoObject = JS_NewObject(aCx, nullptr, htmlProto, nullptr);
     if (!protoObject) {
@@ -5069,14 +5067,14 @@ nsDocument::Register(JSContext* aCx, const nsAString& aName,
     // If a prototype is provided, we must check to ensure that it inherits
     // from HTMLElement.
     protoObject = aOptions.mPrototype;
-    if (!JS_WrapObject(aCx, protoObject.address())) {
+    if (!JS_WrapObject(aCx, &protoObject)) {
       rv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
 
     // Check the proto chain for HTMLElement prototype.
-    JS::Rooted<JSObject*> protoProto(aCx);
-    if (!JS_GetPrototype(aCx, protoObject, protoProto.address())) {
+    JSObject* protoProto;
+    if (!JS_GetPrototype(aCx, protoObject, &protoProto)) {
       rv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
@@ -5084,7 +5082,7 @@ nsDocument::Register(JSContext* aCx, const nsAString& aName,
       if (protoProto == htmlProto) {
         break;
       }
-      if (!JS_GetPrototype(aCx, protoProto, protoProto.address())) {
+      if (!JS_GetPrototype(aCx, protoProto, &protoProto)) {
         rv.Throw(NS_ERROR_UNEXPECTED);
         return nullptr;
       }
@@ -6576,7 +6574,7 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
   bool sameDocument = oldDocument == this;
 
   AutoJSContext cx;
-  JS::Rooted<JSObject*> newScope(cx, nullptr);
+  JSObject *newScope = nullptr;
   if (!sameDocument) {
     newScope = GetWrapper();
     if (!newScope && GetScopeObject() && GetScopeObject()->GetGlobalJSObject()) {
@@ -6584,11 +6582,11 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
       // irrelevant, given that we're passing aAllowWrapping = false, and
       // documents should always insist on being wrapped in an canonical
       // scope. But we try to pass something sane anyway.
-      JS::Rooted<JSObject*> global(cx, GetScopeObject()->GetGlobalJSObject());
+      JSObject *global = GetScopeObject()->GetGlobalJSObject();
 
-      JS::Rooted<JS::Value> v(cx);
-      rv = nsContentUtils::WrapNative(cx, global, this, this, v.address(),
-                                      nullptr, /* aAllowWrapping = */ false);
+      JS::Value v;
+      rv = nsContentUtils::WrapNative(cx, global, this, this, &v, nullptr,
+                                      /* aAllowWrapping = */ false);
       if (rv.Failed())
         return nullptr;
       newScope = &v.toObject();
@@ -11202,7 +11200,7 @@ nsIDocument::Evaluate(const nsAString& aExpression, nsINode* aContextNode,
 // This is just a hack around the fact that window.document is not
 // [Unforgeable] yet.
 bool
-nsIDocument::PostCreateWrapper(JSContext* aCx, JS::Handle<JSObject*> aNewObject)
+nsIDocument::PostCreateWrapper(JSContext* aCx, JSObject *aNewObject)
 {
   MOZ_ASSERT(IsDOMBinding());
 
@@ -11219,12 +11217,11 @@ nsIDocument::PostCreateWrapper(JSContext* aCx, JS::Handle<JSObject*> aNewObject)
 
   JSAutoCompartment ac(aCx, aNewObject);
 
-  JS::Rooted<JS::Value> winVal(aCx);
+  jsval winVal;
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
   nsresult rv = nsContentUtils::WrapNative(aCx, aNewObject, win,
                                            &NS_GET_IID(nsIDOMWindow),
-                                           winVal.address(),
-                                           getter_AddRefs(holder),
+                                           &winVal, getter_AddRefs(holder),
                                            false);
   if (NS_FAILED(rv)) {
     return Throw<true>(aCx, rv);

@@ -91,7 +91,7 @@ static const XPCOMFunctions kFrozenFunctions = {
 
     // these functions were added post 1.9
     &NS_CycleCollectorSuspect2,
-    nullptr
+    &NS_CycleCollectorForget2
 };
 
 EXPORT_XPCOM_API(nsresult)

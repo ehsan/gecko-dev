@@ -1134,12 +1134,6 @@ InitSystemMetrics()
   }
 
   metricResult =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars);
-  if (metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::overlay_scrollbars);
-  }
-
-  metricResult =
     LookAndFeel::GetInt(LookAndFeel::eIntID_MenuBarDrag);
   if (metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::menubar_drag);

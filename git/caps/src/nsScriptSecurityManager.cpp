@@ -1581,24 +1581,23 @@ nsScriptSecurityManager::CheckFunctionAccess(JSContext *aCx, void *aFunObj,
 {
     // This check is called for event handlers
     nsresult rv;
-    JS::Rooted<JSObject*> rootedFunObj(aCx, static_cast<JSObject*>(aFunObj));
     nsIPrincipal* subject =
-        GetFunctionObjectPrincipal(aCx, rootedFunObj, &rv);
+        GetFunctionObjectPrincipal(aCx, (JSObject *)aFunObj, &rv);
 
     // If subject is null, get a principal from the function object's scope.
     if (NS_SUCCEEDED(rv) && !subject)
     {
 #ifdef DEBUG
         {
-            JS_ASSERT(JS_ObjectIsFunction(aCx, rootedFunObj));
-            JS::Rooted<JSFunction*> fun(aCx, JS_GetObjectFunction(rootedFunObj));
+            JS_ASSERT(JS_ObjectIsFunction(aCx, (JSObject *)aFunObj));
+            JSFunction *fun = JS_GetObjectFunction((JSObject *)aFunObj);
             JSScript *script = JS_GetFunctionScript(aCx, fun);
 
             NS_ASSERTION(!script, "Null principal for non-native function!");
         }
 #endif
 
-        subject = doGetObjectPrincipal(rootedFunObj);
+        subject = doGetObjectPrincipal((JSObject*)aFunObj);
     }
 
     if (!subject)
@@ -1631,7 +1630,7 @@ nsScriptSecurityManager::CheckFunctionAccess(JSContext *aCx, void *aFunObj,
     nsIPrincipal* object = doGetObjectPrincipal(obj);
 
     if (!object)
-        return NS_ERROR_FAILURE;
+        return NS_ERROR_FAILURE;        
 
     bool subsumes;
     rv = subject->Subsumes(object, &subsumes);
@@ -1950,7 +1949,7 @@ nsScriptSecurityManager::GetScriptPrincipal(JSScript *script,
 // static
 nsIPrincipal*
 nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
-                                                    JS::Handle<JSObject*> obj,
+                                                    JSObject *obj,
                                                     nsresult *rv)
 {
     NS_PRECONDITION(rv, "Null out param");
@@ -1966,7 +1965,7 @@ nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
         return result;
     }
 
-    JS::Rooted<JSFunction*> fun(cx, JS_GetObjectFunction(obj));
+    JSFunction *fun = JS_GetObjectFunction(obj);
     JSScript *script = JS_GetFunctionScript(cx, fun);
 
     if (!script)

@@ -20,8 +20,6 @@
 
 #include <jni.h> // For accessing AudioDeviceAndroid java class
 
-#define AudioCaptureClass "org/webrtc/voiceengine/WebRTCAudioDevice"
-
 namespace webrtc
 {
 class EventWrapper;
@@ -34,6 +32,7 @@ class AudioDeviceAndroidJni : public AudioDeviceGeneric {
   ~AudioDeviceAndroidJni();
 
   static WebRtc_Word32 SetAndroidAudioDeviceObjects(void* javaVM,
+                                                    void* env,
                                                     void* context);
 
   virtual WebRtc_Word32 ActiveAudioLayer(

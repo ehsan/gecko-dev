@@ -255,13 +255,13 @@ js::CloneFunctionAtCallsite(JSContext *cx, HandleFunction fun, HandleScript scri
     if (!table.initialized() && !table.init())
         return NULL;
 
-    uint32_t offset = pc - script->code;
-    void* originalScript = script;
-    void* originalFun = fun;
-    SkipRoot skipScript(cx, &originalScript);
-    SkipRoot skipFun(cx, &originalFun);
+    Key key;
+    SkipRoot skipKey(cx, &key); /* Stop the analysis complaining about unrooted key. */
+    key.script = script;
+    key.offset = pc - script->code;
+    key.original = fun;
 
-    Table::AddPtr p = table.lookupForAdd(Key(fun, script, offset));
+    Table::AddPtr p = table.lookupForAdd(key);
     SkipRoot skipHash(cx, &p); /* Prevent the hash from being poisoned. */
     if (p)
         return p->value;
@@ -279,11 +279,11 @@ js::CloneFunctionAtCallsite(JSContext *cx, HandleFunction fun, HandleScript scri
     clone->nonLazyScript()->isCallsiteClone = true;
     clone->nonLazyScript()->setOriginalFunctionObject(fun);
 
-    Key key(fun, script, offset);
-
     /* Recalculate the hash if script or fun have been moved. */
-    if (script != originalScript || fun != originalFun) {
-        p = table.lookupForAdd(key);
+    if (key.script != script && key.original != fun) {
+        key.script = script;
+        key.original = fun;
+        Table::AddPtr p = table.lookupForAdd(key);
         JS_ASSERT(!p);
     }
 
@@ -487,38 +487,37 @@ PopulateReportBlame(JSContext *cx, JSErrorReport *report)
 }
 
 /*
- * Since memory has been exhausted, avoid the normal error-handling path which
- * allocates an error object, report and callstack. If code is running, simply
- * throw the static atom "out of memory". If code is not running, call the
- * error reporter directly.
- *
- * Furthermore, callers of js_ReportOutOfMemory (viz., malloc) assume a GC does
- * not occur, so GC must be avoided or suppressed.
+ * We don't post an exception in this case, since doing so runs into
+ * complications of pre-allocating an exception object which required
+ * running the Exception class initializer early etc.
+ * Instead we just invoke the errorReporter with an "Out Of Memory"
+ * type message, and then hope the process ends swiftly.
  */
 void
 js_ReportOutOfMemory(JSContext *cx)
 {
     cx->runtime->hadOutOfMemory = true;
 
-    if (JS_IsRunning(cx)) {
-        cx->setPendingException(StringValue(cx->names().outOfMemory));
-        return;
-    }
+    JSErrorReport report;
+    JSErrorReporter onError = cx->errorReporter;
 
-    /* Get the message for this error, but we don't expand any arguments. */
+    /* Get the message for this error, but we won't expand any arguments. */
     const JSErrorFormatString *efs =
         js_GetLocalizedErrorMessage(cx, NULL, NULL, JSMSG_OUT_OF_MEMORY);
     const char *msg = efs ? efs->format : "Out of memory";
 
     /* Fill out the report, but don't do anything that requires allocation. */
-    JSErrorReport report;
     PodZero(&report);
     report.flags = JSREPORT_ERROR;
     report.errorNumber = JSMSG_OUT_OF_MEMORY;
     PopulateReportBlame(cx, &report);
 
-    /* Report the error. */
-    if (JSErrorReporter onError = cx->errorReporter) {
+    /*
+     * We clear a pending exception, if any, now so the hook can replace the
+     * out-of-memory error by a script-catchable exception.
+     */
+    cx->clearPendingException();
+    if (onError) {
         AutoSuppressGC suppressGC(cx);
         onError(cx, msg, &report);
     }
@@ -1167,7 +1166,6 @@ JSContext::JSContext(JSRuntime *rt)
     iterValue(MagicValue(JS_NO_ITER_VALUE)),
 #ifdef JS_METHODJIT
     methodJitEnabled(false),
-    jitIsBroken(false),
 #endif
 #ifdef MOZ_TRACE_JSCALLS
     functionCallback(NULL),
@@ -1469,8 +1467,7 @@ void
 JSContext::updateJITEnabled()
 {
 #ifdef JS_METHODJIT
-    jitIsBroken = IsJITBrokenHere();
-    methodJitEnabled = (options_ & JSOPTION_METHODJIT) && !jitIsBroken;
+    methodJitEnabled = (options_ & JSOPTION_METHODJIT) && !IsJITBrokenHere();
 #endif
 }
 

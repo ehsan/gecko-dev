@@ -14,6 +14,8 @@
 
 using WebCore::DynamicsCompressor;
 
+const unsigned DEFAULT_NUMBER_OF_CHANNELS = 2;
+
 namespace mozilla {
 namespace dom {
 
@@ -46,7 +48,8 @@ public:
     , mRatio(12.f)
     , mAttack(0.003f)
     , mRelease(0.25f)
-    , mCompressor(new DynamicsCompressor(IdealAudioRate(), 2))
+    , mCompressor(new DynamicsCompressor(aNode->Context()->SampleRate(),
+                                         DEFAULT_NUMBER_OF_CHANNELS))
   {
   }
 
@@ -102,13 +105,6 @@ public:
       return;
     }
 
-    const uint32_t channelCount = aInput.mChannelData.Length();
-    if (mCompressor->numberOfChannels() != channelCount) {
-      // Create a new compressor object with a new channel count
-      mCompressor = new WebCore::DynamicsCompressor(IdealAudioRate(),
-                                                    aInput.mChannelData.Length());
-    }
-
     TrackTicks pos = aStream->GetCurrentPosition();
     mCompressor->setParameterValue(DynamicsCompressor::ParamThreshold,
                                    mThreshold.GetValueAtTime(pos));
@@ -121,7 +117,7 @@ public:
     mCompressor->setParameterValue(DynamicsCompressor::ParamRelease,
                                    mRelease.GetValueAtTime(pos));
 
-    AllocateAudioBlock(channelCount, aOutput);
+    AllocateAudioBlock(DEFAULT_NUMBER_OF_CHANNELS, aOutput);
     mCompressor->process(&aInput, aOutput, aInput.GetDuration());
 
     SendReductionParamToMainThread(aStream,
@@ -182,7 +178,7 @@ private:
 
 DynamicsCompressorNode::DynamicsCompressorNode(AudioContext* aContext)
   : AudioNode(aContext,
-              2,
+              DEFAULT_NUMBER_OF_CHANNELS,
               ChannelCountMode::Explicit,
               ChannelInterpretation::Speakers)
   , mThreshold(new AudioParam(this, SendThresholdToStream, -24.f))

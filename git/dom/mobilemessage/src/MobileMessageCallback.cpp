@@ -54,15 +54,14 @@ MobileMessageCallback::NotifySuccess(nsISupports *aMessage)
   AutoPushJSContext cx(scriptContext->GetNativeContext());
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
-  JS::Rooted<JSObject*> global(cx, scriptContext->GetNativeGlobal());
+  JSObject* global = scriptContext->GetNativeGlobal();
   NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
 
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, global);
 
-  JS::Rooted<JS::Value> wrappedMessage(cx);
-  rv = nsContentUtils::WrapNative(cx, global, aMessage,
-                                  wrappedMessage.address());
+  JS::Value wrappedMessage;
+  rv = nsContentUtils::WrapNative(cx, global, aMessage, &wrappedMessage);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NotifySuccess(wrappedMessage);

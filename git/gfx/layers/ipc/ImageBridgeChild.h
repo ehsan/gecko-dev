@@ -244,10 +244,6 @@ public:
                              TextureIdentifier aTextureId,
                              SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
 
-  virtual void UpdateTextureNoSwap(CompositableClient* aCompositable,
-                                   TextureIdentifier aTextureId,
-                                   SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
-
   /**
    * Communicate the picture rect of a YUV image in aLayer to the compositor
    */

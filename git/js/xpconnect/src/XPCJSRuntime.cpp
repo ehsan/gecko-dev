@@ -2496,6 +2496,8 @@ CompartmentNameCallback(JSRuntime *rt, JSCompartment *comp,
     memcpy(buf, name.get(), name.Length() + 1);
 }
 
+bool XPCJSRuntime::gXBLScopesEnabled;
+
 static bool
 PreserveWrapper(JSContext *cx, JSObject *objArg)
 {
@@ -2666,6 +2668,10 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
 #endif
 
     DOM_InitInterfaces();
+    Preferences::AddBoolVarCache(&gXBLScopesEnabled,
+                                 "dom.xbl_scopes",
+                                 false);
+
 
     // these jsids filled in later when we have a JSContext to work with.
     mStrIDs[0] = JSID_VOID;

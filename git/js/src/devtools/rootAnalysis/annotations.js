@@ -2,7 +2,6 @@
 
 "use strict";
 
-// Ignore calls made through these function pointers
 var ignoreIndirectCalls = {
     "mallocSizeOf" : true,
     "aMallocSizeOf" : true,
@@ -11,7 +10,9 @@ var ignoreIndirectCalls = {
     "__convf" : true,
     "prerrortable.c:callback_newtable" : true,
     "mozalloc_oom.cpp:void (* gAbortHandler)(size_t)" : true,
+    "JSObject* js::GetWeakmapKeyDelegate(JSObject*)" : true, // FIXME: mark with AutoAssertNoGC instead
 };
+
 
 function indirectCallCannotGC(caller, name)
 {
@@ -31,7 +32,7 @@ function indirectCallCannotGC(caller, name)
     return false;
 }
 
-// Ignore calls through functions pointers with these types
+// classes to ignore indirect calls on.
 var ignoreClasses = {
     "JSTracer" : true,
     "JSStringFinalizer" : true,
@@ -43,8 +44,6 @@ var ignoreClasses = {
     "_MD_IOVector" : true,
 };
 
-// Ignore calls through TYPE.FIELD, where TYPE is the class or struct name containing
-// a function pointer field named FIELD.
 var ignoreCallees = {
     "js::Class.trace" : true,
     "js::Class.finalize" : true,
@@ -97,13 +96,11 @@ function ignoreEdgeUse(edge, variable)
     return false;
 }
 
-// Ignore calls of these functions (so ignore any stack containing these)
 var ignoreFunctions = {
     "ptio.c:pt_MapError" : true,
     "PR_ExplodeTime" : true,
     "PR_ErrorInstallTable" : true,
-    "PR_SetThreadPrivate" : true,
-    "JSObject* js::GetWeakmapKeyDelegate(JSObject*)" : true, // FIXME: mark with AutoAssertNoGC instead
+    "PR_SetThreadPrivate" : true
 };
 
 function ignoreGCFunction(fun)

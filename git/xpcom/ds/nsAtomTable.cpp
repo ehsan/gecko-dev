@@ -299,10 +299,12 @@ NS_PurgeAtomTable()
 AtomImpl::AtomImpl(const nsAString& aString, PLDHashNumber aKeyHash)
 {
   mLength = aString.Length();
-  nsRefPtr<nsStringBuffer> buf = nsStringBuffer::FromString(aString);
+  nsStringBuffer* buf = nsStringBuffer::FromString(aString);
   if (buf) {
+    buf->AddRef();
     mString = static_cast<PRUnichar*>(buf->Data());
-  } else {
+  }
+  else {
     buf = nsStringBuffer::Alloc((mLength + 1) * sizeof(PRUnichar));
     mString = static_cast<PRUnichar*>(buf->Data());
     CopyUnicodeTo(aString, 0, mString, mLength);
@@ -317,9 +319,6 @@ AtomImpl::AtomImpl(const nsAString& aString, PLDHashNumber aKeyHash)
   NS_ASSERTION(buf && buf->StorageSize() >= (mLength+1) * sizeof(PRUnichar),
                "enough storage");
   NS_ASSERTION(Equals(aString), "correct data");
-
-  // Take ownership of buffer
-  buf.forget();
 }
 
 AtomImpl::AtomImpl(nsStringBuffer* aStringBuffer, uint32_t aLength,

@@ -158,7 +158,7 @@ typedef struct XPCOMFunctions{
     DestroyXPTCallStubFunc destroyXPTCallStubFunc;
     InvokeByIndexFunc invokeByIndexFunc;
     CycleCollectorFunc cycleSuspectFunc; // obsolete: use cycleSuspect2Func
-    CycleCollectorFunc cycleForgetFunc; // obsolete
+    CycleCollectorFunc cycleForgetFunc; // obsolete: use cycleForget2Func
     StringSetIsVoidFunc stringSetIsVoid;
     StringGetIsVoidFunc stringGetIsVoid;
     CStringSetIsVoidFunc cstringSetIsVoid;
@@ -166,7 +166,7 @@ typedef struct XPCOMFunctions{
 
     // Added for Mozilla 1.9.1
     CycleCollectorSuspect2Func cycleSuspect2Func;
-    CycleCollectorForget2Func cycleForget2Func; // obsolete
+    CycleCollectorForget2Func cycleForget2Func;
 
 } XPCOMFunctions;
 

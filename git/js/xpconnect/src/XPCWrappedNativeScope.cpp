@@ -160,7 +160,8 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
     // In addition to being pref-controlled, we also disable XBL scopes for
     // remote XUL domains, _except_ if we have an additional pref override set.
     nsIPrincipal *principal = GetPrincipal();
-    mAllowXBLScope = !RemoteXULForbidsXBLScope(principal);
+    mAllowXBLScope = XPCJSRuntime::Get()->XBLScopesEnabled() &&
+                     !RemoteXULForbidsXBLScope(principal);
 
     // Determine whether to use an XBL scope.
     mUseXBLScope = mAllowXBLScope;

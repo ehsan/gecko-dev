@@ -299,7 +299,6 @@ struct NamedConstructor
  * global is used as the parent of the interface object and the interface
  *        prototype object
  * protoProto is the prototype to use for the interface prototype object.
- * interfaceProto is the prototype to use for the interface object.
  * protoClass is the JSClass to use for the interface prototype object.
  *            This is null if we should not create an interface prototype
  *            object.
@@ -332,10 +331,8 @@ struct NamedConstructor
  * |name|, which must also be non-null.
  */
 void
-CreateInterfaceObjects(JSContext* cx, JS::Handle<JSObject*> global,
-                       JS::Handle<JSObject*> protoProto,
+CreateInterfaceObjects(JSContext* cx, JSObject* global, JSObject* protoProto,
                        JSClass* protoClass, JSObject** protoCache,
-                       JS::Handle<JSObject*> interfaceProto,
                        JSClass* constructorClass, const JSNativeHolder* constructor,
                        unsigned ctorNargs, const NamedConstructor* namedConstructors,
                        JSObject** constructorCache, const DOMClass* domClass,
@@ -1178,7 +1175,7 @@ WrapCallThisObject(JSContext* cx, JS::Handle<JSObject*> scope, const T& p)
   // Callbacks are nsISupports, so WrapNativeParent will just happily wrap them
   // up as an nsISupports XPCWrappedNative... which is not at all what we want.
   // So we need to special-case them.
-  JS::Rooted<JSObject*> obj(cx, GetJSObjectFromCallback(p));
+  JSObject* obj = GetJSObjectFromCallback(p);
   if (!obj) {
     // WrapNativeParent is a bit of a Swiss army knife that will
     // wrap anything for us.
@@ -1189,7 +1186,7 @@ WrapCallThisObject(JSContext* cx, JS::Handle<JSObject*> scope, const T& p)
   }
 
   // But all that won't necessarily put things in the compartment of cx.
-  if (!JS_WrapObject(cx, obj.address())) {
+  if (!JS_WrapObject(cx, &obj)) {
     return nullptr;
   }
 

@@ -71,7 +71,7 @@ struct CallsiteCloneKey {
     /* The offset of the call. */
     uint32_t offset;
 
-    CallsiteCloneKey(JSFunction *f, JSScript *s, uint32_t o) : original(f), script(s), offset(o) {}
+    CallsiteCloneKey() { mozilla::PodZero(this); }
 
     typedef CallsiteCloneKey Lookup;
 
@@ -1745,8 +1745,7 @@ struct JSContext : js::ContextFriendFields,
     js::Value           iterValue;
 
 #ifdef JS_METHODJIT
-    bool methodJitEnabled;
-    bool jitIsBroken;
+    bool                 methodJitEnabled;
 
     js::mjit::JaegerRuntime &jaegerRuntime() { return runtime->jaegerRuntime(); }
 #endif
