@@ -38,7 +38,6 @@ function whenHighlighting() {
     "After highlighting a node, it should be highlighted. D'oh.");
 
   executeSoon(function() {
-    Services.obs.removeObserver(whenHighlighting, HIGHLIGHTING);
     Services.obs.addObserver(whenUnhighlighting, UNHIGHLIGHTING, false);
     presenter.highlightNodeAt(-1, -1);
   });
@@ -51,13 +50,14 @@ function whenUnhighlighting() {
     "After unhighlighting a node, it shouldn't be highlighted anymore. D'oh.");
 
   executeSoon(function() {
-    Services.obs.removeObserver(whenUnhighlighting, UNHIGHLIGHTING);
     Services.obs.addObserver(cleanup, DESTROYED, false);
     InspectorUI.closeInspectorUI();
   });
 }
 
 function cleanup() {
+  Services.obs.removeObserver(whenHighlighting, HIGHLIGHTING);
+  Services.obs.removeObserver(whenUnhighlighting, UNHIGHLIGHTING);
   Services.obs.removeObserver(cleanup, DESTROYED);
   gBrowser.removeCurrentTab();
   finish();

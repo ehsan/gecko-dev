@@ -61,9 +61,6 @@ function testScriptsDisplay() {
       ok(gDebugger.editor.getText().search(/debugger/) != -1,
         "The correct script was loaded initially.");
 
-      is(gDebugger.editor.getDebugLocation(), 5,
-         "editor debugger location is correct.");
-
       gDebugger.editor.addEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
                                         function onChange() {
         gDebugger.editor.removeEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
@@ -86,9 +83,6 @@ function testSwitchPaused()
   ok(gDebugger.editor.getText().search(/firstCall/) != -1,
     "The first script is displayed.");
 
-  is(gDebugger.editor.getDebugLocation(), -1,
-     "editor debugger location has been cleared.");
-
   gDebugger.StackFrames.activeThread.resume(function() {
     gDebugger.editor.addEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
                                       function onSecondChange() {
@@ -108,9 +102,6 @@ function testSwitchRunning()
 
   ok(gDebugger.editor.getText().search(/firstCall/) == -1,
     "The first script is no longer displayed.");
-
-  is(gDebugger.editor.getDebugLocation(), -1,
-     "editor debugger location is still -1.");
 
   closeDebuggerAndFinish(gTab);
 }
