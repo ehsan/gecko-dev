@@ -132,6 +132,7 @@ struct TypeInferenceSizes
 {
     size_t typeScripts;
     size_t typeResults;
+    size_t analysisPool;
     size_t pendingArrays;
     size_t allocationSiteTables;
     size_t arrayTypeTables;
@@ -142,6 +143,7 @@ struct TypeInferenceSizes
     void add(TypeInferenceSizes &sizes) {
         this->typeScripts          += sizes.typeScripts;
         this->typeResults          += sizes.typeResults;
+        this->analysisPool         += sizes.analysisPool;
         this->pendingArrays        += sizes.pendingArrays;
         this->allocationSiteTables += sizes.allocationSiteTables;
         this->arrayTypeTables      += sizes.arrayTypeTables;

@@ -541,16 +541,14 @@ public:
   void PassNullableUnionWithDefaultValue11(const Nullable<UnrestrictedFloatOrString>& arg);
   void PassNullableUnionWithDefaultValue12(const Nullable<UnrestrictedFloatOrString>& arg);
 
-  void ReceiveUnion(CanvasPatternOrCanvasGradientReturnValue&);
-  void ReceiveUnion2(JSContext*, ObjectOrLongReturnValue&);
-  void ReceiveUnionContainingNull(CanvasPatternOrNullOrCanvasGradientReturnValue&);
-  void ReceiveNullableUnion(Nullable<CanvasPatternOrCanvasGradientReturnValue>&);
-  void ReceiveNullableUnion2(JSContext*, Nullable<ObjectOrLongReturnValue>&);
-  void GetWritableUnion(CanvasPatternOrCanvasGradientReturnValue&);
+  void ReceiveUnion(const CanvasPatternOrCanvasGradientReturnValue&);
+  void ReceiveUnionContainingNull(const CanvasPatternOrNullOrCanvasGradientReturnValue&);
+  void ReceiveNullableUnion(const Nullable<CanvasPatternOrCanvasGradientReturnValue>&);
+  void GetWritableUnion(const CanvasPatternOrCanvasGradientReturnValue&);
   void SetWritableUnion(const CanvasPatternOrCanvasGradient&);
-  void GetWritableUnionContainingNull(CanvasPatternOrNullOrCanvasGradientReturnValue&);
+  void GetWritableUnionContainingNull(const CanvasPatternOrNullOrCanvasGradientReturnValue&);
   void SetWritableUnionContainingNull(const CanvasPatternOrNullOrCanvasGradient&);
-  void GetWritableNullableUnion(Nullable<CanvasPatternOrCanvasGradientReturnValue>&);
+  void GetWritableNullableUnion(const Nullable<CanvasPatternOrCanvasGradientReturnValue>&);
   void SetWritableNullableUnion(const Nullable<CanvasPatternOrCanvasGradient>&);
 
   // Date types

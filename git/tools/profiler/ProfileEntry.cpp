@@ -299,16 +299,16 @@ void ThreadProfile::ToStreamAsJSON(std::ostream& stream)
   b.DeleteObject(profile);
 }
 
-JSObject* ThreadProfile::ToJSObject(JSContext *aCx)
+JSCustomObject* ThreadProfile::ToJSObject(JSContext *aCx)
 {
   JSObjectBuilder b(aCx);
-  JS::RootedObject profile(aCx, b.CreateObject());
+  JSCustomObject *profile = b.CreateObject();
   BuildJSObject(b, profile);
+
   return profile;
 }
 
-template <typename Builder>
-void ThreadProfile::BuildJSObject(Builder& b, typename Builder::ObjectHandle profile) {
+void ThreadProfile::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile) {
 
   // Thread meta data
   if (XRE_GetProcessType() == GeckoProcessType_Plugin) {
@@ -320,12 +320,12 @@ void ThreadProfile::BuildJSObject(Builder& b, typename Builder::ObjectHandle pro
 
   b.DefineProperty(profile, "tid", mThreadId);
 
-  typename Builder::RootedArray samples(b.context(), b.CreateArray());
+  JSCustomArray *samples = b.CreateArray();
   b.DefineProperty(profile, "samples", samples);
 
-  typename Builder::RootedObject sample(b.context());
-  typename Builder::RootedArray frames(b.context());
-  typename Builder::RootedArray marker(b.context());
+  JSCustomObject *sample = nullptr;
+  JSCustomArray *frames = nullptr;
+  JSCustomArray *marker = nullptr;
 
   int readPos = mReadPos;
   while (readPos != mLastFlushPos) {
@@ -391,7 +391,7 @@ void ThreadProfile::BuildJSObject(Builder& b, typename Builder::ObjectHandle pro
       case 'l':
         {
           if (sample) {
-            typename Builder::RootedObject frame(b.context(), b.CreateObject());
+            JSCustomObject *frame = b.CreateObject();
             if (entry.mTagName == 'l') {
               // Bug 753041
               // We need a double cast here to tell GCC that we don't want to sign
@@ -416,11 +416,6 @@ void ThreadProfile::BuildJSObject(Builder& b, typename Builder::ObjectHandle pro
     readPos = (readPos + incBy) % mEntrySize;
   }
 }
-
-template void ThreadProfile::BuildJSObject<JSObjectBuilder>(JSObjectBuilder& b,
-                                                            JS::HandleObject profile);
-template void ThreadProfile::BuildJSObject<JSCustomObjectBuilder>(JSCustomObjectBuilder& b,
-                                                                  JSCustomObject *profile);
 
 PseudoStack* ThreadProfile::GetPseudoStack()
 {

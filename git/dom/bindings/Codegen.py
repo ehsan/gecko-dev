@@ -808,8 +808,11 @@ def UnionTypes(descriptors, dictionaries, callbacks, config):
                                              config)
             # FIXME: Unions are broken in workers.  See bug 809899.
             unionStructs[name] = CGUnionStruct(t, providers[0])
-            unionReturnValues[name] = CGUnionStruct(t, providers[0],
-                                                    isReturnValue=True)
+            # Unions cannot contain JSObject*.
+            if not any(member.isObject() or member.isSpiderMonkeyInterface() for member in t.flatMemberTypes):
+                unionReturnValues[name] = CGUnionStruct(t,
+                                                        providers[0],
+                                                        isReturnValue=True)
 
             for f in t.flatMemberTypes:
                 f = f.unroll()
@@ -2737,9 +2740,8 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
         return templateBody
 
     # A helper function for converting things that look like a JSObject*.
-    def handleJSObjectType(type, isMember, isInUnionReturnValue,
-                           failureCode):
-        if not isMember and not isInUnionReturnValue:
+    def handleJSObjectType(type, isMember, failureCode):
+        if not isMember:
             if isOptional:
                 # We have a specialization of Optional that will use a
                 # Rooted for the storage here.
@@ -2748,8 +2750,8 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
                 declType = CGGeneric("JS::Rooted<JSObject*>")
         else:
             assert (isMember == "Sequence" or isMember == "Variadic" or
-                    isMember == "Dictionary" or isInUnionReturnValue)
-            # We'll get traced by the sequence or dictionary or union tracer
+                    isMember == "Dictionary")
+            # We'll get traced by the sequence or dictionary tracer
             declType = CGGeneric("JSObject*")
         templateBody = "${declName} = &${val}.toObject();"
         setToNullCode = "${declName} = nullptr;"
@@ -3137,8 +3139,7 @@ for (uint32_t i = 0; i < length; ++i) {
         if descriptor.nativeType == 'JSObject':
             # XXXbz Workers code does this sometimes
             assert descriptor.workers
-            return handleJSObjectType(type, isMember, isInUnionReturnValue,
-                                      failureCode)
+            return handleJSObjectType(type, isMember, failureCode)
 
         if (descriptor.interface.isCallback() and
             (descriptor.interface.identifier.name != "EventListener" or
@@ -3300,7 +3301,7 @@ for (uint32_t i = 0; i < length; ++i) {
              CGIndenter(onFailureBadType(failureCode, type.name)).define()))
         template = wrapObjectTemplate(template, type, "${declName}.SetNull()",
                                       failureCode)
-        if not isMember and not isInUnionReturnValue:
+        if not isMember:
             # This is a bit annoying.  In a union we don't want to have a
             # holder, since unions don't support that.  But if we're optional we
             # want to have a holder, so that the callee doesn't see
@@ -3571,8 +3572,7 @@ for (uint32_t i = 0; i < length; ++i) {
 
     if type.isObject():
         assert not isEnforceRange and not isClamp
-        return handleJSObjectType(type, isMember, isInUnionReturnValue,
-                                  failureCode)
+        return handleJSObjectType(type, isMember, failureCode)
 
     if type.isDictionary():
         if failureCode is not None and not isDefinitelyObject:
@@ -4486,24 +4486,15 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
             else:
                 result = CGTemplatedType("RootedDictionary", result)
             resultArgs = "cx"
-        else:
-            if nullable:
-                result = CGTemplatedType("Nullable", result)
+        elif nullable:
+            result = CGTemplatedType("Nullable", result)
             resultArgs = None
         return result, True, None, resultArgs
     if returnType.isUnion():
         result = CGGeneric(returnType.unroll().name + "ReturnValue")
-        if not isMember and typeNeedsRooting(returnType, descriptorProvider):
-            if returnType.nullable():
-                result = CGTemplatedType("NullableRootedUnion", result)
-            else:
-                result = CGTemplatedType("RootedUnion", result)
-            resultArgs = "cx"
-        else:
-            if returnType.nullable():
-                result = CGTemplatedType("Nullable", result)
-            resultArgs = None
-        return result, True, None, resultArgs
+        if returnType.nullable():
+            result = CGTemplatedType("Nullable", result)
+        return result, True, None, None
     if returnType.isDate():
         result = CGGeneric("Date")
         if returnType.nullable():
@@ -4720,12 +4711,11 @@ def wrapTypeIntoCurrentCompartment(type, value, isMember=True):
     if type.isUnion():
         memberWraps = []
         for member in type.flatMemberTypes:
-            memberName = getUnionMemberName(member)
             memberWrap = wrapTypeIntoCurrentCompartment(
-               member, "%s.GetAs%s()" % (value, memberName))
+               member,
+               "%s.%s" % (value, getUnionMemberName(member)))
             if memberWrap:
-                memberWrap = CGIfWrapper(
-                    memberWrap, "%s.Is%s()" % (value, memberName))
+                memberWrap = CGIfWrapper(memberWrap, "mType == %s" % member)
                 memberWraps.append(memberWrap)
         return CGList(memberWraps, "else ") if len(memberWraps) != 0 else None
 
@@ -6144,8 +6134,7 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider, isReturnValue=
 
     name = getUnionMemberName(type)
 
-    ctorNeedsCx = type.isSpiderMonkeyInterface() and not isReturnValue
-    ctorArgs = "cx" if ctorNeedsCx else ""
+    ctorArgs = "cx" if type.isSpiderMonkeyInterface() else ""
 
     tryNextCode = ("tryNext = true;\n"
                    "return true;")
@@ -6167,12 +6156,8 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider, isReturnValue=
     externalType = getUnionAccessorSignatureType(type, descriptorProvider).define()
 
     if type.isObject():
-        if isReturnValue:
-            body = ("mValue.mObject.SetValue(obj);\n"
-                    "mType = eObject;")
-        else:
-            body = ("mUnion.mValue.mObject.SetValue(cx, obj);\n"
-                    "mUnion.mType = mUnion.eObject;")
+        body = ("mUnion.mValue.mObject.SetValue(cx, obj);\n"
+                "mUnion.mType = mUnion.eObject;")
         setter = ClassMethod("SetToObject", "void",
                              [Argument("JSContext*", "cx"),
                               Argument("JSObject*", "obj")],
@@ -6208,7 +6193,7 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider, isReturnValue=
                 "setter": setter,
                 "holderType": conversionInfo.holderType.define() if conversionInfo.holderType else None,
                 "ctorArgs": ctorArgs,
-                "ctorArgList": [Argument("JSContext*", "cx")] if ctorNeedsCx else []
+                "ctorArgList": [Argument("JSContext*", "cx")] if type.isSpiderMonkeyInterface() else []
                 }
 
 def mapTemplate(template, templateVarArray):
@@ -6240,7 +6225,6 @@ class CGUnionStruct(CGThing):
         enumValues = ["eUninitialized"]
         toJSValCases = [CGCase("eUninitialized", CGGeneric("return false;"))]
         destructorCases = [CGCase("eUninitialized", None)]
-        traceCases = []
         unionValues = []
         if self.type.hasNullableType:
             enumValues.append("eNull")
@@ -6258,7 +6242,7 @@ class CGUnionStruct(CGThing):
             vars = getUnionTypeTemplateVars(self.type,
                                             t, self.descriptorProvider,
                                             isReturnValue=self.isReturnValue)
-            if vars["name"] != "Object" or self.isReturnValue:
+            if vars["name"] != "Object":
                 body=string.Template("mType = e${name};\n"
                                      "return mValue.m${name}.SetValue(${ctorArgs});").substitute(vars)
                 # bodyInHeader must be false for return values because they own
@@ -6295,20 +6279,15 @@ class CGUnionStruct(CGThing):
                                        const=True,
                                        bodyInHeader=True,
                                        body=body))
-
-            body = string.Template('MOZ_ASSERT(Is${name}(), "Wrong type!");\n'
-                                   'return const_cast<${structType}&>(mValue.m${name}.Value());').substitute(vars)
-            if self.isReturnValue:
-                getterReturnType = "%s&" % vars["structType"]
-            else:
-                getterReturnType = vars["externalType"]
-            methods.append(ClassMethod("GetAs" + vars["name"],
-                                       getterReturnType,
-                                       [],
-                                       const=True,
-                                       bodyInHeader=True,
-                                       body=body))
-
+            if not self.isReturnValue:
+                body = string.Template('MOZ_ASSERT(Is${name}(), "Wrong type!");\n'
+                                       'return const_cast<${structType}&>(mValue.m${name}.Value());').substitute(vars)
+                methods.append(ClassMethod("GetAs" + vars["name"],
+                                           vars["externalType"],
+                                           [],
+                                           const=True,
+                                           bodyInHeader=True,
+                                           body=body))
             unionValues.append(string.Template("UnionMember<${structType} > "
                                                "m${name}").substitute(vars))
             enumValues.append("e" + vars["name"])
@@ -6318,19 +6297,6 @@ class CGUnionStruct(CGThing):
             destructorCases.append(CGCase("e" + vars["name"],
                                           CGGeneric("Destroy%s();"
                                                      % vars["name"])))
-            if self.isReturnValue and typeNeedsRooting(t, self.descriptorProvider):
-                if t.isObject():
-                    traceCases.append(
-                        CGCase("e" + vars["name"],
-                               CGGeneric('JS_CallObjectTracer(trc, %s, "%s");' %
-                                         ("&mValue.m" + vars["name"] + ".Value()",
-                                          "mValue.m" + vars["name"]))))
-                else:
-                    assert t.isSpiderMonkeyInterface()
-                    traceCases.append(
-                        CGCase("e" + vars["name"],
-                               CGGeneric("mValue.m%s.Value().TraceSelf(trc);" %
-                                         vars["name"])))
 
         dtor = CGSwitch("mType", destructorCases).define()
 
@@ -6340,16 +6306,6 @@ class CGUnionStruct(CGThing):
                                    Argument("JS::MutableHandle<JS::Value>", "rval")
         ], body=CGSwitch("mType", toJSValCases,
                          default=CGGeneric("return false;")).define(), const=True))
-
-        if self.isReturnValue:
-            if len(traceCases):
-                traceBody = CGSwitch("mType", traceCases,
-                                     default=CGGeneric("")).define()
-            else:
-                traceBody = ""
-            methods.append(ClassMethod("TraceUnion", "void",
-                                       [Argument("JSTracer*", "trc")],
-                                       body=traceBody))
 
         friend="  friend class %sArgument;\n" % str(self.type) if not self.isReturnValue else ""
         return CGClass(str(self.type) + ("ReturnValue" if self.isReturnValue else ""),
@@ -8517,7 +8473,7 @@ if (""",
             trace = CGGeneric('JS_CallValueTracer(trc, %s, "%s");' %
                               ("&"+memberData, memberName))
         elif (type.isSequence() or type.isDictionary() or
-              type.isSpiderMonkeyInterface() or type.isUnion()):
+              type.isSpiderMonkeyInterface()):
             if type.nullable():
                 memberNullable = memberData
                 memberData = "%s.Value()" % memberData
@@ -8525,8 +8481,6 @@ if (""",
                 trace = CGGeneric('DoTraceSequence(trc, %s);' % memberData)
             elif type.isDictionary():
                 trace = CGGeneric('%s.TraceDictionary(trc);' % memberData)
-            elif type.isUnion():
-                trace = CGGeneric('%s.TraceUnion(trc);' % memberData)
             else:
                 assert type.isSpiderMonkeyInterface()
                 trace = CGGeneric('%s.TraceSelf(trc);' % memberData)

@@ -140,7 +140,7 @@ NotificationPermissionRequest::Run()
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     // because owner implements nsITabChild, we can assume that it is
     // the one and only TabChild.
-    TabChild* child = TabChild::GetFrom(mWindow->GetDocShell());
+    TabChild* child = GetTabChildFrom(mWindow->GetDocShell());
     if (!child) {
       return NS_ERROR_NOT_AVAILABLE;
     }

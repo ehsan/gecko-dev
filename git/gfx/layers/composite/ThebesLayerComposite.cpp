@@ -131,7 +131,7 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
     tiledLayerProps.mDisplayPort = GetDisplayPort();
     tiledLayerProps.mEffectiveResolution = GetEffectiveResolution();
     tiledLayerProps.mCompositionBounds = GetCompositionBounds();
-    tiledLayerProps.mRetainTiles = !(mIsFixedPosition || mStickyPositionData);
+    tiledLayerProps.mRetainTiles = !mIsFixedPosition;
     tiledLayerProps.mValidRegion = mValidRegion;
   }
 

@@ -912,10 +912,6 @@ void MediaDecoderStateMachine::DecodeLoop()
         TimeStamp start = TimeStamp::Now();
         videoPlaying = mReader->DecodeVideoFrame(skipToNextKeyframe, currentTime);
         decodeTime = TimeStamp::Now() - start;
-        if (!videoPlaying) {
-          // Playback ended for this stream, close the sample queue.
-          mReader->VideoQueue().Finish();
-        }
       }
       if (THRESHOLD_FACTOR * DurationToUsecs(decodeTime) > lowAudioThreshold &&
           !HasLowUndecodedData())
@@ -939,10 +935,6 @@ void MediaDecoderStateMachine::DecodeLoop()
     if (!mDidThrottleAudioDecoding) {
       ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
       audioPlaying = mReader->DecodeAudioData();
-      if (!audioPlaying) {
-        // Playback ended for this stream, close the sample queue.
-        mReader->AudioQueue().Finish();
-      }
     }
 
     SendStreamData();

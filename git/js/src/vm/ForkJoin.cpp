@@ -211,7 +211,7 @@ class ParallelDo
 {
   public:
     // For tests, make sure to keep this in sync with minItemsTestingThreshold.
-    static const uint32_t MAX_BAILOUTS = 3;
+    const static uint32_t MAX_BAILOUTS = 3;
     uint32_t bailouts;
 
     // Information about the bailout:
