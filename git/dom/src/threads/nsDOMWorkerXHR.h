@@ -54,16 +54,6 @@
 // DOMWorker includes
 #include "nsDOMWorkerThread.h"
 
-// Convenience defines for event *indexes* in the sListenerTypes array.
-#define LISTENER_TYPE_ABORT 0
-#define LISTENER_TYPE_ERROR 1
-#define LISTENER_TYPE_LOAD 2
-#define LISTENER_TYPE_LOADSTART 3
-#define LISTENER_TYPE_PROGRESS 4
-#define LISTENER_TYPE_READYSTATECHANGE 5
-
-class nsDOMWorkerXHR;
-class nsDOMWorkerXHREvent;
 class nsDOMWorkerXHRProxy;
 
 class nsDOMWorkerXHREventTarget : public nsIXMLHttpRequestEventTarget
@@ -94,6 +84,8 @@ public:
 protected:
   virtual ~nsDOMWorkerXHREventTarget() { }
 };
+
+class nsDOMWorkerXHR;
 
 class nsDOMWorkerXHRUpload : public nsDOMWorkerXHREventTarget,
                              public nsIXMLHttpRequestUpload,
@@ -132,8 +124,6 @@ class nsDOMWorkerXHR : public nsDOMWorkerXHREventTarget,
                        public nsIXMLHttpRequest,
                        public nsIClassInfo
 {
-  friend class nsDOMWorkerXHREvent;
-  friend class nsDOMWorkerXHRLastProgressOrLoadEvent;
   friend class nsDOMWorkerXHRProxy;
   friend class nsDOMWorkerXHRUpload;
 

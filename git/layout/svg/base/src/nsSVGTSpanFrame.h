@@ -52,7 +52,8 @@ class nsSVGTSpanFrame : public nsSVGTSpanFrameBase,
                       nsIFrame* parentFrame, nsStyleContext* aContext);
 protected:
   nsSVGTSpanFrame(nsStyleContext* aContext) :
-    nsSVGTextContainerFrame(aContext) {}
+    nsSVGTextContainerFrame(aContext),
+    mPropagateTransform(PR_TRUE) {}
 
    // nsISupports interface:
   NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
@@ -79,6 +80,10 @@ public:
     return MakeFrameName(NS_LITERAL_STRING("SVGTSpan"), aResult);
   }
 #endif
+  // nsISVGChildFrame interface:
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
+
   // nsSVGContainerFrame methods:
   virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
   
@@ -90,6 +95,10 @@ public:
   NS_IMETHOD_(nsISVGGlyphFragmentLeaf *) GetFirstGlyphFragment();
   NS_IMETHOD_(nsISVGGlyphFragmentLeaf *) GetNextGlyphFragment();
   NS_IMETHOD_(void) SetWhitespaceHandling(PRUint8 aWhitespaceHandling);
+
+protected:
+  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
+  PRPackedBool mPropagateTransform;
 };
 
 #endif

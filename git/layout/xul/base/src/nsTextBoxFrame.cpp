@@ -993,9 +993,7 @@ nsRect
 nsTextBoxFrame::CalcTextRect(nsIRenderingContext &aRenderingContext, const nsPoint &aTextOrigin)
 {
     nsRect textRect(aTextOrigin, GetSize());
-    nsMargin borderPadding;
-    GetBorderAndPadding(borderPadding);
-    textRect.Deflate(borderPadding);
+    textRect.Deflate(GetUsedBorderAndPadding());
     // determine (cropped) title and underline position
     nsPresContext* presContext = PresContext();
     LayoutTitle(presContext, aRenderingContext, textRect);

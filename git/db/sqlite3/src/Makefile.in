@@ -51,6 +51,20 @@ FORCE_SHARED_LIB = 1
 VISIBILITY_FLAGS =
 LIB_IS_C_ONLY    = 1
 
+ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
+ifndef GNU_CC
+DEFFILE = $(win_srcdir)/sqlite.def
+RCFILE  = sqlite.rc
+RESFILE = sqlite.res
+
+GARBAGE += sqlite-version.h
+
+sqlite-version.h: sqlite-version.py sqlite3.h
+	$(PYTHON) $^ > $@
+export:: sqlite-version.h
+endif
+endif
+
 # FIXME: bug 419893
 NO_PROFILE_GUIDED_OPTIMIZE = 1
 
@@ -77,17 +91,7 @@ CSRCS = \
 # don't have to vacuum to make sure the data is not visible in the file.
 # -DSQLITE_ENABLE_FTS3=1 enables the full-text index module.
 # -DSQLITE_CORE=1 statically links that module into the SQLite library.
-DEFINES = \
-  -DSQLITE_SECURE_DELETE=1 \
-  -DTHREADSAFE=1 \
-  -DSQLITE_CORE=1 \
-  -DSQLITE_ENABLE_FTS3=1 \
-  $(NULL)
-
-# -DSQLITE_ENABLE_LOCKING_STYLE=1 to help with AFP folders
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-DEFINES += -DSQLITE_ENABLE_LOCKING_STYLE=1
-endif
+DEFINES = -DSQLITE_SECURE_DELETE=1 -DTHREADSAFE=1 -DSQLITE_CORE=1 -DSQLITE_ENABLE_FTS3=1
 
 ifeq ($(OS_ARCH),OS2)
 ifdef MOZ_OS2_HIGH_MEMORY
@@ -96,20 +100,6 @@ endif
 endif
 
 include $(topsrcdir)/config/rules.mk
-
-ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
-ifndef GNU_CC
-DEFFILE = $(win_srcdir)/sqlite.def
-RCFILE  = sqlite.rc
-RESFILE = sqlite.res
-
-GARBAGE += sqlite-version.h
-
-sqlite-version.h: sqlite-version.py sqlite3.h
-	$(PYTHON) $^ > $@
-export:: sqlite-version.h
-endif
-endif
 
 # next line allows use of MOZ_OBJDIR in .mozconfig with older gcc on BeOS, maybe others
 LOCAL_INCLUDES += -I$(srcdir)

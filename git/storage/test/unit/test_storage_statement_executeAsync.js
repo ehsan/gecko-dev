@@ -372,7 +372,6 @@ function test_immediate_cancellation()
     "DELETE FROM test WHERE id = ?"
   );
   stmt.bindInt32Parameter(0, 0);
-  let reason = Ci.mozIStorageStatementCallback.REASON_CANCELED;
   var pendingStatement = stmt.executeAsync({
     handleResult: function(aResultSet)
     {
@@ -387,17 +386,14 @@ function test_immediate_cancellation()
     handleCompletion: function(aReason)
     {
       dump("handleCompletion("+aReason+");\n");
-      do_check_eq(reason, aReason);
+      do_check_eq(Ci.mozIStorageStatementCallback.REASON_CANCELED, aReason);
       do_test_finished();
     }
   });
   do_test_pending();
 
   // Cancel immediately
-  if (!pendingStatement.cancel()) {
-    // It is possible that we finished before we canceled
-    reason = Ci.mozIStorageStatementCallback.REASON_FINISHED;
-  }
+  pendingStatement.cancel();
 
   stmt.finalize();
 }
@@ -410,7 +406,6 @@ function test_double_cancellation()
     "DELETE FROM test WHERE id = ?"
   );
   stmt.bindInt32Parameter(0, 0);
-  let reason = Ci.mozIStorageStatementCallback.REASON_CANCELED;
   var pendingStatement = stmt.executeAsync({
     handleResult: function(aResultSet)
     {
@@ -425,17 +420,14 @@ function test_double_cancellation()
     handleCompletion: function(aReason)
     {
       dump("handleCompletion("+aReason+");\n");
-      do_check_eq(reason, aReason);
+      do_check_eq(Ci.mozIStorageStatementCallback.REASON_CANCELED, aReason);
       do_test_finished();
     }
   });
   do_test_pending();
 
   // Cancel immediately
-  if (!pendingStatement.cancel()) {
-    // It is possible that we finished before we canceled
-    reason = Ci.mozIStorageStatementCallback.REASON_FINISHED;
-  }
+  pendingStatement.cancel();
 
   // And cancel again - expect an exception
   try {

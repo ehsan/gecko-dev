@@ -105,31 +105,27 @@ nsPluginArray::AllowPlugins()
   return allowPlugins;
 }
 
-nsIDOMPlugin*
-nsPluginArray::GetItemAt(PRUint32 aIndex, nsresult* aResult)
-{
-  *aResult = NS_OK;
-
-  if (!AllowPlugins())
-    return nsnull;
-
-  if (mPluginArray == nsnull) {
-    *aResult = GetPlugins();
-    if (*aResult != NS_OK)
-      return nsnull;
-  }
-
-  return aIndex < mPluginCount ? mPluginArray[aIndex] : nsnull;
-}
-
 NS_IMETHODIMP
 nsPluginArray::Item(PRUint32 aIndex, nsIDOMPlugin** aReturn)
 {
-  nsresult rv;
+  NS_PRECONDITION(nsnull != aReturn, "null arg");
+  *aReturn = nsnull;
 
-  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex, &rv));
+  if (!AllowPlugins())
+    return NS_OK;
 
-  return rv;
+  if (mPluginArray == nsnull) {
+    nsresult rv = GetPlugins();
+    if (rv != NS_OK)
+      return rv;
+  }
+
+  if (aIndex < mPluginCount) {
+    *aReturn = mPluginArray[aIndex];
+    NS_IF_ADDREF(*aReturn);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -334,34 +330,21 @@ nsPluginElement::GetLength(PRUint32* aLength)
   return mPlugin->GetLength(aLength);
 }
 
-nsIDOMMimeType*
-nsPluginElement::GetItemAt(PRUint32 aIndex, nsresult *aResult)
-{
-  if (mMimeTypeArray == nsnull) {
-    *aResult = GetMimeTypes();
-    if (*aResult != NS_OK)
-      return nsnull;
-  }
-
-  if (aIndex >= mMimeTypeCount) {
-    *aResult = NS_ERROR_FAILURE;
-
-    return nsnull;
-  }
-
-  *aResult = NS_OK;
-
-  return mMimeTypeArray[aIndex];
-}
-
 NS_IMETHODIMP
 nsPluginElement::Item(PRUint32 aIndex, nsIDOMMimeType** aReturn)
 {
-  nsresult rv;
-
-  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex, &rv));
-
-  return rv;
+  if (mMimeTypeArray == nsnull) {
+    nsresult rv = GetMimeTypes();
+    if (rv != NS_OK)
+      return rv;
+  }
+  if (aIndex < mMimeTypeCount) {
+    nsIDOMMimeType* mimeType = mMimeTypeArray[aIndex];
+    NS_IF_ADDREF(mimeType);
+    *aReturn = mimeType;
+    return NS_OK;
+  }
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP

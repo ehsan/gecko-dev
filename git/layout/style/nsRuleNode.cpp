@@ -1664,14 +1664,6 @@ nsRuleNode::WalkRuleTree(const nsStyleStructID aSID,
     // In the absence of any computed data in the rule tree and with
     // no rules specified that didn't have values of 'inherit', we should check our parent.
     nsStyleContext* parentContext = aContext->GetParent();
-    if (isReset) {
-      /* Reset structs don't inherit from first-line. */
-      /* See similar code in COMPUTE_START_RESET */
-      while (parentContext &&
-             parentContext->GetPseudoType() == nsCSSPseudoElements::firstLine) {
-        parentContext = parentContext->GetParent();
-      }
-    }
     if (parentContext) {
       // We have a parent, and so we should just inherit from the parent.
       // Set the inherit bits on our context.  These bits tell the style context that
@@ -2044,10 +2036,9 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
                "should not have bothered calling Compute*Data");              \
                                                                               \
   nsStyleContext* parentContext = aContext->GetParent();                      \
-  /* Reset structs don't inherit from first-line */                           \
-  /* See similar code in WalkRuleTree */                                      \
-  while (parentContext &&                                                     \
-         parentContext->GetPseudoType() == nsCSSPseudoElements::firstLine) {  \
+  if (parentContext &&                                                        \
+      parentContext->GetPseudoType() == nsCSSPseudoElements::firstLine) {     \
+    /* Reset structs don't inherit from first-line */                         \
     parentContext = parentContext->GetParent();                               \
   }                                                                           \
                                                                               \
@@ -3129,12 +3120,6 @@ nsRuleNode::ComputeUIResetData(void* aStartStruct,
               parentUI->mForceBrokenImageIcon,
               0, 0, 0, 0, 0);
 
-  // -moz-window-shadow: enum, none, inherit, initial
-  SetDiscrete(uiData.mWindowShadow, ui->mWindowShadow, inherited,
-              SETDSC_ENUMERATED | SETDSC_NONE, parentUI->mWindowShadow,
-              NS_STYLE_WINDOW_SHADOW_DEFAULT, 0,
-              NS_STYLE_WINDOW_SHADOW_NONE, 0, 0);
-
   COMPUTE_END_RESET(UIReset, ui)
 }
 
@@ -3164,7 +3149,7 @@ static nsStyleTransformMatrix ReadTransforms(const nsCSSValueList* aList,
     /* Read in a single transform matrix, then accumulate it with the total. */
     nsStyleTransformMatrix currMatrix;
     currMatrix.SetToTransformFunction(currElem.GetArrayValue(), aContext,
-                                      aPresContext, aInherited);
+                                      aPresContext);
     result *= currMatrix;
   }
   return result;
@@ -3179,6 +3164,13 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
 {
   COMPUTE_START_RESET(Display, (), display, parentDisplay,
                       Display, displayData)
+  nsIAtom* pseudoTag = aContext->GetPseudoType();
+  PRBool generatedContent = (pseudoTag == nsCSSPseudoElements::before || 
+                             pseudoTag == nsCSSPseudoElements::after);
+  NS_ASSERTION(!generatedContent || parentContext,
+               "Must have parent context for generated content");
+  if (parentDisplay == display && generatedContent)
+    parentDisplay = parentContext->GetStyleDisplay();
 
   // opacity: factor, inherit, initial
   SetFactor(displayData.mOpacity, display->mOpacity, inherited,
@@ -3376,7 +3368,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     // and 'position'.  Since generated content can't be floated or
     // positioned, we can deal with it here.
 
-    if (nsCSSPseudoElements::firstLetter == aContext->GetPseudoType()) {
+    if (nsCSSPseudoElements::firstLetter == pseudoTag) {
       // a non-floating first-letter must be inline
       // XXX this fix can go away once bug 103189 is fixed correctly
       display->mDisplay = NS_STYLE_DISPLAY_INLINE;

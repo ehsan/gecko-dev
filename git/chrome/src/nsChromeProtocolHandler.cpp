@@ -160,7 +160,6 @@ NS_IMPL_ISUPPORTS3(nsCachedChromeChannel, nsIChannel, nsIRequest,
 
 nsCachedChromeChannel::nsCachedChromeChannel(nsIURI* aURI)
     : mURI(aURI)
-    , mOriginalURI(aURI)
     , mLoadFlags(nsIRequest::LOAD_NORMAL)
     , mStatus(NS_OK)
 {
@@ -182,7 +181,7 @@ nsCachedChromeChannel::~nsCachedChromeChannel()
 NS_IMETHODIMP
 nsCachedChromeChannel::GetOriginalURI(nsIURI* *aOriginalURI)
 {
-    *aOriginalURI = mOriginalURI;
+    *aOriginalURI = mOriginalURI ? mOriginalURI : mURI;
     NS_ADDREF(*aOriginalURI);
     return NS_OK;
 }
@@ -190,7 +189,6 @@ nsCachedChromeChannel::GetOriginalURI(nsIURI* *aOriginalURI)
 NS_IMETHODIMP
 nsCachedChromeChannel::SetOriginalURI(nsIURI* aOriginalURI)
 {
-    NS_ENSURE_ARG_POINTER(aOriginalURI);
     mOriginalURI = aOriginalURI;
     return NS_OK;
 }

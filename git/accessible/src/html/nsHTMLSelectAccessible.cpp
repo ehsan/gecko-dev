@@ -357,11 +357,12 @@ nsHTMLSelectListAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
 NS_IMETHODIMP nsHTMLSelectListAccessible::GetRole(PRUint32 *aRole)
 {
-  if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX)
+  if (mParent && Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX) {
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
-  else
+  }
+  else {
     *aRole = nsIAccessibleRole::ROLE_LIST;
-
+  }
   return NS_OK;
 }
 
@@ -500,11 +501,12 @@ nsHyperTextAccessibleWrap(aDOMNode, aShell)
 /** We are a ListItem */
 NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetRole(PRUint32 *aRole)
 {
-  if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
+  if (mParent && Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST) {
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
-  else
+  }
+  else {
     *aRole = nsIAccessibleRole::ROLE_OPTION;
-
+  }
   return NS_OK;
 }
 
@@ -557,7 +559,7 @@ nsHTMLSelectOptionAccessible::GetAttributesInternal(nsIPersistentProperties *aAt
   parentNode->GetLocalName(parentTagName);
 
   PRInt32 level = parentTagName.LowerCaseEqualsLiteral("optgroup") ? 2 : 1;
-  if (level == 1 && nsAccUtils::Role(this) != nsIAccessibleRole::ROLE_HEADING) {
+  if (level == 1 && Role(this) != nsIAccessibleRole::ROLE_HEADING) {
     level = 0; // In a single level list, the level is irrelevant
   }
 
@@ -845,8 +847,7 @@ void nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibl
   nsCOMPtr<nsIDOMNode> optionNode(do_QueryInterface(aPossibleOption));
   NS_ASSERTION(optionNode, "No option node for nsIContent with option tag!");
 
-  nsCOMPtr<nsIAccessible> multiSelect =
-    nsAccUtils::GetMultiSelectFor(optionNode);
+  nsCOMPtr<nsIAccessible> multiSelect = GetMultiSelectFor(optionNode);
   nsCOMPtr<nsPIAccessible> privateMultiSelect = do_QueryInterface(multiSelect);
   if (!privateMultiSelect) {
     return;
@@ -863,7 +864,7 @@ void nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibl
   nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SELECTION_WITHIN,
                            multiSelect);
 
-  PRUint32 state = nsAccUtils::State(optionAccessible);
+  PRUint32 state = State(optionAccessible);
   PRUint32 eventType;
   if (state & nsIAccessibleStates::STATE_SELECTED) {
     eventType = nsIAccessibleEvent::EVENT_SELECTION_ADD;
@@ -1493,7 +1494,7 @@ void nsHTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBo
   if (!comboAccessible) {
     return;
   }
-  if (0 == (nsAccUtils::State(comboAccessible) & nsIAccessibleStates::STATE_COLLAPSED)) {
+  if (0 == (State(comboAccessible) & nsIAccessibleStates::STATE_COLLAPSED)) {
     nsHTMLSelectListAccessible::GetBoundsRect(aBounds, aBoundingFrame);
     return;
   }

@@ -98,6 +98,7 @@
 #include "nsIDOMHTMLBodyElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsGenericHTMLElement.h"
+#include "nsGenericDOMNodeList.h"
 #include "nsICSSLoader.h"
 #include "nsIHttpChannel.h"
 #include "nsIFile.h"
@@ -2859,7 +2860,7 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
 
     if (aForm) {
       // ... we're called from a form, in that case we create a
-      // nsFormContentList which will filter out the elements in the
+      // nsFormNameContentList which will filter out the elements in the
       // list that don't belong to aForm
 
       nsFormContentList *fc_list = new nsFormContentList(aForm, *list);

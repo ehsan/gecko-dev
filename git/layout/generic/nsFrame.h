@@ -345,8 +345,7 @@ public:
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
                          nsGUIEvent *    aEvent,
-                         nsEventStatus*  aEventStatus,
-                         PRBool          aControlHeld);
+                         nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
                         nsGUIEvent *    aEvent,
@@ -360,8 +359,7 @@ public:
                                     nsSelectionAmount aAmountForward,
                                     PRInt32 aStartPos,
                                     nsPresContext* aPresContext,
-                                    PRBool aJumpLines,
-                                    PRBool aMultipleSelection);
+                                    PRBool aJumpLines);
 
 
   // Helper for GetContentAndOffsetsFromPoint; calculation of content offsets
@@ -557,7 +555,7 @@ protected:
   PRInt16 DisplaySelection(nsPresContext* aPresContext, PRBool isOkToTurnOn = PR_FALSE);
   
   // Style post processing hook
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 
 public:
   //given a frame five me the first/last leaf available

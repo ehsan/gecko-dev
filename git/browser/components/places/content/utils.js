@@ -1014,14 +1014,7 @@ var PlacesUIUtils = {
         var popup = document.createElement("menupopup");
         popup.setAttribute("placespopup", "true");
         popup._resultNode = asContainer(aNode);
-#ifdef XP_MACOSX
-        // Binding on Mac native menus is lazy attached, so onPopupShowing,
-        // in the capturing phase, fields are not yet initialized.
-        // In that phase we have to ensure markers are not undefined to build
-        // the popup correctly.
-        popup._startMarker = -1;
-        popup._endMarker = -1;
-#else
+#ifndef XP_MACOSX
         // no context menu on mac
         popup.setAttribute("context", "placesContext");
 #endif

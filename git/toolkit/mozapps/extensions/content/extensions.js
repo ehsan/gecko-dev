@@ -329,6 +329,7 @@ function showView(aView) {
   var showCheckUpdatesAll = true;
   var showInstallUpdatesAll = false;
   var showSkip = false;
+  var showContinue = false;
   switch (aView) {
     case "search":
       var bindingList = [ [ ["action", "?action"],
@@ -405,6 +406,8 @@ function showView(aView) {
       showInstallFile = false;
       showCheckUpdatesAll = false;
       showInstallUpdatesAll = false;
+      if (gUpdatesOnly)
+        showContinue = true;
       bindingList = [ [ ["aboutURL", "?aboutURL"],
                         ["addonID", "?addonID"],
                         ["availableUpdateURL", "?availableUpdateURL"],
@@ -466,6 +469,7 @@ function showView(aView) {
   document.getElementById("checkUpdatesAllButton").hidden = !showCheckUpdatesAll;
   document.getElementById("installUpdatesAllButton").hidden = !showInstallUpdatesAll;
   document.getElementById("skipDialogButton").hidden = !showSkip;
+  document.getElementById("continueDialogButton").hidden = !showContinue;
   document.getElementById("themePreviewArea").hidden = !isThemes;
   document.getElementById("themeSplitter").hidden = !isThemes;
   document.getElementById("showUpdateInfoButton").hidden = aView != "updates";
@@ -483,6 +487,11 @@ function showView(aView) {
     window.setTimeout(function () { button.focus(); }, 0);
   } else
     document.getElementById("installUpdatesAllButton").removeAttribute("default");
+
+  if (showContinue)
+    document.getElementById("continueDialogButton").setAttribute("default", "true");
+  else
+    document.getElementById("continueDialogButton").removeAttribute("default");
 
   if (isThemes)
     onAddonSelect();
@@ -1333,12 +1342,8 @@ XPInstallDownloadManager.prototype = {
   {
   },
 
-  _failed: false,
   onInstallEnded: function(aAddon, aStatus)
   {
-    if (aStatus < 0)
-      this._failed = true;
-
     // From nsInstall.h
     // USER_CANCELLED = -210
     // All other xpinstall errors are <= -200
@@ -1366,15 +1371,8 @@ XPInstallDownloadManager.prototype = {
     gInstalling = false;
     gExtensionManager.sortTypeByProperty(nsIUpdateItem.TYPE_ANY, "name", true);
     if (gUpdatesOnly) {
-      if (this._failed) {
-        let continueButton = document.getElementById("continueDialogButton");
-        setElementDisabledByID("cmd_continue", false);
-        continueButton.hidden = false;
-        continueButton.setAttribute("default", "true");
-        continueButton.focus();
-      } else {
-        setTimeout(closeEM, 2000);
-      }
+      setElementDisabledByID("cmd_continue", false);
+      document.getElementById("continueDialogButton").focus();
     }
     else {
       updateOptionalViews();

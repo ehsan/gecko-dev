@@ -96,6 +96,8 @@ static const int kAllTags       = 0xffffff;
 extern void CheckElementTable();
 #endif
 
+typedef PRBool (*ContainFunc)(eHTMLTags aTag,nsDTDContext &aContext);
+
 
 /**
  * We're asking the question: is aTest a member of bitset. 

@@ -390,9 +390,11 @@ nsBlockFrame::List(FILE* out, PRInt32 aIndent) const
   }
   PRInt32 numInlineLines = 0;
   PRInt32 numBlockLines = 0;
-  if (!mLines.empty()) {
-    const_line_iterator line = begin_lines(), line_end = end_lines();
-    for ( ; line != line_end; ++line) {
+  if (! mLines.empty()) {
+    for (const_line_iterator line = begin_lines(), line_end = end_lines();
+         line != line_end;
+         ++line)
+    {
       if (line->IsBlock())
         numBlockLines++;
       else
@@ -413,33 +415,19 @@ nsBlockFrame::List(FILE* out, PRInt32 aIndent) const
   aIndent++;
 
   // Output the lines
-  if (!mLines.empty()) {
-    const_line_iterator line = begin_lines(), line_end = end_lines();
-    for ( ; line != line_end; ++line) {
+  if (! mLines.empty()) {
+    for (const_line_iterator line = begin_lines(), line_end = end_lines();
+         line != line_end;
+         ++line)
+    {
       line->List(out, aIndent);
     }
-  }
-
-  // Output the overflow lines.
-  const nsLineList* overflowLines = GetOverflowLines();
-  if (overflowLines && !overflowLines->empty()) {
-    IndentBy(out, aIndent);
-    fputs("Overflow-lines<\n", out);
-    const_line_iterator line = begin_lines(), line_end = end_lines();
-    for ( ; line != line_end; ++line) {
-      line->List(out, aIndent + 1);
-    }
-    IndentBy(out, aIndent);
-    fputs(">\n", out);
   }
 
   nsIAtom* listName = nsnull;
   PRInt32 listIndex = 0;
   for (;;) {
     listName = GetAdditionalChildListName(listIndex++);
-    if (nsGkAtoms::overflowList == listName) {
-      continue; // skip the overflow list - we printed the overflow lines above
-    }
     if (nsnull == listName) {
       break;
     }
@@ -904,7 +892,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   // like tables will gain significant bloat.
   PRBool needSpaceManager = nsBlockFrame::BlockNeedsSpaceManager(this);
   if (needSpaceManager)
-    autoSpaceManager.CreateSpaceManager(aPresContext);
+    autoSpaceManager.CreateSpaceManagerFor(aPresContext, this);
 
   // OK, some lines may be reflowed. Blow away any saved line cursor because
   // we may invalidate the nondecreasing combinedArea.y/yMost invariant,
@@ -1153,48 +1141,40 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   // resetting the size. Because of this, we must not reflow our abs-pos children
   // in that situation --- what we think is our "new size"
   // will not be our real new size. This also happens to be more efficient.
-  if (mAbsoluteContainer.HasAbsoluteFrames()) {
-    if (aReflowState.WillReflowAgainForClearance()) {
-      // Make sure that when we reflow again we'll actually reflow all the abs
-      // pos frames that might conceivably depend on our size.  Sadly, we can't
-      // do much better than that, because we don't really know what our size
-      // will be, and it might in fact not change on the followup reflow!
-      mAbsoluteContainer.MarkSizeDependentFramesDirty();
-    } else {
-      nsRect childBounds;
-      nsSize containingBlockSize =
-        CalculateContainingBlockSizeForAbsolutes(aReflowState,
-                                                 nsSize(aMetrics.width,
-                                                        aMetrics.height));
+  if (mAbsoluteContainer.HasAbsoluteFrames() &&
+      !aReflowState.WillReflowAgainForClearance()) {
+    nsRect childBounds;
+    nsSize containingBlockSize
+      = CalculateContainingBlockSizeForAbsolutes(aReflowState,
+                                                 nsSize(aMetrics.width, aMetrics.height));
 
-      // Mark frames that depend on changes we just made to this frame as dirty:
-      // Now we can assume that the padding edge hasn't moved.
-      // We need to reflow the absolutes if one of them depends on
-      // its placeholder position, or the containing block size in a
-      // direction in which the containing block size might have
-      // changed.
-      PRBool cbWidthChanged = aMetrics.width != oldSize.width;
-      PRBool isRoot = !GetContent()->GetParent();
-      // If isRoot and we have auto height, then we are the initial
-      // containing block and the containing block height is the
-      // viewport height, which can't change during incremental
-      // reflow.
-      PRBool cbHeightChanged =
-        !(isRoot && NS_UNCONSTRAINEDSIZE == aReflowState.ComputedHeight()) &&
-        aMetrics.height != oldSize.height;
+    // Mark frames that depend on changes we just made to this frame as dirty:
+    // Now we can assume that the padding edge hasn't moved.
+    // We need to reflow the absolutes if one of them depends on
+    // its placeholder position, or the containing block size in a
+    // direction in which the containing block size might have
+    // changed.
+    PRBool cbWidthChanged = aMetrics.width != oldSize.width;
+    PRBool isRoot = !GetContent()->GetParent();
+    // If isRoot and we have auto height, then we are the initial
+    // containing block and the containing block height is the
+    // viewport height, which can't change during incremental
+    // reflow.
+    PRBool cbHeightChanged =
+      !(isRoot && NS_UNCONSTRAINEDSIZE == aReflowState.ComputedHeight()) &&
+      aMetrics.height != oldSize.height;
 
-      rv = mAbsoluteContainer.Reflow(this, aPresContext, aReflowState,
-                                     state.mReflowStatus,
-                                     containingBlockSize.width,
-                                     containingBlockSize.height, PR_TRUE,
-                                     cbWidthChanged, cbHeightChanged,
-                                     &childBounds);
+    rv = mAbsoluteContainer.Reflow(this, aPresContext, aReflowState,
+                                   state.mReflowStatus,
+                                   containingBlockSize.width,
+                                   containingBlockSize.height, PR_TRUE,
+                                   cbWidthChanged, cbHeightChanged,
+                                   &childBounds);
 
-      //XXXfr Why isn't this rv (and others in this file) checked/returned?
+    //XXXfr Why isn't this rv (and others in this file) checked/returned?
 
-      // Factor the absolutely positioned child bounds into the overflow area
-      aMetrics.mOverflowArea.UnionRect(aMetrics.mOverflowArea, childBounds);
-    }
+    // Factor the absolutely positioned child bounds into the overflow area
+    aMetrics.mOverflowArea.UnionRect(aMetrics.mOverflowArea, childBounds);
   }
 
   // Determine if we need to repaint our border, background or outline
@@ -1480,7 +1460,7 @@ nsBlockFrame::ComputeCombinedArea(const nsHTMLReflowState& aReflowState,
 }
 
 nsresult
-nsBlockFrame::MarkLineDirty(line_iterator aLine, const nsLineList* aLineList)
+nsBlockFrame::MarkLineDirty(line_iterator aLine)
 {
   // Mark aLine dirty
   aLine->MarkDirty();
@@ -1496,7 +1476,7 @@ nsBlockFrame::MarkLineDirty(line_iterator aLine, const nsLineList* aLineList)
   // Mark previous line dirty if it's an inline line so that it can
   // maybe pullup something from the line just affected.
   // XXX We don't need to do this if aPrevLine ends in a break-after...
-  if (aLine != (aLineList ? aLineList : &mLines)->front() &&
+  if (aLine != mLines.front() &&
       aLine->IsInline() &&
       aLine.prev()->IsInline()) {
     aLine.prev()->MarkDirty();
@@ -6294,7 +6274,7 @@ nsBlockFrame::ChildIsDirty(nsIFrame* aChild)
     PRBool isValid;
     nsBlockInFlowLineIterator iter(this, aChild, &isValid);
     if (isValid) {
-      iter.GetContainer()->MarkLineDirty(iter.GetLine(), iter.GetLineList());
+      MarkLineDirty(iter.GetLine());
     }
   }
 

@@ -164,7 +164,7 @@
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
 #ifdef MOZ_MEDIA
-#include "nsHTMLMediaElement.h"
+#include "nsVideoFrame.h"
 #endif
 
 // Drag & Drop, Clipboard
@@ -193,7 +193,7 @@
 #include "nsCSSFrameConstructor.h"
 #ifdef MOZ_XUL
 #include "nsMenuFrame.h"
-#include "nsTreeBodyFrame.h"
+#include "nsITreeBoxObject.h"
 #endif
 #include "nsIMenuParent.h"
 #include "nsPlaceholderFrame.h"
@@ -932,7 +932,6 @@ public:
   // nsISelectionController
 
   NS_IMETHOD CharacterMove(PRBool aForward, PRBool aExtend);
-  NS_IMETHOD CharacterExtendForDelete();
   NS_IMETHOD WordMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD WordExtendForDelete(PRBool aForward);
   NS_IMETHOD LineMove(PRBool aForward, PRBool aExtend);
@@ -2767,12 +2766,6 @@ NS_IMETHODIMP
 PresShell::CharacterMove(PRBool aForward, PRBool aExtend)
 {
   return mSelection->CharacterMove(aForward, aExtend);  
-}
-
-NS_IMETHODIMP
-PresShell::CharacterExtendForDelete()
-{
-  return mSelection->CharacterExtendForDelete();
 }
 
 NS_IMETHODIMP 
@@ -5653,12 +5646,7 @@ PresShell::HandleEvent(nsIView         *aView,
     nsIFrame* targetFrame;
     {
       nsAutoDisableGetUsedXAssertions disableAssert;
-      PRBool ignoreScrollFrame = PR_FALSE;
-      if (aEvent->eventStructType == NS_MOUSE_EVENT) {
-        ignoreScrollFrame = static_cast<nsMouseEvent*>(aEvent)->ignoreScrollFrame;
-      }
-      targetFrame = nsLayoutUtils::GetFrameForPoint(frame, eventPoint,
-                                                    PR_FALSE, ignoreScrollFrame);
+      targetFrame = nsLayoutUtils::GetFrameForPoint(frame, eventPoint);
     }
 
     if (targetFrame) {
@@ -6069,14 +6057,19 @@ StopPluginInstance(PresShell *aShell, nsIContent *aContent)
   objectFrame->StopPlugin();
 }
 
-#ifdef MOZ_MEDIA
 static void
-StopMediaInstance(PresShell *aShell, nsIContent *aContent)
+StopVideoInstance(PresShell *aShell, nsIContent *aContent)
 {
-  nsHTMLMediaElement* element = static_cast<nsHTMLMediaElement*>(aContent);
-  element->Freeze();
-}
+#ifdef MOZ_MEDIA
+  nsVideoFrame *frame = static_cast<nsVideoFrame*>(aShell->FrameManager()->GetPrimaryFrameFor(aContent, -1));
+  if (frame) {
+    nsIAtom* frameType = frame->GetType();
+    if (frameType == nsGkAtoms::HTMLVideoFrame) {
+      frame->Freeze();
+    }
+  }
 #endif
+}
 
 static PRBool
 FreezeSubDocument(nsIDocument *aDocument, void *aData)
@@ -6096,10 +6089,7 @@ PresShell::Freeze()
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("object"), StopPluginInstance);
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("applet"), StopPluginInstance);
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("embed"), StopPluginInstance);
-#ifdef MOZ_MEDIA
-    EnumeratePlugins(domDoc, NS_LITERAL_STRING("video"), StopMediaInstance);
-    EnumeratePlugins(domDoc, NS_LITERAL_STRING("audio"), StopMediaInstance);
-#endif
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("video"), StopVideoInstance);
   }
 
   if (mCaret)
@@ -6122,14 +6112,19 @@ StartPluginInstance(PresShell *aShell, nsIContent *aContent)
   objlc->EnsureInstantiation(getter_AddRefs(inst));
 }
 
-#ifdef MOZ_MEDIA
 static void
-StartMediaInstance(PresShell *aShell, nsIContent *aContent)
+StartVideoInstance(PresShell *aShell, nsIContent *aContent)
 {
- nsHTMLMediaElement* element = static_cast<nsHTMLMediaElement*>(aContent);
- element->Thaw();
-}
+#ifdef MOZ_MEDIA
+  nsVideoFrame *frame = static_cast<nsVideoFrame*>(aShell->FrameManager()->GetPrimaryFrameFor(aContent, -1));
+  if (frame) {
+    nsIAtom* frameType = frame->GetType();
+    if (frameType == nsGkAtoms::HTMLVideoFrame) {
+      frame->Thaw();
+    }
+  }
 #endif
+}
 
 static PRBool
 ThawSubDocument(nsIDocument *aDocument, void *aData)
@@ -6149,10 +6144,7 @@ PresShell::Thaw()
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("object"), StartPluginInstance);
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("applet"), StartPluginInstance);
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("embed"), StartPluginInstance);
-#ifdef MOZ_MEDIA
-    EnumeratePlugins(domDoc, NS_LITERAL_STRING("video"), StartMediaInstance);
-    EnumeratePlugins(domDoc, NS_LITERAL_STRING("audio"), StartMediaInstance);
-#endif
+    EnumeratePlugins(domDoc, NS_LITERAL_STRING("video"), StartVideoInstance);
   }
 
   if (mDocument)
@@ -6500,10 +6492,9 @@ ReResolveMenusAndTrees(nsIFrame *aFrame, void *aClosure)
 {
   // Trees have a special style cache that needs to be flushed when
   // the theme changes.
-  nsTreeBodyFrame *treeBody = nsnull;
-  CallQueryInterface(aFrame, &treeBody);
-  if (treeBody)
-    treeBody->ClearStyleAndImageCaches();
+  nsCOMPtr<nsITreeBoxObject> treeBox(do_QueryInterface(aFrame));
+  if (treeBox)
+    treeBox->ClearStyleAndImageCaches();
 
   // We deliberately don't re-resolve style on a menu's popup
   // sub-content, since doing so slows menus to a crawl.  That means we

@@ -198,7 +198,7 @@
           findbar._setFindCloseTimeout();
       ]]></handler>
 
-      <handler event="drop" phase="capturing"><![CDATA[
+      <handler event="dragdrop" phase="capturing"><![CDATA[
         nsDragAndDrop.drop(event, this);
       ]]></handler>
     </handlers>

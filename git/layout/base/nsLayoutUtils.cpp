@@ -906,8 +906,7 @@ static PRBool gDumpRepaintRegionForCopy = PR_FALSE;
 
 nsIFrame*
 nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
-                                PRBool aShouldIgnoreSuppression,
-                                PRBool aIgnoreScrollFrame)
+                                PRBool aShouldIgnoreSuppression)
 {
   nsDisplayListBuilder builder(aFrame, PR_TRUE, PR_FALSE);
   nsDisplayList list;
@@ -915,15 +914,6 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
 
   if (aShouldIgnoreSuppression)
     builder.IgnorePaintSuppression();
-
-  if (aIgnoreScrollFrame) {
-    nsIFrame* rootScrollFrame =
-      aFrame->PresContext()->PresShell()->GetRootScrollFrame();
-    if (rootScrollFrame) {
-      builder.SetIgnoreScrollFrame(rootScrollFrame);
-    }
-  }
-
   builder.EnterPresShell(aFrame, target);
 
   nsresult rv =

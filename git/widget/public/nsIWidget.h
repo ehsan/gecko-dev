@@ -93,23 +93,15 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_NATIVE_PLUGIN_PORT_CG    101
 #endif
 
-// 8c91457a-ef86-4da1-b4f9-36022dcc6c7e
+// 0e64821f-00a2-4adc-ac3b-3439d61f4491
 #define NS_IWIDGET_IID \
-{ 0x8c91457a, 0xef86, 0x4da1, \
-  { 0xb4, 0xf9, 0x36, 0x02, 0x2d, 0xcc, 0x6c, 0x7e } }
+{ 0x0e64821f, 0x00a2, 0x4adc, \
+  { 0xac, 0x3b, 0x34, 0x39, 0xd6, 0x1f, 0x44, 0x91 } }
 
 // Hide the native window systems real window type so as to avoid
 // including native window system types and APIs. This is necessary
 // to ensure cross-platform code.
 typedef void* nsNativeWidget;
-
-/*
- * Window shadow styles
- * Also used for the -moz-window-shadow CSS property
- */
-
-#define NS_STYLE_WINDOW_SHADOW_NONE             0
-#define NS_STYLE_WINDOW_SHADOW_DEFAULT          1
 
 /**
  * Border styles
@@ -719,11 +711,6 @@ class nsIWidget : public nsISupports {
      */
     virtual nsTransparencyMode GetTransparencyMode() = 0;
 
-    /**
-     * Set the shadow style of the window.
-     */
-    NS_IMETHOD SetWindowShadowStyle(PRInt32 aStyle) = 0;
-
     /** 
      * Hide window chrome (borders, buttons) for this widget.
      *
@@ -1095,10 +1082,9 @@ class nsIWidget : public nsISupports {
         CTRL_R = 0x0800,
         ALT_L = 0x1000, // includes Option
         ALT_R = 0x2000,
-        COMMAND_L = 0x4000,
-        COMMAND_R = 0x8000,
-        HELP = 0x10000,
-        FUNCTION = 0x100000,
+        COMMAND = 0x4000,
+        HELP = 0x8000,
+        FUNCTION = 0x10000,
         NUMERIC_KEY_PAD = 0x01000000 // when the key is coming from the keypad
     };
     /**

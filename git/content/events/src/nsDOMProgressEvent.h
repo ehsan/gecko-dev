@@ -66,8 +66,8 @@ public:
 
 private:
   PRBool  mLengthComputable;
-  PRUint64 mLoaded;
-  PRUint64 mTotal;
+  PRUint32 mLoaded;
+  PRUint32 mTotal;
 };
 
 #endif // nsDOMProgressEvent_h__

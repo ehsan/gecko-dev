@@ -479,12 +479,8 @@ protected:
    * pull-up, mark the previous line dirty as well. Also invalidates textruns
    * on those lines because the text in the lines might have changed due to
    * addition/removal of frames.
-   * @param aLine the line to mark dirty
-   * @param aLineList the line list containing that line, null means the line
-   *        is in 'mLines' of this frame.
    */
-  nsresult MarkLineDirty(line_iterator aLine,
-                         const nsLineList* aLineList = nsnull);
+  nsresult MarkLineDirty(line_iterator aLine);
 
   // XXX where to go
   PRBool ShouldJustifyLine(nsBlockReflowState& aState,
@@ -724,11 +720,6 @@ public:
   nsBlockFrame* GetContainer() { return mFrame; }
   PRBool GetInOverflow() { return mInOverflowLines != nsnull; }
 
-  /**
-   * Returns the current line list we're iterating, null means
-   * we're iterating |mLines| of the container.
-   */
-  nsLineList* GetLineList() { return mInOverflowLines; }
 
   /**
    * Returns the end-iterator of whatever line list we're in.

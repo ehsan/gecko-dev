@@ -845,7 +845,7 @@ FeedWriter.prototype = {
 
   // nsIDomEventListener
   handleEvent: function(event) {
-    // see comments in init()
+    // see comments in the write method
     event = new XPCNativeWrapper(event);
     if (event.target.ownerDocument != this._document) {
       LOG("FeedWriter.handleEvent: Someone passed the feed writer as a listener to the events of another document!");
@@ -1331,11 +1331,8 @@ FeedWriter.prototype = {
 
   // nsIObserver
   observe: function FW_observe(subject, topic, data) {
-    // see init()
-    subject = new XPCNativeWrapper(subject);
-    
     if (!this._window) {
-      // this._window is null unless this.init was called with a trusted
+      // this._window is null unless this.write was called with a trusted
       // window object.
       return;
     }
@@ -1375,21 +1372,26 @@ FeedWriter.prototype = {
   _setFaviconForWebReader:
   function FW__setFaviconForWebReader(aURI, aMenuItem) {
     var faviconsSvc = this._faviconService;
-    var faviconURI = null;
+    var faviconURL = null;
     try {
-      faviconURI = faviconsSvc.getFaviconForPage(aURI);
+      faviconURL = faviconsSvc.getFaviconForPage(aURI);
     }
     catch(ex) { }
 
-    if (faviconURI) {
-      var dataURL = faviconsSvc.getFaviconDataAsDataURL(faviconURI);
-      if (dataURL) {
+    if (faviconURL) {
+      var mimeType = { };
+      var bytes = faviconsSvc.getFaviconData(faviconURL, mimeType,
+                                             { /* dataLen */ });
+      if (bytes) {
+        var dataURI = "data:" + mimeType.value + ";" + "base64," +
+                      btoa(String.fromCharCode.apply(null, bytes));
+
         this._contentSandbox.menuItem = aMenuItem;
-        this._contentSandbox.dataURL = dataURL;
-        var codeStr = "menuItem.setAttribute('image', dataURL);";
+        this._contentSandbox.dataURI = dataURI;
+        var codeStr = "menuItem.setAttribute('image', dataURI);";
         Cu.evalInSandbox(codeStr, this._contentSandbox);
         this._contentSandbox.menuItem = null;
-        this._contentSandbox.dataURL = null;
+        this._contentSandbox.dataURI = null;
 
         return true;
       }
@@ -1400,9 +1402,6 @@ FeedWriter.prototype = {
 
    // nsINavHistoryService
    onPageChanged: function FW_onPageChanged(aURI, aWhat, aValue) {
-     // see init()
-     aURI = new XPCNativeWrapper(aURI);
-
      if (aWhat == Ci.nsINavHistoryObserver.ATTRIBUTE_FAVICON) {
        // Go through the readers menu and look for the corresponding
        // reader menu-item for the page if any.

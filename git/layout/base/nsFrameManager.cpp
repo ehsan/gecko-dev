@@ -275,7 +275,7 @@ nsFrameManager::Destroy()
   // Destroy the frame hierarchy.
   mPresShell->SetIgnoreFrameDestruction(PR_TRUE);
 
-  mIsDestroying = PR_TRUE;  // This flag prevents GetPrimaryFrameFor from returning pointers to destroyed frames
+  mIsDestroyingFrames = PR_TRUE;  // This flag prevents GetPrimaryFrameFor from returning pointers to destroyed frames
 
   // Unregister all placeholders before tearing down the frame tree
   nsFrameManager::ClearPlaceholderFrameMap();
@@ -324,12 +324,12 @@ nsIFrame*
 nsFrameManager::GetPrimaryFrameFor(nsIContent* aContent,
                                    PRInt32 aIndexHint)
 {
-  NS_ASSERTION(!mIsDestroyingFrames,
-               "GetPrimaryFrameFor() called while frames are being destroyed!");
   NS_ENSURE_TRUE(aContent, nsnull);
 
-  if (mIsDestroying) {
-    NS_ERROR("GetPrimaryFrameFor() called while nsFrameManager is being destroyed!");
+  if (mIsDestroyingFrames) {
+#ifdef DEBUG
+    printf("GetPrimaryFrameFor() called while nsFrameManager is being destroyed!\n");
+#endif
     return nsnull;
   }
 
@@ -684,10 +684,6 @@ nsFrameManager::RemoveFrame(nsIFrame*       aParentFrame,
                             nsIAtom*        aListName,
                             nsIFrame*       aOldFrame)
 {
-#ifdef DEBUG  
-  PRBool wasDestroyingFrames = mIsDestroyingFrames;
-  mIsDestroyingFrames = PR_TRUE;
-#endif
   // In case the reflow doesn't invalidate anything since it just leaves
   // a gap where the old frame was, we invalidate it here.  (This is
   // reasonably likely to happen when removing a last child in a way
@@ -696,11 +692,7 @@ nsFrameManager::RemoveFrame(nsIFrame*       aParentFrame,
   // is important in the presence of absolute positioning
   aOldFrame->Invalidate(aOldFrame->GetOverflowRect());
 
-  nsresult rv = aParentFrame->RemoveFrame(aListName, aOldFrame);
-#ifdef DEBUG  
-  mIsDestroyingFrames = wasDestroyingFrames;
-#endif
-  return rv;
+  return aParentFrame->RemoveFrame(aListName, aOldFrame);
 }
 
 //----------------------------------------------------------------------
@@ -1092,7 +1084,11 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
   nsStyleContext* oldContext = aFrame->GetStyleContext();
   nsStyleSet* styleSet = aPresContext->StyleSet();
 #ifdef ACCESSIBILITY
-  PRBool isVisible = aFrame->GetStyleVisibility()->IsVisible();
+  PRBool isAccessibilityActive = mPresShell->IsAccessibilityActive();
+  PRBool isVisible;
+  if (isAccessibilityActive) {
+    isVisible = aFrame->GetStyleVisibility()->IsVisible();
+  }
 #endif
 
   // XXXbz the nsIFrame constructor takes an nsStyleContext, so how
@@ -1404,7 +1400,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
   }
 
 #ifdef ACCESSIBILITY
-  if (mPresShell->IsAccessibilityActive() &&
+  if (isAccessibilityActive &&
       aFrame->GetStyleVisibility()->IsVisible() != isVisible &&
       !aFrame->GetPrevContinuation()) { // Primary frames only
     // XXX Visibility does not affect descendents with visibility set
@@ -1414,10 +1410,9 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
     nsCOMPtr<nsIAccessibilityService> accService = 
       do_GetService("@mozilla.org/accessibilityService;1");
     if (accService) {
-      PRUint32 event = isVisible ?
-        PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_HIDE) :
-        PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_SHOW);
-      accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(), event);
+      accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(),
+                                       isVisible ? nsIAccessibleEvent::EVENT_ASYNCH_HIDE :
+                                                   nsIAccessibleEvent::EVENT_ASYNCH_SHOW);
     }
   }
 #endif
