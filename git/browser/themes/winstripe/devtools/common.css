@@ -5,11 +5,8 @@
 
 /* Font for code */
 
-:root {
-  font: message-box;
-}
-
 .devtools-monospace {
+  font: message-box;
   font-family: monospace;
 }
 

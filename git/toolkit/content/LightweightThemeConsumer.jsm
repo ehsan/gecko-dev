@@ -59,14 +59,11 @@ LightweightThemeConsumer.prototype = {
   },
 
   destroy: function () {
-    if (!PrivateBrowsingUtils.isWindowPrivate(this._win)) {
-      Components.classes["@mozilla.org/observer-service;1"]
-                .getService(Components.interfaces.nsIObserverService)
-                .removeObserver(this, "lightweight-theme-styling-update");
+    Components.classes["@mozilla.org/observer-service;1"]
+              .getService(Components.interfaces.nsIObserverService)
+              .removeObserver(this, "lightweight-theme-styling-update");
 
-      this._win.removeEventListener("resize", this);
-    }
-
+    this._win.removeEventListener("resize", this);
     this._win = this._doc = null;
   },
 
