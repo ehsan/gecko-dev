@@ -1351,6 +1351,10 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
               ConvertRectAppUnitsToIntPixels(
                 ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition, p2a);
               break;
+            case NS_QUERYCARETRECT:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect, p2a);
+              break;
             case NS_QUERY_CHARACTER_RECT:
             case NS_QUERY_CARET_RECT:
               ConvertRectAppUnitsToIntPixels(
