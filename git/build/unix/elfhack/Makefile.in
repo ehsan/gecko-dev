@@ -54,6 +54,7 @@ VPATH += $(topsrcdir)/build
 HOST_CPPSRCS = \
   elf.cpp \
   elfhack.cpp \
+  $(STDCXX_COMPAT) \
   $(NULL)
 
 OS_CXXFLAGS := $(filter-out -fno-exceptions,$(OS_CXXFLAGS)) -fexceptions

@@ -28,14 +28,22 @@ function test() {
 }
 
 // ----------
+function whenWindowLoaded(aWindow, aCallback) {
+  aWindow.addEventListener("load", function onLoad() {
+    aWindow.removeEventListener("load", onLoad, false);
+    executeSoon(aCallback);
+  }, false);
+}
+
+// ----------
 function newWindowWithState(aState, aCallback) {
   let opts = "chrome,all,dialog=no,height=800,width=800";
   let win = window.openDialog(getBrowserURL(), "_blank", opts);
 
   registerCleanupFunction(function () win.close());
 
-  whenWindowLoaded(win, function onWindowLoaded(aWin) {
-    ss.setWindowState(aWin, JSON.stringify(aState), true);
-    executeSoon(function () aCallback(aWin));
+  whenWindowLoaded(win, function () {
+    ss.setWindowState(win, JSON.stringify(aState), true);
+    executeSoon(function () aCallback(win));
   });
 }

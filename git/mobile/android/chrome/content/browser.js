@@ -416,10 +416,7 @@ var BrowserApp = {
       link: {
         label: learnMoreLabel,
         url: learnMoreUrl
-      },
-      // We're adding this doorhanger during startup, before the initial onLocationChange
-      // event fires, so we need to set persistence to make sure it doesn't disappear.
-      persistence: 1
+      }
     };
     NativeWindow.doorhanger.show(message, "telemetry-optin", buttons, this.selectedTab.id, options);
   },
@@ -1140,6 +1137,8 @@ var NativeWindow = {
     _contextId: 0, // id to assign to new context menu items if they are added
 
     init: function() {
+      this.imageContext = this.SelectorContext("img");
+
       Services.obs.addObserver(this, "Gesture:LongPress", false);
 
       // TODO: These should eventually move into more appropriate classes
@@ -1184,17 +1183,18 @@ var NativeWindow = {
                });
 
       this.add(Strings.browser.GetStringFromName("contextmenu.saveImage"),
-               this.imageSaveableContext,
+               this.imageContext,
                function(aTarget) {
                  let imageCache = Cc["@mozilla.org/image/cache;1"].getService(Ci.imgICache);
                  let props = imageCache.findEntryProperties(aTarget.currentURI, aTarget.ownerDocument.characterSet);
-                 let contentDisposition = "";
-                 let type = "";
+                 var contentDisposition = "";
+                 var type = "";
                  try {
                     String(props.get("content-disposition", Ci.nsISupportsCString));
                     String(props.get("type", Ci.nsISupportsCString));
                  } catch(ex) { }
-                 ContentAreaUtils.internalSave(aTarget.currentURI.spec, null, null, contentDisposition, type, false, "SaveImageTitle", null, aTarget.ownerDocument.documentURIObject, true, null);
+                 var browser = BrowserApp.getBrowserForDocument(aTarget.ownerDocument);
+                 ContentAreaUtils.internalSave(aTarget.currentURI.spec, null, null, contentDisposition, type, false, "SaveImageTitle", null, browser.documentURI, true, null);
                });
     },
 
@@ -1279,16 +1279,6 @@ var NativeWindow = {
       matches: function textContext(aElement) {
         return ((aElement instanceof Ci.nsIDOMHTMLInputElement && aElement.mozIsTextField(false))
                 || aElement instanceof Ci.nsIDOMHTMLTextAreaElement);
-      }
-    },
-
-    imageSaveableContext: {
-      matches: function imageSaveableContextMatches(aElement) {
-        if (aElement instanceof Ci.nsIImageLoadingContent && aElement.currentURI) {
-          // The image must be loaded to allow saving
-          let request = aElement.getRequest(Ci.nsIImageLoadingContent.CURRENT_REQUEST);
-          return (request && (request.imageStatus & request.STATUS_SIZE_AVAILABLE));
-        }
       }
     },
 
@@ -3385,11 +3375,6 @@ var XPInstallObserver = {
         break;
       case "addon-install-blocked":
         let installInfo = aSubject.QueryInterface(Ci.amIWebInstallInfo);
-        let win = installInfo.originatingWindow;
-        let tab = BrowserApp.getTabForWindow(win.top);
-        if (!tab)
-          return;
-
         let host = installInfo.originatingURI.host;
 
         let brandShortName = Strings.brand.GetStringFromName("brandShortName");
@@ -3429,7 +3414,7 @@ var XPInstallObserver = {
             }
           }];
         }
-        NativeWindow.doorhanger.show(message, aTopic, buttons, tab.id);
+        NativeWindow.doorhanger.show(message, aTopic, buttons);
         break;
     }
   },

@@ -223,8 +223,6 @@ public class Server11RepositorySession extends RepositorySession {
   }
 
   private String flattenIDs(String[] guids) {
-    // Consider using Utils.toDelimitedString if and when the signature changes
-    // to Collection<String> guids.
     if (guids.length == 0) {
       return "";
     }

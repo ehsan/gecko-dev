@@ -845,18 +845,18 @@ MarionetteDriverActor.prototype = {
    *        the element that will be inspected
    *        'name' member holds the name of the attribute to retrieve
    */
-  getElementAttribute: function MDA_getElementAttribute(aRequest) {
+  getAttributeValue: function MDA_getAttributeValue(aRequest) {
     if (this.context == "chrome") {
       try {
         let el = this.curBrowser.elementManager.getKnownElement(aRequest.element, this.getCurrentWindow());
-        this.sendResponse(utils.getElementAttribute(el, aRequest.name));
+        this.sendResponse(utils.getAttributeValue(el, aRequest.name));
       }
       catch (e) {
         this.sendError(e.message, e.num, e.stack);
       }
     }
     else {
-      this.sendAsync("getElementAttribute", {element: aRequest.element, name: aRequest.name});
+      this.sendAsync("getAttributeValue", {element: aRequest.element, name: aRequest.name});
     }
   },
 
@@ -1137,7 +1137,7 @@ MarionetteDriverActor.prototype.requestTypes = {
   "findElement": MarionetteDriverActor.prototype.findElement,
   "findElements": MarionetteDriverActor.prototype.findElements,
   "clickElement": MarionetteDriverActor.prototype.clickElement,
-  "getElementAttribute": MarionetteDriverActor.prototype.getElementAttribute,
+  "getAttributeValue": MarionetteDriverActor.prototype.getAttributeValue,
   "getElementText": MarionetteDriverActor.prototype.getElementText,
   "isElementDisplayed": MarionetteDriverActor.prototype.isElementDisplayed,
   "isElementEnabled": MarionetteDriverActor.prototype.isElementEnabled,

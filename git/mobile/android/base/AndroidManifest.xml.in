@@ -10,7 +10,7 @@
 #endif
       >
     <uses-sdk android:minSdkVersion="8"
-              android:targetSdkVersion="14"/>
+              android:targetSdkVersion="11"/>
 
 #include ../sync/manifests/SyncAndroidManifest_permissions.xml.in
 
@@ -58,7 +58,7 @@
 
         <activity android:name="App"
                   android:label="@MOZ_APP_DISPLAYNAME@"
-                  android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize"
+                  android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
                   android:launchMode="singleTask"
                   android:theme="@style/Gecko.App">
@@ -165,7 +165,7 @@
 
         <activity android:name="org.mozilla.gecko.AwesomeBar"
                   android:theme="@style/Gecko.Light.AwesomeBar"
-                  android:configChanges="orientation|screenSize"
+                  android:configChanges="orientation"
                   android:windowSoftInputMode="stateAlwaysVisible|adjustResize"/>
 
         <activity android:name="org.mozilla.gecko.TabsTray"

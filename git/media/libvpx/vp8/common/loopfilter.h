@@ -15,10 +15,7 @@
 #include "vpx_ports/mem.h"
 #include "vpx_config.h"
 
-#define MAX_LOOP_FILTER             63
-/* fraction of total macroblock rows to be used in fast filter level picking */
-/* has to be > 2 */
-#define PARTIAL_FRAME_FRACTION      8
+#define MAX_LOOP_FILTER 63
 
 typedef enum
 {

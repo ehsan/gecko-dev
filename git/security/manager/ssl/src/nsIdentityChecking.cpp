@@ -47,7 +47,7 @@
 #include "cert.h"
 #include "base64.h"
 #include "nsNSSComponent.h"
-#include "nsSSLStatus.h"
+#include "nsNSSIOLayer.h"
 #include "nsNSSCertificate.h"
 #include "nsNSSCleaner.h"
 

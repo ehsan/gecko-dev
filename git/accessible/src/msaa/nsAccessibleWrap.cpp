@@ -52,7 +52,6 @@
 #include "nsIAccessibleRelation.h"
 
 #include "Accessible2_i.c"
-#include "AccessibleRole.h"
 #include "AccessibleStates.h"
 
 #include "nsIMutableArray.h"
@@ -66,28 +65,11 @@
 #include "nsTextFormatter.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
+#include "nsRoleMap.h"
 #include "nsEventMap.h"
 #include "nsArrayUtils.h"
 
-#include "OLEACC.H"
-
-using namespace mozilla;
 using namespace mozilla::a11y;
-
-const PRUint32 USE_ROLE_STRING = 0;
-
-#ifndef ROLE_SYSTEM_SPLITBUTTON
-const PRUint32 ROLE_SYSTEM_SPLITBUTTON  = 0x3e; // Not defined in all oleacc.h versions
-#endif
-
-#ifndef ROLE_SYSTEM_IPADDRESS
-const PRUint32 ROLE_SYSTEM_IPADDRESS = 0x3f; // Not defined in all oleacc.h versions
-#endif
-
-#ifndef ROLE_SYSTEM_OUTLINEBUTTON
-const PRUint32 ROLE_SYSTEM_OUTLINEBUTTON = 0x40; // Not defined in all oleacc.h versions
-#endif
-
 
 /* For documentation of the accessibility architecture,
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
@@ -392,26 +374,15 @@ __try {
                "Does not support nsIAccessibleText when it should");
 #endif
 
-  a11y::role geckoRole = xpAccessible->Role();
-  PRUint32 msaaRole = 0;
-
-#define ROLE(_geckoRole, stringRole, atkRole, macRole, _msaaRole, ia2Role) \
-  case roles::_geckoRole: \
-    msaaRole = _msaaRole; \
-    break;
-
-  switch (geckoRole) {
-#include "RoleMap.h"
-    default:
-      MOZ_NOT_REACHED("Unknown role.");
-  };
-
-#undef ROLE
+  roles::Role role = xpAccessible->Role();
+  PRUint32 msaaRole = gWindowsRoleMap[role].msaaRole;
+  NS_ASSERTION(gWindowsRoleMap[roles::LAST_ENTRY].msaaRole == ROLE_WINDOWS_LAST_ENTRY,
+               "MSAA role map skewed");
 
   // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call the MSAA role
   // a ROLE_OUTLINEITEM for consistency and compatibility.
   // We need this because ARIA has a role of "row" for both grid and treegrid
-  if (geckoRole == roles::ROW) {
+  if (role == roles::ROW) {
     nsAccessible* xpParent = Parent();
     if (xpParent && xpParent->Role() == roles::TREE_TABLE)
       msaaRole = ROLE_SYSTEM_OUTLINEITEM;
@@ -1231,23 +1202,15 @@ __try {
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-#define ROLE(_geckoRole, stringRole, atkRole, macRole, msaaRole, ia2Role) \
-  case roles::_geckoRole: \
-    *aRole = ia2Role; \
-    break;
+  NS_ASSERTION(gWindowsRoleMap[roles::LAST_ENTRY].ia2Role == ROLE_WINDOWS_LAST_ENTRY,
+               "MSAA role map skewed");
 
-  a11y::role geckoRole = Role();
-  switch (geckoRole) {
-#include "RoleMap.h"
-    default:
-      MOZ_NOT_REACHED("Unknown role.");
-  };
-
-#undef ROLE
+  roles::Role role = Role();
+  *aRole = gWindowsRoleMap[role].ia2Role;
 
   // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call
   // the IA2 role a ROLE_OUTLINEITEM.
-  if (geckoRole == roles::ROW) {
+  if (role == roles::ROW) {
     nsAccessible* xpParent = Parent();
     if (xpParent && xpParent->Role() == roles::TREE_TABLE)
       *aRole = ROLE_SYSTEM_OUTLINEITEM;
