@@ -61,10 +61,6 @@ function showTranslationUI(aDetectedLanguage) {
   return ui.notificationBox.getNotificationWithValue("translation");
 }
 
-function hasTranslationInfoBar() {
-  return !!gBrowser.getNotificationBox().getNotificationWithValue("translation");
-}
-
 function test() {
   waitForExplicitFinish();
 
@@ -187,23 +183,18 @@ function run_tests(aFinishCallback) {
   info("Reopen to check the 'Not Now' button closes the notification.");
   notif = showTranslationUI("fr");
   let notificationBox = gBrowser.getNotificationBox();
-  is(hasTranslationInfoBar(), true, "there's a 'translate' notification");
+  ok(!!notificationBox.getNotificationWithValue("translation"), "there's a 'translate' notification");
   notif._getAnonElt("notNow").click();
-  is(hasTranslationInfoBar(), false, "no 'translate' notification after clicking 'not now'");
-
-  info("Reopen to check the url bar icon closes the notification.");
-  notif = showTranslationUI("fr");
-  is(hasTranslationInfoBar(), true, "there's a 'translate' notification");
-  PopupNotifications.getNotification("translate").anchorElement.click();
-  is(hasTranslationInfoBar(), false, "no 'translate' notification after clicking the url bar icon");
+  ok(!notificationBox.getNotificationWithValue("translation"), "no 'translate' notification after clicking 'not now'");
 
   info("Check that clicking the url bar icon reopens the info bar");
   checkURLBarIcon();
   // Clicking the anchor element causes a 'showing' event to be sent
   // asynchronously to our callback that will then show the infobar.
   PopupNotifications.getNotification("translate").anchorElement.click();
-  waitForCondition(hasTranslationInfoBar, () => {
-    ok(hasTranslationInfoBar(), "there's a 'translate' notification");
+  waitForCondition(() => !!notificationBox.getNotificationWithValue("translation"), () => {
+    ok(!!notificationBox.getNotificationWithValue("translation"),
+       "there's a 'translate' notification");
     aFinishCallback();
   }, "timeout waiting for the info bar to reappear");
 }

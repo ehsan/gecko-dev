@@ -138,7 +138,8 @@
 }
 
 .ruleview-colorswatch,
-.computedview-colorswatch {
+.computedview-colorswatch,
+.markupview-colorswatch {
   box-shadow: 0 0 0 1px #c4c4c4;
 }
 

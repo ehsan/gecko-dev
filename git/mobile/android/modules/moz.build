@@ -8,6 +8,7 @@ EXTRA_JS_MODULES += [
     'Accounts.jsm',
     'AndroidLog.jsm',
     'ContactService.jsm',
+    'DownloadNotifications.jsm',
     'HelperApps.jsm',
     'Home.jsm',
     'HomeProvider.jsm',
