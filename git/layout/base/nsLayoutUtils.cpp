@@ -5397,23 +5397,21 @@ nsLayoutUtils::SurfaceFromElement(nsIImageLoadingContent* aElement,
     return result;
 
   if (!noRasterize || imgContainer->GetType() == imgIContainer::TYPE_RASTER) {
-    if (aSurfaceFlags & SFE_WANT_IMAGE_SURFACE) {
-      frameFlags |= imgIContainer::FLAG_WANT_DATA_SURFACE;
+    bool wantImageSurface = (aSurfaceFlags & SFE_WANT_IMAGE_SURFACE) != 0;
+    if (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) {
+      wantImageSurface = true;
     }
-    result.mSourceSurface = imgContainer->GetFrame(whichFrame, frameFlags);
-    if (!result.mSourceSurface) {
+    
+    nsRefPtr<gfxASurface> gfxsurf =
+      imgContainer->GetFrame(whichFrame, frameFlags);
+    if (!gfxsurf)
       return result;
+
+    if (wantImageSurface) {
+      result.mSourceSurface = gfxPlatform::GetPlatform()->GetWrappedDataSourceSurface(gfxsurf);
     }
-    // The surface we return is likely to be cached. We don't want to have to
-    // convert to a surface that's compatible with aTarget each time it's used
-    // (that would result in terrible performance), so we convert once here
-    // upfront if aTarget is specified.
-    if (aTarget) {
-      RefPtr<SourceSurface> optSurface =
-        aTarget->OptimizeSourceSurface(result.mSourceSurface);
-      if (optSurface) {
-        result.mSourceSurface = optSurface;
-      }
+    if (!result.mSourceSurface) {
+      result.mSourceSurface = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(aTarget, gfxsurf);
     }
   } else {
     result.mDrawInfo.mImgContainer = imgContainer;

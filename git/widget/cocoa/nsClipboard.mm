@@ -466,9 +466,15 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
         continue;
       }
 
-      RefPtr<SourceSurface> surface =
+      nsRefPtr<gfxASurface> thebesSurface =
         image->GetFrame(imgIContainer::FRAME_CURRENT,
                         imgIContainer::FLAG_SYNC_DECODE);
+      if (!thebesSurface) {
+        continue;
+      }
+      RefPtr<SourceSurface> surface =
+        gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(
+          gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget(), thebesSurface);
       if (!surface) {
         continue;
       }

@@ -8,8 +8,6 @@
 #include "mozilla/EventStates.h"
 #include "mozilla/dom/SVGFEImageElementBinding.h"
 #include "mozilla/dom/SVGFilterElement.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
 #include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsSVGUtils.h"
@@ -213,15 +211,21 @@ SVGFEImageElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
     currentRequest->GetImage(getter_AddRefs(imageContainer));
   }
 
-  RefPtr<SourceSurface> image;
+  nsRefPtr<gfxASurface> currentFrame;
   if (imageContainer) {
-    image = imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
-                                     imgIContainer::FLAG_SYNC_DECODE);
+    currentFrame =
+      imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
+                               imgIContainer::FLAG_SYNC_DECODE);
   }
 
-  if (!image) {
+  if (!currentFrame) {
     return FilterPrimitiveDescription(PrimitiveType::Empty);
   }
+
+  gfxPlatform* platform = gfxPlatform::GetPlatform();
+  DrawTarget* dt = platform->ScreenReferenceDrawTarget();
+  RefPtr<SourceSurface> image =
+    platform->GetSourceSurfaceForSurface(dt, currentFrame);
 
   IntSize nativeSize;
   imageContainer->GetWidth(&nativeSize.width);

@@ -5,12 +5,18 @@
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
-#include "nsImageToPixbuf.h"
-
-#include "imgIContainer.h"
+#include "gfxASurface.h"
+#include "gfxImageSurface.h"
+#include "gfxContext.h"
+#include "gfxPlatform.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/RefPtr.h"
+
+#include "imgIContainer.h"
+
 #include "nsAutoPtr.h"
+
+#include "nsImageToPixbuf.h"
 
 using mozilla::gfx::DataSourceSurface;
 using mozilla::gfx::SurfaceFormat;
@@ -37,7 +43,7 @@ nsImageToPixbuf::ConvertImageToPixbuf(imgIContainer* aImage)
 GdkPixbuf*
 nsImageToPixbuf::ImageToPixbuf(imgIContainer* aImage)
 {
-    RefPtr<SourceSurface> surface =
+    nsRefPtr<gfxASurface> thebesSurface =
       aImage->GetFrame(imgIContainer::FRAME_CURRENT,
                        imgIContainer::FLAG_SYNC_DECODE);
 
@@ -45,10 +51,15 @@ nsImageToPixbuf::ImageToPixbuf(imgIContainer* aImage)
     // in an imgINotificationObserver event, meaning that we're not allowed request
     // a sync decode. Presumably the originating event is something sensible like
     // OnStopFrame(), so we can just retry the call without a sync decode.
-    if (!surface)
-      surface = aImage->GetFrame(imgIContainer::FRAME_CURRENT,
-                                 imgIContainer::FLAG_NONE);
+    if (!thebesSurface)
+      thebesSurface = aImage->GetFrame(imgIContainer::FRAME_CURRENT,
+                                       imgIContainer::FLAG_NONE);
 
+    NS_ENSURE_TRUE(thebesSurface, nullptr);
+
+    RefPtr<SourceSurface> surface =
+      gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr,
+                                                             thebesSurface);
     NS_ENSURE_TRUE(surface, nullptr);
 
     return SourceSurfaceToPixbuf(surface,

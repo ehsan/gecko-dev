@@ -36,6 +36,7 @@
 #include "imgLoader.h"
 #include "imgRequestProxy.h"
 #include "nsMenuItemX.h"
+#include "gfxImageSurface.h"
 #include "gfxPlatform.h"
 #include "imgIContainer.h"
 #include "nsCocoaUtils.h"
@@ -386,14 +387,18 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest)
   if (mImageRegionRect.IsEmpty()) {
     mImageRegionRect.SetRect(0, 0, origWidth, origHeight);
   }
-
-  RefPtr<SourceSurface> surface =
+  
+  nsRefPtr<gfxASurface> thebesSurface =
     imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
                              imgIContainer::FLAG_NONE);
-  if (!surface) {
+  if (!thebesSurface) {
     [mNativeMenuItem setImage:nil];
     return NS_ERROR_FAILURE;
   }
+  RefPtr<SourceSurface> surface =
+    gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr,
+                                                           thebesSurface);
+  NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
 
   CGImageRef origImage = NULL;
   nsresult rv = nsCocoaUtils::CreateCGImageFromSurface(surface, &origImage);

@@ -26,6 +26,7 @@
 #include "nscore.h"                     // for nsACString
 #include "mozilla/layers/AtomicRefCountedWithFinalize.h"
 
+class gfxImageSurface;
 class gfxReusableSurfaceWrapper;
 struct nsIntPoint;
 struct nsIntSize;
@@ -79,15 +80,12 @@ public:
  *
  * This class is used on the compositor side.
  */
-class TextureSource
+class TextureSource : public RefCounted<TextureSource>
 {
-protected:
-  virtual ~TextureSource();
-
 public:
-  NS_INLINE_DECL_REFCOUNTING(TextureSource)
-
+  MOZ_DECLARE_REFCOUNTED_TYPENAME(TextureSource)
   TextureSource();
+  virtual ~TextureSource();
 
   /**
    * Return the size of the texture in texels.

@@ -77,6 +77,7 @@ private:
   bool mIsServer;
   int mReceivedSocketInfoLength;
 
+  bool CreateDroidSocket(int aFd);
   bool ReceiveSocketInfo(nsAutoPtr<mozilla::ipc::UnixSocketRawData>& aMessage);
 };
 

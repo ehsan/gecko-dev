@@ -6,15 +6,11 @@
 #include "gfxDrawable.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
 
 #include "ClippedImage.h"
 #include "Orientation.h"
 #include "SVGImageContext.h"
 
-using namespace mozilla;
-using namespace mozilla::gfx;
 using mozilla::layers::LayerManager;
 using mozilla::layers::ImageContainer;
 
@@ -24,7 +20,7 @@ namespace image {
 class ClippedImageCachedSurface
 {
 public:
-  ClippedImageCachedSurface(TemporaryRef<SourceSurface> aSurface,
+  ClippedImageCachedSurface(mozilla::gfx::DrawTarget* aSurface,
                             const nsIntSize& aViewportSize,
                             const SVGImageContext* aSVGContext,
                             float aFrame,
@@ -53,12 +49,13 @@ public:
            mFlags == aFlags;
   }
 
-  TemporaryRef<SourceSurface> Surface() {
-    return mSurface;
+  already_AddRefed<gfxASurface> Surface() {
+    nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mSurface);
+    return surf.forget();
   }
 
 private:
-  RefPtr<SourceSurface>              mSurface;
+  nsRefPtr<mozilla::gfx::DrawTarget> mSurface;
   const nsIntSize                    mViewportSize;
   Maybe<SVGImageContext>             mSVGContext;
   const float                        mFrame;
@@ -212,14 +209,14 @@ ClippedImage::GetIntrinsicRatio(nsSize* aRatio)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(TemporaryRef<SourceSurface>)
+NS_IMETHODIMP_(already_AddRefed<gfxASurface>)
 ClippedImage::GetFrame(uint32_t aWhichFrame,
                        uint32_t aFlags)
 {
   return GetFrameInternal(mClip.Size(), nullptr, aWhichFrame, aFlags);
 }
 
-TemporaryRef<SourceSurface>
+already_AddRefed<gfxASurface>
 ClippedImage::GetFrameInternal(const nsIntSize& aViewportSize,
                                const SVGImageContext* aSVGContext,
                                uint32_t aWhichFrame,
@@ -235,11 +232,13 @@ ClippedImage::GetFrameInternal(const nsIntSize& aViewportSize,
                                                   frameToDraw,
                                                   aFlags)) {
     // Create a surface to draw into.
-    RefPtr<DrawTarget> target = gfxPlatform::GetPlatform()->
-      CreateOffscreenContentDrawTarget(IntSize(mClip.width, mClip.height),
-                                       SurfaceFormat::B8G8R8A8);
+    mozilla::RefPtr<mozilla::gfx::DrawTarget> target;
+    nsRefPtr<gfxContext> ctx;
 
-    nsRefPtr<gfxContext> ctx = new gfxContext(target);
+    target = gfxPlatform::GetPlatform()->
+      CreateOffscreenContentDrawTarget(gfx::IntSize(mClip.width, mClip.height),
+                                       gfx::SurfaceFormat::B8G8R8A8);
+    ctx = new gfxContext(target);
 
     // Create our callback.
     nsRefPtr<gfxDrawingCallback> drawTileCallback =
@@ -255,7 +254,7 @@ ClippedImage::GetFrameInternal(const nsIntSize& aViewportSize,
                                GraphicsFilter::FILTER_FAST);
 
     // Cache the resulting surface.
-    mCachedSurface = new ClippedImageCachedSurface(target->Snapshot(),
+    mCachedSurface = new ClippedImageCachedSurface(target,
                                                    aViewportSize,
                                                    aSVGContext,
                                                    frameToDraw,
@@ -323,7 +322,7 @@ ClippedImage::Draw(gfxContext* aContext,
   if (MustCreateSurface(aContext, aUserSpaceToImageSpace, sourceRect, aSubimage, aFlags)) {
     // Create a temporary surface containing a single tile of this image.
     // GetFrame will call DrawSingleTile internally.
-    RefPtr<SourceSurface> surface =
+    nsRefPtr<gfxASurface> surface =
       GetFrameInternal(aViewportSize, aSVGContext, aWhichFrame, aFlags);
     NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
 

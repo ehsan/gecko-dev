@@ -8,6 +8,7 @@
 
 #include "Layers.h"
 #include "LayerManagerD3D9.h"
+#include "gfxImageSurface.h"
 #include "ReadbackProcessor.h"
 
 namespace mozilla {

@@ -34,7 +34,7 @@ typedef enum {
     nsLineStyle_kDotted = 3
 } nsLineStyle;
 
-class nsRenderingContext MOZ_FINAL
+class nsRenderingContext
 {
     typedef mozilla::gfx::UserData UserData;
     typedef mozilla::gfx::UserDataKey UserDataKey;
@@ -42,6 +42,7 @@ class nsRenderingContext MOZ_FINAL
 
 public:
     nsRenderingContext() : mP2A(0.) {}
+    // ~nsRenderingContext() {}
 
     NS_INLINE_DECL_REFCOUNTING(nsRenderingContext)
 
@@ -129,12 +130,7 @@ public:
       return mUserData.Remove(key);
     }
 
-private:
-    // Private destructor, to discourage deletion outside of Release():
-    ~nsRenderingContext()
-    {
-    }
-
+protected:
     int32_t GetMaxChunkLength();
 
     nsRefPtr<gfxContext> mThebes;

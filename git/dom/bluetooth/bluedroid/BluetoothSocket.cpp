@@ -91,37 +91,7 @@ public:
     , mIOLoop(nullptr)
     , mFd(aFd)
     , mShuttingDownOnIOThread(false)
-    , mChannel(0)
-    , mAuth(false)
-    , mEncrypt(false)
   {
-  }
-
-  DroidSocketImpl(BluetoothSocket* aConsumer,
-                  int aChannel, bool aAuth, bool aEncrypt)
-    : mConsumer(aConsumer)
-    , mReadMsgForClientFd(false)
-    , mIOLoop(nullptr)
-    , mFd(-1)
-    , mShuttingDownOnIOThread(false)
-    , mChannel(aChannel)
-    , mAuth(aAuth)
-    , mEncrypt(aEncrypt)
-  { }
-
-  DroidSocketImpl(BluetoothSocket* aConsumer, const nsAString& aDeviceAddress,
-                  int aChannel, bool aAuth, bool aEncrypt)
-    : mConsumer(aConsumer)
-    , mReadMsgForClientFd(false)
-    , mIOLoop(nullptr)
-    , mFd(-1)
-    , mShuttingDownOnIOThread(false)
-    , mDeviceAddress(aDeviceAddress)
-    , mChannel(aChannel)
-    , mAuth(aAuth)
-    , mEncrypt(aEncrypt)
-  {
-    MOZ_ASSERT(!mDeviceAddress.IsEmpty());
   }
 
   ~DroidSocketImpl()
@@ -163,9 +133,6 @@ public:
 
     mShuttingDownOnIOThread = true;
   }
-
-  void Connect();
-  void Listen();
 
   void SetUpIO(bool aWrite)
   {
@@ -269,11 +236,6 @@ private:
    * If true, do not requeue whatever task we're running
    */
   bool mShuttingDownOnIOThread;
-
-  nsString mDeviceAddress;
-  int mChannel;
-  bool mAuth;
-  bool mEncrypt;
 };
 
 template<class T>
@@ -406,60 +368,19 @@ private:
   UnixSocketRawData* mData;
 };
 
-class DroidSocketImplTask : public CancelableTask
+class SocketSetUpIOTask : public Task
 {
-public:
-  DroidSocketImpl* GetDroidSocketImpl() const
-  {
-    return mDroidSocketImpl;
-  }
-  void Cancel() MOZ_OVERRIDE
-  {
-    mDroidSocketImpl = nullptr;
-  }
-  bool IsCanceled() const
-  {
-    return !mDroidSocketImpl;
-  }
-protected:
-  DroidSocketImplTask(DroidSocketImpl* aDroidSocketImpl)
-  : mDroidSocketImpl(aDroidSocketImpl)
-  {
-    MOZ_ASSERT(mDroidSocketImpl);
-  }
-private:
-  DroidSocketImpl* mDroidSocketImpl;
-};
-
-class SocketConnectTask : public DroidSocketImplTask
-{
-public:
-  SocketConnectTask(DroidSocketImpl* aDroidSocketImpl)
-  : DroidSocketImplTask(aDroidSocketImpl)
-  { }
-
-  void Run() MOZ_OVERRIDE
+  virtual void Run()
   {
     MOZ_ASSERT(!NS_IsMainThread());
-    MOZ_ASSERT(!IsCanceled());
-    GetDroidSocketImpl()->Connect();
+    mImpl->SetUpIO(mWrite);
   }
-};
 
-class SocketListenTask : public DroidSocketImplTask
-{
+  DroidSocketImpl* mImpl;
+  bool mWrite;
 public:
-  SocketListenTask(DroidSocketImpl* aDroidSocketImpl)
-  : DroidSocketImplTask(aDroidSocketImpl)
-  { }
-
-  void Run() MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-    if (!IsCanceled()) {
-      GetDroidSocketImpl()->Listen();
-    }
-  }
+  SocketSetUpIOTask(DroidSocketImpl* aImpl, bool aWrite)
+  : mImpl(aImpl), mWrite(aWrite) { }
 };
 
 class SocketConnectClientFdTask : public Task
@@ -474,78 +395,6 @@ class SocketConnectClientFdTask : public Task
 public:
   SocketConnectClientFdTask(DroidSocketImpl* aImpl) : mImpl(aImpl) { }
 };
-
-void
-DroidSocketImpl::Connect()
-{
-  MOZ_ASSERT(sBluetoothSocketInterface);
-
-  bt_bdaddr_t remoteBdAddress;
-  StringToBdAddressType(mDeviceAddress, &remoteBdAddress);
-
-  // TODO: uuid as argument
-  int fd = -1;
-  bt_status_t status =
-    sBluetoothSocketInterface->connect(&remoteBdAddress,
-                                       BTSOCK_RFCOMM,
-                                       UUID_OBEX_OBJECT_PUSH,
-                                       mChannel,
-                                       &fd,
-                                       (BTSOCK_FLAG_ENCRYPT * mEncrypt) |
-                                       (BTSOCK_FLAG_AUTH * mAuth));
-  NS_ENSURE_TRUE_VOID(status == BT_STATUS_SUCCESS);
-  NS_ENSURE_TRUE_VOID(fd >= 0);
-
-  mFd = fd;
-
-  MOZ_ASSERT(!mIOLoop);
-  mIOLoop = MessageLoopForIO::current();
-
-  // Set up a read watch
-  mIOLoop->WatchFileDescriptor(mFd.get(),
-                               true,
-                               MessageLoopForIO::WATCH_READ,
-                               &mReadWatcher,
-                               this);
-  // Set up a write watch
-  mIOLoop->WatchFileDescriptor(mFd.get(),
-                               false,
-                               MessageLoopForIO::WATCH_WRITE,
-                               &mWriteWatcher,
-                               this);
-}
-
-void
-DroidSocketImpl::Listen()
-{
-  MOZ_ASSERT(sBluetoothSocketInterface);
-
-  // TODO: uuid and service name as arguments
-
-  int fd = -1;
-  bt_status_t status =
-    sBluetoothSocketInterface->listen(BTSOCK_RFCOMM,
-                                      "OBEX Object Push",
-                                      UUID_OBEX_OBJECT_PUSH,
-                                      mChannel,
-                                      &fd,
-                                      (BTSOCK_FLAG_ENCRYPT * mEncrypt) |
-                                      (BTSOCK_FLAG_AUTH * mAuth));
-  NS_ENSURE_TRUE_VOID(status == BT_STATUS_SUCCESS);
-  NS_ENSURE_TRUE_VOID(fd >= 0);
-
-  mFd = fd;
-
-  MOZ_ASSERT(!mIOLoop);
-  mIOLoop = MessageLoopForIO::current();
-
-  // Set up a read watch
-  mIOLoop->WatchFileDescriptor(mFd.get(),
-                               true,
-                               MessageLoopForIO::WATCH_READ,
-                               &mReadWatcher,
-                               this);
-}
 
 ssize_t
 DroidSocketImpl::ReadMsg(int aFd, void *aBuffer, size_t aLength)
@@ -731,30 +580,65 @@ BluetoothSocket::CloseDroidSocket()
 }
 
 bool
-BluetoothSocket::Connect(const nsAString& aDeviceAddress, int aChannel)
+BluetoothSocket::CreateDroidSocket(int aFd)
 {
   MOZ_ASSERT(NS_IsMainThread());
   NS_ENSURE_FALSE(mImpl, false);
 
-  mIsServer = false;
-  mImpl = new DroidSocketImpl(this, aDeviceAddress, aChannel, mAuth, mEncrypt);
+  mImpl = new DroidSocketImpl(this, aFd);
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-                                   new SocketConnectTask(mImpl));
+                                   new SocketSetUpIOTask(mImpl, !mIsServer));
 
   return true;
+}
+
+bool
+BluetoothSocket::Connect(const nsAString& aDeviceAddress, int aChannel)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(!aDeviceAddress.IsEmpty());
+  NS_ENSURE_TRUE(sBluetoothSocketInterface, false);
+
+  bt_bdaddr_t remoteBdAddress;
+  StringToBdAddressType(aDeviceAddress, &remoteBdAddress);
+
+  // TODO: uuid as argument
+  int fd;
+  NS_ENSURE_TRUE(BT_STATUS_SUCCESS ==
+    sBluetoothSocketInterface->connect(&remoteBdAddress,
+                                       BTSOCK_RFCOMM,
+                                       UUID_OBEX_OBJECT_PUSH,
+                                       aChannel,
+                                       &fd,
+                                       (mAuth << 1) | mEncrypt),
+    false);
+  NS_ENSURE_TRUE(fd >= 0, false);
+
+  mIsServer = false;
+  return CreateDroidSocket(fd);
 }
 
 bool
 BluetoothSocket::Listen(int aChannel)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  NS_ENSURE_FALSE(mImpl, false);
+  NS_ENSURE_TRUE(sBluetoothSocketInterface, false);
+
+  // TODO: uuid and service name as arguments
+  nsAutoCString serviceName("OBEX Object Push");
+  int fd;
+  NS_ENSURE_TRUE(BT_STATUS_SUCCESS ==
+    sBluetoothSocketInterface->listen(BTSOCK_RFCOMM,
+                                      serviceName.get(),
+                                      UUID_OBEX_OBJECT_PUSH,
+                                      aChannel,
+                                      &fd,
+                                      (mAuth << 1) | mEncrypt),
+    false);
+  NS_ENSURE_TRUE(fd >= 0, false);
 
   mIsServer = true;
-  mImpl = new DroidSocketImpl(this, aChannel, mAuth, mEncrypt);
-  XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-                                   new SocketListenTask(mImpl));
-  return true;
+  return CreateDroidSocket(fd);
 }
 
 bool

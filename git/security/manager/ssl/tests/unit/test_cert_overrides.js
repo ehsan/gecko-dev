@@ -34,18 +34,6 @@ function add_cert_override_test(aHost, aExpectedBits, aExpectedError) {
   add_connection_test(aHost, Cr.NS_OK);
 }
 
-function add_non_overridable_test(aHost, aExpectedError) {
-  add_connection_test(
-    aHost, getXPCOMStatusFromNSS(aExpectedError), null,
-    function (securityInfo) {
-      // bug 754369 - no SSLStatus probably means this is a non-overridable
-      // error, which is what we're testing (although it would be best to test
-      // this directly).
-      securityInfo.QueryInterface(Ci.nsISSLStatusProvider);
-      do_check_eq(securityInfo.SSLStatus, null);
-    });
-}
-
 function check_telemetry() {
   let histogram = Cc["@mozilla.org/base/telemetry;1"]
                     .getService(Ci.nsITelemetry)
@@ -53,7 +41,7 @@ function check_telemetry() {
                     .snapshot();
   do_check_eq(histogram.counts[ 0], 0);
   do_check_eq(histogram.counts[ 2], 8 + 1); // SEC_ERROR_UNKNOWN_ISSUER
-  do_check_eq(histogram.counts[ 3], 0);     // SEC_ERROR_CA_CERT_INVALID
+  do_check_eq(histogram.counts[ 3], 0 + 2); // SEC_ERROR_CA_CERT_INVALID
   do_check_eq(histogram.counts[ 4], 0 + 5); // SEC_ERROR_UNTRUSTED_ISSUER
   do_check_eq(histogram.counts[ 5], 0 + 1); // SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE
   do_check_eq(histogram.counts[ 6], 0 + 1); // SEC_ERROR_UNTRUSTED_CERT
@@ -61,6 +49,7 @@ function check_telemetry() {
   do_check_eq(histogram.counts[ 8], 2 + 2); // SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED
   do_check_eq(histogram.counts[ 9], 4 + 4); // SSL_ERROR_BAD_CERT_DOMAIN
   do_check_eq(histogram.counts[10], 5 + 5); // SEC_ERROR_EXPIRED_CERTIFICATE
+
   run_next_test();
 }
 
@@ -104,14 +93,11 @@ function add_simple_tests(useMozillaPKIX) {
   add_cert_override_test("expired.example.com",
                          Ci.nsICertOverrideService.ERROR_TIME,
                          getXPCOMStatusFromNSS(SEC_ERROR_EXPIRED_CERTIFICATE));
-  if (useMozillaPKIX) {
-    add_cert_override_test("selfsigned.example.com",
-                           Ci.nsICertOverrideService.ERROR_UNTRUSTED,
-                           getXPCOMStatusFromNSS(SEC_ERROR_UNKNOWN_ISSUER));
-  } else {
-    add_non_overridable_test("selfsigned.example.com",
-                             SEC_ERROR_CA_CERT_INVALID);
-  }
+  add_cert_override_test("selfsigned.example.com",
+                         Ci.nsICertOverrideService.ERROR_UNTRUSTED,
+                         getXPCOMStatusFromNSS(
+                            useMozillaPKIX ? SEC_ERROR_UNKNOWN_ISSUER
+                                           : SEC_ERROR_CA_CERT_INVALID));
   add_cert_override_test("unknownissuer.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          getXPCOMStatusFromNSS(SEC_ERROR_UNKNOWN_ISSUER));
@@ -137,20 +123,25 @@ function add_simple_tests(useMozillaPKIX) {
   // SEC_ERROR_INADEQUATE_KEY_USAGE must be overridable (although,
   // confusingly, this isn't the main error reported).
   // mozilla::pkix just says this certificate's issuer is unknown.
-  if (useMozillaPKIX) {
-    add_cert_override_test("selfsigned-inadequateEKU.example.com",
-                           Ci.nsICertOverrideService.ERROR_UNTRUSTED,
-                           getXPCOMStatusFromNSS(SEC_ERROR_UNKNOWN_ISSUER));
-  } else {
-    add_non_overridable_test("selfsigned-inadequateEKU.example.com",
-                             SEC_ERROR_CA_CERT_INVALID);
-  }
+  add_cert_override_test("selfsigned-inadequateEKU.example.com",
+                         Ci.nsICertOverrideService.ERROR_UNTRUSTED,
+                         getXPCOMStatusFromNSS(
+                            useMozillaPKIX ? SEC_ERROR_UNKNOWN_ISSUER
+                                           : SEC_ERROR_CA_CERT_INVALID));
 
   // SEC_ERROR_INADEQUATE_KEY_USAGE is overridable in general for
   // classic verification, but not for mozilla::pkix verification.
   if (useMozillaPKIX) {
-    add_non_overridable_test("inadequatekeyusage.example.com",
-                             SEC_ERROR_INADEQUATE_KEY_USAGE);
+    add_connection_test("inadequatekeyusage.example.com",
+                        getXPCOMStatusFromNSS(SEC_ERROR_INADEQUATE_KEY_USAGE),
+                        null,
+                        function (securityInfo) {
+                          // bug 754369 - no SSLStatus probably means this is
+                          // a non-overridable error, which is what we're testing
+                          // (although it would be best to test this directly).
+                          securityInfo.QueryInterface(Ci.nsISSLStatusProvider);
+                          do_check_eq(securityInfo.SSLStatus, null);
+                        });
   } else {
     add_cert_override_test("inadequatekeyusage.example.com",
                            Ci.nsICertOverrideService.ERROR_UNTRUSTED,

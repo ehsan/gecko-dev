@@ -5,7 +5,6 @@
 
 #include "gfxImageSurface.h"
 #include "gfxPlatform.h"
-#include "gfxUtils.h"
 #include "nsCocoaUtils.h"
 #include "nsChildView.h"
 #include "nsMenuBarX.h"
@@ -27,12 +26,7 @@
 using namespace mozilla;
 using namespace mozilla::widget;
 
-using mozilla::gfx::BackendType;
 using mozilla::gfx::DataSourceSurface;
-using mozilla::gfx::DrawTarget;
-using mozilla::gfx::Factory;
-using mozilla::gfx::IntPoint;
-using mozilla::gfx::IntRect;
 using mozilla::gfx::IntSize;
 using mozilla::gfx::SurfaceFormat;
 using mozilla::gfx::SourceSurface;
@@ -284,19 +278,10 @@ void data_ss_release_callback(void *aDataSourceSurface,
 nsresult nsCocoaUtils::CreateCGImageFromSurface(SourceSurface* aSurface,
                                                 CGImageRef* aResult)
 {
-  RefPtr<DataSourceSurface> dataSurface;
+  RefPtr<DataSourceSurface> dataSurface = aSurface->GetDataSurface();
 
-  if (aSurface->GetFormat() ==  SurfaceFormat::B8G8R8A8) {
-    dataSurface = aSurface->GetDataSurface();
-  } else {
-    // CGImageCreate only supports 16- and 32-bit bit-depth
-    // Convert format to SurfaceFormat::B8G8R8A8
-    dataSurface = gfxUtils::
-      CopySurfaceToDataSourceSurfaceWithFormat(aSurface,
-                                               SurfaceFormat::B8G8R8A8);
-  }
-
-  NS_ENSURE_TRUE(dataSurface, NS_ERROR_FAILURE);
+  MOZ_ASSERT(dataSurface->GetFormat() ==  SurfaceFormat::B8G8R8A8,
+             "We assume B8G8R8A8 when calling CGImageCreate");
 
   int32_t width = dataSurface->GetSize().width;
   int32_t height = dataSurface->GetSize().height;
@@ -416,7 +401,17 @@ nsresult nsCocoaUtils::CreateNSImageFromImageContainer(imgIContainer *aImage, ui
     surface =
       gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr, frame);
   } else {
-    surface = aImage->GetFrame(aWhichFrame, imgIContainer::FLAG_SYNC_DECODE);
+    nsRefPtr<gfxASurface> thebesSurface =
+      aImage->GetFrame(aWhichFrame, imgIContainer::FLAG_SYNC_DECODE);
+    NS_ENSURE_TRUE(thebesSurface, NS_ERROR_FAILURE);
+
+    nsRefPtr<gfxImageSurface> thebesImageSurface =
+      thebesSurface->GetAsReadableARGB32ImageSurface();
+    NS_ENSURE_TRUE(thebesImageSurface, NS_ERROR_FAILURE);
+
+    surface =
+      gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr,
+                                                             thebesImageSurface);
   }
 
   NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);

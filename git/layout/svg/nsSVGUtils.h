@@ -27,7 +27,9 @@
 #include "mozilla/Constants.h"
 #include <algorithm>
 
+class gfxASurface;
 class gfxContext;
+class gfxImageSurface;
 class gfxPattern;
 class nsFrameList;
 class nsIContent;

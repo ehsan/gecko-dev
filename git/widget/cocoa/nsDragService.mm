@@ -27,6 +27,7 @@
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsView.h"
+#include "gfxASurface.h"
 #include "gfxContext.h"
 #include "nsCocoaUtils.h"
 #include "mozilla/gfx/2D.h"

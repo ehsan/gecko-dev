@@ -207,30 +207,30 @@ void Axis::SetVelocity(float aVelocity) {
   mVelocity = aVelocity;
 }
 
-float Axis::GetCompositionEnd() const {
+float Axis::GetCompositionEnd() {
   return GetOrigin() + GetCompositionLength();
 }
 
-float Axis::GetPageEnd() const {
+float Axis::GetPageEnd() {
   return GetPageStart() + GetPageLength();
 }
 
-float Axis::GetOrigin() const {
+float Axis::GetOrigin() {
   CSSPoint origin = mAsyncPanZoomController->GetFrameMetrics().GetScrollOffset();
   return GetPointOffset(origin);
 }
 
-float Axis::GetCompositionLength() const {
+float Axis::GetCompositionLength() {
   const FrameMetrics& metrics = mAsyncPanZoomController->GetFrameMetrics();
   return GetRectLength(metrics.CalculateCompositedRectInCssPixels());
 }
 
-float Axis::GetPageStart() const {
+float Axis::GetPageStart() {
   CSSRect pageRect = mAsyncPanZoomController->GetFrameMetrics().mScrollableRect;
   return GetRectOffset(pageRect);
 }
 
-float Axis::GetPageLength() const {
+float Axis::GetPageLength() {
   CSSRect pageRect = mAsyncPanZoomController->GetFrameMetrics().mScrollableRect;
   return GetRectLength(pageRect);
 }
@@ -244,29 +244,23 @@ bool Axis::ScaleWillOverscrollBothSides(float aScale) {
   return GetRectLength(metrics.mScrollableRect) < GetRectLength(cssCompositionBounds);
 }
 
-bool Axis::HasRoomToPan() const {
-  return GetOrigin() > GetPageStart()
-      || GetCompositionEnd() < GetPageEnd();
-}
-
-
 AxisX::AxisX(AsyncPanZoomController* aAsyncPanZoomController)
   : Axis(aAsyncPanZoomController)
 {
 
 }
 
-float AxisX::GetPointOffset(const CSSPoint& aPoint) const
+float AxisX::GetPointOffset(const CSSPoint& aPoint)
 {
   return aPoint.x;
 }
 
-float AxisX::GetRectLength(const CSSRect& aRect) const
+float AxisX::GetRectLength(const CSSRect& aRect)
 {
   return aRect.width;
 }
 
-float AxisX::GetRectOffset(const CSSRect& aRect) const
+float AxisX::GetRectOffset(const CSSRect& aRect)
 {
   return aRect.x;
 }
@@ -277,17 +271,17 @@ AxisY::AxisY(AsyncPanZoomController* aAsyncPanZoomController)
 
 }
 
-float AxisY::GetPointOffset(const CSSPoint& aPoint) const
+float AxisY::GetPointOffset(const CSSPoint& aPoint)
 {
   return aPoint.y;
 }
 
-float AxisY::GetRectLength(const CSSRect& aRect) const
+float AxisY::GetRectLength(const CSSRect& aRect)
 {
   return aRect.height;
 }
 
-float AxisY::GetRectOffset(const CSSRect& aRect) const
+float AxisY::GetRectOffset(const CSSRect& aRect)
 {
   return aRect.y;
 }

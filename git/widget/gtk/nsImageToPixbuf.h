@@ -9,6 +9,10 @@
 #include "nsIImageToPixbuf.h"
 #include "mozilla/Attributes.h"
 
+class gfxASurface;
+class gfxPattern;
+class gfxImageSurface;
+
 namespace mozilla {
 namespace gfx {
 class SourceSurface;
