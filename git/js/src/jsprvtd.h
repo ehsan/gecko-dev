@@ -57,8 +57,6 @@
 #include "jspubtd.h"
 #include "jsutil.h"
 
-JS_BEGIN_EXTERN_C
-
 /*
  * Convenience constants.
  */
@@ -360,8 +358,6 @@ typedef JSBool
 #else
 extern JSBool js_CStringsAreUTF8;
 #endif
-
-JS_END_EXTERN_C
 
 #ifdef __cplusplus
 namespace js {

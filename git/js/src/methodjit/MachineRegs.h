@@ -172,9 +172,7 @@ struct Registers {
 
     RegisterID takeAnyReg() {
         JS_ASSERT(!empty());
-        int ireg;
-        JS_FLOOR_LOG2(ireg, freeMask);
-        RegisterID reg = (RegisterID)ireg;
+        RegisterID reg = (RegisterID)(31 - js_bitscan_clz32(freeMask));
         takeReg(reg);
         return reg;
     }
@@ -283,9 +281,7 @@ struct FPRegisters {
 
     FPRegisterID takeAnyReg() {
         JS_ASSERT(!empty());
-        int ireg;
-        JS_FLOOR_LOG2(ireg, freeFPMask);
-        FPRegisterID reg = (FPRegisterID)ireg;
+        FPRegisterID reg = (FPRegisterID)(31 - js_bitscan_clz32(freeFPMask));
         takeReg(reg);
         return reg;
     }
