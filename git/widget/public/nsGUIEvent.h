@@ -22,6 +22,7 @@
  * Contributor(s):
  *   Makoto Kato  <m_kato@ga2.so-net.ne.jp>
  *   Dean Tessman <dean_tessman@hotmail.com>
+ *   Thomas K. Dyas <tdyas@zecador.org> (simple gestures support)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -103,6 +104,7 @@ class nsHashKey;
 #endif // MOZ_MEDIA
 #define NS_DRAG_EVENT                     35
 #define NS_NOTIFYPAINT_EVENT              36
+#define NS_SIMPLE_GESTURE_EVENT           37
 
 // These flags are sort of a mess. They're sort of shared between event
 // listener flags and event flags, but only some of them. You've been
@@ -382,6 +384,16 @@ class nsHashKey;
 #define NS_NOTIFYPAINT_START    3400
 #define NS_AFTERPAINT           (NS_NOTIFYPAINT_START)
 
+// Simple gesture events
+#define NS_SIMPLE_GESTURE_EVENT_START    3500
+#define NS_SIMPLE_GESTURE_SWIPE          (NS_SIMPLE_GESTURE_EVENT_START)
+#define NS_SIMPLE_GESTURE_MAGNIFY_START  (NS_SIMPLE_GESTURE_EVENT_START+1)
+#define NS_SIMPLE_GESTURE_MAGNIFY_UPDATE (NS_SIMPLE_GESTURE_EVENT_START+2)
+#define NS_SIMPLE_GESTURE_MAGNIFY        (NS_SIMPLE_GESTURE_EVENT_START+3)
+#define NS_SIMPLE_GESTURE_ROTATE_START   (NS_SIMPLE_GESTURE_EVENT_START+4)
+#define NS_SIMPLE_GESTURE_ROTATE_UPDATE  (NS_SIMPLE_GESTURE_EVENT_START+5)
+#define NS_SIMPLE_GESTURE_ROTATE         (NS_SIMPLE_GESTURE_EVENT_START+6)
+
 /**
  * Return status for event processors, nsEventStatus, is defined in
  * nsEvent.h.
@@ -483,9 +495,10 @@ public:
   }
 
   /// Originator of the event
-  nsCOMPtr<nsIWidget> widget;           
+  nsCOMPtr<nsIWidget> widget;
+
   /// Internal platform specific message.
-  void* nativeMsg;        
+  void* nativeMsg;
 };
 
 /**
@@ -687,7 +700,7 @@ protected:
                PRUint8 structType, reasonType aReason)
     : nsMouseEvent_base(isTrusted, msg, w, structType),
       acceptActivation(PR_FALSE), reason(aReason), context(eNormal),
-      exit(eChild), clickCount(0)
+      exit(eChild), clickCount(0), ignoreScrollFrame(PR_FALSE)
   {
     if (msg == NS_MOUSE_MOVE) {
       flags |= NS_EVENT_FLAG_CANT_CANCEL;
@@ -700,7 +713,7 @@ public:
                reasonType aReason, contextType aContext = eNormal)
     : nsMouseEvent_base(isTrusted, msg, w, NS_MOUSE_EVENT),
       acceptActivation(PR_FALSE), reason(aReason), context(aContext),
-      exit(eChild), clickCount(0)
+      exit(eChild), clickCount(0), ignoreScrollFrame(PR_FALSE)
   {
     if (msg == NS_MOUSE_MOVE) {
       flags |= NS_EVENT_FLAG_CANT_CANCEL;
@@ -720,6 +733,10 @@ public:
   /// Special return code for MOUSE_ACTIVATE to signal
   /// if the target accepts activation (1), or denies it (0)
   PRPackedBool acceptActivation;
+  // Whether the event should ignore scroll frame bounds
+  // during dispatch.
+  PRPackedBool ignoreScrollFrame;
+
   reasonType   reason : 4;
   contextType  context : 4;
   exitType     exit;
@@ -1118,6 +1135,23 @@ public:
   }
 
   nsCOMPtr<nsIDOMEvent> sourceEvent;
+};
+
+/**
+ * Simple gesture event
+ */
+class nsSimpleGestureEvent : public nsInputEvent
+{
+public:
+  nsSimpleGestureEvent(PRBool isTrusted, PRUint32 msg, nsIWidget* w,
+                         PRUint32 directionArg, PRFloat64 deltaArg)
+    : nsInputEvent(isTrusted, msg, w, NS_SIMPLE_GESTURE_EVENT),
+      direction(directionArg), delta(deltaArg)
+  {
+  }
+
+  PRUint32 direction;   // See nsIDOMSimpleGestureEvent for values
+  PRFloat64 delta;      // Delta for magnify and rotate events
 };
 
 /**

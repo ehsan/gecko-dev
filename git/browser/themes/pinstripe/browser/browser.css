@@ -838,11 +838,6 @@ toolbar[iconsize="small"] #unified-back-forward-button > #back-forward-dropmarke
   min-height: 26px;
 }
 
-#urlbar[pageproxystate="invalid"] > #urlbar-icons > :not(#go-button) ,
-#urlbar[pageproxystate="valid"] > #urlbar-icons > #go-button {
-  visibility: collapse;
-}
-
 #urlbar-search-splitter {
   min-width: 4px;
   width: 4px;
@@ -1397,11 +1392,13 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 
 /* ----- SIDEBAR ELEMENTS ----- */
 
-#sidebar,
+#sidebar { 
+  background-color: #d4dde5;
+}
+
 sidebarheader { 
   background-color: #d4dde5;
   padding: 2px;
-  text-transform: uppercase;
 }
 
 #sidebar-box {
@@ -1495,35 +1492,16 @@ sidebarheader > .tabs-closebutton > .toolbarbutton-text {
 /* ----- THROBBER ----- */
 
 #navigator-throbber {
-  -moz-appearance: none;
-  -moz-user-focus: ignore;
-  -moz-box-pack: center;
-  margin: 0px 4px !important;
-  border: none !important;
-  padding: 0;
-  min-width: 0;
-  background-color: transparent;
-  height: 16px;
-  width: 17px;  
-}
-
-/* XXXmano: hack until we figure out why the throbber uses a button instead
-   of a toolbarbutton */
-#navigator-throbber .button-text {
-  display: none;
-  margin: 0 !important;
+  width: 17px;
+  min-height: 16px;
+  margin: 0 4px;
 }
 
 #navigator-throbber[busy="true"] {
   list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
-toolbar[iconsize="small"] #navigator-throbber[busy="true"],
-toolbar[mode="text"] #navigator-throbber[busy="true"] {
-  list-style-image: url("chrome://global/skin/icons/loading_16.png");
-}
-
-#wrapper-throbber-box > #throbber-box > #navigator-throbber {
+#wrapper-navigator-throbber > #navigator-throbber {
   list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
 
@@ -2175,6 +2153,7 @@ tabpanels.plain {
   -moz-border-radius: 10px;
   margin-top: -1px;
   margin-left: -1px;
+  -moz-window-shadow: none;
 }
 
 /* ::::: Ctrl-Tab Panel ::::: */
