@@ -505,9 +505,10 @@ if __name__ == '__main__':
             print >>sys.stderr, "--regen useless without --cachedir"
         # Delete the lex/yacc files.  Ply is too stupid to regenerate them
         # properly
-        for fileglobs in [os.path.join(options.cachedir, f) for f in ["xpidllex.py*", "xpidlyacc.py*"]]:
-            for filename in glob.glob(fileglobs):
-                os.remove(filename)
+        deadfiles = os.path.join(options.cachedir, "*.py*")
+        for filename in glob.glob(deadfiles):
+            print filename
+            os.remove(filename)
 
     # Instantiate the parser.
     p = xpidl.IDLParser(outputdir=options.cachedir)

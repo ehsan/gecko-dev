@@ -1827,11 +1827,13 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
     }
 
-    // We're reusing the inner window, but this still counts as a navigation,
-    // so all expandos and such defined on the outer window should go away. Force
-    // all Xray wrappers to be recomputed.
+    // The API we're really looking for here is to go clear all of the
+    // Xray wrappers associated with our outer window. However, we
+    // don't expose that API because the implementation would be
+    // identical to that of JS_TransplantObject, so we just call that
+    // instead.
     xpc_UnmarkGrayObject(mJSObject);
-    if (!JS_RefreshCrossCompartmentWrappers(cx, mJSObject)) {
+    if (!JS_TransplantObject(cx, mJSObject, mJSObject)) {
       return NS_ERROR_FAILURE;
     }
   } else {
