@@ -51,6 +51,9 @@ XPCOMUtils.defineLazyGetter(this, "PluralForm", function() {
   return PluralForm;
 });
 
+XPCOMUtils.defineLazyServiceGetter(this, "URIFixup",
+  "@mozilla.org/docshell/urifixup;1", "nsIURIFixup");
+
 XPCOMUtils.defineLazyServiceGetter(this, "Haptic",
   "@mozilla.org/widget/hapticfeedback;1", "nsIHapticFeedback");
 
@@ -773,12 +776,19 @@ var BrowserApp = {
     });
   },
 
-  getSearchOrURI: function getSearchOrURI(aParams) {
+  getSearchOrFixupURI: function(aParams) {
     let uri;
     if (aParams.engine) {
-      let engine = Services.search.getEngineByName(aParams.engine);
+      let engine;
+      // If the default engine was requested, we just pass the URL through
+      // and let the third-party fixup send it to the default search.
+      if (aParams.engine != "__default__")
+        engine = Services.search.getEngineByName(aParams.engine);
+
       if (engine)
         uri = engine.getSubmission(aParams.url).uri;
+    } else {
+      uri = URIFixup.createFixupURI(aParams.url, Ci.nsIURIFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP);
     }
     return uri ? uri.spec : aParams.url;
   },
@@ -880,7 +890,7 @@ var BrowserApp = {
              | Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP
       };
 
-      let url = this.getSearchOrURI(data);
+      let url = this.getSearchOrFixupURI(data);
 
       // Don't show progress throbber for about:home
       if (url == "about:home")
@@ -1466,8 +1476,6 @@ Tab.prototype = {
     this.browser.removeEventListener("pagehide", this, true);
     this.browser.removeEventListener("pageshow", this, true);
 
-    Services.obs.removeObserver(this, "document-shown");
-
     // Make sure the previously selected panel remains selected. The selected panel of a deck is
     // not stable when panels are removed.
     let selectedPanel = BrowserApp.deck.selectedPanel;
@@ -1739,7 +1747,7 @@ Tab.prototype = {
           gecko: {
             type: "DOMTitleChanged",
             tabID: this.id,
-            title: aEvent.target.title.substring(0, 255)
+            title: aEvent.target.title
           }
         });
         break;
@@ -2597,21 +2605,20 @@ const ElementTouchHelper = {
     }
     return result;
   },
-
   getBoundingContentRect: function(aElement) {
     if (!aElement)
       return {x: 0, y: 0, w: 0, h: 0};
-
+  
     let document = aElement.ownerDocument;
     while (document.defaultView.frameElement)
       document = document.defaultView.frameElement.ownerDocument;
-
+  
     let cwu = document.defaultView.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     let scrollX = {}, scrollY = {};
     cwu.getScrollXY(false, scrollX, scrollY);
-
+  
     let r = aElement.getBoundingClientRect();
-
+ 
     // step out of iframes and frames, offsetting scroll values
     for (let frame = aElement.ownerDocument.defaultView; frame.frameElement && frame != content; frame = frame.parent) {
       // adjust client coordinates' origin to be top left of iframe viewport
@@ -2622,10 +2629,14 @@ const ElementTouchHelper = {
       scrollY.value += rect.top + parseInt(top);
     }
 
-    return {x: r.left + scrollX.value,
-            y: r.top + scrollY.value,
-            w: r.width,
-            h: r.height };
+    var x = r.left + scrollX.value;
+    var y = r.top + scrollY.value;
+    var x2 = x + r.width;
+    var y2 = y + r.height;
+    return {x: x,
+            y: y,
+            w: x2 - x,
+            h: y2 - y};
   }
 };
 
@@ -2717,15 +2728,15 @@ var FormAssistant = {
         this._currentInputElement = currentElement;
         let suggestions = this._getAutocompleteSuggestions(currentElement.value, currentElement);
 
-        let rect = ElementTouchHelper.getBoundingContentRect(currentElement);
-        let viewport = BrowserApp.selectedTab.viewport;
+        let rect = currentElement.getBoundingClientRect();
+        let zoom = BrowserApp.selectedTab.viewport.zoom;
 
         sendMessageToJava({
           gecko: {
             type:  "FormAssist:AutoComplete",
             suggestions: suggestions,
-            rect: [rect.x - (viewport.x / viewport.zoom), rect.y - (viewport.y / viewport.zoom), rect.w, rect.h],
-            zoom: viewport.zoom
+            rect: [rect.left, rect.top, rect.width, rect.height], 
+            zoom: zoom
           }
         });
     }

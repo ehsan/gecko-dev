@@ -88,8 +88,6 @@ public class BrowserDB {
         public void updateFaviconForUrl(ContentResolver cr, String uri, BitmapDrawable favicon);
 
         public void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail);
-
-        public byte[] getThumbnailForUrl(ContentResolver cr, String uri);
     }
 
     static {
@@ -160,9 +158,5 @@ public class BrowserDB {
 
     public static void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail) {
         sDb.updateThumbnailForUrl(cr, uri, thumbnail);
-    }
-
-    public static byte[] getThumbnailForUrl(ContentResolver cr, String uri) {
-        return sDb.getThumbnailForUrl(cr, uri);
     }
 }

@@ -128,7 +128,7 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
         mAwesomeTabs = (AwesomeBarTabs) findViewById(R.id.awesomebar_tabs);
         mAwesomeTabs.setOnUrlOpenListener(new AwesomeBarTabs.OnUrlOpenListener() {
             public void onUrlOpen(String url) {
-                openUrlAndFinish(url);
+                submitAndFinish(url);
             }
 
             public void onSearch(String engine) {
@@ -138,7 +138,7 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
 
         mGoButton.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
-                openUrlAndFinish(mText.getText().toString());
+                submitAndFinish(mText.getText().toString());
             }
         });
 
@@ -172,7 +172,7 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
                         (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
 
                 if (keyCode == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN) {
-                    openUrlAndFinish(mText.getText().toString());
+                    submitAndFinish(mText.getText().toString());
                     return true;
                 }
 
@@ -212,7 +212,7 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
                     if (event.getAction() != KeyEvent.ACTION_DOWN)
                         return true;
 
-                    openUrlAndFinish(mText.getText().toString());
+                    submitAndFinish(mText.getText().toString());
                     return true;
                 } else {
                     return false;
@@ -308,6 +308,13 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
             mText.setImeOptions(imeAction);
             imm.restartInput(mText);
         }
+    }
+
+    private void submitAndFinish(String url) {
+        if (isSearchUrl(url))
+            openSearchAndFinish(url, "__default__");
+        else
+            openUrlAndFinish(url);
     }
 
     private void cancelAndFinish() {
