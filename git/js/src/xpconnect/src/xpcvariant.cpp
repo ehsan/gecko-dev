@@ -327,17 +327,11 @@ JSBool XPCVariant::InitializeData(XPCCallContext& ccx)
         NS_ASSERTION(mData.mType == nsIDataType::VTYPE_EMPTY,
                      "Why do we already have data?");
 
-        // Despite the fact that the variant holds the length, there are
-        // implicit assumptions that mWStringValue[mWStringLength] == 0
-        size_t length;
-        const jschar *chars = JS_GetStringCharsZAndLength(ccx, str, &length);
-        if (!chars)
-            return JS_FALSE;
-
-        mData.u.wstr.mWStringValue = const_cast<jschar *>(chars);
+        mData.u.wstr.mWStringValue = 
+            reinterpret_cast<PRUnichar*>(JS_GetStringChars(str));
         // Use C-style cast, because reinterpret cast from size_t to
         // PRUint32 is not valid on some platforms.
-        mData.u.wstr.mWStringLength = (PRUint32)length;
+        mData.u.wstr.mWStringLength = (PRUint32)JS_GetStringLength(str);
         mData.mType = nsIDataType::VTYPE_WSTRING_SIZE_IS;
         
         return JS_TRUE;

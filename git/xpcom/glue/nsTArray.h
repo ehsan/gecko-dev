@@ -94,11 +94,7 @@ struct nsTArrayInfallibleAllocator
 };
 #endif
 
-#if defined(MOZALLOC_HAVE_XMALLOC)
-struct nsTArrayDefaultAllocator : public nsTArrayInfallibleAllocator { };
-#else
 struct nsTArrayDefaultAllocator : public nsTArrayFallibleAllocator { };
-#endif
 
 // nsTArray_base stores elements into the space allocated beyond
 // sizeof(*this).  This is done to minimize the size of the nsTArray
@@ -227,7 +223,7 @@ protected:
     NS_ASSERTION(IsAutoArray(), "Should be an auto array to call this");
 
     return reinterpret_cast<Header*>(&(reinterpret_cast<AutoArray*>(&mHdr))->aligned);
-  }
+    }
 
   // Returns true if this is an nsAutoTArray and it currently uses the
   // built-in buffer to store its elements.
@@ -626,10 +622,10 @@ public:
   elem_type *ReplaceElementsAt(index_type start, size_type count,
                                const Item* array, size_type arrayLen) {
     // Adjust memory allocation up-front to catch errors.
-    if (!this->EnsureCapacity(Length() + arrayLen - count, sizeof(elem_type)))
+    if (!EnsureCapacity(Length() + arrayLen - count, sizeof(elem_type)))
       return nsnull;
     DestructRange(start, count);
-    this->ShiftData(start, count, arrayLen, sizeof(elem_type));
+    ShiftData(start, count, arrayLen, sizeof(elem_type));
     AssignRange(start, arrayLen, array);
     return Elements() + start;
   }
@@ -671,9 +667,9 @@ public:
   // temporaries.
   // @return A pointer to the newly inserted element, or null on OOM.
   elem_type* InsertElementAt(index_type index) {
-    if (!this->EnsureCapacity(Length() + 1, sizeof(elem_type)))
+    if (!EnsureCapacity(Length() + 1, sizeof(elem_type)))
       return nsnull;
-    this->ShiftData(index, 0, 1, sizeof(elem_type));
+    ShiftData(index, 0, 1, sizeof(elem_type));
     elem_type *elem = Elements() + index;
     elem_traits::Construct(elem);
     return elem;
@@ -767,11 +763,11 @@ public:
   //                  the operation failed due to insufficient memory.
   template<class Item>
   elem_type *AppendElements(const Item* array, size_type arrayLen) {
-    if (!this->EnsureCapacity(Length() + arrayLen, sizeof(elem_type)))
+    if (!EnsureCapacity(Length() + arrayLen, sizeof(elem_type)))
       return nsnull;
     index_type len = Length();
     AssignRange(len, arrayLen, array);
-    this->IncrementLength(arrayLen);
+    IncrementLength(arrayLen);
     return Elements() + len;
   }
 
@@ -791,14 +787,14 @@ public:
   // temporaries.
   // @return A pointer to the newly appended elements, or null on OOM.
   elem_type *AppendElements(size_type count) {
-    if (!this->EnsureCapacity(Length() + count, sizeof(elem_type)))
+    if (!EnsureCapacity(Length() + count, sizeof(elem_type)))
       return nsnull;
     elem_type *elems = Elements() + Length();
     size_type i;
     for (i = 0; i < count; ++i) {
       elem_traits::Construct(elems + i);
     }
-    this->IncrementLength(count);
+    IncrementLength(count);
     return elems;
   }
 
@@ -817,10 +813,10 @@ public:
     NS_PRECONDITION(&array != this, "argument must be different array");
     index_type len = Length();
     index_type otherLen = array.Length();
-    if (!this->EnsureCapacity(len + otherLen, sizeof(elem_type)))
+    if (!EnsureCapacity(len + otherLen, sizeof(elem_type)))
       return nsnull;
     memcpy(Elements() + len, array.Elements(), otherLen * sizeof(elem_type));
-    this->IncrementLength(otherLen);      
+    IncrementLength(otherLen);      
     array.ShiftData(0, otherLen, 0, sizeof(elem_type));
     return Elements() + len;
   }
@@ -832,7 +828,7 @@ public:
     NS_ASSERTION(count == 0 || start < Length(), "Invalid start index");
     NS_ASSERTION(start + count <= Length(), "Invalid length");
     DestructRange(start, count);
-    this->ShiftData(start, count, 0, sizeof(elem_type));
+    ShiftData(start, count, 0, sizeof(elem_type));
   }
 
   // A variation on the RemoveElementsAt method defined above.
@@ -894,7 +890,7 @@ public:
   // nsAutoTArray.
   template<class Allocator>
   PRBool SwapElements(nsTArray<E, Allocator>& other) {
-    return this->SwapArrayElements(other, sizeof(elem_type));
+    return SwapArrayElements(other, sizeof(elem_type));
   }
 
   //
@@ -908,7 +904,7 @@ public:
   // @param capacity  The desired capacity of this array.
   // @return True if the operation succeeded; false if we ran out of memory
   PRBool SetCapacity(size_type capacity) {
-    return this->EnsureCapacity(capacity, sizeof(elem_type));
+    return EnsureCapacity(capacity, sizeof(elem_type));
   }
 
   // This method modifies the length of the array.  If the new length is

@@ -485,7 +485,7 @@ private:
     return nsGenericDOMDataNode::IsSupported(aFeature, aVersion, aReturn);  \
   }                                                                         \
   NS_IMETHOD CloneNode(PRBool aDeep, nsIDOMNode** aReturn) {                \
-    return nsNodeUtils::CloneNodeImpl(this, aDeep, PR_TRUE, aReturn);       \
+    return nsNodeUtils::CloneNodeImpl(this, aDeep, aReturn);                \
   }                                                                         \
   virtual nsGenericDOMDataNode *CloneDataNode(nsINodeInfo *aNodeInfo,       \
                                               PRBool aCloneText) const;

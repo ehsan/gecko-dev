@@ -124,14 +124,14 @@ class nsWaveStateMachine : public nsRunnable
 {
 public:
   nsWaveStateMachine(nsWaveDecoder* aDecoder,
-                     TimeDuration aBufferWaitTime, double aInitialVolume);
+                     TimeDuration aBufferWaitTime, float aInitialVolume);
   ~nsWaveStateMachine();
 
   void SetStream(nsMediaStream* aStream) { mStream = aStream; }
 
   // Set specified volume.  aVolume must be in range [0.0, 1.0].
   // Threadsafe.
-  void SetVolume(double aVolume);
+  void SetVolume(float aVolume);
 
   /*
     The following four member functions initiate the appropriate state
@@ -139,13 +139,13 @@ public:
    */
   void Play();
   void Pause();
-  void Seek(double aTime);
+  void Seek(float aTime);
   void Shutdown();
 
   // Returns the playback length of the audio data in seconds, calculated
   // from the length extracted from the metadata.  Returns NaN if called
   // before metadata validation has completed.  Threadsafe.
-  double GetDuration();
+  float GetDuration();
 
   // Returns the number of channels extracted from the metadata.  Returns 0
   // if called before metadata validation has completed.  Threadsafe.
@@ -177,7 +177,7 @@ public:
   // Clear the flag indicating that a playback position change event is
   // currently queued and return the current time. This is called from the
   // main thread.
-  double GetTimeForPositionChange();
+  float GetTimeForPositionChange();
 
   nsresult GetBuffered(nsTimeRanges* aBuffered);
 
@@ -252,17 +252,17 @@ private:
   // Returns the number of seconds that aBytes represents based on the
   // current audio parameters.  e.g.  176400 bytes is 1 second at 16-bit
   // stereo 44.1kHz.
-  double BytesToTime(PRInt64 aBytes) const
+  float BytesToTime(PRInt64 aBytes) const
   {
     NS_ABORT_IF_FALSE(mMetadataValid, "Requires valid metadata");
     NS_ABORT_IF_FALSE(aBytes >= 0, "Must be >= 0");
-    return double(aBytes) / mSampleRate / mSampleSize;
+    return float(aBytes) / mSampleRate / mSampleSize;
   }
 
   // Returns the number of bytes that aTime represents based on the current
   // audio parameters.  e.g.  1 second is 176400 bytes at 16-bit stereo
   // 44.1kHz.
-  PRInt64 TimeToBytes(double aTime) const
+  PRInt64 TimeToBytes(float aTime) const
   {
     NS_ABORT_IF_FALSE(mMetadataValid, "Requires valid metadata");
     NS_ABORT_IF_FALSE(aTime >= 0.0f, "Must be >= 0");
@@ -353,10 +353,10 @@ private:
   PRInt64 mPlaybackPosition;
 
   // Volume that the audio backend will be initialized with.
-  double mInitialVolume;
+  float mInitialVolume;
 
-  // Time position (in seconds) to seek to.  Set by Seek(double).
-  double mSeekTime;
+  // Time position (in seconds) to seek to.  Set by Seek(float).
+  float mSeekTime;
 
   // True once metadata has been parsed and validated. Users of mSampleRate,
   // mChannels, mSampleSize, mSampleFormat, mWaveLength, mWavePCMOffset must
@@ -379,7 +379,7 @@ private:
 
 nsWaveStateMachine::nsWaveStateMachine(nsWaveDecoder* aDecoder,
                                        TimeDuration aBufferWaitTime,
-                                       double aInitialVolume)
+                                       float aInitialVolume)
   : mDecoder(aDecoder),
     mStream(nsnull),
     mBufferingWait(aBufferWaitTime),
@@ -434,7 +434,7 @@ nsWaveStateMachine::Play()
 }
 
 void
-nsWaveStateMachine::SetVolume(double aVolume)
+nsWaveStateMachine::SetVolume(float aVolume)
 {
   nsAutoMonitor monitor(mMonitor);
   mInitialVolume = aVolume;
@@ -457,7 +457,7 @@ nsWaveStateMachine::Pause()
 }
 
 void
-nsWaveStateMachine::Seek(double aTime)
+nsWaveStateMachine::Seek(float aTime)
 {
   nsAutoMonitor monitor(mMonitor);
   mPlaybackEnded = PR_FALSE;
@@ -470,21 +470,21 @@ nsWaveStateMachine::Seek(double aTime)
   } else if (mState != STATE_SEEKING) {
     if (mState == STATE_ENDED) {
       mNextState = mPaused ? STATE_PAUSED : STATE_PLAYING;
-    } else if (mState != STATE_BUFFERING) {
+    } else {
       mNextState = mState;
     }
     ChangeState(STATE_SEEKING);
   }
 }
 
-double
+float
 nsWaveStateMachine::GetDuration()
 {
   nsAutoMonitor monitor(mMonitor);
   if (mMetadataValid) {
     return BytesToTime(GetDataLength());
   }
-  return std::numeric_limits<double>::quiet_NaN();
+  return std::numeric_limits<float>::quiet_NaN();
 }
 
 PRUint32
@@ -537,7 +537,7 @@ nsWaveStateMachine::GetNextFrameStatus()
   return nsHTMLMediaElement::NEXT_FRAME_UNAVAILABLE;
 }
 
-double
+float
 nsWaveStateMachine::GetTimeForPositionChange()
 {
   nsAutoMonitor monitor(mMonitor);
@@ -624,7 +624,7 @@ nsWaveStateMachine::Run()
           targetTime = sleepTime;
         }
 
-        PRInt64 len = TimeToBytes(double(targetTime.ToSeconds()));
+        PRInt64 len = TimeToBytes(float(targetTime.ToSeconds()));
 
         PRInt64 leftToPlay =
           GetDataLength() - (mPlaybackPosition - mWavePCMOffset);
@@ -635,15 +635,15 @@ nsWaveStateMachine::Run()
 
         PRInt64 availableOffset = mStream->GetCachedDataEnd(mPlaybackPosition);
 
-        // Don't buffer if we're at the end of the stream, or if the
+        // don't buffer if we're at the end of the stream, or if the
         // load has been suspended by the cache (in the latter case
-        // we need to advance playback to free up cache space).
+        // we need to advance playback to free up cache space)
         if (mState != STATE_ENDED &&
             availableOffset < mPlaybackPosition + len &&
             !mStream->IsSuspendedByCache()) {
           mBufferingStart = now;
           mBufferingEndOffset = mPlaybackPosition +
-            TimeToBytes(double(mBufferingWait.ToSeconds()));
+            TimeToBytes(float(mBufferingWait.ToSeconds()));
           mBufferingEndOffset = PR_MAX(mPlaybackPosition + len,
                                        mBufferingEndOffset);
           mNextState = mState;
@@ -707,7 +707,7 @@ nsWaveStateMachine::Run()
         CloseAudioStream();
 
         mSeekTime = NS_MIN(mSeekTime, GetDuration());
-        double seekTime = mSeekTime;
+        float seekTime = mSeekTime;
 
         // Calculate relative offset within PCM data.
         PRInt64 position = RoundDownToSample(TimeToBytes(seekTime));
@@ -1245,7 +1245,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsWaveDecoder, nsIObserver)
 nsWaveDecoder::nsWaveDecoder()
   : mInitialVolume(1.0f),
     mCurrentTime(0.0f),
-    mEndedDuration(std::numeric_limits<double>::quiet_NaN()),
+    mEndedDuration(std::numeric_limits<float>::quiet_NaN()),
     mEnded(PR_FALSE),
     mSeekable(PR_TRUE),
     mResourceLoaded(PR_FALSE),
@@ -1297,7 +1297,7 @@ nsWaveDecoder::GetCurrentPrincipal()
   return mStream->GetCurrentPrincipal();
 }
 
-double
+float
 nsWaveDecoder::GetCurrentTime()
 {
   return mCurrentTime;
@@ -1317,7 +1317,7 @@ nsWaveDecoder::StartStateMachineThread()
 }
 
 nsresult
-nsWaveDecoder::Seek(double aTime)
+nsWaveDecoder::Seek(float aTime)
 {
   if (mPlaybackStateMachine) {
     mEnded = PR_FALSE;
@@ -1335,7 +1335,7 @@ nsWaveDecoder::PlaybackRateChanged()
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-double
+float
 nsWaveDecoder::GetDuration()
 {
   if (mPlaybackStateMachine) {
@@ -1353,7 +1353,7 @@ nsWaveDecoder::Pause()
 }
 
 void
-nsWaveDecoder::SetVolume(double aVolume)
+nsWaveDecoder::SetVolume(float aVolume)
 {
   mInitialVolume = aVolume;
   if (mPlaybackStateMachine) {
@@ -1446,6 +1446,7 @@ nsWaveDecoder::MetadataLoaded()
   } else {
     StartProgress();
   }
+  StartTimeUpdate();
 }
 
 void
@@ -1563,6 +1564,7 @@ nsWaveDecoder::Shutdown()
     return;
 
   mShuttingDown = PR_TRUE;
+  StopTimeUpdate();
 
   nsMediaDecoder::Shutdown();
 
@@ -1681,7 +1683,7 @@ nsWaveDecoder::PlaybackPositionChanged()
     return;
   }
 
-  double lastTime = mCurrentTime;
+  float lastTime = mCurrentTime;
 
   if (mPlaybackStateMachine) {
     mCurrentTime = mPlaybackStateMachine->GetTimeForPositionChange();

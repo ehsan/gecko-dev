@@ -17,8 +17,6 @@
   <script type="application/javascript"
           src="../common.js" />
   <script type="application/javascript"
-          src="../events.js" />
-  <script type="application/javascript"
           src="../role.js" />
   <script type="application/javascript"
           src="../table.js" />
@@ -41,12 +39,14 @@
       gTreeBox = gTree.treeBoxObject;
       gView = new nsTableTreeView(3);
 
-      waitForEvent(EVENT_REORDER, gTree, continueTest);
+      gTree.addEventListener("TreeViewChanged", continueTest, false);
       gTreeBox.view = gView;
     }
 
     function continueTest()
     {
+      gTree.removeEventListener("TreeViewChanged", continueTest, false);
+
       var cellsArray = [
         [kDataCell, kDataCell],
         [kDataCell, kDataCell],

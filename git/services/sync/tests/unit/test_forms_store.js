@@ -1,5 +1,6 @@
 _("Make sure the form store follows the Store api and correctly accesses the backend form storage");
 Cu.import("resource://services-sync/engines/forms.js");
+Cu.import("resource://services-sync/type_records/forms.js");
 
 function run_test() {
   let baseuri = "http://fake/uri/";
@@ -27,13 +28,13 @@ function run_test() {
   }
   do_check_true(store.itemExists(id));
 
-  let rec = store.createRecord(id);
+  let rec = store.createRecord(id, baseuri + id);
   _("Got record for id", id, rec);
   do_check_eq(rec.name, "name!!");
   do_check_eq(rec.value, "value??");
 
   _("Create a non-existent id for delete");
-  do_check_true(store.createRecord("deleted!!").deleted);
+  do_check_true(store.createRecord("deleted!!", baseuri + "deleted!!").deleted);
 
   _("Try updating.. doesn't do anything yet");
   store.update({});

@@ -109,11 +109,6 @@ enum FlipStyle {
 #define POPUPALIGNMENT_BOTTOMLEFT 2
 #define POPUPALIGNMENT_BOTTOMRIGHT -2
 
-#define POPUPALIGNMENT_LEFTCENTER 16
-#define POPUPALIGNMENT_RIGHTCENTER 17
-#define POPUPALIGNMENT_TOPCENTER 18
-#define POPUPALIGNMENT_BOTTOMCENTER 19
-
 #define INC_TYP_INTERVAL  1000  // 1s. If the interval between two keypresses is shorter than this, 
                                 //   treat as a continue typing
 // XXX, kyle.yuan@sun.com, there are 4 definitions for the same purpose:
@@ -359,7 +354,7 @@ protected:
   // return the position where the popup should be, when it should be
   // anchored at anchorRect. aHFlip and aVFlip will be set if the popup may be
   // flipped in that direction if there is not enough space available.
-  nsPoint AdjustPositionForAnchorAlign(nsRect& anchorRect,
+  nsPoint AdjustPositionForAnchorAlign(const nsRect& anchorRect,
                                        FlipStyle& aHFlip, FlipStyle& aVFlip);
 
   // check if the popup will fit into the available space and resize it. This
@@ -386,19 +381,6 @@ protected:
 
   // Move the popup to the position specified in its |left| and |top| attributes.
   void MoveToAttributePosition();
-
-  /**
-   * Return whether the popup direction should be RTL.
-   * If the popup has an anchor, its direction is the anchor direction.
-   * Otherwise, its the general direction of the UI.
-   *
-   * Return whether the popup direction should be RTL.
-   */
-  bool IsDirectionRTL() const {
-    return mAnchorContent && mAnchorContent->GetPrimaryFrame()
-      ? mAnchorContent->GetPrimaryFrame()->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL
-      : GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
-  }
 
   nsString     mIncrementalString;  // for incremental typing navigation
 

@@ -197,18 +197,14 @@ js_IntToString(JSContext *cx, jsint i);
 extern JSString * JS_FASTCALL
 js_NumberToString(JSContext *cx, jsdouble d);
 
-namespace js {
-
 /*
  * Convert an integer or double (contained in the given value) to a string and
  * append to the given buffer.
  */
-extern bool JS_FASTCALL
-NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb);
+extern JSBool JS_FASTCALL
+js_NumberValueToCharBuffer(JSContext *cx, const js::Value &v, JSCharBuffer &cb);
 
-/* Same as js_NumberToString, different signature. */
-extern JSFlatString *
-NumberToString(JSContext *cx, jsdouble d);
+namespace js {
 
 /*
  * Usually a small amount of static storage is enough, but sometimes we need
@@ -647,44 +643,35 @@ template<> struct NumberTraits<jsdouble> {
 };
 
 template<typename T>
-static JS_ALWAYS_INLINE bool
-StringToNumberType(JSContext *cx, JSString *str, T *result)
+static JS_ALWAYS_INLINE T
+StringToNumberType(JSContext *cx, JSString *str)
 {
-    size_t length = str->length();
-    const jschar *chars = str->getChars(NULL);
-    if (!chars)
-        return false;
-
-    if (length == 1) {
-        jschar c = chars[0];
-        if ('0' <= c && c <= '9') {
-            *result = NumberTraits<T>::toSelfType(T(c - '0'));
-            return true;
-        }
-        if (JS_ISSPACE(c)) {
-            *result = NumberTraits<T>::toSelfType(T(0));
-            return true;
-        }
-        *result = NumberTraits<T>::NaN();
-        return true;
+    if (str->length() == 1) {
+        jschar c = str->chars()[0];
+        if ('0' <= c && c <= '9')
+            return NumberTraits<T>::toSelfType(T(c - '0'));
+        if (JS_ISSPACE(c))
+            return NumberTraits<T>::toSelfType(T(0));
+        return NumberTraits<T>::NaN();
     }
 
-    const jschar *bp = chars;
-    const jschar *end = chars + length;
+    const jschar* bp;
+    const jschar* end;
+    const jschar* ep;
+    jsdouble d;
+
+    str->getCharsAndEnd(bp, end);
     bp = js_SkipWhiteSpace(bp, end);
 
     /* ECMA doesn't allow signed hex numbers (bug 273467). */
     if (end - bp >= 2 && bp[0] == '0' && (bp[1] == 'x' || bp[1] == 'X')) {
         /* Looks like a hex number. */
         const jschar *endptr;
-        double d;
         if (!GetPrefixInteger(cx, bp + 2, end, 16, &endptr, &d) ||
             js_SkipWhiteSpace(endptr, end) != end) {
-            *result = NumberTraits<T>::NaN();
-            return true;
+            return NumberTraits<T>::NaN();
         }
-        *result = NumberTraits<T>::toSelfType(d);
-        return true;
+        return NumberTraits<T>::toSelfType(d);
     }
 
     /*
@@ -694,14 +681,12 @@ StringToNumberType(JSContext *cx, JSString *str, T *result)
      * that have made it here (which can only be negative ones) will
      * be treated as 0 without consuming the 'x' by js_strtod.
      */
-    const jschar *ep;
-    double d;
-    if (!js_strtod(cx, bp, end, &ep, &d) || js_SkipWhiteSpace(ep, end) != end) {
-        *result = NumberTraits<T>::NaN();
-        return true;
+    if (!js_strtod(cx, bp, end, &ep, &d) ||
+        js_SkipWhiteSpace(ep, end) != end) {
+        return NumberTraits<T>::NaN();
     }
-    *result = NumberTraits<T>::toSelfType(d);
-    return true;
+
+    return NumberTraits<T>::toSelfType(d);
 }
 }
 

@@ -332,10 +332,11 @@ nsresult
 nsChromeRegistryChrome::SelectLocaleFromPref(nsIPrefBranch* prefs)
 {
   nsresult rv;
-  PRBool matchOSLocale = PR_FALSE;
+  PRBool matchOSLocale = PR_FALSE, userLocaleOverride = PR_FALSE;
+  prefs->PrefHasUserValue(SELECTED_LOCALE_PREF, &userLocaleOverride);
   rv = prefs->GetBoolPref(MATCH_OS_LOCALE_PREF, &matchOSLocale);
 
-  if (NS_SUCCEEDED(rv) && matchOSLocale) {
+  if (NS_SUCCEEDED(rv) && matchOSLocale && !userLocaleOverride) {
     // compute lang and region code only when needed!
     nsCAutoString uiLocale;
     rv = getUILangCountry(uiLocale);
@@ -349,9 +350,6 @@ nsChromeRegistryChrome::SelectLocaleFromPref(nsIPrefBranch* prefs)
       mSelectedLocale = provider;
     }
   }
-
-  if (NS_FAILED(rv))
-    NS_ERROR("Couldn't select locale from pref!");
 
   return rv;
 }
@@ -370,18 +368,15 @@ nsChromeRegistryChrome::Observe(nsISupports *aSubject, const char *aTopic,
 
     if (pref.EqualsLiteral(MATCH_OS_LOCALE_PREF) ||
         pref.EqualsLiteral(SELECTED_LOCALE_PREF)) {
-      if (!mProfileLoaded) {
-        rv = SelectLocaleFromPref(prefs);
-        if (NS_FAILED(rv))
-          return rv;
-      }
-      FlushAllCaches();
+      rv = SelectLocaleFromPref(prefs);
+      if (NS_SUCCEEDED(rv) && mProfileLoaded)
+        FlushAllCaches();
     }
     else if (pref.EqualsLiteral(SELECTED_SKIN_PREF)) {
       nsXPIDLCString provider;
       rv = prefs->GetCharPref(pref.get(), getter_Copies(provider));
       if (NS_FAILED(rv)) {
-        NS_ERROR("Couldn't get new skin pref!");
+        NS_ERROR("Couldn't get new locale pref!");
         return rv;
       }
 
@@ -426,21 +421,6 @@ nsChromeRegistryChrome::CheckForNewChrome()
 
   nsComponentManagerImpl::gComponentManager->RereadChromeManifests();
   return NS_OK;
-}
-
-void nsChromeRegistryChrome::UpdateSelectedLocale()
-{
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (prefs) {
-    nsresult rv = SelectLocaleFromPref(prefs);
-    if (NS_SUCCEEDED(rv)) {
-      nsCOMPtr<nsIObserverService> obsSvc =
-        mozilla::services::GetObserverService();
-      NS_ASSERTION(obsSvc, "Couldn't get observer service.");
-      obsSvc->NotifyObservers((nsIChromeRegistry*) this,
-                              "selected-locale-has-changed", nsnull);
-    }
-  }
 }
 
 #ifdef MOZ_IPC
@@ -509,8 +489,7 @@ nsChromeRegistryChrome::SendRegisteredChrome(
 
   mOverrideTable.EnumerateRead(&EnumerateOverride, &overrides);
 
-  bool success = aParent->SendRegisterChrome(packages, resources, overrides,
-                                             mSelectedLocale);
+  bool success = aParent->SendRegisterChrome(packages, resources, overrides);
   NS_ENSURE_TRUE(success, );
 }
 

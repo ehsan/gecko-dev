@@ -697,7 +697,7 @@ public class Tokenizer implements Locator {
     }
 
     private void endTagExpectationToArray() {
-        switch (endTagExpectation.getGroup()) {
+        switch (endTagExpectation.group) {
             case TreeBuilder.TITLE:
                 endTagExpectationAsArray = TITLE_ARR;
                 return;
@@ -3424,7 +3424,7 @@ public class Tokenizer implements Locator {
                         }
                         switch (c) {
                             case '\u0000':
-                                emitPlaintextReplacementCharacter(buf, pos);
+                                emitReplacementCharacter(buf, pos);
                                 continue;
                             case '\r':
                                 emitCarriageReturn(buf, pos);
@@ -5727,6 +5727,7 @@ public class Tokenizer implements Locator {
     // ]NOCPP]
     
     private void initDoctypeFields() {
+        Portability.releaseLocal(doctypeName);
         doctypeName = "";
         if (systemIdentifier != null) {
             Portability.releaseString(systemIdentifier);
@@ -5782,13 +5783,6 @@ public class Tokenizer implements Locator {
             throws SAXException {
         flushChars(buf, pos);
         tokenHandler.zeroOriginatingReplacementCharacter();
-        cstart = pos + 1;
-    }
-
-    private void emitPlaintextReplacementCharacter(@NoLength char[] buf, int pos)
-            throws SAXException {
-        flushChars(buf, pos);
-        tokenHandler.characters(REPLACEMENT_CHARACTER, 0, 1);
         cstart = pos + 1;
     }
 
@@ -6040,6 +6034,7 @@ public class Tokenizer implements Locator {
                          * Create a new DOCTYPE token. Set its force-quirks flag
                          * to on.
                          */
+                        Portability.releaseLocal(doctypeName);
                         doctypeName = "";
                         if (systemIdentifier != null) {
                             Portability.releaseString(systemIdentifier);
@@ -6439,6 +6434,7 @@ public class Tokenizer implements Locator {
         // It is OK and sufficient to release these here, since
         // there's no way out of the doctype states than through paths
         // that call this method.
+        Portability.releaseLocal(doctypeName);
         doctypeName = null;
         Portability.releaseString(publicIdentifier);
         publicIdentifier = null;
@@ -6464,12 +6460,11 @@ public class Tokenizer implements Locator {
 
     // ]NOCPP]
 
-    public boolean internalEncodingDeclaration(String internalCharset)
+    public void internalEncodingDeclaration(String internalCharset)
             throws SAXException {
         if (encodingDeclarationHandler != null) {
-            return encodingDeclarationHandler.internalEncodingDeclaration(internalCharset);
+            encodingDeclarationHandler.internalEncodingDeclaration(internalCharset);
         }
-        return false;
     }
 
     /**
@@ -6498,6 +6493,7 @@ public class Tokenizer implements Locator {
     public void end() throws SAXException {
         strBuf = null;
         longStrBuf = null;
+        Portability.releaseLocal(doctypeName);
         doctypeName = null;
         if (systemIdentifier != null) {
             Portability.releaseString(systemIdentifier);
@@ -6645,6 +6641,7 @@ public class Tokenizer implements Locator {
         endTag = other.endTag;
         shouldSuspend = false;
 
+        Portability.releaseLocal(doctypeName);
         if (other.doctypeName == null) {
             doctypeName = null;
         } else {

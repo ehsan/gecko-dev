@@ -1710,7 +1710,7 @@ Assembler::nativePageSetup()
 {
     NanoAssert(!_inExit);
     if (!_nIns)
-        codeAlloc(codeStart, codeEnd, _nIns verbose_only(, codeBytes), NJ_MAX_CPOOL_OFFSET);
+        codeAlloc(codeStart, codeEnd, _nIns verbose_only(, codeBytes));
 
     // constpool starts at top of page and goes down,
     // code starts at bottom of page and moves up
@@ -1731,7 +1731,7 @@ Assembler::underrunProtect(int bytes)
         verbose_only(verbose_outputf("        %p:", _nIns);)
         NIns* target = _nIns;
         // This may be in a normal code chunk or an exit code chunk.
-        codeAlloc(codeStart, codeEnd, _nIns verbose_only(, codeBytes), NJ_MAX_CPOOL_OFFSET);
+        codeAlloc(codeStart, codeEnd, _nIns verbose_only(, codeBytes));
 
         _nSlot = codeStart;
 
@@ -2910,7 +2910,7 @@ Assembler::asm_jtbl(LIns* ins, NIns** table)
 
 void Assembler::swapCodeChunks() {
     if (!_nExitIns)
-        codeAlloc(exitStart, exitEnd, _nExitIns verbose_only(, exitBytes), NJ_MAX_CPOOL_OFFSET);
+        codeAlloc(exitStart, exitEnd, _nExitIns verbose_only(, exitBytes));
     if (!_nExitSlot)
         _nExitSlot = exitStart;
     SWAP(NIns*, _nIns, _nExitIns);

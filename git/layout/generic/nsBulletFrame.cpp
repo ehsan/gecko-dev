@@ -197,10 +197,6 @@ public:
   }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
-  {
-    return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
-  }
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
     aOutFrames->AppendElement(mFrame);
@@ -209,10 +205,7 @@ public:
                      nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Bullet", TYPE_BULLET)
 
-  virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder)
-  {
-    return GetBounds(aBuilder);
-  }
+  virtual PRBool HasText() { return PR_TRUE; }
 };
 
 void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,
@@ -474,20 +467,15 @@ static PRBool RomanToText(PRInt32 ordinal, nsString& result, const char* achars,
     romanPos--;
     addOn.SetLength(0);
     switch(*dp) {
-      case '3':
-        addOn.Append(PRUnichar(achars[romanPos]));
-        // FALLTHROUGH
-      case '2':
-        addOn.Append(PRUnichar(achars[romanPos]));
-        // FALLTHROUGH
-      case '1':
-        addOn.Append(PRUnichar(achars[romanPos]));
+      case '3':  addOn.Append(PRUnichar(achars[romanPos]));
+      case '2':  addOn.Append(PRUnichar(achars[romanPos]));
+      case '1':  addOn.Append(PRUnichar(achars[romanPos]));
         break;
       case '4':
         addOn.Append(PRUnichar(achars[romanPos]));
         // FALLTHROUGH
       case '5': case '6':
-      case '7': case '8':
+      case '7': case  '8':
         addOn.Append(PRUnichar(bchars[romanPos]));
         for(n=0;'5'+n<*dp;n++) {
           addOn.Append(PRUnichar(achars[romanPos]));

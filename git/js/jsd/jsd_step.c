@@ -69,7 +69,7 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
     JSDScript* jsdscript = NULL;
     JSScript * script;
     static indent = 0;
-    JSString* funName = NULL;
+    const char* funName = NULL;
 
     script = JS_GetFrameScript(cx, fp);
     if(script)
@@ -80,29 +80,27 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
         if(jsdscript)
             funName = JSD_GetScriptFunctionName(jsdc, jsdscript);
     }
-
-    if(before)
-        printf("%sentering ", _indentSpaces(indent++));
-    else
-        printf("%sleaving ", _indentSpaces(--indent));
-
-    if (!funName)
-        printf("TOP_LEVEL");
-    else
-        JS_FileEscapedString(stdout, funName, 0);
+    if(!funName)
+        funName = "TOP_LEVEL";
 
     if(before)
     {
         jsval thisVal;
 
-        printf("%s this: ", JS_IsConstructorFrame(cx, fp) ? "constructing":"");
+        printf("%sentering %s %s this: ",
+               _indentSpaces(indent++),
+               funName,
+               JS_IsConstructorFrame(cx, fp) ? "constructing":"");
 
         if (JS_GetFrameThis(cx, fp, &thisVal))
-            printf("0x%0llx", (JSUword) thisVal);
+            printf("0x%0llx\n", (JSUword) thisVal);
         else
             puts("<unavailable>");
     }
-    printf("\n");
+    else
+    {
+        printf("%sleaving %s\n", _indentSpaces(--indent), funName);
+    }
     JS_ASSERT(indent >= 0);
 }
 #endif

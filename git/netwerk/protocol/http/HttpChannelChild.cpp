@@ -119,8 +119,6 @@ NS_INTERFACE_MAP_BEGIN(HttpChannelChild)
   NS_INTERFACE_MAP_ENTRY(nsIApplicationCacheContainer)
   NS_INTERFACE_MAP_ENTRY(nsIApplicationCacheChannel)
   NS_INTERFACE_MAP_ENTRY(nsIAsyncVerifyRedirectCallback)
-  NS_INTERFACE_MAP_ENTRY(nsIChildChannel)
-  NS_INTERFACE_MAP_ENTRY(nsIHttpChannelChild)
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIAssociatedContentSecurity, GetAssociatedContentSecurity())
 NS_INTERFACE_MAP_END_INHERITING(HttpBaseChannel)
 
@@ -374,7 +372,7 @@ HttpChannelChild::OnStopRequest(const nsresult& statusCode)
 
   mIsPending = PR_FALSE;
 
-  if (!mCanceled && NS_SUCCEEDED(mStatus))
+  if (!mCanceled)
     mStatus = statusCode;
 
   { // We must flush the queue before we Send__delete__
@@ -382,13 +380,13 @@ HttpChannelChild::OnStopRequest(const nsresult& statusCode)
     // so make sure this goes out of scope before then.
     AutoEventEnqueuer ensureSerialDispatch(this);
 
-    mListener->OnStopRequest(this, mListenerContext, mStatus);
+    mListener->OnStopRequest(this, mListenerContext, statusCode);
 
     mListener = 0;
     mListenerContext = 0;
     mCacheEntryAvailable = PR_FALSE;
     if (mLoadGroup)
-      mLoadGroup->RemoveRequest(this, nsnull, mStatus);
+      mLoadGroup->RemoveRequest(this, nsnull, statusCode);
   }
 
   if (!(mLoadFlags & LOAD_DOCUMENT_URI)) {
@@ -591,67 +589,60 @@ class Redirect1Event : public ChannelEvent
 {
  public:
   Redirect1Event(HttpChannelChild* child,
-                 const PRUint32& newChannelId,
+                 PHttpChannelChild* newChannel,
                  const IPC::URI& newURI,
                  const PRUint32& redirectFlags,
                  const nsHttpResponseHead& responseHead)
   : mChild(child)
-  , mNewChannelId(newChannelId)
+  , mNewChannel(newChannel)
   , mNewURI(newURI)
   , mRedirectFlags(redirectFlags)
   , mResponseHead(responseHead) {}
 
   void Run() 
   { 
-    mChild->Redirect1Begin(mNewChannelId, mNewURI, mRedirectFlags,
+    mChild->Redirect1Begin(mNewChannel, mNewURI, mRedirectFlags, 
                            mResponseHead); 
   }
  private:
   HttpChannelChild*   mChild;
-  PRUint32            mNewChannelId;
+  PHttpChannelChild*  mNewChannel;
   IPC::URI            mNewURI;
   PRUint32            mRedirectFlags;
   nsHttpResponseHead  mResponseHead;
 };
 
 bool
-HttpChannelChild::RecvRedirect1Begin(const PRUint32& newChannelId,
-                                     const URI& newUri,
+HttpChannelChild::RecvRedirect1Begin(PHttpChannelChild* newChannel,
+                                     const IPC::URI& newURI,
                                      const PRUint32& redirectFlags,
                                      const nsHttpResponseHead& responseHead)
 {
   if (ShouldEnqueue()) {
-    EnqueueEvent(new Redirect1Event(this, newChannelId, newUri, redirectFlags,
+    EnqueueEvent(new Redirect1Event(this, newChannel, newURI, redirectFlags, 
                                     responseHead)); 
   } else {
-    Redirect1Begin(newChannelId, newUri, redirectFlags, responseHead);
+    Redirect1Begin(newChannel, newURI, redirectFlags, responseHead);
   }
   return true;
 }
 
 void
-HttpChannelChild::Redirect1Begin(const PRUint32& newChannelId,
+HttpChannelChild::Redirect1Begin(PHttpChannelChild* newChannel,
                                  const IPC::URI& newURI,
                                  const PRUint32& redirectFlags,
                                  const nsHttpResponseHead& responseHead)
 {
-  nsresult rv;
-
-  nsCOMPtr<nsIIOService> ioService;
-  rv = gHttpHandler->GetIOService(getter_AddRefs(ioService));
-  if (NS_FAILED(rv)) {
-    // Veto redirect.  nsHttpChannel decides to cancel or continue.
-    OnRedirectVerifyCallback(rv);
-    return;
-  }
-
+  HttpChannelChild* 
+    newHttpChannelChild = static_cast<HttpChannelChild*>(newChannel);
   nsCOMPtr<nsIURI> uri(newURI);
 
-  nsCOMPtr<nsIChannel> newChannel;
-  rv = ioService->NewChannelFromURI(uri, getter_AddRefs(newChannel));
+  nsresult rv = 
+    newHttpChannelChild->HttpBaseChannel::Init(uri, mCaps,
+                                               mConnectionInfo->ProxyInfo());
   if (NS_FAILED(rv)) {
-    // Veto redirect.  nsHttpChannel decides to cancel or continue.
-    OnRedirectVerifyCallback(rv);
+    // Veto redirect.  nsHttpChannel decides to cancel or continue. 
+    SendRedirect2Verify(rv, newHttpChannelChild->mRequestHeaders);
     return;
   }
 
@@ -660,22 +651,17 @@ HttpChannelChild::Redirect1Begin(const PRUint32& newChannelId,
   SetCookie(mResponseHead->PeekHeader(nsHttp::Set_Cookie));
 
   PRBool preserveMethod = (mResponseHead->Status() == 307);
-  rv = SetupReplacementChannel(uri, newChannel, preserveMethod);
+  rv = SetupReplacementChannel(uri, newHttpChannelChild, preserveMethod);
   if (NS_FAILED(rv)) {
     // Veto redirect.  nsHttpChannel decides to cancel or continue.
-    OnRedirectVerifyCallback(rv);
+    SendRedirect2Verify(rv, newHttpChannelChild->mRequestHeaders);
     return;
   }
 
-  mRedirectChannelChild = do_QueryInterface(newChannel);
-  if (mRedirectChannelChild) {
-    mRedirectChannelChild->ConnectParent(newChannelId);
-  } else {
-    NS_ERROR("Redirecting to a protocol that doesn't support universal protocol redirect");
-  }
+  mRedirectChannelChild = newHttpChannelChild;
 
   rv = gHttpHandler->AsyncOnChannelRedirect(this, 
-                                            newChannel,
+                                            newHttpChannelChild, 
                                             redirectFlags);
   if (NS_FAILED(rv))
     OnRedirectVerifyCallback(rv);
@@ -704,17 +690,15 @@ HttpChannelChild::RecvRedirect3Complete()
 void
 HttpChannelChild::Redirect3Complete()
 {
-  nsresult rv = NS_OK;
-
-  // Chrome channel has been AsyncOpen'd.  Reflect this in child.
-  if (mRedirectChannelChild)
-    rv = mRedirectChannelChild->CompleteRedirectSetup(mListener,
-                                                      mListenerContext);
+  nsresult rv;
 
   // Redirecting to new channel: shut this down and init new channel
   if (mLoadGroup)
     mLoadGroup->RemoveRequest(this, nsnull, NS_BINDING_ABORTED);
 
+  // Chrome channel has been AsyncOpen'd.  Reflect this in child.
+  rv = mRedirectChannelChild->CompleteRedirectSetup(mListener, 
+                                                    mListenerContext);
   if (NS_FAILED(rv))
     NS_WARNING("CompleteRedirectSetup failed, HttpChannelChild already open?");
 
@@ -722,34 +706,7 @@ HttpChannelChild::Redirect3Complete()
   mRedirectChannelChild = nsnull;
 }
 
-//-----------------------------------------------------------------------------
-// HttpChannelChild::nsIChildChannel
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-HttpChannelChild::ConnectParent(PRUint32 id)
-{
-  mozilla::dom::TabChild* tabChild = nsnull;
-  nsCOMPtr<nsITabChild> iTabChild;
-  GetCallback(iTabChild);
-  if (iTabChild) {
-    tabChild = static_cast<mozilla::dom::TabChild*>(iTabChild.get());
-  }
-
-  // The socket transport in the chrome process now holds a logical ref to us
-  // until OnStopRequest, or we do a redirect, or we hit an IPDL error.
-  AddIPDLReference();
-
-  if (!gNeckoChild->SendPHttpChannelConstructor(this, tabChild))
-    return NS_ERROR_FAILURE;
-
-  if (!SendConnectChannel(id))
-    return NS_ERROR_FAILURE;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
+nsresult
 HttpChannelChild::CompleteRedirectSetup(nsIStreamListener *listener, 
                                         nsISupports *aContext)
 {
@@ -787,30 +744,17 @@ HttpChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
 NS_IMETHODIMP
 HttpChannelChild::OnRedirectVerifyCallback(nsresult result)
 {
-  nsCOMPtr<nsIHttpChannel> newHttpChannel =
-      do_QueryInterface(mRedirectChannelChild);
-
-  if (newHttpChannel) {
-    // Must not be called until after redirect observers called.
-    newHttpChannel->SetOriginalURI(mRedirectOriginalURI);
-  }
-
-  RequestHeaderTuples emptyHeaders;
-  RequestHeaderTuples* headerTuples = &emptyHeaders;
-
-  nsCOMPtr<nsIHttpChannelChild> newHttpChannelChild =
-      do_QueryInterface(mRedirectChannelChild);
-  if (newHttpChannelChild && NS_SUCCEEDED(result)) {
-    newHttpChannelChild->AddCookiesToRequest();
-    newHttpChannelChild->GetHeaderTuples(&headerTuples);
-  }
+  // Cookies may have been changed by redirect observers
+  mRedirectChannelChild->AddCookiesToRequest();
+  // Must not be called until after redirect observers called.
+  mRedirectChannelChild->SetOriginalURI(mRedirectOriginalURI);
 
   // After we verify redirect, nsHttpChannel may hit the network: must give
   // "http-on-modify-request" observers the chance to cancel before that.
   if (NS_SUCCEEDED(result))
-    gHttpHandler->OnModifyRequest(newHttpChannel);
+    gHttpHandler->OnModifyRequest(mRedirectChannelChild);
 
-  return SendRedirect2Verify(result, *headerTuples);
+  return SendRedirect2Verify(result, mRedirectChannelChild->mRequestHeaders);
 }
 
 //-----------------------------------------------------------------------------
@@ -1302,22 +1246,7 @@ HttpChannelChild::Flush()
   return NS_OK;
 }
 
-//-----------------------------------------------------------------------------
-// HttpChannelChild::nsIHttpChannelChild
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP HttpChannelChild::AddCookiesToRequest()
-{
-  HttpBaseChannel::AddCookiesToRequest();
-  return NS_OK;
-}
-
-NS_IMETHODIMP HttpChannelChild::GetHeaderTuples(RequestHeaderTuples **aHeaderTuples)
-{
-  *aHeaderTuples = &mRequestHeaders;
-  return NS_OK;
-}
-
 //------------------------------------------------------------------------------
 
 }} // mozilla::net
+

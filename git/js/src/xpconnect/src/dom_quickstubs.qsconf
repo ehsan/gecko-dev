@@ -103,7 +103,6 @@ members = [
     'nsIDOMDocument.getElementById',
     'nsIDOMDocument.createDocumentFragment',
     'nsIDOMDocument.createElement',
-    'nsIDOMDocument.createElementNS',
     'nsIDOMDocument.importNode',
     'nsIDOMDocument.createTextNode',
     'nsIDOMElement.removeAttributeNS',
@@ -428,6 +427,8 @@ members = [
     # nsIXMLHttpRequest.channel is not used on the web, and more
     # importantly relies on the CAPS check that quickstubs don't make.
     '-nsIXMLHttpRequest.channel',
+    # nsIXMLHttpRequest.open uses the JS stack
+    '-nsIXMLHttpRequest.open',
     # various XHR things use ACString and AUTF8String and [cstring]
     # which quickstubs don't handle as return values (or at all in the
     # case of AUTF8String) yet.
@@ -468,11 +469,15 @@ members = [
     'nsIIDBCursor.*',
     'nsIIDBDatabase.*',
     'nsIIDBDatabaseException.*',
+    'nsIIDBEvent.*',
+    'nsIIDBErrorEvent.*',
     'nsIIDBIndex.*',
     'nsIIDBKeyRange.*',
     'nsIIDBObjectStore.*',
     'nsIIDBRequest.*',
+    'nsIIDBSuccessEvent.*',
     'nsIIDBTransaction.*',
+    'nsIIDBTransactionEvent.*',
     'nsIIDBFactory.*',
     'nsIIDBVersionChangeEvent.*',
     'nsIIDBVersionChangeRequest.*',
@@ -857,13 +862,12 @@ customMethodCalls = {
     'nsIDOMHTMLElement_': {
         'thisType': 'nsGenericHTMLElement'
         },
+    'nsIDOMElementCSSInlineStyle_': {
+        'thisType': 'nsStyledElement'
+        },
     'nsIDOMElementCSSInlineStyle_GetStyle': {
         'thisType': 'nsStyledElement',
-        'code': '    /* XXXbz MathML elements inherit from nsStyledElement but\n'
-                '       don\'t actually implement GetStyle. */\n'
-                '    if (self->GetNameSpaceID() == kNameSpaceID_MathML)\n'
-                '      return xpc_qsThrow(cx, NS_ERROR_XPC_BAD_CONVERT_JS);\n'
-                '    nsIDOMCSSStyleDeclaration* result = '
+        'code': '    nsIDOMCSSStyleDeclaration* result = '
                 'self->GetStyle(&rv);'
         },
     'nsIDOMSVGStylable_GetStyle': {
@@ -904,11 +908,6 @@ customMethodCalls = {
         'thisType': 'nsDocument',
         'code': '    nsCOMPtr<nsIContent> result;\n'
                 '    rv = self->CreateElement(arg0, getter_AddRefs(result));'
-    },
-    'nsIDOMDocument_CreateElementNS': {
-        'thisType': 'nsDocument',
-        'code': '    nsCOMPtr<nsIContent> result;\n'
-                '    rv = self->CreateElementNS(arg0, arg1, getter_AddRefs(result));'
     },
     'nsIDOMDocument_CreateTextNode': {
         'thisType': 'nsDocument',

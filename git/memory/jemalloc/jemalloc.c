@@ -96,11 +96,6 @@
  *******************************************************************************
  */
 
-#ifdef MOZ_MEMORY_ANDROID
-#define NO_TLS
-#define _pthread_self() pthread_self()
-#endif
-
 /*
  * MALLOC_PRODUCTION disables assertions and statistics gathering.  It also
  * defaults the A and J runtime options to off.  These settings are appropriate
@@ -6322,6 +6317,7 @@ _malloc_prefork(void)
 		if (arenas[i] != NULL)
 			malloc_spin_lock(&arenas[i]->lock);
 	}
+	malloc_spin_unlock(&arenas_lock);
 
 	malloc_mutex_lock(&base_mtx);
 
@@ -6339,6 +6335,7 @@ _malloc_postfork(void)
 
 	malloc_mutex_unlock(&base_mtx);
 
+	malloc_spin_lock(&arenas_lock);
 	for (i = 0; i < narenas; i++) {
 		if (arenas[i] != NULL)
 			malloc_spin_unlock(&arenas[i]->lock);

@@ -9,7 +9,6 @@ function startTest() {
     return false;
 
   v.currentTime=seekTime;
-  v._seekTarget=seekTime;
   return false;
 }
 
@@ -17,10 +16,7 @@ function seekStarted() {
   if (completed)
     return false;
 
-  ok(v.currentTime >= v._seekTarget - 0.1,
-     "Video currentTime should be around " + v._seekTarget + ": " + v.currentTime);
   v.currentTime=seekTime/2;
-  v._seekTarget=seekTime/2;
   return false;
 }
 

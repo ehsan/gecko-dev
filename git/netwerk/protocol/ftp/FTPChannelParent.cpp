@@ -43,7 +43,6 @@
 #include "nsFTPChannel.h"
 #include "nsNetUtil.h"
 #include "nsISupportsPriority.h"
-#include "nsIRedirectChannelRegistrar.h"
 #include "nsFtpProtocolHandler.h"
 
 #undef LOG
@@ -77,9 +76,8 @@ FTPChannelParent::ActorDestroy(ActorDestroyReason why)
 // FTPChannelParent::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS4(FTPChannelParent,
+NS_IMPL_ISUPPORTS3(FTPChannelParent,
                    nsIStreamListener,
-                   nsIParentChannel,
                    nsIInterfaceRequestor,
                    nsIRequestObserver);
 
@@ -130,23 +128,6 @@ FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
   
-  return true;
-}
-
-bool
-FTPChannelParent::RecvConnectChannel(const PRUint32& channelId)
-{
-  nsresult rv;
-
-  LOG(("Looking for a registered channel [this=%p, id=%d]", this, channelId));
-
-  nsCOMPtr<nsIChannel> channel;
-  rv = NS_LinkRedirectChannels(channelId, this, getter_AddRefs(channel));
-  if (NS_SUCCEEDED(rv))
-    mChannel = static_cast<nsFtpChannel*>(channel.get());
-
-  LOG(("  found channel %p, rv=%08x", mChannel.get(), rv));
-
   return true;
 }
 
@@ -238,26 +219,13 @@ FTPChannelParent::OnDataAvailable(nsIRequest* aRequest,
 }
 
 //-----------------------------------------------------------------------------
-// FTPChannelParent::nsIParentChannel
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-FTPChannelParent::Delete()
-{
-  if (mIPCClosed || !SendDeleteSelf())
-    return NS_ERROR_UNEXPECTED;
-
-  return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
 // FTPChannelParent::nsIInterfaceRequestor
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
 FTPChannelParent::GetInterface(const nsIID& uuid, void** result)
 {
-  return QueryInterface(uuid, result);
+  DROP_DEAD();
 }
 
 } // namespace net

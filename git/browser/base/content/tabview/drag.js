@@ -67,11 +67,13 @@ var resize = {
 // Parameters:
 //   item - The <Item> being dragged
 //   event - The DOM event that kicks off the drag
+//   isResizing - (boolean) is this a resizing instance? or (if false) dragging?
 //   isFauxDrag - (boolean) true if a faux drag, which is used when simply snapping.
-function Drag(item, event, isFauxDrag) {
+function Drag(item, event, isResizing, isFauxDrag) {
   Utils.assert(item && (item.isAnItem || item.isAFauxItem), 
       'must be an item, or at least a faux item');
 
+  this.isResizing = isResizing || false;
   this.item = item;
   this.el = item.container;
   this.$el = iQ(this.el);
@@ -296,10 +298,7 @@ Drag.prototype = {
     if (this.parent && this.parent.expanded)
       this.parent.arrange();
 
-    if (this.item.parent)
-      this.item.parent.arrange();
-
-    if (!this.item.parent) {
+    if (this.item && !this.item.parent) {
       this.item.setZ(drag.zIndex);
       drag.zIndex++;
 

@@ -70,7 +70,7 @@
 
 #define BAD_TLS_INDEX (PRUintn)-1
 
-#define DB_SCHEMA_VERSION 4
+#define DB_SCHEMA_VERSION 3
 
 USING_INDEXEDDB_NAMESPACE
 
@@ -120,6 +120,7 @@ struct ObjectStoreInfoMap
   ObjectStoreInfo* info;
 };
 
+
 class OpenDatabaseHelper : public AsyncConnectionHelper
 {
 public:
@@ -132,8 +133,7 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult GetSuccessResult(JSContext* aCx,
-                            jsval* aVal);
+  nsresult GetSuccessResult(nsIWritableVariant* aResult);
 
 private:
   // In-params.
@@ -143,7 +143,6 @@ private:
   // Out-params.
   nsTArray<nsAutoPtr<ObjectStoreInfo> > mObjectStores;
   nsString mVersion;
-  PRUint32 mDataVersion;
   nsString mDatabaseFilePath;
   PRUint32 mDatabaseId;
   PRInt64 mLastObjectStoreId;
@@ -161,8 +160,7 @@ CreateTables(mozIStorageConnection* aDBConn)
   nsresult rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "CREATE TABLE database ("
       "name TEXT NOT NULL, "
-      "version TEXT DEFAULT NULL, "
-      "dataVersion INTEGER NOT NULL"
+      "version TEXT DEFAULT NULL"
     ");"
   ));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -185,7 +183,7 @@ CreateTables(mozIStorageConnection* aDBConn)
     "CREATE TABLE object_data ("
       "id INTEGER, "
       "object_store_id INTEGER NOT NULL, "
-      "data BLOB NOT NULL, "
+      "data TEXT NOT NULL, "
       "key_value DEFAULT NULL, " // NONE affinity
       "PRIMARY KEY (id), "
       "FOREIGN KEY (object_store_id) REFERENCES object_store(id) ON DELETE "
@@ -205,7 +203,7 @@ CreateTables(mozIStorageConnection* aDBConn)
     "CREATE TABLE ai_object_data ("
       "id INTEGER PRIMARY KEY AUTOINCREMENT, "
       "object_store_id INTEGER NOT NULL, "
-      "data BLOB NOT NULL, "
+      "data TEXT NOT NULL, "
       "FOREIGN KEY (object_store_id) REFERENCES object_store(id) ON DELETE "
         "CASCADE"
     ");"
@@ -330,16 +328,12 @@ CreateMetaData(mozIStorageConnection* aConnection,
 
   nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
-    "INSERT OR REPLACE INTO database (name, dataVersion) "
-    "VALUES (:name, :dataVersion)"
+    "INSERT OR REPLACE INTO database (name) "
+    "VALUES (:name)"
   ), getter_AddRefs(stmt));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = stmt->BindStringByName(NS_LITERAL_CSTRING("name"), aName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("dataVersion"),
-                             JS_STRUCTURED_CLONE_VERSION);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return stmt->Execute();
@@ -511,34 +505,11 @@ CreateDatabaseConnection(const nsACString& aASCIIOrigin,
 
 // static
 already_AddRefed<nsIIDBFactory>
-IDBFactory::Create(nsPIDOMWindow* aWindow)
+IDBFactory::Create()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aWindow, "Must have a window!");
-
-  if (aWindow->IsOuterWindow()) {
-    aWindow = aWindow->GetCurrentInnerWindow();
-  }
-  NS_ENSURE_TRUE(aWindow, nsnull);
-
-  if (gCurrentDatabaseIndex == BAD_TLS_INDEX) {
-    // First time we're creating a database.
-    if (PR_NewThreadPrivateIndex(&gCurrentDatabaseIndex, NULL) != PR_SUCCESS) {
-      NS_ERROR("PR_NewThreadPrivateIndex failed!");
-      gCurrentDatabaseIndex = BAD_TLS_INDEX;
-      return nsnull;
-    }
-
-    nsContentUtils::AddIntPrefVarCache(PREF_INDEXEDDB_QUOTA, &gIndexedDBQuota,
-                                       DEFAULT_QUOTA);
-  }
-
-  nsRefPtr<IDBFactory> factory = new IDBFactory();
-
-  factory->mWindow = do_GetWeakReference(aWindow);
-  NS_ENSURE_TRUE(factory->mWindow, nsnull);
-
-  return factory.forget();
+  nsCOMPtr<nsIIDBFactory> request(new IDBFactory());
+  return request.forget();
 }
 
 // static
@@ -578,7 +549,7 @@ IDBFactory::GetConnection(const nsAString& aDatabaseFilePath)
   }
 #endif
 
-  // Turn on foreign key constraints!
+  // Turn on foreign key constraints in debug builds to catch bugs!
   rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "PRAGMA foreign_keys = ON;"
   ));
@@ -755,6 +726,7 @@ IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
   if (version.IsVoid()) {
     version.SetIsVoid(PR_FALSE);
   }
+
   aVersion = version;
   return NS_OK;
 }
@@ -820,21 +792,26 @@ IDBFactory::Open(const nsAString& aName,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
+  nsresult rv;
+
+  if (gCurrentDatabaseIndex == BAD_TLS_INDEX) {
+    // First time we're creating a database.
+    if (PR_NewThreadPrivateIndex(&gCurrentDatabaseIndex, NULL) != PR_SUCCESS) {
+      NS_ERROR("PR_NewThreadPrivateIndex failed!");
+      gCurrentDatabaseIndex = BAD_TLS_INDEX;
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
+    nsContentUtils::AddIntPrefVarCache(PREF_INDEXEDDB_QUOTA, &gIndexedDBQuota,
+                                       DEFAULT_QUOTA);
+  }
+
   if (aName.IsEmpty()) {
     return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
   }
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-  NS_ENSURE_TRUE(window, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(window);
-  NS_ENSURE_TRUE(sgo, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  nsIScriptContext* context = sgo->GetContext();
-  NS_ENSURE_TRUE(context, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
   nsCOMPtr<nsIPrincipal> principal;
-  nsresult rv = nsContentUtils::GetSecurityManager()->
+  rv = nsContentUtils::GetSecurityManager()->
     GetSubjectPrincipal(getter_AddRefs(principal));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -852,7 +829,19 @@ IDBFactory::Open(const nsAString& aName,
     }
   }
 
-  nsRefPtr<IDBRequest> request = IDBRequest::Create(this, context, window,
+  nsIScriptContext* context = GetScriptContextFromJSContext(aCx);
+  NS_ENSURE_TRUE(context, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  nsCOMPtr<nsPIDOMWindow> innerWindow;
+
+  nsCOMPtr<nsPIDOMWindow> window =
+    do_QueryInterface(context->GetGlobalObject());
+  if (window) {
+    innerWindow = window->GetCurrentInnerWindow();
+  }
+  NS_ENSURE_TRUE(innerWindow, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  nsRefPtr<IDBRequest> request = IDBRequest::Create(this, context, innerWindow,
                                                     nsnull);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -860,7 +849,7 @@ IDBFactory::Open(const nsAString& aName,
     new OpenDatabaseHelper(request, aName, origin);
 
   nsRefPtr<CheckPermissionsHelper> permissionHelper =
-    new CheckPermissionsHelper(openHelper, window, aName, origin);
+    new CheckPermissionsHelper(openHelper, innerWindow, aName, origin);
 
   nsRefPtr<IndexedDatabaseManager> mgr = IndexedDatabaseManager::GetOrCreate();
   NS_ENSURE_TRUE(mgr, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -895,37 +884,6 @@ OpenDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
                                          getter_AddRefs(connection));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  // Get the data version.
-  nsCOMPtr<mozIStorageStatement> stmt;
-  rv = connection->CreateStatement(NS_LITERAL_CSTRING(
-    "SELECT dataVersion "
-    "FROM database"
-  ), getter_AddRefs(stmt));
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  PRBool hasResult;
-  rv = stmt->ExecuteStep(&hasResult);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  if (!hasResult) {
-    NS_ERROR("Database has no dataVersion!");
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
-  PRInt64 dataVersion;
-  rv = stmt->GetInt64(0, &dataVersion);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  if (dataVersion > JS_STRUCTURED_CLONE_VERSION) {
-    NS_ERROR("Bad data version!");
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
-  if (dataVersion < JS_STRUCTURED_CLONE_VERSION) {
-    // Need to upgrade the database, here, before returning to the main thread.
-    NS_NOTYETIMPLEMENTED("Implement me!");
-  }
-
   mDatabaseId = HashString(mDatabaseFilePath);
   NS_ASSERTION(mDatabaseId, "HashString gave us 0?!");
 
@@ -946,8 +904,7 @@ OpenDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-OpenDatabaseHelper::GetSuccessResult(JSContext* aCx,
-                                     jsval *aVal)
+OpenDatabaseHelper::GetSuccessResult(nsIWritableVariant* aResult)
 {
   DatabaseInfo* dbInfo;
   if (DatabaseInfo::Get(mDatabaseId, &dbInfo)) {
@@ -1027,13 +984,13 @@ OpenDatabaseHelper::GetSuccessResult(JSContext* aCx,
   dbInfo->nextObjectStoreId = mLastObjectStoreId + 1;
   dbInfo->nextIndexId = mLastIndexId + 1;
 
-  nsRefPtr<IDBDatabase> database =
+  nsRefPtr<IDBDatabase> db =
     IDBDatabase::Create(mRequest->ScriptContext(), mRequest->Owner(), dbInfo,
                         mASCIIOrigin);
-  if (!database) {
+  if (!db) {
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
-  return WrapNative(aCx, NS_ISUPPORTS_CAST(nsPIDOMEventTarget*, database),
-                    aVal);
+  aResult->SetAsISupports(static_cast<nsPIDOMEventTarget*>(db));
+  return NS_OK;
 }

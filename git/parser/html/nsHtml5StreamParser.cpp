@@ -589,7 +589,7 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
     }
   }
   
-  if (mCharsetSource <= kCharsetFromMetaPrescan) {
+  if (mCharsetSource < kCharsetFromChannel) {
     // we aren't ready to commit to an encoding yet
     // leave converter uninstantiated for now
     return NS_OK;
@@ -751,7 +751,7 @@ nsHtml5StreamParser::OnDataAvailable(nsIRequest* aRequest,
   return rv;
 }
 
-PRBool
+void
 nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
 {
   // This code needs to stay in sync with
@@ -759,16 +759,16 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
   // trickery with member fields there leads to some copy-paste reuse. :-(
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
   if (mCharsetSource >= kCharsetFromMetaTag) { // this threshold corresponds to "confident" in the HTML5 spec
-    return PR_FALSE;
+    return;
   }
 
   if (mReparseForbidden) {
-    return PR_FALSE; // not reparsing even if we wanted to
+    return; // not reparsing even if we wanted to
   }
 
   nsCAutoString newEncoding;
   CopyUTF16toUTF8(*aEncoding, newEncoding);
-  newEncoding.Trim(" \t\r\n\f");
+  // XXX spec says only UTF-16
   if (newEncoding.LowerCaseEqualsLiteral("utf-16") ||
       newEncoding.LowerCaseEqualsLiteral("utf-16be") ||
       newEncoding.LowerCaseEqualsLiteral("utf-16le")) {
@@ -779,17 +779,17 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
   nsCOMPtr<nsICharsetAlias> calias(do_GetService(kCharsetAliasCID, &rv));
   if (NS_FAILED(rv)) {
     NS_NOTREACHED("Charset alias service not available.");
-    return PR_FALSE;
+    return;
   }
   PRBool eq;
   rv = calias->Equals(newEncoding, mCharset, &eq);
   if (NS_FAILED(rv)) {
     NS_NOTREACHED("Charset name equality check failed.");
-    return PR_FALSE;
+    return;
   }
   if (eq) {
     mCharsetSource = kCharsetFromMetaTag; // become confident
-    return PR_FALSE;
+    return;
   }
   
   // XXX check HTML5 non-IANA aliases here
@@ -799,7 +799,7 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
   rv = calias->GetPreferred(newEncoding, preferred);
   if (NS_FAILED(rv)) {
     // the encoding name is bogus
-    return PR_FALSE;
+    return;
   }
   
   if (preferred.LowerCaseEqualsLiteral("utf-16") ||
@@ -814,7 +814,7 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
       preferred.LowerCaseEqualsLiteral("x-imap4-modified-utf7") ||
       preferred.LowerCaseEqualsLiteral("x-user-defined")) {
     // Not a rough ASCII superset
-    return PR_FALSE;
+    return;
   }
 
   mTreeBuilder->NeedsCharsetSwitchTo(preferred);
@@ -823,7 +823,6 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
   // the tree op executor will cause the stream parser to terminate
   // if the charset switch request is accepted or it'll uninterrupt 
   // if the request failed.
-  return PR_TRUE;
 }
 
 void
@@ -1009,13 +1008,12 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                       "SpeculationFailed",
                                       nsnull, 0,
-                                      nsnull,
+                                      mExecutor->GetDocument()->GetDocumentURI(),
                                       EmptyString(),
                                       speculation->GetStartLineNumber(),
                                       0,
                                       nsIScriptError::warningFlag,
-                                      "DOM Events",
-                                      mExecutor->GetDocument());
+                                      "DOM Events");
 
       nsHtml5UTF16Buffer* buffer = mFirstBuffer->next;
       while (buffer) {

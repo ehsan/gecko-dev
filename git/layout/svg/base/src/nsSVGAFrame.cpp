@@ -98,9 +98,6 @@ public:
   // nsSVGTextContainerFrame methods:
   virtual void GetXY(mozilla::SVGUserUnitList *aX, mozilla::SVGUserUnitList *aY);
   virtual void GetDxDy(mozilla::SVGUserUnitList *aDx, mozilla::SVGUserUnitList *aDy);
-  virtual const SVGNumberList* GetRotate() {
-    return nsnull;
-  }
 
 private:
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;

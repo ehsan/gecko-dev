@@ -64,7 +64,6 @@ XPIDLSRCS += \
   mozIPlacesAutoComplete.idl \
   nsIMicrosummaryService.idl \
   nsIPlacesImportExportService.idl \
-  mozIAsyncHistory.idl \
   $(NULL)
 endif
 

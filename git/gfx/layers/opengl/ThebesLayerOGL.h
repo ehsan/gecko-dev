@@ -95,7 +95,7 @@ public:
   virtual ~ShadowThebesLayerOGL();
 
   // ShadowThebesLayer impl
-  virtual void SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
+  virtual void SetFrontBuffer(const ThebesBuffer& aNewFront,
                               const nsIntRegion& aValidRegion,
                               float aXResolution, float aYResolution);
   virtual void
@@ -104,8 +104,6 @@ public:
        float* aNewXResolution, float* aNewYResolution,
        OptionalThebesBuffer* aReadOnlyFront, nsIntRegion* aFrontUpdatedRegion);
   virtual void DestroyFrontBuffer();
-
-  virtual void Disconnect();
 
   // LayerOGL impl
   void Destroy();
@@ -116,6 +114,12 @@ public:
 
 private:
   nsRefPtr<ShadowBufferOGL> mBuffer;
+
+
+  // XXX FIXME TEMP: hold on to this so that we can free it in DestroyFrontBuffer()
+  SurfaceDescriptor mDeadweight;
+
+
 };
 #endif  // MOZ_IPC
 

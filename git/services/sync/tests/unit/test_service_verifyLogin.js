@@ -18,6 +18,13 @@ function login_handler(request, response) {
   response.bodyOutputStream.write(body, body.length);
 }
 
+function send(statusCode, status, body) {
+  return function(request, response) {
+    response.setStatusLine(request.httpVersion, statusCode, status);
+    response.bodyOutputStream.write(body, body.length);
+  };
+}
+
 function service_unavailable(request, response) {
   let body = "Service Unavailable";
   response.setStatusLine(request.httpVersion, 503, "Service Unavailable");
@@ -29,16 +36,11 @@ function run_test() {
   let logger = Log4Moz.repository.rootLogger;
   Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
 
-  // This test expects a clean slate -- no saved passphrase.
-  Weave.Svc.Login.removeAllLogins();
-  
   do_test_pending();
   let server = httpd_setup({
     "/api/1.0/johndoe/info/collections": login_handler,
     "/api/1.0/janedoe/info/collections": service_unavailable,
-    "/api/1.0/johndoe/storage/meta/global": new ServerWBO().handler(),
-    "/api/1.0/johndoe/storage/crypto/keys": new ServerWBO().handler(),
-    "/user/1.0/johndoe/node/weave": httpd_handler(200, "OK", "http://localhost:8080/api/")
+    "/user/1.0/johndoe/node/weave": send(200, "OK", "http://localhost:8080/api/")
   });
 
   try {

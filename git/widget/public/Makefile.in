@@ -119,7 +119,6 @@ XPIDLSRCS	= \
 		nsIPrintOptions.idl \
 		nsIIdleService.idl \
 		nsIGfxInfo.idl \
-                nsIGfxInfoDebug.idl \
 		nsIIMEPicker.idl \
 		$(NULL)
 

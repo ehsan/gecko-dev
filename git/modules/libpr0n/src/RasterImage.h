@@ -169,7 +169,6 @@ public:
   NS_SCRIPTABLE NS_IMETHOD GetWidth(PRInt32 *aWidth);
   NS_SCRIPTABLE NS_IMETHOD GetHeight(PRInt32 *aHeight);
   NS_SCRIPTABLE NS_IMETHOD GetType(PRUint16 *aType);
-  NS_IMETHOD_(PRUint16) GetType(void);
   NS_SCRIPTABLE NS_IMETHOD GetAnimated(PRBool *aAnimated);
   NS_SCRIPTABLE NS_IMETHOD GetCurrentFrameIsOpaque(PRBool *aCurrentFrameIsOpaque);
   NS_IMETHOD GetFrame(PRUint32 aWhichFrame, PRUint32 aFlags, gfxASurface **_retval NS_OUTPARAM);
@@ -188,6 +187,9 @@ public:
 
   virtual nsresult StartAnimation();
   virtual nsresult StopAnimation();
+
+  // C++-only version of imgIContainer::GetType, for convenience
+  virtual PRUint16 GetType() { return imgIContainer::TYPE_RASTER; }
 
   // Methods inherited from Image
   nsresult Init(imgIDecoderObserver* aObserver,
@@ -213,8 +215,7 @@ public:
   PRUint32 GetSourceDataSize();
 
   /* Triggers discarding. */
-  void Discard(bool force = false);
-  void ForceDiscard() { Discard(/* force = */ true); }
+  void Discard();
 
   /* Callbacks for decoders */
   nsresult SetFrameDisposalMethod(PRUint32 aFrameNum,
@@ -451,17 +452,7 @@ private:
 private: // data
 
   nsIntSize                  mSize;
-
-  // Whether mFrames below were decoded using any special flags.
-  // Some flags (e.g. unpremultiplied data) may not be compatible
-  // with the browser's needs for displaying the image to the user.
-  // As such, we may need to redecode if we're being asked for
-  // a frame with different flags.  0 indicates default flags.
-  //
-  // Valid flag bits are imgIContainer::FLAG_DECODE_NO_PREMULTIPLY_ALPHA
-  // and imgIContainer::FLAG_DECODE_NO_COLORSPACE_CONVERSION.
-  PRUint32                   mFrameDecodeFlags;
-
+  
   //! All the frames of the image
   // IMPORTANT: if you use mFrames in a method, call EnsureImageIsDecoded() first 
   // to ensure that the frames actually exist (they may have been discarded to save
@@ -541,7 +532,6 @@ private: // data
   // Helpers
   void DoError();
   PRBool CanDiscard();
-  PRBool CanForciblyDiscard();
   PRBool DiscardingActive();
   PRBool StoringSourceData();
 

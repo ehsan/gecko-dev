@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
- *  Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,7 +44,7 @@ WEAVE_ID:                              "@weave_id@",
 // Version of the data format this client supports. The data format describes
 // how records are packaged; this is separate from the Server API version and
 // the per-engine cleartext formats.
-STORAGE_VERSION:                       5,
+STORAGE_VERSION:                       3,
 
 UPDATED_DEV_URL:                       "https://services.mozilla.com/sync/updated/?version=@weave_version@&channel=@xpi_type@",
 UPDATED_REL_URL:                       "http://www.mozilla.com/firefox/sync/updated.html",
@@ -56,33 +55,12 @@ PREFS_BRANCH:                          "services.sync.",
 PWDMGR_HOST:                           "chrome://weave",
 PWDMGR_PASSWORD_REALM:                 "Mozilla Services Password",
 PWDMGR_PASSPHRASE_REALM:               "Mozilla Services Encryption Passphrase",
-PWDMGR_KEYBUNDLE_REALM:                "Mozilla Services Key Bundles",
-
-// Put in [] because those aren't allowed in a collection name.
-DEFAULT_KEYBUNDLE_NAME:                "[default]",
-
-// Our extra input to SHA256-HMAC in generateEntry.
-// This includes the full crypto spec; change this when our algo changes.
-HMAC_INPUT:                            "Sync-AES_256_CBC-HMAC256",
-
-// Key dimensions.
-SYNC_KEY_ENCODED_LENGTH:               26,
-SYNC_KEY_DECODED_LENGTH:               16,
-SYNC_KEY_HYPHENATED_LENGTH:            31,    // 26 chars, 5 hyphens.
 
 // Sync intervals for various clients configurations
 SINGLE_USER_SYNC:                      24 * 60 * 60 * 1000, // 1 day
 MULTI_DESKTOP_SYNC:                    60 * 60 * 1000, // 1 hour
 MULTI_MOBILE_SYNC:                     5 * 60 * 1000, // 5 minutes
 PARTIAL_DATA_SYNC:                     60 * 1000, // 1 minute
-
-// HMAC event handling timeout.
-// 10 minutes: a compromise between the multi-desktop sync interval
-// and the mobile sync interval.
-HMAC_EVENT_INTERVAL:                   600000,
-
-// How long to wait between sync attempts if the Master Password is locked.
-MASTER_PASSWORD_LOCKED_RETRY_INTERVAL: 15 * 60 * 1000,   // 15 minutes
 
 // 50 is hardcoded here because of URL length restrictions.
 // (GUIDs can be up to 64 chars long)
@@ -109,8 +87,6 @@ PERMS_DIRECTORY:                       0755,
 // FIXME: Record size limit is 256k (new cluster), so this can be quite large!
 // (Bug 569295)
 MAX_UPLOAD_RECORDS:                    100,
-MAX_HISTORY_UPLOAD:                    5000,
-MAX_HISTORY_DOWNLOAD:                  5000,
 
 // Top-level statuses:
 STATUS_OK:                             "success.status_ok",
@@ -119,7 +95,6 @@ LOGIN_FAILED:                          "error.login.failed",
 SYNC_FAILED_PARTIAL:                   "error.sync.failed_partial",
 CLIENT_NOT_CONFIGURED:                 "service.client_not_configured",
 STATUS_DISABLED:                       "service.disabled",
-MASTER_PASSWORD_LOCKED:                "service.master_password_locked",
 
 // success states
 LOGIN_SUCCEEDED:                       "success.login",
@@ -139,6 +114,9 @@ LOGIN_FAILED_LOGIN_REJECTED:           "error.login.reason.account",
 METARECORD_DOWNLOAD_FAIL:              "error.sync.reason.metarecord_download_fail",
 VERSION_OUT_OF_DATE:                   "error.sync.reason.version_out_of_date",
 DESKTOP_VERSION_OUT_OF_DATE:           "error.sync.reason.desktop_version_out_of_date",
+KEYS_DOWNLOAD_FAIL:                    "error.sync.reason.keys_download_fail",
+NO_KEYS_NO_KEYGEN:                     "error.sync.reason.no_keys_no_keygen",
+KEYS_UPLOAD_FAIL:                      "error.sync.reason.keys_upload_fail",
 SETUP_FAILED_NO_PASSPHRASE:            "error.sync.reason.setup_failed_no_passphrase",
 CREDENTIALS_CHANGED:                   "error.sync.reason.credentials_changed",
 ABORT_SYNC_COMMAND:                    "aborting sync, process commands said so",
@@ -154,18 +132,7 @@ ENGINE_UNKNOWN_FAIL:                   "error.engine.reason.unknown_fail",
 ENGINE_METARECORD_DOWNLOAD_FAIL:       "error.engine.reason.metarecord_download_fail",
 ENGINE_METARECORD_UPLOAD_FAIL:         "error.engine.reason.metarecord_upload_fail",
 
-JPAKE_ERROR_CHANNEL:                   "jpake.error.channel",
-JPAKE_ERROR_NETWORK:                   "jpake.error.network",
-JPAKE_ERROR_SERVER:                    "jpake.error.server",
-JPAKE_ERROR_TIMEOUT:                   "jpake.error.timeout",
-JPAKE_ERROR_INTERNAL:                  "jpake.error.internal",
-JPAKE_ERROR_INVALID:                   "jpake.error.invalid",
-JPAKE_ERROR_NODATA:                    "jpake.error.nodata",
-JPAKE_ERROR_KEYMISMATCH:               "jpake.error.keymismatch",
-JPAKE_ERROR_WRONGMESSAGE:              "jpake.error.wrongmessage",
-
 // Ways that a sync can be disabled (messages only to be printed in debug log)
-kSyncMasterPasswordLocked:             "User elected to leave Master Password locked",
 kSyncWeaveDisabled:                    "Weave is disabled",
 kSyncNotLoggedIn:                      "User is not logged in",
 kSyncNetworkOffline:                   "Network is offline",

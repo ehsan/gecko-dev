@@ -140,10 +140,7 @@ nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   if (!jsstr)
     return NS_ERROR_FAILURE;
 
-  nsDependentJSString str;
-  if (!str.init(aContext, jsstr))
-    return NS_ERROR_FAILURE;
-
+  nsDependentJSString str(jsstr);
   rv = SetAttr(kNameSpaceID_None, nsGkAtoms::src, str, PR_TRUE);
   if (NS_FAILED(rv))
     return rv;

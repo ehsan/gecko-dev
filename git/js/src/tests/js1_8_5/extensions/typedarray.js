@@ -236,7 +236,6 @@ function test()
 
     empty.set([]);
     empty.set([], 0);
-    empty.set(empty);
 
     checkThrows(function() empty.set([1]));
     checkThrows(function() empty.set([1], 0));
@@ -245,7 +244,6 @@ function test()
     a.set([]);
     a.set([], 3);
     a.set([], 9);
-    a.set(a);
 
     a.set(empty);
     a.set(empty, 3);
@@ -323,19 +321,6 @@ function test()
     check(function() (new Int32Array()).BYTES_PER_ELEMENT == 4);
     check(function() (new Int32Array(0)).BYTES_PER_ELEMENT == 4);
     check(function() Int16Array.BYTES_PER_ELEMENT == Uint16Array.BYTES_PER_ELEMENT);
-
-    // test various types of args; Math.sqrt(4) is used to ensure that the
-    // function gets a double, and not a demoted int
-    check(function() (new Float32Array(Math.sqrt(4))).length == 2);
-    check(function() (new Float32Array({ length: 10 })).length == 10);
-    check(function() (new Float32Array({})).length == 0);
-    checkThrows(function() new Float32Array("3"));
-    checkThrows(function() new Float32Array(null));
-    checkThrows(function() new Float32Array(undefined));
-
-    // check that NaN conversions happen correctly with array conversions
-    check(function() (new Int32Array([NaN])[0]) == 0);
-    check(function() { var q = new Float32Array([NaN])[0]; return q != q; });
 
     print ("done");
 

@@ -1095,6 +1095,19 @@ nsIContent::IsEqual(nsIContent* aOther)
         return PR_FALSE;
       }
     }
+
+    // Child nodes count.
+    PRUint32 childCount = GetChildCount();
+    if (childCount != element2->GetChildCount()) {
+      return PR_FALSE;
+    }
+
+    // Iterate over child nodes.
+    for (PRUint32 i = 0; i < childCount; ++i) {
+      if (!GetChildAt(i)->IsEqual(element2->GetChildAt(i))) {
+        return PR_FALSE;
+      }
+    }
   } else {
     // Node value check.
     nsCOMPtr<nsIDOMNode> domNode1 = do_QueryInterface(this);
@@ -1107,18 +1120,6 @@ nsIContent::IsEqual(nsIContent* aOther)
     }
   }
 
-  // Child nodes count.
-  PRUint32 childCount = GetChildCount();
-  if (childCount != aOther->GetChildCount()) {
-    return PR_FALSE;
-  }
-
-  // Iterate over child nodes.
-  for (PRUint32 i = 0; i < childCount; ++i) {
-    if (!GetChildAt(i)->IsEqual(aOther->GetChildAt(i))) {
-      return PR_FALSE;
-    }
-  }
   return PR_TRUE;
 }
 
@@ -1355,7 +1356,8 @@ nsNSElementTearoff::GetNextElementSibling(nsIDOMElement** aResult)
 nsContentList*
 nsGenericElement::GetChildrenList()
 {
-  nsGenericElement::nsDOMSlots *slots = DOMSlots();
+  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
+  NS_ENSURE_TRUE(slots, nsnull);
 
   if (!slots->mChildrenList) {
     slots->mChildrenList = new nsContentList(this, kNameSpaceID_Wildcard, 
@@ -1383,7 +1385,8 @@ nsGenericElement::GetClassList(nsresult *aResult)
 {
   *aResult = NS_ERROR_OUT_OF_MEMORY;
 
-  nsGenericElement::nsDOMSlots *slots = DOMSlots();
+  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
+  NS_ENSURE_TRUE(slots, nsnull);
 
   if (!slots->mClassList) {
     nsCOMPtr<nsIAtom> classAttr = GetClassAttributeName();
@@ -2313,7 +2316,11 @@ NS_IMETHODIMP
 nsGenericElement::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
 {
   NS_ENSURE_ARG_POINTER(aAttributes);
-  nsDOMSlots *slots = DOMSlots();
+  nsDOMSlots *slots = GetDOMSlots();
+
+  if (!slots) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   if (!slots->mAttributeMap) {
     slots->mAttributeMap = new nsDOMAttributeMap(this);
@@ -2856,7 +2863,11 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 #endif
   {
     if (aBindingParent) {
-      nsDOMSlots *slots = DOMSlots();
+      nsDOMSlots *slots = GetDOMSlots();
+
+      if (!slots) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
 
       slots->mBindingParent = aBindingParent; // Weak, so no addref happens.
     }
@@ -3282,7 +3293,8 @@ nsGenericElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
 nsresult
 nsGenericElement::GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
-  nsGenericElement::nsDOMSlots *slots = DOMSlots();
+  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
   if (!slots->mSMILOverrideStyle) {
     slots->mSMILOverrideStyle = new nsDOMCSSAttributeDeclaration(this, PR_TRUE);
@@ -3305,7 +3317,8 @@ nsresult
 nsGenericElement::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
                                            PRBool aNotify)
 {
-  nsGenericElement::nsDOMSlots *slots = DOMSlots();
+  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
   slots->mSMILOverrideStyleRule = aStyleRule;
 
@@ -3994,10 +4007,12 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
     return NS_ERROR_NULL_POINTER;
   }
 
-  if (!IsNodeOfType(eDOCUMENT) &&
-      !IsNodeOfType(eDOCUMENT_FRAGMENT) &&
-      !IsElement()) {
+  if (IsNodeOfType(eDATA_NODE)) {
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
+  }
+
+  if (IsNodeOfType(eATTRIBUTE)) {
+    return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   nsIContent* refContent;
@@ -4565,10 +4580,6 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   NS_ENSURE_ARG_POINTER(aName);
   NS_ASSERTION(aNamespaceID != kNameSpaceID_Unknown,
                "Don't call SetAttr with unknown namespace");
-
-  if (!mAttrsAndChildren.CanFitMoreAttrs()) {
-    return NS_ERROR_FAILURE;
-  }
 
   nsAutoString oldValue;
   PRBool modification = PR_FALSE;
@@ -5208,8 +5219,7 @@ nsGenericElement::CheckHandleEventForLinksPrecondition(nsEventChainVisitor& aVis
 {
   if (aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
       !NS_IS_TRUSTED_EVENT(aVisitor.mEvent) ||
-      !aVisitor.mPresContext ||
-      (aVisitor.mEvent->flags & NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS)) {
+      !aVisitor.mPresContext) {
     return PR_FALSE;
   }
 
@@ -5254,8 +5264,6 @@ nsGenericElement::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
       GetLinkTarget(target);
       nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
                                   PR_FALSE, PR_TRUE);
-      // Make sure any ancestor links don't also TriggerLink
-      aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS;
     }
     break;
 
@@ -5264,9 +5272,6 @@ nsGenericElement::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
     // FALL THROUGH
   case NS_BLUR_CONTENT:
     rv = LeaveLink(aVisitor.mPresContext);
-    if (NS_SUCCEEDED(rv)) {
-      aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS;
-    }
     break;
 
   default:
@@ -5313,7 +5318,6 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
         if (handler && document) {
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
-            aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS;
             nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
             fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE |
                                nsIFocusManager::FLAG_NOSCROLL);
@@ -5345,22 +5349,16 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
                            NS_UI_ACTIVATE, 1);
 
         rv = shell->HandleDOMEventWithTarget(this, &actEvent, &status);
-        if (NS_SUCCEEDED(rv)) {
-          aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
-        }
       }
     }
     break;
 
   case NS_UI_ACTIVATE:
     {
-      if (aVisitor.mEvent->originalTarget == this) {
-        nsAutoString target;
-        GetLinkTarget(target);
-        nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
-                                    PR_TRUE, PR_TRUE);
-        aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
-      }
+      nsAutoString target;
+      GetLinkTarget(target);
+      nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
+                                  PR_TRUE, PR_TRUE);
     }
     break;
 

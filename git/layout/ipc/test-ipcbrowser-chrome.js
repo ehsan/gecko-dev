@@ -1,5 +1,4 @@
 function init() {
-    enableAsyncScrolling();
     messageManager.loadFrameScript(
         "chrome://global/content/test-ipcbrowser-content.js", true
     );
@@ -10,21 +9,8 @@ function browser() {
 }
 
 function frameLoader() {
-    return browser().QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader;
-}
-
-function viewManager() {
-    return frameLoader().QueryInterface(Components.interfaces.nsIContentViewManager);
-}
-
-function rootView() {
-    return viewManager().rootContentView;
-}
-
-function enableAsyncScrolling() {
-    var i = Components.interfaces.nsIFrameLoader_MOZILLA_2_0_BRANCH;
-    var enabler = frameLoader().QueryInterface(i);
-    enabler.renderMode = i.RENDER_MODE_ASYNC_SCROLL;
+    return browser().QueryInterface(Components.interfaces.nsIFrameLoaderOwner)
+                    .frameLoader;
 }
 
 // Functions affecting the content window.
@@ -62,15 +48,15 @@ function setContentResolution(xres, yres) {
 // Functions affecting <browser>.
 
 function scrollViewportBy(dx, dy) {
-    rootView().scrollBy(dx, dy);
+    frameLoader().scrollViewportBy(dx, dy);
 }
 
 function scrollViewportTo(x, y) {
-    rootView().scrollTo(x, y);
+    frameLoader().scrollViewportTo(x, y);
 }
 
 function setViewportScale(xs, ys) {
-    rootView().setScale(xs, ys);
+    frameLoader().setViewportScale(xs, ys);
 }
 
 var kDelayMs = 100;
@@ -98,7 +84,7 @@ function startAnimatedScrollBy(dx, dy) {
         accumDx += ddx;
         accumDy += ddy;
 
-        rootView().scrollBy(ddx, ddy);
+        frameLoader().scrollViewportBy(ddx, ddy);
 
         if (!sentScrollBy && 100 <= (now - start)) {
             messageManager.sendAsyncMessage("scrollBy",
@@ -109,7 +95,7 @@ function startAnimatedScrollBy(dx, dy) {
         if (now >= end || (accumDx >= dx && accumDy >= dy)) {
             var fixupDx = Math.max(dx - accumDx, 0);
             var fixupDy = Math.max(dy - accumDy, 0);
-            rootView().scrollBy(fixupDx, fixupDy);
+            frameLoader().scrollViewportBy(fixupDx, fixupDy);
 
             scrolling = false;
             removeEventListener("MozBeforePaint", nudgeScroll, false);

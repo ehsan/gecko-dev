@@ -183,7 +183,7 @@ static NPNetscapeFuncs sBrowserFuncs = {
   _convertpoint,
   NULL, // handleevent, unimplemented
   NULL, // unfocusinstance, unimplemented
-  _urlredirectresponse
+  NULL  // urlredirectresponse, unimplemented
 };
 
 static PRLock *sPluginThreadAsyncCallLock = nsnull;
@@ -242,13 +242,14 @@ nsNPAPIPlugin::nsNPAPIPlugin()
 
   memset((void*)&mPluginFuncs, 0, sizeof(mPluginFuncs));
   mPluginFuncs.size = sizeof(mPluginFuncs);
-  mPluginFuncs.version = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
 
   mLibrary = nsnull;
 }
 
 nsNPAPIPlugin::~nsNPAPIPlugin()
 {
+  // reset the callbacks list
+  memset((void*) &mPluginFuncs, 0, sizeof(mPluginFuncs));
   delete mLibrary;
   mLibrary = nsnull;
 }
@@ -612,15 +613,12 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   // Set aCallNotify here to false.  If pluginHost->GetURL or PostURL fail,
   // the listener's destructor will do the notification while we are about to
   // return a failure code.
-  // Call SetCallNotify(true) below after we are sure we cannot return a failure 
+  // Call SetCallNotify(true) bellow after we are sure we cannot return a failure 
   // code.
-  if (!target) {
-    inst->NewStreamListener(relativeURL, notifyData,
-                            getter_AddRefs(listener));
-    if (listener) {
-      static_cast<nsNPAPIPluginStreamListener*>(listener.get())->SetCallNotify(PR_FALSE);
-    }
-  }
+  if (!target)
+    ((nsNPAPIPluginInstance*)inst)->NewNotifyStream(getter_AddRefs(listener),
+                                                    notifyData,
+                                                    PR_FALSE, relativeURL);
 
   switch (type) {
   case eNPPStreamTypeInternal_Get:
@@ -631,7 +629,8 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
     }
   case eNPPStreamTypeInternal_Post:
     {
-      if (NS_FAILED(pluginHost->PostURL(inst, relativeURL, len, buf, file, target, listener)))
+      if (NS_FAILED(pluginHost->PostURL(inst, relativeURL, len, buf, file, target,
+                                listener)))
         return NPERR_GENERIC_ERROR;
       break;
     }
@@ -641,7 +640,11 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
 
   if (listener) {
     // SetCallNotify(bDoNotify) here, see comment above.
-    static_cast<nsNPAPIPluginStreamListener*>(listener.get())->SetCallNotify(bDoNotify);
+    // XXX Not sure of this cast here, we should probably have an interface API
+    // for this.
+    nsNPAPIPluginStreamListener* npAPIPluginStreamListener = 
+      static_cast<nsNPAPIPluginStreamListener*>(listener.get());
+    npAPIPluginStreamListener->SetCallNotify(bDoNotify);
   }
 
   return NPERR_NO_ERROR;
@@ -1439,7 +1442,7 @@ _utf8fromidentifier(NPIdentifier id)
   JSString *str = NPIdentifierToString(id);
 
   return
-    ToNewUTF8String(nsDependentString(::JS_GetInternedStringChars(str),
+    ToNewUTF8String(nsDependentString((PRUnichar *)::JS_GetStringChars(str),
                                       ::JS_GetStringLength(str)));
 }
 
@@ -1612,10 +1615,10 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   JSContext *cx = GetJSContextFromDoc(doc);
   NS_ENSURE_TRUE(cx, false);
 
+  JSAutoRequest req(cx);
+
   nsCOMPtr<nsIScriptContext> scx = GetScriptContextFromJSContext(cx);
   NS_ENSURE_TRUE(scx, false);
-
-  JSAutoRequest req(cx);
 
   JSObject *obj =
     nsNPObjWrapper::GetNewOrUsed(npp, cx, npobj);
@@ -2234,11 +2237,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
     return NPERR_NO_ERROR;
   }
-
-  case NPNVsupportsUpdatedCocoaTextInputBool: {
-    *(NPBool*)result = true;
-    return NPERR_NO_ERROR;
-  }
 #endif
 
   // we no longer hand out any XPCOM objects, except on WINCE,
@@ -2725,17 +2723,6 @@ _convertpoint(NPP instance, double sourceX, double sourceY, NPCoordinateSpace so
     return PR_FALSE;
 
   return inst->ConvertPoint(sourceX, sourceY, sourceSpace, destX, destY, destSpace);
-}
-
-void NP_CALLBACK
-_urlredirectresponse(NPP instance, void* notifyData, NPBool allow)
-{
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)instance->ndata;
-  if (!inst) {
-    return;
-  }
-
-  inst->URLRedirectResponse(notifyData, allow);
 }
 
 } /* namespace parent */

@@ -18,8 +18,6 @@
           src="../common.js" />
   <script type="application/javascript"
           src="../attributes.js" />
-  <script type="application/javascript"
-          src="../events.js" />
 
   <script type="application/javascript">
   <![CDATA[
@@ -29,6 +27,7 @@
     function doTestAttrs()
     {
       var treeNode = getNode("tree");
+      treeNode.removeEventListener("TreeViewChanged", doTestAttrs, false);
 
       var tree = getAccessible(treeNode);
       var treeitem1 = tree.firstChild.nextSibling;
@@ -55,7 +54,7 @@
     function doTest()
     {
       var treeNode = getNode("tree");
-      waitForEvent(EVENT_REORDER, treeNode, doTestAttrs);
+      treeNode.addEventListener("TreeViewChanged", doTestAttrs, false);
       treeNode.view = new nsTreeTreeView();
     }
 

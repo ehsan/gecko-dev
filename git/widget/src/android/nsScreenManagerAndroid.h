@@ -43,21 +43,16 @@
 
 #include "nsIScreenManager.h"
 #include "nsIScreen.h"
-#include "WidgetUtils.h"
 
-class nsScreenAndroid
-  : public nsIScreen
-  , public mozilla::widget::BrightnessLockingWidget
+class nsScreenAndroid :
+    public nsIScreen
 {
 public:
-    nsScreenAndroid(void *nativeScreen);
+    nsScreenAndroid(void *platformScreen);
     ~nsScreenAndroid();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSISCREEN
-
-protected:
-    void ApplyMinimumBrightness(PRUint32 aBrightness);
 };
 
 class nsScreenManagerAndroid :

@@ -74,7 +74,7 @@ AllKeyEnum(nsSessionStorageEntry* aEntry, void* userArg)
 }
 
 nsresult
-nsDOMStorageMemoryDB::GetItemsTable(DOMStorageImpl* aStorage,
+nsDOMStorageMemoryDB::GetItemsTable(nsDOMStorage* aStorage,
                                     nsInMemoryStorage** aMemoryStorage)
 {
   if (mData.Get(aStorage->GetScopeDBKey(), aMemoryStorage))
@@ -114,7 +114,7 @@ nsDOMStorageMemoryDB::GetItemsTable(DOMStorageImpl* aStorage,
 struct GetAllKeysEnumStruc
 {
   nsTHashtable<nsSessionStorageEntry>* mTarget;
-  DOMStorageImpl* mStorage;
+  nsDOMStorage* mStorage;
 };
 
 static PLDHashOperator
@@ -139,7 +139,7 @@ GetAllKeysEnum(const nsAString& keyname,
 }
 
 nsresult
-nsDOMStorageMemoryDB::GetAllKeys(DOMStorageImpl* aStorage,
+nsDOMStorageMemoryDB::GetAllKeys(nsDOMStorage* aStorage,
                                  nsTHashtable<nsSessionStorageEntry>* aKeys)
 {
   nsresult rv;
@@ -157,7 +157,7 @@ nsDOMStorageMemoryDB::GetAllKeys(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStorageMemoryDB::GetKeyValue(DOMStorageImpl* aStorage,
+nsDOMStorageMemoryDB::GetKeyValue(nsDOMStorage* aStorage,
                                   const nsAString& aKey,
                                   nsAString& aValue,
                                   PRBool* aSecure)
@@ -183,7 +183,7 @@ nsDOMStorageMemoryDB::GetKeyValue(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStorageMemoryDB::SetKey(DOMStorageImpl* aStorage,
+nsDOMStorageMemoryDB::SetKey(nsDOMStorage* aStorage,
                              const nsAString& aKey,
                              const nsAString& aValue,
                              PRBool aSecure,
@@ -220,8 +220,6 @@ nsDOMStorageMemoryDB::SetKey(DOMStorageImpl* aStorage,
   }
   else
   {
-    if (!aSecure && item->mSecure)
-      return NS_ERROR_DOM_SECURITY_ERR;
     usage -= aKey.Length() + item->mValue.Length();
     if (usage > aQuota) {
       return NS_ERROR_DOM_QUOTA_REACHED;
@@ -239,7 +237,7 @@ nsDOMStorageMemoryDB::SetKey(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStorageMemoryDB::SetSecure(DOMStorageImpl* aStorage,
+nsDOMStorageMemoryDB::SetSecure(nsDOMStorage* aStorage,
                                 const nsAString& aKey,
                                 const PRBool aSecure)
 {
@@ -259,7 +257,7 @@ nsDOMStorageMemoryDB::SetSecure(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStorageMemoryDB::RemoveKey(DOMStorageImpl* aStorage,
+nsDOMStorageMemoryDB::RemoveKey(nsDOMStorage* aStorage,
                                 const nsAString& aKey,
                                 PRBool aExcludeOfflineFromUsage,
                                 PRInt32 aKeyUsage)
@@ -293,7 +291,7 @@ RemoveAllKeysEnum(const nsAString& keyname,
 }
 
 nsresult
-nsDOMStorageMemoryDB::ClearStorage(DOMStorageImpl* aStorage)
+nsDOMStorageMemoryDB::ClearStorage(nsDOMStorage* aStorage)
 {
   nsresult rv;
 
@@ -306,7 +304,7 @@ nsDOMStorageMemoryDB::ClearStorage(DOMStorageImpl* aStorage)
 }
 
 nsresult
-nsDOMStorageMemoryDB::DropStorage(DOMStorageImpl* aStorage)
+nsDOMStorageMemoryDB::DropStorage(nsDOMStorage* aStorage)
 {
   mData.Remove(aStorage->GetScopeDBKey());
   return NS_OK;
@@ -389,7 +387,7 @@ nsDOMStorageMemoryDB::RemoveAll()
 }
 
 nsresult
-nsDOMStorageMemoryDB::GetUsage(DOMStorageImpl* aStorage,
+nsDOMStorageMemoryDB::GetUsage(nsDOMStorage* aStorage,
                                PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage)
 {
   return GetUsageInternal(aStorage->GetQuotaDomainDBKey(!aExcludeOfflineFromUsage),

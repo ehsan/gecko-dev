@@ -682,6 +682,14 @@ class nsDirEnumerator : public nsISimpleEnumerator,
                 if (NS_FAILED(rv))
                     return rv;
 
+                // make sure the thing exists.  If it does, try the next one.
+                PRBool exists;
+                rv = file->Exists(&exists);
+                if (NS_FAILED(rv) || !exists)
+                {
+                    return HasMoreElements(result);
+                }
+
                 mNext = do_QueryInterface(file);
             }
             *result = mNext != nsnull;
@@ -1983,12 +1991,12 @@ nsLocalFile::SetModDate(PRInt64 aLastModifiedTime, const PRUnichar *filePath)
         return ConvertWinError(GetLastError());
     }
 
-    FILETIME ft;
+    FILETIME lft, ft;
     SYSTEMTIME st;
     PRExplodedTime pret;
 
     // PR_ExplodeTime expects usecs...
-    PR_ExplodeTime(aLastModifiedTime * PR_USEC_PER_MSEC, PR_GMTParameters, &pret);
+    PR_ExplodeTime(aLastModifiedTime * PR_USEC_PER_MSEC, PR_LocalTimeParameters, &pret);
     st.wYear            = pret.tm_year;
     st.wMonth           = pret.tm_month + 1; // Convert start offset -- Win32: Jan=1; NSPR: Jan=0
     st.wDayOfWeek       = pret.tm_wday;
@@ -2000,7 +2008,8 @@ nsLocalFile::SetModDate(PRInt64 aLastModifiedTime, const PRUnichar *filePath)
 
     nsresult rv = NS_OK;
     // if at least one of these fails...
-    if (!(SystemTimeToFileTime(&st, &ft) != 0 &&
+    if (!(SystemTimeToFileTime(&st, &lft) != 0 &&
+          LocalFileTimeToFileTime(&lft, &ft) != 0 &&
           SetFileTime(file, NULL, &ft, &ft) != 0))
     {
       rv = ConvertWinError(GetLastError());

@@ -2790,7 +2790,6 @@ nsEventStateManager::DecideGestureEvent(nsGestureNotifyEvent* aEvent,
   aEvent->panDirection = panDirection;
 }
 
-#ifdef XP_MACOSX
 static bool
 NodeAllowsClickThrough(nsINode* aNode)
 {
@@ -2811,7 +2810,6 @@ NodeAllowsClickThrough(nsINode* aNode)
   }
   return true;
 }
-#endif
 
 NS_IMETHODIMP
 nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
@@ -2961,24 +2959,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // if we're here, the event handler returned false, so stop
         // any of our own processing of a drag. Workaround for bug 43258.
         StopTrackingDragGesture();
-
-        // When the event was cancelled, there is currently a chrome document
-        // focused and a mousedown just occurred on a content document, ensure
-        // that the window that was clicked is focused.
-        EnsureDocument(mPresContext);
-        nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-        if (mDocument && fm) {
-          nsCOMPtr<nsIDOMWindow> currentWindow;
-          fm->GetFocusedWindow(getter_AddRefs(currentWindow));
-          if (currentWindow && currentWindow != mDocument->GetWindow() &&
-              !nsContentUtils::IsChromeDoc(mDocument)) {
-            nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(currentWindow);
-            nsCOMPtr<nsIDocument> currentDoc = do_QueryInterface(win->GetExtantDocument());
-            if (nsContentUtils::IsChromeDoc(currentDoc)) {
-              fm->SetFocusedWindow(mDocument->GetWindow());
-            }
-          }
-        }
       }
       SetActiveManager(this, activeContent);
     }
@@ -3845,8 +3825,6 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
   switch(aEvent->message) {
   case NS_DRAGDROP_OVER:
     {
-      // when dragging from one frame to another, events are fired in the
-      // order: dragexit, dragenter, dragleave
       if (mLastDragOverFrame != mCurrentTarget) {
         //We'll need the content, too, to check if it changed separately from the frames.
         nsCOMPtr<nsIContent> lastContent;
@@ -3857,17 +3835,14 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
           //The frame has changed but the content may not have. Check before dispatching to content
           mLastDragOverFrame->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(lastContent));
 
+          FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
+                              targetContent, lastContent, mLastDragOverFrame);
           FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
                               targetContent, lastContent, mLastDragOverFrame);
         }
 
         FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_ENTER,
                             lastContent, targetContent, mCurrentTarget);
-
-        if (mLastDragOverFrame) {
-          FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
-                              targetContent, lastContent, mLastDragOverFrame);
-        }
 
         mLastDragOverFrame = mCurrentTarget;
       }
@@ -3881,9 +3856,9 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
         nsCOMPtr<nsIContent> lastContent;
         mLastDragOverFrame->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(lastContent));
 
-        FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
-                            nsnull, lastContent, mLastDragOverFrame);
         FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
+                            nsnull, lastContent, mLastDragOverFrame);
+        FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
                             nsnull, lastContent, mLastDragOverFrame);
 
         mLastDragOverFrame = nsnull;

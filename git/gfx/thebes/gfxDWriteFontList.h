@@ -103,9 +103,8 @@ public:
 
         weight = NS_MAX<PRUint16>(100, weight);
         weight = NS_MIN<PRUint16>(900, weight);
-        mWeight = weight;
 
-        mIsCJK = UNINITIALIZED_VALUE;
+        mWeight = weight;
     }
 
     /**
@@ -131,7 +130,6 @@ public:
         mItalic = aItalic;
         mIsUserFont = PR_TRUE;
         mIsLocalUserFont = PR_TRUE;
-        mIsCJK = UNINITIALIZED_VALUE;
     }
 
     /**
@@ -154,7 +152,6 @@ public:
         mStretch = aStretch;
         mItalic = aItalic;
         mIsUserFont = PR_TRUE;
-        mIsCJK = UNINITIALIZED_VALUE;
     }
 
     virtual ~gfxDWriteFontEntry();
@@ -162,12 +159,9 @@ public:
     virtual PRBool IsSymbolFont();
 
     virtual nsresult GetFontTable(PRUint32 aTableTag,
-                                  FallibleTArray<PRUint8>& aBuffer);
+                                  nsTArray<PRUint8>& aBuffer);
 
     nsresult ReadCMAP();
-
-    PRBool IsCJKFont();
-
 protected:
     friend class gfxDWriteFont;
     friend class gfxDWriteFontList;
@@ -179,8 +173,6 @@ protected:
         IDWriteFontFace **aFontFace,
         DWRITE_FONT_SIMULATIONS aSimulations = DWRITE_FONT_SIMULATIONS_NONE);
 
-    static PRBool InitLogFont(IDWriteFont *aFont, LOGFONTW *aLogFont);
-
     /**
      * A fontentry only needs to have either of these. If it has both only
      * the IDWriteFont will be used.
@@ -188,8 +180,6 @@ protected:
     nsRefPtr<IDWriteFont> mFont;
     nsRefPtr<IDWriteFontFile> mFontFile;
     DWRITE_FONT_FACE_TYPE mFaceType;
-
-    PRBool mIsCJK;
 };
 
 
@@ -220,11 +210,6 @@ public:
     PRBool GetStandardFamilyName(const nsAString& aFontName,
                                  nsAString& aFamilyName);
 
-    IDWriteGdiInterop *GetGDIInterop() { return mGDIInterop; }
-    PRBool UseGDIFontTableAccess() { return mGDIFontTableAccess; }
-
-    virtual gfxFontFamily* FindFamily(const nsAString& aFamily);
-
 private:
     friend class gfxDWriteFontFamily;
 
@@ -243,13 +228,6 @@ private:
      * alternative font names.
      */
     FontTable mFontSubstitutes;
-
-    PRBool mInitialized;
-    virtual nsresult DelayedInitFontList();
-
-    // whether to use GDI font table access routines
-    PRBool mGDIFontTableAccess;
-    nsRefPtr<IDWriteGdiInterop> mGDIInterop;
 };
 
 

@@ -73,14 +73,7 @@ protected:
   /**
    * Called by subclasses from a native event. See ScheduleNativeEventCallback.
    */
-  void NativeEventCallback(PRBool aAlwaysBlockNative = PR_FALSE);
-
-  /**
-   * Make a decision as to whether or not NativeEventCallback will
-   * trigger gecko event processing when there are pending gecko
-   * events.
-   */
-  virtual void DoProcessMoreGeckoEvents();
+  void NativeEventCallback();
 
   /**
    * Implemented by subclasses.  Invoke NativeEventCallback from a native
@@ -103,7 +96,6 @@ protected:
   virtual PRBool ProcessNextNativeEvent(PRBool mayWait) = 0;
 
   PRInt32 mSuspendNativeCount;
-  PRUint32 mEventloopNestingLevel;
 
 private:
   PRBool DoProcessNextNativeEvent(PRBool mayWait);
@@ -123,6 +115,7 @@ private:
   PRBool *mBlockedWait;
   PRInt32 mFavorPerf;
   PRInt32 mNativeEventPending;
+  PRUint32 mEventloopNestingLevel;
   PRIntervalTime mStarvationDelay;
   PRIntervalTime mSwitchTime;
   PRIntervalTime mLastNativeEventTime;

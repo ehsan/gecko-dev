@@ -133,8 +133,8 @@ nsDocAccessible::~nsDocAccessible()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocAccessible)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNotificationController,
-                                                  NotificationController)
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEventQueue");
+  cb.NoteXPCOMChild(tmp->mEventQueue.get());
 
   PRUint32 i, length = tmp->mChildDocuments.Length();
   for (i = 0; i < length; ++i) {
@@ -146,8 +146,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
-  tmp->mNotificationController->Shutdown();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNotificationController)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEventQueue)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mChildDocuments)
   tmp->mDependentIDsHash.Clear();
   tmp->mNodeToAccessibleMap.Clear();
@@ -320,8 +319,7 @@ nsDocAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
       *aState |= nsIAccessibleStates::STATE_FOCUSED;
   }
 
-  // Expose state busy until the document is loaded or tree is constructed.
-  if (!mIsLoaded || !mNotificationController->IsTreeConstructed()) {
+  if (!mIsLoaded) {
     *aState |= nsIAccessibleStates::STATE_BUSY;
     if (aExtraState) {
       *aExtraState |= nsIAccessibleStates::EXT_STATE_STALE;
@@ -623,14 +621,28 @@ nsDocAccessible::Init()
 {
   NS_LOG_ACCDOCCREATE_FOR("document initialize", mDocument, this)
 
-  // Initialize notification controller.
-  nsCOMPtr<nsIPresShell> shell(GetPresShell());
-  mNotificationController = new NotificationController(this, shell);
-  if (!mNotificationController)
+  // Initialize event queue.
+  mEventQueue = new nsAccEventQueue(this);
+  if (!mEventQueue)
     return PR_FALSE;
 
   AddEventListeners();
-  return PR_TRUE;
+
+  nsDocAccessible* parentDocument = mParent->GetDocAccessible();
+  if (parentDocument)
+    parentDocument->AppendChildDocument(this);
+
+  // Fire reorder event to notify new accessible document has been created and
+  // attached to the tree.
+  nsRefPtr<AccEvent> reorderEvent =
+    new AccEvent(nsIAccessibleEvent::EVENT_REORDER, mParent, eAutoDetect,
+                 AccEvent::eCoalesceFromSameSubtree);
+  if (reorderEvent) {
+    FireDelayedAccessibleEvent(reorderEvent);
+    return PR_TRUE;
+  }
+
+  return PR_FALSE;
 }
 
 void
@@ -641,9 +653,9 @@ nsDocAccessible::Shutdown()
 
   NS_LOG_ACCDOCDESTROY_FOR("document shutdown", mDocument, this)
 
-  if (mNotificationController) {
-    mNotificationController->Shutdown();
-    mNotificationController = nsnull;
+  if (mEventQueue) {
+    mEventQueue->Shutdown();
+    mEventQueue = nsnull;
   }
 
   RemoveEventListeners();
@@ -937,12 +949,11 @@ nsDocAccessible::AttributeWillChange(nsIDocument *aDocument,
   // such as the existence of aria-pressed for button (so we know if we need to
   // newly expose it as a toggle button) etc.
 
-  // Update dependent IDs cache. Take care of elements that are accessible
-  // because dependent IDs cache doesn't contain IDs from non accessible
-  // elements.
+  // Update dependent IDs cache.
   if (aModType == nsIDOMMutationEvent::MODIFICATION ||
       aModType == nsIDOMMutationEvent::REMOVAL) {
-    nsAccessible* accessible = GetCachedAccessible(aElement);
+    nsAccessible* accessible =
+      GetAccService()->GetAccessibleInWeakShell(aElement, mWeakShell);
     if (accessible)
       RemoveDependentIDsFor(accessible, aAttribute);
   }
@@ -954,40 +965,24 @@ nsDocAccessible::AttributeChanged(nsIDocument *aDocument,
                                   PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                   PRInt32 aModType)
 {
-  NS_ASSERTION(!IsDefunct(),
-               "Attribute changed called on defunct document accessible!");
-
-  // Proceed even if the element is not accessible because element may become
-  // accessible if it gets certain attribute.
-  if (UpdateAccessibleOnAttrChange(aElement, aAttribute))
-    return;
-
-  // Ignore attribute change if the element doesn't have an accessible (at all
-  // or still) iff the element is not a root content of this document accessible
-  // (which is treated as attribute change on this document accessible).
-  // Note: we don't bail if all the content hasn't finished loading because
-  // these attributes are changing for a loaded part of the content.
-  nsAccessible* accessible = GetCachedAccessible(aElement);
-  if (!accessible && (mContent != aElement))
-    return;
-
-  // Fire accessible events iff there's an accessible, otherwise we consider
-  // the accessible state wasn't changed, i.e. its state is initial state.
   AttributeChangedImpl(aElement, aNameSpaceID, aAttribute);
 
-  // Update dependent IDs cache. Take care of accessible elements because no
-  // accessible element means either the element is not accessible at all or
-  // its accessible will be created later. It doesn't make sense to keep
-  // dependent IDs for non accessible elements. For the second case we'll update
-  // dependent IDs cache when its accessible is created.
+  // Update dependent IDs cache.
   if (aModType == nsIDOMMutationEvent::MODIFICATION ||
       aModType == nsIDOMMutationEvent::ADDITION) {
-    AddDependentIDsFor(accessible, aAttribute);
+    nsAccessible* accessible =
+      GetAccService()->GetAccessibleInWeakShell(aElement, mWeakShell);
+
+    if (accessible)
+      AddDependentIDsFor(accessible, aAttribute);
   }
 
-  // If it was the focused node, cache the new state.
-  if (aElement == gLastFocusedNode)
-    gLastFocusedAccessiblesState = nsAccUtils::State(accessible);
+  // If it was the focused node, cache the new state
+  if (aElement == gLastFocusedNode) {
+    nsAccessible *focusedAccessible = GetAccService()->GetAccessible(aElement);
+    if (focusedAccessible)
+      gLastFocusedAccessiblesState = nsAccUtils::State(focusedAccessible);
+  }
 }
 
 // nsDocAccessible protected member
@@ -1009,6 +1004,22 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   //
   // XXX todo:  invalidate accessible when aria state changes affect exposed role
   // filed as bug 472143
+  
+  nsCOMPtr<nsISupports> container = mDocument->GetContainer();
+  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
+  if (!docShell) {
+    return;
+  }
+
+  if (!IsContentLoaded())
+    return; // Still loading, ignore setting of initial attributes
+
+  nsCOMPtr<nsIPresShell> shell = GetPresShell();
+  if (!shell) {
+    return; // Document has been shut down
+  }
+
+  NS_ASSERTION(aContent, "No node for attr modified");
 
   // Universal boolean properties that don't require a role. Fire the state
   // change when disabled or aria-disabled attribute is set.
@@ -1047,6 +1058,29 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
     }
   }
 
+  if (aAttribute == nsAccessibilityAtoms::role) {
+    if (mContent == aContent) {
+      // It is common for js libraries to set the role of the body element after
+      // the doc has loaded. In this case we just update the role map entry. 
+      SetRoleMapEntry(nsAccUtils::GetRoleMapEntry(aContent));
+    }
+    else {
+      // Recreate the accessible when role is changed because we might require a
+      // different accessible class for the new role or the accessible may
+      // expose a different sets of interfaces (COM restriction).
+      RecreateAccessible(aContent);
+    }
+  }
+
+  if (aAttribute == nsAccessibilityAtoms::href ||
+      aAttribute == nsAccessibilityAtoms::onclick) {
+    // Not worth the expense to ensure which namespace these are in
+    // It doesn't kill use to recreate the accessible even if the attribute was used
+    // in the wrong namespace or an element that doesn't support it
+    RecreateAccessible(aContent);
+    return;
+  }
+  
   if (aAttribute == nsAccessibilityAtoms::alt ||
       aAttribute == nsAccessibilityAtoms::title ||
       aAttribute == nsAccessibilityAtoms::aria_label ||
@@ -1126,10 +1160,9 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     // to the element with the id that activedescendant points to
     nsCOMPtr<nsINode> focusedNode = GetCurrentFocus();
     if (nsCoreUtils::GetRoleContent(focusedNode) == aContent) {
-      nsAccessible* focusedAcc = GetAccService()->GetAccessible(focusedNode);
       nsRefPtr<nsRootAccessible> rootAcc = GetRootAccessible();
-      if (rootAcc && focusedAcc) {
-        rootAcc->FireAccessibleFocusEvent(focusedAcc, nsnull, PR_TRUE);
+      if (rootAcc) {
+        rootAcc->FireAccessibleFocusEvent(nsnull, focusedNode, nsnull, PR_TRUE);
       }
     }
     return;
@@ -1209,6 +1242,15 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
             eCaseMatters)))) {
     FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
                                aContent);
+    return;
+  }
+
+  if (aAttribute == nsAccessibilityAtoms::aria_multiselectable &&
+      aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::role)) {
+    // This affects whether the accessible supports SelectAccessible.
+    // COM says we cannot change what interfaces are supported on-the-fly,
+    // so invalidate this object. A new one will be created on demand.
+    RecreateAccessible(aContent);
     return;
   }
 }
@@ -1381,35 +1423,117 @@ nsDocAccessible::UnbindFromDocument(nsAccessible* aAccessible)
 }
 
 void
-nsDocAccessible::ContentInserted(nsIContent* aContainerNode,
-                                 nsIContent* aStartChildNode,
-                                 nsIContent* aEndChildNode)
+nsDocAccessible::UpdateTree(nsIContent* aContainerNode,
+                            nsIContent* aStartNode,
+                            nsIContent* aEndNode,
+                            PRBool aIsInsert)
 {
-  /// Pend tree update on content insertion until layout.
-  if (mNotificationController) {
-    // Update the whole tree of this document accessible when the container is
-    // null (document element is inserted or removed).
-    nsAccessible* container = aContainerNode ?
+  // Content change notification mostly are async, thus we can't detect whether
+  // these actions are from user. This information is used to fire or do not
+  // fire events to avoid events that are generated because of document loading.
+  // Since this information may be not correct then we need to fire some events
+  // regardless the document loading state.
+
+  // Update the whole tree of this document accessible when the container is
+  // null (document element is inserted or removed).
+
+  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+  nsIEventStateManager* esm = presShell->GetPresContext()->EventStateManager();
+  PRBool fireAllEvents = PR_TRUE;//IsContentLoaded() || esm->IsHandlingUserInputExternal();
+
+  // XXX: bug 608887 reconsider accessible tree update logic because
+  // 1) elements appended outside the HTML body don't get accessibles;
+  // 2) the document having elements that should be accessible may function
+  // without body.
+  nsAccessible* container = nsnull;
+  if (aIsInsert) {
+    container = aContainerNode ?
       GetAccService()->GetAccessibleOrContainer(aContainerNode, mWeakShell) :
       this;
 
-    mNotificationController->ScheduleContentInsertion(container,
-                                                      aStartChildNode,
-                                                      aEndChildNode);
+    // The document children were changed; the root content might be affected.
+    if (container == this) {
+      // If new root content has been inserted then update it.
+      nsIContent* rootContent = nsCoreUtils::GetRoleContent(mDocument);
+      if (rootContent && rootContent != mContent)
+        mContent = rootContent;
+
+      // Continue to update the tree even if we don't have root content.
+      // For example, elements may be inserted under the document element while
+      // there is no HTML body element.
+    }
+
+    // XXX: Invalidate parent-child relations for container accessible and its
+    // children because there's no good way to find insertion point of new child
+    // accessibles into accessible tree. We need to invalidate children even
+    // there's no inserted accessibles in the end because accessible children
+    // are created while parent recaches child accessibles.
+    container->InvalidateChildren();
+
+  } else {
+    // Don't create new accessibles on content removal.
+    container = aContainerNode ?
+      GetAccService()->GetCachedAccessibleOrContainer(aContainerNode) :
+      this;
   }
-}
 
-void
-nsDocAccessible::ContentRemoved(nsIContent* aContainerNode,
-                                nsIContent* aChildNode)
-{
-  // Update the whole tree of this document accessible when the container is
-  // null (document element is removed).
-  nsAccessible* container = aContainerNode ?
-    GetAccService()->GetAccessibleOrContainer(aContainerNode, mWeakShell) :
-    this;
+  EIsFromUserInput fromUserInput = esm->IsHandlingUserInputExternal() ?
+    eFromUserInput : eNoUserInput;
 
-  UpdateTree(container, aChildNode, PR_FALSE);
+  // Update the accessible tree in the case of content removal and fire events
+  // if allowed.
+  PRUint32 updateFlags =
+    UpdateTreeInternal(container, aStartNode, aEndNode,
+                       aIsInsert, fireAllEvents, fromUserInput);
+
+  // Content insertion/removal is not cause of accessible tree change.
+  if (updateFlags == eNoAccessible)
+    return;
+
+  // Check to see if change occurred inside an alert, and fire an EVENT_ALERT
+  // if it did.
+  if (aIsInsert && !(updateFlags & eAlertAccessible)) {
+    // XXX: tree traversal is perf issue, accessible should know if they are
+    // children of alert accessible to avoid this.
+    nsAccessible* ancestor = container;
+    while (ancestor) {
+      const nsRoleMapEntry* roleMapEntry = ancestor->GetRoleMapEntry();
+      if (roleMapEntry && roleMapEntry->role == nsIAccessibleRole::ROLE_ALERT) {
+        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT,
+                                   ancestor->GetNode(), AccEvent::eRemoveDupes,
+                                   fromUserInput);
+        break;
+      }
+
+      // Don't climb above this document.
+      if (ancestor == this)
+        break;
+
+      ancestor = ancestor->GetParent();
+    }
+  }
+
+  // Fire nether value change nor reorder events if action is not from user
+  // input and document is loading. We are notified about changes in editor
+  // synchronously, so from user input flag is correct for value change events.
+  if (!fireAllEvents)
+    return;
+
+  // Fire value change event.
+  if (container->Role() == nsIAccessibleRole::ROLE_ENTRY) {
+    nsRefPtr<AccEvent> valueChangeEvent =
+      new AccEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, container,
+                   fromUserInput, AccEvent::eRemoveDupes);
+    FireDelayedAccessibleEvent(valueChangeEvent);
+  }
+
+  // Fire reorder event so the MSAA clients know the children have changed. Also
+  // the event is used internally by MSAA part.
+  nsRefPtr<AccEvent> reorderEvent =
+    new AccEvent(nsIAccessibleEvent::EVENT_REORDER, container->GetNode(),
+                 fromUserInput, AccEvent::eCoalesceFromSameSubtree);
+  if (reorderEvent)
+    FireDelayedAccessibleEvent(reorderEvent);
 }
 
 void
@@ -1428,7 +1552,8 @@ nsDocAccessible::RecreateAccessible(nsINode* aNode)
   if (oldAccessible) {
     parent = oldAccessible->GetParent();
 
-    nsRefPtr<AccEvent> hideEvent = new AccHideEvent(oldAccessible, aNode);
+    nsRefPtr<AccEvent> hideEvent = new AccHideEvent(oldAccessible, aNode,
+                                                    eAutoDetect);
     if (hideEvent)
       FireDelayedAccessibleEvent(hideEvent);
 
@@ -1440,24 +1565,17 @@ nsDocAccessible::RecreateAccessible(nsINode* aNode)
       mNodeToAccessibleMap.Remove(oldAccessible->GetNode());
 
   } else {
-    // Not accessible node may not have container accessible if we recreate
-    // an accessible asynchronously.
-    // XXX: asynchronous RecreateAccessible notifications should be coalesced
-    // with accessible tree mutation notifications. We could trigger
-    // ContentRemoved/ContentInserted pair for that but it moves us away from
-    // the idea to not recreate the whole subtree.
     parent = GetAccService()->GetContainerAccessible(aNode, mWeakShell);
-    if (!parent)
-      return;
   }
 
   // Get new accessible and fire show event.
-  parent->UpdateChildren();
+  parent->InvalidateChildren();
 
   nsAccessible* newAccessible =
     GetAccService()->GetAccessibleInWeakShell(aNode, mWeakShell);
   if (newAccessible) {
-    nsRefPtr<AccEvent> showEvent = new AccShowEvent(newAccessible, aNode);
+    nsRefPtr<AccEvent> showEvent = new AccShowEvent(newAccessible, aNode,
+                                                    eAutoDetect);
     if (showEvent)
       FireDelayedAccessibleEvent(showEvent);
   }
@@ -1492,11 +1610,12 @@ nsDocAccessible::NotifyOfCachingEnd(nsAccessible* aAccessible)
     for (PRUint32 idx = 0; idx < mInvalidationList.Length(); idx++) {
       nsIContent* content = mInvalidationList[idx];
       nsAccessible* container =
-        GetAccService()->GetContainerAccessible(content, mWeakShell);
+        GetAccService()->GetCachedContainerAccessible(content);
+      container->InvalidateChildren();
 
       // Make sure we keep children updated. While we're inside of caching loop
       // then we must exist it with cached children.
-      container->UpdateChildren();
+      container->EnsureChildren();
     }
     mInvalidationList.Clear();
 
@@ -1624,52 +1743,6 @@ nsDocAccessible::RemoveDependentIDsFor(nsAccessible* aRelProvider,
   }
 }
 
-bool
-nsDocAccessible::UpdateAccessibleOnAttrChange(dom::Element* aElement,
-                                              nsIAtom* aAttribute)
-{
-  if (aAttribute == nsAccessibilityAtoms::role) {
-    // It is common for js libraries to set the role on the body element after
-    // the document has loaded. In this case we just update the role map entry.
-    if (mContent == aElement) {
-      SetRoleMapEntry(nsAccUtils::GetRoleMapEntry(aElement));
-      return true;
-    }
-
-    // Recreate the accessible when role is changed because we might require a
-    // different accessible class for the new role or the accessible may expose
-    // a different sets of interfaces (COM restriction).
-    HandleNotification<nsDocAccessible, nsINode>
-      (this, &nsDocAccessible::RecreateAccessible, aElement);
-
-    return true;
-  }
-
-  if (aAttribute == nsAccessibilityAtoms::href ||
-      aAttribute == nsAccessibilityAtoms::onclick) {
-    // Not worth the expense to ensure which namespace these are in
-    // It doesn't kill use to recreate the accessible even if the attribute was used
-    // in the wrong namespace or an element that doesn't support it
-    HandleNotification<nsDocAccessible, nsINode>
-      (this, &nsDocAccessible::RecreateAccessible, aElement);
-
-    return true;
-  }
-
-  if (aAttribute == nsAccessibilityAtoms::aria_multiselectable &&
-      aElement->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::role)) {
-    // This affects whether the accessible supports SelectAccessible.
-    // COM says we cannot change what interfaces are supported on-the-fly,
-    // so invalidate this object. A new one will be created on demand.
-    HandleNotification<nsDocAccessible, nsINode>
-      (this, &nsDocAccessible::RecreateAccessible, aElement);
-
-    return true;
-  }
-
-  return false;
-}
-
 void
 nsDocAccessible::FireValueChangeForTextFields(nsAccessible *aAccessible)
 {
@@ -1762,12 +1835,13 @@ nsDocAccessible::FireDelayedAccessibleEvent(AccEvent* aEvent)
   NS_ENSURE_ARG(aEvent);
   NS_LOG_ACCDOCLOAD_FIREEVENT(aEvent)
 
-  if (mNotificationController)
-    mNotificationController->QueueEvent(aEvent);
+  if (mEventQueue)
+    mEventQueue->Push(aEvent);
 
   return NS_OK;
 }
 
+// nsDocAccessible public member
 void
 nsDocAccessible::ProcessPendingEvent(AccEvent* aEvent)
 {
@@ -1818,119 +1892,13 @@ nsDocAccessible::ProcessPendingEvent(AccEvent* aEvent)
   }
 }
 
-void
-nsDocAccessible::ProcessAnchorJump(nsIContent* aTargetNode)
-{
-  // If the jump target is not accessible then fire an event for nearest
-  // accessible in parent chain.
-  nsAccessible* target = GetAccService()->GetAccessibleOrContainer(aTargetNode,
-                                                                   mWeakShell);
-  if (!target)
-    return;
-
-  // XXX: bug 625699, note in some cases the node could go away before we flush
-  // the queue, for example if the node becomes inaccessible, or is removed from
-  // the DOM.
-  FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_SCROLLING_START,
-                             target->GetNode());
-}
-
-void
-nsDocAccessible::ProcessContentInserted(nsAccessible* aContainer,
-                                        const nsTArray<nsCOMPtr<nsIContent> >* aInsertedContent)
-{
-  // Process the notification if the container accessible is still in tree.
-  if (!GetCachedAccessible(aContainer->GetNode()))
-    return;
-
-  if (aContainer == this) {
-    // If new root content has been inserted then update it.
-    nsIContent* rootContent = nsCoreUtils::GetRoleContent(mDocument);
-    if (rootContent && rootContent != mContent)
-      mContent = rootContent;
-
-    // Continue to update the tree even if we don't have root content.
-    // For example, elements may be inserted under the document element while
-    // there is no HTML body element.
-  }
-
-  // XXX: Invalidate parent-child relations for container accessible and its
-  // children because there's no good way to find insertion point of new child
-  // accessibles into accessible tree. We need to invalidate children even
-  // there's no inserted accessibles in the end because accessible children
-  // are created while parent recaches child accessibles.
-  aContainer->UpdateChildren();
-
-  // The container might be changed, for example, because of the subsequent
-  // overlapping content insertion (i.e. other content was inserted between this
-  // inserted content and its container or the content was reinserted into
-  // different container of unrelated part of tree). These cases result in
-  // double processing, however generated events are coalesced and we don't
-  // harm an AT.
-  // Theoretically the element might be not in tree at all at this point what
-  // means there's no container.
-  for (PRUint32 idx = 0; idx < aInsertedContent->Length(); idx++) {
-    nsAccessible* directContainer =
-      GetAccService()->GetContainerAccessible(aInsertedContent->ElementAt(idx),
-                                              mWeakShell);
-    if (directContainer)
-      UpdateTree(directContainer, aInsertedContent->ElementAt(idx), PR_TRUE);
-  }
-}
-
-void
-nsDocAccessible::UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
-                            PRBool aIsInsert)
-{
-  PRUint32 updateFlags =
-    UpdateTreeInternal(aContainer, aChildNode, aChildNode->GetNextSibling(),
-                       aIsInsert);
-
-  // Content insertion/removal is not cause of accessible tree change.
-  if (updateFlags == eNoAccessible)
-    return;
-
-  // Check to see if change occurred inside an alert, and fire an EVENT_ALERT
-  // if it did.
-  if (aIsInsert && !(updateFlags & eAlertAccessible)) {
-    // XXX: tree traversal is perf issue, accessible should know if they are
-    // children of alert accessible to avoid this.
-    nsAccessible* ancestor = aContainer;
-    while (ancestor) {
-      if (ancestor->ARIARole() == nsIAccessibleRole::ROLE_ALERT) {
-        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT,
-                                   ancestor->GetNode());
-        break;
-      }
-
-      // Don't climb above this document.
-      if (ancestor == this)
-        break;
-
-      ancestor = ancestor->GetParent();
-    }
-  }
-
-  // Fire value change event.
-  if (aContainer->Role() == nsIAccessibleRole::ROLE_ENTRY) {
-    FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
-                               aContainer->GetNode());
-  }
-
-  // Fire reorder event so the MSAA clients know the children have changed. Also
-  // the event is used internally by MSAA layer.
-  nsRefPtr<AccEvent> reorderEvent =
-    new AccEvent(nsIAccessibleEvent::EVENT_REORDER, aContainer->GetNode(),
-                 eAutoDetect, AccEvent::eCoalesceFromSameSubtree);
-  if (reorderEvent)
-    FireDelayedAccessibleEvent(reorderEvent);
-}
-
 PRUint32
 nsDocAccessible::UpdateTreeInternal(nsAccessible* aContainer,
                                     nsIContent* aStartNode,
                                     nsIContent* aEndNode,
-                                    PRBool aIsInsert)
+                                    PRBool aIsInsert,
+                                    PRBool aFireAllEvents,
+                                    EIsFromUserInput aFromUserInput)
 {
   PRUint32 updateFlags = eNoAccessible;
   for (nsIContent* node = aStartNode; node != aEndNode;
@@ -1942,61 +1910,45 @@ nsDocAccessible::UpdateTreeInternal(nsAccessible* aContainer,
     if (aIsInsert && !node->GetPrimaryFrame())
       continue;
 
-    nsAccessible* accessible = GetCachedAccessible(node);
+    nsAccessible* accessible = aIsInsert ?
+      GetAccService()->GetAccessibleInWeakShell(node, mWeakShell) :
+      GetCachedAccessible(node);
 
     if (!accessible) {
       updateFlags |= UpdateTreeInternal(aContainer, node->GetFirstChild(),
-                                        nsnull, aIsInsert);
+                                        nsnull, aIsInsert, aFireAllEvents,
+                                        aFromUserInput);
       continue;
     }
 
     updateFlags |= eAccessible;
 
-    if (aIsInsert) {
-      // Create accessible tree for shown accessible.
-      CacheChildrenInSubtree(accessible);
+    // Fire show/hide event.
+    if (aFireAllEvents) {
+      nsRefPtr<AccEvent> event;
+      if (aIsInsert)
+        event = new AccShowEvent(accessible, node, aFromUserInput);
+      else
+        event = new AccHideEvent(accessible, node, aFromUserInput);
 
-    } else {
-      // Fire menupopup end event before hide event if a menu goes away.
-
-      // XXX: We don't look into children of hidden subtree to find hiding
-      // menupopup (as we did prior bug 570275) because we don't do that when
-      // menu is showing (and that's impossible until bug 606924 is fixed).
-      // Nevertheless we should do this at least because layout coalesces
-      // the changes before our processing and we may miss some menupopup
-      // events. Now we just want to be consistent in content insertion/removal
-      // handling.
-      if (accessible->ARIARole() == nsIAccessibleRole::ROLE_MENUPOPUP) {
-        nsRefPtr<AccEvent> event =
-          new AccEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END, accessible);
-
-        if (event)
-          FireDelayedAccessibleEvent(event);
-      }
+      if (event)
+        FireDelayedAccessibleEvent(event);
     }
 
-    // Fire show/hide event.
-    nsRefPtr<AccEvent> event;
-    if (aIsInsert)
-      event = new AccShowEvent(accessible, node);
-    else
-      event = new AccHideEvent(accessible, node);
-
-    if (event)
-      FireDelayedAccessibleEvent(event);
-
     if (aIsInsert) {
-      PRUint32 ariaRole = accessible->ARIARole();
-      if (ariaRole == nsIAccessibleRole::ROLE_MENUPOPUP) {
-        // Fire EVENT_MENUPOPUP_START if ARIA menu appears.
-        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_START,
-                                   node, AccEvent::eRemoveDupes);
+      const nsRoleMapEntry* roleMapEntry = accessible->GetRoleMapEntry();
+      if (roleMapEntry) {
+        if (roleMapEntry->role == nsIAccessibleRole::ROLE_MENUPOPUP) {
+          // Fire EVENT_MENUPOPUP_START if ARIA menu appears.
+          FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_START,
+                                     node, AccEvent::eRemoveDupes, aFromUserInput);
 
-      } else if (ariaRole == nsIAccessibleRole::ROLE_ALERT) {
-        // Fire EVENT_ALERT if ARIA alert appears.
-        updateFlags = eAlertAccessible;
-        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT, node,
-                                   AccEvent::eRemoveDupes);
+        } else if (roleMapEntry->role == nsIAccessibleRole::ROLE_ALERT) {
+          // Fire EVENT_ALERT if ARIA alert appears.
+          updateFlags = eAlertAccessible;
+          FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT, node,
+                                     AccEvent::eRemoveDupes, aFromUserInput);
+        }
       }
 
       // If focused node has been shown then it means its frame was recreated
@@ -2005,36 +1957,17 @@ nsDocAccessible::UpdateTreeInternal(nsAccessible* aContainer,
       // this one.
       if (node == gLastFocusedNode) {
         FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_FOCUS,
-                                   node, AccEvent::eCoalesceFromSameDocument);
+                                   node, AccEvent::eCoalesceFromSameDocument,
+                                   aFromUserInput);
       }
     } else {
       // Update the tree for content removal.
-      // The accessible parent may differ from container accessible if
-      // the parent doesn't have own DOM node like list accessible for HTML
-      // selects.
-      nsAccessible* parent = accessible->GetParent();
-      NS_ASSERTION(parent, "No accessible parent?!");
-      parent->RemoveChild(accessible);
-
+      aContainer->RemoveChild(accessible);
       UncacheChildrenInSubtree(accessible);
     }
   }
 
   return updateFlags;
-}
-
-void
-nsDocAccessible::CacheChildrenInSubtree(nsAccessible* aRoot)
-{
-  aRoot->EnsureChildren();
-
-  PRUint32 count = aRoot->GetChildCount();
-  for (PRUint32 idx = 0; idx < count; idx++)  {
-    nsAccessible* child = aRoot->GetChildAt(idx);
-    // Don't cross document boundaries.
-    if (child->IsContent())
-      CacheChildrenInSubtree(child);
-  }
 }
 
 void
@@ -2069,3 +2002,4 @@ nsDocAccessible::ShutdownChildrenInSubtree(nsAccessible* aAccessible)
 
   UnbindFromDocument(aAccessible);
 }
+

@@ -83,7 +83,8 @@
 
 - (void)keyboardInputSourceChanged:(NSNotification *)notification
 {
-  [self cancelComposition];
+  [mInputTextView setString:@""];
+  [self orderOut:nil];
 }
 
 - (BOOL)interpretKeyEvent:(NSEvent*)event string:(NSString**)string
@@ -116,17 +117,6 @@
 - (NSTextInputContext*)inputContext
 {
   return [mInputTextView inputContext];
-}
-
-- (void)cancelComposition
-{
-  [mInputTextView setString:@""];
-  [self orderOut:nil];
-}
-
-- (BOOL)inComposition
-{
-  return [mInputTextView hasMarkedText];
 }
 
 @end

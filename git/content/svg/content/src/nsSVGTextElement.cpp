@@ -47,9 +47,8 @@
 #include "SVGAnimatedLengthList.h"
 #include "DOMSVGAnimatedLengthList.h"
 #include "SVGLengthList.h"
-#include "SVGNumberList.h"
-#include "SVGAnimatedNumberList.h"
-#include "DOMSVGAnimatedNumberList.h"
+#include "nsSVGNumberList.h"
+#include "nsSVGAnimatedNumberList.h"
 
 using namespace mozilla;
 
@@ -74,6 +73,7 @@ protected:
   friend nsresult NS_NewSVGTextElement(nsIContent **aResult,
                                        already_AddRefed<nsINodeInfo> aNodeInfo);
   nsSVGTextElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsresult Init();
   
 public:
   // interfaces:
@@ -101,7 +101,6 @@ protected:
   }
 
   virtual LengthListAttributesInfo GetLengthListInfo();
-  virtual NumberListAttributesInfo GetNumberListInfo();
 
   // nsIDOMSVGTextPositioning properties:
 
@@ -109,9 +108,7 @@ protected:
   SVGAnimatedLengthList mLengthListAttributes[4];
   static LengthListInfo sLengthListInfo[4];
 
-  enum { ROTATE };
-  SVGAnimatedNumberList mNumberListAttributes[1];
-  static NumberListInfo sNumberListInfo[1];
+  nsCOMPtr<nsIDOMSVGAnimatedNumberList> mRotate;
 };
 
 
@@ -143,6 +140,27 @@ nsSVGTextElement::nsSVGTextElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 
 }
   
+nsresult
+nsSVGTextElement::Init()
+{
+  nsresult rv = nsSVGTextElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  // DOM property: nsIDOMSVGTextPositioningElement::rotate, #IMPLIED attrib: rotate
+  {
+    nsCOMPtr<nsIDOMSVGNumberList> numberList;
+    rv = NS_NewSVGNumberList(getter_AddRefs(numberList));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedNumberList(getter_AddRefs(mRotate),
+                                     numberList);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::rotate, mRotate);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  return rv;
+}
+
 //----------------------------------------------------------------------
 // nsIDOMNode methods
 
@@ -199,8 +217,8 @@ nsSVGTextElement::GetDy(nsIDOMSVGAnimatedLengthList * *aDy)
 NS_IMETHODIMP
 nsSVGTextElement::GetRotate(nsIDOMSVGAnimatedNumberList * *aRotate)
 {
-  *aRotate = DOMSVGAnimatedNumberList::GetDOMWrapper(&mNumberListAttributes[ROTATE],
-                                                     this, ROTATE).get();
+  *aRotate = mRotate;
+  NS_IF_ADDREF(*aRotate);
   return NS_OK;
 }
 
@@ -375,17 +393,5 @@ nsSVGTextElement::GetLengthListInfo()
 {
   return LengthListAttributesInfo(mLengthListAttributes, sLengthListInfo,
                                   NS_ARRAY_LENGTH(sLengthListInfo));
-}
-
-nsSVGElement::NumberListInfo nsSVGTextElement::sNumberListInfo[1] =
-{
-  { &nsGkAtoms::rotate }
-};
-
-nsSVGElement::NumberListAttributesInfo
-nsSVGTextElement::GetNumberListInfo()
-{
-  return NumberListAttributesInfo(mNumberListAttributes, sNumberListInfo,
-                                  NS_ARRAY_LENGTH(sNumberListInfo));
 }
 

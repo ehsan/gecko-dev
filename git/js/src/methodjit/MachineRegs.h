@@ -136,15 +136,11 @@ struct Registers {
 # endif
         ;
 
-# if defined(JS_CPU_X86)
     static const uint32 SingleByteRegs = (TempRegs | SavedRegs) &
         ~((1 << JSC::X86Registers::esi) |
           (1 << JSC::X86Registers::edi) |
           (1 << JSC::X86Registers::ebp) |
           (1 << JSC::X86Registers::esp));
-# elif defined(JS_CPU_X64)
-    static const uint32 SingleByteRegs = TempRegs | SavedRegs;
-# endif
 
 #elif defined(JS_CPU_ARM)
     static const uint32 TempRegs =
@@ -315,10 +311,6 @@ struct Registers {
 
     void takeReg(RegisterID reg) {
         JS_ASSERT(hasReg(reg));
-        takeRegUnchecked(reg);
-    }
-
-    void takeRegUnchecked(RegisterID reg) {
         freeMask &= ~(1 << reg);
     }
 

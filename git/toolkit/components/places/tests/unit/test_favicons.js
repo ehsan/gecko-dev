@@ -331,7 +331,6 @@ try {
                          icon1MimeType, Number.MAX_VALUE);
 } catch (ex) {}
 iconsvc.setFaviconUrlForPage(page1URI, icon1URI);
-do_check_guid_for_uri(page1URI);
 var savedIcon1URI = iconsvc.getFaviconForPage(page1URI);
 
 // set second page icon
@@ -340,7 +339,6 @@ try {
                          icon2MimeType, Number.MAX_VALUE);
 } catch (ex) {}
 iconsvc.setFaviconUrlForPage(page2URI, icon2URI);
-do_check_guid_for_uri(page2URI);
 var savedIcon2URI = iconsvc.getFaviconForPage(page2URI);
 
 // set third page icon as the same as first page one
@@ -349,7 +347,6 @@ try {
                          icon1MimeType, Number.MAX_VALUE);
 } catch (ex) {}
 iconsvc.setFaviconUrlForPage(page3URI, icon1URI);
-do_check_guid_for_uri(page3URI);
 var savedIcon3URI = iconsvc.getFaviconForPage(page3URI);
 
 // check first page icon

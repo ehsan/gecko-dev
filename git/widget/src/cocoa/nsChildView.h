@@ -174,12 +174,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // Cocoa TSM documents (those created and managed by the NSTSMInputContext
   // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
   TSMDocumentID mPluginTSMDoc;
-  BOOL mPluginTSMInComposition;
 #endif
   BOOL mPluginComplexTextInputRequested;
-
-  // When this is YES the next key up event (keyUp:) will be ignored.
-  BOOL mIgnoreNextKeyUpEvent;
 
   NSOpenGLContext *mGLContext;
 
@@ -397,9 +393,6 @@ public:
 #endif
 
   virtual gfxASurface* GetThebesSurface();
-  virtual void DrawOver(LayerManager* aManager, nsIntRect aRect);
-
-  virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries);
 
   NS_IMETHOD BeginSecureKeyboardInput();
   NS_IMETHOD EndSecureKeyboardInput();

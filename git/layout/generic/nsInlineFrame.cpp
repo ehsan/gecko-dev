@@ -166,8 +166,7 @@ nsInlineFrame::IsEmpty()
 }
 
 PRBool
-nsInlineFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                                   PRBool aRespectClusters)
+nsInlineFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset)
 {
   // Override the implementation in nsFrame, to skip empty inline frames
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
@@ -392,7 +391,17 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
     }
   }
 
-  if (IsFrameTreeTooDeep(aReflowState, aMetrics, aStatus)) {
+  if (IsFrameTreeTooDeep(aReflowState, aMetrics)) {
+#ifdef DEBUG_kipp
+    {
+      extern char* nsPresShell_ReflowStackPointerTop;
+      char marker;
+      char* newsp = (char*) &marker;
+      printf("XXX: frame tree is too deep; approx stack size = %d\n",
+             nsPresShell_ReflowStackPointerTop - newsp);
+    }
+#endif
+    aStatus = NS_FRAME_COMPLETE;
     return NS_OK;
   }
 

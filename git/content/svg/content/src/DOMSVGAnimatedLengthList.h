@@ -75,10 +75,10 @@ class DOMSVGLengthList;
  *      |          |                |          |        |          |
  *   element ~> DOMSVGAnimatedLengthList ~> DOMSVGLengthList ~> DOMSVGLength
  *
- * Rationale:
+ * Rational:
  *
  * The following three paragraphs explain the main three requirements that must
- * be met by any design. These are followed by an explanation of the rationale
+ * be met by any design. These are followed by an explanation of the rational
  * behind our particular design.
  *
  * 1: DOMSVGAnimatedLengthList, DOMSVGLengthLists and DOMSVGLength get to their

@@ -1373,16 +1373,6 @@ nsStyleGradient::nsStyleGradient(void)
 {
 }
 
-PRBool
-nsStyleGradient::IsOpaque()
-{
-  for (PRUint32 i = 0; i < mStops.Length(); i++) {
-    if (NS_GET_A(mStops[i].mColor) < 255)
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
 // --------------------
 // nsStyleImage
 //
@@ -1618,8 +1608,10 @@ nsStyleImage::IsOpaque() const
   if (!IsComplete())
     return PR_FALSE;
 
-  if (mType == eStyleImageType_Gradient)
-    return mGradient->IsOpaque();
+  if (mType == eStyleImageType_Gradient) {
+    // We could check if every stop color of the gradient is non-transparent.
+    return PR_FALSE;
+  }
 
   if (mType == eStyleImageType_Element)
     return PR_FALSE;
@@ -2159,30 +2151,25 @@ nsStyleVisibility::nsStyleVisibility(const nsStyleVisibility& aSource)
 
 nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) const
 {
-  nsChangeHint hint = nsChangeHint(0);
-
-  if (mDirection != aOther.mDirection) {
-    NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
-  } else if (mLanguage == aOther.mLanguage) {
-    if (mVisible != aOther.mVisible) {
-      if ((NS_STYLE_VISIBILITY_COLLAPSE == mVisible) ||
-          (NS_STYLE_VISIBILITY_COLLAPSE == aOther.mVisible)) {
-        NS_UpdateHint(hint, NS_STYLE_HINT_REFLOW);
-      } else {
-        NS_UpdateHint(hint, NS_STYLE_HINT_VISUAL);
-      }
+  if ((mDirection == aOther.mDirection) &&
+      (mLanguage == aOther.mLanguage)) {
+    if ((mVisible == aOther.mVisible)) {
+      return NS_STYLE_HINT_NONE;
     }
-  } else {
-    NS_UpdateHint(hint, NS_STYLE_HINT_REFLOW);
+    if ((NS_STYLE_VISIBILITY_COLLAPSE == mVisible) || 
+        (NS_STYLE_VISIBILITY_COLLAPSE == aOther.mVisible)) {
+      return NS_STYLE_HINT_REFLOW;
+    }
+    return NS_STYLE_HINT_VISUAL;
   }
-  return hint;
+  return NS_STYLE_HINT_REFLOW;
 }
 
 #ifdef DEBUG
 /* static */
 nsChangeHint nsStyleVisibility::MaxDifference()
 {
-  return NS_STYLE_HINT_FRAMECHANGE;
+  return NS_STYLE_HINT_REFLOW;
 }
 #endif
 

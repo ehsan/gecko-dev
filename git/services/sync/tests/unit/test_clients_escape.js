@@ -1,4 +1,5 @@
-Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/base_records/crypto.js");
+Cu.import("resource://services-sync/base_records/keys.js");
 Cu.import("resource://services-sync/engines/clients.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/util.js");
@@ -12,8 +13,18 @@ function run_test() {
   let pubUri = baseUri + "keys/pubkey";
   let privUri = baseUri + "keys/privkey";
 
-  let keyBundle = ID.set("WeaveCryptoID",
-                         new SyncKeyBundle(null, "john@example.com", "abcdeabcdeabcdeabcdeabcdea"));
+  let passphrase = ID.set("WeaveCryptoID", new Identity());
+  passphrase.password = "passphrase";
+
+  _("Setting up fake pub/priv keypair and symkey for encrypt/decrypt");
+  PubKeys.defaultKeyUri = baseUri + "keys/pubkey";
+  let {pubkey, privkey} = PubKeys.createKeypair(passphrase, pubUri, privUri);
+  PubKeys.set(pubUri, pubkey);
+  PrivKeys.set(privUri, privkey);
+
+  let cryptoMeta = new CryptoMeta(Clients.cryptoMetaURL);
+  cryptoMeta.addUnwrappedKey(pubkey, Svc.Crypto.generateRandomKey());
+  CryptoMetas.set(Clients.cryptoMetaURL, cryptoMeta);
 
   try {
     _("Test that serializing client records results in uploadable ascii");
@@ -25,10 +36,7 @@ function run_test() {
     do_check_eq(record.id, "ascii");
     do_check_eq(record.name, "wéävê");
 
-    _("Encrypting record...");
-    record.encrypt(keyBundle);
-    _("Encrypted.");
-    
+    record.encrypt(passphrase);
     let serialized = JSON.stringify(record);
     let checkCount = 0;
     _("Checking for all ASCII:", serialized);
@@ -43,7 +51,7 @@ function run_test() {
     do_check_eq(checkCount, serialized.length);
 
     _("Making sure the record still looks like it did before");
-    record.decrypt(keyBundle);
+    record.decrypt(passphrase, Clients.cryptoMetaURL);
     do_check_eq(record.id, "ascii");
     do_check_eq(record.name, "wéävê");
 

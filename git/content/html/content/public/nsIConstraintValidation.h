@@ -76,6 +76,8 @@ public:
 
   NS_IMETHOD GetValidationMessage(nsAString& aValidationMessage);
 
+protected:
+
   enum ValidityStateType
   {
     VALIDITY_STATE_VALUE_MISSING    = 0x01, // 0b00000001
@@ -88,11 +90,6 @@ public:
     VALIDITY_STATE_CUSTOM_ERROR     = 0x80  // 0b10000000
   };
 
-  void SetValidityState(ValidityStateType mState,
-                        PRBool mValue);
-
-protected:
-
   // You can't instantiate an object from that class.
   nsIConstraintValidation();
 
@@ -103,6 +100,9 @@ protected:
   bool GetValidityState(ValidityStateType mState) const {
          return mValidityBitField & mState;
        }
+
+  void SetValidityState(ValidityStateType mState,
+                        PRBool mValue);
 
   void SetBarredFromConstraintValidation(PRBool aBarred);
 

@@ -67,8 +67,6 @@ public:
   }
 
 private:
-  bool RecvRedirectNotifyResponse(const bool& allow);
-
   bool* mDestructionFlag;
 };
 

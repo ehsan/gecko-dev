@@ -61,7 +61,7 @@ struct JSFrameRegs
 /* Flags to toggle js::Interpret() execution. */
 enum JSInterpMode
 {
-    JSINTERP_NORMAL            =     0, /* interpreter is running normally */
+    JSINTERP_NORMAL            =     0, /* Interpreter is running normally. */
     JSINTERP_RECORD            =     1, /* interpreter has been started to record/run traces */
     JSINTERP_SAFEPOINT         =     2, /* interpreter should leave on a method JIT safe point */
     JSINTERP_PROFILE           =     3  /* interpreter should profile a loop */
@@ -76,8 +76,8 @@ enum JSFrameFlags
     JSFRAME_DUMMY              =     0x4, /* frame pushed for bookkeeping */
 
     /* Frame subtypes */
-    JSFRAME_EVAL               =     0x8, /* frame pushed for eval() or debugger eval */
-    JSFRAME_DEBUGGER           =    0x10, /* frame pushed for debugger eval */
+    JSFRAME_EVAL               =     0x8, /* frame pushed by js::Execute */
+    JSFRAME_DEBUGGER           =    0x10, /* frame pushed by JS_EvaluateInStackFrame */
     JSFRAME_GENERATOR          =    0x20, /* frame is associated with a generator */
     JSFRAME_FLOATING_GENERATOR =    0x40, /* frame is is in generator obj, not on stack */
     JSFRAME_CONSTRUCTING       =    0x80, /* frame is for a constructor invocation */
@@ -102,8 +102,6 @@ enum JSFrameFlags
     JSFRAME_HAS_SCOPECHAIN     = 0x200000, /* frame has scopeChain_ set */
     JSFRAME_HAS_PREVPC         = 0x400000  /* frame has prevpc_ set */
 };
-
-namespace js { namespace mjit { struct JITScript; } }
 
 /*
  * A stack frame is a part of a stack segment (see js::StackSegment) which is
@@ -248,12 +246,6 @@ struct JSStackFrame
 
     js::Value *base() const {
         return slots() + script()->nfixed;
-    }
-
-    js::Value &varSlot(uintN i) {
-        JS_ASSERT(i < script()->nfixed);
-        JS_ASSERT_IF(maybeFun(), i < script()->bindings.countVars());
-        return slots()[i];
     }
 
     /*
@@ -779,12 +771,6 @@ struct JSStackFrame
         JS_STATIC_ASSERT(sizeof(JSStackFrame) % sizeof(js::Value) == 0);
     }
 
-#ifdef JS_METHODJIT
-    js::mjit::JITScript *jit() {
-        return script()->getJIT(isConstructing());
-    }
-#endif
-
     void methodjitStaticAsserts();
 
 #ifdef DEBUG
@@ -861,6 +847,13 @@ ComputeThisFromVpInPlace(JSContext *cx, js::Value *vp)
 {
     extern bool ComputeThisFromArgv(JSContext *, js::Value *);
     return ComputeThisFromArgv(cx, vp + 2);
+}
+
+/* Return true if |fun| would accept |v| as its |this|, without being wrapped. */
+JS_ALWAYS_INLINE bool
+PrimitiveThisTest(JSFunction *fun, const Value &v)
+{
+    return !v.isPrimitive() || fun->acceptsPrimitiveThis();
 }
 
 /*
@@ -1029,11 +1022,11 @@ CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs,
                    JSObject **objp, JSProperty **propp);
 
 extern bool
-StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval, JSBool *equal);
+StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval);
 
 /* === except that NaN is the same as NaN and -0 is not the same as +0. */
 extern bool
-SameValue(JSContext *cx, const Value &v1, const Value &v2, JSBool *same);
+SameValue(const Value &v1, const Value &v2, JSContext *cx);
 
 extern JSType
 TypeOfValue(JSContext *cx, const Value &v);

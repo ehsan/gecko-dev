@@ -54,35 +54,10 @@
 
 class nsMediaDecoder;
 
-// Holds a nestegg_packet, and its file offset. This is needed so we
-// know the offset in the file we've played up to, in order to calculate
-// whether it's likely we can play through to the end without needing
-// to stop to buffer, given the current download rate.
-class NesteggPacketHolder {
-public:
-  NesteggPacketHolder(nestegg_packet* aPacket, PRInt64 aOffset)
-    : mPacket(aPacket), mOffset(aOffset)
-  {
-    MOZ_COUNT_CTOR(NesteggPacketHolder);
-  }
-  ~NesteggPacketHolder() {
-    MOZ_COUNT_DTOR(NesteggPacketHolder);
-    nestegg_free_packet(mPacket);
-  }
-  nestegg_packet* mPacket;
-  // Offset in bytes. This is the offset of the end of the Block
-  // which contains the packet.
-  PRInt64 mOffset;
-private:
-  // Copy constructor and assignment operator not implemented. Don't use them!
-  NesteggPacketHolder(const NesteggPacketHolder &aOther);
-  NesteggPacketHolder& operator= (NesteggPacketHolder const& aOther);
-};
-
 // Thread and type safe wrapper around nsDeque.
 class PacketQueueDeallocator : public nsDequeFunctor {
   virtual void* operator() (void* anObject) {
-    delete static_cast<NesteggPacketHolder*>(anObject);
+    nestegg_free_packet(static_cast<nestegg_packet*>(anObject));
     return nsnull;
   }
 };
@@ -104,23 +79,23 @@ class PacketQueue : private nsDeque {
     return nsDeque::GetSize();
   }
   
-  inline void Push(NesteggPacketHolder* aItem) {
+  inline void Push(nestegg_packet* aItem) {
     NS_ASSERTION(aItem, "NULL pushed to PacketQueue");
     nsDeque::Push(aItem);
   }
   
-  inline void PushFront(NesteggPacketHolder* aItem) {
+  inline void PushFront(nestegg_packet* aItem) {
     NS_ASSERTION(aItem, "NULL pushed to PacketQueue");
     nsDeque::PushFront(aItem);
   }
 
-  inline NesteggPacketHolder* PopFront() {
-    return static_cast<NesteggPacketHolder*>(nsDeque::PopFront());
+  inline nestegg_packet* PopFront() {
+    return static_cast<nestegg_packet*>(nsDeque::PopFront());
   }
   
   void Reset() {
     while (GetSize() > 0) {
-      delete PopFront();
+      nestegg_free_packet(PopFront());
     }
   }
 };
@@ -169,7 +144,7 @@ private:
   // Read a packet from the nestegg file. Returns NULL if all packets for
   // the particular track have been read. Pass VIDEO or AUDIO to indicate the
   // type of the packet we want to read.
-  nsReturnRef<NesteggPacketHolder> NextPacket(TrackType aTrackType);
+  nsReturnRef<nestegg_packet> NextPacket(TrackType aTrackType);
 
   // Returns an initialized ogg packet with data obtained from the WebM container.
   ogg_packet InitOggPacket(unsigned char* aData,
@@ -184,17 +159,11 @@ private:
   // or an un-recoverable read error has occured. The reader's monitor
   // must be held during this call. This function will free the packet
   // so the caller must not use the packet after calling.
-  PRBool DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset);
+  PRBool DecodeAudioPacket(nestegg_packet* aPacket);
 
   // Release context and set to null. Called when an error occurs during
   // reading metadata or destruction of the reader itself.
   void Cleanup();
-
-  // Returns PR_TRUE if we should decode up to the seek target rather than
-  // seeking to the target using an index-assisted seek.  We should do this
-  // if the seek target (aTarget, in ms), lies not too far ahead of the
-  // current playback position (aCurrentTime, in ms).
-  PRBool CanDecodeToTarget(PRInt64 aTarget, PRInt64 aCurrentTime);
 
 private:
   // libnestegg context for webm container. Access on state machine thread

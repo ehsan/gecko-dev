@@ -1,41 +1,28 @@
 #filter substitution
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-      package="@ANDROID_PACKAGE_NAME@"
+      package="org.mozilla.@MOZ_APP_NAME@"
       android:installLocation="auto"
-      android:versionCode="@ANDROID_VERSION_CODE@"
+      android:versionCode="1"
       android:versionName="@MOZ_APP_VERSION@"
-      android:sharedUserId="@ANDROID_PACKAGE_NAME@.sharedID">
+      android:sharedUserId="org.mozilla.sharedID">
     <uses-sdk android:minSdkVersion="5"
               android:targetSdkVersion="5"/>
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
 
-    <uses-feature android:name="android.hardware.location" android:required="false"/>
-    <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
-    <uses-feature android:name="android.hardware.touchscreen"/>
-
     <application android:label="@MOZ_APP_DISPLAYNAME@"
 		 android:icon="@drawable/icon"
 		 android:debuggable="true">
-
-        <!-- for network link status -->
-        <receiver android:name="org.mozilla.gecko.GeckoConnectivityReceiver">
-            <intent-filter>
-                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
-            </intent-filter>
-        </receiver>
-
         <activity android:name="App"
                   android:label="@MOZ_APP_DISPLAYNAME@"
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
                   android:launchMode="singleTask"
-                  android:theme="@style/GreyTheme">
+                  android:theme="@android:style/Theme.Light.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -77,24 +64,26 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name="NotificationHandler">
+        <activity android:name="NotificationHandler"
+                  android:label="@MOZ_APP_DISPLAYNAME@ Notification"
+                  android:theme="@android:style/Theme.NoTitleBar">
             <intent-filter>
                 <action android:name="org.mozilla.gecko.ACTION_ALERT_CLICK" />
                 <action android:name="org.mozilla.gecko.ACTION_ALERT_CLEAR" />
             </intent-filter>
-        </receiver>
+        </activity>
 
-        <activity android:name="Restarter"
-                  android:theme="@style/GreyTheme">
+        <activity android:enabled="true" android:name="Restarter">
           <intent-filter>
-            <action android:name="org.mozilla.gecko.restart" 
+            <action android:name="org.mozilla.gecko.restart@MOZ_APP_NAME@" 
 		    android:process="@MOZ_APP_NAME@Restarter"/>
           </intent-filter>
         </activity>
 #if MOZ_CRASHREPORTER
 	<activity android:name="CrashReporter"
-                  android:label="@string/crash_reporter_title"
-		  android:icon="@drawable/crash_reporter" >
+                  android:label="@MOZ_APP_DISPLAYNAME@ Crash Reporter"
+		  android:icon="@drawable/crash_reporter"
+		  android:process="org.mozilla.@MOZ_APP_NAME@.crashReporter" >
           <intent-filter>
             <action android:name="org.mozilla.gecko.reportCrash" />
           </intent-filter>

@@ -57,6 +57,7 @@ CPPSRCS		= \
 		nsUnicodeToCP949.cpp \
 		nsUnicodeToJohab.cpp \
 		nsJohabToUnicode.cpp \
+		nsUnicodeToJamoTTF.cpp \
 		$(NULL)
 
 EXPORTS		= nsUCvKOCID.h

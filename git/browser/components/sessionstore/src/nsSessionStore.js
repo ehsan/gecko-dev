@@ -118,8 +118,7 @@ const CAPABILITIES = [
 const INTERNAL_KEYS = ["_tabStillLoading", "_hosts", "_formDataSaved"];
 
 // These are tab events that we listen to.
-const TAB_EVENTS = ["TabOpen", "TabClose", "TabSelect", "TabShow", "TabHide",
-                    "TabPinned", "TabUnpinned"];
+const TAB_EVENTS = ["TabOpen", "TabClose", "TabSelect", "TabShow", "TabHide"];
 
 #ifndef XP_WIN
 #define BROKEN_WM_Z_ORDER
@@ -201,6 +200,9 @@ SessionStoreService.prototype = {
 
   // whether we are in private browsing mode
   _inPrivateBrowsing: false,
+
+  // whether we clearing history on shutdown
+  _clearingOnShutdown: false,
 
   // whether the last window was closed and should be restored
   _restoreLastWindow: false,
@@ -365,14 +367,10 @@ SessionStoreService.prototype = {
 
   /**
    * Start tracking a window.
-   * This function also initializes the component if it's not already
-   * initialized.
+   * Important note: despite its name, this function doesn't initialize
+   * the component!
    */
   init: function sss_init(aWindow) {
-    // Initialize the service if needed.
-    if (!this._initialized)
-      this.initService();
-
     if (!aWindow || this._loadState == STATE_RUNNING) {
       // make sure that all browser windows which try to initialize
       // SessionStore are really tracked by it
@@ -387,6 +385,10 @@ SessionStoreService.prototype = {
         this._loadState = STATE_RUNNING;
       return;
     }
+
+    // Initialize the service if needed.
+    if (!this._initialized)
+      this.initService();
 
     // As this is called at delayedStartup, restoration must be initiated here
     this.onLoad(aWindow);
@@ -452,13 +454,7 @@ SessionStoreService.prototype = {
     case "quit-application":
       if (aData == "restart") {
         this._prefBranch.setBoolPref("sessionstore.resume_session_once", true);
-        // The browser:purge-session-history notification fires after the
-        // quit-application notification so unregister the
-        // browser:purge-session-history notification to prevent clearing
-        // session data on disk on a restart.  It is also unnecessary to
-        // perform any other sanitization processing on a restart as the
-        // browser is about to exit anyway.
-        Services.obs.removeObserver(this, "browser:purge-session-history");
+        this._clearingOnShutdown = false;
       }
       else if (this._resume_session_once_on_shutdown != null) {
         // if the sessionstore.resume_session_once preference was changed by
@@ -473,12 +469,6 @@ SessionStoreService.prototype = {
       this._uninit();
       break;
     case "browser:purge-session-history": // catch sanitization 
-      this._clearDisk();
-      // If the browser is shutting down, simply return after clearing the
-      // session data on disk as this notification fires after the
-      // quit-application notification so the browser is about to exit.
-      if (this._loadState == STATE_QUITTING)
-        return;
       let openWindows = {};
       this._forEachBrowserWindow(function(aWindow) {
         Array.forEach(aWindow.gBrowser.tabs, function(aTab) {
@@ -497,6 +487,7 @@ SessionStoreService.prototype = {
       }
       // also clear all data about closed windows
       this._closedWindows = [];
+      this._clearDisk();
       // give the tabbrowsers a chance to clear their histories first
       var win = this._getMostRecentBrowserWindow();
       if (win)
@@ -506,6 +497,8 @@ SessionStoreService.prototype = {
       // Delete the private browsing backed up state, if any
       if ("_stateBackup" in this)
         delete this._stateBackup;
+      if (this._loadState == STATE_QUITTING)
+        this._clearingOnShutdown = true;
       break;
     case "browser:purge-domain-data":
       // does a session history entry contain a url for the given domain?
@@ -684,10 +677,6 @@ SessionStoreService.prototype = {
       case "TabHide":
         this.onTabHide(aEvent.originalTarget);
         break;
-      case "TabPinned":
-      case "TabUnpinned":
-        this.saveStateDelayed(win);
-        break;
     }
   },
 
@@ -769,36 +758,41 @@ SessionStoreService.prototype = {
 
       if (closedWindowState) {
         let newWindowState;
-#ifdef XP_MACOSX
-        // We want to split the window up into pinned tabs and unpinned tabs.
-        // Pinned tabs should be restored. If there are any remaining tabs,
-        // they should be added back to _closedWindows.
-        // We'll cheat a little bit and reuse _prepDataForDeferredRestore
-        // even though it wasn't built exactly for this.
-        let [appTabsState, normalTabsState] =
-          this._prepDataForDeferredRestore(JSON.stringify({ windows: [closedWindowState] }));
+#ifndef XP_MACOSX
+        if (!this._doResumeSession()) {
+#endif
+          // We want to split the window up into pinned tabs and unpinned tabs.
+          // Pinned tabs should be restored. If there are any remaining tabs,
+          // they should be added back to _closedWindows.
+          // We'll cheat a little bit and reuse _prepDataForDeferredRestore
+          // even though it wasn't built exactly for this.
+          let [appTabsState, normalTabsState] =
+            this._prepDataForDeferredRestore(JSON.stringify({ windows: [closedWindowState] }));
 
-        // These are our pinned tabs, which we should restore
-        if (appTabsState.windows.length) {
-          newWindowState = appTabsState.windows[0];
-          delete newWindowState.__lastSessionWindowID;
-        }
+          // These are our pinned tabs, which we should restore
+          if (appTabsState.windows.length) {
+            newWindowState = appTabsState.windows[0];
+            delete newWindowState.__lastSessionWindowID;
+          }
 
-        // In case there were no unpinned tabs, remove the window from _closedWindows
-        if (!normalTabsState.windows.length) {
-          this._closedWindows.splice(closedWindowIndex, 1);
+          // In case there were no unpinned tabs, remove the window from _closedWindows
+          if (!normalTabsState.windows.length) {
+            this._closedWindows.splice(closedWindowIndex, 1);
+          }
+          // Or update _closedWindows with the modified state
+          else {
+            delete normalTabsState.windows[0].__lastSessionWindowID;
+            this._closedWindows[closedWindowIndex] = normalTabsState.windows[0];
+          }
+#ifndef XP_MACOSX
         }
-        // Or update _closedWindows with the modified state
         else {
-          delete normalTabsState.windows[0].__lastSessionWindowID;
-          this._closedWindows[closedWindowIndex] = normalTabsState.windows[0];
+          // If we're just restoring the window, make sure it gets removed from
+          // _closedWindows.
+          this._closedWindows.splice(closedWindowIndex, 1);
+          newWindowState = closedWindowState;
+          delete newWindowState.hidden;
         }
-#else
-        // If we're just restoring the window, make sure it gets removed from
-        // _closedWindows.
-        this._closedWindows.splice(closedWindowIndex, 1);
-        newWindowState = closedWindowState;
-        delete newWindowState.hidden;
 #endif
         if (newWindowState) {
           // Ensure that the window state isn't hidden
@@ -1013,11 +1007,7 @@ SessionStoreService.prototype = {
   onTabLoad: function sss_onTabLoad(aWindow, aBrowser, aEvent) { 
     // react on "load" and solitary "pageshow" events (the first "pageshow"
     // following "load" is too late for deleting the data caches)
-    // It's possible to get a load event after calling stop on a browser (when
-    // overwriting tabs). We want to return early if the tab hasn't been restored yet.
-    if ((aEvent.type != "load" && !aEvent.persisted) ||
-        (aBrowser.__SS_restoreState &&
-         aBrowser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE)) {
+    if (aEvent.type != "load" && !aEvent.persisted) {
       return;
     }
     
@@ -1164,11 +1154,10 @@ SessionStoreService.prototype = {
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
     
     var window = aTab.ownerDocument.defaultView;
-    this._sendWindowStateEvent(window, "Busy");
     this.restoreHistoryPrecursor(window, [aTab], [tabState], 0, 0, 0);
   },
 
-  duplicateTab: function sss_duplicateTab(aWindow, aTab, aDelta) {
+  duplicateTab: function sss_duplicateTab(aWindow, aTab) {
     if (!aTab.ownerDocument || !aTab.ownerDocument.defaultView.__SSi ||
         !aWindow.getBrowser)
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
@@ -1176,11 +1165,7 @@ SessionStoreService.prototype = {
     var tabState = this._collectTabData(aTab, true);
     var sourceWindow = aTab.ownerDocument.defaultView;
     this._updateTextAndScrollDataForTab(sourceWindow, aTab.linkedBrowser, tabState, true);
-    tabState.index += aDelta;
-    tabState.index = Math.max(1, Math.min(tabState.index, tabState.entries.length));
-    tabState.pinned = false;
 
-    this._sendWindowStateEvent(aWindow, "Busy");
     let newTab = aTab == aWindow.gBrowser.selectedTab ?
       aWindow.gBrowser.addTab(null, {relatedToCurrent: true, ownerTab: aTab}) :
       aWindow.gBrowser.addTab();
@@ -1223,7 +1208,6 @@ SessionStoreService.prototype = {
     let closedTab = closedTabs.splice(aIndex, 1).shift();
     let closedTabState = closedTab.state;
 
-    this._sendWindowStateEvent(aWindow, "Busy");
     // create a new tab
     let browser = aWindow.gBrowser;
     let tab = browser.addTab();
@@ -1349,19 +1333,8 @@ SessionStoreService.prototype = {
   },
 
   deleteTabValue: function sss_deleteTabValue(aTab, aKey) {
-    // We want to make sure that if data is accessed early, we attempt to delete
-    // that data from __SS_data as well. Otherwise we'll throw in cases where
-    // data can be set or read.
-    let deleteFrom;
-    if (aTab.__SS_extdata) {
-      deleteFrom = aTab.__SS_extdata;
-    }
-    else if (aTab.linkedBrowser.__SS_data && aTab.linkedBrowser.__SS_data.extData) {
-      deleteFrom = aTab.linkedBrowser.__SS_data.extData;
-    }
-
-    if (deleteFrom && deleteFrom[aKey])
-      delete deleteFrom[aKey];
+    if (aTab.__SS_extdata && aTab.__SS_extdata[aKey])
+      delete aTab.__SS_extdata[aKey];
     else
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
   },
@@ -1486,15 +1459,6 @@ SessionStoreService.prototype = {
         tabData.pinned = true;
       else
         delete tabData.pinned;
-      tabData.hidden = aTab.hidden;
-
-      // If __SS_extdata is set then we'll use that since it might be newer.
-      if (aTab.__SS_extdata)
-        tabData.extData = aTab.__SS_extdata;
-      // If it exists but is empty then a key was likely deleted. In that case just
-      // delete extData.
-      if (tabData.extData && !Object.keys(tabData.extData).length)
-        delete tabData.extData;
       return tabData;
     }
     
@@ -1508,7 +1472,6 @@ SessionStoreService.prototype = {
     //           data even when we shouldn't (e.g. Back, different anchor)
     if (history && browser.__SS_data &&
         browser.__SS_data.entries[history.index] &&
-        browser.__SS_data.entries[history.index].url == browser.currentURI.spec &&
         history.index < this._sessionhistory_max_entries - 1 && !aFullData) {
       tabData = browser.__SS_data;
       tabData.index = history.index + 1;
@@ -1611,7 +1574,6 @@ SessionStoreService.prototype = {
       entry.cacheKey = cacheKey.data;
     }
     entry.ID = aEntry.ID;
-    entry.docshellID = aEntry.docshellID;
     
     if (aEntry.referrerURI)
       entry.referrer = aEntry.referrerURI.spec;
@@ -2298,10 +2260,6 @@ SessionStoreService.prototype = {
       return;
     }
 
-    // We're not returning from this before we end up calling restoreHistoryPrecursor
-    // for this window, so make sure we send the SSWindowStateBusy event.
-    this._sendWindowStateEvent(aWindow, "Busy");
-
     if (root._closedWindows)
       this._closedWindows = root._closedWindows;
 
@@ -2485,7 +2443,7 @@ SessionStoreService.prototype = {
 
       // Determine if we can optimize & load visible tabs first
       let maxVisibleTabs = Math.ceil(tabbrowser.tabContainer.mTabstrip.scrollClientSize /
-                                     aTabs[unhiddenTabs - 1].getBoundingClientRect().width);
+                                     aTabs[unhiddenTabs - 1].clientWidth);
 
       // make sure we restore visible tabs first, if there are enough
       if (maxVisibleTabs < unhiddenTabs && aSelectTab > 1) {
@@ -2535,10 +2493,6 @@ SessionStoreService.prototype = {
       // a tab gets closed before it's been properly restored
       browser.__SS_data = tabData;
       browser.__SS_restoreState = TAB_STATE_NEEDS_RESTORE;
-
-      // Make sure that set/getTabValue will set/read the correct data by
-      // wiping out any current value in tab.__SS_extdata.
-      delete tab.__SS_extdata;
 
       if (!tabData.entries || tabData.entries.length == 0) {
         // make sure to blank out this tab's content
@@ -2600,9 +2554,6 @@ SessionStoreService.prototype = {
       aTabData.shift();
     }
     if (aTabs.length == 0) {
-      // At this point we're essentially ready for consumers to read/write data
-      // via the sessionstore API so we'll send the SSWindowStateReady event.
-      this._sendWindowStateEvent(aWindow, "Ready");
       return; // no more tabs to restore
     }
     
@@ -2734,12 +2685,7 @@ SessionStoreService.prototype = {
 
       didStartLoad = true;
       try {
-        // In order to work around certain issues in session history, we need to
-        // force session history to update its internal index and call reload
-        // instead of gotoIndex. c.f. bug 597315
-        browser.webNavigation.sessionHistory.getEntryAtIndex(activeIndex, true);
-        browser.webNavigation.sessionHistory.
-          QueryInterface(Ci.nsISHistory_2_0_BRANCH).reloadCurrentEntry();
+        browser.webNavigation.gotoIndex(activeIndex);
       }
       catch (ex) {
         // ignore page load errors
@@ -2753,23 +2699,15 @@ SessionStoreService.prototype = {
     if (tabData.userTypedValue) {
       browser.userTypedValue = tabData.userTypedValue;
       if (tabData.userTypedClear) {
-        // Make it so that we'll enter restoreDocument on page load. We will
-        // fire SSTabRestored from there. We don't have any form data to restore
-        // so we can just set the URL to null.
-        browser.__SS_restore_data = { url: null };
-        browser.__SS_restore_tab = aTab;
         didStartLoad = true;
         browser.loadURI(tabData.userTypedValue, null, null, true);
       }
     }
 
     // If we didn't start a load, then we won't reset this tab through the usual
-    // channel (via the progress listener), so reset the tab ourselves. We will
-    // also send SSTabRestored since this tab has technically been restored.
-    if (!didStartLoad) {
-      this._sendTabRestoredNotification(aTab);
+    // channel (via the progress listener), so reset the tab ourselves.
+    if (!didStartLoad)
       this._resetTabRestoringState(aTab);
-    }
 
     return didStartLoad;
   },
@@ -2853,9 +2791,6 @@ SessionStoreService.prototype = {
       }
       shEntry.ID = id;
     }
-
-    if (aEntry.docshellID)
-      shEntry.docshellID = aEntry.docshellID;
 
     if (aEntry.stateData) {
       shEntry.stateData = aEntry.stateData;
@@ -3027,10 +2962,12 @@ SessionStoreService.prototype = {
       var content = aEvent.originalTarget.defaultView;
       restoreTextDataAndScrolling(content, aBrowser.__SS_restore_data, "");
       aBrowser.markupDocumentViewer.authorStyleDisabled = selectedPageStyle == "_nostyle";
-    }
 
-    // notify the tabbrowser that this document has been completely restored
-    this._sendTabRestoredNotification(aBrowser.__SS_restore_tab);
+      // notify the tabbrowser that this document has been completely restored
+      var event = aBrowser.ownerDocument.createEvent("Events");
+      event.initEvent("SSTabRestored", true, false);
+      aBrowser.__SS_restore_tab.dispatchEvent(event);
+    }
 
     delete aBrowser.__SS_restore_data;
     delete aBrowser.__SS_restore_pageStyle;
@@ -3376,6 +3313,9 @@ SessionStoreService.prototype = {
    * @returns bool
    */
   _doResumeSession: function sss_doResumeSession() {
+    if (this._clearingOnShutdown)
+      return false;
+
     return this._prefBranch.getIntPref("startup.page") == 3 ||
            this._prefBranch.getBoolPref("sessionstore.resume_session_once");
   },
@@ -3693,27 +3633,6 @@ SessionStoreService.prototype = {
         this._browserSetState = false;
       }
     }
-  },
-
-  /**
-   * Dispatch an SSWindowState_____ event for the given window.
-   * @param aWindow the window
-   * @param aType the type of event, SSWindowState will be prepended to this string
-   */
-  _sendWindowStateEvent: function sss__sendWindowStateEvent(aWindow, aType) {
-    let event = aWindow.document.createEvent("Events");
-    event.initEvent("SSWindowState" + aType, true, false);
-    aWindow.dispatchEvent(event);
-  },
-
-  /**
-   * Dispatch the SSTabRestored event for the given tab.
-   * @param aTab the which has been restored
-   */
-  _sendTabRestoredNotification: function sss__sendTabRestoredNotification(aTab) {
-      let event = aTab.ownerDocument.createEvent("Events");
-      event.initEvent("SSTabRestored", true, false);
-      aTab.dispatchEvent(event);
   },
 
   /**

@@ -42,11 +42,14 @@
 #include "ImageLayerD3D9.h"
 #include "ColorLayerD3D9.h"
 #include "CanvasLayerD3D9.h"
+#include "nsIServiceManager.h"
+#include "nsIPrefService.h"
 #include "gfxWindowsPlatform.h"
 #include "nsIGfxInfo.h"
-#include "nsServiceManagerUtils.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch2.h"
+
+#ifdef CAIRO_HAS_D2D_SURFACE
+#include "gfxD2DSurface.h"
+#endif
 
 namespace mozilla {
 namespace layers {
@@ -54,9 +57,9 @@ namespace layers {
 DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nsnull;
 
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
-  : mWidget(aWidget)
-  , mDeviceResetCount(0)
+  : mIs3DEnabled(PR_FALSE)
 {
+  mWidget = aWidget;
   mCurrentCallbackInfo.Callback = NULL;
   mCurrentCallbackInfo.CallbackData = NULL;
 }
@@ -69,21 +72,15 @@ LayerManagerD3D9::~LayerManagerD3D9()
 PRBool
 LayerManagerD3D9::Initialize()
 {
-  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-
-  /* XXX: this preference and blacklist code should move out of the layer manager */
-  PRBool forceAccelerate = PR_FALSE;
-  if (prefs) {
-    // we should use AddBoolPrefVarCache
-    prefs->GetBoolPref("layers.acceleration.force-enabled",
-                       &forceAccelerate);
-  }
+  /* Check the user preference for whether 3d video is enabled or not */ 
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID); 
+  prefs->GetBoolPref("gfx.3d_video.enabled", &mIs3DEnabled);
 
   nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
   if (gfxInfo) {
     PRInt32 status;
     if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, &status))) {
-      if (status != nsIGfxInfo::FEATURE_NO_INFO && !forceAccelerate)
+      if (status != nsIGfxInfo::FEATURE_NO_INFO)
       {
         NS_WARNING("Direct3D 9-accelerated layers are not supported on this system.");
         return PR_FALSE;
@@ -152,26 +149,10 @@ LayerManagerD3D9::EndConstruction()
 {
 }
 
-bool
-LayerManagerD3D9::EndEmptyTransaction()
-{
-  // If the device reset count from our last EndTransaction doesn't match
-  // the current device reset count, the device must have been reset one or
-  // more times since our last transaction. In that case, an empty transaction
-  // is not possible, because layers may need to be rerendered.
-  if (!mRoot || mDeviceResetCount != mDeviceManager->GetDeviceResetCount())
-    return false;
-
-  EndTransaction(nsnull, nsnull);
-  return true;
-}
-
 void
 LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
                                  void* aCallbackData)
 {
-  mDeviceResetCount = mDeviceManager->GetDeviceResetCount();
-
   mCurrentCallbackInfo.Callback = aCallback;
   mCurrentCallbackInfo.CallbackData = aCallbackData;
 
@@ -231,13 +212,53 @@ LayerManagerD3D9::CreateCanvasLayer()
 already_AddRefed<ImageContainer>
 LayerManagerD3D9::CreateImageContainer()
 {
-  nsRefPtr<ImageContainer> container = new ImageContainerD3D9(device());
+  nsRefPtr<ImageContainer> container = new ImageContainerD3D9(this);
   return container.forget();
 }
+
+cairo_user_data_key_t gKeyD3D9Texture;
 
 void ReleaseTexture(void *texture)
 {
   static_cast<IDirect3DTexture9*>(texture)->Release();
+}
+
+already_AddRefed<gfxASurface>
+LayerManagerD3D9::CreateOptimalSurface(const gfxIntSize &aSize,
+                                   gfxASurface::gfxImageFormat aFormat)
+{
+#ifdef CAIRO_HAS_D2D_SURFACE
+  if ((aFormat != gfxASurface::ImageFormatRGB24 &&
+       aFormat != gfxASurface::ImageFormatARGB32) ||
+      gfxWindowsPlatform::GetPlatform()->GetRenderMode() !=
+        gfxWindowsPlatform::RENDER_DIRECT2D ||
+      !deviceManager()->IsD3D9Ex()) {
+    return LayerManager::CreateOptimalSurface(aSize, aFormat);
+  }
+
+  nsRefPtr<IDirect3DTexture9> texture;
+  
+  HANDLE sharedHandle = 0;
+  device()->CreateTexture(aSize.width, aSize.height, 1,
+                          D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8,
+                          D3DPOOL_DEFAULT, getter_AddRefs(texture), &sharedHandle);
+
+  nsRefPtr<gfxD2DSurface> surface =
+    new gfxD2DSurface(sharedHandle, aFormat == gfxASurface::ImageFormatRGB24 ?
+      gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA);
+
+  if (!surface || surface->CairoStatus()) {
+    return LayerManager::CreateOptimalSurface(aSize, aFormat);
+  }
+
+  surface->SetData(&gKeyD3D9Texture,
+                   texture.forget().get(),
+                   ReleaseTexture);
+
+  return surface.forget();
+#else
+  return LayerManager::CreateOptimalSurface(aSize, aFormat);
+#endif
 }
 
 void

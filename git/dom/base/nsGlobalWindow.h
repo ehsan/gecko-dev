@@ -102,7 +102,6 @@
 #include "nsIDOMStorageList.h"
 #include "nsIDOMStorageWindow.h"
 #include "nsIDOMStorageEvent.h"
-#include "nsIDOMStorageIndexedDB.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
@@ -110,7 +109,6 @@
 #include "nsIIDBFactory.h"
 #include "nsFrameMessageManager.h"
 #include "mozilla/TimeStamp.h"
-#include "nsContentUtils.h"
 
 // JS includes
 #include "jsapi.h"
@@ -282,7 +280,6 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIDOMNSEventTarget,
                        public nsIDOMViewCSS,
                        public nsIDOMStorageWindow,
-                       public nsIDOMStorageIndexedDB,
                        public nsSupportsWeakReference,
                        public nsIInterfaceRequestor,
                        public nsIDOMWindow_2_0_BRANCH,
@@ -549,7 +546,7 @@ public:
   virtual PRBool TakeFocus(PRBool aFocus, PRUint32 aFocusMethod);
   virtual void SetReadyForFocus();
   virtual void PageHidden();
-  virtual nsresult DispatchAsyncHashchange();
+  virtual nsresult DispatchSyncHashchange();
   virtual nsresult DispatchSyncPopState();
 
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
@@ -576,17 +573,6 @@ public:
   static nsGlobalWindow* GetOuterWindowWithId(PRUint64 aWindowID) {
     return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
   }
-
-  static bool HasIndexedDBSupport() {
-    return nsContentUtils::GetBoolPref("indexedDB.feature.enabled", PR_TRUE);
-  }
-
-private:
-  // Enable updates for the accelerometer.
-  void EnableAccelerationUpdates();
-
-  // Disables updates for the accelerometer.
-  void DisableAccelerationUpdates();
 
 protected:
   // Object Management
@@ -715,18 +701,11 @@ protected:
                            const nsAString &aPopupWindowName,
                            const nsAString &aPopupWindowFeatures);
   void FireOfflineStatusEvent();
-  nsresult FireHashchange();
 
   void FlushPendingNotifications(mozFlushType aType);
   void EnsureReflowFlushAndPaint();
   nsresult CheckSecurityWidthAndHeight(PRInt32* width, PRInt32* height);
   nsresult CheckSecurityLeftAndTop(PRInt32* left, PRInt32* top);
-
-  // Arguments to this function should have values in app units
-  nsresult SetCSSViewportWidthAndHeight(nscoord width, nscoord height);
-  // Arguments to this function should have values in device pixels
-  nsresult SetDocShellWidthAndHeight(PRInt32 width, PRInt32 height);
-
   static PRBool CanSetProperty(const char *aPrefName);
 
   static void MakeScriptDialogTitle(nsAString &aOutTitle);
@@ -863,11 +842,6 @@ protected:
   // Fast way to tell if this is a chrome window (without having to QI).
   PRPackedBool                  mIsChrome : 1;
 
-  // Hack to indicate whether a chrome window needs its message manager
-  // to be disconnected, since clean up code is shared in the global
-  // window superclass.
-  PRPackedBool                  mCleanMessageManager : 1;
-
   // Indicates that the current document has never received a document focus
   // event.
   PRPackedBool           mNeedsFocus : 1;
@@ -888,7 +862,7 @@ protected:
   PRPackedBool           mFocusByKeyOccurred : 1;
 
   // Indicates whether this window is getting acceleration change events
-  PRPackedBool           mHasAcceleration : 1;
+  PRPackedBool           mHasAcceleration  : 1;
 
   // whether we've sent the destroy notification for our window id
   PRPackedBool           mNotifiedIDDestroyed : 1;
@@ -942,7 +916,7 @@ protected:
   nsCOMPtr<nsIDocument> mDoc;  // For fast access to principals
   JSObject* mJSObject;
 
-  typedef nsCOMArray<nsIDOMStorageEvent> nsDOMStorageEventArray;
+  typedef nsTArray<nsCOMPtr<nsIDOMStorageEvent> > nsDOMStorageEventArray;
   nsDOMStorageEventArray mPendingStorageEvents;
   nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEventsObsolete;
 
@@ -1009,19 +983,6 @@ public:
     : nsGlobalWindow(aOuterWindow)
   {
     mIsChrome = PR_TRUE;
-    mCleanMessageManager = PR_TRUE;
-  }
-
-  ~nsGlobalChromeWindow()
-  {
-    NS_ABORT_IF_FALSE(mCleanMessageManager,
-                      "chrome windows may always disconnect the msg manager");
-    if (mMessageManager) {
-      static_cast<nsFrameMessageManager *>(
-        mMessageManager.get())->Disconnect();
-    }
-
-    mCleanMessageManager = PR_FALSE;
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGlobalChromeWindow,
@@ -1088,8 +1049,6 @@ public:
   void LoadingNewDocument();
   nsresult RefreshMIMEArray();
 
-  static bool HasDesktopNotificationSupport();
-
 protected:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
@@ -1097,11 +1056,6 @@ protected:
   nsRefPtr<nsDesktopNotificationCenter> mNotification;
   nsIDocShell* mDocShell; // weak reference
 };
-
-nsresult NS_GetNavigatorUserAgent(nsAString& aUserAgent);
-nsresult NS_GetNavigatorPlatform(nsAString& aPlatform);
-nsresult NS_GetNavigatorAppVersion(nsAString& aAppVersion);
-nsresult NS_GetNavigatorAppName(nsAString& aAppName);
 
 class nsIURI;
 

@@ -97,7 +97,8 @@ class ExpireFaviconsStatementCallbackNotifier : public AsyncStatementCallback
 {
 public:
   ExpireFaviconsStatementCallbackNotifier(bool* aFaviconsExpirationRunning);
-  NS_IMETHOD HandleCompletion(PRUint16 aReason);
+  NS_DECL_ISUPPORTS
+  NS_DECL_ASYNCSTATEMENTCALLBACK
 
 private:
   bool* mFaviconsExpirationRunning;
@@ -112,8 +113,7 @@ NS_IMPL_ISUPPORTS1(
 )
 
 nsFaviconService::nsFaviconService()
-: mSyncStatements(mDBConn)
-, mFaviconsExpirationRunning(false)
+: mFaviconsExpirationRunning(false)
 , mOptimizedIconDimension(OPTIMIZED_FAVICON_DIMENSION)
 , mFailedFaviconSerial(0)
 , mShuttingDown(false)
@@ -166,12 +166,34 @@ nsFaviconService::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
     "SELECT id, length(data), expiration FROM moz_favicons "
     "WHERE url = :icon_url"));
 
+  // If the page does not exist url = NULL will return NULL instead of 0,
+  // since (1 = NULL) is NULL.  Thus the need for the IFNULL.
+  RETURN_IF_STMT(mDBGetIconInfoWithPage, NS_LITERAL_CSTRING(
+    "SELECT id, length(data), expiration, data, mime_type, "
+    "IFNULL(url = (SELECT f.url "
+                  "FROM ( "
+                    "SELECT favicon_id FROM moz_places_temp "
+                    "WHERE url = :page_url "
+                    "UNION ALL "
+                    "SELECT favicon_id FROM moz_places "
+                    "WHERE url = :page_url "
+                  ") AS h "
+                  "JOIN moz_favicons f ON h.favicon_id = f.id "
+                  "LIMIT 1), "
+           "0)"
+    "FROM moz_favicons WHERE url = :icon_url"));
+
   RETURN_IF_STMT(mDBGetURL, NS_LITERAL_CSTRING(
     "SELECT f.id, f.url, length(f.data), f.expiration "
-    "FROM moz_places h "
-    "JOIN moz_favicons f ON h.favicon_id = f.id "
-    "WHERE h.url = :page_url "
+    "FROM ( "
+      "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places_temp "
+      "WHERE url = :page_url "
+      "UNION ALL "
+      "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places "
+      "WHERE url = :page_url "
+    ") AS h JOIN moz_favicons f ON h.favicon_id = f.id "
     "LIMIT 1"));
+
 
   RETURN_IF_STMT(mDBGetData, NS_LITERAL_CSTRING(
     "SELECT f.data, f.mime_type FROM moz_favicons f WHERE url = :icon_url"));
@@ -186,15 +208,27 @@ nsFaviconService::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
     "WHERE id = :icon_id"));
 
   RETURN_IF_STMT(mDBSetPageFavicon, NS_LITERAL_CSTRING(
-    "UPDATE moz_places SET favicon_id = :icon_id WHERE id = :page_id"));
+    "UPDATE moz_places_view SET favicon_id = :icon_id WHERE id = :page_id"));
+
+  RETURN_IF_STMT(mDBAssociateFaviconURIToPageURI, NS_LITERAL_CSTRING(
+    "UPDATE moz_places_view "
+    "SET favicon_id = (SELECT id FROM moz_favicons WHERE url = :icon_url) "
+    "WHERE url = :page_url"));
 
   RETURN_IF_STMT(mDBRemoveOnDiskReferences, NS_LITERAL_CSTRING(
     "UPDATE moz_places "
     "SET favicon_id = NULL "
     "WHERE favicon_id NOT NULL"));
 
+  RETURN_IF_STMT(mDBRemoveTempReferences, NS_LITERAL_CSTRING(
+    "UPDATE moz_places_temp "
+    "SET favicon_id = NULL "
+    "WHERE favicon_id NOT NULL"));
+
   RETURN_IF_STMT(mDBRemoveAllFavicons, NS_LITERAL_CSTRING(
     "DELETE FROM moz_favicons WHERE id NOT IN ("
+      "SELECT favicon_id FROM moz_places_temp WHERE favicon_id NOT NULL "
+      "UNION ALL "
       "SELECT favicon_id FROM moz_places WHERE favicon_id NOT NULL "
     ")"));
 
@@ -228,11 +262,16 @@ nsFaviconService::ExpireAllFavicons()
 {
   mFaviconsExpirationRunning = true;
 
+  // We do this in 2 steps, first we null-out all favicons in the disk table,
+  // then we do the same in the temp table.  This is because the view UPDATE
+  // trigger does not allow setting a NULL value to prevent dataloss.
+
   mozIStorageBaseStatement *stmts[] = {
     GetStatement(mDBRemoveOnDiskReferences),
+    GetStatement(mDBRemoveTempReferences),
     GetStatement(mDBRemoveAllFavicons),
   };
-  NS_ENSURE_STATE(stmts[0] && stmts[1]);
+  NS_ENSURE_STATE(stmts[0] && stmts[1] && stmts[2]);
   nsCOMPtr<mozIStoragePendingStatement> ps;
   nsCOMPtr<ExpireFaviconsStatementCallbackNotifier> callback =
     new ExpireFaviconsStatementCallbackNotifier(&mFaviconsExpirationRunning);
@@ -375,6 +414,54 @@ nsFaviconService::SetFaviconUrlForPageInternal(nsIURI* aPageURI,
 }
 
 
+// nsFaviconService::UpdateBookmarkRedirectFavicon
+//
+//    It is not uncommon to have a bookmark (usually manually entered or
+//    modified) that redirects to some other page. For example, "mozilla.org"
+//    redirects to "www.mozilla.org". We want that bookmark's favicon to get
+//    updated. So, we see if this URI has a bookmark redirect and set the
+//    favicon there as well.
+//
+//    This should be called only when we know there is data for the favicon
+//    already loaded. We will always send out notifications for the bookmarked
+//    page.
+
+nsresult
+nsFaviconService::UpdateBookmarkRedirectFavicon(nsIURI* aPageURI,
+                                                nsIURI* aFaviconURI)
+{
+  NS_ENSURE_ARG_POINTER(aPageURI);
+  NS_ENSURE_ARG_POINTER(aFaviconURI);
+
+  nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
+  NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
+
+  nsCOMPtr<nsIURI> bookmarkURI;
+  nsresult rv = bookmarks->GetBookmarkedURIFor(aPageURI,
+                                               getter_AddRefs(bookmarkURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (! bookmarkURI)
+    return NS_OK; // no bookmark redirect
+
+  PRBool sameAsBookmark;
+  if (NS_SUCCEEDED(bookmarkURI->Equals(aPageURI, &sameAsBookmark)) &&
+      sameAsBookmark)
+    return NS_OK; // bookmarked directly, not through a redirect
+
+  PRBool hasData = PR_FALSE;
+  rv = SetFaviconUrlForPageInternal(bookmarkURI, aFaviconURI, &hasData);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (hasData) {
+    // send notifications
+    SendFaviconNotifications(bookmarkURI, aFaviconURI);
+  } else {
+    NS_WARNING("Calling UpdateBookmarkRedirectFavicon when you don't have data for the favicon yet.");
+  }
+  return NS_OK;
+}
+
+
 // nsFaviconService::SendFaviconNotifications
 //
 //    Call to send out favicon changed notifications. Should only be called
@@ -406,7 +493,25 @@ nsFaviconService::SetAndLoadFaviconForPage(nsIURI* aPageURI,
   if (mFaviconsExpirationRunning)
     return NS_OK;
 
-  // If a favicon is in the failed cache, only load it during a forced reload.
+  nsresult rv = DoSetAndLoadFaviconForPage(aPageURI, aFaviconURI, aForceReload,
+                                           aCallback);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+
+nsresult
+nsFaviconService::DoSetAndLoadFaviconForPage(nsIURI* aPageURI,
+                                             nsIURI* aFaviconURI,
+                                             PRBool aForceReload,
+                                             nsIFaviconDataCallback* aCallback)
+{
+  if (mFaviconsExpirationRunning)
+    return NS_OK;
+
+  // If a favicon is in the failed cache, we'll only load it if we are forcing
+  // a reload.
   PRBool previouslyFailed;
   nsresult rv = IsFailedFavicon(aFaviconURI, &previouslyFailed);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -417,12 +522,25 @@ nsFaviconService::SetAndLoadFaviconForPage(nsIURI* aPageURI,
       return NS_OK;
   }
 
-  // Check if the icon already exists and fetch it from the network, if needed.
-  // Finally associate the icon to the requested page if not yet associated.
-  rv = AsyncFetchAndSetIconForPage::start(
-    aFaviconURI, aPageURI, aForceReload ? FETCH_ALWAYS : FETCH_IF_MISSING,
-    mDBConn, aCallback
-  );
+  nsCOMPtr<AsyncFaviconStepper> stepper = new AsyncFaviconStepper(aCallback);
+  stepper->SetPageURI(aPageURI);
+  stepper->SetIconURI(aFaviconURI);
+  rv = stepper->AppendStep(new GetEffectivePageStep());
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stepper->AppendStep(new FetchDatabaseIconStep());
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stepper->AppendStep(new EnsureDatabaseEntryStep());
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stepper->AppendStep(new FetchNetworkIconStep(
+    aForceReload ? FETCH_ALWAYS : FETCH_IF_MISSING));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stepper->AppendStep(new SetFaviconDataStep());
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stepper->AppendStep(new AssociateIconWithPageStep());
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stepper->AppendStep(new NotifyStep());
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stepper->Start();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // DB will be updated and observers notified when data has finished loading.
@@ -928,25 +1046,20 @@ nsFaviconService::FinalizeStatements() {
     mDBGetURL,
     mDBGetData,
     mDBGetIconInfo,
+    mDBGetIconInfoWithPage,
     mDBInsertIcon,
     mDBUpdateIcon,
     mDBSetPageFavicon,
     mDBRemoveOnDiskReferences,
+    mDBRemoveTempReferences,
     mDBRemoveAllFavicons,
+    mDBAssociateFaviconURIToPageURI,
   };
 
   for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(stmts); i++) {
     nsresult rv = nsNavHistory::FinalizeStatement(stmts[i]);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  // Finalize the statementCache on the correct thread.
-  nsRefPtr<FinalizeStatementCacheProxy<mozIStorageStatement> > event =
-    new FinalizeStatementCacheProxy<mozIStorageStatement>(mSyncStatements, this);
-  nsCOMPtr<nsIEventTarget> target = do_GetInterface(mDBConn);
-  NS_ENSURE_TRUE(target, NS_ERROR_OUT_OF_MEMORY);
-  nsresult rv = target->Dispatch(event, NS_DISPATCH_NORMAL);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }
@@ -967,6 +1080,9 @@ nsFaviconService::GetFaviconDataAsync(nsIURI* aFaviconURI,
 
 ////////////////////////////////////////////////////////////////////////////////
 //// ExpireFaviconsStatementCallbackNotifier
+
+NS_IMPL_ISUPPORTS1(ExpireFaviconsStatementCallbackNotifier,
+                   mozIStorageStatementCallback)
 
 ExpireFaviconsStatementCallbackNotifier::ExpireFaviconsStatementCallbackNotifier(
   bool* aFaviconsExpirationRunning)
@@ -993,5 +1109,13 @@ ExpireFaviconsStatementCallbackNotifier::HandleCompletion(PRUint16 aReason)
                                            nsnull);
   }
 
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+ExpireFaviconsStatementCallbackNotifier::HandleResult(mozIStorageResultSet* aResultSet)
+{
+  NS_ASSERTION(PR_FALSE, "You cannot use this statement callback to get async statements resultset");
   return NS_OK;
 }

@@ -172,11 +172,7 @@ class XPCShellTests(object):
     elif sys.platform == 'osx' or sys.platform == "darwin":
       self.env["DYLD_LIBRARY_PATH"] = self.xrePath
     else: # unix or linux?
-      if not "LD_LIBRARY_PATH" in self.env or self.env["LD_LIBRARY_PATH"] is None:
-        self.env["LD_LIBRARY_PATH"] = self.xrePath
-      else:
-        self.env["LD_LIBRARY_PATH"] = ":".join([self.xrePath, self.env["LD_LIBRARY_PATH"]])
-
+      self.env["LD_LIBRARY_PATH"] = self.xrePath
     return self.env
 
   def buildXpcsRunArgs(self):

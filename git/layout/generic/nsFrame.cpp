@@ -1228,6 +1228,25 @@ static inline PRBool ApplyOverflowHiddenClipping(nsIFrame* aFrame,
        type == nsGkAtoms::bcTableCellFrame;
 }
 
+static inline PRBool ApplyPaginatedOverflowClipping(nsIFrame* aFrame,
+                                                    const nsStyleDisplay* aDisp)
+{
+  // These conditions on aDisp need to match the conditions for which in
+  // non-paginated contexts we'd create a scrollframe for a block but in a
+  // paginated context we don't.  See nsCSSFrameConstructor::FindDisplayData
+  // for the relevant conditions.  These conditions must also match those in
+  // nsCSSFrameConstructor::ConstructNonScrollableBlock for creating block
+  // formatting context roots for forced-to-be-no-longer scrollable blocks in
+  // paginated contexts.
+  return
+    aFrame->PresContext()->IsPaginated() &&
+    aDisp->IsBlockInside() &&
+    aDisp->IsScrollableOverflow() &&
+    aDisp->IsBlockOutside() &&
+    aFrame->GetType() == nsGkAtoms::blockFrame &&
+    !aFrame->GetContent()->IsInNativeAnonymousSubtree();
+}
+
 static PRBool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
                                     nsIFrame* aFrame,
                                     const nsStyleDisplay* aDisp, nsRect* aRect) {
@@ -1240,7 +1259,7 @@ static PRBool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
   // frames, and any non-visible value for blocks in a paginated context).
   // Other overflow clipping is applied by nsHTML/XULScrollFrame.
   if (!ApplyOverflowHiddenClipping(aFrame, aDisp) &&
-      !nsFrame::ApplyPaginatedOverflowClipping(aFrame)) {
+      !ApplyPaginatedOverflowClipping(aFrame, aDisp)) {
     PRBool clip = aDisp->mOverflowX == NS_STYLE_OVERFLOW_CLIP;
     if (!clip)
       return PR_FALSE;
@@ -1632,7 +1651,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
   }
 
-  if (aBuilder->GetIncludeAllOutOfFlows() &&
+  if (aBuilder->GetSelectedFramesOnly() &&
       (aChild->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
     dirty = aChild->GetVisualOverflowRect();
   } else if (!(aChild->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
@@ -3938,31 +3957,7 @@ nsIFrame::InvalidateLayer(const nsRect& aDamageRect, PRUint32 aDisplayItemKey)
     return;
   }
 
-  PRUint32 flags = INVALIDATE_NO_THEBES_LAYERS;
-  if (aDisplayItemKey == nsDisplayItem::TYPE_VIDEO ||
-      aDisplayItemKey == nsDisplayItem::TYPE_PLUGIN) {
-    flags = INVALIDATE_NO_UPDATE_LAYER_TREE;
-  }
-
-  InvalidateWithFlags(aDamageRect, flags);
-}
-
-void
-nsIFrame::InvalidateTransformLayer()
-{
-  NS_ASSERTION(mParent, "How can a viewport frame have a transform?");
-
-  PRBool hasLayer =
-      FrameLayerBuilder::HasDedicatedLayer(this, nsDisplayItem::TYPE_TRANSFORM);
-  // Invalidate post-transform area in the parent. We have to invalidate
-  // in the parent because our transform style may have changed from what was
-  // used to paint this frame.
-  // It's OK to bypass the SVG effects processing and other processing
-  // performed if we called this->InvalidateWithFlags, because those effects
-  // are performed before applying transforms.
-  mParent->InvalidateInternal(GetVisualOverflowRect() + GetPosition(),
-                              0, 0, this,
-                              hasLayer ? INVALIDATE_NO_THEBES_LAYERS : 0);
+  InvalidateWithFlags(aDamageRect, INVALIDATE_NO_THEBES_LAYERS);
 }
 
 class LayerActivity {
@@ -4268,10 +4263,6 @@ nsIFrame::InvalidateRoot(const nsRect& aDamageRect, PRUint32 aFlags)
     }
   }
 
-  if (!(aFlags & INVALIDATE_NO_UPDATE_LAYER_TREE)) {
-    AddStateBits(NS_FRAME_UPDATE_LAYER_TREE);
-  }
-
   nsIView* view = GetView();
   NS_ASSERTION(view, "This can only be called on frames with views");
   view->GetViewManager()->UpdateViewNoSuppression(view, rect, flags);
@@ -4557,11 +4548,9 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
 
 PRBool
 nsFrame::IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
-                            nsHTMLReflowMetrics& aMetrics,
-                            nsReflowStatus& aStatus)
+                            nsHTMLReflowMetrics& aMetrics)
 {
   if (aReflowState.mReflowDepth >  MAX_FRAME_DEPTH) {
-    NS_WARNING("frame tree too deep; setting zero size and returning");
     mState |= NS_FRAME_TOO_DEEP_IN_FRAME_TREE;
     ClearOverflowRects();
     aMetrics.width = 0;
@@ -4569,16 +4558,6 @@ nsFrame::IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
     aMetrics.ascent = 0;
     aMetrics.mCarriedOutBottomMargin.Zero();
     aMetrics.mOverflowAreas.Clear();
-
-    if (GetNextInFlow()) {
-      // Reflow depth might vary between reflows, so we might have
-      // successfully reflowed and split this frame before.  If so, we
-      // shouldn't delete its continuations.
-      aStatus = NS_FRAME_NOT_COMPLETE;
-    } else {
-      aStatus = NS_FRAME_COMPLETE;
-    }
-
     return PR_TRUE;
   }
   mState &= ~NS_FRAME_TOO_DEEP_IN_FRAME_TREE;
@@ -5432,7 +5411,6 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
   
   switch (aPos->mAmount) {
     case eSelectCharacter:
-    case eSelectCluster:
     {
       PRBool eatingNonRenderableWS = PR_FALSE;
       PRBool done = PR_FALSE;
@@ -5445,8 +5423,7 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
         if (eatingNonRenderableWS)
           done = current->PeekOffsetNoAmount(movingInFrameDirection, &offset); 
         else
-          done = current->PeekOffsetCharacter(movingInFrameDirection, &offset,
-                                              aPos->mAmount == eSelectCluster);
+          done = current->PeekOffsetCharacter(movingInFrameDirection, &offset); 
 
         if (!done) {
           result =
@@ -5735,8 +5712,7 @@ nsFrame::PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset)
 }
 
 PRBool
-nsFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                             PRBool aRespectClusters)
+nsFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   PRInt32 startOffset = *aOffset;
@@ -6135,8 +6111,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
   NS_ASSERTION((disp->mOverflowY == NS_STYLE_OVERFLOW_CLIP) ==
                (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP),
                "If one overflow is clip, the other should be too");
-  if (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP ||
-      nsFrame::ApplyPaginatedOverflowClipping(this)) {
+  if (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP) {
     // The contents are actually clipped to the padding area 
     aOverflowAreas.SetAllTo(bounds);
   }

@@ -87,7 +87,6 @@ public:
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
                               PRInt32         aModType);
-  virtual void ContentStatesChanged(nsEventStates aStates);
   virtual PRBool IsLeaf() const;
 
 
@@ -135,28 +134,7 @@ protected:
   protected:
     nsFileControlFrame* mFrame;
   };
-
-  class SyncDisabledStateEvent;
-  friend class SyncDisabledStateEvent;
-  class SyncDisabledStateEvent : public nsRunnable
-  {
-  public:
-    SyncDisabledStateEvent(nsFileControlFrame* aFrame)
-      : mFrame(aFrame)
-    {}
-
-    NS_IMETHOD Run() {
-      nsFileControlFrame* frame = static_cast<nsFileControlFrame*>(mFrame.GetFrame());
-      NS_ENSURE_STATE(frame);
-
-      frame->SyncDisabledState();
-      return NS_OK;
-    }
-
-  private:
-    nsWeakFrame mFrame;
-  };
-
+  
   class CaptureMouseListener: public MouseListener {
   public:
     CaptureMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame),
@@ -225,15 +203,11 @@ private:
    * Copy an attribute from file content to text and button content.
    * @param aNameSpaceID namespace of attr
    * @param aAttribute attribute atom
-   * @param aWhichControls which controls to apply to (SYNC_TEXT or SYNC_FILE)
+   * @param aWhichControls which controls to apply to (SYNC_TEXT or SYNC_FILE
+   *        or SYNC_BOTH)
    */
   void SyncAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                 PRInt32 aWhichControls);
-
-  /**
-   * Sync the disabled state of the content with anonymous children.
-   */
-  void SyncDisabledState();
 };
 
 #endif

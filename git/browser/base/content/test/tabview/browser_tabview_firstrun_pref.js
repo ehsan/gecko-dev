@@ -60,16 +60,14 @@ function experienced() {
 function checkFirstRun(win) {
   let contentWindow = win.document.getElementById("tab-view").contentWindow;
   
-  // Welcome tab disabled by bug 626754. To be fixed via bug 626926.
-  todo_is(win.gBrowser.tabs.length, 2, "There should be two tabs");
+  is(win.gBrowser.tabs.length, 2, "There should be two tabs");
   
   let groupItems = contentWindow.GroupItems.groupItems;
   is(groupItems.length, 1, "There should be one group");
   is(groupItems[0].getChildren().length, 1, "...with one child");
 
   let orphanTabCount = contentWindow.GroupItems.getOrphanedTabs().length;
-  // Welcome tab disabled by bug 626754. To be fixed via bug 626926.
-  todo_is(orphanTabCount, 1, "There should also be an orphaned tab");
+  is(orphanTabCount, 1, "There should also be an orphaned tab");
   
   ok(experienced(), "we're now experienced");
 }

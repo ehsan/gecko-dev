@@ -859,9 +859,6 @@ public:
 
   nsresult CreateElement(const nsAString& aTagName,
                          nsIContent** aReturn);
-  nsresult CreateElementNS(const nsAString& aNamespaceURI,
-                           const nsAString& aQualifiedName,
-                           nsIContent** aReturn);
 
   nsresult CreateTextNode(const nsAString& aData, nsIContent** aReturn);
 
@@ -992,7 +989,7 @@ protected:
    * service if it is.
    * @returns PR_TRUE if aId looks correct, PR_FALSE otherwise.
    */
-  inline PRBool CheckGetElementByIdArg(const nsAString& aId)
+  static inline PRBool CheckGetElementByIdArg(const nsAString& aId)
   {
     if (aId.IsEmpty()) {
       ReportEmptyGetElementByIdArg();
@@ -1001,7 +998,7 @@ protected:
     return PR_TRUE;
   }
 
-  void ReportEmptyGetElementByIdArg();
+  static void ReportEmptyGetElementByIdArg();
 
   void DispatchContentLoadedEvents();
 
@@ -1035,6 +1032,7 @@ protected:
                          nsIPresShell** aInstancePtrResult);
 
   nsresult ResetStylesheetsToURI(nsIURI* aURI);
+  virtual nsStyleSet::sheetType GetAttrSheetType();
   void FillStyleSet(nsStyleSet* aStyleSet);
 
   // Return whether all the presshells for this document are safe to flush
@@ -1163,6 +1161,8 @@ protected:
   nsRefPtr<nsXMLEventsManager> mXMLEventsManager;
 
   nsCOMPtr<nsIScriptEventManager> mScriptEventManager;
+
+  nsString mBaseTarget;
 
   // Our update nesting level
   PRUint32 mUpdateNestLevel;

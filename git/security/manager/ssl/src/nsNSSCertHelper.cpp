@@ -1274,13 +1274,9 @@ ProcessAuthKeyId(SECItem  *extData,
 
   arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
   if (!arena)
-    return NS_ERROR_OUT_OF_MEMORY;
+    return NS_ERROR_FAILURE;
 
   ret = CERT_DecodeAuthKeyID (arena, extData);
-  if (!ret) {
-    rv = NS_ERROR_FAILURE;
-    goto finish;
-  }
 
   if (ret->keyID.len > 0) {
     nssComponent->GetPIPNSSBundleString("CertDumpKeyID", local);

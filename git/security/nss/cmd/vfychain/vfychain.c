@@ -729,7 +729,8 @@ breakout:
         /* Display validation results */
         if (secStatus != SECSuccess || log.count > 0) {
             CERTVerifyLogNode *node = NULL;
-            fprintf(stderr, "Chain is bad!\n");
+            PRIntn err = PR_GetError();
+            fprintf(stderr, "Chain is bad, %d = %s\n", err, SECU_Strerror(err));
             
             SECU_displayVerifyLog(stderr, &log, verbose); 
             /* Have cert refs in the log only in case of failure.

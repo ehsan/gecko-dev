@@ -302,7 +302,7 @@ JSD_GetScriptFilename(JSDContext* jsdc, JSDScript *jsdscript)
     return jsd_GetScriptFilename(jsdc, jsdscript);
 }
 
-JSD_PUBLIC_API(JSString *)
+JSD_PUBLIC_API(const char*)
 JSD_GetScriptFunctionName(JSDContext* jsdc, JSDScript *jsdscript)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
@@ -577,14 +577,6 @@ JSD_SetInterruptHook(JSDContext*           jsdc,
 }
 
 JSD_PUBLIC_API(JSBool)
-JSD_EnableSingleStepInterrupts(JSDContext* jsdc, JSDScript* jsdscript, JSBool enable)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    JSD_ASSERT_VALID_SCRIPT(jsdscript);
-    return jsd_EnableSingleStepInterrupts(jsdc, jsdscript, enable);
-}
-
-JSD_PUBLIC_API(JSBool)
 JSD_ClearInterruptHook(JSDContext* jsdc)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
@@ -749,7 +741,7 @@ JSD_GetThisForStackFrame(JSDContext* jsdc,
     return jsd_GetThisForStackFrame(jsdc, jsdthreadstate, jsdframe);
 }
 
-JSD_PUBLIC_API(JSString *)
+JSD_PUBLIC_API(const char*)
 JSD_GetNameForStackFrame(JSDContext* jsdc,
                          JSDThreadState* jsdthreadstate,
                          JSDStackFrameInfo* jsdframe)
@@ -1116,20 +1108,12 @@ JSD_GetValueString(JSDContext* jsdc, JSDValue* jsdval)
     return jsd_GetValueString(jsdc, jsdval);
 }
 
-JSD_PUBLIC_API(JSString *)
+JSD_PUBLIC_API(const char*)
 JSD_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JSD_ASSERT_VALID_VALUE(jsdval);
     return jsd_GetValueFunctionName(jsdc, jsdval);
-}
-
-JSD_PUBLIC_API(JSFunction*)
-JSD_GetValueFunction(JSDContext* jsdc, JSDValue* jsdval)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    JSD_ASSERT_VALID_VALUE(jsdval);
-    return jsd_GetValueFunction(jsdc, jsdval);
 }
 
 /**************************************************/

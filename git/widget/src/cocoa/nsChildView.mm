@@ -71,7 +71,6 @@
 #include "nsIMenuRollup.h"
 #include "nsIDOMSimpleGestureEvent.h"
 #include "nsIPluginInstance.h"
-#include "nsThemeConstants.h"
 
 #include "nsDragService.h"
 #include "nsClipboard.h"
@@ -182,10 +181,6 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 - (NPEventModel)pluginEventModel;
 - (NPDrawingModel)pluginDrawingModel;
 
-#ifndef NP_NO_CARBON
-- (void)setPluginTSMInComposition:(BOOL)inComposition;
-#endif
-
 - (BOOL)isRectObscuredBySubview:(NSRect)inRect;
 
 - (void)processPendingRedraws;
@@ -194,11 +189,10 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 
 + (NSEvent*)makeNewCocoaEventWithType:(NSEventType)type fromEvent:(NSEvent*)theEvent;
 
-- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext;
+- (float)beginMaybeResetUnifiedToolbar;
+- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight;
 
-// Called using performSelector:withObject:afterDelay:0 to release
-// aWidgetArray (and its contents) the next time through the run loop.
-- (void)releaseWidgets:(NSArray*)aWidgetArray;
+- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext;
 
 #if USE_CLICK_HOLD_CONTEXTMENU
  // called on a timer two seconds after a mouse down to see if we should display
@@ -549,15 +543,6 @@ nsresult nsChildView::Create(nsIWidget *aParent,
   if (!gChildViewMethodsSwizzled) {
     nsToolkit::SwizzleMethods([NSView class], @selector(mouseDownCanMoveWindow),
                               @selector(nsChildView_NSView_mouseDownCanMoveWindow));
-#ifndef NP_NO_CARBON
-    Class IMKInputSessionClass = ::NSClassFromString(@"IMKInputSession");
-    nsToolkit::SwizzleMethods(IMKInputSessionClass, @selector(handleEvent:),
-                              @selector(nsChildView_IMKInputSession_handleEvent:));
-    nsToolkit::SwizzleMethods(IMKInputSessionClass, @selector(commitComposition),
-                              @selector(nsChildView_IMKInputSession_commitComposition));
-    nsToolkit::SwizzleMethods(IMKInputSessionClass, @selector(finishSession),
-                              @selector(nsChildView_IMKInputSession_finishSession));
-#endif
     gChildViewMethodsSwizzled = PR_TRUE;
   }
 
@@ -2092,36 +2077,6 @@ nsChildView::GetThebesSurface()
   return mTempThebesSurface;
 }
 
-void
-nsChildView::DrawOver(LayerManager* aManager, nsIntRect aRect)
-{
-  nsCocoaWindow *cocoaWindow = GetXULWindowWidget();
-  if (cocoaWindow) {
-    cocoaWindow->DrawOver(aManager, aRect);
-  }
-}
-
-void
-nsChildView::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries)
-{
-  NSWindow* win = [mView window];
-  if (!win || ![win isKindOfClass:[ToolbarWindow class]])
-    return;
-
-  float unifiedToolbarHeight = 0;
-  nsIntRect topPixelStrip(0, 0, [win frame].size.width, 1);
-
-  for (PRUint32 i = 0; i < aThemeGeometries.Length(); ++i) {
-    const ThemeGeometry& g = aThemeGeometries[i];
-    if ((g.mWidgetType == NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR ||
-         g.mWidgetType == NS_THEME_TOOLBAR) &&
-        g.mRect.Contains(topPixelStrip)) {
-      unifiedToolbarHeight = g.mRect.YMost();
-    }
-  }
-  [(ToolbarWindow*)win setUnifiedToolbarHeight:unifiedToolbarHeight];
-}
-
 NS_IMETHODIMP
 nsChildView::BeginSecureKeyboardInput()
 {
@@ -2243,11 +2198,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 #ifndef NP_NO_CARBON
     mPluginTSMDoc = nil;
-    mPluginTSMInComposition = NO;
 #endif
     mPluginComplexTextInputRequested = NO;
-
-    mIgnoreNextKeyUpEvent = NO;
 
     mGestureState = eGestureState_None;
     mCumulativeMagnification = 0.0;
@@ -2525,22 +2477,15 @@ NSEvent* gLastDragMouseDownEvent = nil;
   mPluginDrawingModel = drawingModel;
 }
 
-- (NPEventModel)pluginEventModel
+- (NPEventModel)pluginEventModel;
 {
   return mPluginEventModel;
 }
 
-- (NPDrawingModel)pluginDrawingModel
+- (NPDrawingModel)pluginDrawingModel;
 {
   return mPluginDrawingModel;
 }
-
-#ifndef NP_NO_CARBON
-- (void)setPluginTSMInComposition:(BOOL)inComposition
-{
-  mPluginTSMInComposition = inComposition;
-}
-#endif
 
 - (void)sendFocusEvent:(PRUint32)eventType
 {
@@ -2644,6 +2589,27 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+// Whenever we paint a toplevel window, we will be notified of any
+// unified toolbar in the window via
+// nsNativeThemeCocoa::RegisterWidgetGeometry. 
+- (float)beginMaybeResetUnifiedToolbar
+{
+  if (![[self window] isKindOfClass:[ToolbarWindow class]] ||
+      [self superview] != [[self window] contentView])
+    return 0.0;
+
+  return [(ToolbarWindow*)[self window] beginMaybeResetUnifiedToolbar];
+}
+
+- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight
+{
+  if (![[self window] isKindOfClass:[ToolbarWindow class]] ||
+      [self superview] != [[self window] contentView])
+    return;
+
+  [(ToolbarWindow*)[self window] endMaybeResetUnifiedToolbar:aOldHeight];
+}
+
 -(void)update
 {
   if (mGLContext) {
@@ -2660,6 +2626,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
 // gecko to paint it
 - (void)drawRect:(NSRect)aRect
 {
+  float oldHeight = [self beginMaybeResetUnifiedToolbar];
+
   CGContextRef cgContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
   [self drawRect:aRect inContext:cgContext];
 
@@ -2668,6 +2636,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if ([[self window] isKindOfClass:[BaseWindow class]]) {
     [(BaseWindow*)[self window] deferredInvalidateShadow];
   }
+
+  [self endMaybeResetUnifiedToolbar:oldHeight];
 }
 
 - (void)drawRect:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext
@@ -2748,8 +2718,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 #endif
 
-  if (mGeckoChild->GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
-    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager(nsnull));
+  if (mGeckoChild->GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager());
     manager->SetClippingRegion(paintEvent.region); 
     if (!mGLContext) {
       mGLContext = (NSOpenGLContext *)manager->gl()->GetNativeData(mozilla::gl::GLContext::NativeGLContext);
@@ -2763,7 +2733,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NSSize bufferSize = [self bounds].size;
   nsRefPtr<gfxQuartzSurface> targetSurface =
     new gfxQuartzSurface(aContext, gfxSize(bufferSize.width, bufferSize.height));
-  targetSurface->SetAllowUseAsSource(PR_FALSE);
 
   nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
 
@@ -2815,46 +2784,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
 #endif
 }
 
-- (void)releaseWidgets:(NSArray*)aWidgetArray
-{
-  if (!aWidgetArray) {
-    return;
-  }
-  NSInteger count = [aWidgetArray count];
-  for (NSInteger i = 0; i < count; ++i) {
-    NSNumber* pointer = (NSNumber*) [aWidgetArray objectAtIndex:i];
-    nsIWidget* widget = (nsIWidget*) [pointer unsignedIntegerValue];
-    NS_RELEASE(widget);
-  }
-}
-
 - (void)viewWillDraw
 {
   if (mGeckoChild) {
-    // The OS normally *will* draw our NSWindow, no matter what we do here.
-    // But Gecko can delete our parent widget(s) (along with mGeckoChild)
-    // while processing an NS_WILL_PAINT event, which closes our NSWindow and
-    // makes the OS throw an NSInternalInconsistencyException assertion when
-    // it tries to draw it.  Sometimes the OS also aborts the browser process.
-    // So we need to retain our parent(s) here and not release it/them until
-    // the next time through the main thread's run loop.  When we do this we
-    // also need to retain and release mGeckoChild, which holds a strong
-    // reference to us (otherwise we might have been deleted by the time
-    // releaseWidgets: is called on us).  See bug 550392.
-    nsIWidget* parent = mGeckoChild->GetParent();
-    if (parent) {
-      NSMutableArray* widgetArray = [NSMutableArray arrayWithCapacity:3];
-      while (parent) {
-        NS_ADDREF(parent);
-        [widgetArray addObject:[NSNumber numberWithUnsignedInteger:(NSUInteger)parent]];
-        parent = parent->GetParent();
-      }
-      NS_ADDREF(mGeckoChild);
-      [widgetArray addObject:[NSNumber numberWithUnsignedInteger:(NSUInteger)mGeckoChild]];
-      [self performSelector:@selector(releaseWidgets:)
-                 withObject:widgetArray
-                 afterDelay:0];
-    }
     nsPaintEvent paintEvent(PR_TRUE, NS_WILL_PAINT, mGeckoChild);
     mGeckoChild->DispatchWindowEvent(paintEvent);
   }
@@ -5411,117 +5343,54 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   return YES;
 }
 
-- (BOOL)inCocoaPluginComposition
-{
-#ifdef NP_NO_CARBON
-  return [[ComplexTextInputPanel sharedComplexTextInputPanel] inComposition];
-#else
-  return mPluginTSMInComposition;
-#endif
-}
-
-- (void)sendCocoaNPAPITextEvent:(NSString*)string
-{
-  NPCocoaEvent cocoaTextEvent;
-  InitNPCocoaEvent(&cocoaTextEvent);
-  cocoaTextEvent.type = NPCocoaEventTextInput;
-  cocoaTextEvent.data.text.text = (NPNSString*)string;
-  
-  nsGUIEvent pluginTextEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
-  pluginTextEvent.time = PR_IntervalNow();
-  pluginTextEvent.pluginEvent = (void*)&cocoaTextEvent;
-  mGeckoChild->DispatchWindowEvent(pluginTextEvent);
-}
-
 - (void)keyDown:(NSEvent*)theEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   if (mGeckoChild && mIsPluginView) {
-#ifdef NP_NO_CARBON
+    // If a plugin has the focus, we need to use an alternate method for
+    // handling NSKeyDown and NSKeyUp events (otherwise Carbon-based IME won't
+    // work in plugins like the Flash plugin).  The same strategy is used by the
+    // WebKit.  See PluginKeyEventsHandler() and [ChildView processPluginKeyEvent:]
+    // for more info.
     if (mPluginEventModel == NPEventModelCocoa) {
-      ComplexTextInputPanel* ctiPanel = [ComplexTextInputPanel sharedComplexTextInputPanel];
-
-      // If a composition is in progress then simply let the input panel continue it.
-      if ([self inCocoaPluginComposition]) {
-        // Don't send key up events for key downs associated with compositions.
-        mIgnoreNextKeyUpEvent = YES;
-
-        NSString* textString = nil;
-        [ctiPanel interpretKeyEvent:theEvent string:&textString];
-        if (textString) {
-          [self sendCocoaNPAPITextEvent:textString];
-        }
-
-        return;
-      }
-
-      // Reset complex text input request flag.
+      // Reset complex text input request.
       mPluginComplexTextInputRequested = NO;
-
-      // Send key down event to the plugin.
+      
+      // Send key down event.
       nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
       NPCocoaEvent cocoaEvent;
       ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
       pluginEvent.pluginEvent = &cocoaEvent;
       mGeckoChild->DispatchWindowEvent(pluginEvent);
-      if (!mGeckoChild) {
+      if (!mGeckoChild)
+        return;
+      
+      if (!mPluginComplexTextInputRequested) {
+        // Ideally we'd cancel any TSM composition here.
         return;
       }
 
-      // Start complex text composition if requested.
-      if (mPluginComplexTextInputRequested) {
-        // Don't send key up events for key downs associated with compositions.
-        mIgnoreNextKeyUpEvent = YES;
-
-        NSString* textString = nil;
-        [ctiPanel interpretKeyEvent:theEvent string:&textString];
-        if (textString) {
-          [self sendCocoaNPAPITextEvent:textString];
-        }
-
-        return;
+#ifdef NP_NO_CARBON
+      ComplexTextInputPanel* ctInputPanel = [ComplexTextInputPanel sharedComplexTextInputPanel];
+      NSString* textString = nil;
+      [ctInputPanel interpretKeyEvent:theEvent string:&textString];
+      if (textString) {
+        NPCocoaEvent cocoaTextEvent;
+        InitNPCocoaEvent(&cocoaTextEvent);
+        cocoaTextEvent.type = NPCocoaEventTextInput;
+        cocoaTextEvent.data.text.text = (NPNSString*)textString;
+        
+        nsGUIEvent pluginTextEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
+        pluginTextEvent.time = PR_IntervalNow();
+        pluginTextEvent.pluginEvent = (void*)&cocoaTextEvent;
+        mGeckoChild->DispatchWindowEvent(pluginTextEvent);
       }
-
-      // Nothing else to do for Cocoa NPAPI plugins.
       return;
-    }
 #endif
+    }
 
 #ifndef NP_NO_CARBON
-    BOOL wasInComposition = NO;
-    if (mPluginEventModel == NPEventModelCocoa) {
-      if ([self inCocoaPluginComposition]) {
-        wasInComposition = YES;
-
-        // Don't send key up events for key downs associated with compositions.
-        mIgnoreNextKeyUpEvent = YES;
-      }
-      else {
-        // Reset complex text input request flag.
-        mPluginComplexTextInputRequested = NO;
-
-        // Send key down event to the plugin.
-        nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
-        NPCocoaEvent cocoaEvent;
-        ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
-        pluginEvent.pluginEvent = &cocoaEvent;
-        mGeckoChild->DispatchWindowEvent(pluginEvent);
-        if (!mGeckoChild) {
-          return;
-        }
-
-        // Only continue if plugin wants complex text input.
-        if (mPluginComplexTextInputRequested) {
-          // Don't send key up events for key downs associated with compositions.
-          mIgnoreNextKeyUpEvent = YES;
-        }
-        else {
-          return;
-        }
-      }
-    }
-
     // This will take care of all Carbon plugin events and also send Cocoa plugin
     // text events when NSInputContext is not available (ifndef NP_NO_CARBON).
     [self activatePluginTSMDoc];
@@ -5534,7 +5403,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
                              sizeof(ChildView *), &self);
     ::TSMProcessRawKeyEvent([theEvent _eventRef]);
     ::TSMRemoveDocumentProperty(mPluginTSMDoc, kFocusedChildViewTSMDocPropertyTag);
-
     return;
 #endif
   }
@@ -5568,20 +5436,10 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   if (!mGeckoChild)
     return;
 
-  if (mIgnoreNextKeyUpEvent) {
-    mIgnoreNextKeyUpEvent = NO;
-    return;
-  }
-
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if (mIsPluginView) {
     if (mPluginEventModel == NPEventModelCocoa) {
-      // Don't send key up events to Cocoa plugins during composition.
-      if ([self inCocoaPluginComposition]) {
-        return;
-      }
-
       nsKeyEvent keyUpEvent(PR_TRUE, NS_KEY_UP, nsnull);
       [self convertCocoaKeyEvent:theEvent toGeckoEvent:&keyUpEvent];
       NPCocoaEvent pluginEvent;
@@ -6726,72 +6584,6 @@ void NS_RemovePluginKeyEventsHandler()
   ::RemoveEventHandler(gPluginKeyEventsHandler);
   gPluginKeyEventsHandler = NULL;
 }
-
-// IMKInputSession is an undocumented class in the HIToolbox framework.  It's
-// present on both Leopard and SnowLeopard, and is used at a low level to
-// process IME input regardless of which high-level API is used (Text Services
-// Manager or Cocoa).  It works the same way in both 32-bit and 64-bit code.
-@interface NSObject (IMKInputSessionMethodSwizzling)
-- (BOOL)nsChildView_IMKInputSession_handleEvent:(EventRef)theEvent;
-- (void)nsChildView_IMKInputSession_commitComposition;
-- (void)nsChildView_IMKInputSession_finishSession;
-@end
-
-@implementation NSObject (IMKInputSessionMethodSwizzling)
-
-- (BOOL)nsChildView_IMKInputSession_handleEvent:(EventRef)theEvent
-{
-  [self retain];
-  BOOL retval = [self nsChildView_IMKInputSession_handleEvent:theEvent];
-  NSUInteger retainCount = [self retainCount];
-  [self release];
-  // Return without doing anything if we've been deleted.
-  if (retainCount == 1) {
-    return retval;
-  }
-
-  NSWindow *mainWindow = [NSApp mainWindow];
-  NSResponder *firstResponder = [mainWindow firstResponder];
-  if (![firstResponder isKindOfClass:[ChildView class]]) {
-    return retval;
-  }
-
-  // 'charactersEntered' is the length (in bytes) of currently "marked text"
-  // -- text that's been entered in IME but not yet committed.  If it's
-  // non-zero we're composing text in an IME session; if it's zero we're
-  // not in an IME session.
-  NSInteger charactersEntered = 0;
-  object_getInstanceVariable(self, "charactersEntered", (void **) &charactersEntered);
-  [(ChildView*)firstResponder setPluginTSMInComposition:(charactersEntered != 0)];
-
-  return retval;
-}
-
-// This method is called whenever IME input is committed as a result of an
-// "abnormal" termination -- for example when changing the keyboard focus from
-// one input field to another.
-- (void)nsChildView_IMKInputSession_commitComposition
-{
-  NSWindow *mainWindow = [NSApp mainWindow];
-  NSResponder *firstResponder = [mainWindow firstResponder];
-  if ([firstResponder isKindOfClass:[ChildView class]]) {
-    [(ChildView*)firstResponder setPluginTSMInComposition:NO];
-  }
-  [self nsChildView_IMKInputSession_commitComposition];
-}
-
-// This method is called just before we're deallocated.
-- (void)nsChildView_IMKInputSession_finishSession
-{
-  NSWindow *mainWindow = [NSApp mainWindow];
-  NSResponder *firstResponder = [mainWindow firstResponder];
-  if ([firstResponder isKindOfClass:[ChildView class]]) {
-    [(ChildView*)firstResponder setPluginTSMInComposition:NO];
-  }
-  [self nsChildView_IMKInputSession_finishSession];
-}
-
-@end
 
 #endif // NP_NO_CARBON
 

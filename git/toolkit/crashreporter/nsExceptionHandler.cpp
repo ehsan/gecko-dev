@@ -78,8 +78,6 @@
 #  include "client/linux/crash_generation/crash_generation_server.h"
 #endif
 #include "client/linux/handler/exception_handler.h"
-#include "client/linux/minidump_writer/linux_dumper.h"
-#include "client/linux/minidump_writer/minidump_writer.h"
 #include <fcntl.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -105,7 +103,6 @@
 #include "nsInterfaceHashtable.h"
 #include "prprf.h"
 #include "nsIXULAppInfo.h"
-#include <map>
 #include <vector>
 
 #if defined(XP_MACOSX)
@@ -193,17 +190,6 @@ static const char kTimeSinceLastCrashParameter[] = "SecondsSinceLastCrash=";
 static const int kTimeSinceLastCrashParameterLen =
                                      sizeof(kTimeSinceLastCrashParameter)-1;
 
-static const char kSysMemoryParameter[] = "SystemMemoryUsePercentage=";
-static const int kSysMemoryParameterLen = sizeof(kSysMemoryParameter)-1;
-
-static const char kTotalVirtualMemoryParameter[] = "TotalVirtualMemory=";
-static const int kTotalVirtualMemoryParameterLen =
-  sizeof(kTotalVirtualMemoryParameter)-1;
-
-static const char kAvailableVirtualMemoryParameter[] = "AvailableVirtualMemory=";
-static const int kAvailableVirtualMemoryParameterLen =
-  sizeof(kAvailableVirtualMemoryParameter)-1;
-
 // this holds additional data sent via the API
 static AnnotationTable* crashReporterAPIData_Hash;
 static nsCString* crashReporterAPIData = nsnull;
@@ -269,8 +255,6 @@ typedef struct {
   size_t      file_offset;
 } mapping_info;
 static std::vector<mapping_info> library_mappings;
-typedef std::map<PRUint32,google_breakpad::MappingList> MappingMap;
-static MappingMap child_library_mappings;
 
 void FileIDToGUID(const char* file_id, u_int8_t guid[sizeof(MDGUID)])
 {
@@ -425,34 +409,6 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
         WriteFile(hFile, kTimeSinceLastCrashParameter,
                   kTimeSinceLastCrashParameterLen, &nBytes, NULL);
         WriteFile(hFile, timeSinceLastCrashString, timeSinceLastCrashStringLen,
-                  &nBytes, NULL);
-        WriteFile(hFile, "\n", 1, &nBytes, NULL);
-      }
-      // Try to get some information about memory.
-      MEMORYSTATUSEX statex;
-      statex.dwLength = sizeof(statex);
-      if (GlobalMemoryStatusEx(&statex)) {
-        char buffer[128];
-        int bufferLen;
-        WriteFile(hFile, kSysMemoryParameter,
-                  kSysMemoryParameterLen, &nBytes, NULL);
-        ltoa(statex.dwMemoryLoad, buffer, 10);
-        bufferLen = strlen(buffer);
-        WriteFile(hFile, buffer, bufferLen,
-                  &nBytes, NULL);
-        WriteFile(hFile, "\n", 1, &nBytes, NULL);
-        WriteFile(hFile, kTotalVirtualMemoryParameter,
-                  kTotalVirtualMemoryParameterLen, &nBytes, NULL);
-        _ui64toa(statex.ullTotalVirtual, buffer, 10);
-        bufferLen = strlen(buffer);
-        WriteFile(hFile, buffer, bufferLen,
-                  &nBytes, NULL);
-        WriteFile(hFile, "\n", 1, &nBytes, NULL);
-        WriteFile(hFile, kAvailableVirtualMemoryParameter,
-                  kAvailableVirtualMemoryParameterLen, &nBytes, NULL);
-        _ui64toa(statex.ullAvailVirtual, buffer, 10);
-        bufferLen = strlen(buffer);
-        WriteFile(hFile, buffer, bufferLen,
                   &nBytes, NULL);
         WriteFile(hFile, "\n", 1, &nBytes, NULL);
       }
@@ -651,10 +607,10 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
   crashReporterPath = ToNewCString(crashReporterPath_temp);
 #else
   // On Android, we launch using the application package name
-  // instead of a filename, so use ANDROID_PACKAGE_NAME to do that here.
+  // instead of a filename, so use MOZ_APP_NAME to do that here.
   //TODO: don't hardcode org.mozilla here, so other vendors can
   // ship XUL apps with different package names on Android?
-  nsCString package(ANDROID_PACKAGE_NAME "/.CrashReporter");
+  nsCString package("org.mozilla." MOZ_APP_NAME "/.CrashReporter");
   crashReporterPath = ToNewCString(package);
 #endif
 
@@ -717,31 +673,6 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
   }
 #endif
 
-#ifdef XP_WIN
-  // Try to determine what version of dbghelp.dll we're using.
-  // MinidumpWithFullMemoryInfo is only available in 6.1.x or newer.
-  MINIDUMP_TYPE minidump_type = MiniDumpNormal;
-  DWORD version_size = GetFileVersionInfoSizeW(L"dbghelp.dll", NULL);
-  if (version_size > 0) {
-    std::vector<BYTE> buffer(version_size);
-    if (GetFileVersionInfoW(L"dbghelp.dll",
-                           0,
-                           version_size,
-                           &buffer[0])) {
-      UINT len;
-      VS_FIXEDFILEINFO* file_info;
-      VerQueryValue(&buffer[0], L"\\", (void**)&file_info, &len);
-      WORD major = HIWORD(file_info->dwFileVersionMS),
-           minor = LOWORD(file_info->dwFileVersionMS),
-           revision = HIWORD(file_info->dwFileVersionLS);
-      if (major > 6 || (major == 6 && minor > 1) ||
-          (major == 6 && minor == 1 && revision >= 7600)) {
-        minidump_type = MiniDumpWithFullMemoryInfo;
-      }
-    }
-  }
-#endif
-
   // now set the exception handler
   gExceptionHandler = new google_breakpad::
     ExceptionHandler(tempPath.get(),
@@ -753,10 +684,7 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
                      MinidumpCallback,
                      nsnull,
 #if defined(XP_WIN32)
-                     google_breakpad::ExceptionHandler::HANDLER_ALL,
-                     minidump_type,
-                     NULL,
-                     NULL);
+                     google_breakpad::ExceptionHandler::HANDLER_ALL);
 #else
                      true
 #if defined(XP_MACOSX)
@@ -767,10 +695,6 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
 
   if (!gExceptionHandler)
     return NS_ERROR_OUT_OF_MEMORY;
-
-#ifdef XP_WIN
-  gExceptionHandler->set_handle_debug_exceptions(true);
-#endif
 
   // store application start time
   char timeString[32];
@@ -1695,24 +1619,6 @@ OnChildProcessDumpRequested(void* aContext,
 #endif
                      getter_AddRefs(minidump));
 
-#if defined(__ANDROID__)
-  // Do dump generation here since the CrashGenerationServer doesn't
-  // have access to the library mappings.
-  MappingMap::const_iterator iter = 
-    child_library_mappings.find(aClientInfo->pid_);
-  if (iter == child_library_mappings.end()) {
-    NS_WARNING("No library mappings found for child, can't write minidump!");
-    return;
-  }
-
-  if (!google_breakpad::WriteMinidump(aFilePath->c_str(),
-                                      aClientInfo->pid_,
-                                      aClientInfo->crash_context,
-                                      aClientInfo->crash_context_size,
-                                      iter->second))
-    return;
-#endif
-
   if (!WriteExtraForMinidump(minidump,
                              Blacklist(kSubprocessBlacklist,
                                        NS_ARRAY_LENGTH(kSubprocessBlacklist)),
@@ -1770,17 +1676,11 @@ OOPInit()
     NS_RUNTIMEABORT("can't create crash reporter socketpair()");
 
   const std::string dumpPath = gExceptionHandler->dump_path();
-  bool generateDumps = true;
-#if defined(__ANDROID__)
-  // On Android, the callback will do dump generation, since it needs
-  // to pass the library mappings.
-  generateDumps = false;
-#endif
   crashServer = new CrashGenerationServer(
     serverSocketFd,
     OnChildProcessDumpRequested, NULL,
     NULL, NULL,                 // we don't care about process exit here
-    generateDumps,
+    true,                       // automatically generate dumps
     &dumpPath);
 
 #elif defined(XP_MACOSX)
@@ -1864,9 +1764,6 @@ SetRemoteExceptionHandler(const nsACString& crashPipe)
                      MiniDumpNormal,
                      NS_ConvertASCIItoUTF16(crashPipe).BeginReading(),
                      NULL);
-#ifdef XP_WIN
-  gExceptionHandler->set_handle_debug_exceptions(true);
-#endif
 
   // we either do remote or nothing, no fallback to regular crash reporting
   return gExceptionHandler->IsOutOfProcess();
@@ -2009,7 +1906,6 @@ CurrentThreadId()
     if (threads_for_task[i] == mach_thread_self())
       return i;
   }
-  abort();
 #else
 #  error "Unsupported platform"
 #endif
@@ -2135,38 +2031,6 @@ void AddLibraryMapping(const char* library_name,
                                       file_offset);
   }
 }
-
-#ifdef MOZ_IPC
-void AddLibraryMappingForChild(PRUint32    childPid,
-                               const char* library_name,
-                               const char* file_id,
-                               uintptr_t   start_address,
-                               size_t      mapping_length,
-                               size_t      file_offset)
-{
-  if (child_library_mappings.find(childPid) == child_library_mappings.end())
-    child_library_mappings[childPid] = google_breakpad::MappingList();
-  google_breakpad::MappingInfo info;
-  info.start_addr = start_address;
-  info.size = mapping_length;
-  info.offset = file_offset;
-  strcpy(info.name, library_name);
- 
-  std::pair<google_breakpad::MappingInfo, u_int8_t[sizeof(MDGUID)]> mapping;
-  mapping.first = info;
-  u_int8_t guid[sizeof(MDGUID)];
-  FileIDToGUID(file_id, guid);
-  memcpy(mapping.second, guid, sizeof(MDGUID));
-  child_library_mappings[childPid].push_back(mapping);
-}
-
-void RemoveLibraryMappingsForChild(PRUint32 childPid)
-{
-  MappingMap::iterator iter = child_library_mappings.find(childPid);
-  if (iter != child_library_mappings.end())
-    child_library_mappings.erase(iter);
-}
-#endif
 #endif
 
 } // namespace CrashReporter

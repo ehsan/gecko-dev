@@ -67,10 +67,7 @@ CookieServiceChild::GetSingleton()
   return gCookieService;
 }
 
-NS_IMPL_ISUPPORTS3(CookieServiceChild,
-                   nsICookieService,
-                   nsIObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS2(CookieServiceChild, nsICookieService, nsIObserver)
 
 CookieServiceChild::CookieServiceChild()
   : mCookieBehavior(BEHAVIOR_ACCEPT)

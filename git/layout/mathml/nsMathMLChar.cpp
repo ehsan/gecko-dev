@@ -2016,10 +2016,7 @@ public:
 
   NS_DISPLAY_DECL_NAME("MathMLCharForeground", TYPE_MATHML_CHAR_FOREGROUND)
 
-  virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder)
-  {
-    return GetBounds(aBuilder);
-  }
+  virtual PRBool HasText() { return PR_TRUE; }
 
 private:
   nsMathMLChar* mChar;

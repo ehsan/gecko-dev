@@ -215,7 +215,7 @@ JSWrapper::set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, Va
 }
 
 bool
-JSWrapper::keys(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+JSWrapper::enumerateOwn(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     const jsid id = JSID_VOID;
     GET(GetPropertyNames(cx, wrappedObject(wrapper), JSITER_OWNONLY, &props));
@@ -348,18 +348,21 @@ AutoCompartment::enter()
     if (origin != destination) {
         LeaveTrace(context);
 
+#ifdef DEBUG
+        JSCompartment *oldCompartment = context->compartment;
+        context->resetCompartment();
+        wasSane = (context->compartment == oldCompartment);
+#endif
+
         context->compartment = destination;
         JSObject *scopeChain = target->getGlobal();
         JS_ASSERT(scopeChain->isNative());
-
         frame.construct();
         if (!context->stack().pushDummyFrame(context, *scopeChain, &frame.ref())) {
+            frame.destroy();
             context->compartment = origin;
             return false;
         }
-
-        if (context->isExceptionPending())
-            context->wrapPendingException();
     }
     entered = true;
     return true;
@@ -372,14 +375,15 @@ AutoCompartment::leave()
     if (origin != destination) {
         frame.destroy();
         context->resetCompartment();
+        JS_ASSERT_IF(wasSane && context->hasfp(), context->compartment == origin);
+        context->compartment->wrapException(context);
     }
     entered = false;
 }
 
 /* Cross compartment wrappers. */
 
-JSCrossCompartmentWrapper::JSCrossCompartmentWrapper(uintN flags)
-  : JSWrapper(CROSS_COMPARTMENT | flags)
+JSCrossCompartmentWrapper::JSCrossCompartmentWrapper(uintN flags) : JSWrapper(flags)
 {
 }
 
@@ -500,11 +504,11 @@ JSCrossCompartmentWrapper::set(JSContext *cx, JSObject *wrapper, JSObject *recei
 }
 
 bool
-JSCrossCompartmentWrapper::keys(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+JSCrossCompartmentWrapper::enumerateOwn(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     PIERCE(cx, wrapper, GET,
            NOTHING,
-           JSWrapper::keys(cx, wrapper, props),
+           JSWrapper::enumerateOwn(cx, wrapper, props),
            call.origin->wrap(cx, props));
 }
 
@@ -521,26 +525,11 @@ CanReify(Value *vp)
            (obj->getNativeIterator()->flags & JSITER_ENUMERATE);
 }
 
-struct AutoCloseIterator
-{
-    AutoCloseIterator(JSContext *cx, JSObject *obj) : cx(cx), obj(obj) {}
-
-    ~AutoCloseIterator() { if (obj) js_CloseIterator(cx, obj); }
-
-    void clear() { obj = NULL; }
-
-  private:
-    JSContext *cx;
-    JSObject *obj;
-};
-
 static bool
 Reify(JSContext *cx, JSCompartment *origin, Value *vp)
 {
     JSObject *iterObj = &vp->toObject();
     NativeIterator *ni = iterObj->getNativeIterator();
-
-    AutoCloseIterator close(cx, iterObj);
 
     /* Wrap the iteratee. */
     JSObject *obj = ni->obj;
@@ -552,26 +541,39 @@ Reify(JSContext *cx, JSCompartment *origin, Value *vp)
      * N.B. the order of closing/creating iterators is important due to the
      * implicit cx->enumerators state.
      */
-    size_t length = ni->numKeys();
-    bool isKeyIter = ni->isKeyIter();
-    AutoIdVector keys(cx);
-    if (length > 0) {
-        if (!keys.resize(length))
-            return false;
-        for (size_t i = 0; i < length; ++i) {
-            keys[i] = ni->begin()[i];
-            if (!origin->wrapId(cx, &keys[i]))
+
+    if (ni->isKeyIter()) {
+        size_t length = ni->numKeys();
+        AutoIdVector keys(cx);
+        if (length > 0) {
+            if (!keys.resize(length))
                 return false;
+            for (size_t i = 0; i < length; ++i) {
+                keys[i] = ni->beginKey()[i];
+                if (!origin->wrapId(cx, &keys[i]))
+                    return false;
+            }
         }
+
+        return js_CloseIterator(cx, iterObj) &&
+               VectorToKeyIterator(cx, obj, ni->flags, keys, vp);
     }
 
-    close.clear();
-    if (!js_CloseIterator(cx, iterObj))
-        return false;
+    size_t length = ni->numValues();
+    AutoValueVector vals(cx);
+    if (length > 0) {
+        if (!vals.resize(length))
+            return false;
+        for (size_t i = 0; i < length; ++i) {
+            vals[i] = ni->beginValue()[i];
+            if (!origin->wrap(cx, &vals[i]))
+                return false;
+        }
 
-    if (isKeyIter)
-        return VectorToKeyIterator(cx, obj, ni->flags, keys, vp);
-    return VectorToValueIterator(cx, obj, ni->flags, keys, vp); 
+    }
+
+    return js_CloseIterator(cx, iterObj) &&
+           VectorToValueIterator(cx, obj, ni->flags, vals, vp);
 }
 
 bool
@@ -621,7 +623,8 @@ JSCrossCompartmentWrapper::construct(JSContext *cx, JSObject *wrapper, uintN arg
         return false;
 
     call.leave();
-    return call.origin->wrap(cx, rval);
+    return call.origin->wrap(cx, rval) &&
+           call.origin->wrapException(cx);
 }
 
 bool

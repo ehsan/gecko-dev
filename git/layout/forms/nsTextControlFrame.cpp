@@ -772,11 +772,7 @@ nsresult nsTextControlFrame::SetFormProperty(nsIAtom* aName, const nsAString& aV
       //      of select all which merely builds a range that selects
       //      all of the content and adds that to the selection.
 
-      nsWeakFrame weakThis = this;
-      SelectAllOrCollapseToEndOfText(PR_TRUE);  // NOTE: can destroy the world
-      if (!weakThis.IsAlive()) {
-        return NS_OK;
-      }
+      SelectAllOrCollapseToEndOfText(PR_TRUE);
     }
     mIsProcessing = PR_FALSE;
   }
@@ -850,19 +846,14 @@ nsTextControlFrame::SetSelectionInternal(nsIDOMNode *aStartNode,
   selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));  
   NS_ENSURE_TRUE(selection, NS_ERROR_FAILURE);
 
-  rv = selection->RemoveAllRanges();
+  rv = selection->RemoveAllRanges();  
+
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = selection->AddRange(range);  // NOTE: can destroy the world
+  rv = selection->AddRange(range);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Fetch it again since it might have been destroyed (bug 626014).
-  selCon = txtCtrl->GetSelectionController();
-  if (!selCon) {
-    return NS_OK;  // nothing to scroll, we're done
-  }
-
-  // Scroll the selection into view (see bug 231389).
+  // Scroll the selection into view (see bug 231389)
   return selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
                                          nsISelectionController::SELECTION_FOCUS_REGION,
                                          nsISelectionController::SCROLL_FIRST_ANCESTOR_ONLY);
@@ -890,9 +881,6 @@ nsTextControlFrame::SelectAllOrCollapseToEndOfText(PRBool aSelect)
 
   nsCOMPtr<nsIContent> rootContent = do_QueryInterface(rootElement);
   nsCOMPtr<nsIDOMNode> rootNode(do_QueryInterface(rootElement));
-
-  NS_ENSURE_TRUE(rootNode && rootContent, NS_ERROR_FAILURE);
-
   PRInt32 numChildren = rootContent->GetChildCount();
 
   if (numChildren > 0) {
@@ -1101,18 +1089,8 @@ nsTextControlFrame::OffsetToDOMPoint(PRInt32 aOffset,
     NS_IF_ADDREF(*aResult = rootNode);
     *aPosition = 0;
   } else if (textNode) {
-    PRUint32 textLength = 0;
-    textNode->GetLength(&textLength);
-    if (length == 2 && PRUint32(aOffset) == textLength) {
-      // If we're at the end of the text node and we have a trailing BR node,
-      // set the selection on the BR node.
-      NS_IF_ADDREF(*aResult = rootNode);
-      *aPosition = 1;
-    } else {
-      // Otherwise, set the selection on the textnode itself.
-      NS_IF_ADDREF(*aResult = firstNode);
-      *aPosition = NS_MIN(aOffset, PRInt32(textLength));
-    }
+    NS_IF_ADDREF(*aResult = firstNode);
+    *aPosition = aOffset;
   } else {
     NS_IF_ADDREF(*aResult = rootNode);
     *aPosition = 0;
@@ -1339,14 +1317,14 @@ nsTextControlFrame::GetMaxLength(PRInt32* aSize)
 
 // this is where we propagate a content changed event
 void
-nsTextControlFrame::FireOnInput(PRBool aTrusted)
+nsTextControlFrame::FireOnInput()
 {
   if (!mNotifyOnInput)
     return; // if notification is turned off, do nothing
   
   // Dispatch the "input" event
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsUIEvent event(aTrusted, NS_FORM_INPUT, 0);
+  nsUIEvent event(PR_TRUE, NS_FORM_INPUT, 0);
 
   // Have the content handle the event, propagating it according to normal
   // DOM rules.
@@ -1368,10 +1346,11 @@ nsTextControlFrame::CheckFireOnChange()
   if (!mFocusedValue.Equals(value))
   {
     mFocusedValue = value;
-    // Dispatch the change event.
-    nsContentUtils::DispatchTrustedEvent(mContent->GetOwnerDoc(), mContent,
-                                         NS_LITERAL_STRING("change"), PR_TRUE,
-                                         PR_FALSE);
+    // Dispatch the change event
+    nsEventStatus status = nsEventStatus_eIgnore;
+    nsInputEvent event(PR_TRUE, NS_FORM_CHANGE, nsnull);
+    nsCOMPtr<nsIPresShell> shell = PresContext()->PresShell();
+    shell->HandleEventWithTarget(&event, nsnull, mContent, &status);
   }
   return NS_OK;
 }

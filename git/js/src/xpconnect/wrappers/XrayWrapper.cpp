@@ -139,39 +139,13 @@ GetWrappedNativeObjectFromHolder(JSContext *cx, JSObject *holder)
 }
 
 static JSObject *
-GetExpandoObject(JSObject *holder)
+GetExpandoObject(JSContext *cx, JSObject *holder)
 {
-    NS_ASSERTION(holder->getJSClass() == &HolderClass, "expected a native property holder object");
-    return holder->getSlot(JSSLOT_EXPANDO).toObjectOrNull();
-}
-
-static JSObject *
-EnsureExpandoObject(JSContext *cx, JSObject *holder)
-{
-    NS_ASSERTION(holder->getJSClass() == &HolderClass, "expected a native property holder object");
-    JSObject *expando = GetExpandoObject(holder);
-    if (expando)
-        return expando;
-    CompartmentPrivate *priv =
-        (CompartmentPrivate *)JS_GetCompartmentPrivate(cx, holder->compartment());
-    XPCWrappedNative *wn = GetWrappedNative(GetWrappedNativeObjectFromHolder(cx, holder));
-    expando = priv->LookupExpandoObject(wn);
+    JSObject *expando = holder->getSlot(JSSLOT_EXPANDO).toObjectOrNull();
     if (!expando) {
-        expando = JS_NewObjectWithGivenProto(cx, nsnull, nsnull, holder->getParent());
-        if (!expando)
-            return NULL;
-        // Add the expando object to the expando map to keep it alive.
-        if (!priv->RegisterExpandoObject(wn, expando)) {
-            JS_ReportOutOfMemory(cx);
-            return NULL;
-        }
-        // Make sure the wn stays alive so it keeps the expando object alive.
-        nsRefPtr<nsXPCClassInfo> ci;
-        CallQueryInterface(wn->Native(), getter_AddRefs(ci));
-        if (ci)
-            ci->PreserveWrapper(wn->Native());
+        expando =  JS_NewObjectWithGivenProto(cx, nsnull, nsnull, holder->getParent());
+        holder->setSlot(JSSLOT_EXPANDO, ObjectValue(*expando));
     }
-    holder->setSlot(JSSLOT_EXPANDO, ObjectValue(*expando));
     return expando;
 }
 
@@ -449,17 +423,18 @@ XrayWrapper<Base, Policy>::resolveOwnProperty(JSContext *cx, JSObject *wrapper, 
     }
 
     JSObject *holder = GetHolder(wrapper);
-    JSObject *expando = GetExpandoObject(holder);
-    if (expando) {
-        if (!JS_GetPropertyDescriptorById(cx, expando, id,
-                                          (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED,
-                                          desc)) {
-            return false;
-        }
+    JSObject *expando = GetExpandoObject(cx, holder);
+    if (!expando)
+        return false;
 
-        if (desc->obj)
-            return true;
+    if (!JS_GetPropertyDescriptorById(cx, expando, id,
+                                      (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED,
+                                      desc)) {
+        return false;
     }
+
+    if (desc->obj)
+        return true;
 
     JSObject *wnObject = GetWrappedNativeObjectFromHolder(cx, holder);
     XPCWrappedNative *wn = GetWrappedNative(wnObject);
@@ -650,7 +625,7 @@ XrayWrapper<Base, Policy>::defineProperty(JSContext *cx, JSObject *wrapper, jsid
                                      jsdesc->attrs);
     }
 
-    JSObject *expando = EnsureExpandoObject(cx, holder);
+    JSObject *expando = GetExpandoObject(cx, holder);
     if (!expando)
         return false;
 
@@ -674,14 +649,12 @@ EnumerateNames(JSContext *cx, JSObject *wrapper, uintN flags, js::AutoIdVector &
         return js::GetPropertyNames(cx, wnObject, flags, &props);
     }
 
-    if (WrapperFactory::IsPartiallyTransparent(wrapper)) {
-        JS_ReportError(cx, "Not allowed to enumerate cross origin objects");
-        return false;
-    }
-
     // Enumerate expando properties first.
-    JSObject *expando = GetExpandoObject(holder);
-    if (expando && !js::GetPropertyNames(cx, expando, flags, &props))
+    JSObject *expando = GetExpandoObject(cx, holder);
+    if (!expando)
+        return false;
+
+    if (!js::GetPropertyNames(cx, expando, flags, &props))
         return false;
 
     // Force all native properties to be materialized onto the wrapped native.
@@ -736,14 +709,12 @@ XrayWrapper<Base, Policy>::delete_(JSContext *cx, JSObject *wrapper, jsid id, bo
         return true;
     }
 
-    JSObject *expando = GetExpandoObject(holder);
-    b = true;
-    if (expando &&
-        (!JS_DeletePropertyById2(cx, expando, id, &v) ||
-         !JS_ValueToBoolean(cx, v, &b))) {
+    JSObject *expando = GetExpandoObject(cx, holder);
+    if (!expando)
         return false;
-    }
 
+    if (!JS_DeletePropertyById2(cx, expando, id, &v) || !JS_ValueToBoolean(cx, v, &b))
+        return false;
     *bp = !!b;
     return true;
 }
@@ -803,10 +774,10 @@ XrayWrapper<Base, Policy>::hasOwn(JSContext *cx, JSObject *wrapper, jsid id, boo
 
 template <typename Base, typename Policy>
 bool
-XrayWrapper<Base, Policy>::keys(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props)
+XrayWrapper<Base, Policy>::enumerateOwn(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props)
 {
     // Skip our Base if it isn't already JSProxyHandler.
-    return JSProxyHandler::keys(cx, wrapper, props);
+    return JSProxyHandler::enumerateOwn(cx, wrapper, props);
 }
 
 template <typename Base, typename Policy>
@@ -825,18 +796,11 @@ XrayWrapper<Base, Policy>::createHolder(JSContext *cx, JSObject *wrappedNative, 
     if (!holder)
         return nsnull;
 
-    CompartmentPrivate *priv =
-        (CompartmentPrivate *)JS_GetCompartmentPrivate(cx, holder->compartment());
-    JSObject *inner = wrappedNative;
-    OBJ_TO_INNER_OBJECT(cx, inner);
-    XPCWrappedNative *wn = GetWrappedNative(inner);
-    Value expando = ObjectOrNullValue(priv->LookupExpandoObject(wn));
-
     JS_ASSERT(IS_WN_WRAPPER(wrappedNative) ||
               wrappedNative->getClass()->ext.innerObject);
     holder->setSlot(JSSLOT_WN_OBJ, ObjectValue(*wrappedNative));
     holder->setSlot(JSSLOT_RESOLVING, PrivateValue(NULL));
-    holder->setSlot(JSSLOT_EXPANDO, expando);
+    holder->setSlot(JSSLOT_EXPANDO, NullValue());
     return holder;
 }
 

@@ -259,7 +259,6 @@ class nsHtml5Tokenizer
   private:
     void emitCarriageReturn(PRUnichar* buf, PRInt32 pos);
     void emitReplacementCharacter(PRUnichar* buf, PRInt32 pos);
-    void emitPlaintextReplacementCharacter(PRUnichar* buf, PRInt32 pos);
     void setAdditionalAndRememberAmpersandLocation(PRUnichar add);
     void bogusDoctype();
     void bogusDoctypeWithoutQuirks();
@@ -276,7 +275,7 @@ class nsHtml5Tokenizer
     }
 
   public:
-    PRBool internalEncodingDeclaration(nsString* internalCharset);
+    void internalEncodingDeclaration(nsString* internalCharset);
   private:
     void emitOrAppendTwo(const PRUnichar* val, PRInt32 returnState);
     void emitOrAppendOne(const PRUnichar* val, PRInt32 returnState);

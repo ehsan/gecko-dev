@@ -456,12 +456,13 @@ JS_XDRString(JSXDRState *xdr, JSString **strp)
     if (!JS_XDRUint32(xdr, &nchars))
         return JS_FALSE;
 
-    if (xdr->mode == JSXDR_DECODE)
+    if (xdr->mode == JSXDR_DECODE) {
         chars = (jschar *) xdr->cx->malloc((nchars + 1) * sizeof(jschar));
-    else
-        chars = const_cast<jschar *>((*strp)->getChars(xdr->cx));
-    if (!chars)
-        return JS_FALSE;
+        if (!chars)
+            return JS_FALSE;
+    } else {
+        chars = (*strp)->chars();
+    }
 
     if (!XDRChars(xdr, chars, nchars))
         goto bad;
@@ -668,12 +669,13 @@ js_XDRAtom(JSXDRState *xdr, JSAtom **atomp)
 JS_PUBLIC_API(JSBool)
 JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
 {
-    if (!js_XDRScript(xdr, scriptp, NULL))
+    if (!js_XDRScript(xdr, scriptp, true, NULL))
         return JS_FALSE;
 
     if (xdr->mode == JSXDR_DECODE) {
         js_CallNewScriptHook(xdr->cx, *scriptp, NULL);
-        if (!js_NewScriptObject(xdr->cx, *scriptp)) {
+        if (*scriptp != JSScript::emptyScript() &&
+            !js_NewScriptObject(xdr->cx, *scriptp)) {
             js_DestroyScript(xdr->cx, *scriptp);
             *scriptp = NULL;
             return JS_FALSE;

@@ -49,8 +49,6 @@
 #include "mozilla/jetpack/PHandleChild.h"
 #include "mozilla/jetpack/Handle.h"
 
-#include "nsJSUtils.h"
-
 using mozilla::jetpack::JetpackActorCommon;
 using mozilla::jetpack::PHandleParent;
 using mozilla::jetpack::HandleParent;
@@ -140,12 +138,8 @@ JetpackActorCommon::jsval_to_PrimVariant(JSContext* cx, JSType type, jsval from,
   }
 
   case JSTYPE_STRING:
-    {
-        nsDependentJSString depStr;
-        if (!depStr.init(cx, from))
-            return false;
-        *to = depStr;
-    }
+    *to = nsDependentString((PRUnichar*)JS_GetStringChars(JSVAL_TO_STRING(from)),
+                            JS_GetStringLength(JSVAL_TO_STRING(from)));
     return true;
 
   case JSTYPE_NUMBER:
@@ -229,10 +223,8 @@ JetpackActorCommon::jsval_to_CompVariant(JSContext* cx, JSType type, jsval from,
     KeyValue kv;
     // Silently drop properties that can't be converted.
     if (jsval_to_Variant(cx, val, &kv.value(), seen)) {
-      nsDependentJSString depStr;
-      if (!depStr.init(cx, idStr))
-          return false;
-      kv.key() = depStr;
+      kv.key() = nsDependentString((PRUnichar*)JS_GetStringChars(idStr),
+                                   JS_GetStringLength(idStr));
       // If AppendElement fails, we lose this property, no big deal.
       kvs.AppendElement(kv);
     }
@@ -523,9 +515,8 @@ JetpackActorCommon::RecList::remove(jsval v)
     if (node->value() == v) {
       prev->down = node->down;
       delete node;
-    } else
-      prev = node;
-    node = prev->down;
+    }
+    node = (prev = node)->down;
   }
 }
 

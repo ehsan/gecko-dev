@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "TabChild.h"
-#include "mozilla/IntentionalCrash.h"
 #include "mozilla/dom/PContentChild.h"
 #include "mozilla/dom/PContentDialogChild.h"
 #include "mozilla/layers/PLayersChild.h"
@@ -90,7 +89,6 @@
 #include "nsIView.h"
 #include "nsIEventListenerManager.h"
 #include "PCOMContentPermissionRequestChild.h"
-#include "xpcpublic.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -163,8 +161,9 @@ NS_IMPL_RELEASE(TabChild)
 NS_IMETHODIMP
 TabChild::SetStatus(PRUint32 aStatusType, const PRUnichar* aStatus)
 {
-  // FIXME/bug 617804: should the platform support this?
-  return NS_OK;
+  NS_NOTREACHED("TabChild::SetStatus not supported in TabChild");
+
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -299,8 +298,9 @@ TabChild::GetTitle(PRUnichar** aTitle)
 NS_IMETHODIMP
 TabChild::SetTitle(const PRUnichar* aTitle)
 {
-  // FIXME/bug 617804: should the platform support this?
-  return NS_OK;
+  NS_NOTREACHED("TabChild::SetTitle not supported in TabChild");
+
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -847,9 +847,7 @@ TabChild::InitTabChildGlobal()
 
   JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX | JSOPTION_PRIVATE_IS_NSISUPPORTS);
   JS_SetVersion(cx, JSVERSION_LATEST);
-
-  xpc_LocalizeContext(cx);
-
+  
   JSAutoRequest ar(cx);
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
   const PRUint32 flags = nsIXPConnect::INIT_JS_STANDARD_CLASSES |
@@ -997,13 +995,6 @@ TabChildGlobal::GetContent(nsIDOMWindow** aContent)
   nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mTabChild->WebNavigation());
   window.swap(*aContent);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-TabChildGlobal::PrivateNoteIntentionalCrash()
-{
-    mozilla::NoteIntentionalCrash("tab");
-    return NS_OK;
 }
 
 NS_IMETHODIMP

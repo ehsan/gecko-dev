@@ -331,15 +331,6 @@ public:
    */
   static void MapCommonAttributesInto(const nsMappedAttributes* aAttributes, 
                                       nsRuleData* aRuleData);
-
-  /**
-   * This method is used by embed elements because they should ignore the hidden
-   * attribute for the moment.
-   * TODO: This should be removed when bug 614825 will be fixed.
-   */
-  static void MapCommonAttributesExceptHiddenInto(const nsMappedAttributes* aAttributes,
-                                                  nsRuleData* aRuleData);
-
   static const MappedAttributeEntry sCommonAttributeMap[];
   static const MappedAttributeEntry sImageMarginSizeAttributeMap[];
   static const MappedAttributeEntry sImageBorderAttributeMap[];
@@ -923,9 +914,6 @@ public:
    * Returns if the control can be disabled.
    */
   PRBool CanBeDisabled() const;
-
-  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool* aIsFocusable,
-                                 PRInt32* aTabIndex);
 
 protected:
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,

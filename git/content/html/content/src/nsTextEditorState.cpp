@@ -639,7 +639,7 @@ protected:
 
 protected:
 
-  nsWeakFrame mFrame;
+  nsTextControlFrame* mFrame;  // weak reference
 
   nsITextControlElement* const mTxtCtrlElement;
 
@@ -667,7 +667,8 @@ protected:
  */
 
 nsTextInputListener::nsTextInputListener(nsITextControlElement* aTxtCtrlElement)
-: mTxtCtrlElement(aTxtCtrlElement)
+: mFrame(nsnull)
+, mTxtCtrlElement(aTxtCtrlElement)
 , mSelectionWasCollapsed(PR_TRUE)
 , mHadUndoItems(PR_FALSE)
 , mHadRedoItems(PR_FALSE)
@@ -697,7 +698,7 @@ NS_IMETHODIMP
 nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* aSel, PRInt16 aReason)
 {
   PRBool collapsed;
-  if (!mFrame.IsAlive() || !aDoc || !aSel || NS_FAILED(aSel->GetIsCollapsed(&collapsed)))
+  if (!mFrame || !aDoc || !aSel || NS_FAILED(aSel->GetIsCollapsed(&collapsed)))
     return NS_OK;
 
   // Fire the select event
@@ -742,7 +743,7 @@ nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* 
   
   mSelectionWasCollapsed = collapsed;
 
-  if (!mFrame.IsAlive() || !nsContentUtils::IsFocusedContent(mFrame->GetContent()))
+  if (!mFrame || !nsContentUtils::IsFocusedContent(mFrame->GetContent()))
     return NS_OK;
 
   return UpdateTextInputCommands(NS_LITERAL_STRING("select"));
@@ -793,7 +794,6 @@ DoCommandCallback(const char *aCommand, void *aData)
 NS_IMETHODIMP
 nsTextInputListener::KeyDown(nsIDOMEvent *aDOMEvent)
 {
-  NS_ENSURE_STATE(mFrame.IsAlive());
   nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aDOMEvent));
   NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
 
@@ -812,7 +812,6 @@ nsTextInputListener::KeyDown(nsIDOMEvent *aDOMEvent)
 NS_IMETHODIMP
 nsTextInputListener::KeyPress(nsIDOMEvent *aDOMEvent)
 {
-  NS_ENSURE_STATE(mFrame.IsAlive());
   nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aDOMEvent));
   NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
 
@@ -831,7 +830,6 @@ nsTextInputListener::KeyPress(nsIDOMEvent *aDOMEvent)
 NS_IMETHODIMP
 nsTextInputListener::KeyUp(nsIDOMEvent *aDOMEvent)
 {
-  NS_ENSURE_STATE(mFrame.IsAlive());
   nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aDOMEvent));
   NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
 
@@ -853,15 +851,11 @@ nsTextInputListener::KeyUp(nsIDOMEvent *aDOMEvent)
 NS_IMETHODIMP
 nsTextInputListener::EditAction()
 {
-  NS_ENSURE_STATE(mFrame.IsAlive());
-  nsITextControlFrame* frameBase = do_QueryFrame(mFrame.GetFrame());
-  nsTextControlFrame* frame = static_cast<nsTextControlFrame*> (frameBase);
-  NS_ASSERTION(frame, "Where is our frame?");
   //
   // Update the undo / redo menus
   //
   nsCOMPtr<nsIEditor> editor;
-  frame->GetEditor(getter_AddRefs(editor));
+  mFrame->GetEditor(getter_AddRefs(editor));
 
   nsCOMPtr<nsITransactionManager> manager;
   editor->GetTransactionManager(getter_AddRefs(manager));
@@ -881,27 +875,16 @@ nsTextInputListener::EditAction()
     mHadRedoItems = numRedoItems != 0;
   }
 
-  if (!mFrame.IsAlive()) {
-    return NS_OK;
-  }
-
   // Make sure we know we were changed (do NOT set this to false if there are
   // no undo items; JS could change the value and we'd still need to save it)
-  frame->SetValueChanged(PR_TRUE);
+  mFrame->SetValueChanged(PR_TRUE);
+
+  // Fire input event
+  mFrame->FireOnInput();
 
   if (!mSettingValue) {
     mTxtCtrlElement->OnValueChanged(PR_TRUE);
   }
-
-  // Fire input event
-  nsCOMPtr<nsIEditor_MOZILLA_2_0_BRANCH> editor20 = do_QueryInterface(editor);
-  NS_ASSERTION(editor20, "Something is very wrong!");
-  PRBool trusted = PR_FALSE;
-  editor20->GetLastKeypressEventTrusted(&trusted);
-  frame->FireOnInput(trusted);
-
-  // mFrame may be dead after this, but we don't need to check for it, because
-  // we are not uisng it in this function any more.
 
   return NS_OK;
 }
@@ -912,7 +895,7 @@ nsTextInputListener::EditAction()
 nsresult
 nsTextInputListener::UpdateTextInputCommands(const nsAString& commandsToUpdate)
 {
-  NS_ENSURE_STATE(mFrame.IsAlive());
+  NS_ENSURE_STATE(mFrame);
 
   nsIContent* content = mFrame->GetContent();
   NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
@@ -1653,7 +1636,7 @@ nsTextEditorState::GetMaxLength(PRInt32* aMaxLength)
 void
 nsTextEditorState::GetValue(nsAString& aValue, PRBool aIgnoreWrap) const
 {
-  if (mEditor && mBoundFrame && (mEditorInitialized || !IsSingleLineTextControl())) {
+  if (mEditor && mBoundFrame) {
     PRBool canCache = aIgnoreWrap && !IsSingleLineTextControl();
     if (canCache && !mCachedValue.IsEmpty()) {
       aValue = mCachedValue;
@@ -1730,26 +1713,8 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
       mBoundFrame->SetFireChangeEventState(PR_TRUE);
     }
 
-#ifdef DEBUG
-    if (IsSingleLineTextControl()) {
-      NS_ASSERTION(mEditorInitialized || mInitializing,
-                   "We should never try to use the editor if we're not initialized unless we're being initialized");
-    }
-#endif
-
     nsAutoString currentValue;
-    if (!mEditorInitialized && IsSingleLineTextControl()) {
-      // Grab the current value directly from the text node to make sure that we
-      // deal with stale data correctly.
-      NS_ASSERTION(mRootNode, "We should have a root node here");
-      nsIContent *textContent = mRootNode->GetChildAt(0);
-      nsCOMPtr<nsIDOMCharacterData> textNode = do_QueryInterface(textContent);
-      if (textNode) {
-        textNode->GetData(currentValue);
-      }
-    } else {
-      mBoundFrame->GetText(currentValue);
-    }
+    mBoundFrame->GetText(currentValue);
 
     nsWeakFrame weakFrame(mBoundFrame);
 

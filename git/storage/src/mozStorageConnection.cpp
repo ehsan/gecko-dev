@@ -81,12 +81,10 @@ namespace storage {
 
 #define PREF_TS_SYNCHRONOUS "toolkit.storage.synchronous"
 
-namespace {
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Variant Specialization Functions (variantToSQLiteT)
 
-int
+static int
 sqlite3_T_int(sqlite3_context *aCtx,
               int aValue)
 {
@@ -94,7 +92,7 @@ sqlite3_T_int(sqlite3_context *aCtx,
   return SQLITE_OK;
 }
 
-int
+static int
 sqlite3_T_int64(sqlite3_context *aCtx,
                 sqlite3_int64 aValue)
 {
@@ -102,7 +100,7 @@ sqlite3_T_int64(sqlite3_context *aCtx,
   return SQLITE_OK;
 }
 
-int
+static int
 sqlite3_T_double(sqlite3_context *aCtx,
                  double aValue)
 {
@@ -110,7 +108,7 @@ sqlite3_T_double(sqlite3_context *aCtx,
   return SQLITE_OK;
 }
 
-int
+static int
 sqlite3_T_text(sqlite3_context *aCtx,
                const nsCString &aValue)
 {
@@ -121,7 +119,7 @@ sqlite3_T_text(sqlite3_context *aCtx,
   return SQLITE_OK;
 }
 
-int
+static int
 sqlite3_T_text16(sqlite3_context *aCtx,
                  const nsString &aValue)
 {
@@ -132,14 +130,14 @@ sqlite3_T_text16(sqlite3_context *aCtx,
   return SQLITE_OK;
 }
 
-int
+static int
 sqlite3_T_null(sqlite3_context *aCtx)
 {
   ::sqlite3_result_null(aCtx);
   return SQLITE_OK;
 }
 
-int
+static int
 sqlite3_T_blob(sqlite3_context *aCtx,
                const void *aData,
                int aSize)
@@ -153,6 +151,7 @@ sqlite3_T_blob(sqlite3_context *aCtx,
 ////////////////////////////////////////////////////////////////////////////////
 //// Local Functions
 
+namespace {
 #ifdef PR_LOGGING
 void tracefunc (void *aClosure, const char *aStmt)
 {
@@ -323,7 +322,7 @@ public:
     return NS_OK;
   }
 private:
-  nsRefPtr<Connection> mConnection;
+  nsCOMPtr<Connection> mConnection;
   nsCOMPtr<nsIEventTarget> mCallingThread;
   nsCOMPtr<nsIRunnable> mCallbackEvent;
 };
@@ -353,10 +352,9 @@ Connection::~Connection()
   (void)Close();
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(
+NS_IMPL_THREADSAFE_ISUPPORTS1(
   Connection,
-  mozIStorageConnection,
-  nsIInterfaceRequestor
+  mozIStorageConnection
 )
 
 nsIEventTarget *
@@ -642,22 +640,6 @@ Connection::getFilename()
     (void)mDatabaseFile->GetNativeLeafName(leafname);
   }
   return leafname;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//// nsIInterfaceRequestor
-
-NS_IMETHODIMP
-Connection::GetInterface(const nsIID &aIID,
-                         void **_result)
-{
-  if (aIID.Equals(NS_GET_IID(nsIEventTarget))) {
-    nsIEventTarget *background = getAsyncExecutionTarget();
-    NS_IF_ADDREF(background);
-    *_result = background;
-    return NS_OK;
-  }
-  return NS_ERROR_NO_INTERFACE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1131,7 +1113,7 @@ Connection::SetGrowthIncrement(PRInt32 aChunkSize, const nsACString &aDatabaseNa
   // Bug 597215: Disk space is extremely limited on Android
   // so don't preallocate space. This is also not effective
   // on log structured file systems used by Android devices
-#if !defined(ANDROID) && !defined(MOZ_PLATFORM_MAEMO)
+#ifndef ANDROID
   (void)::sqlite3_file_control(mDBConn,
                                aDatabaseName.Length() ? nsPromiseFlatCString(aDatabaseName).get() : NULL,
                                SQLITE_FCNTL_CHUNK_SIZE,

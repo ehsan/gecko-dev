@@ -343,16 +343,6 @@ FrameState::pushInt32(RegisterID payload)
 }
 
 inline void
-FrameState::pushInitializerObject(RegisterID payload, bool array, JSObject *baseobj)
-{
-    pushTypedPayload(JSVAL_TYPE_OBJECT, payload);
-
-    FrameEntry *fe = peek(-1);
-    fe->initArray = array;
-    fe->initObject = baseobj;
-}
-
-inline void
 FrameState::pushUntypedPayload(JSValueType type, RegisterID payload)
 {
     JS_ASSERT(!freeRegs.hasReg(payload));
@@ -490,12 +480,12 @@ FrameState::shouldAvoidDataRemat(FrameEntry *fe)
 inline void
 FrameState::ensureFeSynced(const FrameEntry *fe, Assembler &masm) const
 {
-#if defined JS_PUNBOX64
     Address to = addressOf(fe);
     const FrameEntry *backing = fe;
     if (fe->isCopy())
         backing = fe->copyOf();
 
+#if defined JS_PUNBOX64
     /* If we can, sync the type and data in one go. */
     if (!fe->data.synced() && !fe->type.synced()) {
         if (backing->isConstant())

@@ -59,7 +59,7 @@ pref("extensions.logging.enabled", false);
 // Preferences for AMO integration
 pref("extensions.getAddons.cache.enabled", true);
 pref("extensions.getAddons.maxResults", 15);
-pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
+pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/guid:%IDS%?src=firefox");
 pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/search?q=%TERMS%");
 pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%?src=firefox");
 pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/%APP%/discovery/%VERSION%/%OS%");
@@ -70,7 +70,7 @@ pref("extensions.blocklist.interval", 86400);
 // Controls what level the blocklist switches from warning about items to forcibly
 // blocking them.
 pref("extensions.blocklist.level", 2);
-pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/%TOTAL_PING_COUNT%/%DAYS_SINCE_LAST_PING%/");
+pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/");
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
 
 pref("extensions.update.autoUpdateDefault", true);
@@ -244,8 +244,8 @@ pref("browser.aboutHomeSnippets.updateUrl", "http://snippets.mozilla.com/%STARTP
 pref("browser.enable_automatic_image_resizing", true);
 pref("browser.chrome.site_icons", true);
 pref("browser.chrome.favicons", true);
-pref("browser.warnOnQuit", false);
-pref("browser.warnOnRestart", false);
+pref("browser.warnOnQuit", true);
+pref("browser.warnOnRestart", true);
 pref("browser.fullscreen.autohide", true);
 pref("browser.fullscreen.animateUp", 1);
 
@@ -381,7 +381,6 @@ pref("browser.tabs.loadDivertedInBackground", false);
 pref("browser.tabs.loadBookmarksInBackground", false);
 pref("browser.tabs.tabClipWidth", 140);
 pref("browser.tabs.animate", true);
-pref("browser.tabs.drawInTitlebar", true);
 
 // Where to show tab close buttons:
 // 0  on active tab only
@@ -438,6 +437,7 @@ pref("dom.disable_window_flip",                   true);
 // popups.policy 1=allow,2=reject
 pref("privacy.popups.policy",               1);
 pref("privacy.popups.usecustom",            true);
+pref("privacy.popups.firstTime",            true);
 pref("privacy.popups.showBrowserMessage",   true);
 
 pref("privacy.item.cookies",                false);
@@ -478,8 +478,8 @@ pref("network.proxy.share_proxy_settings",  false); // use the same proxy settin
 // simple gestures support
 pref("browser.gesture.swipe.left", "Browser:BackOrBackDuplicate");
 pref("browser.gesture.swipe.right", "Browser:ForwardOrForwardDuplicate");
-pref("browser.gesture.swipe.up", "cmd_scrollTop");
-pref("browser.gesture.swipe.down", "cmd_scrollBottom");
+pref("browser.gesture.swipe.up", "Browser:HideTabView");
+pref("browser.gesture.swipe.down", "Browser:ShowTabView");
 #ifdef XP_MACOSX
 pref("browser.gesture.pinch.latched", true);
 pref("browser.gesture.pinch.threshold", 150);
@@ -487,10 +487,10 @@ pref("browser.gesture.pinch.threshold", 150);
 pref("browser.gesture.pinch.latched", false);
 pref("browser.gesture.pinch.threshold", 25);
 #endif
-pref("browser.gesture.pinch.out", "");
-pref("browser.gesture.pinch.in", "");
-pref("browser.gesture.pinch.out.shift", "");
-pref("browser.gesture.pinch.in.shift", "");
+pref("browser.gesture.pinch.out", "cmd_fullZoomEnlarge");
+pref("browser.gesture.pinch.in", "cmd_fullZoomReduce");
+pref("browser.gesture.pinch.out.shift", "cmd_fullZoomReset");
+pref("browser.gesture.pinch.in.shift", "cmd_fullZoomReset");
 pref("browser.gesture.twist.latched", false);
 pref("browser.gesture.twist.threshold", 25);
 pref("browser.gesture.twist.right", "");
@@ -904,8 +904,6 @@ pref("browser.shell.checkDefaultBrowser", false);
 // disable bfcache for memory
 pref("browser.sessionhistory.max_total_viewers", 0);
 
-pref("browser.sessionhistory.optimize_eviction", false);
-
 // tweak default content sink prefs
 pref("content.sink.interactive_deflect_count", 10); /* default 0 */
 pref("content.sink.perf_deflect_count", 50); /* default 200 */
@@ -946,7 +944,7 @@ pref("dom.ipc.plugins.enabled", false);
 
 #ifdef XP_WIN
 #ifndef WINCE
-pref("browser.taskbar.previews.enable", false);
+pref("browser.taskbar.previews.enable", true);
 pref("browser.taskbar.previews.max", 20);
 pref("browser.taskbar.previews.cachetime", 5);
 pref("browser.taskbar.lists.enabled", true);

@@ -16,7 +16,7 @@
  * The Original Code is Places code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -41,7 +41,6 @@
 #define mozilla_places_History_h_
 
 #include "mozilla/IHistory.h"
-#include "mozIAsyncHistory.h"
 #include "mozilla/dom/Link.h"
 #include "nsTHashtable.h"
 #include "nsString.h"
@@ -49,25 +48,19 @@
 #include "nsTArray.h"
 #include "nsDeque.h"
 #include "nsIObserver.h"
-#include "mozIStorageConnection.h"
-#include "mozilla/storage/StatementCache.h"
 
 namespace mozilla {
 namespace places {
-
-struct VisitData;
 
 #define NS_HISTORYSERVICE_CID \
   {0x0937a705, 0x91a6, 0x417a, {0x82, 0x92, 0xb2, 0x2e, 0xb1, 0x0d, 0xa8, 0x6c}}
 
 class History : public IHistory
-              , public mozIAsyncHistory
               , public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_IHISTORY
-  NS_DECL_MOZIASYNCHISTORY
   NS_DECL_NSIOBSERVER
 
   History();
@@ -78,105 +71,82 @@ public:
    * @param aURI
    *        The URI to notify about.
    */
-  void NotifyVisited(nsIURI* aURI);
+  void NotifyVisited(nsIURI *aURI);
 
   /**
-   * Obtains the statement to use to check if a URI is visited or not.
-   */
-  mozIStorageAsyncStatement* GetIsVisitedStatement();
-
-  /**
-   * Adds an entry in moz_places with the data in aVisitData.
+   * Append a task to the queue for SQL queries that need to happen
+   * atomically.
    *
-   * @param aVisitData
-   *        The visit data to use to populate a new row in moz_places.
+   * @pre aTask is not null
+   *
+   * @param aTask
+   *        Task that needs to be completed atomically
    */
-  nsresult InsertPlace(const VisitData& aVisitData);
+  void AppendTask(class Step* aTask);
 
   /**
-   * Updates an entry in moz_places with the data in aVisitData.
+   * Call when all steps of the current running task are finished.  Each task
+   * should be responsible for calling this when it is finished (even if there
+   * are errors).
    *
-   * @param aVisitData
-   *        The visit data to use to update the existing row in moz_places.
+   * Do not call this twice for the same visit.
    */
-  nsresult UpdatePlace(const VisitData& aVisitData);
-
-  /**
-   * Loads information about the page into _place from moz_places.
-   *
-   * @param _place
-   *        The VisitData for the place we need to know information about.
-   * @return true if the page was recorded in moz_places, false otherwise.
-   */
-  bool FetchPageInfo(VisitData& _place);
+  void CurrentTaskFinished();
 
   /**
    * Obtains a pointer to this service.
    */
-  static History* GetService();
+  static History *GetService();
 
   /**
    * Obtains a pointer that has had AddRef called on it.  Used by the service
    * manager only.
    */
-  static History* GetSingleton();
-
-  /**
-   * Statement cache that is used for background thread statements only.
-   */
-  storage::StatementCache<mozIStorageStatement> syncStatements;
+  static History *GetSingleton();
 
 private:
-  virtual ~History();
+  ~History();
 
   /**
-   * Obtains a read-write database connection.
-   */
-  mozIStorageConnection* GetDBConn();
-
-  /**
-   * A read-write database connection used for adding history visits and setting
-   * a page's title.
+   * Since visits rapidly fire at once, it's very likely to have race
+   * conditions for SQL queries.  We often need to see if a row exists
+   * or peek at values, and by the time we have retrieved them they could
+   * be different.
    *
-   * @note this should only be accessed by GetDBConn.
-   * @note this is the same connection as the one found on nsNavHistory.
+   * We guarantee an ordering of our SQL statements so that a set of
+   * callbacks for one visit are guaranteed to be atomic.  Each visit consists
+   * of a data structure that sits in this queue.
+   *
+   * The front of the queue always has the current visit we are processing.
    */
-  nsCOMPtr<mozIStorageConnection> mDBConn;
+  nsDeque mPendingVisits;
 
   /**
-   * A read-only database connection used for checking if a URI is visited.
-   *
-   * @note this should only be accessed by GetIsVisistedStatement and Shutdown.
+   * Begins next task at the front of the queue.  The task remains in the queue
+   * until it is done and calls CurrentTaskFinished.
    */
-  nsCOMPtr<mozIStorageConnection> mReadOnlyDBConn;
-
-  /**
-   * An asynchronous statement to query if a URI is visited or not.
-   *
-   * @note this should only be accessed by GetIsVisistedStatement and Shutdown.
-   */
-  nsCOMPtr<mozIStorageAsyncStatement> mIsVisitedStatement;
+  void StartNextTask();
 
   /**
    * Remove any memory references to tasks and do not take on any more.
    */
   void Shutdown();
 
-  static History* gService;
+  static History *gService;
 
   // Ensures new tasks aren't started on destruction.
   bool mShuttingDown;
 
-  typedef nsTArray<mozilla::dom::Link* > ObserverArray;
+  typedef nsTArray<mozilla::dom::Link *> ObserverArray;
 
   class KeyClass : public nsURIHashKey
   {
   public:
-    KeyClass(const nsIURI* aURI)
+    KeyClass(const nsIURI *aURI)
     : nsURIHashKey(aURI)
     {
     }
-    KeyClass(const KeyClass& aOther)
+    KeyClass(const KeyClass &aOther)
     : nsURIHashKey(aOther)
     {
       NS_NOTREACHED("Do not call me!");

@@ -21,8 +21,6 @@
  * Contributor(s):
  *   Gavin Sharp <gavin@gavinsharp.com>
  *   Sylvain Pasche <sylvain.pasche@gmail.com>
- *   Drew Willcoxon <adw@mozilla.com>
- *   Margaret Leibovic <margaret.leibovic@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -58,7 +56,6 @@ function cleanUp() {
 
 var gActiveListeners = {};
 var gActiveObservers = {};
-var gShownState = {};
 
 function runNextTest() {
   let nextTest = tests[gTestIndex];
@@ -92,28 +89,16 @@ function runNextTest() {
       info("[Test #" + gTestIndex + "] popup showing");
     });
     doOnPopupEvent("popupshown", function () {
-      gShownState[gTestIndex] = true;
       info("[Test #" + gTestIndex + "] popup shown");
       nextTest.onShown(this);
     });
-
-    // We allow multiple onHidden functions to be defined in an array.  They're
-    // called in the order they appear.
-    let onHiddenArray = nextTest.onHidden instanceof Array ?
-                        nextTest.onHidden :
-                        [nextTest.onHidden];
+  
     doOnPopupEvent("popuphidden", function () {
-      if (!gShownState[gTestIndex]) {
-        // This is expected to happen for test 9, so let's not treat it as a failure.
-        info("Popup from test " + gTestIndex + " was hidden before its popupshown fired");
-      }
-
-      let onHidden = onHiddenArray.shift();
-      info("[Test #" + gTestIndex + "] popup hidden (" + onHiddenArray.length + " hides remaining)");
-      onHidden.call(nextTest, this);
-      if (!onHiddenArray.length)
-        goNext();
-    }, onHiddenArray.length);
+      info("[Test #" + gTestIndex + "] popup hidden");
+      nextTest.onHidden(this);
+  
+      goNext();
+    });
     info("[Test #" + gTestIndex + "] added listeners; panel state: " + PopupNotifications.isPanelOpen);
   }
 
@@ -121,16 +106,12 @@ function runNextTest() {
   nextTest.run();
 }
 
-function doOnPopupEvent(eventName, callback, numExpected) {
+function doOnPopupEvent(eventName, callback) {
   gActiveListeners[eventName] = function (event) {
     if (event.target != PopupNotifications.panel)
       return;
-    if (typeof(numExpected) === "number")
-      numExpected--;
-    if (!numExpected) {
-      PopupNotifications.panel.removeEventListener(eventName, gActiveListeners[eventName], false);
-      delete gActiveListeners[eventName];
-    }
+    PopupNotifications.panel.removeEventListener(eventName, gActiveListeners[eventName], false);
+    delete gActiveListeners[eventName];
 
     callback.call(PopupNotifications.panel);
   }
@@ -143,7 +124,7 @@ var gNewTab;
 function basicNotification() {
   var self = this;
   this.browser = gBrowser.selectedBrowser;
-  this.id = "test-notification-" + gTestIndex;
+  this.id = "test-notification";
   this.message = "This is popup notification " + this.id + " from test " + gTestIndex;
   this.anchorID = null;
   this.mainAction = {
@@ -287,7 +268,7 @@ var tests = [
     },
     onShown: function (popup) {
       checkPopup(popup, this.notifyObj);
-      this.notification2.remove();
+      dismissNotification(popup);
     },
     onHidden: function (popup) {
     }
@@ -300,7 +281,7 @@ var tests = [
       showNotification(this.testNotif1);
       this.testNotif2 = new basicNotification();
       this.testNotif2.message += " 2";
-      this.testNotif2.id += "-2";
+      this.testNotif2.id = "test-notification-2";
       showNotification(this.testNotif2);
     },
     onShown: function (popup) {
@@ -327,14 +308,13 @@ var tests = [
     run: function () {
       this.notifyObj = new basicNotification(),
       this.notifyObj.mainAction = null;
-      this.notification = showNotification(this.notifyObj);
+      showNotification(this.notifyObj);
     },
     onShown: function (popup) {
       checkPopup(popup, this.notifyObj);
       dismissNotification(popup);
     },
     onHidden: function (popup) {
-      this.notification.remove();
     }
   },
   // Test two notifications with different anchors
@@ -355,17 +335,11 @@ var tests = [
          "geo anchor shouldn't be visible");
       dismissNotification(popup);
     },
-    onHidden: [
-      // The second showing triggers a popuphidden event that we should ignore.
-      function (popup) {},
-      function (popup) {
-        // Remove the notifications
-        this.firstNotification.remove();
-        this.secondNotification.remove();
-        ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
-        ok(this.notifyObj2.removedCallbackTriggered, "removed callback triggered");
-      }
-    ]
+    onHidden: function (popup) {
+      // Remove the first notification
+      this.firstNotification.remove();
+      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
+    }
   },
   // Test optional params
   { // Test #10
@@ -399,12 +373,7 @@ var tests = [
       dismissNotification(popup);
     },
     onHidden: function (popup) {
-      let icon = document.getElementById("geo-notification-icon");
-      isnot(icon.boxObject.width, 0,
-            "geo anchor should be visible after dismissal");
       this.notification.remove();
-      is(icon.boxObject.width, 0,
-         "geo anchor should not be visible after removal");
     }
   },
   // Test that persistence allows the notification to persist across reloads
@@ -429,7 +398,7 @@ var tests = [
       loadURI("http://example.org/", function() {
         loadURI("http://example.com/", function() {
 
-          // Next load will remove the notification
+          // Next load will hide the notification
           self.complete = true;
 
           loadURI("http://example.org/");
@@ -438,7 +407,7 @@ var tests = [
     },
     onHidden: function (popup) {
       ok(this.complete, "Should only have hidden the notification after 3 page loads");
-      ok(this.notifyObj.removedCallbackTriggered, "removal callback triggered");
+      this.notification.remove();
       gBrowser.removeTab(gBrowser.selectedTab);
       gBrowser.selectedTab = this.oldSelectedTab;
     }
@@ -558,65 +527,6 @@ var tests = [
             "geo anchor should be visible");
     }
   },
-  // Test notification "Not Now" menu item
-  { // Test #17
-    run: function () {
-      this.notifyObj = new basicNotification(),
-      this.notification = showNotification(this.notifyObj);
-    },
-    onShown: function (popup) {
-      checkPopup(popup, this.notifyObj);
-      triggerSecondaryCommand(popup, 1);
-    },
-    onHidden: function (popup) {
-      ok(this.notifyObj.dismissalCallbackTriggered, "dismissal callback triggered");
-      this.notification.remove();
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
-    }
-  },
-  // Test notification close button
-  { // Test #18
-    run: function () {
-      this.notifyObj = new basicNotification(),
-      this.notification = showNotification(this.notifyObj);
-    },
-    onShown: function (popup) {
-      checkPopup(popup, this.notifyObj);
-      let notification = popup.childNodes[0];
-      EventUtils.synthesizeMouseAtCenter(notification.closebutton, {});
-    },
-    onHidden: function (popup) {
-      ok(this.notifyObj.dismissalCallbackTriggered, "dismissal callback triggered");
-      this.notification.remove();
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
-    }
-  },
-  // Test notification when chrome is hidden
-  { // Test #18
-    run: function () {
-      this.oldSelectedTab = gBrowser.selectedTab;
-      gBrowser.selectedTab = gBrowser.addTab("about:blank");
-
-      let self = this;
-      loadURI("about:addons", function() {
-        self.notifyObj = new basicNotification();
-        self.notification = showNotification(self.notifyObj);
-      });
-    },
-    onShown: function (popup) {
-      checkPopup(popup, this.notifyObj);
-      is(popup.anchorNode.className, "tabbrowser-tab", "notification anchored to tab");
-      dismissNotification(popup);
-    },
-    onHidden: function (popup) {
-      ok(this.notifyObj.dismissalCallbackTriggered, "dismissal callback triggered");
-      this.notification.remove();
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
-
-      gBrowser.removeTab(gBrowser.selectedTab);
-      gBrowser.selectedTab = this.oldSelectedTab;
-    }
-  },
 ];
 
 function showNotification(notifyObj) {
@@ -638,10 +548,8 @@ function checkPopup(popup, notificationObj) {
   is(notifications.length, 1, "only one notification displayed");
   let notification = notifications[0];
   let icon = document.getAnonymousElementByAttribute(notification, "class", "popup-notification-icon");
-  if (notificationObj.id == "geolocation") {
+  if (notificationObj.id == "geolocation")
     isnot(icon.boxObject.width, 0, "icon for geo displayed");
-    is(popup.anchorNode.className, "notification-anchor-icon", "notification anchored to icon");
-  }
   is(notification.getAttribute("label"), notificationObj.message, "message matches");
   is(notification.id, notificationObj.id + "-notification", "id matches");
   if (notificationObj.mainAction) {
@@ -650,13 +558,7 @@ function checkPopup(popup, notificationObj) {
   }
   let actualSecondaryActions = notification.childNodes;
   let secondaryActions = notificationObj.secondaryActions || [];
-  let actualSecondaryActionsCount = actualSecondaryActions.length;
-  if (secondaryActions.length) {
-    let lastChild = actualSecondaryActions.item(actualSecondaryActions.length - 1);
-    is(lastChild.tagName, "menuseparator", "menuseparator exists");
-    actualSecondaryActionsCount--;
-  }
-  is(actualSecondaryActionsCount, secondaryActions.length, actualSecondaryActions.length + " secondary actions");
+  is(actualSecondaryActions.length, secondaryActions.length, actualSecondaryActions.length + " secondary actions");
   secondaryActions.forEach(function (a, i) {
     is(actualSecondaryActions[i].getAttribute("label"), a.label, "label for secondary action " + i + " matches");
     is(actualSecondaryActions[i].getAttribute("accesskey"), a.accessKey, "accessKey for secondary action " + i + " matches");

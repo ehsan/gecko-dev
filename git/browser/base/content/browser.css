@@ -29,18 +29,12 @@ tabbrowser {
   max-width: 250px;
   min-width: 100px;
   width: 0;
-  -moz-transition: min-width 200ms ease-out,
-                   max-width 250ms ease-out,
-                   opacity 50ms ease-out 20ms /* hide the tab for the first 20ms of the max-width transition */;
+  -moz-transition: min-width .2s ease-out, max-width .25s ease-out;
 }
 
 .tabbrowser-tab:not([pinned]):not([fadein]) {
-  max-width: 0.1px;
-  min-width: 0.1px;
-  opacity: 0 !important;
-  -moz-transition: min-width 200ms ease-out,
-                   max-width 250ms ease-out,
-                   opacity 50ms ease-out 100ms /* hide the tab for the last 100ms of the max-width transition */;
+  max-width: 1px;
+  min-width: 1px;
 }
 
 .tab-throbber:not([fadein]):not([pinned]),
@@ -54,11 +48,11 @@ tabbrowser {
 .tab-label,
 .tab-icon-image,
 .tab-close-button {
-  -moz-transition: opacity 250ms;
+  -moz-transition: opacity .25s;
 }
 
-.tabbrowser-tabs[positionpinnedtabs] > .tabbrowser-tab[pinned] {
-  position: fixed !important;
+.tabbrowser-tabs:not([pinnedonly]) > .tabbrowser-tab[pinned] {
+  position: fixed;
   display: block; /* position:fixed already does this (bug 579776), but let's be explicit */
 }
 
@@ -87,32 +81,17 @@ toolbar[printpreview="true"] {
 }
 
 %ifdef CAN_DRAW_IN_TITLEBAR
-#main-window[inFullscreen] > #titlebar,
-#main-window[inFullscreen] .titlebar-placeholder,
-#main-window:not([tabsintitlebar]) .titlebar-placeholder {
+#main-window[inFullscreen] > #titlebar {
   display: none;
 }
 
 #titlebar {
   -moz-binding: url("chrome://global/content/bindings/general.xml#windowdragbox");
 }
-
-#titlebar-spacer {
-  pointer-events: none;
-}
-
-#main-window[tabsintitlebar] #appmenu-button-container,
-#main-window[tabsintitlebar] #titlebar-buttonbox {
-  position: relative;
-}
 %endif
 
 toolbarpaletteitem[place="palette"] > toolbaritem > hbox[type="places"] {
   display: none;
-}
-
-#main-window[disablechrome] #navigator-toolbox[tabsontop="true"] > toolbar:not(#toolbar-menubar):not(#TabsToolbar) {
-  visibility: collapse;
 }
 
 #wrapper-urlbar-container #urlbar-container > #urlbar > toolbarbutton,
@@ -151,22 +130,8 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
   background-position: bottom left;
 }
 
-splitmenu {
-  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#splitmenu");
-}
-
-.splitmenu-menuitem {
-  -moz-binding: url("chrome://global/content/bindings/menu.xml#menuitem");
-  list-style-image: inherit;
-  -moz-image-region: inherit;
-}
-
-.splitmenu-menuitem[iconic="true"] {
-  -moz-binding: url("chrome://global/content/bindings/menu.xml#menuitem-iconic");
-}
-
-.splitmenu-menu > .menu-text,
-:-moz-any(.splitmenu-menu, .splitmenu-menuitem) > .menu-accel-container {
+.split-menuitem-menu > .menu-text,
+.split-menuitem-menu > .menu-accel-container {
   display: none;
 }
 
@@ -197,16 +162,14 @@ splitmenu {
   -moz-binding: url(chrome://browser/content/urlbarBindings.xml#urlbar);
 }
 
-.uri-element-right-align:-moz-locale-dir(rtl),
-html|input.uri-element-right-align:-moz-locale-dir(rtl),
-.ac-url-text:-moz-locale-dir(rtl),
-.ac-title:-moz-locale-dir(rtl) > description {
-  direction: ltr !important;
-  text-align: right !important;
+/* Some child nodes want to be ordered based on the locale's direction, while
+   everything else should be ltr. */
+.urlbar-input-box:-moz-locale-dir(rtl) {
+  direction: rtl;
 }
 
-.urlbar-over-link-box:-moz-locale-dir(rtl) {
-  -moz-box-direction: reverse;
+html|*.urlbar-input {
+  direction: ltr;
 }
 
 /* over-link in location bar */
@@ -273,20 +236,11 @@ html|input.uri-element-right-align:-moz-locale-dir(rtl),
 
 /* For results that are actions, their description text is shown instead of
    the URL - this needs to follow the locale's direction, unlike URLs. */
-panel:not([noactions]) > richlistbox > richlistitem[type~="action"]:-moz-locale-dir(rtl) > .ac-url-box {
+richlistitem[type~="action"]:-moz-locale-dir(rtl) > .ac-url-box {
   direction: rtl;
 }
 
-panel[noactions] > richlistbox > richlistitem[type~="action"] > .ac-url-box > .ac-url > .ac-action-text,
-panel[noactions] > richlistbox > richlistitem[type~="action"] > .ac-url-box > .ac-action-icon {
-  visibility: collapse;
-}
-
-panel[noactions] > richlistbox > richlistitem[type~="action"] > .ac-url-box > .ac-url > .ac-url-text {
-  visibility: visible;
-}
-
-#urlbar:not([actiontype]) > #urlbar-display-box {
+#urlbar:not([actiontype]) > #urlbar-display {
   display: none;
 }
 
@@ -477,9 +431,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   -moz-user-focus: normal;
 }
 
-/* We use the iconBox as the notification anchor when a popup notification is
-   created with a null anchorID, so in that case use a default anchor icon. */
-#notification-popup-box[anchorid="notification-popup-box"] > #default-notification-icon,
 #notification-popup-box[anchorid="geo-notification-icon"] > #geo-notification-icon,
 #notification-popup-box[anchorid="indexedDB-notification-icon"] > #indexedDB-notification-icon,
 #notification-popup-box[anchorid="addons-notification-icon"] > #addons-notification-icon,
@@ -487,16 +438,12 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   display: -moz-box;
 }
 
-#invalid-form-popup > description {
+#invalid-form-popup {
   max-width: 280px;
 }
 
 #geolocation-notification {
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#geolocation-notification");
-}
-
-#addon-progress-notification {
-  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#addon-progress-notification");
 }
 
 /* override hidden="true" for the status bar compatibility shim
@@ -506,10 +453,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 }
 
 /* Remove the resizer from the statusbar compatibility shim */
-#status-bar[hideresizer] > .statusbar-resizerpanel {
+#status-bar > .statusbar-resizerpanel {
   display: none;
-}
-
-browser[tabmodalPromptShowing] {
-  -moz-user-focus: none !important;
 }

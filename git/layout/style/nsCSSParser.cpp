@@ -807,8 +807,7 @@ CSSParserImpl::InitScanner(nsIUnicharInputStream* aInput, nsIURI* aSheetURI,
 {
   NS_ASSERTION(! mScannerInited, "already have scanner");
 
-  mScanner.Init(aInput, nsnull, 0, aSheetURI, aLineNumber, mSheet,
-                mChildLoader);
+  mScanner.Init(aInput, nsnull, 0, aSheetURI, aLineNumber);
 #ifdef DEBUG
   mScannerInited = PR_TRUE;
 #endif
@@ -828,8 +827,7 @@ CSSParserImpl::InitScanner(const nsSubstring& aString, nsIURI* aSheetURI,
   // the stream until we're done parsing.
   NS_ASSERTION(! mScannerInited, "already have scanner");
 
-  mScanner.Init(nsnull, aString.BeginReading(), aString.Length(), aSheetURI,
-                aLineNumber, mSheet, mChildLoader);
+  mScanner.Init(nsnull, aString.BeginReading(), aString.Length(), aSheetURI, aLineNumber);
 
 #ifdef DEBUG
   mScannerInited = PR_TRUE;
@@ -4359,18 +4357,6 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
       }
     }
   }
-  // Check VARIANT_NUMBER and VARIANT_INTEGER before VARIANT_LENGTH or
-  // VARIANT_ZERO_ANGLE.
-  if (((aVariantMask & VARIANT_NUMBER) != 0) &&
-      (eCSSToken_Number == tk->mType)) {
-    aValue.SetFloatValue(tk->mNumber, eCSSUnit_Number);
-    return PR_TRUE;
-  }
-  if (((aVariantMask & VARIANT_INTEGER) != 0) &&
-      (eCSSToken_Number == tk->mType) && tk->mIntegerValid) {
-    aValue.SetIntValue(tk->mInteger, eCSSUnit_Integer);
-    return PR_TRUE;
-  }
   if (((aVariantMask & (VARIANT_LENGTH | VARIANT_ANGLE |
                         VARIANT_FREQUENCY | VARIANT_TIME)) != 0 &&
        eCSSToken_Dimension == tk->mType) ||
@@ -4387,6 +4373,16 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
   if (((aVariantMask & VARIANT_PERCENT) != 0) &&
       (eCSSToken_Percentage == tk->mType)) {
     aValue.SetPercentValue(tk->mNumber);
+    return PR_TRUE;
+  }
+  if (((aVariantMask & VARIANT_NUMBER) != 0) &&
+      (eCSSToken_Number == tk->mType)) {
+    aValue.SetFloatValue(tk->mNumber, eCSSUnit_Number);
+    return PR_TRUE;
+  }
+  if (((aVariantMask & VARIANT_INTEGER) != 0) &&
+      (eCSSToken_Number == tk->mType) && tk->mIntegerValid) {
+    aValue.SetIntValue(tk->mInteger, eCSSUnit_Integer);
     return PR_TRUE;
   }
   if (mNavQuirkMode && !IsParsingCompoundProperty()) { // NONSTANDARD: Nav interprets unitless numbers as px
@@ -4657,16 +4653,15 @@ CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
   nsCOMPtr<nsIURI> uri;
   NS_NewURI(getter_AddRefs(uri), aURL, nsnull, mBaseURI);
 
-  nsRefPtr<nsStringBuffer> buffer(nsCSSValue::BufferFromString(aURL));
+  nsStringBuffer* buffer = nsCSSValue::BufferFromString(aURL);
   if (NS_UNLIKELY(!buffer)) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return PR_FALSE;
   }
-
-  // Note: urlVal retains its own reference to |buffer|.
   nsCSSValue::URL *urlVal =
     new nsCSSValue::URL(uri, buffer, mSheetURI, mSheetPrincipal);
 
+  buffer->Release();
   if (NS_UNLIKELY(!urlVal)) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return PR_FALSE;
@@ -7133,13 +7128,7 @@ CSSParserImpl::ParseCalcTerm(nsCSSValue& aValue, PRInt32& aVariantMask)
   }
   // ... or just a value
   UngetToken();
-  // Always pass VARIANT_NUMBER to ParseVariant so that unitless zero
-  // always gets picked up 
-  if (!ParseVariant(aValue, aVariantMask | VARIANT_NUMBER, nsnull)) {
-    return PR_FALSE;
-  }
-  // ...and do the VARIANT_NUMBER check ourselves.
-  if (!(aVariantMask & VARIANT_NUMBER) && aValue.GetUnit() == eCSSUnit_Number) {
+  if (!ParseVariant(aValue, aVariantMask, nsnull)) {
     return PR_FALSE;
   }
   // If we did the value parsing, we need to adjust aVariantMask to

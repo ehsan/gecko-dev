@@ -110,6 +110,18 @@ private:
     char **mValues;
 };
 
+static nsresult
+DropReferenceFromURL(nsIURI * aURI)
+{
+    nsCOMPtr<nsIURL> url = do_QueryInterface(aURI);
+    if (url) {
+        nsresult rv = url->SetRef(EmptyCString());
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    return NS_OK;
+}
+
 //-----------------------------------------------------------------------------
 // nsOfflineCachePendingUpdate
 //-----------------------------------------------------------------------------

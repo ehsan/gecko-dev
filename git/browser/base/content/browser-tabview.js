@@ -39,7 +39,7 @@ let TabView = {
   _deck: null,
   _window: null,
   _sessionstore: null,
-  VISIBILITY_IDENTIFIER: "tabview-visibility",
+  _visibilityID: "tabview-visibility",
 
   // ----------
   get windowTitle() {
@@ -60,8 +60,7 @@ let TabView = {
       Cc["@mozilla.org/browser/sessionstore;1"].
         getService(Ci.nsISessionStore);
 
-    let data = this._sessionstore.getWindowValue(window, this.VISIBILITY_IDENTIFIER);
-
+    let data = this._sessionstore.getWindowValue(window, this._visibilityID);
     if (data && data == "true") {
       this.show();
     } else {
@@ -102,6 +101,16 @@ let TabView = {
       iframe.setAttribute("src", "chrome://browser/content/tabview.html");
       this._deck.appendChild(iframe);
       this._window = iframe.contentWindow;
+
+      // ___ visibility storage handler
+      let self = this;
+      function observer(subject, topic, data) {
+        if (topic == "quit-application-requested") {
+          let data = (self.isVisible() ? "true" : "false");
+          self._sessionstore.setWindowValue(window, self._visibilityID, data);
+        }
+      }
+      Services.obs.addObserver(observer, "quit-application-requested", false);
 
       if (this._tabShowEventListener) {
         gBrowser.tabContainer.removeEventListener(
@@ -156,8 +165,8 @@ let TabView = {
     // will not have happened by the time the browser tries to
     // update the title.
     let activeTab = window.gBrowser.selectedTab;
-    if (activeTab._tabViewTabItem && activeTab._tabViewTabItem.parent){
-      let groupName = activeTab._tabViewTabItem.parent.getTitle();
+    if (activeTab.tabItem && activeTab.tabItem.parent){
+      let groupName = activeTab.tabItem.parent.getTitle();
       if (groupName)
         return groupName;
     }
@@ -174,7 +183,7 @@ let TabView = {
 
     let self = this;
     this._initFrame(function() {
-      let activeGroup = tab._tabViewTabItem.parent;
+      let activeGroup = tab.tabItem.parent;
       let groupItems = self._window.GroupItems.groupItems;
 
       groupItems.forEach(function(groupItem) {
@@ -210,12 +219,6 @@ let TabView = {
   },
 
   // ----------
-  enableSearch: function Tabview_enableSearch(event) {
-    if (this._window)
-      this._window.UI.enableSearch(event);
-  },
-
-  // ----------
   // Adds new key commands to the browser, for invoking the Tab Candy UI
   // and for switching between groups of tabs when outside of the Tab Candy UI.
   _setBrowserKeyHandlers : function() {
@@ -239,12 +242,5 @@ let TabView = {
         });
       }
     }, true);
-  },
-  
-  // ----------
-  // Prepares the tab view for undo close tab.
-  prepareUndoCloseTab: function() {
-    if (this._window)
-      this._window.UI.restoredClosedTab = true;
   }
 };

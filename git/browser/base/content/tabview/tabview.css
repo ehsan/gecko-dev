@@ -46,10 +46,6 @@ body {
   left: 0px;
 }
 
-.tabHidden {
-  display: none;
-}
-
 .thumb {
   position: relative;
   width: 100%;
@@ -194,21 +190,21 @@ body {
   display: none;
 }
 
+/* Exit button
+----------------------------------*/
+#exit-button {
+  position: absolute;
+  z-index: 1000;
+}
+
 /* Search
 ----------------------------------*/
-#searchshade{
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  z-index: 1000001;
-}
 
 #search{
   position: absolute;
   top: 0px;
   left: 0px;
-  pointer-events: none;
-  z-index: 1000050;
+  z-index: 1000;  
 }
 
 html[dir=rtl] #search {
@@ -220,7 +216,7 @@ html[dir=rtl] #search {
   position: absolute;
   right: 20px;
   top: 20px;
-  pointer-events: auto;
+  z-index: 1050;
 }
 
 html[dir=rtl] #searchbox {
@@ -230,14 +226,25 @@ html[dir=rtl] #searchbox {
 
 #actions{
   position: absolute;
-  top: 0px;
-  right: -3px;
-  z-index: 1000000;
+  top: 100px;
+  right: 0px;
+  z-index:10;
 }
 
 html[dir=rtl] #actions {
   right: auto;
-  left: -3px;
+  left: 0;
+}
+
+#actions #searchbutton{
+  position: relative;
+  top: 0;
+  left: 0;
+}
+
+html[dir=rtl] #actions #searchbutton {
+  left: auto;
+  right: 0;
 }
 
 #otherresults{
@@ -247,12 +254,11 @@ html[dir=rtl] #actions {
 }
 
 .onTop{
-  z-index: 1000010 !important;
+  z-index: 1010 !important;
 }
 
 .inlineMatch{
   display: inline-block;
-  pointer-events: auto;
 }
 
 .inlineMatch>span{

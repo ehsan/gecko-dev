@@ -6,8 +6,6 @@
 
 /* { dg-do run { xfail strongarm*-*-* xscale*-*-* } } */
 /* { dg-output "" { xfail avr32*-*-* x86_64-*-mingw* } } */
-/* { dg-skip-if "" arm*-*-* { "-mfloat-abi=hard" } { "" } } */
-
 #include "ffitest.h"
 
 static void

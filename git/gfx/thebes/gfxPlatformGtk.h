@@ -138,8 +138,6 @@ public:
 #endif
     }
 
-    virtual gfxImageFormat GetOffscreenFormat();
-
 protected:
     static gfxFontconfigUtils *sFontconfigUtils;
 

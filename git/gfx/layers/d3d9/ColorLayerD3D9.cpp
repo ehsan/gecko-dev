@@ -67,13 +67,12 @@ ColorLayerD3D9::RenderLayer()
   device()->SetVertexShaderConstantF(CBmLayerTransform, &transform._11, 4);
 
   float color[4];
-  float opacity = GetEffectiveOpacity() * mColor.a;
-  // output color is premultiplied, so we need to adjust all channels.
-  // mColor is not premultiplied.
+  float opacity = GetEffectiveOpacity();
+  // color is premultiplied, so we need to adjust all channels
   color[0] = (float)(mColor.r * opacity);
   color[1] = (float)(mColor.g * opacity);
   color[2] = (float)(mColor.b * opacity);
-  color[3] = (float)(opacity);
+  color[3] = (float)(mColor.a * opacity);
 
   device()->SetPixelShaderConstantF(0, color, 1);
 

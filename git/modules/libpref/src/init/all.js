@@ -105,8 +105,6 @@ pref("dom.indexedDB.warningQuota", 50);
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
 
-pref("browser.sessionhistory.optimize_eviction", false);
-
 pref("ui.use_native_colors", true);
 pref("ui.use_native_popup_windows", false);
 pref("ui.click_hold_context_menus", false);
@@ -191,6 +189,8 @@ pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
+pref("gfx.3d_video.enabled", false);
+
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.sanitize", true);
 #ifdef XP_MACOSX
@@ -204,7 +204,6 @@ pref("gfx.font_rendering.harfbuzz.level", 2);
 #ifdef XP_WIN
 #ifndef WINCE
 pref("gfx.font_rendering.directwrite.enabled", false);
-pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 #endif
 #endif
 
@@ -570,11 +569,6 @@ pref("dom.disable_open_click_delay", 1000);
 pref("dom.storage.enabled", true);
 pref("dom.storage.default_quota",      5120);
 
-pref("dom.send_after_paint_to_content", false);
-
-// Timeout clamp in ms for timeouts we clamp
-pref("dom.min_timeout_value", 10);
-
 // Parsing perf prefs. For now just mimic what the old code did.
 #ifndef XP_WIN
 pref("content.sink.pending_event_mode", 0);
@@ -603,11 +597,9 @@ pref("javascript.options.jitprofiling.chrome",  false);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721
-// Comment 32 and Bug 613551.
-pref("javascript.options.mem.high_water_mark", 128);
-pref("javascript.options.mem.max", -1);
+// Comment 32.
+pref("javascript.options.mem.high_water_mark", 32);
 pref("javascript.options.mem.gc_frequency",   300);
-pref("javascript.options.mem.gc_per_compartment", true);
 
 // advanced prefs
 pref("advanced.mailftp",                    false);
@@ -745,6 +737,11 @@ pref("network.http.prompt-temp-redirect", true);
 // Section 4.8 "High-Throughput Data Service Class"
 pref("network.http.qos", 0);
 
+// The number of milliseconds after sending a SYN for an HTTP connection,
+// to wait before trying a different connection. 0 means do not use a second
+// connection.
+pref("network.http.connection-retry-timeout", 250);
+
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
 // Section 4.8 "High-Throughput Data Service Class", and 80 (0x50, or AF22)
@@ -755,11 +752,6 @@ pref("network.ftp.control.qos", 0);
 // </http>
 
 // <ws>: WebSocket
-// The -76 websocket network protocol may be subject to HTTP cache poisoning
-// attacks. Until there is a secure open standard available and implemented
-// in necko the override-security-block preference must be set to true before
-// the normal enabled preference is considered. Bug 616733
-pref("network.websocket.override-security-block", false);
 pref("network.websocket.enabled", true);
 // </ws>
 
@@ -1354,6 +1346,7 @@ pref("dom.ipc.plugins.enabled.nppdf.so", false);
 #endif
 #endif
 
+pref("svg.enabled", true);
 pref("svg.smil.enabled", true);
 
 pref("font.minimum-size.ar", 0);
@@ -3207,7 +3200,17 @@ pref("image.mem.max_ms_before_yield", 400);
 pref("image.mem.max_bytes_for_sync_decode", 150000);
 
 // WebGL prefs
+// keep disabled on linux-x64 until bug 578877 is fixed
+#ifdef _AMD64_
+#ifdef MOZ_X11
+// MOZ_X11 && AMD64
+pref("webgl.enabled_for_all_sites", false);
+#else
 pref("webgl.enabled_for_all_sites", true);
+#endif
+#else
+pref("webgl.enabled_for_all_sites", true);
+#endif
 pref("webgl.shader_validator", true);
 pref("webgl.force_osmesa", false);
 pref("webgl.mochitest_native_gl", false);
@@ -3226,11 +3229,19 @@ pref("mozilla.widget.disable-native-theme", true);
 pref("gfx.color_management.mode", 0);
 #endif
 
-// Whether to disable acceleration for all widgets.
-pref("layers.acceleration.disabled", false);
+// Default value of acceleration for all widgets.
+#ifdef XP_WIN
+pref("layers.accelerate-all", true);
+#else
+#ifdef XP_MACOSX
+pref("layers.accelerate-all", true);
+#else
+pref("layers.accelerate-all", false);
+#endif
+#endif
 
-// Whether to force acceleration on, ignoring blacklists.
-pref("layers.acceleration.force-enabled", false);
+// Whether to allow acceleration on layers at all.
+pref("layers.accelerate-none", false);
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -3275,6 +3286,3 @@ pref("extensions.alwaysUnpack", false);
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);
-
-// Desktop Notification
-pref("notification.feature.enabled", false);

@@ -88,10 +88,6 @@
 #include "mozilla/Mutex.h"
 #include "nsIDOMCloseEvent.h"
 #include "nsICryptoHash.h"
-#include "jsdbgapi.h"
-#include "nsIJSContextStack.h"
-#include "nsJSUtils.h"
-#include "nsIScriptError.h"
 
 using namespace mozilla;
 
@@ -1957,10 +1953,6 @@ nsWebSocketEstablishedConnection::PrintErrorOnConsole(const char *aBundleURI,
     do_GetService(NS_CONSOLESERVICE_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIScriptError2> errorObject(
-    do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // Localize the error message
   nsXPIDLString message;
   if (aFormatStrings) {
@@ -1972,17 +1964,8 @@ nsWebSocketEstablishedConnection::PrintErrorOnConsole(const char *aBundleURI,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  errorObject->InitWithWindowID
-    (message.get(),
-     NS_ConvertUTF8toUTF16(mOwner->GetScriptFile()).get(),
-     nsnull,
-     mOwner->GetScriptLine(), 0, nsIScriptError::errorFlag,
-     "Web Socket", mOwner->WindowID()
-     );
-  
   // print the error message directly to the JS console
-  nsCOMPtr<nsIScriptError> logError(do_QueryInterface(errorObject));
-  rv = console->LogMessage(logError);
+  rv = console->LogStringMessage(message.get());
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -2867,9 +2850,7 @@ nsWebSocket::nsWebSocket() : mKeepingAlive(PR_FALSE),
                              mCheckMustKeepAlive(PR_TRUE),
                              mTriggeredCloseEvent(PR_FALSE),
                              mReadyState(nsIWebSocket::CONNECTING),
-                             mOutgoingBufferedAmount(0),
-                             mScriptLine(0),
-                             mWindowID(0)
+                             mOutgoingBufferedAmount(0)
 {
 }
 
@@ -2943,7 +2924,9 @@ nsWebSocket::Initialize(nsISupports* aOwner,
 {
   nsAutoString urlParam, protocolParam;
 
-  if (!PrefEnabled()) {
+  PRBool prefEnabled =
+    nsContentUtils::GetBoolPref("network.websocket.enabled", PR_TRUE);
+  if (!prefEnabled) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -2957,27 +2940,17 @@ nsWebSocket::Initialize(nsISupports* aOwner,
   if (!jsstr) {
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
-
-  size_t length;
-  const jschar *chars = JS_GetStringCharsAndLength(aContext, jsstr, &length);
-  if (!chars) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  urlParam.Assign(chars, length);
+  urlParam.Assign(reinterpret_cast<const PRUnichar*>(JS_GetStringChars(jsstr)),
+                  JS_GetStringLength(jsstr));
 
   if (aArgc == 2) {
     jsstr = JS_ValueToString(aContext, aArgv[1]);
     if (!jsstr) {
       return NS_ERROR_DOM_SYNTAX_ERR;
     }
-
-    chars = JS_GetStringCharsAndLength(aContext, jsstr, &length);
-    if (!chars) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    protocolParam.Assign(chars, length);
+    protocolParam.
+      Assign(reinterpret_cast<const PRUnichar*>(JS_GetStringChars(jsstr)),
+             JS_GetStringLength(jsstr));
     if (protocolParam.IsEmpty()) {
       return NS_ERROR_DOM_SYNTAX_ERR;
     }
@@ -3129,14 +3102,6 @@ nsWebSocket::CreateAndDispatchCloseEvent(PRBool aWasClean)
   NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nsnull, event, nsnull, nsnull);
-}
-
-PRBool
-nsWebSocket::PrefEnabled()
-{
-  return nsContentUtils::GetBoolPref("network.websocket.enabled", PR_TRUE) &&
-    nsContentUtils::GetBoolPref("network.websocket.override-security-block",
-                                PR_FALSE);
 }
 
 void
@@ -3537,7 +3502,9 @@ nsWebSocket::Init(nsIPrincipal* aPrincipal,
 
   NS_ENSURE_ARG(aPrincipal);
 
-  if (!PrefEnabled()) {
+  PRBool prefEnabled =
+    nsContentUtils::GetBoolPref("network.websocket.enabled", PR_TRUE);
+  if (!prefEnabled) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -3549,26 +3516,6 @@ nsWebSocket::Init(nsIPrincipal* aPrincipal,
   }
   else {
     mOwner = nsnull;
-  }
-
-  nsCOMPtr<nsIJSContextStack> stack =
-    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
-  JSContext* cx = nsnull;
-  if (stack && NS_SUCCEEDED(stack->Peek(&cx)) && cx) {
-    JSStackFrame *fp = JS_GetScriptedCaller(cx, NULL);
-    if (fp) {
-      JSScript *script = JS_GetFrameScript(cx, fp);
-      if (script) {
-        mScriptFile = JS_GetScriptFilename(cx, script);
-      }
-
-      jsbytecode *pc = JS_GetFramePC(cx, fp);
-      if (script && pc) {
-        mScriptLine = JS_PCToLineNumber(cx, script, pc);
-      }
-    }
-
-    mWindowID = nsJSUtils::GetCurrentlyRunningCodeWindowID(cx);
   }
 
   // parses the url

@@ -258,13 +258,13 @@ function checkInputRequiredValidityForRadio()
   checkNotSufferingFromBeingMissing(element);
 
   // If a radio button is not required but another radio button is required in
-  // the same group, the not required radio button should suffer from value
+  // the same group, the not required radio button should not suffer from value
   // missing.
   element2.disabled = false;
   element2.checked = false;
   element.required = false;
   element2.required = true;
-  checkSufferingFromBeingMissing(element);
+  checkNotSufferingFromBeingMissing(element);
   checkSufferingFromBeingMissing(element2);
 
   element.checked = true;
@@ -333,14 +333,14 @@ checkRequiredAttribute(document.createElement('input'));
 // The require attribute behavior depend of the input type.
 // First of all, checks for types that make the element barred from
 // constraint validation.
-var typeBarredFromConstraintValidation = ["hidden", "button", "reset", "submit", "image"];
+var typeBarredFromConstraintValidation = ["hidden", "button", "reset"];
 for each (type in typeRequireNotApply) {
   checkInputRequiredNotApply(type, true);
 }
 
 // Then, checks for the types which do not use the required attribute.
 // TODO: check 'color' and 'range' when they will be implemented.
-var typeRequireNotApply = [];
+var typeRequireNotApply = ["submit", "image"];
 for each (type in typeRequireNotApply) {
   checkInputRequiredNotApply(type, false);
 }

@@ -34,7 +34,7 @@ function tabLoad1(aEvent) {
 function tabLoad2(aEvent) {
   browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-  outputItem = outputNode.querySelector(".hud-networkinfo .hud-clickable");
+  outputItem = outputNode.querySelector(".hud-network");
   ok(outputItem, "found a network message");
   document.addEventListener("popupshown", networkPanelShown, false);
 
@@ -94,8 +94,7 @@ function networkPanelHidden(aEvent) {
     HUD.jsterm.setInputValue("document");
     HUD.jsterm.execute();
 
-    outputItem = outputNode.querySelector(".webconsole-msg-output " +
-                                          ".hud-clickable");
+    outputItem = outputNode.querySelector(".jsterm-output-line");
     ok(outputItem, "found a jsterm output message");
 
     document.addEventListener("popupshown", properyPanelShown, false);

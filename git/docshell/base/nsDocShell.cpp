@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=4 sw=4 tw=80 et: */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: ft=cpp tw=78 sw=4 et ts=4 sts=4 cin
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -3922,36 +3922,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             // Bad Content Encoding.
             error.AssignLiteral("contentEncodingError");
             break;
-        case NS_ERROR_REMOTE_XUL:
-        {
-            error.AssignLiteral("remoteXUL");
-
-            /**
-             * We want to set an hardcoded messageStr which uses the
-             * brandShortName.
-             */
-            nsCOMPtr<nsIStringBundleService> stringBundleService =
-                mozilla::services::GetStringBundleService();
-            if (!stringBundleService) {
-                return NS_ERROR_FAILURE;
-            }
-
-            nsCOMPtr<nsIStringBundle> brandBundle;
-            rv = stringBundleService->CreateBundle(kBrandBundleURL,
-                                                   getter_AddRefs(brandBundle));
-            NS_ENSURE_SUCCESS(rv, rv);
-
-            nsXPIDLString brandName;
-            rv = brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
-                                                getter_Copies(brandName));
-
-            // We could use something like nsTextFormatter::smprintf.
-            messageStr.AssignLiteral("This page uses an unsupported technology "
-                                     "that is no longer available by default in ");
-            messageStr.Append(brandName);
-            messageStr.AppendLiteral(".");
-            break;
-        }
         case NS_ERROR_UNSAFE_CONTENT_TYPE:
             // Channel refused to load from an unrecognized content type.
             error.AssignLiteral("unsafeContentType");
@@ -4102,40 +4072,33 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
 
     // Create a URL to pass all the error information through to the page.
 
-#undef SAFE_ESCAPE
-#define SAFE_ESCAPE(cstring, escArg1, escArg2)  \
-    {                                           \
-        char* s = nsEscape(escArg1, escArg2);   \
-        if (!s)                                 \
-            return NS_ERROR_OUT_OF_MEMORY;      \
-        cstring.Adopt(s);                       \
-    }
-    nsCString escapedUrl, escapedCharset, escapedError, escapedDescription,
-              escapedCSSClass;
-    SAFE_ESCAPE(escapedUrl, url.get(), url_Path);
-    SAFE_ESCAPE(escapedCharset, charset.get(), url_Path);
-    SAFE_ESCAPE(escapedError,
-                NS_ConvertUTF16toUTF8(aErrorType).get(), url_Path);
-    SAFE_ESCAPE(escapedDescription,
-                NS_ConvertUTF16toUTF8(aDescription).get(), url_Path);
-    if (aCSSClass) {
-        SAFE_ESCAPE(escapedCSSClass, aCSSClass, url_Path);
-    }
+    char *escapedUrl = nsEscape(url.get(), url_Path);
+    char *escapedCharset = nsEscape(charset.get(), url_Path);
+    char *escapedError = nsEscape(NS_ConvertUTF16toUTF8(aErrorType).get(), url_Path);
+    char *escapedDescription = nsEscape(NS_ConvertUTF16toUTF8(aDescription).get(), url_Path);
+    char *escapedCSSClass = nsEscape(aCSSClass, url_Path);
+
     nsCString errorPageUrl("about:");
     errorPageUrl.AppendASCII(aErrorPage);
     errorPageUrl.AppendLiteral("?e=");
 
-    errorPageUrl.AppendASCII(escapedError.get());
+    errorPageUrl.AppendASCII(escapedError);
     errorPageUrl.AppendLiteral("&u=");
-    errorPageUrl.AppendASCII(escapedUrl.get());
-    if (!escapedCSSClass.IsEmpty()) {
+    errorPageUrl.AppendASCII(escapedUrl);
+    if (escapedCSSClass && escapedCSSClass[0]) {
         errorPageUrl.AppendASCII("&s=");
-        errorPageUrl.AppendASCII(escapedCSSClass.get());
+        errorPageUrl.AppendASCII(escapedCSSClass);
     }
     errorPageUrl.AppendLiteral("&c=");
-    errorPageUrl.AppendASCII(escapedCharset.get());
+    errorPageUrl.AppendASCII(escapedCharset);
     errorPageUrl.AppendLiteral("&d=");
-    errorPageUrl.AppendASCII(escapedDescription.get());
+    errorPageUrl.AppendASCII(escapedDescription);
+
+    nsMemory::Free(escapedDescription);
+    nsMemory::Free(escapedError);
+    nsMemory::Free(escapedUrl);
+    nsMemory::Free(escapedCharset);
+    nsMemory::Free(escapedCSSClass);
 
     nsCOMPtr<nsIURI> errorPageURI;
     nsresult rv = NS_NewURI(getter_AddRefs(errorPageURI), errorPageUrl);
@@ -4336,7 +4299,7 @@ nsDocShell::GetSessionHistory(nsISHistory ** aSessionHistory)
 
 //*****************************************************************************
 // nsDocShell::nsIWebPageDescriptor
-//*****************************************************************************
+//*****************************************************************************   
 NS_IMETHODIMP
 nsDocShell::LoadPage(nsISupports *aPageDescriptor, PRUint32 aDisplayType)
 {
@@ -4352,13 +4315,7 @@ nsDocShell::LoadPage(nsISupports *aPageDescriptor, PRUint32 aDisplayType)
     nsCOMPtr<nsISHEntry> shEntry;
     nsresult rv = shEntryIn->Clone(getter_AddRefs(shEntry));
     NS_ENSURE_SUCCESS(rv, rv);
-
-    // Give our cloned shEntry a new document identifier so this load is
-    // independent of all other loads.  (This is important, in particular,
-    // for bugs 582795 and 585298.)
-    rv = shEntry->SetUniqueDocIdentifier();
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    
     //
     // load the page as view-source
     //
@@ -6283,7 +6240,6 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
                  aStatus == NS_ERROR_MALWARE_URI ||
                  aStatus == NS_ERROR_PHISHING_URI ||
                  aStatus == NS_ERROR_UNSAFE_CONTENT_TYPE ||
-                 aStatus == NS_ERROR_REMOTE_XUL ||
                  NS_ERROR_GET_MODULE(aStatus) == NS_ERROR_MODULE_SECURITY) {
             DisplayLoadError(aStatus, url, nsnull, aChannel);
         }
@@ -6448,8 +6404,7 @@ nsDocShell::EnsureContentViewer()
 
 nsresult
 nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
-                                          nsIURI* aBaseURI,
-                                          PRBool aTryToSaveOldPresentation)
+                                          nsIURI* aBaseURI)
 {
   nsCOMPtr<nsIDocument> blankDoc;
   nsCOMPtr<nsIContentViewer> viewer;
@@ -6481,8 +6436,7 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
       return NS_ERROR_FAILURE;
     }
 
-    mSavingOldViewer = aTryToSaveOldPresentation && 
-                       CanSavePresentation(LOAD_NORMAL, nsnull, nsnull);
+    mSavingOldViewer = CanSavePresentation(LOAD_NORMAL, nsnull, nsnull);
 
     // Make sure to blow away our mLoadingURI just in case.  No loads
     // from inside this pagehide.
@@ -6616,15 +6570,12 @@ nsDocShell::ReattachEditorToWindow(nsISHEntry *aSHEntry)
                  "Reattaching when there's not a detached editor.");
 
     if (mEditorData || !aSHEntry)
-        return;
+      return;
 
     mEditorData = aSHEntry->ForgetEditorData();
     if (mEditorData) {
-#ifdef DEBUG
-        nsresult rv =
-#endif
-        mEditorData->ReattachToWindow(this);
-        NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to reattach editing session");
+        nsresult res = mEditorData->ReattachToWindow(this);
+        NS_ASSERTION(NS_SUCCEEDED(res), "Failed to reattach editing session");
     }
 }
 
@@ -7325,7 +7276,7 @@ nsDocShell::CreateContentViewer(const char *aContentType,
                                       aContentHandler, getter_AddRefs(viewer));
 
     if (NS_FAILED(rv))
-        return rv;
+        return NS_ERROR_FAILURE;
 
     // Notify the current document that it is about to be unloaded!!
     //
@@ -7507,14 +7458,14 @@ nsDocShell::NewContentViewerObj(const char *aContentType,
 
     // Now create an instance of the content viewer
     // nsLayoutDLF makes the determination if it should be a "view-source" instead of "view"
-    nsresult rv = docLoaderFactory->CreateInstance("view",
-                                                   aOpenedChannel,
-                                                   aLoadGroup, aContentType,
-                                                   static_cast<nsIContentViewerContainer*>(this),
-                                                   nsnull,
-                                                   aContentHandler,
-                                                   aViewer);
-    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_SUCCESS(docLoaderFactory->CreateInstance("view",
+                                                       aOpenedChannel,
+                                                       aLoadGroup, aContentType,
+                                                       static_cast<nsIContentViewerContainer*>(this),
+                                                       nsnull,
+                                                       aContentHandler,
+                                                       aViewer),
+                      NS_ERROR_FAILURE);
 
     (*aViewer)->SetContainer(static_cast<nsIContentViewerContainer *>(this));
     return NS_OK;
@@ -8380,7 +8331,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 window->DispatchSyncPopState();
 
                 if (doHashchange)
-                  window->DispatchAsyncHashchange();
+                  window->DispatchSyncHashchange();
             }
 
             return NS_OK;
@@ -9994,10 +9945,7 @@ nsDocShell::LoadHistoryEntry(nsISHEntry * aEntry, PRUint32 aLoadType)
         // anything from the current document from leaking into any JavaScript
         // code in the URL.
         nsCOMPtr<nsIPrincipal> prin = do_QueryInterface(owner);
-        // Don't cache the presentation if we're going to just reload the
-        // current entry. Caching would lead to trying to save the different
-        // content viewers in the same nsISHEntry object.
-        rv = CreateAboutBlankContentViewer(prin, nsnull, aEntry != mOSHE);
+        rv = CreateAboutBlankContentViewer(prin, nsnull);
 
         if (NS_FAILED(rv)) {
             // The creation of the intermittent about:blank content
@@ -10496,7 +10444,7 @@ nsDocShell::ExtractLastVisit(nsIChannel* aChannel,
       );
 
       NS_WARN_IF_FALSE(
-          NS_SUCCEEDED(rv),
+          NS_FAILED(rv),
           "Could not fetch previous flags, URI will be treated like referrer"
       );
     }
@@ -10582,9 +10530,6 @@ nsDocShell::ConfirmRepost(PRBool * aRepost)
 {
   nsCOMPtr<nsIPrompt> prompter;
   CallGetInterface(this, static_cast<nsIPrompt**>(getter_AddRefs(prompter)));
-  if (!prompter) {
-      return NS_ERROR_NOT_AVAILABLE;
-  }
 
   nsCOMPtr<nsIStringBundleService> stringBundleService =
     mozilla::services::GetStringBundleService();

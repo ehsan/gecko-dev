@@ -43,14 +43,9 @@
 #include "mozIStorageConnection.h"
 #include "mozIStorageStatement.h"
 #include "nsTHashtable.h"
-#include "nsDataHashtable.h"
-#include "mozilla/TimeStamp.h"
 
-class DOMStorageImpl;
+class nsDOMStorage;
 class nsSessionStorageEntry;
-
-using mozilla::TimeStamp;
-using mozilla::TimeDuration;
 
 class nsDOMStoragePersistentDB
 {
@@ -61,11 +56,16 @@ public:
   nsresult
   Init(const nsString& aDatabaseName);
 
+  nsresult
+  EnsureLoadTemporaryTableForStorage(nsDOMStorage* aStorage);
+  nsresult
+  FlushAndDeleteTemporaryTableForStorage(nsDOMStorage* aStorage);
+
   /**
    * Retrieve a list of all the keys associated with a particular domain.
    */
   nsresult
-  GetAllKeys(DOMStorageImpl* aStorage,
+  GetAllKeys(nsDOMStorage* aStorage,
              nsTHashtable<nsSessionStorageEntry>* aKeys);
 
   /**
@@ -74,7 +74,7 @@ public:
    * @throws NS_ERROR_DOM_NOT_FOUND_ERR if key not found
    */
   nsresult
-  GetKeyValue(DOMStorageImpl* aStorage,
+  GetKeyValue(nsDOMStorage* aStorage,
               const nsAString& aKey,
               nsAString& aValue,
               PRBool* aSecure);
@@ -83,7 +83,7 @@ public:
    * Set the value and secure flag for a key in storage.
    */
   nsresult
-  SetKey(DOMStorageImpl* aStorage,
+  SetKey(nsDOMStorage* aStorage,
          const nsAString& aKey,
          const nsAString& aValue,
          PRBool aSecure,
@@ -96,7 +96,7 @@ public:
    * not found.
    */
   nsresult
-  SetSecure(DOMStorageImpl* aStorage,
+  SetSecure(nsDOMStorage* aStorage,
             const nsAString& aKey,
             const PRBool aSecure);
 
@@ -104,7 +104,7 @@ public:
    * Removes a key from storage.
    */
   nsresult
-  RemoveKey(DOMStorageImpl* aStorage,
+  RemoveKey(nsDOMStorage* aStorage,
             const nsAString& aKey,
             PRBool aExcludeOfflineFromUsage,
             PRInt32 aKeyUsage);
@@ -112,7 +112,7 @@ public:
   /**
     * Remove all keys belonging to this storage.
     */
-  nsresult ClearStorage(DOMStorageImpl* aStorage);
+  nsresult ClearStorage(nsDOMStorage* aStorage);
 
   /**
    * Removes all keys added by a given domain.
@@ -138,7 +138,7 @@ public:
     * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
     */
   nsresult
-  GetUsage(DOMStorageImpl* aStorage, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
+  GetUsage(nsDOMStorage* aStorage, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 
   /**
     * Returns usage of the domain and optionaly by any subdomain.
@@ -162,26 +162,7 @@ public:
    */
   nsresult MaybeCommitInsertTransaction();
 
-  /**
-   * Flushes all temporary tables based on time or forcibly during shutdown. 
-   */
-  nsresult FlushTemporaryTables(bool force);
-
 protected:
-  /**
-   * Ensures that a temporary table is correctly filled for the scope of
-   * the given storage.
-   */
-  nsresult EnsureLoadTemporaryTableForStorage(DOMStorageImpl* aStorage);
-
-  struct FlushTemporaryTableData {
-    nsDOMStoragePersistentDB* mDB;
-    bool mForce;
-    nsresult mRV;
-  };
-  static PLDHashOperator FlushTemporaryTable(nsCStringHashKey::KeyType aKey,
-                                             TimeStamp& aData,
-                                             void* aUserArg);       
 
   nsCOMPtr<mozIStorageConnection> mConnection;
 
@@ -201,11 +182,6 @@ protected:
 
   nsCString mCachedOwner;
   PRInt32 mCachedUsage;
-
-  // Maps ScopeDBKey to time of the temporary table load for that scope.
-  // If a record is present, the temp table has been loaded. If it is not
-  // present, the table has not yet been loaded or has alrady been flushed.
-  nsDataHashtable<nsCStringHashKey, TimeStamp> mTempTableLoads; 
 
   friend class nsDOMStorageDBWrapper;
   friend class nsDOMStorageMemoryDB;

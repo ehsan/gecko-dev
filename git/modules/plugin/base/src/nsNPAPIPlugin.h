@@ -364,9 +364,6 @@ _getJavaEnv();
 void* NP_CALLBACK /* OJI type: jref */
 _getJavaPeer(NPP npp);
 
-void NP_CALLBACK
-_urlredirectresponse(NPP instance, void* notifyData, NPBool allow);
-
 } /* namespace parent */
 } /* namespace plugins */
 } /* namespace mozilla */

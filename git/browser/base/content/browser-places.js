@@ -23,7 +23,6 @@
 #   Joe Hughes <joe@retrovirus.com>
 #   Asaf Romano <mano@mozilla.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Marco Bonardo <mak77@bonardo.net>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -230,7 +229,7 @@ var StarUI = {
     // Consume dismiss clicks, see bug 400924
     this.panel.popupBoxObject
         .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
-    this.panel.openPopup(aAnchorElement, aPosition);
+    this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
 
     gEditItemOverlay.initPanel(this._itemId,
                                { hiddenRows: ["description", "location",
@@ -348,8 +347,9 @@ var PlacesCommandHook = {
       if (starIcon && isElementVisible(starIcon)) {
         // Make sure the bookmark properties dialog hangs toward the middle of
         // the location bar in RTL builds
+        var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ? 'after_start' : 'after_end';
         if (aShowEditUI)
-          StarUI.showEditBookmarkPopup(itemId, starIcon, "bottomcenter topright");
+          StarUI.showEditBookmarkPopup(itemId, starIcon, position);
         return;
       }
     }
@@ -728,10 +728,7 @@ var BookmarksEventHandler = {
       for (node = target.parentNode; node; node = node.parentNode) {
         if (node.localName == "menupopup")
           node.hidePopup();
-        else if (node.localName != "menu" &&
-                 node.localName != "splitmenu" &&
-                 node.localName != "hbox" &&
-                 node.localName != "vbox" )
+        else if (node.localName != "menu")
           break;
       }
     }
@@ -847,11 +844,11 @@ var PlacesMenuDNDHandler = {
   },
 
   /**
-   * Handles dragexit on the <menu> element.
+   * Handles dragleave on the <menu> element.
    * @returns true if the element is a container element (menu or 
    *          menu-toolbarbutton), false otherwise.
    */
-  onDragExit: function PMDH_onDragExit(event) {
+  onDragLeave: function PMDH_onDragLeave(event) {
     // Closing menus in a Places popup is handled by the view itself.
     if (!this._isStaticContainer(event.target))
       return;
@@ -923,155 +920,82 @@ var PlacesMenuDNDHandler = {
 
 
 var PlacesStarButton = {
-  _hasBookmarksObserver: false,
-  uninit: function PSB_uninit()
-  {
-    if (this._hasBookmarksObserver) {
-      PlacesUtils.bookmarks.removeObserver(this);
+  init: function PSB_init() {
+    try {
+      PlacesUtils.bookmarks.addObserver(this, false);
+    } catch(ex) {
+      Components.utils.reportError("PlacesStarButton.init(): error adding bookmark observer: " + ex);
     }
   },
 
-  QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsINavBookmarkObserver
-  ]),
-
-  get _starredTooltip()
-  {
-    delete this._starredTooltip;
-    return this._starredTooltip =
-      gNavigatorBundle.getString("starButtonOn.tooltip");
-  },
-  get _unstarredTooltip()
-  {
-    delete this._unstarredTooltip;
-    return this._unstarredTooltip =
-      gNavigatorBundle.getString("starButtonOff.tooltip");
+  uninit: function PSB_uninit() {
+    PlacesUtils.bookmarks.removeObserver(this);
   },
 
-  updateState: function PSB_updateState()
-  {
-    this._starIcon = document.getElementById("star-button");
-    if (!this._starIcon || (this._uri && gBrowser.currentURI.equals(this._uri))) {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsINavBookmarkObserver]),
+
+  _starred: false,
+  _batching: false,
+
+  updateState: function PSB_updateState() {
+    var starIcon = document.getElementById("star-button");
+    if (!starIcon)
       return;
-    }
 
-    // Reset tracked values.
-    this._uri = gBrowser.currentURI;
-    this._itemIds = [];
-
-    // Ignore clicks on the star while we update its state.
-    this._ignoreClicks = true;
-
-    // We can load about:blank before the actual page, but there is no point in handling that page.
-    if (this._uri.spec == "about:blank") {
-      return;
-    }
-
-    PlacesUtils.asyncGetBookmarkIds(this._uri, function (aItemIds) {
-      this._itemIds = aItemIds;
-      this._updateStateInternal();
-
-      // Start observing bookmarks if needed.
-      if (!this._hasBookmarksObserver) {
-        try {
-          PlacesUtils.bookmarks.addObserver(this, false);
-          this._hasBookmarksObserver = true;
-        } catch(ex) {
-          Components.utils.reportError("PlacesStarButton failed adding a bookmarks observer: " + ex);
-        }
-      }
-
-      // Finally re-enable the star.
-      this._ignoreClicks = false;
-    }, this);
-  },
-
-  _updateStateInternal: function PSB__updateStateInternal()
-  {
-    if (!this._starIcon) {
-      return;
-    }
-
-    if (this._itemIds.length > 0) {
-      this._starIcon.setAttribute("starred", "true");
-      this._starIcon.setAttribute("tooltiptext", this._starredTooltip);
+    var uri = gBrowser.currentURI;
+    this._starred = uri && (PlacesUtils.getMostRecentBookmarkForURI(uri) != -1 ||
+                            PlacesUtils.getMostRecentFolderForFeedURI(uri) != -1);
+    if (this._starred) {
+      starIcon.setAttribute("starred", "true");
+      starIcon.setAttribute("tooltiptext", gNavigatorBundle.getString("starButtonOn.tooltip"));
     }
     else {
-      this._starIcon.removeAttribute("starred");
-      this._starIcon.setAttribute("tooltiptext", this._unstarredTooltip);
+      starIcon.removeAttribute("starred");
+      starIcon.setAttribute("tooltiptext", gNavigatorBundle.getString("starButtonOff.tooltip"));
     }
   },
 
-  onClick: function PSB_onClick(aEvent)
-  {
-    if (aEvent.button == 0 && !this._ignoreClicks) {
-      PlacesCommandHook.bookmarkCurrentPage(this._itemIds.length > 0);
-    }
-    // Don't bubble to the textbox, to avoid unwanted selection of the address.
+  onClick: function PSB_onClick(aEvent) {
+    if (aEvent.button == 0)
+      PlacesCommandHook.bookmarkCurrentPage(this._starred);
+
+    // don't bubble to the textbox so that the address won't be selected
     aEvent.stopPropagation();
   },
 
-  // nsINavBookmarkObserver
-  onItemAdded:
-  function PSB_onItemAdded(aItemId, aFolder, aIndex, aItemType, aURI)
-  {
-    if (!this._starIcon) {
-      return;
-    }
-
-    if (aURI.equals(this._uri)) {
-      // If a new bookmark has been added to the tracked uri, register it.
-      if (this._itemIds.indexOf(aItemId) == -1) {
-        this._itemIds.push(aItemId);
-        this._updateStateInternal();
-      }
-    }
+  // nsINavBookmarkObserver  
+  onBeginUpdateBatch: function PSB_onBeginUpdateBatch() {
+    this._batching = true;
   },
 
-  onItemRemoved:
-  function PSB_onItemRemoved(aItemId, aFolder, aIndex, aItemType)
-  {
-    if (!this._starIcon) {
-      return;
-    }
-
-    let index = this._itemIds.indexOf(aItemId);
-    // If one of the tracked bookmarks has been removed, unregister it.
-    if (index != -1) {
-      this._itemIds.splice(index, 1);
-      this._updateStateInternal();
-    }
+  onEndUpdateBatch: function PSB_onEndUpdateBatch() {
+    this.updateState();
+    this._batching = false;
   },
 
-  onItemChanged:
-  function PSB_onItemChanged(aItemId, aProperty, aIsAnnotationProperty,
-                             aNewValue, aLastModified, aItemType)
-  {
-    if (!this._starIcon) {
-      return;
-    }
-
-    if (aProperty == "uri") {
-      let index = this._itemIds.indexOf(aItemId);
-      // If the changed bookmark was tracked, check if it is now pointing to
-      // a different uri and unregister it.
-      if (index != -1 && aNewValue != this._uri.spec) {
-        this._itemIds.splice(index, 1);
-        this._updateStateInternal();
-      }
-      // If another bookmark is now pointing to the tracked uri, register it.
-      else if (index == -1 && aNewValue == this._uri.spec) {
-        this._itemIds.push(aItemId);
-        this._updateStateInternal();
-      }
-    }
+  onItemAdded: function PSB_onItemAdded(aItemId, aFolder, aIndex, aItemType,
+                                        aURI) {
+    if (!this._batching && !this._starred)
+      this.updateState();
   },
 
-  onBeginUpdateBatch: function () {},
-  onEndUpdateBatch: function () {},
-  onBeforeItemRemoved: function () {},
-  onItemVisited: function () {},
-  onItemMoved: function () {}
+  onBeforeItemRemoved: function() {},
+
+  onItemRemoved: function PSB_onItemRemoved(aItemId, aFolder, aIndex,
+                                            aItemType) {
+    if (!this._batching)
+      this.updateState();
+  },
+
+  onItemChanged: function PSB_onItemChanged(aItemId, aProperty,
+                                            aIsAnnotationProperty, aNewValue,
+                                            aLastModified, aItemType) {
+    if (!this._batching && aProperty == "uri")
+      this.updateState();
+  },
+
+  onItemVisited: function() {},
+  onItemMoved: function() {}
 };
 
 

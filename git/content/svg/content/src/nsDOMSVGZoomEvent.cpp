@@ -38,7 +38,7 @@
 #include "nsDOMSVGZoomEvent.h"
 #include "nsContentUtils.h"
 #include "nsSVGRect.h"
-#include "DOMSVGPoint.h"
+#include "nsSVGPoint.h"
 #include "nsSVGSVGElement.h"
 #include "nsIDOMSVGSVGElement.h"
 #include "nsIContent.h"
@@ -46,7 +46,6 @@
 #include "nsIDocument.h"
 #include "mozilla/dom/Element.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
@@ -92,15 +91,13 @@ nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
 
           const nsSVGTranslatePoint& translate =
             SVGSVGElement->GetCurrentTranslate();
-          mNewTranslate =
-            new DOMSVGPoint(translate.GetX(), translate.GetY());
-          mNewTranslate->SetReadonly(PR_TRUE);
+          NS_NewSVGReadonlyPoint(getter_AddRefs(mNewTranslate),
+                                 translate.GetX(), translate.GetY());
 
           const nsSVGTranslatePoint& prevTranslate =
             SVGSVGElement->GetPreviousTranslate();
-          mPreviousTranslate =
-            new DOMSVGPoint(prevTranslate.GetX(), prevTranslate.GetY());
-          mPreviousTranslate->SetReadonly(PR_TRUE);
+          NS_NewSVGReadonlyPoint(getter_AddRefs(mPreviousTranslate),
+                                 prevTranslate.GetX(), prevTranslate.GetY());
         }
       }
     }

@@ -82,6 +82,10 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   return NetUtil;
 });
 
+// Global observers flags.
+let gHasAnnotationsObserver = false;
+let gHasShutdownObserver = false;
+
 // The minimum amount of transactions before starting a batch. Usually we do
 // do incremental updates, a batch will cause views to completely
 // refresh instead.
@@ -146,6 +150,7 @@ var PlacesUtils = {
   TOPIC_DATABASE_LOCKED: "places-database-locked",
   TOPIC_EXPIRATION_FINISHED: "places-expiration-finished",
   TOPIC_FEEDBACK_UPDATED: "places-autocomplete-feedback-updated",
+  TOPIC_SYNC_FINISHED: "places-sync-finished",
   TOPIC_FAVICONS_EXPIRED: "places-favicons-expired",
   TOPIC_VACUUM_STARTING: "places-vacuum-starting",
 
@@ -271,11 +276,15 @@ var PlacesUtils = {
    */
   get _readOnly() {
     // Add annotations observer.
-    this.annotations.addObserver(this, false);
-    this.registerShutdownFunction(function () {
-      this.annotations.removeObserver(this);
-    });
-
+    if (!gHasAnnotationsObserver) {
+      this.annotations.addObserver(this, false);
+      gHasAnnotationsObserver = true;
+    }
+    // Observe shutdown, so we can remove the anno observer.
+    if (!gHasShutdownObserver) {
+      Services.obs.addObserver(this, this.TOPIC_SHUTDOWN, false);
+      gHasShutdownObserver = true;
+    }
     var readOnly = this.annotations.getItemsWithAnnotation(this.READ_ONLY_ANNO);
     this.__defineGetter__("_readOnly", function() readOnly);
     return this._readOnly;
@@ -287,25 +296,24 @@ var PlacesUtils = {
   , Ci.nsITransactionListener
   ]),
 
-  _shutdownFunctions: [],
-  registerShutdownFunction: function PU_registerShutdownFunction(aFunc)
-  {
-    // If this is the first registered function, add the shutdown observer.
-    if (this._shutdownFunctions.length == 0) {
-      Services.obs.addObserver(this, this.TOPIC_SHUTDOWN, false);
+  // nsIObserver
+  observe: function PU_observe(aSubject, aTopic, aData) {
+    if (aTopic == this.TOPIC_SHUTDOWN) {
+      if (gHasAnnotationsObserver)
+        this.annotations.removeObserver(this);
+
+      if (Object.getOwnPropertyDescriptor(this, "transactionManager").value !== undefined) {
+        // Clear all references to local transactions in the transaction manager,
+        // this prevents from leaking it.
+        this.transactionManager.RemoveListener(this);
+        this.transactionManager.clear();
+      }
+
+      Services.obs.removeObserver(this, this.TOPIC_SHUTDOWN);
+      gHasShutdownObserver = false;
     }
-    this._shutdownFunctions.push(aFunc);
   },
 
-  //////////////////////////////////////////////////////////////////////////////
-  //// nsIObserver
-  observe: function PU_observe(aSubject, aTopic, aData)
-  {
-    if (aTopic == this.TOPIC_SHUTDOWN) {
-      Services.obs.removeObserver(this, this.TOPIC_SHUTDOWN);
-      this._shutdownFunctions.forEach(function (aFunc) aFunc.apply(this), this);
-    }
-  },
 
   //////////////////////////////////////////////////////////////////////////////
   //// nsIAnnotationObserver
@@ -2041,63 +2049,6 @@ var PlacesUtils = {
     }
 
   },
-
-  /**
-   * Given a uri returns list of itemIds associated to it.
-   *
-   * @param aURI
-   *        nsIURI or spec of the page.
-   * @param aCallback
-   *        Function to be called when done.
-   *        The function will receive an array of itemIds associated to aURI.
-   * @param aScope
-   *        Scope for the callback.
-   *
-   * @note Children of live bookmarks folders are excluded.
-   */
-  asyncGetBookmarkIds: function PU_asyncGetBookmarkIds(aURI, aCallback, aScope)
-  {
-    if (!this._asyncGetBookmarksStmt) {
-      let db = this.history.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection;
-      this._asyncGetBookmarksStmt = db.createAsyncStatement(
-        "SELECT b.id "
-      + "FROM moz_bookmarks b "
-      + "JOIN moz_places h on h.id = b.fk "
-      + "WHERE h.url = :url "
-      +   "AND NOT EXISTS( "
-      +     "SELECT 1 FROM moz_items_annos a "
-      +     "JOIN moz_anno_attributes n ON a.anno_attribute_id = n.id "
-      +     "WHERE a.item_id = b.parent AND n.name = :name "
-      +   ") "
-      );
-      this.registerShutdownFunction(function () {
-        this._asyncGetBookmarksStmt.finalize();
-      });
-    }
-
-    let url = aURI instanceof Ci.nsIURI ? aURI.spec : aURI;
-    this._asyncGetBookmarksStmt.params.url = url;
-    this._asyncGetBookmarksStmt.params.name = this.LMANNO_FEEDURI;
-    this._asyncGetBookmarksStmt.executeAsync({
-      _itemIds: [],
-      handleResult: function(aResultSet) {
-        let row, haveMatches = false;
-        for (let row; (row = aResultSet.getNextRow());) {
-          this._itemIds.push(row.getResultByIndex(0));
-        }
-      },
-      handleError: function(aError) {
-        Cu.reportError("Async statement execution returned (" + aError.result +
-                       "): " + aError.message);
-      },
-      handleCompletion: function(aReason)
-      {
-        if (aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED) {
-          aCallback.apply(aScope, [this._itemIds]);
-        }
-      }
-    });
-  }
 };
 
 XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "history",
@@ -2141,15 +2092,18 @@ XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "microsummaries",
                                    "nsIMicrosummaryService");
 
 XPCOMUtils.defineLazyGetter(PlacesUtils, "transactionManager", function() {
+  Services.obs.addObserver(PlacesUtils,
+                           PlacesUtils.TOPIC_SHUTDOWN,
+                           false);
+  // Observe shutdown, so we can remove the anno observer.
+  if (!gHasShutdownObserver) {
+    Services.obs.addObserver(PlacesUtils, PlacesUtils.TOPIC_SHUTDOWN, false);
+    gHasShutdownObserver = true;
+  }
+
   let tm = Cc["@mozilla.org/transactionmanager;1"].
            getService(Ci.nsITransactionManager);
   tm.AddListener(PlacesUtils);
-  this.registerShutdownFunction(function () {
-    // Clear all references to local transactions in the transaction manager,
-    // this prevents from leaking it.
-    this.transactionManager.RemoveListener(this);
-    this.transactionManager.clear();
-  });
   return tm;
 });
 
@@ -2699,15 +2653,15 @@ PlacesRemoveItemTransaction.prototype = {
       txn.doTransaction();
     }
     else {
-      // Before removing the bookmark, save its tags.
-      let tags = this._uri ? PlacesUtils.tagging.getTagsForURI(this._uri) : null;
-
       PlacesUtils.bookmarks.removeItem(this._id);
-
-      // If this was the last bookmark (excluding tag-items and livemark
-      // children) for this url, persist the tags.
-      if (tags && PlacesUtils.getMostRecentBookmarkForURI(this._uri) == -1) {
-        this._tags = tags;
+      if (this._uri) {
+        // if this was the last bookmark (excluding tag-items and livemark
+        // children, see getMostRecentBookmarkForURI) for the bookmark's url,
+        // remove the url from tag containers as well.
+        if (PlacesUtils.getMostRecentBookmarkForURI(this._uri) == -1) {
+          this._tags = PlacesUtils.tagging.getTagsForURI(this._uri);
+          PlacesUtils.tagging.untagURI(this._uri, this._tags);
+        }
       }
     }
   },

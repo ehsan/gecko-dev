@@ -743,8 +743,6 @@ NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
 
   nsresult result;
 
-  FireTrustedInputEvent trusted(this, aAction != eNone);
-
   // delete placeholder txns merge.
   nsAutoPlaceHolderBatch batch(this, nsGkAtoms::DeleteTxnName);
   nsAutoRules beginRulesSniffing(this, kOpDeleteSelection, aAction);
@@ -983,8 +981,6 @@ nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
   if (!aCompositionString.IsEmpty() || (mIMETextNode && aTextRangeList)) {
     mIMETextRangeList = aTextRangeList;
 
-    nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
-
     SetIsIMEComposing(); // We set mIsIMEComposing properly.
 
     rv = InsertText(aCompositionString);
@@ -1215,8 +1211,6 @@ nsPlaintextEditor::Undo(PRUint32 aCount)
   // Protect the edit rules object from dying
   nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
 
-  FireTrustedInputEvent trusted(this);
-
   nsAutoUpdateViewBatch beginViewBatching(this);
 
   ForceCompositionEnd();
@@ -1243,8 +1237,6 @@ nsPlaintextEditor::Redo(PRUint32 aCount)
 {
   // Protect the edit rules object from dying
   nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
-
-  FireTrustedInputEvent trusted(this);
 
   nsAutoUpdateViewBatch beginViewBatching(this);
 
@@ -1302,8 +1294,6 @@ nsPlaintextEditor::FireClipboardEvent(PRInt32 aType)
 
 NS_IMETHODIMP nsPlaintextEditor::Cut()
 {
-  FireTrustedInputEvent trusted(this);
-
   if (FireClipboardEvent(NS_CUT))
     return DeleteSelection(eNone);
   return NS_OK;

@@ -163,9 +163,6 @@ nsAccelerometer::TimeoutHandler(nsITimer *aTimer, void *aClosure)
 
 NS_IMETHODIMP nsAccelerometer::AddListener(nsIAccelerationListener *aListener)
 {
-  if (mListeners.IndexOf(aListener) >= 0)
-    return NS_OK; // already exists
-
   if (mStarted == PR_FALSE) {
     mStarted = PR_TRUE;
     mNewListener = PR_TRUE;
@@ -178,9 +175,6 @@ NS_IMETHODIMP nsAccelerometer::AddListener(nsIAccelerationListener *aListener)
 
 NS_IMETHODIMP nsAccelerometer::RemoveListener(nsIAccelerationListener *aListener)
 {
-  if (mListeners.IndexOf(aListener) < 0)
-    return NS_OK; // doesn't exist
-
   mListeners.RemoveObject(aListener);
   StartDisconnectTimer();
   return NS_OK;
@@ -188,9 +182,6 @@ NS_IMETHODIMP nsAccelerometer::RemoveListener(nsIAccelerationListener *aListener
 
 NS_IMETHODIMP nsAccelerometer::AddWindowListener(nsIDOMWindow *aWindow)
 {
-  if (mWindowListeners.IndexOf(aWindow) >= 0)
-    return NS_OK; // already exists
-
   if (mStarted == PR_FALSE) {
     mStarted = PR_TRUE;
     mNewListener = PR_TRUE;
@@ -203,9 +194,6 @@ NS_IMETHODIMP nsAccelerometer::AddWindowListener(nsIDOMWindow *aWindow)
 
 NS_IMETHODIMP nsAccelerometer::RemoveWindowListener(nsIDOMWindow *aWindow)
 {
-  if (mWindowListeners.IndexOf(aWindow) < 0)
-    return NS_OK; // doesn't exist
-
   mWindowListeners.RemoveObject(aWindow);
   StartDisconnectTimer();
 

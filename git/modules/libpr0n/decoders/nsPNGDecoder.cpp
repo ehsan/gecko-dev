@@ -86,8 +86,7 @@ nsPNGDecoder::nsPNGDecoder() :
   mCMSLine(nsnull), interlacebuf(nsnull),
   mInProfile(nsnull), mTransform(nsnull),
   mHeaderBuf(nsnull), mHeaderBytesRead(0),
-  mChannels(0), mFrameIsHidden(PR_FALSE),
-  mCMSMode(0), mDisablePremultipliedAlpha(PR_FALSE)
+  mChannels(0), mFrameIsHidden(PR_FALSE)
 {
 }
 
@@ -217,10 +216,6 @@ void nsPNGDecoder::EndImageFrame()
 void
 nsPNGDecoder::InitInternal()
 {
-  mCMSMode = gfxPlatform::GetCMSMode();
-  if ((mDecodeFlags & DECODER_NO_COLORSPACE_CONVERSION) != 0)
-    mCMSMode = eCMSMode_Off;
-  mDisablePremultipliedAlpha = (mDecodeFlags & DECODER_NO_PREMULTIPLY_ALPHA) != 0;
 
 #ifdef PNG_HANDLE_AS_UNKNOWN_SUPPORTED
   static png_byte color_chunks[]=
@@ -269,7 +264,7 @@ nsPNGDecoder::InitInternal()
 
 #ifdef PNG_HANDLE_AS_UNKNOWN_SUPPORTED
   /* Ignore unused chunks */
-  if (mCMSMode == eCMSMode_Off)
+  if (gfxPlatform::GetCMSMode() == eCMSMode_Off)
     png_set_keep_unknown_chunks(mPNG, 1, color_chunks, 2);
 
   png_set_keep_unknown_chunks(mPNG, 1, unused_chunks,
@@ -277,7 +272,7 @@ nsPNGDecoder::InitInternal()
 #endif
 
 #ifdef PNG_SET_CHUNK_MALLOC_LIMIT_SUPPORTED
-  if (mCMSMode != eCMSMode_Off)
+  if (gfxPlatform::GetCMSMode() != eCMSMode_Off)
     png_set_chunk_malloc_max(mPNG, 4000000L);
 #endif
 
@@ -536,7 +531,7 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
   qcms_data_type inType;
   PRUint32 intent = -1;
   PRUint32 pIntent;
-  if (decoder->mCMSMode != eCMSMode_Off) {
+  if (gfxPlatform::GetCMSMode() != eCMSMode_Off) {
     intent = gfxPlatform::GetRenderingIntent();
     decoder->mInProfile = PNGGetColorProfile(png_ptr, info_ptr,
                                              color_type, &inType, &pIntent);
@@ -559,12 +554,9 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
                                            (qcms_intent)intent);
   } else {
     png_set_gray_to_rgb(png_ptr);
+    PNGDoGammaCorrection(png_ptr, info_ptr);
 
-    // only do gamma correction if CMS isn't entirely disabled
-    if (decoder->mCMSMode != eCMSMode_Off)
-      PNGDoGammaCorrection(png_ptr, info_ptr);
-
-    if (decoder->mCMSMode == eCMSMode_All) {
+    if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
       if (color_type & PNG_COLOR_MASK_ALPHA || num_trans)
         decoder->mTransform = gfxPlatform::GetCMSRGBATransform();
       else
@@ -753,20 +745,11 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
       break;
       case gfxASurface::ImageFormatARGB32:
       {
-        if (!decoder->mDisablePremultipliedAlpha) {
-          for (PRUint32 x=width; x>0; --x) {
-            *cptr32++ = GFX_PACKED_PIXEL(line[3], line[0], line[1], line[2]);
-            if (line[3] != 0xff)
-              rowHasNoAlpha = PR_FALSE;
-            line += 4;
-          }
-        } else {
-          for (PRUint32 x=width; x>0; --x) {
-            *cptr32++ = GFX_PACKED_PIXEL_NO_PREMULTIPLY(line[3], line[0], line[1], line[2]);
-            if (line[3] != 0xff)
-              rowHasNoAlpha = PR_FALSE;
-            line += 4;
-          }
+        for (PRUint32 x=width; x>0; --x) {
+          *cptr32++ = GFX_PACKED_PIXEL(line[3], line[0], line[1], line[2]);
+          if (line[3] != 0xff)
+            rowHasNoAlpha = PR_FALSE;
+          line += 4;
         }
       }
       break;

@@ -222,7 +222,7 @@ nsMediaChannelStream::OnStartRequest(nsIRequest* aRequest)
       }
 
       if (NS_SUCCEEDED(rv)) {
-        double duration = durationText.ToFloat(&ec);
+        float duration = durationText.ToFloat(&ec);
         if (ec == NS_OK && duration >= 0) {
           mDecoder->SetDuration(PRInt64(NS_round(duration*1000)));
         }
@@ -570,15 +570,6 @@ nsresult nsMediaChannelStream::Read(char* aBuffer,
                                     PRUint32* aBytes)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
-
-  PRInt64 pos = Tell();
-  PRInt64 endOfRead = pos + aCount;
-  if (endOfRead > mCacheStream.GetCachedDataEnd(pos) &&
-      !IsDataCachedToEndOfStream(pos)) {
-    // Our read will almost certainly block waiting for more data to download.
-    // Notify the decoder, so it can move to buffering state if need be.
-    mDecoder->NotifyDataExhausted();
-  }
 
   return mCacheStream.Read(aBuffer, aCount, aBytes);
 }

@@ -78,18 +78,11 @@ function onTabViewWindowLoaded() {
   let searchButton = contentWindow.document.getElementById("searchbutton");
 
   ok(searchButton, "Search button exists");
-
+  
   let onSearchEnabled = function() {
+    ok(search.style.display != "none", "Search is enabled");
     contentWindow.removeEventListener(
       "tabviewsearchenabled", onSearchEnabled, false);
-
-    ok(search.style.display != "none", "Search is enabled");
-
-    let searchBox = contentWindow.document.getElementById("searchbox");
-    ok(contentWindow.document.hasFocus() && 
-       contentWindow.document.activeElement == searchBox, 
-       "The search box has focus");
-
     searchTest(contentWindow);
   }
   contentWindow.addEventListener("tabviewsearchenabled", onSearchEnabled, false);
@@ -133,20 +126,6 @@ function searchTest(contentWindow) {
       searchBox.getAttribute("value")).matched().length, 2,
      "Match something when a part of title exists");
 
-  // unique part of a url 
-  searchBox.setAttribute("value", "search1.html");
-  contentWindow.performSearch();
-  is(new contentWindow.TabMatcher(
-      searchBox.getAttribute("value")).matched().length, 1,
-     "Match something when a unique part of a url exists");
-   
-  // common part of a url
-  searchBox.setAttribute("value", "tabview");
-  contentWindow.performSearch();
-  is(new contentWindow.TabMatcher(
-      searchBox.getAttribute("value")).matched().length, 2,
-     "Match something when a common part of a url exists");
-     
   cleanup(contentWindow);
 }
 

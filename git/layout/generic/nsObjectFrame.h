@@ -183,7 +183,7 @@ public:
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager);
 
-  ImageContainer* GetImageContainer(LayerManager* aManager = nsnull);
+  ImageContainer* GetImageContainer();
 
   /**
    * If aContent has a nsObjectFrame, then prepare it for a DocShell swap.
@@ -221,7 +221,7 @@ protected:
   /**
    * Sets up the plugin window and calls SetWindow on the plugin.
    */
-  nsresult CallSetWindow(PRBool aCheckIsHidden = PR_TRUE);
+  void CallSetWindow();
 
   PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE);
 
@@ -316,8 +316,8 @@ public:
 #endif
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                   PRBool* aForceTransparentSurface = nsnull);
+  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder,
+                          PRBool* aForceTransparentSurface = nsnull);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,

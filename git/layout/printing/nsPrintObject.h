@@ -89,7 +89,6 @@ public:
   PRPackedBool     mSharedPresShell;
   PRPackedBool     mInvisible;        // Indicates PO is set to not visible by CSS
   PRPackedBool     mPrintPreview;
-  PRPackedBool     mDidCreateDocShell;
   float            mShrinkRatio;
   float            mZoomRatio;
 

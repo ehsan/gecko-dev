@@ -1,5 +1,11 @@
 function run_test()
 {
+  var isOSX = ("nsILocalFileMac" in Components.interfaces);
+  if (isOSX) {
+    dump("INFO | test_crashreporter_crash_profile_lock.js | Skipping test on mac, bug 599475")
+    return;
+  }
+
   if (!("@mozilla.org/toolkit/crash-reporter;1" in Components.classes)) {
     dump("INFO | test_crashreporter.js | Can't test crashreporter in a non-libxul build.\n");
     return;
@@ -16,7 +22,8 @@ function run_test()
              let dir = Components.classes["@mozilla.org/file/local;1"]
                .createInstance(Components.interfaces.nsILocalFile);
              dir.initWithPath(profd);
-             let lock = CrashTestUtils.lockDir(dir);
+             let mycrasher = Components.classes["@mozilla.org/testcrasher;1"].createInstance(Components.interfaces.nsITestCrasher);
+             let lock = mycrasher.lockDir(dir);
              // when we crash, the lock file should be cleaned up
            },
            function(mdump, extra) {

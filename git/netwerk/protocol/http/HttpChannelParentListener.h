@@ -45,7 +45,7 @@
 #include "nsHttp.h"
 #include "mozilla/net/NeckoCommon.h"
 #include "PHttpChannelParams.h"
-#include "nsIParentChannel.h"
+#include "nsIStreamListener.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
 #include "nsIRedirectResultListener.h"
@@ -76,9 +76,16 @@ public:
   HttpChannelParentListener(HttpChannelParent* aInitialChannel);
   virtual ~HttpChannelParentListener();
 
+protected:
+  friend class HttpChannelParent;
+  void OnContentRedirectResultReceived(
+                            const nsresult result, 
+                            const RequestHeaderTuples& changedHeaders);
+
 private:
-  nsCOMPtr<nsIParentChannel> mActiveChannel;
-  PRUint32 mRedirectChannelId;
+  nsRefPtr<HttpChannelParent> mActiveChannel;
+  nsRefPtr<HttpChannelParent> mRedirectChannel;
+  nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
 };
 
 } // namespace net

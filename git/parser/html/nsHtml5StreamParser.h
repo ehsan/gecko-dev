@@ -138,7 +138,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * Tree builder uses this to report a late <meta charset>
      */
-    PRBool internalEncodingDeclaration(nsString* aEncoding);
+    void internalEncodingDeclaration(nsString* aEncoding);
 
     // Not from an external interface
 

@@ -61,18 +61,6 @@ ShadowLayerParent::Bind(Layer* layer)
   mLayer = layer;
 }
 
-void
-ShadowLayerParent::Destroy()
-{
-  // It's possible for Destroy() to come in just after this has been
-  // created, but just before the transaction in which Bind() would
-  // have been called.  In that case, we'll ignore shadow-layers
-  // transactions from there on and never get a layer here.
-  if (mLayer) {
-    mLayer->Disconnect();
-  }
-}
-
 ContainerLayer*
 ShadowLayerParent::AsContainer() const
 {
@@ -88,10 +76,7 @@ ShadowLayerParent::ActorDestroy(ActorDestroyReason why)
     return;                     // unreached
 
   case Deletion:
-    // See comment near Destroy() above.
-    if (mLayer) {
-      mLayer->Disconnect();
-    }
+    mLayer->Disconnect();
     break;
 
   case AbnormalShutdown:

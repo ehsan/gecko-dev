@@ -69,7 +69,6 @@
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
-#include "jsscriptinlines.h"
 
 #include "jsautooplen.h"
 
@@ -116,40 +115,15 @@ JS_SetRuntimeDebugMode(JSRuntime *rt, JSBool debug)
     rt->debugMode = debug;
 }
 
-#ifdef JS_METHODJIT
-static void
-PurgeCallICs(JSContext *cx, JSScript *start)
-{
-    for (JSScript *script = start;
-         &script->links != &cx->compartment->scripts;
-         script = (JSScript *)script->links.next)
-    {
-        // Debug mode does not use call ICs.
-        if (script->debugMode)
-            continue;
-
-        JS_ASSERT(!IsScriptLive(cx, script));
-
-        if (script->jitNormal)
-            script->jitNormal->nukeScriptDependentICs();
-        if (script->jitCtor)
-            script->jitCtor->nukeScriptDependentICs();
-    }
-}
-#endif
-
 JS_FRIEND_API(JSBool)
 js_SetDebugMode(JSContext *cx, JSBool debug)
 {
-    if (!cx->compartment)
-        return JS_TRUE;
-
     cx->compartment->debugMode = debug;
 #ifdef JS_METHODJIT
     for (JSScript *script = (JSScript *)cx->compartment->scripts.next;
          &script->links != &cx->compartment->scripts;
          script = (JSScript *)script->links.next) {
-        if (script->debugMode != !!debug &&
+        if (script->debugMode != (bool) debug &&
             script->hasJITCode() &&
             !IsScriptLive(cx, script)) {
             /*
@@ -160,12 +134,6 @@ js_SetDebugMode(JSContext *cx, JSBool debug)
              */
             js::mjit::Recompiler recompiler(cx, script);
             if (!recompiler.recompile()) {
-                /*
-                 * If recompilation failed, we could be in a state where
-                 * remaining compiled scripts hold call IC references that
-                 * have been destroyed by recompilation. Clear those ICs now.
-                 */
-                PurgeCallICs(cx, script);
                 cx->compartment->debugMode = JS_FALSE;
                 return JS_FALSE;
             }
@@ -186,32 +154,6 @@ JS_SetDebugMode(JSContext *cx, JSBool debug)
     return js_SetDebugMode(cx, debug);
 }
 
-JS_FRIEND_API(JSBool)
-js_SetSingleStepMode(JSContext *cx, JSScript *script, JSBool singleStep)
-{
-#ifdef JS_METHODJIT
-    if (!script->singleStepMode == !singleStep)
-        return JS_TRUE;
-#endif
-
-    JS_ASSERT_IF(singleStep, cx->compartment->debugMode);
-
-#ifdef JS_METHODJIT
-    /* request the next recompile to inject single step interrupts */
-    script->singleStepMode = !!singleStep;
-
-    js::mjit::JITScript *jit = script->jitNormal ? script->jitNormal : script->jitCtor;
-    if (jit && script->singleStepMode != jit->singleStepMode) {
-        js::mjit::Recompiler recompiler(cx, script);
-        if (!recompiler.recompile()) {
-            script->singleStepMode = !singleStep;
-            return JS_FALSE;
-        }
-    }
-#endif
-    return JS_TRUE;
-}
-
 static JSBool
 CheckDebugMode(JSContext *cx)
 {
@@ -226,15 +168,6 @@ CheckDebugMode(JSContext *cx)
                                      NULL, JSMSG_NEED_DEBUG_MODE);
     }
     return debugMode;
-}
-
-JS_PUBLIC_API(JSBool)
-JS_SetSingleStepMode(JSContext *cx, JSScript *script, JSBool singleStep)
-{
-    if (!CheckDebugMode(cx))
-        return JS_FALSE;
-
-    return js_SetSingleStepMode(cx, script, singleStep);
 }
 
 /*
@@ -303,6 +236,12 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
 
     if (!CheckDebugMode(cx))
         return JS_FALSE;
+
+    if (script == JSScript::emptyScript()) {
+        JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage,
+                                     NULL, JSMSG_READ_ONLY, "empty script");
+        return JS_FALSE;
+    }
 
     JS_ASSERT((JSOp) *pc != JSOP_TRAP);
     junk = NULL;
@@ -524,6 +463,17 @@ JITInhibitingHookChange(JSRuntime *rt, bool wasInhibited)
             js_ContextFromLinkField(cl)->traceJitEnabled = false;
     }
 }
+
+static void
+LeaveTraceRT(JSRuntime *rt)
+{
+    JSThreadData *data = js_CurrentThreadData(rt);
+    JSContext *cx = data ? data->traceMonitor.tracecx : NULL;
+    JS_UNLOCK_GC(rt);
+
+    if (cx)
+        LeaveTrace(cx);
+}
 #endif
 
 JS_PUBLIC_API(JSBool)
@@ -539,6 +489,7 @@ JS_SetInterrupt(JSRuntime *rt, JSInterruptHook hook, void *closure)
 #ifdef JS_TRACER
         JITInhibitingHookChange(rt, wasInhibited);
     }
+    LeaveTraceRT(rt);
 #endif
     return JS_TRUE;
 }
@@ -657,7 +608,7 @@ js_SweepWatchPoints(JSContext *cx)
          &wp->links != &rt->watchPointList;
          wp = next) {
         next = (JSWatchPoint *)wp->links.next;
-        if (IsAboutToBeFinalized(cx, wp->object)) {
+        if (IsAboutToBeFinalized(wp->object)) {
             sample = rt->debuggerMutations;
 
             /* Ignore failures. */
@@ -727,9 +678,6 @@ js_watch_set(JSContext *cx, JSObject *obj, jsid id, Value *vp)
                 DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
                 return JS_FALSE;
             }
-
-            /* Handler could have redefined the shape; see bug 624050. */
-            shape = wp->shape;
 
             /*
              * Pass the output of the handler to the setter. Security wrappers
@@ -1135,14 +1083,14 @@ JS_GetFunctionArgumentCount(JSContext *cx, JSFunction *fun)
 JS_PUBLIC_API(JSBool)
 JS_FunctionHasLocalNames(JSContext *cx, JSFunction *fun)
 {
-    return fun->script()->bindings.hasLocalNames();
+    return fun->hasLocalNames();
 }
 
 extern JS_PUBLIC_API(jsuword *)
 JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
 {
     *markp = JS_ARENA_MARK(&cx->tempPool);
-    return fun->script()->bindings.getLocalNameArray(cx, &cx->tempPool);
+    return fun->getLocalNameArray(cx, &cx->tempPool);
 }
 
 extern JS_PUBLIC_API(JSAtom *)
@@ -1465,7 +1413,7 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
     JS_ASSERT_NOT_ON_TRACE(cx);
 
     if (!CheckDebugMode(cx))
-        return false;
+        return JS_FALSE;
 
     JSObject *scobj = JS_GetFrameScopeChain(cx, fp);
     if (!scobj)
@@ -1473,7 +1421,7 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
 
     js::AutoCompartment ac(cx, scobj);
     if (!ac.enter())
-        return false;
+        return NULL;
 
     /*
      * NB: This function breaks the assumption that the compiler can see all
@@ -1482,7 +1430,7 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
      * variable references made by this frame.
      */
     JSScript *script = Compiler::compileScript(cx, scobj, fp, js_StackFramePrincipals(cx, fp),
-                                               TCF_COMPILE_N_GO, chars, length,
+                                               TCF_COMPILE_N_GO, chars, length, NULL,
                                                filename, lineno, NULL,
                                                UpvarCookie::UPVAR_LEVEL_LIMIT);
 
@@ -1551,35 +1499,34 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
     Shape *shape = (Shape *) sprop;
     pd->id = IdToJsval(shape->id);
 
-    JSBool wasThrowing = cx->isExceptionPending();
-    Value lastException = UndefinedValue();
-    if (wasThrowing)
-        lastException = cx->getPendingException();
-    cx->clearPendingException();
+    JSBool wasThrowing = cx->throwing;
+    AutoValueRooter lastException(cx, cx->exception);
+    cx->throwing = JS_FALSE;
 
     if (!js_GetProperty(cx, obj, shape->id, Valueify(&pd->value))) {
-        if (!cx->isExceptionPending()) {
+        if (!cx->throwing) {
             pd->flags = JSPD_ERROR;
             pd->value = JSVAL_VOID;
         } else {
             pd->flags = JSPD_EXCEPTION;
-            pd->value = Jsvalify(cx->getPendingException());
+            pd->value = Jsvalify(cx->exception);
         }
     } else {
         pd->flags = 0;
     }
 
+    cx->throwing = wasThrowing;
     if (wasThrowing)
-        cx->setPendingException(lastException);
+        cx->exception = lastException.value();
 
     pd->flags |= (shape->enumerable() ? JSPD_ENUMERATE : 0)
               |  (!shape->writable()  ? JSPD_READONLY  : 0)
               |  (!shape->configurable() ? JSPD_PERMANENT : 0);
     pd->spare = 0;
-    if (shape->getter() == GetCallArg) {
+    if (shape->getter() == js_GetCallArg) {
         pd->slot = shape->shortid;
         pd->flags |= JSPD_ARGUMENT;
-    } else if (shape->getter() == GetCallVar) {
+    } else if (shape->getter() == js_GetCallVar) {
         pd->slot = shape->shortid;
         pd->flags |= JSPD_VARIABLE;
     } else {
@@ -1703,6 +1650,8 @@ JS_SetCallHook(JSRuntime *rt, JSInterpreterHook hook, void *closure)
 #ifdef JS_TRACER
         JITInhibitingHookChange(rt, wasInhibited);
     }
+    if (hook)
+        LeaveTraceRT(rt);
 #endif
     return JS_TRUE;
 }
@@ -1784,7 +1733,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
         continue;
     nbytes += (sn - notes + 1) * sizeof *sn;
 
-    if (JSScript::isValidOffset(script->objectsOffset)) {
+    if (script->objectsOffset != 0) {
         objarray = script->objects();
         i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
@@ -1793,7 +1742,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
         } while (i != 0);
     }
 
-    if (JSScript::isValidOffset(script->regexpsOffset)) {
+    if (script->regexpsOffset != 0) {
         objarray = script->regexps();
         i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
@@ -1802,7 +1751,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
         } while (i != 0);
     }
 
-    if (JSScript::isValidOffset(script->trynotesOffset)) {
+    if (script->trynotesOffset != 0) {
         nbytes += sizeof(JSTryNoteArray) +
             script->trynotes()->length * sizeof(JSTryNote);
     }
@@ -1864,14 +1813,6 @@ JS_MakeSystemObject(JSContext *cx, JSObject *obj)
 
 /************************************************************************/
 
-JS_PUBLIC_API(JSObject *)
-JS_UnwrapObject(JSContext *cx, JSObject *obj)
-{
-    return obj->unwrap();
-}
-
-/************************************************************************/
-
 JS_FRIEND_API(void)
 js_RevertVersion(JSContext *cx)
 {
@@ -1910,70 +1851,102 @@ JS_ClearContextDebugHooks(JSContext *cx)
     return JS_SetContextDebugHooks(cx, &js_NullDebugHooks);
 }
 
+#ifdef MOZ_SHARK
+
+#include <CHUD/CHUD.h>
+
 JS_PUBLIC_API(JSBool)
-JS_StartProfiling()
+JS_StartChudRemote()
 {
-    return Probes::startProfiling();
+    if (chudIsRemoteAccessAcquired() &&
+        (chudStartRemotePerfMonitor("Mozilla") == chudSuccess)) {
+        return JS_TRUE;
+    }
+
+    return JS_FALSE;
 }
 
-JS_PUBLIC_API(void)
-JS_StopProfiling()
+JS_PUBLIC_API(JSBool)
+JS_StopChudRemote()
 {
-    Probes::stopProfiling();
+    if (chudIsRemoteAccessAcquired() &&
+        (chudStopRemotePerfMonitor() == chudSuccess)) {
+        return JS_TRUE;
+    }
+
+    return JS_FALSE;
 }
 
-#ifdef MOZ_PROFILING
-
-static JSBool
-StartProfiling(JSContext *cx, uintN argc, jsval *vp)
+JS_PUBLIC_API(JSBool)
+JS_ConnectShark()
 {
-    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_StartProfiling()));
-    return true;
+    if (!chudIsInitialized() && (chudInitialize() != chudSuccess))
+        return JS_FALSE;
+
+    if (chudAcquireRemoteAccess() != chudSuccess)
+        return JS_FALSE;
+
+    return JS_TRUE;
 }
 
-static JSBool
-StopProfiling(JSContext *cx, uintN argc, jsval *vp)
+JS_PUBLIC_API(JSBool)
+JS_DisconnectShark()
 {
-    JS_StopProfiling();
+    if (chudIsRemoteAccessAcquired() && (chudReleaseRemoteAccess() != chudSuccess))
+        return JS_FALSE;
+
+    return JS_TRUE;
+}
+
+JS_FRIEND_API(JSBool)
+js_StartShark(JSContext *cx, uintN argc, jsval *vp)
+{
+    if (!JS_StartChudRemote()) {
+        JS_ReportError(cx, "Error starting CHUD.");
+        return JS_FALSE;
+    }
+
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
+    return JS_TRUE;
 }
 
-#ifdef MOZ_SHARK
-
-static JSBool
-IgnoreAndReturnTrue(JSContext *cx, uintN argc, jsval *vp)
+JS_FRIEND_API(JSBool)
+js_StopShark(JSContext *cx, uintN argc, jsval *vp)
 {
-    JS_SET_RVAL(cx, vp, JSVAL_TRUE);
-    return true;
+    if (!JS_StopChudRemote()) {
+        JS_ReportError(cx, "Error stopping CHUD.");
+        return JS_FALSE;
+    }
+
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+    return JS_TRUE;
 }
 
-#endif
-
-static JSFunctionSpec profiling_functions[] = {
-    JS_FN("startProfiling",  StartProfiling,      0,0),
-    JS_FN("stopProfiling",   StopProfiling,       0,0),
-#ifdef MOZ_SHARK
-    /* Keep users of the old shark API happy. */
-    JS_FN("connectShark",    IgnoreAndReturnTrue, 0,0),
-    JS_FN("disconnectShark", IgnoreAndReturnTrue, 0,0),
-    JS_FN("startShark",      StartProfiling,      0,0),
-    JS_FN("stopShark",       StopProfiling,       0,0),
-#endif
-    JS_FS_END
-};
-
-#endif
-
-JS_PUBLIC_API(JSBool)
-JS_DefineProfilingFunctions(JSContext *cx, JSObject *obj)
+JS_FRIEND_API(JSBool)
+js_ConnectShark(JSContext *cx, uintN argc, jsval *vp)
 {
-#ifdef MOZ_PROFILING
-    return JS_DefineFunctions(cx, obj, profiling_functions);
-#else
-    return true;
-#endif
+    if (!JS_ConnectShark()) {
+        JS_ReportError(cx, "Error connecting to Shark.");
+        return JS_FALSE;
+    }
+
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+    return JS_TRUE;
 }
+
+JS_FRIEND_API(JSBool)
+js_DisconnectShark(JSContext *cx, uintN argc, jsval *vp)
+{
+    if (!JS_DisconnectShark()) {
+        JS_ReportError(cx, "Error disconnecting from Shark.");
+        return JS_FALSE;
+    }
+
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+    return JS_TRUE;
+}
+
+#endif /* MOZ_SHARK */
 
 #ifdef MOZ_CALLGRIND
 
@@ -2000,13 +1973,15 @@ JS_FRIEND_API(JSBool)
 js_DumpCallgrind(JSContext *cx, uintN argc, jsval *vp)
 {
     JSString *str;
+    char *cstr;
 
     jsval *argv = JS_ARGV(cx, vp);
     if (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
-        JSAutoByteString bytes(cx, str);
-        if (!!bytes) {
-            CALLGRIND_DUMP_STATS_AT(bytes.ptr());
+        cstr = js_DeflateString(cx, str->chars(), str->length());
+        if (cstr) {
+            CALLGRIND_DUMP_STATS_AT(cstr);
+            cx->free(cstr);
             return JS_TRUE;
         }
     }
@@ -2248,7 +2223,7 @@ public:
         JSHashNumber hash = JS_HashString(filename);
         JSHashEntry **hep = JS_HashTableRawLookup(traceVisScriptTable, hash, filename);
         if (*hep != NULL)
-            return NULL;
+            return JS_FALSE;
 
         JS_HashTableRawAdd(traceVisScriptTable, hep, hash, filename, this);
 

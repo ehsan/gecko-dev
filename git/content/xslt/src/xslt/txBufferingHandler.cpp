@@ -58,11 +58,9 @@ public:
     txOutputTransaction(txTransactionType aType)
         : mType(aType)
     {
-        MOZ_COUNT_CTOR(txOutputTransaction);
     }
     virtual ~txOutputTransaction()
     {
-        MOZ_COUNT_DTOR(txOutputTransaction);
     }
     txTransactionType mType;
 };
@@ -74,11 +72,6 @@ public:
         : txOutputTransaction(aType),
           mLength(aLength)
     {
-        MOZ_COUNT_CTOR_INHERITED(txCharacterTransaction, txOutputTransaction);
-    }
-    virtual ~txCharacterTransaction()
-    {
-        MOZ_COUNT_DTOR_INHERITED(txCharacterTransaction, txOutputTransaction);
     }
     PRUint32 mLength;
 };
@@ -90,11 +83,6 @@ public:
         : txOutputTransaction(eCommentTransaction),
           mValue(aValue)
     {
-        MOZ_COUNT_CTOR_INHERITED(txCommentTransaction, txOutputTransaction);
-    }
-    virtual ~txCommentTransaction()
-    {
-        MOZ_COUNT_DTOR_INHERITED(txCommentTransaction, txOutputTransaction);
     }
     nsString mValue;
 };
@@ -107,11 +95,6 @@ public:
           mTarget(aTarget),
           mData(aData)
     {
-        MOZ_COUNT_CTOR_INHERITED(txPITransaction, txOutputTransaction);
-    }
-    virtual ~txPITransaction()
-    {
-        MOZ_COUNT_DTOR_INHERITED(txPITransaction, txOutputTransaction);
     }
     nsString mTarget;
     nsString mData;
@@ -128,11 +111,6 @@ public:
           mLowercaseLocalName(aLowercaseLocalName),
           mNsID(aNsID)
     {
-        MOZ_COUNT_CTOR_INHERITED(txStartElementAtomTransaction, txOutputTransaction);
-    }
-    virtual ~txStartElementAtomTransaction()
-    {
-        MOZ_COUNT_DTOR_INHERITED(txStartElementAtomTransaction, txOutputTransaction);
     }
     nsCOMPtr<nsIAtom> mPrefix;
     nsCOMPtr<nsIAtom> mLocalName;
@@ -150,11 +128,6 @@ public:
           mLocalName(aLocalName),
           mNsID(aNsID)
     {
-        MOZ_COUNT_CTOR_INHERITED(txStartElementTransaction, txOutputTransaction);
-    }
-    virtual ~txStartElementTransaction()
-    {
-        MOZ_COUNT_DTOR_INHERITED(txStartElementTransaction, txOutputTransaction);
     }
     nsCOMPtr<nsIAtom> mPrefix;
     nsString mLocalName;
@@ -173,11 +146,6 @@ public:
           mNsID(aNsID),
           mValue(aValue)
     {
-        MOZ_COUNT_CTOR_INHERITED(txAttributeTransaction, txOutputTransaction);
-    }
-    virtual ~txAttributeTransaction()
-    {
-        MOZ_COUNT_DTOR_INHERITED(txAttributeTransaction, txOutputTransaction);
     }
     nsCOMPtr<nsIAtom> mPrefix;
     nsString mLocalName;
@@ -198,11 +166,6 @@ public:
           mNsID(aNsID),
           mValue(aValue)
     {
-        MOZ_COUNT_CTOR_INHERITED(txAttributeAtomTransaction, txOutputTransaction);
-    }
-    virtual ~txAttributeAtomTransaction()
-    {
-        MOZ_COUNT_DTOR_INHERITED(txAttributeAtomTransaction, txOutputTransaction);
     }
     nsCOMPtr<nsIAtom> mPrefix;
     nsCOMPtr<nsIAtom> mLocalName;
@@ -213,13 +176,7 @@ public:
 
 txBufferingHandler::txBufferingHandler() : mCanAddAttribute(PR_FALSE)
 {
-    MOZ_COUNT_CTOR(txBufferingHandler);
     mBuffer = new txResultBuffer();
-}
-
-txBufferingHandler::~txBufferingHandler()
-{
-    MOZ_COUNT_DTOR(txBufferingHandler);
 }
 
 nsresult
@@ -386,14 +343,8 @@ txBufferingHandler::startElement(nsIAtom* aPrefix,
     return mBuffer->addTransaction(transaction);
 }
 
-txResultBuffer::txResultBuffer()
-{
-    MOZ_COUNT_CTOR(txResultBuffer);
-}
-
 txResultBuffer::~txResultBuffer()
 {
-    MOZ_COUNT_DTOR(txResultBuffer);
     for (PRUint32 i = 0, len = mTransactions.Length(); i < len; ++i) {
         delete mTransactions[i];
     }

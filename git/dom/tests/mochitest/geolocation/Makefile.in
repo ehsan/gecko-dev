@@ -58,8 +58,7 @@ _TEST_FILES	= \
 		test_manyWindows.html \
 		test_optional_api_params.html \
 		test_windowClose.html \
-		test_timerRestartWatch.html \
-		test_worseAccuracyDoesNotBlockCallback.html \
+	        test_timerRestartWatch.html \
 		geolocation.html \
 		geolocation_common.js  \
 		network_geolocation.sjs \

@@ -71,17 +71,18 @@ function testLogNodeClasses() {
   let count = outputNode.childNodes.length;
   ok(count > 0, "LogCount: " + count);
 
-  let klasses = ["hud-log",
-                 "hud-warn",
-                 "hud-info",
-                 "hud-error",
-                 "hud-exception",
-                 "hud-network"];
+  let klasses = ["hud-group",
+                 "hud-msg-node hud-log",
+                 "hud-msg-node hud-warn",
+                 "hud-msg-node hud-info",
+                 "hud-msg-node hud-error",
+                 "hud-msg-node hud-exception",
+                 "hud-msg-node hud-network"];
 
-  function verifyClass(classList) {
+  function verifyClass(klass) {
     let len = klasses.length;
     for (var i = 0; i < len; i++) {
-      if (classList.contains(klasses[i])) {
+      if (klass == klasses[i]) {
         return true;
       }
     }
@@ -89,9 +90,9 @@ function testLogNodeClasses() {
   }
 
   for (var i = 0; i < count; i++) {
-    let classList = domLogEntries[i].classList;
-    ok(verifyClass(classList),
-       "Log Node class verified: " + domLogEntries[i].getAttribute("class"));
+    let klass = domLogEntries[i].getAttribute("class");
+    ok(verifyClass(klass),
+       "Log Node class verified: " + klass);
   }
 
   finishTest();

@@ -163,7 +163,7 @@ struct ClosureVarInfo;
  *         OBJECT_RETRY_NULL: NULL
  *
  *     _RETRY function calls are faster than _FAIL calls.  Each _RETRY call
- *     saves two writes to tm->bailExit and a read from state->builtinStatus.
+ *     saves two writes to cx->bailExit and a read from state->builtinStatus.
  *
  *   - All other traceable natives are infallible (e.g. Date.now, Math.log).
  *
@@ -547,7 +547,7 @@ struct ClosureVarInfo;
 #define _JS_DEFINE_CALLINFO_n(n, args)  JS_DEFINE_CALLINFO_##n args
 
 jsdouble FASTCALL
-js_StringToNumber(JSContext* cx, JSString* str, JSBool *ok);
+js_StringToNumber(JSContext* cx, JSString* str);
 
 /* Extern version of SetBuiltinError. */
 extern JS_FRIEND_API(void)
@@ -575,11 +575,9 @@ js_dmod(jsdouble a, jsdouble b);
 #endif /* !JS_TRACER */
 
 /* Defined in jsarray.cpp. */
-namespace js {
-JS_DECLARE_CALLINFO(NewDenseEmptyArray)
-JS_DECLARE_CALLINFO(NewDenseAllocatedArray)
-JS_DECLARE_CALLINFO(NewDenseUnallocatedArray)
-}
+JS_DECLARE_CALLINFO(js_NewEmptyArray)
+JS_DECLARE_CALLINFO(js_NewPreallocatedArray)
+JS_DECLARE_CALLINFO(js_InitializerArray)
 JS_DECLARE_CALLINFO(js_ArrayCompPush_tn)
 JS_DECLARE_CALLINFO(js_EnsureDenseArrayCapacity)
 
@@ -623,9 +621,9 @@ JS_DECLARE_CALLINFO(js_CloneRegExpObject)
 
 /* Defined in jsstr.cpp. */
 JS_DECLARE_CALLINFO(js_String_tn)
-JS_DECLARE_CALLINFO(js_CompareStringsOnTrace)
+JS_DECLARE_CALLINFO(js_CompareStrings)
 JS_DECLARE_CALLINFO(js_ConcatStrings)
-JS_DECLARE_CALLINFO(js_EqualStringsOnTrace)
+JS_DECLARE_CALLINFO(js_EqualStrings)
 JS_DECLARE_CALLINFO(js_Flatten)
 
 /* Defined in jstypedarray.cpp. */

@@ -41,9 +41,9 @@
 #define _nsARIAMap_H_
 
 #include "prtypes.h"
+#include "nsAccessibilityAtoms.h"
 
-class nsIAtom;
-class nsIContent;
+#include "nsIContent.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Value constants

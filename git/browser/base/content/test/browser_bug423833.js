@@ -71,12 +71,9 @@ function test2Setup() {
   var contentAreaContextMenu = document.getElementById("contentAreaContextMenu");
   var contextMenu = new nsContextMenu(contentAreaContextMenu, gBrowser);
 
-  gBrowser.tabContainer.addEventListener("TabOpen", function (event) {
-    test2tab = event.target;
-    gBrowser.tabContainer.removeEventListener("TabOpen", arguments.callee, false);
-  }, false);
-  contextMenu.openFrameInTab();
-  ok(test2tab, "openFrameInTab() opened a tab");
+  test2tab = contextMenu.openFrameInTab();
+  ok(test2tab instanceof XULElement, "openFrameInTab() should return an element (non-null)");
+  is(test2tab.tagName, "tab", "openFrameInTab() should return a *tab* element");
 
   gBrowser.selectedTab = test2tab;
 
@@ -107,22 +104,16 @@ function test3Setup() {
   var contentAreaContextMenu = document.getElementById("contentAreaContextMenu");
   var contextMenu = new nsContextMenu(contentAreaContextMenu, gBrowser);
 
-  Services.ww.registerNotification(function (aSubject, aTopic, aData) {
-    if (aTopic == "domwindowopened")
-      test3window = aSubject;
-    Services.ww.unregisterNotification(arguments.callee);
-  });
-
-  contextMenu.openFrame();
+  test3window = contextMenu.openFrame();
+  ok(test3window instanceof Window, "openFrame() should return a window (non-null) ");
 
   intervalID = setInterval(testOpenFrame, 3000);
 }
 
 function testOpenFrame() {
-  if (!test3window || test3window.content.location.href == "about:blank") {
-    info("testOpenFrame: Wait another cycle");
+  if (test3window.content.location.href == "about:blank")
+    // Wait another cycle
     return;
-  }
 
   clearInterval(intervalID);
 

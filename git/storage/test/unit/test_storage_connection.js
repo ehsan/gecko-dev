@@ -482,18 +482,6 @@ function test_clone_copies_overridden_functions()
   run_next_test();
 }
 
-function test_getInterface()
-{
-  let db = getOpenedDatabase();
-  let target = db.QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIEventTarget);
-  // Just check that target is non-null.  Other tests will ensure that it has
-  // the correct value.
-  do_check_true(target != null);
-
-  run_next_test();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Runner
 
@@ -525,7 +513,6 @@ var tests = [
   test_close_clone_fails,
   test_clone_copies_functions,
   test_clone_copies_overridden_functions,
-  test_getInterface,
 ];
 let index = 0;
 

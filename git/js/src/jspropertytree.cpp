@@ -140,7 +140,7 @@ KidsChunk::destroy(JSContext *cx, KidsChunk *chunk)
 
 /*
  * NB: Called with cx->runtime->gcLock held, always.
- * On failure, return false after unlocking the GC and reporting out of memory.
+ * On failure, return null after unlocking the GC and reporting out of memory.
  */
 bool
 PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
@@ -219,11 +219,8 @@ PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
     KidsHash *hash = kidp->toHash();
     KidsHash::AddPtr addPtr = hash->lookupForAdd(child);
     if (!addPtr) {
-        if (!hash->add(addPtr, child)) {
-            JS_UNLOCK_GC(cx->runtime);
-            JS_ReportOutOfMemory(cx);
+        if (!hash->add(addPtr, child))
             return false;
-        }
     } else {
         // FIXME ignore duplicate child case here, going thread-local soon!
     }
@@ -392,7 +389,7 @@ PropertyTree::getChild(JSContext *cx, Shape *parent, const Shape &child)
 
                                 JS_LOCK_GC(cx->runtime);
                                 if (kidp->isHash()) {
-                                    hash->~KidsHash();
+                                    hash->KidsHash::~KidsHash();
                                     js_free(hash);
                                 } else {
                                     // FIXME unsafe race with kidp->is/toChunk() above.
@@ -480,14 +477,13 @@ Shape::dump(JSContext *cx, FILE *fp) const
     if (JSID_IS_INT(id)) {
         fprintf(fp, "[%ld]", (long) JSID_TO_INT(id));
     } else {
-        JSLinearString *str;
+        JSString *str;
         if (JSID_IS_ATOM(id)) {
-            str = JSID_TO_ATOM(id);
+            str = JSID_TO_STRING(id);
         } else {
             JS_ASSERT(JSID_IS_OBJECT(id));
-            JSString *s = js_ValueToString(cx, IdToValue(id));
+            str = js_ValueToString(cx, IdToValue(id));
             fputs("object ", fp);
-            str = s ? s->ensureLinear(cx) : NULL;
         }
         if (!str)
             fputs("<error>", fp);
@@ -661,7 +657,7 @@ js::PropertyTree::orphanKids(JSContext *cx, Shape *shape)
             }
         }
 
-        hash->~KidsHash();
+        hash->KidsHash::~KidsHash();
         js_free(hash);
     }
 
@@ -894,23 +890,4 @@ js::PropertyTree::sweepShapes(JSContext *cx)
         }
     }
 #endif /* DEBUG */
-}
-
-void
-js::PropertyTree::unmarkShapes(JSContext *cx)
-{
-    JSArena **ap = &JS_PROPERTY_TREE(cx).arenaPool.first.next;
-    while (JSArena *a = *ap) {
-        Shape *limit = (Shape *) a->avail;
-
-        for (Shape *shape = (Shape *) a->base; shape < limit; shape++) {
-            /* If the id is null, shape is already on the freelist. */
-            if (JSID_IS_VOID(shape->id))
-                continue;
-
-            if (shape->marked())
-                shape->clearMark();
-        }
-        ap = &a->next;
-    }
 }

@@ -95,10 +95,9 @@ static void
 getUTF8StringArgument(JSContext *cx, JSObject *obj, PRUint16 argNum,
                       uintN argc, jsval *argv, nsCString& aRetval)
 {
-    aRetval.Truncate();
-
     if (argc <= argNum || !JSVAL_IS_STRING(argv[argNum])) {
         JS_ReportError(cx, "String argument expected");
+        aRetval.Truncate();
         return;
     }
 
@@ -107,13 +106,12 @@ getUTF8StringArgument(JSContext *cx, JSObject *obj, PRUint16 argNum,
      * to have an object to represent a target in subsequent versions.
      */
     JSString *str = JSVAL_TO_STRING(argv[argNum]);
-    if (!str)
+    if (!str) {
+        aRetval.Truncate();
         return;
+    }
 
-    const PRUnichar *data = JS_GetStringCharsZ(cx, str);
-    if (!data)
-        return;
-
+    PRUnichar *data = (PRUnichar*)JS_GetStringChars(str);
     CopyUTF16toUTF8(data, aRetval);
 }
 

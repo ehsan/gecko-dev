@@ -30,8 +30,6 @@
 #ifndef GOOGLE_BREAKPAD_CLIENT_MAC_CRASH_GENERATION_CRASH_GENERATION_SERVER_H_
 #define GOOGLE_BREAKPAD_CLIENT_MAC_CRASH_GENERATION_CRASH_GENERATION_SERVER_H_
 
-#include <stdint.h>
-
 #include <string>
 
 #include "common/mac/MachIPC.h"
@@ -49,9 +47,9 @@ enum {
 
 // Exception details sent by the client when requesting a dump.
 struct ExceptionInfo {
-  int32_t exception_type;
-  int32_t exception_code;
-  int32_t exception_subcode;
+  int exception_type;
+  int exception_code;
+  int exception_subcode;
 };
 
 class CrashGenerationServer {

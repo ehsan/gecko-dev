@@ -62,11 +62,8 @@ class OfflineCacheUpdateParent : public POfflineCacheUpdateParent
     OfflineCacheUpdateParent();
     ~OfflineCacheUpdateParent();
 
-    virtual void ActorDestroy(ActorDestroyReason why);
-
 private:
     void RefcountHitZero();
-    bool mIPCClosed;
 };
 
 }

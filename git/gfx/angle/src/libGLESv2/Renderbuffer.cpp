@@ -87,13 +87,9 @@ void Renderbuffer::setStorage(RenderbufferStorage *newStorage)
     mStorage = newStorage;
 }
 
-RenderbufferStorage::RenderbufferStorage() : mSerial(issueSerial())
+RenderbufferStorage::RenderbufferStorage()
 {
-    mWidth = 0;
-    mHeight = 0;
-    mFormat = GL_RGBA4;
-    mD3DFormat = D3DFMT_A8R8G8B8;
-    mSamples = 0;
+    mSerial = issueSerial();
 }
 
 RenderbufferStorage::~RenderbufferStorage()
@@ -181,9 +177,13 @@ Colorbuffer::Colorbuffer(IDirect3DSurface9 *renderTarget) : mRenderTarget(render
         renderTarget->GetDesc(&description);
 
         setSize(description.Width, description.Height);
-        mFormat = dx2es::ConvertBackBufferFormat(description.Format);
         mD3DFormat = description.Format;
         mSamples = es2dx::GetSamplesFromMultisampleType(description.MultiSampleType);
+    }
+    else
+    {
+        mD3DFormat = D3DFMT_UNKNOWN;
+        mSamples = 0;
     }
 }
 
@@ -231,6 +231,13 @@ Colorbuffer::Colorbuffer(int width, int height, GLenum format, GLsizei samples)
         mD3DFormat = requestedFormat;
         mSamples = supportedSamples;
     }
+    else
+    {
+        setSize(0, 0);
+        mFormat = GL_RGBA4;
+        mD3DFormat = D3DFMT_UNKNOWN;
+        mSamples = 0;
+    }
 }
 
 Colorbuffer::~Colorbuffer()
@@ -246,12 +253,12 @@ bool Colorbuffer::isColorbuffer() const
     return true;
 }
 
-GLuint Colorbuffer::getRedSize()
+GLuint Colorbuffer::getRedSize() const
 {
-    if (getRenderTarget())
+    if (mRenderTarget)
     {
         D3DSURFACE_DESC description;
-        getRenderTarget()->GetDesc(&description);
+        mRenderTarget->GetDesc(&description);
 
         return es2dx::GetRedSize(description.Format);
     }
@@ -259,12 +266,12 @@ GLuint Colorbuffer::getRedSize()
     return 0;
 }
 
-GLuint Colorbuffer::getGreenSize()
+GLuint Colorbuffer::getGreenSize() const
 {
-    if (getRenderTarget())
+    if (mRenderTarget)
     {
         D3DSURFACE_DESC description;
-        getRenderTarget()->GetDesc(&description);
+        mRenderTarget->GetDesc(&description);
 
         return es2dx::GetGreenSize(description.Format);
     }
@@ -272,12 +279,12 @@ GLuint Colorbuffer::getGreenSize()
     return 0;
 }
 
-GLuint Colorbuffer::getBlueSize()
+GLuint Colorbuffer::getBlueSize() const
 {
-    if (getRenderTarget())
+    if (mRenderTarget)
     {
         D3DSURFACE_DESC description;
-        getRenderTarget()->GetDesc(&description);
+        mRenderTarget->GetDesc(&description);
 
         return es2dx::GetBlueSize(description.Format);
     }
@@ -285,12 +292,12 @@ GLuint Colorbuffer::getBlueSize()
     return 0;
 }
 
-GLuint Colorbuffer::getAlphaSize()
+GLuint Colorbuffer::getAlphaSize() const
 {
-    if (getRenderTarget())
+    if (mRenderTarget)
     {
         D3DSURFACE_DESC description;
-        getRenderTarget()->GetDesc(&description);
+        mRenderTarget->GetDesc(&description);
 
         return es2dx::GetAlphaSize(description.Format);
     }
@@ -313,9 +320,14 @@ DepthStencilbuffer::DepthStencilbuffer(IDirect3DSurface9 *depthStencil) : mDepth
         depthStencil->GetDesc(&description);
 
         setSize(description.Width, description.Height);
-        mFormat = dx2es::ConvertDepthStencilFormat(description.Format);
+        mFormat = (description.Format == D3DFMT_D16 ? GL_DEPTH_COMPONENT16 : GL_DEPTH24_STENCIL8_OES);
         mSamples = es2dx::GetSamplesFromMultisampleType(description.MultiSampleType); 
         mD3DFormat = description.Format;
+    }
+    else
+    {
+        mD3DFormat = D3DFMT_UNKNOWN; 
+        mSamples = 0;
     }
 }
 
@@ -352,6 +364,13 @@ DepthStencilbuffer::DepthStencilbuffer(int width, int height, GLsizei samples)
         mFormat = GL_DEPTH24_STENCIL8_OES;
         mD3DFormat = D3DFMT_D24S8;
         mSamples = supportedSamples;
+    }
+    else
+    {
+        setSize(0, 0);
+        mFormat = GL_RGBA4; //default format
+        mD3DFormat = D3DFMT_UNKNOWN;
+        mSamples = 0;
     }
 }
 

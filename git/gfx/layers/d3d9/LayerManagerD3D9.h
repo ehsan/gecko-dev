@@ -51,6 +51,8 @@
 namespace mozilla {
 namespace layers {
 
+extern cairo_user_data_key_t gKeyD3D9Texture;
+
 class LayerD3D9;
 class ThebesLayerD3D9;
 
@@ -119,21 +121,19 @@ public:
    */
   virtual void Destroy();
 
-  virtual void BeginTransaction();
+  void BeginTransaction();
 
-  virtual void BeginTransactionWithTarget(gfxContext* aTarget);
+  void BeginTransactionWithTarget(gfxContext* aTarget);
 
   void EndConstruction();
-
-  virtual bool EndEmptyTransaction();
 
   struct CallbackInfo {
     DrawThebesLayerCallback Callback;
     void *CallbackData;
   };
 
-  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
+  void EndTransaction(DrawThebesLayerCallback aCallback,
+                      void* aCallbackData);
 
   const CallbackInfo &GetCallbackInfo() { return mCurrentCallbackInfo; }
 
@@ -150,6 +150,10 @@ public:
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
 
   virtual already_AddRefed<ImageContainer> CreateImageContainer();
+
+  virtual already_AddRefed<gfxASurface>
+    CreateOptimalSurface(const gfxIntSize &aSize,
+                         gfxASurface::gfxImageFormat imageFormat);
 
   virtual LayersBackend GetBackendType() { return LAYERS_D3D9; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 9"); }
@@ -170,6 +174,11 @@ public:
    * Return pointer to the Nv3DVUtils instance. Re-direct to mDeviceManager.
    */ 
   Nv3DVUtils *GetNv3DVUtils()  { return mDeviceManager ? mDeviceManager->GetNv3DVUtils() : NULL; } 
+
+  /** 
+   * Indicate whether 3D is enabled or not 
+   */ 
+  PRBool Is3DEnabled() { return mIs3DEnabled; } 
 
   static void OnDeviceManagerDestroy(DeviceManagerD3D9 *aDeviceManager) {
     if(aDeviceManager == mDefaultDeviceManager)
@@ -203,16 +212,13 @@ private:
   /* Callback info for current transaction */
   CallbackInfo mCurrentCallbackInfo;
 
+  /* Flag that indicates whether 3D is enabled or not*/ 
+  PRBool mIs3DEnabled; 
+
   /*
    * Region we're clipping our current drawing to.
    */
   nsIntRegion mClippingRegion;
-
-  /*
-   * Device reset count at last paint. Whenever this changes, we need to
-   * do a full layer tree update.
-   */
-  PRUint32 mDeviceResetCount;
 
   /*
    * Render the current layer tree to the active target.

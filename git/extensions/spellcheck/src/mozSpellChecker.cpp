@@ -170,7 +170,9 @@ mozSpellChecker::CheckWord(const nsAString &aWord, PRBool *aIsMisspelled, nsTArr
       if (count)
         NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(count, words);
     }
-    *aIsMisspelled = PR_TRUE;
+    if(aIsMisspelled){
+      *aIsMisspelled = PR_TRUE;
+    }
   }
   return NS_OK;
 }

@@ -38,11 +38,9 @@
 #ifndef __nsCaretAccessible_h__
 #define __nsCaretAccessible_h__
 
-#include "NotificationController.h"
 #include "nsHyperTextAccessible.h"
 
 #include "nsISelectionListener.h"
-#include "nsISelection2.h"
 
 class nsRootAccessible;
 
@@ -118,21 +116,8 @@ public:
   nsIntRect GetCaretRect(nsIWidget **aOutWidget);
 
 protected:
-  /**
-   * Process DOM selection change. Fire selection and caret move events.
-   */
-  void ProcessSelectionChanged(nsISelection* aSelection);
-
-  /**
-   * Process normal selection change and fire caret move event.
-   */
-  void NormalSelectionChanged(nsISelection* aSelection);
-
-  /**
-   * Process spellcheck selection change and fire text attribute changed event
-   * for invalid text attribute.
-   */
-  void SpellcheckSelectionChanged(nsISelection* aSelection);
+  nsresult NormalSelectionChanged(nsIDOMDocument *aDoc, nsISelection *aSel);
+  nsresult SpellcheckSelectionChanged(nsIDOMDocument *aDoc, nsISelection *aSel);
 
   /**
    * Return selection controller for the given node.

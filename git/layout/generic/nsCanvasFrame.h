@@ -177,15 +177,14 @@ public:
     return NS_GET_A(mExtraBackgroundColor) > 0 ||
            nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion);
   }
-  virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                   PRBool* aForceTransparentSurface = nsnull)
+  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder,
+                          PRBool* aForceTransparentSurface = nsnull)
   {
     if (aForceTransparentSurface) {
       *aForceTransparentSurface = PR_FALSE;
     }
-    if (NS_GET_A(mExtraBackgroundColor) == 255)
-      return nsRegion(GetBounds(aBuilder));
-    return nsDisplayBackground::GetOpaqueRegion(aBuilder);
+    return NS_GET_A(mExtraBackgroundColor) == 255 ||
+           nsDisplayBackground::IsOpaque(aBuilder);
   }
   virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor)
   {
@@ -201,12 +200,7 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
   {
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    nsRect r = frame->CanvasArea() + ToReferenceFrame();
-    if (mSnappingEnabled) {
-      nscoord appUnitsPerDevPixel = frame->PresContext()->AppUnitsPerDevPixel();
-      r = r.ToNearestPixels(appUnitsPerDevPixel).ToAppUnits(appUnitsPerDevPixel);
-    }
-    return r;
+    return frame->CanvasArea() + ToReferenceFrame();
   }
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)

@@ -223,24 +223,6 @@ public:
 #endif
     };
 
-    struct ImmDouble {
-        union {
-            struct {
-#if WTF_CPU_BIG_ENDIAN || WTF_CPU_MIDDLE_ENDIAN
-                uint32 msb, lsb;
-#else
-                uint32 lsb, msb;
-#endif
-            } s;
-            uint64_t u64;
-            double d;
-        } u;
-
-        explicit ImmDouble(double d) {
-            u.d = d;
-        }
-    };
-
 
     // Section 2: MacroAssembler code buffer handles
     //
@@ -480,11 +462,6 @@ public:
     {
         return Label(this);
     }
-
-    DataLabel32 dataLabel32()
-    {
-        return DataLabel32(this);
-    }
     
     Label align()
     {
@@ -571,11 +548,6 @@ protected:
     static void repatchJump(CodeLocationJump jump, CodeLocationLabel destination)
     {
         AssemblerType::relinkJump(jump.dataLocation(), destination.dataLocation());
-    }
-
-    static bool canRepatchJump(CodeLocationJump jump, CodeLocationLabel destination)
-    {
-        return AssemblerType::canRelinkJump(jump.dataLocation(), destination.dataLocation());
     }
 
     static void repatchNearCall(CodeLocationNearCall nearCall, CodeLocationLabel destination)

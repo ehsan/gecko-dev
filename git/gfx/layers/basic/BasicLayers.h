@@ -140,7 +140,6 @@ public:
 
   virtual void BeginTransaction();
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
-  virtual bool EndEmptyTransaction();
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData);
 
@@ -182,8 +181,6 @@ public:
   // Clear the cached contents of this layer.
   void ClearCachedResources();
 
-  void SetTransactionIncomplete() { mTransactionIncomplete = true; }
-
 protected:
 #ifdef DEBUG
   enum TransactionPhase {
@@ -192,6 +189,7 @@ protected:
   TransactionPhase mPhase;
 #endif
 
+private:
   // Paints aLayer to mTarget.
   void PaintLayer(Layer* aLayer,
                   DrawThebesLayerCallback aCallback,
@@ -205,9 +203,6 @@ protected:
                                                           gfxPoint *aSavedOffset);
   void PopGroupWithCachedSurface(gfxContext *aTarget,
                                  const gfxPoint& aSavedOffset);
-
-  bool EndTransactionInternal(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
 
   // Target resolution for scalable content.
   float mXResolution;
@@ -226,7 +221,6 @@ protected:
 
   BufferMode   mDoubleBuffering;
   PRPackedBool mUsingDefaultTarget;
-  bool         mTransactionIncomplete;
 };
  
 
@@ -241,7 +235,6 @@ public:
   virtual ~BasicShadowLayerManager();
 
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
-  virtual bool EndEmptyTransaction();
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData);
 
@@ -270,11 +263,6 @@ public:
   }
 
 private:
-  /**
-   * Forward transaction results to the parent context.
-   */
-  void ForwardTransaction();
-
   LayerRefArray mKeepAlive;
 };
 #endif  // MOZ_IPC

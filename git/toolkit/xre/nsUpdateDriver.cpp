@@ -193,16 +193,17 @@ GetStatusFile(nsIFile *dir, nsCOMPtr<nsILocalFile> &result)
 static PRBool
 IsPending(nsILocalFile *statusFile)
 {
-  PRFileDesc *fd = nsnull;
-  nsresult rv = statusFile->OpenNSPRFileDesc(PR_RDONLY, 0660, &fd);
+  nsresult rv;
+
+  FILE *fp;
+  rv = statusFile->OpenANSIFileDesc("r", &fp);
   if (NS_FAILED(rv))
     return PR_FALSE;
 
   char buf[32];
-  const PRInt32 n = PR_Read(fd, buf, sizeof(buf));
-  PR_Close(fd);
-
-  if (n < 0)
+  char *result = fgets(buf, sizeof(buf), fp);
+  fclose(fp);
+  if (!result)
     return PR_FALSE;
   
   const char kPending[] = "pending";
@@ -210,17 +211,15 @@ IsPending(nsILocalFile *statusFile)
 }
 
 static PRBool
-SetStatusApplying(nsILocalFile *statusFile)
+SetStatus(nsILocalFile *statusFile, const char *status)
 {
-  PRFileDesc *fd = nsnull;
-  nsresult rv = statusFile->OpenNSPRFileDesc(PR_WRONLY, 0660, &fd);
+  FILE *fp;
+  nsresult rv = statusFile->OpenANSIFileDesc("w", &fp);
   if (NS_FAILED(rv))
     return PR_FALSE;
 
-  static const char kApplying[] = "Applying\n";
-  PR_Write(fd, kApplying, sizeof(kApplying) - 1);
-  PR_Close(fd);
-
+  fprintf(fp, "%s\n", status);
+  fclose(fp);
   return PR_TRUE;
 }
 
@@ -235,21 +234,23 @@ GetVersionFile(nsIFile *dir, nsCOMPtr<nsILocalFile> &result)
 static PRBool
 IsOlderVersion(nsILocalFile *versionFile, const char *&appVersion)
 {
-  PRFileDesc *fd = nsnull;
-  nsresult rv = versionFile->OpenNSPRFileDesc(PR_RDONLY, 0660, &fd);
+  nsresult rv;
+
+  FILE *fp;
+  rv = versionFile->OpenANSIFileDesc("r", &fp);
   if (NS_FAILED(rv))
     return PR_TRUE;
 
   char buf[32];
-  const PRInt32 n = PR_Read(fd, buf, sizeof(buf));
-  PR_Close(fd);
+  char *result = fgets(buf, sizeof(buf), fp);
+  fclose(fp);
+  if (!result)
+    return PR_TRUE;
 
-  if (n < 0)
-    return PR_FALSE;
-
-  // Trim off the trailing newline
-  if (buf[n - 1] == '\n')
-    buf[n - 1] = '\0';
+  // Trim off any trailing newline
+  int len = strlen(result);
+  if (len > 0 && result[len - 1] == '\n')
+    result[len - 1] = '\0';
 
   // If the update xml doesn't provide the application version the file will
   // contain the string "null" and it is assumed that the update is not older.
@@ -257,7 +258,7 @@ IsOlderVersion(nsILocalFile *versionFile, const char *&appVersion)
   if (strncmp(buf, kNull, sizeof(kNull) - 1) == 0)
     return PR_FALSE;
 
-  if (NS_CompareVersions(appVersion, buf) > 0)
+  if (NS_CompareVersions(appVersion, result) > 0)
     return PR_TRUE;
 
   return PR_FALSE;
@@ -432,7 +433,7 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsILocalFile *statusFile,
   if (NS_FAILED(rv))
     return;
 
-  if (!SetStatusApplying(statusFile)) {
+  if (!SetStatus(statusFile, "applying")) {
     LOG(("failed setting status to 'applying'\n"));
     return;
   }
@@ -501,13 +502,17 @@ ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
   rv = updRootDir->Clone(getter_AddRefs(updatesDir));
   if (NS_FAILED(rv))
     return rv;
-
   rv = updatesDir->AppendNative(NS_LITERAL_CSTRING("updates"));
   if (NS_FAILED(rv))
     return rv;
 
   rv = updatesDir->AppendNative(NS_LITERAL_CSTRING("0"));
   if (NS_FAILED(rv))
+    return rv;
+
+  PRBool exists;
+  rv = updatesDir->Exists(&exists);
+  if (NS_FAILED(rv) || !exists)
     return rv;
 
   nsCOMPtr<nsILocalFile> statusFile;

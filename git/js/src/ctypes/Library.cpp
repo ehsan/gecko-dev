@@ -133,13 +133,12 @@ Library::Create(JSContext* cx, jsval path, JSCTypesCallbacks* callbacks)
   }
 
   PRLibSpec libSpec;
-  JSFlatString* pathStr = JS_FlattenString(cx, JSVAL_TO_STRING(path));
-  if (!pathStr)
-    return NULL;
+  JSString* pathStr = JSVAL_TO_STRING(path);
 #ifdef XP_WIN
   // On Windows, converting to native charset may corrupt path string.
   // So, we have to use Unicode path directly.
-  const PRUnichar* pathChars = JS_GetFlatStringChars(pathStr);
+  const PRUnichar* pathChars = reinterpret_cast<const PRUnichar*>(
+    JS_GetStringCharsZ(cx, pathStr));
   if (!pathChars)
     return NULL;
 

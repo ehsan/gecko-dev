@@ -494,30 +494,46 @@ JSThreadData::init()
 #endif
     if (!stackSpace.init())
         return false;
+#ifdef JS_TRACER
+    InitJIT(&traceMonitor);
+#endif
     dtoaState = js_NewDtoaState();
     if (!dtoaState) {
         finish();
         return false;
     }
     nativeStackBase = GetNativeStackBase();
-
-#ifdef JS_TRACER
-    /* Set the default size for the code cache to 16MB. */
-    maxCodeCacheBytes = 16 * 1024 * 1024;
-#endif
-
     return true;
+}
+
+MathCache *
+JSThreadData::allocMathCache(JSContext *cx)
+{
+    JS_ASSERT(!mathCache);
+    mathCache = new MathCache;
+    if (!mathCache)
+        js_ReportOutOfMemory(cx);
+    return mathCache;
 }
 
 void
 JSThreadData::finish()
 {
+#ifdef DEBUG
+    for (size_t i = 0; i != JS_ARRAY_LENGTH(scriptsToGC); ++i)
+        JS_ASSERT(!scriptsToGC[i]);
+#endif
+
     if (dtoaState)
         js_DestroyDtoaState(dtoaState);
 
     js_FinishGSNCache(&gsnCache);
     propertyCache.~PropertyCache();
+#if defined JS_TRACER
+    FinishJIT(&traceMonitor);
+#endif
     stackSpace.finish();
+    delete mathCache;
 }
 
 void
@@ -533,6 +549,22 @@ JSThreadData::purge(JSContext *cx)
 
     /* FIXME: bug 506341. */
     propertyCache.purge(cx);
+
+#ifdef JS_TRACER
+    /*
+     * If we are about to regenerate shapes, we have to flush the JIT cache,
+     * which will eventually abort any current recording.
+     */
+    if (cx->runtime->gcRegenShapes)
+        traceMonitor.needFlush = JS_TRUE;
+#endif
+
+    /* Destroy eval'ed scripts. */
+    js_DestroyScriptsToGC(cx, this);
+
+    /* Purge cached native iterators. */
+    memset(cachedNativeIterators, 0, sizeof(cachedNativeIterators));
+    lastNativeIterator = NULL;
 
     dtoaCache.s = NULL;
 }
@@ -611,15 +643,7 @@ js_CurrentThread(JSRuntime *rt)
         JS_ASSERT(p->value == thread);
     }
     JS_ASSERT(thread->id == id);
-
-#ifdef DEBUG
-    char* gnsb = (char*) GetNativeStackBase();
-    JS_ASSERT(gnsb + 0      == (char*) thread->data.nativeStackBase ||
-              /* Work around apparent glibc bug; see bug 608526. */
-              gnsb + 0x1000 == (char*) thread->data.nativeStackBase ||
-              gnsb + 0x2000 == (char*) thread->data.nativeStackBase ||
-              gnsb + 0x3000 == (char*) thread->data.nativeStackBase);
-#endif
+    JS_ASSERT(thread->data.nativeStackBase == GetNativeStackBase());
 
     return thread;
 }
@@ -701,6 +725,7 @@ js_PurgeThreads(JSContext *cx)
 
         if (JS_CLIST_IS_EMPTY(&thread->contextList)) {
             JS_ASSERT(cx->thread != thread);
+            js_DestroyScriptsToGC(cx, &thread->data);
 
             DestroyThread(thread);
             e.removeFront();
@@ -745,11 +770,6 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
                      &cx->scriptStackQuota);
 
     JS_ASSERT(cx->resolveFlags == 0);
-
-    if (!cx->busyArrays.init()) {
-        FreeContext(cx);
-        return NULL;
-    }
 
 #ifdef JS_THREADSAFE
     if (!js_InitContextThread(cx)) {
@@ -846,6 +866,12 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
         return NULL;
     }
 
+    /* Using ContextAllocPolicy, so init after JSContext is ready. */
+    if (!cx->busyArrays.init()) {
+        FreeContext(cx);
+        return NULL;
+    }
+
     return cx;
 }
 
@@ -884,7 +910,7 @@ DumpEvalCacheMeter(JSContext *cx)
             EVAL_CACHE_METER_LIST(frob)
 #undef frob
         };
-        JSEvalCacheMeter *ecm = &cx->compartment->evalCacheMeter;
+        JSEvalCacheMeter *ecm = &JS_THREAD_DATA(cx)->evalCacheMeter;
 
         static JSAutoFile fp;
         if (!fp && !fp.open(filename, "w"))
@@ -1071,7 +1097,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
 #endif
 
         if (last) {
-            js_GC(cx, NULL, GC_LAST_CONTEXT);
+            js_GC(cx, GC_LAST_CONTEXT);
             DUMP_EVAL_CACHE_METER(cx);
             DUMP_FUNCTION_METER(cx);
 
@@ -1081,7 +1107,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
             JS_NOTIFY_ALL_CONDVAR(rt->stateChange);
         } else {
             if (mode == JSDCM_FORCE_GC)
-                js_GC(cx, NULL, GC_NORMAL);
+                js_GC(cx, GC_NORMAL);
             else if (mode == JSDCM_MAYBE_GC)
                 JS_MaybeGC(cx);
             JS_LOCK_GC(rt);
@@ -1332,7 +1358,7 @@ js_ReportOutOfMemory(JSContext *cx)
      * If we are in a builtin called directly from trace, don't report an
      * error. We will retry in the interpreter instead.
      */
-    if (JS_ON_TRACE(cx) && !JS_TRACE_MONITOR(cx).bailExit)
+    if (JS_ON_TRACE(cx) && !cx->bailExit)
         return;
 #endif
 
@@ -1356,7 +1382,7 @@ js_ReportOutOfMemory(JSContext *cx)
      * exception if any now so the hooks can replace the out-of-memory error
      * by a script-catchable exception.
      */
-    cx->clearPendingException();
+    cx->throwing = JS_FALSE;
     if (onError) {
         JSDebugErrorHook hook = cx->debugHooks->debugErrorHook;
         if (hook &&
@@ -1808,9 +1834,9 @@ js_InvokeOperationCallback(JSContext *cx)
     JS_ASSERT(td->interruptFlags != 0);
 
     /*
-     * Reset the callback counter first, then run GC and yield. If another
-     * thread is racing us here we will accumulate another callback request
-     * which will be serviced at the next opportunity.
+     * Reset the callback counter first, then yield. If another thread is racing
+     * us here we will accumulate another callback request which will be
+     * serviced at the next opportunity.
      */
     JS_LOCK_GC(rt);
     td->interruptFlags = 0;
@@ -1819,8 +1845,15 @@ js_InvokeOperationCallback(JSContext *cx)
 #endif
     JS_UNLOCK_GC(rt);
 
+    /*
+     * Unless we are going to run the GC, we automatically yield the current
+     * context every time the operation callback is hit since we might be
+     * called as a result of an impending GC, which would deadlock if we do
+     * not yield. Operation callbacks are supposed to happen rarely (seconds,
+     * not milliseconds) so it is acceptable to yield at every callback.
+     */
     if (rt->gcIsNeeded) {
-        js_GC(cx, rt->gcTriggerCompartment, GC_NORMAL);
+        js_GC(cx, GC_NORMAL);
 
         /*
          * On trace we can exceed the GC quota, see comments in NewGCArena. So
@@ -1835,19 +1868,10 @@ js_InvokeOperationCallback(JSContext *cx)
             return false;
         }
     }
-    
 #ifdef JS_THREADSAFE
-    /*
-     * We automatically yield the current context every time the operation
-     * callback is hit since we might be called as a result of an impending
-     * GC on another thread, which would deadlock if we do not yield.
-     * Operation callbacks are supposed to happen rarely (seconds, not
-     * milliseconds) so it is acceptable to yield at every callback.
-     *
-     * As the GC can be canceled before it does any request checks we yield
-     * even if rt->gcIsNeeded was true above. See bug 590533.
-     */
-    JS_YieldRequest(cx);
+    else {
+        JS_YieldRequest(cx);
+    }
 #endif
 
     JSOperationCallback cb = cx->operationCallback;
@@ -1920,8 +1944,8 @@ js_GetCurrentBytecodePC(JSContext* cx)
 
 #ifdef JS_TRACER
     if (JS_ON_TRACE(cx)) {
-        pc = JS_TRACE_MONITOR(cx).bailExit->pc;
-        imacpc = JS_TRACE_MONITOR(cx).bailExit->imacpc;
+        pc = cx->bailExit->pc;
+        imacpc = cx->bailExit->imacpc;
     } else
 #endif
     {
@@ -1946,7 +1970,7 @@ js_CurrentPCIsInImacro(JSContext *cx)
 #ifdef JS_TRACER
     VOUCH_DOES_NOT_REQUIRE_STACK();
     if (JS_ON_TRACE(cx))
-        return JS_TRACE_MONITOR(cx).bailExit->imacpc != NULL;
+        return cx->bailExit->imacpc != NULL;
     return cx->fp()->hasImacropc();
 #else
     return false;
@@ -1991,9 +2015,9 @@ DSTOffsetCache::DSTOffsetCache()
 
 JSContext::JSContext(JSRuntime *rt)
   : runtime(rt),
-    compartment(NULL),
+    compartment(rt->defaultCompartment),
     regs(NULL),
-    busyArrays()
+    busyArrays(thisInInitializer())
 {}
 
 void
@@ -2004,46 +2028,27 @@ JSContext::resetCompartment()
         scopeobj = &fp()->scopeChain();
     } else {
         scopeobj = globalObject;
-        if (!scopeobj)
-            goto error;
+        if (!scopeobj) {
+            compartment = runtime->defaultCompartment;
+            return;
+        }
 
         /*
          * Innerize. Assert, but check anyway, that this succeeds. (It
          * can only fail due to bugs in the engine or embedding.)
          */
         OBJ_TO_INNER_OBJECT(this, scopeobj);
-        if (!scopeobj)
-            goto error;
+        if (!scopeobj) {
+            /*
+             * Bug. Return NULL, not defaultCompartment, to crash rather
+             * than open a security hole.
+             */
+            JS_ASSERT(0);
+            compartment = NULL;
+            return;
+        }
     }
-
-    compartment = scopeobj->compartment();
-
-    if (isExceptionPending())
-        wrapPendingException();
-    return;
-
-error:
-
-    /*
-     * If we try to use the context without a selected compartment,
-     * we will crash.
-     */
-    compartment = NULL;
-}
-
-/*
- * Since this function is only called in the context of a pending exception,
- * the caller must subsequently take an error path. If wrapping fails, we leave
- * the exception cleared, which, in the context of an error path, will be
- * interpreted as an uncatchable exception.
- */
-void
-JSContext::wrapPendingException()
-{
-    Value v = getPendingException();
-    clearPendingException();
-    if (compartment->wrap(this, &v))
-        setPendingException(v);
+    compartment = scopeobj->getCompartment();
 }
 
 void
@@ -2298,13 +2303,11 @@ JSContext::updateJITEnabled()
 
 namespace js {
 
-JS_FORCES_STACK JS_FRIEND_API(void)
-LeaveTrace(JSContext *cx)
+void
+SetPendingException(JSContext *cx, const Value &v)
 {
-#ifdef JS_TRACER
-    if (JS_ON_TRACE(cx))
-        DeepBail(cx);
-#endif
+    cx->throwing = JS_TRUE;
+    cx->exception = v;
 }
 
 } /* namespace js */

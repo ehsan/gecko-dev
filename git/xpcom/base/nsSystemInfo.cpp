@@ -108,11 +108,7 @@ nsSystemInfo::Init()
     char *  line = nsnull;
     size_t  len = 0;
     ssize_t read;
-#if MOZ_PLATFORM_MAEMO > 5
-    FILE *fp = popen("/usr/bin/sysinfoclient --get /component/product", "r");
-#else
-    FILE *fp = fopen("/proc/component_version", "r");
-#endif
+    FILE *fp = fopen ("/proc/component_version", "r");
     if (fp) {
       while ((read = getline(&line, &len, fp)) != -1) {
         if (line) {
@@ -134,11 +130,7 @@ nsSystemInfo::Init()
       }
       if (line)
         free(line);
-#if MOZ_PLATFORM_MAEMO > 5
-      pclose(fp);
-#else
       fclose(fp);
-#endif
     }
 #endif
 

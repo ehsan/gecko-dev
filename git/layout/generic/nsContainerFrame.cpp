@@ -397,8 +397,7 @@ nsContainerFrame::PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset)
 }
 
 PRBool
-nsContainerFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                                      PRBool aRespectClusters)
+nsContainerFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Don't allow the caret to stay in an empty (leaf) container frame.
@@ -1139,12 +1138,6 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
 #endif
     StealFrame(aPresContext, aNextInFlow);
   NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame failure");
-
-#ifdef DEBUG
-  if (aDeletingEmptyFrames) {
-    nsLayoutUtils::AssertTreeOnlyEmptyNextInFlows(aNextInFlow);
-  }
-#endif
 
   // Delete the next-in-flow frame and its descendants. This will also
   // remove it from its next-in-flow/prev-in-flow chain.

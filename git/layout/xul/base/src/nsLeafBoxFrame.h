@@ -100,6 +100,7 @@ public:
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
 
+  virtual PRBool GetMouseThrough() const;
   virtual PRBool ComputesOwnOverflowArea() { return PR_FALSE; }
 
 protected:
@@ -113,6 +114,9 @@ protected:
   virtual nscoord GetIntrinsicWidth();
 
  nsLeafBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);
+
+protected:
+  eMouseThrough mMouseThrough;
 
 private:
 

@@ -194,9 +194,3 @@ nsSVGTSpanFrame::SetWhitespaceHandling(PRUint8 aWhitespaceHandling)
 {
   nsSVGTSpanFrameBase::SetWhitespaceHandling();
 }
-
-NS_IMETHODIMP_(PRBool)
-nsSVGTSpanFrame::IsAllWhitespace()
-{
-  return nsSVGTSpanFrameBase::IsAllWhitespace();
-}

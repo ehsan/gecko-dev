@@ -1,4 +1,3 @@
-Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/util.js");
 
@@ -63,14 +62,6 @@ function test_withEngineList() {
   }
 }
 
-function test_startOver_clears_keys() {
-  CollectionKeys.generateNewKeys();
-  do_check_true(!!CollectionKeys.keyForCollection());
-  Service.startOver();
-  do_check_false(!!CollectionKeys.keyForCollection());
-}
-
 function run_test() {
   test_withEngineList();
-  test_startOver_clears_keys();
 }

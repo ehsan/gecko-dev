@@ -310,12 +310,6 @@ class FrameState
     inline void pushInt32(RegisterID payload);
 
     /*
-     * Pushes an initializer with specified payload, storing whether it is an array
-     * or object whose contents can be initialized in fast paths.
-     */
-    inline void pushInitializerObject(RegisterID payload, bool array, JSObject *baseobj);
-
-    /*
      * Pops a value off the operation stack, freeing any of its resources.
      */
     inline void pop();
@@ -776,8 +770,6 @@ class FrameState
     inline void setInTryBlock(bool inTryBlock) {
         this->inTryBlock = inTryBlock;
     }
-
-    inline uint32 regsInUse() const { return Registers::AvailRegs & ~freeRegs.freeMask; }
 
   private:
     inline RegisterID allocReg(FrameEntry *fe, RematInfo::RematType type);

@@ -1,12 +1,13 @@
+var currentHandler;
 var browser;
 
 function doc() browser.contentDocument;
 
 function setHandlerFunc(aResultFunc) {
-  gBrowser.addEventListener("DOMLinkAdded", function (event) {
-    gBrowser.removeEventListener("DOMLinkAdded", arguments.callee, false);
-    executeSoon(aResultFunc);
-  }, false);
+  if (currentHandler)
+    gBrowser.removeEventListener("DOMLinkAdded", currentHandler, false);
+  gBrowser.addEventListener("DOMLinkAdded", aResultFunc, false);
+  currentHandler = aResultFunc;
 }
 
 function test() {
@@ -48,8 +49,8 @@ function runIconDiscoveryTest() {
 }
 
 function iconDiscovery() {
+  setHandlerFunc(runIconDiscoveryTest);
   if (iconDiscoveryTests.length) {
-    setHandlerFunc(runIconDiscoveryTest);
     gBrowser.setIcon(gBrowser.selectedTab, null);
 
     var test = iconDiscoveryTests[0];
@@ -58,7 +59,7 @@ function iconDiscovery() {
 
     var rootDir = getRootDirectory(gTestPath);
     var rel = test.rel || "icon";
-    var href = test.href || rootDir + "moz.png";
+    var href = test.href || rootDir + "/moz.png";
     var type = test.type || "image/png";
     if (test.pass == undefined)
       test.pass = true;
@@ -118,6 +119,7 @@ function runMultipleEnginesTestAndFinalize() {
   is(browser.engines[0].uri, "http://first.mozilla.com/search.xml", "first engine wins");
 
   gBrowser.removeCurrentTab();
+  gBrowser.removeEventListener("DOMLinkAdded", currentHandler, false);
   finish();
 }
 
@@ -142,7 +144,6 @@ function searchDiscovery() {
     link.title = title;
     head.appendChild(link);
   } else {
-    setHandlerFunc(runMultipleEnginesTestAndFinalize);
     setHandlerFunc(runMultipleEnginesTestAndFinalize);
     // Test multiple engines with the same title
     var link = doc().createElement("link");

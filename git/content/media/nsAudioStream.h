@@ -41,7 +41,6 @@
 #include "nscore.h"
 #include "nsISupportsImpl.h"
 #include "nsIThread.h"
-#include "nsAutoPtr.h"
 
 class nsAudioStream : public nsISupports
 {
@@ -54,8 +53,6 @@ public:
     FORMAT_FLOAT32
   };
 
-  virtual ~nsAudioStream();
-
   // Initialize Audio Library. Some Audio backends require initializing the
   // library before using it. 
   static void InitLibrary();
@@ -66,7 +63,7 @@ public:
 
   // Thread, usually for MOZ_IPC handling, that is shared between audio streams.
   // This may return null in the child process
-  nsIThread *GetThread();
+  static nsIThread *GetGlobalThread();
 
   // AllocateStream will return either a local stream or a remoted stream
   // depending on where you call it from.  If MOZ_IPC is enabled, and you
@@ -96,7 +93,7 @@ public:
 
   // Set the current volume of the audio playback. This is a value from
   // 0 (meaning muted) to 1 (meaning full volume).
-  virtual void SetVolume(double aVolume) = 0;
+  virtual void SetVolume(float aVolume) = 0;
 
   // Block until buffered audio data has been consumed.
   virtual void Drain() = 0;
@@ -117,13 +114,6 @@ public:
 
   // Returns PR_TRUE when the audio stream is paused.
   virtual PRBool IsPaused() = 0;
-
-  // Returns the minimum number of samples which must be written before
-  // you can be sure that something will be played.
-  virtual PRInt32 GetMinWriteSamples() = 0;
-
-protected:
-  nsCOMPtr<nsIThread> mAudioPlaybackThread;
 };
 
 #endif

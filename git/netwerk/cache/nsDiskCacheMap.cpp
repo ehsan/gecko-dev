@@ -48,7 +48,6 @@
 #include "nsCache.h"
 
 #include <string.h>
-#include "nsPrintfCString.h"
 
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
@@ -91,9 +90,6 @@ nsDiskCacheMap::Open(nsILocalFile *  cacheDirectory)
 
         // block files shouldn't exist if we're creating the _CACHE_MAP_
         if (cacheFilesExist)
-            goto error_exit;
-
-        if (NS_FAILED(CreateCacheSubDirectories()))
             goto error_exit;
 
         // create the file - initialize in memory
@@ -207,7 +203,7 @@ nsresult
 nsDiskCacheMap::Trim()
 {
     nsresult rv, rv2 = NS_OK;
-    for (int i=0; i < kNumBlockFiles; ++i) {
+    for (int i=0; i < 3; ++i) {
         rv = mBlockFile[i].Trim();
         if (NS_FAILED(rv))  rv2 = rv;   // if one or more errors, report at least one
     }
@@ -613,13 +609,12 @@ nsDiskCacheMap::OpenBlockFiles()
     nsCOMPtr<nsILocalFile> blockFile;
     nsresult rv = NS_OK;
     
-    for (int i = 0; i < kNumBlockFiles; ++i) {
+    for (int i = 0; i < 3; ++i) {
         rv = GetBlockFileForIndex(i, getter_AddRefs(blockFile));
         if (NS_FAILED(rv)) break;
     
         PRUint32 blockSize = GetBlockSizeForIndex(i+1); // +1 to match file selectors 1,2,3
-        PRUint32 bitMapSize = GetBitMapSizeForIndex(i+1);
-        rv = mBlockFile[i].Open(blockFile, blockSize, bitMapSize);
+        rv = mBlockFile[i].Open(blockFile, blockSize);
         if (NS_FAILED(rv)) break;
     }
     // close all files in case of any error
@@ -634,7 +629,7 @@ nsresult
 nsDiskCacheMap::CloseBlockFiles(PRBool flush)
 {
     nsresult rv, rv2 = NS_OK;
-    for (int i=0; i < kNumBlockFiles; ++i) {
+    for (int i=0; i < 3; ++i) {
         rv = mBlockFile[i].Close(flush);
         if (NS_FAILED(rv))  rv2 = rv;   // if one or more errors, report at least one
     }
@@ -648,7 +643,7 @@ nsDiskCacheMap::CacheFilesExist()
     nsCOMPtr<nsILocalFile> blockFile;
     nsresult rv;
     
-    for (int i = 0; i < kNumBlockFiles; ++i) {
+    for (int i = 0; i < 3; ++i) {
         PRBool exists;
         rv = GetBlockFileForIndex(i, getter_AddRefs(blockFile));
         if (NS_FAILED(rv))  return PR_FALSE;
@@ -658,32 +653,6 @@ nsDiskCacheMap::CacheFilesExist()
     }
 
     return PR_TRUE;
-}
-
-
-nsresult
-nsDiskCacheMap::CreateCacheSubDirectories()
-{
-    if (!mCacheDirectory)
-        return NS_ERROR_UNEXPECTED;
-
-    for (PRInt32 index = 0 ; index < 16 ; index++) {
-        nsCOMPtr<nsIFile> file;
-        nsresult rv = mCacheDirectory->Clone(getter_AddRefs(file));
-        if (NS_FAILED(rv))
-            return rv;
-
-        rv = file->AppendNative(nsPrintfCString("%X", index));
-        if (NS_FAILED(rv))
-            return rv;
-
-        nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(file, &rv);
-        rv = localFile->Create(nsIFile::DIRECTORY_TYPE, 0700);
-        if (NS_FAILED(rv))
-            return rv;
-    }
-
-    return NS_OK;
 }
 
 
@@ -702,10 +671,7 @@ nsDiskCacheMap::ReadDiskCacheEntry(nsDiskCacheRecord * record)
     if (metaFile == 0) {  // entry/metadata stored in separate file
         // open and read the file
         nsCOMPtr<nsILocalFile> file;
-        rv = GetLocalFileForDiskCacheRecord(record,
-                                            nsDiskCache::kMetaData,
-                                            PR_FALSE,
-                                            getter_AddRefs(file));
+        rv = GetLocalFileForDiskCacheRecord(record, nsDiskCache::kMetaData, getter_AddRefs(file));
         NS_ENSURE_SUCCESS(rv, nsnull);
 
         PRFileDesc * fd = nsnull;
@@ -729,7 +695,7 @@ nsDiskCacheMap::ReadDiskCacheEntry(nsDiskCacheRecord * record)
         PR_Close(fd);
         NS_ENSURE_SUCCESS(rv, nsnull);
 
-    } else if (metaFile < (kNumBlockFiles + 1)) {
+    } else if (metaFile < 4) {  // XXX magic number: use constant
         // entry/metadata stored in cache block file
         
         // allocate buffer
@@ -840,40 +806,7 @@ nsDiskCacheMap::WriteDiskCacheEntry(nsDiskCacheBinding *  binding)
     }
 
     binding->mRecord.SetEvictionRank(ULONG_MAX - SecondsFromPRTime(PR_Now()));
-    // write entry data to disk cache block file
-    diskEntry->Swap();
-
-    if (fileIndex != 0) {
-        while (1) {
-            PRUint32  blockSize = GetBlockSizeForIndex(fileIndex);
-            PRUint32  blocks    = ((size - 1) / blockSize) + 1;
-
-            PRInt32 startBlock;
-            rv = mBlockFile[fileIndex - 1].WriteBlocks(diskEntry, size, blocks,
-                                                       &startBlock);
-            if (NS_SUCCEEDED(rv)) {
-                // update binding and cache map record
-                binding->mRecord.SetMetaBlocks(fileIndex, startBlock, blocks);
-
-                rv = UpdateRecord(&binding->mRecord);
-                NS_ENSURE_SUCCESS(rv, rv);
-
-                // XXX we should probably write out bucket ourselves
-
-                IncrementTotalSize(blocks, blockSize);
-                break;
-            }
-
-            if (fileIndex == kNumBlockFiles) {
-                fileIndex = 0; // write data to separate file
-                break;
-            }
-
-            // try next block file
-            fileIndex++;
-        }
-    }
-
+        
     if (fileIndex == 0) {
         // Write entry data to separate file
         PRUint32 metaFileSizeK = ((size + 0x03FF) >> 10); // round up to nearest 1k
@@ -887,7 +820,6 @@ nsDiskCacheMap::WriteDiskCacheEntry(nsDiskCacheBinding *  binding)
 
         rv = GetLocalFileForDiskCacheRecord(&binding->mRecord,
                                             nsDiskCache::kMetaData,
-                                            PR_TRUE,
                                             getter_AddRefs(localFile));
         NS_ENSURE_SUCCESS(rv, rv);
         
@@ -898,6 +830,7 @@ nsDiskCacheMap::WriteDiskCacheEntry(nsDiskCacheBinding *  binding)
         NS_ENSURE_SUCCESS(rv, rv);
 
         // write the file
+        diskEntry->Swap();
         PRInt32 bytesWritten = PR_Write(fd, diskEntry, size);
         
         PRStatus err = PR_Close(fd);
@@ -906,6 +839,28 @@ nsDiskCacheMap::WriteDiskCacheEntry(nsDiskCacheBinding *  binding)
         }
         // XXX handle metaFileSizeK == USHRT_MAX
         IncrementTotalSize(metaFileSizeK);
+        
+    } else {
+        PRUint32  blockSize = GetBlockSizeForIndex(fileIndex);
+        PRUint32  blocks    = ((size - 1) / blockSize) + 1;
+
+        // write entry data to disk cache block file
+        diskEntry->Swap();
+        PRInt32 startBlock;
+        nsresult rv2 = mBlockFile[fileIndex - 1].WriteBlocks(diskEntry, size, blocks, &startBlock);
+        // Call UpdateRecord() even if WriteBlocks() has failed. We need to
+        // update the record because we've changed the eviction rank.
+        if (NS_SUCCEEDED(rv2)) {
+            // update binding and cache map record
+            binding->mRecord.SetMetaBlocks(fileIndex, startBlock, blocks);
+        }
+        rv = UpdateRecord(&binding->mRecord);
+        NS_ENSURE_SUCCESS(rv, rv);
+        NS_ENSURE_SUCCESS(rv2, rv2);
+
+        // XXX we should probably write out bucket ourselves
+        
+        IncrementTotalSize(blocks, blockSize);
     }
 
     return rv;
@@ -943,28 +898,19 @@ nsDiskCacheMap::WriteDataCacheBlocks(nsDiskCacheBinding * binding, char * buffer
     
     // determine block file & number of blocks
     PRUint32  fileIndex  = CalculateFileIndex(size);
+    PRUint32  blockSize  = GetBlockSizeForIndex(fileIndex);
     PRUint32  blockCount = 0;
     PRInt32   startBlock = 0;
-
+    
     if (size > 0) {
-        while (1) {
-            PRUint32  blockSize  = GetBlockSizeForIndex(fileIndex);
-            blockCount = ((size - 1) / blockSize) + 1;
+        blockCount = ((size - 1) / blockSize) + 1;
 
-            rv = mBlockFile[fileIndex - 1].WriteBlocks(buffer, size, blockCount,
-                                                       &startBlock);
-            if (NS_SUCCEEDED(rv)) {
-                IncrementTotalSize(blockCount, blockSize);
-                break;
-            }
-
-            if (fileIndex == kNumBlockFiles)
-                return rv;
-
-            fileIndex++;
-        }
+        rv = mBlockFile[fileIndex - 1].WriteBlocks(buffer, size, blockCount, &startBlock);
+        NS_ENSURE_SUCCESS(rv, rv);
+        
+        IncrementTotalSize(blockCount, blockSize);
     }
-
+    
     // update binding and cache map record
     binding->mRecord.SetDataBlocks(fileIndex, startBlock, blockCount);
     if (!binding->mDoomed) {
@@ -998,13 +944,13 @@ nsDiskCacheMap::DeleteStorage(nsDiskCacheRecord * record, PRBool metaData)
         PRUint32  sizeK = metaData ? record->MetaFileSize() : record->DataFileSize();
         // XXX if sizeK == USHRT_MAX, stat file for actual size
 
-        rv = GetFileForDiskCacheRecord(record, metaData, PR_FALSE, getter_AddRefs(file));
+        rv = GetFileForDiskCacheRecord(record, metaData, getter_AddRefs(file));
         if (NS_SUCCEEDED(rv)) {
             rv = file->Remove(PR_FALSE);    // false == non-recursive
         }
         DecrementTotalSize(sizeK);
         
-    } else if (fileIndex < (kNumBlockFiles + 1)) {
+    } else if (fileIndex < 4) {
         // deallocate blocks
         PRUint32  startBlock = metaData ? record->MetaStartBlock() : record->DataStartBlock();
         PRUint32  blockCount = metaData ? record->MetaBlockCount() : record->DataBlockCount();
@@ -1022,7 +968,6 @@ nsDiskCacheMap::DeleteStorage(nsDiskCacheRecord * record, PRBool metaData)
 nsresult
 nsDiskCacheMap::GetFileForDiskCacheRecord(nsDiskCacheRecord * record,
                                           PRBool              meta,
-                                          PRBool              createPath,
                                           nsIFile **          result)
 {
     if (!mCacheDirectory)  return NS_ERROR_NOT_AVAILABLE;
@@ -1030,28 +975,10 @@ nsDiskCacheMap::GetFileForDiskCacheRecord(nsDiskCacheRecord * record,
     nsCOMPtr<nsIFile> file;
     nsresult rv = mCacheDirectory->Clone(getter_AddRefs(file));
     if (NS_FAILED(rv))  return rv;
-
-    PRUint32 hash = record->HashNumber();
-
-    // The file is stored under subdirectories according to the hash number:
-    // 0x01234567 -> 0/12/
-    rv = file->AppendNative(nsPrintfCString("%X", hash >> 28));
-    if (NS_FAILED(rv))  return rv;
-    rv = file->AppendNative(nsPrintfCString("%02X", (hash >> 20) & 0xFF));
-    if (NS_FAILED(rv))  return rv;
-
-    PRBool exists;
-    if (createPath && (NS_FAILED(file->Exists(&exists)) || !exists)) {
-        nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(file, &rv);
-        rv = localFile->Create(nsIFile::DIRECTORY_TYPE, 0700);
-        if (NS_FAILED(rv))  return rv;
-    }
-
+    
     PRInt16 generation = record->Generation();
     char name[32];
-    // Cut the beginning of the hash that was used in the path
-    ::sprintf(name, "%05X%c%02X", hash & 0xFFFFF, (meta ? 'm' : 'd'),
-              generation);
+    ::sprintf(name, "%08X%c%02X", record->HashNumber(),  (meta ? 'm' : 'd'), generation);
     rv = file->AppendNative(nsDependentCString(name));
     if (NS_FAILED(rv))  return rv;
     
@@ -1063,14 +990,10 @@ nsDiskCacheMap::GetFileForDiskCacheRecord(nsDiskCacheRecord * record,
 nsresult
 nsDiskCacheMap::GetLocalFileForDiskCacheRecord(nsDiskCacheRecord * record,
                                                PRBool              meta,
-                                               PRBool              createPath,
                                                nsILocalFile **     result)
 {
     nsCOMPtr<nsIFile> file;
-    nsresult rv = GetFileForDiskCacheRecord(record,
-                                            meta,
-                                            createPath,
-                                            getter_AddRefs(file));
+    nsresult rv = GetFileForDiskCacheRecord(record, meta, getter_AddRefs(file));
     if (NS_FAILED(rv))  return rv;
     
     nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(file, &rv);
@@ -1105,14 +1028,10 @@ nsDiskCacheMap::GetBlockFileForIndex(PRUint32 index, nsILocalFile ** result)
 PRUint32
 nsDiskCacheMap::CalculateFileIndex(PRUint32 size)
 {
-    // We prefer to use block file with larger block if the wasted space would
-    // be the same. E.g. store entry with size of 3073 bytes in 1 4K-block
-    // instead of in 4 1K-blocks.
-
-    if (size <= 3 * BLOCK_SIZE_FOR_INDEX(1))  return 1;
-    if (size <= 3 * BLOCK_SIZE_FOR_INDEX(2))  return 2;
-    if (size <= 4 * BLOCK_SIZE_FOR_INDEX(3))  return 3;
-    return 0;
+    if (size <=  1024)  return 1;
+    if (size <=  4096)  return 2;
+    if (size <= 16384)  return 3;
+    return 0;  
 }
 
 nsresult

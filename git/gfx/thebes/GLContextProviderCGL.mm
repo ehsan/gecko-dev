@@ -294,79 +294,89 @@ class TextureImageCGL : public BasicTextureImage
                                           GLenum,
                                           TextureImage::ContentType,
                                           GLContext*);
-public:
-    ~TextureImageCGL()
-    {
-        if (mPixelBuffer) {
-            mGLContext->MakeCurrent();
-            mGLContext->fDeleteBuffers(1, &mPixelBuffer);
-        }
-    }
 
 protected:
-    already_AddRefed<gfxASurface>
-    GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt)
+    virtual gfxContext*
+    BeginUpdate(nsIntRegion& aRegion)
     {
-        mGLContext->MakeCurrent();
-        if (!mGLContext->
-            IsExtensionSupported(GLContext::ARB_pixel_buffer_object)) 
+        ImageFormat format;
+        if (GetContentType() == gfxASurface::CONTENT_COLOR)
+            format = gfxASurface::ImageFormatRGB24;
+        else
+            format = gfxASurface::ImageFormatARGB32;
+
+        if (!mTextureInited || !mBackingSurface || !mUpdateSurface ||
+            nsIntSize(mBackingSurface->Width(), mBackingSurface->Height()) < mSize ||
+            mBackingSurface->Format() != format)
         {
-            return gfxPlatform::GetPlatform()->
-                CreateOffscreenSurface(aSize, 
-                                       gfxASurface::ContentFromFormat(aFmt));
+            mUpdateSurface = nsnull;
+            mUpdateOffset = nsIntPoint(0, 0);
+            // We need to (re)create our backing store. Let the base class to that.
+            return BasicTextureImage::BeginUpdate(aRegion);
         }
 
-        if (!mPixelBuffer) {
-            mGLContext->fGenBuffers(1, &mPixelBuffer);
-        }
-        mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelBuffer);
-        PRInt32 size = aSize.width * 4 * aSize.height;
+        // the basic impl can only upload updates to rectangles
+        mUpdateRect = aRegion.GetBounds();
+        aRegion = nsIntRegion(mUpdateRect);
 
-        if (size > mPixelBufferSize) {
-            mGLContext->fBufferData(LOCAL_GL_PIXEL_UNPACK_BUFFER, size,
-                                    NULL, LOCAL_GL_STREAM_DRAW);
-            mPixelBufferSize = size;
-        }
-        unsigned char* data = 
-            (unsigned char*)mGLContext->
-                fMapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 
-                           LOCAL_GL_WRITE_ONLY);
-
-        mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
-
-        if (!data) {
-            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
-            return gfxPlatform::GetPlatform()->
-                CreateOffscreenSurface(aSize, 
-                                       gfxASurface::ContentFromFormat(aFmt));
+        if (!nsIntRect(nsIntPoint(0, 0), mSize).Contains(mUpdateRect)) {
+            NS_ERROR("update outside of image");
+            return NULL;
         }
 
-        nsRefPtr<gfxQuartzSurface> surf = 
-            new gfxQuartzSurface(data, aSize,
-                                 aSize.width * 4, aFmt);
-
-        mBoundPixelBuffer = true;
-        return surf.forget();
-    }
-  
-    bool FinishedSurfaceUpdate()
-    {
-        if (mBoundPixelBuffer) {
-            mGLContext->MakeCurrent();
-            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelBuffer);
-            mGLContext->fUnmapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER);
-            return true;
+        mUpdateContext = new gfxContext(mUpdateSurface);
+        mUpdateContext->Clip(gfxRect(mUpdateRect.x, mUpdateRect.y,
+                                     mUpdateRect.width, mUpdateRect.height));
+        if (GetContentType() != gfxASurface::CONTENT_COLOR)
+        {
+            mUpdateContext->SetOperator(gfxContext::OPERATOR_CLEAR);
+            mUpdateContext->Paint();
+            mUpdateContext->SetOperator(gfxContext::OPERATOR_OVER);
         }
-        return false;
+        mUpdateOffset = mUpdateRect.TopLeft();
+
+        return mUpdateContext;
     }
 
-    void FinishedSurfaceUpload()
+    virtual PRBool
+    EndUpdate()
     {
-        if (mBoundPixelBuffer) {
-            mGLContext->MakeCurrent();
-            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
-            mBoundPixelBuffer = false;
+        if (!mUpdateSurface)
+            mUpdateSurface = mUpdateContext->OriginalSurface();
+
+        return BasicTextureImage::EndUpdate();
+    }
+
+    virtual already_AddRefed<gfxASurface>
+    CreateUpdateSurface(const gfxIntSize& aSize, ImageFormat aFmt)
+    {
+        mUpdateFormat = aFmt;
+        return gfxPlatform::GetPlatform()->CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFmt));
+    }
+
+    virtual already_AddRefed<gfxImageSurface>
+    GetImageForUpload(gfxASurface* aUpdateSurface)
+    {
+        nsRefPtr<gfxImageSurface> image = aUpdateSurface->GetAsImageSurface();
+
+        if (image && image->Format() != mUpdateFormat) {
+          image = nsnull;
         }
+
+        // If we don't get an image directly from the quartz surface, we have
+        // to take the slow boat.
+        if (!image) {
+          image = new gfxImageSurface(gfxIntSize(mUpdateRect.width,
+                                                 mUpdateRect.height),
+                                      mUpdateFormat);
+          nsRefPtr<gfxContext> tmpContext = new gfxContext(image);
+
+          tmpContext->SetSource(aUpdateSurface);
+          tmpContext->SetOperator(gfxContext::OPERATOR_SOURCE);
+          tmpContext->Paint();
+        }
+
+        return image.forget();
     }
 
 private:
@@ -376,14 +386,10 @@ private:
                     ContentType aContentType,
                     GLContext* aContext)
         : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext)
-        , mPixelBuffer(0)
-        , mPixelBufferSize(0)
-        , mBoundPixelBuffer(false)
     {}
-    
-    GLuint mPixelBuffer;
-    PRInt32 mPixelBufferSize;
-    bool mBoundPixelBuffer;
+
+    ImageFormat mUpdateFormat;
+    nsRefPtr<gfxASurface> mUpdateSurface;
 };
 
 already_AddRefed<TextureImage>

@@ -720,7 +720,6 @@ var gDownloadDNDObserver =
     var dt = aEvent.dataTransfer;
     dt.mozSetDataAt("application/x-moz-file", f, 0);
     dt.effectAllowed = "copyMove";
-    dt.addElement(dl);
   },
 
   onDragOver: function (aEvent)

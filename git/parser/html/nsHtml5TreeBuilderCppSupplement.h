@@ -149,7 +149,9 @@ nsHtml5TreeBuilder::createElement(PRInt32 aNamespace, nsIAtom* aName, nsHtml5Htm
           if (url) {
             mSpeculativeLoadQueue.AppendElement()->InitManifest(*url);
           }
-        } else if (nsHtml5Atoms::base == aName) {
+        } else if (nsHtml5Atoms::base == aName &&
+            (mode == NS_HTML5TREE_BUILDER_IN_HEAD ||
+             mode == NS_HTML5TREE_BUILDER_AFTER_HEAD)) {
           nsString* url =
               aAttributes->getValue(nsHtml5AttributeName::ATTR_HREF);
           if (url) {
@@ -667,7 +669,7 @@ nsHtml5TreeBuilder::IsDiscretionaryFlushSafe()
 {
   return !(charBufferLen && 
            currentPtr >= 0 && 
-           stack[currentPtr]->isFosterParenting());
+           stack[currentPtr]->fosterParenting);
 }
 
 void

@@ -70,22 +70,22 @@ void nsBuiltinDecoder::Pause()
   ChangeState(PLAY_STATE_PAUSED);
 }
 
-void nsBuiltinDecoder::SetVolume(double aVolume)
+void nsBuiltinDecoder::SetVolume(float volume)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  mInitialVolume = aVolume;
+  mInitialVolume = volume;
   if (mDecoderStateMachine) {
-    mDecoderStateMachine->SetVolume(aVolume);
+    mDecoderStateMachine->SetVolume(volume);
   }
 }
 
-double nsBuiltinDecoder::GetDuration()
+float nsBuiltinDecoder::GetDuration()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (mDuration >= 0) {
-     return static_cast<double>(mDuration) / 1000.0;
+     return static_cast<float>(mDuration) / 1000.0;
   }
-  return std::numeric_limits<double>::quiet_NaN();
+  return std::numeric_limits<float>::quiet_NaN();
 }
 
 nsBuiltinDecoder::nsBuiltinDecoder() :
@@ -144,6 +144,8 @@ void nsBuiltinDecoder::Shutdown()
     return;
 
   mShuttingDown = PR_TRUE;
+
+  StopTimeUpdate();
 
   // This changes the decoder state to SHUTDOWN and does other things
   // necessary to unblock the state machine thread if it's blocked, so
@@ -256,7 +258,7 @@ nsresult nsBuiltinDecoder::Play()
   return NS_OK;
 }
 
-nsresult nsBuiltinDecoder::Seek(double aTime)
+nsresult nsBuiltinDecoder::Seek(float aTime)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   MonitorAutoEnter mon(mMonitor);
@@ -289,7 +291,7 @@ nsresult nsBuiltinDecoder::PlaybackRateChanged()
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-double nsBuiltinDecoder::GetCurrentTime()
+float nsBuiltinDecoder::GetCurrentTime()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   return mCurrentTime;
@@ -390,6 +392,8 @@ void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
   if (resourceIsLoaded) {
     ResourceLoaded();
   }
+
+  StartTimeUpdate();
 }
 
 void nsBuiltinDecoder::ResourceLoaded()
@@ -599,7 +603,6 @@ void nsBuiltinDecoder::NotifyBytesConsumed(PRInt64 aBytes)
                "Should be on play state machine or decode thread.");
   if (!mIgnoreProgressData) {
     mDecoderPosition += aBytes;
-    mPlaybackStatistics.AddBytes(aBytes);
   }
 }
 
@@ -758,7 +761,7 @@ void nsBuiltinDecoder::PlaybackPositionChanged()
   if (mShuttingDown)
     return;
 
-  double lastTime = mCurrentTime;
+  float lastTime = mCurrentTime;
 
   // Control the scope of the monitor so it is not
   // held while the timeupdate and the invalidate is run.

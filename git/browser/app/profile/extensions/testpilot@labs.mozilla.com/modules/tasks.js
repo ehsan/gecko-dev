@@ -120,10 +120,6 @@ var TestPilotTask = {
     return this._id;
   },
 
-  get version() {
-    return this._versionNumber;
-  },
-
   get taskType() {
     return null;
   },
@@ -252,16 +248,15 @@ var TestPilotTask = {
   }
 };
 
-function TestPilotExperiment(expInfo, dataStore, handlers, webContent, dateOverrideFunc) {
+function TestPilotExperiment(expInfo, dataStore, handlers, webContent) {
   // All four of these are objects defined in the remote experiment file
-  this._init(expInfo, dataStore, handlers, webContent, dateOverrideFunc);
+  this._init(expInfo, dataStore, handlers, webContent);
 }
 TestPilotExperiment.prototype = {
   _init: function TestPilotExperiment__init(expInfo,
 					    dataStore,
 					    handlers,
-                                            webContent,
-                                            dateOverrideFunc) {
+                                            webContent) {
     /* expInfo is a dictionary defined in the remote experiment code, which
      * should have the following properties:
      * startDate (string representation of date)
@@ -275,14 +270,6 @@ TestPilotExperiment.prototype = {
      * recursAutomatically (boolean)
      * recurrenceInterval (number of days)
      * versionNumber (int) */
-
-    // dateOverrideFunc: For unit testing. Optional. If provided, will be called
-    // instead of Date.now() for determining the current time.
-    if (dateOverrideFunc) {
-      this._now = dateOverrideFunc;
-    } else {
-      this._now = Date.now;
-    }
     this._taskInit(expInfo.testId, expInfo.testName, expInfo.testInfoUrl,
                    expInfo.summary, expInfo.thumbnail);
     this._webContent = webContent;
@@ -306,8 +293,8 @@ TestPilotExperiment.prototype = {
         this._startDate = Date.parse(expInfo.startDate);
         Application.prefs.setValue(prefName, expInfo.startDate);
       } else {
-        this._startDate = this._now();
-        Application.prefs.setValue(prefName, (new Date(this._startDate)).toString());
+        this._startDate = Date.now();
+        Application.prefs.setValue(prefName, (new Date()).toString());
       }
     }
 
@@ -593,7 +580,7 @@ TestPilotExperiment.prototype = {
   checkDate: function TestPilotExperiment_checkDate() {
     // This method handles all date-related status changes and should be
     // called periodically.
-    let currentDate = this._now();
+    let currentDate = Date.now();
 
     // Reset automatically recurring tests:
     if (this._recursAutomatically &&
@@ -787,7 +774,7 @@ TestPilotExperiment.prototype = {
               self._uploadRetryTimer.cancel(); // Stop retrying - it worked!
             }
             self.changeStatus(TaskConstants.STATUS_SUBMITTED);
-            self._dateForDataDeletion = self._now() + TIME_FOR_DATA_DELETION;
+            self._dateForDataDeletion = Date.now() + TIME_FOR_DATA_DELETION;
             self._expirationDateForDataSubmission = null;
             callback(true);
           } else {
@@ -932,7 +919,8 @@ TestPilotBuiltinSurvey.prototype = {
       return null;
     } else {
       this._logger.info("Trying to json.parse this: " + surveyResults);
-      return sanitizeJSONStrings( JSON.parse(surveyResults) );
+      let surveyJson = sanitizeJSONStrings( JSON.parse(surveyResults) );
+      return surveyJson["answers"];
     }
   },
 

@@ -166,14 +166,12 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
   for (PRUint32 i = 0; i < oldLockCount; i++)
     LockImage();
 
-  if (mCanceled) {
-    // If we had animation requests, restore them before exiting
-    // (otherwise we restore them later below)
-    for (PRUint32 i = 0; i < oldAnimationConsumers; i++)
-      IncrementAnimationConsumers();
+  // If we had animation requests, apply them here
+  for (PRUint32 i = 0; i < oldAnimationConsumers; i++)
+    IncrementAnimationConsumers();
 
+  if (mCanceled)
     return NS_OK;
-  }
 
   // Were we decoded before?
   PRBool wasDecoded = PR_FALSE;
@@ -186,12 +184,6 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
   // Passing false to aNotify means that mListener will still get
   // OnStopRequest, if needed.
   mOwner->RemoveProxy(this, NS_IMAGELIB_CHANGING_OWNER, PR_FALSE);
-
-  // If we had animation requests, restore them here. Note that we
-  // do this *after* RemoveProxy, which clears out animation consumers
-  // (see bug 601723).
-  for (PRUint32 i = 0; i < oldAnimationConsumers; i++)
-    IncrementAnimationConsumers();
 
   mOwner = aNewOwner;
 

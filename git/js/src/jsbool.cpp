@@ -120,11 +120,11 @@ bool_valueOf(JSContext *cx, uintN argc, Value *vp)
 
 static JSFunctionSpec boolean_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,  bool_toSource,  0, 0),
+    JS_FN(js_toSource_str,  bool_toSource,  0, JSFUN_PRIMITIVE_THIS),
 #endif
-    JS_FN(js_toString_str,  bool_toString,  0, 0),
-    JS_FN(js_valueOf_str,   bool_valueOf,   0, 0),
-    JS_FN(js_toJSON_str,    bool_valueOf,   0, 0),
+    JS_FN(js_toString_str,  bool_toString,  0, JSFUN_PRIMITIVE_THIS),
+    JS_FN(js_valueOf_str,   bool_valueOf,   0, JSFUN_PRIMITIVE_THIS),
+    JS_FN(js_toJSON_str,    bool_valueOf,   0, JSFUN_PRIMITIVE_THIS),
     JS_FS_END
 };
 
@@ -166,10 +166,10 @@ js_BooleanToString(JSContext *cx, JSBool b)
 }
 
 /* This function implements E-262-3 section 9.8, toString. */
-bool
-js::BooleanToStringBuffer(JSContext *cx, JSBool b, StringBuffer &sb)
+JSBool
+js_BooleanToCharBuffer(JSContext *cx, JSBool b, JSCharBuffer &cb)
 {
-    return b ? sb.append("true") : sb.append("false");
+    return b ? js_AppendLiteral(cb, "true") : js_AppendLiteral(cb, "false");
 }
 
 JSBool

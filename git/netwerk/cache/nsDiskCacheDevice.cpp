@@ -426,11 +426,6 @@ nsDiskCacheDevice::Shutdown_Private(PRBool  flush)
         // check cache limits in case we need to evict.
         EvictDiskCacheEntries(mCacheCapacity);
 
-        // At this point there may be a number of pending cache-requests on the
-        // cache-io thread. Wait for all these to run before we wipe out our
-        // datastructures (see bug #620660)
-        (void) nsCacheService::SyncWithCacheIOThread();
-
         // write out persistent information about the cache.
         (void) mCacheMap.Close(flush);
 
@@ -750,7 +745,6 @@ nsDiskCacheDevice::GetFileForEntry(nsCacheEntry *    entry,
     nsCOMPtr<nsIFile>  file;
     rv = mCacheMap.GetFileForDiskCacheRecord(&binding->mRecord,
                                              nsDiskCache::kData,
-                                             PR_FALSE,
                                              getter_AddRefs(file));
     if (NS_FAILED(rv))  return rv;
     

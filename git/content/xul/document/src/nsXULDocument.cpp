@@ -2776,19 +2776,7 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
         NS_RELEASE(parserObserver);
 
         nsCOMPtr<nsILoadGroup> group = do_QueryReferent(mDocumentLoadGroup);
-        nsCOMPtr<nsIChannel> channel;
-        rv = NS_NewChannel(getter_AddRefs(channel), aURI, nsnull, group);
-
-        if (NS_SUCCEEDED(rv)) {
-            // Set the owner of the channel to be our principal so
-            // that the overlay's JSObjects etc end up being created
-            // with the right principal and in the correct
-            // compartment.
-            channel->SetOwner(NodePrincipal());
-
-            rv = channel->AsyncOpen(listener, nsnull);
-        }
-
+        rv = NS_OpenURI(listener, nsnull, aURI, nsnull, group);
         if (NS_FAILED(rv)) {
             // Abandon this prototype
             mCurrentPrototype = nsnull;
@@ -3342,15 +3330,16 @@ nsXULDocument::ReportMissingOverlay(nsIURI* aURI)
 
     NS_ConvertUTF8toUTF16 utfSpec(spec);
     const PRUnichar* params[] = { utfSpec.get() };
+
     nsContentUtils::ReportToConsole(nsContentUtils::eXUL_PROPERTIES,
                                     "MissingOverlay",
                                     params, NS_ARRAY_LENGTH(params),
-                                    nsnull,
+                                    mDocumentURI,
                                     EmptyString(), /* source line */
                                     0, /* line number */
                                     0, /* column number */
                                     nsIScriptError::warningFlag,
-                                    "XUL Document", this);
+                                    "XUL Document");
 }
 
 nsresult
@@ -4543,7 +4532,7 @@ nsXULDocument::ParserObserver::OnStartRequest(nsIRequest *request,
             secMan->GetChannelPrincipal(channel, getter_AddRefs(principal));
 
             // Failure there is ok -- it'll just set a (safe) null principal
-            mPrototype->SetDocumentPrincipal(principal);
+            mPrototype->SetDocumentPrincipal(principal);            
         }
 
         // Make sure to avoid cycles

@@ -38,13 +38,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_storage_Connection_h
-#define mozilla_storage_Connection_h
+#ifndef MOZSTORAGECONNECTION_H
+#define MOZSTORAGECONNECTION_H
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Mutex.h"
-#include "nsIInterfaceRequestor.h"
 
 #include "nsString.h"
 #include "nsDataHashtable.h"
@@ -66,12 +65,10 @@ namespace mozilla {
 namespace storage {
 
 class Connection : public mozIStorageConnection
-                 , public nsIInterfaceRequestor
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGECONNECTION
-  NS_DECL_NSIINTERFACEREQUESTOR
 
   /**
    * Structure used to describe user functions on the database connection.
@@ -247,4 +244,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozilla_storage_Connection_h
+#endif /* MOZSTORAGECONNECTION_H */

@@ -922,28 +922,14 @@ namespace JSC {
             m_buffer.ensureSpace(insnSpace, constSpace);
         }
 
-        void ensureSpace(int space)
-        {
-            m_buffer.ensureSpace(space);
-        }
-
         int sizeOfConstantPool()
         {
             return m_buffer.sizeOfConstantPool();
         }
 
-#ifdef DEBUG
-        void allowPoolFlush(bool allowFlush)
-        {
-            m_buffer.allowPoolFlush(allowFlush);
-        }
-#endif
-
         JmpDst label()
         {
-            JmpDst label(m_buffer.size());
-            js::JaegerSpew(js::JSpew_Insns, IPFX "#label     ((%d))\n", MAYBE_PAD, label.m_offset);
-            return label;
+            return JmpDst(m_buffer.size());
         }
 
         JmpDst align(int alignment)
@@ -956,10 +942,6 @@ namespace JSC {
 
         JmpSrc loadBranchTarget(int rd, Condition cc = AL, int useConstantPool = 0)
         {
-            // The 'useConstantPool' flag really just indicates where we have
-            // to use the constant pool, for repatching. We might still use it,
-            // so ensure there's space for a pool constant irrespective of
-            // 'useConstantPool'.
             ensureSpace(sizeof(ARMWord), sizeof(ARMWord));
             int s = m_buffer.uncheckedSize();
             ldr_un_imm(rd, InvalidBranchTarget, cc);
@@ -1068,11 +1050,10 @@ namespace JSC {
 	    // Like repatchLoadPtrToLEA, this is specialized for our purpose.
             ARMWord* insn = reinterpret_cast<ARMWord*>(from);
 	    if ((*insn & 0x0ff00f00) == 0x05900000)
-		return; // Valid ldr instruction
-            ASSERT((*insn & 0x0ff00000) == 0x02800000); // Valid add instruction
-            ASSERT((*insn & 0x00000f00) == 0x00000000); // Simple-to-handle immediates (no rotate)
+		return;
+            ASSERT((*insn & 0xf00ff0ff) == 0x02800000);
 
-            *insn = (*insn &  0xf00ff0ff) | 0x05900000;
+            *insn = (*insn &  0x0ff00f00) | 0x05900000;
             ExecutableAllocator::cacheFlush(insn, sizeof(ARMWord));
         }
 
@@ -1106,12 +1087,7 @@ namespace JSC {
                            ISPFX "##relinkJump      ((%p)) jumps to ((%p))\n",
                            from, to);
 
-            patchPointerInternal(reinterpret_cast<intptr_t>(from), to);
-        }
-
-        static bool canRelinkJump(void* from, void* to)
-        {
-            return true;
+            patchPointerInternal(reinterpret_cast<intptr_t>(from) - sizeof(ARMWord), to);
         }
 
         static void linkCall(void* code, JmpSrc from, void* to)
@@ -1129,14 +1105,14 @@ namespace JSC {
                            ISPFX "##relinkCall      ((%p)) jumps to ((%p))\n",
                            from, to);
 
-            patchPointerInternal(reinterpret_cast<intptr_t>(from), to);
+            patchPointerInternal(reinterpret_cast<intptr_t>(from) - sizeof(ARMWord), to);
         }
 
         // Address operations
 
         static void* getRelocatedAddress(void* code, JmpSrc jump)
         {
-            return reinterpret_cast<void*>(reinterpret_cast<ARMWord*>(code) + jump.m_offset / sizeof(ARMWord));
+            return reinterpret_cast<void*>(reinterpret_cast<ARMWord*>(code) + jump.m_offset / sizeof(ARMWord) + 1);
         }
 
         static void* getRelocatedAddress(void* code, JmpDst label)
@@ -1148,7 +1124,7 @@ namespace JSC {
 
         static int getDifferenceBetweenLabels(JmpDst from, JmpSrc to)
         {
-            return to.m_offset - from.m_offset;
+            return (to.m_offset + sizeof(ARMWord)) - from.m_offset;
         }
 
         static int getDifferenceBetweenLabels(JmpDst from, JmpDst to)

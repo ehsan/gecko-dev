@@ -83,10 +83,6 @@ public:
     return mMonitor;
   }
 
-  const PRUint64 WindowID() const {
-    return mWindowID;
-  }
-
 private:
   virtual ~nsDOMWorkerPool();
 
@@ -109,8 +105,6 @@ private:
 
   PRPackedBool mCanceled;
   PRPackedBool mSuspended;
-
-  const PRUint64 mWindowID;
 };
 
 #endif /* __NSDOMWORKERPOOL_H__ */

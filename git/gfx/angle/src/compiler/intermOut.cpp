@@ -345,16 +345,16 @@ bool TOutputTraverser::visitLoop(Visit visit, TIntermLoop* node)
     OutputTreeText(out, node, depth);
 
     out << "Loop with condition ";
-    if (node->getType() == ELoopDoWhile)
+    if (! node->testFirst())
         out << "not ";
     out << "tested first\n";
 
     ++depth;
 
     OutputTreeText(sink, node, depth);
-    if (node->getCondition()) {
+    if (node->getTest()) {
         out << "Loop Condition\n";
-        node->getCondition()->traverse(this);
+        node->getTest()->traverse(this);
     } else
         out << "No loop condition\n";
 
@@ -365,10 +365,10 @@ bool TOutputTraverser::visitLoop(Visit visit, TIntermLoop* node)
     } else
         out << "No loop body\n";
 
-    if (node->getExpression()) {
+    if (node->getTerminal()) {
         OutputTreeText(sink, node, depth);
         out << "Loop Terminal Expression\n";
-        node->getExpression()->traverse(this);
+        node->getTerminal()->traverse(this);
     }
 
     --depth;

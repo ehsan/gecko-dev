@@ -181,8 +181,7 @@ SwapChainD3D9::Reset()
 #define LACKS_CAP(a, b) !(((a) & (b)) == (b))
 
 DeviceManagerD3D9::DeviceManagerD3D9()
-  : mDeviceResetCount(0)
-  , mHasDynamicTextures(false)
+  : mHasDynamicTextures(false)
   , mDeviceWasRemoved(false)
 {
 }
@@ -364,20 +363,6 @@ DeviceManagerD3D9::Init()
     return false;
   }
 
-  hr = mDevice->CreatePixelShader((DWORD*)ComponentPass1ShaderPS,
-                                  getter_AddRefs(mComponentPass1PS));
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  hr = mDevice->CreatePixelShader((DWORD*)ComponentPass2ShaderPS,
-                                  getter_AddRefs(mComponentPass2PS));
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
   hr = mDevice->CreatePixelShader((DWORD*)YCbCrShaderPS,
                                   getter_AddRefs(mYCbCrPS));
 
@@ -392,9 +377,29 @@ DeviceManagerD3D9::Init()
     return false;
   }
 
-  if (!CreateVertexBuffer()) {
+  hr = mDevice->CreateVertexBuffer(sizeof(vertex) * 4,
+                                   D3DUSAGE_WRITEONLY,
+                                   0,
+                                   D3DPOOL_DEFAULT,
+                                   getter_AddRefs(mVB),
+                                   NULL);
+
+  if (FAILED(hr)) {
     return false;
   }
+
+  vertex *vertices;
+  hr = mVB->Lock(0, 0, (void**)&vertices, 0);
+  if (FAILED(hr)) {
+    return false;
+  }
+
+  vertices[0].x = vertices[0].y = 0;
+  vertices[1].x = 1; vertices[1].y = 0;
+  vertices[2].x = 0; vertices[2].y = 1;
+  vertices[3].x = 1; vertices[3].y = 1;
+
+  mVB->Unlock();
 
   hr = mDevice->SetStreamSource(0, mVB, 0, sizeof(vertex));
   if (FAILED(hr)) {
@@ -451,12 +456,6 @@ DeviceManagerD3D9::SetupRenderState()
   mDevice->SetRenderState(D3DRS_SRCBLENDALPHA, D3DBLEND_ONE);
   mDevice->SetRenderState(D3DRS_DESTBLENDALPHA, D3DBLEND_INVSRCALPHA);
   mDevice->SetRenderState(D3DRS_BLENDOPALPHA, D3DBLENDOP_ADD);
-  mDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(1, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(1, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(2, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-  mDevice->SetSamplerState(2, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(1, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
@@ -470,15 +469,6 @@ DeviceManagerD3D9::CreateSwapChain(HWND hWnd)
 {
   nsRefPtr<SwapChainD3D9> swapChain = new SwapChainD3D9(this);
   
-  // See bug 604647. This line means that if we create a window while the
-  // device is lost LayerManager initialization will fail, this window
-  // will be permanently unaccelerated. This should be a rare situation
-  // though and the need for a low-risk fix for this bug outweighs the
-  // downside.
-  if (!VerifyReadyForRendering()) {
-    return nsnull;
-  }
-
   if (!swapChain->Init(hWnd)) {
     return nsnull;
   }
@@ -497,14 +487,6 @@ DeviceManagerD3D9::SetShaderMode(ShaderMode aMode)
     case RGBALAYER:
       mDevice->SetVertexShader(mLayerVS);
       mDevice->SetPixelShader(mRGBAPS);
-      break;
-    case COMPONENTLAYERPASS1:
-      mDevice->SetVertexShader(mLayerVS);
-      mDevice->SetPixelShader(mComponentPass1PS);
-      break;
-    case COMPONENTLAYERPASS2:
-      mDevice->SetVertexShader(mLayerVS);
-      mDevice->SetPixelShader(mComponentPass2PS);
       break;
     case YCBCRLAYER:
       mDevice->SetVertexShader(mLayerVS);
@@ -526,11 +508,28 @@ DeviceManagerD3D9::VerifyReadyForRendering()
     if (IsD3D9Ex()) {
       hr = mDeviceEx->CheckDeviceState(mFocusWnd);
 
-      if (FAILED(hr)) {
+      if (hr == D3DERR_DEVICEREMOVED) {
         mDeviceWasRemoved = true;
         LayerManagerD3D9::OnDeviceManagerDestroy(this);
-        ++mDeviceResetCount;
         return false;
+      }
+
+      if (FAILED(hr)) {
+        D3DPRESENT_PARAMETERS pp;
+        memset(&pp, 0, sizeof(D3DPRESENT_PARAMETERS));
+
+        pp.BackBufferWidth = 1;
+        pp.BackBufferHeight = 1;
+        pp.BackBufferFormat = D3DFMT_A8R8G8B8;
+        pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+        pp.Windowed = TRUE;
+        pp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+        pp.hDeviceWindow = mFocusWnd;
+        
+        hr = mDeviceEx->ResetEx(&pp, NULL);
+        if (FAILED(hr)) {
+          return false;
+        }
       }
     }
     return true;
@@ -542,8 +541,6 @@ DeviceManagerD3D9::VerifyReadyForRendering()
   for(unsigned int i = 0; i < mSwapChains.Length(); i++) {
     mSwapChains[i]->Reset();
   }
-
-  mVB = nsnull;
   
   D3DPRESENT_PARAMETERS pp;
   memset(&pp, 0, sizeof(D3DPRESENT_PARAMETERS));
@@ -557,13 +554,12 @@ DeviceManagerD3D9::VerifyReadyForRendering()
   pp.hDeviceWindow = mFocusWnd;
 
   hr = mDevice->Reset(&pp);
-  ++mDeviceResetCount;
 
   if (hr == D3DERR_DEVICELOST) {
     return false;
   }
 
-  if (FAILED(hr) || !CreateVertexBuffer()) {
+  if (FAILED(hr)) {
     mDeviceWasRemoved = true;
     LayerManagerD3D9::OnDeviceManagerDestroy(this);
     return false;
@@ -629,38 +625,6 @@ DeviceManagerD3D9::VerifyCaps()
   if (HAS_CAP(caps.Caps2, D3DCAPS2_DYNAMICTEXTURES)) {
     mHasDynamicTextures = true;
   }
-
-  return true;
-}
-
-bool
-DeviceManagerD3D9::CreateVertexBuffer()
-{
-  HRESULT hr;
-
-  hr = mDevice->CreateVertexBuffer(sizeof(vertex) * 4,
-                                   D3DUSAGE_WRITEONLY,
-                                   0,
-                                   D3DPOOL_DEFAULT,
-                                   getter_AddRefs(mVB),
-                                   NULL);
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  vertex *vertices;
-  hr = mVB->Lock(0, 0, (void**)&vertices, 0);
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  vertices[0].x = vertices[0].y = 0;
-  vertices[1].x = 1; vertices[1].y = 0;
-  vertices[2].x = 0; vertices[2].y = 1;
-  vertices[3].x = 1; vertices[3].y = 1;
-
-  mVB->Unlock();
 
   return true;
 }

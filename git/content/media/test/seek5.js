@@ -16,7 +16,6 @@ function startTest() {
 function seekStarted() {
   if (completed)
     return false;
-  ok(v.currentTime >= seekTime - 0.1, "Video currentTime should be around " + seekTime + ": " + v.currentTime);
   startPassed = true;
   v.play();
   return false;

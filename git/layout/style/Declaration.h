@@ -90,8 +90,6 @@ public:
 
   void RemoveProperty(nsCSSProperty aProperty);
 
-  PRBool HasProperty(nsCSSProperty aProperty) const;
-
   void GetValue(nsCSSProperty aProperty, nsAString& aValue) const;
 
   PRBool HasImportantData() const { return mImportantData != nsnull; }

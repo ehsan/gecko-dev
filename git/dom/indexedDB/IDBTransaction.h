@@ -138,17 +138,12 @@ public:
     return GetCachedStatement(query);
   }
 
-  bool IsOpen() const;
+  bool TransactionIsOpen() const;
 
   bool IsWriteAllowed() const
   {
     return mMode == nsIIDBTransaction::READ_WRITE ||
            mMode == nsIIDBTransaction::VERSION_CHANGE;
-  }
-
-  bool IsAborted() const
-  {
-    return mAborted;
   }
 
   PRUint16 Mode()
@@ -199,10 +194,6 @@ private:
 
   bool mAborted;
   bool mCreating;
-
-#ifdef DEBUG
-  bool mFiredCompleteOrAbort;
-#endif
 };
 
 class CommitHelper : public nsIRunnable

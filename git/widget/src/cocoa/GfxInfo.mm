@@ -50,14 +50,15 @@
 #include "nsIPrefService.h"
 #endif
 
+
 using namespace mozilla::widget;
 
-nsresult
+NS_IMPL_ISUPPORTS1(GfxInfo, nsIGfxInfo)
+
+void
 GfxInfo::Init()
 {
   NS_TIME_FUNCTION;
-
-  nsresult rv = GfxInfoBase::Init();
 
   CGLRendererInfoObj renderer = 0;
   GLint rendererCount = 0;
@@ -65,7 +66,7 @@ GfxInfo::Init()
   memset(mRendererIDs, 0, sizeof(mRendererIDs));
 
   if (CGLQueryRendererInfo(0xffffffff, &renderer, &rendererCount) != kCGLNoError)
-    return rv;
+    return;
 
   rendererCount = (GLint) PR_MIN(rendererCount, (GLint) NS_ARRAY_LENGTH(mRendererIDs));
   for (GLint i = 0; i < rendererCount; i++) {
@@ -82,7 +83,7 @@ GfxInfo::Init()
       mRendererIDs[i] = prop;
       mRendererIDsString.AppendPrintf("0x%04x", prop);
     } else {
-      mRendererIDs[i] = 0;
+      mRendererIDs[i] = -1;
       mRendererIDsString.AppendPrintf("???");
     }
   }
@@ -90,8 +91,6 @@ GfxInfo::Init()
   CGLDestroyRendererInfo(renderer);
 
   AddCrashReportAnnotations();
-
-  return rv;
 }
 
 NS_IMETHODIMP
@@ -102,13 +101,6 @@ GfxInfo::GetD2DEnabled(PRBool *aEnabled)
 
 NS_IMETHODIMP
 GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
-{
-  return NS_ERROR_FAILURE;
-}
-
-/* readonly attribute DOMString DWriteVersion; */
-NS_IMETHODIMP
-GfxInfo::GetDWriteVersion(nsAString & aDwriteVersion)
 {
   return NS_ERROR_FAILURE;
 }
@@ -157,7 +149,7 @@ GfxInfo::GetAdapterDriverDate(nsAString & aAdapterDriverDate)
 NS_IMETHODIMP
 GfxInfo::GetAdapterVendorID(PRUint32 *aAdapterVendorID)
 {
-  *aAdapterVendorID = 0;
+  *aAdapterVendorID = mRendererIDs[0];
   return NS_OK;
 }
 
@@ -165,7 +157,7 @@ GfxInfo::GetAdapterVendorID(PRUint32 *aAdapterVendorID)
 NS_IMETHODIMP
 GfxInfo::GetAdapterDeviceID(PRUint32 *aAdapterDeviceID)
 {
-  *aAdapterDeviceID = 0;
+  *aAdapterDeviceID = mRendererIDs[0];
   return NS_OK;
 }
 
@@ -187,60 +179,26 @@ GfxInfo::AddCrashReportAnnotations()
 #endif
 }
 
-nsresult
-GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
-                              nsAString& aSuggestedDriverVersion,
-                              GfxDriverInfo* aDriverInfo /* = nsnull */)
+NS_IMETHODIMP
+GfxInfo::GetFeatureStatus(PRInt32 aFeature, PRInt32 *aStatus)
 {
-  NS_ENSURE_ARG_POINTER(aStatus);
-
-  aSuggestedDriverVersion.SetIsVoid(PR_TRUE);
-
   PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
 
-  // For now, we don't implement the downloaded blacklist.
-  if (aDriverInfo)
-    return NS_OK;
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(mRendererIDs); ++i) {
+    PRUint32 r = mRendererIDs[i];
 
-  if (aFeature == nsIGfxInfo::FEATURE_OPENGL_LAYERS) {
-    // CGL reports a list of renderers, some renderers are slow (e.g. software)
-    // and AFAIK we can't decide which one will be used among them, so let's implement this by returning NO_INFO
-    // if any not-known-to-be-bad renderer is found.
-    // The assumption that we make here is that the system will spontaneously use the best/fastest renderer in the list.
-    // Note that the presence of software renderer fallbacks means that slow software rendering may be automatically
-    // used, which seems to be the case in bug 611292 where the user had a Intel GMA 945 card (non programmable hardware).
-    // Therefore we need to explicitly blacklist non-OpenGL2 hardware, which could result in a software renderer
-    // being used.
-    PRBool foundGoodDevice = PR_FALSE;
-
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(mRendererIDs); ++i) {
-      switch (mRendererIDs[i]) {
-        case kCGLRendererATIRage128ID: // non-programmable
-        case kCGLRendererATIRadeonID: // non-programmable
-        case kCGLRendererATIRageProID: // non-programmable
-        case kCGLRendererATIRadeon8500ID: // no OpenGL 2 support, http://en.wikipedia.org/wiki/Radeon_R200
-        case kCGLRendererATIRadeon9700ID: // no OpenGL 2 support, http://en.wikipedia.org/wiki/Radeon_R200
-        case kCGLRendererATIRadeonX1000ID: // can't render to non-power-of-two texture backed framebuffers
-        case kCGLRendererIntel900ID: // non-programmable
-        case kCGLRendererGeForce2MXID: // non-programmable
-        case kCGLRendererGeForce3ID: // no OpenGL 2 support,
-                                     // http://en.wikipedia.org/wiki/Comparison_of_Nvidia_graphics_processing_units
-        case kCGLRendererGeForceFXID: // incomplete OpenGL 2 support with software fallbacks,
-                                      // http://en.wikipedia.org/wiki/Comparison_of_Nvidia_graphics_processing_units
-        case kCGLRendererVTBladeXP2ID: // Trident DX8 chip, assuming it's not GL2 capable
-        case kCGLRendererMesa3DFXID: // non-programmable
-        case kCGLRendererGenericFloatID: // software renderer
-        case kCGLRendererGenericID: // software renderer
-        case kCGLRendererAppleSWID: // software renderer
-          break;
-        default:
-          if (mRendererIDs[i])
-            foundGoodDevice = PR_TRUE;
-      }
+    if (aFeature == nsIGfxInfo::FEATURE_OPENGL_LAYERS) {
+      if (r == kCGLRendererATIRadeonX1000ID)
+        status = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
     }
-    if (!foundGoodDevice)
-      status = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
   }
+
   *aStatus = status;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+GfxInfo::GetFeatureSuggestedDriverVersion(PRInt32 aFeature, nsAString& aSuggestedDriverVersion)
+{
   return NS_OK;
 }

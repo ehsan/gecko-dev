@@ -124,9 +124,6 @@ static PRLogModuleInfo* gMediaElementEventsLog;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 
-// Number of milliseconds between timeupdate events as defined by spec
-#define TIMEUPDATE_MS 250
-
 // Under certain conditions there may be no-one holding references to
 // a media element from script, DOM parent, etc, but the element may still
 // fire meaningful events in the future so we can't destroy it yet:
@@ -511,7 +508,7 @@ void nsHTMLMediaElement::AbortExistingLoads()
       // will now be reported as 0. The playback position was non-zero when
       // we destroyed the decoder, so fire a timeupdate event so that the
       // change will be reflected in the controls.
-      FireTimeUpdate(PR_FALSE);
+      DispatchAsyncEvent(NS_LITERAL_STRING("timeupdate"));
     }
     DispatchEvent(NS_LITERAL_STRING("emptied"));
   }
@@ -1072,14 +1069,14 @@ NS_IMETHODIMP nsHTMLMediaElement::GetSeeking(PRBool *aSeeking)
   return NS_OK;
 }
 
-/* attribute double currentTime; */
-NS_IMETHODIMP nsHTMLMediaElement::GetCurrentTime(double *aCurrentTime)
+/* attribute float currentTime; */
+NS_IMETHODIMP nsHTMLMediaElement::GetCurrentTime(float *aCurrentTime)
 {
   *aCurrentTime = mDecoder ? mDecoder->GetCurrentTime() : 0.0;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
+NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(float aCurrentTime)
 {
   StopSuspendingAfterFirstFrame();
 
@@ -1100,8 +1097,8 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
   }
 
   // Clamp the time to [0, duration] as required by the spec
-  double clampedTime = NS_MAX(0.0, aCurrentTime);
-  double duration = mDecoder->GetDuration();
+  float clampedTime = NS_MAX(0.0f, aCurrentTime);
+  float duration = mDecoder->GetDuration();
   if (duration >= 0) {
     clampedTime = NS_MIN(clampedTime, duration);
   }
@@ -1118,10 +1115,10 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
   return rv;
 }
 
-/* readonly attribute double duration; */
-NS_IMETHODIMP nsHTMLMediaElement::GetDuration(double *aDuration)
+/* readonly attribute float duration; */
+NS_IMETHODIMP nsHTMLMediaElement::GetDuration(float *aDuration)
 {
-  *aDuration = mDecoder ? mDecoder->GetDuration() : std::numeric_limits<double>::quiet_NaN();
+  *aDuration = mDecoder ? mDecoder->GetDuration() : std::numeric_limits<float>::quiet_NaN();
   return NS_OK;
 }
 
@@ -1151,22 +1148,22 @@ NS_IMETHODIMP nsHTMLMediaElement::Pause()
   AddRemoveSelfReference();
 
   if (!oldPaused) {
-    FireTimeUpdate(PR_FALSE);
+    DispatchAsyncEvent(NS_LITERAL_STRING("timeupdate"));
     DispatchAsyncEvent(NS_LITERAL_STRING("pause"));
   }
 
   return NS_OK;
 }
 
-/* attribute double volume; */
-NS_IMETHODIMP nsHTMLMediaElement::GetVolume(double *aVolume)
+/* attribute float volume; */
+NS_IMETHODIMP nsHTMLMediaElement::GetVolume(float *aVolume)
 {
   *aVolume = mVolume;
 
   return NS_OK;
 }
 
-NS_IMETHODIMP nsHTMLMediaElement::SetVolume(double aVolume)
+NS_IMETHODIMP nsHTMLMediaElement::SetVolume(float aVolume)
 {
   if (aVolume < 0.0f || aVolume > 1.0f)
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
@@ -1269,7 +1266,6 @@ nsHTMLMediaElement::nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     mRate(0),
     mPreloadAction(PRELOAD_UNDEFINED),
     mMediaSize(-1,-1),
-    mLastCurrentTime(0.0),
     mAllowAudioData(PR_FALSE),
     mBegun(PR_FALSE),
     mLoadedFirstFrame(PR_FALSE),
@@ -1379,7 +1375,6 @@ NS_IMETHODIMP nsHTMLMediaElement::Play()
     switch (mReadyState) {
     case nsIDOMHTMLMediaElement::HAVE_METADATA:
     case nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA:
-      FireTimeUpdate(PR_FALSE);
       DispatchAsyncEvent(NS_LITERAL_STRING("waiting"));
       break;
     case nsIDOMHTMLMediaElement::HAVE_FUTURE_DATA:
@@ -1815,7 +1810,7 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
     return NS_ERROR_FAILURE;
   }
 
-  double duration = aOriginal->GetDuration();
+  float duration = aOriginal->GetDuration();
   if (duration >= 0) {
     decoder->SetDuration(PRInt64(NS_round(duration * 1000)));
     decoder->SetSeekable(aOriginal->GetSeekable());
@@ -2020,14 +2015,13 @@ void nsHTMLMediaElement::PlaybackEnded()
   // We changed the state of IsPlaybackEnded which can affect AddRemoveSelfReference
   AddRemoveSelfReference();
 
-  FireTimeUpdate(PR_FALSE);
   DispatchAsyncEvent(NS_LITERAL_STRING("ended"));
 }
 
 void nsHTMLMediaElement::SeekStarted()
 {
   DispatchAsyncEvent(NS_LITERAL_STRING("seeking"));
-  FireTimeUpdate(PR_FALSE);
+  DispatchAsyncEvent(NS_LITERAL_STRING("timeupdate"));
 }
 
 void nsHTMLMediaElement::SeekCompleted()
@@ -2082,7 +2076,6 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
   if (aNextFrame != NEXT_FRAME_AVAILABLE) {
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
     if (!mWaitingFired && aNextFrame == NEXT_FRAME_UNAVAILABLE_BUFFERING) {
-      FireTimeUpdate(PR_FALSE);
       DispatchAsyncEvent(NS_LITERAL_STRING("waiting"));
       mWaitingFired = PR_TRUE;
     }
@@ -2209,8 +2202,7 @@ ImageContainer* nsHTMLMediaElement::GetImageContainer()
   if (!video)
     return nsnull;
 
-  nsRefPtr<LayerManager> manager =
-    nsContentUtils::PersistentLayerManagerForDocument(GetOwnerDoc());
+  nsRefPtr<LayerManager> manager = nsContentUtils::LayerManagerForDocument(GetOwnerDoc());
   if (!manager)
     return nsnull;
 
@@ -2572,39 +2564,9 @@ void nsHTMLMediaElement::SetRequestHeaders(nsIHttpChannel* aChannel)
   // Send Accept header for video and audio types only (Bug 489071)
   SetAcceptHeader(aChannel);
 
-  // Apache doesn't send Content-Length when gzip transfer encoding is used,
-  // which prevents us from estimating the video length (if explicit Content-Duration
-  // and a length spec in the container are not present either) and from seeking.
-  // So, disable the standard "Accept-Encoding: gzip,deflate" that we usually send.
-  // See bug 614760.
-  aChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept-Encoding"),
-                             NS_LITERAL_CSTRING(""), PR_FALSE);
-
   // Set the Referer header
   nsIDocument* doc = GetOwnerDoc();
   if (doc) {
     aChannel->SetReferrer(doc->GetDocumentURI());
-  }
-}
-
-void nsHTMLMediaElement::FireTimeUpdate(PRBool aPeriodic)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-
-  TimeStamp now = TimeStamp::Now();
-  double time = 0;
-  GetCurrentTime(&time);
-
-  // Fire a timupdate event if this is not a periodic update (i.e. it's a
-  // timeupdate event mandated by the spec), or if it's a periodic update
-  // and TIMEUPDATE_MS has passed since the last timeupdate event fired and
-  // the time has changed.
-  if (!aPeriodic ||
-      (mLastCurrentTime != time &&
-       (mTimeUpdateTime.IsNull() ||
-        now - mTimeUpdateTime >= TimeDuration::FromMilliseconds(TIMEUPDATE_MS)))) {
-    DispatchAsyncEvent(NS_LITERAL_STRING("timeupdate"));
-    mTimeUpdateTime = now;
-    mLastCurrentTime = time;
   }
 }

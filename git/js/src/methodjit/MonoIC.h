@@ -91,6 +91,18 @@ class FrameSize
 namespace ic {
 
 struct MICInfo {
+#ifdef JS_CPU_X86
+    static const uint32 GET_DATA_OFFSET = 6;
+    static const uint32 GET_TYPE_OFFSET = 12;
+
+    static const uint32 SET_TYPE_OFFSET = 6;
+    static const uint32 SET_DATA_CONST_TYPE_OFFSET = 16;
+    static const uint32 SET_DATA_TYPE_OFFSET = 12;
+#elif JS_CPU_X64 || JS_CPU_ARM
+    /* X64: No constants used, thanks to patchValueOffset. */
+    /* ARM: No constants used as mic.load always points to an LDR that loads the offset. */
+#endif
+
     enum Kind
 #ifdef _MSC_VER
     : uint8_t
@@ -104,18 +116,15 @@ struct MICInfo {
     JSC::CodeLocationLabel entry;
     JSC::CodeLocationLabel stubEntry;
 
-    /*
-     * - ARM and x64 always emit exactly one instruction which needs to be
-     *   patched. On ARM, the label points to the patched instruction, whilst
-     *   on x64 it points to the instruction after it.
-     * - For x86, the label "load" points to the start of the load/store
-     *   sequence, which may consist of one or two "mov" instructions. Because
-     *   of this, x86 is the only platform which requires non-trivial patching
-     *   code.
-     */
+    /* TODO: use a union-like structure for the below. */
+
+    /* Used by GET/SET. */
     JSC::CodeLocationLabel load;
     JSC::CodeLocationDataLabel32 shape;
     JSC::CodeLocationCall stubCall;
+#if defined JS_PUNBOX64
+    uint32 patchValueOffset;
+#endif
 
     /* Used by all MICs. */
     Kind kind : 3;
@@ -144,10 +153,7 @@ struct TraceICInfo {
     /* This data is used by the tracing JIT. */
     void *traceData;
     uintN traceEpoch;
-    uint32 loopCounter;
-    uint32 loopCounterStart;
 
-    bool initialized : 1;
     bool hasSlowTraceHint : 1;
 };
 
@@ -216,9 +222,6 @@ struct CallICInfo {
     /* Jump to patch for out-of-line scripted calls. */
     uint32 oolJumpOffset   : 16;
 
-    /* Label for out-of-line call to IC function. */
-    uint32 icCallOffset    : 16;
-
     /* Offset for deep-fun check to rejoin at. */
     uint32 hotPathOffset   : 16;
 
@@ -259,7 +262,7 @@ void JS_FASTCALL NativeCall(VMFrame &f, ic::CallICInfo *ic);
 JSBool JS_FASTCALL SplatApplyArgs(VMFrame &f);
 
 void PurgeMICs(JSContext *cx, JSScript *script);
-void SweepCallICs(JSContext *cx, JSScript *script, bool purgeAll);
+void SweepCallICs(JSScript *script);
 
 } /* namespace ic */
 } /* namespace mjit */

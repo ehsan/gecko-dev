@@ -172,30 +172,32 @@ CommonDialog.prototype = {
 
         // set the icon
         let icon = this.ui.infoIcon;
-        if (icon)
-            this.iconClass.forEach(function(el,idx,arr) icon.classList.add(el));
+        this.iconClass.forEach(function(el,idx,arr) icon.classList.add(el));
 
         // set default result to cancelled
         this.args.ok = false;
         this.args.buttonNumClicked = 1;
 
 
-        // Set the default button
-        let b = (this.args.defaultButtonNum || 0);
-        let button = this.ui["button" + b];
-
-        if (xulDialog)
-            xulDialog.defaultButton = ['accept', 'cancel', 'extra1', 'extra2'][b];
-        else
-            button.setAttribute("default", "true");
-
-        // Set default focus / selection.
+        // If there are no input fields on the dialog, select the default button.
+        // Otherwise, select the appropriate input field.
+        // XXX shouldn't we set an unfocused default even when a textbox is focused?
         if (!this.hasInputField) {
-            let isOSX = ("nsILocalFileMac" in Components.interfaces);
-            if (isOSX)
-                this.ui.infoBody.focus();
-            else
+            // Set the default button (and focus it on non-OS X systems)
+            let b = 0;
+            if (this.args.defaultButtonNum)
+                b = this.args.defaultButtonNum;
+            let button = this.ui["button" + b];
+            if (xulDialog) {
+                xulDialog.defaultButton = ['accept', 'cancel', 'extra1', 'extra2'][b];
+                let isOSX = ("nsILocalFileMac" in Components.interfaces);
+                if (!isOSX)
+                    button.focus();
+            } else {
+                button.setAttribute("default", "true");
                 button.focus();
+            }
+
         } else {
             if (this.args.promptType == "promptPassword")
                 this.ui.password1Textbox.select();
@@ -213,16 +215,14 @@ CommonDialog.prototype = {
             this.ui.focusTarget.addEventListener("focus", function(e) { self.onFocus(e); }, false);
         }
 
-        // Play a sound (unless we're tab-modal -- don't want those to feel like OS prompts).
+        // play sound
         try {
-            if (xulDialog && this.soundID) {
+            if (this.soundID) {
                 Cc["@mozilla.org/sound;1"].
                 createInstance(Ci.nsISound).
-                playEventSound(this.soundID);
+                playEventSound(soundID);
             }
-        } catch (e) {
-            Cu.reportError("Couldn't play common dialog event sound: " + e);
-        }
+        } catch (e) { }
 
         let topic = "common-dialog-loaded";
         if (!xulDialog)

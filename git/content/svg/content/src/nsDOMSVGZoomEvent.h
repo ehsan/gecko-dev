@@ -42,16 +42,10 @@
 #include "nsDOMUIEvent.h"
 #include "nsIDOMSVGSVGElement.h"
 
-namespace mozilla {
-class DOMSVGPoint;
-}
-
 class nsDOMSVGZoomEvent : public nsDOMUIEvent,
                           public nsIDOMSVGZoomEvent
 {
 public:
-  typedef mozilla::DOMSVGPoint DOMSVGPoint;
-
   nsDOMSVGZoomEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent);
                      
   // nsISupports interface:
@@ -64,10 +58,10 @@ public:
   NS_FORWARD_TO_NSDOMUIEVENT
 
 private:
-  float mPreviousScale;
-  float mNewScale;
-  nsRefPtr<DOMSVGPoint> mPreviousTranslate;
-  nsRefPtr<DOMSVGPoint> mNewTranslate;
+  float                    mPreviousScale;
+  nsCOMPtr<nsIDOMSVGPoint> mPreviousTranslate;
+  float                    mNewScale;
+  nsCOMPtr<nsIDOMSVGPoint> mNewTranslate;
 };
 
 #endif // __NS_SVGZOOMEVENT_H__

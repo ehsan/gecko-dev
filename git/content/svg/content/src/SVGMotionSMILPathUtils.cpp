@@ -37,7 +37,7 @@
 
 #include "SVGMotionSMILPathUtils.h"
 #include "nsSVGElement.h"
-#include "SVGLength.h"
+#include "nsSVGLength2.h"
 #include "nsContentCreatorFunctions.h" // For NS_NewSVGElement
 #include "nsCharSeparatedTokenizer.h"
 
@@ -126,30 +126,31 @@ SVGMotionSMILPathUtils::PathGenerator::
     tokenizer(aCoordPairStr, ',',
               nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
 
-  SVGLength x, y;
+  nsSVGLength2 x, y;
+  nsresult rv;
 
-  if (!tokenizer.hasMoreTokens() ||
-      !x.SetValueFromString(tokenizer.nextToken())) {
+  if (!tokenizer.hasMoreTokens()) { // No 1st token
+    return PR_FALSE;
+  }
+  // Parse X value
+  x.Init();
+  rv = x.SetBaseValueString(tokenizer.nextToken(), nsnull, PR_FALSE);
+  if (NS_FAILED(rv) ||                // 1st token failed to parse.
+      !tokenizer.hasMoreTokens()) {   // No 2nd token.
     return PR_FALSE;
   }
 
-  if (!tokenizer.hasMoreTokens() ||
-      !y.SetValueFromString(tokenizer.nextToken())) { 
-    return PR_FALSE;
-  }
-
-  if (tokenizer.lastTokenEndedWithSeparator() || // Trailing comma.
+  // Parse Y value
+  y.Init();
+  rv = y.SetBaseValueString(tokenizer.nextToken(), nsnull, PR_FALSE);
+  if (NS_FAILED(rv) ||                           // 2nd token failed to parse.
+      tokenizer.lastTokenEndedWithSeparator() || // Trailing comma.
       tokenizer.hasMoreTokens()) {               // More text remains
     return PR_FALSE;
   }
 
-  float xRes = x.GetValueInUserUnits(mSVGElement, nsSVGUtils::X);
-  float yRes = y.GetValueInUserUnits(mSVGElement, nsSVGUtils::Y);
-
-  NS_ENSURE_FINITE2(xRes, yRes, PR_FALSE);
-
-  aXVal = xRes;
-  aYVal = yRes;
+  aXVal = x.GetBaseValue(mSVGElement);
+  aYVal = y.GetBaseValue(mSVGElement);
   return PR_TRUE;
 }
 

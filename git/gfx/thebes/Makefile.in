@@ -32,11 +32,10 @@ EXPORTS	= \
 	gfxPoint.h \
 	gfxRect.h \
 	gfxSkipChars.h \
-	gfxTeeSurface.h \
 	gfxTypes.h \
 	gfxTextRunCache.h \
 	gfxTextRunWordCache.h \
-	gfxUnicodeProperties.h \
+	gfxThebesUtils.h \
 	gfxUtils.h \
 	gfxUserFontSet.h \
 	GLDefs.h \
@@ -45,7 +44,6 @@ EXPORTS	= \
 	GLContextProvider.h \
 	GLContextProviderImpl.h \
 	nsCoreAnimationSupport.h \
-	EGLUtils.h \
 	$(NULL)
 
 ifdef MOZ_IPC
@@ -155,6 +153,7 @@ ifdef WINCE
 EXPORTS += \
 	gfxFT2Fonts.h \
 	gfxFT2FontBase.h \
+	gfxDDrawSurface.h \
 	$(NULL)
 else
 EXPORTS += \
@@ -184,9 +183,9 @@ CPPSRCS	= \
 	gfxPlatformFontList.cpp \
 	gfxRect.cpp \
 	gfxSkipChars.cpp \
-	gfxTeeSurface.cpp \
 	gfxTextRunCache.cpp \
 	gfxTextRunWordCache.cpp \
+	gfxThebesUtils.cpp \
 	gfxUserFontSet.cpp \
 	gfxUtils.cpp \
 	gfxUnicodeProperties.cpp \
@@ -196,26 +195,19 @@ CPPSRCS	= \
 	GLContextProviderOSMesa.cpp \
 	$(NULL)
 
-# Are we targeting x86 or x64?  If so, build gfxAlphaRecoverySSE2.cpp.
-# The file uses SSE2 intrinsics, so it needs special compile flags on some
-# compilers.
-ifneq (,$(INTEL_ARCHITECTURE))
-CPPSRCS += gfxAlphaRecoverySSE2.cpp
-
-ifdef GNU_CC
-gfxAlphaRecoverySSE2.$(OBJ_SUFFIX): CXXFLAGS+=-msse2
-endif
-
-ifdef SOLARIS_SUNPRO_CXX
-gfxAlphaRecoverySSE2.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
-endif
-
-endif
-
 ifdef MOZ_IPC
 CPPSRCS += \
 	gfxSharedImageSurface.cpp \
 	$(NULL)
+endif
+
+ifeq (86,$(findstring 86,$(OS_TEST)))
+ifdef __GNUC__
+gfxAlphaRecovery.$(OBJ_SUFFIX): MODULE_OPTIMIZE_FLAGS += -msse2
+endif
+ifdef SOLARIS_SUNPRO_CXX
+gfxAlphaRecovery.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
+endif
 endif
 
 SHARED_LIBRARY_LIBS += \
@@ -254,6 +246,7 @@ ifdef WINCE
 CPPSRCS	+= gfxFT2Fonts.cpp \
 	   gfxFT2FontBase.cpp \
 	   gfxFT2Utils.cpp \
+	   gfxDDrawSurface.cpp \
 	   gfxFT2FontList.cpp \
 	   $(NULL)
 
@@ -275,7 +268,7 @@ CPPSRCS	+= gfxGDIFont.cpp \
 	   gfxGDIShaper.cpp \
 	   gfxUniscribeShaper.cpp \
 	   $(NULL)
-_OS_LIBS = usp10 msimg32 ole32 version advapi32
+_OS_LIBS = usp10 msimg32 ole32
 endif
 
 CPPSRCS +=	gfxPDFSurface.cpp

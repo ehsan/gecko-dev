@@ -70,7 +70,6 @@ interface nsIDOMStorageWindow : nsISupports
 
   /**
    * Indexed Databases for the current browsing context.
-   * NOTE: mozIndexedDB should be removed post-2.0. Bug 623316.
    */
-  [noscript] readonly attribute nsIIDBFactory mozIndexedDB;
+  readonly attribute nsIIDBFactory moz_indexedDB;
 };

@@ -158,12 +158,10 @@ nsIFrame*
 nsSVGRenderingObserver::GetReferencedFrame(nsIAtom* aFrameType, PRBool* aOK)
 {
   nsIFrame* frame = GetReferencedFrame();
-  if (frame) {
-    if (frame->GetType() == aFrameType)
-      return frame;
-    if (aOK) {
-      *aOK = PR_FALSE;
-    }
+  if (frame && frame->GetType() == aFrameType)
+    return frame;
+  if (aOK) {
+    *aOK = PR_FALSE;
   }
   return nsnull;
 }

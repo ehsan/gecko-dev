@@ -97,6 +97,7 @@ namespace dom = mozilla::dom;
 
 #define SYNC_TEXT 0x1
 #define SYNC_BUTTON 0x2
+#define SYNC_BOTH 0x3
 
 nsIFrame*
 NS_NewFileControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -343,7 +344,7 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                       systemGroup);
 
   SyncAttr(kNameSpaceID_None, nsGkAtoms::size,     SYNC_TEXT);
-  SyncDisabledState();
+  SyncAttr(kNameSpaceID_None, nsGkAtoms::disabled, SYNC_BOTH);
 
   return NS_OK;
 }
@@ -473,7 +474,7 @@ nsFileControlFrame::CaptureMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
     // and not fire onchange when it should.
     PRBool oldState = mFrame->mTextFrame->GetFireChangeEventState();
     mFrame->mTextFrame->SetFireChangeEventState(PR_TRUE);
-    inputElement->SetFiles(newFiles, true);
+    inputElement->SetFiles(newFiles);
 
     mFrame->mTextFrame->SetFireChangeEventState(oldState);
     // May need to fire an onchange here
@@ -588,28 +589,17 @@ nsFileControlFrame::SyncAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   }
 }
 
-void
-nsFileControlFrame::SyncDisabledState()
-{
-  nsEventStates eventStates = mContent->IntrinsicState();
-  if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
-    mTextContent->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled, EmptyString(),
-                          PR_TRUE);
-    mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled, EmptyString(),
-                     PR_TRUE);
-  } else {
-    mTextContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::disabled, PR_TRUE);
-    mBrowse->UnsetAttr(kNameSpaceID_None, nsGkAtoms::disabled, PR_TRUE);
-  }
-}
-
 NS_IMETHODIMP
 nsFileControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                      nsIAtom*        aAttribute,
                                      PRInt32         aModType)
 {
+  // propagate disabled to text / button inputs
   if (aNameSpaceID == kNameSpaceID_None) {
-    if (aAttribute == nsGkAtoms::size) {
+    if (aAttribute == nsGkAtoms::disabled) {
+      SyncAttr(aNameSpaceID, aAttribute, SYNC_BOTH);
+    // propagate size to text
+    } else if (aAttribute == nsGkAtoms::size) {
       SyncAttr(aNameSpaceID, aAttribute, SYNC_TEXT);
     } else if (aAttribute == nsGkAtoms::tabindex) {
       SyncAttr(aNameSpaceID, aAttribute, SYNC_BUTTON);
@@ -617,14 +607,6 @@ nsFileControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
   }
 
   return nsBlockFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
-}
-
-void
-nsFileControlFrame::ContentStatesChanged(nsEventStates aStates)
-{
-  if (aStates.HasState(NS_EVENT_STATE_DISABLED)) {
-    nsContentUtils::AddScriptRunner(new SyncDisabledStateEvent(this));
-  }
 }
 
 PRBool

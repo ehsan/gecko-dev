@@ -101,7 +101,7 @@ nsSVGTextPathFrame::GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy)
   aDy->Clear();
 }
 
-const SVGNumberList*
+already_AddRefed<nsIDOMSVGNumberList>
 nsSVGTextPathFrame::GetRotate()
 {
   return nsnull;

@@ -399,21 +399,23 @@ nsThebesFontMetrics::DrawString(const char *aString, PRUint32 aLength,
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
     textRun->Draw(aContext->ThebesContext(), pt, 0, aLength,
-                  &provider, nsnull);
+                  nsnull, &provider, nsnull);
     return NS_OK;
 }
 
 nsresult
 nsThebesFontMetrics::DrawString(const PRUnichar* aString, PRUint32 aLength,
                                 nscoord aX, nscoord aY,
-                                nsIRenderingContext *aContext,
-                                nsIRenderingContext *aTextRunConstructionContext)
+                                PRInt32 aFontID,
+                                const nscoord* aSpacing,
+                                nsThebesRenderingContext *aContext)
 {
     if (aLength == 0)
         return NS_OK;
 
+    NS_ASSERTION(!aSpacing, "Spacing not supported here");
     StubPropertyProvider provider;
-    AutoTextRun textRun(this, aTextRunConstructionContext, aString, aLength);
+    AutoTextRun textRun(this, aContext, aString, aLength);
     if (!textRun.get())
         return NS_ERROR_FAILURE;
     gfxPoint pt(aX, aY);
@@ -421,7 +423,7 @@ nsThebesFontMetrics::DrawString(const PRUnichar* aString, PRUint32 aLength,
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
     textRun->Draw(aContext->ThebesContext(), pt, 0, aLength,
-                  &provider, nsnull);
+                  nsnull, &provider, nsnull);
     return NS_OK;
 }
 

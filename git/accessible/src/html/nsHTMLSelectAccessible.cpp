@@ -675,15 +675,6 @@ nsHTMLComboboxAccessible::NativeRole()
 }
 
 void
-nsHTMLComboboxAccessible::InvalidateChildren()
-{
-  nsAccessibleWrap::InvalidateChildren();
-
-  if (mListAccessible)
-    mListAccessible->InvalidateChildren();
-}
-
-void
 nsHTMLComboboxAccessible::CacheChildren()
 {
   nsIFrame* frame = GetFrame();

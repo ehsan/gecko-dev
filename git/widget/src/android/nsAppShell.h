@@ -61,9 +61,6 @@ public:
 
     nsAppShell();
 
-    NS_DECL_ISUPPORTS_INHERITED
-    NS_DECL_NSIOBSERVER
-
     nsresult Init();
 
     void NotifyNativeEvent();
@@ -77,7 +74,6 @@ public:
     nsresult AddObserver(const nsAString &aObserverKey, nsIObserver *aObserver);
     void CallObserver(const nsAString &aObserverKey, const nsAString &aTopic, const nsAString &aData);
     void RemoveObserver(const nsAString &aObserverKey);
-    void NotifyObservers(nsISupports *aSupports, const char *aTopic, const PRUnichar *aData);
 
 protected:
     virtual void ScheduleNativeEventCallback();

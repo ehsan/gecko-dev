@@ -154,7 +154,7 @@ public:
     mDecoder->GetMonitor().AssertCurrentThreadIn();
     return mState; 
   }
-  virtual void SetVolume(double aVolume);
+  virtual void SetVolume(float aVolume);
   virtual void Shutdown();
   virtual PRInt64 GetDuration();
   virtual void SetDuration(PRInt64 aDuration);
@@ -164,8 +164,8 @@ public:
 
   virtual nsHTMLMediaElement::NextFrameStatus GetNextFrameStatus();
   virtual void Decode();
-  virtual void Seek(double aTime);
-  virtual double GetCurrentTime();
+  virtual void Seek(float aTime);
+  virtual float GetCurrentTime();
   virtual void ClearPositionChangeFlag();
   virtual void SetSeekable(PRBool aSeekable);
   virtual void UpdatePlaybackPosition(PRInt64 aTime);
@@ -250,21 +250,18 @@ public:
     return mEndTime;
   }
 
-  void NotifyDataExhausted();
-
 protected:
-
-  // Returns PR_TRUE if the decode is withing an estimated one tenth of a
-  // second's worth of data of the download, i.e. the decode has almost
-  // caught up with the download. If we can't estimate one tenth of a second's
-  // worth of data, we'll return PR_TRUE if the decode is within 100KB of
-  // the download.
-  PRBool IsDecodeCloseToDownload();
 
   // Returns the number of unplayed ms of audio we've got decoded and/or
   // pushed to the hardware waiting to play. This is how much audio we can
   // play without having to run the audio decoder.
   PRInt64 AudioDecodedMs() const;
+
+  // Returns PR_TRUE if we're running low on decoded data.
+  PRBool HasLowDecodedData() const;
+
+  // Returns PR_TRUE if we've got plenty of decoded data.
+  PRBool HasAmpleDecodedData() const;
 
   // Returns PR_TRUE when there's decoded audio waiting to play.
   // The decoder monitor must be held.
@@ -372,15 +369,6 @@ protected:
     return mStartTime + mCurrentFrameTime;
   }
 
-  // Returns an upper bound on the number of milliseconds of audio that is
-  // decoded and playable. This is the sum of the number of ms of audio which
-  // is decoded and in the reader's audio queue, and the ms of unplayed audio
-  // which has been pushed to the audio hardware for playback. Note that after
-  // calling this, the audio hardware may play some of the audio pushed to
-  // hardware, so this can only be used as a upper bound. The decoder monitor
-  // must be held when calling this. Called on the decoder thread.
-  PRInt64 GetDecodedAudioDuration();
-
   // Monitor on mAudioStream. This monitor must be held in order to delete
   // or use the audio stream. This stops us destroying the audio stream
   // while it's being used on another thread (typically when it's being
@@ -412,13 +400,11 @@ protected:
   TimeDuration mPlayDuration;
 
   // Time that buffering started. Used for buffering timeout and only
-  // accessed on the state machine thread. This is null while we're not
-  // buffering.
+  // accessed on the state machine thread.
   TimeStamp mBufferingStart;
 
   // Download position where we should stop buffering. Only
-  // accessed on the state machine thread. This is -1 while we're not
-  // buffering.
+  // accessed on the state machine thread.
   PRInt64 mBufferingEndOffset;
 
   // Start time of the media, in milliseconds. This is the presentation
@@ -470,7 +456,7 @@ protected:
   // Volume of playback. 0.0 = muted. 1.0 = full volume. Read/Written
   // from the state machine and main threads. Synchronised via decoder
   // monitor.
-  double mVolume;
+  float mVolume;
 
   // PR_TRUE if the media resource can be seeked. Accessed from the state
   // machine and main threads. Synchronised via decoder monitor.

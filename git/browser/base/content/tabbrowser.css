@@ -11,7 +11,7 @@
   display: none;
 }
 
-.tabbrowser-tabs[closebuttons="activetab"] > * > * > * > .tab-close-button:not([pinned])[selected="true"],
+.tabbrowser-tabs:not([closebuttons="noclose"]):not([closebuttons="closeatend"]) > * > * > * .tab-close-button:not([pinned])[selected="true"],
 .tabbrowser-tabs[closebuttons="alltabs"] > * > * > * > .tab-close-button:not([pinned]) {
   display: -moz-box;
 }
@@ -40,7 +40,7 @@ tabpanels {
 
 .tab-drop-indicator {
   position: relative;
-  z-index: 2;
+  z-index: 1;
 }
 
 .tab-throbber:not([busy]),

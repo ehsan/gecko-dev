@@ -1,4 +1,4 @@
-<html>
+<html class="reftest-wait">
   <head>
     <script type="text/javascript">
       function go() {
@@ -12,6 +12,7 @@
 
         // Draw the SVG image on top of our red
         ctx.drawImage(image, 0, 0);
+        document.documentElement.removeAttribute("class");
       }
     </script>
   </head>

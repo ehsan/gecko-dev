@@ -619,7 +619,7 @@ nsMediaCache::FlushInternal()
 {
   nsAutoMonitor mon(mMonitor);
 
-  for (PRUint32 blockIndex = 0; blockIndex < mIndex.Length(); ++blockIndex) {
+  for (PRInt32 blockIndex = 0; blockIndex < mIndex.Length(); ++blockIndex) {
     FreeBlock(blockIndex);
   }
 

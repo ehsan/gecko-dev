@@ -55,10 +55,6 @@
 #include "nsPrintfCString.h"
 #include "nsNetUtil.h"
 
-// Temporary tables for a storage scope will be flushed if found older
-// then this time in seconds since the load
-#define TEMP_TABLE_MAX_AGE (10) // seconds
-
 class nsReverseStringSQLFunction : public mozIStorageFunction
 {
   NS_DECL_ISUPPORTS
@@ -102,7 +98,6 @@ NS_IMPL_ISUPPORTS1(nsIsOfflineSQLFunction, mozIStorageFunction)
 
 nsDOMStoragePersistentDB::nsDOMStoragePersistentDB()
 {
-  mTempTableLoads.Init(16);
 }
 
 NS_IMETHODIMP
@@ -449,11 +444,9 @@ nsDOMStoragePersistentDB::Init(const nsString& aDatabaseName)
 }
 
 nsresult
-nsDOMStoragePersistentDB::EnsureLoadTemporaryTableForStorage(DOMStorageImpl* aStorage)
+nsDOMStoragePersistentDB::EnsureLoadTemporaryTableForStorage(nsDOMStorage* aStorage)
 {
-  TimeStamp timeStamp;
-
-  if (!mTempTableLoads.Get(aStorage->GetScopeDBKey(), &timeStamp)) {
+  if (!aStorage->WasTemporaryTableLoaded()) {
     nsresult rv;
 
     rv = MaybeCommitInsertTransaction();
@@ -473,76 +466,57 @@ nsDOMStoragePersistentDB::EnsureLoadTemporaryTableForStorage(DOMStorageImpl* aSt
 
     rv = mCopyToTempTableStatement->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
-
-    mTempTableLoads.Put(aStorage->GetScopeDBKey(), TimeStamp::Now());
-
-    DOMStorageImpl::gStorageDB->EnsureTempTableFlushTimer();
   }
+
+  // Always call this to update the last access time
+  aStorage->SetTemporaryTableLoaded(true);
 
   return NS_OK;
 }
 
-/* static */
-PLDHashOperator
-nsDOMStoragePersistentDB::FlushTemporaryTable(nsCStringHashKey::KeyType aKey,
-                                              TimeStamp& aData,
-                                              void* aUserArg)
-{
-  FlushTemporaryTableData* data = (FlushTemporaryTableData*)aUserArg;
-
-  if (!data->mForce && 
-      ((TimeStamp::Now() - aData).ToSeconds() < TEMP_TABLE_MAX_AGE))
-    return PL_DHASH_NEXT;
-
-  {
-    mozStorageStatementScoper scope(data->mDB->mCopyBackToDiskStatement);
-
-    Binder binder(data->mDB->mCopyBackToDiskStatement, &data->mRV);
-    NS_ENSURE_SUCCESS(data->mRV, PL_DHASH_STOP);
-
-    data->mRV = binder->BindUTF8StringByName(NS_LITERAL_CSTRING("scope"), aKey);
-    NS_ENSURE_SUCCESS(data->mRV, PL_DHASH_STOP);
-
-    data->mRV = binder.Add();
-    NS_ENSURE_SUCCESS(data->mRV, PL_DHASH_STOP);
-
-    data->mRV = data->mDB->mCopyBackToDiskStatement->Execute();
-    NS_ENSURE_SUCCESS(data->mRV, PL_DHASH_STOP);
-  }
-
-  {
-    mozStorageStatementScoper scope(data->mDB->mDeleteTemporaryTableStatement);
-
-    Binder binder(data->mDB->mDeleteTemporaryTableStatement, &data->mRV);
-    NS_ENSURE_SUCCESS(data->mRV, PL_DHASH_STOP);
-
-    data->mRV = binder->BindUTF8StringByName(NS_LITERAL_CSTRING("scope"), aKey);
-    NS_ENSURE_SUCCESS(data->mRV, PL_DHASH_STOP);
-
-    data->mRV = binder.Add();
-    NS_ENSURE_SUCCESS(data->mRV, PL_DHASH_STOP);
-
-    data->mRV = data->mDB->mDeleteTemporaryTableStatement->Execute();
-    NS_ENSURE_SUCCESS(data->mRV, PL_DHASH_STOP);
-  }
-
-  return PL_DHASH_REMOVE;
-}
-
 nsresult
-nsDOMStoragePersistentDB::FlushTemporaryTables(bool force)
+nsDOMStoragePersistentDB::FlushAndDeleteTemporaryTableForStorage(nsDOMStorage* aStorage)
 {
+  if (!aStorage->WasTemporaryTableLoaded())
+    return NS_OK;
+
   mozStorageTransaction trans(mConnection, PR_FALSE);
 
   nsresult rv;
 
-  FlushTemporaryTableData data;
-  data.mDB = this;
-  data.mForce = force;
-  data.mRV = NS_OK;
+  {
+    mozStorageStatementScoper scope(mCopyBackToDiskStatement);
 
-  mTempTableLoads.Enumerate(FlushTemporaryTable, &data);
-  NS_ENSURE_SUCCESS(data.mRV, data.mRV);
+    Binder binder(mCopyBackToDiskStatement, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = binder->BindUTF8StringByName(NS_LITERAL_CSTRING("scope"),
+                                      aStorage->GetScopeDBKey());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = binder.Add();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = mCopyBackToDiskStatement->Execute();
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  {
+    mozStorageStatementScoper scope(mDeleteTemporaryTableStatement);
+
+    Binder binder(mDeleteTemporaryTableStatement, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = binder->BindUTF8StringByName(NS_LITERAL_CSTRING("scope"),
+                                      aStorage->GetScopeDBKey());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = binder.Add();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = mDeleteTemporaryTableStatement->Execute();
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   rv = trans.Commit();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -550,11 +524,13 @@ nsDOMStoragePersistentDB::FlushTemporaryTables(bool force)
   rv = MaybeCommitInsertTransaction();
   NS_ENSURE_SUCCESS(rv, rv);
 
+  aStorage->SetTemporaryTableLoaded(false);
+
   return NS_OK;
 }
 
 nsresult
-nsDOMStoragePersistentDB::GetAllKeys(DOMStorageImpl* aStorage,
+nsDOMStoragePersistentDB::GetAllKeys(nsDOMStorage* aStorage,
                                      nsTHashtable<nsSessionStorageEntry>* aKeys)
 {
   nsresult rv;
@@ -607,7 +583,7 @@ nsDOMStoragePersistentDB::GetAllKeys(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStoragePersistentDB::GetKeyValue(DOMStorageImpl* aStorage,
+nsDOMStoragePersistentDB::GetKeyValue(nsDOMStorage* aStorage,
                                       const nsAString& aKey,
                                       nsAString& aValue,
                                       PRBool* aSecure)
@@ -657,7 +633,7 @@ nsDOMStoragePersistentDB::GetKeyValue(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStoragePersistentDB::SetKey(DOMStorageImpl* aStorage,
+nsDOMStoragePersistentDB::SetKey(nsDOMStorage* aStorage,
                                  const nsAString& aKey,
                                  const nsAString& aValue,
                                  PRBool aSecure,
@@ -731,7 +707,7 @@ nsDOMStoragePersistentDB::SetKey(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStoragePersistentDB::SetSecure(DOMStorageImpl* aStorage,
+nsDOMStoragePersistentDB::SetSecure(nsDOMStorage* aStorage,
                                     const nsAString& aKey,
                                     const PRBool aSecure)
 {
@@ -765,7 +741,7 @@ nsDOMStoragePersistentDB::SetSecure(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStoragePersistentDB::RemoveKey(DOMStorageImpl* aStorage,
+nsDOMStoragePersistentDB::RemoveKey(nsDOMStorage* aStorage,
                                     const nsAString& aKey,
                                     PRBool aExcludeOfflineFromUsage,
                                     PRInt32 aKeyUsage)
@@ -801,7 +777,7 @@ nsDOMStoragePersistentDB::RemoveKey(DOMStorageImpl* aStorage,
 }
 
 nsresult
-nsDOMStoragePersistentDB::ClearStorage(DOMStorageImpl* aStorage)
+nsDOMStoragePersistentDB::ClearStorage(nsDOMStorage* aStorage)
 {
   nsresult rv;
 
@@ -962,7 +938,7 @@ nsDOMStoragePersistentDB::RemoveAll()
 }
 
 nsresult
-nsDOMStoragePersistentDB::GetUsage(DOMStorageImpl* aStorage,
+nsDOMStoragePersistentDB::GetUsage(nsDOMStorage* aStorage,
                                    PRBool aExcludeOfflineFromUsage,
                                    PRInt32 *aUsage)
 {

@@ -82,7 +82,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 #endif
 nsSVGAnimationElement::nsSVGAnimationElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGAnimationElementBase(aNodeInfo),
-    mHrefTarget(this)
+    mHrefTarget(this),
+    mTimedDocumentRoot(nsnull)
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -281,6 +282,13 @@ nsSVGAnimationElement::BindToTree(nsIDocument* aDocument,
     // piece by piece via script)
     return NS_OK;
 
+  mTimedDocumentRoot = GetTimeContainer();
+  if (!mTimedDocumentRoot)
+    // Timed document root hasn't been created yet. This will be created when
+    // the SVG parent is bound. This happens when we create SVG trees entirely
+    // by script.
+    return NS_OK;
+
   // Add myself to the animation controller's master set of animation elements.
   if (aDocument) {
     nsSMILAnimationController *controller = aDocument->GetAnimationController();
@@ -316,6 +324,10 @@ nsSVGAnimationElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     if (controller) {
       controller->UnregisterAnimationElement(this);
     }
+  }
+
+  if (mTimedDocumentRoot) {
+    mTimedDocumentRoot = nsnull;
   }
 
   mHrefTarget.Unlink();
@@ -448,9 +460,6 @@ nsSVGAnimationElement::BeginElementAt(float offset)
 {
   NS_ENSURE_FINITE(offset, NS_ERROR_ILLEGAL_VALUE);
 
-  // Make sure the timegraph is up-to-date
-  FlushAnimations();
-
   // This will fail if we're not attached to a time container (SVG document
   // fragment).
   nsresult rv = mTimedElement.BeginElementAt(offset);
@@ -458,9 +467,6 @@ nsSVGAnimationElement::BeginElementAt(float offset)
     return rv;
 
   AnimationNeedsResample();
-  // Force synchronous sample so that events resulting from this call arrive in
-  // the expected order and we get an up-to-date paint.
-  FlushAnimations();
 
   return NS_OK;
 }
@@ -478,16 +484,11 @@ nsSVGAnimationElement::EndElementAt(float offset)
 {
   NS_ENSURE_FINITE(offset, NS_ERROR_ILLEGAL_VALUE);
 
-  // Make sure the timegraph is up-to-date
-  FlushAnimations();
-
   nsresult rv = mTimedElement.EndElementAt(offset);
   if (NS_FAILED(rv))
     return rv;
 
   AnimationNeedsResample();
-  // Force synchronous sample
-  FlushAnimations();
  
   return NS_OK;
 }

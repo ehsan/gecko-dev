@@ -315,10 +315,7 @@ num_parseFloat(JSContext *cx, uintN argc, Value *vp)
     str = js_ValueToString(cx, vp[2]);
     if (!str)
         return JS_FALSE;
-    bp = str->getChars(cx);
-    if (!bp)
-        return JS_FALSE;
-    end = bp + str->length();
+    str->getCharsAndEnd(bp, end);
     if (!js_strtod(cx, bp, end, &ep, &d))
         return JS_FALSE;
     if (ep == bp) {
@@ -333,15 +330,12 @@ num_parseFloat(JSContext *cx, uintN argc, Value *vp)
 static jsdouble FASTCALL
 ParseFloat(JSContext* cx, JSString* str)
 {
-    const jschar *bp = str->getChars(cx);
-    if (!bp) {
-        SetBuiltinError(cx);
-        return js_NaN;
-    }
-    const jschar *end = bp + str->length();
+    const jschar* bp;
+    const jschar* end;
+    const jschar* ep;
+    jsdouble d;
 
-    const jschar *ep;
-    double d;
+    str->getCharsAndEnd(bp, end);
     if (!js_strtod(cx, bp, end, &ep, &d) || ep == bp)
         return js_NaN;
     return d;
@@ -457,10 +451,8 @@ num_parseInt(JSContext *cx, uintN argc, Value *vp)
     }
 
     /* Steps 2-5, 9-14. */
-    const jschar *ws = inputString->getChars(cx);
-    if (!ws)
-        return false;
-    const jschar *end = ws + inputString->length();
+    const jschar *ws, *end;
+    inputString->getCharsAndEnd(ws, end);
 
     jsdouble number;
     if (!ParseIntStringHelper(cx, ws, end, radix, stripPrefix, &number))
@@ -475,12 +467,8 @@ num_parseInt(JSContext *cx, uintN argc, Value *vp)
 static jsdouble FASTCALL
 ParseInt(JSContext* cx, JSString* str)
 {
-    const jschar *start = str->getChars(cx);
-    if (!start) {
-        SetBuiltinError(cx);
-        return js_NaN;
-    }
-    const jschar *end = start + str->length();
+    const jschar *start, *end;
+    str->getCharsAndEnd(start, end);
 
     jsdouble d;
     if (!ParseIntStringHelper(cx, start, end, 0, true, &d)) {
@@ -511,7 +499,7 @@ JS_DEFINE_TRCINFO_2(num_parseInt,
     (1, (static, DOUBLE, ParseIntDouble, DOUBLE,        1, nanojit::ACCSET_NONE)))
 
 JS_DEFINE_TRCINFO_1(num_parseFloat,
-    (2, (static, DOUBLE_FAIL, ParseFloat, CONTEXT, STRING,   1, nanojit::ACCSET_NONE)))
+    (2, (static, DOUBLE, ParseFloat, CONTEXT, STRING,   1, nanojit::ACCSET_NONE)))
 
 #endif /* JS_TRACER */
 
@@ -734,7 +722,7 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
     const char *num, *end, *tmpSrc;
     char *buf, *tmpDest;
     const char *nint;
-    int digits, buflen, remainder, nrepeat;
+    int digits, size, remainder, nrepeat;
 
     /*
      * Create the string, move back to bytes to make string twiddling
@@ -769,9 +757,9 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
     decimalLength = strlen(rt->decimalSeparator);
 
     /* Figure out how long resulting string will be. */
-    buflen = strlen(num);
+    size = digits + (*nint ? strlen(nint + 1) + 1 : 0);
     if (*nint == '.')
-        buflen += decimalLength - 1; /* -1 to account for existing '.' */
+        size += decimalLength;
 
     numGrouping = tmpGroup = rt->numGrouping;
     remainder = digits;
@@ -781,35 +769,31 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
     while (*tmpGroup != CHAR_MAX && *tmpGroup != '\0') {
         if (*tmpGroup >= remainder)
             break;
-        buflen += thousandsLength;
+        size += thousandsLength;
         remainder -= *tmpGroup;
         tmpGroup++;
     }
     if (*tmpGroup == '\0' && *numGrouping != '\0') {
         nrepeat = (remainder - 1) / tmpGroup[-1];
-        buflen += thousandsLength * nrepeat;
+        size += thousandsLength * nrepeat;
         remainder -= nrepeat * tmpGroup[-1];
     } else {
         nrepeat = 0;
     }
     tmpGroup--;
 
-    buf = (char *)cx->malloc(buflen + 1);
+    buf = (char *)cx->malloc(size + 1);
     if (!buf)
         return JS_FALSE;
 
     tmpDest = buf;
     tmpSrc = num;
 
-    while (*tmpSrc == '-' || remainder--) {
-        JS_ASSERT(tmpDest - buf < buflen);
+    while (*tmpSrc == '-' || remainder--)
         *tmpDest++ = *tmpSrc++;
-    }
     while (tmpSrc < end) {
-        JS_ASSERT(tmpDest - buf + ptrdiff_t(thousandsLength) <= buflen);
         strcpy(tmpDest, rt->thousandsSeparator);
         tmpDest += thousandsLength;
-        JS_ASSERT(tmpDest - buf + *tmpGroup <= buflen);
         memcpy(tmpDest, tmpSrc, *tmpGroup);
         tmpDest += *tmpGroup;
         tmpSrc += *tmpGroup;
@@ -818,26 +802,21 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
     }
 
     if (*nint == '.') {
-        JS_ASSERT(tmpDest - buf + ptrdiff_t(decimalLength) <= buflen);
         strcpy(tmpDest, rt->decimalSeparator);
         tmpDest += decimalLength;
-        JS_ASSERT(tmpDest - buf + ptrdiff_t(strlen(nint + 1)) <= buflen);
         strcpy(tmpDest, nint + 1);
     } else {
-        JS_ASSERT(tmpDest - buf + ptrdiff_t(strlen(nint)) <= buflen);
         strcpy(tmpDest, nint);
     }
 
-    if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode) {
-        JSBool ok = cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
-        cx->free(buf);
-        return ok;
-    }
+    if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode)
+        return cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
 
-    str = js_NewStringCopyN(cx, buf, buflen);
-    cx->free(buf);
-    if (!str)
+    str = JS_NewString(cx, buf, size);
+    if (!str) {
+        cx->free(buf);
         return JS_FALSE;
+    }
 
     vp->setString(str);
     return JS_TRUE;
@@ -939,15 +918,15 @@ JS_DEFINE_TRCINFO_2(num_toString,
 
 static JSFunctionSpec number_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,       num_toSource,          0, 0),
+    JS_FN(js_toSource_str,       num_toSource,          0, JSFUN_PRIMITIVE_THIS),
 #endif
-    JS_TN(js_toString_str,       num_toString,          1, 0, &num_toString_trcinfo),
-    JS_FN(js_toLocaleString_str, num_toLocaleString,    0, 0),
-    JS_FN(js_valueOf_str,        js_num_valueOf,        0, 0),
-    JS_FN(js_toJSON_str,         js_num_valueOf,        0, 0),
-    JS_FN("toFixed",             num_toFixed,           1, 0),
-    JS_FN("toExponential",       num_toExponential,     1, 0),
-    JS_FN("toPrecision",         num_toPrecision,       1, 0),
+    JS_TN(js_toString_str,       num_toString,          1, JSFUN_PRIMITIVE_THIS, &num_toString_trcinfo),
+    JS_FN(js_toLocaleString_str, num_toLocaleString,    0, JSFUN_PRIMITIVE_THIS),
+    JS_FN(js_valueOf_str,        js_num_valueOf,        0, JSFUN_PRIMITIVE_THIS),
+    JS_FN(js_toJSON_str,         js_num_valueOf,        0, JSFUN_PRIMITIVE_THIS),
+    JS_FN("toFixed",             num_toFixed,           1, JSFUN_PRIMITIVE_THIS),
+    JS_FN("toExponential",       num_toExponential,     1, JSFUN_PRIMITIVE_THIS),
+    JS_FN("toPrecision",         num_toPrecision,       1, JSFUN_PRIMITIVE_THIS),
     JS_FS_END
 };
 
@@ -1028,16 +1007,9 @@ js_InitRuntimeNumberState(JSContext *cx)
     number_constants[NC_MIN_VALUE].dval = u.d;
 
 #ifndef HAVE_LOCALECONV
-    const char* thousands_sep = getenv("LOCALE_THOUSANDS_SEP");
-    const char* decimal_point = getenv("LOCALE_DECIMAL_POINT");
-    const char* grouping = getenv("LOCALE_GROUPING");
-
-    rt->thousandsSeparator =
-        JS_strdup(cx, thousands_sep ? thousands_sep : "'");
-    rt->decimalSeparator =
-        JS_strdup(cx, decimal_point ? decimal_point : ".");
-    rt->numGrouping =
-        JS_strdup(cx, grouping ? grouping : "\3\0");
+    rt->thousandsSeparator = JS_strdup(cx, "'");
+    rt->decimalSeparator = JS_strdup(cx, ".");
+    rt->numGrouping = JS_strdup(cx, "\3\0");
 #else
     struct lconv *locale = localeconv();
     rt->thousandsSeparator =
@@ -1213,18 +1185,8 @@ js_NumberToString(JSContext *cx, jsdouble d)
     return js_NumberToStringWithBase(cx, d, 10);
 }
 
-namespace js {
-
-JSFlatString *
-NumberToString(JSContext *cx, jsdouble d)
-{
-    if (JSString *str = js_NumberToStringWithBase(cx, d, 10))
-        return str->assertIsFlat();
-    return NULL;
-}
-
-bool JS_FASTCALL
-NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
+JSBool JS_FASTCALL
+js_NumberValueToCharBuffer(JSContext *cx, const Value &v, JSCharBuffer &cb)
 {
     /* Convert to C-string. */
     ToCStringBuf cbuf;
@@ -1245,8 +1207,20 @@ NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
      */
     size_t cstrlen = strlen(cstr);
     JS_ASSERT(!cbuf.dbuf && cstrlen < cbuf.sbufSize);
-    return sb.appendInflated(cstr, cstrlen);
+    size_t sizeBefore = cb.length();
+    if (!cb.growByUninitialized(cstrlen))
+        return JS_FALSE;
+    jschar *appendBegin = cb.begin() + sizeBefore;
+#ifdef DEBUG
+    size_t oldcstrlen = cstrlen;
+    JSBool ok =
+#endif
+        js_InflateStringToBuffer(cx, cstr, cstrlen, appendBegin, &cstrlen);
+    JS_ASSERT(ok && cstrlen == oldcstrlen);
+    return JS_TRUE;
 }
+
+namespace js {
 
 bool
 ValueToNumberSlow(JSContext *cx, Value v, double *out)
@@ -1259,8 +1233,13 @@ ValueToNumberSlow(JSContext *cx, Value v, double *out)
             return true;
         }
       skip_int_double:
-        if (v.isString())
-            return StringToNumberType<jsdouble>(cx, v.toString(), out);
+        if (v.isString()) {
+            jsdouble d = StringToNumberType<jsdouble>(cx, v.toString());
+            if (JSDOUBLE_IS_NaN(d))
+                break;
+            *out = d;
+            return true;
+        }
         if (v.isBoolean()) {
             if (v.toBoolean()) {
                 *out = 1.0;

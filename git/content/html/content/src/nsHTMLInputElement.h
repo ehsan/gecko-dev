@@ -45,11 +45,11 @@
 #include "nsITextControlElement.h"
 #include "nsIPhonetic.h"
 #include "nsIDOMNSEditableElement.h"
+
 #include "nsTextEditorState.h"
 #include "nsCOMPtr.h"
 #include "nsIConstraintValidation.h"
 #include "nsDOMFile.h"
-#include "nsHTMLFormElement.h" // for ShouldShowInvalidUI()
 
 //
 // Accessors for mBitField
@@ -66,8 +66,6 @@
 #define BF_CHECKED_IS_TOGGLED 9
 #define BF_INDETERMINATE 10
 #define BF_INHIBIT_RESTORATION 11
-#define BF_CAN_SHOW_INVALID_UI 12
-#define BF_CAN_SHOW_VALID_UI 13
 
 #define GET_BOOLBIT(bitfield, field) (((bitfield) & (0x01 << (field))) \
                                         ? PR_TRUE : PR_FALSE)
@@ -110,6 +108,7 @@ private:
   PRBool mInPrivateBrowsing;
 };
 
+class nsIRadioGroupContainer;
 class nsIRadioVisitor;
 
 class nsHTMLInputElement : public nsGenericHTMLFormElement,
@@ -217,13 +216,11 @@ public:
   // nsIFileControlElement
   void GetDisplayFileName(nsAString& aFileName) const;
   const nsCOMArray<nsIDOMFile>& GetFiles();
-  void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles, bool aSetValueChanged);
+  void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
-  PRBool GetCheckedChanged() const {
-    return GET_BOOLBIT(mBitField, BF_CHECKED_CHANGED);
-  }
-  void AddedToRadioGroup();
+  PRBool GetCheckedChanged();
+  void AddedToRadioGroup(PRBool aNotify = PR_TRUE);
   void WillRemoveFromRadioGroup();
   /**
    * Get the radio group container for this button (form or document)
@@ -282,15 +279,6 @@ public:
   void     UpdateBarredFromConstraintValidation();
   nsresult GetValidationMessage(nsAString& aValidationMessage,
                                 ValidityStateType aType);
-  /**
-   * Update the value missing validity state for radio elements when they have
-   * a group.
-   *
-   * @param aIgnoreSelf Whether the required attribute and the checked state
-   * of the current radio should be ignored.
-   * @note This method shouldn't be called if the radio elemnet hasn't a group.
-   */
-  void     UpdateValueMissingValidityStateForRadio(bool aIgnoreSelf);
 
   /**
    * Returns the filter which should be used for the file picker according to
@@ -306,17 +294,6 @@ public:
    * is specified by the accept attribute they will *all* be ignored.
    */
   PRInt32 GetFilterFromAccept();
-
-  /**
-   * The form might need to request an update of the UI bits
-   * (BF_CAN_SHOW_INVALID_UI and BF_CAN_SHOW_VALID_UI) when an invalid form
-   * submission is tried.
-   *
-   * @param aIsFocused Whether the element is currently focused.
-   *
-   * @note The caller is responsible to call ContentStatesChanged.
-   */
-  void UpdateValidityUIBits(bool aIsFocused);
 
 protected:
   // Pull IsSingleLineTextControl into our scope, otherwise it'd be hidden
@@ -390,9 +367,16 @@ protected:
                             PRBool aUserInput,
                             PRBool aSetValueChanged);
 
-  void ClearFiles(bool aSetValueChanged) {
+  void ClearFiles() {
     nsCOMArray<nsIDOMFile> files;
-    SetFiles(files, aSetValueChanged);
+    SetFiles(files);
+  }
+
+  void SetSingleFile(nsIDOMFile* aFile) {
+    nsCOMArray<nsIDOMFile> files;
+    nsCOMPtr<nsIDOMFile> file = aFile;
+    files.AppendObject(file);
+    SetFiles(files);
   }
 
   nsresult SetIndeterminateInternal(PRBool aValue,
@@ -437,6 +421,11 @@ protected:
   {
     return PR_TRUE;
   }
+
+  /**
+   * Fire the onChange event
+   */
+  void FireOnChange();
 
   /**
    * Visit the group of radio buttons this radio belongs to
@@ -550,45 +539,6 @@ protected:
    * VALUE_MODE_VALUE.
    */
   nsresult SetDefaultValueAsValue();
-
-  /**
-   * Returns whether the value has been changed since the element has been created.
-   * @return Whether the value has been changed since the element has been created.
-   */
-  PRBool GetValueChanged() const {
-    return GET_BOOLBIT(mBitField, BF_VALUE_CHANGED);
-  }
-
-  /**
-   * Return if an element should have a specific validity UI
-   * (with :-moz-ui-invalid and :-moz-ui-valid pseudo-classes).
-   *
-   * @return Whether the elemnet should have a validity UI.
-   */
-  bool ShouldShowValidityUI() const {
-    /**
-     * Always show the validity UI if the form has already tried to be submitted
-     * but was invalid.
-     *
-     * Otherwise, show the validity UI if the element's value has been changed.
-     */
-    if (mForm && mForm->HasEverTriedInvalidSubmit()) {
-      return true;
-    }
-
-    switch (GetValueMode()) {
-      case VALUE_MODE_DEFAULT:
-        return true;
-      case VALUE_MODE_DEFAULT_ON:
-        return GetCheckedChanged();
-      case VALUE_MODE_VALUE:
-      case VALUE_MODE_FILENAME:
-        return GetValueChanged();
-      default:
-        NS_NOTREACHED("We should not be there: there are no other modes.");
-        return false;
-    }
-  }
 
   nsCOMPtr<nsIControllers> mControllers;
 

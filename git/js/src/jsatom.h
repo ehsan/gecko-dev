@@ -60,7 +60,7 @@
 
 #define STRING_TO_ATOM(str)       (JS_ASSERT(str->isAtomized()),             \
                                    (JSAtom *)str)
-#define ATOM_TO_STRING(atom)      (atom)
+#define ATOM_TO_STRING(atom)      ((JSString *)(atom))
 #define ATOM_TO_JSVAL(atom)       STRING_TO_JSVAL(ATOM_TO_STRING(atom))
 
 /* Engine-internal extensions of jsid */
@@ -265,23 +265,23 @@ JS_STATIC_ASSERT(ATOM_ENTRY_FLAG_MASK < JS_GCTHING_ALIGN);
 
 typedef uintptr_t AtomEntryType;
 
-static JS_ALWAYS_INLINE JSAtom *
+static JS_ALWAYS_INLINE JSString *
 AtomEntryToKey(AtomEntryType entry)
 {
     JS_ASSERT(entry != 0);
-    return (JSAtom *)(entry & ~ATOM_ENTRY_FLAG_MASK);
+    return (JSString *)(entry & ~ATOM_ENTRY_FLAG_MASK);
 }
 
 struct AtomHasher
 {
-    typedef JSLinearString *Lookup;
+    typedef JSString *Lookup;
 
-    static HashNumber hash(JSLinearString *str) {
+    static HashNumber hash(JSString *str) {
         return js_HashString(str);
     }
 
-    static bool match(AtomEntryType entry, JSLinearString *lookup) {
-        return entry ? EqualStrings(AtomEntryToKey(entry), lookup) : false;
+    static bool match(AtomEntryType entry, JSString *lookup) {
+        return entry ? js_EqualStrings(AtomEntryToKey(entry), lookup) : false;
     }
 };
 
@@ -375,7 +375,6 @@ struct JSAtomState
     JSAtom              *lineAtom;
     JSAtom              *InfinityAtom;
     JSAtom              *NaNAtom;
-    JSAtom              *builderAtom;
 
 #if JS_HAS_XML_SUPPORT
     JSAtom              *etagoAtom;
@@ -405,7 +404,7 @@ struct JSAtomState
 
     JSAtom              *hasAtom;
     JSAtom              *hasOwnAtom;
-    JSAtom              *keysAtom;
+    JSAtom              *enumerateOwnAtom;
     JSAtom              *iterateAtom;
 
     /* Less frequently used atoms, pinned lazily by JS_ResolveStandardClass. */

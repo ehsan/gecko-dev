@@ -5,10 +5,6 @@ var gNameRulesFileURL = "markuprules.xml";
 
 var gRuleDoc = null;
 
-// Debuggin stuff.
-var gDumpToConsole = false;
-gA11yEventDumpToConsole = gDumpToConsole;
-
 /**
  * Start name tests. Run through markup elements and test names for test
  * element (see namerules.xml for details).
@@ -65,16 +61,10 @@ var gTestIterator =
         return;
       }
 
-      this.ruleIdx = -1;
-
-      if (gDumpToConsole) {
-        dump("\nPend next markup processing. Wait for reorder event on " +
-             prettyName(document) + "'\n");
-      }
-      waitForEvent(EVENT_REORDER, document, testNamesForMarkup,
-                   null, this.markupElms[this.markupIdx]);
-
       document.body.removeChild(this.container);
+
+      this.ruleIdx = -1;
+      testNamesForMarkup(this.markupElms[this.markupIdx]);
       return;
     }
 
@@ -95,9 +85,6 @@ var gTestIterator =
  */
 function testNamesForMarkup(aMarkupElm)
 {
-  if (gDumpToConsole)
-    dump("\nProcessing markup '" + aMarkupElm.getAttribute("id") + "'\n");
-
   var div = document.createElement("div");
   div.setAttribute("id", "test");
 
@@ -108,10 +95,6 @@ function testNamesForMarkup(aMarkupElm)
     child = child.nextSibling;
   }
 
-  if (gDumpToConsole) {
-    dump("\nProcessing markup. Wait for reorder event on " +
-         prettyName(document) + "'\n");
-  }
   waitForEvent(EVENT_REORDER, document, testNamesForMarkupRules,
                 null, aMarkupElm, div);
 
@@ -120,9 +103,6 @@ function testNamesForMarkup(aMarkupElm)
 
 function testNamesForMarkupRules(aMarkupElm, aContainer)
 {
-  if (gDumpToConsole)
-    dump("\nProcessing markup rules '" + aMarkupElm.getAttribute("id") + "'\n");
-
   ensureAccessibleTree(aContainer);
 
   var serializer = new XMLSerializer();
@@ -142,29 +122,12 @@ function testNamesForMarkupRules(aMarkupElm, aContainer)
  */
 function testNameForRule(aElm, aRuleElm)
 {
-  if (aRuleElm.hasAttribute("attr")) {
-    if (gDumpToConsole) {
-      dump("\nProcessing rule { attr: " + aRuleElm.getAttribute("attr") +" }\n");
-    }
-
+  if (aRuleElm.hasAttribute("attr"))
     testNameForAttrRule(aElm, aRuleElm);
-
-  } else if (aRuleElm.hasAttribute("elm") && aRuleElm.hasAttribute("elmattr")) {
-    if (gDumpToConsole) {
-      dump("\nProcessing rule { elm: " + aRuleElm.getAttribute("elm") +
-           ", elmattr: " + aRuleElm.getAttribute("elmattr") +" }\n");
-    }
-
+  else if (aRuleElm.hasAttribute("elm") && aRuleElm.hasAttribute("elmattr"))
     testNameForElmRule(aElm, aRuleElm);
-
-  } else if (aRuleElm.getAttribute("fromsubtree") == "true") {
-    if (gDumpToConsole) {
-      dump("\nProcessing rule { fromsubtree: " +
-           aRuleElm.getAttribute("fromsubtree") +" }\n");
-    }
-
+  else if (aRuleElm.getAttribute("fromsubtree") == "true")
     testNameForSubtreeRule(aElm, aRuleElm);
-  }
 }
 
 function testNameForAttrRule(aElm, aRule)
@@ -224,11 +187,6 @@ function testNameForElmRule(aElm, aRule)
   testName(aElm, labelElm.getAttribute("a11yname"), msg);
 
   var parentNode = labelElm.parentNode;
-
-  if (gDumpToConsole) {
-    dump("\nProcessed elm rule. Wait for reorder event on " +
-         prettyName(parentNode) + "'\n");
-  }
   waitForEvent(EVENT_REORDER, parentNode,
                gTestIterator.iterateNext, gTestIterator);
 
@@ -240,10 +198,6 @@ function testNameForSubtreeRule(aElm, aRule)
   var msg = "From subtree test.";
   testName(aElm, aElm.getAttribute("a11yname"), msg);
 
-  if (gDumpToConsole) {
-    dump("\nProcessed from subtree rule. Wait for reorder event on " +
-         prettyName(aElm) + "\n");
-  }
   waitForEvent(EVENT_REORDER, aElm, gTestIterator.iterateNext, gTestIterator);
 
   while (aElm.firstChild)

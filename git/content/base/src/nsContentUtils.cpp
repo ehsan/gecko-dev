@@ -102,6 +102,7 @@
 #include "imgIRequest.h"
 #include "imgIContainer.h"
 #include "imgILoader.h"
+#include "mozilla/IHistory.h"
 #include "nsDocShellCID.h"
 #include "nsIImageLoadingContent.h"
 #include "nsIInterfaceRequestor.h"
@@ -233,6 +234,7 @@ nsIXTFService *nsContentUtils::sXTFService = nsnull;
 nsIPrefBranch2 *nsContentUtils::sPrefBranch = nsnull;
 imgILoader *nsContentUtils::sImgLoader;
 imgICache *nsContentUtils::sImgCache;
+mozilla::IHistory *nsContentUtils::sHistory;
 nsIConsoleService *nsContentUtils::sConsoleService;
 nsDataHashtable<nsISupportsHashKey, EventNameMapping>* nsContentUtils::sAtomEventTable = nsnull;
 nsDataHashtable<nsStringHashKey, EventNameMapping>* nsContentUtils::sStringEventTable = nsnull;
@@ -257,6 +259,9 @@ nsCOMArray<nsIRunnable>* nsContentUtils::sBlockedScriptRunners = nsnull;
 PRUint32 nsContentUtils::sRunnersCountAtFirstBlocker = 0;
 PRUint32 nsContentUtils::sScriptBlockerCountWhereRunnersPrevented = 0;
 nsIInterfaceRequestor* nsContentUtils::sSameOriginChecker = nsnull;
+
+nsIJSRuntimeService *nsAutoGCRoot::sJSRuntimeService;
+JSRuntime *nsAutoGCRoot::sJSScriptRuntime;
 
 PRBool nsContentUtils::sIsHandlingKeyBoardEvent = PR_FALSE;
 PRBool nsContentUtils::sAllowXULXBL_for_file = PR_FALSE;
@@ -463,6 +468,12 @@ nsContentUtils::Init()
 
   rv = CallGetService(NS_UNICHARCATEGORY_CONTRACTID, &sGenCat);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = CallGetService(NS_IHISTORY_CONTRACTID, &sHistory);
+  if (NS_FAILED(rv)) {
+    NS_RUNTIMEABORT("Cannot get the history service");
+    return rv;
+  }
 
   sPtrsToPtrsToRelease = new nsTArray<nsISupports**>();
   if (!sPtrsToPtrsToRelease) {
@@ -1151,6 +1162,7 @@ nsContentUtils::Shutdown()
 #endif
   NS_IF_RELEASE(sImgLoader);
   NS_IF_RELEASE(sImgCache);
+  NS_IF_RELEASE(sHistory);
   NS_IF_RELEASE(sPrefBranch);
 #ifdef IBMBIDI
   NS_IF_RELEASE(sBidiKeyboard);
@@ -1199,6 +1211,8 @@ nsContentUtils::Shutdown()
 
   NS_IF_RELEASE(sSameOriginChecker);
   
+  nsAutoGCRoot::Shutdown();
+
   nsTextEditorState::ShutDown();
 }
 
@@ -1357,17 +1371,22 @@ nsContentUtils::InProlog(nsINode *aNode)
 }
 
 static JSContext *
-GetContextFromDocument(nsIDocument *aDocument)
+GetContextFromDocument(nsIDocument *aDocument, JSObject** aGlobalObject)
 {
   nsIScriptGlobalObject *sgo = aDocument->GetScopeObject();
   if (!sgo) {
     // No script global, no context.
+
+    *aGlobalObject = nsnull;
+
     return nsnull;
   }
 
+  *aGlobalObject = sgo->GetGlobalJSObject();
+
   nsIScriptContext *scx = sgo->GetContext();
   if (!scx) {
-    // No context left in the scope...
+    // No context left in the old scope...
 
     return nsnull;
   }
@@ -1377,27 +1396,39 @@ GetContextFromDocument(nsIDocument *aDocument)
 
 // static
 nsresult
-nsContentUtils::GetContextAndScope(nsIDocument *aOldDocument,
-                                   nsIDocument *aNewDocument, JSContext **aCx,
-                                   JSObject **aNewScope)
+nsContentUtils::GetContextAndScopes(nsIDocument *aOldDocument,
+                                    nsIDocument *aNewDocument, JSContext **aCx,
+                                    JSObject **aOldScope, JSObject **aNewScope)
 {
   *aCx = nsnull;
+  *aOldScope = nsnull;
   *aNewScope = nsnull;
 
-  JSObject *newScope = aNewDocument->GetWrapper();
-  JSObject *global;
-  if (!newScope) {
-    nsIScriptGlobalObject *newSGO = aNewDocument->GetScopeObject();
-    if (!newSGO || !(global = newSGO->GetGlobalJSObject())) {
-      return NS_OK;
-    }
+  JSObject *newScope = nsnull;
+  nsIScriptGlobalObject *newSGO = aNewDocument->GetScopeObject();
+  if (!newSGO || !(newScope = newSGO->GetGlobalJSObject())) {
+    return NS_OK;
   }
 
   NS_ENSURE_TRUE(sXPConnect, NS_ERROR_NOT_INITIALIZED);
 
-  JSContext *cx = aOldDocument ? GetContextFromDocument(aOldDocument) : nsnull;
+  // Make sure to get our hands on the right scope object, since
+  // GetWrappedNativeOfNativeObject doesn't call PreCreate and hence won't get
+  // the right scope if we pass in something bogus.  The right scope lives on
+  // the script global of the old document.
+  // XXXbz note that if GetWrappedNativeOfNativeObject did call PreCreate it
+  // would get the wrong scope (that of the _new_ document), so we should be
+  // glad it doesn't!
+  JSObject *oldScope = nsnull;
+  JSContext *cx = GetContextFromDocument(aOldDocument, &oldScope);
+
+  if (!oldScope) {
+    return NS_OK;
+  }
+
   if (!cx) {
-    cx = GetContextFromDocument(aNewDocument);
+    JSObject *dummy;
+    cx = GetContextFromDocument(aNewDocument, &dummy);
 
     if (!cx) {
       // No context reachable from the old or new document, use the
@@ -1419,15 +1450,8 @@ nsContentUtils::GetContextAndScope(nsIDocument *aOldDocument,
     }
   }
 
-  if (!newScope && cx) {
-    jsval v;
-    nsresult rv = WrapNative(cx, global, aNewDocument, aNewDocument, &v);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    newScope = JSVAL_TO_OBJECT(v);
-  }
-
   *aCx = cx;
+  *aOldScope = oldScope;
   *aNewScope = newScope;
 
   return NS_OK;
@@ -3115,8 +3139,7 @@ nsContentUtils::ReportToConsole(PropertiesFile aFile,
                                 PRUint32 aLineNumber,
                                 PRUint32 aColumnNumber,
                                 PRUint32 aErrorFlags,
-                                const char *aCategory,
-                                PRUint64 aWindowId)
+                                const char *aCategory)
 {
   NS_ASSERTION((aParams && aParamsLength) || (!aParams && !aParamsLength),
                "Supply either both parameters and their number or no"
@@ -3142,46 +3165,17 @@ nsContentUtils::ReportToConsole(PropertiesFile aFile,
   if (aURI)
     aURI->GetSpec(spec);
 
-  nsCOMPtr<nsIScriptError2> errorObject =
+  nsCOMPtr<nsIScriptError> errorObject =
       do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = errorObject->InitWithWindowID(errorText.get(),
-                                     NS_ConvertUTF8toUTF16(spec).get(), // file name
-                                     aSourceLine.get(),
-                                     aLineNumber, aColumnNumber,
-                                     aErrorFlags, aCategory, aWindowId);
+  rv = errorObject->Init(errorText.get(),
+                         NS_ConvertUTF8toUTF16(spec).get(), // file name
+                         aSourceLine.get(),
+                         aLineNumber, aColumnNumber,
+                         aErrorFlags, aCategory);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
-  return sConsoleService->LogMessage(logError);
-}
-
-/* static */ nsresult
-nsContentUtils::ReportToConsole(PropertiesFile aFile,
-                                const char *aMessageName,
-                                const PRUnichar **aParams,
-                                PRUint32 aParamsLength,
-                                nsIURI* aURI,
-                                const nsAFlatString& aSourceLine,
-                                PRUint32 aLineNumber,
-                                PRUint32 aColumnNumber,
-                                PRUint32 aErrorFlags,
-                                const char *aCategory,
-                                nsIDocument* aDocument)
-{
-  nsIURI* uri = aURI;
-  PRUint64 windowID = 0;
-  if (aDocument) {
-    if (!uri) {
-      uri = aDocument->GetDocumentURI();
-    }
-    windowID = aDocument->OuterWindowID();
-  }
-
-  return ReportToConsole(aFile, aMessageName, aParams, aParamsLength, uri,
-                         aSourceLine, aLineNumber, aColumnNumber, aErrorFlags,
-                         aCategory, windowID);
+  return sConsoleService->LogMessage(errorObject);
 }
 
 PRBool
@@ -3289,6 +3283,53 @@ nsContentUtils::GetContentPolicy()
   }
 
   return sContentPolicyService;
+}
+
+// static
+nsresult
+nsAutoGCRoot::AddJSGCRoot(void* aPtr, RootType aRootType, const char* aName)
+{
+  if (!sJSScriptRuntime) {
+    nsresult rv = CallGetService("@mozilla.org/js/xpc/RuntimeService;1",
+                                 &sJSRuntimeService);
+    NS_ENSURE_TRUE(sJSRuntimeService, rv);
+
+    sJSRuntimeService->GetRuntime(&sJSScriptRuntime);
+    if (!sJSScriptRuntime) {
+      NS_RELEASE(sJSRuntimeService);
+      NS_WARNING("Unable to get JS runtime from JS runtime service");
+      return NS_ERROR_FAILURE;
+    }
+  }
+
+  PRBool ok;
+  if (aRootType == RootType_JSVal)
+    ok = ::js_AddRootRT(sJSScriptRuntime, (jsval *)aPtr, aName);
+  else
+    ok = ::js_AddGCThingRootRT(sJSScriptRuntime, (void **)aPtr, aName);
+  if (!ok) {
+    NS_WARNING("JS_AddNamedRootRT failed");
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  return NS_OK;
+}
+
+/* static */
+nsresult
+nsAutoGCRoot::RemoveJSGCRoot(void* aPtr, RootType aRootType)
+{
+  if (!sJSScriptRuntime) {
+    NS_NOTREACHED("Trying to remove a JS GC root when none were added");
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  if (aRootType == RootType_JSVal)
+    ::js_RemoveRoot(sJSScriptRuntime, (jsval *)aPtr);
+  else
+    ::js_RemoveRoot(sJSScriptRuntime, (JSObject **)aPtr);
+
+  return NS_OK;
 }
 
 // static
@@ -4904,9 +4945,12 @@ nsContentUtils::SetDataTransferInEvent(nsDragEvent* aDragEvent)
     // A dataTransfer won't exist when a drag was started by some other
     // means, for instance calling the drag service directly, or a drag
     // from another application. In either case, a new dataTransfer should
-    // be created that reflects the data.
+    // be created that reflects the data. Pass true to the constructor for
+    // the aIsExternal argument, so that only system access is allowed.
+    PRUint32 action = 0;
+    dragSession->GetDragAction(&action);
     initialDataTransfer =
-      new nsDOMDataTransfer(aDragEvent->message);
+      new nsDOMDataTransfer(aDragEvent->message, action);
     NS_ENSURE_TRUE(initialDataTransfer, NS_ERROR_OUT_OF_MEMORY);
 
     // now set it in the drag session so we don't need to create it again
@@ -5154,6 +5198,13 @@ nsContentUtils::EqualsIgnoreASCIICase(const nsAString& aStr1,
 }
 
 /* static */
+void
+nsAutoGCRoot::Shutdown()
+{
+  NS_IF_RELEASE(sJSRuntimeService);
+}
+
+/* static */
 nsIInterfaceRequestor*
 nsContentUtils::GetSameOriginChecker()
 {
@@ -5164,10 +5215,18 @@ nsContentUtils::GetSameOriginChecker()
   return sSameOriginChecker;
 }
 
-/* static */
-nsresult
-nsContentUtils::CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel)
+
+NS_IMPL_ISUPPORTS2(nsSameOriginChecker,
+                   nsIChannelEventSink,
+                   nsIInterfaceRequestor)
+
+NS_IMETHODIMP
+nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
+                                            nsIChannel *aNewChannel,
+                                            PRUint32 aFlags,
+                                            nsIAsyncVerifyRedirectCallback *cb)
 {
+  NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
   if (!nsContentUtils::GetSecurityManager())
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -5187,27 +5246,11 @@ nsContentUtils::CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel
     rv = oldPrincipal->CheckMayLoad(newOriginalURI, PR_FALSE);
   }
 
-  return rv;
-}
+  if (NS_FAILED(rv))
+      return rv;
 
-NS_IMPL_ISUPPORTS2(nsSameOriginChecker,
-                   nsIChannelEventSink,
-                   nsIInterfaceRequestor)
-
-NS_IMETHODIMP
-nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                            nsIChannel *aNewChannel,
-                                            PRUint32 aFlags,
-                                            nsIAsyncVerifyRedirectCallback *cb)
-{
-  NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
-
-  nsresult rv = nsContentUtils::CheckSameOrigin(aOldChannel, aNewChannel);
-  if (NS_SUCCEEDED(rv)) {
-    cb->OnRedirectVerifyCallback(NS_OK);
-  }
-
-  return rv;
+  cb->OnRedirectVerifyCallback(NS_OK);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -6332,8 +6375,8 @@ nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
   }
 }
 
-static already_AddRefed<LayerManager>
-LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent)
+already_AddRefed<LayerManager>
+nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
 {
   nsIDocument* doc = aDoc;
   nsIDocument* displayDoc = doc->GetDisplayDocument();
@@ -6367,10 +6410,7 @@ LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent)
       nsIWidget* widget =
         nsLayoutUtils::GetDisplayRootFrame(rootFrame)->GetNearestWidget();
       if (widget) {
-        nsRefPtr<LayerManager> manager =
-          static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget)->
-            GetLayerManager(aRequirePersistent ? nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_PERSISTENT : 
-                                                 nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_CURRENT);
+        nsRefPtr<LayerManager> manager = widget->GetLayerManager();
         return manager.forget();
       }
     }
@@ -6378,18 +6418,6 @@ LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent)
 
   nsRefPtr<LayerManager> manager = new BasicLayerManager();
   return manager.forget();
-}
-
-already_AddRefed<LayerManager>
-nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
-{
-  return LayerManagerForDocumentInternal(aDoc, false);
-}
-
-already_AddRefed<LayerManager>
-nsContentUtils::PersistentLayerManagerForDocument(nsIDocument *aDoc)
-{
-  return LayerManagerForDocumentInternal(aDoc, true);
 }
 
 bool
@@ -6492,10 +6520,4 @@ nsIInterfaceRequestor*
 nsIContentUtils2::GetSameOriginChecker()
 {
   return nsContentUtils::GetSameOriginChecker();
-}
-
-nsresult
-nsIContentUtils2::CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel)
-{
-  return nsContentUtils::CheckSameOrigin(aOldChannel, aNewChannel);
 }

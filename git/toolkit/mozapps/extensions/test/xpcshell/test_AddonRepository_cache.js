@@ -25,8 +25,6 @@ const ADDON_NAMES = ["test_AddonRepository_1",
 const ADDON_IDS = ADDON_NAMES.map(function(aName) aName + "@tests.mozilla.org");
 const ADDON_FILES = ADDON_NAMES.map(do_get_addon);
 
-const PREF_ADDON0_CACHE_ENABLED = "extensions." + ADDON_IDS[0] + ".getAddons.cache.enabled";
-const PREF_ADDON1_CACHE_ENABLED = "extensions." + ADDON_IDS[1] + ".getAddons.cache.enabled";
 
 // Properties of an individual add-on that should be checked
 // Note: size and updateDate are checked separately
@@ -123,7 +121,7 @@ const REPOSITORY_ADDONS = [{
   homepageURL:            BASE_URL + "/repo/2/homepage.html",
   supportURL:             BASE_URL + "/repo/2/support.html",
   contributionURL:        BASE_URL + "/repo/2/meetDevelopers.html",
-  contributionAmount:     null,
+  contributionAmount:     "$11.12",
   averageRating:          2,
   reviewCount:            1112,
   reviewURL:              BASE_URL + "/repo/2/review.html",
@@ -255,7 +253,7 @@ const WITH_CACHE = [{
   homepageURL:            BASE_URL + "/repo/2/homepage.html",
   supportURL:             BASE_URL + "/repo/2/support.html",
   contributionURL:        BASE_URL + "/repo/2/meetDevelopers.html",
-  contributionAmount:     null,
+  contributionAmount:     "$11.12",
   averageRating:          2,
   reviewCount:            1112,
   reviewURL:              BASE_URL + "/repo/2/review.html",
@@ -467,18 +465,7 @@ function run_test_5() {
   Services.prefs.setCharPref(PREF_GETADDONS_BYIDS, GETADDONS_RESULTS);
 
   AddonRepository.repopulateCache(ADDON_IDS, function() {
-    check_initialized_cache([true, true, true], run_test_5_1);
-  });
-}
-
-// Tests repopulateCache when caching is disabled for a single add-on
-function run_test_5_1() {
-  Services.prefs.setBoolPref(PREF_ADDON0_CACHE_ENABLED, false);
-
-  AddonRepository.repopulateCache(ADDON_IDS, function() {
-    // Reset pref for next test
-    Services.prefs.setBoolPref(PREF_ADDON0_CACHE_ENABLED, true);
-    check_initialized_cache([false, true, true], run_test_6);
+    check_initialized_cache([true, true, true], run_test_6);
   });
 }
 
@@ -520,18 +507,7 @@ function run_test_9() {
   Services.prefs.setCharPref(PREF_GETADDONS_BYIDS, GETADDONS_RESULTS);
 
   AddonRepository.cacheAddons([ADDON_IDS[0]], function() {
-    check_initialized_cache([true, false, false], run_test_9_1);
-  });
-}
-
-// Tests cacheAddons when caching is disabled for a single add-on
-function run_test_9_1() {
-  Services.prefs.setBoolPref(PREF_ADDON1_CACHE_ENABLED, false);
-
-  AddonRepository.cacheAddons(ADDON_IDS, function() {
-    // Reset pref for next test
-    Services.prefs.setBoolPref(PREF_ADDON1_CACHE_ENABLED, true);
-    check_initialized_cache([true, false, true], run_test_10);
+    check_initialized_cache([true, false, false], run_test_10);
   });
 }
 

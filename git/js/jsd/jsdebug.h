@@ -429,10 +429,9 @@ extern JSD_PUBLIC_API(const char*)
 JSD_GetScriptFilename(JSDContext* jsdc, JSDScript *jsdscript);
 
 /*
-* Get the function name associated with this script (NULL if not a function).
-* If the function does not have a name the result is an empty string.
+* Get the function name associated with this script (NULL if not a function)
 */
-extern JSD_PUBLIC_API(JSString *)
+extern JSD_PUBLIC_API(const char*)
 JSD_GetScriptFunctionName(JSDContext* jsdc, JSDScript *jsdscript);
 
 /*
@@ -804,12 +803,6 @@ JSD_SetInterruptHook(JSDContext*           jsdc,
                      void*                 callerdata);
 
 /*
-* Call the interrupt hook at least once per source line
-*/
-extern JSD_PUBLIC_API(JSBool)
-JSD_EnableSingleStepInterrupts(JSDContext* jsdc, JSDScript *jsdscript, JSBool enable);
-
-/*
 * Clear the current interrupt hook.
 */
 extern JSD_PUBLIC_API(JSBool)
@@ -962,7 +955,7 @@ JSD_GetThisForStackFrame(JSDContext* jsdc,
 * Get the name of the function executing in this stack frame.  Especially useful
 * for native frames (without script objects.)
 */
-extern JSD_PUBLIC_API(JSString *)
+extern JSD_PUBLIC_API(const char*)
 JSD_GetNameForStackFrame(JSDContext* jsdc,
                          JSDThreadState* jsdthreadstate,
                          JSDStackFrameInfo* jsdframe);
@@ -1295,16 +1288,8 @@ JSD_GetValueString(JSDContext* jsdc, JSDValue* jsdval);
 * Return name of function IFF JSDValue represents a function.
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(JSString *)
+extern JSD_PUBLIC_API(const char*)
 JSD_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval);
-
-/*
-* Return function object IFF JSDValue represents a function or an object
-* wrapping a function.
-* *** new for version 1.1 ****
-*/
-extern JSD_PUBLIC_API(JSFunction*)
-JSD_GetValueFunction(JSDContext* jsdc, JSDValue* jsdval);
 
 /**************************************************/
 

@@ -38,11 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-#include "prlog.h"
-
 #include <Carbon/Carbon.h>
 
 #import <AppKit/AppKit.h>
@@ -126,14 +121,11 @@ static NSString* GetNSStringForString(const nsAString& aSrc)
 }
 
 #ifdef PR_LOGGING
+static PRLogModuleInfo *gFontInfoLog = PR_NewLogModule("fontInfoLog");
+#endif /* PR_LOGGING */
 
-#define LOG_FONTLIST(args) PR_LOG(gfxPlatform::GetLog(eGfxLog_fontlist), \
-                               PR_LOG_DEBUG, args)
-#define LOG_FONTLIST_ENABLED() PR_LOG_TEST( \
-                                   gfxPlatform::GetLog(eGfxLog_fontlist), \
-                                   PR_LOG_DEBUG)
-
-#endif // PR_LOGGING
+#define LOG(args) PR_LOG(gFontInfoLog, PR_LOG_DEBUG, args)
+#define LOG_ENABLED() PR_LOG_TEST(gFontInfoLog, PR_LOG_DEBUG)
 
 /* MacOSFontEntry */
 #pragma mark-
@@ -220,7 +212,7 @@ MacOSFontEntry::ReadCMAP()
 
     PRUint32 kCMAP = TRUETYPE_TAG('c','m','a','p');
 
-    AutoFallibleTArray<PRUint8,16384> cmap;
+    nsAutoTArray<PRUint8,16384> cmap;
     if (GetFontTable(kCMAP, cmap) != NS_OK)
         return NS_ERROR_FAILURE;
 
@@ -236,23 +228,21 @@ MacOSFontEntry::ReadCMAP()
 
     ATSFontRef fontRef = GetFontRef();
 
-    // for layout support, check for the presence of mort/morx and/or
-    // opentype layout tables
+    // for layout support, check for the presence of mort/morx and GSUB/GPOS
     PRBool hasAATLayout =
         (::ATSFontGetTable(fontRef, TRUETYPE_TAG('m','o','r','x'),
                            0, 0, 0, &size) == noErr) ||
         (::ATSFontGetTable(fontRef, TRUETYPE_TAG('m','o','r','t'),
                            0, 0, 0, &size) == noErr);
 
-    PRBool hasGSUB =
+    PRBool hasOTLayout =
         (::ATSFontGetTable(fontRef, TRUETYPE_TAG('G','S','U','B'),
-                           0, 0, 0, &size) == noErr);
-    PRBool hasGPOS =
+                           0, 0, 0, &size) == noErr) ||
         (::ATSFontGetTable(fontRef, TRUETYPE_TAG('G','P','O','S'),
                            0, 0, 0, &size) == noErr);
 
-    if (hasAATLayout && !(hasGSUB || hasGPOS)) {
-        mRequiresAAT = PR_TRUE; // prefer CoreText if font has no OTL tables
+    if (hasAATLayout && !hasOTLayout) {
+        mRequiresAAT = PR_TRUE;
     }
 
     PRUint32 numScripts =
@@ -268,20 +258,13 @@ MacOSFontEntry::ReadCMAP()
 
             if (hasAATLayout) {
                 omitRange = PR_FALSE;
-                // prefer CoreText for Apple's complex-script fonts,
-                // even if they also have some OpenType tables
-                // (e.g. Geeza Pro Bold on 10.6; see bug 614903)
-                mRequiresAAT = PR_TRUE;
             } else if (whichScript == eComplexScriptArabic) {
                 // special-case for Arabic:
                 // even if there's no morph table, CoreText can shape Arabic
                 // using OpenType layout; or if it's a downloaded font,
                 // assume the site knows what it's doing (as harfbuzz will
-                // be able to shape even though the font itself lacks tables
-                // stripped during sanitization).
-                // We check for GSUB here, as GPOS alone would not be ok
-                // for Arabic shaping.
-                if (hasGSUB || (mIsUserFont && !mIsLocalUserFont)) {
+                // be able to shape even though the font itself lacks tables)
+                if (hasOTLayout || (mIsUserFont && !mIsLocalUserFont)) {
                     // TODO: to be really thorough, we could check that the
                     // GSUB table actually supports the 'arab' script tag.
                     omitRange = PR_FALSE;
@@ -295,17 +278,15 @@ MacOSFontEntry::ReadCMAP()
         }
     }
 
-#ifdef PR_LOGGING
-    LOG_FONTLIST(("(fontlist-cmap) name: %s, size: %d\n",
-                  NS_ConvertUTF16toUTF8(mName).get(),
-                  mCharacterMap.GetSize()));
-#endif
+    PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit-cmap) psname: %s, size: %d\n",
+                                        NS_ConvertUTF16toUTF8(mName).get(),
+                                        mCharacterMap.GetSize()));
 
     return rv;
 }
 
 nsresult
-MacOSFontEntry::GetFontTable(PRUint32 aTableTag, FallibleTArray<PRUint8>& aBuffer)
+MacOSFontEntry::GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer)
 {
     nsAutoreleasePool localPool;
 
@@ -477,8 +458,8 @@ gfxMacFontFamily::FindStyleVariations()
         }
 
 #ifdef PR_LOGGING
-        if (LOG_FONTLIST_ENABLED()) {
-            LOG_FONTLIST(("(fontlist) added (%s) to family (%s)"
+        if (LOG_ENABLED()) {
+            LOG(("(fontinit) added (%s) to family (%s)"
                  " with style: %s weight: %d stretch: %d"
                  " (apple-weight: %d macTraits: %8.8x)",
                  NS_ConvertUTF16toUTF8(fontEntry->Name()).get(), 
@@ -603,7 +584,7 @@ gfxSingleFaceMacFontFamily::ReadOtherFamilyNames(gfxPlatformFontList *aPlatformF
         return;
 
     const PRUint32 kNAME = TRUETYPE_TAG('n','a','m','e');
-    AutoFallibleTArray<PRUint8,8192> buffer;
+    nsAutoTArray<PRUint8,8192> buffer;
 
     if (fe->GetFontTable(kNAME, buffer) != NS_OK)
         return;
@@ -646,9 +627,7 @@ gfxMacPlatformFontList::InitFontList()
         return NS_OK;
 
     mATSGeneration = currentGeneration;
-#ifdef PR_LOGGING
-    LOG_FONTLIST(("(fontlist) updating to generation: %d", mATSGeneration));
-#endif
+    PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) updating to generation: %d", mATSGeneration));
 
     // reset font lists
     gfxPlatformFontList::InitFontList();
@@ -712,20 +691,15 @@ gfxMacPlatformFontList::InitSingleFaceList()
 
     PRUint32 numFonts = singleFaceFonts.Length();
     for (PRUint32 i = 0; i < numFonts; i++) {
-#ifdef PR_LOGGING
-        LOG_FONTLIST(("(fontlist-singleface) face name: %s\n",
-                      NS_ConvertUTF16toUTF8(singleFaceFonts[i]).get()));
-#endif
+        PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontlist-singleface) face name: %s\n",
+                                            NS_ConvertUTF16toUTF8(singleFaceFonts[i]).get()));
         gfxFontEntry *fontEntry = LookupLocalFont(nsnull, singleFaceFonts[i]);
         if (fontEntry) {
             nsAutoString familyName, key;
             familyName = singleFaceFonts[i];
             GenerateFontListKey(familyName, key);
-#ifdef PR_LOGGING
-            LOG_FONTLIST(("(fontlist-singleface) family name: %s, key: %s\n",
-                          NS_ConvertUTF16toUTF8(familyName).get(),
-                          NS_ConvertUTF16toUTF8(key).get()));
-#endif
+            PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontlist-singleface) family name: %s, key: %s\n",
+                   NS_ConvertUTF16toUTF8(familyName).get(), NS_ConvertUTF16toUTF8(key).get()));
 
             // add only if doesn't exist already
             PRBool found;
@@ -736,11 +710,8 @@ gfxMacPlatformFontList::InitSingleFaceList()
                 familyEntry->SetHasStyles(PR_TRUE);
                 mFontFamilies.Put(key, familyEntry);
                 fontEntry->mFamily = familyEntry;
-#ifdef PR_LOGGING
-                LOG_FONTLIST(("(fontlist-singleface) added new family\n",
-                              NS_ConvertUTF16toUTF8(familyName).get(),
-                              NS_ConvertUTF16toUTF8(key).get()));
-#endif
+                PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontlist-singleface) added new family\n",
+                       NS_ConvertUTF16toUTF8(familyName).get(), NS_ConvertUTF16toUTF8(key).get()));
             }
         }
     }

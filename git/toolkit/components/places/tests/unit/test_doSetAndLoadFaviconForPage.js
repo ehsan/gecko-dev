@@ -56,7 +56,6 @@ function checkAddSucceeded(pageURI, mimetype, data) {
   // Ensure input and output are identical
   do_check_eq(mimetype, outMimeType.value);
   do_check_true(compareArrays(data, outData));
-  do_check_guid_for_uri(pageURI);
 }
 
 var favicons = [
@@ -78,10 +77,6 @@ var tests = [
     },
     check: function check1() {
       checkAddSucceeded(this.pageURI, this.favicon.mimetype, this.favicon.data);
-      do_log_info("Check that the added page is marked as hidden.");
-      do_check_true(isUrlHidden(this.pageURI));
-      do_log_info("Check that the added page has 0 frecency.");
-      do_check_eq(frecencyForUrl(this.pageURI), 0);
     }
   },
 
@@ -168,13 +163,10 @@ var historyObserver = {
     if (pageURI.equals(tests[currentTestIndex].pageURI)) {
       tests[currentTestIndex].check();
       currentTestIndex++;
-      if (currentTestIndex == tests.length) {
+      if (currentTestIndex == tests.length)
         do_test_finished();
-      }
-      else {
-        do_log_info(tests[currentTestIndex].desc);
+      else
         tests[currentTestIndex].go();
-      }
     }
     else
       do_throw("Received PageChanged for a non-current test!");
@@ -199,6 +191,5 @@ function run_test() {
   PlacesUtils.history.addObserver(historyObserver, false);
 
   // Start the tests
-  do_log_info(tests[currentTestIndex].desc);
   tests[currentTestIndex].go();
 };

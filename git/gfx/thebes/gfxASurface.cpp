@@ -69,6 +69,10 @@
 #include "gfxQPainterSurface.h"
 #endif
 
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+#include "gfxDDrawSurface.h"
+#endif
+
 #include <stdio.h>
 #include <limits.h>
 
@@ -192,6 +196,11 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
         result = new gfxQPainterSurface(csurf);
     }
 #endif
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+    else if (stype == CAIRO_SURFACE_TYPE_DDRAW) {
+        result = new gfxDDrawSurface(csurf);
+    }
+#endif
     else {
         result = new gfxUnknownSurface(csurf);
     }
@@ -221,9 +230,6 @@ gfxASurface::Init(cairo_surface_t* surface, PRBool existingSurface)
         mFloatingRefs = 0;
     } else {
         mFloatingRefs = 1;
-        if (cairo_surface_get_content(surface) != CAIRO_CONTENT_COLOR) {
-            cairo_surface_set_subpixel_antialiasing(surface, CAIRO_SUBPIXEL_ANTIALIASING_DISABLED);
-        }
     }
 }
 
@@ -432,23 +438,6 @@ gfxASurface::FormatFromContent(gfxASurface::gfxContentType type)
     }
 }
 
-void
-gfxASurface::SetSubpixelAntialiasingEnabled(PRBool aEnabled)
-{
-    if (!mSurfaceValid)
-        return;
-    cairo_surface_set_subpixel_antialiasing(mSurface,
-        aEnabled ? CAIRO_SUBPIXEL_ANTIALIASING_ENABLED : CAIRO_SUBPIXEL_ANTIALIASING_DISABLED);
-}
-
-PRBool
-gfxASurface::GetSubpixelAntialiasingEnabled()
-{
-    if (!mSurfaceValid)
-      return PR_FALSE;
-    return cairo_surface_get_subpixel_antialiasing(mSurface) == CAIRO_SUBPIXEL_ANTIALIASING_ENABLED;
-}
-
 PRInt32
 gfxASurface::BytePerPixelFromFormat(gfxImageFormat format)
 {
@@ -492,14 +481,15 @@ static const char *sSurfaceNamesForSurfaceType[] = {
     "gfx/surface/tee",
     "gfx/surface/xml",
     "gfx/surface/skia",
+    "gfx/surface/ddraw",
     "gfx/surface/d2d"
 };
 
 PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sSurfaceNamesForSurfaceType) == gfxASurface::SurfaceTypeMax);
 #ifdef CAIRO_HAS_D2D_SURFACE
-PR_STATIC_ASSERT(PRUint32(CAIRO_SURFACE_TYPE_D2D) == PRUint32(gfxASurface::SurfaceTypeD2D));
+PR_STATIC_ASSERT(CAIRO_SURFACE_TYPE_D2D == gfxASurface::SurfaceTypeD2D);
 #endif
-PR_STATIC_ASSERT(PRUint32(CAIRO_SURFACE_TYPE_SKIA) == PRUint32(gfxASurface::SurfaceTypeSkia));
+PR_STATIC_ASSERT(CAIRO_SURFACE_TYPE_SKIA == gfxASurface::SurfaceTypeSkia);
 
 static const char *
 SurfaceMemoryReporterPathForType(gfxASurface::gfxSurfaceType aType)

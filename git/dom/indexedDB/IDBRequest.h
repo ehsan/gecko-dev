@@ -54,7 +54,6 @@ class nsPIDOMWindow;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class AsyncConnectionHelper;
 class IDBTransaction;
 
 class IDBRequest : public nsDOMEventTargetHelper,
@@ -63,8 +62,8 @@ class IDBRequest : public nsDOMEventTargetHelper,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBREQUEST
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(IDBRequest,
-                                                         nsDOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBRequest,
+                                           nsDOMEventTargetHelper)
 
   static
   already_AddRefed<IDBRequest> Create(nsISupports* aSource,
@@ -80,9 +79,11 @@ public:
     return mSource;
   }
 
-  void Reset();
-
-  nsresult SetDone(AsyncConnectionHelper* aHelper);
+  void SetDone()
+  {
+    NS_ASSERTION(mReadyState != nsIIDBRequest::DONE, "Already set!");
+    mReadyState = nsIIDBRequest::DONE;
+  }
 
   nsIScriptContext* ScriptContext()
   {
@@ -96,9 +97,6 @@ public:
     return mOwner;
   }
 
-  virtual void RootResultVal();
-  virtual void UnrootResultVal();
-
 protected:
   IDBRequest();
   ~IDBRequest();
@@ -109,11 +107,7 @@ protected:
   nsRefPtr<nsDOMEventListenerWrapper> mOnSuccessListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 
-  jsval mResultVal;
-
-  PRUint16 mErrorCode;
-  bool mResultValRooted;
-  bool mHaveResultOrErrorCode;
+  PRUint16 mReadyState;
 };
 
 class IDBVersionChangeRequest : public IDBRequest,
@@ -126,17 +120,12 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBVersionChangeRequest,
                                            IDBRequest)
 
-  ~IDBVersionChangeRequest();
-
   static
   already_AddRefed<IDBVersionChangeRequest>
   Create(nsISupports* aSource,
          nsIScriptContext* aScriptContext,
          nsPIDOMWindow* aOwner,
          IDBTransaction* aTransaction);
-
-  virtual void RootResultVal();
-  virtual void UnrootResultVal();
 
 protected:
   nsRefPtr<nsDOMEventListenerWrapper> mOnBlockedListener;

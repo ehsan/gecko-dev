@@ -26,7 +26,7 @@
  *   Dan Rosen <dr@netscape.com>
  *   Daniel Glazman <glazman@netscape.com>
  *   Mats Palmgren <matspal@gmail.com>
- *   Mihai Sucan <mihai.sucan@gmail.com>
+ *   Mihai Șucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -699,9 +699,7 @@ class nsAutoCauseReflowNotifier;
 class PresShell : public nsIPresShell, public nsIViewObserver,
                   public nsStubDocumentObserver,
                   public nsISelectionController, public nsIObserver,
-                  public nsSupportsWeakReference,
-                  public nsIPresShell_MOZILLA_2_0_BRANCH,
-                  public nsIPresShell_MOZILLA_2_0_BRANCH2
+                  public nsSupportsWeakReference
 {
 public:
   PresShell();
@@ -854,7 +852,6 @@ public:
                    PRBool aWillSendDidPaint);
   NS_IMETHOD HandleEvent(nsIView*        aView,
                          nsGUIEvent*     aEvent,
-                         PRBool          aDontRetargetEvents,
                          nsEventStatus*  aEventStatus);
   virtual NS_HIDDEN_(nsresult) HandleDOMEventWithTarget(nsIContent* aTargetContent,
                                                         nsEvent* aEvent,
@@ -969,14 +966,6 @@ public:
   virtual nscolor ComputeBackstopColor(nsIView* aDisplayRoot);
 
   virtual NS_HIDDEN_(nsresult) SetIsActive(PRBool aIsActive);
-
-  virtual PRBool GetIsViewportOverridden() { return mViewportOverridden; }
-
-  virtual PRBool IsLayoutFlushObserver()
-  {
-    return GetPresContext()->RefreshDriver()->
-      IsLayoutFlushObserver(this);
-  }
 
 protected:
   virtual ~PresShell();
@@ -1310,6 +1299,10 @@ protected:
 
   static PRBool sDisableNonTestMouseEvents;
 
+  // false if a check should be done for key/ime events that should be
+  // retargeted to the currently focused presshell
+  static PRBool sDontRetargetEvents;
+
 private:
 
   PRBool InZombieDocument(nsIContent *aContent);
@@ -1472,6 +1465,7 @@ public:
 };
 
 PRBool PresShell::sDisableNonTestMouseEvents = PR_FALSE;
+PRBool PresShell::sDontRetargetEvents = PR_FALSE;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* PresShell::gLog;
@@ -1680,11 +1674,10 @@ PresShell::PresShell()
   sLiveShells->PutEntry(this);
 }
 
-NS_IMPL_ISUPPORTS10(PresShell, nsIPresShell, nsIDocumentObserver,
+NS_IMPL_ISUPPORTS8(PresShell, nsIPresShell, nsIDocumentObserver,
                    nsIViewObserver, nsISelectionController,
                    nsISelectionDisplay, nsIObserver, nsISupportsWeakReference,
-                   nsIMutationObserver, nsIPresShell_MOZILLA_2_0_BRANCH,
-                   nsIPresShell_MOZILLA_2_0_BRANCH2)
+                   nsIMutationObserver)
 
 PresShell::~PresShell()
 {
@@ -3980,16 +3973,16 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
           // Use a caret (collapsed selection) at the start of the anchor
           sel->CollapseToStart();
         }
+      }  
 
-        if (selectAnchor && xpointerResult) {
-          // Select the rest (if any) of the ranges in XPointerResult
-          PRUint32 count, i;
-          xpointerResult->GetLength(&count);
-          for (i = 1; i < count; i++) { // jumpToRange is i = 0
-            nsCOMPtr<nsIDOMRange> range;
-            xpointerResult->Item(i, getter_AddRefs(range));
-            sel->AddRange(range);
-          }
+      if (selectAnchor && xpointerResult) {
+        // Select the rest (if any) of the ranges in XPointerResult
+        PRUint32 count, i;
+        xpointerResult->GetLength(&count);
+        for (i = 1; i < count; i++) { // jumpToRange is i = 0
+          nsCOMPtr<nsIDOMRange> range;
+          xpointerResult->Item(i, getter_AddRefs(range));
+          sel->AddRange(range);
         }
       }
       // Selection is at anchor.
@@ -4345,6 +4338,22 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*     aFrame,
       if (aFlags & nsIPresShell::SCROLL_FIRST_ANCESTOR_ONLY) {
         break;
       }
+
+      nsRect scrollPort = sf->GetScrollPortRect();
+      if (rect.XMost() < scrollPort.x ||
+          rect.x > scrollPort.XMost() ||
+          rect.YMost() < scrollPort.y ||
+          rect.y > scrollPort.YMost()) {
+        // We tried to show the rectangle, but none of it is visible,
+        // not even an edge.
+        // Stop trying to scroll ancestors into view.
+        break;
+      }
+
+      // Restrict rect to the area that is actually visible through
+      // the scrollport. We don't want to try to scroll some clipped-out
+      // part of 'rect' into view in some ancestor.
+      rect.IntersectRect(rect, sf->GetScrollPortRect());
     }
     rect += container->GetPosition();
     nsIFrame* parent = container->GetParent();
@@ -5285,8 +5294,6 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
 
   NS_ENSURE_TRUE(!(aFlags & RENDER_IS_UNTRUSTED), NS_ERROR_NOT_IMPLEMENTED);
 
-  nsAutoScriptBlocker blockScripts;
-
   // Set up the rectangle as the path in aThebesContext
   gfxRect r(0, 0,
             nsPresContext::AppUnitsToFloatCSSPixels(aRect.width),
@@ -5362,9 +5369,6 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
 
   PRBool wouldFlushRetainedLayers = PR_FALSE;
   PRUint32 flags = nsLayoutUtils::PAINT_IGNORE_SUPPRESSION;
-  if (aThebesContext->CurrentMatrix().HasNonIntegerTranslation()) {
-    flags |= nsLayoutUtils::PAINT_IN_TRANSFORM;
-  }
   if (!(aFlags & RENDER_ASYNC_DECODE_IMAGES)) {
     flags |= nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES;
   }
@@ -5573,13 +5577,13 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
   nsRect ancestorRect = ancestorFrame->GetVisualOverflowRect();
 
   // get a display list containing the range
-  info->mBuilder.SetIncludeAllOutOfFlows();
   if (aForPrimarySelection) {
     info->mBuilder.SetSelectedFramesOnly();
   }
   info->mBuilder.EnterPresShell(ancestorFrame, ancestorRect);
   ancestorFrame->BuildDisplayListForStackingContext(&info->mBuilder,
                                                     ancestorRect, &info->mList);
+  info->mBuilder.LeavePresShell(ancestorFrame, ancestorRect);
 
 #ifdef DEBUG
   if (gDumpRangePaintList) {
@@ -5589,8 +5593,6 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
 #endif
 
   nsRect rangeRect = ClipListToRange(&info->mBuilder, &info->mList, range);
-
-  info->mBuilder.LeavePresShell(ancestorFrame, ancestorRect);
 
 #ifdef DEBUG
   if (gDumpRangePaintList) {
@@ -5861,8 +5863,6 @@ nsresult PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
     return NS_OK;
 
   nscolor bgcolor = NS_ComposeColors(aBackstopColor, mCanvasBackgroundColor);
-  if (NS_GET_A(bgcolor) == 0)
-    return NS_OK;
 
   // To make layers work better, we want to avoid having a big non-scrolled 
   // color background behind a scrolled transparent background. Instead,
@@ -6020,28 +6020,9 @@ void PresShell::SetRenderingState(const RenderingState& aState)
   mXResolution = aState.mXResolution;
   mYResolution = aState.mYResolution;
 
-  // FIXME (Bug 593243 should fix this.)
-  //
-  // Invalidated content does not pay any attention to the displayport, so
-  // invalidating the subdocument's root frame could end up not repainting
-  // visible content.
-  //
-  // For instance, imagine the iframe is located at y=1000. Even though the
-  // displayport may intersect the iframe's viewport, the visual overflow
-  // rect of the root content could be (0, 0, 800, 500). Since the dirty region
-  // does not intersect the visible overflow rect, the display list for the
-  // iframe will not even be generated.
-  //
-  // Here, we find the very top presShell and use its root frame for
-  // invalidation instead.
-  //
-  nsPresContext* rootPresContext = mPresContext->GetRootPresContext();
-  if (rootPresContext) {
-    nsIPresShell* rootPresShell = rootPresContext->GetPresShell();
-    nsIFrame* rootFrame = rootPresShell->FrameManager()->GetRootFrame();
-    if (rootFrame) {
-      rootFrame->InvalidateFrameSubtree();
-    }
+  nsIFrame* rootFrame = FrameManager()->GetRootFrame();
+  if (rootFrame) {
+    rootFrame->InvalidateFrameSubtree();
   }
 }
 
@@ -6103,30 +6084,18 @@ PresShell::Paint(nsIView*           aDisplayRoot,
                            NSCoordToFloat(bounds__.YMost()));
 #endif
 
+  nsPresContext* presContext = GetPresContext();
+  AUTO_LAYOUT_PHASE_ENTRY_POINT(presContext, Paint);
+
   NS_ASSERTION(!mIsDestroying, "painting a destroyed PresShell");
   NS_ASSERTION(aDisplayRoot, "null view");
   NS_ASSERTION(aViewToPaint, "null view");
   NS_ASSERTION(aWidgetToPaint, "Can't paint without a widget");
 
-  nsPresContext* presContext = GetPresContext();
-  AUTO_LAYOUT_PHASE_ENTRY_POINT(presContext, Paint);
+  nscolor bgcolor = ComputeBackstopColor(aDisplayRoot);
 
   nsIFrame* frame = aPaintDefaultBackground
       ? nsnull : static_cast<nsIFrame*>(aDisplayRoot->GetClientData());
-
-  LayerManager* layerManager = aWidgetToPaint->GetLayerManager();
-  NS_ASSERTION(layerManager, "Must be in paint event");
-  layerManager->BeginTransaction();
-
-  if (frame) {
-    if (!(frame->GetStateBits() & NS_FRAME_UPDATE_LAYER_TREE)) {
-      if (layerManager->EndEmptyTransaction())
-        return NS_OK;
-    }
-    frame->RemoveStateBits(NS_FRAME_UPDATE_LAYER_TREE);
-  }
-
-  nscolor bgcolor = ComputeBackstopColor(aDisplayRoot);
 
   if (frame && aViewToPaint == aDisplayRoot) {
     // Defer invalidates that are triggered during painting, and discard
@@ -6140,11 +6109,9 @@ PresShell::Paint(nsIView*           aDisplayRoot,
     // need. (aPaintDefaultBackground will never be needed since the
     // chrome can always paint a default background.)
     nsLayoutUtils::PaintFrame(nsnull, frame, aDirtyRegion, bgcolor,
-                              nsLayoutUtils::PAINT_WIDGET_LAYERS |
-                              nsLayoutUtils::PAINT_EXISTING_TRANSACTION);
+                              nsLayoutUtils::PAINT_WIDGET_LAYERS);
 
     frame->EndDeferringInvalidatesForDisplayRoot();
-    presContext->NotifyDidPaintForSubtree();
     return NS_OK;
   }
 
@@ -6154,6 +6121,10 @@ PresShell::Paint(nsIView*           aDisplayRoot,
     frame->BeginDeferringInvalidatesForDisplayRoot(aDirtyRegion);
   }
 
+  LayerManager* layerManager = aWidgetToPaint->GetLayerManager();
+  NS_ASSERTION(layerManager, "Must be in paint event");
+
+  layerManager->BeginTransaction();
   nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
   if (root) {
     root->SetVisibleRegion(aIntDirtyRegion);
@@ -6172,7 +6143,6 @@ PresShell::Paint(nsIView*           aDisplayRoot,
   if (frame) {
     frame->EndDeferringInvalidatesForDisplayRoot();
   }
-  presContext->NotifyDidPaintForSubtree();
   return NS_OK;
 }
 
@@ -6339,7 +6309,10 @@ PresShell::RetargetEventToParent(nsGUIEvent*     aEvent,
   nsIView *parentRootView;
   parentPresShell->GetViewManager()->GetRootView(parentRootView);
   
-  return parentViewObserver->HandleEvent(parentRootView, aEvent, PR_TRUE, aEventStatus);
+  sDontRetargetEvents = PR_TRUE;
+  nsresult rv = parentViewObserver->HandleEvent(parentRootView, aEvent, aEventStatus);
+  sDontRetargetEvents = PR_FALSE;
+  return rv;
 }
 
 void
@@ -6361,7 +6334,6 @@ PresShell::GetFocusedDOMWindowInOurWindow()
 NS_IMETHODIMP
 PresShell::HandleEvent(nsIView         *aView,
                        nsGUIEvent*     aEvent,
-                       PRBool          aDontRetargetEvents,
                        nsEventStatus*  aEventStatus)
 {
   NS_ASSERTION(aView, "null view");
@@ -6391,7 +6363,7 @@ PresShell::HandleEvent(nsIView         *aView,
     NS_IS_MOUSE_EVENT(aEvent) ? GetCapturingContent() : nsnull;
 
   nsCOMPtr<nsIDocument> retargetEventDoc;
-  if (!aDontRetargetEvents) {
+  if (!sDontRetargetEvents) {
     // key and IME related events should not cross top level window boundary.
     // Basically, such input events should be fired only on focused widget.
     // However, some IMEs might need to clean up composition after focused
@@ -6430,7 +6402,9 @@ PresShell::HandleEvent(nsIView         *aView,
 
         nsIView *view;
         presShell->GetViewManager()->GetRootView(view);
-        nsresult rv = viewObserver->HandleEvent(view, aEvent, PR_TRUE, aEventStatus);
+        sDontRetargetEvents = PR_TRUE;
+        nsresult rv = viewObserver->HandleEvent(view, aEvent, aEventStatus);
+        sDontRetargetEvents = PR_FALSE;
         return rv;
       }
     }
@@ -7527,15 +7501,13 @@ PresShell::Freeze()
 
   mDocument->EnumerateFreezableElements(FreezeElement, nsnull);
 
-  if (mCaret) {
+  if (mCaret)
     mCaret->SetCaretVisible(PR_FALSE);
-  }
 
   mPaintingSuppressed = PR_TRUE;
 
-  if (mDocument) {
+  if (mDocument)
     mDocument->EnumerateSubDocuments(FreezeSubDocument, nsnull);
-  }
 
   nsPresContext* presContext = GetPresContext();
   if (presContext &&
@@ -7544,9 +7516,7 @@ PresShell::Freeze()
   }
 
   mFrozen = PR_TRUE;
-  if (mDocument) {
-    UpdateImageLockingState();
-  }
+  UpdateImageLockingState();
 }
 
 void
@@ -9294,8 +9264,6 @@ SetExternalResourceIsActive(nsIDocument* aDocument, void* aClosure)
 nsresult
 PresShell::SetIsActive(PRBool aIsActive)
 {
-  NS_PRECONDITION(mDocument, "should only be called with a document");
-
   mIsActive = aIsActive;
   nsPresContext* presContext = GetPresContext();
   if (presContext &&
@@ -9304,8 +9272,10 @@ PresShell::SetIsActive(PRBool aIsActive)
   }
 
   // Propagate state-change to my resource documents' PresShells
-  mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
-                                        &aIsActive);
+  if (mDocument) {
+    mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
+                                          &aIsActive);
+  }
   return UpdateImageLockingState();
 }
 

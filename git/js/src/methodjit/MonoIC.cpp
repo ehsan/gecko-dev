@@ -43,11 +43,11 @@
 #include "StubCalls.h"
 #include "StubCalls-inl.h"
 #include "assembler/assembler/LinkBuffer.h"
+#include "assembler/assembler/RepatchBuffer.h"
 #include "assembler/assembler/MacroAssembler.h"
 #include "assembler/assembler/CodeLocation.h"
-#include "methodjit/CodeGenIncludes.h"
+#include "CodeGenIncludes.h"
 #include "methodjit/Compiler.h"
-#include "methodjit/ICRepatcher.h"
 #include "InlineFrameAssembler.h"
 #include "jsobj.h"
 
@@ -72,7 +72,7 @@ typedef JSC::MacroAssembler::Call Call;
 static void
 PatchGetFallback(VMFrame &f, ic::MICInfo *ic)
 {
-    Repatcher repatch(f.jit());
+    JSC::RepatchBuffer repatch(ic->stubEntry.executableAddress(), 64);
     JSC::FunctionPtr fptr(JS_FUNC_TO_DATA_PTR(void *, stubs::GetGlobalName));
     repatch.relink(ic->stubCall, fptr);
 }
@@ -101,11 +101,22 @@ ic::GetGlobalName(VMFrame &f, ic::MICInfo *ic)
     ic->u.name.touched = true;
 
     /* Patch shape guard. */
-    Repatcher repatcher(f.jit());
-    repatcher.repatch(ic->shape, obj->shape());
+    JSC::RepatchBuffer repatch(ic->entry.executableAddress(), 50);
+    repatch.repatch(ic->shape, obj->shape());
 
     /* Patch loads. */
-    repatcher.patchAddressOffsetForValueLoad(ic->load, slot * sizeof(Value));
+    slot *= sizeof(Value);
+    JSC::RepatchBuffer loads(ic->load.executableAddress(), 32, false);
+#if defined JS_CPU_X86
+    loads.repatch(ic->load.dataLabel32AtOffset(MICInfo::GET_DATA_OFFSET), slot);
+    loads.repatch(ic->load.dataLabel32AtOffset(MICInfo::GET_TYPE_OFFSET), slot + 4);
+#elif defined JS_CPU_ARM
+    // ic->load actually points to the LDR instruction which fetches the offset, but 'repatch'
+    // knows how to dereference it to find the integer value.
+    loads.repatch(ic->load.dataLabel32AtOffset(0), slot);
+#elif defined JS_PUNBOX64
+    loads.repatch(ic->load.dataLabel32AtOffset(ic->patchValueOffset), slot);
+#endif
 
     /* Do load anyway... this time. */
     stubs::GetGlobalName(f);
@@ -140,7 +151,7 @@ PatchSetFallback(VMFrame &f, ic::MICInfo *ic)
 {
     JSScript *script = f.fp()->script();
 
-    Repatcher repatch(f.jit());
+    JSC::RepatchBuffer repatch(ic->stubEntry.executableAddress(), 64);
     VoidStubMIC stub = ic->u.name.usePropertyCache
                        ? STRICT_VARIANT(DisabledSetGlobal)
                        : STRICT_VARIANT(DisabledSetGlobalNoCache);
@@ -160,8 +171,7 @@ ic::SetGlobalName(VMFrame &f, ic::MICInfo *ic)
 
     const Shape *shape = obj->nativeLookup(id);
     if (!shape ||
-        shape->isMethod() ||
-        !shape->hasDefaultSetter() ||
+        !shape->hasDefaultGetterOrIsMethod() ||
         !shape->writable() ||
         !shape->hasSlot())
     {
@@ -178,12 +188,29 @@ ic::SetGlobalName(VMFrame &f, ic::MICInfo *ic)
     ic->u.name.touched = true;
 
     /* Patch shape guard. */
-    Repatcher repatcher(f.jit());
-    repatcher.repatch(ic->shape, obj->shape());
+    JSC::RepatchBuffer repatch(ic->entry.executableAddress(), 50);
+    repatch.repatch(ic->shape, obj->shape());
 
     /* Patch loads. */
-    repatcher.patchAddressOffsetForValueStore(ic->load, slot * sizeof(Value),
-                                              ic->u.name.typeConst);
+    slot *= sizeof(Value);
+
+    JSC::RepatchBuffer stores(ic->load.executableAddress(), 32, false);
+#if defined JS_CPU_X86
+    stores.repatch(ic->load.dataLabel32AtOffset(MICInfo::SET_TYPE_OFFSET), slot + 4);
+
+    uint32 dataOffset;
+    if (ic->u.name.typeConst)
+        dataOffset = MICInfo::SET_DATA_CONST_TYPE_OFFSET;
+    else
+        dataOffset = MICInfo::SET_DATA_TYPE_OFFSET;
+    stores.repatch(ic->load.dataLabel32AtOffset(dataOffset), slot);
+#elif defined JS_CPU_ARM
+    // ic->load actually points to the LDR instruction which fetches the offset, but 'repatch'
+    // knows how to dereference it to find the integer value.
+    stores.repatch(ic->load.dataLabel32AtOffset(0), slot);
+#elif defined JS_PUNBOX64
+    stores.repatch(ic->load.dataLabel32AtOffset(ic->patchValueOffset), slot);
+#endif
 
     if (ic->u.name.usePropertyCache)
         STRICT_VARIANT(stubs::SetGlobalName)(f, atom);
@@ -196,12 +223,12 @@ class EqualityICLinker : public LinkerHelper
     VMFrame &f;
 
   public:
-    EqualityICLinker(Assembler &masm, VMFrame &f)
-        : LinkerHelper(masm), f(f)
+    EqualityICLinker(JSContext *cx, VMFrame &f)
+        : LinkerHelper(cx), f(f)
     { }
 
-    bool init(JSContext *cx) {
-        JSC::ExecutablePool *pool = LinkerHelper::init(cx);
+    bool init(Assembler &masm) {
+        JSC::ExecutablePool *pool = LinkerHelper::init(masm);
         if (!pool)
             return false;
         JSScript *script = f.fp()->script();
@@ -268,13 +295,13 @@ class EqualityCompiler : public BaseCompiler
         /* Test if lhs/rhs are atomized. */
         Imm32 atomizedFlags(JSString::FLAT | JSString::ATOMIZED);
         
-        masm.load32(Address(lvr.dataReg(), JSString::offsetOfLengthAndFlags()), tmp);
+        masm.load32(Address(lvr.dataReg(), offsetof(JSString, mLengthAndFlags)), tmp);
         masm.and32(Imm32(JSString::TYPE_FLAGS_MASK), tmp);
         Jump lhsNotAtomized = masm.branch32(Assembler::NotEqual, tmp, atomizedFlags);
         linkToStub(lhsNotAtomized);
 
         if (!rvr.isConstant()) {
-            masm.load32(Address(rvr.dataReg(), JSString::offsetOfLengthAndFlags()), tmp);
+            masm.load32(Address(rvr.dataReg(), offsetof(JSString, mLengthAndFlags)), tmp);
             masm.and32(Imm32(JSString::TYPE_FLAGS_MASK), tmp);
             Jump rhsNotAtomized = masm.branch32(Assembler::NotEqual, tmp, atomizedFlags);
             linkToStub(rhsNotAtomized);
@@ -330,19 +357,9 @@ class EqualityCompiler : public BaseCompiler
 
     bool linkForIC(Assembler &masm)
     {
-        EqualityICLinker buffer(masm, f);
-        if (!buffer.init(cx))
+        EqualityICLinker buffer(cx, f);
+        if (!buffer.init(masm))
             return false;
-
-        Repatcher repatcher(f.jit());
-
-        /* Overwrite the call to the IC with a call to the stub. */
-        JSC::FunctionPtr fptr(JS_FUNC_TO_DATA_PTR(void *, ic.stub));
-        repatcher.relink(ic.stubCall, fptr);
-
-        // Silently fail, the IC is disabled now.
-        if (!buffer.verifyRange(f.jit()))
-            return true;
 
         /* Set the targets of all type test failures to go to the stub. */
         for (size_t i = 0; i < jumpList.length(); i++)
@@ -353,11 +370,17 @@ class EqualityCompiler : public BaseCompiler
         buffer.link(trueJump, ic.target);
         buffer.link(falseJump, ic.fallThrough);
 
-        CodeLocationLabel cs = buffer.finalize();
+        CodeLocationLabel cs = buffer.finalizeCodeAddendum();
 
         /* Jump to the newly generated code instead of to the IC. */
-        repatcher.relink(ic.jumpToStub, cs);
+        JSC::RepatchBuffer jumpRepatcher(ic.jumpToStub.executableAddress(), INLINE_PATH_LENGTH);
+        jumpRepatcher.relink(ic.jumpToStub, cs);
 
+        /* Overwrite the call to the IC with a call to the stub. */
+        JSC::RepatchBuffer stubRepatcher(ic.stubCall.executableAddress(), INLINE_PATH_LENGTH);
+        JSC::FunctionPtr fptr(JS_FUNC_TO_DATA_PTR(void *, ic.stub));
+        stubRepatcher.relink(ic.stubCall, fptr);
+        
         return true;
     }
 
@@ -459,9 +482,9 @@ class CallCompiler : public BaseCompiler
     {
     }
 
-    JSC::ExecutablePool *poolForSize(LinkerHelper &linker, CallICInfo::PoolIndex index)
+    JSC::ExecutablePool *poolForSize(size_t size, CallICInfo::PoolIndex index)
     {
-        JSC::ExecutablePool *ep = linker.init(f.cx);
+        JSC::ExecutablePool *ep = getExecPool(size);
         if (!ep)
             return NULL;
         JS_ASSERT(!ic.pools[index]);
@@ -469,17 +492,7 @@ class CallCompiler : public BaseCompiler
         return ep;
     }
 
-    void disable(JITScript *jit)
-    {
-        JSC::CodeLocationCall oolCall = ic.slowPathStart.callAtOffset(ic.oolCallOffset);
-        Repatcher repatch(jit);
-        JSC::FunctionPtr fptr = callingNew
-                                ? JSC::FunctionPtr(JS_FUNC_TO_DATA_PTR(void *, SlowNewFromIC))
-                                : JSC::FunctionPtr(JS_FUNC_TO_DATA_PTR(void *, SlowCallFromIC));
-        repatch.relink(oolCall, fptr);
-    }
-
-    bool generateFullCallStub(JITScript *from, JSScript *script, uint32 flags)
+    bool generateFullCallStub(JSScript *script, uint32 flags)
     {
         /*
          * Create a stub that works with arity mismatches. Like the fast-path,
@@ -536,55 +549,46 @@ class CallCompiler : public BaseCompiler
             masm.load32(FrameAddress(offsetof(VMFrame, u.call.dynamicArgc)), JSParamReg_Argc);
         masm.jump(t0);
 
-        LinkerHelper linker(masm);
-        JSC::ExecutablePool *ep = poolForSize(linker, CallICInfo::Pool_ScriptStub);
+        JSC::ExecutablePool *ep = poolForSize(masm.size(), CallICInfo::Pool_ScriptStub);
         if (!ep)
             return false;
 
-        if (!linker.verifyRange(from)) {
-            disable(from);
-            return true;
-        }
-
-        linker.link(notCompiled, ic.slowPathStart.labelAtOffset(ic.slowJoinOffset));
-        JSC::CodeLocationLabel cs = linker.finalize();
+        JSC::LinkBuffer buffer(&masm, ep);
+        buffer.link(notCompiled, ic.slowPathStart.labelAtOffset(ic.slowJoinOffset));
+        masm.finalize(buffer);
+        JSC::CodeLocationLabel cs = buffer.finalizeCodeAddendum();
 
         JaegerSpew(JSpew_PICs, "generated CALL stub %p (%d bytes)\n", cs.executableAddress(),
                    masm.size());
 
-        Repatcher repatch(from);
         JSC::CodeLocationJump oolJump = ic.slowPathStart.jumpAtOffset(ic.oolJumpOffset);
+        uint8 *start = (uint8 *)oolJump.executableAddress();
+        JSC::RepatchBuffer repatch(start - 32, 64);
         repatch.relink(oolJump, cs);
 
         return true;
     }
 
-    bool patchInlinePath(JITScript *from, JSScript *script, JSObject *obj)
+    void patchInlinePath(JSScript *script, JSObject *obj)
     {
         JS_ASSERT(ic.frameSize.isStatic());
-        JITScript *jit = script->getJIT(callingNew);
 
         /* Very fast path. */
-        Repatcher repatch(from);
-
-        if (!repatch.canRelink(ic.funGuard.jumpAtOffset(ic.hotJumpOffset),
-                               JSC::CodeLocationLabel(jit->fastEntry))) {
-            return false;
-        }
+        uint8 *start = (uint8 *)ic.funGuard.executableAddress();
+        JSC::RepatchBuffer repatch(start - 32, 64);
 
         ic.fastGuardedObject = obj;
+
+        JITScript *jit = script->getJIT(callingNew);
 
         repatch.repatch(ic.funGuard, obj);
         repatch.relink(ic.funGuard.jumpAtOffset(ic.hotJumpOffset),
                        JSC::CodeLocationLabel(jit->fastEntry));
 
-        JaegerSpew(JSpew_PICs, "patched CALL path %p (obj: %p)\n",
-                   ic.funGuard.executableAddress(), ic.fastGuardedObject);
-
-        return true;
+        JaegerSpew(JSpew_PICs, "patched CALL path %p (obj: %p)\n", start, ic.fastGuardedObject);
     }
 
-    bool generateStubForClosures(JITScript *from, JSObject *obj)
+    bool generateStubForClosures(JSObject *obj)
     {
         JS_ASSERT(ic.frameSize.isStatic());
 
@@ -601,40 +605,34 @@ class CallCompiler : public BaseCompiler
 
         /* Guard that it's the same function. */
         JSFunction *fun = obj->getFunctionPrivate();
-        masm.loadObjPrivate(ic.funObjReg, t0);
+        masm.loadFunctionPrivate(ic.funObjReg, t0);
         Jump funGuard = masm.branchPtr(Assembler::NotEqual, t0, ImmPtr(fun));
         Jump done = masm.jump();
 
-        LinkerHelper linker(masm);
-        JSC::ExecutablePool *ep = poolForSize(linker, CallICInfo::Pool_ClosureStub);
+        JSC::ExecutablePool *ep = poolForSize(masm.size(), CallICInfo::Pool_ClosureStub);
         if (!ep)
             return false;
 
-        ic.hasJsFunCheck = true;
-
-        if (!linker.verifyRange(from)) {
-            disable(from);
-            return true;
-        }
-
-        linker.link(claspGuard, ic.slowPathStart);
-        linker.link(funGuard, ic.slowPathStart);
-        linker.link(done, ic.funGuard.labelAtOffset(ic.hotPathOffset));
-        JSC::CodeLocationLabel cs = linker.finalize();
+        JSC::LinkBuffer buffer(&masm, ep);
+        buffer.link(claspGuard, ic.slowPathStart);
+        buffer.link(funGuard, ic.slowPathStart);
+        buffer.link(done, ic.funGuard.labelAtOffset(ic.hotPathOffset));
+        JSC::CodeLocationLabel cs = buffer.finalizeCodeAddendum();
 
         JaegerSpew(JSpew_PICs, "generated CALL closure stub %p (%d bytes)\n",
                    cs.executableAddress(), masm.size());
 
-        Repatcher repatch(from);
+        uint8 *start = (uint8 *)ic.funJump.executableAddress();
+        JSC::RepatchBuffer repatch(start - 32, 64);
         repatch.relink(ic.funJump, cs);
+
+        ic.hasJsFunCheck = true;
 
         return true;
     }
 
     bool generateNativeStub()
     {
-        JITScript *jit = f.jit();
-
         /* Snapshot the frameDepth before SplatApplyArgs modifies it. */
         uintN initialFrameDepth = f.regs.sp - f.regs.fp->slots();
 
@@ -759,7 +757,7 @@ class CallCompiler : public BaseCompiler
         else
             masm.storeArg(1, argcReg.reg());
         masm.storeArg(0, cxReg);
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, fun->u.n.native), false);
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, fun->u.n.native));
 
         Jump hasException = masm.branchTest32(Assembler::Zero, Registers::ReturnReg,
                                               Registers::ReturnReg);
@@ -771,35 +769,31 @@ class CallCompiler : public BaseCompiler
         hasException.linkTo(masm.label(), &masm);
         masm.throwInJIT();
 
-        LinkerHelper linker(masm);
-        JSC::ExecutablePool *ep = poolForSize(linker, CallICInfo::Pool_NativeStub);
+        JSC::ExecutablePool *ep = poolForSize(masm.size(), CallICInfo::Pool_NativeStub);
         if (!ep)
             THROWV(true);
 
-        ic.fastGuardedNative = obj;
-
-        if (!linker.verifyRange(jit)) {
-            disable(jit);
-            return true;
-        }
-
-        linker.link(done, ic.slowPathStart.labelAtOffset(ic.slowJoinOffset));
-        linker.link(funGuard, ic.slowPathStart);
-        JSC::CodeLocationLabel cs = linker.finalize();
+        JSC::LinkBuffer buffer(&masm, ep);
+        buffer.link(done, ic.slowPathStart.labelAtOffset(ic.slowJoinOffset));
+        buffer.link(funGuard, ic.slowPathStart);
+        masm.finalize(buffer);
+        
+        JSC::CodeLocationLabel cs = buffer.finalizeCodeAddendum();
 
         JaegerSpew(JSpew_PICs, "generated native CALL stub %p (%d bytes)\n",
                    cs.executableAddress(), masm.size());
 
-        Repatcher repatch(jit);
+        uint8 *start = (uint8 *)ic.funJump.executableAddress();
+        JSC::RepatchBuffer repatch(start - 32, 64);
         repatch.relink(ic.funJump, cs);
+
+        ic.fastGuardedNative = obj;
 
         return true;
     }
 
     void *update()
     {
-        JITScript *jit = f.jit();
-
         stubs::UncachedCallResult ucr;
         if (callingNew)
             stubs::UncachedNewHelper(f, ic.frameSize.staticArgc(), &ucr);
@@ -809,7 +803,13 @@ class CallCompiler : public BaseCompiler
         // If the function cannot be jitted (generally unjittable or empty script),
         // patch this site to go to a slow path always.
         if (!ucr.codeAddr) {
-            disable(jit);
+            JSC::CodeLocationCall oolCall = ic.slowPathStart.callAtOffset(ic.oolCallOffset);
+            uint8 *start = (uint8 *)oolCall.executableAddress();
+            JSC::RepatchBuffer repatch(start - 32, 64);
+            JSC::FunctionPtr fptr = callingNew
+                                    ? JSC::FunctionPtr(JS_FUNC_TO_DATA_PTR(void *, SlowNewFromIC))
+                                    : JSC::FunctionPtr(JS_FUNC_TO_DATA_PTR(void *, SlowCallFromIC));
+            repatch.relink(oolCall, fptr);
             return NULL;
         }
             
@@ -828,23 +828,22 @@ class CallCompiler : public BaseCompiler
         }
 
         if (!ic.frameSize.isStatic() || ic.frameSize.staticArgc() != fun->nargs) {
-            if (!generateFullCallStub(jit, script, flags))
+            if (!generateFullCallStub(script, flags))
                 THROWV(NULL);
         } else {
-            if (!ic.fastGuardedObject && patchInlinePath(jit, script, callee)) {
-                // Nothing, done.
-            } else if (ic.fastGuardedObject &&
-                       !ic.hasJsFunCheck &&
+            if (!ic.fastGuardedObject) {
+                patchInlinePath(script, callee);
+            } else if (!ic.hasJsFunCheck &&
                        !ic.fastGuardedNative &&
                        ic.fastGuardedObject->getFunctionPrivate() == fun) {
                 /*
                  * Note: Multiple "function guard" stubs are not yet
                  * supported, thus the fastGuardedNative check.
                  */
-                if (!generateStubForClosures(jit, callee))
+                if (!generateStubForClosures(callee))
                     THROWV(NULL);
             } else {
-                if (!generateFullCallStub(jit, script, flags))
+                if (!generateFullCallStub(script, flags))
                     THROWV(NULL);
             }
         }
@@ -1034,11 +1033,6 @@ ic::SplatApplyArgs(VMFrame &f)
 void
 JITScript::purgeMICs()
 {
-    if (!nMICs)
-        return;
-
-    Repatcher repatch(this);
-
     for (uint32 i = 0; i < nMICs; i++) {
         ic::MICInfo &mic = mics[i];
         switch (mic.kind) {
@@ -1046,6 +1040,7 @@ JITScript::purgeMICs()
           case ic::MICInfo::GET:
           {
             /* Patch shape guard. */
+            JSC::RepatchBuffer repatch(mic.entry.executableAddress(), 50);
             repatch.repatch(mic.shape, int(JSObjectMap::INVALID_SHAPE));
 
             /* 
@@ -1074,36 +1069,8 @@ ic::PurgeMICs(JSContext *cx, JSScript *script)
 }
 
 void
-JITScript::nukeScriptDependentICs()
+JITScript::sweepCallICs()
 {
-    if (!nCallICs)
-        return;
-
-    Repatcher repatcher(this);
-
-    for (uint32 i = 0; i < nCallICs; i++) {
-        ic::CallICInfo &ic = callICs[i];
-        if (!ic.fastGuardedObject)
-            continue;
-        repatcher.repatch(ic.funGuard, NULL);
-        repatcher.relink(ic.funJump, ic.slowPathStart);
-        ic.releasePool(CallICInfo::Pool_ClosureStub);
-        ic.fastGuardedObject = NULL;
-        ic.hasJsFunCheck = false;
-    }
-}
-
-void
-JITScript::sweepCallICs(JSContext *cx, bool purgeAll)
-{
-    Repatcher repatcher(this);
-
-    /*
-     * If purgeAll is set, purge stubs in the script except those covered by PurgePICs
-     * (which is always called during GC). We want to remove references which can keep
-     * alive pools that we are trying to destroy (see JSCompartment::sweep).
-     */
-
     for (uint32 i = 0; i < nCallICs; i++) {
         ic::CallICInfo &ic = callICs[i];
 
@@ -1112,13 +1079,17 @@ JITScript::sweepCallICs(JSContext *cx, bool purgeAll)
          * executing a stub generated by a guard on that object. This lets us
          * precisely GC call ICs while keeping the identity guard safe.
          */
-        bool fastFunDead = ic.fastGuardedObject &&
-            (purgeAll || IsAboutToBeFinalized(cx, ic.fastGuardedObject));
-        bool nativeDead = ic.fastGuardedNative &&
-            (purgeAll || IsAboutToBeFinalized(cx, ic.fastGuardedNative));
+        bool fastFunDead = ic.fastGuardedObject && IsAboutToBeFinalized(ic.fastGuardedObject);
+        bool nativeDead = ic.fastGuardedNative && IsAboutToBeFinalized(ic.fastGuardedNative);
+
+        if (!fastFunDead && !nativeDead)
+            continue;
+
+        uint8 *start = (uint8 *)ic.funGuard.executableAddress();
+        JSC::RepatchBuffer repatch(start - 32, 64);
 
         if (fastFunDead) {
-            repatcher.repatch(ic.funGuard, NULL);
+            repatch.repatch(ic.funGuard, NULL);
             ic.releasePool(CallICInfo::Pool_ClosureStub);
             ic.hasJsFunCheck = false;
             ic.fastGuardedObject = NULL;
@@ -1129,48 +1100,19 @@ JITScript::sweepCallICs(JSContext *cx, bool purgeAll)
             ic.fastGuardedNative = NULL;
         }
 
-        if (purgeAll) {
-            ic.releasePool(CallICInfo::Pool_ScriptStub);
-            JSC::CodeLocationJump oolJump = ic.slowPathStart.jumpAtOffset(ic.oolJumpOffset);
-            JSC::CodeLocationLabel icCall = ic.slowPathStart.labelAtOffset(ic.icCallOffset);
-            repatcher.relink(oolJump, icCall);
-        }
+        repatch.relink(ic.funJump, ic.slowPathStart);
 
-        repatcher.relink(ic.funJump, ic.slowPathStart);
         ic.hit = false;
-    }
-
-    if (purgeAll) {
-        /* Purge ICs generating stubs into execPools. */
-        uint32 released = 0;
-
-        for (uint32 i = 0; i < nEqualityICs; i++) {
-            ic::EqualityICInfo &ic = equalityICs[i];
-            if (!ic.generated)
-                continue;
-
-            JSC::FunctionPtr fptr(JS_FUNC_TO_DATA_PTR(void *, ic::Equality));
-            repatcher.relink(ic.stubCall, fptr);
-            repatcher.relink(ic.jumpToStub, ic.stubEntry);
-
-            ic.generated = false;
-            released++;
-        }
-
-        JS_ASSERT(released == execPools.length());
-        for (uint32 i = 0; i < released; i++)
-            execPools[i]->release();
-        execPools.clear();
     }
 }
 
 void
-ic::SweepCallICs(JSContext *cx, JSScript *script, bool purgeAll)
+ic::SweepCallICs(JSScript *script)
 {
     if (script->jitNormal)
-        script->jitNormal->sweepCallICs(cx, purgeAll);
+        script->jitNormal->sweepCallICs();
     if (script->jitCtor)
-        script->jitCtor->sweepCallICs(cx, purgeAll);
+        script->jitCtor->sweepCallICs();
 }
 
 #endif /* JS_MONOIC */

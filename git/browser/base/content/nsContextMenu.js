@@ -541,8 +541,6 @@ nsContextMenu.prototype = {
       if (elem.nodeType == Node.ELEMENT_NODE) {
         // Link?
         if (!this.onLink &&
-            // Be consistent with what hrefAndLinkNodeForClickEvent
-            // does in browser.js
              ((elem instanceof HTMLAnchorElement && elem.href) ||
               (elem instanceof HTMLAreaElement && elem.href) ||
               elem instanceof HTMLLinkElement ||
@@ -551,8 +549,24 @@ nsContextMenu.prototype = {
           // Target is a link or a descendant of a link.
           this.onLink = true;
 
+          // xxxmpc: this is kind of a hack to work around a Gecko bug (see bug 266932)
+          // we're going to walk up the DOM looking for a parent link node,
+          // this shouldn't be necessary, but we're matching the existing behaviour for left click
+          var realLink = elem;
+          var parent = elem;
+          while ((parent = parent.parentNode) &&
+                 (parent.nodeType == Node.ELEMENT_NODE)) {
+            try {
+              if ((parent instanceof HTMLAnchorElement && parent.href) ||
+                  (parent instanceof HTMLAreaElement && parent.href) ||
+                  parent instanceof HTMLLinkElement ||
+                  parent.getAttributeNS("http://www.w3.org/1999/xlink", "type") == "simple")
+                realLink = parent;
+            } catch (e) { }
+          }
+
           // Remember corresponding element.
-          this.link = elem;
+          this.link = realLink;
           this.linkURL = this.getLinkURL();
           this.linkURI = this.getLinkURI();
           this.linkProtocol = this.getLinkProtocol();
@@ -669,29 +683,18 @@ nsContextMenu.prototype = {
 
   // Open linked-to URL in a new window.
   openLink : function () {
-    var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, doc.nodePrincipal);
-    openLinkIn(this.linkURL, "window",
-               { charset: doc.characterSet,
-                 referrerURI: doc.documentURIObject });
+    openNewWindowWith(this.linkURL, this.target.ownerDocument, null, false);
   },
 
   // Open linked-to URL in a new tab.
   openLinkInTab: function() {
-    var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, doc.nodePrincipal);
-    openLinkIn(this.linkURL, "tab",
-               { charset: doc.characterSet,
-                 referrerURI: doc.documentURIObject });
+    openNewTabWith(this.linkURL, this.target.ownerDocument, null, null, false);
   },
 
   // open URL in current tab
   openLinkInCurrent: function() {
-    var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, doc.nodePrincipal);
-    openLinkIn(this.linkURL, "current",
-               { charset: doc.characterSet,
-                 referrerURI: doc.documentURIObject });
+    openUILinkIn(this.linkURL, "current", null, null, 
+                 this.target.ownerDocument.documentURIObject);
   },
 
   // Open frame in a new tab.
@@ -699,9 +702,9 @@ nsContextMenu.prototype = {
     var doc = this.target.ownerDocument;
     var frameURL = doc.location.href;
     var referrer = doc.referrer;
-    openLinkIn(frameURL, "tab",
-               { charset: doc.characterSet,
-                 referrerURI: referrer ? makeURI(referrer) : null });
+
+    return openNewTabWith(frameURL, null, null, null, false,
+                          referrer ? makeURI(referrer) : null);
   },
 
   // Reload clicked-in frame.
@@ -714,9 +717,9 @@ nsContextMenu.prototype = {
     var doc = this.target.ownerDocument;
     var frameURL = doc.location.href;
     var referrer = doc.referrer;
-    openLinkIn(frameURL, "window",
-               { charset: doc.characterSet,
-                 referrerURI: referrer ? makeURI(referrer) : null });
+
+    return openNewWindowWith(frameURL, null, null, false,
+                             referrer ? makeURI(referrer) : null);
   },
 
   // Open clicked-in frame in the same window.

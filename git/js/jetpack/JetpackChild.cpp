@@ -96,7 +96,7 @@ static char*
 UnicodeToNative(JSContext *cx, const jschar *source, size_t slen)
 {
   nsCAutoString native;
-  nsDependentString unicode(source, slen);
+  nsDependentString unicode(reinterpret_cast<const PRUnichar*>(source), slen);
   nsresult rv = NS_CopyUnicodeToNative(unicode, native);
   if (NS_FAILED(rv)) {
     JS_ReportError(cx, "could not convert string to native charset");
@@ -251,12 +251,8 @@ MessageCommon(JSContext* cx, uintN argc, jsval* vp,
     return JS_FALSE;
   }
 
-  size_t length;
-  const jschar* chars = JS_GetStringCharsAndLength(cx, msgNameStr, &length);
-  if (!chars)
-      return JS_FALSE;
-
-  result->msgName.Assign(chars, length);
+  result->msgName.Assign((PRUnichar*)JS_GetStringChars(msgNameStr),
+                         JS_GetStringLength(msgNameStr));
 
   result->data.Clear();
 
@@ -359,12 +355,8 @@ ReceiverCommon(JSContext* cx, uintN argc, jsval* vp,
     return JS_FALSE;
   }
 
-  size_t length;
-  const jschar* chars = JS_GetStringCharsAndLength(cx, str, &length);
-  if (!chars)
-      return JS_FALSE;
-
-  result->msgName.Assign(chars, length);
+  result->msgName.Assign((PRUnichar*)JS_GetStringChars(str),
+                         JS_GetStringLength(str));
 
   if (arity < 2)
     return JS_TRUE;
@@ -505,13 +497,9 @@ JetpackChild::EvalInSandbox(JSContext* cx, uintN argc, jsval* vp)
     return JS_FALSE;
   }
 
-  size_t length;
-  const jschar* chars = JS_GetStringCharsAndLength(cx, str, &length);
-  if (!chars)
-      return JS_FALSE;
-
   js::AutoValueRooter ignored(cx);
-  return JS_EvaluateUCScript(cx, obj, chars, length, "", 1, ignored.jsval_addr());
+  return JS_EvaluateUCScript(cx, obj, JS_GetStringChars(str), JS_GetStringLength(str), "", 1,
+                             ignored.jsval_addr());
 }
 
 bool JetpackChild::sReportingError;

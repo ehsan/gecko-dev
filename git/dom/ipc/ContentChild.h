@@ -56,7 +56,6 @@ namespace dom {
 class AlertObserver;
 class PrefObserver;
 class ConsoleListener;
-class PStorageChild;
 
 class ContentChild : public PContentChild
 {
@@ -80,9 +79,6 @@ public:
     virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags);
     virtual bool DeallocPBrowser(PBrowserChild*);
 
-    virtual PCrashReporterChild* AllocPCrashReporter();
-    virtual bool DeallocPCrashReporter(PCrashReporterChild*);
-
     virtual PTestShellChild* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellChild*);
     virtual bool RecvPTestShellConstructor(PTestShellChild*);
@@ -104,13 +100,9 @@ public:
             const IPC::URI& aReferrer);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
 
-    virtual PStorageChild* AllocPStorage(const StorageConstructData& aData);
-    virtual bool DeallocPStorage(PStorageChild* aActor);
-
     virtual bool RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
                                     const InfallibleTArray<ResourceMapping>& resources,
-                                    const InfallibleTArray<OverrideMapping>& overrides,
-                                    const nsCString& locale);
+                                    const InfallibleTArray<OverrideMapping>& overrides);
 
     virtual bool RecvSetOffline(const PRBool& offline);
 
@@ -119,7 +111,6 @@ public:
     nsresult AddRemoteAlertObserver(const nsString& aData, nsIObserver* aObserver);
 
     virtual bool RecvPreferenceUpdate(const PrefTuple& aPref);
-    virtual bool RecvClearUserPreference(const nsCString& aPrefName);
 
     virtual bool RecvNotifyAlertsObserver(const nsCString& aType, const nsString& aData);
 
@@ -131,14 +122,6 @@ public:
 
     virtual bool RecvAccelerationChanged(const double& x, const double& y,
                                          const double& z);
-
-    virtual bool RecvScreenSizeChanged(const gfxIntSize &size);
-
-    virtual bool RecvFlushMemory(const nsString& reason);
-
-#ifdef ANDROID
-    gfxIntSize GetScreenSize() { return mScreenSize; }
-#endif
 
 private:
     NS_OVERRIDE
@@ -155,9 +138,6 @@ private:
 
     InfallibleTArray<nsAutoPtr<AlertObserver> > mAlertObservers;
     nsRefPtr<ConsoleListener> mConsoleListener;
-#ifdef ANDROID
-    gfxIntSize mScreenSize;
-#endif
 
     static ContentChild* sSingleton;
 

@@ -138,7 +138,7 @@ SetVMFrameRegs(VMFrame &f)
     f.cx->setCurrentRegs(&f.regs);
 }
 
-#if defined(__APPLE__) || (defined(XP_WIN) && !defined(JS_CPU_X64)) || defined(XP_OS2)
+#if defined(__APPLE__) || defined(XP_WIN)
 # define SYMBOL_STRING(name) "_" #name
 #else
 # define SYMBOL_STRING(name) #name
@@ -152,7 +152,7 @@ JS_STATIC_ASSERT(offsetof(JSFrameRegs, sp) == 0);
 # define SYMBOL_STRING_RELOC(name) SYMBOL_STRING(name)
 #endif
 
-#if (defined(XP_WIN) || defined(XP_OS2)) && defined(JS_CPU_X86)
+#if defined(XP_WIN) && defined(JS_CPU_X86)
 # define SYMBOL_STRING_VMFRAME(name) "@" #name "@4"
 #else
 # define SYMBOL_STRING_VMFRAME(name) SYMBOL_STRING_RELOC(name)
@@ -712,7 +712,7 @@ void
 JaegerCompartment::Finish()
 {
     TrampolineCompiler::release(&trampolines);
-    js_delete(execAlloc);
+    delete execAlloc;
 #ifdef JS_METHODJIT_PROFILE_STUBS
     FILE *fp = fopen("/tmp/stub-profiling", "wt");
 # define OPDEF(op,val,name,image,length,nuses,ndefs,prec,format) \
@@ -741,12 +741,8 @@ mjit::EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLi
     JS_ASSERT(cx->regs->fp  == fp);
     JSFrameRegs *oldRegs = cx->regs;
 
-    JSBool ok;
-    {
-        AssertCompartmentUnchanged pcc(cx);
-        JSAutoResolveFlags rf(cx, JSRESOLVE_INFER);
-        ok = JaegerTrampoline(cx, fp, code, stackLimit);
-    }
+    JSAutoResolveFlags rf(cx, JSRESOLVE_INFER);
+    JSBool ok = JaegerTrampoline(cx, fp, code, stackLimit);
 
     cx->setCurrentRegs(oldRegs);
     JS_ASSERT(fp == cx->fp());
@@ -838,48 +834,23 @@ mjit::JITScript::~JITScript()
 #endif
 }
 
-/* Please keep in sync with Compiler::finishThisUp! */
-size_t
-mjit::JITScript::scriptDataSize()
-{
-    return sizeof(JITScript) +
-        sizeof(NativeMapEntry) * nNmapPairs +
-#if defined JS_MONOIC
-        sizeof(ic::MICInfo) * nMICs +
-        sizeof(ic::CallICInfo) * nCallICs +
-        sizeof(ic::EqualityICInfo) * nEqualityICs +
-        sizeof(ic::TraceICInfo) * nTraceICs +
-#endif
-#if defined JS_POLYIC
-        sizeof(ic::PICInfo) * nPICs +
-        sizeof(ic::GetElementIC) * nGetElems +
-        sizeof(ic::SetElementIC) * nSetElems +
-#endif
-        sizeof(CallSite) * nCallSites;
-}
-
 void
 mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
 {
     // NB: The recompiler may call ReleaseScriptCode, in which case it
     // will get called again when the script is destroyed, so we
     // must protect against calling ReleaseScriptCode twice.
-    JITScript *jscr;
 
-    if ((jscr = script->jitNormal)) {
-        cx->runtime->mjitMemoryUsed -= jscr->scriptDataSize() + jscr->mainCodeSize();
-
-        jscr->~JITScript();
-        cx->free(jscr);
+    if (script->jitNormal) {
+        script->jitNormal->~JITScript();
+        cx->free(script->jitNormal);
         script->jitNormal = NULL;
         script->jitArityCheckNormal = NULL;
     }
 
-    if ((jscr = script->jitCtor)) {
-        cx->runtime->mjitMemoryUsed -= jscr->scriptDataSize() + jscr->mainCodeSize();
-
-        jscr->~JITScript();
-        cx->free(jscr);
+    if (script->jitCtor) {
+        script->jitCtor->~JITScript();
+        cx->free(script->jitCtor);
         script->jitCtor = NULL;
         script->jitArityCheckCtor = NULL;
     }

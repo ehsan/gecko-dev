@@ -38,16 +38,20 @@
 function test() {
   waitForExplicitFinish();
 
-	newWindowWithTabView(onTabViewWindowLoaded);
+  window.addEventListener("tabviewshown", onTabViewWindowLoaded, false);
+  if (TabView.isVisible())
+    onTabViewWindowLoaded();
+  else
+    TabView.show();
 }
 
-function onTabViewWindowLoaded(win) {
-  win.removeEventListener("tabviewshown", onTabViewWindowLoaded, false);
+function onTabViewWindowLoaded() {
+  window.removeEventListener("tabviewshown", onTabViewWindowLoaded, false);
 
-  let contentWindow = win.document.getElementById("tab-view").contentWindow;
-  let [originalTab] = win.gBrowser.visibleTabs;
+  let contentWindow = document.getElementById("tab-view").contentWindow;
+  let [originalTab] = gBrowser.visibleTabs;
 
-  ok(win.TabView.isVisible(), "Tab View is visible");
+  ok(TabView.isVisible(), "Tab View is visible");
   is(contentWindow.GroupItems.groupItems.length, 1, "There is only one group");
   let currentActiveGroup = contentWindow.GroupItems.getActiveGroupItem();
 
@@ -70,22 +74,22 @@ function onTabViewWindowLoaded(win) {
   is(secondGroup.getBounds().top - firstGroup.getBounds().bottom, 40,
     "There's currently 40 px between the first group and second group");
 
-  // set double click interval to negative so quick drag and drop doesn't 
-  // trigger the double click code.
-  let origDBlClickInterval = contentWindow.UI.DBLCLICK_INTERVAL;
-  contentWindow.UI.DBLCLICK_INTERVAL = -1;
-
   let endGame = function() {
-    contentWindow.UI.DBLCLICK_INTERVAL = origDBlClickInterval;
-
     firstGroup.container.parentNode.removeChild(firstGroup.container);
     firstGroup.close();
     thirdGroup.container.parentNode.removeChild(thirdGroup.container);
     thirdGroup.close();
+    let onTabViewHidden = function() {
+      window.removeEventListener("tabviewhidden", onTabViewHidden, false);
+      ok(!TabView.isVisible(), "TabView is shown");
+      finish();
+    };
+    window.addEventListener("tabviewhidden", onTabViewHidden, false);
 
-		win.close();
-    ok(win.closed, "new window is closed");
-    finish();
+    ok(TabView.isVisible(), "TabView is shown");
+    
+    gBrowser.selectedTab = originalTab;
+    TabView.hide();
   }
   
   let continueWithPart2 = function() {
@@ -148,7 +152,7 @@ function simulateDragDrop(tabItem, offsetX, offsetY, contentWindow) {
 
   EventUtils.synthesizeMouse(
     tabItem.container, 1, 1, { type: "mousedown" }, contentWindow);
-  let event = contentWindow.document.createEvent("DragEvents");
+  event = contentWindow.document.createEvent("DragEvents");
   event.initDragEvent(
     "dragenter", true, true, contentWindow, 0, 0, 0, 0, 0,
     false, false, false, false, 1, null, dataTransfer);
@@ -196,20 +200,4 @@ function checkSnap(item, offsetX, offsetY, contentWindow, callback) {
   };
   item.container.addEventListener('drop', onDrop, false);
   simulateDragDrop(item, offsetX, offsetY, contentWindow);
-}
-
-function newWindowWithTabView(callback) {
-  let charsetArg = "charset=" + window.content.document.characterSet;
-  let win = window.openDialog(getBrowserURL(), "_blank", "chrome,all,dialog=no,height=800,width=1000",
-                              "about:blank", charsetArg, null, null, true);
-  let onLoad = function() {
-    win.removeEventListener("load", onLoad, false);
-    let onShown = function() {
-      win.removeEventListener("tabviewshown", onShown, false);
-      callback(win);
-    };
-    win.addEventListener("tabviewshown", onShown, false);
-    win.TabView.toggle();
-  }
-  win.addEventListener("load", onLoad, false);
 }

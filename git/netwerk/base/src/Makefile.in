@@ -94,10 +94,6 @@ CPPSRCS		= \
 		nsDNSPrefetch.cpp \
 		$(NULL)
 
-ifdef MOZ_IPC
-	CPPSRCS += RedirectChannelRegistrar.cpp
-endif
-
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 	CPPSRCS += nsURLHelperOS2.cpp
 else

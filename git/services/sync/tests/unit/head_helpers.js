@@ -1,5 +1,3 @@
-var btoa;
-
 // initialize nss
 let ch = Cc["@mozilla.org/security/hash;1"].
          createInstance(Ci.nsICryptoHash);
@@ -74,7 +72,7 @@ function FakeTimerService() {
   Utils.makeTimerForCall = self.makeTimerForCall;
 };
 
-btoa = Cu.import("resource://services-sync/log4moz.js").btoa;
+Cu.import("resource://services-sync/log4moz.js");
 function getTestLogger(component) {
   return Log4Moz.repository.getLogger("Testing");
 }
@@ -238,33 +236,54 @@ FakeCryptoService.prototype = {
     return aCipherText;
   },
 
+  generateKeypair: function(aPassphrase, aSalt, aIV,
+                            aEncodedPublicKey, aWrappedPrivateKey) {
+      aEncodedPublicKey.value = aPassphrase;
+      aWrappedPrivateKey.value = aPassphrase;
+  },
+
   generateRandomKey: function() {
-    return btoa("fake-symmetric-key-" + this.counter++);
+    return "fake-symmetric-key-" + this.counter++;
   },
 
   generateRandomIV: function() {
     // A base64-encoded IV is 24 characters long
-    return btoa("fake-fake-fake-random-iv");
-  },
-
-  expandData : function expandData(data, len) {
-    return data;
-  },
-
-  deriveKeyFromPassphrase : function (passphrase, salt, keyLength) {
-    return "some derived key string composed of bytes";
+    return "fake-fake-fake-random-iv";
   },
 
   generateRandomBytes: function(aByteCount) {
     return "not-so-random-now-are-we-HA-HA-HA! >:)".slice(aByteCount);
   },
+
+  wrapSymmetricKey: function(aSymmetricKey, aEncodedPublicKey) {
+    return aSymmetricKey;
+  },
+
+  unwrapSymmetricKey: function(aWrappedSymmetricKey, aWrappedPrivateKey,
+                               aPassphrase, aSalt, aIV) {
+    if (!this.verifyPassphrase(aWrappedPrivateKey, aPassphrase)) {
+      throw Components.Exception("Unwrapping the private key failed",
+                                 Cr.NS_ERROR_FAILURE);
+    }
+    return aWrappedSymmetricKey;
+  },
+
+  rewrapPrivateKey: function(aWrappedPrivateKey, aPassphrase, aSalt, aIV,
+                             aNewPassphrase) {
+    return aNewPassphrase;
+  },
+
+  verifyPassphrase: function(aWrappedPrivateKey, aPassphrase, aSalt, aIV) {
+    return aWrappedPrivateKey == aPassphrase;
+  }
+
 };
 
 
 function SyncTestingInfrastructure(engineFactory) {
   let __fakePasswords = {
     'Mozilla Services Password': {foo: "bar"},
-    'Mozilla Services Encryption Passphrase': {foo: "a-abcde-abcde-abcde-abcde-abcde"}
+    'Mozilla Services Encryption Passphrase': {foo: "passphrase"}
   };
 
   let __fakePrefs = {
@@ -391,20 +410,4 @@ let _ = function(some, debug, text, to) print(Array.slice(arguments).join(" "));
 
 _("Setting the identity for passphrase");
 Cu.import("resource://services-sync/identity.js");
-
-
-/*
- * Test setup helpers.
- */
-
-// Turn WBO cleartext into "encrypted" payload as it goes over the wire
-function encryptPayload(cleartext) {
-  if (typeof cleartext == "object") {
-    cleartext = JSON.stringify(cleartext);
-  }
-
-  return {ciphertext: cleartext, // ciphertext == cleartext with fake crypto
-          IV: "irrelevant",
-          hmac: Utils.sha256HMAC(cleartext, Utils.makeHMACKey(""))};
-}
 

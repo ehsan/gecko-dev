@@ -152,17 +152,20 @@ private:
     nsDocAccessibleHashtable;
 
   /**
-   * Get first entry of the document accessible from cache.
+   * Shutdown and remove the document accessible from cache.
    */
   static PLDHashOperator
-    GetFirstEntryInDocCache(const nsIDocument* aKey,
-                            nsDocAccessible* aDocAccessible,
-                            void* aUserArg);
+    ClearDocCacheEntry(const nsIDocument* aKey,
+                       nsRefPtr<nsDocAccessible>& aDocAccessible,
+                       void* aUserArg);
 
   /**
    * Clear the cache and shutdown the document accessibles.
    */
-  void ClearDocCache();
+  void ClearDocCache()
+  {
+    mDocAccessibleCache.Enumerate(ClearDocCacheEntry, static_cast<void*>(this));
+  }
 
   struct nsSearchAccessibleInCacheArg
   {

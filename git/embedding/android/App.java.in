@@ -36,16 +36,19 @@
  * ***** END LICENSE BLOCK ***** */
 
 #filter substitution
-package @ANDROID_PACKAGE_NAME@;
+package org.mozilla.@MOZ_APP_NAME@;
 
 import org.mozilla.gecko.GeckoApp;
 
 public class App extends GeckoApp {
-    public String getPackageName() {
-	return "@ANDROID_PACKAGE_NAME@";
+    public String getAppName() {
+	return "@MOZ_APP_NAME@";
     }
     public String getContentProcessName() {
         return "@MOZ_CHILD_PROCESS_NAME@";
+    }
+    public int getMinCPUVersion() {
+        return @MOZ_MIN_CPU_VERSION@;
     }
 };
 

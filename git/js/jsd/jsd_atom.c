@@ -103,7 +103,7 @@ jsd_CreateAtomTable(JSDContext* jsdc)
 #ifdef TEST_ATOMS
     _testAtoms(jsdc);
 #endif    
-    return !!jsdc->atoms;
+    return (JSBool) jsdc->atoms;
 }
 
 void

@@ -3,8 +3,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// UnfoldSelect is an AST traverser to output the select operator ?: as if-else statements
-//
 
 #include "compiler/UnfoldSelect.h"
 
@@ -46,7 +44,7 @@ bool UnfoldSelect::visitSelection(Visit visit, TIntermSelection *node)
                "}\n"
                "else\n"
                "{\n";
-        node->getFalseBlock()->traverse(this);
+        node->getCondition()->traverse(this);
         out << "    t" << i << " = ";
         node->getFalseBlock()->traverse(mOutputHLSL);
         out << ";\n"

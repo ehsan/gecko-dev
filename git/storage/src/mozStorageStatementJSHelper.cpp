@@ -224,11 +224,11 @@ StatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
     static_cast<mozIStorageStatement *>(aWrapper->Native())
   );
 
-  JSFlatString *str = JSID_TO_FLAT_STRING(aId);
-  if (::JS_FlatStringEqualsAscii(str, "row"))
+  JSString *str = JSID_TO_STRING(aId);
+  if (::JS_MatchStringAndAscii(str, "row"))
     return getRow(stmt, aCtx, aScopeObj, _result);
 
-  if (::JS_FlatStringEqualsAscii(str, "params"))
+  if (::JS_MatchStringAndAscii(str, "params"))
     return getParams(stmt, aCtx, aScopeObj, _result);
 
   return NS_OK;
@@ -247,7 +247,7 @@ StatementJSHelper::NewResolve(nsIXPConnectWrappedNative *aWrapper,
   if (!JSID_IS_STRING(aId))
     return NS_OK;
 
-  if (::JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(aId), "step")) {
+  if (::JS_MatchStringAndAscii(JSID_TO_STRING(aId), "step")) {
     *_retval = ::JS_DefineFunction(aCtx, aScopeObj, "step", stepFunc,
                                    0, 0) != nsnull;
     *_objp = aScopeObj;

@@ -78,17 +78,6 @@ registerCleanupFunction(function() {
   });
 });
 
-function log_exceptions(aCallback) {
-  try {
-    var args = Array.slice(arguments, 1);
-    return aCallback.apply(null, args);
-  }
-  catch (e) {
-    info("Exception thrown: " + e);
-    throw e;
-  }
-}
-
 function add_test(test) {
   gPendingTests.push(test);
 }
@@ -110,7 +99,7 @@ function run_next_test() {
     info("Running test " + gTestsRun);
 
   gTestStart = Date.now();
-  log_exceptions(test);
+  test();
 }
 
 function get_addon_file_url(aFilename) {
@@ -201,33 +190,33 @@ function wait_for_view_load(aManagerWindow, aCallback, aForceWait, aLongerTimeou
   requestLongerTimeout(aLongerTimeout ? aLongerTimeout : 2);
 
   if (!aForceWait && !aManagerWindow.gViewController.isLoading) {
-    log_exceptions(aCallback, aManagerWindow);
+    aCallback(aManagerWindow);
     return;
   }
 
   aManagerWindow.document.addEventListener("ViewChanged", function() {
     aManagerWindow.document.removeEventListener("ViewChanged", arguments.callee, false);
-    log_exceptions(aCallback, aManagerWindow);
+    aCallback(aManagerWindow);
   }, false);
 }
 
 function wait_for_manager_load(aManagerWindow, aCallback) {
   if (!aManagerWindow.gIsInitializing) {
-    log_exceptions(aCallback, aManagerWindow);
+    aCallback(aManagerWindow);
     return;
   }
 
   info("Waiting for initialization");
   aManagerWindow.document.addEventListener("Initialized", function() {
     aManagerWindow.document.removeEventListener("Initialized", arguments.callee, false);
-    log_exceptions(aCallback, aManagerWindow);
+    aCallback(aManagerWindow);
   }, false);
 }
 
 function open_manager(aView, aCallback, aLoadCallback, aLongerTimeout) {
   function setup_manager(aManagerWindow) {
     if (aLoadCallback)
-      log_exceptions(aLoadCallback, aManagerWindow);
+      aLoadCallback(aManagerWindow);
 
     if (aView)
       aManagerWindow.loadView(aView);
@@ -262,7 +251,7 @@ function close_manager(aManagerWindow, aCallback, aLongerTimeout) {
 
   aManagerWindow.addEventListener("unload", function() {
     this.removeEventListener("unload", arguments.callee, false);
-    log_exceptions(aCallback);
+    aCallback();
   }, false);
 
   aManagerWindow.close();
@@ -300,14 +289,6 @@ function wait_for_window_open(aCallback) {
     onWindowTitleChange: function(aWindow, aTitle) {
     }
   });
-}
-
-function get_string(aName) {
-  var bundle = Services.strings.createBundle("chrome://mozapps/locale/extensions/extensions.properties");
-  if (arguments.length == 1)
-    return bundle.GetStringFromName(aName);
-  var args = Array.slice(arguments, 1);
-  return bundle.formatStringFromName(aName, args, args.length);
 }
 
 function is_hidden(aElement) {
@@ -472,7 +453,7 @@ MockProvider.prototype = {
   addons: null,
   installs: null,
   started: null,
-  apiDelay: 10,
+  apiDelay: 100,
   callbackTimers: null,
   useAsyncCallbacks: null,
 
@@ -548,22 +529,11 @@ MockProvider.prototype = {
    */
   addInstall: function MP_addInstall(aInstall) {
     this.installs.push(aInstall);
-    aInstall._provider = this;
 
     if (!this.started)
       return;
 
     aInstall.callListeners("onNewInstall");
-  },
-
-  removeInstall: function MP_removeInstall(aInstall) {
-    var pos = this.installs.indexOf(aInstall);
-    if (pos == -1) {
-      ok(false, "Tried to remove an install that wasn't registered with the mock provider");
-      return;
-    }
-
-    this.installs.splice(pos, 1);
   },
 
   /**
@@ -605,20 +575,14 @@ MockProvider.prototype = {
   createInstalls: function MP_createInstalls(aInstallProperties) {
     var newInstalls = [];
     aInstallProperties.forEach(function(aInstallProp) {
-      var install = new MockInstall(aInstallProp.name || null,
-                                    aInstallProp.type || null,
-                                    null);
+      var install = new MockInstall();
       for (var prop in aInstallProp) {
-        switch (prop) {
-          case "name":
-          case "type":
-            break;
-          case "sourceURI":
-            install[prop] = NetUtil.newURI(aInstallProp[prop]);
-            break;
-          default:
-            install[prop] = aInstallProp[prop];
+        if (prop == "sourceURI") {
+          install[prop] = NetUtil.newURI(aInstallProp[prop]);
+          continue;
         }
+
+        install[prop] = aInstallProp[prop];
       }
       this.addInstall(install);
       newInstalls.push(install);
@@ -985,9 +949,7 @@ MockAddon.prototype = {
 
 function MockInstall(aName, aType, aAddonToInstall) {
   this.name = aName || "";
-  // Don't expose type until download completed
-  this._type = aType || "extension";
-  this.type = null;
+  this.type = aType || "extension";
   this.version = "1.0";
   this.iconURL = "";
   this.infoURL = "";
@@ -1020,24 +982,6 @@ MockInstall.prototype = {
           return;
         }
 
-        this.type = this._type;
-
-        // Adding addon to MockProvider to be implemented when needed
-        if (this._addonToInstall)
-          this.addon = this._addonToInstall;
-        else {
-          this.addon = new MockAddon("", this.name, this.type);
-          this.addon.version = this.version;
-          this.addon.pendingOperations = AddonManager.PENDING_INSTALL;
-        }
-        this.addon.install = this;
-        if (this.existingAddon) {
-          if (!this.addon.id)
-            this.addon.id = this.existingAddon.id;
-          this.existingAddon.pendingUpgrade = this.addon;
-          this.existingAddon.pendingOperations |= AddonManager.PENDING_UPGRADE;
-        }
-
         this.state = AddonManager.STATE_DOWNLOADED;
         this.callListeners("onDownloadEnded");
 
@@ -1049,7 +993,13 @@ MockInstall.prototype = {
           return;
         }
 
-        AddonManagerPrivate.callAddonListeners("onInstalling", this.addon);
+        // Adding addon to MockProvider to be implemented when needed
+        if (this._addonToInstall)
+          this.addon = this._addonToInstall;
+        else {
+          this.addon = new MockAddon("", this.name, this.type);
+          this.addon.pendingOperations = AddonManager.PENDING_INSTALL;
+        }
 
         this.state = AddonManager.STATE_INSTALLED;
         this.callListeners("onInstallEnded");
@@ -1071,7 +1021,6 @@ MockInstall.prototype = {
         break;
       case AddonManager.STATE_INSTALLED:
         this.state = AddonManager.STATE_CANCELLED;
-        this._provider.removeInstall(this);
         this.callListeners("onInstallCancelled");
         break;
       default:

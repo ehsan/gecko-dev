@@ -1206,11 +1206,8 @@ found:
                                   dispData->method, *typeData->iid);
             } else if (useGenericInterface &&
                        aPusher->RePush(aCurrentTarget)) {
-              if (NS_FAILED(HandleEventSubType(ls, ls->mListener, *aDOMEvent,
-                                               aCurrentTarget, aFlags,
-                                               aPusher))) {
-                aEvent->flags |= NS_EVENT_FLAG_EXCEPTION_THROWN;
-              }
+              HandleEventSubType(ls, ls->mListener, *aDOMEvent,
+                                 aCurrentTarget, aFlags, aPusher);
             }
           }
         }
@@ -1315,7 +1312,6 @@ nsEventListenerManager::DispatchEvent(nsIDOMEvent* aEvent, PRBool *_retval)
 
   // Do nothing if the element does not belong to a document
   if (!document) {
-    *_retval = PR_TRUE;
     return NS_OK;
   }
 

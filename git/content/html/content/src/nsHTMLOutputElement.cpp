@@ -43,7 +43,6 @@
 #include "nsIConstraintValidation.h"
 #include "nsIEventStateManager.h"
 #include "mozAutoDocUpdate.h"
-#include "nsHTMLFormElement.h"
 
 
 class nsHTMLOutputElement : public nsGenericHTMLFormElement,
@@ -161,9 +160,7 @@ nsHTMLOutputElement::SetCustomValidity(const nsAString& aError)
   if (doc) {
     MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
     doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
-                                            NS_EVENT_STATE_VALID |
-                                            NS_EVENT_STATE_MOZ_UI_INVALID |
-                                            NS_EVENT_STATE_MOZ_UI_VALID);
+                                            NS_EVENT_STATE_VALID);
   }
 
   return NS_OK;
@@ -207,17 +204,7 @@ nsHTMLOutputElement::IntrinsicState() const
 
   // We don't have to call IsCandidateForConstraintValidation()
   // because <output> can't be barred from constraint validation.
-  if (IsValid()) {
-    states |= NS_EVENT_STATE_VALID;
-    if (!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-      states |= NS_EVENT_STATE_MOZ_UI_VALID;
-    }
-  } else {
-    states |= NS_EVENT_STATE_INVALID;
-    if (!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-      states |= NS_EVENT_STATE_MOZ_UI_INVALID;
-    }
-  }
+  states |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
 
   return states;
 }

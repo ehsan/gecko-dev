@@ -379,9 +379,6 @@ ImageLayerOGL::RenderLayer(int,
   mOGLManager->MakeCurrent();
 
   nsRefPtr<Image> image = GetContainer()->GetCurrentImage();
-  if (!image) {
-    return;
-  }
 
   if (image->GetFormat() == Image::PLANAR_YCBCR) {
     PlanarYCbCrImageOGL *yuvImage =
@@ -432,8 +429,9 @@ ImageLayerOGL::RenderLayer(int,
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, cairoImage->mTexture.GetTextureID());
 
-    ColorTextureLayerProgram *program = 
-      mOGLManager->GetColorTextureLayerProgram(cairoImage->mLayerProgram);
+    ColorTextureLayerProgram *program =
+      mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(),
+                                        cairoImage->mASurfaceAsGLContext != 0);
 
     ApplyFilter(mFilter);
 
@@ -663,7 +661,7 @@ PlanarYCbCrImageOGL::UpdateTextures(GLContext *gl)
 }
 
 CairoImageOGL::CairoImageOGL(LayerManagerOGL *aManager)
-  : CairoImage(nsnull), mSize(0, 0)
+  : CairoImage(nsnull)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread to create a cairo image");
 
@@ -682,11 +680,13 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   mozilla::gl::GLContext *gl = mTexture.GetGLContext();
   gl->MakeCurrent();
 
-  GLuint tex = mTexture.GetTextureID();
-
-  gl->fActiveTexture(LOCAL_GL_TEXTURE0);
-  InitTexture(gl, tex, LOCAL_GL_RGBA, aData.mSize);
-  mSize = aData.mSize;
+  if (mSize != aData.mSize) {
+    gl->fActiveTexture(LOCAL_GL_TEXTURE0);
+    InitTexture(gl, mTexture.GetTextureID(), LOCAL_GL_RGBA, aData.mSize);
+    mSize = aData.mSize;
+  } else {
+    gl->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture.GetTextureID());
+  }
 
   if (!mASurfaceAsGLContext) {
     mASurfaceAsGLContext = GLContextProvider::CreateForNativePixmapSurface(aData.mSurface);
@@ -697,10 +697,22 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   if (mASurfaceAsGLContext)
     return;
 
-  mLayerProgram =
-    gl->UploadSurfaceToTexture(aData.mSurface,
-                               nsIntRect(0,0, mSize.width, mSize.height),
-                               tex);
+  // XXX This could be a lot more efficient if we already have an image-compatible
+  // surface
+  // XXX if we ever create an ImageFormatRGB24 surface, make sure that we use
+  // a BGRX program in that case (instead of BGRA)
+  nsRefPtr<gfxImageSurface> imageSurface =
+    new gfxImageSurface(aData.mSize, gfxASurface::ImageFormatARGB32);
+  nsRefPtr<gfxContext> context = new gfxContext(imageSurface);
+
+  context->SetSource(aData.mSurface);
+  context->Paint();
+
+  gl->fTexSubImage2D(LOCAL_GL_TEXTURE_2D, 0,
+                     0, 0, mSize.width, mSize.height,
+                     LOCAL_GL_RGBA,
+                     LOCAL_GL_UNSIGNED_BYTE,
+                     imageSurface->Data());
 }
 
 
@@ -736,7 +748,13 @@ ShadowImageLayerOGL::Swap(gfxSharedImageSurface* aNewFront)
 
     gfxSize sz = aNewFront->GetSize();
     nsIntRegion updateRegion(nsIntRect(0, 0, sz.width, sz.height));
-    mTexImage->DirectUpdate(aNewFront, updateRegion);
+    // NB: this gfxContext must not escape EndUpdate() below
+    nsRefPtr<gfxContext> dest = mTexImage->BeginUpdate(updateRegion);
+
+    dest->SetOperator(gfxContext::OPERATOR_SOURCE);
+    dest->DrawSurface(aNewFront, aNewFront->GetSize());
+
+    mTexImage->EndUpdate();
   }
 
   return aNewFront;
@@ -750,12 +768,6 @@ ShadowImageLayerOGL::DestroyFrontBuffer()
     mOGLManager->DestroySharedSurface(mDeadweight, mAllocator);
     mDeadweight = nsnull;
   }
-}
-
-void
-ShadowImageLayerOGL::Disconnect()
-{
-  Destroy();
 }
 
 void
@@ -782,7 +794,8 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImage->Texture());
   ColorTextureLayerProgram *program =
-    mOGLManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
+    mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(),
+                                      mTexImage->IsRGB());
 
   ApplyFilter(mFilter);
 

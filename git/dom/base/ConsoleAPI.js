@@ -19,8 +19,6 @@
  *
  * Contributor(s):
  *  David Dahl <ddahl@mozilla.com>  (Original Author)
- *  Ryan Flint <rflint@mozilla.com>
- *  Rob Campbell <rcampbell@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -76,9 +74,8 @@ ConsoleAPI.prototype = {
       error: function CA_error() {
         self.notifyObservers(id, "error", arguments);
       },
-      // many flavors of console objects exist on the web, so calling
-      // unimplemented methods shouldn't be fatal. See bug 614350
-      __noSuchMethod__: function CA_nsm() {}
+      // TODO: remove this once bug 612405 is fixed
+      classID: self.classID
     };
   },
 

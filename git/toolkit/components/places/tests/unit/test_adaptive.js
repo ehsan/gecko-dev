@@ -385,6 +385,10 @@ let tests = [
  * Test adaptive autocomplete.
  */
 function run_test() {
+  // doAdaptiveDecay notifies idle-daily to fix frecency.  Unfortunately this
+  // also causes a vacuum at each iteration.  Thus disable vacuum for this test.
+  Services.prefs.setIntPref("places.last_vacuum", parseInt(Date.now()/1000));
+
   do_test_pending();
   next_test();
 }

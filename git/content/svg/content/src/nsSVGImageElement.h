@@ -45,7 +45,7 @@
 #include "nsImageLoadingContent.h"
 #include "nsSVGString.h"
 #include "nsSVGLength2.h"
-#include "SVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGPreserveAspectRatio.h"
 
 typedef nsSVGPathGeometryElement nsSVGImageElementBase;
 
@@ -63,8 +63,6 @@ protected:
   virtual ~nsSVGImageElement();
 
 public:
-  typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-
   // interfaces:
   
   NS_DECL_ISUPPORTS_INHERITED
@@ -101,7 +99,7 @@ protected:
   nsresult LoadSVGImage(PRBool aForce, PRBool aNotify);
 
   virtual LengthAttributesInfo GetLengthInfo();
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
+  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
   virtual void DidAnimateString(PRUint8 aAttrEnum);
 
@@ -109,7 +107,7 @@ protected:
   nsSVGLength2 mLengthAttributes[4];
   static LengthInfo sLengthInfo[4];
 
-  SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
+  nsSVGPreserveAspectRatio mPreserveAspectRatio;
 
   enum { HREF };
   nsSVGString mStringAttributes[1];

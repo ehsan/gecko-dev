@@ -58,6 +58,26 @@ typedef struct InstanceData {
 } InstanceData;
 
 static void
+fillPluginFunctionTable(NPPluginFuncs* pFuncs)
+{
+  pFuncs->version = 11;
+  pFuncs->size = sizeof(*pFuncs);
+  pFuncs->newp = NPP_New;
+  pFuncs->destroy = NPP_Destroy;
+  pFuncs->setwindow = NPP_SetWindow;
+  pFuncs->newstream = NPP_NewStream;
+  pFuncs->destroystream = NPP_DestroyStream;
+  pFuncs->asfile = NPP_StreamAsFile;
+  pFuncs->writeready = NPP_WriteReady;
+  pFuncs->write = NPP_Write;
+  pFuncs->print = NPP_Print;
+  pFuncs->event = NPP_HandleEvent;
+  pFuncs->urlnotify = NPP_URLNotify;
+  pFuncs->getvalue = NPP_GetValue;
+  pFuncs->setvalue = NPP_SetValue;
+}
+
+static void
 drawWindow(InstanceData* instanceData, GdkDrawable* gdkWindow)
 {
   NPWindow window = instanceData->window;
@@ -106,24 +126,7 @@ NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs)
 {
   sBrowserFuncs = bFuncs;
 
-  // Check the size of the provided structure based on the offset of the
-  // last member we need.
-  if (pFuncs->size < (offsetof(NPPluginFuncs, setvalue) + sizeof(void*)))
-    return NPERR_INVALID_FUNCTABLE_ERROR;
-
-  pFuncs->newp = NPP_New;
-  pFuncs->destroy = NPP_Destroy;
-  pFuncs->setwindow = NPP_SetWindow;
-  pFuncs->newstream = NPP_NewStream;
-  pFuncs->destroystream = NPP_DestroyStream;
-  pFuncs->asfile = NPP_StreamAsFile;
-  pFuncs->writeready = NPP_WriteReady;
-  pFuncs->write = NPP_Write;
-  pFuncs->print = NPP_Print;
-  pFuncs->event = NPP_HandleEvent;
-  pFuncs->urlnotify = NPP_URLNotify;
-  pFuncs->getvalue = NPP_GetValue;
-  pFuncs->setvalue = NPP_SetValue;
+  fillPluginFunctionTable(pFuncs);
 
   return NPERR_NO_ERROR;
 }

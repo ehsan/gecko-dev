@@ -34,23 +34,23 @@
 #
 # ***** END LICENSE BLOCK *****
 
-.extern invoke_copy_to_stack
+.extern _invoke_copy_to_stack
 
 
 .text
-.intel_syntax noprefix
+.intel_syntax
 
 #
 #_XPTC__InvokebyIndex(nsISupports* that, PRUint32 methodIndex,
 #                    PRUint32 paramCount, nsXPTCVariant* params)
 #
 
-.globl XPTC__InvokebyIndex
-.def XPTC__InvokebyIndex
+.globl _XPTC__InvokebyIndex
+.def _XPTC__InvokebyIndex
    .scl 3
    .type 46
 .endef
-XPTC__InvokebyIndex:
+_XPTC__InvokebyIndex:
 
    #
    # store register parameters
@@ -104,7 +104,7 @@ XPTC__InvokebyIndex:
 
     sub     rsp, 32
 
-    call    invoke_copy_to_stack  # rcx = d
+    call    _invoke_copy_to_stack # rcx = d
                                   # edx = paramCount
                                   # r8  = s
 

@@ -47,7 +47,6 @@
 #include "jsgcchunk.h"
 #include "nsIMemoryReporter.h"
 #include "mozilla/FunctionTimer.h"
-#include "prsystem.h"
 
 /***************************************************************************/
 
@@ -240,14 +239,6 @@ ContextCallback(JSContext *cx, uintN operation)
     return JS_TRUE;
 }
 
-xpc::CompartmentPrivate::~CompartmentPrivate()
-{
-    if (waiverWrapperMap)
-        delete waiverWrapperMap;
-    if (expandoMap)
-        delete expandoMap;
-}
-
 static JSBool
 CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
 {
@@ -404,24 +395,6 @@ struct ClearedGlobalObject : public JSDHashEntryHdr
     JSObject* mGlobalObject;
 };
 
-static PLDHashOperator
-TraceExpandos(XPCWrappedNative *wn, JSObject *expando, void *aClosure)
-{
-    JS_CALL_OBJECT_TRACER(static_cast<JSTracer *>(aClosure), expando, "expando object");
-    return PL_DHASH_NEXT;
-}
-
-
-static PLDHashOperator
-TraceCompartment(nsCStringHashKey& aKey, JSCompartment *compartment, void *aClosure)
-{
-    xpc::CompartmentPrivate *priv = (xpc::CompartmentPrivate *)
-        JS_GetCompartmentPrivate(static_cast<JSTracer *>(aClosure)->context, compartment);
-    if (priv->expandoMap)
-        priv->expandoMap->EnumerateRead(TraceExpandos, (JSContext *)aClosure);
-    return PL_DHASH_NEXT;
-}
-
 void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
 {
     JSContext *iter = nsnull, *acx;
@@ -443,10 +416,6 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
 
     if(mJSHolders.ops)
         JS_DHashTableEnumerate(&mJSHolders, TraceJSHolder, trc);
-
-    // Trace compartments.
-    GetCompartmentMap().EnumerateRead((XPCCompartmentMap::EnumReadFunction)
-                                      TraceCompartment, trc);
 }
 
 struct Closure
@@ -575,39 +544,6 @@ DoDeferredRelease(nsTArray<T> &array)
     }
 }
 
-static JSDHashOperator
-SweepWaiverWrappers(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                    uint32 number, void *arg)
-{
-    JSContext *cx = (JSContext *)arg;
-    JSObject *key = ((JSObject2JSObjectMap::Entry *)hdr)->key;
-    JSObject *value = ((JSObject2JSObjectMap::Entry *)hdr)->value;
-    if(IsAboutToBeFinalized(cx, key) || IsAboutToBeFinalized(cx, value))
-        return JS_DHASH_REMOVE;
-    return JS_DHASH_NEXT;
-}
-
-static PLDHashOperator
-SweepExpandos(XPCWrappedNative *wn, JSObject *&expando, void *arg)
-{
-    JSContext *cx = (JSContext *)arg;
-    return IsAboutToBeFinalized(cx, wn->GetFlatJSObjectNoMark())
-           ? PL_DHASH_REMOVE
-           : PL_DHASH_NEXT;
-}
-
-static PLDHashOperator
-SweepCompartment(nsCStringHashKey& aKey, JSCompartment *compartment, void *aClosure)
-{
-    xpc::CompartmentPrivate *priv = (xpc::CompartmentPrivate *)
-        JS_GetCompartmentPrivate((JSContext *)aClosure, compartment);
-    if (priv->waiverWrapperMap)
-        priv->waiverWrapperMap->Enumerate(SweepWaiverWrappers, (JSContext *)aClosure);
-    if (priv->expandoMap)
-        priv->expandoMap->Enumerate(SweepExpandos, (JSContext *)aClosure);
-    return PL_DHASH_NEXT;
-}
-
 // static
 JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
 {
@@ -660,13 +596,8 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                         Enumerate(WrappedJSDyingJSObjectFinder, &data);
                 }
 
-                // Find dying scopes.
+                // Find dying scopes...
                 XPCWrappedNativeScope::FinishedMarkPhaseOfGC(cx, self);
-
-                // Sweep compartments.
-                self->GetCompartmentMap().EnumerateRead(
-                    (XPCCompartmentMap::EnumReadFunction)
-                    SweepCompartment, cx);
 
                 self->mDoingFinalization = JS_TRUE;
                 break;
@@ -1228,43 +1159,10 @@ protected:
 static XPConnectGCChunkAllocator gXPCJSChunkAllocator;
 
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSRuntimeGCChunks,
-                             "js/gc-heap",
-                             "Main JS GC heap",
+                             "xpconnect/js/gcchunks",
+                             "Memory in use by main JS Runtime GC chunks",
                              XPConnectGCChunkAllocator::GetGCChunkBytesInUse,
                              &gXPCJSChunkAllocator)
-
-/* FIXME: use API provided by bug 623271 */
-#include "jscntxt.h"
-
-static PRInt64
-GetJSMethodJitCodeMemoryInUse(void *data)
-{
-    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-#ifdef JS_METHODJIT
-    return rt->mjitMemoryUsed;
-#else
-    return 0;
-#endif
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSMethodJitCode,
-                             "js/mjit-code",
-                             "Memory in use by method-JIT for compiled code",
-                             GetJSMethodJitCodeMemoryInUse,
-                             NULL)
-
-static PRInt64
-GetJSStringMemoryInUse(void *data)
-{
-    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    return rt->stringMemoryUsed;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSStringMemory,
-                             "js/string-data",
-                             "Memory in use for string data",
-                             GetJSStringMemoryInUse,
-                             NULL)
 
 XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
  : mXPConnect(aXPConnect),
@@ -1328,8 +1226,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         mJSRuntime->setCustomGCChunkAllocator(&gXPCJSChunkAllocator);
 
         NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSRuntimeGCChunks));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSStringMemory));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSMethodJitCode));
     }
 
     if(!JS_DHashTableInit(&mJSHolders, JS_DHashGetStubOps(), nsnull,
@@ -1417,9 +1313,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         return JS_FALSE;
 
     JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
-    PRInt64 totalMemory = PR_GetPhysicalMemorySize();
-    JS_SetScriptStackQuota(cx, PR_MAX(25 * sizeof(size_t) * 1024 * 1024,
-                                      totalMemory / 4));
+    JS_SetScriptStackQuota(cx, 25 * sizeof(size_t) * 1024 * 1024);
 
     // we want to mark the global object ourselves since we use a different color
     JS_ToggleOptions(cx, JSOPTION_UNROOTED_GLOBAL);

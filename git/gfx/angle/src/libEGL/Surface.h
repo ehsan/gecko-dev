@@ -26,7 +26,6 @@ class Surface
 {
   public:
     Surface(Display *display, const egl::Config *config, HWND window);
-    Surface(Display *display, const egl::Config *config, EGLint width, EGLint height);
 
     ~Surface();
 
@@ -42,24 +41,20 @@ class Surface
     virtual IDirect3DSurface9 *getRenderTarget();
     virtual IDirect3DSurface9 *getDepthStencil();
 
-    HANDLE getShareHandle() { return mShareHandle; }
-
     void setSwapInterval(EGLint interval);
-    bool checkForOutOfDateSwapChain();   // Returns true if swapchain changed due to resize or interval update
 
-private:
+  private:
     DISALLOW_COPY_AND_ASSIGN(Surface);
 
     Display *const mDisplay;
     IDirect3DSwapChain9 *mSwapChain;
     IDirect3DSurface9 *mBackBuffer;
+    IDirect3DSurface9 *mRenderTarget;
     IDirect3DSurface9 *mDepthStencil;
     IDirect3DTexture9 *mFlipTexture;
-    HANDLE mShareHandle;
 
-    void subclassWindow();
-    void unsubclassWindow();
-    void resetSwapChain(int backbufferWidth, int backbufferHeight);
+    bool checkForOutOfDateSwapChain();
+
     static DWORD convertInterval(EGLint interval);
 
     void applyFlipState(IDirect3DDevice9 *device);
@@ -72,7 +67,6 @@ private:
     IDirect3DSurface9 *mPreFlipDepthStencil;
 
     const HWND mWindow;            // Window that the surface is created for.
-    bool mWindowSubclassed;        // Indicates whether we successfully subclassed mWindow for WM_RESIZE hooking
     const egl::Config *mConfig;    // EGL config surface was created with
     EGLint mHeight;                // Height of surface
     EGLint mWidth;                 // Width of surface

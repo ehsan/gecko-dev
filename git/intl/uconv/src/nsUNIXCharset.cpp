@@ -153,7 +153,8 @@ nsPlatformCharset::GetDefaultCharsetForLocale(const nsAString& localeName, nsACS
   // until we add multi locale support: use the the charset of the user's locale
   oResult = mCharset;
   return NS_SUCCESS_USING_FALLBACK_LOCALE;
-#else
+#endif
+
   //
   // convert from locale to charset
   // using the deprecated locale to charset mapping 
@@ -166,7 +167,6 @@ nsPlatformCharset::GetDefaultCharsetForLocale(const nsAString& localeName, nsACS
   NS_ERROR("unable to convert locale to charset using deprecated config");
   oResult.AssignLiteral("ISO-8859-1");
   return NS_SUCCESS_USING_FALLBACK_LOCALE;
-#endif
 }
 
 nsresult

@@ -1,3 +1,4 @@
+Cu.import("resource://services-sync/auth.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/service.js");
@@ -51,19 +52,15 @@ function change_password(request, response) {
 }
 
 function run_test() {
-  initTestLogging("Trace");
-  
   do_test_pending();
   let server = httpd_setup({
     "/1.0/johndoe/info/collections": info_collections,
-    "/1.0/johndoe/storage/meta/global": new ServerWBO().handler(),
-    "/1.0/johndoe/storage/crypto/keys": new ServerWBO().handler(),
     "/user/1.0/johndoe/password": change_password
   });
 
   Service.username = "johndoe";
   Service.password = JAPANESE;
-  Service.passphrase = "cantentsveryrelevantabbbb";
+  Service.passphrase = "Must exist, but contents irrelevant.";
   Service.serverURL = "http://localhost:8080/";
 
   try {

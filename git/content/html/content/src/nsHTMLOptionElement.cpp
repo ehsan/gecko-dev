@@ -412,13 +412,10 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
       return result;
     }
 
-    size_t length;
-    const jschar *chars = JS_GetStringCharsAndLength(aContext, jsstr, &length);
-    if (!chars) {
-      return NS_ERROR_FAILURE;
-    }
-
-    textContent->SetText(chars, length, PR_FALSE);
+    textContent->SetText(reinterpret_cast<const PRUnichar*>
+                                         (JS_GetStringChars(jsstr)),
+                         JS_GetStringLength(jsstr),
+                         PR_FALSE);
     
     result = AppendChildTo(textContent, PR_FALSE);
     if (NS_FAILED(result)) {
@@ -432,14 +429,9 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
         return NS_ERROR_FAILURE;
       }
 
-      size_t length;
-      const jschar *chars = JS_GetStringCharsAndLength(aContext, jsstr, &length);
-      if (!chars) {
-        return NS_ERROR_FAILURE;
-      }
-
       // Set the value attribute for this element
-      nsAutoString value(chars, length);
+      nsAutoString value(reinterpret_cast<const PRUnichar*>
+                                         (JS_GetStringChars(jsstr)));
 
       result = SetAttr(kNameSpaceID_None, nsGkAtoms::value, value,
                        PR_FALSE);

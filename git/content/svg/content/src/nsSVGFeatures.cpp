@@ -58,6 +58,10 @@
 /*static*/ PRBool
 nsSVGFeatures::HaveFeature(const nsAString& aFeature)
 {
+  if (!NS_SVGEnabled()) {
+    return PR_FALSE;
+  }
+
 #define SVG_SUPPORTED_FEATURE(str) if (aFeature.Equals(NS_LITERAL_STRING(str).get())) return PR_TRUE;
 #define SVG_UNSUPPORTED_FEATURE(str)
 #include "nsSVGFeaturesList.h"
@@ -208,6 +212,9 @@ nsSVGFeatures::PassesConditionalProcessingTests(nsIContent *aContent,
     return PR_TRUE;
   }
 
+  const nsAutoString acceptLangs(aAcceptLangs ? *aAcceptLangs :
+    nsContentUtils::GetLocalizedStringPref("intl.accept_languages"));
+
   // systemLanguage
   //
   // Evaluates to "true" if one of the languages indicated by user preferences
@@ -217,10 +224,6 @@ nsSVGFeatures::PassesConditionalProcessingTests(nsIContent *aContent,
   // that the first tag character following the prefix is "-".
   if (aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::systemLanguage,
                         value)) {
-
-    const nsAutoString acceptLangs(aAcceptLangs ? *aAcceptLangs :
-      nsContentUtils::GetLocalizedStringPref("intl.accept_languages"));
-
     // Get our language preferences
     if (!acceptLangs.IsEmpty()) {
       return MatchesLanguagePreferences(value, acceptLangs);

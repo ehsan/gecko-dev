@@ -375,6 +375,7 @@
 <math><annotation-xml><div>
 #errors
 #document
+#document
 | <html>
 |   <head>
 |   <body>
@@ -385,6 +386,7 @@
 #data
 <math><annotation-xml encoding="application/svg+xml"><div>
 #errors
+#document
 #document
 | <html>
 |   <head>
@@ -398,6 +400,7 @@
 <math><annotation-xml encoding="application/xhtml+xml"><div>
 #errors
 #document
+#document
 | <html>
 |   <head>
 |   <body>
@@ -409,6 +412,7 @@
 #data
 <math><annotation-xml encoding="aPPlication/xhtmL+xMl"><div>
 #errors
+#document
 #document
 | <html>
 |   <head>
@@ -422,6 +426,7 @@
 <math><annotation-xml encoding="text/html"><div>
 #errors
 #document
+#document
 | <html>
 |   <head>
 |   <body>
@@ -434,6 +439,7 @@
 <math><annotation-xml encoding="Text/htmL"><div>
 #errors
 #document
+#document
 | <html>
 |   <head>
 |   <body>
@@ -445,6 +451,7 @@
 #data
 <math><annotation-xml encoding=" text/html "><div>
 #errors
+#document
 #document
 | <html>
 |   <head>

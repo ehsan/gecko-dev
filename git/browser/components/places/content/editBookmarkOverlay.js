@@ -138,7 +138,7 @@ var gEditItemOverlay = {
       this.uninitPanel(false);
 
     var aItemIdList;
-    if (Array.isArray(aFor)) {
+    if (aFor.length) {
       aItemIdList = aFor;
       aFor = aItemIdList[0];
     }
@@ -211,6 +211,7 @@ var gEditItemOverlay = {
         this._multiEdit = true;
         this._allTags = [];
         this._itemIds = aItemIdList;
+        var nodeToCheck = 0;
         for (var i = 0; i < aItemIdList.length; i++) {
           if (aItemIdList[i] instanceof Ci.nsIURI) {
             this._uris[i] = aItemIdList[i];
@@ -219,8 +220,10 @@ var gEditItemOverlay = {
           else
             this._uris[i] = PlacesUtils.bookmarks.getBookmarkURI(this._itemIds[i]);
           this._tags[i] = PlacesUtils.tagging.getTagsForURI(this._uris[i]);
+          if (this._tags[i].length < this._tags[nodeToCheck].length)
+            nodeToCheck =  i;
         }
-        this._allTags = this._getCommonTags();
+        this._getCommonTags(nodeToCheck);
         this._initTextField("tagsField", this._allTags.join(", "), false);
         this._element("itemsCountText").value =
           PlacesUIUtils.getFormattedString("detailsPane.multipleItems",
@@ -238,9 +241,7 @@ var gEditItemOverlay = {
 
     // observe changes
     if (!this._observersAdded) {
-      // Single bookmarks observe any change.  History entries and multiEdit
-      // observe only tags changes, through bookmarks.
-      if (this._itemId != -1 || this._uri || this._multiEdit)
+      if (this._itemId != -1)
         PlacesUtils.bookmarks.addObserver(this, false);
       window.addEventListener("unload", this, false);
       this._observersAdded = true;
@@ -249,19 +250,22 @@ var gEditItemOverlay = {
     this._initialized = true;
   },
 
-  /**
-   * Finds tags that are in common among this._tags entries that track tags
-   * for each selected uri.
-   * The tags arrays should be kept up-to-date for this to work properly.
-   *
-   * @return array of common tags for the selected uris.
-   */
-  _getCommonTags: function() {
-    return this._tags[0].filter(
-      function (aTag) this._tags.every(
-        function (aTags) aTags.indexOf(aTag) != -1
-      ), this
-    );
+  _getCommonTags: function(aArrIndex) {
+    var tempArray = this._tags[aArrIndex];
+    var isAllTag;
+    for (var k = 0; k < tempArray.length; k++) {
+      isAllTag = true;
+      for (var j = 0; j < this._tags.length; j++) {
+        if (j == aArrIndex)
+          continue;
+        if (this._tags[j].indexOf(tempArray[k]) == -1) {
+          isAllTag = false;
+          break;
+        }
+      }
+      if (isAllTag)
+        this._allTags.push(tempArray[k]);
+    }
   },
 
   _initTextField: function(aTextFieldId, aValue, aReadOnly) {
@@ -538,7 +542,7 @@ var gEditItemOverlay = {
     }
 
     if (this._observersAdded) {
-      if (this._itemId != -1 || this._uri || this._multiEdit)
+      if (this._itemId != -1)
         PlacesUtils.bookmarks.removeObserver(this);
 
       this._observersAdded = false;
@@ -1065,42 +1069,6 @@ var gEditItemOverlay = {
   onItemChanged: function EIO_onItemChanged(aItemId, aProperty,
                                             aIsAnnotationProperty, aValue,
                                             aLastModified, aItemType) {
-    if (aProperty == "tags") {
-      // Tags case is special, since they should be updated if either:
-      // - the notification is for the edited bookmark
-      // - the notification is for the edited history entry
-      // - the notification is for one of edited uris
-      let shouldUpdateTagsField = this._itemId == aItemId;
-      if (this._itemId == -1 || this._multiEdit) {
-        // Check if the changed uri is part of the modified ones.
-        let changedURI = PlacesUtils.bookmarks.getBookmarkURI(aItemId);
-        let uris = this._multiEdit ? this._uris : [this._uri];
-        uris.forEach(function (aURI, aIndex) {
-          if (aURI.equals(changedURI)) {
-            shouldUpdateTagsField = true;
-            if (this._multiEdit) {
-              this._tags[aIndex] = PlacesUtils.tagging.getTagsForURI(this._uris[aIndex]);
-            }
-          }
-        }, this);
-      }
-
-      if (shouldUpdateTagsField) {
-        if (this._multiEdit) {
-          this._allTags = this._getCommonTags();
-          this._initTextField("tagsField", this._allTags.join(", "), false);
-        }
-        else {
-          let tags = PlacesUtils.tagging.getTagsForURI(this._uri).join(", ");
-          this._initTextField("tagsField", tags, false);
-        }
-      }
-
-      // Any tags change should be reflected in the tags selector.
-      this._rebuildTagsSelectorList();
-      return;
-    }
-
     if (this._itemId != aItemId) {
       if (aProperty == "title") {
         // If the title of a folder which is listed within the folders
@@ -1193,14 +1161,14 @@ var gEditItemOverlay = {
     this._folderMenuList.selectedItem = folderItem;
   },
 
-  onItemAdded: function EIO_onItemAdded(aItemId, aParentId, aIndex, aItemType,
+  onItemAdded: function EIO_onItemAdded(aItemId, aFolder, aIndex, aItemType,
                                         aURI) {
     this._lastNewItem = aItemId;
   },
 
-  onItemRemoved: function() { },
   onBeginUpdateBatch: function() { },
   onEndUpdateBatch: function() { },
   onBeforeItemRemoved: function() { },
+  onItemRemoved: function() { },
   onItemVisited: function() { },
 };
