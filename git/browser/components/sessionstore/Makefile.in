@@ -18,4 +18,8 @@ XPIDLSRCS = \
 	nsISessionStore.idl \
   $(NULL)
 
+DIRS = src
+
+TEST_DIRS = test
+
 include $(topsrcdir)/config/rules.mk

@@ -9,6 +9,13 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
+
+DIRS		= public src converters
+
+ifdef ENABLE_TESTS
+TOOL_DIRS	+= test
+endif
+
 include $(topsrcdir)/config/rules.mk
 
 DEFINES += -DIMPL_NS_NET

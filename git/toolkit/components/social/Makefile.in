@@ -18,4 +18,8 @@ EXTRA_JS_MODULES = \
   MozSocialAPI.jsm \
   $(NULL)
 
+TEST_DIRS += \
+  test \
+  $(NULL)
+
 include $(topsrcdir)/config/rules.mk

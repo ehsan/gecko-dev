@@ -9,6 +9,11 @@ relativesrcdir := @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS := \
+  Infraware \
+  Ms2ger \
+  $(NULL)
+
 
 
 include $(topsrcdir)/config/rules.mk

@@ -12,5 +12,6 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= libbz2
+DIRS		= src
 
 include $(topsrcdir)/config/rules.mk

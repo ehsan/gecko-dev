@@ -9,4 +9,13 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
+
+DIRS =	lib \
+	prototype \
+	offline \
+	mochikit \
+	scriptaculous \
+	jquery \
+	$(NULL)
+
 include $(topsrcdir)/config/rules.mk

@@ -10,6 +10,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS		= simd
 MODULE		= jpeg
 LIBRARY_NAME	= mozjpeg
 

@@ -95,6 +95,9 @@ XPIDLSRCS = \
   nsIIndexedDatabaseManager.idl \
   $(NULL)
 
+DIRS += ipc
+TEST_DIRS += test
+
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk

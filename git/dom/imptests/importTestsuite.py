@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 import parseManifest
-import writeBuildFiles
+import writeMakefile
 
 HEADERS_SUFFIX = "^headers^"
 
@@ -36,17 +36,18 @@ def getData(confFile):
     dest = ""
     directories = []
     try:
-        with open(confFile, 'r') as fp:
-            first = True
-            for line in fp:
-                if first:
-                    idx = line.index("|")
-                    repo = line[:idx].strip()
-                    dest = line[idx + 1:].strip()
-                    first = False
-                else:
-                    directories.append(line.strip())
+        fp = open(confFile, "r")
+        first = True
+        for line in fp:
+            if first:
+                idx = line.index("|")
+                repo = line[:idx].strip()
+                dest = line[idx + 1:].strip()
+                first = False
+            else:
+                directories.append(line.strip())
     finally:
+        fp.close()
         return repo, dest, directories
 
 def makePath(a, b):
@@ -85,24 +86,23 @@ def copy(thissrcdir, dest, directories):
                 # Empty directory, i.e., the repository root
                 importDirs(thissrcdir, dest, subdirs)
 
-def printMozbuildFile(dest, directories):
-    """Create a .mozbuild file to be included into the main moz.build, which
-    lists the directories with tests.
+def printMakefile(dest, directories):
+    """Create a .mk file to be included into the main Makefile.in, which lists the
+    directories with tests.
     """
-    print("Creating mozbuild...")
-    path = dest + ".mozbuild"
-    with open(path, 'w') as fh:
-        normalized = [makePath(dest, d) for d in directories]
-        result = writeBuildFiles.substMozbuild("importTestSuites.py",
-            normalized)
-        fh.write(result)
-
+    print("Creating .mk...")
+    path = dest + ".mk"
+    fp = open(path, "w")
+    fp.write("DIRS += \\\n")
+    fp.write(writeMakefile.makefileString([makePath(dest, d) for d in directories]))
+    fp.write("\n")
+    fp.close()
     subprocess.check_call(["hg", "add", path])
 
-def printBuildFiles(thissrcdir, dest, directories):
+def printMakefiles(thissrcdir, dest, directories):
     """Create Makefile.in files for each directory that contains tests we import.
     """
-    print("Creating build files...")
+    print("Creating Makefile.ins...")
     for d in directories:
         path = makePath(dest, d)
         print("Creating Makefile.in in %s..." % path)
@@ -113,16 +113,11 @@ def printBuildFiles(thissrcdir, dest, directories):
         files.extend(supportfiles)
         files.extend(f for f in os.listdir(path) if f.endswith(HEADERS_SUFFIX))
 
-        with open(path + "/Makefile.in", "w") as fh:
-            result = writeBuildFiles.substMakefile("importTestsuite.py", files)
-            fh.write(result)
+        result = writeMakefile.substMakefile("importTestsuite.py", subdirs, files)
 
-        print("Creating moz.build in %s..." % path)
-        with open(path + "/moz.build", "w") as fh:
-            result = writeBuildFiles.substMozbuild("importTestsuite.py",
-                subdirs)
-            fh.write(result)
-
+        fp = open(path + "/Makefile.in", "w")
+        fp.write(result)
+        fp.close()
 
 def hgadd(dest, directories):
     """Inform hg of the files in |directories|."""
@@ -132,7 +127,7 @@ def hgadd(dest, directories):
 
 def importDirs(thissrcdir, dest, directories):
     copy(thissrcdir, dest, directories)
-    printBuildFiles(thissrcdir, dest, directories)
+    printMakefiles(thissrcdir, dest, directories)
 
 def importRepo(confFile, thissrcdir):
     try:
@@ -140,17 +135,17 @@ def importRepo(confFile, thissrcdir):
         hgdest = "hg-%s" % (dest, )
         print("Going to clone %s to %s..." % (repo, hgdest))
         print("Removing %s..." % dest)
-        subprocess.check_call(["rm", "-rf", dest])
+        subprocess.check_call(["rm", "--recursive", "--force", dest])
         print("Removing %s..." % hgdest)
-        subprocess.check_call(["rm", "-rf", hgdest])
+        subprocess.check_call(["rm", "--recursive", "--force", hgdest])
         print("Cloning %s to %s..." % (repo, hgdest))
         subprocess.check_call(["hg", "clone", repo, hgdest])
         print("Going to import %s..." % directories)
         importDirs(thissrcdir, dest, directories)
-        printMozbuildFile(dest, directories)
+        printMakefile(dest, directories)
         hgadd(dest, directories)
         print("Removing %s again..." % hgdest)
-        subprocess.check_call(["rm", "-rf", hgdest])
+        subprocess.check_call(["rm", "--recursive", "--force", hgdest])
     except subprocess.CalledProcessError as e:
         print(e.returncode)
     finally:
@@ -161,4 +156,3 @@ if __name__ == "__main__":
         print("Need one argument.")
     else:
         importRepo(sys.argv[1], "dom/imptests")
-

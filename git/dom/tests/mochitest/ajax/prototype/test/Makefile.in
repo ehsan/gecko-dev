@@ -11,6 +11,12 @@ relativesrcdir	= @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS	= \
+	unit \
+	lib \
+	functional \
+	$(NULL)
+
 MOCHITEST_FILES	= \
 		test.css \
 		browser.html \

@@ -68,6 +68,8 @@ XPIDLSRCS = \
   nsIDOMArchiveRequest.idl \
   $(NULL)
 
+TEST_DIRS += test
+
 include $(topsrcdir)/config/rules.mk
 
 XPIDL_FLAGS += \

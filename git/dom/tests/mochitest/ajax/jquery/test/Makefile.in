@@ -11,6 +11,11 @@ relativesrcdir	= @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS	= \
+	data \
+	unit \
+	$(NULL)
+
 MOCHITEST_FILES	= \
 	index.html \
 	offset.html \

@@ -15,6 +15,12 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= test_necko
 
+DIRS            = \
+                  httpserver \
+                  browser \
+                  $(NULL)
+
+
 CPPSRCS = \
   TestIncrementalDownload.cpp \
   TestStreamLoader.cpp \

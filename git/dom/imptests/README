@@ -57,8 +57,8 @@ Source;  Usage and purpose;  License
   by @ signs.
   MPL
 
-* writeBuildFiles.py
-  Helper functions to write out automatically generated build files.
+* writeMakefile.py
+  Helper functions to write out Makefiles.
   MPL
 
 * Makefile.in

@@ -12,5 +12,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= profile
 
+DIRS		= public dirserviceprovider 
+
 include $(topsrcdir)/config/rules.mk
 

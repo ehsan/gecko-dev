@@ -9,5 +9,9 @@ srcdir          := @srcdir@
 VPATH           := @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
+
+PARALLEL_DIRS   := base text html
+
+
 include $(topsrcdir)/config/rules.mk
 

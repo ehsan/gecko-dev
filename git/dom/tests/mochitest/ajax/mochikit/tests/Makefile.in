@@ -11,6 +11,10 @@ relativesrcdir	= @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS		= \
+		SimpleTest \
+		$(NULL)
+
 MOCHITEST_FILES	= \
 		FakeJSAN.js \
 		cli.js \

@@ -10,6 +10,8 @@ relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+TEST_DIRS = unit
+
 XPCSHELL_TESTS = unit
 
 MOCHITEST_FILES = \

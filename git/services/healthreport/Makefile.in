@@ -19,6 +19,8 @@ testing_modules := \
   utils.jsm \
   $(NULL)
 
+TEST_DIRS += tests
+
 healthreport_depends = \
   HealthReport.jsm \
   ../common/async.js \

@@ -6,12 +6,7 @@
 function test() {
   waitForExplicitFinish();
 
-  try {
-    let cm = Components.classes["@mozilla.org/categorymanager;1"]
-                       .getService(Components.interfaces.nsICategoryManager);
-    cm.getCategoryEntry("healthreport-js-provider", "SearchesProvider");
-  } catch (ex) {
-    // Health Report disabled, or no SearchesProvider.
+  if (!("@mozilla.org/datareporting/service;1" in Components.classes)) {
     // We need a test or else we'll be marked as failure.
     ok(true, "Firefox Health Report is not enabled.");
     finish();

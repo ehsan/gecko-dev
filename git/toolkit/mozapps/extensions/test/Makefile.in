@@ -16,6 +16,12 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_extensionmanager
 
+DIRS += \
+    xpinstall \
+    browser \
+    mochitest \
+    $(NULL)
+
 XPCSHELL_TESTS = \
   xpcshell \
   xpcshell-unpack \

@@ -9,4 +9,7 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
+
+PARALLEL_DIRS	= content document
+
 include $(topsrcdir)/config/rules.mk

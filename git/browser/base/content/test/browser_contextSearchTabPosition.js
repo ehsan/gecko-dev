@@ -26,12 +26,7 @@ function test() {
   container.removeEventListener("TabOpen", tabAdded, false);
   tabs.forEach(gBrowser.removeTab, gBrowser);
 
-  try {
-    let cm = Components.classes["@mozilla.org/categorymanager;1"]
-                       .getService(Components.interfaces.nsICategoryManager);
-    cm.getCategoryEntry("healthreport-js-provider", "SearchesProvider");
-  } catch (ex) {
-    // Health Report disabled, or no SearchesProvider.
+  if (!"@mozilla.org/datareporting/service;1" in Components.classes) {
     finish();
     return;
   }

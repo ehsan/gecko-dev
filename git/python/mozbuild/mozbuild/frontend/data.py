@@ -102,7 +102,6 @@ class ConfigFileSubstitution(SandboxDerived):
     __slots__ = (
         'input_path',
         'output_path',
-        'relpath',
     )
 
     def __init__(self, sandbox):
@@ -110,5 +109,4 @@ class ConfigFileSubstitution(SandboxDerived):
 
         self.input_path = None
         self.output_path = None
-        self.relpath = None
 

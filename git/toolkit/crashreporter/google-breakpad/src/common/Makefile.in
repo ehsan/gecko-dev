@@ -15,6 +15,10 @@ HOST_LIBRARY_NAME = host_breakpad_common_s
 
 LOCAL_INCLUDES 	= -I$(srcdir)/..
 
+ifeq (,$(filter-out Darwin Linux,$(OS_ARCH)))
+DIRS = dwarf
+endif
+
 CPPSRCS	= \
   md5.cc \
   string_conversion.cc \
