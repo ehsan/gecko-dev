@@ -14,11 +14,12 @@
  * The Original Code is trench.js.
  *
  * The Initial Developer of the Original Code is
- * Michael Yoshitaka Erlewine <mitcho@mitcho.com>.
+ * the Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ian Gilman <ian@iangilman.com>
  * Aza Raskin <aza@mozilla.com>
  *
@@ -173,6 +174,7 @@ Trench.prototype = {
       this.activeRect = new Rect(this.activeRange.min, this.position - this.radius, this.activeRange.extent, 2 * this.radius);
       this.guideRect = new Rect(this.activeRange.min, this.position, this.activeRange.extent, 0);
     }
+    return true;
   },
 
   //----------

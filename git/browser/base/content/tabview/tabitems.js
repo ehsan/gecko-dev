@@ -14,11 +14,12 @@
  * The Original Code is tabitems.js.
  *
  * The Initial Developer of the Original Code is
- * Ian Gilman <ian@iangilman.com>.
+ * the Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ * Ian Gilman <ian@iangilman.com>
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ehsan Akhgari <ehsan@mozilla.com>
@@ -349,7 +350,6 @@ window.TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       // a random location (i.e., from [0,0]). Instead, just
       // have it appear where it should be.
       if (immediately || (!this._hasBeenDrawn)) {
-  /*       $container.stop(true, true); */
         $container.css(css);
       } else {
         TabItems.pausePainting();
@@ -360,14 +360,13 @@ window.TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
             TabItems.resumePainting();
           }
         });
-    /*       }).dequeue(); */
       }
 
       if (css.fontSize && !this.inStack()) {
         if (css.fontSize < fontSizeRange.min)
-          $title.fadeOut();//.dequeue();
+          $title.fadeOut();
         else
-          $title.fadeIn();//.dequeue();
+          $title.fadeIn();
       }
 
       if (css.width) {
@@ -671,6 +670,7 @@ window.TabItems = {
   _heartbeatOn: false,
   _heartbeatTiming: 100, // milliseconds between beats
   _lastUpdateTime: Date.now(),
+  _eventListeners: [],
 
   // ----------
   // Function: init
@@ -680,35 +680,36 @@ window.TabItems = {
     var self = this;
 
     // When a tab is opened, create the TabItem
-    AllTabs.register("open", function(tab) {
+    this._eventListeners["open"] = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
       setTimeout(function() { // Marshal event from chrome thread to DOM thread
         self.link(tab);
       }, 1);
-    });
-
+    }
     // When a tab's content is loaded, show the canvas and hide the cached data
     // if necessary.
-    AllTabs.register("attrModified", function(tab) {
+    this._eventListeners["attrModified"] = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
       setTimeout(function() { // Marshal event from chrome thread to DOM thread
         self.update(tab);
       }, 1);
-    });
-
+    }
     // When a tab is closed, unlink.
-    AllTabs.register("close", function(tab) {
+    this._eventListeners["close"] = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
       setTimeout(function() { // Marshal event from chrome thread to DOM thread
         self.unlink(tab);
       }, 1);
-    });
+    }
+    for (let name in this._eventListeners) {
+      AllTabs.register(name, this._eventListeners[name]);
+    }
 
     // For each tab, create the link.
     AllTabs.tabs.forEach(function(tab) {
@@ -718,6 +719,25 @@ window.TabItems = {
       self.link(tab);
       self.update(tab);
     });
+  },
+
+  // ----------
+  // Function: uninit
+  uninit: function() {
+    for (let name in this._eventListeners) {
+      AllTabs.unregister(name, this._eventListeners[name]);
+    }
+    this.items.forEach(function(tabItem) {
+      for (let x in tabItem) {
+        if (typeof tabItem[x] == "object")
+          tabItem[x] = null;
+      }
+    });
+
+    this.items = null;
+    this._eventListeners = null;
+    this._lastUpdateTime = null;
+    this._tabsWaitingForUpdate = null;
   },
 
   // ----------
@@ -780,7 +800,7 @@ window.TabItems = {
 
         if (!tabItem.reconnected && (oldURL == 'about:blank' || !oldURL))
           this.reconnect(tabItem);
-    
+
         tabItem.save();
       }
 
