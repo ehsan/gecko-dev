@@ -301,11 +301,6 @@ public:
   // E_OGGPLAY_TIMEOUT        = No frames decoded, timed out
   OggPlayErrorCode DecodeFrame();
 
-  // Handle any errors returned by liboggplay when decoding a frame.
-  // Since this function can change the decoding state it must be called
-  // with the decoder lock held.
-  void HandleDecodeErrors(OggPlayErrorCode r);
-
   // Returns the next decoded frame of data. The caller is responsible
   // for freeing the memory returned. This function must be called
   // only when the current state > DECODING_METADATA. The decode
@@ -377,12 +372,6 @@ public:
   }
 
 protected:
-
-  // Decodes from the current position until encountering a frame with time
-  // greater or equal to aSeekTime.
-  void DecodeToFrame(nsAutoMonitor& aMonitor,
-                     float aSeekTime);
-
   // Convert the OggPlay frame information into a format used by Gecko
   // (RGB for video, float for sound, etc).The decoder monitor must be
   // acquired in the scope of calls to these functions. They must be
@@ -442,10 +431,6 @@ protected:
   // Seeks the OggPlay to aTime, inside buffered byte ranges in aReader's
   // media stream.
   nsresult Seek(float aTime, nsChannelReader* aReader);
-
-  // Sets the current video and audio track to active in liboggplay.
-  // Called from the decoder thread only.
-  void SetTracksActive();
 
 private:
   // *****
@@ -664,7 +649,10 @@ public:
         r = oggplay_step_decoding(mPlayer);
         mon.Enter();
 
-        mDecodeStateMachine->HandleDecodeErrors(r);
+        // If PlayFrame is waiting, wake it up so we can run the
+        // decoder loop and move frames from the oggplay queue to our
+        // queue.
+        mon.NotifyAll();
 
         // Check whether decoding the last frame required us to read data
         // that wasn't available at the start of the frame. That means
@@ -672,12 +660,6 @@ public:
         if (decoder->mDecoderPosition > initialDownloadPosition) {
           mDecodeStateMachine->mBufferExhausted = PR_TRUE;
         }
-
-        // If PlayFrame is waiting, wake it up so we can run the
-        // decoder loop and move frames from the oggplay queue to our
-        // queue. Also needed to wake up the decoder loop that waits
-        // for a frame to be ready to display.
-        mon.NotifyAll();
       }
     }
 
@@ -729,23 +711,7 @@ nsOggDecodeStateMachine::~nsOggDecodeStateMachine()
 
 OggPlayErrorCode nsOggDecodeStateMachine::DecodeFrame()
 {
-  OggPlayErrorCode r = oggplay_step_decoding(mPlayer);
-  return r;
-}
-
-void nsOggDecodeStateMachine::HandleDecodeErrors(OggPlayErrorCode aErrorCode)
-{
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
-
-  if (aErrorCode != E_OGGPLAY_TIMEOUT &&
-      aErrorCode != E_OGGPLAY_OK &&
-      aErrorCode != E_OGGPLAY_USER_INTERRUPT &&
-      aErrorCode != E_OGGPLAY_CONTINUE) {
-    mState = DECODER_STATE_SHUTDOWN;
-    nsCOMPtr<nsIRunnable> event =
-      NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, NetworkError);
-    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-  }
+  return oggplay_step_decoding(mPlayer);
 }
 
 nsOggDecodeStateMachine::FrameData* nsOggDecodeStateMachine::NextFrame()
@@ -1218,9 +1184,6 @@ void nsOggDecodeStateMachine::Seek(float aTime)
   NS_ASSERTION(mState != DECODER_STATE_SEEKING,
                "We shouldn't already be seeking");
   mSeekTime = aTime + mPlaybackStartTime;
-  float duration = static_cast<float>(mDuration) / 1000.0;
-  NS_ASSERTION(mSeekTime >= 0 && mSeekTime <= duration,
-               "Can only seek in range [0,duration]");
   LOG(PR_LOG_DEBUG, ("Changed state to SEEKING (to %f)", aTime));
   mState = DECODER_STATE_SEEKING;
 }
@@ -1306,71 +1269,6 @@ nsresult nsOggDecodeStateMachine::Seek(float aTime, nsChannelReader* aReader)
   return (rv < 0) ? NS_ERROR_FAILURE : NS_OK;
 }
 
-void nsOggDecodeStateMachine::DecodeToFrame(nsAutoMonitor& aMonitor,
-                                            float aTime)
-{
-  // Drop frames before the target time.
-  float target = aTime - mCallbackPeriod / 2.0;
-  FrameData* frame = nsnull;
-  OggPlayErrorCode r;
-  mLastFrameTime = 0;
-  // Some of the audio data from previous frames actually belongs
-  // to this frame and later frames. So rescue that data and stuff
-  // it into the first frame.
-  float audioTime = 0;
-  nsTArray<float> audioData;
-  do {
-    do {
-      aMonitor.Exit();
-      r = DecodeFrame();
-      aMonitor.Enter();
-    } while (mState != DECODER_STATE_SHUTDOWN && r == E_OGGPLAY_TIMEOUT);
-
-    HandleDecodeErrors(r);
-
-    if (mState == DECODER_STATE_SHUTDOWN)
-      break;
-
-    FrameData* nextFrame = NextFrame();
-    if (!nextFrame)
-      break;
-
-    delete frame;
-    frame = nextFrame;
-
-    audioData.AppendElements(frame->mAudioData);
-    audioTime += frame->mAudioData.Length() /
-    (float)mAudioRate / (float)mAudioChannels;
-  } while (frame->mDecodedFrameTime < target);
-
-  if (mState == DECODER_STATE_SHUTDOWN) {
-    delete frame;
-    return;
-  }
-
-  NS_ASSERTION(frame != nsnull, "No frame after decode!");
-  if (frame) {
-    if (audioTime > frame->mTime) {
-      // liboggplay gave us more data than expected, we need to prepend
-      // the extra data to the current frame to keep audio in sync.
-      audioTime -= frame->mTime;
-      // numExtraSamples must be evenly divisble by number of channels.
-      size_t numExtraSamples = mAudioChannels *
-        PRInt32(NS_ceil(mAudioRate*audioTime));
-      float* data = audioData.Elements() + audioData.Length() - numExtraSamples;
-      float* dst = frame->mAudioData.InsertElementsAt(0, numExtraSamples);
-      memcpy(dst, data, numExtraSamples * sizeof(float));
-    }
-
-    mLastFrameTime = 0;
-    frame->mTime = 0;
-    frame->mState = OGGPLAY_STREAM_JUST_SEEKED;
-    mDecodedFrames.Push(frame);
-    UpdatePlaybackPosition(frame->mDecodedFrameTime);
-    PlayVideo(frame);
-  }
-}
-
 void nsOggDecodeStateMachine::StopStepDecodeThread(nsAutoMonitor* aMonitor)
 {
   PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
@@ -1423,8 +1321,6 @@ nsresult nsOggDecodeStateMachine::Run()
           r = DecodeFrame();
           mon.Enter();
         }
-
-        HandleDecodeErrors(r);
 
         if (mState == DECODER_STATE_SHUTDOWN)
           continue;
@@ -1489,8 +1385,7 @@ nsresult nsOggDecodeStateMachine::Run()
 
         // Get the decoded frames and store them in our queue of decoded frames
         QueueDecodedFrames();
-        while (mDecodedFrames.IsEmpty() && !mDecodingCompleted &&
-               !mBufferExhausted) {
+        while (mDecodedFrames.IsEmpty() && !mDecodingCompleted) {
           mon.Wait(PR_MillisecondsToInterval(PRInt64(mCallbackPeriod*500)));
           if (mState != DECODER_STATE_DECODING)
             break;
@@ -1513,7 +1408,7 @@ nsresult nsOggDecodeStateMachine::Run()
           PlayVideo(mDecodedFrames.Peek());
         }
 
-        if (mBufferExhausted &&
+        if (mBufferExhausted && mState == DECODER_STATE_DECODING &&
             mDecoder->GetState() == nsOggDecoder::PLAY_STATE_PLAYING &&
             !mDecoder->mReader->Stream()->IsDataCachedToEndOfStream(mDecoder->mDecoderPosition) &&
             !mDecoder->mReader->Stream()->IsSuspendedByCache()) {
@@ -1549,9 +1444,6 @@ nsresult nsOggDecodeStateMachine::Run()
           LOG(PR_LOG_DEBUG, ("Changed state from DECODING to BUFFERING"));
         } else {
           if (mBufferExhausted) {
-            // This will wake up the step decode thread and force it to
-            // call oggplay_step_decoding at least once. This guarantees
-            // we make progress.
             mBufferExhausted = PR_FALSE;
             mon.NotifyAll();
           }
@@ -1592,12 +1484,16 @@ nsresult nsOggDecodeStateMachine::Run()
           NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStarted);
         NS_DispatchToMainThread(startEvent, NS_DISPATCH_SYNC);
         
-        nsresult res = Seek(seekTime, reader);
+        Seek(seekTime, reader);
 
         // Reactivate all tracks. Liboggplay deactivates tracks when it
         // reads to the end of stream, but they must be reactivated in order
         // to start reading from them again.
-        SetTracksActive();
+        for (int i = 0; i < oggplay_get_num_tracks(mPlayer); ++i) {
+         if (oggplay_set_track_active(mPlayer, i) < 0)  {
+            LOG(PR_LOG_ERROR, ("Could not set track %d active", i));
+          }
+        }
 
         mon.Enter();
         mDecoder->StartProgressUpdates();
@@ -1605,21 +1501,73 @@ nsresult nsOggDecodeStateMachine::Run()
         if (mState == DECODER_STATE_SHUTDOWN)
           continue;
 
-        if (NS_SUCCEEDED(res)) {
-          DecodeToFrame(mon, seekTime);
-          // mSeekTime should not have changed. While we seek, mPlayState
-          // should always be PLAY_STATE_SEEKING and no-one will call
-          // nsOggDecoderStateMachine::Seek.
-          NS_ASSERTION(seekTime == mSeekTime, "No-one should have changed mSeekTime");
-          if (mState == DECODER_STATE_SHUTDOWN) {
-            continue;
+        // Drop frames before the target seek time.
+        float seekTarget = seekTime - mCallbackPeriod / 2.0;
+        FrameData* frame = nsnull;
+        OggPlayErrorCode r;
+        mLastFrameTime = 0;
+        // Some of the audio data from previous frames actually belongs
+        // to this frame and later frames. So rescue that data and stuff
+        // it into the first frame.
+        float audioTime = 0;
+        nsTArray<float> audioData;
+        do {
+          do {
+            mon.Exit();
+            r = DecodeFrame();
+            mon.Enter();
+          } while (mState != DECODER_STATE_SHUTDOWN && r == E_OGGPLAY_TIMEOUT);
+
+          if (mState == DECODER_STATE_SHUTDOWN)
+            break;
+
+          FrameData* nextFrame = NextFrame();
+          if (!nextFrame)
+            break;
+
+          delete frame;
+          frame = nextFrame;
+
+          audioData.AppendElements(frame->mAudioData);
+          audioTime += frame->mAudioData.Length() /
+                       (float)mAudioRate / (float)mAudioChannels;
+        } while (frame->mDecodedFrameTime < seekTarget);
+
+        if (mState == DECODER_STATE_SHUTDOWN) {
+          delete frame;
+          continue;
+        }
+
+        NS_ASSERTION(frame != nsnull, "No frame after seek!");
+        if (frame) {
+          if (audioTime > frame->mTime) {
+            // liboggplay gave us more data than expected, we need to prepend
+            // the extra data to the current frame to keep audio in sync.
+            audioTime -= frame->mTime;
+            // numExtraSamples must be evenly divisble by number of channels.
+            size_t numExtraSamples = mAudioChannels *
+                                     PRInt32(NS_ceil(mAudioRate*audioTime));
+            float* data = audioData.Elements() + audioData.Length() - numExtraSamples;
+            float* dst = frame->mAudioData.InsertElementsAt(0, numExtraSamples);
+            memcpy(dst, data, numExtraSamples * sizeof(float));
           }
+        
+          mLastFrameTime = 0;
+          frame->mTime = 0;
+          frame->mState = OGGPLAY_STREAM_JUST_SEEKED;
+          mDecodedFrames.Push(frame);
+          UpdatePlaybackPosition(frame->mDecodedFrameTime);
+          PlayVideo(frame);
         }
 
         // Change state to DECODING now. SeekingStopped will call
         // nsOggDecodeStateMachine::Seek to reset our state to SEEKING
         // if we need to seek again.
         LOG(PR_LOG_DEBUG, ("Changed state from SEEKING (to %f) to DECODING", seekTime));
+        // mSeekTime should not have changed. While we seek, mPlayState
+        // should always be PLAY_STATE_SEEKING and no-one will call
+        // nsOggDecoderStateMachine::Seek.
+        NS_ASSERTION(seekTime == mSeekTime, "No-one should have changed mSeekTime");
         mState = DECODER_STATE_DECODING;
         mon.NotifyAll();
 
@@ -1761,9 +1709,11 @@ void nsOggDecodeStateMachine::LoadOggHeaders(nsChannelReader* aReader)
         oggplay_get_audio_channels(mPlayer, i, &mAudioChannels);
         LOG(PR_LOG_DEBUG, ("samplerate: %d, channels: %d", mAudioRate, mAudioChannels));
       }
+ 
+      if (oggplay_set_track_active(mPlayer, i) < 0)  {
+        LOG(PR_LOG_ERROR, ("Could not set track %d active", i));
+      }
     }
-
-    SetTracksActive();
 
     if (mVideoTrack == -1) {
       oggplay_set_callback_num_frames(mPlayer, mAudioTrack, OGGPLAY_FRAMES_PER_CALLBACK);
@@ -1803,25 +1753,12 @@ void nsOggDecodeStateMachine::LoadOggHeaders(nsChannelReader* aReader)
   }
 }
 
-void nsOggDecodeStateMachine::SetTracksActive()
-{
-  if (mVideoTrack != -1 && 
-      oggplay_set_track_active(mPlayer, mVideoTrack) < 0)  {
-    LOG(PR_LOG_ERROR, ("Could not set track %d active", mVideoTrack));
-  }
-
-  if (mAudioTrack != -1 && 
-      oggplay_set_track_active(mPlayer, mAudioTrack) < 0)  {
-    LOG(PR_LOG_ERROR, ("Could not set track %d active", mAudioTrack));
-  }
-}
-
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsOggDecoder, nsIObserver)
 
 void nsOggDecoder::Pause() 
 {
   nsAutoMonitor mon(mMonitor);
-  if (mPlayState == PLAY_STATE_SEEKING || mPlayState == PLAY_STATE_ENDED) {
+  if (mPlayState == PLAY_STATE_SEEKING) {
     mNextState = PLAY_STATE_PAUSED;
     return;
   }

@@ -17,11 +17,11 @@ function startTest()
     sessionStorage;
   }
   catch (e) {
-    is(e.result, 2152923145,
+    is(e.result, Components.results.NS_ERROR_NOT_AVAILABLE,
        "Testing that we get the expected exception.");
     exceptionCaught = true;
   }
-  is(exceptionCaught, true, "Testing that an exception was thrown.");
+  todo_is(exceptionCaught, true, "Testing that an exception was thrown.");
 
   SimpleTest.finish();
 }

@@ -395,8 +395,7 @@ public:
     TYPE_SVG_EFFECTS,
 #endif
     TYPE_WRAPLIST,
-    TYPE_TRANSFORM,
-    TYPE_BORDER
+    TYPE_TRANSFORM
   };
 
   struct HitTestState {
@@ -1002,7 +1001,6 @@ public:
   }
 #endif
 
-  virtual Type GetType() { return TYPE_BORDER; }
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
   virtual PRBool OptimizeVisibility(nsDisplayListBuilder* aBuilder, nsRegion* aVisibleRegion);
