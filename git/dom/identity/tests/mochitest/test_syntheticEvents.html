@@ -31,10 +31,7 @@ Components.utils.import("resource://gre/modules/identity/FirefoxAccounts.jsm");
 // plumbing.
 function MockFXAManager() {}
 MockFXAManager.prototype = {
-  getAssertion: function(audience, options) {
-    if (options.silent) {
-      return Promise.resolve(null);
-    }
+  getAssertion: function() {
     return Promise.resolve("here~you.go.dude");
   }
 };

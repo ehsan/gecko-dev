@@ -5,13 +5,12 @@
 
 #include "nsCocoaWindow.h"
 
-#include "NativeKeyBindings.h"
-#include "TextInputHandler.h"
 #include "nsObjCExceptions.h"
 #include "nsCOMPtr.h"
 #include "nsWidgetsCID.h"
 #include "nsIRollupListener.h"
 #include "nsChildView.h"
+#include "TextInputHandler.h"
 #include "nsWindowMap.h"
 #include "nsAppShell.h"
 #include "nsIAppShellService.h"
@@ -2163,17 +2162,6 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
-
-NS_IMETHODIMP_(bool)
-nsCocoaWindow::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
-                                       const WidgetKeyboardEvent& aEvent,
-                                       DoCommandCallback aCallback,
-                                       void* aCallbackData)
-{
-  NativeKeyBindings* keyBindings = NativeKeyBindings::GetInstance(aType);
-  return keyBindings->Execute(aEvent, aCallback, aCallbackData);
-}
-
 
 @implementation WindowDelegate
 

@@ -229,7 +229,8 @@ struct JSCompartment
                                 size_t *shapesCompartmentTables,
                                 size_t *crossCompartmentWrappers,
                                 size_t *regexpCompartment,
-                                size_t *debuggeesSet);
+                                size_t *debuggeesSet,
+                                size_t *baselineStubsOptimized);
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.

@@ -335,7 +335,6 @@ this.DOMIdentity = {
   },
 
   _unwatch: function DOMIdentity_unwatch(message, targetMM) {
-    log("DOMIDentity__unwatch: " + message.id);
     this.getService(message).RP.unwatch(message.id, targetMM);
   },
 

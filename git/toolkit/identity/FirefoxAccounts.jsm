@@ -87,38 +87,20 @@ FxAccountsService.prototype = {
    */
   watch: function watch(aRpCaller) {
     this._rpFlows.set(aRpCaller.id, aRpCaller);
-    log.debug("watch: " + aRpCaller.id);
     log.debug("Current rp flows: " + this._rpFlows.size);
 
-    // Log the user in, if possible, and then call ready().
+    // Nothing to do but call ready()
     let runnable = {
       run: () => {
-        this.fxAccountsManager.getAssertion(aRpCaller.audience, {silent:true}).then(
-          data => {
-            if (data) {
-              this.doLogin(aRpCaller.id, data);
-            } else {
-              this.doLogout(aRpCaller.id);
-            }
-            this.doReady(aRpCaller.id);
-          },
-          error => {
-            log.error("get silent assertion failed: " + JSON.stringify(error));
-            this.doError(aRpCaller.id, error.toString());
-          }
-        );
+        this.doReady(aRpCaller.id);
       }
     };
     Services.tm.currentThread.dispatch(runnable,
                                        Ci.nsIThread.DISPATCH_NORMAL);
   },
 
-  /**
-   * Delete the flow when the screen is unloaded
-   */
-  unwatch: function(aRpCallerId, aTargetMM) {
-    log.debug("unwatching: " + aRpCallerId);
-    this._rpFlows.delete(aRpCallerId);
+  unwatch: function(aRpCaller, aTargetMM) {
+    // nothing to do
   },
 
   /**
@@ -178,9 +160,7 @@ FxAccountsService.prototype = {
     // Call logout() on the next tick
     let runnable = {
       run: () => {
-        this.fxAccountsManager.signOut().then(() => {
-          this.doLogout(aRpCallerId);
-        });
+        this.doLogout(aRpCallerId);
       }
     };
     Services.tm.currentThread.dispatch(runnable,

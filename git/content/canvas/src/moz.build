@@ -67,7 +67,6 @@ if CONFIG['MOZ_WEBGL']:
         'WebGLExtensionTextureHalfFloatLinear.cpp',
         'WebGLExtensionVertexArray.cpp',
         'WebGLFramebuffer.cpp',
-        'WebGLFramebufferAttachable.cpp',
         'WebGLObjectModel.cpp',
         'WebGLProgram.cpp',
         'WebGLQuery.cpp',
@@ -105,3 +104,4 @@ LOCAL_INCLUDES += [
     '/layout/style',
     '/layout/xul',
 ]
+

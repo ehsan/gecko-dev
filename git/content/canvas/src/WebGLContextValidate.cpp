@@ -1173,7 +1173,6 @@ WebGLContext::ValidateTexImageFormatAndType(GLenum format, GLenum type, WebGLTex
     case LOCAL_GL_LUMINANCE_ALPHA:
         validCombo = (type == LOCAL_GL_UNSIGNED_BYTE ||
                       type == LOCAL_GL_HALF_FLOAT ||
-                      type == LOCAL_GL_HALF_FLOAT_OES ||
                       type == LOCAL_GL_FLOAT);
         break;
 
@@ -1182,7 +1181,6 @@ WebGLContext::ValidateTexImageFormatAndType(GLenum format, GLenum type, WebGLTex
         validCombo = (type == LOCAL_GL_UNSIGNED_BYTE ||
                       type == LOCAL_GL_UNSIGNED_SHORT_5_6_5 ||
                       type == LOCAL_GL_HALF_FLOAT ||
-                      type == LOCAL_GL_HALF_FLOAT_OES ||
                       type == LOCAL_GL_FLOAT);
         break;
 
@@ -1192,7 +1190,6 @@ WebGLContext::ValidateTexImageFormatAndType(GLenum format, GLenum type, WebGLTex
                       type == LOCAL_GL_UNSIGNED_SHORT_4_4_4_4 ||
                       type == LOCAL_GL_UNSIGNED_SHORT_5_5_5_1 ||
                       type == LOCAL_GL_HALF_FLOAT ||
-                      type == LOCAL_GL_HALF_FLOAT_OES ||
                       type == LOCAL_GL_FLOAT);
         break;
 
@@ -1255,11 +1252,8 @@ WebGLContext::ValidateTexInputData(GLenum type, int jsArrayType, WebGLTexImageFu
         break;
 
         // TODO: WebGL spec doesn't allow half floats to specified as UInt16.
-    case LOCAL_GL_HALF_FLOAT:
-    case LOCAL_GL_HALF_FLOAT_OES:
-        validInput = (jsArrayType == -1);
-        break;
-
+    // case LOCAL_GL_HALF_FLOAT:
+    // case LOCAL_GL_HALF_FLOAT_OES:
     case LOCAL_GL_UNSIGNED_SHORT:
     case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
     case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:

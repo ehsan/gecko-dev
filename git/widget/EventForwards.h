@@ -8,8 +8,6 @@
 
 #include <stdint.h>
 
-#include "mozilla/TypedEnum.h"
-
 /**
  * XXX Following enums should be in BasicEvents.h.  However, currently, it's
  *     impossible to use foward delearation for enum.
@@ -44,17 +42,6 @@ enum KeyNameIndex
 };
 
 #undef NS_DEFINE_KEYNAME
-
-#define NS_DEFINE_COMMAND(aName, aCommandStr) , Command##aName
-
-typedef int8_t CommandInt;
-enum Command MOZ_ENUM_TYPE(CommandInt)
-{
-  CommandDoNothing
-
-#include "mozilla/CommandList.h"
-};
-#undef NS_DEFINE_COMMAND
 
 } // namespace mozilla
 

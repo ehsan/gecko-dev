@@ -40,7 +40,6 @@ dictionary RTCInboundRTPStreamStats : RTCRTPStreamStats {
   unsigned long packetsLost;
   long mozAvSyncDelay;
   long mozJitterBufferDelay;
-  long mozRtt;
 };
 
 dictionary RTCOutboundRTPStreamStats : RTCRTPStreamStats {
@@ -59,6 +58,7 @@ dictionary RTCMediaStreamTrackStats : RTCStats {
   unsigned long framesSent;
   unsigned long framesReceived;   // Only for remoteSource=true
   unsigned long framesDecoded;
+  unsigned long first;
 };
 
 dictionary RTCMediaStreamStats : RTCStats {

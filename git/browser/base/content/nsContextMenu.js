@@ -80,7 +80,8 @@ nsContextMenu.prototype = {
     // isn't actually linked.
     if (this.isTextSelected && !this.onLink) {
       // Ok, we have some text, let's figure out if it looks like a URL.
-      let selection =  this.focusedWindow.getSelection();
+      let selection =  document.commandDispatcher.focusedWindow
+                               .getSelection();
       let linkText = selection.toString().trim();
       let uri;
       if (/^(?:https?|ftp):/i.test(linkText)) {
@@ -547,10 +548,6 @@ nsContextMenu.prototype = {
 
     // Remember the node that was clicked.
     this.target = aNode;
-
-    let [elt, win] = BrowserUtils.getFocusSync(document);
-    this.focusedWindow = win;
-    this.focusedElement = elt;
 
     // If this is a remote context menu event, use the information from
     // gContextMenuContentData instead.
@@ -1255,7 +1252,7 @@ nsContextMenu.prototype = {
     var linkText;
     // If selected text is found to match valid URL pattern.
     if (this.onPlainTextLink)
-      linkText = this.focusedWindow.getSelection().toString().trim();
+      linkText = document.commandDispatcher.focusedWindow.getSelection().toString().trim();
     else
       linkText = this.linkText();
     urlSecurityCheck(this.linkURL, this._unremotePrincipal(doc.nodePrincipal));
@@ -1452,7 +1449,7 @@ nsContextMenu.prototype = {
 
   // Returns true if anything is selected.
   isContentSelection: function() {
-    return !this.focusedWindow.getSelection().isCollapsed;
+    return !document.commandDispatcher.focusedWindow.getSelection().isCollapsed;
   },
 
   toString: function () {
@@ -1554,7 +1551,7 @@ nsContextMenu.prototype = {
     var linkText;
     // If selected text is found to match valid URL pattern.
     if (this.onPlainTextLink)
-      linkText = this.focusedWindow.getSelection().toString().trim();
+      linkText = document.commandDispatcher.focusedWindow.getSelection().toString().trim();
     else
       linkText = this.linkText();
     window.top.PlacesCommandHook.bookmarkLink(PlacesUtils.bookmarksMenuFolderId, this.linkURL,

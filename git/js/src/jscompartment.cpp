@@ -164,11 +164,12 @@ JSCompartment::ensureJitCompartmentExists(JSContext *cx)
     if (jitCompartment_)
         return true;
 
-    if (!zone()->getJitZone(cx))
+    JitRuntime *jitRuntime = cx->runtime()->getJitRuntime(cx);
+    if (!jitRuntime)
         return false;
 
     /* Set the compartment early, so linking works. */
-    jitCompartment_ = cx->new_<JitCompartment>();
+    jitCompartment_ = cx->new_<JitCompartment>(jitRuntime);
 
     if (!jitCompartment_)
         return false;
@@ -915,7 +916,8 @@ JSCompartment::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
                                       size_t *shapesCompartmentTables,
                                       size_t *crossCompartmentWrappersArg,
                                       size_t *regexpCompartment,
-                                      size_t *debuggeesSet)
+                                      size_t *debuggeesSet,
+                                      size_t *baselineStubsOptimized)
 {
     *compartmentObject += mallocSizeOf(this);
     types.addSizeOfExcludingThis(mallocSizeOf, tiAllocationSiteTables,
@@ -927,6 +929,12 @@ JSCompartment::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
     *crossCompartmentWrappersArg += crossCompartmentWrappers.sizeOfExcludingThis(mallocSizeOf);
     *regexpCompartment += regExps.sizeOfExcludingThis(mallocSizeOf);
     *debuggeesSet += debuggees.sizeOfExcludingThis(mallocSizeOf);
+#ifdef JS_ION
+    if (jitCompartment()) {
+        *baselineStubsOptimized +=
+            jitCompartment()->optimizedStubSpace()->sizeOfExcludingThis(mallocSizeOf);
+    }
+#endif
 }
 
 void

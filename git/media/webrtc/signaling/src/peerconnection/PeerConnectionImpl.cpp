@@ -2164,12 +2164,10 @@ PeerConnectionImpl::ExecuteStatsQuery_s(RTCStatsQuery *query) {
           uint32_t packetsReceived;
           uint64_t bytesReceived;
           uint32_t packetsLost;
-          int32_t rtt;
           if (mp.Conduit()->GetRTCPReceiverReport(&timestamp, &jitterMs,
                                                   &packetsReceived,
                                                   &bytesReceived,
-                                                  &packetsLost,
-                                                  &rtt)) {
+                                                  &packetsLost)) {
             remoteId = NS_LITERAL_STRING("outbound_rtcp_") + idstr;
             RTCInboundRTPStreamStats s;
             s.mTimestamp.Construct(timestamp);
@@ -2184,7 +2182,6 @@ PeerConnectionImpl::ExecuteStatsQuery_s(RTCStatsQuery *query) {
             s.mPacketsReceived.Construct(packetsReceived);
             s.mBytesReceived.Construct(bytesReceived);
             s.mPacketsLost.Construct(packetsLost);
-            s.mMozRtt.Construct(rtt);
             query->report.mInboundRTPStreamStats.Value().AppendElement(s);
           }
         }

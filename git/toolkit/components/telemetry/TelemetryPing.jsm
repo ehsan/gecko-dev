@@ -73,8 +73,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "TelemetryFile",
                                   "resource://gre/modules/TelemetryFile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "UITelemetry",
                                   "resource://gre/modules/UITelemetry.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryLog",
-                                  "resource://gre/modules/TelemetryLog.jsm");
 
 function generateUUID() {
   let str = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).generateUUID().toString();
@@ -690,7 +688,6 @@ let Impl = {
       addonHistograms: this.getAddonHistograms(),
       addonDetails: AddonManagerPrivate.getTelemetryDetails(),
       UIMeasurements: UITelemetry.getUIMeasurements(),
-      log: TelemetryLog.entries(),
       info: info
     };
 

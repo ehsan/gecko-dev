@@ -14,7 +14,6 @@
 
 namespace mozilla {
 
-class WebGLFramebufferAttachable;
 class WebGLTexture;
 class WebGLRenderbuffer;
 namespace gl {
@@ -115,7 +114,6 @@ public:
 
 private:
     const WebGLRectangleObject& GetAnyRectObject() const;
-    Attachment* GetAttachmentOrNull(GLenum attachment);
 
 public:
     bool HasDefinedAttachments() const;
@@ -176,16 +174,10 @@ public:
 
     bool CheckColorAttachmentNumber(GLenum attachment, const char* functionName) const;
 
-    void EnsureColorAttachments(size_t colorAttachmentId);
-
-    Attachment* AttachmentFor(GLenum attachment);
-    void NotifyAttachableChanged() const;
-
-private:
-    mutable GLenum mStatus;
-
     GLuint mGLName;
     bool mHasEverBeenBound;
+
+    void EnsureColorAttachments(size_t colorAttachmentId);
 
     // we only store pointers to attached renderbuffers, not to attached textures, because
     // we will only need to initialize renderbuffers. Textures are already initialized.

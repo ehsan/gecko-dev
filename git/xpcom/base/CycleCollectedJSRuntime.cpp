@@ -283,28 +283,23 @@ private:
 
 struct Closure
 {
-  Closure(nsCycleCollectionNoteRootCallback* aCb)
-    : mCycleCollectionEnabled(true), mCb(aCb)
-  {
-  }
-
-  bool mCycleCollectionEnabled;
-  nsCycleCollectionNoteRootCallback* mCb;
+  bool cycleCollectionEnabled;
+  nsCycleCollectionNoteRootCallback *cb;
 };
 
 static void
-CheckParticipatesInCycleCollection(void* aThing, const char* aName, void* aClosure)
+CheckParticipatesInCycleCollection(void *aThing, const char *name, void *aClosure)
 {
-  Closure* closure = static_cast<Closure*>(aClosure);
+  Closure *closure = static_cast<Closure*>(aClosure);
 
-  if (closure->mCycleCollectionEnabled) {
+  if (closure->cycleCollectionEnabled) {
     return;
   }
 
   if (AddToCCKind(js::GCThingTraceKind(aThing)) &&
       xpc_IsGrayGCThing(aThing))
   {
-    closure->mCycleCollectionEnabled = true;
+    closure->cycleCollectionEnabled = true;
   }
 }
 
@@ -313,17 +308,10 @@ NoteJSHolder(void *holder, nsScriptObjectTracer *&tracer, void *arg)
 {
   Closure *closure = static_cast<Closure*>(arg);
 
-  bool noteRoot;
-  if (MOZ_UNLIKELY(closure->mCb->WantAllTraces())) {
-    noteRoot = true;
-  } else {
-    closure->mCycleCollectionEnabled = false;
-    tracer->Trace(holder, TraceCallbackFunc(CheckParticipatesInCycleCollection), closure);
-    noteRoot = closure->mCycleCollectionEnabled;
-  }
-
-  if (noteRoot) {
-    closure->mCb->NoteNativeRoot(holder, tracer);
+  closure->cycleCollectionEnabled = false;
+  tracer->Trace(holder, TraceCallbackFunc(CheckParticipatesInCycleCollection), closure);
+  if (closure->cycleCollectionEnabled) {
+    closure->cb->NoteNativeRoot(holder, tracer);
   }
 
   return PL_DHASH_NEXT;
@@ -703,7 +691,7 @@ CycleCollectedJSRuntime::TraverseNativeRoots(nsCycleCollectionNoteRootCallback& 
   // would hurt to do this after the JS holders.
   TraverseAdditionalNativeRoots(aCb);
 
-  Closure closure(&aCb);
+  Closure closure = { true, &aCb };
   mJSHolders.Enumerate(NoteJSHolder, &closure);
 }
 

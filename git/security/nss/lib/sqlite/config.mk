@@ -22,6 +22,10 @@ OPTIMIZER=
 endif
 endif
 
+ifeq ($(OS_TARGET),SunOS)
+OS_LIBS += -lbsm 
+endif
+
 ifeq ($(OS_TARGET),Darwin)
 # These version numbers come from the -version-info 8:6:8 libtool option in
 # sqlite upstream's Makefile.in.  (Given -version-info current:revision:age,

@@ -5104,7 +5104,8 @@ Selection::Extend(nsINode& aParentNode, uint32_t aOffset, ErrorResult& aRv)
 #endif
   SetDirection(dir);
 #ifdef DEBUG_SELECTION
-  nsCOMPtr<nsIContent> content = do_QueryInterface(&aParentNode);
+  nsCOMPtr<nsIContent>content;
+  content = do_QueryInterface(aParentNode);
 
   printf ("Sel. Extend to %p %s %d\n", content.get(),
           nsAtomCString(content->Tag()).get(), aOffset);

@@ -189,21 +189,18 @@ GetJumpOffset(jsbytecode *pc)
 }
 
 IonBuilder::CFGState
-IonBuilder::CFGState::If(jsbytecode *join, MTest *test)
+IonBuilder::CFGState::If(jsbytecode *join, MBasicBlock *ifFalse)
 {
     CFGState state;
     state.state = IF_TRUE;
     state.stopAt = join;
-    state.branch.ifFalse = test->ifFalse();
-    state.branch.test = test;
+    state.branch.ifFalse = ifFalse;
     return state;
 }
 
 IonBuilder::CFGState
-IonBuilder::CFGState::IfElse(jsbytecode *trueEnd, jsbytecode *falseEnd, MTest *test)
+IonBuilder::CFGState::IfElse(jsbytecode *trueEnd, jsbytecode *falseEnd, MBasicBlock *ifFalse)
 {
-    MBasicBlock *ifFalse = test->ifFalse();
-
     CFGState state;
     // If the end of the false path is the same as the start of the
     // false path, then the "else" block is empty and we can devolve
@@ -216,7 +213,6 @@ IonBuilder::CFGState::IfElse(jsbytecode *trueEnd, jsbytecode *falseEnd, MTest *t
     state.stopAt = trueEnd;
     state.branch.falseEnd = falseEnd;
     state.branch.ifFalse = ifFalse;
-    state.branch.test = test;
     return state;
 }
 
@@ -227,7 +223,6 @@ IonBuilder::CFGState::AndOr(jsbytecode *join, MBasicBlock *joinStart)
     state.state = AND_OR;
     state.stopAt = join;
     state.branch.ifFalse = joinStart;
-    state.branch.test = nullptr;
     return state;
 }
 
@@ -1890,10 +1885,6 @@ IonBuilder::processIfElseTrueEnd(CFGState &state)
     pc = state.branch.ifFalse->pc();
     setCurrentAndSpecializePhis(state.branch.ifFalse);
     graph().moveBlockToEnd(current);
-
-    if (state.branch.test)
-        filterTypesAtTest(state.branch.test);
-
     return ControlStatus_Jumped;
 }
 
@@ -3018,64 +3009,6 @@ IonBuilder::tableSwitch(JSOp op, jssrcnote *sn)
 }
 
 bool
-IonBuilder::filterTypesAtTest(MTest *test)
-{
-    JS_ASSERT(test->ifTrue() == current || test->ifFalse() == current);
-
-    bool trueBranch = test->ifTrue() == current;
-
-    MDefinition *subject = nullptr;
-    bool removeUndefined;
-    bool removeNull;
-
-    test->filtersUndefinedOrNull(trueBranch, &subject, &removeUndefined, &removeNull);
-
-    // The test filters no undefined or null.
-    if (!subject)
-        return true;
-
-    // There is no TypeSet that can get filtered.
-    if (!subject->resultTypeSet())
-        return true;
-
-    // Only do this optimization if the typeset does contains null or undefined.
-    if ((!(removeUndefined && subject->resultTypeSet()->hasType(types::Type::UndefinedType())) &&
-         !(removeNull && subject->resultTypeSet()->hasType(types::Type::NullType()))))
-    {
-        return true;
-    }
-
-    // Find all values on the stack that correspond to the subject
-    // and replace it with a MIR with filtered TypeSet information.
-    // Create the replacement MIR lazily upon first occurence.
-    MDefinition *replace = nullptr;
-    for (uint32_t i = 0; i < current->stackDepth(); i++) {
-        if (current->getSlot(i) != subject)
-            continue;
-
-        // Create replacement MIR with filtered TypesSet.
-        if (!replace) {
-            types::TemporaryTypeSet *type =
-                subject->resultTypeSet()->filter(alloc_->lifoAlloc(), removeUndefined,
-                                                                      removeNull);
-            if (!type)
-                return false;
-
-            replace = ensureDefiniteTypeSet(subject, type);
-            // Make sure we don't hoist it above the MTest, we can use the
-            // 'dependency' of an MInstruction. This is normally used by
-            // Alias Analysis, but won't get overwritten, since this
-            // instruction doesn't have an AliasSet.
-            replace->setDependency(test);
-        }
-
-        current->setSlot(i, replace);
-    }
-
-   return true;
-}
-
-bool
 IonBuilder::jsop_label()
 {
     JS_ASSERT(JSOp(*pc) == JSOP_LABEL);
@@ -3493,7 +3426,7 @@ IonBuilder::jsop_ifeq(JSOp op)
     // IF case, the IFEQ offset is the join point.
     switch (SN_TYPE(sn)) {
       case SRC_IF:
-        if (!cfgStack_.append(CFGState::If(falseStart, test)))
+        if (!cfgStack_.append(CFGState::If(falseStart, ifFalse)))
             return false;
         break;
 
@@ -3512,7 +3445,7 @@ IonBuilder::jsop_ifeq(JSOp op)
         JS_ASSERT(falseEnd > trueEnd);
         JS_ASSERT(falseEnd >= falseStart);
 
-        if (!cfgStack_.append(CFGState::IfElse(trueEnd, falseEnd, test)))
+        if (!cfgStack_.append(CFGState::IfElse(trueEnd, falseEnd, ifFalse)))
             return false;
         break;
       }
@@ -3524,9 +3457,6 @@ IonBuilder::jsop_ifeq(JSOp op)
     // Switch to parsing the true branch. Note that no PC update is needed,
     // it's the next instruction.
     setCurrentAndSpecializePhis(ifTrue);
-
-    // Filter the types in the true branch.
-    filterTypesAtTest(test);
 
     return true;
 }
@@ -4667,9 +4597,23 @@ IonBuilder::createCallObject(MDefinition *callee, MDefinition *scope)
     // creation.
     CallObject *templateObj = inspector->templateCallObject();
 
-    // Allocate the object. Run-once scripts need a singleton type, so always do
-    // a VM call in such cases.
-    MNewCallObject *callObj = MNewCallObject::New(alloc(), templateObj, script()->treatAsRunOnce());
+    // If the CallObject needs dynamic slots, allocate those now.
+    MInstruction *slots;
+    if (templateObj->hasDynamicSlots()) {
+        size_t nslots = JSObject::dynamicSlotsCount(templateObj->numFixedSlots(),
+                                                    templateObj->lastProperty()->slotSpan(templateObj->getClass()),
+                                                    templateObj->getClass());
+        slots = MNewSlots::New(alloc(), nslots);
+    } else {
+        slots = MConstant::New(alloc(), NullValue());
+    }
+    current->add(slots);
+
+    // Allocate the actual object. It is important that no intervening
+    // instructions could potentially bailout, thus leaking the dynamic slots
+    // pointer. Run-once scripts need a singleton type, so always do a VM call
+    // in such cases.
+    MNewCallObject *callObj = MNewCallObject::New(alloc(), templateObj, script()->treatAsRunOnce(), slots);
     current->add(callObj);
 
     // Initialize the object's reserved slots. No post barrier is needed here,
@@ -4678,20 +4622,14 @@ IonBuilder::createCallObject(MDefinition *callee, MDefinition *scope)
     current->add(MStoreFixedSlot::New(alloc(), callObj, CallObject::calleeSlot(), callee));
 
     // Initialize argument slots.
-    MSlots *slots = nullptr;
     for (AliasedFormalIter i(script()); i; i++) {
         unsigned slot = i.scopeSlot();
         unsigned formal = i.frameIndex();
         MDefinition *param = current->getSlot(info().argSlotUnchecked(formal));
-        if (slot >= templateObj->numFixedSlots()) {
-            if (!slots) {
-                slots = MSlots::New(alloc(), callObj);
-                current->add(slots);
-            }
+        if (slot >= templateObj->numFixedSlots())
             current->add(MStoreSlot::New(alloc(), slots, slot - templateObj->numFixedSlots(), param));
-        } else {
+        else
             current->add(MStoreFixedSlot::New(alloc(), callObj, slot, param));
-        }
     }
 
     return callObj;
@@ -6304,26 +6242,6 @@ IonBuilder::ensureDefiniteType(MDefinition *def, JSValueType definiteType)
     return replace;
 }
 
-MDefinition *
-IonBuilder::ensureDefiniteTypeSet(MDefinition *def, types::TemporaryTypeSet *types)
-{
-    // We cannot arbitrarily add a typeset to a definition. It can be shared
-    // in another path. So we always need to create a new MIR.
-
-    // Use ensureDefiniteType to do unboxing. If that happened the type can
-    // be added on the newly created unbox operation.
-    MDefinition *replace = ensureDefiniteType(def, types->getKnownTypeTag());
-    if (replace != def) {
-        replace->setResultTypeSet(types);
-        return replace;
-    }
-
-    // Create a NOP mir instruction to filter the typeset.
-    MFilterTypeSet *filter = MFilterTypeSet::New(alloc(), def, types);
-    current->add(filter);
-    return filter;
-}
-
 static size_t
 NumFixedSlots(JSObject *object)
 {
@@ -7241,36 +7159,6 @@ IonBuilder::jsop_getelem_dense(MDefinition *obj, MDefinition *index)
         JS_ASSERT(knownType == JSVAL_TYPE_UNKNOWN);
     }
 
-    // If the array is being converted to doubles, but we've observed
-    // just int, substitute a type set of int+double into the observed
-    // type set. The reason for this is that, in the
-    // interpreter+baseline, such arrays may consist of mixed
-    // ints/doubles, but when we enter ion code, we will be coercing
-    // all inputs to doubles. Therefore, the type barrier checking for
-    // just int is highly likely (*almost* guaranteed) to fail sooner
-    // or later. Essentially, by eagerly coercing to double, ion is
-    // making the observed types outdated. To compensate for this, we
-    // substitute a broader observed type set consisting of both ints
-    // and doubles. There is perhaps a tradeoff here, so we limit this
-    // optimization to parallel code, where it is needed to prevent
-    // perpetual bailouts in some extreme cases. (Bug 977853)
-    //
-    // NB: we have not added a MConvertElementsToDoubles MIR, so we
-    // cannot *assume* the result is a double.
-    if (executionMode == ParallelExecution &&
-        barrier &&
-        types->getKnownTypeTag() == JSVAL_TYPE_INT32 &&
-        objTypes &&
-        objTypes->convertDoubleElements(constraints()) == types::TemporaryTypeSet::AlwaysConvertToDoubles)
-    {
-        // Note: double implies int32 as well for typesets
-        types = alloc_->lifoAlloc()->new_<types::TemporaryTypeSet>(types::Type::DoubleType());
-        if (!types)
-            return false;
-
-        barrier = false; // Don't need a barrier anymore
-    }
-
     if (knownType != JSVAL_TYPE_UNKNOWN)
         load->setResultType(MIRTypeFromValueType(knownType));
 
@@ -7572,7 +7460,7 @@ IonBuilder::setElemTryScalarElemOfTypedObject(bool *emitted,
     }
 
     // Store the element
-    if (!storeScalarTypedObjectValue(obj, indexAsByteOffset, elemType, canBeNeutered, false, value))
+    if (!storeScalarTypedObjectValue(obj, indexAsByteOffset, elemType, canBeNeutered, value))
         return false;
 
     current->push(value);
@@ -7604,10 +7492,6 @@ IonBuilder::setElemTryTypedStatic(bool *emitted, MDefinition *object,
         return true;
 
     TypedArrayObject *tarr = &tarrObj->as<TypedArrayObject>();
-
-    if (gc::IsInsideNursery(tarr->runtimeFromMainThread(), tarr->viewData()))
-        return true;
-
     ArrayBufferView::ViewType viewType = (ArrayBufferView::ViewType) tarr->type();
 
     MDefinition *ptr = convertShiftToMaskForStaticTypedArray(index, viewType);
@@ -7920,28 +7804,6 @@ IonBuilder::jsop_setelem_typed(ScalarTypeDescr::Type arrayType,
         current->push(value);
 
     return resumeAfter(ins);
-}
-
-bool
-IonBuilder::jsop_setelem_typed_object(ScalarTypeDescr::Type arrayType,
-                                      SetElemSafety safety,
-                                      bool racy,
-                                      MDefinition *object, MDefinition *index, MDefinition *value)
-{
-    JS_ASSERT(safety == SetElem_Unsafe); // Can be fixed, but there's been no reason to as of yet
-
-    MInstruction *int_index = MToInt32::New(alloc(), index);
-    current->add(int_index);
-
-    size_t elemSize = ScalarTypeDescr::alignment(arrayType);
-    MMul *byteOffset = MMul::New(alloc(), int_index, constantInt(elemSize),
-                                        MIRType_Int32, MMul::Integer);
-    current->add(byteOffset);
-
-    if (!storeScalarTypedObjectValue(object, byteOffset, arrayType, false, racy, value))
-        return false;
-
-    return true;
 }
 
 bool
@@ -9121,7 +8983,7 @@ IonBuilder::setPropTryScalarPropOfTypedObject(bool *emitted,
 
     // OK! Perform the optimization.
 
-    if (!storeScalarTypedObjectValue(obj, constantInt(fieldOffset), fieldType, true, false, value))
+    if (!storeScalarTypedObjectValue(obj, constantInt(fieldOffset), fieldType, true, value))
         return false;
 
     current->push(value);
@@ -10137,16 +9999,15 @@ IonBuilder::typeObjectForFieldFromStructType(MDefinition *typeObj,
 
 bool
 IonBuilder::storeScalarTypedObjectValue(MDefinition *typedObj,
-                                        MDefinition *byteOffset,
+                                        MDefinition *offset,
                                         ScalarTypeDescr::Type type,
                                         bool canBeNeutered,
-                                        bool racy,
                                         MDefinition *value)
 {
     // Find location within the owner object.
     MDefinition *elements, *scaledOffset;
     size_t alignment = ScalarTypeDescr::alignment(type);
-    loadTypedObjectElements(typedObj, byteOffset, alignment, canBeNeutered,
+    loadTypedObjectElements(typedObj, offset, alignment, canBeNeutered,
                             &elements, &scaledOffset);
 
     // Clamp value to [0, 255] when type is Uint8Clamped
@@ -10159,8 +10020,6 @@ IonBuilder::storeScalarTypedObjectValue(MDefinition *typedObj,
     MStoreTypedArrayElement *store =
         MStoreTypedArrayElement::New(alloc(), elements, scaledOffset, toWrite,
                                      type);
-    if (racy)
-        store->setRacy();
     current->add(store);
 
     return true;
