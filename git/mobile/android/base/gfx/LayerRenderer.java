@@ -543,24 +543,6 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
                 mUpdated &= layer.update(mPageContext); // called on compositor thread
 
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-
-            // If a layer update requires further work, schedule another redraw
-            if (!mUpdated)
-                mView.requestRender();
-
-            PanningPerfAPI.recordFrameTime();
-
-            /* Used by robocop for testing purposes */
-            IntBuffer pixelBuffer = mPixelBuffer;
-            if (mUpdated && pixelBuffer != null) {
-                synchronized (pixelBuffer) {
-                    pixelBuffer.position(0);
-                    GLES20.glReadPixels(0, 0, (int)mScreenContext.viewport.width(),
-                                        (int)mScreenContext.viewport.height(), GLES20.GL_RGBA,
-                                        GLES20.GL_UNSIGNED_BYTE, pixelBuffer);
-                    pixelBuffer.notify();
-                }
-            }
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */
@@ -580,7 +562,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
             Rect rootMask = null;
             Layer rootLayer = mView.getController().getRoot();
             if (rootLayer != null) {
-                RectF rootBounds = rootLayer.getDisplayPortBounds(mPageContext);
+                RectF rootBounds = rootLayer.getBounds(mPageContext);
                 rootBounds.offset(-mPageContext.viewport.left, -mPageContext.viewport.top);
                 rootMask = new Rect();
                 rootBounds.roundOut(rootMask);
