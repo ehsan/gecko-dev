@@ -918,7 +918,8 @@ nsSVGGlyphFrame::SetupCairoState(gfxContext *aContext, gfxPattern **aStrokePatte
                                              NS_GET_A(color) / 255.0 * opacity));
     }
 
-    strokePattern.forget(aStrokePattern);
+    *aStrokePattern = nsnull;
+    strokePattern.swap(*aStrokePattern);
   }
 
   if (SetupCairoFill(aContext)) {
