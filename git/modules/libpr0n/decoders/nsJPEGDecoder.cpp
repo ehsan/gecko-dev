@@ -40,7 +40,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsJPEGDecoder.h"
-#include "ImageLogging.h"
 
 #include "imgIContainerObserver.h"
 
@@ -48,6 +47,7 @@
 
 #include "nspr.h"
 #include "nsCRT.h"
+#include "ImageLogging.h"
 #include "gfxColor.h"
 
 #include "jerror.h"

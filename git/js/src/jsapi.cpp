@@ -76,7 +76,6 @@
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jsparse.h"
-#include "jsprobes.h"
 #include "jsproxy.h"
 #include "jsregexp.h"
 #include "jsscope.h"
@@ -631,9 +630,11 @@ JS_IsBuiltinFunctionConstructor(JSFunction *fun)
 /*
  * Has a new runtime ever been created?  This flag is used to detect unsafe
  * changes to js_CStringsAreUTF8 after a runtime has been created, and to
- * control things that should happen only once across all runtimes.
+ * ensure that "first checks" on runtime creation are run only once.
  */
+#ifdef DEBUG
 static JSBool js_NewRuntimeWasCalled = JS_FALSE;
+#endif
 
 JSRuntime::JSRuntime()
   : gcChunkAllocator(&defaultGCChunkAllocator),
@@ -749,11 +750,8 @@ JSRuntime::~JSRuntime()
 JS_PUBLIC_API(JSRuntime *)
 JS_NewRuntime(uint32 maxbytes)
 {
-    if (!js_NewRuntimeWasCalled) {
-#ifdef MOZ_ETW
-        EventRegisterMozillaSpiderMonkey();
-#endif
 #ifdef DEBUG
+    if (!js_NewRuntimeWasCalled) {
         /*
          * This code asserts that the numbers associated with the error names
          * in jsmsg.def are monotonically increasing.  It uses values for the
@@ -778,10 +776,10 @@ JS_NewRuntime(uint32 maxbytes)
     JS_END_MACRO;
 #include "js.msg"
 #undef MSG_DEF
-#endif /* DEBUG */
 
         js_NewRuntimeWasCalled = JS_TRUE;
     }
+#endif /* DEBUG */
 
     void *mem = OffTheBooks::calloc_(sizeof(JSRuntime));
     if (!mem)
@@ -813,10 +811,6 @@ JS_ShutDown(void)
     js_CleanupLocks();
 #endif
     PRMJ_NowShutdown();
-
-#ifdef MOZ_ETW
-    EventUnregisterMozillaSpiderMonkey();
-#endif
 }
 
 JS_PUBLIC_API(void *)
@@ -2723,9 +2717,7 @@ JS_PUBLIC_API(JSString *)
 JS_NewExternalString(JSContext *cx, const jschar *chars, size_t length, intN type)
 {
     CHECK_REQUEST(cx);
-    JSString *s = JSExternalString::new_(cx, chars, length, type, NULL);
-    Probes::createString(cx, s, length);
-    return s;
+    return JSExternalString::new_(cx, chars, length, type, NULL);
 }
 
 extern JS_PUBLIC_API(JSString *)

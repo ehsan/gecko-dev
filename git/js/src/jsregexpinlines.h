@@ -491,9 +491,7 @@ RegExp::compileHelper(JSContext *cx, JSLinearString &pattern, TokenStream *ts)
     }
 #endif
 
-#if ENABLE_YARR_JIT
     codeBlock.setFallBack(true);
-#endif
     byteCode = JSC::Yarr::byteCompile(yarrPattern, cx->compartment->regExpAllocator).get();
 
     return true;

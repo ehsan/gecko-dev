@@ -199,7 +199,6 @@ protected: // new functions
 
     static PRBool FontCallback (const nsAString & fontName, 
                                 const nsACString & genericName, 
-                                PRBool aUseFontSet,
                                 void *closure);
     PRBool mEnableKerning;
 

@@ -267,7 +267,7 @@ void nsIOSurfaceLib::CloseLibrary() {
   sOpenGLFramework = nsnull;
 }
 
-already_AddRefed<nsIOSurface> nsIOSurface::CreateIOSurface(int aWidth, int aHeight) { 
+nsIOSurface* nsIOSurface::CreateIOSurface(int aWidth, int aHeight) { 
   if (!nsIOSurfaceLib::isInit())
     return nsnull;
 
@@ -300,16 +300,16 @@ already_AddRefed<nsIOSurface> nsIOSurface::CreateIOSurface(int aWidth, int aHeig
   if (!surfaceRef)
     return nsnull;
 
-  nsRefPtr<nsIOSurface> ioSurface = new nsIOSurface(surfaceRef);
+  nsIOSurface* ioSurface = new nsIOSurface(surfaceRef);
   if (!ioSurface) {
     ::CFRelease(surfaceRef);
     return nsnull;
   }
 
-  return ioSurface.forget();
+  return ioSurface;
 }
 
-already_AddRefed<nsIOSurface> nsIOSurface::LookupSurface(IOSurfaceID aIOSurfaceID) { 
+nsIOSurface* nsIOSurface::LookupSurface(IOSurfaceID aIOSurfaceID) { 
   if (!nsIOSurfaceLib::isInit())
     return nsnull;
 
@@ -317,12 +317,12 @@ already_AddRefed<nsIOSurface> nsIOSurface::LookupSurface(IOSurfaceID aIOSurfaceI
   if (!surfaceRef)
     return nsnull;
 
-  nsRefPtr<nsIOSurface> ioSurface = new nsIOSurface(surfaceRef);
+  nsIOSurface* ioSurface = new nsIOSurface(surfaceRef);
   if (!ioSurface) {
     ::CFRelease(surfaceRef);
     return nsnull;
   }
-  return ioSurface.forget();
+  return ioSurface;
 }
 
 IOSurfaceID nsIOSurface::GetIOSurfaceID() { 
@@ -427,6 +427,9 @@ void nsCARenderer::Destroy() {
   if (mCGImage) {
     ::CGImageRelease(mCGImage);
   }
+  if (mIOSurface) {
+    delete mIOSurface;
+  }
   // mCGData is deallocated by cgdata_release_callback
 
   mCARenderer = nil;
@@ -509,6 +512,7 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight) {
   layer.actions = newActions;
   [newActions release];
 
+  double time = 0;
   [CATransaction setValue: [NSNumber numberWithFloat:0.0f] forKey: kCATransactionAnimationDuration];
   [CATransaction setValue: (id) kCFBooleanTrue forKey: kCATransactionDisableActions];
   [layer setBounds:CGRectMake(0, 0, aWidth, aHeight)];
@@ -622,12 +626,10 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight) {
   return NS_OK;
 }
 
-void nsCARenderer::AttachIOSurface(nsRefPtr<nsIOSurface> aSurface) {
+void nsCARenderer::AttachIOSurface(nsIOSurface *aSurface) {
   if (mIOSurface && 
       aSurface->GetIOSurfaceID() == mIOSurface->GetIOSurfaceID()) {
-    // This object isn't needed since we already have a
-    // handle to the same io surface.
-    aSurface = nsnull;
+    delete aSurface; 
     return;
   }
   if (mCARenderer) {
@@ -635,16 +637,10 @@ void nsCARenderer::AttachIOSurface(nsRefPtr<nsIOSurface> aSurface) {
     // resize our elements.
     Destroy(); 
   }
+  if (mIOSurface)
+    delete mIOSurface;
 
   mIOSurface = aSurface;
-}
-
-IOSurfaceID nsCARenderer::GetIOSurfaceID() {
-  if (!mIOSurface) {
-    return 0;
-  }
-
-  return mIOSurface->GetIOSurfaceID();
 }
 
 nsresult nsCARenderer::Render(int aWidth, int aHeight, 
@@ -786,19 +782,6 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
   return NS_OK;
 }
 
-void nsCARenderer::DettachCALayer() {
-  CARenderer* caRenderer = (CARenderer*)mCARenderer;
-
-  caRenderer.layer = nil;
-}
-
-void nsCARenderer::AttachCALayer(void *aCALayer) {
-  CARenderer* caRenderer = (CARenderer*)mCARenderer;
-
-  CALayer* caLayer = (CALayer*)aCALayer;
-  caRenderer.layer = caLayer;
-}
-
 #ifdef DEBUG
 
 int sSaveToDiskSequence = 0;
@@ -851,4 +834,3 @@ void nsCARenderer::SaveToDisk(nsIOSurface *surf) {
 }
 
 #endif
-

@@ -229,7 +229,6 @@ install.rdf
 modules/JSON.jsm
 mozilla-runtime@BIN_SUFFIX@
 old-homepage-default.properties
-README.txt
 res/arrow.gif
 res/arrowd.gif
 res/broken-image.gif

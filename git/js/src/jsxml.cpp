@@ -7160,9 +7160,10 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
     JSFunction *fun = JS_DefineFunction(cx, obj, js_XMLList_str, XMLList, 1, JSFUN_CONSTRUCTOR);
     if (!fun)
         return NULL;
-    if (!LinkConstructorAndPrototype(cx, FUN_OBJECT(fun), proto))
+    if (!js_SetClassPrototype(cx, FUN_OBJECT(fun), proto,
+                              JSPROP_READONLY | JSPROP_PERMANENT)) {
         return NULL;
-
+    }
     return proto;
 }
 

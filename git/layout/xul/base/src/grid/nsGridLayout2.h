@@ -53,14 +53,14 @@ class nsBoxLayoutState;
 class nsGridCell;
 
 /**
- * The nsBoxLayout implementation for a grid.
+ * The nsIBoxLayout implementation for a grid.
  */
 class nsGridLayout2 : public nsStackLayout, 
                       public nsIGridPart
 {
 public:
 
-  friend nsresult NS_NewGridLayout2(nsIPresShell* aPresShell, nsBoxLayout** aNewLayout);
+  friend nsresult NS_NewGridLayout2(nsIPresShell* aPresShell, nsIBoxLayout** aNewLayout);
 
   NS_DECL_ISUPPORTS_INHERITED
 

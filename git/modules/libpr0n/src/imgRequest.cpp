@@ -39,7 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "imgRequest.h"
-#include "ImageLogging.h"
 
 /* We end up pulling in windows.h because we eventually hit gfxWindowsSurface;
  * windows.h defines LoadImage, so we have to #undef it or imgLoader::LoadImage
@@ -55,6 +54,7 @@
 #include "VectorImage.h"
 
 #include "imgILoader.h"
+#include "ImageLogging.h"
 
 #include "netCore.h"
 

@@ -324,7 +324,7 @@ private:
   NP_Port                                   mQDPluginPortCopy;
 #endif
   PRInt32                                   mInCGPaintLevel;
-  nsRefPtr<nsIOSurface>                     mIOSurface;
+  nsIOSurface                              *mIOSurface;
   nsCARenderer                              mCARenderer;
   CGColorSpaceRef                           mColorProfile;
   static nsCOMPtr<nsITimer>                *sCATimer;

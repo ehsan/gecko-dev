@@ -48,6 +48,7 @@ GRE_MODULE	= 1
 
 EXPORTS		= \
 		nsPIBoxObject.h \
+		nsIMenuFrame.h \
 		nsIScrollbarMediator.h \
 		nsXULPopupManager.h \
 		$(NULL)

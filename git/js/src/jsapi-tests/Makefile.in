@@ -75,7 +75,6 @@ CPPSRCS = \
   testRegExp.cpp \
   testResolveRecursion.cpp \
   testSameValue.cpp \
-  testScriptInfo.cpp \
   testScriptObject.cpp \
   testSetProperty.cpp \
   testStringBuffer.cpp \

@@ -106,6 +106,7 @@
 #endif
 #include "nsAutoPtr.h"
 
+#include "nsBidiPresUtils.h"
 #include "nsBidiUtils.h"
 
 #include "gfxFont.h"
@@ -131,7 +132,7 @@ using namespace mozilla::dom;
 
 struct TabWidth {
   TabWidth(PRUint32 aOffset, PRUint32 aWidth)
-    : mOffset(aOffset), mWidth(float(aWidth))
+    : mOffset(aOffset), mWidth(aWidth)
   { }
 
   PRUint32 mOffset; // character offset within the text covered by the
@@ -2749,7 +2750,7 @@ ComputeTabWidthAppUnits(nsIFrame* aFrame, gfxTextRun* aTextRun)
   // Round the space width when converting to appunits the same way
   // textruns do
   gfxFloat spaceWidthAppUnits =
-    NS_round(GetFirstFontMetrics(
+    NS_roundf(GetFirstFontMetrics(
                 GetFontGroupForFrame(aFrame)).spaceWidth *
               aTextRun->GetAppUnitsPerDevUnit());
   return textStyle->mTabSize * spaceWidthAppUnits;
@@ -2829,8 +2830,8 @@ PropertyProvider::CalcTabWidths(PRUint32 aStart, PRUint32 aLength)
         }
         double nextTab = AdvanceToNextTab(mOffsetFromBlockOriginForTabs,
                 mFrame, mTextRun, &tabWidth);
-        mTabWidths->mWidths.AppendElement(TabWidth(i - startOffset, 
-                NSToIntRound(nextTab - mOffsetFromBlockOriginForTabs)));
+        mTabWidths->mWidths.AppendElement(
+          TabWidth(i - startOffset, nextTab - mOffsetFromBlockOriginForTabs));
         mOffsetFromBlockOriginForTabs = nextTab;
       }
 
@@ -4417,7 +4418,7 @@ nsTextFrame::PaintTextDecorations(
   gfxFloat app = aTextPaintStyle.PresContext()->AppUnitsPerDevPixel();
 
   // XXX aFramePt is in AppUnits, shouldn't it be nsFloatPoint?
-  nscoord x = NSToCoordRound(aFramePt.x);
+  nscoord x = aFramePt.x;
   nscoord width = GetRect().width;
   aClipEdges.Intersect(&x, &width);
   gfxPoint pt(x / app, (aTextBaselinePt.y - mAscent) / app);
@@ -4797,10 +4798,8 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
   // that much in order to make the origin the top-left corner of the text bounding box.
   gfxRect shadowGfxRect = shadowMetrics.mBoundingBox +
     gfxPoint(aFramePt.x + aLeftSideOffset, aTextBaselinePt.y) + shadowOffset;
-  nsRect shadowRect(NSToCoordRound(shadowGfxRect.X()),
-                    NSToCoordRound(shadowGfxRect.Y()),
-                    NSToCoordRound(shadowGfxRect.Width()),
-                    NSToCoordRound(shadowGfxRect.Height()));
+  nsRect shadowRect(shadowGfxRect.X(), shadowGfxRect.Y(),
+                    shadowGfxRect.Width(), shadowGfxRect.Height());
 
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, 0, blurRadius,
@@ -6308,8 +6307,7 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
       } else if (i < flowEndInTextRun && hyphBreakBefore &&
                  hyphBreakBefore[i - start])
       {
-        aData->OptionallyBreak(aRenderingContext, 
-                               NSToCoordRound(provider.GetHyphenWidth()));
+        aData->OptionallyBreak(aRenderingContext, provider.GetHyphenWidth());
       } {
         aData->OptionallyBreak(aRenderingContext);
       }

@@ -78,7 +78,7 @@
 #include "nsIPresShell.h"
 #include "nsCSSRendering.h"
 #include "nsIServiceManager.h"
-#include "nsBoxLayout.h"
+#include "nsIBoxLayout.h"
 #include "nsSprocketLayout.h"
 #include "nsIDocument.h"
 #include "nsIScrollableFrame.h"
@@ -120,7 +120,7 @@ nsIBox* nsBoxFrame::mDebugChild = nsnull;
 #endif
 
 nsIFrame*
-NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsBoxLayout* aLayoutManager)
+NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
   return new (aPresShell) nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
 }
@@ -136,7 +136,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsBoxFrame)
 nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
                        nsStyleContext* aContext,
                        PRBool aIsRoot,
-                       nsBoxLayout* aLayoutManager) :
+                       nsIBoxLayout* aLayoutManager) :
   nsContainerFrame(aContext)
 {
   mState |= NS_STATE_IS_HORIZONTAL;
@@ -149,7 +149,7 @@ nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
   mHalign = hAlign_Left;
   
   // if no layout manager specified us the static sprocket layout
-  nsCOMPtr<nsBoxLayout> layout = aLayoutManager;
+  nsCOMPtr<nsIBoxLayout> layout = aLayoutManager;
 
   if (layout == nsnull) {
     NS_NewSprocketLayout(aPresShell, layout);

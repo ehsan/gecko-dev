@@ -44,15 +44,11 @@
 #include <e32std.h>
 #endif
 
-#if WTF_OS_OS2
-#include <stdlib.h>
-#endif
-
 namespace WTF {
 
 static size_t s_pageSize;
 
-#if (WTF_OS_UNIX && !WTF_OS_SYMBIAN) || WTF_OS_OS2
+#if WTF_OS_UNIX && !WTF_OS_SYMBIAN
 
 inline size_t systemPageSize()
 {
