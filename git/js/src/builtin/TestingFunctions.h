@@ -9,7 +9,7 @@
 namespace js {
 
 bool
-DefineTestingFunctions(JSContext *cx, JSHandleObject obj);
+DefineTestingFunctions(JSContext *cx, JSObject *obj);
 
 } /* namespace js */
 

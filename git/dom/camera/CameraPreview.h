@@ -23,7 +23,7 @@ class CameraPreview : public nsDOMMediaStream
 public:
   NS_DECL_ISUPPORTS
 
-  CameraPreview(nsIThread* aCameraThread, PRUint32 aWidth, PRUint32 aHeight);
+  CameraPreview(PRUint32 aWidth, PRUint32 aHeight);
 
   void SetFrameRate(PRUint32 aFramesPerSecond);
 
@@ -32,11 +32,8 @@ public:
     return nsDOMMediaStream::GetCurrentTime(aCurrentTime);
   }
 
-  void Start();
-  void Stop();
-
-  virtual nsresult StartImpl() = 0;
-  virtual nsresult StopImpl() = 0;
+  virtual void Start() = 0;
+  virtual void Stop() = 0;
 
 protected:
   virtual ~CameraPreview();
@@ -48,7 +45,6 @@ protected:
   nsRefPtr<mozilla::layers::ImageContainer> mImageContainer;
   VideoSegment mVideoSegment;
   PRUint32 mFrameCount;
-  nsCOMPtr<nsIThread> mCameraThread;
 
   enum { TRACK_VIDEO = 1 };
 

@@ -117,7 +117,7 @@ ThrowHook(JSContext *cx, JSScript *, jsbytecode *, jsval *rval, void *closure)
     JS_ASSERT(!closure);
     called = true;
 
-    JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
+    JSObject *global = JS_GetGlobalForScopeChain(cx);
 
     char text[] = "new Error()";
     jsval _;
@@ -150,7 +150,7 @@ END_TEST(testDebugger_throwHook)
 BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
 {
     CHECK(JS_DefineDebuggerObject(cx, global));
-    JS::RootedObject debuggee(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
+    JSObject *debuggee = JS_NewGlobalObject(cx, getGlobalClass(), NULL);
     CHECK(debuggee);
 
     {
@@ -160,8 +160,8 @@ BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
         CHECK(JS_InitStandardClasses(cx, debuggee));
     }
 
-    JS::RootedObject debuggeeWrapper(cx, debuggee);
-    CHECK(JS_WrapObject(cx, debuggeeWrapper.address()));
+    JSObject *debuggeeWrapper = debuggee;
+    CHECK(JS_WrapObject(cx, &debuggeeWrapper));
     jsval v = OBJECT_TO_JSVAL(debuggeeWrapper);
     CHECK(JS_SetProperty(cx, global, "debuggee", &v));
 
@@ -192,7 +192,8 @@ BEGIN_TEST(testDebugger_newScriptHook)
 {
     // Test that top-level indirect eval fires the newScript hook.
     CHECK(JS_DefineDebuggerObject(cx, global));
-    JS::RootedObject g(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
+    JSObject *g;
+    g = JS_NewGlobalObject(cx, getGlobalClass(), NULL);
     CHECK(g);
     {
         JSAutoEnterCompartment ae;
@@ -200,8 +201,8 @@ BEGIN_TEST(testDebugger_newScriptHook)
         CHECK(JS_InitStandardClasses(cx, g));
     }
 
-    JS::RootedObject gWrapper(cx, g);
-    CHECK(JS_WrapObject(cx, gWrapper.address()));
+    JSObject *gWrapper = g;
+    CHECK(JS_WrapObject(cx, &gWrapper));
     jsval v = OBJECT_TO_JSVAL(gWrapper);
     CHECK(JS_SetProperty(cx, global, "g", &v));
 
@@ -220,7 +221,7 @@ BEGIN_TEST(testDebugger_newScriptHook)
     return testIndirectEval(g, "Math.abs(0)");
 }
 
-bool testIndirectEval(JS::HandleObject scope, const char *code)
+bool testIndirectEval(JSObject *scope, const char *code)
 {
     EXEC("hits = 0;");
 

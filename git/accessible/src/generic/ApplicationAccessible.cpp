@@ -19,7 +19,6 @@
 #include "nsIWindowMediator.h"
 #include "nsServiceManagerUtils.h"
 #include "mozilla/Services.h"
-#include "nsIStringBundle.h"
 
 using namespace mozilla::a11y;
 

@@ -23,13 +23,12 @@ public:
                      const nsAString& aName,
                      const nsACString& aASCIIOrigin,
                      PRUint64 aRequestedVersion,
-                     bool aForDeletion,
-                     FactoryPrivilege aPrivilege)
+                     bool aForDeletion)
     : HelperBase(aRequest), mOpenDBRequest(aRequest), mName(aName),
       mASCIIOrigin(aASCIIOrigin), mRequestedVersion(aRequestedVersion),
-      mForDeletion(aForDeletion), mPrivilege(aPrivilege), mDatabaseId(nullptr),
-      mCurrentVersion(0), mLastObjectStoreId(0), mLastIndexId(0),
-      mState(eCreated), mResultCode(NS_OK), mLoadDBMetadata(false)
+      mForDeletion(aForDeletion), mDatabaseId(nullptr), mCurrentVersion(0),
+      mLastObjectStoreId(0), mLastIndexId(0), mState(eCreated),
+      mResultCode(NS_OK), mLoadDBMetadata(false)
   {
     NS_ASSERTION(!aForDeletion || !aRequestedVersion,
                  "Can't be for deletion and request a version!");
@@ -101,7 +100,6 @@ protected:
   nsCString mASCIIOrigin;
   PRUint64 mRequestedVersion;
   bool mForDeletion;
-  FactoryPrivilege mPrivilege;
   nsCOMPtr<nsIAtom> mDatabaseId;
 
   // Out-params.

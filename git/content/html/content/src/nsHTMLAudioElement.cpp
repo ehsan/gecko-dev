@@ -189,7 +189,7 @@ nsHTMLAudioElement::MozCurrentSampleOffset(PRUint64 *aRetVal)
   if (position < 0) {
     *aRetVal = 0;
   } else {
-    *aRetVal = position * mChannels;
+    *aRetVal = mAudioStream->GetPositionInFrames() * mChannels;
   }
   return NS_OK;
 }

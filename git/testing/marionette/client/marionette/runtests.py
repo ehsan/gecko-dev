@@ -510,10 +510,8 @@ if __name__ == "__main__":
     parser.add_option("--emulator",
                       action = "store", dest = "emulator",
                       default = None, choices = ["x86", "arm"],
-                      help = "If no --address is given, then the harness will launch a B2G emulator "
-                      "on which to run emulator tests. If --address is given, then the harness assumes you are "
-                      "running an emulator already, and will run the emulator tests using that emulator. "
-                      "You need to specify which architecture to emulate for both cases.")
+                      help = "Launch a B2G emulator on which to run tests. "
+                      "You need to specify which architecture to emulate.")
     parser.add_option("--emulator-binary",
                       action = "store", dest = "emulatorBinary",
                       default = None,

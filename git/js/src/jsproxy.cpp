@@ -383,8 +383,8 @@ IndirectProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy,
                                             jsid id, bool set,
                                             PropertyDescriptor *desc)
 {
-    RootedObject target(cx, GetProxyTargetObject(proxy));
-    return JS_GetPropertyDescriptorById(cx, target, id, JSRESOLVE_QUALIFIED, desc);
+    return JS_GetPropertyDescriptorById(cx, GetProxyTargetObject(proxy), id,
+                                        JSRESOLVE_QUALIFIED, desc);
 }
 
 static bool
@@ -411,7 +411,8 @@ IndirectProxyHandler::getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy,
                                                PropertyDescriptor *desc)
 {
     RootedObject target(cx, GetProxyTargetObject(proxy));
-    return GetOwnPropertyDescriptor(cx, target, id, JSRESOLVE_QUALIFIED, desc);
+    return GetOwnPropertyDescriptor(cx, target, id,
+                                    JSRESOLVE_QUALIFIED, desc);
 }
 
 bool
@@ -429,16 +430,15 @@ bool
 IndirectProxyHandler::getOwnPropertyNames(JSContext *cx, JSObject *proxy,
                                           AutoIdVector &props)
 {
-    RootedObject target(cx, GetProxyTargetObject(proxy));
-    return GetPropertyNames(cx, target, JSITER_OWNONLY | JSITER_HIDDEN, &props);
+    return GetPropertyNames(cx, GetProxyTargetObject(proxy),
+                            JSITER_OWNONLY | JSITER_HIDDEN, &props);
 }
 
 bool
 IndirectProxyHandler::delete_(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 {
     Value v;
-    RootedObject target(cx, GetProxyTargetObject(proxy));
-    if (!JS_DeletePropertyById2(cx, target, id, &v))
+    if (!JS_DeletePropertyById2(cx, GetProxyTargetObject(proxy), id, &v))
         return false;
     JSBool b;
     if (!JS_ValueToBoolean(cx, v, &b))
@@ -451,8 +451,7 @@ bool
 IndirectProxyHandler::enumerate(JSContext *cx, JSObject *proxy,
                                 AutoIdVector &props)
 {
-    RootedObject target(cx, GetProxyTargetObject(proxy));
-    return GetPropertyNames(cx, target, 0, &props);
+    return GetPropertyNames(cx, GetProxyTargetObject(proxy), 0, &props);
 }
 
 bool
@@ -496,8 +495,7 @@ IndirectProxyHandler::hasInstance(JSContext *cx, JSObject *proxy, const Value *v
                                   bool *bp)
 {
     JSBool b;
-    RootedObject target(cx, GetProxyTargetObject(proxy));
-    if (!JS_HasInstance(cx, target, *vp, &b))
+    if (!JS_HasInstance(cx, GetProxyTargetObject(proxy), *vp, &b))
         return false;
     *bp = !!b;
     return true;
@@ -572,8 +570,7 @@ bool
 DirectProxyHandler::has(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 {
     JSBool found;
-    RootedObject target(cx, GetProxyTargetObject(proxy));
-    if (!JS_HasPropertyById(cx, target, id, &found))
+    if (!JS_HasPropertyById(cx, GetProxyTargetObject(proxy), id, &found))
         return false;
     *bp = !!found;
     return true;
@@ -582,9 +579,10 @@ DirectProxyHandler::has(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 bool
 DirectProxyHandler::hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 {
-    RootedObject target(cx, GetProxyTargetObject(proxy));
+    JSObject *target = GetProxyTargetObject(proxy);
     AutoPropertyDescriptorRooter desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, target, id, JSRESOLVE_QUALIFIED, &desc))
+    if (!JS_GetPropertyDescriptorById(cx, target, id, JSRESOLVE_QUALIFIED,
+                                      &desc))
         return false;
     *bp = (desc.obj == target);
     return true;
@@ -621,7 +619,8 @@ DirectProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiverArg,
 bool
 DirectProxyHandler::keys(JSContext *cx, JSObject *proxy, AutoIdVector &props)
 {
-    return GetPropertyNames(cx, GetProxyTargetObject(proxy), JSITER_OWNONLY, &props);
+    return GetPropertyNames(cx, GetProxyTargetObject(proxy), JSITER_OWNONLY,
+                            &props);
 }
 
 bool
@@ -1948,6 +1947,7 @@ JS_FRIEND_API(JSObject *)
 js_InitProxyClass(JSContext *cx, JSObject *obj_)
 {
     RootedObject obj(cx, obj_);
+
     RootedObject module(cx, NewObjectWithClassProto(cx, &ProxyClass, NULL, obj));
     if (!module || !module->setSingletonType(cx))
         return NULL;

@@ -35,10 +35,6 @@ using namespace mozilla::plugins::PluginUtilsOSX;
 
 #include <map>
 
-#if defined(MOZ_WIDGET_GTK)
-#include "gtk2xtbin.h"
-#endif
-
 namespace mozilla {
 
 namespace layers {
@@ -190,11 +186,6 @@ protected:
 
     virtual bool
     RecvNPP_DidComposite();
-
-#if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
-    bool CreateWindow(const NPRemoteWindow& aWindow);
-    void DeleteWindow();
-#endif
 
 public:
     PluginInstanceChild(const NPPluginFuncs* aPluginIface);
@@ -378,10 +369,6 @@ private:
 
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     NPSetWindowCallbackStruct mWsInfo;
-#if defined(MOZ_WIDGET_GTK)
-    bool mXEmbed;
-    XtClient mXtClient;
-#endif
 #elif defined(OS_WIN)
     HWND mPluginWindowHWND;
     WNDPROC mPluginWndProc;

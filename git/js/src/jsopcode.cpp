@@ -6387,8 +6387,7 @@ GetPCCountScriptContents(JSContext *cx, size_t index)
 
     {
         JSAutoEnterCompartment ac;
-        RootedObject target(cx, &script->global());
-        if (!ac.enter(cx, target))
+        if (!ac.enter(cx, &script->global()))
             return NULL;
 
         if (!GetPCCountJSON(cx, sac, buf))

@@ -342,10 +342,10 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 template<XDRMode mode>
 bool
 js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enclosingScript,
-                           MutableHandleObject objp)
+                           JSObject **objp)
 {
     /* NB: Keep this in sync with CloneInterpretedFunction. */
-    Rooted<JSAtom*> atom(xdr->cx());
+    JSAtom *atom;
     uint32_t firstword;           /* flag telling whether fun->atom is non-null,
                                    plus for fun->u.i.skipmin, fun->u.i.wrapper,
                                    and 14 bits reserved for future use */
@@ -355,7 +355,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
     RootedFunction fun(cx);
     JSScript *script;
     if (mode == XDR_ENCODE) {
-        fun = objp->toFunction();
+        fun = (*objp)->toFunction();
         if (!fun->isInterpreted()) {
             JSAutoByteString funNameBytes;
             if (const char *name = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
@@ -383,7 +383,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
 
     if (!xdr->codeUint32(&firstword))
         return false;
-    if ((firstword & 1U) && !XDRAtom(xdr, atom.address()))
+    if ((firstword & 1U) && !XDRAtom(xdr, &atom))
         return false;
     if (!xdr->codeUint32(&flagsword))
         return false;
@@ -401,17 +401,17 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
             return false;
         JS_ASSERT(fun->nargs == fun->script()->bindings.numArgs());
         js_CallNewScriptHook(cx, fun->script(), fun);
-        objp.set(fun);
+        *objp = fun;
     }
 
     return true;
 }
 
 template bool
-js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *, HandleObject, HandleScript, MutableHandleObject);
+js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *, HandleObject, HandleScript, JSObject **);
 
 template bool
-js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, MutableHandleObject);
+js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, JSObject **);
 
 JSObject *
 js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun)
@@ -606,11 +606,8 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
         }
     }
     bool haveSource = fun->isInterpreted();
-    if (haveSource && !fun->script()->scriptSource()->hasSourceData() &&
-        !fun->script()->loadSource(cx, &haveSource))
-    {
-        return NULL;
-    }
+    if (haveSource && !fun->script()->scriptSource() && !fun->script()->loadSource(cx, &haveSource))
+            return NULL;
     if (haveSource) {
         RootedScript script(cx, fun->script());
         RootedString src(cx, fun->script()->sourceData(cx));

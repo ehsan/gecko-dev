@@ -247,17 +247,17 @@ inline bool IsFunctionProxyClass(const Class *clasp)
     return clasp == &js::FunctionProxyClass;
 }
 
-inline bool IsObjectProxy(RawObject obj)
+inline bool IsObjectProxy(const JSObject *obj)
 {
     return IsObjectProxyClass(GetObjectClass(obj));
 }
 
-inline bool IsFunctionProxy(RawObject obj)
+inline bool IsFunctionProxy(const JSObject *obj)
 {
     return IsFunctionProxyClass(GetObjectClass(obj));
 }
 
-inline bool IsProxy(RawObject obj)
+inline bool IsProxy(const JSObject *obj)
 {
     Class *clasp = GetObjectClass(obj);
     return IsObjectProxyClass(clasp) || IsFunctionProxyClass(clasp);
@@ -272,56 +272,56 @@ const uint32_t JSSLOT_PROXY_CALL = 4;
 const uint32_t JSSLOT_PROXY_CONSTRUCT = 5;
 
 inline BaseProxyHandler *
-GetProxyHandler(RawObject obj)
+GetProxyHandler(const JSObject *obj)
 {
     JS_ASSERT(IsProxy(obj));
     return (BaseProxyHandler *) GetReservedSlot(obj, JSSLOT_PROXY_HANDLER).toPrivate();
 }
 
 inline const Value &
-GetProxyPrivate(RawObject obj)
+GetProxyPrivate(const JSObject *obj)
 {
     JS_ASSERT(IsProxy(obj));
     return GetReservedSlot(obj, JSSLOT_PROXY_PRIVATE);
 }
 
 inline JSObject *
-GetProxyTargetObject(RawObject obj)
+GetProxyTargetObject(const JSObject *obj)
 {
     JS_ASSERT(IsProxy(obj));
     return GetProxyPrivate(obj).toObjectOrNull();
 }
 
 inline const Value &
-GetProxyCall(RawObject obj)
+GetProxyCall(const JSObject *obj)
 {
     JS_ASSERT(IsFunctionProxy(obj));
     return GetReservedSlot(obj, JSSLOT_PROXY_CALL);
 }
 
 inline const Value &
-GetProxyExtra(RawObject obj, size_t n)
+GetProxyExtra(const JSObject *obj, size_t n)
 {
     JS_ASSERT(IsProxy(obj));
     return GetReservedSlot(obj, JSSLOT_PROXY_EXTRA + n);
 }
 
 inline void
-SetProxyHandler(RawObject obj, BaseProxyHandler *handler)
+SetProxyHandler(JSObject *obj, BaseProxyHandler *handler)
 {
     JS_ASSERT(IsProxy(obj));
     SetReservedSlot(obj, JSSLOT_PROXY_HANDLER, PrivateValue(handler));
 }
 
 inline void
-SetProxyPrivate(RawObject obj, const Value &value)
+SetProxyPrivate(JSObject *obj, const Value &value)
 {
     JS_ASSERT(IsProxy(obj));
     SetReservedSlot(obj, JSSLOT_PROXY_PRIVATE, value);
 }
 
 inline void
-SetProxyExtra(RawObject obj, size_t n, const Value &extra)
+SetProxyExtra(JSObject *obj, size_t n, const Value &extra)
 {
     JS_ASSERT(IsProxy(obj));
     JS_ASSERT(n <= 1);

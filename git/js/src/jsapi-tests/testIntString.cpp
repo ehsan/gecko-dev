@@ -11,31 +11,31 @@
 
 BEGIN_TEST(testIntString_bug515273)
 {
-    JS::RootedValue v(cx);
+    jsvalRoot v(cx);
 
-    EVAL("'1';", v.address());
-    JSString *str = JSVAL_TO_STRING(v);
+    EVAL("'1';", v.addr());
+    JSString *str = JSVAL_TO_STRING(v.value());
     CHECK(JS_StringHasBeenInterned(cx, str));
     CHECK(JS_FlatStringEqualsAscii(JS_ASSERT_STRING_IS_FLAT(str), "1"));
 
-    EVAL("'42';", v.address());
-    str = JSVAL_TO_STRING(v);
+    EVAL("'42';", v.addr());
+    str = JSVAL_TO_STRING(v.value());
     CHECK(JS_StringHasBeenInterned(cx, str));
     CHECK(JS_FlatStringEqualsAscii(JS_ASSERT_STRING_IS_FLAT(str), "42"));
 
-    EVAL("'111';", v.address());
-    str = JSVAL_TO_STRING(v);
+    EVAL("'111';", v.addr());
+    str = JSVAL_TO_STRING(v.value());
     CHECK(JS_StringHasBeenInterned(cx, str));
     CHECK(JS_FlatStringEqualsAscii(JS_ASSERT_STRING_IS_FLAT(str), "111"));
 
     /* Test other types of static strings. */
-    EVAL("'a';", v.address());
-    str = JSVAL_TO_STRING(v);
+    EVAL("'a';", v.addr());
+    str = JSVAL_TO_STRING(v.value());
     CHECK(JS_StringHasBeenInterned(cx, str));
     CHECK(JS_FlatStringEqualsAscii(JS_ASSERT_STRING_IS_FLAT(str), "a"));
 
-    EVAL("'bc';", v.address());
-    str = JSVAL_TO_STRING(v);
+    EVAL("'bc';", v.addr());
+    str = JSVAL_TO_STRING(v.value());
     CHECK(JS_StringHasBeenInterned(cx, str));
     CHECK(JS_FlatStringEqualsAscii(JS_ASSERT_STRING_IS_FLAT(str), "bc"));
 

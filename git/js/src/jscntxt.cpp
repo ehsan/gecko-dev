@@ -542,7 +542,7 @@ namespace js {
 
 /* |callee| requires a usage string provided by JS_DefineFunctionsWithHelp. */
 void
-ReportUsageError(JSContext *cx, HandleObject callee, const char *msg)
+ReportUsageError(JSContext *cx, JSObject *callee, const char *msg)
 {
     const char *usageStr = "usage";
     PropertyName *usageAtom = js_Atomize(cx, usageStr, strlen(usageStr))->asPropertyName();
@@ -1161,15 +1161,14 @@ JSRuntime::setGCMaxMallocBytes(size_t value)
 void
 JSRuntime::updateMallocCounter(JSContext *cx, size_t nbytes)
 {
-    if (cx && cx->compartment) {
+    /* We tolerate any thread races when updating gcMallocBytes. */
+    ptrdiff_t oldCount = gcMallocBytes;
+    ptrdiff_t newCount = oldCount - ptrdiff_t(nbytes);
+    gcMallocBytes = newCount;
+    if (JS_UNLIKELY(newCount <= 0 && oldCount > 0))
+        onTooMuchMalloc();
+    else if (cx && cx->compartment)
         cx->compartment->updateMallocCounter(nbytes);
-    } else {
-        ptrdiff_t oldCount = gcMallocBytes;
-        ptrdiff_t newCount = oldCount - ptrdiff_t(nbytes);
-        gcMallocBytes = newCount;
-        if (JS_UNLIKELY(newCount <= 0 && oldCount > 0))
-            onTooMuchMalloc();
-    }
 }
 
 JS_FRIEND_API(void)

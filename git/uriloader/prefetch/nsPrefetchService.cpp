@@ -220,13 +220,12 @@ nsPrefetchNode::CancelChannel(nsresult error)
 // nsPrefetchNode::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS6(nsPrefetchNode,
+NS_IMPL_ISUPPORTS5(nsPrefetchNode,
                    nsIDOMLoadStatus,
                    nsIRequestObserver,
                    nsIStreamListener,
                    nsIInterfaceRequestor,
-                   nsIChannelEventSink,
-                   nsIRedirectResultListener)
+                   nsIChannelEventSink)
 
 //-----------------------------------------------------------------------------
 // nsPrefetchNode::nsIStreamListener
@@ -326,12 +325,6 @@ nsPrefetchNode::GetInterface(const nsIID &aIID, void **aResult)
         return NS_OK;
     }
 
-    if (aIID.Equals(NS_GET_IID(nsIRedirectResultListener))) {
-        NS_ADDREF_THIS();
-        *aResult = static_cast<nsIRedirectResultListener *>(this);
-        return NS_OK;
-    }
-
     return NS_ERROR_NO_INTERFACE;
 }
 
@@ -368,28 +361,12 @@ nsPrefetchNode::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
                                   NS_LITERAL_CSTRING("prefetch"),
                                   false);
 
-    // Assign to mChannel after we get notification about success of the
-    // redirect in OnRedirectResult.
-    mRedirectChannel = aNewChannel;
+    mChannel = aNewChannel;
 
     callback->OnRedirectVerifyCallback(NS_OK);
     return NS_OK;
 }
 
-//-----------------------------------------------------------------------------
-// nsPrefetchNode::nsIRedirectResultListener
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-nsPrefetchNode::OnRedirectResult(bool proceeding)
-{
-    if (proceeding && mRedirectChannel)
-        mChannel = mRedirectChannel;
-
-    mRedirectChannel = nsnull;
-
-    return NS_OK;
-}
 
 //-----------------------------------------------------------------------------
 // nsPrefetchService <public>

@@ -7,7 +7,6 @@ package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.ui.PanZoomController;
 import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
-
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;

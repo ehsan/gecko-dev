@@ -239,14 +239,8 @@ str_unescape(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    /*
-     * NB: use signed integers for length/index to allow simple length
-     * comparisons without unsigned-underflow hazards.
-     */
-    JS_STATIC_ASSERT(JSString::MAX_LENGTH <= INT_MAX);
-
     /* Step 2. */
-    int length = str->length();
+    size_t length = str->length();
     const jschar *chars = str->chars();
 
     /* Step 3. */
@@ -258,7 +252,7 @@ str_unescape(JSContext *cx, unsigned argc, Value *vp)
      */
 
     /* Step 4. */
-    int k = 0;
+    size_t k = 0;
     bool building = false;
 
     while (true) {
@@ -659,7 +653,7 @@ str_toLocaleLowerCase(JSContext *cx, unsigned argc, Value *vp)
      * ECMA has reserved that argument, presumably for defining the locale.
      */
     if (cx->localeCallbacks && cx->localeCallbacks->localeToLowerCase) {
-        RootedString str(cx, ThisToStringForStringProto(cx, args));
+        JSString *str = ThisToStringForStringProto(cx, args);
         if (!str)
             return false;
 
@@ -726,7 +720,7 @@ str_toLocaleUpperCase(JSContext *cx, unsigned argc, Value *vp)
      * ECMA has reserved that argument, presumably for defining the locale.
      */
     if (cx->localeCallbacks && cx->localeCallbacks->localeToUpperCase) {
-        RootedString str(cx, ThisToStringForStringProto(cx, args));
+        JSString *str = ThisToStringForStringProto(cx, args);
         if (!str)
             return false;
 
@@ -752,7 +746,7 @@ str_localeCompare(JSContext *cx, unsigned argc, Value *vp)
     if (args.length() == 0) {
         args.rval().setInt32(0);
     } else {
-        RootedString thatStr(cx, ToString(cx, args[0]));
+        JSString *thatStr = ToString(cx, args[0]);
         if (!thatStr)
             return false;
 

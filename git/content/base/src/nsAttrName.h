@@ -158,7 +158,6 @@ public:
     }
   }
 
-#ifdef MOZILLA_INTERNAL_API
   void GetPrefix(nsAString& aStr) const
   {
     if (IsAtom()) {
@@ -168,7 +167,6 @@ public:
       NodeInfo()->GetPrefix(aStr);
     }
   }
-#endif
 
   PRUint32 HashValue() const
   {

@@ -5,13 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.gfx.Layer;
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import android.content.ContentResolver;
 import android.database.ContentObserver;
 import android.graphics.Bitmap;
@@ -22,13 +15,18 @@ import android.net.Uri;
 import android.util.Log;
 import android.view.View;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.mozilla.gecko.db.BrowserDB;
+import org.mozilla.gecko.gfx.Layer;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 public final class Tab {
     private static final String LOGTAG = "GeckoTab";
@@ -143,9 +141,9 @@ public final class Tab {
         int capacity = getThumbnailWidth() * getThumbnailHeight() * 2 /* 16 bpp */;
         if (mThumbnailBuffer != null && mThumbnailBuffer.capacity() == capacity)
             return mThumbnailBuffer;
-        freeBuffer();
-        mThumbnailBuffer = DirectBufferAllocator.allocate(capacity);
-        return mThumbnailBuffer;
+        if (mThumbnailBuffer != null)
+            GeckoAppShell.freeDirectBuffer(mThumbnailBuffer); // not calling freeBuffer() because it would deadlock
+        return mThumbnailBuffer = GeckoAppShell.allocateDirectBuffer(capacity);
     }
 
     public Bitmap getThumbnailBitmap() {
@@ -159,7 +157,8 @@ public final class Tab {
     }
 
     synchronized void freeBuffer() {
-        DirectBufferAllocator.free(mThumbnailBuffer);
+        if (mThumbnailBuffer != null)
+            GeckoAppShell.freeDirectBuffer(mThumbnailBuffer);
         mThumbnailBuffer = null;
     }
 

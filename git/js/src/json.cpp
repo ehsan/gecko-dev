@@ -902,9 +902,9 @@ static JSFunctionSpec json_static_methods[] = {
 };
 
 JSObject *
-js_InitJSONClass(JSContext *cx, JSObject *obj)
+js_InitJSONClass(JSContext *cx, JSObject *obj_)
 {
-    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
+    Rooted<GlobalObject*> global(cx, &obj_->asGlobal());
 
     /*
      * JSON requires that Boolean.prototype.valueOf be created and stashed in a

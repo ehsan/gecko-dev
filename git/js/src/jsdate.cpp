@@ -3296,7 +3296,7 @@ js_DateGetSeconds(JSContext *cx, JSObject* obj)
 }
 
 JS_FRIEND_API(double)
-js_DateGetMsecSinceEpoch(JSContext *cx, RawObject obj)
+js_DateGetMsecSinceEpoch(JSContext *cx, JSObject *obj)
 {
     return obj->isDate() ? obj->getDateUTCTime().toNumber() : 0;
 }

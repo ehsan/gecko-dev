@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.util.AttributeSet;
@@ -18,6 +16,8 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
+
+import org.mozilla.gecko.sync.setup.SyncAccounts;
 
 public class TabsPanel extends LinearLayout {
     private static final String LOGTAG = "GeckoTabsPanel";

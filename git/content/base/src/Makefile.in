@@ -125,7 +125,6 @@ CPPSRCS		= \
 		nsXMLContentSerializer.cpp \
 		nsXMLHttpRequest.cpp \
 		nsXMLNameSpaceMap.cpp \
-		FragmentOrElement.cpp \
 		Link.cpp \
 		nsBlobProtocolHandler.cpp \
 		nsFrameMessageManager.cpp \

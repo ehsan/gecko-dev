@@ -5,9 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.gfx.DisplayPortMetrics;
-import org.mozilla.gecko.gfx.ViewportMetrics;
-
 import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
@@ -22,6 +19,9 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+
+import org.mozilla.gecko.gfx.DisplayPortMetrics;
+import org.mozilla.gecko.gfx.ViewportMetrics;
 
 import java.nio.ByteBuffer;
 

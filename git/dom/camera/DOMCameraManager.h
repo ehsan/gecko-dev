@@ -12,9 +12,8 @@
 #include "nsIThread.h"
 #include "nsThreadUtils.h"
 #include "nsIDOMCameraManager.h"
-#include "mozilla/Attributes.h"
 
-class nsDOMCameraManager MOZ_FINAL : public nsIDOMCameraManager
+class nsDOMCameraManager : public nsIDOMCameraManager
 {
 public:
   NS_DECL_ISUPPORTS

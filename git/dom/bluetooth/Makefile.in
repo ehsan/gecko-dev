@@ -33,10 +33,7 @@ CPPSRCS += \
   BluetoothAdapter.cpp \
   BluetoothDevice.cpp \
   BluetoothDeviceEvent.cpp \
-  BluetoothPropertyEvent.cpp \
   BluetoothReplyRunnable.cpp \
-  BluetoothPropertyContainer.cpp \
-  BluetoothUtils.cpp \
   $(NULL)
 
 XPIDLSRCS = \
@@ -45,7 +42,6 @@ XPIDLSRCS = \
   nsIDOMBluetoothAdapter.idl \
   nsIDOMBluetoothDevice.idl \
   nsIDOMBluetoothDeviceEvent.idl \
-  nsIDOMBluetoothPropertyEvent.idl \
   $(NULL)
 
 ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))

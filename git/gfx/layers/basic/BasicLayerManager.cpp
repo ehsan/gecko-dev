@@ -74,11 +74,7 @@ BasicLayerManager::PushGroupForLayer(gfxContext* aContext, Layer* aLayer,
   } else {
     *aNeedsClipToVisibleRegion = false;
     result = aContext;
-    if (aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) {
-      aContext->PushGroupAndCopyBackground(gfxASurface::CONTENT_COLOR_ALPHA);
-    } else {
-      aContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-    }
+    aContext->PushGroupAndCopyBackground(gfxASurface::CONTENT_COLOR_ALPHA);
   }
   return result.forget();
 }
@@ -928,8 +924,7 @@ BasicLayerManager::CreateReadbackLayer()
 }
 
 BasicShadowLayerManager::BasicShadowLayerManager(nsIWidget* aWidget) :
-  BasicLayerManager(aWidget), mTargetRotation(ROTATION_0),
-  mRepeatTransaction(false)
+  BasicLayerManager(aWidget), mTargetRotation(ROTATION_0)
 {
   MOZ_COUNT_CTOR(BasicShadowLayerManager);
 }

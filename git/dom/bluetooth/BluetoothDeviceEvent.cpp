@@ -8,7 +8,6 @@
 #include "BluetoothDeviceEvent.h"
 #include "BluetoothTypes.h"
 #include "BluetoothDevice.h"
-#include "nsIDOMDOMRequest.h"
 
 #include "nsDOMClassInfo.h"
 

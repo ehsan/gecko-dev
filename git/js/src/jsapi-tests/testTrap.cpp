@@ -34,13 +34,13 @@ BEGIN_TEST(testTrap_gc)
         ;
 
     // compile
-    JS::RootedScript script(cx, JS_CompileScript(cx, global, source, strlen(source), __FILE__, 1));
+    JSScript *script = JS_CompileScript(cx, global, source, strlen(source), __FILE__, 1);
     CHECK(script);
 
     // execute
-    JS::RootedValue v2(cx);
-    CHECK(JS_ExecuteScript(cx, global, script, v2.address()));
-    CHECK(v2.isObject());
+    jsvalRoot v2(cx);
+    CHECK(JS_ExecuteScript(cx, global, script, v2.addr()));
+    CHECK(v2.value().isObject());
     CHECK_EQUAL(emptyTrapCallCount, 0);
 
     // Enable debug mode
@@ -50,7 +50,7 @@ BEGIN_TEST(testTrap_gc)
 
     // scope JSScript  usage to make sure that it is not used after
     // JS_ExecuteScript. This way we avoid using Anchor.
-    JS::RootedString trapClosure(cx);
+    JSString *trapClosure;
     {
         jsbytecode *line2 = JS_LineNumberToPC(cx, script, 1);
         CHECK(line2);
@@ -69,7 +69,7 @@ BEGIN_TEST(testTrap_gc)
     }
 
     // execute
-    CHECK(JS_ExecuteScript(cx, global, script, v2.address()));
+    CHECK(JS_ExecuteScript(cx, global, script, v2.addr()));
     CHECK_EQUAL(emptyTrapCallCount, 11);
 
     JS_GC(rt);

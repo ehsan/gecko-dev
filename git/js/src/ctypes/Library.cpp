@@ -79,9 +79,10 @@ Library::Name(JSContext* cx, unsigned argc, jsval *vp)
 JSObject*
 Library::Create(JSContext* cx, jsval path, JSCTypesCallbacks* callbacks)
 {
-  RootedObject libraryObj(cx, JS_NewObject(cx, &sLibraryClass, NULL, NULL));
+  JSObject* libraryObj = JS_NewObject(cx, &sLibraryClass, NULL, NULL);
   if (!libraryObj)
     return NULL;
+  js::AutoObjectRooter root(cx, libraryObj);
 
   // initialize the library
   JS_SetReservedSlot(libraryObj, SLOT_LIBRARY, PRIVATE_TO_JSVAL(NULL));
@@ -234,7 +235,7 @@ Library::Close(JSContext* cx, unsigned argc, jsval* vp)
 JSBool
 Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
 {
-  RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+  JSObject* obj = JS_THIS_OBJECT(cx, vp);
   if (!obj)
     return JS_FALSE;
   if (!IsLibrary(obj)) {
@@ -269,8 +270,9 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
     return JS_FALSE;
   }
 
-  RootedObject fnObj(cx, NULL);
-  RootedObject typeObj(cx);
+  JSObject* fnObj = NULL;
+  JSObject* typeObj;
+  js::AutoObjectRooter root(cx);
   bool isFunction = argc > 2;
   if (isFunction) {
     // Case 1).
@@ -279,11 +281,14 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
               argv[1], argv[2], &argv[3], argc - 3);
     if (!fnObj)
       return JS_FALSE;
+    root.setObject(fnObj);
 
     // Make a function pointer type.
     typeObj = PointerType::CreateInternal(cx, fnObj);
     if (!typeObj)
       return JS_FALSE;
+    root.setObject(typeObj);
+
   } else {
     // Case 2).
     if (JSVAL_IS_PRIMITIVE(argv[1]) ||
@@ -329,7 +334,7 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
     }
   }
 
-  RootedObject result(cx, CData::Create(cx, typeObj, obj, data, isFunction));
+  JSObject* result = CData::Create(cx, typeObj, obj, data, isFunction);
   if (!result)
     return JS_FALSE;
 

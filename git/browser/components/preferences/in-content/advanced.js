@@ -675,15 +675,10 @@ var gAdvancedPane = {
    */
   updateSetDefaultBrowser: function()
   {
-    let shellSvc = getShellService();
-    let setDefaultPane = document.getElementById("setDefaultPane");
-    if (!shellSvc) {
-      setDefaultPane.hidden = true;
-      document.getElementById("alwaysCheckDefault").disabled = true;
-      return;
-    }
+    var shellSvc = Components.classes["@mozilla.org/browser/shell-service;1"]
+                             .getService(Components.interfaces.nsIShellService);
     let selectedIndex = shellSvc.isDefaultBrowser(false) ? 1 : 0;
-    setDefaultPane.selectedIndex = selectedIndex;
+    document.getElementById("setDefaultPane").selectedIndex = selectedIndex;
   },
 
   /**
@@ -691,9 +686,8 @@ var gAdvancedPane = {
    */
   setDefaultBrowser: function()
   {
-    let shellSvc = getShellService();
-    if (!shellSvc)
-      return;
+    var shellSvc = Components.classes["@mozilla.org/browser/shell-service;1"]
+                             .getService(Components.interfaces.nsIShellService);
     shellSvc.setDefaultBrowser(true, false);
     document.getElementById("setDefaultPane").selectedIndex = 1;
   }

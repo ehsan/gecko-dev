@@ -4,14 +4,13 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.gfx.LayerView;
-
 import android.content.Context;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import org.mozilla.gecko.gfx.LayerView;
 
 public final class GeckoViewsFactory implements LayoutInflater.Factory {
     private static final String LOGTAG = "GeckoViewsFactory";

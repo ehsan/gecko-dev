@@ -5,20 +5,19 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.OnInterceptTouchListener;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.ui.PanZoomController;
-import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
-
+import java.util.LinkedList;
+import java.util.Queue;
 import android.content.Context;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 
-import java.util.LinkedList;
-import java.util.Queue;
+import org.mozilla.gecko.ui.PanZoomController;
+import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
+import org.mozilla.gecko.OnInterceptTouchListener;
+import org.mozilla.gecko.Tab;
+import org.mozilla.gecko.Tabs;
 
 /**
  * This class handles incoming touch events from the user and sends them to

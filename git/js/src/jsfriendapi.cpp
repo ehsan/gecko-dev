@@ -43,9 +43,9 @@ JS_GetAnonymousString(JSRuntime *rt)
 }
 
 JS_FRIEND_API(JSObject *)
-JS_FindCompilationScope(JSContext *cx, RawObject objArg)
+JS_FindCompilationScope(JSContext *cx, JSObject *obj_)
 {
-    RootedObject obj(cx, objArg);
+    RootedObject obj(cx, obj_);
 
     /*
      * We unwrap wrappers here. This is a little weird, but it's what's being
@@ -64,7 +64,7 @@ JS_FindCompilationScope(JSContext *cx, RawObject objArg)
 }
 
 JS_FRIEND_API(JSFunction *)
-JS_GetObjectFunction(RawObject obj)
+JS_GetObjectFunction(JSObject *obj)
 {
     if (obj->isFunction())
         return obj->toFunction();
@@ -78,10 +78,8 @@ JS_GetGlobalForFrame(JSStackFrame *fp)
 }
 
 JS_FRIEND_API(JSBool)
-JS_SplicePrototype(JSContext *cx, JSObject *objArg, JSObject *protoArg)
+JS_SplicePrototype(JSContext *cx, JSObject *obj, JSObject *proto)
 {
-    RootedObject obj(cx, objArg);
-    RootedObject proto(cx, protoArg);
     /*
      * Change the prototype of an object which hasn't been used anywhere
      * and does not share its type with another object. Unlike JS_SetPrototype,
@@ -101,10 +99,8 @@ JS_SplicePrototype(JSContext *cx, JSObject *objArg, JSObject *protoArg)
 }
 
 JS_FRIEND_API(JSObject *)
-JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *protoArg, JSObject *parentArg)
+JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent)
 {
-    RootedObject proto(cx, protoArg);
-    RootedObject parent(cx, parentArg);
     JSObject *obj = JS_NewObject(cx, clasp, proto, parent);
     if (!obj || !obj->setSingletonType(cx))
         return NULL;
@@ -166,9 +162,9 @@ js::ShrinkingGC(JSRuntime *rt, gcreason::Reason reason)
 }
 
 JS_FRIEND_API(void)
-js::IncrementalGC(JSRuntime *rt, gcreason::Reason reason, int64_t millis)
+js::IncrementalGC(JSRuntime *rt, gcreason::Reason reason)
 {
-    GCSlice(rt, GC_NORMAL, reason, millis);
+    GCSlice(rt, GC_NORMAL, reason);
 }
 
 JS_FRIEND_API(void)
@@ -245,9 +241,10 @@ DefineHelpProperty(JSContext *cx, HandleObject obj, const char *prop, const char
 }
 
 JS_FRIEND_API(bool)
-JS_DefineFunctionsWithHelp(JSContext *cx, JSObject *objArg, const JSFunctionSpecWithHelp *fs)
+JS_DefineFunctionsWithHelp(JSContext *cx, JSObject *obj_, const JSFunctionSpecWithHelp *fs)
 {
-    RootedObject obj(cx, objArg);
+    RootedObject obj(cx, obj_);
+
     JS_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
 
     CHECK_REQUEST(cx);
@@ -284,7 +281,7 @@ AutoSwitchCompartment::AutoSwitchCompartment(JSContext *cx, JSCompartment *newCo
     cx->setCompartment(newCompartment);
 }
 
-AutoSwitchCompartment::AutoSwitchCompartment(JSContext *cx, JSHandleObject target
+AutoSwitchCompartment::AutoSwitchCompartment(JSContext *cx, JSObject *target
                                              JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
   : cx(cx), oldCompartment(cx->compartment)
 {
@@ -311,37 +308,37 @@ js::IsAtomsCompartment(const JSCompartment *c)
 }
 
 JS_FRIEND_API(bool)
-js::IsScopeObject(RawObject obj)
+js::IsScopeObject(JSObject *obj)
 {
     return obj->isScope();
 }
 
 JS_FRIEND_API(JSObject *)
-js::GetObjectParentMaybeScope(RawObject obj)
+js::GetObjectParentMaybeScope(JSObject *obj)
 {
     return obj->enclosingScope();
 }
 
 JS_FRIEND_API(JSObject *)
-js::GetGlobalForObjectCrossCompartment(RawObject obj)
+js::GetGlobalForObjectCrossCompartment(JSObject *obj)
 {
     return &obj->global();
 }
 
 JS_FRIEND_API(void)
-js::NotifyAnimationActivity(RawObject obj)
+js::NotifyAnimationActivity(JSObject *obj)
 {
     obj->compartment()->lastAnimationTime = PRMJ_Now();
 }
 
 JS_FRIEND_API(uint32_t)
-js::GetObjectSlotSpan(RawObject obj)
+js::GetObjectSlotSpan(JSObject *obj)
 {
     return obj->slotSpan();
 }
 
 JS_FRIEND_API(bool)
-js::IsObjectInContextCompartment(RawObject obj, const JSContext *cx)
+js::IsObjectInContextCompartment(const JSObject *obj, const JSContext *cx)
 {
     return obj->compartment() == cx->compartment;
 }
@@ -353,10 +350,11 @@ js::IsOriginalScriptFunction(JSFunction *fun)
 }
 
 JS_FRIEND_API(JSFunction *)
-js::DefineFunctionWithReserved(JSContext *cx, JSObject *objArg, const char *name, JSNative call,
+js::DefineFunctionWithReserved(JSContext *cx, JSObject *obj_, const char *name, JSNative call,
                                unsigned nargs, unsigned attrs)
 {
-    RootedObject obj(cx, objArg);
+    RootedObject obj(cx, obj_);
+
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
@@ -369,9 +367,10 @@ js::DefineFunctionWithReserved(JSContext *cx, JSObject *objArg, const char *name
 
 JS_FRIEND_API(JSFunction *)
 js::NewFunctionWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsigned flags,
-                            JSObject *parentArg, const char *name)
+                            JSObject *parent_, const char *name)
 {
-    RootedObject parent(cx, parentArg);
+    RootedObject parent(cx, parent_);
+
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     JSAtom *atom;
 
@@ -391,10 +390,11 @@ js::NewFunctionWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsi
 }
 
 JS_FRIEND_API(JSFunction *)
-js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsigned flags, JSObject *parentArg,
+js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsigned flags, JSObject *parent_,
                                 jsid id)
 {
-    RootedObject parent(cx, parentArg);
+    RootedObject parent(cx, parent_);
+
     JS_ASSERT(JSID_IS_STRING(id));
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     CHECK_REQUEST(cx);
@@ -405,13 +405,13 @@ js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, 
 }
 
 JS_FRIEND_API(JSObject *)
-js::InitClassWithReserved(JSContext *cx, JSObject *objArg, JSObject *parent_protoArg,
+js::InitClassWithReserved(JSContext *cx, JSObject *obj_, JSObject *parent_proto,
                           JSClass *clasp, JSNative constructor, unsigned nargs,
                           JSPropertySpec *ps, JSFunctionSpec *fs,
                           JSPropertySpec *static_ps, JSFunctionSpec *static_fs)
 {
-    RootedObject obj(cx, objArg);
-    RootedObject parent_proto(cx, parent_protoArg);
+    RootedObject obj(cx, obj_);
+
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, parent_proto);
     return js_InitClass(cx, obj, parent_proto, Valueify(clasp), constructor,
@@ -420,21 +420,21 @@ js::InitClassWithReserved(JSContext *cx, JSObject *objArg, JSObject *parent_prot
 }
 
 JS_FRIEND_API(const Value &)
-js::GetFunctionNativeReserved(RawObject fun, size_t which)
+js::GetFunctionNativeReserved(JSObject *fun, size_t which)
 {
     JS_ASSERT(fun->toFunction()->isNative());
     return fun->toFunction()->getExtendedSlot(which);
 }
 
 JS_FRIEND_API(void)
-js::SetFunctionNativeReserved(RawObject fun, size_t which, const Value &val)
+js::SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val)
 {
     JS_ASSERT(fun->toFunction()->isNative());
     fun->toFunction()->setExtendedSlot(which, val);
 }
 
 JS_FRIEND_API(void)
-js::SetReservedSlotWithBarrier(RawObject obj, size_t slot, const js::Value &value)
+js::SetReservedSlotWithBarrier(JSObject *obj, size_t slot, const js::Value &value)
 {
     obj->setSlot(slot, value);
 }
@@ -844,7 +844,7 @@ IsIncrementalBarrierNeeded(JSContext *cx)
 }
 
 JS_FRIEND_API(bool)
-IsIncrementalBarrierNeededOnObject(RawObject obj)
+IsIncrementalBarrierNeededOnObject(JSObject *obj)
 {
     return obj->compartment()->needsBarrier();
 }
@@ -893,7 +893,7 @@ PokeGC(JSRuntime *rt)
 JS_FRIEND_API(JSObject *)
 GetTestingFunctions(JSContext *cx)
 {
-    RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+    JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
     if (!obj)
         return NULL;
 

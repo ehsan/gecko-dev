@@ -197,7 +197,7 @@
 #include "nsFrameLoader.h"
 #include "nsISupportsPrimitives.h"
 #include "nsXPCOMCID.h"
-#include "GeneratedEvents.h"
+
 #include "mozilla/FunctionTimer.h"
 #include "mozIThirdPartyUtil.h"
 
@@ -9016,8 +9016,7 @@ nsGlobalWindow::CloneStorageEvent(const nsAString& aType,
   aEvent->GetUrl(url);
   aEvent->GetStorageArea(getter_AddRefs(storageArea));
 
-  NS_NewDOMStorageEvent(getter_AddRefs(domEvent), nsnull, nsnull);
-  aEvent = do_QueryInterface(domEvent);
+  aEvent = new nsDOMStorageEvent();
   return aEvent->InitStorageEvent(aType, canBubble, cancelable,
                                   key, oldValue, newValue,
                                   url, storageArea);

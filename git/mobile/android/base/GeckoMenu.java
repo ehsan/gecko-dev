@@ -4,8 +4,11 @@
 
 package org.mozilla.gecko;
 
-import android.content.ComponentName;
+import java.util.List;
+import java.util.ArrayList;
+
 import android.content.Context;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
@@ -15,9 +18,6 @@ import android.view.SubMenu;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.LinearLayout.LayoutParams;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class GeckoMenu extends LinearLayout 
                        implements Menu, GeckoMenuItem.OnShowAsActionChangedListener {

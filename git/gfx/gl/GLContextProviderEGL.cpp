@@ -260,7 +260,6 @@ public:
         , mIsDoubleBuffered(false)
         , mCanBindToTexture(false)
         , mShareWithEGLImage(false)
-        , mTemporaryEGLImageTexture(0)
     {
         // any EGL contexts will always be GLESv2
         SetIsGLES2(true);
@@ -272,13 +271,6 @@ public:
 
     ~GLContextEGL()
     {
-        if (MakeCurrent()) {
-            if (mTemporaryEGLImageTexture != 0) {
-                fDeleteTextures(1, &mTemporaryEGLImageTexture);
-                mTemporaryEGLImageTexture = 0;
-            }
-        }
-
         MarkDestroyed();
 
         // If mGLWidget is non-null, then we've been given it by the GL context provider,
@@ -489,19 +481,11 @@ public:
             succeeded = sEGLLibrary.fMakeCurrent(EGL_DISPLAY(),
                                                  mSurface, mSurface,
                                                  mContext);
-            
-            int eglError = sEGLLibrary.fGetError();
-            if (!succeeded) {
-                if (eglError == LOCAL_EGL_CONTEXT_LOST) {
-                    mContextLost = true;
-                    NS_WARNING("EGL context has been lost.");
-                } else {
-                    NS_WARNING("Failed to make GL context current!");
-#ifdef DEBUG
-                    printf_stderr("EGL Error: 0x%04x\n", eglError);
-#endif
-                }
+            if (!succeeded && sEGLLibrary.fGetError() == LOCAL_EGL_CONTEXT_LOST) {
+                mContextLost = true;
+                NS_WARNING("EGL context has been lost.");
             }
+            NS_ASSERTION(succeeded, "Failed to make GL context current!");
         }
 
         return succeeded;
@@ -676,10 +660,6 @@ protected:
     bool mCanBindToTexture;
     bool mShareWithEGLImage;
 
-    // A dummy texture ID that can be used when we need a texture object whose
-    // images we're going to define with EGLImageTargetTexture2D.
-    GLuint mTemporaryEGLImageTexture;
-
     static EGLSurface CreatePBufferSurfaceTryingPowerOfTwo(EGLConfig config,
                                                            EGLenum bindToTextureFormat,
                                                            gfxIntSize& pbsize)
@@ -772,23 +752,24 @@ public:
 class EGLTextureWrapper : public SharedTextureHandleWrapper
 {
 public:
-    EGLTextureWrapper() :
+    EGLTextureWrapper(GLContext* aContext, GLuint aTexture, bool aOwnsTexture) :
         SharedTextureHandleWrapper(SharedHandleType::Image)
+        , mContext(aContext)
+        , mTexture(aTexture)
         , mEGLImage(nullptr)
         , mSyncObject(nullptr)
+        , mOwnsTexture(aOwnsTexture)
     {
     }
 
-    // Args are the active GL context, and a texture in that GL
-    // context for which to create an EGLImage.  After the EGLImage
-    // is created, the texture is unused by EGLTextureWrapper.
-    bool CreateEGLImage(GLContextEGL *ctx, GLuint texture) {
-        MOZ_ASSERT(!mEGLImage && texture && sEGLLibrary.HasKHRImageBase());
+    bool CreateEGLImage() {
+        MOZ_ASSERT(!mEGLImage && mTexture && sEGLLibrary.HasKHRImageBase());
         static const EGLint eglAttributes[] = {
             LOCAL_EGL_NONE
         };
+        GLContextEGL* ctx = static_cast<GLContextEGL*>(mContext.get());
         mEGLImage = sEGLLibrary.fCreateImage(EGL_DISPLAY(), ctx->Context(), LOCAL_EGL_GL_TEXTURE_2D,
-                                             (EGLClientBuffer)texture, eglAttributes);
+                                             (EGLClientBuffer)mTexture, eglAttributes);
         if (!mEGLImage) {
 #ifdef DEBUG
             printf_stderr("Could not create EGL images: ERROR (0x%04x)\n", sEGLLibrary.fGetError());
@@ -805,13 +786,19 @@ public:
         }
     }
 
+    GLuint GetTextureID() {
+        return mTexture;
+    }
+
+    GLContext* GetContext() {
+        return mContext.get();
+    }
+
     const EGLImage GetEGLImage() {
         return mEGLImage;
     }
 
-    // Insert a sync point on the given context, which should be the current active
-    // context.
-    bool MakeSync(GLContext *ctx) {
+    bool MakeSync() {
         MOZ_ASSERT(mSyncObject == nullptr);
 
         if (sEGLLibrary.IsExtensionSupported(GLLibraryEGL::KHR_fence_sync)) {
@@ -819,12 +806,12 @@ public:
             // We need to flush to make sure the sync object enters the command stream;
             // we can't use EGL_SYNC_FLUSH_COMMANDS_BIT at wait time, because the wait
             // happens on a different thread/context.
-            ctx->fFlush();
+            mContext->fFlush();
         }
 
         if (mSyncObject == EGL_NO_SYNC) {
             // we failed to create one, so just do a finish
-            ctx->fFinish();
+            mContext->fFinish();
         }
 
         return true;
@@ -847,9 +834,16 @@ public:
         return result == LOCAL_EGL_CONDITION_SATISFIED;
     }
 
+    bool OwnsTexture() {
+        return mOwnsTexture;
+    }
+
 private:
+    nsRefPtr<GLContext> mContext;
+    GLuint mTexture;
     EGLImage mEGLImage;
     EGLSync mSyncObject;
+    bool mOwnsTexture;
 };
 
 void
@@ -875,8 +869,7 @@ GLContextEGL::UpdateSharedHandle(TextureImage::TextureShareType aType,
     BindUserReadFBO(0);
     fGetIntegerv(LOCAL_GL_TEXTURE_BINDING_2D, &oldtex);
     MOZ_ASSERT(oldtex != -1);
-    fBindTexture(LOCAL_GL_TEXTURE_2D, mTemporaryEGLImageTexture);
-    fEGLImageTargetTexture2D(LOCAL_GL_TEXTURE_2D, wrap->GetEGLImage());
+    fBindTexture(LOCAL_GL_TEXTURE_2D, wrap->GetTextureID());
 
     // CopyTexSubImage2D, is ~2x slower than simple FBO render to texture with draw quads,
     // but render with draw quads require complex and hard to maintain context save/restore code
@@ -890,7 +883,7 @@ GLContextEGL::UpdateSharedHandle(TextureImage::TextureShareType aType,
     // Make sure our copy is finished, so that we can be ready to draw
     // in different thread GLContext.  If we have KHR_fence_sync, then
     // we insert a sync object, otherwise we have to do a GuaranteeResolve.
-    wrap->MakeSync(this);
+    wrap->MakeSync();
 }
 
 SharedTextureHandle
@@ -903,20 +896,17 @@ GLContextEGL::CreateSharedHandle(TextureImage::TextureShareType aType)
         return 0;
 
     MakeCurrent();
+    GLuint texture = 0;
     ContextFormat fmt = ActualFormat();
-
-    CreateTextureForOffscreen(ChooseGLFormats(fmt, GLContext::ForceRGBA), mOffscreenActualSize,
-                              mTemporaryEGLImageTexture);
-
-    EGLTextureWrapper* tex = new EGLTextureWrapper();
-    bool ok = tex->CreateEGLImage(this, mTemporaryEGLImageTexture);
-
-    if (!ok) {
+    CreateTextureForOffscreen(ChooseGLFormats(fmt, GLContext::ForceRGBA), mOffscreenSize, texture);
+    // texture ownership moved to EGLTextureWrapper after  this point
+    // and texture will be deleted in EGLTextureWrapper dtor
+    EGLTextureWrapper* tex = new EGLTextureWrapper(this, texture, true);
+    if (!tex->CreateEGLImage()) {
         NS_ERROR("EGLImage creation for EGLTextureWrapper failed");
         ReleaseSharedHandle(aType, (SharedTextureHandle)tex);
         return 0;
     }
-
     // Raw pointer shared across threads
     return (SharedTextureHandle)tex;
 }
@@ -946,8 +936,8 @@ GLContextEGL::CreateSharedHandle(TextureImage::TextureShareType aType,
             return 0;
 
         GLuint texture = (GLuint)aBuffer;
-        EGLTextureWrapper* tex = new EGLTextureWrapper();
-        if (!tex->CreateEGLImage(this, texture)) {
+        EGLTextureWrapper* tex = new EGLTextureWrapper(this, texture, false);
+        if (!tex->CreateEGLImage()) {
             NS_ERROR("EGLImage creation for EGLTextureWrapper failed");
             delete tex;
             return 0;
@@ -982,6 +972,18 @@ void GLContextEGL::ReleaseSharedHandle(TextureImage::TextureShareType aType,
         NS_ASSERTION(mShareWithEGLImage, "EGLImage not supported or disabled in runtime");
 
         EGLTextureWrapper* wrap = (EGLTextureWrapper*)aSharedHandle;
+        GLContext *ctx = wrap->GetContext();
+        if (ctx->IsDestroyed() || !ctx->IsOwningThreadCurrent()) {
+            ctx = ctx->GetSharedContext();
+        }
+        // If we have a context, then we need to delete the texture;
+        // if we don't have a context (either real or shared),
+        // then they went away when the contex was deleted, because it
+        // was the only one that had access to it.
+        if (wrap->OwnsTexture() && ctx && !ctx->IsDestroyed() && ctx->MakeCurrent()) {
+            GLuint texture = wrap->GetTextureID();
+            ctx->fDeleteTextures(1, &texture);
+        }
         delete wrap;
         break;
     }
@@ -1413,7 +1415,7 @@ public:
         if (mBackingSurface && mUpdateSurface == mBackingSurface) {
 #ifdef MOZ_X11
             if (mBackingSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
-                FinishX(DefaultXDisplay());
+                XSync(DefaultXDisplay(), False);
             }
 #endif
 

@@ -11,7 +11,6 @@
 
 #include "nsDebug.h"
 #include "nsPluginNativeWindow.h"
-#include "nsNPAPIPlugin.h"
 #include "npapi.h"
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
@@ -19,7 +18,6 @@
 
 #include "gtk2compat.h"
 #include "gtk2xtbin.h"
-#include "mozilla/X11Util.h"
 
 class nsPluginNativeWindowGtk2 : public nsPluginNativeWindow {
 public: 
@@ -34,7 +32,7 @@ private:
    * that encapsulates the Xt toolkit within a Gtk Application.
    */
   GtkWidget* mSocketWidget;
-  nsresult  CreateXEmbedWindow(bool aEnableXtFocus);
+  nsresult  CreateXEmbedWindow();
   nsresult  CreateXtWindow();
   void      SetAllocation();
 };
@@ -107,10 +105,8 @@ nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance>
         printf("nsPluginNativeWindowGtk2: NPPVpluginNeedsXEmbed=%d\n", needsXEmbed);
 #endif
 
-        bool isOOPPlugin = aPluginInstance->GetPlugin()->GetLibrary()->IsOOP();
-        if (needsXEmbed || isOOPPlugin) {        
-          bool enableXtFocus = !needsXEmbed;
-          rv = CreateXEmbedWindow(enableXtFocus);
+        if (needsXEmbed) {
+          rv = CreateXEmbedWindow();
         }
         else {
           rv = CreateXtWindow();
@@ -133,7 +129,7 @@ nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance>
         // Point the NPWindow structures window to the actual X window
         window = (void*)GTK_XTBIN(mSocketWidget)->xtwindow;
       }
-      else { // XEmbed or OOP&Xt
+      else { // XEmbed
         SetAllocation();
         window = (void*)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
       }
@@ -150,7 +146,7 @@ nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance>
   return NS_OK;
 }
 
-nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow(bool aEnableXtFocus) {
+nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow() {
   NS_ASSERTION(!mSocketWidget,"Already created a socket widget!");
   GdkDisplay *display = gdk_display_get_default();
   GdkWindow *parent_win = gdk_x11_window_lookup_for_display(display, (XID)window);
@@ -158,10 +154,6 @@ nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow(bool aEnableXtFocus) {
 
   //attach the socket to the container widget
   gtk_widget_set_parent_window(mSocketWidget, parent_win);
-
-  // enable/disable focus event handlers,
-  // see plugin_window_filter_func() for details
-  g_object_set_data(G_OBJECT(mSocketWidget), "enable-xt-focus", (void *)aEnableXtFocus);
 
   // Make sure to handle the plug_removed signal.  If we don't the
   // socket will automatically be destroyed when the plug is
@@ -315,6 +307,6 @@ socket_unrealize_cb(GtkWidget *widget, gpointer data)
 
   if (children) XFree(children);
 
-  mozilla::FinishX(display);
+  XSync(display, False);
   gdk_error_trap_pop();
 }

@@ -6,16 +6,12 @@
 #ifndef nsTextAttrs_h_
 #define nsTextAttrs_h_
 
-#include "nsCOMPtr.h"
-#include "nsColor.h"
+#include "nsIContent.h"
+#include "nsIFrame.h"
+#include "nsIPersistentProperties2.h"
 #include "nsStyleConsts.h"
 
 class HyperTextAccessible;
-class nsIFrame;
-class nsIPersistentProperties;
-class nsIContent;
-class Accessible;
-class nsDeviceContext;
 
 namespace mozilla {
 namespace a11y {
@@ -197,7 +193,7 @@ protected:
   public:
     LangTextAttr(HyperTextAccessible* aRoot, nsIContent* aRootElm,
                  nsIContent* aElm);
-    virtual ~LangTextAttr();
+    virtual ~LangTextAttr() { }
 
   protected:
 

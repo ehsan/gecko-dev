@@ -34,26 +34,28 @@ JSClass addPropertyClass = {
 
 BEGIN_TEST(testAddPropertyHook)
 {
-    JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+    jsvalRoot proto(cx);
+    JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
     CHECK(obj);
-    JS::RootedValue proto(cx, OBJECT_TO_JSVAL(obj));
+    proto = OBJECT_TO_JSVAL(obj);
     JS_InitClass(cx, global, obj, &addPropertyClass, NULL, 0, NULL, NULL, NULL,
                  NULL);
 
+    jsvalRoot arr(cx);
     obj = JS_NewArrayObject(cx, 0, NULL);
     CHECK(obj);
-    JS::RootedValue arr(cx, OBJECT_TO_JSVAL(obj));
+    arr = OBJECT_TO_JSVAL(obj);
 
     CHECK(JS_DefineProperty(cx, global, "arr", arr,
                             JS_PropertyStub, JS_StrictPropertyStub,
                             JSPROP_ENUMERATE));
 
     for (int i = 0; i < expectedCount; ++i) {
+        jsvalRoot vobj(cx);
         obj = JS_NewObject(cx, &addPropertyClass, NULL, NULL);
         CHECK(obj);
-        JS::RootedValue vobj(cx, OBJECT_TO_JSVAL(obj));
-        JS::RootedObject arrObj(cx, JSVAL_TO_OBJECT(arr));
-        CHECK(JS_DefineElement(cx, arrObj, i, vobj,
+        vobj = OBJECT_TO_JSVAL(obj);
+        CHECK(JS_DefineElement(cx, JSVAL_TO_OBJECT(arr), i, vobj,
                                JS_PropertyStub, JS_StrictPropertyStub,
                                JSPROP_ENUMERATE));
     }

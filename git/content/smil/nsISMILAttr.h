@@ -6,13 +6,12 @@
 #ifndef NS_ISMILATTR_H_
 #define NS_ISMILATTR_H_
 
-#include "nscore.h"
+#include "nsStringFwd.h"
 
 class nsSMILValue;
 class nsISMILType;
 class nsISMILAnimationElement;
 class nsIContent;
-class nsAString;
 
 ////////////////////////////////////////////////////////////////////////
 // nsISMILAttr: A variable targeted by SMIL for animation and can therefore have

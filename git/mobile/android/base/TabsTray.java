@@ -5,11 +5,11 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.PropertyAnimator.Property;
+import java.util.ArrayList;
 
 import android.content.Context;
-import android.graphics.PointF;
 import android.graphics.drawable.Drawable;
+import android.graphics.PointF;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.GestureDetector;
@@ -27,7 +27,7 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import java.util.ArrayList;
+import org.mozilla.gecko.PropertyAnimator.Property;
 
 public class TabsTray extends LinearLayout 
                       implements TabsPanel.PanelView {

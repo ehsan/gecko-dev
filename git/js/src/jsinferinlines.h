@@ -1537,7 +1537,8 @@ inline bool
 JSScript::ensureRanAnalysis(JSContext *cx)
 {
     js::analyze::AutoEnterAnalysis aea(cx->compartment);
-    js::RootedScript self(cx, this);
+    JSScript *self = this;
+    JS::SkipRoot root(cx, &self);
 
     if (!self->ensureHasTypes(cx))
         return false;

@@ -5,9 +5,7 @@
 
 package org.mozilla.gecko.gfx;
 
-import android.opengl.GLES20;
 import android.util.Log;
-
 import java.util.concurrent.SynchronousQueue;
 
 import javax.microedition.khronos.egl.EGL10;
@@ -15,6 +13,7 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;
 import javax.microedition.khronos.egl.EGLDisplay;
 import javax.microedition.khronos.egl.EGLSurface;
+import android.opengl.GLES20;
 
 public class GfxInfoThread extends Thread {
 

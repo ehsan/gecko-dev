@@ -401,12 +401,11 @@ JS_PUBLIC_API(JSBool)
 JS_WriteTypedArray(JSStructuredCloneWriter *w, jsval v)
 {
     JS_ASSERT(v.isObject());
-    RootedObject obj(w->context(), &v.toObject());
-    return w->writeTypedArray(obj);
+    return w->writeTypedArray(&v.toObject());
 }
 
 bool
-JSStructuredCloneWriter::writeTypedArray(HandleObject arr)
+JSStructuredCloneWriter::writeTypedArray(JSObject *arr)
 {
     if (!out.writePair(ArrayTypeToTag(TypedArray::type(arr)), TypedArray::length(arr)))
         return false;
@@ -432,7 +431,7 @@ JSStructuredCloneWriter::writeTypedArray(HandleObject arr)
 }
 
 bool
-JSStructuredCloneWriter::writeArrayBuffer(JSHandleObject obj)
+JSStructuredCloneWriter::writeArrayBuffer(JSObject *obj)
 {
     ArrayBufferObject &buffer = obj->asArrayBuffer();
     return out.writePair(SCTAG_ARRAY_BUFFER_OBJECT, buffer.byteLength()) &&
@@ -440,7 +439,7 @@ JSStructuredCloneWriter::writeArrayBuffer(JSHandleObject obj)
 }
 
 bool
-JSStructuredCloneWriter::startObject(JSHandleObject obj)
+JSStructuredCloneWriter::startObject(JSObject *obj)
 {
     JS_ASSERT(obj->isArray() || obj->isObject());
 
@@ -493,7 +492,7 @@ JSStructuredCloneWriter::startWrite(const Value &v)
     } else if (v.isUndefined()) {
         return out.writePair(SCTAG_UNDEFINED, 0);
     } else if (v.isObject()) {
-        RootedObject obj(context(), &v.toObject());
+        JSObject *obj = &v.toObject();
 
         // The object might be a security wrapper. See if we can clone what's
         // behind it. If we can, unwrap the object.
@@ -654,7 +653,7 @@ JS_ReadTypedArray(JSStructuredCloneReader *r, jsval *vp)
 bool
 JSStructuredCloneReader::readTypedArray(uint32_t tag, uint32_t nelems, Value *vp)
 {
-    RootedObject obj(context(), NULL);
+    JSObject *obj = NULL;
 
     switch (tag) {
       case SCTAG_TYPED_ARRAY_INT8:

@@ -27,8 +27,8 @@ namespace mozilla {
 class GonkCameraPreview : public CameraPreview
 {
 public:
-  GonkCameraPreview(nsIThread* aCameraThread, PRUint32 aHwHandle, PRUint32 aWidth, PRUint32 aHeight)
-    : CameraPreview(aCameraThread, aWidth, aHeight)
+  GonkCameraPreview(PRUint32 aHwHandle, PRUint32 aWidth, PRUint32 aHeight)
+    : CameraPreview(aWidth, aHeight)
     , mHwHandle(aHwHandle)
     , mDiscardedFrameCount(0)
     , mFormat(GonkCameraHardware::PREVIEW_FORMAT_UNKNOWN)
@@ -36,8 +36,8 @@ public:
 
   void ReceiveFrame(PRUint8 *aData, PRUint32 aLength);
 
-  nsresult StartImpl();
-  nsresult StopImpl();
+  void Start();
+  void Stop();
 
 protected:
   ~GonkCameraPreview()

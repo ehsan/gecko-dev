@@ -7,13 +7,12 @@
 
 #include "CameraControl.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 
 typedef nsresult (*ParseItemAndAddFunc)(JSContext* aCx, JSObject* aArray, PRUint32 aIndex, const char* aStart, char** aEnd);
 
-class nsCameraCapabilities MOZ_FINAL : public nsICameraCapabilities
+class nsCameraCapabilities : public nsICameraCapabilities
 {
 public:
   NS_DECL_ISUPPORTS

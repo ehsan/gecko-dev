@@ -57,14 +57,14 @@ Wrapper::New(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent,
 }
 
 Wrapper *
-Wrapper::wrapperHandler(RawObject wrapper)
+Wrapper::wrapperHandler(const JSObject *wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
     return GetProxyHandler(wrapper)->toWrapper();
 }
 
 JSObject *
-Wrapper::wrappedObject(RawObject wrapper)
+Wrapper::wrappedObject(const JSObject *wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
     return GetProxyTargetObject(wrapper);
@@ -130,7 +130,7 @@ js::UnwrapOneChecked(JSContext *cx, JSObject *obj)
 }
 
 bool
-js::IsCrossCompartmentWrapper(RawObject wrapper)
+js::IsCrossCompartmentWrapper(const JSObject *wrapper)
 {
     return wrapper->isWrapper() &&
            !!(Wrapper::wrapperHandler(wrapper)->flags() & Wrapper::CROSS_COMPARTMENT);
@@ -377,13 +377,9 @@ DirectWrapper DirectWrapper::singleton((unsigned)0);
 namespace js {
 
 extern JSObject *
-TransparentObjectWrapper(JSContext *cx, JSObject *objArg, JSObject *wrappedProtoArg, JSObject *parentArg,
+TransparentObjectWrapper(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSObject *parent,
                          unsigned flags)
 {
-    RootedObject obj(cx, objArg);
-    RootedObject wrappedProto(cx, wrappedProtoArg);
-    RootedObject parent(cx, parentArg);
-
     // Allow wrapping outer window proxies.
     JS_ASSERT(!obj->isWrapper() || obj->getClass()->ext.innerObject);
     return Wrapper::New(cx, obj, wrappedProto, parent, &CrossCompartmentWrapper::singleton);

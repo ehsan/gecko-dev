@@ -17,9 +17,10 @@ nativeGet(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandl
 
 BEGIN_TEST(testSetProperty_NativeGetterStubSetter)
 {
-    JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+    jsvalRoot vobj(cx);
+    JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
     CHECK(obj);
-    JS::RootedValue vobj(cx, OBJECT_TO_JSVAL(obj));
+    vobj = OBJECT_TO_JSVAL(obj);
 
     CHECK(JS_DefineProperty(cx, global, "globalProp", vobj,
                             JS_PropertyStub, JS_StrictPropertyStub,

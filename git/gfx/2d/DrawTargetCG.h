@@ -163,6 +163,8 @@ private:
    */
   void *mData;
 
+  SurfaceFormat mFormat;
+
   RefPtr<SourceSurfaceCGContext> mSnapshot;
 };
 

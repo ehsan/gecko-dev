@@ -6,7 +6,6 @@
 package org.mozilla.gecko.gfx;
 
 import android.opengl.GLES20;
-
 import java.util.ArrayList;
 
 /** Manages a list of dead tiles, so we don't leak resources. */

@@ -15,7 +15,6 @@
 #include "Role.h"
 #include "States.h"
 #include "TextLeafAccessible.h"
-#include "nsIMutableArray.h"
 
 #include "nsIDOMXULContainerElement.h"
 #include "nsIDOMXULSelectCntrlEl.h"

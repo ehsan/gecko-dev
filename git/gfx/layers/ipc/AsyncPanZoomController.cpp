@@ -13,7 +13,6 @@
 #include "GestureEventListener.h"
 #include "nsIThreadManager.h"
 #include "nsThreadUtils.h"
-#include "Layers.h"
 
 namespace mozilla {
 namespace layers {
@@ -698,7 +697,7 @@ void AsyncPanZoomController::RequestContentRepaint() {
 
 bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                                             const FrameMetrics& aFrame,
-                                                            Layer* aLayer,
+                                                            const gfx3DMatrix& aCurrentTransform,
                                                             gfx3DMatrix* aNewTransform) {
   // The eventual return value of this function. The compositor needs to know
   // whether or not to advance by a frame as soon as it can. For example, if a
@@ -707,11 +706,9 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
   // responsibility to schedule a composite.
   bool requestAnimationFrame = false;
 
-  const gfx3DMatrix& currentTransform = aLayer->GetTransform();
-
   // Scales on the root layer, on what's currently painted.
-  float rootScaleX = currentTransform.GetXScale(),
-        rootScaleY = currentTransform.GetYScale();
+  float rootScaleX = aCurrentTransform.GetXScale(),
+        rootScaleY = aCurrentTransform.GetYScale();
 
   nsIntPoint metricsScrollOffset(0, 0);
   nsIntPoint scrollOffset;
@@ -743,14 +740,7 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
     (scrollOffset.y / rootScaleY - metricsScrollOffset.y) * localScaleY);
 
   ViewTransform treeTransform(-scrollCompensation, localScaleX, localScaleY);
-  *aNewTransform = gfx3DMatrix(treeTransform) * currentTransform;
-
-  // The transform already takes the resolution scale into account.  Since we
-  // will apply the resolution scale again when computing the effective
-  // transform, we must apply the inverse resolution scale here.
-  aNewTransform->Scale(1.0f/aLayer->GetXScale(),
-                       1.0f/aLayer->GetYScale(),
-                       1);
+  *aNewTransform = gfx3DMatrix(treeTransform) * aCurrentTransform;
 
   mLastSampleTime = aSampleTime;
 

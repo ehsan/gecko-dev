@@ -101,7 +101,8 @@ public:
         LAYER_CLIENT_TYPE_GL = 2            // AndroidGeckoGLLayerClient
     };
 
-    static void ConstructBridge(JNIEnv *jEnv, jclass jGeckoAppShellClass);
+    static AndroidBridge *ConstructBridge(JNIEnv *jEnv,
+                                          jclass jGeckoAppShellClass);
 
     static AndroidBridge *Bridge() {
         return sBridge;
