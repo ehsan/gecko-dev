@@ -365,12 +365,12 @@ ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 
     Value argv[] = { UndefinedValue(), ObjectValue(*obj) };
     AutoValueArray ava(cx, argv, 2);
-    if (!js::array_pop(cx, 0, ava.start()))
+    if (!js::array_pop(cx, 0, argv))
         return false;
 
     // If the result is |undefined|, the array was probably empty and we
     // have to monitor the return value.
-    rval.set(ava[0]);
+    rval.set(argv[0]);
     if (rval.isUndefined())
         types::TypeScript::Monitor(cx, rval);
     return true;
@@ -383,10 +383,10 @@ ArrayPushDense(JSContext *cx, HandleObject obj, HandleValue v, uint32_t *length)
 
     Value argv[] = { UndefinedValue(), ObjectValue(*obj), v };
     AutoValueArray ava(cx, argv, 3);
-    if (!js::array_push(cx, 1, ava.start()))
+    if (!js::array_push(cx, 1, argv))
         return false;
 
-    *length = ava[0].toInt32();
+    *length = argv[0].toInt32();
     return true;
 }
 
@@ -399,12 +399,12 @@ ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 
     Value argv[] = { UndefinedValue(), ObjectValue(*obj) };
     AutoValueArray ava(cx, argv, 2);
-    if (!js::array_shift(cx, 0, ava.start()))
+    if (!js::array_shift(cx, 0, argv))
         return false;
 
     // If the result is |undefined|, the array was probably empty and we
     // have to monitor the return value.
-    rval.set(ava[0]);
+    rval.set(argv[0]);
     if (rval.isUndefined())
         types::TypeScript::Monitor(cx, rval);
     return true;
@@ -426,9 +426,9 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
 
     Value argv[] = { UndefinedValue(), ObjectValue(*arr1), ObjectValue(*arr2) };
     AutoValueArray ava(cx, argv, 3);
-    if (!js::array_concat(cx, 1, ava.start()))
+    if (!js::array_concat(cx, 1, argv))
         return nullptr;
-    return &ava[0].toObject();
+    return &argv[0].toObject();
 }
 
 bool

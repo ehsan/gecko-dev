@@ -392,7 +392,6 @@ private:
   mozilla::dom::CSSValue* DoGetPosition();
   mozilla::dom::CSSValue* DoGetClip();
   mozilla::dom::CSSValue* DoGetImageOrientation();
-  mozilla::dom::CSSValue* DoGetWillChange();
   mozilla::dom::CSSValue* DoGetOverflow();
   mozilla::dom::CSSValue* DoGetOverflowX();
   mozilla::dom::CSSValue* DoGetOverflowY();

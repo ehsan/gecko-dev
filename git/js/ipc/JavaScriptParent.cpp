@@ -574,7 +574,7 @@ JavaScriptParent::unwrap(JSContext *cx, ObjectId objId)
 
     RootedValue v(cx, UndefinedValue());
     ProxyOptions options;
-    options.selectDefaultClass(callable);
+    options.setCallable(callable);
     obj = NewProxyObject(cx,
                          &CPOWProxyHandler::singleton,
                          v,

@@ -269,7 +269,7 @@ this.Utils = {
     return false;
   },
 
-  isAliveAndVisible: function isAliveAndVisible(aAccessible, aIsOnScreen) {
+  isAliveAndVisible: function isAliveAndVisible(aAccessible) {
     if (!aAccessible) {
       return false;
     }
@@ -277,7 +277,6 @@ this.Utils = {
     try {
       let state = this.getState(aAccessible);
       if (state.contains(States.DEFUNCT) || state.contains(States.INVISIBLE) ||
-          (aIsOnScreen && state.contains(States.OFFSCREEN)) ||
           Utils.inHiddenSubtree(aAccessible)) {
         return false;
       }

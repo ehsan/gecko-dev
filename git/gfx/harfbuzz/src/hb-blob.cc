@@ -29,6 +29,7 @@
 
 #include "hb-private.hh"
 
+#include "hb-blob.h"
 #include "hb-object-private.hh"
 
 #ifdef HAVE_SYS_MMAN_H

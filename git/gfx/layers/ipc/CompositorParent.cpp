@@ -526,27 +526,10 @@ CompositorParent::NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint, 
 // DEFAULT_FRAME_RATE in nsRefreshDriver.cpp.
 static const int32_t kDefaultFrameRate = 60;
 
-static int32_t
-CalculateCompositionFrameRate()
-{
-  int32_t compositionFrameRatePref = gfxPlatform::GetPrefLayersCompositionFrameRate();
-  if (compositionFrameRatePref < 0) {
-    // Use the same frame rate for composition as for layout.
-    int32_t layoutFrameRatePref = gfxPlatform::GetPrefLayoutFrameRate();
-    if (layoutFrameRatePref < 0) {
-      // TODO: The main thread frame scheduling code consults the actual
-      // monitor refresh rate in this case. We should do the same.
-      return kDefaultFrameRate;
-    }
-    return layoutFrameRatePref;
-  }
-  return compositionFrameRatePref;
-}
-
 void
 CompositorParent::ScheduleComposition()
 {
-  if (mCurrentCompositeTask || mPaused) {
+  if (mCurrentCompositeTask) {
     return;
   }
 
@@ -555,7 +538,12 @@ CompositorParent::ScheduleComposition()
   if (!initialComposition)
     delta = TimeStamp::Now() - mLastCompose;
 
-  int32_t rate = CalculateCompositionFrameRate();
+  int32_t rate = gfxPlatform::GetPrefLayoutFrameRate();
+  if (rate < 0) {
+    // TODO: The main thread frame scheduling code consults the actual monitor
+    // refresh rate in this case. We should do the same.
+    rate = kDefaultFrameRate;
+  }
 
   // If rate == 0 (ASAP mode), minFrameDelta must be 0 so there's no delay.
   TimeDuration minFrameDelta = TimeDuration::FromMilliseconds(
@@ -642,13 +630,6 @@ CompositorParent::CompositeInTransaction()
                   15 + (int)(TimeStamp::Now() - mExpectedComposeTime).ToMilliseconds());
   }
 #endif
-
-  // 0 -> Full-tilt composite
-  if (gfxPlatform::GetPrefLayersCompositionFrameRate() == 0) {
-    // Special full-tilt composite mode for performance testing
-    ScheduleComposition();
-  }
-
   profiler_tracing("Paint", "Composite", TRACING_INTERVAL_END);
 }
 
