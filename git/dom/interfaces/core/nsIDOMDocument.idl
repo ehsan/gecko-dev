@@ -44,10 +44,6 @@
 
 #include "nsIDOMNode.idl"
 
-%{ C++
-#include "jspubtd.h"
-%}
-
 interface nsIDOMNodeIterator;
 interface nsIDOMNodeFilter;
 interface nsIDOMTreeWalker;
@@ -67,7 +63,7 @@ interface nsIDOMCaretPosition;
  * http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html
  */
 
-[scriptable, uuid(C54536AF-C238-4D8B-A339-54E2A0649FF5)]
+[scriptable, uuid(903493d3-72b6-4416-b930-fbfc17ef1d87)]
 interface nsIDOMDocument : nsIDOMNode
 {
   readonly attribute nsIDOMDocumentType         doctype;
@@ -399,9 +395,4 @@ interface nsIDOMDocument : nsIDOMNode
    * @see <https://wiki.mozilla.org/index.php?title=Gecko:FullScreenAPI>
    */
   readonly attribute boolean mozFullScreen;  
-
-  /**
-   * Inline event handler for readystatechange events.
-   */
-  [implicit_jscontext] attribute jsval onreadystatechange;
 };

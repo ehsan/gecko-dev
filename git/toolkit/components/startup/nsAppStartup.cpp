@@ -134,8 +134,7 @@ nsAppStartup::nsAppStartup() :
   mRunning(PR_FALSE),
   mShuttingDown(PR_FALSE),
   mAttemptingQuit(PR_FALSE),
-  mRestart(PR_FALSE),
-  mInterrupted(PR_FALSE)
+  mRestart(PR_FALSE)
 { }
 
 
@@ -450,20 +449,6 @@ NS_IMETHODIMP
 nsAppStartup::GetShuttingDown(PRBool *aResult)
 {
   *aResult = mShuttingDown;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAppStartup::SetInterrupted(PRBool aInterrupted)
-{
-  mInterrupted = aInterrupted;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAppStartup::GetInterrupted(PRBool *aInterrupted)
-{
-  *aInterrupted = mInterrupted;
   return NS_OK;
 }
 

@@ -1297,7 +1297,7 @@ nsLayoutUtils::GetRemoteContentIds(nsIFrame* aFrame,
   builder.LeavePresShell(aFrame, aTarget);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoTArray<nsIFrame*,8> outFrames;
+  nsTArray<nsIFrame*> outFrames;
   nsDisplayItem::HitTestState hitTestState(&aOutIDs);
   list.HitTest(&builder, aTarget, &hitTestState, &outFrames);
   list.DeleteAll();
@@ -1311,7 +1311,7 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
                                 PRBool aIgnoreRootScrollFrame)
 {
   nsresult rv;
-  nsAutoTArray<nsIFrame*,8> outFrames;
+  nsTArray<nsIFrame*> outFrames;
   rv = GetFramesForArea(aFrame, nsRect(aPt, nsSize(1, 1)), outFrames,
                         aShouldIgnoreSuppression, aIgnoreRootScrollFrame);
   NS_ENSURE_SUCCESS(rv, nsnull);
@@ -4050,10 +4050,27 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
     return result;
   }
 
-  nsCOMPtr<nsIPrincipal> principal;
-  rv = imgRequest->GetImagePrincipal(getter_AddRefs(principal));
-  if (NS_FAILED(rv) || !principal)
+  // In case of data: URIs, we want to ignore principals;
+  // they should have the originating content's principal,
+  // but that's broken at the moment in imgLib.
+  nsCOMPtr<nsIURI> uri;
+  rv = imgRequest->GetURI(getter_AddRefs(uri));
+  if (NS_FAILED(rv))
     return result;
+
+  PRBool isDataURI = PR_FALSE;
+  rv = uri->SchemeIs("data", &isDataURI);
+  if (NS_FAILED(rv))
+    return result;
+
+  // Data URIs are always OK; set the principal
+  // to null to indicate that.
+  nsCOMPtr<nsIPrincipal> principal;
+  if (!isDataURI) {
+    rv = imgRequest->GetImagePrincipal(getter_AddRefs(principal));
+    if (NS_FAILED(rv) || !principal)
+      return result;
+  }
 
   nsCOMPtr<imgIContainer> imgContainer;
   rv = imgRequest->GetImage(getter_AddRefs(imgContainer));
@@ -4099,11 +4116,6 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
     ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
     ctx->SetSource(framesurf);
     ctx->Paint();
-  }
-
-  PRInt32 corsmode;
-  if (NS_SUCCEEDED(imgRequest->GetCORSMode(&corsmode))) {
-    result.mCORSUsed = (corsmode != imgIRequest::CORS_NONE);
   }
 
   result.mSurface = gfxsurf;

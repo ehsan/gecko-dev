@@ -68,7 +68,7 @@ class nsILoadGroup;
 class imgCacheEntry
 {
 public:
-  imgCacheEntry(imgRequest *request, bool aForcePrincipalCheck);
+  imgCacheEntry(imgRequest *request);
   ~imgCacheEntry();
 
   nsrefcnt AddRef()
@@ -157,11 +157,6 @@ public:
     return mHasNoProxies;
   }
 
-  bool ForcePrincipalCheck() const
-  {
-    return mForcePrincipalCheck;
-  }
-
 private: // methods
   friend class imgLoader;
   friend class imgCacheQueue;
@@ -188,7 +183,6 @@ private: // data
   PRPackedBool mMustValidate : 1;
   PRPackedBool mEvicted : 1;
   PRPackedBool mHasNoProxies : 1;
-  PRPackedBool mForcePrincipalCheck : 1;
 };
 
 #include <vector>
@@ -426,8 +420,7 @@ class imgCacheValidator : public nsIStreamListener,
                           public nsIAsyncVerifyRedirectCallback
 {
 public:
-  imgCacheValidator(nsProgressNotificationProxy* progress, imgRequest *request,
-                    void *aContext, bool forcePrincipalCheckForCacheEntry);
+  imgCacheValidator(nsProgressNotificationProxy* progress, imgRequest *request, void *aContext);
   virtual ~imgCacheValidator();
 
   void AddProxy(imgRequestProxy *aProxy);

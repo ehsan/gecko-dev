@@ -103,7 +103,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIConten
   JSObject * targetScriptObject;
   holder->GetJSObject(&targetScriptObject);
 
-  JSContext *cx = context->GetNativeContext();
+  JSContext *cx = (JSContext *)context->GetNativeContext();
 
   AutoVersionChecker avc(cx);
   
@@ -147,7 +147,7 @@ nsXBLProtoImpl::InitTargetObjects(nsXBLPrototypeBinding* aBinding,
 
   // Because our prototype implementation has a class, we need to build up a corresponding
   // class for the concrete implementation in the bound document.
-  JSContext* jscontext = aContext->GetNativeContext();
+  JSContext* jscontext = (JSContext*)aContext->GetNativeContext();
   JSObject* global = sgo->GetGlobalJSObject();
   nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
   jsval v;
@@ -185,7 +185,7 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
   nsIScriptContext *context = globalObject->GetContext();
   NS_ENSURE_TRUE(context, NS_ERROR_OUT_OF_MEMORY);
 
-  JSContext *cx = context->GetNativeContext();
+  JSContext *cx = (JSContext *)context->GetNativeContext();
   JSObject *global = globalObject->GetGlobalJSObject();
   
 

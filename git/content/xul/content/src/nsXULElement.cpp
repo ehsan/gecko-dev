@@ -797,7 +797,7 @@ nsScriptEventHandlerOwnerTearoff::CompileEventHandler(
                                      &argNames);
 
     nsCxPusher pusher;
-    if (!pusher.Push(context->GetNativeContext())) {
+    if (!pusher.Push((JSContext*)context->GetNativeContext())) {
       return NS_ERROR_FAILURE;
     }
 

@@ -44,7 +44,6 @@
 #include "jsobjinlines.h"
 
 using namespace js;
-using namespace JS;
 
 JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt)
@@ -93,15 +92,6 @@ JS_SplicePrototype(JSContext *cx, JSObject *obj, JSObject *proto)
      * does not nuke type information for the object.
      */
     CHECK_REQUEST(cx);
-
-    if (!obj->hasSingletonType()) {
-        /*
-         * We can see non-singleton objects when trying to splice prototypes
-         * due to mutable __proto__ (ugh).
-         */
-        return JS_SetPrototype(cx, obj, proto);
-    }
-
     return obj->splicePrototype(cx, proto);
 }
 
@@ -120,53 +110,6 @@ JS_ObjectCountDynamicSlots(JSObject *obj)
     if (obj->hasSlotsArray())
         return obj->numDynamicSlots(obj->numSlots());
     return 0;
-}
-
-JS_FRIEND_API(JSPrincipals *)
-JS_GetCompartmentPrincipals(JSCompartment *compartment)
-{
-    return compartment->principals;
-}
-
-JS_FRIEND_API(JSBool)
-JS_WrapPropertyDescriptor(JSContext *cx, js::PropertyDescriptor *desc)
-{
-    return cx->compartment->wrap(cx, desc);
-}
-
-AutoPreserveCompartment::AutoPreserveCompartment(JSContext *cx
-                                                 JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
-  : cx(cx), oldCompartment(cx->compartment)
-{
-    JS_GUARD_OBJECT_NOTIFIER_INIT;
-}
-
-AutoPreserveCompartment::~AutoPreserveCompartment()
-{
-    /* The old compartment may have been destroyed, so we can't use cx->setCompartment. */
-    cx->compartment = oldCompartment;
-}
-
-AutoSwitchCompartment::AutoSwitchCompartment(JSContext *cx, JSCompartment *newCompartment
-                                             JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
-  : cx(cx), oldCompartment(cx->compartment)
-{
-    JS_GUARD_OBJECT_NOTIFIER_INIT;
-    cx->setCompartment(newCompartment);
-}
-
-AutoSwitchCompartment::AutoSwitchCompartment(JSContext *cx, JSObject *target
-                                             JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
-  : cx(cx), oldCompartment(cx->compartment)
-{
-    JS_GUARD_OBJECT_NOTIFIER_INIT;
-    cx->setCompartment(target->compartment());
-}
-
-AutoSwitchCompartment::~AutoSwitchCompartment()
-{
-    /* The old compartment may have been destroyed, so we can't use cx->setCompartment. */
-    cx->compartment = oldCompartment;
 }
 
 /*

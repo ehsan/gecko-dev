@@ -209,7 +209,6 @@ protected:
                 PRUint32 toOffset,
                 PRUint32 count,
                 PRUint32 *writeCount);
-  nsresult CreateResponseParsedJSON(JSContext* aCx);
   nsresult CreateResponseArrayBuffer(JSContext* aCx);
   void CreateResponseBlob(nsIRequest *request);
   // Change the state of the object with this. The broadcast argument
@@ -283,8 +282,7 @@ protected:
     XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER,
     XML_HTTP_RESPONSE_TYPE_BLOB,
     XML_HTTP_RESPONSE_TYPE_DOCUMENT,
-    XML_HTTP_RESPONSE_TYPE_TEXT,
-    XML_HTTP_RESPONSE_TYPE_JSON
+    XML_HTTP_RESPONSE_TYPE_TEXT
   } mResponseType;
 
   nsCOMPtr<nsIDOMBlob> mResponseBlob;
@@ -330,7 +328,6 @@ protected:
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
   
-  jsval mResultJSON;
   JSObject* mResultArrayBuffer;
 
   struct RequestHeader

@@ -42,8 +42,7 @@ body {
   font-size: 11px;
   background: #EEE;
 }
-.path,
-.filters {
+.path {
   font-size: 11px;
   word-spacing: -1px;
 }
@@ -72,6 +71,15 @@ body {
   content: "";
 }
 
+#header,
+#footer {
+  padding: 5px;
+}
+
+#header label {
+  font-weight: bold;
+}
+
 .property-header {
   padding: 2px 5px;
   background: -moz-linear-gradient(top, #F8F8F8, #E8E8E8);
@@ -79,60 +87,63 @@ body {
 }
 
 .property-name,
-.rule-matched,
+.property-value,
+.rule-count,
 .rule-unmatched {
   cursor: pointer;
 }
 
 /* Take away these two :visited rules to get a core dumper     */
 /* See https://bugzilla.mozilla.org/show_bug.cgi?id=575675#c30 */
-.link {
+.link,
+.unmatchedlink {
   color: #55A;
 }
-.link:visited {
+.link:visited,
+.unmatchedlink:visited {
   color: #55A;
 }
-a.link {
+a.link,
+a.unmatchedlink {
   text-decoration: none;
   cursor: pointer;
 }
-a.link:visited {
+a.link:visited,
+a.unmatchedlink:visited {
   text-decoration: none;
 }
 
-.rule-matched,
+.rule-count,
 .rule-unmatched {
-  padding: 2px 0;
-  white-space: nowrap;
+  padding: 5px 0 0 15px;
 }
-
-.rulelink {
-  color: #55A;
+.unmatched {
+  display: inline-block;
 }
-
 .expander {
   width: 8px;
   height: 8px;
-  float: left;
-  -moz-margin-start: 15px;
+  display: inline-block;
   -moz-margin-end: 5px;
-  margin-top: 3px;
+  margin-bottom: 1px;
   background: url("chrome://browser/skin/devtools/arrows.png");
+}
+
+.unmatched-rule {
+  -moz-margin-start: 25px;
   background-position: 24px 0;
 }
 
-.searchfield {
-  background: url("chrome://browser/skin/devtools/search.png") no-repeat #FFF;
-  border-radius: 5px;
-  -moz-padding-start: 20px;
-  width: 135px;
-  float: right;
+.property-view .rule-count .expander,
+.property-view .rule-unmatched .expander {
+  background-position: 24px 0;
 }
-
-.expander[dir="rtl"] {
+.property-view[dir="rtl"] .rule-count .expander,
+.property-view[dir="rtl"] .rule-unmatched .expander {
   background-position: 16px 0;
 }
-.expander[open] {
+.property-view[open] .rule-count .expander,
+.property-view[open] .rule-unmatched .expander {
   background-position: 8px 0;
 }
 
@@ -147,10 +158,20 @@ a.link:visited {
   font-size: 10px;
 }
 
-.property-view-hidden {
+.property-view > .rules {
   display: none;
 }
-
+.property-view[open] > .rules {
+  display: table;
+}
+.rules {
+  -moz-margin-start: 32px;
+  max-height: 350px;
+  overflow-y: auto;
+}
+.rule-status {
+  white-space: nowrap;
+}
 .rule-link {
   text-align: end;
   -moz-padding-start: 10px;
@@ -177,14 +198,4 @@ a.link:visited {
 }
 .unmatched {
   color: brown;
-}
-
-.userStyles {
-  position: relative;
-  top: 3px;
-}
-
-.userStyles,
-.userStylesLabel {
-  cursor: pointer;
 }

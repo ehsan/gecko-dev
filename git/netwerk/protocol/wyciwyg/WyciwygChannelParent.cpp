@@ -117,9 +117,6 @@ WyciwygChannelParent::RecvAsyncOpen(const IPC::URI& aOriginal,
 
   LOG(("WyciwygChannelParent RecvAsyncOpen [this=%x]\n", this));
 
-  if (!mChannel)
-    return true;
-
   nsresult rv;
 
   rv = mChannel->SetOriginalURI(original);
@@ -140,18 +137,14 @@ WyciwygChannelParent::RecvAsyncOpen(const IPC::URI& aOriginal,
 bool
 WyciwygChannelParent::RecvWriteToCacheEntry(const nsString& data)
 {
-  if (mChannel)
-    mChannel->WriteToCacheEntry(data);
-
+  mChannel->WriteToCacheEntry(data);
   return true;
 }
 
 bool
 WyciwygChannelParent::RecvCloseCacheEntry(const nsresult& reason)
 {
-  if (mChannel)
-    mChannel->CloseCacheEntry(reason);
-
+  mChannel->CloseCacheEntry(reason);
   return true;
 }
 
@@ -159,21 +152,16 @@ bool
 WyciwygChannelParent::RecvSetCharsetAndSource(const PRInt32& aCharsetSource,
                                               const nsCString& aCharset)
 {
-  if (mChannel)
-    mChannel->SetCharsetAndSource(aCharsetSource, aCharset);
-
+  mChannel->SetCharsetAndSource(aCharsetSource, aCharset);
   return true;
 }
 
 bool
 WyciwygChannelParent::RecvSetSecurityInfo(const nsCString& aSecurityInfo)
 {
-  if (mChannel) {
-    nsCOMPtr<nsISupports> securityInfo;
-    NS_DeserializeObject(aSecurityInfo, getter_AddRefs(securityInfo));
-    mChannel->SetSecurityInfo(securityInfo);
-  }
-
+  nsCOMPtr<nsISupports> securityInfo;
+  NS_DeserializeObject(aSecurityInfo, getter_AddRefs(securityInfo));
+  mChannel->SetSecurityInfo(securityInfo);
   return true;
 }
 

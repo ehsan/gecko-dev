@@ -61,15 +61,16 @@ function testMatchedSelectors()
   is(numMatchedSelectors, 6,
       "CssLogic returns the correct number of matched selectors for div");
 
-  let returnedSelectorTitle = propertyView.matchedSelectorTitle();
-  let str = CssHtmlTree.l10n("property.numberOfMatchedSelectors");
-  let calculatedSelectorTitle = PluralForm.get(numMatchedSelectors, str)
+  let dummy = content.document.getElementById("dummy");
+  let returnedRuleTitle = propertyView.ruleTitle(dummy);
+  let str = CssHtmlTree.l10n("property.numberOfSelectors");
+  let calculatedRuleTitle = PluralForm.get(numMatchedSelectors, str)
                                       .replace("#1", numMatchedSelectors);
 
-  info("returnedSelectorTitle: '" + returnedSelectorTitle + "'");
+  info("returnedRuleTitle: '" + returnedRuleTitle + "'");
 
-  is(returnedSelectorTitle, calculatedSelectorTitle,
-      "returned title for matched selectors is correct");
+  is(returnedRuleTitle, calculatedRuleTitle,
+      "returned title for matched rules is correct");
 }
 
 function testUnmatchedSelectors()
@@ -92,15 +93,16 @@ function testUnmatchedSelectors()
   is(numUnmatchedSelectors, 13,
       "CssLogic returns the correct number of unmatched selectors for body");
 
-  let returnedSelectorTitle = propertyView.unmatchedSelectorTitle();
+  let dummy = content.document.getElementById("dummy");
+  let returnedRuleTitle = propertyView.ruleTitle(dummy);
   let str = CssHtmlTree.l10n("property.numberOfUnmatchedSelectors");
-  let calculatedSelectorTitle = PluralForm.get(numUnmatchedSelectors, str)
+  let calculatedRuleTitle = PluralForm.get(numUnmatchedSelectors, str)
                                       .replace("#1", numUnmatchedSelectors);
 
-  info("returnedSelectorTitle: '" + returnedSelectorTitle + "'");
+  info("returnedRuleTitle: '" + returnedRuleTitle + "'");
 
-  is(returnedSelectorTitle, calculatedSelectorTitle,
-      "returned title for unmatched selectors is correct");
+  is(returnedRuleTitle, calculatedRuleTitle,
+      "returned title for unmatched rules is correct");
 }
 
 function finishUp()

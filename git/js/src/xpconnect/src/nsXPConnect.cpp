@@ -426,9 +426,9 @@ nsXPConnect::GarbageCollect()
 // JSTRACE_XML can recursively hold on to more JSTRACE_XML objects, adding it to
 // the cycle collector avoids stack overflow.
 inline bool
-AddToCCKind(JSGCTraceKind kind)
+AddToCCKind(uint32 kind)
 {
-    return kind == JSTRACE_OBJECT || kind == JSTRACE_XML || kind == JSTRACE_SCRIPT;
+    return kind == JSTRACE_OBJECT || kind == JSTRACE_XML;
 }
 
 #ifdef DEBUG_CC
@@ -445,7 +445,7 @@ struct NoteJSRootTracer : public JSTracer
 };
 
 static void
-NoteJSRoot(JSTracer *trc, void *thing, JSGCTraceKind kind)
+NoteJSRoot(JSTracer *trc, void *thing, uint32 kind)
 {
     if(AddToCCKind(kind))
     {
@@ -880,10 +880,6 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     TraversalTracer trc(cb);
 
     JS_TRACER_INIT(&trc, cx, NoteJSChild);
-    // When WeakMaps are properly integrated with the cycle
-    // collector in Bug 668855, don't eagerly trace weak maps when
-    // building the cycle collector graph.
-    // trc.eagerlyTraceWeakMaps = JS_FALSE;
     JS_TraceChildren(&trc, p, traceKind);
 
     if(traceKind != JSTRACE_OBJECT || dontTraverse)
@@ -1065,7 +1061,7 @@ CreateNewCompartment(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
     *global = tempGlobal;
     *compartment = tempGlobal->compartment();
 
-    JS::AutoSwitchCompartment sc(cx, *compartment);
+    js::SwitchToCompartment sc(cx, *compartment);
     JS_SetCompartmentPrivate(cx, *compartment, priv_holder.forget());
     return true;
 }
@@ -1097,7 +1093,7 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
     }
     else
     {
-        JS::AutoSwitchCompartment sc(cx, *compartment);
+        js::SwitchToCompartment sc(cx, *compartment);
 
         JSObject *tempGlobal = JS_NewGlobalObject(cx, clasp);
         if(!tempGlobal)
@@ -1134,7 +1130,7 @@ xpc_CreateMTGlobalObject(JSContext *cx, JSClass *clasp,
     }
     else
     {
-        JS::AutoSwitchCompartment sc(cx, *compartment);
+        js::SwitchToCompartment sc(cx, *compartment);
 
         JSObject *tempGlobal = JS_NewGlobalObject(cx, clasp);
         if(!tempGlobal)
@@ -2555,7 +2551,7 @@ nsXPConnect::CheckForDebugMode(JSRuntime *rt) {
         js::CompartmentVector &vector = rt->compartments;
         for (JSCompartment **p = vector.begin(); p != vector.end(); ++p) {
             JSCompartment *comp = *p;
-            if (!JS_GetCompartmentPrincipals(comp)) {
+            if (!comp->principals) {
                 /* Ignore special compartments (atoms, JSD compartments) */
                 continue;
             }

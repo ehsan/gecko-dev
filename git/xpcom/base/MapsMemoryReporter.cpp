@@ -109,23 +109,6 @@ void GetBasename(const nsCString &aPath, nsACString &aOut)
   }
 }
 
-// MapsReporter::CollectReports uses this stuct to keep track of whether it's
-// seen a mapping under 'map/resident', 'map/vsize', and 'map/swap'.
-struct CategoriesSeen {
-  CategoriesSeen() :
-    mSeenResident(false),
-    mSeenPss(false),
-    mSeenVsize(false),
-    mSeenSwap(false)
-  {
-  }
-
-  bool mSeenResident;
-  bool mSeenPss;
-  bool mSeenVsize;
-  bool mSeenSwap;
-};
-
 } // anonymous namespace
 
 class MapsReporter : public nsIMemoryMultiReporter
@@ -147,8 +130,7 @@ private:
   nsresult
   ParseMapping(FILE *aFile,
                nsIMemoryMultiReporterCallback *aCallback,
-               nsISupports *aClosure,
-               CategoriesSeen *aCategoriesSeen);
+               nsISupports *aClosure);
 
   void
   GetReporterNameAndDescription(const char *aPath,
@@ -161,8 +143,7 @@ private:
                const nsACString &aName,
                const nsACString &aDescription,
                nsIMemoryMultiReporterCallback *aCallback,
-               nsISupports *aClosure,
-               CategoriesSeen *aCategoriesSeen);
+               nsISupports *aClosure);
 
   nsCString mLibxulDir;
   nsCStringHashSet mMozillaLibraries;
@@ -185,37 +166,17 @@ NS_IMETHODIMP
 MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCallback,
                              nsISupports *aClosure)
 {
-  CategoriesSeen categoriesSeen;
-
   FILE *f = fopen("/proc/self/smaps", "r");
   if (!f)
     return NS_ERROR_FAILURE;
 
   while (true) {
-    nsresult rv = ParseMapping(f, aCallback, aClosure, &categoriesSeen);
+    nsresult rv = ParseMapping(f, aCallback, aClosure);
     if (NS_FAILED(rv))
       break;
   }
 
   fclose(f);
-
-  // For sure we should have created some node under 'map/resident' and
-  // 'map/vsize'; otherwise we're probably not reading smaps correctly.  If we
-  // didn't create a node under 'map/swap', create one here so about:memory
-  // knows to create an empty 'map/swap' tree.  See also bug 682735.
-
-  NS_ASSERTION(categoriesSeen.mSeenVsize, "Didn't create a vsize node?");
-  NS_ASSERTION(categoriesSeen.mSeenVsize, "Didn't create a resident node?");
-  if (!categoriesSeen.mSeenSwap) {
-    aCallback->Callback(NS_LITERAL_CSTRING(""),
-                        NS_LITERAL_CSTRING("map/swap"),
-                        nsIMemoryReporter::KIND_NONHEAP,
-                        nsIMemoryReporter::UNITS_BYTES,
-                        0,
-                        NS_LITERAL_CSTRING("This process uses no swap space."),
-                        aClosure);
-  }
-
   return NS_OK;
 }
 
@@ -258,8 +219,7 @@ nsresult
 MapsReporter::ParseMapping(
   FILE *aFile,
   nsIMemoryMultiReporterCallback *aCallback,
-  nsISupports *aClosure,
-  CategoriesSeen *aCategoriesSeen)
+  nsISupports *aClosure)
 {
   // We need to use native types in order to get good warnings from fscanf, so
   // let's make sure that the native types have the sizes we expect.
@@ -281,9 +241,7 @@ MapsReporter::ParseMapping(
   unsigned long long addrStart, addrEnd;
   char perms[5];
   unsigned long long offset;
-  char devMajor[3];
-  char devMinor[3];
-  unsigned int inode;
+  unsigned int devMajor, devMinor, inode;
   char path[1025];
 
   // A path might not be present on this line; set it to the empty string.
@@ -294,25 +252,23 @@ MapsReporter::ParseMapping(
   // with or without a path, but we don't want to look to a new line for the
   // path.  Thus we have %u%1024[^\n] at the end of the pattern.  This will
   // capture into the path some leading whitespace, which we'll later trim off.
-  int numRead = fscanf(aFile, "%llx-%llx %4s %llx %2s:%2s %u%1024[^\n]",
-                       &addrStart, &addrEnd, perms, &offset, devMajor,
-                       devMinor, &inode, path);
+  int numRead = fscanf(aFile, "%llx-%llx %4s %llx %u:%u %u%1024[^\n]",
+                       &addrStart, &addrEnd, perms, &offset, &devMajor,
+                       &devMinor, &inode, path);
 
   // Eat up any whitespace at the end of this line, including the newline.
   fscanf(aFile, " ");
 
   // We might or might not have a path, but the rest of the arguments should be
   // there.
-  if (numRead != argCount && numRead != argCount - 1) {
+  if (numRead != argCount && numRead != argCount - 1)
     return NS_ERROR_FAILURE;
-  }
 
   nsCAutoString name, description;
   GetReporterNameAndDescription(path, perms, name, description);
 
   while (true) {
-    nsresult rv = ParseMapBody(aFile, name, description, aCallback,
-                               aClosure, aCategoriesSeen);
+    nsresult rv = ParseMapBody(aFile, name, description, aCallback, aClosure);
     if (NS_FAILED(rv))
       break;
   }
@@ -442,8 +398,7 @@ MapsReporter::ParseMapBody(
   const nsACString &aName,
   const nsACString &aDescription,
   nsIMemoryMultiReporterCallback *aCallback,
-  nsISupports *aClosure,
-  CategoriesSeen *aCategoriesSeen)
+  nsISupports *aClosure)
 {
   PR_STATIC_ASSERT(sizeof(long long) == sizeof(PRInt64));
 
@@ -463,19 +418,12 @@ MapsReporter::ParseMapBody(
   const char* category;
   if (strcmp(desc, "Size") == 0) {
     category = "vsize";
-    aCategoriesSeen->mSeenVsize = PR_TRUE;
   }
   else if (strcmp(desc, "Rss") == 0) {
     category = "resident";
-    aCategoriesSeen->mSeenResident = PR_TRUE;
-  }
-  else if (strcmp(desc, "Pss") == 0) {
-    category = "pss";
-    aCategoriesSeen->mSeenPss = PR_TRUE;
   }
   else if (strcmp(desc, "Swap") == 0) {
     category = "swap";
-    aCategoriesSeen->mSeenSwap = PR_TRUE;
   }
   else {
     // Don't report this category.

@@ -56,7 +56,7 @@ BEGIN_TEST(testIndexToString)
         JSString *str = js::IndexToString(cx, u);
         CHECK(str);
 
-        if (!js::StaticStrings::hasUint(u))
+        if (!JSAtom::hasUintStatic(u))
             CHECK(cx->compartment->dtoaCache.lookup(10, u) == str);
 
         JSBool match = JS_FALSE;

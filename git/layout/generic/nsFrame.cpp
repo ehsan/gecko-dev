@@ -104,7 +104,9 @@
 #include "nsIServiceManager.h"
 #include "imgIContainer.h"
 #include "imgIRequest.h"
+#include "nsILookAndFeel.h"
 #include "nsLayoutCID.h"
+#include "nsWidgetsCID.h"     // for NS_LOOKANDFEEL_CID
 #include "nsUnicharUtils.h"
 #include "nsLayoutErrors.h"
 #include "nsContentErrors.h"
@@ -122,10 +124,11 @@
 #include "CSSCalc.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
 using namespace mozilla::layers;
+
+static NS_DEFINE_CID(kLookAndFeelCID,  NS_LOOKANDFEEL_CID);
 
 // Struct containing cached metrics for box-wrapped frames.
 struct nsBoxLayoutMetrics
@@ -1058,16 +1061,22 @@ private:
 void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
                                       nsRenderingContext* aCtx)
 {
-  LookAndFeel::ColorID colorID;
+  nscolor color = NS_RGB(255, 255, 255);
+  
+  nsILookAndFeel::nsColorID colorID;
+  nsresult result;
   if (mSelectionValue == nsISelectionController::SELECTION_ON) {
-    colorID = LookAndFeel::eColorID_TextSelectBackground;
+    colorID = nsILookAndFeel::eColor_TextSelectBackground;
   } else if (mSelectionValue == nsISelectionController::SELECTION_ATTENTION) {
-    colorID = LookAndFeel::eColorID_TextSelectBackgroundAttention;
+    colorID = nsILookAndFeel::eColor_TextSelectBackgroundAttention;
   } else {
-    colorID = LookAndFeel::eColorID_TextSelectBackgroundDisabled;
+    colorID = nsILookAndFeel::eColor_TextSelectBackgroundDisabled;
   }
 
-  nscolor color = LookAndFeel::GetColor(colorID, NS_RGB(255, 255, 255));
+  nsCOMPtr<nsILookAndFeel> look;
+  look = do_GetService(kLookAndFeelCID, &result);
+  if (NS_SUCCEEDED(result) && look)
+    look->GetColor(colorID, color);
 
   gfxRGBA c(color);
   c.a = .5;
@@ -6519,6 +6528,15 @@ nsFrame::ConsiderChildOverflow(nsOverflowAreas& aOverflowAreas,
   }
 }
 
+NS_IMETHODIMP 
+nsFrame::GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                    nsIFrame**      aProviderFrame,
+                                    PRBool*         aIsChild)
+{
+  return DoGetParentStyleContextFrame(aPresContext, aProviderFrame, aIsChild);
+}
+
+
 /**
  * This function takes a "special" frame and _if_ that frame is an anonymous
  * block created by an ib split it returns the block's preceding inline.  This
@@ -6565,22 +6583,26 @@ GetIBSpecialSiblingForAnonymousBlock(nsIFrame* aFrame)
  * Also skip anonymous scrolled-content parents; inherit directly from the
  * outer scroll frame.
  */
-static nsIFrame*
-GetCorrectedParent(const nsIFrame* aFrame)
+static nsresult
+GetCorrectedParent(nsPresContext* aPresContext, nsIFrame* aFrame,
+                   nsIFrame** aSpecialParent)
 {
   nsIFrame *parent = aFrame->GetParent();
   if (!parent) {
-    return nsnull;
+    *aSpecialParent = nsnull;
+  } else {
+    nsIAtom* pseudo = aFrame->GetStyleContext()->GetPseudo();
+    // Outer tables are always anon boxes; if we're in here for an outer
+    // table, that actually means its the _inner_ table that wants to
+    // know its parent.  So get the pseudo of the inner in that case.
+    if (pseudo == nsCSSAnonBoxes::tableOuter) {
+      pseudo = aFrame->GetFirstPrincipalChild()
+                         ->GetStyleContext()->GetPseudo();
+    }
+    *aSpecialParent = nsFrame::CorrectStyleParentFrame(parent, pseudo);
   }
 
-  // Outer tables are always anon boxes; if we're in here for an outer
-  // table, that actually means its the _inner_ table that wants to
-  // know its parent.  So get the pseudo of the inner in that case.
-  nsIAtom* pseudo = aFrame->GetStyleContext()->GetPseudo();
-  if (pseudo == nsCSSAnonBoxes::tableOuter) {
-    pseudo = aFrame->GetFirstPrincipalChild()->GetStyleContext()->GetPseudo();
-  }
-  return nsFrame::CorrectStyleParentFrame(parent, pseudo);
+  return NS_OK;
 }
 
 /* static */
@@ -6645,13 +6667,17 @@ nsFrame::CorrectStyleParentFrame(nsIFrame* aProspectiveParent,
   return nsnull;
 }
 
-nsIFrame*
-nsFrame::DoGetParentStyleContextFrame()
+nsresult
+nsFrame::DoGetParentStyleContextFrame(nsPresContext* aPresContext,
+                                      nsIFrame**      aProviderFrame,
+                                      PRBool*         aIsChild)
 {
+  *aIsChild = PR_FALSE;
+  *aProviderFrame = nsnull;
   if (mContent && !mContent->GetParent() &&
       !GetStyleContext()->GetPseudo()) {
     // we're a frame for the root.  We have no style context parent.
-    return nsnull;
+    return NS_OK;
   }
   
   if (!(mState & NS_FRAME_OUT_OF_FLOW)) {
@@ -6661,16 +6687,17 @@ nsFrame::DoGetParentStyleContextFrame()
      * inline. We can get to it using GetIBSpecialSiblingForAnonymousBlock.
      */
     if (mState & NS_FRAME_IS_SPECIAL) {
-      nsIFrame* specialSibling = GetIBSpecialSiblingForAnonymousBlock(this);
-      if (specialSibling) {
-        return specialSibling;
+      *aProviderFrame = GetIBSpecialSiblingForAnonymousBlock(this);
+
+      if (*aProviderFrame) {
+        return NS_OK;
       }
     }
 
     // If this frame is one of the blocks that split an inline, we must
     // return the "special" inline parent, i.e., the parent that this
     // frame would have if we didn't mangle the frame structure.
-    return GetCorrectedParent(this);
+    return GetCorrectedParent(aPresContext, this, aProviderFrame);
   }
 
   // For out-of-flow frames, we must resolve underneath the
@@ -6682,14 +6709,21 @@ nsFrame::DoGetParentStyleContextFrame()
     // have placeholders. Use their first-in-flow's placeholder.
     oofFrame = oofFrame->GetFirstInFlow();
   }
-  nsIFrame* placeholder = oofFrame->PresContext()->FrameManager()->
-                            GetPlaceholderFrameFor(oofFrame);
+  nsIFrame *placeholder =
+    aPresContext->FrameManager()->GetPlaceholderFrameFor(oofFrame);
   if (!placeholder) {
     NS_NOTREACHED("no placeholder frame for out-of-flow frame");
-    return GetCorrectedParent(this);
+    GetCorrectedParent(aPresContext, this, aProviderFrame);
+    return NS_ERROR_FAILURE;
   }
-  return placeholder->GetParentStyleContextFrame();
+  return static_cast<nsFrame*>(placeholder)->
+    GetParentStyleContextFrame(aPresContext, aProviderFrame, aIsChild);
 }
+
+//-----------------------------------------------------------------------------------
+
+
+
 
 void
 nsFrame::GetLastLeaf(nsPresContext* aPresContext, nsIFrame **aFrame)

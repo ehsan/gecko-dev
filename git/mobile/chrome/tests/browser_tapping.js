@@ -232,7 +232,6 @@ gTests.push({
       clearEvents();
 
       window.addEventListener("PanFinished", function() {
-        window.removeEventListener("PanFinished", arguments.callee, true);
         setTimeout(gCurrentTest.longTapPassTest, 0);
       }, true);
     }, 500);

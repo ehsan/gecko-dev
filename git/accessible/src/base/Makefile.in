@@ -60,6 +60,7 @@ CPPSRCS = \
   nsARIAMap.cpp \
   nsDocAccessible.cpp \
   nsOuterDocAccessible.cpp \
+  nsAccessibilityAtoms.cpp \
   nsCoreUtils.cpp \
   nsAccUtils.cpp \
   nsAccessibilityService.cpp \

@@ -1215,7 +1215,6 @@ let UI = {
               let currentIndex = tabItems.indexOf(activeTab);
 
               if (length > 1) {
-                let newIndex;
                 if (event.shiftKey) {
                   if (currentIndex == 0)
                     newIndex = (length - 1);

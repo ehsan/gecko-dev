@@ -916,8 +916,6 @@ static const char js_profiling_content_str[]  = JS_OPTIONS_DOT_STR "jitprofiling
 static const char js_profiling_chrome_str[]   = JS_OPTIONS_DOT_STR "jitprofiling.chrome";
 static const char js_methodjit_always_str[]   = JS_OPTIONS_DOT_STR "methodjit_always";
 static const char js_typeinfer_str[]          = JS_OPTIONS_DOT_STR "typeinference";
-static const char js_pccounts_content_str[]   = JS_OPTIONS_DOT_STR "pccounts.content";
-static const char js_pccounts_chrome_str[]    = JS_OPTIONS_DOT_STR "pccounts.chrome";
 static const char js_memlog_option_str[] = JS_OPTIONS_DOT_STR "mem.log";
 
 int
@@ -949,9 +947,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   PRBool useProfiling = Preferences::GetBool(chromeWindow ?
                                                js_profiling_chrome_str :
                                                js_profiling_content_str);
-  PRBool usePCCounts = Preferences::GetBool(chromeWindow ?
-                                            js_pccounts_chrome_str :
-                                            js_pccounts_content_str);
   PRBool useMethodJITAlways = Preferences::GetBool(js_methodjit_always_str);
   PRBool useTypeInference = !chromeWindow && Preferences::GetBool(js_typeinfer_str);
   nsCOMPtr<nsIXULRuntime> xr = do_GetService(XULRUNTIME_SERVICE_CONTRACTID);
@@ -962,7 +957,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
       useTraceJIT = PR_FALSE;
       useMethodJIT = PR_FALSE;
       useProfiling = PR_FALSE;
-      usePCCounts = PR_FALSE;
       useTypeInference = PR_FALSE;
       useMethodJITAlways = PR_TRUE;
     }
@@ -982,11 +976,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
     newDefaultJSOptions |= JSOPTION_PROFILING;
   else
     newDefaultJSOptions &= ~JSOPTION_PROFILING;
-
-  if (usePCCounts)
-    newDefaultJSOptions |= JSOPTION_PCCOUNT;
-  else
-    newDefaultJSOptions &= ~JSOPTION_PCCOUNT;
 
   if (useMethodJITAlways)
     newDefaultJSOptions |= JSOPTION_METHODJIT_ALWAYS;
@@ -1558,7 +1547,7 @@ nsJSContext::CompileScript(const PRUnichar* aText,
   if (ok && ((JSVersion)aVersion) != JSVERSION_UNKNOWN) {
     JSAutoRequest ar(mContext);
 
-    JSScript* script =
+    JSObject* scriptObj =
         ::JS_CompileUCScriptForPrincipalsVersion(mContext,
                                                  (JSObject *)aScopeObject,
                                                  jsprin,
@@ -1567,10 +1556,10 @@ nsJSContext::CompileScript(const PRUnichar* aText,
                                                  aURL,
                                                  aLineNo,
                                                  JSVersion(aVersion));
-    if (script) {
+    if (scriptObj) {
       NS_ASSERTION(aScriptObject.getScriptTypeID()==JAVASCRIPT,
                    "Expecting JS script object holder");
-      rv = aScriptObject.set(script);
+      rv = aScriptObject.set(scriptObj);
     } else {
       rv = NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1620,12 +1609,10 @@ nsJSContext::ExecuteScript(void *aScriptObject,
   jsval val;
   JSBool ok;
 
-  JSScript *script = static_cast<JSScript *>(aScriptObject);
+  JSObject *scriptObj = (JSObject*)aScriptObject;
   nsCOMPtr<nsIPrincipal> principal;
 
-  rv = sSecurityManager->GetObjectPrincipal(mContext,
-                                            JS_GetObjectFromScript(script),
-                                            getter_AddRefs(principal));
+  rv = sSecurityManager->GetObjectPrincipal(mContext, scriptObj, getter_AddRefs(principal));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = sSecurityManager->PushContextPrincipal(mContext, nsnull, principal);
@@ -1634,7 +1621,7 @@ nsJSContext::ExecuteScript(void *aScriptObject,
   nsJSContext::TerminationFuncHolder holder(this);
   JSAutoRequest ar(mContext);
   ++mExecuteDepth;
-  ok = ::JS_ExecuteScript(mContext, (JSObject *)aScopeObject, script, &val);
+  ok = ::JS_ExecuteScript(mContext, (JSObject *)aScopeObject, scriptObj, &val);
 
   if (ok) {
     // If all went well, convert val to a string (XXXbe unless undefined?).
@@ -2012,8 +1999,8 @@ nsJSContext::BindCompiledEventHandler(nsISupports* aTarget, void *aScope,
 nsresult
 nsJSContext::Serialize(nsIObjectOutputStream* aStream, void *aScriptObject)
 {
-    JSScript *script = static_cast<JSScript *>(aScriptObject);
-    if (!script)
+    JSObject *mJSObject = (JSObject *)aScriptObject;
+    if (!mJSObject)
         return NS_ERROR_FAILURE;
 
     nsresult rv;
@@ -2025,7 +2012,7 @@ nsJSContext::Serialize(nsIObjectOutputStream* aStream, void *aScriptObject)
     xdr->userdata = (void*) aStream;
 
     JSAutoRequest ar(cx);
-    if (! ::JS_XDRScript(xdr, &script)) {
+    if (! ::JS_XDRScriptObject(xdr, &mJSObject)) {
         rv = NS_ERROR_FAILURE;  // likely to be a principals serialization error
     } else {
         // Get the encoded JSXDRState data and write it.  The JSXDRState owns
@@ -2062,7 +2049,7 @@ nsresult
 nsJSContext::Deserialize(nsIObjectInputStream* aStream,
                          nsScriptObjectHolder &aResult)
 {
-    JSScript *result = nsnull;
+    JSObject *result = nsnull;
     nsresult rv;
 
     NS_TIME_FUNCTION_MIN(1.0);
@@ -2085,7 +2072,7 @@ nsJSContext::Deserialize(nsIObjectInputStream* aStream,
         JSAutoRequest ar(cx);
         ::JS_XDRMemSetData(xdr, data, size);
 
-        if (! ::JS_XDRScript(xdr, &result)) {
+        if (! ::JS_XDRScriptObject(xdr, &result)) {
             rv = NS_ERROR_FAILURE;  // principals deserialization error?
         }
 
@@ -2244,7 +2231,7 @@ nsJSContext::ConnectToInner(nsIScriptGlobalObject *aNewInner, void *aOuterGlobal
   return NS_OK;
 }
 
-JSContext*
+void *
 nsJSContext::GetNativeContext()
 {
   return mContext;

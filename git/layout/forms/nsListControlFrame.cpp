@@ -67,6 +67,7 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIComponentManager.h"
+#include "nsILookAndFeel.h"
 #include "nsFontMetrics.h"
 #include "nsIScrollableFrame.h"
 #include "nsIDOMNSEvent.h"
@@ -84,9 +85,6 @@
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 #include "nsContentUtils.h"
-#include "mozilla/LookAndFeel.h"
-
-using namespace mozilla;
 
 // Constants
 const nscoord kMaxDropDownRows          = 20; // This matches the setting for 4.x browsers
@@ -338,10 +336,11 @@ void nsListControlFrame::PaintFocus(nsRenderingContext& aRC, nsPoint aPt)
   }
 
   // set up back stop colors and then ask L&F service for the real colors
-  nscolor color =
-    LookAndFeel::GetColor(lastItemIsSelected ?
-                            LookAndFeel::eColorID_WidgetSelectForeground :
-                            LookAndFeel::eColorID_WidgetSelectBackground);
+  nscolor color;
+  presContext->LookAndFeel()->
+    GetColor(lastItemIsSelected ?
+             nsILookAndFeel::eColor_WidgetSelectForeground :
+             nsILookAndFeel::eColor_WidgetSelectBackground, color);
 
   nsCSSRendering::PaintFocus(presContext, aRC, fRect, color);
 }

@@ -83,9 +83,7 @@ private:
   nsLoadFlags mLoadFlags;
   nsresult mStatus;
   PRInt64 mContentLength;
-  PRUint32 mContentDisposition;
-  nsString mContentDispositionFilename;
-  nsCString mContentDispositionHeader;
+  nsCString mContentDisposition;
   nsCString mEntityID;
 };
 

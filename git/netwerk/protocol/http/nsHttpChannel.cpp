@@ -66,7 +66,6 @@
 #include "nsChannelClassifier.h"
 #include "nsIRedirectResultListener.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Telemetry.h"
 
 // True if the local cache should be bypassed when processing a request.
 #define BYPASS_LOCAL_CACHE(loadFlags) \
@@ -129,7 +128,6 @@ nsHttpChannel::nsHttpChannel()
     , mFallingBack(PR_FALSE)
     , mWaitingForRedirectCallback(PR_FALSE)
     , mRequestTimeInitialized(PR_FALSE)
-    , mDidReval(false)
 {
     LOG(("Creating nsHttpChannel [this=%p]\n", this));
     mChannelCreationTime = PR_Now();
@@ -269,8 +267,6 @@ nsHttpChannel::Connect(PRBool firstTime)
             if (NS_FAILED(rv) && event) {
                 event->Revoke();
             }
-            mozilla::Telemetry::Accumulate(
-                    mozilla::Telemetry::HTTP_CACHE_DISPOSITION, kCacheHit);
             return rv;
         }
         else if (mLoadFlags & LOAD_ONLY_FROM_CACHE) {
@@ -978,8 +974,6 @@ nsHttpChannel::ProcessResponse()
         LOG(("  continuation state has been reset"));
     }
 
-    bool successfulReval = false;
-
     // handle different server response categories.  Note that we handle
     // caching or not caching of error pages in
     // nsHttpResponseHead::MustValidate; if you change this switch, update that
@@ -1031,9 +1025,6 @@ nsHttpChannel::ProcessResponse()
             LOG(("ProcessNotModified failed [rv=%x]\n", rv));
             rv = ProcessNormal();
         }
-        else {
-            successfulReval = true;
-        }
         break;
     case 401:
     case 407:
@@ -1068,17 +1059,6 @@ nsHttpChannel::ProcessResponse()
         MaybeInvalidateCacheEntryForSubsequentGet();
         break;
     }
-
-    if (!mDidReval)
-        mozilla::Telemetry::Accumulate(
-                mozilla::Telemetry::HTTP_CACHE_DISPOSITION, kCacheMissed);
-    else if (successfulReval)
-        mozilla::Telemetry::Accumulate(
-                mozilla::Telemetry::HTTP_CACHE_DISPOSITION, kCacheHitViaReval);
-    else
-        mozilla::Telemetry::Accumulate(
-                mozilla::Telemetry::HTTP_CACHE_DISPOSITION,
-                kCacheMissedViaReval);
 
     return rv;
 }
@@ -2432,9 +2412,7 @@ nsHttpChannel::CheckCache()
     rv = mCacheEntry->GetMetaDataElement("request-method", getter_Copies(buf));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIAtom> method = do_GetAtom(buf);
-    NS_ENSURE_TRUE(method, NS_ERROR_OUT_OF_MEMORY);
-
+    nsHttpAtom method = nsHttp::ResolveAtom(buf);
     if (method == nsHttp::Head) {
         // The cached response does not contain an entity.  We can only reuse
         // the response if the current request is also HEAD.
@@ -2686,7 +2664,6 @@ nsHttpChannel::CheckCache()
             if (val)
                 mRequestHead.SetHeader(nsHttp::If_None_Match,
                                        nsDependentCString(val));
-            mDidReval = true;
         }
     }
 
@@ -3004,7 +2981,7 @@ nsHttpChannel::AddCacheEntryHeaders(nsICacheEntryDescriptor *entry)
     // Store the HTTP request method with the cache entry so we can distinguish
     // for example GET and HEAD responses.
     rv = entry->SetMetaDataElement("request-method",
-                                   nsAtomCString(mRequestHead.Method()).get());
+                                   mRequestHead.Method().get());
     if (NS_FAILED(rv)) return rv;
 
     // Store the HTTP authorization scheme used if any...

@@ -414,6 +414,8 @@ public:
                         JSObject **objp, PRBool *_retval);
   NS_IMETHOD Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                       JSObject *obj);
+  NS_IMETHOD Equality(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
+                      JSObject * obj, const jsval &val, PRBool *bp);
   NS_IMETHOD OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
                          JSObject * obj, JSObject * *_retval);
 

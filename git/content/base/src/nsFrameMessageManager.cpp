@@ -650,7 +650,7 @@ ContentScriptErrorReporter(JSContext* aCx,
 #endif
 }
 
-nsDataHashtable<nsStringHashKey, nsFrameJSScriptExecutorHolder*>*
+nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>*
   nsFrameScriptExecutor::sCachedScripts = nsnull;
 nsRefPtr<nsScriptCacheCleaner> nsFrameScriptExecutor::sScriptCacheCleaner;
 
@@ -660,7 +660,7 @@ nsFrameScriptExecutor::DidCreateCx()
   NS_ASSERTION(mCx, "Should have mCx!");
   if (!sCachedScripts) {
     sCachedScripts =
-      new nsDataHashtable<nsStringHashKey, nsFrameJSScriptExecutorHolder*>;
+      new nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>;
     sCachedScripts->Init();
 
     sScriptCacheCleaner = new nsScriptCacheCleaner();
@@ -689,11 +689,11 @@ nsFrameScriptExecutor::DestroyCx()
 
 static PLDHashOperator
 CachedScriptUnrooter(const nsAString& aKey,
-                       nsFrameJSScriptExecutorHolder*& aData,
+                       nsFrameScriptExecutorJSObjectHolder*& aData,
                        void* aUserArg)
 {
   JSContext* cx = static_cast<JSContext*>(aUserArg);
-  JS_RemoveScriptRoot(cx, &(aData->mScript));
+  JS_RemoveObjectRoot(cx, &(aData->mObject));
   delete aData;
   return PL_DHASH_REMOVE;
 }
@@ -730,7 +730,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
     return;
   }
 
-  nsFrameJSScriptExecutorHolder* holder = sCachedScripts->Get(aURL);
+  nsFrameScriptExecutorJSObjectHolder* holder = sCachedScripts->Get(aURL);
   if (holder) {
     nsContentUtils::ThreadJSContextStack()->Push(mCx);
     {
@@ -740,7 +740,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
       JSObject* global = nsnull;
       mGlobal->GetJSObject(&global);
       if (global) {
-        (void) JS_ExecuteScript(mCx, global, holder->mScript, nsnull);
+        (void) JS_ExecuteScript(mCx, global, holder->mObject, nsnull);
       }
     }
     JSContext* unused;
@@ -798,7 +798,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
         uint32 oldopts = JS_GetOptions(mCx);
         JS_SetOptions(mCx, oldopts | JSOPTION_NO_SCRIPT_RVAL);
 
-        JSScript* script =
+        JSObject* scriptObj =
           JS_CompileUCScriptForPrincipals(mCx, nsnull, jsprin,
                                          (jschar*)dataString.get(),
                                           dataString.Length(),
@@ -806,19 +806,19 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
 
         JS_SetOptions(mCx, oldopts);
 
-        if (script) {
+        if (scriptObj) {
           nsCAutoString scheme;
           uri->GetScheme(scheme);
           // We don't cache data: scripts!
           if (!scheme.EqualsLiteral("data")) {
-            nsFrameJSScriptExecutorHolder* holder =
-              new nsFrameJSScriptExecutorHolder(script);
+            nsFrameScriptExecutorJSObjectHolder* holder =
+              new nsFrameScriptExecutorJSObjectHolder(scriptObj);
             // Root the object also for caching.
-            JS_AddNamedScriptRoot(mCx, &(holder->mScript),
+            JS_AddNamedObjectRoot(mCx, &(holder->mObject),
                                   "Cached message manager script");
             sCachedScripts->Put(aURL, holder);
           }
-          (void) JS_ExecuteScript(mCx, global, script, nsnull);
+          (void) JS_ExecuteScript(mCx, global, scriptObj, nsnull);
         }
         //XXX Argh, JSPrincipals are manually refcounted!
         JSPRINCIPALS_DROP(mCx, jsprin);

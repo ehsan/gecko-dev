@@ -47,6 +47,8 @@
 class GetPropCompiler;
 #endif
 
+#define JS_ARGUMENTS_OBJECT_ON_TRACE ((void *)0xa126)
+
 #ifdef JS_TRACER
 namespace nanojit {
 class ValidateWriter;
@@ -227,14 +229,6 @@ class ArgumentsObject : public ::JSObject
     inline const js::Value &element(uint32 i) const;
     inline const js::Value *elements() const;
     inline void setElement(uint32 i, const js::Value &v);
-
-    /* The stack frame for this ArgumentsObject, if the frame is still active. */
-    inline js::StackFrame *maybeStackFrame() const;
-    inline void setStackFrame(js::StackFrame *frame);
-
-    inline bool onTrace() const;
-    inline void setOnTrace();
-    inline void clearOnTrace();
 };
 
 /*

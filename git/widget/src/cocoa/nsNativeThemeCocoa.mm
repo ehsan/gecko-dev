@@ -55,6 +55,7 @@
 #include "nsEventStates.h"
 #include "nsINameSpaceManager.h"
 #include "nsPresContext.h"
+#include "nsILookAndFeel.h"
 #include "nsWidgetAtoms.h"
 #include "nsToolkit.h"
 #include "nsCocoaWindow.h"

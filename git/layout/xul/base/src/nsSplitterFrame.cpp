@@ -59,6 +59,7 @@
 #include "nsIPresShell.h"
 #include "nsFrameList.h"
 #include "nsHTMLParts.h"
+#include "nsILookAndFeel.h"
 #include "nsStyleContext.h"
 #include "nsBoxLayoutState.h"
 #include "nsIXBLService.h"

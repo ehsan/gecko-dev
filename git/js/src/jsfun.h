@@ -326,9 +326,9 @@ ClassMethodIsNative(JSContext *cx, JSObject *obj, Class *clasp, jsid methodid, N
     JS_ASSERT(obj->getClass() == clasp);
 
     Value v;
-    if (!HasDataProperty(cx, obj, methodid, &v)) {
+    if (!HasDataProperty(obj, methodid, &v)) {
         JSObject *proto = obj->getProto();
-        if (!proto || proto->getClass() != clasp || !HasDataProperty(cx, proto, methodid, &v))
+        if (!proto || proto->getClass() != clasp || !HasDataProperty(proto, methodid, &v))
             return false;
     }
 
@@ -398,11 +398,6 @@ GetFunctionNameBytes(JSContext *cx, JSFunction *fun, JSAutoByteString *bytes)
     return js_anonymous_str;
 }
 
-extern JSFunctionSpec function_methods[];
-
-extern JSBool
-Function(JSContext *cx, uintN argc, Value *vp);
-
 extern bool
 IsBuiltinFunctionConstructor(JSFunction *fun);
 
@@ -429,6 +424,12 @@ fun_toStringHelper(JSContext *cx, JSObject *obj, uintN indent);
 extern JSFunction *
 js_NewFunction(JSContext *cx, JSObject *funobj, js::Native native, uintN nargs,
                uintN flags, JSObject *parent, JSAtom *atom);
+
+extern JSObject *
+js_InitFunctionClass(JSContext *cx, JSObject *obj);
+
+extern JSObject *
+js_InitArgumentsClass(JSContext *cx, JSObject *obj);
 
 extern void
 js_FinalizeFunction(JSContext *cx, JSFunction *fun);
@@ -460,24 +461,6 @@ CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
     }
 
     return js_CloneFunctionObject(cx, fun, parent, proto);
-}
-
-inline JSObject *
-CloneFunctionObject(JSContext *cx, JSFunction *fun)
-{
-    /*
-     * Variant which makes an exact clone of fun, preserving parent and proto.
-     * Calling the above version CloneFunctionObject(cx, fun, fun->getParent())
-     * is not equivalent: API clients, including XPConnect, can reparent
-     * objects so that fun->getGlobal() != fun->getProto()->getGlobal().
-     * See ReparentWrapperIfFound.
-     */
-    JS_ASSERT(fun->getParent() && fun->getProto());
-
-    if (fun->hasSingletonType())
-        return fun;
-
-    return js_CloneFunctionObject(cx, fun, fun->getParent(), fun->getProto());
 }
 
 extern JSObject * JS_FASTCALL
@@ -520,10 +503,10 @@ js_PutCallObjectOnTrace(JSObject *scopeChain, uint32 nargs, js::Value *argv,
 
 namespace js {
 
-CallObject *
+JSObject *
 CreateFunCallObject(JSContext *cx, StackFrame *fp);
 
-CallObject *
+JSObject *
 CreateEvalCallObject(JSContext *cx, StackFrame *fp);
 
 extern JSBool

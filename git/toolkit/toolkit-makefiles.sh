@@ -266,6 +266,7 @@ MAKEFILES_content="
   content/xslt/src/xml/Makefile
   content/xslt/src/xpath/Makefile
   content/xslt/src/xslt/Makefile
+  content/xslt/src/main/Makefile
 "
 
 MAKEFILES_layout="
@@ -287,6 +288,10 @@ MAKEFILES_layout="
   layout/xul/base/src/grid/Makefile
   layout/xul/base/src/tree/src/Makefile
   layout/xul/base/src/tree/public/Makefile
+"
+
+MAKEFILES_libimg="
+  modules/libimg/Makefile
 "
 
 MAKEFILES_libjar="
@@ -681,6 +686,7 @@ MAKEFILES_jsreflect="
 MAKEFILES_jsductwork="
   js/ductwork/Makefile
   js/ductwork/debugger/Makefile
+  js/ductwork/debugger/tests/Makefile
 "
 
 MAKEFILES_libpr0n="
@@ -753,6 +759,7 @@ add_makefiles "
   $MAKEFILES_jsductwork
   $MAKEFILES_content
   $MAKEFILES_layout
+  $MAKEFILES_libimg
   $MAKEFILES_libjar
   $MAKEFILES_libreg
   $MAKEFILES_libpref

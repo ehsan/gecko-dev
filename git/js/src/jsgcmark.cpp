@@ -115,6 +115,7 @@ CheckMarkedThing(JSTracer *trc, T *thing)
     JS_ASSERT(trc->debugPrinter || trc->debugPrintArg);
     JS_ASSERT_IF(trc->context->runtime->gcCurrentCompartment, IS_GC_MARKING_TRACER(trc));
 
+    JS_ASSERT(!JSAtom::isStatic(thing));
     JS_ASSERT(thing->isAligned());
 
     JS_ASSERT(thing->compartment());
@@ -154,6 +155,8 @@ void
 MarkString(JSTracer *trc, JSString *str)
 {
     JS_ASSERT(str);
+    if (str->isStaticAtom())
+        return;
     Mark(trc, str);
 }
 
@@ -331,7 +334,8 @@ MarkAtomRange(JSTracer *trc, size_t len, JSAtom **vec, const char *name)
     for (uint32 i = 0; i < len; i++) {
         if (JSAtom *atom = vec[i]) {
             JS_SET_TRACING_INDEX(trc, name, i);
-            Mark(trc, atom);
+            if (!atom->isStaticAtom())
+                Mark(trc, atom);
         }
     }
 }
@@ -361,10 +365,13 @@ MarkXMLRange(JSTracer *trc, size_t len, JSXML **vec, const char *name)
 void
 MarkId(JSTracer *trc, jsid id)
 {
-    if (JSID_IS_STRING(id))
-        Mark(trc, JSID_TO_STRING(id));
-    else if (JS_UNLIKELY(JSID_IS_OBJECT(id)))
+    if (JSID_IS_STRING(id)) {
+        JSString *str = JSID_TO_STRING(id);
+        if (!str->isStaticAtom())
+            Mark(trc, str);
+    } else if (JS_UNLIKELY(JSID_IS_OBJECT(id))) {
         Mark(trc, JSID_TO_OBJECT(id));
+    }
 }
 
 void
@@ -440,6 +447,9 @@ MarkCrossCompartmentValue(JSTracer *trc, const js::Value &v, const char *name)
 {
     if (v.isMarkable()) {
         js::gc::Cell *cell = (js::gc::Cell *)v.toGCThing();
+        unsigned kind = v.gcKind();
+        if (kind == JSTRACE_STRING && ((JSString *)cell)->isStaticAtom())
+            return;
         JSRuntime *rt = trc->context->runtime;
         if (rt->gcCurrentCompartment && cell->compartment() != rt->gcCurrentCompartment)
             return;
@@ -594,10 +604,12 @@ ScanValue(GCMarker *gcmarker, const Value &v)
     if (v.isMarkable()) {
         JSGCTraceKind kind = v.gcKind();
         if (kind == JSTRACE_STRING) {
-            PushMarkStack(gcmarker, v.toString());
+            JSString *str = (JSString *)v.toGCThing();
+            if (!str->isStaticAtom())
+                PushMarkStack(gcmarker, str);
         } else {
             JS_ASSERT(kind == JSTRACE_OBJECT);
-            PushMarkStack(gcmarker, &v.toObject());
+            PushMarkStack(gcmarker, (JSObject *)v.toGCThing());
         }
     }
 }
@@ -610,10 +622,13 @@ restart:
     if (rt->gcRegenShapes)
         shape->shapeid = js_RegenerateShapeForGC(rt);
 
-    if (JSID_IS_STRING(shape->propid))
-        PushMarkStack(gcmarker, JSID_TO_STRING(shape->propid));
-    else if (JS_UNLIKELY(JSID_IS_OBJECT(shape->propid)))
+    if (JSID_IS_STRING(shape->propid)) {
+        JSString *str = JSID_TO_STRING(shape->propid);
+        if (!str->isStaticAtom())
+            PushMarkStack(gcmarker, str);
+    } else if (JS_UNLIKELY(JSID_IS_OBJECT(shape->propid))) {
         PushMarkStack(gcmarker, JSID_TO_OBJECT(shape->propid));
+    }
 
     if (shape->hasGetterValue() && shape->getter())
         PushMarkStack(gcmarker, shape->getterObject());
@@ -879,8 +894,11 @@ ScanTypeObject(GCMarker *gcmarker, types::TypeObject *type)
         unsigned count = type->getPropertyCount();
         for (unsigned i = 0; i < count; i++) {
             types::Property *prop = type->getProperty(i);
-            if (prop && JSID_IS_STRING(prop->id))
-                PushMarkStack(gcmarker, JSID_TO_STRING(prop->id));
+            if (prop && JSID_IS_STRING(prop->id)) {
+                JSString *str = JSID_TO_STRING(prop->id);
+                if (!str->isStaticAtom())
+                    PushMarkStack(gcmarker, str);
+            }
         }
     }
 

@@ -60,6 +60,9 @@
 #include "nsIScriptContext.h"
 #include "nsIJSContextStack.h"
 
+/* XXX private JS headers. */
+#include "jscompartment.h"
+
 /*
  * defining CAUTIOUS_SCRIPTHOOK makes jsds disable GC while calling out to the
  * script hook.  This was a hack to avoid some js engine problems that should
@@ -1042,6 +1045,7 @@ jsdScript::CreatePPLineMap()
     JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
     JSScript   *script; /* In JSD compartment */
     PRUint32    baseLine;
+    JSObject   *scriptObj = NULL;
     JSString   *jsstr;
     size_t      length;
     const jschar *chars;
@@ -1092,11 +1096,16 @@ jsdScript::CreatePPLineMap()
         }
 
         JS::Anchor<JSString *> kungFuDeathGrip(jsstr);
-        script = JS_CompileUCScript (cx, obj, chars, length, "x-jsd:ppbuffer?type=script", 1);
-        if (!script)
+        scriptObj = JS_CompileUCScript (cx, obj, chars, length, "x-jsd:ppbuffer?type=script", 1);
+        if (!scriptObj)
             return nsnull;
+        script = JS_GetScriptFromObject(scriptObj);
         baseLine = 1;
     }
+
+    /* Make sure that a non-function script is rooted via scriptObj until the
+     * end of script usage. */
+    JS::Anchor<JSObject *> scriptAnchor(scriptObj);
 
     PRUint32 scriptExtent = JS_GetScriptLineExtent (cx, script);
     jsbytecode* firstPC = JS_LineNumberToPC (cx, script, 0);

@@ -62,7 +62,7 @@
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
 #include "nsParserCIID.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txLog.h"
 #include "txMozillaXSLTProcessor.h"
 #include "txStylesheetCompiler.h"
@@ -498,7 +498,7 @@ txCompileObserver::startLoad(nsIURI* aUri, txStylesheetCompiler* aCompiler,
     nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
     if (httpChannel) {
         httpChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
-                                      NS_LITERAL_CSTRING("*/*"),
+                                      NS_LITERAL_CSTRING("text/xml,application/xml,application/xhtml+xml,application/xslt+xml,*/*;q=0.1"),
                                       PR_FALSE);
 
         nsCOMPtr<nsIURI> referrerURI;

@@ -280,8 +280,6 @@ nsNativeDragTarget::DragEnter(LPDATAOBJECT pIDataSource,
 
     // Mask effect coming from function call with effect preferred by the source.
     mMovePreferred = (preferredEffect & DROPEFFECT_MOVE) != 0;
-
-    nsMemory::Free(tempOutData);
   } else {
     mMovePreferred = PR_FALSE;
   }

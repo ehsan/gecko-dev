@@ -105,6 +105,7 @@ unsigned char *_mbsstr( const unsigned char *str,
 #endif
 
 ILCreateFromPathWPtr nsLocalFile::sILCreateFromPathW = NULL;
+ILFreePtr nsLocalFile::sILFree = NULL;
 SHOpenFolderAndSelectItemsPtr nsLocalFile::sSHOpenFolderAndSelectItems = NULL;
 PRLibrary *nsLocalFile::sLibShell = NULL;
 
@@ -2738,7 +2739,8 @@ nsLocalFile::RevealUsingShell()
 {
   // All of these shell32.dll related pointers should be non NULL 
   // on XP and later.
-  if (!sLibShell || !sILCreateFromPathW || !sSHOpenFolderAndSelectItems) {
+  if (!sLibShell || !sILCreateFromPathW || 
+      !sILFree || !sSHOpenFolderAndSelectItems) {
     return NS_ERROR_FAILURE;
   }
 
@@ -2755,11 +2757,11 @@ nsLocalFile::RevealUsingShell()
     }
 
     const ITEMIDLIST* selection[] = { dir };
-    UINT count = PR_ARRAY_SIZE(selection);
+    UINT count = sizeof(selection) / sizeof(ITEMIDLIST);
 
     //Perform the open of the directory.
     hr = sSHOpenFolderAndSelectItems(dir, count, selection, 0);
-    CoTaskMemFree(dir);
+    sILFree(dir);
   }
   else {
     // Obtain the parent path of the item we are revealing.
@@ -2779,18 +2781,18 @@ nsLocalFile::RevealUsingShell()
     // Set the item in the directory to select to the file we want to reveal.
     ITEMIDLIST *item = sILCreateFromPathW(mResolvedPath.get());
     if (!item) {
-      CoTaskMemFree(dir);
+      sILFree(dir);
       return NS_ERROR_FAILURE;
     }
     
     const ITEMIDLIST* selection[] = { item };
-    UINT count = PR_ARRAY_SIZE(selection);
+    UINT count = sizeof(selection) / sizeof(ITEMIDLIST);
 
     //Perform the selection of the file.
     hr = sSHOpenFolderAndSelectItems(dir, count, selection, 0);
 
-    CoTaskMemFree(dir);
-    CoTaskMemFree(item);
+    sILFree(dir);
+    sILFree(item);
   }
   
   if (SUCCEEDED(hr)) {
@@ -3103,6 +3105,9 @@ nsLocalFile::GlobalInit()
       sILCreateFromPathW = (ILCreateFromPathWPtr) 
                            PR_FindFunctionSymbol(sLibShell, 
                                                  "ILCreateFromPathW");
+
+      // ILFree is available in XP and up.
+      sILFree = (ILFreePtr) PR_FindFunctionSymbol(sLibShell, "ILFree");
 
       // SHOpenFolderAndSelectItems is available in XP and up.
       sSHOpenFolderAndSelectItems = (SHOpenFolderAndSelectItemsPtr) 

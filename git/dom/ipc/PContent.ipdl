@@ -129,9 +129,6 @@ child:
 
     FlushMemory(nsString reason);
 
-    GarbageCollect();
-    CycleCollect();
-    
     /**
      * Start accessibility engine in content process.
      */

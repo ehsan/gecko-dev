@@ -520,7 +520,7 @@ class Interface(object):
         parent.setName(self)
         if self.base is None:
             if self.name != 'nsISupports':
-                print >>sys.stderr, IDLError("interface '%s' not derived from nsISupports" % self.name,
+                print >>sys.stderr, IDLError("interface '%s' not derived from nsISupports",
                                              self.location, warning=True)
         else:
             realbase = parent.getName(self.base, self.location)

@@ -163,7 +163,6 @@ typedef struct JSLocaleCallbacks JSLocaleCallbacks;
 typedef struct JSSecurityCallbacks JSSecurityCallbacks;
 typedef struct JSCompartment     JSCompartment;
 typedef struct JSCrossCompartmentCall JSCrossCompartmentCall;
-typedef struct JSScript          JSScript;
 typedef struct JSStructuredCloneWriter JSStructuredCloneWriter;
 typedef struct JSStructuredCloneReader JSStructuredCloneReader;
 typedef struct JSStructuredCloneCallbacks JSStructuredCloneCallbacks;

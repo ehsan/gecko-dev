@@ -65,9 +65,7 @@
 
 //TABLECELL SELECTION
 #include "nsFrameSelection.h"
-#include "mozilla/LookAndFeel.h"
-
-using namespace mozilla;
+#include "nsILookAndFeel.h"
 
 
 nsTableCellFrame::nsTableCellFrame(nsStyleContext* aContext) :
@@ -330,8 +328,9 @@ nsTableCellFrame::DecorateForSelection(nsRenderingContext& aRenderingContext,
         bordercolor = NS_RGB(176,176,176);// disabled color
       }
       else {
-        bordercolor =
-          LookAndFeel::GetColor(LookAndFeel::eColorID_TextSelectBackground);
+        presContext->LookAndFeel()->
+          GetColor(nsILookAndFeel::eColor_TextSelectBackground,
+                   bordercolor);
       }
       nscoord threePx = nsPresContext::CSSPixelsToAppUnits(3);
       if ((mRect.width > threePx) && (mRect.height > threePx))

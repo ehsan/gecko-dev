@@ -774,6 +774,8 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
 {
     PLUGIN_LOG_DEBUG_METHOD;
 
+    nsresult rv;
+
     mNPNIface = bFuncs;
 
     if (mShutdown) {

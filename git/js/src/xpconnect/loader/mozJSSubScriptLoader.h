@@ -67,7 +67,7 @@ private:
     nsresult ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_obj,
                         jschar *charset, const char *uriStr,
                         nsIIOService *serv, nsIPrincipal *principal,
-                        JSScript **scriptp);
+                        JSObject **scriptObjp);
 
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
 };

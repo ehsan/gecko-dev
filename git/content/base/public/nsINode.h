@@ -55,7 +55,6 @@ class nsIContent;
 class nsIDocument;
 class nsIDOMEvent;
 class nsIDOMNode;
-class nsIDOMElement;
 class nsIDOMNodeList;
 class nsINodeList;
 class nsIPresShell;
@@ -708,15 +707,6 @@ public:
   {
     return mParent;
   }
-  
-  /**
-   * Get the parent nsINode for this node if it is an Element.
-   * @return the parent node
-   */
-  nsINode* GetElementParent() const
-  {
-    return mParent && mParent->IsElement() ? mParent : nsnull;
-  }
 
   /**
    * See nsIDOMEventTarget
@@ -1293,7 +1283,6 @@ protected:
 #endif
 
   nsresult GetParentNode(nsIDOMNode** aParentNode);
-  nsresult GetParentElement(nsIDOMElement** aParentElement);
   nsresult GetChildNodes(nsIDOMNodeList** aChildNodes);
   nsresult GetFirstChild(nsIDOMNode** aFirstChild);
   nsresult GetLastChild(nsIDOMNode** aLastChild);
@@ -1355,18 +1344,12 @@ protected:
   /* Event stuff that documents and elements share.  This needs to be
      NS_IMETHOD because some subclasses implement DOM methods with
      this exact name and signature and then the calling convention
-     needs to match.
-
-     Note that we include DOCUMENT_ONLY_EVENT events here so that we
-     can forward all the document stuff to this implementation.
-  */
+     needs to match. */
 #define EVENT(name_, id_, type_, struct_)                         \
   NS_IMETHOD GetOn##name_(JSContext *cx, jsval *vp);              \
   NS_IMETHOD SetOn##name_(JSContext *cx, const jsval &v);
 #define TOUCH_EVENT EVENT
-#define DOCUMENT_ONLY_EVENT EVENT
 #include "nsEventNameList.h"
-#undef DOCUMENT_ONLY_EVENT
 #undef TOUCH_EVENT
 #undef EVENT  
 

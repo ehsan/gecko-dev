@@ -2653,8 +2653,9 @@ FrameState::allocForBinary(FrameEntry *lhs, FrameEntry *rhs, JSOp op, BinaryAllo
     }
 
     /*
-     * Allocate data registers. If the op is not commutative, the LHS
-     * _must_ be in a register.
+     * Data is a little more complicated. If the op is MUL, not all CPUs
+     * have multiplication on immediates, so a register is needed. Also,
+     * if the op is not commutative, the LHS _must_ be in a register.
      */
     JS_ASSERT_IF(lhs->isConstant(), !rhs->isConstant());
     JS_ASSERT_IF(rhs->isConstant(), !lhs->isConstant());
@@ -2663,16 +2664,23 @@ FrameState::allocForBinary(FrameEntry *lhs, FrameEntry *rhs, JSOp op, BinaryAllo
         if (backingLeft->data.inMemory()) {
             alloc.lhsData = tempRegForData(lhs);
             pinReg(alloc.lhsData.reg());
-        } else if (!commu) {
+        } else if (op == JSOP_MUL || !commu) {
             JS_ASSERT(lhs->isConstant());
             alloc.lhsData = allocReg();
             alloc.extraFree = alloc.lhsData;
             masm.move(Imm32(lhs->getValue().toInt32()), alloc.lhsData.reg());
         }
     }
-    if (!alloc.rhsData.isSet() && backingRight->data.inMemory()) {
-        alloc.rhsData = tempRegForData(rhs);
-        pinReg(alloc.rhsData.reg());
+    if (!alloc.rhsData.isSet()) {
+        if (backingRight->data.inMemory()) {
+            alloc.rhsData = tempRegForData(rhs);
+            pinReg(alloc.rhsData.reg());
+        } else if (op == JSOP_MUL) {
+            JS_ASSERT(rhs->isConstant());
+            alloc.rhsData = allocReg();
+            alloc.extraFree = alloc.rhsData;
+            masm.move(Imm32(rhs->getValue().toInt32()), alloc.rhsData.reg());
+        }
     }
 
     alloc.lhsNeedsRemat = false;
@@ -2872,7 +2880,7 @@ FrameState::clearTemporaries()
 }
 
 Vector<TemporaryCopy> *
-FrameState::getTemporaryCopies(Uses uses)
+FrameState::getTemporaryCopies()
 {
     /* :XXX: handle OOM */
     Vector<TemporaryCopy> *res = NULL;
@@ -2883,7 +2891,7 @@ FrameState::getTemporaryCopies(Uses uses)
         if (fe->isCopied()) {
             for (uint32 i = fe->trackerIndex() + 1; i < tracker.nentries; i++) {
                 FrameEntry *nfe = tracker[i];
-                if (!deadEntry(nfe, uses.nuses) && nfe->isCopy() && nfe->copyOf() == fe) {
+                if (!deadEntry(nfe) && nfe->isCopy() && nfe->copyOf() == fe) {
                     if (!res)
                         res = cx->new_< Vector<TemporaryCopy> >(cx);
                     res->append(TemporaryCopy(addressOf(nfe), addressOf(fe)));

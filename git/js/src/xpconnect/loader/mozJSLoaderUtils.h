@@ -52,9 +52,9 @@ class StartupCache;
 
 nsresult
 ReadCachedScript(mozilla::scache::StartupCache* cache, nsACString &uri,
-                 JSContext *cx, JSScript **script);
+                 JSContext *cx, JSObject **scriptObj);
 
 nsresult
 WriteCachedScript(mozilla::scache::StartupCache* cache, nsACString &uri,
-                  JSContext *cx, JSScript *script);
+                  JSContext *cx, JSObject *scriptObj);
 #endif /* mozJSLoaderUtils_h */
