@@ -176,14 +176,6 @@ public:
              const SurfaceDescriptor& newSurface,
              SurfaceDescriptor* prevSurface);
 
-    virtual PPluginSurfaceParent*
-    AllocPPluginSurface(const WindowsSharedMemoryHandle& handle,
-                        const gfxIntSize& size,
-                        const bool& transparent);
-
-    virtual bool
-    DeallocPPluginSurface(PPluginSurfaceParent* s);
-
     virtual bool
     AnswerNPN_PushPopupsEnabledState(const bool& aState);
 

@@ -655,7 +655,7 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener)
   }
 #endif
 
-  nsJSContext::CC(aListener, PR_TRUE);
+  nsJSContext::CC(aListener);
 
   return NS_OK;
 }
@@ -998,22 +998,17 @@ nsDOMWindowUtils::FindElementWithViewId(nsViewID aID,
 {
   if (aID == FrameMetrics::ROOT_SCROLL_ID) {
     nsPresContext* presContext = GetPresContext();
-    if (!presContext) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-
     nsIDocument* document = presContext->Document();
     mozilla::dom::Element* rootElement = document->GetRootElement();
     if (!rootElement) {
       return NS_ERROR_NOT_AVAILABLE;
     }
-
     CallQueryInterface(rootElement, aResult);
     return NS_OK;
   }
 
   nsRefPtr<nsIContent> content = nsLayoutUtils::FindContentFor(aID);
-  return content ? CallQueryInterface(content, aResult) : NS_OK;
+  return CallQueryInterface(content, aResult);
 }
 
 NS_IMETHODIMP
@@ -1418,23 +1413,7 @@ nsDOMWindowUtils::EnterModalState()
 NS_IMETHODIMP
 nsDOMWindowUtils::LeaveModalState()
 {
-  mWindow->LeaveModalState(nsnull);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::EnterModalStateWithWindow(nsIDOMWindow **aWindow)
-{
-  *aWindow = mWindow->EnterModalState();
-  NS_IF_ADDREF(*aWindow);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::LeaveModalStateWithWindow(nsIDOMWindow *aWindow)
-{
-  NS_ENSURE_ARG_POINTER(aWindow);
-  mWindow->LeaveModalState(aWindow);
+  mWindow->LeaveModalState();
   return NS_OK;
 }
 

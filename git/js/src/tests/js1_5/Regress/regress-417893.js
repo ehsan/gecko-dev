@@ -51,16 +51,8 @@ function test()
   enterFunc ('test');
   printBugNumber(BUGNUMBER);
   printStatus (summary);
-
-  try
-  {
-    (function() { var s = function(){}.prototype.toSource; s(); })();
-  }
-  catch (e)
-  {
-    assertEq(e instanceof TypeError, true,
-             "No TypeError for Object.prototype.toSource");
-  }
+ 
+  (function() { var s = function(){}.prototype.toSource; s(); })();
 
   reportCompare(expect, actual, summary);
 

@@ -143,7 +143,6 @@ _TEST_FILES =	\
 		test_scroll_selection_into_view.html \
 		test_bug582771.html \
 		test_bug603550.html \
-		test_bug629838.html \
 		$(NULL)
 
 # Tests for bugs 441782, 467672 and 570378 don't pass reliably on Windows, because of bug 469208
@@ -318,14 +317,8 @@ _TEST_FILES += \
 		$(NULL)
 endif
 
-_BROWSER_FILES = \
-	browser_bug617076.js \
-	$(NULL)
-
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
-libs:: $(_BROWSER_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
 
 check::
 	@$(EXIT_ON_ERROR) \

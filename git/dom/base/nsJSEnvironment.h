@@ -189,8 +189,7 @@ public:
 
   // CC does always call cycle collector and it also updates the counters
   // that MaybeCC uses.
-  static void CC(nsICycleCollectorListener *aListener,
-                 PRBool aForceGC = PR_FALSE);
+  static void CC(nsICycleCollectorListener *aListener);
 
   // MaybeCC calls cycle collector if certain conditions are fulfilled.
   // The conditions are:
@@ -209,10 +208,9 @@ public:
 
   // IntervalCC() calls CC() if at least NS_MIN_CC_INTERVAL milliseconds have
   // elapsed since the previous cycle collector call.
-  static PRBool IntervalCC(PRBool aForceGC = PR_FALSE);
+  static PRBool IntervalCC();
 
-  // Calls IntervalCC(PR_TRUE) if user is currently inactive,
-  // otherwise MaybeCC(PR_TRUE)
+  // Calls IntervalCC() if user is currently inactive, otherwise MaybeCC(PR_TRUE)
   static void CCIfUserInactive();
 
   static void MaybeCCIfUserInactive();

@@ -207,11 +207,7 @@ var WinTaskbarJumpList =
     // Win shell shortcut maintenance. If we've gone through an update,
     // this will update any pinned taskbar shortcuts. Not specific to
     // jump lists, but this was a convienent place to call it. 
-    try {
-      // dev builds may not have helper.exe, ignore failures.
-      this._shortcutMaintenance();
-    } catch (ex) {
-    }
+    this._shortcutMaintenance();
 
     // Store our task list config data
     this._tasks = tasksCfg;
@@ -501,9 +497,9 @@ var WinTaskbarJumpList =
     if (!items)
       return;
     var URIsToRemove = [];
-    var e = items.enumerate();
-    while (e.hasMoreElements()) {
-      let oldItem = e.getNext().QueryInterface(Ci.nsIJumpListShortcut);
+    var enum = items.enumerate();
+    while (enum.hasMoreElements()) {
+      let oldItem = enum.getNext().QueryInterface(Ci.nsIJumpListShortcut);
       if (oldItem) {
         try { // in case we get a bad uri
           let uriSpec = oldItem.app.getParameter(0);

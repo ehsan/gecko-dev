@@ -54,9 +54,9 @@ function registerMockPromptService()
       // abusive pages.
       var winUtils = this.domWindow
                          .QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsIDOMWindowUtils_MOZILLA_2_0_BRANCH);
-      var w = winUtils.enterModalStateWithWindow();
-      winUtils.leaveModalStateWithWindow(w);
+                         .getInterface(Ci.nsIDOMWindowUtils);
+      winUtils.enterModalState();
+      winUtils.leaveModalState();
     },
 
     alert: function(aDialogTitle, aText)

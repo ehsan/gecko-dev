@@ -208,6 +208,7 @@ protected:
                       gfxContext *aContext);
 
   void NotifyGlyphMetricsChange();
+  PRBool ContainsPoint(const nsPoint &aPoint);
   PRBool GetGlobalTransform(gfxMatrix *aMatrix);
   void SetupGlobalTransform(gfxContext *aContext);
   nsresult GetHighlight(PRUint32 *charnum, PRUint32 *nchars,

@@ -36,7 +36,7 @@
 
 function test() {
   let tab1 = gBrowser.addTab("about:robots");
-  let tab2 = gBrowser.addTab("about:mozilla");
+  let tab2 = gBrowser.addTab("about:credits");
   tab1.addEventListener("load", mainPart, true);
   waitForExplicitFinish();
 

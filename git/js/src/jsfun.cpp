@@ -404,8 +404,7 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
                                             ? script->globals()->length
                                             : 0,
                                             script->nClosedArgs,
-                                            script->nClosedVars,
-                                            script->getVersion());
+                                            script->nClosedVars);
     if (!wscript)
         return NULL;
 
@@ -470,7 +469,7 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
      * Fill in the rest of wscript. This means if you add members to JSScript
      * you must update this code. FIXME: factor into JSScript::clone method.
      */
-    JS_ASSERT(wscript->getVersion() == script->getVersion());
+    wscript->setVersion(script->getVersion());
     wscript->nfixed = script->nfixed;
     wscript->filename = script->filename;
     wscript->lineno = script->lineno;
@@ -2025,21 +2024,7 @@ fun_toStringHelper(JSContext *cx, JSObject *obj, uintN indent)
     JSFunction *fun = GET_FUNCTION_PRIVATE(cx, obj);
     if (!fun)
         return NULL;
-
-    if (!indent) {
-        ToSourceCache::Ptr p = cx->compartment->toSourceCache.lookup(fun);
-        if (p)
-            return p->value;
-    }
-
-    JSString *str = JS_DecompileFunction(cx, fun, indent);
-    if (!str)
-        return false;
-
-    if (!indent)
-        cx->compartment->toSourceCache.put(fun, str);
-
-    return str;
+    return JS_DecompileFunction(cx, fun, indent);
 }
 
 static JSBool
@@ -2051,7 +2036,7 @@ fun_toString(JSContext *cx, uintN argc, Value *vp)
     if (argc != 0 && !ValueToECMAUint32(cx, vp[2], &indent))
         return false;
 
-    JSObject *obj = ToObject(cx, &vp[1]);
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     if (!obj)
         return false;
 
@@ -2069,7 +2054,7 @@ fun_toSource(JSContext *cx, uintN argc, Value *vp)
 {
     JS_ASSERT(IsFunctionObject(vp[0]));
 
-    JSObject *obj = ToObject(cx, &vp[1]);
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     if (!obj)
         return false;
 
@@ -2086,10 +2071,15 @@ JSBool
 js_fun_call(JSContext *cx, uintN argc, Value *vp)
 {
     LeaveTrace(cx);
+
+    JSObject *obj = ComputeThisFromVp(cx, vp);
+    if (!obj)
+        return JS_FALSE;
     Value fval = vp[1];
 
     if (!js_IsCallable(fval)) {
-        if (JSString *str = js_ValueToString(cx, fval)) {
+        JSString *str = js_ValueToString(cx, fval);
+        if (str) {
             JSAutoByteString bytes(cx, str);
             if (!!bytes) {
                 JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -2098,7 +2088,7 @@ js_fun_call(JSContext *cx, uintN argc, Value *vp)
                                      bytes.ptr());
             }
         }
-        return false;
+        return JS_FALSE;
     }
 
     Value *argv = vp + 2;
@@ -2131,6 +2121,10 @@ js_fun_call(JSContext *cx, uintN argc, Value *vp)
 JSBool
 js_fun_apply(JSContext *cx, uintN argc, Value *vp)
 {
+    JSObject *obj = ComputeThisFromVp(cx, vp);
+    if (!obj)
+        return false;
+
     /* Step 1. */
     Value fval = vp[1];
     if (!js_IsCallable(fval)) {
@@ -2305,11 +2299,13 @@ static JSBool
 fun_bind(JSContext *cx, uintN argc, Value *vp)
 {
     /* Step 1. */
-    Value &thisv = vp[1];
+    JSObject *target = ComputeThisFromVp(cx, vp);
+    if (!target)
+        return false;
 
     /* Step 2. */
-    if (!js_IsCallable(thisv)) {
-        if (JSString *str = js_ValueToString(cx, thisv)) {
+    if (!target->isCallable()) {
+        if (JSString *str = js_ValueToString(cx, vp[1])) {
             JSAutoByteString bytes(cx, str);
             if (!!bytes) {
                 JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -2319,8 +2315,6 @@ fun_bind(JSContext *cx, uintN argc, Value *vp)
         }
         return false;
     }
-
-    JSObject *target = &thisv.toObject();
 
     /* Step 3. */
     Value *args = NULL;
@@ -2518,7 +2512,7 @@ Function(JSContext *cx, uintN argc, Value *vp)
 
         /* Initialize a tokenstream that reads from the given string. */
         TokenStream ts(cx);
-        if (!ts.init(collected_args, args_length, filename, lineno, cx->findVersion())) {
+        if (!ts.init(cx->findVersion(), collected_args, args_length, filename, lineno)) {
             JS_ARENA_RELEASE(&cx->tempPool, mark);
             return JS_FALSE;
         }
@@ -2607,17 +2601,7 @@ Function(JSContext *cx, uintN argc, Value *vp)
         return JS_FALSE;
 
     return Compiler::compileFunctionBody(cx, fun, principals, &bindings,
-                                         chars, length, filename, lineno, cx->findVersion());
-}
-
-namespace js {
-
-JS_FRIEND_API(bool)
-IsBuiltinFunctionConstructor(JSFunction *fun)
-{
-    return fun->maybeNative() == Function;
-}
-
+                                         chars, length, filename, lineno);
 }
 
 static JSBool
@@ -2641,9 +2625,10 @@ js_InitFunctionClass(JSContext *cx, JSObject *obj)
         return NULL;
     fun->flags |= JSFUN_PROTOTYPE;
 
-    JSScript *script = JSScript::NewScript(cx, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, JSVERSION_DEFAULT);
+    JSScript *script = JSScript::NewScript(cx, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     if (!script)
         return NULL;
+    script->setVersion(JSVERSION_DEFAULT);
     script->noScriptRval = true;
     script->code[0] = JSOP_STOP;
     script->code[1] = SRC_NULL;

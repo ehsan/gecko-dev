@@ -79,7 +79,7 @@
 #include "nsImageMapUtils.h"
 #include "nsIScriptSecurityManager.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
@@ -192,7 +192,8 @@ NS_QUERYFRAME_TAIL_INHERITING(ImageFrameSuper)
 already_AddRefed<nsAccessible>
 nsImageFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLImageAccessible(mContent,
                                                  PresContext()->PresShell());
@@ -217,12 +218,6 @@ nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
   if (mListener) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
     if (imageLoader) {
-      // Push a null JSContext on the stack so that code that runs
-      // within the below code doesn't think it's being called by
-      // JS. See bug 604262.
-      nsCxPusher pusher;
-      pusher.PushNull();
-
       imageLoader->RemoveObserver(mListener);
     }
     
@@ -253,16 +248,7 @@ nsImageFrame::Init(nsIContent*      aContent,
 
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(aContent);
   NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
-
-  {
-    // Push a null JSContext on the stack so that code that runs
-    // within the below code doesn't think it's being called by
-    // JS. See bug 604262.
-    nsCxPusher pusher;
-    pusher.PushNull();
-
-    imageLoader->AddObserver(mListener);
-  }
+  imageLoader->AddObserver(mListener);
 
   nsPresContext *aPresContext = PresContext();
   

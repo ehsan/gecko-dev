@@ -42,7 +42,7 @@
 #include "nsIFormControl.h"
 #include "nsINameSpaceManager.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"

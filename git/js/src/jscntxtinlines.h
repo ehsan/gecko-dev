@@ -562,19 +562,12 @@ class CompartmentChecker
 
     void check(JSObject *obj) {
         if (obj)
-            check(obj->compartment());
-    }
-
-    void check(JSString *str) {
-        if (!JSString::isStatic(str) && !str->isAtomized())
-            check(str->asCell()->compartment());
+            check(obj->getCompartment());
     }
 
     void check(const js::Value &v) {
         if (v.isObject())
             check(&v.toObject());
-        else if (v.isString())
-            check(v.toString());
     }
 
     void check(jsval v) {
@@ -616,6 +609,8 @@ class CompartmentChecker
     void check(JSStackFrame *fp) {
         check(&fp->scopeChain());
     }
+
+    void check(JSString *) { /* nothing for now */ }
 };
 
 #endif

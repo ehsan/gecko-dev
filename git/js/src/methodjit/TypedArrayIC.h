@@ -178,29 +178,33 @@ ConstantFoldForIntArray(JSContext *cx, js::TypedArray *tarray, ValueRemat *vr)
     if (!vr->isConstant())
         return true;
 
-    // Convert from string to double first (see bug 624483).
+    if (vr->knownType() == JSVAL_TYPE_INT32) {
+        if (tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED)
+            *vr = ValueRemat::FromConstant(Int32Value(ClampIntForUint8Array(vr->value().toInt32())));
+        return true;
+    }
+
     Value v = vr->value();
-    if (v.isString()) {
-        double d;
-        if (!StringToNumberType<double>(cx, v.toString(), &d))
-            return false;
-        v.setNumber(d);
+    if (v.isDouble()) {
+        int32 i32 = tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED
+                    ? js_TypedArray_uint8_clamp_double(v.toDouble())
+                    : js_DoubleToECMAInt32(v.toDouble());
+        *vr = ValueRemat::FromConstant(Int32Value(i32));
+        return true;
     }
 
     int32 i32 = 0;
-    if (v.isDouble()) {
-        i32 = (tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED)
-              ? js_TypedArray_uint8_clamp_double(v.toDouble())
-              : js_DoubleToECMAInt32(v.toDouble());
-    } else if (v.isInt32()) {
-        i32 = v.toInt32();
-        if (tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED)
-            i32 = ClampIntForUint8Array(i32);
+    if (v.isString()) {
+        if (!StringToNumberType<int32>(cx, v.toString(), &i32))
+            return false;
     } else if (v.isBoolean()) {
         i32 = v.toBoolean() ? 1 : 0;
     } else {
         JS_NOT_REACHED("unknown constant type");
     }
+
+    if (tarray->type == js::TypedArray::TYPE_UINT8_CLAMPED)
+        i32 = ClampIntForUint8Array(i32);
 
     *vr = ValueRemat::FromConstant(Int32Value(i32));
 

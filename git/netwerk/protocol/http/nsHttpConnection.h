@@ -109,16 +109,6 @@ public:
                              mIdleTimeout = 0; }
     void     DropTransport() { DontReuse(); mSocketTransport = 0; }
 
-    PRBool   LastTransactionExpectedNoContent()
-    {
-        return mLastTransactionExpectedNoContent;
-    }
-
-    void     SetLastTransactionExpectedNoContent(PRBool val)
-    {
-        mLastTransactionExpectedNoContent = val;
-    }
-
     nsAHttpTransaction   *Transaction()    { return mTransaction; }
     nsHttpConnectionInfo *ConnectionInfo() { return mConnInfo; }
 
@@ -164,6 +154,8 @@ private:
     nsAHttpTransaction             *mTransaction; // hard ref
     nsHttpConnectionInfo           *mConnInfo;    // hard ref
 
+    PRLock                         *mLock;
+
     PRUint32                        mLastReadTime;
     PRUint16                        mMaxHangTime;    // max download time before dropping keep-alive status
     PRUint16                        mIdleTimeout;    // value of keep-alive: timeout=
@@ -173,7 +165,6 @@ private:
     PRPackedBool                    mSupportsPipelining;
     PRPackedBool                    mIsReused;
     PRPackedBool                    mCompletedSSLConnect;
-    PRPackedBool                    mLastTransactionExpectedNoContent;
 };
 
 #endif // nsHttpConnection_h__

@@ -1689,8 +1689,7 @@ XPCWrappedNative::GetWrappedNativeOfJSObject(JSContext* cx,
 
     if(funobj)
     {
-        JSObject* funObjParent = funobj->getParent()->unwrap();
-        OBJ_TO_INNER_OBJECT(cx, funObjParent);
+        JSObject* funObjParent = funobj->getParent();
         NS_ASSERTION(funObjParent, "funobj has no parent");
 
         js::Class* funObjParentClass = funObjParent->getClass();
@@ -2599,13 +2598,8 @@ CallMethodHelper::GatherAndConvertResults()
 
         if(paramInfo.IsRetval())
         {
-            if(!mCallContext.GetReturnValueWasSet()) {
+            if(!mCallContext.GetReturnValueWasSet() && type.TagPart() != nsXPTType::T_JSVAL)
                 mCallContext.SetRetVal(v);
-            } else {
-                // really, this should assert TagPart() == nsXPTType::T_VOID
-                NS_ASSERTION(type.TagPart() != nsXPTType::T_JSVAL,
-                             "dropping declared return value");
-            }
         }
         else if(i < mArgc)
         {
@@ -2792,13 +2786,20 @@ CallMethodHelper::ConvertIndependentParams(JSBool* foundDependentParam)
 
             if (type_tag == nsXPTType::T_JSVAL)
             {
-                JS_STATIC_ASSERT(sizeof(jsval) <= sizeof(uint64));
-                jsval *rootp = (jsval *)&dp->val.u64;
-                dp->ptr = rootp;
-                *rootp = JSVAL_VOID;
-                if (!JS_AddValueRoot(mCallContext, rootp))
-                    return JS_FALSE;
-                dp->SetValIsJSRoot();
+                if (paramInfo.IsRetval())
+                {
+                    dp->ptr = mCallContext.GetRetVal();
+                }
+                else
+                {
+                    JS_STATIC_ASSERT(sizeof(jsval) <= sizeof(uint64));
+                    jsval *rootp = (jsval *)&dp->val.u64;
+                    dp->ptr = rootp;
+                    *rootp = JSVAL_VOID;
+                    if (!JS_AddValueRoot(mCallContext, rootp))
+                        return JS_FALSE;
+                    dp->SetValIsJSRoot();
+                }
             }
 
             if(type.IsPointer() &&

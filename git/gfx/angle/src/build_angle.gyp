@@ -5,7 +5,7 @@
 {
   'target_defaults': {
     'defines': [
-      'ANGLE_DISABLE_TRACE',
+      'TRACE_OUTPUT_FILE="angle-debug.txt"',
     ],
   },
   'targets': [
@@ -144,7 +144,10 @@
             'common/angleutils.h',
             'common/debug.cpp',
             'common/debug.h',
-            'common/version.h',
+            'libGLESv2/geometry/backend.cpp',
+            'libGLESv2/geometry/backend.h',
+            'libGLESv2/geometry/dx9.cpp',
+            'libGLESv2/geometry/dx9.h',
             'libGLESv2/geometry/IndexDataManager.cpp',
             'libGLESv2/geometry/IndexDataManager.h',
             'libGLESv2/geometry/vertexconversion.h',
@@ -183,10 +186,7 @@
           'msvs_settings': {
             'VCLinkerTool': {
               'AdditionalLibraryDirectories': ['$(DXSDK_DIR)/lib/x86'],
-              'AdditionalDependencies': [
-                'd3d9.lib',
-                'd3dx9.lib',
-              ],
+              'AdditionalDependencies': ['d3dx9.lib'],
             }
           },
         },
@@ -202,7 +202,6 @@
             'common/angleutils.h',
             'common/debug.cpp',
             'common/debug.h',
-            'common/version.h',
             'libEGL/Config.cpp',
             'libEGL/Config.h',
             'libEGL/Display.cpp',
@@ -218,7 +217,6 @@
             'VCLinkerTool': {
               'AdditionalLibraryDirectories': ['$(DXSDK_DIR)/lib/x86'],
               'AdditionalDependencies': [
-                'd3d9.lib',
                 'dxguid.lib',
               ],
             }

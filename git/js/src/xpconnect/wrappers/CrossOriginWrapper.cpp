@@ -46,15 +46,7 @@
 
 namespace xpc {
 
-NoWaiverWrapper::NoWaiverWrapper(uintN flags) : JSCrossCompartmentWrapper(flags)
-{
-}
-
-NoWaiverWrapper::~NoWaiverWrapper()
-{
-}
-
-CrossOriginWrapper::CrossOriginWrapper(uintN flags) : NoWaiverWrapper(flags)
+CrossOriginWrapper::CrossOriginWrapper(uintN flags) : JSCrossCompartmentWrapper(flags)
 {
 }
 
@@ -108,15 +100,14 @@ CrossOriginWrapper::construct(JSContext *cx, JSObject *wrapper,
 }
 
 bool
-NoWaiverWrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp)
+CrossOriginWrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act)
 {
-    *bp = true; // always allowed
     nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
     if (!ssm) {
         return true;
     }
     JSStackFrame *fp = NULL;
-    nsIPrincipal *principal = GetCompartmentPrincipal(wrappedObject(wrapper)->compartment());
+    nsIPrincipal *principal = GetCompartmentPrincipal(wrappedObject(wrapper)->getCompartment());
     nsresult rv = ssm->PushContextPrincipal(cx, JS_FrameIterator(cx, &fp), principal);
     if (NS_FAILED(rv)) {
         NS_WARNING("Not allowing call because we're out of memory");
@@ -127,7 +118,7 @@ NoWaiverWrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bo
 }
 
 void
-NoWaiverWrapper::leave(JSContext *cx, JSObject *wrapper)
+CrossOriginWrapper::leave(JSContext *cx, JSObject *wrapper)
 {
     nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
     if (ssm) {

@@ -225,7 +225,7 @@ public:
    * @param aSelection  [in] the given selection
    * @return            text accessible
    */
-  static nsHyperTextAccessible*
+  static already_AddRefed<nsHyperTextAccessible>
     GetTextAccessibleFromSelection(nsISelection* aSelection);
 
   /**

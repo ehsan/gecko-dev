@@ -45,7 +45,6 @@
 #include "jsproxy.h"
 #include "jsscope.h"
 #include "jstracer.h"
-#include "assembler/wtf/Platform.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/PolyIC.h"
 #include "methodjit/MonoIC.h"
@@ -112,9 +111,6 @@ JSCompartment::init()
         return false;
     }
 #endif
-
-    if (!toSourceCache.init())
-        return false;
 
 #if ENABLE_YARR_JIT
     regExpAllocator = JSC::ExecutableAllocator::create();
@@ -454,13 +450,11 @@ void
 JSCompartment::purge(JSContext *cx)
 {
     freeLists.purge();
-    dtoaCache.purge();
 
     /* Destroy eval'ed scripts. */
     js_DestroyScriptsToGC(cx, this);
 
     nativeIterCache.purge();
-    toSourceCache.clear();
 
 #ifdef JS_TRACER
     /*

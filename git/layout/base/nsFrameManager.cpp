@@ -97,7 +97,7 @@
 #include "nsFrameManager.h"
 
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 
   #ifdef DEBUG
@@ -1532,7 +1532,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 #ifdef ACCESSIBILITY
       // Send notifications about visibility changes.
       if (ourA11yNotification == eNotifyShown) {
-        nsAccessibilityService* accService = nsIPresShell::AccService();
+        nsCOMPtr<nsIAccessibilityService> accService =
+          do_GetService("@mozilla.org/accessibilityService;1");
         if (accService) {
           nsIPresShell* presShell = aFrame->PresContext()->GetPresShell();
           nsIContent* content = aFrame->GetContent();
@@ -1542,7 +1543,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                            content->GetNextSibling());
         }
       } else if (ourA11yNotification == eNotifyHidden) {
-        nsAccessibilityService* accService = nsIPresShell::AccService();
+        nsCOMPtr<nsIAccessibilityService> accService =
+          do_GetService("@mozilla.org/accessibilityService;1");
         if (accService) {
           nsIPresShell* presShell = aFrame->PresContext()->GetPresShell();
           nsIContent* content = aFrame->GetContent();

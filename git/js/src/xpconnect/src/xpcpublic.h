@@ -117,7 +117,7 @@ xpc_GetCachedSlimWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
         //        away
         if (wrapper &&
             IS_SLIM_WRAPPER_OBJECT(wrapper) &&
-            wrapper->compartment() == scope->getCompartment()) {
+            wrapper->getCompartment() == scope->getCompartment()) {
             *vp = OBJECT_TO_JSVAL(wrapper);
 
             return wrapper;

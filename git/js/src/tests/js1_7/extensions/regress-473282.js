@@ -46,7 +46,7 @@ printBugNumber(BUGNUMBER);
 printStatus (summary);
  
 this.watch("b", "".substring);
-this.__defineGetter__("a", gc);
+__defineGetter__("a", gc);
 for each (b in [this, null, null]);
 a;
 

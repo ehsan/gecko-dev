@@ -597,16 +597,10 @@ function waitForAsyncUpdates(aCallback, aScope, aArguments)
  *
  * @param aGuid
  *        The guid to test.
- * @param [optional] aStack
- *        The stack frame used to report the error.
  */
-function do_check_valid_places_guid(aGuid,
-                                    aStack)
+function do_check_valid_places_guid(aGuid)
 {
-  if (!aStack) {
-    aStack = Components.stack.caller;
-  }
-  do_check_true(/^[a-zA-Z0-9\-_]{12}$/.test(aGuid), aStack);
+  do_check_true(/^[a-zA-Z0-9\-_]{12}$/.test(aGuid), Components.stack.caller);
 }
 
 /**
@@ -614,25 +608,17 @@ function do_check_valid_places_guid(aGuid,
  *
  * @param aURI
  *        The uri to check.
- * @param [optional] aGUID
- *        The expected guid in the database.
  */
-function do_check_guid_for_uri(aURI,
-                               aGUID)
+function do_check_guid_for_uri(aURI)
 {
-  let caller = Components.stack.caller;
   let stmt = DBConn().createStatement(
     "SELECT guid "
   + "FROM moz_places "
   + "WHERE url = :url "
   );
   stmt.params.url = aURI.spec;
-  do_check_true(stmt.executeStep(), caller);
-  do_check_valid_places_guid(stmt.row.guid, caller);
-  if (aGUID) {
-    do_check_valid_places_guid(aGUID, caller);
-    do_check_eq(stmt.row.guid, aGUID, caller);
-  }
+  do_check_true(stmt.executeStep());
+  do_check_valid_places_guid(stmt.row.guid);
   stmt.finalize();
 }
 
@@ -655,6 +641,11 @@ let gRunningTest = null;
 let gTestIndex = 0; // The index of the currently running test.
 function run_next_test()
 {
+  if (gRunningTest !== null) {
+    // Close the previous test do_test_pending call.
+    do_test_finished();
+  }
+
   function _run_next_test()
   {
     if (gTestIndex < gTests.length) {
@@ -674,9 +665,4 @@ function run_next_test()
 
   // For sane stacks during failures, we execute this code soon, but not now.
   do_execute_soon(_run_next_test);
-
-  if (gRunningTest !== null) {
-    // Close the previous test do_test_pending call.
-    do_test_finished();
-  }
 }

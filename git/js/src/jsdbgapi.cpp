@@ -737,7 +737,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsid id, Value *vp)
              */
             JSBool ok = !wp->setter ||
                         (shape->hasSetterValue()
-                         ? ExternalInvoke(cx, ObjectValue(*obj),
+                         ? ExternalInvoke(cx, obj,
                                           ObjectValue(*CastAsObject(wp->setter)),
                                           1, vp, vp)
                          : CallJSPropertyOpSetter(cx, wp->setter, obj, userid, vp));
@@ -753,7 +753,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 static JSBool
 js_watch_set_wrapper(JSContext *cx, uintN argc, Value *vp)
 {
-    JSObject *obj = ToObject(cx, &vp[1]);
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     if (!obj)
         return false;
 
@@ -1483,8 +1483,8 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
      */
     JSScript *script = Compiler::compileScript(cx, scobj, fp, js_StackFramePrincipals(cx, fp),
                                                TCF_COMPILE_N_GO, chars, length,
-                                               filename, lineno, cx->findVersion(),
-                                               NULL, UpvarCookie::UPVAR_LEVEL_LIMIT);
+                                               filename, lineno, NULL,
+                                               UpvarCookie::UPVAR_LEVEL_LIMIT);
 
     if (!script)
         return false;

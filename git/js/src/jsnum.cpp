@@ -603,15 +603,17 @@ js_IntToString(JSContext *cx, int32 si)
     if (si >= 0) {
         if (si < INT_STRING_LIMIT)
             return JSString::intString(si);
+        if (si < 100)
+            return JSString::length2String(si);
         ui = si;
     } else {
         ui = uint32(-si);
         JS_ASSERT_IF(si == INT32_MIN, ui == uint32(INT32_MAX) + 1);
     }
 
-    JSCompartment *c = cx->compartment;
-    if (JSString *str = c->dtoaCache.lookup(10, si))
-        return str;
+    JSThreadData *data = JS_THREAD_DATA(cx);
+    if (data->dtoaCache.s && data->dtoaCache.base == 10 && data->dtoaCache.d == si)
+        return data->dtoaCache.s;
 
     JSShortString *str = js_NewGCShortString(cx);
     if (!str)
@@ -636,7 +638,9 @@ js_IntToString(JSContext *cx, int32 si)
     str->initAtOffsetInBuffer(cp, end - cp);
 
     JSString *ret = str->header();
-    c->dtoaCache.cache(10, si, ret);
+    data->dtoaCache.base = 10;
+    data->dtoaCache.d = si;
+    data->dtoaCache.s = ret;
     return ret;
 }
 
@@ -1152,6 +1156,7 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
     ToCStringBuf cbuf;
     char *numStr;
     JSString *s;
+    JSThreadData *data;
 
     /*
      * Caller is responsible for error reporting. When called from trace,
@@ -1160,8 +1165,6 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
      */
     if (base < 2 || base > 36)
         return NULL;
-
-    JSCompartment *c = cx->compartment;
 
     int32_t i;
     if (JSDOUBLE_IS_INT32(d, &i)) {
@@ -1173,14 +1176,16 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
             return JSString::unitString(jschar('a' + i - 10));
         }
 
-        if (JSString *str = c->dtoaCache.lookup(base, d))
-            return str;
+        data = JS_THREAD_DATA(cx);
+        if (data->dtoaCache.s && data->dtoaCache.base == base && data->dtoaCache.d == d)
+            return data->dtoaCache.s;
 
         numStr = IntToCString(&cbuf, i, base);
         JS_ASSERT(!cbuf.dbuf && numStr >= cbuf.sbuf && numStr < cbuf.sbuf + cbuf.sbufSize);
     } else {
-        if (JSString *str = c->dtoaCache.lookup(base, d))
-            return str;
+        data = JS_THREAD_DATA(cx);
+        if (data->dtoaCache.s && data->dtoaCache.base == base && data->dtoaCache.d == d)
+            return data->dtoaCache.s;
 
         numStr = FracNumberToCString(cx, &cbuf, d, base);
         if (!numStr) {
@@ -1195,7 +1200,10 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 
     s = js_NewStringCopyZ(cx, numStr);
 
-    c->dtoaCache.cache(base, d, s);
+    data->dtoaCache.base = base;
+    data->dtoaCache.d = d;
+    data->dtoaCache.s = s;
+
     return s;
 }
 

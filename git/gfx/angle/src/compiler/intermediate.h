@@ -420,7 +420,7 @@ typedef TMap<TString, TString> TPragmaTable;
 //
 class TIntermAggregate : public TIntermOperator {
 public:
-    TIntermAggregate() : TIntermOperator(EOpNull), userDefined(false), pragmaTable(0), endLine(0) { }
+    TIntermAggregate() : TIntermOperator(EOpNull), userDefined(false), pragmaTable(0) { }
     TIntermAggregate(TOperator o) : TIntermOperator(o), pragmaTable(0) { }
     ~TIntermAggregate() { delete pragmaTable; }
 
@@ -441,8 +441,6 @@ public:
     bool getDebug() { return debug; }
     void addToPragmaTable(const TPragmaTable& pTable);
     const TPragmaTable& getPragmaTable() const { return *pragmaTable; }
-    void setEndLine(TSourceLoc line) { endLine = line; }
-    TSourceLoc getEndLine() const { return endLine; }
 
 protected:
     TIntermAggregate(const TIntermAggregate&); // disallow copy constructor
@@ -454,7 +452,6 @@ protected:
     bool optimize;
     bool debug;
     TPragmaTable *pragmaTable;
-    TSourceLoc endLine;
 };
 
 //

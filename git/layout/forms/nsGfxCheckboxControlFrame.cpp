@@ -40,7 +40,7 @@
 #include "nsCOMPtr.h"
 #include "nsCSSRendering.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsIDOMHTMLInputElement.h"
@@ -123,7 +123,9 @@ nsGfxCheckboxControlFrame::~nsGfxCheckboxControlFrame()
 already_AddRefed<nsAccessible>
 nsGfxCheckboxControlFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService
+    = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLCheckboxAccessible(mContent,
                                                     PresContext()->PresShell());

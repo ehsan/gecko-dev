@@ -4030,7 +4030,7 @@ public:
      * @param errorReporter the error reporter callback function to set
      */
 
-    PRBool StartEvaluating(JSObject *scope, JSErrorReporter errorReporter = nsnull);
+    void StartEvaluating(JSErrorReporter errorReporter = nsnull);
     /**
      * Does the post script evaluation and resets the error reporter
      */
@@ -4041,7 +4041,6 @@ private:
     PRBool mErrorReporterSet;
     PRBool mEvaluated;
     jsword mContextHasThread;
-    JSAutoEnterCompartment mEnterCompartment;
     MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // No copying or assignment allowed

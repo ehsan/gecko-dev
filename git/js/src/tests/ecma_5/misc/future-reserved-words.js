@@ -43,22 +43,19 @@ function testWord(word, expectNormal, expectStrict)
 
   // USE IN VARIABLE DECLARATION
 
-  if (expectNormal !== "skip")
+  actual = "";
+  status = summary + ", normal var: " + word;
+  try
   {
-    actual = "";
-    status = summary + ", normal var: " + word;
-    try
-    {
-      eval("var " + word + ";");
-      actual = "no error";
-    }
-    catch (e)
-    {
-      actual = "error";
-      status +=  ", " + e.name + ": " + e.message + " ";
-    }
-    reportCompare(expectNormal, actual, status);
+    eval("var " + word + ";");
+    actual = "no error";
   }
+  catch (e)
+  {
+    actual = "error";
+    status +=  ", " + e.name + ": " + e.message + " ";
+  }
+  reportCompare(expectNormal, actual, status);
 
   actual = "";
   status = summary + ", strict var: " + word;
@@ -77,22 +74,19 @@ function testWord(word, expectNormal, expectStrict)
 
   // USE AS LHS FOR ASSIGNMENT
 
-  if (expectNormal !== "skip")
+  actual = "";
+  status = summary + ", normal assignment: " + word;
+  try
   {
-    actual = "";
-    status = summary + ", normal assignment: " + word;
-    try
-    {
-      eval(word + " = 'foo';");
-      actual = "no error";
-    }
-    catch(e)
-    {
-      actual = "error";
-      status +=  ", " + e.name + ": " + e.message + " ";
-    }
-    reportCompare(expectNormal, actual, status);
+    eval(word + " = 'foo';");
+    actual = "no error";
   }
+  catch(e)
+  {
+    actual = "error";
+    status +=  ", " + e.name + ": " + e.message + " ";
+  }
+  reportCompare(expectNormal, actual, status);
 
   actual = "";
   status = summary + ", strict assignment: " + word;
@@ -111,7 +105,7 @@ function testWord(word, expectNormal, expectStrict)
 
 function testFutureReservedWord(word)
 {
-  testWord(word, "skip", "error");
+  testWord(word, "error", "error");
 }
 
 function testStrictFutureReservedWord(word)

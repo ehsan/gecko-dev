@@ -166,7 +166,7 @@ enum { XKeyPress = KeyPress };
 
 // accessibility support
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 
 #ifdef MOZ_LOGGING
@@ -635,7 +635,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsObjectFrameSuper)
 already_AddRefed<nsAccessible>
 nsObjectFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
   return accService ?
     accService->CreateHTMLObjectFrameAccessible(this, mContent,
                                                 PresContext()->PresShell()) :
@@ -787,13 +787,8 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
     // allow the view to attach its event handler to mWidget even though
     // mWidget isn't the view's designated widget.
     EVENT_CALLBACK eventHandler = mInnerView->AttachWidgetEventHandler(mWidget);
-    rv = mWidget->Create(parentWidget, nsnull, nsIntRect(0,0,0,0),
-                         eventHandler, dx, nsnull, nsnull, &initData);
-    if (NS_FAILED(rv)) {
-      mWidget->Destroy();
-      mWidget = nsnull;
-      return rv;
-    }
+    mWidget->Create(parentWidget, nsnull, nsIntRect(0,0,0,0),
+                    eventHandler, dx, nsnull, nsnull, &initData);
 
     mWidget->EnableDragDrop(PR_TRUE);
 
@@ -1289,12 +1284,10 @@ nsDisplayPlugin::Paint(nsDisplayListBuilder* aBuilder,
 
 PRBool
 nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion,
-                                   PRBool& aContainsRootContentDocBG)
+                                   nsRegion* aVisibleRegion)
 {
   mVisibleRegion.And(*aVisibleRegion, GetBounds(aBuilder));  
-  return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
-                                          aContainsRootContentDocBG);
+  return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion);
 }
 
 nsRegion
@@ -2353,9 +2346,12 @@ nsObjectFrame::Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamList
   mPreventInstantiation = PR_FALSE;
 
 #ifdef ACCESSIBILITY
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    accService->RecreateAccessible(PresContext()->PresShell(), mContent);
+  if (PresContext()->PresShell()->IsAccessibilityActive()) {
+    nsCOMPtr<nsIAccessibilityService> accService =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    if (accService) {
+      accService->RecreateAccessible(PresContext()->PresShell(), mContent);
+    }
   }
 #endif
 
@@ -2422,9 +2418,12 @@ nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
                "Instantiation should still be prevented!");
 
 #ifdef ACCESSIBILITY
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    accService->RecreateAccessible(PresContext()->PresShell(), mContent);
+  if (PresContext()->PresShell()->IsAccessibilityActive()) {
+    nsCOMPtr<nsIAccessibilityService> accService =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    if (accService) {
+      accService->RecreateAccessible(PresContext()->PresShell(), mContent);
+    }
   }
 #endif
 

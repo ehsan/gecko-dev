@@ -2236,8 +2236,6 @@ nsNativeThemeWin::GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType)
     return eOpaque;
   case NS_THEME_WIN_GLASS:
   case NS_THEME_WIN_BORDERLESS_GLASS:
-  case NS_THEME_SCALE_HORIZONTAL:
-  case NS_THEME_SCALE_VERTICAL:
     return eTransparent;
   }
 

@@ -40,7 +40,7 @@
 #include "nsCOMPtr.h"
 #include "nsCSSRendering.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsITheme.h"
@@ -68,7 +68,9 @@ nsGfxRadioControlFrame::~nsGfxRadioControlFrame()
 already_AddRefed<nsAccessible>
 nsGfxRadioControlFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService
+    = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLRadioButtonAccessible(mContent,
                                                        PresContext()->PresShell());

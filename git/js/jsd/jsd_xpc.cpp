@@ -523,15 +523,8 @@ jsds_GCCallbackProc (JSContext *cx, JSGCStatus status)
     }
 
     gGCStatus = status;
-    if (gLastGCProc && !gLastGCProc (cx, status)) {
-        /*
-         * If gLastGCProc returns false, then the GC will abort without making
-         * another callback with status=JSGC_END, so set the status to JSGC_END
-         * here.
-         */
-        gGCStatus = JSGC_END;
-        return JS_FALSE;
-    }
+    if (gLastGCProc)
+        return gLastGCProc (cx, status);
     
     return JS_TRUE;
 }
@@ -998,7 +991,7 @@ jsdScript::jsdScript (JSDContext *aCx, JSDScript *aScript) : mValid(PR_FALSE),
         mFileName = new nsCString(JSD_GetScriptFilename(mCx, mScript));
         mFunctionName = new nsCString();
         if (mFunctionName) {
-            JSString *str = JSD_GetScriptFunctionId(mCx, mScript);
+            JSString *str = JSD_GetScriptFunctionName(mCx, mScript);
             if (str)
                 AssignToJSString(mFunctionName, str);
         }
@@ -1914,7 +1907,7 @@ NS_IMETHODIMP
 jsdStackFrame::GetFunctionName(nsACString &_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    JSString *str = JSD_GetIdForStackFrame(mCx, mThreadState, mStackFrameInfo);
+    JSString *str = JSD_GetNameForStackFrame(mCx, mThreadState, mStackFrameInfo);
     if (str)
         return AssignToJSString(&_rval, str);
     
@@ -2246,7 +2239,7 @@ NS_IMETHODIMP
 jsdValue::GetJsFunctionName(nsACString &_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    return AssignToJSString(&_rval, JSD_GetValueFunctionId(mCx, mValue));
+    return AssignToJSString(&_rval, JSD_GetValueFunctionName(mCx, mValue));
 }
 
 NS_IMETHODIMP
@@ -2606,8 +2599,7 @@ jsdService::Off (void)
             return NS_ERROR_NOT_AVAILABLE;
 
         JSContext *cx = JSD_GetDefaultJSContext(mCx);
-        while (gDeadScripts)
-            jsds_NotifyPendingDeadScripts (cx);
+        jsds_NotifyPendingDeadScripts(cx);
     }
 
     /*

@@ -91,8 +91,7 @@ class nsGeolocationRequest
   nsGeolocationRequest(nsGeolocation* locator,
                        nsIDOMGeoPositionCallback* callback,
                        nsIDOMGeoPositionErrorCallback* errorCallback,
-                       nsIDOMGeoPositionOptions* options,
-                       PRBool watchPositionRequest = PR_FALSE);
+                       nsIDOMGeoPositionOptions* options);
   nsresult Init();
   void Shutdown();
 
@@ -119,7 +118,6 @@ class nsGeolocationRequest
   PRPackedBool mAllowed;
   PRPackedBool mCleared;
   PRPackedBool mIsFirstUpdate;
-  PRPackedBool mIsWatchPositionRequest;
 
   nsCOMPtr<nsITimer> mTimeoutTimer;
   nsCOMPtr<nsIDOMGeoPositionCallback> mCallback;

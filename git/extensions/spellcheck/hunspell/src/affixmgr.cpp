@@ -2476,9 +2476,8 @@ struct hentry * AffixMgr::suffix_check (const char * word, int len,
         }
        se = se->getNext();
     }
-
+  
     // now handle the general case
-    if (len == 0) return NULL; // FULLSTRIP
     unsigned char sp = *((const unsigned char *)(word + len - 1));
     SfxEntry * sptr = sStart[sp];
 
@@ -2544,9 +2543,8 @@ struct hentry * AffixMgr::suffix_check_twosfx(const char * word, int len,
         }
         se = se->getNext();
     }
-
+  
     // now handle the general case
-    if (len == 0) return NULL; // FULLSTRIP
     unsigned char sp = *((const unsigned char *)(word + len - 1));
     SfxEntry * sptr = sStart[sp];
 
@@ -2607,9 +2605,8 @@ char * AffixMgr::suffix_check_twosfx_morph(const char * word, int len,
         }
         se = se->getNext();
     }
-
+  
     // now handle the general case
-    if (len == 0) return NULL; // FULLSTRIP
     unsigned char sp = *((const unsigned char *)(word + len - 1));
     SfxEntry * sptr = sStart[sp];
 
@@ -2714,9 +2711,8 @@ char * AffixMgr::suffix_check_morph(const char * word, int len,
        }
        se = se->getNext();
     }
-
+  
     // now handle the general case
-    if (len == 0) return NULL; // FULLSTRIP
     unsigned char sp = *((const unsigned char *)(word + len - 1));
     SfxEntry * sptr = sStart[sp];
 
@@ -3538,15 +3534,11 @@ int  AffixMgr::parse_convtable(char * line, FileMgr * af, RepList ** rl, const c
            }
            piece = mystrsep(&tp, 0);
         }
-      if (!pattern || !pattern2) {
-         if (pattern)
-            free(pattern);
-         if (pattern2)
-            free(pattern2);
-         HUNSPELL_WARNING(stderr, "error: line %d: table is corrupt\n", af->getlinenum());
-         return 1;
-      }
-      (*rl)->add(pattern, pattern2);
+        if (!pattern || !pattern2) {
+             HUNSPELL_WARNING(stderr, "error: line %d: table is corrupt\n", af->getlinenum());
+             return 1;
+        }
+        (*rl)->add(pattern, pattern2);
    }
    return 0;
 }

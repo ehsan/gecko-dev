@@ -90,7 +90,6 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void InvalidateChildren();
-  virtual PRBool RemoveChild(nsAccessible* aAccessible);
 
   // nsHyperTextAccessible (static helper method)
 
@@ -397,17 +396,6 @@ private:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsHyperTextAccessible,
                               NS_HYPERTEXTACCESSIBLE_IMPL_CID)
-
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible downcasting method
-
-inline nsHyperTextAccessible*
-nsAccessible::AsHyperText()
-{
-  return mFlags & eHyperTextAccessible ?
-    static_cast<nsHyperTextAccessible*>(this) : nsnull;
-}
 
 #endif  // _nsHyperTextAccessible_H_
 

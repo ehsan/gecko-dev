@@ -430,11 +430,10 @@ JSD_GetScriptFilename(JSDContext* jsdc, JSDScript *jsdscript);
 
 /*
 * Get the function name associated with this script (NULL if not a function).
-* If the function does not have a name the result is the string "anonymous".
-* *** new for gecko 2.0 ****
+* If the function does not have a name the result is an empty string.
 */
 extern JSD_PUBLIC_API(JSString *)
-JSD_GetScriptFunctionId(JSDContext* jsdc, JSDScript *jsdscript);
+JSD_GetScriptFunctionName(JSDContext* jsdc, JSDScript *jsdscript);
 
 /*
 * Get the base linenumber of the sourcefile from which this script was loaded.
@@ -962,12 +961,11 @@ JSD_GetThisForStackFrame(JSDContext* jsdc,
 /*
 * Get the name of the function executing in this stack frame.  Especially useful
 * for native frames (without script objects.)
-* *** new for gecko 2.0 ****
 */
 extern JSD_PUBLIC_API(JSString *)
-JSD_GetIdForStackFrame(JSDContext* jsdc,
-                       JSDThreadState* jsdthreadstate,
-                       JSDStackFrameInfo* jsdframe);
+JSD_GetNameForStackFrame(JSDContext* jsdc,
+                         JSDThreadState* jsdthreadstate,
+                         JSDStackFrameInfo* jsdframe);
 
 /*
 * True if stack frame represents a frame created as a result of a debugger
@@ -1295,10 +1293,10 @@ JSD_GetValueString(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
 * Return name of function IFF JSDValue represents a function.
-* *** new for gecko 2.0 ****
+* *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSString *)
-JSD_GetValueFunctionId(JSDContext* jsdc, JSDValue* jsdval);
+JSD_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
 * Return function object IFF JSDValue represents a function or an object
