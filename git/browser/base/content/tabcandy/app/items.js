@@ -60,10 +60,6 @@ window.Item = function() {
   // A <Point> that describes the last size specifically chosen by the user.
   // Used by unsquish.
   this.userSize = null;
-  
-  // Variable: locked
-  // True if the item should not be changed.
-  this.locked = false;
 };
 
 window.Item.prototype = { 
@@ -451,7 +447,6 @@ window.Items = {
   //   items - an array of <Item>s
   //   bounds - a <Rect> defining the space to arrange within
   //   options - an object with options. If options.animate is false, doesn't animate, otherwise it does.
-  //     If options.z is defined, set all of the items to that z, otherwise leave their z alone.
   arrange: function(items, bounds, options) {
     var animate;
     if(!options || typeof(options.animate) == 'undefined') 
@@ -507,13 +502,8 @@ window.Items = {
 */
         immediately = !animate;
         
-      if(!item.locked) {
-        item.setBounds(box, immediately);
-        item.setRotation(0);
-        if(options.z)
-          item.setZ(options.z);
-      }
-      
+      item.setBounds(box, immediately);
+      item.setRotation(0);
 /*
       item.groupData.column = column;
       item.groupData.row = row;

@@ -42,7 +42,7 @@ window.Group = function(listOfEls, options) {
   this.userSize = options.userSize || null;
   this._isStacked = false;
   this._stackAngles = [0];
-  this.expanded = null;
+  this.big = null;
 
   var self = this;
 
@@ -190,7 +190,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
   // ----------  
   getStorageData: function() {
     var data = {
-      bounds: this.getBounds(), 
+      bounds: (this.big ? this.big.saveBounds : this.getBounds()), 
       userSize: this.userSize,
       locked: this.locked, 
       title: this.getTitle(),
@@ -533,13 +533,11 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     
     var self = this;
     $.each(this._children, function(index, child) {
-      if(!child.locked) {
-        child.setZ(zIndex);
-        zIndex--;
-        
-        child.setBounds(box, !animate);
-        child.setRotation(self._randRotate(35, index));
-      }
+      child.setZ(zIndex);
+      zIndex--;
+      
+      child.setBounds(box, !animate);
+      child.setRotation(self._randRotate(35, index));
     });
     
     self._isStacked = true;
@@ -558,91 +556,60 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
 
   // ----------
   childHit: function(child) {
-    var self = this;
-    
-    // ___ normal click
-    if(!this._isStacked || this.expanded) {
-      setTimeout(function() {
-        self.collapse();
-      }, 200);
-      
+    if(!this._isStacked) {
+      this.collapse();
       return false;
     }
       
-    // ___ we're stacked, so expand
-    var startBounds = child.getBounds();
-    var $tray = $("<div />").css({
-      "backgroundColor": "rgba(0,0,0,0)",
-      top: startBounds.top,
-      left: startBounds.left,
-      width: startBounds.width,
-      height: startBounds.height,
-      position: "absolute",
-      zIndex: 99998
-    }).appendTo("body");
-
-    var w = 240;
-    var h = w * (TabItems.tabHeight / TabItems.tabWidth) * 1.1;
-    var padding = 20;
-    var col = Math.ceil(Math.sqrt(this._children.length));
-    var row = Math.ceil(this._children.length/col);
-
-    var overlayWidth = Math.min(window.innerWidth - (padding * 2), w*col + padding*(col+1));
-    var overlayHeight = Math.min(window.innerHeight - (padding * 2), h*row + padding*(row+1));
-    
-    var pos = {left: startBounds.left, top: startBounds.top};
-    pos.left -= overlayWidth/3;
-    pos.top  -= overlayHeight/3;      
-          
-    if( pos.top < 0 )  pos.top = 20;
-    if( pos.left < 0 ) pos.left = 20;      
-    if( pos.top+overlayHeight > window.innerHeight ) pos.top = window.innerHeight-overlayHeight-20;
-    if( pos.left+overlayWidth > window.innerWidth )  pos.left = window.innerWidth-overlayWidth-20;
-    
-    $tray.animate({
-      width:  overlayWidth,
-      height: overlayHeight,
-      top: pos.top,
-      left: pos.left
-    },170).addClass("overlay");
-
-    var box = new Rect(pos.left, pos.top, overlayWidth, overlayHeight);
-    box.inset(8, 8);
-    Items.arrange(this._children, box, {padding: 8, z: 99999});
-    
-    var $shield = $('<div />')
-      .css({
-        left: 0,
-        top: 0,
-        width: window.innerWidth,
-        height: window.innerHeight,
-        position: 'absolute',
-        zIndex: 99997
-      })
-      .appendTo('body')
-      .mouseover(function() {
-        self.collapse();
-      })
-      .click(function() { // just in case
-        self.collapse();
-      });
-      
-    this.expanded = {
-      $tray: $tray,
-      $shield: $shield
+    this.big = {
+      saveBounds: this.getBounds(),
+      saveZ: this.getZ()
     };
+    
+    var box = Items.getPageBounds();
+    box.inset(box.width * 0.1, box.height * 0.1);
+    this.setBounds(box);
+    this.setZ(9999);
 
+    var self = this;
+    var inside = 1;
+    var changeInside = function(delta) {
+      inside += delta;
+      if(inside <= 0) {
+        setTimeout(function() {
+          if(inside <= 0)
+            self.collapse();
+        }, 10);
+      }
+    };
+    
+    $.each(this._children, function(index, child) {
+      $(child.container)
+        .mouseover(function() {
+          changeInside(1);
+        })
+        .mouseout(function() {
+          changeInside(-1);
+        });
+    });
+    
+    $(this.container)
+      .mouseover(function() {
+        changeInside(1);
+      })
+      .mouseout(function() {
+        changeInside(-1);
+      });
+    
     return true;
   },
 
   // ----------
   collapse: function() {
-    if(this.expanded) {
-      this.expanded.$tray.remove();
-      this.expanded.$shield.remove();
-      this.expanded = null;
-            
-      this.arrange({z: this.getZ() + 1});
+    if(this.big) {
+      this.setBounds(this.big.saveBounds);
+      this.setZ(this.big.saveZ);
+      this.big = null;
     }
   },
   
@@ -653,7 +620,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     if(!this.locked) {
       $(container).draggable({
         scroll: false,
-        cancel: '.close, .name',
+        cancel: '.close',
         start: function(){
           drag.info = new DragInfo(this);
         },
@@ -676,6 +643,11 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
         var group = drag.info.item.parent;
         if(group) {
           group.remove(drag.info.$el);
+          
+          if(group.big) {  
+/*             drag.info.$el.draggable( "option", "refreshPositions", true ); */
+            group.collapse();
+          }
         }
           
         drag.info.$el.removeClass("willGroup");
@@ -736,12 +708,6 @@ DragInfo.prototype = {
       this.item.setBounds(bb, true);
     } else
       this.item.reloadBounds();
-      
-    if(this.parent && this.parent.expanded) {
-      this.item.locked = true;
-      this.parent.collapse();
-      this.item.locked = false;
-    }
   },
 
   // ----------  
@@ -895,8 +861,9 @@ window.Groups = {
     var pad = 5;
     var sw = window.innerWidth;
     var sh = window.innerHeight;
-    var w = sw - (pad * 2);
-    var h = TabItems.tabHeight;
+    //var w = sw - (pad * 2);
+    var w = TabItems.tabWidth*2.5 + pad*4;
+    var h = TabItems.tabHeight*1.2 + pad*2;
     return new Rect(pad, sh - (h + pad), w, h);
   },
 
@@ -971,11 +938,29 @@ window.Groups = {
   
   // ----------
   newTab: function(tabItem) {
-    var group = this.getNewTabGroup();
+    //var group = this.getActiveGroup() ? this.getActiveGroup() : this.getNewTabGroup();
+    var group = this.getActiveGroup();
+    if( group == null )
+      group = this.getNewTabGroup();
+      
     var $el = $(tabItem.container);
     if(group) 
       group.add($el);
+  },
+  
+  // ----------
+  getActiveGroup: function() {
+    return this._activeGroup;
+  },
+  
+  // ----------
+  setActiveGroup: function(group) {
+    try{
+    this._activeGroup = group;
+    UI.tabBar.showOnlyTheseTabs( group._children );    
+    }catch(e){Utils.log(e)}
   }
+  
 };
 
 // ----------
