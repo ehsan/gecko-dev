@@ -175,10 +175,10 @@ Key::EncodeJSValInternal(JSContext* aCx, JS::Handle<JS::Value> aVal,
     }
 
     if (JS_ObjectIsDate(aCx, obj)) {
-      if (!js::DateIsValid(aCx, obj))  {
+      if (!js_DateIsValid(obj))  {
         return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
       }
-      EncodeNumber(js::DateGetMsecSinceEpoch(aCx, obj), eDate + aTypeOffset);
+      EncodeNumber(js_DateGetMsecSinceEpoch(obj), eDate + aTypeOffset);
       return NS_OK;
     }
   }

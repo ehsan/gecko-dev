@@ -25,6 +25,10 @@ public:
   GMPChild();
   virtual ~GMPChild();
 
+#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
+  void OnChannelConnected(int32_t aPid);
+#endif
+
   bool Init(const std::string& aPluginPath,
             base::ProcessHandle aParentProcessHandle,
             MessageLoop* aIOLoop,
@@ -46,10 +50,6 @@ public:
   void ShutdownComplete() MOZ_OVERRIDE;
 
 private:
-
-#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
-  void StartMacSandbox();
-#endif
 
   virtual bool RecvSetNodeId(const nsCString& aNodeId) MOZ_OVERRIDE;
   virtual bool RecvStartPlugin() MOZ_OVERRIDE;

@@ -39,6 +39,10 @@
 class nsIJSID;
 class nsPIDOMWindow;
 
+extern nsresult
+xpc_qsUnwrapArgImpl(JSContext* cx, JS::Handle<JSObject*> src, const nsIID& iid,
+                    void** ppArg);
+
 namespace mozilla {
 namespace dom {
 template<typename DataType> class MozMap;
@@ -52,16 +56,13 @@ struct SelfRef
   nsISupports* ptr;
 };
 
-nsresult
-UnwrapArgImpl(JS::Handle<JSObject*> src, const nsIID& iid, void** ppArg);
-
 /** Convert a jsval to an XPCOM pointer. */
 template <class Interface>
 inline nsresult
-UnwrapArg(JS::Handle<JSObject*> src, Interface** ppArg)
+UnwrapArg(JSContext* cx, JS::Handle<JSObject*> src, Interface** ppArg)
 {
-  return UnwrapArgImpl(src, NS_GET_TEMPLATE_IID(Interface),
-                       reinterpret_cast<void**>(ppArg));
+  return xpc_qsUnwrapArgImpl(cx, src, NS_GET_TEMPLATE_IID(Interface),
+                             reinterpret_cast<void**>(ppArg));
 }
 
 inline const ErrNum

@@ -80,7 +80,7 @@ FreeAllocStrings(int argc, char **argv)
 
 int wmain(int argc, WCHAR **argv)
 {
-#if !defined(XRE_DONT_SUPPORT_XPSP2) && !defined(MOZ_METRO)
+#ifndef XRE_DONT_SUPPORT_XPSP2
   WindowsCrtPatch::Init();
 #endif
 

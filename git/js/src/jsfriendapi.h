@@ -1257,6 +1257,8 @@ const void *GetDOMProxyHandlerFamily();
 uint32_t GetDOMProxyExpandoSlot();
 DOMProxyShadowsCheck GetDOMProxyShadowsCheck();
 
+} /* namespace js */
+
 /* Implemented in jsdate.cpp. */
 
 /*
@@ -1264,12 +1266,10 @@ DOMProxyShadowsCheck GetDOMProxyShadowsCheck();
  * out-of-band for js_DateGet*)
  */
 extern JS_FRIEND_API(bool)
-DateIsValid(JSContext *cx, JSObject* obj);
+js_DateIsValid(JSObject* obj);
 
 extern JS_FRIEND_API(double)
-DateGetMsecSinceEpoch(JSContext *cx, JSObject *obj);
-
-} /* namespace js */
+js_DateGetMsecSinceEpoch(JSObject *obj);
 
 /* Implemented in jscntxt.cpp. */
 

@@ -9,6 +9,7 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMXPathNSResolver.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsComponentManagerUtils.h"
@@ -427,7 +428,13 @@ nsXULTemplateQueryProcessorXML::CreateExpression(const nsAString& aExpr,
                                                  nsINode* aNode,
                                                  ErrorResult& aRv)
 {
-    return mEvaluator->CreateExpression(aExpr, aNode, aRv);
+    nsCOMPtr<nsIDOMXPathNSResolver> nsResolver =
+        aNode->OwnerDoc()->CreateNSResolver(aNode, aRv);
+    if (aRv.Failed()) {
+        return nullptr;
+    }
+
+    return mEvaluator->CreateExpression(aExpr, nsResolver, aRv);
 }
 
 NS_IMETHODIMP

@@ -5,9 +5,7 @@
 
 #include "nsNativeThemeCocoa.h"
 
-#include "mozilla/gfx/2D.h"
 #include "nsDeviceContext.h"
-#include "nsLayoutUtils.h"
 #include "nsObjCExceptions.h"
 #include "nsNumberControlFrame.h"
 #include "nsRangeFrame.h"
@@ -2259,14 +2257,14 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  DrawTarget& aDrawTarget = *aContext->GetDrawTarget();
-
   // setup to draw into the correct port
   int32_t p2a = aFrame->PresContext()->AppUnitsPerDevPixel();
 
-  gfx::Rect nativeDirtyRect = NSRectToRect(aDirtyRect, p2a);
+  gfxRect nativeDirtyRect(aDirtyRect.x, aDirtyRect.y,
+                          aDirtyRect.width, aDirtyRect.height);
   gfxRect nativeWidgetRect(aRect.x, aRect.y, aRect.width, aRect.height);
   nativeWidgetRect.ScaleInverse(gfxFloat(p2a));
+  nativeDirtyRect.ScaleInverse(gfxFloat(p2a));
   nativeWidgetRect.Round();
   if (nativeWidgetRect.IsEmpty())
     return NS_OK; // Don't attempt to draw invisible widgets.
@@ -2280,13 +2278,13 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
   bool hidpi = IsHiDPIContext(aFrame->PresContext());
   if (hidpi) {
     // Use high-resolution drawing.
-    nativeWidgetRect.Scale(0.5f);
-    nativeDirtyRect.Scale(0.5f);
+    nativeWidgetRect.ScaleInverse(2.0f);
+    nativeDirtyRect.ScaleInverse(2.0f);
     thebesCtx->SetMatrix(
       thebesCtx->CurrentMatrix().Scale(2.0f, 2.0f));
   }
 
-  gfxQuartzNativeDrawing nativeDrawing(aDrawTarget, nativeDirtyRect);
+  gfxQuartzNativeDrawing nativeDrawing(thebesCtx, nativeDirtyRect);
 
   CGContextRef cgContext = nativeDrawing.BeginNativeDrawing();
   if (cgContext == nullptr) {

@@ -497,8 +497,6 @@ class ArenaList {
     }
 
 #ifdef JSGC_COMPACTING
-    size_t countUsedCells();
-    ArenaHeader *removeRemainingArenas(ArenaHeader **arenap);
     ArenaHeader *pickArenasToRelocate();
     ArenaHeader *relocateArenas(ArenaHeader *toRelocate, ArenaHeader *relocated);
 #endif

@@ -240,16 +240,15 @@ HwcComposer2D::RunVsyncEventControl(bool aEnable)
 void
 HwcComposer2D::Vsync(int aDisplay, nsecs_t aVsyncTimestamp)
 {
-    nsecs_t timeSinceInit = aVsyncTimestamp - sAndroidInitTime;
-    TimeStamp vsyncTime = sMozInitTime + TimeDuration::FromMicroseconds(timeSinceInit / 1000);
-
 #ifdef MOZ_ENABLE_PROFILER_SPS
     if (profiler_is_active()) {
-        CompositorParent::PostInsertVsyncProfilerMarker(vsyncTime);
+      nsecs_t timeSinceInit = aVsyncTimestamp - sAndroidInitTime;
+      TimeStamp vsyncTime = sMozInitTime + TimeDuration::FromMicroseconds(timeSinceInit / 1000);
+      CompositorParent::PostInsertVsyncProfilerMarker(vsyncTime);
     }
 #endif
 
-    VsyncDispatcher::GetInstance()->NotifyVsync(vsyncTime, aVsyncTimestamp);
+    GeckoTouchDispatcher::NotifyVsync(aVsyncTimestamp);
 }
 
 // Called on the "invalidator" thread (run from HAL).

@@ -4,30 +4,31 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
-
-#include <algorithm>
-#include "angle/ShaderLang.h"
-#include "CanvasUtils.h"
+#include "WebGLBuffer.h"
+#include "WebGLVertexAttribData.h"
+#include "WebGLShader.h"
+#include "WebGLProgram.h"
+#include "WebGLUniformLocation.h"
+#include "WebGLFramebuffer.h"
+#include "WebGLRenderbuffer.h"
+#include "WebGLTexture.h"
+#include "WebGLVertexArray.h"
 #include "GLContext.h"
-#include "jsfriendapi.h"
+#include "CanvasUtils.h"
+#include "WebGLContextUtils.h"
+
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
-#include "nsIObserverService.h"
-#include "WebGLBuffer.h"
-#include "WebGLContextUtils.h"
-#include "WebGLFramebuffer.h"
-#include "WebGLProgram.h"
-#include "WebGLRenderbuffer.h"
-#include "WebGLShader.h"
-#include "WebGLTexture.h"
-#include "WebGLUniformLocation.h"
-#include "WebGLVertexArray.h"
-#include "WebGLVertexAttribData.h"
 
-#if defined(MOZ_WIDGET_COCOA)
-#include "nsCocoaFeatures.h"
-#endif
+#include "jsfriendapi.h"
+
+#include "angle/ShaderLang.h"
+
+#include <algorithm>
+
+#include "mozilla/Services.h"
+#include "nsIObserverService.h"
 
 using namespace mozilla;
 
@@ -1667,10 +1668,7 @@ WebGLContext::InitAndValidateGL()
 
 #ifdef XP_MACOSX
     if (gl->WorkAroundDriverBugs() &&
-        gl->Vendor() == gl::GLVendor::ATI &&
-        nsCocoaFeatures::OSXVersionMajor() == 10 &&
-        nsCocoaFeatures::OSXVersionMinor() < 9)
-    {
+        gl->Vendor() == gl::GLVendor::ATI) {
         // The Mac ATI driver, in all known OSX version up to and including 10.8,
         // renders points sprites upside-down. Apple bug 11778921
         gl->fPointParameterf(LOCAL_GL_POINT_SPRITE_COORD_ORIGIN, LOCAL_GL_LOWER_LEFT);

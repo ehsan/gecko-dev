@@ -263,9 +263,7 @@ nsAnnoProtocolHandler::NewURI(const nsACString& aSpec,
 //
 
 NS_IMETHODIMP
-nsAnnoProtocolHandler::NewChannel2(nsIURI* aURI,
-                                   nsILoadInfo* aLoadInfo,
-                                   nsIChannel** _retval)
+nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
   NS_ENSURE_ARG_POINTER(aURI);
 
@@ -280,12 +278,6 @@ nsAnnoProtocolHandler::NewChannel2(nsIURI* aURI,
     return NS_ERROR_INVALID_ARG;
 
   return NewFaviconChannel(aURI, annoURI, _retval);
-}
-
-NS_IMETHODIMP
-nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
-{
-  return NewChannel2(aURI, nullptr, _retval);
 }
 
 

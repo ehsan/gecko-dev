@@ -6,28 +6,28 @@
 
 import sys
 import os
-import hashlib
+import sha
 import json
 import re
 import errno
 from argparse import ArgumentParser
 
 def getFileHashAndSize(filename):
-    sha512Hash = 'UNKNOWN'
+    sha1Hash = 'UNKNOWN'
     size = 'UNKNOWN'
 
     try:
         # open in binary mode to make sure we get consistent results
         # across all platforms
         f = open(filename, "rb")
-        shaObj = hashlib.sha512(f.read())
-        sha512Hash = shaObj.hexdigest()
+        shaObj = sha.new(f.read())
+        sha1Hash = shaObj.hexdigest()
 
         size = os.path.getsize(filename)
     except:
         pass
 
-    return (sha512Hash, size)
+    return (sha1Hash, size)
 
 def getMarProperties(filename):
     if not os.path.exists(filename):

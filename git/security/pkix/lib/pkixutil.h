@@ -94,10 +94,6 @@ public:
   {
     return MaybeInput(nameConstraints);
   }
-  const Input* GetSubjectAltName() const
-  {
-    return MaybeInput(subjectAltName);
-  }
 
 private:
   const Input der;
