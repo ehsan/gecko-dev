@@ -1110,6 +1110,9 @@ abstract public class BrowserApp extends GeckoApp
             case R.id.downloads:
                 Tabs.getInstance().loadUrlInTab("about:downloads");
                 return true;
+            case R.id.apps:
+                Tabs.getInstance().loadUrlInTab("about:apps");
+                return true;
             case R.id.char_encoding:
                 GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("CharEncoding:Get", null));
                 return true;
