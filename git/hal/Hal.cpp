@@ -871,6 +871,12 @@ SetProcessPriority(int aPid,
                                         aBackgroundLRU));
 }
 
+void
+SetCurrentThreadPriority(ThreadPriority aPriority)
+{
+  PROXY_IF_SANDBOXED(SetCurrentThreadPriority(aPriority));
+}
+
 // From HalTypes.h.
 const char*
 ProcessPriorityToString(ProcessPriority aPriority)
@@ -894,6 +900,18 @@ ProcessPriorityToString(ProcessPriority aPriority)
     return "BACKGROUND";
   case PROCESS_PRIORITY_UNKNOWN:
     return "UNKNOWN";
+  default:
+    MOZ_ASSERT(false);
+    return "???";
+  }
+}
+
+const char *
+ThreadPriorityToString(ThreadPriority aPriority)
+{
+  switch (aPriority) {
+  case THREAD_PRIORITY_COMPOSITOR:
+    return "COMPOSITOR";
   default:
     MOZ_ASSERT(false);
     return "???";

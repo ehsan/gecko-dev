@@ -452,21 +452,25 @@ URL::SetSearchInternal(const nsAString& aSearch)
 }
 
 URLSearchParams*
-URL::SearchParams()
+URL::GetSearchParams()
 {
   CreateSearchParamsIfNeeded();
   return mSearchParams;
 }
 
 void
-URL::SetSearchParams(URLSearchParams& aSearchParams)
+URL::SetSearchParams(URLSearchParams* aSearchParams)
 {
+  if (!aSearchParams) {
+    return;
+  }
+
   if (mSearchParams) {
     mSearchParams->RemoveObserver(this);
   }
 
   // the observer will be cleared using the cycle collector.
-  mSearchParams = &aSearchParams;
+  mSearchParams = aSearchParams;
   mSearchParams->AddObserver(this);
 
   nsAutoString search;

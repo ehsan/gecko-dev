@@ -74,12 +74,6 @@ Presenter.prototype = {
   selectionChanged: function selectionChanged(aObject) {},
 
   /**
-   * Value has changed.
-   * @param {nsIAccessible} aAccessible the object whose value has changed.
-   */
-  valueChanged: function valueChanged(aAccessible) {},
-
-  /**
    * The tab, or the tab's document state has changed.
    * @param {nsIAccessible} aDocObj the tab document accessible that has had its
    *    state changed, or null if the tab has no associated document yet.
@@ -478,19 +472,6 @@ SpeechPresenter.prototype = {
     };
   },
 
-  valueChanged: function SpeechPresenter_valueChanged(aAccessible) {
-    return {
-      type: this.type,
-      details: {
-        actions: [
-          { method: 'speak',
-            data: aAccessible.value,
-            options: { enqueue: false } }
-        ]
-      }
-    }
-  },
-
   actionInvoked: function SpeechPresenter_actionInvoked(aObject, aActionName) {
     let actions = [];
     if (aActionName === 'click') {
@@ -624,10 +605,6 @@ this.Presentation = {
     return [p.textSelectionChanged(aText, aStart, aEnd,
                                    aOldStart, aOldEnd, aIsFromUser)
               for each (p in this.presenters)];
-  },
-
-  valueChanged: function valueChanged(aAccessible) {
-    return [ p.valueChanged(aAccessible) for (p of this.presenters) ];
   },
 
   tabStateChanged: function Presentation_tabStateChanged(aDocObj, aPageState) {

@@ -300,7 +300,7 @@ Http2Stream::ParseHttpRequestHeaders(const char *buf,
                     mOrigin, hashkey);
 
   // check the push cache for GET
-  if (mTransaction->RequestHead()->IsGet()) {
+  if (mTransaction->RequestHead()->Method() == nsHttp::Get) {
     // from :scheme, :authority, :path
     nsILoadGroupConnectionInfo *loadGroupCI = mTransaction->LoadGroupConnectionInfo();
     SpdyPushCache *cache = nullptr;
@@ -356,7 +356,7 @@ Http2Stream::ParseHttpRequestHeaders(const char *buf,
 
   nsCString compressedData;
   mSession->Compressor()->EncodeHeaderBlock(mFlatHttpRequestHeaders,
-                                            mTransaction->RequestHead()->Method(),
+                                            nsCString(mTransaction->RequestHead()->Method().get()),
                                             mTransaction->RequestHead()->RequestURI(),
                                             hostHeader,
                                             NS_LITERAL_CSTRING("https"),
@@ -366,17 +366,17 @@ Http2Stream::ParseHttpRequestHeaders(const char *buf,
   // to wait for a data packet to put it on.
   uint8_t firstFrameFlags =  Http2Session::kFlag_PRIORITY;
 
-  if (mTransaction->RequestHead()->IsGet() ||
-      mTransaction->RequestHead()->IsConnect() ||
-      mTransaction->RequestHead()->IsHead()) {
+  if (mTransaction->RequestHead()->Method() == nsHttp::Get ||
+      mTransaction->RequestHead()->Method() == nsHttp::Connect ||
+      mTransaction->RequestHead()->Method() == nsHttp::Head) {
     // for GET, CONNECT, and HEAD place the fin bit right on the
     // header packet
 
     SetSentFin(true);
     firstFrameFlags |= Http2Session::kFlag_END_STREAM;
-  } else if (mTransaction->RequestHead()->IsPost() ||
-             mTransaction->RequestHead()->IsPut() ||
-             mTransaction->RequestHead()->IsOptions()) {
+  } else if (mTransaction->RequestHead()->Method() == nsHttp::Post ||
+             mTransaction->RequestHead()->Method() == nsHttp::Put ||
+             mTransaction->RequestHead()->Method() == nsHttp::Options) {
     // place fin in a data frame even for 0 length messages for iterop
   } else if (!mRequestBodyLenRemaining) {
     // for other HTTP extension methods, rely on the content-length

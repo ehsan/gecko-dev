@@ -42,7 +42,5 @@ NS_NewDOMBeforeUnloadEvent(nsIDOMEvent** aInstancePtrResult,
                            WidgetEvent* aEvent) 
 {
   BeforeUnloadEvent* it = new BeforeUnloadEvent(aOwner, aPresContext, aEvent);
-  NS_ADDREF(it);
-  *aInstancePtrResult = static_cast<Event*>(it);
-  return NS_OK;
+  return CallQueryInterface(it, aInstancePtrResult);
 }

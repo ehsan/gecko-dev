@@ -501,7 +501,6 @@ gfxPlatform::Shutdown()
     delete gGfxPlatformPrefsLock;
 
     gfxPrefs::DestroySingleton();
-    gfxFont::DestroySingletons();
 
     delete gPlatform;
     gPlatform = nullptr;

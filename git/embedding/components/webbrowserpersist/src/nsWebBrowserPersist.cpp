@@ -1116,12 +1116,10 @@ nsresult nsWebBrowserPersist::GetLocalFileFromURI(nsIURI *aURI, nsIFile **aLocal
 
     nsCOMPtr<nsIFile> file;
     rv = fileURL->GetFile(getter_AddRefs(file));
-    if (NS_FAILED(rv)) {
-        return rv;
-    }
+    if (NS_SUCCEEDED(rv))
+        rv = CallQueryInterface(file, aLocalFile);
 
-    file.forget(aLocalFile);
-    return NS_OK;
+    return rv;
 }
 
 nsresult nsWebBrowserPersist::AppendPathToURI(nsIURI *aURI, const nsAString & aPath) const

@@ -19,15 +19,25 @@
 #include "mozilla/dom/ValidityState.h"
 #include "mozilla/dom/ElementInlines.h"
 
-class nsDOMSettableTokenList;
-class nsIDOMHTMLMenuElement;
-class nsIEditor;
-class nsIFormControlFrame;
+class nsIDOMAttr;
+class nsIDOMEventListener;
+class nsIDOMNodeList;
 class nsIFrame;
-class nsILayoutHistoryState;
+class nsIStyleRule;
+class nsChildContentList;
+class nsDOMCSSDeclaration;
+class nsIDOMCSSStyleDeclaration;
 class nsIURI;
+class nsIFormControlFrame;
+class nsIForm;
 class nsPresState;
+class nsILayoutHistoryState;
+class nsIEditor;
+struct nsRect;
 struct nsSize;
+class nsIDOMHTMLMenuElement;
+class nsIDOMHTMLCollection;
+class nsDOMSettableTokenList;
 
 namespace mozilla {
 class EventChainPostVisitor;
@@ -1280,7 +1290,7 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  mozilla::dom::ParentObject GetParentObject() const;
+  nsINode* GetParentObject() const;
 
   virtual bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE;
   virtual void SaveSubtreeState() MOZ_OVERRIDE;

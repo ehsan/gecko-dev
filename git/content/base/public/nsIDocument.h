@@ -2650,10 +2650,4 @@ nsINode::OwnerDocAsNode() const
   return OwnerDoc();
 }
 
-inline mozilla::dom::ParentObject
-nsINode::GetParentObject() const
-{
-  return GetParentObjectInternal(OwnerDoc());
-}
-
 #endif /* nsIDocument_h___ */

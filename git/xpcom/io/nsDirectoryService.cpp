@@ -879,8 +879,7 @@ nsDirectoryService::GetFile(const char *prop, bool *persistent, nsIFile **_retva
     if (!localFile)
         return NS_ERROR_FAILURE;
 
-    localFile.forget(_retval);
-    return NS_OK;
+    return CallQueryInterface(localFile, _retval);
 }
 
 NS_IMETHODIMP

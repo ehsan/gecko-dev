@@ -132,7 +132,7 @@ SVGFETurbulenceElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
   uint16_t stitch = mEnumAttributes[STITCHTILES].GetAnimValue();
 
   if (fX == 0 || fY == 0) {
-    return FilterPrimitiveDescription(PrimitiveType::Empty);
+    return FilterPrimitiveDescription(FilterPrimitiveDescription::eNone);
   }
 
   // We interpret the base frequency as relative to user space units. In other
@@ -145,7 +145,7 @@ SVGFETurbulenceElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                               1 / firstPeriodInFilterSpace.height);
   gfxPoint offset = firstPeriodInFilterSpace.TopLeft();
 
-  FilterPrimitiveDescription descr(PrimitiveType::Turbulence);
+  FilterPrimitiveDescription descr(FilterPrimitiveDescription::eTurbulence);
   descr.Attributes().Set(eTurbulenceOffset, IntPoint(offset.x, offset.y));
   descr.Attributes().Set(eTurbulenceBaseFrequency, frequencyInFilterSpace);
   descr.Attributes().Set(eTurbulenceSeed, seed);

@@ -387,6 +387,9 @@ nsChildView::nsChildView() : nsBaseWidget()
   EnsureLogInitialized();
 
   memset(&mPluginCGContext, 0, sizeof(mPluginCGContext));
+
+  SetBackgroundColor(NS_RGB(255, 255, 255));
+  SetForegroundColor(NS_RGB(0, 0, 0));
 }
 
 nsChildView::~nsChildView()
@@ -471,6 +474,10 @@ nsresult nsChildView::Create(nsIWidget *aParent,
   // NSView in the Cocoa display system
   mParentView = nil;
   if (aParent) {
+    // This is the case when we're the popup content view of a popup window.
+    SetBackgroundColor(aParent->GetBackgroundColor());
+    SetForegroundColor(aParent->GetForegroundColor());
+
     // inherit the top-level window. NS_NATIVE_WIDGET is always a NSView
     // regardless of if we're asking a window or a view (for compatibility
     // with windows).
@@ -1609,7 +1616,8 @@ nsresult nsChildView::ConfigureChildren(const nsTArray<Configuration>& aConfigur
     const Configuration& config = aConfigurations[i];
     nsChildView* child = static_cast<nsChildView*>(config.mChild);
 #ifdef DEBUG
-    nsWindowType kidType = child->WindowType();
+    nsWindowType kidType;
+    child->GetWindowType(kidType);
 #endif
     NS_ASSERTION(kidType == eWindowType_plugin,
                  "Configured widget is not a plugin type");
@@ -1660,7 +1668,9 @@ NS_IMETHODIMP nsChildView::DispatchEvent(WidgetGUIEvent* event,
   // listener from the parent popup instead.
   nsCOMPtr<nsIWidget> kungFuDeathGrip = do_QueryInterface(mParentWidget ? mParentWidget : this);
   if (!listener && mParentWidget) {
-    if (mParentWidget->WindowType() == eWindowType_popup) {
+    nsWindowType type;
+    mParentWidget->GetWindowType(type);
+    if (type == eWindowType_popup) {
       // Check just in case event->widget isn't this widget
       if (event->widget)
         listener = event->widget->GetWidgetListener();
@@ -1688,9 +1698,12 @@ nsIWidget*
 nsChildView::GetWidgetForListenerEvents()
 {
   // If there is no listener, use the parent popup's listener if that exists.
-  if (!mWidgetListener && mParentWidget &&
-      mParentWidget->WindowType() == eWindowType_popup) {
-    return mParentWidget;
+  if (!mWidgetListener && mParentWidget) {
+    nsWindowType type;
+    mParentWidget->GetWindowType(type);
+    if (type == eWindowType_popup) {
+      return mParentWidget;
+    }
   }
 
   return this;
@@ -6470,9 +6483,12 @@ ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
   if (!windowWidget)
     return YES;
 
+  nsWindowType windowType;
+  windowWidget->GetWindowType(windowType);
+
   NSWindow* topLevelWindow = nil;
 
-  switch (windowWidget->WindowType()) {
+  switch (windowType) {
     case eWindowType_popup:
       // If this is a context menu, it won't have a parent. So we'll always
       // accept mouse move events on context menus even when none of our windows

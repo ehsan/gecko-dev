@@ -93,7 +93,7 @@ js::StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder)
     if (!WorkerThreadState().ionWorklist().append(builder))
         return false;
 
-    WorkerThreadState().notifyOne(GlobalWorkerThreadState::PRODUCER);
+    WorkerThreadState().notifyAll(GlobalWorkerThreadState::PRODUCER);
     return true;
 }
 

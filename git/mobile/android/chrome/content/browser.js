@@ -242,7 +242,9 @@ function resolveGeckoURI(aURI) {
 }
 
 function shouldShowProgress(url) {
-  return !url.startsWith("about:");
+  return (url != "about:home" &&
+          url != "about:privatebrowsing" &&
+          !url.startsWith("about:reader"));
 }
 
 /**

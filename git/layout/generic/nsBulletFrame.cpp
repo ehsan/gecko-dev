@@ -932,7 +932,7 @@ static const bool CJKIdeographicToText(int32_t aOrdinal, nsString& result,
         needZero = true;
       }
       if (unit10Kidx != 0) {
-        if (data.lang == KOREAN && idx != NUM_BUF_SIZE) {
+        if (data.lang == KOREAN) {
           buf[--idx] = ' ';
         }
         buf[--idx] = data.unit10K[unit10Kidx - 1];

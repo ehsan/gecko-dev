@@ -33,7 +33,7 @@ SVGFEMergeElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                                            const nsTArray<bool>& aInputsAreTainted,
                                            nsTArray<RefPtr<SourceSurface>>& aInputImages)
 {
-  return FilterPrimitiveDescription(PrimitiveType::Merge);
+  return FilterPrimitiveDescription(FilterPrimitiveDescription::eMerge);
 }
 
 void

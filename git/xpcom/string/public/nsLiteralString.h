@@ -6,8 +6,13 @@
 #ifndef nsLiteralString_h___
 #define nsLiteralString_h___
 
+#ifndef nscore_h___
 #include "nscore.h"
+#endif
+
+#ifndef nsString_h___
 #include "nsString.h"
+#endif
 
   // declare nsLiteralString
 #include "string-template-def-unichar.h"

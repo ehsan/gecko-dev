@@ -39,7 +39,7 @@ SVGFEFloodElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                                            const nsTArray<bool>& aInputsAreTainted,
                                            nsTArray<RefPtr<SourceSurface>>& aInputImages)
 {
-  FilterPrimitiveDescription descr(PrimitiveType::Flood);
+  FilterPrimitiveDescription descr(FilterPrimitiveDescription::eFlood);
   nsIFrame* frame = GetPrimaryFrame();
   if (frame) {
     nsStyleContext* style = frame->StyleContext();

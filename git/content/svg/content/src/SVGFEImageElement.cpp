@@ -198,7 +198,7 @@ SVGFEImageElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
 {
   nsIFrame* frame = GetPrimaryFrame();
   if (!frame) {
-    return FilterPrimitiveDescription(PrimitiveType::Empty);
+    return FilterPrimitiveDescription(FilterPrimitiveDescription::eNone);
   }
 
   nsCOMPtr<imgIRequest> currentRequest;
@@ -218,7 +218,7 @@ SVGFEImageElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
   }
 
   if (!currentFrame) {
-    return FilterPrimitiveDescription(PrimitiveType::Empty);
+    return FilterPrimitiveDescription(FilterPrimitiveDescription::eNone);
   }
 
   gfxPlatform* platform = gfxPlatform::GetPlatform();
@@ -239,7 +239,7 @@ SVGFEImageElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
 
   Filter filter = ToFilter(nsLayoutUtils::GetGraphicsFilterForFrame(frame));
 
-  FilterPrimitiveDescription descr(PrimitiveType::Image);
+  FilterPrimitiveDescription descr(FilterPrimitiveDescription::eImage);
   descr.Attributes().Set(eImageFilter, (uint32_t)filter);
   descr.Attributes().Set(eImageTransform, TM);
 
