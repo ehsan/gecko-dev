@@ -237,11 +237,6 @@ public:
 
   ~nsExternalAppHandler();
 
-  /**
-   * Clean up after the request was diverted to the parent process.
-   */
-  void DidDivertRequest(nsIRequest *request);
-
 protected:
   nsCOMPtr<nsIFile> mTempFile;
   nsCOMPtr<nsIURI> mSourceUrl;

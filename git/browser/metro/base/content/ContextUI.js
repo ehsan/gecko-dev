@@ -173,20 +173,11 @@ var ContextUI = {
       }, aDelay);
   },
 
-  /*
-   * Display the nav bar.
-   *
-   * @return false if we were already visible, and didn't do anything.
-   */
+  // Display the nav bar
   displayNavbar: function () {
-    if (Elements.chromeState.getAttribute("navbar") == "visible") {
-      return false;
-    }
-
     Elements.navbar.show();
     Elements.chromeState.setAttribute("navbar", "visible");
     ContentAreaObserver.updateContentArea();
-    return true;
   },
 
   // Display the tab tray
