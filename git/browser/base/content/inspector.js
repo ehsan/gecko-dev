@@ -335,8 +335,6 @@ var InspectorUI = {
   selectEventsSuppressed: false,
   showTextNodesWithWhitespace: false,
   inspecting: false,
-  treeLoaded: false,
-  prefEnabledName: "devtools.inspector.enabled",
 
   /**
    * Toggle the inspector interface elements on or off.
@@ -436,21 +434,6 @@ var InspectorUI = {
     return doc.documentElement.lastElementChild;
   },
 
-  initializeTreePanel: function IUI_initializeTreePanel()
-  {
-    this.treeBrowserDocument = this.treeIFrame.contentDocument;
-    this.treePanelDiv = this.treeBrowserDocument.createElement("div");
-    this.treeBrowserDocument.body.appendChild(this.treePanelDiv);
-    this.treePanelDiv.ownerPanel = this;
-    this.ioBox = new InsideOutBox(this, this.treePanelDiv);
-    this.ioBox.createObjectBox(this.win.document.documentElement);
-    this.treeLoaded = true;
-    if (this.isTreePanelOpen && this.isStylePanelOpen &&
-        this.isDOMPanelOpen && this.treeLoaded) {
-      this.notifyReady();
-    }
-  },
-
   /**
    * Open the inspector's tree panel and initialize it.
    */
@@ -461,17 +444,6 @@ var InspectorUI = {
       this.treePanel.hidden = false;
     }
 
-    this.treeIFrame = document.getElementById("inspector-tree-iframe");
-    if (!this.treeIFrame) {
-      let resizerBox = document.getElementById("tree-panel-resizer-box");
-      this.treeIFrame = document.createElement("iframe");
-      this.treeIFrame.setAttribute("id", "inspector-tree-iframe");
-      this.treeIFrame.setAttribute("flex", "1");
-      this.treeIFrame.setAttribute("type", "content");
-      this.treeIFrame.setAttribute("onclick", "InspectorUI.onTreeClick(event)");
-      this.treeIFrame = this.treePanel.insertBefore(this.treeIFrame, resizerBox);
-    }
-    
     const panelWidthRatio = 7 / 8;
     const panelHeightRatio = 1 / 5;
     this.treePanel.openPopup(this.browser, "overlap", 80, this.win.innerHeight,
@@ -479,18 +451,13 @@ var InspectorUI = {
     this.treePanel.sizeTo(this.win.outerWidth * panelWidthRatio,
       this.win.outerHeight * panelHeightRatio);
 
-    let src = this.treeIFrame.getAttribute("src");
-    if (src != "chrome://browser/content/inspector.html") {
-      let self = this;
-      this.treeIFrame.addEventListener("DOMContentLoaded", function() {
-        self.treeIFrame.removeEventListener("DOMContentLoaded", arguments.callee, true);
-        self.initializeTreePanel();
-      }, true);
-
-      this.treeIFrame.setAttribute("src", "chrome://browser/content/inspector.html");
-    } else {
-      this.initializeTreePanel();
-    }
+    this.treeIFrame = document.getElementById("inspector-tree-iframe");
+    this.treeBrowserDocument = this.treeIFrame.contentDocument;
+    this.treePanelDiv = this.treeBrowserDocument.createElement("div");
+    this.treeBrowserDocument.body.appendChild(this.treePanelDiv);
+    this.treePanelDiv.ownerPanel = this;
+    this.ioBox = new InsideOutBox(this, this.treePanelDiv);
+    this.ioBox.createObjectBox(this.win.document.documentElement);
   },
 
   createObjectBox: function IUI_createObjectBox(object, isRoot)
@@ -806,7 +773,6 @@ var InspectorUI = {
     this.browser = this.win = null; // null out references to browser and window
     this.winID = null;
     this.selection = null;
-    this.treeLoaded = false;
     this.closing = false;
     Services.obs.notifyObservers(null, "inspector-closed", null);
   },
@@ -998,12 +964,6 @@ var InspectorUI = {
   /////////////////////////////////////////////////////////////////////////
   //// Event Handling
 
-  notifyReady: function IUI_notifyReady()
-  {
-    document.removeEventListener("popupshowing", this, false);
-    Services.obs.notifyObservers(null, "inspector-opened", null);
-  },
-
   /**
    * Main callback handler for events.
    *
@@ -1021,9 +981,9 @@ var InspectorUI = {
         if (event.target.id == "inspector-tree-panel" ||
             event.target.id == "inspector-style-panel" ||
             event.target.id == "inspector-dom-panel")
-          if (this.isTreePanelOpen && this.isStylePanelOpen &&
-              this.isDOMPanelOpen && this.treeLoaded) {
-            this.notifyReady();
+          if (this.isTreePanelOpen && this.isStylePanelOpen && this.isDOMPanelOpen) {
+            document.removeEventListener("popupshowing", this, false);
+            Services.obs.notifyObservers(null, "inspector-opened", null);
           }
         break;
       case "TabSelect":

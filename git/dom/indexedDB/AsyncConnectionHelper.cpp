@@ -47,7 +47,6 @@
 #include "nsThreadUtils.h"
 
 #include "IDBEvents.h"
-#include "IDBFactory.h"
 #include "IDBTransaction.h"
 #include "TransactionThreadPool.h"
 
@@ -147,7 +146,17 @@ NS_IMETHODIMP
 AsyncConnectionHelper::Run()
 {
   if (NS_IsMainThread()) {
-    mRequest->SetDone();
+    if (mRequest->mAborted) {
+      NS_ASSERTION(mRequest->mReadyState == nsIIDBRequest::DONE,
+                   "Wrong state!");
+      mError = true;
+      mErrorCode = nsIIDBDatabaseException::UNKNOWN_ERR;
+    }
+    else {
+      NS_ASSERTION(mRequest->mReadyState == nsIIDBRequest::LOADING,
+                   "Wrong state!");
+      mRequest->mReadyState = nsIIDBRequest::DONE;
+    }
 
     // Call OnError if the database had an error or if the OnSuccess handler
     // has an error.
@@ -193,13 +202,7 @@ AsyncConnectionHelper::Run()
   }
 
   if (NS_SUCCEEDED(rv)) {
-    if (mDatabase) {
-      IDBFactory::SetCurrentDatabase(mDatabase);
-    }
     mErrorCode = DoDatabaseWork(connection);
-    if (mDatabase) {
-      IDBFactory::SetCurrentDatabase(nsnull);
-    }
   }
   else {
     mErrorCode = nsIIDBDatabaseException::UNKNOWN_ERR;
@@ -264,6 +267,10 @@ AsyncConnectionHelper::Dispatch(nsIEventTarget* aDatabaseThread)
   if (NS_FAILED(rv)) {
     return rv;
   }
+
+  NS_ASSERTION(mRequest->mReadyState == nsIIDBRequest::INITIAL,
+               "Wrong readyState!");
+  mRequest->mReadyState = nsIIDBRequest::LOADING;
 
   rv = aDatabaseThread->Dispatch(this, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);

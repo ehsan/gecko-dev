@@ -185,10 +185,6 @@
           aTab.setAttribute("pinned", "true");
           this.tabContainer._positionPinnedTabs();
           this.tabContainer.adjustTabstrip();
-
-          let event = document.createEvent("Events");
-          event.initEvent("TabPin", true, false);
-          aTab.dispatchEvent(event);
         ]]></body>
       </method>
 
@@ -204,10 +200,6 @@
           aTab.style.MozMarginStart = "";
           this.tabContainer._positionPinnedTabs();
           this.tabContainer.adjustTabstrip();
-
-          let event = document.createEvent("Events");
-          event.initEvent("TabUnpin", true, false);
-          aTab.dispatchEvent(event);
         ]]></body>
       </method>
 

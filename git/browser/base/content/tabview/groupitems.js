@@ -130,7 +130,8 @@ function GroupItem(listOfEls, options) {
     .click(function() {
       self.newTab();
     })
-    .attr('title', tabviewString('groupItem.newTabButton'))
+    .attr('title',
+          "New tab")
     .appendTo($container);
 
   // ___ Resizer
@@ -295,7 +296,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Variable: defaultName
   // The prompt text for the title field.
-  defaultName: tabviewString('groupItem.defaultName'),
+  defaultName: "Name this tab group…",
 
   // -----------
   // Function: setActiveTab
@@ -1743,8 +1744,6 @@ let GroupItems = {
   // Function: killNewTabGroup
   // Removes the New Tab Group, which is now defunct. See bug 575851 and comments therein.
   killNewTabGroup: function GroupItems_killNewTabGroup() {
-    // not localized as the original "New Tabs" group title was never localized
-    // to begin with
     let newTabGroupTitle = "New Tabs";
     this.groupItems.forEach(function(groupItem) {
       if (groupItem.getTitle() == newTabGroupTitle && groupItem.locked.title) {

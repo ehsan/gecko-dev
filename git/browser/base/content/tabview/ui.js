@@ -163,7 +163,7 @@ let UI = {
       if (firstTime) {
         var padding = 10;
         var infoWidth = 350;
-        var infoHeight = 232;
+        var infoHeight = 350;
         var pageBounds = Items.getPageBounds();
         pageBounds.inset(padding, padding);
 
@@ -187,10 +187,15 @@ let UI = {
         });
 
         // ___ make info item
+        let welcome = "How to organize your tabs";
+        let more = "";
         let video = "http://videos-cdn.mozilla.net/firefox4beta/tabcandy_howto.webm";
         var html =
           "<div class='intro'>"
-            + "<video src='" + video + "' width='100%' preload controls>"
+            + "<h1>" + welcome + "</h1>"
+            + ( more && more.length ? "<div>" + more + "</div><br>" : "")
+            + "<video src='" + video + "' "
+            + "width='100%' preload controls>"
           + "</div>";
 
         box.left = box.right + padding;
@@ -868,17 +873,6 @@ let UI = {
 
     this._pageBounds = Items.getPageBounds();
     this._save();
-  },
-
-  // ----------
-  // Function: onExitButtonPressed
-  // Exits TabView UI.
-  onExitButtonPressed: function() {
-    let activeTab = this.getActiveTab();
-    if (!activeTab)
-      activeTab = gBrowser.selectedTab.tabItem;
-    if (activeTab)
-      activeTab.zoomIn();
   },
 
   // ----------
