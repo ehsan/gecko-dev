@@ -367,9 +367,6 @@ loop.store.ActiveRoomStore = (function() {
       this.setStoreState({
         roomState: ROOM_STATES.HAS_PARTICIPANTS
       });
-
-      // We've connected with a third-party, therefore stop displaying the ToS etc.
-      this._mozLoop.setLoopCharPref("seenToS", "seen");
     },
 
     /**

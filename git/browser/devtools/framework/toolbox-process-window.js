@@ -49,7 +49,6 @@ function connect() {
 function setPrefDefaults() {
   Services.prefs.setBoolPref("devtools.inspector.showUserAgentStyles", true);
   Services.prefs.setBoolPref("devtools.profiler.ui.show-platform-data", true);
-  Services.prefs.setBoolPref("browser.devedition.theme.showCustomizeButton", false);
 }
 
 window.addEventListener("load", function() {

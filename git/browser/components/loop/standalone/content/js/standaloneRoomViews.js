@@ -141,10 +141,7 @@ loop.standaloneRoomViews = (function(mozL10n) {
   });
 
   var StandaloneRoomView = React.createClass({displayName: 'StandaloneRoomView',
-    mixins: [
-      Backbone.Events,
-      sharedMixins.RoomsAudioMixin
-    ],
+    mixins: [Backbone.Events],
 
     propTypes: {
       activeRoomStore:

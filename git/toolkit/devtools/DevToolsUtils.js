@@ -86,10 +86,11 @@ exports.makeInfallible = function makeInfallible(aHandler, aName) {
       if (aName) {
         who += " " + aName;
       }
-      return exports.reportException(who, ex);
+      exports.reportException(who, ex);
     }
   }
 }
+
 /**
  * Interleaves two arrays element by element, returning the combined array, like
  * a zip. In the case of arrays with different sizes, undefined values will be
