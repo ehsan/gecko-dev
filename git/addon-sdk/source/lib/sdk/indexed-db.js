@@ -53,3 +53,6 @@ exports.indexedDB = Object.freeze({
 
 exports.IDBKeyRange = IDBKeyRange;
 exports.DOMException = Ci.nsIDOMDOMException;
+exports.IDBCursor = Ci.nsIIDBCursor;
+exports.IDBOpenDBRequest = Ci.nsIIDBOpenDBRequest;
+exports.IDBRequest = Ci.nsIIDBRequest;

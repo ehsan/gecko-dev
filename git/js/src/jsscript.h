@@ -561,16 +561,8 @@ class JSScript : public js::gc::Cell
     bool            hadFrequentBailoutsPad:1;
 #endif
     bool            invalidatedIdempotentCache:1; /* idempotent cache has triggered invalidation */
-
-    // All generators have isGenerator set to true.
-    bool            isGenerator:1;
-    // If the generator was created implicitly via a generator expression,
-    // isGeneratorExp will be true.
-    bool            isGeneratorExp:1;
-    // Generators are either legacy-style (JS 1.7+ starless generators with
-    // StopIteration), or ES6-style (function* with boxed return values).
-    bool            isLegacyGenerator:1;
-
+    bool            isGenerator:1;    /* is a generator */
+    bool            isGeneratorExp:1; /* is a generator expression */
     bool            hasScriptCounts:1;/* script has an entry in
                                          JSCompartment::scriptCountsMap */
     bool            hasDebugScript:1; /* script has an entry in

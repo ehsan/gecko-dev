@@ -100,19 +100,15 @@ var Appbar = {
   },
 
   onMenuButton: function(aEvent) {
-      let typesArray = [];
+      var typesArray = ["find-in-page"];
 
-      if (!StartUI.isVisible)
-        typesArray.push("find-in-page");
-      if (ConsolePanelView.enabled)
-        typesArray.push("open-error-console");
-      if (!MetroUtils.immersive)
-        typesArray.push("open-jsshell");
+      if (ConsolePanelView.enabled) typesArray.push("open-error-console");
+      if (!MetroUtils.immersive) typesArray.push("open-jsshell");
 
       try {
         // If we have a valid http or https URI then show the view on desktop
         // menu item.
-        let uri = Services.io.newURI(Browser.selectedBrowser.currentURI.spec,
+        var uri = Services.io.newURI(Browser.selectedBrowser.currentURI.spec,
                                      null, null);
         if (uri.schemeIs('http') || uri.schemeIs('https')) {
           typesArray.push("view-on-desktop");

@@ -170,8 +170,6 @@ webidl_files = \
   IDBFileHandle.webidl \
   IDBIndex.webidl \
   IDBObjectStore.webidl \
-  IDBOpenDBRequest.webidl \
-  IDBRequest.webidl \
   IDBTransaction.webidl \
   IDBVersionChangeEvent.webidl \
   ImageData.webidl \

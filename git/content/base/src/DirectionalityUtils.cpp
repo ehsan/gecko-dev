@@ -208,7 +208,6 @@
 #include "nsINode.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
-#include "mozilla/DebugOnly.h"
 #include "mozilla/dom/Element.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsUnicodeProperties.h"
@@ -536,7 +535,7 @@ public:
 
   void EnsureMapIsClear(nsINode* aTextNode)
   {
-    DebugOnly<uint32_t> clearedEntries =
+    uint32_t clearedEntries =
       mElements.EnumerateEntries(ClearEntry, aTextNode);
     MOZ_ASSERT(clearedEntries == 0, "Map should be empty already");
   }

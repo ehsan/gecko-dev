@@ -463,10 +463,7 @@ LIRGeneratorARM::lowerUDiv(MInstruction *div)
     MDefinition *rhs = div->getOperand(1);
 
     if (hasIDIV()) {
-        LUDiv *lir = new LUDiv;
-        lir->setOperand(0, useRegister(lhs));
-        lir->setOperand(1, useRegister(rhs));
-        return define(lir, div);
+        return lowerForALU(new LUDiv, div, lhs, rhs);
     } else {
         LSoftUDivOrMod *lir = new LSoftUDivOrMod(useFixed(lhs, r0), useFixed(rhs, r1),
                                                  tempFixed(r2), tempFixed(r3));
@@ -487,10 +484,7 @@ LIRGeneratorARM::lowerUMod(MInstruction *mod)
     MDefinition *rhs = mod->getOperand(1);
 
     if (hasIDIV()) {
-        LUMod *lir = new LUMod;
-        lir->setOperand(0, useRegister(lhs));
-        lir->setOperand(1, useRegister(rhs));
-        return define(lir, mod);
+        return lowerForALU(new LUMod, mod, lhs, rhs);
     } else {
         LSoftUDivOrMod *lir = new LSoftUDivOrMod(useFixed(lhs, r0), useFixed(rhs, r1),
                                                  tempFixed(r2), tempFixed(r3));

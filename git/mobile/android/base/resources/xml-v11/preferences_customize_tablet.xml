@@ -4,8 +4,7 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <!-- Tablet only: The contents under the "Customize" header for tablets,
-     See xml-v11/preferences.xml for single-pane v11+ phone layout.
-     Changes to preferences shoudl be mirrored to preferences_customize.xml. -->
+     See xml-v11/preferences.xml for single-pane v11+ phone layout. -->
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
                   xmlns:gecko="http://schemas.android.com/apk/res-auto"

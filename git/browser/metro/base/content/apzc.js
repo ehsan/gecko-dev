@@ -35,13 +35,7 @@ var APZCObserver = {
     switch (aEvent.type) {
       case 'pageshow':
       case 'TabSelect':
-        const ROOT_ID = 1;
-        let windowUtils = Browser.selectedBrowser.contentWindow.
-                          QueryInterface(Ci.nsIInterfaceRequestor).
-                          getInterface(Ci.nsIDOMWindowUtils);
-        windowUtils.setDisplayPortForElement(0, 0, ContentAreaObserver.width,
-                                             ContentAreaObserver.height,
-                                             windowUtils.findElementWithViewId(ROOT_ID));
+        Services.obs.notifyObservers(null, "viewport-needs-updating", null);
         break;
       case 'TabOpen': {
         let browser = aEvent.originalTarget.linkedBrowser;
@@ -71,7 +65,6 @@ var APZCObserver = {
   observe: function ao_observe(aSubject, aTopic, aData) {
     if (aTopic == "apzc-request-content-repaint") {
       let frameMetrics = JSON.parse(aData);
-      let scrollId = frameMetrics.scrollId;
       let scrollTo = frameMetrics.scrollTo;
       let displayPort = frameMetrics.displayPort;
       let resolution = frameMetrics.resolution;
@@ -100,11 +93,10 @@ var APZCObserver = {
           w: displayPort.width,
           h: displayPort.height,
           scale: resolution,
-          id: scrollId
+          id: 1
         });
       }
 
-      Util.dumpLn("APZC scrollId: " + scrollId);
       Util.dumpLn("APZC scrollTo.x: " + scrollTo.x + ", scrollTo.y: " + scrollTo.y);
       Util.dumpLn("APZC setResolution: " + resolution);
       Util.dumpLn("APZC setDisplayPortForElement: displayPort.x: " +

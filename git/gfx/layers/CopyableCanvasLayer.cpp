@@ -74,8 +74,13 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
   }
 
   if (mGLContext) {
+    if (aDestSurface && aDestSurface->GetType() != gfxASurface::SurfaceTypeImage) {
+      MOZ_ASSERT(false, "Destination surface must be ImageSurface type.");
+      return;
+    }
+
     nsRefPtr<gfxImageSurface> readSurf;
-    nsRefPtr<gfxASurface> resultSurf;
+    nsRefPtr<gfxImageSurface> resultSurf;
 
     SharedSurface* sharedSurf = mGLContext->RequestFrame();
     if (!sharedSurf) {
@@ -89,7 +94,7 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
                             : gfxASurface::ImageFormatARGB32;
 
     if (aDestSurface) {
-      resultSurf = aDestSurface;
+      resultSurf = static_cast<gfxImageSurface*>(aDestSurface);
     } else {
       resultSurf = GetTempSurface(readSize, format);
     }
@@ -106,10 +111,11 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
       SharedSurface_Basic* sharedSurf_Basic = SharedSurface_Basic::Cast(surfGL);
       readSurf = sharedSurf_Basic->GetData();
     } else {
-      if (resultSurf->GetSize() != readSize ||
-          !(readSurf = resultSurf->GetAsImageSurface()) ||
-          readSurf->Format() != format)
+      if (resultSurf->Format() == format &&
+          resultSurf->GetSize() == readSize)
       {
+        readSurf = resultSurf;
+      } else {
         readSurf = GetTempSurface(readSize, format);
       }
 
@@ -120,12 +126,28 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
 
     bool needsPremult = surfGL->HasAlpha() && !mIsGLAlphaPremult;
     if (needsPremult) {
+      gfxImageSurface* sizedReadSurf = nullptr;
+      if (readSurf->Format()  == resultSurf->Format() &&
+          readSurf->GetSize() == resultSurf->GetSize())
+      {
+        sizedReadSurf = readSurf;
+      } else {
+        readSurf->Flush();
+        nsRefPtr<gfxContext> ctx = new gfxContext(resultSurf);
+        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+        ctx->SetSource(readSurf);
+        ctx->Paint();
+
+        sizedReadSurf = resultSurf;
+      }
+      MOZ_ASSERT(sizedReadSurf);
+
       readSurf->Flush();
-      gfxUtils::PremultiplyImageSurface(readSurf);
-      readSurf->MarkDirty();
-    }
-    
-    if (readSurf != resultSurf) {
+      resultSurf->Flush();
+      gfxUtils::PremultiplyImageSurface(readSurf, resultSurf);
+      resultSurf->MarkDirty();
+    } else if (resultSurf != readSurf) {
+      // Didn't need premult, but we do need to blit to resultSurf
       readSurf->Flush();
       nsRefPtr<gfxContext> ctx = new gfxContext(resultSurf);
       ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -133,8 +155,7 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
       ctx->Paint();
     }
 
-    // If !aDestSurface then we will end up painting using mSurface, so
-    // stick our surface into mSurface, so that the Paint() path is the same.
+    // stick our surface into mSurface, so that the Paint() path is the same
     if (!aDestSurface) {
       mSurface = resultSurf;
     }

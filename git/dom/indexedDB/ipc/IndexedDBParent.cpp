@@ -383,9 +383,9 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
 
   AutoSafeJSContext cx;
 
-  ErrorResult error;
-  JS::Rooted<JS::Value> result(cx, mOpenRequest->GetResult(cx, error));
-  ENSURE_SUCCESS(error, error.ErrorCode());
+  JS::Rooted<JS::Value> result(cx);
+  rv = mOpenRequest->GetResult(result.address());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   MOZ_ASSERT(!JSVAL_IS_PRIMITIVE(result));
 
@@ -2044,9 +2044,8 @@ IndexedDBCursorRequestParent::Continue(const ContinueParams& aParams)
   {
     AutoSetCurrentTransaction asct(mCursor->Transaction());
 
-    ErrorResult rv;
-    mCursor->ContinueInternal(aParams.key(), aParams.count(), rv);
-    ENSURE_SUCCESS(rv, false);
+    nsresult rv = mCursor->ContinueInternal(aParams.key(), aParams.count());
+    NS_ENSURE_SUCCESS(rv, false);
   }
 
   mRequest = mCursor->Request();

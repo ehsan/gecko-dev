@@ -5740,7 +5740,6 @@ nsBlockFrame::ReflowFloat(nsBlockReflowState& aState,
                           const nsRect&       aAdjustedAvailableSpace,
                           nsIFrame*           aFloat,
                           nsMargin&           aFloatMargin,
-                          nsMargin&           aFloatOffsets,
                           bool                aFloatPushedDown,
                           nsReflowStatus&     aReflowStatus)
 {
@@ -5831,9 +5830,8 @@ nsBlockFrame::ReflowFloat(nsBlockReflowState& aState,
     return rv;
   }
 
-  // Capture the margin and offsets information for the caller
+  // Capture the margin information for the caller
   aFloatMargin = floatRS.mComputedMargin; // float margins don't collapse
-  aFloatOffsets = floatRS.mComputedOffsets;
 
   const nsHTMLReflowMetrics& metrics = brc.GetMetrics();
 

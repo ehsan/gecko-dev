@@ -41,13 +41,10 @@ var SelectHelper = {
       if (selected == -1)
           return;
 
+      let changed = false;
       if (aElement instanceof Ci.nsIDOMXULMenuListElement) {
-        if (aElement.selectedIndex != selected) {
-          aElement.selectedIndex = selected;
-          this.fireOnCommand(aElement);
-        }
+        aElement.selectedIndex = selected;
       } else if (aElement instanceof HTMLSelectElement) {
-        let changed = false;
         if (!Array.isArray(selected)) {
           let temp = [];
           for (let i = 0; i <= list.length; i++) {
@@ -64,10 +61,10 @@ var SelectHelper = {
           }
           i++
         });
-
-        if (changed)
-          this.fireOnChange(aElement);
       }
+
+      if (changed)
+        this.fireOnChange(aElement);
     }).bind(this));
   },
 
@@ -126,16 +123,6 @@ var SelectHelper = {
   fireOnChange: function(aElement) {
     let evt = aElement.ownerDocument.createEvent("Events");
     evt.initEvent("change", true, true, aElement.defaultView, 0,
-                  false, false,
-                  false, false, null);
-    setTimeout(function() {
-      aElement.dispatchEvent(evt);
-    }, 0);
-  },
-
-  fireOnCommand: function(aElement) {
-    let evt = aElement.ownerDocument.createEvent("XULCommandEvent");
-    evt.initCommandEvent("command", true, true, aElement.defaultView, 0,
                   false, false,
                   false, false, null);
     setTimeout(function() {

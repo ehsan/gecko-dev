@@ -366,7 +366,7 @@ static void
 MapTokenType(dom::Element* aElement, uint64_t* aState,
              const TokenTypeData& aData)
 {
-  if (nsAccUtils::HasDefinedARIAToken(aElement, aData.mAttrName)) {
+  if (aElement->HasAttr(kNameSpaceID_None, aData.mAttrName)) {
     if ((aData.mType & eMixedType) &&
         aElement->AttrValueIs(kNameSpaceID_None, aData.mAttrName,
                               nsGkAtoms::mixed, eCaseMatters)) {
@@ -380,7 +380,12 @@ MapTokenType(dom::Element* aElement, uint64_t* aState,
       return;
     }
 
-    *aState |= aData.mPermanentState | aData.mTrueState;
+    if (!aElement->AttrValueIs(kNameSpaceID_None, aData.mAttrName,
+                               nsGkAtoms::_undefined, eCaseMatters) &&
+        !aElement->AttrValueIs(kNameSpaceID_None, aData.mAttrName,
+                               nsGkAtoms::_empty, eCaseMatters)) {
+      *aState |= aData.mPermanentState | aData.mTrueState;
+    }
     return;
   }
 

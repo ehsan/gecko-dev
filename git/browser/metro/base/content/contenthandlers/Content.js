@@ -298,8 +298,6 @@ let Content = {
         xPos: aEvent.clientX + offsetX,
         yPos: aEvent.clientY + offsetY
       });
-    } else {
-      SelectionHandler.closeSelection();
     }
   },
 

@@ -73,9 +73,8 @@ class FunctionContextFlags
     // This class's data is all private and so only visible to these friends.
     friend class FunctionBox;
 
-    // We parsed a yield statement in the function, which can happen in JS1.7+
-    // mode.
-    bool isLegacyGenerator:1;
+    // We parsed a yield statement in the function.
+    bool isGenerator:1;
 
     // The function or a function that encloses it may define new local names
     // at runtime through means other than calling eval.
@@ -130,7 +129,7 @@ class FunctionContextFlags
 
   public:
     FunctionContextFlags()
-     :  isLegacyGenerator(false),
+     :  isGenerator(false),
         mightAliasLocals(false),
         hasExtensibleScope(false),
         needsDeclEnvObject(false),
@@ -285,16 +284,14 @@ class FunctionBox : public ObjectBox, public SharedContext
     ObjectBox *toObjectBox() { return this; }
     JSFunction *function() const { return &object->as<JSFunction>(); }
 
-    // In the future, isGenerator will also return true for ES6 generators.
-    bool isGenerator()              const { return isLegacyGenerator(); }
-    bool isLegacyGenerator()        const { return funCxFlags.isLegacyGenerator; }
+    bool isGenerator()              const { return funCxFlags.isGenerator; }
     bool mightAliasLocals()         const { return funCxFlags.mightAliasLocals; }
     bool hasExtensibleScope()       const { return funCxFlags.hasExtensibleScope; }
     bool needsDeclEnvObject()       const { return funCxFlags.needsDeclEnvObject; }
     bool argumentsHasLocalBinding() const { return funCxFlags.argumentsHasLocalBinding; }
     bool definitelyNeedsArgsObj()   const { return funCxFlags.definitelyNeedsArgsObj; }
 
-    void setIsLegacyGenerator()            { funCxFlags.isLegacyGenerator        = true; }
+    void setIsGenerator()                  { funCxFlags.isGenerator              = true; }
     void setMightAliasLocals()             { funCxFlags.mightAliasLocals         = true; }
     void setHasExtensibleScope()           { funCxFlags.hasExtensibleScope       = true; }
     void setNeedsDeclEnvObject()           { funCxFlags.needsDeclEnvObject       = true; }

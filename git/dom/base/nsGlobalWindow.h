@@ -631,6 +631,8 @@ public:
 
   virtual nsresult SetArguments(nsIArray *aArguments);
 
+  static bool DOMWindowDumpEnabled();
+
   void MaybeForgiveSpamCount();
   bool IsClosedOrClosing() {
     return (mIsClosed ||

@@ -9,14 +9,14 @@
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-#include "mozilla/Attributes.h"
+#include "nsIIDBCursorWithValue.h"
+
 #include "mozilla/dom/IDBCursorBinding.h"
-#include "mozilla/ErrorResult.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsWrapperCache.h"
 
 #include "mozilla/dom/indexedDB/IDBObjectStore.h"
 #include "mozilla/dom/indexedDB/Key.h"
+
 
 class nsIRunnable;
 class nsIScriptContext;
@@ -34,8 +34,7 @@ class IDBTransaction;
 class IndexedDBCursorChild;
 class IndexedDBCursorParent;
 
-class IDBCursor MOZ_FINAL : public nsISupports,
-                            public nsWrapperCache
+class IDBCursor MOZ_FINAL : public nsIIDBCursorWithValue
 {
   friend class ContinueHelper;
   friend class ContinueObjectStoreHelper;
@@ -44,6 +43,9 @@ class IDBCursor MOZ_FINAL : public nsISupports,
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_NSIIDBCURSOR
+  NS_DECL_NSIIDBCURSORWITHVALUE
+
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBCursor)
 
   enum Type
@@ -144,48 +146,9 @@ public:
     return mActorParent;
   }
 
-  void
-  ContinueInternal(const Key& aKey, int32_t aCount,
-                   ErrorResult& aRv);
-
-  // nsWrapperCache
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-  // WebIDL
-  IDBTransaction*
-  GetParentObject() const
-  {
-    return mTransaction;
-  }
-
-  already_AddRefed<nsISupports>
-  Source() const;
-
-  IDBCursorDirection
-  GetDirection() const;
-
-  JS::Value
-  GetKey(JSContext* aCx, ErrorResult& aRv);
-
-  JS::Value
-  GetPrimaryKey(JSContext* aCx, ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  Update(JSContext* aCx, JS::Handle<JS::Value> aValue, ErrorResult& aRv);
-
-  void
-  Advance(uint32_t aCount, ErrorResult& aRv);
-
-  void
-  Continue(JSContext* aCx, const Optional<JS::Handle<JS::Value> >& aKey,
-           ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  Delete(JSContext* aCx, ErrorResult& aRv);
-
-  JS::Value
-  GetValue(JSContext* aCx, ErrorResult& aRv);
+  nsresult
+  ContinueInternal(const Key& aKey,
+                   int32_t aCount);
 
 protected:
   IDBCursor();

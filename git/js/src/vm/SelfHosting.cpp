@@ -830,21 +830,6 @@ CloneProperties(JSContext *cx, HandleObject obj, HandleObject clone, CloneMemory
     return true;
 }
 
-static gc::AllocKind
-GetObjectAllocKindForClone(JSRuntime *rt, JSObject *obj)
-{
-    if (!gc::IsInsideNursery(rt, (void *)obj))
-        return obj->tenuredGetAllocKind();
-
-    if (obj->is<JSFunction>())
-        return obj->as<JSFunction>().getAllocKind();
-
-    gc::AllocKind kind = gc::GetGCObjectFixedSlotsKind(obj->numFixedSlots());
-    if (CanBeFinalizedInBackground(kind, obj->getClass()))
-        kind = GetBackgroundAllocKind(kind);
-    return kind;
-}
-
 static JSObject *
 CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
 {
@@ -884,8 +869,7 @@ CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
     } else {
         JS_ASSERT(srcObj->isNative());
         clone = NewObjectWithGivenProto(cx, srcObj->getClass(), NULL, cx->global(),
-                                        GetObjectAllocKindForClone(cx->runtime(), srcObj),
-                                        SingletonObject);
+                                        srcObj->tenuredGetAllocKind(), SingletonObject);
     }
     if (!clone || !clonedObjects.relookupOrAdd(p, srcObj.get(), clone.get()) ||
         !CloneProperties(cx, srcObj, clone, clonedObjects))
