@@ -77,9 +77,7 @@ function bindDOMWindowUtils(aWindow) {
     if (prop in desc && typeof(desc[prop]) == "function") {
       var oldval = desc[prop];
       try {
-        desc[prop] = function() {
-          return oldval.apply(util, arguments);
-        };
+        desc[prop] = function() { return oldval.apply(util, arguments); };
       } catch (ex) {
         dump("WARNING: Special Powers failed to rebind function: " + desc + "::" + prop + "\n");
       }
@@ -389,7 +387,7 @@ SpecialPowersAPI.prototype = {
   },
 
   getDOMWindowUtils: function(aWindow) {
-    if (aWindow == this.window.get() && this.DOMWindowUtils != null)
+    if (aWindow == this.window && this.DOMWindowUtils != null)
       return this.DOMWindowUtils;
 
     return bindDOMWindowUtils(aWindow);
@@ -776,7 +774,7 @@ SpecialPowersAPI.prototype = {
   },
 
   snapshotWindow: function (win, withCaret) {
-    var el = this.window.get().document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+    var el = this.window.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
     el.width = win.innerWidth;
     el.height = win.innerHeight;
     var ctx = el.getContext("2d");
@@ -1004,7 +1002,7 @@ SpecialPowersAPI.prototype = {
   },
 
   snapshotWindow: function (win, withCaret) {
-    var el = this.window.get().document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+    var el = this.window.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
     el.width = win.innerWidth;
     el.height = win.innerHeight;
     var ctx = el.getContext("2d");

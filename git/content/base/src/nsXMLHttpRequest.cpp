@@ -3132,17 +3132,13 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
     }
 
     ChangeState(XML_HTTP_REQUEST_SENT);
-
-    {
-      nsAutoSyncOperation sync(suspendedDoc);
-      // Note, calling ChangeState may have cleared
-      // XML_HTTP_REQUEST_SYNCLOOPING flag.
-      nsIThread *thread = NS_GetCurrentThread();
-      while (mState & XML_HTTP_REQUEST_SYNCLOOPING) {
-        if (!NS_ProcessNextEvent(thread)) {
-          rv = NS_ERROR_UNEXPECTED;
-          break;
-        }
+    // Note, calling ChangeState may have cleared
+    // XML_HTTP_REQUEST_SYNCLOOPING flag.
+    nsIThread *thread = NS_GetCurrentThread();
+    while (mState & XML_HTTP_REQUEST_SYNCLOOPING) {
+      if (!NS_ProcessNextEvent(thread)) {
+        rv = NS_ERROR_UNEXPECTED;
+        break;
       }
     }
 

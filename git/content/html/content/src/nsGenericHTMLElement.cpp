@@ -120,7 +120,7 @@
 #include "nsHTMLMenuElement.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsIScriptError.h"
-#include "nsDOMMutationObserver.h"
+
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/FromParser.h"
 
@@ -763,11 +763,9 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 
   // Remove childnodes.
   PRUint32 childCount = GetChildCount();
-  nsAutoMutationBatch mb(this, true, false);
   for (PRUint32 i = 0; i < childCount; ++i) {
     RemoveChildAt(0, true);
   }
-  mb.RemovalDone();
 
   nsAutoScriptLoaderDisabler sld(doc);
   
@@ -781,7 +779,6 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
                                            doc->GetCompatibilityMode() ==
                                              eCompatibility_NavQuirks,
                                            true);
-    mb.NodesAdded();
     // HTML5 parser has notified, but not fired mutation events.
     FireMutationEventsForDirectParsing(doc, this, oldChildCount);
   } else {
@@ -797,7 +794,6 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
       nsAutoScriptBlockerSuppressNodeRemoved scriptBlocker;
 
       static_cast<nsINode*>(this)->AppendChild(fragment, &rv);
-      mb.NodesAdded();
     }
   }
 
@@ -840,7 +836,6 @@ nsGenericHTMLElement::SetOuterHTML(const nsAString& aOuterHTML)
                                       OwnerDoc()->GetCompatibilityMode() ==
                                         eCompatibility_NavQuirks,
                                       true);
-    nsAutoMutationBatch mb(parent, true, false);
     parent->ReplaceChild(fragment, this, &rv);
     return rv;
   }
@@ -866,7 +861,6 @@ nsGenericHTMLElement::SetOuterHTML(const nsAString& aOuterHTML)
                                                          getter_AddRefs(df));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
-  nsAutoMutationBatch mb(parent, true, false);
   parent->ReplaceChild(fragment, this, &rv);
   return rv;
 }
@@ -916,7 +910,7 @@ nsGenericHTMLElement::InsertAdjacentHTML(const nsAString& aPosition,
 
   nsresult rv;
   // Parse directly into destination if possible
-  if (doc->IsHTML() && !OwnerDoc()->MayHaveDOMMutationObservers() &&
+  if (doc->IsHTML() &&
       (position == eBeforeEnd ||
        (position == eAfterEnd && !GetNextSibling()) ||
        (position == eAfterBegin && !GetFirstChild()))) {
@@ -955,7 +949,6 @@ nsGenericHTMLElement::InsertAdjacentHTML(const nsAString& aPosition,
   // listeners on the fragment that comes from the parser.
   nsAutoScriptBlockerSuppressNodeRemoved scriptBlocker;
 
-  nsAutoMutationBatch mb(destination, true, false);
   switch (position) {
     case eBeforeBegin:
       destination->InsertBefore(fragment, this, &rv);

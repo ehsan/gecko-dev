@@ -262,7 +262,7 @@ PlacesTreeView.prototype = {
   {
     // There's nothing to do if the container is closed.
     if (!aContainer.containerOpen)
-      return 0;
+      return;
 
     // Inserting the new elements into the rows array in one shot (by
     // Array.concat) is faster than resizing the array (by splice) on each loop
