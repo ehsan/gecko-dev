@@ -47,7 +47,7 @@
 #include "nsThreadUtils.h"
 #include "nsGkAtoms.h"
 #include "nsIThreadInternal.h"
-#include "nsCORSListenerProxy.h"
+#include "nsCrossSiteListenerProxy.h"
 #include "nsINetworkPredictor.h"
 #include "mozilla/dom/ShadowRoot.h"
 #include "mozilla/dom/URL.h"

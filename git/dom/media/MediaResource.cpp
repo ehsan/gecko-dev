@@ -22,7 +22,7 @@
 #include "nsIRequestObserver.h"
 #include "nsIStreamListener.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsCORSListenerProxy.h"
+#include "nsCrossSiteListenerProxy.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "nsError.h"
 #include "nsICachingChannel.h"

@@ -1385,6 +1385,7 @@ Debugger::onTrap(JSContext *cx, MutableHandleValue vp)
         if (!site || !site->hasBreakpoint(bp))
             continue;
 
+
         /*
          * There are two reasons we have to check whether dbg is enabled and
          * debugging scriptGlobal.
@@ -1618,13 +1619,6 @@ Debugger::slowPathOnLogAllocationSite(JSContext *cx, HandleSavedFrame frame, int
     }
 
     return true;
-}
-
-bool
-Debugger::isDebuggee(const JSCompartment *compartment) const
-{
-    MOZ_ASSERT(compartment);
-    return compartment->isDebuggee() && debuggees.has(compartment->maybeGlobal());
 }
 
 bool
