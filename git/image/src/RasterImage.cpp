@@ -249,8 +249,6 @@ public:
 
     bool success = false;
     if (dstLocked) {
-      if (DiscardingEnabled())
-        dstFrame->SetDiscardable();
       success = NS_SUCCEEDED(dstFrame->UnlockImageData());
 
       dstLocked = false;
@@ -2565,7 +2563,7 @@ RasterImage::ScalingDone(ScaleRequest* request, ScaleStatus status)
   }
 }
 
-bool
+void
 RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
                                           gfxContext *aContext,
                                           GraphicsFilter aFilter,
@@ -2581,9 +2579,8 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
   imageSpaceToUserSpace.Invert();
   gfx::Size scale = ToSize(imageSpaceToUserSpace.ScaleFactors(true));
   nsIntRect subimage = aSubimage;
-  nsRefPtr<gfxASurface> surf;
 
-  if (CanScale(aFilter, scale, aFlags) && !frame->IsSinglePixel()) {
+  if (CanScale(aFilter, scale, aFlags)) {
     // If scale factor is still the same that we scaled for and
     // ScaleWorker isn't still working, then we can use pre-downscaled frame.
     // If scale factor has changed, order new request.
@@ -2592,35 +2589,21 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
     // pre-downscaled frame only for the latest requested scale.
     // The solution is to cache more than one scaled image frame
     // for each RasterImage.
-    bool needScaleReq;
     if (mScaleResult.status == SCALE_DONE && mScaleResult.scale == scale) {
-      // Grab and hold the surface to make sure the OS didn't destroy it
-      mScaleResult.frame->GetSurface(getter_AddRefs(surf));
-      needScaleReq = !surf;
-      if (surf) {
-        frame = mScaleResult.frame;
-        userSpaceToImageSpace.Multiply(gfxMatrix().Scale(scale.width,
-                                                         scale.height));
+      frame = mScaleResult.frame;
+      userSpaceToImageSpace.Multiply(gfxMatrix().Scale(scale.width, scale.height));
 
-        // Since we're switching to a scaled image, we need to transform the
-        // area of the subimage to draw accordingly, since imgFrame::Draw()
-        // doesn't know about scaled frames.
-        subimage.ScaleRoundOut(scale.width, scale.height);
-      }
-    } else {
-      needScaleReq = !(mScaleResult.status == SCALE_PENDING &&
-                       mScaleResult.scale == scale);
+      // Since we're switching to a scaled image, we need to transform the
+      // area of the subimage to draw accordingly, since imgFrame::Draw()
+      // doesn't know about scaled frames.
+      subimage.ScaleRoundOut(scale.width, scale.height);
     }
 
     // If we're not waiting for exactly this result, and there's only one
     // instance of this image on this page, ask for a scale.
-    if (needScaleReq && mLockCount == 1) {
-      if (NS_FAILED(frame->LockImageData())) {
-        frame->UnlockImageData();
-        return false;
-      }
-
-      // If we have an outstanding request, signal it to stop (if it can).
+    else if (!(mScaleResult.status == SCALE_PENDING && mScaleResult.scale == scale) &&
+             mLockCount == 1) {
+      // If we have an oustanding request, signal it to stop (if it can).
       if (mScaleRequest) {
         mScaleRequest->stopped = true;
       }
@@ -2634,7 +2617,6 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
 
         sScaleWorkerThread->Dispatch(runner, NS_DISPATCH_NORMAL);
       }
-      frame->UnlockImageData();
     }
   }
 
@@ -2643,8 +2625,8 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
                       mSize.height - framerect.YMost(),
                       framerect.x);
 
-  return frame->Draw(aContext, aFilter, userSpaceToImageSpace,
-                     aFill, padding, subimage, aFlags);
+  frame->Draw(aContext, aFilter, userSpaceToImageSpace, aFill, padding, subimage,
+              aFlags);
 }
 
 //******************************************************************************
@@ -2736,15 +2718,18 @@ RasterImage::Draw(gfxContext *aContext,
     return NS_OK; // Getting the frame (above) touches the image and kicks off decoding
   }
 
-  bool drawn = DrawWithPreDownscaleIfNeeded(frame, aContext, aFilter,
-                                            aUserSpaceToImageSpace, aFill,
-                                            aSubimage, aFlags);
-  if (!drawn) {
-    // The OS threw out some or all of our buffer. Start decoding again.
-    ForceDiscard();
-    WantDecodedFrames();
-    return NS_OK;
+  nsRefPtr<gfxASurface> surf;
+  if (!frame->IsSinglePixel()) {
+    frame->GetSurface(getter_AddRefs(surf));
+    if (!surf) {
+      // The OS threw out some or all of our buffer. Start decoding again.
+      ForceDiscard();
+      WantDecodedFrames();
+      return NS_OK;
+    }
   }
+
+  DrawWithPreDownscaleIfNeeded(frame, aContext, aFilter, aUserSpaceToImageSpace, aFill, aSubimage, aFlags);
 
   if (mDecoded && !mDrawStartTime.IsNull()) {
       TimeDuration drawLatency = TimeStamp::Now() - mDrawStartTime;

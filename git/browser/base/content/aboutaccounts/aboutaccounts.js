@@ -81,15 +81,6 @@ function promptForRelink(acctName) {
   return pressed == 0; // 0 is the "continue" button
 }
 
-// If the last fxa account used for sync isn't this account, we display
-// a modal dialog checking they really really want to do this...
-// (This is sync-specific, so ideally would be in sync's identity module,
-// but it's a little more seamless to do here, and sync is currently the
-// only fxa consumer, so...
-function shouldAllowRelink(acctName) {
-  return !needRelinkWarning(acctName) || promptForRelink(acctName);
-}
-
 let wrapper = {
   iframe: null,
 
@@ -141,20 +132,20 @@ let wrapper = {
       delete accountData.customizeSync;
     }
 
-    // We need to confirm a relink - see shouldAllowRelink for more
+    // If the last fxa account used for sync isn't this account, we display
+    // a modal dialog checking they really really want to do this...
+    // (This is sync-specific, so ideally would be in sync's identity module,
+    // but it's a little more seamless to do here, and sync is currently the
+    // only fxa consumer, so...
     let newAccountEmail = accountData.email;
-    // The hosted code may have already checked for the relink situation
-    // by sending the can_link_account command. If it did, then
-    // it will indicate we don't need to ask twice.
-    if (!accountData.verifiedCanLinkAccount && !shouldAllowRelink(newAccountEmail)) {
+    if (needRelinkWarning(newAccountEmail) && !promptForRelink(newAccountEmail)) {
       // we need to tell the page we successfully received the message, but
       // then bail without telling fxAccounts
       this.injectData("message", { status: "login" });
-      // and re-init the page by navigating to about:accounts
-      window.location = "about:accounts";
+      // and reload the page or else it remains in a "signed in" state.
+      window.location.reload();
       return;
     }
-    delete accountData.verifiedCanLinkAccount;
 
     // Remember who it was so we can log out next time.
     setPreviousAccountNameHash(newAccountEmail);
@@ -182,12 +173,6 @@ let wrapper = {
       // EMAIL", but it won't then say "syncing started".
     }, (err) => this.injectData("message", { status: "error", error: err })
     );
-  },
-
-  onCanLinkAccount: function(accountData) {
-    // We need to confirm a relink - see shouldAllowRelink for more
-    let ok = shouldAllowRelink(accountData.email);
-    this.injectData("message", { status: "can_link_account", data: { ok: ok } });
   },
 
   /**
@@ -222,9 +207,6 @@ let wrapper = {
     switch (evt.detail.command) {
       case "login":
         this.onLogin(data);
-        break;
-      case "can_link_account":
-        this.onCanLinkAccount(data);
         break;
       case "session_status":
         this.onSessionStatus(data);

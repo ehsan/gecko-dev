@@ -7433,36 +7433,33 @@ let Reader = {
           throw new Error("Reader:Add requires a tabID or an URL as argument");
         }
 
-        let sendResult = function(result, article) {
-          article = article || {};
-          this.log("Reader:Add success=" + result + ", url=" + url + ", title=" + article.title + ", excerpt=" + article.excerpt);
+        let sendResult = function(result, title) {
+          this.log("Reader:Add success=" + result + ", url=" + url + ", title=" + title);
 
           sendMessageToJava({
             type: "Reader:Added",
             result: result,
-            title: article.title,
+            title: title,
             url: url,
-            length: article.length,
-            excerpt: article.excerpt
           });
         }.bind(this);
 
         let handleArticle = function(article) {
           if (!article) {
-            sendResult(this.READER_ADD_FAILED, null);
+            sendResult(this.READER_ADD_FAILED, "");
             return;
           }
 
           this.storeArticleInCache(article, function(success) {
             let result = (success ? this.READER_ADD_SUCCESS : this.READER_ADD_FAILED);
-            sendResult(result, article);
+            sendResult(result, article.title);
           }.bind(this));
         }.bind(this);
 
         this.getArticleFromCache(urlWithoutRef, function (article) {
           // If the article is already in reading list, bail
           if (article) {
-            sendResult(this.READER_ADD_DUPLICATE, null);
+            sendResult(this.READER_ADD_DUPLICATE, "");
             return;
           }
 
@@ -7476,14 +7473,13 @@ let Reader = {
       }
 
       case "Reader:Remove": {
-        let url = aData;
-        this.removeArticleFromCache(url, function(success) {
-          this.log("Reader:Remove success=" + success + ", url=" + url);
+        this.removeArticleFromCache(aData, function(success) {
+          this.log("Reader:Remove success=" + success + ", url=" + aData);
 
           if (success) {
             sendMessageToJava({
               type: "Reader:Removed",
-              url: url
+              url: aData
             });
           }
         }.bind(this));

@@ -1,17 +1,12 @@
 package org.mozilla.gecko.prompts;
 
-import org.mozilla.gecko.menu.MenuItemActionView;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.widget.GeckoActionProvider;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
 
 import android.content.Context;
-import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.graphics.Bitmap;
@@ -19,20 +14,18 @@ import android.graphics.drawable.BitmapDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 import android.widget.CheckedTextView;
 import android.widget.TextView;
 import android.widget.ListView;
-import android.widget.ArrayAdapter;
-import android.widget.AdapterView;
-import android.util.TypedValue;
 
 import java.util.ArrayList;
 
 public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
     private static final int VIEW_TYPE_ITEM = 0;
     private static final int VIEW_TYPE_GROUP = 1;
-    private static final int VIEW_TYPE_ACTIONS = 2;
-    private static final int VIEW_TYPE_COUNT = 3;
+    private static final int VIEW_TYPE_COUNT = 2;
 
     private static final String LOGTAG = "GeckoPromptListAdapter";
 
@@ -45,7 +38,6 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
     private static int mIconSize;
     private static int mMinRowSize;
     private static int mIconTextPadding;
-    private static float mTextSize;
     private static boolean mInitialized = false;
 
     PromptListAdapter(Context context, int textViewResourceId, PromptListItem[] objects) {
@@ -63,8 +55,6 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
             mIconTextPadding = (int) (res.getDimension(R.dimen.prompt_service_icon_text_padding));
             mIconSize = (int) (res.getDimension(R.dimen.prompt_service_icon_size));
             mMinRowSize = (int) (res.getDimension(R.dimen.prompt_service_min_list_item_height));
-            mTextSize = res.getDimension(R.dimen.menu_item_textsize);
-
             mInitialized = true;
         }
     }
@@ -74,8 +64,6 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
         PromptListItem item = getItem(position);
         if (item.isGroup) {
             return VIEW_TYPE_GROUP;
-        } else if (item.showAsActions) {
-            return VIEW_TYPE_ACTIONS;
         } else {
             return VIEW_TYPE_ITEM;
         }
@@ -102,11 +90,11 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
 
     public void toggleSelected(int position) {
         PromptListItem item = getItem(position);
-        item.setSelected(!item.getSelected());
+        item.selected = !item.selected;
     }
 
     private void maybeUpdateIcon(PromptListItem item, TextView t) {
-        if (item.getIcon() == null && !item.inGroup && !item.isParent) {
+        if (item.icon == null && !item.inGroup && !item.isParent) {
             t.setCompoundDrawablesWithIntrinsicBounds(null, null, null, null);
             return;
         }
@@ -115,10 +103,10 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
         Resources res = getContext().getResources();
         // Set the padding between the icon and the text.
         t.setCompoundDrawablePadding(mIconTextPadding);
-        if (item.getIcon() != null) {
+        if (item.icon != null) {
             // We want the icon to be of a specific size. Some do not
             // follow this rule so we have to resize them.
-            Bitmap bitmap = ((BitmapDrawable) item.getIcon()).getBitmap();
+            Bitmap bitmap = ((BitmapDrawable) item.icon).getBitmap();
             d = new BitmapDrawable(res, Bitmap.createScaledBitmap(bitmap, mIconSize, mIconSize, true));
         } else if (item.inGroup) {
             // We don't currently support "indenting" items with icons
@@ -142,12 +130,12 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
             // Apparently just using ct.setChecked(true) doesn't work, so this
             // is stolen from the android source code as a way to set the checked
             // state of these items
-            list.setItemChecked(position, item.getSelected());
+            list.setItemChecked(position, item.selected);
         }
     }
 
     boolean isSelected(int position){
-        return getItem(position).getSelected();
+        return getItem(position).selected;
     }
 
     ArrayList<Integer> getSelected() {
@@ -173,41 +161,6 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
         return -1;
     }
 
-    private View getActionView(PromptListItem item) {
-        GeckoActionProvider provider = GeckoActionProvider.getForType(item.getIntent().getType(), getContext());
-        provider.setIntent(item.getIntent());
-        return provider.onCreateActionView();
-    }
-
-    private void updateActionView(final PromptListItem item, final MenuItemActionView view, final ListView list, final int position) {
-        view.setTitle(item.label);
-        view.setIcon(item.getIcon());
-        view.setSubMenuIndicator(item.isParent);
-        view.setMenuItemClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                ListView.OnItemClickListener listener = list.getOnItemClickListener();
-                if (listener != null) {
-                    listener.onItemClick(list, view, position, position);
-                }
-
-                final GeckoActionProvider provider = GeckoActionProvider.getForType(item.getIntent().getType(), getContext());
-                IntentChooserPrompt prompt = new IntentChooserPrompt(getContext(), provider);
-                prompt.show(item.label, getContext(), new IntentHandler() {
-                    @Override
-                    public void onIntentSelected(final Intent intent, final int p) {
-                        provider.chooseActivity(p);
-                    }
-
-                    @Override
-                    public void onCancelled() {
-                        // do nothing
-                    }
-                });
-            }
-        });
-    }
-
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         PromptListItem item = getItem(position);
@@ -215,36 +168,26 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
         ViewHolder viewHolder = null;
 
         if (convertView == null) {
-            if (type == VIEW_TYPE_ACTIONS) {
-                convertView = getActionView(item);
-            } else {
-                int resourceId = mResourceId;
-                if (item.isGroup) {
-                    resourceId = R.layout.list_item_header;
-                }
-
-                LayoutInflater mInflater = LayoutInflater.from(getContext());
-                convertView = mInflater.inflate(resourceId, null);
-                convertView.setMinimumHeight(mMinRowSize);
-
-                TextView tv = (TextView) convertView.findViewById(android.R.id.text1);
-                tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, mTextSize);
-                viewHolder = new ViewHolder(tv, tv.getPaddingLeft(), tv.getPaddingRight(),
-                                            tv.getPaddingTop(), tv.getPaddingBottom());
-
-                convertView.setTag(viewHolder);
+            int resourceId = mResourceId;
+            if (item.isGroup) {
+                resourceId = R.layout.list_item_header;
             }
+            LayoutInflater mInflater = LayoutInflater.from(getContext());
+            convertView = mInflater.inflate(resourceId, null);
+            convertView.setMinimumHeight(mMinRowSize);
+
+            TextView tv = (TextView) convertView.findViewById(android.R.id.text1);
+            viewHolder = new ViewHolder(tv, tv.getPaddingLeft(), tv.getPaddingRight(),
+                                        tv.getPaddingTop(), tv.getPaddingBottom());
+
+            convertView.setTag(viewHolder);
         } else {
             viewHolder = (ViewHolder) convertView.getTag();
         }
 
-        if (type == VIEW_TYPE_ACTIONS) {
-            updateActionView(item, (MenuItemActionView) convertView, (ListView) parent, position);
-        } else {
-            viewHolder.textView.setText(item.label);
-            maybeUpdateCheckedState((ListView) parent, position, item, viewHolder);
-            maybeUpdateIcon(item, viewHolder.textView);
-        }
+        viewHolder.textView.setText(item.label);
+        maybeUpdateCheckedState((ListView) parent, position, item, viewHolder);
+        maybeUpdateIcon(item, viewHolder.textView);
 
         return convertView;
     }
