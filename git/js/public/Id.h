@@ -127,7 +127,7 @@ SYMBOL_TO_JSID(JS::Symbol *sym)
     jsid id;
     MOZ_ASSERT(sym != nullptr);
     MOZ_ASSERT((size_t(sym) & JSID_TYPE_MASK) == 0);
-    MOZ_ASSERT(!js::gc::IsInsideNursery(reinterpret_cast<js::gc::Cell *>(sym)));
+    MOZ_ASSERT(!js::gc::IsInsideNursery(JS::AsCell(sym)));
     MOZ_ASSERT(!JS::IsPoisonedPtr(sym));
     JSID_BITS(id) = (size_t(sym) | JSID_TYPE_SYMBOL);
     return id;
@@ -139,14 +139,10 @@ JSID_IS_GCTHING(jsid id)
     return JSID_IS_STRING(id) || JSID_IS_SYMBOL(id);
 }
 
-static MOZ_ALWAYS_INLINE JS::GCCellPtr
+static MOZ_ALWAYS_INLINE void *
 JSID_TO_GCTHING(jsid id)
 {
-    void *thing = (void *)(JSID_BITS(id) & ~(size_t)JSID_TYPE_MASK);
-    if (JSID_IS_STRING(id))
-        return JS::GCCellPtr(thing, JSTRACE_STRING);
-    MOZ_ASSERT(JSID_IS_SYMBOL(id));
-    return JS::GCCellPtr(thing, JSTRACE_SYMBOL);
+    return (void *)(JSID_BITS(id) & ~(size_t)JSID_TYPE_MASK);
 }
 
 static MOZ_ALWAYS_INLINE bool

@@ -243,8 +243,7 @@ let MozLoopServiceInternal = {
   notifyStatusChanged: function(aReason = null) {
     log.debug("notifyStatusChanged with reason:", aReason);
     let profile = MozLoopService.userProfile;
-    LoopStorage.switchDatabase(profile && profile.uid);
-    LoopRooms.maybeRefresh(profile && profile.uid);
+    LoopStorage.switchDatabase(profile ? profile.uid : null);
     Services.obs.notifyObservers(null, "loop-status-changed", aReason);
   },
 

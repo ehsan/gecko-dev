@@ -4,9 +4,10 @@
 
 // Test that long strings can be expanded in the console output.
 
-const TEST_URI = "data:text/html;charset=utf8,test for bug 787981 - check that long strings can be expanded in the output.";
+function test()
+{
+  waitForExplicitFinish();
 
-let test = asyncTest(function* () {
   let tempScope = {};
   Cu.import("resource://gre/modules/devtools/dbg-server.jsm", tempScope);
   let DebuggerServer = tempScope.DebuggerServer;
@@ -16,68 +17,77 @@ let test = asyncTest(function* () {
   let initialString =
     longString.substring(0, DebuggerServer.LONG_STRING_INITIAL_LENGTH);
 
-  yield loadTab(TEST_URI);
+  addTab("data:text/html;charset=utf8,test for bug 787981 - check that long strings can be expanded in the output.");
 
-  let hud = yield openConsole();
+  let hud = null;
 
-  hud.jsterm.clearOutput(true);
-  hud.jsterm.execute("console.log('bazbaz', '" + longString +"', 'boom')");
+  gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
+    gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
+    openConsole(null, performTest);
+  }, true);
 
-  let [result] = yield waitForMessages({
-    webconsole: hud,
-    messages: [{
-      name: "console.log output",
-      text: ["bazbaz", "boom", initialString],
-      noText: "foobar",
-      longString: true,
-    }],
-  });
+  function performTest(aHud)
+  {
+    hud = aHud;
+    hud.jsterm.clearOutput(true);
+    hud.jsterm.execute("console.log('bazbaz', '" + longString +"', 'boom')");
 
-  let clickable = result.longStrings[0];
-  ok(clickable, "long string ellipsis is shown");
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        name: "console.log output",
+        text: ["bazbaz", "boom", initialString],
+        noText: "foobar",
+        longString: true,
+      }],
+    }).then(onConsoleMessage);
+  }
 
-  clickable.scrollIntoView(false);
+  function onConsoleMessage([result])
+  {
+    let clickable = result.longStrings[0];
+    ok(clickable, "long string ellipsis is shown");
 
-  EventUtils.synthesizeMouse(clickable, 2, 2, {}, hud.iframeWindow);
+    clickable.scrollIntoView(false);
 
-  yield waitForMessages({
-    webconsole: hud,
-    messages: [{
-      name: "full string",
-      text: ["bazbaz", "boom", longString],
-      category: CATEGORY_WEBDEV,
-      longString: false,
-    }],
-  });
+    EventUtils.synthesizeMouse(clickable, 2, 2, {}, hud.iframeWindow);
 
-  hud.jsterm.clearOutput(true);
-  let msg = yield execute(hud, "'" + longString +"'");
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        name: "full string",
+        text: ["bazbaz", "boom", longString],
+        category: CATEGORY_WEBDEV,
+        longString: false,
+      }],
+    }).then(() => {
+      hud.jsterm.clearOutput(true);
+      hud.jsterm.execute("'" + longString +"'", onExecute);
+    });
+  }
 
-  isnot(msg.textContent.indexOf(initialString), -1,
-      "initial string is shown");
-  is(msg.textContent.indexOf(longString), -1,
-      "full string is not shown");
+  function onExecute(msg)
+  {
+    isnot(msg.textContent.indexOf(initialString), -1,
+        "initial string is shown");
+    is(msg.textContent.indexOf(longString), -1,
+        "full string is not shown");
 
-  clickable = msg.querySelector(".longStringEllipsis");
-  ok(clickable, "long string ellipsis is shown");
+    let clickable = msg.querySelector(".longStringEllipsis");
+    ok(clickable, "long string ellipsis is shown");
 
-  clickable.scrollIntoView(false);
+    clickable.scrollIntoView(false);
 
-  EventUtils.synthesizeMouse(clickable, 3, 4, {}, hud.iframeWindow);
+    EventUtils.synthesizeMouse(clickable, 3, 4, {}, hud.iframeWindow);
 
-  yield waitForMessages({
-    webconsole: hud,
-    messages: [{
-      name: "full string",
-      text: longString,
-      category: CATEGORY_OUTPUT,
-      longString: false,
-    }],
-  })
-});
-
-function execute(hud, str) {
-  let deferred = promise.defer();
-  hud.jsterm.execute(str, deferred.resolve);
-  return deferred.promise;
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        name: "full string",
+        text: longString,
+        category: CATEGORY_OUTPUT,
+        longString: false,
+      }],
+    }).then(finishTest);
+  }
 }

@@ -12,16 +12,18 @@ let gWebConsole, gJSTerm, gDebuggerWin, gThread, gDebuggerController, gStackfram
 
 function test()
 {
-  loadTab(TEST_URI).then(() => {
-    openConsole().then(consoleOpened);
-  });
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
 }
 
 function consoleOpened(hud)
 {
   gWebConsole = hud;
   gJSTerm = hud.jsterm;
-  gJSTerm.execute("foo").then(onExecuteFoo);
+  gJSTerm.execute("foo", onExecuteFoo);
 }
 
 function onExecuteFoo()
@@ -33,7 +35,7 @@ function onExecuteFoo()
 
   // Test for Bug 690529 - Web Console and Scratchpad should evaluate
   // expressions in the scope of the content window, not in a sandbox.
-  executeSoon(() => gJSTerm.execute("foo2 = 'newFoo'; window.foo2").then(onNewFoo2));
+  executeSoon(() => gJSTerm.execute("foo2 = 'newFoo'; window.foo2", onNewFoo2));
 }
 
 function onNewFoo2(msg)
@@ -61,8 +63,8 @@ function debuggerOpened(aResult)
 
   info("openConsole");
   executeSoon(() =>
-    openConsole().then(() =>
-      gJSTerm.execute("foo + foo2").then(onExecuteFooAndFoo2)
+    openConsole(null, () =>
+      gJSTerm.execute("foo + foo2", onExecuteFooAndFoo2)
     )
   );
 }
@@ -90,8 +92,8 @@ function onFramesAdded()
 {
   info("onFramesAdded, openConsole() now");
   executeSoon(() =>
-    openConsole().then(() =>
-      gJSTerm.execute("foo + foo2").then(onExecuteFooAndFoo2InSecondCall)
+    openConsole(null, () =>
+      gJSTerm.execute("foo + foo2", onExecuteFooAndFoo2InSecondCall)
     )
   );
 }
@@ -112,8 +114,8 @@ function onExecuteFooAndFoo2InSecondCall()
 
       info("openConsole");
       executeSoon(() =>
-        openConsole().then(() =>
-          gJSTerm.execute("foo + foo2 + foo3").then(onExecuteFoo23InFirstCall)
+        openConsole(null, () =>
+          gJSTerm.execute("foo + foo2 + foo3", onExecuteFoo23InFirstCall)
         )
       );
     });
@@ -127,7 +129,7 @@ function onExecuteFoo23InFirstCall()
         "|foo + foo2 + foo3| from |firstCall()|");
 
   executeSoon(() =>
-    gJSTerm.execute("foo = 'abba'; foo3 = 'bug783499'; foo + foo3").then(
+    gJSTerm.execute("foo = 'abba'; foo3 = 'bug783499'; foo + foo3",
                     onExecuteFooAndFoo3ChangesInFirstCall));
 }
 

@@ -86,7 +86,6 @@ function runTest(index) {
 }
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.requestCompleteLog();
 
 window.addEventListener("load", function() {
   SpecialPowers.pushPrefEnv({"set": [["media.cache_size", 40000]]}, function(){ runTest(0); });

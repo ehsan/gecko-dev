@@ -6,8 +6,6 @@
 // Check that the variables view sidebar can be closed by pressing Escape in the
 // web console.
 
-"use strict";
-
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-eval-in-stackframe.html";
 
 function test()
@@ -45,6 +43,9 @@ function test()
 
     let prop = result.matchedProp;
     ok(prop, "matched the |testProp| property in the variables view");
+
+    is(content.wrappedJSObject.fooObj.testProp, result.value,
+       "|fooObj.testProp| value is correct");
 
     vview.window.focus();
 

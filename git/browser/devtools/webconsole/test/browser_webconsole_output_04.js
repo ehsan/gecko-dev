@@ -117,7 +117,6 @@ let inputTests = [
 ];
 
 function test() {
-  requestLongerTimeout(2);
   Task.spawn(function*() {
     const {tab} = yield loadTab(TEST_URI);
     const hud = yield openConsole(tab);

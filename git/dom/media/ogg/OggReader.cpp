@@ -1424,18 +1424,13 @@ nsresult OggReader::SeekInUnbuffered(int64_t aTarget,
   return SeekBisection(seekTarget, k, SEEK_FUZZ_USECS);
 }
 
-nsRefPtr<MediaDecoderReader::SeekPromise>
-OggReader::Seek(int64_t aTarget,
-                int64_t aStartTime,
-                int64_t aEndTime,
-                int64_t aCurrentTime)
+void OggReader::Seek(int64_t aTarget,
+                     int64_t aStartTime,
+                     int64_t aEndTime,
+                     int64_t aCurrentTime)
 {
   nsresult res = SeekInternal(aTarget, aStartTime, aEndTime, aCurrentTime);
-  if (NS_FAILED(res)) {
-    return SeekPromise::CreateAndReject(res, __func__);
-  } else {
-    return SeekPromise::CreateAndResolve(true, __func__);
-  }
+  GetCallback()->OnSeekCompleted(res);
 }
 
 nsresult OggReader::SeekInternal(int64_t aTarget,

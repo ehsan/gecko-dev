@@ -102,6 +102,10 @@ public class HomePager extends ViewPager {
         public void onUrlOpenInBackground(String url, EnumSet<Flags> flags);
     }
 
+    public interface OnNewTabsListener {
+        public void onNewTabs(List<String> urls);
+    }
+
     /**
      * Interface for listening into ViewPager panel changes
      */

@@ -148,6 +148,7 @@ public class BrowserApp extends GeckoApp
                                    LayerView.OnMetricsChangedListener,
                                    BrowserSearch.OnSearchListener,
                                    BrowserSearch.OnEditSuggestionListener,
+                                   HomePager.OnNewTabsListener,
                                    OnUrlOpenListener,
                                    OnUrlOpenInBackgroundListener,
                                    ActionModeCompat.Presenter,
@@ -3155,6 +3156,18 @@ public class BrowserApp extends GeckoApp
                 callback.sendSuccess(url);
             }
         }).execute();
+    }
+
+    // HomePager.OnNewTabsListener
+    @Override
+    public void onNewTabs(List<String> urls) {
+        final EnumSet<OnUrlOpenListener.Flags> flags = EnumSet.of(OnUrlOpenListener.Flags.ALLOW_SWITCH_TO_TAB);
+
+        for (String url : urls) {
+            if (!maybeSwitchToTab(url, flags)) {
+                openUrlAndStopEditing(url, true);
+            }
+        }
     }
 
     // HomePager.OnUrlOpenListener

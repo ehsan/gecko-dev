@@ -283,13 +283,6 @@ struct PhaseInfo
 
 static const Phase PHASE_NO_PARENT = PHASE_LIMIT;
 
-/*
- * Note that PHASE_MUTATOR, PHASE_GC_BEGIN, and PHASE_GC_END never have any
- * child phases. If beginPhase is called while one of these is active, they
- * will automatically be suspended and resumed when the phase stack is next
- * empty. Timings for these phases are thus exclusive of any other phase.
- */
-
 static const PhaseInfo phases[] = {
     { PHASE_MUTATOR, "Mutator Running", PHASE_NO_PARENT },
     { PHASE_GC_BEGIN, "Begin Callback", PHASE_NO_PARENT },
@@ -646,11 +639,11 @@ Statistics::Statistics(JSRuntime *rt)
     fullFormat(false),
     gcDepth(0),
     nonincrementalReason(nullptr),
+    timingMutator(false),
     timedGCStart(0),
     preBytes(0),
     maxPauseInInterval(0),
     phaseNestingDepth(0),
-    suspendedPhaseNestingDepth(0),
     sliceCallback(nullptr)
 {
     PodArrayZero(phaseTotals);
@@ -840,10 +833,12 @@ Statistics::endSlice()
 void
 Statistics::startTimingMutator()
 {
+    MOZ_ASSERT(!timingMutator);
+
     // Should only be called from outside of GC
     MOZ_ASSERT(phaseNestingDepth == 0);
-    MOZ_ASSERT(suspendedPhaseNestingDepth == 0);
 
+    timingMutator = true;
     timedGCTime = 0;
     phaseStartTimes[PHASE_MUTATOR] = 0;
     phaseTimes[PHASE_MUTATOR] = 0;
@@ -852,42 +847,38 @@ Statistics::startTimingMutator()
     beginPhase(PHASE_MUTATOR);
 }
 
-bool
+void
 Statistics::stopTimingMutator(double &mutator_ms, double &gc_ms)
 {
-    // This should only be called from outside of GC, while timing the mutator.
-    if (phaseNestingDepth != 1 || phaseNesting[0] != PHASE_MUTATOR)
-        return false;
+    MOZ_ASSERT(timingMutator);
+
+    // Should only be called from outside of GC
+    MOZ_ASSERT(phaseNestingDepth == 1 && phaseNesting[0] == PHASE_MUTATOR);
 
     endPhase(PHASE_MUTATOR);
     mutator_ms = t(phaseTimes[PHASE_MUTATOR]);
     gc_ms = t(timedGCTime);
-
-    return true;
+    timingMutator = false;
 }
 
 void
 Statistics::beginPhase(Phase phase)
 {
-    Phase parent = phaseNestingDepth ? phaseNesting[phaseNestingDepth - 1] : PHASE_NO_PARENT;
-
-    // Re-entry is allowed during callbacks. Do not account nested GC time
-    // against the callbacks.
-    //
-    // Reuse this mechanism for managing PHASE_MUTATOR.
-    if (parent == PHASE_GC_BEGIN || parent == PHASE_GC_END || parent == PHASE_MUTATOR) {
-        suspendedPhases[suspendedPhaseNestingDepth++] = parent;
-        MOZ_ASSERT(suspendedPhaseNestingDepth <= mozilla::ArrayLength(suspendedPhases));
-        endPhase(parent);
-        parent = phaseNestingDepth ? phaseNesting[phaseNestingDepth - 1] : PHASE_NO_PARENT;
-    }
-
-    // Guard against any other re-entry.
+    /* Guard against re-entry */
     MOZ_ASSERT(!phaseStartTimes[phase]);
+
+    if (timingMutator) {
+        if (phaseNestingDepth == 1 && phaseNesting[0] == PHASE_MUTATOR) {
+            endPhase(PHASE_MUTATOR);
+            timedGCStart = PRMJ_Now();
+        }
+    }
 
 #ifdef DEBUG
     MOZ_ASSERT(phases[phase].index == phase);
+    Phase parent = phaseNestingDepth ? phaseNesting[phaseNestingDepth - 1] : PHASE_NO_PARENT;
     MOZ_ASSERT(phaseNestingDepth < MAX_NESTING);
+    // Major and minor GCs can nest inside PHASE_GC_BEGIN/PHASE_GC_END.
     MOZ_ASSERT_IF(gcDepth == 1 && phase != PHASE_MINOR_GC, phases[phase].parent == parent);
 #endif
 
@@ -900,31 +891,20 @@ Statistics::beginPhase(Phase phase)
 void
 Statistics::endPhase(Phase phase)
 {
-    int64_t now = PRMJ_Now();
-
-    if (phase == PHASE_MUTATOR)
-        timedGCStart = now;
-
     phaseNestingDepth--;
 
+    int64_t now = PRMJ_Now();
     int64_t t = now - phaseStartTimes[phase];
     if (!slices.empty())
         slices.back().phaseTimes[phase] += t;
     phaseTimes[phase] += t;
     phaseStartTimes[phase] = 0;
 
-    // When emptying the stack, we may need to resume a callback phase
-    // (PHASE_GC_BEGIN/END) or if not, return to timing the mutator
-    // (PHASE_MUTATOR).
-    //
-    // However, if the phase we're ending is PHASE_MUTATOR, that means
-    // beginPhase is calling endPhase(PHASE_MUTATOR) because some other phase
-    // is starting. So don't resume any earlier phase.
-    if (phaseNestingDepth == 0 && suspendedPhaseNestingDepth > 0 && phase != PHASE_MUTATOR) {
-        Phase resumePhase = suspendedPhases[--suspendedPhaseNestingDepth];
-        if (resumePhase == PHASE_MUTATOR)
+    if (timingMutator) {
+        if (phaseNestingDepth == 0 && phase != PHASE_MUTATOR) {
             timedGCTime += now - timedGCStart;
-        beginPhase(resumePhase);
+            beginPhase(PHASE_MUTATOR);
+        }
     }
 }
 

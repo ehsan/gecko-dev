@@ -234,8 +234,7 @@ const UnsolicitedNotifications = {
   "appOpen": "appOpen",
   "appClose": "appClose",
   "appInstall": "appInstall",
-  "appUninstall": "appUninstall",
-  "evaluationResult": "evaluationResult",
+  "appUninstall": "appUninstall"
 };
 
 /**

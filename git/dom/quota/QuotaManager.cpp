@@ -42,7 +42,6 @@
 #include "nsContentUtils.h"
 #include "nsCRTGlue.h"
 #include "nsDirectoryServiceUtils.h"
-#include "nsEscape.h"
 #include "nsNetUtil.h"
 #include "nsPrintfCString.h"
 #include "nsScriptSecurityManager.h"
@@ -1618,19 +1617,12 @@ QuotaManager::GetQuotaObject(PersistenceType aPersistenceType,
     fileSize = 0;
   }
 
-  // Re-escape our parameters above to make sure we get the right quota group.
-  nsAutoCString tempStorage1;
-  const nsCSubstring& group = NS_EscapeURL(aGroup, esc_Query, tempStorage1);
-
-  nsAutoCString tempStorage2;
-  const nsCSubstring& origin = NS_EscapeURL(aOrigin, esc_Query, tempStorage2);
-
   nsRefPtr<QuotaObject> result;
   {
     MutexAutoLock lock(mQuotaMutex);
 
     GroupInfoTriple* triple;
-    if (!mGroupInfoTriples.Get(group, &triple)) {
+    if (!mGroupInfoTriples.Get(aGroup, &triple)) {
       return nullptr;
     }
 
@@ -1641,7 +1633,7 @@ QuotaManager::GetQuotaObject(PersistenceType aPersistenceType,
       return nullptr;
     }
 
-    nsRefPtr<OriginInfo> originInfo = groupInfo->LockedGetOriginInfo(origin);
+    nsRefPtr<OriginInfo> originInfo = groupInfo->LockedGetOriginInfo(aOrigin);
 
     if (!originInfo) {
       return nullptr;

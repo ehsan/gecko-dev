@@ -4,28 +4,26 @@
 
 const TEST_URI = "data:text/html;charset=utf-8,<p>bug 660806 - history navigation must not show the autocomplete popup";
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  let hud = yield openConsole();
-
-  yield consoleOpened(hud);
-});
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
 
 function consoleOpened(HUD)
 {
-  let deferred = promise.defer();
+  content.wrappedJSObject.foobarBug660806 = {
+    "location": "value0",
+    "locationbar": "value1",
+  };
 
   let jsterm = HUD.jsterm;
   let popup = jsterm.autocompletePopup;
   let onShown = function() {
     ok(false, "popup shown");
   };
-
-  jsterm.execute("window.foobarBug660806 = {\
-    'location': 'value0',\
-    'locationbar': 'value1'\
-  }");
 
   popup._panel.addEventListener("popupshown", onShown, false);
 
@@ -45,7 +43,6 @@ function consoleOpened(HUD)
   executeSoon(function() {
     ok(!popup.isOpen, "popup is not open");
     popup._panel.removeEventListener("popupshown", onShown, false);
-    executeSoon(deferred.resolve);
+    executeSoon(finishTest);
   });
-  return deferred.promise;
 }

@@ -43,7 +43,9 @@ function test() {
       }],
     });
 
-    let node = yield hud.jsterm.execute("1+1");
+    let nodeDeferred = promise.defer();
+    hud.jsterm.execute("1+1", (node) => { nodeDeferred.resolve(node); });
+    let node = yield nodeDeferred.promise;
 
     let scrollNode = hud.outputNode.parentNode;
     let rectNode = node.getBoundingClientRect();

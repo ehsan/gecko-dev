@@ -3755,29 +3755,19 @@ nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
   gfxUserFontSet* fs = pc->GetUserFontSet();
   gfxTextPerfMetrics* tp = pc->GetTextPerfMetrics();
 
-  WritingMode wm(aStyleContext);
-  gfxFont::Orientation orientation =
-    wm.IsVertical() && !wm.IsSideways() ? gfxFont::eVertical
-                                        : gfxFont::eHorizontal;
-
-  const nsStyleFont* styleFont = aStyleContext->StyleFont();
-
-  // When aInflation is 1.0, avoid making a local copy of the nsFont.
-  // This also avoids running font.size through floats when it is large,
-  // which would be lossy.  Fortunately, in such cases, aInflation is
+  nsFont font = aStyleContext->StyleFont()->mFont;
+  // We need to not run font.size through floats when it's large since
+  // doing so would be lossy.  Fortunately, in such cases, aInflation is
   // guaranteed to be 1.0f.
-  if (aInflation == 1.0f) {
-    return pc->DeviceContext()->GetMetricsFor(styleFont->mFont,
-                                              styleFont->mLanguage,
-                                              orientation, fs, tp,
-                                              *aFontMetrics);
+  if (aInflation != 1.0f) {
+    font.size = NSToCoordRound(font.size * aInflation);
   }
-
-  nsFont font = styleFont->mFont;
-  font.size = NSToCoordRound(font.size * aInflation);
-  return pc->DeviceContext()->GetMetricsFor(font, styleFont->mLanguage,
-                                            orientation, fs, tp,
-                                            *aFontMetrics);
+  WritingMode wm(aStyleContext);
+  return pc->DeviceContext()->GetMetricsFor(
+                  font, aStyleContext->StyleFont()->mLanguage,
+                  wm.IsVertical() && !wm.IsSideways()
+                    ? gfxFont::eVertical : gfxFont::eHorizontal,
+                  fs, tp, *aFontMetrics);
 }
 
 nsIFrame*

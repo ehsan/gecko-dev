@@ -5,7 +5,7 @@
 ///////////////////
 //
 // Whitelisting this test.
-// As part of bug 1077403, the leaking uncaught rejection should be fixed.
+// As part of bug 1077403, the leaking uncaught rejection should be fixed. 
 //
 thisTestLeaksUncaughtRejectionsAndShouldBeFixed("Error: Connection closed");
 
@@ -13,31 +13,36 @@ thisTestLeaksUncaughtRejectionsAndShouldBeFixed("Error: Connection closed");
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-result-format-as-string.html";
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
+function test()
+{
+  waitForExplicitFinish();
 
-  let hud = yield openConsole();
+  addTab(TEST_URI);
 
+  gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
+    gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
+    openConsole(null, performTest);
+  }, true);
+}
+
+function performTest(hud)
+{
   hud.jsterm.clearOutput(true);
 
-  let msg = yield execute(hud, "document.querySelector('p')");
+  hud.jsterm.execute("document.querySelector('p')", (msg) => {
+    is(hud.outputNode.textContent.indexOf("bug772506_content"), -1,
+       "no content element found");
+    ok(!hud.outputNode.querySelector("#foobar"), "no #foobar element found");
 
-  is(hud.outputNode.textContent.indexOf("bug772506_content"), -1,
-     "no content element found");
-  ok(!hud.outputNode.querySelector("#foobar"), "no #foobar element found");
+    ok(msg, "eval output node found");
+    is(msg.textContent.indexOf("<div>"), -1,
+       "<div> string is not displayed");
+    isnot(msg.textContent.indexOf("<p>"), -1,
+          "<p> string is displayed");
 
-  ok(msg, "eval output node found");
-  is(msg.textContent.indexOf("<div>"), -1,
-     "<div> string is not displayed");
-  isnot(msg.textContent.indexOf("<p>"), -1,
-        "<p> string is displayed");
+    EventUtils.synthesizeMouseAtCenter(msg, {type: "mousemove"});
+    ok(!gBrowser._bug772506, "no content variable");
 
-  EventUtils.synthesizeMouseAtCenter(msg, {type: "mousemove"});
-  ok(!gBrowser._bug772506, "no content variable");
-});
-
-function execute(hud, str) {
-  let deferred = promise.defer();
-  hud.jsterm.execute(str, deferred.resolve);
-  return deferred.promise;
+    finishTest();
+  });
 }

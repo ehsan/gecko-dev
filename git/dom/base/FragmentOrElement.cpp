@@ -1620,7 +1620,7 @@ ShouldClearPurple(nsIContent* aContent)
   }
 
   JSObject* o = GetJSObjectChild(aContent);
-  if (o && JS::ObjectIsMarkedGray(o)) {
+  if (o && xpc_IsGrayGCThing(o)) {
     return true;
   }
 

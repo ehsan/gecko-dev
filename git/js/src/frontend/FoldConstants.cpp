@@ -363,11 +363,8 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
                 if (!Fold(cx, &pn->pn_left, handler, options, inGenexpLambda, condIf(pn, PNK_WHILE)))
                     return false;
             }
-            /* Second kid may be null (for return in non-generator). */
-            if (pn->pn_right) {
-                if (!Fold(cx, &pn->pn_right, handler, options, inGenexpLambda, condIf(pn, PNK_DOWHILE)))
-                    return false;
-            }
+            if (!Fold(cx, &pn->pn_right, handler, options, inGenexpLambda, condIf(pn, PNK_DOWHILE)))
+                return false;
         }
         pn1 = pn->pn_left;
         pn2 = pn->pn_right;

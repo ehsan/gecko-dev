@@ -1420,7 +1420,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void callWithABI(Address fun, MoveOp::Type result = MoveOp::GENERAL);
     void callWithABI(Register fun, MoveOp::Type result = MoveOp::GENERAL);
 
-    void handleFailureWithHandlerTail(void *handler);
+    void handleFailureWithHandler(void *handler);
+    void handleFailureWithHandlerTail();
 
     void makeFrameDescriptor(Register frameSizeReg, FrameType type) {
         shlq(Imm32(FRAMESIZE_SHIFT), frameSizeReg);

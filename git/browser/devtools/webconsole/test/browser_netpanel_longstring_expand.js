@@ -21,9 +21,11 @@ const TEST_IMG_BASE64 =
 let testDriver;
 
 function test() {
-  loadTab(TEST_URI).then(() => {
-    openConsole().then(testNetworkPanel);
-  });
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testNetworkPanel);
+  }, true);
 }
 
 function testNetworkPanel() {

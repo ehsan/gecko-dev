@@ -493,8 +493,10 @@ GlobalHelperThreadState::finish()
 {
     if (threads) {
         MOZ_ASSERT(CanUseExtraThreads());
-        for (size_t i = 0; i < threadCount; i++)
+        for (size_t i = 0; i < threadCount; i++) {
             threads[i].destroy();
+            threads[i].~HelperThread();
+        }
         js_free(threads);
     }
 
@@ -1210,7 +1212,7 @@ HelperThread::handleCompressionWorkload()
 
     {
         AutoUnlockHelperThreadState unlock;
-        compressionTask->result = compressionTask->work();
+        compressionTask->result = compressionTask->work(sourceCompressor);
     }
 
     compressionTask->helperThread = nullptr;

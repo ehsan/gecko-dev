@@ -9,8 +9,10 @@
 const TEST_URI = "data:text/html;charset=utf-8,Web Console test for bug 613280";
 
 function test() {
-  loadTab(TEST_URI).then(() => {
-    openConsole().then((HUD) => {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, function(HUD) {
       content.console.log("foobarBazBug613280");
       waitForMessages({
         webconsole: HUD,
@@ -20,8 +22,8 @@ function test() {
           severity: SEVERITY_LOG,
         }],
       }).then(performTest.bind(null, HUD));
-    })
-  });
+    });
+  }, true);
 }
 
 function performTest(HUD, [result]) {
