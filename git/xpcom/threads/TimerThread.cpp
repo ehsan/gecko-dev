@@ -74,7 +74,7 @@ TimerThread::~TimerThread()
 
   mThread = nsnull;
 
-  NS_ASSERTION(mTimers.Count() == 0, "Timers remain in TimerThread::~TimerThread");
+  NS_ASSERTION(mTimers.IsEmpty(), "Timers remain in TimerThread::~TimerThread");
 }
 
 nsresult
@@ -154,6 +154,7 @@ nsresult TimerThread::Shutdown()
   if (!mThread)
     return NS_ERROR_NOT_INITIALIZED;
 
+  nsTArray<nsTimerImpl*> timers;
   {   // lock scope
     nsAutoLock lock(mLock);
 
@@ -163,11 +164,21 @@ nsresult TimerThread::Shutdown()
     if (mCondVar && mWaiting)
       PR_NotifyCondVar(mCondVar);
 
-    nsTimerImpl *timer;
-    for (PRInt32 i = mTimers.Count() - 1; i >= 0; i--) {
-      timer = static_cast<nsTimerImpl*>(mTimers[i]);
-      RemoveTimerInternal(timer);
-    }
+    // Need to copy content of mTimers array to a local array
+    // because call to timers' ReleaseCallback() (and release its self)
+    // must not be done under the lock. Destructor of a callback
+    // might potentially call some code reentering the same lock
+    // that leads to unexpected behavior or deadlock.
+    // See bug 422472.
+    timers.AppendElements(mTimers);
+    mTimers.Clear();
+  }
+
+  PRUint32 timersCount = timers.Length();
+  for (PRUint32 i = 0; i < timersCount; i++) {
+    nsTimerImpl *timer = timers[i];
+    timer->ReleaseCallback();
+    ReleaseTimerInternal(timer);
   }
 
   mThread->Shutdown();    // wait for the thread to die
@@ -245,8 +256,8 @@ NS_IMETHODIMP TimerThread::Run()
       PRIntervalTime now = PR_IntervalNow();
       nsTimerImpl *timer = nsnull;
 
-      if (mTimers.Count() > 0) {
-        timer = static_cast<nsTimerImpl*>(mTimers[0]);
+      if (!mTimers.IsEmpty()) {
+        timer = mTimers[0];
 
         if (!TIMER_LESS_THAN(now, timer->mTimeout + mTimeoutAdjustment)) {
     next:
@@ -276,7 +287,23 @@ NS_IMETHODIMP TimerThread::Run()
           // We are going to let the call to PostTimerEvent here handle the
           // release of the timer so that we don't end up releasing the timer
           // on the TimerThread instead of on the thread it targets.
-          timer->PostTimerEvent();
+          if (NS_FAILED(timer->PostTimerEvent())) {
+            nsrefcnt rc;
+            NS_RELEASE2(timer, rc);
+            
+            // The nsITimer interface requires that its users keep a reference
+            // to the timers they use while those timers are initialized but
+            // have not yet fired.  If this ever happens, it is a bug in the
+            // code that created and used the timer.
+            //
+            // Further, note that this should never happen even with a
+            // misbehaving user, because nsTimerImpl::Release checks for a
+            // refcount of 1 with an armed timer (a timer whose only reference
+            // is from the timer thread) and when it hits this will remove the
+            // timer from the timer thread and thus destroy the last reference,
+            // preventing this situation from occurring.
+            NS_ASSERTION(rc != 0, "destroyed timer off its target thread!");
+          }
           timer = nsnull;
 
           lock.lock();
@@ -289,8 +316,8 @@ NS_IMETHODIMP TimerThread::Run()
         }
       }
 
-      if (mTimers.Count() > 0) {
-        timer = static_cast<nsTimerImpl *>(mTimers[0]);
+      if (!mTimers.IsEmpty()) {
+        timer = mTimers[0];
 
         PRIntervalTime timeout = timer->mTimeout + mTimeoutAdjustment;
 
@@ -328,7 +355,7 @@ nsresult TimerThread::AddTimer(nsTimerImpl *aTimer)
   // Add the timer to our list.
   PRInt32 i = AddTimerInternal(aTimer);
   if (i < 0)
-    return NS_ERROR_FAILURE;
+    return NS_ERROR_OUT_OF_MEMORY;
 
   // Awaken the timer thread.
   if (mCondVar && mWaiting && i == 0)
@@ -384,10 +411,10 @@ PRInt32 TimerThread::AddTimerInternal(nsTimerImpl *aTimer)
     return -1;
 
   PRIntervalTime now = PR_IntervalNow();
-  PRInt32 count = mTimers.Count();
-  PRInt32 i = 0;
+  PRUint32 count = mTimers.Length();
+  PRUint32 i = 0;
   for (; i < count; i++) {
-    nsTimerImpl *timer = static_cast<nsTimerImpl *>(mTimers[i]);
+    nsTimerImpl *timer = mTimers[i];
 
     // Don't break till we have skipped any overdue timers.  Do not include
     // mTimeoutAdjustment here, because we are really trying to avoid calling
@@ -404,7 +431,7 @@ PRInt32 TimerThread::AddTimerInternal(nsTimerImpl *aTimer)
     }
   }
 
-  if (!mTimers.InsertElementAt(aTimer, i))
+  if (!mTimers.InsertElementAt(i, aTimer))
     return -1;
 
   aTimer->mArmed = PR_TRUE;
@@ -417,10 +444,15 @@ PRBool TimerThread::RemoveTimerInternal(nsTimerImpl *aTimer)
   if (!mTimers.RemoveElement(aTimer))
     return PR_FALSE;
 
+  ReleaseTimerInternal(aTimer);
+  return PR_TRUE;
+}
+
+void TimerThread::ReleaseTimerInternal(nsTimerImpl *aTimer)
+{
   // Order is crucial here -- see nsTimerImpl::Release.
   aTimer->mArmed = PR_FALSE;
   NS_RELEASE(aTimer);
-  return PR_TRUE;
 }
 
 void TimerThread::DoBeforeSleep()
@@ -431,8 +463,8 @@ void TimerThread::DoBeforeSleep()
 void TimerThread::DoAfterSleep()
 {
   mSleeping = PR_TRUE; // wake may be notified without preceding sleep notification
-  for (PRInt32 i = 0; i < mTimers.Count(); i ++) {
-    nsTimerImpl *timer = static_cast<nsTimerImpl*>(mTimers[i]);
+  for (PRUint32 i = 0; i < mTimers.Length(); i ++) {
+    nsTimerImpl *timer = mTimers[i];
     // get and set the delay to cause its timeout to be recomputed
     PRUint32 delay;
     timer->GetDelay(&delay);

@@ -53,60 +53,6 @@
 // no virtuals in the maps - all the common stuff inlined
 // templates could be used to good effect here.
 
-class JSContext2XPCContextMap
-{
-public:
-    struct Entry : public JSDHashEntryHdr
-    {
-        JSContext*  key;
-        XPCContext* value;
-    };
-
-    static JSContext2XPCContextMap* newMap(int size);
-
-    inline XPCContext* Find(JSContext* cx)
-    {
-        NS_PRECONDITION(cx,"bad param");
-        Entry* entry = (Entry*)
-            JS_DHashTableOperate(mTable, cx, JS_DHASH_LOOKUP);
-        if(JS_DHASH_ENTRY_IS_FREE(entry))
-            return nsnull;
-        return entry->value;
-    }
-
-    inline XPCContext* Add(XPCContext* xpcc)
-    {
-        NS_PRECONDITION(xpcc,"bad param");
-        JSContext* cx = xpcc->GetJSContext();
-        Entry* entry = (Entry*)
-            JS_DHashTableOperate(mTable, cx, JS_DHASH_ADD);
-        if(!entry)
-            return nsnull;
-        if(entry->key)
-            return entry->value;
-        entry->key = cx;
-        entry->value = xpcc;
-        return xpcc;
-    }
-
-    inline void Remove(XPCContext* xpcc)
-    {
-        NS_PRECONDITION(xpcc,"bad param");
-        JS_DHashTableOperate(mTable, xpcc->GetJSContext(), JS_DHASH_REMOVE);
-    }
-
-    inline uint32 Count() {return mTable->entryCount;}
-    inline uint32 Enumerate(JSDHashEnumerator f, void *arg)
-        {return JS_DHashTableEnumerate(mTable, f, arg);}
-
-    ~JSContext2XPCContextMap();
-private:
-    JSContext2XPCContextMap();    // no implementation
-    JSContext2XPCContextMap(int size);
-private:
-    JSDHashTable *mTable;
-};
-
 /*************************/
 
 class JSObject2WrappedJSMap
@@ -204,6 +150,13 @@ public:
     inline void Remove(XPCWrappedNative* wrapper)
     {
         NS_PRECONDITION(wrapper,"bad param");
+#ifdef DEBUG
+        XPCWrappedNative* wrapperInMap = Find(wrapper->GetIdentityObject());
+        NS_ASSERTION(!wrapperInMap || wrapperInMap == wrapper,
+                     "About to remove a different wrapper with the same "
+                     "nsISupports identity! This will most likely cause serious "
+                     "problems!");
+#endif
         JS_DHashTableOperate(mTable, wrapper->GetIdentityObject(), JS_DHASH_REMOVE);
     }
 
@@ -450,7 +403,7 @@ public:
     {
         XPCNativeSet* key_value;
 
-        static JSBool JS_DLL_CALLBACK
+        static JSBool
         Match(JSDHashTable *table,
               const JSDHashEntryHdr *entry,
               const void *key);
@@ -519,12 +472,12 @@ public:
         nsIID                         key;
         nsIXPCFunctionThisTranslator* value;
 
-        static JSBool JS_DLL_CALLBACK
+        static JSBool
         Match(JSDHashTable *table,
               const JSDHashEntryHdr *entry,
               const void *key);
 
-        static void JS_DLL_CALLBACK
+        static void
         Clear(JSDHashTable *table, JSDHashEntryHdr *entry);
 
         static struct JSDHashTableOps sOps;
@@ -582,10 +535,10 @@ public:
     {
         XPCNativeScriptableShared* key;
 
-        static JSDHashNumber JS_DLL_CALLBACK
+        static JSDHashNumber
         Hash(JSDHashTable *table, const void *key);
 
-        static JSBool JS_DLL_CALLBACK
+        static JSBool
         Match(JSDHashTable *table,
               const JSDHashEntryHdr *entry,
               const void *key);
@@ -686,12 +639,23 @@ private:
 
 class WrappedNative2WrapperMap
 {
+    static struct JSDHashTableOps sOps;
+
+    static void ClearLink(JSDHashTable* table, JSDHashEntryHdr* entry);
+    static void MoveLink(JSDHashTable* table, const JSDHashEntryHdr* from,
+                         JSDHashEntryHdr* to);
+
 public:
+    struct Link : public PRCList
+    {
+        JSObject *obj;
+    };
+
     struct Entry : public JSDHashEntryHdr
     {
         // Note: key must be the flat JSObject for a wrapped native.
         JSObject*         key;
-        JSObject*         value;
+        Link              value;
     };
 
     static WrappedNative2WrapperMap* newMap(int size);
@@ -703,25 +667,28 @@ public:
             JS_DHashTableOperate(mTable, wrapper, JS_DHASH_LOOKUP);
         if(JS_DHASH_ENTRY_IS_FREE(entry))
             return nsnull;
-        return entry->value;
+        return entry->value.obj;
     }
 
     // Note: If the entry already exists, then this will overwrite the
     // existing entry, returning the old value.
-    inline JSObject* Add(JSObject* wrapper, JSObject *obj)
+    JSObject* Add(WrappedNative2WrapperMap* head,
+                  JSObject* wrappedObject,
+                  JSObject* wrapper);
+
+    // Function to find a link.
+    Link* FindLink(JSObject* wrappedObject)
     {
-        NS_PRECONDITION(wrapper,"bad param");
         Entry* entry = (Entry*)
-            JS_DHashTableOperate(mTable, wrapper, JS_DHASH_ADD);
-        if(!entry)
-            return nsnull;
-        JSObject *old;
-        if(!entry->key)
-            entry->key = wrapper;
-        old = entry->value;
-        entry->value = obj;
-        return old;
+            JS_DHashTableOperate(mTable, wrappedObject, JS_DHASH_LOOKUP);
+        if(JS_DHASH_ENTRY_IS_BUSY(entry))
+            return &entry->value;
+        return nsnull;
     }
+
+    // "Internal" function to add an empty link without doing unnecessary
+    // work.
+    PRBool AddLink(JSObject* wrappedObject, Link* oldLink);
 
     inline void Remove(JSObject* wrapper)
     {
@@ -734,9 +701,11 @@ public:
         {return JS_DHashTableEnumerate(mTable, f, arg);}
 
     ~WrappedNative2WrapperMap();
+
 private:
     WrappedNative2WrapperMap();    // no implementation
     WrappedNative2WrapperMap(int size);
+
 private:
     JSDHashTable *mTable;
 };

@@ -36,12 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* class for maintaining a linked list of child frames */
-
 #include "nsFrameList.h"
-#ifdef NS_DEBUG
-#include "nsIFrameDebug.h"
-#endif
+#include "nsIFrame.h"
 #include "nsLayoutUtils.h"
 
 #ifdef IBMBIDI
@@ -51,223 +47,278 @@
 #include "nsBidiPresUtils.h"
 #endif // IBMBIDI
 
+const nsFrameList* nsFrameList::sEmptyList;
+
+/* static */
+nsresult
+nsFrameList::Init()
+{
+  NS_PRECONDITION(!sEmptyList, "Shouldn't be allocated");
+
+  sEmptyList = new nsFrameList();
+  if (!sEmptyList)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  return NS_OK;
+}
+
 void
 nsFrameList::Destroy()
 {
+  NS_PRECONDITION(this != sEmptyList, "Shouldn't Destroy() sEmptyList");
+
   DestroyFrames();
+  delete this;
+}
+
+void
+nsFrameList::DestroyFrom(nsIFrame* aDestructRoot)
+{
+  NS_PRECONDITION(this != sEmptyList, "Shouldn't Destroy() sEmptyList");
+
+  DestroyFramesFrom(aDestructRoot);
   delete this;
 }
 
 void
 nsFrameList::DestroyFrames()
 {
-  nsIFrame* next;
-  for (nsIFrame* frame = mFirstChild; frame; frame = next) {
-    next = frame->GetNextSibling();
+  while (nsIFrame* frame = RemoveFirstChild()) {
     frame->Destroy();
-    mFirstChild = next;
   }
+  mLastChild = nsnull;
 }
 
 void
-nsFrameList::AppendFrames(nsIFrame* aParent, nsIFrame* aFrameList)
+nsFrameList::DestroyFramesFrom(nsIFrame* aDestructRoot)
 {
-  NS_PRECONDITION(nsnull != aFrameList, "null ptr");
-  if (nsnull != aFrameList) {
-    nsIFrame* lastChild = LastChild();
-    if (nsnull == lastChild) {
-      mFirstChild = aFrameList;
-    }
-    else {
-      lastChild->SetNextSibling(aFrameList);
-    }
-    if (aParent) {
-      for (nsIFrame* frame = aFrameList; frame;
-           frame = frame->GetNextSibling()) {
-        frame->SetParent(aParent);
-      }
-    }
+  NS_PRECONDITION(aDestructRoot, "Missing destruct root");
+
+  while (nsIFrame* frame = RemoveFirstChild()) {
+    frame->DestroyFrom(aDestructRoot);
   }
-#ifdef DEBUG
-  CheckForLoops();
-#endif
+  mLastChild = nsnull;
 }
 
 void
-nsFrameList::AppendFrame(nsIFrame* aParent, nsIFrame* aFrame)
+nsFrameList::SetFrames(nsIFrame* aFrameList)
 {
-  NS_PRECONDITION(nsnull != aFrame, "null ptr");
-  if (nsnull != aFrame) {
-    NS_PRECONDITION(!aFrame->GetNextSibling(), "Can only append one frame here");
-    nsIFrame* lastChild = LastChild();
-    if (nsnull == lastChild) {
-      mFirstChild = aFrame;
-    }
-    else {
-      lastChild->SetNextSibling(aFrame);
-    }
-    if (nsnull != aParent) {
-      aFrame->SetParent(aParent);
+  NS_PRECONDITION(!mFirstChild, "Losing frames");
+
+  mFirstChild = aFrameList;
+  mLastChild = nsLayoutUtils::GetLastSibling(mFirstChild);
+}
+
+void
+nsFrameList::RemoveFrame(nsIFrame* aFrame)
+{
+  NS_PRECONDITION(aFrame, "null ptr");
+#ifdef DEBUG_FRAME_LIST
+  // ContainsFrame is O(N)
+  NS_PRECONDITION(ContainsFrame(aFrame), "wrong list");
+#endif
+
+  nsIFrame* nextFrame = aFrame->GetNextSibling();
+  if (aFrame == mFirstChild) {
+    mFirstChild = nextFrame;
+    aFrame->SetNextSibling(nsnull);
+    if (!nextFrame) {
+      mLastChild = nsnull;
     }
   }
-#ifdef DEBUG
-  CheckForLoops();
-#endif
+  else {
+    nsIFrame* prevSibling = aFrame->GetPrevSibling();
+    NS_ASSERTION(prevSibling && prevSibling->GetNextSibling() == aFrame,
+                 "Broken frame linkage");
+    prevSibling->SetNextSibling(nextFrame);
+    aFrame->SetNextSibling(nsnull);
+    if (!nextFrame) {
+      mLastChild = prevSibling;
+    }
+  }
 }
 
 PRBool
-nsFrameList::RemoveFrame(nsIFrame* aFrame, nsIFrame* aPrevSiblingHint)
+nsFrameList::RemoveFrameIfPresent(nsIFrame* aFrame)
 {
-  NS_PRECONDITION(nsnull != aFrame, "null ptr");
-  if (aFrame) {
-    nsIFrame* nextFrame = aFrame->GetNextSibling();
-    if (aFrame == mFirstChild) {
-      mFirstChild = nextFrame;
-      aFrame->SetNextSibling(nsnull);
+  NS_PRECONDITION(aFrame, "null ptr");
+
+  for (Enumerator e(*this); !e.AtEnd(); e.Next()) {
+    if (e.get() == aFrame) {
+      RemoveFrame(aFrame);
       return PR_TRUE;
     }
-    else {
-      nsIFrame* prevSibling = aPrevSiblingHint;
-      if (!prevSibling || prevSibling->GetNextSibling() != aFrame) {
-        prevSibling = GetPrevSiblingFor(aFrame);
-      }
-      if (prevSibling) {
-        prevSibling->SetNextSibling(nextFrame);
-        aFrame->SetNextSibling(nsnull);
-        return PR_TRUE;
-      }
-    }
   }
-  // aFrame was not in the list. 
   return PR_FALSE;
 }
 
-PRBool
+nsFrameList
+nsFrameList::RemoveFramesAfter(nsIFrame* aAfterFrame)
+{
+  NS_PRECONDITION(NotEmpty(), "illegal operation on empty list");
+#ifdef DEBUG_FRAME_LIST
+  NS_PRECONDITION(ContainsFrame(aAfterFrame), "wrong list");
+#endif
+
+  nsIFrame* tail = aAfterFrame->GetNextSibling();
+  // if (!tail) return EmptyList();  -- worth optimizing this case?
+  nsIFrame* oldLastChild = mLastChild;
+  mLastChild = aAfterFrame;
+  aAfterFrame->SetNextSibling(nsnull);
+  return nsFrameList(tail, tail ? oldLastChild : nsnull);
+}
+
+nsIFrame*
 nsFrameList::RemoveFirstChild()
 {
   if (mFirstChild) {
-    nsIFrame* nextFrame = mFirstChild->GetNextSibling();
-    mFirstChild->SetNextSibling(nsnull);
-    mFirstChild = nextFrame;
-    return PR_TRUE;
+    nsIFrame* firstChild = mFirstChild;
+    RemoveFrame(firstChild);
+    return firstChild;
   }
-  return PR_FALSE;
+  return nsnull;
+}
+
+void
+nsFrameList::DestroyFrame(nsIFrame* aFrame)
+{
+  NS_PRECONDITION(aFrame, "null ptr");
+  RemoveFrame(aFrame);
+  aFrame->Destroy();
 }
 
 PRBool
-nsFrameList::DestroyFrame(nsIFrame* aFrame)
+nsFrameList::DestroyFrameIfPresent(nsIFrame* aFrame)
 {
-  NS_PRECONDITION(nsnull != aFrame, "null ptr");
-  if (RemoveFrame(aFrame)) {
+  NS_PRECONDITION(aFrame, "null ptr");
+
+  if (RemoveFrameIfPresent(aFrame)) {
     aFrame->Destroy();
     return PR_TRUE;
   }
   return PR_FALSE;
 }
 
-void
-nsFrameList::InsertFrame(nsIFrame* aParent,
-                         nsIFrame* aPrevSibling,
-                         nsIFrame* aNewFrame)
+nsFrameList::Slice
+nsFrameList::InsertFrames(nsIFrame* aParent, nsIFrame* aPrevSibling,
+                          nsFrameList& aFrameList)
 {
-  NS_PRECONDITION(nsnull != aNewFrame, "null ptr");
-  if (nsnull != aNewFrame) {
-    if (aParent) {
-      aNewFrame->SetParent(aParent);
-    }
-    if (nsnull == aPrevSibling) {
-      aNewFrame->SetNextSibling(mFirstChild);
-      mFirstChild = aNewFrame;
-    }
-    else {
-      NS_ASSERTION(aNewFrame->GetParent() == aPrevSibling->GetParent(),
-                   "prev sibling has different parent");
-      nsIFrame* nextFrame = aPrevSibling->GetNextSibling();
-      NS_ASSERTION(!nextFrame ||
-                   aNewFrame->GetParent() == nextFrame->GetParent(),
-                   "next sibling has different parent");
-      aPrevSibling->SetNextSibling(aNewFrame);
-      aNewFrame->SetNextSibling(nextFrame);
-    }
+  NS_PRECONDITION(aFrameList.NotEmpty(), "Unexpected empty list");
+
+  if (aParent) {
+    aFrameList.ApplySetParent(aParent);
   }
-#ifdef DEBUG
-  CheckForLoops();
+
+  NS_ASSERTION(IsEmpty() ||
+               FirstChild()->GetParent() == aFrameList.FirstChild()->GetParent(),
+               "frame to add has different parent");
+  NS_ASSERTION(!aPrevSibling ||
+               aPrevSibling->GetParent() == aFrameList.FirstChild()->GetParent(),
+               "prev sibling has different parent");
+#ifdef DEBUG_FRAME_LIST
+  // ContainsFrame is O(N)
+  NS_ASSERTION(!aPrevSibling || ContainsFrame(aPrevSibling),
+               "prev sibling is not on this list");
 #endif
+
+  nsIFrame* firstNewFrame = aFrameList.FirstChild();
+  nsIFrame* nextSibling;
+  if (aPrevSibling) {
+    nextSibling = aPrevSibling->GetNextSibling();
+    aPrevSibling->SetNextSibling(firstNewFrame);
+  }
+  else {
+    nextSibling = mFirstChild;
+    mFirstChild = firstNewFrame;
+  }
+
+  nsIFrame* lastNewFrame = aFrameList.LastChild();
+  lastNewFrame->SetNextSibling(nextSibling);
+  if (!nextSibling) {
+    mLastChild = lastNewFrame;
+  }
+
+  VerifyList();
+
+  aFrameList.Clear();
+  return Slice(*this, firstNewFrame, nextSibling);
 }
 
-void
-nsFrameList::InsertFrames(nsIFrame* aParent,
-                          nsIFrame* aPrevSibling,
-                          nsIFrame* aFrameList)
+nsFrameList
+nsFrameList::ExtractHead(FrameLinkEnumerator& aLink)
 {
-  NS_PRECONDITION(nsnull != aFrameList, "null ptr");
-  if (nsnull != aFrameList) {
-    nsIFrame* lastNewFrame = nsnull;
-    if (aParent) {
-      for (nsIFrame* frame = aFrameList; frame;
-           frame = frame->GetNextSibling()) {
-        frame->SetParent(aParent);
-        lastNewFrame = frame;
-      }
+  NS_PRECONDITION(&aLink.List() == this, "Unexpected list");
+  NS_PRECONDITION(!aLink.PrevFrame() ||
+                  aLink.PrevFrame()->GetNextSibling() ==
+                    aLink.NextFrame(),
+                  "Unexpected PrevFrame()");
+  NS_PRECONDITION(aLink.PrevFrame() ||
+                  aLink.NextFrame() == FirstChild(),
+                  "Unexpected NextFrame()");
+  NS_PRECONDITION(!aLink.PrevFrame() ||
+                  aLink.NextFrame() != FirstChild(),
+                  "Unexpected NextFrame()");
+  NS_PRECONDITION(aLink.mEnd == nsnull,
+                  "Unexpected mEnd for frame link enumerator");
+
+  nsIFrame* prev = aLink.PrevFrame();
+  nsIFrame* newFirstFrame = nsnull;
+  if (prev) {
+    // Truncate the list after |prev| and hand the first part to our new list.
+    prev->SetNextSibling(nsnull);
+    newFirstFrame = mFirstChild;
+    mFirstChild = aLink.NextFrame();
+    if (!mFirstChild) { // we handed over the whole list
+      mLastChild = nsnull;
     }
 
-    // Get the last new frame if necessary
-    if (!lastNewFrame) {
-      nsFrameList tmp(aFrameList);
-      lastNewFrame = tmp.LastChild();
-    }
-
-    // Link the new frames into the child list
-    if (nsnull == aPrevSibling) {
-      lastNewFrame->SetNextSibling(mFirstChild);
-      mFirstChild = aFrameList;
-    }
-    else {
-      NS_ASSERTION(aFrameList->GetParent() == aPrevSibling->GetParent(),
-                   "prev sibling has different parent");
-      nsIFrame* nextFrame = aPrevSibling->GetNextSibling();
-      NS_ASSERTION(!nextFrame ||
-                   aFrameList->GetParent() == nextFrame->GetParent(),
-                   "next sibling has different parent");
-      aPrevSibling->SetNextSibling(aFrameList);
-      lastNewFrame->SetNextSibling(nextFrame);
-    }
+    // Now make sure aLink doesn't point to a frame we no longer have.
+    aLink.mPrev = nsnull;
   }
-#ifdef DEBUG
-  CheckForLoops();
-#endif
+  // else aLink is pointing to before our first frame.  Nothing to do.
+
+  return nsFrameList(newFirstFrame, prev);
 }
 
-PRBool
-nsFrameList::Split(nsIFrame* aAfterFrame, nsIFrame** aNextFrameResult)
+nsFrameList
+nsFrameList::ExtractTail(FrameLinkEnumerator& aLink)
 {
-  NS_PRECONDITION(nsnull != aAfterFrame, "null ptr");
-  NS_PRECONDITION(nsnull != aNextFrameResult, "null ptr");
-  NS_ASSERTION(ContainsFrame(aAfterFrame), "split after unknown frame");
+  NS_PRECONDITION(&aLink.List() == this, "Unexpected list");
+  NS_PRECONDITION(!aLink.PrevFrame() ||
+                  aLink.PrevFrame()->GetNextSibling() ==
+                    aLink.NextFrame(),
+                  "Unexpected PrevFrame()");
+  NS_PRECONDITION(aLink.PrevFrame() ||
+                  aLink.NextFrame() == FirstChild(),
+                  "Unexpected NextFrame()");
+  NS_PRECONDITION(!aLink.PrevFrame() ||
+                  aLink.NextFrame() != FirstChild(),
+                  "Unexpected NextFrame()");
+  NS_PRECONDITION(aLink.mEnd == nsnull,
+                  "Unexpected mEnd for frame link enumerator");
 
-  if (aNextFrameResult && aAfterFrame) {
-    nsIFrame* nextFrame = aAfterFrame->GetNextSibling();
-    aAfterFrame->SetNextSibling(nsnull);
-    *aNextFrameResult = nextFrame;
-    return PR_TRUE;
+  nsIFrame* prev = aLink.PrevFrame();
+  nsIFrame* newFirstFrame;
+  nsIFrame* newLastFrame;
+  if (prev) {
+    // Truncate the list after |prev| and hand the second part to our new list
+    prev->SetNextSibling(nsnull);
+    newFirstFrame = aLink.NextFrame();
+    newLastFrame = newFirstFrame ? mLastChild : nsnull;
+    mLastChild = prev;
+  } else {
+    // Hand the whole list over to our new list
+    newFirstFrame = mFirstChild;
+    newLastFrame = mLastChild;
+    Clear();
   }
-  return PR_FALSE;
-}
 
-nsIFrame*
-nsFrameList::LastChild() const
-{
-  nsIFrame* frame = mFirstChild;
-  if (!frame) {
-    return nsnull;
-  }
+  // Now make sure aLink doesn't point to a frame we no longer have.
+  aLink.mFrame = nsnull;
 
-  nsIFrame* next = frame->GetNextSibling();
-  while (next) {
-    frame = next;
-    next = frame->GetNextSibling();
-  }
-  return frame;
+  NS_POSTCONDITION(aLink.AtEnd(), "What's going on here?");
+
+  return nsFrameList(newFirstFrame, newLastFrame);
 }
 
 nsIFrame*
@@ -282,12 +333,43 @@ nsFrameList::FrameAt(PRInt32 aIndex) const
   return frame;
 }
 
+PRInt32
+nsFrameList::IndexOf(nsIFrame* aFrame) const
+{
+  PRInt32 count = 0;
+  for (nsIFrame* f = mFirstChild; f; f = f->GetNextSibling()) {
+    if (f == aFrame)
+      return count;
+    ++count;
+  }
+  return -1;
+}
+
 PRBool
 nsFrameList::ContainsFrame(const nsIFrame* aFrame) const
 {
-  NS_PRECONDITION(nsnull != aFrame, "null ptr");
+  NS_PRECONDITION(aFrame, "null ptr");
+
   nsIFrame* frame = mFirstChild;
   while (frame) {
+    if (frame == aFrame) {
+      return PR_TRUE;
+    }
+    frame = frame->GetNextSibling();
+  }
+  return PR_FALSE;
+}
+
+PRBool
+nsFrameList::ContainsFrameBefore(const nsIFrame* aFrame, const nsIFrame* aEnd) const
+{
+  NS_PRECONDITION(aFrame, "null ptr");
+
+  nsIFrame* frame = mFirstChild;
+  while (frame) {
+    if (frame == aEnd) {
+      return PR_FALSE;
+    }
     if (frame == aFrame) {
       return PR_TRUE;
     }
@@ -308,28 +390,25 @@ nsFrameList::GetLength() const
   return count;
 }
 
-static int PR_CALLBACK CompareByContentOrder(const void* aF1, const void* aF2,
-                                             void* aDummy)
+static int CompareByContentOrder(const nsIFrame* aF1, const nsIFrame* aF2)
 {
-  const nsIFrame* f1 = static_cast<const nsIFrame*>(aF1);
-  const nsIFrame* f2 = static_cast<const nsIFrame*>(aF2);
-  if (f1->GetContent() != f2->GetContent()) {
-    return nsLayoutUtils::CompareTreePosition(f1->GetContent(), f2->GetContent());
+  if (aF1->GetContent() != aF2->GetContent()) {
+    return nsLayoutUtils::CompareTreePosition(aF1->GetContent(), aF2->GetContent());
   }
 
-  if (f1 == f2) {
+  if (aF1 == aF2) {
     return 0;
   }
 
   const nsIFrame* f;
-  for (f = f2; f; f = f->GetPrevInFlow()) {
-    if (f == f1) {
+  for (f = aF2; f; f = f->GetPrevInFlow()) {
+    if (f == aF1) {
       // f1 comes before f2 in the flow
       return -1;
     }
   }
-  for (f = f1; f; f = f->GetPrevInFlow()) {
-    if (f == f2) {
+  for (f = aF1; f; f = f->GetPrevInFlow()) {
+    if (f == aF2) {
       // f1 comes after f2 in the flow
       return 1;
     }
@@ -339,67 +418,57 @@ static int PR_CALLBACK CompareByContentOrder(const void* aF1, const void* aF2,
   return 0;
 }
 
+class CompareByContentOrderComparator
+{
+  public:
+  PRBool Equals(const nsIFrame* aA, const nsIFrame* aB) const {
+    return aA == aB;
+  }
+  PRBool LessThan(const nsIFrame* aA, const nsIFrame* aB) const {
+    return CompareByContentOrder(aA, aB) < 0;
+  }
+};
+
 void
 nsFrameList::SortByContentOrder()
 {
-  if (!mFirstChild)
+  if (IsEmpty())
     return;
 
-  nsAutoVoidArray array;
+  nsAutoTArray<nsIFrame*, 8> array;
   nsIFrame* f;
   for (f = mFirstChild; f; f = f->GetNextSibling()) {
     array.AppendElement(f);
   }
-  array.Sort(CompareByContentOrder, nsnull);
-  f = mFirstChild = static_cast<nsIFrame*>(array.FastElementAt(0));
-  for (PRInt32 i = 1; i < array.Count(); ++i) {
-    nsIFrame* ff = static_cast<nsIFrame*>(array.FastElementAt(i));
+  array.Sort(CompareByContentOrderComparator());
+  f = mFirstChild = array.ElementAt(0);
+  for (PRUint32 i = 1; i < array.Length(); ++i) {
+    nsIFrame* ff = array.ElementAt(i);
     f->SetNextSibling(ff);
     f = ff;
   }
   f->SetNextSibling(nsnull);
-}
-
-nsIFrame*
-nsFrameList::GetPrevSiblingFor(nsIFrame* aFrame) const
-{
-  NS_PRECONDITION(nsnull != aFrame, "null ptr");
-  if (aFrame == mFirstChild) {
-    return nsnull;
-  }
-  nsIFrame* frame = mFirstChild;
-  while (frame) {
-    nsIFrame* next = frame->GetNextSibling();
-    if (next == aFrame) {
-      break;
-    }
-    frame = next;
-  }
-  return frame;
+  mLastChild = f;
 }
 
 void
-nsFrameList::VerifyParent(nsIFrame* aParent) const
+nsFrameList::ApplySetParent(nsIFrame* aParent) const
 {
-#ifdef NS_DEBUG
-  for (nsIFrame* frame = mFirstChild; frame;
-       frame = frame->GetNextSibling()) {
-    NS_ASSERTION(frame->GetParent() == aParent, "bad parent");
+  NS_ASSERTION(aParent, "null ptr");
+
+  for (nsIFrame* f = FirstChild(); f; f = f->GetNextSibling()) {
+    f->SetParent(aParent);
   }
-#endif
 }
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
 void
 nsFrameList::List(FILE* out) const
 {
   fputs("<\n", out);
   for (nsIFrame* frame = mFirstChild; frame;
        frame = frame->GetNextSibling()) {
-    nsIFrameDebug*  frameDebug;
-    if (NS_SUCCEEDED(frame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
-      frameDebug->List(out, 1);
-    }
+    frame->List(out, 1);
   }
   fputs(">\n", out);
 }
@@ -409,20 +478,18 @@ nsFrameList::List(FILE* out) const
 nsIFrame*
 nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 {
-  nsILineIterator* iter;
-
   if (!mFirstChild)
     return nsnull;
   
   nsIFrame* parent = mFirstChild->GetParent();
   if (!parent)
-    return aFrame ? GetPrevSiblingFor(aFrame) : LastChild();
+    return aFrame ? aFrame->GetPrevSibling() : LastChild();
 
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);  
   nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
 
-  nsresult result = parent->QueryInterface(NS_GET_IID(nsILineIterator), (void**)&iter);
-  if (NS_FAILED(result) || !iter) { 
+  nsAutoLineIterator iter = parent->GetLineIterator();
+  if (!iter) { 
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
@@ -435,7 +502,7 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
       // Just get the next or prev sibling, depending on block and frame direction.
       nsBidiLevel frameEmbeddingLevel = nsBidiPresUtils::GetFrameEmbeddingLevel(mFirstChild);
       if ((frameEmbeddingLevel & 1) == (baseLevel & 1)) {
-        return aFrame ? GetPrevSiblingFor(aFrame) : LastChild();
+        return aFrame ? aFrame->GetPrevSibling() : LastChild();
       } else {
         return aFrame ? aFrame->GetNextSibling() : mFirstChild;
       }    
@@ -447,11 +514,11 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 
   PRInt32 thisLine;
   if (aFrame) {
-    result = iter->FindLineContaining(aFrame, &thisLine);
-    if (NS_FAILED(result) || thisLine < 0)
+    thisLine = iter->FindLineContaining(aFrame);
+    if (thisLine < 0)
       return nsnull;
   } else {
-    iter->GetNumLines(&thisLine);
+    thisLine = iter->GetNumLines();
   }
 
   nsIFrame* frame = nsnull;
@@ -486,20 +553,18 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 nsIFrame*
 nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
 {
-  nsILineIterator* iter;
-
   if (!mFirstChild)
     return nsnull;
   
   nsIFrame* parent = mFirstChild->GetParent();
   if (!parent)
-    return aFrame ? GetPrevSiblingFor(aFrame) : mFirstChild;
+    return aFrame ? aFrame->GetPrevSibling() : mFirstChild;
 
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);
   nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
   
-  nsresult result = parent->QueryInterface(NS_GET_IID(nsILineIterator), (void**)&iter);
-  if (NS_FAILED(result) || !iter) { 
+  nsAutoLineIterator iter = parent->GetLineIterator();
+  if (!iter) { 
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
@@ -514,7 +579,7 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
       if ((frameEmbeddingLevel & 1) == (baseLevel & 1)) {
         return aFrame ? aFrame->GetNextSibling() : mFirstChild;
       } else {
-        return aFrame ? GetPrevSiblingFor(aFrame) : LastChild();
+        return aFrame ? aFrame->GetPrevSibling() : LastChild();
       }
     }
   }
@@ -524,8 +589,8 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   
   PRInt32 thisLine;
   if (aFrame) {
-    result = iter->FindLineContaining(aFrame, &thisLine);
-    if (NS_FAILED(result) || thisLine < 0)
+    thisLine = iter->FindLineContaining(aFrame);
+    if (thisLine < 0)
       return nsnull;
   } else {
     thisLine = -1;
@@ -547,8 +612,7 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
     }
   }
   
-  PRInt32 numLines;
-  iter->GetNumLines(&numLines);
+  PRInt32 numLines = iter->GetNumLines();
   if (!frame && thisLine < numLines - 1) {
     // Get the first frame of the next line
     iter->GetLine(thisLine + 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
@@ -563,14 +627,17 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
 }
 #endif
 
-#ifdef DEBUG
+#ifdef DEBUG_FRAME_LIST
 void
-nsFrameList::CheckForLoops()
+nsFrameList::VerifyList() const
 {
-  if (!mFirstChild) {
+  NS_ASSERTION((mFirstChild == nsnull) == (mLastChild == nsnull),
+               "bad list state");
+
+  if (IsEmpty()) {
     return;
   }
-  
+
   // Simple algorithm to find a loop in a linked list -- advance pointers
   // through it at speeds of 1 and 2, and if they ever get to be equal bail
   nsIFrame *first = mFirstChild, *second = mFirstChild;
@@ -585,8 +652,14 @@ nsFrameList::CheckForLoops()
       // Loop detected!  Since second advances faster, they can't both be null;
       // we would have broken out of the loop long ago.
       NS_ERROR("loop in frame list.  This will probably hang soon.");
-      break;
+      return;
     }                           
   } while (first && second);
+
+  NS_ASSERTION(mLastChild == nsLayoutUtils::GetLastSibling(mFirstChild),
+               "bogus mLastChild");
+  // XXX we should also assert that all GetParent() are either null or
+  // the same non-null value, but nsCSSFrameConstructor::nsFrameItems
+  // prevents that, e.g. table captions.
 }
 #endif

@@ -44,19 +44,6 @@
 
 /***************************************************************************/
 
-// static
-XPCContext*
-XPCContext::newXPCContext(XPCJSRuntime* aRuntime,
-                          JSContext* aJSContext)
-{
-    NS_PRECONDITION(aRuntime,"bad param");
-    NS_PRECONDITION(aJSContext,"bad param");
-    NS_ASSERTION(JS_GetRuntime(aJSContext) == aRuntime->GetJSRuntime(),
-                 "XPConnect can not be used on multiple JSRuntimes!");
-
-    return new XPCContext(aRuntime, aJSContext);
-}
-
 XPCContext::XPCContext(XPCJSRuntime* aRuntime,
                        JSContext* aJSContext)
     :   mRuntime(aRuntime),
@@ -66,20 +53,35 @@ XPCContext::XPCContext(XPCJSRuntime* aRuntime,
         mSecurityManager(nsnull),
         mException(nsnull),
         mCallingLangType(LANG_UNKNOWN),
-        mSecurityManagerFlags(0),
-        mMarked((JSPackedBool) JS_FALSE)
+        mSecurityManagerFlags(0)
 {
     MOZ_COUNT_CTOR(XPCContext);
 
+    PR_INIT_CLIST(&mScopes);
     for(const char** p =  XPC_ARG_FORMATTER_FORMAT_STRINGS; *p; p++)
         JS_AddArgumentFormatter(mJSContext, *p, XPC_JSArgumentFormatter);
+
+    NS_ASSERTION(!mJSContext->data2, "Must be null");
+    mJSContext->data2 = this;
 }
 
 XPCContext::~XPCContext()
 {
     MOZ_COUNT_DTOR(XPCContext);
+    NS_ASSERTION(mJSContext->data2 == this, "Must match this");
+    mJSContext->data2 = nsnull;
     NS_IF_RELEASE(mException);
     NS_IF_RELEASE(mSecurityManager);
+
+    // Iterate over our scopes and tell them that we have been destroyed
+    for(PRCList *scopeptr = PR_NEXT_LINK(&mScopes);
+        scopeptr != &mScopes;
+        scopeptr = PR_NEXT_LINK(scopeptr))
+    {
+        XPCWrappedNativeScope *scope = (XPCWrappedNativeScope *)scopeptr;
+        scope->SetContext(nsnull);
+    }
+
     // we do not call JS_RemoveArgumentFormatter because we now only
     // delete XPCContext *after* the underlying JSContext is dead
 }

@@ -47,10 +47,10 @@ class nsBoxLayoutState;
 class nsIRenderingContext;
 struct nsRect;
 
-// d0f7955e-7cae-4213-9e08-ad1d512f396f
+// 6a529924-c73d-4fae-af7a-0e8084e701d5
 #define NS_IBOX_LAYOUT_IID \
-{ 0xd0f7955e, 0x7cae, 0x4213, \
-  { 0x9e, 0x08, 0xad, 0x1d, 0x51, 0x2f, 0x39, 0x6f } }
+{ 0x6a529924, 0xc73d, 0x4fae, \
+ { 0xaf, 0x7a, 0x0e, 0x80, 0x84, 0xe7, 0x01, 0xd5 } }
 
 class nsIBoxLayout : public nsISupports {
 
@@ -60,18 +60,21 @@ public:
 
   NS_IMETHOD Layout(nsIBox* aBox, nsBoxLayoutState& aState)=0;
 
-  NS_IMETHOD GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize)=0;
-  NS_IMETHOD GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize)=0;
-  NS_IMETHOD GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize)=0;
-  NS_IMETHOD GetFlex(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nscoord& aFlex)=0;
-  NS_IMETHOD GetAscent(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nscoord& aAscent)=0;
-  NS_IMETHOD IsCollapsed(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, PRBool& aCollapsed)=0;
+  virtual nsSize GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)=0;
+  virtual nsSize GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)=0;
+  virtual nsSize GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)=0;
+  virtual nscoord GetAscent(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)=0;
 
-  NS_IMETHOD ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aPrevBox, nsIBox* aChildList)=0;
-  NS_IMETHOD ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)=0;
-  NS_IMETHOD ChildrenRemoved(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)=0;
-  NS_IMETHOD ChildrenSet(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)=0;
-  NS_IMETHOD IntrinsicWidthsDirty(nsIBox* aBox, nsBoxLayoutState& aState)=0;
+  // FIXME: Bug 507416.  The Children* notifications don't actually
+  // use all those arguments.  Can we just simplify the signatures?
+  virtual void ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState,
+                                nsIBox* aPrevBox,
+                                const nsFrameList::Slice& aNewChildren)=0;
+  virtual void ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState,
+                                const nsFrameList::Slice& aNewChildren)=0;
+  virtual void ChildrenRemoved(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)=0;
+  virtual void ChildrenSet(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)=0;
+  virtual void IntrinsicWidthsDirty(nsIBox* aBox, nsBoxLayoutState& aState)=0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIBoxLayout, NS_IBOX_LAYOUT_IID)

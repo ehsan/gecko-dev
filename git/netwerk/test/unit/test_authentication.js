@@ -1,6 +1,6 @@
 // This file tests authentication prompt callbacks
 
-do_import_script("netwerk/test/httpserver/httpd.js");
+do_load_httpd_js();
 
 const FLAG_RETURN_FALSE   = 1 << 0;
 const FLAG_WRONG_PASSWORD = 1 << 1;
@@ -127,7 +127,7 @@ AuthPrompt2.prototype = {
   },
 
   asyncPromptAuth: function ap2_async(chan, cb, ctx, lvl, info) {
-    do_throw("not implemented yet")
+    throw 0x80004001;
   }
 };
 
@@ -195,7 +195,7 @@ RealmTestRequestor.prototype = {
   },
 
   asyncPromptAuth: function realmtest_async(chan, cb, ctx, lvl, info) {
-    do_throw("not implemented yet");
+    throw 0x80004001;
   }
 };
 
@@ -236,8 +236,9 @@ var listener = {
 
       current_test++;
       tests[current_test]();
-    } else { 
-      httpserv.stop();
+    } else {
+      do_test_pending();
+      httpserv.stop(do_test_finished);
     }
 
     do_test_finished();
@@ -424,7 +425,7 @@ function authHandler(metadata, response) {
 // /auth/ntlm/simple
 function authNtlmSimple(metadata, response) {
   response.setStatusLine(metadata.httpVersion, 401, "Unauthorized");
-  response.setHeader("WWW-Authenticate", "NTLM" /* + ' realm="secret"' */);
+  response.setHeader("WWW-Authenticate", "NTLM" /* + ' realm="secret"' */, false);
 
   var body = "NOTE: This just sends an NTLM challenge, it never\n" +
              "accepts the authentication. It also closes\n" +
@@ -451,8 +452,7 @@ function bytesFromString(str) {
    Components.classes["@mozilla.org/intl/scriptableunicodeconverter"]
      .createInstance(Components.interfaces.nsIScriptableUnicodeConverter);
  converter.charset = "UTF-8";
- var result = {};
- var data = converter.convertToByteArray(str, result);
+ var data = converter.convertToByteArray(str);
  return data;
 }
 

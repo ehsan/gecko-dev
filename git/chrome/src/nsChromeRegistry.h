@@ -53,6 +53,7 @@
 #include "nsTHashtable.h"
 #include "nsURIHashKey.h"
 #include "nsVoidArray.h"
+#include "nsTArray.h"
 #include "nsInterfaceHashtable.h"
 
 struct PRFileDesc;
@@ -61,6 +62,7 @@ class nsICSSLoader;
 class nsICSSStyleSheet;
 class nsIDOMWindowInternal;
 class nsILocalFile;
+class nsIPrefBranch;
 class nsIRDFDataSource;
 class nsIRDFResource;
 class nsIRDFService;
@@ -94,7 +96,9 @@ public:
   NS_DECL_NSIOBSERVER
 
   // nsChromeRegistry methods:
-  nsChromeRegistry() : mInitialized(PR_FALSE) { }
+  nsChromeRegistry() : mInitialized(PR_FALSE), mProfileLoaded(PR_FALSE) {
+    mPackagesHash.ops = nsnull;
+  }
   ~nsChromeRegistry();
 
   nsresult Init();
@@ -113,6 +117,8 @@ protected:
   void FlushAllCaches();
 
 private:
+  nsresult SelectLocaleFromPref(nsIPrefBranch* prefs);
+
   static nsresult RefreshWindow(nsIDOMWindowInternal* aWindow,
                                 nsICSSLoader* aCSSLoader);
   static nsresult GetProviderAndPath(nsIURL* aChromeURL,
@@ -162,7 +168,7 @@ public:
     nsIURI* GetBase(const nsACString& aPreferred, MatchType aType);
     const nsACString& GetSelected(const nsACString& aPreferred, MatchType aType);
     void    SetBase(const nsACString& aProvider, nsIURI* base);
-    void    EnumerateToArray(nsCStringArray *a);
+    void    EnumerateToArray(nsTArray<nsCString> *a);
     void    Clear();
 
   private:
@@ -185,7 +191,10 @@ public:
       // This package should use the new XPCNativeWrappers to separate
       // content from chrome. This flag is currently unused (because we call
       // into xpconnect at registration time).
-      XPCNATIVEWRAPPERS = 1 << 1
+      XPCNATIVEWRAPPERS = 1 << 1,
+
+      // Content script may access files in this package
+      CONTENT_ACCESSIBLE = 1 << 2
     };
 
     nsCString        package;
@@ -239,6 +248,7 @@ public:
 
 private:
   PRBool mInitialized;
+  PRBool mProfileLoaded;
 
   // Hash of package names ("global") to PackageEntry objects
   PLDHashTable mPackagesHash;

@@ -22,6 +22,7 @@
  *   Darin Fisher <darin@meer.net>
  *   Benjamin Smedberg <benjamin@smedbergs.us>
  *   Ben Turner <mozilla@songbirdnest.com>
+ *   Prasad Sunkari <prasad@medhas.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -328,11 +329,11 @@ nsAString::Find(const self_type& aStr, PRUint32 aOffset,
   const char_type *begin, *end;
   PRUint32 selflen = BeginReading(&begin, &end);
 
-  const char_type *other;
-  PRUint32 otherlen = aStr.BeginReading(&other);
-
   if (aOffset > selflen)
     return -1;
+
+  const char_type *other;
+  PRUint32 otherlen = aStr.BeginReading(&other);
 
   if (otherlen > selflen - aOffset)
     return -1;
@@ -389,13 +390,63 @@ nsAString::Find(const char *aStr, PRUint32 aOffset, PRBool aIgnoreCase) const
 
   PRUint32 otherlen = strlen(aStr);
 
-  if (otherlen > selflen)
+  if (otherlen > selflen - aOffset)
     return -1;
 
   // We want to stop searching otherlen characters before the end of the string
   end -= otherlen;
 
   for (const char_type *cur = begin + aOffset; cur <= end; ++cur) {
+    if (match(cur, aStr, otherlen)) {
+      return cur - begin;
+    }
+  }
+  return -1;
+}
+
+PRInt32
+nsAString::RFind(const self_type& aStr, PRInt32 aOffset, ComparatorFunc c) const
+{
+  const char_type *begin, *end;
+  PRUint32 selflen = BeginReading(&begin, &end);
+
+  const char_type *other;
+  PRUint32 otherlen = aStr.BeginReading(&other);
+
+  if (selflen < otherlen)
+    return -1;
+
+  if (aOffset < 0 || aOffset > (selflen - otherlen))
+    end -= otherlen;
+  else
+    end = begin + aOffset;
+
+  for (const char_type *cur = end; cur >= begin; --cur) {
+    if (!c(cur, other, otherlen))
+      return cur - begin;
+  }
+  return -1;
+}
+
+PRInt32
+nsAString::RFind(const char *aStr, PRInt32 aOffset, PRBool aIgnoreCase) const
+{
+  PRBool (*match)(const PRUnichar*, const char*, PRUint32) =
+    aIgnoreCase ? ns_strnimatch : ns_strnmatch;
+
+  const char_type *begin, *end;
+  PRUint32 selflen = BeginReading(&begin, &end);
+  PRUint32 otherlen = strlen(aStr);
+  
+  if (selflen < otherlen)
+    return -1;
+
+  if (aOffset < 0 || aOffset > (selflen - otherlen))
+    end -= otherlen;
+  else
+    end = begin + aOffset;
+
+  for (const char_type *cur = end; cur >= begin; --cur) {
     if (match(cur, aStr, otherlen)) {
       return cur - begin;
     }
@@ -710,17 +761,26 @@ PRInt32
 nsACString::Find(const self_type& aStr, PRUint32 aOffset,
                  ComparatorFunc c) const
 {
-  const char_type *begin;
-  PRUint32 len = aStr.BeginReading(&begin);
+  const char_type *begin, *end;
+  PRUint32 selflen = BeginReading(&begin, &end);
 
-  if (aOffset > len)
+  if (aOffset > selflen)
     return -1;
 
-  PRInt32 found = Find(begin + aOffset, len - aOffset, c);
-  if (found == -1)
-    return found;
+  const char_type *other;
+  PRUint32 otherlen = aStr.BeginReading(&other);
 
-  return found + aOffset;
+  if (otherlen > selflen - aOffset)
+    return -1;
+
+  // We want to stop searching otherlen characters before the end of the string
+  end -= otherlen;
+
+  for (const char_type *cur = begin + aOffset; cur <= end; ++cur) {
+    if (!c(cur, other, otherlen))
+      return cur - begin;
+  }
+  return -1;
 }
 
 PRInt32
@@ -747,6 +807,60 @@ nsACString::Find(const char_type *aStr, PRUint32 aLen, ComparatorFunc c) const
   end -= aLen;
 
   for (const char_type *cur = begin; cur <= end; ++cur) {
+    if (!c(cur, aStr, aLen))
+      return cur - begin;
+  }
+  return -1;
+}
+
+PRInt32 
+nsACString::RFind(const self_type& aStr, PRInt32 aOffset, ComparatorFunc c) const
+{
+  const char_type *begin, *end;
+  PRUint32 selflen = BeginReading(&begin, &end);
+
+  const char_type *other;
+  PRUint32 otherlen = aStr.BeginReading(&other);
+
+  if (selflen < otherlen)
+    return -1;
+
+  if (aOffset < 0 || aOffset > (selflen - otherlen))
+    end -= otherlen;
+  else
+    end = begin + aOffset;
+
+  for (const char_type *cur = end; cur >= begin; --cur) {
+    if (!c(cur, other, otherlen))
+      return cur - begin;
+  }
+  return -1;
+}
+
+PRInt32 
+nsACString::RFind(const char_type *aStr, ComparatorFunc c) const
+{
+  return RFind(aStr, strlen(aStr), c);
+}
+
+PRInt32 
+nsACString::RFind(const char_type *aStr, PRInt32 aLen, ComparatorFunc c) const
+{
+  const char_type *begin, *end;
+  PRUint32 selflen = BeginReading(&begin, &end);
+
+  if (aLen == 0) {
+    NS_WARNING("Searching for zero-length string.");
+    return -1;
+  }
+
+  if (aLen > selflen)
+    return -1;
+
+  // We want to start searching otherlen characters before the end of the string
+  end -= aLen;
+
+  for (const char_type *cur = end; cur >= begin; --cur) {
     if (!c(cur, aStr, aLen))
       return cur - begin;
   }
@@ -923,42 +1037,39 @@ ToNewUTF8String(const nsAString& aSource)
 void
 CompressWhitespace(nsAString& aString)
 {
-  aString.Trim(" \n\t\r");
-
   PRUnichar *start;
   PRUint32 len = NS_StringGetMutableData(aString, PR_UINT32_MAX, &start);
   PRUnichar *end = start + len;
+  PRUnichar *from = start, *to = start;
 
-  for (PRUnichar *cur = start; cur < end; ++cur) {
-    if (!NS_IsAsciiWhitespace(*cur))
-      continue;
+  // Skip any leading whitespace
+  while (from < end && NS_IsAsciiWhitespace(*from))
+    from++;
 
-    *cur = ' ';
+  while (from < end) {
+    PRUnichar theChar = *from++;
 
-    PRUnichar *wend;
-    for (wend = cur + 1; wend < end && NS_IsAsciiWhitespace(*wend); ++wend) {
-      // nothing to do but loop
+    if (NS_IsAsciiWhitespace(theChar)) {
+      // We found a whitespace char, so skip over any more 
+      while (from < end && NS_IsAsciiWhitespace(*from))
+        from++;  
+
+      // Turn all whitespace into spaces
+      theChar = ' ';
     }
 
-    if (wend == cur + 1)
-      continue;
-
-    PRUint32 wlen = wend - cur - 1;
-
-    // fix "end"
-    end -= wlen;
-
-    // move everything forwards a bit
-    for (PRUnichar *m = cur + 1; m < end; ++m) {
-      *m = *(m + wlen);
-    }
+    *to++ = theChar;
   }
 
-  // re-terminate
-  *end = '\0';
+  // Drop any trailing space
+  if (to > start && to[-1] == ' ')
+    to--;
 
-  // Set the new length.
-  aString.SetLength(end - start);
+  // Re-terminate the string
+  *to = '\0';
+
+  // Set the new length
+  aString.SetLength(to - start);
 }
 
 PRUint32
@@ -1034,4 +1145,36 @@ CaseInsensitiveCompare(const char *a, const char *b,
   }
 
   return 0;
+}
+
+PRBool
+ParseString(const nsACString& aSource, char aDelimiter, 
+            nsTArray<nsCString>& aArray)
+{
+  PRInt32 start = 0;
+  PRInt32 end = aSource.Length();
+
+  PRUint32 oldLength = aArray.Length();
+
+  for (;;) {
+    PRInt32 delimiter = aSource.FindChar(aDelimiter, start);
+    if (delimiter < 0) {
+      delimiter = end;
+    }
+
+    if (delimiter != start) {
+      if (!aArray.AppendElement(Substring(aSource, start, delimiter - start))) {
+        aArray.RemoveElementsAt(oldLength, aArray.Length() - oldLength);
+        return PR_FALSE;
+      }
+    }
+
+    if (delimiter == end)
+      break;
+    start = ++delimiter;
+    if (start == end)
+      break;
+  }
+
+  return PR_TRUE;
 }

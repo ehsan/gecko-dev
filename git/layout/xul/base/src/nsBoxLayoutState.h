@@ -56,10 +56,11 @@ struct nsHTMLReflowMetrics;
 class nsString;
 class nsHTMLReflowCommand;
 
-class nsBoxLayoutState
+class NS_STACK_CLASS nsBoxLayoutState
 {
 public:
-  nsBoxLayoutState(nsPresContext* aPresContext, nsIRenderingContext* aRenderingContext = nsnull) NS_HIDDEN;
+  nsBoxLayoutState(nsPresContext* aPresContext, nsIRenderingContext* aRenderingContext = nsnull,
+                   PRUint16 aReflowDepth = 0) NS_HIDDEN;
   nsBoxLayoutState(const nsBoxLayoutState& aState) NS_HIDDEN;
 
   nsPresContext* PresContext() const { return mPresContext; }
@@ -78,16 +79,19 @@ public:
   // doing box layout or intrinsic size calculation will cause bugs.
   nsIRenderingContext* GetRenderingContext() const { return mRenderingContext; }
 
-  void PushStackMemory() { PresShell()->PushStackMemory(); }
-  void PopStackMemory()  { PresShell()->PopStackMemory(); }
+  void PushStackMemory() { PresShell()->PushStackMemory(); ++mReflowDepth; }
+  void PopStackMemory()  { PresShell()->PopStackMemory(); --mReflowDepth; }
   void* AllocateStackMemory(size_t aSize)
   { return PresShell()->AllocateStackMemory(aSize); }
 
+  PRUint16 GetReflowDepth() { return mReflowDepth; }
+  
 private:
   nsCOMPtr<nsPresContext> mPresContext;
   nsIRenderingContext *mRenderingContext;
   PRUint32 mLayoutFlags;
-  PRBool mPaintingDisabled;
+  PRUint16 mReflowDepth; 
+  PRPackedBool mPaintingDisabled;
 };
 
 #endif

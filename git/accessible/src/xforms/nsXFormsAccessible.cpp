@@ -105,15 +105,6 @@ nsXFormsAccessible::GetBoundChildElementValue(const nsAString& aTagName,
 void
 nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
 {
-  if (!mWeakShell) {
-    // This node has been shut down
-    mAccChildCount = eChildCountUninitialized;
-    return;
-  }
-
-  if (mAccChildCount != eChildCountUninitialized)
-    return;
-
   nsIAccessibilityService *accService = GetAccService();
   if (!accService)
     return;
@@ -132,8 +123,7 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
   children->GetLength(&length);
 
   nsCOMPtr<nsIAccessible> accessible;
-  nsCOMPtr<nsPIAccessible> currAccessible;
-  nsCOMPtr<nsPIAccessible> prevAccessible;
+  nsRefPtr<nsAccessible> acc;
 
   PRUint32 childLength = 0;
   for (PRUint32 index = 0; index < length; index++) {
@@ -143,22 +133,13 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
       continue;
 
     accService->GetAttachedAccessibleFor(child, getter_AddRefs(accessible));
-    currAccessible = do_QueryInterface(accessible);
-    if (!currAccessible)
+    if (!accessible)
       continue;
 
-    if (childLength == 0)
-      SetFirstChild(accessible);
-
-    currAccessible->SetParent(this);
-    if (prevAccessible) {
-      prevAccessible->SetNextSibling(accessible);
-    }
-    currAccessible.swap(prevAccessible);
-    childLength++;
+    mChildren.AppendObject(accessible);
+    acc = nsAccUtils::QueryObject<nsAccessible>(accessible);
+    acc->SetParent(this);
   }
-
-  mAccChildCount = childLength;
 }
 
 // nsIAccessible
@@ -170,11 +151,21 @@ nsXFormsAccessible::GetValue(nsAString& aValue)
   return sXFormsService->GetValue(mDOMNode, aValue);
 }
 
-NS_IMETHODIMP
-nsXFormsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsXFormsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
   *aState = 0;
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
+  if (aExtraState)
+    *aExtraState = 0;
 
   NS_ENSURE_TRUE(sXFormsService, NS_ERROR_FAILURE);
 
@@ -194,7 +185,7 @@ nsXFormsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   rv = sXFormsService->IsValid(mDOMNode, &isValid);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
+  rv = nsHyperTextAccessibleWrap::GetStateInternal(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!isRelevant)
@@ -212,16 +203,9 @@ nsXFormsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXFormsAccessible::GetName(nsAString& aName)
+nsresult
+nsXFormsAccessible::GetNameInternal(nsAString& aName)
 {
-  nsAutoString name;
-  nsresult rv = GetTextFromRelationID(eAria_labelledby, name);
-  if (NS_SUCCEEDED(rv) && !name.IsEmpty()) {
-    aName = name;
-    return NS_OK;
-  }
-
   // search the xforms:label element
   return GetBoundChildElementValue(NS_LITERAL_STRING("label"), aName);
 }
@@ -230,7 +214,9 @@ NS_IMETHODIMP
 nsXFormsAccessible::GetDescription(nsAString& aDescription)
 {
   nsAutoString description;
-  nsresult rv = GetTextFromRelationID(eAria_describedby, description);
+  nsresult rv = nsTextEquivUtils::
+    GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
+                           description);
 
   if (NS_SUCCEEDED(rv) && !description.IsEmpty()) {
     aDescription = description;
@@ -241,30 +227,10 @@ nsXFormsAccessible::GetDescription(nsAString& aDescription)
   return GetBoundChildElementValue(NS_LITERAL_STRING("hint"), aDescription);
 }
 
-nsresult
-nsXFormsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
+PRBool
+nsXFormsAccessible::GetAllowsAnonChildAccessibles()
 {
-  NS_ENSURE_ARG_POINTER(aAttributes);
-
-  nsresult rv = nsHyperTextAccessibleWrap::GetAttributesInternal(aAttributes);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString name;
-  rv = sXFormsService->GetBuiltinTypeName(mDOMNode, name);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString unused;
-  return aAttributes->SetStringProperty(NS_LITERAL_CSTRING("datatype"),
-                                        name, unused);
-}
-
-NS_IMETHODIMP
-nsXFormsAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
-{
-  NS_ENSURE_ARG_POINTER(aAllowsAnonChildren);
-
-  *aAllowsAnonChildren = PR_FALSE;
-  return NS_OK;
+  return PR_FALSE;
 }
 
 // nsXFormsContainerAccessible
@@ -275,22 +241,17 @@ nsXFormsContainerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
 {
 }
 
-NS_IMETHODIMP
-nsXFormsContainerAccessible::GetRole(PRUint32 *aRole)
+nsresult
+nsXFormsContainerAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  NS_ENSURE_ARG_POINTER(aRole);
-
   *aRole = nsIAccessibleRole::ROLE_GROUPING;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXFormsContainerAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
+PRBool
+nsXFormsContainerAccessible::GetAllowsAnonChildAccessibles()
 {
-  NS_ENSURE_ARG_POINTER(aAllowsAnonChildren);
-
-  *aAllowsAnonChildren = PR_TRUE;
-  return NS_OK;
+  return PR_TRUE;
 }
 
 // nsXFormsEditableAccessible
@@ -301,13 +262,14 @@ nsXFormsEditableAccessible::
 {
 }
 
-NS_IMETHODIMP
-nsXFormsEditableAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsXFormsEditableAccessible::GetStateInternal(PRUint32 *aState,
+                                             PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
 
-  nsresult rv = nsXFormsAccessible::GetState(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsresult rv = nsXFormsAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   if (!aExtraState)
     return NS_OK;

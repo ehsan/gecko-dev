@@ -43,26 +43,127 @@
 
 #import <Cocoa/Cocoa.h>
 
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_5)
+#define NS_LEOPARD_AND_LATER 1
+#endif
+
 #include "nsRect.h"
+#include "nsObjCExceptions.h"
 
-//
-// Returns the given y coordinate, which must be in screen coordinates,
-// flipped from Gecko to Cocoa or Cocoa to Gecko.
-//
-float FlippedScreenY(float y);
+class nsIWidget;
 
-/*
- * Gecko rects (nsRect) contain an origin (x,y) in a coordinate
- * system with (0,0) in the top-left of the primary screen. Cocoa rects
- * (NSRect) contain an origin (x,y) in a coordinate system with (0,0)
- * in the bottom-left of the primary screen. Both nsRect and NSRect
- * contain width/height info, with no difference in their use.
- */
-NSRect geckoRectToCocoaRect(const nsRect &geckoRect);
+// "Borrowed" in part from the QTKit framework's QTKitDefines.h.  This is
+// needed when building on OS X Tiger (10.4.X) or with a 10.4 SDK.  It won't
+// be used when building on Leopard (10.5.X) or higher (or with a 10.5 or
+// higher SDK).
+//
+// These definitions for NSInteger and NSUInteger are the 32-bit ones -- since
+// we assume we'll always be building 32-bit binaries when building on Tiger
+// (or with a 10.4 SDK).
+#ifndef NSINTEGER_DEFINED
 
-//
-// See explanation for geckoRectToCocoaRect, guess what this does...
-//
-nsRect cocoaRectToGeckoRect(const NSRect &cocoaRect);
+typedef int NSInteger;
+typedef unsigned int NSUInteger;
+
+#define NSIntegerMax    LONG_MAX
+#define NSIntegerMin    LONG_MIN
+#define NSUIntegerMax   ULONG_MAX
+
+#define NSINTEGER_DEFINED 1
+
+#endif  /* NSINTEGER_DEFINED */
+
+#ifndef CGFLOAT_DEFINED
+typedef float CGFloat;
+# define CGFLOAT_MIN FLT_MIN
+# define CGFLOAT_MAX FLT_MAX
+# define CGFLOAT_IS_DOUBLE 0
+# define CGFLOAT_DEFINED 1
+#endif
+
+// Used to retain a Cocoa object for the remainder of a method's execution.
+class nsAutoRetainCocoaObject {
+public:
+nsAutoRetainCocoaObject(id anObject)
+{
+  mObject = NS_OBJC_TRY_EXPR_ABORT([anObject retain]);
+}
+~nsAutoRetainCocoaObject()
+{
+  NS_OBJC_TRY_ABORT([mObject release]);
+}
+private:
+  id mObject;  // [STRONG]
+};
+
+@interface NSApplication (Undocumented)
+
+// Present in all versions of OS X from (at least) 10.2.8 through 10.5.
+- (BOOL)_isRunningModal;
+- (BOOL)_isRunningAppModal;
+
+// It's sometimes necessary to explicitly remove a window from the "window
+// cache" in order to deactivate it.  The "window cache" is an undocumented
+// subsystem, all of whose methods are included in the NSWindowCache category
+// of the NSApplication class (in header files generated using class-dump).
+// Present in all versions of OS X from (at least) 10.2.8 through 10.5.
+- (void)_removeWindowFromCache:(NSWindow *)aWindow;
+
+// Send an event to the current Cocoa app-modal session.  Present in all
+// versions of OS X from (at least) 10.2.8 through 10.5.
+- (void)_modalSession:(NSModalSession)aSession sendEvent:(NSEvent *)theEvent;
+
+@end
+
+class nsCocoaUtils
+{
+  public:
+  // Returns the height of the primary screen (the one with the menu bar, which
+  // is documented to be the first in the |screens| array).
+  static float MenuBarScreenHeight();
+
+  // Returns the given y coordinate, which must be in screen coordinates,
+  // flipped from Gecko to Cocoa or Cocoa to Gecko.
+  static float FlippedScreenY(float y);
+  
+  // Gecko rects (nsRect) contain an origin (x,y) in a coordinate
+  // system with (0,0) in the top-left of the primary screen. Cocoa rects
+  // (NSRect) contain an origin (x,y) in a coordinate system with (0,0)
+  // in the bottom-left of the primary screen. Both nsRect and NSRect
+  // contain width/height info, with no difference in their use.
+  static NSRect GeckoRectToCocoaRect(const nsIntRect &geckoRect);
+  
+  // See explanation for geckoRectToCocoaRect, guess what this does...
+  static nsIntRect CocoaRectToGeckoRect(const NSRect &cocoaRect);
+  
+  // Gives the location for the event in screen coordinates. Do not call this
+  // unless the window the event was originally targeted at is still alive!
+  // anEvent may be nil -- in that case the current mouse location is returned.
+  static NSPoint ScreenLocationForEvent(NSEvent* anEvent);
+  
+  // Determines if an event happened over a window, whether or not the event
+  // is for the window. Does not take window z-order into account.
+  static BOOL IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow);
+
+  // Events are set up so that their coordinates refer to the window to which they
+  // were originally sent. If we reroute the event somewhere else, we'll have
+  // to get the window coordinates this way. Do not call this unless the window
+  // the event was originally targeted at is still alive!
+  static NSPoint EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow);
+
+  // Hides the Menu bar and the Dock. Multiple hide/show requests can be nested.
+  static void HideOSChromeOnScreen(PRBool aShouldHide, NSScreen* aScreen);
+
+  static nsIWidget* GetHiddenWindowWidget();
+
+  static void PrepareForNativeAppModalDialog();
+  static void CleanUpAfterNativeAppModalDialog();
+
+  // Wrap calls to [theEvent keyCode] and [theEvent modifierFlags].  Needed to
+  // work around an Apple bug (on OS X 10.4.X) that causes ctrl-ESC key events
+  // sent via performKeyEquivalent: to return 0 on these calls.
+  static unsigned short GetCocoaEventKeyCode(NSEvent *theEvent);
+  static NSUInteger GetCocoaEventModifierFlags(NSEvent *theEvent);
+};
 
 #endif // nsCocoaUtils_h_

@@ -149,9 +149,10 @@ listElement.prototype =
         { 
           if ((null == aDataObject) || !aDataObject.hasMore()) {
             // disable dialog
-            var stringBundle = srGetStrBundle("chrome://global/locale/printing.properties");
             this.listElement.setAttribute("value", "");
-            this.listElement.setAttribute("label", stringBundle.GetStringFromName("noprinter"));
+            this.listElement.setAttribute("label",
+              document.getElementById("printingBundle")
+                      .getString("noprinter"));
 
             this.listElement.setAttribute("disabled", "true");
             dialog.printerLabel.setAttribute("disabled","true");
@@ -408,6 +409,7 @@ function onAccept()
   if (saveToPrefs && printService != null) {
     var flags = gPrintSetInterface.kInitSavePaperSize      | 
                 gPrintSetInterface.kInitSaveColorSpace     |
+                gPrintSetInterface.kInitSaveEdges          |
                 gPrintSetInterface.kInitSaveInColor        |
                 gPrintSetInterface.kInitSaveResolutionName |
                 gPrintSetInterface.kInitSaveDownloadFonts  |

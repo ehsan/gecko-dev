@@ -58,7 +58,7 @@ class nsGenericHTMLElement;
 
 nsresult
 NS_NewElement(nsIContent** aResult, PRInt32 aElementType,
-              nsINodeInfo* aNodeInfo);
+              nsINodeInfo* aNodeInfo, PRBool aFromParser);
 
 nsresult
 NS_NewXMLElement(nsIContent** aResult, nsINodeInfo* aNodeInfo);
@@ -100,7 +100,8 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
                       nsNodeInfoManager *aNodeInfoManager);
 
 nsresult
-NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo);
+NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
+                  PRBool aFromParser);
 
 // First argument should be nsHTMLTag, but that adds dependency to parser
 // for a bunch of files.
@@ -120,7 +121,8 @@ NS_NewXULElement(nsIContent** aResult, nsINodeInfo* aNodeInfo);
 
 #ifdef MOZ_SVG
 nsresult
-NS_NewSVGElement(nsIContent** aResult, nsINodeInfo* aNodeInfo);
+NS_NewSVGElement(nsIContent** aResult, nsINodeInfo* aNodeInfo,
+                 PRBool aFromParser);
 #endif
 
 nsresult

@@ -46,9 +46,6 @@
 
 class nsAnonymousBlockFrame;
 
-#define NS_INLINE_FRAME_CID \
- { 0x88b298af, 0x8b0e, 0x4592,{0x9e, 0xc6, 0xea, 0x4c, 0x4b, 0x3f, 0xf7, 0xa4}}
-
 #define nsInlineFrameSuper nsHTMLContainerFrame
 
 // NS_INLINE_FRAME_HARD_TEXT_OFFSETS is used for access keys, where what
@@ -79,10 +76,11 @@ class nsAnonymousBlockFrame;
 class nsInlineFrame : public nsInlineFrameSuper
 {
 public:
-  friend nsIFrame* NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_DECL_QUERYFRAME_TARGET(nsInlineFrame)
+  NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
-  // nsISupports overrides
-  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  friend nsIFrame* NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   // nsIFrame overrides
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -118,6 +116,7 @@ public:
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
+  virtual nsRect ComputeTightBounds(gfxContext* aContext) const;
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
@@ -125,11 +124,7 @@ public:
 
   virtual PRBool CanContinueTextRun() const;
 
-  // Take all of the frames away from this frame. The caller is
-  // presumed to keep them alive.
-  void StealAllFrames() {
-    mFrames.SetFrames(nsnull);
-  }
+  virtual void PullOverflowsFromPrevInFlow();
 
   /**
    * Return true if the frame is leftmost frame or continuation.
@@ -138,7 +133,7 @@ public:
     // If the frame's bidi visual state is set, return is-leftmost state
     // else return true if it's the first continuation.
     return (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_STATE_IS_SET)
-             ? (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_LEFT_MOST)
+             ? !!(GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_LEFT_MOST)
              : (!GetPrevInFlow());
   }
 
@@ -149,7 +144,7 @@ public:
     // If the frame's bidi visual state is set, return is-rightmost state
     // else return true if it's the last continuation.
     return (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_STATE_IS_SET)
-             ? (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_RIGHT_MOST)
+             ? !!(GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_RIGHT_MOST)
              : (!GetNextInFlow());
   }
 
@@ -159,6 +154,7 @@ protected:
     nsIFrame* mPrevFrame;
     nsInlineFrame* mNextInFlow;
     nsIFrame*      mLineContainer;
+    nsLineLayout*  mLineLayout;
     PRPackedBool mSetParentPointer;  // when reflowing child frame first set its
                                      // parent frame pointer
 
@@ -166,6 +162,7 @@ protected:
       mPrevFrame = nsnull;
       mNextInFlow = nsnull;
       mLineContainer = nsnull;
+      mLineLayout = nsnull;
       mSetParentPointer = PR_FALSE;
     }
   };
@@ -201,7 +198,8 @@ protected:
 
   virtual void PushFrames(nsPresContext* aPresContext,
                           nsIFrame* aFromChild,
-                          nsIFrame* aPrevSibling);
+                          nsIFrame* aPrevSibling,
+                          InlineReflowState& aState);
 
 };
 
@@ -213,6 +211,8 @@ protected:
  */
 class nsFirstLineFrame : public nsInlineFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   friend nsIFrame* NS_NewFirstLineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 #ifdef DEBUG
@@ -224,9 +224,7 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
 
-  // Take frames starting at aFrame until the end of the frame-list
-  // away from this frame. The caller is presumed to keep them alive.
-  void StealFramesFrom(nsIFrame* aFrame);
+  virtual void PullOverflowsFromPrevInFlow();
 
 protected:
   nsFirstLineFrame(nsStyleContext* aContext) : nsInlineFrame(aContext) {}
@@ -245,6 +243,8 @@ protected:
 class nsPositionedInlineFrame : public nsInlineFrame
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   nsPositionedInlineFrame(nsStyleContext* aContext)
     : nsInlineFrame(aContext)
     , mAbsoluteContainer(nsGkAtoms::absoluteList)
@@ -252,15 +252,15 @@ public:
 
   virtual ~nsPositionedInlineFrame() { } // useful for debugging
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsIFrame*       aChildList);
+                                 nsFrameList&    aChildList);
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsIFrame*       aFrameList);
+                          nsFrameList&    aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsIFrame*       aFrameList);
+                          nsFrameList&    aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -270,7 +270,7 @@ public:
 
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
 
-  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -278,6 +278,8 @@ public:
                     nsReflowStatus&          aStatus);
   
   virtual nsIAtom* GetType() const;
+
+  virtual PRBool NeedsView() { return PR_TRUE; }
 
 protected:
   nsAbsoluteContainingBlock mAbsoluteContainer;

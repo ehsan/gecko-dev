@@ -40,10 +40,14 @@
 
 #ifdef XP_WIN
 #include <windows.h>
+#else
+#include <limits.h>
 #endif
 
 #ifndef MAXPATHLEN
-#ifdef _MAX_PATH
+#ifdef PATH_MAX
+#define MAXPATHLEN PATH_MAX
+#elif defined(_MAX_PATH)
 #define MAXPATHLEN _MAX_PATH
 #elif defined(CCHMAXPATH)
 #define MAXPATHLEN CCHMAXPATH
@@ -133,7 +137,7 @@ WriteConsoleLog();
 
 #ifdef XP_WIN
 BOOL
-WinLaunchChild(const char *exePath, int argc, char **argv, int needElevation);
+WinLaunchChild(const PRUnichar *exePath, int argc, char **argv);
 #endif
 
 #define NS_NATIVEAPPSUPPORT_CONTRACTID "@mozilla.org/toolkit/native-app-support;1"
@@ -177,5 +181,19 @@ void SetStrongPtr(T *&ptr, T* newvalue)
   ptr = newvalue;
   NS_IF_ADDREF(ptr);
 }
+
+#ifdef MOZ_IPC
+namespace mozilla {
+namespace startup {
+extern GeckoProcessType sChildProcessType;
+}
+}
+#endif
+
+/**
+ * Set up platform specific error handling such as suppressing DLL load dialog
+ * and the JIT debugger on Windows, and install unix signal handlers.
+ */
+void SetupErrorHandling(const char* progname);
 
 #endif // nsAppRunner_h__

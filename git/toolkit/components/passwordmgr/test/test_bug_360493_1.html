@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Test for Login Manager</title>
-  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="text/javascript" src="pwmgr_common.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -114,6 +114,8 @@ Login Manager test: 360493
 // This test is designed to make sure variations on the form's |action|
 // and |method| continue to work with the fix for 360493.
 
+commonInit();
+
 function startTest() {
   for (var i = 1; i <= 9; i++) {
     // Check form i
@@ -121,9 +123,9 @@ function startTest() {
     is($_(i, "pword").value, "testpass", "Checking for filled password " + i);
   }
 
-  // Not sure if we spec'd how JS urls should be handled here.
-  todo_is($_(10, "uname"), "testuser", "Checking username w/ JS action URL");
-  todo_is($_(10, "pword"), "testpass", "Checking password w/ JS action URL");
+  // The login's formSubmitURL isn't "javascript:", so don't fill it in.
+  isnot($_(10, "uname"), "testuser", "Checking username w/ JS action URL");
+  isnot($_(10, "pword"), "testpass", "Checking password w/ JS action URL");
 
   SimpleTest.finish();
 }

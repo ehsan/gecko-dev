@@ -46,32 +46,15 @@ MODULE		= layout
 LIBRARY_NAME	= gksvgbase_s
 LIBXUL_LIBRARY	= 1
 
-REQUIRES	= xpcom \
-		  string \
-		  content \
-		  gfx \
-		  widget \
-		  dom \
-		  locale \
-		  view \
-		  pref \
-		  necko \
-		  unicharutil \
-		  webshell \
-		  imglib2 \
-		  intl \
-		  windowwatcher \
-		  js \
-		  xpconnect \
-		  docshell \
-		  thebes \
-		  $(NULL)
 
 CPPSRCS		= \
 		nsSVGAFrame.cpp \
 		nsSVGClipPathFrame.cpp \
 		nsSVGContainerFrame.cpp \
+		nsSVGEffects.cpp \
 		nsSVGFilterFrame.cpp \
+		nsSVGFilterInstance.cpp \
+		nsSVGForeignObjectFrame.cpp \
 		nsSVGGFrame.cpp \
 		nsSVGGenericContainerFrame.cpp \
 		nsSVGGeometryFrame.cpp \
@@ -79,6 +62,7 @@ CPPSRCS		= \
 		nsSVGGradientFrame.cpp \
 		nsSVGImageFrame.cpp \
 		nsSVGInnerSVGFrame.cpp \
+		nsSVGIntegrationUtils.cpp \
 		nsSVGLeafFrame.cpp \
 		nsSVGMarkerFrame.cpp \
 		nsSVGMaskFrame.cpp \
@@ -87,6 +71,7 @@ CPPSRCS		= \
 		nsSVGPathGeometryFrame.cpp \
 		nsSVGPatternFrame.cpp \
 		nsSVGStopFrame.cpp \
+		nsSVGSwitchFrame.cpp \
 		nsSVGTextContainerFrame.cpp \
 		nsSVGTextFrame.cpp \
 		nsSVGTextPathFrame.cpp \
@@ -95,19 +80,17 @@ CPPSRCS		= \
 		nsSVGUtils.cpp \
 		$(NULL)
 
-ifdef MOZ_SVG_FOREIGNOBJECT
-CPPSRCS += nsSVGForeignObjectFrame.cpp
-endif
-
 include $(topsrcdir)/config/config.mk
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
 
 EXPORTS = \
-	nsSVGUtils.h \
+	nsSVGEffects.h \
 	nsSVGFilterInstance.h \
-        nsSVGForeignObjectFrame.h \
+	nsSVGForeignObjectFrame.h \
+	nsSVGIntegrationUtils.h \
+	nsSVGUtils.h \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk
@@ -119,7 +102,6 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../../../xul/base/src \
 		-I$(srcdir)/../../../../content/svg/content/src \
 		-I$(srcdir)/../../../../content/base/src \
-		-I$(topsrcdir)/gfx/src/thebes \
 		$(NULL)
 
 libs::

@@ -73,8 +73,8 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 };
 
-NS_IMPL_ISUPPORTS_INHERITED2(nsGenConImageContent, nsXMLElement,
-                             nsIImageLoadingContent, imgIDecoderObserver)
+NS_IMPL_ISUPPORTS_INHERITED3(nsGenConImageContent, nsXMLElement,
+                             nsIImageLoadingContent, imgIContainerObserver, imgIDecoderObserver)
 
 nsresult
 NS_NewGenConImageContent(nsIContent** aResult, nsINodeInfo* aNodeInfo,
@@ -102,7 +102,7 @@ nsGenConImageContent::IntrinsicState() const
   PRInt32 state = nsXMLElement::IntrinsicState();
 
   PRInt32 imageState = nsImageLoadingContent::ImageState();
-  if (imageState & NS_EVENT_STATE_BROKEN) {
+  if (imageState & (NS_EVENT_STATE_BROKEN | NS_EVENT_STATE_USERDISABLED)) {
     // We should never be in an error state; if the image fails to load, we
     // just go to the suppressed state.
     imageState |= NS_EVENT_STATE_SUPPRESSED;

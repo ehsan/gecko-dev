@@ -49,10 +49,7 @@
 #include "nsCRT.h"
 
 #if defined(XP_MACOSX)
-#include <Folders.h>
-#include <Script.h>
-#include <Processes.h>
-#include <Gestalt.h>
+#include <Carbon/Carbon.h>
 #include "nsILocalFileMac.h"
 #elif defined(XP_OS2)
 #define INCL_DOSPROCESS
@@ -85,11 +82,7 @@
 #endif
 
 // define default product directory
-#ifdef WINCE
-#define DEFAULT_PRODUCT_DIR NS_LITERAL_CSTRING("Mozilla")
-#else
 #define DEFAULT_PRODUCT_DIR NS_LITERAL_CSTRING(MOZ_USER_DIR)
-#endif
 
 // Locally defined keys used by nsAppDirectoryEnumerator
 #define NS_ENV_PLUGINS_DIR          "EnvPlugins"    // env var MOZ_PLUGIN_PATH
@@ -98,7 +91,9 @@
 #ifdef XP_MACOSX
 #define NS_MACOSX_USER_PLUGIN_DIR   "OSXUserPlugins"
 #define NS_MACOSX_LOCAL_PLUGIN_DIR  "OSXLocalPlugins"
-#define NS_MAC_CLASSIC_PLUGIN_DIR   "MacSysPlugins"
+#define NS_MACOSX_JAVA2_PLUGIN_DIR  "OSXJavaPlugins"
+#elif XP_UNIX
+#define NS_SYSTEM_PLUGINS_DIR       "SysPlugins"
 #endif
 
 #define DEFAULTS_DIR_NAME           NS_LITERAL_CSTRING("defaults")
@@ -138,9 +133,7 @@ nsAppFileLocationProvider::GetFile(const char *prop, PRBool *persistent, nsIFile
     *persistent = PR_TRUE;
 
 #ifdef XP_MACOSX
-    short foundVRefNum;
-    long foundDirID;
-    FSSpec fileSpec;
+    FSRef fileRef;
     nsCOMPtr<nsILocalFileMac> macFile;
 #endif
     
@@ -208,36 +201,25 @@ nsAppFileLocationProvider::GetFile(const char *prop, PRBool *persistent, nsIFile
 #ifdef XP_MACOSX
     else if (nsCRT::strcmp(prop, NS_MACOSX_USER_PLUGIN_DIR) == 0)
     {
-        if (!(::FindFolder(kUserDomain,
-                           kInternetPlugInFolderType,
-                           kDontCreateFolder, &foundVRefNum, &foundDirID)) &&
-            !(::FSMakeFSSpec(foundVRefNum, foundDirID, "\p", &fileSpec))) {
-            rv = NS_NewLocalFileWithFSSpec(&fileSpec, PR_TRUE, getter_AddRefs(macFile));
+        if (::FSFindFolder(kUserDomain, kInternetPlugInFolderType, false, &fileRef) == noErr) {
+            rv = NS_NewLocalFileWithFSRef(&fileRef, PR_TRUE, getter_AddRefs(macFile));
             if (NS_SUCCEEDED(rv))
                 localFile = macFile;
         }
     }
     else if (nsCRT::strcmp(prop, NS_MACOSX_LOCAL_PLUGIN_DIR) == 0)
     {
-        if (!(::FindFolder(kLocalDomain,
-                           kInternetPlugInFolderType,
-                           kDontCreateFolder, &foundVRefNum, &foundDirID)) &&
-            !(::FSMakeFSSpec(foundVRefNum, foundDirID, "\p", &fileSpec))) {
-            rv = NS_NewLocalFileWithFSSpec(&fileSpec, PR_TRUE, getter_AddRefs(macFile));
+        if (::FSFindFolder(kLocalDomain, kInternetPlugInFolderType, false, &fileRef) == noErr) {
+            rv = NS_NewLocalFileWithFSRef(&fileRef, PR_TRUE, getter_AddRefs(macFile));
             if (NS_SUCCEEDED(rv))
                 localFile = macFile;
         }
     }
-    else if (nsCRT::strcmp(prop, NS_MAC_CLASSIC_PLUGIN_DIR) == 0)
+    else if (nsCRT::strcmp(prop, NS_MACOSX_JAVA2_PLUGIN_DIR) == 0)
     {
-        if (!(::FindFolder(kOnAppropriateDisk,
-                           kInternetPlugInFolderType,
-                           kDontCreateFolder, &foundVRefNum, &foundDirID)) &&
-            !(::FSMakeFSSpec(foundVRefNum, foundDirID, "\p", &fileSpec))) {
-            rv = NS_NewLocalFileWithFSSpec(&fileSpec, PR_TRUE, getter_AddRefs(macFile));
-            if (NS_SUCCEEDED(rv))
-                localFile = macFile;
-        }
+      static const char *const java2PluginDirPath =
+        "/System/Library/Frameworks/JavaVM.framework/Versions/Current/Resources/";
+      NS_NewNativeLocalFile(nsDependentCString(java2PluginDirPath), PR_TRUE, getter_AddRefs(localFile));
     }
 #else
     else if (nsCRT::strcmp(prop, NS_ENV_PLUGINS_DIR) == 0)
@@ -254,6 +236,18 @@ nsAppFileLocationProvider::GetFile(const char *prop, PRBool *persistent, nsIFile
         if (NS_SUCCEEDED(rv))
             rv = localFile->AppendRelativeNativePath(PLUGINS_DIR_NAME);
     }
+#ifdef XP_UNIX
+    else if (nsCRT::strcmp(prop, NS_SYSTEM_PLUGINS_DIR) == 0) {
+        static const char *const sysLPlgDir = 
+#if defined(HAVE_USR_LIB64_DIR) && defined(__LP64__)
+          "/usr/lib64/mozilla/plugins";
+#else
+          "/usr/lib/mozilla/plugins";
+#endif
+        rv = NS_NewNativeLocalFile(nsDependentCString(sysLPlgDir),
+                                   PR_FALSE, getter_AddRefs(localFile));
+    }
+#endif
 #endif
     else if (nsCRT::strcmp(prop, NS_APP_SEARCH_DIR) == 0)
     {
@@ -349,15 +343,6 @@ NS_METHOD nsAppFileLocationProvider::GetProductDirectory(nsILocalFile **aLocalFi
              do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
     if (NS_FAILED(rv)) return rv;
     rv = directoryService->Get(NS_OS2_HOME_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(localDir));
-    if (NS_FAILED(rv)) return rv;
-#elif defined(WINCE)
-    nsCOMPtr<nsIProperties> directoryService = 
-             do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) return rv;
-
-    directoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(localDir));
-    if (localDir)
-        rv = localDir->AppendNative(NS_LITERAL_CSTRING("profile"));
     if (NS_FAILED(rv)) return rv;
 #elif defined(XP_WIN)
     nsCOMPtr<nsIProperties> directoryService = 
@@ -514,7 +499,7 @@ NS_IMPL_ISUPPORTS1(nsAppDirectoryEnumerator, nsISimpleEnumerator)
 /* nsPathsDirectoryEnumerator and PATH_SEPARATOR
  * are not used on MacOS/X. */
 
-#if defined(XP_WIN) || defined(XP_OS2)/* Win32, Win16, and OS/2 */
+#if defined(XP_WIN) || defined(XP_OS2) /* Win32 and OS/2 */
 #define PATH_SEPARATOR ';'
 #else /*if defined(XP_UNIX) || defined(XP_BEOS)*/
 #define PATH_SEPARATOR ':'
@@ -583,20 +568,18 @@ nsAppFileLocationProvider::GetFiles(const char *prop, nsISimpleEnumerator **_ret
     if (!nsCRT::strcmp(prop, NS_APP_PLUGINS_DIR_LIST))
     {
 #ifdef XP_MACOSX
-        static const char* osXKeys[] = { NS_APP_PLUGINS_DIR, NS_MACOSX_USER_PLUGIN_DIR, NS_MACOSX_LOCAL_PLUGIN_DIR, nsnull };
-        static const char* os9Keys[] = { NS_APP_PLUGINS_DIR, NS_MAC_CLASSIC_PLUGIN_DIR, nsnull };
-        static const char** keys;
-        
-        if (!keys) {
-            OSErr err;
-            long response;
-            err = ::Gestalt(gestaltSystemVersion, &response); 
-            keys = (!err && response >= 0x00001000) ? osXKeys : os9Keys;
-        }
-
+        // We are temporarily looking for JavaPlugin2 in the Java framework because Apple did not want
+        // to enable it for Safari by including it in the normal search directories. This situation
+        // should be resolved soon and then we should stop looking for JavaPlugin2 explicitly.
+        static const char* keys[] = { NS_APP_PLUGINS_DIR, NS_MACOSX_USER_PLUGIN_DIR,
+                                      NS_MACOSX_LOCAL_PLUGIN_DIR, NS_MACOSX_JAVA2_PLUGIN_DIR, nsnull };
         *_retval = new nsAppDirectoryEnumerator(this, keys);
 #else
+#ifdef XP_UNIX
+        static const char* keys[] = { nsnull, NS_USER_PLUGINS_DIR, NS_APP_PLUGINS_DIR, NS_SYSTEM_PLUGINS_DIR, nsnull };
+#else
         static const char* keys[] = { nsnull, NS_USER_PLUGINS_DIR, NS_APP_PLUGINS_DIR, nsnull };
+#endif
         if (!keys[0] && !(keys[0] = PR_GetEnv("MOZ_PLUGIN_PATH"))) {
             static const char nullstr = 0;
             keys[0] = &nullstr;

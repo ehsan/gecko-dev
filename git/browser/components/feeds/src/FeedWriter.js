@@ -24,6 +24,7 @@
 #   Asaf Romano <mano@mozilla.com>
 #   Robert Sayre <sayrer@gmail.com>
 #   Michael Ventnor <m.ventnor@gmail.com>
+#   Will Guaraldi <will.guaraldi@pculture.org>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,8 +43,9 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
+const Cu = Components.utils;
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function LOG(str) {
   var prefB = Cc["@mozilla.org/preferences-service;1"].
@@ -80,19 +82,112 @@ const XML_NS = "http://www.w3.org/XML/1998/namespace"
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
+const TYPE_MAYBE_AUDIO_FEED = "application/vnd.mozilla.maybe.audio.feed";
+const TYPE_MAYBE_VIDEO_FEED = "application/vnd.mozilla.maybe.video.feed";
 const URI_BUNDLE = "chrome://browser/locale/feeds/subscribe.properties";
+const SUBSCRIBE_PAGE_URI = "chrome://browser/content/feeds/subscribe.xhtml";
 
 const PREF_SELECTED_APP = "browser.feeds.handlers.application";
 const PREF_SELECTED_WEB = "browser.feeds.handlers.webservice";
 const PREF_SELECTED_ACTION = "browser.feeds.handler";
 const PREF_SELECTED_READER = "browser.feeds.handler.default";
+
+const PREF_VIDEO_SELECTED_APP = "browser.videoFeeds.handlers.application";
+const PREF_VIDEO_SELECTED_WEB = "browser.videoFeeds.handlers.webservice";
+const PREF_VIDEO_SELECTED_ACTION = "browser.videoFeeds.handler";
+const PREF_VIDEO_SELECTED_READER = "browser.videoFeeds.handler.default";
+
+const PREF_AUDIO_SELECTED_APP = "browser.audioFeeds.handlers.application";
+const PREF_AUDIO_SELECTED_WEB = "browser.audioFeeds.handlers.webservice";
+const PREF_AUDIO_SELECTED_ACTION = "browser.audioFeeds.handler";
+const PREF_AUDIO_SELECTED_READER = "browser.audioFeeds.handler.default";
+
 const PREF_SHOW_FIRST_RUN_UI = "browser.feeds.showFirstRunUI";
 
 const TITLE_ID = "feedTitleText";
 const SUBTITLE_ID = "feedSubtitleText";
 
+function getPrefAppForType(t) {
+  switch (t) {
+    case Ci.nsIFeed.TYPE_VIDEO:
+      return PREF_VIDEO_SELECTED_APP;
+
+    case Ci.nsIFeed.TYPE_AUDIO:
+      return PREF_AUDIO_SELECTED_APP;
+
+    default:
+      return PREF_SELECTED_APP;
+  }
+}
+
+function getPrefWebForType(t) {
+  switch (t) {
+    case Ci.nsIFeed.TYPE_VIDEO:
+      return PREF_VIDEO_SELECTED_WEB;
+
+    case Ci.nsIFeed.TYPE_AUDIO:
+      return PREF_AUDIO_SELECTED_WEB;
+
+    default:
+      return PREF_SELECTED_WEB;
+  }
+}
+
+function getPrefActionForType(t) {
+  switch (t) {
+    case Ci.nsIFeed.TYPE_VIDEO:
+      return PREF_VIDEO_SELECTED_ACTION;
+
+    case Ci.nsIFeed.TYPE_AUDIO:
+      return PREF_AUDIO_SELECTED_ACTION;
+
+    default:
+      return PREF_SELECTED_ACTION;
+  }
+}
+
+function getPrefReaderForType(t) {
+  switch (t) {
+    case Ci.nsIFeed.TYPE_VIDEO:
+      return PREF_VIDEO_SELECTED_READER;
+
+    case Ci.nsIFeed.TYPE_AUDIO:
+      return PREF_AUDIO_SELECTED_READER;
+
+    default:
+      return PREF_SELECTED_READER;
+  }
+}
+
+/**
+ * Converts a number of bytes to the appropriate unit that results in a
+ * number that needs fewer than 4 digits
+ *
+ * @return a pair: [new value with 3 sig. figs., its unit]
+  */
+function convertByteUnits(aBytes) {
+  var units = ["bytes", "kilobyte", "megabyte", "gigabyte"];
+  let unitIndex = 0;
+ 
+  // convert to next unit if it needs 4 digits (after rounding), but only if
+  // we know the name of the next unit
+  while ((aBytes >= 999.5) && (unitIndex < units.length - 1)) {
+    aBytes /= 1024;
+    unitIndex++;
+  }
+ 
+  // Get rid of insignificant bits by truncating to 1 or 0 decimal points
+  // 0 -> 0; 1.2 -> 1.2; 12.3 -> 12.3; 123.4 -> 123; 234.5 -> 235
+  aBytes = aBytes.toFixed((aBytes > 0) && (aBytes < 100) ? 1 : 0);
+ 
+  return [aBytes, units[unitIndex]];
+}
+
 function FeedWriter() {}
 FeedWriter.prototype = {
+  _mimeSvc      : Cc["@mozilla.org/mime;1"].
+                  getService(Ci.nsIMIMEService),
+
   _getPropertyAsBag: function FW__getPropertyAsBag(container, property) {
     return container.fields.getProperty(property).
                      QueryInterface(Ci.nsIPropertyBag2);
@@ -108,10 +203,15 @@ FeedWriter.prototype = {
   },
 
   _setContentText: function FW__setContentText(id, text) {
-    var element = this._document.getElementById(id);
-    while (element.hasChildNodes())
-      element.removeChild(element.firstChild);
-    element.appendChild(this._document.createTextNode(text));
+    this._contentSandbox.element = this._document.getElementById(id);
+    this._contentSandbox.textNode = this._document.createTextNode(text);
+    var codeStr =
+      "while (element.hasChildNodes()) " +
+      "  element.removeChild(element.firstChild);" +
+      "element.appendChild(textNode);";
+    Cu.evalInSandbox(codeStr, this._contentSandbox);
+    this._contentSandbox.element = null;
+    this._contentSandbox.textNode = null;
   },
 
   /**
@@ -130,14 +230,45 @@ FeedWriter.prototype = {
                  getService(Ci.nsIScriptSecurityManager);    
     const flags = Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL;
     try {
-      secman.checkLoadURIStr(this._window.location.href, uri, flags);
-      // checkLoadURIStr will throw if the link URI should not be loaded per 
+      secman.checkLoadURIStrWithPrincipal(this._feedPrincipal, uri, flags);
+      // checkLoadURIStrWithPrincipal will throw if the link URI should not be
+      // loaded, either because our feedURI isn't allowed to load it or per
       // the rules specified in |flags|, so we'll never "linkify" the link...
-      element.setAttribute(attribute, uri);
     }
     catch (e) {
       // Not allowed to load this link because secman.checkLoadURIStr threw
+      return;
     }
+
+    this._contentSandbox.element = element;
+    this._contentSandbox.uri = uri;
+    var codeStr = "element.setAttribute('" + attribute + "', uri);";
+    Cu.evalInSandbox(codeStr, this._contentSandbox);
+  },
+
+  /**
+   * Use this sandbox to run any dom manipulation code on nodes which
+   * are already inserted into the content document.
+   */
+  __contentSandbox: null,
+  get _contentSandbox() {
+    if (!this.__contentSandbox)
+      this.__contentSandbox = new Cu.Sandbox(this._window);
+
+    return this.__contentSandbox;
+  },
+
+  /**
+   * Calls doCommand for a the given XUL element within the context of the
+   * content document.
+   *
+   * @param aElement
+   *        the XUL element to call doCommand() on.
+   */
+  _safeDoCommand: function FW___safeDoCommand(aElement) {
+    this._contentSandbox.element = aElement;
+    Cu.evalInSandbox("element.doCommand();", this._contentSandbox);
+    this._contentSandbox.element = null;
   },
 
   __faviconService: null,
@@ -181,43 +312,23 @@ FeedWriter.prototype = {
   },
 
   _setCheckboxCheckedState: function FW__setCheckboxCheckedState(aCheckbox, aValue) {
-    // see checkbox.xml
+    // see checkbox.xml, xbl bindings are not applied within the sandbox!
+    this._contentSandbox.checkbox = aCheckbox;
+    var codeStr;
     var change = (aValue != (aCheckbox.getAttribute('checked') == 'true'));
     if (aValue)
-      aCheckbox.setAttribute('checked', 'true');
+      codeStr = "checkbox.setAttribute('checked', 'true'); ";
     else
-      aCheckbox.removeAttribute('checked');
+      codeStr = "checkbox.removeAttribute('checked'); ";
 
     if (change) {
-      var event = this._document.createEvent('Events');
-      event.initEvent('CheckboxStateChange', true, true);
-      aCheckbox.dispatchEvent(event);
-    }
-  },
-
-  // For setting and getting the file expando property, we need to keep a
-  // reference to explict XPCNativeWrappers around the associated menuitems
-  _selectedApplicationItemWrapped: null,
-  get selectedApplicationItemWrapped() {
-    if (!this._selectedApplicationItemWrapped) {
-      this._selectedApplicationItemWrapped =
-        XPCNativeWrapper(this._document.getElementById("selectedAppMenuItem"));
+      this._contentSandbox.document = this._document;
+      codeStr += "var event = document.createEvent('Events'); " +
+                 "event.initEvent('CheckboxStateChange', true, true);" +
+                 "checkbox.dispatchEvent(event);"
     }
 
-    return this._selectedApplicationItemWrapped;
-  },
-
-  _defaultSystemReaderItemWrapped: null,
-  get defaultSystemReaderItemWrapped() {
-    if (!this._defaultSystemReaderItemWrapped) {
-      // Unlike the selected application item, this might not exist at all,
-      // see _initSubscriptionUI
-      var menuItem = this._document.getElementById("defaultHandlerMenuItem");
-      if (menuItem)
-        this._defaultSystemReaderItemWrapped = XPCNativeWrapper(menuItem);
-    }
-
-    return this._defaultSystemReaderItemWrapped;
+    Cu.evalInSandbox(codeStr, this._contentSandbox);
   },
 
    /**
@@ -242,14 +353,53 @@ FeedWriter.prototype = {
   },
 
   /**
+   * Returns the feed type.
+   */
+  __feedType: null,
+  _getFeedType: function FW__getFeedType() {
+    if (this.__feedType != null)
+      return this.__feedType;
+
+    try {
+      // grab the feed because it's got the feed.type in it.
+      var container = this._getContainer();
+      var feed = container.QueryInterface(Ci.nsIFeed);
+      this.__feedType = feed.type;
+      return feed.type;
+    } catch (ex) { }
+
+    return Ci.nsIFeed.TYPE_FEED;
+  },
+
+  /**
+   * Maps a feed type to a maybe-feed mimetype.
+   */
+  _getMimeTypeForFeedType: function FW__getMimeTypeForFeedType() {
+    switch (this._getFeedType()) {
+      case Ci.nsIFeed.TYPE_VIDEO:
+        return TYPE_MAYBE_VIDEO_FEED;
+
+      case Ci.nsIFeed.TYPE_AUDIO:
+        return TYPE_MAYBE_AUDIO_FEED;
+
+      default:
+        return TYPE_MAYBE_FEED;
+    }
+  },
+
+  /**
    * Writes the feed title into the preview document.
    * @param   container
    *          The feed container
    */
   _setTitleText: function FW__setTitleText(container) {
     if (container.title) {
-      this._setContentText(TITLE_ID, container.title.plainText());
-      this._document.title = container.title.plainText();
+      var title = container.title.plainText();
+      this._setContentText(TITLE_ID, title);
+      this._contentSandbox.document = this._document;
+      this._contentSandbox.title = title;
+      var codeStr = "document.title = title;"
+      Cu.evalInSandbox(codeStr, this._contentSandbox);
     }
 
     var feed = container.QueryInterface(Ci.nsIFeed);
@@ -276,15 +426,23 @@ FeedWriter.prototype = {
 
       var titleText = this._getFormattedString("linkTitleTextFormat", 
                                                [parts.getPropertyAsAString("title")]);
-      feedTitleLink.setAttribute("title", titleText);
-      this._safeSetURIAttribute(feedTitleLink, "href", 
-                                parts.getPropertyAsAString("link"));
+      this._contentSandbox.feedTitleLink = feedTitleLink;
+      this._contentSandbox.titleText = titleText;
+      this._contentSandbox.feedTitleText = this._document.getElementById("feedTitleText");
+      this._contentSandbox.titleImageWidth = parseInt(parts.getPropertyAsAString("width")) + 15;
 
       // Fix the margin on the main title, so that the image doesn't run over
       // the underline
-      var feedTitleText = this._document.getElementById("feedTitleText");
-      var titleImageWidth = parseInt(parts.getPropertyAsAString("width")) + 15;
-      feedTitleText.style.marginRight = titleImageWidth + "px";
+      var codeStr = "feedTitleLink.setAttribute('title', titleText); " +
+                    "feedTitleText.style.marginRight = titleImageWidth + 'px';";
+      Cu.evalInSandbox(codeStr, this._contentSandbox);
+      this._contentSandbox.feedTitleLink = null;
+      this._contentSandbox.titleText = null;
+      this._contentSandbox.feedTitleText = null;
+      this._contentSandbox.titleImageWidth = null;
+
+      this._safeSetURIAttribute(feedTitleLink, "href", 
+                                parts.getPropertyAsAString("link"));
     }
     catch (e) {
       LOG("Failed to set Title Image (this is benign): " + e);
@@ -298,13 +456,17 @@ FeedWriter.prototype = {
    */
   _writeFeedContent: function FW__writeFeedContent(container) {
     // Build the actual feed content
-    var feedContent = this._document.getElementById("feedContent");
     var feed = container.QueryInterface(Ci.nsIFeed);
-    
+    if (feed.items.length == 0)
+      return;
+
+    this._contentSandbox.feedContent =
+      this._document.getElementById("feedContent");
+
     for (var i = 0; i < feed.items.length; ++i) {
       var entry = feed.items.queryElementAt(i, Ci.nsIFeedEntry);
       entry.QueryInterface(Ci.nsIFeedContainer);
-      
+
       var entryContainer = this._document.createElementNS(HTML_NS, "div");
       entryContainer.className = "entry";
 
@@ -312,29 +474,29 @@ FeedWriter.prototype = {
       if (entry.title) {
         var a = this._document.createElementNS(HTML_NS, "a");
         a.appendChild(this._document.createTextNode(entry.title.plainText()));
-      
+
         // Entries are not required to have links, so entry.link can be null.
         if (entry.link)
           this._safeSetURIAttribute(a, "href", entry.link.spec);
 
         var title = this._document.createElementNS(HTML_NS, "h3");
         title.appendChild(a);
-        entryContainer.appendChild(title);
 
         var lastUpdated = this._parseDate(entry.updated);
         if (lastUpdated) {
           var dateDiv = this._document.createElementNS(HTML_NS, "div");
-          dateDiv.setAttribute("class", "lastUpdated");
-          title.appendChild(dateDiv);
+          dateDiv.className = "lastUpdated";
           dateDiv.textContent = lastUpdated;
+          title.appendChild(dateDiv);
         }
+
+        entryContainer.appendChild(title);
       }
 
       var body = this._document.createElementNS(HTML_NS, "div");
       var summary = entry.summary || entry.content;
       var docFragment = null;
       if (summary) {
-
         if (summary.base)
           body.setAttributeNS(XML_NS, "base", summary.base.spec);
         else
@@ -356,11 +518,124 @@ FeedWriter.prototype = {
       }
       body.className = "feedEntryContent";
       entryContainer.appendChild(body);
-      feedContent.appendChild(entryContainer);
-      var clearDiv = this._document.createElementNS(HTML_NS, "div");
-      clearDiv.style.clear = "both";
-      feedContent.appendChild(clearDiv);
+
+      if (entry.enclosures && entry.enclosures.length > 0) {
+        var enclosuresDiv = this._buildEnclosureDiv(entry);
+        entryContainer.appendChild(enclosuresDiv);
+      }
+
+      this._contentSandbox.entryContainer = entryContainer;
+      this._contentSandbox.clearDiv =
+        this._document.createElementNS(HTML_NS, "div");
+      this._contentSandbox.clearDiv.style.clear = "both";
+      
+      var codeStr = "feedContent.appendChild(entryContainer); " +
+                     "feedContent.appendChild(clearDiv);"
+      Cu.evalInSandbox(codeStr, this._contentSandbox);
     }
+
+    this._contentSandbox.feedContent = null;
+    this._contentSandbox.entryContainer = null;
+    this._contentSandbox.clearDiv = null;
+  },
+
+  /**
+   * Takes a url to a media item and returns the best name it can come up with.
+   * Frequently this is the filename portion (e.g. passing in 
+   * http://example.com/foo.mpeg would return "foo.mpeg"), but in more complex
+   * cases, this will return the entire url (e.g. passing in
+   * http://example.com/somedirectory/ would return 
+   * http://example.com/somedirectory/).
+   * @param aURL
+   *        The URL string from which to create a display name
+   * @returns a string
+   */
+  _getURLDisplayName: function FW__getURLDisplayName(aURL) {
+    var url = makeURI(aURL);
+    url.QueryInterface(Ci.nsIURL);
+    if (url == null || url.fileName.length == 0)
+      return aURL;
+
+    return decodeURI(url.fileName);
+  },
+
+  /**
+   * Takes a FeedEntry with enclosures, generates the HTML code to represent
+   * them, and returns that.
+   * @param   entry
+   *          FeedEntry with enclosures
+   * @returns element
+   */
+  _buildEnclosureDiv: function FW__buildEnclosureDiv(entry) {
+    var enclosuresDiv = this._document.createElementNS(HTML_NS, "div");
+    enclosuresDiv.className = "enclosures";
+
+    enclosuresDiv.appendChild(this._document.createTextNode(this._getString("mediaLabel")));
+
+    var roundme = function(n) {
+      return (Math.round(n * 100) / 100).toLocaleString();
+    }
+
+    for (var i_enc = 0; i_enc < entry.enclosures.length; ++i_enc) {
+      var enc = entry.enclosures.queryElementAt(i_enc, Ci.nsIWritablePropertyBag2);
+
+      if (!(enc.hasKey("url"))) 
+        continue;
+
+      var enclosureDiv = this._document.createElementNS(HTML_NS, "div");
+      enclosureDiv.setAttribute("class", "enclosure");
+
+      var mozicon = "moz-icon://.txt?size=16";
+      var type_text = null;
+      var size_text = null;
+
+      if (enc.hasKey("type")) {
+        type_text = enc.get("type");
+        try {
+          var handlerInfoWrapper = this._mimeSvc.getFromTypeAndExtension(enc.get("type"), null);
+
+          if (handlerInfoWrapper)
+            type_text = handlerInfoWrapper.description;
+
+          if  (type_text && type_text.length > 0)
+            mozicon = "moz-icon://goat?size=16&contentType=" + enc.get("type");
+
+        } catch (ex) { }
+
+      }
+
+      if (enc.hasKey("length") && /^[0-9]+$/.test(enc.get("length"))) {
+        var enc_size = convertByteUnits(parseInt(enc.get("length")));
+
+        var size_text = this._getFormattedString("enclosureSizeText", 
+                             [enc_size[0], this._getString(enc_size[1])]);
+      }
+
+      var iconimg = this._document.createElementNS(HTML_NS, "img");
+      iconimg.setAttribute("src", mozicon);
+      iconimg.setAttribute("class", "type-icon");
+      enclosureDiv.appendChild(iconimg);
+
+      enclosureDiv.appendChild(this._document.createTextNode( " " ));
+
+      var enc_href = this._document.createElementNS(HTML_NS, "a");
+      enc_href.appendChild(this._document.createTextNode(this._getURLDisplayName(enc.get("url"))));
+      this._safeSetURIAttribute(enc_href, "href", enc.get("url"));
+      enclosureDiv.appendChild(enc_href);
+
+      if (type_text && size_text)
+        enclosureDiv.appendChild(this._document.createTextNode( " (" + type_text + ", " + size_text + ")"));
+
+      else if (type_text) 
+        enclosureDiv.appendChild(this._document.createTextNode( " (" + type_text + ")"))
+
+      else if (size_text)
+        enclosureDiv.appendChild(this._document.createTextNode( " (" + size_text + ")"))
+ 
+      enclosuresDiv.appendChild(enclosureDiv);
+    }
+
+    return enclosuresDiv;
   },
 
   /**
@@ -455,9 +730,12 @@ FeedWriter.prototype = {
    *          The menuitem's associated file
    */
   _initMenuItemWithFile: function(aMenuItem, aFile) {
-    aMenuItem.setAttribute("label", this._getFileDisplayName(aFile));
-    aMenuItem.setAttribute("image", this._getFileIconURL(aFile));
-    aMenuItem.file = aFile;
+    this._contentSandbox.menuitem = aMenuItem;
+    this._contentSandbox.label = this._getFileDisplayName(aFile);
+    this._contentSandbox.image = this._getFileIconURL(aFile);
+    var codeStr = "menuitem.setAttribute('label', label); " +
+                  "menuitem.setAttribute('image', image);"
+    Cu.evalInSandbox(codeStr, this._contentSandbox);
   },
 
   /**
@@ -473,8 +751,8 @@ FeedWriter.prototype = {
       fp.appendFilters(Ci.nsIFilePicker.filterApps);
 
       if (fp.show() == Ci.nsIFilePicker.returnOK) {
-        var selectedApp = fp.file;
-        if (selectedApp) {
+        this._selectedApp = fp.file;
+        if (this._selectedApp) {
           // XXXben - we need to compare this with the running instance executable
           //          just don't know how to do that via script...
           // XXXmano TBD: can probably add this to nsIShellService
@@ -487,12 +765,13 @@ FeedWriter.prototype = {
 #expand           if (fp.file.leafName != "__MOZ_APP_NAME__-bin") {
 #endif
 #endif
-            var selectedAppMenuItem = this.selectedApplicationItemWrapped;
-            this._initMenuItemWithFile(selectedAppMenuItem, selectedApp);
+            this._initMenuItemWithFile(this._contentSandbox.selectedAppMenuItem,
+                                       this._selectedApp);
 
             // Show and select the selected application menuitem
-            selectedAppMenuItem.hidden = false;
-            selectedAppMenuItem.doCommand();
+            var codeStr = "selectedAppMenuItem.hidden = false;" +
+                          "selectedAppMenuItem.doCommand();"
+            Cu.evalInSandbox(codeStr, this._contentSandbox);
             return true;
           }
         }
@@ -503,19 +782,38 @@ FeedWriter.prototype = {
     return false;
   },
 
-  _setAlwaysUseCheckedState: function FW__setAlwaysUseCheckedState() {
+  _setAlwaysUseCheckedState: function FW__setAlwaysUseCheckedState(feedType) {
     var checkbox = this._document.getElementById("alwaysUse");
     if (checkbox) {
       var alwaysUse = false;
       try {
         var prefs = Cc["@mozilla.org/preferences-service;1"].
                     getService(Ci.nsIPrefBranch);
-        if (prefs.getCharPref(PREF_SELECTED_ACTION) != "ask")
+        if (prefs.getCharPref(getPrefActionForType(feedType)) != "ask")
           alwaysUse = true;
       }
       catch(ex) { }
       this._setCheckboxCheckedState(checkbox, alwaysUse);
     }
+  },
+
+  _setSubscribeUsingLabel: function FW__setSubscribeUsingLabel() {
+    var stringLabel = "subscribeFeedUsing";
+    switch (this._getFeedType()) {
+      case Ci.nsIFeed.TYPE_VIDEO:
+        stringLabel = "subscribeVideoPodcastUsing";
+        break;
+
+      case Ci.nsIFeed.TYPE_AUDIO:
+        stringLabel = "subscribeAudioPodcastUsing";
+        break;
+    }
+
+    this._contentSandbox.subscribeUsing =
+      this._document.getElementById("subscribeUsingDescription");
+    this._contentSandbox.label = this._getString(stringLabel);
+    var codeStr = "subscribeUsing.setAttribute('value', label);"
+    Cu.evalInSandbox(codeStr, this._contentSandbox);
   },
 
   _setAlwaysUseLabel: function FW__setAlwaysUseLabel() {
@@ -525,15 +823,28 @@ FeedWriter.prototype = {
       if (handlersMenuList) {
         var handlerName = this._getSelectedItemFromMenulist(handlersMenuList)
                               .getAttribute("label");
-        checkbox.setAttribute("label", this._getFormattedString("alwaysUse", [handlerName]));
+        var stringLabel = "alwaysUseForFeeds";
+        switch (this._getFeedType()) {
+          case Ci.nsIFeed.TYPE_VIDEO:
+            stringLabel = "alwaysUseForVideoPodcasts";
+            break;
+
+          case Ci.nsIFeed.TYPE_AUDIO:
+            stringLabel = "alwaysUseForAudioPodcasts";
+            break;
+        }
+
+        this._contentSandbox.checkbox = checkbox;
+        this._contentSandbox.label = this._getFormattedString(stringLabel, [handlerName]);
+        
+        var codeStr = "checkbox.setAttribute('label', label);";
+        Cu.evalInSandbox(codeStr, this._contentSandbox);
       }
     }
   },
 
   // nsIDomEventListener
   handleEvent: function(event) {
-    // see comments in the write method
-    event = new XPCNativeWrapper(event);
     if (event.target.ownerDocument != this._document) {
       LOG("FeedWriter.handleEvent: Someone passed the feed writer as a listener to the events of another document!");
       return;
@@ -559,7 +870,7 @@ FeedWriter.prototype = {
           if (popupbox.popupState == "hiding" && !this._chooseClientApp()) {
             // Select the (per-prefs) selected handler if no application was
             // selected
-            this._setSelectedHandler();
+            this._setSelectedHandler(this._getFeedType());
           }
           break;
         default:
@@ -568,14 +879,14 @@ FeedWriter.prototype = {
     }
   },
 
-  _setSelectedHandler: function FW__setSelectedHandler() {
+  _setSelectedHandler: function FW__setSelectedHandler(feedType) {
     var prefs =   
         Cc["@mozilla.org/preferences-service;1"].
         getService(Ci.nsIPrefBranch);
 
     var handler = "bookmarks";
     try {
-      handler = prefs.getCharPref(PREF_SELECTED_READER);
+      handler = prefs.getCharPref(getPrefReaderForType(feedType));
     }
     catch (ex) { }
 
@@ -583,7 +894,7 @@ FeedWriter.prototype = {
       case "web": {
         var handlersMenuList = this._document.getElementById("handlersMenuList");
         if (handlersMenuList) {
-          var url = prefs.getComplexValue(PREF_SELECTED_WEB, Ci.nsISupportsString).data;
+          var url = prefs.getComplexValue(getPrefWebForType(feedType), Ci.nsISupportsString).data;
           var handlers =
             handlersMenuList.getElementsByAttribute("webhandlerurl", url);
           if (handlers.length == 0) {
@@ -591,39 +902,41 @@ FeedWriter.prototype = {
             return;
           }
 
-          handlers[0].doCommand();
+          this._safeDoCommand(handlers[0]);
         }
         break;
       }
       case "client": {
-        var selectedAppMenuItem = this.selectedApplicationItemWrapped;
-        if (selectedAppMenuItem) {
-          try {
-            var selectedApp = prefs.getComplexValue(PREF_SELECTED_APP,
-                                                    Ci.nsILocalFile);
-          } catch(ex) { }
+        try {
+          this._selectedApp =
+            prefs.getComplexValue(getPrefAppForType(feedType), Ci.nsILocalFile);
+        }
+        catch(ex) {
+          this._selectedApp = null;
+        }
 
-          if (selectedApp) {
-            this._initMenuItemWithFile(selectedAppMenuItem, selectedApp);
-            selectedAppMenuItem.hidden = false;
-            selectedAppMenuItem.doCommand();
+        if (this._selectedApp) {
+          this._initMenuItemWithFile(this._contentSandbox.selectedAppMenuItem,
+                                     this._selectedApp);
+          var codeStr = "selectedAppMenuItem.hidden = false; " +
+                        "selectedAppMenuItem.doCommand(); ";
 
-            // Only show the default reader menuitem if the default reader
-            // isn't the selected application
-            var defaultHandlerMenuItem = this.defaultSystemReaderItemWrapped;
-            if (defaultHandlerMenuItem) {
-              defaultHandlerMenuItem.hidden =
-                defaultHandlerMenuItem.file.path == selectedApp.path;
-            }
-            break;
+          // Only show the default reader menuitem if the default reader
+          // isn't the selected application
+          if (this._defaultSystemReader) {
+            var shouldHide =
+              this._defaultSystemReader.path == this._selectedApp.path;
+            codeStr += "defaultHandlerMenuItem.hidden = " + shouldHide + ";"
           }
+          Cu.evalInSandbox(codeStr, this._contentSandbox);
+          break;
         }
       }
       case "bookmarks":
       default: {
         var liveBookmarksMenuItem = this._document.getElementById("liveBookmarksMenuItem");
         if (liveBookmarksMenuItem)
-          liveBookmarksMenuItem.doCommand();
+          this._safeDoCommand(liveBookmarksMenuItem);
       } 
     }
   },
@@ -632,64 +945,94 @@ FeedWriter.prototype = {
     var handlersMenuPopup = this._document.getElementById("handlersMenuPopup");
     if (!handlersMenuPopup)
       return;
+ 
+    var feedType = this._getFeedType();
+    var codeStr;
+
+    // change the background
+    var header = this._document.getElementById("feedHeader");
+    this._contentSandbox.header = header;
+    switch (feedType) {
+      case Ci.nsIFeed.TYPE_VIDEO:
+        codeStr = "header.className = 'videoPodcastBackground'; ";
+        break;
+
+      case Ci.nsIFeed.TYPE_AUDIO:
+        codeStr = "header.className = 'audioPodcastBackground'; ";
+        break;
+
+      default:
+        codeStr = "header.className = 'feedBackground'; ";
+    }
+
 
     // Last-selected application
-    var selectedApp;
-    menuItem = this._document.createElementNS(XUL_NS, "menuitem");
+    var menuItem = this._document.createElementNS(XUL_NS, "menuitem");
     menuItem.id = "selectedAppMenuItem";
     menuItem.className = "menuitem-iconic";
     menuItem.setAttribute("handlerType", "client");
-    handlersMenuPopup.appendChild(menuItem);
-
-    var selectedApplicationItem = this.selectedApplicationItemWrapped;
     try {
       var prefs = Cc["@mozilla.org/preferences-service;1"].
                   getService(Ci.nsIPrefBranch);
-      selectedApp = prefs.getComplexValue(PREF_SELECTED_APP,
-                                          Ci.nsILocalFile);
+      this._selectedApp = prefs.getComplexValue(getPrefAppForType(feedType),
+                                                Ci.nsILocalFile);
 
-      if (selectedApp.exists())
-        this._initMenuItemWithFile(selectedApplicationItem, selectedApp);
+      if (this._selectedApp.exists())
+        this._initMenuItemWithFile(menuItem, this._selectedApp);
       else {
         // Hide the menuitem if the last selected application doesn't exist
-        selectedApplicationItem.hidden = true;
+        menuItem.setAttribute("hidden", true);
       }
     }
     catch(ex) {
       // Hide the menuitem until an application is selected
-      selectedApplicationItem.hidden = true;
+      menuItem.setAttribute("hidden", true);
     }
+    this._contentSandbox.handlersMenuPopup = handlersMenuPopup;
+    this._contentSandbox.selectedAppMenuItem = menuItem;
+    
+    codeStr += "handlersMenuPopup.appendChild(selectedAppMenuItem); ";
 
     // List the default feed reader
-    var defaultReader = null;
     try {
-      var defaultReader = Cc["@mozilla.org/browser/shell-service;1"].
-                          getService(Ci.nsIShellService).defaultFeedReader;
+      this._defaultSystemReader = Cc["@mozilla.org/browser/shell-service;1"].
+                                  getService(Ci.nsIShellService).
+                                  defaultFeedReader;
       menuItem = this._document.createElementNS(XUL_NS, "menuitem");
       menuItem.id = "defaultHandlerMenuItem";
       menuItem.className = "menuitem-iconic";
       menuItem.setAttribute("handlerType", "client");
-      handlersMenuPopup.appendChild(menuItem);
 
-      var defaultSystemReaderItem = this.defaultSystemReaderItemWrapped;
-      this._initMenuItemWithFile(defaultSystemReaderItem, defaultReader);
+      this._initMenuItemWithFile(menuItem, this._defaultSystemReader);
 
       // Hide the default reader item if it points to the same application
       // as the last-selected application
-      if (selectedApp && selectedApp.path == defaultReader.path)
-        defaultSystemReaderItem.hidden = true;
+      if (this._selectedApp &&
+          this._selectedApp.path == this._defaultSystemReader.path)
+        menuItem.hidden = true;
     }
-    catch(ex) { /* no default reader */ }
+    catch(ex) { menuItem = null; /* no default reader */ }
+
+    if (menuItem) {
+      this._contentSandbox.defaultHandlerMenuItem = menuItem;
+      codeStr += "handlersMenuPopup.appendChild(defaultHandlerMenuItem); ";
+    }
 
     // "Choose Application..." menuitem
     menuItem = this._document.createElementNS(XUL_NS, "menuitem");
     menuItem.id = "chooseApplicationMenuItem";
+    menuItem.className = "menuitem-iconic";
     menuItem.setAttribute("label", this._getString("chooseApplicationMenuItem"));
-    handlersMenuPopup.appendChild(menuItem);
+
+    this._contentSandbox.chooseAppMenuItem = menuItem;
+    codeStr += "handlersMenuPopup.appendChild(chooseAppMenuItem); ";
 
     // separator
-    handlersMenuPopup.appendChild(this._document.createElementNS(XUL_NS,
-                                  "menuseparator"));
+    this._contentSandbox.chooseAppSep =
+      this._document.createElementNS(XUL_NS, "menuseparator")
+    codeStr += "handlersMenuPopup.appendChild(chooseAppSep); ";
+
+    Cu.evalInSandbox(codeStr, this._contentSandbox);
 
     var historySvc = Cc["@mozilla.org/browser/nav-history-service;1"].
                      getService(Ci.nsINavHistoryService);
@@ -698,7 +1041,7 @@ FeedWriter.prototype = {
     // List of web handlers
     var wccr = Cc["@mozilla.org/embeddor.implemented/web-content-handler-registrar;1"].
                getService(Ci.nsIWebContentConverterService);
-    var handlers = wccr.getContentHandlers(TYPE_MAYBE_FEED, {});
+    var handlers = wccr.getContentHandlers(this._getMimeTypeForFeedType(feedType));
     if (handlers.length != 0) {
       for (var i = 0; i < handlers.length; ++i) {
         menuItem = this._document.createElementNS(XUL_NS, "menuitem");
@@ -706,7 +1049,9 @@ FeedWriter.prototype = {
         menuItem.setAttribute("label", handlers[i].name);
         menuItem.setAttribute("handlerType", "web");
         menuItem.setAttribute("webhandlerurl", handlers[i].uri);
-        handlersMenuPopup.appendChild(menuItem);
+        this._contentSandbox.menuItem = menuItem;
+        codeStr = "handlersMenuPopup.appendChild(menuItem);";
+        Cu.evalInSandbox(codeStr, this._contentSandbox);
 
         // For privacy reasons we cannot set the image attribute directly
         // to the icon url, see Bug 358878
@@ -718,12 +1063,16 @@ FeedWriter.prototype = {
           }
         }
       }
+      this._contentSandbox.menuItem = null;
     }
 
-    this._setSelectedHandler();
+    this._setSelectedHandler(feedType);
+
+    // "Subscribe using..."
+    this._setSubscribeUsingLabel();
 
     // "Always use..." checkbox initial state
-    this._setAlwaysUseCheckedState();
+    this._setAlwaysUseCheckedState(feedType);
     this._setAlwaysUseLabel();
 
     // We update the "Always use.." checkbox label whenever the selected item
@@ -742,10 +1091,32 @@ FeedWriter.prototype = {
     }
     catch (ex) { }
     if (showFirstRunUI) {
-      var feedHeader = this._document.getElementById("feedHeader");
-      if (feedHeader)
-        feedHeader.setAttribute("firstrun", "true");
+      var textfeedinfo1, textfeedinfo2;
+      switch (feedType) {
+        case Ci.nsIFeed.TYPE_VIDEO:
+          textfeedinfo1 = "feedSubscriptionVideoPodcast1";
+          textfeedinfo2 = "feedSubscriptionVideoPodcast2";
+          break;
+        case Ci.nsIFeed.TYPE_AUDIO:
+          textfeedinfo1 = "feedSubscriptionAudioPodcast1";
+          textfeedinfo2 = "feedSubscriptionAudioPodcast2";
+          break;
+        default:
+          textfeedinfo1 = "feedSubscriptionFeed1";
+          textfeedinfo2 = "feedSubscriptionFeed2";
+      }
 
+      this._contentSandbox.feedinfo1 =
+        this._document.getElementById("feedSubscriptionInfo1");
+      this._contentSandbox.feedinfo1Str = this._getString(textfeedinfo1);
+      this._contentSandbox.feedinfo2 =
+        this._document.getElementById("feedSubscriptionInfo2");
+      this._contentSandbox.feedinfo2Str = this._getString(textfeedinfo2);
+      this._contentSandbox.header = header;
+      codeStr = "feedinfo1.textContent = feedinfo1Str; " +
+                "feedinfo2.textContent = feedinfo2Str; " +
+                "header.setAttribute('firstrun', 'true');"
+      Cu.evalInSandbox(codeStr, this._contentSandbox);
       prefs.setBoolPref(PREF_SHOW_FIRST_RUN_UI, false);
     }
   },
@@ -761,7 +1132,6 @@ FeedWriter.prototype = {
                getInterface(Ci.nsIWebNavigation).
                QueryInterface(Ci.nsIDocShell).currentDocumentChannel;
 
-    const SUBSCRIBE_PAGE_URI = "chrome://browser/content/feeds/subscribe.xhtml";
     var uri = makeURI(SUBSCRIBE_PAGE_URI);
     var resolvedURI = Cc["@mozilla.org/chrome/chrome-registry;1"].
                       getService(Ci.nsIChromeRegistry).
@@ -776,19 +1146,21 @@ FeedWriter.prototype = {
   _window: null,
   _document: null,
   _feedURI: null,
+  _feedPrincipal: null,
 
   // nsIFeedWriter
   init: function FW_init(aWindow) {
-    // Explicitly wrap |window| in an XPCNativeWrapper to make sure
-    // it's a real native object! This will throw an exception if we
-    // get a non-native object.
-    var window = new XPCNativeWrapper(aWindow);
+    var window = aWindow;
     this._feedURI = this._getOriginalURI(window);
     if (!this._feedURI)
       return;
 
     this._window = window;
     this._document = window.document;
+
+    var secman = Cc["@mozilla.org/scriptsecuritymanager;1"].
+                 getService(Ci.nsIScriptSecurityManager);
+    this._feedPrincipal = secman.getCodebasePrincipal(this._feedURI);
 
     LOG("Subscribe Preview: feed uri = " + this._window.location.href);
 
@@ -800,6 +1172,15 @@ FeedWriter.prototype = {
     prefs.addObserver(PREF_SELECTED_READER, this, false);
     prefs.addObserver(PREF_SELECTED_WEB, this, false);
     prefs.addObserver(PREF_SELECTED_APP, this, false);
+    prefs.addObserver(PREF_VIDEO_SELECTED_ACTION, this, false);
+    prefs.addObserver(PREF_VIDEO_SELECTED_READER, this, false);
+    prefs.addObserver(PREF_VIDEO_SELECTED_WEB, this, false);
+    prefs.addObserver(PREF_VIDEO_SELECTED_APP, this, false);
+
+    prefs.addObserver(PREF_AUDIO_SELECTED_ACTION, this, false);
+    prefs.addObserver(PREF_AUDIO_SELECTED_READER, this, false);
+    prefs.addObserver(PREF_AUDIO_SELECTED_WEB, this, false);
+    prefs.addObserver(PREF_AUDIO_SELECTED_APP, this, false);
   },
 
   writeContent: function FW_writeContent() {
@@ -836,12 +1217,22 @@ FeedWriter.prototype = {
     prefs.removeObserver(PREF_SELECTED_READER, this);
     prefs.removeObserver(PREF_SELECTED_WEB, this);
     prefs.removeObserver(PREF_SELECTED_APP, this);
+    prefs.removeObserver(PREF_VIDEO_SELECTED_ACTION, this);
+    prefs.removeObserver(PREF_VIDEO_SELECTED_READER, this);
+    prefs.removeObserver(PREF_VIDEO_SELECTED_WEB, this);
+    prefs.removeObserver(PREF_VIDEO_SELECTED_APP, this);
+
+    prefs.removeObserver(PREF_AUDIO_SELECTED_ACTION, this);
+    prefs.removeObserver(PREF_AUDIO_SELECTED_READER, this);
+    prefs.removeObserver(PREF_AUDIO_SELECTED_WEB, this);
+    prefs.removeObserver(PREF_AUDIO_SELECTED_APP, this);
+
     this._removeFeedFromCache();
     this.__faviconService = null;
     this.__bundle = null;
-    this._selectedApplicationItemWrapped = null;
-    this._defaultSystemReaderItemWrapped = null;
-    this._FeedURI = null;
+    this._feedURI = null;
+    this.__contentSandbox = null;
+
     var historySvc = Cc["@mozilla.org/browser/nav-history-service;1"].
                      getService(Ci.nsINavHistoryService);
     historySvc.removeObserver(this);
@@ -857,6 +1248,8 @@ FeedWriter.prototype = {
   },
 
   subscribe: function FW_subscribe() {
+    var feedType = this._getFeedType();
+
     // Subscribe to the feed using the selected handler and save prefs
     var prefs = Cc["@mozilla.org/preferences-service;1"].
                 getService(Ci.nsIPrefBranch);
@@ -868,7 +1261,7 @@ FeedWriter.prototype = {
     var selectedItem = this._getSelectedItemFromMenulist(handlersMenuList);
 
     // Show the file picker before subscribing if the
-    // choose application menuitem was choosen using the keyboard
+    // choose application menuitem was chosen using the keyboard
     if (selectedItem.id == "chooseApplicationMenuItem") {
       if (!this._chooseClientApp())
         return;
@@ -878,20 +1271,20 @@ FeedWriter.prototype = {
 
     if (selectedItem.hasAttribute("webhandlerurl")) {
       var webURI = selectedItem.getAttribute("webhandlerurl");
-      prefs.setCharPref(PREF_SELECTED_READER, "web");
+      prefs.setCharPref(getPrefReaderForType(feedType), "web");
 
       var supportsString = Cc["@mozilla.org/supports-string;1"].
                            createInstance(Ci.nsISupportsString);
       supportsString.data = webURI;
-      prefs.setComplexValue(PREF_SELECTED_WEB, Ci.nsISupportsString,
+      prefs.setComplexValue(getPrefWebForType(feedType), Ci.nsISupportsString,
                             supportsString);
 
       var wccr = Cc["@mozilla.org/embeddor.implemented/web-content-handler-registrar;1"].
                  getService(Ci.nsIWebContentConverterService);
-      var handler = wccr.getWebContentHandlerByURI(TYPE_MAYBE_FEED, webURI);
+      var handler = wccr.getWebContentHandlerByURI(this._getMimeTypeForFeedType(feedType), webURI);
       if (handler) {
         if (useAsDefault)
-          wccr.setAutoHandler(TYPE_MAYBE_FEED, handler);
+          wccr.setAutoHandler(this._getMimeTypeForFeedType(feedType), handler);
 
         this._window.location.href = handler.getHandlerURI(this._window.location.href);
       }
@@ -899,18 +1292,18 @@ FeedWriter.prototype = {
     else {
       switch (selectedItem.id) {
         case "selectedAppMenuItem":
-          prefs.setCharPref(PREF_SELECTED_READER, "client");
-          prefs.setComplexValue(PREF_SELECTED_APP, Ci.nsILocalFile, 
-                                this.selectedApplicationItemWrapped.file);
+          prefs.setComplexValue(getPrefAppForType(feedType), Ci.nsILocalFile, 
+                                this._selectedApp);
+          prefs.setCharPref(getPrefReaderForType(feedType), "client");
           break;
         case "defaultHandlerMenuItem":
-          prefs.setCharPref(PREF_SELECTED_READER, "client");
-          prefs.setComplexValue(PREF_SELECTED_APP, Ci.nsILocalFile, 
-                                this.defaultSystemReaderItemWrapped.file);
+          prefs.setComplexValue(getPrefAppForType(feedType), Ci.nsILocalFile, 
+                                this._defaultSystemReader);
+          prefs.setCharPref(getPrefReaderForType(feedType), "client");
           break;
         case "liveBookmarksMenuItem":
           defaultHandler = "bookmarks";
-          prefs.setCharPref(PREF_SELECTED_READER, "bookmarks");
+          prefs.setCharPref(getPrefReaderForType(feedType), "bookmarks");
           break;
       }
       var feedService = Cc["@mozilla.org/browser/feeds/result-service;1"].
@@ -919,37 +1312,46 @@ FeedWriter.prototype = {
       // Pull the title and subtitle out of the document
       var feedTitle = this._document.getElementById(TITLE_ID).textContent;
       var feedSubtitle = this._document.getElementById(SUBTITLE_ID).textContent;
-      feedService.addToClientReader(this._window.location.href,
-                                    feedTitle, feedSubtitle);
+      feedService.addToClientReader(this._window.location.href, feedTitle, feedSubtitle, feedType);
     }
 
-    // If "Always use..." is checked, we should set PREF_SELECTED_ACTION
+    // If "Always use..." is checked, we should set PREF_*SELECTED_ACTION
     // to either "reader" (If a web reader or if an application is selected),
     // or to "bookmarks" (if the live bookmarks option is selected).
     // Otherwise, we should set it to "ask"
     if (useAsDefault)
-      prefs.setCharPref(PREF_SELECTED_ACTION, defaultHandler);
+      prefs.setCharPref(getPrefActionForType(feedType), defaultHandler);
     else
-      prefs.setCharPref(PREF_SELECTED_ACTION, "ask");
+      prefs.setCharPref(getPrefActionForType(feedType), "ask");
   },
 
   // nsIObserver
   observe: function FW_observe(subject, topic, data) {
     if (!this._window) {
-      // this._window is null unless this.write was called with a trusted
+      // this._window is null unless this.init was called with a trusted
       // window object.
       return;
     }
+
+    var feedType = this._getFeedType();
 
     if (topic == "nsPref:changed") {
       switch (data) {
         case PREF_SELECTED_READER:
         case PREF_SELECTED_WEB:
         case PREF_SELECTED_APP:
-          this._setSelectedHandler();
+        case PREF_VIDEO_SELECTED_READER:
+        case PREF_VIDEO_SELECTED_WEB:
+        case PREF_VIDEO_SELECTED_APP:
+        case PREF_AUDIO_SELECTED_READER:
+        case PREF_AUDIO_SELECTED_WEB:
+        case PREF_AUDIO_SELECTED_APP:
+          this._setSelectedHandler(feedType);
           break;
         case PREF_SELECTED_ACTION:
-          this._setAlwaysUseCheckedState();
+        case PREF_VIDEO_SELECTED_ACTION:
+        case PREF_AUDIO_SELECTED_ACTION:
+          this._setAlwaysUseCheckedState(feedType);
       }
     } 
   },
@@ -966,20 +1368,22 @@ FeedWriter.prototype = {
   _setFaviconForWebReader:
   function FW__setFaviconForWebReader(aURI, aMenuItem) {
     var faviconsSvc = this._faviconService;
-    var faviconURL = null;
+    var faviconURI = null;
     try {
-      faviconURL = faviconsSvc.getFaviconForPage(aURI);
+      faviconURI = faviconsSvc.getFaviconForPage(aURI);
     }
     catch(ex) { }
 
-    if (faviconURL) {
-      var mimeType = { };
-      var bytes = faviconsSvc.getFaviconData(faviconURL, mimeType,
-                                             { /* dataLen */ });
-      if (bytes) {
-        var dataURI = "data:" + mimeType.value + ";" + "base64," +
-                      btoa(String.fromCharCode.apply(null, bytes));
-        aMenuItem.setAttribute("image", dataURI);
+    if (faviconURI) {
+      var dataURL = faviconsSvc.getFaviconDataAsDataURL(faviconURI);
+      if (dataURL) {
+        this._contentSandbox.menuItem = aMenuItem;
+        this._contentSandbox.dataURL = dataURL;
+        var codeStr = "menuItem.setAttribute('image', dataURL);";
+        Cu.evalInSandbox(codeStr, this._contentSandbox);
+        this._contentSandbox.menuItem = null;
+        this._contentSandbox.dataURL = null;
+
         return true;
       }
     }
@@ -1008,6 +1412,7 @@ FeedWriter.prototype = {
    onEndUpdateBatch: function() { },
    onVisit: function() { },
    onTitleChanged: function() { },
+   onBeforeDeleteURI: function() { },
    onDeleteURI: function() { },
    onClearHistory: function() { },
    onPageExpired: function() { },

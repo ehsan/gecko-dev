@@ -42,6 +42,7 @@
 #import <Cocoa/Cocoa.h>
 
 #include "nsCOMPtr.h"
+#include "nsObjCExceptions.h"
 #include "nsNativeAppSupportBase.h"
 
 #include "nsIAppShellService.h"
@@ -101,10 +102,11 @@ nsNativeAppSupportCocoa::Enable()
   return NS_OK;
 }
 
-/* boolean start (); */
 NS_IMETHODIMP nsNativeAppSupportCocoa::Start(PRBool *_retval)
 {
-  long response = 0;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  SInt32 response = 0;
   OSErr err = ::Gestalt (gestaltSystemVersion, &response);
   response &= 0xFFFF; // The system version is in the low order word
 
@@ -113,19 +115,22 @@ NS_IMETHODIMP nsNativeAppSupportCocoa::Start(PRBool *_retval)
   // alert here.  But the alert's message and buttons would require custom
   // localization.  So (for now at least) we just log an English message
   // to the console before quitting.
-  if ((err != noErr) || response < 0x00001040)
-  {
+  if ((err != noErr) || response < 0x00001040) {
     NSLog(@"Requires Mac OS X version 10.4 or newer");
     return PR_FALSE;
   }
 
   *_retval = PR_TRUE;
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP
 nsNativeAppSupportCocoa::ReOpen()
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   if (!mCanShowUI)
     return NS_ERROR_FAILURE;
 
@@ -135,35 +140,29 @@ nsNativeAppSupportCocoa::ReOpen()
   
   nsCOMPtr<nsIWindowMediator> 
     wm(do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
-  if (!wm)
-  {
+  if (!wm) {
     return NS_ERROR_FAILURE;
   } 
-  else
-  {
+  else {
     nsCOMPtr<nsISimpleEnumerator> windowList;
     wm->GetXULWindowEnumerator(nsnull, getter_AddRefs(windowList));
     PRBool more;
     windowList->HasMoreElements(&more);
-    while (more)
-    {
+    while (more) {
       nsCOMPtr<nsISupports> nextWindow = nsnull;
       windowList->GetNext(getter_AddRefs(nextWindow));
       nsCOMPtr<nsIBaseWindow> baseWindow(do_QueryInterface(nextWindow));
-      if (!baseWindow)
-      {
+      if (!baseWindow) {
         windowList->HasMoreElements(&more);
         continue;
       }
-      else
-      {
+      else {
         haveOpenWindows = PR_TRUE;
       }
 
       nsCOMPtr<nsIWidget> widget = nsnull;
       baseWindow->GetMainWidget(getter_AddRefs(widget));
-      if (!widget)
-      {
+      if (!widget) {
         windowList->HasMoreElements(&more);
         continue;
       }
@@ -175,14 +174,12 @@ nsNativeAppSupportCocoa::ReOpen()
       windowList->HasMoreElements(&more);
     } // end while
         
-    if (!haveNonMiniaturized)
-    {
+    if (!haveNonMiniaturized) {
       // Deminiaturize the most recenty used window
       nsCOMPtr<nsIDOMWindowInternal> mru = nsnull;
       wm->GetMostRecentWindow(nsnull, getter_AddRefs(mru));
             
-      if (mru) 
-      {        
+      if (mru) {        
         NSWindow *cocoaMru = nil;
         GetNativeWindowPointerFromDOMWindow(mru, &cocoaMru);
         if (cocoaMru) {
@@ -193,8 +190,7 @@ nsNativeAppSupportCocoa::ReOpen()
       
     } // end if have non miniaturized
     
-    if (!haveOpenWindows && !done)
-    {
+    if (!haveOpenWindows && !done) {
       char* argv[] = { nsnull };
     
       // use an empty command line to make the right kind(s) of window open
@@ -212,6 +208,8 @@ nsNativeAppSupportCocoa::ReOpen()
     
   } // got window mediator
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 nsresult
@@ -221,20 +219,16 @@ GetNativeWindowPointerFromDOMWindow(nsIDOMWindowInternal *a_window, NSWindow **a
     if (!a_window) return NS_ERROR_INVALID_ARG;
     
     nsCOMPtr<nsIWebNavigation> mruWebNav(do_GetInterface(a_window));
-    if (mruWebNav)
-    {
+    if (mruWebNav) {
       nsCOMPtr<nsIDocShellTreeItem> mruTreeItem(do_QueryInterface(mruWebNav));
       nsCOMPtr<nsIDocShellTreeOwner> mruTreeOwner = nsnull;
       mruTreeItem->GetTreeOwner(getter_AddRefs(mruTreeOwner));
-      if(mruTreeOwner)
-      {
+      if(mruTreeOwner) {
         nsCOMPtr<nsIBaseWindow> mruBaseWindow(do_QueryInterface(mruTreeOwner));
-        if (mruBaseWindow)
-        {
+        if (mruBaseWindow) {
           nsCOMPtr<nsIWidget> mruWidget = nsnull;
           mruBaseWindow->GetMainWidget(getter_AddRefs(mruWidget));
-          if (mruWidget)
-          {
+          if (mruWidget) {
             *a_nativeWindow = (NSWindow*)mruWidget->GetNativeData(NS_NATIVE_WINDOW);
           }
         }

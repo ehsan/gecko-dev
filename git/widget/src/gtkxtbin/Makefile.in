@@ -49,8 +49,6 @@ LIBRARY_NAME	= gtkxtbin
 EXPORT_LIBRARY = 1
 LIBXUL_LIBRARY = 1
 
-PACKAGE_FILE = gtkxtbin.pkg
-
 ifdef MOZ_ENABLE_GTK2
 CSRCS		= \
 		gtk2xtbin.c \
@@ -58,9 +56,8 @@ CSRCS		= \
 EXTRA_DSO_LDOPTS += $(MOZ_GTK2_LIBS) $(XLDFLAGS) $(XT_LIBS) $(XLIBS)
 endif
 
-EXPORTS         = gtkxtbin.h gtk2xtbin.h 
+EXPORTS         = gtk2xtbin.h 
 
-REQUIRES	= xpcom
 
 include $(topsrcdir)/config/rules.mk
 

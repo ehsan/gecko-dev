@@ -49,8 +49,9 @@
 <overlay id="ContentPaneOverlay"
          xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-  <prefpane id="paneContent" onpaneload="gContentPane.init();"
-            helpTopic="prefs-content" helpURI="chrome://browser/locale/help/help.rdf">
+  <prefpane id="paneContent" 
+            onpaneload="gContentPane.init();"
+            helpTopic="prefs-content">
 
     <preferences id="contentPreferences">
       <!--XXX buttons prefs -->
@@ -59,7 +60,6 @@
       <preference id="dom.disable_open_during_load"   name="dom.disable_open_during_load"   type="bool"/>
       <preference id="permissions.default.image"      name="permissions.default.image"      type="int"/>
       <preference id="javascript.enabled"             name="javascript.enabled"             type="bool"/>
-      <preference id="security.enable_java"           name="security.enable_java"           type="bool"/>
 
       <preference id="pref.advanced.images.disable_button.view_image"
                   name="pref.advanced.images.disable_button.view_image"
@@ -75,8 +75,8 @@
                   onchange="gContentPane._rebuildFonts();"/>
     </preferences>
     
-    <script type="application/x-javascript" src="chrome://mozapps/content/preferences/fontbuilder.js"/>
-    <script type="application/x-javascript" src="chrome://browser/content/preferences/content.js"/>
+    <script type="application/javascript" src="chrome://mozapps/content/preferences/fontbuilder.js"/>
+    <script type="application/javascript" src="chrome://browser/content/preferences/content.js"/>
 
     <stringbundle id="bundlePreferences" src="chrome://browser/locale/preferences/preferences.properties"/>
 
@@ -127,14 +127,6 @@
                       accesskey="&advancedJS.accesskey;"
                       oncommand="gContentPane.showAdvancedJS();"
                       preference="pref.advanced.javascript.disable_button.advanced"/>
-            </vbox>
-          </row>
-          <row id="enableJavaRow">
-            <vbox align="start">
-              <checkbox id="enableJava"
-                        label="&enableJava.label;"
-                        accesskey="&enableJava.accesskey;"
-                        preference="security.enable_java"/>
             </vbox>
           </row>
         </rows>
@@ -200,6 +192,19 @@
           </row>
         </rows>
       </grid>
+    </groupbox>
+
+    <!-- Languages -->
+    <groupbox id="languagesGroup">
+      <caption label="&languages.label;"/>
+
+      <hbox id="languagesBox" align="center">
+        <description flex="1" control="chooseLanguage">&chooseLanguage.label;</description>
+        <button id="chooseLanguage"
+                label="&chooseButton.label;"
+                accesskey="&chooseButton.accesskey;"
+                oncommand="gContentPane.showLanguages();"/>
+      </hbox>
     </groupbox>
 
   </prefpane>

@@ -36,108 +36,96 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH   = ../..
+DEPTH     = ../..
 topsrcdir = @top_srcdir@
 srcdir    = @srcdir@
-VPATH   = @srcdir@
+VPATH     = @srcdir@
 
-include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/config.mk
 
 # These component dirs are built for all apps (including suite)
 
 ifdef MOZ_ENABLE_XREMOTE
-DIRS += remote
+PARALLEL_DIRS += remote
 endif
-DIRS += \
-        urlformatter \
-        contentprefs \
-        microformats \
-        $(NULL)
 
-# These component dirs are built only for XUL apps
-
-ifdef MOZ_XUL_APP
-DIRS += \
-	filepicker \
-	console \
-	viewconfig \
-	typeaheadfind \
-	$(NULL)
+PARALLEL_DIRS += \
+  aboutmemory \
+  apppicker \
+  commandlines \
+  console \
+  contentprefs \
+  cookie \
+  exthelper \
+  filepicker \
+  microformats \
+  parentalcontrols \
+  passwordmgr \
+  places \
+  startup \
+  typeaheadfind \
+  urlformatter \
+  viewconfig \
+  $(NULL)
 
 ifneq (,$(filter cocoa, $(MOZ_WIDGET_TOOLKIT)))
 TOOL_DIRS += alerts
 else
-DIRS += alerts
+PARALLEL_DIRS += alerts
 endif
 
 ifdef MOZ_FEEDS
-DIRS += feeds
+PARALLEL_DIRS += feeds
 endif
 
-ifdef MOZ_PLACES
-DIRS += places
+ifdef MOZ_HELP_VIEWER
+PARALLEL_DIRS += help
 endif
 
 ifdef NS_PRINTING
-DIRS +=	printing
+PARALLEL_DIRS += printing
 endif
 
 ifdef MOZ_VIEW_SOURCE
-DIRS +=	viewsource
+PARALLEL_DIRS += viewsource
 endif
 
-ifdef MOZ_THUNDERBIRD
-DIRS += autocomplete/public
-else
-DIRS +=	\
-	cookie \
-	$(NULL)
-
 ifdef MOZ_XUL
-DIRS += \
-	autocomplete \
-	satchel \
-	$(NULL)
-endif # MOZ_XUL
-
-ifdef MOZ_SUITE
-# Suite can't use passwordmgr because mail still depends on wallet (bug 239131)
-DIRS += passwordmgr/public
-else
-DIRS += passwordmgr
-ifndef MOZ_PLACES
-DIRS +=	history
-endif # MOZ_PLACES
-endif # MOZ_SUITE
-endif # MOZ_THUNDERBIRD
-
-ifdef MOZ_XUL
-DIRS += help
+PARALLEL_DIRS += \
+  autocomplete \
+  satchel \
+  $(NULL)
 endif
+
+ifndef MOZ_THUNDERBIRD
 
 ifndef MOZ_SUITE
-# XXX Suite doesn't want these just yet
-ifdef MOZ_RDF
-DIRS +=	downloads
+PARALLEL_DIRS += search
 endif
-endif # MOZ_SUITE
+
+endif # MOZ_THUNDERBIRD
+
+ifdef MOZ_RDF
+PARALLEL_DIRS += downloads
+endif
 
 ifdef MOZ_URL_CLASSIFIER
-DIRS += url-classifier
+PARALLEL_DIRS += url-classifier
+endif
+
+ifdef MOZ_FASTSTART
+PARALLEL_DIRS += faststart
 endif
 
 DIRS += \
-	commandlines \
-	startup \
-	build \
-	$(NULL)
+  build \
+  $(NULL)
 
 EXTRA_PP_COMPONENTS = nsDefaultCLH.js
 
-endif # MOZ_XUL_APP
-
 ifeq ($(MOZ_BUILD_APP),camino)
 DIRS += autocomplete/public
+DIRS += downloads/public
 endif
 
 include $(topsrcdir)/config/rules.mk

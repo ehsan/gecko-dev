@@ -50,34 +50,14 @@ IS_COMPONENT = 1
 LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
 
-REQUIRES =	\
-		xpcom \
-		string \
-		autocomplete \
-		uriloader \
-		dom \
-		layout \
-		docshell \
-		gfx \
-		thebes \
-		necko \
-		widget \
-		content \
-		view \
-		locale \
-		unicharutil \
-		intl \
-		pref \
-		windowwatcher \
-		toolkitcomps \
-		loginmgr \
-		$(NULL)
+EXTRA_COMPONENTS = \
+	nsFormAutoComplete.js \
+	$(NULL)
+
 
 CPPSRCS = nsFormFillController.cpp \
+          nsStorageFormHistory.cpp \
           $(NULL)
-
-REQUIRES += storage morkreader
-CPPSRCS += nsStorageFormHistory.cpp
 
 LOCAL_INCLUDES = \
 	-I$(srcdir)/../../build \
@@ -87,16 +67,9 @@ EXTRA_DSO_LIBS	= gkgfx
 
 include $(topsrcdir)/config/rules.mk
 
-DEFINES += -DMOZ_STORAGE_SATCHEL
-
 EXTRA_DSO_LDOPTS += \
 	$(LIBS_DIR) \
 	$(EXTRA_DSO_LIBS) \
 	$(MOZ_UNICHARUTIL_LIBS) \
 	$(MOZ_COMPONENT_LIBS) \
 	$(NULL)
-
-ifdef MOZ_MORKREADER
-EXTRA_DSO_LDOPTS += $(DEPTH)/db/morkreader/$(LIB_PREFIX)morkreader_s.$(LIB_SUFFIX)
-endif
-

@@ -36,20 +36,6 @@
  * ***** END LICENSE BLOCK *****
  */
 
-/* XXX ajvincent XPCOM_DEBUG_BREAK automatically causes a xpcshell test to crash
-   if a NS_ASSERTION fires.  However, the assertions this testcase triggers are
-   unrelated to the actual test, and the component this test runs against is
-   JavaScript-based - so assertions here do not apply against the tested
-   component.  I am (reluctantly) turning the assertions into stack warnings in
-   order to prevent test failures at this point which are not the fault of the
-   code being tested or the test script.
-
-   At present, the assertions fired are for calls which aren't thread-safe.
-*/
-var env = Components.classes["@mozilla.org/process/environment;1"]
-                    .getService(Components.interfaces.nsIEnvironment);
-env.set("XPCOM_DEBUG_BREAK", "stack");
-
 // Disables security checking our updates which haven't been signed
 gPrefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
@@ -177,19 +163,37 @@ registrar.registerFactory(psID,
                           "@mozilla.org/embedcomp/prompt-service;1",
                           PromptServiceFactory);
 
-const updateListener = {
-  _state: -1,
-
-  // nsIAddonUpdateListener
-  onStateChange: function onStateChange(aAddon, aState, aValue) {
-    if ((this._state == -1) &&
-        (aState == Components.interfaces.nsIXPIProgressDialog.DIALOG_CLOSE)) {
-      this._state = aState;
-      next_test();
-    }
+const installListener = {
+  // nsIAddonInstallListener
+  onDownloadStarted: function(aAddon) {
+    // do nothing.
   },
 
-  onProgress: function onProgress(aAddon, aValue, aMaxValue) {
+  onDownloadEnded: function(aAddon) {
+    // do nothing.
+  },
+
+  onInstallStarted: function(aAddon) {
+    // do nothing.
+  },
+
+  onCompatibilityCheckStarted: function(aAddon) {
+    // do nothing.
+  },
+
+  onCompatibilityCheckEnded: function(aAddon, aStatus) {
+    // do nothing.
+  },
+
+  onInstallEnded: function(aAddon, aStatus) {
+    // do nothing.
+  },
+
+  onInstallsCompleted: function() {
+    next_test();
+  },
+
+  onDownloadProgress: function onProgress(aAddon, aValue, aMaxValue) {
     // do nothing.
   }
 };
@@ -223,7 +227,7 @@ const checkListener = {
 }
 
 // Get the HTTP server.
-do_import_script("netwerk/test/httpserver/httpd.js");
+do_load_httpd_js();
 var testserver;
 var updateItems = [];
 
@@ -303,10 +307,13 @@ var next_test = function() {};
 
 function do_check_item(aItem, aVersion, aAddonsEntry) {
   if (aAddonsEntry.installed) {
-    do_check_neq(aItem, null);
-    do_check_eq(aItem.version, aVersion);
+    if (aItem == null)
+      do_throw("Addon " + aAddonsEntry.id + " wasn't detected");
+    if (aItem.version != aVersion)
+      do_throw("Addon " + aAddonsEntry.id + " was version " + aItem.version + " instead of " + aVersion);
   } else {
-    do_check_eq(aItem, null);
+    if (aItem != null)
+      do_throw("Addon " + aAddonsEntry.id + " was detected");
   }
 }
 
@@ -316,7 +323,7 @@ function do_check_item(aItem, aVersion, aAddonsEntry) {
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "5", "1.9");
 
-  const dataDir = do_get_file("toolkit/mozapps/extensions/test/unit/data");
+  const dataDir = do_get_file("data");
   const addonsDir = do_get_addon(ADDONS[0].addon).parent;
 
   // Make sure we can actually get our data files.
@@ -346,16 +353,16 @@ function run_test() {
   startupEM();
   dump("\n\n*** INSTALLING NEW ITEMS\n\n");
 
-  gEM.addUpdateListener(updateListener);
-
   for (var i = 0; i < ADDONS.length; i++) {
     gEM.installItemFromFile(do_get_addon(ADDONS[i].addon),
                             NS_INSTALL_LOCATION_APPPROFILE);
   }
+  dump("\n\n*** DONE INSTALLING NEW ITEMS\n\n");
+
   do_test_pending();
 
   // Give time for phone home to complete.
-  do_timeout(DELAY, "run_test_pt2()");
+  do_timeout(DELAY, run_test_pt2);
 }
 
 /**
@@ -374,7 +381,7 @@ function run_test_pt2() {
   }
 
   dump("\n\n*** REQUESTING UPDATE\n\n");
-  // updateListener will call run_test_pt3().
+  // checkListener will call run_test_pt3().
   next_test = run_test_pt3;
   try {
     gEM.update(updateItems,
@@ -410,12 +417,12 @@ function run_test_pt3() {
   }
   dump("\n\n*** UPDATING " + addonsArray.length + " ITEMS\n\n");
 
-  // updateListener will call run_test_pt4().
+  // installListener will call run_test_pt4().
   next_test = run_test_pt4;
 
   // Here, we have some bad items that try to update.  Pepto-Bismol time.
   try {
-    gEM.addDownloads(addonsArray, addonsArray.length, true);
+    gEM.addDownloads(addonsArray, addonsArray.length, null);
     do_throw("Shouldn't reach here!");
   } catch (e if (e instanceof Components.interfaces.nsIException &&
                  e.result == Components.results.NS_ERROR_ILLEGAL_VALUE)) {
@@ -428,8 +435,10 @@ function run_test_pt3() {
     }
   }
 
+  gEM.addInstallListener(installListener);
+
   do_check_true(addonsArray.length > 0);
-  gEM.addDownloads(addonsArray, addonsArray.length, true);
+  gEM.addDownloads(addonsArray, addonsArray.length, null);
 }
 
 /**
@@ -444,10 +453,6 @@ function run_test_pt4() {
     var item = gEM.getItemForID(ADDONS[i].id);
     do_check_item(item, "0.2", ADDONS[i]);
   }
-  do_test_finished();
 
-  testserver.stop();
-
-  // If we've gotten this far, then the test has passed.
-  env.set("XPCOM_DEBUG_BREAK", "abort");
+  testserver.stop(do_test_finished);
 }

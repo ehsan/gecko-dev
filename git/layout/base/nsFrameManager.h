@@ -109,23 +109,6 @@ public:
    */
   NS_HIDDEN_(nsIFrame*) GetCanvasFrame();
 
-  // Primary frame functions
-  // If aIndexHint it not -1, it will be used as when determining a frame hint
-  // instead of calling IndexOf(aContent).
-  NS_HIDDEN_(nsIFrame*) GetPrimaryFrameFor(nsIContent* aContent,
-                                           PRInt32 aIndexHint);
-  // aPrimaryFrame must not be null.  If you're trying to remove a primary frame
-  // mapping, use RemoveAsPrimaryFrame.
-  NS_HIDDEN_(nsresult)  SetPrimaryFrameFor(nsIContent* aContent,
-                                           nsIFrame* aPrimaryFrame);
-  // If aPrimaryFrame is the current primary frame for aContent, remove the
-  // relevant hashtable entry.  If the current primary frame for aContent is
-  // null, this does nothing.  aPrimaryFrame must not be null, and this method
-  // handles calling RemovedAsPrimaryFrame on aPrimaryFrame.
-  NS_HIDDEN_(void)      RemoveAsPrimaryFrame(nsIContent* aContent,
-                                             nsIFrame* aPrimaryFrame);
-  NS_HIDDEN_(void)      ClearPrimaryFrameMap();
-
   // Placeholder frame functions
   NS_HIDDEN_(nsPlaceholderFrame*) GetPlaceholderFrameFor(nsIFrame* aFrame);
   NS_HIDDEN_(nsresult)
@@ -150,7 +133,7 @@ public:
   // Functions for manipulating the frame model
   NS_HIDDEN_(nsresult) AppendFrames(nsIFrame*       aParentFrame,
                                     nsIAtom*        aListName,
-                                    nsIFrame*       aFrameList)
+                                    nsFrameList&    aFrameList)
   {
     return aParentFrame->AppendFrames(aListName, aFrameList);
   }
@@ -158,10 +141,9 @@ public:
   NS_HIDDEN_(nsresult) InsertFrames(nsIFrame*       aParentFrame,
                                     nsIAtom*        aListName,
                                     nsIFrame*       aPrevFrame,
-                                    nsIFrame*       aFrameList);
+                                    nsFrameList&    aFrameList);
 
-  NS_HIDDEN_(nsresult) RemoveFrame(nsIFrame*       aParentFrame,
-                                   nsIAtom*        aListName,
+  NS_HIDDEN_(nsresult) RemoveFrame(nsIAtom*        aListName,
                                    nsIFrame*       aOldFrame);
 
   /*
@@ -181,19 +163,22 @@ public:
   NS_HIDDEN_(nsresult) ReParentStyleContext(nsIFrame* aFrame);
 
   /*
-   * Re-resolve the style contexts for a frame tree.  Returns the top-level
-   * change hint resulting from the style re-resolution.
+   * Re-resolve the style contexts for a frame tree, building
+   * aChangeList based on the resulting style changes, plus aMinChange
+   * applied to aFrame.
    */
-  NS_HIDDEN_(nsChangeHint)
+  NS_HIDDEN_(void)
     ComputeStyleChangeFor(nsIFrame* aFrame,
                           nsStyleChangeList* aChangeList,
                           nsChangeHint aMinChange);
 
   // Determine whether an attribute affects style
+  // If aAttrHasChanged is false, the attribute's value is about to
+  // change. If it's true, it has already changed.
   NS_HIDDEN_(nsReStyleHint) HasAttributeDependentStyle(nsIContent *aContent,
                                                        nsIAtom *aAttribute,
                                                        PRInt32 aModType,
-                                                       PRUint32 aStateMask);
+                                                       PRBool aAttrHasChanged);
 
   /*
    * Capture/restore frame state for the frame subtree rooted at aFrame.
@@ -239,7 +224,8 @@ private:
                           nsIFrame          *aFrame,
                           nsIContent        *aParentContent,
                           nsStyleChangeList *aChangeList, 
-                          nsChangeHint       aMinChange);
+                          nsChangeHint       aMinChange,
+                          PRBool             aFireAccessibilityEvents);
 };
 
 #endif

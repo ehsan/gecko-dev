@@ -39,7 +39,6 @@
 #define nsWidget_h__
 
 #include "nsBaseWidget.h"
-#include "nsIKBStateControl.h"
 #include "nsIRegion.h"
 #ifdef PHOTON_DND
 #include "nsIDragService.h"
@@ -61,7 +60,7 @@ class nsWidget;
  * Base of all Photon native widgets.
  */
 
-class nsWidget : public nsBaseWidget, nsIKBStateControl
+class nsWidget : public nsBaseWidget
 {
 public:
   nsWidget();
@@ -71,29 +70,14 @@ public:
 
   // nsIWidget
 
-	// create with nsIWidget parent
   inline NS_IMETHOD            Create(nsIWidget *aParent,
+                               nsNativeWidget aNativeParent,
                                const nsRect &aRect,
                                EVENT_CALLBACK aHandleEventFunction,
                                nsIDeviceContext *aContext,
                                nsIAppShell *aAppShell = nsnull,
                                nsIToolkit *aToolkit = nsnull,
-                               nsWidgetInitData *aInitData = nsnull)
-		{
-		return(CreateWidget(aParent, aRect, aHandleEventFunction, aContext, aAppShell, aToolkit, aInitData, nsnull));
-		}
-
-	// create with a native parent
-  inline NS_IMETHOD            Create(nsNativeWidget aParent,
-                               const nsRect &aRect,
-                               EVENT_CALLBACK aHandleEventFunction,
-                               nsIDeviceContext *aContext,
-                               nsIAppShell *aAppShell = nsnull,
-                               nsIToolkit *aToolkit = nsnull,
-                               nsWidgetInitData *aInitData = nsnull)
-		{
-		return(CreateWidget(nsnull, aRect, aHandleEventFunction, aContext, aAppShell, aToolkit, aInitData,aParent));
-		}
+                               nsWidgetInitData *aInitData = nsnull);
 
   NS_IMETHOD Destroy(void);
   inline nsIWidget* GetParent(void)
@@ -108,7 +92,9 @@ public:
 
   NS_IMETHOD SetModal(PRBool aModal);
   NS_IMETHOD Show(PRBool state);
-  inline NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent) { return NS_OK; }
+  inline NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener, nsIMenuRollup *aMenuRollup,
+                                        PRBool aDoCapture, PRBool aConsumeRollupEvent)
+  { return NS_OK; }
 
   inline NS_IMETHOD IsVisible(PRBool &aState) { aState = mShown; return NS_OK; }
 
@@ -158,32 +144,6 @@ public:
   NS_IMETHOD WidgetToScreen(const nsRect &aOldRect, nsRect &aNewRect);
   NS_IMETHOD ScreenToWidget(const nsRect &aOldRect, nsRect &aNewRect);
 
-  inline NS_IMETHOD BeginResizingChildren(void)
-		{
-		PtHold();
-		return NS_OK;
-		}
-
-  inline NS_IMETHOD EndResizingChildren(void)
-		{
-		PtRelease();
-		return NS_OK;
-		}
-
-  inline NS_IMETHOD GetPreferredSize(PRInt32& aWidth, PRInt32& aHeight)
-		{
-		aWidth  = mPreferredWidth;
-		aHeight = mPreferredHeight;
-		return (mPreferredWidth != 0 && mPreferredHeight != 0)?NS_OK:NS_ERROR_FAILURE;
-		}
-
-  inline NS_IMETHOD SetPreferredSize(PRInt32 aWidth, PRInt32 aHeight)
-		{
-		mPreferredWidth  = aWidth;
-		mPreferredHeight = aHeight;
-		return NS_OK;
-		}
-
   // Use this to set the name of a widget for normal widgets.. not the same as the nsWindow version
   inline NS_IMETHOD SetTitle(const nsAString& aTitle) { return NS_OK; }
 
@@ -199,7 +159,6 @@ public:
   NS_IMETHOD CaptureMouse(PRBool aCapture) { return NS_ERROR_FAILURE; }
 
 
-  NS_IMETHOD Invalidate(PRBool aIsSynchronous);
   NS_IMETHOD Invalidate(const nsRect &aRect, PRBool aIsSynchronous);
   NS_IMETHOD InvalidateRegion(const nsIRegion *aRegion, PRBool aIsSynchronous);
   inline NS_IMETHOD Update(void)
@@ -210,16 +169,6 @@ public:
 		}
 
   NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
-
-
-  // nsIKBStateControl
-  NS_IMETHOD ResetInputState();
-  NS_IMETHOD SetIMEOpenState(PRBool aState);
-  NS_IMETHOD GetIMEOpenState(PRBool* aState);
-  NS_IMETHOD SetIMEEnabled(PRUint32 aState);
-  NS_IMETHOD GetIMEEnabled(PRUint32* aState);
-  NS_IMETHOD CancelIMEComposition();
-  NS_IMETHOD GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
 
   inline void InitEvent(nsGUIEvent& event, PRUint32 aEventType, nsPoint* aPoint = nsnull)
 		{
@@ -266,15 +215,6 @@ public:
 
 protected:
   NS_IMETHOD CreateNative(PtWidget_t *parentWindow) { return NS_OK; }
-
-  nsresult CreateWidget(nsIWidget *aParent,
-                        const nsRect &aRect,
-                        EVENT_CALLBACK aHandleEventFunction,
-                        nsIDeviceContext *aContext,
-                        nsIAppShell *aAppShell,
-                        nsIToolkit *aToolkit,
-                        nsWidgetInitData *aInitData,
-                        nsNativeWidget aNativeParent = nsnull);
 
   inline PRBool DispatchWindowEvent(nsGUIEvent* event)
 		{
@@ -350,7 +290,6 @@ protected:
   nsIWidget						*mParent;
   PRBool mShown;
 
-  PRUint32 mPreferredWidth, mPreferredHeight;
   PRBool       mListenForResizes;
    
   // Focus used global variable

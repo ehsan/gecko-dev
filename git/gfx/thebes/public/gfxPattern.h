@@ -71,15 +71,45 @@ public:
         EXTEND_NONE,
         EXTEND_REPEAT,
         EXTEND_REFLECT,
-        EXTEND_PAD
+        EXTEND_PAD,
+
+        // Our own private flag for setting either NONE or PAD,
+        // depending on what the platform does for NONE.  This is only
+        // relevant for surface patterns; for all other patterns, it
+        // behaves identical to PAD.  On MacOS X, this becomes "NONE",
+        // because Quartz does the thing that we want at image edges;
+        // similarily on the win32 printing surface, since
+        // everything's done with GDI there.  On other platforms, it
+        // usually becomes PAD.
+        EXTEND_PAD_EDGE = 1000
     };
 
     // none, repeat, reflect
     void SetExtend(GraphicsExtend extend);
     GraphicsExtend Extend() const;
 
-    void SetFilter(int filter);
-    int Filter() const;
+    enum GraphicsPatternType {
+        PATTERN_SOLID,
+        PATTERN_SURFACE,
+        PATTERN_LINEAR,
+        PATTERN_RADIAL
+    };
+
+    GraphicsPatternType GetType() const;
+
+    int CairoStatus();
+
+    enum GraphicsFilter {
+        FILTER_FAST,
+        FILTER_GOOD,
+        FILTER_BEST,
+        FILTER_NEAREST,
+        FILTER_BILINEAR,
+        FILTER_GAUSSIAN
+    };
+
+    void SetFilter(GraphicsFilter filter);
+    GraphicsFilter Filter() const;
 
     /* returns TRUE if it succeeded */
     PRBool GetSolidColor(gfxRGBA& aColor);

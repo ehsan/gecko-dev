@@ -41,26 +41,22 @@
 class nsITreeBoxObject;
 
 nsIFrame* NS_NewTreeColFrame(nsIPresShell* aPresShell, 
-                             nsStyleContext* aContext,
-                             PRBool aIsRoot = PR_FALSE,
-                             nsIBoxLayout* aLayoutManager = nsnull);
+                             nsStyleContext* aContext);
 
 class nsTreeColFrame : public nsBoxFrame
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_FRAMEARENA_HELPERS
 
   nsTreeColFrame(nsIPresShell* aPresShell,
-                 nsStyleContext* aContext,
-                 PRBool aIsRoot = nsnull,
-                 nsIBoxLayout* aLayoutManager = nsnull):
-    nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager) {}
+                 nsStyleContext* aContext):
+    nsBoxFrame(aPresShell, aContext) {}
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                          const nsRect&           aDirtyRect,
@@ -73,9 +69,8 @@ public:
   virtual void SetBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
                          PRBool aRemoveOverflowArea = PR_FALSE);
 
-  friend nsIFrame* NS_NewTreeColFrame(nsIPresShell* aPresShell, 
-                                      PRBool aIsRoot,
-                                      nsIBoxLayout* aLayoutManager);
+  friend nsIFrame* NS_NewTreeColFrame(nsIPresShell* aPresShell,
+                                      nsStyleContext* aContext);
 
 protected:
   virtual ~nsTreeColFrame();
@@ -89,5 +84,5 @@ protected:
    * Helper method that gets the nsITreeColumns object this column belongs to
    * and calls InvalidateColumns() on it.
    */
-  void InvalidateColumns();
+  void InvalidateColumns(PRBool aCanWalkFrameTree = PR_TRUE);
 };

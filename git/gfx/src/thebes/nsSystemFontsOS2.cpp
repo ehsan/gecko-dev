@@ -40,7 +40,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIDeviceContext.h"
-#include "nsUnitConversion.h"
 #include "nsSystemFontsOS2.h"
 #include <stdlib.h>
 
@@ -221,6 +220,9 @@ nsresult nsSystemFontsOS2::GetSystemFont(nsSystemFontID aID, nsString* aFontName
     } else {
         aFontStyle->weight = FONT_WEIGHT_NORMAL;
     }
+
+    // FIXME: Set aFontStyle->stretch correctly!
+    aFontStyle->stretch = NS_FONT_STRETCH_NORMAL;
 
     // similar hopes for italic and oblique fonts...
     NS_NAMED_LITERAL_CSTRING(spcItalic, " Italic");

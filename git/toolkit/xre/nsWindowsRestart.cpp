@@ -20,6 +20,7 @@
  * the Mozilla Foundation. All Rights Reserved.
  *
  * Contributor(s):
+ *   Robert Strong <robert.bugzilla@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -44,6 +45,8 @@
 #define nsWindowsRestart_cpp
 #endif
 
+#include "nsUTF8Utils.h"
+
 #include <shellapi.h>
 
 #ifndef ERROR_ELEVATION_REQUIRED
@@ -63,228 +66,265 @@ BOOL (WINAPI *pCreateProcessWithTokenW)(HANDLE,
 BOOL (WINAPI *pIsUserAnAdmin)(VOID);
 
 /**
- * Get the length that the string will take when it is quoted.
+ * Get the length that the string will take and takes into account the
+ * additional length if the string needs to be quoted and if characters need to
+ * be escaped.
  */
-static int QuotedStrLen(const char *s)
+static int ArgStrLen(const PRUnichar *s)
 {
-  int i = 2; // initial and final quote
-  while (*s) {
-    if (*s == '"') {
-      ++i;
-    }
+  int backslashes = 0;
+  int i = wcslen(s);
+  BOOL hasDoubleQuote = wcschr(s, L'"') != NULL;
+  // Only add doublequotes if the string contains a space or a tab
+  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != NULL;
 
-    ++i; ++s;
+  if (addDoubleQuotes) {
+    i += 2; // initial and final duoblequote
   }
+
+  if (hasDoubleQuote) {
+    while (*s) {
+      if (*s == '\\') {
+        ++backslashes;
+      } else {
+        if (*s == '"') {
+          // Escape the doublequote and all backslashes preceding the doublequote
+          i += backslashes + 1;
+        }
+
+        backslashes = 0;
+      }
+
+      ++s;
+    }
+  }
+
   return i;
 }
 
 /**
- * Copy string "s" to string "d", quoting and escaping all double quotes.
+ * Copy string "s" to string "d", quoting the argument as appropriate and
+ * escaping doublequotes along with any backslashes that immediately precede
+ * duoblequotes.
  * The CRT parses this to retrieve the original argc/argv that we meant,
  * see STDARGV.C in the MSVC6 CRT sources.
  *
  * @return the end of the string
  */
-static char* QuoteString(char *d, const char *s)
+static PRUnichar* ArgToString(PRUnichar *d, const PRUnichar *s)
 {
-  *d = '"';
-  ++d;
+  int backslashes = 0;
+  BOOL hasDoubleQuote = wcschr(s, L'"') != NULL;
+  // Only add doublequotes if the string contains a space or a tab
+  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != NULL;
 
-  while (*s) {
-    *d = *s;
-    if (*s == '"') {
-      ++d;
-      *d = '"';
-    }
-
-    ++d; ++s;
+  if (addDoubleQuotes) {
+    *d = '"'; // initial doublequote
+    ++d;
   }
 
-  *d = '"';
-  ++d;
+  if (hasDoubleQuote) {
+    int i;
+    while (*s) {
+      if (*s == '\\') {
+        ++backslashes;
+      } else {
+        if (*s == '"') {
+          // Escape the doublequote and all backslashes preceding the doublequote
+          for (i = 0; i <= backslashes; ++i) {
+            *d = '\\';
+            ++d;
+          }
+        }
+
+        backslashes = 0;
+      }
+
+      *d = *s;
+      ++d; ++s;
+    }
+  } else {
+    wcscpy(d, s);
+    d += wcslen(s);
+  }
+
+  if (addDoubleQuotes) {
+    *d = '"'; // final doublequote
+    ++d;
+  }
 
   return d;
 }
 
 /**
- * Create a quoted command from a list of arguments. The returned string
- * is allocated with "malloc" and should be "free"d.
+ * Creates a command line from a list of arguments. The returned
+ * string is allocated with "malloc" and should be "free"d.
+ *
+ * argv is UTF8
  */
-static char*
-MakeCommandLine(int argc, char **argv)
+static PRUnichar*
+MakeCommandLine(int argc, PRUnichar **argv)
 {
   int i;
-  int len = 1; // null-termination
+  int len = 0;
 
+  // The + 1 of the last argument handles the allocation for null termination
   for (i = 0; i < argc; ++i)
-    len += QuotedStrLen(argv[i]) + 1;
+    len += ArgStrLen(argv[i]) + 1;
 
-  char *s = (char*) malloc(len);
+#ifdef WINCE
+  wchar_t *env = mozce_GetEnvironmentCL();
+  // XXX There's a buffer overrun here somewhere that causes a heap
+  // check to fail in the final free of the results of this function
+  // in WinLaunchChild.  I can't honestly figure out where it is,
+  // because I'm pretty sure with the + 1 above and the wcslen here,
+  // we have enough room for a trailing NULL.  But, adding a little
+  // bit more slop (the +10) seems to fix the problem.
+  //
+  // Supposedly CreateProcessW can modify its arguments, so maybe it's
+  // doing some scribbling?
+  len += (wcslen(env)) + 10;
+#endif
+
+  // Protect against callers that pass 0 arguments
+  if (len == 0)
+    len = 1;
+
+  PRUnichar *s = (PRUnichar*) malloc(len * sizeof(PRUnichar));
   if (!s)
     return NULL;
 
-  char *c = s;
+  PRUnichar *c = s;
   for (i = 0; i < argc; ++i) {
-    c = QuoteString(c, argv[i]);
-    *c = ' ';
-    ++c;
+    c = ArgToString(c, argv[i]);
+    if (i + 1 != argc) {
+      *c = ' ';
+      ++c;
+    }
   }
 
   *c = '\0';
 
+#ifdef WINCE
+  wcscat(s, env);
+  if (env)
+    free(env);
+#endif
   return s;
 }
 
 /**
- * alloc and convert multibyte char to unicode char
+ * Convert UTF8 to UTF16 without using the normal XPCOM goop, which we
+ * can't link to updater.exe.
  */
-static PRUnichar *
-AllocConvertAToW(const char *buf)
+static PRUnichar*
+AllocConvertUTF8toUTF16(const char *arg)
 {
-  PRUint32 inputLen = strlen(buf) + 1;
-  int n = MultiByteToWideChar(CP_ACP, 0, buf, inputLen, NULL, 0);
-  if (n <= 0)
+  // UTF16 can't be longer in units than UTF8
+  int len = strlen(arg);
+  PRUnichar *s = new PRUnichar[(len + 1) * sizeof(PRUnichar)];
+  if (!s)
     return NULL;
-  PRUnichar *result = (PRUnichar *)malloc(n * sizeof(PRUnichar));
-  if (!result)
-    return NULL;
-  MultiByteToWideChar(CP_ACP, 0, buf, inputLen, result, n);
-  return result;
+
+  ConvertUTF8toUTF16 convert(s);
+  convert.write(arg, len);
+  convert.write_terminator();
+  return s;
 }
 
-/**
- * Launch a child process without elevated privilege.
- */
-static BOOL
-LaunchAsNormalUser(const char *exePath, char *cl)
+static void
+FreeAllocStrings(int argc, PRUnichar **argv)
 {
-  if (!pCreateProcessWithTokenW) {
-    // IsUserAnAdmin is not present on Win9x and not exported by name on Win2k
-    *(FARPROC *)&pIsUserAnAdmin =
-        GetProcAddress(GetModuleHandle("shell32.dll"), "IsUserAnAdmin");
-
-    // CreateProcessWithTokenW is not present on WinXP or earlier
-    *(FARPROC *)&pCreateProcessWithTokenW =
-        GetProcAddress(GetModuleHandle("advapi32.dll"),
-                       "CreateProcessWithTokenW");
-
-    if (!pCreateProcessWithTokenW)
-      return FALSE;
+  while (argc) {
+    --argc;
+    delete [] argv[argc];
   }
 
-  // do nothing here if we are not elevated or IsUserAnAdmin is not present.
-  if (!pIsUserAnAdmin || pIsUserAnAdmin && !pIsUserAnAdmin())
-    return FALSE;
-
-  // borrow the shell token to drop the privilege
-  HWND hwndShell = FindWindow("Progman", NULL);
-  DWORD dwProcessId;
-  GetWindowThreadProcessId(hwndShell, &dwProcessId);
-
-  HANDLE hProcessShell = OpenProcess(MAXIMUM_ALLOWED, FALSE, dwProcessId);
-  if (!hProcessShell)
-    return FALSE;
-
-  HANDLE hTokenShell;
-  BOOL ok = OpenProcessToken(hProcessShell, MAXIMUM_ALLOWED, &hTokenShell);
-  CloseHandle(hProcessShell);
-  if (!ok)
-    return FALSE;
-
-  HANDLE hNewToken;
-  ok = DuplicateTokenEx(hTokenShell,
-                        MAXIMUM_ALLOWED,
-                        NULL,
-                        SecurityDelegation,
-                        TokenPrimary,
-                        &hNewToken);
-  CloseHandle(hTokenShell);
-  if (!ok)
-    return FALSE;
-
-  STARTUPINFOW si = {sizeof(si), 0};
-  PROCESS_INFORMATION pi = {0};
-
-  PRUnichar *exePathW = AllocConvertAToW(exePath);
-  PRUnichar *clW = AllocConvertAToW(cl);
-  ok = exePathW && clW;
-  if (ok) {
-    ok = pCreateProcessWithTokenW(hNewToken,
-                                  0,    // profile is already loaded
-                                  exePathW,
-                                  clW,
-                                  0,    // No special process creation flags
-                                  NULL, // inherit my environment
-                                  NULL, // use my current directory
-                                  &si,
-                                  &pi);
-  }
-  free(exePathW);
-  free(clW);
-  CloseHandle(hNewToken);
-  if (!ok)
-    return FALSE;
-
-  CloseHandle(pi.hProcess);
-  CloseHandle(pi.hThread);
-
-  return TRUE;
+  delete [] argv;
 }
 
 /**
  * Launch a child process with the specified arguments.
- * @param needElevation 1:need elevation, -1:want to drop priv, 0:don't care
  * @note argv[0] is ignored
+ * @note The form of this function that takes char **argv expects UTF-8
  */
+
 BOOL
-WinLaunchChild(const char *exePath, int argc, char **argv, int needElevation)
+WinLaunchChild(const PRUnichar *exePath, int argc, PRUnichar **argv);
+
+BOOL
+WinLaunchChild(const PRUnichar *exePath, int argc, char **argv)
 {
-  char *cl;
-  BOOL ok;
-  if (needElevation > 0) {
-    cl = MakeCommandLine(argc - 1, argv + 1);
-    if (!cl)
+  PRUnichar** argvConverted = new PRUnichar*[argc];
+  if (!argvConverted)
+    return FALSE;
+
+  for (int i = 0; i < argc; ++i) {
+    argvConverted[i] = AllocConvertUTF8toUTF16(argv[i]);
+    if (!argvConverted[i]) {
       return FALSE;
-    ok = ShellExecute(NULL, // no special UI window
-                      NULL, // use default verb
-                      exePath,
-                      cl,
-                      NULL, // use my current directory
-                      SW_SHOWDEFAULT) > (HINSTANCE)32;
-    free(cl);
-    return ok;
+    }
   }
+
+  BOOL ok = WinLaunchChild(exePath, argc, argvConverted);
+  FreeAllocStrings(argc, argvConverted);
+  return ok;
+}
+
+BOOL
+WinLaunchChild(const PRUnichar *exePath, int argc, PRUnichar **argv)
+{
+  PRUnichar *cl;
+  BOOL ok;
+
+#ifdef WINCE
+  // Windows Mobile Issue: 
+  // When passing both an image name and a command line to
+  // CreateProcessW, you need to make sure that the image name
+  // identially matches the first argument of the command line.  If
+  // they do not match, Windows Mobile will send two "argv[0]" values.
+  // To avoid this problem, we will strip off the argv here, and
+  // depend only on the exePath.
+  argv = argv + 1;
+  argc--;
+#endif
 
   cl = MakeCommandLine(argc, argv);
   if (!cl)
     return FALSE;
 
-  if (needElevation < 0) {
-    // try to launch as a normal user first
-    ok = LaunchAsNormalUser(exePath, cl);
-    // if it fails, fallback to normal launching
-    if (!ok)
-      needElevation = 0;
-  }
-  if (needElevation == 0) {
-    STARTUPINFO si = {sizeof(si), 0};
-    PROCESS_INFORMATION pi = {0};
+  STARTUPINFOW si = {sizeof(si), 0};
+  PROCESS_INFORMATION pi = {0};
 
-    ok = CreateProcess(exePath,
-                       cl,
-                       NULL,  // no special security attributes
-                       NULL,  // no special thread attributes
-                       FALSE, // don't inherit filehandles
-                       0,     // No special process creation flags
-                       NULL,  // inherit my environment
-                       NULL,  // use my current directory
-                       &si,
-                       &pi);
+  ok = CreateProcessW(exePath,
+                      cl,
+                      NULL,  // no special security attributes
+                      NULL,  // no special thread attributes
+                      FALSE, // don't inherit filehandles
+                      0,     // No special process creation flags
+                      NULL,  // inherit my environment
+                      NULL,  // use my current directory
+                      &si,
+                      &pi);
 
-    if (ok) {
-      CloseHandle(pi.hProcess);
-      CloseHandle(pi.hThread);
-    }
+  if (ok) {
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+  } else {
+    LPVOID lpMsgBuf = NULL;
+    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		  FORMAT_MESSAGE_FROM_SYSTEM |
+		  FORMAT_MESSAGE_IGNORE_INSERTS,
+		  NULL,
+		  GetLastError(),
+		  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		  (LPTSTR) &lpMsgBuf,
+		  0,
+		  NULL
+		  );
+    wprintf(L"Error restarting: %s\n", lpMsgBuf ? lpMsgBuf : L"(null)");
+    if (lpMsgBuf)
+      LocalFree(lpMsgBuf);
   }
 
   free(cl);

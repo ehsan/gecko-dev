@@ -114,6 +114,9 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_IMESelectedConvertedTextUnderline:
         aColor = NS_TRANSPARENT;
         return NS_OK;
+    case eColor_SpellCheckerUnderline:
+        aColor = NS_RGB(0xff, 0, 0);
+        return NS_OK;
 
     // New CSS 2 Color definitions
     case eColor_activeborder:
@@ -149,9 +152,11 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       idx = SYSCLR_MENUDISABLEDTEXT;
       break;
     case eColor_highlight:
+    case eColor__moz_html_cellhighlight:
       idx = SYSCLR_HILITEBACKGROUND;
       break;
     case eColor_highlighttext:
+    case eColor__moz_html_cellhighlighttext:
       idx = SYSCLR_HILITEFOREGROUND;
       break;
     case eColor_inactiveborder:
@@ -173,6 +178,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       idx = SYSCLR_MENU;
       break;
     case eColor_menutext:
+    case eColor__moz_menubartext:
       idx = SYSCLR_MENUTEXT;
       break;
     case eColor_scrollbar:
@@ -202,10 +208,14 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_windowtext:
       idx = SYSCLR_WINDOWTEXT;
       break;
+    case eColor__moz_eventreerow:
+    case eColor__moz_oddtreerow:
     case eColor__moz_field:
+    case eColor__moz_combobox:
       idx = SYSCLR_ENTRYFIELD;
       break;
     case eColor__moz_fieldtext:
+    case eColor__moz_comboboxtext:
       idx = SYSCLR_WINDOWTEXT;
       break;
     case eColor__moz_dialog:
@@ -220,12 +230,31 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       idx = SYSCLR_BUTTONDEFAULT;
       break;
     case eColor__moz_menuhover:
-      idx = SYSCLR_MENUHILITEBGND;
+      if (WinQuerySysColor(HWND_DESKTOP, SYSCLR_MENUHILITEBGND, 0) ==
+          WinQuerySysColor(HWND_DESKTOP, SYSCLR_MENU, 0)) {
+        // if this happens, we would paint menu selections unreadable
+        // (we are most likely on Warp3), so let's fake a dark grey
+        // background for the selected menu item
+        aColor = NS_RGB( 132, 130, 132);
+        return res;
+      } else {
+        idx = SYSCLR_MENUHILITEBGND;
+      }
       break;
     case eColor__moz_menuhovertext:
     case eColor__moz_menubarhovertext:
-      idx = SYSCLR_MENUHILITE;
+      if (WinQuerySysColor(HWND_DESKTOP, SYSCLR_MENUHILITEBGND, 0) ==
+          WinQuerySysColor(HWND_DESKTOP, SYSCLR_MENU, 0)) {
+        // white text to be readable on dark grey
+        aColor = NS_RGB( 255, 255, 255);
+        return res;
+      } else {
+        idx = SYSCLR_MENUHILITE;
+      }
       break;
+    case eColor__moz_nativehyperlinktext:
+      aColor = NS_RGB( 0, 0, 255);
+      return res;
     default:
       idx = SYSCLR_WINDOW;
       break;
@@ -346,6 +375,18 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_TreeScrollLinesMax:
         aMetric = 3;
         break;
+    case eMetric_DWMCompositor:
+    case eMetric_WindowsClassic:
+    case eMetric_WindowsDefaultTheme:
+    case eMetric_TouchEnabled:
+        aMetric = 0;
+        res = NS_ERROR_NOT_IMPLEMENTED;
+        break;
+    case eMetric_MacGraphiteTheme:
+    case eMetric_MaemoClassic:
+        aMetric = 0;
+        res = NS_ERROR_NOT_IMPLEMENTED;
+        break;
     case eMetric_IMERawInputUnderlineStyle:
     case eMetric_IMEConvertedTextUnderlineStyle:
         aMetric = NS_UNDERLINE_STYLE_SOLID;
@@ -353,6 +394,9 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_IMESelectedRawTextUnderlineStyle:
     case eMetric_IMESelectedConvertedTextUnderline:
         aMetric = NS_UNDERLINE_STYLE_NONE;
+        break;
+    case eMetric_SpellCheckerUnderlineStyle:
+        aMetric = NS_UNDERLINE_STYLE_WAVY;
         break;
 
     default:
@@ -395,6 +439,9 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
         aMetric = 0.25f;
         break;
     case eMetricFloat_IMEUnderlineRelativeSize:
+        aMetric = 1.0f;
+        break;
+    case eMetricFloat_SpellCheckerUnderlineRelativeSize:
         aMetric = 1.0f;
         break;
     default:

@@ -48,7 +48,7 @@ IMPL_IUNKNOWN_INHERITED2(nsHyperTextAccessibleWrap,
                          CAccessibleHypertext,
                          CAccessibleEditableText);
 
-NS_IMETHODIMP
+nsresult
 nsHyperTextAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
 {
   PRUint32 eventType;
@@ -95,8 +95,10 @@ nsHyperTextAccessibleWrap::GetModifiedText(PRBool aGetInsertedText,
   if (aGetInsertedText != isInserted)
     return NS_OK;
 
+  nsCOMPtr<nsIAccessibleEvent> event(do_QueryInterface(gTextEvent));
+
   nsCOMPtr<nsIAccessible> targetAcc;
-  gTextEvent->GetAccessible(getter_AddRefs(targetAcc));
+  event->GetAccessible(getter_AddRefs(targetAcc));
   if (targetAcc != this)
     return NS_OK;
 

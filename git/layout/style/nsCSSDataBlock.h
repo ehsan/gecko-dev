@@ -43,20 +43,30 @@
 #define nsCSSDataBlock_h__
 
 #include "nsCSSStruct.h"
+#include "nsCSSProps.h"
+#include "nsCSSPropertySet.h"
+#include "nsAutoPtr.h"
 
 struct nsRuleData;
 
 class nsCSSExpandedDataBlock;
+class nsCSSDeclaration;
 
 /**
- * An |nsCSSCompressedDataBlock| holds an immutable chunk of
+ * An |nsCSSCompressedDataBlock| holds a usually-immutable chunk of
  * property-value data for a CSS declaration block (which we misname a
  * |nsCSSDeclaration|).  Mutation is accomplished through
- * |nsCSSExpandedDataBlock|.
+ * |nsCSSExpandedDataBlock| or in some cases via direct slot access.
+ *
+ * Mutation is forbidden when the reference count is greater than one,
+ * since once a style rule has used a compressed data block, mutation of
+ * that block is forbidden, and any declarations that want to mutate it
+ * need to clone it first.
  */
 class nsCSSCompressedDataBlock {
 public:
     friend class nsCSSExpandedDataBlock;
+    friend class nsCSSDeclaration;
 
     /**
      * Do what |nsIStyleRule::MapRuleInfoInto| needs to do for a style
@@ -71,27 +81,80 @@ public:
      * |nsCSSValueList**|, etc.
      *
      * Inefficient (by design).
+     *
+     * Must not be called for shorthands.
      */
     const void* StorageFor(nsCSSProperty aProperty) const;
 
     /**
-     * Clone this block, or return null on out-of-memory.
+     * A set of slightly more typesafe helpers for the above.  All
+     * return null if the value is not present.
      */
-    nsCSSCompressedDataBlock* Clone() const;
+    const nsCSSValue* ValueStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] == eCSSType_Value,
+                        "type mismatch");
+      return static_cast<const nsCSSValue*>(StorageFor(aProperty));
+    }
+    const nsCSSRect* RectStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] == eCSSType_Rect,
+                        "type mismatch");
+      return static_cast<const nsCSSRect*>(StorageFor(aProperty));
+    }
+    const nsCSSValuePair* ValuePairStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] ==
+                          eCSSType_ValuePair,
+                        "type mismatch");
+      return static_cast<const nsCSSValuePair*>(StorageFor(aProperty));
+    }
+    const nsCSSValueList*const*
+    ValueListStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] ==
+                          eCSSType_ValueList,
+                        "type mismatch");
+      return static_cast<const nsCSSValueList*const*>(StorageFor(aProperty));
+    }
+    const nsCSSValuePairList*const*
+    ValuePairListStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] ==
+                          eCSSType_ValuePairList,
+                        "type mismatch");
+      return static_cast<const nsCSSValuePairList*const*>(
+               StorageFor(aProperty));
+    }
 
     /**
-     * Delete all the data stored in this block, and the block itself.
+     * Clone this block, or return null on out-of-memory.
      */
-    void Destroy();
+    already_AddRefed<nsCSSCompressedDataBlock> Clone() const;
 
     /**
      * Create a new nsCSSCompressedDataBlock holding no declarations.
      */
-    static nsCSSCompressedDataBlock* CreateEmptyBlock();
+    static already_AddRefed<nsCSSCompressedDataBlock> CreateEmptyBlock();
+
+    void AddRef() {
+        NS_ASSERTION(mRefCnt == 0 || mRefCnt == 1,
+                     "unexpected reference count");
+        ++mRefCnt;
+    }
+    void Release() {
+        NS_ASSERTION(mRefCnt == 1 || mRefCnt == 2,
+                     "unexpected reference count");
+        if (--mRefCnt == 0) {
+            Destroy();
+        }
+    }
+
+    PRBool IsMutable() const {
+        NS_ASSERTION(mRefCnt == 1 || mRefCnt == 2,
+                     "unexpected reference count");
+        return mRefCnt < 2;
+    }
 
 private:
     PRInt32 mStyleBits; // the structs for which we have data, according to
                         // |nsCachedStyleData::GetBitForSID|.
+    nsAutoRefCnt mRefCnt;
 
     enum { block_chars = 4 }; // put 4 chars in the definition of the class
                               // to ensure size not inflated by alignment
@@ -108,6 +171,11 @@ private:
     // |Expand|) can delete compressed data blocks.
     ~nsCSSCompressedDataBlock() { }
 
+    /**
+     * Delete all the data stored in this block, and the block itself.
+     */
+    void Destroy();
+
     char* mBlockEnd; // the byte after the last valid byte
     char mBlock_[block_chars]; // must be the last member!
 
@@ -116,6 +184,13 @@ private:
     const char* Block() const { return mBlock_; }
     const char* BlockEnd() const { return mBlockEnd; }
     ptrdiff_t DataSize() const { return BlockEnd() - Block(); }
+
+    // Direct slot access to our values.  See StorageFor above.  Can
+    // return null.  Must not be called for shorthand properties.
+    void* SlotForValue(nsCSSProperty aProperty) {
+      NS_ABORT_IF_FALSE(IsMutable(), "must be mutable");
+      return const_cast<void*>(StorageFor(aProperty));
+    }
 };
 
 class nsCSSExpandedDataBlock {
@@ -141,9 +216,7 @@ public:
     nsCSSPage mPage;
     nsCSSBreaks mBreaks;
     nsCSSXUL mXUL;
-#ifdef MOZ_SVG
     nsCSSSVG mSVG;
-#endif
     nsCSSColumn mColumn;
 
     /**
@@ -151,13 +224,13 @@ public:
      * expanded block.  The state of this expanded block must be clear
      * beforehand.
      *
-     * The compressed block passed in IS DESTROYED by this method and
+     * The compressed block passed in IS RELEASED by this method and
      * set to null, and thus cannot be used again.  (This is necessary
      * because ownership of sub-objects is transferred to the expanded
-     * block.)
+     * block in many cases.)
      */
-    void Expand(nsCSSCompressedDataBlock **aNormalBlock,
-                nsCSSCompressedDataBlock **aImportantBlock);
+    void Expand(nsRefPtr<nsCSSCompressedDataBlock> *aNormalBlock,
+                nsRefPtr<nsCSSCompressedDataBlock> *aImportantBlock);
 
     /**
      * Allocate a new compressed block and transfer all of the state
@@ -194,7 +267,8 @@ private:
     };
     ComputeSizeResult ComputeSize();
 
-    void DoExpand(nsCSSCompressedDataBlock *aBlock, PRBool aImportant);
+    void DoExpand(nsRefPtr<nsCSSCompressedDataBlock> *aBlock,
+                  PRBool aImportant);
 
 #ifdef DEBUG
     void DoAssertInitialState();
@@ -210,24 +284,17 @@ private:
 
     static const PropertyOffsetInfo kOffsetTable[];
 
-    typedef PRUint8 property_set_type;
-    enum { kPropertiesSetChunkSize = 8 }; // number of bits in
-                                          // |property_set_type|.
-    // number of |property_set_type|s in the set
-    enum { kPropertiesSetChunkCount =
-             (eCSSProperty_COUNT_no_shorthands + (kPropertiesSetChunkSize-1)) /
-             kPropertiesSetChunkSize };
     /*
      * mPropertiesSet stores a bit for every property that is present,
      * to optimize compression of blocks with small numbers of
      * properties (the norm) and to allow quickly checking whether a
      * property is set in this block.
      */
-    property_set_type mPropertiesSet[kPropertiesSetChunkCount];
+    nsCSSPropertySet mPropertiesSet;
     /*
      * mPropertiesImportant indicates which properties are '!important'.
      */
-    property_set_type mPropertiesImportant[kPropertiesSetChunkCount];
+    nsCSSPropertySet mPropertiesImportant;
 
 public:
     /*
@@ -260,51 +327,33 @@ public:
                                (cssstruct + offsets.ruledata_member_offset);
     }
 
-    void AssertInSetRange(nsCSSProperty aProperty) {
-        NS_ASSERTION(0 <= aProperty &&
-                     aProperty < eCSSProperty_COUNT_no_shorthands,
-                     "out of bounds");
-    }
-
     void SetPropertyBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        mPropertiesSet[aProperty / kPropertiesSetChunkSize] |=
-            property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
+        mPropertiesSet.AddProperty(aProperty);
     }
 
     void ClearPropertyBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        mPropertiesSet[aProperty / kPropertiesSetChunkSize] &=
-            ~property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
+        mPropertiesSet.RemoveProperty(aProperty);
     }
 
     PRBool HasPropertyBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        return (mPropertiesSet[aProperty / kPropertiesSetChunkSize] &
-                (1 << (aProperty % kPropertiesSetChunkSize))) != 0;
+        return mPropertiesSet.HasProperty(aProperty);
     }
 
     void SetImportantBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        mPropertiesImportant[aProperty / kPropertiesSetChunkSize] |=
-            property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
+        mPropertiesImportant.AddProperty(aProperty);
     }
 
     void ClearImportantBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        mPropertiesImportant[aProperty / kPropertiesSetChunkSize] &=
-            ~property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
+        mPropertiesImportant.RemoveProperty(aProperty);
     }
 
     PRBool HasImportantBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        return (mPropertiesImportant[aProperty / kPropertiesSetChunkSize] &
-                (1 << (aProperty % kPropertiesSetChunkSize))) != 0;
+        return mPropertiesImportant.HasProperty(aProperty);
     }
 
     void ClearSets() {
-        memset(mPropertiesSet, 0, sizeof(mPropertiesSet));
-        memset(mPropertiesImportant, 0, sizeof(mPropertiesImportant));
+        mPropertiesSet.Empty();
+        mPropertiesImportant.Empty();
     }
 };
 

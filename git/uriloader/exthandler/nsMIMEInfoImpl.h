@@ -42,7 +42,7 @@
 #include "nsIMIMEInfo.h"
 #include "nsIAtom.h"
 #include "nsString.h"
-#include "nsVoidArray.h"
+#include "nsTArray.h"
 #include "nsIMutableArray.h"
 #include "nsIFile.h"
 #include "nsCOMPtr.h"
@@ -79,10 +79,6 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     NS_IMETHOD GetMIMEType(nsACString & aMIMEType);
     NS_IMETHOD GetDescription(nsAString & aDescription);
     NS_IMETHOD SetDescription(const nsAString & aDescription);
-    NS_IMETHOD GetMacType(PRUint32 *aMacType);
-    NS_IMETHOD SetMacType(PRUint32 aMacType);
-    NS_IMETHOD GetMacCreator(PRUint32 *aMacCreator);
-    NS_IMETHOD SetMacCreator(PRUint32 aMacCreator);
     NS_IMETHOD Equals(nsIMIMEInfo *aMIMEInfo, PRBool *_retval);
     NS_IMETHOD GetPreferredApplicationHandler(nsIHandlerApp * *aPreferredAppHandler);
     NS_IMETHOD SetPreferredApplicationHandler(nsIHandlerApp * aPreferredAppHandler);
@@ -95,6 +91,7 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     NS_IMETHOD SetPreferredAction(nsHandlerInfoAction aPreferredAction);
     NS_IMETHOD GetAlwaysAskBeforeHandling(PRBool *aAlwaysAskBeforeHandling);
     NS_IMETHOD SetAlwaysAskBeforeHandling(PRBool aAlwaysAskBeforeHandling); 
+    NS_IMETHOD GetPossibleLocalHandlers(nsIArray **_retval); 
 
     enum HandlerClass {
       eMIMEInfo,
@@ -124,7 +121,7 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     /**
      * Return whether this MIMEInfo has any extensions
      */
-    PRBool HasExtensions() const { return mExtensions.Count() != 0; }
+    PRBool HasExtensions() const { return mExtensions.Length() != 0; }
 
   protected:
     /**
@@ -156,24 +153,6 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
                                                    const nsCString &aArg);
 
     /**
-     * Used to launch a web-based handler with this URI.
-     * 
-     * @param aURI  The URI to launch with.
-     * 
-     * @param aWindowContext 
-     *        The window to parent the dialog against, and, if a web handler
-     *        is chosen, it is loaded in this window as well.  This parameter
-     *        may be ultimately passed nsIURILoader.openURI in the case of a
-     *        web handler, and aWindowContext is null or not present, web
-     *        handlers will fail.  We need to do better than that; bug 394483
-     *        filed in order to track.
-     * 
-     */
-    static NS_HIDDEN_(nsresult) 
-        LaunchWithWebHandler(nsIWebHandlerApp *aApp, nsIURI *aURI,
-                             nsIInterfaceRequestor *aWindowContext);
-
-    /**
      * Given a file: nsIURI, return the associated nsILocalFile
      *
      * @param  aURI      the file: URI in question
@@ -183,9 +162,8 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
                                                     nsILocalFile **aFile);
 
     // member variables
-    nsCStringArray         mExtensions; ///< array of file extensions associated w/ this MIME obj
+    nsTArray<nsCString>    mExtensions; ///< array of file extensions associated w/ this MIME obj
     nsString               mDescription; ///< human readable description
-    PRUint32               mMacType, mMacCreator; ///< Mac file type and creator
     nsCString              mType;
     HandlerClass           mClass;
     nsCOMPtr<nsIHandlerApp> mPreferredApplication;

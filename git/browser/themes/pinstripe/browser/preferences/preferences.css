@@ -38,13 +38,6 @@
 #
 # ***** END LICENSE BLOCK *****
 */
-.prefWindow-dlgbuttons {
-  margin: 0 12px 8px 12px;
-}
-
-#BrowserPreferences .prefWindow-dlgbuttons {
-  padding-top: 0 !important;
-}
 
 .windowDialog {
   padding: 12px;
@@ -53,41 +46,16 @@
 
 .paneSelector {
   list-style-image: url("chrome://browser/skin/preferences/Options.png");
-  padding: 0 5px;
-  border-bottom: 1px solid #a3a3a3;
-  background: url("chrome://global/skin/toolbar/toolbar-pinstripe-overlay.png") repeat;
-  margin: 0;
 }
-
-.paneSelector radio {
-  border-right: 1px solid transparent;
-  border-left: 1px solid transparent;
-  padding: 3px 0 3px 0;
-  margin: 0;
-  -moz-appearance: none !important;
-}
-
-radio[pane][selected="true"] {
-    background-color: #DDDDDD;
-    background-image: none;
-    border-right: 1px solid #b9b9b9;
-    border-left: 1px solid #b9b9b9;
-    color: ButtonText !important;
-}
-
 
 /* ----- GENERAL BUTTON ----- */
 
 radio[pane=paneGeneral],
 radio[pane=paneMain] {
 	-moz-image-region: rect(0px, 32px, 32px, 0px)
-}
-radio[pane=paneGeneral]:hover, 
+} 
 radio[pane=paneGeneral]:active,
-radio[pane=paneGeneral][selected="true"],
-radio[pane=paneMain]:hover, 
-radio[pane=paneMain]:active,
-radio[pane=paneMain][selected="true"]  {
+radio[pane=paneMain]:active:hover {
 	-moz-image-region: rect(32px, 32px, 64px, 0px)
 }
 
@@ -96,9 +64,8 @@ radio[pane=paneMain][selected="true"]  {
 radio[pane=paneTabs] {
 	-moz-image-region: rect(0px, 64px, 32px, 32px);
 }
-radio[pane=paneTabs]:hover,
-radio[pane=paneTabs]:active,
-radio[pane=paneTabs][selected="true"] {
+
+radio[pane=paneTabs]:active:hover {
 	-moz-image-region: rect(32px, 64px, 64px, 32px);
 }
 
@@ -108,9 +75,7 @@ radio[pane=paneContent] {
 	-moz-image-region: rect(0px, 96px, 32px, 64px);
 }
 
-radio[pane=paneContent]:hover,
-radio[pane=paneContent]:active,
-radio[pane=paneContent][selected="true"] {
+radio[pane=paneContent]:active:hover {
 	-moz-image-region: rect(32px, 96px, 64px, 64px);
 }
 
@@ -119,9 +84,8 @@ radio[pane=paneContent][selected="true"] {
 radio[pane=paneApplications] {
 	-moz-image-region: rect(0px, 128px, 32px, 96px);
 }
-radio[pane=paneApplications]:hover,
-radio[pane=paneApplications]:active,
-radio[pane=paneApplications][selected="true"] {
+
+radio[pane=paneApplications]:active:hover {
 	-moz-image-region: rect(32px, 128px, 64px, 96px);
 }
 
@@ -130,9 +94,8 @@ radio[pane=paneApplications][selected="true"] {
 radio[pane=panePrivacy] {
 	-moz-image-region: rect(0px, 160px, 32px, 128px);
 }
-radio[pane=panePrivacy]:hover,
-radio[pane=panePrivacy]:active,
-radio[pane=panePrivacy][selected="true"] {
+
+radio[pane=panePrivacy]:active:hover {
 	-moz-image-region: rect(32px, 160px, 64px, 128px);
 }
 
@@ -141,9 +104,8 @@ radio[pane=panePrivacy][selected="true"] {
 radio[pane=paneSecurity] {
 	-moz-image-region: rect(0px, 192px, 32px, 160px);
 }
-radio[pane=paneSecurity]:hover,
-radio[pane=paneSecurity]:active,
-radio[pane=paneSecurity][selected="true"] {
+
+radio[pane=paneSecurity]:active:hover {
 	-moz-image-region: rect(32px, 192px, 64px, 160px);
 }
 
@@ -152,9 +114,8 @@ radio[pane=paneSecurity][selected="true"] {
 radio[pane=paneAdvanced] {
 	-moz-image-region: rect(0px, 224px, 32px, 192px);
 }
-radio[pane=paneAdvanced]:hover,
-radio[pane=paneAdvanced]:active,
-radio[pane=paneAdvanced][selected="true"] {
+
+radio[pane=paneAdvanced]:active:hover {
 	-moz-image-region: rect(32px, 224px, 64px, 192px);
 }
 
@@ -169,10 +130,6 @@ radio[pane=paneAdvanced][selected="true"] {
   -moz-box-flex: 1;
 }
 
-.content-box > separator {
-  border: 1px solid red;
-}
-
 description {
   font: small-caption;
   font-weight: normal;
@@ -180,34 +137,8 @@ description {
   margin-bottom: 4px !important;
 }
 
-#downloadFolderIcon {
-  width: 16px;
-  height: 16px;
-}
-
-#downloadFolderContainer {
-  margin: 2px 4px 2px 27px;
-  -moz-appearance: textfield;
-}
-
-#downloadFolderContainer2 {
-  background-color: -moz-Dialog;
-  color: -moz-DialogText;
-  margin: 1px;
-  padding: 0px 0px 0px 3px;
-}
-
-#downloadFolder {
-  -moz-appearance: none;
-  background-color: transparent;
-  border: none;
-  padding: 1px 0px 0px 0px;
-}
-
 prefpane .groupbox-body {
-  border: none !important;
-  -moz-border-radius: 0px !important;
-  background-image: none !important;
+  -moz-appearance: none;
   padding: 8px 4px 4px 4px;
 }
 
@@ -215,7 +146,7 @@ prefpane .groupbox-body {
   margin: 0;
 }
 
-#paneTabs > vbox {
+#tabPrefsBox {
   margin: 12px 4px;
 }
 
@@ -224,9 +155,14 @@ prefpane .groupbox-title {
   margin-bottom: 4px;
 }
 
+tabpanels {
+  padding: 20px 7px 7px;
+}
+
 caption {
-  border-bottom: 1px solid #ECECEC;
-  padding: 4px 4px 0px 0px !important;
+  -moz-padding-start: 5px;
+  padding-top: 4px;
+  padding-bottom: 2px;
 }
 
 #paneMain description,
@@ -245,17 +181,17 @@ caption {
   -moz-box-align: center;
 }
 
-#popupPolicyRow, #enableSoftwareInstallRow, #enableImagesRow {
+#popupPolicyRow,
+#enableSoftwareInstallRow,
+#enableImagesRow {
   margin-bottom: 4px !important;
   padding-bottom: 4px !important;
   border-bottom: 1px solid #ccc;
 }
 
-#enableImagesRow {
-  -moz-box-align: start !important;
-}
-
-#browserUseCurrent, #browserUseBookmark, #browserUseBlank {
+#browserUseCurrent,
+#browserUseBookmark,
+#browserUseBlank {
   margin-top: 10px;
 }
 
@@ -276,6 +212,20 @@ caption {
 }
 
 /**
+ * Privacy Pane
+ */
+
+/* styles for the link elements copied from .text-link in global.css */
+.inline-link {
+  color: -moz-nativehyperlinktext;
+  text-decoration: underline;
+}
+  
+.inline-link:not(:focus) {
+  outline: 1px dotted transparent;
+}
+
+/**
  * Update Preferences
  */
 #autoInstallOptions {
@@ -284,4 +234,11 @@ caption {
 
 .updateControls {
   -moz-margin-start: 10px;
+}
+
+/**
+ * Clear Private Data
+ */
+#SanitizeDialogPane > groupbox {
+  margin-top: 0;
 }

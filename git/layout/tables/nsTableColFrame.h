@@ -40,8 +40,8 @@
 #include "nscore.h"
 #include "nsContainerFrame.h"
 #include "nsTablePainter.h"
+#include "nsTArray.h"
 
-class nsVoidArray;
 class nsTableCellFrame;
 
 enum nsTableColType {
@@ -51,8 +51,9 @@ enum nsTableColType {
   eColAnonymousCell      = 3  // the result of a cell alone
 };
 
-class nsTableColFrame : public nsFrame {
+class nsTableColFrame : public nsSplittableFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
 
   enum {eWIDTH_SOURCE_NONE          =0,   // no cell has contributed to the width style
         eWIDTH_SOURCE_CELL          =1,   // a cell specified a width
@@ -67,17 +68,16 @@ public:
     *
     * @return           the frame that was created
     */
-  friend nsIFrame* NS_NewTableColFrame(nsIPresShell* aPresShell, nsStyleContext*  aContext);
-
+  friend nsTableColFrame* NS_NewTableColFrame(nsIPresShell* aPresShell,
+                                              nsStyleContext*  aContext);
+  /** @see nsIFrame::DidSetStyleContext */
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  
   PRInt32 GetColIndex() const;
   
   void SetColIndex (PRInt32 aColIndex);
 
   nsTableColFrame* GetNextCol() const;
-
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -102,11 +102,10 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  /** return the number of the columns the col represents.  always >= 0 */
-  virtual PRInt32 GetSpan ();
+  virtual nsSplittableType GetSplittableType() const;
 
-  /** convenience method, calls into cellmap */
-  nsVoidArray * GetCells();
+  /** return the number of the columns the col represents.  always >= 1 */
+  PRInt32 GetSpan();
 
   /** convenience method, calls into cellmap */
   PRInt32 Count() const;
@@ -162,7 +161,6 @@ public:
     mSpanMinCoord = 0;
     mSpanPrefCoord = 0;
     mSpanPrefPercent = 0.0f;
-    mSpanHasSpecifiedCoord = PR_FALSE;
   }
 
   /**
@@ -246,11 +244,7 @@ public:
     NS_ASSERTION(aSpanMinCoord <= aSpanPrefCoord,
                  "intrinsic widths out of order");
 
-    if (aSpanHasSpecifiedCoord && !mSpanHasSpecifiedCoord) {
-      mSpanPrefCoord = mSpanMinCoord;
-      mSpanHasSpecifiedCoord = PR_TRUE;
-    }
-    if (!aSpanHasSpecifiedCoord && mSpanHasSpecifiedCoord) {
+    if (!aSpanHasSpecifiedCoord && mHasSpecifiedCoord) {
       aSpanPrefCoord = aSpanMinCoord; // NOTE: modifying argument
     }
 
@@ -276,7 +270,7 @@ public:
    * the primary variables.
    */
   void AccumulateSpanIntrinsics() {
-    AddCoords(mSpanMinCoord, mSpanPrefCoord, mHasSpecifiedCoord && mSpanHasSpecifiedCoord);
+    AddCoords(mSpanMinCoord, mSpanPrefCoord, mHasSpecifiedCoord);
     AddPrefPercent(mSpanPrefPercent);
   }
 
@@ -306,6 +300,18 @@ protected:
   nsTableColFrame(nsStyleContext* aContext);
   ~nsTableColFrame();
 
+  nscoord mMinCoord;
+  nscoord mPrefCoord;
+  nscoord mSpanMinCoord; // XXX...
+  nscoord mSpanPrefCoord; // XXX...
+  float mPrefPercent;
+  float mSpanPrefPercent; // XXX...
+  // ...XXX the four members marked above could be allocated as part of
+  // a separate array allocated only during
+  // BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths (and only
+  // when colspans were present).
+  nscoord mFinalWidth;
+
   // the index of the column with respect to the whole tabble (starting at 0) 
   // it should never be smaller then the start column index of the parent 
   // colgroup
@@ -319,18 +325,6 @@ protected:
   BCPixelSize mBottomContBorderWidth;
 
   PRPackedBool mHasSpecifiedCoord;
-  PRPackedBool mSpanHasSpecifiedCoord; // XXX...
-  nscoord mMinCoord;
-  nscoord mPrefCoord;
-  nscoord mSpanMinCoord; // XXX...
-  nscoord mSpanPrefCoord; // XXX...
-  float mPrefPercent;
-  float mSpanPrefPercent; // XXX...
-  // ...XXX the four members marked above could be allocated as part of
-  // a separate array allocated only during
-  // BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths (and only
-  // when colspans were present).
-  nscoord mFinalWidth;
 };
 
 inline PRInt32 nsTableColFrame::GetColIndex() const

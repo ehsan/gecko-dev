@@ -49,21 +49,6 @@ MODULE_NAME	= javascript__protocol
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
-REQUIRES	= xpcom \
-		  string \
-		  js \
-		  dom \
-		  layout \
-		  necko \
-		  caps \
-		  widget \
-		  appshell \
-		  xpconnect \
-		  uconv \
-		  docshell \
-		  content \
-		  pref \
-		  $(NULL)
 
 XPIDLSRCS	= \
 		$(NULL)
@@ -75,7 +60,7 @@ EXPORTS		= $(srcdir)/nsJSProtocolHandler.h
 
 LOCAL_INCLUDES += \
 		-I$(srcdir) \
-		-I$(srcdir)/../base \
+		-I$(topsrcdir)/dom/base \
 
 EXTRA_DSO_LDOPTS = \
 		$(MOZ_COMPONENT_LIBS) \
@@ -87,7 +72,7 @@ DEFINES		+= -DDEBUG_GC
 endif
 
 DIRS            = $(NULL)
-ifdef MOZ_MOCHITEST
+ifdef ENABLE_TESTS
 DIRS            += test
 endif
 

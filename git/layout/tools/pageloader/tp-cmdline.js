@@ -89,6 +89,9 @@ PageLoaderCmdLineHandler.prototype =
       args.width = cmdLine.handleFlagWithParam("tpwidth", false);
       args.height = cmdLine.handleFlagWithParam("tpheight", false);
       args.offline = cmdLine.handleFlag("tpoffline", false);
+      args.noisy = cmdLine.handleFlag("tpnoisy", false);
+      args.timeout = cmdLine.handleFlagWithParam("tptimeout", false);
+      args.noForceCC = cmdLine.handleFlag("tpnoforcecc", false);
     }
     catch (e) {
       return;
@@ -115,7 +118,11 @@ PageLoaderCmdLineHandler.prototype =
   "  -tprender          Run render-only benchmark for each page\n" +
   "  -tpwidth width     Width of window\n" +
   "  -tpheight height   Height of window\n" +
-  "  -tpoffline         Force offline mode\n"
+  "  -tpoffline         Force offline mode\n" +
+  "  -tpnoisy           Dump the name of the last loaded page to console\n" + 
+  "  -tptimeout         Max amount of time given for a page to load, quit if exceeded\n" +
+  "  -tpnoforcecc       Don't force cycle collection between each pageload\n"
+
 };
 
 

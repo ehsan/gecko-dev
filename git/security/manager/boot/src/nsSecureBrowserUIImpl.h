@@ -58,7 +58,10 @@
 #include "nsISecurityEventSink.h"
 #include "nsWeakReference.h"
 #include "nsISSLStatusProvider.h"
+#include "nsIAssociatedContentSecurity.h"
 #include "pldhash.h"
+#include "prmon.h"
+#include "nsINetUtil.h"
 
 class nsITransportSecurityInfo;
 class nsISecurityWarningDialogs;
@@ -92,8 +95,11 @@ public:
                     nsIURI *actionURL, PRBool* cancelSubmit);
   
 protected:
+  PRMonitor *mMonitor;
+  PRInt32 mOnStateLocationChangeReentranceDetection;
   
-  nsCOMPtr<nsIDOMWindow> mWindow;
+  nsWeakPtr mWindow;
+  nsCOMPtr<nsINetUtil> mIOService;
   nsCOMPtr<nsIStringBundle> mStringBundle;
   nsCOMPtr<nsIURI> mCurrentURI;
   nsCOMPtr<nsISecurityEventSink> mToplevelEventSink;
@@ -106,7 +112,8 @@ protected:
     lis_high_security
   };
 
-  lockIconState mPreviousSecurityState;
+  lockIconState mNotifiedSecurityState;
+  PRBool mNotifiedToplevelIsEV;
 
   void ResetStateTracking();
   PRUint32 mNewToplevelSecurityState;
@@ -116,19 +123,29 @@ protected:
 
   nsXPIDLString mInfoTooltip;
   PRInt32 mDocumentRequestsInProgress;
-  PRInt32 mSubRequestsInProgress;
   PRInt32 mSubRequestsHighSecurity;
   PRInt32 mSubRequestsLowSecurity;
   PRInt32 mSubRequestsBrokenSecurity;
   PRInt32 mSubRequestsNoSecurity;
 
-  nsresult UpdateSecurityState(nsIRequest* aRequest);
-  nsresult EvaluateAndUpdateSecurityState(nsIRequest *aRequest);
-  void UpdateSubrequestMembers(nsIRequest *aRequest);
+  static already_AddRefed<nsISupports> ExtractSecurityInfo(nsIRequest* aRequest);
+  static nsresult MapInternalToExternalState(PRUint32* aState, lockIconState lock, PRBool ev);
+  nsresult UpdateSecurityState(nsIRequest* aRequest, PRBool withNewLocation,
+                               PRBool withUpdateStatus, PRBool withUpdateTooltip);
+  PRBool UpdateMyFlags(PRBool &showWarning, lockIconState &warnSecurityState);
+  nsresult TellTheWorld(PRBool showWarning, 
+                        lockIconState warnSecurityState, 
+                        nsIRequest* aRequest);
 
-  void ObtainEventSink(nsIChannel *channel);
-  
+  nsresult EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsISupports *info,
+                                          PRBool withNewLocation);
+  void UpdateSubrequestMembers(nsISupports *securityInfo);
+
+  void ObtainEventSink(nsIChannel *channel, 
+                       nsCOMPtr<nsISecurityEventSink> &sink);
+
   nsCOMPtr<nsISupports> mSSLStatus;
+  nsCOMPtr<nsISupports> mCurrentToplevelSecurityInfo;
 
   void GetBundleString(const PRUnichar* name, nsAString &outString);
   
@@ -144,7 +161,7 @@ protected:
   PRBool ConfirmPostToInsecureFromSecure();
 
   // Support functions
-  nsresult GetNSSDialogs(nsISecurityWarningDialogs **);
+  static nsresult GetNSSDialogs(nsISecurityWarningDialogs **);
 
   PLDHashTable mTransferringRequests;
 };

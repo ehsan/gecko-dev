@@ -30,6 +30,8 @@
 // Disable exception handler warnings.
 #pragma warning( disable : 4530 )
 
+#include <errno.h>
+
 #include "client/windows/sender/crash_report_sender.h"
 #include "common/windows/http_upload.h"
 
@@ -67,11 +69,11 @@ ReportResult CrashReportSender::SendCrashReport(
 
   int http_response = 0;
   bool result = HTTPUpload::SendRequest(
-    url, parameters, dump_file_name, L"upload_file_minidump", report_code,
+    url, parameters, dump_file_name, L"upload_file_minidump", NULL, report_code,
     &http_response);
-  ReportSent(today);
 
   if (result) {
+    ReportSent(today);
     return RESULT_SUCCEEDED;
   } else if (http_response == 400) {  // TODO: update if/when the server
                                       //       switches to a different code
@@ -124,6 +126,9 @@ int CrashReportSender::GetCurrentDate() const {
 }
 
 int CrashReportSender::OpenCheckpointFile(const wchar_t *mode, FILE **fd) {
+  if (checkpoint_file_.empty()) {
+    return ENOENT;
+  }
 #if _MSC_VER >= 1400  // MSVC 2005/8
   return _wfopen_s(fd, checkpoint_file_.c_str(), mode);
 #else

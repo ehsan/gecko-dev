@@ -35,98 +35,185 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* class for maintaining a linked list of child frames */
-
 #ifndef nsFrameList_h___
 #define nsFrameList_h___
 
-#include "nsIFrame.h"
+#include "nscore.h"
+#include "nsTraceRefcnt.h"
+#include <stdio.h> /* for FILE* */
+#include "nsDebug.h"
+
+class nsIFrame;
+
+// Uncomment this to enable expensive frame-list integrity checking
+// #define DEBUG_FRAME_LIST
 
 /**
- * A class for managing a singly linked list of frames. Frames are
- * linked together through their next-sibling pointer.
+ * A class for managing a list of frames.
  */
-
 class nsFrameList {
 public:
-  nsFrameList() {
-    mFirstChild = nsnull;
+  nsFrameList() :
+    mFirstChild(nsnull), mLastChild(nsnull)
+  {
+    MOZ_COUNT_CTOR(nsFrameList);
   }
 
-  nsFrameList(nsIFrame* aHead) {
-    mFirstChild = aHead;
-#ifdef DEBUG
-    CheckForLoops();
-#endif
+  nsFrameList(nsIFrame* aFirstFrame, nsIFrame* aLastFrame) :
+    mFirstChild(aFirstFrame), mLastChild(aLastFrame)
+  {
+    MOZ_COUNT_CTOR(nsFrameList);
+    VerifyList();
+  }
+
+  nsFrameList(const nsFrameList& aOther) :
+    mFirstChild(aOther.mFirstChild), mLastChild(aOther.mLastChild)
+  {
+    MOZ_COUNT_CTOR(nsFrameList);
   }
 
   ~nsFrameList() {
+    MOZ_COUNT_DTOR(nsFrameList);
+    // Don't destroy our frames here, so that we can have temporary nsFrameLists
   }
 
+  /**
+   * For each frame in this list: remove it from the list then call
+   * Destroy() on it.
+   */
   void DestroyFrames();
 
-  // Delete this and destroy all its frames
+  /**
+   * For each frame in this list: remove it from the list then call
+   * DestroyFrom() on it.
+   */
+  void DestroyFramesFrom(nsIFrame* aDestructRoot);
+
+  /**
+   * For each frame in this list: remove it from the list then call
+   * Destroy() on it. Finally <code>delete this</code>.
+   * 
+   */
   void Destroy();
 
-  void SetFrames(nsIFrame* aFrameList) {
-    mFirstChild = aFrameList;
-#ifdef DEBUG
-    CheckForLoops();
-#endif
+  /**
+   * For each frame in this list: remove it from the list then call
+   * DestroyFrom() on it. Finally <code>delete this</code>.
+   *
+   */
+  void DestroyFrom(nsIFrame* aDestructRoot);
+
+  void Clear() { mFirstChild = mLastChild = nsnull; }
+
+  void SetFrames(nsIFrame* aFrameList);
+
+  void SetFrames(nsFrameList& aFrameList) {
+    NS_PRECONDITION(!mFirstChild, "Losing frames");
+
+    mFirstChild = aFrameList.FirstChild();
+    mLastChild = aFrameList.LastChild();
+    aFrameList.Clear();
   }
 
-  // Appends frames from aFrameList to this list. If aParent
-  // is not null, reparents the newly-added frames.
-  void AppendFrames(nsIFrame* aParent, nsIFrame* aFrameList);
+  class Slice;
 
-  void AppendFrames(nsIFrame* aParent, nsFrameList& aFrameList) {
-    AppendFrames(aParent, aFrameList.mFirstChild);
-    aFrameList.mFirstChild = nsnull;
+  /**
+   * Append aFrameList to this list.  If aParent is not null,
+   * reparents the newly added frames.  Clears out aFrameList and
+   * returns a list slice represening the newly-appended frames.
+   */
+  Slice AppendFrames(nsIFrame* aParent, nsFrameList& aFrameList) {
+    return InsertFrames(aParent, LastChild(), aFrameList);
   }
 
-  void AppendFrame(nsIFrame* aParent, nsIFrame* aFrame);
 
-  // Take aFrame out of the frame list. This also disconnects aFrame
-  // from the sibling list. This will return PR_FALSE if aFrame is
-  // nsnull or if aFrame is not in the list. The second frame is
-  // a hint for the prev-sibling of aFrame; if the hint is correct,
-  // then this is O(1) time. If successfully removed, the child's
-  // NextSibling pointer is cleared.
-  PRBool RemoveFrame(nsIFrame* aFrame, nsIFrame* aPrevSiblingHint = nsnull);
-
-  // Remove the first child from the list. The caller is assumed to be
-  // holding a reference to the first child. This call is equivalent
-  // in behavior to calling RemoveFrame(FirstChild()). If successfully
-  // removed the first child's NextSibling pointer is cleared.
-  PRBool RemoveFirstChild();
-
-  // Take aFrame out of the frame list and then destroy it. This also
-  // disconnects aFrame from the sibling list. This will return
-  // PR_FALSE if aFrame is nsnull or if aFrame is not in the list.
-  PRBool DestroyFrame(nsIFrame* aFrame);
-
-  // Inserts aNewFrame right after aPrevSibling, or prepends to
-  // list if aPrevSibling is null. If aParent is not null, also
-  // reparents newly-added frame. Note that this method always
-  // sets the frame's nextSibling pointer.
-  void InsertFrame(nsIFrame* aParent,
-                   nsIFrame* aPrevSibling,
-                   nsIFrame* aNewFrame);
-
-  // Inserts aFrameList right after aPrevSibling, or prepends to
-  // list if aPrevSibling is null. If aParent is not null, also
-  // reparents newly-added frame.
-  void InsertFrames(nsIFrame* aParent,
-                    nsIFrame* aPrevSibling,
-                    nsIFrame* aFrameList);
-
-  void InsertFrames(nsIFrame* aParent, nsIFrame* aPrevSibling,
-                    nsFrameList& aFrameList) {
-    InsertFrames(aParent, aPrevSibling, aFrameList.FirstChild());
-    aFrameList.mFirstChild = nsnull;
+  /**
+   * Append aFrame to this list.  If aParent is not null,
+   * reparents the newly added frame.
+   */
+  void AppendFrame(nsIFrame* aParent, nsIFrame* aFrame) {
+    nsFrameList temp(aFrame, aFrame);
+    AppendFrames(aParent, temp);
   }
 
-  PRBool Split(nsIFrame* aAfterFrame, nsIFrame** aNextFrameResult);
+  /**
+   * Take aFrame out of the frame list. This also disconnects aFrame
+   * from the sibling list. The frame must be non-null and present on
+   * this list.
+   */
+  void RemoveFrame(nsIFrame* aFrame);
+
+  /**
+   * Take aFrame out of the frame list, if present. This also disconnects
+   * aFrame from the sibling list. aFrame must be non-null but is not
+   * required to be on the list.
+   * @return PR_TRUE if aFrame was removed
+   */
+  PRBool RemoveFrameIfPresent(nsIFrame* aFrame);
+
+  /**
+   * Take the frames after aAfterFrame out of the frame list.
+   * @param aAfterFrame a frame in this list
+   * @return the removed frames, if any
+   */
+  nsFrameList RemoveFramesAfter(nsIFrame* aAfterFrame);
+
+  /**
+   * Take the first frame (if any) out of the frame list.
+   * @return the first child, or nsnull if the list is empty
+   */
+  nsIFrame* RemoveFirstChild();
+
+  /**
+   * Take aFrame out of the frame list and then destroy it.
+   * The frame must be non-null and present on this list.
+   */
+  void DestroyFrame(nsIFrame* aFrame);
+
+  /**
+   * If aFrame is present on this list then take it out of the list and
+   * then destroy it. The frame must be non-null.
+   * @return PR_TRUE if the frame was found
+   */
+  PRBool DestroyFrameIfPresent(nsIFrame* aFrame);
+
+  /**
+   * Insert aFrame right after aPrevSibling, or prepend it to this
+   * list if aPrevSibling is null. If aParent is not null, also
+   * reparents newly-added frame. Note that this method always
+   * sets the frame's nextSibling pointer.
+   */
+  void InsertFrame(nsIFrame* aParent, nsIFrame* aPrevSibling,
+                   nsIFrame* aFrame) {
+    nsFrameList temp(aFrame, aFrame);
+    InsertFrames(aParent, aPrevSibling, temp);
+  }
+
+
+  /**
+   * Inserts aFrameList into this list after aPrevSibling (at the beginning if
+   * aPrevSibling is null).  If aParent is not null, reparents the newly added
+   * frames.  Clears out aFrameList and returns a list slice representing the
+   * newly-inserted frames.
+   */
+  Slice InsertFrames(nsIFrame* aParent, nsIFrame* aPrevSibling,
+                     nsFrameList& aFrameList);
+
+  class FrameLinkEnumerator;
+
+  /**
+   * Split this frame list such that all the frames before the link pointed to
+   * by aLink end up in the returned list, while the remaining frames stay in
+   * this list.  After this call, aLink points to the beginning of this list.
+   */
+  nsFrameList ExtractHead(FrameLinkEnumerator& aLink);
+
+  /**
+   * Split this frame list such that all the frames coming after the link
+   * pointed to by aLink end up in the returned list, while the frames before
+   * that link stay in this list.  After this call, aLink is at end.
+   */
+  nsFrameList ExtractTail(FrameLinkEnumerator& aLink);
 
   /**
    * Sort the frames according to content order so that the first
@@ -140,9 +227,12 @@ public:
     return mFirstChild;
   }
 
-  nsIFrame* LastChild() const;
+  nsIFrame* LastChild() const {
+    return mLastChild;
+  }
 
   nsIFrame* FrameAt(PRInt32 aIndex) const;
+  PRInt32 IndexOf(nsIFrame* aFrame) const;
 
   PRBool IsEmpty() const {
     return nsnull == mFirstChild;
@@ -153,10 +243,26 @@ public:
   }
 
   PRBool ContainsFrame(const nsIFrame* aFrame) const;
+  PRBool ContainsFrameBefore(const nsIFrame* aFrame, const nsIFrame* aEnd) const;
 
   PRInt32 GetLength() const;
 
-  nsIFrame* GetPrevSiblingFor(nsIFrame* aFrame) const;
+  /**
+   * If this frame list has only one frame, return that frame.
+   * Otherwise, return null.
+   */
+  nsIFrame* OnlyChild() const {
+    if (FirstChild() == LastChild()) {
+      return FirstChild();
+    }
+    return nsnull;
+  }
+
+  /**
+   * Call SetParent(aParent) for each frame in this list.
+   * @param aParent the new parent frame, must be non-null
+   */
+  void ApplySetParent(nsIFrame* aParent) const;
 
 #ifdef IBMBIDI
   /**
@@ -172,19 +278,188 @@ public:
   nsIFrame* GetNextVisualFor(nsIFrame* aFrame) const;
 #endif // IBMBIDI
 
-  void VerifyParent(nsIFrame* aParent) const;
-
-#ifdef NS_DEBUG
+#ifdef DEBUG
   void List(FILE* out) const;
 #endif
 
-private:
+  static nsresult Init();
+  static void Shutdown() { delete sEmptyList; }
+  static const nsFrameList& EmptyList() { return *sEmptyList; }
+
+  class Enumerator;
+
+  /**
+   * A class representing a slice of a frame list.
+   */
+  class Slice {
+    friend class Enumerator;
+
+  public:
+    // Implicit on purpose, so that we can easily create enumerators from
+    // nsFrameList via this impicit constructor.
+    Slice(const nsFrameList& aList) :
 #ifdef DEBUG
-  void CheckForLoops();
+      mList(aList),
 #endif
-  
+      mStart(aList.FirstChild()),
+      mEnd(nsnull)
+    {}
+
+    Slice(const nsFrameList& aList, nsIFrame* aStart, nsIFrame* aEnd) :
+#ifdef DEBUG
+      mList(aList),
+#endif
+      mStart(aStart),
+      mEnd(aEnd)
+    {}
+
+    Slice(const Slice& aOther) :
+#ifdef DEBUG
+      mList(aOther.mList),
+#endif
+      mStart(aOther.mStart),
+      mEnd(aOther.mEnd)
+    {}
+
+  private:
+#ifdef DEBUG
+    const nsFrameList& mList;
+#endif
+    nsIFrame* const mStart; // our starting frame
+    const nsIFrame* const mEnd; // The first frame that is NOT in the slice.
+                                // May be null.
+  };
+
+  class Enumerator {
+  public:
+    Enumerator(const Slice& aSlice) :
+#ifdef DEBUG
+      mSlice(aSlice),
+#endif
+      mFrame(aSlice.mStart),
+      mEnd(aSlice.mEnd)
+    {}
+
+    Enumerator(const Enumerator& aOther) :
+#ifdef DEBUG
+      mSlice(aOther.mSlice),
+#endif
+      mFrame(aOther.mFrame),
+      mEnd(aOther.mEnd)
+    {}
+
+    PRBool AtEnd() const {
+      // Can't just check mEnd, because some table code goes and destroys the
+      // tail of the frame list (including mEnd!) while iterating over the
+      // frame list.
+      return !mFrame || mFrame == mEnd;
+    }
+
+    /* Next() needs to know about nsIFrame, and nsIFrame will need to
+       know about nsFrameList methods, so in order to inline this put
+       the implementation in nsIFrame.h */
+    inline void Next();
+
+    /**
+     * Get the current frame we're pointing to.  Do not call this on an
+     * iterator that is at end!
+     */
+    nsIFrame* get() const {
+      NS_PRECONDITION(!AtEnd(), "Enumerator is at end");
+      return mFrame;
+    }
+
+    /**
+     * Get an enumerator that is just like this one, but not limited in terms of
+     * the part of the list it will traverse.
+     */
+    Enumerator GetUnlimitedEnumerator() const {
+      return Enumerator(*this, nsnull);
+    }
+
+#ifdef DEBUG
+    const nsFrameList& List() const { return mSlice.mList; }
+#endif
+
+  protected:
+    Enumerator(const Enumerator& aOther, const nsIFrame* const aNewEnd):
+#ifdef DEBUG
+      mSlice(aOther.mSlice),
+#endif
+      mFrame(aOther.mFrame),
+      mEnd(aNewEnd)
+    {}
+
+#ifdef DEBUG
+    /* Has to be an object, not a reference, since the slice could
+       well be a temporary constructed from an nsFrameList */
+    const Slice mSlice;
+#endif
+    nsIFrame* mFrame; // our current frame.
+    const nsIFrame* const mEnd; // The first frame we should NOT enumerate.
+                                // May be null.
+  };
+
+  /**
+   * A class that can be used to enumerate links between frames.  When created
+   * from an nsFrameList, it points to the "link" immediately before the first
+   * frame.  It can then be advanced until it points to the "link" immediately
+   * after the last frame.  At any position, PrevFrame() and NextFrame() are
+   * the frames before and after the given link.  This means PrevFrame() is
+   * null when the enumerator is at the beginning of the list and NextFrame()
+   * is null when it's AtEnd().
+   */
+  class FrameLinkEnumerator : private Enumerator {
+  public:
+    friend class nsFrameList;
+
+    FrameLinkEnumerator(const nsFrameList& aList) :
+      Enumerator(aList),
+      mPrev(nsnull)
+    {}
+
+    FrameLinkEnumerator(const FrameLinkEnumerator& aOther) :
+      Enumerator(aOther),
+      mPrev(aOther.mPrev)
+    {}
+
+    /* This constructor needs to know about nsIFrame, and nsIFrame will need to
+       know about nsFrameList methods, so in order to inline this put
+       the implementation in nsIFrame.h */
+    inline FrameLinkEnumerator(const nsFrameList& aList, nsIFrame* aPrevFrame);
+
+    void operator=(const FrameLinkEnumerator& aOther) {
+      NS_PRECONDITION(&List() == &aOther.List(), "Different lists?");
+      mFrame = aOther.mFrame;
+      mPrev = aOther.mPrev;
+    }
+
+    void Next() {
+      mPrev = mFrame;
+      Enumerator::Next();
+    }
+
+    PRBool AtEnd() const { return Enumerator::AtEnd(); }
+
+    nsIFrame* PrevFrame() const { return mPrev; }
+    nsIFrame* NextFrame() const { return mFrame; }
+
+  protected:
+    nsIFrame* mPrev;
+  };
+
+private:
+#ifdef DEBUG_FRAME_LIST
+  void VerifyList() const;
+#else
+  void VerifyList() const {}
+#endif
+
+  static const nsFrameList* sEmptyList;
+
 protected:
   nsIFrame* mFirstChild;
+  nsIFrame* mLastChild;
 };
 
 #endif /* nsFrameList_h___ */

@@ -5,7 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=396843
 -->
 <head>
   <title>Test for Bug 396843</title>
-  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -141,7 +141,7 @@ HTML_TAG("wbr", "Shared")
 HTML_TAG("xmp", "Span")
 
 function SVG_TAG(name) {
-  allNodes.push(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+  allNodes.push(document.createElementNS("http://www.w3.org/2000/svg", name));
 }
 
 // List sorta stolen from SVG element factory.
@@ -270,13 +270,8 @@ function runTest2() {
   }
 
   var doc = $("t").contentDocument;
-  try {
-    is(doc instanceof $("t").contentWindow.HTMLDocument, true,
-      "Expected an HTMLDocument here");
-    todo(1, "Someone fixed bug 396849; need to update this code");
-  } catch (e) {
-    todo(0, "Running into bug 396849");
-  }
+  is(doc instanceof $("t").contentWindow.HTMLDocument, true,
+     "Expected an HTMLDocument here");
   isnot(doc.nodePrincipal, null, "Must have doc principal");
   is(doc.nodePrincipal instanceof Components.interfaces.nsIPrincipal,
      true, "doc principal must be a principal");

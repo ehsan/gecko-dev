@@ -86,21 +86,22 @@ NS_IMPL_THREADSAFE_RELEASE(nsLoadSaveContentSink)
 
 NS_INTERFACE_MAP_BEGIN(nsLoadSaveContentSink)
   NS_INTERFACE_MAP_ENTRY(nsIXMLContentSink)
+  NS_INTERFACE_MAP_ENTRY(nsIContentSink)
   NS_INTERFACE_MAP_ENTRY(nsIExpatSink)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXMLContentSink)
 NS_INTERFACE_MAP_END
 
 // nsIContentSink
 NS_IMETHODIMP
-nsLoadSaveContentSink::WillBuildModel(void)
+nsLoadSaveContentSink::WillBuildModel(nsDTDMode aDTDMode)
 {
-  return mBaseSink->WillBuildModel();
+  return mBaseSink->WillBuildModel(aDTDMode);
 }
 
 NS_IMETHODIMP
-nsLoadSaveContentSink::DidBuildModel(void)
+nsLoadSaveContentSink::DidBuildModel(PRBool aTerminated)
 {
-  return mBaseSink->DidBuildModel();
+  return mBaseSink->DidBuildModel(aTerminated);
 }
 
 NS_IMETHODIMP

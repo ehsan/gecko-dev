@@ -40,17 +40,19 @@
 #include "nsUserInfo.h"
 #include "nsXPFEComponentsCID.h"
 #include "nsToolkitCompsCID.h"
+
+#if defined(XP_WIN) && !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
+#include "nsParentalControlsServiceWin.h"
+#endif
+
 #ifdef ALERTS_SERVICE
 #include "nsAlertsService.h"
 #endif
 
-#ifndef MOZ_SUITE
-// XXX Suite isn't ready to include this just yet
 #ifdef MOZ_RDF
 #include "nsDownloadManager.h"
 #include "nsDownloadProxy.h"
 #endif
-#endif // MOZ_SUITE
 
 #include "nsTypeAheadFind.h"
 
@@ -58,6 +60,7 @@
 #include "nsUrlClassifierDBService.h"
 #include "nsUrlClassifierStreamUpdater.h"
 #include "nsUrlClassifierUtils.h"
+#include "nsUrlClassifierHashCompleter.h"
 #include "nsDocShellCID.h"
 #endif
 
@@ -70,26 +73,45 @@
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsAppStartup, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsUserInfo)
 
+#if defined(XP_WIN) && !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsParentalControlsServiceWin)
+#endif
+
 #ifdef ALERTS_SERVICE
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAlertsService)
 #endif
 
-#ifndef MOZ_SUITE
-// XXX Suite isn't ready to include this just yet
 #ifdef MOZ_RDF
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDownloadManager,
                                          nsDownloadManager::GetSingleton) 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDownloadProxy)
 #endif
-#endif // MOZ_SUITE
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTypeAheadFind)
 
 #ifdef MOZ_URL_CLASSIFIER
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsUrlClassifierDBService,
-                                         nsUrlClassifierDBService::GetInstance)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsUrlClassifierStreamUpdater)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsUrlClassifierUtils, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsUrlClassifierHashCompleter, Init)
+
+static NS_IMETHODIMP
+nsUrlClassifierDBServiceConstructor(nsISupports *aOuter, REFNSIID aIID,
+                                    void **aResult)
+{
+    nsresult rv;
+    NS_ENSURE_ARG_POINTER(aResult);
+    NS_ENSURE_NO_AGGREGATION(aOuter);
+
+    nsUrlClassifierDBService *inst = nsUrlClassifierDBService::GetInstance(&rv);
+    if (NULL == inst) {
+        return rv;
+    }
+    /* NS_ADDREF(inst); */
+    rv = inst->QueryInterface(aIID, aResult);
+    NS_RELEASE(inst);
+
+    return rv;
+}
 #endif
 
 #ifdef MOZ_FEEDS
@@ -115,8 +137,12 @@ static const nsModuleComponentInfo components[] =
     NS_ALERTSERVICE_CONTRACTID,
     nsAlertsServiceConstructor },
 #endif
-#ifndef MOZ_SUITE
-// XXX Suite isn't ready to include this just yet
+#if defined(XP_WIN) && !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
+  { "Parental Controls Service",
+    NS_PARENTALCONTROLSSERVICE_CID,
+    NS_PARENTALCONTROLSSERVICE_CONTRACTID,
+    nsParentalControlsServiceWinConstructor },
+#endif
 #ifdef MOZ_RDF
   { "Download Manager",
     NS_DOWNLOADMANAGER_CID,
@@ -127,7 +153,6 @@ static const nsModuleComponentInfo components[] =
     NS_TRANSFER_CONTRACTID,
     nsDownloadProxyConstructor },
 #endif
-#endif // MOZ_SUITE
   { "TypeAheadFind Component",
     NS_TYPEAHEADFIND_CID,
     NS_TYPEAHEADFIND_CONTRACTID,
@@ -150,6 +175,10 @@ static const nsModuleComponentInfo components[] =
     NS_URLCLASSIFIERUTILS_CID,
     NS_URLCLASSIFIERUTILS_CONTRACTID,
     nsUrlClassifierUtilsConstructor },
+  { "Url Classifier Hash Completer",
+    NS_URLCLASSIFIERHASHCOMPLETER_CID,
+    NS_URLCLASSIFIERHASHCOMPLETER_CONTRACTID,
+    nsUrlClassifierHashCompleterConstructor },
 #endif
 #ifdef MOZ_FEEDS
   { "Unescape HTML",

@@ -62,21 +62,34 @@
 #else
         title="&aboutDialog.title;"
         buttons="accept,extra2"
+#ifdef XP_UNIX
+        buttonlabelaccept="&closeCmdGNOME.label;"
+        buttonaccesskeyaccept="&closeCmdGNOME.accesskey;"
+#endif
 #endif
         creditslabel="&copyright;"
+#ifdef XP_UNIX
+        creditsaccesskey="&copyrightGNOME.accesskey;"
+#else
         creditsaccesskey="&copyright.accesskey;"
+#endif
         aboutlabel="&aboutLink;"
         aboutaccesskey="&aboutLink.accesskey;">
     
-  <script type="application/x-javascript" src="chrome://browser/content/aboutDialog.js"/>
+  <script type="application/javascript" src="chrome://browser/content/aboutDialog.js"/>
 
   <deck id="modes" flex="1">
     <vbox flex="1" id="clientBox">
 #expand <label id="version" value="&aboutVersion; __MOZ_APP_VERSION__"/>
       <label id="distribution"/>
       <label id="distributionId"/>
-      <description id="copyright">&copyrightText;</description>
-      <textbox id="userAgent" multiline="true" readonly="true"/>
+      <description id="copyright">
+        &copyrightInfo1;<label 
+        class="text-link" href="&licenseLink;"
+        >&licenseLinkText;</label>&copyrightInfo2;
+        &logoCopyright;
+      </description>
+      <textbox id="userAgent" multiline="true" readonly="true" flex="1"/>
     </vbox>
     <vbox flex="1" id="creditsBox">
       <iframe id="creditsIframe" flex="1"/>

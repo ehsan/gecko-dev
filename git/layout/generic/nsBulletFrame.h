@@ -45,7 +45,6 @@
 
 #include "imgIRequest.h"
 #include "imgIDecoderObserver.h"
-class gfxIImageFrame;
 
 /**
  * A simple class that manages the layout and rendering of html bullets.
@@ -53,16 +52,18 @@ class gfxIImageFrame;
  */
 class nsBulletFrame : public nsFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   nsBulletFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~nsBulletFrame();
 
   // nsIFrame
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
   virtual nsIAtom* GetType() const;
-  NS_IMETHOD DidSetStyleContext();
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
@@ -81,14 +82,13 @@ public:
 
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
   NS_IMETHOD OnDataAvailable(imgIRequest *aRequest,
-                             gfxIImageFrame *aFrame,
-                             const nsRect * rect);
+                             PRBool aCurrentFrame,
+                             const nsIntRect *aRect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest,
                           nsresult aStatus,
                           const PRUnichar *aStatusArg);
   NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          gfxIImageFrame *aNewframe,
-                          nsRect *aDirtyRect);
+                          nsIntRect *aDirtyRect);
 
   /* get list item text, without '.' */
   static PRBool AppendCounterText(PRInt32 aListStyleType,
@@ -101,6 +101,9 @@ public:
                          
   void PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
                    const nsRect& aDirtyRect);
+  
+  virtual PRBool IsEmpty();
+  virtual PRBool IsSelfEmpty();
 
 protected:
   void GetDesiredSize(nsPresContext* aPresContext,
@@ -109,13 +112,14 @@ protected:
 
   void GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGroup);
 
-  PRInt32 mOrdinal;
   nsMargin mPadding;
   nsCOMPtr<imgIRequest> mImageRequest;
   nsCOMPtr<imgIDecoderObserver> mListener;
 
   nsSize mIntrinsicSize;
   nsSize mComputedSize;
+  PRInt32 mOrdinal;
+  PRBool mTextIsRTL;
 };
 
 #endif /* nsBulletFrame_h___ */

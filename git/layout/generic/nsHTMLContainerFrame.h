@@ -41,6 +41,9 @@
 #define nsHTMLContainerFrame_h___
 
 #include "nsContainerFrame.h"
+#include "gfxPoint.h"
+#include "nsIDeviceContext.h"
+
 class nsString;
 class nsAbsoluteFrame;
 class nsPlaceholderFrame;
@@ -53,10 +56,8 @@ class nsLineBox;
 // Some macros for container classes to do sanity checking on
 // width/height/x/y values computed during reflow.
 #ifdef DEBUG
-#define CRAZY_W 500000
-
-// 100000 lines, approximately. Assumes p2t is 15 and 15 pixels per line
-#define CRAZY_H 22500000
+#define CRAZY_W (1000000*nsIDeviceContext::AppUnitsPerCSSPixel())
+#define CRAZY_H CRAZY_W
 
 #define CRAZY_WIDTH(_x) (((_x) < -CRAZY_W) || ((_x) > CRAZY_W))
 #define CRAZY_HEIGHT(_y) (((_y) < -CRAZY_H) || ((_y) > CRAZY_H))
@@ -68,33 +69,13 @@ class nsDisplayTextDecoration;
 // functionality.
 class nsHTMLContainerFrame : public nsContainerFrame {
 public:
-
-  /**
-   * Helper method to create next-in-flows if necessary. If aFrame
-   * already has a next-in-flow then this method does
-   * nothing. Otherwise, a new continuation frame is created and
-   * linked into the flow. In addition, the new frame becomes the
-   * next-sibling of aFrame. If aPlaceholderResult is not null and
-   * aFrame is a float or positioned, then *aPlaceholderResult holds
-   * a placeholder.
-   */
-  static nsresult CreateNextInFlow(nsPresContext* aPresContext,
-                                   nsIFrame*       aOuterFrame,
-                                   nsIFrame*       aFrame,
-                                   nsIFrame*&      aNextInFlowResult);
+  NS_DECL_FRAMEARENA_HELPERS
 
   /**
    * Helper method to wrap views around frames. Used by containers
    * under special circumstances (can be used by leaf frames as well)
-   * @param aContentParentFrame
-   *         if non-null, this is the frame 
-   *         which would have held aFrame except that aFrame was reparented
-   *         to an alternative geometric parent. This is necessary
-   *         so that aFrame can remember to get its Z-order from 
-   *         aContentParentFrame.
    */
   static nsresult CreateViewForFrame(nsIFrame* aFrame,
-                                     nsIFrame* aContentParentFrame,
                                      PRBool aForce);
 
   static nsresult ReparentFrameView(nsPresContext* aPresContext,
@@ -102,10 +83,27 @@ public:
                                     nsIFrame*       aOldParentFrame,
                                     nsIFrame*       aNewParentFrame);
 
-  static nsresult ReparentFrameViewList(nsPresContext* aPresContext,
-                                        nsIFrame*       aChildFrameList,
-                                        nsIFrame*       aOldParentFrame,
-                                        nsIFrame*       aNewParentFrame);
+  static nsresult ReparentFrameViewList(nsPresContext*     aPresContext,
+                                        const nsFrameList& aChildFrameList,
+                                        nsIFrame*          aOldParentFrame,
+                                        nsIFrame*          aNewParentFrame);
+
+  /**
+   * Helper method to create next-in-flows if necessary. If aFrame
+   * already has a next-in-flow then this method does
+   * nothing. Otherwise, a new continuation frame is created and
+   * linked into the flow. In addition, the new frame is inserted
+   * into the principal child list after aFrame.
+   * @note calling this method on a block frame is illegal. Use
+   * nsBlockFrame::CreateContinuationFor() instead.
+   * @param aNextInFlowResult will contain the next-in-flow
+   *        <b>if and only if</b> one is created. If a next-in-flow already
+   *        exists aNextInFlowResult is set to nsnull.
+   * @return NS_OK if a next-in-flow already exists or is successfully created.
+   */
+  nsresult CreateNextInFlow(nsPresContext* aPresContext,
+                            nsIFrame*       aFrame,
+                            nsIFrame*&      aNextInFlowResult);
 
   /**
    * Displays the standard border, background and outline for the frame
@@ -160,7 +158,7 @@ protected:
   /** 
    * Function that does the actual drawing of the textdecoration. 
    *   input:
-   *    @param aRenderingContext
+   *    @param aCtx               the Thebes graphics context to draw on
    *    @param aLine              the line, or nsnull if this is an inline frame
    *    @param aColor             the color of the text-decoration
    *    @param aAscent            ascent of the font from which the
@@ -175,16 +173,21 @@ protected:
    *                                      NS_STYLE_TEXT_DECORATION_OVERLINE or
    *                                      NS_STYLE_TEXT_DECORATION_LINE_THROUGH.
    */
-  virtual void PaintTextDecorationLine(nsIRenderingContext& aRenderingContext,
-                                       nsPoint aPt,
+  virtual void PaintTextDecorationLine(gfxContext* aCtx,
+                                       const nsPoint& aPt,
                                        nsLineBox* aLine,
                                        nscolor aColor,
-                                       nscoord aOffset,
-                                       nscoord aAscent,
-                                       nscoord aSize,
+                                       gfxFloat aOffset,
+                                       gfxFloat aAscent,
+                                       gfxFloat aSize,
                                        const PRUint8 aDecoration);
 
+  virtual void AdjustForTextIndent(const nsLineBox* aLine,
+                                   nscoord& start,
+                                   nscoord& width);
+
   friend class nsDisplayTextDecoration;
+  friend class nsDisplayTextShadow;
 };
 
 #endif /* nsHTMLContainerFrame_h___ */

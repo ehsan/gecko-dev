@@ -49,7 +49,6 @@
 #include "nsGkAtoms.h"
 #include "nsIDeviceContext.h"
 #include "nsIFontMetrics.h"
-#include "nsIImage.h"
 #include "nsStyleConsts.h"
 #include "nsFormControlFrame.h"
 #include "nsGUIEvent.h"
@@ -77,11 +76,13 @@ public:
   nsImageControlFrame(nsStyleContext* aContext);
   ~nsImageControlFrame();
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
-  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+
+  NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -110,10 +111,6 @@ public:
   virtual void SetFocus(PRBool aOn, PRBool aRepaint);
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
   virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const; 
-
-protected:
-  NS_IMETHOD_(nsrefcnt) AddRef(void);
-  NS_IMETHOD_(nsrefcnt) Release(void);
 };
 
 
@@ -127,10 +124,12 @@ nsImageControlFrame::~nsImageControlFrame()
 }
 
 void
-nsImageControlFrame::Destroy()
+nsImageControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
-  nsImageControlFrameSuper::Destroy();
+  if (!GetPrevInFlow()) {
+    nsFormControlFrame::RegUnRegAccessKey(this, PR_FALSE);
+  }
+  nsImageControlFrameSuper::DestroyFrom(aDestructRoot);
 }
 
 nsIFrame*
@@ -138,6 +137,8 @@ NS_NewImageControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsImageControlFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsImageControlFrame)
 
 NS_IMETHODIMP
 nsImageControlFrame::Init(nsIContent*      aContent,
@@ -149,24 +150,18 @@ nsImageControlFrame::Init(nsIContent*      aContent,
 
   // nsIntPoint allocation can fail, in which case we just set the property 
   // to null, which is safe
+  if (aPrevInFlow) {
+    return NS_OK;
+  }
+  
   return  mContent->SetProperty(nsGkAtoms::imageClickedPoint,
                                  new nsIntPoint(0, 0),
                                  IntPointDtorFunc);
 }
 
-// Frames are not refcounted, no need to AddRef
-NS_IMETHODIMP
-nsImageControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
-{
-  NS_PRECONDITION(aInstancePtr, "null out param");
-
-  if (aIID.Equals(NS_GET_IID(nsIFormControlFrame))) {
-    *aInstancePtr = static_cast<nsIFormControlFrame*>(this);
-    return NS_OK;
-  } 
-
-  return nsImageControlFrameSuper::QueryInterface(aIID, aInstancePtr);
-}
+NS_QUERYFRAME_HEAD(nsImageControlFrame)
+  NS_QUERYFRAME_ENTRY(nsIFormControlFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsImageControlFrameSuper)
 
 #ifdef ACCESSIBILITY
 NS_IMETHODIMP nsImageControlFrame::GetAccessible(nsIAccessible** aAccessible)
@@ -186,18 +181,6 @@ NS_IMETHODIMP nsImageControlFrame::GetAccessible(nsIAccessible** aAccessible)
 }
 #endif
 
-nsrefcnt nsImageControlFrame::AddRef(void)
-{
-  NS_WARNING("not supported");
-  return 1;
-}
-
-nsrefcnt nsImageControlFrame::Release(void)
-{
-  NS_WARNING("not supported");
-  return 1;
-}
-
 nsIAtom*
 nsImageControlFrame::GetType() const
 {
@@ -212,8 +195,8 @@ nsImageControlFrame::Reflow(nsPresContext*         aPresContext,
 {
   DO_GLOBAL_REFLOW_COUNT("nsImageControlFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
-  if (mState & NS_FRAME_FIRST_REFLOW) {
-    nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_TRUE);
+  if (!GetPrevInFlow() && (mState & NS_FRAME_FIRST_REFLOW)) {
+    nsFormControlFrame::RegUnRegAccessKey(this, PR_TRUE);
   }
   return nsImageControlFrameSuper::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
 }

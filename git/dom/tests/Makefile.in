@@ -42,9 +42,12 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef MOZ_MOCHITEST
-DIRS		+= mochitest
-endif
+MODULE = test_dom
+
+DIRS		+= mochitest \
+		browser \
+		$(NULL)
+XPCSHELL_TESTS = unit
 
 include $(topsrcdir)/config/rules.mk
 

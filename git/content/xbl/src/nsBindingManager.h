@@ -40,7 +40,7 @@
 #ifndef nsBindingManager_h_
 #define nsBindingManager_h_
 
-#include "nsIMutationObserver.h"
+#include "nsStubMutationObserver.h"
 #include "pldhash.h"
 #include "nsInterfaceHashtable.h"
 #include "nsRefPtrHashtable.h"
@@ -48,6 +48,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsXBLBinding.h"
 #include "nsTArray.h"
+#include "nsThreadUtils.h"
 
 class nsIContent;
 class nsIXPConnectWrappedJS;
@@ -61,16 +62,18 @@ class nsStyleSet;
 class nsXBLBinding;
 template<class E> class nsRefPtr;
 typedef nsTArray<nsRefPtr<nsXBLBinding> > nsBindingList;
-template<class T> class nsRunnableMethod;
 class nsIPrincipal;
 
-class nsBindingManager : public nsIMutationObserver
+class nsBindingManager : public nsStubMutationObserver
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_NSIMUTATIONOBSERVER
 
-  nsBindingManager();
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
+
+  nsBindingManager(nsIDocument* aDocument);
   ~nsBindingManager();
 
   nsXBLBinding* GetBinding(nsIContent* aContent);
@@ -119,7 +122,10 @@ public:
   PRBool HasContentListFor(nsIContent* aContent);
 
   /**
-   * For a given element, retrieve the anonymous child content.
+   * Return the nodelist of "anonymous" kids for this node.  This might
+   * actually include some of the nodes actual DOM kids, if there are
+   * <children> tags directly as kids of <content>.  This will only end up
+   * returning a non-null list for nodes which have a binding attached.
    */
   nsresult GetAnonymousNodesFor(nsIContent* aContent, nsIDOMNodeList** aResult);
 
@@ -139,11 +145,22 @@ public:
   nsresult GetXBLChildNodesFor(nsIContent* aContent, nsIDOMNodeList** aResult);
 
   /**
+   * Non-COMy version of GetXBLChildNodesFor
+   */
+  nsINodeList* GetXBLChildNodesFor(nsIContent* aContent);
+
+  /**
    * Given a parent element and a child content, determine where the
    * child content should be inserted in the parent element's
    * anonymous content tree. Specifically, aChild should be inserted
    * beneath aResult at the index specified by aIndex.
    */
+  // XXXbz That's false.  The aIndex doesn't seem to accurately reflect
+  // anything resembling reality in terms of inserting content.  It's really
+  // only used to tell apart two different insertion points with the same
+  // insertion parent when managing our internal data structures.  We really
+  // shouldn't be handing it out in our public API, since it's not useful to
+  // anyone.
   nsIContent* GetInsertionPoint(nsIContent* aParent,
                                 nsIContent* aChild, PRUint32* aIndex);
 
@@ -162,7 +179,7 @@ public:
                                nsIPrincipal* aOriginPrincipal);
 
   nsresult AddToAttachedQueue(nsXBLBinding* aBinding);
-  void ProcessAttachedQueue();
+  void ProcessAttachedQueue(PRUint32 aSkipSize = 0);
 
   void ExecuteDetachedHandlers();
 
@@ -178,29 +195,17 @@ public:
 
   nsresult GetBindingImplementation(nsIContent* aContent, REFNSIID aIID, void** aResult);
 
-  PRBool ShouldBuildChildFrames(nsIContent* aContent);
-
-  /**
-   * Add a new observer of document change notifications. Whenever content is
-   * changed, appended, inserted or removed the observers are informed.  This
-   * is like nsIDocument::AddObserver, but these observers will be notified
-   * after the XBL data structures are updated for
-   * ContentInserted/ContentAppended and before they're updated for
-   * ContentRemoved.
-   */
-  void AddObserver(nsIMutationObserver* aObserver);
-
-  /**
-   * Remove an observer of document change notifications. This will
-   * return false if the observer cannot be found.
-   */
-  PRBool RemoveObserver(nsIMutationObserver* aObserver);  
-
   // Style rule methods
-  nsresult WalkRules(nsStyleSet* aStyleSet, 
-                     nsIStyleRuleProcessor::EnumFunc aFunc,
+  nsresult WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
                      RuleProcessorData* aData,
                      PRBool* aCutOffInheritance);
+  /**
+   * Do any processing that needs to happen as a result of a change in
+   * the characteristics of the medium, and return whether this rule
+   * processor's rules have changed (e.g., because of media queries).
+   */
+  nsresult MediumFeaturesChanged(nsPresContext* aPresContext,
+                                 PRBool* aRulesChanged);
 
   NS_HIDDEN_(void) Traverse(nsIContent *aContent,
                             nsCycleCollectionTraversalCallback &cb);
@@ -212,46 +217,72 @@ public:
   void BeginOutermostUpdate();
   void EndOutermostUpdate();
 
+  // Called when the document is going away
+  void DropDocumentReference();
+
 protected:
   nsIXPConnectWrappedJS* GetWrappedJS(nsIContent* aContent);
   nsresult SetWrappedJS(nsIContent* aContent, nsIXPConnectWrappedJS* aResult);
 
-  nsresult GetXBLChildNodesInternal(nsIContent* aContent,
-                                    nsIDOMNodeList** aResult,
-                                    PRBool* aIsAnonymousContentList);
-  nsresult GetAnonymousNodesInternal(nsIContent* aContent,
-                                     nsIDOMNodeList** aResult,
-                                     PRBool* aIsAnonymousContentList);
+  nsINodeList* GetXBLChildNodesInternal(nsIContent* aContent,
+                                        PRBool* aIsAnonymousContentList);
+  nsINodeList* GetAnonymousNodesInternal(nsIContent* aContent,
+                                         PRBool* aIsAnonymousContentList);
 
   nsIContent* GetNestedInsertionPoint(nsIContent* aParent, nsIContent* aChild);
+  nsIContent* GetNestedSingleInsertionPoint(nsIContent* aParent,
+                                            PRBool* aMultipleInsertionPoints);
 
-#define NS_BINDINGMANAGER_NOTIFY_OBSERVERS(func_, params_) \
-  NS_OBSERVER_ARRAY_NOTIFY_OBSERVERS(mObservers, nsIMutationObserver, \
-                                     func_, params_);
+  // Called by ContentAppended and ContentInserted to handle a single child
+  // insertion.  aChild must not be null.  aContainer may be null.
+  // aIndexInContainer is the index of the child in the parent.  aAppend is
+  // true if this child is being appended, not inserted.
+  void HandleChildInsertion(nsIContent* aContainer, nsIContent* aChild,
+                            PRUint32 aIndexInContainer, PRBool aAppend);
+
+  // For the given container under which a child is being added, given
+  // insertion parent and given index of the child being inserted, find the
+  // right nsXBLInsertionPoint and the right index in that insertion point to
+  // insert it at.  If null is returned, aInsertionIndex might be garbage.
+  // aAppend controls what should be returned as the aInsertionIndex if the
+  // right index can't be found.  If true, the length of the insertion point
+  // will be returned; otherwise 0 will be returned.
+  nsXBLInsertionPoint* FindInsertionPointAndIndex(nsIContent* aContainer,
+                                                  nsIContent* aInsertionParent,
+                                                  PRUint32 aIndexInContainer,
+                                                  PRInt32 aAppend,
+                                                  PRInt32* aInsertionIndex);
 
   // Same as ProcessAttachedQueue, but also nulls out
   // mProcessAttachedQueueEvent
   void DoProcessAttachedQueue();
 
+  // Post an event to process the attached queue.
+  void PostProcessAttachedQueueEvent();
+
 // MEMBER VARIABLES
 protected: 
+  void RemoveInsertionParent(nsIContent* aParent);
   // A mapping from nsIContent* to the nsXBLBinding* that is
   // installed on that element.
   nsRefPtrHashtable<nsISupportsHashKey,nsXBLBinding> mBindingTable;
 
-  // A mapping from nsIContent* to an nsIDOMNodeList*
-  // (nsAnonymousContentList*).  This list contains an accurate
-  // reflection of our *explicit* children (once intermingled with
-  // insertion points) in the altered DOM.
+  // A mapping from nsIContent* to an nsAnonymousContentList*.  This
+  // list contains an accurate reflection of our *explicit* children
+  // (once intermingled with insertion points) in the altered DOM.
+  // There is an entry for a content node in this table only if that
+  // content node has some <children> kids.
   PLDHashTable mContentListTable;
 
-  // A mapping from nsIContent* to an nsIDOMNodeList*
-  // (nsAnonymousContentList*).  This list contains an accurate
-  // reflection of our *anonymous* children (if and only if they are
-  // intermingled with insertion points) in the altered DOM.  This
-  // table is not used if no insertion points were defined directly
-  // underneath a <content> tag in a binding.  The NodeList from the
-  // <content> is used instead as a performance optimization.
+  // A mapping from nsIContent* to an nsAnonymousContentList*.  This
+  // list contains an accurate reflection of our *anonymous* children
+  // (if and only if they are intermingled with insertion points) in
+  // the altered DOM.  This table is not used if no insertion points
+  // were defined directly underneath a <content> tag in a binding.
+  // The NodeList from the <content> is used instead as a performance
+  // optimization.  There is an entry for a content node in this table
+  // only if that content node has a binding with a <content> attached
+  // and this <content> contains <children> elements directly.
   PLDHashTable mAnonymousNodesTable;
 
   // A mapping from nsIContent* to nsIContent*.  The insertion parent
@@ -278,19 +309,18 @@ protected:
   // table, they have not yet finished loading.
   nsInterfaceHashtable<nsURIHashKey,nsIStreamListener> mLoadingDocTable;
 
-  // Array of mutation observers who would like to be notified of content
-  // appends/inserts after we update our data structures and of content removes
-  // before we do so.
-  nsTObserverArray<nsIMutationObserver> mObservers;
-
   // A queue of binding attached event handlers that are awaiting execution.
   nsBindingList mAttachedStack;
   PRPackedBool mProcessingAttachedStack;
-  PRPackedBool mProcessOnEndUpdate;
+  PRPackedBool mDestroyed;
+  PRUint32 mAttachedStackSizeOnOutermost;
 
   // Our posted event to process the attached queue, if any
   friend class nsRunnableMethod<nsBindingManager>;
-  nsCOMPtr<nsIRunnable> mProcessAttachedQueueEvent;
+  nsRefPtr< nsRunnableMethod<nsBindingManager> > mProcessAttachedQueueEvent;
+
+  // Our document.  This is a weak ref; the document owns us
+  nsIDocument* mDocument; 
 };
 
 #endif

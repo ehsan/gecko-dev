@@ -53,15 +53,19 @@
         xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         onload="load()" onunload="unload()">
-  <script type="application/x-javascript" src="chrome://global/content/contentAreaUtils.js"/>
-  <script type="application/x-javascript" src="chrome://browser/content/browser.js"/>
-  <script type="application/x-javascript" src="chrome://global/content/inlineSpellCheckUI.js"/>
-  <script type="application/x-javascript" src="chrome://browser/content/nsContextMenu.js"/>
-  <script type="application/x-javascript" src="chrome://browser/content/web-panels.js"/>
+  <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>
+  <script type="application/javascript" src="chrome://browser/content/browser.js"/>
+  <script type="application/javascript" src="chrome://global/content/inlineSpellCheckUI.js"/>
+  <script type="application/javascript" src="chrome://browser/content/nsContextMenu.js"/>
+  <script type="application/javascript" src="chrome://browser/content/web-panels.js"/>
 
   <stringbundleset id="stringbundleset"> 
     <stringbundle id="bundle_browser" src="chrome://browser/locale/browser.properties"/>
   </stringbundleset>
+
+  <broadcasterset id="mainBroadcasterSet">
+    <broadcaster id="isFrameImage"/>
+  </broadcasterset>
 
   <commandset id="mainCommandset">
     <command id="Browser:Back"
@@ -75,6 +79,7 @@
   </commandset>
 
   <popupset id="mainPopupSet">
+    <tooltip id="aHTMLTooltip" onpopupshowing="return FillInHTMLTooltip(document.tooltipNode);"/>
     <popup id="contentAreaContextMenu"
            onpopupshowing="if (event.target != this)
                              return true;
@@ -88,6 +93,6 @@
 
   <commandset id="editMenuCommands"/> 
   <browser id="web-panels-browser" persist="cachedurl" type="content" flex="1"
-           context="contentAreaContextMenu"
+           context="contentAreaContextMenu" tooltip="aHTMLTooltip"
            onclick="return window.parent.contentAreaClick(event, true);"/>
 </page>

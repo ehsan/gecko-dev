@@ -34,6 +34,8 @@
 #define CAIRO_XLIB_SURFACE_PRIVATE_H
 
 #include "cairo-xlib.h"
+#include "cairo-xlib-private.h"
+#include "cairo-xlib-xrender-private.h"
 
 #include "cairo-surface-private.h"
 
@@ -43,7 +45,9 @@ struct _cairo_xlib_surface {
     cairo_surface_t base;
 
     Display *dpy;
+    cairo_xlib_display_t *display;
     cairo_xlib_screen_info_t *screen_info;
+    cairo_xlib_hook_t close_display_hook;
 
     GC gc;
     Drawable drawable;
@@ -72,6 +76,7 @@ struct _cairo_xlib_surface {
      * we can reuse the test for now.
      */
     cairo_bool_t buggy_repeat;
+    cairo_bool_t buggy_pad_reflect;
 
     int width;
     int height;
@@ -81,7 +86,8 @@ struct _cairo_xlib_surface {
 
     unsigned int clip_dirty;
     cairo_bool_t have_clip_rects;
-    XRectangle embedded_clip_rects[4];
+    cairo_bool_t gc_has_clip_rects;
+    XRectangle embedded_clip_rects[8];
     XRectangle *clip_rects;
     int num_clip_rects;
 
@@ -89,6 +95,11 @@ struct _cairo_xlib_surface {
     cairo_filter_t filter;
     int repeat;
     XTransform xtransform;
+
+    uint32_t a_mask;
+    uint32_t r_mask;
+    uint32_t g_mask;
+    uint32_t b_mask;
 };
 
 enum {

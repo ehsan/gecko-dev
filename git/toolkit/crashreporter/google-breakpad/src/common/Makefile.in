@@ -47,12 +47,17 @@ HOST_LIBRARY_NAME = host_breakpad_common_s
 
 LOCAL_INCLUDES 	= -I$(srcdir)/..
 
+ifeq ($(OS_ARCH),Darwin)
+DIRS = dwarf
+endif
+
 CPPSRCS	= \
   string_conversion.cc \
   $(NULL)
 
 CSRCS = \
   convert_UTF.c \
+  md5.c \
   $(NULL)
 
 HOST_CPPSRCS = $(CPPSRCS)

@@ -62,7 +62,8 @@ checkbox {
 .checkbox-spacer-box {
   -moz-appearance: checkbox;
   -moz-box-align: center;
-  border-right: 4px solid transparent;
+  margin: 2px;
+  border-right: 2px solid transparent;
 }
 
 .checkbox-label-center-box {
@@ -70,7 +71,6 @@ checkbox {
 }
 
 .checkbox-label-box {
-  border: 1px solid transparent;
   -moz-appearance: checkbox-label;
 }
 
@@ -95,7 +95,7 @@ checkbox[disabled="true"] > .checkbox-spacer-box > .checkbox-check {
 }
 
 checkbox[disabled="true"] {
-  color: GrayText !important;
+  color: GrayText;
 }
 
 /* ::::: checkmark image ::::: */
@@ -111,8 +111,9 @@ checkbox[disabled="true"] {
   background: -moz-Field no-repeat 50% 50%;
 }
 
-checkbox:hover {
+checkbox:not([disabled="true"]):hover {
   color: -moz-buttonhovertext;
+  text-shadow: none;
 }
 
 checkbox:hover:active > .checkbox-spacer-box > .checkbox-check {

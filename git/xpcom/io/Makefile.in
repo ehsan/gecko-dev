@@ -47,11 +47,12 @@ XPIDL_MODULE	= xpcom_io
 LIBRARY_NAME	= xpcomio_s
 GRE_MODULE	= 1
 MOZILLA_INTERNAL_API = 1
-REQUIRES	= string \
-		  $(NULL)
 
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-REQUIRES		+= macmorefiles
+# work around bug 408258
+ifdef GNU_CC 
+ifneq ($(OS_ARCH), Darwin)
+MODULE_OPTIMIZE_FLAGS = -Os -fno-strict-aliasing $(MOZ_OPTIMIZE_SIZE_TWEAK)
+endif
 endif
 
 CPPSRCS		= \
@@ -63,16 +64,17 @@ CPPSRCS		= \
 		nsLinebreakConverter.cpp \
 		nsLocalFileCommon.cpp \
 		nsMultiplexInputStream.cpp \
+		nsNativeCharsetUtils.cpp \
 		nsPipe3.cpp \
 		nsStreamUtils.cpp \
 		nsScriptableInputStream.cpp \
-		nsScriptableOutputStream.cpp \
 		nsSegmentedBuffer.cpp \
-		SpecialSystemDirectory.cpp \
 		nsStorageStream.cpp \
 		nsStringStream.cpp \
 		nsUnicharInputStream.cpp \
-		nsNativeCharsetUtils.cpp \
+		nsIOUtil.cpp \
+		nsWildCard.cpp \
+		SpecialSystemDirectory.cpp \
 		$(NULL)
 
 ifndef MOZ_NO_FAST_LOAD
@@ -85,8 +87,8 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 CPPSRCS		+= nsLocalFileOS2.cpp
 else
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-CPPSRCS		+= nsLocalFileOSX.cpp
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+CMMSRCS		= nsLocalFileOSX.mm
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 CPPSRCS		+= nsLocalFileWin.cpp
@@ -104,18 +106,18 @@ EXPORTS		= \
 		nsLinebreakConverter.h \
 		nsLocalFile.h \
 		nsMultiplexInputStream.h \
+		nsNativeCharsetUtils.h \
 		nsScriptableInputStream.h \
 		nsStorageStream.h \
-		nsStringIO.h \
 		nsStringStream.h \
 		nsStreamUtils.h \
-		nsNativeCharsetUtils.h \
+		nsWildCard.h \
 		$(NULL)			
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 EXPORTS		+= nsLocalFileOS2.h
 else
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 EXPORTS		+= nsLocalFileOSX.h
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
@@ -123,7 +125,7 @@ EXPORTS		+= nsLocalFileWin.h
 else
 EXPORTS		+= nsLocalFileUnix.h
 endif # windows
-endif # mac
+endif # cocoa
 endif # os2
 
 XPIDLSRCS	= \
@@ -151,14 +153,16 @@ XPIDLSRCS	= \
 		nsIUnicharOutputStream.idl \
 		nsIConverterInputStream.idl \
 		nsIConverterOutputStream.idl \
+		nsIIOUtil.idl \
+		nsISafeOutputStream.idl \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 XPIDLSRCS	+= nsILocalFileOS2.idl
 else
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 XPIDLSRCS	+= nsILocalFileMac.idl
-endif # mac
+endif # cocoa
 endif # os2
 
 SDK_XPIDLSRCS   = \
@@ -168,7 +172,6 @@ SDK_XPIDLSRCS   = \
 		nsIInputStream.idl \
 		nsIOutputStream.idl \
 		nsIScriptableInputStream.idl \
-		nsIScriptableStreams.idl \
 		$(NULL)
 
 SDK_HEADERS =  \
@@ -188,4 +191,16 @@ include $(topsrcdir)/config/rules.mk
 
 DEFINES		+= -D_IMPL_NS_COM
 
+ifeq ($(OS_ARCH),Linux)
+ifneq (,$(findstring lib64,$(libdir)))
+DEFINES     += -DHAVE_USR_LIB64_DIR
+endif
+endif
+
 LOCAL_INCLUDES	= -I..
+
+ifdef MOZ_PLATFORM_HILDON
+CFLAGS          += $(MOZ_DBUS_GLIB_CFLAGS) $(LIBHILDONMIME_CFLAGS)
+CXXFLAGS        += $(MOZ_DBUS_GLIB_CFLAGS) $(LIBHILDONMIME_CFLAGS)
+endif
+

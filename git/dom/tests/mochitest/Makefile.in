@@ -46,9 +46,15 @@ DIRS	+= \
 	dom-level0 \
 	dom-level1-core \
 	dom-level2-core \
+	dom-level2-html \
 	ajax \
 	bugs \
 	chrome \
+	general \
+	whatwg \
+	geolocation \
+	localstorage \
+	sessionstorage \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

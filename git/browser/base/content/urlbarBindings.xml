@@ -38,315 +38,194 @@
 #
 # ***** END LICENSE BLOCK *****
 
-<bindings id="urlbarBindings" xmlns="http://www.mozilla.org/xbl"
-          xmlns:html="http://www.w3.org/1999/xhtml"
-          xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-          xmlns:xbl="http://www.mozilla.org/xbl">
+<bindings id="urlbarBindings" xmlns="http://www.mozilla.org/xbl">
 
   <binding id="urlbar" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete">
-    <content sizetopopup="pref">
-      <xul:hbox class="autocomplete-textbox-container" flex="1">
-        <children includes="image|deck|stack">
-          <xul:image class="autocomplete-icon" allowevents="true"/>
-        </children>
-
-        <xul:stack flex="1" class="textbox-stack">
-          <xul:hbox anonid="textbox-input-box" class="textbox-input-box"
-                    flex="1" xbl:inherits="tooltiptext=inputtooltiptext">
-            <children/>
-            <html:input anonid="input" class="autocomplete-textbox textbox-input"
-                        flex="1" allowevents="true"
-                        xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,userAction"/>
-          </xul:hbox>
-          <xul:hbox anonid="presentation-box" class="formatted-url" flex="1"
-                    onmousedown="focus();" hidden="true">
-            <xul:scrollbox anonid="presentation" class="formatted-url-contents" flex="1"
-                           onoverflow="_contentIsCropped = true;"
-                           onunderflow="_contentIsCropped = false;">
-              <xul:hbox anonid="prePath" class="formatted-url-prePath">
-                <xul:label anonid="protocol" class="formatted-url-protocol"/>
-                <xul:label anonid="subdomain" class="formatted-url-subdomain"/>
-                <xul:label anonid="domain" class="formatted-url-domain"/>
-                <xul:label anonid="port" class="formatted-url-port"/>
-              </xul:hbox>
-              <xul:label anonid="path" class="formatted-url-path"/>
-            </xul:scrollbox>
-            <xul:label anonid="overflow-ellipsis" class="formatted-url-ellipsis"
-                       value="&#8230;" hidden="true"/>
-          </xul:hbox>
-        </xul:stack>
-
-        <children includes="hbox"/>
-      </xul:hbox>
-
-      <xul:dropmarker anonid="historydropmarker" class="autocomplete-history-dropmarker"
-                      allowevents="true"
-                      xbl:inherits="open,enablehistory"/>
-
-      <xul:popupset anonid="popupset" class="autocomplete-result-popupset"/>
-    </content>
-
     <implementation implements="nsIObserver, nsIDOMEventListener">
       <constructor><![CDATA[
-        this._ioService = Components.classes["@mozilla.org/network/io-service;1"]
-                                    .getService(Components.interfaces.nsIIOService);
         this._prefs = Components.classes["@mozilla.org/preferences-service;1"]
                                 .getService(Components.interfaces.nsIPrefService)
                                 .getBranch("browser.urlbar.")
                                 .QueryInterface(Components.interfaces.nsIPrefBranch2);
 
         this._prefs.addObserver("", this, false);
-        this._hideProtocols = this._prefs.getCharPref("hideProtocols").split(" ");
-        this._animateBlend = this._prefs.getBoolPref("animateBlend");
         this.clickSelectsAll = this._prefs.getBoolPref("clickSelectsAll");
         this.doubleClickSelectsAll = this._prefs.getBoolPref("doubleClickSelectsAll");
         this.completeDefaultIndex = this._prefs.getBoolPref("autoFill");
+        this.timeout = this._prefs.getIntPref("delay");
 
-        this._inputBox = document.getAnonymousElementByAttribute(this, "anonid", "textbox-input-box");
-        this._presentationBox = document.getAnonymousElementByAttribute(this, "anonid", "presentation-box");
-        this._overflowEllipsis = document.getAnonymousElementByAttribute(this, "anonid", "overflow-ellipsis");
-        this._prePath = document.getAnonymousElementByAttribute(this, "anonid", "prePath");
-        this._protocol = document.getAnonymousElementByAttribute(this, "anonid", "protocol");
-        this._subDomain = document.getAnonymousElementByAttribute(this, "anonid", "subdomain");
-        this._domain = document.getAnonymousElementByAttribute(this, "anonid", "domain");
-        this._port = document.getAnonymousElementByAttribute(this, "anonid", "port");
-        this._path = document.getAnonymousElementByAttribute(this, "anonid", "path");
         this._urlTooltip = document.getElementById("urlTooltip");
 
         this.inputField.controllers.insertControllerAt(0, this._copyCutController);
         this.inputField.addEventListener("mousedown", this, false);
-
-        this._blendingTimers = [];
+        this.inputField.addEventListener("mousemove", this, false);
+        this.inputField.addEventListener("mouseout", this, false);
       ]]></constructor>
 
       <destructor><![CDATA[
         this._prefs.removeObserver("", this);
         this._prefs = null;
-        this._ioService = null;
-        this._tldService = null;
         this.inputField.controllers.removeController(this._copyCutController);
         this.inputField.removeEventListener("mousedown", this, false);
+        this.inputField.removeEventListener("mousemove", this, false);
+        this.inputField.removeEventListener("mouseout", this, false);
       ]]></destructor>
 
-      <!-- initially empty fields:
-        <field name="_uri"/>
-        <field name="_protocolHidden"/>
-        <field name="_focused"/>
-        <field name="_mouseover"/>
-        <field name="_tooltipTimer"/>
-        <field name="_tldService"/>
-        <field name="_formatted"/>
-      -->
-
-      <property name="plain" onget="return !this._formatted">
-        <setter><![CDATA[
-          this._formatted = !val;
-          while (this._blendingTimers.length)
-            clearTimeout(this._blendingTimers.pop());
-          if (val) {
-            this._inputBox.style.removeProperty("opacity");
-            this._presentationBox.hidden = true;
-          } else {
-            this._inputBox.style.setProperty("opacity", "0", "important");
-          }
-          this._presentationBox.style.removeProperty("opacity");
-          this._hideURLTooltip();
-          return val;
-        ]]></setter>
-      </property>
-
-      <property name="tldService" readonly="true">
-        <getter><![CDATA[
-          if (!this._tldService) {
-            this._tldService =
-              Components.classes["@mozilla.org/network/effective-tld-service;1"]
-                        .getService(Components.interfaces.nsIEffectiveTLDService);
-          }
-
-          return this._tldService;
-        ]]></getter>
-      </property>
-
-      <property name="_contentIsCropped"
-                onget="return !this._overflowEllipsis.hidden;"
-                onset="this._overflowEllipsis.hidden = !val; return val;"/>
-
-      <property name="value"
-                onget="return this.inputField.value;">
-        <setter><![CDATA[
-          this.mIgnoreInput = true;
-          this._syncValue(val);
-          this.mIgnoreInput = false;
-          if (this._focused)
-            this.plain = true;
-          else if (!this._mouseover || !this.plain)
-            this._prettyView(false);
-          var event = document.createEvent("Events");
-          event.initEvent("ValueChange", true, true);
-          this.inputField.dispatchEvent(event);
-          return val;
-        ]]></setter>
-      </property>
-
-      <method name="_syncValue">
-        <parameter name="aValue"/>
+      <method name="handleRevert">
         <body><![CDATA[
-          var value = aValue != null ? aValue : this.value;
-          if (value == "") {
-            this._uri = null;
-          } else {
-            try {
-              this._uri = this._ioService.newURI(value, null, null);
-              // next line throws if .host is not defined
-              this._uri.host;
-            } catch(e) {
-              this._uri = null;
-            }
+          var isScrolling = this.popupOpen;
+
+          gBrowser.userTypedValue = null;
+
+          // don't revert to last valid url unless page is NOT loading
+          // and user is NOT key-scrolling through autocomplete list
+          if (!XULBrowserWindow.isBusy && !isScrolling) {
+            URLBarSetURI();
+
+            // If the value isn't empty and the urlbar has focus, select the value.
+            if (this.value && this.hasAttribute("focused"))
+              this.select();
           }
-          if (!this._uri) {
-            this._contentIsCropped = false;
-            if (aValue != null)
-              this.inputField.value = aValue;
+
+          // tell widget to revert to last typed text only if the user
+          // was scrolling when they hit escape
+          return !isScrolling;
+        ]]></body>
+      </method>
+
+      <method name="handleCommand">
+        <parameter name="aTriggeringEvent"/>
+        <body><![CDATA[
+          if (aTriggeringEvent instanceof MouseEvent && aTriggeringEvent.button == 2)
+            return; // Do nothing for right clicks
+
+          var [url, postData] = this._canonizeURL(aTriggeringEvent);
+          if (!url)
             return;
-          }
 
-          if (!this._focused || aValue != null) {
-            value = this._uri.spec;
-            try {
-              // try to decode as UTF-8
-              value = decodeURI(value);
-            } catch(e) {}
-            this.inputField.value = value;
-          }
-
-          this._protocol.setAttribute("value", this._uri.scheme + "://");
-          this._protocolHidden = this._hideProtocols.indexOf(this._uri.scheme) > -1;
-
-          var host = this._uri.host;
-          if (host) {
-            var subdomain;
-            var port = (this._uri.port > -1) ? ":" + this._uri.port : "";
-            if (this._uri.hostPort[0] == "[") {
-              // IPv6 address
-              subdomain = "[";
-              port = "]" + port;
-            }
-            else if (0 && !/^[.0-9]+$/.test(host)) {
-              //XXX subdomain detection disabled (bug 386727)
-              //XXX subdomain detection disabled for IP addresses (bug 364129)
-
-              // getEffectiveTLDLength might convert our host and return a misleading length.
-              // To avoid this, pass the ASCII host, count the dots of its effective TLD
-              // and use that number to operate on our actual host.
-
-              var asciiHost = this._uri.asciiHost;
-              var domainSegments = host.split(".");
-              var cSubdomain = domainSegments.length -
-                               asciiHost.slice(asciiHost.length -
-                                               this.tldService.getEffectiveTLDLength(asciiHost))
-                                        .split(".").length - 1;
-              if (cSubdomain > 0) {
-                host = domainSegments;
-                subdomain = host.splice(0, cSubdomain).join(".") + ".";
-                host = host.join(".");
-              }
-            } else {
-              subdomain = "";
-            }
-            this._subDomain.setAttribute("value", subdomain);
-            this._domain.setAttribute("value", host);
-            this._port.setAttribute("value", port);
-          } else {
-            this._subDomain.removeAttribute("value");
-            this._domain.removeAttribute("value");
-            this._port.removeAttribute("value");
-          }
-
-          var path = this._uri.path;
+          this.value = url;
+          gBrowser.userTypedValue = url;
           try {
-            // try to decode as UTF-8
-            path = decodeURI(path);
-          } catch(e) {}
-          this._path.setAttribute("value", path);
-        ]]></body>
-      </method>
-
-      <method name="_initPrettyView">
-        <body><![CDATA[
-          this._plain = false;
-          this._protocol.hidden = false;
-          this._presentationBox.hidden = false;
-          this._prePath.width = "";
-          if (this._protocolHidden) {
-            this._prePath.width = this._prePath.boxObject.width;
-            this._protocol.hidden = true;
+            addToUrlbarHistory(url);
+          } catch (ex) {
+            // Things may go wrong when adding url to session history,
+            // but don't let that interfere with the loading of the url.
+            Cu.reportError(ex);
           }
-        ]]></body>
-      </method>
 
-      <method name="_prettyView">
-        <parameter name="aAnimateBlend"/>
-        <body><![CDATA[
-          if (!this._uri) {
-            this.plain = true;
+          if (aTriggeringEvent instanceof MouseEvent) {
+            // We have a mouse event (from the go button), so use the standard
+            // UI link behaviors
+            openUILink(url, aTriggeringEvent, false, false,
+                       true /* allow third party fixup */, postData);
             return;
           }
 
-          if (!aAnimateBlend || !this._animateBlend) {
-            this._initPrettyView();
-            this.plain = false;
-            return;
+          if (aTriggeringEvent && aTriggeringEvent.altKey) {
+            this.handleRevert();
+            content.focus();
+            gBrowser.loadOneTab(url, {
+                                postData: postData,
+                                inBackground: false,
+                                allowThirdPartyFixup: true});
+            aTriggeringEvent.preventDefault();
+            aTriggeringEvent.stopPropagation();
+          }
+          else
+            loadURI(url, null, postData, true /* allow third party fixup */);
+
+          gBrowser.selectedBrowser.focus();
+        ]]></body>
+      </method>
+
+      <method name="_canonizeURL">
+        <parameter name="aTriggeringEvent"/>
+        <body><![CDATA[
+          var url = this.value;
+          if (!url)
+            return ["", null];
+
+          // Only add the suffix when the URL bar value isn't already "URL-like",
+          // and only if we get a keyboard event, to match user expectations.
+          if (!/^\s*(www|https?)\b|\/\s*$/i.test(url) &&
+              (aTriggeringEvent instanceof KeyEvent)) {
+#ifdef XP_MACOSX
+            let accel = aTriggeringEvent.metaKey;
+#else
+            let accel = aTriggeringEvent.ctrlKey;
+#endif
+            let shift = aTriggeringEvent.shiftKey;
+
+            let suffix = "";
+
+            switch (true) {
+              case (accel && shift):
+                suffix = ".org/";
+                break;
+              case (shift):
+                suffix = ".net/";
+                break;
+              case (accel):
+                try {
+                  suffix = gPrefService.getCharPref("browser.fixup.alternate.suffix");
+                  if (suffix.charAt(suffix.length - 1) != "/")
+                    suffix += "/";
+                } catch(e) {
+                  suffix = ".com/";
+                }
+                break;
+            }
+
+            if (suffix) {
+              // trim leading/trailing spaces (bug 233205)
+              url = url.trim();
+
+              // Tack www. and suffix on.  If user has appended directories, insert
+              // suffix before them (bug 279035).  Be careful not to get two slashes.
+              // Also, don't add the suffix if it's in the original url (bug 233853).
+      
+              let firstSlash = url.indexOf("/");
+              let existingSuffix = url.indexOf(suffix.substring(0, suffix.length - 1));
+
+              // * Logic for slash and existing suffix (example)
+              // No slash, no suffix: Add suffix (mozilla)
+              // No slash, yes suffix: Add slash (mozilla.com)
+              // Yes slash, no suffix: Insert suffix (mozilla/stuff)
+              // Yes slash, suffix before slash: Do nothing (mozilla.com/stuff)
+              // Yes slash, suffix after slash: Insert suffix (mozilla/?stuff=.com)
+      
+              if (firstSlash >= 0) {
+                if (existingSuffix == -1 || existingSuffix > firstSlash)
+                  url = url.substring(0, firstSlash) + suffix +
+                        url.substring(firstSlash + 1);
+              } else
+                url = url + (existingSuffix == -1 ? suffix : "/");
+
+              url = "http://www." + url;
+            }
           }
 
-          const INITIAL_DELAY = 150;
-          const FRAME_LENGTH = 60;
-          const DECLINATION_REL = .2;
-          const DECLINATION_ABS = .15;
+          var postData = {};
+          url = getShortcutOrURI(url, postData);
 
-          var inputBox = this._inputBox;
-          var presentationBox = this._presentationBox;
-          var self = this;
-          var opacity = parseFloat(document.defaultView.getComputedStyle(inputBox, null).opacity);
-          var delay = INITIAL_DELAY;
-
-          function processFrame(opacity, init) {
-            inputBox.style.setProperty("opacity", opacity, "important");
-            presentationBox.style.setProperty("opacity", 1-opacity, "important");
-            if (init)
-              self._initPrettyView();
-            if (!opacity)
-              self.plain = false;
-          }
-
-          while (opacity > 0) {
-            opacity -= opacity * DECLINATION_REL + DECLINATION_ABS;
-            if (opacity < 0)
-              opacity = 0;
-            this._blendingTimers.push(setTimeout(processFrame, delay, opacity, delay == INITIAL_DELAY));
-            delay += FRAME_LENGTH;
-          }
+          return [url, postData.value];
         ]]></body>
       </method>
 
       <method name="_initURLTooltip">
-        <parameter name="aCallback"/>
-        <parameter name="aObject"/>
-        <parameter name="aCrop"/>
         <body><![CDATA[
+          if (this.focused || this.value == "")
+            return;
           if (this._tooltipTimer)
             clearTimeout(this._tooltipTimer);
-          this._tooltipTimer = setTimeout(function(self) {
+          this._tooltipTimer = setTimeout(function (self) {
             self._tooltipTimer = 0;
-            var tooltipText = aCallback.apply(aObject);
-            if (tooltipText) {
-              var label = self._urlTooltip.firstChild;
-              label.value = tooltipText;
-              label.crop = aCrop || "center";
-              var bO = self.boxObject;
-              self._urlTooltip.maxWidth = bO.width;
-              self._urlTooltip.showPopup(self, bO.screenX, bO.screenY + bO.height, "tooltip");
-            }
-          }, 400, this);
+            var label = self._urlTooltip.firstChild;
+            label.value = self.value;
+            var bO = self.boxObject;
+            self._urlTooltip.maxWidth = bO.width;
+            self._urlTooltip.showPopup(self, bO.screenX, bO.screenY + bO.height, "tooltip");
+          }, 700, this);
         ]]></body>
       </method>
 
@@ -360,34 +239,88 @@
         ]]></body>
       </method>
 
+      <method name="onDragOver">
+        <parameter name="aEvent"/>
+        <body>
+          var types = aEvent.dataTransfer.types;
+          if (types.contains("application/x-moz-file") ||
+              types.contains("text/x-moz-url") ||
+              types.contains("text/uri-list") ||
+              types.contains("text/unicode"))
+            aEvent.preventDefault();
+        </body>
+      </method>
+
+      <method name="onDrop">
+        <parameter name="aEvent"/>
+        <body><![CDATA[
+          aEvent.stopPropagation();
+          var url = browserDragAndDrop.getDragURLFromDataTransfer(aEvent.dataTransfer)[0];
+
+          // The URL bar automatically handles inputs with newline characters,
+          // so we can get away with treating text/x-moz-url flavours as text/plain.
+          if (url) {
+            nsDragAndDrop.dragDropSecurityCheck(aEvent, null, url);
+
+            this.value = url;
+            SetPageProxyState("invalid");
+            try {
+              urlSecurityCheck(this.value,
+                               gBrowser.contentPrincipal,
+                               Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL);
+            } catch (ex) {
+              return;
+            }
+            this.handleCommand();
+          }
+        ]]></body>
+      </method>
+
+      <method name="_getSelectedValueForClipboard">
+        <body><![CDATA[
+          var val = this.value.substring(this.selectionStart, this.selectionEnd);
+
+          // If the entire value is selected and it's a valid non-javascript,
+          // non-data URI, encode it.
+          if (val == this.value &&
+              this.getAttribute("pageproxystate") == "valid") {
+            let uri;
+            try {
+              uri = makeURI(val);
+            } catch (e) {}
+
+            if (uri && !uri.schemeIs("javascript") && !uri.schemeIs("data")) {
+              val = uri.spec;
+
+              // Parentheses are known to confuse third-party applications (bug 458565).
+              val = val.replace(/[()]/g, function (c) escape(c));
+            }
+          }
+
+          return val;
+        ]]></body>
+      </method>
+
       <field name="_copyCutController"><![CDATA[
         ({
           urlbar: this,
           doCommand: function(aCommand) {
             var urlbar = this.urlbar;
-            var start = urlbar.selectionStart;
-            var end = urlbar.selectionEnd;
-            if (start == end)
+            var val = urlbar._getSelectedValueForClipboard();
+            if (!val)
               return;
-            var val;
-            if (start == 0 && end == urlbar.textLength) {
-              // if the entire value is selected and it's a valid URI, encode it
-              val = urlbar.value;
-              try {
-                val = urlbar._ioService.newURI(val, null, null).spec;
-              } catch(e) {}
-              if (aCommand == "cmd_cut")
-                urlbar.value = "";
-            } else {
-              val = urlbar.value.substring(start, end);
-              if (aCommand == "cmd_cut") {
-                urlbar.value = urlbar.value.substring(0, start) + urlbar.value.substring(end);
-                urlbar.selectionStart = urlbar.selectionEnd = start;
-              }
+
+            if (aCommand == "cmd_cut" && this.isCommandEnabled(aCommand)) {
+              let start = urlbar.selectionStart;
+              let end = urlbar.selectionEnd;
+              urlbar.value = urlbar.value.substring(0, start) + urlbar.value.substring(end);
+              urlbar.selectionStart = urlbar.selectionEnd = start;
+              SetPageProxyState("invalid");
             }
-            Components.classes["@mozilla.org/widget/clipboardhelper;1"]
-                      .getService(Components.interfaces.nsIClipboardHelper)
-                      .copyString(val);
+
+            Cc["@mozilla.org/widget/clipboardhelper;1"]
+              .getService(Ci.nsIClipboardHelper)
+              .copyString(val);
           },
           supportsCommand: function(aCommand) {
             switch (aCommand) {
@@ -398,7 +331,9 @@
             return false;
           },
           isCommandEnabled: function(aCommand) {
-            return this.supportsCommand(aCommand) && this.urlbar.selectionStart < this.urlbar.selectionEnd;
+            return this.supportsCommand(aCommand) &&
+                   (aCommand != "cmd_cut" || !this.urlbar.readOnly) &&
+                   this.urlbar.selectionStart < this.urlbar.selectionEnd;
           },
           onEvent: function(aEventName) {}
         })
@@ -411,12 +346,6 @@
         <body><![CDATA[
           if (aTopic == "nsPref:changed") {
             switch(aData) {
-              case "hideProtocols":
-                this._hideProtocols = this._prefs.getCharPref(aData).split(" ");
-                this._syncValue();
-                if (!this.plain)
-                  this._prettyView(false);
-                break;
               case "clickSelectsAll":
               case "doubleClickSelectsAll":
                 this[aData] = this._prefs.getBoolPref(aData);
@@ -424,8 +353,8 @@
               case "autoFill":
                 this.completeDefaultIndex = this._prefs.getBoolPref(aData);
                 break;
-              case "animateBlend":
-                this._animateBlend = this._prefs.getBoolPref(aData);
+              case "delay":
+                this.timeout = this._prefs.getIntPref(aData);
                 break;
             }
           }
@@ -435,118 +364,241 @@
       <method name="handleEvent">
         <parameter name="aEvent"/>
         <body><![CDATA[
-          if (aEvent.type == "mousedown" &&
-              aEvent.button == 0 && aEvent.detail == 2 &&
-              this.doubleClickSelectsAll) {
-            this.editor.selectAll();
-            aEvent.preventDefault();
+          switch (aEvent.type) {
+            case "mousedown":
+              if (this.doubleClickSelectsAll &&
+                  aEvent.button == 0 && aEvent.detail == 2) {
+                this.editor.selectAll();
+                aEvent.preventDefault();
+              }
+              break;
+            case "mousemove":
+              this._initURLTooltip();
+              break;
+            case "mouseout":
+              this._hideURLTooltip();
+              break;
           }
         ]]></body>
       </method>
+
+      <property name="textValue"
+                onget="return this.value;">
+        <setter>
+          <![CDATA[
+          try {
+            val = losslessDecodeURI(makeURI(val));
+          } catch (ex) { }
+          this.value = val;
+
+          // Completing a result should simulate the user typing the result, so
+          // fire an input event.
+          let evt = document.createEvent("UIEvents");
+          evt.initUIEvent("input", true, false, window, 0);
+          this.mIgnoreInput = true;
+          this.dispatchEvent(evt);
+          this.mIgnoreInput = false;
+
+          return this.value;
+          ]]>
+        </setter>
+      </property>
     </implementation>
 
     <handlers>
-      <handler event="input"
-               action="this._syncValue();"/>
+      <handler event="draggesture" phase="capturing"><![CDATA[
+        // TODO: This should use dragstart but editor code is still using
+        //       the old drag & drop APIs, so we have to handle draggesture.
+        //       This can be changed once editor code is updated to the new API.
+        //       See bug 499008 for details.
 
-      <handler event="mousemove"><![CDATA[
-        if (!this._focused && this._contentIsCropped)
-          this._initURLTooltip(function() {
-            return this.plain ? this.value : null;
-          }, this, "start");
-      ]]></handler>
-
-      <handler event="mouseover"><![CDATA[
-        if (this._mouseover)
+        // Drag only if the gesture starts from the input field.
+        if (event.originalTarget != this.inputField)
           return;
-        if (!this.plain) {
-          // do nothing if we're over the favicon, history dropmarker et al
-          var pBO = this._presentationBox.boxObject;
-          if (event.screenX < pBO.screenX || event.screenX > pBO.screenX + pBO.width)
-            return;
-        }
-        this._mouseover = true;
-        setTimeout(function(self) {
-          if (self._mouseover) {
-            self.plain = true;
-            if (!self._focused && self._contentIsCropped)
-              self._initURLTooltip(function() {
-                return this.plain ? this.value : null;
-              }, self, "start");
-          }
-        }, 60, this);
-      ]]></handler>
 
-      <handler event="mouseout" phase="target"><![CDATA[
-        this._mouseover = false;
-        if (!this._focused && this.plain)
-          this._prettyView(true);
-        else
-          this._hideURLTooltip();
-      ]]></handler>
+        // Drag only if the entire value is selected and it's a valid URI.
+        var isFullSelection = this.selectionStart == 0 &&
+                              this.selectionEnd == this.textLength;
+        if (!isFullSelection ||
+            this.getAttribute("pageproxystate") != "valid")
+          return;
 
-      <handler event="focus" phase="capturing"><![CDATA[
-        if (!this._focused) {
-          this._focused = true;
-          this.plain = true;
-        }
-      ]]></handler>
+        var urlString = content.location.href;
+        var title = content.document.title || urlString;
+        var htmlString = "<a href=\"" + urlString + "\">" + urlString + "</a>";
 
-      <handler event="blur" phase="capturing"><![CDATA[
-        if (this._focused && !this._dontBlur) {
-          this._focused = false;
-          this._syncValue();
-          if (!this._mouseover)
-            this._prettyView(true);
-        }
+        var dt = event.dataTransfer;
+        dt.setData("text/x-moz-url", urlString + "\n" + title);
+        dt.setData("text/unicode", urlString);
+        dt.setData("text/html", htmlString);
+
+        dt.effectAllowed = "copyLink";
+        event.stopPropagation();
+      ]]></handler>
+      <handler event="focus" phase="capturing" action="this._hideURLTooltip();"/>
+      <handler event="dragover" phase="capturing" action="this.onDragOver(event, this);"/>
+      <handler event="drop" phase="capturing" action="this.onDrop(event, this);"/>
+      <handler event="select"><![CDATA[
+        if (!Cc["@mozilla.org/widget/clipboard;1"]
+               .getService(Ci.nsIClipboard)
+               .supportsSelectionClipboard())
+          return;
+
+        var val = this._getSelectedValueForClipboard();
+        if (!val)
+          return;
+
+        Cc["@mozilla.org/widget/clipboardhelper;1"]
+          .getService(Ci.nsIClipboardHelper)
+          .copyStringToClipboard(val, Ci.nsIClipboard.kSelectionClipboard);
       ]]></handler>
     </handlers>
 
   </binding>
 
-  <binding id="urlbar-result-popup" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete-result-popup">
+  <!-- Note: this binding is applied to the autocomplete popup used in the Search bar and in web page content -->
+  <binding id="browser-autocomplete-result-popup" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete-result-popup">
     <implementation>
+      <method name="openAutocompletePopup">
+        <parameter name="aInput"/>
+        <parameter name="aElement"/>
+        <body>
+          <![CDATA[
+          // initially the panel is hidden
+          // to avoid impacting startup / new window performance
+          aInput.popup.hidden = false;
+
+          // this method is defined on the base binding
+          this._openAutocompletePopup(aInput, aElement);
+        ]]></body>
+      </method>
+
       <method name="onPopupClick">
         <parameter name="aEvent"/>
         <body><![CDATA[
+          // Ignore all right-clicks
+          if (aEvent.button == 2)
+            return;
+
           var controller = this.view.QueryInterface(Components.interfaces.nsIAutoCompleteController);
 
-          // default action on unmodified left-click
+          // Check for unmodified left-click, and use default behavior
           if (aEvent.button == 0 && !aEvent.shiftKey && !aEvent.ctrlKey &&
               !aEvent.altKey && !aEvent.metaKey) {
-            controller.handleEnter();
+            controller.handleEnter(true);
+            return;
           }
-          // completely ignore right-clicks
-          else if (aEvent.button != 2) {
-            if (gURLBar && this.mInput == gURLBar) {
-              // handle address bar click
-              var url = controller.getValueAt(this.tree.view.selection.currentIndex);
 
-              // close the autocomplete popup and revert the entered address
-              this.closePopup();
-              controller.handleEscape();
-              // respect the usual clicking subtleties
-              openUILink(url, aEvent);
-            }
-            else if (this.mInput._getParentSearchbar) {
-              // handle search bar click
-              var search = controller.getValueAt(this.tree.view.selection.currentIndex);
-              var textbox = this.mInput;
+          // Check for middle-click or modified clicks on the search bar
+          var searchBar = BrowserSearch.searchBar;
+          if (searchBar && searchBar.textbox == this.mInput) {
+            // Handle search bar popup clicks
+            var search = controller.getValueAt(this.selectedIndex);
+  
+            // close the autocomplete popup and revert the entered search term
+            this.closePopup();
+            controller.handleEscape();
 
-              // close the autocomplete popup and copy the selected value to the search box
-              this.closePopup();
-              textbox.value = search;
-              // open the search results according to the clicking subtlety
-              var where = whereToOpenLink(aEvent, false, true);
-              textbox._getParentSearchbar().doSearch(search, where);
-            }
-            else {
-              // everybody else (i.e. browser content) gets unmodified behavior
-              controller.handleEnter();
-            }
+            // Fill in the search bar's value
+            searchBar.value = search;
+
+            // open the search results according to the clicking subtlety
+            var where = whereToOpenLink(aEvent, false, true);
+            searchBar.doSearch(search, where);
           }
+          ]]></body>
+        </method>
+      </implementation>
+    </binding>
+
+    <binding id="urlbar-rich-result-popup" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete-rich-result-popup">
+      <implementation>
+      <field name="_maxResults">0</field>
+
+      <field name="_bundle" readonly="true">
+        Cc["@mozilla.org/intl/stringbundle;1"].
+          getService(Ci.nsIStringBundleService).
+          createBundle("chrome://browser/locale/places/places.properties");
+      </field>
+
+      <property name="maxResults" readonly="true">
+        <getter>
+          <![CDATA[
+            if (!this._maxResults) {
+              var prefService =
+                Components.classes["@mozilla.org/preferences-service;1"]
+                          .getService(Components.interfaces.nsIPrefBranch);
+              this._maxResults = prefService.getIntPref("browser.urlbar.maxRichResults");
+            }
+            return this._maxResults;
+          ]]>
+        </getter>
+      </property>
+
+      <method name="openAutocompletePopup">
+        <parameter name="aInput"/>
+        <parameter name="aElement"/>
+        <body>
+          <![CDATA[
+          // initially the panel is hidden
+          // to avoid impacting startup / new window performance
+          aInput.popup.hidden = false;
+
+          // this method is defined on the base binding
+          this._openAutocompletePopup(aInput, aElement);
         ]]></body>
       </method>
+
+      <method name="onPopupClick">
+        <parameter name="aEvent"/>
+        <body>
+          <![CDATA[
+          // Ignore right-clicks
+          if (aEvent.button == 2)
+            return;
+
+          var controller = this.view.QueryInterface(Components.interfaces.nsIAutoCompleteController);
+
+          // Check for unmodified left-click, and use default behavior
+          if (aEvent.button == 0 && !aEvent.shiftKey && !aEvent.ctrlKey &&
+              !aEvent.altKey && !aEvent.metaKey) {
+            controller.handleEnter(true);
+            return;
+          }
+
+          // Check for middle-click or modified clicks on the URL bar
+          if (gURLBar && this.mInput == gURLBar) {
+            var url = controller.getValueAt(this.selectedIndex);
+
+            // close the autocomplete popup and revert the entered address
+            this.closePopup();
+            controller.handleEscape();
+
+            // respect the usual clicking subtleties
+            openUILink(url, aEvent);
+          }
+        ]]>
+        </body>
+      </method>
+
+      <method name="createResultLabel">
+        <parameter name="aTitle"/>
+        <parameter name="aUrl"/>
+        <parameter name="aType"/>
+        <body>
+          <![CDATA[
+            var label = aTitle + " " + aUrl;
+            // convert aType (ex: "ac-result-type-<aType>") to text to be spoke aloud
+            // by screen readers.  convert "tag" and "bookmark" to the localized versions,
+            // but don't do anything for "favicon" (the default)
+            if (aType != "favicon") {
+              label += " " + this._bundle.GetStringFromName(aType + "ResultLabel");
+            }
+            return label;
+          ]]>
+        </body>
+      </method>
+
     </implementation>
   </binding>
 </bindings>

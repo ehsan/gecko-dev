@@ -48,14 +48,12 @@ struct PropertyInfo {
 
 const PropertyInfo gLonghandProperties[] = {
 
-#define CSS_PROP_NOTIMPLEMENTED(name_, id_, method_) \
-    { #name_, #method_ },
-#define CSS_PROP(name_, id_, method_, datastruct_, member_, type_, kwtable_) \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,     \
+                 kwtable_, stylestruct_, stylestructoffset_, animtype_)        \
     { #name_, #method_ },
 
 #include "nsCSSPropList.h"
 
-#undef CSS_PROP_NOTIMPLEMENTED
 #undef CSS_PROP
 
 };
@@ -68,14 +66,12 @@ const PropertyInfo gLonghandProperties[] = {
 const char* gLonghandPropertiesWithDOMProp[] = {
 
 #define CSS_PROP_LIST_EXCLUDE_INTERNAL
-#define CSS_PROP_NOTIMPLEMENTED(name_, id_, method_) \
-    #name_,
-#define CSS_PROP(name_, id_, method_, datastruct_, member_, type_, kwtable_) \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,     \
+                 kwtable_, stylestruct_, stylestructoffset_, animtype_)        \
     #name_,
 
 #include "nsCSSPropList.h"
 
-#undef CSS_PROP_NOTIMPLEMENTED
 #undef CSS_PROP
 #undef CSS_PROP_LIST_EXCLUDE_INTERNAL
 
@@ -83,7 +79,7 @@ const char* gLonghandPropertiesWithDOMProp[] = {
 
 const PropertyInfo gShorthandProperties[] = {
 
-#define CSS_PROP_SHORTHAND(name_, id_, method_) \
+#define CSS_PROP_SHORTHAND(name_, id_, method_, flags_) \
     { #name_, #method_ },
 
 #include "nsCSSPropList.h"
@@ -96,7 +92,7 @@ const PropertyInfo gShorthandProperties[] = {
 const char* gShorthandPropertiesWithDOMProp[] = {
 
 #define CSS_PROP_LIST_EXCLUDE_INTERNAL
-#define CSS_PROP_SHORTHAND(name_, id_, method_) \
+#define CSS_PROP_SHORTHAND(name_, id_, method_, flags_) \
     #name_,
 
 #include "nsCSSPropList.h"
@@ -152,7 +148,10 @@ const char *gInaccessibleProperties[] = {
     "padding-left-ltr-source",
     "padding-left-rtl-source",
     "padding-right-ltr-source",
-    "padding-right-rtl-source"
+    "padding-right-rtl-source",
+    "-moz-script-level", // parsed by UA sheets only
+    "-moz-script-size-multiplier",
+    "-moz-script-min-size"
 };
 
 inline int

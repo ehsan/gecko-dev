@@ -117,9 +117,9 @@ rollbox.
   static void AddMargin(nsIBox* aChild, nsSize& aSize);
   static void AddMargin(nsSize& aSize, const nsMargin& aMargin);
 
-  static void BoundsCheckMinMax(nsSize& aMinSize, nsSize& aMaxSize);
-  static void BoundsCheck(nsSize& aMinSize, nsSize& aPrefSize, nsSize& aMaxSize);
-  static void BoundsCheck(nscoord& aMinSize, nscoord& aPrefSize, nscoord& aMaxSize);
+  static nsSize BoundsCheckMinMax(const nsSize& aMinSize, const nsSize& aMaxSize);
+  static nsSize BoundsCheck(const nsSize& aMinSize, const nsSize& aPrefSize, const nsSize& aMaxSize);
+  static nscoord BoundsCheck(nscoord aMinSize, nscoord aPrefSize, nscoord aMaxSize);
 
 protected:
 
@@ -129,8 +129,6 @@ protected:
   virtual void ListBox(nsAutoString& aResult);
 #endif
   
-  virtual PRBool GetWasCollapsed(nsBoxLayoutState& aState);
-  virtual void SetWasCollapsed(nsBoxLayoutState& aState, PRBool aWas);
   virtual PRBool GetDefaultFlex(PRInt32& aFlex);
   virtual void GetLayoutFlags(PRUint32& aFlags);
 

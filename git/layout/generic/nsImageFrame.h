@@ -52,6 +52,7 @@
 #include "nsTransform2D.h"
 #include "imgIRequest.h"
 #include "nsStubImageDecoderObserver.h"
+#include "imgIDecoderObserver.h"
 
 class nsIFrame;
 class nsImageMap;
@@ -73,13 +74,12 @@ public:
   NS_DECL_ISUPPORTS
   // imgIDecoderObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, gfxIImageFrame *aFrame,
-                             const nsRect *aRect);
+  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
+                             const nsIntRect *aRect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
-                          nsRect * dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect * dirtyRect);
 
   void SetFrame(nsImageFrame *frame) { mFrame = frame; }
 
@@ -94,12 +94,13 @@ private:
 
 class nsImageFrame : public ImageFrameSuper, public nsIImageFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   nsImageFrame(nsStyleContext* aContext);
 
-  // nsISupports 
-  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  NS_DECL_QUERYFRAME
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
@@ -173,11 +174,10 @@ public:
 
   nsImageMap* GetImageMap(nsPresContext* aPresContext);
 
-protected:
-  // nsISupports
-  NS_IMETHOD_(nsrefcnt) AddRef(void);
-  NS_IMETHOD_(nsrefcnt) Release(void);
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
+                                 InlineMinWidthData *aData);
 
+protected:
   virtual ~nsImageFrame();
 
   void EnsureIntrinsicSize(nsPresContext* aPresContext);
@@ -215,20 +215,18 @@ protected:
                       const nsRect&        aRect);
 
   void PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
-                  const nsRect& aDirtyRect, imgIContainer* aImage);
+                  const nsRect& aDirtyRect, imgIContainer* aImage,
+                  PRUint32 aFlags);
                   
 protected:
   friend class nsImageListener;
   nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  nsresult OnDataAvailable(imgIRequest *aRequest,
-                           gfxIImageFrame *aFrame,
-                           const nsRect * rect);
+  nsresult OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
+                           const nsIntRect *rect);
   nsresult OnStopDecode(imgIRequest *aRequest,
                         nsresult aStatus,
                         const PRUnichar *aStatusArg);
-  nsresult FrameChanged(imgIContainer *aContainer,
-                        gfxIImageFrame *aNewframe,
-                        nsRect *aDirtyRect);
+  nsresult FrameChanged(imgIContainer *aContainer, nsIntRect *aDirtyRect);
 
 private:
   // random helpers
@@ -251,7 +249,7 @@ private:
   /**
    * This function will recalculate mTransform.
    */
-  void RecalculateTransform();
+  void RecalculateTransform(PRBool aInnerAreaChanged);
 
   /**
    * Helper functions to check whether the request or image container
@@ -265,7 +263,7 @@ private:
    * Function to convert a dirty rect in the source image to a dirty
    * rect for the image frame.
    */
-  nsRect SourceRectToDest(const nsRect & aRect);
+  nsRect SourceRectToDest(const nsIntRect & aRect);
 
   nsImageMap*         mImageMap;
 
@@ -274,7 +272,8 @@ private:
   nsSize mComputedSize;
   nsSize mIntrinsicSize;
   nsTransform2D mTransform;
-  
+  PRBool mDisplayingIcon;
+
   static nsIIOService* sIOService;
 
   /* loading / broken image icon support */
@@ -288,42 +287,51 @@ private:
   nsresult LoadIcons(nsPresContext *aPresContext);
   nsresult LoadIcon(const nsAString& aSpec, nsPresContext *aPresContext,
                     imgIRequest **aRequest);
-  
-  // HandleIconLoads: See if the request is for an Icon load. If it
-  // is, handle it and return TRUE otherwise, return FALSE (aCompleted
-  // is an input arg telling the routine if the request has completed)
-  PRBool HandleIconLoads(imgIRequest* aRequest, PRBool aCompleted);
 
-  class IconLoad : public nsIObserver {
-    // private class that wraps the data and logic needed for 
+  class IconLoad : public nsIObserver,
+                   public imgIDecoderObserver {
+    // private class that wraps the data and logic needed for
     // broken image and loading image icons
   public:
-    IconLoad(imgIDecoderObserver* aObserver);
+    IconLoad();
 
     void Shutdown()
     {
       // in case the pref service releases us later
       if (mLoadingImage) {
-        mLoadingImage->Cancel(NS_ERROR_FAILURE);
+        mLoadingImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
         mLoadingImage = nsnull;
       }
       if (mBrokenImage) {
-        mBrokenImage->Cancel(NS_ERROR_FAILURE);
+        mBrokenImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
         mBrokenImage = nsnull;
       }
     }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
+    NS_DECL_IMGICONTAINEROBSERVER
+    NS_DECL_IMGIDECODEROBSERVER
+
+    void AddIconObserver(nsImageFrame *frame) {
+        NS_ABORT_IF_FALSE(!mIconObservers.Contains(frame),
+                          "Observer shouldn't aleady be in array");
+        mIconObservers.AppendElement(frame);
+    }
+
+    void RemoveIconObserver(nsImageFrame *frame) {
+        PRBool rv = mIconObservers.RemoveElement(frame);
+        NS_ABORT_IF_FALSE(rv, "Observer not in array");
+    }
 
   private:
     void GetPrefs();
+    nsTObserverArray<nsImageFrame*> mIconObservers;
+
 
   public:
     nsCOMPtr<imgIRequest> mLoadingImage;
     nsCOMPtr<imgIRequest> mBrokenImage;
-    nsCOMPtr<imgIDecoderObserver> mLoadObserver; // keeps the observer alive
-    PRUint8          mIconsLoaded;
     PRPackedBool     mPrefForceInlineAltText;
     PRPackedBool     mPrefShowPlaceholders;
   };

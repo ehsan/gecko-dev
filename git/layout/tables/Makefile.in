@@ -46,23 +46,7 @@ MODULE		= layout
 LIBRARY_NAME	= gktable_s
 LIBXUL_LIBRARY	= 1
 
-REQUIRES	= xpcom \
-		  string \
-		  dom \
-		  content \
-		  gfx \
-		  thebes \
-		  widget \
-		  locale \
-		  view \
-		  accessibility \
-		  necko \
-		  webshell \
-		  js \
-		  xpconnect \
-		  pref \
-		  docshell \
-		  $(NULL)
+
 
 EXPORTS		= \
 		nsITableCellLayout.h \
@@ -87,7 +71,7 @@ CPPSRCS		= \
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
 
-ifdef MOZ_MOCHITEST
+ifdef ENABLE_TESTS
 DIRS  = test
 endif
 
@@ -98,7 +82,9 @@ DEFINES         += -DDEBUG_TABLE_STRATEGY_off -D_IMPL_NS_LAYOUT
 LOCAL_INCLUDES	= \
 		-I$(srcdir)/../base \
 		-I$(srcdir)/../generic \
+		-I$(srcdir)/../style \
 		-I$(srcdir)/../xul/base/src \
 		-I$(srcdir)/../../content/html/content/src \
 		-I$(srcdir)/../../content/base/src \
+		-I$(srcdir)/../../intl/unicharutil/util \
 		$(NULL)

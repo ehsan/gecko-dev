@@ -48,20 +48,23 @@ include $(DEPTH)/config/autoconf.mk
 # headers, so that we can use it to set up the wrapped system headers.
 VISIBILITY_FLAGS =
 
-ifneq (,$(CROSS_COMPILE)$(filter-out WINNT OS2,$(OS_ARCH)))
-ifneq ($(OS_ARCH), WINCE)
 HOST_PROGRAM	= nsinstall$(HOST_BIN_SUFFIX)
+
+ifeq (WINNT,$(HOST_OS_ARCH))
+HOST_CSRCS	= nsinstall_win.c
+else
 HOST_CSRCS	= nsinstall.c pathsub.c
 endif
-endif
 
-PLSRCS		= nfspwd.pl revdepth.pl
+PLSRCS		= nfspwd.pl
 
 TARGETS		= $(HOST_PROGRAM) $(PLSRCS:.pl=) $(SIMPLE_PROGRAMS)
 
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
 TARGETS		+= elf-dynstr-gc
+# Compiling the above will create dependency files.
+NEED_MDDEPDIR	= 1
 endif
 endif
 
@@ -88,6 +91,8 @@ NO_INSTALL=1
 
 include $(topsrcdir)/config/rules.mk
 
+HOST_CFLAGS += -DUNICODE -D_UNICODE
+
 ifeq ($(OS_CONFIG),SunOS4.1)
 NSPR_CFLAGS	+= -I$(srcdir)/../nsprpub/pr/include/md
 endif
@@ -105,6 +110,15 @@ ifdef HOST_PROGRAM
 	$(INSTALL) $(HOST_PROGRAM) $(DIST)/bin
 endif
 
+# Generate a new buildid every time we "export" in config... that's only
+# supposed to be once per-build!
+export::
+ifdef MOZ_BUILD_DATE
+	printf "%s" $(MOZ_BUILD_DATE) > buildid
+else
+	$(PYTHON) $(topsrcdir)/toolkit/xre/make-platformini.py --print-buildid > buildid
+endif
+
 ifdef WRAP_SYSTEM_INCLUDES
 export::
 	if test ! -d system_wrappers; then mkdir system_wrappers; fi
@@ -112,23 +126,26 @@ export::
 		-DBUILD_STATIC_LIBS=$(BUILD_STATIC_LIBS) \
 		-DMOZ_TREE_CAIRO=$(MOZ_TREE_CAIRO) \
 		-DMOZ_ENABLE_LIBXUL=$(MOZ_ENABLE_LIBXUL) \
+		-DMOZ_NATIVE_HUNSPELL=$(MOZ_NATIVE_HUNSPELL) \
+		-DMOZ_NATIVE_BZ2=$(MOZ_NATIVE_BZ2) \
 		-DMOZ_NATIVE_ZLIB=$(MOZ_NATIVE_ZLIB) \
 		-DMOZ_NATIVE_PNG=$(MOZ_NATIVE_PNG) \
 		-DMOZ_NATIVE_JPEG=$(MOZ_NATIVE_JPEG) \
-		-DMOZ_NATIVE_LCMS=$(MOZ_NATIVE_LCMS) \
 		$(srcdir)/system-headers | $(PERL) $(topsrcdir)/nsprpub/config/make-system-wrappers.pl system_wrappers
-	$(INSTALL) system_wrappers $(DIST)/include
+	$(INSTALL) system_wrappers $(DIST)
+
+GARBAGE_DIRS += system_wrappers
 endif
 
 install::
 	$(SYSINSTALL) $(IFLAGS1) $(DEPTH)/mozilla-config.h $(DESTDIR)$(includedir)
 
 GARBAGE += \
-	$(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES)
+	$(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES) buildid $(srcdir)/*.pyc
 
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
-elf-dynstr-gc: elf-dynstr-gc.c Makefile Makefile.in
+elf-dynstr-gc: elf-dynstr-gc.c $(GLOBAL_DEPS)
 	$(CC) $(COMPILE_CFLAGS) $(GLIB_CFLAGS) -o $@ $< $(LDFLAGS) $(GLIB_LIBS) 
 endif
 endif
@@ -140,10 +157,27 @@ clean clobber realclean clobber_all::
 	cd $(MKDEPEND_DIR); $(MAKE) $@
 endif
 
-PYUNITS := unit-Expression.py unit-Preprocessor.py
+PYUNITS := \
+  unit-Expression.py \
+  unit-Preprocessor.py \
+  unit-nsinstall.py \
+  unit-printprereleasesuffix.py \
+  unit-JarMaker.py \
+  unit-buildlist.py \
+  $(NULL)
 
-check::
+check:: check-python-modules check-jar-mn
+
+check-python-modules::
 	@$(EXIT_ON_ERROR) \
 	for test in $(PYUNITS); do \
 	  $(PYTHON) $(srcdir)/tests/$$test ; \
 	done
+
+check-jar-mn::
+	$(MAKE) -C tests/src-simple check-jar
+	$(MAKE) -C tests/src-simple check-flat
+	$(MAKE) -C tests/src-simple check-flat USE_EXTENSION_MANIFEST=1
+ifneq (,$(filter-out WINNT OS2,$(OS_ARCH)))
+	$(MAKE) -C tests/src-simple check-symlink
+endif

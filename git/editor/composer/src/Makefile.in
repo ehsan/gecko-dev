@@ -49,31 +49,6 @@ IS_COMPONENT	= 1
 MODULE_NAME	= nsComposerModule
 LIBXUL_LIBRARY	= 1
 
-PACKAGE_FILE = composer.pkg
-
-REQUIRES	= xpcom \
-		  string \
-		  unicharutil \
-		  dom \
-		  js \
-		  layout \
-		  content \
-		  uriloader \
-		  txmgr \
-		  necko \
-		  pref \
-		  webshell \
-		  docshell \
-		  gfx \
-		  thebes \
-		  widget \
-		  xuldoc \
-		  txtsvc \
-		  imglib2 \
-		  commandhandler \
-		  composer \
-		  locale \
-		  $(NULL)
 
 CPPSRCS  = \
            nsComposeTxtSrvFilter.cpp            \

@@ -63,8 +63,6 @@ NS_INTERFACE_MAP_END_THREADSAFE
 
 // Constructors for a MIME handler.
 nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
-    mMacType(0),
-    mMacCreator(0),
     mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
@@ -73,8 +71,6 @@ nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
 }
 
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
-    mMacType(0),
-    mMacCreator(0),
     mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
@@ -88,8 +84,6 @@ nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
 // for both and distinguish between the two kinds of handlers via the aClass
 // argument to this method, which can be either eMIMEInfo or eProtocolInfo.
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aType, HandlerClass aClass) :
-    mMacType(0),
-    mMacCreator(0),
     mType(aType),
     mClass(aClass),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
@@ -112,12 +106,12 @@ nsMIMEInfoBase::ExtensionExists(const nsACString& aExtension, PRBool *_retval)
 {
     NS_ASSERTION(!aExtension.IsEmpty(), "no extension");
     PRBool found = PR_FALSE;
-    PRUint32 extCount = mExtensions.Count();
+    PRUint32 extCount = mExtensions.Length();
     if (extCount < 1) return NS_OK;
 
     for (PRUint8 i=0; i < extCount; i++) {
-        nsCString* ext = (nsCString*)mExtensions.CStringAt(i);
-        if (ext->Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
+        const nsCString& ext = mExtensions[i];
+        if (ext.Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
             found = PR_TRUE;
             break;
         }
@@ -130,10 +124,10 @@ nsMIMEInfoBase::ExtensionExists(const nsACString& aExtension, PRBool *_retval)
 NS_IMETHODIMP
 nsMIMEInfoBase::GetPrimaryExtension(nsACString& _retval)
 {
-    PRUint32 extCount = mExtensions.Count();
-    if (extCount < 1) return NS_ERROR_NOT_INITIALIZED;
+    if (!mExtensions.Length())
+      return NS_ERROR_NOT_INITIALIZED;
 
-    _retval = *(mExtensions.CStringAt(0));
+    _retval = mExtensions[0];
     return NS_OK;    
 }
 
@@ -141,21 +135,21 @@ NS_IMETHODIMP
 nsMIMEInfoBase::SetPrimaryExtension(const nsACString& aExtension)
 {
   NS_ASSERTION(!aExtension.IsEmpty(), "no extension");
-  PRUint32 extCount = mExtensions.Count();
+  PRUint32 extCount = mExtensions.Length();
   PRUint8 i;
   PRBool found = PR_FALSE;
   for (i=0; i < extCount; i++) {
-    nsCString* ext = (nsCString*)mExtensions.CStringAt(i);
-    if (ext->Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
+    const nsCString& ext = mExtensions[i];
+    if (ext.Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
       found = PR_TRUE;
       break;
     }
   }
   if (found) {
-    mExtensions.RemoveCStringAt(i);
+    mExtensions.RemoveElementAt(i);
   }
 
-  mExtensions.InsertCStringAt(aExtension, 0);
+  mExtensions.InsertElementAt(0, aExtension);
   
   return NS_OK;
 }
@@ -163,7 +157,7 @@ nsMIMEInfoBase::SetPrimaryExtension(const nsACString& aExtension)
 NS_IMETHODIMP
 nsMIMEInfoBase::AppendExtension(const nsACString& aExtension)
 {
-  mExtensions.AppendCString(aExtension);
+  mExtensions.AppendElement(aExtension);
   return NS_OK;
 }
 
@@ -216,42 +210,6 @@ nsMIMEInfoBase::Equals(nsIMIMEInfo *aMIMEInfo, PRBool *_retval)
 }
 
 NS_IMETHODIMP
-nsMIMEInfoBase::GetMacType(PRUint32 *aMacType)
-{
-    *aMacType = mMacType;
-
-    if (!mMacType)
-        return NS_ERROR_NOT_INITIALIZED;
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMIMEInfoBase::SetMacType(PRUint32 aMacType)
-{
-    mMacType = aMacType;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMIMEInfoBase::GetMacCreator(PRUint32 *aMacCreator)
-{
-    *aMacCreator = mMacCreator;
-
-    if (!mMacCreator)
-        return NS_ERROR_NOT_INITIALIZED;
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMIMEInfoBase::SetMacCreator(PRUint32 aMacCreator)
-{
-    mMacCreator = aMacCreator;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsMIMEInfoBase::SetFileExtensions(const nsACString& aExtensions)
 {
     mExtensions.Clear();
@@ -260,11 +218,11 @@ nsMIMEInfoBase::SetFileExtensions(const nsACString& aExtensions)
     PRInt32 breakLocation = -1;
     while ( (breakLocation= extList.FindChar(',') )!= -1)
     {
-        mExtensions.AppendCString(Substring(extList.get(), extList.get() + breakLocation));
+        mExtensions.AppendElement(Substring(extList.get(), extList.get() + breakLocation));
         extList.Cut(0, breakLocation+1 );
     }
     if ( !extList.IsEmpty() )
-        mExtensions.AppendCString( extList );
+        mExtensions.AppendElement( extList );
     return NS_OK;
 }
 
@@ -387,8 +345,6 @@ NS_IMETHODIMP
 nsMIMEInfoBase::LaunchWithURI(nsIURI* aURI,
                               nsIInterfaceRequestor* aWindowContext)
 {
-  nsresult rv;
-
   // for now, this is only being called with protocol handlers; that
   // will change once we get to more general registerContentHandler
   // support
@@ -403,26 +359,7 @@ nsMIMEInfoBase::LaunchWithURI(nsIURI* aURI,
     if (!mPreferredApplication)
       return NS_ERROR_FILE_NOT_FOUND;
 
-    // check for and possibly launch with web application
-    nsCOMPtr<nsIWebHandlerApp> webHandler = 
-      do_QueryInterface(mPreferredApplication, &rv);
-    if (NS_SUCCEEDED(rv)) {
-      return LaunchWithWebHandler(webHandler, aURI, aWindowContext);         
-    }
-
-    // ok, we must have a local handler app
-    nsCOMPtr<nsILocalHandlerApp> localHandler = 
-      do_QueryInterface(mPreferredApplication, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsIFile> executable;
-    rv = localHandler->GetExecutable(getter_AddRefs(executable));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // pass the entire URI to the handler.
-    nsCAutoString spec;
-    aURI->GetSpec(spec);
-    return LaunchWithIProcess(executable, spec);
+    return mPreferredApplication->LaunchWithURI(aURI, aWindowContext);
   } 
 
   return NS_ERROR_INVALID_ARG;
@@ -434,9 +371,6 @@ nsMIMEInfoBase::CopyBasicDataTo(nsMIMEInfoBase* aOther)
   aOther->mType = mType;
   aOther->mDefaultAppDescription = mDefaultAppDescription;
   aOther->mExtensions = mExtensions;
-
-  aOther->mMacType = mMacType;
-  aOther->mMacCreator = mMacCreator;
 }
 
 /* static */
@@ -455,72 +389,7 @@ nsMIMEInfoBase::LaunchWithIProcess(nsIFile* aApp, const nsCString& aArg)
 
   const char *string = aArg.get();
 
-  PRUint32 pid;
-  return process->Run(PR_FALSE, &string, 1, &pid);
-}
-
-/* static */
-nsresult
-nsMIMEInfoBase::LaunchWithWebHandler(nsIWebHandlerApp *aApp, nsIURI *aURI,
-                                     nsIInterfaceRequestor *aWindowContext) 
-{
-  
-  nsCAutoString uriTemplate;
-  nsresult rv = aApp->GetUriTemplate(uriTemplate);
-  if (NS_FAILED(rv)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  // get the URI spec so we can escape it for insertion into the template 
-  nsCAutoString uriSpecToHandle;
-  rv = aURI->GetSpec(uriSpecToHandle);
-  if (NS_FAILED(rv)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  // XXX need to strip passwd & username from URI to handle, as per the
-  // WhatWG HTML5 draft.  nsSimpleURL, which is what we're going to get,
-  // can't do this directly.  Ideally, we'd fix nsStandardURL to make it
-  // possible to turn off all of its quirks handling, and use that...
-
-  // XXX this doesn't exactly match how the HTML5 draft is requesting us to
-  // escape; at the very least, it should be escaping @ signs, and there
-  // may well be more issues (bug 382019).
-  nsCAutoString escapedUriSpecToHandle;
-  NS_EscapeURL(uriSpecToHandle, esc_Minimal | esc_Forced | esc_Colon,
-               escapedUriSpecToHandle);
-
-  // XXX note that this replace all occurrences of %s with the URL to be
-  // handled, instead of just the first, as specified by the current draft
-  // of the spec.  Bug 394476 filed to track this.
-  uriTemplate.ReplaceSubstring(NS_LITERAL_CSTRING("%s"),
-                               escapedUriSpecToHandle);
-
-  // convert spec to URI; no original charset needed since there's no way
-  // to communicate that information to any handler
-  nsCOMPtr<nsIURI> uriToSend;
-  rv = NS_NewURI(getter_AddRefs(uriToSend), uriTemplate);
-  if (NS_FAILED(rv))
-    return rv;
-
-  // create a channel
-  nsCOMPtr<nsIChannel> newChannel;
-  rv = NS_NewChannel(getter_AddRefs(newChannel), uriToSend, nsnull, nsnull,
-                     nsnull, nsIChannel::LOAD_DOCUMENT_URI);
-  if (NS_FAILED(rv))
-    return rv;
-
-  // load the URI
-  nsCOMPtr<nsIURILoader> uriLoader = do_GetService(NS_URI_LOADER_CONTRACTID, 
-                                                   &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // XXX ideally, aIsContentPreferred (the second param) should really be
-  // passed in from above.  Practically, PR_TRUE is probably a reasonable
-  // default since browsers don't care much, and link click is likely to be
-  // the more interesting case for non-browser apps.  See 
-  // <https://bugzilla.mozilla.org/show_bug.cgi?id=392957#c9> for details.
-  return uriLoader->OpenURI(newChannel, PR_TRUE, aWindowContext);
+  return process->Run(PR_FALSE, &string, 1);
 }
 
 // nsMIMEInfoImpl implementation
@@ -561,3 +430,8 @@ nsMIMEInfoImpl::LaunchDefaultWithFile(nsIFile* aFile)
   return LaunchWithIProcess(mDefaultApplication, nativePath);
 }
 
+NS_IMETHODIMP
+nsMIMEInfoBase::GetPossibleLocalHandlers(nsIArray **_retval)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}

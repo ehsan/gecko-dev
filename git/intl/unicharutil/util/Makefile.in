@@ -55,10 +55,6 @@ LIBRARY_NAME=unicharutil_external_s
 DIST_INSTALL = 1
 SDK_LIBRARY = $(LIBRARY)
 
-REQUIRES=xpcom \
-		string \
-		uconv \
-		$(NULL)
 
 SDK_HEADERS = \
 	nsUnicharUtils.h \

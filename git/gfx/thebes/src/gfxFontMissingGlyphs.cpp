@@ -14,7 +14,7 @@
  *
  * The Original Code is Mozilla Corporation code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -200,7 +200,7 @@ gfxFontMissingGlyphs::DrawMissingGlyph(gfxContext *aContext, const gfxRect& aRec
     aContext->Save();
 
     gfxRGBA currentColor;
-    if (!aContext->GetColor(currentColor)) {
+    if (!aContext->GetDeviceColor(currentColor)) {
         // We're currently drawing with some kind of pattern... Just draw
         // the missing-glyph data in black.
         currentColor = gfxRGBA(0,0,0,1);
@@ -221,12 +221,18 @@ gfxFontMissingGlyphs::DrawMissingGlyph(gfxContext *aContext, const gfxRect& aRec
         aContext->SetLineJoin(gfxContext::LINE_JOIN_MITER);
         gfxRGBA color = currentColor;
         color.a *= BOX_BORDER_OPACITY;
-        aContext->SetColor(color);
+        aContext->SetDeviceColor(color);
         aContext->NewPath();
         aContext->Rectangle(borderStrokeRect);
+
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+        aContext->Fill();
+#else
         aContext->Stroke();
+#endif
     }
 
+#ifndef MOZ_GFX_OPTIMIZE_MOBILE
     gfxPoint center(aRect.X() + aRect.Width()/2,
                     aRect.Y() + aRect.Height()/2);
     gfxFloat halfGap = HEX_CHAR_GAP/2.0;
@@ -235,7 +241,7 @@ gfxFontMissingGlyphs::DrawMissingGlyph(gfxContext *aContext, const gfxRect& aRec
         if (aRect.Width() >= 2*MINIFONT_WIDTH + HEX_CHAR_GAP &&
             aRect.Height() >= 2*MINIFONT_HEIGHT + HEX_CHAR_GAP) {
             // Draw 4 digits for BMP
-            aContext->SetColor(currentColor);
+            aContext->SetDeviceColor(currentColor);
             gfxFloat left = -(MINIFONT_WIDTH + halfGap);
             DrawHexChar(aContext,
                         center + gfxPoint(left, top), (aChar >> 12) & 0xF);
@@ -250,7 +256,7 @@ gfxFontMissingGlyphs::DrawMissingGlyph(gfxContext *aContext, const gfxRect& aRec
         if (aRect.Width() >= 3*MINIFONT_WIDTH + 2*HEX_CHAR_GAP &&
             aRect.Height() >= 2*MINIFONT_HEIGHT + HEX_CHAR_GAP) {
             // Draw 6 digits for non-BMP
-            aContext->SetColor(currentColor);
+            aContext->SetDeviceColor(currentColor);
             gfxFloat first = -(MINIFONT_WIDTH * 1.5 + HEX_CHAR_GAP);
             gfxFloat second = -(MINIFONT_WIDTH / 2.0);
             gfxFloat third = (MINIFONT_WIDTH / 2.0 + HEX_CHAR_GAP);
@@ -268,6 +274,7 @@ gfxFontMissingGlyphs::DrawMissingGlyph(gfxContext *aContext, const gfxRect& aRec
                         center + gfxPoint(third, halfGap), aChar & 0xF);
         }
     }
+#endif
 
     aContext->Restore();
 }

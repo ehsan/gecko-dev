@@ -36,10 +36,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsPrintSettingsImpl.h"
-#include "nsCoord.h"
-#include "nsUnitConversion.h"
 #include "nsReadableUtils.h"
 #include "nsIPrintSession.h"
+
+#define DEFAULT_MARGIN_WIDTH 0.5
 
 NS_IMPL_ISUPPORTS1(nsPrintSettings, nsIPrintSettings)
 
@@ -60,10 +60,10 @@ nsPrintSettings::nsPrintSettings() :
   mHowToEnableFrameUI(kFrameEnableNone),
   mIsCancelled(PR_FALSE),
   mPrintSilent(PR_FALSE),
-	mPrintPreview(PR_FALSE),
+  mPrintPreview(PR_FALSE),
   mShrinkToFit(PR_TRUE),
   mShowPrintProgress(PR_TRUE),
-  mPrintPageDelay(500),
+  mPrintPageDelay(50),
   mPaperData(0),
   mPaperSizeType(kPaperSizeDefined),
   mPaperWidth(8.5),
@@ -72,6 +72,7 @@ nsPrintSettings::nsPrintSettings() :
   mPrintReversed(PR_FALSE),
   mPrintInColor(PR_TRUE),
   mOrientation(kPortraitOrientation),
+  mDownloadFonts(PR_FALSE),
   mNumCopies(1),
   mPrintToFile(PR_FALSE),
   mOutputFormat(kOutputFormatNative),
@@ -80,8 +81,10 @@ nsPrintSettings::nsPrintSettings() :
 {
 
   /* member initializers and constructor code */
-  nscoord halfInch = NS_INCHES_TO_TWIPS(0.5);
-  mMargin.SizeTo(halfInch, halfInch, halfInch, halfInch);
+  PRInt32 marginWidth = NS_INCHES_TO_TWIPS(DEFAULT_MARGIN_WIDTH);
+  mMargin.SizeTo(marginWidth, marginWidth, marginWidth, marginWidth);
+  mEdge.SizeTo(0, 0, 0, 0);
+  mUnwriteableMargin.SizeTo(0,0,0,0);
 
   mPrintOptions = kPrintOddPages | kPrintEvenPages;
 
@@ -441,6 +444,118 @@ NS_IMETHODIMP nsPrintSettings::GetMarginRight(double *aMarginRight)
 NS_IMETHODIMP nsPrintSettings::SetMarginRight(double aMarginRight)
 {
   mMargin.right = NS_INCHES_TO_TWIPS(float(aMarginRight));
+  return NS_OK;
+}
+
+/* attribute double edgeTop; */
+NS_IMETHODIMP nsPrintSettings::GetEdgeTop(double *aEdgeTop)
+{
+  NS_ENSURE_ARG_POINTER(aEdgeTop);
+  *aEdgeTop = NS_TWIPS_TO_INCHES(mEdge.top);
+  return NS_OK;
+}
+NS_IMETHODIMP nsPrintSettings::SetEdgeTop(double aEdgeTop)
+{
+  mEdge.top = NS_INCHES_TO_TWIPS(float(aEdgeTop));
+  return NS_OK;
+}
+
+/* attribute double edgeLeft; */
+NS_IMETHODIMP nsPrintSettings::GetEdgeLeft(double *aEdgeLeft)
+{
+  NS_ENSURE_ARG_POINTER(aEdgeLeft);
+  *aEdgeLeft = NS_TWIPS_TO_INCHES(mEdge.left);
+  return NS_OK;
+}
+NS_IMETHODIMP nsPrintSettings::SetEdgeLeft(double aEdgeLeft)
+{
+  mEdge.left = NS_INCHES_TO_TWIPS(float(aEdgeLeft));
+  return NS_OK;
+}
+
+/* attribute double edgeBottom; */
+NS_IMETHODIMP nsPrintSettings::GetEdgeBottom(double *aEdgeBottom)
+{
+  NS_ENSURE_ARG_POINTER(aEdgeBottom);
+  *aEdgeBottom = NS_TWIPS_TO_INCHES(mEdge.bottom);
+  return NS_OK;
+}
+NS_IMETHODIMP nsPrintSettings::SetEdgeBottom(double aEdgeBottom)
+{
+  mEdge.bottom = NS_INCHES_TO_TWIPS(float(aEdgeBottom));
+  return NS_OK;
+}
+
+/* attribute double edgeRight; */
+NS_IMETHODIMP nsPrintSettings::GetEdgeRight(double *aEdgeRight)
+{
+  NS_ENSURE_ARG_POINTER(aEdgeRight);
+  *aEdgeRight = NS_TWIPS_TO_INCHES(mEdge.right);
+  return NS_OK;
+}
+NS_IMETHODIMP nsPrintSettings::SetEdgeRight(double aEdgeRight)
+{
+  mEdge.right = NS_INCHES_TO_TWIPS(float(aEdgeRight));
+  return NS_OK;
+}
+
+/* attribute double unwriteableMarginTop; */
+NS_IMETHODIMP nsPrintSettings::GetUnwriteableMarginTop(double *aUnwriteableMarginTop)
+{
+  NS_ENSURE_ARG_POINTER(aUnwriteableMarginTop);
+  *aUnwriteableMarginTop = NS_TWIPS_TO_INCHES(mUnwriteableMargin.top);
+  return NS_OK;
+}
+NS_IMETHODIMP nsPrintSettings::SetUnwriteableMarginTop(double aUnwriteableMarginTop)
+{
+  if (aUnwriteableMarginTop >= 0.0) {
+    mUnwriteableMargin.top = NS_INCHES_TO_TWIPS(aUnwriteableMarginTop);
+  }
+  return NS_OK;
+}
+
+/* attribute double unwriteableMarginLeft; */
+NS_IMETHODIMP nsPrintSettings::GetUnwriteableMarginLeft(double *aUnwriteableMarginLeft)
+{
+  NS_ENSURE_ARG_POINTER(aUnwriteableMarginLeft);
+  *aUnwriteableMarginLeft = NS_TWIPS_TO_INCHES(mUnwriteableMargin.left);
+  return NS_OK;
+}
+NS_IMETHODIMP nsPrintSettings::SetUnwriteableMarginLeft(double aUnwriteableMarginLeft)
+{
+  if (aUnwriteableMarginLeft >= 0.0) {
+    mUnwriteableMargin.left = NS_INCHES_TO_TWIPS(aUnwriteableMarginLeft);
+  }
+  return NS_OK;
+}
+
+/* attribute double unwriteableMarginBottom; */
+NS_IMETHODIMP nsPrintSettings::GetUnwriteableMarginBottom(double *aUnwriteableMarginBottom)
+{
+  NS_ENSURE_ARG_POINTER(aUnwriteableMarginBottom);
+  *aUnwriteableMarginBottom = NS_TWIPS_TO_INCHES(mUnwriteableMargin.bottom);
+  return NS_OK;
+}
+NS_IMETHODIMP nsPrintSettings::SetUnwriteableMarginBottom(double aUnwriteableMarginBottom)
+{
+  if (aUnwriteableMarginBottom >= 0.0) {
+    mUnwriteableMargin.bottom = NS_INCHES_TO_TWIPS(aUnwriteableMarginBottom);
+  }
+  return NS_OK;
+}
+
+/* attribute double unwriteableMarginRight; */
+NS_IMETHODIMP nsPrintSettings::GetUnwriteableMarginRight(double *aUnwriteableMarginRight)
+{
+  NS_ENSURE_ARG_POINTER(aUnwriteableMarginRight);
+  *aUnwriteableMarginRight = NS_TWIPS_TO_INCHES(mUnwriteableMargin.right);
+  return NS_OK;
+}
+NS_IMETHODIMP nsPrintSettings::SetUnwriteableMarginRight(double aUnwriteableMarginRight)
+{
+  if (aUnwriteableMarginRight >= 0.0) {
+    mUnwriteableMargin.right = NS_INCHES_TO_TWIPS(aUnwriteableMarginRight);
+  }
   return NS_OK;
 }
 
@@ -888,9 +1003,37 @@ NS_IMETHODIMP nsPrintSettings::SetPaperData(PRInt16 aPaperData)
  *	@update 1/12/01 rods
  */
 NS_IMETHODIMP 
-nsPrintSettings::SetMarginInTwips(nsMargin& aMargin)
+nsPrintSettings::SetMarginInTwips(nsIntMargin& aMargin)
 {
   mMargin = aMargin;
+  return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsPrintSettings::SetEdgeInTwips(nsIntMargin& aEdge)
+{
+  mEdge = aEdge;
+  return NS_OK;
+}
+
+// NOTE: Any subclass implementation of this function should make sure
+// to check for negative margin values in aUnwriteableMargin (which 
+// would indicate that we should use the system default unwriteable margin.)
+NS_IMETHODIMP 
+nsPrintSettings::SetUnwriteableMarginInTwips(nsIntMargin& aUnwriteableMargin)
+{
+  if (aUnwriteableMargin.top >= 0) {
+    mUnwriteableMargin.top = aUnwriteableMargin.top;
+  }
+  if (aUnwriteableMargin.left >= 0) {
+    mUnwriteableMargin.left = aUnwriteableMargin.left;
+  }
+  if (aUnwriteableMargin.bottom >= 0) {
+    mUnwriteableMargin.bottom = aUnwriteableMargin.bottom;
+  }
+  if (aUnwriteableMargin.right >= 0) {
+    mUnwriteableMargin.right = aUnwriteableMargin.right;
+  }
   return NS_OK;
 }
 
@@ -899,9 +1042,32 @@ nsPrintSettings::SetMarginInTwips(nsMargin& aMargin)
  *	@update 6/21/00 dwc
  */
 NS_IMETHODIMP 
-nsPrintSettings::GetMarginInTwips(nsMargin& aMargin)
+nsPrintSettings::GetMarginInTwips(nsIntMargin& aMargin)
 {
   aMargin = mMargin;
+  return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsPrintSettings::GetEdgeInTwips(nsIntMargin& aEdge)
+{
+  aEdge = mEdge;
+  return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsPrintSettings::GetUnwriteableMarginInTwips(nsIntMargin& aUnwriteableMargin)
+{
+  aUnwriteableMargin = mUnwriteableMargin;
+  return NS_OK;
+}
+
+/** ---------------------------------------------------
+ * Stub - platform-specific implementations can use this function.
+ */
+NS_IMETHODIMP
+nsPrintSettings::SetupSilentPrinting()
+{
   return NS_OK;
 }
 
@@ -968,6 +1134,8 @@ nsPrintSettings& nsPrintSettings::operator=(const nsPrintSettings& rhs)
   mStartPageNum        = rhs.mStartPageNum;
   mEndPageNum          = rhs.mEndPageNum;
   mMargin              = rhs.mMargin;
+  mEdge                = rhs.mEdge;
+  mUnwriteableMargin   = rhs.mUnwriteableMargin;
   mScaling             = rhs.mScaling;
   mPrintBGColors       = rhs.mPrintBGColors;
   mPrintBGImages       = rhs.mPrintBGImages;

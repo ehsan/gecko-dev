@@ -13,7 +13,7 @@
   <progressmeter id="n1"/>
   <progressmeter id="n2" mode="undetermined"/>
 
-  <!-- test resuls are displayed in the html:body -->
+  <!-- test results are displayed in the html:body -->
   <body xmlns="http://www.w3.org/1999/xhtml" style="height: 300px; overflow: auto;"/>
 
   <!-- test code goes here -->
@@ -48,6 +48,12 @@ function doTests() {
   ise(n1.value, "17", "determined value set 18");
   n1.value = "Cat";
   ise(n1.value, "17", "determined value set invalid");
+
+  n1.max = 200;
+  is(n1.max, 200, "max changed");
+  n1.value = 150;
+  n1.max = 120;
+  is(n1.value, 120, "max lowered below value");
 
   n2.value = 2;
   ise(n2.value, "0", "undetermined value set 2");

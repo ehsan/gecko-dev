@@ -41,7 +41,7 @@
 
 #include "nsBlockReflowContext.h"
 #include "nsLineLayout.h"
-#include "nsSpaceManager.h"
+#include "nsFloatManager.h"
 #include "nsIFontMetrics.h"
 #include "nsPresContext.h"
 #include "nsFrameManager.h"
@@ -107,11 +107,10 @@ nsBlockReflowContext::ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
   // top-padding then this step is skipped because it will be a margin
   // root.  It is also skipped if the frame is a margin root for other
   // reasons.
-  void* bf;
   nsIFrame* frame = DescendIntoBlockLevelFrame(aRS.frame);
   nsPresContext* prescontext = frame->PresContext();
   if (0 == aRS.mComputedBorderPadding.top &&
-      NS_SUCCEEDED(frame->QueryInterface(kBlockFrameCID, &bf)) &&
+      nsLayoutUtils::GetAsBlock(frame) &&
       !nsBlockFrame::BlockIsMarginRoot(frame)) {
     // iterate not just through the lines of 'block' but also its
     // overflow lines and the normal and overflow lines of its next in
@@ -233,21 +232,12 @@ nsBlockReflowContext::ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
   return dirtiedLine;
 }
 
-static void
-nsPointDtor(void *aFrame, nsIAtom *aPropertyName,
-            void *aPropertyValue, void *aDtorData)
-{
-  nsPoint *point = static_cast<nsPoint*>(aPropertyValue);
-  delete point;
-}
-
 nsresult
 nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
                                   PRBool              aApplyTopMargin,
                                   nsCollapsingMargin& aPrevMargin,
                                   nscoord             aClearance,
                                   PRBool              aIsAdjacentWithTop,
-                                  nsMargin&           aComputedOffsets,
                                   nsLineBox*          aLine,
                                   nsHTMLReflowState&  aFrameRS,
                                   nsReflowStatus&     aFrameReflowStatus,
@@ -256,25 +246,6 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
   nsresult rv = NS_OK;
   mFrame = aFrameRS.frame;
   mSpace = aSpace;
-
-  const nsStyleDisplay* display = mFrame->GetStyleDisplay();
-
-  aComputedOffsets = aFrameRS.mComputedOffsets;
-  if (NS_STYLE_POSITION_RELATIVE == display->mPosition) {
-    nsPropertyTable *propTable = mPresContext->PropertyTable();
-
-    nsPoint *offsets = static_cast<nsPoint*>
-                                  (propTable->GetProperty(mFrame, nsGkAtoms::computedOffsetProperty));
-
-    if (offsets)
-      offsets->MoveTo(aComputedOffsets.left, aComputedOffsets.top);
-    else {
-      offsets = new nsPoint(aComputedOffsets.left, aComputedOffsets.top);
-      if (offsets)
-        propTable->SetProperty(mFrame, nsGkAtoms::computedOffsetProperty,
-                               offsets, nsPointDtor, nsnull);
-    }
-  }
 
   if (!aIsAdjacentWithTop) {
     aFrameRS.mFlags.mIsTopOfPage = PR_FALSE;  // make sure this is cleared
@@ -299,7 +270,7 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
 
   nscoord tx = 0, ty = 0;
   // The values of x and y do not matter for floats, so don't bother calculating
-  // them. Floats are guaranteed to have their own space manager, so tx and ty
+  // them. Floats are guaranteed to have their own float manager, so tx and ty
   // don't matter.  mX and mY don't matter becacuse they are only used in
   // PlaceBlock, which is not used for floats.
   if (aLine) {
@@ -310,7 +281,7 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
     nscoord x = mSpace.x + aFrameRS.mComputedMargin.left;
     nscoord y = mSpace.y + mTopMargin.get() + aClearance;
 
-    if ((mFrame->GetStateBits() & NS_BLOCK_SPACE_MGR) == 0)
+    if ((mFrame->GetStateBits() & NS_BLOCK_FLOAT_MGR) == 0)
       aFrameRS.mBlockDelta = mOuterReflowState.mBlockDelta + y - aLine->mBounds.y;
 
     mX = x;
@@ -335,9 +306,9 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
   mMetrics.height = nscoord(0xdeadbeef);
 #endif
 
-  mOuterReflowState.mSpaceManager->Translate(tx, ty);
+  mOuterReflowState.mFloatManager->Translate(tx, ty);
   rv = mFrame->Reflow(mPresContext, mMetrics, aFrameRS, aFrameReflowStatus);
-  mOuterReflowState.mSpaceManager->Translate(-tx, -ty);
+  mOuterReflowState.mFloatManager->Translate(-tx, -ty);
 
 #ifdef DEBUG
   if (!NS_INLINE_IS_BREAK_BEFORE(aFrameReflowStatus)) {
@@ -355,7 +326,7 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
   }
 #endif
 
-  if (!(NS_FRAME_OUTSIDE_CHILDREN & mFrame->GetStateBits())) {
+  if (!mFrame->HasOverflowRect()) {
     // Provide overflow area for child that doesn't have any
     mMetrics.mOverflowArea.x = 0;
     mMetrics.mOverflowArea.y = 0;
@@ -378,9 +349,9 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
         // Floats will eventually be removed via nsBlockFrame::RemoveFloat
         // which detaches the placeholder from the float.
 /* XXX promote DeleteChildsNextInFlow to nsIFrame to elminate this cast */
-        aState.mOverflowTracker.Finish(mFrame);
+        aState.mOverflowTracker->Finish(mFrame);
         static_cast<nsHTMLContainerFrame*>(kidNextInFlow->GetParent())
-          ->DeleteNextInFlowChild(mPresContext, kidNextInFlow);
+          ->DeleteNextInFlowChild(mPresContext, kidNextInFlow, PR_TRUE);
       }
     }
   }
@@ -397,7 +368,6 @@ PRBool
 nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState& aReflowState,
                                  PRBool                   aForceFit,
                                  nsLineBox*               aLine,
-                                 const nsMargin&          aComputedOffsets,
                                  nsCollapsingMargin&      aBottomMarginResult,
                                  nsRect&                  aInFlowBounds,
                                  nsRect&                  aCombinedRect,
@@ -478,8 +448,8 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState& aReflowState,
   // Apply CSS relative positioning
   const nsStyleDisplay* styleDisp = mFrame->GetStyleDisplay();
   if (NS_STYLE_POSITION_RELATIVE == styleDisp->mPosition) {
-    x += aComputedOffsets.left;
-    y += aComputedOffsets.top;
+    x += aReflowState.mComputedOffsets.left;
+    y += aReflowState.mComputedOffsets.top;
   }
   
   // Now place the frame and complete the reflow process

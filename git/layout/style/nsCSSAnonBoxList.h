@@ -57,6 +57,11 @@ CSS_ANON_BOX(mozNonElement, ":-moz-non-element")
 CSS_ANON_BOX(mozAnonymousBlock, ":-moz-anonymous-block")
 CSS_ANON_BOX(mozAnonymousPositionedBlock, ":-moz-anonymous-positioned-block")
 CSS_ANON_BOX(mozMathMLAnonymousBlock, ":-moz-mathml-anonymous-block")
+CSS_ANON_BOX(mozXULAnonymousBlock, ":-moz-xul-anonymous-block")
+
+// Framesets
+CSS_ANON_BOX(horizontalFramesetBorder, ":-moz-hframeset-border")
+CSS_ANON_BOX(verticalFramesetBorder, ":-moz-vframeset-border")
 
 CSS_ANON_BOX(mozLineFrame, ":-moz-line-frame")
 
@@ -66,8 +71,6 @@ CSS_ANON_BOX(cellContent, ":-moz-cell-content")
 CSS_ANON_BOX(dropDownList, ":-moz-dropdown-list")
 CSS_ANON_BOX(fieldsetContent, ":-moz-fieldset-content")
 CSS_ANON_BOX(framesetBlank, ":-moz-frameset-blank")
-CSS_ANON_BOX(radio, ":-moz-radio")
-CSS_ANON_BOX(check, ":-moz-checkbox")
 CSS_ANON_BOX(mozDisplayComboboxControlFrame, ":-moz-display-comboboxcontrol-frame")
 
 CSS_ANON_BOX(inlineTable, ":-moz-inline-table")
@@ -104,12 +107,6 @@ CSS_ANON_BOX(moztreecelltext, ":-moz-tree-cell-text")
 CSS_ANON_BOX(moztreecheckbox, ":-moz-tree-checkbox")
 CSS_ANON_BOX(moztreeprogressmeter, ":-moz-tree-progressmeter")
 CSS_ANON_BOX(moztreedropfeedback, ":-moz-tree-drop-feedback")
-#endif
-
-#ifdef MOZ_MATHML
-CSS_ANON_BOX(mozMathStretchy, ":-moz-math-stretchy")
-CSS_ANON_BOX(mozMathAnonymous, ":-moz-math-anonymous")
-CSS_ANON_BOX(mozMathInline, ":-moz-math-inline")
 #endif
 
 #ifdef MOZ_SVG

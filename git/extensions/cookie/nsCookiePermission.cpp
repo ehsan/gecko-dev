@@ -1,4 +1,5 @@
-// vim:ts=2:sw=2:et:
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:ts=2:sw=2:et: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -21,6 +22,10 @@
  *
  * Contributor(s):
  *   Darin Fisher <darin@meer.net>
+ *   Daniel Witte <dwitte@stanford.edu>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *   Kathleen Brade <brade@pearlcrescent.com>
+ *   Mark Smith <mcs@pearlcrescent.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,15 +52,16 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
-#include "nsIDocShell.h"
-#include "nsIDocShellTreeItem.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsILoadGroup.h"
 #include "nsIChannel.h"
+#include "nsIHttpChannelInternal.h"
 #include "nsIDOMWindow.h"
+#include "nsIDOMDocument.h"
+#include "nsIPrincipal.h"
 #include "nsString.h"
 #include "nsCRT.h"
+#include "nsILoadContext.h"
+#include "nsIScriptObjectPrincipal.h"
+#include "nsNetCID.h"
 
 /****************************************************************
  ************************ nsCookiePermission ********************
@@ -75,9 +81,6 @@ static const PRBool kDefaultPolicy = PR_TRUE;
 static const char kCookiesLifetimePolicy[] = "network.cookie.lifetimePolicy";
 static const char kCookiesLifetimeDays[] = "network.cookie.lifetime.days";
 static const char kCookiesAlwaysAcceptSession[] = "network.cookie.alwaysAcceptSessionCookies";
-#ifdef MOZ_MAIL_NEWS
-static const char kCookiesDisabledForMailNews[] = "network.cookie.disableCookieForMailNews";
-#endif
 
 static const char kCookiesPrefsMigrated[] = "network.cookie.prefsMigrated";
 // obsolete pref names for migration
@@ -89,6 +92,7 @@ static const char kPermissionType[] = "cookie";
 
 #ifdef MOZ_MAIL_NEWS
 // returns PR_TRUE if URI appears to be the URI of a mailnews protocol
+// XXXbz this should be a protocol flag, not a scheme list, dammit!
 static PRBool
 IsFromMailNews(nsIURI *aURI)
 {
@@ -121,9 +125,6 @@ nsCookiePermission::Init()
     prefBranch->AddObserver(kCookiesLifetimePolicy, this, PR_FALSE);
     prefBranch->AddObserver(kCookiesLifetimeDays, this, PR_FALSE);
     prefBranch->AddObserver(kCookiesAlwaysAcceptSession, this, PR_FALSE);
-#ifdef MOZ_MAIL_NEWS
-    prefBranch->AddObserver(kCookiesDisabledForMailNews, this, PR_FALSE);
-#endif
     PrefChanged(prefBranch, nsnull);
 
     // migration code for original cookie prefs
@@ -177,12 +178,6 @@ nsCookiePermission::PrefChanged(nsIPrefBranch *aPrefBranch,
   if (PREF_CHANGED(kCookiesAlwaysAcceptSession) &&
       NS_SUCCEEDED(aPrefBranch->GetBoolPref(kCookiesAlwaysAcceptSession, &val)))
     mCookiesAlwaysAcceptSession = val;
-
-#ifdef MOZ_MAIL_NEWS
-  if (PREF_CHANGED(kCookiesDisabledForMailNews) &&
-      NS_SUCCEEDED(aPrefBranch->GetBoolPref(kCookiesDisabledForMailNews, &val)))
-    mCookiesDisabledForMailNews = val;
-#endif
 }
 
 NS_IMETHODIMP
@@ -194,52 +189,21 @@ nsCookiePermission::SetAccess(nsIURI         *aURI,
   //       the permission codes used by nsIPermissionManager.
   //       this is nice because it avoids conversion code.
   //
-  return mPermMgr->Add(aURI, kPermissionType, aAccess);
+  return mPermMgr->Add(aURI, kPermissionType, aAccess,
+                       nsIPermissionManager::EXPIRE_NEVER, 0);
 }
 
 NS_IMETHODIMP
 nsCookiePermission::CanAccess(nsIURI         *aURI,
-                              nsIURI         *aFirstURI,
                               nsIChannel     *aChannel,
                               nsCookieAccess *aResult)
 {
 #ifdef MOZ_MAIL_NEWS
-  // disable cookies in mailnews if user's prefs say so
-  if (mCookiesDisabledForMailNews) {
-    //
-    // try to examine the "app type" of the docshell owning this request.  if
-    // we find a docshell in the heirarchy of type APP_TYPE_MAIL, then assume
-    // this URI is being loaded from within mailnews.
-    //
-    // XXX this is a pretty ugly hack at the moment since cookies really
-    // shouldn't have to talk to the docshell directly.  ultimately, we want
-    // to talk to some more generic interface, which the docshell would also
-    // implement.  but, the basic mechanism here of leveraging the channel's
-    // (or loadgroup's) notification callbacks attribute seems ideal as it
-    // avoids the problem of having to modify all places in the code which
-    // kick off network requests.
-    //
-    PRUint32 appType = nsIDocShell::APP_TYPE_UNKNOWN;
-    if (aChannel) {
-      nsCOMPtr<nsIDocShellTreeItem> item, parent;
-      NS_QueryNotificationCallbacks(aChannel, parent);
-      if (parent) {
-        do {
-            item = parent;
-            nsCOMPtr<nsIDocShell> docshell = do_QueryInterface(item);
-            if (docshell)
-              docshell->GetAppType(&appType);
-        } while (appType != nsIDocShell::APP_TYPE_MAIL &&
-                 NS_SUCCEEDED(item->GetParent(getter_AddRefs(parent))) &&
-                 parent);
-      }
-    }
-    if ((appType == nsIDocShell::APP_TYPE_MAIL) ||
-        (aFirstURI && IsFromMailNews(aFirstURI)) ||
-        IsFromMailNews(aURI)) {
-      *aResult = ACCESS_DENY;
-      return NS_OK;
-    }
+  // If this URI is a mailnews one (e.g. imap etc), don't allow cookies for
+  // it.
+  if (IsFromMailNews(aURI)) {
+    *aResult = ACCESS_DENY;
+    return NS_OK;
   }
 #endif // MOZ_MAIL_NEWS
   
@@ -313,8 +277,10 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
     // check whether the user wants to be prompted
     if (mCookiesLifetimePolicy == ASK_BEFORE_ACCEPT) {
       // if it's a session cookie and the user wants to accept these 
-      // without asking, just accept the cookie and return
-      if (*aIsSession && mCookiesAlwaysAcceptSession) {
+      // without asking, or if we are in private browsing mode, just
+      // accept the cookie and return
+      if ((*aIsSession && mCookiesAlwaysAcceptSession) ||
+          InPrivateBrowsing()) {
         *aResult = PR_TRUE;
         return NS_OK;
       }
@@ -350,8 +316,13 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
 
       // try to get a nsIDOMWindow from the channel...
       nsCOMPtr<nsIDOMWindow> parent;
-      if (aChannel)
-        NS_QueryNotificationCallbacks(aChannel, parent);
+      if (aChannel) {
+        nsCOMPtr<nsILoadContext> ctx;
+        NS_QueryNotificationCallbacks(aChannel, ctx);
+        if (ctx) {
+          ctx->GetAssociatedWindow(getter_AddRefs(parent));
+        }
+      }
 
       // get some useful information to present to the user:
       // whether a previous cookie already exists, and how many cookies this host
@@ -391,13 +362,16 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       if (rememberDecision) {
         switch (*aResult) {
           case nsICookiePromptService::DENY_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::DENY_ACTION);
+            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::DENY_ACTION,
+                          nsIPermissionManager::EXPIRE_NEVER, 0);
             break;
           case nsICookiePromptService::ACCEPT_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::ALLOW_ACTION);
+            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::ALLOW_ACTION,
+                          nsIPermissionManager::EXPIRE_NEVER, 0);
             break;
           case nsICookiePromptService::ACCEPT_SESSION_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, nsICookiePermission::ACCESS_SESSION);
+            mPermMgr->Add(aURI, kPermissionType, nsICookiePermission::ACCESS_SESSION,
+                          nsIPermissionManager::EXPIRE_NEVER, 0);
             break;
           default:
             break;
@@ -421,6 +395,104 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
   return NS_OK;
 }
 
+NS_IMETHODIMP 
+nsCookiePermission::GetOriginatingURI(nsIChannel  *aChannel,
+                                      nsIURI     **aURI)
+{
+  /* to find the originating URI, we use the loadgroup of the channel to obtain
+   * the window owning the load, and from there, we find the top same-type
+   * window and its URI. there are several possible cases:
+   *
+   * 1) no channel.
+   *
+   * 2) a channel with the "force allow third party cookies" option set.
+   *    since we may not have a window, we return the channel URI in this case.
+   *
+   * 3) a channel, but no window. this can occur when the consumer kicking
+   *    off the load doesn't provide one to the channel, and should be limited
+   *    to loads of certain types of resources.
+   *
+   * 4) a window equal to the top window of same type, with the channel its
+   *    document channel. this covers the case of a freshly kicked-off load
+   *    (e.g. the user typing something in the location bar, or clicking on a
+   *    bookmark), where the window's URI hasn't yet been set, and will be
+   *    bogus. we return the channel URI in this case.
+   *
+   * 5) Anything else. this covers most cases for an ordinary page load from
+   *    the location bar, and will catch nested frames within a page, image
+   *    loads, etc. we return the URI of the root window's document's principal
+   *    in this case.
+   */
+
+  *aURI = nsnull;
+
+  // case 1)
+  if (!aChannel)
+    return NS_ERROR_NULL_POINTER;
+
+  // case 2)
+  nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal = do_QueryInterface(aChannel);
+  if (httpChannelInternal)
+  {
+    PRBool doForce = PR_FALSE;
+    if (NS_SUCCEEDED(httpChannelInternal->GetForceAllowThirdPartyCookie(&doForce)) && doForce)
+    {
+      // return the channel's URI (we may not have a window)
+      aChannel->GetURI(aURI);
+      if (!*aURI)
+        return NS_ERROR_NULL_POINTER;
+
+      return NS_OK;
+    }
+  }
+
+  // find the associated window and its top window
+  nsCOMPtr<nsILoadContext> ctx;
+  NS_QueryNotificationCallbacks(aChannel, ctx);
+  nsCOMPtr<nsIDOMWindow> topWin, ourWin;
+  if (ctx) {
+    ctx->GetTopWindow(getter_AddRefs(topWin));
+    ctx->GetAssociatedWindow(getter_AddRefs(ourWin));
+  }
+
+  // case 3)
+  if (!topWin)
+    return NS_ERROR_INVALID_ARG;
+
+  // case 4)
+  if (ourWin == topWin) {
+    // Check whether this is the document channel for this window (representing
+    // a load of a new page).  This is a bit of a nasty hack, but we will
+    // hopefully flag these channels better later.
+    nsLoadFlags flags;
+    aChannel->GetLoadFlags(&flags);
+
+    if (flags & nsIChannel::LOAD_DOCUMENT_URI) {
+      // get the channel URI - the window's will be bogus
+      aChannel->GetURI(aURI);
+      if (!*aURI)
+        return NS_ERROR_NULL_POINTER;
+
+      return NS_OK;
+    }
+  }
+
+  // case 5) - get the originating URI from the top window's principal
+  nsCOMPtr<nsIScriptObjectPrincipal> scriptObjPrin = do_QueryInterface(topWin);
+  NS_ENSURE_TRUE(scriptObjPrin, NS_ERROR_UNEXPECTED);
+
+  nsIPrincipal* prin = scriptObjPrin->GetPrincipal();
+  NS_ENSURE_TRUE(prin, NS_ERROR_UNEXPECTED);
+  
+  prin->GetURI(aURI);
+
+  if (!*aURI)
+    return NS_ERROR_NULL_POINTER;
+
+  // all done!
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsCookiePermission::Observe(nsISupports     *aSubject,
                             const char      *aTopic,
@@ -433,4 +505,15 @@ nsCookiePermission::Observe(nsISupports     *aSubject,
   if (prefBranch)
     PrefChanged(prefBranch, NS_LossyConvertUTF16toASCII(aData).get());
   return NS_OK;
+}
+
+PRBool
+nsCookiePermission::InPrivateBrowsing()
+{
+  PRBool inPrivateBrowsingMode = PR_FALSE;
+  if (!mPBService)
+    mPBService = do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+  if (mPBService)
+    mPBService->GetPrivateBrowsingEnabled(&inPrivateBrowsingMode);
+  return inPrivateBrowsingMode;
 }

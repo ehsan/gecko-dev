@@ -45,6 +45,8 @@ interface mozIStorageAggregateFunction;
 interface mozIStorageFunction;
 interface mozIStorageProgressHandler;
 interface mozIStorageStatement;
+interface mozIStorageStatementCallback;
+interface mozIStoragePendingStatement;
 interface nsIFile;
 
 /**
@@ -53,13 +55,15 @@ interface nsIFile;
  * primary interface for interacting with a database, including
  * creating prepared statements, executing SQL, and examining database
  * errors.
+ *
+ * @threadsafe
  */
-[scriptable, uuid(e42f0655-cdc3-47c6-824a-cdb88c731cb9)]
+[scriptable, uuid(ac3c486c-69a1-4cbe-8f25-2ad20880eab3)]
 interface mozIStorageConnection : nsISupports {
   /*
    * Initialization and status
    */
-  
+
   /**
    * Closes a database connection.  C++ callers should simply set the database
    * variable to NULL.
@@ -67,7 +71,8 @@ interface mozIStorageConnection : nsISupports {
    void close();
 
   /**
-   * whether the database is open or not
+   * Indicates if the connection is open and ready to use.  This will be false
+   * if the connection failed to open, or it has been closed.
    */
   readonly attribute boolean connectionReady;
 
@@ -122,6 +127,31 @@ interface mozIStorageConnection : nsISupports {
    * @param aSQLStatement  The SQL statement to execute
    */
   void executeSimpleSQL(in AUTF8String aSQLStatement);
+
+  /**
+   * Execute an array of queries created with this connection asynchronously
+   * using any currently bound parameters.  The statements are ran wrapped in a
+   * transaction.  These statements can be reused immediately, and reset does
+   * not need to be called.
+   *
+   * Note:  If you have any custom defined functions, they must be re-entrant
+   *        since they can be called on multiple threads.
+   *
+   * @param aStatements
+   *        The array of statements to execute asynchronously, in the order they
+   *        are given in the array.
+   * @param aNumStatements
+   *        The number of statements in aStatements.
+   * @param aCallback [optional]
+   *        The callback object that will be notified of progress, errors, and
+   *        completion.
+   * @returns an object that can be used to cancel the statements execution.
+   */
+  mozIStoragePendingStatement executeAsync(
+    [array, size_is(aNumStatements)] in mozIStorageStatement aStatements,
+    in unsigned long aNumStatements,
+    [optional] in mozIStorageStatementCallback aCallback
+  );
 
   /**
    * Check if the given table exists.
@@ -205,7 +235,9 @@ interface mozIStorageConnection : nsISupports {
    */
 
   /**
-   * Create a new SQLite function
+   * Create a new SQL function.  If you use your connection on multiple threads,
+   * your function needs to be threadsafe, or it should only be called on one
+   * thread.
    *
    * @param aFunctionName  The name of function to create, as seen in SQL.
    * @param aNumArguments  The number of arguments the function takes. Pass
@@ -218,7 +250,9 @@ interface mozIStorageConnection : nsISupports {
                       in mozIStorageFunction aFunction);
 
   /**
-   * Create a new SQLite aggregate function
+   * Create a new SQL aggregate function.  If you use your connection on
+   * multiple threads, your function needs to be threadsafe, or it should only
+   * be called on one thread.
    *
    * @param aFunctionName  The name of aggregate function to create, as seen
    *                       in SQL.
@@ -231,7 +265,7 @@ interface mozIStorageConnection : nsISupports {
                                in long aNumArguments,
                                in mozIStorageAggregateFunction aFunction);
   /**
-   * Delete custom SQLite function (simple or aggregate one)
+   * Delete custom SQL function (simple or aggregate one).
    *
    * @param aFunctionName  The name of function to remove.
    */
@@ -239,7 +273,9 @@ interface mozIStorageConnection : nsISupports {
 
   /**
    * Sets a progress handler. Only one handler can be registered at a time.
-   * If you need more than one, you need to chain them yourself.
+   * If you need more than one, you need to chain them yourself.  This progress
+   * handler should be threadsafe if you use this connection object on more than
+   * one thread.
    *
    * @param aGranularity   The number of SQL virtual machine steps between
    *                       progress handler callbacks.
@@ -256,39 +292,4 @@ interface mozIStorageConnection : nsISupports {
    * @return previous registered handler.
    */
   mozIStorageProgressHandler removeProgressHandler();
-
-  /*
-   * Utilities
-   */
-
-  /**
-   * Copies the current database file to the specified parent directory with the
-   * specified file name.  If the parent directory is not specified, it places
-   * the backup in the same directory as the current file.  This function
-   * ensures that the file being created is unique.
-   *
-   * @param aFileName
-   *        The name of the new file to create.
-   * @param [optional] aParentDirectory
-   *        The directory you'd like the file to be placed.
-   * @return The nsIFile representing the backup file.
-   */
-  nsIFile backupDB(in AString aFileName,
-                   [optional] in nsIFile aParentDirectory);
-
-  /**
-   * This is used to preload the database cache. It loads pages from the
-   * start of the database file until the memory cache (specified by
-   * "PRAGMA cache_size=") is full or the entire file is read.
-   *
-   * The cache MUST be active on the database for this to work. This means
-   * that you must have a transaction open on the connection, or have a
-   * transaction open on another connection that shares the same pager cache.
-   * This cached data will go away when the transaction is closed.
-   *
-   * This preload operation can dramatically speed up read operations because
-   * the data is loaded as one large block. Normally, pages are read in on
-   * demand, which can cause many disk seeks.
-   */
-  void preload();
 };

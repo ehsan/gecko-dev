@@ -50,6 +50,8 @@
 #include "nsAutoPtr.h"
 #include "nsNetCID.h"
 #include "nsNetError.h"
+#include "nsDNSPrefetch.h"
+#include "nsProtocolProxyService.h"
 #include "prsystem.h"
 #include "prnetdb.h"
 #include "prmon.h"
@@ -61,6 +63,7 @@ static const char kPrefDnsCacheExpiration[] = "network.dnsCacheExpiration";
 static const char kPrefEnableIDN[]          = "network.enableIDN";
 static const char kPrefIPv4OnlyDomains[]    = "network.dns.ipv4OnlyDomains";
 static const char kPrefDisableIPv6[]        = "network.dns.disableIPv6";
+static const char kPrefDisablePrefetch[]    = "network.dns.disablePrefetch";
 
 //-----------------------------------------------------------------------------
 
@@ -73,6 +76,7 @@ public:
     nsDNSRecord(nsHostRecord *hostRecord)
         : mHostRecord(hostRecord)
         , mIter(nsnull)
+        , mIterGenCnt(-1)
         , mDone(PR_FALSE) {}
 
 private:
@@ -80,6 +84,9 @@ private:
 
     nsRefPtr<nsHostRecord>  mHostRecord;
     void                   *mIter;
+    int                     mIterGenCnt; // the generation count of
+                                         // mHostRecord->addr_info when we
+                                         // start iterating
     PRBool                  mDone;
 };
 
@@ -95,11 +102,13 @@ nsDNSRecord::GetCanonicalName(nsACString &result)
     // if the record is for an IP address literal, then the canonical
     // host name is the IP address literal.
     const char *cname;
+    PR_Lock(mHostRecord->addr_info_lock);
     if (mHostRecord->addr_info)
         cname = PR_GetCanonNameFromAddrInfo(mHostRecord->addr_info);
     else
         cname = mHostRecord->host;
     result.Assign(cname);
+    PR_Unlock(mHostRecord->addr_info_lock);
     return NS_OK;
 }
 
@@ -112,16 +121,31 @@ nsDNSRecord::GetNextAddr(PRUint16 port, PRNetAddr *addr)
     if (mDone)
         return NS_ERROR_NOT_AVAILABLE;
 
+    PR_Lock(mHostRecord->addr_info_lock);
     if (mHostRecord->addr_info) {
-        mIter = PR_EnumerateAddrInfo(mIter, mHostRecord->addr_info, port, addr);
         if (!mIter)
+            mIterGenCnt = mHostRecord->addr_info_gencnt;
+        else if (mIterGenCnt != mHostRecord->addr_info_gencnt) {
+            // mHostRecord->addr_info has changed, so mIter is invalid.
+            // Restart the iteration.  Alternatively, we could just fail.
+            mIter = nsnull;
+            mIterGenCnt = mHostRecord->addr_info_gencnt;
+        }
+        mIter = PR_EnumerateAddrInfo(mIter, mHostRecord->addr_info, port, addr);
+        PR_Unlock(mHostRecord->addr_info_lock);
+        if (!mIter) {
+            mDone = PR_TRUE;
             return NS_ERROR_NOT_AVAILABLE;
+        }
     }
     else {
-        // This should never be null (but see bug 290190) :-(
-        NS_ENSURE_STATE(mHostRecord->addr);
-
-        mIter = nsnull; // no iterations
+        PR_Unlock(mHostRecord->addr_info_lock);
+        if (!mHostRecord->addr) {
+            // Both mHostRecord->addr_info and mHostRecord->addr are null.
+            // This can happen if mHostRecord->addr_info expired and the
+            // attempt to reresolve it failed.
+            return NS_ERROR_NOT_AVAILABLE;
+        }
         memcpy(addr, mHostRecord->addr, sizeof(PRNetAddr));
         // set given port
         port = PR_htons(port);
@@ -129,9 +153,9 @@ nsDNSRecord::GetNextAddr(PRUint16 port, PRNetAddr *addr)
             addr->inet.port = port;
         else
             addr->ipv6.port = port;
+        mDone = PR_TRUE; // no iterations
     }
         
-    mDone = !mIter;
     return NS_OK; 
 }
 
@@ -172,6 +196,7 @@ NS_IMETHODIMP
 nsDNSRecord::Rewind()
 {
     mIter = nsnull;
+    mIterGenCnt = -1;
     mDone = PR_FALSE;
     return NS_OK;
 }
@@ -299,10 +324,13 @@ nsDNSService::Init()
     PRBool firstTime = (mLock == nsnull);
 
     // prefs
-    PRUint32 maxCacheEntries  = 20;
-    PRUint32 maxCacheLifetime = 1; // minutes
+    PRUint32 maxCacheEntries  = 400;
+    PRUint32 maxCacheLifetime = 3; // minutes
     PRBool   enableIDN        = PR_TRUE;
     PRBool   disableIPv6      = PR_FALSE;
+    PRBool   disablePrefetch  = PR_FALSE;
+    int      proxyType        = nsProtocolProxyService::eProxyConfig_Direct;
+    
     nsAdoptingCString ipv4OnlyDomains;
 
     // read prefs
@@ -318,6 +346,10 @@ nsDNSService::Init()
         prefs->GetBoolPref(kPrefEnableIDN, &enableIDN);
         prefs->GetBoolPref(kPrefDisableIPv6, &disableIPv6);
         prefs->GetCharPref(kPrefIPv4OnlyDomains, getter_Copies(ipv4OnlyDomains));
+        prefs->GetBoolPref(kPrefDisablePrefetch, &disablePrefetch);
+
+        // If a manual proxy is in use, disable prefetch implicitly
+        prefs->GetIntPref("network.proxy.type", &proxyType);
     }
 
     if (firstTime) {
@@ -332,6 +364,11 @@ nsDNSService::Init()
             prefs->AddObserver(kPrefEnableIDN, this, PR_FALSE);
             prefs->AddObserver(kPrefIPv4OnlyDomains, this, PR_FALSE);
             prefs->AddObserver(kPrefDisableIPv6, this, PR_FALSE);
+            prefs->AddObserver(kPrefDisablePrefetch, this, PR_FALSE);
+
+            // Monitor these to see if there is a change in proxy configuration
+            // If a manual proxy is in use, disable prefetch implicitly
+            prefs->AddObserver("network.proxy.type", this, PR_FALSE);
         }
     }
 
@@ -352,8 +389,12 @@ nsDNSService::Init()
         mIDN = idn;
         mIPv4OnlyDomains = ipv4OnlyDomains; // exchanges buffer ownership
         mDisableIPv6 = disableIPv6;
-    }
 
+        // Disable prefetching either by explicit preference or if a manual proxy is configured 
+        mDisablePrefetch = disablePrefetch || (proxyType == nsProtocolProxyService::eProxyConfig_Manual);
+    }
+    
+    nsDNSPrefetch::Initialize(this);
     return rv;
 }
 
@@ -384,6 +425,10 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
     nsCOMPtr<nsIIDNService> idn;
     {
         nsAutoLock lock(mLock);
+
+        if (mDisablePrefetch && (flags & RESOLVE_SPECULATE))
+            return NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
+
         res = mResolver;
         idn = mIDN;
     }

@@ -47,13 +47,6 @@ MODULE		= necko
 LIBRARY_NAME	= neckobase_s
 LIBXUL_LIBRARY  = 1
 
-REQUIRES	= xpcom \
-		  string \
-		  mimetype \
-		  uconv \
-		  locale \
-		  pref \
-		  $(NULL)
 
 CPPSRCS		= \
 		nsTransportUtils.cpp \
@@ -91,18 +84,29 @@ CPPSRCS		= \
 		nsURLHelper.cpp \
 		nsURLParsers.cpp \
 		nsNetStrings.cpp \
+		nsBase64Encoder.cpp \
+		nsSerializationHelper.cpp \
+		nsDNSPrefetch.cpp \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 	CPPSRCS += nsURLHelperOS2.cpp
 else
+ifdef MOZ_ENABLE_LIBCONIC
+	CPPSRCS += nsAutodialMaemo.cpp
+	CPPSRCS += nsNativeConnectionHelper.cpp
+	LOCAL_INCLUDES += -I$(srcdir)/../../system/maemo
+endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 	CPPSRCS += nsURLHelperWin.cpp
 	CPPSRCS += nsNativeConnectionHelper.cpp
+ifneq ($(OS_ARCH), WINCE)
 	CPPSRCS += nsAutodialWin.cpp
-
 else
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+	CPPSRCS += nsAutodialWinCE.cpp
+endif
+else
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 	CPPSRCS += nsURLHelperOSX.cpp
 else
 	CPPSRCS += nsURLHelperUnix.cpp
@@ -112,7 +116,10 @@ endif
 
 EXTRA_COMPONENTS = \
 		$(srcdir)/nsProxyAutoConfig.js \
-		$(srcdir)/nsScriptableIO.js \
+		$(NULL)
+
+EXTRA_JS_MODULES = \
+		NetUtil.jsm \
 		$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a
@@ -122,3 +129,7 @@ FORCE_STATIC_LIB = 1
 include $(topsrcdir)/config/rules.mk
 
 DEFINES += -DIMPL_NS_NET
+
+ifdef MOZ_ENABLE_LIBCONIC
+	OS_INCLUDES += $(GLIB_CFLAGS) $(LIBCONIC_CFLAGS)
+endif

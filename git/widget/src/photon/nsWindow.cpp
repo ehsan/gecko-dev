@@ -53,13 +53,13 @@
 #include "nsRect.h"
 #include "nsTransform2D.h"
 #include "nsGfxCIID.h"
-#include "nsIMenuBar.h"
 #include "nsToolkit.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 
 #include "nsClipboard.h"
 #include "nsIRollupListener.h"
+#include "nsIMenuRollup.h"
 
 #include "nsIServiceManager.h"
 #include "nsIAppShell.h"
@@ -75,6 +75,7 @@
 static PhTile_t *GetWindowClipping( PtWidget_t *aWidget );
 
 nsIRollupListener *nsWindow::gRollupListener = nsnull;
+nsIMenuRollup     *nsWindow::gMenuRollup = nsnull;
 nsIWidget         *nsWindow::gRollupWidget = nsnull;
 static PtWidget_t	*gMenuRegion;
 
@@ -97,6 +98,7 @@ nsWindow::nsWindow()
 {
   mClientWidget    = nsnull;
   mIsTooSmall      = PR_FALSE;
+  mIsDestroying    = PR_FALSE;
   mBorderStyle     = eBorderStyle_default;
   mWindowType      = eWindowType_child;
 	mLastMenu				 = nsnull;
@@ -171,15 +173,21 @@ void nsWindow::DestroyNativeChildren(void)
   }
 }
 
-NS_IMETHODIMP nsWindow::CaptureRollupEvents( nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent ) {
+NS_IMETHODIMP nsWindow::CaptureRollupEvents( nsIRollupListener * aListener,
+                                             nsIMenuRollup * aMenuRollup,
+                                             PRBool aDoCapture,
+                                             PRBool aConsumeRollupEvent )
+{
   PtWidget_t *grabWidget;
   grabWidget = mWidget;
 
   if (aDoCapture) {
-    NS_IF_RELEASE(gRollupListener);
+    gRollupListener = nsnull;
     NS_IF_RELEASE(gRollupWidget);
     gRollupListener = aListener;
-    NS_ADDREF(aListener);
+    NS_IF_RELEASE(gMenuRollup);
+    gMenuRollup = aMenuRollup;
+    NS_IF_ADDREF(aMenuRollup);
     gRollupWidget = this;
     NS_ADDREF(this);
 	
@@ -203,8 +211,8 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents( nsIRollupListener * aListener, PRBo
 			}
   	}
 	else {
-    NS_IF_RELEASE(gRollupListener);
     gRollupListener = nsnull;
+    NS_IF_RELEASE(gMenuRollup);
     NS_IF_RELEASE(gRollupWidget);
 		gRollupWidget = nsnull;
 
@@ -214,16 +222,6 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents( nsIRollupListener * aListener, PRBo
   
   return NS_OK;
 }
-
-NS_METHOD nsWindow::PreCreateWidget( nsWidgetInitData *aInitData ) {
-  if (nsnull != aInitData) {
-    SetWindowType( aInitData->mWindowType );
-    SetBorderStyle( aInitData->mBorderStyle );
-    return NS_OK;
-  	}
-  return NS_ERROR_FAILURE;
-	}
-
 
 //-------------------------------------------------------------------------
 //
@@ -255,12 +253,14 @@ NS_METHOD nsWindow::CreateNative( PtWidget_t *parentWidget ) {
   case eWindowType_dialog :
     mIsToplevel = PR_TRUE;
     break;
+  case eWindowType_plugin :
   case eWindowType_child :
     mIsToplevel = PR_FALSE;
     break;
   }
 	
-  if ( mWindowType == eWindowType_child )
+  if ( mWindowType == eWindowType_child ||
+       mWindowType == eWindowType_plugin )
   {
 	arg_count = 0;
     PtSetArg( &arg[arg_count++], Pt_ARG_POS, &pos, 0 );
@@ -390,7 +390,8 @@ NS_METHOD nsWindow::CreateNative( PtWidget_t *parentWidget ) {
   if( mWidget ) {
 	  SetInstance( mWidget, this );
 	  if( mClientWidget ) SetInstance( mClientWidget, this );
-	  if( mWindowType == eWindowType_child ) {
+	  if( mWindowType == eWindowType_child ||
+	      mWindowType == eWindowType_plugin ) {
       	PtAddCallback(mWidget, Pt_CB_RESIZE, ResizeHandler, nsnull ); 
       	PtAddEventHandler( mWidget,
       	  Ph_EV_PTR_MOTION_BUTTON | Ph_EV_PTR_MOTION_NOBUTTON |
@@ -651,13 +652,13 @@ int nsWindow::WindowWMHandler( PtWidget_t *widget, void *data, PtCallbackInfo_t 
 		case Ph_WM_CONSWITCH:
 			gConsoleRectValid = PR_FALSE; /* force a call tp PhWindowQueryVisible() next time, since we might have moved this window into a different console */
       /* rollup the menus */
-      if( gRollupWidget && gRollupListener ) gRollupListener->Rollup();
+      if( gRollupWidget && gRollupListener ) gRollupListener->Rollup(nsnull, nsnull);
 			break;
 
 		case Ph_WM_FOCUS:
 			if( we->event_state == Ph_WM_EVSTATE_FOCUSLOST ) {
       	/* rollup the menus */
-      	if( gRollupWidget && gRollupListener ) gRollupListener->Rollup();
+      	if( gRollupWidget && gRollupListener ) gRollupListener->Rollup(nsnull, nsnull);
 
 				if( sFocusWidget ) sFocusWidget->DispatchStandardEvent(NS_DEACTIVATE);
 				}
@@ -841,6 +842,10 @@ int nsWindow::EvInfo( PtWidget_t *widget, void *data, PtCallbackInfo_t *cbinfo )
 //-------------------------------------------------------------------------
 NS_METHOD nsWindow::Move( PRInt32 aX, PRInt32 aY ) {
 
+	if( mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog ) {
+		SetSizeMode(nsSizeMode_Normal);
+		}
+
 	if( mWindowType != eWindowType_popup && (mBounds.x == aX) && (mBounds.y == aY) )
 		return NS_OK;
 
@@ -902,7 +907,7 @@ NS_METHOD nsWindow::Move( PRInt32 aX, PRInt32 aY ) {
 int nsWindow::MenuRegionCallback( PtWidget_t *widget, void *data, PtCallbackInfo_t *cbinfo ) {
 	if( gRollupWidget && gRollupListener ) {
 		/* rollup the menu */
-		gRollupListener->Rollup();
+		gRollupListener->Rollup(nsnull, nsnull);
 		}
 	return Pt_CONTINUE;
 	}

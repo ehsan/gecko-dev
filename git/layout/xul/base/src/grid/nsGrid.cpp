@@ -47,6 +47,7 @@
 #include "nsBox.h"
 #include "nsIScrollableFrame.h"
 #include "nsSprocketLayout.h"
+#include "nsGridLayout2.h"
 #include "nsGridRow.h"
 #include "nsGridCell.h"
 
@@ -290,13 +291,11 @@ nsGrid::FindRowsAndColumns(nsIBox** aRows, nsIBox** aColumns)
   while(child)
   {
     nsIBox* oldBox = child;
-    nsresult rv = NS_OK;
-    nsCOMPtr<nsIScrollableFrame> scrollFrame = do_QueryInterface(child, &rv);
+    nsIScrollableFrame *scrollFrame = do_QueryFrame(child);
     if (scrollFrame) {
        nsIFrame* scrolledFrame = scrollFrame->GetScrolledFrame();
        NS_ASSERTION(scrolledFrame,"Error no scroll frame!!");
-       if (NS_FAILED(CallQueryInterface(scrolledFrame, &child)))
-         child = nsnull;
+       child = do_QueryFrame(scrolledFrame);
     }
 
     nsCOMPtr<nsIBoxLayout> layout;
@@ -919,7 +918,7 @@ nsGrid::GetPrefRowHeight(nsBoxLayoutState& aState, PRInt32 aIndex, PRBool aIsHor
      {
        size = box->GetPrefSize(aState);
        nsBox::AddMargin(box, size);
-       nsStackLayout::AddOffset(aState, box, size);
+       nsGridLayout2::AddOffset(aState, box, size);
      }
 
      row->mPref = GET_HEIGHT(size, aIsHorizontal);
@@ -993,7 +992,7 @@ nsGrid::GetMinRowHeight(nsBoxLayoutState& aState, PRInt32 aIndex, PRBool aIsHori
      if (box) {
        size = box->GetPrefSize(aState);
        nsBox::AddMargin(box, size);
-       nsStackLayout::AddOffset(aState, box, size);
+       nsGridLayout2::AddOffset(aState, box, size);
      }
 
      row->mMin = GET_HEIGHT(size, aIsHorizontal) + top + bottom;
@@ -1069,7 +1068,7 @@ nsGrid::GetMaxRowHeight(nsBoxLayoutState& aState, PRInt32 aIndex, PRBool aIsHori
      if (box) {
        size = box->GetPrefSize(aState);
        nsBox::AddMargin(box, size);
-       nsStackLayout::AddOffset(aState, box, size);
+       nsGridLayout2::AddOffset(aState, box, size);
      }
 
      row->mMax = GET_HEIGHT(size, aIsHorizontal);
@@ -1092,10 +1091,8 @@ nsGrid::GetMaxRowHeight(nsBoxLayoutState& aState, PRInt32 aIndex, PRBool aIsHori
     // ignore collapsed children
     if (!child->IsCollapsed(aState))
     {
-      nsSize childSize = child->GetMaxSize(aState);
       nsSize min = child->GetMinSize(aState);
-      nsBox::BoundsCheckMinMax(min, childSize);
-
+      nsSize childSize = nsBox::BoundsCheckMinMax(min, child->GetMaxSize(aState));
       nsSprocketLayout::AddLargestSize(size, childSize, aIsHorizontal);
     }
   }
@@ -1301,7 +1298,7 @@ nsIBox*
 nsGrid::GetScrolledBox(nsIBox* aChild)
 {
   // first see if it is a scrollframe. If so walk down into it and get the scrolled child
-      nsCOMPtr<nsIScrollableFrame> scrollFrame = do_QueryInterface(aChild);
+      nsIScrollableFrame *scrollFrame = do_QueryFrame(aChild);
       if (scrollFrame) {
          nsIFrame* scrolledFrame = scrollFrame->GetScrolledFrame();
          NS_ASSERTION(scrolledFrame,"Error no scroll frame!!");
@@ -1331,7 +1328,7 @@ nsGrid::GetScrollBox(nsIBox* aChild)
   // if it's a parent then the child passed does not
   // have a scroll frame immediately wrapped around it.
   while (parent) {
-    nsCOMPtr<nsIScrollableFrame> scrollFrame = do_QueryInterface(parent);
+    nsIScrollableFrame *scrollFrame = do_QueryFrame(parent);
     // scrollframe? Yep return it.
     if (scrollFrame)
       return parent;

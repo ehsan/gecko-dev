@@ -20,6 +20,7 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s): Chris Cooper
+#                 Jesse Ruderman
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -55,15 +56,25 @@ if prefix == "-":
 else:
     prefix = prefix + ':'
 
+def getSignalName(num):
+    for p in dir(signal):
+        if p.startswith("SIG") and not p.startswith("SIG_"):
+            if getattr(signal, p) == num:
+                return p
+    return "UNKNOWN"
+
 def alarm_handler(signum, frame):
     global pid
     global prefix
     try:
-        print "%s EXIT STATUS: TIMED OUT (%s seconds)" % (prefix, sys.argv[1])
-        os.kill(pid, signal.SIGKILL)
-    except:
+	stoptime = time.time()
+	elapsedtime = stoptime - starttime
+        print "\n%s EXIT STATUS: TIMED OUT (%s seconds)\n" % (prefix, elapsedtime)
+        flushkill(pid, signal.SIGKILL)
+    except OSError, e:
+        print "\ntimed_run.py: exception trying to kill process: %d (%s)\n" % (e.errno, e.strerror)
         pass
-    sys.exit(exitTimeout)
+    flushexit(exitTimeout)
 
 def forkexec(command, args):
     global prefix
@@ -74,11 +85,24 @@ def forkexec(command, args):
         pid = os.fork()
         if pid == 0:  # Child
             os.execvp(command, args)
+            flushbuffers()
         else:  # Parent
             return pid
     except OSError, e:
-        print "%s ERROR: %s %s failed: %d (%s) (%f seconds)" % (prefix, command, args, e.errno, e.strerror, elapsedtime)
-        sys.exit(exitOSError)
+        print "\n%s ERROR: %s %s failed: %d (%s) (%f seconds)\n" % (prefix, command, args, e.errno, e.strerror, elapsedtime)
+        flushexit(exitOSError)
+
+def flushbuffers():
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+def flushexit(rc):
+        flushbuffers()
+        sys.exit(rc)
+
+def flushkill(pid, sig):
+        flushbuffers()
+        os.kill(pid, sig)
 
 signal.signal(signal.SIGALRM, alarm_handler)
 signal.alarm(int(sys.argv[1]))
@@ -92,25 +116,41 @@ try:
 	# it appears that linux at least will on "occasion" return a status
 	# when the process was terminated by a signal, so test signal first.
 	if os.WIFSIGNALED(status):
-	    print "%s EXIT STATUS: CRASHED signal %d (%f seconds)" % (prefix, os.WTERMSIG(status), elapsedtime)
-	    sys.exit(exitSignal)
+            signum = os.WTERMSIG(status)
+            if signum == 2:
+                msg = 'INTERRUPT'
+                rc = exitInterrupt
+            else:
+                msg = 'CRASHED'
+                rc = exitSignal
+
+            print "\n%s EXIT STATUS: %s signal %d %s (%f seconds)\n" % (prefix, msg, signum, getSignalName(signum), elapsedtime)
+            flushexit(rc)
+
 	elif os.WIFEXITED(status):
 	    rc = os.WEXITSTATUS(status)
 	    msg = ''
 	    if rc == 0:
 	        msg = 'NORMAL'
-	    elif rc < 3:
+	    else:
 	        msg = 'ABNORMAL ' + str(rc)
 		rc = exitSignal
-	    else:
-	        msg = 'CRASHED ' + str(rc)
-		rc = exitSignal
 
-	    print "%s EXIT STATUS: %s (%f seconds)" % (prefix, msg, elapsedtime)
-	    sys.exit(rc)
+	    print "\n%s EXIT STATUS: %s (%f seconds)\n" % (prefix, msg, elapsedtime)
+	    flushexit(rc)
 	else:
-	    print "%s EXIT STATUS: NONE (%f seconds)" % (prefix, elapsedtime)
-	    sys.exit(0)
+	    print "\n%s EXIT STATUS: NONE (%f seconds)\n" % (prefix, elapsedtime)
+	    flushexit(0)
 except KeyboardInterrupt:
-	os.kill(pid, 9)
-	sys.exit(exitInterrupt)
+	flushkill(pid, 9)
+	flushexit(exitInterrupt)
+
+# check that the child process has terminated.
+try:
+    os.getpgid(pid)
+    # process still exists. try to kill it and exit with OSError
+    flushkill(pid, 9)
+    flushexit(exitOSError)
+except OSError:
+    # process doesn't exist. all is well.
+    1

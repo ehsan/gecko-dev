@@ -334,17 +334,14 @@ function onConfigLoad()
 // Unhide the warning message
 function ShowPrefs()
 {
-  var prefCount = { value: 0 };
-  var prefArray = gPrefBranch.getChildList("", prefCount);
+  var prefArray = gPrefBranch.getChildList("");
 
-  for (var i = 0; i < prefCount.value; ++i) 
-  {
-    var prefName = prefArray[i];
+  prefArray.forEach(function (prefName) {
     if (/^capability\./.test(prefName)) // avoid displaying "private" preferences
-      continue;
+      return;
 
     fetchPref(prefName, gPrefArray.length);
-  }
+  });
 
   var descending = document.getElementsByAttribute("sortDirection", "descending");
   if (descending.item(0)) {
@@ -369,10 +366,15 @@ function ShowPrefs()
   configTree.controllers.insertControllerAt(0, configController);
 
   document.getElementById("configDeck").setAttribute("selectedIndex", 1);
+  document.getElementById("configTreeKeyset").removeAttribute("disabled");
   if (!document.getElementById("showWarningNextTime").checked)
     gPrefBranch.setBoolPref("general.warnOnAboutConfig", false);
 
-  document.getElementById("textbox").focus();
+  var textbox = document.getElementById("textbox");
+  if (textbox.value)
+    // somebody seems to already have tried to apply a filter
+    FilterPrefs();
+  textbox.focus();
 }
 
 function onConfigUnload()
@@ -417,15 +419,6 @@ function FilterPrefs()
   view.treebox.invalidate();
   view.treebox.rowCountChanged(oldlen, gPrefView.length - oldlen);
   gotoPref(prefCol);
-  document.getElementById("button").disabled = !substring;
-}
-
-function ClearFilter(button)
-{
-  var textbox = document.getElementById("textbox");
-  textbox.value = "";
-  textbox.focus();
-  FilterPrefs();
 }
 
 function prefColSortFunction(x, y)
@@ -615,13 +608,7 @@ function ModifyPref(entry)
     supportsString.data = result.value;
     gPrefBranch.setComplexValue(entry.prefCol, nsISupportsString, supportsString);
   }
-  
-  gPrefService.savePrefFile(null);
-  
-  // Fire event for accessibility
-  var event = document.createEvent('Events');
-  event.initEvent('NameChange', false, true);
-  document.getElementById("configTree").dispatchEvent(event);
 
+  gPrefService.savePrefFile(null);
   return true;
 }

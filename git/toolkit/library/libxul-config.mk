@@ -41,16 +41,20 @@ CPPSRCS += \
 	nsStaticXULComponents.cpp \
 	$(NULL)
 
-ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
-REQUIRES += libreg widget gfx
+ifeq (,$(filter-out WINCE WINNT,$(OS_ARCH)))
+REQUIRES += widget gfx
+CPPSRCS += \
+	nsDllMain.cpp \
+	$(NULL)
+endif
 
+ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 CPPSRCS += \
 	dlldeps.cpp \
 	nsGFXDeps.cpp \
-	nsDllMain.cpp \
 	$(NULL)
 
-RESFILE = xulrunner.res
+RCINCLUDE = xulrunner.rc
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
@@ -61,11 +65,12 @@ LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
+REQUIRES += libreg
 DEFINES	+= -DZLIB_DLL=1
 endif
 
 ifeq ($(OS_ARCH),OS2)
-REQUIRES += libreg widget gfx
+REQUIRES += widget gfx
 
 CPPSRCS += \
 	dlldeps.cpp \
@@ -86,20 +91,40 @@ LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/os2
 endif
 
 # dependent libraries
+ifdef MOZ_IPC
+STATIC_LIBS += \
+  domplugins_s \
+  mozipc_s \
+  mozipdlgen_s \
+  chromium_s \
+  gfxipc_s \
+  $(NULL)
+
+ifdef MOZ_IPDL_TESTS
+STATIC_LIBS += ipdlunittest_s
+endif
+
+ifeq (Linux,$(OS_ARCH))
+OS_LIBS += -lrt
+endif
+ifeq (WINNT,$(OS_ARCH))
+OS_LIBS += psapi.lib dbghelp.lib
+endif
+endif
+
 STATIC_LIBS += \
 	xpcom_core \
 	ucvutil_s \
 	gkgfx \
-	gfxshared_s \
 	$(NULL)
 
-#ifndef MOZ_EMBEDDING_LEVEL_DEFAULT
+ifndef WINCE
 ifdef MOZ_XPINSTALL
 STATIC_LIBS += \
 	mozreg_s \
 	$(NULL)
 endif
-#endif
+endif
 
 # component libraries
 COMPONENT_LIBS += \
@@ -126,12 +151,12 @@ COMPONENT_LIBS += \
 	pipnss \
 	$(NULL)
 
-ifdef MOZ_XMLEXTRAS
+ifdef BUILD_CTYPES
 COMPONENT_LIBS += \
-	xmlextras \
+	jsctypes \
 	$(NULL)
 endif
-  
+
 ifdef MOZ_PLUGINS
 DEFINES += -DMOZ_PLUGINS
 COMPONENT_LIBS += \
@@ -147,8 +172,32 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
-ifdef MOZ_PERF_METRICS
-EXTRA_DSO_LIBS  += mozutil_s
+ifdef MOZ_XUL
+ifdef MOZ_ENABLE_GTK2
+COMPONENT_LIBS += \
+	unixproxy \
+	$(NULL)
+endif
+endif
+
+ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
+COMPONENT_LIBS += \
+	osxproxy \
+	$(NULL)
+endif
+
+ifdef MOZ_XUL
+ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
+COMPONENT_LIBS += \
+        unixproxy \
+        $(NULL)
+endif
+endif
+
+ifneq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
+COMPONENT_LIBS += \
+	windowsproxy \
+	$(NULL)
 endif
 
 ifdef MOZ_XPINSTALL
@@ -169,13 +218,6 @@ ifdef MOZ_PREF_EXTENSIONS
 DEFINES += -DMOZ_PREF_EXTENSIONS
 COMPONENT_LIBS += \
 	autoconfig \
-	$(NULL)
-endif
-
-ifdef MOZ_WEBSERVICES
-DEFINES += -DMOZ_WEBSERVICES
-COMPONENT_LIBS += \
-	websrvcs \
 	$(NULL)
 endif
 
@@ -212,7 +254,7 @@ COMPONENT_LIBS += \
 endif
 endif
 
-ifeq (,$(filter beos os2 mac photon cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (,$(filter qt beos os2 photon cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
 ifdef MOZ_XUL
 ifdef MOZ_XPFE_COMPONENTS
 COMPONENT_LIBS += fileview
@@ -223,7 +265,7 @@ endif
 
 ifdef MOZ_STORAGE
 COMPONENT_LIBS += storagecomps
-EXTRA_DSO_LIBS += sqlite3
+EXTRA_DSO_LDOPTS += $(SQLITE_LIBS)
 endif
 
 ifdef MOZ_PLACES
@@ -237,7 +279,6 @@ ifdef MOZ_MORK
 ifdef MOZ_XUL
 COMPONENT_LIBS += \
 	mork \
-	tkhstory \
 	$(NULL)
 endif
 endif
@@ -251,10 +292,6 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
-ifdef MOZ_MATHML
-COMPONENT_LIBS += ucvmath
-endif
-
 ifdef MOZ_ENABLE_GTK2
 COMPONENT_LIBS += widget_gtk2
 ifdef MOZ_PREF_EXTENSIONS
@@ -262,47 +299,26 @@ COMPONENT_LIBS += system-pref
 endif
 endif
 
-ifneq (,$(MOZ_ENABLE_GTK2))
+ifdef MOZ_ENABLE_GTK2
+ifdef MOZ_X11
 STATIC_LIBS += gtkxtbin
 endif
-
-ifdef MOZ_IPCD
-DEFINES += -DMOZ_IPCD
-COMPONENT_LIBS += ipcdc
 endif
 
 ifdef MOZ_ENABLE_POSTSCRIPT
 DEFINES += -DMOZ_ENABLE_POSTSCRIPT
 STATIC_LIBS += gfxpsshar
 endif
+
 ifneq (,$(filter icon,$(MOZ_IMG_DECODERS)))
-ifndef MOZ_ENABLE_GNOMEUI
+ifndef MOZ_ENABLE_GTK2
 DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif
 endif
 
-ifdef MOZ_ENABLE_CAIRO_GFX
 STATIC_LIBS += thebes
 COMPONENT_LIBS += gkgfxthebes
-
-else # Platform-specific GFX layer
-  ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
-  COMPONENT_LIBS += gkgfxwin
-  endif
-  ifeq (beos,$(MOZ_WIDGET_TOOLKIT))
-  COMPONENT_LIBS += gfx_beos
-  endif
-  ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
-  COMPONENT_LIBS += gfx_os2
-  endif
-  ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-  COMPONENT_LIBS += gfx_mac
-  endif
-  ifdef MOZ_ENABLE_PHOTON
-  COMPONENT_LIBS += gfx_photon
-  endif
-endif
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += gkwidget
@@ -313,17 +329,15 @@ endif
 ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += wdgtos2
 endif
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += widget_mac
+endif
+ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
+COMPONENT_LIBS += widget_qt
 endif
 
 ifdef MOZ_ENABLE_PHOTON
 COMPONENT_LIBS += widget_photon
-endif
-
-ifdef MOZ_OJI
-STATIC_LIBS += jsj
-COMPONENT_LIBS += oji
 endif
 
 ifdef ACCESSIBILITY
@@ -348,10 +362,32 @@ ifneq (,$(filter layout-debug,$(MOZ_EXTENSIONS)))
 COMPONENT_LIBS += gkdebug
 endif
 
-ifdef GC_LEAK_DETECTOR
-EXTRA_DSO_LIBS += boehm
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+EXTRA_DSO_LDOPTS += -framework OpenGL -lcups
 endif
 
-ifdef NS_TRACE_MALLOC
-STATIC_LIBS += tracemalloc
+EXTRA_DSO_LDOPTS += \
+	$(LIBS_DIR) \
+	$(JPEG_LIBS) \
+	$(PNG_LIBS) \
+	$(QCMS_LIBS) \
+	$(MOZ_JS_LIBS) \
+	$(NSS_LIBS) \
+	$(MOZ_CAIRO_LIBS) \
+	$(NULL)
+
+ifdef MOZ_NATIVE_ZLIB
+EXTRA_DSO_LDOPTS += $(ZLIB_LIBS)
+else
+EXTRA_DSO_LDOPTS += $(MOZ_ZLIB_LIBS)
+endif
+
+ifdef MOZ_NATIVE_HUNSPELL
+EXTRA_DSO_LDOPTS += $(MOZ_HUNSPELL_LIBS)
+endif
+
+ifdef MOZ_SYDNEYAUDIO
+ifeq ($(OS_ARCH),Linux)
+EXTRA_DSO_LDOPTS += $(MOZ_ALSA_LIBS)
+endif
 endif

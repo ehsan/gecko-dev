@@ -1,4 +1,4 @@
-#!/usr/local/bin/bash -e
+#!/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,9 +37,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
-TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
-TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
-source ${TEST_BIN}/library.sh
+source $TEST_DIR/bin/library.sh
 
 #
 # options processing
@@ -48,20 +46,20 @@ options="p:b:x:D:d:"
 function usage()
 {
     cat <<EOF
-usage: 
+usage:
 $SCRIPT -p product -b branch -x executablepath -D directory [-d datafiles]
 
 variable            description
 ===============     ============================================================
--p product          required. firefox|thunderbird
--b branch           required. 1.8.0|1.8.1|1.9.0
+-p product          required. firefox.
+-b branch           required. one of supported branches. see library.sh
 -x executablepath   required. path to browser executable
 -D directory        required. path to location of plugins/components
--d datafiles        optional. one or more filenames of files containing 
-                    environment 
+-d datafiles        optional. one or more filenames of files containing
+                    environment
                     variable definitions to be included.
 
-note that the environment variables should have the same names as in the 
+note that the environment variables should have the same names as in the
 "variable" column.
 
 EOF
@@ -70,8 +68,8 @@ EOF
 
 unset product branch executablepath directory datafiles
 
-while getopts $options optname ; 
-  do 
+while getopts $options optname ;
+  do
   case $optname in
       p) product=$OPTARG;;
       b) branch=$OPTARG;;
@@ -82,31 +80,16 @@ while getopts $options optname ;
 done
 
 # include environment variables
-if [[ -n "$datafiles" ]]; then
-    for datafile in $datafiles; do 
-        cat $datafile | sed 's|^|data: |'
-        source $datafile
-    done
-fi
+loadata $datafiles
 
 if [[ -z "$product" || -z "$branch" || \
     -z "$executablepath" || -z "$directory" ]]; then
     usage
 fi
 
-if [[ "$product" != "firefox" && "$product" != "thunderbird" ]]; then
-    error "product \"$product\" must be one of firefox or thunderbird"
-fi
+checkProductBranch $product $branch
 
 executable=`get_executable $product $branch $executablepath`
-
-if [[ -z "$executable" ]]; then
-    error "get_executable $product $branch $executablepath returned empty path"
-fi
-
-if [[ ! -x "$executable" ]]; then 
-    error "executable \"$executable\" is not executable"
-fi
 
 executablepath=`dirname $executable`
 
@@ -115,4 +98,3 @@ executablepath=`dirname $executable`
 #
 echo "$SCRIPT: installing plugins from $directory/ in $executablepath/"
 cp -r "$directory/$OSID/" "$executablepath/"
-

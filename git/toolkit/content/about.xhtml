@@ -58,7 +58,6 @@
 </head>
 
 <body dir="&locale.dir;">
-<div id="aboutPageContainer">
   <div id="aboutLogoContainer">
     <a id="vendorURL" href="http://www.mozilla.org/">
       <img src="about:logo" alt="&brandShortName;"/>
@@ -69,7 +68,9 @@
   <ul id="aboutPageList">
     <li>&about.copy.beforeLink; <a href="about:credits">&about.copy.linkTitle;</a> &about.copy.afterLink;</li>
     <li>&about.license.beforeLink; <a href="about:license">&about.license.linkTitle;</a> &about.license.afterLink;</li>
+    <!-- Release notes link removed pending fix for bug 349985
     <li>&about.relnotes.beforeLink; <a id="releaseNotesURL" href="">&about.relnotes.linkTitle;</a> &about.relnotes.afterLink;</li>
+    -->
     <li>&about.buildconfig.beforeLink; <a href="about:buildconfig">&about.buildconfig.linkTitle;</a> &about.buildconfig.afterLink;</li>
     <script type="application/javascript">
       // get release notes URL from prefs
@@ -96,6 +97,5 @@
     </script>
   </ul>
 
-</div>
 </body>
 </html>

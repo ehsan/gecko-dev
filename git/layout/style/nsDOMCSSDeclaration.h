@@ -41,18 +41,22 @@
 #define nsDOMCSSDeclaration_h___
 
 #include "nsICSSDeclaration.h"
-#include "nsIDOMCSS2Properties.h"
+#include "nsIDOMNSCSS2Properties.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsCOMPtr.h"
 
 class nsCSSDeclaration;
 class nsICSSParser;
 class nsICSSLoader;
 class nsIURI;
 class nsIPrincipal;
+class nsIDocument;
 
 class CSS2PropertiesTearoff : public nsIDOMNSCSS2Properties
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(CSS2PropertiesTearoff)
 
   NS_DECL_NSIDOMCSS2PROPERTIES
   NS_DECL_NSIDOMNSCSS2PROPERTIES
@@ -61,14 +65,12 @@ public:
   virtual ~CSS2PropertiesTearoff();
 
 private:
-  nsICSSDeclaration* mOuter;
+  nsCOMPtr<nsICSSDeclaration> mOuter;
 };
 
 class nsDOMCSSDeclaration : public nsICSSDeclaration
 {
 public:
-  nsDOMCSSDeclaration();
-
   // Only implement QueryInterface; subclasses have the responsibility
   // of implementing AddRef/Release.
   NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
@@ -93,7 +95,6 @@ public:
   NS_IMETHOD Item(PRUint32 index, nsAString & _retval);
   NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) = 0; 
 
-  virtual void DropReference() = 0;
 protected:
   // Always fills in the out parameter, even on failure, and if the out
   // parameter is null the nsresult will be the correct thing to
@@ -101,6 +102,10 @@ protected:
   virtual nsresult GetCSSDeclaration(nsCSSDeclaration **aDecl,
                                      PRBool aAllocate) = 0;
   virtual nsresult DeclarationChanged() = 0;
+  // Document that we must call BeginUpdate/EndUpdate on around the
+  // calls to DeclarationChanged and the style rule mutation that leads
+  // to it.
+  virtual nsIDocument* DocToUpdate() = 0;
   
   // This will only fail if it can't get a parser or a principal.
   // This means it can return NS_OK without aURI or aCSSLoader being
@@ -123,9 +128,6 @@ protected:
   
 protected:
   virtual ~nsDOMCSSDeclaration();
-
-private:
-  CSS2PropertiesTearoff mInner;
 };
 
 #endif // nsDOMCSSDeclaration_h___

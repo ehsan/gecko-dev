@@ -68,7 +68,6 @@ var reporterListener = {
   onProgressChange: function() {  },
   onStatusChange: function() {  },
   onSecurityChange: function() {  },
-  onLinkIconAvailable: function() {  },
   onProgressChange64: function() { },
   onRefreshAttempted: function() { return true; }
 }
@@ -79,9 +78,13 @@ function onBrowserLoad() {
 }
 
 function loadReporterWizard() {
+  var browser = getBrowser();
+  var charSet = browser.contentDocument.characterSet;
+  var url = browser.currentURI.spec;
   window.openDialog("chrome://reporter/content/reportWizard.xul", "",
                     "chrome,centerscreen,dialog",
-                    getBrowser().currentURI.spec);
+                    url,
+                    charSet);
   return true;
 }
 

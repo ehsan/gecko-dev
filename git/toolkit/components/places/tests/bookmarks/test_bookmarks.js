@@ -66,17 +66,19 @@ var observer = {
   onEndUpdateBatch: function() {
     this._endUpdateBatch = true;
   },
-  onItemAdded: function(id, folder, index) {
+  onItemAdded: function(id, folder, index, itemType) {
     this._itemAddedId = id;
     this._itemAddedParent = folder;
     this._itemAddedIndex = index;
   },
-  onItemRemoved: function(id, folder, index) {
+  onBeforeItemRemoved: function(){},
+  onItemRemoved: function(id, folder, index, itemType) {
     this._itemRemovedId = id;
     this._itemRemovedFolder = folder;
     this._itemRemovedIndex = index;
   },
-  onItemChanged: function(id, property, isAnnotationProperty, value) {
+  onItemChanged: function(id, property, isAnnotationProperty, value,
+                          lastModified, itemType) {
     this._itemChangedId = id;
     this._itemChangedProperty = property;
     this._itemChanged_isAnnotationProperty = isAnnotationProperty;
@@ -87,7 +89,8 @@ var observer = {
     this._itemVisitedVistId = visitID;
     this._itemVisitedTime = time;
   },
-  onItemMoved: function(id, oldParent, oldIndex, newParent, newIndex) {
+  onItemMoved: function(id, oldParent, oldIndex, newParent, newIndex,
+                        itemType) {
     this._itemMovedId = id
     this._itemMovedOldParent = oldParent;
     this._itemMovedOldIndex = oldIndex;
@@ -104,24 +107,38 @@ var observer = {
 };
 bmsvc.addObserver(observer, false);
 
-// get bookmarks root id
-var root = bmsvc.bookmarksRoot;
+// get bookmarks menu folder id
+var root = bmsvc.bookmarksMenuFolder;
 
 // index at which items should begin
-var bmStartIndex = 1;
+var bmStartIndex = 0;
 
 // main
 function run_test() {
-  // test roots
+  // test special folders
   do_check_true(bmsvc.placesRoot > 0);
-  do_check_true(bmsvc.bookmarksRoot > 0);
-  do_check_true(bmsvc.tagRoot > 0);
+  do_check_true(bmsvc.bookmarksMenuFolder > 0);
+  do_check_true(bmsvc.tagsFolder > 0);
   do_check_true(bmsvc.toolbarFolder > 0);
-  do_check_true(bmsvc.unfiledRoot > 0);
+  do_check_true(bmsvc.unfiledBookmarksFolder > 0);
+
+  // test getFolderIdForItem() with bogus item id will throw
+  try {
+    var title = bmsvc.getFolderIdForItem(0);
+    do_throw("getFolderIdForItem accepted bad input");
+  } catch(ex) {}
+
+  // test getFolderIdForItem() with bogus item id will throw
+  try {
+    var title = bmsvc.getFolderIdForItem(-1);
+    do_throw("getFolderIdForItem accepted bad input");
+  } catch(ex) {}
 
   // test root parentage
-  do_check_eq(bmsvc.getFolderIdForItem(bmsvc.bookmarksRoot), bmsvc.placesRoot);
-  do_check_eq(bmsvc.getFolderIdForItem(bmsvc.tagRoot), bmsvc.placesRoot);
+  do_check_eq(bmsvc.getFolderIdForItem(bmsvc.bookmarksMenuFolder), bmsvc.placesRoot);
+  do_check_eq(bmsvc.getFolderIdForItem(bmsvc.tagsFolder), bmsvc.placesRoot);
+  do_check_eq(bmsvc.getFolderIdForItem(bmsvc.toolbarFolder), bmsvc.placesRoot);
+  do_check_eq(bmsvc.getFolderIdForItem(bmsvc.unfiledBookmarksFolder), bmsvc.placesRoot);
 
   // create a folder to hold all the tests
   // this makes the tests more tolerant of changes to default_places.html
@@ -155,11 +172,16 @@ function run_test() {
 
   // after just inserting, modified should not be set
   var lastModified = bmsvc.getItemLastModified(newId);
-  do_check_eq(lastModified, 0);
+  do_check_eq(lastModified, dateAdded);
 
-  // the time before we set the title, in microseconds
+  // The time before we set the title, in microseconds.
   var beforeSetTitle = Date.now() * 1000;
   do_check_true(beforeSetTitle >= beforeInsert);
+
+  // Workaround possible VM timers issues moving lastModified and dateAdded
+  // to the past.
+  bmsvc.setItemLastModified(newId, --lastModified);
+  bmsvc.setItemDateAdded(newId, --dateAdded);
 
   // set bookmark title
   bmsvc.setItemTitle(newId, "Google");
@@ -178,10 +200,8 @@ function run_test() {
   LOG("beforeSetTitle = " + beforeSetTitle);
   LOG("lastModified = " + lastModified);
   LOG("lastModified2 = " + lastModified2);
-  // XXX bug 381240
-  //do_check_true(lastModified2 > lastModified);
-  //do_check_true(lastModified2 >= dateAdded);
-  //do_check_true(lastModified2 >= beforeSetTitle);
+  do_check_true(lastModified2 > lastModified);
+  do_check_true(lastModified2 > dateAdded);
 
   // get item title
   var title = bmsvc.getItemTitle(newId);
@@ -269,14 +289,24 @@ function run_test() {
   do_check_eq(observer._itemChangedProperty, "title");
 
   // insert query item
-  var newId6 = bmsvc.insertBookmark(testRoot, uri("place:domain=google.com&group=1"),
-                                    bmsvc.DEFAULT_INDEX, "");
+  var uri6 = uri("place:domain=google.com&type="+
+                 Ci.nsINavHistoryQueryOptions.RESULTS_AS_SITE_QUERY);
+  var newId6 = bmsvc.insertBookmark(testRoot, uri6, bmsvc.DEFAULT_INDEX, "");
   do_check_eq(observer._itemAddedParent, testRoot);
   do_check_eq(observer._itemAddedIndex, 3);
 
   // change item
   bmsvc.setItemTitle(newId6, "Google Sites");
   do_check_eq(observer._itemChangedProperty, "title");
+
+  // test getIdForItemAt
+  do_check_eq(bmsvc.getIdForItemAt(testRoot, 0), workFolder);
+  // wrong parent, should return -1
+  do_check_eq(bmsvc.getIdForItemAt(1337, 0), -1);
+  // wrong index, should return -1
+  do_check_eq(bmsvc.getIdForItemAt(testRoot, 1337), -1);
+  // wrong parent and index, should return -1
+  do_check_eq(bmsvc.getIdForItemAt(1337, 1337), -1);
 
   // move folder, appending, to different folder
   var oldParentCC = getChildCount(testRoot);
@@ -291,15 +321,17 @@ function run_test() {
   do_check_eq(bmsvc.getItemIndex(workFolder), 1);
   do_check_eq(bmsvc.getFolderIdForItem(workFolder), homeFolder);
 
-  // try to get index of the folder from it's ex-parent
-  // XXX expose getItemAtIndex(folder, idx) to test that the item was *removed* from the old parent?
-  // XXX or expose FolderCount, and check that the old parent has one less kids?
+  // try to get index of the item from within the old parent folder
+  // check that it has been really removed from there
+  do_check_neq(bmsvc.getIdForItemAt(testRoot, 0), workFolder);
+  // check the last item from within the old parent folder
+  do_check_neq(bmsvc.getIdForItemAt(testRoot, -1), workFolder);
+  // check the index of the item within the new parent folder
+  do_check_eq(bmsvc.getIdForItemAt(homeFolder, 1), workFolder);
+  // try to get index of the last item within the new parent folder
+  do_check_eq(bmsvc.getIdForItemAt(homeFolder, -1), workFolder);
+  // XXX expose FolderCount, and check that the old parent has one less child?
   do_check_eq(getChildCount(testRoot), oldParentCC-1);
-
-  // XXX move folder, specified index, to different folder
-  // XXX move folder, specified index, within the same folder
-  // XXX move folder, specify same index, within the same folder
-  // XXX move folder, appending, within the same folder
 
   // move item, appending, to different folder
   bmsvc.moveItem(newId5, testRoot, bmsvc.DEFAULT_INDEX);
@@ -308,55 +340,6 @@ function run_test() {
   do_check_eq(observer._itemMovedOldIndex, 0);
   do_check_eq(observer._itemMovedNewParent, testRoot);
   do_check_eq(observer._itemMovedNewIndex, 3);
-
-  // XXX move item, specified index, to different folder 
-  // XXX move item, specified index, within the same folder 
-  // XXX move item, specify same index, within the same folder
-  // XXX move item, appending, within the same folder 
-
-  // Test expected failure of moving a folder to be its own parent
-  try {
-    bmsvc.moveItem(workFolder, workFolder, bmsvc.DEFAULT_INDEX);
-    do_throw("moveItem() allowed moving a folder to be its own parent.");
-  } catch (e) {}
-
-  // Test expected failure of moving a folder to be a child of its child
-  // or of its grandchild.  see bug #383678 
-  var childFolder = bmsvc.createFolder(workFolder, "childFolder", bmsvc.DEFAULT_INDEX);
-  do_check_eq(observer._itemAddedId, childFolder);
-  do_check_eq(observer._itemAddedParent, workFolder);
-  var grandchildFolder = bmsvc.createFolder(childFolder, "grandchildFolder", bmsvc.DEFAULT_INDEX);
-  do_check_eq(observer._itemAddedId, grandchildFolder);
-  do_check_eq(observer._itemAddedParent, childFolder);
-  try {
-    bmsvc.moveItem(workFolder, childFolder, bmsvc.DEFAULT_INDEX);
-    do_throw("moveItem() allowed moving a folder to be a child of its child");
-  } catch (e) {}
-  try {
-    bmsvc.moveItem(workFolder, grandchildFolder, bmsvc.DEFAULT_INDEX);
-    do_throw("moveItem() allowed moving a folder to be a child of its grandchild");
-  } catch (e) {}
-  
-  // test insertSeparator and removeChildAt
-  // XXX - this should also query bookmarks for the folder children
-  // and then test the node type at our index
-  try {
-    bmsvc.insertSeparator(testRoot, 1);
-    bmsvc.removeChildAt(testRoot, 1);
-  } catch(ex) {
-    do_throw("insertSeparator: " + ex);
-  }
-
-  // XXX test getItemType for separators 
-  // add when 379952 is fixed
-
-  // removeChildAt w/ folder
-  bmsvc.createFolder(testRoot, "tmp", 1);
-  bmsvc.removeChildAt(testRoot, 1);
-
-  // removeChildAt w/ bookmark
-  bmsvc.insertBookmark(root, uri("http://blah.com"), 1, "");
-  bmsvc.removeChildAt(root, 1);
 
   // test get folder's index 
   var tmpFolder = bmsvc.createFolder(testRoot, "tmp", 2);
@@ -369,7 +352,12 @@ function run_test() {
     var dateAdded = bmsvc.getItemDateAdded(kwTestItemId);
     // after just inserting, modified should not be set
     var lastModified = bmsvc.getItemLastModified(kwTestItemId);
-    do_check_eq(lastModified, 0);
+    do_check_eq(lastModified, dateAdded);
+
+    // Workaround possible VM timers issues moving lastModified and dateAdded
+    // to the past.
+    bmsvc.setItemLastModified(kwTestItemId, --lastModified);
+    bmsvc.setItemDateAdded(kwTestItemId, --dateAdded);
 
     bmsvc.setKeywordForBookmark(kwTestItemId, "bar");
 
@@ -378,9 +366,8 @@ function run_test() {
     LOG("dateAdded = " + dateAdded);
     LOG("lastModified = " + lastModified);
     LOG("lastModified2 = " + lastModified2);
-    // XXX bug 381240
-    //do_check_true(lastModified2 > lastModified);
-    //do_check_true(lastModified2 >= dateAdded);
+    do_check_true(lastModified2 > lastModified);
+    do_check_true(lastModified2 > dateAdded);
   } catch(ex) {
     do_throw("setKeywordForBookmark: " + ex);
   }
@@ -471,7 +458,6 @@ function run_test() {
 
     // query
     var options = histsvc.getNewQueryOptions();
-    options.setGroupingMode([Ci.nsINavHistoryQueryOptions.GROUP_BY_FOLDER], 1);
     var query = histsvc.getNewQuery();
     query.setFolders([testFolder], 1);
     var result = histsvc.executeQuery(query, options);
@@ -493,7 +479,12 @@ function run_test() {
   var dateAdded = bmsvc.getItemDateAdded(newId10);
   // after just inserting, modified should not be set
   var lastModified = bmsvc.getItemLastModified(newId10);
-  do_check_eq(lastModified, 0);
+  do_check_eq(lastModified, dateAdded);
+
+  // Workaround possible VM timers issues moving lastModified and dateAdded
+  // to the past.
+  bmsvc.setItemLastModified(newId10, --lastModified);
+  bmsvc.setItemDateAdded(newId10, --dateAdded);
 
   bmsvc.changeBookmarkURI(newId10, uri("http://foo11.com/"));
 
@@ -503,9 +494,8 @@ function run_test() {
   LOG("dateAdded = " + dateAdded);
   LOG("lastModified = " + lastModified);
   LOG("lastModified2 = " + lastModified2);
-  // XXX bug 381240
-  //do_check_true(lastModified2 > lastModified);
-  //do_check_true(lastModified2 >= dateAdded);
+  do_check_true(lastModified2 > lastModified);
+  do_check_true(lastModified2 > dateAdded);
 
   do_check_eq(observer._itemChangedId, newId10);
   do_check_eq(observer._itemChangedProperty, "uri");
@@ -528,15 +518,6 @@ function run_test() {
   var bmIndex = bmsvc.getItemIndex(newId12);
   do_check_eq(1, bmIndex);
 
-  // test changing the bookmarks toolbar folder
-  var oldToolbarFolder = bmsvc.toolbarFolder;
-  var newToolbarFolderId = bmsvc.createFolder(testRoot, "new toolbar folder", -1);
-  bmsvc.toolbarFolder = newToolbarFolderId;
-  do_check_eq(bmsvc.toolbarFolder, newToolbarFolderId);
-  do_check_eq(observer._itemChangedId, newToolbarFolderId);
-  do_check_eq(observer._itemChangedProperty, "became_toolbar_folder");
-  do_check_eq(observer._itemChangedValue, "");
-
   // insert a bookmark with title ZZZXXXYYY and then search for it.
   // this test confirms that we can find bookmarks that we haven't visited
   // (which are "hidden") and that we can find by title.
@@ -545,7 +526,7 @@ function run_test() {
                                      bmsvc.DEFAULT_INDEX, "");
   do_check_eq(observer._itemAddedId, newId13);
   do_check_eq(observer._itemAddedParent, testRoot);
-  do_check_eq(observer._itemAddedIndex, 12);
+  do_check_eq(observer._itemAddedIndex, 11);
 
   // set bookmark title
   bmsvc.setItemTitle(newId13, "ZZZXXXYYY");
@@ -613,7 +594,6 @@ function run_test() {
   // for a folder query
   try {
     var options = histsvc.getNewQueryOptions();
-    options.setGroupingMode([Ci.nsINavHistoryQueryOptions.GROUP_BY_FOLDER], 1);
     var query = histsvc.getNewQuery();
     query.setFolders([testRoot], 1);
     var result = histsvc.executeQuery(query, options);
@@ -644,8 +624,7 @@ function run_test() {
                                      bmsvc.DEFAULT_INDEX, "");
   var dateAdded = bmsvc.getItemDateAdded(newId14);
   var lastModified = bmsvc.getItemLastModified(newId14);
-  do_check_eq(lastModified, 0);
-  do_check_true(dateAdded > lastModified);
+  do_check_eq(lastModified, dateAdded);
   bmsvc.setItemLastModified(newId14, 1234);
   var fakeLastModified = bmsvc.getItemLastModified(newId14);
   do_check_eq(fakeLastModified, 1234);
@@ -661,43 +640,39 @@ function run_test() {
   // bug 378820
   var uri1 = uri("http://foo.tld/a");
   bmsvc.insertBookmark(testRoot, uri1, bmsvc.DEFAULT_INDEX, "");
-  histsvc.addVisit(uri1, Date.now(), 0, histsvc.TRANSITION_TYPED, false, 0);
+  histsvc.addVisit(uri1, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
 
   testSimpleFolderResult();
 }
 
 function testSimpleFolderResult() {
   // the time before we create a folder, in microseconds
-  var beforeCreate = Date.now() * 1000;
+  // Workaround possible VM timers issues subtracting 1us.
+  var beforeCreate = Date.now() * 1000 - 1;
   do_check_true(beforeCreate > 0);
 
   // create a folder
   var parent = bmsvc.createFolder(root, "test", bmsvc.DEFAULT_INDEX);
 
   var dateCreated = bmsvc.getItemDateAdded(parent);
-  do_check_true(dateCreated > 0);
-  // dateCreated can equal beforeCreate
   LOG("check that the folder was created with a valid dateAdded");
   LOG("beforeCreate = " + beforeCreate);
   LOG("dateCreated = " + dateCreated);
-  // XXX bug 381240
-  //do_check_true(dateCreated >= beforeCreate);
+  do_check_true(dateCreated > beforeCreate);
 
   // the time before we insert, in microseconds
-  var beforeInsert = Date.now() * 1000;
+  // Workaround possible VM timers issues subtracting 1us.
+  var beforeInsert = Date.now() * 1000 - 1;
   do_check_true(beforeInsert > 0);
 
   // insert a separator 
   var sep = bmsvc.insertSeparator(parent, bmsvc.DEFAULT_INDEX);
 
   var dateAdded = bmsvc.getItemDateAdded(sep);
-  do_check_true(dateAdded > 0);
-  // dateAdded can equal beforeInsert
   LOG("check that the separator was created with a valid dateAdded");
   LOG("beforeInsert = " + beforeInsert);
   LOG("dateAdded = " + dateAdded);
-  // XXX bug 381240
-  //do_check_true(dateAdded >= beforeInsert);
+  do_check_true(dateAdded > beforeInsert);
 
   // re-set item title separately so can test nodes' last modified
   var item = bmsvc.insertBookmark(parent, uri("about:blank"),
@@ -718,7 +693,7 @@ function testSimpleFolderResult() {
 
   var node = rootNode.getChild(0);
   do_check_true(node.dateAdded > 0);
-  do_check_eq(node.lastModified, 0);
+  do_check_eq(node.lastModified, node.dateAdded);
   do_check_eq(node.itemId, sep);
   do_check_eq(node.title, "");
   node = rootNode.getChild(1);

@@ -41,6 +41,7 @@
 /* Private maps (hashtables). */
 
 #include "xpcprivate.h"
+#include "jsbit.h"
 
 /***************************************************************************/
 // static shared...
@@ -48,13 +49,13 @@
 // Note this is returning the bit pattern of the first part of the nsID, not
 // the pointer to the nsID.
 
-static JSDHashNumber JS_DLL_CALLBACK
+static JSDHashNumber
 HashIIDPtrKey(JSDHashTable *table, const void *key)
 {
     return *((JSHashNumber*)key);
 }
 
-static JSBool JS_DLL_CALLBACK
+static JSBool
 MatchIIDPtrKey(JSDHashTable *table,
             const JSDHashEntryHdr *entry,
             const void *key)
@@ -63,7 +64,7 @@ MatchIIDPtrKey(JSDHashTable *table,
                 Equals(*((const nsID*)((JSDHashEntryStub*)entry)->key));
 }
 
-static JSDHashNumber JS_DLL_CALLBACK
+static JSDHashNumber
 HashNativeKey(JSDHashTable *table, const void *key)
 {
     XPCNativeSetKey* Key = (XPCNativeSetKey*) key;
@@ -117,33 +118,6 @@ HashNativeKey(JSDHashTable *table, const void *key)
     }
 
     return h;
-}
-
-/***************************************************************************/
-// implement JSContext2XPCContextMap...
-
-// static
-JSContext2XPCContextMap*
-JSContext2XPCContextMap::newMap(int size)
-{
-    JSContext2XPCContextMap* map = new JSContext2XPCContextMap(size);
-    if(map && map->mTable)
-        return map;
-    delete map;
-    return nsnull;
-}
-
-
-JSContext2XPCContextMap::JSContext2XPCContextMap(int size)
-{
-    mTable = JS_NewDHashTable(JS_DHashGetStubOps(), nsnull,
-                              sizeof(Entry), size);
-}
-
-JSContext2XPCContextMap::~JSContext2XPCContextMap()
-{
-    if(mTable)
-        JS_DHashTableDestroy(mTable);
 }
 
 /***************************************************************************/
@@ -326,7 +300,7 @@ ClassInfo2WrappedNativeProtoMap::~ClassInfo2WrappedNativeProtoMap()
 /***************************************************************************/
 // implement NativeSetMap...
 
-JSBool JS_DLL_CALLBACK
+JSBool
 NativeSetMap::Entry::Match(JSDHashTable *table,
                            const JSDHashEntryHdr *entry,
                            const void *key)
@@ -441,7 +415,7 @@ NativeSetMap::~NativeSetMap()
 /***************************************************************************/
 // implement IID2ThisTranslatorMap...
 
-JSBool JS_DLL_CALLBACK
+JSBool
 IID2ThisTranslatorMap::Entry::Match(JSDHashTable *table,
                                     const JSDHashEntryHdr *entry,
                                     const void *key)
@@ -449,7 +423,7 @@ IID2ThisTranslatorMap::Entry::Match(JSDHashTable *table,
     return ((const nsID*)key)->Equals(((Entry*)entry)->key);
 }
 
-void JS_DLL_CALLBACK
+void
 IID2ThisTranslatorMap::Entry::Clear(JSDHashTable *table, JSDHashEntryHdr *entry)
 {
     NS_IF_RELEASE(((Entry*)entry)->value);
@@ -491,7 +465,7 @@ IID2ThisTranslatorMap::~IID2ThisTranslatorMap()
 
 /***************************************************************************/
 
-JSDHashNumber JS_DLL_CALLBACK
+JSDHashNumber
 XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
 {
     JSDHashNumber h;
@@ -504,11 +478,11 @@ XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
 
     h = (JSDHashNumber) obj->GetFlags();
     for (s = (const unsigned char*) obj->GetJSClass()->name; *s != '\0'; s++)
-        h = (h >> (JS_DHASH_BITS - 4)) ^ (h << 4) ^ *s;
+        h = JS_ROTATE_LEFT32(h, 4) ^ *s;
     return h;
 }
 
-JSBool JS_DLL_CALLBACK
+JSBool
 XPCNativeScriptableSharedMap::Entry::Match(JSDHashTable *table,
                                          const JSDHashEntryHdr *entry,
                                          const void *key)
@@ -652,6 +626,54 @@ XPCNativeWrapperMap::~XPCNativeWrapperMap()
 /***************************************************************************/
 // implement WrappedNative2WrapperMap...
 
+struct JSDHashTableOps
+WrappedNative2WrapperMap::sOps = {
+    JS_DHashAllocTable,
+    JS_DHashFreeTable,
+    JS_DHashVoidPtrKeyStub,
+    JS_DHashMatchEntryStub,
+    MoveLink,
+    ClearLink,
+    JS_DHashFinalizeStub,
+    nsnull
+};
+
+// static
+void
+WrappedNative2WrapperMap::ClearLink(JSDHashTable* table,
+                                    JSDHashEntryHdr* entry)
+{
+    Entry* e = static_cast<Entry*>(entry);
+    e->key = nsnull;
+    PR_REMOVE_LINK(&e->value);
+    memset(e, 0, sizeof(*e));
+}
+
+// static
+void
+WrappedNative2WrapperMap::MoveLink(JSDHashTable* table,
+                                   const JSDHashEntryHdr* from,
+                                   JSDHashEntryHdr* to)
+{
+    const Entry* oldEntry = static_cast<const Entry*>(from);
+    Entry* newEntry = static_cast<Entry*>(to);
+
+    newEntry->key = oldEntry->key;
+
+    // Now update the list.
+    if(PR_CLIST_IS_EMPTY(&oldEntry->value))
+    {
+        PR_INIT_CLIST(&newEntry->value);
+        newEntry->value.obj = oldEntry->value.obj;
+    }
+    else
+    {
+        newEntry->value = oldEntry->value;
+        newEntry->value.next->prev = &newEntry->value;
+        newEntry->value.prev->next = &newEntry->value;
+    }
+}
+
 // static
 WrappedNative2WrapperMap*
 WrappedNative2WrapperMap::newMap(int size)
@@ -665,14 +687,75 @@ WrappedNative2WrapperMap::newMap(int size)
 
 WrappedNative2WrapperMap::WrappedNative2WrapperMap(int size)
 {
-    mTable = JS_NewDHashTable(JS_DHashGetStubOps(), nsnull,
-                              sizeof(Entry), size);
+    mTable = JS_NewDHashTable(&sOps, nsnull, sizeof(Entry), size);
 }
 
 WrappedNative2WrapperMap::~WrappedNative2WrapperMap()
 {
     if(mTable)
         JS_DHashTableDestroy(mTable);
+}
+
+JSObject*
+WrappedNative2WrapperMap::Add(WrappedNative2WrapperMap* head,
+                              JSObject* wrappedObject,
+                              JSObject* wrapper)
+{
+    NS_PRECONDITION(wrappedObject,"bad param");
+    Entry* entry = (Entry*)
+        JS_DHashTableOperate(mTable, wrappedObject, JS_DHASH_ADD);
+    if(!entry)
+        return nsnull;
+    NS_ASSERTION(!entry->key || this == head, "dangling pointer?");
+    entry->key = wrappedObject;
+    Link* l = &entry->value;
+
+    NS_ASSERTION(!l->obj, "Uh, how'd this happen?");
+
+    if(!l->next)
+    {
+        // Initialize the circular list. This case only happens when
+        // this == head.
+        PR_INIT_CLIST(l);
+    }
+
+    l->obj = wrapper;
+
+    if(this != head)
+    {
+        Link* headLink = head->FindLink(wrappedObject);
+        if(!headLink)
+        {
+            Entry* dummy = (Entry*)
+                JS_DHashTableOperate(head->mTable, wrappedObject, JS_DHASH_ADD);
+            dummy->key = wrappedObject;
+            headLink = &dummy->value;
+            PR_INIT_CLIST(headLink);
+            headLink->obj = nsnull;
+        }
+
+        PR_INSERT_BEFORE(l, headLink);
+    }
+
+    return wrapper;
+}
+
+PRBool
+WrappedNative2WrapperMap::AddLink(JSObject* wrappedObject, Link* oldLink)
+{
+    Entry* entry = (Entry*)
+        JS_DHashTableOperate(mTable, wrappedObject, JS_DHASH_ADD);
+    if(!entry)
+        return PR_FALSE;
+    NS_ASSERTION(!entry->key, "Eh? What's happening?");
+    entry->key = wrappedObject;
+    Link* newLink = &entry->value;
+
+    PR_INSERT_LINK(newLink, oldLink);
+    PR_REMOVE_AND_INIT_LINK(oldLink);
+    newLink->obj = oldLink->obj;
+
+    return PR_TRUE;
 }
 
 /***************************************************************************/

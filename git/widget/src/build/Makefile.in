@@ -50,27 +50,12 @@ RESFILE		= widget.res
 MODULE_NAME	= nsWidgetModule
 LIBXUL_LIBRARY = 1
 
-PACKAGE_FILE = widget_win.pkg
-
-REQUIRES	= xpcom \
-		  string \
-		  necko \
-		  uconv \
-		  gfx \
-		  dom \
-		  timer \
-		  accessibility \
-		  thebes \
-		  cairo \
-		  $(NULL)
 
 CPPSRCS		= nsWinWidgetFactory.cpp
 
-EXTRA_DSO_LIBS	= gkgfx
-
-ifdef MOZ_ENABLE_CAIRO_GFX
-EXTRA_DSO_LIBS	+= thebes
-endif
+EXTRA_DSO_LIBS	= gkgfx \
+		  thebes \
+		  $(NULL)
 
 LOCAL_INCLUDES	= \
 		-I$(srcdir) \
@@ -81,7 +66,7 @@ LOCAL_INCLUDES	= \
 OS_LIBS		+= $(call EXPAND_LIBNAME, uuid ole32 oleaut32 winspool)
 
 ifneq ($(OS_ARCH), WINCE)
-OS_LIBS		+= $(call EXPAND_LIBNAME, comctl32 comdlg32 shell32 imm32)
+OS_LIBS		+= $(call EXPAND_LIBNAME, comctl32 comdlg32 shell32 imm32 shlwapi)
 endif
 
 SHARED_LIBRARY_LIBS = \
@@ -94,12 +79,11 @@ EXTRA_DSO_LDOPTS = \
 		$(EXTRA_DSO_LIBS) \
 		$(MOZ_COMPONENT_LIBS) \
 		$(MOZ_UNICHARUTIL_LIBS) \
-		$(LCMS_LIBS) \
+		$(QCMS_LIBS) \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk
 
 DEFINES		+= -D_IMPL_NS_WIDGET -DMOZ_UNICODE
 
-
-
+CXXFLAGS += $(MOZ_CAIRO_CFLAGS)

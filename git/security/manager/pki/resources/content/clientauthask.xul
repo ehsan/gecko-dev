@@ -51,9 +51,9 @@
   ondialogcancel="return doCancel();"
   onload="onLoad();">
 
-<script type="application/x-javascript" src="chrome://global/content/strres.js"/>
-<script type="application/x-javascript" src="chrome://pippki/content/pippki.js"/>
-<script type="application/x-javascript" src="chrome://pippki/content/clientauthask.js"/>
+<script type="application/javascript" src="chrome://global/content/strres.js"/>
+<script type="application/javascript" src="chrome://pippki/content/pippki.js"/>
+<script type="application/javascript" src="chrome://pippki/content/clientauthask.js"/>
 
   <groupbox>
     <description style="font-weight: bold;">&clientAuthAsk.message1;</description>
@@ -73,6 +73,7 @@
     <description>&clientAuthAsk.message3;</description>
     <textbox readonly="true" id="details" multiline="true"
       style="height: 11em;"/>
+    <checkbox id="rememberBox" checked="true"/>
   </groupbox>
 
 </dialog>

@@ -48,8 +48,8 @@
 #include "nsEditorUtils.h"
 #include "TypeInState.h"
 #include "nsReadableUtils.h"
+#include "nsTArray.h"
 
-class nsVoidArray;
 class nsIDOMElement;
 class nsIEditor;
 class nsHTMLEditor;
@@ -58,16 +58,24 @@ struct StyleCache : public PropItem
 {
   PRBool mPresent;
   
-  StyleCache() : PropItem(nsnull, EmptyString(), EmptyString()), mPresent(PR_FALSE){}
+  StyleCache() : PropItem(), mPresent(PR_FALSE) {
+    MOZ_COUNT_CTOR(StyleCache);
+  }
+
   StyleCache(nsIAtom *aTag, const nsAString &aAttr, const nsAString &aValue) : 
-             PropItem(aTag, aAttr, aValue), mPresent(PR_FALSE) {}
-  ~StyleCache() {}
+             PropItem(aTag, aAttr, aValue), mPresent(PR_FALSE) {
+    MOZ_COUNT_CTOR(StyleCache);
+  }
+
+  ~StyleCache() {
+    MOZ_COUNT_DTOR(StyleCache);
+  }
 };
 
 
 #define SIZE_STYLE_TABLE 19
 
-class nsHTMLEditRules : public nsIHTMLEditRules, public nsTextEditRules, public nsIEditActionListener
+class nsHTMLEditRules : public nsTextEditRules, public nsIHTMLEditRules, public nsIEditActionListener
 {
 public:
 
@@ -79,6 +87,7 @@ public:
 
   // nsIEditRules methods
   NS_IMETHOD Init(nsPlaintextEditor *aEditor, PRUint32 aFlags);
+  NS_IMETHOD DetachEditor();
   NS_IMETHOD BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection);
   NS_IMETHOD AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection);
   NS_IMETHOD WillDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, PRBool *aCancel, PRBool *aHandled);
@@ -254,7 +263,7 @@ protected:
                               nsCOMArray<nsIDOMNode>& outArrayOfNodes);
   nsCOMPtr<nsIDOMNode> GetHighestInlineParent(nsIDOMNode* aNode);
   nsresult MakeTransitionList(nsCOMArray<nsIDOMNode>& inArrayOfNodes, 
-                              nsVoidArray &inTransitionArray);
+                              nsTArray<PRPackedBool> &inTransitionArray);
   nsresult RemoveBlockStyle(nsCOMArray<nsIDOMNode>& arrayOfNodes);
   nsresult ApplyBlockStyle(nsCOMArray<nsIDOMNode>& arrayOfNodes, const nsAString *aBlockTag);
   nsresult MakeBlockquote(nsCOMArray<nsIDOMNode>& arrayOfNodes);

@@ -83,14 +83,22 @@ function disableAddons() {
   var em = Components.classes["@mozilla.org/extensions/manager;1"]
                      .getService(Components.interfaces.nsIExtensionManager);
   var type = nsIUpdateItem.TYPE_EXTENSION + nsIUpdateItem.TYPE_LOCALE;
-  var items = em.getItemList(type, { });
+  var items = em.getItemList(type);
   for (var i = 0; i < items.length; ++i)
     em.disableItem(items[i].id);
 
   // Select the default theme
   var prefB = Components.classes["@mozilla.org/preferences-service;1"]
                         .getService(Components.interfaces.nsIPrefBranch);
-  prefB.clearUserPref("general.skins.selectedSkin");
+  if (prefB.prefHasUserValue("general.skins.selectedSkin"))
+    prefB.clearUserPref("general.skins.selectedSkin");
+
+  // Disable plugins
+  var phs = Components.classes["@mozilla.org/plugin/host;1"]
+                      .getService(Components.interfaces.nsIPluginHost);
+  var plugins = phs.getPluginTags();
+  for (i = 0; i < plugins.length; ++i)
+    plugins[i].disabled = true;
 }
 
 function restoreDefaultSearchEngines() {
@@ -104,7 +112,7 @@ function onOK() {
   try {
     if (document.getElementById("resetUserPrefs").checked)
       clearAllPrefs();
-    if (document.getElementById("resetBookmarks").checked)
+    if (document.getElementById("deleteBookmarks").checked)
       restoreDefaultBookmarks();
     if (document.getElementById("resetToolbars").checked)
       deleteLocalstore();
@@ -132,7 +140,7 @@ function onLoad() {
 function UpdateOKButtonState() {
   document.documentElement.getButton("accept").disabled = 
     !document.getElementById("resetUserPrefs").checked &&
-    !document.getElementById("resetBookmarks").checked &&
+    !document.getElementById("deleteBookmarks").checked &&
     !document.getElementById("resetToolbars").checked &&
     !document.getElementById("disableAddons").checked &&
     !document.getElementById("restoreSearch").checked;

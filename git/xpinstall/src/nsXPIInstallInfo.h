@@ -54,9 +54,9 @@ public:
 
 private:
   ~nsXPIInstallInfo();
-  
-  nsXPITriggerInfo* mTriggerInfo;
+
   nsCOMPtr<nsIDOMWindowInternal> mOriginatingWindow;
   nsCOMPtr<nsIURI> mOriginatingURI;
+  nsXPITriggerInfo* mTriggerInfo;
   PRUint32 mChromeType;
 };

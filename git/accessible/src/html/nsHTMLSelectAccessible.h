@@ -84,8 +84,6 @@ public:
   nsHTMLSelectableAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLSelectableAccessible() {}
 
-  NS_IMETHOD GetName(nsAString &aName) { return GetHTMLName(aName, PR_FALSE); }
-
 protected:
 
   NS_IMETHOD ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState);
@@ -127,22 +125,21 @@ public:
   nsHTMLSelectListAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLSelectListAccessible() {}
 
-  /* ----- nsIAccessible ----- */
-  NS_IMETHOD GetRole(PRUint32 *aRole);
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-  void CacheChildren();
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
-  already_AddRefed<nsIAccessible>
-    AccessibleForOption(nsIAccessibilityService *aAccService,
-                        nsIContent *aContent,
-                        nsIAccessible *aLastGoodAccessible,
-                        PRInt32 *aChildCount);
-  already_AddRefed<nsIAccessible>
-    CacheOptSiblings(nsIAccessibilityService *aAccService,
-                     nsIContent *aParentContent,
-                     nsIAccessible *aLastGoodAccessible,
-                     PRInt32 *aChildCount);
+
+  // nsAccessible
+  virtual void CacheChildren();
+
+  // nsHTMLSelectListAccessible
+
+  /**
+   * Recursive helper for CacheChildren().
+   */
+  void CacheOptSiblings(nsIContent *aParentContent);
 };
 
 /*
@@ -156,13 +153,15 @@ public:
   nsHTMLSelectOptionAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLSelectOptionAccessible() {}
 
-  /* ----- nsIAccessible ----- */
+  // nsIAccessible
   NS_IMETHOD DoAction(PRUint8 index);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-  NS_IMETHOD GetRole(PRUint32 *aRole);
-  NS_IMETHOD GetName(nsAString& aName);
+
+  // nsAccessible
+  virtual nsresult GetNameInternal(nsAString& aName);
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
   nsIFrame*  GetBoundsFrame();
@@ -190,13 +189,18 @@ public:
   nsHTMLSelectOptGroupAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLSelectOptGroupAccessible() {}
 
-  /* ----- nsIAccessible ----- */
-  NS_IMETHOD GetRole(PRUint32 *aRole);
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+  // nsIAccessible
   NS_IMETHOD DoAction(PRUint8 index);  
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
-  void CacheChildren();
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+
+protected:
+  // nsAccessible
+  virtual void CacheChildren();
 };
 
 /** ------------------------------------------------------ */
@@ -216,71 +220,30 @@ public:
   nsHTMLComboboxAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLComboboxAccessible() {}
 
-  /* ----- nsIAccessible ----- */
-  NS_IMETHOD GetRole(PRUint32 *_retval);
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+  // nsIAccessible
   NS_IMETHOD GetValue(nsAString& _retval);
   NS_IMETHOD GetDescription(nsAString& aDescription);
   NS_IMETHOD DoAction(PRUint8 index);
   NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
-  void CacheChildren();
-  NS_IMETHOD Shutdown();
+  // nsAccessNode
+  virtual nsresult Shutdown();
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
+  // nsAccessible
+  virtual void CacheChildren();
+
+  // nsHTMLComboboxAccessible
   already_AddRefed<nsIAccessible> GetFocusedOptionAccessible();
 
 private:
   nsRefPtr<nsHTMLComboboxListAccessible> mListAccessible;
 };
-
-#ifdef COMBO_BOX_WITH_THREE_CHILDREN
-/*
- * A class the represents the text field in the Select to the left
- *     of the drop down button
- */
-class nsHTMLComboboxTextFieldAccessible  : public nsHTMLTextFieldAccessible
-{
-public:
-  
-  nsHTMLComboboxTextFieldAccessible(nsIAccessible* aParent, nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
-  virtual ~nsHTMLComboboxTextFieldAccessible() {}
-
-  /* ----- nsIAccessible ----- */
-  NS_IMETHOD GetUniqueID(void **aUniqueID);
-
-  virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
-
-protected:
-  void CacheChildren();
-};
-
-/**
-  * A class that represents the button inside the Select to the
-  *     right of the text field
-  */
-class nsHTMLComboboxButtonAccessible  : public nsLeafAccessible
-{
-public:
-  enum { eAction_Click = 0 };
-
-  nsHTMLComboboxButtonAccessible(nsIAccessible* aParent, nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
-  virtual ~nsHTMLComboboxButtonAccessible() {}
-
-  /* ----- nsIAccessible ----- */
-  NS_IMETHOD DoAction(PRUint8 index);
-  NS_IMETHOD GetNumActions(PRUint8 *_retval);
-  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
-  NS_IMETHOD GetParent(nsIAccessible **_retval);
-  NS_IMETHOD GetName(nsAString& _retval);
-  NS_IMETHOD GetRole(PRUint32 *_retval);
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-  NS_IMETHOD GetUniqueID(void **aUniqueID);
-
-  virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
-};
-#endif
 
 /*
  * A class that represents the window that lives to the right
@@ -296,15 +259,16 @@ public:
                                nsIWeakReference* aShell);
   virtual ~nsHTMLComboboxListAccessible() {}
 
-  /* ----- nsIAccessible ----- */
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-  NS_IMETHOD GetParent(nsIAccessible **aParent);
+  // nsIAccessible
   NS_IMETHOD GetUniqueID(void **aUniqueID);
 
-  // nsPIAccessNode
-  NS_IMETHOD_(nsIFrame *) GetFrame(void);
+  // nsAccessNode
+  virtual nsIFrame* GetFrame();
 
+  // nsAccessible
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
+  virtual nsIAccessible* GetParent();
 };
 
 #endif

@@ -82,7 +82,10 @@ var gPermissionManager = {
     cycleHeader: function(column) {},
     getRowProperties: function(row,prop){},
     getColumnProperties: function(column,prop){},
-    getCellProperties: function(row,column,prop){}
+    getCellProperties: function(row,column,prop){
+      if (column.element.getAttribute("id") == "siteCol")
+        prop.AppendElement(this._ltrAtom);
+    }
   },
   
   _getCapabilityString: function (aCapability)
@@ -126,9 +129,10 @@ var gPermissionManager = {
     var exists = false;
     for (var i = 0; i < this._permissions.length; ++i) {
       if (this._permissions[i].rawHost == host) {
-        exists = true;
-        this._permissions[i].capability = capabilityString;
-        this._permissions[i].perm = aCapability;
+        // Avoid calling the permission manager if the capability settings are
+        // the same. Otherwise allow the call to the permissions manager to
+        // update the listbox for us.
+        exists = this._permissions[i].perm == aCapability;
         break;
       }
     }
@@ -176,6 +180,7 @@ var gPermissionManager = {
     }
 
     this._type = aParams.permissionType;
+    this._manageCapability = aParams.manageCapability;
     
     var permissionsText = document.getElementById("permissionsText");
     while (permissionsText.hasChildNodes())
@@ -187,12 +192,18 @@ var gPermissionManager = {
     document.getElementById("btnBlock").hidden    = !aParams.blockVisible;
     document.getElementById("btnSession").hidden  = !aParams.sessionVisible;
     document.getElementById("btnAllow").hidden    = !aParams.allowVisible;
-    
+
+    var urlFieldVisible = (aParams.blockVisible || aParams.sessionVisible || aParams.allowVisible);
+
     var urlField = document.getElementById("url");
     urlField.value = aParams.prefilledHost;
-    
+    urlField.hidden = !urlFieldVisible;
+
     this.onHostInput(urlField);
-    
+
+    var urlLabel = document.getElementById("urlLabel");
+    urlLabel.hidden = !urlFieldVisible;
+
     var os = Components.classes["@mozilla.org/observer-service;1"]
                        .getService(Components.interfaces.nsIObserverService);
     os.addObserver(this, "perm-changed", false);
@@ -206,6 +217,10 @@ var gPermissionManager = {
     this._loadPermissions();
     
     urlField.focus();
+
+    this._ltrAtom = Components.classes["@mozilla.org/atom-service;1"]
+                              .getService(Components.interfaces.nsIAtomService)
+                              .getAtom("ltr");
   },
   
   uninit: function ()
@@ -333,7 +348,10 @@ var gPermissionManager = {
   
   _addPermissionToList: function (aPermission)
   {
-    if (aPermission.type == this._type) {
+    if (aPermission.type == this._type &&
+        (!this._manageCapability ||
+         (aPermission.capability == this._manageCapability))) {
+
       var host = aPermission.host;
       var capabilityString = this._getCapabilityString(aPermission.capability);
       var p = new Permission(host,
@@ -353,7 +371,7 @@ var gPermissionManager = {
       var pbi = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(Components.interfaces.nsIPrefBranch2);
       var prefList = [["xpinstall.whitelist.add", nsIPermissionManager.ALLOW_ACTION],
-                      ["xpinstall.whitelist.add.103", nsIPermissionManager.ALLOW_ACTION],
+                      ["xpinstall.whitelist.add.36", nsIPermissionManager.ALLOW_ACTION],
                       ["xpinstall.blacklist.add", nsIPermissionManager.DENY_ACTION]];
 
       for (var i = 0; i < prefList.length; ++i) {

@@ -41,8 +41,7 @@
 interface nsIURI;
 interface nsIChannel;
 
-
-[scriptable, uuid(0b8a9b32-713f-4c39-bea0-6cacec46f385)]
+[scriptable, uuid(c0dbfd5e-b7ae-4c18-8674-82492f35d715)]
 interface nsIScriptSecurityManager : nsIXPCSecurityManager
 {
     ///////////////// Security Checks //////////////////
@@ -284,16 +283,12 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
     /**
      * Returns OK if aSourceURI and target have the same "origin"
      * (scheme, host, and port).
+     * ReportError flag suppresses error reports for functions that
+     * don't need reporting.
      */
     void checkSameOriginURI(in nsIURI aSourceURI,
-                            in nsIURI aTargetURI);
-
-    /**
-     * Returns OK if aSourcePrincipal and aTargetPrincipal
-     * have the same "origin" (scheme, host, and port).
-     */
-    void checkSameOriginPrincipal(in nsIPrincipal aSourcePrincipal,
-                                  in nsIPrincipal aTargetPrincipal);
+                            in nsIURI aTargetURI,
+                            in boolean reportError);
 
     /**
      * Returns the principal of the global object of the given context, or null
@@ -314,6 +309,39 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
      * script to check whether a given principal is system.
      */
     boolean isSystemPrincipal(in nsIPrincipal aPrincipal);
+
+    /**
+     * Same as getSubjectPrincipal(), only faster. cx must *never* be
+     * passed null, and it must be the context on the top of the
+     * context stack. Does *not* reference count the returned
+     * principal.
+     */
+    [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipal(in JSContextPtr cx);
+    [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipalAndFrame(in JSContextPtr cx,
+                                                                   out JSStackFramePtr fp);
+
+    /**
+     * If no scripted code is running "above" (or called from) fp, then
+     * instead of looking at cx->globalObject, we will return |principal|.
+     * This function only affects |cx|. If someone pushes another context onto
+     * the context stack, then it supercedes this call.
+     * NOTE: If |fp| is non-null popContextPrincipal must be called before fp
+     * has finished executing.
+     *
+     * @param cx The context to clamp.
+     * @param fp The frame pointer to clamp at. May be 'null'.
+     * @param principal The principal to clamp to.
+     */
+    [noscript] void pushContextPrincipal(in JSContextPtr cx,
+                                         in JSStackFramePtr fp,
+                                         in nsIPrincipal principal);
+
+    /**
+     * Removes a clamp set by pushContextPrincipal from cx. This must be
+     * called in a stack-like fashion (e.g., given two contexts |a| and |b|,
+     * it is not legal to do: push(a) push(b) pop(a)).
+     */
+    [noscript] void popContextPrincipal(in JSContextPtr cx);
 };
 
 %{C++

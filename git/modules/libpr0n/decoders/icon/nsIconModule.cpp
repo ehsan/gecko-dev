@@ -97,7 +97,7 @@ static const nsModuleComponentInfo components[] =
 #ifdef USE_ICON_DECODER
   { "icon decoder",
     NS_ICONDECODER_CID,
-    "@mozilla.org/image/decoder;2?type=image/icon",
+    "@mozilla.org/image/decoder;3?type=image/icon",
     nsIconDecoderConstructor,
     IconDecoderRegisterProc,
     IconDecoderUnregisterProc, },
@@ -110,17 +110,16 @@ static const nsModuleComponentInfo components[] =
     }
 };
 
-PR_STATIC_CALLBACK(nsresult)
+static nsresult
 IconDecoderModuleCtor(nsIModule* aSelf)
 {
-  nsMozIconURI::InitAtoms();
   return NS_OK;
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 IconDecoderModuleDtor(nsIModule* aSelf)
 {
-#ifdef MOZ_ENABLE_GNOMEUI
+#ifdef MOZ_WIDGET_GTK2
   nsIconChannel::Shutdown();
 #endif
 }

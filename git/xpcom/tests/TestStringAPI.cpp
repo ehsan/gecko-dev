@@ -19,6 +19,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *    Prasad Sunkari <prasad@medhas.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -106,6 +107,40 @@ int testWrite() {
   return res;
 }
 
+int testFind() {
+  nsString str_haystack;
+  nsString str_needle;
+  str_needle.AssignLiteral("world");
+
+  PRInt32 ret = 0;
+  ret += CHECK(-1 == str_haystack.Find("world"));
+  ret += CHECK(-1 == str_haystack.Find(str_needle));
+
+  str_haystack.AssignLiteral("hello world hello world hello");
+  ret += CHECK( 6 == str_haystack.Find("world"));
+  ret += CHECK( 6 == str_haystack.Find(str_needle));
+  ret += CHECK(-1 == str_haystack.Find("world", 20, PR_FALSE));
+  ret += CHECK(-1 == str_haystack.Find(str_needle, 20));
+  ret += CHECK(18 == str_haystack.Find("world", 12, PR_FALSE));
+  ret += CHECK(18 == str_haystack.Find(str_needle, 12));
+
+  nsCString cstr_haystack;
+  nsCString cstr_needle;
+  cstr_needle.AssignLiteral("world");
+  
+  ret += CHECK(-1 == cstr_haystack.Find("world"));
+  ret += CHECK(-1 == cstr_haystack.Find(cstr_needle));
+
+  cstr_haystack.AssignLiteral("hello world hello world hello");
+  ret += CHECK( 6 == cstr_haystack.Find("world"));
+  ret += CHECK( 6 == cstr_haystack.Find(cstr_needle));
+  ret += CHECK(-1 == cstr_haystack.Find(cstr_needle, 20));
+  ret += CHECK(18 == cstr_haystack.Find(cstr_needle, 12));
+  ret += CHECK( 6 == cstr_haystack.Find("world", 5));
+
+  return ret;
+}
+
 int testVoid() {
   nsString s;
   int ret = CHECK(!s.IsVoid());
@@ -121,12 +156,85 @@ int testVoid() {
   return ret;
 }
 
+int testRFind() {
+  PRInt32 ret = 0;
+
+  // nsString.RFind
+  nsString str_haystack;
+  nsString str_needle;
+  str_needle.AssignLiteral("world");
+
+  ret += CHECK(-1 == str_haystack.RFind(str_needle));
+  ret += CHECK(-1 == str_haystack.RFind("world"));
+
+  str_haystack.AssignLiteral("hello world hElLo woRlD");
+
+  ret += CHECK( 6 == str_haystack.RFind(str_needle));
+  ret += CHECK( 6 == str_haystack.RFind(str_needle, -1));
+  ret += CHECK( 6 == str_haystack.RFind(str_needle, 17));
+  ret += CHECK( 6 == str_haystack.RFind("world", PR_FALSE));
+  ret += CHECK(18 == str_haystack.RFind("world", PR_TRUE));
+  ret += CHECK( 6 == str_haystack.RFind("world", -1, PR_FALSE));
+  ret += CHECK(18 == str_haystack.RFind("world", -1, PR_TRUE));
+  ret += CHECK( 6 == str_haystack.RFind("world", 17, PR_FALSE));
+  ret += CHECK( 0 == str_haystack.RFind("hello", 0, PR_FALSE));
+  ret += CHECK(18 == str_haystack.RFind("world", 19, PR_TRUE));
+  ret += CHECK(18 == str_haystack.RFind("world", 22, PR_TRUE));
+  ret += CHECK(18 == str_haystack.RFind("world", 23, PR_TRUE));
+
+  // nsCString.RFind
+  nsCString cstr_haystack;
+  nsCString cstr_needle;
+  cstr_needle.AssignLiteral("world");
+
+  ret += CHECK(-1 == cstr_haystack.RFind(cstr_needle));
+  ret += CHECK(-1 == cstr_haystack.RFind("world"));
+  
+  cstr_haystack.AssignLiteral("hello world hElLo woRlD");
+
+  ret += CHECK( 6 == cstr_haystack.RFind(cstr_needle));
+  ret += CHECK( 6 == cstr_haystack.RFind(cstr_needle, -1));
+  ret += CHECK( 6 == cstr_haystack.RFind(cstr_needle, 17));
+  ret += CHECK( 6 == cstr_haystack.RFind("world", 5));
+  ret += CHECK( 0 == cstr_haystack.RFind(nsDependentCString("hello"), 0));
+
+  return ret;
+}
+
+int testCompressWhitespace() {
+  PRInt32 ret = 0;
+
+  // CompressWhitespace utility function
+  nsString s;
+
+  s.AssignLiteral("     ");
+  CompressWhitespace(s);
+  ret += CHECK(s.EqualsLiteral(""));
+
+  s.AssignLiteral("  no more  leading spaces");
+  CompressWhitespace(s);
+  ret += CHECK(s.EqualsLiteral("no more leading spaces"));
+
+  s.AssignLiteral("no    more trailing spaces ");
+  CompressWhitespace(s);
+  ret += CHECK(s.EqualsLiteral("no more trailing spaces"));
+
+  s.AssignLiteral("   hello one    2         three    45        ");
+  CompressWhitespace(s);
+  ret += CHECK(s.EqualsLiteral("hello one 2 three 45"));
+
+  return ret;
+}
+
 int main() {
   int rv = 0;
   rv += testEmpty();
   rv += testAccess();
   rv += testWrite();
+  rv += testFind();
   rv += testVoid();
+  rv += testRFind();
+  rv += testCompressWhitespace();
   if (0 == rv) {
     fprintf(stderr, "PASS: StringAPI tests\n");
   }

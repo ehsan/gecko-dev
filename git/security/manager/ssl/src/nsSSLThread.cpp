@@ -134,6 +134,13 @@ PRInt32 nsSSLThread::requestRecvMsgPeek(nsNSSSocketInfo *si, void *buf, PRInt32 
     return -1;
   }
 
+  // Socket is unusable - set error and return -1. See bug #480619.
+  if (si->isPK11LoggedOut() || si->isAlreadyShutDown())
+  {
+    PR_SetError(PR_SOCKET_SHUTDOWN_ERROR, 0);
+    return -1;
+  }
+
   PRFileDesc *realSSLFD;
 
   {
@@ -221,6 +228,13 @@ PRInt16 nsSSLThread::requestPoll(nsNSSSocketInfo *si, PRInt16 in_flags, PRInt16 
     return 0;
 
   *out_flags = 0;
+
+  // Socket is unusable - set EXCEPT-flag and return. See bug #480619.
+  if (si->isPK11LoggedOut() || si->isAlreadyShutDown())
+  {
+    *out_flags |= PR_POLL_EXCEPT;
+    return in_flags;
+  }
 
   PRBool want_sleep_and_wakeup_on_any_socket_activity = PR_FALSE;
   PRBool handshake_timeout = PR_FALSE;
@@ -489,7 +503,7 @@ PRInt32 nsSSLThread::requestRead(nsNSSSocketInfo *si, void *buf, PRInt32 amount,
 
   PRBool this_socket_is_busy = PR_FALSE;
   PRBool some_other_socket_is_busy = PR_FALSE;
-  nsSSLSocketThreadData::ssl_state my_ssl_state;
+  nsSSLSocketThreadData::ssl_state my_ssl_state = nsSSLSocketThreadData::ssl_invalid;
   PRFileDesc *blockingFD = nsnull;
 
   {
@@ -716,7 +730,7 @@ PRInt32 nsSSLThread::requestWrite(nsNSSSocketInfo *si, const void *buf, PRInt32 
 
   PRBool this_socket_is_busy = PR_FALSE;
   PRBool some_other_socket_is_busy = PR_FALSE;
-  nsSSLSocketThreadData::ssl_state my_ssl_state;
+  nsSSLSocketThreadData::ssl_state my_ssl_state = nsSSLSocketThreadData::ssl_invalid;
   PRFileDesc *blockingFD = nsnull;
   
   {
@@ -804,6 +818,8 @@ PRInt32 nsSSLThread::requestWrite(nsNSSSocketInfo *si, const void *buf, PRInt32 
           si->mThreadData->mSSLState = nsSSLSocketThreadData::ssl_idle;
           return si->mThreadData->mSSLResultRemainingBytes;
         }
+
+        nsSSLIOLayerHelpers::rememberTolerantSite(si->mFd, si);
 
         PRInt32 return_amount = NS_MIN(amount, si->mThreadData->mSSLResultRemainingBytes);
 
@@ -1120,28 +1136,14 @@ void nsSSLThread::Run(void)
   }
 }
 
-void nsSSLThread::rememberPendingHTTPRequest(nsIRequest *aRequest)
+PRBool nsSSLThread::exitRequested()
 {
   if (!ssl_thread_singleton)
-    return;
+    return PR_FALSE;
 
-  nsAutoLock threadLock(ssl_thread_singleton->mMutex);
+  // no lock
 
-  ssl_thread_singleton->mPendingHTTPRequest = aRequest;
-}
-
-void nsSSLThread::cancelPendingHTTPRequest()
-{
-  if (!ssl_thread_singleton)
-    return;
-
-  nsAutoLock threadLock(ssl_thread_singleton->mMutex);
-
-  if (ssl_thread_singleton->mPendingHTTPRequest)
-  {
-    ssl_thread_singleton->mPendingHTTPRequest->Cancel(NS_ERROR_ABORT);
-    ssl_thread_singleton->mPendingHTTPRequest = nsnull;
-  }
+  return ssl_thread_singleton->mExitRequested;
 }
 
 nsSSLThread *nsSSLThread::ssl_thread_singleton = nsnull;

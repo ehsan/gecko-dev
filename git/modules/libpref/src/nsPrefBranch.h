@@ -44,13 +44,13 @@
 #include "nsIPrefBranchInternal.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsISecurityPref.h"
-#include "nsISupportsArray.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIRelativeFilePref.h"
 #include "nsILocalFile.h"
 #include "nsString.h"
 #include "nsVoidArray.h"
+#include "nsTArray.h"
 #include "nsWeakReference.h"
 
 class nsPrefBranch : public nsIPrefBranchInternal,
@@ -80,11 +80,10 @@ protected:
   void       freeObserverList(void);
 
 private:
-  PRInt32         mPrefRootLength;
-  nsAutoVoidArray *mObservers;
-  nsCString       mPrefRoot;
-  nsCStringArray  mObserverDomains;
-  PRBool          mIsDefault;
+  PRInt32               mPrefRootLength;
+  nsAutoVoidArray       *mObservers;
+  nsCString             mPrefRoot;
+  PRBool                mIsDefault;
 
 };
 
@@ -122,6 +121,5 @@ public:
   
 private:
   nsCOMPtr<nsILocalFile> mFile;
-  nsCAutoString mRelativeToKey; // An nsCAutoString because length is always very short.
-                                // While this makes the object larger, avoids allocation.
+  nsCString mRelativeToKey;
 };

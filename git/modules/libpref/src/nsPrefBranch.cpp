@@ -52,10 +52,6 @@
 #include "pldhash.h"
 #include "nsPrefsCID.h"
 
-#ifndef MOZ_NO_XPCOM_OBSOLETE
-#include "nsIFileSpec.h"  // this should be removed eventually
-#endif
-
 #include "plstr.h"
 #include "nsCRT.h"
 
@@ -71,14 +67,15 @@ struct PrefCallbackData {
   nsPrefBranch     *pBranch;
   nsIObserver      *pObserver;
   nsIWeakReference *pWeakRef;
+  char pDomain[1];
 };
 
 
 // Prototypes
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
   pref_enumChild(PLDHashTable *table, PLDHashEntryHdr *heh,
                  PRUint32 i, void *arg);
-PR_STATIC_CALLBACK(nsresult)
+static nsresult
   NotifyObserver(const char *newpref, void *data);
 
 /*
@@ -352,29 +349,6 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
     return rv;
   }
 
-  // This is deprecated and you should not be using it
-#ifndef MOZ_NO_XPCOM_OBSOLETE
-  if (aType.Equals(NS_GET_IID(nsIFileSpec))) {
-    nsCOMPtr<nsIFileSpec> file(do_CreateInstance(NS_FILESPEC_CONTRACTID, &rv));
-
-    if (NS_SUCCEEDED(rv)) {
-      nsIFileSpec *temp = file;
-      PRBool      valid;
-
-      file->SetPersistentDescriptorString(utf8String);	// only returns NS_OK
-      file->IsValid(&valid);
-      if (!valid) {
-        /* if the string wasn't a valid persistent descriptor, it might be a valid native path */
-        file->SetNativePath(utf8String);
-      }
-      NS_ADDREF(temp);
-      *_retval = (void *)temp;
-      return NS_OK;
-    }
-    return rv;
-  }
-#endif
-
   NS_WARNING("nsPrefBranch::GetComplexValue - Unsupported interface type");
   return NS_NOINTERFACE;
 }
@@ -456,22 +430,6 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
     }
     return rv;
   }
-
-#ifndef MOZ_NO_XPCOM_OBSOLETE
-  // This is deprecated and you should not be using it
-  if (aType.Equals(NS_GET_IID(nsIFileSpec))) {
-    nsCOMPtr<nsIFileSpec> file = do_QueryInterface(aValue);
-    if (!file)
-      return NS_NOINTERFACE;
-    nsXPIDLCString descriptorString;
-
-    rv = file->GetPersistentDescriptorString(getter_Copies(descriptorString));
-    if (NS_SUCCEEDED(rv)) {
-      rv = SetCharPref(aPrefName, descriptorString);
-    }
-    return rv;
-  }
-#endif
 
   NS_WARNING("nsPrefBranch::SetComplexValue - Unsupported interface type");
   return NS_NOINTERFACE;
@@ -634,7 +592,7 @@ NS_IMETHODIMP nsPrefBranch::AddObserver(const char *aDomain, nsIObserver *aObser
       return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  pCallback = (PrefCallbackData *)nsMemory::Alloc(sizeof(PrefCallbackData));
+  pCallback = (PrefCallbackData *)NS_Alloc(sizeof(PrefCallbackData) + strlen(aDomain));
   if (nsnull == pCallback)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -656,8 +614,8 @@ NS_IMETHODIMP nsPrefBranch::AddObserver(const char *aDomain, nsIObserver *aObser
     NS_ADDREF(pCallback->pObserver);
   }
 
+  strcpy(pCallback->pDomain, aDomain);
   mObservers->AppendElement(pCallback);
-  mObserverDomains.AppendCString(nsCString(aDomain));
 
   // We must pass a fully qualified preference name to the callback
   pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
@@ -687,28 +645,24 @@ NS_IMETHODIMP nsPrefBranch::RemoveObserver(const char *aDomain, nsIObserver *aOb
 
   for (i = 0; i < count; i++) {
     pCallback = (PrefCallbackData *)mObservers->ElementAt(i);
-    if (pCallback) {
-      if (pCallback->pObserver == aObserver) {
-        mObserverDomains.CStringAt(i, domain);
-        if (domain.Equals(aDomain)) {
-          // We must pass a fully qualified preference name to remove the callback
-          pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
-          rv = PREF_UnregisterCallback(pref, NotifyObserver, pCallback);
-          if (NS_SUCCEEDED(rv)) {
-            // Remove this observer from our array so that nobody else can remove
-            // what we're trying to remove ourselves right now.
-            mObservers->RemoveElementAt(i);
-            mObserverDomains.RemoveCStringAt(i);
-            if (pCallback->pWeakRef) {
-              NS_RELEASE(pCallback->pWeakRef);
-            } else {
-              NS_RELEASE(pCallback->pObserver);
-            }
-            nsMemory::Free(pCallback);
-          }
-          return rv;
+    if (pCallback &&
+        pCallback->pObserver == aObserver &&
+        !strcmp(pCallback->pDomain, aDomain)) {
+      // We must pass a fully qualified preference name to remove the callback
+      pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
+      rv = PREF_UnregisterCallback(pref, NotifyObserver, pCallback);
+      if (NS_SUCCEEDED(rv)) {
+        // Remove this observer from our array so that nobody else can remove
+        // what we're trying to remove ourselves right now.
+        mObservers->RemoveElementAt(i);
+        if (pCallback->pWeakRef) {
+          NS_RELEASE(pCallback->pWeakRef);
+        } else {
+          NS_RELEASE(pCallback->pObserver);
         }
+        NS_Free(pCallback);
       }
+      return rv;
     }
   }
 
@@ -724,7 +678,7 @@ NS_IMETHODIMP nsPrefBranch::Observe(nsISupports *aSubject, const char *aTopic, c
   return NS_OK;
 }
 
-PR_STATIC_CALLBACK(nsresult) NotifyObserver(const char *newpref, void *data)
+static nsresult NotifyObserver(const char *newpref, void *data)
 {
   PrefCallbackData *pData = (PrefCallbackData *)data;
 
@@ -738,7 +692,7 @@ PR_STATIC_CALLBACK(nsresult) NotifyObserver(const char *newpref, void *data)
     observer = do_QueryReferent(pData->pWeakRef);
     if (!observer) {
       // this weak referenced observer went away, remove them from the list
-      pData->pBranch->RemoveObserver(newpref, pData->pObserver);
+      pData->pBranch->RemoveObserver(pData->pDomain, pData->pObserver);
       return NS_OK;
     }
   } else {
@@ -768,9 +722,8 @@ void nsPrefBranch::freeObserverList(void)
       for (i = 0; i < count; ++i) {
         pCallback = (PrefCallbackData *)mObservers->ElementAt(i);
         if (pCallback) {
-          mObserverDomains.CStringAt(i, domain);
           // We must pass a fully qualified preference name to remove the callback
-          pref = getPrefName(domain.get()); // can't fail because domain must be valid
+          pref = getPrefName(pCallback->pDomain);
           // Remove this observer from our array so that nobody else can remove
           // what we're trying to remove right now.
           mObservers->ReplaceElementAt(nsnull, i);
@@ -783,9 +736,6 @@ void nsPrefBranch::freeObserverList(void)
           nsMemory::Free(pCallback);
         }
       }
-
-      // now empty the observer domains array in bulk
-      mObserverDomains.Clear();
     }
     delete mObservers;
     mObservers = 0;
@@ -865,7 +815,7 @@ nsresult nsPrefBranch::getValidatedPrefName(const char *aPrefName, const char **
   return NS_OK;
 }
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 pref_enumChild(PLDHashTable *table, PLDHashEntryHdr *heh,
                PRUint32 i, void *arg)
 {

@@ -46,15 +46,29 @@
 #include "gfxWindowsSurface.h"
 #endif
 
-#ifdef CAIRO_HAS_XLIB_SURFACE
+#ifdef MOZ_X11
 #include "gfxXlibSurface.h"
 #endif
 
 #ifdef CAIRO_HAS_QUARTZ_SURFACE
 #include "gfxQuartzSurface.h"
+#include "gfxQuartzImageSurface.h"
+#endif
+
+#ifdef MOZ_DFB
+#include "gfxDirectFBSurface.h"
+#endif
+
+#ifdef CAIRO_HAS_QT_SURFACE
+#include "gfxQPainterSurface.h"
+#endif
+
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+#include "gfxDDrawSurface.h"
 #endif
 
 #include <stdio.h>
+#include <limits.h>
 
 static cairo_user_data_key_t gfxasurface_pointer_key;
 
@@ -63,8 +77,6 @@ static cairo_user_data_key_t gfxasurface_pointer_key;
 nsrefcnt
 gfxASurface::AddRef(void)
 {
-    NS_PRECONDITION(mSurface != nsnull, "gfxASurface::AddRef without mSurface");
-
     if (mSurfaceValid) {
         if (mFloatingRefs) {
             // eat a floating ref
@@ -84,8 +96,6 @@ gfxASurface::AddRef(void)
 nsrefcnt
 gfxASurface::Release(void)
 {
-    NS_PRECONDITION(mSurface != nsnull, "gfxASurface::Release without mSurface");
-
     if (mSurfaceValid) {
         NS_ASSERTION(mFloatingRefs == 0, "gfxASurface::Release with floating refs still hanging around!");
 
@@ -152,7 +162,7 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
         result = new gfxWindowsSurface(csurf);
     }
 #endif
-#ifdef CAIRO_HAS_XLIB_SURFACE
+#ifdef MOZ_X11
     else if (stype == CAIRO_SURFACE_TYPE_XLIB) {
         result = new gfxXlibSurface(csurf);
     }
@@ -160,6 +170,24 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
 #ifdef CAIRO_HAS_QUARTZ_SURFACE
     else if (stype == CAIRO_SURFACE_TYPE_QUARTZ) {
         result = new gfxQuartzSurface(csurf);
+    }
+    else if (stype == CAIRO_SURFACE_TYPE_QUARTZ_IMAGE) {
+        result = new gfxQuartzImageSurface(csurf);
+    }
+#endif
+#ifdef MOZ_DFB
+    else if (stype == CAIRO_SURFACE_TYPE_DIRECTFB) {
+        result = new gfxDirectFBSurface(csurf);
+    }
+#endif
+#ifdef CAIRO_HAS_QT_SURFACE
+    else if (stype == CAIRO_SURFACE_TYPE_QT) {
+        result = new gfxQPainterSurface(csurf);
+    }
+#endif
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+    else if (stype == CAIRO_SURFACE_TYPE_DDRAW) {
+        result = new gfxDDrawSurface(csurf);
     }
 #endif
     else {
@@ -285,6 +313,14 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
         return PR_FALSE;
     }
 
+#if defined(XP_MACOSX)
+    // CoreGraphics is limited to images < 32K in *height*, so clamp all surfaces on the Mac to that height
+    if (sz.height > SHRT_MAX) {
+        NS_WARNING("Surface size too large (would overflow)!");
+        return PR_FALSE;
+    }
+#endif
+
     // check to make sure we don't overflow a 32-bit
     PRInt32 tmp = sz.width * sz.height;
     if (tmp && tmp / sz.height != sz.width) {
@@ -310,29 +346,47 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
 nsresult
 gfxASurface::BeginPrinting(const nsAString& aTitle, const nsAString& aPrintToFileName)
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    return NS_OK;
 }
 
 nsresult
 gfxASurface::EndPrinting()
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    return NS_OK;
 }
 
 nsresult
 gfxASurface::AbortPrinting()
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    return NS_OK;
 }
 
 nsresult
 gfxASurface::BeginPage()
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    return NS_OK;
 }
 
 nsresult
 gfxASurface::EndPage()
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    return NS_OK;
+}
+
+gfxASurface::gfxContentType
+gfxASurface::ContentFromFormat(gfxImageFormat format)
+{
+    switch (format) {
+        case ImageFormatARGB32:
+            return CONTENT_COLOR_ALPHA;
+        case ImageFormatRGB24:
+            return CONTENT_COLOR;
+        case ImageFormatA8:
+        case ImageFormatA1:
+            return CONTENT_ALPHA;
+
+        case ImageFormatUnknown:
+        default:
+            return CONTENT_COLOR;
+    }
 }

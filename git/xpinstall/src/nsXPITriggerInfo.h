@@ -57,7 +57,6 @@ struct XPITriggerEvent : public nsRunnable {
     nsString    URL;
     PRInt32     status;
     JSContext*  cx;
-    jsval       global;
     jsval       cbval;
     nsCOMPtr<nsISupports> ref;
     nsCOMPtr<nsIPrincipal> princ;
@@ -94,7 +93,6 @@ class nsXPITriggerItem
     void    SetPrincipal(nsIPrincipal* aPrincipal);
 
     PRBool  IsFileURL() { return StringBeginsWith(mURL, NS_LITERAL_STRING("file:/")); }
-    PRBool  IsRelativeURL();
 
     const PRUnichar* GetSafeURLString();
 
@@ -114,7 +112,7 @@ class nsXPITriggerInfo
     nsXPITriggerInfo();
     ~nsXPITriggerInfo();
 
-    void                Add( nsXPITriggerItem *aItem ) 
+    void                Add( nsXPITriggerItem *aItem )
                         { if ( aItem ) mItems.AppendElement( (void*)aItem ); }
 
     nsXPITriggerItem*   Get( PRUint32 aIndex )
@@ -132,7 +130,7 @@ class nsXPITriggerInfo
   private:
     nsVoidArray mItems;
     JSContext   *mCx;
-    nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobalWrapper;
+    nsCOMPtr<nsISupports> mContextWrapper;
     jsval       mCbval;
     nsCOMPtr<nsIThread> mThread;
 

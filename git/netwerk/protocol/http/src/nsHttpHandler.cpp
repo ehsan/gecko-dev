@@ -85,6 +85,10 @@
 #include <windows.h>
 #endif
 
+#if defined(XP_MACOSX)
+#include <Carbon/Carbon.h>
+#endif
+
 #if defined(XP_OS2)
 #define INCL_DOSMISC
 #include <os2.h>
@@ -115,6 +119,8 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define UA_PREF(_pref) UA_PREF_PREFIX _pref
 #define HTTP_PREF(_pref) HTTP_PREF_PREFIX _pref
 #define BROWSER_PREF(_pref) BROWSER_PREF_PREFIX _pref
+
+#define NS_HTTP_PROTOCOL_FLAGS (URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP | URI_LOADABLE_BY_ANYONE)
 
 //-----------------------------------------------------------------------------
 
@@ -164,11 +170,13 @@ nsHttpHandler::nsHttpHandler()
     , mMaxPipelinedRequests(2)
     , mRedirectionLimit(10)
     , mPhishyUserPassLength(1)
+    , mPipeliningOverSSL(PR_FALSE)
     , mLastUniqueID(NowInSeconds())
     , mSessionStartTime(0)
     , mProduct("Gecko")
     , mUserAgentIsDirty(PR_TRUE)
     , mUseCache(PR_TRUE)
+    , mPromptTempRedirect(PR_TRUE)
     , mSendSecureXSiteReferrer(PR_TRUE)
     , mEnablePersistentHttpsCaching(PR_FALSE)
 {
@@ -211,7 +219,7 @@ nsHttpHandler::Init()
     if (NS_FAILED(rv))
         return rv;
 
-    mIOService = do_GetService(kIOServiceCID, &rv);
+    mIOService = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
         NS_WARNING("unable to continue without io service");
         return rv;
@@ -240,6 +248,7 @@ nsHttpHandler::Init()
     LOG(("> app-version = %s\n", mAppVersion.get()));
     LOG(("> platform = %s\n", mPlatform.get()));
     LOG(("> oscpu = %s\n", mOscpu.get()));
+    LOG(("> device = %s\n", mDeviceType.get()));
     LOG(("> security = %s\n", mSecurity.get()));
     LOG(("> language = %s\n", mLanguage.get()));
     LOG(("> misc = %s\n", mMisc.get()));
@@ -265,6 +274,8 @@ nsHttpHandler::Init()
         do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo)
         appInfo->GetPlatformBuildID(mProductSub);
+    if (mProductSub.Length() > 8)
+        mProductSub.SetLength(8);
 
     // Startup the http category
     // Bring alive the objects in the http-protocol-startup category
@@ -276,8 +287,8 @@ nsHttpHandler::Init()
     if (mObserverService) {
         mObserverService->AddObserver(this, "profile-change-net-teardown", PR_TRUE);
         mObserverService->AddObserver(this, "profile-change-net-restore", PR_TRUE);
-        mObserverService->AddObserver(this, "session-logout", PR_TRUE);
         mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
+        mObserverService->AddObserver(this, "net:clear-active-logins", PR_TRUE);
     }
  
     StartPruneDeadConnectionsTimer();
@@ -415,44 +426,37 @@ nsHttpHandler::GetCacheSession(nsCacheStoragePolicy storagePolicy,
     if (!mUseCache)
         return NS_ERROR_NOT_AVAILABLE;
 
-    if (!mCacheSession_ANY) {
-        nsCOMPtr<nsICacheService> serv = do_GetService(kCacheServiceCID, &rv);
-        if (NS_FAILED(rv)) return rv;
+    // We want to get the pointer to the cache service each time we're called,
+    // because it's possible for some add-ons (such as Google Gears) to swap
+    // in new cache services on the fly, and we want to pick them up as
+    // appropriate.
+    nsCOMPtr<nsICacheService> serv = do_GetService(NS_CACHESERVICE_CONTRACTID,
+                                                   &rv);
+    if (NS_FAILED(rv)) return rv;
 
-        rv = serv->CreateSession("HTTP",
-                                 nsICache::STORE_ANYWHERE,
-                                 nsICache::STREAM_BASED,
-                                 getter_AddRefs(mCacheSession_ANY));
-        if (NS_FAILED(rv)) return rv;
-
-        rv = mCacheSession_ANY->SetDoomEntriesIfExpired(PR_FALSE);
-        if (NS_FAILED(rv)) return rv;
-
-        rv = serv->CreateSession("HTTP-memory-only",
-                                 nsICache::STORE_IN_MEMORY,
-                                 nsICache::STREAM_BASED,
-                                 getter_AddRefs(mCacheSession_MEM));
-        if (NS_FAILED(rv)) return rv;
-
-        rv = mCacheSession_MEM->SetDoomEntriesIfExpired(PR_FALSE);
-        if (NS_FAILED(rv)) return rv;
-
-        rv = serv->CreateSession("HTTP-offline",
-                                 nsICache::STORE_OFFLINE,
-                                 nsICache::STREAM_BASED,
-                                 getter_AddRefs(mCacheSession_OFFLINE));
-        if (NS_FAILED(rv)) return rv;
-
-        rv = mCacheSession_OFFLINE->SetDoomEntriesIfExpired(PR_FALSE);
-        if (NS_FAILED(rv)) return rv;
+    const char *sessionName = "HTTP";
+    switch (storagePolicy) {
+    case nsICache::STORE_IN_MEMORY:
+        sessionName = "HTTP-memory-only";
+        break;
+    case nsICache::STORE_OFFLINE:
+        sessionName = "HTTP-offline";
+        break;
+    default:
+        break;
     }
 
-    if (storagePolicy == nsICache::STORE_IN_MEMORY)
-        NS_ADDREF(*result = mCacheSession_MEM);
-    else if (storagePolicy == nsICache::STORE_OFFLINE)
-        NS_ADDREF(*result = mCacheSession_OFFLINE);
-    else
-        NS_ADDREF(*result = mCacheSession_ANY);
+    nsCOMPtr<nsICacheSession> cacheSession;
+    rv = serv->CreateSession(sessionName,
+                             storagePolicy,
+                             nsICache::STREAM_BASED,
+                             getter_AddRefs(cacheSession));
+    if (NS_FAILED(rv)) return rv;
+
+    rv = cacheSession->SetDoomEntriesIfExpired(PR_FALSE);
+    if (NS_FAILED(rv)) return rv;
+
+    NS_ADDREF(*result = cacheSession);
 
     return NS_OK;
 }
@@ -462,7 +466,7 @@ nsHttpHandler::GetStreamConverterService(nsIStreamConverterService **result)
 {
     if (!mStreamConvSvc) {
         nsresult rv;
-        mStreamConvSvc = do_GetService(kStreamConverterServiceCID, &rv);
+        mStreamConvSvc = do_GetService(NS_STREAMCONVERTERSERVICE_CONTRACTID, &rv);
         if (NS_FAILED(rv)) return rv;
     }
     *result = mStreamConvSvc;
@@ -474,7 +478,7 @@ nsICookieService *
 nsHttpHandler::GetCookieService()
 {
     if (!mCookieService)
-        mCookieService = do_GetService(kCookieServiceCID);
+        mCookieService = do_GetService(NS_COOKIESERVICE_CONTRACTID);
     return mCookieService;
 }
 
@@ -552,6 +556,7 @@ nsHttpHandler::BuildUserAgent()
                            mPlatform.Length() + 
                            mSecurity.Length() +
                            mOscpu.Length() +
+                           mDeviceType.Length() +
                            mLanguage.Length() +
                            mMisc.Length() +
                            mProduct.Length() +
@@ -636,10 +641,10 @@ nsHttpHandler::InitUserAgentComponents()
     "Macintosh"
 #elif defined(XP_BEOS)
     "BeOS"
-#elif !defined(MOZ_X11)
-    "?"
-#else
+#elif defined(MOZ_X11)
     "X11"
+#else
+    "?"
 #endif
     );
 
@@ -657,10 +662,15 @@ nsHttpHandler::InitUserAgentComponents()
     else if (os2ver == 45)
         mOscpu.AssignLiteral("Warp 4.5");
 
-#elif defined(WINCE)
+#elif defined(WINCE) || defined(XP_WIN)
     OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
     if (GetVersionEx(&info)) {
-        char *buf = PR_smprintf("Windows CE %ld.%ld",
+        char *buf = PR_smprintf(
+#if defined(WINCE)
+                                "WindowsCE %ld.%ld",
+#else
+                                "Windows NT %ld.%ld",
+#endif
                                 info.dwMajorVersion,
                                 info.dwMinorVersion);
         if (buf) {
@@ -668,37 +678,17 @@ nsHttpHandler::InitUserAgentComponents()
             PR_smprintf_free(buf);
         }
     }
-#elif defined(XP_WIN)
-    OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
-    if (GetVersionEx(&info)) {
-        if (info.dwPlatformId == VER_PLATFORM_WIN32_NT) {
-            if (info.dwMajorVersion      == 3)
-                mOscpu.AssignLiteral("WinNT3.51");
-            else if (info.dwMajorVersion == 4)
-                mOscpu.AssignLiteral("WinNT4.0");
-            else {
-                char *buf = PR_smprintf("Windows NT %ld.%ld",
-                                        info.dwMajorVersion,
-                                        info.dwMinorVersion);
-                if (buf) {
-                    mOscpu = buf;
-                    PR_smprintf_free(buf);
-                }
-            }
-        } else {
-            char *buf = PR_smprintf("Windows %ld.%ld",
-                                    info.dwMajorVersion,
-                                    info.dwMinorVersion);
-            if (buf) {
-                mOscpu = buf;
-                PR_smprintf_free(buf);
-            }
-        }
-    }
-#elif defined (XP_MACOSX) && defined(__ppc__)
-    mOscpu.AssignLiteral("PPC Mac OS X Mach-O");
-#elif defined (XP_MACOSX) && defined(__i386__)
+#elif defined (XP_MACOSX)
+#if defined(__ppc__)
+    mOscpu.AssignLiteral("PPC Mac OS X");
+#elif defined(__i386__) || defined(__x86_64__)
     mOscpu.AssignLiteral("Intel Mac OS X");
+#endif
+    SInt32 majorVersion, minorVersion;
+    if ((::Gestalt(gestaltSystemVersionMajor, &majorVersion) == noErr) &&
+        (::Gestalt(gestaltSystemVersionMinor, &minorVersion) == noErr)) {
+        mOscpu += nsPrintfCString(" %d.%d", majorVersion, minorVersion);
+    }
 #elif defined (XP_UNIX) || defined (XP_BEOS)
     struct utsname name;
     
@@ -734,6 +724,14 @@ nsHttpHandler::InitUserAgentComponents()
         mOscpu.Assign(buf);
     }
 #endif
+
+    nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
+    NS_ASSERTION(infoService, "Could not find a system info service");
+
+    nsCString deviceType;
+    nsresult rv = infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"), deviceType);
+    if (NS_SUCCEEDED(rv))
+        mDeviceType = deviceType;
 
     mUserAgentIsDirty = PR_TRUE;
 }
@@ -1015,6 +1013,12 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
 
+    if (PREF_CHANGED(HTTP_PREF("pipelining.ssl"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("pipelining.ssl"), &cVar);
+        if (NS_SUCCEEDED(rv))
+            mPipeliningOverSSL = cVar;
+    }
+
     if (PREF_CHANGED(HTTP_PREF("proxy.pipelining"))) {
         rv = prefs->GetBoolPref(HTTP_PREF("proxy.pipelining"), &cVar);
         if (NS_SUCCEEDED(rv)) {
@@ -1051,11 +1055,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         rv = prefs->GetBoolPref(HTTP_PREF("use-cache"), &cVar);
         if (NS_SUCCEEDED(rv)) {
             mUseCache = cVar;
-            if (!mUseCache) {
-                // release our references to the cache
-                mCacheSession_ANY = 0;
-                mCacheSession_MEM = 0;
-            }
         }
     }
 
@@ -1069,8 +1068,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             else {
                 // verify that this socket type is actually valid
                 nsCOMPtr<nsISocketProviderService> sps(
-                        do_GetService(kSocketProviderServiceCID, &rv));
-                if (NS_SUCCEEDED(rv)) {
+                        do_GetService(NS_SOCKETPROVIDERSERVICE_CONTRACTID));
+                if (sps) {
                     nsCOMPtr<nsISocketProvider> sp;
                     rv = sps->GetSocketProvider(sval, getter_AddRefs(sp));
                     if (NS_SUCCEEDED(rv)) {
@@ -1079,6 +1078,13 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
                     }
                 }
             }
+        }
+    }
+
+    if (PREF_CHANGED(HTTP_PREF("prompt-temp-redirect"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("prompt-temp-redirect"), &cVar);
+        if (NS_SUCCEEDED(rv)) {
+            mPromptTempRedirect = cVar;
         }
     }
 
@@ -1137,8 +1143,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         // UI thread, and so do all the methods in nsHttpChannel.cpp
         // (mIDNConverter is used by nsHttpChannel)
         if (enableIDN && !mIDNConverter) {
-            mIDNConverter = do_GetService(NS_IDNSERVICE_CONTRACTID, &rv);
-            NS_ASSERTION(NS_SUCCEEDED(rv), "idnSDK not installed");
+            mIDNConverter = do_GetService(NS_IDNSERVICE_CONTRACTID);
+            NS_ASSERTION(mIDNConverter, "idnSDK not installed");
         }
         else if (!enableIDN && mIDNConverter)
             mIDNConverter = nsnull;
@@ -1277,7 +1283,7 @@ PrepareAcceptCharsets(const char *i_AcceptCharset, nsACString &o_AcceptCharset)
         n++;
         add_utf = PR_TRUE;
     }
-    if (PL_strstr(acceptable, "*") == NULL) {
+    if (PL_strchr(acceptable, '*') == NULL) {
         n++;
         add_asterisk = PR_TRUE;
     }
@@ -1409,8 +1415,7 @@ nsHttpHandler::GetDefaultPort(PRInt32 *result)
 NS_IMETHODIMP
 nsHttpHandler::GetProtocolFlags(PRUint32 *result)
 {
-    *result = URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP |
-        URI_LOADABLE_BY_ANYONE;
+    *result = NS_HTTP_PROTOCOL_FLAGS;
     return NS_OK;
 }
 
@@ -1496,9 +1501,13 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
         caps = mCapabilities;
 
     if (https) {
+        // enable pipelining over SSL if requested
+        if (mPipeliningOverSSL)
+            caps |= NS_HTTP_ALLOW_PIPELINING;
+
         // HACK: make sure PSM gets initialized on the main thread.
         nsCOMPtr<nsISocketProviderService> spserv =
-                do_GetService(kSocketProviderServiceCID);
+                do_GetService(NS_SOCKETPROVIDERSERVICE_CONTRACTID);
         if (spserv) {
             nsCOMPtr<nsISocketProvider> provider;
             spserv->GetSocketProvider("ssl", getter_AddRefs(provider));
@@ -1640,6 +1649,13 @@ nsHttpHandler::GetOscpu(nsACString &value)
 }
 
 NS_IMETHODIMP
+nsHttpHandler::GetDeviceType(nsACString &value)
+{
+    value = mDeviceType;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 nsHttpHandler::GetLanguage(nsACString &value)
 {
     value = mLanguage;
@@ -1700,14 +1716,6 @@ nsHttpHandler::Observe(nsISupports *subject,
         // depend on this value.
         mSessionStartTime = NowInSeconds();
     }
-    else if (strcmp(topic, "session-logout") == 0) {
-        // clear cache of all authentication credentials.
-        mAuthCache.ClearAll();
-
-        // need to reset the session start time since cache validation may
-        // depend on this value.
-        mSessionStartTime = NowInSeconds();
-    }
     else if (strcmp(topic, "profile-change-net-restore") == 0) {
         // initialize connection manager
         InitConnectionMgr();
@@ -1723,6 +1731,9 @@ nsHttpHandler::Observe(nsISupports *subject,
 #endif
         if (mConnMgr)
             mConnMgr->PruneDeadConnections();
+    }
+    else if (strcmp(topic, "net:clear-active-logins") == 0) {
+        mAuthCache.ClearAll();
     }
 
     return NS_OK;
@@ -1764,7 +1775,8 @@ nsHttpsHandler::GetDefaultPort(PRInt32 *aPort)
 NS_IMETHODIMP
 nsHttpsHandler::GetProtocolFlags(PRUint32 *aProtocolFlags)
 {
-    return gHttpHandler->GetProtocolFlags(aProtocolFlags);
+    *aProtocolFlags = NS_HTTP_PROTOCOL_FLAGS;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1779,6 +1791,9 @@ nsHttpsHandler::NewURI(const nsACString &aSpec,
 NS_IMETHODIMP
 nsHttpsHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
+    NS_ABORT_IF_FALSE(gHttpHandler, "Should have a HTTP handler by now.");
+    if (!gHttpHandler)
+      return NS_ERROR_UNEXPECTED;
     return gHttpHandler->NewChannel(aURI, _retval);
 }
 

@@ -45,17 +45,84 @@
 #include "plstr.h"
 #include "nsCRT.h"
 #include "nsIURI.h"
+#include "nsIFileURL.h"
+#include "nsIProtocolHandler.h"
 #include "nsNetUtil.h"
 #include "nsJSPrincipals.h"
 #include "nsVoidArray.h"
 #include "nsHashtable.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
-#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIPrefService.h"
 #include "nsIClassInfoImpl.h"
+#include "nsDOMError.h"
 
 #include "nsPrincipal.h"
+
+class nsCodeBasePrefObserver : nsIObserver
+{
+public:
+  nsCodeBasePrefObserver()
+  {
+    NS_ASSERTION(!sObserverInstalled, "Shouldn't recreate observer\n");
+  }
+  ~nsCodeBasePrefObserver()
+  {
+    sObserverInstalled = PR_FALSE;
+  }
+
+  void Init()
+  {
+    nsCOMPtr<nsIPrefBranch2> prefBranch =
+      do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefBranch) {
+      if (NS_FAILED(prefBranch->GetBoolPref(PrefName(), &sPrefValue))) {
+        sPrefValue = PR_FALSE;
+      }
+      if (NS_SUCCEEDED(prefBranch->AddObserver(PrefName(), this, PR_FALSE))) {
+        sObserverInstalled = PR_TRUE;
+      }
+    }
+  }
+
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD Observe(nsISupports* aSubject,
+                     const char* aTopic,
+                     const PRUnichar* aData)
+  {
+    NS_ASSERTION(!strcmp(aTopic,  NS_PREFBRANCH_PREFCHANGE_TOPIC_ID),
+                 "Wrong topic!");
+    NS_ASSERTION(!strcmp(NS_ConvertUTF16toUTF8(aData).get(), PrefName()),
+                 "Wrong pref!");
+
+    nsCOMPtr<nsIPrefBranch> prefBranch(do_QueryInterface(aSubject));
+    if (!prefBranch ||
+        NS_FAILED(prefBranch->GetBoolPref(PrefName(), &sPrefValue))) {
+      sPrefValue = PR_FALSE;
+    }
+    return NS_OK;
+  }
+
+  const char* PrefName()
+  {
+    static const char pref[] = "signed.applets.codebase_principal_support";
+    return pref;
+  }
+
+  static PRBool PrefValue() { return sPrefValue; }
+  static PRBool Installed() { return sObserverInstalled; }
+
+
+protected:
+  static PRBool sPrefValue;
+  static PRBool sObserverInstalled;
+};
+
+PRBool nsCodeBasePrefObserver::sPrefValue = PR_FALSE;
+PRBool nsCodeBasePrefObserver::sObserverInstalled = PR_FALSE;
+NS_IMPL_ISUPPORTS1(nsCodeBasePrefObserver, nsIObserver)
 
 static PRBool URIIsImmutable(nsIURI* aURI)
 {
@@ -110,6 +177,13 @@ nsPrincipal::nsPrincipal()
     mCodebaseImmutable(PR_FALSE),
     mDomainImmutable(PR_FALSE)
 {
+  if (!nsCodeBasePrefObserver::Installed()) {
+    nsRefPtr<nsCodeBasePrefObserver> obs = new nsCodeBasePrefObserver();
+    if (obs)
+      obs->Init();
+    NS_WARN_IF_FALSE(nsCodeBasePrefObserver::Installed(),
+                     "Installing nsCodeBasePrefObserver failed!");
+  }
 }
 
 nsresult
@@ -126,9 +200,6 @@ nsPrincipal::Init(const nsACString& aCertFingerprint,
 
   mCodebase = NS_TryToMakeImmutable(aCodebase);
   mCodebaseImmutable = URIIsImmutable(mCodebase);
-
-  // Invalidate our cached origin
-  mOrigin = nsnull;
 
   nsresult rv;
   if (!aCertFingerprint.IsEmpty()) {
@@ -171,14 +242,12 @@ nsPrincipal::GetOrigin(char **aOrigin)
 {
   *aOrigin = nsnull;
 
-  if (!mOrigin) {
-    nsIURI* uri = mDomain ? mDomain : mCodebase;
-    if (uri) {
-      mOrigin = NS_GetInnermostURI(uri);
-    }
+  nsCOMPtr<nsIURI> origin;
+  if (mCodebase) {
+    origin = NS_GetInnermostURI(mCodebase);
   }
   
-  if (!mOrigin) {
+  if (!origin) {
     NS_ASSERTION(mCert, "No Domain or Codebase for a non-cert principal");
     return NS_ERROR_FAILURE;
   }
@@ -190,14 +259,14 @@ nsPrincipal::GetOrigin(char **aOrigin)
   // XXX this should be removed in favor of the solution in
   // bug 160042.
   PRBool isChrome;
-  nsresult rv = mOrigin->SchemeIs("chrome", &isChrome);
+  nsresult rv = origin->SchemeIs("chrome", &isChrome);
   if (NS_SUCCEEDED(rv) && !isChrome) {
-    rv = mOrigin->GetHostPort(hostPort);
+    rv = origin->GetHostPort(hostPort);
   }
 
   if (NS_SUCCEEDED(rv) && !isChrome) {
     nsCAutoString scheme;
-    rv = mOrigin->GetScheme(scheme);
+    rv = origin->GetScheme(scheme);
     NS_ENSURE_SUCCESS(rv, rv);
     *aOrigin = ToNewCString(scheme + NS_LITERAL_CSTRING("://") + hostPort);
   }
@@ -205,7 +274,7 @@ nsPrincipal::GetOrigin(char **aOrigin)
     // Some URIs (e.g., nsSimpleURI) don't support host. Just
     // get the full spec.
     nsCAutoString spec;
-    rv = mOrigin->GetSpec(spec);
+    rv = origin->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
     *aOrigin = ToNewCString(spec);
   }
@@ -248,13 +317,14 @@ nsPrincipal::Equals(nsIPrincipal *aOther, PRBool *aResult)
   }
 
   if (this != aOther) {
-    if (mCert) {
-      PRBool otherHasCert;
-      aOther->GetHasCertificate(&otherHasCert);
-      if (!otherHasCert) {
-        return NS_OK;
-      }
+    PRBool otherHasCert;
+    aOther->GetHasCertificate(&otherHasCert);
+    if (otherHasCert != (mCert != nsnull)) {
+      // One has a cert while the other doesn't.  Not equal.
+      return NS_OK;
+    }
 
+    if (mCert) {
       nsCAutoString str;
       aOther->GetFingerprint(str);
       *aResult = str.Equals(mCert->fingerprint);
@@ -291,8 +361,9 @@ nsPrincipal::Equals(nsIPrincipal *aOther, PRBool *aResult)
 
     // Codebases are equal if they have the same origin.
     *aResult =
-      NS_SUCCEEDED(nsScriptSecurityManager::GetScriptSecurityManager()
-                   ->CheckSameOriginPrincipal(this, aOther));
+      NS_SUCCEEDED(nsScriptSecurityManager::CheckSameOriginPrincipal(this,
+                                                                     aOther,
+                                                                     PR_FALSE));
     return NS_OK;
   }
 
@@ -304,6 +375,103 @@ NS_IMETHODIMP
 nsPrincipal::Subsumes(nsIPrincipal *aOther, PRBool *aResult)
 {
   return Equals(aOther, aResult);
+}
+
+static PRBool
+URIIsLocalFile(nsIURI *aURI)
+{
+  PRBool isFile;
+  nsCOMPtr<nsINetUtil> util = do_GetIOService();
+
+  return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
+                                nsIProtocolHandler::URI_IS_LOCAL_FILE,
+                                &isFile)) &&
+         isFile;
+}
+
+NS_IMETHODIMP
+nsPrincipal::CheckMayLoad(nsIURI* aURI, PRBool aReport)
+{
+  if (!nsScriptSecurityManager::SecurityCompareURIs(mCodebase, aURI)) {
+    if (nsScriptSecurityManager::GetStrictFileOriginPolicy() &&
+        URIIsLocalFile(aURI)) {
+      nsCOMPtr<nsIFileURL> fileURL(do_QueryInterface(aURI));
+
+      if (!URIIsLocalFile(mCodebase)) {
+        // If the codebase is not also a file: uri then forget it
+        // (don't want resource: principals in a file: doc)
+        //
+        // note: we're not de-nesting jar: uris here, we want to
+        // keep archive content bottled up in its own little island
+
+        if (aReport) {
+          nsScriptSecurityManager::ReportError(
+            nsnull, NS_LITERAL_STRING("CheckSameOriginError"), mCodebase, aURI);
+        }
+
+        return NS_ERROR_DOM_BAD_URI;
+      }
+
+      //
+      // pull out the internal files
+      //
+      nsCOMPtr<nsIFileURL> codebaseFileURL(do_QueryInterface(mCodebase));
+      nsCOMPtr<nsIFile> targetFile;
+      nsCOMPtr<nsIFile> codebaseFile;
+      PRBool targetIsDir;
+
+      // Make sure targetFile is not a directory (bug 209234)
+      // and that it exists w/out unescaping (bug 395343)
+
+      if (!codebaseFileURL || !fileURL ||
+          NS_FAILED(fileURL->GetFile(getter_AddRefs(targetFile))) ||
+          NS_FAILED(codebaseFileURL->GetFile(getter_AddRefs(codebaseFile))) ||
+          !targetFile || !codebaseFile ||
+          NS_FAILED(targetFile->Normalize()) ||
+          NS_FAILED(codebaseFile->Normalize()) ||
+          NS_FAILED(targetFile->IsDirectory(&targetIsDir)) ||
+          targetIsDir) {
+        if (aReport) {
+          nsScriptSecurityManager::ReportError(
+            nsnull, NS_LITERAL_STRING("CheckSameOriginError"), mCodebase, aURI);
+        }
+
+        return NS_ERROR_DOM_BAD_URI;
+      }
+
+      //
+      // If the file to be loaded is in a subdirectory of the codebase
+      // (or same-dir if codebase is not a directory) then it will
+      // inherit its codebase principal and be scriptable by that codebase.
+      //
+      PRBool codebaseIsDir;
+      PRBool contained = PR_FALSE;
+      nsresult rv = codebaseFile->IsDirectory(&codebaseIsDir);
+      if (NS_SUCCEEDED(rv) && codebaseIsDir) {
+        rv = codebaseFile->Contains(targetFile, PR_TRUE, &contained);
+      }
+      else {
+        nsCOMPtr<nsIFile> codebaseParent;
+        rv = codebaseFile->GetParent(getter_AddRefs(codebaseParent));
+        if (NS_SUCCEEDED(rv) && codebaseParent) {
+          rv = codebaseParent->Contains(targetFile, PR_TRUE, &contained);
+        }
+      }
+
+      if (NS_SUCCEEDED(rv) && contained) {
+        return NS_OK;
+      }
+    }
+
+    if (aReport) {
+      nsScriptSecurityManager::ReportError(
+        nsnull, NS_LITERAL_STRING("CheckSameOriginError"), mCodebase, aURI);
+    }
+    
+    return NS_ERROR_DOM_BAD_URI;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -329,21 +497,15 @@ nsPrincipal::CanEnableCapability(const char *capability, PRInt16 *result)
     // schemes are special and may be able to get extra capabilities
     // even with the pref disabled.
 
-    static const char pref[] = "signed.applets.codebase_principal_support";
-    nsCOMPtr<nsIPrefBranch> prefBranch =
-      do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (prefBranch) {
-      PRBool mightEnable;
-      nsresult rv = prefBranch->GetBoolPref(pref, &mightEnable);
+    if (!nsCodeBasePrefObserver::PrefValue()) {
+      PRBool mightEnable = PR_FALSE;
+      nsresult rv = mCodebase->SchemeIs("file", &mightEnable);
       if (NS_FAILED(rv) || !mightEnable) {
-        rv = mCodebase->SchemeIs("file", &mightEnable);
+        rv = mCodebase->SchemeIs("resource", &mightEnable);
         if (NS_FAILED(rv) || !mightEnable) {
-          rv = mCodebase->SchemeIs("resource", &mightEnable);
-          if (NS_FAILED(rv) || !mightEnable) {
-            *result = nsIPrincipal::ENABLE_DENIED;
+          *result = nsIPrincipal::ENABLE_DENIED;
 
-            return NS_OK;
-          }
+          return NS_OK;
         }
       }
     }
@@ -547,9 +709,6 @@ nsPrincipal::SetURI(nsIURI* aURI)
 {
   mCodebase = NS_TryToMakeImmutable(aURI);
   mCodebaseImmutable = URIIsImmutable(mCodebase);
-
-  // Invalidate our cached origin
-  mOrigin = nsnull;
 }
 
 
@@ -625,9 +784,7 @@ nsPrincipal::GetHashValue(PRUint32* aValue)
     *aValue = nsCRT::HashCode(mCert->fingerprint.get());
   }
   else {
-    nsCAutoString str;
-    mCodebase->GetSpec(str);
-    *aValue = nsCRT::HashCode(str.get());
+    *aValue = nsScriptSecurityManager::HashPrincipalByOrigin(this);
   }
 
   return NS_OK;
@@ -657,9 +814,6 @@ nsPrincipal::SetDomain(nsIURI* aDomain)
   
   // Domain has changed, forget cached security policy
   SetSecurityPolicy(nsnull);
-
-  // Invalidate our cached origin
-  mOrigin = nsnull;
 
   return NS_OK;
 }
@@ -702,9 +856,6 @@ nsPrincipal::InitFromPersistent(const char* aPrefName,
     mCodebaseImmutable = URIIsImmutable(mCodebase);
 
     mTrusted = aTrusted;
-
-    // Invalidate our cached origin
-    mOrigin = nsnull;
   }
 
   rv = mJSPrincipals.Init(this, aToken);
@@ -758,7 +909,7 @@ struct CapabilityList
   nsCString* denied;
 };
 
-PR_STATIC_CALLBACK(PRBool)
+static PRBool
 AppendCapability(nsHashKey *aKey, void *aData, void *capListPtr)
 {
   CapabilityList* capList = (CapabilityList*)capListPtr;
@@ -885,7 +1036,7 @@ nsPrincipal::GetPreferences(char** aPrefName, char** aID,
   return NS_OK;
 }
 
-PR_STATIC_CALLBACK(nsresult)
+static nsresult
 ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
                     void** aData)
 {
@@ -907,7 +1058,7 @@ ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
   return NS_OK;
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 FreeAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey* aKey,
                     void* aData)
 {
@@ -999,7 +1150,7 @@ nsPrincipal::Read(nsIObjectInputStream* aStream)
   return NS_OK;
 }
 
-PR_STATIC_CALLBACK(nsresult)
+static nsresult
 WriteScalarValue(nsIObjectOutputStream* aStream, void* aData)
 {
   PRUint32 value = NS_PTR_TO_INT32(aData);
@@ -1075,8 +1226,6 @@ nsPrincipal::Write(nsIObjectOutputStream* aStream)
   if (NS_FAILED(rv)) {
     return rv;
   }
-
-  // mOrigin is an optimization; don't bother serializing it.
 
   rv = aStream->Write8(mTrusted);
   if (NS_FAILED(rv)) {

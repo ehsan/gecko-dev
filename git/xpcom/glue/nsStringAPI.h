@@ -22,6 +22,7 @@
  *   Darin Fisher <darin@meer.net>
  *   Benjamin Smedberg <benjamin@smedbergs.us>
  *   Ben Turner <mozilla@songbirdnest.com>
+ *   Prasad Sunkari <prasad@medhas.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -52,6 +53,7 @@
 #include "nsXPCOMStrings.h"
 #include "nsISupportsImpl.h"
 #include "prlog.h"
+#include "nsTArray.h"
 
 class nsAString
 {
@@ -270,7 +272,7 @@ public:
   NS_HIDDEN_(PRBool) LowerCaseEqualsLiteral(const char *aASCIIString) const;
 
   /**
-   * Find the first occurence of aStr in this string.
+   * Find the first occurrence of aStr in this string.
    *
    * @return the offset of aStr, or -1 if not found
    */
@@ -279,7 +281,7 @@ public:
   { return Find(aStr, 0, c); }
 
   /**
-   * Find the first occurence of aStr in this string, beginning at aOffset.
+   * Find the first occurrence of aStr in this string, beginning at aOffset.
    *
    * @return the offset of aStr, or -1 if not found
    */
@@ -295,6 +297,46 @@ public:
   { return Find(aStr, 0, aIgnoreCase); }
 
   NS_HIDDEN_(PRInt32) Find(const char *aStr, PRUint32 aOffset, PRBool aIgnoreCase = PR_FALSE) const;
+
+  /**
+   * Find the last occurrence of aStr in this string.
+   *
+   * @return The offset of aStr from the beginning of the string,
+   *         or -1 if not found.
+   */
+  NS_HIDDEN_(PRInt32) RFind(const self_type& aStr,
+                            ComparatorFunc c = DefaultComparator) const
+  { return RFind(aStr, -1, c); }
+
+  /**
+   * Find the last occurrence of aStr in this string, beginning at aOffset.
+   *
+   * @param aOffset the offset from the beginning of the string to begin
+   *        searching. If aOffset < 0, search from end of this string.
+   * @return The offset of aStr from the beginning of the string,
+   *         or -1 if not found.
+   */
+  NS_HIDDEN_(PRInt32) RFind(const self_type& aStr, PRInt32 aOffset,
+                            ComparatorFunc c = DefaultComparator) const;
+
+  /**
+   * Find the last occurrence of an ASCII string within this string.
+   *
+   * @return The offset of aStr from the beginning of the string,
+   *         or -1 if not found.
+   */
+  NS_HIDDEN_(PRInt32) RFind(const char *aStr, PRBool aIgnoreCase = PR_FALSE) const
+  { return RFind(aStr, -1, aIgnoreCase); }
+
+  /**
+   * Find the last occurrence of an ASCII string beginning at aOffset.
+   *
+   * @param aOffset the offset from the beginning of the string to begin
+   *        searching. If aOffset < 0, search from end of this string.
+   * @return The offset of aStr from the beginning of the string,
+   *         or -1 if not found.
+   */
+  NS_HIDDEN_(PRInt32) RFind(const char *aStr, PRInt32 aOffset, PRBool aIgnoreCase) const;
 
   /**
    * Search for the offset of the first occurrence of a character in a
@@ -554,7 +596,7 @@ public:
   }
 
   /**
-   * Find the first occurence of aStr in this string.
+   * Find the first occurrence of aStr in this string.
    *
    * @return the offset of aStr, or -1 if not found
    */
@@ -563,7 +605,7 @@ public:
   { return Find(aStr, 0, c); }
 
   /**
-   * Find the first occurence of aStr in this string, beginning at aOffset.
+   * Find the first occurrence of aStr in this string, beginning at aOffset.
    *
    * @return the offset of aStr, or -1 if not found
    */
@@ -571,7 +613,7 @@ public:
                            ComparatorFunc c = DefaultComparator) const;
 
   /**
-   * Find the first occurence of aStr in this string.
+   * Find the first occurrence of aStr in this string.
    *
    * @return the offset of aStr, or -1 if not found
    */
@@ -580,6 +622,47 @@ public:
 
   NS_HIDDEN_(PRInt32) Find(const char_type *aStr, PRUint32 aLen,
                            ComparatorFunc c = DefaultComparator) const;
+
+  /**
+   * Find the last occurrence of aStr in this string.
+   *
+   * @return The offset of the character from the beginning of the string,
+   *         or -1 if not found.
+   */
+  NS_HIDDEN_(PRInt32) RFind(const self_type& aStr,
+                            ComparatorFunc c = DefaultComparator) const
+  { return RFind(aStr, -1, c); }
+
+  /**
+   * Find the last occurrence of aStr in this string, beginning at aOffset.
+   *
+   * @param aOffset the offset from the beginning of the string to begin
+   *        searching. If aOffset < 0, search from end of this string.
+   * @return The offset of aStr from the beginning of the string,
+   *         or -1 if not found.
+   */
+  NS_HIDDEN_(PRInt32) RFind(const self_type& aStr, PRInt32 aOffset,
+                            ComparatorFunc c = DefaultComparator) const;
+
+  /**
+   * Find the last occurrence of aStr in this string.
+   *
+   * @return The offset of aStr from the beginning of the string,
+   *         or -1 if not found.
+   */
+  NS_HIDDEN_(PRInt32) RFind(const char_type *aStr,
+                            ComparatorFunc c = DefaultComparator) const;
+
+  /**
+   * Find the last occurrence of an ASCII string in this string, 
+   * beginning at aOffset.
+   *
+   * @param aLen is the length of aStr
+   * @return The offset of aStr from the beginning of the string,
+   *         or -1 if not found.
+   */
+  NS_HIDDEN_(PRInt32) RFind(const char_type *aStr, PRInt32 aLen,
+                            ComparatorFunc c = DefaultComparator) const;
 
   /**
    * Search for the offset of the first occurrence of a character in a
@@ -967,12 +1050,17 @@ private:
  * Under GCC, this define should only be set if compiling with -fshort-wchar.
  */
 
-#ifdef HAVE_CPP_2BYTE_WCHAR_T
+#if defined(HAVE_CPP_CHAR16_T) || defined(HAVE_CPP_2BYTE_WCHAR_T)
+#if defined(HAVE_CPP_CHAR16_T)
+  PR_STATIC_ASSERT(sizeof(char16_t) == 2);
+  #define NS_LL(s)                                u##s
+#else
   PR_STATIC_ASSERT(sizeof(wchar_t) == 2);
   #define NS_LL(s)                                L##s
-  #define NS_MULTILINE_LITERAL_STRING(s)          nsDependentString(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/sizeof(wchar_t))-1))
-  #define NS_MULTILINE_LITERAL_STRING_INIT(n,s)   n(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/sizeof(wchar_t))-1))
-  #define NS_NAMED_MULTILINE_LITERAL_STRING(n,s)  const nsDependentString n(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/sizeof(wchar_t))-1))
+#endif
+  #define NS_MULTILINE_LITERAL_STRING(s)          nsDependentString(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/2)-1))
+  #define NS_MULTILINE_LITERAL_STRING_INIT(n,s)   n(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/2)-1))
+  #define NS_NAMED_MULTILINE_LITERAL_STRING(n,s)  const nsDependentString n(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/2)-1))
   typedef nsDependentString nsLiteralString;
 #else
   #define NS_LL(s)                                s
@@ -1335,5 +1423,8 @@ typedef nsCString PromiseFlatCString;
 
 typedef nsCString nsCAutoString;
 typedef nsString nsAutoString;
+
+NS_HIDDEN_(PRBool) ParseString(const nsACString& aAstring, char aDelimiter, 
+                               nsTArray<nsCString>& aArray);
 
 #endif // nsStringAPI_h__

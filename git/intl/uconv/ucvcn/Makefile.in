@@ -47,11 +47,6 @@ LIBRARY_NAME	= ucvcn_s
 FORCE_STATIC_LIB=1
 LIBXUL_LIBRARY = 1
 
-REQUIRES	= xpcom \
-		  string \
-		  unicharutil \
-		  uconv \
-		  $(NULL)
 
 CPPSRCS		= \
 		nsGB2312ToUnicodeV2.cpp \
@@ -66,13 +61,6 @@ CPPSRCS		= \
 		nsUnicodeToCP936.cpp \
 		nsGBKConvUtil.cpp \
 		$(NULL)
-
-ifdef MOZ_EXTRA_X11CONVERTERS
-CPPSRCS		+= \
-		nsUnicodeToGBKNoAscii.cpp \
-		nsUnicodeToGB2312GL.cpp \
-		$(NULL)
-endif
 
 EXPORTS		= nsUCvCnCID.h
 

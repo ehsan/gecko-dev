@@ -14,7 +14,7 @@
  *
  * The Original Code is the Places Move Bookmarks Dialog.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -38,7 +38,6 @@
 
 var gMoveBookmarksDialog = {
   _nodes: null,
-  _tm: null,
 
   _foldersTree: null,
   get foldersTree() {
@@ -50,21 +49,17 @@ var gMoveBookmarksDialog = {
 
   init: function() {
     this._nodes = window.arguments[0];
-    this._tm = window.arguments[1];
 
-    // setTimeout until bug 373944 is fixed
-    setTimeout(function(aSelf) {
-        // select and expand the root node
-        aSelf.foldersTree.selectFolders([PlacesUtils.bookmarksRootId]);
-        aSelf.foldersTree.selectedNode.containerOpen = true;
-      }, 0, this);
+    this.foldersTree.place =
+      "place:excludeItems=1&excludeQueries=1&excludeReadOnlyFolders=1&folder=" +
+      PlacesUIUtils.allBookmarksFolderId;
   },
 
   onOK: function MBD_onOK(aEvent) {
     var selectedNode = this.foldersTree.selectedNode;
     NS_ASSERT(selectedNode,
               "selectedNode must be set in a single-selection tree with initial selection set");
-    var selectedFolderID = selectedNode.itemId;
+    var selectedFolderID = PlacesUtils.getConcreteItemId(selectedNode);
 
     var transactions = [];
     for (var i=0; i < this._nodes.length; i++) {
@@ -73,12 +68,12 @@ var gMoveBookmarksDialog = {
         continue;
 
       transactions.push(new
-        PlacesUtils.ptm.moveItem(this._nodes[i].itemId, selectedFolderID, -1));
+        PlacesUIUtils.ptm.moveItem(this._nodes[i].itemId, selectedFolderID, -1));
     }
 
     if (transactions.length != 0) {
-      var txn = PlacesUtils.ptm.aggregateTransactions("Move Items", transactions);
-      this._tm.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.aggregateTransactions("Move Items", transactions);
+      PlacesUIUtils.ptm.doTransaction(txn);
     }
   },
 

@@ -57,6 +57,12 @@ public:
    * @param aBreakBefore the break-before states for the characters in the substring.
    */
   virtual void SetBreaks(PRUint32 aStart, PRUint32 aLength, PRPackedBool* aBreakBefore) = 0;
+  
+  /**
+   * Indicates which characters should be capitalized. Only called if
+   * BREAK_NEED_CAPITALIZATION was requested.
+   */
+  virtual void SetCapitalization(PRUint32 aStart, PRUint32 aLength, PRPackedBool* aCapitalize) = 0;
 };
 
 /**
@@ -73,9 +79,13 @@ public:
  * into AppendText calls.
  * 
  * The current strategy is that we break the overall text into
- * whitespace-delimited "words". Then for words that contain a "complex" 
- * character (currently CJK or Thai), we break within the word using complex
- * rules (JISx4051 or Pango).
+ * whitespace-delimited "words". Then those words are passed to the nsILineBreaker
+ * service for deeper analysis if they contain a "complex" character as described
+ * below.
+ * 
+ * This class also handles detection of which characters should be capitalized
+ * for text-transform:capitalize. This is a good place to handle that because
+ * we have all the context we need.
  */
 class nsLineBreaker {
 public:
@@ -102,9 +112,9 @@ public:
            (0xff00 <= u && u <= 0xffef);   // Halfwidth and Fullwidth Forms
   }
 
-  // Normally, break opportunities exist at the end of each run of whitespace
-  // (see IsSpace above). Break opportunities can also exist inside runs of
-  // non-whitespace, as determined by nsILineBreaker. We pass a whitespace-
+  // Break opportunities exist at the end of each run of breakable whitespace
+  // (see IsSpace above). Break opportunities can also exist between pairs of
+  // non-whitespace characters, as determined by nsILineBreaker. We pass a whitespace-
   // delimited word to nsILineBreaker if it contains at least one character
   // matching IsComplexChar.
   // We provide flags to control on a per-chunk basis where breaks are allowed.
@@ -114,22 +124,43 @@ public:
   // We operate on text after whitespace processing has been applied, so
   // other characters (e.g. tabs and newlines) may have been converted to
   // spaces.
+
+  /**
+   * Flags passed with each chunk of text.
+   */
   enum {
-    /**
-     * Allow a break opportunity at the start of this chunk of text.
+    /*
+     * Do not introduce a break opportunity at the start of this chunk of text.
      */
-    BREAK_ALLOW_INITIAL = 0x01,
+    BREAK_SUPPRESS_INITIAL = 0x01,
     /**
-     * Allow a break opportunity in the interior of this chunk of text.
+     * Do not introduce a break opportunity in the interior of this chunk of text.
+     * Also, whitespace in this chunk is treated as non-breakable.
      */
-    BREAK_ALLOW_INSIDE = 0x02
+    BREAK_SUPPRESS_INSIDE = 0x02,
+    /**
+     * The sink currently is already set up to have no breaks in it;
+     * if no breaks are possible, nsLineBreaker does not need to call
+     * SetBreaks on it. This is useful when handling large quantities of
+     * preformatted text; the textruns will never have any breaks set on them,
+     * and there is no need to ever actually scan the text for breaks, except
+     * at the end of textruns in case context is needed for following breakable
+     * text.
+     */
+    BREAK_SKIP_SETTING_NO_BREAKS = 0x04,
+    /**
+     * We need to be notified of characters that should be capitalized
+     * (as in text-transform:capitalize) in this chunk of text.
+     */
+    BREAK_NEED_CAPITALIZATION = 0x08
   };
 
   /**
    * Append "invisible whitespace". This acts like whitespace, but there is
-   * no actual text associated with it.
+   * no actual text associated with it. Only the BREAK_SUPPRESS_INSIDE flag
+   * is relevant here.
    */
-  nsresult AppendInvisibleWhitespace();
+  nsresult AppendInvisibleWhitespace(PRUint32 aFlags);
 
   /**
    * Feed Unicode text into the linebreaker for analysis. aLength must be
@@ -153,8 +184,11 @@ public:
    * After this call, this linebreaker can be reused.
    * This must be called at least once between any call to AppendText() and
    * destroying the object.
+   * @param aTrailingBreak this is set to true when there is a break opportunity
+   * at the end of the text. This will normally only be declared true when there
+   * is breakable whitespace at the end.
    */
-  nsresult Reset() { return FlushCurrentWord(); }
+  nsresult Reset(PRBool* aTrailingBreak);
 
 private:
   // This is a list of text sources that make up the "current word" (i.e.,
@@ -184,8 +218,11 @@ private:
   nsAutoTArray<TextItem,2>    mTextItems;
   PRPackedBool                mCurrentWordContainsComplexChar;
 
-  // True if the previous character was whitespace
-  PRPackedBool                mAfterSpace;
+  // True if the previous character was breakable whitespace
+  PRPackedBool                mAfterBreakableSpace;
+  // True if a break must be allowed at the current position because
+  // a run of breakable whitespace ends here
+  PRPackedBool                mBreakHere;
 };
 
 #endif /*NSLINEBREAKER_H_*/

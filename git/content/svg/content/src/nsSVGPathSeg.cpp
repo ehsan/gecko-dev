@@ -54,6 +54,16 @@ static const float PATH_SEG_LENGTH_TOLERANCE = 0.0000001f;
 //----------------------------------------------------------------------
 // implementation helper macros
 
+#define NS_IMPL_SVGPATHSEG(type, letter)                      \
+NS_IMETHODIMP                                                 \
+GetPathSegType(PRUint16 *aPathSegType) {                      \
+  *aPathSegType = type; return NS_OK; }                       \
+                                                              \
+NS_IMETHODIMP                                                 \
+GetPathSegTypeAsLetter(nsAString & aPathSegTypeAsLetter) {    \
+  aPathSegTypeAsLetter.Assign(letter);                        \
+  return NS_OK; }
+
 #define NS_IMPL_NSISUPPORTS_SVGPATHSEG(basename)              \
 NS_IMPL_ADDREF(ns##basename)                                  \
 NS_IMPL_RELEASE(ns##basename)                                 \
@@ -133,11 +143,6 @@ static float CalcBezLength(PathPoint *curve,PRUint32 numPts,
 ////////////////////////////////////////////////////////////////////////
 // nsSVGPathSeg
 
-char nsSVGPathSeg::mTypeLetters[] = {
-  'X', 'z', 'M', 'm', 'L', 'l', 'C', 'c', 'S', 's',
-  'A', 'a', 'H', 'h', 'V', 'v', 'Q', 'q', 'T', 't'
-};
-
 nsQueryReferent
 nsSVGPathSeg::GetCurrentList() const
 {
@@ -154,20 +159,6 @@ nsSVGPathSeg::SetCurrentList(nsISVGValue* aList)
   nsresult rv;
   mCurrentList = do_GetWeakReference(aList, &rv);
   return rv;
-}
-
-NS_IMETHODIMP
-nsSVGPathSeg::GetPathSegType(PRUint16 *aPathSegType)
-{
-  *aPathSegType = GetSegType();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSVGPathSeg::GetPathSegTypeAsLetter(nsAString & aPathSegTypeAsLetter)
-{
-  aPathSegTypeAsLetter.AssignASCII(&mTypeLetters[GetSegType()], 1);
-  return NS_OK;
 }
 
 void
@@ -211,8 +202,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_CLOSEPATH; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_CLOSEPATH, 'z')
 };
 
 //----------------------------------------------------------------------
@@ -265,8 +255,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_MOVETO_ABS; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_MOVETO_ABS, 'M')
 
 protected:
   float mX, mY;
@@ -322,6 +311,7 @@ NS_IMETHODIMP nsSVGPathSegMovetoAbs::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegMovetoAbs::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -335,6 +325,7 @@ NS_IMETHODIMP nsSVGPathSegMovetoAbs::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegMovetoAbs::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -359,8 +350,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_MOVETO_REL; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_MOVETO_REL, 'm')
 
 protected:
   float mX, mY;
@@ -416,6 +406,7 @@ NS_IMETHODIMP nsSVGPathSegMovetoRel::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegMovetoRel::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -429,6 +420,7 @@ NS_IMETHODIMP nsSVGPathSegMovetoRel::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegMovetoRel::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -452,8 +444,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_LINETO_ABS; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_LINETO_ABS, 'L')
 
 protected:
   float mX, mY;
@@ -511,6 +502,7 @@ NS_IMETHODIMP nsSVGPathSegLinetoAbs::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegLinetoAbs::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -524,6 +516,7 @@ NS_IMETHODIMP nsSVGPathSegLinetoAbs::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegLinetoAbs::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -548,8 +541,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_LINETO_REL; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_LINETO_REL, 'l')
 
 protected:
   float mX, mY;
@@ -605,6 +597,7 @@ NS_IMETHODIMP nsSVGPathSegLinetoRel::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegLinetoRel::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -618,6 +611,7 @@ NS_IMETHODIMP nsSVGPathSegLinetoRel::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegLinetoRel::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -644,8 +638,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_ABS; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_CURVETO_CUBIC_ABS, 'C')
 
 protected:
   float mX, mY, mX1, mY1, mX2, mY2;
@@ -714,6 +707,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -727,6 +721,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -740,6 +735,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::GetX1(float *aX1)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::SetX1(float aX1)
 {
+  NS_ENSURE_FINITE(aX1, NS_ERROR_ILLEGAL_VALUE);
   mX1 = aX1;
   DidModify();
   return NS_OK;
@@ -753,6 +749,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::GetY1(float *aY1)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::SetY1(float aY1)
 {
+  NS_ENSURE_FINITE(aY1, NS_ERROR_ILLEGAL_VALUE);
   mY1 = aY1;
   DidModify();
   return NS_OK;
@@ -766,6 +763,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::GetX2(float *aX2)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::SetX2(float aX2)
 {
+  NS_ENSURE_FINITE(aX2, NS_ERROR_ILLEGAL_VALUE);
   mX2 = aX2;
   DidModify();
   return NS_OK;
@@ -779,6 +777,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::GetY2(float *aY2)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicAbs::SetY2(float aY2)
 {
+  NS_ENSURE_FINITE(aY2, NS_ERROR_ILLEGAL_VALUE);
   mY2 = aY2;
   DidModify();
   return NS_OK;
@@ -805,8 +804,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_REL; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_CURVETO_CUBIC_REL, 'c')
 
 protected:
   float mX, mY, mX1, mY1, mX2, mY2;
@@ -872,6 +870,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -885,6 +884,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -898,6 +898,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::GetX1(float *aX1)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::SetX1(float aX1)
 {
+  NS_ENSURE_FINITE(aX1, NS_ERROR_ILLEGAL_VALUE);
   mX1 = aX1;
   DidModify();
   return NS_OK;
@@ -911,6 +912,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::GetY1(float *aY1)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::SetY1(float aY1)
 {
+  NS_ENSURE_FINITE(aY1, NS_ERROR_ILLEGAL_VALUE);
   mY1 = aY1;
   DidModify();
   return NS_OK;
@@ -924,6 +926,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::GetX2(float *aX2)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::SetX2(float aX2)
 {
+  NS_ENSURE_FINITE(aX2, NS_ERROR_ILLEGAL_VALUE);
   mX2 = aX2;
   DidModify();
   return NS_OK;
@@ -937,6 +940,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::GetY2(float *aY2)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicRel::SetY2(float aY2)
 {
+  NS_ENSURE_FINITE(aY2, NS_ERROR_ILLEGAL_VALUE);
   mY2 = aY2;
   DidModify();
   return NS_OK;
@@ -961,8 +965,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_ABS; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_CURVETO_QUADRATIC_ABS, 'Q')
 
 protected:
   float mX, mY, mX1, mY1;
@@ -1027,6 +1030,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticAbs::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticAbs::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -1040,6 +1044,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticAbs::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticAbs::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -1053,6 +1058,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticAbs::GetX1(float *aX1)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticAbs::SetX1(float aX1)
 {
+  NS_ENSURE_FINITE(aX1, NS_ERROR_ILLEGAL_VALUE);
   mX1 = aX1;
   DidModify();
   return NS_OK;
@@ -1066,6 +1072,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticAbs::GetY1(float *aY1)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticAbs::SetY1(float aY1)
 {
+  NS_ENSURE_FINITE(aY1, NS_ERROR_ILLEGAL_VALUE);
   mY1 = aY1;
   DidModify();
   return NS_OK;
@@ -1091,9 +1098,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_REL; }
-
+  NS_IMPL_SVGPATHSEG(PATHSEG_CURVETO_QUADRATIC_REL, 'q')
 
 protected:
   float mX, mY, mX1, mY1;
@@ -1158,6 +1163,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticRel::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticRel::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -1171,6 +1177,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticRel::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticRel::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -1184,6 +1191,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticRel::GetX1(float *aX1)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticRel::SetX1(float aX1)
 {
+  NS_ENSURE_FINITE(aX1, NS_ERROR_ILLEGAL_VALUE);
   mX1 = aX1;
   DidModify();
   return NS_OK;
@@ -1197,6 +1205,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticRel::GetY1(float *aY1)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticRel::SetY1(float aY1)
 {
+  NS_ENSURE_FINITE(aY1, NS_ERROR_ILLEGAL_VALUE);
   mY1 = aY1;
   DidModify();
   return NS_OK;
@@ -1223,8 +1232,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_ARC_ABS; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_ARC_ABS, 'A')
 
 protected:
   float  mX, mY, mR1, mR2, mAngle;
@@ -1300,6 +1308,7 @@ NS_IMETHODIMP nsSVGPathSegArcAbs::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegArcAbs::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -1313,6 +1322,7 @@ NS_IMETHODIMP nsSVGPathSegArcAbs::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegArcAbs::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -1326,6 +1336,7 @@ NS_IMETHODIMP nsSVGPathSegArcAbs::GetR1(float *aR1)
 }
 NS_IMETHODIMP nsSVGPathSegArcAbs::SetR1(float aR1)
 {
+  NS_ENSURE_FINITE(aR1, NS_ERROR_ILLEGAL_VALUE);
   mR1 = aR1;
   DidModify();
   return NS_OK;
@@ -1339,6 +1350,7 @@ NS_IMETHODIMP nsSVGPathSegArcAbs::GetR2(float *aR2)
 }
 NS_IMETHODIMP nsSVGPathSegArcAbs::SetR2(float aR2)
 {
+  NS_ENSURE_FINITE(aR2, NS_ERROR_ILLEGAL_VALUE);
   mR2 = aR2;
   DidModify();
   return NS_OK;
@@ -1353,6 +1365,7 @@ NS_IMETHODIMP nsSVGPathSegArcAbs::GetAngle(float *aAngle)
 }
 NS_IMETHODIMP nsSVGPathSegArcAbs::SetAngle(float aAngle)
 {
+  NS_ENSURE_FINITE(aAngle, NS_ERROR_ILLEGAL_VALUE);
   mAngle = aAngle;
   DidModify();
   return NS_OK;
@@ -1404,8 +1417,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_ARC_REL; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_ARC_REL, 'a')
 
 protected:
   float  mX, mY, mR1, mR2, mAngle;
@@ -1481,6 +1493,7 @@ NS_IMETHODIMP nsSVGPathSegArcRel::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegArcRel::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -1494,6 +1507,7 @@ NS_IMETHODIMP nsSVGPathSegArcRel::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegArcRel::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -1507,6 +1521,7 @@ NS_IMETHODIMP nsSVGPathSegArcRel::GetR1(float *aR1)
 }
 NS_IMETHODIMP nsSVGPathSegArcRel::SetR1(float aR1)
 {
+  NS_ENSURE_FINITE(aR1, NS_ERROR_ILLEGAL_VALUE);
   mR1 = aR1;
   DidModify();
   return NS_OK;
@@ -1520,6 +1535,7 @@ NS_IMETHODIMP nsSVGPathSegArcRel::GetR2(float *aR2)
 }
 NS_IMETHODIMP nsSVGPathSegArcRel::SetR2(float aR2)
 {
+  NS_ENSURE_FINITE(aR2, NS_ERROR_ILLEGAL_VALUE);
   mR2 = aR2;
   DidModify();
   return NS_OK;
@@ -1534,6 +1550,7 @@ NS_IMETHODIMP nsSVGPathSegArcRel::GetAngle(float *aAngle)
 }
 NS_IMETHODIMP nsSVGPathSegArcRel::SetAngle(float aAngle)
 {
+  NS_ENSURE_FINITE(aAngle, NS_ERROR_ILLEGAL_VALUE);
   mAngle = aAngle;
   DidModify();
   return NS_OK;
@@ -1583,8 +1600,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_LINETO_HORIZONTAL_ABS; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_LINETO_HORIZONTAL_ABS, 'H')
 
 protected:
   float mX;
@@ -1642,6 +1658,7 @@ NS_IMETHODIMP nsSVGPathSegLinetoHorizontalAbs::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegLinetoHorizontalAbs::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -1665,8 +1682,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_LINETO_HORIZONTAL_REL; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_LINETO_HORIZONTAL_REL, 'h')
 
 protected:
   float mX;
@@ -1723,6 +1739,7 @@ NS_IMETHODIMP nsSVGPathSegLinetoHorizontalRel::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegLinetoHorizontalRel::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -1746,8 +1763,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_LINETO_VERTICAL_ABS; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_LINETO_VERTICAL_ABS, 'V')
 
 protected:
   float mY;
@@ -1805,6 +1821,7 @@ NS_IMETHODIMP nsSVGPathSegLinetoVerticalAbs::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegLinetoVerticalAbs::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -1828,9 +1845,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_LINETO_VERTICAL_REL; }
-
+  NS_IMPL_SVGPATHSEG(PATHSEG_LINETO_VERTICAL_REL, 'v')
 
 protected:
   float mY;
@@ -1887,6 +1902,7 @@ NS_IMETHODIMP nsSVGPathSegLinetoVerticalRel::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegLinetoVerticalRel::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -1911,8 +1927,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_SMOOTH_ABS; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_CURVETO_CUBIC_SMOOTH_ABS, 'S')
 
 protected:
   float mX, mY, mX2, mY2;
@@ -1983,6 +1998,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothAbs::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothAbs::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -1996,6 +2012,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothAbs::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothAbs::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -2009,6 +2026,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothAbs::GetX2(float *aX2)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothAbs::SetX2(float aX2)
 {
+  NS_ENSURE_FINITE(aX2, NS_ERROR_ILLEGAL_VALUE);
   mX2 = aX2;
   DidModify();
   return NS_OK;
@@ -2022,6 +2040,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothAbs::GetY2(float *aY2)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothAbs::SetY2(float aY2)
 {
+  NS_ENSURE_FINITE(aY2, NS_ERROR_ILLEGAL_VALUE);
   mY2 = aY2;
   DidModify();
   return NS_OK;
@@ -2046,8 +2065,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_SMOOTH_REL; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_CURVETO_CUBIC_SMOOTH_REL, 's')
 
 protected:
   float mX, mY, mX2, mY2;
@@ -2116,6 +2134,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothRel::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothRel::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -2129,6 +2148,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothRel::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothRel::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -2142,6 +2162,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothRel::GetX2(float *aX2)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothRel::SetX2(float aX2)
 {
+  NS_ENSURE_FINITE(aX2, NS_ERROR_ILLEGAL_VALUE);
   mX2 = aX2;
   DidModify();
   return NS_OK;
@@ -2155,6 +2176,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothRel::GetY2(float *aY2)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoCubicSmoothRel::SetY2(float aY2)
 {
+  NS_ENSURE_FINITE(aY2, NS_ERROR_ILLEGAL_VALUE);
   mY2 = aY2;
   DidModify();
   return NS_OK;
@@ -2178,8 +2200,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_SMOOTH_ABS; }
+  NS_IMPL_SVGPATHSEG(PATHSEG_CURVETO_QUADRATIC_SMOOTH_ABS, 'T')
 
 protected:
   float mX, mY;
@@ -2243,6 +2264,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticSmoothAbs::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticSmoothAbs::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -2256,6 +2278,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticSmoothAbs::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticSmoothAbs::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;
@@ -2279,9 +2302,7 @@ public:
   // nsSVGPathSeg methods:
   NS_IMETHOD GetValueString(nsAString& aValue);
   virtual float GetLength(nsSVGPathSegTraversalState *ts);
-  virtual PRUint16 GetSegType()
-    { return nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL; }
-
+  NS_IMPL_SVGPATHSEG(PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL, 't')
 
 protected:
   float mX, mY;
@@ -2347,6 +2368,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticSmoothRel::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticSmoothRel::SetX(float aX)
 {
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
   DidModify();
   return NS_OK;
@@ -2360,6 +2382,7 @@ NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticSmoothRel::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGPathSegCurvetoQuadraticSmoothRel::SetY(float aY)
 {
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
   DidModify();
   return NS_OK;

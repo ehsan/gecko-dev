@@ -57,7 +57,11 @@ else
 DBGTAG =
 endif
 
+ifdef LIBXUL_SDK # {
+APP_CONTENTS = Contents/Frameworks/XUL.framework
+else # } {
 APP_CONTENTS = Contents/MacOS
+endif # } LIBXUL_SDK
 
 ifeq ($(MOZ_BUILD_APP),camino) # {
 INSTALLER_DIR = camino/installer
@@ -67,14 +71,13 @@ BUILDCONFIG_JAR = Contents/MacOS/chrome/embed.jar
 else # } {
 MOZ_PKG_APPNAME = $(MOZ_APP_NAME)
 APPNAME = $(MOZ_APP_DISPLAYNAME)$(DBGTAG).app
-BUILDCONFIG_JAR = Contents/MacOS/chrome/toolkit.jar
 INSTALLER_DIR = $(MOZ_BUILD_APP)/installer
 ifeq ($(MOZ_BUILD_APP),xulrunner) # {
 INSTALLER_DIR = xulrunner/installer/mac
-BUILDCONFIG_JAR = Versions/Current/chrome/toolkit.jar
 APPNAME = XUL.framework
 APP_CONTENTS = Versions/Current
 endif # } xulrunner
+BUILDCONFIG_JAR = $(APP_CONTENTS)/chrome/toolkit.jar
 endif # } !camino
 
 postflight_all:
@@ -102,8 +105,27 @@ postflight_all:
 	ln -s $(DIST_UNI) $(DIST_X86)/universal
 	rm -rf $(DIST_UNI)/$(MOZ_PKG_APPNAME)/$(APPNAME)
 	$(TOPSRCDIR)/build/macosx/universal/unify \
+          --unify-with-sort "\.manifest$$" \
+          --unify-with-sort "components\.list$$" \
 	  $(DIST_PPC)/$(MOZ_PKG_APPNAME)/$(APPNAME) \
 	  $(DIST_X86)/$(MOZ_PKG_APPNAME)/$(APPNAME) \
 	  $(DIST_UNI)/$(MOZ_PKG_APPNAME)/$(APPNAME)
 # A universal .dmg can now be produced by making in either architecture's
 # INSTALLER_DIR.
+# Now, repeat the process for the test package.
+	$(MAKE) -C $(OBJDIR_PPC) UNIVERSAL_BINARY= package-tests
+	$(MAKE) -C $(OBJDIR_X86) UNIVERSAL_BINARY= package-tests
+	rm -rf $(DIST_UNI)/test-package-stage
+# automation.py differs because it hardcodes a path to
+# dist/bin. It doesn't matter which one we use.
+	if test -d $(DIST_PPC)/test-package-stage -a                 \
+                -d $(DIST_X86)/test-package-stage; then              \
+           cp $(DIST_PPC)/test-package-stage/mochitest/automation.py \
+             $(DIST_X86)/test-package-stage/mochitest/;              \
+           cp $(DIST_PPC)/test-package-stage/reftest/automation.py   \
+             $(DIST_X86)/test-package-stage/reftest/;                \
+           $(TOPSRCDIR)/build/macosx/universal/unify                 \
+             --unify-with-sort "all-test-dirs\.list$$"               \
+             $(DIST_PPC)/test-package-stage                          \
+             $(DIST_X86)/test-package-stage                          \
+             $(DIST_UNI)/test-package-stage; fi

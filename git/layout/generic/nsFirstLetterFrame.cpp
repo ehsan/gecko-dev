@@ -38,7 +38,7 @@
 /* rendering object for CSS :first-letter pseudo-element */
 
 #include "nsCOMPtr.h"
-#include "nsHTMLContainerFrame.h"
+#include "nsFirstLetterFrame.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsIContent.h"
@@ -48,66 +48,13 @@
 #include "nsStyleSet.h"
 #include "nsFrameManager.h"
 
-#define nsFirstLetterFrameSuper nsHTMLContainerFrame
-
-class nsFirstLetterFrame : public nsFirstLetterFrameSuper {
-public:
-  nsFirstLetterFrame(nsStyleContext* aContext) : nsHTMLContainerFrame(aContext) {}
-
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsIFrame*       aChildList);
-#ifdef NS_DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const;
-#endif
-  virtual nsIAtom* GetType() const;
-
-  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
-  {
-    if (!GetStyleDisplay()->IsFloating())
-      aFlags = aFlags & ~(nsIFrame::eLineParticipant);
-    return nsFirstLetterFrameSuper::IsFrameOfType(aFlags &
-      ~(nsIFrame::eBidiInlineContainer));
-  }
-
-  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
-  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
-                                 InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
-                                  InlinePrefWidthData *aData);
-  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
-                             nsSize aCBSize, nscoord aAvailableWidth,
-                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             PRBool aShrinkWrap);
-  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
-                    nsHTMLReflowMetrics&     aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus);
-
-  virtual PRBool CanContinueTextRun() const;
-
-  NS_IMETHOD SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread);
-
-//override of nsFrame method
-  NS_IMETHOD GetChildFrameContainingOffset(PRInt32 inContentOffset,
-                                           PRBool inHint,
-                                           PRInt32* outFrameContentOffset,
-                                           nsIFrame **outChildFrame);
-
-protected:
-  virtual PRIntn GetSkipSides() const;
-
-  void DrainOverflowFrames(nsPresContext* aPresContext);
-};
-
 nsIFrame*
 NS_NewFirstLetterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsFirstLetterFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsFirstLetterFrame)
 
 #ifdef NS_DEBUG
 NS_IMETHODIMP
@@ -152,31 +99,17 @@ nsFirstLetterFrame::Init(nsIContent*      aContent,
 }
 
 NS_IMETHODIMP
-nsFirstLetterFrame::SetInitialChildList(nsIAtom*  aListName,
-                                        nsIFrame* aChildList)
+nsFirstLetterFrame::SetInitialChildList(nsIAtom*     aListName,
+                                        nsFrameList& aChildList)
 {
-  mFrames.SetFrames(aChildList);
   nsFrameManager *frameManager = PresContext()->FrameManager();
 
-  for (nsIFrame* frame = aChildList; frame; frame = frame->GetNextSibling()) {
-    NS_ASSERTION(frame->GetParent() == this, "Unexpected parent");
-    frameManager->ReParentStyleContext(frame);
+  for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
+    NS_ASSERTION(e.get()->GetParent() == this, "Unexpected parent");
+    frameManager->ReParentStyleContext(e.get());
   }
-  return NS_OK;
-}
 
-NS_IMETHODIMP
-nsFirstLetterFrame::SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread)
-{
-  if (aSelected && ParentDisablesSelection())
-    return NS_OK;
-  nsIFrame *child = GetFirstChild(nsnull);
-  while (child)
-  {
-    child->SetSelected(aPresContext, aRange, aSelected, aSpread);
-    // don't worry about result. there are more frames to come
-    child = child->GetNextSibling();
-  }
+  mFrames.SetFrames(aChildList);
   return NS_OK;
 }
 
@@ -262,9 +195,9 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
   const nsMargin& bp = aReflowState.mComputedBorderPadding;
   nscoord lr = bp.left + bp.right;
   nscoord tb = bp.top + bp.bottom;
-  if (NS_UNCONSTRAINEDSIZE != availSize.width) {
-    availSize.width -= lr;
-  }
+  NS_ASSERTION(availSize.width != NS_UNCONSTRAINEDSIZE,
+               "should no longer use unconstrained widths");
+  availSize.width -= lr;
   if (NS_UNCONSTRAINEDSIZE != availSize.height) {
     availSize.height -= tb;
   }
@@ -276,66 +209,78 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     // line context is when its floating.
     nsHTMLReflowState rs(aPresContext, aReflowState, kid, availSize);
     nsLineLayout ll(aPresContext, nsnull, &aReflowState, nsnull);
-    ll.BeginLineReflow(0, 0, NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE,
+    ll.BeginLineReflow(bp.left, bp.top, availSize.width, NS_UNCONSTRAINEDSIZE,
                        PR_FALSE, PR_TRUE);
     rs.mLineLayout = &ll;
+    ll.SetInFirstLetter(PR_TRUE);
     ll.SetFirstLetterStyleOK(PR_TRUE);
 
     kid->WillReflow(aPresContext);
     kid->Reflow(aPresContext, aMetrics, rs, aReflowStatus);
 
     ll.EndLineReflow();
+    ll.SetInFirstLetter(PR_FALSE);
   }
   else {
     // Pretend we are a span and reflow the child frame
     nsLineLayout* ll = aReflowState.mLineLayout;
     PRBool        pushedFrame;
 
+    ll->SetInFirstLetter(
+      mStyleContext->GetPseudo() == nsCSSPseudoElements::firstLetter);
     ll->BeginSpan(this, &aReflowState, bp.left, availSize.width);
     ll->ReflowFrame(kid, aReflowStatus, &aMetrics, pushedFrame);
-    nsSize size;
-    ll->EndSpan(this, size);
+    ll->EndSpan(this);
+    ll->SetInFirstLetter(PR_FALSE);
   }
 
   // Place and size the child and update the output metrics
   kid->SetRect(nsRect(bp.left, bp.top, aMetrics.width, aMetrics.height));
+  kid->FinishAndStoreOverflow(&aMetrics);
   kid->DidReflow(aPresContext, nsnull, NS_FRAME_REFLOW_FINISHED);
+
   aMetrics.width += lr;
   aMetrics.height += tb;
   aMetrics.ascent += bp.top;
+  mBaseline = aMetrics.ascent;
+
+  // Ensure that the overflow rect contains the child textframe's overflow rect.
+  // Note that if this is floating, the overline/underline drawable area is in
+  // the overflow rect of the child textframe.
+  aMetrics.mOverflowArea.UnionRect(aMetrics.mOverflowArea,
+                           nsRect(0, 0, aMetrics.width, aMetrics.height));
+  ConsiderChildOverflow(aMetrics.mOverflowArea, kid);
 
   // Create a continuation or remove existing continuations based on
   // the reflow completion status.
   if (NS_FRAME_IS_COMPLETE(aReflowStatus)) {
+    if (aReflowState.mLineLayout) {
+      aReflowState.mLineLayout->SetFirstLetterStyleOK(PR_FALSE);
+    }
     nsIFrame* kidNextInFlow = kid->GetNextInFlow();
     if (kidNextInFlow) {
       // Remove all of the childs next-in-flows
       static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
-        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow);
+        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, PR_TRUE);
     }
   }
   else {
     // Create a continuation for the child frame if it doesn't already
     // have one.
     nsIFrame* nextInFlow;
-    rv = CreateNextInFlow(aPresContext, this, kid, nextInFlow);
+    rv = CreateNextInFlow(aPresContext, kid, nextInFlow);
     if (NS_FAILED(rv)) {
       return rv;
     }
 
     // And then push it to our overflow list
-    if (nextInFlow) {
-      kid->SetNextSibling(nsnull);
-      SetOverflowFrames(aPresContext, nextInFlow);
-    }
-    else {
-      nsIFrame* nextSib = kid->GetNextSibling();
-      if (nextSib) {
-        kid->SetNextSibling(nsnull);
-        SetOverflowFrames(aPresContext, nextSib);
-      }
+    const nsFrameList& overflow = mFrames.RemoveFramesAfter(kid);
+    if (overflow.NotEmpty()) {
+      SetOverflowFrames(aPresContext, overflow);
     }
   }
+
+  FinishAndStoreOverflow(&aMetrics);
 
   NS_FRAME_SET_TRUNCATION(aReflowStatus, aReflowState, aMetrics);
   return rv;
@@ -351,31 +296,28 @@ nsFirstLetterFrame::CanContinueTextRun() const
 void
 nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
 {
-  nsIFrame* overflowFrames;
+  nsAutoPtr<nsFrameList> overflowFrames;
 
   // Check for an overflow list with our prev-in-flow
   nsFirstLetterFrame* prevInFlow = (nsFirstLetterFrame*)GetPrevInFlow();
   if (nsnull != prevInFlow) {
-    overflowFrames = prevInFlow->GetOverflowFrames(aPresContext, PR_TRUE);
+    overflowFrames = prevInFlow->StealOverflowFrames();
     if (overflowFrames) {
       NS_ASSERTION(mFrames.IsEmpty(), "bad overflow list");
 
       // When pushing and pulling frames we need to check for whether any
       // views need to be reparented.
-      nsIFrame* f = overflowFrames;
-      while (f) {
-        nsHTMLContainerFrame::ReparentFrameView(aPresContext, f, prevInFlow, this);
-        f = f->GetNextSibling();
-      }
-      mFrames.InsertFrames(this, nsnull, overflowFrames);
+      nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, *overflowFrames,
+                                                  prevInFlow, this);
+      mFrames.InsertFrames(this, nsnull, *overflowFrames);
     }
   }
 
   // It's also possible that we have an overflow list for ourselves
-  overflowFrames = GetOverflowFrames(aPresContext, PR_TRUE);
+  overflowFrames = StealOverflowFrames();
   if (overflowFrames) {
     NS_ASSERTION(mFrames.NotEmpty(), "overflow list w/o frames");
-    mFrames.AppendFrames(nsnull, overflowFrames);
+    mFrames.AppendFrames(nsnull, *overflowFrames);
   }
 
   // Now repair our first frames style context (since we only reflow

@@ -52,7 +52,6 @@
 #include "nsIDOMRange.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsITypeAheadFind.h"
-#include "nsISupportsArray.h"
 #include "nsISound.h"
 
 #define TYPEAHEADFIND_NOTFOUND_WAV_URL \
@@ -104,12 +103,9 @@ protected:
   nsString mTypeAheadBuffer;
   nsCString mNotFoundSoundURL;
 
-  // PRBool's are used instead of PRPackedBool's where the address of the
-  // boolean variable is getting passed into a method. For example:
-  // GetBoolPref("accessibility.typeaheadfind.linksonly", &mLinksOnlyPref);
-  PRBool mLinksOnlyPref;
+  // PRBools are used instead of PRPackedBools because the address of the
+  // boolean variable is getting passed into a method.
   PRBool mStartLinksOnlyPref;
-  PRPackedBool mLinksOnly;
   PRBool mCaretBrowsingOn;
   nsCOMPtr<nsIDOMElement> mFoundLink;     // Most recent elem found, if a link
   nsCOMPtr<nsIDOMElement> mFoundEditable; // Most recent elem found, if editable

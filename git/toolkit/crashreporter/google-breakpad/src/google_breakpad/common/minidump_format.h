@@ -32,18 +32,6 @@
  *
  * (This is C99 source, please don't corrupt it with C++.)
  *
- * This file contains the necessary definitions to read minidump files
- * produced on win32/x86.  These files may be read on any platform provided
- * that the alignments of these structures on the processing system are
- * identical to the alignments of these structures on the producing system.
- * For this reason, precise-sized types are used.  The structures defined
- * by this file have been laid out to minimize alignment problems by ensuring
- * ensuring that all members are aligned on their natural boundaries.  In
- * In some cases, tail-padding may be significant when different ABIs specify
- * different tail-padding behaviors.  To avoid problems when reading or
- * writing affected structures, MD_*_SIZE macros are provided where needed,
- * containing the useful size of the structures without padding.
- *
  * Structures that are defined by Microsoft to contain a zero-length array
  * are instead defined here to contain an array with one element, as
  * zero-length arrays are forbidden by standard C and C++.  In these cases,
@@ -68,7 +56,7 @@
  * comments.
  *
  * Author: Mark Mentovai */
- 
+
 
 #ifndef GOOGLE_BREAKPAD_COMMON_MINIDUMP_FORMAT_H__
 #define GOOGLE_BREAKPAD_COMMON_MINIDUMP_FORMAT_H__
@@ -90,7 +78,6 @@
  * guiddef.h
  */
 
-
 typedef struct {
   u_int32_t data1;
   u_int16_t data2;
@@ -102,104 +89,6 @@ typedef struct {
 /*
  * WinNT.h
  */
-
-
-#define MD_FLOATINGSAVEAREA_X86_REGISTERAREA_SIZE 80
-     /* SIZE_OF_80387_REGISTERS */
-
-typedef struct {
-  u_int32_t control_word;
-  u_int32_t status_word;
-  u_int32_t tag_word;
-  u_int32_t error_offset;
-  u_int32_t error_selector;
-  u_int32_t data_offset;
-  u_int32_t data_selector;
-
-  /* register_area contains eight 80-bit (x87 "long double") quantities for
-   * floating-point registers %st0 (%mm0) through %st7 (%mm7). */
-  u_int8_t  register_area[MD_FLOATINGSAVEAREA_X86_REGISTERAREA_SIZE];
-  u_int32_t cr0_npx_state;
-} MDFloatingSaveAreaX86;  /* FLOATING_SAVE_AREA */
-
-
-#define MD_CONTEXT_X86_EXTENDED_REGISTERS_SIZE 512
-     /* MAXIMUM_SUPPORTED_EXTENSION */
-
-typedef struct {
-  /* The next field determines the layout of the structure, and which parts
-   * of it are populated */
-  u_int32_t             context_flags;
-
-  /* The next 6 registers are included with MD_CONTEXT_X86_DEBUG_REGISTERS */
-  u_int32_t             dr0;
-  u_int32_t             dr1;
-  u_int32_t             dr2;
-  u_int32_t             dr3;
-  u_int32_t             dr6;
-  u_int32_t             dr7;
-
-  /* The next field is included with MD_CONTEXT_X86_FLOATING_POINT */
-  MDFloatingSaveAreaX86 float_save;
-
-  /* The next 4 registers are included with MD_CONTEXT_X86_SEGMENTS */
-  u_int32_t             gs; 
-  u_int32_t             fs;
-  u_int32_t             es;
-  u_int32_t             ds;
-  /* The next 6 registers are included with MD_CONTEXT_X86_INTEGER */
-  u_int32_t             edi;
-  u_int32_t             esi;
-  u_int32_t             ebx;
-  u_int32_t             edx;
-  u_int32_t             ecx;
-  u_int32_t             eax;
-
-  /* The next 6 registers are included with MD_CONTEXT_X86_CONTROL */
-  u_int32_t             ebp;
-  u_int32_t             eip;
-  u_int32_t             cs;      /* WinNT.h says "must be sanitized" */
-  u_int32_t             eflags;  /* WinNT.h says "must be sanitized" */
-  u_int32_t             esp;
-  u_int32_t             ss;
-
-  /* The next field is included with MD_CONTEXT_X86_EXTENDED_REGISTERS.
-   * It contains vector (MMX/SSE) registers.  It it laid out in the
-   * format used by the fxsave and fsrstor instructions, so it includes
-   * a copy of the x87 floating-point registers as well.  See FXSAVE in
-   * "Intel Architecture Software Developer's Manual, Volume 2." */
-  u_int8_t              extended_registers[
-                         MD_CONTEXT_X86_EXTENDED_REGISTERS_SIZE];
-} MDRawContextX86;  /* CONTEXT */
-
-/* For (MDRawContextX86).context_flags.  These values indicate the type of
- * context stored in the structure.  The high 26 bits identify the CPU, the
- * low 6 bits identify the type of context saved. */
-#define MD_CONTEXT_X86                    0x00010000
-     /* CONTEXT_i386, CONTEXT_i486: identifies CPU */
-#define MD_CONTEXT_X86_CONTROL            (MD_CONTEXT_X86 | 0x00000001)
-     /* CONTEXT_CONTROL */
-#define MD_CONTEXT_X86_INTEGER            (MD_CONTEXT_X86 | 0x00000002)
-     /* CONTEXT_INTEGER */
-#define MD_CONTEXT_X86_SEGMENTS           (MD_CONTEXT_X86 | 0x00000004)
-     /* CONTEXT_SEGMENTS */
-#define MD_CONTEXT_X86_FLOATING_POINT     (MD_CONTEXT_X86 | 0x00000008)
-     /* CONTEXT_FLOATING_POINT */
-#define MD_CONTEXT_X86_DEBUG_REGISTERS    (MD_CONTEXT_X86 | 0x00000010)
-     /* CONTEXT_DEBUG_REGISTERS */
-#define MD_CONTEXT_X86_EXTENDED_REGISTERS (MD_CONTEXT_X86 | 0x00000020)
-     /* CONTEXT_EXTENDED_REGISTERS */
-
-#define MD_CONTEXT_X86_FULL              (MD_CONTEXT_X86_CONTROL | \
-                                          MD_CONTEXT_X86_INTEGER | \
-                                          MD_CONTEXT_X86_SEGMENTS)
-     /* CONTEXT_FULL */
-
-#define MD_CONTEXT_X86_ALL               (MD_CONTEXT_X86_FULL | \
-                                          MD_CONTEXT_X86_FLOATING_POINT | \
-                                          MD_CONTEXT_X86_DEBUG_REGISTERS | \
-                                          MD_CONTEXT_X86_EXTENDED_REGISTERS)
-     /* CONTEXT_ALL */
 
 /* Non-x86 CPU identifiers found in the high 26 bits of
  * (MDRawContext*).context_flags.  These aren't used by Breakpad, but are
@@ -216,12 +105,6 @@ typedef struct {
 #define MD_CONTEXT_CPU_MASK 0xffffffc0
 
 
-/*
- * Breakpad minidump extension for PowerPC support.  Based on Darwin/Mac OS X'
- * mach/ppc/_types.h
- */
-
-
 /* This is a base type for MDRawContextX86 and MDRawContextPPC.  This
  * structure should never be allocated directly.  The actual structure type
  * can be determined by examining the context_flags field. */
@@ -229,74 +112,12 @@ typedef struct {
   u_int32_t context_flags;
 } MDRawContextBase;
 
-
-#define MD_FLOATINGSAVEAREA_PPC_FPR_COUNT 32
-
-typedef struct {
-  /* fpregs is a double[32] in mach/ppc/_types.h, but a u_int64_t is used
-   * here for precise sizing. */
-  u_int64_t fpregs[MD_FLOATINGSAVEAREA_PPC_FPR_COUNT];
-  u_int32_t fpscr_pad;
-  u_int32_t fpscr;      /* Status/control */
-} MDFloatingSaveAreaPPC;  /* Based on ppc_float_state */
-
-
-#define MD_VECTORSAVEAREA_PPC_VR_COUNT 32
-
-typedef struct {
-  /* Vector registers (including vscr) are 128 bits, but mach/ppc/_types.h
-   * exposes them as four 32-bit quantities. */
-  u_int128_t save_vr[MD_VECTORSAVEAREA_PPC_VR_COUNT];
-  u_int128_t save_vscr;  /* Status/control */
-  u_int32_t  save_pad5[4];
-  u_int32_t  save_vrvalid;  /* Identifies which vector registers are saved */
-  u_int32_t  save_pad6[7];
-} MDVectorSaveAreaPPC;  /* ppc_vector_state */
-
-
-#define MD_CONTEXT_PPC_GPR_COUNT 32
-
-typedef struct {
-  /* context_flags is not present in ppc_thread_state, but it aids
-   * identification of MDRawContextPPC among other raw context types,
-   * and it guarantees alignment when we get to float_save. */
-  u_int32_t             context_flags;
-
-  u_int32_t             srr0;    /* Machine status save/restore: stores pc
-                                  * (instruction) */
-  u_int32_t             srr1;    /* Machine status save/restore: stores msr
-                                  * (ps, program/machine state) */
-  /* ppc_thread_state contains 32 fields, r0 .. r31.  Here, an array is
-   * used for brevity. */
-  u_int32_t             gpr[MD_CONTEXT_PPC_GPR_COUNT];
-  u_int32_t             cr;      /* Condition */
-  u_int32_t             xer;     /* Integer (fiXed-point) exception */
-  u_int32_t             lr;      /* Link */
-  u_int32_t             ctr;     /* Count */
-  u_int32_t             mq;      /* Multiply/Quotient (PPC 601, POWER only) */
-  u_int32_t             vrsave;  /* Vector save */
-
-  /* float_save and vector_save aren't present in ppc_thread_state, but
-   * are represented in separate structures that still define a thread's
-   * context. */
-  MDFloatingSaveAreaPPC float_save;
-  MDVectorSaveAreaPPC   vector_save;
-} MDRawContextPPC;  /* Based on ppc_thread_state */
-
-/* For (MDRawContextPPC).context_flags.  These values indicate the type of
- * context stored in the structure.  MD_CONTEXT_PPC is Breakpad-defined.  Its
- * value was chosen to avoid likely conflicts with MD_CONTEXT_* for other
- * CPUs. */
-#define MD_CONTEXT_PPC                0x20000000
-#define MD_CONTEXT_PPC_BASE           (MD_CONTEXT_PPC | 0x00000001)
-#define MD_CONTEXT_PPC_FLOATING_POINT (MD_CONTEXT_PPC | 0x00000008)
-#define MD_CONTEXT_PPC_VECTOR         (MD_CONTEXT_PPC | 0x00000020)
-
-#define MD_CONTEXT_PPC_FULL           MD_CONTEXT_PPC_BASE
-#define MD_CONTEXT_PPC_ALL            (MD_CONTEXT_PPC_FULL | \
-                                       MD_CONTEXT_PPC_FLOATING_POINT | \
-                                       MD_CONTEXT_PPC_VECTOR)
-
+#include "minidump_cpu_amd64.h"
+#include "minidump_cpu_arm.h"
+#include "minidump_cpu_ppc.h"
+#include "minidump_cpu_ppc64.h"
+#include "minidump_cpu_sparc.h"
+#include "minidump_cpu_x86.h"
 
 /*
  * WinVer.h
@@ -410,7 +231,6 @@ typedef struct {
 /* An MDRVA is an offset into the minidump file.  The beginning of the
  * MDRawHeader is at offset 0. */
 typedef u_int32_t MDRVA;  /* RVA */
-
 
 typedef struct {
   u_int32_t data_size;
@@ -690,244 +510,10 @@ typedef struct {
   u_int64_t exception_information[MD_EXCEPTION_MAXIMUM_PARAMETERS];
 } MDException;  /* MINIDUMP_EXCEPTION */
 
-/* For (MDException).exception_code.  These values come from WinBase.h
- * and WinNT.h (names beginning with EXCEPTION_ are in WinBase.h,
- * they are STATUS_ in WinNT.h). */
-typedef enum {
-  MD_EXCEPTION_CODE_WIN_CONTROL_C                = 0x40010005,
-      /* DBG_CONTROL_C */
-  MD_EXCEPTION_CODE_WIN_GUARD_PAGE_VIOLATION     = 0x80000001,
-      /* EXCEPTION_GUARD_PAGE */
-  MD_EXCEPTION_CODE_WIN_DATATYPE_MISALIGNMENT    = 0x80000002,
-      /* EXCEPTION_DATATYPE_MISALIGNMENT */
-  MD_EXCEPTION_CODE_WIN_BREAKPOINT               = 0x80000003,
-      /* EXCEPTION_BREAKPOINT */
-  MD_EXCEPTION_CODE_WIN_SINGLE_STEP              = 0x80000004,
-      /* EXCEPTION_SINGLE_STEP */
-  MD_EXCEPTION_CODE_WIN_ACCESS_VIOLATION         = 0xc0000005,
-      /* EXCEPTION_ACCESS_VIOLATION */
-  MD_EXCEPTION_CODE_WIN_IN_PAGE_ERROR            = 0xc0000006,
-      /* EXCEPTION_IN_PAGE_ERROR */
-  MD_EXCEPTION_CODE_WIN_INVALID_HANDLE           = 0xc0000008,
-      /* EXCEPTION_INVALID_HANDLE */
-  MD_EXCEPTION_CODE_WIN_ILLEGAL_INSTRUCTION      = 0xc000001d,
-      /* EXCEPTION_ILLEGAL_INSTRUCTION */
-  MD_EXCEPTION_CODE_WIN_NONCONTINUABLE_EXCEPTION = 0xc0000025,
-      /* EXCEPTION_NONCONTINUABLE_EXCEPTION */
-  MD_EXCEPTION_CODE_WIN_INVALID_DISPOSITION      = 0xc0000026,
-      /* EXCEPTION_INVALID_DISPOSITION */
-  MD_EXCEPTION_CODE_WIN_ARRAY_BOUNDS_EXCEEDED    = 0xc000008c,
-      /* EXCEPTION_BOUNDS_EXCEEDED */
-  MD_EXCEPTION_CODE_WIN_FLOAT_DENORMAL_OPERAND   = 0xc000008d,
-      /* EXCEPTION_FLT_DENORMAL_OPERAND */
-  MD_EXCEPTION_CODE_WIN_FLOAT_DIVIDE_BY_ZERO     = 0xc000008e,
-      /* EXCEPTION_FLT_DIVIDE_BY_ZERO */
-  MD_EXCEPTION_CODE_WIN_FLOAT_INEXACT_RESULT     = 0xc000008f,
-      /* EXCEPTION_FLT_INEXACT_RESULT */
-  MD_EXCEPTION_CODE_WIN_FLOAT_INVALID_OPERATION  = 0xc0000090,
-      /* EXCEPTION_FLT_INVALID_OPERATION */
-  MD_EXCEPTION_CODE_WIN_FLOAT_OVERFLOW           = 0xc0000091,
-      /* EXCEPTION_FLT_OVERFLOW */
-  MD_EXCEPTION_CODE_WIN_FLOAT_STACK_CHECK        = 0xc0000092,
-      /* EXCEPTION_FLT_STACK_CHECK */
-  MD_EXCEPTION_CODE_WIN_FLOAT_UNDERFLOW          = 0xc0000093,
-      /* EXCEPTION_FLT_UNDERFLOW */
-  MD_EXCEPTION_CODE_WIN_INTEGER_DIVIDE_BY_ZERO   = 0xc0000094,
-      /* EXCEPTION_INT_DIVIDE_BY_ZERO */
-  MD_EXCEPTION_CODE_WIN_INTEGER_OVERFLOW         = 0xc0000095,
-      /* EXCEPTION_INT_OVERFLOW */
-  MD_EXCEPTION_CODE_WIN_PRIVILEGED_INSTRUCTION   = 0xc0000096,
-      /* EXCEPTION_PRIV_INSTRUCTION */
-  MD_EXCEPTION_CODE_WIN_STACK_OVERFLOW           = 0xc00000fd,
-      /* EXCEPTION_STACK_OVERFLOW */
-  MD_EXCEPTION_CODE_WIN_POSSIBLE_DEADLOCK        = 0xc0000194
-      /* EXCEPTION_POSSIBLE_DEADLOCK */
-} MDExceptionCodeWin;
-
-/* For (MDException).exception_code.  Breakpad minidump extension for Mac OS X
- * support.  Based on Darwin/Mac OS X' mach/exception_types.h.  This is
- * what Mac OS X calls an "exception", not a "code". */
-typedef enum {
-  /* Exception code.  The high 16 bits of exception_code contains one of
-   * these values. */
-  MD_EXCEPTION_MAC_BAD_ACCESS      = 1,  /* code can be a kern_return_t */
-      /* EXC_BAD_ACCESS */
-  MD_EXCEPTION_MAC_BAD_INSTRUCTION = 2,  /* code is CPU-specific */
-      /* EXC_BAD_INSTRUCTION */
-  MD_EXCEPTION_MAC_ARITHMETIC      = 3,  /* code is CPU-specific */
-      /* EXC_ARITHMETIC */
-  MD_EXCEPTION_MAC_EMULATION       = 4,  /* code is CPU-specific */
-      /* EXC_EMULATION */
-  MD_EXCEPTION_MAC_SOFTWARE        = 5,
-      /* EXC_SOFTWARE */
-  MD_EXCEPTION_MAC_BREAKPOINT      = 6,  /* code is CPU-specific */
-      /* EXC_BREAKPOINT */
-  MD_EXCEPTION_MAC_SYSCALL         = 7,
-      /* EXC_SYSCALL */
-  MD_EXCEPTION_MAC_MACH_SYSCALL    = 8,
-      /* EXC_MACH_SYSCALL */
-  MD_EXCEPTION_MAC_RPC_ALERT       = 9
-      /* EXC_RPC_ALERT */
-} MDExceptionMac;
-
-/* For (MDException).exception_flags.  Breakpad minidump extension for Mac OS X
- * support.  Based on Darwin/Mac OS X' mach/ppc/exception.h and
- * mach/i386/exception.h.  This is what Mac OS X calls a "code". */
-typedef enum {
-  /* With MD_EXCEPTION_BAD_ACCESS.  These are relevant kern_return_t values
-   * from mach/kern_return.h. */
-  MD_EXCEPTION_CODE_MAC_INVALID_ADDRESS    =  1,
-      /* KERN_INVALID_ADDRESS */
-  MD_EXCEPTION_CODE_MAC_PROTECTION_FAILURE =  2,
-      /* KERN_PROTECTION_FAILURE */
-  MD_EXCEPTION_CODE_MAC_NO_ACCESS          =  8,
-      /* KERN_NO_ACCESS */
-  MD_EXCEPTION_CODE_MAC_MEMORY_FAILURE     =  9,
-      /* KERN_MEMORY_FAILURE */
-  MD_EXCEPTION_CODE_MAC_MEMORY_ERROR       = 10,
-      /* KERN_MEMORY_ERROR */
-
-  /* With MD_EXCEPTION_SOFTWARE */
-  MD_EXCEPTION_CODE_MAC_BAD_SYSCALL = 0x00010000,  /* Mach SIGSYS */
-  MD_EXCEPTION_CODE_MAC_BAD_PIPE    = 0x00010001,  /* Mach SIGPIPE */
-  MD_EXCEPTION_CODE_MAC_ABORT       = 0x00010002,  /* Mach SIGABRT */
-
-  /* With MD_EXCEPTION_MAC_BAD_ACCESS on ppc */
-  MD_EXCEPTION_CODE_MAC_PPC_VM_PROT_READ = 0x0101,
-      /* EXC_PPC_VM_PROT_READ */
-  MD_EXCEPTION_CODE_MAC_PPC_BADSPACE     = 0x0102,
-      /* EXC_PPC_BADSPACE */
-  MD_EXCEPTION_CODE_MAC_PPC_UNALIGNED    = 0x0103,
-      /* EXC_PPC_UNALIGNED */
-
-  /* With MD_EXCEPTION_MAC_BAD_INSTRUCTION on ppc */
-  MD_EXCEPTION_CODE_MAC_PPC_INVALID_SYSCALL           = 1,
-      /* EXC_PPC_INVALID_SYSCALL */
-  MD_EXCEPTION_CODE_MAC_PPC_UNIMPLEMENTED_INSTRUCTION = 2,
-      /* EXC_PPC_UNIPL_INST */
-  MD_EXCEPTION_CODE_MAC_PPC_PRIVILEGED_INSTRUCTION    = 3,
-      /* EXC_PPC_PRIVINST */
-  MD_EXCEPTION_CODE_MAC_PPC_PRIVILEGED_REGISTER       = 4,
-      /* EXC_PPC_PRIVREG */
-  MD_EXCEPTION_CODE_MAC_PPC_TRACE                     = 5,
-      /* EXC_PPC_TRACE */
-  MD_EXCEPTION_CODE_MAC_PPC_PERFORMANCE_MONITOR       = 6,
-      /* EXC_PPC_PERFMON */
-
-  /* With MD_EXCEPTION_MAC_ARITHMETIC on ppc */
-  MD_EXCEPTION_CODE_MAC_PPC_OVERFLOW           = 1,
-      /* EXC_PPC_OVERFLOW */
-  MD_EXCEPTION_CODE_MAC_PPC_ZERO_DIVIDE        = 2,
-      /* EXC_PPC_ZERO_DIVIDE */
-  MD_EXCEPTION_CODE_MAC_PPC_FLOAT_INEXACT      = 3,
-      /* EXC_FLT_INEXACT */
-  MD_EXCEPTION_CODE_MAC_PPC_FLOAT_ZERO_DIVIDE  = 4,
-      /* EXC_PPC_FLT_ZERO_DIVIDE */
-  MD_EXCEPTION_CODE_MAC_PPC_FLOAT_UNDERFLOW    = 5,
-      /* EXC_PPC_FLT_UNDERFLOW */
-  MD_EXCEPTION_CODE_MAC_PPC_FLOAT_OVERFLOW     = 6,
-      /* EXC_PPC_FLT_OVERFLOW */
-  MD_EXCEPTION_CODE_MAC_PPC_FLOAT_NOT_A_NUMBER = 7,
-      /* EXC_PPC_FLT_NOT_A_NUMBER */
-
-  /* With MD_EXCEPTION_MAC_EMULATION on ppc */
-  MD_EXCEPTION_CODE_MAC_PPC_NO_EMULATION   = 8,
-      /* EXC_PPC_NOEMULATION */
-  MD_EXCEPTION_CODE_MAC_PPC_ALTIVEC_ASSIST = 9,
-      /* EXC_PPC_ALTIVECASSIST */
-
-  /* With MD_EXCEPTION_MAC_SOFTWARE on ppc */
-  MD_EXCEPTION_CODE_MAC_PPC_TRAP    = 0x00000001,  /* EXC_PPC_TRAP */
-  MD_EXCEPTION_CODE_MAC_PPC_MIGRATE = 0x00010100,  /* EXC_PPC_MIGRATE */
-
-  /* With MD_EXCEPTION_MAC_BREAKPOINT on ppc */
-  MD_EXCEPTION_CODE_MAC_PPC_BREAKPOINT = 1,  /* EXC_PPC_BREAKPOINT */
-
-  /* With MD_EXCEPTION_MAC_BAD_INSTRUCTION on x86, see also x86 interrupt
-   * values below. */
-  MD_EXCEPTION_CODE_MAC_X86_INVALID_OPERATION = 1,  /* EXC_I386_INVOP */
-
-  /* With MD_EXCEPTION_MAC_ARITHMETIC on x86 */
-  MD_EXCEPTION_CODE_MAC_X86_DIV       = 1,  /* EXC_I386_DIV */
-  MD_EXCEPTION_CODE_MAC_X86_INTO      = 2,  /* EXC_I386_INTO */
-  MD_EXCEPTION_CODE_MAC_X86_NOEXT     = 3,  /* EXC_I386_NOEXT */
-  MD_EXCEPTION_CODE_MAC_X86_EXTOVR    = 4,  /* EXC_I386_EXTOVR */
-  MD_EXCEPTION_CODE_MAC_X86_EXTERR    = 5,  /* EXC_I386_EXTERR */
-  MD_EXCEPTION_CODE_MAC_X86_EMERR     = 6,  /* EXC_I386_EMERR */
-  MD_EXCEPTION_CODE_MAC_X86_BOUND     = 7,  /* EXC_I386_BOUND */
-  MD_EXCEPTION_CODE_MAC_X86_SSEEXTERR = 8,  /* EXC_I386_SSEEXTERR */
-
-  /* With MD_EXCEPTION_MAC_BREAKPOINT on x86 */
-  MD_EXCEPTION_CODE_MAC_X86_SGL = 1,  /* EXC_I386_SGL */
-  MD_EXCEPTION_CODE_MAC_X86_BPT = 2,  /* EXC_I386_BPT */
-
-  /* With MD_EXCEPTION_MAC_BAD_INSTRUCTION on x86.  These are the raw
-   * x86 interrupt codes.  Most of these are mapped to other Mach
-   * exceptions and codes, are handled, or should not occur in user space.
-   * A few of these will do occur with MD_EXCEPTION_MAC_BAD_INSTRUCTION. */
-  /* EXC_I386_DIVERR    =  0: mapped to EXC_ARITHMETIC/EXC_I386_DIV */
-  /* EXC_I386_SGLSTP    =  1: mapped to EXC_BREAKPOINT/EXC_I386_SGL */
-  /* EXC_I386_NMIFLT    =  2: should not occur in user space */
-  /* EXC_I386_BPTFLT    =  3: mapped to EXC_BREAKPOINT/EXC_I386_BPT */
-  /* EXC_I386_INTOFLT   =  4: mapped to EXC_ARITHMETIC/EXC_I386_INTO */
-  /* EXC_I386_BOUNDFLT  =  5: mapped to EXC_ARITHMETIC/EXC_I386_BOUND */
-  /* EXC_I386_INVOPFLT  =  6: mapped to EXC_BAD_INSTRUCTION/EXC_I386_INVOP */
-  /* EXC_I386_NOEXTFLT  =  7: should be handled by the kernel */
-  /* EXC_I386_DBLFLT    =  8: should be handled (if possible) by the kernel */
-  /* EXC_I386_EXTOVRFLT =  9: mapped to EXC_BAD_ACCESS/(PROT_READ|PROT_EXEC) */
-  MD_EXCEPTION_CODE_MAC_X86_INVALID_TASK_STATE_SEGMENT = 10,
-      /* EXC_INVTSSFLT */
-  MD_EXCEPTION_CODE_MAC_X86_SEGMENT_NOT_PRESENT        = 11,
-      /* EXC_SEGNPFLT */
-  MD_EXCEPTION_CODE_MAC_X86_STACK_FAULT                = 12,
-      /* EXC_STKFLT */
-  MD_EXCEPTION_CODE_MAC_X86_GENERAL_PROTECTION_FAULT   = 13,
-      /* EXC_GPFLT */
-  /* EXC_I386_PGFLT     = 14: should not occur in user space */
-  /* EXC_I386_EXTERRFLT = 16: mapped to EXC_ARITHMETIC/EXC_I386_EXTERR */
-  MD_EXCEPTION_CODE_MAC_X86_ALIGNMENT_FAULT            = 17
-      /* EXC_ALIGNFLT (for vector operations) */
-  /* EXC_I386_ENOEXTFLT = 32: should be handled by the kernel */
-  /* EXC_I386_ENDPERR   = 33: should not occur */
-} MDExceptionCodeMac;
-
-/* For (MDException).exception_code.  These values come from bits/signum.h.
- */
-typedef enum {
-  MD_EXCEPTION_CODE_LIN_SIGHUP = 1,      /* Hangup (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGINT = 2,      /* Interrupt (ANSI) */
-  MD_EXCEPTION_CODE_LIN_SIGQUIT = 3,     /* Quit (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGILL = 4,      /* Illegal instruction (ANSI) */
-  MD_EXCEPTION_CODE_LIN_SIGTRAP = 5,     /* Trace trap (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGABRT = 6,     /* Abort (ANSI) */
-  MD_EXCEPTION_CODE_LIN_SIGBUS = 7,      /* BUS error (4.2 BSD) */
-  MD_EXCEPTION_CODE_LIN_SIGFPE = 8,      /* Floating-point exception (ANSI) */
-  MD_EXCEPTION_CODE_LIN_SIGKILL = 9,     /* Kill, unblockable (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGUSR1 = 10,    /* User-defined signal 1 (POSIX).  */
-  MD_EXCEPTION_CODE_LIN_SIGSEGV = 11,    /* Segmentation violation (ANSI) */
-  MD_EXCEPTION_CODE_LIN_SIGUSR2 = 12,    /* User-defined signal 2 (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGPIPE = 13,    /* Broken pipe (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGALRM = 14,    /* Alarm clock (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGTERM = 15,    /* Termination (ANSI) */
-  MD_EXCEPTION_CODE_LIN_SIGSTKFLT = 16,  /* Stack faultd */
-  MD_EXCEPTION_CODE_LIN_SIGCHLD = 17,    /* Child status has changed (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGCONT = 18,    /* Continue (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGSTOP = 19,    /* Stop, unblockable (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGTSTP = 20,    /* Keyboard stop (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGTTIN = 21,    /* Background read from tty (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGTTOU = 22,    /* Background write to tty (POSIX) */
-  MD_EXCEPTION_CODE_LIN_SIGURG = 23,
-    /* Urgent condition on socket (4.2 BSD) */
-  MD_EXCEPTION_CODE_LIN_SIGXCPU = 24,    /* CPU limit exceeded (4.2 BSD) */
-  MD_EXCEPTION_CODE_LIN_SIGXFSZ = 25,
-    /* File size limit exceeded (4.2 BSD) */
-  MD_EXCEPTION_CODE_LIN_SIGVTALRM = 26,  /* Virtual alarm clock (4.2 BSD) */
-  MD_EXCEPTION_CODE_LIN_SIGPROF = 27,    /* Profiling alarm clock (4.2 BSD) */
-  MD_EXCEPTION_CODE_LIN_SIGWINCH = 28,   /* Window size change (4.3 BSD, Sun) */
-  MD_EXCEPTION_CODE_LIN_SIGIO = 29,      /* I/O now possible (4.2 BSD) */
-  MD_EXCEPTION_CODE_LIN_SIGPWR = 30,     /* Power failure restart (System V) */
-  MD_EXCEPTION_CODE_LIN_SIGSYS = 31      /* Bad system call */
-} MDExceptionCodeLinux;
+#include "minidump_exception_win32.h"
+#include "minidump_exception_mac.h"
+#include "minidump_exception_linux.h"
+#include "minidump_exception_solaris.h"
 
 typedef struct {
   u_int32_t            thread_id;         /* Thread in which the exception

@@ -94,7 +94,7 @@ AutoConfigSecMan::CanGetService(JSContext *aJSContext, const nsCID & aCID)
 
 NS_IMETHODIMP 
 AutoConfigSecMan::CanAccess(PRUint32 aAction, 
-                            nsIXPCNativeCallContext *aCallContext, 
+                            nsAXPCNativeCallContext *aCallContext, 
                             JSContext *aJSContext, JSObject *aJSObject, 
                             nsISupports *aObj, nsIClassInfo *aClassInfo, 
                             jsval aName, void **aPolicy)
@@ -110,10 +110,10 @@ static  JSObject *autoconfig_glob;
 static JSClass global_class = {
     "autoconfig_global", 0,
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nsnull
 };
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 autoConfigErrorReporter(JSContext *cx, const char *message, 
                         JSErrorReport *report)
 {
@@ -151,6 +151,8 @@ nsresult CentralizedAdminPrefManagerInit()
     autoconfig_cx = JS_NewContext(rt, 1024);
     if (!autoconfig_cx)
         return NS_ERROR_OUT_OF_MEMORY;
+
+    JSAutoRequest ar(autoconfig_cx);
 
     JS_SetErrorReporter(autoconfig_cx, autoConfigErrorReporter);
 

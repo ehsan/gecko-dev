@@ -40,11 +40,11 @@
 #define nsClipboard_h_
 
 #include "nsBaseClipboard.h"
+#include "nsXPIDLString.h"
 
 #import <Cocoa/Cocoa.h>
 
 class nsITransferable;
-
 
 class nsClipboard : public nsBaseClipboard
 {
@@ -54,10 +54,13 @@ public:
   virtual ~nsClipboard();
 
   // nsIClipboard  
-  NS_IMETHOD  HasDataMatchingFlavors(nsISupportsArray *aFlavorList, PRInt32 aWhichClipboard, PRBool *_retval);
+  NS_IMETHOD HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
+                                    PRInt32 aWhichClipboard, PRBool *_retval);
 
   // Helper methods, used also by nsDragService
   static NSDictionary* PasteboardDictFromTransferable(nsITransferable *aTransferable);
+  static PRBool IsStringType(const nsCString& aMIMEType, const NSString** aPasteboardType);
+  static NSString* WrapHtmlForSystemPasteboard(NSString* aString);
 
 protected:
 

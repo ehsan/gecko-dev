@@ -22,6 +22,7 @@
  *
  * Contributor(s):
  *   Johnny Stenback <jst@netscape.com> (original author)
+ *   Boris Zbarsky <bzbarsky@mit.edu>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -48,6 +49,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIContent.h"
+#include "nsIContentViewer.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMWindow.h"
@@ -63,8 +65,19 @@
 #include "nsUnicharUtils.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIScrollable.h"
 #include "nsFrameLoader.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIFrame.h"
+#include "nsIFrameFrame.h"
+#include "nsDOMError.h"
+#include "nsPresShellIterator.h"
+#include "nsGUIEvent.h"
+#include "nsEventDispatcher.h"
+#include "nsISHistory.h"
+#include "nsISHistoryInternal.h"
+#include "nsIDOMNSHTMLDocument.h"
+#include "nsIView.h"
 
 #include "nsIURI.h"
 #include "nsIURL.h"
@@ -72,6 +85,29 @@
 
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
+
+#include "nsThreadUtils.h"
+#include "nsICSSStyleSheet.h"
+#include "nsIContentViewer.h"
+
+class nsAsyncDocShellDestroyer : public nsRunnable
+{
+public:
+  nsAsyncDocShellDestroyer(nsIDocShell* aDocShell)
+    : mDocShell(aDocShell)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    nsCOMPtr<nsIBaseWindow> base_win(do_QueryInterface(mDocShell));
+    if (base_win) {
+      base_win->Destroy();
+    }
+    return NS_OK;
+  }
+  nsRefPtr<nsIDocShell> mDocShell;
+};
 
 // Bug 136580: Limit to the number of nested content frames that can have the
 //             same URL. This is to stop content that is recursively loading
@@ -100,6 +136,19 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameLoader)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
+nsFrameLoader*
+nsFrameLoader::Create(nsIContent* aOwner)
+{
+  NS_ENSURE_TRUE(aOwner, nsnull);
+  nsIDocument* doc = aOwner->GetOwnerDoc();
+  NS_ENSURE_TRUE(doc && !doc->GetDisplayDocument() &&
+                 ((!doc->IsLoadedAsData() && aOwner->GetCurrentDoc()) ||
+                   doc->IsStaticDocument()),
+                 nsnull);
+
+  return new nsFrameLoader(aOwner);
+}
+
 NS_IMETHODIMP
 nsFrameLoader::LoadFrame()
 {
@@ -115,7 +164,7 @@ nsFrameLoader::LoadFrame()
   }
 
   nsIDocument* doc = mOwnerContent->GetOwnerDoc();
-  if (!doc) {
+  if (!doc || doc->IsStaticDocument()) {
     return NS_OK;
   }
 
@@ -129,7 +178,7 @@ nsFrameLoader::LoadFrame()
   // If the URI was malformed, try to recover by loading about:blank.
   if (rv == NS_ERROR_MALFORMED_URI) {
     rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_STRING("about:blank"),
-                   charset);
+                   charset, base_uri);
   }
 
   NS_ENSURE_SUCCESS(rv, rv);
@@ -139,22 +188,70 @@ nsFrameLoader::LoadFrame()
 NS_IMETHODIMP
 nsFrameLoader::LoadURI(nsIURI* aURI)
 {
-  NS_PRECONDITION(aURI, "Null URI?");
   if (!aURI)
     return NS_ERROR_INVALID_POINTER;
+  NS_ENSURE_STATE(!mDestroyCalled && mOwnerContent);
 
-  nsIDocument* doc = mOwnerContent->GetOwnerDoc();
+  nsCOMPtr<nsIDocument> doc = mOwnerContent->GetOwnerDoc();
   if (!doc) {
     return NS_OK;
   }
 
-  nsresult rv = EnsureDocShell();
+  nsresult rv = CheckURILoad(aURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mURIToLoad = aURI;
+  rv = doc->InitializeFrameLoader(this);
+  if (NS_FAILED(rv)) {
+    mURIToLoad = nsnull;
+  }
+  return rv;
+}
+
+nsresult
+nsFrameLoader::ReallyStartLoading()
+{
+  NS_ENSURE_STATE(mURIToLoad && mOwnerContent && mOwnerContent->IsInDoc());
+  // Just to be safe, recheck uri.
+  nsresult rv = CheckURILoad(mURIToLoad);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = EnsureDocShell();
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDocShellLoadInfo> loadInfo;
   mDocShell->CreateLoadInfo(getter_AddRefs(loadInfo));
   NS_ENSURE_TRUE(loadInfo, NS_ERROR_FAILURE);
 
+  // We'll use our principal, not that of the document loaded inside us.  This
+  // is very important; needed to prevent XSS attacks on documents loaded in
+  // subframes!
+  loadInfo->SetOwner(mOwnerContent->NodePrincipal());
+
+  nsCOMPtr<nsIURI> referrer;
+  rv = mOwnerContent->NodePrincipal()->GetURI(getter_AddRefs(referrer));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  loadInfo->SetReferrer(referrer);
+
+  // Kick off the load...
+  PRBool tmpState = mNeedsAsyncDestroy;
+  mNeedsAsyncDestroy = PR_TRUE;
+  rv = mDocShell->LoadURI(mURIToLoad, loadInfo,
+                          nsIWebNavigation::LOAD_FLAGS_NONE, PR_FALSE);
+  mNeedsAsyncDestroy = tmpState;
+  mURIToLoad = nsnull;
+#ifdef DEBUG
+  if (NS_FAILED(rv)) {
+    NS_WARNING("Failed to load the URL");
+  }
+#endif
+  return NS_OK;
+}
+
+nsresult
+nsFrameLoader::CheckURILoad(nsIURI* aURI)
+{
   // Check for security.  The fun part is trying to figure out what principals
   // to use.  The way I figure it, if we're doing a LoadFrame() accidentally
   // (eg someone created a frame/iframe node, we're being parsed, XUL iframes
@@ -175,37 +272,15 @@ nsFrameLoader::LoadURI(nsIURI* aURI)
   nsIPrincipal* principal = mOwnerContent->NodePrincipal();
 
   // Check if we are allowed to load absURL
-  rv = secMan->CheckLoadURIWithPrincipal(principal, aURI,
-                                         nsIScriptSecurityManager::STANDARD);
+  nsresult rv =
+    secMan->CheckLoadURIWithPrincipal(principal, aURI,
+                                      nsIScriptSecurityManager::STANDARD);
   if (NS_FAILED(rv)) {
     return rv; // We're not
   }
 
   // Bail out if this is an infinite recursion scenario
-  rv = CheckForRecursiveLoad(aURI);
-  NS_ENSURE_SUCCESS(rv, rv);
-  
-  // We'll use our principal, not that of the document loaded inside us.  This
-  // is very important; needed to prevent XSS attacks on documents loaded in
-  // subframes!
-  loadInfo->SetOwner(principal);
-
-  nsCOMPtr<nsIURI> referrer;
-  rv = principal->GetURI(getter_AddRefs(referrer));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  loadInfo->SetReferrer(referrer);
-
-  // Kick off the load...
-  rv = mDocShell->LoadURI(aURI, loadInfo, nsIWebNavigation::LOAD_FLAGS_NONE,
-                          PR_FALSE);
-#ifdef DEBUG
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to load the URL");
-  }
-#endif
-
-  return rv;
+  return CheckForRecursiveLoad(aURI);
 }
 
 NS_IMETHODIMP
@@ -227,11 +302,556 @@ nsFrameLoader::GetDocShell(nsIDocShell **aDocShell)
   return NS_OK;
 }
 
+void
+nsFrameLoader::Finalize()
+{
+  nsCOMPtr<nsIBaseWindow> base_win(do_QueryInterface(mDocShell));
+  if (base_win) {
+    base_win->Destroy();
+  }
+  mDocShell = nsnull;
+}
+
+static void
+FirePageHideEvent(nsIDocShellTreeItem* aItem,
+                  nsIDOMEventTarget* aChromeEventHandler)
+{
+  nsCOMPtr<nsIDOMDocument> doc = do_GetInterface(aItem);
+  nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
+  NS_ASSERTION(internalDoc, "What happened here?");
+  internalDoc->OnPageHide(PR_TRUE, aChromeEventHandler);
+
+  PRInt32 childCount = 0;
+  aItem->GetChildCount(&childCount);
+  nsAutoTArray<nsCOMPtr<nsIDocShellTreeItem>, 8> kids;
+  kids.AppendElements(childCount);
+  for (PRInt32 i = 0; i < childCount; ++i) {
+    aItem->GetChildAt(i, getter_AddRefs(kids[i]));
+  }
+
+  for (PRUint32 i = 0; i < kids.Length(); ++i) {
+    if (kids[i]) {
+      FirePageHideEvent(kids[i], aChromeEventHandler);
+    }
+  }
+}
+
+// The pageshow event is fired for a given document only if IsShowing() returns
+// the same thing as aFireIfShowing.  This gives us a way to fire pageshow only
+// on documents that are still loading or only on documents that are already
+// loaded.
+static void
+FirePageShowEvent(nsIDocShellTreeItem* aItem,
+                  nsIDOMEventTarget* aChromeEventHandler,
+                  PRBool aFireIfShowing)
+{
+  PRInt32 childCount = 0;
+  aItem->GetChildCount(&childCount);
+  nsAutoTArray<nsCOMPtr<nsIDocShellTreeItem>, 8> kids;
+  kids.AppendElements(childCount);
+  for (PRInt32 i = 0; i < childCount; ++i) {
+    aItem->GetChildAt(i, getter_AddRefs(kids[i]));
+  }
+
+  for (PRUint32 i = 0; i < kids.Length(); ++i) {
+    if (kids[i]) {
+      FirePageShowEvent(kids[i], aChromeEventHandler, aFireIfShowing);
+    }
+  }
+
+  nsCOMPtr<nsIDOMDocument> doc = do_GetInterface(aItem);
+  nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
+  NS_ASSERTION(internalDoc, "What happened here?");
+  if (internalDoc->IsShowing() == aFireIfShowing) {
+    internalDoc->OnPageShow(PR_TRUE, aChromeEventHandler);
+  }
+}
+
+static void
+SetTreeOwnerAndChromeEventHandlerOnDocshellTree(nsIDocShellTreeItem* aItem,
+                                                nsIDocShellTreeOwner* aOwner,
+                                                nsIDOMEventTarget* aHandler)
+{
+  NS_PRECONDITION(aItem, "Must have item");
+
+  aItem->SetTreeOwner(aOwner);
+  nsCOMPtr<nsIDocShell> shell(do_QueryInterface(aItem));
+  shell->SetChromeEventHandler(aHandler);
+
+  PRInt32 childCount = 0;
+  aItem->GetChildCount(&childCount);
+  for (PRInt32 i = 0; i < childCount; ++i) {
+    nsCOMPtr<nsIDocShellTreeItem> item;
+    aItem->GetChildAt(i, getter_AddRefs(item));
+    SetTreeOwnerAndChromeEventHandlerOnDocshellTree(item, aOwner, aHandler);
+  }
+}
+
+/**
+ * Set the type of the treeitem and hook it up to the treeowner.
+ * @param aItem the treeitem we're wrking working with
+ * @param aOwningContent the content node that owns aItem
+ * @param aTreeOwner the relevant treeowner; might be null
+ * @param aParentType the nsIDocShellTreeItem::GetType of our parent docshell
+ * @param aParentNode if non-null, the docshell we should be added as a child to
+ *
+ * @return whether aItem is top-level content
+ */
+static PRBool
+AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem, nsIContent* aOwningContent,
+                       nsIDocShellTreeOwner* aOwner, PRInt32 aParentType,
+                       nsIDocShellTreeNode* aParentNode)
+{
+  NS_PRECONDITION(aItem, "Must have docshell treeitem");
+  NS_PRECONDITION(aOwningContent, "Must have owning content");
+  
+  nsAutoString value;
+  PRBool isContent = PR_FALSE;
+
+  if (aOwningContent->IsXUL()) {
+      aOwningContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type, value);
+  }
+
+  // we accept "content" and "content-xxx" values.
+  // at time of writing, we expect "xxx" to be "primary" or "targetable", but
+  // someday it might be an integer expressing priority or something else.
+
+  isContent = value.LowerCaseEqualsLiteral("content") ||
+    StringBeginsWith(value, NS_LITERAL_STRING("content-"),
+                     nsCaseInsensitiveStringComparator());
+
+  if (isContent) {
+    // The web shell's type is content.
+
+    aItem->SetItemType(nsIDocShellTreeItem::typeContent);
+  } else {
+    // Inherit our type from our parent docshell.  If it is
+    // chrome, we'll be chrome.  If it is content, we'll be
+    // content.
+
+    aItem->SetItemType(aParentType);
+  }
+
+  // Now that we have our type set, add ourselves to the parent, as needed.
+  if (aParentNode) {
+    aParentNode->AddChild(aItem);
+  }
+
+  PRBool retval = PR_FALSE;
+  if (aParentType == nsIDocShellTreeItem::typeChrome && isContent) {
+    retval = PR_TRUE;
+
+    PRBool is_primary = value.LowerCaseEqualsLiteral("content-primary");
+
+    if (aOwner) {
+      PRBool is_targetable = is_primary ||
+        value.LowerCaseEqualsLiteral("content-targetable");
+      aOwner->ContentShellAdded(aItem, is_primary, is_targetable, value);
+    }
+  }
+
+  return retval;
+}
+
+static PRBool
+AllDescendantsOfType(nsIDocShellTreeItem* aParentItem, PRInt32 aType)
+{
+  PRInt32 childCount = 0;
+  aParentItem->GetChildCount(&childCount);
+
+  for (PRInt32 i = 0; i < childCount; ++i) {
+    nsCOMPtr<nsIDocShellTreeItem> kid;
+    aParentItem->GetChildAt(i, getter_AddRefs(kid));
+
+    PRInt32 kidType;
+    kid->GetItemType(&kidType);
+    if (kidType != aType || !AllDescendantsOfType(kid, aType)) {
+      return PR_FALSE;
+    }
+  }
+
+  return PR_TRUE;
+}
+
+bool
+nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
+                    PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
+                    nsIFrameFrame* frame)
+{
+  nsContentType contentType;
+
+  nsresult rv = EnsureDocShell();
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+
+  if (!mDocShell)
+    return false;
+
+  nsCOMPtr<nsIPresShell> presShell;
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
+  if (presShell)
+    return true;
+
+  mDocShell->SetMarginWidth(marginWidth);
+  mDocShell->SetMarginHeight(marginHeight);
+
+  nsCOMPtr<nsIScrollable> sc = do_QueryInterface(mDocShell);
+  if (sc) {
+    sc->SetDefaultScrollbarPreferences(nsIScrollable::ScrollOrientation_X,
+                                       scrollbarPrefX);
+    sc->SetDefaultScrollbarPreferences(nsIScrollable::ScrollOrientation_Y,
+                                       scrollbarPrefY);
+  }
+
+
+  nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(mDocShell);
+  NS_ASSERTION(treeItem,
+               "Found a nsIDocShell that isn't a nsIDocShellTreeItem.");
+
+  PRInt32 itemType;
+  treeItem->GetItemType(&itemType);
+
+  if (itemType == nsIDocShellTreeItem::typeChrome)
+    contentType = eContentTypeUI;
+  else {
+    nsCOMPtr<nsIDocShellTreeItem> sameTypeParent;
+    treeItem->GetSameTypeParent(getter_AddRefs(sameTypeParent));
+    contentType = sameTypeParent ? eContentTypeContentFrame : eContentTypeContent;
+  }
+
+  nsIView* view = frame->CreateViewAndWidget(contentType);
+  if (!view)
+    return false;
+
+  nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mDocShell);
+  NS_ASSERTION(baseWindow, "Found a nsIDocShell that isn't a nsIBaseWindow.");
+  baseWindow->InitWindow(nsnull, view->GetWidget(), 0, 0, 10, 10);
+  // This is kinda whacky, this "Create()" call doesn't really
+  // create anything, one starts to wonder why this was named
+  // "Create"...
+  baseWindow->Create();
+  baseWindow->SetVisibility(PR_TRUE);
+
+  // Trigger editor re-initialization if midas is turned on in the
+  // sub-document. This shouldn't be necessary, but given the way our
+  // editor works, it is. See
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=284245
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
+  if (presShell) {
+    nsCOMPtr<nsIDOMNSHTMLDocument> doc =
+      do_QueryInterface(presShell->GetDocument());
+
+    if (doc) {
+      nsAutoString designMode;
+      doc->GetDesignMode(designMode);
+
+      if (designMode.EqualsLiteral("on")) {
+        doc->SetDesignMode(NS_LITERAL_STRING("off"));
+        doc->SetDesignMode(NS_LITERAL_STRING("on"));
+      }
+    }
+  }
+
+  return true;
+}
+
+void
+nsFrameLoader::Hide()
+{
+  if (!mDocShell)
+    return;
+
+  nsCOMPtr<nsIContentViewer> contentViewer;
+  mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
+  if (contentViewer)
+    contentViewer->SetSticky(PR_FALSE);
+
+  nsCOMPtr<nsIBaseWindow> baseWin = do_QueryInterface(mDocShell);
+  NS_ASSERTION(baseWin,
+               "Found an nsIDocShell which doesn't implement nsIBaseWindow.");
+  baseWin->SetVisibility(PR_FALSE);
+  baseWin->SetParentWidget(nsnull);
+}
+
+nsresult
+nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
+                                   nsRefPtr<nsFrameLoader>& aFirstToSwap,
+                                   nsRefPtr<nsFrameLoader>& aSecondToSwap)
+{
+  NS_PRECONDITION((aFirstToSwap == this && aSecondToSwap == aOther) ||
+                  (aFirstToSwap == aOther && aSecondToSwap == this),
+                  "Swapping some sort of random loaders?");
+
+  nsIContent* ourContent = mOwnerContent;
+  nsIContent* otherContent = aOther->mOwnerContent;
+
+  if (!ourContent || !otherContent) {
+    // Can't handle this
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  // Make sure there are no same-origin issues
+  PRBool equal;
+  nsresult rv =
+    ourContent->NodePrincipal()->Equals(otherContent->NodePrincipal(), &equal);
+  if (NS_FAILED(rv) || !equal) {
+    // Security problems loom.  Just bail on it all
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  nsCOMPtr<nsIDocShell> ourDochell = GetExistingDocShell();
+  nsCOMPtr<nsIDocShell> otherDocshell = aOther->GetExistingDocShell();
+  if (!ourDochell || !otherDocshell) {
+    // How odd
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  // To avoid having to mess with session history, avoid swapping
+  // frameloaders that don't correspond to root same-type docshells,
+  // unless both roots have session history disabled.
+  nsCOMPtr<nsIDocShellTreeItem> ourTreeItem = do_QueryInterface(ourDochell);
+  nsCOMPtr<nsIDocShellTreeItem> otherTreeItem =
+    do_QueryInterface(otherDocshell);
+  nsCOMPtr<nsIDocShellTreeItem> ourRootTreeItem, otherRootTreeItem;
+  ourTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(ourRootTreeItem));
+  otherTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(otherRootTreeItem));
+  nsCOMPtr<nsIWebNavigation> ourRootWebnav =
+    do_QueryInterface(ourRootTreeItem);
+  nsCOMPtr<nsIWebNavigation> otherRootWebnav =
+    do_QueryInterface(otherRootTreeItem);
+
+  if (!ourRootWebnav || !otherRootWebnav) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  nsCOMPtr<nsISHistory> ourHistory;
+  nsCOMPtr<nsISHistory> otherHistory;
+  ourRootWebnav->GetSessionHistory(getter_AddRefs(ourHistory));
+  otherRootWebnav->GetSessionHistory(getter_AddRefs(otherHistory));
+
+  if ((ourRootTreeItem != ourTreeItem || otherRootTreeItem != otherTreeItem) &&
+      (ourHistory || otherHistory)) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  // Also make sure that the two docshells are the same type. Otherwise
+  // swapping is certainly not safe.
+  PRInt32 ourType = nsIDocShellTreeItem::typeChrome;
+  PRInt32 otherType = nsIDocShellTreeItem::typeChrome;
+  ourTreeItem->GetItemType(&ourType);
+  otherTreeItem->GetItemType(&otherType);
+  if (ourType != otherType) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  // One more twist here.  Setting up the right treeowners in a heterogeneous
+  // tree is a bit of a pain.  So make sure that if ourType is not
+  // nsIDocShellTreeItem::typeContent then all of our descendants are the same
+  // type as us.
+  if (ourType != nsIDocShellTreeItem::typeContent &&
+      (!AllDescendantsOfType(ourTreeItem, ourType) ||
+       !AllDescendantsOfType(otherTreeItem, otherType))) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+  
+  // Save off the tree owners, frame elements, chrome event handlers, and
+  // docshell and document parents before doing anything else.
+  nsCOMPtr<nsIDocShellTreeOwner> ourOwner, otherOwner;
+  ourTreeItem->GetTreeOwner(getter_AddRefs(ourOwner));
+  otherTreeItem->GetTreeOwner(getter_AddRefs(otherOwner));
+  // Note: it's OK to have null treeowners.
+
+  nsCOMPtr<nsIDocShellTreeItem> ourParentItem, otherParentItem;
+  ourTreeItem->GetParent(getter_AddRefs(ourParentItem));
+  otherTreeItem->GetParent(getter_AddRefs(otherParentItem));
+  if (!ourParentItem || !otherParentItem) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  // Make sure our parents are the same type too
+  PRInt32 ourParentType = nsIDocShellTreeItem::typeContent;
+  PRInt32 otherParentType = nsIDocShellTreeItem::typeContent;
+  ourParentItem->GetItemType(&ourParentType);
+  otherParentItem->GetItemType(&otherParentType);
+  if (ourParentType != otherParentType) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  nsCOMPtr<nsPIDOMWindow> ourWindow = do_GetInterface(ourDochell);
+  nsCOMPtr<nsPIDOMWindow> otherWindow = do_GetInterface(otherDocshell);
+
+  nsCOMPtr<nsIDOMElement> ourFrameElement =
+    ourWindow->GetFrameElementInternal();
+  nsCOMPtr<nsIDOMElement> otherFrameElement =
+    otherWindow->GetFrameElementInternal();
+
+  nsCOMPtr<nsIDOMEventTarget> ourChromeEventHandler =
+    do_QueryInterface(ourWindow->GetChromeEventHandler());
+  nsCOMPtr<nsIDOMEventTarget> otherChromeEventHandler =
+    do_QueryInterface(otherWindow->GetChromeEventHandler());
+
+  NS_ASSERTION(SameCOMIdentity(ourFrameElement, ourContent) &&
+               SameCOMIdentity(otherFrameElement, otherContent) &&
+               SameCOMIdentity(ourChromeEventHandler, ourContent) &&
+               SameCOMIdentity(otherChromeEventHandler, otherContent),
+               "How did that happen, exactly?");
+
+  nsCOMPtr<nsIDocument> ourChildDocument =
+    do_QueryInterface(ourWindow->GetExtantDocument());
+  nsCOMPtr<nsIDocument> otherChildDocument =
+    do_QueryInterface(otherWindow->GetExtantDocument());
+  if (!ourChildDocument || !otherChildDocument) {
+    // This shouldn't be happening
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  nsCOMPtr<nsIDocument> ourParentDocument =
+    ourChildDocument->GetParentDocument();
+  nsCOMPtr<nsIDocument> otherParentDocument =
+    otherChildDocument->GetParentDocument();
+
+  // Make sure to swap docshells between the two frames.
+  nsIDocument* ourDoc = ourContent->GetCurrentDoc();
+  nsIDocument* otherDoc = otherContent->GetCurrentDoc();
+  if (!ourDoc || !otherDoc) {
+    // Again, how odd, given that we had docshells
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  NS_ASSERTION(ourDoc == ourParentDocument, "Unexpected parent document");
+  NS_ASSERTION(otherDoc == otherParentDocument, "Unexpected parent document");
+
+  nsPresShellIterator iter1(ourDoc);
+  nsPresShellIterator iter2(otherDoc);
+  if (iter1.HasMoreThanOneShell() || iter2.HasMoreThanOneShell()) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  nsIPresShell* ourShell = ourDoc->GetPrimaryShell();
+  nsIPresShell* otherShell = otherDoc->GetPrimaryShell();
+  if (!ourShell || !otherShell) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  if (mInSwap || aOther->mInSwap) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+  mInSwap = aOther->mInSwap = PR_TRUE;
+
+  // Fire pageshow events on still-loading pages, and then fire pagehide
+  // events.  Note that we do NOT fire these in the normal way, but just fire
+  // them on the chrome event handlers.
+  FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_FALSE);
+  FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_FALSE);
+  FirePageHideEvent(ourTreeItem, ourChromeEventHandler);
+  FirePageHideEvent(otherTreeItem, otherChromeEventHandler);
+  
+  nsIFrame* ourFrame = ourContent->GetPrimaryFrame();
+  nsIFrame* otherFrame = otherContent->GetPrimaryFrame();
+  if (!ourFrame || !otherFrame) {
+    mInSwap = aOther->mInSwap = PR_FALSE;
+    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
+    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_TRUE);
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  nsIFrameFrame* ourFrameFrame = do_QueryFrame(ourFrame);
+  if (!ourFrameFrame) {
+    mInSwap = aOther->mInSwap = PR_FALSE;
+    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
+    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_TRUE);
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  // OK.  First begin to swap the docshells in the two nsIFrames
+  rv = ourFrameFrame->BeginSwapDocShells(otherFrame);
+  if (NS_FAILED(rv)) {
+    mInSwap = aOther->mInSwap = PR_FALSE;
+    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
+    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_TRUE);
+    return rv;
+  }
+
+  // Now move the docshells to the right docshell trees.  Note that this
+  // resets their treeowners to null.
+  ourParentItem->RemoveChild(ourTreeItem);
+  otherParentItem->RemoveChild(otherTreeItem);
+  if (ourType == nsIDocShellTreeItem::typeContent) {
+    ourOwner->ContentShellRemoved(ourTreeItem);
+    otherOwner->ContentShellRemoved(otherTreeItem);
+  }
+  
+  ourParentItem->AddChild(otherTreeItem);
+  otherParentItem->AddChild(ourTreeItem);
+
+  // Restore the correct treeowners
+  SetTreeOwnerAndChromeEventHandlerOnDocshellTree(ourTreeItem, otherOwner,
+                                                  otherChromeEventHandler);
+  SetTreeOwnerAndChromeEventHandlerOnDocshellTree(otherTreeItem, ourOwner,
+                                                  ourChromeEventHandler);
+
+  AddTreeItemToTreeOwner(ourTreeItem, otherContent, otherOwner,
+                         otherParentType, nsnull);
+  AddTreeItemToTreeOwner(otherTreeItem, ourContent, ourOwner, ourParentType,
+                         nsnull);
+
+  // SetSubDocumentFor nulls out parent documents on the old child doc if a
+  // new non-null document is passed in, so just go ahead and remove both
+  // kids before reinserting in the parent subdoc maps, to avoid
+  // complications.
+  ourParentDocument->SetSubDocumentFor(ourContent, nsnull);
+  otherParentDocument->SetSubDocumentFor(otherContent, nsnull);
+  ourParentDocument->SetSubDocumentFor(ourContent, otherChildDocument);
+  otherParentDocument->SetSubDocumentFor(otherContent, ourChildDocument);
+
+  ourWindow->SetFrameElementInternal(otherFrameElement);
+  otherWindow->SetFrameElementInternal(ourFrameElement);
+
+  mOwnerContent = otherContent;
+  aOther->mOwnerContent = ourContent;
+
+  aFirstToSwap.swap(aSecondToSwap);
+
+  // Drop any cached content viewers in the two session histories.
+  nsCOMPtr<nsISHistoryInternal> ourInternalHistory =
+    do_QueryInterface(ourHistory);
+  nsCOMPtr<nsISHistoryInternal> otherInternalHistory =
+    do_QueryInterface(otherHistory);
+  if (ourInternalHistory) {
+    ourInternalHistory->EvictAllContentViewers();
+  }
+  if (otherInternalHistory) {
+    otherInternalHistory->EvictAllContentViewers();
+  }
+
+  // We shouldn't have changed frames, but be really careful about it
+  if (ourFrame == ourContent->GetPrimaryFrame() &&
+      otherFrame == otherContent->GetPrimaryFrame()) {
+    ourFrameFrame->EndSwapDocShells(otherFrame);
+  }
+
+  ourParentDocument->FlushPendingNotifications(Flush_Layout);
+  otherParentDocument->FlushPendingNotifications(Flush_Layout);
+  
+  FirePageShowEvent(ourTreeItem, otherChromeEventHandler, PR_TRUE);
+  FirePageShowEvent(otherTreeItem, ourChromeEventHandler, PR_TRUE);
+
+  mInSwap = aOther->mInSwap = PR_FALSE;
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsFrameLoader::Destroy()
 {
+  if (mDestroyCalled) {
+    return NS_OK;
+  }
+  mDestroyCalled = PR_TRUE;
+
+  nsCOMPtr<nsIDocument> doc;
   if (mOwnerContent) {
-    nsCOMPtr<nsIDocument> doc = mOwnerContent->GetDocument();
+    doc = mOwnerContent->GetOwnerDoc();
 
     if (doc) {
       doc->SetSubDocumentFor(mOwnerContent, nsnull);
@@ -247,10 +867,8 @@ nsFrameLoader::Destroy()
       nsCOMPtr<nsIDocShellTreeItem> parentItem;
       ourItem->GetParent(getter_AddRefs(parentItem));
       nsCOMPtr<nsIDocShellTreeOwner> owner = do_GetInterface(parentItem);
-      nsCOMPtr<nsIDocShellTreeOwner_MOZILLA_1_8_BRANCH> owner2 =
-        do_QueryInterface(owner);
-      if (owner2) {
-        owner2->ContentShellRemoved(ourItem);
+      if (owner) {
+        owner->ContentShellRemoved(ourItem);
       }
     }
   }
@@ -260,14 +878,21 @@ nsFrameLoader::Destroy()
   if (win_private) {
     win_private->SetFrameElementInternal(nsnull);
   }
-  
-  nsCOMPtr<nsIBaseWindow> base_win(do_QueryInterface(mDocShell));
 
-  if (base_win) {
-    base_win->Destroy();
+  if ((mNeedsAsyncDestroy || !doc ||
+       NS_FAILED(doc->FinalizeFrameLoader(this))) && mDocShell) {
+    nsCOMPtr<nsIRunnable> event = new nsAsyncDocShellDestroyer(mDocShell);
+    NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
+    NS_DispatchToCurrentThread(event);
+
+    // Let go of our docshell now that the async destroyer holds on to
+    // the docshell.
+
+    mDocShell = nsnull;
   }
 
-  mDocShell = nsnull;
+  // NOTE: 'this' may very well be gone by now.
+
   return NS_OK;
 }
 
@@ -284,20 +909,27 @@ nsFrameLoader::EnsureDocShell()
   if (mDocShell) {
     return NS_OK;
   }
+  NS_ENSURE_STATE(!mDestroyCalled);
 
   // Get our parent docshell off the document of mOwnerContent
   // XXXbz this is such a total hack.... We really need to have a
   // better setup for doing this.
-  nsIDocument* doc = mOwnerContent->GetDocument();
-  if (!doc) {
+  nsIDocument* doc = mOwnerContent->GetOwnerDoc();
+  if (!doc || !(doc->IsStaticDocument() || mOwnerContent->IsInDoc())) {
     return NS_ERROR_UNEXPECTED;
   }
 
-  nsCOMPtr<nsIWebNavigation> parentAsWebNav =
-    do_GetInterface(doc->GetScriptGlobalObject());
+  if (doc->GetDisplayDocument()) {
+    // Don't allow subframe loads in external reference documents
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  nsCOMPtr<nsISupports> container =
+    doc->GetContainer();
+  nsCOMPtr<nsIWebNavigation> parentAsWebNav = do_QueryInterface(container);
 
   // Create the docshell...
-  mDocShell = do_CreateInstance("@mozilla.org/webshell;1");
+  mDocShell = do_CreateInstance("@mozilla.org/docshell;1");
   NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
 
   // Get the frame name and tell the docshell about it.
@@ -306,7 +938,7 @@ nsFrameLoader::EnsureDocShell()
   nsAutoString frameName;
 
   PRInt32 namespaceID = mOwnerContent->GetNameSpaceID();
-  if (namespaceID == kNameSpaceID_XHTML) {
+  if (namespaceID == kNameSpaceID_XHTML && !mOwnerContent->IsInHTMLDocument()) {
     mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::id, frameName);
   } else {
     mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::name, frameName);
@@ -336,57 +968,13 @@ nsFrameLoader::EnsureDocShell()
     PRInt32 parentType;
     parentAsItem->GetItemType(&parentType);
 
-    nsAutoString value;
-    PRBool isContent = PR_FALSE;
-
-    if (mOwnerContent->IsNodeOfType(nsINode::eXUL)) {
-      mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type, value);
-    }
-
-    // we accept "content" and "content-xxx" values.
-    // at time of writing, we expect "xxx" to be "primary" or "targetable", but
-    // someday it might be an integer expressing priority or something else.
-
-    isContent = value.LowerCaseEqualsLiteral("content") ||
-      StringBeginsWith(value, NS_LITERAL_STRING("content-"),
-                       nsCaseInsensitiveStringComparator());
-
-    if (isContent) {
-      // The web shell's type is content.
-
-      docShellAsItem->SetItemType(nsIDocShellTreeItem::typeContent);
-    } else {
-      // Inherit our type from our parent webshell.  If it is
-      // chrome, we'll be chrome.  If it is content, we'll be
-      // content.
-
-      docShellAsItem->SetItemType(parentType);
-    }
-
-    parentAsNode->AddChild(docShellAsItem);
-
-    if (parentType == nsIDocShellTreeItem::typeChrome && isContent) {
-      mIsTopLevelContent = PR_TRUE;
-      
-      // XXXbz why is this in content code, exactly?  We should handle
-      // this some other way.....  Not sure how yet.
-      nsCOMPtr<nsIDocShellTreeOwner> parentTreeOwner;
-      parentAsItem->GetTreeOwner(getter_AddRefs(parentTreeOwner));
-      nsCOMPtr<nsIDocShellTreeOwner_MOZILLA_1_8_BRANCH> owner2 =
-        do_QueryInterface(parentTreeOwner);
-
-      PRBool is_primary = value.LowerCaseEqualsLiteral("content-primary");
-
-      if (owner2) {
-        PRBool is_targetable = is_primary ||
-          value.LowerCaseEqualsLiteral("content-targetable");
-        owner2->ContentShellAdded2(docShellAsItem, is_primary, is_targetable,
-                                   value);
-      } else if (parentTreeOwner) {
-        parentTreeOwner->ContentShellAdded(docShellAsItem, is_primary,
-                                           value.get());
-      }
-    }
+    // XXXbz why is this in content code, exactly?  We should handle
+    // this some other way.....  Not sure how yet.
+    nsCOMPtr<nsIDocShellTreeOwner> parentTreeOwner;
+    parentAsItem->GetTreeOwner(getter_AddRefs(parentTreeOwner));
+    mIsTopLevelContent =
+      AddTreeItemToTreeOwner(docShellAsItem, mOwnerContent, parentTreeOwner,
+                             parentType, parentAsNode);
 
     // Make sure all shells have links back to the content element
     // in the nearest enclosing chrome shell.
@@ -421,18 +1009,19 @@ nsFrameLoader::EnsureDocShell()
   NS_ASSERTION(frame_element, "frame loader owner element not a DOM element!");
 
   nsCOMPtr<nsPIDOMWindow> win_private(do_GetInterface(mDocShell));
-  NS_ENSURE_TRUE(win_private, NS_ERROR_UNEXPECTED);
-
-  win_private->SetFrameElementInternal(frame_element);
-
   nsCOMPtr<nsIBaseWindow> base_win(do_QueryInterface(mDocShell));
-  NS_ENSURE_TRUE(base_win, NS_ERROR_UNEXPECTED);
+  if (win_private) {
+    win_private->SetFrameElementInternal(frame_element);
+  }
 
   // This is kinda whacky, this call doesn't really create anything,
   // but it must be called to make sure things are properly
-  // initialized
-
-  base_win->Create();
+  // initialized.
+  if (NS_FAILED(base_win->Create()) || !win_private) {
+    // Do not call Destroy() here. See bug 472312.
+    NS_WARNING("Something wrong when creating the docshell for a frameloader!");
+    return NS_ERROR_FAILURE;
+  }
 
   return NS_OK;
 }
@@ -537,5 +1126,30 @@ nsFrameLoader::CheckForRecursiveLoad(nsIURI* aURI)
     temp->GetSameTypeParent(getter_AddRefs(parentAsItem));
   }
 
+  return NS_OK;
+}
+
+nsresult
+nsFrameLoader::CreateStaticClone(nsIFrameLoader* aDest)
+{
+  nsFrameLoader* dest = static_cast<nsFrameLoader*>(aDest);
+  dest->EnsureDocShell();
+  NS_ENSURE_STATE(dest->mDocShell);
+
+  nsCOMPtr<nsIDOMDocument> dummy = do_GetInterface(dest->mDocShell);
+  nsCOMPtr<nsIContentViewer> viewer;
+  dest->mDocShell->GetContentViewer(getter_AddRefs(viewer));
+  NS_ENSURE_STATE(viewer);
+
+  nsCOMPtr<nsIDocShell> origDocShell;
+  GetDocShell(getter_AddRefs(origDocShell));
+  nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(origDocShell);
+
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+  NS_ENSURE_STATE(doc);
+  nsCOMPtr<nsIDocument> clonedDoc = doc->CreateStaticClone(dest->mDocShell);
+  nsCOMPtr<nsIDOMDocument> clonedDOMDoc = do_QueryInterface(clonedDoc);
+
+  viewer->SetDOMDocument(clonedDOMDoc);
   return NS_OK;
 }

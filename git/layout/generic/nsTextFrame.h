@@ -51,15 +51,25 @@
 #define nsTextFrame_h__
 
 #include "nsFrame.h"
+#include "nsSplittableFrame.h"
 #include "nsLineBox.h"
 #include "gfxFont.h"
 #include "gfxSkipChars.h"
+#include "gfxContext.h"
 
 class nsTextPaintStyle;
 class PropertyProvider;
 
+// This state bit is set on frames that have some non-collapsed characters after
+// reflow
+#define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
+
 class nsTextFrame : public nsFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
+  friend class nsContinuingTextFrame;
+
   nsTextFrame(nsStyleContext* aContext) : nsFrame(aContext)
   {
     NS_ASSERTION(mContentOffset == 0, "Bogus content offset");
@@ -74,16 +84,14 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
   
-  NS_IMETHOD CharacterDataChanged(nsPresContext* aPresContext,
-                                  nsIContent*     aChild,
-                                  PRBool          aAppend);
+  NS_IMETHOD CharacterDataChanged(CharacterDataChangeInfo* aInfo);
                                   
-  NS_IMETHOD DidSetStyleContext();
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   
   virtual nsIFrame* GetNextContinuation() const {
     return mNextContinuation;
@@ -142,12 +150,24 @@ public:
 #endif
   
   virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint);
-   
-  NS_IMETHOD SetSelected(nsPresContext* aPresContext,
-                         nsIDOMRange *aRange,
-                         PRBool aSelected,
-                         nsSpread aSpread);
-  
+  ContentOffsets GetCharacterOffsetAtFramePoint(const nsPoint &aPoint);
+
+  /**
+   * This is called only on the primary text frame. It indicates that
+   * the selection state of the given character range has changed.
+   * Text in the range is unconditionally invalidated
+   * (nsTypedSelection::Repaint depends on this).
+   * @param aSelected true if the selection has been added to the range,
+   * false otherwise
+   * @param aType the type of selection added or removed
+   */
+  virtual void SetSelected(PRBool        aSelected,
+                           SelectionType aType);
+  void SetSelectedRange(PRUint32 aStart,
+                        PRUint32 aEnd,
+                        PRBool aSelected,
+                        SelectionType aType);
+
   virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsKeyboardSelect,
@@ -156,7 +176,7 @@ public:
   NS_IMETHOD CheckVisibility(nsPresContext* aContext, PRInt32 aStartIndex, PRInt32 aEndIndex, PRBool aRecurse, PRBool *aFinished, PRBool *_retval);
   
   // Update offsets to account for new length. This may clear mTextRun.
-  void SetLength(PRInt32 aLength);
+  void SetLength(PRInt32 aLength, nsLineLayout* aLineLayout);
   
   NS_IMETHOD GetOffsets(PRInt32 &start, PRInt32 &end)const;
   
@@ -180,6 +200,20 @@ public:
    * should return PR_FALSE if this is not a text frame.
    */
   virtual PRBool HasTerminalNewline() const;
+
+  /**
+   * Returns true if this text frame is logically adjacent to the end of the
+   * line.
+   */
+  PRBool IsAtEndOfLine() const;
+  
+  /**
+   * Call this only after reflow the frame. Returns true if non-collapsed
+   * characters are present.
+   */
+  PRBool HasNoncollapsedCharacters() const {
+    return (GetStateBits() & TEXT_HAS_NONCOLLAPSED_CHARACTERS) != 0;
+  }
   
 #ifdef ACCESSIBILITY
   NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
@@ -196,15 +230,27 @@ public:
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
+  virtual nsRect ComputeTightBounds(gfxContext* aContext) const;
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aMetrics,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
   virtual PRBool CanContinueTextRun() const;
-  NS_IMETHOD TrimTrailingWhiteSpace(nsPresContext* aPresContext,
-                                    nsIRenderingContext& aRC,
-                                    nscoord& aDeltaWidth,
-                                    PRBool& aLastCharIsJustifiable);
+  // Method that is called for a text frame that is logically
+  // adjacent to the end of the line (i.e. followed only by empty text frames,
+  // placeholders or inlines containing such).
+  struct TrimOutput {
+    // true if we trimmed some space or changed metrics in some other way.
+    // In this case, we should call RecomputeOverflowRect on this frame.
+    PRPackedBool mChanged;
+    // true if the last character is not justifiable so should be subtracted
+    // from the count of justifiable characters in the frame, since the last
+    // character in a line is not justifiable.
+    PRPackedBool mLastCharIsJustifiable;
+    // an amount to *subtract* from the frame's width (zero if !mChanged)
+    nscoord      mDeltaWidth;
+  };
+  TrimOutput TrimTrailingWhiteSpace(nsIRenderingContext* aRC);
   virtual nsresult GetRenderedText(nsAString* aString = nsnull,
                                    gfxSkipChars* aSkipChars = nsnull,
                                    gfxSkipCharsIterator* aSkipIter = nsnull,
@@ -221,6 +267,7 @@ public:
   gfxFloat GetSnappedBaselineY(gfxContext* aContext, gfxFloat aY);
 
   // primary frame paint method called from nsDisplayText
+  // The private DrawText() is what applies the text to a graphics context
   void PaintText(nsIRenderingContext* aRenderingContext, nsPoint aPt,
                  const nsRect& aDirtyRect);
   // helper: paint quirks-mode CSS text decorations
@@ -228,7 +275,8 @@ public:
                             const gfxPoint& aFramePt,
                             const gfxPoint& aTextBaselinePt,
                             nsTextPaintStyle& aTextStyle,
-                            PropertyProvider& aProvider);
+                            PropertyProvider& aProvider,
+                            const nscolor* aOverrideColor = nsnull);
   // helper: paint text frame when we're impacted by at least one selection.
   // Return PR_FALSE if the text was not painted and we should continue with
   // the fast path.
@@ -262,11 +310,15 @@ public:
   PRInt16 GetSelectionStatus(PRInt16* aSelectionFlags);
 
 #ifdef DEBUG
-  void ToCString(nsString& aBuf, PRInt32* aTotalContentLength) const;
+  void ToCString(nsCString& aBuf, PRInt32* aTotalContentLength) const;
 #endif
 
   PRInt32 GetContentOffset() const { return mContentOffset; }
-  PRInt32 GetContentLength() const { return GetContentEnd() - mContentOffset; }
+  PRInt32 GetContentLength() const
+  {
+    NS_ASSERTION(GetContentEnd() - mContentOffset >= 0, "negative length");
+    return GetContentEnd() - mContentOffset;
+  }
   PRInt32 GetContentEnd() const;
   // This returns the length the frame thinks it *should* have after it was
   // last reflowed (0 if it hasn't been reflowed yet). This should be used only
@@ -294,7 +346,7 @@ public:
    * to offsets into the textrun; its initial offset is set to this frame's
    * content offset
    */
-  gfxSkipCharsIterator EnsureTextRun(nsIRenderingContext* aRC = nsnull,
+  gfxSkipCharsIterator EnsureTextRun(gfxContext* aReferenceContext = nsnull,
                                      nsIFrame* aLineContainer = nsnull,
                                      const nsLineList::iterator* aLine = nsnull,
                                      PRUint32* aFlowEndInTextRun = nsnull);
@@ -315,7 +367,7 @@ public:
 
 protected:
   virtual ~nsTextFrame();
-  
+
   nsIFrame*   mNextContinuation;
   // The key invariant here is that mContentOffset never decreases along
   // a next-continuation chain. And of course mContentOffset is always <= the
@@ -334,13 +386,71 @@ protected:
   nscoord     mAscent;
   gfxTextRun* mTextRun;
 
+  // The caller of this method must call DestroySelectionDetails() on the
+  // return value, if that return value is not null.  Calling
+  // DestroySelectionDetails() on a null value is still OK, just not necessary.
   SelectionDetails* GetSelectionDetails();
   
-  void AdjustSelectionPointsForBidi(SelectionDetails *sdptr,
-                                    PRInt32 textLength,
-                                    PRBool isRTLChars,
-                                    PRBool isOddLevel,
-                                    PRBool isBidiSystem);
+  void UnionTextDecorationOverflow(nsPresContext* aPresContext,
+                                   PropertyProvider& aProvider,
+                                   nsRect* aOverflowRect);
+
+  void DrawText(gfxContext* aCtx,
+                const gfxPoint& aTextBaselinePt,
+                PRUint32 aOffset,
+                PRUint32 aLength,
+                const gfxRect* aDirtyRect,
+                PropertyProvider* aProvider,
+                gfxFloat& aAdvanceWidth,
+                PRBool aDrawSoftHyphen);
+
+  void PaintOneShadow(PRUint32 aOffset,
+                      PRUint32 aLength,
+                      nsCSSShadowItem* aShadowDetails,
+                      PropertyProvider* aProvider,
+                      const nsRect& aDirtyRect,
+                      const gfxPoint& aFramePt,
+                      const gfxPoint& aTextBaselinePt,
+                      gfxContext* aCtx,
+                      const nscolor& aForegroundColor);
+
+  struct TextDecorations {
+    PRUint8 mDecorations;
+    nscolor mOverColor;
+    nscolor mUnderColor;
+    nscolor mStrikeColor;
+
+    TextDecorations() :
+      mDecorations(0), mOverColor(NS_RGB(0, 0, 0)),
+      mUnderColor(NS_RGB(0, 0, 0)), mStrikeColor(NS_RGB(0, 0, 0))
+    { }
+
+    PRBool HasDecorationlines() {
+      return !!(mDecorations & (NS_STYLE_TEXT_DECORATION_UNDERLINE |
+                                NS_STYLE_TEXT_DECORATION_OVERLINE |
+                                NS_STYLE_TEXT_DECORATION_LINE_THROUGH));
+    }
+    PRBool HasUnderline() {
+      return !!(mDecorations & NS_STYLE_TEXT_DECORATION_UNDERLINE);
+    }
+    PRBool HasOverline() {
+      return !!(mDecorations & NS_STYLE_TEXT_DECORATION_OVERLINE);
+    }
+    PRBool HasStrikeout() {
+      return !!(mDecorations & NS_STYLE_TEXT_DECORATION_LINE_THROUGH);
+    }
+  };
+  TextDecorations GetTextDecorations(nsPresContext* aPresContext);
+
+  // Set non empty rect to aRect, it should be overflow rect or frame rect.
+  // If the result rect is larger than the given rect, this returns PR_TRUE.
+  PRBool CombineSelectionUnderlineRect(nsPresContext* aPresContext,
+                                       nsRect& aRect);
+
+  PRBool IsFloatingFirstLetterChild();
+
+  ContentOffsets GetCharacterOffsetAtFramePointInternal(const nsPoint &aPoint,
+                   PRBool aForInsertionPoint);
 };
 
 #endif

@@ -65,6 +65,8 @@ public:
 
   // nsISupports interface
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsXTFElementWrapper,
+                                                     nsXTFElementWrapperBase)
 
   // nsIXTFElementWrapper
   NS_DECL_NSIXTFELEMENTWRAPPER
@@ -77,7 +79,7 @@ public:
                               PRBool aNullParent = PR_TRUE);
   nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                          PRBool aNotify);
-  nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+  nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
   nsIAtom *GetIDAttributeName() const;
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    nsIAtom* aPrefix, const nsAString& aValue,
@@ -107,7 +109,7 @@ public:
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
 
   virtual nsIAtom *GetClassAttributeName() const;
-  virtual const nsAttrValue* GetClasses() const;
+  virtual const nsAttrValue* DoGetClasses() const;
 
   virtual void PerformAccesskey(PRBool aKeyCausesActivation,
                                 PRBool aIsTrustedEvent);

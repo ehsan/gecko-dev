@@ -82,7 +82,6 @@
 #include "nsITokenizer.h"
 #include "nsHTMLTags.h"
 #include "nsDTDUtils.h"
-#include "nsTimer.h"
 #include "nsThreadUtils.h"
 #include "nsIContentSink.h"
 #include "nsIParserFilter.h"
@@ -90,9 +89,12 @@
 #include "nsIUnicharStreamListener.h"
 #include "nsCycleCollectionParticipant.h"
 
+class nsICharsetConverterManager;
+class nsICharsetAlias;
 class nsIDTD;
 class nsScanner;
-class nsIProgressEventSink;
+class nsSpeculativeScriptThread;
+class nsIThreadPool;
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4275 )
@@ -100,11 +102,9 @@ class nsIProgressEventSink;
 
 
 class nsParser : public nsIParser,
-                 public nsIStreamListener{
-
-  
+                 public nsIStreamListener
+{
   public:
-    friend class CTokenHandler;
     /**
      * Called on module init
      */
@@ -123,7 +123,6 @@ class nsParser : public nsIParser,
      * @update	gess5/11/98
      */
     nsParser();
-
 
     /**
      * Destructor
@@ -181,14 +180,6 @@ class nsParser : public nsIParser,
     NS_IMETHOD_(void) SetParserFilter(nsIParserFilter* aFilter);
 
     /**
-     *  Retrieve the scanner from the topmost parser context
-     *  
-     *  @update  gess 6/9/98
-     *  @return  ptr to scanner
-     */
-    NS_IMETHOD_(nsDTDMode) GetParseMode(void);
-
-    /**
      * Cause parser to parse input from given URL 
      * @update	gess5/11/98
      * @param   aURL is a descriptor for source document
@@ -219,12 +210,17 @@ class nsParser : public nsIParser,
      */
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
                              void* aKey,
-                             nsVoidArray& aTagStack,
+                             nsTArray<nsString>& aTagStack,
                              PRBool aXMLMode,
                              const nsACString& aContentType,
                              nsDTDMode aMode = eDTDMode_autodetect);
 
-
+    NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
+                             nsISupports* aTargetNode,
+                             nsIAtom* aContextLocalName,
+                             PRInt32 aContextNamespace,
+                             PRBool aQuirks);
+                             
     /**
      * This method gets called when the tokens have been consumed, and it's time
      * to build the model via the content sink.
@@ -233,16 +229,6 @@ class nsParser : public nsIParser,
      */
     NS_IMETHOD BuildModel(void);
 
-    /**
-     *  Call this when you want control whether or not the parser will parse
-     *  and tokenize input (TRUE), or whether it just caches input to be 
-     *  parsed later (FALSE).
-     *  
-     *  @update  gess 9/1/98
-     *  @param   aState determines whether we parse/tokenize or just cache.
-     *  @return  current state
-     */
-    NS_IMETHOD        ContinueParsing();
     NS_IMETHOD        ContinueInterruptedParsing();
     NS_IMETHOD_(void) BlockParser();
     NS_IMETHOD_(void) UnblockParser();
@@ -315,6 +301,13 @@ class nsParser : public nsIParser,
      */
     NS_IMETHOD GetDTD(nsIDTD** aDTD);
   
+    /**
+     * Get the nsIStreamListener for this parser
+     * @param aDTD out param that will contain the result
+     * @return NS_OK if successful
+     */
+    NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
+
     /** 
      * Detects the existence of a META tag with charset information in 
      * the given buffer.
@@ -339,7 +332,32 @@ class nsParser : public nsIParser,
      *  @return PR_TRUE if parser can be interrupted, PR_FALSE if it can not be interrupted.
      *  @update  kmcclusk 5/18/98
      */
-    PRBool CanInterrupt(void);
+    virtual PRBool CanInterrupt();
+
+    /**
+     * Return true.
+     */
+    virtual PRBool IsInsertionPointDefined();
+
+    /**
+     * No-op.
+     */
+    virtual void BeginEvaluatingParserInsertedScript();
+
+    /**
+     * No-op.
+     */
+    virtual void EndEvaluatingParserInsertedScript();
+
+    /**
+     * No-op.
+     */
+    virtual void MarkAsNotScriptCreated();
+
+    /**
+     * Always false.
+     */
+    virtual PRBool IsScriptCreated();
 
     /**  
      *  Set to parser state to indicate whether parsing tokens can be interrupted
@@ -372,7 +390,35 @@ class nsParser : public nsIParser,
 
     static nsCOMArray<nsIUnicharStreamListener> *sParserDataListeners;
 
-protected:
+    static nsICharsetAlias* GetCharsetAliasService() {
+      return sCharsetAliasService;
+    }
+
+    static nsICharsetConverterManager* GetCharsetConverterManager() {
+      return sCharsetConverterManager;
+    }
+
+    virtual void Reset() {
+      Cleanup();
+      Initialize();
+    }
+
+    nsIThreadPool* ThreadPool() {
+      return sSpeculativeThreadPool;
+    }
+
+    PRBool IsScriptExecuting() {
+      return mSink && mSink->IsScriptExecuting();
+    }
+
+    PRBool IsOkToProcessNetworkData() {
+      return !IsScriptExecuting() && !mProcessingNetworkData;
+    }
+
+ protected:
+
+    void Initialize(PRBool aConstructor = PR_FALSE);
+    void Cleanup();
 
     /**
      * 
@@ -389,7 +435,9 @@ protected:
      * @return
      */
     nsresult DidBuildModel(nsresult anErrorCode);
-    
+
+    void SpeculativelyParse();
+
 private:
 
     /*******************************************
@@ -429,7 +477,6 @@ private:
      */
     PRBool DidTokenize(PRBool aIsFinalChunk = PR_FALSE);
 
-  
 protected:
     //*********************************************
     // And now, some data members...
@@ -437,9 +484,11 @@ protected:
     
       
     CParserContext*              mParserContext;
+    nsCOMPtr<nsIDTD>             mDTD;
     nsCOMPtr<nsIRequestObserver> mObserver;
     nsCOMPtr<nsIContentSink>     mSink;
     nsIRunnable*                 mContinueEvent;  // weak ref
+    nsRefPtr<nsSpeculativeScriptThread> mSpeculativeScriptThread;
    
     nsCOMPtr<nsIParserFilter> mParserFilter;
     nsTokenAllocator          mTokenAllocator;
@@ -455,13 +504,17 @@ protected:
     nsCString           mCharset;
     nsCString           mCommandStr;
 
-    
-   
-public:  
-   
-    MOZ_TIMER_DECLARE(mParseTime)
-    MOZ_TIMER_DECLARE(mDTDTime)
-    MOZ_TIMER_DECLARE(mTokenizeTime)
+    PRBool              mProcessingNetworkData;
+
+    static nsICharsetAlias*            sCharsetAliasService;
+    static nsICharsetConverterManager* sCharsetConverterManager;
+    static nsIThreadPool*              sSpeculativeThreadPool;
+
+    enum {
+      kSpeculativeThreadLimit = 15,
+      kIdleThreadLimit = 0,
+      kIdleThreadTimeout = 50
+    };
 };
 
 #endif 

@@ -35,19 +35,16 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGPathGeometryFrame.h"
-#include "nsIDOMSVGMatrix.h"
-#include "nsIDOMSVGAnimPresAspRatio.h"
 #include "imgIContainer.h"
-#include "gfxIImageFrame.h"
 #include "nsStubImageDecoderObserver.h"
 #include "nsImageLoadingContent.h"
 #include "nsIDOMSVGImageElement.h"
-#include "nsSVGElement.h"
+#include "nsLayoutUtils.h"
+#include "nsSVGImageElement.h"
 #include "nsSVGUtils.h"
-#include "nsSVGMatrix.h"
 #include "gfxContext.h"
+#include "gfxMatrix.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsThebesImage.h"
 
 class nsSVGImageFrame;
 
@@ -61,8 +58,7 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
-                          nsRect * dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect * dirtyRect);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest,
                               imgIContainer *aContainer);
@@ -77,23 +73,21 @@ private:
 class nsSVGImageFrame : public nsSVGPathGeometryFrame
 {
   friend nsIFrame*
-  NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
+  NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 protected:
   nsSVGImageFrame(nsStyleContext* aContext) : nsSVGPathGeometryFrame(aContext) {}
   virtual ~nsSVGImageFrame();
 
 public:
-  // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect);
-  NS_IMETHOD GetFrameForPointSVG(float x, float y, nsIFrame** hit);
+  NS_DECL_FRAMEARENA_HELPERS
 
-  // nsSVGGeometryFrame overload:
-  // Lie about our fill/stroke so hit detection works
-  virtual nsresult GetStrokePaintType() { return eStyleSVGPaintType_None; }
-  virtual nsresult GetFillPaintType() { return eStyleSVGPaintType_Color; }
+  // nsISVGChildFrame interface:
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, const nsIntRect *aDirtyRect);
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 
   // nsSVGPathGeometryFrame methods:
+  NS_IMETHOD UpdateCoveredRegion();
   virtual PRUint16 GetHittestMask();
 
   // nsIFrame interface:
@@ -119,7 +113,7 @@ public:
 #endif
 
 private:
-  already_AddRefed<nsIDOMSVGMatrix> GetImageTransform();
+  gfxMatrix GetImageTransform();
 
   nsCOMPtr<imgIDecoderObserver> mListener;
 
@@ -132,16 +126,12 @@ private:
 // Implementation
 
 nsIFrame*
-NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
+NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  nsCOMPtr<nsIDOMSVGImageElement> Rect = do_QueryInterface(aContent);
-  if (!Rect) {
-    NS_ERROR("Can't create frame! Content is not an SVG image!");
-    return nsnull;
-  }
-
   return new (aPresShell) nsSVGImageFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsSVGImageFrame)
 
 nsSVGImageFrame::~nsSVGImageFrame()
 {
@@ -161,6 +151,11 @@ nsSVGImageFrame::Init(nsIContent* aContent,
                       nsIFrame* aParent,
                       nsIFrame* aPrevInFlow)
 {
+#ifdef DEBUG
+  nsCOMPtr<nsIDOMSVGImageElement> image = do_QueryInterface(aContent);
+  NS_ASSERTION(image, "Content is not an SVG image!");
+#endif
+
   nsresult rv = nsSVGPathGeometryFrame::Init(aContent, aParent, aPrevInFlow);
   if (NS_FAILED(rv)) return rv;
   
@@ -187,7 +182,7 @@ nsSVGImageFrame::AttributeChanged(PRInt32         aNameSpaceID,
         aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height ||
         aAttribute == nsGkAtoms::preserveAspectRatio)) {
-     UpdateGraphic();
+     nsSVGUtils::UpdateGraphic(this);
      return NS_OK;
    }
 
@@ -195,41 +190,30 @@ nsSVGImageFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                                    aAttribute, aModType);
 }
 
-already_AddRefed<nsIDOMSVGMatrix>
+gfxMatrix
 nsSVGImageFrame::GetImageTransform()
 {
-  nsCOMPtr<nsIDOMSVGMatrix> ctm;
-  GetCanvasTM(getter_AddRefs(ctm));
-
   float x, y, width, height;
-  nsSVGElement *element = static_cast<nsSVGElement*>(mContent);
+  nsSVGImageElement *element = static_cast<nsSVGImageElement*>(mContent);
   element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
 
   PRInt32 nativeWidth, nativeHeight;
   mImageContainer->GetWidth(&nativeWidth);
   mImageContainer->GetHeight(&nativeHeight);
 
-  nsCOMPtr<nsIDOMSVGImageElement> image = do_QueryInterface(mContent);
-  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> ratio;
-  image->GetPreserveAspectRatio(getter_AddRefs(ratio));
+  gfxMatrix viewBoxTM =
+    nsSVGUtils::GetViewBoxTransform(width, height,
+                                    0, 0, nativeWidth, nativeHeight,
+                                    element->mPreserveAspectRatio);
 
-  nsCOMPtr<nsIDOMSVGMatrix> trans, ctmXY, fini;
-  trans = nsSVGUtils::GetViewBoxTransform(width, height,
-                                          0, 0,
-                                          nativeWidth, nativeHeight,
-                                          ratio);
-  ctm->Translate(x, y, getter_AddRefs(ctmXY));
-  ctmXY->Multiply(trans, getter_AddRefs(fini));
-
-  nsIDOMSVGMatrix *retval = nsnull;
-  fini.swap(retval);
-  return retval;
+  return viewBoxTM * gfxMatrix().Translate(gfxPoint(x, y)) * GetCanvasTM();
 }
 
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods:
 NS_IMETHODIMP
-nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect)
+nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
+                          const nsIntRect *aDirtyRect)
 {
   nsresult rv = NS_OK;
 
@@ -253,37 +237,35 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect)
       currentRequest->GetImage(getter_AddRefs(mImageContainer));
   }
 
-  nsCOMPtr<gfxIImageFrame> currentFrame;
+  // XXXbholley - I don't think huge images in SVGs are common enough to
+  // warrant worrying about the responsiveness impact of doing synchronous
+  // decodes. The extra code complexity of determinining when we want to
+  // force sync probably just isn't worth it, so always pass FLAG_SYNC_DECODE
+  nsRefPtr<gfxASurface> currentFrame;
   if (mImageContainer)
-    mImageContainer->GetCurrentFrame(getter_AddRefs(currentFrame));
+    mImageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
+                              imgIContainer::FLAG_SYNC_DECODE,
+                              getter_AddRefs(currentFrame));
 
-  gfxASurface *thebesSurface = nsnull;
-  if (currentFrame) {
-    nsCOMPtr<nsIImage> img(do_GetInterface(currentFrame));
+  // We need to wrap the surface in a pattern to have somewhere to set the
+  // graphics filter.
+  nsRefPtr<gfxPattern> thebesPattern;
+  if (currentFrame)
+    thebesPattern = new gfxPattern(currentFrame);
 
-    nsThebesImage *thebesImage = nsnull;
-    if (img)
-      thebesImage = static_cast<nsThebesImage*>(img.get());
+  if (thebesPattern) {
 
-    if (thebesImage)
-      thebesSurface = thebesImage->ThebesSurface();
-  }
+    thebesPattern->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
 
-  if (thebesSurface) {
     gfxContext *gfx = aContext->GetGfxContext();
 
     if (GetStyleDisplay()->IsScrollableOverflow()) {
       gfx->Save();
 
-      nsCOMPtr<nsIDOMSVGMatrix> ctm;
-      GetCanvasTM(getter_AddRefs(ctm));
-
-      if (ctm) {
-        nsSVGUtils::SetClipRect(gfx, ctm, x, y, width, height);
-      }
+      gfxRect clipRect =
+        nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
+      nsSVGUtils::SetClipRect(gfx, GetCanvasTM(), clipRect);
     }
-
-    nsCOMPtr<nsIDOMSVGMatrix> fini = GetImageTransform();
 
     // fill-opacity doesn't affect <image>, so if we're allowed to
     // optimize group opacity, the opacity used for compositing the
@@ -293,7 +275,12 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect)
       opacity = GetStyleDisplay()->mOpacity;
     }
 
-    nsSVGUtils::CompositeSurfaceMatrix(gfx, thebesSurface, fini, opacity);
+    PRInt32 nativeWidth, nativeHeight;
+    mImageContainer->GetWidth(&nativeWidth);
+    mImageContainer->GetHeight(&nativeHeight);
+
+    nsSVGUtils::CompositePatternMatrix(gfx, thebesPattern, GetImageTransform(),
+                                       nativeWidth, nativeHeight, opacity);
 
     if (GetStyleDisplay()->IsScrollableOverflow())
       gfx->Restore();
@@ -302,25 +289,23 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect)
   return rv;
 }
 
-NS_IMETHODIMP
-nsSVGImageFrame::GetFrameForPointSVG(float x, float y, nsIFrame** hit)
+NS_IMETHODIMP_(nsIFrame*)
+nsSVGImageFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   if (GetStyleDisplay()->IsScrollableOverflow() && mImageContainer) {
     PRInt32 nativeWidth, nativeHeight;
     mImageContainer->GetWidth(&nativeWidth);
     mImageContainer->GetHeight(&nativeHeight);
 
-    nsCOMPtr<nsIDOMSVGMatrix> fini = GetImageTransform();
-
-    if (!nsSVGUtils::HitTestRect(fini,
+    if (!nsSVGUtils::HitTestRect(GetImageTransform(),
                                  0, 0, nativeWidth, nativeHeight,
-                                 x, y)) {
-      *hit = nsnull;
-      return NS_OK;
+                                 PresContext()->AppUnitsToDevPixels(aPoint.x),
+                                 PresContext()->AppUnitsToDevPixels(aPoint.y))) {
+      return nsnull;
     }
   }
 
-  return nsSVGPathGeometryFrame::GetFrameForPointSVG(x, y, hit);
+  return nsSVGPathGeometryFrame::GetFrameForPoint(aPoint);
 }
 
 nsIAtom *
@@ -332,17 +317,37 @@ nsSVGImageFrame::GetType() const
 //----------------------------------------------------------------------
 // nsSVGPathGeometryFrame methods:
 
-// Lie about our fill/stroke so that hit detection works properly
+// Lie about our fill/stroke so that covered region and hit detection work properly
+
+NS_IMETHODIMP
+nsSVGImageFrame::UpdateCoveredRegion()
+{
+  mRect.Empty();
+
+  gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
+
+  GeneratePath(&context);
+  context.IdentityMatrix();
+
+  gfxRect extent = context.GetUserPathExtent();
+
+  if (!extent.IsEmpty()) {
+    mRect = nsSVGUtils::ToAppPixelRect(PresContext(), extent);
+  }
+
+  return NS_OK;
+}
 
 PRUint16
 nsSVGImageFrame::GetHittestMask()
 {
   PRUint16 mask = 0;
 
-  switch(GetStyleSVG()->mPointerEvents) {
+  switch(GetStyleVisibility()->mPointerEvents) {
     case NS_STYLE_POINTER_EVENTS_NONE:
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED:
+    case NS_STYLE_POINTER_EVENTS_AUTO:
       if (GetStyleVisibility()->IsVisible()) {
         /* XXX: should check pixel transparency */
         mask |= HITTEST_MASK_FILL;
@@ -390,18 +395,17 @@ NS_IMETHODIMP nsSVGImageListener::OnStopDecode(imgIRequest *aRequest,
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  mFrame->UpdateGraphic();
+  nsSVGUtils::UpdateGraphic(mFrame);
   return NS_OK;
 }
 
 NS_IMETHODIMP nsSVGImageListener::FrameChanged(imgIContainer *aContainer,
-                                               gfxIImageFrame *newframe,
-                                               nsRect * dirtyRect)
+                                               nsIntRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  mFrame->UpdateGraphic();
+  nsSVGUtils::UpdateGraphic(mFrame);
   return NS_OK;
 }
 
@@ -412,7 +416,7 @@ NS_IMETHODIMP nsSVGImageListener::OnStartContainer(imgIRequest *aRequest,
     return NS_ERROR_FAILURE;
 
   mFrame->mImageContainer = aContainer;
-  mFrame->UpdateGraphic();
+  nsSVGUtils::UpdateGraphic(mFrame);
 
   return NS_OK;
 }

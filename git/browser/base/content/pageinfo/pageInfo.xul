@@ -64,18 +64,17 @@
   width="&pageInfoWindow.width;" height="&pageInfoWindow.height;"
   persist="screenX screenY width height sizemode">
 
-  <script type="application/x-javascript" src="chrome://global/content/globalOverlay.js"/>
-  <script type="application/x-javascript" src="chrome://global/content/contentAreaUtils.js"/>
-  <script type="application/x-javascript" src="chrome://browser/content/pageinfo/pageInfo.js"/>
-  <script type="application/x-javascript" src="chrome://browser/content/pageinfo/feeds.js"/>
-  <script type="application/x-javascript" src="chrome://browser/content/pageinfo/permissions.js"/>
-  <script type="application/x-javascript" src="chrome://browser/content/pageinfo/security.js"/>
-  <script type="application/x-javascript" src="chrome://global/content/strres.js"/>
-  <script type="application/x-javascript" src="chrome://help/content/contextHelp.js"/>
-  <script type="application/x-javascript" src="chrome://browser/content/utilityOverlay.js"/>
+  <script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
+  <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>
+  <script type="application/javascript" src="chrome://browser/content/pageinfo/pageInfo.js"/>
+  <script type="application/javascript" src="chrome://browser/content/pageinfo/feeds.js"/>
+  <script type="application/javascript" src="chrome://browser/content/pageinfo/permissions.js"/>
+  <script type="application/javascript" src="chrome://browser/content/pageinfo/security.js"/>
+  <script type="application/javascript" src="chrome://browser/content/utilityOverlay.js"/>
 
   <stringbundleset id="pageinfobundleset">
     <stringbundle id="pageinfobundle" src="chrome://browser/locale/pageInfo.properties"/>
+    <stringbundle id="pkiBundle" src="chrome://pippki/locale/pippki.properties"/>
   </stringbundleset>
 
   <commandset id="pageInfoCommandSet">
@@ -89,10 +88,12 @@
     <command id="cmd_popupDef"      oncommand="onCheckboxClick('popup');"/>
     <command id="cmd_cookieDef"     oncommand="onCheckboxClick('cookie');"/>
     <command id="cmd_installDef"    oncommand="onCheckboxClick('install');"/>
+    <command id="cmd_geoDef"        oncommand="onCheckboxClick('geo');"/>
     <command id="cmd_imageToggle"   oncommand="onRadioClick('image');"/>
     <command id="cmd_popupToggle"   oncommand="onRadioClick('popup');"/>
     <command id="cmd_cookieToggle"  oncommand="onRadioClick('cookie');"/>
     <command id="cmd_installToggle" oncommand="onRadioClick('install');"/>
+    <command id="cmd_geoToggle"     oncommand="onRadioClick('geo');"/>
   </commandset>
 
   <keyset>
@@ -100,24 +101,25 @@
     <key keycode="VK_ESCAPE"                       command="cmd_close"/>
 #ifdef XP_MACOSX
     <key key="."                 modifiers="meta"  command="cmd_close"/>
-#endif
+#else
     <key keycode="VK_F1"                           command="cmd_help"/>
+#endif
     <key key="&copy.key;"        modifiers="accel" command="cmd_copy"/>
     <key key="&selectall.key;"   modifiers="accel" command="cmd_selectall"/>
     <key key="&selectall.key;"   modifiers="alt"   command="cmd_selectall"/>
   </keyset>
 
   <menupopup id="picontext">
-    <menuitem label="&selectall.label;" command="cmd_selectall" accesskey="&selectall.accesskey;"/>
-    <menuitem label="&copy.label;"      command="cmd_copy"      accesskey="&copy.accesskey;"/>
+    <menuitem id="menu_selectall" label="&selectall.label;" command="cmd_selectall" accesskey="&selectall.accesskey;"/>
+    <menuitem id="menu_copy"      label="&copy.label;"      command="cmd_copy"      accesskey="&copy.accesskey;"/>
   </menupopup>
 
-  <stack id="topStackBar">
-    <radiogroup id="viewGroup" class="viewSelector chromeclass-toolbar" orient="horizontal">
+  <windowdragbox id="topBar" class="viewGroupWrapper">
+    <radiogroup id="viewGroup" class="chromeclass-toolbar" orient="horizontal">
       <radio id="generalTab"  label="&generalTab;"  accesskey="&generalTab.accesskey;"
            oncommand="showTab('general');"/>
       <radio id="mediaTab"    label="&mediaTab;"    accesskey="&mediaTab.accesskey;"
-           oncommand="showTab('media'); ensureSelection(gImageView)" hidden="true"/>
+           oncommand="showTab('media');" hidden="true"/>
       <radio id="feedTab"     label="&feedTab;"     accesskey="&feedTab.accesskey;"
            oncommand="showTab('feed');" hidden="true"/>
       <radio id="permTab"     label="&permTab;"     accesskey="&permTab.accesskey;"
@@ -126,7 +128,7 @@
            oncommand="showTab('security');"/>
       <!-- Others added by overlay -->
     </radiogroup>
-  </stack>
+  </windowdragbox>
 
   <deck id="mainDeck" flex="1">
     <!-- General page information -->
@@ -151,6 +153,11 @@
             <label control="typetext" value="&generalType;"/>
             <separator/>
             <textbox readonly="true" id="typetext"/>
+          </row>
+          <row>
+            <label control="modetext" value="&generalMode;"/>
+            <separator/>
+            <textbox readonly="true" crop="end" id="modetext"/>
           </row>
           <row>
             <label control="encodingtext" value="&generalEncoding;"/>
@@ -196,8 +203,8 @@
         <description id="general-security-identity" class="header"/>
         <description id="general-security-privacy"  class="header"/>
         <hbox align="right">
-          <button id="security-view-more" label="&generalSecurityMore;"
-                  accesskey="&generalSecurityMore.accesskey;"
+          <button id="security-view-details" label="&generalSecurityDetails;"
+                  accesskey="&generalSecurityDetails.accesskey;"
                   oncommand="onClickMore();"/>
         </hbox>
       </groupbox>
@@ -206,7 +213,7 @@
     <!-- Media information -->
     <vbox id="mediaPanel">
       <tree id="imagetree" onselect="onImageSelect();" contextmenu="picontext"
-            ondraggesture="onBeginLinkDrag(event,'image-address','image-alt')">
+            ondragstart="onBeginLinkDrag(event,'image-address','image-alt')">
         <treecols>
           <treecol sortSeparators="true" persist="hidden width" flex="10"
                         width="10" id="image-address" label="&mediaAddress;"/>
@@ -227,32 +234,17 @@
       </tree>
       <splitter orient="vertical" id="mediaSplitter"/>
       <vbox flex="1" id="mediaPreviewBox" collapsed="true">
-        <grid>
+        <grid id="mediaGrid">
           <columns>
-            <column/>
+            <column id="mediaLabelColumn"/>
             <column class="gridSeparator"/>
             <column flex="1"/>
           </columns>
           <rows>
             <row>
-              <label control="imageurltext" value="&mediaURL;"/>
+              <label control="imageurltext" value="&mediaLocation;"/>
               <separator/>
               <textbox readonly="true" id="imageurltext"/>
-            </row>
-            <row>
-              <label control="imagetitletext" value="&mediaTitle;"/>
-              <separator/>
-              <textbox readonly="true" id="imagetitletext"/>
-            </row>
-            <row>
-              <label control="imagealttext" value="&mediaAlt;"/>
-              <separator/>
-              <textbox readonly="true" id="imagealttext"/>
-            </row>
-            <row>
-              <label control="imagelongdesctext" value="&mediaLongdesc;"/>
-              <separator/>
-              <textbox readonly="true" id="imagelongdesctext"/>
             </row>
             <row>
               <label control="imagetypetext" value="&generalType;"/>
@@ -260,24 +252,24 @@
               <textbox readonly="true" id="imagetypetext"/>
             </row>
             <row>
-              <label control="imagesourcetext" value="&generalSource;"/>
-              <separator/>
-              <textbox readonly="true" id="imagesourcetext"/>
-            </row>
-            <row>
               <label control="imagesizetext" value="&generalSize;"/>
               <separator/>
               <textbox readonly="true" id="imagesizetext"/>
             </row>
             <row>
-              <label control="imageSize" value="&mediaDimensions;"/>
+              <label control="imagedimensiontext" value="&mediaDimension;"/>
               <separator/>
-              <textbox readonly="true" id="imageSize"/>
+              <textbox readonly="true" id="imagedimensiontext"/>
             </row>
             <row>
-              <label control="physSize" value="&mediaPhysDimensions;"/>
+              <label control="imagetext" value="&mediaText;"/>
               <separator/>
-              <textbox readonly="true" id="physSize"/>
+              <textbox readonly="true" id="imagetext"/>
+            </row>
+            <row>
+              <label control="imagelongdesctext" value="&mediaLongdesc;"/>
+              <separator/>
+              <textbox readonly="true" id="imagelongdesctext"/>
             </row>
           </rows>
         </grid>
@@ -297,7 +289,7 @@
             <image id="thepreviewimage"/>
           </hbox>
           <hbox id="brokenimagecontainer" pack="center" collapsed="true">
-            <image id="brokenimage" src="resource:///res/broken-image.gif"/>
+            <image id="brokenimage" src="resource://gre-resources/broken-image.png"/>
           </hbox>
         </vbox>
       </vbox>
@@ -316,15 +308,16 @@
     <!-- Permissions -->
     <vbox id="permPanel">
       <hbox>
-        <label value="&permissionsFor;" control="hosttext" />
+        <label value="&permissionsFor;" control="hostText" />
         <textbox id="hostText" class="header" readonly="true"
                  crop="end" flex="1"/>
       </hbox>
 
       <vbox id="permList" flex="1">
-        <vbox>
-          <label value="&permImage;"/>
-          <hbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permImageLabel"
+                 value="&permImage;" control="imageRadioGroup"/>
+          <hbox role="group" aria-labelledby="permImageLabel">
             <checkbox id="imageDef" command="cmd_imageDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="imageRadioGroup" orient="horizontal">
@@ -333,9 +326,10 @@
             </radiogroup>
           </hbox>
         </vbox>
-        <vbox>
-          <label value="&permPopup;"/>
-          <hbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permPopupLabel"
+                 value="&permPopup;" control="popupRadioGroup"/>
+          <hbox role="group" aria-labelledby="permPopupLabel">
             <checkbox id="popupDef" command="cmd_popupDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="popupRadioGroup" orient="horizontal">
@@ -344,9 +338,10 @@
             </radiogroup>
           </hbox>
         </vbox>
-        <vbox>
-          <label value="&permCookie;"/>
-          <hbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permCookieLabel"
+                 value="&permCookie;" control="cookieRadioGroup"/>
+          <hbox role="group" aria-labelledby="permCookieLabel">
             <checkbox id="cookieDef" command="cmd_cookieDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="cookieRadioGroup" orient="horizontal">
@@ -356,14 +351,27 @@
             </radiogroup>
           </hbox>
         </vbox>
-        <vbox>
-          <label value="&permInstall;"/>
-          <hbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permInstallLabel"
+                 value="&permInstall;" control="installRadioGroup"/>
+          <hbox role="group" aria-labelledby="permInstallLabel">
             <checkbox id="installDef" command="cmd_installDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="installRadioGroup" orient="horizontal">
               <radio id="install#1" command="cmd_installToggle" label="&permAllow;"/>
               <radio id="install#2" command="cmd_installToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+        </vbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permGeoLabel"
+                 value="&permGeo;" control="geoRadioGroup"/>
+          <hbox role="group" aria-labelledby="permGeoLabel">
+            <checkbox id="geoDef" command="cmd_geoDef" label="&permAskAlways;"/>
+            <spacer flex="1"/>
+            <radiogroup id="geoRadioGroup" orient="horizontal">
+              <radio id="geo#1" command="cmd_geoToggle" label="&permAllow;"/>
+              <radio id="geo#2" command="cmd_geoToggle" label="&permBlock;"/>
             </radiogroup>
           </hbox>
         </vbox>
@@ -408,9 +416,7 @@
           </rows>
         </grid>
         <spacer flex="1"/>
-        <hbox><!-- Cert button -->
-          <label id="security-view-text" class="fieldLabel"
-                 control="security-view-cert" flex="1"/>
+        <hbox pack="end"><!-- Cert button -->
           <button id="security-view-cert" label="&securityView.certView;"
                   accesskey="&securityView.accesskey;"
                   oncommand="security.viewCert();"/>
@@ -427,19 +433,19 @@
           </columns>
           <rows>
             <row><!-- History -->
-              <description id="security-privacy-history-label"
+              <label id="security-privacy-history-label"
                            control="security-privacy-history-value"
-                           class="fieldLabel">&securityView.privacy.history;</description>
+                           class="fieldLabel">&securityView.privacy.history;</label>
               <textbox id="security-privacy-history-value"
                        class="fieldValue"
                        value="&securityView.unknown;"
                        readonly="true"/>
             </row>
             <row><!-- Cookies -->
-              <description id="security-privacy-cookies-label"
+              <label id="security-privacy-cookies-label"
                            control="security-privacy-cookies-value"
-                           class="fieldLabel">&securityView.privacy.cookies;</description>
-              <hbox>
+                           class="fieldLabel">&securityView.privacy.cookies;</label>
+              <hbox align="center">
                 <textbox id="security-privacy-cookies-value"
                          class="fieldValue"
                          value="&securityView.unknown;"
@@ -452,10 +458,10 @@
               </hbox>
             </row>
             <row><!-- Passwords -->
-              <description  id="security-privacy-passwords-label"
+              <label id="security-privacy-passwords-label"
                             control="security-privacy-passwords-value"
-                            class="fieldLabel">&securityView.privacy.passwords;</description>
-              <hbox>
+                            class="fieldLabel">&securityView.privacy.passwords;</label>
+              <hbox align="center">
                 <textbox id="security-privacy-passwords-value"
                          class="fieldValue"
                          value="&securityView.unknown;"

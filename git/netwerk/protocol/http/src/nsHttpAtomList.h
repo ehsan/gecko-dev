@@ -62,6 +62,7 @@ HTTP_ATOM(Authorization,             "Authorization")
 HTTP_ATOM(Cache_Control,             "Cache-Control")
 HTTP_ATOM(Connection,                "Connection")
 HTTP_ATOM(Content_Base,              "Content-Base")
+HTTP_ATOM(Content_Disposition,       "Content-Disposition")
 HTTP_ATOM(Content_Encoding,          "Content-Encoding")
 HTTP_ATOM(Content_Language,          "Content-Language")
 HTTP_ATOM(Content_Length,            "Content-Length")
@@ -125,9 +126,8 @@ HTTP_ATOM(Warning,                   "Warning")
 
 // methods are atoms too.
 //
-// note: an uppercase DELETE causes compilation problems under msvc6, so we'll
-// just keep the methods mixedcase even though they're normally written all
-// uppercase -- darin
+// Note: winnt.h defines DELETE macro, so we'll just keep the methods mixedcase
+// even though they're normally written all uppercase. -- darin
 
 HTTP_ATOM(Connect,                   "CONNECT")
 HTTP_ATOM(Copy,                      "COPY")

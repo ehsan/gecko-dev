@@ -49,36 +49,35 @@
 #include "nsStackLayout.h"
 #include "nsGrid.h"
 
-nsGridRowLayout::nsGridRowLayout(nsIPresShell* aPresShell):nsSprocketLayout()
+nsGridRowLayout::nsGridRowLayout():nsSprocketLayout()
 {
 }
 
-NS_IMETHODIMP
-nsGridRowLayout::ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aPrevBox, nsIBox* aChildList)
-{
-  ChildAddedOrRemoved(aBox, aState);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGridRowLayout::ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)
+void
+nsGridRowLayout::ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState,
+                                  nsIBox* aPrevBox,
+                                  const nsFrameList::Slice& aNewChildren)
 {
   ChildAddedOrRemoved(aBox, aState);
-  return NS_OK;
 }
 
-NS_IMETHODIMP
+void
+nsGridRowLayout::ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState,
+                                  const nsFrameList::Slice& aNewChildren)
+{
+  ChildAddedOrRemoved(aBox, aState);
+}
+
+void
 nsGridRowLayout::ChildrenRemoved(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)
 {
   ChildAddedOrRemoved(aBox, aState);
-  return NS_OK;
 }
 
-NS_IMETHODIMP
+void
 nsGridRowLayout::ChildrenSet(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)
 {
   ChildAddedOrRemoved(aBox, aState);
-  return NS_OK;
 }
 
 void

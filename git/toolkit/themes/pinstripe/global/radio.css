@@ -50,22 +50,21 @@ radiogroup {
 radio {
   -moz-appearance: radio-container;
   -moz-box-align: center;
-  margin: 2px 2px 2px 2px;
+  margin: 4px 2px;
   -moz-user-focus: ignore;
 }
 
 .radio-label-box {
-  margin-left: 0px;
+  -moz-margin-start: 0px;
   padding: 0px;
 }
 
 .radio-icon {
-  margin-right: 2px;
+  -moz-margin-end: 2px;
 }
 
 .radio-label {
-  margin: 0 !important;
-  padding-bottom: 1px;
+  margin: 1px 0 !important;
 }
 
 /* ..... disabled state ..... */
@@ -78,30 +77,10 @@ radio[disabled="true"] {
 
 .radio-check, .radio-check-box1 {
   -moz-appearance: radio;
-  width: 14px;
-  height: 12px;
-  background: url("chrome://global/skin/radio/radio.gif") no-repeat;
+  margin: 0 1px 1px;
+  /* vertical-align tells native theming where to snap to. However, this doesn't
+   * always work reliably because of bug 503833. */
+  vertical-align: bottom;
+  width: 1.3em;
+  height: 1.3em;
 }
-  
-radio:hover:active > .radio-check {
-  background-image: url("chrome://global/skin/radio/radio-act.gif");
-}
-
-radio[disabled="true"] > .radio-check {
-  background-image: url("chrome://global/skin/radio/radio-dis.gif") !important;
-}
-
-/* ..... selected state ..... */
-
-radio[selected="true"] > .radio-check {
-  background-image: url("chrome://global/skin/radio/radio-check.gif");
-}
-
-radio[selected="true"]:hover:active > .radio-check {
-  background-image: url("chrome://global/skin/radio/radio-check-act.gif");
-}
-
-radio[selected="true"][disabled="true"] > .radio-check {
-  background-image: url("chrome://global/skin/radio/radio-check-dis.gif") !important
-}
-

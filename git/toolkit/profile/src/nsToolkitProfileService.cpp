@@ -57,7 +57,7 @@
 #include "nsISimpleEnumerator.h"
 
 #ifdef XP_MACOSX
-#include <CFURL.h>
+#include <CoreFoundation/CoreFoundation.h>
 #include "nsILocalFileMac.h"
 #endif
 
@@ -399,6 +399,12 @@ nsToolkitProfileService::Init()
     PRBool exists;
     rv = mListFile->IsFile(&exists);
     if (NS_FAILED(rv) || !exists) {
+        return NS_OK;
+    }
+
+    PRInt64 size;
+    rv = listFile->GetFileSize(&size);
+    if (NS_FAILED(rv) || !size) {
         return NS_OK;
     }
 
@@ -929,13 +935,13 @@ XRE_GetFileFromPath(const char *aPath, nsILocalFile* *aResult)
                                  aResult);
 
 #elif defined(XP_WIN)
-    char fullPath[MAXPATHLEN];
+    WCHAR fullPath[MAXPATHLEN];
 
-    if (!_fullpath(fullPath, aPath, MAXPATHLEN))
+    if (!_wfullpath(fullPath, NS_ConvertUTF8toUTF16(aPath).get(), MAXPATHLEN))
         return NS_ERROR_FAILURE;
 
-    return NS_NewNativeLocalFile(nsDependentCString(fullPath), PR_TRUE,
-                                 aResult);
+    return NS_NewLocalFile(nsDependentString(fullPath), PR_TRUE,
+                           aResult);
 
 #elif defined(XP_BEOS)
     BPath fullPath;

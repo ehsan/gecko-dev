@@ -22,6 +22,7 @@
  * Contributor(s):
  *  Darin Fisher <darin@meer.net>
  *  Ben Turner <mozilla@songbirdnest.com>
+ *  Robert Strong <robert.bugzilla@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -51,6 +52,7 @@
 #include "nsPrintfCString.h"
 #include "prproces.h"
 #include "prlog.h"
+#include "nsVersionComparator.h"
 
 #ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
@@ -109,6 +111,9 @@ static const char kUpdaterINI[] = "updater.ini";
 #ifdef XP_MACOSX
 static const char kUpdaterApp[] = "updater.app";
 #endif
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+static const char kUpdaterPNG[] = "updater.png";
+#endif
 
 static nsresult
 GetCurrentWorkingDir(char *buf, size_t size)
@@ -119,6 +124,12 @@ GetCurrentWorkingDir(char *buf, size_t size)
 #if defined(XP_OS2)
   if (DosQueryPathInfo( ".", FIL_QUERYFULLNAME, buf, size))
     return NS_ERROR_FAILURE;
+#elif defined(XP_WIN)
+  wchar_t wpath[MAX_PATH];
+  if (!_wgetcwd(wpath, size))
+    return NS_ERROR_FAILURE;
+  NS_ConvertUTF16toUTF8 path(wpath);
+  strncpy(buf, path.get(), size);
 #else
   if(!getcwd(buf, size))
     return NS_ERROR_FAILURE;
@@ -168,7 +179,7 @@ GetXULRunnerStubPath(const char* argv0, nsILocalFile* *aResult)
 }
 #endif /* XP_MACOSX */
 
-PR_STATIC_CALLBACK(int)
+static int
 ScanDirComparator(nsIFile *a, nsIFile *b, void *unused)
 {
   // lexically compare the leaf names of these two files
@@ -215,16 +226,16 @@ GetFile(nsIFile *dir, const nsCSubstring &name, nsCOMPtr<nsILocalFile> &result)
 {
   nsresult rv;
   
-  nsCOMPtr<nsIFile> statusFile;
-  rv = dir->Clone(getter_AddRefs(statusFile));
+  nsCOMPtr<nsIFile> file;
+  rv = dir->Clone(getter_AddRefs(file));
   if (NS_FAILED(rv))
     return PR_FALSE;
 
-  rv = statusFile->AppendNative(name);
+  rv = file->AppendNative(name);
   if (NS_FAILED(rv))
     return PR_FALSE;
 
-  result = do_QueryInterface(statusFile, &rv);
+  result = do_QueryInterface(file, &rv);
   return NS_SUCCEEDED(rv);
 }
 
@@ -268,49 +279,97 @@ SetStatus(nsILocalFile *statusFile, const char *status)
 }
 
 static PRBool
+GetVersionFile(nsIFile *dir, nsCOMPtr<nsILocalFile> &result)
+{
+  return GetFile(dir, NS_LITERAL_CSTRING("update.version"), result);
+}
+
+// Compares the current application version with the update's application
+// version.
+static PRBool
+IsOlderVersion(nsILocalFile *versionFile, const char *&appVersion)
+{
+  nsresult rv;
+
+  FILE *fp;
+  rv = versionFile->OpenANSIFileDesc("r", &fp);
+  if (NS_FAILED(rv))
+    return PR_TRUE;
+
+  char buf[32];
+  char *result = fgets(buf, sizeof(buf), fp);
+  fclose(fp);
+  if (!result)
+    return PR_TRUE;
+
+  // Trim off any trailing newline
+  int len = strlen(result);
+  if (len > 0 && result[len - 1] == '\n')
+    result[len - 1] = '\0';
+
+  // If the update xml doesn't provide the application version the file will
+  // contain the string "null" and it is assumed that the update is not older.
+  const char kNull[] = "null";
+  if (strncmp(buf, kNull, sizeof(kNull) - 1) == 0)
+    return PR_FALSE;
+
+  if (NS_CompareVersions(appVersion, result) > 0)
+    return PR_TRUE;
+
+  return PR_FALSE;
+}
+
+static PRBool
+CopyFileIntoUpdateDir(nsIFile *parentDir, const char *leafName, nsIFile *updateDir)
+{
+  nsDependentCString leaf(leafName);
+  nsCOMPtr<nsIFile> file;
+
+  // Make sure there is not an existing file in the target location.
+  nsresult rv = updateDir->Clone(getter_AddRefs(file));
+  if (NS_FAILED(rv))
+    return PR_FALSE;
+  rv = file->AppendNative(leaf);
+  if (NS_FAILED(rv))
+    return PR_FALSE;
+  file->Remove(PR_FALSE);
+
+  // Now, copy into the target location.
+  rv = parentDir->Clone(getter_AddRefs(file));
+  if (NS_FAILED(rv))
+    return PR_FALSE;
+  rv = file->AppendNative(leaf);
+  if (NS_FAILED(rv))
+    return PR_FALSE;
+  rv = file->CopyToNative(updateDir, EmptyCString());
+  if (NS_FAILED(rv))
+    return PR_FALSE;
+
+  return PR_TRUE;
+}
+
+static PRBool
 CopyUpdaterIntoUpdateDir(nsIFile *greDir, nsIFile *appDir, nsIFile *updateDir,
                          nsCOMPtr<nsIFile> &updater)
 {
-  // We have to move the updater binary and its resource file.
-  const char *filesToMove[] = {
+  // Copy the updater application from the GRE and the updater ini from the app
 #if defined(XP_MACOSX)
-    kUpdaterApp,
+  if (!CopyFileIntoUpdateDir(greDir, kUpdaterApp, updateDir))
+    return PR_FALSE;
 #else
-    kUpdaterINI,
-    kUpdaterBin,
+  if (!CopyFileIntoUpdateDir(greDir, kUpdaterBin, updateDir))
+    return PR_FALSE;
 #endif
-    nsnull
-  };
-
-  nsresult rv;
-
-  for (const char **leafName = filesToMove; *leafName; ++leafName) {
-    nsDependentCString leaf(*leafName);
-    nsCOMPtr<nsIFile> file;
-
-    // Make sure there is not an existing file in the target location.
-    rv = updateDir->Clone(getter_AddRefs(file));
-    if (NS_FAILED(rv))
-      return PR_FALSE;
-    rv = file->AppendNative(leaf);
-    if (NS_FAILED(rv))
-      return PR_FALSE;
-    file->Remove(PR_FALSE);
-
-    // Now, copy into the target location.
-    rv = greDir->Clone(getter_AddRefs(file));
-    if (NS_FAILED(rv))
-      return PR_FALSE;
-    rv = file->AppendNative(leaf);
-    if (NS_FAILED(rv))
-      return PR_FALSE;
-    rv = file->CopyToNative(updateDir, EmptyCString());
-    if (*leafName != kUpdaterINI && NS_FAILED(rv))
-      return PR_FALSE;
-  }
-  
+  CopyFileIntoUpdateDir(appDir, kUpdaterINI, updateDir);
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+  nsCOMPtr<nsIFile> iconDir;
+  appDir->Clone(getter_AddRefs(iconDir));
+  iconDir->AppendNative(NS_LITERAL_CSTRING("icons"));
+  if (!CopyFileIntoUpdateDir(iconDir, kUpdaterPNG, updateDir))
+    return PR_FALSE;
+#endif
   // Finally, return the location of the updater binary.
-  rv = updateDir->Clone(getter_AddRefs(updater));
+  nsresult rv = updateDir->Clone(getter_AddRefs(updater));
   if (NS_FAILED(rv))
     return PR_FALSE;
 #if defined(XP_MACOSX)
@@ -328,6 +387,8 @@ static void
 ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsILocalFile *statusFile,
             nsIFile *appDir, int appArgc, char **appArgv)
 {
+  nsresult rv;
+
   // Steps:
   //  - mark update as 'applying'
   //  - copy updater into update dir
@@ -353,8 +414,24 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsILocalFile *statusFile,
 
   if (!appFile)
     return;
+
+#ifdef XP_WIN
+  nsAutoString appFilePathW;
+  rv = appFile->GetPath(appFilePathW);
+  if (NS_FAILED(rv))
+    return;
+  NS_ConvertUTF16toUTF8 appFilePath(appFilePathW);
+
+  nsAutoString updaterPathW;
+  rv = updater->GetPath(updaterPathW);
+  if (NS_FAILED(rv))
+    return;
+
+  NS_ConvertUTF16toUTF8 updaterPath(updaterPathW);
+
+#else
   nsCAutoString appFilePath;
-  nsresult rv = appFile->GetNativePath(appFilePath);
+  rv = appFile->GetNativePath(appFilePath);
   if (NS_FAILED(rv))
     return;
   
@@ -363,11 +440,13 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsILocalFile *statusFile,
   if (NS_FAILED(rv))
     return;
 
+#endif
+
   // Get the directory to which the update will be applied. On Mac OSX we need
   // to apply the update to the Foo.app directory which is the parent of the
   // parent of the appDir. On other platforms we will just apply to the appDir.
-  nsCAutoString applyToDir;
 #if defined(XP_MACOSX)
+  nsCAutoString applyToDir;
   {
     nsCOMPtr<nsIFile> parentDir1, parentDir2;
     rv = appDir->GetParent(getter_AddRefs(parentDir1));
@@ -378,14 +457,26 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsILocalFile *statusFile,
       return;
     rv = parentDir2->GetNativePath(applyToDir);
   }
+#elif defined(XP_WIN)
+  nsAutoString applyToDir;
+  rv = appDir->GetPath(applyToDir);
 #else
+  nsCAutoString applyToDir;
   rv = appDir->GetNativePath(applyToDir);
 #endif
   if (NS_FAILED(rv))
     return;
 
+#if defined(XP_WIN)
+  nsAutoString updateDirPathW;
+  rv = updateDir->GetPath(updateDirPathW);
+
+  NS_ConvertUTF16toUTF8 updateDirPath(updateDirPathW);
+#else
   nsCAutoString updateDirPath;
   rv = updateDir->GetNativePath(updateDirPath);
+#endif
+
   if (NS_FAILED(rv))
     return;
 
@@ -433,9 +524,9 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsILocalFile *statusFile,
   chdir(applyToDir.get());
   execv(updaterPath.get(), argv);
 #elif defined(XP_WIN)
-  _chdir(applyToDir.get());
+  _wchdir(applyToDir.get());
 
-  if (!WinLaunchChild(updaterPath.get(), appArgc + 4, argv, 1))
+  if (!WinLaunchChild(updaterPathW.get(), appArgc + 4, argv))
     return;
   _exit(0);
 #else
@@ -465,7 +556,7 @@ end:
 
 nsresult
 ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
-               int argc, char **argv)
+               int argc, char **argv, const char *&appVersion)
 {
   nsresult rv;
 
@@ -493,6 +584,16 @@ ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
   for (int i = 0; i < dirEntries.Count(); ++i) {
     nsCOMPtr<nsILocalFile> statusFile;
     if (GetStatusFile(dirEntries[i], statusFile) && IsPending(statusFile)) {
+      nsCOMPtr<nsILocalFile> versionFile;
+      // Remove the update if the update application version file doesn't exist
+      // or if the update's application version is less than the current
+      // application version.
+      if (!GetVersionFile(dirEntries[i], versionFile) ||
+          IsOlderVersion(versionFile, appVersion)) {
+        dirEntries[i]->Remove(PR_TRUE);
+        continue;
+      }
+
       ApplyUpdate(greDir, dirEntries[i], statusFile, appDir, argc, argv);
       break;
     }

@@ -40,17 +40,34 @@ DEPTH		= ../../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
+relativesrcdir	= toolkit/components/places/tests
 
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= test_places
 
-XPCSHELL_TESTS = unit \
-                 bookmarks \
-                 $(NULL)
+XPCSHELL_TESTS = \
+	autocomplete \
+	sync \
+	bookmarks \
+	queries \
+	unit \
+	$(NULL)
 
-ifdef MOZ_MOCHITEST
-DIRS = chrome
-endif
+# Simple MochiTests
+MOCHI_TESTS = \
+	mochitest/test_bug_411966.html \
+	mochitest/test_bug_461710.html \
+	$(NULL)
+
+DIRS = \
+	chrome \
+	mochitest/bug_411966 \
+	mochitest/bug_461710 \
+	browser \
+	$(NULL)
 
 include $(topsrcdir)/config/rules.mk
+
+libs:: $(MOCHI_TESTS)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

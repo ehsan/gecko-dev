@@ -42,28 +42,24 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= gfx
+
 MOZILLA_INTERNAL_API = 1
 
-REQUIRES	= xpcom \
-		  string \
-		  gfx \
-		  $(NULL)
 
-CPPSRCS		= \
-		DumpColors.cpp \
+CPP_UNIT_TESTS	= \
 		TestColorNames.cpp \
 		TestRect.cpp \
 		$(NULL)
-
-SIMPLE_PROGRAMS	= $(CPPSRCS:.cpp=$(BIN_SUFFIX))
 
 LIBS		= \
 		$(call EXPAND_LIBNAME_PATH,gkgfx,../src) \
 		$(XPCOM_LIBS) \
 		$(MOZ_JS_LIBS) \
 		$(TK_LIBS) \
-		$(NSPR_LIBS) \
 		$(NULL)
+
+XPCSHELL_TESTS = unit
 
 include $(topsrcdir)/config/rules.mk
 

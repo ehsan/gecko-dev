@@ -43,6 +43,7 @@
 #include "nsString.h"
 #include "nsIDOMElement.h"
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMCharacterData.h"
 #include "nsRuleNode.h"
@@ -50,14 +51,17 @@
 #include "nsICSSStyleRule.h"
 #include "nsICSSStyleRuleDOMWrapper.h"
 #include "nsIDOMWindowInternal.h"
-
-static NS_DEFINE_CID(kInspectorCSSUtilsCID, NS_INSPECTORCSSUTILS_CID);
+#include "nsXBLBinding.h"
+#include "nsXBLPrototypeBinding.h"
+#include "nsIDOMElement.h"
+#include "nsIMutableArray.h"
+#include "nsBindingManager.h"
+#include "nsComputedDOMStyle.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 
 inDOMUtils::inDOMUtils()
 {
-  mCSSUtils = do_GetService(kInspectorCSSUtilsCID);
 }
 
 inDOMUtils::~inDOMUtils()
@@ -73,8 +77,9 @@ NS_IMETHODIMP
 inDOMUtils::IsIgnorableWhitespace(nsIDOMCharacterData *aDataNode,
                                   PRBool *aReturn)
 {
-  NS_PRECONDITION(aDataNode, "Must have a character data node");
   NS_PRECONDITION(aReturn, "Must have an out parameter");
+
+  NS_ENSURE_ARG_POINTER(aDataNode);
 
   *aReturn = PR_FALSE;
 
@@ -95,17 +100,10 @@ inDOMUtils::IsIgnorableWhitespace(nsIDOMCharacterData *aDataNode,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIPresShell> presShell = inLayoutUtils::GetPresShellFor(win);
-  if (!presShell) {
-    // Display:none iframe or something... Bail out
-    return NS_OK;
-  }
-
-  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
+  nsIFrame* frame = content->GetPrimaryFrame();
   if (frame) {
     const nsStyleText* text = frame->GetStyleText();
-    *aReturn = text->mWhiteSpace != NS_STYLE_WHITESPACE_PRE &&
-               text->mWhiteSpace != NS_STYLE_WHITESPACE_MOZ_PRE_WRAP;
+    *aReturn = !text->WhiteSpaceIsSignificant();
   }
   else {
     // empty inter-tag text node without frame, e.g., in between <table>\n<tr>
@@ -120,7 +118,9 @@ inDOMUtils::GetParentForNode(nsIDOMNode* aNode,
                              PRBool aShowingAnonymousContent,
                              nsIDOMNode** aParent)
 {
-    // First do the special cases -- document nodes and anonymous content
+  NS_ENSURE_ARG_POINTER(aNode);
+
+  // First do the special cases -- document nodes and anonymous content
   nsCOMPtr<nsIDOMDocument> doc(do_QueryInterface(aNode));
   nsCOMPtr<nsIDOMNode> parent;
 
@@ -152,13 +152,14 @@ NS_IMETHODIMP
 inDOMUtils::GetCSSStyleRules(nsIDOMElement *aElement,
                              nsISupportsArray **_retval)
 {
-  if (!aElement) return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_ARG_POINTER(aElement);
 
   *_retval = nsnull;
 
   nsRuleNode* ruleNode = nsnull;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  mCSSUtils->GetRuleNodeForContent(content, &ruleNode);
+  nsRefPtr<nsStyleContext> styleContext;
+  GetRuleNodeForContent(content, getter_AddRefs(styleContext), &ruleNode);
   if (!ruleNode) {
     // This can fail for content nodes that are not in the document or
     // if the document they're in doesn't have a presshell.  Bail out.
@@ -169,15 +170,10 @@ inDOMUtils::GetCSSStyleRules(nsIDOMElement *aElement,
   NS_NewISupportsArray(getter_AddRefs(rules));
   if (!rules) return NS_ERROR_OUT_OF_MEMORY;
 
-  nsCOMPtr<nsIStyleRule> srule;
   nsCOMPtr<nsICSSStyleRule> cssRule;
   nsCOMPtr<nsIDOMCSSRule> domRule;
-  for (PRBool isRoot;
-       mCSSUtils->IsRuleNodeRoot(ruleNode, &isRoot), !isRoot;
-       mCSSUtils->GetRuleNodeParent(ruleNode, &ruleNode))
-  {
-    mCSSUtils->GetRuleNodeRule(ruleNode, getter_AddRefs(srule));
-    cssRule = do_QueryInterface(srule);
+  for ( ; !ruleNode->IsRoot(); ruleNode = ruleNode->GetParent()) {
+    cssRule = do_QueryInterface(ruleNode->GetRule());
     if (cssRule) {
       cssRule->GetDOMRule(getter_AddRefs(domRule));
       if (domRule)
@@ -195,27 +191,50 @@ NS_IMETHODIMP
 inDOMUtils::GetRuleLine(nsIDOMCSSStyleRule *aRule, PRUint32 *_retval)
 {
   *_retval = 0;
-  if (!aRule)
-    return NS_OK;
+
+  NS_ENSURE_ARG_POINTER(aRule);
+
   nsCOMPtr<nsICSSStyleRuleDOMWrapper> rule = do_QueryInterface(aRule);
   nsCOMPtr<nsICSSStyleRule> cssrule;
-  rule->GetCSSStyleRule(getter_AddRefs(cssrule));
-  if (cssrule)
-    *_retval = cssrule->GetLineNumber();
+  nsresult rv = rule->GetCSSStyleRule(getter_AddRefs(cssrule));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(cssrule != nsnull, NS_ERROR_FAILURE);
+  *_retval = cssrule->GetLineNumber();
   return NS_OK;
 }
 
 NS_IMETHODIMP 
 inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
 {
-  return mCSSUtils->GetBindingURLs(aElement, _retval);
+  NS_ENSURE_ARG_POINTER(aElement);
+
+  *_retval = nsnull;
+
+  nsCOMPtr<nsIMutableArray> urls = do_CreateInstance(NS_ARRAY_CONTRACTID);
+  if (!urls)
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
+  NS_ASSERTION(content, "elements must implement nsIContent");
+
+  nsIDocument *ownerDoc = content->GetOwnerDoc();
+  if (ownerDoc) {
+    nsXBLBinding *binding = ownerDoc->BindingManager()->GetBinding(content);
+
+    while (binding) {
+      urls->AppendElement(binding->PrototypeBinding()->BindingURI(), PR_FALSE);
+      binding = binding->GetBaseBinding();
+    }
+  }
+
+  NS_ADDREF(*_retval = urls);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 inDOMUtils::SetContentState(nsIDOMElement *aElement, PRInt32 aState)
 {
-  if (!aElement)
-    return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_ARG_POINTER(aElement);
   
   nsCOMPtr<nsIEventStateManager> esm = inLayoutUtils::GetEventStateManagerFor(aElement);
   if (esm) {
@@ -233,8 +252,7 @@ inDOMUtils::GetContentState(nsIDOMElement *aElement, PRInt32* aState)
 {
   *aState = 0;
 
-  if (!aElement)
-    return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_ARG_POINTER(aElement);
 
   nsCOMPtr<nsIEventStateManager> esm = inLayoutUtils::GetEventStateManagerFor(aElement);
   if (esm) {
@@ -247,3 +265,29 @@ inDOMUtils::GetContentState(nsIDOMElement *aElement, PRInt32* aState)
   return NS_ERROR_FAILURE;
 }
 
+/* static */ nsresult
+inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
+                                  nsStyleContext** aStyleContext,
+                                  nsRuleNode** aRuleNode)
+{
+  *aRuleNode = nsnull;
+  *aStyleContext = nsnull;
+
+  nsIDocument* doc = aContent->GetDocument();
+  NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
+
+  nsIPresShell *presShell = doc->GetPrimaryShell();
+  NS_ENSURE_TRUE(presShell, NS_ERROR_UNEXPECTED);
+
+  nsPresContext *presContext = presShell->GetPresContext();
+  NS_ENSURE_TRUE(presContext, NS_ERROR_UNEXPECTED);
+
+  PRBool safe = presContext->EnsureSafeToHandOutCSSRules();
+  NS_ENSURE_TRUE(safe, NS_ERROR_OUT_OF_MEMORY);
+
+  nsRefPtr<nsStyleContext> sContext =
+    nsComputedDOMStyle::GetStyleContextForContent(aContent, nsnull, presShell);
+  *aRuleNode = sContext->GetRuleNode();
+  sContext.forget(aStyleContext);
+  return NS_OK;
+}

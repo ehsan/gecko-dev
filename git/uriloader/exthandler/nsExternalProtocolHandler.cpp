@@ -140,7 +140,7 @@ nsExtProtocolChannel::GetSecurityInfo(nsISupports * *aSecurityInfo)
 
 NS_IMETHODIMP nsExtProtocolChannel::GetOriginalURI(nsIURI* *aURI)
 {
-  NS_IF_ADDREF(*aURI = mOriginalURI);
+  NS_ADDREF(*aURI = mOriginalURI);
   return NS_OK; 
 }
  
@@ -431,17 +431,4 @@ NS_IMETHODIMP nsExternalProtocolHandler::ExternalAppExistsForScheme(const nsACSt
   // In case we don't have external protocol service.
   *_retval = PR_FALSE;
   return NS_OK;
-}
-
-nsBlockedExternalProtocolHandler::nsBlockedExternalProtocolHandler()
-{
-    m_schemeName = "default-blocked";
-}
-
-NS_IMETHODIMP
-nsBlockedExternalProtocolHandler::NewChannel(nsIURI *aURI,
-                                             nsIChannel **_retval)
-{
-    *_retval = nsnull;
-    return NS_ERROR_UNKNOWN_PROTOCOL;
 }

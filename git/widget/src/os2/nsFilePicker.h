@@ -41,7 +41,8 @@
 #define nsFilePicker_h__
 
 #include "nsISimpleEnumerator.h"
-#include "nsISupportsArray.h"
+#include "nsCOMArray.h"
+#include "nsTArray.h"
 
 #include "nsICharsetConverterManager.h"
 #include "nsBaseFilePicker.h"
@@ -70,7 +71,7 @@ public:
   NS_IMETHOD GetFilterIndex(PRInt32 *aFilterIndex);
   NS_IMETHOD SetFilterIndex(PRInt32 aFilterIndex);
   NS_IMETHOD GetFile(nsILocalFile * *aFile);
-  NS_IMETHOD GetFileURL(nsIFileURL * *aFileURL);
+  NS_IMETHOD GetFileURL(nsIURI * *aFileURL);
   NS_IMETHOD GetFiles(nsISimpleEnumerator **aFiles);
   NS_IMETHOD Show(PRInt16 *_retval); 
   NS_IMETHOD AppendFilter(const nsAString& aTitle, const nsAString& aFilter);
@@ -92,12 +93,12 @@ protected:
   nsCString              mFile;
   nsString               mDefault;
   nsString               mDefaultExtension;
-  nsStringArray          mFilters;
-  nsStringArray          mTitles;
+  nsTArray<nsString>     mFilters;
+  nsTArray<nsString>     mTitles;
   nsIUnicodeEncoder*     mUnicodeEncoder;
   nsIUnicodeDecoder*     mUnicodeDecoder;
   PRInt16                mSelectedType;
-  nsCOMPtr <nsISupportsArray> mFiles;
+  nsCOMArray<nsILocalFile> mFiles;
   static char            mLastUsedDirectory[];
 };
 

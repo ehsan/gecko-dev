@@ -46,12 +46,12 @@
 #include "nsICharsetConverterManager.h"
 #include "nsEncoderDecoderUtils.h"
 #include "nsIStringBundle.h"
-#include "nsILocaleService.h"
 #include "nsUConvDll.h"
 #include "prmem.h"
 #include "nsCRT.h"
-#include "nsVoidArray.h"
+#include "nsTArray.h"
 #include "nsStringEnumerator.h"
+#include "nsThreadUtils.h"
 
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
@@ -63,17 +63,14 @@
 #include "nsNativeUConvService.h"
 #endif
 
-// Pattern of cached, commonly used, single byte decoder
-#define NS_1BYTE_CODER_PATTERN "ISO-8859"
-#define NS_1BYTE_CODER_PATTERN_LEN 8
-
 // Class nsCharsetConverterManager [implementation]
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsCharsetConverterManager,
                               nsICharsetConverterManager)
 
 nsCharsetConverterManager::nsCharsetConverterManager() 
-  :mDataBundle(NULL), mTitleBundle(NULL)
+  : mDataBundle(NULL)
+  , mTitleBundle(NULL)
 {
 #ifdef MOZ_USE_NATIVE_UCONV
   mNativeUC = do_GetService(NS_NATIVE_UCONV_SERVICE_CONTRACT_ID);
@@ -86,7 +83,6 @@ nsCharsetConverterManager::~nsCharsetConverterManager()
   NS_IF_RELEASE(mTitleBundle);
 }
 
-
 nsresult nsCharsetConverterManager::RegisterConverterManagerData()
 {
   nsresult rv;
@@ -97,7 +93,7 @@ nsresult nsCharsetConverterManager::RegisterConverterManagerData()
   RegisterConverterCategory(catman, NS_TITLE_BUNDLE_CATEGORY,
                             "chrome://global/locale/charsetTitles.properties");
   RegisterConverterCategory(catman, NS_DATA_BUNDLE_CATEGORY,
-                            "resource://gre/res/charsetData.properties");
+                            "resource://gre-resources/charsetData.properties");
 
   return NS_OK;
 }
@@ -254,30 +250,14 @@ nsCharsetConverterManager::GetUnicodeDecoderRaw(const char * aSrc,
 #endif
   nsresult rv = NS_OK;
 
-  NS_NAMED_LITERAL_CSTRING(kUnicodeDecoderContractIDBase,
-                           NS_UNICODEDECODER_CONTRACTID_BASE);
+  NS_NAMED_LITERAL_CSTRING(contractbase, NS_UNICODEDECODER_CONTRACTID_BASE);
+  nsDependentCString src(aSrc);
+  
+  decoder = do_CreateInstance(PromiseFlatCString(contractbase + src).get(),
+                              &rv);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_UCONV_NOCONV);
 
-  nsCAutoString contractid(kUnicodeDecoderContractIDBase +
-                           nsDependentCString(aSrc));
-
-  if (!strncmp(aSrc,
-               NS_1BYTE_CODER_PATTERN,
-               NS_1BYTE_CODER_PATTERN_LEN))
-  {
-    // Single byte decoders dont hold state. Optimize by using a service.
-    decoder = do_GetService(contractid.get(), &rv);
-  }
-  else
-  {
-    decoder = do_CreateInstance(contractid.get(), &rv);
-  }
-  if(NS_FAILED(rv))
-    rv = NS_ERROR_UCONV_NOCONV;
-  else
-  {
-    *aResult = decoder.get();
-    NS_ADDREF(*aResult);
-  }
+  decoder.forget(aResult);
   return rv;
 }
 
@@ -297,7 +277,7 @@ nsCharsetConverterManager::GetList(const nsACString& aCategory,
   if (NS_FAILED(rv))
     return rv;
 
-  nsCStringArray* array = new nsCStringArray;
+  nsTArray<nsCString>* array = new nsTArray<nsCString>;
   if (!array)
     return NS_ERROR_OUT_OF_MEMORY;
   
@@ -326,7 +306,7 @@ nsCharsetConverterManager::GetList(const nsACString& aCategory,
     if (NS_FAILED(rv)) 
       continue;
 
-    rv = array->AppendCString(alias);
+    rv = array->AppendElement(alias) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
   }
     
   return NS_NewAdoptingUTF8StringEnumerator(aResult, array);

@@ -39,22 +39,15 @@
 #define nsXMLDocument_h___
 
 #include "nsDocument.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsIChannelEventSink.h"
 #include "nsIDOMXMLDocument.h"
 #include "nsIScriptContext.h"
-#include "nsHTMLStyleSheet.h"
-#include "nsIHTMLCSSStyleSheet.h"
 
 class nsIParser;
 class nsIDOMNode;
 class nsIURI;
 class nsIChannel;
 
-class nsXMLDocument : public nsDocument,
-                      public nsIInterfaceRequestor,
-                      public nsIChannelEventSink
+class nsXMLDocument : public nsDocument
 {
 public:
   nsXMLDocument(const char* aContentType = "application/xml");
@@ -75,19 +68,6 @@ public:
 
   virtual void EndLoad();
 
-  // nsIDOMNode interface
-  NS_IMETHOD CloneNode(PRBool aDeep, nsIDOMNode** aReturn);
-
-  // nsIDOMDocument interface
-  NS_IMETHOD GetElementById(const nsAString& aElementId,
-                            nsIDOMElement** aReturn);
-
-  // nsIInterfaceRequestor
-  NS_DECL_NSIINTERFACEREQUESTOR
-
-  // nsIHTTPEventSink
-  NS_DECL_NSICHANNELEVENTSINK
-
   // nsIDOMXMLDocument
   NS_DECL_NSIDOMXMLDOCUMENT
 
@@ -95,14 +75,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsXMLDocument, nsDocument)
-
-  void SetLoadedAsData(PRBool aLoadedAsData) { mLoadedAsData = aLoadedAsData; }
 protected:
-  virtual nsresult GetLoadGroup(nsILoadGroup **aLoadGroup);
-
-  nsCOMPtr<nsIScriptContext> mScriptContext;
-
   // mChannelIsPending indicates whether we're currently asynchronously loading
   // data from mChannel (via document.load() or normal load).  It's set to true
   // when we first find out about the channel (StartDocumentLoad) and set to
@@ -110,7 +83,6 @@ protected:
   // mChannel is also cancelled.  Note that if this member is true, mChannel
   // cannot be null.
   PRPackedBool mChannelIsPending;
-  PRPackedBool mCrossSiteAccessEnabled;
   PRPackedBool mLoadedAsInteractiveData;
   PRPackedBool mAsync;
   PRPackedBool mLoopingForSyncLoad;

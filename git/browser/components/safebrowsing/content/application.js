@@ -38,8 +38,8 @@
 var gDataProvider = null;
 
 // An instance of our application is a PROT_Application object. It
-// basically just populates a few globals and instantiates wardens and
-// the listmanager.
+// basically just populates a few globals and instantiates wardens,
+// the listmanager, and the about:blocked error page.
 
 /**
  * An instance of our application. There should be exactly one of these.
@@ -82,7 +82,6 @@ function PROT_Application() {
 #endif
   
   // expose some classes
-  this.PROT_Controller = PROT_Controller;
   this.PROT_PhishingWarden = PROT_PhishingWarden;
   this.PROT_MalwareWarden = PROT_MalwareWarden;
 
@@ -93,10 +92,49 @@ function PROT_Application() {
   this.wrappedJSObject = this;
 }
 
+var gInitialized = false;
+PROT_Application.prototype.initialize = function() {
+  if (gInitialized)
+    return;
+  gInitialized = true;
+
+  var obs = Cc["@mozilla.org/observer-service;1"].
+            getService(Ci.nsIObserverService);
+  obs.addObserver(this, "xpcom-shutdown", true);
+
+  // XXX: move table names to a pref that we originally will download
+  // from the provider (need to workout protocol details)
+  this.malwareWarden = new PROT_MalwareWarden();
+  this.malwareWarden.registerBlackTable("goog-malware-shavar");
+  this.malwareWarden.maybeToggleUpdateChecking();
+
+  this.phishWarden = new PROT_PhishingWarden();
+  this.phishWarden.registerBlackTable("goog-phish-shavar");
+  this.phishWarden.maybeToggleUpdateChecking();
+}
+
+PROT_Application.prototype.observe = function(subject, topic, data) {
+  switch (topic) {
+    case "xpcom-shutdown":
+      this.malwareWarden.shutdown();
+      this.phishWarden.shutdown();
+      break;
+  }
+}
+
 /**
  * @param name String The type of url to get (either Phish or Error).
  * @return String the report phishing URL (localized).
  */
 PROT_Application.prototype.getReportURL = function(name) {
   return gDataProvider["getReport" + name + "URL"]();
+}
+
+PROT_Application.prototype.QueryInterface = function(iid) {
+  if (iid.equals(Ci.nsISupports) ||
+      iid.equals(Ci.nsISupportsWeakReference) ||
+      iid.equals(Ci.nsIObserver))
+    return this;
+
+  throw Components.results.NS_ERROR_NO_INTERFACE;
 }

@@ -93,6 +93,8 @@
       <property name="type" onget="return parseInt(this.getAttribute('type'));"/>
       <property name="isCompatible" onget="return this.getAttribute('compatible') == 'true';"/>
       <property name="isBlocklisted" onget="return this.getAttribute('blocklisted') == 'true';"/>
+      <property name="isSoftBlocklisted" onget="return this.getAttribute('blocklistedsoft') == 'true';"/>
+      <property name="isOutdated" onget="return this.getAttribute('outdated') == 'true';"/>
       <property name="isDisabled" onget="return this.getAttribute('isDisabled') == 'true';"/>
       <property name="providesUpdatesSecurely" onget="return this.getAttribute('providesUpdatesSecurely') == 'true';"/>
       <property name="satisfiesDependencies" onget="return this.getAttribute('satisfiesDependencies') == 'true';"/>
@@ -131,10 +133,40 @@
         <xul:vbox flex="1" class="addonTextBox">
           <xul:hbox class="addon-name-version" xbl:inherits="name, version"/>
           <xul:hbox anonid="addonDescription" class="addon-description" xbl:inherits="description, opType"/>
+          <xul:vbox anonid="addonSelectedStatusMsgs" class="selectedStatusMsgs">
+            <xul:hbox flex="1" class="blocklistedBox attention" align="center">
+              <xul:label class="blocklistedLabel" value="&blocklisted.label;" crop="end"/>
+              <xul:label class="softBlocklistedLabel" value="&softBlocklisted.label;" crop="end"/>
+              <xul:label class="outdatedLabel" value="&outdated.label;" crop="end"/>
+              <xul:label anonid="blocklistMoreInfo" class="text-link" value="&moreInfo.label;"
+                         onclick="if (event.button == 0) { openURL(this.getAttribute('moreInfoURL')); }" />
+            </xul:hbox>
+          </xul:vbox>
         </xul:vbox>
       </xul:hbox>
     </content>
     <implementation implements="nsIAccessibleProvider, nsIDOMXULSelectControlItemElement">
+      <constructor>
+        <![CDATA[
+          if (this.isBlocklisted || this.isSoftBlocklisted || this.isOutdated) {
+            try {
+              var blocklistMoreInfo = document.getAnonymousElementByAttribute(this, "anonid", "blocklistMoreInfo");
+              var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                                    .getService(Components.interfaces.nsIPrefBranch);
+              var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
+                                        .getService(Components.interfaces.nsIURLFormatter);
+              if (this.isOutdated)
+                var url = formatter.formatURLPref("plugins.update.url");
+              else
+                var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
+              blocklistMoreInfo.setAttribute("moreInfoURL", url);
+            } catch(e) {
+              blocklistMoreInfo.hidden = true;
+            }
+          }
+        ]]>
+      </constructor>
+
       <field name="_addonDescription">
         document.getAnonymousElementByAttribute(this, "anonid", "addonDescription");
       </field>
@@ -212,9 +244,11 @@
               <xul:label value="&needsDependencies.label;" crop="end"/>
             </xul:hbox>
             <xul:hbox flex="1" class="blocklistedBox attention" align="center">
-              <xul:label value="&blocklisted.label;" crop="end"/>
+              <xul:label class="blocklistedLabel" value="&blocklisted.label;" crop="end"/>
+              <xul:label class="softBlocklistedLabel" value="&softBlocklisted.label;" crop="end"/>
+              <xul:label class="outdatedLabel" value="&outdated.label;" crop="end"/>
               <xul:label anonid="blocklistMoreInfo" class="text-link" value="&moreInfo.label;"
-                         onclick="openURL(this.getAttribute('moreInfoURL'));"/>
+                         onclick="if (event.button == 0) { openURL(this.getAttribute('moreInfoURL')); }" />
             </xul:hbox>
           </xul:vbox>
           <xul:hbox anonid="selectedButtons" flex="1" class="selectedButtons">
@@ -230,7 +264,7 @@
             <xul:button class="uninstallHide themeButton useThemeButton" label="&cmd.useTheme.label;"
                         accesskey="&cmd.useTheme.accesskey;" tooltiptext="&cmd.useTheme.tooltip;"
                         command="cmd_useTheme"/>
-            <spacer flex="1"/>
+            <xul:spacer flex="1"/>
             <xul:button class="disableShow enableHide uninstallHide enableButton" label="&cmd.enable.label;"
                         accesskey="&cmd.enable.accesskey;" tooltiptext="&cmd.enable.tooltip;"
                         command="cmd_enable"/>
@@ -257,14 +291,17 @@
     <implementation implements="nsIAccessibleProvider, nsIDOMXULSelectControlItemElement">
       <constructor>
         <![CDATA[
-          if (this.isBlocklisted) {
+          if (this.isBlocklisted || this.isSoftBlocklisted || this.isOutdated) {
             try {
               var blocklistMoreInfo = document.getAnonymousElementByAttribute(this, "anonid", "blocklistMoreInfo");
               var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                                     .getService(Components.interfaces.nsIPrefBranch);
               var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
                                         .getService(Components.interfaces.nsIURLFormatter);
-              var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
+              if (this.isOutdated)
+                var url = formatter.formatURLPref("plugins.update.url");
+              else
+                var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
               blocklistMoreInfo.setAttribute("moreInfoURL", url);
             } catch(e) {
               blocklistMoreInfo.hidden = true;
@@ -385,15 +422,311 @@
       </handler>
     </handlers>
   </binding>
+  
+  <binding id="searchresult" extends="chrome://global/content/bindings/richlistbox.xml#richlistitem">
+    <resources>
+      <stylesheet src="chrome://mozapps/skin/extensions/extensions.css"/>
+    </resources>
+
+    <content>
+      <xul:hbox flex="1">
+        <xul:vbox class="addon-icon" xbl:inherits="iconURL"/>
+        <xul:vbox flex="1" class="addonTextBox">
+          <xul:hbox align="center">
+            <xul:hbox anonid="addonNameVersion" class="addon-name-version" xbl:inherits="name, version"/>
+            <xul:spacer flex="1"/>
+            <xul:image class="addonRating" xbl:inherits="rating"/>
+          </xul:hbox>
+          <xul:hbox anonid="addonDescription" class="addon-description" xbl:inherits="description, opType"/>
+        </xul:vbox>
+      </xul:hbox>
+    </content>
+
+    <implementation extends="nsIAccessibleProvider">
+      <property name="label" readonly="true">
+        <getter>
+          return this.getAttribute("name") + " " +
+            this.getAttribute("version") + " " +
+            this.getAttribute("description");
+        </getter>
+      </property>
+
+      <constructor>
+        if (!this.hasAttribute("thumbnailURL") || this._imageBlocked(this)) {
+          this._hideImage();
+          return;
+        }
+
+        if (this.hasAttribute("thumbwidth")) {
+          this._displayImage();
+          return;
+        }
+
+        var image = new Image();
+        var id = this.id;
+        image.onload = function() {
+          var self = document.getElementById(id);
+          // This element might have gone away in the meantime
+          if (self)
+            self._imageLoaded(image);
+        };
+        image.onerror = function() {
+          var self = document.getElementById(id);
+          // This element might have gone away in the meantime
+          if (self)
+            self._hideImage();
+        };
+        image.src = this.getAttribute("thumbnailURL");
+      </constructor>
+
+      <field name="_maxSize">125</field>
+
+      <method name="_imageBlocked">
+        <parameter name="container"/>
+        <body>
+          var uri = Components.classes["@mozilla.org/network/io-service;1"]
+                              .getService(Components.interfaces.nsIIOService)
+                              .newURI(container.getAttribute("thumbnailURL"),
+                                      container.ownerDocument.characterSet, null);
+          var contentPolicy = Components.classes["@mozilla.org/layout/content-policy;1"]
+                                        .getService(Components.interfaces.nsIContentPolicy);
+          return contentPolicy.shouldLoad(contentPolicy.TYPE_IMAGE,
+                                          uri, container.ownerDocument.documentURIObject,
+                                          container, null, null) != contentPolicy.ACCEPT;
+        </body>
+      </method>
+
+      <method name="_displayImage">
+        <body>
+        </body>
+      </method>
+
+      <method name="_hideImage">
+        <body>
+        </body>
+      </method>
+
+      <method name="_imageLoaded">
+        <parameter name="image"/>
+        <body>
+        <![CDATA[
+          if ((this._maxSize >= image.width) &&
+              (this._maxSize >= image.height)) {
+            var width = image.width;
+            var height = image.height;
+          }
+          else if (image.width > image.height) {
+            width = this._maxSize;
+            height = (this._maxSize / image.width) * image.height;
+          }
+          else {
+            height = this._maxSize;
+            width = (this._maxSize / image.height) * image.width;
+          }
+
+          this.setAttribute("thumbwidth", width);
+          this.setAttribute("thumbheight", height);
+          this._displayImage();
+        ]]>
+        </body>
+      </method>
+    </implementation>
+  </binding>
+  
+  <binding id="searchresult-selected" extends="chrome://mozapps/content/extensions/extensions.xml#searchresult">
+    <content>
+      <xul:hbox flex="1">
+        <xul:vbox class="addon-icon" xbl:inherits="iconURL"/>
+        <xul:vbox flex="1" class="addonTextBox">
+          <xul:hbox align="center">
+            <xul:hbox anonid="addonNameVersion" class="addon-name-version" xbl:inherits="name, version"/>
+            <xul:spacer flex="1"/>
+            <xul:image class="addonRating" xbl:inherits="rating"/>
+          </xul:hbox>
+          <xul:hbox flex="1" align="stretch" class="addon-search-details">
+            <xul:vbox pack="start">
+              <xul:deck class="addonThumbnailContainer" selectedIndex="0">
+                <xul:vbox flex="1" align="center" pack="center">
+                  <xul:image class="addonThrobber"/>
+                </xul:vbox>
+                <xul:vbox flex="1" align="center" pack="center">
+                  <xul:image class="addonThumbnail"/>
+                </xul:vbox>
+                <xul:vbox flex="1" align="center" pack="center">
+                  <xul:label class="addonMissingThumbnail" value="&missingThumbnail.label;"/>
+                </xul:vbox>
+              </xul:deck>
+            </xul:vbox>
+            <xul:vbox flex="1">
+              <xul:label anonid="addonDescriptionWrap" class="descriptionWrap"
+                         xbl:inherits="xbl:text=description"/>
+              <xul:hbox pack="start">
+                <xul:label class="addonLearnMore text-link" xbl:inherits="homepageURL"
+                           value="&searchResultHomepage.value;"
+                           onclick="if (event.button == 0) { openURL(this.getAttribute('homepageURL')); }"/>
+              </xul:hbox>
+              <xul:spacer flex="1"/>
+              <xul:hbox anonid="selectedButtons" class="selectedButtons">
+                <xul:hbox align="center" class="addonType addonTypeExtension">
+                  <xul:image/>
+                  <xul:label value="&addonTypeExtension.label;"/>
+                </xul:hbox>
+                <xul:hbox align="center" class="addonType addonTypeTheme">
+                  <xul:image/>
+                  <xul:label value="&addonTypeTheme.label;"/>
+                </xul:hbox>
+                <xul:spacer flex="1"/>
+                <xul:hbox align="center" class="searchResultConnecting">
+                  <xul:image class="addonThrobber"/>
+                  <xul:label value="&searchResultConnecting.label;"/>
+                </xul:hbox>
+                <xul:hbox align="center" class="searchResultInstalling">
+                  <xul:image class="addonThrobber"/>
+                  <xul:label value="&searchResultInstalling.label;"/>
+                </xul:hbox>
+                <xul:hbox align="center" class="searchResultFailed">
+                  <xul:label value="&searchResultFailed.label;"/>
+                </xul:hbox>
+                <xul:hbox align="center" class="searchResultInstalled">
+                  <xul:label value="&searchResultInstalled.label;"/>
+                </xul:hbox>
+                <xul:button class="addonInstallButton"
+                            label="&cmd.installSearchResult.label;"
+                            accesskey="&cmd.installSearchResult.accesskey;"
+                            tooltiptext="&cmd.installSearchResult.tooltip;"
+                            command="cmd_installSearchResult"/>
+              </xul:hbox>
+            </xul:vbox>
+          </xul:hbox>
+        </xul:vbox>
+      </xul:hbox>
+    </content>
+
+    <implementation implements="nsIAccessibleProvider">
+      <field name="_thumbnailContainer">
+        document.getAnonymousElementByAttribute(this, "class", "addonThumbnailContainer");
+      </field>
+      <field name="_thumbnail">
+        document.getAnonymousElementByAttribute(this, "class", "addonThumbnail");
+      </field>
+      
+      <method name="_displayImage">
+        <body>
+          this._thumbnail.style.width = this.getAttribute("thumbwidth") + "px";
+          this._thumbnail.style.height = this.getAttribute("thumbheight") + "px";
+          this._thumbnail.src = this.getAttribute("thumbnailURL");
+          this._thumbnailContainer.selectedIndex = 1;
+        </body>
+      </method>
+
+      <method name="_hideImage">
+        <body>
+          this._thumbnailContainer.selectedIndex = 2;
+        </body>
+      </method>
+    </implementation>
+  </binding>
+
+  <binding id="status-search-failure">
+    <content align="center">
+      <xul:hbox align="center" pack="center">
+        <xul:image class="addonFailure"/>
+        <xul:label value="&searchFailed.label;"/>
+      </xul:hbox>
+      <xul:button command="cmd_resetSearch" label="&searchFailed.button;"/>
+    </content>
+  </binding>
+
+  <binding id="status-recommended-failure">
+    <content>
+      <xul:hbox align="center" pack="center">
+        <xul:image class="addonFailure"/>
+        <xul:label value="&searchFailed.label;"/>
+      </xul:hbox>
+    </content>
+  </binding>
+
+  <binding id="status-header-recommended">
+    <content>
+      <xul:label value="&recommendedHeader.label;"/>
+    </content>
+  </binding>
+
+  <binding id="status-message-nosearchresults">
+    <content>
+      <xul:hbox align="center" pack="center">
+        <xul:label value="&noSearchResults.label;"/>
+      </xul:hbox>
+    </content>
+  </binding>
+
+  <binding id="status-message-norecommended">
+    <content>
+      <xul:hbox align="center" pack="center">
+        <xul:label value="&noRecommendedResults.label;"/>
+      </xul:hbox>
+    </content>
+  </binding>
+
+  <binding id="status-footer-recommended">
+    <content align="end">
+      <xul:label class="text-link" xbl:inherits="recommendedURL=link" value="&recommendedResults.label;"
+                 onclick="if (event.button == 0) { openURL(this.getAttribute('recommendedURL')); }" />
+    </content>
+  </binding>
+
+  <binding id="status-footer-search">
+    <content align="stretch">
+      <xul:hbox align="center">
+        <xul:label class="text-link" xbl:inherits="searchURL=link" anonid="searchLink"
+                   onclick="if (event.button == 0) { openURL(this.getAttribute('searchURL')); }"/>
+        <xul:spacer flex="1"/>
+        <xul:button command="cmd_resetSearch" label="&resetSearch.label;"/>
+      </xul:hbox>
+    </content>
+
+    <implementation>
+      <constructor>
+        var strings = [this.getAttribute("count")];
+        var text = document.getElementById("extensionsStrings")
+                           .getFormattedString("searchResults", strings);
+        var label = document.getAnonymousElementByAttribute(this, "anonid", "searchLink");
+        label.value = text;
+      </constructor>
+    </implementation>
+  </binding>
+
+  <binding id="status-footer-search-empty">
+    <content align="center">
+      <xul:label value="&emptySearch.label;"/>
+      <xul:button command="cmd_resetSearch" label="&emptySearch.button;"/>
+    </content>
+  </binding>
+
+  <binding id="status-retrieve-search">
+    <content align="center">
+      <xul:hbox align="center" pack="center">
+        <xul:image class="addonThrobber"/>
+        <xul:label value="&searchThrobber.label;"/>
+      </xul:hbox>
+      <xul:button command="cmd_resetSearch" label="&cancelSearch.button;"/>
+    </content>
+  </binding>
+
+  <binding id="status-retrieve-recommended">
+    <content>
+      <xul:hbox align="center" pack="center">
+        <xul:image class="addonThrobber"/>
+        <xul:label value="&recommendedThrobber.label;"/>
+      </xul:hbox>
+    </content>
+  </binding>
 
   <binding id="addon-icon">
     <content>
       <xul:stack class="addonIconStack">
-        <xul:vbox pack="start" align="start">
-          <xul:image class="addonIcon" xbl:inherits="src=iconURL"/>
-        </xul:vbox>
-        <xul:vbox pack="start" align="start">
-          <xul:image class="addonIcon pluginIcon" src="chrome://mozapps/skin/plugins/pluginGeneric.png"/>
+        <xul:vbox pack="center" align="center" class="addonIcon">
+          <xul:image xbl:inherits="src=iconURL"/>
         </xul:vbox>
         <xul:vbox pack="end" align="start">
           <xul:image class="notifyBadge"/>
@@ -466,7 +799,7 @@
         <xul:vbox flex="1">
           <xul:hbox class="addon-name-version" xbl:inherits="name, version"/>
           <xul:hbox>
-            <xul:description xbl:inherits="value=updateStatus" flex="1" crop="end"/>
+            <xul:label xbl:inherits="value=updateStatus" flex="1" crop="end"/>
           </xul:hbox>
         </xul:vbox>
       </xul:hbox>
@@ -482,12 +815,13 @@
         <xul:vbox flex="1">
           <xul:hbox class="addon-name-version" xbl:inherits="name, version"/>
           <xul:hbox>
-            <xul:description xbl:inherits="value=updateAvailableMsg" flex="1" crop="end"/>
+            <xul:label xbl:inherits="value=updateAvailableMsg" flex="1" crop="end"/>
           </xul:hbox>
           <xul:hbox pack="end" align="end">
             <xul:checkbox anonid="includeUpdate" class="includeUpdate" checked="true"
             label="&includeUpdate.label;" tooltiptext="&includeUpdate.tooltip;"
-            includeUpdateAccesskey="&includeUpdate.accesskey;" accesskey="&includeUpdate.accesskey;"/>
+            includeUpdateAccesskey="&includeUpdate.accesskey;" accesskey="&includeUpdate.accesskey;"
+            oncommand="toggleInstallUpdates();"/>
           </xul:hbox>
         </xul:vbox>
       </xul:hbox>
@@ -520,19 +854,29 @@
 
   <binding id="install" extends="chrome://mozapps/content/extensions/extensions.xml#addon-base">
     <content>
-      <xul:hbox flex="1">
-        <xul:vbox>
-          <xul:stack class="addonIcon-stack">
-            <xul:vbox pack="start" align="start">
-              <xul:image class="addonIcon" xbl:inherits="src=iconURL"/>
-            </xul:vbox>
-          </xul:stack>
-        </xul:vbox>
-        <xul:vbox flex="1">
-          <xul:hbox class="addon-name-version" xbl:inherits="name, version=newVersion"/>
-          <xul:hbox class="addon-install-status" xbl:inherits="state"/>
-        </xul:vbox>
-      </xul:hbox>
+      <xul:vbox flex="1">
+        <xul:hbox flex="1">
+          <xul:vbox>
+            <xul:stack class="addonIcon-stack">
+              <xul:vbox pack="start" align="start">
+                <xul:image class="addonIcon" xbl:inherits="src=iconURL"/>
+              </xul:vbox>
+            </xul:stack>
+          </xul:vbox>
+          <xul:vbox flex="1">
+            <xul:hbox class="addon-name-version" xbl:inherits="name, version=newVersion"/>
+            <xul:hbox class="addon-install-status" xbl:inherits="state"/>
+          </xul:vbox>
+        </xul:hbox>
+        <xul:hbox flex="1" pack="end">
+          <xul:button class="upgradeShow cancelUpgradeButton" label="&cancelUpgrade.label;"
+                  accesskey="&cancelUpgrade.accesskey;" tooltiptext="&cmd.cancelUpgrade.tooltip;"
+                  command="cmd_cancelUpgrade"/>
+          <xul:button class="installShow cancelInstallButton" label="&cancelInstall.label;"
+                  accesskey="&cancelInstall.accesskey;" tooltiptext="&cmd.cancelInstall.tooltip;"
+                  command="cmd_cancelInstall"/>
+        </xul:hbox>
+      </xul:vbox>
     </content>
   </binding>
 
@@ -591,7 +935,7 @@
           <xul:image class="addonIcon" xbl:inherits="src=iconURL"/>
         </xul:vbox>
         <xul:vbox flex="1" class="addonTextBox">
-          <xul:hbox class="addon-name-version" xbl:inherits="name, version"/>
+          <xul:hbox class="addon-name-version" xbl:inherits="name, version=newVersion"/>
           <xul:progressmeter class="extension-item-progress" xbl:inherits="value=progress"/>
           <xul:label class="extension-item-status" xbl:inherits="value=status" value="&installWaiting.label;"/>
         </xul:vbox>
@@ -614,6 +958,42 @@
           <![CDATA[
             return Components.interfaces.nsIAccessibleProvider.XULListitem;
           ]]>
+        </getter>
+      </property>
+    </implementation>
+  </binding>
+
+  <binding id="hardblockedaddon">
+    <content align="start">
+      <xul:image xbl:inherits="src=icon"/>
+      <xul:vbox flex="1">
+        <xul:hbox class="addon-name-version" xbl:inherits="name, version"/>
+        <xul:hbox>
+          <xul:spacer flex="1"/>
+          <xul:label class="blockedLabel" value="&blocklist.blocked.label;"/>
+        </xul:hbox>
+      </xul:vbox>
+    </content>
+  </binding>
+
+  <binding id="softblockedaddon">
+    <content align="start">
+      <xul:image xbl:inherits="src=icon"/>
+      <xul:vbox flex="1">
+        <xul:hbox class="addon-name-version" xbl:inherits="name, version"/>
+        <xul:hbox>
+          <xul:spacer flex="1"/>
+          <xul:checkbox class="disableCheckbox" checked="true" label="&blocklist.checkbox.label;"/>
+        </xul:hbox>
+      </xul:vbox>
+    </content>
+    <implementation>
+      <field name="_checkbox">
+        document.getAnonymousElementByAttribute(this, "class", "disableCheckbox")
+      </field>
+      <property name="checked" readonly="true">
+        <getter>
+          return this._checkbox.checked;
         </getter>
       </property>
     </implementation>

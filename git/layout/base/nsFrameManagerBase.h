@@ -67,6 +67,9 @@ class nsILayoutHistoryState;
 
 class nsFrameManagerBase
 {
+public:
+  PRBool IsDestroyingFrames() { return mIsDestroyingFrames; }
+
 protected:
   class UndisplayedMap;
 
@@ -75,10 +78,9 @@ protected:
   // the pres shell owns the style set
   nsStyleSet*                     mStyleSet;
   nsIFrame*                       mRootFrame;
-  PLDHashTable                    mPrimaryFrameMap;
   PLDHashTable                    mPlaceholderMap;
   UndisplayedMap*                 mUndisplayedMap;
-  PRBool                          mIsDestroyingFrames;
+  PRPackedBool                    mIsDestroyingFrames;  // The frame manager is destroying some frame(s).
 };
 
 #endif

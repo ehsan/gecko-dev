@@ -49,7 +49,7 @@
 /**
  * Native types
  */
-  [ref] native nsNativeMarginRef(nsMargin);
+  [ref] native nsNativeIntMarginRef(nsIntMargin);
   
 interface nsIPrintSession;
 
@@ -58,7 +58,7 @@ interface nsIPrintSession;
  *
  * @status UNDER_REVIEW
  */
-[scriptable, uuid(b1b5e3cc-a52c-4325-a7f6-e1ac6fac19a5)]
+[scriptable, uuid(343700dd-078b-42b6-a809-b9c1d7e951d0)]
 
 interface nsIPrintSettings : nsISupports
 {
@@ -79,8 +79,8 @@ interface nsIPrintSettings : nsISupports
   /* Flag 0x00000800 is unused */
   /* Flag 0x00001000 is unused */
   const unsigned long kInitSavePaperData      = 0x00002000;
-  /* Flag 0x00004000 is unused */
-  /* Flag 0x00008000 is unused */
+  const unsigned long kInitSaveUnwriteableMargins = 0x00004000;
+  const unsigned long kInitSaveEdges          = 0x00008000;
 
   const unsigned long kInitSaveReversed       = 0x00010000;
   const unsigned long kInitSaveInColor        = 0x00020000;
@@ -201,10 +201,33 @@ interface nsIPrintSettings : nsISupports
   attribute long    startPageRange;    
   attribute long    endPageRange;    
 
+  /**
+   * The edge measurements define the positioning of the headers
+   * and footers on the page. They're measured as an offset from
+   * the "unwriteable margin" (described below).
+   */
+  attribute double  edgeTop;     /*  these are in inches */
+  attribute double  edgeLeft;
+  attribute double  edgeBottom;
+  attribute double  edgeRight;
+
+  /**
+   * The margins define the positioning of the content on the page.
+   * They're treated as an offset from the "unwriteable margin"
+   * (described below).
+   */
   attribute double  marginTop;     /*  these are in inches */
   attribute double  marginLeft;
   attribute double  marginBottom;
   attribute double  marginRight;
+  /**
+   * The unwriteable margin defines the printable region of the paper, creating
+   * an invisible border from which the edge and margin attributes are measured.
+   */
+  attribute double  unwriteableMarginTop;     /*  these are in inches */
+  attribute double  unwriteableMarginLeft;
+  attribute double  unwriteableMarginBottom;
+  attribute double  unwriteableMarginRight;
 
   attribute double  scaling;      /* values 0.0 - 1.0 */
   attribute boolean printBGColors; /* Print Background Colors */
@@ -281,8 +304,31 @@ interface nsIPrintSettings : nsISupports
   attribute boolean isInitializedFromPrefs;
 
   /* C++ Helper Functions */
-  [noscript] void SetMarginInTwips(in nsNativeMarginRef aMargin);
+  [noscript] void SetMarginInTwips(in nsNativeIntMarginRef aMargin);
+  [noscript] void SetEdgeInTwips(in nsNativeIntMarginRef aEdge);
   /* Purposely made this an "in" arg */
-  [noscript] void GetMarginInTwips(in nsNativeMarginRef aMargin);
+  [noscript] void GetMarginInTwips(in nsNativeIntMarginRef aMargin);
+  [noscript] void GetEdgeInTwips(in nsNativeIntMarginRef aEdge);
 
+  /**
+   * We call this function so that anything that requires a run of the event loop
+   * can do so safely. The print dialog runs the event loop but in silent printing
+   * that doesn't happen.
+   *
+   * Either this or ShowPrintDialog (but not both) MUST be called by the print engine
+   * before printing, otherwise printing can fail on some platforms.
+   */
+  [noscript] void SetupSilentPrinting();
+
+  /**
+   * Sets/Gets the "unwriteable margin" for the page format.  This defines
+   * the boundary from which we'll measure the EdgeInTwips and MarginInTwips 
+   * attributes, to place the headers and content, respectively.
+   *
+   * Note: Implementations of SetUnwriteableMarginInTwips should handle
+   * negative margin values by falling back on the system default for
+   * that margin.
+   */
+  [noscript] void SetUnwriteableMarginInTwips(in nsNativeIntMarginRef aEdge);
+  [noscript] void GetUnwriteableMarginInTwips(in nsNativeIntMarginRef aEdge);
 };

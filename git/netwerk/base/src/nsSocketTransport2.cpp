@@ -71,7 +71,7 @@
 #include "nsIProgrammingLanguage.h"
 #include "nsIClassInfoImpl.h"
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(MOZ_ENABLE_LIBCONIC)
 #include "nsNativeConnectionHelper.h"
 #endif
 
@@ -148,6 +148,26 @@ static PRErrorCode RandomizeConnectError(PRErrorCode code)
 
 //-----------------------------------------------------------------------------
 
+static PRBool
+IsNSSErrorCode(PRErrorCode code)
+{
+  return 
+    ((code >= nsINSSErrorsService::NSS_SEC_ERROR_BASE) && 
+      (code < nsINSSErrorsService::NSS_SEC_ERROR_LIMIT))
+    ||
+    ((code >= nsINSSErrorsService::NSS_SSL_ERROR_BASE) && 
+      (code < nsINSSErrorsService::NSS_SSL_ERROR_LIMIT));
+}
+
+// this logic is duplicated from the implementation of
+// nsINSSErrorsService::getXPCOMFromNSSError
+// It might have been better to implement that interface here...
+static nsresult
+GetXPCOMFromNSSError(PRErrorCode code)
+{
+    return NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_SECURITY, -1 * code);
+}
+
 static nsresult
 ErrorAccordingToNSPR(PRErrorCode errorCode)
 {
@@ -178,18 +198,9 @@ ErrorAccordingToNSPR(PRErrorCode errorCode)
         rv = NS_ERROR_NET_TIMEOUT;
         break;
     default:
-        {
-            nsCOMPtr<nsINSSErrorsService> nsserr =
-                do_GetService(NS_NSS_ERRORS_SERVICE_CONTRACTID);
-            if (nsserr) {
-                nsresult nssXPCOMCode;
-                nsresult conversionStatus =
-                  nsserr->GetXPCOMFromNSSError(errorCode, &nssXPCOMCode);
-
-                if (NS_SUCCEEDED(conversionStatus))
-                    rv = nssXPCOMCode;
-            }
-        }
+        if (IsNSSErrorCode(errorCode))
+            rv = GetXPCOMFromNSSError(errorCode);
+        break;
     }
     LOG(("ErrorAccordingToNSPR [in=%d out=%x]\n", errorCode, rv));
     return rv;
@@ -696,6 +707,7 @@ nsSocketTransport::nsSocketTransport()
     , mProxyPort(0)
     , mProxyTransparent(PR_FALSE)
     , mProxyTransparentResolvesHost(PR_FALSE)
+    , mConnectionFlags(0)
     , mState(STATE_CLOSED)
     , mAttached(PR_FALSE)
     , mInputClosed(PR_TRUE)
@@ -935,7 +947,11 @@ nsSocketTransport::ResolveHost()
 
     mResolving = PR_TRUE;
 
-    rv = dns->AsyncResolve(SocketHost(), 0, this, nsnull,
+    PRUint32 dnsFlags = 0;
+    if (mConnectionFlags & nsSocketTransport::BYPASS_CACHE)
+        dnsFlags = nsIDNSService::RESOLVE_BYPASS_CACHE;
+
+    rv = dns->AsyncResolve(SocketHost(), dnsFlags, this, nsnull,
                            getter_AddRefs(mDNSRequest));
     if (NS_SUCCEEDED(rv)) {
         LOG(("  advancing to STATE_RESOLVING\n"));
@@ -986,6 +1002,9 @@ nsSocketTransport::BuildSocket(PRFileDesc *&fd, PRBool &proxyTransparent, PRBool
 
             if (mProxyTransparentResolvesHost)
                 proxyFlags |= nsISocketProvider::PROXY_RESOLVES_HOST;
+            
+            if (mConnectionFlags & nsISocketTransport::ANONYMOUS_CONNECT)
+                proxyFlags |= nsISocketProvider::ANONYMOUS_CONNECT;
 
             nsCOMPtr<nsISupports> secinfo;
             if (i == 0) {
@@ -1010,7 +1029,7 @@ nsSocketTransport::BuildSocket(PRFileDesc *&fd, PRBool &proxyTransparent, PRBool
                                            proxyFlags, fd,
                                            getter_AddRefs(secinfo));
             }
-            proxyFlags = 0;
+            // proxyFlags = 0; not used below this point...
             if (NS_FAILED(rv))
                 break;
 
@@ -1110,7 +1129,18 @@ nsSocketTransport::InitiateSocket()
     opt.value.non_blocking = PR_TRUE;
     status = PR_SetSocketOption(fd, &opt);
     NS_ASSERTION(status == PR_SUCCESS, "unable to make socket non-blocking");
-    
+
+    // if the network.tcp.sendbuffer preference is set, use it to size SO_SNDBUF
+    // The Windows default of 8KB is too small and as of vista sp1, autotuning
+    // only applies to receive window
+    PRInt32 sndBufferSize;
+    gSocketTransportService->GetSendBufferSize(&sndBufferSize);
+    if (sndBufferSize > 0) {
+        opt.option = PR_SockOpt_SendBufferSize;
+        opt.value.send_buffer_size = sndBufferSize;
+        PR_SetSocketOption(fd, &opt);
+    }
+
     // inform socket transport about this newly created socket...
     rv = gSocketTransportService->AttachSocket(fd, this);
     if (NS_FAILED(rv)) {
@@ -1235,14 +1265,16 @@ nsSocketTransport::RecoverFromError()
         }
     }
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(MOZ_ENABLE_LIBCONIC)
     // If not trying next address, try to make a connection using dialup. 
     // Retry if that connection is made.
     if (!tryAgain) {
         PRBool autodialEnabled;
         gSocketTransportService->GetAutodialEnabled(&autodialEnabled);
-        if (autodialEnabled)
-            tryAgain = nsNativeConnectionHelper::OnConnectionFailed(SocketHost().get());
+        if (autodialEnabled) {
+          tryAgain = nsNativeConnectionHelper::OnConnectionFailed(
+                       NS_ConvertUTF8toUTF16(SocketHost()).get());
+	    }
     }
 #endif
 
@@ -1321,8 +1353,6 @@ nsSocketTransport::OnSocketConnected()
     mPollTimeout = mTimeouts[TIMEOUT_READ_WRITE];
     mState = STATE_TRANSFERRING;
 
-    SendStatus(STATUS_CONNECTED_TO);
-
     // assign mFD (must do this within the transport lock), but take care not
     // to trample over mFDref if mFD is already set.
     {
@@ -1331,6 +1361,8 @@ nsSocketTransport::OnSocketConnected()
         NS_ASSERTION(mFDref == 1, "wrong socket ref count");
         mFDconnected = PR_TRUE;
     }
+
+    SendStatus(STATUS_CONNECTED_TO);
 }
 
 PRFileDesc *
@@ -1571,7 +1603,8 @@ nsSocketTransport::OnSocketDetached(PRFileDesc *fd)
         secCtrl->SetNotificationCallbacks(nsnull);
 
     // finally, release our reference to the socket (must do this within
-    // the transport lock) possibly closing the socket.
+    // the transport lock) possibly closing the socket. Also release our
+    // listeners to break potential refcount cycles.
     {
         nsAutoLock lock(mLock);
         if (mFD) {
@@ -1579,6 +1612,15 @@ nsSocketTransport::OnSocketDetached(PRFileDesc *fd)
             // flag mFD as unusable; this prevents other consumers from 
             // acquiring a reference to mFD.
             mFDconnected = PR_FALSE;
+        }
+
+        // We must release mCallbacks and mEventSink to avoid memory leak
+        // but only when RecoverFromError() above failed. Otherwise we lose
+        // link with UI and security callbacks on next connection attempt 
+        // round. That would lead e.g. to a broken certificate exception page.
+        if (NS_FAILED(mCondition)) {
+            mCallbacks = nsnull;
+            mEventSink = nsnull;
         }
     }
 }
@@ -1920,6 +1962,21 @@ NS_IMETHODIMP
 nsSocketTransport::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
 {
     return NS_ERROR_NOT_AVAILABLE;
+}
+
+
+NS_IMETHODIMP
+nsSocketTransport::GetConnectionFlags(PRUint32 *value)
+{
+    *value = mConnectionFlags;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSocketTransport::SetConnectionFlags(PRUint32 value)
+{
+    mConnectionFlags = value;
+    return NS_OK;
 }
 
 

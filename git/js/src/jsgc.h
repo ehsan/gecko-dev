@@ -45,32 +45,30 @@
 #include "jsprvtd.h"
 #include "jspubtd.h"
 #include "jsdhash.h"
+#include "jsbit.h"
 #include "jsutil.h"
+#include "jstask.h"
 
 JS_BEGIN_EXTERN_C
 
-/* GC thing type indexes. */
-#define GCX_OBJECT              0               /* JSObject */
-#define GCX_STRING              1               /* JSString */
-#define GCX_DOUBLE              2               /* jsdouble */
-#define GCX_FUNCTION            3               /* JSFunction */
-#define GCX_NAMESPACE           4               /* JSXMLNamespace */
-#define GCX_QNAME               5               /* JSXMLQName */
-#define GCX_XML                 6               /* JSXML */
-#define GCX_EXTERNAL_STRING     8               /* JSString w/ external chars */
+#define JSTRACE_XML         3
 
-#define GCX_NTYPES_LOG2         4               /* type index bits */
-#define GCX_NTYPES              JS_BIT(GCX_NTYPES_LOG2)
+/*
+ * One past the maximum trace kind.
+ */
+#define JSTRACE_LIMIT       4
 
-/* GC flag definitions, must fit in 8 bits (type index goes in the low bits). */
-#define GCF_TYPEMASK    JS_BITMASK(GCX_NTYPES_LOG2)
-#define GCF_MARK        JS_BIT(GCX_NTYPES_LOG2)
-#define GCF_FINAL       JS_BIT(GCX_NTYPES_LOG2 + 1)
-#define GCF_LOCKSHIFT   (GCX_NTYPES_LOG2 + 2)   /* lock bit shift */
-#define GCF_LOCK        JS_BIT(GCF_LOCKSHIFT)   /* lock request bit in API */
+const uintN JS_EXTERNAL_STRING_LIMIT = 8;
 
-extern JS_FRIEND_API(uint8 *)
-js_GetGCThingFlags(void *thing);
+/*
+ * Get the type of the external string or -1 if the string was not created
+ * with JS_NewExternalString.
+ */
+extern intN
+js_GetExternalStringGCType(JSString *str);
+
+extern JS_FRIEND_API(uint32)
+js_GetGCThingTraceKind(void *thing);
 
 /*
  * The sole purpose of the function is to preserve public API compatibility
@@ -129,38 +127,32 @@ extern JSBool
 js_RegisterCloseableIterator(JSContext *cx, JSObject *obj);
 
 /*
- * The private JSGCThing struct, which describes a gcFreeList element.
+ * Allocate a new double jsval and store the result in *vp. vp must be a root.
+ * The function does not copy the result into any weak root.
  */
-struct JSGCThing {
-    JSGCThing   *next;
-    uint8       *flagp;
-};
-
-#define GC_NBYTES_MAX           (10 * sizeof(JSGCThing))
-#define GC_NUM_FREELISTS        (GC_NBYTES_MAX / sizeof(JSGCThing))
-#define GC_FREELIST_NBYTES(i)   (((i) + 1) * sizeof(JSGCThing))
-#define GC_FREELIST_INDEX(n)    (((n) / sizeof(JSGCThing)) - 1)
+extern JSBool
+js_NewDoubleInRootedValue(JSContext *cx, jsdouble d, jsval *vp);
 
 /*
- * Allocates a new GC thing of the given size. After a successful allocation
- * the caller must fully initialize the thing before calling any function that
- * can potentially trigger GC. This will ensure that GC tracing never sees junk
- * values stored in the partially initialized thing.
+ * Return a pointer to a new GC-allocated and weakly-rooted jsdouble number,
+ * or null when the allocation fails.
  */
-extern void *
-js_NewGCThing(JSContext *cx, uintN flags, size_t nbytes);
+extern jsdouble *
+js_NewWeaklyRootedDouble(JSContext *cx, jsdouble d);
 
+#ifdef JS_TRACER
 extern JSBool
-js_LockGCThing(JSContext *cx, void *thing);
+js_ReserveObjects(JSContext *cx, size_t nobjects);
+#endif
 
 extern JSBool
 js_LockGCThingRT(JSRuntime *rt, void *thing);
 
-extern JSBool
+extern void
 js_UnlockGCThingRT(JSRuntime *rt, void *thing);
 
-extern JSBool
-js_IsAboutToBeFinalized(JSContext *cx, void *thing);
+extern bool
+js_IsAboutToBeFinalized(void *thing);
 
 /*
  * Macro to test if a traversal is the marking phase of GC to avoid exposing
@@ -168,29 +160,16 @@ js_IsAboutToBeFinalized(JSContext *cx, void *thing);
  */
 #define IS_GC_MARKING_TRACER(trc) ((trc)->callback == NULL)
 
-JS_STATIC_ASSERT(JSTRACE_STRING == 2);
-
-#define JSTRACE_FUNCTION    3
-#define JSTRACE_NAMESPACE   4
-#define JSTRACE_QNAME       5
-#define JSTRACE_XML         6
-
 #if JS_HAS_XML_SUPPORT
-# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_XML)
+# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) < JSTRACE_LIMIT)
 #else
-# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_FUNCTION)
+# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_STRING)
 #endif
 
 /*
- * JS_IS_VALID_TRACE_KIND assumes that JSTRACE_FUNCTION is the last non-xml
- * trace kind when JS_HAS_XML_SUPPORT is false.
- */
-JS_STATIC_ASSERT(JSTRACE_FUNCTION + 1 == JSTRACE_NAMESPACE);
-
-/*
- * Trace jsval when JSVAL_IS_OBJECT(v) can be an arbitrary GC thing casted as
- * JSVAL_OBJECT and js_GetGCThingFlags has to be used to find the real type
- * behind v.
+ * Trace jsval when JSVAL_IS_OBJECT(v) can be a GC thing pointer tagged as a
+ * jsval. NB: punning an arbitrary JSString * as an untagged (object-tagged)
+ * jsval no longer works due to static int and unit strings!
  */
 extern void
 js_CallValueTracerIfGCThing(JSTracer *trc, jsval v);
@@ -198,53 +177,238 @@ js_CallValueTracerIfGCThing(JSTracer *trc, jsval v);
 extern void
 js_TraceStackFrame(JSTracer *trc, JSStackFrame *fp);
 
-extern void
+extern JS_REQUIRES_STACK void
 js_TraceRuntime(JSTracer *trc, JSBool allAtoms);
 
-extern JS_FRIEND_API(void)
+extern JS_REQUIRES_STACK JS_FRIEND_API(void)
 js_TraceContext(JSTracer *trc, JSContext *acx);
+
+/*
+ * Schedule the GC call at a later safe point.
+ */
+#ifndef JS_THREADSAFE
+# define js_TriggerGC(cx, gcLocked)    js_TriggerGC (cx)
+#endif
+
+extern void
+js_TriggerGC(JSContext *cx, JSBool gcLocked);
 
 /*
  * Kinds of js_GC invocation.
  */
 typedef enum JSGCInvocationKind {
     /* Normal invocation. */
-    GC_NORMAL,
+    GC_NORMAL           = 0,
 
     /*
      * Called from js_DestroyContext for last JSContext in a JSRuntime, when
      * it is imperative that rt->gcPoke gets cleared early in js_GC.
      */
-    GC_LAST_CONTEXT,
+    GC_LAST_CONTEXT     = 1,
 
     /*
-     * Called from js_NewGCThing as a last-ditch GC attempt. See comments
-     * before js_GC definition for details.
+     * Flag bit telling js_GC that the caller has already acquired rt->gcLock.
+     * Currently, this flag is set for the invocation kinds that also preserve
+     * atoms and weak roots, so we don't need another bit for GC_KEEP_ATOMS.
      */
-    GC_LAST_DITCH
+    GC_LOCK_HELD        = 0x10,
+    GC_KEEP_ATOMS       = GC_LOCK_HELD,
+
+    /*
+     * Called from js_SetProtoOrParent with a request to set an object's proto
+     * or parent slot inserted on rt->setSlotRequests.
+     */
+    GC_SET_SLOT_REQUEST = GC_LOCK_HELD | 1,
+
+    /*
+     * Called from js_NewGCThing as a last-ditch GC attempt. See comments in
+     * jsgc.c just before js_GC's definition for details.
+     */
+    GC_LAST_DITCH       = GC_LOCK_HELD | 2
 } JSGCInvocationKind;
 
 extern void
 js_GC(JSContext *cx, JSGCInvocationKind gckind);
 
-/* Call this after succesful malloc of memory for GC-related things. */
-extern void
-js_UpdateMallocCounter(JSContext *cx, size_t nbytes);
+/*
+ * The kind of GC thing with a finalizer. The external strings follow the
+ * ordinary string to simplify js_GetExternalStringGCType.
+ */
+enum JSFinalizeGCThingKind {
+    FINALIZE_OBJECT,
+    FINALIZE_FUNCTION,
+#if JS_HAS_XML_SUPPORT
+    FINALIZE_XML,
+#endif
+    FINALIZE_STRING,
+    FINALIZE_EXTERNAL_STRING0,
+    FINALIZE_EXTERNAL_STRING1,
+    FINALIZE_EXTERNAL_STRING2,
+    FINALIZE_EXTERNAL_STRING3,
+    FINALIZE_EXTERNAL_STRING4,
+    FINALIZE_EXTERNAL_STRING5,
+    FINALIZE_EXTERNAL_STRING6,
+    FINALIZE_EXTERNAL_STRING7,
+    FINALIZE_EXTERNAL_STRING_LAST = FINALIZE_EXTERNAL_STRING7,
+    FINALIZE_LIMIT
+};
 
-#ifdef DEBUG_notme
-#define JS_GCMETER 1
+static inline bool
+IsFinalizableStringKind(unsigned thingKind)
+{
+    return unsigned(FINALIZE_STRING) <= thingKind &&
+           thingKind <= unsigned(FINALIZE_EXTERNAL_STRING_LAST);
+}
+
+/*
+ * Allocates a new GC thing. After a successful allocation the caller must
+ * fully initialize the thing before calling any function that can potentially
+ * trigger GC. This will ensure that GC tracing never sees junk values stored
+ * in the partially initialized thing.
+ */
+extern void *
+js_NewFinalizableGCThing(JSContext *cx, unsigned thingKind);
+
+static inline JSObject *
+js_NewGCObject(JSContext *cx)
+{
+    return (JSObject *) js_NewFinalizableGCThing(cx, FINALIZE_OBJECT);
+}
+
+static inline JSString *
+js_NewGCString(JSContext *cx)
+{
+    return (JSString *) js_NewFinalizableGCThing(cx, FINALIZE_STRING);
+}
+
+static inline JSString *
+js_NewGCExternalString(JSContext *cx, uintN type)
+{
+    JS_ASSERT(type < JS_EXTERNAL_STRING_LIMIT);
+    type += FINALIZE_EXTERNAL_STRING0;
+    return (JSString *) js_NewFinalizableGCThing(cx, type);
+}
+
+static inline JSFunction*
+js_NewGCFunction(JSContext *cx)
+{
+    return (JSFunction *) js_NewFinalizableGCThing(cx, FINALIZE_FUNCTION);
+}
+
+#if JS_HAS_XML_SUPPORT
+static inline JSXML *
+js_NewGCXML(JSContext *cx)
+{
+    return (JSXML *) js_NewFinalizableGCThing(cx, FINALIZE_XML);
+}
+#endif
+
+struct JSGCArenaInfo;
+struct JSGCChunkInfo;
+
+struct JSGCArenaList {
+    JSGCArenaInfo   *head;          /* list start */
+    JSGCArenaInfo   *cursor;        /* arena with free things */
+    uint32          thingKind;      /* one of JSFinalizeGCThingKind */
+    uint32          thingSize;      /* size of things to allocate on this list
+                                     */
+};
+
+struct JSGCDoubleArenaList {
+    JSGCArenaInfo   *head;          /* list start */
+    JSGCArenaInfo   *cursor;        /* next arena with free cells */
+};
+
+struct JSGCFreeLists {
+    JSGCThing       *doubles;
+    JSGCThing       *finalizables[FINALIZE_LIMIT];
+
+    void purge();
+    void moveTo(JSGCFreeLists * another);
+
+#ifdef DEBUG
+    bool isEmpty() const {
+        if (doubles)
+            return false;
+        for (size_t i = 0; i != JS_ARRAY_LENGTH(finalizables); ++i) {
+            if (finalizables[i])
+                return false;
+        }
+        return true;
+    }
+#endif
+};
+
+extern void
+js_DestroyScriptsToGC(JSContext *cx, JSThreadData *data);
+
+struct JSWeakRoots {
+    /* Most recently created things by type, members of the GC's root set. */
+    void            *finalizableNewborns[FINALIZE_LIMIT];
+    jsdouble        *newbornDouble;
+
+    /* Atom root for the last-looked-up atom on this context. */
+    jsval           lastAtom;
+
+    /* Root for the result of the most recent js_InternalInvoke call. */
+    jsval           lastInternalResult;
+
+    void mark(JSTracer *trc);
+};
+
+#define JS_CLEAR_WEAK_ROOTS(wr) (memset((wr), 0, sizeof(JSWeakRoots)))
+
+#ifdef JS_THREADSAFE
+class JSFreePointerListTask : public JSBackgroundTask {
+    void *head;
+  public:
+    JSFreePointerListTask() : head(NULL) {}
+
+    void add(void* ptr) {
+        *(void**)ptr = head;
+        head = ptr;
+    }
+
+    void run() {
+        void *ptr = head;
+        while (ptr) {
+            void *next = *(void **)ptr;
+            js_free(ptr);
+            ptr = next;
+        }
+    }
+};
+#endif
+
+extern void
+js_FinalizeStringRT(JSRuntime *rt, JSString *str);
+
+#if defined JS_GCMETER
+const bool JS_WANT_GC_METER_PRINT = true;
+#elif defined DEBUG
+# define JS_GCMETER 1
+const bool JS_WANT_GC_METER_PRINT = false;
 #endif
 
 #ifdef JS_GCMETER
 
-typedef struct JSGCStats {
-#ifdef JS_THREADSAFE
-    uint32  localalloc; /* number of succeeded allocations from local lists */
-#endif
-    uint32  alloc;      /* number of allocation attempts */
-    uint32  retry;      /* allocation attempt retries after running the GC */
-    uint32  retryhalt;  /* allocation retries halted by the branch callback */
-    uint32  fail;       /* allocation failures */
+struct JSGCArenaStats {
+    uint32  alloc;          /* allocation attempts */
+    uint32  localalloc;     /* allocations from local lists */
+    uint32  retry;          /* allocation retries after running the GC */
+    uint32  fail;           /* allocation failures */
+    uint32  nthings;        /* live GC things */
+    uint32  maxthings;      /* maximum of live GC cells */
+    double  totalthings;    /* live GC things the GC scanned so far */
+    uint32  narenas;        /* number of arena in list before the GC */
+    uint32  newarenas;      /* new arenas allocated before the last GC */
+    uint32  livearenas;     /* number of live arenas after the last GC */
+    uint32  maxarenas;      /* maximum of allocated arenas */
+    uint32  totalarenas;    /* total number of arenas with live things that
+                               GC scanned so far */
+};
+
+struct JSGCStats {
     uint32  finalfail;  /* finalizer calls allocator failures */
     uint32  lockborn;   /* things born locked */
     uint32  lock;       /* valid lock calls */
@@ -253,10 +417,10 @@ typedef struct JSGCStats {
     uint32  maxdepth;   /* maximum mark tail recursion depth */
     uint32  cdepth;     /* mark recursion depth of C functions */
     uint32  maxcdepth;  /* maximum mark recursion depth of C functions */
-    uint32  untraced;   /* number of times tracing of GC thing's children were
+    uint32  unmarked;   /* number of times marking of GC thing's children were
                            delayed due to a low C stack */
 #ifdef DEBUG
-    uint32  maxuntraced;/* maximum number of things with children to trace
+    uint32  maxunmarked;/* maximum number of things with children to mark
                            later */
 #endif
     uint32  maxlevel;   /* maximum GC nesting (indirect recursion) level */
@@ -268,60 +432,22 @@ typedef struct JSGCStats {
     uint32  maxnclose;  /* max number of objects with close hooks */
     uint32  closelater; /* number of close hooks scheduled to run */
     uint32  maxcloselater; /* max number of close hooks scheduled to run */
-} JSGCStats;
+
+    JSGCArenaStats  arenaStats[FINALIZE_LIMIT];
+    JSGCArenaStats  doubleArenaStats;
+};
 
 extern JS_FRIEND_API(void)
 js_DumpGCStats(JSRuntime *rt, FILE *fp);
 
 #endif /* JS_GCMETER */
 
-typedef struct JSGCArenaInfo JSGCArenaInfo;
-typedef struct JSGCArenaList JSGCArenaList;
-typedef struct JSGCChunkInfo JSGCChunkInfo;
-
-#ifdef JS_GCMETER
-typedef struct JSGCArenaStats JSGCArenaStats;
-
-struct JSGCArenaStats {
-    uint32  narenas;        /* number of arena in list */
-    uint32  maxarenas;      /* maximun number of allocated arenas */
-    uint32  nthings;        /* number of allocates JSGCThing */
-    uint32  maxthings;      /* maximum number number of allocates JSGCThing */
-    uint32  totalnew;       /* number of succeeded calls to js_NewGCThing */
-    uint32  freelen;        /* freeList lengths */
-    uint32  recycle;        /* number of things recycled through freeList */
-    uint32  totalarenas;    /* total number of arenas with live things that
-                               GC scanned so far */
-    uint32  totalfreelen;   /* total number of things that GC put to free
-                               list so far */
-};
-#endif
-
-struct JSGCArenaList {
-    JSGCArenaInfo   *last;          /* last allocated GC arena */
-    uint16          lastCount;      /* number of allocated things in the last
-                                       arena */
-    uint16          thingSize;      /* size of things to allocate on this list
-                                     */
-    JSGCThing       *freeList;      /* list of free GC things */
-#ifdef JS_GCMETER
-    JSGCArenaStats  stats;
-#endif
-};
-
-struct JSWeakRoots {
-    /* Most recently created things by type, members of the GC's root set. */
-    void            *newborn[GCX_NTYPES];
-
-    /* Atom root for the last-looked-up atom on this context. */
-    jsval           lastAtom;
-
-    /* Root for the result of the most recent js_InternalInvoke call. */
-    jsval           lastInternalResult;
-};
-
-JS_STATIC_ASSERT(JSVAL_NULL == 0);
-#define JS_CLEAR_WEAK_ROOTS(wr) (memset((wr), 0, sizeof(JSWeakRoots)))
+/*
+ * This function is defined in jsdbgapi.cpp but is declared here to avoid
+ * polluting jsdbgapi.h, a public API header, with internal functions.
+ */
+extern void
+js_MarkTraps(JSTracer *trc);
 
 JS_END_EXTERN_C
 

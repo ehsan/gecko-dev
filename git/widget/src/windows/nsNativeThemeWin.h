@@ -43,6 +43,9 @@
 #include "nsNativeTheme.h"
 #include <windows.h>
 
+struct nsIntRect;
+struct nsIntSize;
+
 class nsNativeThemeWin : private nsNativeTheme,
                          public nsITheme {
 public:
@@ -53,22 +56,29 @@ public:
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   const nsRect& aRect,
-                                  const nsRect& aClipRect);
+                                  const nsRect& aDirtyRect);
 
   NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,
-                             nsMargin* aResult);
+                             nsIntMargin* aResult);
 
   virtual PRBool GetWidgetPadding(nsIDeviceContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsMargin* aResult);
+                                  nsIntMargin* aResult);
+
+  virtual PRBool GetWidgetOverflow(nsIDeviceContext* aContext,
+                                   nsIFrame* aFrame,
+                                   PRUint8 aWidgetType,
+                                   nsRect* aOverflowRect);
 
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsSize* aResult,
+                                  nsIntSize* aResult,
                                   PRBool* aIsOverridable);
+
+  virtual nsTransparencyMode GetWidgetTransparency(PRUint8 aWidgetType);
 
   NS_IMETHOD WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType, 
                                 nsIAtom* aAttribute, PRBool* aShouldRepaint);
@@ -89,8 +99,6 @@ public:
   virtual ~nsNativeThemeWin();
 
 protected:
-  void UpdateConfig();
-  void CloseData();
   HANDLE GetTheme(PRUint8 aWidgetType);
   nsresult GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
                                 PRInt32& aPart, PRInt32& aState);
@@ -104,11 +112,11 @@ protected:
   nsresult ClassicGetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,
-                             nsMargin* aResult);
+                             nsIntMargin* aResult);
 
   nsresult ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsSize* aResult,
+                                  nsIntSize* aResult,
                                   PRBool* aIsOverridable);
 
   PRBool ClassicThemeSupportsWidget(nsPresContext* aPresContext, 
@@ -120,26 +128,9 @@ protected:
 
   PRUint32 GetWidgetNativeDrawingFlags(PRUint8 aWidgetType);
 
-private:
-  HMODULE mThemeDLL;
-  HANDLE mButtonTheme;
-  HANDLE mTextFieldTheme;
-  HANDLE mTooltipTheme;
-  HANDLE mToolbarTheme;
-  HANDLE mRebarTheme;
-  HANDLE mProgressTheme;
-  HANDLE mScrollbarTheme;
-  HANDLE mScaleTheme;
-  HANDLE mSpinTheme;
-  HANDLE mStatusbarTheme;
-  HANDLE mTabTheme;
-  HANDLE mTreeViewTheme;
-  HANDLE mComboBoxTheme;
-  HANDLE mHeaderTheme;
-  HANDLE mMenuTheme;
+  PRInt32 StandardGetState(nsIFrame* aFrame, PRUint8 aWidgetType, PRBool wantFocused);
 
-  BOOL mFlatMenus;
-  OSVERSIONINFO mOsVersion;
+  PRBool IsMenuActive(nsIFrame* aFrame, PRUint8 aWidgetType);
 };
 
 // Creator function

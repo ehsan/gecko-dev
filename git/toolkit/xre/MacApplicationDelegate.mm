@@ -44,6 +44,7 @@
 // See http://developer.apple.com/documentation/Cocoa/Conceptual/ScriptableCocoaApplications/SApps_handle_AEs/chapter_11_section_3.html for details.
 
 #import <Cocoa/Cocoa.h>
+#import <Carbon/Carbon.h>
 
 #include "nsCOMPtr.h"
 #include "nsIBaseWindow.h"
@@ -53,10 +54,15 @@
 #include "nsAppRunner.h"
 #include "nsComponentManagerUtils.h"
 #include "nsCommandLineServiceMac.h"
+#include "nsIServiceManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIAppStartup.h"
 #include "nsIObserverService.h"
 #include "nsISupportsPrimitives.h"
+#include "nsObjCExceptions.h"
+#include "nsIFile.h"
+#include "nsDirectoryServiceDefs.h"
+#include "nsICommandLineRunner.h"
 
 @interface MacApplicationDelegate : NSObject
 {
@@ -71,12 +77,18 @@
 void
 EnsureUseCocoaDockAPI()
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   [NSApplication sharedApplication];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 void
 SetupMacApplicationDelegate()
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   // This call makes it so that application:openFile: doesn't get bogus calls
   // from Cocoa doing its own parsing of the argument string. And yes, we need
   // to use a string with a boolean value in it. That's just how it works.
@@ -86,9 +98,36 @@ SetupMacApplicationDelegate()
   // Create the delegate. This should be around for the lifetime of the app.
   MacApplicationDelegate *delegate = [[MacApplicationDelegate alloc] init];
   [[NSApplication sharedApplication] setDelegate:delegate];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 @implementation MacApplicationDelegate
+
+- (id)init
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  if ((self = [super init])) {
+    [[NSAppleEventManager sharedAppleEventManager] setEventHandler:self
+                                                       andSelector:@selector(handleAppleEvent:withReplyEvent:)
+                                                     forEventClass:kInternetEventClass
+                                                        andEventID:kAEGetURL];
+  }
+  return self;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nil);
+}
+
+- (void)dealloc
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  [[NSAppleEventManager sharedAppleEventManager] removeEventHandlerForEventClass:kInternetEventClass andEventID:kAEGetURL];
+  [super dealloc];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
 
 // Opening the application is handled specially elsewhere,
 // don't define applicationOpenUntitledFile: .
@@ -116,26 +155,16 @@ SetupMacApplicationDelegate()
 
 - (BOOL)application:(NSApplication*)theApplication openFile:(NSString*)filename
 {
-  FSRef ref;
-  FSSpec spec;
-  // The cast is kind of freaky, but apparently it's what all the beautiful people do.
-  OSStatus status = FSPathMakeRef((UInt8 *)[filename fileSystemRepresentation], &ref, NULL);
-  if (status != noErr) {
-    NS_WARNING("FSPathMakeRef in openFile failed, skipping file open");
-    return NO;
-  }
-  status = FSGetCatalogInfo(&ref, kFSCatInfoNone, NULL, NULL, &spec, NULL);
-  if (status != noErr) {
-    NS_WARNING("FSGetCatalogInfo in openFile failed, skipping file open");
-    return NO;
-  }
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   // Take advantage of the existing "command line" code for Macs.
   nsMacCommandLine& cmdLine = nsMacCommandLine::GetMacCommandLine();
   // We don't actually care about Mac filetypes in this context, just pass a placeholder.
-  cmdLine.HandleOpenOneDoc(spec, 'abcd');
+  cmdLine.HandleOpenOneDoc((CFURLRef)[NSURL URLWithString:filename], 'abcd');
 
   return YES;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 // The method that NSApplication calls when documents are requested to be printed
@@ -144,26 +173,16 @@ SetupMacApplicationDelegate()
 
 - (BOOL)application:(NSApplication*)theApplication printFile:(NSString*)filename
 {
-  FSRef ref;
-  FSSpec spec;
-  // The cast is kind of freaky, but apparently it's what all the beautiful people do.
-  OSStatus status = FSPathMakeRef((UInt8 *)[filename fileSystemRepresentation], &ref, NULL);
-  if (status != noErr) {
-    NS_WARNING("FSPathMakeRef in printFile failed, skipping printing");
-    return NO;
-  }
-  status = FSGetCatalogInfo(&ref, kFSCatInfoNone, NULL, NULL, &spec, NULL);
-  if (status != noErr) {
-    NS_WARNING("FSGetCatalogInfo in printFile failed, skipping printing");
-    return NO;
-  }
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   // Take advantage of the existing "command line" code for Macs.
   nsMacCommandLine& cmdLine = nsMacCommandLine::GetMacCommandLine();
   // We don't actually care about Mac filetypes in this context, just pass a placeholder.
-  cmdLine.HandlePrintOneDoc(spec, 'abcd');
+  cmdLine.HandlePrintOneDoc((CFURLRef)[NSURL URLWithString:filename], 'abcd');
 
   return YES;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 // Drill down from nsIXULWindow and get an NSWindow. We get passed nsISupports
@@ -185,6 +204,8 @@ static NSWindow* GetCocoaWindowForXULWindow(nsISupports *aXULWindow)
 
 - (NSMenu*)applicationDockMenu:(NSApplication*)sender
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   // Why we're not just using Cocoa to enumerate our windows:
   // The Dock thinks we're a Carbon app, probably because we don't have a
   // blessed Window menu, so we get none of the automatic handling for dock
@@ -226,9 +247,12 @@ static NSWindow* GetCocoaWindowForXULWindow(nsISupports *aXULWindow)
     NSWindow *cocoaWindow = GetCocoaWindowForXULWindow(xulWindow);
     if (!cocoaWindow) continue;
     
+    NSString *windowTitle = [cocoaWindow title];
+    if (!windowTitle) continue;
+    
     // Now, create a menu item, and add it to the menu
     NSMenuItem *menuItem = [[NSMenuItem alloc]
-                              initWithTitle:[cocoaWindow title]
+                              initWithTitle:windowTitle
                                      action:@selector(dockMenuItemSelected:)
                               keyEquivalent:@""];
     [menuItem setTarget:self];
@@ -242,18 +266,21 @@ static NSWindow* GetCocoaWindowForXULWindow(nsISupports *aXULWindow)
     [menuItem release];
   }
   return menu;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 // One of our dock menu items was selected
 - (void)dockMenuItemSelected:(id)sender
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   // Our represented object is an NSWindow
   [[sender representedObject] makeKeyAndOrderFront:nil];
   [NSApp activateIgnoringOtherApps:YES];
-}
 
-// The open contents Apple Event 'ocon' (new in 10.4) does not have a delegate method
-// associated with it; it would need Carbon event code to handle.
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
 
 // If we don't handle applicationShouldTerminate:, a call to [NSApp terminate:]
 // (from the browser or from the OS) can result in an unclean shutdown.
@@ -285,5 +312,38 @@ static NSWindow* GetCocoaWindowForXULWindow(nsISupports *aXULWindow)
   return NSTerminateNow;
 }
 
-@end
+- (void)handleAppleEvent:(NSAppleEventDescriptor*)event withReplyEvent:(NSAppleEventDescriptor*)replyEvent
+{
+  if (!event)
+    return;
 
+  if ([event eventClass] == kInternetEventClass && [event eventID] == kAEGetURL) {
+    NSString* urlString = [[event paramDescriptorForKeyword:keyDirectObject] stringValue];
+
+    // don't open chrome URLs
+    NSString* schemeString = [[NSURL URLWithString:urlString] scheme];
+    if (!schemeString ||
+        [schemeString compare:@"chrome"
+                      options:NSCaseInsensitiveSearch
+                        range:NSMakeRange(0, [schemeString length])] == NSOrderedSame) {
+      return;
+    }
+
+    nsCOMPtr<nsICommandLineRunner> cmdLine(do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
+    if (!cmdLine) {
+      NS_ERROR("Couldn't create command line!");
+      return;
+    }
+    nsCOMPtr<nsIFile> workingDir;
+    nsresult rv = NS_GetSpecialDirectory(NS_OS_CURRENT_WORKING_DIR, getter_AddRefs(workingDir));
+    if (NS_FAILED(rv))
+      return;
+    const char *argv[3] = {nsnull, "-url", [urlString UTF8String]};
+    rv = cmdLine->Init(3, const_cast<char**>(argv), workingDir, nsICommandLine::STATE_REMOTE_EXPLICIT);
+    if (NS_FAILED(rv))
+      return;
+    rv = cmdLine->Run();
+  }
+}
+
+@end

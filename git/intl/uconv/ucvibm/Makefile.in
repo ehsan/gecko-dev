@@ -48,9 +48,6 @@ LIBRARY_NAME	= ucvibm_s
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 
-REQUIRES	= xpcom \
-		  uconv \
-		  $(NULL)
 
 CPPSRCS		= \
 		nsCP850ToUnicode.cpp \
@@ -68,13 +65,6 @@ CPPSRCS		= \
 		nsUnicodeToCP864.cpp \
 		nsUnicodeToCP864i.cpp \
 		$(NULL)
-
-ifdef MOZ_EXTRA_X11CONVERTERS
-CPPSRCS		+= \
-		nsCP1046ToUnicode.cpp \
-		nsUnicodeToCP1046.cpp \
-		$(NULL)
-endif
 
 ifeq ($(OS_ARCH),OS2)
 CPPSRCS		+= \

@@ -68,8 +68,6 @@ public:
 
   NS_IMETHOD           WidgetToScreen(const nsRect &aOldRect, nsRect &aNewRect);
 
-  NS_IMETHOD           PreCreateWidget(nsWidgetInitData *aWidgetInitData);
-
   virtual void*        GetNativeData(PRUint32 aDataType);
 
   NS_IMETHOD           Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect);
@@ -93,6 +91,7 @@ public:
 		}
 
   NS_IMETHOD           CaptureRollupEvents(nsIRollupListener * aListener,
+                                           nsIMenuRollup * aMenuRollup,
                                            PRBool aDoCapture,
                                            PRBool aConsumeRollupEvent);
 
@@ -155,7 +154,9 @@ private:
 private:
   PtWidget_t *mClientWidget, *mLastMenu;
   PRBool mIsTooSmall;
+  PRBool mIsDestroying;
 	static nsIRollupListener *gRollupListener;
+  static nsIMenuRollup* gMenuRollup;
 	static nsIWidget *gRollupWidget;
 };
 

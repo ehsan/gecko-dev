@@ -24,6 +24,7 @@
 # Contributor(s):
 #   Ben "Count XULula" Goodger
 #   Brian Ryner <bryner@brianryner.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -58,6 +59,8 @@ var rejectsTree;
 
 var showingPasswords = false;
 
+var kLTRAtom;
+
 function Startup() {
   // xpconnect to password manager interfaces
   passwordmanager = Components.classes["@mozilla.org/login-manager;1"]
@@ -72,6 +75,10 @@ function Startup() {
 
   signonsTree = document.getElementById("signonsTree");
   rejectsTree = document.getElementById("rejectsTree");
+
+  kLTRAtom = Components.classes["@mozilla.org/atom-service;1"]
+                       .getService(Components.interfaces.nsIAtomService)
+                       .getAtom("ltr");
 }
 
 function Shutdown() {
@@ -88,6 +95,10 @@ var signonReloadDisplay = {
           lastSignonSortAscending = !lastSignonSortAscending; // prevents sort from being reversed
         }
         LoadSignons();
+        // apply the filter if needed
+        if (document.getElementById("filter") && document.getElementById("filter").value != "") {
+          _filterPasswords();
+        }
       } else if (state == "rejects") {
         rejects.length = 0;
         if (lastRejectSortColumn == "hostname") {

@@ -45,13 +45,13 @@
 #include "nsIDOMEventTarget.h" 
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMMouseEvent.h"
+#include "nsIDOMDragEvent.h"
 #include "nsISelection.h"
 #include "nsCRT.h"
 #include "nsServiceManagerUtils.h"
 
 #include "nsIDOMRange.h"
 #include "nsIDOMNSRange.h"
-#include "nsISupportsArray.h"
 #include "nsIDocumentEncoder.h"
 #include "nsISupportsPrimitives.h"
 
@@ -76,7 +76,10 @@ NS_IMETHODIMP nsPlaintextEditor::PrepareTransferable(nsITransferable **transfera
     return rv;
 
   // Get the nsITransferable interface for getting the data from the clipboard
-  if (transferable) (*transferable)->AddDataFlavor(kUnicodeMime);
+  if (transferable) {
+    (*transferable)->AddDataFlavor(kUnicodeMime);
+    (*transferable)->AddDataFlavor(kMozTextInternal);
+  };
   return NS_OK;
 }
 
@@ -121,7 +124,8 @@ NS_IMETHODIMP nsPlaintextEditor::InsertTextFromTransferable(nsITransferable *aTr
   nsCOMPtr<nsISupports> genericDataObj;
   PRUint32 len = 0;
   if (NS_SUCCEEDED(aTransferable->GetAnyTransferData(&bestFlavor, getter_AddRefs(genericDataObj), &len))
-      && bestFlavor && 0 == nsCRT::strcmp(bestFlavor, kUnicodeMime))
+      && bestFlavor && (0 == nsCRT::strcmp(bestFlavor, kUnicodeMime) ||
+                        0 == nsCRT::strcmp(bestFlavor, kMozTextInternal)))
   {
     nsAutoTxnsConserveSelection dontSpazMySelection(this);
     nsCOMPtr<nsISupportsString> textDataObj ( do_QueryInterface(genericDataObj) );
@@ -137,6 +141,9 @@ NS_IMETHODIMP nsPlaintextEditor::InsertTextFromTransferable(nsITransferable *aTr
   NS_Free(bestFlavor);
       
   // Try to scroll the selection into view if the paste/drop succeeded
+
+  // After ScrollSelectionIntoView(), the pending notifications might be flushed
+  // and PresShell/PresContext/Frames may be dead. See bug 418470.
   if (NS_SUCCEEDED(rv))
     ScrollSelectionIntoView(PR_FALSE);
 
@@ -160,10 +167,6 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
   nsCOMPtr<nsIDOMDocument> destdomdoc; 
   rv = GetDocument(getter_AddRefs(destdomdoc)); 
   if (NS_FAILED(rv)) return rv;
-
-  // transferable hooks
-  if (!nsEditorHookUtils::DoAllowDropHook(destdomdoc, aDropEvent, dragSession))
-    return NS_OK;
 
   // Get the nsITransferable interface for getting the data from the drop
   nsCOMPtr<nsITransferable> trans;
@@ -299,9 +302,8 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
     if (NS_FAILED(rv)) return rv;
     if (!trans) return NS_OK; // NS_ERROR_FAILURE; Should we fail?
 
-    if (!nsEditorHookUtils::DoInsertionHook(destdomdoc, aDropEvent, trans))
-      return NS_OK;
-
+    // Beware! This may flush notifications via synchronous
+    // ScrollSelectionIntoView.
     rv = InsertTextFromTransferable(trans, newSelectionParent, newSelectionOffset, deleteSelection);
   }
 
@@ -359,13 +361,7 @@ NS_IMETHODIMP nsPlaintextEditor::CanDrag(nsIDOMEvent *aDragEvent, PRBool *aCanDr
     }
   }
 
-  if (NS_FAILED(res)) return res;
-  if (!*aCanDrag) return NS_OK;
-
-  nsCOMPtr<nsIDOMDocument> domdoc;
-  GetDocument(getter_AddRefs(domdoc));
-  *aCanDrag = nsEditorHookUtils::DoAllowDragHook(domdoc, aDragEvent);
-  return NS_OK;
+  return res;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::DoDrag(nsIDOMEvent *aDragEvent)
@@ -395,8 +391,6 @@ NS_IMETHODIMP nsPlaintextEditor::DoDrag(nsIDOMEvent *aDragEvent)
   // check our transferable hooks (if any)
   nsCOMPtr<nsIDOMDocument> domdoc;
   GetDocument(getter_AddRefs(domdoc));
-  if (!nsEditorHookUtils::DoDragHook(domdoc, aDragEvent, trans))
-    return NS_OK;
 
   /* invoke drag */
   nsCOMPtr<nsIDOMEventTarget> eventTarget;
@@ -413,12 +407,13 @@ NS_IMETHODIMP nsPlaintextEditor::DoDrag(nsIDOMEvent *aDragEvent)
   // in some cases we'll want to cut rather than copy... hmmmmm...
   flags = nsIDragService::DRAGDROP_ACTION_COPY + nsIDragService::DRAGDROP_ACTION_MOVE;
 
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent(do_QueryInterface(aDragEvent));
+  nsCOMPtr<nsIDOMDragEvent> dragEvent(do_QueryInterface(aDragEvent));
   rv = dragService->InvokeDragSessionWithSelection(selection, transferableArray,
-                                                   flags, mouseEvent);
+                                                   flags, dragEvent, nsnull);
   if (NS_FAILED(rv)) return rv;
 
   aDragEvent->StopPropagation();
+  aDragEvent->PreventDefault();
 
   return rv;
 }
@@ -451,6 +446,8 @@ NS_IMETHODIMP nsPlaintextEditor::Paste(PRInt32 aSelectionType)
       if (!nsEditorHookUtils::DoInsertionHook(domdoc, nsnull, trans))
         return NS_OK;
 
+      // Beware! This may flush notifications via synchronous
+      // ScrollSelectionIntoView.
       rv = InsertTextFromTransferable(trans, nsnull, nsnull, PR_TRUE);
     }
   }
@@ -464,39 +461,21 @@ NS_IMETHODIMP nsPlaintextEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPa
   NS_ENSURE_ARG_POINTER(aCanPaste);
   *aCanPaste = PR_FALSE;
 
-  nsresult rv = FireClipboardEvent(NS_BEFOREPASTE, aCanPaste);
-  if (NS_FAILED(rv) || *aCanPaste)
-    return rv;
-
   // can't paste if readonly
   if (!IsModifiable())
     return NS_OK;
 
+  nsresult rv;
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
   if (NS_FAILED(rv)) return rv;
   
   // the flavors that we can deal with
-  const char* const textEditorFlavors[] = { kUnicodeMime, nsnull };
+  const char* textEditorFlavors[] = { kUnicodeMime };
 
-  nsCOMPtr<nsISupportsArray> flavorsList = do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID);
-
-  PRUint32 editorFlags;
-  GetFlags(&editorFlags);
-  
-  // add the flavors for text editors
-  for (const char* const* flavor = textEditorFlavors; *flavor; flavor++)
-  {
-    nsCOMPtr<nsISupportsCString> flavorString =
-        do_CreateInstance(NS_SUPPORTS_CSTRING_CONTRACTID);
-    if (flavorString)
-    {
-      flavorString->SetData(nsDependentCString(*flavor));
-      flavorsList->AppendElement(flavorString);
-    }
-  }
-  
   PRBool haveFlavors;
-  rv = clipboard->HasDataMatchingFlavors(flavorsList, aSelectionType, &haveFlavors);
+  rv = clipboard->HasDataMatchingFlavors(textEditorFlavors,
+                                         NS_ARRAY_LENGTH(textEditorFlavors),
+                                         aSelectionType, &haveFlavors);
   if (NS_FAILED(rv)) return rv;
   
   *aCanPaste = haveFlavors;

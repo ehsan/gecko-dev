@@ -45,16 +45,14 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= imgicon
 LIBRARY_NAME	= imgicongtk_s
 
-REQUIRES	= xpcom \
-		  string \
-		  necko \
-		  intl \
-		  mimetype \
-		  $(NULL)
 
 CPPSRCS		= nsIconChannel.cpp
 
+ifdef MOZ_ENABLE_GNOMEUI
 LOCAL_INCLUDES += $(MOZ_GNOMEUI_CFLAGS)
+else
+LOCAL_INCLUDES += $(MOZ_GTK2_CFLAGS)
+endif
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1

@@ -48,7 +48,6 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
-#include "nsVoidArray.h"
 
 #include "nsIHttpProtocolHandler.h"
 #include "nsIProtocolProxyService.h"
@@ -106,7 +105,9 @@ public:
     nsIIDNService *IDNConverter()            { return mIDNConverter; }
     PRUint32       PhishyUserPassLength()    { return mPhishyUserPassLength; }
     
-    PRBool         IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
+    PRBool         CanCacheAllSSLContent()   { return mEnablePersistentHttpsCaching; }
+
+    PRBool         PromptTempRedirect()      { return mPromptTempRedirect; }
 
     nsHttpAuthCache     *AuthCache() { return &mAuthCache; }
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
@@ -195,6 +196,13 @@ public:
     // channel's and the global redirect observers.
     nsresult OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
                                PRUint32 flags);
+
+    // Called by the channel when the response is read from the cache without
+    // communicating with the server.
+    void OnExamineCachedResponse(nsIHttpChannel *chan)
+    {
+        NotifyObservers(chan, NS_HTTP_ON_EXAMINE_CACHED_RESPONSE_TOPIC);
+    }
 private:
 
     //
@@ -259,6 +267,8 @@ private:
     // the userpass field of the URL to obscure the actual origin server.
     PRUint8  mPhishyUserPassLength;
 
+    PRPackedBool mPipeliningOverSSL;
+
     nsCString mAccept;
     nsCString mAcceptLanguages;
     nsCString mAcceptEncodings;
@@ -267,9 +277,6 @@ private:
     nsXPIDLCString mDefaultSocketType;
 
     // cache support
-    nsCOMPtr<nsICacheSession> mCacheSession_ANY;
-    nsCOMPtr<nsICacheSession> mCacheSession_MEM;
-    nsCOMPtr<nsICacheSession> mCacheSession_OFFLINE;
     PRUint32                  mLastUniqueID;
     PRUint32                  mSessionStartTime;
 
@@ -278,6 +285,7 @@ private:
     nsXPIDLCString mAppVersion;
     nsCString      mPlatform;
     nsCString      mOscpu;
+    nsCString      mDeviceType;
     nsXPIDLCString mSecurity;
     nsCString      mLanguage;
     nsCString      mMisc;
@@ -294,6 +302,8 @@ private:
     PRPackedBool   mUserAgentIsDirty; // true if mUserAgent should be rebuilt
 
     PRPackedBool   mUseCache;
+
+    PRPackedBool   mPromptTempRedirect;
     // mSendSecureXSiteReferrer: default is false, 
     // if true allow referrer headers between secure non-matching hosts
     PRPackedBool   mSendSecureXSiteReferrer;

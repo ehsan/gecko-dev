@@ -41,7 +41,12 @@
 
 #include "nsComplexBreaker.h"
 
-#include <Usp10.h>
+#include <windows.h>
+
+#ifndef WINCE
+#include <usp10.h>
+#endif
+
 #include "nsUTF8Utils.h"
 #include "nsString.h"
 #include "nsTArray.h"
@@ -51,6 +56,10 @@ NS_GetComplexLineBreaks(const PRUnichar* aText, PRUint32 aLength,
                         PRPackedBool* aBreakBefore)
 {
   NS_ASSERTION(aText, "aText shouldn't be null"); 
+
+#ifdef WINCE
+  memset(aBreakBefore, PR_FALSE, aLength);
+#else
   int outItems = 0;
   HRESULT result;
   nsAutoTArray<SCRIPT_ITEM, 64> items;
@@ -77,12 +86,13 @@ NS_GetComplexLineBreaks(const PRUnichar* aText, PRUint32 aLength,
     if (!sla.AppendElements(endOffset - startOffset))
       return;
 
-    if (ScriptBreak(aText, aLength, &items[iItem].a, sla.Elements()) < 0) 
+    if (ScriptBreak(aText + startOffset, endOffset - startOffset,
+                    &items[iItem].a,  sla.Elements()) < 0) 
       return;
 
     for (PRUint32 j=0; j+startOffset < endOffset; ++j) {
        aBreakBefore[j+startOffset] = sla[j].fSoftBreak;
     }
   }
-  
+#endif  
 }

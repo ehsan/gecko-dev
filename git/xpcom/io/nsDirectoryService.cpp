@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: sw=4 ts=4 sts=4 et
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -62,13 +63,7 @@
 #include "prenv.h"
 #ifdef XP_MACOSX
 #include <CoreServices/CoreServices.h>
-#include <Folders.h>
-#include <Files.h>
-#include <Memory.h>
-#include <Processes.h>
-#include <Gestalt.h>
-#include <CFURL.h>
-#include <InternetConfig.h>
+#include <Carbon/Carbon.h>
 #endif
 #elif defined(XP_OS2)
 #define MAX_PATH _MAX_PATH
@@ -358,6 +353,15 @@ nsIAtom*  nsDirectoryService::sDefaultDownloadDirectory = nsnull;
 #elif defined (XP_UNIX)
 nsIAtom*  nsDirectoryService::sLocalDirectory = nsnull;
 nsIAtom*  nsDirectoryService::sLibDirectory = nsnull;
+nsIAtom*  nsDirectoryService::sDefaultDownloadDirectory = nsnull;
+nsIAtom*  nsDirectoryService::sXDGDesktop = nsnull;
+nsIAtom*  nsDirectoryService::sXDGDocuments = nsnull;
+nsIAtom*  nsDirectoryService::sXDGDownload = nsnull;
+nsIAtom*  nsDirectoryService::sXDGMusic = nsnull;
+nsIAtom*  nsDirectoryService::sXDGPictures = nsnull;
+nsIAtom*  nsDirectoryService::sXDGPublicShare = nsnull;
+nsIAtom*  nsDirectoryService::sXDGTemplates = nsnull;
+nsIAtom*  nsDirectoryService::sXDGVideos = nsnull;
 #elif defined (XP_OS2)
 nsIAtom*  nsDirectoryService::sSystemDirectory = nsnull;
 nsIAtom*  nsDirectoryService::sOS2Directory = nsnull;
@@ -465,6 +469,15 @@ static const nsStaticAtom directory_atoms[] = {
 #elif defined (XP_UNIX)
     { NS_UNIX_LOCAL_DIR,           &nsDirectoryService::sLocalDirectory },
     { NS_UNIX_LIB_DIR,             &nsDirectoryService::sLibDirectory },
+    { NS_UNIX_DEFAULT_DOWNLOAD_DIR, &nsDirectoryService::sDefaultDownloadDirectory },
+    { NS_UNIX_XDG_DESKTOP_DIR,     &nsDirectoryService::sXDGDesktop },
+    { NS_UNIX_XDG_DOCUMENTS_DIR,   &nsDirectoryService::sXDGDocuments },
+    { NS_UNIX_XDG_DOWNLOAD_DIR,    &nsDirectoryService::sXDGDownload },
+    { NS_UNIX_XDG_MUSIC_DIR,       &nsDirectoryService::sXDGMusic },
+    { NS_UNIX_XDG_PICTURES_DIR,    &nsDirectoryService::sXDGPictures },
+    { NS_UNIX_XDG_PUBLIC_SHARE_DIR, &nsDirectoryService::sXDGPublicShare },
+    { NS_UNIX_XDG_TEMPLATES_DIR,   &nsDirectoryService::sXDGTemplates },
+    { NS_UNIX_XDG_VIDEOS_DIR,      &nsDirectoryService::sXDGVideos },
 #elif defined (XP_OS2)
     { NS_OS_SYSTEM_DIR,            &nsDirectoryService::sSystemDirectory },
     { NS_OS2_DIR,                  &nsDirectoryService::sOS2Directory },
@@ -777,7 +790,7 @@ nsDirectoryService::GetFile(const char *prop, PRBool *persistent, nsIFile **_ret
     *_retval = nsnull;
     *persistent = PR_TRUE;
 
-    nsIAtom* inAtom = NS_NewAtom(prop);
+    nsCOMPtr<nsIAtom> inAtom = do_GetAtom(prop);
 
     // check to see if it is one of our defaults
         
@@ -817,14 +830,22 @@ nsDirectoryService::GetFile(const char *prop, PRBool *persistent, nsIFile **_ret
     else if (inAtom == nsDirectoryService::sGRE_ComponentDirectory)
     {
         rv = Get(NS_GRE_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(localFile));
-        if (localFile)
-             localFile->AppendNative(COMPONENT_DIRECTORY);
+        if (localFile) {
+            nsCOMPtr<nsIFile> cdir;
+            localFile->Clone(getter_AddRefs(cdir));
+            cdir->AppendNative(COMPONENT_DIRECTORY);
+            localFile = do_QueryInterface(cdir);
+        }
     }
     else if (inAtom == nsDirectoryService::sComponentDirectory)
     {
         rv = GetCurrentProcessDirectory(getter_AddRefs(localFile));
-        if (localFile)
-            localFile->AppendNative(COMPONENT_DIRECTORY);           
+        if (localFile) {
+            nsCOMPtr<nsIFile> cdir;
+            localFile->Clone(getter_AddRefs(cdir));
+            cdir->AppendNative(COMPONENT_DIRECTORY);
+            localFile = do_QueryInterface(cdir);
+        }
     }
     else if (inAtom == nsDirectoryService::sOS_DriveDirectory)
     {
@@ -898,56 +919,20 @@ nsDirectoryService::GetFile(const char *prop, PRBool *persistent, nsIFile **_ret
     }
     else if (inAtom == nsDirectoryService::sDefaultDownloadDirectory)
     {
-        NS_NewLocalFile(EmptyString(), PR_TRUE, getter_AddRefs(localFile));
-        nsCOMPtr<nsILocalFileMac> localMacFile(do_QueryInterface(localFile));
+        // 10.5 and later, we can use kDownloadsFolderType which is defined in
+        // Folders.h as "down".  However, in order to support 10.4 still, we
+        // cannot use the named constant.  We'll use it's value, and if it
+        // fails, fall back to the desktop.
+#ifndef kDownloadsFolderType
+#define kDownloadsFolderType 'down'
+#endif
 
-        if (localMacFile)
-        {
-            OSErr err;
-            ICInstance icInstance;
-
-            err = ::ICStart(&icInstance, 'XPCM');
-            if (err == noErr)
-            {
-                // ICGetPref() crashes when getting the download directory if the download
-                // directory has never been specified (e.g. a new user account), bug 265903.
-                // To work around this we enumerate through the IC prefs to see if the
-                // download directory has been specified before trying to obtain it.
-                long numPrefs = 0;
-                err = ::ICCountPref(icInstance, &numPrefs);
-                if (err == noErr)
-                {
-                    for ( long i = 0; i < numPrefs; ++i )
-                    {
-                        Str255 key;
-                        err = ::ICGetIndPref(icInstance, i, key);
-                        if ( err == noErr && ( PLstrcmp( key, kICDownloadFolder ) == 0 ) )
-                        {
-                            ICAttr attrs;
-                            ICFileSpec icFileSpec;
-                            long size = kICFileSpecHeaderSize;
-                            err = ::ICGetPref(icInstance, kICDownloadFolder, &attrs, &icFileSpec, &size);
-                            if (err == noErr || (err == icTruncatedErr && size >= kICFileSpecHeaderSize))
-                            {
-                                rv = localMacFile->InitWithFSSpec(&icFileSpec.fss);
-                            }
-                            break;
-                        }
-                    }
-                }
-                ::ICStop(icInstance);
-            }
-            
-            if (NS_FAILED(rv))
-            { 
-                // We got an error getting the DL folder from IC so try finding the user's Desktop folder
-                rv = GetOSXFolderType(kUserDomain, kDesktopFolderType, getter_AddRefs(localFile));
-            }
+        rv = GetOSXFolderType(kUserDomain, kDownloadsFolderType,
+                              getter_AddRefs(localFile));
+        if (NS_FAILED(rv)) {
+            rv = GetOSXFolderType(kUserDomain, kDesktopFolderType,
+                                  getter_AddRefs(localFile));
         }
-        
-        // Don't cache the DL directory as the user may change it while we're running.
-        // Negligible perf hit as this directory is only requested for downloads
-        *persistent = PR_FALSE;
     }
     else if (inAtom == nsDirectoryService::sUserDesktopDirectory ||
              inAtom == nsDirectoryService::sOS_DesktopDirectory)
@@ -1150,9 +1135,47 @@ nsDirectoryService::GetFile(const char *prop, PRBool *persistent, nsIFile **_ret
     {
         rv = GetSpecialSystemDirectory(Unix_HomeDirectory, getter_AddRefs(localFile)); 
     }
-    else if (inAtom == nsDirectoryService::sOS_DesktopDirectory)
+    else if (inAtom == nsDirectoryService::sXDGDesktop ||
+             inAtom == nsDirectoryService::sOS_DesktopDirectory)
     {
-        rv = GetSpecialSystemDirectory(Unix_DesktopDirectory, getter_AddRefs(localFile)); 
+        rv = GetSpecialSystemDirectory(Unix_XDG_Desktop, getter_AddRefs(localFile));
+        *persistent = PR_FALSE;
+    }
+    else if (inAtom == nsDirectoryService::sXDGDocuments)
+    {
+        rv = GetSpecialSystemDirectory(Unix_XDG_Documents, getter_AddRefs(localFile));
+        *persistent = PR_FALSE;
+    }
+    else if (inAtom == nsDirectoryService::sXDGDownload ||
+             inAtom == nsDirectoryService::sDefaultDownloadDirectory)
+    {
+        rv = GetSpecialSystemDirectory(Unix_XDG_Download, getter_AddRefs(localFile));
+        *persistent = PR_FALSE;
+    }
+    else if (inAtom == nsDirectoryService::sXDGMusic)
+    {
+        rv = GetSpecialSystemDirectory(Unix_XDG_Music, getter_AddRefs(localFile));
+        *persistent = PR_FALSE;
+    }
+    else if (inAtom == nsDirectoryService::sXDGPictures)
+    {
+        rv = GetSpecialSystemDirectory(Unix_XDG_Pictures, getter_AddRefs(localFile));
+        *persistent = PR_FALSE;
+    }
+    else if (inAtom == nsDirectoryService::sXDGPublicShare)
+    {
+        rv = GetSpecialSystemDirectory(Unix_XDG_PublicShare, getter_AddRefs(localFile));
+        *persistent = PR_FALSE;
+    }
+    else if (inAtom == nsDirectoryService::sXDGTemplates)
+    {
+        rv = GetSpecialSystemDirectory(Unix_XDG_Templates, getter_AddRefs(localFile));
+        *persistent = PR_FALSE;
+    }
+    else if (inAtom == nsDirectoryService::sXDGVideos)
+    {
+        rv = GetSpecialSystemDirectory(Unix_XDG_Videos, getter_AddRefs(localFile));
+        *persistent = PR_FALSE;
     }
 #elif defined (XP_OS2)
     else if (inAtom == nsDirectoryService::sSystemDirectory)
@@ -1190,15 +1213,13 @@ nsDirectoryService::GetFile(const char *prop, PRBool *persistent, nsIFile **_ret
     }
 #endif
 
+    if (NS_FAILED(rv))
+        return rv;
 
-    NS_RELEASE(inAtom);
+    if (!localFile)
+        return NS_ERROR_FAILURE;
 
-    if (localFile && NS_SUCCEEDED(rv))
-        return localFile->QueryInterface(NS_GET_IID(nsIFile), (void**)_retval);
-#ifdef DEBUG_dougt
-    printf("Failed to find directory for key: %s\n", prop);
-#endif
-    return rv;
+    return CallQueryInterface(localFile, _retval);
 }
 
 NS_IMETHODIMP

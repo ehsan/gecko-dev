@@ -118,7 +118,7 @@ nsSHistoryObserver::Observe(nsISupports *aSubject, const char *aTopic,
     nsSHistory::EvictGlobalContentViewer();
   } else if (!strcmp(aTopic, NS_CACHESERVICE_EMPTYCACHE_TOPIC_ID) ||
              !strcmp(aTopic, "memory-pressure")) {
-    nsSHistory::EvictAllContentViewers();
+    nsSHistory::EvictAllContentViewersGlobally();
   }
 
   return NS_OK;
@@ -220,14 +220,23 @@ nsSHistory::Startup()
 {
   nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefs) {
-    // Session history size is only taken from the default prefs branch.
-    // This means that it's only configurable on a per-application basis.
+    nsCOMPtr<nsIPrefBranch> sesHBranch;
+    prefs->GetBranch(nsnull, getter_AddRefs(sesHBranch));
+    if (sesHBranch) {
+      sesHBranch->GetIntPref(PREF_SHISTORY_SIZE, &gHistoryMaxSize);
+    }
+
     // The goal of this is to unbreak users who have inadvertently set their
-    // session history size to -1.
+    // session history size to less than the default value.
+    PRInt32  defaultHistoryMaxSize = 50;
     nsCOMPtr<nsIPrefBranch> defaultBranch;
     prefs->GetDefaultBranch(nsnull, getter_AddRefs(defaultBranch));
     if (defaultBranch) {
-      defaultBranch->GetIntPref(PREF_SHISTORY_SIZE, &gHistoryMaxSize);
+      defaultBranch->GetIntPref(PREF_SHISTORY_SIZE, &defaultHistoryMaxSize);
+    }
+
+    if (gHistoryMaxSize < defaultHistoryMaxSize) {
+      gHistoryMaxSize = defaultHistoryMaxSize;
     }
     
     // Allow the user to override the max total number of cached viewers,
@@ -655,6 +664,17 @@ nsSHistory::EvictContentViewers(PRInt32 aPreviousIndex, PRInt32 aIndex)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsSHistory::EvictAllContentViewers()
+{
+  // XXXbz we don't actually do a good job of evicting things as we should, so
+  // we might have viewers quite far from mIndex.  So just evict everything.
+  EvictContentViewersInRange(0, mLength);
+  return NS_OK;
+}
+
+
+
 //*****************************************************************************
 //    nsSHistory: nsIWebNavigation
 //*****************************************************************************
@@ -778,6 +798,11 @@ nsSHistory::EvictWindowContentViewers(PRInt32 aFromIndex, PRInt32 aToIndex)
   if (aFromIndex < 0 || aToIndex < 0) {
     return;
   }
+  NS_ASSERTION(aFromIndex < mLength, "aFromIndex is out of range");
+  NS_ASSERTION(aToIndex < mLength, "aToIndex is out of range");
+  if (aFromIndex >= mLength || aToIndex >= mLength) {
+    return;
+  }
 
   // These indices give the range of SHEntries whose content viewers will be
   // evicted
@@ -795,7 +820,31 @@ nsSHistory::EvictWindowContentViewers(PRInt32 aFromIndex, PRInt32 aToIndex)
     }
     endIndex = PR_MIN(mLength, aFromIndex + gHistoryMaxViewers + 1);
   }
-  
+
+#ifdef DEBUG
+  nsCOMPtr<nsISHTransaction> trans;
+  GetTransactionAtIndex(0, getter_AddRefs(trans));
+
+  // Walk the full session history and check that entries outside the window
+  // around aFromIndex have no content viewers
+  for (PRInt32 i = 0; i < mLength; ++i) {
+    if (i < aFromIndex - gHistoryMaxViewers || 
+        i > aFromIndex + gHistoryMaxViewers) {
+      nsCOMPtr<nsISHEntry> entry;
+      trans->GetSHEntry(getter_AddRefs(entry));
+      nsCOMPtr<nsIContentViewer> viewer;
+      nsCOMPtr<nsISHEntry> ownerEntry;
+      entry->GetAnyContentViewer(getter_AddRefs(ownerEntry),
+                                 getter_AddRefs(viewer));
+      NS_WARN_IF_FALSE(!viewer,
+                       "ContentViewer exists outside gHistoryMaxViewer range");
+    }
+
+    nsISHTransaction *temp = trans;
+    temp->GetNext(getter_AddRefs(trans));
+  }
+#endif
+
   EvictContentViewersInRange(startIndex, endIndex);
 }
 
@@ -1000,7 +1049,7 @@ nsSHistory::EvictExpiredContentViewerForEntry(nsISHEntry *aEntry)
 
 //static
 void
-nsSHistory::EvictAllContentViewers()
+nsSHistory::EvictAllContentViewersGlobally()
 {
   PRInt32 maxViewers = sHistoryMaxTotalViewers;
   sHistoryMaxTotalViewers = 0;
@@ -1016,6 +1065,7 @@ nsSHistory::UpdateIndex()
     mIndex = mRequestedIndex;
   }
 
+  mRequestedIndex = -1;
   return NS_OK;
 }
 

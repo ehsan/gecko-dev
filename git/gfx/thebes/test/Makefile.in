@@ -45,14 +45,6 @@ MOZILLA_INTERNAL_API = 1
 
 include $(DEPTH)/config/autoconf.mk
 
-REQUIRES = \
-	xpcom \
-	string \
-	thebes \
-	cairo \
-	pref \
-	thebes \
-	$(NULL)
 
 # All platforms
 CPPSRCS = \
@@ -61,6 +53,7 @@ CPPSRCS = \
 	gfxTextRunPerfTest.cpp \
 	gfxWordCacheTest.cpp \
 	$(NULL)
+#	gfxColorManagementTest.cpp \
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS = gfxTestCocoaHelper.mm
@@ -82,7 +75,6 @@ LIBS =  $(HELPER_OBJS) \
 	$(NSPR_LIBS) \
 	$(TK_LIBS) \
 	$(ZLIB_LIBS) \
-	$(LCMS_LIBS) \
 	$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
@@ -95,12 +87,9 @@ OS_LIBS += -framework Cocoa
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
-OS_LIBS += $(MOZ_PANGO_LIBS) $(MOZ_XFT_LIBS) $(XLIBS)
+OS_LIBS += $(MOZ_PANGO_LIBS) $(XLIBS)
+CXXFLAGS += $(MOZ_PANGO_CFLAGS)
 endif
 
 CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 CFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
-
-ifdef MOZ_ENABLE_PANGO
-CXXFLAGS += $(MOZ_PANGO_CFLAGS)
-endif

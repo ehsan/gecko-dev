@@ -41,7 +41,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef MOZ_MOCHITEST
+ifdef ENABLE_TESTS
 DIRS		+= test
 endif
 
@@ -49,57 +49,17 @@ MODULE		= layout
 LIBRARY_NAME	= gkgeneric_s
 LIBXUL_LIBRARY	= 1
 
-REQUIRES	= xpcom \
-		  string \
-		  dom \
-		  content \
-		  thebes \
-		  cairo \
-		  gfx \
-		  widget \
-		  locale \
-		  view \
-		  necko \
-		  js \
-		  caps \
-		  pref \
-		  htmlparser \
-		  webshell \
-		  plugin \
-		  docshell \
-		  uriloader \
-		  mimetype \
-		  webbrwsr \
-		  oji \
-		  unicharutil \
-		  lwbrk \
-		  imglib2 \
-		  accessibility \
-		  xpconnect \
-		  java \
-		  exthandler \
-		  intl \
-		  uconv \
-		  $(NULL)
 
-# Sun's Complex Text Layout support
-ifdef SUNCTL
-REQUIRES	+= ctl
-endif
-
-ifdef MOZ_ENABLE_CAIRO_GFX
-REQUIRES	+= thebes cairo
-endif
 
 EXPORTS		= \
+		nsQueryFrame.h \
 		nsFrameList.h \
+		nsCanvasFrame.h \
 		nsHTMLParts.h \
 		nsHTMLReflowMetrics.h \
 		nsHTMLReflowState.h \
 		nsIAnonymousContentCreator.h \
-		nsICanvasFrame.h \
 		nsIFrame.h \
-		nsIFrameDebug.h \
 		nsIFrameFrame.h \
 		nsIFrameUtil.h \
 		nsIImageFrame.h \
@@ -121,9 +81,7 @@ endif
 
 CPPSRCS		= \
 		nsAbsoluteContainingBlock.cpp \
-		nsAreaFrame.cpp \
 		nsBRFrame.cpp \
-		nsBlockBandData.cpp \
 		nsBlockFrame.cpp \
 		nsBlockReflowContext.cpp \
 		nsBlockReflowState.cpp \
@@ -131,6 +89,7 @@ CPPSRCS		= \
 		nsColumnSetFrame.cpp \
 		nsContainerFrame.cpp \
 		nsFirstLetterFrame.cpp \
+		nsFloatManager.cpp \
 		nsFrame.cpp \
 		nsFrameFrame.cpp \
 		nsFrameList.cpp \
@@ -139,7 +98,7 @@ CPPSRCS		= \
 		nsGfxScrollFrame.cpp \
 		nsHTMLCanvasFrame.cpp \
 		nsHTMLContainerFrame.cpp \
-		nsHTMLFrame.cpp \
+		nsCanvasFrame.cpp \
 		nsHTMLReflowState.cpp \
 		nsImageFrame.cpp \
 		nsImageMap.cpp \
@@ -154,7 +113,6 @@ CPPSRCS		= \
 		nsPlaceholderFrame.cpp \
 		nsSelection.cpp \
 		nsSimplePageSequence.cpp \
-		nsSpaceManager.cpp \
 		nsSpacerFrame.cpp \
 		nsSplittableFrame.cpp \
 		nsTextFrameThebes.cpp \
@@ -163,29 +121,26 @@ CPPSRCS		= \
 		nsViewportFrame.cpp \
 		$(NULL)
 
+ifdef MOZ_MEDIA
+CPPSRCS		+= \
+		nsVideoFrame.cpp \
+		$(NULL)
+endif
+
 ifdef IBMBIDI
 CPPSRCS		+= \
 		nsBidiFrames.cpp \
 		$(NULL)
 endif
 
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+CMMSRCS		+= \
+		nsPluginUtilsOSX.mm \
+		$(NULL)
+endif
+
 RESOURCES_HTML = \
 		$(srcdir)/folder.png \
-		$(srcdir)/gopher-audio.gif \
-		$(srcdir)/gopher-binary.gif \
-		$(srcdir)/gopher-find.gif \
-		$(srcdir)/gopher-image.gif \
-		$(srcdir)/gopher-menu.gif \
-		$(srcdir)/gopher-movie.gif \
-		$(srcdir)/gopher-sound.gif \
-		$(srcdir)/gopher-telnet.gif \
-		$(srcdir)/gopher-text.gif \
-		$(srcdir)/gopher-unknown.gif \
-		$(NULL)
-
-RESOURCES = \
-		$(srcdir)/broken-image.gif \
-		$(srcdir)/loading-image.gif \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1
@@ -195,11 +150,13 @@ include $(topsrcdir)/config/rules.mk
 LOCAL_INCLUDES += \
 		-I$(srcdir) \
 		-I$(srcdir)/../base \
+		-I$(srcdir)/../forms \
 		-I$(srcdir)/../tables \
 		-I$(srcdir)/../xul/base/src \
 		-I$(srcdir)/../../content/xul/content/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/html/content/src \
+		-I$(srcdir)/../../dom/base \
 		$(MOZ_CAIRO_CFLAGS) \
 		$(NULL)
 
@@ -207,12 +164,14 @@ ifdef MOZ_ENABLE_GTK2
 CXXFLAGS += $(MOZ_GTK2_CFLAGS)
 endif
 
+ifdef MOZ_ENABLE_QT
+CXXFLAGS += $(MOZ_QT_CFLAGS)
+endif
+
 libs::
 	$(INSTALL) $(RESOURCES_HTML) $(DIST)/bin/res/html
-	$(INSTALL) $(RESOURCES) $(DIST)/bin/res
 
 install::
 	$(SYSINSTALL) $(IFLAGS1) $(RESOURCES_HTML) $(DESTDIR)$(mozappdir)/res/html
-	$(SYSINSTALL) $(IFLAGS1) $(RESOURCES) $(DESTDIR)$(mozappdir)/res
 
 DEFINES += -D_IMPL_NS_LAYOUT

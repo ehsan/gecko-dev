@@ -46,6 +46,8 @@ class nsSharedPageData;
 class nsPageFrame : public nsContainerFrame {
 
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   friend nsIFrame* NS_NewPageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD  Reflow(nsPresContext*      aPresContext,
@@ -128,7 +130,9 @@ protected:
 };
 
 
-class nsPageBreakFrame : public nsLeafFrame {
+class nsPageBreakFrame : public nsLeafFrame
+{
+  NS_DECL_FRAMEARENA_HELPERS
 
   nsPageBreakFrame(nsStyleContext* aContext);
   ~nsPageBreakFrame();
@@ -140,9 +144,14 @@ class nsPageBreakFrame : public nsLeafFrame {
 
   virtual nsIAtom* GetType() const;
 
+#ifdef NS_DEBUG
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
+#endif
+
 protected:
 
   virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
 
     PRBool mHaveReflowed;
 

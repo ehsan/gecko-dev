@@ -1,8 +1,8 @@
 <html>
 <head>
   <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
-  <title>Testing Microformats.js</title>
-  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
+  <title>Testing Microformats.js (hCard)</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"></link>
@@ -88,13 +88,13 @@
   <p class="vcard" id="12-img-src-url">
     <span class="fn n"><span class="given-name">John</span> <span class="family-name">Doe</span></span>
     <!-- take the @src, ignore the @type -->
-    <img class="url" src="http://example.org/picture.png" type="image/png" />
+    <img class="url" src="http://localhost:8888/tests/browser/microformats/test/picture.png" type="image/png" />
   </p>
 
   <p class="vcard" id="13-photo-logo">
     <span class="fn n"><span class="given-name">John</span> <span class="family-name">Doe</span></span>
     <!-- take the @src, ignore the @type -->
-    <img class="photo logo" src="http://example.org/picture.png" type="image/png" />
+    <img class="photo logo" src="http://localhost:8888/tests/browser/microformats/test/picture.png" type="image/png" />
   </p>
 
   <p class="vcard" id="14-img-src-data-url">
@@ -132,7 +132,7 @@
 
   <p class="vcard" id="18-object-data-http-uri">
     <span class="fn">John Doe</span>
-    <object class="url photo logo" data="http://example.com/foo.png" type="image/png"></object>
+    <object class="url photo logo" data="http://localhost:8888/tests/browser/microformats/test/picture.png" type="image/png"></object>
   </p>
 
   <p class="vcard" id="19-object-data-data-uri">
@@ -143,7 +143,7 @@
   <p class="vcard" id="20-image-alt">
 <!-- only testing 'fn' here, but you should be able to parse any text value out of the img@alt -->
 <!-- also note, the fn should only be used to infer n, when there's no explicit n in the hcard -->
-    <img class="fn photo logo" src="http://example.com/foo.png" alt="John Doe" />
+    <img class="fn photo logo" src="http://localhost:8888/tests/browser/microformats/test/picture.png" alt="John Doe" />
   </p>
   
   <div class="vcard" id="21-tel">
@@ -189,6 +189,16 @@
     <a class="tel" href="modem:+1.415.555.1241">call me</a>
     <object class="tel" data="modem:+1.415.555.1242">call me</object>
     <area class="tel" href="modem:+1.415.555.1243">call me</area>
+  </div>
+  
+  <div class="vcard" id="21-tel.2">
+    <span class="fn">John Doe</span>
+    <span class="tel"><span class="type">Home</span> +1.415.555.1212</span>
+  </div>
+
+  <div class="vcard" id="21-tel.3">
+    <span class="fn">John Doe</span>
+    <span class="tel"><span class="type">Home</span><span class="type"> Pref</span> +1.415.555.1212</span>
   </div>
 
   <!--     TODO: add test for 'extended' -->
@@ -331,6 +341,10 @@
         </span>
         <span class="title"><strong>President</strong></span> and
         <span class="role"><em>Chief</em></span>
+        <span class="agent vcard">
+          <span class="fn">Bob Smith</span>
+          <span class="title">Executive Assistant</span>
+        </span>
   <!--       <span class="agent</span> @TODO -->
         <span class="org">
           <span class="organization-name"><strong>Intellicorp</strong></span>
@@ -369,15 +383,15 @@
     <div class="org">W3C</div>
   </div>
   <div class="vcard" id="30-fn-org.3">
-    <img class="fn" src="http://www.w3.org/Icons/w3c_home" alt="W3C" />
+    <img class="fn" src="http://localhost:8888/tests/browser/microformats/test/picture.png" alt="W3C" />
     <div class="org">W3C</div>
   </div>
   <div class="vcard" id="30-fn-org.4">
-    <img class="fn org" src="http://www.w3.org/Icons/w3c_home"
+    <img class="fn org" src="http://localhost:8888/tests/browser/microformats/test/picture.png"
          alt="World Wide Web Consortium" />
   </div>
   <div class="vcard" id="30-fn-org.5">
-    <object data="http://www.w3.org/Icons/w3c_home">
+    <object data="http://localhost:8888/tests/browser/microformats/test/w3c_home">
       <abbr class="fn org" title="World Wide Web Consortium">W3C</abbr>
     </object>
   </div>
@@ -398,6 +412,10 @@
     <a class="url fn" href="http://suda.co.uk/">Brian Suda</a>
     <a href="#email1" class="include"/>
     <a href="#email2"/>
+  </div>
+  <div class="vcard" id="31-include.4">
+    <a class="url fn" href="http://suda.co.uk/">Brian Suda</a>
+    <a href="#email" class="include"/>
   </div>
 
   <table>
@@ -430,7 +448,7 @@
       <area class="fn email" href="mailto:joe@example.com" alt="Joe Public"/>
       <area class="url" href="http://example.com/" alt="my website!" />
     </map>
-    <img class="org" src="http://example.com/" alt="Joe Public" />
+    <img class="org" src="http://localhost:8888/tests/browser/microformats/test/picture.png" alt="Joe Public" />
   </div>
   <div class="vcard" id="33-area.4">
     <map id="mailto-test-4">
@@ -478,7 +496,7 @@
     <abbr class="category" title="C1">C1a</abbr>
     <a class="category" href="http://example.com" title="C2">C2a</a>
     <a class="category" href="http://example.com/C3" rel="tag" title="C3a">C3b</a>
-    <img class="category" src="http://example.com/" alt="C4"/>
+    <img class="category" src="http://localhost:8888/tests/browser/microformats/test/picture.png" alt="C4"/>
     <a class="category" href="http://example.com/C5/" rel="tag" title="C5a">C5b</a>
     <a class="category" href="http://example.com/C6?tag=false" rel="tag" title="C6a">C6b</a>
     <a class="category" href="http://example.com/C7#anchor" rel="tag" title="C7a">C7b</a>
@@ -516,17 +534,31 @@
   </div>
   <div class="vcard" id="38-uid.2">
     <span class="fn">Ryan King</span>
-    <object class="url uid" data="http://theryanking.com/contact/">My other hCard</object>
+    <object class="url uid" data="http://localhost:8888/tests/browser/microformats/test/contact/">My other hCard</object>
   </div>
   <div class="vcard" id="38-uid.3">
     <span class="fn">Ryan King</span>
-    <img class="url uid" src="http://theryanking.com/contact/" alt="my other hcard" />
+    <img class="url uid" src="http://localhost:8888/tests/browser/microformats/test/contact/" alt="my other hcard" />
   </div>
   <div class="vcard" id="38-uid.4">
     <span class="fn">Ryan King</span>
     <map id="foo"><area class="url uid" href="http://theryanking.com/contact/" alt="my other hcard" /></map>
   </div>
-  
+
+  <div class="vcard" id="39-noteHTML">
+    <a class="fn">Joe Public</a>
+    <span class="note"><b>Note</b></span>
+  </div>
+
+  <div class="vcard" id="email-type">
+		      <span class="fn">John Doe</span>
+		      <span class="email">
+			      <span class="type">internet</span>
+			      <a href="mailto:notthis@example.com">john@example.com</a>
+		      </span>
+       </div>
+
+
 </div>
 <pre id="test">
 <script class="testbody" type="text/javascript">
@@ -553,75 +585,75 @@ function test_hCard() {
 
   is(hcard.fn, "Tantek Çelik", "01-tantek-basic - fn");
   is(hcard.url, "http://tantek.com/", "01-tantek-basic - url");
-  is(hcard.n["given-name"], "Tantek", "01-tantek-basic - given-name");
-  is(hcard.n["family-name"], "Çelik", "01-tantek-basic - family-name");
+  is(hcard.n["given-name"][0], "Tantek", "01-tantek-basic - given-name");
+  is(hcard.n["family-name"][0], "Çelik", "01-tantek-basic - family-name");
   is(hcard.org[0]["organization-name"], "Technorati", "01-tantek-basic - organization-name");
 
   hcard = new hCard(document.getElementById("02-multiple-class-names-on-vcard.1"));
 
   is(hcard.fn, "Ryan King", "02-multiple-class-names-on-vcard.1 - fn");
-  is(hcard.n["given-name"], "Ryan", "02-multiple-class-names-on-vcard.1 - given-name");
-  is(hcard.n["family-name"], "King", "02-multiple-class-names-on-vcard.1 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "02-multiple-class-names-on-vcard.1 - given-name");
+  is(hcard.n["family-name"][0], "King", "02-multiple-class-names-on-vcard.1 - family-name");
 
   hcard = new hCard(document.getElementById("02-multiple-class-names-on-vcard.2"));
 
   is(hcard.fn, "Ryan King", "02-multiple-class-names-on-vcard.2 - fn");
-  is(hcard.n["given-name"], "Ryan", "02-multiple-class-names-on-vcard.2 - given-name");
-  is(hcard.n["family-name"], "King", "02-multiple-class-names-on-vcard.2 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "02-multiple-class-names-on-vcard.2 - given-name");
+  is(hcard.n["family-name"][0], "King", "02-multiple-class-names-on-vcard.2 - family-name");
 
   hcard = new hCard(document.getElementById("02-multiple-class-names-on-vcard.3"));
 
   is(hcard.fn, "Ryan King", "02-multiple-class-names-on-vcard.3 - fn");
-  is(hcard.n["given-name"], "Ryan", "02-multiple-class-names-on-vcard.3 - given-name");
-  is(hcard.n["family-name"], "King", "02-multiple-class-names-on-vcard.3 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "02-multiple-class-names-on-vcard.3 - given-name");
+  is(hcard.n["family-name"][0], "King", "02-multiple-class-names-on-vcard.3 - family-name");
 
   hcard = new hCard(document.getElementById("03-implied-n.1"));
 
   is(hcard.fn, "Ryan King", "03-implied-n.1 - fn");
-  is(hcard.n["given-name"], "Ryan", "03-implied-n.1 - given-name");
-  is(hcard.n["family-name"], "King", "03-implied-n.1 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "03-implied-n.1 - given-name");
+  is(hcard.n["family-name"][0], "King", "03-implied-n.1 - family-name");
 
   hcard = new hCard(document.getElementById("03-implied-n.2"));
 
   is(hcard.fn, "Ryan King", "03-implied-n.2 - fn");
-  is(hcard.n["given-name"], "Ryan", "03-implied-n.2 - given-name");
-  is(hcard.n["family-name"], "King", "03-implied-n.2 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "03-implied-n.2 - given-name");
+  is(hcard.n["family-name"][0], "King", "03-implied-n.2 - family-name");
 
   hcard = new hCard(document.getElementById("03-implied-n.3"));
 
   is(hcard.fn, "Ryan King", "03-implied-n.3 - fn");
-  is(hcard.n["given-name"], "Ryan", "03-implied-n.3 - given-name");
-  is(hcard.n["family-name"], "King", "03-implied-n.3 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "03-implied-n.3 - given-name");
+  is(hcard.n["family-name"][0], "King", "03-implied-n.3 - family-name");
 
   hcard = new hCard(document.getElementById("03-implied-n.4"));
 
   is(hcard.fn, "Brian Suda", "03-implied-n.4 - fn");
-  is(hcard.n["given-name"], "Brian", "03-implied-n.4 - given-name");
-  is(hcard.n["family-name"], "Suda", "03-implied-n.4 - family-name");
+  is(hcard.n["given-name"][0], "Brian", "03-implied-n.4 - given-name");
+  is(hcard.n["family-name"][0], "Suda", "03-implied-n.4 - family-name");
 
   hcard = new hCard(document.getElementById("03-implied-n.5"));
 
   is(hcard.fn, "King, Ryan", "03-implied-n.5 - fn");
-  is(hcard.n["given-name"], "Ryan", "03-implied-n.5 - given-name");
-  is(hcard.n["family-name"], "King", "03-implied-n.5 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "03-implied-n.5 - given-name");
+  is(hcard.n["family-name"][0], "King", "03-implied-n.5 - family-name");
 
   hcard = new hCard(document.getElementById("03-implied-n.6"));
 
   is(hcard.fn, "King, R", "03-implied-n.6 - fn");
-  is(hcard.n["given-name"], "R", "03-implied-n.6 - given-name");
-  is(hcard.n["family-name"], "King", "03-implied-n.6 - family-name");
+  is(hcard.n["given-name"][0], "R", "03-implied-n.6 - given-name");
+  is(hcard.n["family-name"][0], "King", "03-implied-n.6 - family-name");
 
   hcard = new hCard(document.getElementById("03-implied-n.7"));
 
   is(hcard.fn, "King R", "03-implied-n.7 - fn");
-  is(hcard.n["given-name"], "R", "03-implied-n.7 - given-name");
-  is(hcard.n["family-name"], "King", "03-implied-n.7 - family-name");
+  is(hcard.n["given-name"][0], "R", "03-implied-n.7 - given-name");
+  is(hcard.n["family-name"][0], "King", "03-implied-n.7 - family-name");
 
   hcard = new hCard(document.getElementById("03-implied-n.8"));
 
   is(hcard.fn, "King R.", "03-implied-n.8 - fn");
-  is(hcard.n["given-name"], "R.", "03-implied-n.8 - given-name");
-  is(hcard.n["family-name"], "King", "03-implied-n.8 - family-name");
+  is(hcard.n["given-name"][0], "R.", "03-implied-n.8 - given-name");
+  is(hcard.n["family-name"][0], "King", "03-implied-n.8 - family-name");
 
   hcard = new hCard(document.getElementById("03-implied-n.9"));
 
@@ -636,67 +668,67 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("04-ignore-unknowns"));
 
   is(hcard.fn, "Ryan King", "04-ignore-unknowns - fn");
-  is(hcard.n["given-name"], "Ryan", "04-ignore-unknowns - given-name");
-  is(hcard.n["family-name"], "King", "04-ignore-unknowns - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "04-ignore-unknowns - given-name");
+  is(hcard.n["family-name"][0], "King", "04-ignore-unknowns - family-name");
 
   hcard = new hCard(document.getElementById("05-mailto-1"));
 
   is(hcard.fn, "Ryan King", "05-mailto-1 - fn");
-  is(hcard.n["given-name"], "Ryan", "05-mailto-1 - given-name");
-  is(hcard.n["family-name"], "King", "05-mailto-1 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "05-mailto-1 - given-name");
+  is(hcard.n["family-name"][0], "King", "05-mailto-1 - family-name");
   is(hcard.email[0].value, "ryan@technorati.com", "05-mailto-1 - email");
 
   hcard = new hCard(document.getElementById("06-mailto-2"));
 
   is(hcard.fn, "Brian Suda", "06-mailto-2 - fn");
-  is(hcard.n["given-name"], "Brian", "06-mailto-2 - given-name");
-  is(hcard.n["family-name"], "Suda", "06-mailto-2 - family-name");
+  is(hcard.n["given-name"][0], "Brian", "06-mailto-2 - given-name");
+  is(hcard.n["family-name"][0], "Suda", "06-mailto-2 - family-name");
   is(hcard.email[0].value, "brian@example.com", "06-mailto-2 - email");
 
   hcard = new hCard(document.getElementById("07-relative-url"));
 
   is(hcard.fn, "John Doe", "07-relative-url - fn");
-  is(hcard.n["given-name"], "John", "07-relative-url - given-name");
-  is(hcard.n["family-name"], "Doe", "07-relative-url - family-name");
+  is(hcard.n["given-name"][0], "John", "07-relative-url - given-name");
+  is(hcard.n["family-name"][0], "Doe", "07-relative-url - family-name");
 //  is(hcard.url[0], "http://microformats.org/home/blah", "07-relative-url - url");
   is(hcard.url, "http://localhost:8888/home/blah", "07-relative-url - url");
 
   hcard = new hCard(document.getElementById("11-multiple-urls"));
 
   is(hcard.fn, "John Doe", "11-multiple-urls - fn");
-  is(hcard.n["given-name"], "John", "11-multiple-urls - given-name");
-  is(hcard.n["family-name"], "Doe", "11-multiple-urls - family-name");
+  is(hcard.n["given-name"][0], "John", "11-multiple-urls - given-name");
+  is(hcard.n["family-name"][0], "Doe", "11-multiple-urls - family-name");
   is(hcard.url[0], "http://example.com/foo", "11-multiple-urls - url");
   is(hcard.url[1], "http://example.com/bar", "11-multiple-urls - url");
 
   hcard = new hCard(document.getElementById("12-img-src-url"));
 
   is(hcard.fn, "John Doe", "12-img-src-url - fn");
-  is(hcard.n["given-name"], "John", "12-img-src-url - given-name");
-  is(hcard.n["family-name"], "Doe", "12-img-src-url - family-name");
-  is(hcard.url[0], "http://example.org/picture.png", "12-img-src-url - url");
+  is(hcard.n["given-name"][0], "John", "12-img-src-url - given-name");
+  is(hcard.n["family-name"][0], "Doe", "12-img-src-url - family-name");
+  is(hcard.url[0], "http://localhost:8888/tests/browser/microformats/test/picture.png", "12-img-src-url - url");
 
   hcard = new hCard(document.getElementById("13-photo-logo"));
 
   is(hcard.fn, "John Doe", "13-photo-logo - fn");
-  is(hcard.n["given-name"], "John", "13-photo-logo - given-name");
-  is(hcard.n["family-name"], "Doe", "13-photo-logo - family-name");
-  is(hcard.logo, "http://example.org/picture.png", "13-photo-logo - logo");
-  is(hcard.photo, "http://example.org/picture.png", "13-photo-logo - photo");
+  is(hcard.n["given-name"][0], "John", "13-photo-logo - given-name");
+  is(hcard.n["family-name"][0], "Doe", "13-photo-logo - family-name");
+  is(hcard.logo, "http://localhost:8888/tests/browser/microformats/test/picture.png", "13-photo-logo - logo");
+  is(hcard.photo, "http://localhost:8888/tests/browser/microformats/test/picture.png", "13-photo-logo - photo");
 
   hcard = new hCard(document.getElementById("14-img-src-data-url"));
 
   is(hcard.fn, "John Doe", "14-img-src-data-url - fn");
-  is(hcard.n["given-name"], "John", "14-img-src-data-url - given-name");
-  is(hcard.n["family-name"], "Doe", "14-img-src-data-url - family-name");
+  is(hcard.n["given-name"][0], "John", "14-img-src-data-url - given-name");
+  is(hcard.n["family-name"][0], "Doe", "14-img-src-data-url - family-name");
   is(hcard.logo, "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiDAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAASUExURf///8zMzJmZmWZmZjMzMwAAAPOPemkAAAM1SURBVHjaYmBgYGBkYQUBFkYWFiCPCchixQAMCCZAACF0MAMVM4K4TFh0IGsBCCAkOxhYmBnAAKaHhZkZmxaAAGJgYIbpYGBihGgBWsTMzMwE4jIhaWGAYoAAYmCECDExYAcwGxkg5oNIgABigDqLARdgZmGB2wICrKwAAcSA3xKgIxlZ0PwCEEAMBCxhgHoWSQtAADFAAxgfYEJ1GEAAQbQw4tUCsocBYQVAADEgu4uRkREeUCwszEwwLhOKLQABhNDCBA4aSDgwwhIAJKqYUPwCEEAMUK/AUwnc9aywJMCI7DAgAAggBohZ8JTBhGIJzCoWZL8ABBCYidAB8RUjWppkYUG2BSCAGMDqEMZiswUtXgACiAHsFYixTMywGGLGpgUWYgABxAA2mQkWCMyMqFoYmdD8ACQAAogBHJHMrCxg1cyIiICmCkYWDFsAAgiihYmZCewFFpR0BfI3LLch+QUggBiQ0iQjEyMDmh54qCBlUIAAYsCRJsElADQvgWKTlRGeKwECiAF3XgGmMEYQYADZzcoA9z5AAMG9RQCAtEC9DxBADFiyFyMjVi0wABBAWLQwQdIiuhYGWJIACCBg+KKUJ9BoBRdS2LQALQMIIGDQIEmwAO1kYcVWHCDZAhBAqFqYmOAxj2YNtAwDAYAAYmDEiBYWzHKKkRERYiwAAYSphZEZwxZGZiZQVEJTJkAAMTCyokc7M5oORlC5wcoEjxeAAAJqQXU0UB6W5WFmABMtEzMi1wEEEFAbE0YyAUuzMMEsYQalMkQSBQggUDmNPU3C9IA4LCxI+QUggEBiKOU8yExgqccCL3chnkPKlQABhGo6ejHBDKmdUHMlQAAhhQvQaGZGkBIkjcAMywLmI+VKgABCSowsTJhZkhlWXiBpAQggYBqBZl9GVOdBcz0LZqEEEEAMqLULMBLg1THWog9IAwQQA0qiZcRW5aPbAhBADCg1El4tMAAQQAxoiZYZXnTh1AIQQAzo2QlYpDDjcBgrxGEAAcSAJTthswmiBUwDBBC2GpkZJTaRvQ+mAQKIAUuuxdZWQvILQABBmSxMjBj5EpcWgACCMoFOYYSpZyHQHgMIMACt2hmoVEikCQAAAABJRU5ErkJggg==", "14-img-src-data-url - logo");
   is(hcard.photo, "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiDAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAASUExURf///8zMzJmZmWZmZjMzMwAAAPOPemkAAAM1SURBVHjaYmBgYGBkYQUBFkYWFiCPCchixQAMCCZAACF0MAMVM4K4TFh0IGsBCCAkOxhYmBnAAKaHhZkZmxaAAGJgYIbpYGBihGgBWsTMzMwE4jIhaWGAYoAAYmCECDExYAcwGxkg5oNIgABigDqLARdgZmGB2wICrKwAAcSA3xKgIxlZ0PwCEEAMBCxhgHoWSQtAADFAAxgfYEJ1GEAAQbQw4tUCsocBYQVAADEgu4uRkREeUCwszEwwLhOKLQABhNDCBA4aSDgwwhIAJKqYUPwCEEAMUK/AUwnc9aywJMCI7DAgAAggBohZ8JTBhGIJzCoWZL8ABBCYidAB8RUjWppkYUG2BSCAGMDqEMZiswUtXgACiAHsFYixTMywGGLGpgUWYgABxAA2mQkWCMyMqFoYmdD8ACQAAogBHJHMrCxg1cyIiICmCkYWDFsAAgiihYmZCewFFpR0BfI3LLch+QUggBiQ0iQjEyMDmh54qCBlUIAAYsCRJsElADQvgWKTlRGeKwECiAF3XgGmMEYQYADZzcoA9z5AAMG9RQCAtEC9DxBADFiyFyMjVi0wABBAWLQwQdIiuhYGWJIACCBg+KKUJ9BoBRdS2LQALQMIIGDQIEmwAO1kYcVWHCDZAhBAqFqYmOAxj2YNtAwDAYAAYmDEiBYWzHKKkRERYiwAAYSphZEZwxZGZiZQVEJTJkAAMTCyokc7M5oORlC5wcoEjxeAAAJqQXU0UB6W5WFmABMtEzMi1wEEEFAbE0YyAUuzMMEsYQalMkQSBQggUDmNPU3C9IA4LCxI+QUggEBiKOU8yExgqccCL3chnkPKlQABhGo6ejHBDKmdUHMlQAAhhQvQaGZGkBIkjcAMywLmI+VKgABCSowsTJhZkhlWXiBpAQggYBqBZl9GVOdBcz0LZqEEEEAMqLULMBLg1THWog9IAwQQA0qiZcRW5aPbAhBADCg1El4tMAAQQAxoiZYZXnTh1AIQQAzo2QlYpDDjcBgrxGEAAcSAJTthswmiBUwDBBC2GpkZJTaRvQ+mAQKIAUuuxdZWQvILQABBmSxMjBj5EpcWgACCMoFOYYSpZyHQHgMIMACt2hmoVEikCQAAAABJRU5ErkJggg==", "14-img-src-data-url - photo");
 
   hcard = new hCard(document.getElementById("15-honorific-additional-single"));
 
   is(hcard.fn, "Mr. John Maurice Doe, Ph.D.", "15-honorific-additional-single - fn");
-  is(hcard.n["given-name"], "John", "15-honorific-additional-single - given-name");
-  is(hcard.n["family-name"], "Doe", "15-honorific-additional-single - family-name");
+  is(hcard.n["given-name"][0], "John", "15-honorific-additional-single - given-name");
+  is(hcard.n["family-name"][0], "Doe", "15-honorific-additional-single - family-name");
   is(hcard.n["honorific-prefix"], "Mr.", "15-honorific-additional-single - honorific-prefix");
   is(hcard.n["additional-name"], "Maurice", "15-honorific-additional-single - additional-name");
   is(hcard.n["honorific-suffix"], "Ph.D.", "15-honorific-additional-single - honorific-suffix");
@@ -704,8 +736,8 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("16-honorific-additional-multiple"));
 
   is(hcard.fn, "Mr. Dr. John Maurice Benjamin Doe Ph.D., J.D.", "16-honorific-additional-multiple - fn");
-  is(hcard.n["given-name"], "John", "16-honorific-additional-multiple - given-name");
-  is(hcard.n["family-name"], "Doe", "16-honorific-additional-multiple - family-name");
+  is(hcard.n["given-name"][0], "John", "16-honorific-additional-multiple - given-name");
+  is(hcard.n["family-name"][0], "Doe", "16-honorific-additional-multiple - family-name");
   is(hcard.n["honorific-prefix"][0], "Mr.", "16-honorific-additional-multiple - honorific-prefix");
   is(hcard.n["honorific-prefix"][1], "Dr.", "16-honorific-additional-multiple - honorific-prefix");
   is(hcard.n["additional-name"][0], "Maurice", "16-honorific-additional-multiple - additional-name");
@@ -716,24 +748,24 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("17-email-not-uri"));
 
   is(hcard.fn, "John Doe", "17-email-not-uri - fn");
-  is(hcard.n["given-name"], "John", "17-email-not-uri - given-name");
-  is(hcard.n["family-name"], "Doe", "17-email-not-uri - family-name");
+  is(hcard.n["given-name"][0], "John", "17-email-not-uri - given-name");
+  is(hcard.n["family-name"][0], "Doe", "17-email-not-uri - family-name");
   is(hcard.email[0].value, "john@example.com", "17-email-not-uri - email");
 
   hcard = new hCard(document.getElementById("18-object-data-http-uri"));
 
   is(hcard.fn, "John Doe", "18-object-data-http-uri - fn");
-  is(hcard.n["given-name"], "John", "18-object-data-http-uri - given-name");
-  is(hcard.n["family-name"], "Doe", "18-object-data-http-uri - family-name");
-  is(hcard.logo, "http://example.com/foo.png", "18-object-data-http-uri - logo");
-  is(hcard.photo, "http://example.com/foo.png", "18-object-data-http-uri - photo");
-  is(hcard.url, "http://example.com/foo.png", "18-object-data-http-uri - url");
+  is(hcard.n["given-name"][0], "John", "18-object-data-http-uri - given-name");
+  is(hcard.n["family-name"][0], "Doe", "18-object-data-http-uri - family-name");
+  is(hcard.logo, "http://localhost:8888/tests/browser/microformats/test/picture.png", "18-object-data-http-uri - logo");
+  is(hcard.photo, "http://localhost:8888/tests/browser/microformats/test/picture.png", "18-object-data-http-uri - photo");
+  is(hcard.url, "http://localhost:8888/tests/browser/microformats/test/picture.png", "18-object-data-http-uri - url");
 
   hcard = new hCard(document.getElementById("19-object-data-data-uri"));
 
   is(hcard.fn, "John Doe", "19-object-data-data-uri - fn");
-  is(hcard.n["given-name"], "John", "19-object-data-data-uri - given-name");
-  is(hcard.n["family-name"], "Doe", "19-object-data-data-uri - family-name");
+  is(hcard.n["given-name"][0], "John", "19-object-data-data-uri - given-name");
+  is(hcard.n["family-name"][0], "Doe", "19-object-data-data-uri - family-name");
   is(hcard.logo, "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiDAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAASUExURf///8zMzJmZmWZmZjMzMwAAAPOPemkAAAM1SURBVHjaYmBgYGBkYQUBFkYWFiCPCchixQAMCCZAACF0MAMVM4K4TFh0IGsBCCAkOxhYmBnAAKaHhZkZmxaAAGJgYIbpYGBihGgBWsTMzMwE4jIhaWGAYoAAYmCECDExYAcwGxkg5oNIgABigDqLARdgZmGB2wICrKwAAcSA3xKgIxlZ0PwCEEAMBCxhgHoWSQtAADFAAxgfYEJ1GEAAQbQw4tUCsocBYQVAADEgu4uRkREeUCwszEwwLhOKLQABhNDCBA4aSDgwwhIAJKqYUPwCEEAMUK/AUwnc9aywJMCI7DAgAAggBohZ8JTBhGIJzCoWZL8ABBCYidAB8RUjWppkYUG2BSCAGMDqEMZiswUtXgACiAHsFYixTMywGGLGpgUWYgABxAA2mQkWCMyMqFoYmdD8ACQAAogBHJHMrCxg1cyIiICmCkYWDFsAAgiihYmZCewFFpR0BfI3LLch+QUggBiQ0iQjEyMDmh54qCBlUIAAYsCRJsElADQvgWKTlRGeKwECiAF3XgGmMEYQYADZzcoA9z5AAMG9RQCAtEC9DxBADFiyFyMjVi0wABBAWLQwQdIiuhYGWJIACCBg+KKUJ9BoBRdS2LQALQMIIGDQIEmwAO1kYcVWHCDZAhBAqFqYmOAxj2YNtAwDAYAAYmDEiBYWzHKKkRERYiwAAYSphZEZwxZGZiZQVEJTJkAAMTCyokc7M5oORlC5wcoEjxeAAAJqQXU0UB6W5WFmABMtEzMi1wEEEFAbE0YyAUuzMMEsYQalMkQSBQggUDmNPU3C9IA4LCxI+QUggEBiKOU8yExgqccCL3chnkPKlQABhGo6ejHBDKmdUHMlQAAhhQvQaGZGkBIkjcAMywLmI+VKgABCSowsTJhZkhlWXiBpAQggYBqBZl9GVOdBcz0LZqEEEEAMqLULMBLg1THWog9IAwQQA0qiZcRW5aPbAhBADCg1El4tMAAQQAxoiZYZXnTh1AIQQAzo2QlYpDDjcBgrxGEAAcSAJTthswmiBUwDBBC2GpkZJTaRvQ+mAQKIAUuuxdZWQvILQABBmSxMjBj5EpcWgACCMoFOYYSpZyHQHgMIMACt2hmoVEikCQAAAABJRU5ErkJggg==", "19-object-data-data-uri - logo");
   is(hcard.photo, "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiDAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAASUExURf///8zMzJmZmWZmZjMzMwAAAPOPemkAAAM1SURBVHjaYmBgYGBkYQUBFkYWFiCPCchixQAMCCZAACF0MAMVM4K4TFh0IGsBCCAkOxhYmBnAAKaHhZkZmxaAAGJgYIbpYGBihGgBWsTMzMwE4jIhaWGAYoAAYmCECDExYAcwGxkg5oNIgABigDqLARdgZmGB2wICrKwAAcSA3xKgIxlZ0PwCEEAMBCxhgHoWSQtAADFAAxgfYEJ1GEAAQbQw4tUCsocBYQVAADEgu4uRkREeUCwszEwwLhOKLQABhNDCBA4aSDgwwhIAJKqYUPwCEEAMUK/AUwnc9aywJMCI7DAgAAggBohZ8JTBhGIJzCoWZL8ABBCYidAB8RUjWppkYUG2BSCAGMDqEMZiswUtXgACiAHsFYixTMywGGLGpgUWYgABxAA2mQkWCMyMqFoYmdD8ACQAAogBHJHMrCxg1cyIiICmCkYWDFsAAgiihYmZCewFFpR0BfI3LLch+QUggBiQ0iQjEyMDmh54qCBlUIAAYsCRJsElADQvgWKTlRGeKwECiAF3XgGmMEYQYADZzcoA9z5AAMG9RQCAtEC9DxBADFiyFyMjVi0wABBAWLQwQdIiuhYGWJIACCBg+KKUJ9BoBRdS2LQALQMIIGDQIEmwAO1kYcVWHCDZAhBAqFqYmOAxj2YNtAwDAYAAYmDEiBYWzHKKkRERYiwAAYSphZEZwxZGZiZQVEJTJkAAMTCyokc7M5oORlC5wcoEjxeAAAJqQXU0UB6W5WFmABMtEzMi1wEEEFAbE0YyAUuzMMEsYQalMkQSBQggUDmNPU3C9IA4LCxI+QUggEBiKOU8yExgqccCL3chnkPKlQABhGo6ejHBDKmdUHMlQAAhhQvQaGZGkBIkjcAMywLmI+VKgABCSowsTJhZkhlWXiBpAQggYBqBZl9GVOdBcz0LZqEEEEAMqLULMBLg1THWog9IAwQQA0qiZcRW5aPbAhBADCg1El4tMAAQQAxoiZYZXnTh1AIQQAzo2QlYpDDjcBgrxGEAAcSAJTthswmiBUwDBBC2GpkZJTaRvQ+mAQKIAUuuxdZWQvILQABBmSxMjBj5EpcWgACCMoFOYYSpZyHQHgMIMACt2hmoVEikCQAAAABJRU5ErkJggg==", "19-object-data-data-uri - photo");
 
@@ -741,16 +773,16 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("20-image-alt"));
 
   is(hcard.fn, "John Doe", "20-image-alt - fn");
-  is(hcard.n["given-name"], "John", "20-image-alt - given-name");
-  is(hcard.n["family-name"], "Doe", "20-image-alt - family-name");
-  is(hcard.logo, "http://example.com/foo.png", "20-image-alt - logo");
-  is(hcard.photo, "http://example.com/foo.png", "20-image-alt - photo");
+  is(hcard.n["given-name"][0], "John", "20-image-alt - given-name");
+  is(hcard.n["family-name"][0], "Doe", "20-image-alt - family-name");
+  is(hcard.logo, "http://localhost:8888/tests/browser/microformats/test/picture.png", "20-image-alt - logo");
+  is(hcard.photo, "http://localhost:8888/tests/browser/microformats/test/picture.png", "20-image-alt - photo");
 
   hcard = new hCard(document.getElementById("21-tel"));
 
   is(hcard.fn, "John Doe", "21-tel - fn");
-  is(hcard.n["given-name"], "John", "21-tel - given-name");
-  is(hcard.n["family-name"], "Doe", "21-tel - family-name");
+  is(hcard.n["given-name"][0], "John", "21-tel - given-name");
+  is(hcard.n["family-name"][0], "Doe", "21-tel - family-name");
   is(hcard.tel[0].value, "+1.415.555.1231", "21-tel - tel");
   is(hcard.tel[1].value, "+1 415 555 1232", "21-tel - tel");
   is(hcard.tel[1].type[0], "home", "21-tel - type");
@@ -771,20 +803,29 @@ function test_hCard() {
   isnot(hcard.tel[2].type[13], "invalid", "21-tel - type");
   is(hcard.tel[3].value, "+1 415 555 1234", "21-tel - tel");
   is(hcard.tel[3].type[0], "home", "21-tel - type");
-//  is(hcard.tel[4].value, "+1.415.555.1235", "21-tel - tel");
-//  is(hcard.tel[5].value, "+1.415.555.1236", "21-tel - tel");
-//  is(hcard.tel[6].value, "+1.415.555.1237", "21-tel - tel");
-//  is(hcard.tel[7].value, "+1.415.555.1238", "21-tel - tel");
-//  is(hcard.tel[8].value, "+1.415.555.1239", "21-tel - tel");
-//  is(hcard.tel[9].value, "+1.415.555.1240", "21-tel - tel");
-//  is(hcard.tel[9].value, "+1.415.555.1241", "21-tel - tel");
-//  is(hcard.tel[9].value, "+1.415.555.1242", "21-tel - tel");
+  is(hcard.tel[4].value, "+1.415.555.1235", "21-tel - tel");
+  is(hcard.tel[5].value, "+1.415.555.1236", "21-tel - tel");
+  is(hcard.tel[6].value, "+1.415.555.1238", "21-tel - tel");
+  is(hcard.tel[7].value, "+1.415.555.1239", "21-tel - tel");
+  is(hcard.tel[8].value, "+1.415.555.1241", "21-tel - tel");
+  is(hcard.tel[9].value, "+1.415.555.1242", "21-tel - tel");
+
+  hcard = new hCard(document.getElementById("21-tel.2"));
+
+  is(hcard.tel[0].type[0], "home", "21-tel.2 - type");
+  is(hcard.tel[0].value, "+1.415.555.1212", "21-tel.2 - tel");
+  
+  hcard = new hCard(document.getElementById("21-tel.3"));
+
+  is(hcard.tel[0].type[0], "home", "21-tel.3 - type (home)");
+  is(hcard.tel[0].type[1], "pref", "21-tel.3 - type (pref)");
+  is(hcard.tel[0].value, "+1.415.555.1212", "21-tel.3 - tel");
 
   hcard = new hCard(document.getElementById("22-adr"));
 
   is(hcard.fn, "John Doe", "22-adr - fn");
-  is(hcard.n["given-name"], "John", "22-adr - given-name");
-  is(hcard.n["family-name"], "Doe", "22-adr - family-name");
+  is(hcard.n["given-name"][0], "John", "22-adr - given-name");
+  is(hcard.n["family-name"][0], "Doe", "22-adr - family-name");
   is(hcard.adr[0]["street-address"][0], "1231 Main St.", "22-adr - street-address");
   is(hcard.adr[0].locality, "Beverly Hills", "22-adr - locality");
   is(hcard.adr[0].region, "California", "22-adr - region");
@@ -819,8 +860,8 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("23-abbr-title-everything"));
 
   is(hcard.fn, "John Doe", "23-abbr-title-everything - fn");
-  is(hcard.n["given-name"], "Jonathan", "23-abbr-title-everything - given-name");
-  is(hcard.n["family-name"], "Doe-Smith", "23-abbr-title-everything - family-name");
+  is(hcard.n["given-name"][0], "Jonathan", "23-abbr-title-everything - given-name");
+  is(hcard.n["family-name"][0], "Doe-Smith", "23-abbr-title-everything - family-name");
   is(hcard.n["additional-name"], "John", "23-abbr-title-everything - additional-name");
   is(hcard.n["honorific-prefix"], "Mister", "23-abbr-title-everything - honorific-prefix");
   is(hcard.n["honorific-suffix"], "Medical Doctor", "23-abbr-title-everything - honorific-suffix");
@@ -855,8 +896,8 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("26-ancestors"));
 
   is(hcard.fn, "John Doe", "26-ancestors - fn");
-  is(hcard.n["given-name"], "Jonathan", "26-ancestors - given-name");
-  is(hcard.n["family-name"], "Doe-Smith", "26-ancestors - family-name");
+  is(hcard.n["given-name"][0], "Jonathan", "26-ancestors - given-name");
+  is(hcard.n["family-name"][0], "Doe-Smith", "26-ancestors - family-name");
   is(hcard.n["additional-name"], "John", "26-ancestors - additional-name");
   is(hcard.n["honorific-prefix"], "Mister", "26-ancestors - honorific-prefix");
   is(hcard.n["honorific-suffix"], "Medical Doctor", "26-ancestors - honorific-suffix");
@@ -870,6 +911,8 @@ function test_hCard() {
   is(hcard.org[0]["organization-name"], "Intellicorp", "26-ancestors - organization-name");
   is(hcard.org[0]["organization-unit"][0], "Intelligence", "26-ancestors - organization-unit");
   is(hcard.role, "Chief", "26-ancestors - role");
+  is(hcard.agent[0].fn, "Bob Smith", "26-ancestors - agent.fn");
+  is(hcard.agent[0].title, "Executive Assistant", "26-ancestors - agent.title");
   is(hcard.tel[0].value, "415.555.1234", "26-ancestors - tel");
   is(hcard.title[0], "President", "26-ancestors - title");
   is(hcard.tz, "-0700", "26-ancestors - tz");
@@ -885,22 +928,22 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("27-bday-date"));
 
   is(hcard.fn, "john doe", "27-bday-date - fn");
-  is(hcard.n["given-name"], "john", "27-bday-date - given-name");
-  is(hcard.n["family-name"], "doe", "27-bday-date - family-name");
+  is(hcard.n["given-name"][0], "john", "27-bday-date - given-name");
+  is(hcard.n["family-name"][0], "doe", "27-bday-date - family-name");
   is(hcard.bday, "2000-01-01", "27-bday-date - bday");
 
   hcard = new hCard(document.getElementById("28-bday-datetime"));
 
   is(hcard.fn, "john doe", "28-bday-datetime - fn");
-  is(hcard.n["given-name"], "john", "28-bday-datetime - given-name");
-  is(hcard.n["family-name"], "doe", "28-bday-datetime - family-name");
+  is(hcard.n["given-name"][0], "john", "28-bday-datetime - given-name");
+  is(hcard.n["family-name"][0], "doe", "28-bday-datetime - family-name");
   is(hcard.bday, "2000-01-01T00:00:00", "28-bday-datetime - bday");
 
   hcard = new hCard(document.getElementById("29-bday-datetime-timezone"));
 
   is(hcard.fn, "john doe", "29-bday-datetime-timezone - fn");
-  is(hcard.n["given-name"], "john", "29-bday-datetime-timezone - given-name");
-  is(hcard.n["family-name"], "doe", "29-bday-datetime-timezone - family-name");
+  is(hcard.n["given-name"][0], "john", "29-bday-datetime-timezone - given-name");
+  is(hcard.n["family-name"][0], "doe", "29-bday-datetime-timezone - family-name");
   is(hcard.bday, "2000-01-01T00:00:00-0800", "29-bday-datetime-timezone - bday");
 
   hcard = new hCard(document.getElementById("30-fn-org.1"));
@@ -912,8 +955,8 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("30-fn-org.2"));
   
   is(hcard.fn, "Dan Connolly", "30-fn-org.2  - fn");
-  is(hcard.n["given-name"], "Dan", "30-fn-org.2  - given-name");
-  is(hcard.n["family-name"], "Connolly", "30-fn-org.2  - family-name");
+  is(hcard.n["given-name"][0], "Dan", "30-fn-org.2  - given-name");
+  is(hcard.n["family-name"][0], "Connolly", "30-fn-org.2  - family-name");
   is(hcard.org[0]["organization-name"], "W3C", "30-fn-org.2 - organization-name");
 
   hcard = new hCard(document.getElementById("30-fn-org.3"));
@@ -934,8 +977,8 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("31-include.1"));
 
   is(hcard.fn, "Brian Suda", "31-include.1 - fn");
-  is(hcard.n["given-name"], "Brian", "31-include.1 - given-name");
-  is(hcard.n["family-name"], "Suda", "31-include.1 - family-name");
+  is(hcard.n["given-name"][0], "Brian", "31-include.1 - given-name");
+  is(hcard.n["family-name"][0], "Suda", "31-include.1 - family-name");
   is(hcard.url, "http://suda.co.uk/", "31-include.1 - url");
   is(hcard.email[0].value, "correct@example.com", "31-include.1 - email");
   isnot(hcard.email[0].value, "incorrect@example.com", "31-include.1 - email");
@@ -943,8 +986,8 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("31-include.2"));
 
   is(hcard.fn, "Brian Suda", "31-include.2 - fn");
-  is(hcard.n["given-name"], "Brian", "31-include.2 - given-name");
-  is(hcard.n["family-name"], "Suda", "31-include.2 - family-name");
+  is(hcard.n["given-name"][0], "Brian", "31-include.2 - given-name");
+  is(hcard.n["family-name"][0], "Suda", "31-include.2 - family-name");
   is(hcard.url, "http://suda.co.uk/", "31-include.2 - url");
   is(hcard.email[0].value, "correct@example.com", "31-include.2 - email");
   isnot(hcard.email[0].value, "incorrect@example.com", "31-include.2 - email");
@@ -952,33 +995,40 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("31-include.3"));
 
   is(hcard.fn, "Brian Suda", "31-include.3 - fn");
-  is(hcard.n["given-name"], "Brian", "31-include.3 - given-name");
-  is(hcard.n["family-name"], "Suda", "31-include.3 - family-name");
+  is(hcard.n["given-name"][0], "Brian", "31-include.3 - given-name");
+  is(hcard.n["family-name"][0], "Suda", "31-include.3 - family-name");
   is(hcard.url, "http://suda.co.uk/", "31-include.3 - url");
   is(hcard.email[0].value, "correct@example.com", "31-include.3 - email");
   isnot(hcard.email[0].value, "incorrect@example.com", "31-include.3 - email");
 
+  hcard = new hCard(document.getElementById("31-include.4"));
+
+  is(hcard.fn, "Brian Suda", "31-include.3 - fn");
+  is(hcard.n["given-name"][0], "Brian", "31-include.3 - given-name");
+  is(hcard.n["family-name"][0], "Suda", "31-include.3 - family-name");
+  is(hcard.url, "http://suda.co.uk/", "31-include.3 - url");
+
   hcard = new hCard(document.getElementById("32-header.1"));
 
   is(hcard.fn, "Brian Suda", "32-header.1 - fn");
-  is(hcard.n["given-name"], "Brian", "32-header.1 - given-name");
-  is(hcard.n["family-name"], "Suda", "32-header.1 - family-name");
+  is(hcard.n["given-name"][0], "Brian", "32-header.1 - given-name");
+  is(hcard.n["family-name"][0], "Suda", "32-header.1 - family-name");
   is(hcard.org[0]["organization-name"], "example.org", "32-header.1 - organization-name");
   is(hcard.url, "http://example.org/", "32-header.1 - url");
 
   hcard = new hCard(document.getElementById("32-header.2"));
 
   is(hcard.fn, "John Doe", "32-header.2 - fn");
-  is(hcard.n["given-name"], "John", "32-header.2 - given-name");
-  is(hcard.n["family-name"], "Doe", "32-header.2 - family-name");
+  is(hcard.n["given-name"][0], "John", "32-header.2 - given-name");
+  is(hcard.n["family-name"][0], "Doe", "32-header.2 - family-name");
   is(hcard.org[0]["organization-name"], "example.org", "32-header.2 - organization-name");
   is(hcard.url, "http://example.org/", "32-header.2 - url");
 
   hcard = new hCard(document.getElementById("33-area.1"));
 
   is(hcard.fn, "Joe Public", "33-area.1 - fn");
-  is(hcard.n["given-name"], "Joe", "33-area.1 - given-name");
-  is(hcard.n["family-name"], "Public", "33-area.1 - family-name");
+  is(hcard.n["given-name"][0], "Joe", "33-area.1 - given-name");
+  is(hcard.n["family-name"][0], "Public", "33-area.1 - family-name");
   is(hcard.url, "http://example.com/", "33-area.1 - url");
   is(hcard.email[0].value, "joe@example.com", "33-area.1 - email");
 
@@ -1013,8 +1063,8 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("34-notes"));
 
   is(hcard.fn, "Joe Public", "34-notes - fn");
-  is(hcard.n["given-name"], "Joe", "34-notes - given-name");
-  is(hcard.n["family-name"], "Public", "34-notes - family-name");
+  is(hcard.n["given-name"][0], "Joe", "34-notes - given-name");
+  is(hcard.n["family-name"][0], "Public", "34-notes - family-name");
   is(hcard.note[0], "Note 1", "34-notes - note");
   isnot(hcard.note[1], "Note 2", "34-notes - note");
   is(hcard.note[1], "Note 3", "34-notes - note");
@@ -1023,30 +1073,30 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("35-include-pattern.1"));
 
   is(hcard.fn, "James Levine", "35-include-pattern.1 - fn");
-  is(hcard.n["given-name"], "James", "35-include-pattern.1 - given-name");
-  is(hcard.n["family-name"], "Levine", "35-include-pattern.1 - family-name");
+  is(hcard.n["given-name"][0], "James", "35-include-pattern.1 - given-name");
+  is(hcard.n["family-name"][0], "Levine", "35-include-pattern.1 - family-name");
 
   hcard = new hCard(document.getElementById("35-include-pattern.2"));
 
   is(hcard.fn, "James Levine", "35-include-pattern.2 - fn");
-  is(hcard.n["given-name"], "James", "35-include-pattern.2 - given-name");
-  is(hcard.n["family-name"], "Levine", "35-include-pattern.2 - family-name");
+  is(hcard.n["given-name"][0], "James", "35-include-pattern.2 - given-name");
+  is(hcard.n["family-name"][0], "Levine", "35-include-pattern.2 - family-name");
   is(hcard.org[0]["organization-name"], "SimplyHired", "35-include-pattern.2 - organization-name");
   is(hcard.title[0], "Microformat Brainstormer", "35-include-pattern.2 - title");
 
   hcard = new hCard(document.getElementById("35-include-pattern.3"));
 
   is(hcard.fn, "James Levine", "35-include-pattern.3 - fn");
-  is(hcard.n["given-name"], "James", "35-include-pattern.3 - given-name");
-  is(hcard.n["family-name"], "Levine", "35-include-pattern.3 - family-name");
+  is(hcard.n["given-name"][0], "James", "35-include-pattern.3 - given-name");
+  is(hcard.n["family-name"][0], "Levine", "35-include-pattern.3 - family-name");
   is(hcard.org[0]["organization-name"], "SimplyHired", "35-include-pattern.3 - organization-name");
   is(hcard.title[0], "Microformat Brainstormer", "35-include-pattern.3 - title");
 
   hcard = new hCard(document.getElementById("36-categories.1"));
 
   is(hcard.fn, "john doe", "36-categories.1 - fn");
-  is(hcard.n["given-name"], "john", "36-categories.1 - given-name");
-  is(hcard.n["family-name"], "doe", "36-categories.1 - family-name");
+  is(hcard.n["given-name"][0], "john", "36-categories.1 - given-name");
+  is(hcard.n["family-name"][0], "doe", "36-categories.1 - family-name");
   is(hcard.category[0], "C1", "36-categories.1 - category");
   isnot(hcard.category[0], "C1a", "36-categories.1 - category");
   is(hcard.category[1], "C2a", "36-categories.1 - category");
@@ -1074,8 +1124,8 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("37-singleton"));
 
   is(hcard.fn, "john doe 1", "37-singleton - fn");
-  is(hcard.n["given-name"], "john", "37-singleton - given-name");
-  is(hcard.n["family-name"], "doe", "37-singleton - family-name");
+  is(hcard.n["given-name"][0], "john", "37-singleton - given-name");
+  is(hcard.n["family-name"][0], "doe", "37-singleton - family-name");
   is(hcard.uid, "unique-id-1", "37-singleton - uid");
   is(hcard.tz, "+0600", "37-singleton - tz");
   is(hcard["sort-string"], "d", "37-singleton - sort-string");
@@ -1088,35 +1138,44 @@ function test_hCard() {
   hcard = new hCard(document.getElementById("38-uid.1"));
 
   is(hcard.fn, "Ryan King", "38-uid.1 - fn");
-  is(hcard.n["given-name"], "Ryan", "38-uid.1 - given-name");
-  is(hcard.n["family-name"], "King", "38-uid.1 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "38-uid.1 - given-name");
+  is(hcard.n["family-name"][0], "King", "38-uid.1 - family-name");
   is(hcard.uid, "http://theryanking.com/contact/", "38-uid.1 - uid");
   is(hcard.url[0], "http://theryanking.com/contact/", "38-uid.1 - url");
 
   hcard = new hCard(document.getElementById("38-uid.2"));
 
   is(hcard.fn, "Ryan King", "38-uid.2 - fn");
-  is(hcard.n["given-name"], "Ryan", "38-uid.2 - given-name");
-  is(hcard.n["family-name"], "King", "38-uid.2 - family-name");
-  is(hcard.uid, "http://theryanking.com/contact/", "38-uid.2 - uid");
-  is(hcard.url[0], "http://theryanking.com/contact/", "38-uid.2 - url");
+  is(hcard.n["given-name"][0], "Ryan", "38-uid.2 - given-name");
+  is(hcard.n["family-name"][0], "King", "38-uid.2 - family-name");
+  is(hcard.uid, "http://localhost:8888/tests/browser/microformats/test/contact/", "38-uid.2 - uid");
+  is(hcard.url[0], "http://localhost:8888/tests/browser/microformats/test/contact/", "38-uid.2 - url");
 
   hcard = new hCard(document.getElementById("38-uid.3"));
 
   is(hcard.fn, "Ryan King", "38-uid.3 - fn");
-  is(hcard.n["given-name"], "Ryan", "38-uid.3 - given-name");
-  is(hcard.n["family-name"], "King", "38-uid.3 - family-name");
-  is(hcard.uid, "http://theryanking.com/contact/", "38-uid.3 - uid");
-  is(hcard.url[0], "http://theryanking.com/contact/", "38-uid.3 - url");
+  is(hcard.n["given-name"][0], "Ryan", "38-uid.3 - given-name");
+  is(hcard.n["family-name"][0], "King", "38-uid.3 - family-name");
+  is(hcard.uid, "http://localhost:8888/tests/browser/microformats/test/contact/", "38-uid.3 - uid");
+  is(hcard.url[0], "http://localhost:8888/tests/browser/microformats/test/contact/", "38-uid.3 - url");
 
   hcard = new hCard(document.getElementById("38-uid.4"));
 
   is(hcard.fn, "Ryan King", "38-uid.4 - fn");
-  is(hcard.n["given-name"], "Ryan", "38-uid.4 - given-name");
-  is(hcard.n["family-name"], "King", "38-uid.4 - family-name");
+  is(hcard.n["given-name"][0], "Ryan", "38-uid.4 - given-name");
+  is(hcard.n["family-name"][0], "King", "38-uid.4 - family-name");
   is(hcard.uid, "http://theryanking.com/contact/", "38-uid.4 - uid");
   is(hcard.url[0], "http://theryanking.com/contact/", "38-uid.4 - url");
 
+  hcard = new hCard(document.getElementById("39-noteHTML"));
+
+  is(hcard.note[0], "Note", "39-noteHTML - note");
+  is(hcard.note[0].toHTML(), "<b>Note</b>", "39-noteHTML - note as HTML");
+  is(hcard.note[0].match("Note"), "Note", "39-noteHTML - match in note");
+
+  hcard = new hCard(document.getElementById("email-type"));
+  is(hcard.email[0].type, "internet", "email - type no value (type)");
+  is(hcard.email[0].value, "john@example.com", "email - type no value (value)");
 }
 
 </script>

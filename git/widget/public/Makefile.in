@@ -47,27 +47,25 @@ XPIDL_MODULE	= widget
 GRE_MODULE	= 1
 
 EXPORTS		= \
-		widgetCore.h \
-		nsStringUtil.h \
 		nsIWidget.h \
-		nsIKBStateControl.h \
 		nsGUIEvent.h \
 		nsEvent.h \
-		nsIMouseListener.h \
-		nsIEventListener.h \
-		nsIMenuListener.h \
+		nsNativeWidget.h \
+		nsWidgetInitData.h \
 		nsWidgetsCID.h \
 		nsILookAndFeel.h \
 		nsIPluginWidget.h \
 		nsINativeKeyBindings.h \
 		nsIDeviceContextSpec.h \
+		nsIMenuRollup.h \
+		nsIRollupListener.h \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 EXPORTS		+= \
-		nsIMenuBar.h \
-		nsIMenu.h \
-		nsIMenuItem.h
+		nsINativeMenuService.h \
+		nsIPrintDialogService.h \
+		$(NULL)
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -78,11 +76,15 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
 EXPORTS		+= nsIDragSessionBeOS.h
 endif
 
-ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
-EXPORTS		+= nsIDragSessionGTK.h
+ifneq (,$(filter qt gtk2,$(MOZ_WIDGET_TOOLKIT)))
+EXPORTS		+= \
+		nsIDragSessionGTK.h \
+		nsIPrintDialogService.h \
+		$(NULL)
 endif
 
 XPIDLSRCS	= \
+		nsIAccelerometer.idl \
 		nsIAppShell.idl \
 		nsIFilePicker.idl \
 		nsIToolkit.idl \
@@ -96,11 +98,8 @@ XPIDLSRCS	= \
 		nsIClipboard.idl \
 		nsIClipboardHelper.idl \
 		nsIClipboardOwner.idl \
-		nsIRollupListener.idl \
-		nsIMenuRollup.idl \
 		nsIBaseWindow.idl \
 		nsIBidiKeyboard.idl \
-		nsIFullScreen.idl \
 		nsIScreen.idl \
 		nsIScreenManager.idl \
 		nsIPrintSession.idl \
@@ -111,13 +110,22 @@ XPIDLSRCS	= \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-XPIDLSRCS	+= nsIPrintSettingsWin.idl
+XPIDLSRCS	+= nsIPrintSettingsWin.idl \
+		nsIWinTaskbar.idl	\
+		nsITaskbarPreview.idl	\
+		nsITaskbarTabPreview.idl \
+		nsITaskbarWindowPreview.idl \
+		nsITaskbarPreviewController.idl \
+		nsITaskbarPreviewButton.idl \
+		nsITaskbarProgress.idl \
+		nsITaskbarPreviewButton.idl \
+		nsIJumpListBuilder.idl \
+		nsIJumpListItem.idl \
+		$(NULL)
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-XPIDLSRCS	+= nsIEventSink.idl \
-		nsIPrintSettingsX.idl \
-		nsIPrintSessionX.idl
+ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
+XPIDLSRCS	+= nsIRwsService.idl
 endif
 
 EXPORTS		:= $(addprefix $(srcdir)/, $(EXPORTS))

@@ -20,6 +20,7 @@
  *
  * Contributor(s):
  *   robert@ocallahan.org
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,7 +41,6 @@
 #include "nsContentUtils.h"
 #include "nsIWordBreaker.h"
 #include "gfxFont.h"
-#include "nsCompressedCharMap.h"
 #include "nsUnicharUtils.h"
 #include "nsBidiUtils.h"
 
@@ -50,26 +50,8 @@
 // that we really still need this, it's only enabled via a hidden pref
 // which defaults false...
 
-// Replaced by precompiled CCMap (see bug 180266). To update the list
-// of characters, see one of files included below. As for the way
-// the original list of characters was obtained by Frank Tang, see bug 54467.
-// Updated to fix the regression (bug 263411). The list contains
-// characters of the following Unicode character classes : Ps, Pi, Po, Pf, Pe.
-// (ref.: http://www.w3.org/TR/2004/CR-CSS21-20040225/selector.html#first-letter)
-// Note that the file does NOT yet include non-BMP characters because 
-// there's no point including them without fixing the way we identify 
-// 'first-letter' currently working only with BMP characters.
-#include "punct_marks.ccmap"
-DEFINE_CCMAP(gPuncCharsCCMap, const);
-  
 #define UNICODE_ZWSP 0x200B
   
-PRBool
-nsTextFrameUtils::IsPunctuationMark(PRUnichar aChar)
-{
-  return CCMAP_HAS_CHAR(gPuncCharsCCMap, aChar);
-}
-
 static PRBool IsDiscardable(PRUnichar ch, PRUint32* aFlags)
 {
   // Unlike IS_DISCARDABLE, we don't discard \r. \r will be ignored by gfxTextRun
@@ -98,15 +80,17 @@ static PRBool IsDiscardable(PRUint8 ch, PRUint32* aFlags)
 PRUnichar*
 nsTextFrameUtils::TransformText(const PRUnichar* aText, PRUint32 aLength,
                                 PRUnichar* aOutput,
-                                PRBool aCompressWhitespace,
-                                PRPackedBool* aIncomingWhitespace,
+                                CompressionMode aCompression,
+                                PRUint8* aIncomingFlags,
                                 gfxSkipCharsBuilder* aSkipChars,
                                 PRUint32* aAnalysisFlags)
 {
   PRUint32 flags = 0;
   PRUnichar* outputStart = aOutput;
 
-  if (!aCompressWhitespace) {
+  PRBool lastCharArabic = PR_FALSE;
+
+  if (aCompression == COMPRESS_NONE) {
     // Skip discardables.
     PRUint32 i;
     for (i = 0; i < aLength; ++i) {
@@ -117,13 +101,21 @@ nsTextFrameUtils::TransformText(const PRUnichar* aText, PRUint32 aLength,
         aSkipChars->KeepChar();
         if (ch == '\t') {
           flags |= TEXT_HAS_TAB;
+        } else if (ch != ' ' && ch != '\n') {
+          // we already know it's not a tab from the previous check
+          lastCharArabic = IS_ARABIC_CHAR(ch);
         }
         *aOutput++ = ch;
       }
     }
-    *aIncomingWhitespace = PR_FALSE;
+    if (lastCharArabic) {
+      *aIncomingFlags |= INCOMING_ARABICCHAR;
+    } else {
+      *aIncomingFlags &= ~INCOMING_ARABICCHAR;
+    }
+    *aIncomingFlags &= ~INCOMING_WHITESPACE;
   } else {
-    PRBool inWhitespace = *aIncomingWhitespace;
+    PRBool inWhitespace = (*aIncomingFlags & INCOMING_WHITESPACE) != 0;
     PRUint32 i;
     for (i = 0; i < aLength; ++i) {
       PRUnichar ch = *aText++;
@@ -132,7 +124,7 @@ nsTextFrameUtils::TransformText(const PRUnichar* aText, PRUint32 aLength,
           (i + 1 >= aLength ||
            !IsSpaceCombiningSequenceTail(aText, aLength - (i + 1)))) {
         nowInWhitespace = PR_TRUE;
-      } else if (ch == '\n') {
+      } else if (ch == '\n' && aCompression == COMPRESS_WHITESPACE_NEWLINE) {
         if (i > 0 && IS_CJ_CHAR(aText[-1]) &&
             i + 1 < aLength && IS_CJ_CHAR(aText[1])) {
           // Discard newlines between CJK chars.
@@ -152,6 +144,7 @@ nsTextFrameUtils::TransformText(const PRUnichar* aText, PRUint32 aLength,
         } else {
           *aOutput++ = ch;
           aSkipChars->KeepChar();
+          lastCharArabic = IS_ARABIC_CHAR(ch);
         }
       } else {
         if (inWhitespace) {
@@ -166,7 +159,16 @@ nsTextFrameUtils::TransformText(const PRUnichar* aText, PRUint32 aLength,
       }
       inWhitespace = nowInWhitespace;
     }
-    *aIncomingWhitespace = inWhitespace;
+    if (lastCharArabic) {
+      *aIncomingFlags |= INCOMING_ARABICCHAR;
+    } else {
+      *aIncomingFlags &= ~INCOMING_ARABICCHAR;
+    }
+    if (inWhitespace) {
+      *aIncomingFlags |= INCOMING_WHITESPACE;
+    } else {
+      *aIncomingFlags &= ~INCOMING_WHITESPACE;
+    }
   }
 
   if (outputStart + aLength != aOutput) {
@@ -179,15 +181,15 @@ nsTextFrameUtils::TransformText(const PRUnichar* aText, PRUint32 aLength,
 PRUint8*
 nsTextFrameUtils::TransformText(const PRUint8* aText, PRUint32 aLength,
                                 PRUint8* aOutput,
-                                PRBool aCompressWhitespace,
-                                PRPackedBool* aIncomingWhitespace,
+                                CompressionMode aCompression,
+                                PRUint8* aIncomingFlags,
                                 gfxSkipCharsBuilder* aSkipChars,
                                 PRUint32* aAnalysisFlags)
 {
   PRUint32 flags = 0;
   PRUint8* outputStart = aOutput;
 
-  if (!aCompressWhitespace) {
+  if (aCompression == COMPRESS_NONE) {
     // Skip discardables.
     PRUint32 i;
     for (i = 0; i < aLength; ++i) {
@@ -202,13 +204,14 @@ nsTextFrameUtils::TransformText(const PRUint8* aText, PRUint32 aLength,
         *aOutput++ = ch;
       }
     }
-    *aIncomingWhitespace = PR_FALSE;
+    *aIncomingFlags &= ~(INCOMING_ARABICCHAR | INCOMING_WHITESPACE);
   } else {
-    PRBool inWhitespace = *aIncomingWhitespace;
+    PRBool inWhitespace = (*aIncomingFlags & INCOMING_WHITESPACE) != 0;
     PRUint32 i;
     for (i = 0; i < aLength; ++i) {
       PRUint8 ch = *aText++;
-      PRBool nowInWhitespace = ch == ' ' || ch == '\t' || ch == '\n' || ch == '\f';
+      PRBool nowInWhitespace = ch == ' ' || ch == '\t' ||
+        (ch == '\n' && aCompression == COMPRESS_WHITESPACE_NEWLINE);
       if (!nowInWhitespace) {
         if (IsDiscardable(ch, &flags)) {
           aSkipChars->SkipChar();
@@ -230,7 +233,12 @@ nsTextFrameUtils::TransformText(const PRUint8* aText, PRUint32 aLength,
       }
       inWhitespace = nowInWhitespace;
     }
-    *aIncomingWhitespace = inWhitespace;
+    *aIncomingFlags &= ~INCOMING_ARABICCHAR;
+    if (inWhitespace) {
+      *aIncomingFlags |= INCOMING_WHITESPACE;
+    } else {
+      *aIncomingFlags &= ~INCOMING_WHITESPACE;
+    }
   }
 
   if (outputStart + aLength != aOutput) {
@@ -253,7 +261,7 @@ PRBool nsSkipCharsRunIterator::NextRun() {
       return PR_FALSE;
     PRInt32 length;
     mSkipped = mIterator.IsOriginalCharSkipped(&length);
-    mRunLength = PR_MIN(length, mRemainingLength);
+    mRunLength = NS_MIN(length, mRemainingLength);
   } while (!mVisitSkipped && mSkipped);
 
   return PR_TRUE;

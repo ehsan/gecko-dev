@@ -21,6 +21,7 @@
  *
  * Contributor(s):
  *   Daniel Veditz <dveditz@netscape.com>
+ *   Dave Townsend <dtownsend@oxymoronical.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -48,7 +49,6 @@
 #include "nsIURL.h"
 #include "nsIInputStream.h"
 #include "nsIStreamListener.h"
-#include "nsIXPINotifier.h"
 #include "nsIXPInstallManager.h"
 #include "nsIXPIDialogService.h"
 #include "nsXPITriggerInfo.h"
@@ -57,10 +57,11 @@
 #include "nsIDOMWindowInternal.h"
 #include "nsIObserver.h"
 #include "nsIBadCertListener2.h"
+#include "nsISSLErrorListener.h"
 #include "nsIChannelEventSink.h"
+#include "nsIZipReader.h"
 #include "nsIXPIInstallInfo.h"
-
-#include "nsISoftwareUpdate.h"
+#include "nsILoadGroup.h"
 
 #include "nsCOMPtr.h"
 
@@ -78,8 +79,7 @@
 #define NS_XPINSTALLMANAGERCOMPONENT_CONTRACTID "@mozilla.org/xpinstall/install-manager;1"
 #define XPI_PROGRESS_TOPIC "xpinstall-progress"
 
-class nsXPInstallManager : public nsIXPIListener,
-                           public nsIXPIDialogService,
+class nsXPInstallManager : public nsIXPIDialogService,
                            public nsIXPInstallManager,
                            public nsIObserver,
                            public nsIStreamListener,
@@ -87,6 +87,7 @@ class nsXPInstallManager : public nsIXPIListener,
                            public nsIInterfaceRequestor,
                            public nsPICertNotification,
                            public nsIBadCertListener2,
+                           public nsISSLErrorListener,
                            public nsIChannelEventSink,
                            public nsSupportsWeakReference
 {
@@ -95,7 +96,6 @@ class nsXPInstallManager : public nsIXPIListener,
         virtual ~nsXPInstallManager();
 
         NS_DECL_ISUPPORTS
-        NS_DECL_NSIXPILISTENER
         NS_DECL_NSIXPIDIALOGSERVICE
         NS_DECL_NSIXPINSTALLMANAGER
         NS_DECL_NSIOBSERVER
@@ -105,42 +105,40 @@ class nsXPInstallManager : public nsIXPIListener,
         NS_DECL_NSIINTERFACEREQUESTOR
         NS_DECL_NSPICERTNOTIFICATION
         NS_DECL_NSIBADCERTLISTENER2
+        NS_DECL_NSISSLERRORLISTENER
         NS_DECL_NSICHANNELEVENTSINK
 
         NS_IMETHOD InitManager(nsIDOMWindowInternal* aParentWindow, nsXPITriggerInfo* aTrigger, PRUint32 aChromeType );
 
     private:
         nsresult    InitManagerInternal();
+        nsresult    InstallItems();
         NS_IMETHOD  DownloadNext();
-        void        Shutdown();
+        void        Shutdown(PRInt32 status = nsInstall::USER_CANCELLED);
         NS_IMETHOD  GetDestinationFile(nsString& url, nsILocalFile* *file);
         NS_IMETHOD  LoadParams(PRUint32 aCount, const PRUnichar** aPackageList, nsIDialogParamBlock** aParams);
 #ifdef ENABLE_SKIN_SIMPLE_INSTALLATION_UI
         PRBool      ConfirmChromeInstall(nsIDOMWindowInternal* aParentWindow, const PRUnichar** aPackage);
 #endif
-        PRBool      TimeToUpdate(PRTime now);
         PRBool      VerifyHash(nsXPITriggerItem* aItem);
         PRInt32     GetIndexFromURL(const PRUnichar* aUrl);
         nsresult    CheckCert(nsIChannel* aChannel);
 
         nsXPITriggerInfo*   mTriggers;
         nsXPITriggerItem*   mItem;
-        PRTime              mLastUpdate;
         PRUint32            mNextItem;
-        PRInt32             mNumJars;
         PRUint32            mChromeType;
         PRInt32             mContentLength;
         PRInt32             mOutstandingCertLoads;
         PRBool              mDialogOpen;
         PRBool              mCancelled;
-        PRBool              mSelectChrome;
         PRBool              mNeedsShutdown;
         PRBool              mFromChrome;
-  
+
         nsCOMPtr<nsIXPIProgressDialog>  mDlg;
-        nsCOMPtr<nsISoftwareUpdate>     mInstallSvc;
 
         nsCOMPtr<nsIDOMWindowInternal>  mParentWindow;
+        nsCOMPtr<nsILoadGroup>          mLoadGroup;
 };
 
 #endif

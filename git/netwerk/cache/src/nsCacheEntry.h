@@ -128,7 +128,7 @@ public:
     /**
      * Security Info accessors
      */
-    nsresult GetSecurityInfo( nsISupports ** result);
+    nsISupports* SecurityInfo() { return mSecurityInfo; }
     void     SetSecurityInfo( nsISupports *  info) { mSecurityInfo = info; }
 
 
@@ -295,42 +295,34 @@ public:
     nsresult      AddEntry( nsCacheEntry *entry);
     void          RemoveEntry( nsCacheEntry *entry);
     
-    // XXX enumerate entries?
-    class Visitor {
-    public:
-        virtual PRBool VisitEntry( nsCacheEntry *entry) = 0;
-    };
-    
-    void          VisitEntries( Visitor *visitor);
-    
+    void          VisitEntries( PLDHashEnumerator etor, void *arg);
+
 private:
-    friend class nsCacheService; // XXX redefine interface so this isn't necessary
-
     // PLDHashTable operation callbacks
-    static PLDHashNumber  PR_CALLBACK HashKey( PLDHashTable *table, const void *key);
+    static PLDHashNumber  HashKey( PLDHashTable *table, const void *key);
 
-    static PRBool         PR_CALLBACK MatchEntry( PLDHashTable *           table,
-                                                  const PLDHashEntryHdr *  entry,
-                                                  const void *             key);
+    static PRBool         MatchEntry( PLDHashTable *           table,
+                                      const PLDHashEntryHdr *  entry,
+                                      const void *             key);
 
-    static void           PR_CALLBACK MoveEntry( PLDHashTable *table,
-                                                 const PLDHashEntryHdr *from,
-                                                 PLDHashEntryHdr       *to);
+    static void           MoveEntry( PLDHashTable *table,
+                                     const PLDHashEntryHdr *from,
+                                     PLDHashEntryHdr       *to);
 
-    static void           PR_CALLBACK ClearEntry( PLDHashTable *table, PLDHashEntryHdr *entry);
+    static void           ClearEntry( PLDHashTable *table, PLDHashEntryHdr *entry);
 
-    static void           PR_CALLBACK Finalize( PLDHashTable *table);
+    static void           Finalize( PLDHashTable *table);
 
     static
-    PLDHashOperator       PR_CALLBACK FreeCacheEntries(PLDHashTable *    table,
-                                                       PLDHashEntryHdr * hdr,
-                                                       PRUint32          number,
-                                                       void *            arg);
+    PLDHashOperator       FreeCacheEntries(PLDHashTable *    table,
+                                           PLDHashEntryHdr * hdr,
+                                           PRUint32          number,
+                                           void *            arg);
     static
-    PLDHashOperator       PR_CALLBACK VisitEntry(PLDHashTable *         table,
-                                                 PLDHashEntryHdr *      hdr,
-                                                 PRUint32               number,
-                                                 void *                 arg);
+    PLDHashOperator       VisitEntry(PLDHashTable *         table,
+                                     PLDHashEntryHdr *      hdr,
+                                     PRUint32               number,
+                                     void *                 arg);
                                      
     // member variables
     static PLDHashTableOps ops;
@@ -339,4 +331,3 @@ private:
 };
 
 #endif // _nsCacheEntry_h_
-

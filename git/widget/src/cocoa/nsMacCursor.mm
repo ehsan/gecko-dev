@@ -36,6 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsMacCursor.h"
+#include "nsObjCExceptions.h"
 #include "nsDebug.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsCOMPtr.h"
@@ -79,13 +80,13 @@
     @discussion Invalidates and releases any <code>NSTimer</code> instance associated with this cursor.
 */
 
-/*! @method     spinCursor:
+/*! @method     advanceAnimatedCursor:
     @abstract   Method called by animation timer to perform animation.
     @discussion Called by an animated cursor's associated timer to advance the animation to the next frame.
                 Determines which frame should occur next and sets the cursor to that frame.
     @param      aTimer the timer causing the animation
 */
-- (void) spinCursor: (NSTimer *) aTimer;
+- (void) advanceAnimatedCursor: (NSTimer *) aTimer;
 
 /*! @method     setFrame:
     @abstract   Sets the current cursor, using an index to determine which frame in the animation to display.
@@ -95,27 +96,6 @@
     @param      aFrameIndex the index indicating which frame from the animation to display
 */
 - (void) setFrame: (int) aFrameIndex;
-
-@end
-
-/*! @class      nsThemeCursor
-    @abstract   Implementation of <code>nsMacCursor</code> that uses Carbon Appearance Manager cursors.
-    @discussion Displays a static or animated <code>ThemeCursor</code> using Carbon Appearance Manager functions.
-                Understands how many frames exist in each of the built-in <code>ThemeCursor</code>s.
-*/
-@interface nsThemeCursor : nsMacCursor
-{
-  @private
-  ThemeCursor mCursor;
-}
-
-/*! @method     initWithThemeCursor:
-    @abstract   Create a cursor by specifying a Carbon Apperance Manager <code>ThemeCursor</code> constant.
-    @discussion Creates a cursor representing the given Appearance Manager built in cursor.
-    @param      aCursor the <code>ThemeCursor</code> to use
-    @result     an instance of <code>nsThemeCursor</code> representing the given <code>ThemeCursor</code>
-*/
-- (id) initWithThemeCursor: (ThemeCursor) aCursor;
 
 @end
 
@@ -129,6 +109,7 @@
 {
   @private
   NSArray *mFrames;
+  NSCursor *mLastSetCocoaCursor;
 }
 
 /*! @method     initWithFrames:
@@ -163,59 +144,77 @@
 
 @end
 
-/*! @class      nsResourceCursor
-    @abstract   Implementation of <code>nsMacCursor</code> that uses Carbon <code>CURS</code> resources.
-    @discussion Displays a static or animated cursor, using Carbon <code>CURS</code> resources.
-                <p>Animated cursors are produced by cycling through a range of cursor resource ids.</p>
-                <p>The frames are loaded from the compiled version of the resource file nsMacWidget.r.</p>
- */
-@interface nsResourceCursor : nsMacCursor
-{
-  @private
-  int mFirstFrame;
-  int mLastFrame;
-}
-
-/*! @method     initWithResources:lastFrame:
-    @abstract   Create an animated cursor by specifying a range of <code>CURS</code> resources to load and animate.
-    @discussion Creates a cursor that will animate by cycling through the given range of cursor resource ids. Each
-                resource in the range must be the next frame in the animation.
-                <p>To create a static cursor, simply pass the same resource id for both parameters.</p>
-                <p>The frames are loaded from the compiled version of the resource file nsMacWidget.r.</p>
-    @param      aFirstFrame the resource id for the first frame of the animation. Must be 128 or greated
-    @param      aLastFrame the resource id for the last frame of the animation. Must be 128 or greater, and greater than
-                or equal to <code>aFirstFrame</code>
-    @result     an instance of <code>nsResourceCursor</code> that will animate the given cursor resources
-*/
-- (id) initWithFirstFrame: (int) aFirstFrame lastFrame: (int) aLastFrame;
-
-@end
-
 @implementation nsMacCursor
-
-+ (nsMacCursor *) cursorWithThemeCursor: (ThemeCursor) aCursor
-{
-  return [[[nsThemeCursor alloc] initWithThemeCursor: aCursor] autorelease];
-}
-
-+ (nsMacCursor *) cursorWithResources: (int) aFirstFrame lastFrame: (int) aLastFrame
-{
-  return [[[nsResourceCursor alloc] initWithFirstFrame: aFirstFrame lastFrame: aLastFrame] autorelease];
-}
 
 + (nsMacCursor *) cursorWithCursor: (NSCursor *) aCursor
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   return [[[nsCocoaCursor alloc] initWithCursor: aCursor] autorelease];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 + (nsMacCursor *) cursorWithImageNamed: (NSString *) aCursorImage hotSpot: (NSPoint) aPoint
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   return [[[nsCocoaCursor alloc] initWithImageNamed: aCursorImage hotSpot: aPoint] autorelease];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 + (nsMacCursor *) cursorWithFrames: (NSArray *) aCursorFrames
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   return [[[nsCocoaCursor alloc] initWithFrames: aCursorFrames] autorelease];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
++ (NSCursor *) cocoaCursorWithImageNamed: (NSString *) imageName hotSpot: (NSPoint) aPoint
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
+  nsCOMPtr<nsIFile> resDir;
+  nsCAutoString resPath;
+  NSString* pathToImage;
+  NSImage* cursorImage;
+
+  nsresult rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(resDir));
+  if (NS_FAILED(rv))
+    goto INIT_FAILURE;
+  resDir->AppendNative(NS_LITERAL_CSTRING("res"));
+  resDir->AppendNative(NS_LITERAL_CSTRING("cursors"));
+
+  rv = resDir->GetNativePath(resPath);
+  if (NS_FAILED(rv))
+    goto INIT_FAILURE;
+
+  pathToImage = [NSString stringWithUTF8String:(const char*)resPath.get()];
+  if (!pathToImage)
+    goto INIT_FAILURE;
+  pathToImage = [pathToImage stringByAppendingPathComponent:imageName];
+  pathToImage = [pathToImage stringByAppendingPathExtension:@"tiff"];
+
+  cursorImage = [[[NSImage alloc] initWithContentsOfFile:pathToImage] autorelease];
+  if (!cursorImage)
+    goto INIT_FAILURE;
+  return [[[NSCursor alloc] initWithImage: cursorImage hotSpot: aPoint] autorelease];
+
+INIT_FAILURE:
+  NS_WARNING("Problem getting path to cursor image file!");
+  [self release];
+  return nil;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
+- (BOOL) isSet
+{
+  // implemented by subclasses
+  return NO;
 }
 
 - (void) set
@@ -253,29 +252,41 @@
 
 - (void) createTimer
 {
-  if (mTimer == nil) {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (!mTimer) {
     mTimer = [[NSTimer scheduledTimerWithTimeInterval: 0.25
                                                target: self
-                                             selector: @selector(spinCursor:)
+                                             selector: @selector(advanceAnimatedCursor:)
                                              userInfo: nil
                                               repeats: YES] retain];
   }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (void) destroyTimer
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   if (mTimer) {
       [mTimer invalidate];
       [mTimer release];
       mTimer = nil;
   }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (void) spinCursor: (NSTimer *) aTimer
+- (void) advanceAnimatedCursor: (NSTimer *) aTimer
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   if ([aTimer isValid]) {
     [self setFrame: [self getNextCursorFrame]];
   }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (void) setFrame: (int) aFrameIndex
@@ -285,49 +296,12 @@
 
 - (void) dealloc
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   [self destroyTimer];
-  [super dealloc];    
-}
+  [super dealloc];
 
-@end
-
-@implementation nsThemeCursor
-
-- (id) initWithThemeCursor: (ThemeCursor) aCursor
-{
-  self = [super init];
-  //Appearance Manager cursors all fall into the range 0..127. Custom application CURS resources begin at id 128.
-  NS_ASSERTION(mCursor >= 0 && mCursor < 128, "Theme cursors must be in the range 0 <= num < 128");
-  mCursor = aCursor;    
-  return self;
-}
-
-- (void) setFrame: (int) aFrameIndex
-{
-  if ([self isAnimated]) {
-    //if the cursor is animated try to draw the appropriate frame
-    OSStatus err = ::SetAnimatedThemeCursor(mCursor, aFrameIndex);
-    if (err != noErr) {
-      //in the event of any kind of problem, just try to show the first frame
-      ::SetThemeCursor(mCursor);
-    }
-  }
-  else {
-    ::SetThemeCursor(mCursor);
-  }
-}
-
-- (int) numFrames
-{
-  //These don't appear to be documented. Trial and Error...
-  switch (mCursor)
-  {
-    case kThemeWatchCursor:
-    case kThemeSpinningCursor:            
-      return 8;
-    default:
-      return 1;
-  }
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 @end
@@ -336,6 +310,8 @@
 
 - (id) initWithFrames: (NSArray *) aCursorFrames
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   self = [super init];
   NSEnumerator *it = [aCursorFrames objectEnumerator];
   NSObject *frame = nil;
@@ -345,137 +321,71 @@
   mFrames = [aCursorFrames retain];
   mFrameCounter = 0;
   return self;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (id) initWithCursor: (NSCursor *) aCursor
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   NSArray *frame = [NSArray arrayWithObjects: aCursor, nil];
   return [self initWithFrames: frame];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (id) initWithImageNamed: (NSString *) aCursorImage hotSpot: (NSPoint) aPoint
 {
-  nsCOMPtr<nsIFile> resDir;
-  nsCAutoString resPath;
-  NSString* pathToImage;
-  NSImage* cursorImage;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  nsresult rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(resDir));
-  if (NS_FAILED(rv)) goto INIT_FAILURE;
-  resDir->AppendNative(NS_LITERAL_CSTRING("res"));
-  resDir->AppendNative(NS_LITERAL_CSTRING("cursors"));
+  return [self initWithCursor: [nsMacCursor cocoaCursorWithImageNamed: aCursorImage hotSpot: aPoint]];
 
-  rv = resDir->GetNativePath(resPath);
-  if (NS_FAILED(rv)) goto INIT_FAILURE;
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
 
-  pathToImage = [NSString stringWithUTF8String:(const char*)resPath.get()];
-  if (!pathToImage) goto INIT_FAILURE;
-  pathToImage = [pathToImage stringByAppendingPathComponent:aCursorImage];
-  pathToImage = [pathToImage stringByAppendingPathExtension:@"tiff"];
-
-  cursorImage = [[[NSImage alloc] initWithContentsOfFile:pathToImage] autorelease];
-  if (!cursorImage) goto INIT_FAILURE;
-  return [self initWithCursor: [[NSCursor alloc] initWithImage: cursorImage hotSpot: aPoint]];
-
-INIT_FAILURE:
-  NS_WARNING("Problem getting path to cursor image file!");
-  [self release];
-  return nil;
+- (BOOL) isSet
+{
+  return [NSCursor currentCursor] == mLastSetCocoaCursor;
 }
 
 - (void) setFrame: (int) aFrameIndex
 {
-  [[mFrames objectAtIndex: aFrameIndex] performSelectorOnMainThread: @selector(set)  withObject: nil waitUntilDone: NO];
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  NSCursor* newCursor = [mFrames objectAtIndex: aFrameIndex];
+  [newCursor set];
+  mLastSetCocoaCursor = newCursor;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (int) numFrames
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
   return [mFrames count];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
 }
 
 - (NSString *) description
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   return [mFrames description];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (void) dealloc
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   [mFrames release];
   [super dealloc];
-}
 
-@end
-
-@implementation nsResourceCursor
-
-static short sRefNum = kResFileNotOpened;
-static short sSaveResFile = 0;
-
-// this could be simplified if it was rewritten using Cocoa
-+(void)openLocalResourceFile
-{
-  if (sRefNum == kResFileNotOpened) {
-    CFBundleRef appBundle = ::CFBundleGetMainBundle();
-    if (appBundle) {
-      CFURLRef executable = ::CFBundleCopyExecutableURL(appBundle);
-      if (executable) {
-        CFURLRef binDir = ::CFURLCreateCopyDeletingLastPathComponent(kCFAllocatorDefault, executable);
-        if (binDir) {
-          CFURLRef resourceFile = ::CFURLCreateCopyAppendingPathComponent(kCFAllocatorDefault, binDir,
-                                                                          CFSTR("libwidget.rsrc"), PR_FALSE);
-          if (resourceFile) {
-            FSRef resourceRef;
-            if (::CFURLGetFSRef(resourceFile, &resourceRef))
-              ::FSOpenResourceFile(&resourceRef, 0, NULL, fsRdPerm, &sRefNum);
-            ::CFRelease(resourceFile);
-          }
-          ::CFRelease(binDir);
-        }
-        ::CFRelease(executable);
-      }
-    }
-  }
-
-  if (sRefNum == kResFileNotOpened)
-    return;
-  
-  sSaveResFile = ::CurResFile();
-  ::UseResFile(sRefNum);
-}
-
-+(void)closeLocalResourceFile
-{
-  if (sRefNum == kResFileNotOpened)
-    return;
-
-  ::UseResFile(sSaveResFile);
-}
-
--(id) initWithFirstFrame: (int) aFirstFrame lastFrame: (int) aLastFrame
-{
-  if ((self = [super init])) {
-    //Appearance Manager cursors all fall into the range 0..127. Custom application CURS resources begin at id 128.
-    NS_ASSERTION(aFirstFrame >= 128 && aLastFrame >= 128 && aLastFrame >= aFirstFrame, "Nonsensical frame indicies");
-    mFirstFrame = aFirstFrame;
-    mLastFrame = aLastFrame;
-  }
-  return self;
-}
-
-- (void) setFrame: (int) aFrameIndex
-{
-  [nsResourceCursor openLocalResourceFile];
-  CursHandle cursHandle = ::GetCursor(mFirstFrame + aFrameIndex);
-  NS_ASSERTION(cursHandle, "Can't load cursor, is the resource file installed correctly?");
-  if (cursHandle) {
-    ::SetCursor(*cursHandle);
-  }
-  [nsResourceCursor closeLocalResourceFile];
-}
-
-- (int) numFrames
-{
-  return (mLastFrame - mFirstFrame) + 1;
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 @end

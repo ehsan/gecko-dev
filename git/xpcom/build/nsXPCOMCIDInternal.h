@@ -77,4 +77,16 @@
  */
 #define NS_XPCOMPROXY_CONTRACTID "@mozilla.org/xpcomproxy;1"
 
+/**
+ * The contract id for the nsIXULAppInfo service.
+ */
+#define XULAPPINFO_SERVICE_CONTRACTID \
+  "@mozilla.org/xre/app-info;1"
+
+/**
+ * The contract id for the nsIXULRuntime service.
+ */
+#define XULRUNTIME_SERVICE_CONTRACTID \
+  "@mozilla.org/xre/runtime;1"
+
 #endif  // nsXPCOMCIDInternal_h__

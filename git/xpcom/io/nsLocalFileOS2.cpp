@@ -51,7 +51,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsIDirectoryEnumerator.h"
 #include "nsIComponentManager.h"
-#include "nsIProgrammingLanguage.h"
 #include "prtypes.h"
 #include "prio.h"
 
@@ -134,7 +133,7 @@ myLL_L2II(PRInt64 result, PRInt32 *hi, PRInt32 *lo )
 }
 
 // Locates the first occurrence of charToSearchFor in the stringToSearch
-static unsigned char* PR_CALLBACK
+static unsigned char*
 _mbschr(const unsigned char* stringToSearch, int charToSearchFor)
 {
     const unsigned char* p = stringToSearch;
@@ -150,7 +149,7 @@ _mbschr(const unsigned char* stringToSearch, int charToSearchFor)
 }
 
 // Locates the first occurrence of subString in the stringToSearch
-static unsigned char* PR_CALLBACK
+static unsigned char*
 _mbsstr(const unsigned char* stringToSearch, const unsigned char* subString)
 {
     const unsigned char* pStr = stringToSearch;
@@ -199,7 +198,7 @@ _mbsrchr(const unsigned char* stringToSearch, int charToSearchFor)
 }
 
 // Implement equivalent of Win32 CreateDirectoryA
-static nsresult PR_CALLBACK
+static nsresult
 CreateDirectoryA(PSZ path, PEAOP2 ppEABuf)
 {
     APIRET rc;
@@ -616,22 +615,11 @@ nsLocalFile::nsLocalFileConstructor(nsISupports* outer, const nsIID& aIID, void*
 // nsLocalFile::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_THREADSAFE_ADDREF(nsLocalFile)
-NS_IMPL_THREADSAFE_RELEASE(nsLocalFile)
-NS_IMPL_QUERY_INTERFACE5_CI(nsLocalFile,
-                            nsILocalFile,
-                            nsIFile,
-                            nsILocalFileOS2,
-                            nsIHashable,
-                            nsIClassInfo)
-NS_IMPL_CI_INTERFACE_GETTER4(nsLocalFile,
-                             nsILocalFile,
-                             nsIFile,
-                             nsILocalFileOS2,
-                             nsIHashable)
-
-NS_DECL_CLASSINFO(nsLocalFile)
-NS_IMPL_THREADSAFE_CI(nsLocalFile)
+NS_IMPL_THREADSAFE_ISUPPORTS4(nsLocalFile,
+                              nsILocalFile,
+                              nsIFile,
+                              nsILocalFileOS2,
+                              nsIHashable)
 
 
 //-----------------------------------------------------------------------------
@@ -717,30 +705,18 @@ nsLocalFile::InitWithNativePath(const nsACString &filePath)
 
     // just do a sanity check.  if it has any forward slashes, it is not
     // a Native path.  Also, it must have a colon at after the first char.
-
-    char *path = nsnull;
-    PRInt32 pathLen = 0;
-
-    if ( ( (secondChar == ':') && !FindCharInReadable('/', begin, end) ) ||  // normal path
-         ( (firstChar == '\\') && (secondChar == '\\') ) )  // network path
-    {
-        // This is a native path
-        path = ToNewCString(filePath);
-        pathLen = filePath.Length();
-    }
-
-    if (path == nsnull)
+    if (FindCharInReadable('/', begin, end))
         return NS_ERROR_FILE_UNRECOGNIZED_PATH;
 
-    // kill any trailing '\' provided it isn't the second char of DBCS
-    PRInt32 len = pathLen - 1;
-    if (path[len] == '\\' && !::isleadbyte(path[len-1]))
-    {
-        path[len] = '\0';
-        pathLen = len;
-    }
+    if (secondChar != ':' && (secondChar != '\\' || firstChar != '\\'))
+        return NS_ERROR_FILE_UNRECOGNIZED_PATH;
 
-    mWorkingPath.Adopt(path, pathLen);
+    mWorkingPath = filePath;
+    // kill any trailing '\' provided it isn't the second char of DBCS
+    PRInt32 len = mWorkingPath.Length() - 1;
+    if (mWorkingPath[len] == '\\' && !::isleadbyte(mWorkingPath[len - 1]))
+        mWorkingPath.Truncate(len);
+
     return NS_OK;
 }
 
@@ -754,6 +730,10 @@ nsLocalFile::OpenNSPRFileDesc(PRInt32 flags, PRInt32 mode, PRFileDesc **_retval)
     *_retval = PR_Open(mWorkingPath.get(), flags, mode);
     if (*_retval)
         return NS_OK;
+
+    if (flags & DELETE_ON_CLOSE) {
+        PR_Delete(mWorkingPath.get());
+    }
 
     return NS_ErrorAccordingToNSPR();
 }
@@ -772,8 +752,6 @@ nsLocalFile::OpenANSIFileDesc(const char *mode, FILE * *_retval)
 
     return NS_ERROR_FAILURE;
 }
-
-
 
 NS_IMETHODIMP
 nsLocalFile::Create(PRUint32 type, PRUint32 attributes)
@@ -837,7 +815,8 @@ nsLocalFile::Create(PRUint32 type, PRUint32 attributes)
     if (type == NORMAL_FILE_TYPE)
     {
         PRFileDesc* file = PR_Open(mWorkingPath.get(), PR_RDONLY | PR_CREATE_FILE | PR_APPEND | PR_EXCL, attributes);
-        if (!file) return NS_ERROR_FILE_ALREADY_EXISTS;
+        if (!file)
+            return NS_ERROR_FILE_ALREADY_EXISTS;
 
         PR_Close(file);
         return NS_OK;
@@ -2164,21 +2143,15 @@ nsLocalFile::IsExecutable(PRBool *_retval)
     if (pathEnd == leaf)
         return NS_OK;
 
-    // get the extension, including the dot, max. of 4 chars for comparison
-    // (copy the extension so that the original filename stays untouched)
-    char ext[5];
-    strncpy(ext, (char*) _mbsrchr((const unsigned char*)leaf, '.'), 4);
-    ext[4] = '\0'; // ensure trailing nullbyte
+    // get the extension, including the dot
+    char* ext = (char*) _mbsrchr((const unsigned char*)leaf, '.');
+    if (!ext)
+        return NS_OK;
 
-    // upper-case the extension, then see if it claims to be an executable
-    // WinUpper() cannot be used because it crashes with high memory.
-    // strupr() does not take into account non-ASCII characters but this is
-    // irrelevant for the possible extensions below
-    strupr(ext);
-    if (strcmp(ext, ".EXE") == 0 ||
-        strcmp(ext, ".CMD") == 0 ||
-        strcmp(ext, ".COM") == 0 ||
-        strcmp(ext, ".BAT") == 0)
+    if (stricmp(ext, ".exe") == 0 ||
+        stricmp(ext, ".cmd") == 0 ||
+        stricmp(ext, ".com") == 0 ||
+        stricmp(ext, ".bat") == 0)
         *_retval = PR_TRUE;
 
     return NS_OK;

@@ -48,7 +48,7 @@
 
 /**
  * nsApplicationAccessible is for the whole application of Mozilla.
- * Only one instance of nsAppRootAccessible exists for one Mozilla instance.
+ * Only one instance of nsApplicationAccessible exists for one Mozilla instance.
  * And this one should be created when Mozilla Startup (if accessibility
  * feature has been enabled) and destroyed when Mozilla Shutdown.
  *
@@ -64,29 +64,35 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsPIAccessNode
-  NS_IMETHOD Init();
-
   // nsIAccessible
-  NS_IMETHOD GetName(nsAString & aName);
-  NS_IMETHOD GetDescription(nsAString & aDescription);
+  NS_IMETHOD GetName(nsAString& aName);
+  NS_IMETHOD GetDescription(nsAString& aValue);
   NS_IMETHOD GetRole(PRUint32 *aRole);
-  NS_IMETHOD GetFinalRole(PRUint32 *aFinalRole);
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-  NS_IMETHOD GetParent(nsIAccessible * *aParent);
-  NS_IMETHOD GetNextSibling(nsIAccessible * *aNextSibling);
-  NS_IMETHOD GetPreviousSibling(nsIAccessible **aPreviousSibling);
-  NS_IMETHOD GetChildAt(PRInt32 aChildNum, nsIAccessible **aChild);
+
+  NS_IMETHOD GetParent(nsIAccessible **aAccessible);
+
+  // nsAccessNode
+  virtual PRBool IsDefunct();
+  virtual nsresult Init();
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual nsIAccessible* GetParent();
+
+  virtual void InvalidateChildren();
 
   // nsApplicationAccessible
   virtual nsresult AddRootAccessible(nsIAccessible *aRootAccWrap);
   virtual nsresult RemoveRootAccessible(nsIAccessible *aRootAccWrap);
 
 protected:
+
   // nsAccessible
   virtual void CacheChildren();
-
-  nsCOMPtr<nsIMutableArray> mChildren;
+  virtual nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset,
+                                            nsresult *aError = nsnull);
 };
 
 #endif

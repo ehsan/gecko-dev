@@ -6,14 +6,20 @@ import sys
 import os
 
 o = OptionParser()
+o.add_option("--buildid", dest="buildid")
 o.add_option("--print-buildid", action="store_true", dest="print_buildid")
+o.add_option("--sourcestamp", dest="sourcestamp")
+o.add_option("--sourcerepo", dest="sourcerepo")
 
 (options, args) = o.parse_args()
-buildid = os.environ.get('MOZ_BUILD_DATE', datetime.now().strftime('%Y%m%d%H'))
 
 if options.print_buildid:
-    print buildid
+    print datetime.now().strftime('%Y%m%d%H%M%S')
     sys.exit(0)
+
+if not options.buildid:
+    print >>sys.stderr, "--buildid is required"
+    sys.exit(1)
 
 (milestoneFile,) = args
 for line in open(milestoneFile, 'r'):
@@ -28,4 +34,8 @@ for line in open(milestoneFile, 'r'):
 
 print """[Build]
 BuildID=%s
-Milestone=%s""" % (buildid, milestone)
+Milestone=%s""" % (options.buildid, milestone)
+if options.sourcestamp:
+    print "SourceStamp=%s" % options.sourcestamp
+if options.sourcerepo:
+    print "SourceRepository=%s" % options.sourcerepo

@@ -43,10 +43,9 @@
 #ifndef nsLineBox_h___
 #define nsLineBox_h___
 
-#include "nsPlaceholderFrame.h"
 #include "nsILineIterator.h"
+#include "nsIFrame.h"
 
-class nsSpaceManager;
 class nsLineBox;
 class nsFloatCache;
 class nsFloatCacheList;
@@ -65,13 +64,7 @@ public:
 
   nsFloatCache* Next() const { return mNext; }
 
-  nsPlaceholderFrame* mPlaceholder;     // nsPlaceholderFrame
-
-  // Region in the spacemanager impacted by this float; the
-  // coordinates are relative to the containing block frame. The
-  // region includes the margins around the float, but doesn't
-  // include the relative offsets.
-  nsRect mRegion;
+  nsIFrame* mFloat;                     // floating frame
 
 protected:
   nsFloatCache* mNext;
@@ -169,8 +162,8 @@ public:
   void Remove(nsFloatCache* aElement);
 
   // Remove an nsFloatCache object from this list and return it, or create
-  // a new one if this one is empty;
-  nsFloatCache* Alloc();
+  // a new one if this one is empty; Set its mFloat to aFloat.
+  nsFloatCache* Alloc(nsIFrame* aFloat);
   
 protected:
   nsFloatCache* mTail;
@@ -324,6 +317,20 @@ public:
   PRBool ResizeReflowOptimizationDisabled() const {
     return mFlags.mResizeReflowOptimizationDisabled;
   }
+
+  // mHasBullet bit
+  void SetHasBullet() {
+    mFlags.mHasBullet = PR_TRUE;
+    InvalidateCachedIsEmpty();
+  }
+  void ClearHasBullet() {
+    mFlags.mHasBullet = PR_FALSE;
+    InvalidateCachedIsEmpty();
+  }
+  PRBool HasBullet() const {
+    return mFlags.mHasBullet;
+  }
+  
   
   // mChildCount value
   PRInt32 GetChildCount() const {
@@ -424,7 +431,8 @@ public:
     return mBounds.height;
   }
 
-  static void DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines);
+  static void DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
+                             nsIFrame* aDestructRoot);
 
   // search from beginning to end
   // XXX Should switch to API below
@@ -434,9 +442,13 @@ public:
   // search from end to beginning of [aBegin, aEnd)
   // Returns PR_TRUE if it found the line and PR_FALSE if not.
   // Moves aEnd as it searches so that aEnd points to the resulting line.
+  // aLastFrameBeforeEnd is the last frame before aEnd (so if aEnd is
+  // the end of the line list, it's just the last frame in the frame
+  // list).
   static PRBool RFindLineContaining(nsIFrame* aFrame,
                                     const nsLineList_iterator& aBegin,
                                     nsLineList_iterator& aEnd,
+                                    nsIFrame* aLastFrameBeforeEnd,
                                     PRInt32* aFrameIndexInLine);
 
 #ifdef DEBUG
@@ -455,15 +467,6 @@ public:
     return IndexOf(aFrame) >= 0;
   }
 
-  // Search the line for aFrameToFind, going forward from aFrameInLine
-  // (or from the beginning of the line, if aFrameInLine is null).
-  // aLineIterator is a line iterator pointing to the line.
-  // aEndLine should point to the block's end_lines.
-  PRBool ContainsAfter(nsIFrame* aFrameInLine,
-                       nsIFrame* aFrameToFind,
-                       nsLineList_iterator aLineIter,
-                       const nsLineList_iterator& aEndLines) const;
-  
   // whether the line box is "logically" empty (just like nsIFrame::IsEmpty)
   PRBool IsEmpty() const;
 
@@ -500,9 +503,12 @@ public:
     PRUint32 mResizeReflowOptimizationDisabled: 1;  // default 0 = means that the opt potentially applies to this line. 1 = never skip reflowing this line for a resize reflow
     PRUint32 mEmptyCacheValid: 1;
     PRUint32 mEmptyCacheState: 1;
+    // mHasBullet indicates that this is an inline line whose block's
+    // bullet is adjacent to this line and non-empty.
+    PRUint32 mHasBullet : 1;
     PRUint32 mBreakType : 4;
 
-    PRUint32 mChildCount : 18;
+    PRUint32 mChildCount : 17;
   };
 
   struct ExtraData {
@@ -611,44 +617,44 @@ class nsLineList_iterator {
 
     reference operator*()
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return *static_cast<pointer>(mCurrent);
     }
 
     pointer operator->()
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<pointer>(mCurrent);
     }
 
     pointer get()
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<pointer>(mCurrent);
     }
 
     operator pointer()
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<pointer>(mCurrent);
     }
 
     const_reference operator*() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return *static_cast<const_pointer>(mCurrent);
     }
 
     const_pointer operator->() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 
 #ifndef __MWERKS__
     operator const_pointer() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 #endif /* !__MWERKS__ */
@@ -681,22 +687,22 @@ class nsLineList_iterator {
     // to keep AIX happy.
     PRBool operator==(const iterator_self_type aOther) const
     {
-      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent == aOther.mCurrent;
     }
     PRBool operator!=(const iterator_self_type aOther) const
     {
-      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent != aOther.mCurrent;
     }
     PRBool operator==(const iterator_self_type aOther)
     {
-      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent == aOther.mCurrent;
     }
     PRBool operator!=(const iterator_self_type aOther)
     {
-      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent != aOther.mCurrent;
     }
 
@@ -770,44 +776,44 @@ class nsLineList_reverse_iterator {
 
     reference operator*()
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return *static_cast<pointer>(mCurrent);
     }
 
     pointer operator->()
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<pointer>(mCurrent);
     }
 
     pointer get()
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<pointer>(mCurrent);
     }
 
     operator pointer()
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<pointer>(mCurrent);
     }
 
     const_reference operator*() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return *static_cast<const_pointer>(mCurrent);
     }
 
     const_pointer operator->() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 
 #ifndef __MWERKS__
     operator const_pointer() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 #endif /* !__MWERKS__ */
@@ -910,26 +916,26 @@ class nsLineList_const_iterator {
 
     const_reference operator*() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return *static_cast<const_pointer>(mCurrent);
     }
 
     const_pointer operator->() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 
     const_pointer get() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 
 #ifndef __MWERKS__
     operator const_pointer() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 #endif /* !__MWERKS__ */
@@ -1044,26 +1050,26 @@ class nsLineList_const_reverse_iterator {
 
     const_reference operator*() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return *static_cast<const_pointer>(mCurrent);
     }
 
     const_pointer operator->() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 
     const_pointer get() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 
 #ifndef __MWERKS__
     operator const_pointer() const
     {
-      NS_ASSERTION(mCurrent != mListLink, "running past end");
+      NS_ABORT_IF_FALSE(mCurrent != mListLink, "running past end");
       return static_cast<const_pointer>(mCurrent);
     }
 #endif /* !__MWERKS__ */
@@ -1131,7 +1137,13 @@ class nsLineList {
 
     nsLineList()
     {
+      MOZ_COUNT_CTOR(nsLineList);
       clear();
+    }
+
+    ~nsLineList()
+    {
+      MOZ_COUNT_DTOR(nsLineList);
     }
 
     const_iterator begin() const
@@ -1517,24 +1529,23 @@ nsLineList_const_reverse_iterator::operator=(const nsLineList_const_reverse_iter
 
 //----------------------------------------------------------------------
 
-class nsLineIterator : public nsILineIteratorNavigator {
+class NS_FINAL_CLASS nsLineIterator : public nsILineIterator
+{
 public:
   nsLineIterator();
-  virtual ~nsLineIterator();
+  ~nsLineIterator();
 
-  NS_DECL_ISUPPORTS
+  virtual void DisposeLineIterator();
 
-  NS_IMETHOD GetNumLines(PRInt32* aResult);
-  NS_IMETHOD GetDirection(PRBool* aIsRightToLeft);
+  virtual PRInt32 GetNumLines();
+  virtual PRBool GetDirection();
   NS_IMETHOD GetLine(PRInt32 aLineNumber,
                      nsIFrame** aFirstFrameOnLine,
                      PRInt32* aNumFramesOnLine,
                      nsRect& aLineBounds,
                      PRUint32* aLineFlags);
-  NS_IMETHOD FindLineContaining(nsIFrame* aFrame,
-                                PRInt32* aLineNumberResult);
-  NS_IMETHOD FindLineAt(nscoord aY,
-                        PRInt32* aLineNumberResult);
+  virtual PRInt32 FindLineContaining(nsIFrame* aFrame);
+  virtual PRInt32 FindLineAt(nscoord aY);
   NS_IMETHOD FindFrameAt(PRInt32 aLineNumber,
                          nscoord aX,
                          nsIFrame** aFrameFound,
@@ -1550,15 +1561,7 @@ public:
 #endif
   nsresult Init(nsLineList& aLines, PRBool aRightToLeft);
 
-protected:
-  PRInt32 NumLines() const {
-    return mNumLines;
-  }
-
-  nsLineBox* CurrentLine() {
-    return mLines[mIndex];
-  }
-
+private:
   nsLineBox* PrevLine() {
     if (0 == mIndex) {
       return nsnull;

@@ -47,7 +47,6 @@
 #include "nsPresContext.h"
 #include "nsIContent.h"
 #include "nsCOMPtr.h"
-#include "nsUnitConversion.h"
 #include "nsHTMLParts.h"
 #include "nsIPresShell.h"
 #include "nsCSSRendering.h"
@@ -56,21 +55,18 @@
 #include "nsDisplayList.h"
 
 nsIFrame*
-NS_NewStackFrame (nsIPresShell* aPresShell, nsStyleContext* aContext, nsIBoxLayout* aLayoutManager)
+NS_NewStackFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsStackFrame(aPresShell, aContext, aLayoutManager);
-} // NS_NewStackFrame
+  return new (aPresShell) nsStackFrame(aPresShell, aContext);
+}
 
-nsStackFrame::nsStackFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, nsIBoxLayout* aLayoutManager):
+NS_IMPL_FRAMEARENA_HELPERS(nsStackFrame)
+
+nsStackFrame::nsStackFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
   nsBoxFrame(aPresShell, aContext)
 {
-    // if no layout manager specified us the stack layout
-  nsCOMPtr<nsIBoxLayout> layout = aLayoutManager;
-
-  if (layout == nsnull) {
-    NS_NewStackLayout(aPresShell, layout);
-  }
-
+  nsCOMPtr<nsIBoxLayout> layout;
+  NS_NewStackLayout(aPresShell, layout);
   SetLayoutManager(layout);
 }
 

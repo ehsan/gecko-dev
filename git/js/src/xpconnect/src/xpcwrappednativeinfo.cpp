@@ -110,6 +110,27 @@ XPCNativeMember::GetCallInfo(XPCCallContext& ccx,
 }
 
 JSBool
+XPCNativeMember::NewFunctionObject(XPCCallContext& ccx,
+                                   XPCNativeInterface* iface, JSObject *parent,
+                                   jsval* pval)
+{
+    NS_ASSERTION(!IsConstant(),
+                 "Only call this if you're sure this is not a constant!");
+    if(!IsResolved() && !Resolve(ccx, iface))
+        return JS_FALSE;
+
+    AUTO_MARK_JSVAL(ccx, &mVal);
+    JSObject* funobj =
+        xpc_CloneJSFunction(ccx, JSVAL_TO_OBJECT(mVal), parent);
+    if(!funobj)
+        return JS_FALSE;
+
+    *pval = OBJECT_TO_JSVAL(funobj);
+
+    return JS_TRUE;
+}
+
+JSBool
 XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface)
 {
     if(IsConstant())
@@ -144,14 +165,6 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface)
 
     // This is a method or attribute - we'll be needing a function object
 
-    // We need to use the safe context for this thread because we don't want
-    // to parent the new (and cached forever!) function object to the current
-    // JSContext's global object. That would be bad!
-
-    JSContext* cx = ccx.GetSafeJSContext();
-    if(!cx)
-        return JS_FALSE;
-
     intN argc;
     intN flags;
     JSNative callback;
@@ -180,10 +193,31 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface)
         callback = XPC_WN_GetterSetter;
     }
 
-    JSAutoRequest ar(cx);
+    // We need to use the safe context for this thread because we don't want
+    // to parent the new (and cached forever!) function object to the current
+    // JSContext's global object. That would be bad!
+
+    JSContext* cx = ccx.GetSafeJSContext();
+    if(!cx)
+        return JS_FALSE;
+
+    const char *memberName = iface->GetMemberName(ccx, this);
+
+    jsrefcount suspendDepth = 0;
+    if(cx != ccx) {
+        // Switching contexts, suspend the old and enter the new request.
+        suspendDepth = JS_SuspendRequest(ccx);
+        JS_BeginRequest(cx);
+    }
 
     JSFunction *fun = JS_NewFunction(cx, callback, argc, flags, nsnull,
-                                     iface->GetMemberName(ccx, this));
+                                     memberName);
+
+    if(suspendDepth) {
+        JS_EndRequest(cx);
+        JS_ResumeRequest(ccx, suspendDepth);
+    }
+
     if(!fun)
         return JS_FALSE;
 
@@ -192,6 +226,9 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface)
         return JS_FALSE;
 
     AUTO_MARK_JSVAL(ccx, OBJECT_TO_JSVAL(funobj));
+
+    STOBJ_CLEAR_PARENT(funobj);
+    STOBJ_CLEAR_PROTO(funobj);
 
     if(!JS_SetReservedSlot(ccx, funobj, 0, PRIVATE_TO_JSVAL(iface))||
        !JS_SetReservedSlot(ccx, funobj, 1, PRIVATE_TO_JSVAL(this)))
@@ -243,12 +280,12 @@ XPCNativeInterface::GetNewOrUsed(XPCCallContext& ccx, const nsIID* iid)
         if(!iface2)
         {
             NS_ERROR("failed to add our interface!");
-            DestroyInstance(ccx, rt, iface);
+            DestroyInstance(iface);
             iface = nsnull;
         }
         else if(iface2 != iface)
         {
-            DestroyInstance(ccx, rt, iface);
+            DestroyInstance(iface);
             iface = iface2;
         }
     }
@@ -290,12 +327,12 @@ XPCNativeInterface::GetNewOrUsed(XPCCallContext& ccx, nsIInterfaceInfo* info)
         if(!iface2)
         {
             NS_ERROR("failed to add our interface!");
-            DestroyInstance(ccx, rt, iface);
+            DestroyInstance(iface);
             iface = nsnull;
         }
         else if(iface2 != iface)
         {
-            DestroyInstance(ccx, rt, iface);
+            DestroyInstance(iface);
             iface = iface2;
         }
     }
@@ -399,7 +436,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
         str = JS_InternString(ccx, info->GetName());
         if(!str)
         {
-            NS_ASSERTION(0,"bad method name");
+            NS_ERROR("bad method name");
             failed = JS_TRUE;
             break;
         }
@@ -443,7 +480,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
             str = JS_InternString(ccx, constant->GetName());
             if(!str)
             {
-                NS_ASSERTION(0,"bad constant name");
+                NS_ERROR("bad constant name");
                 failed = JS_TRUE;
                 break;
             }
@@ -498,8 +535,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
 
 // static
 void
-XPCNativeInterface::DestroyInstance(JSContext* cx, XPCJSRuntime* rt,
-                                    XPCNativeInterface* inst)
+XPCNativeInterface::DestroyInstance(XPCNativeInterface* inst)
 {
     inst->~XPCNativeInterface();
     delete [] (char*) inst;
@@ -708,11 +744,9 @@ out:
 void 
 XPCNativeSet::ClearCacheEntryForClassInfo(nsIClassInfo* classInfo)
 {
-    XPCJSRuntime* rt;
-    ClassInfo2NativeSetMap* map;
-    
-    if(nsnull != (rt = nsXPConnect::GetRuntime()) && 
-       nsnull != (map = rt->GetClassInfo2NativeSetMap()))
+    XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
+    ClassInfo2NativeSetMap* map = rt->GetClassInfo2NativeSetMap();
+    if(map)
     {   // scoped lock
         XPCAutoLock lock(rt->GetMapLock());
         map->Remove(classInfo);

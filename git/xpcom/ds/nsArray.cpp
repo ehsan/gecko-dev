@@ -39,6 +39,7 @@
 #include "nsArray.h"
 #include "nsArrayEnumerator.h"
 #include "nsWeakReference.h"
+#include "nsThreadUtils.h"
 
 // used by IndexOf()
 struct findIndexOfClosure
@@ -48,16 +49,40 @@ struct findIndexOfClosure
     PRUint32 resultIndex;
 };
 
-PR_STATIC_CALLBACK(PRBool) FindElementCallback(void* aElement, void* aClosure);
+static PRBool FindElementCallback(void* aElement, void* aClosure);
 
+NS_INTERFACE_MAP_BEGIN(nsArray)
+  NS_INTERFACE_MAP_ENTRY(nsIArray)
+  NS_INTERFACE_MAP_ENTRY(nsIMutableArray)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIMutableArray)
+NS_INTERFACE_MAP_END
 
-NS_IMPL_ISUPPORTS2(nsArray, nsIArray, nsIMutableArray)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsArrayCC)
+  NS_INTERFACE_MAP_ENTRY(nsIArray)
+  NS_INTERFACE_MAP_ENTRY(nsIMutableArray)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIMutableArray)
+NS_INTERFACE_MAP_END
 
 nsArray::~nsArray()
 {
     Clear();
 }
-    
+
+
+NS_IMPL_ADDREF(nsArray)
+NS_IMPL_RELEASE(nsArray)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsArrayCC)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsArrayCC)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsArrayCC)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsArrayCC)
+    tmp->Clear();
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsArrayCC)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mArray)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
 NS_IMETHODIMP
 nsArray::GetLength(PRUint32* aLength)
 {
@@ -84,9 +109,11 @@ nsArray::IndexOf(PRUint32 aStartIndex, nsISupports* aElement,
 {
     // optimize for the common case by forwarding to mArray
     if (aStartIndex == 0) {
-        *aResult = mArray.IndexOf(aElement);
-        if (*aResult == PR_UINT32_MAX)
+        PRUint32 idx = mArray.IndexOf(aElement);
+        if (idx == PR_UINT32_MAX)
             return NS_ERROR_FAILURE;
+
+        *aResult = idx;
         return NS_OK;
     }
 
@@ -198,4 +225,15 @@ FindElementCallback(void *aElement, void* aClosure)
     closure->resultIndex++;
 
     return PR_TRUE;
+}
+
+NS_METHOD nsArrayConstructor(nsISupports *aOuter, const nsIID& aIID, void **aResult) {
+    if (aOuter)
+        return NS_ERROR_NO_AGGREGATION;
+
+    nsCOMPtr<nsIArray> inst = NS_IsMainThread() ? new nsArrayCC : new nsArray;
+    if (!inst)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    return inst->QueryInterface(aIID, aResult); 
 }

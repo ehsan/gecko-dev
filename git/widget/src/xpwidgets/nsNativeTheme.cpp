@@ -37,6 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsNativeTheme.h"
+#include "nsIWidget.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsIFrame.h"
@@ -49,43 +50,7 @@
 #include "nsILookAndFeel.h"
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
-
-PRUint8                   nsNativeTheme::sButtonActiveBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
-PRUint8                   nsNativeTheme::sButtonInactiveBorderStyle = NS_STYLE_BORDER_STYLE_OUTSET;
-nsILookAndFeel::nsColorID nsNativeTheme::sButtonBorderColorID = nsILookAndFeel::eColor_buttonface;
-nsILookAndFeel::nsColorID nsNativeTheme::sButtonDisabledBorderColorID = nsILookAndFeel::eColor_buttonface;
-nsILookAndFeel::nsColorID nsNativeTheme::sButtonBGColorID = nsILookAndFeel::eColor_buttonface;
-nsILookAndFeel::nsColorID nsNativeTheme::sButtonDisabledBGColorID = nsILookAndFeel::eColor_buttonface;
-
-PRUint8                   nsNativeTheme::sTextfieldBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
-nsILookAndFeel::nsColorID nsNativeTheme::sTextfieldBorderColorID = nsILookAndFeel::eColor_threedface;
-PRBool                    nsNativeTheme::sTextfieldBGTransparent = PR_FALSE;
-nsILookAndFeel::nsColorID nsNativeTheme::sTextfieldBGColorID = nsILookAndFeel::eColor__moz_field;
-nsILookAndFeel::nsColorID nsNativeTheme::sTextfieldDisabledBGColorID = nsILookAndFeel::eColor_threedface;
-
-PRUint8                   nsNativeTheme::sListboxBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
-nsILookAndFeel::nsColorID nsNativeTheme::sListboxBorderColorID = nsILookAndFeel::eColor_threedface;
-nsILookAndFeel::nsColorID nsNativeTheme::sListboxBGColorID = nsILookAndFeel::eColor__moz_field;
-nsILookAndFeel::nsColorID nsNativeTheme::sListboxDisabledBGColorID = nsILookAndFeel::eColor_threedface;
-
-PRUint8                   nsNativeTheme::sComboboxBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
-nsILookAndFeel::nsColorID nsNativeTheme::sComboboxBorderColorID = nsILookAndFeel::eColor_threedface;
-PRBool                    nsNativeTheme::sComboboxBGTransparent = PR_FALSE;
-nsILookAndFeel::nsColorID nsNativeTheme::sComboboxBGColorID = nsILookAndFeel::eColor__moz_field;
-nsILookAndFeel::nsColorID nsNativeTheme::sComboboxDisabledBGColorID = nsILookAndFeel::eColor_threedface;
-
-#ifdef MOZ_WIDGET_GTK2
-// Cross-platform assumptions are evil. GTK seems to give 3px border on every widget.
-nsMargin                  nsNativeTheme::sTextfieldBorderSize(3, 3, 3, 3);
-nsMargin                  nsNativeTheme::sListboxBorderSize(3, 3, 3, 3);
-nsMargin                  nsNativeTheme::sComboboxBorderSize(3, 3, 3, 3);
-nsMargin                  nsNativeTheme::sButtonBorderSize(3, 3, 3, 3);
-#else
-nsMargin                  nsNativeTheme::sTextfieldBorderSize(2, 2, 2, 2);
-nsMargin                  nsNativeTheme::sListboxBorderSize(2, 2, 2, 2);
-nsMargin                  nsNativeTheme::sComboboxBorderSize(2, 2, 2, 2);
-nsMargin                  nsNativeTheme::sButtonBorderSize(2, 2, 2, 2);
-#endif
+#include "nsIDOMNSHTMLInputElement.h"
 
 nsNativeTheme::nsNativeTheme()
 {
@@ -111,12 +76,13 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
 
   PRBool isXULCheckboxRadio = 
     (aWidgetType == NS_THEME_CHECKBOX ||
-     aWidgetType == NS_THEME_CHECKBOX_SMALL ||
-     aWidgetType == NS_THEME_RADIO ||
-     aWidgetType == NS_THEME_RADIO_SMALL) &&
-    aFrame->GetContent()->IsNodeOfType(nsINode::eXUL);
+     aWidgetType == NS_THEME_RADIO) &&
+    aFrame->GetContent()->IsXUL();
   if (isXULCheckboxRadio)
     aFrame = aFrame->GetParent();
+
+  if (!aFrame->GetContent())
+    return 0;
 
   nsIPresShell *shell = GetPresShell(aFrame);
   if (!shell)
@@ -125,7 +91,7 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
   PRInt32 flags = 0;
   shell->GetPresContext()->EventStateManager()->GetContentState(aFrame->GetContent(), flags);
   
-  if (isXULCheckboxRadio && (aWidgetType == NS_THEME_RADIO || aWidgetType == NS_THEME_RADIO_SMALL)) {
+  if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
     if (IsFocused(aFrame))
       flags |= NS_EVENT_STATE_FOCUS;
   }
@@ -140,7 +106,10 @@ nsNativeTheme::CheckBooleanAttr(nsIFrame* aFrame, nsIAtom* aAtom)
     return PR_FALSE;
 
   nsIContent* content = aFrame->GetContent();
-  if (content->IsNodeOfType(nsINode::eHTML))
+  if (!content)
+    return PR_FALSE;
+
+  if (content->IsHTML())
     return content->HasAttr(kNameSpaceID_None, aAtom);
 
   // For XML/XUL elements, an attribute must be equal to the literal
@@ -151,16 +120,16 @@ nsNativeTheme::CheckBooleanAttr(nsIFrame* aFrame, nsIAtom* aAtom)
 }
 
 PRInt32
-nsNativeTheme::CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom)
+nsNativeTheme::CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, PRInt32 defaultValue)
 {
   if (!aFrame)
-    return 0;
+    return defaultValue;
 
   nsAutoString attr;
   aFrame->GetContent()->GetAttr(kNameSpaceID_None, aAtom, attr);
   PRInt32 err, value = attr.ToInteger(&err);
-  if (NS_FAILED(err))
-    return 0;
+  if (attr.IsEmpty() || NS_FAILED(err))
+    return defaultValue;
 
   return value;
 }
@@ -173,7 +142,7 @@ nsNativeTheme::GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected)
 
   nsIContent* content = aFrame->GetContent();
 
-  if (content->IsNodeOfType(nsINode::eXUL)) {
+  if (content->IsXUL()) {
     // For a XUL checkbox or radio button, the state of the parent determines
     // the checked state
     aFrame = aFrame->GetParent();
@@ -191,15 +160,40 @@ nsNativeTheme::GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected)
                                                  : nsWidgetAtoms::checked);
 }
 
-static void
-ConvertBorderToAppUnits(nsPresContext* aPresContext, const nsMargin &aSource, nsMargin &aDest)
+PRBool
+nsNativeTheme::IsButtonTypeMenu(nsIFrame* aFrame)
 {
-  PRInt32 cp2a = nsPresContext::AppUnitsPerCSSPixel();
-  PRInt32 dp2a = aPresContext->AppUnitsPerDevPixel();
-  aDest.top = NS_ROUND_BORDER_TO_PIXELS(NSIntPixelsToAppUnits(aSource.top, cp2a), dp2a);
-  aDest.left = NS_ROUND_BORDER_TO_PIXELS(NSIntPixelsToAppUnits(aSource.left, cp2a), dp2a);
-  aDest.bottom = NS_ROUND_BORDER_TO_PIXELS(NSIntPixelsToAppUnits(aSource.bottom, cp2a), dp2a);
-  aDest.right = NS_ROUND_BORDER_TO_PIXELS(NSIntPixelsToAppUnits(aSource.right, cp2a), dp2a);;
+  if (!aFrame)
+    return PR_FALSE;
+
+  nsIContent* content = aFrame->GetContent();
+  return content->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::type,
+                              NS_LITERAL_STRING("menu"), eCaseMatters);
+}
+
+PRBool
+nsNativeTheme::GetIndeterminate(nsIFrame* aFrame)
+{
+  if (!aFrame)
+    return PR_FALSE;
+
+  nsIContent* content = aFrame->GetContent();
+
+  if (content->IsXUL()) {
+    // For a XUL checkbox or radio button, the state of the parent determines
+    // the state
+    return CheckBooleanAttr(aFrame->GetParent(), nsWidgetAtoms::indeterminate);
+  }
+
+  // Check for an HTML input element
+  nsCOMPtr<nsIDOMNSHTMLInputElement> inputElt = do_QueryInterface(content);
+  if (inputElt) {
+    PRBool indeterminate;
+    inputElt->GetIndeterminate(&indeterminate);
+    return indeterminate;
+  }
+
+  return PR_FALSE;
 }
 
 PRBool
@@ -207,120 +201,46 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
                               PRUint8 aWidgetType)
 {
   // Check for specific widgets to see if HTML has overridden the style.
-  if (aFrame && (aWidgetType == NS_THEME_BUTTON ||
-                 aWidgetType == NS_THEME_TEXTFIELD ||
-                 aWidgetType == NS_THEME_TEXTFIELD_MULTILINE ||
-                 aWidgetType == NS_THEME_LISTBOX ||
-                 aWidgetType == NS_THEME_DROPDOWN)) {
-    if (aFrame->GetContent()->IsNodeOfType(nsINode::eHTML)) {
-      nscolor defaultBGColor;
-      nscolor defaultBorderColor;
-      PRUint8 defaultBorderStyle;
-      nsMargin defaultBorderSize;
-      PRBool defaultBGTransparent = PR_FALSE;
+  return aFrame &&
+         (aWidgetType == NS_THEME_BUTTON ||
+          aWidgetType == NS_THEME_TEXTFIELD ||
+          aWidgetType == NS_THEME_TEXTFIELD_MULTILINE ||
+          aWidgetType == NS_THEME_LISTBOX ||
+          aWidgetType == NS_THEME_DROPDOWN) &&
+         aFrame->GetContent()->IsHTML() &&
+         aPresContext->HasAuthorSpecifiedRules(aFrame,
+                                               NS_AUTHOR_SPECIFIED_BORDER |
+                                               NS_AUTHOR_SPECIFIED_BACKGROUND);
+}
 
-      nsILookAndFeel *lookAndFeel = aPresContext->LookAndFeel();
+PRBool
+nsNativeTheme::IsFrameRTL(nsIFrame* aFrame)
+{
+  return aFrame && aFrame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
+}
 
-      switch (aWidgetType) {
-      case NS_THEME_BUTTON:
-        ConvertBorderToAppUnits(aPresContext, sButtonBorderSize, 
-                                defaultBorderSize);
-        if (IsDisabled(aFrame)) {
-          defaultBorderStyle = sButtonInactiveBorderStyle;
-          lookAndFeel->GetColor(sButtonDisabledBorderColorID,
-                                defaultBorderColor);
-          lookAndFeel->GetColor(sButtonDisabledBGColorID,
-                                defaultBGColor);
-        } else {
-          PRInt32 contentState = GetContentState(aFrame, aWidgetType);
-          if (contentState & NS_EVENT_STATE_HOVER &&
-              contentState & NS_EVENT_STATE_ACTIVE)
-            defaultBorderStyle = sButtonActiveBorderStyle;
-          else
-            defaultBorderStyle = sButtonInactiveBorderStyle;
-          lookAndFeel->GetColor(sButtonBorderColorID,
-                                defaultBorderColor);
-          lookAndFeel->GetColor(sButtonBGColorID,
-                                defaultBGColor);
-        }
-        break;
+// scrollbar button:
+PRInt32
+nsNativeTheme::GetScrollbarButtonType(nsIFrame* aFrame)
+{
+  if (!aFrame)
+    return 0;
 
-      case NS_THEME_TEXTFIELD:
-      case NS_THEME_TEXTFIELD_MULTILINE:
-        defaultBorderStyle = sTextfieldBorderStyle;
-        ConvertBorderToAppUnits(aPresContext, sTextfieldBorderSize, defaultBorderSize);
-        lookAndFeel->GetColor(sTextfieldBorderColorID, defaultBorderColor);
-        defaultBGTransparent = sTextfieldBGTransparent;
-        if (!defaultBGTransparent) {
-          if (IsDisabled(aFrame))
-            lookAndFeel->GetColor(sTextfieldDisabledBGColorID, defaultBGColor);
-          else
-            lookAndFeel->GetColor(sTextfieldBGColorID, defaultBGColor);
-        }
-        break;
+  static nsIContent::AttrValuesArray strings[] =
+    {&nsWidgetAtoms::scrollbarDownBottom, &nsWidgetAtoms::scrollbarDownTop,
+     &nsWidgetAtoms::scrollbarUpBottom, &nsWidgetAtoms::scrollbarUpTop,
+     nsnull};
 
-      case NS_THEME_LISTBOX:
-        defaultBorderStyle = sListboxBorderStyle;
-        ConvertBorderToAppUnits(aPresContext, sListboxBorderSize, defaultBorderSize);
-        lookAndFeel->GetColor(sListboxBorderColorID, defaultBorderColor);
-        if (IsDisabled(aFrame))
-          lookAndFeel->GetColor(sListboxDisabledBGColorID, defaultBGColor);
-        else
-          lookAndFeel->GetColor(sListboxBGColorID, defaultBGColor);
-        break;
-
-      case NS_THEME_DROPDOWN:
-        defaultBorderStyle = sComboboxBorderStyle;
-        ConvertBorderToAppUnits(aPresContext, sComboboxBorderSize, defaultBorderSize);
-        lookAndFeel->GetColor(sComboboxBorderColorID, defaultBorderColor);
-        defaultBGTransparent = sComboboxBGTransparent;
-        if (!defaultBGTransparent) {
-          if (IsDisabled(aFrame))
-            lookAndFeel->GetColor(sComboboxDisabledBGColorID, defaultBGColor);
-          else
-            lookAndFeel->GetColor(sComboboxBGColorID, defaultBGColor);
-        }
-        break;
-
-      default:
-        NS_ERROR("nsNativeTheme::IsWidgetStyled widget type not handled");
-        return PR_FALSE;
-      }
-
-      // Check whether background differs from default
-      const nsStyleBackground* ourBG = aFrame->GetStyleBackground();
-
-      if (defaultBGTransparent) {
-        if (!(ourBG->mBackgroundFlags & NS_STYLE_BG_COLOR_TRANSPARENT))
-          return PR_TRUE;
-      } else if (ourBG->mBackgroundColor != defaultBGColor ||
-                 ourBG->mBackgroundFlags & NS_STYLE_BG_COLOR_TRANSPARENT)
-        return PR_TRUE;
-
-      if (!(ourBG->mBackgroundFlags & NS_STYLE_BG_IMAGE_NONE))
-        return PR_TRUE;
-
-      // Check whether border style or color differs from default
-      const nsStyleBorder* ourBorder = aFrame->GetStyleBorder();
-
-      for (PRInt32 i = 0; i < 4; ++i) {
-        if (ourBorder->GetBorderStyle(i) != defaultBorderStyle)
-          return PR_TRUE;
-
-        PRBool borderFG, borderClear;
-        nscolor borderColor;
-        ourBorder->GetBorderColor(i, borderColor, borderFG, borderClear);
-        if (borderColor != defaultBorderColor || borderClear)
-          return PR_TRUE;
-      }
-
-      // Check whether border size differs from default
-      if (ourBorder->GetBorder() != defaultBorderSize)
-        return PR_TRUE;
-    }
+  switch (aFrame->GetContent()->FindAttrValueIn(kNameSpaceID_None,
+                                                nsWidgetAtoms::sbattr,
+                                                strings, eCaseMatters)) {
+    case 0: return eScrollbarButton_Down | eScrollbarButton_Bottom;
+    case 1: return eScrollbarButton_Down;
+    case 2: return eScrollbarButton_Bottom;
+    case 3: return eScrollbarButton_UpTop;
   }
 
-  return PR_FALSE;
+  return 0;
 }
 
 // treeheadercell:
@@ -342,6 +262,34 @@ nsNativeTheme::GetTreeSortDirection(nsIFrame* aFrame)
   return eTreeSortDirection_Natural;
 }
 
+PRBool
+nsNativeTheme::IsLastTreeHeaderCell(nsIFrame* aFrame)
+{
+  if (!aFrame)
+    return PR_FALSE;
+
+  // A tree column picker is always the last header cell.
+  if (aFrame->GetContent()->Tag() == nsWidgetAtoms::treecolpicker)
+    return PR_TRUE;
+
+  // Find the parent tree.
+  nsIContent* parent = aFrame->GetContent()->GetParent();
+  while (parent && parent->Tag() != nsWidgetAtoms::tree) {
+    parent = parent->GetParent();
+  }
+
+  // If the column picker is visible, this can't be the last column.
+  if (parent && !parent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::hidecolumnpicker,
+                                     NS_LITERAL_STRING("true"), eCaseMatters))
+    return PR_FALSE;
+
+  while ((aFrame = aFrame->GetNextSibling())) {
+    if (aFrame->GetRect().width > 0)
+      return PR_FALSE;
+  }
+  return PR_TRUE;
+}
+
 // tab:
 PRBool
 nsNativeTheme::IsBottomTab(nsIFrame* aFrame)
@@ -360,7 +308,13 @@ nsNativeTheme::IsFirstTab(nsIFrame* aFrame)
   if (!aFrame)
     return PR_FALSE;
 
-  return aFrame->GetContent()->HasAttr(kNameSpaceID_None, nsWidgetAtoms::firsttab);
+  nsIFrame* first = aFrame->GetParent()->GetFirstChild(nsnull);
+  while (first) {
+    if (first->GetRect().width > 0 && first->GetContent()->Tag() == nsWidgetAtoms::tab)
+      return (first == aFrame);
+    first = first->GetNextSibling();
+  }
+  return PR_FALSE;
 }
 
 PRBool
@@ -369,7 +323,50 @@ nsNativeTheme::IsLastTab(nsIFrame* aFrame)
   if (!aFrame)
     return PR_FALSE;
 
-  return aFrame->GetContent()->HasAttr(kNameSpaceID_None, nsWidgetAtoms::lasttab);
+  while ((aFrame = aFrame->GetNextSibling())) {
+    if (aFrame->GetRect().width > 0 && aFrame->GetContent()->Tag() == nsWidgetAtoms::tab)
+      return PR_FALSE;
+  }
+  return PR_TRUE;
+}
+
+PRBool
+nsNativeTheme::IsHorizontal(nsIFrame* aFrame)
+{
+  if (!aFrame)
+    return PR_FALSE;
+    
+  return !aFrame->GetContent()->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::orient,
+                                            nsWidgetAtoms::vertical, 
+                                            eCaseMatters);
+}
+
+PRBool
+nsNativeTheme::IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset)
+{
+  if (!aFrame)
+    return PR_FALSE;
+
+  if (aOffset == 0)
+    return IsSelectedTab(aFrame);
+
+  PRInt32 thisTabIndex = -1, selectedTabIndex = -1;
+
+  nsIFrame* currentTab = aFrame->GetParent()->GetFirstChild(NULL);
+  for (PRInt32 i = 0; currentTab; currentTab = currentTab->GetNextSibling()) {
+    if (currentTab->GetRect().width == 0)
+      continue;
+    if (aFrame == currentTab)
+      thisTabIndex = i;
+    if (IsSelectedTab(currentTab))
+      selectedTabIndex = i;
+    ++i;
+  }
+
+  if (thisTabIndex == -1 || selectedTabIndex == -1)
+    return PR_FALSE;
+
+  return (thisTabIndex - selectedTabIndex == aOffset);
 }
 
 // progressbar:
@@ -382,4 +379,31 @@ nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame)
   return aFrame->GetContent()->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::mode,
                                            NS_LITERAL_STRING("undetermined"),
                                            eCaseMatters);
+}
+
+// menupopup:
+PRBool
+nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
+{
+  if (!aFrame)
+    return PR_FALSE;
+
+  nsIContent* parentContent = aFrame->GetContent()->GetParent();
+  if (!parentContent || parentContent->Tag() != nsWidgetAtoms::menu)
+    return PR_FALSE;
+
+  nsIFrame* parent = aFrame;
+  while ((parent = parent->GetParent())) {
+    if (parent->GetContent() == parentContent) {
+      if (aLeftOfParent) {
+        nsIntRect selfBounds, parentBounds;
+        aFrame->GetWindow()->GetScreenBounds(selfBounds);
+        parent->GetWindow()->GetScreenBounds(parentBounds);
+        *aLeftOfParent = selfBounds.x < parentBounds.x;
+      }
+      return PR_TRUE;
+    }
+  }
+
+  return PR_FALSE;
 }

@@ -56,7 +56,7 @@
 #include "nsIFileChannel.h"
 #include "nsILocalFile.h"
 #include "nsISimpleEnumerator.h"
-#include "nsISupportsArray.h"
+#include "nsCOMArray.h"
 
 //
 // Native BeOS FileSelector wrapper
@@ -82,7 +82,7 @@ public:
   NS_IMETHOD GetDefaultExtension(nsAString& aDefaultExtension);
   NS_IMETHOD SetDefaultExtension(const nsAString& aDefaultExtension);
   NS_IMETHOD GetFile(nsILocalFile * *aFile);
-  NS_IMETHOD GetFileURL(nsIFileURL * *aFileURL);
+  NS_IMETHOD GetFileURL(nsIURI * *aFileURL);
   NS_IMETHOD GetFiles(nsISimpleEnumerator **aFiles);
   NS_IMETHOD Show(PRInt16 *_retval);
   NS_IMETHOD AppendFilter(const nsAString& aTitle, const nsAString& aFilter);
@@ -104,7 +104,7 @@ protected:
   nsIUnicodeEncoder*            mUnicodeEncoder;
   nsIUnicodeDecoder*            mUnicodeDecoder;
   PRInt16                       mSelectedType;
-  nsCOMPtr <nsISupportsArray>   mFiles;
+  nsCOMArray<nsILocalFile>      mFiles;
 
 #ifdef FILEPICKER_SAVE_LAST_DIR
   static char                      mLastUsedDirectory[];

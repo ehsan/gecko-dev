@@ -72,6 +72,10 @@ typedef KLStatus (*KLCacheHasValidTickets_type)(
     char **);
 #endif
 
+#if defined(HAVE_RES_NINIT)
+#include <resolv.h>
+#endif
+
 //-----------------------------------------------------------------------------
 
 // We define GSS_C_NT_HOSTBASED_SERVICE explicitly since it may be referenced
@@ -357,7 +361,8 @@ nsAuthGSSAPI::Shutdown()
     }
 }
 
-NS_IMPL_ISUPPORTS1(nsAuthGSSAPI, nsIAuthModule)
+/* Limitations apply to this class's thread safety. See the header file */
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsAuthGSSAPI, nsIAuthModule)
 
 NS_IMETHODIMP
 nsAuthGSSAPI::Init(const char *serviceName,
@@ -415,6 +420,9 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     input_token.value = (void *)mServiceName.get();
     input_token.length = mServiceName.Length() + 1;
 
+#if defined(HAVE_RES_NINIT)
+    res_ninit(&_res);
+#endif
     major_status = gss_import_name_ptr(&minor_status,
                                    &input_token,
                                    &gss_c_nt_hostbased_service,
@@ -446,7 +454,10 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     // We can only use Mac OS X specific kerb functions if we are using 
     // the native lib
     KLBoolean found;    
-    PRBool doingMailTask = mServiceName.Find("imap@") || mServiceName.Find("pop@") || mServiceName.Find("smtp@");
+    PRBool doingMailTask = mServiceName.Find("imap@") ||
+                           mServiceName.Find("pop@") ||
+                           mServiceName.Find("smtp@") ||
+                           mServiceName.Find("ldap@");
     
     if (!doingMailTask && (gssNativeImp &&
          (KLCacheHasValidTickets_ptr(NULL, kerberosVersion_V5, &found, NULL, NULL) != klNoErr || !found)))

@@ -52,8 +52,8 @@ const nsIComponentRegistrar          = Components.interfaces.nsIComponentRegistr
 const nsISupportsString              = Components.interfaces.nsISupportsString;
 const nsIWindowWatcher               = Components.interfaces.nsIWindowWatcher;
 
-function LayoutATestCmdLineHandler() {}
-LayoutATestCmdLineHandler.prototype =
+function RefTestCmdLineHandler() {}
+RefTestCmdLineHandler.prototype =
 {
   /* nsISupports */
   QueryInterface : function handler_QI(iid) {
@@ -80,14 +80,14 @@ LayoutATestCmdLineHandler.prototype =
 
   /* nsICommandLineHandler */
   handle : function handler_handle(cmdLine) {
-    var args = Components.classes["@mozilla.org/supports-string;1"]
-                         .createInstance(nsISupportsString);
+    var args = { };
+    args.wrappedJSObject = args;
     try {
       var uristr = cmdLine.handleFlagWithParam("reftest", false);
       if (uristr == null)
         return;
       try {
-        args.data = cmdLine.resolveURI(uristr).spec;
+        args.uri = cmdLine.resolveURI(uristr).spec;
       }
       catch (e) {
         return;
@@ -96,6 +96,25 @@ LayoutATestCmdLineHandler.prototype =
     catch (e) {
       cmdLine.handleFlag("reftest", true);
     }
+
+    try {
+      var nocache = cmdLine.handleFlag("reftestnocache", false);
+      args.nocache = nocache;
+    }
+    catch (e) {
+    }
+
+    /* Ignore the platform's online/offline status while running reftests. */
+    var ios = Components.classes["@mozilla.org/network/io-service;1"]
+              .getService(Components.interfaces.nsIIOService2);
+    ios.manageOfflineStatus = false;
+    ios.offline = false;
+
+    /* Force sRGB as an output profile for color management before we load a
+       window. */
+    var prefs = Components.classes["@mozilla.org/preferences-service;1"].
+                getService(Components.interfaces.nsIPrefBranch2);
+    prefs.setBoolPref("gfx.color_management.force_srgb", true);
 
     var wwatch = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                            .getService(nsIWindowWatcher);
@@ -108,7 +127,7 @@ LayoutATestCmdLineHandler.prototype =
 };
 
 
-var LayoutATestCmdLineFactory =
+var RefTestCmdLineFactory =
 {
   createInstance : function(outer, iid)
   {
@@ -116,19 +135,19 @@ var LayoutATestCmdLineFactory =
       throw Components.results.NS_ERROR_NO_AGGREGATION;
     }
 
-    return new LayoutATestCmdLineHandler().QueryInterface(iid);
+    return new RefTestCmdLineHandler().QueryInterface(iid);
   }
 };
 
 
-var LayoutATestCmdLineModule =
+var RefTestCmdLineModule =
 {
   registerSelf : function(compMgr, fileSpec, location, type)
   {
     compMgr = compMgr.QueryInterface(nsIComponentRegistrar);
 
     compMgr.registerFactoryLocation(REFTEST_CMDLINE_CLSID,
-                                    "LayoutATest CommandLine Service",
+                                    "RefTest CommandLine Service",
                                     REFTEST_CMDLINE_CONTRACTID,
                                     fileSpec,
                                     location,
@@ -158,7 +177,7 @@ var LayoutATestCmdLineModule =
   getClassObject : function(compMgr, cid, iid)
   {
     if (cid.equals(REFTEST_CMDLINE_CLSID)) {
-      return LayoutATestCmdLineFactory;
+      return RefTestCmdLineFactory;
     }
 
     if (!iid.equals(Components.interfaces.nsIFactory)) {
@@ -176,5 +195,5 @@ var LayoutATestCmdLineModule =
 
 
 function NSGetModule(compMgr, fileSpec) {
-  return LayoutATestCmdLineModule;
+  return RefTestCmdLineModule;
 }

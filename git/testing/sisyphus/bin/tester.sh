@@ -1,4 +1,4 @@
-#!/usr/local/bin/bash
+#!/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,27 +37,24 @@
 #
 # ***** END LICENSE BLOCK *****
 
-TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
-TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
-source ${TEST_BIN}/library.sh
+source $TEST_DIR/bin/library.sh
 
 TEST_LOG=/dev/null
-
-#trap 'echo -e "\n*** ERROR ***\n\b" && tail $TEST_LOG' ERR
 
 #
 # options processing
 #
-options="p:b:e:T:t:"
+options="p:b:e:T:t:v"
 function usage()
 {
     cat<<EOF
 usage: 
-$SCRIPT -t testscript datalist1 [datalist2 [datalist3 [datalist4]]]
+$SCRIPT -t testscript [-v ] datalist1 [datalist2 [datalist3 [datalist4]]]
 
 variable            description
 ===============     ===========================================================
 -t testscript       required. quoted test script with required arguments.
+-v                  optional. verbose - copies log file output to stdout.
 
 executes the testscript using the input data files in 
 $TEST_DIR/data constructed from each combination of the input parameters:
@@ -70,15 +67,22 @@ EOF
 
 unset testscript testargs
 
+# remove script name from args
+shiftargs=1
+
 while getopts $options optname ; 
   do 
   case $optname in
       t) 
+          let shiftargs=$shiftargs+1
           testscript="$OPTARG"
           if echo $testscript | grep -iq ' ' ; then
               testargs=`echo $testscript   | sed 's|^\([^ ]*\)[ ]*\(.*\)|\2|'`
               testscript=`echo $testscript | sed 's|^\([^ ]*\)[ ]*.*|\1|'`
           fi
+          ;;
+      v) verbose=1
+          let shiftargs=$shiftargs+1
           ;;
   esac
 done
@@ -87,7 +91,7 @@ if [[ -z "$testscript" ]]; then
     usage
 fi
 
-shift 2
+shift $shiftargs
 
 datalist=`combo.sh "$@"`
 
@@ -97,10 +101,44 @@ for data in $datalist; do
     TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
     TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$data,$OSID,${TEST_MACHINE},$TEST_SUITE.log"
 
+    if [[ "$OSID" == "nt" ]]; then
+        # If on Windows, set up the Windbg/CDB debug log file
+        # name to point to our log. 
+        export _NT_DEBUG_LOG_FILE="`cygpath -w $TEST_LOG`"
+    fi
+
     # tell caller what the log files are
-    echo "$TEST_LOG "
+    echo "log: $TEST_LOG "
 
-    test-setup.sh -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
+    if [[ "$verbose" == "1" ]]; then
+        test-setup.sh -d $TEST_DIR/data/$data.data 2>&1 | tee -a $TEST_LOG
+        $testscript $testargs -d $TEST_DIR/data/$data.data 2>&1 | tee -a $TEST_LOG
+    else
+        test-setup.sh -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
+        $testscript $testargs -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
+    fi
 
-    $testscript $testargs -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
+    if [[ "$XPCOM_DEBUG_BREAK" == "stack" ]]; then
+        case $OSID in
+            nt)
+                ;;
+            linux)
+                if findprogram fix-linux-stack.pl; then
+                    fix-linux-stack.pl < $TEST_LOG > $TEST_LOG.tmp
+                    mv $TEST_LOG.tmp $TEST_LOG
+                else
+                    error "XPCOM_DEBUG_BREAK=stack specified but fix-linux-stack.pl is not available"
+                fi
+                ;;
+            darwin)
+                if findprogram fix-macosx-stack.pl; then
+                    fix-macosx-stack.pl < $TEST_LOG > $TEST_LOG.tmp
+                    mv $TEST_LOG.tmp $TEST_LOG
+                else
+                    error "XPCOM_DEBUG_BREAK=stack specified but fix-macosx-stack.pl is not available"
+                fi
+                ;;
+        esac
+    fi
+
 done

@@ -23,6 +23,8 @@
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
  *   Chris Saari <saari@netscape.com>
+ *   Federico Mena-Quintero <federico@novell.com>
+ *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,17 +56,20 @@
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
 #include "imgIContainer.h"
-#include "gfxIImageFrame.h"
+#include "imgIDecoder.h"
 #include "nsIProperties.h"
 #include "nsITimer.h"
 #include "nsWeakReference.h"
+#include "nsTArray.h"
+#include "imgFrame.h"
+#include "nsThreadUtils.h"
 
 #define NS_IMGCONTAINER_CID \
-{ /* 27f0682c-ff64-4dd2-ae7a-668e59f2fd38 */         \
-     0x27f0682c,                                     \
-     0xff64,                                         \
-     0x4dd2,                                         \
-    {0xae, 0x7a, 0x66, 0x8e, 0x59, 0xf2, 0xfd, 0x38} \
+{ /* c76ff2c1-9bf6-418a-b143-3340c00112f7 */         \
+     0x376ff2c1,                                     \
+     0x9bf6,                                         \
+     0x418a,                                         \
+    {0xb1, 0x43, 0x33, 0x40, 0xc0, 0x01, 0x12, 0xf7} \
 }
 
 /**
@@ -103,7 +108,7 @@
  *
  * @note
  * <li> "Mask", "Alpha", and "Alpha Level" are interchangable phrases in
- * respects to imgContainerGIF.
+ * respects to imgContainer.
  *
  * @par
  * <li> GIFs never have more than a 1 bit alpha.
@@ -129,9 +134,11 @@
  * because the first two have public setters and the observer we only get
  * in Init().
  */
+class imgDecodeWorker;
 class imgContainer : public imgIContainer, 
-                     public nsITimerCallback, 
-                     public nsIProperties
+                     public nsITimerCallback,
+                     public nsIProperties,
+                     public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS
@@ -142,16 +149,19 @@ public:
   imgContainer();
   virtual ~imgContainer();
 
+  static NS_METHOD WriteToContainer(nsIInputStream* in, void* closure,
+                                    const char* fromRawSegment,
+                                    PRUint32 toOffset, PRUint32 count,
+                                    PRUint32 *writeCount);
+
 private:
-  friend class nsGIFDecoder2;
-  
   struct Anim
   {
     //! Area of the first frame that needs to be redrawn on subsequent loops.
     nsIntRect                  firstFrameRefreshArea;
     // Note this doesn't hold a proper value until frame 2 finished decoding.
-    PRInt32                    currentDecodingFrameIndex; // 0 to numFrames-1
-    PRInt32                    currentAnimationFrameIndex; // 0 to numFrames-1
+    PRUint32                   currentDecodingFrameIndex; // 0 to numFrames-1
+    PRUint32                   currentAnimationFrameIndex; // 0 to numFrames-1
     //! Track the last composited frame for Optimizations (See DoComposite code)
     PRInt32                    lastCompositedFrameIndex;
     //! Whether we can assume there will be no more frames
@@ -167,14 +177,14 @@ private:
      *       lastCompositedFrameIndex to -1.  Code assume that if
      *       lastCompositedFrameIndex >= 0 then compositingFrame exists.
      */
-    nsCOMPtr<gfxIImageFrame>   compositingFrame;
+    nsAutoPtr<imgFrame>        compositingFrame;
     /** the previous composited frame, for DISPOSE_RESTORE_PREVIOUS
      *
      * The Previous Frame (all frames composited up to the current) needs to be
      * stored in cases where the image specifies it wants the last frame back
      * when it's done with the current frame.
      */
-    nsCOMPtr<gfxIImageFrame>   compositingPrevFrame;
+    nsAutoPtr<imgFrame>        compositingPrevFrame;
     //! Timer to animate multiframed images
     nsCOMPtr<nsITimer>         timer;
     
@@ -194,18 +204,31 @@ private:
         timer->Cancel();
     }
   };
+
+  imgFrame* GetImgFrame(PRUint32 framenum);
+  imgFrame* GetDrawableImgFrame(PRUint32 framenum);
+  imgFrame* GetCurrentImgFrame();
+  imgFrame* GetCurrentDrawableImgFrame();
+  PRUint32 GetCurrentImgFrameIndex() const;
   
-  inline gfxIImageFrame* inlinedGetCurrentFrame() {
-    if (!mAnim)
-      return mFrames.SafeObjectAt(0);
-    if (mAnim->lastCompositedFrameIndex == mAnim->currentAnimationFrameIndex)
-      return mAnim->compositingFrame;
-    return mFrames.SafeObjectAt(mAnim->currentAnimationFrameIndex);
-  }
-  
-  inline Anim* ensureAnimExists() {
-    if (!mAnim)
+  inline Anim* ensureAnimExists()
+  {
+    if (!mAnim) {
+
+      // Create the animation context
       mAnim = new Anim();
+
+      // We don't support discarding animated images (See bug 414259).
+      // Lock the image and throw away the key.
+      // 
+      // Note that this is inefficient, since we could get rid of the source
+      // data too. However, doing this is actually hard, because we're probably
+      // calling ensureAnimExists mid-decode, and thus we're decoding out of
+      // the source buffer. Since we're going to fix this anyway later, and
+      // since we didn't kill the source data in the old world either, locking
+      // is acceptable for the moment.
+      LockImage();
+    }
     return mAnim;
   }
   
@@ -218,43 +241,10 @@ private:
    * @param aNextFrame  Frame we need to incorperate/display
    * @param aNextFrameIndex Position of aNextFrame in mFrames list
    */
-  nsresult DoComposite(gfxIImageFrame** aFrameToUse, nsIntRect* aDirtyRect,
-                       gfxIImageFrame* aPrevFrame,
-                       gfxIImageFrame* aNextFrame,
+  nsresult DoComposite(imgFrame** aFrameToUse, nsIntRect* aDirtyRect,
+                       imgFrame* aPrevFrame,
+                       imgFrame* aNextFrame,
                        PRInt32 aNextFrameIndex);
-  
-  /**
-   * Combine aOverlayFrame's mask into aCompositingFrame's mask.
-   *
-   * This takes the mask information from the passed in aOverlayFrame and
-   * inserts that information into the aCompositingFrame's mask at the proper
-   * offsets. It does *not* rebuild the entire mask.
-   *
-   * @param aCompositingFrame Target frame
-   * @param aOverlayFrame     This frame's mask is being copied
-   */
-  void BuildCompositeMask(gfxIImageFrame* aCompositingFrame,
-                          gfxIImageFrame* aOverlayFrame);
-  
-  /** Sets an area of the frame's mask.
-   *
-   * @param aFrame Target Frame
-   * @param aVisible Turn on (PR_TRUE) or off (PR_FALSE) visibility
-   *
-   * @note Invisible area of frame's image will need to be set to 0
-   */
-  void SetMaskVisibility(gfxIImageFrame *aFrame, PRBool aVisible);
-  //! @overload
-  void SetMaskVisibility(gfxIImageFrame *aFrame,
-                         PRInt32 aX, PRInt32 aY,
-                         PRInt32 aWidth, PRInt32 aHeight,
-                         PRBool aVisible);
-  //! @overload
-  void SetMaskVisibility(gfxIImageFrame *aFrame,
-                         nsIntRect &aRect, PRBool aVisible) {
-    SetMaskVisibility(aFrame, aRect.x, aRect.y,
-                      aRect.width, aRect.height, aVisible);
-  }
   
   /** Clears an area of <aFrame> with transparent black.
    *
@@ -262,33 +252,50 @@ private:
    *
    * @note Does also clears the transparancy mask
    */
-  static void ClearFrame(gfxIImageFrame* aFrame);
+  static void ClearFrame(imgFrame* aFrame);
   
   //! @overload
-  static void ClearFrame(gfxIImageFrame* aFrame, nsIntRect &aRect);
+  static void ClearFrame(imgFrame* aFrame, nsIntRect &aRect);
   
-  //! Copy one gfxIImageFrame's image and mask into another
-  static PRBool CopyFrameImage(gfxIImageFrame *aSrcFrame,
-                               gfxIImageFrame *aDstFrame);
+  //! Copy one frames's image and mask into another
+  static PRBool CopyFrameImage(imgFrame *aSrcFrame,
+                               imgFrame *aDstFrame);
   
-  /** Draws one gfxIImageFrame's image to into another,
+  /** Draws one frames's image to into another,
    * at the position specified by aRect
    *
    * @param aSrcFrame  Frame providing the source image
    * @param aDstFrame  Frame where the image is drawn into
    * @param aRect      The position and size to draw the image
    */
-  static nsresult DrawFrameTo(gfxIImageFrame *aSrcFrame,
-                              gfxIImageFrame *aDstFrame,
+  static nsresult DrawFrameTo(imgFrame *aSrcFrame,
+                              imgFrame *aDstFrame,
                               nsIntRect& aRect);
 
+  nsresult InternalAddFrameHelper(PRUint32 framenum, imgFrame *frame,
+                                  PRUint8 **imageData, PRUint32 *imageLength,
+                                  PRUint32 **paletteData, PRUint32 *paletteLength);
+  nsresult InternalAddFrame(PRUint32 framenum, PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
+                            gfxASurface::gfxImageFormat aFormat, PRUint8 aPaletteDepth,
+                            PRUint8 **imageData, PRUint32 *imageLength,
+                            PRUint32 **paletteData, PRUint32 *paletteLength);
+
+private: // data
+
   nsIntSize                  mSize;
+  PRBool                     mHasSize;
   
-  //! All the <gfxIImageFrame>s of the PNG
-  nsCOMArray<gfxIImageFrame> mFrames;
+  //! All the frames of the image
+  // IMPORTANT: if you use mFrames in a method, call EnsureImageIsDecoded() first 
+  // to ensure that the frames actually exist (they may have been discarded to save
+  // memory, or we may be decoding on draw).
+  nsTArray<imgFrame *>       mFrames;
   
   nsCOMPtr<nsIProperties>    mProperties;
-  
+
+  // IMPORTANT: if you use mAnim in a method, call EnsureImageIsDecoded() first to ensure
+  // that the frames actually exist (they may have been discarded to save memory, or
+  // we maybe decoding on draw).
   imgContainer::Anim*        mAnim;
   
   //! See imgIContainer for mode constants
@@ -297,8 +304,116 @@ private:
   //! # loops remaining before animation stops (-1 no stop)
   PRInt32                    mLoopCount;
   
-  //! imgIContainerObserver
+  //! imgIDecoderObserver
   nsWeakPtr                  mObserver;
+
+  // Decoding on draw?
+  PRBool                     mDecodeOnDraw;
+
+  // Multipart?
+  PRBool                     mMultipart;
+
+  // Have we been initalized?
+  PRBool                     mInitialized;
+
+  // Discard members
+  PRBool                     mDiscardable;
+  PRUint32                   mLockCount;
+  nsCOMPtr<nsITimer>         mDiscardTimer;
+
+  // Source data members
+  nsTArray<char>             mSourceData;
+  PRBool                     mHasSourceData;
+  nsCString                  mSourceDataMimeType;
+
+  // Do we have the frames in decoded form?
+  PRBool                     mDecoded;
+  PRBool                     mHasBeenDecoded;
+
+  friend class imgDecodeWorker;
+
+  // Decoder and friends
+  nsCOMPtr<imgIDecoder>          mDecoder;
+  nsRefPtr<imgDecodeWorker>      mWorker;
+  PRUint32                       mBytesDecoded;
+  PRUint32                       mDecoderFlags;
+  PRBool                         mWorkerPending;
+  PRBool                         mInDecoder;
+
+  // Error handling
+  PRBool                         mError;
+
+  // Discard code
+  nsresult ResetDiscardTimer();
+  static void sDiscardTimerCallback(nsITimer *aTimer, void *aClosure);
+
+  // Decoding
+  nsresult WantDecodedFrames();
+  nsresult SyncDecode();
+  nsresult InitDecoder(PRUint32 dFlags);
+  nsresult WriteToDecoder(const char *aBuffer, PRUint32 aCount);
+  nsresult DecodeSomeData(PRUint32 aMaxBytes);
+  PRBool   IsDecodeFinished();
+
+  // Decoder shutdown
+  enum eShutdownIntent {
+    eShutdownIntent_Done        = 0,
+    eShutdownIntent_Interrupted = 1,
+    eShutdownIntent_Error       = 2,
+    eShutdownIntent_AllCount    = 3
+  };
+  nsresult ShutdownDecoder(eShutdownIntent aIntent);
+
+  // Helpers
+  void DoError();
+  PRBool CanDiscard();
+  PRBool StoringSourceData();
+
 };
+
+// Decoding Helper Class
+//
+// We use this class to mimic the interactivity benefits of threading
+// in a single-threaded event loop. We want to progressively decode
+// and keep a responsive UI while we're at it, so we have a runnable
+// class that does a bit of decoding, and then "yields" by dispatching
+// itself to the end of the event queue.
+class imgDecodeWorker : public nsRunnable
+{
+  public:
+    imgDecodeWorker(imgIContainer* aContainer) {
+      mContainer = do_GetWeakReference(aContainer);
+    }
+    NS_IMETHOD Run();
+    NS_METHOD  Dispatch();
+
+  private:
+    nsWeakPtr mContainer;
+};
+
+// Asynchronous Decode Requestor
+//
+// We use this class when someone calls requestDecode() from within a decode
+// notification. Since requestDecode() involves modifying the decoder's state
+// (for example, possibly shutting down a header-only decode and starting a
+// full decode), we don't want to do this from inside a decoder.
+class imgDecodeRequestor : public nsRunnable
+{
+  public:
+    imgDecodeRequestor(imgIContainer *aContainer) {
+      mContainer = do_GetWeakReference(aContainer);
+    }
+    NS_IMETHOD Run() {
+      nsCOMPtr<imgIContainer> con = do_QueryReferent(mContainer);
+      if (con)
+        con->RequestDecode();
+      return NS_OK;
+    }
+
+  private:
+    nsWeakPtr mContainer;
+};
+
+
 
 #endif /* __imgContainer_h__ */

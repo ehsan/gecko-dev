@@ -52,17 +52,25 @@
 
 #include "nsGUIEvent.h"
 
-#include "nsIPluginInstancePeer.h"
-#include "nsIPluginInstanceInternal.h"
 #include "nsPluginSafety.h"
 #include "nsPluginNativeWindow.h"
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
 #include "nsTWeakRef.h"
 
-static NS_DEFINE_CID(kCPluginManagerCID, NS_PLUGINMANAGER_CID); // needed for NS_TRY_SAFE_CALL
+#define NP_POPUP_API_VERSION 16
 
-#define NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION "MozillaPluginWindowPropertyAssociation"
+#define nsMajorVersion(v)       (((PRInt32)(v) >> 16) & 0xffff)
+#define nsMinorVersion(v)       ((PRInt32)(v) & 0xffff)
+#define versionOK(suppliedV, requiredV)                   \
+  (nsMajorVersion(suppliedV) == nsMajorVersion(requiredV) \
+   && nsMinorVersion(suppliedV) >= nsMinorVersion(requiredV))
+
+
+#define NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION TEXT("MozillaPluginWindowPropertyAssociation")
+#define NS_PLUGIN_CUSTOM_MSG_ID TEXT("MozFlashUserRelay")
+#define WM_USER_FLASH WM_USER+1
+static UINT sWM_FLASHBOUNCEMSG = 0;
 
 typedef nsTWeakRef<class nsPluginNativeWindowWin> PluginWindowWeakRef;
 
@@ -162,12 +170,21 @@ public:
 static PRBool sInMessageDispatch = PR_FALSE;
 static UINT sLastMsg = 0;
 
-static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, 
+static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, nsIPluginInstance * aInst,
                                          HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
   NS_ENSURE_TRUE(aWin, NS_ERROR_NULL_POINTER);
+  NS_ENSURE_TRUE(aInst, NS_ERROR_NULL_POINTER);
 
-  if (msg != WM_USER+1)
+  if (msg == sWM_FLASHBOUNCEMSG) {
+    // See PluginWindowEvent::Run() below.
+    NS_ASSERTION((sWM_FLASHBOUNCEMSG != 0), "RegisterWindowMessage failed in flash plugin WM_USER message handling!");
+    NS_TRY_SAFE_CALL_VOID(::CallWindowProc((WNDPROC)aWin->GetWindowProc(), hWnd, WM_USER_FLASH, wParam, lParam),
+                                           nsnull, aInst);
+    return TRUE;
+  }
+
+  if (msg != WM_USER_FLASH)
     return PR_FALSE; // no need to delay
 
   // do stuff
@@ -182,14 +199,14 @@ static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin,
 class nsDelayedPopupsEnabledEvent : public nsRunnable
 {
 public:
-  nsDelayedPopupsEnabledEvent(nsIPluginInstanceInternal *inst)
+  nsDelayedPopupsEnabledEvent(nsIPluginInstance *inst)
     : mInst(inst)
   {}
 
   NS_DECL_NSIRUNNABLE
 
 private:
-  nsCOMPtr<nsIPluginInstanceInternal> mInst;
+  nsCOMPtr<nsIPluginInstance> mInst;
 };
 
 NS_IMETHODIMP nsDelayedPopupsEnabledEvent::Run()
@@ -217,19 +234,15 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   // Flash will need special treatment later
   if (win->mPluginType == nsPluginType_Unknown) {
     if (inst) {
-      nsCOMPtr<nsIPluginInstancePeer> pip;
-      inst->GetPeer(getter_AddRefs(pip));
-      if (pip) {
-        nsMIMEType mimetype = nsnull;
-        pip->GetMIMEType(&mimetype);
-        if (mimetype) { 
-          if (!strcmp(mimetype, "application/x-shockwave-flash"))
-            win->mPluginType = nsPluginType_Flash;
-          else if (!strcmp(mimetype, "audio/x-pn-realaudio-plugin"))
-            win->mPluginType = nsPluginType_Real;
-          else
-            win->mPluginType = nsPluginType_Other;
-        }
+      const char* mimetype = nsnull;
+      inst->GetMIMEType(&mimetype);
+      if (mimetype) { 
+        if (!strcmp(mimetype, "application/x-shockwave-flash"))
+          win->mPluginType = nsPluginType_Flash;
+        else if (!strcmp(mimetype, "audio/x-pn-realaudio-plugin"))
+          win->mPluginType = nsPluginType_Real;
+        else
+          win->mPluginType = nsPluginType_Other;
       }
     }
   }
@@ -307,7 +320,7 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
         nsCOMPtr<nsIWidget> widget;
         win->GetPluginWidget(getter_AddRefs(widget));
         if (widget) {
-          nsFocusEvent event(PR_TRUE, NS_PLUGIN_ACTIVATE, widget);
+          nsGUIEvent event(PR_TRUE, NS_PLUGIN_ACTIVATE, widget);
           nsEventStatus status;
           widget->DispatchEvent(&event, status);
         }
@@ -317,6 +330,9 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
     case WM_SETFOCUS:
     case WM_KILLFOCUS: {
+      // RealPlayer can crash, don't process the message for those, see bug 328675
+      if (win->mPluginType == nsPluginType_Real && msg == sLastMsg)
+        return TRUE;
       // Make sure setfocus and killfocus get through
       // even if they are eaten by the plugin
       WNDPROC prevWndProc = win->GetPrevWindowProc();
@@ -331,34 +347,28 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   // (WM_USER+1) causing 100% CPU consumption and GUI freeze, see mozilla bug 132759;
   // we can prevent this from happening by delaying the processing such messages;
   if (win->mPluginType == nsPluginType_Flash) {
-    if (ProcessFlashMessageDelayed(win, hWnd, msg, wParam, lParam))
+    if (ProcessFlashMessageDelayed(win, inst, hWnd, msg, wParam, lParam))
       return TRUE;
   }
 
-  LRESULT res = TRUE;
-
-  nsCOMPtr<nsIPluginInstanceInternal> instInternal;
-
-  if (enablePopups) {
-    nsCOMPtr<nsIPluginInstanceInternal> tmp = do_QueryInterface(inst);
-
-    if (tmp && !nsVersionOK(tmp->GetPluginAPIVersion(),
-                            NP_POPUP_API_VERSION)) {
-      tmp.swap(instInternal);
-
-      instInternal->PushPopupsEnabledState(PR_TRUE);
+  if (enablePopups && inst) {
+    PRUint16 apiVersion;
+    if (NS_SUCCEEDED(inst->GetPluginAPIVersion(&apiVersion)) &&
+        !versionOK(apiVersion, NP_POPUP_API_VERSION)) {
+      inst->PushPopupsEnabledState(PR_TRUE);
     }
   }
 
   sInMessageDispatch = PR_TRUE;
 
+  LRESULT res = TRUE;
   NS_TRY_SAFE_CALL_RETURN(res, 
                           ::CallWindowProc((WNDPROC)win->GetWindowProc(), hWnd, msg, wParam, lParam),
                           nsnull, inst);
 
   sInMessageDispatch = PR_FALSE;
 
-  if (instInternal) {
+  if (inst) {
     // Popups are enabled (were enabled before the call to
     // CallWindowProc()). Some plugins (at least the flash player)
     // post messages from their key handlers etc that delay the actual
@@ -373,11 +383,9 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
     // code will pop any popup state pushed by this plugin on
     // destruction.
 
-    nsCOMPtr<nsIRunnable> event =
-        new nsDelayedPopupsEnabledEvent(instInternal);
-    if (event) {
+    nsCOMPtr<nsIRunnable> event = new nsDelayedPopupsEnabledEvent(inst);
+    if (event)
       NS_DispatchToCurrentThread(event);
-    }
   }
 
   return res;
@@ -398,6 +406,10 @@ nsPluginNativeWindowWin::nsPluginNativeWindowWin() : nsPluginNativeWindow()
   mPrevWinProc = NULL;
   mPluginWinProc = NULL;
   mPluginType = nsPluginType_Unknown;
+  
+  if (sWM_FLASHBOUNCEMSG == 0)
+    sWM_FLASHBOUNCEMSG = ::RegisterWindowMessage(NS_PLUGIN_CUSTOM_MSG_ID);
+
 }
 
 nsPluginNativeWindowWin::~nsPluginNativeWindowWin()
@@ -429,12 +441,23 @@ NS_IMETHODIMP PluginWindowEvent::Run()
 
   nsCOMPtr<nsIPluginInstance> inst;
   win->GetPluginInstance(inst);
-  NS_TRY_SAFE_CALL_VOID(::CallWindowProc(win->GetWindowProc(), 
-                        hWnd, 
-                        GetMsg(), 
-                        GetWParam(), 
-                        GetLParam()),
-                        nsnull, inst);
+
+  if (GetMsg() == WM_USER_FLASH) {
+    // XXX Unwind issues related to runnable event callback depth for this
+    // event and destruction of the plugin. (Bug 493601)
+    ::PostMessage(hWnd, sWM_FLASHBOUNCEMSG, GetWParam(), GetLParam());
+  }
+  else {
+    // Currently not used, but added so that processing events here
+    // is more generic.
+    NS_TRY_SAFE_CALL_VOID(::CallWindowProc(win->GetWindowProc(), 
+                          hWnd, 
+                          GetMsg(), 
+                          GetWParam(), 
+                          GetLParam()),
+                          nsnull, inst);
+  }
+
   Clear();
   return NS_OK;
 }
@@ -487,7 +510,7 @@ nsresult nsPluginNativeWindowWin::CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPl
 
   // We need WndProc before plug-ins do subclass in nsPluginNativeWindow::CallSetWindow.
   if (aPluginInstance) {
-    WNDPROC currentWndProc = (WNDPROC)::GetWindowLong((HWND)window, GWL_WNDPROC);
+    WNDPROC currentWndProc = (WNDPROC)::GetWindowLongPtr((HWND)window, GWLP_WNDPROC);
     if (currentWndProc != PluginWndProc)
       mPrevWinProc = currentWndProc;
   }
@@ -507,7 +530,7 @@ nsresult nsPluginNativeWindowWin::CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPl
 
 nsresult nsPluginNativeWindowWin::SubclassAndAssociateWindow()
 {
-  if (type != nsPluginWindowType_Window)
+  if (type != NPWindowTypeWindow)
     return NS_ERROR_FAILURE;
 
   HWND hWnd = (HWND)window;
@@ -515,11 +538,15 @@ nsresult nsPluginNativeWindowWin::SubclassAndAssociateWindow()
     return NS_ERROR_FAILURE;
 
   // check if we need to re-subclass
-  WNDPROC currentWndProc = (WNDPROC)::GetWindowLong(hWnd, GWL_WNDPROC);
+  WNDPROC currentWndProc = (WNDPROC)::GetWindowLongPtr(hWnd, GWLP_WNDPROC);
   if (PluginWndProc == currentWndProc)
     return NS_OK;
 
-  mPluginWinProc = SubclassWindow(hWnd, (LONG)PluginWndProc);
+  LONG style = GetWindowLongPtr(hWnd, GWL_STYLE);
+  style |= WS_CLIPCHILDREN;
+  SetWindowLongPtr(hWnd, GWL_STYLE, style);
+
+  mPluginWinProc = SubclassWindow(hWnd, (LONG_PTR)PluginWndProc);
   if (!mPluginWinProc)
     return NS_ERROR_FAILURE;
 
@@ -545,9 +572,13 @@ nsresult nsPluginNativeWindowWin::UndoSubclassAndAssociateWindow()
   // restore the original win proc
   // but only do this if this were us last time
   if (mPluginWinProc) {
-    WNDPROC currentWndProc = (WNDPROC)::GetWindowLong(hWnd, GWL_WNDPROC);
+    WNDPROC currentWndProc = (WNDPROC)::GetWindowLongPtr(hWnd, GWLP_WNDPROC);
     if (currentWndProc == PluginWndProc)
-      SubclassWindow(hWnd, (LONG)mPluginWinProc);
+      SubclassWindow(hWnd, (LONG_PTR)mPluginWinProc);
+
+    LONG style = GetWindowLongPtr(hWnd, GWL_STYLE);
+    style &= ~WS_CLIPCHILDREN;
+    SetWindowLongPtr(hWnd, GWL_STYLE, style);
   }
 
   return NS_OK;

@@ -55,6 +55,9 @@
 #include "nsIIDNService.h"
 #include "nsNetUtil.h"
 #include "nsPromptUtils.h"
+#include "nsIPrefService.h"
+#include "nsIPrefLocalizedString.h"
+
 
 nsresult
 NS_NewPrompter(nsIPrompt **result, nsIDOMWindow *aParent)
@@ -80,8 +83,21 @@ NS_NewPrompter(nsIPrompt **result, nsIDOMWindow *aParent)
 nsresult
 NS_NewAuthPrompter(nsIAuthPrompt **result, nsIDOMWindow *aParent)
 {
-
   nsresult rv;
+  nsCOMPtr<nsIPromptFactory> factory =
+    do_GetService(NS_PWMGR_AUTHPROMPTFACTORY);
+  if (factory) {
+    // We just delegate everything to the pw mgr if we can
+    rv = factory->GetPrompt(aParent,
+                            NS_GET_IID(nsIAuthPrompt),
+                            reinterpret_cast<void**>(result));
+    // If the password manager doesn't support the interface, fall back to the
+    // old way of doing things. This will allow older apps that haven't updated
+    // to work still.
+    if (rv != NS_NOINTERFACE)
+      return rv;
+  }
+
   *result = 0;
 
   nsPrompt *prompter = new nsPrompt(aParent);
@@ -115,16 +131,20 @@ NS_NewAuthPrompter(nsIAuthPrompt **result, nsIDOMWindow *aParent)
 nsresult
 NS_NewAuthPrompter2(nsIAuthPrompt2 **result, nsIDOMWindow *aParent)
 {
+  nsresult rv;
+
   nsCOMPtr<nsIPromptFactory> factory =
     do_GetService(NS_PWMGR_AUTHPROMPTFACTORY);
   if (factory) {
     // We just delegate everything to the pw mgr.
-    return factory->GetPrompt(aParent,
+    rv = factory->GetPrompt(aParent,
                               NS_GET_IID(nsIAuthPrompt2),
                               reinterpret_cast<void**>(result));
+    // Bug 403115. Don't suppress error if interface isn't supported.
+    if (NS_SUCCEEDED(rv) || rv == NS_NOINTERFACE)
+        return rv;
   }
 
-  nsresult rv;
   *result = 0;
 
   nsPrompt *prompter = new nsPrompt(aParent);
@@ -401,6 +421,26 @@ MakeDialogText(nsIChannel* aChannel, nsIAuthInformation* aAuthInfo,
 
   nsAutoString realm;
   aAuthInfo->GetRealm(realm);
+  // Trim obnoxiously long realms.
+  if (realm.Length() > 150) {
+    realm.Truncate(150);
+
+    // Append "..." (or localized equivalent). Yay complexity.
+    nsAutoString ellipsis;
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (prefs) {
+      nsCOMPtr<nsIPrefLocalizedString> prefString;
+      rv = prefs->GetComplexValue("intl.ellipsis",
+                                  NS_GET_IID(nsIPrefLocalizedString),
+                                  getter_AddRefs(prefString));
+      if (prefString)
+        prefString->ToString(getter_Copies(ellipsis));
+    }
+    if (ellipsis.IsEmpty())
+      ellipsis.AssignLiteral("...");
+
+    realm.Append(ellipsis);
+  }
 
   // Append the port if it was specified
   if (port != -1) {
@@ -408,8 +448,8 @@ MakeDialogText(nsIChannel* aChannel, nsIAuthInformation* aAuthInfo,
     displayHost.AppendInt(port);
   }
 
-  NS_NAMED_LITERAL_STRING(proxyText, "EnterUserPasswordForProxy");
-  NS_NAMED_LITERAL_STRING(originText, "EnterUserPasswordForRealm");
+  NS_NAMED_LITERAL_STRING(proxyText, "EnterLoginForProxy");
+  NS_NAMED_LITERAL_STRING(originText, "EnterLoginForRealm");
   NS_NAMED_LITERAL_STRING(noRealmText, "EnterUserPasswordFor");
   NS_NAMED_LITERAL_STRING(passwordText, "EnterPasswordFor");
 

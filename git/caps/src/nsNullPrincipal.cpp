@@ -43,15 +43,15 @@
  */
 
 #include "nsNullPrincipal.h"
+#include "nsNullPrincipalURI.h"
 #include "nsMemory.h"
 #include "nsIUUIDGenerator.h"
 #include "nsID.h"
-#include "prmem.h" // For PF_Free, 'cause nsID::ToString sucks like that
 #include "nsNetUtil.h"
 #include "nsIClassInfoImpl.h"
 #include "nsNetCID.h"
-
-static NS_DEFINE_CID(kSimpleURICID, NS_SIMPLEURI_CID);
+#include "nsDOMError.h"
+#include "nsScriptSecurityManager.h"
 
 NS_IMPL_QUERY_INTERFACE2_CI(nsNullPrincipal,
                             nsIPrincipal,
@@ -105,10 +105,10 @@ nsNullPrincipal::Init()
   rv = uuidgen->GenerateUUIDInPlace(&id);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  char* chars = id.ToString();
-  NS_ENSURE_TRUE(chars, NS_ERROR_OUT_OF_MEMORY);
+  char chars[NSID_LENGTH];
+  id.ToProvidedString(chars);
 
-  PRUint32 suffixLen = strlen(chars);
+  PRUint32 suffixLen = NSID_LENGTH - 1;
   PRUint32 prefixLen = NS_ARRAY_LENGTH(NS_NULLPRINCIPAL_PREFIX) - 1;
 
   // Use an nsCString so we only do the allocation once here and then share
@@ -119,23 +119,13 @@ nsNullPrincipal::Init()
   str.Append(NS_NULLPRINCIPAL_PREFIX);
   str.Append(chars);
 
-  PR_Free(chars);
-  
   if (str.Length() != prefixLen + suffixLen) {
     NS_WARNING("Out of memory allocating null-principal URI");
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  // Use CID so we're sure we get the impl we want.  Note that creating the URI
-  // directly is ok because we have our own private URI scheme.  In effect,
-  // we're being a protocol handler.
-  mURI = do_CreateInstance(kSimpleURICID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mURI->SetSpec(str);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  NS_TryToSetImmutable(mURI);
+  mURI = new nsNullPrincipalURI(str);
+  NS_ENSURE_TRUE(mURI, NS_ERROR_OUT_OF_MEMORY);
 
   return mJSPrincipals.Init(this, str);
 }
@@ -317,6 +307,17 @@ nsNullPrincipal::Subsumes(nsIPrincipal *aOther, PRBool *aResult)
   // reasonable nsPrincipals.
   *aResult = (aOther == this);
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNullPrincipal::CheckMayLoad(nsIURI* aURI, PRBool aReport)
+{
+  if (aReport) {
+    nsScriptSecurityManager::ReportError(
+      nsnull, NS_LITERAL_STRING("CheckSameOriginError"), mURI, aURI);
+  }
+
+  return NS_ERROR_DOM_BAD_URI;
 }
 
 NS_IMETHODIMP 

@@ -76,7 +76,7 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
     if(script)
     {
         JSD_LOCK_SCRIPTS(jsdc);
-        jsdscript = jsd_FindJSDScript(jsdc, script);
+        jsdscript = jsd_FindOrCreateJSDScript(jsdc, cx, script, fp);
         JSD_UNLOCK_SCRIPTS(jsdc);
         if(jsdscript)
             funName = JSD_GetScriptFunctionName(jsdc, jsdscript);
@@ -136,7 +136,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
     if (jsscript)
     {
         JSD_LOCK_SCRIPTS(jsdc);
-        jsdscript = jsd_FindJSDScript(jsdc, jsscript);
+        jsdscript = jsd_FindOrCreateJSDScript(jsdc, cx, jsscript, fp);
         JSD_UNLOCK_SCRIPTS(jsdc);
     
         if (jsdscript)
@@ -176,10 +176,10 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
                             /* We're the new current function, and no return
                              * has happened yet. */
                             jsdc->callingFunctionPData = pdata;
-                            jsdc->lastReturnTime = JSLL_ZERO;
+                            jsdc->lastReturnTime = 0;
                             /* This function has no running time (just been
                              * called!), and we'll need the call start time. */
-                            pdata->runningTime = JSLL_ZERO;
+                            pdata->runningTime = 0;
                             pdata->lastCallStart = now;
                         } else {
                             if (++pdata->recurseDepth > pdata->maxRecurseDepth)
@@ -238,7 +238,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
                         /* Mark the time we returned, and indicate this
                          * function is no longer running. */
                         jsdc->lastReturnTime = now;
-                        pdata->lastCallStart = JSLL_ZERO;
+                        pdata->lastCallStart = 0;
                         ++pdata->callCount;
                     } else if (pdata->recurseDepth) {
                         --pdata->recurseDepth;
@@ -266,7 +266,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
 
 }
 
-void * JS_DLL_CALLBACK
+void *
 jsd_FunctionCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
                      JSBool *ok, void *closure)
 {
@@ -292,7 +292,7 @@ jsd_FunctionCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
     return NULL;
 }
 
-void * JS_DLL_CALLBACK
+void *
 jsd_TopLevelCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
                      JSBool *ok, void *closure)
 {

@@ -41,7 +41,7 @@
 interface nsIURI;
 interface nsIVariant;
 
-[scriptable, uuid(03dd79c2-c834-4747-a204-79d5a29c6bd9)]
+[scriptable, uuid(e39cea60-7e6d-4c8b-80a3-997af1c2cbcb)]
 interface nsITaggingService : nsISupports
 {
   /**
@@ -52,7 +52,9 @@ interface nsITaggingService : nsISupports
    * @param aURI
    *        the URL to tag.
    * @param aTags
-   *        Array of tags to set for the given URL.
+   *        Array of tags to set for the given URL. Each element within the
+   *        array can be either a tag name or a concrete itemId of a tag
+   *        container.
    */
   void tagURI(in nsIURI aURI, in nsIVariant aTags);
 
@@ -64,7 +66,8 @@ interface nsITaggingService : nsISupports
    *        the URL to un-tag.
    * @param aTags
    *        Array of tags to unset. pass null to remove all tags from the given
-   *        url.
+   *        url. Each element within the array can be either a tag name or a
+   *        concrete itemId of a tag container.
    */
   void untagURI(in nsIURI aURI, in nsIVariant aTags);
 
@@ -84,7 +87,9 @@ interface nsITaggingService : nsISupports
    *        a URL.
    * @returns array of tags (sorted by name).
    */
-  nsIVariant getTagsForURI(in nsIURI aURI);
+  void getTagsForURI(in nsIURI aURI,
+                     [optional] out unsigned long length,
+                     [retval, array, size_is(length)] out wstring aTags);
 
   /**
    * Retrieves all tags used to tag URIs in the data-base (sorted by name).

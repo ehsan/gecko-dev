@@ -76,13 +76,13 @@ function run_test()
       var to = (matches[2] === undefined) ? data.length - 1 : matches[2];
       if (from >= data.length) {
         resp.setStatusLine(meta.httpVersion, 416, "Start pos too high");
-        resp.setHeader("Content-Range", "*/" + data.length);
+        resp.setHeader("Content-Range", "*/" + data.length, false);
         return;
       }
       body = body.substring(from, to + 1);
       // always respond to successful range requests with 206
       resp.setStatusLine(meta.httpVersion, 206, "Partial Content");
-      resp.setHeader("Content-Range", from + "-" + to + "/" + data.length);
+      resp.setHeader("Content-Range", from + "-" + to + "/" + data.length, false);
     }
     resp.bodyOutputStream.write(body, body.length);
   });
@@ -123,9 +123,7 @@ function run_test()
         do_check_eq(data.length, aDl.amountTransferred);
         do_check_eq(data.length, aDl.size);
 
-        httpserv.stop();
-        // we're done with the test!
-        do_test_finished();
+        httpserv.stop(do_test_finished);
       }
     },
     onStateChange: function(a, b, aState, d, aDl) {
@@ -139,16 +137,17 @@ function run_test()
       }
     },
     onProgressChange: function(a, b, c, d, e, f, g) { },
-    onStatusChange: function(a, b, c, d, e) { },
-    onLocationChange: function(a, b, c, d) { },
     onSecurityChange: function(a, b, c, d) { }
   });
+  dm.addListener(getDownloadListener());
 
   /**
    * 4. Start the download
    */
   var destFile = dirSvc.get("ProfD", nsIF);
   destFile.append("resumed");
+  if (destFile.exists())
+    destFile.remove(false);
   var persist = Cc["@mozilla.org/embedding/browser/nsWebBrowserPersist;1"].
                 createInstance(nsIWBP);
   persist.persistFlags = nsIWBP.PERSIST_FLAGS_REPLACE_EXISTING_FILES |

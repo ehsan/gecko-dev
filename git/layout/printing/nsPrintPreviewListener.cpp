@@ -39,6 +39,9 @@
 
 #include "nsPrintPreviewListener.h"
 #include "nsIContent.h"
+#include "nsIDOMWindow.h"
+#include "nsPIDOMWindow.h"
+#include "nsIDOMElement.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDocument.h"
@@ -46,6 +49,7 @@
 #include "nsIDocShell.h"
 #include "nsPresContext.h"
 #include "nsIEventStateManager.h"
+#include "nsFocusManager.h"
 #include "nsLiteralString.h"
 
 NS_IMPL_ISUPPORTS1(nsPrintPreviewListener, nsIDOMEventListener)
@@ -171,7 +175,7 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
   if (nsEvent)
     nsEvent->GetOriginalTarget(getter_AddRefs(target));
   nsCOMPtr<nsIContent> content(do_QueryInterface(target));
-  if (content && !content->IsNodeOfType(nsINode::eXUL)) {
+  if (content && !content->IsXUL()) {
     eEventAction action = ::GetActionForEvent(aEvent);
     switch (action) {
       case eEventAction_Tab:
@@ -187,13 +191,20 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
 
           nsIDocument* parentDoc = doc->GetParentDocument();
           NS_ASSERTION(parentDoc, "no parent document");
-          nsIEventStateManager* esm =
-            parentDoc->GetPrimaryShell()->GetPresContext()->EventStateManager();
-          if (esm) {
-            esm->SetContentState(nsnull, NS_EVENT_STATE_FOCUS);
+
+          nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(parentDoc->GetWindow());
+
+          nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+          if (fm && win) {
+            nsIContent* fromContent = parentDoc->FindContentForSubDocument(doc);
+            nsCOMPtr<nsIDOMElement> from = do_QueryInterface(fromContent);
+
             PRBool forward = (action == eEventAction_Tab);
-            esm->ShiftFocus(forward,
-                            forward ? nsnull : parentDoc->FindContentForSubDocument(doc));
+            nsCOMPtr<nsIDOMElement> result;
+            fm->MoveFocus(win, from,
+                          forward ? nsIFocusManager::MOVEFOCUS_FORWARD :
+                                    nsIFocusManager::MOVEFOCUS_BACKWARD,
+                          nsIFocusManager::FLAG_BYKEY, getter_AddRefs(result));
           }
         }
       }

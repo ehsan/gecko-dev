@@ -45,64 +45,155 @@
 
 #include "nsUnicharUtils.h"
 
-#include "nsIPref.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"
 #include "nsServiceManagerUtils.h"
+#include "nsTArray.h"
 
 #include "nsIWindowsRegKey.h"
+#include "nsILocalFile.h"
+#include "plbase64.h"
 
+#ifdef MOZ_FT2_FONTS
+#include "ft2build.h"
+#include FT_FREETYPE_H
+#include "gfxFT2Fonts.h"
+#include "cairo-ft.h"
+#include "nsAppDirectoryServiceDefs.h"
+#else
 #include "gfxWindowsFonts.h"
+#endif
+
+/*XXX to get CAIRO_HAS_DDRAW_SURFACE */
+#include "cairo.h"
+
+#ifdef WINCE
+#include <shlwapi.h>
+
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+#include "gfxDDrawSurface.h"
+#endif
+#endif
+
+#include "gfxUserFontSet.h"
 
 #include <string>
 
-#include "lcms.h"
+#ifdef MOZ_FT2_FONTS
+static FT_Library gPlatformFTLibrary = NULL;
+#endif
 
-//#define DEBUG_CMAP_SIZE 1
+// font info loader constants
+static const PRUint32 kDelayBeforeLoadingCmaps = 8 * 1000; // 8secs
+static const PRUint32 kIntervalBetweenLoadingCmaps = 150; // 150ms
+static const PRUint32 kNumFontsPerSlice = 10; // read in info 10 fonts at a time
 
-/* Define this if we want to update the unicode range bitsets based
- * on the actual characters a font supports.
- *
- * Doing this can result in very large lists of fonts being returned.
- * Not doing this can let us prioritize fonts that do have the bit set
- * as they are more likely to provide better glyphs (in theory).
- */
-//#define UPDATE_RANGES
-
-int PR_CALLBACK
-gfxWindowsPlatform::PrefChangedCallback(const char *aPrefName, void *closure)
+static __inline void
+BuildKeyNameFromFontName(nsAString &aName)
 {
+    if (aName.Length() >= LF_FACESIZE)
+        aName.Truncate(LF_FACESIZE - 1);
+    ToLowerCase(aName);
+}
+
+class gfxWindowsPlatformPrefObserver : public nsIObserver {
+public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIOBSERVER
+};
+
+NS_IMPL_ISUPPORTS1(gfxWindowsPlatformPrefObserver, nsIObserver)
+
+NS_IMETHODIMP
+gfxWindowsPlatformPrefObserver::Observe(nsISupports     *aSubject,
+                                        const char      *aTopic,
+                                        const PRUnichar *aData)
+{
+    NS_ASSERTION(!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID), "invalid topic");
     // XXX this could be made to only clear out the cache for the prefs that were changed
     // but it probably isn't that big a deal.
-    gfxWindowsPlatform *plat = static_cast<gfxWindowsPlatform *>(closure);
-    plat->mPrefFonts.Clear();
-    return 0;
+    gfxWindowsPlatform::GetPlatform()->ClearPrefFonts();
+    return NS_OK;
 }
 
 gfxWindowsPlatform::gfxWindowsPlatform()
+    : mStartIndex(0), mIncrement(kNumFontsPerSlice), mNumFamilies(0)
 {
     mFonts.Init(200);
     mFontAliases.Init(20);
     mFontSubstitutes.Init(50);
     mPrefFonts.Init(10);
 
+#ifdef MOZ_FT2_FONTS
+    FT_Init_FreeType(&gPlatformFTLibrary);
+#else
+    FontEntry::InitializeFontEmbeddingProcs();
+#endif
+
     UpdateFontList();
 
-    nsCOMPtr<nsIPref> pref = do_GetService(NS_PREF_CONTRACTID);
-    pref->RegisterCallback("font.", PrefChangedCallback, this);
-    pref->RegisterCallback("font.name-list.", PrefChangedCallback, this);
-    pref->RegisterCallback("intl.accept_languages", PrefChangedCallback, this);
-    // don't bother unregistering.  We'll get shutdown after the pref service
+    nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
+
+    if (pref) {
+        gfxWindowsPlatformPrefObserver *observer = new gfxWindowsPlatformPrefObserver();
+        if (observer) {
+            pref->AddObserver("font.", observer, PR_FALSE);
+            pref->AddObserver("font.name-list.", observer, PR_FALSE);
+            pref->AddObserver("intl.accept_languages", observer, PR_FALSE);
+            // don't bother unregistering.  We'll get shutdown after the pref service
+        }
+    }
+
+/* Pick the default render mode differently between
+ * desktop, Windows Mobile, and Windows CE.
+ */
+#if defined(WINCE_WINDOWS_MOBILE)
+    mRenderMode = RENDER_IMAGE_DDRAW16;
+#elif defined(WINCE)
+    mRenderMode = RENDER_DDRAW_GL;
+#else
+    mRenderMode = RENDER_GDI;
+#endif
+
+    PRInt32 rmode;
+    if (NS_SUCCEEDED(pref->GetIntPref("mozilla.widget.render-mode", &rmode))) {
+        if (rmode >= 0 || rmode < RENDER_MODE_MAX) {
+#ifndef CAIRO_HAS_DDRAW_SURFACE
+            if (rmode == RENDER_DDRAW || rmode == RENDER_DDRAW_GL)
+                rmode = RENDER_IMAGE_STRETCH24;
+#endif
+            mRenderMode = (RenderMode) rmode;
+        }
+    }
 }
 
 gfxWindowsPlatform::~gfxWindowsPlatform()
 {
+    // not calling FT_Done_FreeType because cairo may still hold references to
+    // these FT_Faces.  See bug 458169.
 }
 
 already_AddRefed<gfxASurface>
 gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                            gfxASurface::gfxImageFormat imageFormat)
 {
-    gfxASurface *surf = new gfxWindowsSurface(size, imageFormat);
+    gfxASurface *surf = nsnull;
+
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+    if (mRenderMode == RENDER_DDRAW || mRenderMode == RENDER_DDRAW_GL)
+        surf = new gfxDDrawSurface(NULL, size, imageFormat);
+#endif
+
+#ifdef CAIRO_HAS_WIN32_SURFACE
+    if (mRenderMode == RENDER_GDI)
+        surf = new gfxWindowsSurface(size, imageFormat);
+#endif
+
+    if (surf == nsnull)
+        surf = new gfxImageSurface(size, imageFormat);
+
     NS_IF_ADDREF(surf);
+
     return surf;
 }
 
@@ -111,355 +202,65 @@ gfxWindowsPlatform::FontEnumProc(const ENUMLOGFONTEXW *lpelfe,
                                  const NEWTEXTMETRICEXW *nmetrics,
                                  DWORD fontType, LPARAM data)
 {
-    gfxWindowsPlatform *thisp = reinterpret_cast<gfxWindowsPlatform*>(data);
+    FontTable *ht = reinterpret_cast<FontTable*>(data);
 
-    const LOGFONTW& logFont = lpelfe->elfLogFont;
     const NEWTEXTMETRICW& metrics = nmetrics->ntmTm;
-
-#ifdef DEBUG_pavlov
-    printf("%s %d %d %d\n", NS_ConvertUTF16toUTF8(nsDependentString(logFont.lfFaceName)).get(),
-           logFont.lfCharSet, logFont.lfItalic, logFont.lfWeight);
-#endif
+    const LOGFONTW& logFont = lpelfe->elfLogFont;
 
     // Ignore vertical fonts
-    if (logFont.lfFaceName[0] == L'@') {
+    if (logFont.lfFaceName[0] == L'@')
         return 1;
-    }
 
-    nsString name(logFont.lfFaceName);
-    ToLowerCase(name);
+    nsAutoString name(logFont.lfFaceName);
+    BuildKeyNameFromFontName(name);
 
-    nsRefPtr<FontEntry> fe;
-    if (!thisp->mFonts.Get(name, &fe)) {
-        fe = new FontEntry(nsDependentString(logFont.lfFaceName), (PRUint16)fontType);
-        thisp->mFonts.Put(name, fe);
-    }
-
-    // mark the charset bit
-    fe->mCharset[metrics.tmCharSet] = 1;
-
-    // put the default weight in the weight table
-    fe->mWeightTable.SetWeight(PR_MAX(1, PR_MIN(9, metrics.tmWeight / 100)), PR_TRUE);
-
-    // store the default font weight
-    fe->mDefaultWeight = metrics.tmWeight;
-
-    fe->mFamily = logFont.lfPitchAndFamily & 0xF0;
-    fe->mPitch = logFont.lfPitchAndFamily & 0x0F;
-
-    if (nmetrics->ntmFontSig.fsUsb[0] == 0x00000000 &&
-        nmetrics->ntmFontSig.fsUsb[1] == 0x00000000 &&
-        nmetrics->ntmFontSig.fsUsb[2] == 0x00000000 &&
-        nmetrics->ntmFontSig.fsUsb[3] == 0x00000000) {
-        // no unicode ranges
-        fe->mUnicodeFont = PR_FALSE;
-    } else {
-        fe->mUnicodeFont = PR_TRUE;
-
-        // set the unicode ranges
-        PRUint32 x = 0;
-        for (PRUint32 i = 0; i < 4; ++i) {
-            DWORD range = nmetrics->ntmFontSig.fsUsb[i];
-            for (PRUint32 k = 0; k < 32; ++k) {
-                fe->mUnicodeRanges[x++] = (range & (1 << k)) != 0;
-            }
-        }
+    nsRefPtr<FontFamily> ff;
+    if (!ht->Get(name, &ff)) {
+        ff = new FontFamily(nsDependentString(logFont.lfFaceName));
+        ht->Put(name, ff);
     }
 
     return 1;
 }
 
-static inline PRUint16
-ReadShortAt(const PRUint8 *aBuf, PRUint32 aIndex)
-{
-    return (aBuf[aIndex] << 8) | aBuf[aIndex + 1];
-}
 
-static inline PRUint16
-ReadShortAt16(const PRUint16 *aBuf, PRUint32 aIndex)
-{
-    return (((aBuf[aIndex]&0xFF) << 8) | ((aBuf[aIndex]&0xFF00) >> 8));
-}
-
-static inline PRUint32
-ReadLongAt(const PRUint8 *aBuf, PRUint32 aIndex)
-{
-    return ((aBuf[aIndex] << 24) | (aBuf[aIndex + 1] << 16) | (aBuf[aIndex + 2] << 8) | (aBuf[aIndex + 3]));
-}
-
-static nsresult
-ReadCMAPTableFormat12(PRUint8 *aBuf, PRInt32 aLength, FontEntry *aFontEntry) 
-{
-    enum {
-        OffsetFormat = 0,
-        OffsetReserved = 2,
-        OffsetTableLength = 4,
-        OffsetLanguage = 8,
-        OffsetNumberGroups = 12,
-        OffsetGroups = 16,
-
-        SizeOfGroup = 12,
-
-        GroupOffsetStartCode = 0,
-        GroupOffsetEndCode = 4
-    };
-    NS_ENSURE_TRUE(aLength >= 16, NS_ERROR_FAILURE);
-
-    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetFormat) == 12, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetReserved) == 0, NS_ERROR_FAILURE);
-
-    PRUint32 tablelen = ReadLongAt(aBuf, OffsetTableLength);
-    NS_ENSURE_TRUE(tablelen <= aLength, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(tablelen >= 16, NS_ERROR_FAILURE);
-
-    NS_ENSURE_TRUE(ReadLongAt(aBuf, OffsetLanguage) == 0, NS_ERROR_FAILURE);
-
-    const PRUint32 numGroups  = ReadLongAt(aBuf, OffsetNumberGroups);
-    NS_ENSURE_TRUE(tablelen >= 16 + (12 * numGroups), NS_ERROR_FAILURE);
-
-    const PRUint8 *groups = aBuf + OffsetGroups;
-    for (PRUint32 i = 0; i < numGroups; i++, groups += SizeOfGroup) {
-        const PRUint32 startCharCode = ReadLongAt(groups, GroupOffsetStartCode);
-        const PRUint32 endCharCode = ReadLongAt(groups, GroupOffsetEndCode);
-        aFontEntry->mCharacterMap.SetRange(startCharCode, endCharCode);
-#ifdef UPDATE_RANGES
-        for (PRUint32 c = startCharCode; c <= endCharCode; ++c) {
-            PRUint16 b = CharRangeBit(c);
-            if (b != NO_RANGE_FOUND)
-                aFontEntry->mUnicodeRanges.set(b, true);
-        }
-#endif
-    }
-
-    return NS_OK;
-}
-
-static nsresult 
-ReadCMAPTableFormat4(PRUint8 *aBuf, PRInt32 aLength, FontEntry *aFontEntry)
-{
-    enum {
-        OffsetFormat = 0,
-        OffsetLength = 2,
-        OffsetLanguage = 4,
-        OffsetSegCountX2 = 6
-    };
-
-    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetFormat) == 4, NS_ERROR_FAILURE);
-    PRUint16 tablelen = ReadShortAt(aBuf, OffsetLength);
-    NS_ENSURE_TRUE(tablelen <= aLength, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(tablelen > 16, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetLanguage) == 0, NS_ERROR_FAILURE);
-
-    PRUint16 segCountX2 = ReadShortAt(aBuf, OffsetSegCountX2);
-    NS_ENSURE_TRUE(tablelen >= 16 + (segCountX2 * 4), NS_ERROR_FAILURE);
-
-    const PRUint16 segCount = segCountX2 / 2;
-
-    const PRUint16 *endCounts = (PRUint16*)(aBuf + 14);
-    const PRUint16 *startCounts = endCounts + 1 /* skip one uint16 for reservedPad */ + segCount;
-    const PRUint16 *idDeltas = startCounts + segCount;
-    const PRUint16 *idRangeOffsets = idDeltas + segCount;
-    for (PRUint16 i = 0; i < segCount; i++) {
-        const PRUint16 endCount = ReadShortAt16(endCounts, i);
-        const PRUint16 startCount = ReadShortAt16(startCounts, i);
-        const PRUint16 idRangeOffset = ReadShortAt16(idRangeOffsets, i);
-        if (idRangeOffset == 0) {
-            aFontEntry->mCharacterMap.SetRange(startCount, endCount);
-#ifdef UPDATE_RANGES
-            for (PRUint32 c = startCount; c <= endCount; c++) {
-                PRUint16 b = CharRangeBit(c);
-                if (b != NO_RANGE_FOUND)
-                    aFontEntry->mUnicodeRanges.set(b, true);
-            }
-#endif
-        } else {
-            const PRUint16 idDelta = ReadShortAt16(idDeltas, i);
-            for (PRUint32 c = startCount; c <= endCount; ++c) {
-                if (c == 0xFFFF)
-                    break;
-
-                const PRUint16 *gdata = (idRangeOffset/2 
-                                         + (c - startCount)
-                                         + &idRangeOffsets[i]);
-
-                NS_ENSURE_TRUE((PRUint8*)gdata > aBuf && (PRUint8*)gdata < aBuf + aLength, NS_ERROR_FAILURE);
-
-                // make sure we have a glyph
-                if (*gdata != 0) {
-                    // The glyph index at this point is:
-                    // glyph = (ReadShortAt16(idDeltas, i) + *gdata) % 65536;
-
-                    aFontEntry->mCharacterMap.set(c);
-#ifdef UPDATE_RANGES
-                    PRUint16 b = CharRangeBit(c);
-                    if (b != NO_RANGE_FOUND)
-                        aFontEntry->mUnicodeRanges.set(b, true);
-#endif
-                }
-            }
-        }
-    }
-
-    return NS_OK;
-}
-
-static nsresult
-ReadCMAP(HDC hdc, FontEntry *aFontEntry)
-{
-    const PRUint32 kCMAP = (('c') | ('m' << 8) | ('a' << 16) | ('p' << 24));
-
-    DWORD len = GetFontData(hdc, kCMAP, 0, nsnull, 0);
-    NS_ENSURE_TRUE(len != GDI_ERROR && len != 0, NS_ERROR_FAILURE);
-
-    nsAutoTArray<PRUint8,16384> buffer;
-    if (!buffer.AppendElements(len))
-        return NS_ERROR_OUT_OF_MEMORY;
-    PRUint8 *buf = buffer.Elements();
-
-    DWORD newLen = GetFontData(hdc, kCMAP, 0, buf, len);
-    NS_ENSURE_TRUE(newLen == len, NS_ERROR_FAILURE);
-
-    enum {
-        OffsetVersion = 0,
-        OffsetNumTables = 2,
-        SizeOfHeader = 4,
-
-        TableOffsetPlatformID = 0,
-        TableOffsetEncodingID = 2,
-        TableOffsetOffset = 4,
-        SizeOfTable = 8,
-
-        SubtableOffsetFormat = 0
-    };
-    enum {
-        PlatformIDMicrosoft = 3
-    };
-    enum {
-        EncodingIDSymbol = 0,
-        EncodingIDMicrosoft = 1,
-        EncodingIDUCS4 = 10
-    };
-
-    PRUint16 version = ReadShortAt(buf, OffsetVersion);
-    PRUint16 numTables = ReadShortAt(buf, OffsetNumTables);
-
-    // save the format and offset we want here
-    PRUint32 keepOffset = 0;
-    PRUint32 keepFormat = 0;
-
-    PRUint8 *table = buf + SizeOfHeader;
-    for (PRUint16 i = 0; i < numTables; ++i, table += SizeOfTable) {
-        const PRUint16 platformID = ReadShortAt(table, TableOffsetPlatformID);
-        if (platformID != PlatformIDMicrosoft)
-            continue;
-
-        const PRUint16 encodingID = ReadShortAt(table, TableOffsetEncodingID);
-        const PRUint32 offset = ReadLongAt(table, TableOffsetOffset);
-
-        NS_ASSERTION(offset < newLen, "ugh");
-        const PRUint8 *subtable = buf + offset;
-        const PRUint16 format = ReadShortAt(subtable, SubtableOffsetFormat);
-
-        if (encodingID == EncodingIDSymbol) {
-            aFontEntry->mUnicodeFont = PR_FALSE;
-            aFontEntry->mSymbolFont = PR_TRUE;
-            keepFormat = format;
-            keepOffset = offset;
-            break;
-        } else if (format == 4 && encodingID == EncodingIDMicrosoft) {
-            keepFormat = format;
-            keepOffset = offset;
-        } else if (format == 12 && encodingID == EncodingIDUCS4) {
-            keepFormat = format;
-            keepOffset = offset;
-            break; // we don't want to try anything else when this format is available.
-        }
-    }
-
-    nsresult rv = NS_ERROR_FAILURE;
-
-    if (keepFormat == 12)
-        rv = ReadCMAPTableFormat12(buf + keepOffset, len - keepOffset, aFontEntry);
-    else if (keepFormat == 4)
-        rv = ReadCMAPTableFormat4(buf + keepOffset, len - keepOffset, aFontEntry);
-
-    return rv;
-}
-
-PLDHashOperator PR_CALLBACK
-gfxWindowsPlatform::FontGetCMapDataProc(nsStringHashKey::KeyType aKey,
-                                        nsRefPtr<FontEntry>& aFontEntry,
-                                        void* userArg)
-{
-    if (aFontEntry->mFontType != TRUETYPE_FONTTYPE) {
-        /* bitmap fonts suck -- just claim they support everything
-           between 0x20 and 0xFF.  All the ones on my system do...
-           If we really wanted to test which characters in this
-           range were supported we could just generate a string with
-           each codepoint and do GetGlyphIndicies or similar to determine
-           what is there.
-        */
-        for (PRUint16 ch = 0x20; ch <= 0xFF; ch++)
-            aFontEntry->mCharacterMap.set(ch);
-        return PL_DHASH_NEXT;
-    }
-
-    HDC hdc = GetDC(nsnull);
-
-    LOGFONTW logFont;
-    memset(&logFont, 0, sizeof(LOGFONTW));
-    logFont.lfCharSet = DEFAULT_CHARSET;
-    logFont.lfPitchAndFamily = 0;
-    PRUint32 l = PR_MIN(aFontEntry->mName.Length(), LF_FACESIZE - 1);
-    memcpy(logFont.lfFaceName,
-           nsPromiseFlatString(aFontEntry->mName).get(),
-           l * sizeof(PRUnichar));
-    logFont.lfFaceName[l] = 0;
-
-    HFONT font = CreateFontIndirectW(&logFont);
-
-    if (font) {
-        HFONT oldFont = (HFONT)SelectObject(hdc, font);
-
-        nsresult rv = ReadCMAP(hdc, aFontEntry);
-
-        if (NS_FAILED(rv)) {
-            aFontEntry->mUnicodeFont = PR_FALSE;
-            //printf("%s failed to get cmap\n", NS_ConvertUTF16toUTF8(aFontEntry->mName).get());
-        }
-
-        SelectObject(hdc, oldFont);
-        DeleteObject(font);
-    }
-
-    ReleaseDC(nsnull, hdc);
-
-    return PL_DHASH_NEXT;
-}
-
+// general cmap reading routines moved to gfxFontUtils.cpp
 
 struct FontListData {
-    FontListData(const nsACString& aLangGroup, const nsACString& aGenericFamily, nsStringArray& aListOfFonts) :
+    FontListData(const nsACString& aLangGroup, const nsACString& aGenericFamily, nsTArray<nsString>& aListOfFonts) :
         mLangGroup(aLangGroup), mGenericFamily(aGenericFamily), mStringArray(aListOfFonts) {}
     const nsACString& mLangGroup;
     const nsACString& mGenericFamily;
-    nsStringArray& mStringArray;
+    nsTArray<nsString>& mStringArray;
 };
 
-PLDHashOperator PR_CALLBACK
+PLDHashOperator
 gfxWindowsPlatform::HashEnumFunc(nsStringHashKey::KeyType aKey,
-                                 nsRefPtr<FontEntry>& aFontEntry,
+                                 nsRefPtr<FontFamily>& aFontFamily,
                                  void* userArg)
 {
     FontListData *data = (FontListData*)userArg;
 
+    // use the first variation for now.  This data should be the same
+    // for all the variations and should probably be moved up to
+    // the Family
+    gfxFontStyle style;
+    style.langGroup = data->mLangGroup;
+    nsRefPtr<FontEntry> aFontEntry = aFontFamily->FindFontEntry(style);
+    NS_ASSERTION(aFontEntry, "couldn't find any font entry in family");
+    if (!aFontEntry)
+        return PL_DHASH_NEXT;
+
+
+#ifndef MOZ_FT2_FONTS
     /* skip symbol fonts */
     if (aFontEntry->mSymbolFont)
         return PL_DHASH_NEXT;
 
     if (aFontEntry->SupportsLangGroup(data->mLangGroup) &&
         aFontEntry->MatchesGenericFamily(data->mGenericFamily))
-        data->mStringArray.AppendString(aFontEntry->mName);
+#endif
+    data->mStringArray.AppendElement(aFontFamily->Name());
 
     return PL_DHASH_NEXT;
 }
@@ -467,7 +268,7 @@ gfxWindowsPlatform::HashEnumFunc(nsStringHashKey::KeyType aKey,
 nsresult
 gfxWindowsPlatform::GetFontList(const nsACString& aLangGroup,
                                 const nsACString& aGenericFamily,
-                                nsStringArray& aListOfFonts)
+                                nsTArray<nsString>& aListOfFonts)
 {
     FontListData data(aLangGroup, aGenericFamily, aListOfFonts);
 
@@ -487,23 +288,101 @@ RemoveCharsetFromFontSubstitute(nsAString &aName)
         aName.Truncate(comma);
 }
 
-static void
-BuildKeyNameFromFontName(nsAString &aName)
-{
-    if (aName.Length() >= LF_FACESIZE)
-        aName.Truncate(LF_FACESIZE - 1);
-    ToLowerCase(aName);
+#ifdef MOZ_FT2_FONTS
+void gfxWindowsPlatform::AppendFacesFromFontFile(const PRUnichar *aFileName) {
+    char fileName[MAX_PATH];
+    WideCharToMultiByte(CP_ACP, 0, aFileName, -1, fileName, MAX_PATH, NULL, NULL);
+    FT_Face dummy;
+    if (FT_Err_Ok == FT_New_Face(GetFTLibrary(), fileName, -1, &dummy)) {
+        for (FT_Long i = 0; i < dummy->num_faces; i++) {
+            FT_Face face;
+            if (FT_Err_Ok != FT_New_Face(GetFTLibrary(), fileName, 
+                                         i, &face))
+                continue;
+
+            FontEntry* fe = FontEntry::CreateFontEntryFromFace(face);
+            if (fe) {
+                NS_ConvertUTF8toUTF16 name(face->family_name);
+                BuildKeyNameFromFontName(name);       
+                nsRefPtr<FontFamily> ff;
+                if (!mFonts.Get(name, &ff)) {
+                    ff = new FontFamily(name);
+                    mFonts.Put(name, ff);
+                }
+                ff->AddFontEntry(fe);
+                ff->SetHasStyles(PR_TRUE);
+            }
+        }
+        FT_Done_Face(dummy);
+    }
 }
+
+void
+gfxWindowsPlatform::FindFonts()
+{
+    nsTArray<nsString> searchPaths(3);
+    nsTArray<nsString> fontPatterns(3);
+    fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.ttf"));
+    fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.ttc"));
+    fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.otf"));
+    wchar_t pathBuf[256];
+    SHGetSpecialFolderPathW(0, pathBuf, CSIDL_WINDOWS, 0);
+    searchPaths.AppendElement(pathBuf);
+    SHGetSpecialFolderPathW(0, pathBuf, CSIDL_FONTS, 0);
+    searchPaths.AppendElement(pathBuf);
+    nsCOMPtr<nsIFile> resDir;
+    NS_GetSpecialDirectory(NS_APP_RES_DIR, getter_AddRefs(resDir));
+    if (resDir) {
+        resDir->Append(NS_LITERAL_STRING("fonts"));
+        nsAutoString resPath;
+        resDir->GetPath(resPath);
+        searchPaths.AppendElement(resPath);
+    }
+    WIN32_FIND_DATAW results;
+    for (PRUint32 i = 0;  i < searchPaths.Length(); i++) {
+        const nsString& path(searchPaths[i]);
+        for (PRUint32 j = 0; j < fontPatterns.Length(); j++) { 
+            nsAutoString pattern(path);
+            pattern.Append(fontPatterns[j]);
+            HANDLE handle = FindFirstFileExW(pattern.get(),
+                                             FindExInfoStandard,
+                                             &results,
+                                             FindExSearchNameMatch,
+                                             NULL,
+                                             0);
+            PRBool moreFiles = handle != INVALID_HANDLE_VALUE;
+            while (moreFiles) {
+                nsAutoString filePath(path);
+                filePath.AppendLiteral("\\");
+                filePath.Append(results.cFileName);
+                AppendFacesFromFontFile(static_cast<const PRUnichar*>(filePath.get()));
+                moreFiles = FindNextFile(handle, &results);
+            }
+            if (handle != INVALID_HANDLE_VALUE)
+                FindClose(handle);
+        }
+    }
+}
+
+#endif
+
 
 nsresult
 gfxWindowsPlatform::UpdateFontList()
 {
+    gfxFontCache *fc = gfxFontCache::GetCache();
+    if (fc)
+        fc->AgeAllGenerations();
     mFonts.Clear();
     mFontAliases.Clear();
     mNonExistingFonts.Clear();
     mFontSubstitutes.Clear();
     mPrefFonts.Clear();
-
+    mCodepointsWithNoFonts.reset();
+    CancelLoader();
+#ifdef MOZ_FT2_FONTS
+    FindFonts();
+#else    
     LOGFONTW logFont;
     logFont.lfCharSet = DEFAULT_CHARSET;
     logFont.lfFaceName[0] = 0;
@@ -511,11 +390,11 @@ gfxWindowsPlatform::UpdateFontList()
 
     // Use the screen DC here.. should we use something else for printing?
     HDC dc = ::GetDC(nsnull);
-    EnumFontFamiliesExW(dc, &logFont, (FONTENUMPROCW)gfxWindowsPlatform::FontEnumProc, (LPARAM)this, 0);
+    EnumFontFamiliesExW(dc, &logFont, (FONTENUMPROCW)gfxWindowsPlatform::FontEnumProc, (LPARAM)&mFonts, 0);
     ::ReleaseDC(nsnull, dc);
-
-    // Update all the fonts cmaps
-    mFonts.Enumerate(gfxWindowsPlatform::FontGetCMapDataProc, nsnull);
+#endif
+    // initialize the cmap loading process after font list has been initialized
+    StartLoader(kDelayBeforeLoadingCmaps, kIntervalBetweenLoadingCmaps); 
 
     // Create the list of FontSubstitutes
     nsCOMPtr<nsIWindowsRegKey> regKey = do_CreateInstance("@mozilla.org/windows-registry-key;1");
@@ -551,14 +430,81 @@ gfxWindowsPlatform::UpdateFontList()
         BuildKeyNameFromFontName(substituteName);
         RemoveCharsetFromFontSubstitute(actualFontName);
         BuildKeyNameFromFontName(actualFontName);
-        nsRefPtr<FontEntry> fe;
-        if (!actualFontName.IsEmpty() && mFonts.Get(actualFontName, &fe))
-            mFontSubstitutes.Put(substituteName, fe);
+        nsRefPtr<FontFamily> ff;
+        if (!actualFontName.IsEmpty() && mFonts.Get(actualFontName, &ff))
+            mFontSubstitutes.Put(substituteName, ff);
         else
-            mNonExistingFonts.AppendString(substituteName);
+            mNonExistingFonts.AppendElement(substituteName);
     }
 
+    // initialize ranges of characters for which system-wide font search should be skipped
+    mCodepointsWithNoFonts.SetRange(0,0x1f);     // C0 controls
+    mCodepointsWithNoFonts.SetRange(0x7f,0x9f);  // C1 controls
+
+    InitBadUnderlineList();
+
     return NS_OK;
+}
+
+struct FontFamilyListData {
+    FontFamilyListData(nsTArray<nsRefPtr<FontFamily> >& aFamilyArray) 
+        : mFamilyArray(aFamilyArray)
+    {}
+
+    static PLDHashOperator AppendFamily(nsStringHashKey::KeyType aKey,
+                                        nsRefPtr<FontFamily>& aFamilyEntry,
+                                        void *aUserArg)
+    {
+        FontFamilyListData *data = (FontFamilyListData*)aUserArg;
+        data->mFamilyArray.AppendElement(aFamilyEntry);
+        return PL_DHASH_NEXT;
+    }
+
+    nsTArray<nsRefPtr<FontFamily> >& mFamilyArray;
+};
+
+void
+gfxWindowsPlatform::GetFontFamilyList(nsTArray<nsRefPtr<FontFamily> >& aFamilyArray)
+{
+    FontFamilyListData data(aFamilyArray);
+    mFonts.Enumerate(FontFamilyListData::AppendFamily, &data);
+}
+
+static PRBool SimpleResolverCallback(const nsAString& aName, void* aClosure)
+{
+    nsString *result = static_cast<nsString*>(aClosure);
+    result->Assign(aName);
+    return PR_FALSE;
+}
+
+void
+gfxWindowsPlatform::InitBadUnderlineList()
+{
+// Only windows fonts have mIsBadUnderlineFontFamily flag
+#ifndef MOZ_FT2_FONTS
+    nsAutoTArray<nsString, 10> blacklist;
+    gfxFontUtils::GetPrefsFontList("font.blacklist.underline_offset", blacklist);
+    PRUint32 numFonts = blacklist.Length();
+    for (PRUint32 i = 0; i < numFonts; i++) {
+        PRBool aborted;
+        nsAutoString resolved;
+        ResolveFontName(blacklist[i], SimpleResolverCallback, &resolved, aborted);
+        if (resolved.IsEmpty())
+            continue;
+        FontFamily *ff = FindFontFamily(resolved);
+        if (!ff)
+            continue;
+        ff->mIsBadUnderlineFontFamily = 1;
+    }
+#endif
+}
+
+nsresult
+gfxWindowsPlatform::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName)
+{
+    aFamilyName.Truncate();
+    PRBool aborted;
+    return ResolveFontName(aFontName, SimpleResolverCallback, &aFamilyName, aborted);
 }
 
 struct ResolveData {
@@ -586,16 +532,16 @@ gfxWindowsPlatform::ResolveFontName(const nsAString& aFontName,
     nsAutoString keyName(aFontName);
     BuildKeyNameFromFontName(keyName);
 
-    nsRefPtr<FontEntry> fe;
-    if (mFonts.Get(keyName, &fe) ||
-        mFontSubstitutes.Get(keyName, &fe) ||
-        mFontAliases.Get(keyName, &fe)) {
-        aAborted = !(*aCallback)(fe->mName, aClosure);
+    nsRefPtr<FontFamily> ff;
+    if (mFonts.Get(keyName, &ff) ||
+        mFontSubstitutes.Get(keyName, &ff) ||
+        mFontAliases.Get(keyName, &ff)) {
+        aAborted = !(*aCallback)(ff->Name(), aClosure);
         // XXX If the font has font link, we should add the linked font.
         return NS_OK;
     }
 
-    if (mNonExistingFonts.IndexOf(keyName) >= 0) {
+    if (mNonExistingFonts.Contains(keyName)) {
         aAborted = PR_FALSE;
         return NS_OK;
     }
@@ -612,12 +558,11 @@ gfxWindowsPlatform::ResolveFontName(const nsAString& aFontName,
 
     HDC dc = ::GetDC(nsnull);
     ResolveData data(aCallback, this, &keyName, aClosure);
-    aAborted =
-        !EnumFontFamiliesExW(dc, &logFont,
-                             (FONTENUMPROCW)gfxWindowsPlatform::FontResolveProc,
-                             (LPARAM)&data, 0);
+    aAborted = !EnumFontFamiliesExW(dc, &logFont,
+                                    (FONTENUMPROCW)gfxWindowsPlatform::FontResolveProc,
+                                    (LPARAM)&data, 0);
     if (data.mFoundCount == 0)
-        mNonExistingFonts.AppendString(keyName);
+        mNonExistingFonts.AppendElement(keyName);
     ::ReleaseDC(nsnull, dc);
 
     return NS_OK;
@@ -638,10 +583,10 @@ gfxWindowsPlatform::FontResolveProc(const ENUMLOGFONTEXW *lpelfe,
     nsAutoString name(logFont.lfFaceName);
 
     // Save the alias name to cache
-    nsRefPtr<FontEntry> fe;
+    nsRefPtr<FontFamily> ff;
     nsAutoString keyName(name);
     BuildKeyNameFromFontName(keyName);
-    if (!rData->mCaller->mFonts.Get(keyName, &fe)) {
+    if (!rData->mCaller->mFonts.Get(keyName, &ff)) {
         // This case only occurs on failing to build
         // the list of font substitue. In this case, the user should
         // reboot the Windows. Probably, we don't have the good way for
@@ -651,121 +596,318 @@ gfxWindowsPlatform::FontResolveProc(const ENUMLOGFONTEXW *lpelfe,
     }
 
     rData->mFoundCount++;
-    rData->mCaller->mFontAliases.Put(*(rData->mFontName), fe);
+    rData->mCaller->mFontAliases.Put(*(rData->mFontName), ff);
 
     return (rData->mCallback)(name, rData->mClosure);
 
     // XXX If the font has font link, we should add the linked font.
 }
 
-struct FontSearch {
-    FontSearch(const PRUnichar *aString, PRUint32 aLength, gfxWindowsFont *aFont) :
-        string(aString), length(aLength), fontToMatch(aFont), matchRank(0) {
-    }
-    const PRUnichar *string;
-    const PRUint32 length;
-    nsRefPtr<gfxWindowsFont> fontToMatch;
-    PRInt32 matchRank;
-    nsRefPtr<FontEntry> bestMatch;
-};
-
-PLDHashOperator PR_CALLBACK
-gfxWindowsPlatform::FindFontForStringProc(nsStringHashKey::KeyType aKey,
-                                          nsRefPtr<FontEntry>& aFontEntry,
-                                          void* userArg)
+PLDHashOperator
+gfxWindowsPlatform::FindFontForCharProc(nsStringHashKey::KeyType aKey,
+                                        nsRefPtr<FontFamily>& aFontFamily,
+                                        void* userArg)
 {
-    // bitmap fonts suck
-    if (aFontEntry->IsCrappyFont())
-        return PL_DHASH_NEXT;
-
     FontSearch *data = (FontSearch*)userArg;
 
-    PRInt32 rank = 0;
+#ifdef MOZ_FT2_FONTS
+    aFontFamily->FindFontForChar(data);
+#else
+    const PRUint32 ch = data->mCh;
 
-    for (PRUint32 i = 0; i < data->length; ++i) {
-        PRUint32 ch = data->string[i];
-
-        if ((i+1 < data->length) && NS_IS_HIGH_SURROGATE(ch) && NS_IS_LOW_SURROGATE(data->string[i+1])) {
-            i++;
-            ch = SURROGATE_TO_UCS4(ch, data->string[i]);
-        }
-
-        if (aFontEntry->mCharacterMap.test(ch)) {
-            rank += 20;
-
-            // fonts that claim to support the range are more
-            // likely to be "better fonts" than ones that don't... (in theory)
-            if (aFontEntry->SupportsRange(CharRangeBit(ch)))
-                rank += 1;
-        }
-    }
-
-    // if we didn't match any characters don't bother wasting more time.
-    if (rank == 0)
+    nsRefPtr<FontEntry> fe = aFontFamily->FindFontEntry(*data->mFontToMatch->GetStyle());
+    NS_ASSERTION(fe, "couldn't find any font entry in family");
+    if (!fe)
         return PL_DHASH_NEXT;
 
+    // initialize rank to 1 so that any match is better than the initial
+    // value of data->mMatchRank (zero); therefore the first font that
+    // passes the mCharacterMap.test() will become the mBestMatch until
+    // a better entry is found
+    PRInt32 rank = 1;
 
-    if (aFontEntry->SupportsLangGroup(data->fontToMatch->GetStyle()->langGroup))
-        rank += 10;
+    // skip over non-unicode and bitmap fonts and fonts that don't have
+    // the code point we're looking for
+    if (fe->IsCrappyFont() || !fe->mCharacterMap.test(ch))
+        return PL_DHASH_NEXT;
 
-    if (data->fontToMatch->GetFontEntry()->mFamily == aFontEntry->mFamily)
-        rank += 5;
-    if (data->fontToMatch->GetFontEntry()->mFamily == aFontEntry->mPitch)
-        rank += 5;
+    // fonts that claim to support the range are more
+    // likely to be "better fonts" than ones that don't... (in theory)
+    if (fe->SupportsRange(gfxFontUtils::CharRangeBit(ch)))
+        rank += 1;
+
+    if (fe->SupportsLangGroup(data->mFontToMatch->GetStyle()->langGroup))
+        rank += 2;
+
+    FontEntry* mfe = static_cast<FontEntry*>(data->mFontToMatch->GetFontEntry());
+
+    if (fe->mWindowsFamily == mfe->mWindowsFamily)
+        rank += 3;
+    if (fe->mWindowsPitch == mfe->mWindowsPitch)
+        rank += 3;
+
+    /* italic */
+    const PRBool italic = (data->mFontToMatch->GetStyle()->style != FONT_STYLE_NORMAL);
+    if (fe->mItalic != italic)
+        rank += 3;
 
     /* weight */
     PRInt8 baseWeight, weightDistance;
-    data->fontToMatch->GetStyle()->ComputeWeightAndOffset(&baseWeight, &weightDistance);
-    PRUint16 targetWeight = (baseWeight * 100) + (weightDistance * 100);
-    if (targetWeight == aFontEntry->mDefaultWeight)
-        rank += 5;
+    data->mFontToMatch->GetStyle()->ComputeWeightAndOffset(&baseWeight, &weightDistance);
+    if (fe->mWeight == (baseWeight * 100) + (weightDistance * 100))
+        rank += 2;
+    else if (fe->mWeight == data->mFontToMatch->GetFontEntry()->mWeight)
+        rank += 1;
 
-    if (rank > data->matchRank ||
-        (rank == data->matchRank && Compare(aFontEntry->mName, data->bestMatch->mName) > 0)) {
-        data->bestMatch = aFontEntry;
-        data->matchRank = rank;
+    if (rank > data->mMatchRank ||
+        (rank == data->mMatchRank && Compare(fe->Name(), data->mBestMatch->Name()) > 0)) {
+        data->mBestMatch = fe;
+        data->mMatchRank = rank;
     }
+#endif
 
     return PL_DHASH_NEXT;
 }
 
-
-FontEntry *
-gfxWindowsPlatform::FindFontForString(const PRUnichar *aString, PRUint32 aLength, gfxWindowsFont *aFont)
+already_AddRefed<gfxFont>
+gfxWindowsPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
 {
-    FontSearch data(aString, aLength, aFont);
+    // is codepoint with no matching font? return null immediately
+    if (mCodepointsWithNoFonts.test(aCh)) {
+        return nsnull;
+    }
+
+    FontSearch data(aCh, aFont);
 
     // find fonts that support the character
-    mFonts.Enumerate(gfxWindowsPlatform::FindFontForStringProc, &data);
+    mFonts.Enumerate(gfxWindowsPlatform::FindFontForCharProc, &data);
 
-    return data.bestMatch;
+    if (data.mBestMatch) {
+#ifdef MOZ_FT2_FONTS
+        nsRefPtr<gfxFT2Font> font =
+            gfxFT2Font::GetOrMakeFont(static_cast<FontEntry*>(data.mBestMatch.get()), 
+                                      aFont->GetStyle()); 
+        gfxFont* ret = font.forget().get();
+        return already_AddRefed<gfxFont>(ret);
+#else
+        nsRefPtr<gfxWindowsFont> font =
+            gfxWindowsFont::GetOrMakeFont(static_cast<FontEntry*>(data.mBestMatch.get()),
+                                          aFont->GetStyle());
+        if (font->IsValid()) {
+            gfxFont* ret = font.forget().get();
+            return already_AddRefed<gfxFont>(ret);
+        }
+#endif
+        return nsnull;
+    }
+    // no match? add to set of non-matching codepoints
+    mCodepointsWithNoFonts.set(aCh);
+    return nsnull;
 }
 
 gfxFontGroup *
 gfxWindowsPlatform::CreateFontGroup(const nsAString &aFamilies,
-                                    const gfxFontStyle *aStyle)
+                                    const gfxFontStyle *aStyle,
+                                    gfxUserFontSet *aUserFontSet)
 {
-    return new gfxWindowsFontGroup(aFamilies, aStyle);
+#ifdef MOZ_FT2_FONTS
+    return new gfxFT2FontGroup(aFamilies, aStyle);
+#else
+    return new gfxWindowsFontGroup(aFamilies, aStyle, aUserFontSet);
+#endif
+}
+
+
+struct FullFontNameSearch {
+    FullFontNameSearch(const nsAString& aFullName)
+        : mFound(PR_FALSE), mFullName(aFullName), mDC(nsnull), mFontEntry(nsnull)
+    { }
+
+    PRPackedBool mFound;
+    nsString     mFullName;
+    nsString     mFamilyName;
+    HDC          mDC;
+    gfxFontEntry *mFontEntry;
+};
+
+#ifndef MOZ_FT2_FONTS
+// callback called for each face within a single family
+// match against elfFullName
+
+static int CALLBACK 
+FindFullNameForFace(const ENUMLOGFONTEXW *lpelfe,
+                    const NEWTEXTMETRICEXW *nmetrics,
+                    DWORD fontType, LPARAM userArg)
+{
+    FullFontNameSearch *data = reinterpret_cast<FullFontNameSearch*>(userArg);
+
+    // does the full name match?
+    if (!data->mFullName.Equals(nsDependentString(lpelfe->elfFullName)))
+        return 1;  // continue
+
+    // found match, create a new font entry
+    data->mFound = PR_TRUE;
+
+    const NEWTEXTMETRICW& metrics = nmetrics->ntmTm;
+    LOGFONTW logFont = lpelfe->elfLogFont;
+
+    // Some fonts claim to support things > 900, but we don't so clamp the sizes
+    logFont.lfWeight = PR_MAX(PR_MIN(logFont.lfWeight, 900), 100);
+
+    gfxWindowsFontType feType = FontEntry::DetermineFontType(metrics, fontType);
+
+    data->mFontEntry = FontEntry::CreateFontEntry(data->mFamilyName, feType, (logFont.lfItalic == 0xFF), (PRUint16) (logFont.lfWeight), nsnull, data->mDC, &logFont);
+
+    return 0;  // stop iteration
+}
+#endif
+
+// callback called for each family name, based on the assumption that the 
+// first part of the full name is the family name
+
+static PLDHashOperator
+FindFullName(nsStringHashKey::KeyType aKey,
+             nsRefPtr<FontFamily>& aFontFamily,
+             void* userArg)
+{
+    FullFontNameSearch *data = reinterpret_cast<FullFontNameSearch*>(userArg);
+
+    // does the family name match up to the length of the family name?
+    const nsString& family = aFontFamily->Name();
+    
+    nsString fullNameFamily;
+    data->mFullName.Left(fullNameFamily, family.Length());
+
+    // if so, iterate over faces in this family to see if there is a match
+    if (family.Equals(fullNameFamily)) {
+#ifdef MOZ_FT2_FONTS
+        int len = aFontFamily->GetFontList().Length();
+        int index = 0;
+        for (; index < len && 
+                 !aFontFamily->GetFontList()[index]->Name().Equals(data->mFullName); index++);
+        if (index < len) {
+            data->mFound = PR_TRUE;
+            data->mFontEntry = aFontFamily->GetFontList()[index];
+        }
+#else
+        HDC hdc;
+        
+        if (!data->mDC) {
+            data->mDC= GetDC(nsnull);
+            SetGraphicsMode(data->mDC, GM_ADVANCED);
+        }
+        hdc = data->mDC;
+
+        LOGFONTW logFont;
+        memset(&logFont, 0, sizeof(LOGFONTW));
+        logFont.lfCharSet = DEFAULT_CHARSET;
+        logFont.lfPitchAndFamily = 0;
+        PRUint32 l = PR_MIN(family.Length(), LF_FACESIZE - 1);
+        memcpy(logFont.lfFaceName,
+               nsPromiseFlatString(family).get(),
+               l * sizeof(PRUnichar));
+        logFont.lfFaceName[l] = 0;
+        data->mFamilyName.Assign(family);
+
+        EnumFontFamiliesExW(hdc, &logFont, (FONTENUMPROCW)FindFullNameForFace, (LPARAM)data, 0);
+#endif
+    }
+
+    if (data->mFound)
+        return PL_DHASH_STOP;
+
+    return PL_DHASH_NEXT;
+}
+
+gfxFontEntry* 
+gfxWindowsPlatform::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                    const nsAString& aFontName)
+{
+#ifdef MOZ_FT2_FONTS
+    // walk over list of names
+    FullFontNameSearch data(aFontName);
+
+    // find fonts that support the character
+    mFonts.Enumerate(FindFullName, &data);
+
+    if (data.mDC)
+        ReleaseDC(nsnull, data.mDC);
+    
+    return data.mFontEntry;
+#else
+    return FontEntry::LoadLocalFont(*aProxyEntry, aFontName);
+#endif
+}
+
+gfxFontEntry* 
+gfxWindowsPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                     const PRUint8 *aFontData, PRUint32 aLength)
+{
+#ifdef MOZ_FT2_FONTS
+    // The FT2 font needs the font data to persist, so we do NOT free it here
+    // but instead pass ownership to the font entry.
+    // Deallocation will happen later, when the font face is destroyed.
+    return FontEntry::CreateFontEntry(*aProxyEntry, aFontData, aLength);
+#else
+    // With GDI, we can free the downloaded data after activating the font
+    gfxFontEntry *fe = FontEntry::LoadFont(*aProxyEntry, aFontData, aLength);
+    NS_Free((void*)aFontData);
+    return fe;
+#endif    
+}
+
+PRBool
+gfxWindowsPlatform::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
+{
+    // check for strange format flags
+    NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
+                 "strange font format hint set");
+
+    // accept supported formats
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_WOFF     |
+                        gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
+                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE)) {
+        return PR_TRUE;
+    }
+
+    // reject all other formats, known and unknown
+    if (aFormatFlags != 0) {
+        return PR_FALSE;
+    }
+
+    // no format hint set, need to look at data
+    return PR_TRUE;
+}
+
+FontFamily *
+gfxWindowsPlatform::FindFontFamily(const nsAString& aName)
+{
+    nsAutoString name(aName);
+    BuildKeyNameFromFontName(name);
+
+    nsRefPtr<FontFamily> ff;
+    if (!mFonts.Get(name, &ff) &&
+        !mFontSubstitutes.Get(name, &ff) &&
+        !mFontAliases.Get(name, &ff)) {
+        return nsnull;
+    }
+    return ff.get();
 }
 
 FontEntry *
-gfxWindowsPlatform::FindFontEntry(const nsAString& aName)
+gfxWindowsPlatform::FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontStyle)
 {
-    nsString name(aName);
-    ToLowerCase(name);
-
-    nsRefPtr<FontEntry> fe;
-    if (!mFonts.Get(name, &fe) &&
-        !mFontSubstitutes.Get(name, &fe) &&
-        !mFontAliases.Get(name, &fe)) {
+    nsRefPtr<FontFamily> ff = FindFontFamily(aName);
+    if (!ff)
         return nsnull;
-    }
-    return fe.get();
+
+    return ff->FindFontEntry(aFontStyle);
 }
 
-cmsHPROFILE
+qcms_profile*
 gfxWindowsPlatform::GetPlatformCMSOutputProfile()
 {
+#ifndef MOZ_FT2_FONTS
     WCHAR str[1024+1];
     DWORD size = 1024;
 
@@ -773,8 +915,8 @@ gfxWindowsPlatform::GetPlatformCMSOutputProfile()
     GetICMProfileW(dc, &size, (LPWSTR)&str);
     ReleaseDC(nsnull, dc);
 
-    cmsHPROFILE profile =
-        cmsOpenProfileFromFile(NS_ConvertUTF16toUTF8(str).get(), "r");
+    qcms_profile* profile =
+        qcms_profile_from_path(NS_ConvertUTF16toUTF8(str).get());
 #ifdef DEBUG_tor
     if (profile)
         fprintf(stderr,
@@ -782,18 +924,71 @@ gfxWindowsPlatform::GetPlatformCMSOutputProfile()
                 NS_ConvertUTF16toUTF8(str).get());
 #endif
     return profile;
+#else
+    return nsnull;
+#endif
 }
 
 PRBool
-gfxWindowsPlatform::GetPrefFontEntries(const char *aLangGroup, nsTArray<nsRefPtr<FontEntry> > *array)
+gfxWindowsPlatform::GetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> > *array)
 {
-    nsCAutoString keyName(aLangGroup);
-    return mPrefFonts.Get(keyName, array);
+    return mPrefFonts.Get(aKey, array);
 }
 
 void
-gfxWindowsPlatform::SetPrefFontEntries(const char *aLangGroup, nsTArray<nsRefPtr<FontEntry> >& array)
+gfxWindowsPlatform::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> >& array)
 {
-    nsCAutoString keyName(aLangGroup);
-    mPrefFonts.Put(keyName, array);
+    mPrefFonts.Put(aKey, array);
 }
+
+void 
+gfxWindowsPlatform::InitLoader()
+{
+    GetFontFamilyList(mFontFamilies);
+    mStartIndex = 0;
+    mNumFamilies = mFontFamilies.Length();
+}
+
+PRBool 
+gfxWindowsPlatform::RunLoader()
+{
+    PRUint32 i, endIndex = ( mStartIndex + mIncrement < mNumFamilies ? mStartIndex + mIncrement : mNumFamilies );
+
+#ifndef MOZ_FT2_FONTS
+    // for each font family, load in various font info
+    for (i = mStartIndex; i < endIndex; i++) {
+        // load the cmaps for all variations
+        mFontFamilies[i]->FindStyleVariations();
+    }
+#endif
+    mStartIndex += mIncrement;
+    if (mStartIndex < mNumFamilies)
+        return PR_FALSE;
+    return PR_TRUE;
+}
+
+void 
+gfxWindowsPlatform::FinishLoader()
+{
+    mFontFamilies.Clear();
+    mNumFamilies = 0;
+}
+
+#ifdef MOZ_FT2_FONTS
+FT_Library
+gfxWindowsPlatform::GetFTLibrary()
+{
+    return gPlatformFTLibrary;
+}
+#endif
+
+void
+gfxWindowsPlatform::InitDisplayCaps()
+{
+    HDC dc = GetDC((HWND)nsnull);
+
+    gfxPlatform::sDPI = GetDeviceCaps(dc, LOGPIXELSY);
+
+    ReleaseDC((HWND)nsnull, dc);
+}
+

@@ -100,7 +100,11 @@ else
 ifeq ($(OS_ARCH),Darwin)
 OS_CONFIG      := Darwin
 else
+ifeq ($(OS_ARCH),Darwin64)
+OS_CONFIG       := Darwin64
+else
 OS_CONFIG       := $(OS_ARCH)$(OS_OBJTYPE)$(OS_RELEASE)
+endif
 endif
 endif
 endif
@@ -117,14 +121,27 @@ CP = cp
 endif
 
 ifdef BUILD_OPT
-OPTIMIZER  = -O
+ifdef USE_MSVC
+OPTIMIZER  = -O2 -GL
+INTERP_OPTIMIZER = -O2 -GL
+BUILTINS_OPTIMIZER = -O2 -GL
+LDFLAGS    += -LTCG
+else
+OPTIMIZER           = -Os -fstrict-aliasing -fno-exceptions -fno-rtti -Wstrict-aliasing=2
+BUILTINS_OPTIMIZER  = -O9 -fstrict-aliasing -fno-exceptions -fno-rtti
+INTERP_OPTIMIZER    = -O3 -fstrict-aliasing -fno-exceptions -fno-rtti
+endif
 DEFINES    += -UDEBUG -DNDEBUG -UDEBUG_$(USER)
 OBJDIR_TAG = _OPT
 else
 ifdef USE_MSVC
 OPTIMIZER  = -Zi
+INTERP_OPTIMIZER = -Zi
+BUILTINS_OPTIMIZER = $(INTERP_OPTIMIZER)
 else
-OPTIMIZER  = -g
+OPTIMIZER          = -g3 -fstrict-aliasing -fno-exceptions -fno-rtti -Wstrict-aliasing=2
+INTERP_OPTIMIZER   = -g3 -fstrict-aliasing -fno-exceptions -fno-rtti
+BUILTINS_OPTIMIZER = $(INTERP_OPTIMIZER)
 endif
 DEFINES    += -DDEBUG -DDEBUG_$(USER)
 OBJDIR_TAG = _DBG
@@ -134,20 +151,7 @@ SO_SUFFIX = so
 
 NS_USE_NATIVE = 1
 
-# Java stuff
-CLASSDIR     = $(DEPTH)/liveconnect/classes
-JAVA_CLASSES = $(patsubst %.java,%.class,$(JAVA_SRCS))
-TARGETS     += $(addprefix $(CLASSDIR)/$(OBJDIR)/$(JARPATH)/, $(JAVA_CLASSES))
-JAVAC        = $(JDK)/bin/javac
-JAVAC_FLAGS  = -classpath "$(CLASSPATH)" -d $(CLASSDIR)/$(OBJDIR)
-ifeq ($(OS_ARCH), WINNT)
-  SEP        = ;
-else
-  SEP        = :
-endif
-CLASSPATH    = $(JDK)/lib/classes.zip$(SEP)$(CLASSDIR)/$(OBJDIR)
-
-include $(DEPTH)/config/$(OS_CONFIG).mk
+include $(DEPTH)/ref-config/$(OS_CONFIG).mk
 
 ifndef OBJ_SUFFIX
 ifdef USE_MSVC
@@ -166,15 +170,18 @@ endif
 endif
 
 # Name of the binary code directories
-ifdef BUILD_IDG
-OBJDIR          = $(OS_CONFIG)$(OBJDIR_TAG).OBJD
+ifdef OBJROOT
+# prepend $(DEPTH) to the root unless it is an absolute path
+OBJDIR = $(if $(filter /%,$(OBJROOT)),$(OBJROOT),$(DEPTH)/$(OBJROOT))
 else
-OBJDIR          = $(OS_CONFIG)$(OBJDIR_TAG).OBJ
+ifeq ($(DEPTH),.)
+OBJDIR = $(OS_CONFIG)$(OBJDIR_TAG).$(if $(BUILD_IDG),OBJD,OBJ)
+else
+OBJDIR = $(DEPTH)/$(OS_CONFIG)$(OBJDIR_TAG).$(if $(BUILD_IDG),OBJD,OBJ)
 endif
-VPATH           = $(OBJDIR)
+endif
 
-# Automatic make dependencies file
-DEPENDENCIES    = $(OBJDIR)/.md
+VPATH = $(OBJDIR)
 
 LCJAR = js15lc30.jar
 

@@ -42,19 +42,21 @@
 #include "nsIDOMPageTransitionEvent.h"
 #include "nsDOMEvent.h"
 
-class nsDOMPageTransitionEvent : public nsIDOMPageTransitionEvent,
-                                 public nsDOMEvent
+class nsDOMPageTransitionEvent : public nsDOMEvent,
+                                 public nsIDOMPageTransitionEvent
 {
 public:
-  nsDOMPageTransitionEvent(nsPresContext* aPresContext,
-                           nsPageTransitionEvent* aEvent);
-                     
+  nsDOMPageTransitionEvent(nsPresContext* aPresContext, nsEvent* aEvent) :
+  nsDOMEvent(aPresContext, aEvent), mPersisted(PR_FALSE) {}
+
   NS_DECL_ISUPPORTS_INHERITED
 
   NS_DECL_NSIDOMPAGETRANSITIONEVENT
 
   // Forward to base class
   NS_FORWARD_TO_NSDOMEVENT
+protected:
+  PRBool mPersisted;
 };
 
 #endif // nsDOMPageTransitionEvent_h__

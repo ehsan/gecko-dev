@@ -44,6 +44,7 @@
 #include "nsSVGLength2.h"
 #include "nsSVGInteger.h"
 #include "nsSVGEnum.h"
+#include "nsSVGString.h"
 
 typedef nsSVGGraphicElement nsSVGFilterElementBase;
 
@@ -53,16 +54,12 @@ class nsSVGFilterElement : public nsSVGFilterElementBase,
                            public nsIDOMSVGUnitTypes
 {
   friend class nsSVGFilterFrame;
+  friend class nsAutoFilterInstance;
 
 protected:
   friend nsresult NS_NewSVGFilterElement(nsIContent **aResult,
                                          nsINodeInfo *aNodeInfo);
   nsSVGFilterElement(nsINodeInfo* aNodeInfo);
-  nsresult Init();
-
-  // nsISVGValue interface:
-  NS_IMETHOD SetValueString(const nsAString &aValue) { return NS_OK; }
-  NS_IMETHOD GetValueString(nsAString& aValue) { return NS_ERROR_NOT_IMPLEMENTED; }
 
 public:
   // interfaces:
@@ -77,18 +74,18 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGFilterElementBase::)
 
   // nsIContent
-  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           PRBool aNotify);
-
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+
+  // Invalidate users of this filter
+  void Invalidate();
 
 protected:
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual IntegerAttributesInfo GetIntegerInfo();
   virtual EnumAttributesInfo GetEnumInfo();
+  virtual StringAttributesInfo GetStringInfo();
 
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];
@@ -102,7 +99,9 @@ protected:
   nsSVGEnum mEnumAttributes[2];
   static EnumInfo sEnumInfo[2];
 
-  nsCOMPtr<nsIDOMSVGAnimatedString> mHref;
+  enum { HREF };
+  nsSVGString mStringAttributes[1];
+  static StringInfo sStringInfo[1];
 };
 
 #endif

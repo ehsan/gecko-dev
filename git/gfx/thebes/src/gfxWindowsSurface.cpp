@@ -57,12 +57,13 @@ gfxWindowsSurface::gfxWindowsSurface(HDC dc, PRUint32 flags) :
     if (flags & FLAG_TAKE_DC)
         mOwnsDC = PR_TRUE;
 
+#ifdef NS_PRINTING
     if (flags & FLAG_FOR_PRINTING) {
-        Init(cairo_win32_printing_surface_create(mDC, TRUE));
+        Init(cairo_win32_printing_surface_create(mDC));
         mForPrinting = PR_TRUE;
-    } else {
+    } else
+#endif
         Init(cairo_win32_surface_create(mDC));
-    }
 }
 
 gfxWindowsSurface::gfxWindowsSurface(const gfxIntSize& size, gfxImageFormat imageFormat) :
@@ -75,7 +76,10 @@ gfxWindowsSurface::gfxWindowsSurface(const gfxIntSize& size, gfxImageFormat imag
                                                                 size.width, size.height);
     Init(surf);
 
-    mDC = cairo_win32_surface_get_dc(CairoSurface());
+    if (CairoStatus() == 0)
+        mDC = cairo_win32_surface_get_dc(CairoSurface());
+    else
+        mDC = nsnull;
 }
 
 gfxWindowsSurface::gfxWindowsSurface(HDC dc, const gfxIntSize& size, gfxImageFormat imageFormat) :
@@ -88,14 +92,20 @@ gfxWindowsSurface::gfxWindowsSurface(HDC dc, const gfxIntSize& size, gfxImageFor
                                                                 size.width, size.height);
     Init(surf);
 
-    mDC = cairo_win32_surface_get_dc(CairoSurface());
+    if (CairoStatus() == 0)
+        mDC = cairo_win32_surface_get_dc(CairoSurface());
+    else
+        mDC = nsnull;
 }
 
 
 gfxWindowsSurface::gfxWindowsSurface(cairo_surface_t *csurf) :
     mOwnsDC(PR_FALSE), mForPrinting(PR_FALSE), mWnd(nsnull)
 {
-    mDC = cairo_win32_surface_get_dc(csurf);
+    if (cairo_surface_status(csurf) == 0)
+        mDC = cairo_win32_surface_get_dc(csurf);
+    else
+        mDC = nsnull;
 
     if (cairo_surface_get_type(csurf) == CAIRO_SURFACE_TYPE_WIN32_PRINTING)
         mForPrinting = PR_TRUE;
@@ -116,6 +126,13 @@ gfxWindowsSurface::~gfxWindowsSurface()
 already_AddRefed<gfxImageSurface>
 gfxWindowsSurface::GetImageSurface()
 {
+    if (!mSurfaceValid) {
+        NS_WARNING ("GetImageSurface on an invalid (null) surface; who's calling this without checking for surface errors?");
+        return nsnull;
+    }
+
+    NS_ASSERTION(CairoSurface() != nsnull, "CairoSurface() shouldn't be nsnull when mSurfaceValid is TRUE!");
+
     if (mForPrinting)
         return nsnull;
 
@@ -135,94 +152,118 @@ gfxWindowsSurface::OptimizeToDDB(HDC dc, const gfxIntSize& size, gfxImageFormat 
     if (mForPrinting)
         return nsnull;
 
-    gfxImageFormat realFormat = format;
-
-    if (realFormat != ImageFormatRGB24)
+    if (format != ImageFormatRGB24)
         return nsnull;
 
-    nsRefPtr<gfxWindowsSurface> wsurf = new gfxWindowsSurface(dc, size, realFormat);
+    nsRefPtr<gfxWindowsSurface> wsurf = new gfxWindowsSurface(dc, size, format);
+    if (wsurf->CairoStatus() != 0)
+        return nsnull;
 
-    nsRefPtr<gfxContext> tmpCtx(new gfxContext(wsurf));
-    tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
-    tmpCtx->SetSource(this);
-    tmpCtx->Paint();
+    gfxContext tmpCtx(wsurf);
+    tmpCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
+    tmpCtx.SetSource(this);
+    tmpCtx.Paint();
 
     gfxWindowsSurface *raw = (gfxWindowsSurface*) (wsurf.get());
     NS_ADDREF(raw);
+
+    // we let the new DDB surfaces be converted back to dibsections if
+    // acquire_source_image is called on them
+    cairo_win32_surface_set_can_convert_to_dib(raw->CairoSurface(), TRUE);
+
     return raw;
 }
 
-static char*
-GetACPString(const nsAString& aStr)
+nsresult
+gfxWindowsSurface::BeginPrinting(const nsAString& aTitle,
+                                 const nsAString& aPrintToFileName)
 {
-    int acplen = aStr.Length() * 2 + 1;
-    char * acp = new char[acplen];
-    if(acp) {
-        int outlen = ::WideCharToMultiByte(CP_ACP, 0, 
-                                           PromiseFlatString(aStr).get(),
-                                           aStr.Length(),
-                                           acp, acplen, NULL, NULL);
-        if (outlen > 0)
-            acp[outlen] = '\0';  // null terminate
-    }
-    return acp;
-}
-
-nsresult gfxWindowsSurface::BeginPrinting(const nsAString& aTitle,
-                                          const nsAString& aPrintToFileName)
-{
+#ifdef NS_PRINTING
 #define DOC_TITLE_LENGTH 30
-    DOCINFO docinfo;
+    DOCINFOW docinfo;
 
-    nsString titleStr;
-    titleStr = aTitle;
+    nsString titleStr(aTitle);
     if (titleStr.Length() > DOC_TITLE_LENGTH) {
         titleStr.SetLength(DOC_TITLE_LENGTH-3);
         titleStr.AppendLiteral("...");
     }
-    char *title = GetACPString(titleStr);
 
-    char *docName = nsnull;
-    if (!aPrintToFileName.IsEmpty()) {
-        docName = ToNewCString(aPrintToFileName);
-    }
-
+    nsString docName(aPrintToFileName);
     docinfo.cbSize = sizeof(docinfo);
-    docinfo.lpszDocName = title ? title : "Mozilla Document";
-    docinfo.lpszOutput = docName;
+    docinfo.lpszDocName = titleStr.Length() > 0 ? titleStr.get() : L"Mozilla Document";
+    docinfo.lpszOutput = docName.Length() > 0 ? docName.get() : nsnull;
     docinfo.lpszDatatype = NULL;
     docinfo.fwType = 0;
 
-    ::StartDoc(mDC, &docinfo);
-        
-    delete [] title;
-    if (docName != nsnull) nsMemory::Free(docName);
+    ::StartDocW(mDC, &docinfo);
 
     return NS_OK;
+#else
+    return NS_ERROR_FAILURE;
+#endif
 }
 
-nsresult gfxWindowsSurface::EndPrinting()
+nsresult
+gfxWindowsSurface::EndPrinting()
 {
-    ::EndDoc(mDC);
+#ifdef NS_PRINTING
+    int result = ::EndDoc(mDC);
+    if (result <= 0)
+        return NS_ERROR_FAILURE;
+
     return NS_OK;
+#else
+    return NS_ERROR_FAILURE;
+#endif
 }
 
-nsresult gfxWindowsSurface::AbortPrinting()
+nsresult
+gfxWindowsSurface::AbortPrinting()
 {
-    ::AbortDoc(mDC);
+#ifdef NS_PRINTING
+    int result = ::AbortDoc(mDC);
+    if (result <= 0)
+        return NS_ERROR_FAILURE;
     return NS_OK;
+#else
+    return NS_ERROR_FAILURE;
+#endif
 }
 
-nsresult gfxWindowsSurface::BeginPage()
+nsresult
+gfxWindowsSurface::BeginPage()
 {
-    ::StartPage(mDC);
+#ifdef NS_PRINTING
+    int result = ::StartPage(mDC);
+    if (result <= 0)
+        return NS_ERROR_FAILURE;
     return NS_OK;
+#else
+    return NS_ERROR_FAILURE;
+#endif
 }
 
-nsresult gfxWindowsSurface::EndPage()
+nsresult
+gfxWindowsSurface::EndPage()
 {
+#ifdef NS_PRINTING
     if (mForPrinting)
         cairo_surface_show_page(CairoSurface());
-    ::EndPage(mDC);
+    int result = ::EndPage(mDC);
+    if (result <= 0)
+        return NS_ERROR_FAILURE;
     return NS_OK;
+#else
+    return NS_ERROR_FAILURE;
+#endif
+}
+
+PRInt32
+gfxWindowsSurface::GetDefaultContextFlags() const
+{
+    if (mForPrinting)
+        return gfxContext::FLAG_SIMPLIFY_OPERATORS |
+               gfxContext::FLAG_DISABLE_SNAPPING;
+
+    return 0;
 }

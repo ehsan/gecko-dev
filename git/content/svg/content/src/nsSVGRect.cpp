@@ -56,12 +56,6 @@ nsSVGRect::nsSVGRect(float x, float y, float w, float h)
 {
 }
 
-void
-nsSVGRect::Clear()
-{
-  mX = mY = mWidth = mHeight = 0.0f;
-}
-
 //----------------------------------------------------------------------
 // nsISupports methods:
 
@@ -69,65 +63,10 @@ NS_IMPL_ADDREF(nsSVGRect)
 NS_IMPL_RELEASE(nsSVGRect)
 
 NS_INTERFACE_MAP_BEGIN(nsSVGRect)
-  NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGRect)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGRect)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
-
-//----------------------------------------------------------------------
-// nsISVGValue methods:
-
-NS_IMETHODIMP
-nsSVGRect::SetValueString(const nsAString& aValue)
-{
-  nsresult rv = NS_OK;
-
-  char* str = ToNewCString(aValue);
-
-  char* rest = str;
-  char* token;
-  const char* delimiters = ",\x20\x9\xD\xA";
-
-  double vals[4];
-  int i;
-  for (i=0;i<4;++i) {
-    if (!(token = nsCRT::strtok(rest, delimiters, &rest))) break; // parse error
-
-    char *end;
-    vals[i] = PR_strtod(token, &end);
-    if (*end != '\0') break; // parse error
-  }
-  if (i!=4 || (nsCRT::strtok(rest, delimiters, &rest)!=0)) {
-    // there was a parse error.
-    rv = NS_ERROR_FAILURE;
-  }
-  else {
-    WillModify();
-    mX      = float(vals[0]);
-    mY      = float(vals[1]);
-    mWidth  = float(vals[2]);
-    mHeight = float(vals[3]);
-    DidModify();
-  }
-
-  nsMemory::Free(str);
-
-  return rv;
-}
-
-NS_IMETHODIMP
-nsSVGRect::GetValueString(nsAString& aValue)
-{
-  PRUnichar buf[200];
-  nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-                            NS_LITERAL_STRING("%g %g %g %g").get(),
-                            (double)mX, (double)mY,
-                            (double)mWidth, (double)mHeight);
-  aValue.Assign(buf);
-
-  return NS_OK;
-}
 
 //----------------------------------------------------------------------
 // nsIDOMSVGRect methods:
@@ -140,9 +79,8 @@ NS_IMETHODIMP nsSVGRect::GetX(float *aX)
 }
 NS_IMETHODIMP nsSVGRect::SetX(float aX)
 {
-  WillModify();
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
   mX = aX;
-  DidModify();
   return NS_OK;
 }
 
@@ -154,9 +92,8 @@ NS_IMETHODIMP nsSVGRect::GetY(float *aY)
 }
 NS_IMETHODIMP nsSVGRect::SetY(float aY)
 {
-  WillModify();
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
   mY = aY;
-  DidModify();
   return NS_OK;
 }
 
@@ -168,9 +105,8 @@ NS_IMETHODIMP nsSVGRect::GetWidth(float *aWidth)
 }
 NS_IMETHODIMP nsSVGRect::SetWidth(float aWidth)
 {
-  WillModify();
+  NS_ENSURE_FINITE(aWidth, NS_ERROR_ILLEGAL_VALUE);
   mWidth = aWidth;
-  DidModify();
   return NS_OK;
 }
 
@@ -182,35 +118,12 @@ NS_IMETHODIMP nsSVGRect::GetHeight(float *aHeight)
 }
 NS_IMETHODIMP nsSVGRect::SetHeight(float aHeight)
 {
-  WillModify();
+  NS_ENSURE_FINITE(aHeight, NS_ERROR_ILLEGAL_VALUE);
   mHeight = aHeight;
-  DidModify();
   return NS_OK;
 }
 
 
-
-////////////////////////////////////////////////////////////////////////
-// Implement a readonly version of SVGRect
-//
-// We need this because attributes of some SVG interfaces *and* the objects the
-// attributes refer to (including SVGRects) are supposed to be readonly
-
-class nsSVGReadonlyRect : public nsSVGRect
-{
-public:
-  nsSVGReadonlyRect(float x, float y, float width, float height)
-    : nsSVGRect(x, y, width, height)
-  {
-  }
-
-  // override setters to make the whole object readonly
-  NS_IMETHODIMP SetX(float) { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
-  NS_IMETHODIMP SetY(float) { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
-  NS_IMETHODIMP SetWidth(float) { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
-  NS_IMETHODIMP SetHeight(float) { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
-  NS_IMETHODIMP SetValueString(const nsAString&) { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
-};
 
 ////////////////////////////////////////////////////////////////////////
 // Exported creation functions:
@@ -231,15 +144,5 @@ NS_NewSVGRect(nsIDOMSVGRect** result, const gfxRect& rect)
   return NS_NewSVGRect(result,
                        rect.X(), rect.Y(),
                        rect.Width(), rect.Height());
-}
-
-nsresult
-NS_NewSVGReadonlyRect(nsIDOMSVGRect** result, float x, float y,
-                      float width, float height)
-{
-  *result = new nsSVGReadonlyRect(x, y, width, height);
-  if (!*result) return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(*result);
-  return NS_OK;
 }
 

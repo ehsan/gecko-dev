@@ -71,6 +71,7 @@ mSel(nsnull)
 
 nsAutoSelectionReset::~nsAutoSelectionReset()
 {
+  NS_ASSERTION(!mSel || mEd, "mEd should be non-null when mSel is");
   if (mSel && mEd->ArePreservingSelection())   // mSel will be null if this was nested call
   {
     mEd->RestorePreservedSelection(mSel);
@@ -80,7 +81,9 @@ nsAutoSelectionReset::~nsAutoSelectionReset()
 void
 nsAutoSelectionReset::Abort()
 {
-  mEd->StopPreservingSelection();
+  NS_ASSERTION(!mSel || mEd, "mEd should be non-null when mSel is");
+  if (mSel)
+    mEd->StopPreservingSelection();
 }
 
 
@@ -248,95 +251,6 @@ nsEditorHookUtils::GetHookEnumeratorFromDocument(nsIDOMDocument *aDoc,
   if (!hookObj) return NS_ERROR_FAILURE;
 
   return hookObj->GetHookEnumerator(aResult);
-}
-
-PRBool
-nsEditorHookUtils::DoAllowDragHook(nsIDOMDocument *aDoc, nsIDOMEvent *aDragEvent)
-{
-  nsCOMPtr<nsISimpleEnumerator> enumerator;
-  GetHookEnumeratorFromDocument(aDoc, getter_AddRefs(enumerator));
-  if (!enumerator)
-    return PR_TRUE;
-
-  PRBool hasMoreHooks = PR_FALSE;
-  while (NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreHooks)) && hasMoreHooks)
-  {
-    nsCOMPtr<nsISupports> isupp;
-    if (NS_FAILED(enumerator->GetNext(getter_AddRefs(isupp))))
-      break;
-
-    nsCOMPtr<nsIClipboardDragDropHooks> override = do_QueryInterface(isupp);
-    if (override)
-    {
-      PRBool canDrag = PR_TRUE;
-      nsresult hookres = override->AllowStartDrag(aDragEvent, &canDrag);
-      NS_ASSERTION(NS_SUCCEEDED(hookres), "hook failure in AllowStartDrag");
-      if (!canDrag)
-        return PR_FALSE;
-    }
-  }
-
-  return PR_TRUE;
-}
-
-PRBool
-nsEditorHookUtils::DoDragHook(nsIDOMDocument *aDoc, nsIDOMEvent *aEvent,
-                              nsITransferable *aTrans)
-{
-  nsCOMPtr<nsISimpleEnumerator> enumerator;
-  GetHookEnumeratorFromDocument(aDoc, getter_AddRefs(enumerator));
-  if (!enumerator)
-    return PR_TRUE;
-
-  PRBool hasMoreHooks = PR_FALSE;
-  while (NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreHooks)) && hasMoreHooks)
-  {
-    nsCOMPtr<nsISupports> isupp;
-    if (NS_FAILED(enumerator->GetNext(getter_AddRefs(isupp))))
-      break;
-
-    nsCOMPtr<nsIClipboardDragDropHooks> override = do_QueryInterface(isupp);
-    if (override)
-    {
-      PRBool canInvokeDrag = PR_TRUE;
-      nsresult hookResult = override->OnCopyOrDrag(aEvent, aTrans, &canInvokeDrag);
-      NS_ASSERTION(NS_SUCCEEDED(hookResult), "hook failure in OnCopyOrDrag");
-      if (!canInvokeDrag)
-        return PR_FALSE;
-    }
-  }
-
-  return PR_TRUE;
-}
-
-PRBool
-nsEditorHookUtils::DoAllowDropHook(nsIDOMDocument *aDoc, nsIDOMEvent *aEvent,   
-                                   nsIDragSession *aSession)
-{
-  nsCOMPtr<nsISimpleEnumerator> enumerator;
-  GetHookEnumeratorFromDocument(aDoc, getter_AddRefs(enumerator));
-  if (!enumerator)
-    return PR_TRUE;
-
-  PRBool hasMoreHooks = PR_FALSE;
-  while (NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreHooks)) && hasMoreHooks)
-  {
-    nsCOMPtr<nsISupports> isupp;
-    if (NS_FAILED(enumerator->GetNext(getter_AddRefs(isupp))))
-      break;
-
-    nsCOMPtr<nsIClipboardDragDropHooks> override = do_QueryInterface(isupp);
-    if (override)
-    {
-      PRBool allowDrop = PR_TRUE;
-      nsresult hookResult = override->AllowDrop(aEvent, aSession, &allowDrop);
-      NS_ASSERTION(NS_SUCCEEDED(hookResult), "hook failure in AllowDrop");
-      if (!allowDrop)
-        return PR_FALSE;
-    }
-  }
-
-  return PR_TRUE;
 }
 
 PRBool

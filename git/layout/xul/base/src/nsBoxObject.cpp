@@ -46,21 +46,18 @@
 #include "nsIFrame.h"
 #include "nsIDocShell.h"
 #include "nsReadableUtils.h"
-#include "nsILookAndFeel.h"
-#include "nsWidgetsCID.h"
-#include "nsIServiceManager.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIView.h"
-#include "nsIWidget.h"
+#ifdef MOZ_XUL
 #include "nsIDOMXULElement.h"
+#else
+#include "nsIDOMElement.h"
+#endif
 #include "nsIFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsISupportsPrimitives.h"
 #include "prtypes.h"
 #include "nsSupportsPrimitives.h"
-
-// Static IIDs/CIDs. Try to minimize these.
-static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 // Implementation /////////////////////////////////////////////////////////////////
 
@@ -68,18 +65,36 @@ static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 // Implement our nsISupports methods
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsBoxObject)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsBoxObject)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsBoxObject)
+
 // QueryInterface implementation for nsBoxObject
-NS_INTERFACE_MAP_BEGIN(nsBoxObject)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsBoxObject)
   NS_INTERFACE_MAP_ENTRY(nsIBoxObject)
   NS_INTERFACE_MAP_ENTRY(nsPIBoxObject)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(BoxObject)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(BoxObject)
 NS_INTERFACE_MAP_END
 
+PR_STATIC_CALLBACK(PLDHashOperator)
+PropertyTraverser(const nsAString& aKey, nsISupports* aProperty, void* userArg)
+{
+  nsCycleCollectionTraversalCallback *cb = 
+    static_cast<nsCycleCollectionTraversalCallback*>(userArg);
 
-NS_IMPL_ADDREF(nsBoxObject)
-NS_IMPL_RELEASE(nsBoxObject)
+  cb->NoteXPCOMChild(aProperty);
 
+  return PL_DHASH_NEXT;
+}
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsBoxObject)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBoxObject)
+  if (tmp->mPropertyTable) {
+    tmp->mPropertyTable->EnumerateRead(PropertyTraverser, &cb);
+  }
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // Constructors/Destructors
 nsBoxObject::nsBoxObject(void)
@@ -138,7 +153,12 @@ nsBoxObject::GetFrame(PRBool aFlushLayout)
     shell->FlushPendingNotifications(Flush_Frames);
   }
 
-  return shell->GetPrimaryFrameFor(mContent);
+  // The flush might have killed mContent.
+  if (!mContent) {
+    return nsnull;
+  }
+
+  return mContent->GetPrimaryFrame();
 }
 
 nsIPresShell*
@@ -161,10 +181,9 @@ nsBoxObject::GetPresShell(PRBool aFlushLayout)
 }
 
 nsresult 
-nsBoxObject::GetOffsetRect(nsRect& aRect)
+nsBoxObject::GetOffsetRect(nsIntRect& aRect)
 {
-  aRect.x = aRect.y = 0;
-  aRect.Empty();
+  aRect.SetRect(0, 0, 0, 0);
  
   if (!mContent)
     return NS_ERROR_NOT_INITIALIZED;
@@ -175,9 +194,6 @@ nsBoxObject::GetOffsetRect(nsRect& aRect)
     // Get its origin
     nsPoint origin = frame->GetPositionIgnoringScrolling();
 
-    // Get the union of all rectangles in this and continuation frames
-    nsRect rcFrame = nsLayoutUtils::GetAllInFlowBoundingRect(frame);
-        
     // Find the frame parent whose content is the document element.
     nsIContent *docElement = mContent->GetCurrentDoc()->GetRootContent();
     nsIFrame* parent = frame->GetParent();
@@ -202,20 +218,26 @@ nsBoxObject::GetOffsetRect(nsRect& aRect)
   
     // For the origin, add in the border for the frame
     const nsStyleBorder* border = frame->GetStyleBorder();
-    origin.x += border->GetBorderWidth(NS_SIDE_LEFT);
-    origin.y += border->GetBorderWidth(NS_SIDE_TOP);
+    origin.x += border->GetActualBorderWidth(NS_SIDE_LEFT);
+    origin.y += border->GetActualBorderWidth(NS_SIDE_TOP);
 
     // And subtract out the border for the parent
     const nsStyleBorder* parentBorder = parent->GetStyleBorder();
-    origin.x -= parentBorder->GetBorderWidth(NS_SIDE_LEFT);
-    origin.y -= parentBorder->GetBorderWidth(NS_SIDE_TOP);
+    origin.x -= parentBorder->GetActualBorderWidth(NS_SIDE_LEFT);
+    origin.y -= parentBorder->GetActualBorderWidth(NS_SIDE_TOP);
 
     aRect.x = nsPresContext::AppUnitsToIntCSSPixels(origin.x);
     aRect.y = nsPresContext::AppUnitsToIntCSSPixels(origin.y);
+    
+    // Get the union of all rectangles in this and continuation frames.
+    // It doesn't really matter what we use as aRelativeTo here, since
+    // we only care about the size. Using 'parent' might make things
+    // a bit faster by speeding up the internal GetOffsetTo operations.
+    nsRect rcFrame = nsLayoutUtils::GetAllInFlowRectsUnion(frame, parent);
     aRect.width = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.width);
     aRect.height = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.height);
   }
- 
+
   return NS_OK;
 }
 
@@ -240,7 +262,7 @@ nsBoxObject::GetScreenPosition(nsIntPoint& aPoint)
 NS_IMETHODIMP
 nsBoxObject::GetX(PRInt32* aResult)
 {
-  nsRect rect;
+  nsIntRect rect;
   GetOffsetRect(rect);
   *aResult = rect.x;
   return NS_OK;
@@ -249,7 +271,7 @@ nsBoxObject::GetX(PRInt32* aResult)
 NS_IMETHODIMP 
 nsBoxObject::GetY(PRInt32* aResult)
 {
-  nsRect rect;
+  nsIntRect rect;
   GetOffsetRect(rect);
   *aResult = rect.y;
   return NS_OK;
@@ -258,7 +280,7 @@ nsBoxObject::GetY(PRInt32* aResult)
 NS_IMETHODIMP
 nsBoxObject::GetWidth(PRInt32* aResult)
 {
-  nsRect rect;
+  nsIntRect rect;
   GetOffsetRect(rect);
   *aResult = rect.width;
   return NS_OK;
@@ -267,7 +289,7 @@ nsBoxObject::GetWidth(PRInt32* aResult)
 NS_IMETHODIMP 
 nsBoxObject::GetHeight(PRInt32* aResult)
 {
-  nsRect rect;
+  nsIntRect rect;
   GetOffsetRect(rect);
   *aResult = rect.height;
   return NS_OK;
@@ -298,45 +320,6 @@ nsBoxObject::GetScreenY(PRInt32 *_retval)
 }
 
 NS_IMETHODIMP
-nsBoxObject::GetLookAndFeelMetric(const PRUnichar* aPropertyName, 
-                                  PRUnichar** aResult)
-{
-  *aResult = nsnull;
-  nsCOMPtr<nsILookAndFeel> lookAndFeel(do_GetService(kLookAndFeelCID));
-  if (!lookAndFeel)
-    return NS_ERROR_FAILURE;
-    
-  nsAutoString property(aPropertyName);
-  if (property.LowerCaseEqualsLiteral("scrollbararrows")) {
-    PRInt32 metricResult;
-    lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ScrollArrowStyle, metricResult);
-    nsAutoString result;
-    if (metricResult & nsILookAndFeel::eMetric_ScrollArrowStartBackward) {
-      result.AppendLiteral("start-backward ");
-    }
-    if (metricResult & nsILookAndFeel::eMetric_ScrollArrowStartForward) {
-      result.AppendLiteral("start-forward ");
-    }
-    if (metricResult & nsILookAndFeel::eMetric_ScrollArrowEndBackward) {
-      result.AppendLiteral("end-backward ");
-    }
-    if (metricResult & nsILookAndFeel::eMetric_ScrollArrowEndForward) {
-      result.AppendLiteral("end-forward");
-    }
-    *aResult = ToNewUnicode(result);
-  }
-  else if (property.LowerCaseEqualsLiteral("thumbstyle")) {
-    PRInt32 metricResult;
-    lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ScrollSliderStyle, metricResult);
-    if ( metricResult == nsILookAndFeel::eMetric_ScrollThumbStyleNormal )
-      *aResult = ToNewUnicode(NS_LITERAL_STRING("fixed"));
-    else
-      *aResult = ToNewUnicode(NS_LITERAL_STRING("proportional"));   
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsBoxObject::GetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports** aResult)
 {
   NS_ENSURE_ARG(aPropertyName && *aPropertyName);
@@ -352,16 +335,6 @@ nsBoxObject::GetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports**
 NS_IMETHODIMP
 nsBoxObject::SetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports* aValue)
 {
-#ifdef DEBUG
-  if (aValue) {
-    nsIFrame* frame;
-    CallQueryInterface(aValue, &frame);
-    NS_ASSERTION(!frame,
-                 "Calling SetPropertyAsSupports on a frame.  Prepare to crash "
-                 "and be exploited any time some random website decides to "
-                 "exploit you");
-  }
-#endif
   NS_ENSURE_ARG(aPropertyName && *aPropertyName);
   
   if (!mPropertyTable) {  
@@ -394,11 +367,8 @@ nsBoxObject::GetProperty(const PRUnichar* aPropertyName, PRUnichar** aResult)
   nsCOMPtr<nsISupportsString> supportsStr = do_QueryInterface(data);
   if (!supportsStr) 
     return NS_ERROR_FAILURE;
-  nsAutoString result;  
-  supportsStr->GetData(result);
-
-  *aResult = result.IsVoid() ? nsnull : ToNewUnicode(result);
-  return NS_OK;
+  
+  return supportsStr->ToString(aResult);
 }
 
 NS_IMETHODIMP

@@ -53,10 +53,10 @@ try {
 
 // adds a test URI visit to the database, and checks for a valid place ID
 function add_visit(aURI, aDate) {
-  var date = aDate || Date.now();
+  var date = aDate || Date.now() * 1000;
   var placeID = histsvc.addVisit(aURI,
                                  date,
-                                 0, // no referrer
+                                 null, // no referrer
                                  histsvc.TRANSITION_TYPED, // user typed in URL bar
                                  false, // not redirect
                                  0);
@@ -65,56 +65,71 @@ function add_visit(aURI, aDate) {
 }
 
 var viewer = {
-  insertedItem: null,
-  itemInserted: function(parent, item, newIndex) {
-    this.insertedItem = item;
+  insertedNode: null,
+  nodeInserted: function(parent, node, newIndex) {
+    this.insertedNode = node;
   },
-  removedItem: null,
-  itemRemoved: function(parent, item, oldIndex) {
-    this.removedItem = item;
+  removedNode: null,
+  nodeRemoved: function(parent, node, oldIndex) {
+    this.removedNode = node;
   },
-  changedItem: null,
-  itemChanged: function(item) {
-    this.changedItem = item;
+
+  newTitle: "",
+  nodeChangedByTitle: null,
+  nodeTitleChanged: function(node, newTitle) {
+    this.nodeChangedByTitle = node;
+    this.newTitle = newTitle;
   },
-  replacedItem: null,
-  itemReplaced: function(parent, oldItem, newItem, index) {
-    dump("itemReplaced: " + newItem.uri + "\n");
-    this.replacedItem = item;
+
+  newAccessCount: 0,
+  newTime: 0,
+  nodeChangedByHistoryDetails: null,
+  nodeHistoryDetailsChanged: function(node,
+                                         updatedVisitDate,
+                                         updatedVisitCount) {
+    this.nodeChangedByHistoryDetails = node
+    this.newTime = updatedVisitDate;
+    this.newAccessCount = updatedVisitCount;
+  },
+
+  replacedNode: null,
+  nodeReplaced: function(parent, oldNode, newNode, index) {
+    this.replacedNode = node;
+  },
+  movedNode: null,
+  nodeMoved: function(node, oldParent, oldIndex, newParent, newIndex) {
+    this.movedNode = node;
   },
   openedContainer: null,
-  containerOpened: function(item) {
-    this.openedContainer = item;
+  containerOpened: function(node) {
+    this.openedContainer = node;
   },
   closedContainer: null,
-  containerClosed: function(item) {
-    this.closedContainer = item;
+  containerClosed: function(node) {
+    this.closedContainer = node;
   },
   invalidatedContainer: null,
-  invalidateContainer: function(item) {
-    dump("invalidateContainer()\n");
-    this.invalidatedContainer = item;
-  },
-  allInvalidated: null,
-  invalidateAll: function() {
-    this.allInvalidated = true;
+  invalidateContainer: function(node) {    
+    this.invalidatedContainer = node;
   },
   sortingMode: null,
   sortingChanged: function(sortingMode) {
     this.sortingMode = sortingMode;
   },
   result: null,
+  ignoreInvalidateContainer: false,
   addViewObserver: function(observer, ownsWeak) {},
   removeViewObserver: function(observer) {},
   reset: function() {
-    this.insertedItem = null;
-    this.removedItem = null;
-    this.changedItem = null;
-    this.replacedItem = null;
+    this.insertedNode = null;
+    this.removedNode = null;
+    this.nodeChangedByTitle = null;
+    this.nodeChangedByHistoryDetails = null;
+    this.replacedNode = null;
+    this.movedNode = null;
     this.openedContainer = null;
     this.closedContainer = null;
     this.invalidatedContainer = null;
-    this.allInvalidated = null;
     this.sortingMode = null;
   }
 };
@@ -135,38 +150,38 @@ function run_test() {
   // nsINavHistoryResultViewer.containerOpened
   do_check_neq(viewer.openedContainer, null);
 
-  // nsINavHistoryResultViewer.itemInserted
+  // nsINavHistoryResultViewer.nodeInserted
   // add a visit
   var testURI = uri("http://mozilla.com");
   add_visit(testURI);
-  do_check_eq(testURI.spec, viewer.insertedItem.uri);
+  do_check_eq(testURI.spec, viewer.insertedNode.uri);
 
-  // nsINavHistoryResultViewer.itemChanged
-  // adding a visit causes itemChanged for the folder
-  do_check_eq(root.uri, viewer.changedItem.uri);
+  // nsINavHistoryResultViewer.nodeHistoryDetailsChanged
+  // adding a visit causes nodeHistoryDetailsChanged for the folder
+  do_check_eq(root.uri, viewer.nodeChangedByHistoryDetails.uri);
 
-  // nsINavHistoryResultViewer.itemChanged for a leaf node
-  bhist.addPageWithDetails(testURI, "baz", Date.now());
-  do_check_eq(viewer.changedItem.title, "baz");
+  // nsINavHistoryResultViewer.itemTitleChanged for a leaf node
+  bhist.addPageWithDetails(testURI, "baz", Date.now() * 1000);
+  do_check_eq(viewer.nodeChangedByTitle.title, "baz");
 
-  // nsINavHistoryResultViewer.itemRemoved
+  // nsINavHistoryResultViewer.nodeRemoved
   var removedURI = uri("http://google.com");
   add_visit(removedURI);
   bhist.removePage(removedURI);
-  do_check_eq(removedURI.spec, viewer.removedItem.uri);
+  do_check_eq(removedURI.spec, viewer.removedNode.uri);
 
-  // XXX nsINavHistoryResultViewer.itemReplaced
-  // NHQRN.onVisit()->NHCRN.MergeResults()->NHCRN.ReplaceChildURIAt()->NHRV.ItemReplaced()
+  // XXX nsINavHistoryResultViewer.nodeReplaced
+  // NHQRN.onVisit()->NHCRN.MergeResults()->NHCRN.ReplaceChildURIAt()->NHRV.NodeReplaced()
 
   // nsINavHistoryResultViewer.invalidateContainer
   bhist.removePagesFromHost("mozilla.com", false);
   do_check_eq(root.uri, viewer.invalidatedContainer.uri);
 
-  // nsINavHistoryResultViewer.invalidateAll
   // nsINavHistoryResultViewer.sortingChanged
+  viewer.invalidatedContainer = null;
   result.sortingMode = options.SORT_BY_TITLE_ASCENDING;
-  do_check_true(viewer.allInvalidated);
   do_check_eq(viewer.sortingMode, options.SORT_BY_TITLE_ASCENDING);
+  do_check_eq(viewer.invalidatedContainer, result.root);
 
   // nsINavHistoryResultViewer.containerClosed
   root.containerOpen = false;
@@ -186,7 +201,7 @@ function run_test() {
 
   var options = histsvc.getNewQueryOptions();
   var query = histsvc.getNewQuery();
-  query.setFolders([bmsvc.bookmarksRoot], 1);
+  query.setFolders([bmsvc.bookmarksMenuFolder], 1);
   var result = histsvc.executeQuery(query, options);
   result.viewer = viewer;
   var root = result.root;
@@ -195,35 +210,39 @@ function run_test() {
   // nsINavHistoryResultViewer.containerOpened
   do_check_neq(viewer.openedContainer, null);
 
-  // nsINavHistoryResultViewer.itemInserted
+  // nsINavHistoryResultViewer.nodeInserted
   // add a bookmark
-  var testBookmark = bmsvc.insertBookmark(bmsvc.bookmarksRoot, testURI, bmsvc.DEFAULT_INDEX, "foo");
-  do_check_eq("foo", viewer.insertedItem.title);
-  do_check_eq(testURI.spec, viewer.insertedItem.uri);
+  var testBookmark = bmsvc.insertBookmark(bmsvc.bookmarksMenuFolder, testURI, bmsvc.DEFAULT_INDEX, "foo");
+  do_check_eq("foo", viewer.insertedNode.title);
+  do_check_eq(testURI.spec, viewer.insertedNode.uri);
 
-  // nsINavHistoryResultViewer.itemChanged
-  // adding a visit causes itemChanged for the folder
-  do_check_eq(root.uri, viewer.changedItem.uri);
+  // nsINavHistoryResultViewer.nodeHistoryDetailsChanged
+  // adding a visit causes nodeHistoryDetailsChanged for the folder
+  do_check_eq(root.uri, viewer.nodeChangedByHistoryDetails.uri);
 
-  // nsINavHistoryResultViewer.itemChanged for a leaf node
+  // nsINavHistoryResultViewer.nodeTitleChanged for a leaf node
   bmsvc.setItemTitle(testBookmark, "baz");
-  do_check_eq(viewer.changedItem.title, "baz");
+  do_check_eq(viewer.nodeChangedByTitle.title, "baz");
+  do_check_eq(viewer.newTitle, "baz");
 
-  // nsINavHistoryResultViewer.itemRemoved
-  var removedBookmark = bmsvc.insertBookmark(bmsvc.bookmarksRoot, uri("http://google.com"), bmsvc.DEFAULT_INDEX, "foo");
-  bmsvc.removeItem(removedBookmark);
-  do_check_eq(removedBookmark, viewer.removedItem.itemId);
+  var testBookmark2 = bmsvc.insertBookmark(bmsvc.bookmarksMenuFolder, uri("http://google.com"), bmsvc.DEFAULT_INDEX, "foo");
+  bmsvc.moveItem(testBookmark2, bmsvc.bookmarksMenuFolder, 0);
+  do_check_eq(viewer.movedNode.itemId, testBookmark2);
 
-  // XXX nsINavHistoryResultViewer.itemReplaced
-  // NHQRN.onVisit()->NHCRN.MergeResults()->NHCRN.ReplaceChildURIAt()->NHRV.ItemReplaced()
+  // nsINavHistoryResultViewer.nodeRemoved
+  bmsvc.removeItem(testBookmark2);
+  do_check_eq(testBookmark2, viewer.removedNode.itemId);
+
+  // XXX nsINavHistoryResultViewer.nodeReplaced
+  // NHQRN.onVisit()->NHCRN.MergeResults()->NHCRN.ReplaceChildURIAt()->NHRV.NodeReplaced()
 
   // XXX nsINavHistoryResultViewer.invalidateContainer
 
-  // nsINavHistoryResultViewer.invalidateAll
   // nsINavHistoryResultViewer.sortingChanged
+  viewer.invalidatedContainer = null;
   result.sortingMode = options.SORT_BY_TITLE_ASCENDING;
-  do_check_true(viewer.allInvalidated);
   do_check_eq(viewer.sortingMode, options.SORT_BY_TITLE_ASCENDING);
+  do_check_eq(viewer.invalidatedContainer, result.root);
 
   // nsINavHistoryResultViewer.containerClosed
   root.containerOpen = false;

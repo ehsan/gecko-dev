@@ -104,7 +104,7 @@ public:
   nsresult Initialize(nsIDocumentViewerPrint* aDocViewerPrint, 
                       nsISupports*            aContainer,
                       nsIDocument*            aDocument,
-                      nsIDeviceContext*       aDevContext,
+                      float                   aScreenDPI,
                       nsIWidget*              aParentWidget,
                       FILE*                   aDebugFile);
 
@@ -135,9 +135,9 @@ public:
   PRBool   DonePrintingPages(nsPrintObject* aPO, nsresult aResult);
 
   //---------------------------------------------------------------------
-  void BuildDocTree(nsIDocShellTreeNode * aParentNode,
-                    nsVoidArray *         aDocList,
-                    nsPrintObject *         aPO);
+  void BuildDocTree(nsIDocShellTreeNode *      aParentNode,
+                    nsTArray<nsPrintObject*> * aDocList,
+                    nsPrintObject *            aPO);
   nsresult ReflowDocList(nsPrintObject * aPO, PRBool aSetPixelScale);
 
   nsresult ReflowPrintObject(nsPrintObject * aPO);
@@ -147,6 +147,8 @@ public:
   void CalcNumPrintablePages(PRInt32& aNumPages);
   void ShowPrintProgress(PRBool aIsForPrinting, PRBool& aDoNotify);
   nsresult CleanupOnFailure(nsresult aResult, PRBool aIsPrinting);
+  // If FinishPrintPreview() fails, caller may need to reset the state of the
+  // object, for example by calling CleanupOnFailure().
   nsresult FinishPrintPreview();
   static void CloseProgressDialog(nsIWebProgressListener* aWebProgressListener);
   void SetDocAndURLIntoProgress(nsPrintObject* aPO,
@@ -197,6 +199,9 @@ public:
 
   nsIViewManager* GetPrintPreviewViewManager() {return mPrtPreview->mPrintObject->mViewManager;}
 
+  float GetPrintPreviewScale() { return mPrtPreview->mPrintObject->
+                                        mPresContext->GetPrintPreviewScale(); }
+  
   static nsIPresShell* GetPresShellFor(nsIDocShell* aDocShell);
 
   // These calls also update the DocViewer
@@ -222,10 +227,12 @@ public:
 protected:
 
   nsresult CommonPrint(PRBool aIsPrintPreview, nsIPrintSettings* aPrintSettings,
-              nsIWebProgressListener* aWebProgressListener);
+                       nsIWebProgressListener* aWebProgressListener,
+                       nsIDOMDocument* aDoc);
 
   nsresult DoCommonPrint(PRBool aIsPrintPreview, nsIPrintSettings* aPrintSettings,
-                         nsIWebProgressListener* aWebProgressListener);
+                         nsIWebProgressListener* aWebProgressListener,
+                         nsIDOMDocument* aDoc);
 
   void FirePrintCompletionEvent();
   static nsresult GetSeqFrameAndCountPagesInternal(nsPrintObject*  aPO,
@@ -275,9 +282,9 @@ protected:
   PRPackedBool mIsDoingPrintPreview; // per DocumentViewer
   PRPackedBool mProgressDialogIsShown;
 
-  nsIDocumentViewerPrint* mDocViewerPrint; // [WEAK] it owns me!
+  nsCOMPtr<nsIDocumentViewerPrint> mDocViewerPrint;
   nsISupports*            mContainer;      // [WEAK] it owns me!
-  nsIDeviceContext*       mDeviceContext;  // not ref counted
+  float                   mScreenDPI;
   
   nsPrintData*            mPrt;
   nsPagePrintTimer*       mPagePrintTimer;

@@ -64,7 +64,7 @@ struct PRMJTime {
     JSInt8 tm_mday;             /* day of month (1-31) */
     JSInt8 tm_mon;              /* month of year (0-11) */
     JSInt8 tm_wday;             /* 0=sunday, 1=monday, ... */
-    JSInt16 tm_year;            /* absolute year, AD */
+    JSInt32 tm_year;            /* absolute year, AD */
     JSInt16 tm_yday;            /* day of year (0 to 365) */
     JSInt8 tm_isdst;            /* non-zero if DST in effect */
 };
@@ -78,7 +78,7 @@ extern JSInt64
 PRMJ_Now(void);
 
 /* Release the resources associated with PRMJ_Now; don't call PRMJ_Now again */
-#if defined(JS_THREADSAFE) && defined(XP_WIN)
+#if defined(JS_THREADSAFE) && (defined(HAVE_GETSYSTEMTIMEASFILETIME) || defined(HAVE_SYSTEMTIMETOFILETIME))
 extern void
 PRMJ_NowShutdown(void);
 #else

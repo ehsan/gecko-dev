@@ -1,4 +1,4 @@
-#!/usr/local/bin/bash -e
+#!/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,9 +37,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
-TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
-TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
-source ${TEST_BIN}/library.sh
+source $TEST_DIR/bin/library.sh
 
 #
 # options processing
@@ -67,7 +65,7 @@ directories... /grandparent/parent/child.
 This script will destroy existing directories and
 their contents. It can potentially wipe out your
 disk. Use with caution.
-    ******************** WARNING ********************
+******************** WARNING ********************
 
 EOF
     exit 1
@@ -91,26 +89,26 @@ if [[ -z $directory ]]
 fi
 
 if [[ `whoami` == "root" ]]; then
-    error "can not be run as root"
+    error "can not be run as root" $LINENO
 fi
 
 # get the cannonical name directory name
 mkdir -p "$directory"
 if ! pushd "$directory" > /dev/null ; then 
-    error "$directory is not accessible"
+    error "$directory is not accessible" $LINENO
 fi
 directory=`pwd`
 popd > /dev/null
 
 if [[ "$directory" == "/" ]]; then
-    error "directory $directory can not be root"
+    error "directory $directory can not be root" $LINENO
 fi
 
 parent=`dirname "$directory"`
 grandparent=`dirname "$parent"`
 
 if [[ "$parent" != "/tmp" && ( "$parent" == "/" || "$grandparent" == "/" ) ]]; then
-    error "directory $directory can not be a subdirectory of $parent"
+    error "directory $directory can not be a subdirectory of $parent" $LINENO
 fi
 
 

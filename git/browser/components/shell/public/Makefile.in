@@ -47,11 +47,11 @@ XPIDL_MODULE  = shellservice
 
 XPIDLSRCS = nsIShellService.idl
 
-ifeq ($(OS_ARCH),WINNT)
+ifneq (,$(filter WINCE WINNT,$(OS_ARCH)))
 XPIDLSRCS += nsIWindowsShellService.idl
 endif
 
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 XPIDLSRCS += nsIMacShellService.idl
 endif
 

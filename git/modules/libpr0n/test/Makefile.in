@@ -48,8 +48,6 @@ MODULE		= test_libpr0n
 
 XPCSHELL_TESTS  = unit
 
+DIRS            += mochitest
+
 include $(topsrcdir)/config/rules.mk
-
-# Note: Invoke any additional (non-xpcshell) test programs here.
-check::
-

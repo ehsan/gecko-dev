@@ -39,21 +39,20 @@
    -
    - ***** END LICENSE BLOCK ***** -->
 
-<!-- TODO this needs to move to locale/ once we are certain of the strings -->
-<!DOCTYPE dialog SYSTEM "chrome://mozapps/content/handling/handling.dtd">
+<!DOCTYPE dialog SYSTEM "chrome://mozapps/locale/handling/handling.dtd">
 
 <dialog id="handling"
         ondialogaccept="return dialog.onAccept();"
         onload="dialog.initialize();"
-        width="&window.width;" height="&window.height;"
-        persist="width height screenX screenY sizemode"
+        style="min-width: &window.emWidth;; min-height: &window.emHeight;;"
+        persist="width height screenX screenY"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
   <script src="chrome://mozapps/content/handling/dialog.js" type="application/javascript"/>
 
   <stringbundleset id="strings">
     <stringbundle id="base-strings"
-                  src="chrome://mozapps/content/handling/handling.properties"/>
+                  src="chrome://mozapps/locale/handling/handling.properties"/>
   </stringbundleset>
 
   <hbox>
@@ -62,8 +61,9 @@
   </hbox>
 
   <vbox flex="1">
-    <description id="item-action-text"/>
+    <label id="item-action-text" for="items"/>
     <richlistbox id="items" flex="1"
+                 ondblclick="dialog.onDblClick();"
                  onselect="dialog.updateOKButton();">
       <richlistitem id="item-choose" orient="horizontal" selected="true">
         <label value="&ChooseApp.description;" flex="1"/>

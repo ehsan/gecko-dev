@@ -118,83 +118,83 @@ nsXBLContentSink::MaybeStartLayout(PRBool aIgnorePendingSheets)
 }
 
 nsresult
-nsXBLContentSink::FlushText()
+nsXBLContentSink::FlushText(PRBool aReleaseTextNode)
 {
-  if (mTextLength == 0) {
-    return NS_OK;
-  }
-
-  const nsASingleFragmentString& text = Substring(mText, mText+mTextLength);
-  if (mState == eXBL_InHandlers) {
-    NS_ASSERTION(mBinding, "Must have binding here");
-    // Get the text and add it to the event handler.
-    if (mSecondaryState == eXBL_InHandler)
-      mHandler->AppendHandlerText(text);
-    mTextLength = 0;
-    return NS_OK;
-  }
-  else if (mState == eXBL_InImplementation) {
-    NS_ASSERTION(mBinding, "Must have binding here");
-    if (mSecondaryState == eXBL_InConstructor ||
-        mSecondaryState == eXBL_InDestructor) {
-      // Construct a method for the constructor/destructor.
-      nsXBLProtoImplMethod* method;
-      if (mSecondaryState == eXBL_InConstructor)
-        method = mBinding->GetConstructor();
-      else
-        method = mBinding->GetDestructor();
-
-      // Get the text and add it to the constructor/destructor.
-      method->AppendBodyText(text);
-    }
-    else if (mSecondaryState == eXBL_InGetter ||
-             mSecondaryState == eXBL_InSetter) {
-      // Get the text and add it to the getter/setter
-      if (mSecondaryState == eXBL_InGetter)
-        mProperty->AppendGetterText(text);
-      else
-        mProperty->AppendSetterText(text);
-    }
-    else if (mSecondaryState == eXBL_InBody) {
-      // Get the text and add it to the method
-      if (mMethod)
-        mMethod->AppendBodyText(text);
-    }
-    else if (mSecondaryState == eXBL_InField) {
-      // Get the text and add it to the method
-      mField->AppendFieldText(text);
-    }
-    mTextLength = 0;
-    return NS_OK;
-  }
-
-  nsIContent* content = GetCurrentContent();
-  if (content &&
-      (content->NodeInfo()->NamespaceEquals(kNameSpaceID_XBL) ||
-       (content->NodeInfo()->NamespaceEquals(kNameSpaceID_XUL) &&
-        content->Tag() != nsGkAtoms::label &&
-        content->Tag() != nsGkAtoms::description))) {
-
-    PRBool isWS = PR_TRUE;
-    if (mTextLength > 0) {
-      const PRUnichar* cp = mText;
-      const PRUnichar* end = mText + mTextLength;
-      while (cp < end) {
-        PRUnichar ch = *cp++;
-        if (!XP_IS_SPACE(ch)) {
-          isWS = PR_FALSE;
-          break;
-        }
-      }
-    }
-
-    if (isWS && mTextLength > 0) {
+  if (mTextLength != 0) {
+    const nsASingleFragmentString& text = Substring(mText, mText+mTextLength);
+    if (mState == eXBL_InHandlers) {
+      NS_ASSERTION(mBinding, "Must have binding here");
+      // Get the text and add it to the event handler.
+      if (mSecondaryState == eXBL_InHandler)
+        mHandler->AppendHandlerText(text);
       mTextLength = 0;
       return NS_OK;
     }
+    else if (mState == eXBL_InImplementation) {
+      NS_ASSERTION(mBinding, "Must have binding here");
+      if (mSecondaryState == eXBL_InConstructor ||
+          mSecondaryState == eXBL_InDestructor) {
+        // Construct a method for the constructor/destructor.
+        nsXBLProtoImplMethod* method;
+        if (mSecondaryState == eXBL_InConstructor)
+          method = mBinding->GetConstructor();
+        else
+          method = mBinding->GetDestructor();
+
+        // Get the text and add it to the constructor/destructor.
+        method->AppendBodyText(text);
+      }
+      else if (mSecondaryState == eXBL_InGetter ||
+               mSecondaryState == eXBL_InSetter) {
+        // Get the text and add it to the getter/setter
+        if (mSecondaryState == eXBL_InGetter)
+          mProperty->AppendGetterText(text);
+        else
+          mProperty->AppendSetterText(text);
+      }
+      else if (mSecondaryState == eXBL_InBody) {
+        // Get the text and add it to the method
+        if (mMethod)
+          mMethod->AppendBodyText(text);
+      }
+      else if (mSecondaryState == eXBL_InField) {
+        // Get the text and add it to the method
+        if (mField)
+          mField->AppendFieldText(text);
+      }
+      mTextLength = 0;
+      return NS_OK;
+    }
+
+    nsIContent* content = GetCurrentContent();
+    if (content &&
+        (content->NodeInfo()->NamespaceEquals(kNameSpaceID_XBL) ||
+         (content->NodeInfo()->NamespaceEquals(kNameSpaceID_XUL) &&
+          content->Tag() != nsGkAtoms::label &&
+          content->Tag() != nsGkAtoms::description))) {
+
+      PRBool isWS = PR_TRUE;
+      if (mTextLength > 0) {
+        const PRUnichar* cp = mText;
+        const PRUnichar* end = mText + mTextLength;
+        while (cp < end) {
+          PRUnichar ch = *cp++;
+          if (!XP_IS_SPACE(ch)) {
+            isWS = PR_FALSE;
+            break;
+          }
+        }
+      }
+
+      if (isWS && mTextLength > 0) {
+        mTextLength = 0;
+        // Make sure to drop the textnode, if any
+        return nsXMLContentSink::FlushText(aReleaseTextNode);
+      }
+    }
   }
 
-  return nsXMLContentSink::FlushText();
+  return nsXMLContentSink::FlushText(aReleaseTextNode);
 }
 
 NS_IMETHODIMP
@@ -566,13 +566,13 @@ nsXBLContentSink::ConstructBinding()
     if (!mBinding)
       return NS_ERROR_OUT_OF_MEMORY;
       
-    rv = mBinding->Init(cid, mDocInfo, binding);
-    if (NS_SUCCEEDED(rv)) {
+    rv = mBinding->Init(cid, mDocInfo, binding, !mFoundFirstBinding);
+    if (NS_SUCCEEDED(rv) &&
+        NS_SUCCEEDED(mDocInfo->SetPrototypeBinding(cid, mBinding))) {
       if (!mFoundFirstBinding) {
         mFoundFirstBinding = PR_TRUE;
         mDocInfo->SetFirstPrototypeBinding(mBinding);
       }
-      mDocInfo->SetPrototypeBinding(cid, mBinding);
       binding->UnsetAttr(kNameSpaceID_None, nsGkAtoms::id, PR_FALSE);
     } else {
       delete mBinding;
@@ -676,11 +676,9 @@ nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, PRUint32 aLineNumber
   newHandler = new nsXBLPrototypeHandler(event, phase, action, command,
                                          keycode, charcode, modifiers, button,
                                          clickcount, group, preventdefault,
-                                         allowuntrusted, mBinding);
+                                         allowuntrusted, mBinding, aLineNumber);
 
   if (newHandler) {
-    newHandler->SetLineNumber(aLineNumber);
-    
     // Add this handler to our chain of handlers.
     if (mHandler) {
       // Already have a chain. Just append to the end.
@@ -869,19 +867,20 @@ nsXBLContentSink::ConstructParameter(const PRUnichar **aAtts)
 nsresult
 nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
-                                nsIContent** aResult, PRBool* aAppendContent)
+                                nsIContent** aResult, PRBool* aAppendContent,
+                                PRBool aFromParser)
 {
 #ifdef MOZ_XUL
   if (!aNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
 #endif
     return nsXMLContentSink::CreateElement(aAtts, aAttsCount, aNodeInfo,
                                            aLineNumber, aResult,
-                                           aAppendContent);
+                                           aAppendContent, aFromParser);
 #ifdef MOZ_XUL
   }
 
   *aAppendContent = PR_TRUE;
-  nsXULPrototypeElement* prototype = new nsXULPrototypeElement();
+  nsRefPtr<nsXULPrototypeElement> prototype = new nsXULPrototypeElement();
   if (!prototype)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -892,15 +891,7 @@ nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
 
   AddAttributesToXULPrototype(aAtts, aAttsCount, prototype);
 
-  nsresult rv = nsXULElement::Create(prototype, mDocument, PR_FALSE, aResult);
-
-  // XUL prototype elements start with a refcnt of 1 to represent
-  // ownership by the XUL prototype document.  In our case we have no
-  // prototype document, so release that reference.  The Create call
-  // above took a reference.
-  prototype->Release();
-
-  return rv;
+  return nsXULElement::Create(prototype, mDocument, PR_FALSE, aResult);
 #endif
 }
 
@@ -908,7 +899,7 @@ nsresult
 nsXBLContentSink::AddAttributes(const PRUnichar** aAtts,
                                 nsIContent* aContent)
 {
-  if (aContent->IsNodeOfType(nsINode::eXUL))
+  if (aContent->IsXUL())
     return NS_OK; // Nothing to do, since the proto already has the attrs.
 
   return nsXMLContentSink::AddAttributes(aAtts, aContent);
@@ -948,8 +939,7 @@ nsXBLContentSink::AddAttributesToXULPrototype(const PRUnichar **aAtts,
     }
     else {
       nsCOMPtr<nsINodeInfo> ni;
-      mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
-                                    getter_AddRefs(ni));
+      ni = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
       attrs[i].mName.SetTo(ni);
     }
     

@@ -1,10 +1,5 @@
 <?xml version="1.0"?>
 
-<!DOCTYPE bindings [
-  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
-  %globalDTD;
-]>
-
 <bindings id="menuitemBindings"
    xmlns="http://www.mozilla.org/xbl"
    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
@@ -15,16 +10,17 @@
     <resources>
       <stylesheet src="chrome://global/skin/menu.css"/>
     </resources>
-    <implementation implements="nsIDOMXULSelectControlItemElement, nsIAccessibleProvider">
+    <implementation implements="nsIDOMXULSelectControlItemElement, nsIDOMXULContainerItemElement, nsIAccessibleProvider">
+      <!-- nsIAccessibleProvider -->
       <property name="accessibleType" readonly="true">
         <getter>
           <![CDATA[
-            if (this.localName == "menuseparator")
-              return Components.interfaces.nsIAccessibleProvider.XULMenuSeparator;
             return Components.interfaces.nsIAccessibleProvider.XULMenuitem;
           ]]>
         </getter>
       </property>
+
+      <!-- nsIDOMXULSelectControlItemElement -->
       <property name="selected" readonly="true"
                 onget="return this.getAttribute('selected') == 'true';"/>
       <property name="control" readonly="true">
@@ -36,6 +32,17 @@
               return parent.parentNode;
             return null;
           ]]>
+        </getter>
+      </property>
+
+      <!-- nsIDOMXULContainerItemElement -->
+      <property name="parentContainer" readonly="true">
+        <getter>
+          for (var parent = this.parentNode; parent; parent = parent.parentNode) {
+            if (parent instanceof Components.interfaces.nsIDOMXULContainerElement)
+              return parent;
+          }
+          return null;
         </getter>
       </property>
     </implementation>
@@ -58,7 +65,7 @@
         <parameter name="aLabel"/>
         <parameter name="aValue"/>
         <body>
-          this.insertItemAt(-1, aLabel, aValue);
+          return this.insertItemAt(-1, aLabel, aValue);
         </body>
       </method>
 
@@ -82,9 +89,8 @@
 
           var before = this.getItemAtIndex(aIndex);
           if (before)
-            menupopup.insertBefore(menuitem, before);
-          else
-            menupopup.appendChild(menuitem);
+            return menupopup.insertBefore(menuitem, before);
+          return menupopup.appendChild(menuitem);
         </body>
       </method>
 
@@ -141,16 +147,6 @@
         </body>
       </method>
 
-      <property name="parentContainer" readonly="true">
-        <getter>
-          for (var parent = this.parentNode; parent; parent = parent.parentNode) {
-            if (parent instanceof Components.interfaces.nsIDOMXULContainerElement)
-              return parent;
-          }
-          return null;
-        </getter>
-      </property>
-
       <property name="menupopup" readonly="true">
         <getter>
         <![CDATA[
@@ -172,11 +168,10 @@
            extends="chrome://global/content/bindings/menu.xml#menu-base">
     <content>
       <xul:label class="menu-text" flex="1" xbl:inherits="value=label,accesskey,crop" crop="right"/>
-      <xul:hbox anonid="accel">
+      <xul:hbox class="menu-accel-container" anonid="accel">
         <xul:label class="menu-accel" xbl:inherits="value=acceltext"/>
       </xul:hbox>
-      <xul:hbox align="center" class="menu-right" chromedir="&locale.dir;"
-                xbl:inherits="_moz-menuactive,disabled">
+      <xul:hbox align="center" class="menu-right" xbl:inherits="_moz-menuactive,disabled">
         <xul:image/>
       </xul:hbox>
       <children includes="menupopup"/>
@@ -186,7 +181,7 @@
   <binding id="menuitem" extends="chrome://global/content/bindings/menu.xml#menuitem-base">
     <content>
       <xul:label class="menu-text" flex="1" xbl:inherits="value=label,accesskey,crop" crop="right"/>
-      <xul:hbox anonid="accel">
+      <xul:hbox class="menu-accel-container" anonid="accel">
         <xul:label class="menu-accel" xbl:inherits="value=acceltext"/>
       </xul:hbox>
     </content>
@@ -216,7 +211,7 @@
         <xul:image class="menu-iconic-icon" xbl:inherits="src=image,validate,src"/>
       </xul:hbox>
       <xul:label class="menu-iconic-text" flex="1" xbl:inherits="value=label,accesskey,crop" crop="right"/>
-      <xul:hbox anonid="accel">
+      <xul:hbox class="menu-accel-container" anonid="accel">
         <xul:label class="menu-iconic-accel" xbl:inherits="value=acceltext"/>
       </xul:hbox>
     </content>
@@ -247,14 +242,13 @@
            extends="chrome://global/content/bindings/menu.xml#menu-base">
     <content>
       <xul:hbox class="menu-iconic-left" align="center" pack="center">
-        <xul:image xbl:inherits="src=image"/>
+        <xul:image class="menu-iconic-icon" xbl:inherits="src=image"/>
       </xul:hbox>
       <xul:label class="menu-iconic-text" flex="1" xbl:inherits="value=label,accesskey,crop" crop="right"/>
-      <xul:hbox anonid="accel">
+      <xul:hbox class="menu-accel-container" anonid="accel">
         <xul:label class="menu-iconic-accel" xbl:inherits="value=acceltext"/>
       </xul:hbox>
-      <xul:hbox class="menu-right" chromedir="&locale.dir;"
-                xbl:inherits="_moz-menuactive,disabled" align="center" pack="center">
+      <xul:hbox align="center" class="menu-right" xbl:inherits="_moz-menuactive,disabled">
         <xul:image/>
       </xul:hbox>
       <children includes="menupopup|template"/>
@@ -268,6 +262,18 @@
     </content>
   </binding>  
   
-  <binding id="menuseparator" extends="chrome://global/content/bindings/menu.xml#menuitem-base"/>
+  <binding id="menuseparator"
+           extends="chrome://global/content/bindings/menu.xml#menuitem-base">
+    <implementation>
+      <!-- nsIAccessibleProvider -->
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULMenuSeparator;
+          ]]>
+        </getter>
+      </property>
+    </implementation>
+  </binding>
 
 </bindings>

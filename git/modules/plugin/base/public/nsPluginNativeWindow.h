@@ -44,17 +44,23 @@
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsIPluginInstance.h"
-#include "nsplugindefs.h"
+#include "npapi.h"
 #include "nsIWidget.h"
+#include "nsTraceRefcnt.h"
 
 /**
  * base class for native plugin window implementations
  */
-class nsPluginNativeWindow : public nsPluginWindow
+class nsPluginNativeWindow : public NPWindow
 {
 public: 
-  nsPluginNativeWindow() : nsPluginWindow() {}
-  virtual ~nsPluginNativeWindow() {}
+  nsPluginNativeWindow() : NPWindow() {
+    MOZ_COUNT_CTOR(nsPluginNativeWindow);
+  }
+
+  virtual ~nsPluginNativeWindow() {
+    MOZ_COUNT_DTOR(nsPluginNativeWindow);
+  }
 
   /**
    *   !!! CAUTION !!!
@@ -97,6 +103,15 @@ public:
     SetPluginInstance(aPluginInstance);
     return NS_OK;
   }
+#if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_WIDGET_GTK2)
+#define MOZ_COMPOSITED_PLUGINS
+#endif
+#ifdef MOZ_COMPOSITED_PLUGINS
+  /* XXX: we use this to leak the socket widget out from nsPlugNativeWindowGtk2
+     so that Renderer::NativeDraw() in nsObjectFrame.cpp can draw the widget.
+     I don't currently know a better way to do this... */
+  void *mPlugWindow;
+#endif
 
 protected:
   nsCOMPtr<nsIPluginInstance> mPluginInstance;

@@ -46,33 +46,6 @@ MODULE		= content
 LIBRARY_NAME	= gkconxmldoc_s
 LIBXUL_LIBRARY	= 1
 
-REQUIRES	= xpcom \
-		  string \
-		  js \
-		  dom \
-		  gfx \
-		  thebes \
-		  layout \
-		  widget \
-		  caps \
-		  htmlparser \
-		  necko \
-		  view \
-		  imglib2 \
-		  docshell \
-		  webshell \
-		  uriloader \
-		  pref \
-		  xpconnect \
-		  uconv \
-		  lwbrk \
-		  exthandler \
-		  mimetype \
-		  unicharutil \
-		  windowwatcher \
-		  locale \
-		  util \
-		  $(NULL)
 
 CPPSRCS		= \
 		nsXMLContentSink.cpp \
@@ -94,7 +67,7 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../../../base/src \
 		-I$(srcdir)/../../../xul/content/src \
 		-I$(srcdir)/../../../events/src \
-		-I$(srcdir)/../../../../dom/src/base \
+		-I$(srcdir)/../../../../dom/base \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

@@ -36,20 +36,20 @@
 
 #include "cairoint.h"
 
-typedef struct cairo_hull
-{
+typedef struct cairo_hull {
     cairo_point_t point;
     cairo_slope_t slope;
     int discard;
     int id;
 } cairo_hull_t;
 
-static cairo_hull_t *
-_cairo_hull_create (cairo_pen_vertex_t *vertices, int num_vertices)
+static void
+_cairo_hull_init (cairo_hull_t			*hull,
+	          cairo_pen_vertex_t		*vertices,
+		  int				 num_vertices)
 {
-    int i;
-    cairo_hull_t *hull;
     cairo_point_t *p, *extremum, tmp;
+    int i;
 
     extremum = &vertices[0].point;
     for (i = 1; i < num_vertices; i++) {
@@ -61,10 +61,6 @@ _cairo_hull_create (cairo_pen_vertex_t *vertices, int num_vertices)
     tmp = *extremum;
     *extremum = vertices[0].point;
     vertices[0].point = tmp;
-
-    hull = _cairo_malloc_ab (num_vertices, sizeof (cairo_hull_t));
-    if (hull == NULL)
-	return NULL;
 
     for (i = 0; i < num_vertices; i++) {
 	hull[i].point = vertices[i].point;
@@ -80,8 +76,13 @@ _cairo_hull_create (cairo_pen_vertex_t *vertices, int num_vertices)
 	if (i != 0 && hull[i].slope.dx == 0 && hull[i].slope.dy == 0)
 	    hull[i].discard = 1;
     }
+}
 
-    return hull;
+static inline cairo_int64_t
+_slope_length (cairo_slope_t *slope)
+{
+    return _cairo_int64_add (_cairo_int32x32_64_mul (slope->dx, slope->dx),
+			     _cairo_int32x32_64_mul (slope->dy, slope->dy));
 }
 
 static int
@@ -93,21 +94,21 @@ _cairo_hull_vertex_compare (const void *av, const void *bv)
 
     ret = _cairo_slope_compare (&a->slope, &b->slope);
 
-    /* In the case of two vertices with identical slope from the
-       extremal point discard the nearer point. */
-
+    /*
+     * In the case of two vertices with identical slope from the
+     * extremal point discard the nearer point.
+     */
     if (ret == 0) {
-	cairo_fixed_48_16_t a_dist, b_dist;
-	a_dist = ((cairo_fixed_48_16_t) a->slope.dx * a->slope.dx +
-		  (cairo_fixed_48_16_t) a->slope.dy * a->slope.dy);
-	b_dist = ((cairo_fixed_48_16_t) b->slope.dx * b->slope.dx +
-		  (cairo_fixed_48_16_t) b->slope.dy * b->slope.dy);
+	int cmp;
+
+	cmp = _cairo_int64_cmp (_slope_length (&a->slope),
+				_slope_length (&b->slope));
+
 	/*
-	 * Use the point's ids to ensure a total ordering.
-	 * a well-defined ordering, and avoid setting discard on
-	 * both points.
+	 * Use the points' ids to ensure a well-defined ordering,
+	 * and avoid setting discard on both points.
 	 */
-	if (a_dist < b_dist || (a_dist == b_dist && a->id < b->id)) {
+	if (cmp < 0 || (cmp == 0 && a->id < b->id)) {
 	    a->discard = 1;
 	    ret = -1;
 	} else {
@@ -122,8 +123,13 @@ _cairo_hull_vertex_compare (const void *av, const void *bv)
 static int
 _cairo_hull_prev_valid (cairo_hull_t *hull, int num_hull, int index)
 {
+    /* hull[0] is always valid, and we never need to wraparound, (if
+     * we are passed an index of 0 here, then the calling loop is just
+     * about to terminate). */
+    if (index == 0)
+	return 0;
+
     do {
-	/* hull[0] is always valid, so don't test and wraparound */
 	index--;
     } while (hull[index].discard);
 
@@ -140,7 +146,7 @@ _cairo_hull_next_valid (cairo_hull_t *hull, int num_hull, int index)
     return index;
 }
 
-static cairo_status_t
+static void
 _cairo_hull_eliminate_concave (cairo_hull_t *hull, int num_hull)
 {
     int i, j, k;
@@ -157,7 +163,7 @@ _cairo_hull_eliminate_concave (cairo_hull_t *hull, int num_hull)
 	/* Is the angle formed by ij and jk concave? */
 	if (_cairo_slope_compare (&slope_ij, &slope_jk) >= 0) {
 	    if (i == k)
-		return CAIRO_STATUS_SUCCESS;
+		return;
 	    hull[j].discard = 1;
 	    j = i;
 	    i = _cairo_hull_prev_valid (hull, num_hull, j);
@@ -167,11 +173,9 @@ _cairo_hull_eliminate_concave (cairo_hull_t *hull, int num_hull)
 	    k = _cairo_hull_next_valid (hull, num_hull, j);
 	}
     } while (j != 0);
-
-    return CAIRO_STATUS_SUCCESS;
 }
 
-static cairo_status_t
+static void
 _cairo_hull_to_pen (cairo_hull_t *hull, cairo_pen_vertex_t *vertices, int *num_vertices)
 {
     int i, j = 0;
@@ -183,8 +187,6 @@ _cairo_hull_to_pen (cairo_hull_t *hull, cairo_pen_vertex_t *vertices, int *num_v
     }
 
     *num_vertices = j;
-
-    return CAIRO_STATUS_SUCCESS;
 }
 
 /* Given a set of vertices, compute the convex hull using the Graham
@@ -192,12 +194,22 @@ _cairo_hull_to_pen (cairo_hull_t *hull, cairo_pen_vertex_t *vertices, int *num_v
 cairo_status_t
 _cairo_hull_compute (cairo_pen_vertex_t *vertices, int *num_vertices)
 {
+    cairo_hull_t hull_stack[CAIRO_STACK_ARRAY_LENGTH (cairo_hull_t)];
     cairo_hull_t *hull;
     int num_hull = *num_vertices;
 
-    hull = _cairo_hull_create (vertices, num_hull);
-    if (hull == NULL)
-	return CAIRO_STATUS_NO_MEMORY;
+    if (CAIRO_INJECT_FAULT ())
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+
+    if (num_hull > ARRAY_LENGTH (hull_stack)) {
+	hull = _cairo_malloc_ab (num_hull, sizeof (cairo_hull_t));
+	if (unlikely (hull == NULL))
+	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    } else {
+	hull = hull_stack;
+    }
+
+    _cairo_hull_init (hull, vertices, num_hull);
 
     qsort (hull + 1, num_hull - 1,
 	   sizeof (cairo_hull_t), _cairo_hull_vertex_compare);
@@ -206,7 +218,8 @@ _cairo_hull_compute (cairo_pen_vertex_t *vertices, int *num_vertices)
 
     _cairo_hull_to_pen (hull, vertices, num_vertices);
 
-    free (hull);
+    if (hull != hull_stack)
+	free (hull);
 
     return CAIRO_STATUS_SUCCESS;
 }

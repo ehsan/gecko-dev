@@ -37,10 +37,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsLookAndFeel.h"
-#include "nsIInternetConfigService.h"
+#include "nsObjCExceptions.h"
 #include "nsIServiceManager.h"
+#include "nsNativeThemeColors.h"
 
 #import <Carbon/Carbon.h>
+#import <Cocoa/Cocoa.h>
 
 nsLookAndFeel::nsLookAndFeel() : nsXPLookAndFeel()
 {
@@ -50,23 +52,21 @@ nsLookAndFeel::~nsLookAndFeel()
 {
 }
 
+static nscolor GetColorFromNSColor(NSColor* aColor)
+{
+  NSColor* deviceColor = [aColor colorUsingColorSpaceName:NSDeviceRGBColorSpace];
+  return NS_RGB((unsigned int)([deviceColor redComponent] * 255.0),
+                (unsigned int)([deviceColor greenComponent] * 255.0),
+                (unsigned int)([deviceColor blueComponent] * 255.0));
+}
+
 nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
 {
   nsresult res = NS_OK;
   
   switch (aID) {
     case eColor_WindowBackground:
-    {
-      nsCOMPtr<nsIInternetConfigService> icService_wb (do_GetService(NS_INTERNETCONFIGSERVICE_CONTRACTID));
-      if (icService_wb) {
-        res = icService_wb->GetColor(nsIInternetConfigService::eICColor_WebBackgroundColour, &aColor);
-        if (NS_SUCCEEDED(res))
-          return res;
-      }
-      
-      aColor = NS_RGB(0xff,0xff,0xff); // default to white if we didn't find it in internet config
-      res = NS_OK;
-    }
+      aColor = NS_RGB(0xff,0xff,0xff);
       break;
     case eColor_WindowForeground:
       aColor = NS_RGB(0x00,0x00,0x00);        
@@ -92,26 +92,17 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_TextBackground:
       aColor = NS_RGB(0xff,0xff,0xff);
       break;
-    case eColor_TextForeground: 
-    {
-      nsCOMPtr<nsIInternetConfigService> icService_tf (do_GetService(NS_INTERNETCONFIGSERVICE_CONTRACTID));
-      if (icService_tf) {
-        res = icService_tf->GetColor(nsIInternetConfigService::eICColor_WebTextColor, &aColor);
-        if (NS_SUCCEEDED(res))
-          return res;
-      }
+    case eColor_TextForeground:
       aColor = NS_RGB(0x00,0x00,0x00);
-      res = NS_OK;
-    }
       break;
     case eColor_TextSelectBackground:
-      res = GetMacBrushColor(kThemeBrushPrimaryHighlightColor, aColor, NS_RGB(0x00,0x00,0x00));
+      aColor = GetColorFromNSColor([NSColor selectedTextBackgroundColor]);
       break;
     case eColor_highlight: // CSS2 color
-      res = GetMacBrushColor(kThemeBrushAlternatePrimaryHighlightColor, aColor, NS_RGB(0x33,0x6F,0xCB));
+      aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
     case eColor__moz_menuhover:
-      res = GetMacAccentColor(eColorOffset_mac_accentregularshadow, aColor, NS_RGB(0x33,0x6F,0xCB));
+      aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;      
     case eColor_TextSelectForeground:
       GetColor(eColor_TextSelectBackground, aColor);
@@ -122,7 +113,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       break;
     case eColor_highlighttext:  // CSS2 color
     case eColor__moz_menuhovertext:
-      res = GetMacTextColor(kThemeTextColorMenuItemSelected, aColor, NS_RGB(0xFF,0xFF,0xFF));
+      aColor = GetColorFromNSColor([NSColor alternateSelectedControlTextColor]);
       break;
     case eColor_IMESelectedRawTextBackground:
     case eColor_IMESelectedConvertedTextBackground:
@@ -144,7 +135,10 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_IMESelectedConvertedTextUnderline:
       aColor = NS_SAME_AS_FOREGROUND_COLOR;
       break;
-      
+    case eColor_SpellCheckerUnderline:
+      aColor = NS_RGB(0xff, 0, 0);
+      break;
+
       //
       // css2 system colors http://www.w3.org/TR/REC-CSS2/ui.html#system-colors
       //
@@ -159,185 +153,150 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       
     case eColor_buttontext:
     case eColor__moz_buttonhovertext:
-      res = GetMacTextColor(kThemeTextColorPushButtonActive, aColor, NS_RGB(0x00,0x00,0x00));
+      aColor = GetColorFromNSColor([NSColor controlTextColor]);
       break;
     case eColor_captiontext:
-      res = GetMacTextColor(kThemeTextColorWindowHeaderActive, aColor, NS_RGB(0x00,0x00,0x00));
-      break;
     case eColor_menutext:
-      res = GetMacTextColor(kThemeTextColorMenuItemActive, aColor, NS_RGB(0x00,0x00,0x00));
-      break;
     case eColor_infotext:
-      res = GetMacTextColor(kThemeTextColorNotification, aColor, NS_RGB(0x00,0x00,0x00));
-      break;    
+    case eColor__moz_menubartext:
+      aColor = GetColorFromNSColor([NSColor textColor]);
+      break;
     case eColor_windowtext:
-      res = GetMacTextColor(kThemeTextColorDialogActive, aColor, NS_RGB(0x00,0x00,0x00));
+      aColor = GetColorFromNSColor([NSColor windowFrameTextColor]);
       break;
     case eColor_activecaption:
-      //no way to fetch this colour. HARDCODING to Platinum
-      //active titlebar etc is #CCCCCC
-      aColor = NS_RGB(0xCC,0xCC,0xCC);
+      aColor = GetColorFromNSColor([NSColor gridColor]);
       break;
     case eColor_activeborder:
-      // Aqua has no border
-      res = GetMacBrushColor(kThemeBrushBlack, aColor, NS_RGB(0x00,0x00,0x00));
+      aColor = NS_RGB(0x00,0x00,0x00);
       break;
      case eColor_appworkspace:
-      // NOTE: this is an MDI color and does not exist on Mac OS X.
-      // Use the closest match, which will likely be white.
-      res = GetMacBrushColor(kThemeBrushDocumentWindowBackground, aColor, NS_RGB(0x63,0x63,0xCE));
-      break;   
+      aColor = NS_RGB(0xFF,0xFF,0xFF);
+      break;
     case eColor_background:
-      // NOTE: chances are good this is a pattern, not a pure color. What do we do?
-      //incidentally, this is supposed to be the colour of the desktop, though how anyone
-      //is supposed to guess that from the name?
       aColor = NS_RGB(0x63,0x63,0xCE);
       break;
     case eColor_buttonface:
     case eColor__moz_buttonhoverface:
-      res = GetMacBrushColor(kThemeBrushButtonFaceActive, aColor, NS_RGB(0xDD,0xDD,0xDD));
+      aColor = NS_RGB(0xF0,0xF0,0xF0);
       break;
     case eColor_buttonhighlight:
-      //lighter of 2 possible highlight colours available
-      res = GetMacBrushColor(kThemeBrushButtonActiveLightHighlight, aColor, NS_RGB(0xFF,0xFF,0xFF));
+      aColor = NS_RGB(0xFF,0xFF,0xFF);
       break;
     case eColor_buttonshadow:
-      //darker of 2 possible shadow colours available
-      res = GetMacBrushColor(kThemeBrushButtonActiveDarkShadow, aColor, NS_RGB(0x77,0x77,0x77));
+      aColor = NS_RGB(0xDC,0xDC,0xDC);
       break;
     case eColor_graytext:
-      res = GetMacTextColor(kThemeTextColorDialogInactive, aColor, NS_RGB(0x77,0x77,0x77));
+      aColor = GetColorFromNSColor([NSColor disabledControlTextColor]);
       break;
     case eColor_inactiveborder:
-      //ScrollBar DelimiterInactive looks like an odd constant to use, but gives the right colour in most themes, 
-      //also if you look at where this colour is *actually* used, it is pretty much what we want
-      res = GetMacBrushColor(kThemeBrushScrollBarDelimiterInactive, aColor, NS_RGB(0x55,0x55,0x55));
+      aColor = GetColorFromNSColor([NSColor controlBackgroundColor]);
       break;
     case eColor_inactivecaption:
-      //best guess. Usually right in most themes I think
-      res = GetMacBrushColor(kThemeBrushDialogBackgroundInactive, aColor, NS_RGB(0xDD,0xDD,0xDD));
+      aColor = GetColorFromNSColor([NSColor controlBackgroundColor]);
       break;
     case eColor_inactivecaptiontext:
-      res = GetMacTextColor(kThemeTextColorWindowHeaderInactive, aColor, NS_RGB(0x77,0x77,0x77));
+      aColor = NS_RGB(0x45,0x45,0x45);
       break;
     case eColor_scrollbar:
-      //this is the scrollbar trough. HARDCODING no way to get this colour
-      //res = GetMacBrushColor(??, aColor, NS_RGB(0xAA,0xAA,0xAA));
-      aColor = NS_RGB(0xAA,0xAA,0xAA);
+      aColor = GetColorFromNSColor([NSColor scrollBarColor]);
       break;
     case eColor_threeddarkshadow:
-      res = GetMacBrushColor(kThemeBrushButtonActiveDarkShadow, aColor, NS_RGB(0x77,0x77,0x77));
+      aColor = NS_RGB(0xDC,0xDC,0xDC);
       break;
     case eColor_threedshadow:
-      res = GetMacBrushColor(kThemeBrushButtonActiveLightShadow, aColor, NS_RGB(0x99,0x99,0x99));
+      aColor = NS_RGB(0xE0,0xE0,0xE0);
       break;
     case eColor_threedface:
-      res = GetMacBrushColor(kThemeBrushButtonFaceActive, aColor, NS_RGB(0xDD,0xDD,0xDD));
+      aColor = NS_RGB(0xF0,0xF0,0xF0);
       break;
     case eColor_threedhighlight:
-      res = GetMacBrushColor(kThemeBrushButtonActiveLightHighlight, aColor, NS_RGB(0xFF,0xFF,0xFF));
+      aColor = GetColorFromNSColor([NSColor highlightColor]);
       break;
     case eColor_threedlightshadow:
-      //the description in the CSS2 spec says this is on the side facing the lightsource,
-      //so its not a shadow in Mac OS terms, its the darker of the highlights 
-      res = GetMacBrushColor(kThemeBrushButtonActiveDarkHighlight, aColor, NS_RGB(0xDD,0xDD,0xDD));
+      aColor = NS_RGB(0xDA,0xDA,0xDA);
       break;
     case eColor_menu:
-      //best guess. Menus have similar background to dialogs in most themes
-      res = GetMacBrushColor(kThemeBrushDialogBackgroundActive, aColor, NS_RGB(0xDD,0xDD,0xDD));
+      aColor = GetColorFromNSColor([NSColor alternateSelectedControlTextColor]);
       break;
     case eColor_infobackground:
       aColor = NS_RGB(0xFF,0xFF,0xC7);
       break;
     case eColor_windowframe:
-      //no way to fetch this colour. HARDCODING to Platinum
-      //res = GetMacBrushColor(??, aColor, NS_RGB(0xCC,0xCC,0xCC));
-      aColor = NS_RGB(0xCC,0xCC,0xCC);
+      aColor = GetColorFromNSColor([NSColor gridColor]);
       break;
     case eColor_window:
-      res = GetMacBrushColor(kThemeBrushDocumentWindowBackground, aColor, NS_RGB(0xFF,0xFF,0xFF));        
-      break;
     case eColor__moz_field:
+    case eColor__moz_combobox:
       aColor = NS_RGB(0xff,0xff,0xff);
       break;
     case eColor__moz_fieldtext:
-      // XXX There may be a better color for this, but I'm making it
-      // the same as WindowText since that's what's currently used where
-      // I will use -moz-FieldText.
-      res = GetMacTextColor(kThemeTextColorDialogActive, aColor, NS_RGB(0x00,0x00,0x00));
+    case eColor__moz_comboboxtext:
+      aColor = GetColorFromNSColor([NSColor controlTextColor]);
       break;
     case eColor__moz_dialog:
-    case eColor__moz_cellhighlight:
-      // XXX There may be a better color for this, but I'm making it
-      // the same as ThreeDFace since that's what's currently used where
-      // I will use -moz-Dialog:
-      res = GetMacBrushColor(kThemeBrushButtonFaceActive, aColor, NS_RGB(0xDD,0xDD,0xDD));
+      aColor = GetColorFromNSColor([NSColor controlHighlightColor]);
       break;
     case eColor__moz_dialogtext:
     case eColor__moz_cellhighlighttext:
-      // XXX There may be a better color for this, but I'm making it
-      // the same as WindowText since that's what's currently used where
-      // I will use -moz-DialogText.
-      res = GetMacTextColor(kThemeTextColorDialogActive, aColor, NS_RGB(0x00,0x00,0x00));
+    case eColor__moz_html_cellhighlighttext:
+      aColor = GetColorFromNSColor([NSColor controlTextColor]);
       break;
     case eColor__moz_dragtargetzone:
-      //default to lavender if not available
-      res = GetMacBrushColor(kThemeBrushDragHilite, aColor, NS_RGB(0x63,0x63,0xCE));
+      aColor = GetColorFromNSColor([NSColor selectedControlColor]);
+      break;
+    case eColor__moz_mac_chrome_active:
+    case eColor__moz_mac_chrome_inactive: {
+      int grey = NativeGreyColorAsInt(headerEndGrey, (aID == eColor__moz_mac_chrome_active));
+      aColor = NS_RGB(grey, grey, grey);
+    }
       break;
     case eColor__moz_mac_focusring:
-      //default to lavender if not available
-      res = GetMacBrushColor(kThemeBrushFocusHighlight, aColor, NS_RGB(0x63,0x63,0xCE));
+      aColor = nsToolkit::OnSnowLeopardOrLater() ?
+                 ([NSColor currentControlTint] == NSGraphiteControlTint ?
+                    NS_RGB(0x6C,0x7E,0x8D) : NS_RGB(0x3F,0x98,0xDD)) :
+                 ([NSColor currentControlTint] == NSGraphiteControlTint ?
+                    NS_RGB(0x5F,0x70,0x82) : NS_RGB(0x53,0x90,0xD2));
       break;
     case eColor__moz_mac_menushadow:
-      res = GetMacBrushColor(kThemeBrushBevelActiveDark, aColor, NS_RGB(0x88,0x88,0x88));
+      aColor = NS_RGB(0xA3,0xA3,0xA3);
       break;          
     case eColor__moz_mac_menutextdisable:
-      res = GetMacTextColor(kThemeTextColorMenuItemDisabled, aColor, NS_RGB(0x99,0x99,0x99));
+      aColor = nsToolkit::OnSnowLeopardOrLater() ?
+                 NS_RGB(0x88,0x88,0x88) : NS_RGB(0x98,0x98,0x98);
       break;      
     case eColor__moz_mac_menutextselect:
-      res = GetMacTextColor(kThemeTextColorMenuItemSelected, aColor, NS_RGB(0xFF,0xFF,0xFF));
+      aColor = GetColorFromNSColor([NSColor selectedMenuItemTextColor]);
       break;      
-    case eColor__moz_mac_accentlightesthighlight:
-      //get this colour by querying variation table, ows. default to Platinum/Lavendar
-      res = GetMacAccentColor(eColorOffset_mac_accentlightesthighlight, aColor, NS_RGB(0xEE,0xEE,0xEE));
-      break;    
-    case eColor__moz_mac_accentregularhighlight:
-      //get this colour by querying variation table, ows. default to Aqua normal hilight color
-      res = GetMacAccentColor(eColorOffset_mac_accentregularhighlight, aColor, NS_RGB(0xB5,0xD5,0xFF));
-      break;        
-    case eColor__moz_mac_accentface:
-      //get this colour by querying variation table, ows. default to Platinum/Lavendar
-      res = GetMacAccentColor(eColorOffset_mac_accentface, aColor, NS_RGB(0x99,0x99,0xFF));
-      break;            
-    case eColor__moz_mac_accentlightshadow:
-      //get this colour by querying variation table, ows. default to Platinum/Lavendar
-      res = GetMacAccentColor(eColorOffset_mac_accentlightshadow, aColor, NS_RGB(0x66,0x66,0xCC));
-      break; 
+    case eColor__moz_mac_disabledtoolbartext:
+      aColor = NS_RGB(0x3F,0x3F,0x3F);
+      break;
     case eColor__moz_mac_menuselect:
-    case eColor__moz_mac_accentregularshadow:
-      //get this colour by querying variation table, ows. default to Aqua's normal menu select color
-      res = GetMacAccentColor(eColorOffset_mac_accentregularshadow, aColor, NS_RGB(0x33,0x6F,0xCB));
-      break;
-    case eColor__moz_mac_accentdarkshadow:
-      //get this colour by querying variation table, ows. default to Platinum/Lavendar
-      res = GetMacAccentColor(eColorOffset_mac_accentdarkshadow, aColor, NS_RGB(0x00,0x00,0x88));
-      break;
-    case eColor__moz_mac_accentdarkestshadow:
-      //get this colour by querying variation table, ows. default to Platinum/Lavendar
-      res = GetMacAccentColor(eColorOffset_mac_accentdarkestshadow, aColor, NS_RGB(0x00,0x00,0x55));
+      aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
     case eColor__moz_buttondefault:
-      res = GetMacBrushColor(kThemeBrushButtonActiveDarkShadow, aColor, NS_RGB(0x77,0x77,0x77));
+      aColor = NS_RGB(0xDC,0xDC,0xDC);
       break;
     case eColor__moz_mac_alternateprimaryhighlight:
-      // For proper styling of lists when active
-      nscolor fallbackColor;
-      GetMacBrushColor(kThemeBrushPrimaryHighlightColor, fallbackColor, NS_RGB(0x00,0x00,0x00));
-      res = GetMacBrushColor(kThemeBrushAlternatePrimaryHighlightColor, aColor, fallbackColor);
+      aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
+    case eColor__moz_cellhighlight:
+    case eColor__moz_html_cellhighlight:
     case eColor__moz_mac_secondaryhighlight:
       // For inactive list selection
-      res = GetMacBrushColor(kThemeBrushSecondaryHighlightColor, aColor, NS_RGB(0x00,0x00,0x00));
+      aColor = GetColorFromNSColor([NSColor secondarySelectedControlColor]);
+      break;
+    case eColor__moz_eventreerow:
+      // Background color of even list rows.
+      aColor = GetColorFromNSColor([[NSColor controlAlternatingRowBackgroundColors] objectAtIndex:0]);
+      break;
+    case eColor__moz_oddtreerow:
+      // Background color of odd list rows.
+      aColor = GetColorFromNSColor([[NSColor controlAlternatingRowBackgroundColors] objectAtIndex:1]);
+      break;
+    case eColor__moz_nativehyperlinktext:
+      // There appears to be no available system defined color. HARDCODING to the appropriate color.
+      aColor = NS_RGB(0x14,0x4F,0xAE);
       break;
     default:
       NS_WARNING("Someone asked nsILookAndFeel for a color I don't know about");
@@ -349,85 +308,10 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
   return res;
 }
 
-NS_IMETHODIMP nsLookAndFeel::GetMacBrushColor(const PRInt32 aBrushType, nscolor & aColor,
-                                              const nscolor & aDefaultColor)
-{
-  OSStatus err = noErr;
-  RGBColor macColor;
-
-  err = ::GetThemeBrushAsColor(aBrushType, 32, true, &macColor);
-  if (err == noErr) 
-    aColor =  NS_RGB(macColor.red>>8, macColor.green>>8, macColor.blue>>8);
-  else
-    aColor = aDefaultColor;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsLookAndFeel::GetMacTextColor(const PRInt32 aTextType, nscolor & aColor,
-                                             const nscolor & aDefaultColor)
-{
-  OSStatus err = noErr;
-  RGBColor macColor;
-
-  err = ::GetThemeTextColor(aTextType, 32, true, &macColor);
-  if (err == noErr) 
-    aColor =  NS_RGB(macColor.red>>8, macColor.green>>8, macColor.blue>>8);
-  else
-    aColor = aDefaultColor;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsLookAndFeel::GetMacAccentColor(const nsMacAccentColorOffset aAccent, 
-                                               nscolor & aColor,
-                                               const nscolor & aDefaultColor)
-{
-  nsresult res = NS_OK;
-  OSStatus err = noErr;
-  ColorTable colourTable;
-  CTabPtr ctPointer = &colourTable;
-  CTabHandle ctHandle = &ctPointer;
-  CTabHandle *colors = &ctHandle;
-  RGBColor *macColor;    
-  
-  err = ::GetThemeAccentColors(colors);
-  if (err == themeHasNoAccentsErr) {
-    //fine, theme doesn't support accents, use default
-    res = NS_OK;
-    aColor = aDefaultColor;
-  } else if (err != noErr || ! colors) {
-    res = NS_ERROR_FAILURE;
-    aColor = aDefaultColor;
-  } else {
-    if ((**colors)->ctSize == 
-        (eColorOffset_mac_accentdarkestshadow - eColorOffset_mac_accentlightesthighlight +1)) {
-      //if the size is 7 then its likely to be a standard Platinum variation, so lets use it
-      macColor = &((**colors)->ctTable[aAccent].rgb);
-      aColor = NS_RGB(macColor->red>>8, macColor->green>>8, macColor->blue>>8);
-      res = NS_OK;    
-    } else if ((**colors)->ctSize == -1) {
-      //this is probably the high contrast Black & White Platinum variation
-      //so lets be high contrast
-      res = NS_OK;
-      if (aAccent <= eColorOffset_mac_accentface) {
-        aColor = NS_RGB(0xFF,0xFF,0xFF);
-      } else {
-        aColor = NS_RGB(0x00,0x00,0x00);
-      }
-      //else if ( ?? )  // add aqua support here?
-    } else {
-      //some other size we've never heard of, no idea what to do with it
-      res = NS_ERROR_FAILURE;
-      aColor = aDefaultColor;
-    }
-  }
-
-  return res;
-}
-
 NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   nsresult res = nsXPLookAndFeel::GetMetric(aID, aMetric);
   if (NS_SUCCEEDED(res))
     return res;
@@ -489,7 +373,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
       aMetric = 3;
       break;
     case eMetric_CaretBlinkTime:
-      aMetric = ::GetCaretTime() * 1000 / 60;
+      aMetric = 567;
       break;
     case eMetric_CaretWidth:
       aMetric = 1;
@@ -512,45 +396,26 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_SkipNavigatingDisabledMenuItem:
       aMetric = 1;
       break;
-    case eMetric_DragFullWindow:
-      aMetric = 1;
-      break;        
     case eMetric_DragThresholdX:
     case eMetric_DragThresholdY:
       aMetric = 4;
       break;
     case eMetric_ScrollArrowStyle:
-      ThemeScrollBarArrowStyle arrowStyle;
-      ::GetThemeScrollBarArrowStyle ( &arrowStyle );
-      switch (arrowStyle) {
-        case kThemeScrollBarArrowsSingle:
-          aMetric = eMetric_ScrollArrowStyleSingle;
-          break;
-        // This constant isn't selectable in System Preferences like the other two (don't know why) 
-        // `defaults write -g AppleScrollBarVariant DoubleBoth` to enable it.
-        case kThemeScrollBarArrowsBoth:
-          aMetric = eMetric_ScrollArrowStyleBothAtEachEnd;
-          break;
-        default:
-          NS_WARNING("Not handling all possible ThemeScrollBarArrowStyle values");
-          // fall through so we default to BothAtBottom
-        case kThemeScrollBarArrowsLowerRight:
-          aMetric = eMetric_ScrollArrowStyleBothAtBottom;
+    {
+      NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
+      if ([buttonPlacement isEqualToString:@"Single"]) {
+        aMetric = eMetric_ScrollArrowStyleSingle;
+      } else if ([buttonPlacement isEqualToString:@"DoubleMin"]) {
+        aMetric = eMetric_ScrollArrowStyleBothAtTop;
+      } else if ([buttonPlacement isEqualToString:@"DoubleBoth"]) {
+        aMetric = eMetric_ScrollArrowStyleBothAtEachEnd;
+      } else {
+        aMetric = eMetric_ScrollArrowStyleBothAtBottom; // The default is BothAtBottom.
       }
+    }
         break;
     case eMetric_ScrollSliderStyle:
-      ThemeScrollBarThumbStyle thumbStyle;
-      ::GetThemeScrollBarThumbStyle ( &thumbStyle );
-      switch (thumbStyle) {
-        case kThemeScrollBarThumbNormal:
-          aMetric = eMetric_ScrollThumbStyleNormal;
-          break;
-        default:
-          NS_WARNING("Not handling all possible ThemeScrollBarThumbStyle values");
-          // fall through so we default to Proportional
-        case kThemeScrollBarThumbProportional:
-          aMetric = eMetric_ScrollThumbStyleProportional;
-      }
+        aMetric = eMetric_ScrollThumbStyleProportional;
         break;
     case eMetric_TreeOpenDelay:
       aMetric = 1000;
@@ -566,6 +431,17 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
       break;
     case eMetric_TreeScrollLinesMax:
       aMetric = 3;
+      break;
+    case eMetric_DWMCompositor:
+    case eMetric_WindowsClassic:
+    case eMetric_WindowsDefaultTheme:
+    case eMetric_TouchEnabled:
+    case eMetric_MaemoClassic:
+      aMetric = 0;
+      res = NS_ERROR_NOT_IMPLEMENTED;
+      break;
+    case eMetric_MacGraphiteTheme:
+      aMetric = [NSColor currentControlTint] == NSGraphiteControlTint;
       break;
     case eMetric_TabFocusModel:
     {
@@ -589,16 +465,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
       break;
     case eMetric_ScrollToClick:
     {
-      CFPropertyListRef scrollToClickProperty =
-        ::CFPreferencesCopyValue(CFSTR("AppleScrollerPagingBehavior"),
-                                 kCFPreferencesAnyApplication,
-                                 kCFPreferencesCurrentUser,
-                                 kCFPreferencesAnyHost);
-      aMetric = 0;
-      if (scrollToClickProperty) {
-        aMetric = (PRInt32)::CFBooleanGetValue((CFBooleanRef)scrollToClickProperty);
-        ::CFRelease(scrollToClickProperty);
-      }
+      aMetric = [[NSUserDefaults standardUserDefaults] boolForKey:@"AppleScrollerPagingBehavior"];
     }
       break;
     case eMetric_IMERawInputUnderlineStyle:
@@ -607,11 +474,16 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_IMESelectedConvertedTextUnderline:
       aMetric = NS_UNDERLINE_STYLE_SOLID;
       break;
+    case eMetric_SpellCheckerUnderlineStyle:
+      aMetric = NS_UNDERLINE_STYLE_DOTTED;
+      break;
     default:
       aMetric = 0;
       res = NS_ERROR_FAILURE;
   }
   return res;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetric)
@@ -647,6 +519,9 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
       aMetric = 0.5f;
       break;
     case eMetricFloat_IMEUnderlineRelativeSize:
+      aMetric = 2.0f;
+      break;
+    case eMetricFloat_SpellCheckerUnderlineRelativeSize:
       aMetric = 2.0f;
       break;
     default:

@@ -1,3 +1,4 @@
+/* vim: set sw=2 sts=2 et cin: */
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -41,11 +42,12 @@
 #include "nsDeviceContextSpecOS2.h"
 
 #include "nsReadableUtils.h"
-#include "nsISupportsArray.h"
+#include "nsTArray.h"
 
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "prenv.h" /* for PR_GetEnv */
+#include "prtime.h"
 
 #include "nsPrintfCString.h"
 #include "nsIServiceManager.h"
@@ -54,6 +56,13 @@
 #include "nsStringEnumerator.h"
 
 #include "nsOS2Uni.h"
+
+#include "nsILocalFile.h"
+#include "nsDirectoryServiceDefs.h"
+#include "nsIFileStreams.h"
+#include "gfxPDFSurface.h"
+#include "gfxOS2Surface.h"
+#include "nsIPrintSettingsService.h"
 
 PRINTDLG nsDeviceContextSpecOS2::PrnDlg;
 
@@ -73,26 +82,26 @@ public:
 
   PRBool    PrintersAreAllocated()       { return mGlobalPrinterList != nsnull; }
   PRInt32   GetNumPrinters()             { return mGlobalNumPrinters; }
-  nsString* GetStringAt(PRInt32 aInx)    { return mGlobalPrinterList->StringAt(aInx); }
+  nsString* GetStringAt(PRInt32 aInx)    { return &mGlobalPrinterList->ElementAt(aInx); }
   void      GetDefaultPrinterName(PRUnichar*& aDefaultPrinterName);
 
 protected:
   GlobalPrinters() {}
 
   static GlobalPrinters mGlobalPrinters;
-  static nsStringArray* mGlobalPrinterList;
+  static nsTArray<nsString>* mGlobalPrinterList;
   static ULONG          mGlobalNumPrinters;
 
 };
 //---------------
 // static members
 GlobalPrinters GlobalPrinters::mGlobalPrinters;
-nsStringArray* GlobalPrinters::mGlobalPrinterList = nsnull;
+nsTArray<nsString>* GlobalPrinters::mGlobalPrinterList = nsnull;
 ULONG          GlobalPrinters::mGlobalNumPrinters = 0;
 //---------------
 
 nsDeviceContextSpecOS2::nsDeviceContextSpecOS2()
-  : mQueue(nsnull)
+  : mQueue(nsnull), mPrintDC(nsnull), mPrintingStarted(PR_FALSE)
 {
 }
 
@@ -329,9 +338,145 @@ nsresult nsDeviceContextSpecOS2::GetPRTQUEUE( PRTQUEUE *&p)
    return NS_OK;
 }
 
-NS_IMETHODIMP nsDeviceContextSpecOS2::GetSurfaceForPrinter(gfxASurface **nativeSurface)
+NS_IMETHODIMP nsDeviceContextSpecOS2::GetSurfaceForPrinter(gfxASurface **surface)
 {
-   return NS_ERROR_NOT_IMPLEMENTED;
+  NS_ASSERTION(mQueue, "Queue can't be NULL here");
+
+  nsRefPtr<gfxASurface> newSurface;
+
+  PRInt16 outputFormat;
+  mPrintSettings->GetOutputFormat(&outputFormat);
+  int printerDest;
+  GetDestination(printerDest);
+  if (printerDest != printPreview) {
+    // for now always set the output format to PDF, see bug 415522
+    outputFormat = nsIPrintSettings::kOutputFormatPDF;
+    mPrintSettings->SetOutputFormat(outputFormat); // save PDF format in settings
+  }
+
+  if (outputFormat == nsIPrintSettings::kOutputFormatPDF) {
+    nsXPIDLString filename;
+    mPrintSettings->GetToFileName(getter_Copies(filename));
+    nsresult rv;
+    if (filename.IsEmpty()) {
+      // print to a file that is visible, like one on the Desktop
+      nsCOMPtr<nsIFile> pdfLocation;
+      rv = NS_GetSpecialDirectory(NS_OS_DESKTOP_DIR, getter_AddRefs(pdfLocation));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      // construct a print output name using the current time, to make it
+      // unique and not overwrite existing files
+      char printName[CCHMAXPATH];
+      PRExplodedTime time;
+      PR_ExplodeTime(PR_Now(), PR_LocalTimeParameters, &time);
+      snprintf(printName, CCHMAXPATH-1, "%s_%04d%02d%02d_%02d%02d%02d.pdf",
+               MOZ_APP_DISPLAYNAME, time.tm_year, time.tm_month+1, time.tm_mday,
+               time.tm_hour, time.tm_min, time.tm_sec);
+      printName[CCHMAXPATH-1] = '\0';
+
+      nsCAutoString printString(printName);
+      rv = pdfLocation->AppendNative(printString);
+      NS_ENSURE_SUCCESS(rv, rv);
+      rv = pdfLocation->GetPath(filename);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+#ifdef debug_thebes_print
+    printf("nsDeviceContextSpecOS2::GetSurfaceForPrinter(): print to filename=%s\n",
+           NS_LossyConvertUTF16toASCII(filename).get());
+#endif
+
+    double width, height;
+    mPrintSettings->GetEffectivePageSize(&width, &height);
+    // convert twips to points
+    width  /= TWIPS_PER_POINT_FLOAT;
+    height /= TWIPS_PER_POINT_FLOAT;
+
+    nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
+    rv = file->InitWithPath(filename);
+    if (NS_FAILED(rv))
+      return rv;
+
+    nsCOMPtr<nsIFileOutputStream> stream = do_CreateInstance("@mozilla.org/network/file-output-stream;1");
+    rv = stream->Init(file, -1, -1, 0);
+    if (NS_FAILED(rv))
+      return rv;
+
+    newSurface = new(std::nothrow) gfxPDFSurface(stream, gfxSize(width, height));
+  } else {
+    int numCopies = 0;
+    GetCopies(numCopies);
+    char *filename = nsnull;
+    if (printerDest == printToFile) {
+      GetPath(&filename);
+    }
+    mPrintingStarted = PR_TRUE;
+    mPrintDC = PrnOpenDC(mQueue, "Mozilla", numCopies, printerDest, filename);
+
+    double width, height;
+    mPrintSettings->GetEffectivePageSize(&width, &height);
+#ifdef debug_thebes_print
+    printf("nsDeviceContextSpecOS2::GetSurfaceForPrinter(): %fx%ftwips, copies=%d\n",
+           width, height, numCopies);
+#endif
+
+    // we need pixels, so scale from twips to the printer resolution
+    // and take into account that CAPS_*_RESOLUTION are in px/m, default
+    // to approx. 100dpi
+    double hDPI = 3937., vDPI = 3937.;
+    LONG value;
+    if (DevQueryCaps(mPrintDC, CAPS_HORIZONTAL_RESOLUTION, 1, &value))
+      hDPI = value * 0.0254;
+    if (DevQueryCaps(mPrintDC, CAPS_VERTICAL_RESOLUTION, 1, &value))
+      vDPI = value * 0.0254;
+    width = width * hDPI / 1440;
+    height = height * vDPI / 1440;
+#ifdef debug_thebes_print
+    printf("nsDeviceContextSpecOS2::GetSurfaceForPrinter(): %fx%fpx (res=%fx%f)\n"
+           "  expected size: %7.2f MiB\n",
+           width, height, hDPI, vDPI, width*height*4./1024./1024.);
+#endif
+
+    // perhaps restrict to usable area
+    // (this or scaling down won't help, we will just get more pages and still crash!)
+    if (DevQueryCaps(mPrintDC, CAPS_WIDTH, 1, &value) && width > (double)value)
+      width = (double)value;
+    if (DevQueryCaps(mPrintDC, CAPS_HEIGHT, 1, &value) && height > (double)value)
+      height = (double)value;
+
+#ifdef debug_thebes_print
+    printf("nsDeviceContextSpecOS2::GetSurfaceForPrinter(): capped? %fx%fpx (res=%fx%f)\n"
+           "  expected size: %7.2f MiB per page\n",
+           width, height, hDPI, vDPI, width*height*4./1024./1024.);
+#endif
+
+    // Now pass the created DC into the thebes surface for printing.
+    // It gets destroyed there.
+    newSurface = new(std::nothrow)
+      gfxOS2Surface(mPrintDC, gfxIntSize(int(ceil(width)), int(ceil(height))));
+  }
+  if (!newSurface) {
+    *surface = nsnull;
+    return NS_ERROR_FAILURE;
+  }
+  *surface = newSurface;
+  NS_ADDREF(*surface);
+  return NS_OK;
+}
+
+// Helper function to convert the string to the native codepage,
+// similar to UnicodeToCodepage() in nsDragService.cpp.
+char *GetACPString(const PRUnichar* aStr)
+{
+   nsString str(aStr);
+   if (str.Length() == 0) {
+      return nsnull;
+   }
+
+   nsAutoCharBuffer buffer;
+   PRInt32 bufLength;
+   WideCharToMultiByte(0, PromiseFlatString(str).get(), str.Length(),
+                       buffer, bufLength);
+   return ToNewCString(nsDependentCString(buffer.Elements()));
 }
 
 NS_IMETHODIMP nsDeviceContextSpecOS2::BeginDocument(PRUnichar* aTitle,
@@ -339,22 +484,74 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::BeginDocument(PRUnichar* aTitle,
                                                     PRInt32 aStartPage,
                                                     PRInt32 aEndPage)
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+#ifdef debug_thebes_print
+  printf("nsDeviceContextSpecOS2[%#x]::BeginPrinting(%s, %s)\n", (unsigned)this,
+         NS_LossyConvertUTF16toASCII(nsString(aTitle)).get(),
+         NS_LossyConvertUTF16toASCII(nsString(aPrintToFileName)).get());
+#endif
+  // don't try to send device escapes for non-native output (like PDF)
+  PRInt16 outputFormat;
+  mPrintSettings->GetOutputFormat(&outputFormat);
+  if (outputFormat != nsIPrintSettings::kOutputFormatNative) {
+    return NS_OK;
+  }
+
+  char *title = GetACPString(aTitle);
+  PCSZ pszGenericDocName = "Mozilla Document";
+  PCSZ pszDocName = title ? title : pszGenericDocName;
+  LONG lResult = DevEscape(mPrintDC, DEVESC_STARTDOC,
+                           strlen(pszDocName) + 1, const_cast<BYTE*>(pszDocName),
+                           (PLONG)NULL, (PBYTE)NULL);
+  mPrintingStarted = PR_TRUE;
+  if (title) {
+    nsMemory::Free(title);
+  }
+
+  return lResult == DEV_OK ? NS_OK : NS_ERROR_GFX_PRINTER_STARTDOC;
 }
 
 NS_IMETHODIMP nsDeviceContextSpecOS2::EndDocument()
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+  // don't try to send device escapes for non-native output (like PDF)
+  // but clear the filename to make sure that we don't overwrite it next time
+  PRInt16 outputFormat;
+  mPrintSettings->GetOutputFormat(&outputFormat);
+  if (outputFormat != nsIPrintSettings::kOutputFormatNative) {
+    mPrintSettings->SetToFileName(NULL);
+    nsCOMPtr<nsIPrintSettingsService> pss = do_GetService("@mozilla.org/gfx/printsettings-service;1");
+    if (pss)
+      pss->SavePrintSettingsToPrefs(mPrintSettings, PR_TRUE, nsIPrintSettings::kInitSaveToFileName);
+    return NS_OK;
+  }
+
+  LONG lOutCount = 2;
+  USHORT usJobID = 0;
+  LONG lResult = DevEscape(mPrintDC, DEVESC_ENDDOC, 0L, (PBYTE)NULL,
+                           &lOutCount, (PBYTE)&usJobID);
+  return lResult == DEV_OK ? NS_OK : NS_ERROR_GFX_PRINTER_ENDDOC;
 }
 
 NS_IMETHODIMP nsDeviceContextSpecOS2::BeginPage()
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+  PRInt16 outputFormat;
+  mPrintSettings->GetOutputFormat(&outputFormat);
+  if (outputFormat != nsIPrintSettings::kOutputFormatNative) {
+    return NS_OK;
+  }
+
+  if (mPrintingStarted) {
+    // we don't want an extra page break at the start of the document
+    mPrintingStarted = PR_FALSE;
+    return NS_OK;
+  }
+  LONG lResult = DevEscape(mPrintDC, DEVESC_NEWFRAME, 0L, (PBYTE)NULL,
+                           (PLONG)NULL, (PBYTE)NULL);
+  return lResult == DEV_OK ? NS_OK : NS_ERROR_GFX_PRINTER_STARTPAGE;
 }
 
 NS_IMETHODIMP nsDeviceContextSpecOS2::EndPage()
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+  return NS_OK;
 }
 
 //  Printer Enumerator
@@ -377,7 +574,7 @@ NS_IMETHODIMP nsPrinterEnumeratorOS2::GetPrinterNameList(nsIStringEnumerator **a
   }
 
   ULONG numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
-  nsStringArray *printers = new nsStringArray(numPrinters);
+  nsTArray<nsString> *printers = new nsTArray<nsString>(numPrinters);
   if (!printers) {
     GlobalPrinters::GetInstance()->FreeGlobalPrinters();
     return NS_ERROR_OUT_OF_MEMORY;
@@ -386,7 +583,7 @@ NS_IMETHODIMP nsPrinterEnumeratorOS2::GetPrinterNameList(nsIStringEnumerator **a
   ULONG count = 0;
   while( count < numPrinters )
   {
-    printers->AppendString(*GlobalPrinters::GetInstance()->GetStringAt(count++));
+    printers->AppendElement(*GlobalPrinters::GetInstance()->GetStringAt(count++));
   }
   GlobalPrinters::GetInstance()->FreeGlobalPrinters();
 
@@ -456,7 +653,7 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
   if (!mGlobalNumPrinters) 
     return NS_ERROR_GFX_PRINTER_NO_PRINTER_AVAILABLE; 
 
-  mGlobalPrinterList = new nsStringArray();
+  mGlobalPrinterList = new nsTArray<nsString>();
   if (!mGlobalPrinterList) 
      return NS_ERROR_OUT_OF_MEMORY;
 
@@ -472,7 +669,7 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
     PRInt32 printerNameLength;
     rv = MultiByteToWideChar(0, printer, strlen(printer),
                              printerName, printerNameLength);
-    mGlobalPrinterList->AppendString(nsDependentString(printerName.Elements()));
+    mGlobalPrinterList->AppendElement(nsDependentString(printerName.Elements()));
 
     // store printer description in prefs for the print dialog
     if (!prefFailed) {

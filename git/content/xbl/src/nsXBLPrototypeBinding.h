@@ -55,7 +55,6 @@
 class nsIAtom;
 class nsIDocument;
 class nsIScriptContext;
-class nsISupportsArray;
 class nsSupportsHashtable;
 class nsIXBLService;
 class nsFixedSizeAllocator;
@@ -75,7 +74,12 @@ public:
   void SetBindingElement(nsIContent* aElement);
 
   nsIURI* BindingURI() const { return mBindingURI; }
+  nsIURI* AlternateBindingURI() const { return mAlternateBindingURI; }
   nsIURI* DocURI() const { return mXBLDocInfoWeak->DocumentURI(); }
+
+  // Checks if aURI refers to this binding by comparing to both possible
+  // binding URIs.
+  PRBool CompareBindingURI(nsIURI* aURI) const;
 
   nsresult GetAllowScripts(PRBool* aResult);
 
@@ -107,6 +111,14 @@ public:
     return !mImplementation || mImplementation->ResolveAllFields(cx, obj);
   }
 
+  // Undefine all our fields from object |obj| (which should be a
+  // JSObject for a bound element).
+  void UndefineFields(JSContext* cx, JSObject* obj) const {
+    if (mImplementation) {
+      mImplementation->UndefineFields(cx, obj);
+    }
+  }
+
   const nsCString& ClassName() const {
     return mImplementation ? mImplementation->mClassName : EmptyCString();
   }
@@ -119,6 +131,7 @@ public:
   
   void SetImplementation(nsXBLProtoImpl* aImpl) { mImplementation = aImpl; }
   nsresult InstallImplementation(nsIContent* aBoundElement);
+  PRBool HasImplementation() const { return mImplementation != nsnull; }
 
   void AttributeChanged(nsIAtom* aAttribute, PRInt32 aNameSpaceID,
                         PRBool aRemoveFlag, nsIContent* aChangedElement,
@@ -128,6 +141,7 @@ public:
   nsXBLPrototypeBinding* GetBasePrototype() { return mBaseBinding; }
 
   nsIXBLDocumentInfo* XBLDocumentInfo() const { return mXBLDocInfoWeak; }
+  PRBool IsChrome() { return mXBLDocInfoWeak->IsChrome(); }
   
   PRBool HasBasePrototype() { return mHasBaseProto; }
   void SetHasBasePrototype(PRBool aHasBase) { mHasBaseProto = aHasBase; }
@@ -147,6 +161,8 @@ public:
 
   void InstantiateInsertionPoints(nsXBLBinding* aBinding);
 
+  // XXXbz this aIndex has nothing to do with an index into the child
+  // list of the insertion parent or anything.
   nsIContent* GetInsertionPoint(nsIContent* aBoundElement,
                                 nsIContent* aCopyRoot, nsIContent *aChild,
                                 PRUint32* aIndex);
@@ -159,8 +175,6 @@ public:
   void SetBaseTag(PRInt32 aNamespaceID, nsIAtom* aTag);
 
   PRBool ImplementsInterface(REFNSIID aIID) const;
-
-  PRBool ShouldBuildChildFrames() const;
 
   nsresult AddResourceListener(nsIContent* aBoundElement);
 
@@ -186,10 +200,12 @@ public:
   // binding's handlers, properties, etc are all set.
   nsresult Init(const nsACString& aRef,
                 nsIXBLDocumentInfo* aInfo,
-                nsIContent* aElement);
+                nsIContent* aElement,
+                PRBool aFirstBinding = PR_FALSE);
 
   void Traverse(nsCycleCollectionTraversalCallback &cb) const;
-  void Unlink();
+  void UnlinkJSObjects();
+  void Trace(TraceCallback aCallback, void *aClosure) const;
 
 // Static members
   static PRUint32 gRefCnt;
@@ -246,6 +262,7 @@ protected:
 // MEMBER VARIABLES
 protected:
   nsCOMPtr<nsIURI> mBindingURI;
+  nsCOMPtr<nsIURI> mAlternateBindingURI; // Alternate id-less URI that is only non-null on the first binding.
   nsCOMPtr<nsIContent> mBinding; // Strong. We own a ref to our content element in the binding doc.
   nsAutoPtr<nsXBLPrototypeHandler> mPrototypeHandler; // Strong. DocInfo owns us, and we own the handlers.
   

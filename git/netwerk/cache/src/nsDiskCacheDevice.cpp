@@ -55,6 +55,7 @@
 
 #include "prtypes.h"
 #include "prthread.h"
+#include "prbit.h"
 
 #include "private/pprio.h"
 
@@ -123,19 +124,16 @@ nsDiskCacheEvictor::VisitRecord(nsDiskCacheRecord *  mapRecord)
     
     if (mClientID) {
         // we're just evicting records for a specific client
-        nsDiskCacheEntry *   diskEntry = nsnull;
-        nsresult  rv = mCacheMap->ReadDiskCacheEntry(mapRecord, &diskEntry);
-        if (NS_FAILED(rv))  
+        nsDiskCacheEntry * diskEntry = mCacheMap->ReadDiskCacheEntry(mapRecord);
+        if (!diskEntry)
             return kVisitNextRecord;  // XXX or delete record?
     
         // Compare clientID's without malloc
         if ((diskEntry->mKeySize <= mClientIDSize) ||
             (diskEntry->Key()[mClientIDSize] != ':') ||
             (memcmp(diskEntry->Key(), mClientID, mClientIDSize) != 0)) {
-            delete [] (char *)diskEntry;
             return kVisitNextRecord;  // clientID doesn't match, skip it
         }
-        delete [] (char *)diskEntry;
     }
     
     nsDiskCacheBinding * binding = mBindery->FindActiveBinding(mapRecord->HashNumber());
@@ -240,22 +238,73 @@ NS_IMETHODIMP nsDiskCacheDeviceInfo::GetMaximumSize(PRUint32 *aMaximumSize)
  *****************************************************************************/
 
 /**
- *  nsDiskCache::Hash(const char * key)
+ *  nsDiskCache::Hash(const char * key, PLDHashNumber initval)
+ *
+ *  See http://burtleburtle.net/bob/hash/evahash.html for more information
+ *  about this hash function.
  *
  *  This algorithm of this method implies nsDiskCacheRecords will be stored
  *  in a certain order on disk.  If the algorithm changes, existing cache
  *  map files may become invalid, and therefore the kCurrentVersion needs
  *  to be revised.
  */
-PLDHashNumber
-nsDiskCache::Hash(const char * key)
+
+static inline void hashmix(PRUint32& a, PRUint32& b, PRUint32& c)
 {
-    PLDHashNumber h = 0;
-    for (const PRUint8* s = (PRUint8*) key; *s != '\0'; ++s)
-        h = (h >> (PL_DHASH_BITS - 4)) ^ (h << 4) ^ *s;
-    return (h == 0 ? ULONG_MAX : h);
+  a -= b; a -= c; a ^= (c>>13);
+  b -= c; b -= a; b ^= (a<<8);
+  c -= a; c -= b; c ^= (b>>13);
+  a -= b; a -= c; a ^= (c>>12); 
+  b -= c; b -= a; b ^= (a<<16);
+  c -= a; c -= b; c ^= (b>>5);
+  a -= b; a -= c; a ^= (c>>3);
+  b -= c; b -= a; b ^= (a<<10);
+  c -= a; c -= b; c ^= (b>>15);
 }
 
+PLDHashNumber
+nsDiskCache::Hash(const char * key, PLDHashNumber initval)
+{
+  const PRUint8 *k = reinterpret_cast<const PRUint8*>(key);
+  PRUint32 a, b, c, len, length;
+
+  length = PL_strlen(key);
+  /* Set up the internal state */
+  len = length;
+  a = b = 0x9e3779b9;  /* the golden ratio; an arbitrary value */
+  c = initval;         /* variable initialization of internal state */
+
+  /*---------------------------------------- handle most of the key */
+  while (len >= 12)
+  {
+    a += k[0] + (PRUint32(k[1])<<8) + (PRUint32(k[2])<<16) + (PRUint32(k[3])<<24);
+    b += k[4] + (PRUint32(k[5])<<8) + (PRUint32(k[6])<<16) + (PRUint32(k[7])<<24);
+    c += k[8] + (PRUint32(k[9])<<8) + (PRUint32(k[10])<<16) + (PRUint32(k[11])<<24);
+    hashmix(a, b, c);
+    k += 12; len -= 12;
+  }
+
+  /*------------------------------------- handle the last 11 bytes */
+  c += length;
+  switch(len) {              /* all the case statements fall through */
+    case 11: c += (PRUint32(k[10])<<24);
+    case 10: c += (PRUint32(k[9])<<16);
+    case 9 : c += (PRUint32(k[8])<<8);
+    /* the low-order byte of c is reserved for the length */
+    case 8 : b += (PRUint32(k[7])<<24);
+    case 7 : b += (PRUint32(k[6])<<16);
+    case 6 : b += (PRUint32(k[5])<<8);
+    case 5 : b += k[4];
+    case 4 : a += (PRUint32(k[3])<<24);
+    case 3 : a += (PRUint32(k[2])<<16);
+    case 2 : a += (PRUint32(k[1])<<8);
+    case 1 : a += k[0];
+    /* case 0: nothing left to add */
+  }
+  hashmix(a, b, c);
+
+  return c;
+}
 
 nsresult
 nsDiskCache::Truncate(PRFileDesc *  fd, PRUint32  newEOF)
@@ -399,38 +448,33 @@ nsCacheEntry *
 nsDiskCacheDevice::FindEntry(nsCString * key, PRBool *collision)
 {
     if (!Initialized())  return nsnull;  // NS_ERROR_NOT_INITIALIZED
-    nsresult                rv;
     nsDiskCacheRecord       record;
-    nsCacheEntry *          entry   = nsnull;
     nsDiskCacheBinding *    binding = nsnull;
     PLDHashNumber           hashNumber = nsDiskCache::Hash(key->get());
 
     *collision = PR_FALSE;
 
-#if DEBUG  /* because we shouldn't be called for active entries */
     binding = mBindery.FindActiveBinding(hashNumber);
-    NS_ASSERTION(!binding || strcmp(binding->mCacheEntry->Key()->get(), key->get()) != 0,
-                 "FindEntry() called for a bound entry.");
+    if (binding && !binding->mCacheEntry->Key()->Equals(*key)) {
+        *collision = PR_TRUE;
+        return nsnull;
+    }
     binding = nsnull;
-#endif
-    
+
     // lookup hash number in cache map
-    rv = mCacheMap.FindRecord(hashNumber, &record);
+    nsresult rv = mCacheMap.FindRecord(hashNumber, &record);
     if (NS_FAILED(rv))  return nsnull;  // XXX log error?
     
-    nsDiskCacheEntry * diskEntry;
-    rv = mCacheMap.ReadDiskCacheEntry(&record, &diskEntry);
-    if (NS_FAILED(rv))  return nsnull;
+    nsDiskCacheEntry * diskEntry = mCacheMap.ReadDiskCacheEntry(&record);
+    if (!diskEntry) return nsnull;
     
     // compare key to be sure
-    if (strcmp(diskEntry->Key(), key->get()) == 0) {
-        entry = diskEntry->CreateCacheEntry(this);
-    } else {
+    if (!key->Equals(diskEntry->Key())) {
         *collision = PR_TRUE;
+        return nsnull;
     }
-    delete [] (char *)diskEntry;
     
-    // If we had a hash collision or CreateCacheEntry failed, return nsnull
+    nsCacheEntry * entry = diskEntry->CreateCacheEntry(this);
     if (!entry)  return nsnull;
     
     binding = mBindery.CreateBinding(entry, &record);
@@ -499,7 +543,38 @@ nsDiskCacheDevice::BindEntry(nsCacheEntry * entry)
     if (!Initialized())  return  NS_ERROR_NOT_INITIALIZED;
     nsresult rv = NS_OK;
     nsDiskCacheRecord record, oldRecord;
-    
+    nsDiskCacheBinding *binding;
+    PLDHashNumber hashNumber = nsDiskCache::Hash(entry->Key()->get());
+
+    // Find out if there is already an active binding for this hash. If yes it
+    // should have another key since BindEntry() shouldn't be called twice for
+    // the same entry. Doom the old entry, the new one will get another
+    // generation number so files won't collide.
+    binding = mBindery.FindActiveBinding(hashNumber);
+    if (binding) {
+        NS_ASSERTION(!binding->mCacheEntry->Key()->Equals(*entry->Key()),
+                     "BindEntry called for already bound entry!");
+        nsCacheService::DoomEntry(binding->mCacheEntry);
+        binding = nsnull;
+    }
+
+    // Lookup hash number in cache map. There can be a colliding inactive entry.
+    // See bug #321361 comment 21 for the scenario. If there is such entry,
+    // delete it.
+    rv = mCacheMap.FindRecord(hashNumber, &record);
+    if (NS_SUCCEEDED(rv)) {
+        nsDiskCacheEntry * diskEntry = mCacheMap.ReadDiskCacheEntry(&record);
+        if (diskEntry) {
+            // compare key to be sure
+            if (!entry->Key()->Equals(diskEntry->Key())) {
+                mCacheMap.DeleteStorage(&record);
+                rv = mCacheMap.DeleteRecord(&record);
+                if (NS_FAILED(rv))  return rv;
+            }
+        }
+        record = nsDiskCacheRecord();
+    }
+
     // create a new record for this entry
     record.SetHashNumber(nsDiskCache::Hash(entry->Key()->get()));
     record.SetEvictionRank(ULONG_MAX - SecondsFromPRTime(PR_Now()));
@@ -534,7 +609,7 @@ nsDiskCacheDevice::BindEntry(nsCacheEntry * entry)
     }
     
     // Make sure this entry has its associated nsDiskCacheBinding attached.
-    nsDiskCacheBinding *  binding = mBindery.CreateBinding(entry, &record);
+    binding = mBindery.CreateBinding(entry, &record);
     NS_ASSERTION(binding, "nsDiskCacheDevice::BindEntry");
     if (!binding) return NS_ERROR_OUT_OF_MEMORY;
     NS_ASSERTION(binding->mRecord.ValidRecord(), "bad cache map record");
@@ -557,7 +632,10 @@ nsDiskCacheDevice::DoomEntry(nsCacheEntry * entry)
 
     if (!binding->mDoomed) {
         // so it can't be seen by FindEntry() ever again.
-        nsresult rv = mCacheMap.DeleteRecord(&binding->mRecord);
+#ifdef DEBUG
+        nsresult rv =
+#endif
+            mCacheMap.DeleteRecord(&binding->mRecord);
         NS_ASSERTION(NS_SUCCEEDED(rv),"DeleteRecord failed.");
         binding->mDoomed = PR_TRUE; // record in no longer in cache map
     }
@@ -692,7 +770,10 @@ nsDiskCacheDevice::OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize)
     // If the new size is larger than max. file size or larger than
     // half the cache capacity (which is in KiB's), doom the entry and abort
     if ((newSize > kMaxDataFileSize) || (newSizeK > mCacheCapacity/2)) {
-        nsresult rv = nsCacheService::DoomEntry(entry);
+#ifdef DEBUG
+        nsresult rv =
+#endif
+            nsCacheService::DoomEntry(entry);
         NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
         return NS_ERROR_ABORT;
     }
@@ -729,9 +810,8 @@ public:
         // XXX optimization: do we have this record in memory?
         
         // read in the entry (metadata)
-        nsDiskCacheEntry * diskEntry;
-        nsresult rv = mCacheMap->ReadDiskCacheEntry(mapRecord, &diskEntry);
-        if (NS_FAILED(rv)) {
+        nsDiskCacheEntry * diskEntry = mCacheMap->ReadDiskCacheEntry(mapRecord);
+        if (!diskEntry) {
             return kVisitNextRecord;
         }
 
@@ -743,8 +823,7 @@ public:
         nsCOMPtr<nsICacheEntryInfo> ref(entryInfo);
         
         PRBool  keepGoing;
-        rv = mVisitor->VisitEntry(DISK_CACHE_DEVICE_ID, entryInfo, &keepGoing);
-        delete [] (char *)diskEntry;
+        (void)mVisitor->VisitEntry(DISK_CACHE_DEVICE_ID, entryInfo, &keepGoing);
         return keepGoing ? kVisitNextRecord : kStopVisitingRecords;
     }
  

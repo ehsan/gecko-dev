@@ -46,6 +46,8 @@ typedef struct _cairo_user_data_key cairo_user_data_key_t;
 
 typedef void (*thebes_destroy_func_t) (void *data);
 
+class gfxImageSurface;
+
 /**
  * A surface is something you can draw on. Instantiate a subclass of this
  * abstract class, and use gfxContext to draw on this surface.
@@ -81,7 +83,10 @@ public:
         SurfaceTypeDirectFB,
         SurfaceTypeSVG,
         SurfaceTypeOS2,
-        SurfaceTypeWin32Printing
+        SurfaceTypeWin32Printing,
+        SurfaceTypeQuartzImage,
+        SurfaceTypeQPainter,
+        SurfaceTypeDDraw
     } gfxSurfaceType;
 
     typedef enum {
@@ -131,6 +136,14 @@ public:
      * doesn't exceed the given limit.
      */
     static PRBool CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit = 0);
+
+    /* Return the default set of context flags for this surface; these are
+     * hints to the context about any special rendering considerations.  See
+     * gfxContext::SetFlag for documentation.
+     */
+    virtual PRInt32 GetDefaultContextFlags() const { return 0; }
+
+    static gfxContentType ContentFromFormat(gfxImageFormat format);
 
 protected:
     gfxASurface() : mSurface(nsnull), mFloatingRefs(0), mSurfaceValid(PR_FALSE) { }

@@ -1,4 +1,4 @@
-#!/usr/local/bin/bash -e
+#!/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,9 +37,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
-TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
-TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
-source ${TEST_BIN}/library.sh
+source $TEST_DIR/bin/library.sh
 
 #
 # options processing
@@ -48,23 +46,23 @@ options="p:b:x:D:N:L:U:d:"
 function usage()
 {
     cat <<EOF
-usage: 
-$SCRIPT -p product -b branch -x executablepath -D directory -N profilename 
+usage:
+$SCRIPT -p product -b branch -x executablepath -D directory -N profilename
        [-L profiletemplate] [-U user] [-d datafiles]
 
 variable            description
 ===============     ============================================================
--p product          required. firefox|thunderbird
--b branch           required. 1.8.0|1.8.1|1.9.0
+-p product          required. firefox.
+-b branch           required. supported branch. see library.sh
 -x executablepath   required. directory-tree containing executable 'product'
 -D directory        required. directory where profile is to be created.
--N profilename      required. profile name 
--L profiletemplate  optional. location of a template profile to be used. 
+-N profilename      required. profile name
+-L profiletemplate  optional. location of a template profile to be used.
 -U user             optional. user.js preferences file.
--d datafiles        optional. one or more filenames of files containing 
+-d datafiles        optional. one or more filenames of files containing
                     environment variable definitions to be included.
 
-note that the environment variables should have the same names as in the 
+note that the environment variables should have the same names as in the
 "variable" column.
 
 EOF
@@ -73,8 +71,8 @@ EOF
 
 unset product branch executablepath directory profilename profiletemplate user datafiles
 
-while getopts $options optname ; 
-  do 
+while getopts $options optname ;
+  do
   case $optname in
       p) product=$OPTARG;;
       b) branch=$OPTARG;;
@@ -88,47 +86,27 @@ while getopts $options optname ;
 done
 
 # include environment variables
-if [[ -n "$datafiles" ]]; then
-    for datafile in $datafiles; do 
-        cat $datafile | sed 's|^|data: |'
-        source $datafile
-    done
-fi
+loaddata $datafiles
 
 if [[ -z "$product" || -z "$branch" || -z "$executablepath" || \
     -z "$directory" || -z "$profilename" ]]; then
     usage
 fi
 
-if [[ "$product" != "firefox" && "$product" != "thunderbird" ]]; then
-    error "product \"$product\" must be one of firefox or thunderbird"
-fi
-
-if [[ "$branch" != "1.8.0" && "$branch" != "1.8.1" && "$branch" != "1.9.0" ]]; 
-    then
-    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0"
-fi
+checkProductBranch $product $branch
 
 executable=`get_executable $product $branch $executablepath`
 
-if [[ -z "$executable" ]]; then
-    error "get_executable $product $branch $executablepath returned empty path"
-fi
-
-if [[ ! -x "$executable" ]]; then 
-    error "executable \"$executable\" is not executable"
-fi
-
-$TEST_BIN/create-directory.sh -d "$directory" -n 
+$TEST_DIR/bin/create-directory.sh -d "$directory" -n
 
 if echo "$profilename" | egrep -qiv '[a-z0-9_]'; then
-    error "profile name \"$profilename\" must consist of letters, digits or _"
+    error "profile name \"$profilename\" must consist of letters, digits or _" $LINENO
 fi
 
-if [ $OSID == "win32" ]; then
+if [ $OSID == "nt" ]; then
     directoryospath=`cygpath -a -w $directory`
     if [[ -z "$directoryospath" ]]; then
-	    error "unable to convert unix path to windows path"
+        error "unable to convert unix path to windows path" $LINENO
     fi
 else
     directoryospath="$directory"
@@ -136,16 +114,23 @@ fi
 
 echo "creating profile $profilename in directory $directory"
 
-if ! $TEST_BIN/timed_run.py ${TEST_STARTUP_TIMEOUT} "-" $executable -CreateProfile "$profilename $directoryospath"; then
-	error "creating profile $directory"
-fi
+tries=1
+while ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "-" \
+        $EXECUTABLE_DRIVER \
+        $executable -CreateProfile "$profilename $directoryospath"; do
+    let tries=tries+1
+    if [ "$tries" -gt $TEST_STARTUP_TRIES ]; then
+        error "Failed to create profile $directory Exiting..." $LINENO
+    fi
+    sleep 30
+done
 
 if [[ -n $profiletemplate ]]; then
-	if [[ ! -d $profiletemplate ]]; then
-	    error "profile template directory $profiletemplate does not exist"
-	fi
-	echo "copying template profile $profiletemplate to $directory"
-	cp -R $profiletemplate/* $directory
+    if [[ ! -d $profiletemplate ]]; then
+        error "profile template directory $profiletemplate does not exist" $LINENO
+    fi
+    echo "copying template profile $profiletemplate to $directory"
+    cp -R $profiletemplate/* $directory
 fi
 
 if [[ ! -z $user ]]; then

@@ -84,8 +84,8 @@ class nsSimplePageSequenceFrame : public nsContainerFrame,
 public:
   friend nsIFrame* NS_NewSimplePageSequenceFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  // nsISupports
-  NS_IMETHOD  QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIFrame
   NS_IMETHOD  Reflow(nsPresContext*      aPresContext,
@@ -139,45 +139,37 @@ protected:
   nsSimplePageSequenceFrame(nsStyleContext* aContext);
   virtual ~nsSimplePageSequenceFrame();
 
-  nsresult CreateContinuingPageFrame(nsPresContext* aPresContext,
-                                     nsIFrame*       aPageFrame,
-                                     nsIFrame**      aContinuingFrame);
-
   void SetPageNumberFormat(const char* aPropName, const char* aDefPropVal, PRBool aPageNumOnly);
 
   // SharedPageData Helper methods
   void SetDateTimeStr(PRUnichar * aDateTimeStr);
   void SetPageNumberFormat(PRUnichar * aFormatStr, PRBool aForPageNumOnly);
 
-  void GetEdgePaperMarginCoord(const char* aPrefName, nscoord& aCoord);
-  void GetEdgePaperMargin(nsMargin& aMargin);
-
-  NS_IMETHOD_(nsrefcnt) AddRef(void) {return nsContainerFrame::AddRef();}
-  NS_IMETHOD_(nsrefcnt) Release(void) {return nsContainerFrame::Release();}
-
   nsMargin mMargin;
-  PRBool   mIsPrintingSelection;
 
-  // Asynch Printing
-  PRInt32      mPageNum;
-  PRInt32      mTotalPages;
-  nsIFrame *   mCurrentPageFrame;
-  PRPackedBool mDoingPageRange;
-  PRInt32      mPrintRangeType;
-  PRInt32      mFromPageNum;
-  PRInt32      mToPageNum;
-  PRPackedBool mPrintThisPage;
+  // I18N date formatter service which we'll want to cache locally.
+  nsCOMPtr<nsIDateTimeFormat> mDateFormatter;
 
   nsSize       mSize;
   nsSharedPageData* mPageData; // data shared by all the nsPageFrames
+
+  // Asynch Printing
+  nsIFrame *   mCurrentPageFrame;
+  PRInt32      mPageNum;
+  PRInt32      mTotalPages;
+  PRInt32      mPrintRangeType;
+  PRInt32      mFromPageNum;
+  PRInt32      mToPageNum;
 
   // Selection Printing Info
   nscoord      mSelectionHeight;
   nscoord      mYSelOffset;
 
-  // I18N date formatter service which we'll want to cache locally.
-  nsCOMPtr<nsIDateTimeFormat> mDateFormatter;
+  // Asynch Printing
+  PRPackedBool mPrintThisPage;
+  PRPackedBool mDoingPageRange;
 
+  PRPackedBool mIsPrintingSelection;
 };
 
 #endif /* nsSimplePageSequence_h___ */

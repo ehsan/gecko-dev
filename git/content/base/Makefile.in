@@ -42,10 +42,10 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS		= public src
+PARALLEL_DIRS	= public src
 
-ifdef MOZ_MOCHITEST
-DIRS		+= test
+ifdef ENABLE_TESTS
+TOOL_DIRS		+= test
 endif
 
 include $(topsrcdir)/config/rules.mk

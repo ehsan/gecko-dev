@@ -8,6 +8,7 @@
 
   <binding id="menulist-base" extends="chrome://global/content/bindings/general.xml#basecontrol">
     <resources>
+      <stylesheet src="chrome://global/content/menulist.css"/>
       <stylesheet src="chrome://global/skin/menulist.css"/>
     </resources>
   </binding>
@@ -19,7 +20,7 @@
         <xul:image class="menulist-icon" xbl:inherits="src=image,src"/>
         <xul:label class="menulist-label" xbl:inherits="value=label,crop,accesskey" crop="right" flex="1"/>
       </xul:hbox>
-      <xul:dropmarker class="menulist-dropmarker" type="menu" xbl:inherits="disabled"/>
+      <xul:dropmarker class="menulist-dropmarker" type="menu" xbl:inherits="disabled,open"/>
       <children includes="menupopup"/>
     </content>
 
@@ -36,12 +37,23 @@
         ]]>
       </handler>
 
-      <handler event="keypress">
+      <handler event="keypress" modifiers="shift any" group="system">
         <![CDATA[
-          if (event.originalTarget == this) {
+          if (!event.getPreventDefault() &&
+              (event.keyCode == KeyEvent.DOM_VK_UP ||
+               event.keyCode == KeyEvent.DOM_VK_DOWN ||
+               event.keyCode == KeyEvent.DOM_VK_PAGE_UP ||
+               event.keyCode == KeyEvent.DOM_VK_PAGE_DOWN ||
+               event.keyCode == KeyEvent.DOM_VK_HOME ||
+               event.keyCode == KeyEvent.DOM_VK_END ||
+               event.keyCode == KeyEvent.DOM_VK_BACK_SPACE ||
+               event.charCode > 0)) {
+            // Moving relative to an item: start from the currently selected item
             this.menuBoxObject.activeChild = this.mSelectedInternal;
-            if (this.menuBoxObject.handleKeyPress(event))
+            if (this.menuBoxObject.handleKeyPress(event)) {
               this.menuBoxObject.activeChild.doCommand();
+              event.preventDefault();
+            }
           }
         ]]>
       </handler>
@@ -76,6 +88,10 @@
       <property name="value" onget="return this.getAttribute('value');">
         <setter>
           <![CDATA[
+            // if the new value is null, we still need to remove the old value
+            if (val == null)
+              return this.selectedItem = val;
+
             var arr = null;
             var popup = this.menupopup;
             if (popup)
@@ -83,8 +99,10 @@
 
             if (arr && arr.item(0))
               this.selectedItem = arr[0];
-            else
+            else {
+              this.selectedItem = null;
               this.setAttribute('value', val);
+            }
 
             return val;
           ]]>
@@ -163,11 +181,13 @@
         <setter>
           <![CDATA[
             var popup = this.menupopup;
-            if (popup && 0 <= val && val < popup.childNodes.length)
-              this.selectedItem = popup.childNodes[val];
+            if (popup && 0 <= val) {
+              if (val < popup.childNodes.length)
+                this.selectedItem = popup.childNodes[val];
+            }
             else
               this.selectedItem = null;
-            return val;    
+            return val;
           ]]>
         </setter>
       </property>
@@ -390,11 +410,12 @@
 
   <binding id="menulist-editable" extends="chrome://global/content/bindings/menulist.xml#menulist">
     <content sizetopopup="pref">
-      <xul:hbox class="menulist-editable-box textbox-input-box" xbl:inherits="context,disabled,readonly" flex="1">
+      <xul:hbox class="menulist-editable-box textbox-input-box" xbl:inherits="context,disabled,readonly,focused" flex="1">
         <html:input class="menulist-editable-input" flex="1" anonid="input" allowevents="true"
                     xbl:inherits="value=label,value,disabled,tabindex,readonly"/>
       </xul:hbox>
-      <xul:dropmarker class="menulist-dropmarker" type="menu"/>
+      <xul:dropmarker class="menulist-dropmarker" type="menu"
+                      xbl:inherits="open,disabled,parentfocused=focused"/>
       <children includes="menupopup"/>
     </content>
 
@@ -540,11 +561,7 @@
     <handlers>
       <handler event="focus" phase="capturing">
         <![CDATA[
-          if (!this.hasAttribute('focused')) {
-            if (event.originalTarget != this.inputField)
-              this.inputField.focus();
-            this.setAttribute('focused','true');
-          }
+          this.setAttribute('focused','true');
         ]]>
       </handler>
 
@@ -589,7 +606,7 @@
   <binding id="menulist-compact" display="xul:menu"
            extends="chrome://global/content/bindings/menulist.xml#menulist">
     <content sizetopopup="false">
-      <xul:dropmarker class="menulist-dropmarker" type="menu"/>
+      <xul:dropmarker class="menulist-dropmarker" type="menu" xbl:inherits="disabled,open"/>
       <xul:image class="menulist-icon" xbl:inherits="src=image,src"/>
       <xul:label class="menulist-label" xbl:inherits="value=label,crop,accesskey" crop="right" flex="1"/>
       <children includes="menupopup"/>
@@ -604,7 +621,7 @@
         <xul:label class="menulist-label" xbl:inherits="value=label,crop,accesskey" crop="right" flex="1"/>
         <xul:label class="menulist-label menulist-description" xbl:inherits="value=description" crop="right" flex="10000"/>
       </xul:hbox>
-      <xul:dropmarker class="menulist-dropmarker" type="menu"/>
+      <xul:dropmarker class="menulist-dropmarker" type="menu" xbl:inherits="disabled,open"/>
       <children includes="menupopup"/>
     </content>
   </binding>

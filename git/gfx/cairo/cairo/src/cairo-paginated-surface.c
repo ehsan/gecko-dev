@@ -49,7 +49,7 @@
 #include "cairo-meta-surface-private.h"
 #include "cairo-analysis-surface-private.h"
 
-const cairo_private cairo_surface_backend_t cairo_paginated_surface_backend;
+static const cairo_surface_backend_t cairo_paginated_surface_backend;
 
 static cairo_int_status_t
 _cairo_paginated_surface_show_page (void *abstract_surface);
@@ -74,10 +74,13 @@ _cairo_paginated_surface_create (cairo_surface_t				*target,
 				 const cairo_paginated_surface_backend_t	*backend)
 {
     cairo_paginated_surface_t *surface;
+    cairo_status_t status;
 
     surface = malloc (sizeof (cairo_paginated_surface_t));
-    if (surface == NULL)
+    if (unlikely (surface == NULL)) {
+	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto FAIL;
+    }
 
     _cairo_surface_init (&surface->base, &cairo_paginated_surface_backend,
 			 content);
@@ -86,7 +89,7 @@ _cairo_paginated_surface_create (cairo_surface_t				*target,
      * evidence of the paginated wrapper out to the user. */
     surface->base.type = cairo_surface_get_type (target);
 
-    surface->target = target;
+    surface->target = cairo_surface_reference (target);
 
     surface->content = content;
     surface->width = width;
@@ -94,8 +97,9 @@ _cairo_paginated_surface_create (cairo_surface_t				*target,
 
     surface->backend = backend;
 
-    surface->meta = _cairo_meta_surface_create (content, width, height);
-    if (cairo_surface_status (surface->meta))
+    surface->meta = cairo_meta_surface_create (content, width, height);
+    status = cairo_surface_status (surface->meta);
+    if (unlikely (status))
 	goto FAIL_CLEANUP_SURFACE;
 
     surface->page_num = 1;
@@ -104,10 +108,10 @@ _cairo_paginated_surface_create (cairo_surface_t				*target,
     return &surface->base;
 
   FAIL_CLEANUP_SURFACE:
+    cairo_surface_destroy (target);
     free (surface);
   FAIL:
-    _cairo_error (CAIRO_STATUS_NO_MEMORY);
-    return (cairo_surface_t*) &_cairo_surface_nil;
+    return _cairo_surface_create_in_error (status);
 }
 
 cairo_bool_t
@@ -129,11 +133,12 @@ _cairo_paginated_surface_get_target (cairo_surface_t *surface)
 }
 
 cairo_status_t
-_cairo_paginated_surface_set_size (cairo_surface_t 	*surface,
+_cairo_paginated_surface_set_size (cairo_surface_t	*surface,
 				   int			 width,
 				   int			 height)
 {
     cairo_paginated_surface_t *paginated_surface;
+    cairo_status_t status;
 
     assert (_cairo_surface_is_paginated (surface));
 
@@ -143,10 +148,11 @@ _cairo_paginated_surface_set_size (cairo_surface_t 	*surface,
     paginated_surface->height = height;
 
     cairo_surface_destroy (paginated_surface->meta);
-    paginated_surface->meta = _cairo_meta_surface_create (paginated_surface->content,
-							  width, height);
-    if (cairo_surface_status (paginated_surface->meta))
-	return cairo_surface_status (paginated_surface->meta);
+    paginated_surface->meta = cairo_meta_surface_create (paginated_surface->content,
+							 width, height);
+    status = cairo_surface_status (paginated_surface->meta);
+    if (unlikely (status))
+	return _cairo_surface_set_error (surface, status);
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -157,8 +163,10 @@ _cairo_paginated_surface_finish (void *abstract_surface)
     cairo_paginated_surface_t *surface = abstract_surface;
     cairo_status_t status = CAIRO_STATUS_SUCCESS;
 
-    if (surface->page_is_blank == FALSE || surface->page_num == 1)
-	status = _cairo_paginated_surface_show_page (abstract_surface);
+    if (surface->page_is_blank == FALSE || surface->page_num == 1) {
+	cairo_surface_show_page (abstract_surface);
+	status = cairo_surface_status (abstract_surface);
+    }
 
     if (status == CAIRO_STATUS_SUCCESS) {
 	cairo_surface_finish (surface->target);
@@ -207,15 +215,15 @@ _cairo_paginated_surface_acquire_source_image (void	       *abstract_surface,
     cairo_rectangle_int_t extents;
 
     status = _cairo_surface_get_extents (surface->target, &extents);
-    if (status)
+    if (unlikely (status))
 	return status;
 
     image = _cairo_paginated_surface_create_image_surface (surface,
 							   extents.width,
 							   extents.height);
 
-    status = _cairo_meta_surface_replay (surface->meta, image);
-    if (status) {
+    status = cairo_meta_surface_replay (surface->meta, image);
+    if (unlikely (status)) {
 	cairo_surface_destroy (image);
 	return status;
     }
@@ -236,7 +244,7 @@ _cairo_paginated_surface_release_source_image (void	  *abstract_surface,
 
 static cairo_int_status_t
 _paint_fallback_image (cairo_paginated_surface_t *surface,
-		       cairo_box_int_t           *box)
+		       cairo_rectangle_int_t     *rect)
 {
     double x_scale = surface->base.x_fallback_resolution / surface->target->x_resolution;
     double y_scale = surface->base.y_fallback_resolution / surface->target->y_resolution;
@@ -244,33 +252,36 @@ _paint_fallback_image (cairo_paginated_surface_t *surface,
     int x, y, width, height;
     cairo_status_t status;
     cairo_surface_t *image;
-    cairo_pattern_t *pattern;
+    cairo_surface_pattern_t pattern;
 
-    x = box->p1.x;
-    y = box->p1.y;
-    width = box->p2.x - x;
-    height = box->p2.y - y;
+    x = rect->x;
+    y = rect->y;
+    width = rect->width;
+    height = rect->height;
     image = _cairo_paginated_surface_create_image_surface (surface,
-							   width  * x_scale,
-							   height * y_scale);
+							   ceil (width  * x_scale),
+							   ceil (height * y_scale));
     _cairo_surface_set_device_scale (image, x_scale, y_scale);
     /* set_device_offset just sets the x0/y0 components of the matrix;
      * so we have to do the scaling manually. */
     cairo_surface_set_device_offset (image, -x*x_scale, -y*y_scale);
 
-    status = _cairo_meta_surface_replay (surface->meta, image);
-    if (status)
+    status = cairo_meta_surface_replay (surface->meta, image);
+    if (unlikely (status))
 	goto CLEANUP_IMAGE;
 
-    pattern = cairo_pattern_create_for_surface (image);
+    _cairo_pattern_init_for_surface (&pattern, image);
     cairo_matrix_init (&matrix, x_scale, 0, 0, y_scale, -x*x_scale, -y*y_scale);
-    cairo_pattern_set_matrix (pattern, &matrix);
+    cairo_pattern_set_matrix (&pattern.base, &matrix);
+    /* the fallback should be rendered at native resolution, so disable
+     * filtering (if possible) to avoid introducing potential artifacts. */
+    pattern.base.filter = CAIRO_FILTER_NEAREST;
 
     status = _cairo_surface_paint (surface->target,
 				   CAIRO_OPERATOR_SOURCE,
-				   pattern);
+				   &pattern.base, NULL);
 
-    cairo_pattern_destroy (pattern);
+    _cairo_pattern_fini (&pattern.base);
 CLEANUP_IMAGE:
     cairo_surface_destroy (image);
 
@@ -284,107 +295,138 @@ _paint_page (cairo_paginated_surface_t *surface)
     cairo_status_t status;
     cairo_bool_t has_supported, has_page_fallback, has_finegrained_fallback;
 
+    if (surface->target->status)
+	return surface->target->status;
+
     analysis = _cairo_analysis_surface_create (surface->target,
 					       surface->width, surface->height);
-    if (analysis == NULL)
-	return CAIRO_STATUS_NO_MEMORY;
+    if (analysis->status)
+	return _cairo_surface_set_error (surface->target, analysis->status);
 
-    surface->backend->set_paginated_mode (surface->target, CAIRO_PAGINATED_MODE_ANALYZE);
-    status = _cairo_meta_surface_replay_and_create_regions (surface->meta, analysis);
-    surface->backend->set_paginated_mode (surface->target, CAIRO_PAGINATED_MODE_RENDER);
-
+    surface->backend->set_paginated_mode (surface->target,
+	                                  CAIRO_PAGINATED_MODE_ANALYZE);
+    status = _cairo_meta_surface_replay_and_create_regions (surface->meta,
+	                                                    analysis);
     if (status || analysis->status) {
 	if (status == CAIRO_STATUS_SUCCESS)
 	    status = analysis->status;
-	cairo_surface_destroy (analysis);
-	return status;
+	goto FAIL;
+    }
+
+     if (surface->backend->set_bounding_box) {
+	 cairo_box_t bbox;
+
+	 _cairo_analysis_surface_get_bounding_box (analysis, &bbox);
+	 status = surface->backend->set_bounding_box (surface->target, &bbox);
+	 if (unlikely (status))
+	     goto FAIL;
+     }
+
+    if (surface->backend->set_fallback_images_required) {
+	cairo_bool_t has_fallbacks = _cairo_analysis_surface_has_unsupported (analysis);
+
+	status = surface->backend->set_fallback_images_required (surface->target,
+								 has_fallbacks);
+	if (unlikely (status))
+	    goto FAIL;
     }
 
     /* Finer grained fallbacks are currently only supported for some
      * surface types */
-    switch (surface->target->type) {
-        case CAIRO_SURFACE_TYPE_PDF:
-        case CAIRO_SURFACE_TYPE_PS:
-        case CAIRO_SURFACE_TYPE_WIN32_PRINTING:
-            has_supported = _cairo_analysis_surface_has_supported (analysis);
-            has_page_fallback = FALSE;
-            has_finegrained_fallback = _cairo_analysis_surface_has_unsupported (analysis);
-            break;
-
-        default:
-            if (_cairo_analysis_surface_has_unsupported (analysis)) {
-                has_supported = FALSE;
-                has_page_fallback = TRUE;
-            } else {
-                has_supported = TRUE;
-                has_page_fallback = FALSE;
-            }
-            has_finegrained_fallback = FALSE;
-            break;
+    if (surface->backend->supports_fine_grained_fallbacks != NULL &&
+	surface->backend->supports_fine_grained_fallbacks (surface->target))
+    {
+	has_supported = _cairo_analysis_surface_has_supported (analysis);
+	has_page_fallback = FALSE;
+	has_finegrained_fallback = _cairo_analysis_surface_has_unsupported (analysis);
+    }
+    else
+    {
+	if (_cairo_analysis_surface_has_unsupported (analysis)) {
+	    has_supported = FALSE;
+	    has_page_fallback = TRUE;
+	} else {
+	    has_supported = TRUE;
+	    has_page_fallback = FALSE;
+	}
+	has_finegrained_fallback = FALSE;
     }
 
     if (has_supported) {
+	surface->backend->set_paginated_mode (surface->target,
+		                              CAIRO_PAGINATED_MODE_RENDER);
+
 	status = _cairo_meta_surface_replay_region (surface->meta,
 						    surface->target,
 						    CAIRO_META_REGION_NATIVE);
-	if (status)
-	    return status;
+	assert (status != CAIRO_INT_STATUS_UNSUPPORTED);
+	if (unlikely (status))
+	    goto FAIL;
     }
 
-    if (has_page_fallback)
-    {
-	cairo_box_int_t box;
+    if (has_page_fallback) {
+	cairo_rectangle_int_t rect;
 
-	box.p1.x = 0;
-	box.p1.y = 0;
-	box.p2.x = surface->width;
-	box.p2.y = surface->height;
-	status = _paint_fallback_image (surface, &box);
-	if (status)
-	    return status;
+	surface->backend->set_paginated_mode (surface->target,
+		                              CAIRO_PAGINATED_MODE_FALLBACK);
+
+	rect.x = 0;
+	rect.y = 0;
+	rect.width = surface->width;
+	rect.height = surface->height;
+	status = _paint_fallback_image (surface, &rect);
+	if (unlikely (status))
+	    goto FAIL;
     }
 
-    if (has_finegrained_fallback)
-    {
+    if (has_finegrained_fallback) {
         cairo_region_t *region;
-        cairo_box_int_t *boxes;
-        int num_boxes, i;
+        int num_rects, i;
 
-	/* Reset clip region before drawing the fall back images */
+	surface->backend->set_paginated_mode (surface->target,
+		                              CAIRO_PAGINATED_MODE_FALLBACK);
+
+    /* Reset clip region before drawing the fall back images */
 	status = _cairo_surface_intersect_clip_path (surface->target,
 						     NULL,
 						     CAIRO_FILL_RULE_WINDING,
 						     CAIRO_GSTATE_TOLERANCE_DEFAULT,
 						     CAIRO_ANTIALIAS_DEFAULT);
-	if (status)
-	    return status;
+	if (unlikely (status))
+	    goto FAIL;
 
 	region = _cairo_analysis_surface_get_unsupported (analysis);
-	status = _cairo_region_get_boxes (region, &num_boxes, &boxes);
-	if (status)
-	    return status;
-	for (i = 0; i < num_boxes; i++) {
-	    status = _paint_fallback_image (surface, &boxes[i]);
-	    if (status) {
-                _cairo_region_boxes_fini (region, boxes);
-		return status;
-            }
+
+	num_rects = cairo_region_num_rectangles (region);
+	for (i = 0; i < num_rects; i++) {
+	    cairo_rectangle_int_t rect;
+
+	    cairo_region_get_rectangle (region, i, &rect);
+	    
+	    status = _paint_fallback_image (surface, &rect);
+	    
+	    if (unlikely (status))
+		goto FAIL;
 	}
-        _cairo_region_boxes_fini (region, boxes);
     }
 
+  FAIL:
     cairo_surface_destroy (analysis);
 
-    return status;
+    return _cairo_surface_set_error (surface->target, status);
 }
 
 static cairo_status_t
 _start_page (cairo_paginated_surface_t *surface)
 {
+    if (surface->target->status)
+	return surface->target->status;
+
     if (! surface->backend->start_page)
 	return CAIRO_STATUS_SUCCESS;
 
-    return (surface->backend->start_page) (surface->target);
+    return _cairo_surface_set_error (surface->target,
+	                        surface->backend->start_page (surface->target));
 }
 
 static cairo_int_status_t
@@ -394,11 +436,11 @@ _cairo_paginated_surface_copy_page (void *abstract_surface)
     cairo_paginated_surface_t *surface = abstract_surface;
 
     status = _start_page (surface);
-    if (status)
+    if (unlikely (status))
 	return status;
 
     status = _paint_page (surface);
-    if (status)
+    if (unlikely (status))
 	return status;
 
     surface->page_num++;
@@ -410,7 +452,8 @@ _cairo_paginated_surface_copy_page (void *abstract_surface)
      * show_page and we implement the copying by simply not destroying
      * the meta-surface. */
 
-    return cairo_surface_show_page (surface->target);
+    cairo_surface_show_page (surface->target);
+    return cairo_surface_status (surface->target);
 }
 
 static cairo_int_status_t
@@ -420,26 +463,30 @@ _cairo_paginated_surface_show_page (void *abstract_surface)
     cairo_paginated_surface_t *surface = abstract_surface;
 
     status = _start_page (surface);
-    if (status)
+    if (unlikely (status))
 	return status;
 
     status = _paint_page (surface);
-    if (status)
+    if (unlikely (status))
 	return status;
 
-    status = cairo_surface_show_page (surface->target);
-    if (status)
+    cairo_surface_show_page (surface->target);
+    status = cairo_surface_status (surface->target);
+    if (unlikely (status))
 	return status;
 
-    if (cairo_surface_status (surface->meta))
-	return cairo_surface_status (surface->meta);
+    status = cairo_surface_status (surface->meta);
+    if (unlikely (status))
+	return status;
 
     cairo_surface_destroy (surface->meta);
 
-    surface->meta = _cairo_meta_surface_create (surface->content,
-						surface->width, surface->height);
-    if (cairo_surface_status (surface->meta))
-	return cairo_surface_status (surface->meta);
+    surface->meta = cairo_meta_surface_create (surface->content,
+					       surface->width,
+                                               surface->height);
+    status = cairo_surface_status (surface->meta);
+    if (unlikely (status))
+	return status;
 
     surface->page_num++;
     surface->page_is_blank = TRUE;
@@ -482,7 +529,8 @@ _cairo_paginated_surface_get_font_options (void                  *abstract_surfa
 static cairo_int_status_t
 _cairo_paginated_surface_paint (void			*abstract_surface,
 				cairo_operator_t	 op,
-				cairo_pattern_t		*source)
+				const cairo_pattern_t	*source,
+				cairo_rectangle_int_t   *extents)
 {
     cairo_paginated_surface_t *surface = abstract_surface;
 
@@ -492,30 +540,32 @@ _cairo_paginated_surface_paint (void			*abstract_surface,
 
     surface->page_is_blank = FALSE;
 
-    return _cairo_surface_paint (surface->meta, op, source);
+    return _cairo_surface_paint (surface->meta, op, source, NULL);
 }
 
 static cairo_int_status_t
 _cairo_paginated_surface_mask (void		*abstract_surface,
 			       cairo_operator_t	 op,
-			       cairo_pattern_t	*source,
-			       cairo_pattern_t	*mask)
+			       const cairo_pattern_t	*source,
+			       const cairo_pattern_t	*mask,
+			       cairo_rectangle_int_t    *extents)
 {
     cairo_paginated_surface_t *surface = abstract_surface;
 
-    return _cairo_surface_mask (surface->meta, op, source, mask);
+    return _cairo_surface_mask (surface->meta, op, source, mask, NULL);
 }
 
 static cairo_int_status_t
 _cairo_paginated_surface_stroke (void			*abstract_surface,
 				 cairo_operator_t	 op,
-				 cairo_pattern_t	*source,
+				 const cairo_pattern_t	*source,
 				 cairo_path_fixed_t	*path,
 				 cairo_stroke_style_t	*style,
 				 cairo_matrix_t		*ctm,
 				 cairo_matrix_t		*ctm_inverse,
 				 double			 tolerance,
-				 cairo_antialias_t	 antialias)
+				 cairo_antialias_t	 antialias,
+				 cairo_rectangle_int_t  *extents)
 {
     cairo_paginated_surface_t *surface = abstract_surface;
 
@@ -528,17 +578,18 @@ _cairo_paginated_surface_stroke (void			*abstract_surface,
     return _cairo_surface_stroke (surface->meta, op, source,
 				  path, style,
 				  ctm, ctm_inverse,
-				  tolerance, antialias);
+				  tolerance, antialias, NULL);
 }
 
 static cairo_int_status_t
 _cairo_paginated_surface_fill (void			*abstract_surface,
 			       cairo_operator_t		 op,
-			       cairo_pattern_t		*source,
+			       const cairo_pattern_t	*source,
 			       cairo_path_fixed_t	*path,
 			       cairo_fill_rule_t	 fill_rule,
 			       double			 tolerance,
-			       cairo_antialias_t	 antialias)
+			       cairo_antialias_t	 antialias,
+			       cairo_rectangle_int_t    *extents)
 {
     cairo_paginated_surface_t *surface = abstract_surface;
 
@@ -550,16 +601,30 @@ _cairo_paginated_surface_fill (void			*abstract_surface,
 
     return _cairo_surface_fill (surface->meta, op, source,
 				path, fill_rule,
-				tolerance, antialias);
+				tolerance, antialias, NULL);
+}
+
+static cairo_bool_t
+_cairo_paginated_surface_has_show_text_glyphs (void *abstract_surface)
+{
+    cairo_paginated_surface_t *surface = abstract_surface;
+
+    return cairo_surface_has_show_text_glyphs (surface->target);
 }
 
 static cairo_int_status_t
-_cairo_paginated_surface_show_glyphs (void			*abstract_surface,
-				      cairo_operator_t		 op,
-				      cairo_pattern_t		*source,
-				      cairo_glyph_t		*glyphs,
-				      int			 num_glyphs,
-				      cairo_scaled_font_t	*scaled_font)
+_cairo_paginated_surface_show_text_glyphs (void			    *abstract_surface,
+					  cairo_operator_t	     op,
+					  const cairo_pattern_t	    *source,
+					  const char		    *utf8,
+					  int			     utf8_len,
+					  cairo_glyph_t		    *glyphs,
+					  int			     num_glyphs,
+					  const cairo_text_cluster_t *clusters,
+					  int			     num_clusters,
+					  cairo_text_cluster_flags_t cluster_flags,
+					   cairo_scaled_font_t	    *scaled_font,
+					   cairo_rectangle_int_t    *extents)
 {
     cairo_paginated_surface_t *surface = abstract_surface;
     cairo_int_status_t status;
@@ -571,8 +636,8 @@ _cairo_paginated_surface_show_glyphs (void			*abstract_surface,
     surface->page_is_blank = FALSE;
 
     /* Since this is a "wrapping" surface, we're calling back into
-     * _cairo_surface_show_glyphs from within a call to the same.
-     * Since _cairo_surface_show_glyphs acquires a mutex, we release
+     * _cairo_surface_show_text_glyphs from within a call to the same.
+     * Since _cairo_surface_show_text_glyphs acquires a mutex, we release
      * and re-acquire the mutex around this nested call.
      *
      * Yes, this is ugly, but we consider it pragmatic as compared to
@@ -580,11 +645,12 @@ _cairo_paginated_surface_show_glyphs (void			*abstract_surface,
      * show_glyphs functions, (which would get less testing and likely
      * lead to bugs).
      */
-    CAIRO_MUTEX_UNLOCK (scaled_font->mutex);
-    status = _cairo_surface_show_glyphs (surface->meta, op, source,
-					 glyphs, num_glyphs,
-					 scaled_font);
-    CAIRO_MUTEX_LOCK (scaled_font->mutex);
+    status = _cairo_surface_show_text_glyphs (surface->meta, op, source,
+					      utf8, utf8_len,
+					      glyphs, num_glyphs,
+					      clusters, num_clusters,
+					      cluster_flags,
+					      scaled_font, NULL);
 
     return status;
 }
@@ -592,46 +658,12 @@ _cairo_paginated_surface_show_glyphs (void			*abstract_surface,
 static cairo_surface_t *
 _cairo_paginated_surface_snapshot (void *abstract_other)
 {
-    cairo_status_t status;
     cairo_paginated_surface_t *other = abstract_other;
 
-    /* XXX: Just making a snapshot of other->meta is what we really
-     * want. But this currently triggers a bug somewhere (the "mask"
-     * test from the test suite segfaults).
-     *
-     * For now, we'll create a new image surface and replay onto
-     * that. It would be tempting to replay into other->image and then
-     * return a snapshot of that, but that will cause the self-copy
-     * test to fail, (since our replay will be affected by a clip that
-     * should not have any effect on the use of the resulting snapshot
-     * as a source).
-     */
-
-#if 0
     return _cairo_surface_snapshot (other->meta);
-#else
-    cairo_rectangle_int_t extents;
-    cairo_surface_t *surface;
-
-    status = _cairo_surface_get_extents (other->target, &extents);
-    if (status)
-	return (cairo_surface_t*) &_cairo_surface_nil;
-
-    surface = _cairo_paginated_surface_create_image_surface (other,
-							     extents.width,
-							     extents.height);
-
-    status = _cairo_meta_surface_replay (other->meta, surface);
-    if (status) {
-	cairo_surface_destroy (surface);
-	surface = (cairo_surface_t*) &_cairo_surface_nil;
-    }
-
-    return surface;
-#endif
 }
 
-const cairo_surface_backend_t cairo_paginated_surface_backend = {
+static const cairo_surface_backend_t cairo_paginated_surface_backend = {
     CAIRO_INTERNAL_SURFACE_TYPE_PAGINATED,
     _cairo_paginated_surface_create_similar,
     _cairo_paginated_surface_finish,
@@ -643,6 +675,8 @@ const cairo_surface_backend_t cairo_paginated_surface_backend = {
     NULL, /* composite */
     NULL, /* fill_rectangles */
     NULL, /* composite_trapezoids */
+    NULL, /* create_span_renderer */
+    NULL, /* check_span_renderer */
     _cairo_paginated_surface_copy_page,
     _cairo_paginated_surface_show_page,
     NULL, /* set_clip_region */
@@ -658,6 +692,13 @@ const cairo_surface_backend_t cairo_paginated_surface_backend = {
     _cairo_paginated_surface_mask,
     _cairo_paginated_surface_stroke,
     _cairo_paginated_surface_fill,
-    _cairo_paginated_surface_show_glyphs,
-    _cairo_paginated_surface_snapshot
+    NULL, /* show_glyphs */
+    _cairo_paginated_surface_snapshot,
+    NULL, /* is_similar */
+    NULL, /* reset */
+    NULL, /* fill_stroke */
+    NULL, /* create_solid_pattern_surface */
+    NULL, /* can_repaint_solid_pattern_surface */
+    _cairo_paginated_surface_has_show_text_glyphs,
+    _cairo_paginated_surface_show_text_glyphs
 };

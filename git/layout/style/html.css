@@ -36,6 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 @namespace url(http://www.w3.org/1999/xhtml); /* set default namespace to HTML */
+@namespace xul url(http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul);
 
 /* bidi */
 
@@ -50,6 +51,22 @@
 bdo[dir] {
   unicode-bidi: bidi-override;
 }
+
+/* To ensure http://www.w3.org/TR/REC-html40/struct/dirlang.html#style-bidi:
+ *
+ * "When a block element that does not have a dir attribute is transformed to
+ * the style of an inline element by a style sheet, the resulting presentation
+ * should be equivalent, in terms of bidirectional formatting, to the
+ * formatting obtained by explicitly adding a dir attribute (assigned the
+ * inherited value) to the transformed element." */
+
+address, blockquote, body, caption, center, col, colgroup, dd, dir, div, dl, dt,
+fieldset, form, h1, h2, h3, h4, h5, h6, hr, html, isindex, li, listing, map, 
+marquee, menu, noframes, ol, p, plaintext, pre, table, tbody, td, tfoot, th, 
+thead, tr, ul, xmp {
+  unicode-bidi: embed;
+}
+
 
 /* blocks */
 
@@ -341,7 +358,6 @@ ol {
 
 li {
   display: list-item;
-  -moz-float-edge: margin-box;
 }
 
 /* nested lists have no top/bottom margins */
@@ -483,13 +499,35 @@ tr:focus, tt:focus, u:focus, ul:focus, var:focus {
 }
 
 /* hidden elements */
-area, base, basefont, head, meta, script, style, title,
+base, basefont, head, meta, script, style, title,
 noembed, param {
    display: none;
 }
 
+area {
+  /* Don't give it frames other than its imageframe */
+  display: none ! important;
+}
+
+/* media elements */
+video > xul|videocontrols, audio > xul|videocontrols {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+  -moz-binding: url("chrome://global/content/bindings/videocontrols.xml#videoControls");
+}
+
+video:not([controls]) > xul|videocontrols,
+audio:not([controls]) > xul|videocontrols {
+  visibility: hidden;
+}
+
+audio:not([controls]) {
+  display: none;
+}
+
 /* emulation of non-standard HTML <marquee> tag */
 marquee {
+  width: -moz-available;
   display: inline-block;
   vertical-align: text-bottom;
   text-align: start;
@@ -506,10 +544,4 @@ marquee[direction="up"], marquee[direction="down"] {
 
   marquee { -moz-binding: none; }
 
-  /* XXX this should not be necessary, we should be stopping blinking
-     of any kind in print preview, not just the <blink> element */
-  blink {
-    text-decoration: none;
-  }
- 
 }

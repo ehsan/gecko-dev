@@ -21,6 +21,7 @@
  * Contributor(s):
  *   Stuart Parmenter <stuart@mozilla.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
+ *   John Daggett <jdaggett@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -44,314 +45,158 @@
 #include "gfxColor.h"
 #include "gfxFont.h"
 #include "gfxMatrix.h"
+#include "gfxFontUtils.h"
+#include "gfxUserFontSet.h"
 
 #include "nsDataHashtable.h"
 
 #include <usp10.h>
 #include <cairo-win32.h>
 
-/* Bug 341128 - w32api defines min/max which causes problems with <bitset> */
-#ifdef __MINGW32__
-#undef min
-#undef max
-#endif
-
+// xxx - used in FontEntry.  should be trimmed, moz code doesn't use
+//       exceptions.  use gfxSparseBitSet instead?
 #include <bitset>
 
-#define NO_RANGE_FOUND 126 // bit 126 in the font unicode ranges is required to be 0
-
-/* Unicode subrange table
- *   from: http://msdn.microsoft.com/library/default.asp?url=/library/en-us/intl/unicode_63ub.asp
- *
- * Use something like:
- * perl -pi -e 's/^(\d+)\s+([\dA-Fa-f]+)\s+-\s+([\dA-Fa-f]+)\s+\b(.*)/    { \1, 0x\2, 0x\3,\"\4\" },/' < unicoderanges.txt
- * to generate the below list.
- */
-struct UnicodeRangeTableEntry
-{
-    PRUint8 bit;
-    PRUint32 start;
-    PRUint32 end;
-    const char *info;
-};
-
-static const struct UnicodeRangeTableEntry gUnicodeRanges[] = {
-    { 0, 0x0000, 0x007F, "Basic Latin" },
-    { 1, 0x0080, 0x00FF, "Latin-1 Supplement" },
-    { 2, 0x0100, 0x017F, "Latin Extended-A" },
-    { 3, 0x0180, 0x024F, "Latin Extended-B" },
-    { 4, 0x0250, 0x02AF, "IPA Extensions" },
-    { 4, 0x1D00, 0x1D7F, "Phonetic Extensions" },
-    { 4, 0x1D80, 0x1DBF, "Phonetic Extensions Supplement" },
-    { 5, 0x02B0, 0x02FF, "Spacing Modifier Letters" },
-    { 5, 0xA700, 0xA71F, "Modifier Tone Letters" },
-    { 6, 0x0300, 0x036F, "Spacing Modifier Letters" },
-    { 6, 0x1DC0, 0x1DFF, "Combining Diacritical Marks Supplement" },
-    { 7, 0x0370, 0x03FF, "Greek and Coptic" },
-    { 8, 0x2C80, 0x2CFF, "Coptic" },
-    { 9, 0x0400, 0x04FF, "Cyrillic" },
-    { 9, 0x0500, 0x052F, "Cyrillic Supplementary" },
-    { 10, 0x0530, 0x058F, "Armenian" },
-    { 11, 0x0590, 0x05FF, "Basic Hebrew" },
-    /* 12 - reserved */
-    { 13, 0x0600, 0x06FF, "Basic Arabic" },
-    { 13, 0x0750, 0x077F, "Arabic Supplement" },
-    { 14, 0x07C0, 0x07FF, "N'Ko" },
-    { 15, 0x0900, 0x097F, "Devanagari" },
-    { 16, 0x0980, 0x09FF, "Bengali" },
-    { 17, 0x0A00, 0x0A7F, "Gurmukhi" },
-    { 18, 0x0A80, 0x0AFF, "Gujarati" },
-    { 19, 0x0B00, 0x0B7F, "Oriya" },
-    { 20, 0x0B80, 0x0BFF, "Tamil" },
-    { 21, 0x0C00, 0x0C7F, "Telugu" },
-    { 22, 0x0C80, 0x0CFF, "Kannada" },
-    { 23, 0x0D00, 0x0D7F, "Malayalam" },
-    { 24, 0x0E00, 0x0E7F, "Thai" },
-    { 25, 0x0E80, 0x0EFF, "Lao" },
-    { 26, 0x10A0, 0x10FF, "Georgian" },
-    { 26, 0x2D00, 0x2D2F, "Georgian Supplement" },
-    { 27, 0x1B00, 0x1B7F, "Balinese" },
-    { 28, 0x1100, 0x11FF, "Hangul Jamo" },
-    { 29, 0x1E00, 0x1EFF, "Latin Extended Additional" },
-    { 29, 0x2C60, 0x2C7F, "Latin Extended-C" },
-    { 30, 0x1F00, 0x1FFF, "Greek Extended" },
-    { 31, 0x2000, 0x206F, "General Punctuation" },
-    { 31, 0x2E00, 0x2E7F, "Supplemental Punctuation" },
-    { 32, 0x2070, 0x209F, "Subscripts and Superscripts" },
-    { 33, 0x20A0, 0x20CF, "Currency Symbols" },
-    { 34, 0x20D0, 0x20FF, "Combining Diacritical Marks for Symbols" },
-    { 35, 0x2100, 0x214F, "Letter-like Symbols" },
-    { 36, 0x2150, 0x218F, "Number Forms" },
-    { 37, 0x2190, 0x21FF, "Arrows" },
-    { 37, 0x27F0, 0x27FF, "Supplemental Arrows-A" },
-    { 37, 0x2900, 0x297F, "Supplemental Arrows-B" },
-    { 37, 0x2B00, 0x2BFF, "Miscellaneous Symbols and Arrows" },
-    { 38, 0x2200, 0x22FF, "Mathematical Operators" },
-    { 38, 0x27C0, 0x27EF, "Miscellaneous Mathematical Symbols-A" },
-    { 38, 0x2980, 0x29FF, "Miscellaneous Mathematical Symbols-B" },
-    { 38, 0x2A00, 0x2AFF, "Supplemental Mathematical Operators" },
-    { 39, 0x2300, 0x23FF, "Miscellaneous Technical" },
-    { 40, 0x2400, 0x243F, "Control Pictures" },
-    { 41, 0x2440, 0x245F, "Optical Character Recognition" },
-    { 42, 0x2460, 0x24FF, "Enclosed Alphanumerics" },
-    { 43, 0x2500, 0x257F, "Box Drawing" },
-    { 44, 0x2580, 0x259F, "Block Elements" },
-    { 45, 0x25A0, 0x25FF, "Geometric Shapes" },
-    { 46, 0x2600, 0x26FF, "Miscellaneous Symbols" },
-    { 47, 0x2700, 0x27BF, "Dingbats" },
-    { 48, 0x3000, 0x303F, "Chinese, Japanese, and Korean (CJK) Symbols and Punctuation" },
-    { 49, 0x3040, 0x309F, "Hiragana" },
-    { 50, 0x30A0, 0x30FF, "Katakana" },
-    { 50, 0x31F0, 0x31FF, "Katakana Phonetic Extensions" },
-    { 51, 0x3100, 0x312F, "Bopomofo" },
-    { 51, 0x31A0, 0x31BF, "Extended Bopomofo" },
-    { 52, 0x3130, 0x318F, "Hangul Compatibility Jamo" },
-    { 53, 0xA840, 0xA87F, "Phags-pa" },
-    { 54, 0x3200, 0x32FF, "Enclosed CJK Letters and Months" },
-    { 55, 0x3300, 0x33FF, "CJK Compatibility" },
-    { 56, 0xAC00, 0xD7A3, "Hangul" },
-    { 57, 0xD800, 0xDFFF, "Surrogates. Note that setting this bit implies that there is at least one supplementary code point beyond the Basic Multilingual Plane (BMP) that is supported by this font. See Surrogates and Supplementary Characters." },
-    { 58, 0x10900, 0x1091F, "Phoenician" },
-    { 59, 0x2E80, 0x2EFF, "CJK Radicals Supplement" },
-    { 59, 0x2F00, 0x2FDF, "Kangxi Radicals" },
-    { 59, 0x2FF0, 0x2FFF, "Ideographic Description Characters" },
-    { 59, 0x3190, 0x319F, "Kanbun" },
-    { 59, 0x3400, 0x4DBF, "CJK Unified Ideographs Extension A" },
-    { 59, 0x4E00, 0x9FFF, "CJK Unified Ideographs" },
-    { 59, 0x20000, 0x2A6DF, "CJK Unified Ideographs Extension B" },
-    { 60, 0xE000, 0xF8FF, "Private Use (Plane 0)" },
-    { 61, 0x31C0, 0x31EF, "CJK Base Strokes" },
-    { 61, 0xF900, 0xFAFF, "CJK Compatibility Ideographs" },
-    { 61, 0x2F800, 0x2FA1F, "CJK Compatibility Ideographs Supplement" },
-    { 62, 0xFB00, 0xFB4F, "Alphabetical Presentation Forms" },
-    { 63, 0xFB50, 0xFDFF, "Arabic Presentation Forms-A" },
-    { 64, 0xFE20, 0xFE2F, "Combining Half Marks" },
-    { 65, 0xFE10, 0xFE1F, "Vertical Forms" },
-    { 65, 0xFE30, 0xFE4F, "CJK Compatibility Forms" },
-    { 66, 0xFE50, 0xFE6F, "Small Form Variants" },
-    { 67, 0xFE70, 0xFEFE, "Arabic Presentation Forms-B" },
-    { 68, 0xFF00, 0xFFEF, "Halfwidth and Fullwidth Forms" },
-    { 69, 0xFFF0, 0xFFFF, "Specials" },
-    { 70, 0x0F00, 0x0FFF, "Tibetan" },
-    { 71, 0x0700, 0x074F, "Syriac" },
-    { 72, 0x0780, 0x07BF, "Thaana" },
-    { 73, 0x0D80, 0x0DFF, "Sinhala" },
-    { 74, 0x1000, 0x109F, "Myanmar" },
-    { 75, 0x1200, 0x137F, "Ethiopic" },
-    { 75, 0x1380, 0x139F, "Ethiopic Supplement" },
-    { 75, 0x2D80, 0x2DDF, "Ethiopic Extended" },
-    { 76, 0x13A0, 0x13FF, "Cherokee" },
-    { 77, 0x1400, 0x167F, "Canadian Aboriginal Syllabics" },
-    { 78, 0x1680, 0x169F, "Ogham" },
-    { 79, 0x16A0, 0x16FF, "Runic" },
-    { 80, 0x1780, 0x17FF, "Khmer" },
-    { 80, 0x19E0, 0x19FF, "Khmer Symbols" },
-    { 81, 0x1800, 0x18AF, "Mongolian" },
-    { 82, 0x2800, 0x28FF, "Braille" },
-    { 83, 0xA000, 0xA48F, "Yi" },
-    { 83, 0xA490, 0xA4CF, "Yi Radicals" },
-    { 84, 0x1700, 0x171F, "Tagalog" },
-    { 84, 0x1720, 0x173F, "Hanunoo" },
-    { 84, 0x1740, 0x175F, "Buhid" },
-    { 84, 0x1760, 0x177F, "Tagbanwa" },
-    { 85, 0x10300, 0x1032F, "Old Italic" },
-    { 86, 0x10330, 0x1034F, "Gothic" },
-    { 87, 0x10440, 0x1044F, "Deseret" },
-    { 88, 0x1D000, 0x1D0FF, "Byzantine Musical Symbols" },
-    { 88, 0x1D100, 0x1D1FF, "Musical Symbols" },
-    { 88, 0x1D200, 0x1D24F, "Ancient Greek Musical Notation" },
-    { 89, 0x1D400, 0x1D7FF, "Mathematical Alphanumeric Symbols" },
-    { 90, 0xFF000, 0xFFFFD, "Private Use (Plane 15)" },
-    { 90, 0x100000, 0x10FFFD, "Private Use (Plane 16)" },
-    { 91, 0xFE00, 0xFE0F, "Variation Selectors" },
-    { 91, 0xE0100, 0xE01EF, "Variation Selectors Supplement" },
-    { 92, 0xE0000, 0xE007F, "Tags" },
-    { 93, 0x1900, 0x194F, "Limbu" },
-    { 94, 0x1950, 0x197F, "Tai Le" },
-    { 95, 0x1980, 0x19DF, "New Tai Lue" },
-    { 96, 0x1A00, 0x1A1F, "Buginese" },
-    { 97, 0x2C00, 0x2C5F, "Glagolitic" },
-    { 98, 0x2D40, 0x2D7F, "Tifinagh" },
-    { 99, 0x4DC0, 0x4DFF, "Yijing Hexagram Symbols" },
-    { 100, 0xA800, 0xA82F, "Syloti Nagri" },
-    { 101, 0x10000, 0x1007F, "Linear B Syllabary" },
-    { 101, 0x10080, 0x100FF, "Linear B Ideograms" },
-    { 101, 0x10100, 0x1013F, "Aegean Numbers" },
-    { 102, 0x10140, 0x1018F, "Ancient Greek Numbers" },
-    { 103, 0x10380, 0x1039F, "Ugaritic" },
-    { 104, 0x103A0, 0x103DF, "Old Persian" },
-    { 105, 0x10450, 0x1047F, "Shavian" },
-    { 106, 0x10480, 0x104AF, "Osmanya" },
-    { 107, 0x10800, 0x1083F, "Cypriot Syllabary" },
-    { 108, 0x10A00, 0x10A5F, "Kharoshthi" },
-    { 109, 0x1D300, 0x1D35F, "Tai Xuan Jing Symbols" },
-    { 110, 0x12000, 0x123FF, "Cuneiform" },
-    { 110, 0x12400, 0x1247F, "Cuneiform Numbers and Punctuation" },
-    { 111, 0x1D360, 0x1D37F, "Counting Rod Numerals" }
-};
-
-static PRUint8 CharRangeBit(PRUint32 ch) {
-    const PRUint32 n = sizeof(gUnicodeRanges) / sizeof(struct UnicodeRangeTableEntry);
-
-    for (PRUint32 i = 0; i < n; ++i)
-        if (ch >= gUnicodeRanges[i].start && ch <= gUnicodeRanges[i].end)
-            return gUnicodeRanges[i].bit;
-
-    return NO_RANGE_FOUND;
-}
-
-
-class gfxSparseBitSet {
-private:
-    enum { BLOCK_SIZE = 32 };
-    enum { BLOCK_SIZE_BITS = BLOCK_SIZE * 8 };
-
-    struct Block {
-        Block(unsigned char memsetValue = 0) { memset(mBits, memsetValue, BLOCK_SIZE); }
-        PRUint8 mBits[BLOCK_SIZE];
-    };
-
-public:
-    PRBool test(PRUint32 aIndex) {
-        PRUint32 blockIndex = aIndex/BLOCK_SIZE_BITS;
-        if (blockIndex >= mBlocks.Length())
-            return PR_FALSE;
-        Block *block = mBlocks[blockIndex];
-        if (!block)
-            return PR_FALSE;
-        return ((block->mBits[(aIndex/8) & (BLOCK_SIZE - 1)]) & (1 << (aIndex & 0x7))) != 0;
-    }
-
-    void set(PRUint32 aIndex) {
-        PRUint32 blockIndex = aIndex/BLOCK_SIZE_BITS;
-        if (blockIndex >= mBlocks.Length()) {
-            nsAutoPtr<Block> *blocks = mBlocks.AppendElements(blockIndex + 1 - mBlocks.Length());
-            if (NS_UNLIKELY(!blocks)) // OOM
-                return;
-        }
-        Block *block = mBlocks[blockIndex];
-        if (!block) {
-            block = new Block;
-            if (NS_UNLIKELY(!block)) // OOM
-                return;
-            mBlocks[blockIndex] = block;
-        }
-        block->mBits[(aIndex/8) & (BLOCK_SIZE - 1)] |= 1 << (aIndex & 0x7);
-    }
-
-    void SetRange(PRUint32 aStart, PRUint32 aEnd) {
-        const PRUint32 startIndex = aStart/BLOCK_SIZE_BITS;
-        const PRUint32 endIndex = aEnd/BLOCK_SIZE_BITS;
-
-        if (endIndex >= mBlocks.Length()) {
-            PRUint32 numNewBlocks = endIndex + 1 - mBlocks.Length();
-            nsAutoPtr<Block> *blocks = mBlocks.AppendElements(numNewBlocks);
-            if (NS_UNLIKELY(!blocks)) // OOM
-                return;
-        }
-
-        for (PRUint32 i = startIndex; i <= endIndex; ++i) {
-            const PRUint32 blockFirstBit = i * BLOCK_SIZE_BITS;
-            const PRUint32 blockLastBit = blockFirstBit + BLOCK_SIZE_BITS - 1;
-
-            Block *block = mBlocks[i];
-            if (!block) {
-                PRBool fullBlock = PR_FALSE;
-                if (aStart <= blockFirstBit && aEnd >= blockLastBit)
-                    fullBlock = PR_TRUE;
-
-                block = new Block(fullBlock ? 0xFF : 0);
-
-                if (NS_UNLIKELY(!block)) // OOM
-                    return;
-                mBlocks[i] = block;
-
-                if (fullBlock)
-                    continue;
-            }
-
-            const PRUint32 start = aStart > blockFirstBit ? aStart - blockFirstBit : 0;
-            const PRUint32 end = PR_MIN(aEnd - blockFirstBit, BLOCK_SIZE_BITS - 1);
-
-            for (PRUint32 bit = start; bit <= end; ++bit) {
-                block->mBits[bit/8] |= 1 << (bit & 0x7);
-            }
-        }
-    }
-
-    PRUint32 GetSize() {
-        PRUint32 size = 0;
-        for (PRUint32 i = 0; i < mBlocks.Length(); i++)
-            if (mBlocks[i])
-                size += sizeof(Block);
-        return size;
-    }
-
-
-    nsTArray< nsAutoPtr<Block> > mBlocks;
+/**
+ * List of different types of fonts we support on Windows.
+ * These can generally be lumped in to 3 categories where we have to
+ * do special things:  Really old fonts bitmap and vector fonts (device
+ * and raster), Type 1 fonts, and TrueType/OpenType fonts.
+ * 
+ * This list is sorted in order from least prefered to most prefered.
+ * We prefer Type1 fonts over OpenType fonts to avoid falling back to
+ * things like Arial (opentype) when you ask for Helvetica (type1)
+ **/
+enum gfxWindowsFontType {
+    GFX_FONT_TYPE_UNKNOWN = 0,
+    GFX_FONT_TYPE_DEVICE,
+    GFX_FONT_TYPE_RASTER,
+    GFX_FONT_TYPE_TRUETYPE,
+    GFX_FONT_TYPE_PS_OPENTYPE,
+    GFX_FONT_TYPE_TT_OPENTYPE,
+    GFX_FONT_TYPE_TYPE1
 };
 
 /**
- * FontEntry is a class that describes one of the fonts on the users system
- * It contains information such as the name, font type, charset table and unicode ranges.
- * It may be extended to also keep basic metrics of the fonts so that we can better
- * compare one FontEntry to another.
+ * FontFamily is a class that describes one of the fonts on the users system.  It holds
+ * each FontEntry (maps more directly to a font face) which holds font type, charset info
+ * and character map info.
  */
-class FontEntry
+class FontEntry;
+class FontFamily : public gfxFontFamily
 {
 public:
-    THEBES_INLINE_DECL_REFCOUNTING(FontEntry)
+    FontFamily(const nsAString& aName) :
+        gfxFontFamily(aName), mIsBadUnderlineFontFamily(PR_FALSE) { }
 
-    FontEntry(const nsAString& aName, PRUint16 aFontType) : 
-        mName(aName), mFontType(aFontType), mDefaultWeight(0),
+    FontEntry *FindFontEntry(const gfxFontStyle& aFontStyle);
+
+private:
+    friend class gfxWindowsPlatform;
+
+    void FindStyleVariations();
+
+    static int CALLBACK FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
+                                            const NEWTEXTMETRICEXW *nmetrics,
+                                            DWORD fontType, LPARAM data);
+
+protected:
+    PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
+                               PRBool anItalic, PRInt16 aStretch);
+
+public:
+    PRPackedBool mIsBadUnderlineFontFamily;
+};
+
+class FontEntry : public gfxFontEntry
+{
+public:
+    FontEntry(const nsAString& aFaceName, gfxWindowsFontType aFontType,
+              PRBool aItalic, PRUint16 aWeight, gfxUserFontData *aUserFontData) : 
+        gfxFontEntry(aFaceName), mFontType(aFontType),
+        mForceGDI(PR_FALSE), mUnknownCMAP(PR_FALSE),
         mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE),
-        mCharset(0), mUnicodeRanges(0)
+        mCharset(), mUnicodeRanges()
     {
+        mUserFontData = aUserFontData;
+        mItalic = aItalic;
+        mWeight = aWeight;
+        if (IsType1())
+            mForceGDI = PR_TRUE;
+        mIsUserFont = aUserFontData != nsnull;
+    }
+
+    FontEntry(const FontEntry& aFontEntry) :
+        gfxFontEntry(aFontEntry),
+        mWindowsFamily(aFontEntry.mWindowsFamily),
+        mWindowsPitch(aFontEntry.mWindowsPitch),
+        mFontType(aFontEntry.mFontType),
+        mForceGDI(aFontEntry.mForceGDI),
+        mUnknownCMAP(aFontEntry.mUnknownCMAP),
+        mUnicodeFont(aFontEntry.mUnicodeFont),
+        mSymbolFont(aFontEntry.mSymbolFont),
+        mCharset(aFontEntry.mCharset),
+        mUnicodeRanges(aFontEntry.mUnicodeRanges)
+    {
+
+    }
+    static void InitializeFontEmbeddingProcs();
+
+    // create a font entry from downloaded font data
+    static FontEntry* LoadFont(const gfxProxyFontEntry &aProxyEntry,
+                               const PRUint8 *aFontData,
+                               PRUint32 aLength);
+
+    // create a font entry for a font with a given name
+    static FontEntry* CreateFontEntry(const nsAString& aName, 
+                                      gfxWindowsFontType aFontType, 
+                                      PRBool aItalic, PRUint16 aWeight, 
+                                      gfxUserFontData* aUserFontData, 
+                                      HDC hdc = 0, LOGFONTW *aLogFont = nsnull);
+
+    // create a font entry for a font referenced by its fullname
+    static FontEntry* LoadLocalFont(const gfxProxyFontEntry &aProxyEntry,
+                                    const nsAString& aFullname);
+
+    static void FillLogFont(LOGFONTW *aLogFont, const nsAString& aName, 
+                            gfxWindowsFontType aFontType, PRBool aItalic, 
+                            PRUint16 aWeight, gfxFloat aSize);
+
+    static gfxWindowsFontType DetermineFontType(const NEWTEXTMETRICW& metrics, 
+                                                DWORD fontType)
+    {
+        gfxWindowsFontType feType;
+        if (metrics.ntmFlags & NTM_TYPE1)
+            feType = GFX_FONT_TYPE_TYPE1;
+        else if (metrics.ntmFlags & NTM_PS_OPENTYPE)
+            feType = GFX_FONT_TYPE_PS_OPENTYPE;
+        else if (metrics.ntmFlags & NTM_TT_OPENTYPE)
+            feType = GFX_FONT_TYPE_TT_OPENTYPE;
+        else if (fontType == TRUETYPE_FONTTYPE)
+            feType = GFX_FONT_TYPE_TRUETYPE;
+        else if (fontType == RASTER_FONTTYPE)
+            feType = GFX_FONT_TYPE_RASTER;
+        else if (fontType == DEVICE_FONTTYPE)
+            feType = GFX_FONT_TYPE_DEVICE;
+        else
+            feType = GFX_FONT_TYPE_UNKNOWN;
+        
+        return feType;
+    }
+
+    PRBool IsType1() const {
+        return (mFontType == GFX_FONT_TYPE_TYPE1);
+    }
+
+    PRBool IsTrueType() const {
+        return (mFontType == GFX_FONT_TYPE_TRUETYPE ||
+                mFontType == GFX_FONT_TYPE_PS_OPENTYPE ||
+                mFontType == GFX_FONT_TYPE_TT_OPENTYPE);
     }
 
     PRBool IsCrappyFont() const {
-        /* return if it is a bitmap, old school font or not a unicode font */
-        return (!mUnicodeFont || mSymbolFont || mFontType != TRUETYPE_FONTTYPE);
+        /* return if it is a bitmap not a unicode font */
+        return (!mUnicodeFont || mSymbolFont || IsType1());
     }
 
     PRBool MatchesGenericFamily(const nsACString& aGeneric) const {
@@ -360,18 +205,18 @@ public:
 
         // Japanese 'Mincho' fonts do not belong to FF_MODERN even if
         // they are fixed pitch because they have variable stroke width.
-        if (mFamily == FF_ROMAN && mPitch & FIXED_PITCH) {
+        if (mWindowsFamily == FF_ROMAN && mWindowsPitch & FIXED_PITCH) {
             return aGeneric.EqualsLiteral("monospace");
         }
 
         // Japanese 'Gothic' fonts do not belong to FF_SWISS even if
         // they are variable pitch because they have constant stroke width.
-        if (mFamily == FF_MODERN && mPitch & VARIABLE_PITCH) {
+        if (mWindowsFamily == FF_MODERN && mWindowsPitch & VARIABLE_PITCH) {
             return aGeneric.EqualsLiteral("sans-serif");
         }
 
         // All other fonts will be grouped correctly using family...
-        switch (mFamily) {
+        switch (mWindowsFamily) {
         case FF_DONTCARE:
             return PR_TRUE;
         case FF_ROMAN:
@@ -438,46 +283,20 @@ public:
         return mUnicodeRanges[range];
     }
 
-    class WeightTable
-    {
-    public:
-        THEBES_INLINE_DECL_REFCOUNTING(WeightTable)
-            
-        WeightTable() : mWeights(0) {}
-        ~WeightTable() {}
-        PRBool TriedWeight(PRUint8 aWeight) {
-            return mWeights[aWeight - 1 + 10];
-        }
-        PRBool HasWeight(PRUint8 aWeight) {
-            return mWeights[aWeight - 1];
-        }
-        void SetWeight(PRUint8 aWeight, PRBool aValue) {
-            mWeights[aWeight - 1] = aValue;
-            mWeights[aWeight - 1 + 10] = PR_TRUE;
-        }
-    private:
-        std::bitset<20> mWeights;
-    };
+    PRBool TestCharacterMap(PRUint32 aCh);
 
-    // The family name of the font
-    nsString mName;
+    PRUint8 mWindowsFamily;
+    PRUint8 mWindowsPitch;
 
-    PRUint16 mFontType;
-    PRUint16 mDefaultWeight;
-
-    PRUint8 mFamily;
-    PRUint8 mPitch;
-    PRPackedBool mUnicodeFont;
-    PRPackedBool mSymbolFont;
+    gfxWindowsFontType mFontType;
+    PRPackedBool mForceGDI    : 1;
+    PRPackedBool mUnknownCMAP : 1;
+    PRPackedBool mUnicodeFont : 1;
+    PRPackedBool mSymbolFont  : 1;
 
     std::bitset<256> mCharset;
     std::bitset<128> mUnicodeRanges;
-
-    WeightTable mWeightTable;
-
-    gfxSparseBitSet mCharacterMap;
 };
-
 
 /**********************************************************************
  *
@@ -487,7 +306,8 @@ public:
 
 class gfxWindowsFont : public gfxFont {
 public:
-    gfxWindowsFont(const nsAString& aName, const gfxFontStyle *aFontStyle);
+    gfxWindowsFont(FontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
+                   cairo_antialias_t anAntialiasOption = CAIRO_ANTIALIAS_DEFAULT);
     virtual ~gfxWindowsFont();
 
     virtual const gfxFont::Metrics& GetMetrics();
@@ -504,16 +324,27 @@ public:
                       gfxContext *aContext, PRBool aDrawToPath, gfxPoint *aBaselineOrigin,
                       Spacing *aSpacing);
 
+    virtual RunMetrics Measure(gfxTextRun *aTextRun,
+                               PRUint32 aStart, PRUint32 aEnd,
+                               BoundingBoxType aBoundingBoxType,
+                               gfxContext *aContextForTightBoundingBox,
+                               Spacing *aSpacing);
+
     virtual PRUint32 GetSpaceGlyph() {
         GetMetrics(); // ensure that the metrics are computed but don't recompute them
         return mSpaceGlyph;
     };
 
-    FontEntry *GetFontEntry() { return mFontEntry; }
+    PRBool IsValid() { GetMetrics(); return mIsValid; }
+    FontEntry *GetFontEntry();
+
+    static already_AddRefed<gfxWindowsFont>
+    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle,
+                  PRBool aNeedsBold = PR_FALSE);
 
 protected:
     HFONT MakeHFONT();
-    void FillLogFont(gfxFloat aSize, PRInt16 aWeight);
+    void FillLogFont(gfxFloat aSize);
 
     HFONT    mFont;
     gfxFloat mAdjustedSize;
@@ -531,8 +362,8 @@ private:
 
     LOGFONTW mLogFont;
 
-    nsRefPtr<FontEntry> mFontEntry;
-    
+    cairo_antialias_t mAntialiasOption;
+
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 };
 
@@ -545,7 +376,7 @@ private:
 class THEBES_API gfxWindowsFontGroup : public gfxFontGroup {
 
 public:
-    gfxWindowsFontGroup(const nsAString& aFamilies, const gfxFontStyle* aStyle);
+    gfxWindowsFontGroup(const nsAString& aFamilies, const gfxFontStyle* aStyle, gfxUserFontSet *aUserFontSet);
     virtual ~gfxWindowsFontGroup();
 
     virtual gfxFontGroup *Copy(const gfxFontStyle *aStyle);
@@ -572,15 +403,38 @@ public:
 
     virtual gfxWindowsFont *GetFontAt(PRInt32 i);
 
+    void GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *list,
+                                    nsTArray<PRPackedBool> *aNeedsBold);
+    void FamilyListToArrayList(const nsString& aFamilies,
+                               const nsCString& aLangGroup,
+                               nsTArray<nsRefPtr<FontEntry> > *list);
+
+    void UpdateFontList();
+    virtual gfxFloat GetUnderlineOffset();
+
+
 protected:
+    void InitFontList();
     void InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun, const char *aString, PRUint32 aLength);
     void InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun, const PRUnichar *aString, PRUint32 aLength);
 
     void InitTextRunUniscribe(gfxContext *aContext, gfxTextRun *aRun, const PRUnichar *aString, PRUint32 aLength);
 
+    already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
+    already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);
+
+    already_AddRefed<gfxWindowsFont> WhichFontSupportsChar(const nsTArray<nsRefPtr<FontEntry> >& fonts, PRUint32 ch);
+    void GetPrefFonts(const char *aLangGroup, nsTArray<nsRefPtr<FontEntry> >& array);
+    void GetCJKPrefFonts(nsTArray<nsRefPtr<FontEntry> >& array);
+
 private:
+
     nsCString mGenericFamily;
     nsTArray<nsRefPtr<FontEntry> > mFontEntries;
+    nsTArray<PRPackedBool> mFontNeedsBold;
+
+    const char *mItemLangGroup;  // used by pref-lang handling code
+
 };
 
 #endif /* GFX_WINDOWSFONTS_H */

@@ -42,7 +42,7 @@
 #ifndef nsBidiPresUtils_h___
 #define nsBidiPresUtils_h___
 
-#include "nsVoidArray.h"
+#include "nsTArray.h"
 #include "nsIFrame.h"
 #include "nsBidi.h"
 #include "nsBidiUtils.h"
@@ -105,6 +105,9 @@ struct nsBidiPositionResolve
   // Eessentially, this is the X position (relative to the rendering context) where the text was drawn + the font metric of the visual string to the left of the given logical position.
   // If the logical position was not found, set to kNotFound.
   PRInt32 visualLeftTwips;
+  // [out] Visual width of the character, in twips.
+  // If the logical position was not found, set to kNotFound.
+  PRInt32 visualWidth;
 };
 
 class nsBidiPresUtils {
@@ -114,11 +117,56 @@ public:
   PRBool IsSuccessful(void) const;
   
   /**
+   * Interface for the processor used by ProcessText. Used by process text to
+   * collect information about the width of subruns and to notify where each
+   * subrun should be rendered.
+   */
+  class BidiProcessor {
+  public:
+    virtual ~BidiProcessor() { }
+
+    /**
+     * Sets the current text with the given length and the given direction.
+     *
+     * @remark The reason that the function gives a string instead of an index
+     *  is that ProcessText copies and modifies the string passed to it, so
+     *  passing an index would be impossible.
+     * 
+     * @param aText The string of text.
+     * @param aLength The length of the string of text.
+     * @param aDirection The direction of the text. The string will never have
+     *  mixed direction.
+     */
+    virtual void SetText(const PRUnichar*   aText,
+                         PRInt32            aLength,
+                         nsBidiDirection    aDirection) = 0;
+
+    /**
+     * Returns the measured width of the text given in SetText. If SetText was
+     * not called with valid parameters, the result of this call is undefined.
+     * This call is guaranteed to only be called once between SetText calls.
+     * Will be invoked before DrawText.
+     */
+    virtual nscoord GetWidth() = 0;
+
+    /**
+     * Draws the text given in SetText to a rendering context. If SetText was
+     * not called with valid parameters, the result of this call is undefined.
+     * This call is guaranteed to only be called once between SetText calls.
+     * 
+     * @param aXOffset The offset of the left side of the substring to be drawn
+     *  from the beginning of the overall string passed to ProcessText.
+     * @param aWidth The width returned by GetWidth.
+     */
+    virtual void DrawText(nscoord   aXOffset,
+                          nscoord   aWidth) = 0;
+  };
+
+  /**
    * Make Bidi engine calculate the embedding levels of the frames that are
    * descendants of a given block frame.
    *
    * @param aBlockFrame          The block frame
-   * @param aFirstChild          The first child frame of aBlockFrame
    * @param aIsVisualFormControl [IN]  Set if we are in a form control on a
    *                                   visual page.
    *                                   @see nsBlockFrame::IsVisualFormControl
@@ -126,7 +174,6 @@ public:
    *  @lina 06/18/2000
    */
   nsresult Resolve(nsBlockFrame*   aBlockFrame,
-                   nsIFrame*       aFirstChild,
                    PRBool          aIsVisualFormControl);
 
   /**
@@ -149,21 +196,7 @@ public:
                              PRUnichar*      aText,
                              PRInt32&        aTextLength,
                              nsCharType      aCharType,
-                             PRBool          aIsOddLevel,
-                             PRBool          aIsBidiSystem,
-                             PRBool          aIsNewTextRunSystem);
-
-  /**
-   * Reorder Unicode text, taking into account bidi capabilities of the
-   * platform. The reordering includes symmetric swapping and removing
-   * control characters.
-   */
-  nsresult ReorderUnicodeText(PRUnichar*      aText,
-                              PRInt32&        aTextLength,
-                              nsCharType      aCharType,
-                              PRBool          aIsOddLevel,
-                              PRBool          aIsBidiSystem,
-                              PRBool          aIsNewTextRunSystem);
+                             PRBool          aIsOddLevel);
 
   /**
    * Return our nsBidi object (bidi reordering engine)
@@ -196,8 +229,8 @@ public:
                       nsBidiPositionResolve* aPosResolve = nsnull,
                       PRInt32                aPosResolveCount = 0)
   {
-    return ProcessText(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
-                       MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nsnull);
+    return ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
+                                          MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nsnull);
   }
   
   nscoord MeasureTextWidth(const PRUnichar*     aText,
@@ -207,8 +240,8 @@ public:
                            nsIRenderingContext& aRenderingContext)
   {
     nscoord length;
-    nsresult rv = ProcessText(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
-                              MODE_MEASURE, 0, 0, nsnull, 0, &length);
+    nsresult rv = ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
+                                                 MODE_MEASURE, 0, 0, nsnull, 0, &length);
     return NS_SUCCEEDED(rv) ? length : 0;
   }
 
@@ -257,19 +290,50 @@ public:
    */
   static nsBidiLevel GetFrameBaseLevel(nsIFrame* aFrame);
 
-private:
   enum Mode { MODE_DRAW, MODE_MEASURE };
+
+  /**
+   * Reorder plain text using the Unicode Bidi algorithm and send it to
+   * a processor for rendering or measuring
+   *
+   * @param[in] aText  the string to be processed (in logical order)
+   * @param aLength the number of characters in the string
+   * @param aBaseDirection the base direction of the string
+   *  NSBIDI_LTR - left-to-right string
+   *  NSBIDI_RTL - right-to-left string
+   * @param aPresContext the presentation context
+   * @param aprocessor the bidi processor
+   * @param aMode the operation to process
+   *  MODE_DRAW - invokes DrawText on the processor for each substring
+   *  MODE_MEASURE - does not invoke DrawText on the processor
+   *  Note that the string is always measured, regardless of mode
+   * @param[in,out] aPosResolve array of logical positions to resolve into
+   *  visual positions; can be nsnull if this functionality is not required
+   * @param aPosResolveCount number of items in the aPosResolve array
+   * @param[out] aWidth Pointer to where the width will be stored (may be null)
+   */
   nsresult ProcessText(const PRUnichar*       aText,
                        PRInt32                aLength,
                        nsBidiDirection        aBaseDirection,
                        nsPresContext*         aPresContext,
-                       nsIRenderingContext&   aRenderingContext,
+                       BidiProcessor&         aprocessor,
                        Mode                   aMode,
-                       nscoord                aX, // DRAW only
-                       nscoord                aY, // DRAW only
-                       nsBidiPositionResolve* aPosResolve,  /* may be null */
+                       nsBidiPositionResolve* aPosResolve,
                        PRInt32                aPosResolveCount,
-                       nscoord*               aWidth /* may be null */);
+                       nscoord*               aWidth);
+
+private:
+  nsresult ProcessTextForRenderingContext(const PRUnichar*       aText,
+                                          PRInt32                aLength,
+                                          nsBidiDirection        aBaseDirection,
+                                          nsPresContext*         aPresContext,
+                                          nsIRenderingContext&   aRenderingContext,
+                                          Mode                   aMode,
+                                          nscoord                aX, // DRAW only
+                                          nscoord                aY, // DRAW only
+                                          nsBidiPositionResolve* aPosResolve,  /* may be null */
+                                          PRInt32                aPosResolveCount,
+                                          nscoord*               aWidth /* may be null */);
 
   /**
    *  Create a string containing entire text content of this block.
@@ -362,22 +426,25 @@ private:
   
   /**
    * Helper method for Resolve()
-   * Truncate a text frame and possibly create a continuation frame with the
-   * remainder of its content.
+   * Truncate a text frame to the end of a single-directional run and possibly
+   * create a continuation frame for the remainder of its content.
    *
    * @param aFrame       the original frame
    * @param aNewFrame    [OUT] the new frame that was created
    * @param aFrameIndex  [IN/OUT] index of aFrame in mLogicalFrames
-   *
-   * If there is already a bidi continuation for this frame in mLogicalFrames,
-   * no new frame will be created. On exit aNewFrame will point to the existing
-   * bidi continuation and aFrameIndex will contain its index.
+   * @param aStart       [IN] the start of the content mapped by aFrame (and 
+   *                          any fluid continuations)
+   * @param aEnd         [IN] the offset of the end of the single-directional
+   *                          text run.
    * @see Resolve()
    * @see RemoveBidiContinuation()
    */
-  PRBool EnsureBidiContinuation(nsIFrame*       aFrame,
-                                nsIFrame**      aNewFrame,
-                                PRInt32&        aFrameIndex);
+  inline
+  void EnsureBidiContinuation(nsIFrame*       aFrame,
+                              nsIFrame**      aNewFrame,
+                              PRInt32&        aFrameIndex,
+                              PRInt32         aStart,
+                              PRInt32         aEnd);
 
   /**
    * Helper method for Resolve()
@@ -410,8 +477,8 @@ private:
   void StripBidiControlCharacters(PRUnichar* aText,
                                   PRInt32&   aTextLength) const;
   nsAutoString    mBuffer;
-  nsVoidArray     mLogicalFrames;
-  nsVoidArray     mVisualFrames;
+  nsTArray<nsIFrame*> mLogicalFrames;
+  nsTArray<nsIFrame*> mVisualFrames;
   nsDataHashtable<nsISupportsHashKey, PRInt32> mContentToFrameIndex;
   PRInt32         mArraySize;
   PRInt32*        mIndexMap;

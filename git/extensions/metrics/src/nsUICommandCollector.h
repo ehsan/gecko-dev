@@ -60,10 +60,10 @@ class nsUICommandCollector : public nsIObserver,
   NS_DECL_NSIDOMEVENTLISTENER
   NS_DECL_NSIMETRICSCOLLECTOR
   
-  static PLDHashOperator PR_CALLBACK AddCommandEventListener(
+  static PLDHashOperator AddCommandEventListener(
     const nsIDOMWindow* key, PRUint32 windowID, void* userArg);
 
-  static PLDHashOperator PR_CALLBACK RemoveCommandEventListener(
+  static PLDHashOperator RemoveCommandEventListener(
     const nsIDOMWindow* key, PRUint32 windowID, void* userArg);
 
   nsUICommandCollector();
@@ -104,6 +104,9 @@ class nsUICommandCollector : public nsIObserver,
 
   // Handles a TabMove event from the tabbrowser widget.
   nsresult HandleTabMoveEvent(nsIDOMEvent* event);
+
+  // Handles a popupshowing event from the tabbrowser widget.
+  nsresult HandlePopupShowingEvent(nsIDOMEvent* event);
 
   // Checks whether the given target id corresponds to a bookmark resource,
   // and if so, adds additional data about the bookmark to parentItem.

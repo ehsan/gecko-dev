@@ -43,15 +43,11 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE          = test_intl_uconv
+XPCSHELL_TESTS	= unit
 
+ifndef MOZ_ENABLE_LIBXUL
 MOZILLA_INTERNAL_API = 1
 
-REQUIRES	= \
-		string \
-		xpcom \
-		uconv \
-		locale \
-		$(NULL)
 
 CPPSRCS		= \
 		TestUConv.cpp \
@@ -65,10 +61,23 @@ endif
 
 SIMPLE_PROGRAMS	= $(CPPSRCS:.cpp=$(BIN_SUFFIX))
 
-XPCSHELL_TESTS = unit
+endif # MOZ_ENABLE_LIBXUL
+
+relativesrcdir	= intl/uconv/tests
+
+_TEST_FILES =	\
+		test_bug335816.html \
+		test_unicode_noncharacterescapes.html \
+		test_unicode_noncharacters_gb18030.html \
+		test_unicode_noncharacters_utf8.html \
+		test_utf8_overconsumption.html \
+		$(NULL)
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
 
 include $(topsrcdir)/config/rules.mk
 
+ifndef MOZ_ENABLE_LIBXUL
 INCLUDES	+= \
 		-I$(srcdir)/../ucvlatin \
 		-I$(srcdir)/../ucvja \
@@ -84,6 +93,7 @@ LIBS		+= \
 # needed for mac linux
 ifeq ($(OS_ARCH),Linux)
 ifneq ($(OS_RELEASE),1.2)
-OS_LIBS		+= /usr/lib/libdl.so
+OS_LIBS		+= -ldl
 endif
 endif
+endif # MOZ_ENABLE_LIBXUL

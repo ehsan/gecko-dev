@@ -38,10 +38,12 @@
 #include "nsIAtom.h"
 #include "nsSVGElement.h"
 
-NS_IMPL_ADDREF(nsSVGEnum::DOMAnimatedEnum)
-NS_IMPL_RELEASE(nsSVGEnum::DOMAnimatedEnum)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGEnum::DOMAnimatedEnum, mSVGElement)
 
-NS_INTERFACE_MAP_BEGIN(nsSVGEnum::DOMAnimatedEnum)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGEnum::DOMAnimatedEnum)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGEnum::DOMAnimatedEnum)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGEnum::DOMAnimatedEnum)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedEnumeration)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedEnumeration)
@@ -104,7 +106,7 @@ nsSVGEnum::SetBaseValue(PRUint16 aValue,
 
   while (tmp && tmp->mKey) {
     if (tmp->mVal == aValue) {
-      mAnimVal = mBaseVal = static_cast<PRUint8>(aValue);
+      mAnimVal = mBaseVal = PRUint8(aValue);
       aSVGElement->DidChangeEnum(mAttrEnum, aDoSetAttr);
       return NS_OK;
     }

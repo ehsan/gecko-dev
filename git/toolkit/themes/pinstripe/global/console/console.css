@@ -39,6 +39,10 @@
   == Styles used by the Error Console window.
   ======================================================================= */
 
+/* View buttons */
+@import "chrome://global/skin/viewbuttons.css";
+
+%include ../shared.inc
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 .console-box {
@@ -72,7 +76,7 @@
 }
 
 .console-msg-text {
-  white-space: -moz-pre-wrap !important;
+  white-space: pre-wrap !important;
 }
 .console-icon {
   list-style-image: inherit;
@@ -128,93 +132,96 @@
   color: #FFF !important;  
 }
 
-/* ::::: icons ::::: */
+/* ::::: row colors ::::: */
 
-.console-row {
-  list-style-image: url("chrome://global/skin/console/console-bullets.png");
-  -moz-image-region: rect(0px, 16px, 16px, 0px);
-}
 .console-row[type="error"],
 .console-row[type="exception"] {
   background-color: #FFD0DC;
 }
 
 .console-row[type="warning"] {
-  -moz-image-region: rect(0px, 32px, 16px, 16px);
   background-color: #F8F3CC;
 }
 
 .console-row[type="message"] {
-  -moz-image-region: rect(0px, 48px, 16px, 32px);
   background-color: #D3EDFF;
 }
 
 /* ::::: toolbars ::::: */
 
+#ToolbarEval {
+  -moz-appearance: none;
+  background: @scopeBarBackground@;
+  border-bottom: @scopeBarSeparatorBorder@;
+  padding: 2px;
+}
+
+#ToolbarEval > label {
+  font-weight: bold;
+  color: @scopeBarTitleColor@;
+}
+
 #TextfieldEval {
   margin: 2px !important;
-  
 }
 
 #ButtonEval {
-  margin: 2px 2px 2px 0px !important;
-  -moz-appearance: button-bevel;
+  margin: 0 4px;
+  padding: 1px 10px;
+  -moz-appearance: none;
+  -moz-border-radius: 100%;
+  border: @roundButtonBorder@;
+  background: @roundButtonBackground@;
+  -moz-box-shadow: @roundButtonShadow@;
 }
 
+#ButtonEval > .toolbarbutton-text {
+  margin: 0 !important;
+}
+
+#ButtonEval:hover:active {
+  text-shadow: @loweredShadow@;
+  background: @roundButtonPressedBackground@;
+  -moz-box-shadow: @roundButtonPressedShadow@;
+}
 
 toolbarseparator {
   min-height: 1em;
+  background-image: none;
 }
 
 /* Toolbar icons */
 
-toolbar#ToolbarMode {
-  padding-right: 5px;
-  padding-left: 5px;
+#ToolbarMode {
+  -moz-box-pack: center;
 }
 
-toolbar#ToolbarMode toolbarbutton {
-  list-style-image: url("chrome://global/skin/console/console-toolbar.png");
-  -moz-box-orient: vertical;
-}
-
-#Console\:modeWarnings {
-  -moz-image-region: rect(0px, 24px, 24px, 0px);
-}
-#Console\:modeWarnings:hover:active {
-  -moz-image-region: rect(24px, 24px, 48px, 0px);
-}
-
-#Console\:modeMessages {
-  -moz-image-region: rect(0px, 48px, 24px, 24px);
-}
-#Console\:modeMessages:hover:active {
-  -moz-image-region: rect(24px, 48px, 48px, 24px);
-}
-
-#Console\:modeErrors {
-  -moz-image-region: rect(0px, 72px, 24px, 48px);
-}
-#Console\:modeErrors:hover:active {
-  -moz-image-region: rect(24px, 72px, 48px, 48px);
-}
-
-#Console\:modeAll {
-  -moz-image-region: rect(0px, 96px, 24px, 72px);
-}
-#Console\:modeAll:hover:active {
-  -moz-image-region: rect(24px, 96px, 48px, 72px);
+#ToolbarMode toolbarbutton > .toolbarbutton-icon {
+  display: none;
 }
 
 #Console\:clear {
-  -moz-image-region: rect(0px, 120px, 24px, 96px);
-}
-#Console\:clear:hover:active {
-  -moz-image-region: rect(24px, 120px, 48px, 96px);
+  -moz-box-orient: vertical;
+  -moz-box-align: center;
+  font: menu;
+  text-shadow: @loweredShadow@;
+  margin: 4px 0 9px;
+  padding: 0 4px;
+  border: 1px solid @toolbarbuttonBorderColor@;
+  -moz-border-radius: @toolbarbuttonCornerRadius@;
+  -moz-box-shadow: @loweredShadow@;
+  background: @toolbarbuttonBackground@;
+  -moz-background-origin: border;
 }
 
-#ConsoleBox {
-  margin-bottom: 14px;
-  border-bottom: 1px solid #bebebe; 
+#Console\:clear:active:hover {
+  background: @toolbarbuttonPressedBackgroundColor@;
+  text-shadow: @loweredShadow@;
+  -moz-box-shadow: @toolbarbuttonPressedInnerShadow@, @loweredShadow@;
 }
 
+:root:not([active]) #Console\:clear {
+  color: @toolbarbuttonInactiveFontColor@ !important; /* remove this when we support click-through */
+  border-color: @toolbarbuttonInactiveBorderColor@;
+  background-image: @toolbarbuttonInactiveBackgroundImage@;
+}

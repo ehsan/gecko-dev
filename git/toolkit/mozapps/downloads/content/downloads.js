@@ -27,6 +27,7 @@
 #   Josh Aas <josh@mozilla.com>
 #   Shawn Wilsher <me@shawnwilsher.com> (v3.0)
 #   Edward Lee <edward.lee@engineering.uiuc.edu>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,31 +43,53 @@
 #
 # ***** END LICENSE BLOCK *****
 
-///////////////////////////////////////////////////////////////////////////////
-// Globals
+////////////////////////////////////////////////////////////////////////////////
+//// Globals
 
 const PREF_BDM_CLOSEWHENDONE = "browser.download.manager.closeWhenDone";
 const PREF_BDM_ALERTONEXEOPEN = "browser.download.manager.alertOnEXEOpen";
-const PREF_BDM_RETENTION = "browser.download.manager.retention";
-const PREF_BDM_DISPLAYEDHISTORYDAYS =
-  "browser.download.manager.displayedHistoryDays";
+const PREF_BDM_SCANWHENDONE = "browser.download.manager.scanWhenDone";
 
 const nsLocalFile = Components.Constructor("@mozilla.org/file/local;1",
                                            "nsILocalFile", "initWithPath");
 
 var Cc = Components.classes;
 var Ci = Components.interfaces;
+let Cu = Components.utils;
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/DownloadUtils.jsm");
+Cu.import("resource://gre/modules/PluralForm.jsm");
 
-var gDownloadManager  = Cc["@mozilla.org/download-manager;1"].
-                        getService(Ci.nsIDownloadManager);
-var gDownloadListener     = null;
-var gDownloadsView        = null;
-var gDownloadsActiveTitle = null;
-var gDownloadsOtherLabel  = null;
-var gDownloadsOtherTitle  = null;
-var gDownloadInfoPopup    = null;
-var gUserInterfered       = false;
-var gSearching            = false;
+const nsIDM = Ci.nsIDownloadManager;
+
+let gDownloadManager = Cc["@mozilla.org/download-manager;1"].getService(nsIDM);
+let gDownloadListener = null;
+let gDownloadsView = null;
+let gSearchBox = null;
+let gSearchTerms = [];
+let gBuilder = 0;
+
+// This variable is used when performing commands on download items and gives
+// the command the ability to do something after all items have been operated
+// on. The following convention is used to handle the value of the variable:
+// whenever we aren't performing a command, the value is |undefined|; just
+// before executing commands, the value will be set to |null|; and when
+// commands want to create a callback, they set the value to be a callback
+// function to be executed after all download items have been visited.
+let gPerformAllCallback;
+
+// Control the performance of the incremental list building by setting how many
+// milliseconds to wait before building more of the list and how many items to
+// add between each delay.
+const gListBuildDelay = 300;
+const gListBuildChunk = 3;
+
+// Array of download richlistitem attributes to check when searching
+const gSearchAttributes = [
+  "target",
+  "status",
+  "dateTime",
+];
 
 // If the user has interacted with the window in a significant way, we should
 // not auto-close the window. Tough UI decisions about what is "significant."
@@ -76,83 +99,35 @@ var gUserInteracted = false;
 // bundle on startup.
 let gStr = {
   paused: "paused",
-  statusFormat: "statusFormat2",
-  transferSameUnits: "transferSameUnits",
-  transferDiffUnits: "transferDiffUnits",
-  transferNoTotal: "transferNoTotal",
-  timeMinutesLeft: "timeMinutesLeft",
-  timeSecondsLeft: "timeSecondsLeft",
-  timeFewSeconds: "timeFewSeconds",
-  timeUnknown: "timeUnknown",
-  units: ["bytes", "kilobyte", "megabyte", "gigabyte"],
-
+  cannotPause: "cannotPause",
+  doneStatus: "doneStatus",
+  doneSize: "doneSize",
+  doneSizeUnknown: "doneSizeUnknown",
+  stateFailed: "stateFailed",
+  stateCanceled: "stateCanceled",
+  stateBlockedParentalControls: "stateBlocked",
+  stateBlockedPolicy: "stateBlockedPolicy",
+  stateDirty: "stateDirty",
+  yesterday: "yesterday",
+  monthDate: "monthDate",
+  downloadsTitleFiles: "downloadsTitleFiles",
+  downloadsTitlePercent: "downloadsTitlePercent",
   fileExecutableSecurityWarningTitle: "fileExecutableSecurityWarningTitle",
   fileExecutableSecurityWarningDontAsk: "fileExecutableSecurityWarningDontAsk"
 };
 
-// base query used to display download items, use replaceInsert to set WHERE
-let gBaseQuery = "SELECT id, target, name, source, state, startTime, " +
-                        "referrer, currBytes, maxBytes " +
-                 "FROM moz_downloads " +
-                 "WHERE #1 " +
-                 "ORDER BY endTime ASC, startTime ASC";
+// The statement to query for downloads that are active or match the search
+let gStmt = null;
 
-///////////////////////////////////////////////////////////////////////////////
-// Utility Functions 
+////////////////////////////////////////////////////////////////////////////////
+//// Start/Stop Observers
 
-function fireEventForElement(aElement, aEventType)
+function downloadCompleted(aDownload)
 {
-  var e = document.createEvent("Events");
-  e.initEvent("download-" + aEventType, true, true);
-  
-  aElement.dispatchEvent(e);
-}
+  // The download is changing state, so update the clear list button
+  updateClearListButton();
 
-function createDownloadItem(aID, aFile, aTarget, aURI, aState, aProgress,
-                            aStartTime, aReferrer, aCurrBytes, aMaxBytes)
-{
-  var dl = document.createElement("richlistitem");
-  dl.setAttribute("type", "download");
-  dl.setAttribute("id", "dl" + aID);
-  dl.setAttribute("dlid", aID);
-  dl.setAttribute("image", "moz-icon://" + aFile + "?size=32");
-  dl.setAttribute("file", aFile);
-  dl.setAttribute("target", aTarget);
-  dl.setAttribute("uri", aURI);
-  dl.setAttribute("state", aState);
-  dl.setAttribute("progress", aProgress);
-  dl.setAttribute("startTime", aStartTime);
-  if (aReferrer)
-    dl.setAttribute("referrer", aReferrer);
-  dl.setAttribute("currBytes", aCurrBytes);
-  dl.setAttribute("maxBytes", aMaxBytes);
-  dl.setAttribute("lastSeconds", Infinity);
-
-  updateStatus(dl);
-
-  try {
-    var file = getLocalFileFromNativePathOrUrl(aFile);
-    dl.setAttribute("path", file.nativePath || file.path);
-    return dl;
-  }
-  catch (ex) {
-    // aFile might not be a file: url or a valid native path
-    // see bug #392386 for details
-  }
-  return null;
-}
-
-function getDownload(aID)
-{
-  return document.getElementById("dl" + aID);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Start/Stop Observers
-
-function downloadCompleted(aDownload) 
-{
-  // Wrap this in try...catch since this can be called while shutting down... 
+  // Wrap this in try...catch since this can be called while shutting down...
   // it doesn't really matter if it fails then since well.. we're shutting down
   // and there's no UI to update!
   try {
@@ -160,20 +135,27 @@ function downloadCompleted(aDownload)
 
     // Update attributes now that we've finished
     dl.setAttribute("startTime", Math.round(aDownload.startTime / 1000));
+    dl.setAttribute("endTime", Date.now());
+    dl.setAttribute("currBytes", aDownload.amountTransferred);
+    dl.setAttribute("maxBytes", aDownload.size);
 
-    // If we are displaying search results, we do not want to add it to the list
-    // of completed downloads
-    if (!gSearching)
-      gDownloadsView.insertBefore(dl, gDownloadsOtherTitle.nextSibling);
-    else
-      gDownloadsView.removeChild(dl);
+    // Move the download below active if it should stay in the list
+    if (downloadMatchesSearch(dl)) {
+      // Iterate down until we find a non-active download
+      let next = dl.nextSibling;
+      while (next && next.inProgress)
+        next = next.nextSibling;
+
+      // Move the item
+      gDownloadsView.insertBefore(dl, next);
+    } else {
+      removeFromView(dl);
+    }
 
     // getTypeFromFile fails if it can't find a type for this file.
     try {
       // Refresh the icon, so that executable icons are shown.
-      const kExternalHelperAppServContractID =
-        "@mozilla.org/uriloader/external-helper-app-service;1";
-      var mimeService = Cc[kExternalHelperAppServContractID].
+      var mimeService = Cc["@mozilla.org/mime;1"].
                         getService(Ci.nsIMIMEService);
       var contentType = mimeService.getTypeFromFile(aDownload.targetFile);
 
@@ -183,10 +165,8 @@ function downloadCompleted(aDownload)
       listItem.setAttribute("image", oldImage + "&contentType=" + contentType);
     } catch (e) { }
 
-    if (gDownloadManager.activeDownloadCount == 0) {
-      gDownloadsActiveTitle.hidden = true;
+    if (gDownloadManager.activeDownloadCount == 0)
       document.title = document.documentElement.getAttribute("statictitle");
-    }
   }
   catch (e) { }
 }
@@ -196,19 +176,17 @@ function autoRemoveAndClose(aDownload)
   var pref = Cc["@mozilla.org/preferences-service;1"].
              getService(Ci.nsIPrefBranch);
 
-  if (aDownload && (pref.getIntPref(PREF_BDM_RETENTION) == 0)) {
-    // The download manager backend removes this, but we have to update the UI!
-    var dl = getDownload(aDownload.id);
-    if (dl)
-      dl.parentNode.removeChild(dl);
-  }
-  
   if (gDownloadManager.activeDownloadCount == 0) {
     // For the moment, just use the simple heuristic that if this window was
     // opened by the download process, rather than by the user, it should
     // auto-close if the pref is set that way. If the user opened it themselves,
-    // it should not close until they explicitly close it.
-    var autoClose = pref.getBoolPref(PREF_BDM_CLOSEWHENDONE);
+    // it should not close until they explicitly close it.  Additionally, the
+    // preference to control the feature may not be set, so defaulting to
+    // keeping the window open.
+    let autoClose = false;
+    try {
+      autoClose = pref.getBoolPref(PREF_BDM_CLOSEWHENDONE);
+    } catch (e) { }
     var autoOpened =
       !window.opener || window.opener.location.href == window.location.href;
     if (autoClose && autoOpened && !gUserInteracted) {
@@ -216,33 +194,33 @@ function autoRemoveAndClose(aDownload)
       return true;
     }
   }
-  
+
   return false;
 }
 
 // This function can be overwritten by extensions that wish to place the
-// Download Window in another part of the UI. 
+// Download Window in another part of the UI.
 function gCloseDownloadManager()
 {
   window.close();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //// Download Event Handlers
 
 function cancelDownload(aDownload)
 {
   gDownloadManager.cancelDownload(aDownload.getAttribute("dlid"));
 
-  // XXXben - 
+  // XXXben -
   // If we got here because we resumed the download, we weren't using a temp file
   // because we used saveURL instead. (this is because the proper download mechanism
   // employed by the helper app service isn't fully accessible yet... should be fixed...
   // talk to bz...)
-  // the upshot is we have to delete the file if it exists. 
+  // the upshot is we have to delete the file if it exists.
   var f = getLocalFileFromNativePathOrUrl(aDownload.getAttribute("file"));
 
-  if (f.exists()) 
+  if (f.exists())
     f.remove(false);
 }
 
@@ -259,7 +237,6 @@ function resumeDownload(aDownload)
 
 function removeDownload(aDownload)
 {
-  removeFromView(aDownload);
   gDownloadManager.removeDownload(aDownload.getAttribute("dlid"));
 }
 
@@ -274,39 +251,31 @@ function showDownload(aDownload)
   var f = getLocalFileFromNativePathOrUrl(aDownload.getAttribute("file"));
 
   try {
+    // Show the directory containing the file and select the file
     f.reveal();
-  } catch (ex) {
-    // if reveal failed for some reason (eg on unix it's not currently
-    // implemented), send the file: URL window rooted at the parent to 
-    // the OS handler for that protocol
-    var parent = f.parent;
-    if (parent)
+  } catch (e) {
+    // If reveal fails for some reason (e.g., it's not implemented on unix or
+    // the file doesn't exist), try using the parent if we have it.
+    let parent = f.parent.QueryInterface(Ci.nsILocalFile);
+    if (!parent)
+      return;
+
+    try {
+      // "Double click" the parent directory to show where the file should be
+      parent.launch();
+    } catch (e) {
+      // If launch also fails (probably because it's not implemented), let the
+      // OS handler try to open the parent
       openExternal(parent);
+    }
   }
 }
 
 function onDownloadDblClick(aEvent)
 {
-  var item = aEvent.target;
-  if (item.getAttribute("type") == "download" && aEvent.button == 0) {
-    var state = parseInt(item.getAttribute("state"));
-    switch (state) {
-      case Ci.nsIDownloadManager.DOWNLOAD_FINISHED:
-        gDownloadViewController.doCommand("cmd_open");
-        break;
-      case Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING:  
-        gDownloadViewController.doCommand("cmd_pause");
-        break;
-      case Ci.nsIDownloadManager.DOWNLOAD_PAUSED:
-        gDownloadViewController.doCommand("cmd_resume");
-        break;
-      case Ci.nsIDownloadManager.DOWNLOAD_CANCELED:
-      case Ci.nsIDownloadManager.DOWNLOAD_BLOCKED:
-      case Ci.nsIDownloadManager.DOWNLOAD_FAILED:
-        gDownloadViewController.doCommand("cmd_retry");
-        break;
-    }
-  }
+  // Only do the default action for double primary clicks
+  if (aEvent.button == 0 && aEvent.target.selected)
+    doDefaultForSelected();
 }
 
 function openDownload(aDownload)
@@ -319,6 +288,21 @@ function openDownload(aDownload)
     try {
       dontAsk = !pref.getBoolPref(PREF_BDM_ALERTONEXEOPEN);
     } catch (e) { }
+
+#ifdef XP_WIN
+#ifndef WINCE
+    // On Vista and above, we rely on native security prompting for
+    // downloaded content unless it's disabled.
+    try {
+      var sysInfo = Cc["@mozilla.org/system-info;1"].
+                    getService(Ci.nsIPropertyBag2);
+      if (parseFloat(sysInfo.getProperty("version")) >= 6 &&
+          pref.getBoolPref(PREF_BDM_SCANWHENDONE)) {
+        dontAsk = true;
+      }
+    } catch (ex) { }
+#endif
+#endif
 
     if (!dontAsk) {
       var strings = document.getElementById("downloadStrings");
@@ -333,12 +317,21 @@ function openDownload(aDownload)
       var checkbox = { value: false };
       var open = promptSvc.confirmCheck(window, title, message, dontAsk, checkbox);
 
-      if (!open) 
+      if (!open)
         return;
       pref.setBoolPref(PREF_BDM_ALERTONEXEOPEN, !checkbox.value);
-    }       
+    }
   }
   try {
+    try {
+      let download = gDownloadManager.getDownload(aDownload.getAttribute("dlid"));
+      let mimeInfo = download.MIMEInfo;
+      if (mimeInfo.preferredAction == mimeInfo.useHelperApp) {
+        mimeInfo.launchWithFile(f);
+        return;
+      }
+    } catch (ex) {
+    }
     f.launch();
   } catch (ex) {
     // if launch fails, try sending it through the system's external
@@ -349,50 +342,7 @@ function openDownload(aDownload)
 
 function openReferrer(aDownload)
 {
-  var uriString;
-  if (aDownload.hasAttribute("referrer"))
-    uriString = aDownload.getAttribute("referrer");
-  else
-    uriString = aDownload.getAttribute("uri");
-
-  openURL(uriString);
-}
-
-function showDownloadInfo(aDownload)
-{
-  gUserInteracted = true;
-
-  var popupTitle    = document.getElementById("information-title");
-  var uriLabel      = document.getElementById("information-uri");
-  var locationLabel = document.getElementById("information-location");
-
-  // Generate the proper title (the start time of the download)
-  var dts = Cc["@mozilla.org/intl/scriptabledateformat;1"].
-            getService(Ci.nsIScriptableDateFormat);  
-  var dateStarted = new Date(parseInt(aDownload.getAttribute("startTime")));
-  dateStarted = dts.FormatDateTime("",
-                                   dts.dateFormatLong,
-                                   dts.timeFormatNoSeconds,
-                                   dateStarted.getFullYear(),
-                                   dateStarted.getMonth() + 1,
-                                   dateStarted.getDate(),
-                                   dateStarted.getHours(),
-                                   dateStarted.getMinutes(), 0);
-  popupTitle.setAttribute("value", dateStarted);
-  // Add proper uri and path
-  var uri = "beltzner";
-  if (aDownload.hasAttribute("referrer"))
-    uri = aDownload.getAttribute("referrer");
-  else
-    uri = aDownload.getAttribute("uri");
-  uriLabel.label = uri;
-  uriLabel.setAttribute("tooltiptext", uri);
-  var path = aDownload.getAttribute("path");
-  locationLabel.label = path;
-  locationLabel.setAttribute("tooltiptext", path);
-
-  var button = document.getAnonymousElementByAttribute(aDownload, "anonid", "info");
-  gDownloadInfoPopup.openPopup(button, "after_end", 0, 0, false, false);
+  openURL(getReferrerOrSource(aDownload));
 }
 
 function copySourceLocation(aDownload)
@@ -401,68 +351,100 @@ function copySourceLocation(aDownload)
   var clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].
                   getService(Ci.nsIClipboardHelper);
 
-  clipboard.copyString(uri);
+  // Check if we should initialize a callback
+  if (gPerformAllCallback === null) {
+    let uris = [];
+    gPerformAllCallback = function(aURI) aURI ? uris.push(aURI) :
+      clipboard.copyString(uris.join("\n"));
+  }
+
+  // We have a callback to use, so use it to add a uri
+  if (typeof gPerformAllCallback == "function")
+    gPerformAllCallback(uri);
+  else {
+    // It's a plain copy source, so copy it
+    clipboard.copyString(uri);
+  }
 }
 
-// This is called by the progress listener. We don't actually use the event
-// system here to minimize time wastage. 
+/**
+ * Remove the currently shown downloads from the download list.
+ */
+function clearDownloadList() {
+  // Clear the whole list if there's no search
+  if (gSearchTerms == "") {
+    gDownloadManager.cleanUp();
+    return;
+  }
+
+  // Remove each download starting from the end until we hit a download
+  // that is in progress
+  let item;
+  while ((item = gDownloadsView.lastChild) && !item.inProgress)
+    removeDownload(item);
+
+  // Clear the input as if the user did it and move focus to the list
+  gSearchBox.value = "";
+  gSearchBox.doCommand();
+  gDownloadsView.focus();
+}
+
+// This is called by the progress listener.
 var gLastComputedMean = -1;
 var gLastActiveDownloads = 0;
 function onUpdateProgress()
 {
-  if (gDownloadManager.activeDownloads == 0) {
+  let numActiveDownloads = gDownloadManager.activeDownloadCount;
+
+  // Use the default title and reset "last" values if there's no downloads
+  if (numActiveDownloads == 0) {
     document.title = document.documentElement.getAttribute("statictitle");
     gLastComputedMean = -1;
+    gLastActiveDownloads = 0;
+
     return;
   }
 
   // Establish the mean transfer speed and amount downloaded.
   var mean = 0;
   var base = 0;
-  var numActiveDownloads = 0;
   var dls = gDownloadManager.activeDownloads;
   while (dls.hasMoreElements()) {
-    let dl = dls.getNext();
-    dl.QueryInterface(Ci.nsIDownload);
+    let dl = dls.getNext().QueryInterface(Ci.nsIDownload);
     if (dl.percentComplete < 100 && dl.size > 0) {
       mean += dl.amountTransferred;
       base += dl.size;
     }
-    numActiveDownloads++;
   }
 
-  // we're not downloading anything at the moment,
-  // but we already downloaded something.
-  if (base == 0) {
-    mean = 100;
-  } else {
+  // Calculate the percent transferred, unless we don't have a total file size
+  let title = gStr.downloadsTitlePercent;
+  if (base == 0)
+    title = gStr.downloadsTitleFiles;
+  else
     mean = Math.floor((mean / base) * 100);
-  }
 
   // Update title of window
   if (mean != gLastComputedMean || gLastActiveDownloads != numActiveDownloads) {
     gLastComputedMean = mean;
     gLastActiveDownloads = numActiveDownloads;
 
-    let strings = document.getElementById("downloadStrings");
-    if (numActiveDownloads > 1) {
-      document.title = strings.getFormattedString("downloadsTitleMultiple",
-                                                  [mean, numActiveDownloads]);
-    } else {
-      document.title = strings.getFormattedString("downloadsTitle", [mean]);
-    }
+    // Get the correct plural form and insert number of downloads and percent
+    title = PluralForm.get(numActiveDownloads, title);
+    title = replaceInsert(title, 1, numActiveDownloads);
+    title = replaceInsert(title, 2, mean);
+
+    document.title = title;
   }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //// Startup, Shutdown
-function Startup() 
+
+function Startup()
 {
-  gDownloadsView        = document.getElementById("downloadView");
-  gDownloadsActiveTitle = document.getElementById("active-downloads-title");
-  gDownloadsOtherLabel  = document.getElementById("other-downloads");
-  gDownloadsOtherTitle  = document.getElementById("other-downloads-title");
-  gDownloadInfoPopup    = document.getElementById("information");
+  gDownloadsView = document.getElementById("downloadView");
+  gSearchBox = document.getElementById("searchbox");
 
   // convert strings to those in the string bundle
   let (sb = document.getElementById("downloadStrings")) {
@@ -471,190 +453,310 @@ function Startup()
       gStr[name] = typeof value == "string" ? getStr(value) : value.map(getStr);
   }
 
-  buildDefaultView();
-
-  // View event listeners
-  gDownloadsView.addEventListener("dblclick", onDownloadDblClick, false);
+  initStatement();
+  buildDownloadList(true);
 
   // The DownloadProgressListener (DownloadProgressListener.js) handles progress
-  // notifications. 
+  // notifications.
   gDownloadListener = new DownloadProgressListener();
   gDownloadManager.addListener(gDownloadListener);
+
+  // If the UI was displayed because the user interacted, we need to make sure
+  // we update gUserInteracted accordingly.
+  if (window.arguments[1] == Ci.nsIDownloadManagerUI.REASON_USER_INTERACTED)
+    gUserInteracted = true;
 
   // downloads can finish before Startup() does, so check if the window should
   // close and act accordingly
   if (!autoRemoveAndClose())
     gDownloadsView.focus();
 
-  var obs = Components.classes["@mozilla.org/observer-service;1"].
-            getService(Components.interfaces.nsIObserverService);
-  obs.addObserver(clearDownloadsObserver, "download-manager-clear-history", false);
+  let obs = Cc["@mozilla.org/observer-service;1"].
+            getService(Ci.nsIObserverService);
+  obs.addObserver(gDownloadObserver, "download-manager-remove-download", false);
+  obs.addObserver(gDownloadObserver, "private-browsing", false);
+
+  // Clear the search box and move focus to the list on escape from the box
+  gSearchBox.addEventListener("keypress", function(e) {
+    if (e.keyCode == e.DOM_VK_ESCAPE) {
+      // Move focus to the list instead of closing the window
+      gDownloadsView.focus();
+      e.preventDefault();
+    }
+  }, false);
 }
 
-function Shutdown() 
+function Shutdown()
 {
   gDownloadManager.removeListener(gDownloadListener);
 
-  var obs = Components.classes["@mozilla.org/observer-service;1"].
-            getService(Components.interfaces.nsIObserverService);
-  obs.removeObserver(clearDownloadsObserver, "download-manager-clear-history");
+  let obs = Cc["@mozilla.org/observer-service;1"].
+            getService(Ci.nsIObserverService);
+  obs.removeObserver(gDownloadObserver, "private-browsing");
+  obs.removeObserver(gDownloadObserver, "download-manager-remove-download");
+
+  clearTimeout(gBuilder);
+  gStmt.reset();
+  gStmt.finalize();
 }
 
-var clearDownloadsObserver = {
-  observe: function cdo_observe() {
-    // Rebuild the default view
-    buildDefaultView();
+let gDownloadObserver = {
+  observe: function gdo_observe(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "download-manager-remove-download":
+        // A null subject here indicates "remove multiple", so we just rebuild.
+        if (!aSubject) {
+          // Rebuild the default view
+          buildDownloadList(true);
+          break;
+        }
+
+        // Otherwise, remove a single download
+        let id = aSubject.QueryInterface(Ci.nsISupportsPRUint32);
+        let dl = getDownload(id.data);
+        removeFromView(dl);
+        break;
+      case "private-browsing":
+        if (aData == "enter" || aData == "exit") {
+          // We need to reset the title here, because otherwise the title of
+          // the download manager would still reflect the progress of current
+          // active downloads, if any, after switching the private browsing
+          // mode, even though the downloads will no longer be accessible.
+          // If any download is auto-started after switching the private
+          // browsing mode, the title will be updated as needed by the progress
+          // listener.
+          document.title = document.documentElement.getAttribute("statictitle");
+
+          // We might get this notification before the download manager
+          // service, so the new database connection might not be ready
+          // yet.  Defer this until all private-browsing notifications
+          // have been processed.
+          setTimeout(function() {
+            initStatement();
+            buildDownloadList(true);
+          }, 0);
+        }
+        break;
+    }
   }
 };
 
-///////////////////////////////////////////////////////////////////////////////
-// View Context Menus
+////////////////////////////////////////////////////////////////////////////////
+//// View Context Menus
+
 var gContextMenus = [
   // DOWNLOAD_DOWNLOADING
-  ["menuitem_pause", "menuitem_cancel", "menuseparator_copy_location",
-   "menuitem_copyLocation"],
+  [
+    "menuitem_pause"
+    , "menuitem_cancel"
+    , "menuseparator"
+    , "menuitem_show"
+    , "menuseparator"
+    , "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+  ],
   // DOWNLOAD_FINISHED
-  ["menuitem_open", "menuitem_show", "menuitem_remove",
-   "menuseparator_copy_location", "menuitem_copyLocation"],
+  [
+    "menuitem_open"
+    , "menuitem_show"
+    , "menuseparator"
+    , "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+    , "menuseparator"
+    , "menuitem_removeFromList"
+  ],
   // DOWNLOAD_FAILED
-  ["menuitem_retry", "menuitem_remove", "menuseparator_copy_location",
-   "menuitem_copyLocation"],
+  [
+    "menuitem_retry"
+    , "menuseparator"
+    , "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+    , "menuseparator"
+    , "menuitem_removeFromList"
+  ],
   // DOWNLOAD_CANCELED
-  ["menuitem_retry", "menuitem_remove", "menuseparator_copy_location",
-   "menuitem_copyLocation"],
+  [
+    "menuitem_retry"
+    , "menuseparator"
+    , "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+    , "menuseparator"
+    , "menuitem_removeFromList"
+  ],
   // DOWNLOAD_PAUSED
-  ["menuitem_resume", "menuitem_cancel", "menuseparator_copy_location",
-   "menuitem_copyLocation"],
+  [
+    "menuitem_resume"
+    , "menuitem_cancel"
+    , "menuseparator"
+    , "menuitem_show"
+    , "menuseparator"
+    , "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+  ],
   // DOWNLOAD_QUEUED
-  ["menuitem_cancel", "menuseparator_copy_location",
-   "menuitem_copyLocation"],
-  // DOWNLOAD_BLOCKED
-  ["menuitem_retry", "menuitem_remove", "menuseparator_copy_location",
-   "menuitem_copyLocation"],
+  [
+    "menuitem_cancel"
+    , "menuseparator"
+    , "menuitem_show"
+    , "menuseparator"
+    , "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+  ],
+  // DOWNLOAD_BLOCKED_PARENTAL
+  [
+    "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+    , "menuseparator"
+    , "menuitem_removeFromList"
+  ],
   // DOWNLOAD_SCANNING
-  ["menuitem_copyLocation"]
+  [
+    "menuitem_show"
+    , "menuseparator"
+    , "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+  ],
+  // DOWNLOAD_DIRTY
+  [
+    "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+    , "menuseparator"
+    , "menuitem_removeFromList"
+  ],
+  // DOWNLOAD_BLOCKED_POLICY
+  [
+    "menuitem_openReferrer"
+    , "menuitem_copyLocation"
+    , "menuseparator"
+    , "menuitem_selectAll"
+    , "menuseparator"
+    , "menuitem_removeFromList"
+  ]
 ];
 
 function buildContextMenu(aEvent)
 {
   if (aEvent.target.id != "downloadContextMenu")
     return false;
-    
+
   var popup = document.getElementById("downloadContextMenu");
   while (popup.hasChildNodes())
     popup.removeChild(popup.firstChild);
-  
+
   if (gDownloadsView.selectedItem) {
-    var idx = parseInt(gDownloadsView.selectedItem.getAttribute("state"));
+    let dl = gDownloadsView.selectedItem;
+    let idx = parseInt(dl.getAttribute("state"));
     if (idx < 0)
       idx = 0;
-    
+
     var menus = gContextMenus[idx];
-    for (var i = 0; i < menus.length; ++i)
-      popup.appendChild(document.getElementById(menus[i]).cloneNode(true));
-    
+    for (let i = 0; i < menus.length; ++i) {
+      let menuitem = document.getElementById(menus[i]).cloneNode(true);
+      let cmd = menuitem.getAttribute("cmd");
+      if (cmd)
+        menuitem.disabled = !gDownloadViewController.isCommandEnabled(cmd, dl);
+
+      popup.appendChild(menuitem);
+    }
+
     return true;
   }
-  
+
   return false;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //// Drag and Drop
 
 var gDownloadDNDObserver =
 {
-  onDragOver: function (aEvent, aFlavour, aDragSession)
+  onDragOver: function (aEvent)
   {
-    aDragSession.canDrop = true;
+    var types = aEvent.dataTransfer.types;
+    if (types.contains("text/uri-list") ||
+        types.contains("text/x-moz-url") ||
+        types.contains("text/plain"))
+      aEvent.preventDefault();
   },
-  
-  onDrop: function(aEvent, aXferData, aDragSession)
+
+  onDrop: function(aEvent)
   {
-    var split = aXferData.data.split("\n");
-    var url = split[0];
-    if (url != aXferData.data) {  //do nothing, not a valid URL
-      var name = split[1];
-      saveURL(url, name, null, true, true);
+    var dt = aEvent.dataTransfer;
+    var url = dt.getData("URL");
+    var name;
+    if (!url) {
+      url = dt.getData("text/x-moz-url") || dt.getData("text/plain");
+      [url, name] = url.split("\n");
     }
-  },
-  _flavourSet: null,  
-  getSupportedFlavours: function ()
-  {
-    if (!this._flavourSet) {
-      this._flavourSet = new FlavourSet();
-      this._flavourSet.appendFlavour("text/x-moz-url");
-      this._flavourSet.appendFlavour("text/unicode");
-    }
-    return this._flavourSet;
+    if (url)
+      saveURL(url, name ? name : url, null, true, true);
   }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //// Command Updating and Command Handlers
 
 var gDownloadViewController = {
-  supportsCommand: function(aCommand)
+  isCommandEnabled: function(aCommand, aItem)
   {
-    var commandNode = document.getElementById(aCommand);
-    return commandNode && commandNode.parentNode ==
-                            document.getElementById("downloadsCommands");
-  },
-  
-  isCommandEnabled: function(aCommand)
-  {
-    if (!window.gDownloadsView)
-      return false;
-    
-    var dl = gDownloadsView.selectedItem;
-    if (!dl)
-      return false;
+    let dl = aItem;
+    let download = null; // used for getting an nsIDownload object
 
     switch (aCommand) {
       case "cmd_cancel":
         return dl.inProgress;
-      case "cmd_open":
-      case "cmd_show":
+      case "cmd_open": {
         let file = getLocalFileFromNativePathOrUrl(dl.getAttribute("file"));
         return dl.openable && file.exists();
+      }
+      case "cmd_show": {
+        let file = getLocalFileFromNativePathOrUrl(dl.getAttribute("file"));
+        return file.exists();
+      }
       case "cmd_pause":
-        return dl.inProgress && !dl.paused;
+        download = gDownloadManager.getDownload(dl.getAttribute("dlid"));
+        return dl.inProgress && !dl.paused && download.resumable;
       case "cmd_pauseResume":
-        return dl.inProgress || dl.paused;
+        download = gDownloadManager.getDownload(dl.getAttribute("dlid"));
+        return (dl.inProgress || dl.paused) && download.resumable;
       case "cmd_resume":
-        return dl.paused;
+        download = gDownloadManager.getDownload(dl.getAttribute("dlid"));
+        return dl.paused && download.resumable;
       case "cmd_openReferrer":
-      case "cmd_remove":
+        return dl.hasAttribute("referrer");
+      case "cmd_removeFromList":
       case "cmd_retry":
         return dl.removable;
-      case "cmd_showInfo":
       case "cmd_copyLocation":
         return true;
     }
     return false;
   },
-  
-  doCommand: function(aCommand)
+
+  doCommand: function(aCommand, aItem)
   {
-    if (this.isCommandEnabled(aCommand))
-      this.commands[aCommand](gDownloadsView.selectedItem);
-  },  
-  
-  onCommandUpdate: function ()
-  {
-    var downloadsCommands = document.getElementById("downloadsCommands");
-    for (var i = 0; i < downloadsCommands.childNodes.length; ++i)
-      this.updateCommand(downloadsCommands.childNodes[i]);
+    if (this.isCommandEnabled(aCommand, aItem))
+      this.commands[aCommand](aItem);
   },
-  
-  updateCommand: function (command) 
-  {
-    if (this.isCommandEnabled(command.id))
-      command.removeAttribute("disabled");
-    else
-      command.setAttribute("disabled", "true");
-  },
-  
+
   commands: {
     cmd_cancel: function(aSelectedItem) {
       cancelDownload(aSelectedItem);
@@ -669,12 +771,12 @@ var gDownloadViewController = {
       pauseDownload(aSelectedItem);
     },
     cmd_pauseResume: function(aSelectedItem) {
-      if (aSelectedItem.inProgress)
-        this.commands.cmd_pause(aSelectedItem);
+      if (aSelectedItem.paused)
+        this.cmd_resume(aSelectedItem);
       else
-        this.commands.cmd_resume(aSelectedItem);
+        this.cmd_pause(aSelectedItem);
     },
-    cmd_remove: function(aSelectedItem) {
+    cmd_removeFromList: function(aSelectedItem) {
       removeDownload(aSelectedItem);
     },
     cmd_resume: function(aSelectedItem) {
@@ -686,19 +788,62 @@ var gDownloadViewController = {
     cmd_show: function(aSelectedItem) {
       showDownload(aSelectedItem);
     },
-    cmd_showInfo: function(aSelectedItem) {
-      showDownloadInfo(aSelectedItem);
-    },
     cmd_copyLocation: function(aSelectedItem) {
       copySourceLocation(aSelectedItem);
-    }
+    },
   }
 };
 
-function onDownloadShowInfo()
+/**
+ * Helper function to do commands.
+ *
+ * @param aCmd
+ *        The command to be performed.
+ * @param aItem
+ *        The richlistitem that represents the download that will have the
+ *        command performed on it. If this is null, the command is performed on
+ *        all downloads. If the item passed in is not a richlistitem that
+ *        represents a download, it will walk up the parent nodes until it finds
+ *        a DOM node that is.
+ */
+function performCommand(aCmd, aItem)
 {
-  if (gDownloadsView.selectedItem)
-    fireEventForElement(gDownloadsView.selectedItem, "properties");
+  let elm = aItem;
+  if (!elm) {
+    // If we don't have a desired download item, do the command for all
+    // selected items. Initialize the callback to null so commands know to add
+    // a callback if they want. We will call the callback with empty arguments
+    // after performing the command on each selected download item.
+    gPerformAllCallback = null;
+
+    // Convert the nodelist into an array to keep a copy of the download items
+    let items = [];
+    for (let i = gDownloadsView.selectedItems.length; --i >= 0; )
+      items.unshift(gDownloadsView.selectedItems[i]);
+
+    // Do the command for each download item
+    for each (let item in items)
+      performCommand(aCmd, item);
+
+    // Call the callback with no arguments and reset because we're done
+    if (typeof gPerformAllCallback == "function")
+      gPerformAllCallback();
+    gPerformAllCallback = undefined;
+
+    return;
+  } else {
+    while (elm.nodeName != "richlistitem" ||
+           elm.getAttribute("type") != "download")
+      elm = elm.parentNode;
+  }
+
+  gDownloadViewController.doCommand(aCmd, elm);
+}
+
+function setSearchboxFocus()
+{
+  gSearchBox.focus();
+  gSearchBox.select();
 }
 
 function openExternal(aFile)
@@ -713,8 +858,70 @@ function openExternal(aFile)
   return;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-//// Utility functions
+////////////////////////////////////////////////////////////////////////////////
+//// Utility Functions
+
+/**
+ * Create a download richlistitem with the provided attributes. Some attributes
+ * are *required* while optional ones will only be set on the item if provided.
+ *
+ * @param aAttrs
+ *        An object that must have the following properties: dlid, file,
+ *        target, uri, state, progress, startTime, endTime, currBytes,
+ *        maxBytes; optional properties: referrer
+ * @return An initialized download richlistitem
+ */
+function createDownloadItem(aAttrs)
+{
+  let dl = document.createElement("richlistitem");
+
+  // Copy the attributes from the argument into the item
+  for (let attr in aAttrs)
+    dl.setAttribute(attr, aAttrs[attr]);
+
+  // Initialize other attributes
+  dl.setAttribute("type", "download");
+  dl.setAttribute("id", "dl" + aAttrs.dlid);
+  dl.setAttribute("image", "moz-icon://" + aAttrs.file + "?size=32");
+  dl.setAttribute("lastSeconds", Infinity);
+
+  // Initialize more complex attributes
+  updateTime(dl);
+  updateStatus(dl);
+
+  try {
+    let file = getLocalFileFromNativePathOrUrl(aAttrs.file);
+    dl.setAttribute("path", file.nativePath || file.path);
+    return dl;
+  } catch (e) {
+    // aFile might not be a file: url or a valid native path
+    // see bug #392386 for details
+  }
+  return null;
+}
+
+/**
+ * Updates the disabled state of the buttons of a downlaod.
+ *
+ * @param aItem
+ *        The richlistitem representing the download.
+ */
+function updateButtons(aItem)
+{
+  let buttons = aItem.buttons;
+
+  for (let i = 0; i < buttons.length; ++i) {
+    let cmd = buttons[i].getAttribute("cmd");
+    let enabled = gDownloadViewController.isCommandEnabled(cmd, aItem);
+    buttons[i].disabled = !enabled;
+
+    if ("cmd_pause" == cmd && !enabled) {
+      // We need to add the tooltip indicating that the download cannot be
+      // paused now.
+      buttons[i].setAttribute("tooltiptext", gStr.cannotPause);
+    }
+  }
+}
 
 /**
  * Updates the status for a download item depending on its state
@@ -727,313 +934,388 @@ function openExternal(aFile)
  */
 function updateStatus(aItem, aDownload) {
   let status = "";
+  let statusTip = "";
 
   let state = Number(aItem.getAttribute("state"));
   switch (state) {
-    case Ci.nsIDownloadManager.DOWNLOAD_PAUSED:
-    case Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING:
+    case nsIDM.DOWNLOAD_PAUSED:
+    {
       let currBytes = Number(aItem.getAttribute("currBytes"));
       let maxBytes = Number(aItem.getAttribute("maxBytes"));
 
-      // Update the bytes transferred and bytes total
-      let ([progress, progressUnits] = convertByteUnits(currBytes),
-           [total, totalUnits] = convertByteUnits(maxBytes),
-           transfer) {
-        if (total < 0)
-          transfer = gStr.transferNoTotal;
-        else if (progressUnits == totalUnits)
-          transfer = gStr.transferSameUnits;
-        else
-          transfer = gStr.transferDiffUnits;
-
-        transfer = replaceInsert(transfer, 1, progress);
-        transfer = replaceInsert(transfer, 2, progressUnits);
-        transfer = replaceInsert(transfer, 3, total);
-        transfer = replaceInsert(transfer, 4, totalUnits);
-
-        if (state == Ci.nsIDownloadManager.DOWNLOAD_PAUSED) {
-          status = replaceInsert(gStr.paused, 1, transfer);
-
-          // don't need to process any more for PAUSED
-          break;
-        }
-
-        // Insert 1 is the download progress
-        status = replaceInsert(gStr.statusFormat, 1, transfer);
-      }
-
-      // if we don't have an active download, assume 0 bytes/sec
-      let speed = aDownload ? aDownload.speed : 0;
-
-      // Update the download rate
-      let ([rate, unit] = convertByteUnits(speed)) {
-        // Insert 2 is the download rate
-        status = replaceInsert(status, 2, rate);
-        // Insert 3 is the |unit|/sec
-        status = replaceInsert(status, 3, unit);
-      }
-
-      // Update time remaining.
-      let (remain) {
-        if ((speed > 0) && (maxBytes > 0)) {
-          let seconds = Math.ceil((maxBytes - currBytes) / speed);
-          let lastSec = Number(aItem.getAttribute("lastSeconds"));
-
-          // Reuse the last seconds if the new one is only slighty longer
-          // This avoids jittering seconds, e.g., 41 40 38 40 -> 41 40 38 38
-          // However, large changes are shown, e.g., 41 38 49 -> 41 38 49
-          let (diff = seconds - lastSec) {
-            if (diff > 0 && diff <= 10)
-              seconds = lastSec;
-            else
-              aItem.setAttribute("lastSeconds", seconds);
-          }
-
-          // Be friendly in the last few seconds
-          if (seconds <= 3)
-            remain = gStr.timeFewSeconds;
-          // Show 2 digit seconds starting at 60; otherwise use minutes
-          else if (seconds <= 60)
-            remain = replaceInsert(gStr.timeSecondsLeft, 1, seconds);
-          else
-            remain = replaceInsert(gStr.timeMinutesLeft, 1,
-                                   Math.ceil(seconds / 60));
-        } else {
-          remain = gStr.timeUnknown;
-        }
-
-        // Insert 4 is the time remaining
-        status = replaceInsert(status, 4, remain);
-      }
+      let transfer = DownloadUtils.getTransferTotal(currBytes, maxBytes);
+      status = replaceInsert(gStr.paused, 1, transfer);
 
       break;
+    }
+    case nsIDM.DOWNLOAD_DOWNLOADING:
+    {
+      let currBytes = Number(aItem.getAttribute("currBytes"));
+      let maxBytes = Number(aItem.getAttribute("maxBytes"));
+      // If we don't have an active download, assume 0 bytes/sec
+      let speed = aDownload ? aDownload.speed : 0;
+      let lastSec = Number(aItem.getAttribute("lastSeconds"));
+
+      let newLast;
+      [status, newLast] =
+        DownloadUtils.getDownloadStatus(currBytes, maxBytes, speed, lastSec);
+
+      // Update lastSeconds to be the new value
+      aItem.setAttribute("lastSeconds", newLast);
+
+      break;
+    }
+    case nsIDM.DOWNLOAD_FINISHED:
+    case nsIDM.DOWNLOAD_FAILED:
+    case nsIDM.DOWNLOAD_CANCELED:
+    case nsIDM.DOWNLOAD_BLOCKED_PARENTAL:
+    case nsIDM.DOWNLOAD_BLOCKED_POLICY:
+    case nsIDM.DOWNLOAD_DIRTY:
+    {
+      let (stateSize = {}) {
+        stateSize[nsIDM.DOWNLOAD_FINISHED] = function() {
+          // Display the file size, but show "Unknown" for negative sizes
+          let fileSize = Number(aItem.getAttribute("maxBytes"));
+          let sizeText = gStr.doneSizeUnknown;
+          if (fileSize >= 0) {
+            let [size, unit] = DownloadUtils.convertByteUnits(fileSize);
+            sizeText = replaceInsert(gStr.doneSize, 1, size);
+            sizeText = replaceInsert(sizeText, 2, unit);
+          }
+          return sizeText;
+        };
+        stateSize[nsIDM.DOWNLOAD_FAILED] = function() gStr.stateFailed;
+        stateSize[nsIDM.DOWNLOAD_CANCELED] = function() gStr.stateCanceled;
+        stateSize[nsIDM.DOWNLOAD_BLOCKED_PARENTAL] = function() gStr.stateBlockedParentalControls;
+        stateSize[nsIDM.DOWNLOAD_BLOCKED_POLICY] = function() gStr.stateBlockedPolicy;
+        stateSize[nsIDM.DOWNLOAD_DIRTY] = function() gStr.stateDirty;
+
+        // Insert 1 is the download size or download state
+        status = replaceInsert(gStr.doneStatus, 1, stateSize[state]());
+      }
+
+      let [displayHost, fullHost] =
+        DownloadUtils.getURIHost(getReferrerOrSource(aItem));
+      // Insert 2 is the eTLD + 1 or other variations of the host
+      status = replaceInsert(status, 2, displayHost);
+      // Set the tooltip to be the full host
+      statusTip = fullHost;
+
+      break;
+    }
   }
 
   aItem.setAttribute("status", status);
+  aItem.setAttribute("statusTip", statusTip != "" ? statusTip : status);
 }
 
 /**
- * Converts a number of bytes to the appropriate unit that results in a
- * number that needs fewer than 4 digits
+ * Updates the time that gets shown for completed download items
  *
- * @return a pair: [new value with 3 sig. figs., its unit]
+ * @param aItem
+ *        The richlistitem representing a download in the UI
  */
-function convertByteUnits(aBytes)
+function updateTime(aItem)
 {
-  let unitIndex = 0;
+  // Don't bother updating for things that aren't finished
+  if (aItem.inProgress)
+    return;
 
-  // convert to next unit if it needs 4 digits (after rounding), but only if
-  // we know the name of the next unit
-  while ((aBytes >= 999.5) && (unitIndex < gStr.units.length - 1)) {
-    aBytes /= 1024;
-    unitIndex++;
+  let dts = Cc["@mozilla.org/intl/scriptabledateformat;1"].
+            getService(Ci.nsIScriptableDateFormat);
+
+  // Figure out when today begins
+  let now = new Date();
+  let today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Get the end time to display
+  let end = new Date(parseInt(aItem.getAttribute("endTime")));
+
+  // Figure out if the end time is from today, yesterday, this week, etc.
+  let dateTime;
+  if (end >= today) {
+    // Download finished after today started, show the time
+    dateTime = dts.FormatTime("", dts.timeFormatNoSeconds,
+                              end.getHours(), end.getMinutes(), 0);
+  } else if (today - end < (24 * 60 * 60 * 1000)) {
+    // Download finished after yesterday started, show yesterday
+    dateTime = gStr.yesterday;
+  } else if (today - end < (6 * 24 * 60 * 60 * 1000)) {
+    // Download finished after last week started, show day of week
+    dateTime = end.toLocaleFormat("%A");
+  } else {
+    // Download must have been from some time ago.. show month/day
+    let month = end.toLocaleFormat("%B");
+    // Remove leading 0 by converting the date string to a number
+    let date = Number(end.toLocaleFormat("%d"));
+    dateTime = replaceInsert(gStr.monthDate, 1, month);
+    dateTime = replaceInsert(dateTime, 2, date);
   }
 
-  // Get rid of insignificant bits by truncating to 1 or 0 decimal points
-  // 0 -> 0; 1.2 -> 1.2; 12.3 -> 12.3; 123.4 -> 123; 234.5 -> 235
-  aBytes = aBytes.toFixed((aBytes > 0) && (aBytes < 100) ? 1 : 0);
+  aItem.setAttribute("dateTime", dateTime);
 
-  return [aBytes, gStr.units[unitIndex]];
+  // Set the tooltip to be the full date and time
+  let dateTimeTip = dts.FormatDateTime("",
+                                       dts.dateFormatLong,
+                                       dts.timeFormatNoSeconds,
+                                       end.getFullYear(),
+                                       end.getMonth() + 1,
+                                       end.getDate(),
+                                       end.getHours(),
+                                       end.getMinutes(),
+                                       0); 
+
+  aItem.setAttribute("dateTimeTip", dateTimeTip);
 }
 
+/**
+ * Helper function to replace a placeholder string with a real string
+ *
+ * @param aText
+ *        Source text containing placeholder (e.g., #1)
+ * @param aIndex
+ *        Index number of placeholder to replace
+ * @param aValue
+ *        New string to put in place of placeholder
+ * @return The string with placeholder replaced with the new string
+ */
 function replaceInsert(aText, aIndex, aValue)
 {
   return aText.replace("#" + aIndex, aValue);
 }
 
+/**
+ * Perform the default action for the currently selected download item
+ */
+function doDefaultForSelected()
+{
+  // Make sure we have something selected
+  let item = gDownloadsView.selectedItem;
+  if (!item)
+    return;
+
+  // Get the default action (first item in the menu)
+  let state = Number(item.getAttribute("state"));
+  let menuitem = document.getElementById(gContextMenus[state][0]);
+
+  // Try to do the action if the command is enabled
+  gDownloadViewController.doCommand(menuitem.getAttribute("cmd"), item);
+}
+
 function removeFromView(aDownload)
 {
+  // Make sure we have an item to remove
+  if (!aDownload) return;
+
   let index = gDownloadsView.selectedIndex;
   gDownloadsView.removeChild(aDownload);
   gDownloadsView.selectedIndex = Math.min(index, gDownloadsView.itemCount - 1);
+
+  // We might have removed the last item, so update the clear list button
+  updateClearListButton();
 }
 
-/**
- * Builds the default view that the download manager starts out with.
- */
-function buildDefaultView()
+function getReferrerOrSource(aDownload)
 {
-  buildActiveDownloadsList();
+  // Give the referrer if we have it set
+  if (aDownload.hasAttribute("referrer"))
+    return aDownload.getAttribute("referrer");
 
-  let pref = Cc["@mozilla.org/preferences-service;1"].
-             getService(Ci.nsIPrefBranch);
-  let days = pref.getIntPref(PREF_BDM_DISPLAYEDHISTORYDAYS);
-  buildDownloadListWithTime(Date.now() - days * 24 * 60 * 60 * 1000);
-
-  // select the first visible download item, if any
-  var children = gDownloadsView.children;
-  if (children.length > 0)
-    gDownloadsView.selectedItem = children[0];
+  // Otherwise, provide the source
+  return aDownload.getAttribute("uri");
 }
 
 /**
- * Builds the downloads list with a given statement and reference node.
+ * Initiate building the download list to have the active downloads followed by
+ * completed ones filtered by the search term if necessary.
  *
- * @param aStmt
- *        The compiled SQL statement to build with.  This needs to have the
- *        following columns in this order to work properly:
- *        id, target, name, source, state, startTime, referrer, currBytes, and
- *        maxBytes
- *        This statement should be ordered on the endTime ASC so that the end
- *        result is a list of downloads with their end time's descending.
- * @param aRef
- *        The node we use for placement of the download objects.  We place each
- *        new node above the previously inserted one.
+ * @param aForceBuild
+ *        Force the list to be built even if the search terms don't change
  */
-function buildDownloadList(aStmt, aRef)
+function buildDownloadList(aForceBuild)
 {
-  while (aRef.nextSibling && aRef.nextSibling.tagName == "richlistitem")
-    gDownloadsView.removeChild(aRef.nextSibling);
+  // Stringify the previous search
+  let prevSearch = gSearchTerms.join(" ");
 
-  while (aStmt.executeStep()) {
-    let id = aStmt.getInt64(0);
-    let state = aStmt.getInt32(4);
-    let percentComplete = 100;
-    if (state == Ci.nsIDownloadManager.DOWNLOAD_NOTSTARTED ||
-        state == Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING ||
-        state == Ci.nsIDownloadManager.DOWNLOAD_PAUSED) {
-      // so we have an in-progress download that we need to determine the
-      // proper percentage complete for.  This download will actually be in
-      // the active downloads array internally, so calling getDownload is cheap.
-      let dl = gDownloadManager.getDownload(id);
-      percentComplete = dl.percentComplete;
+  // Array of space-separated lower-case search terms
+  gSearchTerms = gSearchBox.value.replace(/^\s+|\s+$/g, "").
+                 toLowerCase().split(/\s+/);
+
+  // Unless forced, don't rebuild the download list if the search didn't change
+  if (!aForceBuild && gSearchTerms.join(" ") == prevSearch)
+    return;
+
+  // Clear out values before using them
+  clearTimeout(gBuilder);
+  gStmt.reset();
+
+  // Clear the list before adding items by replacing with a shallow copy
+  let (empty = gDownloadsView.cloneNode(false)) {
+    gDownloadsView.parentNode.replaceChild(empty, gDownloadsView);
+    gDownloadsView = empty;
+  }
+
+  try {
+    gStmt.bindInt32Parameter(0, nsIDM.DOWNLOAD_NOTSTARTED);
+    gStmt.bindInt32Parameter(1, nsIDM.DOWNLOAD_DOWNLOADING);
+    gStmt.bindInt32Parameter(2, nsIDM.DOWNLOAD_PAUSED);
+    gStmt.bindInt32Parameter(3, nsIDM.DOWNLOAD_QUEUED);
+    gStmt.bindInt32Parameter(4, nsIDM.DOWNLOAD_SCANNING);
+  } catch (e) {
+    // Something must have gone wrong when binding, so clear and quit
+    gStmt.reset();
+    return;
+  }
+
+  // Take a quick break before we actually start building the list
+  gBuilder = setTimeout(function() {
+    // Start building the list and select the first item
+    stepListBuilder(1);
+    gDownloadsView.selectedIndex = 0;
+
+    // We just tried to add a single item, so we probably need to enable
+    updateClearListButton();
+  }, 0);
+}
+
+/**
+ * Incrementally build the download list by adding at most the requested number
+ * of items if there are items to add. After doing that, it will schedule
+ * another chunk of items specified by gListBuildDelay and gListBuildChunk.
+ *
+ * @param aNumItems
+ *        Number of items to add to the list before taking a break
+ */
+function stepListBuilder(aNumItems) {
+  try {
+    // If we're done adding all items, we can quit
+    if (!gStmt.executeStep()) {
+      // Send a notification that we finished, but wait for clear list to update
+      updateClearListButton();
+      setTimeout(function() Cc["@mozilla.org/observer-service;1"].
+        getService(Ci.nsIObserverService).
+        notifyObservers(window, "download-manager-ui-done", null), 0);
+
+      return;
     }
-    let dl = createDownloadItem(id,
-                                aStmt.getString(1),
-                                aStmt.getString(2),
-                                aStmt.getString(3),
-                                state,
-                                percentComplete,
-                                Math.round(aStmt.getInt64(5) / 1000),
-                                aStmt.getString(6),
-                                aStmt.getInt64(7),
-                                aStmt.getInt64(8));
-    if (dl)
-      gDownloadsView.insertBefore(dl, aRef.nextSibling);
-  }
-}
 
-var gActiveDownloadsQuery = null;
-function buildActiveDownloadsList()
-{
-  // Are there any active downloads?
-  if (gDownloadManager.activeDownloadCount == 0)
+    // Try to get the attribute values from the statement
+    let attrs = {
+      dlid: gStmt.getInt64(0),
+      file: gStmt.getString(1),
+      target: gStmt.getString(2),
+      uri: gStmt.getString(3),
+      state: gStmt.getInt32(4),
+      startTime: Math.round(gStmt.getInt64(5) / 1000),
+      endTime: Math.round(gStmt.getInt64(6) / 1000),
+      currBytes: gStmt.getInt64(8),
+      maxBytes: gStmt.getInt64(9)
+    };
+
+    // Only add the referrer if it's not null
+    let (referrer = gStmt.getString(7)) {
+      if (referrer)
+        attrs.referrer = referrer;
+    }
+
+    // If the download is active, grab the real progress, otherwise default 100
+    let isActive = gStmt.getInt32(10);
+    attrs.progress = isActive ? gDownloadManager.getDownload(attrs.dlid).
+      percentComplete : 100;
+
+    // Make the item and add it to the end if it's active or matches the search
+    let item = createDownloadItem(attrs);
+    if (item && (isActive || downloadMatchesSearch(item))) {
+      // Add item to the end
+      gDownloadsView.appendChild(item);
+    
+      // Because of the joys of XBL, we can't update the buttons until the
+      // download object is in the document.
+      updateButtons(item);
+    } else {
+      // We didn't add an item, so bump up the number of items to process, but
+      // not a whole number so that we eventually do pause for a chunk break
+      aNumItems += .9;
+    }
+  } catch (e) {
+    // Something went wrong when stepping or getting values, so clear and quit
+    gStmt.reset();
     return;
-
-  // unhide the label
-  gDownloadsActiveTitle.hidden = false;
-
-  // repopulate the list
-  var db = gDownloadManager.DBConnection;
-  var stmt = gActiveDownloadsQuery;
-  if (!stmt) {
-    stmt = db.createStatement(replaceInsert(gBaseQuery, 1,
-      "state = ?1 OR state = ?2 OR state = ?3 OR state = ?4 OR state = ?5"));
-    gActiveDownloadsQuery = stmt;
   }
 
-  try {
-    stmt.bindInt32Parameter(0, Ci.nsIDownloadManager.DOWNLOAD_NOTSTARTED);
-    stmt.bindInt32Parameter(1, Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING);
-    stmt.bindInt32Parameter(2, Ci.nsIDownloadManager.DOWNLOAD_PAUSED);
-    stmt.bindInt32Parameter(3, Ci.nsIDownloadManager.DOWNLOAD_QUEUED);
-    stmt.bindInt32Parameter(4, Ci.nsIDownloadManager.DOWNLOAD_SCANNING);
-    buildDownloadList(stmt, gDownloadsActiveTitle);
-  } finally {
-    stmt.reset();
+  // Add another item to the list if we should; otherwise, let the UI update
+  // and continue later
+  if (aNumItems > 1) {
+    stepListBuilder(aNumItems - 1);
+  } else {
+    // Use a shorter delay for earlier downloads to display them faster
+    let delay = Math.min(gDownloadsView.itemCount * 10, gListBuildDelay);
+    gBuilder = setTimeout(stepListBuilder, delay, gListBuildChunk);
   }
 }
 
 /**
- * Builds the download view with downloads from a given time until now.
+ * Add a download to the front of the download list
  *
- * @param aTime
- *        The time that we want to start displaying downloads from.  This time
- *        is in milliseconds (what is returned from Date.now()).
+ * @param aDownload
+ *        The nsIDownload to make into a richlistitem
  */
-var gDownloadListWithTimeQuery = null;
-function buildDownloadListWithTime(aTime)
+function prependList(aDownload)
 {
-  var db = gDownloadManager.DBConnection;
-  var stmt = gDownloadListWithTimeQuery;
-  if (!stmt) {
-    stmt = db.createStatement(replaceInsert(gBaseQuery, 1, "startTime >= ?1 " +
-      "AND (state = ?2 OR state = ?3 OR state = ?4 OR state = ?5)"));
-    gDownloadListWithTimeQuery = stmt;
-  }
+  let attrs = {
+    dlid: aDownload.id,
+    file: aDownload.target.spec,
+    target: aDownload.displayName,
+    uri: aDownload.source.spec,
+    state: aDownload.state,
+    progress: aDownload.percentComplete,
+    startTime: Math.round(aDownload.startTime / 1000),
+    endTime: Date.now(),
+    currBytes: aDownload.amountTransferred,
+    maxBytes: aDownload.size
+  };
 
-  try {
-    stmt.bindInt64Parameter(0, aTime * 1000);
-    stmt.bindInt32Parameter(1, Ci.nsIDownloadManager.DOWNLOAD_FINISHED);
-    stmt.bindInt32Parameter(2, Ci.nsIDownloadManager.DOWNLOAD_FAILED);
-    stmt.bindInt32Parameter(3, Ci.nsIDownloadManager.DOWNLOAD_CANCELED);
-    stmt.bindInt32Parameter(4, Ci.nsIDownloadManager.DOWNLOAD_BLOCKED);
-    buildDownloadList(stmt, gDownloadsOtherTitle);
-  } finally {
-    stmt.reset();
+  // Make the item and add it to the beginning
+  let item = createDownloadItem(attrs);
+  if (item) {
+    // Add item to the beginning
+    gDownloadsView.insertBefore(item, gDownloadsView.firstChild);
+    
+    // Because of the joys of XBL, we can't update the buttons until the
+    // download object is in the document.
+    updateButtons(item);
+
+    // We might have added an item to an empty list, so update button
+    updateClearListButton();
   }
 }
 
 /**
- * Builds the download list with an array of search terms.  This also changes
- * the label of the second group of downloads to search results (or the locale
- * equivalent).
+ * Check if the download matches the current search term based on the texts
+ * shown to the user. All search terms are checked to see if each matches any
+ * of the displayed texts.
  *
- * @param aTerms
- *        An array of search terms that will be checked for past downloads.  If
- *        this array is empty, we clear the search results and build the default
- *        view.
+ * @param aItem
+ *        Download richlistitem to check if it matches the current search
+ * @return Boolean true if it matches the search; false otherwise
  */
-function buildDownloadListWithSearch(aTerms)
+function downloadMatchesSearch(aItem)
 {
-  gSearching = true;
-  gDownloadsOtherLabel.value = gDownloadsOtherLabel.getAttribute("searchlabel");
+  // Search through the download attributes that are shown to the user and
+  // make it into one big string for easy combined searching
+  let combinedSearch = "";
+  for each (let attr in gSearchAttributes)
+    combinedSearch += aItem.getAttribute(attr).toLowerCase() + " ";
 
-  // remove and trailing or leading whitespace first
-  aTerms = aTerms.replace(/^\s+|\s+$/, "");
-  if (aTerms.length == 0) {
-    gSearching = false;
-    gDownloadsOtherLabel.value = gDownloadsOtherLabel.getAttribute("completedlabel");
-    buildDefaultView();
-    return;
-  }
+  // Make sure each of the terms are found
+  for each (let term in gSearchTerms)
+    if (combinedSearch.indexOf(term) == -1)
+      return false;
 
-  var db = gDownloadManager.DBConnection;
-  let stmt = db.createStatement(replaceInsert(gBaseQuery, 1,
-    "name LIKE ?1 ESCAPE '/' AND state != ?2 AND state != ?3"));
-
-  try {
-    var paramForLike = stmt.escapeStringForLIKE(aTerms, '/');
-    stmt.bindStringParameter(0, "%" + paramForLike + "%");
-    stmt.bindInt32Parameter(1, Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING);
-    stmt.bindInt32Parameter(2, Ci.nsIDownloadManager.DOWNLOAD_PAUSED);
-    buildDownloadList(stmt, gDownloadsOtherTitle);
-  } finally {
-    stmt.reset();
-  }
+  return true;
 }
 
-function performSearch() {
-  buildDownloadListWithSearch(document.getElementById("searchbox").value);
-}
-
-function onSearchboxBlur() {
-  var searchbox = document.getElementById("searchbox");
-  if (searchbox.value == "") {
-    searchbox.setAttribute("empty", "true");
-    searchbox.value = searchbox.getAttribute("defaultValue");
-  }
-}
-
-function onSearchboxFocus() {
-  var searchbox = document.getElementById("searchbox");
-  if (searchbox.hasAttribute("empty")) {
-    searchbox.value = "";
-    searchbox.removeAttribute("empty");
-  }
-}
-
-// we should be using real URLs all the time, but until 
+// we should be using real URLs all the time, but until
 // bug 239948 is fully fixed, this will do...
 //
 // note, this will thrown an exception if the native path
@@ -1058,3 +1340,37 @@ function getLocalFileFromNativePathOrUrl(aPathOrUrl)
   }
 }
 
+/**
+ * Update the disabled state of the clear list button based on whether or not
+ * there are items in the list that can potentially be removed.
+ */
+function updateClearListButton()
+{
+  let button = document.getElementById("clearListButton");
+  // The button is enabled if we have items in the list and we can clean up
+  button.disabled = !(gDownloadsView.itemCount && gDownloadManager.canCleanUp);
+}
+
+function getDownload(aID)
+{
+  return document.getElementById("dl" + aID);
+}
+
+/**
+ * Initialize the statement which is used to retrieve the list of downloads.
+ *
+ * This function gets called both at startup, and when entering the private
+ * browsing mode (because the database connection is changed when entering
+ * the private browsing mode, and a new statement should be initialized.
+ */
+function initStatement()
+{
+  if (gStmt)
+    gStmt.finalize();
+
+  gStmt = gDownloadManager.DBConnection.createStatement(
+    "SELECT id, target, name, source, state, startTime, endTime, referrer, " +
+           "currBytes, maxBytes, state IN (?1, ?2, ?3, ?4, ?5) isActive " +
+    "FROM moz_downloads " +
+    "ORDER BY isActive DESC, endTime DESC, startTime DESC");
+}

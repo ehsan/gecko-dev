@@ -3,7 +3,7 @@
 	For example style definitions for navigator can be found in navigator.css
 
    THIS FILE IS LOCKED DOWN.  YOU ARE NOT ALLOWED TO MODIFY IT WITHOUT FIRST HAVING YOUR
-   CHANGES REVIEWED BY mconnor@steelgryphon.com
+   CHANGES REVIEWED BY enndeakin@sympatico.ca
 **/
 
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"); /* set default namespace to XUL */
@@ -14,20 +14,32 @@
   -moz-user-focus: ignore;
   -moz-user-select: -moz-none;
   display: -moz-box;
+  -moz-box-sizing: border-box;
 }
 
 :root {
   text-rendering: optimizeLegibility;
+  -moz-binding: url("chrome://global/content/bindings/general.xml#root-element");
+}
+
+%ifdef XP_MACOSX
+:root[drawintitlebar="true"] {
+  padding-top: 22px;
+}
+%endif
+
+:root:-moz-locale-dir(rtl) {
+  direction: rtl;
 }
 
 /* hide the content and destroy the frame */
-*[hidden="true"] {
+[hidden="true"] {
   display: none;
 }
 
 /* hide the content, but don't destroy the frames */
-*[collapsed="true"], 
-*[moz-collapsed="true"] {
+[collapsed="true"], 
+[moz-collapsed="true"] {
   visibility: collapse;
 }
 
@@ -37,13 +49,13 @@
    :: kinds of windows (not JUST browser windows) with toolbars
    ::::: */
 
+window[chromehidden~="menubar"] .chromeclass-menubar,
 window[chromehidden~="directories"] .chromeclass-directories,
 window[chromehidden~="status"] .chromeclass-status,
 window[chromehidden~="extrachrome"] .chromeclass-extrachrome,
 window[chromehidden~="location"] .chromeclass-location,
 window[chromehidden~="location"][chromehidden~="toolbar"] .chromeclass-toolbar,
-window[chromehidden~="toolbar"] .chromeclass-toolbar-additional
-{
+window[chromehidden~="toolbar"] .chromeclass-toolbar-additional {
   display: none;
 }
 
@@ -52,9 +64,7 @@ window[chromehidden~="toolbar"] .chromeclass-toolbar-additional
    :: or URI elements
    ::::: */
 
-textbox.uri-element,
-menulist.uri-element
-{
+.uri-element {
   direction: ltr !important;
 }
 
@@ -114,11 +124,17 @@ button {
   -moz-binding: url("chrome://global/content/bindings/button.xml#button");
 }
 
+%ifdef XP_MACOSX
+button[default="true"] {
+  -moz-binding: url("chrome://global/content/bindings/button.xml#button-periodic-redraw");
+}
+%endif
+
 button[type="repeat"] {
   -moz-binding: url("chrome://global/content/bindings/button.xml#button-repeat");
 }
 
-button[type="menu"] {
+button[type="menu"], button[type="panel"] {
   -moz-binding: url("chrome://global/content/bindings/button.xml#menu");
 }
 
@@ -126,18 +142,31 @@ button[type="menu-button"] {
   -moz-binding: url("chrome://global/content/bindings/button.xml#menu-button");
 }
 
+%ifdef MOZ_WIDGET_GTK2
+/********* detection of system setting to use icons in buttons ***********/
+.button-icon:not(:-moz-system-metric(images-in-buttons)) {
+  display: none;
+}
+%endif
+
 /********** toolbarbutton **********/
 
 toolbarbutton {
   -moz-binding: url("chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton");
 }
 
-toolbarbutton[type="menu"] {
+toolbarbutton[type="menu"],
+toolbarbutton[type="panel"] {
   -moz-binding: url("chrome://global/content/bindings/toolbarbutton.xml#menu");
 }
 
 toolbarbutton[type="menu-button"] {
   -moz-binding: url("chrome://global/content/bindings/toolbarbutton.xml#menu-button");
+}
+
+toolbar[mode="icons"] .toolbarbutton-text,
+toolbar[mode="text"] .toolbarbutton-icon {
+  display: none;
 }
 
 /******** browser, editor, iframe ********/
@@ -230,19 +259,32 @@ toolbar[type="menubar"] {
 }
 %endif
 
+%ifdef XP_WIN
+toolbar[type="menubar"][autohide="true"] {
+  -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar-menubar-autohide");
+  overflow: hidden;
+}
+
+toolbar[type="menubar"][autohide="true"]:not([customizable="true"])[inactive="true"],
+toolbox:not([customizing="true"]) > toolbar[type="menubar"][autohide="true"][customizable="true"][inactive="true"]:not([customized="true"]) {
+  min-height: 0 !important;
+  height: 0 !important;
+  -moz-appearance: none !important;
+  border-style: none !important;
+}
+%endif
+
 toolbarseparator {
   -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbardecoration");
 }
 
 toolbarspacer {
   -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbardecoration");
-  display: inline;
 }
 
 toolbarspring {
   -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbardecoration");
   -moz-box-flex: 1000;
-  display: inline;
 }
 
 toolbarpaletteitem {
@@ -258,18 +300,6 @@ toolbarpaletteitem[place="palette"] {
 
 menubar {
   -moz-binding: url("chrome://global/content/bindings/toolbar.xml#menubar");
-  -moz-box-orient: vertical;
-  -moz-box-pack: end;
-}
-
-window[chromehidden~="menubar"] .chromeclass-menubar,
-menubar[hidden="true"],
-menubar[moz-collapsed="true"],
-menubar[collapsed="true"] {
-  min-height: 0%;
-  max-height: 0px;
-  display: -moz-box;
-  visibility: visible;
 }
 
 /********* menu ***********/
@@ -290,7 +320,7 @@ menu.menu-iconic {
   -moz-binding: url("chrome://global/content/bindings/menu.xml#menu-iconic");
 }
 
-menu:empty {
+menubar > menu:empty {
   visibility: collapse;
 }
 
@@ -316,6 +346,17 @@ menuitem[type="radio"] {
 menuitem.menuitem-non-iconic {
   -moz-binding: url("chrome://global/content/bindings/menu.xml#menubutton-item");
 }
+
+%ifdef MOZ_WIDGET_GTK2
+/********* detection of system setting to use icons in menus ***********/
+menuitem:not([type]):not(:-moz-system-metric(images-in-menus)) > .menu-iconic-left {
+  visibility: hidden;
+}
+
+menu:not(:-moz-system-metric(images-in-menus)) > .menu-iconic-left {
+  visibility: hidden;
+}
+%endif
 
 /********* menuseparator ***********/
 
@@ -343,13 +384,14 @@ menupopup,
 panel,
 tooltip {
   display: -moz-popup;
-  z-index: 2147483647; 
+  z-index: 2147483647;
+  text-shadow: none;
 }
 
 tooltip {
   -moz-binding: url("chrome://global/content/bindings/popup.xml#tooltip");
   -moz-box-orient: vertical;
-  white-space: -moz-pre-wrap;
+  white-space: pre-wrap;
   margin-top: 21px;
 }
 
@@ -363,40 +405,6 @@ window[sizemode="maximized"] statusbarpanel.statusbar-resizerpanel {
 }
 %endif
 
-/********** floating popups **********/
-
-/*
-titlebar {
-  -moz-binding: url("chrome://global/content/bindings/popup.xml#titlebar");  
-}  
-
-resizer[resizerdirection="right"] {
-  -moz-binding: url("chrome://global/content/bindings/popup.xml#ew-resizer");
-}  
-
-resizer[resizerdirection="bottom"] {
-  -moz-binding: url("chrome://global/content/bindings/popup.xml#ns-resizer");
-}  
-
-resizer[resizerdirection="bottomright"] {
-  -moz-binding: url("chrome://global/content/bindings/popup.xml#diag-resizer");  
-}  
-
-floatingwindow {
-  -moz-binding: url("chrome://global/content/bindings/popup.xml#floater-normal");
-  -moz-box-orient: vertical;
-  display: none;
-  z-index: 2147483647; 
-}
-
-floatingwindow[docked="left"] {
-  -moz-binding: url("chrome://global/content/bindings/popup.xml#floater-dock-left");
-}
-
-button.popupClose {
-  -moz-binding: url("chrome://global/content/bindings/popup.xml#close-button") !important;
-}  
-*/
 /******** grid **********/
 
 grid {
@@ -584,6 +592,15 @@ treecol[hidden="true"] {
   overflow: hidden;
 }
 
+/* ::::: lines connecting cells ::::: */
+tree:not([treelines="true"]) > treechildren::-moz-tree-line {
+  visibility: hidden;
+}
+
+treechildren::-moz-tree-cell(ltr) {
+  direction: ltr !important;
+}
+
 /********** deck & stack *********/
 
 deck {
@@ -607,21 +624,14 @@ tabs {
   -moz-box-orient: horizontal;
 }
 
-/**
- * XXXben - this looks like something added specifically for tabbrowser.
- *          if it turns out no one uses this that can't easily be evangelized to
- *          use their own roll-your-own binding, then we should get rid of this
- *          to tighten up the toolkit api. This binding made obsolete in Firefox
- *          by 308396. 
- */
-tabs[closebutton="true"] {
-  -moz-binding: url("chrome://global/content/bindings/tabbox.xml#tabs-closebutton");
-}
-
 tab {
   -moz-binding: url("chrome://global/content/bindings/tabbox.xml#tab");
   -moz-box-align: center;
   -moz-box-pack: center;
+}
+
+tab[selected="true"] {
+  -moz-user-focus: normal;
 }
 
 tabpanels {
@@ -638,18 +648,14 @@ progressmeter {
 /********** basic rule for anonymous content that needs to pass box properties through
  ********** to an insertion point parent that holds the real kids **************/
 
- .box-inherit {
-   -moz-box-orient: inherit;
-   -moz-box-pack: inherit;
-   -moz-box-align: inherit;
-   -moz-box-direction: inherit;
+.box-inherit {
+  -moz-box-orient: inherit;
+  -moz-box-pack: inherit;
+  -moz-box-align: inherit;
+  -moz-box-direction: inherit;
 }
 
 /********** label **********/
-
-spacer {
-  display: inline;
-}
 
 description {
   -moz-binding: url("chrome://global/content/bindings/text.xml#text-base");
@@ -677,19 +683,11 @@ html|span.accesskey {
 textbox {
   -moz-binding: url("chrome://global/content/bindings/textbox.xml#textbox");
   -moz-user-select: text;
+  text-shadow: none;
 }
 
 textbox[multiline="true"] {
   -moz-binding: url("chrome://global/content/bindings/textbox.xml#textarea");
-}
-
-html|*.textbox-input {
-  -moz-appearance: none !important;
-  text-align: inherit;
-}
-
-html|*.textbox-textarea {
-  -moz-appearance: none !important;
 }
 
 .textbox-input-box {
@@ -704,8 +702,16 @@ textbox[type="timed"] {
   -moz-binding: url("chrome://global/content/bindings/textbox.xml#timed-textbox");
 }
 
+textbox[type="search"] {
+  -moz-binding: url("chrome://global/content/bindings/textbox.xml#search-textbox");
+}
+
 textbox[type="number"] {
   -moz-binding: url("chrome://global/content/bindings/numberbox.xml#numberbox");
+}
+
+.textbox-contextmenu:-moz-locale-dir(rtl) {
+  direction: rtl;
 }
 
 /********** autocomplete textbox **********/
@@ -752,12 +758,32 @@ panel[type="autocomplete"] {
   -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-result-popup");
 }
 
+panel[type="autocomplete-richlistbox"] {
+  -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-rich-result-popup");
+}
+
 .autocomplete-tree {
   -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-tree");
+  -moz-user-focus: ignore;
 }
 
 .autocomplete-treebody {
   -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-treebody");
+}
+
+.autocomplete-richlistbox {
+  -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-richlistbox");
+  -moz-user-focus: ignore;
+}
+
+.autocomplete-richlistbox > scrollbox {
+  overflow-x: hidden !important;
+}
+
+.autocomplete-richlistitem {
+  -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-richlistitem");
+  -moz-box-orient: vertical;
+  overflow: -moz-hidden-unscrollable;
 }
 
 .autocomplete-treerows {
@@ -791,6 +817,8 @@ popup[type="autocomplete"][hidden="true"] {
 .autocomplete-result-popupset {
   max-width: 0px;
   width: 0 !important;
+  min-width: 0%;
+  min-height: 0%;
 }
 
 /********** colorpicker **********/
@@ -821,16 +849,18 @@ menulist[type="description"] {
   -moz-binding: url("chrome://global/content/bindings/menulist.xml#menulist-description");
 }
 
-html|*.menulist-editable-input {
-  -moz-appearance: none !important;
-}
-
 menulist > menupopup > menuitem {
   -moz-binding: url("chrome://global/content/bindings/menu.xml#menuitem-iconic-noaccel");
 }
 
 dropmarker {
   -moz-binding: url("chrome://global/content/bindings/general.xml#dropmarker");
+}
+
+/********** resizer **********/
+
+resizer {
+  -moz-binding: url("chrome://global/content/bindings/resizer.xml#resizer");
 }
 
 /********** splitter **********/
@@ -892,6 +922,17 @@ scale {
   -moz-user-focus: normal;
 }
 
+scrollbarbutton[sbattr="scrollbar-up-top"]:not(:-moz-system-metric(scrollbar-start-backward)),
+scrollbarbutton[sbattr="scrollbar-down-top"]:not(:-moz-system-metric(scrollbar-start-forward)),
+scrollbarbutton[sbattr="scrollbar-up-bottom"]:not(:-moz-system-metric(scrollbar-end-backward)),
+scrollbarbutton[sbattr="scrollbar-down-bottom"]:not(:-moz-system-metric(scrollbar-end-forward)) {
+  display: none;
+}
+
+thumb[sbattr="scrollbar-thumb"]:-moz-system-metric(scrollbar-thumb-proportional) {
+  -moz-box-flex: 1;
+}
+
 /******** scrollbox ********/
 
 scrollbox {
@@ -914,8 +955,7 @@ autorepeatbutton {
 
 /********** statusbar **********/
 
-statusbar 
-{
+statusbar {
   -moz-binding: url("chrome://global/content/bindings/general.xml#statusbar");
 %ifdef XP_MACOSX
   padding-right: 14px;
@@ -962,7 +1002,8 @@ stringbundle {
 
 /********** dialog **********/
 
-dialog {
+dialog,
+dialog:root /* override :root from above */ {
   -moz-binding: url("chrome://global/content/bindings/dialog.xml#dialog");
   -moz-box-orient: vertical;
 }
@@ -979,7 +1020,8 @@ page {
 
 /********** wizard **********/
 
-wizard {
+wizard,
+wizard:root /* override :root from above */ {
   -moz-binding: url("chrome://global/content/bindings/wizard.xml#wizard");
   -moz-box-orient: vertical;
   width: 40em;
@@ -1002,7 +1044,8 @@ wizardpage {
 
 /********** preferences ********/
 
-prefwindow {
+prefwindow,
+prefwindow:root /* override :root from above */ {
   -moz-binding: url("chrome://global/content/bindings/preferences.xml#prefwindow");  
   -moz-box-orient: vertical;
 }
@@ -1018,6 +1061,10 @@ prefwindow > .paneDeckContainer {
 
 prefpane > .content-box {
   overflow: hidden;
+}
+
+prefwindow[type="child"] > .paneDeckContainer {
+  overflow: -moz-hidden-unscrollable;
 }
 
 prefwindow[type="child"] > prefpane > .content-box {
@@ -1038,12 +1085,10 @@ preference {
 radio[pane] {
   -moz-binding: url("chrome://global/content/bindings/preferences.xml#panebutton") !important; 
   -moz-box-orient: vertical;
-  -moz-appearance: none;
   -moz-box-align: center;
 }
 
-prefwindow[chromehidden~="toolbar"] .chromeclass-toolbar
-{
+prefwindow[chromehidden~="toolbar"] .chromeclass-toolbar {
   display: none;
 }
 
@@ -1060,11 +1105,15 @@ expander {
 richlistbox {
   -moz-binding: url('chrome://global/content/bindings/richlistbox.xml#richlistbox');
   -moz-user-focus: normal;
-  -moz-appearance: listbox;
+  -moz-box-orient: vertical;
 }
 
 richlistitem {
   -moz-binding: url('chrome://global/content/bindings/richlistbox.xml#richlistitem');
+}
+
+richlistbox > listheader {
+  -moz-box-ordinal-group: 1;
 }
 
 /********** datepicker and timepicker ********/
@@ -1089,4 +1138,14 @@ timepicker {
 /*********** findbar ************/
 findbar {
   -moz-binding: url('chrome://global/content/bindings/findbar.xml#findbar');
+}
+
+.findbar-textbox {
+  -moz-binding: url("chrome://global/content/bindings/findbar.xml#findbar-textbox");
+}
+
+
+/*********** filefield ************/
+filefield {
+  -moz-binding: url("chrome://global/content/bindings/filefield.xml#filefield");
 }

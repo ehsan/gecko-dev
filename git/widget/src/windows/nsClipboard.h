@@ -39,7 +39,6 @@
 #define nsClipboard_h__
 
 #include "nsBaseClipboard.h"
-#include "nsIObserver.h"
 #include "nsIURI.h"
 #include <windows.h>
 
@@ -53,21 +52,16 @@ struct IDataObject;
  * Native Win32 Clipboard wrapper
  */
 
-class nsClipboard : public nsBaseClipboard,
-                    public nsIObserver
+class nsClipboard : public nsBaseClipboard
 {
 
 public:
   nsClipboard();
   virtual ~nsClipboard();
 
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIObserver
-  NS_DECL_NSIOBSERVER
-
   // nsIClipboard
-  NS_IMETHOD HasDataMatchingFlavors(nsISupportsArray *aFlavorList, PRInt32 aWhichClipboard, PRBool *_retval); 
+  NS_IMETHOD HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
+                                    PRInt32 aWhichClipboard, PRBool *_retval); 
 
   // Internal Native Routines
   static nsresult CreateNativeDataObject(nsITransferable * aTransferable, 
@@ -80,7 +74,7 @@ public:
                                         nsIWidget       * aWindow,
                                         nsITransferable * aTransferable);
   static nsresult GetNativeDataOffClipboard(nsIWidget * aWindow, UINT aIndex, UINT aFormat, void ** aData, PRUint32 * aLen);
-  static nsresult GetNativeDataOffClipboard(IDataObject * aDataObject, UINT aIndex, UINT aFormat, void ** aData, PRUint32 * aLen);
+  static nsresult GetNativeDataOffClipboard(IDataObject * aDataObject, UINT aIndex, UINT aFormat, const char * aMIMEImageFormat, void ** aData, PRUint32 * aLen);
   static nsresult GetGlobalData(HGLOBAL aHGBL, void ** aData, PRUint32 * aLen);
   static UINT     GetFormat(const char* aMimeStr);
 
@@ -92,6 +86,7 @@ protected:
   
   static PRBool IsInternetShortcut ( const nsAString& inFileName ) ;
   static PRBool FindURLFromLocalFile ( IDataObject* inDataObject, UINT inIndex, void** outData, PRUint32* outDataLen ) ;
+  static PRBool FindURLFromNativeURL ( IDataObject* inDataObject, UINT inIndex, void** outData, PRUint32* outDataLen ) ;
   static PRBool FindUnicodeFromPlainText ( IDataObject* inDataObject, UINT inIndex, void** outData, PRUint32* outDataLen ) ;
   static PRBool FindPlatformHTML ( IDataObject* inDataObject, UINT inIndex, void** outData, PRUint32* outDataLen );
   static void ResolveShortcut ( nsILocalFile* inFileName, nsACString& outURL ) ;

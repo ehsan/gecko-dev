@@ -268,22 +268,25 @@ nsTreeSelection::nsTreeSelection(nsITreeBoxObject* aTree)
 nsTreeSelection::~nsTreeSelection()
 {
   delete mFirstRange;
+  if (mSelectTimer)
+    mSelectTimer->Cancel();
 }
 
+NS_IMPL_CYCLE_COLLECTION_2(nsTreeSelection, mTree, mCurrentColumn)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeSelection)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTreeSelection)
+
 // QueryInterface implementation for nsBoxObject
-NS_INTERFACE_MAP_BEGIN(nsTreeSelection)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeSelection)
   NS_INTERFACE_MAP_ENTRY(nsITreeSelection)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeSelection)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeSelection)
 NS_INTERFACE_MAP_END
-
-NS_IMPL_ADDREF(nsTreeSelection)
-NS_IMPL_RELEASE(nsTreeSelection)
 
 NS_IMETHODIMP nsTreeSelection::GetTree(nsITreeBoxObject * *aTree)
 {
-  NS_IF_ADDREF(mTree);
-  *aTree = mTree;
+  NS_IF_ADDREF(*aTree = mTree);
   return NS_OK;
 }
 
@@ -293,12 +296,19 @@ NS_IMETHODIMP nsTreeSelection::SetTree(nsITreeBoxObject * aTree)
     mSelectTimer->Cancel();
     mSelectTimer = nsnull;
   }
-  mTree = aTree; // WEAK
+
+  // Make sure aTree really implements nsITreeBoxObject and nsIBoxObject!
+  nsCOMPtr<nsIBoxObject> bo = do_QueryInterface(aTree);
+  mTree = do_QueryInterface(bo);
+  NS_ENSURE_STATE(mTree == aTree);
   return NS_OK;
 }
 
 NS_IMETHODIMP nsTreeSelection::GetSingle(PRBool* aSingle)
 {
+  if (!mTree)
+    return NS_ERROR_NULL_POINTER;
+
   nsCOMPtr<nsIBoxObject> boxObject = do_QueryInterface(mTree);
 
   nsCOMPtr<nsIDOMElement> element;
@@ -410,8 +420,8 @@ NS_IMETHODIMP nsTreeSelection::ToggleSelect(PRInt32 aIndex)
   else {
     if (!mFirstRange->Contains(aIndex)) {
       PRBool single;
-      GetSingle(&single);
-      if (!single)
+      rv = GetSingle(&single);
+      if (NS_SUCCEEDED(rv) && !single)
         rv = mFirstRange->Add(aIndex);
     }
     else
@@ -430,7 +440,10 @@ NS_IMETHODIMP nsTreeSelection::ToggleSelect(PRInt32 aIndex)
 NS_IMETHODIMP nsTreeSelection::RangedSelect(PRInt32 aStartIndex, PRInt32 aEndIndex, PRBool aAugment)
 {
   PRBool single;
-  GetSingle(&single);
+  nsresult rv = GetSingle(&single);
+  if (NS_FAILED(rv))
+    return rv;
+
   if ((mFirstRange || (aStartIndex != aEndIndex)) && single)
     return NS_OK;
 
@@ -452,7 +465,7 @@ NS_IMETHODIMP nsTreeSelection::RangedSelect(PRInt32 aStartIndex, PRInt32 aEndInd
   }
 
   mShiftSelectPivot = aStartIndex;
-  nsresult rv = SetCurrentIndex(aEndIndex);
+  rv = SetCurrentIndex(aEndIndex);
   if (NS_FAILED(rv))
     return rv;
   
@@ -534,7 +547,10 @@ NS_IMETHODIMP nsTreeSelection::SelectAll()
   PRInt32 rowCount;
   view->GetRowCount(&rowCount);
   PRBool single;
-  GetSingle(&single);
+  nsresult rv = GetSingle(&single);
+  if (NS_FAILED(rv))
+    return rv;
+
   if (rowCount == 0 || (rowCount > 1 && single))
     return NS_OK;
 
@@ -639,11 +655,12 @@ NS_IMETHODIMP nsTreeSelection::SetCurrentIndex(PRInt32 aIndex)
   nsCOMPtr<nsIDOMElement> treeElt;
   boxObject->GetElement(getter_AddRefs(treeElt));
 
-  nsCOMPtr<nsIDOMNode> treeDOMNode(do_QueryInterface(treeElt));
-  NS_ENSURE_TRUE(treeDOMNode, NS_ERROR_UNEXPECTED);
+  nsCOMPtr<nsINode> treeDOMNode(do_QueryInterface(treeElt));
+  NS_ENSURE_STATE(treeDOMNode);
 
-  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(treeDOMNode,
-                                         NS_LITERAL_STRING("DOMMenuItemActive"));
+  nsRefPtr<nsPLDOMEvent> event =
+    new nsPLDOMEvent(treeDOMNode, NS_LITERAL_STRING("DOMMenuItemActive"),
+                     PR_FALSE);
   if (!event)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -658,6 +675,9 @@ NS_IMETHODIMP nsTreeSelection::GetCurrentColumn(nsITreeColumn** aCurrentColumn)
 
 NS_IMETHODIMP nsTreeSelection::SetCurrentColumn(nsITreeColumn* aCurrentColumn)
 {
+  if (!mTree) {
+    return NS_ERROR_UNEXPECTED;
+  }
   if (mCurrentColumn == aCurrentColumn) {
     return NS_OK;
   }
@@ -819,33 +839,21 @@ nsTreeSelection::FireOnSelectHandler()
      return NS_ERROR_UNEXPECTED;
   nsCOMPtr<nsIDOMElement> elt;
   boxObject->GetElement(getter_AddRefs(elt));
+  NS_ENSURE_STATE(elt);
 
-  nsCOMPtr<nsIContent> content(do_QueryInterface(elt));
-  nsCOMPtr<nsIDocument> document = content->GetDocument();
-  
-  // we might be firing on a delay, so it's possible in rare cases that
-  // the document may have been destroyed by the time it fires
-  if (!document)
-    return NS_OK;
+  nsCOMPtr<nsINode> node(do_QueryInterface(elt));
+  NS_ENSURE_STATE(node);
 
-  nsIPresShell *shell = document->GetPrimaryShell();
-  if (shell) {
-    // Retrieve the context in which our DOM event will fire.
-    nsCOMPtr<nsPresContext> aPresContext = shell->GetPresContext();
-
-    nsEventStatus status = nsEventStatus_eIgnore;
-    nsEvent event(PR_TRUE, NS_FORM_SELECTED);
-
-    nsEventDispatcher::Dispatch(content, aPresContext, &event, nsnull, &status);
-  }
-
+  nsRefPtr<nsPLDOMEvent> event =
+    new nsPLDOMEvent(node, NS_LITERAL_STRING("select"), PR_FALSE);
+  event->RunDOMEventWhenSafe();
   return NS_OK;
 }
 
 void
 nsTreeSelection::SelectCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsTreeSelection* self = static_cast<nsTreeSelection*>(aClosure);
+  nsRefPtr<nsTreeSelection> self = static_cast<nsTreeSelection*>(aClosure);
   if (self) {
     self->FireOnSelectHandler();
     aTimer->Cancel();

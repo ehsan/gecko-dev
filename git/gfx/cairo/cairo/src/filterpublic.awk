@@ -2,7 +2,10 @@
 # Reads cairo header files on stdin, and outputs a file with defines for
 # renaming all public functions to Mozilla-specific names.
 # Usage:
-#   cat *.h | ./filterpublic.awk | sort > cairo-rename.h
+#   cat *.h | awk -f ./filterpublic.awk | sort > cairo-rename.h
+#
+# pixman:
+#   grep '(' ../../libpixman/src/pixman.h | grep '^[a-z]' | sed 's, *(.*$,,' | sed 's,^.* ,,'
 
 BEGIN { state = "public"; }
 

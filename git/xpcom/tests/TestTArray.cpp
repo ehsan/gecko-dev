@@ -49,6 +49,8 @@
 #include "nsXPCOM.h"
 #include "nsILocalFile.h"
 
+namespace TestTArray {
+
 // Define this so we can use test_basic_array in test_comptr_array
 template <class T>
 inline bool operator<(const nsCOMPtr<T>& lhs, const nsCOMPtr<T>& rhs) {
@@ -80,10 +82,18 @@ static PRBool test_basic_array(ElementType *data,
     return PR_FALSE;
   // ensure sort results in ascending order
   ary.Sort();
-  for (i = 1; i < ary.Length(); ++i) {
-    if (ary[i] < ary[i-1])
+  for (i = ary.Length(); --i; ) {
+    if (ary[i] < ary[i - 1])
+      return PR_FALSE;
+    if (ary[i] == ary[i - 1])
+      ary.RemoveElementAt(i);
+  }
+  for (i = 0; i < ary.Length(); ++i) {
+    if (ary.BinaryIndexOf(ary[i]) != i)
       return PR_FALSE;
   }
+  if (ary.BinaryIndexOf(extra) != -1)
+    return PR_FALSE;
   PRUint32 oldLen = ary.Length();
   ary.RemoveElement(data[dataLen / 2]);
   if (ary.Length() != (oldLen - 1))
@@ -285,10 +295,18 @@ static PRBool test_string_array() {
 
   strArray.Sort();
   const char ksorted[] = "\0 dehllloorw";
-  for (i = 0; i < NS_ARRAY_LENGTH(kdata)-1; ++i) {
+  for (i = NS_ARRAY_LENGTH(kdata); i--; ) {
     if (strArray[i].CharAt(0) != ksorted[i])
       return PR_FALSE;
+    if (i > 0 && strArray[i] == strArray[i - 1])
+      strArray.RemoveElementAt(i);
   }
+  for (i = 0; i < strArray.Length(); ++i) {
+    if (strArray.BinaryIndexOf(strArray[i]) != i)
+      return PR_FALSE;
+  }
+  if (strArray.BinaryIndexOf(EmptyCString()) != -1)
+    return PR_FALSE;
 
   nsCString rawArray[NS_ARRAY_LENGTH(kdata)-1];
   for (i = 0; i < NS_ARRAY_LENGTH(rawArray); ++i)
@@ -480,6 +498,21 @@ static PRBool test_autoarray() {
 
 //----
 
+// IndexOf used to potentially scan beyond the end of the array.  Test for
+// this incorrect behavior by adding a value (5), removing it, then seeing
+// if IndexOf finds it.
+static PRBool test_indexof() {
+  nsTArray<int> array;
+  array.AppendElement(0);
+  // add and remove the 5
+  array.AppendElement(5);
+  array.RemoveElementAt(1);
+  // we should not find the 5!
+  return array.IndexOf(5, 1) == -1;
+}
+
+//----
+
 typedef PRBool (*TestFunc)();
 #define DECL_TEST(name) { #name, name }
 
@@ -499,8 +532,13 @@ static const struct Test {
 #ifdef DEBUG
   DECL_TEST(test_autoarray),
 #endif
+  DECL_TEST(test_indexof),
   { nsnull, nsnull }
 };
+
+}
+
+using namespace TestTArray;
 
 int main(int argc, char **argv) {
   int count = 1;

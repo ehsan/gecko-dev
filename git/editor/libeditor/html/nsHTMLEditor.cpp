@@ -36,7 +36,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#include "nsICaret.h"
 #include "nsCRT.h"
 
 #include "nsReadableUtils.h"
@@ -73,8 +72,6 @@
 #include "nsIDOMEventGroup.h"
 #include "nsILinkHandler.h"
 
-#include "TransactionFactory.h"
-
 #include "nsICSSLoader.h"
 #include "nsICSSStyleSheet.h"
 #include "nsIDOMStyleSheet.h"
@@ -89,7 +86,6 @@
 #include "nsIRangeUtils.h"
 #include "nsISupportsArray.h"
 #include "nsContentUtils.h"
-#include "nsVoidArray.h"
 #include "nsIURL.h"
 #include "nsIComponentManager.h"
 #include "nsIServiceManager.h"
@@ -97,9 +93,6 @@
 #include "nsIDOMDocumentFragment.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
-#include "nsIImage.h"
-#include "nsAOLCiter.h"
-#include "nsInternetCiter.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "SetDocTitleTxn.h"
@@ -125,10 +118,10 @@
 #include "nsEditorUtils.h"
 #include "nsWSRunObject.h"
 #include "nsHTMLObjectResizer.h"
+#include "nsGkAtoms.h"
 
 #include "nsIFrame.h"
 #include "nsIView.h"
-#include "nsIWidget.h"
 #include "nsIParserService.h"
 #include "nsIEventStateManager.h"
 
@@ -161,9 +154,9 @@ nsHTMLEditor::nsHTMLEditor()
 , mIsMoving(PR_FALSE)
 , mSnapToGridEnabled(PR_FALSE)
 , mIsInlineTableEditingEnabled(PR_TRUE)
-, mGridSize(0)
 , mInfoXIncrement(20)
 , mInfoYIncrement(20)
+, mGridSize(0)
 {
 } 
 
@@ -214,14 +207,9 @@ nsHTMLEditor::~nsHTMLEditor()
   // free any default style propItems
   RemoveAllDefaultProperties();
 
-  while (mStyleSheetURLs.Count())
+  while (mStyleSheetURLs.Length())
   {
-    nsAString* strp = mStyleSheetURLs.StringAt(0);
-
-    if (strp)
-    {
-      RemoveOverrideStyleSheet(*strp);
-    }
+    RemoveOverrideStyleSheet(mStyleSheetURLs[0]);
   }
 
   if (mLinkHandler && mPresShellWeak)
@@ -285,8 +273,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     result = nsPlaintextEditor::Init(aDoc, aPresShell, aRoot, aSelCon, aFlags);
     if (NS_FAILED(result)) { return result; }
 
-    // the HTML Editor is CSS-aware only in the case of Composer
-    mCSSAware = (0 == aFlags);
+    UpdateForFlags(aFlags);
 
     // disable Composer-only features
     if (aFlags & eEditorMailMask)
@@ -322,7 +309,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
 
     if (!(mFlags & eEditorAllowInteraction)) {
       // ignore any errors from this in case the file is missing
-      AddOverrideStyleSheet(NS_LITERAL_STRING("resource:/res/EditorOverride.css"));
+      AddOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/EditorOverride.css"));
     }
 
     nsCOMPtr<nsISelection>selection;
@@ -417,12 +404,12 @@ nsHTMLEditor::GetFlags(PRUint32 *aFlags)
   return mRules->GetFlags(aFlags);
 }
 
-
 NS_IMETHODIMP 
 nsHTMLEditor::SetFlags(PRUint32 aFlags)
 {
   if (!mRules) { return NS_ERROR_NULL_POINTER; }
-  mCSSAware = ((aFlags & (eEditorNoCSSMask | eEditorMailMask)) == 0);
+
+  UpdateForFlags(aFlags);
 
   return mRules->SetFlags(aFlags);
 }
@@ -710,21 +697,17 @@ nsHTMLEditor::IsBlockNode(nsIDOMNode *aNode)
 NS_IMETHODIMP 
 nsHTMLEditor::SetDocumentTitle(const nsAString &aTitle)
 {
-  nsRefPtr<EditTxn> txn;
-  nsresult result = TransactionFactory::GetNewTransaction(SetDocTitleTxn::GetCID(), getter_AddRefs(txn));
-  if (NS_SUCCEEDED(result))  
-  {
-    result = static_cast<SetDocTitleTxn*>(txn.get())->Init(this, &aTitle);
+  nsRefPtr<SetDocTitleTxn> txn = new SetDocTitleTxn();
+  if (!txn)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-    if (NS_SUCCEEDED(result)) 
-    {
-      //Don't let Rules System change the selection
-      nsAutoTxnsConserveSelection dontChangeSelection(this);
+  nsresult result = txn->Init(this, &aTitle);
+  if (NS_FAILED(result))
+    return result;
 
-      result = nsEditor::DoTransaction(txn);  
-    }
-  }
-  return result;
+  //Don't let Rules System change the selection
+  nsAutoTxnsConserveSelection dontChangeSelection(this);
+  return nsEditor::DoTransaction(txn);  
 }
 
 /* ------------ Block methods moved from nsEditor -------------- */
@@ -758,29 +741,6 @@ nsHTMLEditor::GetBlockNodeParent(nsIDOMNode *aNode)
   }
   return p;
 }
-
-
-///////////////////////////////////////////////////////////////////////////
-// HasSameBlockNodeParent: true if nodes have same block level ancestor
-//               
-PRBool
-nsHTMLEditor::HasSameBlockNodeParent(nsIDOMNode *aNode1, nsIDOMNode *aNode2)
-{
-  if (!aNode1 || !aNode2)
-  {
-    NS_NOTREACHED("null node passed to HasSameBlockNodeParent()");
-    return PR_FALSE;
-  }
-  
-  if (aNode1 == aNode2)
-    return PR_TRUE;
-    
-  nsCOMPtr<nsIDOMNode> p1 = GetBlockNodeParent(aNode1);
-  nsCOMPtr<nsIDOMNode> p2 = GetBlockNodeParent(aNode2);
-
-  return (p1 == p2);
-}
-
 
 ///////////////////////////////////////////////////////////////////////////
 // GetBlockSection: return leftmost/rightmost nodes in aChild's block
@@ -853,7 +813,8 @@ nsHTMLEditor::GetBlockSectionsForRange(nsIDOMRange *aRange,
     iter->Init(aRange);
     while (iter->IsDone())
     {
-      nsCOMPtr<nsIContent> currentContent = iter->GetCurrentNode();
+      nsCOMPtr<nsIContent> currentContent =
+        do_QueryInterface(iter->GetCurrentNode());
 
       nsCOMPtr<nsIDOMNode>currentNode = do_QueryInterface(currentContent);
       if (currentNode)
@@ -1346,7 +1307,7 @@ NS_IMETHODIMP nsHTMLEditor::HandleKeyPress(nsIDOMKeyEvent* aKeyEvent)
 NS_IMETHODIMP nsHTMLEditor::TypedText(const nsAString& aString,
                                       PRInt32 aAction)
 {
-  nsAutoPlaceHolderBatch batch(this, gTypingTxnName);
+  nsAutoPlaceHolderBatch batch(this, nsGkAtoms::TypingTxnName);
 
   switch (aAction)
   {
@@ -2181,119 +2142,6 @@ nsHTMLEditor::SetParagraphFormat(const nsAString& aParagraphFormat)
     return InsertBasicBlock(tag);
 }
 
-// XXX: ERROR_HANDLING -- this method needs a little work to ensure all error codes are 
-//                        checked properly, all null pointers are checked, and no memory leaks occur
-NS_IMETHODIMP 
-nsHTMLEditor::GetParentBlockTags(nsStringArray *aTagList, PRBool aGetLists)
-{
-  if (!aTagList) { return NS_ERROR_NULL_POINTER; }
-
-  nsresult res;
-  nsCOMPtr<nsISelection>selection;
-  res = GetSelection(getter_AddRefs(selection));
-  if (NS_FAILED(res)) return res;
-  if (!selection) return NS_ERROR_NULL_POINTER;
-  nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
-
-  // Find out if the selection is collapsed:
-  PRBool isCollapsed;
-  res = selection->GetIsCollapsed(&isCollapsed);
-  if (NS_FAILED(res)) return res;
-  if (isCollapsed)
-  {
-    nsCOMPtr<nsIDOMNode> node, blockParent;
-    PRInt32 offset;
-  
-    res = GetStartNodeAndOffset(selection, address_of(node), &offset);
-    if (!node) res = NS_ERROR_FAILURE;
-    if (NS_FAILED(res)) return res;
-  
-    nsCOMPtr<nsIDOMElement> blockParentElem;
-    if (aGetLists)
-    {
-      // Get the "ol", "ul", or "dl" parent element
-      res = GetElementOrParentByTagName(NS_LITERAL_STRING("list"), node, getter_AddRefs(blockParentElem));
-      if (NS_FAILED(res)) return res;
-    } 
-    else 
-    {
-      PRBool isBlock (PR_FALSE);
-      NodeIsBlock(node, &isBlock);
-      if (isBlock) blockParent = node;
-      else blockParent = GetBlockNodeParent(node);
-      blockParentElem = do_QueryInterface(blockParent);
-    }
-    if (blockParentElem)
-    {
-      nsAutoString blockParentTag;
-      blockParentElem->GetTagName(blockParentTag);
-      aTagList->AppendString(blockParentTag);
-    }
-    
-    return res;
-  }
-
-  // else non-collapsed selection
-  nsCOMPtr<nsIEnumerator> enumerator;
-  res = selPriv->GetEnumerator(getter_AddRefs(enumerator));
-  if (NS_FAILED(res)) return res;
-  if (!enumerator) return NS_ERROR_NULL_POINTER;
-
-  enumerator->First(); 
-  nsCOMPtr<nsISupports> currentItem;
-  res = enumerator->CurrentItem(getter_AddRefs(currentItem));
-  if (NS_FAILED(res)) return res;
-  //XXX: should be while loop?
-  if (currentItem)
-  {
-    nsCOMPtr<nsIDOMRange> range( do_QueryInterface(currentItem) );
-    // scan the range for all the independent block content blockSections
-    // and get the block parent of each
-    nsCOMArray<nsIDOMRange> blockSections;
-    res = GetBlockSectionsForRange(range, blockSections);
-    if (NS_SUCCEEDED(res))
-    {
-      nsCOMPtr<nsIDOMRange> subRange = blockSections[0];
-      while (subRange)
-      {
-        nsCOMPtr<nsIDOMNode>startParent;
-        res = subRange->GetStartContainer(getter_AddRefs(startParent));
-        if (NS_SUCCEEDED(res) && startParent) 
-        {
-          nsCOMPtr<nsIDOMElement> blockParent;
-          if (aGetLists)
-          {
-            // Get the "ol", "ul", or "dl" parent element
-            res = GetElementOrParentByTagName(NS_LITERAL_STRING("list"), startParent, getter_AddRefs(blockParent));
-          } 
-          else 
-          {
-            blockParent = do_QueryInterface(GetBlockNodeParent(startParent));
-          }
-          if (NS_SUCCEEDED(res) && blockParent)
-          {
-            nsAutoString blockParentTag;
-            blockParent->GetTagName(blockParentTag);
-            PRBool isRoot;
-            IsRootTag(blockParentTag, isRoot);
-            if ((!isRoot) && (-1==aTagList->IndexOf(blockParentTag))) {
-              aTagList->AppendString(blockParentTag);
-            }
-          }
-        }
-        if (NS_FAILED(res))
-          return res;
-        blockSections.RemoveObject(0);
-        if (blockSections.Count() == 0)
-          break;
-        subRange = blockSections[0];
-      }
-    }
-  }
-  return res;
-}
-
-
 NS_IMETHODIMP 
 nsHTMLEditor::GetParagraphState(PRBool *aMixed, nsAString &outFormat)
 {
@@ -2340,20 +2188,6 @@ nsHTMLEditor::GetHighlightColorState(PRBool *aMixed, nsAString &aOutColor)
   return res;
 }
 
-NS_IMETHODIMP 
-nsHTMLEditor::GetHighlightColor(PRBool *aMixed, PRUnichar **_retval)
-{
-  if (!aMixed || !_retval) return NS_ERROR_NULL_POINTER;
-  nsAutoString outColorString(NS_LITERAL_STRING("transparent"));
-  *aMixed = PR_FALSE;
-
-  nsresult  err = NS_NOINTERFACE;
-  err = GetHighlightColorState(aMixed, outColorString);
-  *_retval = ToNewUnicode(outColorString);
-  return err;
-}
-
-
 nsresult
 nsHTMLEditor::GetCSSBackgroundColorState(PRBool *aMixed, nsAString &aOutColor, PRBool aBlockLevel)
 {
@@ -2372,7 +2206,8 @@ nsHTMLEditor::GetCSSBackgroundColorState(PRBool *aMixed, nsAString &aOutColor, P
   PRInt32 offset;
   res = GetStartNodeAndOffset(selection, address_of(parent), &offset);
   if (NS_FAILED(res)) return res;
-  
+  if (!parent) return NS_ERROR_NULL_POINTER;
+
   // is the selection collapsed?
   PRBool bCollapsed;
   res = selection->GetIsCollapsed(&bCollapsed);
@@ -2406,6 +2241,8 @@ nsHTMLEditor::GetCSSBackgroundColorState(PRBool *aMixed, nsAString &aOutColor, P
     nsCOMPtr<nsIDOMNode> blockParent = nodeToExamine;
     if (!isBlock) {
       blockParent = GetBlockNodeParent(nodeToExamine);
+      if (!blockParent)
+        return NS_OK;
     }
 
     // Make sure to not walk off onto the Document node
@@ -3534,7 +3371,7 @@ nsHTMLEditor::ReplaceStyleSheet(const nsAString& aURL)
   if (EnableExistingStyleSheet(aURL))
   {
     // Disable last sheet if not the same as new one
-    if (!mLastStyleSheetURL.IsEmpty() && mLastStyleSheetURL.Equals(aURL))
+    if (!mLastStyleSheetURL.IsEmpty() && !mLastStyleSheetURL.Equals(aURL))
         return EnableStyleSheet(mLastStyleSheetURL, PR_FALSE);
 
     return NS_OK;
@@ -3554,7 +3391,7 @@ nsHTMLEditor::ReplaceStyleSheet(const nsAString& aURL)
   rv = NS_NewURI(getter_AddRefs(uaURI), aURL);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = cssLoader->LoadSheet(uaURI, nsnull, this);
+  rv = cssLoader->LoadSheet(uaURI, nsnull, EmptyCString(), this);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -3606,7 +3443,7 @@ nsHTMLEditor::AddOverrideStyleSheet(const nsAString& aURL)
   // synchronously, of course..
   nsCOMPtr<nsICSSStyleSheet> sheet;
   // Editor override style sheets may want to style Gecko anonymous boxes
-  rv = cssLoader->LoadSheetSync(uaURI, PR_TRUE, getter_AddRefs(sheet));
+  rv = cssLoader->LoadSheetSync(uaURI, PR_TRUE, PR_TRUE, getter_AddRefs(sheet));
 
   // Synchronous loads should ALWAYS return completed
   if (!sheet)
@@ -3619,12 +3456,6 @@ nsHTMLEditor::AddOverrideStyleSheet(const nsAString& aURL)
   // Add the override style sheet
   // (This checks if already exists)
   ps->AddOverrideStyleSheet(sheet);
-
-  // Save doc pointer to be able to use nsIStyleSheet::SetEnabled()
-  nsIDocument *document = ps->GetDocument();
-  if (!document)
-    return NS_ERROR_NULL_POINTER;
-  sheet->SetOwningDocument(document);
 
   ps->ReconstructStyleData();
 
@@ -3690,21 +3521,32 @@ nsHTMLEditor::EnableStyleSheet(const nsAString &aURL, PRBool aEnable)
 
   nsCOMPtr<nsIDOMStyleSheet> domSheet(do_QueryInterface(sheet));
   NS_ASSERTION(domSheet, "Sheet not implementing nsIDOMStyleSheet!");
+
+  // Ensure the style sheet is owned by our document.
+  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+  rv = sheet->SetOwningDocument(doc);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   return domSheet->SetDisabled(!aEnable);
 }
-
 
 PRBool
 nsHTMLEditor::EnableExistingStyleSheet(const nsAString &aURL)
 {
   nsCOMPtr<nsICSSStyleSheet> sheet;
   nsresult rv = GetStyleSheetForURL(aURL, getter_AddRefs(sheet));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv))
+    return PR_FALSE;
 
   // Enable sheet if already loaded.
   if (sheet)
   {
+    // Ensure the style sheet is owned by our document.
+    nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+    rv = sheet->SetOwningDocument(doc);
+    if (NS_FAILED(rv))
+      return PR_FALSE;
+
     nsCOMPtr<nsIDOMStyleSheet> domSheet(do_QueryInterface(sheet));
     NS_ASSERTION(domSheet, "Sheet not implementing nsIDOMStyleSheet!");
     
@@ -3719,12 +3561,12 @@ nsHTMLEditor::AddNewStyleSheetToList(const nsAString &aURL,
                                      nsICSSStyleSheet *aStyleSheet)
 {
   PRInt32 countSS = mStyleSheets.Count();
-  PRInt32 countU = mStyleSheetURLs.Count();
+  PRUint32 countU = mStyleSheetURLs.Length();
 
   if (countU < 0 || countSS != countU)
     return NS_ERROR_UNEXPECTED;
 
-  if (!mStyleSheetURLs.AppendString(aURL))
+  if (!mStyleSheetURLs.AppendElement(aURL))
     return NS_ERROR_UNEXPECTED;
 
   return mStyleSheets.AppendObject(aStyleSheet) ? NS_OK : NS_ERROR_UNEXPECTED;
@@ -3734,17 +3576,16 @@ nsresult
 nsHTMLEditor::RemoveStyleSheetFromList(const nsAString &aURL)
 {
   // is it already in the list?
-  PRInt32 foundIndex;
+  PRUint32 foundIndex;
   foundIndex = mStyleSheetURLs.IndexOf(aURL);
-  if (foundIndex < 0)
+  if (foundIndex == mStyleSheetURLs.NoIndex)
     return NS_ERROR_FAILURE;
 
   // Attempt both removals; if one fails there's not much we can do.
   nsresult rv = NS_OK;
   if (!mStyleSheets.RemoveObjectAt(foundIndex))
     rv = NS_ERROR_FAILURE;
-  if (!mStyleSheetURLs.RemoveStringAt(foundIndex))
-    rv = NS_ERROR_FAILURE;
+  mStyleSheetURLs.RemoveElementAt(foundIndex);
 
   return rv;
 }
@@ -3757,9 +3598,9 @@ nsHTMLEditor::GetStyleSheetForURL(const nsAString &aURL,
   *aStyleSheet = 0;
 
   // is it already in the list?
-  PRInt32 foundIndex;
+  PRUint32 foundIndex;
   foundIndex = mStyleSheetURLs.IndexOf(aURL);
-  if (foundIndex < 0)
+  if (foundIndex == mStyleSheetURLs.NoIndex)
     return NS_OK; //No sheet -- don't fail!
 
   *aStyleSheet = mStyleSheets[foundIndex];
@@ -3779,14 +3620,13 @@ nsHTMLEditor::GetURLForStyleSheet(nsICSSStyleSheet *aStyleSheet,
   PRInt32 foundIndex = mStyleSheets.IndexOf(aStyleSheet);
 
   // Don't fail if we don't find it in our list
+  // Note: mStyleSheets is nsCOMArray, so its IndexOf() method
+  // returns -1 on failure.
   if (foundIndex == -1)
     return NS_OK;
 
   // Found it in the list!
-  nsAString* strp = mStyleSheetURLs.StringAt(foundIndex);
-  if (!strp)
-    return NS_ERROR_UNEXPECTED;
-  aURL = *strp;
+  aURL = mStyleSheetURLs[foundIndex];
   return NS_OK;
 }
 
@@ -3845,8 +3685,7 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
     // loop through the content iterator for each content node
     while (!iter->IsDone())
     {
-      nsIContent *content = iter->GetCurrentNode();
-      nsCOMPtr<nsIDOMNode> node (do_QueryInterface(content));
+      nsCOMPtr<nsIDOMNode> node (do_QueryInterface(iter->GetCurrentNode()));
       if (node)
       {
         nsAutoString tagName;
@@ -4233,23 +4072,6 @@ nsHTMLEditor::SelectEntireDocument(nsISelection *aSelection)
   return nsEditor::SelectEntireDocument(aSelection);
 }
 
-static nsIContent*
-FindEditableRoot(nsIContent *aContent)
-{
-  nsIDocument *document = aContent->GetCurrentDoc();
-  if (!document || document->HasFlag(NODE_IS_EDITABLE) ||
-      !aContent->HasFlag(NODE_IS_EDITABLE)) {
-    return nsnull;
-  }
-
-  nsIContent *parent, *content = aContent;
-  while ((parent = content->GetParent()) && parent->HasFlag(NODE_IS_EDITABLE)) {
-    content = parent;
-  }
-
-  return content;
-}
-
 NS_IMETHODIMP
 nsHTMLEditor::SelectAll()
 {
@@ -4271,10 +4093,9 @@ nsHTMLEditor::SelectAll()
   nsCOMPtr<nsIContent> anchorContent = do_QueryInterface(anchorNode, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIContent *rootContent = FindEditableRoot(anchorContent);
-  if (!rootContent) {
-    return SelectEntireDocument(selection);
-  }
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  nsIContent *rootContent = anchorContent->GetSelectionRootContent(ps);
+  NS_ASSERTION(rootContent, "GetSelectionRootContent failed");
 
   nsCOMPtr<nsIDOMNode> rootElement = do_QueryInterface(rootContent, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -4288,32 +4109,6 @@ nsHTMLEditor::SelectAll()
 #pragma mark  Random methods 
 #pragma mark -
 #endif
-
-
-NS_IMETHODIMP nsHTMLEditor::GetLayoutObject(nsIDOMNode *aNode, nsISupports **aLayoutObject)
-{
-  nsresult result = NS_ERROR_FAILURE;  // we return an error unless we get the index
-  if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
-  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  if (!ps) return NS_ERROR_NOT_INITIALIZED;
-
-  if ((nsnull!=aNode))
-  { // get the content interface
-    nsCOMPtr<nsIContent> nodeAsContent( do_QueryInterface(aNode) );
-    if (nodeAsContent)
-    { // get the frame from the content interface
-      //Note: frames are not ref counted, so don't use an nsCOMPtr
-      *aLayoutObject = nsnull;
-      result = ps->GetLayoutObjectFor(nodeAsContent, aLayoutObject);
-    }
-  }
-  else {
-    result = NS_ERROR_NULL_POINTER;
-  }
-
-  return result;
-}
-
 
 // this will NOT find aAttribute unless aAttribute has a non-null value
 // so singleton attributes like <Table border> will not be matched!
@@ -4472,44 +4267,6 @@ nsHTMLEditor::IsRootTag(nsString &aTag, PRBool &aIsTag)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLEditor::IsSubordinateBlock(nsString &aTag, PRBool &aIsTag)
-{
-  static char p[] = "p";
-  static char h1[] = "h1";
-  static char h2[] = "h2";
-  static char h3[] = "h3";
-  static char h4[] = "h4";
-  static char h5[] = "h5";
-  static char h6[] = "h6";
-  static char address[] = "address";
-  static char pre[] = "pre";
-  static char li[] = "li";
-  static char dt[] = "dt";
-  static char dd[] = "dd";
-  if (aTag.EqualsIgnoreCase(p)  ||
-      aTag.EqualsIgnoreCase(h1) ||
-      aTag.EqualsIgnoreCase(h2) ||
-      aTag.EqualsIgnoreCase(h3) ||
-      aTag.EqualsIgnoreCase(h4) ||
-      aTag.EqualsIgnoreCase(h5) ||
-      aTag.EqualsIgnoreCase(h6) ||
-      aTag.EqualsIgnoreCase(address) ||
-      aTag.EqualsIgnoreCase(pre) ||
-      aTag.EqualsIgnoreCase(li) ||
-      aTag.EqualsIgnoreCase(dt) ||
-      aTag.EqualsIgnoreCase(dd) )
-  {
-    aIsTag = PR_TRUE;
-  }
-  else {
-    aIsTag = PR_FALSE;
-  }
-  return NS_OK;
-}
-
-
-
 ///////////////////////////////////////////////////////////////////////////
 // GetEnclosingTable: find ancestor who is a table, if any
 //                  
@@ -4580,9 +4337,10 @@ nsHTMLEditor::CollapseAdjacentTextNodes(nsIDOMRange *aInRange)
 {
   if (!aInRange) return NS_ERROR_NULL_POINTER;
   nsAutoTxnsConserveSelection dontSpazMySelection(this);
-  nsVoidArray textNodes;  // we can't actually do anything during iteration, so store the text nodes in an array
-                          // don't bother ref counting them because we know we can hold them for the 
-                          // lifetime of this method
+  nsTArray<nsIDOMNode*> textNodes;
+  // we can't actually do anything during iteration, so store the text nodes in an array
+  // don't bother ref counting them because we know we can hold them for the 
+  // lifetime of this method
 
 
   // build a list of editable text nodes
@@ -4595,13 +4353,10 @@ nsHTMLEditor::CollapseAdjacentTextNodes(nsIDOMRange *aInRange)
 
   while (!iter->IsDone())
   {
-    nsIContent *content = iter->GetCurrentNode();  
-
-    nsCOMPtr<nsIDOMCharacterData> text = do_QueryInterface(content);
-    nsCOMPtr<nsIDOMNode>          node = do_QueryInterface(content);
-    if (text && node && IsEditable(node))
+    nsCOMPtr<nsIDOMCharacterData> text = do_QueryInterface(iter->GetCurrentNode());
+    if (text && IsEditable(text))
     {
-      textNodes.AppendElement(node.get());
+      textNodes.AppendElement(text);
     }
 
     iter->Next();
@@ -4609,16 +4364,17 @@ nsHTMLEditor::CollapseAdjacentTextNodes(nsIDOMRange *aInRange)
 
   // now that I have a list of text nodes, collapse adjacent text nodes
   // NOTE: assumption that JoinNodes keeps the righthand node
-  while (textNodes.Count() > 1)
+  while (textNodes.Length() > 1)
   {
     // we assume a textNodes entry can't be nsnull
-    nsIDOMNode *leftTextNode = (nsIDOMNode *)(textNodes.ElementAt(0));
-    nsIDOMNode *rightTextNode = (nsIDOMNode *)(textNodes.ElementAt(1));
+    nsIDOMNode *leftTextNode = textNodes[0];
+    nsIDOMNode *rightTextNode = textNodes[1];
     NS_ASSERTION(leftTextNode && rightTextNode,"left or rightTextNode null in CollapseAdjacentTextNodes");
 
     // get the prev sibling of the right node, and see if it's leftTextNode
     nsCOMPtr<nsIDOMNode> prevSibOfRightNode;
-    result = GetPriorHTMLSibling(rightTextNode, address_of(prevSibOfRightNode));
+    result =
+      rightTextNode->GetPreviousSibling(getter_AddRefs(prevSibOfRightNode));
     if (NS_FAILED(result)) return result;
     if (prevSibOfRightNode && (prevSibOfRightNode == leftTextNode))
     {
@@ -4634,50 +4390,6 @@ nsHTMLEditor::CollapseAdjacentTextNodes(nsIDOMRange *aInRange)
   }
 
   return result;
-}
-
-NS_IMETHODIMP
-nsHTMLEditor::GetNextElementByTagName(nsIDOMElement    *aCurrentElement,
-                                      const nsAString   *aTagName,
-                                      nsIDOMElement   **aReturn)
-{
-  nsresult res = NS_OK;
-  if (!aCurrentElement || !aTagName || !aReturn)
-    return NS_ERROR_NULL_POINTER;
-
-  nsCOMPtr<nsIAtom> tagAtom = do_GetAtom(*aTagName);
-  if (!tagAtom) { return NS_ERROR_NULL_POINTER; }
-  if (tagAtom==nsEditProperty::th)
-    tagAtom=nsEditProperty::td;
-
-  nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(aCurrentElement);
-  if (!currentNode)
-    return NS_ERROR_FAILURE;
-
-  *aReturn = nsnull;
-
-  nsCOMPtr<nsIDOMNode> nextNode;
-  PRBool done = PR_FALSE;
-
-  do {
-    res = GetNextNode(currentNode, PR_TRUE, address_of(nextNode));
-    if (NS_FAILED(res)) return res;
-    if (!nextNode) break;
-
-    if (GetTag(currentNode) == tagAtom)
-    {
-      nsCOMPtr<nsIDOMElement> element = do_QueryInterface(currentNode);
-      if (!element) return NS_ERROR_NULL_POINTER;
-
-      *aReturn = element;
-      NS_ADDREF(*aReturn);
-      done = PR_TRUE;
-      return NS_OK;
-    }
-    currentNode = nextNode;
-  } while (!done);
-
-  return res;
 }
 
 NS_IMETHODIMP 
@@ -5444,6 +5156,25 @@ nsHTMLEditor::SetIsCSSEnabled(PRBool aIsCSSPrefChecked)
   {
     err = mHTMLCSSUtils->SetCSSEnabled(aIsCSSPrefChecked);
   }
+  // Disable the eEditorNoCSSMask flag if we're enabling StyleWithCSS.
+  if (NS_SUCCEEDED(err)) {
+    PRUint32 flags = 0;
+    err = GetFlags(&flags);
+    NS_ENSURE_SUCCESS(err, err);
+
+    if (aIsCSSPrefChecked) {
+      // Turn off NoCSS as we're enabling CSS
+      if (flags & eEditorNoCSSMask) {
+        flags -= eEditorNoCSSMask;
+      }
+    } else if (!(flags & eEditorNoCSSMask)) {
+      // Turn on NoCSS, as we're disabling CSS.
+      flags += eEditorNoCSSMask;
+    }
+
+    err = SetFlags(flags);
+    NS_ENSURE_SUCCESS(err, err);
+  }
   return err;
 }
 
@@ -5782,34 +5513,21 @@ nsHTMLEditor::CopyLastEditableChildStyles(nsIDOMNode * aPreviousBlock, nsIDOMNod
 nsresult
 nsHTMLEditor::GetElementOrigin(nsIDOMElement * aElement, PRInt32 & aX, PRInt32 & aY)
 {
-  // we are going to need the PresShell
+  aX = 0;
+  aY = 0;
+
   if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  nsIFrame *frame = ps->GetPrimaryFrameFor(content); // not ref-counted
+  nsIFrame *frame = content->GetPrimaryFrame();
 
-  if (nsHTMLEditUtils::IsHR(aElement) && frame) {
-    frame = frame->GetNextSibling();
-  }
-  PRInt32 offsetX = 0, offsetY = 0;
-  while (frame) {
-    // Look for a widget so we can get screen coordinates
-    nsIView* view = frame->GetViewExternal();
-    if (view && view->HasWidget())
-      break;
-    
-    // No widget yet, so count up the coordinates of the frame 
-    nsPoint origin = frame->GetPosition();
-    offsetX += origin.x;
-    offsetY += origin.y;
-
-    frame = frame->GetParent();
-  }
-
-  aX = nsPresContext::AppUnitsToIntCSSPixels(offsetX);
-  aY = nsPresContext::AppUnitsToIntCSSPixels(offsetY);
+  nsIFrame *container = ps->GetAbsoluteContainingBlock(frame);
+  if (!frame) return NS_OK;
+  nsPoint off = frame->GetOffsetTo(container);
+  aX = nsPresContext::AppUnitsToIntCSSPixels(off.x);
+  aY = nsPresContext::AppUnitsToIntCSSPixels(off.y);
 
   return NS_OK;
 }
@@ -5905,7 +5623,8 @@ nsHTMLEditor::GetSelectionContainer(nsIDOMElement ** aReturn)
         res = selection->GetRangeAt(i, getter_AddRefs(range));
         if (NS_FAILED(res)) return res;
         nsCOMPtr<nsIDOMNode> startContainer;
-        range->GetStartContainer(getter_AddRefs(startContainer));
+        res = range->GetStartContainer(getter_AddRefs(startContainer));
+        if (NS_FAILED(res)) continue;
         if (!focusNode)
           focusNode = startContainer;
         else if (focusNode != startContainer) {
@@ -5940,7 +5659,7 @@ nsHTMLEditor::IsAnonymousElement(nsIDOMElement * aElement, PRBool * aReturn)
 {
   NS_ENSURE_TRUE(aElement, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  *aReturn = content->IsNativeAnonymous();
+  *aReturn = content->IsRootOfNativeAnonymousSubtree();
   return NS_OK;
 }
 

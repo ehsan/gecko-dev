@@ -75,9 +75,7 @@
 #include "prprf.h"
 #include "prrng.h"
 #include "bzlib.h"
-#ifndef MOZILLA_1_8_BRANCH
 #include "nsIClassInfoImpl.h"
-#endif
 #include "nsIDocShellTreeItem.h"
 #include "nsDocShellCID.h"
 #include "nsMemory.h"
@@ -112,10 +110,10 @@ PRLogModuleInfo *gMetricsLog;
 #endif
 
 static const char kQuitApplicationTopic[] = "quit-application";
-static const char kUploadTimePref[] = "metrics.upload.next-time";
-static const char kPingTimePref[] = "metrics.upload.next-ping";
-static const char kEventCountPref[] = "metrics.event-count";
-static const char kEnablePref[] = "metrics.upload.enable";
+static const char kUploadTimePref[] = "extensions.mozilla.metrics.upload.next-time";
+static const char kPingTimePref[] = "extensions.mozilla.metrics.upload.next-ping";
+static const char kEventCountPref[] = "extensions.mozilla.metrics.event-count";
+static const char kEnablePref[] = "extensions.mozilla.metrics.upload.enable";
 
 const PRUint32 nsMetricsService::kMaxRetries = 3;
 const PRUint32 nsMetricsService::kMetricsVersion = 2;
@@ -206,7 +204,7 @@ nsMetricsService::nsMetricsService()
   sMetricsService = this;
 }
 
-/* static */ PLDHashOperator PR_CALLBACK
+/* static */ PLDHashOperator
 nsMetricsService::DetachCollector(const nsAString &key,
                                   nsIMetricsCollector *value, void *userData)
 {
@@ -775,7 +773,7 @@ struct DisabledCollectorsClosure
   nsTArray< nsCOMPtr<nsIMetricsCollector> > disabledCollectors;
 };
 
-/* static */ PLDHashOperator PR_CALLBACK
+/* static */ PLDHashOperator
 nsMetricsService::PruneDisabledCollectors(const nsAString &key,
                                           nsCOMPtr<nsIMetricsCollector> &value,
                                           void *userData)
@@ -799,7 +797,7 @@ nsMetricsService::PruneDisabledCollectors(const nsAString &key,
   return PL_DHASH_REMOVE;
 }
 
-/* static */ PLDHashOperator PR_CALLBACK
+/* static */ PLDHashOperator
 nsMetricsService::NotifyNewLog(const nsAString &key,
                                nsIMetricsCollector *value, void *userData)
 {
@@ -834,7 +832,7 @@ nsMetricsService::EnableCollectors()
   for (i = 0; i < enabledCollectors.Length(); ++i) {
     const nsString &name = enabledCollectors[i];
     if (!mCollectorMap.GetWeak(name)) {
-      nsCString contractID("@mozilla.org/metrics/collector;1?name=");
+      nsCString contractID("@mozilla.org/extensions/metrics/collector;1?name=");
       contractID.Append(NS_ConvertUTF16toUTF8(name));
 
       nsCOMPtr<nsIMetricsCollector> coll = do_GetService(contractID.get());
@@ -981,10 +979,10 @@ nsMetricsService::StartCollection()
   
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   NS_ENSURE_STATE(prefs);
-  prefs->GetIntPref("metrics.event-count", &mEventCount);
+  prefs->GetIntPref("extensions.mozilla.metrics.event-count", &mEventCount);
 
   // Update the session id pref for the new session
-  static const char kSessionIDPref[] = "metrics.last-session-id";
+  static const char kSessionIDPref[] = "extensions.mozilla.metrics.last-session-id";
   PRInt32 sessionID = -1;
   prefs->GetIntPref(kSessionIDPref, &sessionID);
   mSessionID.Cut(0, PR_UINT32_MAX);
@@ -1191,7 +1189,7 @@ nsMetricsService::UploadData()
   nsCString spec;
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefs) {
-    prefs->GetCharPref("metrics.upload.uri", getter_Copies(spec));
+    prefs->GetCharPref("extensions.mozilla.metrics.upload.uri", getter_Copies(spec));
   }
   if (spec.IsEmpty()) {
     MS_LOG(("Upload URI not set"));
@@ -1321,7 +1319,7 @@ nsMetricsService::OpenCompleteXMLStream(nsILocalFile *dataFile,
 {
   // Construct a full XML document using the header, file contents, and
   // footer.  We need to generate a client id now if one doesn't exist.
-  static const char kClientIDPref[] = "metrics.client-id";
+  static const char kClientIDPref[] = "extensions.mozilla.metrics.client-id";
 
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   NS_ENSURE_STATE(prefs);

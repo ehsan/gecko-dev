@@ -165,6 +165,11 @@ PR_EXTERN(void) NS_TraceMallocStartup(int logfd);
 PR_EXTERN(int) NS_TraceMallocStartupArgs(int argc, char* argv[]);
 
 /**
+ * Return PR_TRUE iff |NS_TraceMallocStartup[Args]| has been successfully called.
+ */
+PR_EXTERN(PRBool) NS_TraceMallocHasStarted(void);
+
+/**
  * Stop all malloc tracing, flushing any buffered events to the logfile.
  */
 PR_EXTERN(void) NS_TraceMallocShutdown(void);
@@ -228,6 +233,22 @@ NS_TraceMallocFlushLogfiles(void);
  */
 PR_EXTERN(void)
 NS_TrackAllocation(void* ptr, FILE *ofp);
+
+/* opaque type for API */
+typedef struct nsTMStackTraceIDStruct *nsTMStackTraceID;
+
+/**
+ * Get an identifier for the stack trace of the current thread (to this
+ * function's callsite) that can be used to print that stack trace later.
+ */
+PR_EXTERN(nsTMStackTraceID)
+NS_TraceMallocGetStackTrace(void);
+
+/**
+ * Print the stack trace identified.
+ */
+PR_EXTERN(void)
+NS_TraceMallocPrintStackTrace(FILE *ofp, nsTMStackTraceID id);
 
 PR_END_EXTERN_C
 

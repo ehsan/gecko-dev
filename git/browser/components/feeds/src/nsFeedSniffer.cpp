@@ -60,6 +60,8 @@
 #include "nsIHttpChannel.h"
 #include "nsIMIMEHeaderParam.h"
 
+#include "nsMimeTypes.h"
+
 #define TYPE_ATOM "application/atom+xml"
 #define TYPE_RSS "application/rss+xml"
 #define TYPE_MAYBE_FEED "application/vnd.mozilla.maybe.feed"
@@ -69,7 +71,10 @@
 
 #define MAX_BYTES 512
 
-NS_IMPL_ISUPPORTS2(nsFeedSniffer, nsIContentSniffer, nsIStreamListener)
+NS_IMPL_ISUPPORTS3(nsFeedSniffer,
+                   nsIContentSniffer,
+                   nsIStreamListener,
+                   nsIRequestObserver)
 
 nsresult
 nsFeedSniffer::ConvertEncodedData(nsIRequest* request,
@@ -156,17 +161,14 @@ HasAttachmentDisposition(nsIHttpChannel* httpChannel)
       // XXXbz this code is duplicated in GetFilenameAndExtensionFromChannel in
       // nsExternalHelperAppService.  Factor it out!
       if (NS_FAILED(rv) || 
-          (// Some broken sites just send
-           // Content-Disposition: ; filename="file"
-           // screen those out here.
-           !dispToken.IsEmpty() &&
+          (!dispToken.IsEmpty() &&
            !StringBeginsWithLowercaseLiteral(dispToken, "inline") &&
            // Broken sites just send
            // Content-Disposition: filename="file"
            // without a disposition token... screen those out.
-           !StringBeginsWithLowercaseLiteral(dispToken, "filename")) &&
-          // Also in use is Content-Disposition: name="file"
-          !StringBeginsWithLowercaseLiteral(dispToken, "name"))
+           !StringBeginsWithLowercaseLiteral(dispToken, "filename") &&
+           // Also in use is Content-Disposition: name="file"
+           !StringBeginsWithLowercaseLiteral(dispToken, "name")))
         // We have a content-disposition of "attachment" or unknown
         return PR_TRUE;
     }
@@ -328,6 +330,17 @@ nsFeedSniffer::GetMIMETypeFromContent(nsIRequest* request,
     return NS_OK;
   }
 
+  // Don't sniff arbitrary types.  Limit sniffing to situations that
+  // we think can reasonably arise.
+  if (!contentType.EqualsLiteral(TEXT_HTML) &&
+      !contentType.EqualsLiteral(APPLICATION_OCTET_STREAM) &&
+      // Same criterion as XMLHttpRequest.  Should we be checking for "+xml"
+      // and check for text/xml and application/xml by hand instead?
+      contentType.Find("xml") == -1) {
+    sniffedType.Truncate();
+    return NS_OK;
+  }
+
   // Now we need to potentially decompress data served with 
   // Content-Encoding: gzip
   nsresult rv = ConvertEncodedData(request, data, length);
@@ -362,8 +375,8 @@ nsFeedSniffer::GetMIMETypeFromContent(nsIRequest* request,
   // RSS 1.0
   if (!isFeed) {
     isFeed = ContainsTopLevelSubstring(dataString, "<rdf:RDF") &&
-      dataString.Find(NS_RDF) &&
-      dataString.Find(NS_RSS);
+      dataString.Find(NS_RDF) != -1 &&
+      dataString.Find(NS_RSS) != -1;
   }
 
   // If we sniffed a feed, coerce our internal type

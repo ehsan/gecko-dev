@@ -49,6 +49,7 @@
    - by putting it here instead.
    -->
 <?xml-stylesheet href="chrome://browser/content/preferences/handlers.css"?>
+<?xml-stylesheet href="chrome://browser/skin/preferences/applications.css"?>
 
 <!DOCTYPE prefwindow [
 <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
@@ -71,6 +72,7 @@
 <prefwindow type="prefwindow"
             id="BrowserPreferences"
             windowtype="Browser:Preferences"
+            ondialoghelp="openPrefsHelp()"
 #ifdef USE_WIN_TITLE_STYLE
             title="&prefWindow.titleWin;"
 #else
@@ -82,20 +84,22 @@
 #endif
             xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
 #ifdef USE_WIN_TITLE_STYLE
-            style="&prefWin.styleWin;">
+            style="&prefWinMinSize.styleWin2;">
 #else
 #ifdef XP_MACOSX
-            style="&prefWindow.styleMac;">
+            style="&prefWinMinSize.styleMac;">
 #else
-            style="&prefWin.styleGNOME;">
+            style="&prefWinMinSize.styleGNOME;">
 #endif
 #endif
+
+    <script type="application/javascript" src="chrome://browser/content/utilityOverlay.js"/>
 
     <stringbundle id="bundleBrand" src="chrome://branding/locale/brand.properties"/>
     <stringbundle id="bundlePreferences"
                   src="chrome://browser/locale/preferences/preferences.properties"/>
 
-    <prefpane id="paneMain" label="&paneMain.title;"
+    <prefpane id="paneMain" label="&paneGeneral.title;"
               src="chrome://browser/content/preferences/main.xul"/>
     <prefpane id="paneTabs" label="&paneTabs.title;"
               src="chrome://browser/content/preferences/tabs.xul"/>

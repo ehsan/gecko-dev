@@ -130,6 +130,14 @@ NS_IMETHODIMP nsClipboard::SetData(nsITransferable * aTransferable,
 		return NS_OK;
 	}
 
+  nsresult rv;
+  if (!mPrivacyHandler) {
+    rv = NS_NewClipboardPrivacyHandler(getter_AddRefs(mPrivacyHandler));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  rv = mPrivacyHandler->PrepareDataForClipboard(aTransferable);
+  NS_ENSURE_SUCCESS(rv, rv);
+
 	EmptyClipboard(aWhichClipboard);
 
 	switch (aWhichClipboard) 
@@ -482,8 +490,9 @@ nsClipboard::GetNativeClipboardData(nsITransferable * aTransferable,
 }
 
 NS_IMETHODIMP
-nsClipboard::HasDataMatchingFlavors(nsISupportsArray* aFlavorList, 
-                                    PRInt32 aWhichClipboard, 
+nsClipboard::HasDataMatchingFlavors(const char** aFlavorList,
+                                    PRUint32 aLength,
+                                    PRInt32 aWhichClipboard,
                                     PRBool * outResult)
 {
 	if (aWhichClipboard == kSelectionClipboard)
@@ -504,11 +513,8 @@ nsClipboard::HasDataMatchingFlavors(nsISupportsArray* aFlavorList,
   * outResult = PR_FALSE;
 
  // Walk through flavors and see which flavor matches the one being pasted:
-  PRUint32 cnt;
-
-  aFlavorList->Count(&cnt);
   nsCAutoString foundFlavor;
-  if (cnt > 0) {
+  if (aLength > 0) {
     void         *clipPtr;
 		char					type[8];
     PhClipHeader *cliphdr;
@@ -517,30 +523,18 @@ nsClipboard::HasDataMatchingFlavors(nsISupportsArray* aFlavorList,
     if(nsnull == clipPtr)
         return res;
 
-    for ( PRUint32 i = 0; i < cnt; ++i ) {
-      nsCOMPtr<nsISupports> genericFlavor;
-      aFlavorList->GetElementAt ( i, getter_AddRefs(genericFlavor) );
-      nsCOMPtr<nsISupportsCString> currentFlavor ( do_QueryInterface(genericFlavor) );
+    for ( PRUint32 i = 0; i < aLength; ++i ) {
+      nsresult err = GetFormat( aFlavorList[i], type );
+      if (err != NS_OK) continue;
 
-      if ( currentFlavor ) {
-
-        nsXPIDLCString flavorStr;
-        currentFlavor->ToString ( getter_Copies(flavorStr) );
-
-        nsresult err = GetFormat( flavorStr, type );
-        if (err != NS_OK) continue;
-
-        cliphdr = PhClipboardPasteType( clipPtr, type );
-        if (cliphdr)
-        {
-
-            res = NS_OK;
-            *outResult = PR_TRUE;
-                    break;
-        }
+      cliphdr = PhClipboardPasteType( clipPtr, type );
+      if (cliphdr)
+      {
+        res = NS_OK;
+        *outResult = PR_TRUE;
+        break;
       }
     }
-
     PhClipboardPasteFinish( clipPtr );
   }
 

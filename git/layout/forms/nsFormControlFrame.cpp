@@ -55,26 +55,18 @@ nsFormControlFrame::~nsFormControlFrame()
 }
 
 void
-nsFormControlFrame::Destroy()
+nsFormControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Unregister the access key registered in reflow
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
-  nsLeafFrame::Destroy();
+  nsLeafFrame::DestroyFrom(aDestructRoot);
 }
 
-// Frames are not refcounted, no need to AddRef
-NS_IMETHODIMP
-nsFormControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
-{
-  NS_PRECONDITION(aInstancePtr, "null out param");
+NS_QUERYFRAME_HEAD(nsFormControlFrame)
+  NS_QUERYFRAME_ENTRY(nsIFormControlFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsLeafFrame)
 
-  if (aIID.Equals(NS_GET_IID(nsIFormControlFrame))) {
-    *aInstancePtr = static_cast<nsIFormControlFrame*>(this);
-    return NS_OK;
-  }
-
-  return nsLeafFrame::QueryInterface(aIID, aInstancePtr);
-}
+NS_IMPL_FRAMEARENA_HELPERS(nsFormControlFrame)
 
 nscoord
 nsFormControlFrame::GetIntrinsicWidth()
@@ -92,6 +84,17 @@ nsFormControlFrame::GetIntrinsicHeight()
   // Note that if you change this, you should change the values in forms.css
   // as well. This is the 13px default width minus the 2px default border.
   return nsPresContext::CSSPixelsToAppUnits(13 - 2 * 2);
+}
+
+nscoord
+nsFormControlFrame::GetBaseline() const
+{
+  NS_ASSERTION(!NS_SUBTREE_DIRTY(this),
+               "frame must not be dirty");
+  // Treat radio buttons and checkboxes as having an intrinsic baseline
+  // at the bottom of the control (use the bottom content edge rather
+  // than the bottom margin edge).
+  return mRect.height - GetUsedBorderAndPadding().bottom;
 }
 
 NS_METHOD
@@ -176,9 +179,9 @@ nsFormControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
   return NS_OK;
 }
 
-nsresult 
-nsFormControlFrame::GetScreenHeight(nsPresContext* aPresContext,
-                                    nscoord& aHeight)
+// static
+nsRect
+nsFormControlFrame::GetUsableScreenRect(nsPresContext* aPresContext)
 {
   nsRect screen;
 
@@ -188,10 +191,9 @@ nsFormControlFrame::GetScreenHeight(nsPresContext* aPresContext,
   lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MenusCanOverlapOSBar,
                          dropdownCanOverlapOSBar);
   if ( dropdownCanOverlapOSBar )
-    context->GetRect ( screen );
+    context->GetRect(screen);
   else
     context->GetClientRect(screen);
 
-  aHeight = aPresContext->AppUnitsToDevPixels(screen.height);
-  return NS_OK;
+  return screen;
 }

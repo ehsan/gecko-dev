@@ -81,7 +81,11 @@ protected:
   // Members
   nsWeakPtr     mSession; // Should never be touched by Clone or Assign
  
-  nsMargin      mMargin;
+  // mMargin, mEdge, and mUnwriteableMargin are stored in twips
+  nsIntMargin   mMargin;
+  nsIntMargin   mEdge;
+  nsIntMargin   mUnwriteableMargin;
+
   PRInt32       mPrintOptions;
 
   // scriptable data members

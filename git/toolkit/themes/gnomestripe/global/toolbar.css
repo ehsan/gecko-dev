@@ -50,47 +50,40 @@ toolbox {
 
 /* ::::: menubar & toolbar ::::: */
 
-menubar, toolbar[type="menubar"] {
-  -moz-appearance: menubar !important;
+toolbar {
+  -moz-appearance: toolbar;
   min-width: 1px;
   min-height: 20px;
+  padding: 2px 0px;
 }
 
-toolbar {
-  -moz-appearance: toolbar !important;
+menubar, toolbar[type="menubar"] {
+  -moz-appearance: menubar;
   min-width: 1px;
   min-height: 20px;
+  padding: 1px 0px;
+}
+
+toolbar:-moz-lwtheme {
+  -moz-appearance: none;
 }
 
 /* in browser.xul, the menubar is inside a toolbar... */
 toolbaritem > menubar {
-  -moz-appearance: none !important;
+  -moz-appearance: none;
 }
 
 /* ::::: toolbar decorations ::::: */
 
 toolbarseparator {
-  margin : 2px 0.2em;
-  border-right : 1px solid ThreeDHighlight;
-  border-left : 1px solid ThreeDShadow;
-  width : 2px;
+  -moz-appearance: separator !important;
+  margin : 0;
+  border: 0;
+  min-width: 2px;
 }
 
 toolbarspacer {
   width: 15px;
-}
-
-toolbar[mode="icons"] .toolbarbutton-text {
-  display: none;
-}
-
-toolbar[mode="text"] .toolbarbutton-icon {
-  display: none;
-}
-
-toolbar[mode="text"] .toolbarbutton-text {
-  padding: 0 !important;
-  margin: 3px 5px !important;
 }
 
 /* ::::: toolbarpaletteitem ::::: */
@@ -129,11 +122,6 @@ toolbarpaletteitem[place="toolbar"] > toolbarspacer {
   height: 50px;
 }
 
-.toolbarpaletteitem-box[type="splitter"][place="palette"] {
-  width: 8px;
-  height: 50px;
-}
-
 .toolbarpaletteitem-box[type="spacer"][place="palette"],
 .toolbarpaletteitem-box[type="spring"][place="palette"] {
   margin-bottom: 2px;
@@ -142,7 +130,7 @@ toolbarpaletteitem[place="toolbar"] > toolbarspacer {
 }
 
 .toolbarpaletteitem-box[type="spring"][place="palette"] {
-  background: url("chrome://global/skin/toolbar/spring.gif") no-repeat center;
+  background: url("chrome://global/skin/toolbar/spring.png") no-repeat center;
 }
 
 /* ..... drag and drop feedback ..... */

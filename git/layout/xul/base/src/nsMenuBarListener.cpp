@@ -59,7 +59,6 @@
 
 #include "nsIEventStateManager.h"
 
-#include "nsISupportsArray.h"
 #include "nsContentUtils.h"
 
 /*
@@ -68,7 +67,12 @@
 
 NS_IMPL_ADDREF(nsMenuBarListener)
 NS_IMPL_RELEASE(nsMenuBarListener)
-NS_IMPL_QUERY_INTERFACE3(nsMenuBarListener, nsIDOMKeyListener, nsIDOMFocusListener, nsIDOMMouseListener)
+NS_INTERFACE_MAP_BEGIN(nsMenuBarListener)
+                     NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMFocusListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener,nsIDOMMouseListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
+NS_INTERFACE_MAP_END
 
 #define MODIFIER_SHIFT    1
 #define MODIFIER_CONTROL  2
@@ -229,14 +233,22 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
       keyEvent->GetKeyCode(&keyCode);
       keyEvent->GetCharCode(&charCode);
 
+      PRBool hasAccessKeyCandidates = charCode != 0;
+      if (!hasAccessKeyCandidates) {
+        nsEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
+        nsKeyEvent* nativeKeyEvent = static_cast<nsKeyEvent*>(nativeEvent);
+        if (nativeKeyEvent) {
+          nsAutoTArray<PRUint32, 10> keys;
+          nsContentUtils::GetAccessKeyCandidates(nativeKeyEvent, keys);
+          hasAccessKeyCandidates = !keys.IsEmpty();
+        }
+      }
+
       // Clear the access key flag unless we are pressing the access key.
       if (keyCode != (PRUint32)mAccessKey)
         mAccessKeyDown = PR_FALSE;
 
-      // If charCode == 0, then it is not a printable character.
-      // Don't attempt to handle accesskey for non-printable characters.
-      if (IsAccessKeyPressed(keyEvent) && charCode)
-      {
+      if (IsAccessKeyPressed(keyEvent) && hasAccessKeyCandidates) {
         // Do shortcut navigation.
         // A letter was pressed. We want to see if a shortcut gets matched. If
         // so, we'll know the menu got activated.

@@ -43,7 +43,8 @@
 #***** END LICENSE BLOCK ***** -->
 
 <?xml-stylesheet href="chrome://global/skin/" type="text/css"?> 
-<?xml-stylesheet href="chrome://global/content/viewSource.css" type="text/css"?> 
+<?xml-stylesheet href="chrome://global/content/viewSource.css" type="text/css"?>
+<?xml-stylesheet href="chrome://mozapps/skin/viewsource/viewsource.css" type="text/css"?>
 <?xul-overlay href="chrome://global/content/editMenuOverlay.xul"?>
 <?xul-overlay href="chrome://global/content/charsetOverlay.xul"?>
 
@@ -72,7 +73,6 @@
   <script type="application/javascript" src="chrome://global/content/viewSource.js"/>
   <script type="application/javascript" src="chrome://global/content/viewZoomOverlay.js"/>
   <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>
-  <script type="application/javascript" src="chrome://global/content/nsDragAndDrop.js"/>
   
   <stringbundle id="viewSourceBundle" src="chrome://global/locale/viewSource.properties"/>
 
@@ -92,9 +92,14 @@
   <command id="cmd_goToLine" oncommand="ViewSourceGoToLine();" disabled="true"/>
   <command id="cmd_highlightSyntax" oncommand="highlightSyntax();"/>
   <command id="cmd_wrapLongLines" oncommand="wrapLongLines()"/>
-  <command id="cmd_textZoomReduce" oncommand="ZoomManager.prototype.getInstance().reduce();"/>
-  <command id="cmd_textZoomEnlarge" oncommand="ZoomManager.prototype.getInstance().enlarge();"/>
-  <command id="cmd_textZoomReset" oncommand="ZoomManager.prototype.getInstance().reset();"/>
+  <command id="cmd_textZoomReduce" oncommand="ZoomManager.reduce();"/>
+  <command id="cmd_textZoomEnlarge" oncommand="ZoomManager.enlarge();"/>
+  <command id="cmd_textZoomReset" oncommand="ZoomManager.reset();"/>
+
+  <command id="Browser:Back" oncommand="BrowserBack();" observes="viewSourceNavigation"/>
+  <command id="Browser:Forward" oncommand="BrowserForward();" observes="viewSourceNavigation"/>
+
+  <broadcaster id="viewSourceNavigation"/>
 
   <keyset id="editMenuKeys"/>
   <keyset id="viewSourceKeys">
@@ -105,8 +110,11 @@
 
     <key id="key_textZoomEnlarge" key="&textEnlarge.commandkey;" command="cmd_textZoomEnlarge" modifiers="accel"/>
     <key id="key_textZoomEnlarge2" key="&textEnlarge.commandkey2;" command="cmd_textZoomEnlarge" modifiers="accel"/>
+    <key id="key_textZoomEnlarge3" key="&textEnlarge.commandkey3;" command="cmd_textZoomEnlarge" modifiers="accel"/>
     <key id="key_textZoomReduce"  key="&textReduce.commandkey;" command="cmd_textZoomReduce" modifiers="accel"/>
+    <key id="key_textZoomReduce2"  key="&textReduce.commandkey2;" command="cmd_textZoomReduce" modifiers="accel"/>
     <key id="key_textZoomReset" key="&textReset.commandkey;" command="cmd_textZoomReset" modifiers="accel"/>
+    <key id="key_textZoomReset2" key="&textReset.commandkey2;" command="cmd_textZoomReset" modifiers="accel"/>
 
     <key id="key_reload" key="&reloadCmd.commandkey;" command="cmd_reload" modifiers="accel"/>
     <key key="&reloadCmd.commandkey;" command="cmd_reload" modifiers="accel,shift"/>
@@ -117,9 +125,35 @@
     <key id="key_findPrevious" key="&findAgainCmd.commandkey;" command="cmd_findPrevious" modifiers="accel,shift"/>
     <key keycode="&findAgainCmd.commandkey2;" command="cmd_findAgain"/>
     <key keycode="&findAgainCmd.commandkey2;"  command="cmd_findPrevious" modifiers="shift"/>
+
+    <key keycode="VK_BACK" command="Browser:Back"/>
+    <key keycode="VK_BACK" command="Browser:Forward" modifiers="shift"/>
+#ifndef XP_MACOSX
+    <key id="goBackKb" keycode="VK_LEFT" command="Browser:Back" modifiers="alt"/>
+    <key id="goForwardKb" keycode="VK_RIGHT" command="Browser:Forward" modifiers="alt"/>
+#else
+    <key id="goBackKb" keycode="VK_LEFT" command="Browser:Back" modifiers="accel" />
+    <key id="goForwardKb" keycode="VK_RIGHT" command="Browser:Forward" modifiers="accel" />
+#endif
+#ifdef XP_UNIX
+    <key id="goBackKb2" key="&goBackCmd.commandKey;" command="Browser:Back" modifiers="accel"/>
+    <key id="goForwardKb2" key="&goForwardCmd.commandKey;" command="Browser:Forward" modifiers="accel"/>
+#endif
+
   </keyset>
 
   <popup id="viewSourceContextMenu">
+    <menuitem id="context-back"
+              label="&backCmd.label;"
+              accesskey="&backCmd.accesskey;"
+              command="Browser:Back"
+              observes="viewSourceNavigation"/>
+    <menuitem id="context-forward"
+              label="&forwardCmd.label;"
+              accesskey="&forwardCmd.accesskey;"
+              command="Browser:Forward"
+              observes="viewSourceNavigation"/>
+    <menuseparator observes="viewSourceNavigation"/>
     <menuitem id="cMenu_findAgain"/>
     <menuseparator/>
     <menuitem id="cMenu_copy"/>
@@ -133,18 +167,18 @@
 
       <menu id="menu_file" label="&fileMenu.label;" accesskey="&fileMenu.accesskey;">
         <menupopup id="filemenu-popup">
-          <menuitem key="key_savePage" command="cmd_savePage"
+          <menuitem key="key_savePage" command="cmd_savePage" id="menu_savePage"
                     label="&savePageCmd.label;" accesskey="&savePageCmd.accesskey;"/>
-          <menuitem command="cmd_pagesetup"
+          <menuitem command="cmd_pagesetup" id="menu_pageSetup"
                     label="&pageSetupCmd.label;" accesskey="&pageSetupCmd.accesskey;"/>
 #ifndef XP_MACOSX
-          <menuitem command="cmd_printpreview"
+          <menuitem command="cmd_printpreview" id="menu_printPreview"
                     label="&printPreviewCmd.label;" accesskey="&printPreviewCmd.accesskey;"/>
 #endif
-          <menuitem key="key_print" command="cmd_print"
+          <menuitem key="key_print" command="cmd_print" id="menu_print"
                     label="&printCmd.label;" accesskey="&printCmd.accesskey;"/>
           <menuseparator/>
-          <menuitem key="key_close" command="cmd_close"
+          <menuitem key="key_close" command="cmd_close" id="menu_close"
                     label="&closeCmd.label;" accesskey="&closeCmd.accesskey;"/>
         </menupopup>
       </menu>
@@ -199,11 +233,10 @@
     </menubar>  
   </toolbox>
 
-  <vbox id="appcontent" flex="1"
-       ondragdrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);">
+  <vbox id="appcontent" flex="1" ondrop="contentAreaDNDObserver.drop(event);">
 
     <browser id="content" type="content-primary" name="content" src="about:blank" flex="1"
-             disablehistory="true" context="viewSourceContextMenu"/>
+             context="viewSourceContextMenu" showcaret="true"/>
     <findbar id="FindToolbar" browserid="content"/>
   </vbox> 
 

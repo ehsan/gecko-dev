@@ -135,6 +135,8 @@ public:
                 nsICSSStyleSheet* aSheet,
                 PRBool aSyncLoad,
                 PRBool aAllowUnsafeRules,
+                PRBool aUseSystemPrincipal,
+                const nsCString& aCharset,
                 nsICSSLoaderObserver* aObserver,
                 nsIPrincipal* aLoaderPrincipal);
 
@@ -207,6 +209,11 @@ public:
   // mAllowUnsafeRules is true if we should allow unsafe rules to be parsed
   // in the loaded sheet.
   PRPackedBool               mAllowUnsafeRules : 1;
+
+  // mUseSystemPrincipal is true if the system principal should be used for
+  // this sheet, no matter what the channel principal is.  Only true for sync
+  // loads.
+  PRPackedBool               mUseSystemPrincipal : 1;
   
   // This is the element that imported the sheet.  Needed to get the
   // charset set on it.
@@ -217,6 +224,10 @@ public:
 
   // The principal that identifies who started loading us.
   nsCOMPtr<nsIPrincipal> mLoaderPrincipal;
+
+  // The charset to use if the transport and sheet don't indicate one.
+  // May be empty.  Must be empty if mOwningElement is non-null.
+  nsCString mCharsetHint;
 };
 
 class nsURIAndPrincipalHashKey : public nsURIHashKey
@@ -262,7 +273,7 @@ public:
        
     PRBool eq;
     return !mPrincipal ||
-      NS_SUCCEEDED(mPrincipal->Equals(aKey->mPrincipal, &eq)) && eq;
+      (NS_SUCCEEDED(mPrincipal->Equals(aKey->mPrincipal, &eq)) && eq);
   }
  
   static const nsURIAndPrincipalHashKey*
@@ -307,7 +318,6 @@ public:
   NS_IMETHOD Init(nsIDocument* aDocument);
   NS_IMETHOD DropDocumentReference(void);
 
-  NS_IMETHOD SetCaseSensitive(PRBool aCaseSensitive);
   NS_IMETHOD SetCompatibilityMode(nsCompatibility aCompatMode);
   NS_IMETHOD SetPreferredSheet(const nsAString& aTitle);
   NS_IMETHOD GetPreferredSheet(nsAString& aTitle);
@@ -339,15 +349,18 @@ public:
                             nsICSSImportRule* aRule);
 
   NS_IMETHOD LoadSheetSync(nsIURI* aURL, PRBool aAllowUnsafeRules,
+                           PRBool aUseSystemPrincipal,
                            nsICSSStyleSheet** aSheet);
 
   NS_IMETHOD LoadSheet(nsIURI* aURL,
                        nsIPrincipal* aOriginPrincipal,
+                       const nsCString& aCharset,
                        nsICSSLoaderObserver* aObserver,
                        nsICSSStyleSheet** aSheet);
 
   NS_IMETHOD LoadSheet(nsIURI* aURL,
                        nsIPrincipal* aOriginPrincipal,
+                       const nsCString& aCharset,
                        nsICSSLoaderObserver* aObserver);
 
   // stop loading all sheets
@@ -415,7 +428,9 @@ private:
 
   nsresult InternalLoadNonDocumentSheet(nsIURI* aURL,
                                         PRBool aAllowUnsafeRules,
+                                        PRBool aUseSystemPrincipal,
                                         nsIPrincipal* aOriginPrincipal,
+                                        const nsCString& aCharset,
                                         nsICSSStyleSheet** aSheet,
                                         nsICSSLoaderObserver* aObserver);
 
@@ -478,7 +493,6 @@ private:
   PRPackedBool            mSyncCallback;
 #endif
 
-  PRPackedBool      mCaseSensitive; // is document CSS case sensitive
   PRPackedBool      mEnabled; // is enabled to load new styles
   nsCompatibility   mCompatMode;
   nsString          mPreferredSheet;  // title of preferred sheet
@@ -492,7 +506,7 @@ private:
   
   // We're not likely to have many levels of @import...  But likely to have
   // some.  Allocate some storage, what the hell.
-  nsAutoVoidArray   mParsingDatas;
+  nsAutoTArray<SheetLoadData*, 8> mParsingDatas;
 
   // The array of posted stylesheet loaded events (SheetLoadDatas) we have.
   // Note that these are rare.
@@ -505,7 +519,7 @@ private:
   PRUint32 mDatasToNotifyOn;
 
   // Our array of "global" observers
-  nsTObserverArray<nsICSSLoaderObserver> mObservers;
+  nsTObserverArray<nsCOMPtr<nsICSSLoaderObserver> > mObservers;
 };
 
 #endif // nsCSSLoader_h__

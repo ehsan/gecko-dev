@@ -43,13 +43,13 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS      = public src
+DIRS      = src
 
 ifdef ENABLE_TESTS
-DIRS     += tests
+DIRS += content/test
 endif
 
-ifneq (,$(BUILD_OFFICIAL)$(MOZILLA_OFFICIAL))
+ifdef MOZILLA_OFFICIAL
 DEFINES += -DOFFICIAL_BUILD=1
 endif
 

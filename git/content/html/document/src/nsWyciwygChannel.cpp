@@ -46,7 +46,7 @@
 #include "nsICacheService.h"
 #include "nsICacheSession.h"
 #include "nsIParser.h"
-
+#include "nsThreadUtils.h"
 
 PRLogModuleInfo * gWyciwygLog = nsnull;
 
@@ -81,6 +81,7 @@ nsWyciwygChannel::Init(nsIURI* uri)
 {
   NS_ENSURE_ARG_POINTER(uri);
   mURI = uri;
+  mOriginalURI = uri;
   return NS_OK;
 }
 
@@ -175,18 +176,15 @@ nsWyciwygChannel::GetLoadFlags(PRUint32 * aLoadFlags)
 NS_IMETHODIMP
 nsWyciwygChannel::GetOriginalURI(nsIURI* *aURI)
 {
-  // Let's hope this isn't called before mOriginalURI is set or we will
-  // return the full wyciwyg URI for our originalURI  :S
-  NS_ASSERTION(mOriginalURI, "nsWyciwygChannel::GetOriginalURI - mOriginalURI not set!\n");
-
-  *aURI = mOriginalURI ? mOriginalURI : mURI;
-  NS_IF_ADDREF(*aURI);
+  *aURI = mOriginalURI;
+  NS_ADDREF(*aURI);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsWyciwygChannel::SetOriginalURI(nsIURI* aURI)
 {
+  NS_ENSURE_ARG_POINTER(aURI);
   mOriginalURI = aURI;
   return NS_OK;
 }
@@ -305,7 +303,17 @@ nsWyciwygChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
 
   // open a cache entry for this channel...
   PRBool delayed = PR_FALSE;
-  nsresult rv = OpenCacheEntry(spec, nsICache::ACCESS_READ, &delayed);        
+  nsresult rv = OpenCacheEntry(spec, nsICache::ACCESS_READ, &delayed);
+  if (rv == NS_ERROR_CACHE_KEY_NOT_FOUND) {
+    nsCOMPtr<nsIRunnable> ev =
+      new nsRunnableMethod<nsWyciwygChannel>(this,
+                                             &nsWyciwygChannel::NotifyListener);
+    // Overwrite rv on purpose; if event dispatch fails we'll bail, and
+    // otherwise we'll wait until the event fires before calling back.
+    rv = NS_DispatchToCurrentThread(ev);
+    delayed = PR_TRUE;
+  }
+
   if (NS_FAILED(rv)) {
     LOG(("nsWyciwygChannel::OpenCacheEntry failed [rv=%x]\n", rv));
     return rv;
@@ -477,18 +485,7 @@ nsWyciwygChannel::OnCacheEntryAvailable(nsICacheEntryDescriptor * aCacheEntry, n
   if (NS_FAILED(rv)) {
     CloseCacheEntry(rv);
 
-    if (mListener) {
-      mListener->OnStartRequest(this, mListenerContext);
-      mListener->OnStopRequest(this, mListenerContext, mStatus);
-      mListener = 0;
-      mListenerContext = 0;
-    }
-
-    mIsPending = PR_FALSE;
-
-    // Remove ourselves from the load group.
-    if (mLoadGroup)
-      mLoadGroup->RemoveRequest(this, nsnull, mStatus);
+    NotifyListener();
   }
 
   return NS_OK;
@@ -512,8 +509,8 @@ nsWyciwygChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctx,
 
   // XXX handle 64-bit stuff for real
   if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
-    mProgressSink->OnProgress(this, nsnull, nsUint64(offset + count),
-                              nsUint64(mContentLength));
+    mProgressSink->OnProgress(this, nsnull, PRUint64(offset + count),
+                              PRUint64(mContentLength));
 
   return rv; // let the pump cancel on failure
 }
@@ -650,6 +647,24 @@ nsWyciwygChannel::WriteCharsetAndSourceToCache(PRInt32 aSource,
   nsCAutoString source;
   source.AppendInt(aSource);
   mCacheEntry->SetMetaDataElement("charset-source", source.get());
+}
+
+void
+nsWyciwygChannel::NotifyListener()
+{    
+  if (mListener) {
+    mListener->OnStartRequest(this, mListenerContext);
+    mListener->OnStopRequest(this, mListenerContext, mStatus);
+    mListener = 0;
+    mListenerContext = 0;
+  }
+
+  mIsPending = PR_FALSE;
+
+  // Remove ourselves from the load group.
+  if (mLoadGroup) {
+    mLoadGroup->RemoveRequest(this, nsnull, mStatus);
+  }
 }
 
 // vim: ts=2 sw=2

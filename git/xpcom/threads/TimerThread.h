@@ -47,7 +47,7 @@
 
 #include "nsTimerImpl.h"
 
-#include "nsVoidArray.h"
+#include "nsTArray.h"
 
 #include "prcvar.h"
 #include "prinrval.h"
@@ -91,6 +91,7 @@ private:
   // list, or -1 if it failed.
   PRInt32 AddTimerInternal(nsTimerImpl *aTimer);
   PRBool  RemoveTimerInternal(nsTimerImpl *aTimer);
+  void    ReleaseTimerInternal(nsTimerImpl *aTimer);
 
   nsCOMPtr<nsIThread> mThread;
   PRLock *mLock;
@@ -100,7 +101,7 @@ private:
   PRPackedBool mWaiting;
   PRPackedBool mSleeping;
   
-  nsVoidArray mTimers;
+  nsTArray<nsTimerImpl*> mTimers;
 
 #define DELAY_LINE_LENGTH_LOG2  5
 #define DELAY_LINE_LENGTH_MASK  PR_BITMASK(DELAY_LINE_LENGTH_LOG2)

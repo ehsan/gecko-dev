@@ -43,6 +43,9 @@
 #include "nsISVGSVGFrame.h"
 #include "nsIDOMSVGPoint.h"
 #include "nsIDOMSVGNumber.h"
+#include "gfxMatrix.h"
+
+class nsSVGForeignObjectFrame;
 
 ////////////////////////////////////////////////////////////////////////
 // nsSVGOuterSVGFrame class
@@ -53,20 +56,32 @@ class nsSVGOuterSVGFrame : public nsSVGOuterSVGFrameBase,
                            public nsISVGSVGFrame
 {
   friend nsIFrame*
-  NS_NewSVGOuterSVGFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
+  NS_NewSVGOuterSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
   nsSVGOuterSVGFrame(nsStyleContext* aContext);
 
-   // nsISupports interface:
-  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
-private:
-  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
-  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
-
 public:
+  NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
+
+#ifdef DEBUG
+  ~nsSVGOuterSVGFrame() {
+    NS_ASSERTION(mForeignObjectHash.Count() == 0,
+                 "foreignObject(s) still registered!");
+  }
+#endif
+
   // nsIFrame:
-  // XXX Should this implement intrinsic width methods (esp.
-  // GetIntrinsicRatio)?
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+
+  virtual IntrinsicSize GetIntrinsicSize();
+  virtual nsSize  GetIntrinsicRatio();
+
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
+                             nsSize aCBSize, nscoord aAvailableWidth,
+                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
+                             PRBool aShrinkWrap);
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -77,11 +92,7 @@ public:
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus aStatus);
 
-  NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
-                           nsIFrame*       aPrevFrame,
-                           nsIFrame*       aFrameList);
-
-  nsIFrame* GetFrameForPoint(const nsPoint& aPoint);
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint& aPoint);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -90,6 +101,8 @@ public:
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
+
+  virtual nsSplittableType GetSplittableType() const;
 
   /**
    * Get the "type" of the frame
@@ -114,8 +127,13 @@ public:
 
   // nsSVGOuterSVGFrame methods:
 
-  /* Invalidate takes a nsRect in screen pixel coordinates */
-  nsresult InvalidateRect(nsRect aRect);
+  void InvalidateCoveredRegion(nsIFrame *aFrame);
+  // Calls aSVG->UpdateCoveredRegion and returns true if the covered
+  // region actually changed. If it changed, invalidates the old and new
+  // covered regions, taking filters into account, like
+  // InvalidateCoveredRegion.
+  PRBool UpdateAndInvalidateCoveredRegion(nsIFrame *aFrame);
+
   PRBool IsRedrawSuspended();
 
   // nsISVGSVGFrame interface:
@@ -124,22 +142,39 @@ public:
   NS_IMETHOD NotifyViewportChange();
 
   // nsSVGContainerFrame methods:
-  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
+  virtual gfxMatrix GetCanvasTM();
+
+  /* Methods to allow descendant nsSVGForeignObjectFrame frames to register and
+   * unregister themselves with their nearest nsSVGOuterSVGFrame ancestor so
+   * they can be reflowed. The methods return PR_TRUE on success or PR_FALSE on
+   * failure.
+   */
+  void RegisterForeignObject(nsSVGForeignObjectFrame* aFrame);
+  void UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame);
 
 protected:
 
-  void CalculateAvailableSpace(nsRect *maxRect, nsRect *preferredRect,
-                               nsPresContext* aPresContext,
-                               const nsHTMLReflowState& aReflowState);
+  /* Returns true if our content is the document element and our document is
+   * embedded in an HTML 'object', 'embed' or 'applet' element. Set
+   * aEmbeddingFrame to obtain the nsIFrame for the embedding HTML element.
+   */
+  PRBool EmbeddedByReference(nsIFrame **aEmbeddingFrame = nsnull);
+
+  // A hash-set containing our nsSVGForeignObjectFrame descendants. Note we use
+  // a hash-set to avoid the O(N^2) behavior we'd get tearing down an SVG frame
+  // subtree if we were to use a list (see bug 381285 comment 20).
+  nsTHashtable<nsVoidPtrHashKey> mForeignObjectHash;
 
   PRUint32 mRedrawSuspendCount;
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
 
-  // zoom and pan
-  nsCOMPtr<nsIDOMSVGPoint>  mCurrentTranslate;
-  nsCOMPtr<nsIDOMSVGNumber> mCurrentScale;
+  float mFullZoom;
 
   PRPackedBool mViewportInitialized;
+#ifdef XP_MACOSX
+  PRPackedBool mEnableBitmapFallback;
+#endif
+  PRPackedBool mIsRootContent;
 };
 
 #endif

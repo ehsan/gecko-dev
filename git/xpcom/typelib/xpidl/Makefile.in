@@ -44,8 +44,8 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= xpcom
 
-ifndef WINCE
-# Sadly, the code here is too smart for the WinCE compiler's brain
+ifneq (,$(filter-out WINCE SYMBIAN,$(OS_ARCH)))
+# Sadly, the code here is too smart for the WinCE/Symbian compiler's brain
 PROGRAM		= xpidl$(BIN_SUFFIX)
 SDK_BINARY  = $(PROGRAM)
 endif
@@ -68,11 +68,12 @@ CSRCS		= \
 ifdef CROSS_COMPILE
 HOST_PROGRAM	= host_xpidl$(HOST_BIN_SUFFIX)
 HOST_CSRCS	= $(CSRCS)
+ifdef WINCE
+HOST_LDFLAGS += -ladvapi32.lib
+endif
 endif
 
-ifdef STATIC_LIBIDL
 USE_STATIC_LIBS = 1
-endif
 
 ifeq ($(OS_ARCH),Darwin)
 # The only reason to not always strip the SDK out is that the libraries
@@ -131,6 +132,11 @@ include $(topsrcdir)/config/rules.mk
 
 CFLAGS		+= $(LIBIDL_CFLAGS)
 
+# Do not link to jemalloc
+ifeq ($(OS_ARCH),SunOS)
+SOLARIS_JEMALLOC_LDFLAGS =
+endif
+
 # Compile directly against the static lib, so we can use xpidl during the build
 # without the shared library path being set.
 ifneq (,$(filter WINNT WINCE OS2,$(OS_ARCH)))
@@ -172,9 +178,11 @@ ifdef WINCE
 # Compile directly against the static lib, so we can use the tools
 # during the build without the shared library path being set.
 HOST_CFLAGS +=  -DEXPORT_XPT_API
-
 # Force MOZ_NO_DEBUG_RTL=1
-HOST_CFLAGS	+= /MD
+# HOST_CFLAGS	+= /MD
+LDFLAGS += -NODEFAULTLIB:MSVCRT
+HOST_LIBS += Advapi32.lib
+HOST_CFLAGS +=-D_X86_
 endif
 
 endif

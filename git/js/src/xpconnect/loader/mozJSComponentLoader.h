@@ -74,7 +74,7 @@ class nsXPCFastLoadIO : public nsIFastLoadFileIO
     NS_DECL_ISUPPORTS
     NS_DECL_NSIFASTLOADFILEIO
 
-    nsXPCFastLoadIO(nsIFile *file) : mFile(file) {}
+    nsXPCFastLoadIO(nsIFile *file) : mFile(file), mTruncateOutputFile(true) {}
 
     void SetInputStream(nsIInputStream *stream) { mInputStream = stream; }
     void SetOutputStream(nsIOutputStream *stream) { mOutputStream = stream; }
@@ -85,6 +85,7 @@ class nsXPCFastLoadIO : public nsIFastLoadFileIO
     nsCOMPtr<nsIFile> mFile;
     nsCOMPtr<nsIInputStream> mInputStream;
     nsCOMPtr<nsIOutputStream> mOutputStream;
+    bool mTruncateOutputFile;
 };
 
 
@@ -92,6 +93,7 @@ class mozJSComponentLoader : public nsIModuleLoader,
                              public xpcIJSModuleLoader,
                              public nsIObserver
 {
+    friend class JSCLContextHelper;
  public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIMODULELOADER
@@ -109,7 +111,8 @@ class mozJSComponentLoader : public nsIModuleLoader,
 
     nsresult GlobalForLocation(nsILocalFile *aComponent,
                                JSObject **aGlobal,
-                               char **location);
+                               char **location,
+                               jsval *exception);
 
     nsresult StartFastLoad(nsIFastLoadService *flSvc);
     nsresult ReadScript(nsIFastLoadService *flSvc, const char *nativePath,
@@ -119,11 +122,10 @@ class mozJSComponentLoader : public nsIModuleLoader,
                          nsIURI *uri, JSContext *cx);
     static void CloseFastLoad(nsITimer *timer, void *closure);
     void CloseFastLoad();
-    nsresult ReportOnCaller(nsIXPCNativeCallContext *cc,
-                            const char *format, ...);
 
     nsCOMPtr<nsIComponentManager> mCompMgr;
     nsCOMPtr<nsIJSRuntimeService> mRuntimeService;
+    nsCOMPtr<nsIThreadJSContextStack> mContextStack;
     nsCOMPtr<nsIFile> mFastLoadFile;
     nsRefPtr<nsXPCFastLoadIO> mFastLoadIO;
     nsCOMPtr<nsIObjectInputStream> mFastLoadInput;

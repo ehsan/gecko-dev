@@ -15,7 +15,7 @@
  *
  * The Original Code is Thebes gfx.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -67,11 +67,10 @@ gfxAlphaRecovery::RecoverAlpha (gfxImageSurface *blackSurf,
     resultSurf = new gfxImageSurface(dimensions, gfxASurface::ImageFormatARGB32);
 
     // copy blackSurf into resultSurf
-    nsRefPtr<gfxContext> ctx = new gfxContext(resultSurf);
-    ctx->SetSource(blackSurf);
-    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-    ctx->Paint();
-    ctx = nsnull;
+    gfxContext ctx(resultSurf);
+    ctx.SetSource(blackSurf);
+    ctx.SetOperator(gfxContext::OPERATOR_SOURCE);
+    ctx.Paint();
 
     gfxAlphaRecoveryResult result;
     _compute_alpha_values ((unsigned int*) resultSurf->Data(),

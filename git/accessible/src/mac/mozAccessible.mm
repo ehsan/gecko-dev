@@ -44,6 +44,7 @@
 
 #include "nsRect.h"
 #include "nsCoord.h"
+#include "nsObjCExceptions.h"
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleText.h"
@@ -73,9 +74,13 @@ ConvertCocoaToGeckoPoint(NSPoint &aInPoint, nsPoint &aOutPoint)
 static inline id <mozAccessible>
 GetObjectOrRepresentedView(id <mozAccessible> anObject)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   if ([anObject hasRepresentedView])
     return [anObject representedView];
   return anObject;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 // returns the passed in object if it is not ignored. if it's ignored, will return
@@ -83,6 +88,8 @@ GetObjectOrRepresentedView(id <mozAccessible> anObject)
 static inline id
 GetClosestInterestingAccessible(id anObject)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   // this object is not ignored, so let's return it.
   if (![anObject accessibilityIsIgnored])
     return GetObjectOrRepresentedView(anObject);
@@ -101,14 +108,20 @@ GetClosestInterestingAccessible(id anObject)
     return GetObjectOrRepresentedView(unignoredObject);
   
   return unignoredObject;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 static inline mozAccessible* 
 GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSNULL;
+
   mozAccessible *native = nil;
   anAccessible->GetNativeInterface ((void**)&native);
   return native;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL;
 }
 
 #pragma mark -
@@ -117,10 +130,12 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
  
 - (id)initWithAccessible:(nsAccessibleWrap*)geckoAccessible
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   if ((self = [super init])) {
     mGeckoAccessible = geckoAccessible;
     mIsExpired = NO;
-    geckoAccessible->GetFinalRole(&mRole);
+    geckoAccessible->GetRole(&mRole);
     
     // Check for OS X "role skew"; the role constants in nsIAccessible.idl need to match the ones
     // in nsRoleMap.h.
@@ -128,25 +143,37 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   }
    
   return self;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (void)dealloc
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   [mChildren release];
   [super dealloc];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
  
 #pragma mark -
 
 - (BOOL)accessibilityIsIgnored
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
   // unknown (either unimplemented, or irrelevant) elements are marked as ignored
   // as well as expired elements.
   return mIsExpired || [[self role] isEqualToString:NSAccessibilityUnknownRole];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 - (NSArray*)accessibilityAttributeNames
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   // if we're expired, we don't support any attributes.
   if (mIsExpired)
     return [NSArray array];
@@ -177,10 +204,14 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   }
 
   return generalAttributes;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (id)accessibilityAttributeValue:(NSString*)attribute
 {  
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   if (mIsExpired)
     return nil;
   
@@ -227,18 +258,26 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
  NSLog (@"!!! %@ can't respond to attribute %@", self, attribute);
 #endif
   return nil; // be nice and return empty string instead?
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (BOOL)accessibilityIsAttributeSettable:(NSString*)attribute
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
   if ([attribute isEqualToString:NSAccessibilityFocusedAttribute])
     return [self canBeFocused];
   
   return NO;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 - (void)accessibilitySetValue:(id)value forAttribute:(NSString*)attribute
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
 #ifdef DEBUG_hakan
   NSLog (@"[%@] %@='%@'", self, attribute, value);
 #endif
@@ -246,28 +285,25 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   // we only support focusing elements so far.
   if ([attribute isEqualToString:NSAccessibilityFocusedAttribute] && [value boolValue])
     [self focus];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (id)accessibilityHitTest:(NSPoint)point
 {
   if (mIsExpired)
     return nil;
-  
+
   // Convert from cocoa's coordinate system to gecko's. According to the docs
   // the point we're given is guaranteed to be bottom-left screen coordinates.
   nsPoint geckoPoint;
   ConvertCocoaToGeckoPoint (point, geckoPoint);
 
-  // start iterating as deep down as we can on this point, with the current accessible as the root.
-  // as soon as GetChildAtPoint() returns null, or can't descend further (without getting the same accessible again)
-  // we stop.
-  nsCOMPtr<nsIAccessible> deepestFoundChild, newChild(mGeckoAccessible);
-  do {
-    deepestFoundChild = newChild;
-    deepestFoundChild->GetChildAtPoint((PRInt32)geckoPoint.x, (PRInt32)geckoPoint.y, getter_AddRefs(newChild));
-  } while (newChild && newChild.get() != deepestFoundChild.get());
+  nsCOMPtr<nsIAccessible> deepestFoundChild;
+  mGeckoAccessible->GetDeepestChildAtPoint((PRInt32)geckoPoint.x,
+                                           (PRInt32)geckoPoint.y,
+                                           getter_AddRefs(deepestFoundChild));
   
-
   // if we found something, return its native accessible.
   if (deepestFoundChild) {
     mozAccessible *nativeChild = GetNativeFromGeckoAccessible(deepestFoundChild);
@@ -315,6 +351,8 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 
 - (id <mozAccessible>)parent
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   nsCOMPtr<nsIAccessible> accessibleParent(mGeckoAccessible->GetUnignoredParent());
   if (accessibleParent) {
     id nativeParent = GetNativeFromGeckoAccessible(accessibleParent);
@@ -332,6 +370,8 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   NSAssert1 (nativeParent, @"!!! we can't find a parent for %@", self);
   
   return GetClosestInterestingAccessible(nativeParent);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (BOOL)hasRepresentedView
@@ -353,6 +393,8 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 // returns nil when there are no children.
 - (NSArray*)children
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   if (mChildren)
     return mChildren;
     
@@ -385,10 +427,14 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 #endif
   
   return mChildren;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (NSValue*)position
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   PRInt32 x, y, width, height;
   mGeckoAccessible->GetBounds (&x, &y, &width, &height);
   NSPoint p = NSMakePoint (x, y);
@@ -404,19 +450,26 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   p.y = mainScreenHeight - p.y - height;
   
   return [NSValue valueWithPoint:p];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (NSValue*)size
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   PRInt32 x, y, width, height;
   mGeckoAccessible->GetBounds (&x, &y, &width, &height);  
   return [NSValue valueWithSize:NSMakeSize (width, height)];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (NSString*)role
 {
 #ifdef DEBUG_A11Y
-  NS_ASSERTION(nsAccessible::IsTextInterfaceSupportCorrect(mGeckoAccessible), "Does not support nsIAccessibleText when it should");
+  NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(mGeckoAccessible),
+               "Does not support nsIAccessibleText when it should");
 #endif
   return AXRoles[mRole];
 }
@@ -428,58 +481,82 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 
 - (NSString*)title
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   nsAutoString title;
   mGeckoAccessible->GetName (title);
   return title.IsEmpty() ? nil : [NSString stringWithCharacters:title.BeginReading() length:title.Length()];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (id)value
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   nsAutoString value;
   mGeckoAccessible->GetValue (value);
   return value.IsEmpty() ? nil : [NSString stringWithCharacters:value.BeginReading() length:value.Length()];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (void)valueDidChange
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
 #ifdef DEBUG_hakan
   NSLog(@"%@'s value changed!", self);
 #endif
   // sending out a notification is expensive, so we don't do it other than for really important objects,
   // like mozTextAccessible.
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (NSString*)customDescription
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   nsAutoString desc;
   mGeckoAccessible->GetDescription (desc);
   return desc.IsEmpty() ? nil : [NSString stringWithCharacters:desc.BeginReading() length:desc.Length()];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (NSString*)help
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   nsAutoString helpText;
   mGeckoAccessible->GetHelp (helpText);
   return helpText.IsEmpty() ? nil : [NSString stringWithCharacters:helpText.BeginReading() length:helpText.Length()];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 // objc-style description (from NSObject); not to be confused with the accessible description above.
 - (NSString*)description
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   return [NSString stringWithFormat:@"(%p) %@", self, [self role]];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (BOOL)isFocused
 {
   PRUint32 state = 0;
-  mGeckoAccessible->GetFinalState (&state, nsnull);
+  mGeckoAccessible->GetState (&state, nsnull);
   return (state & nsIAccessibleStates::STATE_FOCUSED) != 0;
 }
 
 - (BOOL)canBeFocused
 {
   PRUint32 state = 0;
-  mGeckoAccessible->GetFinalState (&state, nsnull);
+  mGeckoAccessible->GetState (&state, nsnull);
   return (state & nsIAccessibleStates::STATE_FOCUSABLE) != 0;
 }
 
@@ -492,7 +569,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 - (BOOL)isEnabled
 {
   PRUint32 state = 0;
-  mGeckoAccessible->GetFinalState (&state, nsnull);
+  mGeckoAccessible->GetState (&state, nsnull);
   return (state & nsIAccessibleStates::STATE_UNAVAILABLE) == 0;
 }
 
@@ -500,35 +577,51 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 // changed to us.
 - (void)didReceiveFocus
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
 #ifdef DEBUG_hakan
   NSLog (@"%@ received focus!", self);
 #endif
   NSAssert1(![self accessibilityIsIgnored], @"trying to set focus to ignored element! (%@)", self);
   NSAccessibilityPostNotification(GetObjectOrRepresentedView(self),
                                   NSAccessibilityFocusedUIElementChangedNotification);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (NSWindow*)window
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   nsAccessibleWrap *accWrap = static_cast<nsAccessibleWrap*>(mGeckoAccessible);
   NSWindow *nativeWindow = nil;
   accWrap->GetNativeWindow ((void**)&nativeWindow);
   
   NSAssert1(nativeWindow, @"Could not get native window for %@", self);
   return nativeWindow;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 - (void)invalidateChildren
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   // make room for new children
   [mChildren release];
   mChildren = nil;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (void)expire
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   [self invalidateChildren];
   mIsExpired = YES;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (BOOL)isExpired
@@ -546,6 +639,8 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 // parent.
 - (void)sanityCheckChildren:(NSArray *)children
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   NSAssert(![self accessibilityIsIgnored], @"can't sanity check children of an ignored accessible!");
   NSEnumerator *iter = [children objectEnumerator];
   mozAccessible *curObj = nil;
@@ -558,20 +653,32 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
     NSAssert2([curObj parent] == realSelf, 
               @"!!! %@ not returning %@ as AXParent, even though it is a AXChild of it!", curObj, realSelf);
   }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (void)sanityCheckChildren
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   [self sanityCheckChildren:[self children]];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (void)printHierarchy
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   [self printHierarchyWithLevel:0];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (void)printHierarchyWithLevel:(unsigned)level
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   NSAssert(![self isExpired], @"!!! trying to print hierarchy of expired object!");
   
   // print this node
@@ -597,6 +704,8 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
     // print every child node's subtree, increasing the indenting
     // by two for every level.
     [object printHierarchyWithLevel:(level+1)];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 #endif /* DEBUG */

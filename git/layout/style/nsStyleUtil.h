@@ -40,12 +40,13 @@
 #include "nsCoord.h"
 #include "nsPresContext.h"
 #include "nsILinkHandler.h" // for nsLinkState
+#include "nsCSSProperty.h"
 
 struct nsStyleBackground;
 
 enum nsFontSizeType {
-  eFontSize_HTML  	= 1,
-  eFontSize_CSS			= 2
+  eFontSize_HTML = 1,
+  eFontSize_CSS = 2
 };
 
 
@@ -69,14 +70,25 @@ public:
 
   static PRInt32 ConstrainFontWeight(PRInt32 aWeight);
 
-  static PRBool IsHTMLLink(nsIContent *aContent, nsIAtom *aTag, nsPresContext *aPresContext, nsLinkState *aState);
-  static PRBool IsLink(nsIContent *aContent, nsPresContext *aPresContext, nsLinkState *aState);
+  static PRBool IsHTMLLink(nsIContent *aContent, nsILinkHandler *aLinkHandler,
+                           nsLinkState *aState);
+  static PRBool IsLink(nsIContent *aContent, nsILinkHandler *aLinkHandler,
+                       nsLinkState *aState);
 
  static PRBool DashMatchCompare(const nsAString& aAttributeValue,
                                 const nsAString& aSelectorValue,
                                 const nsStringComparator& aComparator);
                                 
-  static void EscapeCSSString(const nsString& aString, nsAString& aReturn);
+  // Append a quoted (with "") and escaped version of aString to aResult.
+  static void AppendEscapedCSSString(const nsString& aString,
+                                     nsAString& aResult);
+
+  // Append a bitmask-valued property's value(s) (space-separated) to aResult.
+  static void AppendBitmaskCSSValue(nsCSSProperty aProperty,
+                                    PRInt32 aMaskedValue,
+                                    PRInt32 aFirstMask,
+                                    PRInt32 aLastMask,
+                                    nsAString& aResult);
 
   /*
    * Convert an author-provided floating point number to an integer (0
@@ -97,6 +109,12 @@ public:
    */
   static float ColorComponentToFloat(PRUint8 aAlpha);
 
+  /*
+   * Does this child count as significant for selector matching?
+   */
+  static PRBool IsSignificantChild(nsIContent* aChild,
+                                   PRBool aTextIsSignificant,
+                                   PRBool aWhitespaceIsSignificant);
 };
 
 

@@ -44,6 +44,7 @@
 #include "nscore.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
+#include "prbit.h"
 
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "nsStaticNameTable.h"
@@ -76,7 +77,7 @@ struct NameTableEntry : public PLDHashEntryHdr
     PRInt32 mIndex;
 };
 
-PR_STATIC_CALLBACK(PRBool)
+static PRBool
 matchNameKeysCaseInsensitive(PLDHashTable*, const PLDHashEntryHdr* aHdr,
                              const void* key)
 {
@@ -103,7 +104,7 @@ matchNameKeysCaseInsensitive(PLDHashTable*, const PLDHashEntryHdr* aHdr,
  * to the same value, but it's just a hash function so it doesn't
  * matter.
  */
-PR_STATIC_CALLBACK(PLDHashNumber)
+static PLDHashNumber
 caseInsensitiveStringHashKey(PLDHashTable *table, const void *key)
 {
     PLDHashNumber h = 0;
@@ -112,14 +113,14 @@ caseInsensitiveStringHashKey(PLDHashTable *table, const void *key)
         for (const PRUnichar* s = tableKey->mKeyStr.m2b->get();
              *s != '\0';
              s++)
-            h = (h >> (PL_DHASH_BITS - 4)) ^ (h << 4) ^ (*s & ~0x20);
+            h = PR_ROTATE_LEFT32(h, 4) ^ (*s & ~0x20);
     } else {
         for (const unsigned char* s =
                  reinterpret_cast<const unsigned char*>
                                  (tableKey->mKeyStr.m1b->get());
              *s != '\0';
              s++)
-            h = (h >> (PL_DHASH_BITS - 4)) ^ (h << 4) ^ (*s & ~0x20);
+            h = PR_ROTATE_LEFT32(h, 4) ^ (*s & ~0x20);
     }
     return h;
 }

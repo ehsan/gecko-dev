@@ -43,24 +43,12 @@
 #include <Menu.h>
 
 #include "nsIDeviceContext.h"
-#include "nsUnitConversion.h"
 #include "nsSystemFontsBeOS.h"
-
-#define DEFAULT_PIXEL_FONT_SIZE 16.0f
 
 nsSystemFontsBeOS::nsSystemFontsBeOS()
   : mDefaultFontName(NS_LITERAL_STRING("sans-serif"))
   , mMenuFontName(NS_LITERAL_STRING("sans-serif"))
   , mCaptionFontName(NS_LITERAL_STRING("sans-serif"))
-  , mDefaultFontStyle(FONT_STYLE_NORMAL, FONT_WEIGHT_NORMAL,
-                 DEFAULT_PIXEL_FONT_SIZE, NS_LITERAL_CSTRING(""),
-                 0.0f, PR_TRUE, PR_FALSE)
-  , mMenuFontStyle(FONT_STYLE_NORMAL, FONT_WEIGHT_NORMAL,
-               DEFAULT_PIXEL_FONT_SIZE, NS_LITERAL_CSTRING(""),
-               0.0f, PR_TRUE, PR_FALSE)
-  , mCaptionFontStyle(FONT_STYLE_NORMAL, FONT_WEIGHT_NORMAL,
-               DEFAULT_PIXEL_FONT_SIZE, NS_LITERAL_CSTRING(""),
-               0.0f, PR_TRUE, PR_FALSE)
 {
   menu_info info;
   get_menu_info(&info);
@@ -118,6 +106,7 @@ nsSystemFontsBeOS::GetSystemFontInfo(const BFont *theFont, nsString *aFontName,
   aFontStyle->style       = FONT_STYLE_NORMAL; 
   aFontStyle->weight      = FONT_WEIGHT_NORMAL; 
   aFontStyle->decorations = FONT_DECORATION_NONE; 
+  aFontStyle->stretch     = NS_FONT_STRETCH_NORMAL;
   
   font_family family; 
   theFont->GetFamilyAndStyle(&family, NULL);
@@ -131,6 +120,8 @@ nsSystemFontsBeOS::GetSystemFontInfo(const BFont *theFont, nsString *aFontName,
 
   if (face & B_BOLD_FACE)
     aFontStyle->weight = FONT_WEIGHT_BOLD;
+
+  // FIXME: Set aFontStyle->stretch correctly!
 
   if (face & B_UNDERSCORE_FACE)
     aFontStyle->decorations |= FONT_DECORATION_UNDERLINE;

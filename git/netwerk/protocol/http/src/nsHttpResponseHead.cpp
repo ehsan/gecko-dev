@@ -414,7 +414,13 @@ nsHttpResponseHead::IsResumable()
 PRBool
 nsHttpResponseHead::ExpiresInPast()
 {
-    PRUint32 expiresVal, dateVal;
+    PRUint32 maxAgeVal, expiresVal, dateVal;
+    
+    // Bug #203271. Ensure max-age directive takes precedence over Expires
+    if (NS_SUCCEEDED(GetMaxAgeValue(&maxAgeVal))) {
+        return PR_FALSE;
+    }
+    
     return NS_SUCCEEDED(GetExpiresValue(&expiresVal)) &&
            NS_SUCCEEDED(GetDateValue(&dateVal)) &&
            expiresVal < dateVal;
@@ -482,6 +488,7 @@ nsHttpResponseHead::Reset()
     mContentLength = LL_MAXUINT;
     mCacheControlNoStore = PR_FALSE;
     mCacheControlNoCache = PR_FALSE;
+    mCacheControlPublic = PR_FALSE;
     mPragmaNoCache = PR_FALSE;
     mStatusText.Truncate();
     mContentType.Truncate();
@@ -631,6 +638,7 @@ nsHttpResponseHead::ParseCacheControl(const char *val)
         // clear flags
         mCacheControlNoCache = PR_FALSE;
         mCacheControlNoStore = PR_FALSE;
+        mCacheControlPublic = PR_FALSE;
         return;
     }
 
@@ -642,6 +650,10 @@ nsHttpResponseHead::ParseCacheControl(const char *val)
     // search header value for occurrence of "no-store" 
     if (nsHttp::FindToken(val, "no-store", HTTP_HEADER_VALUE_SEPS))
         mCacheControlNoStore = PR_TRUE;
+
+    // search header value for occurrence of "public" 
+    if (nsHttp::FindToken(val, "public", HTTP_HEADER_VALUE_SEPS))
+        mCacheControlPublic = PR_TRUE;
 }
 
 void

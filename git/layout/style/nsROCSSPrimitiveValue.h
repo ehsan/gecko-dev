@@ -43,7 +43,6 @@
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsString.h"
 #include "nsCoord.h"
-#include "nsUnitConversion.h"
 #include "nsReadableUtils.h"
 #include "nsIURI.h"
 #include "nsIAtom.h"
@@ -111,30 +110,14 @@ public:
     SetAppUnits(NSToCoordRound(aValue));
   }
 
-  void SetIdent(nsIAtom* aAtom)
-  {
-    NS_PRECONDITION(aAtom, "Don't pass in a null atom");
-    Reset();
-    NS_ADDREF(mValue.mAtom = aAtom);
-    mType = CSS_IDENT;
-  }
-
-  // FIXME More callers should use this variant.
   void SetIdent(nsCSSKeyword aKeyword)
   {
-    SetIdent(nsCSSKeywords::GetStringValue(aKeyword));
-  }
-
-  void SetIdent(const nsACString& aString)
-  {
+    NS_PRECONDITION(aKeyword != eCSSKeyword_UNKNOWN &&
+                    0 <= aKeyword && aKeyword < eCSSKeyword_COUNT,
+                    "bad keyword");
     Reset();
-    mValue.mAtom = NS_NewAtom(aString);
-    if (mValue.mAtom) {
-      mType = CSS_IDENT;
-    } else {
-      // XXXcaa We should probably let the caller know we are out of memory
-      mType = CSS_UNKNOWN;
-    }
+    mValue.mKeyword = aKeyword;
+    mType = CSS_IDENT;
   }
 
   // FIXME: CSS_STRING should imply a string with "" and a need for escaping.
@@ -199,12 +182,17 @@ public:
     }
   }
 
+  void SetTime(float aValue)
+  {
+    Reset();
+    mValue.mFloat = aValue;
+    mType = CSS_S;
+  }
+
   void Reset(void)
   {
     switch (mType) {
       case CSS_IDENT:
-        NS_ASSERTION(mValue.mAtom, "Null atom should never happen");
-        NS_RELEASE(mValue.mAtom);
         break;
       case CSS_STRING:
       case CSS_ATTR:
@@ -228,8 +216,6 @@ public:
   }
 
 private:
-  void GetEscapedURI(nsIURI *aURI, PRUnichar **aReturn);
-
   PRUint16 mType;
 
   union {
@@ -239,7 +225,7 @@ private:
     nsIDOMRect*     mRect;
     PRUnichar*      mString;
     nsIURI*         mURI;
-    nsIAtom*        mAtom; // FIXME use nsCSSKeyword instead
+    nsCSSKeyword    mKeyword;
   } mValue;
   
   PRInt32 mAppUnitsPerInch;

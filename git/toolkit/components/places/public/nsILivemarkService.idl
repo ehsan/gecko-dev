@@ -22,6 +22,7 @@
  * Contributor(s):
  *   Annie Sullivan <annie.sullivan@gmail.com>
  *   Joe Hughes <joe@retrovirus.com>
+ *   Takeshi Ichimaru <ayakawa.m@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,9 +43,21 @@
 interface nsIURI;
 interface nsINavBookmarksService;
 
-[scriptable, uuid(602e3a71-2d10-4d8f-80c2-6db302b5c89d)]
+[scriptable, uuid(62a5fe00-d85c-4a63-aef7-176d8f1b189d)]
 interface nsILivemarkService : nsISupports
 {
+  /**
+   * Starts the livemark refresh timer.
+   * Being able to manually control this allows activity such
+   * as bookmarks import to occur without kicking off HTTP traffic.
+   */
+  void start();
+
+  /**
+   * Stop the livemark refresh timer.
+   */
+  void stopUpdateLivemarks();
+
   /**
    * Creates a new livemark
    * @param folder      The id of the parent folder
@@ -63,8 +76,7 @@ interface nsILivemarkService : nsISupports
   /**
    * Same as above, use during startup to avoid HTTP traffic
    */
-  long long createLivemarkFolderOnly(in nsINavBookmarksService bms,
-                                     in long long folder,
+  long long createLivemarkFolderOnly(in long long folder,
                                      in AString name,
                                      in nsIURI siteURI,
                                      in nsIURI feedURI,
@@ -82,6 +94,16 @@ interface nsILivemarkService : nsISupports
    * @throws NS_ERROR_INVALID_ARG if the folder ID isn't known
    */
   boolean isLivemark(in long long folder);
+
+  /**
+   * Determines whether the feed URI is a currently registered livemark.
+   *
+   * @param aFeedURI
+   *        Feed URI to look for.
+   *
+   * @returns the found livemark folder id, or -1 if nothing was found.
+   */
+  long long getLivemarkIdForFeedURI(in nsIURI aFeedURI);
 
   /**
    * Gets the URI of the website associated with a livemark container.
@@ -154,3 +176,7 @@ interface nsILivemarkService : nsISupports
 	 */
   void reloadLivemarkFolder(in long long folderID);
 };
+
+%{C++
+#define LMANNO_FEEDURI "livemark/feedURI"
+%}

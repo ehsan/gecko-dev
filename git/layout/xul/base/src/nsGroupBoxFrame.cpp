@@ -44,6 +44,7 @@
 
 class nsGroupBoxFrame : public nsBoxFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
 
   nsGroupBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
     nsBoxFrame(aShell, aContext) {}
@@ -59,6 +60,8 @@ public:
     return MakeFrameName(NS_LITERAL_STRING("GroupBoxFrame"), aResult);
   }
 #endif
+
+  virtual PRBool HonorPrintBackgroundSettings() { return PR_FALSE; }
 
   void PaintBorderBackground(nsIRenderingContext& aRenderingContext,
       nsPoint aPt, const nsRect& aDirtyRect);
@@ -100,6 +103,8 @@ NS_NewGroupBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsGroupBoxFrame(aPresShell, aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsGroupBoxFrame)
+
 class nsDisplayXULGroupBackground : public nsDisplayItem {
 public:
   nsDisplayXULGroupBackground(nsGroupBoxFrame* aFrame) : nsDisplayItem(aFrame) {
@@ -111,18 +116,20 @@ public:
   }
 #endif
 
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt) { return mFrame; }
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) { return mFrame; }
+  virtual void Paint(nsDisplayListBuilder* aBuilder,
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("XULGroupBackground")
 };
 
 void
 nsDisplayXULGroupBackground::Paint(nsDisplayListBuilder* aBuilder,
-     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
+                                   nsIRenderingContext* aCtx)
 {
   static_cast<nsGroupBoxFrame*>(mFrame)->
-    PaintBorderBackground(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect);
+    PaintBorderBackground(*aCtx, aBuilder->ToReferenceFrame(mFrame),
+                          mVisibleRect);
 }
 
 NS_IMETHODIMP
@@ -149,8 +156,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     nsPoint aPt, const nsRect& aDirtyRect) {
   PRIntn skipSides = 0;
   const nsStyleBorder* borderStyleData = GetStyleBorder();
-  const nsStylePadding* paddingStyleData = GetStylePadding();
-  const nsMargin& border = borderStyleData->GetBorder();
+  const nsMargin& border = borderStyleData->GetActualBorder();
   nscoord yoff = 0;
   nsPresContext* presContext = PresContext();
 
@@ -173,8 +179,8 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
   groupRect += aPt;
 
   nsCSSRendering::PaintBackground(presContext, aRenderingContext, this,
-                                  aDirtyRect, rect, *borderStyleData,
-                                  *paddingStyleData, PR_FALSE);
+                                  aDirtyRect, rect,
+                                  nsCSSRendering::PAINTBG_SYNC_DECODE_IMAGES);
 
   if (groupBox) {
 
@@ -189,7 +195,8 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyleData, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyleData,
+                                mStyleContext, skipSides);
 
     aRenderingContext.PopState();
 
@@ -203,7 +210,8 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyleData, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyleData,
+                                mStyleContext, skipSides);
 
     aRenderingContext.PopState();
 
@@ -218,7 +226,8 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyleData, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyleData,
+                                mStyleContext, skipSides);
 
     aRenderingContext.PopState();
     

@@ -46,18 +46,16 @@
 /* ::::: listbox ::::: */
 
 listbox {
+  -moz-appearance: listbox;
   margin: 2px 4px;
-  border-top: 1px solid #A1A1A1;
-  border-right: 1px solid #C3C3C3;
-  border-bottom: 1px solid #DDDDDD;
-  border-left: 1px solid #C3C3C3;
   background-color: #FFFFFF;
   color: -moz-FieldText;
 }
 
 .listcell-label {
   margin: 0px !important;
-  padding: 0px 0px 1px 4px;
+  padding-bottom: 1px;
+  -moz-padding-start: 4px;
   white-space: nowrap;
 }
 
@@ -104,11 +102,13 @@ listheader[sortable="true"]:hover:active {
   -moz-border-right-colors: ThreeDShadow;
   -moz-border-bottom-colors: ThreeDShadow;
   -moz-border-left-colors: ThreeDShadow -moz-Dialog;
-  padding: 1px 4px 0px 5px;
+  padding-top: 1px;
+  -moz-padding-start: 5px;
+  -moz-padding-end: 4px;
 }
 
 .listheader-icon {
-  margin-right: 2px;
+  -moz-margin-end: 2px;
 }
 
 .listheader-label {
@@ -134,12 +134,13 @@ listheader[sortable="true"]:hover:active {
 
 .listcell-label {
   margin: 0px !important;
-  padding: 0px 0px 1px 4px;
+  padding-bottom: 1px;
+  -moz-padding-start: 4px;
   white-space: nowrap;
 }
 
 .listcell-icon {
-  margin-right: 2px;
+  -moz-margin-end: 2px;
 }
 
 .listcell-label[disabled="true"] {
@@ -155,7 +156,7 @@ listheader[sortable="true"]:hover:active {
   border: 1px solid -moz-DialogText;
   min-width: 13px;
   min-height: 13px;
-  background: -moz-Field url("chrome://global/skin/checkbox/cbox.gif") no-repeat 50% 50%;
+  background: -moz-Field no-repeat 50% 50%;
 }
 
 .listcell-check[checked="true"] {

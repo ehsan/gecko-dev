@@ -21,6 +21,7 @@
  * Contributor(s):
  *   Shawn Wilsher <me@shawnwilsher.com> (original author)
  *   Dan Mosedale <dmose@mozilla.org>
+ *   Florian Queze <florian@queze.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -51,12 +52,14 @@
  *   This is the text to be placed in the label for the checkbox.  If no text is
  *   passed (ie, it's an empty string), the checkbox will be hidden.
  * window.arguments[5]:
- *   This is the text that is displayed below the checkbox when it is checked.
+ *   The accesskey for the checkbox
  * window.arguments[6]:
- *   This is the nsIHandlerInfo that gives us all our precious information.
+ *   This is the text that is displayed below the checkbox when it is checked.
  * window.arguments[7]:
- *   This is the nsIURI that we are being brought up for in the first place.
+ *   This is the nsIHandlerInfo that gives us all our precious information.
  * window.arguments[8]:
+ *   This is the nsIURI that we are being brought up for in the first place.
+ * window.arguments[9]:
  *   The nsIInterfaceRequestor of the parent window; may be null
  */
 
@@ -82,9 +85,9 @@ var dialog = {
   */
   initialize: function initialize()
   {
-    this._handlerInfo = window.arguments[6].QueryInterface(Ci.nsIHandlerInfo);
-    this._URI         = window.arguments[7].QueryInterface(Ci.nsIURI);
-    this._windowCtxt  = window.arguments[8];
+    this._handlerInfo = window.arguments[7].QueryInterface(Ci.nsIHandlerInfo);
+    this._URI         = window.arguments[8].QueryInterface(Ci.nsIURI);
+    this._windowCtxt  = window.arguments[9];
     if (this._windowCtxt)
       this._windowCtxt.QueryInterface(Ci.nsIInterfaceRequestor);
     this._itemChoose  = document.getElementById("item-choose");
@@ -108,7 +111,8 @@ var dialog = {
     description.text.textContent = window.arguments[2];
     options.value                = window.arguments[3];
     checkbox.desc.label          = window.arguments[4];
-    checkbox.text.textContent    = window.arguments[5];
+    checkbox.desc.accessKey      = window.arguments[5];
+    checkbox.text.textContent    = window.arguments[6];
 
     // Hide stuff that needs to be hidden
     if (!checkbox.desc.label)
@@ -123,26 +127,49 @@ var dialog = {
   */
   populateList: function populateList()
   {
+    var items = document.getElementById("items");
     var possibleHandlers = this._handlerInfo.possibleApplicationHandlers;
+    var preferredHandler = this._handlerInfo.preferredApplicationHandler;
+    var ios = Cc["@mozilla.org/network/io-service;1"].
+              getService(Ci.nsIIOService);
     for (let i = possibleHandlers.length - 1; i >= 0; --i) {
       let app = possibleHandlers.queryElementAt(i, Ci.nsIHandlerApp);
       let elm = document.createElement("richlistitem");
       elm.setAttribute("type", "handler");
       elm.setAttribute("name", app.name);
-      try {
-        // See if we have an nsILocalHandlerApp and set the icon
-        app = app.QueryInterface(Ci.nsILocalHandlerApp);
-        let uri = Cc["@mozilla.org/network/util;1"].
-                  getService(Ci.nsIIOService).
-                  newFileURI(app.executable);
-        elm.setAttribute("image", "moz-icon://" + uri.spec + "?size=32");
-      } catch (e) {
-        // so we have an nsIWebHandlerApp
-        // TODO get some icon for this
-      }
       elm.obj = app;
 
-      document.getElementById("items").insertBefore(elm, this._itemChoose);
+      if (app instanceof Ci.nsILocalHandlerApp) {
+        // See if we have an nsILocalHandlerApp and set the icon
+        let uri = ios.newFileURI(app.executable);
+        elm.setAttribute("image", "moz-icon://" + uri.spec + "?size=32");
+      }
+      else if (app instanceof Ci.nsIWebHandlerApp) {
+        let uri = ios.newURI(app.uriTemplate, null, null);
+        if (/^https?/.test(uri.scheme)) {
+          let iconURI;
+          try {
+            iconURI = Cc["@mozilla.org/browser/favicon-service;1"].
+                      getService(Ci.nsIFaviconService).
+                      getFaviconForPage(ios.newURI(uri.prePath, null, null)).
+                      spec;
+          }
+          catch (e) {
+            iconURI = uri.prePath + "/favicon.ico";
+          }
+          elm.setAttribute("image", iconURI);
+        }
+        elm.setAttribute("description", uri.prePath);
+      }
+      else if (app instanceof Ci.nsIDBusHandlerApp){
+	  elm.setAttribute("description", app.method);  
+      }
+      else
+        throw "unknown handler type";
+
+      items.insertBefore(elm, this._itemChoose);
+      if (preferredHandler && app == preferredHandler)
+        this.selectedItem = elm;
     }
 
     if (this._handlerInfo.hasDefaultHandler) {
@@ -151,8 +178,12 @@ var dialog = {
       elm.id = "os-default-handler";
       elm.setAttribute("name", this._handlerInfo.defaultDescription);
     
-      document.getElementById("items").insertBefore(elm, this._itemChoose);
+      items.insertBefore(elm, items.firstChild);
+      if (this._handlerInfo.preferredAction == 
+          Ci.nsIHandlerInfo.useSystemDefault) 
+          this.selectedItem = elm;
     }
+    items.ensureSelectedElementIsVisible();
   },
   
  /**
@@ -171,17 +202,28 @@ var dialog = {
       let uri = Cc["@mozilla.org/network/util;1"].
                 getService(Ci.nsIIOService).
                 newFileURI(fp.file);
-      let elm = document.createElement("richlistitem");
-      elm.setAttribute("type", "handler");
-      elm.setAttribute("name", fp.file.leafName);
-      elm.setAttribute("image", "moz-icon://" + uri.spec + "?size=32");
 
       let handlerApp = Cc["@mozilla.org/uriloader/local-handler-app;1"].
                        createInstance(Ci.nsILocalHandlerApp);
       handlerApp.executable = fp.file;
+
+      // if this application is already in the list, select it and don't add it again
+      let parent = document.getElementById("items");
+      for (let i = 0; i < parent.childNodes.length; ++i) {
+        let elm = parent.childNodes[i];
+        if (elm.obj instanceof Ci.nsILocalHandlerApp && elm.obj.equals(handlerApp)) {
+          parent.selectedItem = elm;
+          parent.ensureSelectedElementIsVisible();
+          return;
+        }
+      }
+
+      let elm = document.createElement("richlistitem");
+      elm.setAttribute("type", "handler");
+      elm.setAttribute("name", fp.file.leafName);
+      elm.setAttribute("image", "moz-icon://" + uri.spec + "?size=32");
       elm.obj = handlerApp;
 
-      let parent = document.getElementById("items");
       parent.selectedItem = parent.insertBefore(elm, parent.firstChild);
       parent.ensureSelectedElementIsVisible();
     }
@@ -233,14 +275,30 @@ var dialog = {
       document.getElementById("remember-text").removeAttribute("visible");
   },
 
+  /**
+   * Function called when the user double clicks on an item of the list
+   */
+  onDblClick: function onDblClick()
+  {
+    if (this.selectedItem == this._itemChoose)
+      this.chooseApplication();
+    else
+      document.documentElement.acceptDialog();
+  },
+
   /////////////////////////////////////////////////////////////////////////////
   //// Getters / Setters
 
  /**
-  * Returns the selected element in the richlistbox
+  * Returns/sets the selected element in the richlistbox
   */
   get selectedItem()
   {
     return document.getElementById("items").selectedItem;
+  },
+  set selectedItem(aItem)
+  {
+    return document.getElementById("items").selectedItem = aItem;
   }
+  
 };

@@ -54,8 +54,6 @@ META_COMPONENT	= crypto
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
-PACKAGE_FILE = pippki.pkg
-
 CPPSRCS = \
 	nsNSSDialogs.cpp \
 	nsPKIModule.cpp \
@@ -65,17 +63,6 @@ CPPSRCS = \
 	nsFormSigningDialog.cpp \
 	$(NULL)
 
-REQUIRES	= nspr \
-		  xpcom \
-		  string \
-		  dom \
-		  intl \
-		  locale \
-		  windowwatcher \
-		  necko \
-		  pipnss \
-		  layout \
-		  $(NULL)
 
 INCLUDES	+= \
 		-I$(DIST)/public/nss \

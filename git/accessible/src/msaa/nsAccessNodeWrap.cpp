@@ -66,8 +66,14 @@ LPFNNOTIFYWINEVENT nsAccessNodeWrap::gmNotifyWinEvent = nsnull;
 LPFNGETGUITHREADINFO nsAccessNodeWrap::gmGetGUIThreadInfo = nsnull;
 
 PRBool nsAccessNodeWrap::gIsEnumVariantSupportDisabled = 0;
+// Used to determine whether an IAccessible2 compatible screen reader is loaded.
+PRBool nsAccessNodeWrap::gIsIA2Disabled = PR_FALSE;
 
 nsIAccessibleTextChangeEvent *nsAccessNodeWrap::gTextEvent = nsnull;
+
+// Pref to disallow CtrlTab preview functionality if JAWS or Window-Eyes are
+// running.
+#define CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF "browser.ctrlTab.disallowForScreenReaders"
 
 
 /* For documentation of the accessibility architecture, 
@@ -131,6 +137,13 @@ STDMETHODIMP nsAccessNodeWrap::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
 {
+  static const GUID IID_SimpleDOMDeprecated = {0x0c539790,0x12e4,0x11cf,0xb6,0x61,0x00,0xaa,0x00,0x4c,0xd6,0xd8};
+  if (guidService != IID_ISimpleDOMNode &&
+      guidService != IID_SimpleDOMDeprecated &&
+      guidService != IID_IAccessible &&  guidService != IID_IAccessible2 &&
+      guidService != IID_IAccessibleApplication)
+    return E_INVALIDARG;
+
   // Can get to IAccessibleApplication from any node via QS
   if (iid == IID_IAccessibleApplication) {
     nsRefPtr<nsApplicationAccessibleWrap> app =
@@ -168,6 +181,7 @@ STDMETHODIMP nsAccessNodeWrap::get_nodeInfo(
     /* [out] */ unsigned int __RPC_FAR *aUniqueID,
     /* [out] */ unsigned short __RPC_FAR *aNodeType)
 {
+__try{
   *aNodeName = nsnull;
   *aNodeValue = nsnull;
 
@@ -207,6 +221,7 @@ STDMETHODIMP nsAccessNodeWrap::get_nodeInfo(
   if (nodeList && NS_OK == nodeList->GetLength(&numChildren))
     *aNumChildren = static_cast<unsigned int>(numChildren);
 
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_OK;
 }
 
@@ -219,6 +234,7 @@ STDMETHODIMP nsAccessNodeWrap::get_attributes(
     /* [length_is][size_is][out] */ BSTR __RPC_FAR *aAttribValues,
     /* [out] */ unsigned short __RPC_FAR *aNumAttribs)
 {
+__try{
   *aNumAttribs = 0;
 
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
@@ -243,6 +259,7 @@ STDMETHODIMP nsAccessNodeWrap::get_attributes(
     content->GetAttr(name->NamespaceID(), name->LocalName(), attributeValue);
     aAttribValues[index] = ::SysAllocString(attributeValue.get());
   }
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK; 
 }
@@ -254,6 +271,7 @@ STDMETHODIMP nsAccessNodeWrap::get_attributesForNames(
     /* [length_is][size_is][in] */ short __RPC_FAR *aNameSpaceID,
     /* [length_is][size_is][retval] */ BSTR __RPC_FAR *aAttribValues)
 {
+__try {
   nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mDOMNode));
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
 
@@ -285,6 +303,7 @@ STDMETHODIMP nsAccessNodeWrap::get_attributesForNames(
         aAttribValues[index] = ::SysAllocString(attributeValue.get());
     }
   }
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK; 
 }
@@ -297,13 +316,15 @@ STDMETHODIMP nsAccessNodeWrap::get_computedStyle(
     /* [length_is][size_is][out] */ BSTR __RPC_FAR *aStyleValues,
     /* [out] */ unsigned short __RPC_FAR *aNumStyleProperties)
 {
-  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mDOMNode));
-  if (!domElement)
-    return E_FAIL;
-  
+__try{
   *aNumStyleProperties = 0;
+
+  if (IsDefunct())
+    return E_FAIL;
+
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
-  GetComputedStyleDeclaration(EmptyString(), domElement, getter_AddRefs(cssDecl));
+  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), mDOMNode,
+                                           getter_AddRefs(cssDecl));
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
   PRUint32 length;
@@ -321,6 +342,7 @@ STDMETHODIMP nsAccessNodeWrap::get_computedStyle(
     }
   }
   *aNumStyleProperties = static_cast<unsigned short>(realIndex);
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
 }
@@ -332,12 +354,13 @@ STDMETHODIMP nsAccessNodeWrap::get_computedStyleForProperties(
     /* [length_is][size_is][in] */ BSTR __RPC_FAR *aStyleProperties,
     /* [length_is][size_is][out] */ BSTR __RPC_FAR *aStyleValues)
 {
-  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mDOMNode));
-  if (!domElement)
+__try {
+  if (IsDefunct())
     return E_FAIL;
  
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
-  GetComputedStyleDeclaration(EmptyString(), domElement, getter_AddRefs(cssDecl));
+  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), mDOMNode,
+                                           getter_AddRefs(cssDecl));
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
   PRUint32 index;
@@ -347,12 +370,14 @@ STDMETHODIMP nsAccessNodeWrap::get_computedStyleForProperties(
       cssDecl->GetPropertyValue(nsDependentString(static_cast<PRUnichar*>(aStyleProperties[index])), value);  // Get property value
     aStyleValues[index] = ::SysAllocString(value.get());
   }
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
 }
 
 STDMETHODIMP nsAccessNodeWrap::scrollTo(/* [in] */ boolean aScrollTopLeft)
 {
+__try {
   PRUint32 scrollType =
     aScrollTopLeft ? nsIAccessibleScrollType::SCROLL_TYPE_TOP_LEFT :
                      nsIAccessibleScrollType::SCROLL_TYPE_BOTTOM_RIGHT;
@@ -360,6 +385,7 @@ STDMETHODIMP nsAccessNodeWrap::scrollTo(/* [in] */ boolean aScrollTopLeft)
   nsresult rv = ScrollTo(scrollType);
   if (NS_SUCCEEDED(rv))
     return S_OK;
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return E_FAIL;
 }
@@ -416,60 +442,70 @@ ISimpleDOMNode* nsAccessNodeWrap::MakeAccessNode(nsIDOMNode *node)
 
 STDMETHODIMP nsAccessNodeWrap::get_parentNode(ISimpleDOMNode __RPC_FAR *__RPC_FAR *aNode)
 {
+__try {
   if (!mDOMNode)
     return E_FAIL;
  
   nsCOMPtr<nsIDOMNode> node;
   mDOMNode->GetParentNode(getter_AddRefs(node));
   *aNode = MakeAccessNode(node);
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
 }
 
 STDMETHODIMP nsAccessNodeWrap::get_firstChild(ISimpleDOMNode __RPC_FAR *__RPC_FAR *aNode)
 {
+__try {
   if (!mDOMNode)
     return E_FAIL;
  
   nsCOMPtr<nsIDOMNode> node;
   mDOMNode->GetFirstChild(getter_AddRefs(node));
   *aNode = MakeAccessNode(node);
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
 }
 
 STDMETHODIMP nsAccessNodeWrap::get_lastChild(ISimpleDOMNode __RPC_FAR *__RPC_FAR *aNode)
 {
+  __try {
   if (!mDOMNode)
     return E_FAIL;
 
   nsCOMPtr<nsIDOMNode> node;
   mDOMNode->GetLastChild(getter_AddRefs(node));
   *aNode = MakeAccessNode(node);
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
 }
 
 STDMETHODIMP nsAccessNodeWrap::get_previousSibling(ISimpleDOMNode __RPC_FAR *__RPC_FAR *aNode)
 {
+__try {
   if (!mDOMNode)
     return E_FAIL;
 
   nsCOMPtr<nsIDOMNode> node;
   mDOMNode->GetPreviousSibling(getter_AddRefs(node));
   *aNode = MakeAccessNode(node);
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
 }
 
 STDMETHODIMP nsAccessNodeWrap::get_nextSibling(ISimpleDOMNode __RPC_FAR *__RPC_FAR *aNode)
 {
+__try {
   if (!mDOMNode)
     return E_FAIL;
 
   nsCOMPtr<nsIDOMNode> node;
   mDOMNode->GetNextSibling(getter_AddRefs(node));
   *aNode = MakeAccessNode(node);
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
 }
@@ -478,6 +514,7 @@ STDMETHODIMP
 nsAccessNodeWrap::get_childAt(unsigned aChildIndex,
                               ISimpleDOMNode __RPC_FAR *__RPC_FAR *aNode)
 {
+__try {
   *aNode = nsnull;
 
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
@@ -491,6 +528,7 @@ nsAccessNodeWrap::get_childAt(unsigned aChildIndex,
     return E_FAIL; // No such child
 
   *aNode = MakeAccessNode(node);
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
 }
@@ -498,6 +536,7 @@ nsAccessNodeWrap::get_childAt(unsigned aChildIndex,
 STDMETHODIMP 
 nsAccessNodeWrap::get_innerHTML(BSTR __RPC_FAR *aInnerHTML)
 {
+__try {
   *aInnerHTML = nsnull;
 
   nsCOMPtr<nsIDOMNSHTMLElement> domNSElement(do_QueryInterface(mDOMNode));
@@ -506,7 +545,14 @@ nsAccessNodeWrap::get_innerHTML(BSTR __RPC_FAR *aInnerHTML)
 
   nsAutoString innerHTML;
   domNSElement->GetInnerHTML(innerHTML);
-  *aInnerHTML = ::SysAllocString(innerHTML.get());
+  if (innerHTML.IsEmpty())
+    return S_FALSE;
+
+  *aInnerHTML = ::SysAllocStringLen(innerHTML.get(), innerHTML.Length());
+  if (!*aInnerHTML)
+    return E_OUTOFMEMORY;
+
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
 }
@@ -514,13 +560,23 @@ nsAccessNodeWrap::get_innerHTML(BSTR __RPC_FAR *aInnerHTML)
 STDMETHODIMP 
 nsAccessNodeWrap::get_language(BSTR __RPC_FAR *aLanguage)
 {
-  *aLanguage = nsnull;
+__try {
+  *aLanguage = NULL;
 
   nsAutoString language;
   if (NS_FAILED(GetLanguage(language))) {
     return E_FAIL;
   }
-  *aLanguage = ::SysAllocString(language.get());
+
+  if (language.IsEmpty())
+    return S_FALSE;
+
+  *aLanguage = ::SysAllocStringLen(language.get(), language.Length());
+  if (!*aLanguage)
+    return E_OUTOFMEMORY;
+
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+
   return S_OK;
 }
 
@@ -528,16 +584,17 @@ STDMETHODIMP
 nsAccessNodeWrap::get_localInterface( 
     /* [out] */ void __RPC_FAR *__RPC_FAR *localInterface)
 {
+__try {
   *localInterface = static_cast<nsIAccessNode*>(this);
   NS_ADDREF_THIS();
+} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_OK;
 }
  
 void nsAccessNodeWrap::InitAccessibility()
 {
-  if (gIsAccessibilityActive) {
-    return;
-  }
+  NS_ASSERTION(!gIsAccessibilityActive,
+               "Accessibility was initialized already!");
 
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefBranch) {
@@ -545,7 +602,7 @@ void nsAccessNodeWrap::InitAccessibility()
   }
 
   if (!gmUserLib) {
-    gmUserLib =::LoadLibrary("USER32.DLL");
+    gmUserLib =::LoadLibraryW(L"USER32.DLL");
   }
 
   if (gmUserLib) {
@@ -555,6 +612,8 @@ void nsAccessNodeWrap::InitAccessibility()
       gmGetGUIThreadInfo = (LPFNGETGUITHREADINFO)GetProcAddress(gmUserLib,"GetGUIThreadInfo");
   }
 
+  DoATSpecificProcessing();
+  
   nsAccessNode::InitXPAccessibility();
 }
 
@@ -563,9 +622,121 @@ void nsAccessNodeWrap::ShutdownAccessibility()
   NS_IF_RELEASE(gTextEvent);
   ::DestroyCaret();
 
-  if (!gIsAccessibilityActive) {
-    return;
-  }
+  NS_ASSERTION(gIsAccessibilityActive, "Accessibility was shutdown already!");
 
   nsAccessNode::ShutdownXPAccessibility();
+}
+
+int nsAccessNodeWrap::FilterA11yExceptions(unsigned int aCode, EXCEPTION_POINTERS *aExceptionInfo)
+{
+  if (aCode == EXCEPTION_ACCESS_VIOLATION) {
+#ifdef MOZ_CRASHREPORTER
+    // MSAA swallows crashes (because it is COM-based)
+    // but we still need to learn about those crashes so we can fix them
+    // Make sure to pass them to the crash reporter
+    nsCOMPtr<nsICrashReporter> crashReporter =
+      do_GetService("@mozilla.org/toolkit/crash-reporter;1");
+    if (crashReporter) {
+      crashReporter->WriteMinidumpForException(aExceptionInfo);
+    }
+#endif
+  }
+  else {
+    NS_NOTREACHED("We should only be catching crash exceptions");
+  }
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
+HRESULT
+GetHRESULT(nsresult aResult)
+{
+  switch (aResult) {
+    case NS_OK:
+      return S_OK;
+
+    case NS_ERROR_INVALID_ARG: case NS_ERROR_INVALID_POINTER:
+      return E_INVALIDARG;
+
+    case NS_ERROR_OUT_OF_MEMORY:
+      return E_OUTOFMEMORY;
+
+    case NS_ERROR_NOT_IMPLEMENTED:
+      return E_NOTIMPL;
+
+    default:
+      return E_FAIL;
+  }
+}
+
+PRBool nsAccessNodeWrap::IsOnlyMsaaCompatibleJawsPresent()
+{
+  HMODULE jhookhandle = ::GetModuleHandleW(L"jhook");
+  if (!jhookhandle)
+    return PR_FALSE;  // No JAWS, or some other screen reader, use IA2
+
+  PRUnichar fileName[MAX_PATH];
+  ::GetModuleFileNameW(jhookhandle, fileName, MAX_PATH);
+
+  DWORD dummy;
+  DWORD length = ::GetFileVersionInfoSizeW(fileName, &dummy);
+
+  LPBYTE versionInfo = new BYTE[length];
+  ::GetFileVersionInfoW(fileName, 0, length, versionInfo);
+
+  UINT uLen;
+  VS_FIXEDFILEINFO *fixedFileInfo;
+  ::VerQueryValueW(versionInfo, L"\\", (LPVOID*)&fixedFileInfo, &uLen);
+  DWORD dwFileVersionMS = fixedFileInfo->dwFileVersionMS;
+  DWORD dwFileVersionLS = fixedFileInfo->dwFileVersionLS;
+  delete [] versionInfo;
+
+  DWORD dwLeftMost = HIWORD(dwFileVersionMS);
+//  DWORD dwSecondLeft = LOWORD(dwFileVersionMS);
+  DWORD dwSecondRight = HIWORD(dwFileVersionLS);
+//  DWORD dwRightMost = LOWORD(dwFileVersionLS);
+
+  return (dwLeftMost < 8
+          || (dwLeftMost == 8 && dwSecondRight < 2173));
+}
+
+void nsAccessNodeWrap::TurnOffNewTabSwitchingForJawsAndWE()
+{
+  HMODULE srHandle = ::GetModuleHandleW(L"jhook");
+  if (!srHandle) {
+    // No JAWS, try Window-Eyes
+    srHandle = ::GetModuleHandleW(L"gwm32inc");
+    if (!srHandle) {
+      // no screen reader we're interested in. Bail out.
+      return;
+    }
+  }
+
+  // Check to see if the pref for disallowing CtrlTab is already set.
+  // If so, bail out.
+  // If not, set it.
+  nsCOMPtr<nsIPrefBranch> prefs (do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefs) {
+    PRBool hasDisallowNewCtrlTabPref = PR_FALSE;
+    nsresult rv = prefs->PrefHasUserValue(CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF,
+             &hasDisallowNewCtrlTabPref);
+    if (NS_SUCCEEDED(rv) && hasDisallowNewCtrlTabPref) {
+      // This pref has been set before. There is no default for it.
+      // Do nothing further, respect the setting that's there.
+      // That way, if noone touches it, it'll stay on after toggled once.
+      // If someone decided to turn it off, we respect that, too.
+      return;
+    }
+    
+    // Value has never been set, set it.
+    prefs->SetBoolPref(CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF, PR_TRUE);
+  }
+}
+
+void nsAccessNodeWrap::DoATSpecificProcessing()
+{
+  if (IsOnlyMsaaCompatibleJawsPresent())
+    // All versions below 8.0.2173 are not compatible
+    gIsIA2Disabled  = PR_TRUE;
+
+  TurnOffNewTabSwitchingForJawsAndWE();
 }
