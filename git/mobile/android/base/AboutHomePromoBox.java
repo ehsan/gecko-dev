@@ -50,14 +50,6 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
             return true;
         }
         public void onClick(View v) { }
-        public void onDestroy() { }
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        for (Type type : mTypes) {
-            type.onDestroy();
-        }
     }
 
     private class SyncType extends Type {
@@ -83,7 +75,6 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
             context.startActivity(intent);
         }
 
-        @Override
         public void onDestroy() {
             if (mAccountListener != null) {
                 AccountManager.get(mContext).removeOnAccountsUpdatedListener(mAccountListener);
@@ -92,7 +83,6 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
         }
     }
 
-    private static int sTypeIndex = -1;
     private ArrayList<Type> mTypes;
     private Type mType;
 
@@ -154,13 +144,8 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
                     hide();
                     return;
                 }
-
-                // Try to maintain a promo type for the lifetime of the application
-                if (AboutHomePromoBox.sTypeIndex == -1) {
-                    AboutHomePromoBox.sTypeIndex = new Random().nextInt(types.size());
-                }
-                mType = types.get(AboutHomePromoBox.sTypeIndex);
-
+                int idx = new Random().nextInt(types.size());
+                mType = types.get(idx);
                 updateViewResources();
                 setVisibility(View.VISIBLE);
             }

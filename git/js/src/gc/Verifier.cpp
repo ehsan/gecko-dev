@@ -656,18 +656,25 @@ gc::StartVerifyPostBarriers(JSRuntime *rt)
     rt->gcNumber++;
     trc->number = rt->gcNumber;
     trc->count = 0;
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        if (IsAtomsCompartment(c))
+            continue;
 
-    if (!rt->gcNursery.clear())
-        goto oom;
+        if (!c->gcNursery.enable())
+            goto oom;
 
-    if (!rt->gcStoreBuffer.clear())
-        goto oom;
-
+        if (!c->gcStoreBuffer.enable())
+            goto oom;
+    }
     return;
 oom:
     trc->~VerifyPostTracer();
     js_free(trc);
     rt->gcVerifyPostData = NULL;
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        c->gcNursery.disable();
+        c->gcStoreBuffer.disable();
+    }
 #endif
 }
 
@@ -690,10 +697,17 @@ PostVerifierVisitEdge(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
 {
     VerifyPostTracer *trc = (VerifyPostTracer *)jstrc;
     Cell *dst = (Cell *)*thingp;
-    JSRuntime *rt = dst->runtime();
+    JSCompartment *comp = dst->compartment();
+
+    /*
+     * Note: watchpoint markAll will give us cross-compartment pointers into the
+     * atoms compartment.
+     */
+    if (IsAtomsCompartment(comp))
+        return;
 
     /* Filter out non cross-generational edges. */
-    if (!rt->gcNursery.isInside(dst))
+    if (!comp->gcNursery.isInside(dst))
         return;
 
     /*
@@ -703,7 +717,7 @@ PostVerifierVisitEdge(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
      */
     Cell *loc = (Cell *)(trc->realLocation != NULL ? trc->realLocation : thingp);
 
-    AssertStoreBufferContainsEdge(&rt->gcStoreBuffer, loc, dst);
+    AssertStoreBufferContainsEdge(&comp->gcStoreBuffer, loc, dst);
 }
 #endif
 
@@ -717,16 +731,21 @@ js::gc::EndVerifyPostBarriers(JSRuntime *rt)
     JS_TracerInit(trc, rt, PostVerifierVisitEdge);
     trc->count = 0;
 
-    if (rt->gcStoreBuffer.hasOverflowed())
-        goto oom;
-
-    if (!rt->gcStoreBuffer.coalesceForVerification())
-        goto oom;
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        if (c->gcStoreBuffer.hasOverflowed())
+            continue;
+        if (!c->gcStoreBuffer.coalesceForVerification())
+            goto oom;
+    }
 
     /* Walk the heap. */
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        if (IsAtomsCompartment(c))
+        if (!c->gcStoreBuffer.isEnabled() ||
+             c->gcStoreBuffer.hasOverflowed() ||
+             IsAtomsCompartment(c))
+        {
             continue;
+        }
 
         if (c->watchpointMap)
             c->watchpointMap->markAll(trc);
@@ -734,7 +753,7 @@ js::gc::EndVerifyPostBarriers(JSRuntime *rt)
         for (size_t kind = 0; kind < FINALIZE_LIMIT; ++kind) {
             for (CellIterUnderGC cells(c, AllocKind(kind)); !cells.done(); cells.next()) {
                 Cell *src = cells.getCell();
-                if (!rt->gcNursery.isInside(src))
+                if (!c->gcNursery.isInside(src))
                     JS_TraceChildren(trc, src, MapAllocToTraceKind(AllocKind(kind)));
             }
         }
@@ -744,9 +763,11 @@ oom:
     trc->~VerifyPostTracer();
     js_free(trc);
     rt->gcVerifyPostData = NULL;
-    rt->gcNursery.disable();
-    rt->gcStoreBuffer.disable();
-    rt->gcStoreBuffer.releaseVerificationData();
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        c->gcNursery.disable();
+        c->gcStoreBuffer.disable();
+        c->gcStoreBuffer.releaseVerificationData();
+    }
 #endif
 }
 
@@ -833,8 +854,10 @@ js::gc::FinishVerifier(JSRuntime *rt)
     if (VerifyPostTracer *trc = (VerifyPostTracer *)rt->gcVerifyPostData) {
         trc->~VerifyPostTracer();
         js_free(trc);
-        rt->gcNursery.disable();
-        rt->gcStoreBuffer.disable();
+        for (CompartmentsIter c(rt); !c.done(); c.next()) {
+            c->gcNursery.disable();
+            c->gcStoreBuffer.disable();
+        }
     }
 #endif
 }

@@ -17,7 +17,6 @@
 #include "mozilla/dom/TextEncoderBinding.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
-#include "mozilla/dom/URLBinding.h"
 #include "mozilla/OSFileConstants.h"
 #include "nsTraceRefcnt.h"
 #include "xpcpublic.h"
@@ -987,8 +986,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
       !TextDecoderBinding_workers::GetConstructorObject(aCx, global) ||
       !TextEncoderBinding_workers::GetConstructorObject(aCx, global) ||
       !XMLHttpRequestBinding_workers::GetConstructorObject(aCx, global) ||
-      !XMLHttpRequestUploadBinding_workers::GetConstructorObject(aCx, global) ||
-      !URLBinding_workers::GetConstructorObject(aCx, global)) {
+      !XMLHttpRequestUploadBinding_workers::GetConstructorObject(aCx, global)) {
     return NULL;
   }
 

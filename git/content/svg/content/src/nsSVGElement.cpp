@@ -1163,7 +1163,9 @@ nsSVGElement::GetViewportElement()
 already_AddRefed<nsIDOMSVGAnimatedString>
 nsSVGElement::ClassName()
 {
-  return mClassAttribute.ToDOMAnimatedString(this);
+  nsCOMPtr<nsIDOMSVGAnimatedString> className;
+  mClassAttribute.ToDOMAnimatedString(getter_AddRefs(className), this);
+  return className.forget();
 }
 
 //------------------------------------------------------------------------

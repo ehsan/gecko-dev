@@ -89,6 +89,7 @@ public:
 
 protected:
 
+  virtual int GetSkipSides() const;
   void ReparentFrameList(const nsFrameList& aFrameList);
 
   // mLegendFrame is a nsLegendFrame or a nsHTMLScrollFrame with the
@@ -235,6 +236,7 @@ void
 nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     nsPoint aPt, const nsRect& aDirtyRect, uint32_t aBGFlags)
 {
+  int skipSides = GetSkipSides();
   const nsStyleBorder* borderStyle = GetStyleBorder();
        
   nscoord topBorder = borderStyle->GetComputedBorderWidth(NS_SIDE_TOP);
@@ -273,7 +275,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext);
+                                aDirtyRect, rect, mStyleContext, skipSides);
 
     aRenderingContext.PopState();
 
@@ -287,7 +289,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext);
+                                aDirtyRect, rect, mStyleContext, skipSides);
 
     aRenderingContext.PopState();
 
@@ -300,7 +302,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext);
+                                aDirtyRect, rect, mStyleContext, skipSides);
 
     aRenderingContext.PopState();
   } else {
@@ -308,7 +310,7 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect,
                                 nsRect(aPt, mRect.Size()),
-                                mStyleContext);
+                                mStyleContext, skipSides);
   }
 }
 
@@ -577,6 +579,12 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return NS_OK;
+}
+
+int
+nsFieldSetFrame::GetSkipSides() const
+{
+  return 0;
 }
 
 NS_IMETHODIMP

@@ -68,7 +68,7 @@ CodeGenerator::visitValueToInt32(LValueToInt32 *lir)
         break;
       default:
         JS_ASSERT(lir->mode() == LValueToInt32::NORMAL);
-        masm.convertDoubleToInt32(temp, output, &fails, lir->mir()->canBeNegativeZero());
+        emitDoubleToInt32(temp, output, &fails, lir->mir()->canBeNegativeZero());
         break;
     }
     masm.jump(&done);
@@ -162,7 +162,7 @@ CodeGenerator::visitDoubleToInt32(LDoubleToInt32 *lir)
     Label fail;
     FloatRegister input = ToFloatRegister(lir->input());
     Register output = ToRegister(lir->output());
-    masm.convertDoubleToInt32(input, output, &fail, lir->mir()->canBeNegativeZero());
+    emitDoubleToInt32(input, output, &fail, lir->mir()->canBeNegativeZero());
     if (!bailoutFrom(&fail, lir->snapshot()))
         return false;
     return true;
@@ -555,7 +555,7 @@ CodeGenerator::visitTableSwitch(LTableSwitch *ins)
 
         // The input is a double, so try and convert it to an integer.
         // If it does not fit in an integer, take the default case.
-        masm.convertDoubleToInt32(ToFloatRegister(ins->index()), ToRegister(temp), defaultcase, false);
+        emitDoubleToInt32(ToFloatRegister(ins->index()), ToRegister(temp), defaultcase, false);
     } else {
         temp = ins->index();
     }
@@ -579,7 +579,7 @@ CodeGenerator::visitTableSwitchV(LTableSwitchV *ins)
     {
         FloatRegister floatIndex = ToFloatRegister(ins->tempFloat());
         masm.unboxDouble(value, floatIndex);
-        masm.convertDoubleToInt32(floatIndex, index, defaultcase, false);
+        emitDoubleToInt32(floatIndex, index, defaultcase, false);
         masm.jump(&isInt);
     }
 
@@ -2047,15 +2047,9 @@ CodeGenerator::visitCreateThis(LCreateThis *lir)
     return callVM(CreateThisInfo, lir);
 }
 
-static JSObject *
-CreateThisForFunctionWithProtoWrapper(JSContext *cx, js::HandleObject callee, JSObject *proto)
-{
-    return CreateThisForFunctionWithProto(cx, callee, proto);
-}
-
 typedef JSObject *(*CreateThisWithProtoFn)(JSContext *cx, HandleObject callee, JSObject *proto);
 static const VMFunction CreateThisWithProtoInfo =
-FunctionInfo<CreateThisWithProtoFn>(CreateThisForFunctionWithProtoWrapper);
+FunctionInfo<CreateThisWithProtoFn>(js_CreateThisForFunctionWithProto);
 
 bool
 CodeGenerator::visitCreateThisWithProto(LCreateThisWithProto *lir)

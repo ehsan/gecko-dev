@@ -73,10 +73,7 @@ Compressor::init()
 {
     if (inplen >= UINT32_MAX)
         return false;
-    // zlib is slow and we'd rather be done compression sooner
-    // even if it means decompression is slower which penalizes
-    // Function.toString()
-    int ret = deflateInit(&zs, Z_BEST_SPEED);
+    int ret = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
     if (ret != Z_OK) {
         JS_ASSERT(ret == Z_MEM_ERROR);
         return false;

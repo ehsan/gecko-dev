@@ -96,7 +96,7 @@ DOMHelpers.prototype = {
   {
     let SHOW_ALL = Components.interfaces.nsIDOMNodeFilter.SHOW_ALL;
     this.treeWalker = node.ownerDocument.createTreeWalker(node,
-      SHOW_ALL, null);
+      SHOW_ALL, null, false);
     return this.treeWalker.firstChild();
   },
 

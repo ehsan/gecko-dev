@@ -55,7 +55,6 @@
 #include "common/module.h"
 #include "common/stabs_reader.h"
 #include "common/stabs_to_module.h"
-#include "common/symbol_data.h"
 
 #ifndef CPU_TYPE_ARM
 #define CPU_TYPE_ARM (static_cast<cpu_type_t>(12))
@@ -310,7 +309,7 @@ bool DumpSymbols::ReadCFI(google_breakpad::Module *module,
                           bool eh_frame) const {
   // Find the appropriate set of register names for this file's
   // architecture.
-  vector<const UniqueString*> register_names;
+  vector<string> register_names;
   switch (macho_reader.cpu_type()) {
     case CPU_TYPE_X86:
       register_names = DwarfCFIToModule::RegisterNames::I386();
@@ -371,12 +370,8 @@ class DumpSymbols::LoadCommandDumper:
   // file, and adding data to MODULE.
   LoadCommandDumper(const DumpSymbols &dumper,
                     google_breakpad::Module *module,
-                    const mach_o::Reader &reader,
-                    SymbolData symbol_data)
-      : dumper_(dumper),
-        module_(module),
-        reader_(reader),
-        symbol_data_(symbol_data) { }
+                    const mach_o::Reader &reader)
+      : dumper_(dumper), module_(module), reader_(reader) { }
 
   bool SegmentCommand(const mach_o::Segment &segment);
   bool SymtabCommand(const ByteBuffer &entries, const ByteBuffer &strings);
@@ -385,7 +380,6 @@ class DumpSymbols::LoadCommandDumper:
   const DumpSymbols &dumper_;
   google_breakpad::Module *module_;  // WEAK
   const mach_o::Reader &reader_;
-  const SymbolData symbol_data_;
 };
 
 bool DumpSymbols::LoadCommandDumper::SegmentCommand(const Segment &segment) {
@@ -393,7 +387,7 @@ bool DumpSymbols::LoadCommandDumper::SegmentCommand(const Segment &segment) {
   if (!reader_.MapSegmentSections(segment, &section_map))
     return false;
 
-  if (segment.name == "__TEXT" && symbol_data_ != NO_CFI) {
+  if (segment.name == "__TEXT") {
     module_->SetLoadAddress(segment.vmaddr);
     mach_o::SectionMap::const_iterator eh_frame =
         section_map.find("__eh_frame");
@@ -405,17 +399,13 @@ bool DumpSymbols::LoadCommandDumper::SegmentCommand(const Segment &segment) {
   }
 
   if (segment.name == "__DWARF") {
-    if (symbol_data_ != ONLY_CFI) {
-      if (!dumper_.ReadDwarf(module_, reader_, section_map))
-        return false;
-    }
-    if (symbol_data_ != NO_CFI) {
-      mach_o::SectionMap::const_iterator debug_frame
-          = section_map.find("__debug_frame");
-      if (debug_frame != section_map.end()) {
-        // If there is a problem reading this, don't treat it as a fatal error.
-        dumper_.ReadCFI(module_, reader_, debug_frame->second, false);
-      }
+    if (!dumper_.ReadDwarf(module_, reader_, section_map))
+      return false;
+    mach_o::SectionMap::const_iterator debug_frame
+        = section_map.find("__debug_frame");
+    if (debug_frame != section_map.end()) {
+      // If there is a problem reading this, don't treat it as a fatal error.
+      dumper_.ReadCFI(module_, reader_, debug_frame->second, false);
     }
   }
 
@@ -439,7 +429,7 @@ bool DumpSymbols::LoadCommandDumper::SymtabCommand(const ByteBuffer &entries,
   return true;
 }
 
-bool DumpSymbols::WriteSymbolFile(std::ostream &stream) {
+bool DumpSymbols::WriteSymbolFile(std::ostream &stream, bool cfi) {
   // Select an object file, if SetArchitecture hasn't been called to set one
   // explicitly.
   if (!selected_object_file_) {
@@ -504,11 +494,11 @@ bool DumpSymbols::WriteSymbolFile(std::ostream &stream) {
     return false;
 
   // Walk its load commands, and deal with whatever is there.
-  LoadCommandDumper load_command_dumper(*this, &module, reader, symbol_data_);
+  LoadCommandDumper load_command_dumper(*this, &module, reader);
   if (!reader.WalkLoadCommands(&load_command_dumper))
     return false;
 
-  return module.Write(stream, symbol_data_);
+  return module.Write(stream, cfi);
 }
 
 }  // namespace google_breakpad

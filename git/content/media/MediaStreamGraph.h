@@ -172,16 +172,19 @@ public:
  * This callback is invoked on the main thread when the main-thread-visible
  * state of a stream has changed.
  *
- * These methods are called with the media graph monitor held, so
- * reentry into general media graph methods is not possible.
+ * These methods are called without the media graph monitor held, so
+ * reentry into media graph methods is possible, although very much discouraged!
  * You should do something non-blocking and non-reentrant (e.g. dispatch an
- * event) and return. DispatchFromMainThreadAfterNextStreamStateUpdate
- * would be a good choice.
+ * event) and return.
  * The listener is allowed to synchronously remove itself from the stream, but
  * not add or remove any other listeners.
  */
 class MainThreadMediaStreamListener {
 public:
+  virtual ~MainThreadMediaStreamListener() {}
+
+  NS_INLINE_DECL_REFCOUNTING(MainThreadMediaStreamListener)
+
   virtual void NotifyMainThreadStateChanged() = 0;
 };
 
@@ -189,9 +192,6 @@ class MediaStreamGraphImpl;
 class SourceMediaStream;
 class ProcessedMediaStream;
 class MediaInputPort;
-class AudioNodeStream;
-class AudioNodeEngine;
-struct AudioChunk;
 
 /**
  * A stream of synchronized audio and video data. All (not blocked) streams
@@ -272,25 +272,15 @@ public:
     , mMainThreadCurrentTime(0)
     , mMainThreadFinished(false)
     , mMainThreadDestroyed(false)
-    , mGraph(nullptr)
   {
   }
-  virtual ~MediaStream()
-  {
-    NS_ASSERTION(mMainThreadDestroyed, "Should have been destroyed already");
-    NS_ASSERTION(mMainThreadListeners.IsEmpty(),
-                 "All main thread listeners should have been removed");
-  }
+  virtual ~MediaStream() {}
 
   /**
    * Returns the graph that owns this stream.
    */
   MediaStreamGraphImpl* GraphImpl();
   MediaStreamGraph* Graph();
-  /**
-   * Sets the graph that owns this stream.  Should only be called once.
-   */
-  void SetGraphImpl(MediaStreamGraphImpl* aGraph);
 
   // Control API.
   // Since a stream can be played multiple ways, we need to combine independent
@@ -313,15 +303,11 @@ public:
   // Events will be dispatched by calling methods of aListener.
   void AddListener(MediaStreamListener* aListener);
   void RemoveListener(MediaStreamListener* aListener);
-  // Events will be dispatched by calling methods of aListener. It is the
-  // responsibility of the caller to remove aListener before it is destroyed.
   void AddMainThreadListener(MainThreadMediaStreamListener* aListener)
   {
     NS_ASSERTION(NS_IsMainThread(), "Call only on main thread");
     mMainThreadListeners.AppendElement(aListener);
   }
-  // It's safe to call this even if aListener is not currently a listener;
-  // the call will be ignored.
   void RemoveMainThreadListener(MainThreadMediaStreamListener* aListener)
   {
     NS_ASSERTION(NS_IsMainThread(), "Call only on main thread");
@@ -353,7 +339,6 @@ public:
 
   virtual SourceMediaStream* AsSourceStream() { return nullptr; }
   virtual ProcessedMediaStream* AsProcessedStream() { return nullptr; }
-  virtual AudioNodeStream* AsAudioNodeStream() { return nullptr; }
 
   // media graph thread only
   void Init();
@@ -379,7 +364,7 @@ public:
   {
     mVideoOutputs.RemoveElement(aContainer);
   }
-  void ChangeExplicitBlockerCountImpl(GraphTime aTime, int32_t aDelta)
+  void ChangeExplicitBlockerCountImpl(StreamTime aTime, int32_t aDelta)
   {
     mExplicitBlockerCount.SetAtAndAfter(aTime, mExplicitBlockerCount.GetAt(aTime) + aDelta);
   }
@@ -397,24 +382,7 @@ public:
   }
   const StreamBuffer& GetStreamBuffer() { return mBuffer; }
   GraphTime GetStreamBufferStartTime() { return mBufferStartTime; }
-  /**
-   * Convert graph time to stream time. aTime must be <= mStateComputedTime
-   * to ensure we know exactly how much time this stream will be blocked during
-   * the interval.
-   */
   StreamTime GraphTimeToStreamTime(GraphTime aTime);
-  /**
-   * Convert graph time to stream time. aTime can be > mStateComputedTime,
-   * in which case we optimistically assume the stream will not be blocked
-   * after mStateComputedTime.
-   */
-  StreamTime GraphTimeToStreamTimeOptimistic(GraphTime aTime);
-  /**
-   * Convert stream time to graph time. The result can be > mStateComputedTime,
-   * in which case we did the conversion optimistically assuming the stream
-   * will not be blocked after mStateComputedTime.
-   */
-  GraphTime StreamTimeToGraphTime(StreamTime aTime);
   bool IsFinishedOnGraphThread() { return mFinished; }
   void FinishOnGraphThread();
 
@@ -456,7 +424,7 @@ protected:
   // API, minus the number of times it has been explicitly unblocked.
   TimeVarying<GraphTime,uint32_t> mExplicitBlockerCount;
   nsTArray<nsRefPtr<MediaStreamListener> > mListeners;
-  nsTArray<MainThreadMediaStreamListener*> mMainThreadListeners;
+  nsTArray<nsRefPtr<MainThreadMediaStreamListener> > mMainThreadListeners;
 
   // Precomputed blocking status (over GraphTime).
   // This is only valid between the graph's mCurrentTime and
@@ -520,9 +488,6 @@ protected:
   StreamTime mMainThreadCurrentTime;
   bool mMainThreadFinished;
   bool mMainThreadDestroyed;
-
-  // Our media stream graph
-  MediaStreamGraphImpl* mGraph;
 };
 
 /**
@@ -711,7 +676,6 @@ public:
     : mSource(aSource)
     , mDest(aDest)
     , mFlags(aFlags)
-    , mGraph(nullptr)
   {
     MOZ_COUNT_CTOR(MediaInputPort);
   }
@@ -752,10 +716,6 @@ public:
    */
   MediaStreamGraphImpl* GraphImpl();
   MediaStreamGraph* Graph();
-  /**
-   * Sets the graph that owns this stream.  Should only be called once.
-   */
-  void SetGraphImpl(MediaStreamGraphImpl* aGraph);
 
 protected:
   friend class MediaStreamGraphImpl;
@@ -765,9 +725,6 @@ protected:
   MediaStream* mSource;
   ProcessedMediaStream* mDest;
   uint32_t mFlags;
-
-  // Our media stream graph
-  MediaStreamGraphImpl* mGraph;
 };
 
 /**
@@ -786,8 +743,7 @@ public:
    * Allocates a new input port attached to source aStream.
    * This stream can be removed by calling MediaInputPort::Remove().
    */
-  already_AddRefed<MediaInputPort> AllocateInputPort(MediaStream* aStream,
-                                                     uint32_t aFlags = 0);
+  MediaInputPort* AllocateInputPort(MediaStream* aStream, uint32_t aFlags = 0);
   /**
    * Force this stream into the finished state.
    */
@@ -839,20 +795,12 @@ protected:
   bool mInCycle;
 };
 
-// Returns ideal audio rate for processing
-inline TrackRate IdealAudioRate() { return 48000; }
-
 /**
  * Initially, at least, we will have a singleton MediaStreamGraph per
  * process.
  */
 class MediaStreamGraph {
 public:
-  // We ensure that the graph current time advances in multiples of
-  // IdealAudioBlockSize()/IdealAudioRate(). A stream that never blocks
-  // and has a track with the ideal audio rate will produce audio in
-  // multiples of the block size.
-
   // Main thread only
   static MediaStreamGraph* GetInstance();
   // Control API.
@@ -877,11 +825,6 @@ public:
    */
   ProcessedMediaStream* CreateTrackUnionStream(nsDOMMediaStream* aWrapper);
   /**
-   * Create a stream that will process audio for an AudioNode.
-   * Takes ownership of aEngine.
-   */
-  AudioNodeStream* CreateAudioNodeStream(AudioNodeEngine* aEngine);
-  /**
    * Returns the number of graph updates sent. This can be used to track
    * whether a given update has been processed by the graph thread and reflected
    * in main-thread stream state.
@@ -894,9 +837,9 @@ public:
    * main-thread stream state has been next updated.
    * Should only be called during MediaStreamListener callbacks.
    */
-  void DispatchToMainThreadAfterStreamStateUpdate(already_AddRefed<nsIRunnable> aRunnable)
+  void DispatchToMainThreadAfterStreamStateUpdate(nsIRunnable* aRunnable)
   {
-    *mPendingUpdateRunnables.AppendElement() = aRunnable;
+    mPendingUpdateRunnables.AppendElement(aRunnable);
   }
 
 protected:

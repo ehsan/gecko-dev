@@ -11,15 +11,14 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "Constants.h"
-#include "nsIDOMMozSmsEvent.h"
-#include "nsIDOMMozSmsMessage.h"
+#include "SmsEvent.h"
+#include "nsIDOMSmsMessage.h"
 #include "SmsRequest.h"
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
-#include "nsIMobileMessageDatabaseService.h"
+#include "nsISmsDatabaseService.h"
 #include "nsIXPConnect.h"
 #include "nsIPermissionManager.h"
-#include "GeneratedEvents.h"
 
 #define RECEIVED_EVENT_NAME         NS_LITERAL_STRING("received")
 #define SENDING_EVENT_NAME          NS_LITERAL_STRING("sending")
@@ -219,11 +218,11 @@ NS_IMETHODIMP
 SmsManager::GetMessageMoz(int32_t aId, nsIDOMMozSmsRequest** aRequest)
 {
   nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
   nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  mobileMessageDBService->GetMessageMoz(aId, forwarder);
+  smsDBService->GetMessageMoz(aId, forwarder);
   req.forget(aRequest);
   return NS_OK;
 }
@@ -232,12 +231,12 @@ nsresult
 SmsManager::Delete(int32_t aId, nsIDOMMozSmsRequest** aRequest)
 {
   nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  mobileMessageDBService->DeleteMessage(aId, forwarder);
+  smsDBService->DeleteMessage(aId, forwarder);
   req.forget(aRequest);
   return NS_OK;
 }
@@ -278,11 +277,11 @@ SmsManager::GetMessages(nsIDOMMozSmsFilter* aFilter, bool aReverse,
   }
 
   nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
   nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  mobileMessageDBService->CreateMessageList(filter, aReverse, forwarder);
+  smsDBService->CreateMessageList(filter, aReverse, forwarder);
   req.forget(aRequest);
   return NS_OK;
 }
@@ -292,12 +291,12 @@ SmsManager::MarkMessageRead(int32_t aId, bool aValue,
                             nsIDOMMozSmsRequest** aRequest)
 {
   nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
   nsCOMPtr<nsISmsRequest> forwarder =
     new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  mobileMessageDBService->MarkMessageRead(aId, aValue, forwarder);
+  smsDBService->MarkMessageRead(aId, aValue, forwarder);
   req.forget(aRequest);
   return NS_OK;
 }
@@ -306,12 +305,12 @@ NS_IMETHODIMP
 SmsManager::GetThreadList(nsIDOMMozSmsRequest** aRequest)
 {
   nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsDBService, NS_ERROR_FAILURE);
   nsCOMPtr<nsISmsRequest> forwarder =
     new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
-  mobileMessageDBService->GetThreadList(forwarder);
+  smsDBService->GetThreadList(forwarder);
   req.forget(aRequest);
   return NS_OK;
 }
@@ -319,13 +318,9 @@ SmsManager::GetThreadList(nsIDOMMozSmsRequest** aRequest)
 nsresult
 SmsManager::DispatchTrustedSmsEventToSelf(const nsAString& aEventName, nsIDOMMozSmsMessage* aMessage)
 {
-  nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMMozSmsEvent(getter_AddRefs(event), nullptr, nullptr);
-  NS_ASSERTION(event, "This should never fail!");
-
-  nsCOMPtr<nsIDOMMozSmsEvent> se = do_QueryInterface(event);
-  MOZ_ASSERT(se);
-  nsresult rv = se->InitMozSmsEvent(aEventName, false, false, aMessage);
+  nsRefPtr<nsDOMEvent> event = new SmsEvent(nullptr, nullptr);
+  nsresult rv = static_cast<SmsEvent*>(event.get())->Init(aEventName, false,
+                                                          false, aMessage);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchTrustedEvent(event);

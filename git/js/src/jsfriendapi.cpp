@@ -119,8 +119,8 @@ JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *protoArg, JS
      * TypeObject attached to our proto with information about our object, since
      * we're not going to be using that TypeObject anyway.
      */
-    RootedObject obj(cx, NewObjectWithGivenProto(cx, (js::Class *)clasp, NULL, parent, SingletonObject));
-    if (!obj)
+    RootedObject obj(cx, JS_NewObjectWithGivenProto(cx, clasp, NULL, parent));
+    if (!obj || !JSObject::setSingletonType(cx, obj))
         return NULL;
     if (!JS_SplicePrototype(cx, obj, proto))
         return NULL;
@@ -276,7 +276,7 @@ JS_DefineFunctionsWithHelp(JSContext *cx, JSObject *objArg, const JSFunctionSpec
             return false;
 
         Rooted<jsid> id(cx, AtomToId(atom));
-        RootedFunction fun(cx, DefineFunction(cx, obj, id, fs->call, fs->nargs, fs->flags));
+        RootedFunction fun(cx, js_DefineFunction(cx, obj, id, fs->call, fs->nargs, fs->flags));
         if (!fun)
             return false;
 
@@ -401,7 +401,7 @@ js::DefineFunctionWithReserved(JSContext *cx, JSObject *objArg, const char *name
     if (!atom)
         return NULL;
     Rooted<jsid> id(cx, AtomToId(atom));
-    return DefineFunction(cx, obj, id, call, nargs, attrs, JSFunction::ExtendedFinalizeKind);
+    return js_DefineFunction(cx, obj, id, call, nargs, attrs, JSFunction::ExtendedFinalizeKind);
 }
 
 JS_FRIEND_API(JSFunction *)
@@ -422,8 +422,8 @@ js::NewFunctionWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsi
     }
 
     JSFunction::Flags funFlags = JSAPIToJSFunctionFlags(flags);
-    return NewFunction(cx, NullPtr(), native, nargs, funFlags, parent, atom,
-                       JSFunction::ExtendedFinalizeKind);
+    return js_NewFunction(cx, NullPtr(), native, nargs, funFlags, parent, atom,
+                          JSFunction::ExtendedFinalizeKind);
 }
 
 JS_FRIEND_API(JSFunction *)
@@ -438,8 +438,8 @@ js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, 
 
     RootedAtom atom(cx, JSID_TO_ATOM(id));
     JSFunction::Flags funFlags = JSAPIToJSFunctionFlags(flags);
-    return NewFunction(cx, NullPtr(), native, nargs, funFlags, parent, atom,
-                       JSFunction::ExtendedFinalizeKind);
+    return js_NewFunction(cx, NullPtr(), native, nargs, funFlags, parent, atom,
+                          JSFunction::ExtendedFinalizeKind);
 }
 
 JS_FRIEND_API(JSObject *)
@@ -861,9 +861,9 @@ JS::IncrementalObjectBarrier(JSObject *obj)
     if (!obj)
         return;
 
-    JS_ASSERT(!obj->zone()->rt->isHeapBusy());
+    JS_ASSERT(!obj->compartment()->rt->isHeapBusy());
 
-    AutoMarkInDeadZone amn(obj->zone());
+    AutoMarkInDeadCompartment amn(obj->compartment());
 
     JSObject::writeBarrierPre(obj);
 }
@@ -875,11 +875,11 @@ JS::IncrementalReferenceBarrier(void *ptr, JSGCTraceKind kind)
         return;
 
     gc::Cell *cell = static_cast<gc::Cell *>(ptr);
-    Zone *zone = cell->zone();
+    JSCompartment *comp = cell->compartment();
 
-    JS_ASSERT(!zone->rt->isHeapBusy());
+    JS_ASSERT(!comp->rt->isHeapBusy());
 
-    AutoMarkInDeadZone amn(zone);
+    AutoMarkInDeadCompartment amn(comp);
 
     if (kind == JSTRACE_OBJECT)
         JSObject::writeBarrierPre(static_cast<JSObject*>(cell));

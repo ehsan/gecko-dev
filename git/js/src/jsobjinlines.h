@@ -523,9 +523,9 @@ inline void
 JSObject::initDenseElements(unsigned dstStart, const js::Value *src, unsigned count)
 {
     JS_ASSERT(dstStart + count <= getDenseCapacity());
-    JSRuntime *rt = runtime();
+    JS::Zone *zone = this->zone();
     for (unsigned i = 0; i < count; ++i)
-        elements[dstStart + i].init(rt, this, js::HeapSlot::Element, dstStart + i, src[i]);
+        elements[dstStart + i].init(zone, this, js::HeapSlot::Element, dstStart + i, src[i]);
 }
 
 inline void
@@ -561,7 +561,7 @@ JSObject::moveDenseElements(unsigned dstStart, unsigned srcStart, unsigned count
         }
     } else {
         memmove(elements + dstStart, elements + srcStart, count * sizeof(js::HeapSlot));
-        DenseRangeWriteBarrierPost(runtime(), this, dstStart, count);
+        DenseRangeWriteBarrierPost(zone, this, dstStart, count);
     }
 }
 
@@ -597,12 +597,12 @@ JSObject::ensureDenseInitializedLength(JSContext *cx, uint32_t index, uint32_t e
         markDenseElementsNotPacked(cx);
 
     if (initlen < index + extra) {
-        JSRuntime *rt = runtime();
+        JS::Zone *zone = this->zone();
         size_t offset = initlen;
         for (js::HeapSlot *sp = elements + initlen;
              sp != elements + (index + extra);
              sp++, offset++)
-            sp->init(rt, this, js::HeapSlot::Element, offset, js::MagicValue(JS_ELEMENTS_HOLE));
+            sp->init(zone, this, js::HeapSlot::Element, offset, js::MagicValue(JS_ELEMENTS_HOLE));
         initlen = index + extra;
     }
 }
@@ -668,10 +668,10 @@ JSObject::parExtendDenseElements(js::Allocator *alloc, js::Value *v, uint32_t ex
     js::HeapSlot *sp = elements + initializedLength;
     if (v) {
         for (uint32_t i = 0; i < extra; i++)
-            sp[i].init(runtime(), this, js::HeapSlot::Element, initializedLength+i, v[i]);
+            sp[i].init(zone(), this, js::HeapSlot::Element, initializedLength+i, v[i]);
     } else {
         for (uint32_t i = 0; i < extra; i++) {
-            sp[i].init(runtime(), this, js::HeapSlot::Element,
+            sp[i].init(zone(), this, js::HeapSlot::Element,
                        initializedLength + i, js::MagicValue(JS_ELEMENTS_HOLE));
         }
     }
@@ -751,9 +751,6 @@ JSObject::setDateUTCTime(const js::Value &time)
 /* static */ inline bool
 JSObject::setSingletonType(JSContext *cx, js::HandleObject obj)
 {
-#if defined(JSGC_GENERATIONAL)
-    JS_ASSERT(!obj->runtime()->gcNursery.isInside(obj.get()));
-#endif
     if (!cx->typeInferenceEnabled())
         return true;
 
@@ -761,7 +758,8 @@ JSObject::setSingletonType(JSContext *cx, js::HandleObject obj)
     JS_ASSERT_IF(obj->getTaggedProto().isObject(),
                  obj->type() == obj->getTaggedProto().toObject()->getNewType(cx, obj->getClass()));
 
-    js::types::TypeObject *type = cx->compartment->getLazyType(cx, obj->getClass(), obj->getTaggedProto());
+    js::Rooted<js::TaggedProto> objProto(cx, obj->getTaggedProto());
+    js::types::TypeObject *type = cx->compartment->getLazyType(cx, obj->getClass(), objProto);
     if (!type)
         return false;
 
@@ -943,7 +941,7 @@ JSObject::isDebugScope() const
 }
 
 /* static */ inline JSObject *
-JSObject::create(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap,
+JSObject::create(JSContext *cx, js::gc::AllocKind kind,
                  js::HandleShape shape, js::HandleTypeObject type, js::HeapSlot *slots)
 {
     /*
@@ -958,7 +956,7 @@ JSObject::create(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap
     JS_ASSERT(js::gc::GetGCKindSlots(kind, type->clasp) == shape->numFixedSlots());
     JS_ASSERT(cx->compartment == type->compartment());
 
-    JSObject *obj = js_NewGCObject<js::CanGC>(cx, kind, heap);
+    JSObject *obj = js_NewGCObject<js::CanGC>(cx, kind);
     if (!obj)
         return NULL;
 
@@ -979,7 +977,7 @@ JSObject::create(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap
 }
 
 /* static */ inline JSObject *
-JSObject::createArray(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap,
+JSObject::createArray(JSContext *cx, js::gc::AllocKind kind,
                       js::HandleShape shape, js::HandleTypeObject type,
                       uint32_t length)
 {
@@ -1003,7 +1001,7 @@ JSObject::createArray(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap
 
     uint32_t capacity = js::gc::GetGCKindSlots(kind) - js::ObjectElements::VALUES_PER_HEADER;
 
-    JSObject *obj = js_NewGCObject<js::CanGC>(cx, kind, heap);
+    JSObject *obj = js_NewGCObject<js::CanGC>(cx, kind);
     if (!obj) {
         js_ReportOutOfMemory(cx);
         return NULL;
@@ -1589,21 +1587,19 @@ CanBeFinalizedInBackground(gc::AllocKind kind, Class *clasp)
  */
 JSObject *
 NewObjectWithGivenProto(JSContext *cx, js::Class *clasp, TaggedProto proto, JSObject *parent,
-                        gc::AllocKind allocKind, NewObjectKind newKind);
+                        gc::AllocKind kind);
 
 inline JSObject *
-NewObjectWithGivenProto(JSContext *cx, js::Class *clasp, TaggedProto proto, JSObject *parent,
-                        NewObjectKind newKind = GenericObject)
+NewObjectWithGivenProto(JSContext *cx, js::Class *clasp, TaggedProto proto, JSObject *parent)
 {
-    gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
-    return NewObjectWithGivenProto(cx, clasp, proto, parent, allocKind, newKind);
+    gc::AllocKind kind = gc::GetGCObjectKind(clasp);
+    return NewObjectWithGivenProto(cx, clasp, proto, parent, kind);
 }
 
 inline JSObject *
-NewObjectWithGivenProto(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent,
-                        NewObjectKind newKind = GenericObject)
+NewObjectWithGivenProto(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
 {
-    return NewObjectWithGivenProto(cx, clasp, TaggedProto(proto), parent, newKind);
+    return NewObjectWithGivenProto(cx, clasp, TaggedProto(proto), parent);
 }
 
 inline JSProtoKey
@@ -1646,22 +1642,14 @@ FindProto(JSContext *cx, js::Class *clasp, MutableHandleObject proto)
  * parent will be that global.
  */
 JSObject *
-NewObjectWithClassProtoCommon(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent,
-                              gc::AllocKind allocKind, NewObjectKind newKind);
+NewObjectWithClassProto(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent,
+                        gc::AllocKind kind);
 
 inline JSObject *
-NewObjectWithClassProto(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent,
-                        gc::AllocKind allocKind, NewObjectKind newKind = GenericObject)
+NewObjectWithClassProto(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
 {
-    return NewObjectWithClassProtoCommon(cx, clasp, proto, parent, allocKind, newKind);
-}
-
-inline JSObject *
-NewObjectWithClassProto(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent,
-                        NewObjectKind newKind = GenericObject)
-{
-    gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
-    return NewObjectWithClassProto(cx, clasp, proto, parent, allocKind, newKind);
+    gc::AllocKind kind = gc::GetGCObjectKind(clasp);
+    return NewObjectWithClassProto(cx, clasp, proto, parent, kind);
 }
 
 /*
@@ -1669,17 +1657,16 @@ NewObjectWithClassProto(JSContext *cx, js::Class *clasp, JSObject *proto, JSObje
  * according to the context's active global.
  */
 inline JSObject *
-NewBuiltinClassInstance(JSContext *cx, Class *clasp, gc::AllocKind allocKind,
-                        NewObjectKind newKind = GenericObject)
+NewBuiltinClassInstance(JSContext *cx, Class *clasp, gc::AllocKind kind)
 {
-    return NewObjectWithClassProto(cx, clasp, NULL, NULL, allocKind, newKind);
+    return NewObjectWithClassProto(cx, clasp, NULL, NULL, kind);
 }
 
 inline JSObject *
-NewBuiltinClassInstance(JSContext *cx, Class *clasp, NewObjectKind newKind = GenericObject)
+NewBuiltinClassInstance(JSContext *cx, Class *clasp)
 {
-    gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
-    return NewBuiltinClassInstance(cx, clasp, allocKind, newKind);
+    gc::AllocKind kind = gc::GetGCObjectKind(clasp);
+    return NewBuiltinClassInstance(cx, clasp, kind);
 }
 
 bool
@@ -1691,8 +1678,7 @@ FindClassPrototype(JSContext *cx, HandleObject scope, JSProtoKey protoKey,
  * avoid losing creation site information for objects made by scripted 'new'.
  */
 JSObject *
-NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc::AllocKind allocKind,
-                  NewObjectKind newKind = GenericObject);
+NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc::AllocKind kind);
 
 // Used to optimize calls to (new Object())
 bool
@@ -1700,16 +1686,16 @@ NewObjectScriptedCall(JSContext *cx, MutableHandleObject obj);
 
 /* Make an object with pregenerated shape from a NEWOBJECT bytecode. */
 static inline JSObject *
-CopyInitializerObject(JSContext *cx, HandleObject baseobj, NewObjectKind newKind = GenericObject)
+CopyInitializerObject(JSContext *cx, HandleObject baseobj)
 {
     JS_ASSERT(baseobj->getClass() == &ObjectClass);
     JS_ASSERT(!baseobj->inDictionaryMode());
 
-    gc::AllocKind allocKind = gc::GetGCObjectFixedSlotsKind(baseobj->numFixedSlots());
-    allocKind = gc::GetBackgroundAllocKind(allocKind);
-    JS_ASSERT(allocKind == baseobj->getAllocKind());
-    RootedObject obj(cx);
-    obj = NewBuiltinClassInstance(cx, &ObjectClass, allocKind, newKind);
+    gc::AllocKind kind = gc::GetGCObjectFixedSlotsKind(baseobj->numFixedSlots());
+    kind = gc::GetBackgroundAllocKind(kind);
+    JS_ASSERT(kind == baseobj->getAllocKind());
+    RootedObject obj(cx, NewBuiltinClassInstance(cx, &ObjectClass, kind));
+
     if (!obj)
         return NULL;
 
@@ -1765,7 +1751,7 @@ PreallocateObjectDynamicSlots(JSContext *cx, UnrootedShape shape, HeapSlot **slo
 
 inline bool
 DefineConstructorAndPrototype(JSContext *cx, Handle<GlobalObject*> global,
-                              JSProtoKey key, HandleObject ctor, HandleObject proto)
+                              JSProtoKey key, JSObject *ctor, JSObject *proto)
 {
     JS_ASSERT(!global->nativeEmpty()); /* reserved slots already allocated */
     JS_ASSERT(ctor);

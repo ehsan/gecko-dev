@@ -256,6 +256,8 @@ public:
 protected:
   nsMathMLmtdInnerFrame(nsStyleContext* aContext) : nsBlockFrame(aContext) {}
   virtual ~nsMathMLmtdInnerFrame();
+
+  virtual int GetSkipSides() const MOZ_OVERRIDE { return 0; }
 };  // class nsMathMLmtdInnerFrame
 
 #endif /* nsMathMLmtableFrame_h___ */

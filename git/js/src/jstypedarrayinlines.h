@@ -205,19 +205,11 @@ InitTypedArrayDataPointer(JSObject *obj, ArrayBufferObject *buffer, size_t byteO
      */
     obj->initPrivate(buffer->dataPointer() + byteOffset);
 #ifdef JSGC_GENERATIONAL
-    if (obj->runtime()->gcNursery.isInside(buffer))
-        obj->runtime()->gcStoreBuffer.putGeneric(TypedArrayPrivateRef(obj, buffer, byteOffset));
+    JSCompartment *comp = obj->compartment();
+    JS_ASSERT(comp == buffer->compartment());
+    if (comp->gcNursery.isInside(buffer))
+        comp->gcStoreBuffer.putGeneric(TypedArrayPrivateRef(obj, buffer, byteOffset));
 #endif
-}
-
-static NewObjectKind
-DataViewNewObjectKind(JSContext *cx, uint32_t byteLength, JSObject *proto)
-{
-    jsbytecode *pc;
-    JSScript *script = cx->stack.currentScript(&pc);
-    if (!proto && byteLength >= TypedArray::SINGLETON_TYPE_BYTE_LENGTH)
-        return types::UseNewTypeForInitializer(cx, script, pc, &DataViewClass);
-    return GenericObject;
 }
 
 inline DataViewObject *
@@ -228,10 +220,7 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
     JS_ASSERT(byteLength <= INT32_MAX);
 
     RootedObject proto(cx, protoArg);
-    RootedObject obj(cx);
-
-    NewObjectKind newKind = DataViewNewObjectKind(cx, byteLength, proto);
-    obj = NewBuiltinClassInstance(cx, &DataViewClass, newKind);
+    RootedObject obj(cx, NewBuiltinClassInstance(cx, &DataViewClass));
     if (!obj)
         return NULL;
 
@@ -242,12 +231,13 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
         obj->setType(type);
     } else if (cx->typeInferenceEnabled()) {
         if (byteLength >= TypedArray::SINGLETON_TYPE_BYTE_LENGTH) {
-            JS_ASSERT(obj->hasSingletonType());
+            if (!JSObject::setSingletonType(cx, obj))
+                return NULL;
         } else {
             jsbytecode *pc;
             RootedScript script(cx, cx->stack.currentScript(&pc));
             if (script) {
-                if (!types::SetInitializerObjectType(cx, script, pc, obj, newKind))
+                if (!types::SetInitializerObjectType(cx, script, pc, obj))
                     return NULL;
             }
         }

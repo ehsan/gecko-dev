@@ -12,7 +12,6 @@ import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PluginLayer;
 import org.mozilla.gecko.gfx.PointUtils;
-import org.mozilla.gecko.mozglue.GeckoLoader;
 import org.mozilla.gecko.ui.PanZoomController;
 import org.mozilla.gecko.util.GeckoAsyncTask;
 import org.mozilla.gecko.util.GeckoBackgroundThread;
@@ -1491,7 +1490,7 @@ abstract public class GeckoApp
             enableStrictMode();
         }
 
-        GeckoLoader.loadMozGlue(this);
+        GeckoAppShell.loadMozGlue(this);
         if (sGeckoThread != null) {
             // this happens when the GeckoApp activity is destroyed by android
             // without killing the entire application (see bug 769269)
@@ -1500,21 +1499,6 @@ abstract public class GeckoApp
         }
 
         mMainHandler = new Handler();
-
-        // Fix for bug 830557 on Tegra boards running Froyo.
-        // This fix must be done before doing layout.
-        // Assume the bug is fixed in Gingerbread and up.
-        if (Build.VERSION.SDK_INT < 9) {
-            try {
-                Class<?> inputBindResultClass =
-                    Class.forName("com.android.internal.view.InputBindResult");
-                java.lang.reflect.Field creatorField =
-                    inputBindResultClass.getField("CREATOR");
-                Log.i(LOGTAG, "froyo startup fix: " + String.valueOf(creatorField.get(null)));
-            } catch (Exception e) {
-                Log.w(LOGTAG, "froyo startup fix failed", e);
-            }
-        }
 
         LayoutInflater.from(this).setFactory(GeckoViewsFactory.getInstance());
 
@@ -2274,7 +2258,7 @@ abstract public class GeckoApp
     public Object onRetainNonConfigurationInstance() {
         // Send a non-null value so that we can restart the application, 
         // when activity restarts due to configuration change.
-        return Boolean.TRUE;
+        return new Boolean(true);
     } 
 
     abstract public String getPackageName();
@@ -2627,6 +2611,10 @@ abstract public class GeckoApp
             // animations (see PropertyAnimator)
             super.setChildrenDrawnWithCacheEnabled(enabled);
         }
+    }
+
+    public boolean linkerExtract() {
+        return false;
     }
 
     private class FullScreenHolder extends FrameLayout {

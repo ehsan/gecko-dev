@@ -46,6 +46,12 @@ nsFirstLetterFrame::GetType() const
   return nsGkAtoms::letterFrame;
 }
 
+int
+nsFirstLetterFrame::GetSkipSides() const
+{
+  return 0;
+}
+
 NS_IMETHODIMP
 nsFirstLetterFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,

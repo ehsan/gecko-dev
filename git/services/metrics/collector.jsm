@@ -81,16 +81,6 @@ Collector.prototype = Object.freeze({
     return deferred.promise;
   },
 
-  /**
-   * Remove a named provider from the collector.
-   *
-   * It is the caller's responsibility to shut down the provider
-   * instance.
-   */
-  unregisterProvider: function (name) {
-    this._providers.delete(name);
-  },
-
   _popAndInitProvider: function () {
     if (!this._providerInitQueue.length || this._providerInitializing) {
       return;
@@ -147,7 +137,7 @@ Collector.prototype = Object.freeze({
    * The resolved value to the promise is this `Collector` instance.
    */
   collectConstantData: function () {
-    let entries = [];
+    let promises = [];
 
     for (let [name, entry] of this._providers) {
       if (entry.constantsCollected) {
@@ -156,60 +146,29 @@ Collector.prototype = Object.freeze({
         continue;
       }
 
-      entries.push(entry);
-    }
-
-    let onCollect = function (entry, result) {
-      entry.constantsCollected = true;
-    };
-
-    return this._callCollectOnProviders(entries, "collectConstantData",
-                                        onCollect);
-  },
-
-  /**
-   * Calls collectDailyData on all providers.
-   */
-  collectDailyData: function () {
-    return this._callCollectOnProviders(this._providers.values(),
-                                        "collectDailyData");
-  },
-
-  _callCollectOnProviders: function (entries, fnProperty, onCollect=null) {
-    let promises = [];
-
-    for (let entry of entries) {
-      let provider = entry.provider;
       let collectPromise;
       try {
-        collectPromise = provider[fnProperty].call(provider);
+        collectPromise = entry.provider.collectConstantData();
       } catch (ex) {
-        this._log.warn("Exception when calling " + provider.name + "." +
-                       fnProperty + ": " + CommonUtils.exceptionStr(ex));
-        this.providerErrors.get(provider.name).push(ex);
+        this._log.warn("Exception when calling " + name +
+                       ".collectConstantData: " +
+                       CommonUtils.exceptionStr(ex));
+        this.providerErrors.get(name).push(ex);
         continue;
       }
 
       if (!collectPromise) {
-        this._log.warn("Provider does not return a promise from " +
-                       fnProperty + "(): " + provider.name);
-        continue;
+        throw new Error("Provider does not return a promise from " +
+                        "collectConstantData():" + name);
       }
 
       let promise = collectPromise.then(function onCollected(result) {
-        if (onCollect) {
-          try {
-            onCollect(entry, result);
-          } catch (ex) {
-            this._log.warn("onCollect callback threw: " +
-                           CommonUtils.exceptionStr(ex));
-          }
-        }
+        entry.constantsCollected = true;
 
         return Promise.resolve(result);
       });
 
-      promises.push([provider.name, promise]);
+      promises.push([name, promise]);
     }
 
     return this._handleCollectionPromises(promises);

@@ -63,6 +63,7 @@ function test() {
     onBeginUpdateBatch: function () {},
     onEndUpdateBatch: function () {},
     onVisit: function () {},
+    onBeforeDeleteURI: function () {},
     onDeleteURI: function () {},
     onClearHistory: function () {},
     onPageChanged: function () {},

@@ -146,6 +146,12 @@ nsHTMLScrollFrame::GetSplittableType() const
   return NS_FRAME_NOT_SPLITTABLE;
 }
 
+int
+nsHTMLScrollFrame::GetSkipSides() const
+{
+  return 0;
+}
+
 nsIAtom*
 nsHTMLScrollFrame::GetType() const
 {
@@ -982,6 +988,12 @@ nsXULScrollFrame::GetPadding(nsMargin& aMargin)
 {
    aMargin.SizeTo(0,0,0,0);
    return NS_OK;
+}
+
+int
+nsXULScrollFrame::GetSkipSides() const
+{
+  return 0;
 }
 
 nsIAtom*

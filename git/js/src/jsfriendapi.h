@@ -372,16 +372,6 @@ GetObjectJSClass(RawObject obj)
     return js::Jsvalify(GetObjectClass(obj));
 }
 
-inline bool
-IsInnerObject(JSObject *obj) {
-    return !!GetObjectClass(obj)->ext.outerObject;
-}
-
-inline bool
-IsOuterObject(JSObject *obj) {
-    return !!GetObjectClass(obj)->ext.innerObject;
-}
-
 JS_FRIEND_API(bool)
 IsScopeObject(RawObject obj);
 

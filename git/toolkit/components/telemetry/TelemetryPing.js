@@ -771,16 +771,14 @@ TelemetryPing.prototype = {
                                  Ci.nsITimer.TYPE_ONE_SHOT);
   },
 
-  ensurePingChecksum: function ensurePingChecksum(ping) {
+  verifyPingChecksum: function verifyPingChecksum(ping) {
     /* A ping from the current session won't have a checksum.  */
     if (!ping.checksum) {
-      return;
+      return true;
     }
 
     let checksumNow = this.hashString(ping.payload);
-    if (ping.checksum != checksumNow) {
-      throw new Error("Invalid ping checksum")
-    }
+    return ping.checksum == checksumNow;
   },
 
   addToPendingPings: function addToPendingPings(file, stream) {
@@ -791,16 +789,18 @@ TelemetryPing.prototype = {
       stream.close();
       let ping = JSON.parse(string);
       this._pingLoadsCompleted++;
-      // This will throw if checksum is invalid.
-      this.ensurePingChecksum(ping);
-      this._pendingPings.push(ping);
+
+      if (this.verifyPingChecksum(ping)) {
+        this._pendingPings.push(ping);
+      }
+
       if (this._doLoadSaveNotifications &&
           this._pingLoadsCompleted == this._pingsLoaded) {
         Services.obs.notifyObservers(null, "telemetry-test-load-complete", null);
       }
       success = true;
     } catch (e) {
-      // An error reading the file, or an error parsing/checksumming the contents.
+      // An error reading the file, or an error parsing the contents.
       stream.close();           // close is idempotent.
       file.remove(true);
     }

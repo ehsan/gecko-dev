@@ -6734,11 +6734,10 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
 }
 
 static bool
-Copy(nsIDocument* aDocument, void* aData)
+Flush(nsIDocument* aDocument, void* aData)
 {
-  nsTArray<nsCOMPtr<nsIDocument> >* resources =
-    static_cast<nsTArray<nsCOMPtr<nsIDocument> >* >(aData);
-  resources->AppendElement(aDocument);
+  const mozFlushType* type = static_cast<const mozFlushType*>(aData);
+  aDocument->FlushPendingNotifications(*type);
   return true;
 }
 
@@ -6747,15 +6746,11 @@ nsDocument::FlushExternalResources(mozFlushType aType)
 {
   NS_ASSERTION(aType >= Flush_Style,
     "should only need to flush for style or higher in external resources");
+
   if (GetDisplayDocument()) {
     return;
   }
-  nsTArray<nsCOMPtr<nsIDocument> > resources;
-  EnumerateExternalResources(Copy, &resources);
-
-  for (uint32_t i = 0; i < resources.Length(); i++) {
-    resources[i]->FlushPendingNotifications(aType);
-  }
+  EnumerateExternalResources(Flush, &aType);
 }
 
 void

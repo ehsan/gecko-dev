@@ -39,6 +39,7 @@ public class TabRow extends LinearLayout
 
     @Override
     public void setChecked(boolean checked) {
+        android.util.Log.i("Sriram", "setting the state to: " + checked);
         if (mChecked != checked) {
             mChecked = checked;
             refreshDrawableState();

@@ -17,6 +17,7 @@
 
 struct ChromePackage;
 class nsIDOMBlob;
+class nsDOMFileBase;
 class nsIObserver;
 struct ResourceMapping;
 struct OverrideMapping;
@@ -202,6 +203,8 @@ public:
     bool IsForApp() { return mIsForApp; }
     bool IsForBrowser() { return mIsForBrowser; }
 
+    bool GetParamsForBlob(nsDOMFileBase* aBlob,
+                          BlobConstructorParams* aOutParams);
     BlobChild* GetOrCreateActorForBlob(nsIDOMBlob* aBlob);
 
 private:

@@ -26,7 +26,7 @@ extern PRLogModuleInfo* GetDataChannelLog();
 #include "nsDOMClassInfo.h"
 #include "nsDOMEventTargetHelper.h"
 
-#include "js/Value.h"
+#include "jsval.h"
 
 #include "nsError.h"
 #include "nsAutoPtr.h"

@@ -2456,7 +2456,7 @@ js_InitArrayClass(JSContext *cx, HandleObject obj)
     RootedShape shape(cx, EmptyShape::getInitialShape(cx, &ArrayClass, TaggedProto(proto), proto->getParent(),
                                                       gc::FINALIZE_OBJECT0));
 
-    RootedObject arrayProto(cx, JSObject::createArray(cx, gc::FINALIZE_OBJECT4, gc::TenuredHeap, shape, type, 0));
+    RootedObject arrayProto(cx, JSObject::createArray(cx, gc::FINALIZE_OBJECT4, shape, type, 0));
     if (!arrayProto || !JSObject::setSingletonType(cx, arrayProto) || !AddLengthProperty(cx, arrayProto))
         return NULL;
 
@@ -2512,19 +2512,17 @@ EnsureNewArrayElements(JSContext *cx, JSObject *obj, uint32_t length)
 
 template<bool allocateCapacity>
 static JS_ALWAYS_INLINE JSObject *
-NewArray(JSContext *cx, uint32_t length, RawObject protoArg, NewObjectKind newKind = GenericObject)
+NewArray(JSContext *cx, uint32_t length, RawObject protoArg)
 {
-    gc::AllocKind allocKind = GuessArrayGCKind(length);
-    JS_ASSERT(CanBeFinalizedInBackground(allocKind, &ArrayClass));
-    allocKind = GetBackgroundAllocKind(allocKind);
+    gc::AllocKind kind = GuessArrayGCKind(length);
+    JS_ASSERT(CanBeFinalizedInBackground(kind, &ArrayClass));
+    kind = GetBackgroundAllocKind(kind);
 
     NewObjectCache &cache = cx->runtime->newObjectCache;
 
     NewObjectCache::EntryIndex entry = -1;
-    if (newKind != SingletonObject &&
-        cache.lookupGlobal(&ArrayClass, cx->global(), allocKind, &entry))
-    {
-        RootedObject obj(cx, cache.newObjectFromHit(cx, entry, InitialHeapForNewKind(newKind)));
+    if (cache.lookupGlobal(&ArrayClass, cx->global(), kind, &entry)) {
+        RootedObject obj(cx, cache.newObjectFromHit(cx, entry));
         if (obj) {
             /* Fixup the elements pointer and length, which may be incorrect. */
             obj->setFixedElements();
@@ -2555,7 +2553,7 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg, NewObjectKind newKi
     if (!shape)
         return NULL;
 
-    RootedObject obj(cx, JSObject::createArray(cx, allocKind, gc::DefaultHeap, shape, type, length));
+    RootedObject obj(cx, JSObject::createArray(cx, kind, shape, type, length));
     if (!obj)
         return NULL;
 
@@ -2566,11 +2564,8 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg, NewObjectKind newKi
         EmptyShape::insertInitialShape(cx, shape, proto);
     }
 
-    if (newKind == SingletonObject && !JSObject::setSingletonType(cx, obj))
-        return NULL;
-
     if (entry != -1)
-        cache.fillGlobal(entry, &ArrayClass, cx->global(), allocKind, obj);
+        cache.fillGlobal(entry, &ArrayClass, cx->global(), kind, obj);
 
     if (allocateCapacity && !EnsureNewArrayElements(cx, obj, length))
         return NULL;
@@ -2580,22 +2575,19 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg, NewObjectKind newKi
 }
 
 JSObject * JS_FASTCALL
-js::NewDenseEmptyArray(JSContext *cx, RawObject proto /* = NULL */,
-                       NewObjectKind newKind /* = GenericObject */)
+js::NewDenseEmptyArray(JSContext *cx, RawObject proto /* = NULL */)
 {
     return NewArray<false>(cx, 0, proto);
 }
 
 JSObject * JS_FASTCALL
-js::NewDenseAllocatedArray(JSContext *cx, uint32_t length, RawObject proto /* = NULL */,
-                           NewObjectKind newKind /* = GenericObject */)
+js::NewDenseAllocatedArray(JSContext *cx, uint32_t length, RawObject proto /* = NULL */)
 {
-    return NewArray<true>(cx, length, proto, newKind);
+    return NewArray<true>(cx, length, proto);
 }
 
 JSObject * JS_FASTCALL
-js::NewDenseUnallocatedArray(JSContext *cx, uint32_t length, RawObject proto /* = NULL */,
-                             NewObjectKind newKind /* = GenericObject */)
+js::NewDenseUnallocatedArray(JSContext *cx, uint32_t length, RawObject proto /* = NULL */)
 {
     return NewArray<false>(cx, length, proto);
 }
@@ -2636,7 +2628,7 @@ js::NewDenseCopiedArray(JSContext *cx, uint32_t length, HandleObject src, uint32
 // values must point at already-rooted Value objects
 JSObject *
 js::NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *values,
-                        RawObject proto /* = NULL */, NewObjectKind newKind /* = GenericObject */)
+                        RawObject proto /* = NULL */)
 {
     JSObject* obj = NewArray<true>(cx, length, proto);
     if (!obj)

@@ -38,14 +38,9 @@ EXPORTS_mozilla/dom = \
 		HTMLFontElement.h \
 		HTMLFrameSetElement.h \
 		HTMLHeadingElement.h \
-		HTMLHRElement.h \
 		HTMLImageElement.h \
 		HTMLLabelElement.h \
 		HTMLLIElement.h \
-		HTMLMapElement.h \
-		HTMLMetaElement.h \
-		HTMLMeterElement.h \
-		HTMLModElement.h \
 		HTMLParagraphElement.h \
 		HTMLPreElement.h \
 		HTMLScriptElement.h \
@@ -86,7 +81,7 @@ CPPSRCS		= \
 		nsHTMLFormElement.cpp \
 		nsHTMLFrameElement.cpp \
 		HTMLFrameSetElement.cpp \
-		HTMLHRElement.cpp \
+		nsHTMLHRElement.cpp \
 		HTMLHeadingElement.cpp \
 		nsHTMLIFrameElement.cpp \
 		HTMLImageElement.cpp \
@@ -95,12 +90,12 @@ CPPSRCS		= \
 		HTMLLabelElement.cpp \
 		nsHTMLLegendElement.cpp \
 		nsHTMLLinkElement.cpp \
-		HTMLMapElement.cpp \
+		nsHTMLMapElement.cpp \
 		nsHTMLMenuElement.cpp \
 		nsHTMLMenuItemElement.cpp \
-		HTMLMetaElement.cpp \
-		HTMLMeterElement.cpp \
-		HTMLModElement.cpp \
+		nsHTMLMetaElement.cpp \
+		nsHTMLMeterElement.cpp \
+		nsHTMLModElement.cpp \
 		HTMLObjectElement.cpp \
 		nsHTMLSharedObjectElement.cpp \
 		nsHTMLOptionElement.cpp \
@@ -132,16 +127,12 @@ CPPSRCS		= \
 		$(NULL)
 
 ifdef MOZ_MEDIA
-EXPORTS_mozilla/dom += \
-		HTMLSourceElement.h \
-		$(NULL)
-
 CPPSRCS		+= \
 		nsHTMLAudioElement.cpp \
 		nsHTMLMediaElement.cpp \
 		nsMediaError.cpp \
 		nsMediaFragmentURIParser.cpp \
-		HTMLSourceElement.cpp \
+		nsHTMLSourceElement.cpp \
 		nsTimeRanges.cpp \
 		nsHTMLVideoElement.cpp \
 		$(NULL)

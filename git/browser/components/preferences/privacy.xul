@@ -97,7 +97,7 @@
                 accesskey="&dntTrackingNopref.accesskey;" />
       </radiogroup>
       <label class="text-link" id="doNotTrackInfo"
-             href="https://www.mozilla.org/dnt"
+             onclick="event.stopPropagation();gPrivacyPane.openTrackingInfoSite();"
              value="&doNotTrackInfo.label;"/>
 
     </groupbox>

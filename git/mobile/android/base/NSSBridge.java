@@ -4,8 +4,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.mozglue.GeckoLoader;
-
 import android.content.Context;
 
 public class NSSBridge {
@@ -17,7 +15,7 @@ public class NSSBridge {
     static public String encrypt(Context context, String aValue)
       throws Exception {
         String resourcePath = context.getPackageResourcePath();
-        GeckoLoader.loadNSSLibs(context, resourcePath);
+        GeckoAppShell.loadNSSLibs(context, resourcePath);
 
         String path = GeckoProfile.get(context).getDir().toString();
         return nativeEncrypt(path, aValue);
@@ -26,7 +24,7 @@ public class NSSBridge {
     static public String encrypt(Context context, String profilePath, String aValue)
       throws Exception {
         String resourcePath = context.getPackageResourcePath();
-        GeckoLoader.loadNSSLibs(context, resourcePath);
+        GeckoAppShell.loadNSSLibs(context, resourcePath);
 
         return nativeEncrypt(profilePath, aValue);
     }
@@ -34,7 +32,7 @@ public class NSSBridge {
     static public String decrypt(Context context, String aValue)
       throws Exception {
         String resourcePath = context.getPackageResourcePath();
-        GeckoLoader.loadNSSLibs(context, resourcePath);
+        GeckoAppShell.loadNSSLibs(context, resourcePath);
 
         String path = GeckoProfile.get(context).getDir().toString();
         return nativeDecrypt(path, aValue);
@@ -43,7 +41,7 @@ public class NSSBridge {
     static public String decrypt(Context context, String profilePath, String aValue)
       throws Exception {
         String resourcePath = context.getPackageResourcePath();
-        GeckoLoader.loadNSSLibs(context, resourcePath);
+        GeckoAppShell.loadNSSLibs(context, resourcePath);
 
         return nativeDecrypt(profilePath, aValue);
     }

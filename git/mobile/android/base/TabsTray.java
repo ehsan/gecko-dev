@@ -348,8 +348,7 @@ public class TabsTray extends ListView
         private int mSwipeViewPosition;
         private Runnable mPendingCheckForTap;
 
-        private float mSwipeStartX;
-        private float mSwipeStartY;
+        private float mSwipeStart;
         private boolean mSwiping;
         private boolean mEnabled;
 
@@ -401,8 +400,7 @@ public class TabsTray extends ListView
                     mSwipeView = findViewAt(e.getRawX(), e.getRawY());
 
                     if (mSwipeView != null) {
-                        mSwipeStartX = e.getRawX();
-                        mSwipeStartY = e.getRawY();
+                        mSwipeStart = e.getRawX();
                         mSwipeViewPosition = TabsTray.this.getPositionForView(mSwipeView);
 
                         mVelocityTracker = VelocityTracker.obtain();
@@ -457,8 +455,7 @@ public class TabsTray extends ListView
                     mSwipeViewPosition = ListView.INVALID_POSITION;
                     mSwipeProxy = null;
 
-                    mSwipeStartX = 0;
-                    mSwipeStartY = 0;
+                    mSwipeStart = 0;
                     mSwiping = false;
 
                     break;
@@ -470,17 +467,8 @@ public class TabsTray extends ListView
 
                     mVelocityTracker.addMovement(e);
 
-                    float deltaX = e.getRawX() - mSwipeStartX;
-                    float deltaY = e.getRawY() - mSwipeStartY;
-                    boolean isScrollingX = Math.abs(deltaX) > mSwipeThreshold;
-                    boolean isScrollingY = Math.abs(deltaY) > mSwipeThreshold;
-
-                    // If we're actually swiping, make sure we don't
-                    // set pressed state on the swiped view.
-                    if (isScrollingX || isScrollingY)
-                        cancelCheckForTap();
-
-                    if (isScrollingX) {
+                    float deltaX = e.getRawX() - mSwipeStart;
+                    if (Math.abs(deltaX) > mSwipeThreshold) {
                         // If we're actually swiping, make sure we don't
                         // set pressed state on the swiped view.
                         cancelCheckForTap();

@@ -1005,7 +1005,7 @@ CodeGeneratorX86Shared::visitMoveGroup(LMoveGroup *group)
 class OutOfLineTableSwitch : public OutOfLineCodeBase<CodeGeneratorX86Shared>
 {
     MTableSwitch *mir_;
-    CodeLabel jumpLabel_;
+    CodeLabel *jumpLabel_;
 
     bool accept(CodeGeneratorX86Shared *codegen) {
         return codegen->visitOutOfLineTableSwitch(this);
@@ -1013,15 +1013,15 @@ class OutOfLineTableSwitch : public OutOfLineCodeBase<CodeGeneratorX86Shared>
 
   public:
     OutOfLineTableSwitch(MTableSwitch *mir)
-      : mir_(mir)
+      : mir_(mir), jumpLabel_(new CodeLabel)
     {}
 
     MTableSwitch *mir() const {
         return mir_;
     }
 
-    CodeLabel *jumpLabel() {
-        return &jumpLabel_;
+    CodeLabel *jumpLabel() const {
+        return jumpLabel_;
     }
 };
 
@@ -1032,7 +1032,7 @@ CodeGeneratorX86Shared::visitOutOfLineTableSwitch(OutOfLineTableSwitch *ool)
 
     masm.align(sizeof(void*));
     masm.bind(ool->jumpLabel()->src());
-    if (!masm.addCodeLabel(*ool->jumpLabel()))
+    if (!masm.addCodeLabel(ool->jumpLabel()))
         return false;
 
     for (size_t i = 0; i < mir->numCases(); i++) {
@@ -1042,9 +1042,9 @@ CodeGeneratorX86Shared::visitOutOfLineTableSwitch(OutOfLineTableSwitch *ool)
 
         // The entries of the jump table need to be absolute addresses and thus
         // must be patched after codegen is finished.
-        CodeLabel cl;
-        masm.writeCodePointer(cl.dest());
-        cl.src()->bind(caseoffset);
+        CodeLabel *cl = new CodeLabel();
+        masm.writeCodePointer(cl->dest());
+        cl->src()->bind(caseoffset);
         if (!masm.addCodeLabel(cl))
             return false;
     }
@@ -1291,6 +1291,42 @@ CodeGeneratorX86Shared::visitGuardClass(LGuardClass *guard)
     if (!bailoutIf(Assembler::NotEqual, guard->snapshot()))
         return false;
     return true;
+}
+
+// Checks whether a double is representable as a 32-bit integer. If so, the
+// integer is written to the output register. Otherwise, a bailout is taken to
+// the given snapshot. This function overwrites the scratch float register.
+void
+CodeGeneratorX86Shared::emitDoubleToInt32(const FloatRegister &src, const Register &dest, Label *fail, bool negativeZeroCheck)
+{
+    // Note that we don't specify the destination width for the truncated
+    // conversion to integer. x64 will use the native width (quadword) which
+    // sign-extends the top bits, preserving a little sanity.
+    masm.cvttsd2s(src, dest);
+    masm.cvtsi2sd(dest, ScratchFloatReg);
+    masm.ucomisd(src, ScratchFloatReg);
+    masm.j(Assembler::Parity, fail);
+    masm.j(Assembler::NotEqual, fail);
+
+    // Check for -0
+    if (negativeZeroCheck) {
+        Label notZero;
+        masm.testl(dest, dest);
+        masm.j(Assembler::NonZero, &notZero);
+
+        if (Assembler::HasSSE41()) {
+            masm.ptest(src, src);
+            masm.j(Assembler::NonZero, fail);
+        } else {
+            // bit 0 = sign of low double
+            // bit 1 = sign of high double
+            masm.movmskpd(src, dest);
+            masm.andl(Imm32(1), dest);
+            masm.j(Assembler::NonZero, fail);
+        }
+
+        masm.bind(&notZero);
+    }
 }
 
 class OutOfLineTruncate : public OutOfLineCodeBase<CodeGeneratorX86Shared>

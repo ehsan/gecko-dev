@@ -1117,6 +1117,13 @@ nsListControlFrame::OnOptionSelected(int32_t aIndex, bool aSelected)
   return NS_OK;
 }
 
+int
+nsListControlFrame::GetSkipSides() const
+{    
+    // Don't skip any sides during border rendering
+  return 0;
+}
+
 void
 nsListControlFrame::OnContentReset()
 {

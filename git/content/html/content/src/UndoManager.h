@@ -15,15 +15,13 @@
 #include "mozilla/dom/Nullable.h"
 #include "nsIContent.h"
 
+class nsIUndoManagerTransaction;
 class nsITransactionManager;
 class nsIMutationObserver;
 
 namespace mozilla {
 class ErrorResult;
 namespace dom {
-
-class DOMTransaction;
-class DOMTransactionCallback;
 
 class UndoManager : public nsISupports,
                     public nsWrapperCache
@@ -35,12 +33,12 @@ public:
 
   explicit UndoManager(nsIContent* aNode);
 
-  void Transact(JSContext* aCx, DOMTransaction& aTransaction,
+  void Transact(JSContext* aCx, nsIUndoManagerTransaction& aTransaction,
                 bool aMerge, ErrorResult& aRv);
   void Undo(JSContext* aCx, ErrorResult& aRv);
   void Redo(JSContext* acx, ErrorResult& aRv);
   void Item(uint32_t aIndex,
-            Nullable<nsTArray<nsRefPtr<DOMTransaction> > >& aItems,
+            Nullable<nsTArray<nsRefPtr<nsIUndoManagerTransaction> > >& aItems,
             ErrorResult& aRv);
   uint32_t GetLength(ErrorResult& aRv);
   uint32_t GetPosition(ErrorResult& aRv);
@@ -71,15 +69,13 @@ protected:
   /**
    * Executes |aTransaction| as a manual transaction.
    */
-  void ManualTransact(DOMTransaction* aTransaction,
+  void ManualTransact(nsIUndoManagerTransaction* aTransaction,
                       ErrorResult& aRv);
 
   /**
-   * Executes |aTransaction| as an automatic transaction, calling
-   * aCallback to do the work.
+   * Executes |aTransaction| as an automatic transaction.
    */
-  void AutomaticTransact(DOMTransaction* aTransaction,
-                         DOMTransactionCallback* aCallback,
+  void AutomaticTransact(nsIUndoManagerTransaction* aTransaction,
                          ErrorResult& aRv);
 
   /**
@@ -87,7 +83,7 @@ protected:
    * to the array |aItems|.
    */
   void ItemInternal(uint32_t aIndex,
-                    nsTArray<DOMTransaction*>& aItems,
+                    nsTArray<nsIUndoManagerTransaction*>& aItems,
                     ErrorResult& aRv);
 
   /**

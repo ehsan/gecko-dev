@@ -296,30 +296,30 @@ RecomputeWrappers(JSContext *cx, const CompartmentFilter &sourceFilter,
 
 /*
  * This auto class should be used around any code, such as brain transplants,
- * that may touch dead zones. Brain transplants can cause problems
+ * that may touch dead compartments. Brain transplants can cause problems
  * because they operate on all compartments, whether live or dead. A brain
  * transplant can cause a formerly dead object to be "reanimated" by causing a
  * read or write barrier to be invoked on it during the transplant. In this way,
- * a zone becomes a zombie, kept alive by repeatedly consuming
+ * a compartment becomes a zombie, kept alive by repeatedly consuming
  * (transplanted) brains.
  *
  * To work around this issue, we observe when mark bits are set on objects in
- * dead zones. If this happens during a brain transplant, we do a full,
+ * dead compartments. If this happens during a brain transplant, we do a full,
  * non-incremental GC at the end of the brain transplant. This will clean up any
  * objects that were improperly marked.
  */
-struct JS_FRIEND_API(AutoMaybeTouchDeadZones)
+struct JS_FRIEND_API(AutoMaybeTouchDeadCompartments)
 {
     // The version that takes an object just uses it for its runtime.
-    AutoMaybeTouchDeadZones(JSContext *cx);
-    AutoMaybeTouchDeadZones(JSObject *obj);
-    ~AutoMaybeTouchDeadZones();
+    AutoMaybeTouchDeadCompartments(JSContext *cx);
+    AutoMaybeTouchDeadCompartments(JSObject *obj);
+    ~AutoMaybeTouchDeadCompartments();
 
   private:
     JSRuntime *runtime;
     unsigned markCount;
     bool inIncremental;
-    bool manipulatingDeadZones;
+    bool manipulatingDeadCompartments;
 };
 
 } /* namespace js */

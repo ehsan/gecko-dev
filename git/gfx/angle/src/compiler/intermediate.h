@@ -391,7 +391,7 @@ protected:
 //
 class TIntermBinary : public TIntermOperator {
 public:
-    TIntermBinary(TOperator o) : TIntermOperator(o), addIndexClamp(false) {}
+    TIntermBinary(TOperator o) : TIntermOperator(o) {}
 
     virtual TIntermBinary* getAsBinaryNode() { return this; }
     virtual void traverse(TIntermTraverser*);
@@ -402,15 +402,9 @@ public:
     TIntermTyped* getRight() const { return right; }
     bool promote(TInfoSink&);
 
-    void setAddIndexClamp() { addIndexClamp = true; }
-    bool getAddIndexClamp() { return addIndexClamp; }
-
 protected:
     TIntermTyped* left;
     TIntermTyped* right;
-
-    // If set to true, wrap any EOpIndexIndirect with a clamp to bounds.
-    bool addIndexClamp;
 };
 
 //

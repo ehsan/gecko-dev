@@ -786,6 +786,7 @@ NavBookmarkObserver.prototype = {
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
   onItemAdded: function () {},
+  onBeforeItemRemoved: function () {},
   onItemRemoved: function () {},
   onItemChanged: function () {},
   onItemVisited: function () {},
@@ -806,6 +807,7 @@ NavHistoryObserver.prototype = {
   onEndUpdateBatch: function () {},
   onVisit: function () {},
   onTitleChanged: function () {},
+  onBeforeDeleteURI: function () {},
   onDeleteURI: function () {},
   onClearHistory: function () {},
   onPageChanged: function () {},
@@ -837,6 +839,7 @@ NavHistoryResultObserver.prototype = {
   nodeLastModifiedChanged: function () {},
   nodeMoved: function () {},
   nodeRemoved: function () {},
+  nodeReplaced: function () {},
   nodeTagsChanged: function () {},
   nodeTitleChanged: function () {},
   nodeURIChanged: function () {},
@@ -910,17 +913,38 @@ function promiseAddVisits(aPlaceInfo)
 }
 
 /**
+ * Asynchronously adds visits to a page, then either invokes a callback function
+ * on success, or reports a test error on failure.
+ *
+ * @deprecated Use promiseAddVisits instead.
+ */
+function addVisits(aPlaceInfo, aCallback, aStack)
+{
+  let stack = aStack || Components.stack.caller;
+  promiseAddVisits(aPlaceInfo).then(
+    aCallback,
+    function addVisits_onFailure(ex) {
+      do_throw(ex, stack);
+    }
+  );
+}
+
+/**
  * Asynchronously check a url is visited.
  *
- * @param aURI The URI.
+ * @param aURI
+ *        The URI.
+ *
  * @return {Promise}
  * @resolves When the check has been added successfully.
  * @rejects JavaScript exception.
  */
-function promiseIsURIVisited(aURI) {
+function promiseIsURIVisited(aURI)
+{
   let deferred = Promise.defer();
-
-  PlacesUtils.asyncHistory.isURIVisited(aURI, function(aURI, aIsVisited) {
+  let history = Cc["@mozilla.org/browser/history;1"]
+                  .getService(Ci.mozIAsyncHistory);
+  history.isURIVisited(aURI, function(aURI, aIsVisited) {
     deferred.resolve(aIsVisited);
   });
 

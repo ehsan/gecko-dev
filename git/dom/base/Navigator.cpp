@@ -41,7 +41,6 @@
 #ifdef MOZ_B2G_RIL
 #include "MobileConnection.h"
 #include "mozilla/dom/CellBroadcast.h"
-#include "mozilla/dom/Voicemail.h"
 #endif
 #include "nsIIdleObserver.h"
 #include "nsIPermissionManager.h"
@@ -136,7 +135,6 @@ NS_INTERFACE_MAP_BEGIN(Navigator)
 #ifdef MOZ_B2G_RIL
   NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorMobileConnection)
   NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorCellBroadcast)
-  NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorVoicemail)
 #endif
 #ifdef MOZ_B2G_BT
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorBluetooth)
@@ -1124,7 +1122,7 @@ NS_IMETHODIMP Navigator::GetMozNotification(nsIDOMDesktopNotificationCenter** aR
 //*****************************************************************************
 
 NS_IMETHODIMP
-Navigator::GetBattery(nsISupports** aBattery)
+Navigator::GetBattery(nsIDOMBatteryManager** aBattery)
 {
   if (!mBatteryManager) {
     *aBattery = nullptr;
@@ -1247,10 +1245,6 @@ Navigator::GetMozTelephony(nsIDOMTelephony** aTelephony)
   telephony.forget(aTelephony);
   return NS_OK;
 }
-
-//*****************************************************************************
-//    nsNavigator::nsINavigatorVoicemail
-//*****************************************************************************
 
 NS_IMETHODIMP
 Navigator::GetMozVoicemail(nsIDOMMozVoicemail** aVoicemail)

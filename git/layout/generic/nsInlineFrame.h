@@ -131,7 +131,7 @@ protected:
 
   nsInlineFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
 
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
+  virtual int GetSkipSides() const;
 
   nsresult ReflowFrames(nsPresContext* aPresContext,
                         const nsHTMLReflowState& aReflowState,

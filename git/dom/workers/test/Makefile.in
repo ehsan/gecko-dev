@@ -108,8 +108,6 @@ MOCHITEST_FILES = \
   errorwarning_worker.js \
   test_contentWorker.html \
   content_worker.js \
-  test_url.html \
-  url_worker.js \
   $(NULL)
 
 _SUBDIRMOCHITEST_FILES = \

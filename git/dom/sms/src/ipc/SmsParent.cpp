@@ -8,10 +8,10 @@
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "Constants.h"
-#include "nsIDOMMozSmsMessage.h"
+#include "nsIDOMSmsMessage.h"
 #include "mozilla/unused.h"
 #include "SmsMessage.h"
-#include "nsIMobileMessageDatabaseService.h"
+#include "nsISmsDatabaseService.h"
 #include "SmsFilter.h"
 #include "SmsRequest.h"
 #include "SmsSegmentInfo.h"
@@ -176,11 +176,11 @@ SmsParent::RecvGetSegmentInfoForText(const nsString& aText,
 bool
 SmsParent::RecvClearMessageList(const int32_t& aListId)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(mobileMessageDBService, true);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsDBService, true);
 
-  mobileMessageDBService->ClearMessageList(aListId);
+  smsDBService->ClearMessageList(aListId);
   return true;
 }
 
@@ -276,13 +276,13 @@ SmsRequestParent::DoRequest(const SendMessageRequest& aRequest)
 bool
 SmsRequestParent::DoRequest(const GetMessageRequest& aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(mobileMessageDBService, true);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsDBService, true);
 
   mSmsRequest = SmsRequest::Create(this);
   nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(mSmsRequest);
-  nsresult rv = mobileMessageDBService->GetMessageMoz(aRequest.messageId(), forwarder);
+  nsresult rv = smsDBService->GetMessageMoz(aRequest.messageId(), forwarder);
   NS_ENSURE_SUCCESS(rv, false);
 
   return true;
@@ -291,13 +291,13 @@ SmsRequestParent::DoRequest(const GetMessageRequest& aRequest)
 bool
 SmsRequestParent::DoRequest(const DeleteMessageRequest& aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(mobileMessageDBService, true);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsDBService, true);
 
   mSmsRequest = SmsRequest::Create(this);
   nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(mSmsRequest);
-  nsresult rv = mobileMessageDBService->DeleteMessage(aRequest.messageId(), forwarder);
+  nsresult rv = smsDBService->DeleteMessage(aRequest.messageId(), forwarder);
   NS_ENSURE_SUCCESS(rv, false);
 
   return true;
@@ -306,14 +306,14 @@ SmsRequestParent::DoRequest(const DeleteMessageRequest& aRequest)
 bool
 SmsRequestParent::DoRequest(const CreateMessageListRequest& aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
 
-  NS_ENSURE_TRUE(mobileMessageDBService, true);
+  NS_ENSURE_TRUE(smsDBService, true);
   mSmsRequest = SmsRequest::Create(this);
   nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(mSmsRequest);
   SmsFilter *filter = new SmsFilter(aRequest.filter());
-  nsresult rv = mobileMessageDBService->CreateMessageList(filter, aRequest.reverse(), forwarder);
+  nsresult rv = smsDBService->CreateMessageList(filter, aRequest.reverse(), forwarder);
   NS_ENSURE_SUCCESS(rv, false);
 
   return true;
@@ -322,13 +322,13 @@ SmsRequestParent::DoRequest(const CreateMessageListRequest& aRequest)
 bool
 SmsRequestParent::DoRequest(const GetNextMessageInListRequest& aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
 
-  NS_ENSURE_TRUE(mobileMessageDBService, true);
+  NS_ENSURE_TRUE(smsDBService, true);
   mSmsRequest = SmsRequest::Create(this);
   nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(mSmsRequest);
-  nsresult rv = mobileMessageDBService->GetNextMessageInList(aRequest.aListId(), forwarder);
+  nsresult rv = smsDBService->GetNextMessageInList(aRequest.aListId(), forwarder);
   NS_ENSURE_SUCCESS(rv, false);
 
   return true;
@@ -337,13 +337,13 @@ SmsRequestParent::DoRequest(const GetNextMessageInListRequest& aRequest)
 bool
 SmsRequestParent::DoRequest(const MarkMessageReadRequest& aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
 
-  NS_ENSURE_TRUE(mobileMessageDBService, true);
+  NS_ENSURE_TRUE(smsDBService, true);
   mSmsRequest = SmsRequest::Create(this);
   nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(mSmsRequest);
-  nsresult rv = mobileMessageDBService->MarkMessageRead(aRequest.messageId(), aRequest.value(), forwarder);
+  nsresult rv = smsDBService->MarkMessageRead(aRequest.messageId(), aRequest.value(), forwarder);
   NS_ENSURE_SUCCESS(rv, false);
 
   return true;
@@ -352,13 +352,13 @@ SmsRequestParent::DoRequest(const MarkMessageReadRequest& aRequest)
 bool
 SmsRequestParent::DoRequest(const GetThreadListRequest& aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
+  nsCOMPtr<nsISmsDatabaseService> smsDBService =
+    do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
 
-  NS_ENSURE_TRUE(mobileMessageDBService, true);
+  NS_ENSURE_TRUE(smsDBService, true);
   mSmsRequest = SmsRequest::Create(this);
   nsCOMPtr<nsISmsRequest> forwarder = new SmsRequestForwarder(mSmsRequest);
-  nsresult rv = mobileMessageDBService->GetThreadList(forwarder);
+  nsresult rv = smsDBService->GetThreadList(forwarder);
   NS_ENSURE_SUCCESS(rv, false);
 
   return true;

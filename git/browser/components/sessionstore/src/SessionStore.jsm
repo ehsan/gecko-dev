@@ -3613,12 +3613,10 @@ let SessionStoreInternal = {
     let pinnedOnly = this._loadState == STATE_RUNNING && !this._resume_from_crash;
 
     TelemetryStopwatch.start("FX_SESSION_RESTORE_COLLECT_DATA_MS");
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_COLLECT_DATA_LONGEST_OP_MS");
 
     var oState = this._getCurrentState(aUpdateAll, pinnedOnly);
     if (!oState) {
       TelemetryStopwatch.cancel("FX_SESSION_RESTORE_COLLECT_DATA_MS");
-      TelemetryStopwatch.cancel("FX_SESSION_RESTORE_COLLECT_DATA_LONGEST_OP_MS");
       return;
     }
 
@@ -3672,7 +3670,6 @@ let SessionStoreInternal = {
       oState.lastSessionState = this._lastSessionState;
 
     TelemetryStopwatch.finish("FX_SESSION_RESTORE_COLLECT_DATA_MS");
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_COLLECT_DATA_LONGEST_OP_MS");
 
     this._saveStateObject(oState);
   },
@@ -3682,10 +3679,8 @@ let SessionStoreInternal = {
    */
   _saveStateObject: function ssi_saveStateObject(aStateObj) {
     TelemetryStopwatch.start("FX_SESSION_RESTORE_SERIALIZE_DATA_MS");
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_SERIALIZE_DATA_LONGEST_OP_MS");
     let data = this._toJSONString(aStateObj);
     TelemetryStopwatch.finish("FX_SESSION_RESTORE_SERIALIZE_DATA_MS");
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_SERIALIZE_DATA_LONGEST_OP_MS");
 
     let stateString = this._createSupportsString(data);
     Services.obs.notifyObservers(stateString, "sessionstore-state-write", "");

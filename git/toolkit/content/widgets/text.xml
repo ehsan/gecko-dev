@@ -189,7 +189,8 @@
           <![CDATA[
              var treeWalker = document.createTreeWalker(this,
                                                         NodeFilter.SHOW_TEXT,
-                                                        null);
+                                                        null,
+                                                        true);
              var node = treeWalker.nextNode();
              while (index >= node.length) {
                index -= node.length;

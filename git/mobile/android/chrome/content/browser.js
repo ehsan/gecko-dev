@@ -48,11 +48,6 @@ XPCOMUtils.defineLazyGetter(this, "PrivateBrowsingUtils", function() {
   return PrivateBrowsingUtils;
 });
 
-XPCOMUtils.defineLazyGetter(this, "Sanitizer", function() {
-  Cu.import("resource://gre/modules/Sanitizer.jsm");
-  return Sanitizer;
-});
-
 // Lazily-loaded browser scripts:
 [
   ["HelperApps", "chrome://browser/content/HelperApps.js"],
@@ -183,7 +178,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "Tab:Selected", false);
     Services.obs.addObserver(this, "Tab:Closed", false);
     Services.obs.addObserver(this, "Session:Back", false);
-    Services.obs.addObserver(this, "Session:ShowHistory", false);
     Services.obs.addObserver(this, "Session:Forward", false);
     Services.obs.addObserver(this, "Session:Reload", false);
     Services.obs.addObserver(this, "Session:Stop", false);
@@ -276,18 +270,16 @@ var BrowserApp = {
         pinned = window.arguments[3];
     }
 
-    let status = this.startupStatus();
+    let updated = this.isAppUpdated();
     if (pinned) {
-      WebAppRT.init(status, url, function(aUrl) {
-        if (aUrl) {
-          BrowserApp.addTab(aUrl);
-        } else {
-          let uri = Services.io.newURI(url, null, null);
-          if (!uri)
-            return;
-          Cc["@mozilla.org/uriloader/external-protocol-service;1"].getService(Ci.nsIExternalProtocolService).getProtocolHandlerInfo(uri.scheme).launchWithURI(uri);
-          BrowserApp.quit();
-        }
+      WebAppRT.init(updated, url).then(function(aUrl) {
+        BrowserApp.addTab(aUrl);
+      }, function() {
+        let uri = Services.io.newURI(url, null, null);
+        if (!uri)
+          return;
+        Cc["@mozilla.org/uriloader/external-protocol-service;1"].getService(Ci.nsIExternalProtocolService).getProtocolHandlerInfo(uri.scheme).launchWithURI(uri);
+        BrowserApp.quit();
       });
     } else {
       SearchEngines.init();
@@ -302,7 +294,7 @@ var BrowserApp = {
     event.initEvent("UIReady", true, false);
     window.dispatchEvent(event);
 
-    if (status)
+    if (updated)
       this.onAppUpdated();
 
     // Store the low-precision buffer pref
@@ -317,7 +309,7 @@ var BrowserApp = {
 #endif
   },
 
-  startupStatus: function() {
+  isAppUpdated: function() {
     let savedmstone = null;
     try {
       savedmstone = Services.prefs.getCharPref("browser.startup.homepage_override.mstone");
@@ -1008,6 +1000,7 @@ var BrowserApp = {
   },
 
   sanitize: function (aItems) {
+    let sanitizer = new Sanitizer();
     let json = JSON.parse(aItems);
     let success = true;
 
@@ -1018,21 +1011,15 @@ var BrowserApp = {
       try {
         switch (key) {
           case "history_downloads":
-            Sanitizer.clearItem("history");
-
-            // If we're also removing downloaded files, don't clear the
-            // download history yet since it will be handled when the files are
-            // removed.
-            if (!json["downloadFiles"]) {
-              Sanitizer.clearItem("downloads");
-            }
+            sanitizer.clearItem("history");
+            sanitizer.clearItem("downloads");
             break;
           case "cookies_sessions":
-            Sanitizer.clearItem("cookies");
-            Sanitizer.clearItem("sessions");
+            sanitizer.clearItem("cookies");
+            sanitizer.clearItem("sessions");
             break;
           default:
-            Sanitizer.clearItem(key);
+            sanitizer.clearItem(key);
         }
       } catch (e) {
         dump("sanitize error: " + e);
@@ -1116,11 +1103,6 @@ var BrowserApp = {
 
       case "Session:Stop":
         browser.stop();
-        break;
-
-      case "Session:ShowHistory":
-        let data = JSON.parse(aData);
-        this.showHistory(data.fromIndex, data.toIndex, data.selIndex);
         break;
 
       case "Tab:Load": {
@@ -1267,36 +1249,6 @@ var BrowserApp = {
   // nsIAndroidBrowserApp
   getBrowserTab: function(tabId) {
     return this.getTabForId(tabId);
-  },
-
-  // This method will print a list from fromIndex to toIndex, optionally
-  // selecting selIndex(if fromIndex<=selIndex<=toIndex)
-  showHistory: function(fromIndex, toIndex, selIndex) {
-    let browser = this.selectedBrowser;
-    let result = {
-      type: "Prompt:Show",
-      multiple: false,
-      selected: [],
-      listitems: []
-    };
-    let hist = browser.sessionHistory;
-    for (let i = toIndex; i >= fromIndex; i--) {
-      let entry = hist.getEntryAtIndex(i, false);
-      let item = {
-        label: entry.title || entry.URI.spec,
-        isGroup: false,
-        inGroup: false,
-        disabled: false,
-        id: i
-      };
-      result.listitems.push(item);
-      result.selected.push(i == selIndex);
-    }
-    let data = JSON.parse(sendMessageToJava(result));
-    let selected = data.button;
-    if (selected == -1)
-      return;
-    browser.gotoIndex(toIndex-selected);
   },
 };
 
@@ -5802,33 +5754,11 @@ var IndexedDB = {
       responseTopic = this._quotaResponse;
     }
 
-    const firstTimeoutDuration = 300000; // 5 minutes
-
-    let timeoutId;
-
     let notificationID = responseTopic + host;
     let observer = requestor.getInterface(Ci.nsIObserver);
 
-    // This will be set to the result of PopupNotifications.show() below, or to
-    // the result of PopupNotifications.getNotification() if this is a
-    // quotaCancel notification.
-    let notification;
-
-    function timeoutNotification() {
-      // Remove the notification.
-      NativeWindow.doorhanger.hide(notificationID, tab.id);
-
-      // Clear all of our timeout stuff. We may be called directly, not just
-      // when the timeout actually elapses.
-      clearTimeout(timeoutId);
-
-      // And tell the page that the popup timed out.
-      observer.observe(null, responseTopic, Ci.nsIPermissionManager.UNKNOWN_ACTION);
-    }
-
     if (topic == this._quotaCancel) {
       NativeWindow.doorhanger.hide(notificationID, tab.id);
-      timeoutNotification();
       observer.observe(null, responseTopic, Ci.nsIPermissionManager.UNKNOWN_ACTION);
       return;
     }
@@ -5836,31 +5766,23 @@ var IndexedDB = {
     let buttons = [{
       label: strings.GetStringFromName("offlineApps.allow"),
       callback: function() {
-        clearTimeout(timeoutId);
         observer.observe(null, responseTopic, Ci.nsIPermissionManager.ALLOW_ACTION);
       }
     },
     {
       label: strings.GetStringFromName("offlineApps.never"),
       callback: function() {
-        clearTimeout(timeoutId);
         observer.observe(null, responseTopic, Ci.nsIPermissionManager.DENY_ACTION);
       }
     },
     {
       label: strings.GetStringFromName("offlineApps.notNow"),
       callback: function() {
-        clearTimeout(timeoutId);
         observer.observe(null, responseTopic, Ci.nsIPermissionManager.UNKNOWN_ACTION);
       }
     }];
 
     NativeWindow.doorhanger.show(message, notificationID, buttons, tab.id);
-
-    // Set the timeoutId after the popup has been created, and use the long
-    // timeout value. If the user doesn't notice the popup after this amount of
-    // time then it is most likely not visible and we want to alert the page.
-    timeoutId = setTimeout(timeoutNotification, firstTimeoutDuration);
   }
 };
 

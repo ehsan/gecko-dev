@@ -32,6 +32,7 @@ function test() {
         this.visitCount[aURI.spec] = 1;
     },
     onTitleChanged: function () {},
+    onBeforeDeleteURI: function () {},
     onDeleteURI: function () {},
     onClearHistory: function () {},
     onPageChanged: function () {},

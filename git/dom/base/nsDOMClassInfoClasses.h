@@ -309,11 +309,14 @@ DOMCI_CLASS(GeoPosition)
 DOMCI_CLASS(GeoPositionCoords)
 DOMCI_CLASS(GeoPositionError)
 
+DOMCI_CLASS(BatteryManager)
+
 DOMCI_CLASS(MozPowerManager)
 DOMCI_CLASS(MozWakeLock)
 
 DOMCI_CLASS(MozSmsManager)
 DOMCI_CLASS(MozSmsMessage)
+DOMCI_CLASS(MozSmsEvent)
 DOMCI_CLASS(MozSmsRequest)
 DOMCI_CLASS(MozSmsFilter)
 DOMCI_CLASS(MozSmsCursor)
@@ -323,7 +326,12 @@ DOMCI_CLASS(MozConnection)
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(MozMobileConnection)
 DOMCI_CLASS(MozCellBroadcast)
+DOMCI_CLASS(CFStateChangeEvent)
 #endif
+
+DOMCI_CLASS(USSDReceivedEvent)
+
+DOMCI_CLASS(DataErrorEvent)
 
 // @font-face in CSS
 DOMCI_CLASS(CSSFontFaceRule)
@@ -399,6 +407,7 @@ DOMCI_CLASS(MediaQueryList)
 DOMCI_CLASS(Telephony)
 DOMCI_CLASS(TelephonyCall)
 DOMCI_CLASS(MozVoicemail)
+DOMCI_CLASS(MozVoicemailEvent)
 DOMCI_CLASS(MozIccManager)
 DOMCI_CLASS(MozStkCommandEvent)
 #endif

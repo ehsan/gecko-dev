@@ -20,11 +20,11 @@ this.EXPORTED_SYMBOLS = [
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
+Cu.import("resource://services-common/rest.js");
 #endif
 
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://services-common/log4moz.js");
-Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-common/utils.js");
 
 
@@ -35,25 +35,9 @@ this.BagheeraClientRequestResult = function BagheeraClientRequestResult() {
   this.transportSuccess = false;
   this.serverSuccess = false;
   this.request = null;
-};
-
-Object.freeze(BagheeraClientRequestResult.prototype);
-
-
-/**
- * Wrapper around RESTRequest so logging is sane.
- */
-function BagheeraRequest(uri) {
-  RESTRequest.call(this, uri);
-
-  this._log = Log4Moz.repository.getLogger("Services.BagheeraClient");
-  this._log.level = Log4Moz.Level.Debug;
 }
 
-BagheeraRequest.prototype = Object.freeze({
-  __proto__: RESTRequest.prototype,
-});
-
+Object.freeze(BagheeraClientRequestResult.prototype);
 
 /**
  * Create a new Bagheera client instance.
@@ -69,16 +53,16 @@ this.BagheeraClient = function BagheeraClient(baseURI) {
   }
 
   this._log = Log4Moz.repository.getLogger("Services.BagheeraClient");
-  this._log.level = Log4Moz.Level.Debug;
+  this._log.level = Log4Moz.Level["Debug"];
 
   this.baseURI = baseURI;
 
   if (!baseURI.endsWith("/")) {
     this.baseURI += "/";
   }
-};
+}
 
-BagheeraClient.prototype = Object.freeze({
+BagheeraClient.prototype = {
   /**
    * Channel load flags for all requests.
    *
@@ -144,7 +128,7 @@ BagheeraClient.prototype = Object.freeze({
 
     this._log.info("Uploading data to " + uri);
 
-    let request = new BagheeraRequest(uri);
+    let request = new RESTRequest(uri);
     request.loadFlags = this._loadFlags;
     request.timeout = this.DEFAULT_TIMEOUT_MSEC;
 
@@ -183,7 +167,7 @@ BagheeraClient.prototype = Object.freeze({
   deleteDocument: function deleteDocument(namespace, id) {
     let uri = this._submitURI(namespace, id);
 
-    let request = new BagheeraRequest(uri);
+    let request = new RESTRequest(uri);
     request.loadFlags = this._loadFlags;
     request.timeout = this.DEFAULT_TIMEOUT_MSEC;
 
@@ -241,5 +225,6 @@ BagheeraClient.prototype = Object.freeze({
 
     deferred.resolve(result);
   },
-});
+};
 
+Object.freeze(BagheeraClient.prototype);

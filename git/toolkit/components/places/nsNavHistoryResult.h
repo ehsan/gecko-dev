@@ -65,6 +65,8 @@ private:
   NS_DECL_NSINAVBOOKMARKOBSERVER                                        \
   NS_IMETHOD OnTitleChanged(nsIURI* aURI, const nsAString& aPageTitle,  \
                             const nsACString& aGUID);                   \
+  NS_IMETHOD OnBeforeDeleteURI(nsIURI *aURI, const nsACString& aGUID,   \
+                               uint16_t aReason);                       \
   NS_IMETHOD OnDeleteURI(nsIURI *aURI, const nsACString& aGUID,         \
                          uint16_t aReason);                             \
   NS_IMETHOD OnClearHistory();                                          \
@@ -596,6 +598,8 @@ public:
   }
   nsNavHistoryResultNode* FindChildURI(const nsACString& aSpec,
                                        uint32_t* aNodeIndex);
+  nsNavHistoryContainerResultNode* FindChildContainerByName(const nsACString& aTitle,
+                                                            uint32_t* aNodeIndex);
   // returns the index of the given node, -1 if not found
   int32_t FindChild(nsNavHistoryResultNode* aNode)
     { return mChildren.IndexOf(aNode); }
@@ -606,18 +610,18 @@ public:
                              bool aIsTemporary = false,
                              bool aIgnoreDuplicates = false);
   bool EnsureItemPosition(uint32_t aIndex);
-
+  void MergeResults(nsCOMArray<nsNavHistoryResultNode>* aNodes);
+  nsresult ReplaceChildURIAt(uint32_t aIndex, nsNavHistoryResultNode* aNode);
   nsresult RemoveChildAt(int32_t aIndex, bool aIsTemporary = false);
 
   void RecursiveFindURIs(bool aOnlyOne,
                          nsNavHistoryContainerResultNode* aContainer,
                          const nsCString& aSpec,
                          nsCOMArray<nsNavHistoryResultNode>* aMatches);
-  bool UpdateURIs(bool aRecursive, bool aOnlyOne, bool aUpdateSort,
-                  const nsCString& aSpec,
-                  nsresult (*aCallback)(nsNavHistoryResultNode*, const void*,
-                                        const nsNavHistoryResult*),
-                  const void* aClosure);
+  nsresult UpdateURIs(bool aRecursive, bool aOnlyOne, bool aUpdateSort,
+                      const nsCString& aSpec,
+                      nsresult (*aCallback)(nsNavHistoryResultNode*,void*, nsNavHistoryResult*),
+                      void* aClosure);
   nsresult ChangeTitles(nsIURI* aURI, const nsACString& aNewTitle,
                         bool aRecursive, bool aOnlyOne);
 

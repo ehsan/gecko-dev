@@ -6968,8 +6968,7 @@ mjit::Compiler::jsop_newinit()
         !type ||
         (isArray && count > maxArraySlots) ||
         (!isArray && !baseobj) ||
-        (!isArray && baseobj->hasDynamicSlots()))
-    {
+        (!isArray && baseobj->hasDynamicSlots())) {
         prepareStubCall(Uses(0));
         masm.storePtr(ImmPtr(type), FrameAddress(offsetof(VMFrame, scratch)));
         masm.move(ImmPtr(stubArg), Registers::ArgReg1);
@@ -7408,7 +7407,7 @@ mjit::Compiler::leaveBlock()
 //   GETPROP "prototype"
 //   IFPRIMTOP:
 //       NULL
-//   call CreateThisFromFunctionWithProto(...)
+//   call js_CreateThisFromFunctionWithProto(...)
 //
 bool
 mjit::Compiler::constructThis()
@@ -7443,7 +7442,7 @@ mjit::Compiler::constructThis()
         if (!types::TypeScript::ThisTypes(script_)->hasType(types::Type::ObjectType(type)))
             break;
 
-        JSObject *templateObject = CreateThisForFunctionWithProto(cx, fun, proto);
+        JSObject *templateObject = js_CreateThisForFunctionWithProto(cx, fun, proto);
         if (!templateObject)
             return false;
 

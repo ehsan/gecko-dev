@@ -116,7 +116,7 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
 JSObject *
 NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize)
 {
-    return gc::NewGCThing<JSObject, CanGC>(cx, allocKind, thingSize, gc::DefaultHeap);
+    return gc::NewGCThing<JSObject, CanGC>(cx, allocKind, thingSize);
 }
 
 bool
@@ -269,15 +269,18 @@ JSObject*
 NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *typeArg)
 {
     RootedTypeObject type(cx, typeArg);
-    NewObjectKind newKind = !type ? SingletonObject : GenericObject;
-    RootedObject obj(cx, NewDenseAllocatedArray(cx, count, NULL, newKind));
+    RootedObject obj(cx, NewDenseAllocatedArray(cx, count));
     if (!obj)
         return NULL;
 
-    if (!type)
+    if (!type) {
+        if (!JSObject::setSingletonType(cx, obj))
+            return NULL;
+
         types::TypeScript::Monitor(cx, ObjectValue(*obj));
-    else
+    } else {
         obj->setType(type);
+    }
 
     return obj;
 }
@@ -285,16 +288,19 @@ NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *typeArg)
 JSObject*
 NewInitObject(JSContext *cx, HandleObject templateObject)
 {
-    NewObjectKind newKind = templateObject->hasSingletonType() ? SingletonObject : GenericObject;
-    RootedObject obj(cx, CopyInitializerObject(cx, templateObject, newKind));
+    RootedObject obj(cx, CopyInitializerObject(cx, templateObject));
 
     if (!obj)
         return NULL;
 
-    if (templateObject->hasSingletonType())
+    if (templateObject->hasSingletonType()) {
+        if (!JSObject::setSingletonType(cx, obj))
+            return NULL;
+
         types::TypeScript::Monitor(cx, ObjectValue(*obj));
-    else
+    } else {
         obj->setType(templateObject->type());
+    }
 
     return obj;
 }
@@ -493,7 +499,7 @@ CreateThis(JSContext *cx, HandleObject callee, MutableHandleValue rval)
     if (callee->isFunction()) {
         JSFunction *fun = callee->toFunction();
         if (fun->isInterpreted())
-            rval.set(ObjectValue(*CreateThisForFunction(cx, callee, false)));
+            rval.set(ObjectValue(*js_CreateThisForFunction(cx, callee, false)));
     }
 
     return true;

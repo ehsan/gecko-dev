@@ -3006,13 +3006,12 @@ nsRect
 nsCSSRendering::GetBackgroundLayerRect(nsPresContext* aPresContext,
                                        nsIFrame* aForFrame,
                                        const nsRect& aBorderArea,
-                                       const nsRect& aClipRect,
                                        const nsStyleBackground& aBackground,
                                        const nsStyleBackground::Layer& aLayer)
 {
   nsBackgroundLayerState state =
       PrepareBackgroundLayer(aPresContext, aForFrame, 0, aBorderArea,
-                             aClipRect, aBackground, aLayer);
+                             aBorderArea, aBackground, aLayer);
   return state.mFillArea;
 }
 

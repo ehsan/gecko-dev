@@ -441,7 +441,7 @@ nsAutoCompleteController::HandleKeyNavigation(uint32_t aKey, bool *_retval)
 #endif
       if (*_retval) {
         // Open the popup if there has been a previous search, or else kick off a new search
-        if (!mResults.IsEmpty()) {
+        if (mResults.Count() > 0) {
           if (mRowCount) {
             OpenPopup();
           }
@@ -688,7 +688,8 @@ NS_IMETHODIMP
 nsAutoCompleteController::OnSearchResult(nsIAutoCompleteSearch *aSearch, nsIAutoCompleteResult* aResult)
 {
   // look up the index of the search which is returning
-  for (uint32_t i = 0; i < mSearches.Length(); ++i) {
+  uint32_t count = mSearches.Count();
+  for (uint32_t i = 0; i < count; ++i) {
     if (mSearches[i] == aSearch) {
       ProcessResult(i, aResult);
     }
@@ -1002,7 +1003,7 @@ nsAutoCompleteController::BeforeSearches()
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  mSearchesOngoing = mSearches.Length();
+  mSearchesOngoing = mSearches.Count();
   mSearchesFailed = 0;
   mFirstSearchResult = true;
 
@@ -1018,7 +1019,7 @@ nsAutoCompleteController::StartSearch(uint16_t aSearchType)
   NS_ENSURE_STATE(mInput);
   nsCOMPtr<nsIAutoCompleteInput> input = mInput;
 
-  for (uint32_t i = 0; i < mSearches.Length(); ++i) {
+  for (int32_t i = 0; i < mSearches.Count(); ++i) {
     nsCOMPtr<nsIAutoCompleteSearch> search = mSearches[i];
 
     // Filter on search type.  Not all the searches implement this interface,
@@ -1070,7 +1071,9 @@ void
 nsAutoCompleteController::AfterSearches()
 {
   mResultCache.Clear();
-  if (mSearchesFailed == mSearches.Length())
+  // nsCOMArray::Count() returns a signed value; we have to cast it to unsigned
+  // when comparing it to unsigned, or compilers will complain.
+  if (mSearchesFailed == static_cast<uint32_t>(mSearches.Count()))
     PostSearchCleanup();
 }
 
@@ -1082,7 +1085,9 @@ nsAutoCompleteController::StopSearch()
 
   // Stop any ongoing asynchronous searches
   if (mSearchStatus == nsIAutoCompleteController::STATUS_SEARCHING) {
-    for (uint32_t i = 0; i < mSearches.Length(); ++i) {
+    uint32_t count = mSearches.Count();
+
+    for (uint32_t i = 0; i < count; ++i) {
       nsCOMPtr<nsIAutoCompleteSearch> search = mSearches[i];
       search->StopSearch();
     }
@@ -1110,7 +1115,7 @@ nsAutoCompleteController::StartSearches()
   uint32_t immediateSearchesCount = mImmediateSearchesCount;
   if (timeout == 0) {
     // All the searches should be executed immediately.
-    immediateSearchesCount = mSearches.Length();
+    immediateSearchesCount = mSearches.Count();
   }
 
   if (immediateSearchesCount > 0) {
@@ -1119,7 +1124,9 @@ nsAutoCompleteController::StartSearches()
       return rv;
     StartSearch(nsIAutoCompleteSearchDescriptor::SEARCH_TYPE_IMMEDIATE);
 
-    if (mSearches.Length() == immediateSearchesCount) {
+    // nsCOMArray::Count() returns a signed value; we have to cast it to
+    // unsigned when comparing it to unsigned, or compilers will complain.
+    if (static_cast<uint32_t>(mSearches.Count()) == immediateSearchesCount) {
       // Either all searches are immediate, or the timeout is 0.  In the
       // latter case we still have to execute the delayed searches, otherwise
       // this will be a no-op.
@@ -1200,7 +1207,8 @@ nsAutoCompleteController::EnterMatch(bool aIsPopupSelection)
     if (forceComplete && value.IsEmpty()) {
       // Since nothing was selected, and forceComplete is specified, that means
       // we have to find the first default match and enter it instead
-      for (uint32_t i = 0; i < mResults.Length(); ++i) {
+      uint32_t count = mResults.Count();
+      for (uint32_t i = 0; i < count; ++i) {
         nsIAutoCompleteResult *result = mResults[i];
 
         if (result) {
@@ -1677,11 +1685,12 @@ nsAutoCompleteController::RowIndexToSearch(int32_t aRowIndex, int32_t *aSearchIn
   *aSearchIndex = -1;
   *aItemIndex = -1;
 
+  uint32_t count = mSearches.Count();
   uint32_t index = 0;
 
   // Move index through the results of each registered nsIAutoCompleteSearch
   // until we find the given row
-  for (uint32_t i = 0; i < mSearches.Length(); ++i) {
+  for (uint32_t i = 0; i < count; ++i) {
     nsIAutoCompleteResult *result = mResults.SafeObjectAt(i);
     if (!result)
       continue;

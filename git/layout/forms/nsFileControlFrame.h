@@ -144,6 +144,8 @@ protected:
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
+  virtual int GetSkipSides() const MOZ_OVERRIDE;
+
   /**
    * The text box input.
    * @see nsFileControlFrame::CreateAnonymousContent

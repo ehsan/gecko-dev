@@ -132,8 +132,6 @@ public:
     return NS_OK;
   }
 
-  bool IsTransportSeekable() MOZ_OVERRIDE { return true; }
-
 private:
   const uint8_t * mBuffer;
   uint32_t mLength;

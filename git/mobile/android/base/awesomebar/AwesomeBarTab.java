@@ -89,14 +89,13 @@ abstract public class AwesomeBarTab {
 
     protected void updateFavicon(ImageView faviconView, Cursor cursor) {
         byte[] b = cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON));
-        Bitmap favicon = null;
-        if (b != null) {
+        if (b == null) {
+            faviconView.setImageDrawable(null);
+        } else {
             Bitmap bitmap = BitmapFactory.decodeByteArray(b, 0, b.length);
-            if (bitmap != null && bitmap.getWidth() > 0 && bitmap.getHeight() > 0) {
-                favicon = Favicons.getInstance().scaleImage(bitmap);
-            }
+            bitmap = Favicons.getInstance().scaleImage(bitmap);
+            updateFavicon(faviconView, bitmap);
         }
-        updateFavicon(faviconView, favicon);
     }
 
     protected void updateFavicon(ImageView faviconView, Bitmap bitmap) {

@@ -811,8 +811,6 @@ nsPresContext::AppUnitsPerDevPixelChanged()
     // All cached style data must be recomputed.
     MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
   }
-
-  mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
 }
 
 void
@@ -1186,19 +1184,6 @@ nsPresContext::GetNearestWidget(nsPoint* aOffset)
   return frame->GetView()->GetNearestWidget(aOffset);
 }
 
-nsIWidget*
-nsPresContext::GetRootWidget()
-{
-  NS_ENSURE_TRUE(mShell, nullptr);
-  nsViewManager* vm = mShell->GetViewManager();
-  if (!vm) {
-    return nullptr;
-  }
-  nsCOMPtr<nsIWidget> widget;
-  vm->GetRootWidget(getter_AddRefs(widget));
-  return widget.get();
-}
-
 // We may want to replace this with something faster, maybe caching the root prescontext
 nsRootPresContext*
 nsPresContext::GetRootPresContext()
@@ -1405,6 +1390,8 @@ nsPresContext::SetFullZoom(float aZoom)
   AppUnitsPerDevPixelChanged();
 
   mSupressResizeReflow = false;
+
+  mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
 }
 
 float

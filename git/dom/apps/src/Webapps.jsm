@@ -461,15 +461,7 @@ this.DOMApplicationRegistry = {
       let messageName;
       if (typeof(aMessage) === "object" && Object.keys(aMessage).length === 1) {
         messageName = Object.keys(aMessage)[0];
-        let uri;
-        try {
-          uri = manifest.resolveFromOrigin(aMessage[messageName]);
-        } catch(e) {
-          debug("system message url (" + aMessage[messageName] + ") is invalid, skipping. " +
-                "Error is: " + e);
-          return;
-        }
-        href = Services.io.newURI(uri, null, null);
+        href = Services.io.newURI(manifest.resolveFromOrigin(aMessage[messageName]), null, null);
       } else {
         messageName = aMessage;
       }
@@ -514,17 +506,7 @@ this.DOMApplicationRegistry = {
       if (!description.href) {
         description.href = manifest.launch_path;
       }
-
-      try {
-        description.href = manifest.resolveFromOrigin(description.href);
-      } catch (e) {
-        debug("Activity href (" + description.href + ") is invalid, skipping. " +
-              "Error is: " + e);
-        continue;
-      }
-
-      debug('_createActivitiesToRegister: ' + aApp.manifestURL + ', activity ' +
-          activity + ', description.href is ' + description.href);
+      description.href = manifest.resolveFromOrigin(description.href);
 
       if (aRunUpdate) {
         activitiesToRegister.push({ "manifest": aApp.manifestURL,

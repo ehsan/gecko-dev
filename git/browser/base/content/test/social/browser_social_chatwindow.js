@@ -191,7 +191,7 @@ var tests = {
             chats.selectedChat.close();
           }
           ok(!chats.selectedChat, "chats are all closed");
-          gURLsNotRemembered.push(chatUrl);
+          ensureSocialUrlNotRemembered(chatUrl);
           port.close();
           next();
           break;
@@ -456,17 +456,18 @@ var tests = {
     ok(!window.SocialChatBar.hasChats, "first window should start with no chats");
     openChat(function() {
       ok(window.SocialChatBar.hasChats, "first window has the chat");
-      // create a second window - this will be the "most recent" and will
-      // therefore be the window that hosts the new chat (see bug 835111)
+      // create a second window - although this will be the "most recent",
+      // the fact the first window has a chat open means the first will be targetted.
       let secondWindow = OpenBrowserWindow();
       secondWindow.addEventListener("load", function loadListener() {
         secondWindow.removeEventListener("load", loadListener);
         ok(!secondWindow.SocialChatBar.hasChats, "second window has no chats");
         openChat(function() {
-          ok(secondWindow.SocialChatBar.hasChats, "second window now has chats");
-          is(window.SocialChatBar.chatbar.childElementCount, 1, "first window still has 1 chat");
+          ok(!secondWindow.SocialChatBar.hasChats, "second window still has no chats");
+          is(window.SocialChatBar.chatbar.childElementCount, 2, "first window now has 2 chats");
           window.SocialChatBar.chatbar.removeAll();
-          // now open another chat - it should still open in the second.
+          // now open another chat - it should open in the second window (as
+          // it is the "most recent" and no other windows have chats)
           openChat(function() {
             ok(!window.SocialChatBar.hasChats, "first window has no chats");
             ok(secondWindow.SocialChatBar.hasChats, "second window has a chat");

@@ -15,7 +15,6 @@ EXTRA_JS_MODULES = \
   linuxTypes.jsm \
   video.jsm \
   JNI.jsm \
-  Sanitizer.jsm \
   $(NULL)
 
 EXTRA_PP_JS_MODULES = \

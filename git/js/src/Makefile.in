@@ -127,7 +127,6 @@ CPPSRCS		= \
 		GlobalObject.cpp \
 		Object.cpp \
 		ObjectImpl.cpp \
-		PropertyKey.cpp \
 		ScopeObject.cpp \
 		Shape.cpp \
 		Stack.cpp \
@@ -191,6 +190,7 @@ INSTALLED_HEADERS = \
 		jsutil.h \
 		jsversion.h \
 		jswrapper.h \
+		jsval.h \
 		$(NULL)
 
 ######################################################
@@ -224,17 +224,14 @@ EXPORTS_NAMESPACES += js
 # that we ensure we don't over-expose our internal integer typedefs.  Note that
 # LegacyIntTypes.h below is deliberately exempted from this requirement.
 EXPORTS_js = \
-		Anchor.h \
 		CharacterEncoding.h \
-		GCAPI.h \
 		HashTable.h \
 		HeapAPI.h \
+		GCAPI.h \
 		LegacyIntTypes.h \
 		MemoryMetrics.h \
-		PropertyKey.h \
 		TemplateLib.h \
 		Utility.h \
-		Value.h \
 		Vector.h \
 		$(NULL)
 

@@ -57,16 +57,17 @@ class FileUpdateDispatcher MOZ_FINAL
 };
 
 class nsDOMDeviceStorage MOZ_FINAL
-  : public nsDOMEventTargetHelper
-  , public nsIDOMDeviceStorage
+  : public nsIDOMDeviceStorage
+  , public nsDOMEventTargetHelper
   , public nsIObserver
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMDEVICESTORAGE
 
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIDOMEVENTTARGET
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMDeviceStorage, nsDOMEventTargetHelper)
 
   nsDOMDeviceStorage();
 

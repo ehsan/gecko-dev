@@ -100,12 +100,12 @@ NewObjectCache::fillType(EntryIndex entry, Class *clasp, js::types::TypeObject *
 }
 
 inline JSObject *
-NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_, js::gc::InitialHeap heap)
+NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_)
 {
     JS_ASSERT(unsigned(entry_) < mozilla::ArrayLength(entries));
     Entry *entry = &entries[entry_];
 
-    JSObject *obj = js_NewGCObject<NoGC>(cx, entry->kind, heap);
+    JSObject *obj = js_NewGCObject<NoGC>(cx, entry->kind);
     if (obj) {
         copyCachedToObject(obj, reinterpret_cast<JSObject *>(&entry->templateObject));
         Probes::createObject(cx, obj);
@@ -585,12 +585,6 @@ inline JS::Zone *
 JSContext::zone()
 {
     return compartment->zone();
-}
-
-inline void
-JSContext::updateMallocCounter(size_t nbytes)
-{
-    runtime->updateMallocCounter(zone(), nbytes);
 }
 
 #endif /* jscntxtinlines_h___ */

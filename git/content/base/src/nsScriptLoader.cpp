@@ -458,7 +458,14 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       nsAutoString language;
       scriptContent->GetAttr(kNameSpaceID_None, nsGkAtoms::language, language);
       if (!language.IsEmpty()) {
-        if (!nsContentUtils::IsJavaScriptLanguage(language)) {
+        // IE, Opera, etc. do not respect language version, so neither should
+        // we at this late date in the browser wars saga.  Note that this change
+        // affects HTML but not XUL or SVG (but note also that XUL has its own
+        // code to check nsContentUtils::IsJavaScriptLanguage -- that's probably
+        // a separate bug, one we may not be able to fix short of XUL2).  See
+        // bug 255895 (https://bugzilla.mozilla.org/show_bug.cgi?id=255895).
+        uint32_t dummy;
+        if (!nsContentUtils::IsJavaScriptLanguage(language, &dummy)) {
           return false;
         }
       }

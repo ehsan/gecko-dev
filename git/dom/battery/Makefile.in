@@ -33,6 +33,7 @@ LOCAL_INCLUDES = \
   $(NULL)
 
 XPIDLSRCS = \
+  nsIDOMBatteryManager.idl \
   nsINavigatorBattery.idl \
   $(NULL)
 

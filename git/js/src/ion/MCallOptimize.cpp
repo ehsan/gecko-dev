@@ -18,65 +18,97 @@ namespace js {
 namespace ion {
 
 IonBuilder::InliningStatus
-IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
+IonBuilder::inlineNativeCall(JSNative native, uint32_t argc, bool constructing)
 {
     // Array natives.
     if (native == js_Array)
-        return inlineArray(callInfo);
+        return inlineArray(argc, constructing);
     if (native == js::array_pop)
-        return inlineArrayPopShift(callInfo, MArrayPopShift::Pop);
+        return inlineArrayPopShift(MArrayPopShift::Pop, argc, constructing);
     if (native == js::array_shift)
-        return inlineArrayPopShift(callInfo, MArrayPopShift::Shift);
+        return inlineArrayPopShift(MArrayPopShift::Shift, argc, constructing);
     if (native == js::array_push)
-        return inlineArrayPush(callInfo);
+        return inlineArrayPush(argc, constructing);
     if (native == js::array_concat)
-        return inlineArrayConcat(callInfo);
+        return inlineArrayConcat(argc, constructing);
 
     // Math natives.
     if (native == js_math_abs)
-        return inlineMathAbs(callInfo);
+        return inlineMathAbs(argc, constructing);
     if (native == js_math_floor)
-        return inlineMathFloor(callInfo);
+        return inlineMathFloor(argc, constructing);
     if (native == js_math_round)
-        return inlineMathRound(callInfo);
+        return inlineMathRound(argc, constructing);
     if (native == js_math_sqrt)
-        return inlineMathSqrt(callInfo);
+        return inlineMathSqrt(argc, constructing);
     if (native == js_math_max)
-        return inlineMathMinMax(callInfo, true /* max */);
+        return inlineMathMinMax(true /* max */, argc, constructing);
     if (native == js_math_min)
-        return inlineMathMinMax(callInfo, false /* max */);
+        return inlineMathMinMax(false /* max */, argc, constructing);
     if (native == js_math_pow)
-        return inlineMathPow(callInfo);
+        return inlineMathPow(argc, constructing);
     if (native == js_math_random)
-        return inlineMathRandom(callInfo);
+        return inlineMathRandom(argc, constructing);
     if (native == js::math_imul)
-        return inlineMathImul(callInfo);
+        return inlineMathImul(argc, constructing);
     if (native == js::math_sin)
-        return inlineMathFunction(callInfo, MMathFunction::Sin);
+        return inlineMathFunction(MMathFunction::Sin, argc, constructing);
     if (native == js::math_cos)
-        return inlineMathFunction(callInfo, MMathFunction::Cos);
+        return inlineMathFunction(MMathFunction::Cos, argc, constructing);
     if (native == js::math_tan)
-        return inlineMathFunction(callInfo, MMathFunction::Tan);
+        return inlineMathFunction(MMathFunction::Tan, argc, constructing);
     if (native == js::math_log)
-        return inlineMathFunction(callInfo, MMathFunction::Log);
+        return inlineMathFunction(MMathFunction::Log, argc, constructing);
 
     // String natives.
     if (native == js_String)
-        return inlineStringObject(callInfo);
+        return inlineStringObject(argc, constructing);
     if (native == js_str_charCodeAt)
-        return inlineStrCharCodeAt(callInfo);
+        return inlineStrCharCodeAt(argc, constructing);
     if (native == js::str_fromCharCode)
-        return inlineStrFromCharCode(callInfo);
+        return inlineStrFromCharCode(argc, constructing);
     if (native == js_str_charAt)
-        return inlineStrCharAt(callInfo);
+        return inlineStrCharAt(argc, constructing);
 
     // RegExp natives.
     if (native == regexp_exec && !CallResultEscapes(pc))
-        return inlineRegExpTest(callInfo);
+        return inlineRegExpTest(argc, constructing);
     if (native == regexp_test)
-        return inlineRegExpTest(callInfo);
+        return inlineRegExpTest(argc, constructing);
 
     return InliningStatus_NotInlined;
+}
+
+bool
+IonBuilder::discardCallArgs(uint32_t argc, MDefinitionVector &argv, MBasicBlock *bb)
+{
+    if (!argv.resizeUninitialized(argc + 1))
+        return false;
+
+    for (int32_t i = argc; i >= 0; i--) {
+        // Unwrap each MPassArg, replacing it with its contents.
+        MPassArg *passArg = bb->pop()->toPassArg();
+        MBasicBlock *block = passArg->block();
+        MDefinition *wrapped = passArg->getArgument();
+        passArg->replaceAllUsesWith(wrapped);
+        block->discard(passArg);
+
+        // Remember contents in vector.
+        argv[i] = wrapped;
+    }
+
+    return true;
+}
+
+bool
+IonBuilder::discardCall(uint32_t argc, MDefinitionVector &argv, MBasicBlock *bb)
+{
+    if (!discardCallArgs(argc, argv, bb))
+        return false;
+
+    // Function MDefinition implicitly consumed by inlining.
+    bb->pop();
+    return true;
 }
 
 types::StackTypeSet *
@@ -84,6 +116,7 @@ IonBuilder::getInlineReturnTypeSet()
 {
     types::StackTypeSet *barrier;
     types::StackTypeSet *returnTypes = oracle->returnTypeSet(script(), pc, &barrier);
+
     JS_ASSERT(returnTypes);
     return returnTypes;
 }
@@ -96,78 +129,65 @@ IonBuilder::getInlineReturnType()
 }
 
 types::StackTypeSet *
-IonBuilder::getInlineThisTypeSet(CallInfo &callInfo)
+IonBuilder::getInlineArgTypeSet(uint32_t argc, uint32_t arg)
 {
-    types::StackTypeSet *thisTypes = oracle->getCallArg(script(), callInfo.argc(), 0, pc);
-    JS_ASSERT(thisTypes);
-    return thisTypes;
-}
-
-MIRType
-IonBuilder::getInlineThisType(CallInfo &callInfo)
-{
-    types::StackTypeSet *argTypes = getInlineThisTypeSet(callInfo);
-    return MIRTypeFromValueType(argTypes->getKnownTypeTag());
-}
-
-types::StackTypeSet *
-IonBuilder::getInlineArgTypeSet(CallInfo &callInfo, uint32_t arg)
-{
-    types::StackTypeSet *argTypes = oracle->getCallArg(script(), callInfo.argc(), arg + 1, pc);
+    types::StackTypeSet *argTypes = oracle->getCallArg(script(), argc, arg, pc);
     JS_ASSERT(argTypes);
     return argTypes;
 }
 
 MIRType
-IonBuilder::getInlineArgType(CallInfo &callInfo, uint32_t arg)
+IonBuilder::getInlineArgType(uint32_t argc, uint32_t arg)
 {
-    types::StackTypeSet *argTypes = getInlineArgTypeSet(callInfo, arg);
+    types::StackTypeSet *argTypes = getInlineArgTypeSet(argc, arg);
     return MIRTypeFromValueType(argTypes->getKnownTypeTag());
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineMathFunction(CallInfo &callInfo, MMathFunction::Function function)
+IonBuilder::inlineMathFunction(MMathFunction::Function function, uint32_t argc, bool constructing)
 {
-    if (callInfo.constructing())
+    if (constructing)
         return InliningStatus_NotInlined;
 
-    if (callInfo.argc() != 1)
+    if (argc != 1)
         return InliningStatus_NotInlined;
 
     if (getInlineReturnType() != MIRType_Double)
         return InliningStatus_NotInlined;
-    if (!IsNumberType(getInlineArgType(callInfo, 0)))
+    if (!IsNumberType(getInlineArgType(argc, 1)))
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
     MathCache *cache = cx->runtime->getMathCache(cx);
     if (!cache)
         return InliningStatus_Error;
 
-    MMathFunction *ins = MMathFunction::New(callInfo.getArg(0), function, cache);
+    MMathFunction *ins = MMathFunction::New(argv[1], function, cache);
     current->add(ins);
     current->push(ins);
     return InliningStatus_Inlined;
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineArray(CallInfo &callInfo)
+IonBuilder::inlineArray(uint32_t argc, bool constructing)
 {
     uint32_t initLength = 0;
     MNewArray::AllocatingBehaviour allocating = MNewArray::NewArray_Unallocating;
 
     // Multiple arguments imply array initialization, not just construction.
-    if (callInfo.argc() >= 2) {
-        initLength = callInfo.argc();
+    if (argc >= 2) {
+        initLength = argc;
         allocating = MNewArray::NewArray_Allocating;
     }
 
     // A single integer argument denotes initial length.
-    if (callInfo.argc() == 1) {
-        if (getInlineArgType(callInfo, 0) != MIRType_Int32)
+    if (argc == 1) {
+        if (getInlineArgType(argc, 1) != MIRType_Int32)
             return InliningStatus_NotInlined;
-        MDefinition *arg = callInfo.getArg(0)->toPassArg()->getArgument();
+        MDefinition *arg = current->peek(-1)->toPassArg()->getArgument();
         if (!arg->isConstant())
             return InliningStatus_NotInlined;
 
@@ -177,7 +197,9 @@ IonBuilder::inlineArray(CallInfo &callInfo)
             return InliningStatus_NotInlined;
     }
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
     JSObject *templateObject = getNewArrayTemplateObject(initLength);
     if (!templateObject)
@@ -191,7 +213,7 @@ IonBuilder::inlineArray(CallInfo &callInfo)
     current->add(ins);
     current->push(ins);
 
-    if (callInfo.argc() >= 2) {
+    if (argc >= 2) {
         // Get the elements vector.
         MElements *elements = MElements::New(ins);
         current->add(elements);
@@ -204,7 +226,7 @@ IonBuilder::inlineArray(CallInfo &callInfo)
             id = MConstant::New(Int32Value(i));
             current->add(id);
 
-            MDefinition *value = callInfo.getArg(i);
+            MDefinition *value = argv[i + 1];
             if (convertDoubles) {
                 MInstruction *valueDouble = MToDouble::New(value);
                 current->add(valueDouble);
@@ -228,15 +250,15 @@ IonBuilder::inlineArray(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
+IonBuilder::inlineArrayPopShift(MArrayPopShift::Mode mode, uint32_t argc, bool constructing)
 {
-    if (callInfo.constructing())
+    if (constructing)
         return InliningStatus_NotInlined;
 
     MIRType returnType = getInlineReturnType();
     if (returnType == MIRType_Undefined || returnType == MIRType_Null)
         return InliningStatus_NotInlined;
-    if (getInlineThisType(callInfo) != MIRType_Object)
+    if (getInlineArgType(argc, 0) != MIRType_Object)
         return InliningStatus_NotInlined;
 
     // Pop and shift are only handled for dense arrays that have never been
@@ -250,7 +272,7 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
         types::OBJECT_FLAG_LENGTH_OVERFLOW |
         types::OBJECT_FLAG_ITERATED;
 
-    types::StackTypeSet *thisTypes = getInlineThisTypeSet(callInfo);
+    types::StackTypeSet *thisTypes = getInlineArgTypeSet(argc, 0);
     if (thisTypes->getKnownClass() != &ArrayClass)
         return InliningStatus_NotInlined;
     if (thisTypes->hasObjectFlags(cx, unhandledFlags))
@@ -259,14 +281,15 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
     if (types::ArrayPrototypeHasIndexedProperty(cx, script))
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
     types::StackTypeSet *returnTypes = getInlineReturnTypeSet();
     bool needsHoleCheck = thisTypes->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED);
     bool maybeUndefined = returnTypes->hasType(types::Type::UndefinedType());
 
-    MArrayPopShift *ins = MArrayPopShift::New(callInfo.thisArg(), mode,
-                                              needsHoleCheck, maybeUndefined);
+    MArrayPopShift *ins = MArrayPopShift::New(argv[0], mode, needsHoleCheck, maybeUndefined);
     current->add(ins);
     current->push(ins);
     ins->setResultType(returnType);
@@ -277,19 +300,19 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineArrayPush(CallInfo &callInfo)
+IonBuilder::inlineArrayPush(uint32_t argc, bool constructing)
 {
-    if (callInfo.argc() != 1 || callInfo.constructing())
+    if (argc != 1 || constructing)
         return InliningStatus_NotInlined;
 
     if (getInlineReturnType() != MIRType_Int32)
         return InliningStatus_NotInlined;
-    if (getInlineThisType(callInfo) != MIRType_Object)
+    if (getInlineArgType(argc, 0) != MIRType_Object)
         return InliningStatus_NotInlined;
 
     // Inference's TypeConstraintCall generates the constraints that propagate
     // properties directly into the result type set.
-    types::StackTypeSet *thisTypes = getInlineThisTypeSet(callInfo);
+    types::StackTypeSet *thisTypes = getInlineArgTypeSet(argc, 0);
     if (thisTypes->getKnownClass() != &ArrayClass)
         return InliningStatus_NotInlined;
     if (thisTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES |
@@ -305,9 +328,11 @@ IonBuilder::inlineArrayPush(CallInfo &callInfo)
     if (conversion == types::StackTypeSet::AmbiguousDoubleConversion)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MDefinition *value = callInfo.getArg(0);
+    MDefinition *value = argv[1];
     if (conversion == types::StackTypeSet::AlwaysConvertToDoubles ||
         conversion == types::StackTypeSet::MaybeConvertToDoubles)
     {
@@ -316,7 +341,7 @@ IonBuilder::inlineArrayPush(CallInfo &callInfo)
         value = valueDouble;
     }
 
-    MArrayPush *ins = MArrayPush::New(callInfo.thisArg(), value);
+    MArrayPush *ins = MArrayPush::New(argv[0], value);
     current->add(ins);
     current->push(ins);
 
@@ -326,22 +351,22 @@ IonBuilder::inlineArrayPush(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineArrayConcat(CallInfo &callInfo)
+IonBuilder::inlineArrayConcat(uint32_t argc, bool constructing)
 {
-    if (callInfo.argc() != 1 || callInfo.constructing())
+    if (argc != 1 || constructing)
         return InliningStatus_NotInlined;
 
     // Ensure |this|, argument and result are objects.
     if (getInlineReturnType() != MIRType_Object)
         return InliningStatus_NotInlined;
-    if (getInlineThisType(callInfo) != MIRType_Object)
+    if (getInlineArgType(argc, 0) != MIRType_Object)
         return InliningStatus_NotInlined;
-    if (getInlineArgType(callInfo, 0) != MIRType_Object)
+    if (getInlineArgType(argc, 1) != MIRType_Object)
         return InliningStatus_NotInlined;
 
     // |this| and the argument must be dense arrays.
-    types::StackTypeSet *thisTypes = getInlineThisTypeSet(callInfo);
-    types::StackTypeSet *argTypes = getInlineArgTypeSet(callInfo, 0);
+    types::StackTypeSet *thisTypes = getInlineArgTypeSet(argc, 0);
+    types::StackTypeSet *argTypes = getInlineArgTypeSet(argc, 1);
 
     if (thisTypes->getKnownClass() != &ArrayClass)
         return InliningStatus_NotInlined;
@@ -406,9 +431,11 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
         return InliningStatus_Error;
     templateObj->setType(thisType);
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MArrayConcat *ins = MArrayConcat::New(callInfo.thisArg(), callInfo.getArg(0), templateObj);
+    MArrayConcat *ins = MArrayConcat::New(argv[0], argv[1], templateObj);
     current->add(ins);
     current->push(ins);
 
@@ -418,24 +445,26 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineMathAbs(CallInfo &callInfo)
+IonBuilder::inlineMathAbs(uint32_t argc, bool constructing)
 {
-    if (callInfo.constructing())
+    if (constructing)
         return InliningStatus_NotInlined;
 
-    if (callInfo.argc() != 1)
+    if (argc != 1)
         return InliningStatus_NotInlined;
 
     MIRType returnType = getInlineReturnType();
-    MIRType argType = getInlineArgType(callInfo, 0);
+    MIRType argType = getInlineArgType(argc, 1);
     if (argType != MIRType_Int32 && argType != MIRType_Double)
         return InliningStatus_NotInlined;
     if (argType != returnType)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MAbs *ins = MAbs::New(callInfo.getArg(0), returnType);
+    MAbs *ins = MAbs::New(argv[1], returnType);
     current->add(ins);
     current->push(ins);
 
@@ -443,29 +472,33 @@ IonBuilder::inlineMathAbs(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineMathFloor(CallInfo &callInfo)
+IonBuilder::inlineMathFloor(uint32_t argc, bool constructing)
 {
 
-    if (callInfo.constructing())
+    if (constructing)
         return InliningStatus_NotInlined;
 
-    if (callInfo.argc() != 1)
+    if (argc != 1)
         return InliningStatus_NotInlined;
 
-    MIRType argType = getInlineArgType(callInfo, 0);
+    MIRType argType = getInlineArgType(argc, 1);
     if (getInlineReturnType() != MIRType_Int32)
         return InliningStatus_NotInlined;
 
     // Math.floor(int(x)) == int(x)
     if (argType == MIRType_Int32) {
-        callInfo.unwrapArgs();
-        current->push(callInfo.getArg(0));
+        MDefinitionVector argv;
+        if (!discardCall(argc, argv, current))
+            return InliningStatus_Error;
+        current->push(argv[1]);
         return InliningStatus_Inlined;
     }
 
     if (argType == MIRType_Double) {
-        callInfo.unwrapArgs();
-        MFloor *ins = new MFloor(callInfo.getArg(0));
+        MDefinitionVector argv;
+        if (!discardCall(argc, argv, current))
+            return InliningStatus_Error;
+        MFloor *ins = new MFloor(argv[1]);
         current->add(ins);
         current->push(ins);
         return InliningStatus_Inlined;
@@ -475,27 +508,31 @@ IonBuilder::inlineMathFloor(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineMathRound(CallInfo &callInfo)
+IonBuilder::inlineMathRound(uint32_t argc, bool constructing)
 {
-    if (callInfo.constructing())
+    if (constructing)
         return InliningStatus_NotInlined;
 
-    if (callInfo.argc() != 1)
+    if (argc != 1)
         return InliningStatus_NotInlined;
 
     MIRType returnType = getInlineReturnType();
-    MIRType argType = getInlineArgType(callInfo, 0);
+    MIRType argType = getInlineArgType(argc, 1);
 
     // Math.round(int(x)) == int(x)
     if (argType == MIRType_Int32 && returnType == MIRType_Int32) {
-        callInfo.unwrapArgs();
-        current->push(callInfo.getArg(0));
+        MDefinitionVector argv;
+        if (!discardCall(argc, argv, current))
+            return InliningStatus_Error;
+        current->push(argv[1]);
         return InliningStatus_Inlined;
     }
 
     if (argType == MIRType_Double && returnType == MIRType_Int32) {
-        callInfo.unwrapArgs();
-        MRound *ins = new MRound(callInfo.getArg(0));
+        MDefinitionVector argv;
+        if (!discardCall(argc, argv, current))
+            return InliningStatus_Error;
+        MRound *ins = new MRound(argv[1]);
         current->add(ins);
         current->push(ins);
         return InliningStatus_Inlined;
@@ -505,71 +542,72 @@ IonBuilder::inlineMathRound(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineMathSqrt(CallInfo &callInfo)
+IonBuilder::inlineMathSqrt(uint32_t argc, bool constructing)
 {
-    if (callInfo.constructing())
+    if (constructing)
         return InliningStatus_NotInlined;
 
-    if (callInfo.argc() != 1)
+    if (argc != 1)
         return InliningStatus_NotInlined;
 
-    MIRType argType = getInlineArgType(callInfo, 0);
+    MIRType argType = getInlineArgType(argc, 1);
     if (getInlineReturnType() != MIRType_Double)
         return InliningStatus_NotInlined;
     if (argType != MIRType_Double && argType != MIRType_Int32)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MSqrt *sqrt = MSqrt::New(callInfo.getArg(0));
+    MSqrt *sqrt = MSqrt::New(argv[1]);
     current->add(sqrt);
     current->push(sqrt);
     return InliningStatus_Inlined;
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineMathPow(CallInfo &callInfo)
+IonBuilder::inlineMathPow(uint32_t argc, bool constructing)
 {
-    if (callInfo.constructing())
+    if (constructing)
         return InliningStatus_NotInlined;
 
-    if (callInfo.argc() != 2)
+    if (argc != 2)
         return InliningStatus_NotInlined;
 
     // Typechecking.
     if (getInlineReturnType() != MIRType_Double)
         return InliningStatus_NotInlined;
 
-    MIRType baseType = getInlineArgType(callInfo, 0);
-    MIRType powerType = getInlineArgType(callInfo, 1);
+    MIRType arg1Type = getInlineArgType(argc, 1);
+    MIRType arg2Type = getInlineArgType(argc, 2);
 
-    if (baseType != MIRType_Int32 && baseType != MIRType_Double)
+    if (arg1Type != MIRType_Int32 && arg1Type != MIRType_Double)
         return InliningStatus_NotInlined;
-    if (powerType != MIRType_Int32 && powerType != MIRType_Double)
+    if (arg2Type != MIRType_Int32 && arg2Type != MIRType_Double)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MDefinition *base = callInfo.getArg(0);
-    MDefinition *power = callInfo.getArg(1);
-
-    // If the base is integer, convert it to a Double.
+    // If the non-power input is integer, convert it to a Double.
     // Safe since the output must be a Double.
-    if (baseType == MIRType_Int32) {
-        MToDouble *conv = MToDouble::New(base);
+    if (arg1Type == MIRType_Int32) {
+        MToDouble *conv = MToDouble::New(argv[1]);
         current->add(conv);
-        base = conv;
+        argv[1] = conv;
     }
 
     // Optimize some constant powers.
-    if (callInfo.getArg(1)->isConstant()) {
+    if (argv[2]->isConstant()) {
         double pow;
-        if (!ToNumber(GetIonContext()->cx, callInfo.getArg(1)->toConstant()->value(), &pow))
+        if (!ToNumber(GetIonContext()->cx, argv[2]->toConstant()->value(), &pow))
             return InliningStatus_Error;
 
         // Math.pow(x, 0.5) is a sqrt with edge-case detection.
         if (pow == 0.5) {
-            MPowHalf *half = MPowHalf::New(base);
+            MPowHalf *half = MPowHalf::New(argv[1]);
             current->add(half);
             current->push(half);
             return InliningStatus_Inlined;
@@ -577,7 +615,7 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
 
         // Math.pow(x, -0.5) == 1 / Math.pow(x, 0.5), even for edge cases.
         if (pow == -0.5) {
-            MPowHalf *half = MPowHalf::New(base);
+            MPowHalf *half = MPowHalf::New(argv[1]);
             current->add(half);
             MConstant *one = MConstant::New(DoubleValue(1.0));
             current->add(one);
@@ -589,13 +627,13 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
 
         // Math.pow(x, 1) == x.
         if (pow == 1.0) {
-            current->push(base);
+            current->push(argv[1]);
             return InliningStatus_Inlined;
         }
 
         // Math.pow(x, 2) == x*x.
         if (pow == 2.0) {
-            MMul *mul = MMul::New(base, base, MIRType_Double);
+            MMul *mul = MMul::New(argv[1], argv[1], MIRType_Double);
             current->add(mul);
             current->push(mul);
             return InliningStatus_Inlined;
@@ -603,9 +641,9 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
 
         // Math.pow(x, 3) == x*x*x.
         if (pow == 3.0) {
-            MMul *mul1 = MMul::New(base, base, MIRType_Double);
+            MMul *mul1 = MMul::New(argv[1], argv[1], MIRType_Double);
             current->add(mul1);
-            MMul *mul2 = MMul::New(base, mul1, MIRType_Double);
+            MMul *mul2 = MMul::New(argv[1], mul1, MIRType_Double);
             current->add(mul2);
             current->push(mul2);
             return InliningStatus_Inlined;
@@ -613,7 +651,7 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
 
         // Math.pow(x, 4) == y*y, where y = x*x.
         if (pow == 4.0) {
-            MMul *y = MMul::New(base, base, MIRType_Double);
+            MMul *y = MMul::New(argv[1], argv[1], MIRType_Double);
             current->add(y);
             MMul *mul = MMul::New(y, y, MIRType_Double);
             current->add(mul);
@@ -622,22 +660,24 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
         }
     }
 
-    MPow *ins = MPow::New(base, power, powerType);
+    MPow *ins = MPow::New(argv[1], argv[2], arg2Type);
     current->add(ins);
     current->push(ins);
     return InliningStatus_Inlined;
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineMathRandom(CallInfo &callInfo)
+IonBuilder::inlineMathRandom(uint32_t argc, bool constructing)
 {
-    if (callInfo.constructing())
+    if (constructing)
         return InliningStatus_NotInlined;
 
     if (getInlineReturnType() != MIRType_Double)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
     MRandom *rand = MRandom::New();
     current->add(rand);
@@ -646,26 +686,28 @@ IonBuilder::inlineMathRandom(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineMathImul(CallInfo &callInfo)
+IonBuilder::inlineMathImul(uint32_t argc, bool constructing)
 {
-    if (callInfo.argc() != 2 || callInfo.constructing())
+    if (argc != 2 || constructing)
         return InliningStatus_NotInlined;
 
     MIRType returnType = getInlineReturnType();
     if (returnType != MIRType_Int32)
         return InliningStatus_NotInlined;
 
-    if (!IsNumberType(getInlineArgType(callInfo, 0)))
+    if (!IsNumberType(getInlineArgType(argc, 1)))
         return InliningStatus_NotInlined;
-    if (!IsNumberType(getInlineArgType(callInfo, 1)))
+    if (!IsNumberType(getInlineArgType(argc, 2)))
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MInstruction *first = MTruncateToInt32::New(callInfo.getArg(0));
+    MInstruction *first = MTruncateToInt32::New(argv[1]);
     current->add(first);
 
-    MInstruction *second = MTruncateToInt32::New(callInfo.getArg(1));
+    MInstruction *second = MTruncateToInt32::New(argv[2]);
     current->add(second);
 
     MMul *ins = MMul::New(first, second, MIRType_Int32, MMul::Integer);
@@ -675,56 +717,60 @@ IonBuilder::inlineMathImul(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineMathMinMax(CallInfo &callInfo, bool max)
+IonBuilder::inlineMathMinMax(bool max, uint32_t argc, bool constructing)
 {
-    if (callInfo.argc() != 2 || callInfo.constructing())
+    if (argc != 2 || constructing)
         return InliningStatus_NotInlined;
 
     MIRType returnType = getInlineReturnType();
     if (!IsNumberType(returnType))
         return InliningStatus_NotInlined;
 
-    MIRType arg0Type = getInlineArgType(callInfo, 0);
-    if (!IsNumberType(arg0Type))
-        return InliningStatus_NotInlined;
-    MIRType arg1Type = getInlineArgType(callInfo, 1);
+    MIRType arg1Type = getInlineArgType(argc, 1);
     if (!IsNumberType(arg1Type))
+        return InliningStatus_NotInlined;
+    MIRType arg2Type = getInlineArgType(argc, 2);
+    if (!IsNumberType(arg2Type))
         return InliningStatus_NotInlined;
 
     if (returnType == MIRType_Int32 &&
-        (arg0Type == MIRType_Double || arg1Type == MIRType_Double))
+        (arg1Type == MIRType_Double || arg2Type == MIRType_Double))
     {
         // We would need to inform TI, if we happen to return a double.
         return InliningStatus_NotInlined;
     }
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MMinMax *ins = MMinMax::New(callInfo.getArg(0), callInfo.getArg(1), returnType, max);
+    MMinMax *ins = MMinMax::New(argv[1], argv[2], returnType, max);
     current->add(ins);
     current->push(ins);
     return InliningStatus_Inlined;
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineStringObject(CallInfo &callInfo)
+IonBuilder::inlineStringObject(uint32_t argc, bool constructing)
 {
-    if (callInfo.argc() != 1 || !callInfo.constructing())
+    if (argc != 1 || !constructing)
         return InliningStatus_NotInlined;
 
     // MToString only supports int32 or string values.
-    MIRType type = getInlineArgType(callInfo, 0);
+    MIRType type = getInlineArgType(argc, 1);
     if (type != MIRType_Int32 && type != MIRType_String)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
     RootedString emptyString(cx, cx->runtime->emptyString);
     RootedObject templateObj(cx, StringObject::create(cx, emptyString));
     if (!templateObj)
         return InliningStatus_Error;
 
-    MNewStringObject *ins = MNewStringObject::New(callInfo.getArg(0), templateObj);
+    MNewStringObject *ins = MNewStringObject::New(argv[1], templateObj);
     current->add(ins);
     current->push(ins);
 
@@ -735,49 +781,53 @@ IonBuilder::inlineStringObject(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineStrCharCodeAt(CallInfo &callInfo)
+IonBuilder::inlineStrCharCodeAt(uint32_t argc, bool constructing)
 {
-    if (callInfo.argc() != 1 || callInfo.constructing())
+    if (argc != 1 || constructing)
         return InliningStatus_NotInlined;
 
     if (getInlineReturnType() != MIRType_Int32)
         return InliningStatus_NotInlined;
-    if (getInlineThisType(callInfo) != MIRType_String)
+    if (getInlineArgType(argc, 0) != MIRType_String)
         return InliningStatus_NotInlined;
-    MIRType argType = getInlineArgType(callInfo, 0);
+    MIRType argType = getInlineArgType(argc, 1);
     if (argType != MIRType_Int32 && argType != MIRType_Double)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MInstruction *index = MToInt32::New(callInfo.getArg(0));
+    MInstruction *index = MToInt32::New(argv[1]);
     current->add(index);
 
-    MStringLength *length = MStringLength::New(callInfo.thisArg());
+    MStringLength *length = MStringLength::New(argv[0]);
     current->add(length);
 
     index = addBoundsCheck(index, length);
 
-    MCharCodeAt *charCode = MCharCodeAt::New(callInfo.thisArg(), index);
+    MCharCodeAt *charCode = MCharCodeAt::New(argv[0], index);
     current->add(charCode);
     current->push(charCode);
     return InliningStatus_Inlined;
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineStrFromCharCode(CallInfo &callInfo)
+IonBuilder::inlineStrFromCharCode(uint32_t argc, bool constructing)
 {
-    if (callInfo.argc() != 1 || callInfo.constructing())
+    if (argc != 1 || constructing)
         return InliningStatus_NotInlined;
 
     if (getInlineReturnType() != MIRType_String)
         return InliningStatus_NotInlined;
-    if (getInlineArgType(callInfo, 0) != MIRType_Int32)
+    if (getInlineArgType(argc, 1) != MIRType_Int32)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MToInt32 *charCode = MToInt32::New(callInfo.getArg(0));
+    MToInt32 *charCode = MToInt32::New(argv[1]);
     current->add(charCode);
 
     MFromCharCode *string = MFromCharCode::New(charCode);
@@ -787,31 +837,33 @@ IonBuilder::inlineStrFromCharCode(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineStrCharAt(CallInfo &callInfo)
+IonBuilder::inlineStrCharAt(uint32_t argc, bool constructing)
 {
-    if (callInfo.argc() != 1 || callInfo.constructing())
+    if (argc != 1 || constructing)
         return InliningStatus_NotInlined;
 
     if (getInlineReturnType() != MIRType_String)
         return InliningStatus_NotInlined;
-    if (getInlineThisType(callInfo) != MIRType_String)
+    if (getInlineArgType(argc, 0) != MIRType_String)
         return InliningStatus_NotInlined;
-    MIRType argType = getInlineArgType(callInfo, 0);
+    MIRType argType = getInlineArgType(argc, 1);
     if (argType != MIRType_Int32 && argType != MIRType_Double)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MInstruction *index = MToInt32::New(callInfo.getArg(0));
+    MInstruction *index = MToInt32::New(argv[1]);
     current->add(index);
 
-    MStringLength *length = MStringLength::New(callInfo.thisArg());
+    MStringLength *length = MStringLength::New(argv[0]);
     current->add(length);
 
     index = addBoundsCheck(index, length);
 
     // String.charAt(x) = String.fromCharCode(String.charCodeAt(x))
-    MCharCodeAt *charCode = MCharCodeAt::New(callInfo.thisArg(), index);
+    MCharCodeAt *charCode = MCharCodeAt::New(argv[0], index);
     current->add(charCode);
 
     MFromCharCode *string = MFromCharCode::New(charCode);
@@ -821,23 +873,25 @@ IonBuilder::inlineStrCharAt(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineRegExpTest(CallInfo &callInfo)
+IonBuilder::inlineRegExpTest(uint32_t argc, bool constructing)
 {
-    if (callInfo.argc() != 1 || callInfo.constructing())
+    if (argc != 1 || constructing)
         return InliningStatus_NotInlined;
 
     // TI can infer a NULL return type of regexp_test with eager compilation.
     if (CallResultEscapes(pc) && getInlineReturnType() != MIRType_Boolean)
         return InliningStatus_NotInlined;
 
-    if (getInlineThisType(callInfo) != MIRType_Object)
+    if (getInlineArgType(argc, 0) != MIRType_Object)
         return InliningStatus_NotInlined;
-    if (getInlineArgType(callInfo, 0) != MIRType_String)
+    if (getInlineArgType(argc, 1) != MIRType_String)
         return InliningStatus_NotInlined;
 
-    callInfo.unwrapArgs();
+    MDefinitionVector argv;
+    if (!discardCall(argc, argv, current))
+        return InliningStatus_Error;
 
-    MInstruction *match = MRegExpTest::New(callInfo.thisArg(), callInfo.getArg(0));
+    MInstruction *match = MRegExpTest::New(argv[0], argv[1]);
     current->add(match);
     current->push(match);
     if (!resumeAfter(match))

@@ -549,6 +549,7 @@ LivemarkService.prototype = {
   onBeginUpdateBatch:  function () {},
   onEndUpdateBatch:    function () {},
   onItemVisited:       function () {},
+  onBeforeItemRemoved: function () {},
 
   _itemAdded: null,
   onItemAdded: function LS_onItemAdded(aItemId, aParentId, aIndex, aItemType,
@@ -608,6 +609,7 @@ LivemarkService.prototype = {
   onPageChanged:      function () {},
   onTitleChanged:     function () {},
   onDeleteVisits:     function () {},
+  onBeforeDeleteURI:  function () {},
 
   onClearHistory:     function () {},
 

@@ -80,6 +80,8 @@ static sm_rcs_t fsmdef_ev_createanswer(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_setlocaldesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_setremotedesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_setpeerconnection(sm_event_t *event);
+static sm_rcs_t fsmdef_ev_localdesc(sm_event_t *event);
+static sm_rcs_t fsmdef_ev_remotedesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_addstream(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_removestream(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_addcandidate(sm_event_t *event);
@@ -188,6 +190,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -248,6 +252,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -278,6 +284,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -308,6 +316,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -338,6 +348,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -368,6 +380,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -398,6 +412,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -428,6 +444,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -458,6 +476,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -488,6 +508,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -518,6 +540,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -548,6 +572,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -578,6 +604,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -608,6 +636,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -638,6 +668,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* CC_MSG_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* CC_MSG_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* CC_MSG_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* CC_MSG_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* CC_MSG_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* CC_MSG_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* CC_MSG_ADDSTREAM        */ fsmdef_ev_addstream,
     /* CC_MSG_REMOVESTREAM     */ fsmdef_ev_removestream,
@@ -3370,6 +3402,62 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
     return (SM_RC_END);
 }
 
+/* TODO -- remove me. See bug 821066. */
+static sm_rcs_t
+fsmdef_ev_localdesc(sm_event_t *event) {
+    fsm_fcb_t           *fcb = (fsm_fcb_t *) event->data;
+    fsmdef_dcb_t        *dcb = fcb->dcb;
+    cc_causes_t         cause = CC_CAUSE_NORMAL;
+    int                 sdpmode = 0;
+    cc_causes_t         lsm_rc;
+    cc_msgbody_t        *part;
+    uint32_t            body_length;
+    cc_msgbody_info_t   msg_body;
+
+    FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+    if (!sdpmode) {
+        return (SM_RC_END);
+    }
+
+    if (dcb == NULL) {
+        FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
+        return SM_RC_CLEANUP;
+    }
+
+
+    return (SM_RC_END);
+}
+
+/* TODO -- remove me. See bug 821066. */
+static sm_rcs_t
+fsmdef_ev_remotedesc(sm_event_t *event) {
+    fsm_fcb_t           *fcb = (fsm_fcb_t *) event->data;
+    fsmdef_dcb_t        *dcb = fcb->dcb;
+    cc_causes_t         cause = CC_CAUSE_NORMAL;
+    int                 sdpmode = 0;
+    cc_causes_t         lsm_rc;
+    cc_msgbody_t        *part;
+    uint32_t            body_length;
+    cc_msgbody_info_t   msg_body;
+
+    FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+    if (!sdpmode) {
+
+        return (SM_RC_END);
+    }
+
+    if (dcb == NULL) {
+        FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
+        return SM_RC_CLEANUP;
+    }
+
+    return (SM_RC_END);
+}
+
 
 static sm_rcs_t
 fsmdef_ev_setpeerconnection(sm_event_t *event) {
@@ -3527,18 +3615,18 @@ fsmdef_ev_addcandidate(sm_event_t *event) {
 
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
 
-    if (!dcb) {
-        FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-        ui_ice_candidate_add(evAddIceCandidateError, line, call_id,
-            0, strlib_empty());
-        return SM_RC_CLEANUP;
-    }
-
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
     if (sdpmode == FALSE) {
         ui_ice_candidate_add(evAddIceCandidateError, line, call_id,
             dcb->caller_id.call_instance_id, strlib_empty());
         return (SM_RC_END);
+    }
+
+    if (dcb == NULL) {
+        FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
+        ui_ice_candidate_add(evAddIceCandidateError, line, call_id,
+            dcb->caller_id.call_instance_id, strlib_empty());
+        return SM_RC_CLEANUP;
     }
 
     if (!dcb->sdp) {

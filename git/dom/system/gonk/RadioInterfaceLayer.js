@@ -118,9 +118,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSmsService",
                                    "@mozilla.org/sms/smsservice;1",
                                    "nsISmsService");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gMobileMessageDatabaseService",
-                                   "@mozilla.org/mobilemessage/rilmobilemessagedatabaseservice;1",
-                                   "nsIRilMobileMessageDatabaseService");
+XPCOMUtils.defineLazyServiceGetter(this, "gSmsDatabaseService",
+                                   "@mozilla.org/sms/rilsmsdatabaseservice;1",
+                                   "nsIRilSmsDatabaseService");
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
@@ -226,7 +226,6 @@ function RadioInterfaceLayer() {
                      emergencyCallsOnly: false,
                      roaming: false,
                      network: null,
-                     lastKnownMcc: 0,
                      cell: null,
                      type: null,
                      signalStrength: null,
@@ -235,16 +234,11 @@ function RadioInterfaceLayer() {
                      emergencyCallsOnly: false,
                      roaming: false,
                      network: null,
-                     lastKnownMcc: 0,
                      cell: null,
                      type: null,
                      signalStrength: null,
                      relSignalStrength: null},
   };
-
-  try {
-    this.rilContext.voice.lastKnownMcc = Services.prefs.getIntPref("ril.lastKnownMcc");
-  } catch (e) {}
 
   this.voicemailInfo = {
     number: null,
@@ -338,7 +332,7 @@ function RadioInterfaceLayer() {
   this.worker.postMessage({rilMessageType: "setDebugEnabled",
                            enabled: debugPref});
 
-  gSystemWorkerManager.registerRilWorker(0, this.worker);
+  gSystemWorkerManager.registerRilWorker(this.worker);
 }
 RadioInterfaceLayer.prototype = {
 
@@ -793,18 +787,22 @@ RadioInterfaceLayer.prototype = {
       this.updateVoiceConnection(voiceMessage);
     }
 
+    let dataInfoChanged = false;
     if (dataMessage) {
       dataMessage.batch = true;
       this.updateDataConnection(dataMessage);
     }
 
-    if (operatorMessage) {
-      operatorMessage.batch = true;
-      this.handleOperatorChange(operatorMessage);
-    }
-
     let voice = this.rilContext.voice;
     let data = this.rilContext.data;
+    if (operatorMessage) {
+      if (this.networkChanged(operatorMessage, voice.network)) {
+        voice.network = operatorMessage;
+      }
+      if (this.networkChanged(operatorMessage, data.network)) {
+        data.network = operatorMessage;
+      }
+    }
 
     this.checkRoamingBetweenOperators(voice);
     this.checkRoamingBetweenOperators(data);
@@ -1014,29 +1012,13 @@ RadioInterfaceLayer.prototype = {
     let data = this.rilContext.data;
 
     if (this.networkChanged(message, voice.network)) {
-      // Update lastKnownMcc.
-      if (message.mcc) {
-        voice.lastKnownMcc = message.mcc;
-        // Update pref if mcc is changed.
-        // !voice.network is in case voice.network is still null.
-        if (!voice.network || voice.network.mcc != message.mcc) {
-          try {
-            Services.prefs.setIntPref("ril.lastKnownMcc", message.mcc);
-          } catch (e) {}
-        }
-      }
-
       voice.network = message;
-      if (!message.batch) {
-        this._sendTargetMessage("mobileconnection", "RIL:VoiceInfoChanged", voice);
-      }
+      this._sendTargetMessage("mobileconnection", "RIL:VoiceInfoChanged", voice);
     }
 
     if (this.networkChanged(message, data.network)) {
       data.network = message;
-      if (!message.batch) {
-        this._sendTargetMessage("mobileconnection", "RIL:DataInfoChanged", data);
-      }
+      this._sendTargetMessage("mobileconnection", "RIL:DataInfoChanged", data);
     }
   },
 
@@ -1486,12 +1468,12 @@ RadioInterfaceLayer.prototype = {
     }.bind(this);
 
     if (message.messageClass != RIL.GECKO_SMS_MESSAGE_CLASSES[RIL.PDU_DCS_MSG_CLASS_0]) {
-      message.id = gMobileMessageDatabaseService.saveReceivedMessage(
-        message.sender || null,
-        message.fullBody || null,
-        message.messageClass,
-        message.timestamp,
-        notifyReceived);
+      message.id = gSmsDatabaseService.saveReceivedMessage(
+          message.sender || null,
+          message.fullBody || null,
+          message.messageClass,
+          message.timestamp,
+          notifyReceived);
     } else {
       message.id = -1;
       let sms = gSmsService.createSmsMessage(message.id,
@@ -1530,10 +1512,10 @@ RadioInterfaceLayer.prototype = {
       return;
     }
 
-    gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
-                                                     DOM_SMS_DELIVERY_SENT,
-                                                     options.sms.deliveryStatus,
-                                                     function notifyResult(rv, sms) {
+    gSmsDatabaseService.setMessageDelivery(options.sms.id,
+                                           DOM_SMS_DELIVERY_SENT,
+                                           options.sms.deliveryStatus,
+                                           function notifyResult(rv, sms) {
       //TODO bug 832140 handle !Components.isSuccessCode(rv)
       gSystemMessenger.broadcastMessage("sms-sent",
                                         {id: options.sms.id,
@@ -1568,10 +1550,10 @@ RadioInterfaceLayer.prototype = {
     }
     delete this._sentSmsEnvelopes[message.envelopeId];
 
-    gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
-                                                     options.sms.delivery,
-                                                     message.deliveryStatus,
-                                                     function notifyResult(rv, sms) {
+    gSmsDatabaseService.setMessageDelivery(options.sms.id,
+                                           options.sms.delivery,
+                                           message.deliveryStatus,
+                                           function notifyResult(rv, sms) {
       //TODO bug 832140 handle !Components.isSuccessCode(rv)
       let topic = (message.deliveryStatus == RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS)
                   ? kSmsDeliverySuccessObserverTopic
@@ -1596,10 +1578,10 @@ RadioInterfaceLayer.prototype = {
         break;
     }
 
-    gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
-                                                     DOM_SMS_DELIVERY_ERROR,
-                                                     RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
-                                                     function notifyResult(rv, sms) {
+    gSmsDatabaseService.setMessageDelivery(options.sms.id,
+                                           DOM_SMS_DELIVERY_ERROR,
+                                           RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
+                                           function notifyResult(rv, sms) {
       //TODO bug 832140 handle !Components.isSuccessCode(rv)
       options.request.notifySendMessageFailed(error);
       Services.obs.notifyObservers(sms, kSmsFailedObserverTopic, null);
@@ -2556,8 +2538,8 @@ RadioInterfaceLayer.prototype = {
     let deliveryStatus = options.requestStatusReport
                        ? RIL.GECKO_SMS_DELIVERY_STATUS_PENDING
                        : RIL.GECKO_SMS_DELIVERY_STATUS_NOT_APPLICABLE;
-    let id = gMobileMessageDatabaseService.saveSendingMessage(number, message, deliveryStatus, timestamp,
-                                                              function notifyResult(rv, sms) {
+    let id = gSmsDatabaseService.saveSendingMessage(number, message, deliveryStatus, timestamp,
+                                                    function notifyResult(rv, sms) {
       //TODO bug 832140 handle !Components.isSuccessCode(rv)
       Services.obs.notifyObservers(sms, kSmsSendingObserverTopic, null);
 
@@ -2775,7 +2757,7 @@ RILNetworkInterface.prototype = {
   classInfo: XPCOMUtils.generateCI({classID: RILNETWORKINTERFACE_CID,
                                     classDescription: "RILNetworkInterface",
                                     interfaces: [Ci.nsINetworkInterface,
-                                                 Ci.nsIRILDataCallback]}),
+                                                 Ci.nsIRIODataCallback]}),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsINetworkInterface,
                                          Ci.nsIRILDataCallback]),
 

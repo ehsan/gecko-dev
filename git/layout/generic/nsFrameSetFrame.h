@@ -178,6 +178,8 @@ protected:
 
   bool GetNoResize(nsIFrame* aChildFrame); 
   
+  virtual int GetSkipSides() const;
+
   void ReflowPlaceChild(nsIFrame*                aChild,
                         nsPresContext*          aPresContext,
                         const nsHTMLReflowState& aReflowState,

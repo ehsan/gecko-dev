@@ -218,6 +218,11 @@ protected:
   void InitChildReflowState(nsPresContext&    aPresContext,                     
                             nsHTMLReflowState& aReflowState);
 
+  /** Always returns 0, since the outer table frame has no border of its own
+    * The inner table frame can answer this question in a meaningful way.
+    * @see nsContainerFrame::GetSkipSides */
+  virtual int GetSkipSides() const;
+
   uint8_t GetCaptionSide(); // NS_STYLE_CAPTION_SIDE_* or NO_SIDE
 
   bool HasSideCaption() {
@@ -284,5 +289,8 @@ protected:
 private:
   nsFrameList   mCaptionFrames;
 };
+
+inline int nsTableOuterFrame::GetSkipSides() const
+{ return 0; }
 
 #endif

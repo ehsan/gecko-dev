@@ -10,13 +10,11 @@
  * liability, trademark and document use rules apply.
  */
 
-callback DOMTransactionCallback = void();
-
 callback interface DOMTransaction {
-  readonly attribute DOMString? label;
-  readonly attribute DOMTransactionCallback? executeAutomatic;
-  readonly attribute DOMTransactionCallback? execute;
-  readonly attribute DOMTransactionCallback? undo;
-  readonly attribute DOMTransactionCallback? redo;
+  attribute DOMString label;
+  void executeAutomatic();
+  void execute();
+  void undo();
+  void redo();
 };
 

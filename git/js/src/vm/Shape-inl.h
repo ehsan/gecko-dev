@@ -31,18 +31,18 @@
 namespace js {
 
 static inline void
-GetterSetterWriteBarrierPost(JSRuntime *rt, JSObject **objp)
+GetterSetterWriteBarrierPost(JS::Zone *zone, JSObject **objp)
 {
 #ifdef JSGC_GENERATIONAL
-    rt->gcStoreBuffer.putRelocatableCell(reinterpret_cast<gc::Cell **>(objp));
+    zone->gcStoreBuffer.putRelocatableCell(reinterpret_cast<gc::Cell **>(objp));
 #endif
 }
 
 static inline void
-GetterSetterWriteBarrierPostRemove(JSRuntime *rt, JSObject **objp)
+GetterSetterWriteBarrierPostRemove(JS::Zone *zone, JSObject **objp)
 {
 #ifdef JSGC_GENERATIONAL
-    rt->gcStoreBuffer.removeRelocatableCell(reinterpret_cast<gc::Cell **>(objp));
+    zone->gcStoreBuffer.removeRelocatableCell(reinterpret_cast<gc::Cell **>(objp));
 #endif
 }
 
@@ -69,11 +69,11 @@ BaseShape::BaseShape(Class *clasp, JSObject *parent, uint32_t objectFlags,
     this->rawSetter = rawSetter;
     if ((attrs & JSPROP_GETTER) && rawGetter) {
         this->flags |= HAS_GETTER_OBJECT;
-        GetterSetterWriteBarrierPost(runtime(), &this->getterObj);
+        GetterSetterWriteBarrierPost(zone(), &this->getterObj);
     }
     if ((attrs & JSPROP_SETTER) && rawSetter) {
         this->flags |= HAS_SETTER_OBJECT;
-        GetterSetterWriteBarrierPost(runtime(), &this->setterObj);
+        GetterSetterWriteBarrierPost(zone(), &this->setterObj);
     }
 }
 
@@ -87,9 +87,9 @@ BaseShape::BaseShape(const StackBaseShape &base)
     this->rawGetter = base.rawGetter;
     this->rawSetter = base.rawSetter;
     if ((base.flags & HAS_GETTER_OBJECT) && base.rawGetter)
-        GetterSetterWriteBarrierPost(runtime(), &this->getterObj);
+        GetterSetterWriteBarrierPost(zone(), &this->getterObj);
     if ((base.flags & HAS_SETTER_OBJECT) && base.rawSetter)
-        GetterSetterWriteBarrierPost(runtime(), &this->setterObj);
+        GetterSetterWriteBarrierPost(zone(), &this->setterObj);
 }
 
 inline BaseShape &
@@ -101,17 +101,17 @@ BaseShape::operator=(const BaseShape &other)
     slotSpan_ = other.slotSpan_;
     if (flags & HAS_GETTER_OBJECT) {
         getterObj = other.getterObj;
-        GetterSetterWriteBarrierPost(runtime(), &getterObj);
+        GetterSetterWriteBarrierPost(zone(), &getterObj);
     } else {
         rawGetter = other.rawGetter;
-        GetterSetterWriteBarrierPostRemove(runtime(), &getterObj);
+        GetterSetterWriteBarrierPostRemove(zone(), &getterObj);
     }
     if (flags & HAS_SETTER_OBJECT) {
         setterObj = other.setterObj;
-        GetterSetterWriteBarrierPost(runtime(), &setterObj);
+        GetterSetterWriteBarrierPost(zone(), &setterObj);
     } else {
         rawSetter = other.rawSetter;
-        GetterSetterWriteBarrierPostRemove(runtime(), &setterObj);
+        GetterSetterWriteBarrierPostRemove(zone(), &setterObj);
     }
     return *this;
 }

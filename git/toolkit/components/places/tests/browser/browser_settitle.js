@@ -73,6 +73,7 @@ function test()
       PlacesUtils.history.removeObserver(this);
       confirmResults(this.data);
     },
+    onBeforeDeleteURI: function() {},
     onDeleteURI: function() {},
     onClearHistory: function() {},
     onPageChanged: function() {},
