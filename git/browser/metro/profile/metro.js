@@ -25,7 +25,6 @@ pref("metro.debug.selection.dumpEvents", false);
 
 // Enable off main thread compositing
 pref("layers.offmainthreadcomposition.enabled", true);
-pref("layers.async-pan-zoom.enabled", false);
 
 // Enable Microsoft TSF support by default for imes.
 pref("intl.enable_tsf_support", true);
@@ -358,7 +357,6 @@ pref("privacy.sanitize.migrateFx3Prefs",    false);
 
 // enable geo
 pref("geo.enabled", true);
-pref("geo.wifi.uri", "https://www.googleapis.com/geolocation/v1/geolocate?key=%GOOGLE_API_KEY%");
 
 // JS error console
 pref("devtools.errorconsole.enabled", false);

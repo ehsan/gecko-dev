@@ -341,12 +341,6 @@ class MDefinition : public MNode
     // For LICM.
     virtual bool neverHoist() const { return false; }
 
-    // Also for LICM. Test whether this definition is likely to be a call, which
-    // would clobber all or many of the floating-point registers, such that
-    // hoisting floating-point constants out of containing loops isn't likely to
-    // be worthwhile.
-    virtual bool possiblyCalls() const { return false; }
-
     void setTrackedPc(jsbytecode *pc) {
         trackedPc_ = pc;
     }
@@ -1119,9 +1113,6 @@ class MThrow
     virtual AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MNewParallelArray : public MNullaryInstruction
@@ -1322,9 +1313,6 @@ class MInitProp
     TypePolicy *typePolicy() {
         return this;
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MInitElem
@@ -1357,9 +1345,6 @@ class MInitElem
     }
     TypePolicy *typePolicy() {
         return this;
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -1514,10 +1499,6 @@ class MCall
     AliasSet getAliasSet() const {
         return AliasSet::Store(AliasSet::Any);
     }
-
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 // fun.apply(self, arguments)
@@ -1562,9 +1543,6 @@ class MApplyArgs
     TypePolicy *typePolicy() {
         return this;
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MGetDynamicName
@@ -1597,9 +1575,6 @@ class MGetDynamicName
     TypePolicy *typePolicy() {
         return this;
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 // Bailout if the input string contains 'arguments'
@@ -1629,9 +1604,6 @@ class MFilterArguments
 
     TypePolicy *typePolicy() {
         return this;
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -1675,10 +1647,6 @@ class MCallDirectEval
 
     TypePolicy *typePolicy() {
         return this;
-    }
-
-    bool possiblyCalls() const {
-        return true;
     }
 
   private:
@@ -2214,9 +2182,6 @@ class MCreateThisWithProto
     TypePolicy *typePolicy() {
         return this;
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 // Caller-side allocation of |this| for |new|:
@@ -2249,9 +2214,6 @@ class MCreateThis
     TypePolicy *typePolicy() {
         return this;
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 // Eager initialization of arguments object.
@@ -2282,9 +2244,6 @@ class MCreateArgumentsObject
 
     TypePolicy *typePolicy() {
         return this;
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -2379,9 +2338,6 @@ class MRunOncePrologue
 
     static MRunOncePrologue *New() {
         return new MRunOncePrologue();
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -3164,10 +3120,6 @@ class MAtan2
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 // Inline implementation of Math.pow().
@@ -3203,9 +3155,6 @@ class MPow
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -3253,10 +3202,6 @@ class MRandom : public MNullaryInstruction
 
     AliasSet getAliasSet() const {
         return AliasSet::None();
-    }
-
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -3324,10 +3269,6 @@ class MMathFunction
 
     AliasSet getAliasSet() const {
         return AliasSet::None();
-    }
-
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -4008,9 +3949,7 @@ class MDefVar : public MUnaryInstruction
     MDefinition *scopeChain() const {
         return getOperand(0);
     }
-    bool possiblyCalls() const {
-        return true;
-    }
+
 };
 
 class MDefFun : public MUnaryInstruction
@@ -4035,9 +3974,6 @@ class MDefFun : public MUnaryInstruction
     }
     MDefinition *scopeChain() const {
         return getOperand(0);
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -4072,9 +4008,6 @@ class MRegExp : public MNullaryInstruction
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MRegExpTest
@@ -4105,10 +4038,6 @@ class MRegExpTest
 
     TypePolicy *typePolicy() {
         return this;
-    }
-
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -5027,9 +4956,6 @@ class MArrayConcat
     }
     AliasSet getAliasSet() const {
         return AliasSet::Store(AliasSet::Element | AliasSet::ObjectFields);
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -6404,10 +6330,6 @@ class MForkJoinSlice
         // (For all intents and purposes)
         return AliasSet::None();
     }
-
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 // Store to vp[slot] (slots that are not inline in an object).
@@ -6531,9 +6453,6 @@ class MCallGetIntrinsicValue : public MNullaryInstruction
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -6679,9 +6598,6 @@ class MCallSetProperty
     TypePolicy *typePolicy() {
         return this;
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MSetPropertyCache
@@ -6775,9 +6691,6 @@ class MCallGetProperty
             return AliasSet::Store(AliasSet::Any);
         return AliasSet::None();
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 // Inline call to handle lhs[rhs]. The first input is a Value so that this
@@ -6801,9 +6714,6 @@ class MCallGetElement
     TypePolicy *typePolicy() {
         return this;
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MCallSetElement
@@ -6824,9 +6734,6 @@ class MCallSetElement
 
     TypePolicy *typePolicy() {
         return this;
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -6866,9 +6773,6 @@ class MCallInitElementArray
     TypePolicy *typePolicy() {
         return this;
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MSetDOMProperty
@@ -6907,10 +6811,6 @@ class MSetDOMProperty
 
     TypePolicy *typePolicy() {
         return this;
-    }
-
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -6997,9 +6897,6 @@ class MGetDOMProperty
         return AliasSet::Store(AliasSet::Any);
     }
 
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MStringLength
@@ -7209,9 +7106,6 @@ class MIn
 
     TypePolicy *typePolicy() {
         return this;
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -7429,9 +7323,6 @@ class MRest
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MRestPar
@@ -7473,9 +7364,6 @@ class MRestPar
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 // Guard on an object being allocated in the current slice.
@@ -7508,9 +7396,6 @@ class MGuardThreadLocalObject
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -7651,9 +7536,6 @@ class MNewSlots : public MNullaryInstruction
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -7886,10 +7768,6 @@ class MNewDenseArrayPar : public MBinaryInstruction
 
     JSObject *templateObject() const {
         return templateObject_;
-    }
-
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -8402,10 +8280,6 @@ class MAsmJSCall MOZ_FINAL : public MInstruction
     }
     size_t spIncrement() const {
         return spIncrement_;
-    }
-
-    bool possiblyCalls() const {
-        return true;
     }
 };
 

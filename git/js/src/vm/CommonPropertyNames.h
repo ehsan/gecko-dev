@@ -20,7 +20,6 @@
     macro(builder, builder, "builder") \
     macro(byteLength, byteLength, "byteLength") \
     macro(byteOffset, byteOffset, "byteOffset") \
-    macro(bytes, bytes, "bytes") \
     macro(BYTES_PER_ELEMENT, BYTES_PER_ELEMENT, "BYTES_PER_ELEMENT") \
     macro(call, call, "call") \
     macro(callee, callee, "callee") \
@@ -47,7 +46,6 @@
     macro(delete, delete_, "delete") \
     macro(deleteProperty, deleteProperty, "deleteProperty") \
     macro(each, each, "each") \
-    macro(elementType, elementType, "elementType") \
     macro(empty, empty, "") \
     macro(encodeURI, encodeURI, "encodeURI") \
     macro(encodeURIComponent, encodeURIComponent, "encodeURIComponent") \

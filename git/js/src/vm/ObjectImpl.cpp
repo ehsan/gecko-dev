@@ -985,7 +985,7 @@ js::SetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
                 /* Push set, receiver, and v as the sole argument. */
                 args.setCallee(setter);
                 args.setThis(ObjectValue(*current));
-                args[0].set(v);
+                args[0] = v;
 
                 *succeeded = true;
                 return Invoke(cx, args);

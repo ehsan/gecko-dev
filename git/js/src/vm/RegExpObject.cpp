@@ -223,8 +223,8 @@ Class RegExpObject::class_ = {
     NULL,                    /* finalize */
     NULL,                    /* checkAccess */
     NULL,                    /* call */
-    NULL,                    /* hasInstance */
     NULL,                    /* construct */
+    NULL,                    /* hasInstance */
     regexp_trace
 };
 

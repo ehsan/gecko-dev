@@ -72,7 +72,6 @@ var Browser = {
     GestureModule.init();
     BrowserTouchHandler.init();
     PopupBlockerObserver.init();
-    APZCObserver.init();
 
     // Init the touch scrollbox
     this.contentScrollbox = Elements.browsers;
@@ -236,7 +235,6 @@ var Browser = {
   },
 
   shutdown: function shutdown() {
-    APZCObserver.shutdown();
     BrowserUI.uninit();
     ContentAreaObserver.shutdown();
 

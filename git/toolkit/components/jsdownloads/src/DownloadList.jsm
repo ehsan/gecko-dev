@@ -25,8 +25,6 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
-                                  "resource://gre/modules/NetUtil.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
@@ -236,8 +234,7 @@ DownloadList.prototype = {
   //// nsINavHistoryObserver
 
   onDeleteURI: function DL_onDeleteURI(aURI, aGUID) {
-    this._removeWhere(download => aURI.equals(NetUtil.newURI(
-                                                      download.source.url)));
+    this._removeWhere(download => aURI.equals(download.source.uri));
   },
 
   onClearHistory: function DL_onClearHistory() {

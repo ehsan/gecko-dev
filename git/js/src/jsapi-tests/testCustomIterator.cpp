@@ -41,8 +41,8 @@ js::Class HasCustomIterClass = {
     NULL,
     NULL, /* checkAccess */
     NULL, /* call */
-    NULL, /* hasInstance */
     NULL, /* construct */
+    NULL, /* hasInstance */
     NULL, /* mark */
     {
         NULL,       /* outerObject */
