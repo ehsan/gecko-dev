@@ -596,9 +596,14 @@ nsWindow::StandardWindowCreate(nsIWidget *aParent,
   // Ugly Thinkpad Driver Hack (Bug 507222)
   // We create an invisible scrollbar to trick the 
   // Trackpoint driver into sending us scrolling messages
-  ::CreateWindowW(L"SCROLLBAR", L"FAKETRACKPOINTSCROLLBAR", 
-                  WS_CHILD | WS_VISIBLE, 0,0,0,0, mWnd, NULL,
-                  nsToolkit::mDllInstance, NULL);
+  PRUnichar buffer[kMaxClassNameLength];
+  ::GetClassNameW(parent, (LPWSTR)buffer, kMaxClassNameLength);
+  nsDependentString parentClass(buffer);
+  if (parentClass.Equals(kClassNameContent) ||
+      parentClass.Equals(kClassNameDialog))
+    ::CreateWindowW(L"SCROLLBAR", L"FAKETRACKPOINTSCROLLBAR", 
+                    WS_CHILD | WS_VISIBLE, 0,0,0,0, mWnd, NULL,
+                    nsToolkit::mDllInstance, NULL);
 
   // call the event callback to notify about creation
 
