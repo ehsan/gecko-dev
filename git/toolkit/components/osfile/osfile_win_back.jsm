@@ -197,14 +197,14 @@
        WinFile.CopyFile =
          declareFFI("CopyFileW", ctypes.winapi_abi,
                     /*return*/ Types.zero_or_nothing,
-                    /*sourcePath*/ Types.path,
-                    /*destPath*/   Types.path,
+                    /*sourcePath*/ Types.jschar.in_ptr,
+                    /*destPath*/   Types.jschar.in_ptr,
                     /*bailIfExist*/Types.bool);
 
        WinFile.CreateFile =
          declareFFI("CreateFileW", ctypes.winapi_abi,
                     /*return*/  Types.maybe_HANDLE,
-                    /*name*/    Types.path,
+                    /*name*/    Types.jschar.in_ptr,
                     /*access*/  Types.DWORD,
                     /*share*/   Types.DWORD,
                     /*security*/Types.void_t.in_ptr,// FIXME: Implement?
@@ -215,7 +215,7 @@
        WinFile.DeleteFile =
          declareFFI("DeleteFileW", ctypes.winapi_abi,
                     /*return*/ Types.zero_or_nothing,
-                    /*path*/   Types.path);
+                    /*path*/   Types.jschar.in_ptr);
 
        WinFile.FileTimeToSystemTime =
          declareFFI("FileTimeToSystemTime", ctypes.winapi_abi,
@@ -226,7 +226,7 @@
        WinFile.FindFirstFile =
          declareFFI("FindFirstFileW", ctypes.winapi_abi,
                     /*return*/ Types.maybe_find_HANDLE,
-                    /*pattern*/Types.path,
+                    /*pattern*/Types.jschar.in_ptr,
                     /*data*/   Types.FindData.out_ptr);
 
        WinFile.FindNextFile =
@@ -242,7 +242,7 @@
                     /*source*/ Types.void_t.in_ptr,
                     /*msgid*/  Types.DWORD,
                     /*langid*/ Types.DWORD,
-                    /*buf*/    Types.out_wstring,
+                    /*buf*/    Types.jschar.out_ptr,
                     /*size*/   Types.DWORD,
                     /*Arguments*/Types.void_t.in_ptr
                    );
@@ -251,7 +251,7 @@
          declareFFI("GetCurrentDirectoryW", ctypes.winapi_abi,
                     /*return*/ Types.zero_or_DWORD,
                     /*length*/ Types.DWORD,
-                    /*buf*/    Types.out_path
+                    /*buf*/    Types.jschar.out_ptr
                    );
 
        WinFile.GetFileInformationByHandle =
@@ -263,8 +263,8 @@
        WinFile.MoveFileEx =
          declareFFI("MoveFileExW", ctypes.winapi_abi,
                     /*return*/   Types.zero_or_nothing,
-                    /*sourcePath*/ Types.path,
-                    /*destPath*/ Types.path,
+                    /*sourcePath*/ Types.jschar.in_ptr,
+                    /*destPath*/ Types.jschar.in_ptr,
                     /*flags*/    Types.DWORD
                    );
 
@@ -281,12 +281,12 @@
        WinFile.RemoveDirectory =
          declareFFI("RemoveDirectoryW", ctypes.winapi_abi,
                     /*return*/ Types.zero_or_nothing,
-                    /*path*/   Types.path);
+                    /*path*/   Types.jschar.in_ptr);
 
        WinFile.SetCurrentDirectory =
          declareFFI("SetCurrentDirectoryW", ctypes.winapi_abi,
                     /*return*/ Types.zero_or_nothing,
-                    /*path*/   Types.path
+                    /*path*/   Types.jschar.in_ptr
                    );
 
        WinFile.SetEndOfFile =

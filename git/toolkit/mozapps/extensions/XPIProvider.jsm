@@ -130,11 +130,6 @@ const TYPES = {
   dictionary: 64
 };
 
-const COMPATIBLE_BY_DEFAULT_TYPES = {
-  extension: true,
-  dictionary: true
-};
-
 const MSG_JAR_FLUSH = "AddonJarFlush";
 
 var gGlobalScope = this;
@@ -726,12 +721,10 @@ function loadManifestFromRDF(aUri, aStream) {
       throw new Error("No version in install manifest");
   }
 
-  addon.strictCompatibility = !(addon.type in COMPATIBLE_BY_DEFAULT_TYPES) ||
-                              getRDFProperty(ds, root, "strictCompatibility") == "true";
-
-  // Only read the bootstrap property for extensions.
+  // Only read the bootstrap and strictCompatibility properties for extensions.
   if (addon.type == "extension") {
     addon.bootstrap = getRDFProperty(ds, root, "bootstrap") == "true";
+    addon.strictCompatibility = getRDFProperty(ds, root, "strictCompatibility") == "true";
     if (addon.optionsType &&
         addon.optionsType != AddonManager.OPTIONS_TYPE_DIALOG &&
         addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE &&
@@ -749,6 +742,7 @@ function loadManifestFromRDF(aUri, aStream) {
     addon.optionsURL = null;
     addon.optionsType = null;
     addon.aboutURL = null;
+    addon.strictCompatibility = true;
 
     if (addon.type == "theme") {
       if (!addon.internalName)
@@ -2150,9 +2144,6 @@ var XPIProvider = {
                            .QueryInterface(Ci.nsIDirectoryEnumerator);
     let entry;
     while (entry = entries.nextFile) {
-      // Should never happen really
-      if (!(entry instanceof Ci.nsIFile))
-        continue;
 
       let id = entry.leafName;
 
@@ -5349,7 +5340,7 @@ UpdateChecker.prototype = {
     if (!AddonManager.checkCompatibility) {
       ignoreMaxVersion = true;
       ignoreStrictCompat = true;
-    } else if (this.addon.type in COMPATIBLE_BY_DEFAULT_TYPES &&
+    } else if (this.addon.type == "extension" &&
                !AddonManager.strictCompatibility &&
                !this.addon.strictCompatibility &&
                !this.addon.hasBinaryComponents) {
@@ -5540,11 +5531,10 @@ AddonInternal.prototype = {
     else if (app.id == TOOLKIT_ID)
       version = aPlatformVersion
 
-    // Only extensions and dictionaries can be compatible by default; themes
-    // and language packs always use strict compatibility checking.
-    if (this.type in COMPATIBLE_BY_DEFAULT_TYPES &&
-        !AddonManager.strictCompatibility && !this.strictCompatibility &&
-        !this.hasBinaryComponents) {
+    // Only extensions can be compatible by default; themes and language packs
+    // always use strict compatibility checking.
+    if (this.type == "extension" && !AddonManager.strictCompatibility &&
+        !this.strictCompatibility && !this.hasBinaryComponents) {
 
       // The repository can specify compatibility overrides.
       // Note: For now, only blacklisting is supported by overrides.
@@ -5834,24 +5824,13 @@ function AddonWrapper(aAddon) {
     if (!this.isActive)
       return null;
 
-    let hasOptionsXUL = this.hasResource("options.xul");
-    let hasOptionsURL = !!this.optionsURL;
+    if (aAddon.optionsType)
+      return aAddon.optionsType;
 
-    if (aAddon.optionsType) {
-      switch (parseInt(aAddon.optionsType, 10)) {
-      case AddonManager.OPTIONS_TYPE_DIALOG:
-      case AddonManager.OPTIONS_TYPE_TAB:
-        return hasOptionsURL ? aAddon.optionsType : null;
-      case AddonManager.OPTIONS_TYPE_INLINE:
-        return (hasOptionsXUL || hasOptionsURL) ? aAddon.optionsType : null;
-      }
-      return null;
-    }
-
-    if (hasOptionsXUL)
+    if (this.hasResource("options.xul"))
       return AddonManager.OPTIONS_TYPE_INLINE;
 
-    if (hasOptionsURL)
+    if (this.optionsURL)
       return AddonManager.OPTIONS_TYPE_DIALOG;
 
     return null;

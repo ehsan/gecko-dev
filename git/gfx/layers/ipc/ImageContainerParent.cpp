@@ -11,8 +11,8 @@
 namespace mozilla {
 namespace layers {
 
-ImageContainerParent::ImageContainerParent(PRUint32 aHandle)
-: mID(aHandle), mStop(false) {
+ImageContainerParent::ImageContainerParent(ImageBridgeParent* aBridge, PRUint32 aHandle)
+: mID(aHandle), mBridge(aBridge), mStop(false) {
   MOZ_COUNT_CTOR(ImageContainerParent);
 }
 

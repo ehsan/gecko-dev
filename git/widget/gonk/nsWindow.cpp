@@ -25,7 +25,6 @@
 #include "mozilla/FileUtils.h"
 #include "Framebuffer.h"
 #include "gfxContext.h"
-#include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
 #include "LayerManagerOGL.h"

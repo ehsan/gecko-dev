@@ -529,7 +529,7 @@ nsAppShell::Init()
 NS_IMETHODIMP
 nsAppShell::Exit()
 {
-  OrientationObserver::ShutDown();
+  OrientationObserver::GetInstance()->DisableAutoOrientation();
   return nsBaseAppShell::Exit();
 }
 

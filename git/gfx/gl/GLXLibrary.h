@@ -38,6 +38,8 @@ public:
                                  int render_type, 
                                  GLXContext share_list, 
                                  Bool direct);
+    XVisualInfo* xGetVisualFromFBConfig(Display* display, 
+                                        GLXFBConfig config);
     int xGetFBConfigAttrib(Display *display,
                            GLXFBConfig config,
                            int attribute,
@@ -57,6 +59,10 @@ public:
                                          GLXFBConfig config,
                                          Pixmap pixmap);
     void xDestroyPixmap(Display *display, GLXPixmap pixmap);
+    GLXContext xCreateContext(Display *display,
+                              XVisualInfo *vis,
+                              GLXContext shareList,
+                              Bool direct);
     Bool xQueryVersion(Display *display,
                        int *major,
                        int *minor);
@@ -115,6 +121,9 @@ private:
                                                               GLXContext,
                                                               Bool);
     PFNGLXCREATENEWCONTEXT xCreateNewContextInternal;
+    typedef XVisualInfo* (GLAPIENTRY * PFNGLXGETVISUALFROMFBCONFIG) (Display *,
+                                                                     GLXFBConfig);
+    PFNGLXGETVISUALFROMFBCONFIG xGetVisualFromFBConfigInternal;
     typedef int (GLAPIENTRY * PFNGLXGETFBCONFIGATTRIB) (Display *, 
                                                         GLXFBConfig,
                                                         int,
@@ -148,6 +157,11 @@ private:
     typedef void (GLAPIENTRY * PFNGLXDESTROYPIXMAP) (Display *,
                                                      GLXPixmap);
     PFNGLXDESTROYPIXMAP xDestroyPixmapInternal;
+    typedef GLXContext (GLAPIENTRY * PFNGLXCREATECONTEXT) (Display *,
+                                                           XVisualInfo *,
+                                                           GLXContext,
+                                                           Bool);
+    PFNGLXCREATECONTEXT xCreateContextInternal;
     typedef Bool (GLAPIENTRY * PFNGLXQUERYVERSION) (Display *,
                                                     int *,
                                                     int *);

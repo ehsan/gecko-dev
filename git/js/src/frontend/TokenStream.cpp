@@ -1229,19 +1229,17 @@ TokenStream::getAtLine()
 bool
 TokenStream::getAtSourceMappingURL()
 {
-    /* Match comments of the form "//@ sourceMappingURL=<url>" */
+    jschar peeked[18];
 
-    jschar peeked[19];
-    int32_t c;
-
-    if (peekChars(19, peeked) && CharsMatch(peeked, "@ sourceMappingURL=")) {
-        skipChars(19);
+    /* Match comments of the form @sourceMappingURL=<url> */
+    if (peekChars(18, peeked) && CharsMatch(peeked, "@sourceMappingURL=")) {
+        skipChars(18);
         tokenbuf.clear();
 
-        while ((c = peekChar()) && c != EOF && !IsSpaceOrBOM2(c)) {
-            getChar();
+        jschar c;
+        while (!IsSpaceOrBOM2((c = getChar())) &&
+               c && c != jschar(EOF))
             tokenbuf.append(c);
-        }
 
         if (tokenbuf.empty())
             /* The source map's URL was missing, but not quite an exception that

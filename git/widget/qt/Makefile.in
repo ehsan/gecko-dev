@@ -54,7 +54,6 @@ CPPSRCS	+= \
 		nsPrintSettingsQt.cpp \
 		nsPrintDialogQt.cpp \
 		nsDeviceContextSpecQt.cpp \
-		mozqglwidgetwrapper.cpp \
 		$(NULL)
 
 EXPORTS		= \

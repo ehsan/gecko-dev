@@ -146,7 +146,7 @@ nsHtml5TreeOpExecutor::DidBuildModel(bool aTerminated)
   // This comes from nsXMLContentSink and nsHTMLContentSink
   // If this parser has been marked as broken, treat the end of parse as
   // forced termination.
-  DidBuildModelImpl(aTerminated || NS_FAILED(IsBroken()));
+  DidBuildModelImpl(aTerminated || IsBroken());
 
   if (!mLayoutStarted) {
     // We never saw the body, and layout never got started. Force
@@ -480,7 +480,7 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
       return;
     }
 
-    if (NS_FAILED(IsBroken())) {
+    if (IsBroken()) {
       return;
     }
 
@@ -936,7 +936,7 @@ nsHtml5TreeOpExecutor::Reset()
   mFlushState = eNotFlushing;
   mRunFlushLoopOnStack = false;
   MOZ_ASSERT(!mReadingFromStage);
-  MOZ_ASSERT(NS_SUCCEEDED(mBroken));
+  MOZ_ASSERT(!mBroken);
 }
 
 void

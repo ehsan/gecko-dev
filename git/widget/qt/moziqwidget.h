@@ -10,7 +10,7 @@
 #include <QApplication>
 #include <QGraphicsWidget>
 #include <QGraphicsView>
-#include "mozqglwidgetwrapper.h"
+#include <QtOpenGL/QGLWidget>
 
 #include "nsCOMPtr.h"
 
@@ -134,8 +134,8 @@ public:
     void setGLWidgetEnabled(bool aEnabled)
     {
         if (aEnabled) {
-            mGLWidget = new MozQGLWidgetWrapper();
-            mGLWidget->setViewport(this);
+            mGLWidget = new QGLWidget();
+            setViewport(mGLWidget);
         } else {
             delete mGLWidget;
             mGLWidget = 0;
@@ -174,7 +174,7 @@ protected:
 private:
     MozQGraphicsViewEvents mEventHandler;
     IMozQWidget* mTopLevelWidget;
-    MozQGLWidgetWrapper* mGLWidget;
+    QGLWidget* mGLWidget;
 };
 
 #ifdef MOZ_ENABLE_MEEGOTOUCH

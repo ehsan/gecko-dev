@@ -947,13 +947,15 @@ ContentChild::RecvLastPrivateDocShellDestroyed()
 bool
 ContentChild::RecvFilePathUpdate(const nsString& path, const nsCString& aReason)
 {
-    nsCOMPtr<nsIFile> file;
-    NS_NewLocalFile(path, false, getter_AddRefs(file));
+    // data strings will have the format of
+    //  reason:path
+    nsString data;
+    CopyASCIItoUTF16(aReason, data);
+    data.Append(NS_LITERAL_STRING(":"));
+    data.Append(path);
 
-    nsString reason;
-    CopyASCIItoUTF16(aReason, reason);
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(file, "file-watcher-update", reason.get());
+    obs->NotifyObservers(nullptr, "file-watcher-update", data.get());
     return true;
 }
 

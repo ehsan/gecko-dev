@@ -257,13 +257,13 @@ CheckForDeadlock(const char* test, const char* const* findTokens)
 // Single-threaded sanity tests
 
 // Stupidest possible deadlock.
-int
+nsresult
 Sanity_Child()
 {
     mozilla::Mutex m1("dd.sanity.m1");
     m1.Lock();
     m1.Lock();
-    return 0;                  // not reached
+    return NS_OK;                  // not reached
 }
 
 nsresult
@@ -285,7 +285,7 @@ Sanity()
 }
 
 // Slightly less stupid deadlock.
-int
+nsresult
 Sanity2_Child()
 {
     mozilla::Mutex m1("dd.sanity2.m1");
@@ -293,7 +293,7 @@ Sanity2_Child()
     m1.Lock();
     m2.Lock();
     m1.Lock();
-    return 0;                  // not reached
+    return NS_OK;                  // not reached
 }
 
 nsresult
@@ -316,7 +316,7 @@ Sanity2()
 }
 
 
-int
+nsresult
 Sanity3_Child()
 {
     mozilla::Mutex m1("dd.sanity3.m1");
@@ -335,7 +335,7 @@ Sanity3_Child()
 
     m4.Lock();
     m1.Lock();
-    return 0;
+    return NS_OK;
 }
 
 nsresult
@@ -359,7 +359,7 @@ Sanity3()
 }
 
 
-int
+nsresult
 Sanity4_Child()
 {
     mozilla::ReentrantMonitor m1("dd.sanity4.m1");
@@ -367,7 +367,7 @@ Sanity4_Child()
     m1.Enter();
     m2.Lock();
     m1.Enter();
-    return 0;
+    return NS_OK;
 }
 
 nsresult
@@ -413,7 +413,7 @@ TwoThreads_thread(void* arg)
     }
 }
 
-int
+nsresult
 TwoThreads_Child()
 {
     ttM1 = new mozilla::Mutex("dd.twothreads.m1");
@@ -427,7 +427,7 @@ TwoThreads_Child()
     PRThread* t2 = spawn(TwoThreads_thread, (void*) 1);
     PR_JoinThread(t2);
 
-    return 0;
+    return NS_OK;
 }
 
 nsresult
@@ -469,7 +469,7 @@ ContentionNoDeadlock_thread(void* arg)
     }
 }
 
-int
+nsresult
 ContentionNoDeadlock_Child()
 {
     PRThread* threads[3];
@@ -486,7 +486,7 @@ ContentionNoDeadlock_Child()
     for (PRUint32 i = 0; i < ArrayLength(cndMs); ++i)
         delete cndMs[i];
 
-    return 0;
+    return NS_OK;
 }
 
 nsresult
@@ -538,8 +538,7 @@ main(int argc, char** argv)
         if (!strcmp("ContentionNoDeadlock", test))
             return ContentionNoDeadlock_Child();
 
-        fail("%s | %s - unknown child test", __FILE__, __FUNCTION__);
-        return 2;
+        FAIL("unknown child test");
     }
 
     ScopedXPCOM xpcom("XPCOM deadlock detector correctness (" __FILE__ ")");

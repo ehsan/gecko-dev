@@ -14,8 +14,7 @@
 
     function iframeScriptFirst() {
       content.wrappedJSObject.RunSet.reloadAndRunAll({
-          preventDefault: function() { },
-          __exposedProps__: { preventDefault: 'r' }
+        preventDefault: function() { }
       });
     }
 
@@ -45,7 +44,7 @@
     let regex = /^(TEST-PASS|TEST-UNEXPECTED-PASS|TEST-KNOWN-FAIL|TEST-UNEXPECTED-FAIL|TEST-DEBUG-INFO) \| ([^\|]+) \|(.*)/;
 
     function onTestMessage(data) {
-      let message = SpecialPowers.wrap(data).json.msg;
+      let message = data.json.msg;
       let match = regex.exec(message);
       if (match) {
         let state = match[1];

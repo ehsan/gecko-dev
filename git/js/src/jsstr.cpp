@@ -458,7 +458,7 @@ ThisToStringForStringProto(JSContext *cx, CallReceiver call)
     return str;
 }
 
-JS_ALWAYS_INLINE bool
+static bool
 IsString(const Value &v)
 {
     return v.isString() || (v.isObject() && v.toObject().hasClass(&StringClass));
@@ -484,7 +484,7 @@ str_quote(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-JS_ALWAYS_INLINE bool
+static bool
 str_toSource_impl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(IsString(args.thisv()));
@@ -508,16 +508,16 @@ str_toSource_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-JSBool
+static JSBool
 str_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod<IsString, str_toSource_impl>(cx, args);
+    return CallNonGenericMethod(cx, IsString, str_toSource_impl, args);
 }
 
 #endif /* JS_HAS_TOSOURCE */
 
-JS_ALWAYS_INLINE bool
+static bool
 str_toString_impl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(IsString(args.thisv()));
@@ -532,7 +532,7 @@ JSBool
 js_str_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod<IsString, str_toString_impl>(cx, args);
+    return CallNonGenericMethod(cx, IsString, str_toString_impl, args);
 }
 
 /*
@@ -3573,18 +3573,6 @@ js_strchr(const jschar *s, jschar c)
         s++;
     }
     return NULL;
-}
-
-jschar *
-js_strdup(JSContext *cx, const jschar *s)
-{
-    size_t n = js_strlen(s);
-    jschar *ret = static_cast<jschar *>(cx->malloc_((n + 1) * sizeof(jschar)));
-    if (!ret)
-        return NULL;
-    js_strncpy(ret, s, n);
-    ret[n] = '\0';
-    return ret;
 }
 
 jschar *

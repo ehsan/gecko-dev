@@ -7,7 +7,6 @@
 #include "nsCOMPtr.h"
 #include "nsDOMFile.h"
 #include "nsILocalFile.h"
-#include "Layers.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
@@ -95,7 +94,7 @@ MediaEngineDefaultVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
   mSource = aStream;
 
   // Allocate a single blank Image
-  ImageFormat format = PLANAR_YCBCR;
+  layers::Image::Format format = layers::Image::PLANAR_YCBCR;
   mImageContainer = layers::LayerManager::CreateImageContainer();
 
   nsRefPtr<layers::Image> image = mImageContainer->CreateImage(&format, 1);
@@ -119,7 +118,7 @@ MediaEngineDefaultVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
   data.mPicX = 0;
   data.mPicY = 0;
   data.mPicSize = gfxIntSize(WIDTH, HEIGHT);
-  data.mStereoMode = STEREO_MODE_MONO;
+  data.mStereoMode = layers::STEREO_MODE_MONO;
 
   // SetData copies data, so we can free the frame
   mImage->SetData(data);

@@ -181,10 +181,6 @@ nsAppShell::nsAppShell()
     gAppShell = this;
     sAfterPaintListener = new AfterPaintListener();
 
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
-        return;
-    }
-
     sPowerManagerService = do_GetService(POWERMANAGERSERVICE_CONTRACTID);
 
     if (sPowerManagerService) {

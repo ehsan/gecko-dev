@@ -16,7 +16,6 @@ Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource://gre/modules/accessibility/Utils.jsm');
 Cu.import('resource://gre/modules/accessibility/Presenters.jsm');
 Cu.import('resource://gre/modules/accessibility/VirtualCursorController.jsm');
-Cu.import('resource://gre/modules/accessibility/TouchAdapter.jsm');
 
 const ACCESSFU_DISABLE = 0;
 const ACCESSFU_ENABLE = 1;
@@ -45,24 +44,8 @@ var AccessFu = {
     this.prefsBranch.addObserver('activate', this, false);
     this.prefsBranch.addObserver('explorebytouch', this, false);
 
-    this.touchAdapter = TouchAdapter;
-
-    switch(Utils.MozBuildApp) {
-      case 'mobile/android':
-        Services.obs.addObserver(this, 'Accessibility:Settings', false);
-        this.touchAdapter = AndroidTouchAdapter;
-        break;
-      case 'b2g':
-        aWindow.addEventListener(
-          'ContentStart',
-          (function(event) {
-             let content = aWindow.shell.contentBrowser.contentWindow;
-             content.addEventListener('mozContentEvent', this, false, true);
-           }).bind(this), false);
-        break;
-      default:
-        break;
-    }
+    if (Utils.MozBuildApp == 'mobile/android')
+      Services.obs.addObserver(this, 'Accessibility:Settings', false);
 
     this._processPreferences();
   },
@@ -77,13 +60,6 @@ var AccessFu = {
     this._enabled = true;
 
     Logger.info('enable');
-
-    // Add stylesheet
-    let stylesheetURL = 'chrome://global/content/accessibility/AccessFu.css';
-    this.stylesheet = this.chromeWin.document.createProcessingInstruction(
-      'xml-stylesheet', 'href="' + stylesheetURL + '" type="text/css"');
-    this.chromeWin.document.insertBefore(this.stylesheet, this.chromeWin.document.firstChild);
-
     this.addPresenter(new VisualPresenter());
 
     // Implicitly add the Android presenter on Android.
@@ -111,8 +87,6 @@ var AccessFu = {
     this._enabled = false;
 
     Logger.info('disable');
-
-    this.chromeWin.document.removeChild(this.stylesheet);
 
     this.presenters.forEach(function(p) { p.detach(); });
     this.presenters = [];
@@ -156,10 +130,8 @@ var AccessFu = {
     else
       this._disable();
 
-    if (ebtPref == ACCESSFU_ENABLE)
-      this.touchAdapter.attach(this.chromeWin);
-    else
-      this.touchAdapter.detach(this.chromeWin);
+    VirtualCursorController.exploreByTouch = ebtPref == ACCESSFU_ENABLE;
+    Logger.info('Explore by touch:', VirtualCursorController.exploreByTouch);
   },
 
   addPresenter: function addPresenter(presenter) {
@@ -218,14 +190,6 @@ var AccessFu = {
       case 'resize':
       {
         this.presenters.forEach(function(p) { p.viewportChanged(); });
-        break;
-      }
-      case 'mozContentEvent':
-      {
-        if (aEvent.detail.type == 'accessibility-screenreader') {
-          let pref = aEvent.detail.enabled + 0;
-          this._processPreferences(pref, pref);
-        }
         break;
       }
     }

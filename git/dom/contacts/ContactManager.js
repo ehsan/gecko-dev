@@ -18,6 +18,7 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
+Cu.import("resource://gre/modules/PermissionPromptHelper.jsm");
 
 XPCOMUtils.defineLazyGetter(Services, "DOMRequest", function() {
   return Cc["@mozilla.org/dom/dom-request-service;1"].getService(Ci.nsIDOMRequestService);
@@ -151,10 +152,7 @@ const CONTACT_CONTRACTID = "@mozilla.org/contact;1";
 const CONTACT_CID        = Components.ID("{da0f7040-388b-11e1-b86c-0800200c9a66}");
 const nsIDOMContact      = Components.interfaces.nsIDOMContact;
 
-// The wrappedJSObject magic here allows callers to get at the underlying JS object
-// of the XPCOM component. We use this below to modify properties that are read-only
-// per-idl. See https://developer.mozilla.org/en-US/docs/wrappedJSObject.
-function Contact() { debug("Contact constr: "); this.wrappedJSObject = this; };
+function Contact() { debug("Contact constr: "); };
 
 Contact.prototype = {
   
@@ -321,9 +319,9 @@ ContactManager.prototype = {
   _convertContactsArray: function(aContacts) {
     let contacts = new Array();
     for (let i in aContacts) {
-      let newContact = Components.classes['@mozilla.org/contact;1'].createInstance();
+      let newContact = new Contact();
       newContact.init(aContacts[i].properties);
-      this._setMetaData(newContact.wrappedJSObject, aContacts[i]);
+      this._setMetaData(newContact, aContacts[i]);
       contacts.push(newContact);
     }
     return contacts;

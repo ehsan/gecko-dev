@@ -27,7 +27,6 @@ const TELEMETRY_DELAY = 60000;
 const PR_WRONLY = 0x2;
 const PR_CREATE_FILE = 0x8;
 const PR_TRUNCATE = 0x20;
-const PR_EXCL = 0x80;
 const RW_OWNER = 0600;
 const RWX_OWNER = 0700;
 
@@ -136,7 +135,7 @@ function getSimpleMeasurements() {
            .getService(Ci.nsIJSEngineTelemetryStats)
            .telemetryValue;
 
-  let shutdownDuration = Services.startup.lastShutdownDuration;
+  let shutdownDuration = si.lastShutdownDuration;
   if (shutdownDuration)
     ret.shutdownDuration = shutdownDuration;
 
@@ -812,31 +811,24 @@ TelemetryPing.prototype = {
   },
 
   finishTelemetrySave: function finishTelemetrySave(ok, stream) {
+    stream.QueryInterface(Ci.nsISafeOutputStream).finish();
     stream.close();
     if (this._doLoadSaveNotifications && ok) {
       Services.obs.notifyObservers(null, "telemetry-test-save-complete", null);
     }
   },
 
-  savePingToFile: function savePingToFile(ping, file, sync, overwrite) {
+  savePingToFile: function savePingToFile(ping, file, sync) {
     let pingString = JSON.stringify(ping);
 
     let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
                     .createInstance(Ci.nsIScriptableUnicodeConverter);
     converter.charset = "UTF-8";
 
-    let ostream = Cc["@mozilla.org/network/file-output-stream;1"]
+    let ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"]
                   .createInstance(Ci.nsIFileOutputStream);
-    let initFlags = PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE;
-    if (!overwrite) {
-      initFlags |= PR_EXCL;
-    }
-    try {
-      ostream.init(file, initFlags, RW_OWNER, ostream.DEFER_OPEN);
-    } catch (e) {
-      // Probably due to PR_EXCL.
-      return;
-    }
+    ostream.init(file, PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,
+                 RW_OWNER, ostream.DEFER_OPEN);
 
     if (sync) {
       let utf8String = converter.ConvertFromUnicode(pingString);
@@ -894,22 +886,19 @@ TelemetryPing.prototype = {
     return file;
   },
 
-  savePing: function savePing(ping, overwrite) {
-    this.savePingToFile(ping, this.saveFileForPing(ping), true, overwrite);
+  savePing: function savePing(ping) {
+    this.savePingToFile(ping, this.saveFileForPing(ping), true);
   },
 
   savePendingPings: function savePendingPings() {
-    let sessionPing = this.getCurrentSessionPayloadAndSlug("saved-session");
-    this.savePing(sessionPing, true);
-    this._pendingPings.forEach(function sppcb(e, i, a) {
-                                 this.savePing(e, false);
-                               }, this);
+    this._pendingPings.push(this.getCurrentSessionPayloadAndSlug("saved-session"));
+    this._pendingPings.forEach(function sppcb(e, i, a) { this.savePing(e); }, this);
     this._pendingPings = [];
   },
 
   saveHistograms: function saveHistograms(file, sync) {
     this.savePingToFile(this.getCurrentSessionPayloadAndSlug("saved-session"),
-                        file, sync, true);
+                        file, sync);
   },
 
   /** 

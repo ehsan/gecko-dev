@@ -54,7 +54,7 @@ hb_font_get_glyph_nil (hb_font_t *font,
 		       void *user_data HB_UNUSED)
 {
   if (font->parent)
-    return font->parent->get_glyph (unicode, variation_selector, glyph);
+    return hb_font_get_glyph (font->parent, unicode, variation_selector, glyph);
 
   *glyph = 0;
   return false;
@@ -67,7 +67,7 @@ hb_font_get_glyph_h_advance_nil (hb_font_t *font,
 				 void *user_data HB_UNUSED)
 {
   if (font->parent)
-    return font->parent_scale_x_distance (font->parent->get_glyph_h_advance (glyph));
+    return font->parent_scale_x_distance (hb_font_get_glyph_h_advance (font->parent, glyph));
 
   return font->x_scale;
 }
@@ -79,7 +79,7 @@ hb_font_get_glyph_v_advance_nil (hb_font_t *font,
 				 void *user_data HB_UNUSED)
 {
   if (font->parent)
-    return font->parent_scale_y_distance (font->parent->get_glyph_v_advance (glyph));
+    return font->parent_scale_y_distance (hb_font_get_glyph_v_advance (font->parent, glyph));
 
   return font->y_scale;
 }
@@ -93,7 +93,7 @@ hb_font_get_glyph_h_origin_nil (hb_font_t *font,
 				void *user_data HB_UNUSED)
 {
   if (font->parent) {
-    hb_bool_t ret = font->parent->get_glyph_h_origin (glyph, x, y);
+    hb_bool_t ret = hb_font_get_glyph_h_origin (font->parent, glyph, x, y);
     if (ret)
       font->parent_scale_position (x, y);
     return ret;
@@ -112,7 +112,7 @@ hb_font_get_glyph_v_origin_nil (hb_font_t *font,
 				void *user_data HB_UNUSED)
 {
   if (font->parent) {
-    hb_bool_t ret = font->parent->get_glyph_v_origin (glyph, x, y);
+    hb_bool_t ret = hb_font_get_glyph_v_origin (font->parent, glyph, x, y);
     if (ret)
       font->parent_scale_position (x, y);
     return ret;
@@ -130,7 +130,7 @@ hb_font_get_glyph_h_kerning_nil (hb_font_t *font,
 				 void *user_data HB_UNUSED)
 {
   if (font->parent)
-    return font->parent_scale_x_distance (font->parent->get_glyph_h_kerning (left_glyph, right_glyph));
+    return font->parent_scale_x_distance (hb_font_get_glyph_h_kerning (font->parent, left_glyph, right_glyph));
 
   return 0;
 }
@@ -143,7 +143,7 @@ hb_font_get_glyph_v_kerning_nil (hb_font_t *font,
 				 void *user_data HB_UNUSED)
 {
   if (font->parent)
-    return font->parent_scale_y_distance (font->parent->get_glyph_v_kerning (top_glyph, bottom_glyph));
+    return font->parent_scale_y_distance (hb_font_get_glyph_v_kerning (font->parent, top_glyph, bottom_glyph));
 
   return 0;
 }
@@ -156,7 +156,9 @@ hb_font_get_glyph_extents_nil (hb_font_t *font,
 			       void *user_data HB_UNUSED)
 {
   if (font->parent) {
-    hb_bool_t ret = font->parent->get_glyph_extents (glyph, extents);
+    hb_bool_t ret = hb_font_get_glyph_extents (font->parent,
+					       glyph,
+					       extents);
     if (ret) {
       font->parent_scale_position (&extents->x_bearing, &extents->y_bearing);
       font->parent_scale_distance (&extents->width, &extents->height);
@@ -178,7 +180,7 @@ hb_font_get_glyph_contour_point_nil (hb_font_t *font,
 				     void *user_data HB_UNUSED)
 {
   if (font->parent) {
-    hb_bool_t ret = font->parent->get_glyph_contour_point (glyph, point_index, x, y);
+    hb_bool_t ret = hb_font_get_glyph_contour_point (font->parent, glyph, point_index, x, y);
     if (ret)
       font->parent_scale_position (x, y);
     return ret;
@@ -196,9 +198,9 @@ hb_font_get_glyph_name_nil (hb_font_t *font,
 			    void *user_data HB_UNUSED)
 {
   if (font->parent)
-    return font->parent->get_glyph_name (glyph, name, size);
+    return hb_font_get_glyph_name (font->parent, glyph, name, size);
 
-  if (size) *name = '\0';
+  snprintf (name, size, "gid%u", glyph);
   return false;
 }
 
@@ -210,7 +212,7 @@ hb_font_get_glyph_from_name_nil (hb_font_t *font,
 				 void *user_data HB_UNUSED)
 {
   if (font->parent)
-    return font->parent->get_glyph_from_name (name, len, glyph);
+    return hb_font_get_glyph_from_name (font->parent, name, len, glyph);
 
   *glyph = 0;
   return false;
@@ -486,24 +488,6 @@ hb_font_get_glyph_contour_point_for_origin (hb_font_t *font,
   return font->get_glyph_contour_point_for_origin (glyph, point_index, direction, x, y);
 }
 
-/* Generates gidDDD if glyph has no name. */
-void
-hb_font_glyph_to_string (hb_font_t *font,
-			 hb_codepoint_t glyph,
-			 char *s, unsigned int size)
-{
-  font->glyph_to_string (glyph, s, size);
-}
-
-/* Parses gidDDD and uniUUUU strings automatically. */
-hb_bool_t
-hb_font_glyph_from_string (hb_font_t *font,
-			   const char *s, int len, /* -1 means nul-terminated */
-			   hb_codepoint_t *glyph)
-{
-  return font->glyph_from_string (s, len, glyph);
-}
-
 
 /*
  * hb_face_t
@@ -514,7 +498,7 @@ static const hb_face_t _hb_face_nil = {
 
   true, /* immutable */
 
-  NULL, /* reference_table_func */
+  NULL, /* reference_table */
   NULL, /* user_data */
   NULL, /* destroy */
 
@@ -532,19 +516,19 @@ static const hb_face_t _hb_face_nil = {
 
 
 hb_face_t *
-hb_face_create_for_tables (hb_reference_table_func_t  reference_table_func,
+hb_face_create_for_tables (hb_reference_table_func_t  reference_table,
 			   void                      *user_data,
 			   hb_destroy_func_t          destroy)
 {
   hb_face_t *face;
 
-  if (!reference_table_func || !(face = hb_object_create<hb_face_t> ())) {
+  if (!reference_table || !(face = hb_object_create<hb_face_t> ())) {
     if (destroy)
       destroy (user_data);
     return hb_face_get_empty ();
   }
 
-  face->reference_table_func = reference_table_func;
+  face->reference_table = reference_table;
   face->user_data = user_data;
   face->destroy = destroy;
 
@@ -640,6 +624,9 @@ hb_face_destroy (hb_face_t *face)
 {
   if (!hb_object_destroy (face)) return;
 
+  /* The cached shape_plans think they have a reference on us, and
+   * try to release it.  Make sure that doesn't mess up. */
+  face->header.ref_count.ref_count = HB_REFERENCE_COUNT_INVALID_VALUE;
   for (hb_face_t::plan_node_t *node = face->shape_plans; node; )
   {
     hb_face_t::plan_node_t *next = node->next;
@@ -695,13 +682,22 @@ hb_blob_t *
 hb_face_reference_table (hb_face_t *face,
 			 hb_tag_t   tag)
 {
-  return face->reference_table (tag);
+  hb_blob_t *blob;
+
+  if (unlikely (!face || !face->reference_table))
+    return hb_blob_get_empty ();
+
+  blob = face->reference_table (face, tag, face->user_data);
+  if (unlikely (!blob))
+    return hb_blob_get_empty ();
+
+  return blob;
 }
 
 hb_blob_t *
 hb_face_reference_blob (hb_face_t *face)
 {
-  return face->reference_table (HB_TAG_NONE);
+  return hb_face_reference_table (face, HB_TAG_NONE);
 }
 
 void
@@ -733,17 +729,13 @@ hb_face_set_upem (hb_face_t    *face,
 unsigned int
 hb_face_get_upem (hb_face_t *face)
 {
-  return face->get_upem ();
-}
-
-
-void
-hb_face_t::load_upem (void) const
-{
-  hb_blob_t *head_blob = Sanitizer<head>::sanitize (reference_table (HB_OT_TAG_head));
-  const head *head_table = Sanitizer<head>::lock_instance (head_blob);
-  upem = head_table->get_upem ();
-  hb_blob_destroy (head_blob);
+  if (unlikely (!face->upem)) {
+    hb_blob_t *head_blob = Sanitizer<head>::sanitize (hb_face_reference_table (face, HB_OT_TAG_head));
+    const head *head_table = Sanitizer<head>::lock_instance (head_blob);
+    face->upem = head_table->get_upem ();
+    hb_blob_destroy (head_blob);
+  }
+  return face->upem;
 }
 
 

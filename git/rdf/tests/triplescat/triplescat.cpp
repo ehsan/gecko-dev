@@ -46,7 +46,7 @@
     PR_BEGIN_MACRO \
     if (NS_FAILED(rv)) { \
         printf(">>> %s failed: rv=%x\n", step, rv); \
-        return 1;\
+        return rv;\
     } \
     PR_END_MACRO
 
@@ -133,7 +133,7 @@ main(int argc, char** argv)
     nsCOMPtr<nsIThread> thread = do_GetCurrentThread();
     bool done = false;
     while (!done) {
-        NS_ENSURE_TRUE(NS_ProcessNextEvent(thread), 1);
+        NS_ENSURE_STATE(NS_ProcessNextEvent(thread));
         remote->GetLoaded(&done);
     }
 
@@ -149,5 +149,5 @@ main(int argc, char** argv)
         out->Close();
     }
 
-    return 0;
+    return NS_OK;
 }

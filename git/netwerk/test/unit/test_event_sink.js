@@ -12,6 +12,8 @@ const sinkContract = "@mozilla.org/network/unittest/channeleventsink;1";
 
 const categoryName = "net-channel-event-sinks";
 
+const NS_BINDING_ABORTED = 0x804b0002;
+
 /**
  * This object is both a factory and an nsIChannelEventSink implementation (so, it
  * is de-facto a service). It's also an interface requestor that gives out
@@ -37,7 +39,7 @@ var eventsink = {
   asyncOnChannelRedirect: function eventsink_onredir(oldChan, newChan, flags, callback) {
     // veto
     this.called = true;
-    throw Components.results.NS_BINDING_ABORTED;
+    throw NS_BINDING_ABORTED;
   },
 
   getInterface: function eventsink_gi(iid) {

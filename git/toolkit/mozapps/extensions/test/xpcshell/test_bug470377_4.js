@@ -3,6 +3,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+var channel = "default";
+try {
+  channel = Services.prefs.getCharPref("app.update.channel");
+}
+catch (e) { }
+
+if (channel != "aurora" &&
+    channel != "beta" &&
+    channel != "release") {
+  var checkCompatPref = "extensions.checkCompatibility.nightly";
+}
+else {
+  checkCompatPref = "extensions.checkCompatibility.2.1a";
+}
+
 function run_test() {
   do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "2.1a4", "2");
@@ -40,8 +55,8 @@ function run_test() {
 }
 
 function run_test_1() {
-  AddonManager.checkCompatibility = false;
-
+  // Disable compatibility checks
+  Services.prefs.setBoolPref(checkCompatPref, false);
   startupManager();
 
   AddonManager.getAddonsByIDs(["bug470377_1@tests.mozilla.org",
@@ -66,8 +81,8 @@ function run_test_1() {
 }
 
 function run_test_2() {
-  AddonManager.checkCompatibility = true;
-
+  // Enable compatibility checks
+  Services.prefs.setBoolPref(checkCompatPref, true);
   restartManager();
 
   AddonManager.getAddonsByIDs(["bug470377_1@tests.mozilla.org",

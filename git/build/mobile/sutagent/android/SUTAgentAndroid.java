@@ -75,7 +75,6 @@ public class SUTAgentAndroid extends Activity
     private static String HardwareID = "";
     private static String Pool = "";
     private static String sRegString = "";
-    private static boolean LogCommands = false;
 
     private WifiLock wl = null;
 
@@ -153,20 +152,17 @@ public class SUTAgentAndroid extends Activity
 
         DoCommand dc = new DoCommand(getApplication());
 
+        logToFile(dc.GetTestRoot(), dc.GetSystemTime(), "onCreate");
+
         // Get configuration settings from "ini" file
         File dir = getFilesDir();
         File iniFile = new File(dir, "SUTAgent.ini");
         String sIniFile = iniFile.getAbsolutePath();
 
-        String lc = dc.GetIniData("General", "LogCommands", sIniFile);
-        if (lc != "" && Integer.parseInt(lc) == 1) {
-            SUTAgentAndroid.LogCommands = true;
-        }
         SUTAgentAndroid.RegSvrIPAddr = dc.GetIniData("Registration Server", "IPAddr", sIniFile);
         SUTAgentAndroid.RegSvrIPPort = dc.GetIniData("Registration Server", "PORT", sIniFile);
         SUTAgentAndroid.HardwareID = dc.GetIniData("Registration Server", "HARDWARE", sIniFile);
         SUTAgentAndroid.Pool = dc.GetIniData("Registration Server", "POOL", sIniFile);
-        logToFile(dc, "onCreate");
 
         tv = (TextView) this.findViewById(R.id.Textview01);
 
@@ -358,11 +354,11 @@ public class SUTAgentAndroid extends Activity
     @Override
     public void onDestroy()
         {
-        DoCommand dc = new DoCommand(getApplication());
         super.onDestroy();
+        DoCommand dc = new DoCommand(getApplication());
         if (isFinishing())
             {
-            logToFile(dc, "onDestroy - finishing");
+            logToFile(dc.GetTestRoot(), dc.GetSystemTime(), "onDestroy - finishing");
             Intent listenerSvc = new Intent(this, ASMozStub.class);
             listenerSvc.setAction("com.mozilla.SUTAgentAndroid.service.LISTENER_SERVICE");
             stopService(listenerSvc);
@@ -377,7 +373,7 @@ public class SUTAgentAndroid extends Activity
             }
         else
             {
-            logToFile(dc, "onDestroy - not finishing");
+            logToFile(dc.GetTestRoot(), dc.GetSystemTime(), "onDestroy - not finishing");
             }
         }
 
@@ -388,8 +384,8 @@ public class SUTAgentAndroid extends Activity
         DoCommand dc = new DoCommand(getApplication());
         if (dc != null)
             {
-            logToFile(dc, "onLowMemory");
-            logToFile(dc, dc.GetMemoryInfo());
+            logToFile(dc.GetTestRoot(), dc.GetSystemTime(), "onLowMemory");
+            logToFile(dc.GetTestRoot(), dc.GetSystemTime(), dc.GetMemoryInfo());
             String procInfo = dc.GetProcessInfo();
             if (procInfo != null)
                 {
@@ -398,11 +394,11 @@ public class SUTAgentAndroid extends Activity
                     {
                     if (line.contains("mozilla"))
                         {
-                        logToFile(dc, line);
+                        logToFile(dc.GetTestRoot(), dc.GetSystemTime(), line);
                         String words[] = line.split("\t");
                         if ((words != null) && (words.length > 1))
                             {
-                            logToFile(dc, dc.StatProcess(words[1]));
+                            logToFile(dc.GetTestRoot(), dc.GetSystemTime(), dc.StatProcess(words[1]));
                             }
                         }
                     }
@@ -762,29 +758,17 @@ public class SUTAgentAndroid extends Activity
         return null;
         }
 
-    public static void logToFile(DoCommand dc, String message)
+    public static void logToFile(String testRoot, String datestamp, String message)
         {
-        if (SUTAgentAndroid.LogCommands == false)
-            {
-            return;
-            }
-
-        if (message == null)
+        if (testRoot == null ||
+            datestamp == null ||
+            message == null)
             {
             Log.e("SUTAgentAndroid", "bad arguments in logToFile()!");
             return;
             }
         Log.i("SUTAgentAndroid", message);
         String fileDateStr = "00";
-        String testRoot = dc.GetTestRoot();
-        String datestamp = dc.GetSystemTime();
-        if (testRoot == null || datestamp == null)
-            {
-            Log.e("SUTAgentAndroid", "Unable to get testRoot or datestamp in logToFile!");
-            return;
-            }
-
-
         try 
             {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss:SSS");

@@ -16,12 +16,12 @@
 <script class="testbody" type="application/javascript;version=1.8">
 
 function runTests() {
-  var comp = SpecialPowers.wrap(Components);
   SimpleTest.waitForExplicitFinish();
-  SpecialPowers.addPermission("systemXHR", true, document);
+  SpecialPowers.setCharPref("dom.systemXHR.whitelist",
+                            "http://mochi.test:8888");
 
   function tearDown() {
-    SpecialPowers.removePermission("systemXHR", document);
+    SpecialPowers.clearUserPref("dom.systemXHR.whitelist");
     SimpleTest.finish();
   }
 

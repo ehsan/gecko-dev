@@ -220,6 +220,10 @@ pref("accessibility.typeaheadfind.casesensitive", 0);
 // zoom key(F7) conflicts with caret browsing on maemo
 pref("accessibility.browsewithcaret_shortcut.enabled", false);
 
+// Whether or not we show a dialog box informing the user that the update was
+// successfully applied.
+pref("app.update.showInstalledUI", false);
+
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.
 pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.properties");
@@ -377,21 +381,11 @@ pref("geo.enabled", true);
 // Disable methodjit in chrome to save memory
 pref("javascript.options.methodjit.chrome",  false);
 
+pref("javascript.options.mem.high_water_mark", 32);
+
 // Disable the JS engine's gc on memory pressure, since we do one in the mobile
 // browser (bug 669346).
 pref("javascript.options.gc_on_memory_pressure", false);
-
-#ifdef MOZ_PKG_SPECIAL
-// low memory devices
-pref("javascript.options.mem.gc_high_frequency_heap_growth_max", 120);
-pref("javascript.options.mem.gc_high_frequency_heap_growth_min", 101);
-pref("javascript.options.mem.gc_high_frequency_high_limit_mb", 40);
-pref("javascript.options.mem.gc_high_frequency_low_limit_mb", 10);
-pref("javascript.options.mem.gc_low_frequency_heap_growth", 105);
-pref("javascript.options.mem.high_water_mark", 16);
-#else
-pref("javascript.options.mem.high_water_mark", 32);
-#endif
 
 pref("dom.max_chrome_script_run_time", 0); // disable slow script dialog for chrome
 pref("dom.max_script_run_time", 20);
@@ -483,13 +477,12 @@ pref("browser.search.param.yahoo-fr-cjkt", "moz35");
 pref("browser.search.param.yahoo-fr-ja", "mozff");
 #endif
 
-/* prefs used by the update timer system (including blocklist pings) */
-pref("app.update.timerFirstInterval", 30000); // milliseconds
-pref("app.update.timerMinimumDelay", 30); // seconds
+/* app update prefs */
+pref("app.update.timer", 60000); // milliseconds (1 min)
 
 #ifdef MOZ_UPDATER
-/* prefs used specifically for updating the app */
 pref("app.update.enabled", true);
+pref("app.update.timerFirstInterval", 20000); // milliseconds
 pref("app.update.auto", false);
 pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
 pref("app.update.mode", 1);
@@ -510,7 +503,7 @@ pref("app.update.interval", 86400);
 pref("app.update.url.manual", "http://www.mozilla.com/%LOCALE%/m/");
 pref("app.update.url.details", "http://www.mozilla.com/%LOCALE%/mobile/releases/");
 #else
-pref("app.update.interval", 3600);
+pref("app.update.interval", 28800);
 pref("app.update.url.manual", "http://www.mozilla.com/%LOCALE%/mobile/");
 pref("app.update.url.details", "http://www.mozilla.com/%LOCALE%/mobile/");
 #endif
@@ -695,7 +688,7 @@ pref("reader.color_scheme", "light");
 pref("reader.has_used_toolbar", false);
 
 // Media plugins for libstagefright playback on android
-pref("media.plugins.enabled", true);
+pref("media.plugins.enabled", false);
 
 // Coalesce touch events to prevent them from flooding the event queue
 pref("dom.event.touch.coalescing.enabled", true);

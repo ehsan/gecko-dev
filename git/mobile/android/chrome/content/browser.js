@@ -1361,17 +1361,19 @@ var NativeWindow = {
       if (!rootElement)
         rootElement = ElementTouchHelper.anyElementFromPoint(BrowserApp.selectedBrowser.contentWindow, aX, aY)
 
-      this.menuitems = {};
-      let menuitemsSet = false;
+      this.menuitems = null;
       let element = rootElement;
       if (!element)
         return;
 
       while (element) {
         for each (let item in this.items) {
-          if (!this.menuitems[item.id] && item.matches(element)) {
+          // since we'll have to spin through this for each element, check that
+          // it is not already in the list
+          if ((!this.menuitems || !this.menuitems[item.id]) && item.matches(element, aX, aY)) {
+            if (!this.menuitems)
+              this.menuitems = {};
             this.menuitems[item.id] = item;
-            menuitemsSet = true;
           }
         }
 
@@ -1381,14 +1383,15 @@ var NativeWindow = {
       }
 
       // only send the contextmenu event to content if we are planning to show a context menu (i.e. not on every long tap)
-      if (menuitemsSet) {
+      if (this.menuitems) {
         let event = rootElement.ownerDocument.createEvent("MouseEvent");
         event.initMouseEvent("contextmenu", true, true, content,
                              0, aX, aY, aX, aY, false, false, false, false,
                              0, null);
         rootElement.ownerDocument.defaultView.addEventListener("contextmenu", this, false);
         rootElement.dispatchEvent(event);
-      } else if (SelectionHandler.canSelect(rootElement)) {
+      } else {
+        // Otherwise, let the selection handler take over
         SelectionHandler.startSelection(rootElement, aX, aY);
       }
     },
@@ -1640,14 +1643,6 @@ var SelectionHandler = {
     }
 
     this._ignoreCollapsedSelection = false;
-  },
-
-  /** Returns true if the provided element can be selected in text selection, false otherwise. */
-  canSelect: function sh_canSelect(aElement) {
-    return !(aElement instanceof Ci.nsIDOMHTMLButtonElement ||
-             aElement instanceof Ci.nsIDOMHTMLEmbedElement ||
-             aElement instanceof Ci.nsIDOMHTMLImageElement ||
-             aElement instanceof Ci.nsIDOMHTMLMediaElement);
   },
 
   // aX/aY are in top-level window browser coordinates
@@ -2193,7 +2188,7 @@ Tab.prototype = {
           }
         };
         sendMessageToJava(message);
-        dump("Handled load error: " + e);
+        dump("Handled load error: " + e)
       }
     }
   },

@@ -34,16 +34,6 @@ CheckLength(JSContext *cx, size_t length)
     return true;
 }
 
-static bool
-SetSourceMap(JSContext *cx, TokenStream &tokenStream, ScriptSource *ss, JSScript *script)
-{
-    if (tokenStream.hasSourceMap()) {
-        if (!ss->setSourceMap(cx, tokenStream.releaseSourceMap(), script->filename))
-            return false;
-    }
-    return true;
-}
-
 JSScript *
 frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *callerFrame,
                         const CompileOptions &options,
@@ -112,7 +102,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
     // Global/eval script bindings are always empty (all names are added to the
     // scope dynamically via JSOP_DEFFUN/VAR).
-    if (!script->bindings.initWithTemporaryStorage(cx, 0, 0, NULL))
+    if (!script->bindings.init(cx, 0, 0, NULL))
         return NULL;
 
     // We can specialize a bit for the given scope chain if that scope chain is the global object.
@@ -121,7 +111,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     JS_ASSERT_IF(globalScope, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalScope->getClass()));
 
     BytecodeEmitter bce(/* parent = */ NULL, &parser, &sc, script, callerFrame, !!globalScope,
-                        options.lineno, options.selfHostingMode);
+                        options.lineno);
     if (!bce.init())
         return NULL;
 
@@ -205,8 +195,8 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         parser.freeTree(pn);
     }
 
-    if (!SetSourceMap(cx, tokenStream, ss, script))
-        return NULL;
+    if (tokenStream.hasSourceMap())
+        ss->setSourceMap(tokenStream.releaseSourceMap());
 
 #if JS_HAS_XML_SUPPORT
     /*
@@ -342,8 +332,8 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
         pn = fn->pn_body;
     }
 
-    if (!SetSourceMap(cx, parser.tokenStream, ss, script))
-        return false;
+    if (parser.tokenStream.hasSourceMap())
+        ss->setSourceMap(parser.tokenStream.releaseSourceMap());
 
     if (!EmitFunctionScript(cx, &funbce, pn))
         return false;

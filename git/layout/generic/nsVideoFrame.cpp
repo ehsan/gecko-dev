@@ -28,8 +28,6 @@
 #include "nsCSSRendering.h"
 #include "nsContentUtils.h"
 #include "mozilla/layers/ShadowLayers.h"
-#include "ImageContainer.h"
-#include "ImageLayers.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"

@@ -98,7 +98,7 @@ public class CmdWorkerThread extends Thread
             String inputLine, outputLine;
             DoCommand dc = new DoCommand(theParent.svc);
 
-            SUTAgentAndroid.logToFile(dc, "CmdWorkerThread starts: "+getId());
+            SUTAgentAndroid.logToFile(dc.GetTestRoot(), dc.GetSystemTime(), "CmdWorkerThread starts: "+getId());
 
             int nAvail = cmdIn.available();
             cmdIn.skip(nAvail);
@@ -136,7 +136,7 @@ public class CmdWorkerThread extends Thread
                     {
                     String message = String.format("%s : %s",
                                      socket.getInetAddress().getHostAddress(), inputLine);
-                    SUTAgentAndroid.logToFile(dc, message);
+                    SUTAgentAndroid.logToFile(dc.GetTestRoot(), dc.GetSystemTime(), message);
 
                     outputLine = dc.processCommand(inputLine, out, in, cmdOut);
                     if (outputLine.length() > 0)
@@ -166,7 +166,7 @@ public class CmdWorkerThread extends Thread
             in.close();
             in = null;
             socket.close();
-            SUTAgentAndroid.logToFile(dc, "CmdWorkerThread ends: "+getId());
+            SUTAgentAndroid.logToFile(dc.GetTestRoot(), dc.GetSystemTime(), "CmdWorkerThread ends: "+getId());
         }
     catch (IOException e)
         {

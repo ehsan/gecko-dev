@@ -232,7 +232,7 @@ public:
   mozilla::TimeStamp StopTime();
 
   // cache this NPAPI plugin
-  void SetCached(bool aCache);
+  nsresult SetCached(bool aCache);
 
   already_AddRefed<nsPIDOMWindow> GetDOMWindow();
 

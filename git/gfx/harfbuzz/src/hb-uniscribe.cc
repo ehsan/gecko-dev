@@ -25,7 +25,6 @@
  */
 
 #define _WIN32_WINNT 0x0600
-#define WIN32_LEAN_AND_MEAN
 
 #define HB_SHAPER uniscribe
 #include "hb-shaper-impl-private.hh"
@@ -198,15 +197,15 @@ _hb_uniscribe_shaper_font_data_destroy (hb_uniscribe_shaper_font_data_t *data)
 struct hb_uniscribe_shaper_shape_plan_data_t {};
 
 hb_uniscribe_shaper_shape_plan_data_t *
-_hb_uniscribe_shaper_shape_plan_data_create (hb_shape_plan_t    *shape_plan HB_UNUSED,
-					     const hb_feature_t *user_features HB_UNUSED,
-					     unsigned int        num_user_features HB_UNUSED)
+_hb_uniscribe_shaper_shape_plan_data_create (hb_shape_plan_t    *shape_plan,
+					     const hb_feature_t *user_features,
+					     unsigned int        num_user_features)
 {
   return (hb_uniscribe_shaper_shape_plan_data_t *) HB_SHAPER_DATA_SUCCEEDED;
 }
 
 void
-_hb_uniscribe_shaper_shape_plan_data_destroy (hb_uniscribe_shaper_shape_plan_data_t *data HB_UNUSED)
+_hb_uniscribe_shaper_shape_plan_data_destroy (hb_uniscribe_shaper_shape_plan_data_t *data)
 {
 }
 

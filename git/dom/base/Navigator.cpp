@@ -38,7 +38,6 @@
 #include "Connection.h"
 #include "MobileConnection.h"
 #include "nsIIdleObserver.h"
-#include "nsIPermissionManager.h"
 
 #ifdef MOZ_MEDIA_NAVIGATOR
 #include "MediaManager.h"
@@ -1244,20 +1243,20 @@ Navigator::GetMozMobileConnection(nsIDOMMozMobileConnection** aMobileConnection)
 
   if (!mMobileConnection) {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(window, NS_OK);
+    NS_ENSURE_TRUE(window && window->GetDocShell(), NS_OK);
 
-    nsCOMPtr<nsIDocument> document = do_QueryInterface(window->GetExtantDocument());
-    NS_ENSURE_TRUE(document, NS_OK);
-    nsCOMPtr<nsIPrincipal> principal = document->NodePrincipal();
-    nsCOMPtr<nsIPermissionManager> permMgr =
-      do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-    NS_ENSURE_TRUE(permMgr, NS_OK);
+    // Chrome is always allowed access, so do the permission check only
+    // for non-chrome pages.
+    if (!nsContentUtils::IsCallerChrome()) {
+      nsCOMPtr<nsIDocument> doc = do_QueryInterface(window->GetExtantDocument());
+      NS_ENSURE_TRUE(doc, NS_OK);
 
-    PRUint32 permission = nsIPermissionManager::DENY_ACTION;
-    permMgr->TestPermissionFromPrincipal(principal, "mobileconnection", &permission);
+      nsCOMPtr<nsIURI> uri;
+      doc->NodePrincipal()->GetURI(getter_AddRefs(uri));
 
-    if (permission != nsIPermissionManager::ALLOW_ACTION) {
-      return NS_OK;
+      if (!nsContentUtils::URIIsChromeOrInPref(uri, "dom.mobileconnection.whitelist")) {
+        return NS_OK;
+      }
     }
 
     mMobileConnection = new network::MobileConnection();

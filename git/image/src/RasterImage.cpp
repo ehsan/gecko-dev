@@ -17,8 +17,7 @@
 #include "prmem.h"
 #include "prenv.h"
 #include "ImageLogging.h"
-#include "ImageContainer.h"
-#include "Layers.h"
+#include "ImageLayers.h"
 
 #include "nsPNGDecoder.h"
 #include "nsGIFDecoder2.h"
@@ -94,7 +93,7 @@ InitPrefCaches()
 #define CONTAINER_ENSURE_SUCCESS(status)      \
   PR_BEGIN_MACRO                              \
   nsresult _status = status; /* eval once */  \
-  if (NS_FAILED(_status)) {                   \
+  if (_status) {                              \
     LOG_CONTAINER_ERROR;                      \
     DoError();                                \
     return _status;                           \
@@ -883,7 +882,7 @@ RasterImage::GetImageContainer(ImageContainer **_retval)
   mImageContainer = LayerManager::CreateImageContainer();
   
   // Now create a CairoImage to display the surface.
-  ImageFormat cairoFormat = CAIRO_SURFACE;
+  layers::Image::Format cairoFormat = layers::Image::CAIRO_SURFACE;
   nsRefPtr<layers::Image> image = mImageContainer->CreateImage(&cairoFormat, 1);
   NS_ASSERTION(image, "Failed to create Image");
 

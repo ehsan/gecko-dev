@@ -7,32 +7,36 @@ var completed = false;
 
 function startTest() {
   if (completed)
-    return;
+    return false;
 
   v.currentTime=seekTime;
+  return false;
 }
 
 function seekStarted() {
   if (completed)
-    return;
+    return false;
   ok(v.currentTime >= seekTime - 0.1, "Video currentTime should be around " + seekTime + ": " + v.currentTime);
   startPassed = true;
   v.play();
+  return false;
 }
 
 function seekEnded() {
   if (completed)
-    return;
+    return false;
   endPassed = true;
+  return false;
 }
 
 function playbackEnded() {
   if (completed)
-    return;
+    return false;
   ok(startPassed, "Got seeking event");
   ok(endPassed, "Got seeked event");
   completed = true;
   finish();
+  return false;
 }
 
 v.addEventListener("ended", playbackEnded, false);

@@ -9,9 +9,6 @@
 #include "gfxUtils.h"
 #include "gfxSharedImageSurface.h"
 #include "mozilla/layers/ImageContainerChild.h"
-#ifdef MOZ_X11
-#include "gfxXlibSurface.h"
-#endif
 
 using namespace mozilla::gfx;
 
@@ -133,17 +130,17 @@ BasicImageLayer::PaintContext(gfxPattern* aPattern,
   // outside the bounds of the video image.
   gfxPattern::GraphicsExtend extend = gfxPattern::EXTEND_PAD;
 
-#ifdef MOZ_X11
-  // PAD is slow with cairo and old X11 servers, so prefer speed over
-  // correctness and use NONE.
   if (aContext->IsCairo()) {
+    // PAD is slow with X11 and Quartz surfaces, so prefer speed over correctness
+    // and use NONE.
     nsRefPtr<gfxASurface> target = aContext->CurrentSurface();
-    if (target->GetType() == gfxASurface::SurfaceTypeXlib &&
-        static_cast<gfxXlibSurface*>(target.get())->IsPadSlow()) {
+    gfxASurface::gfxSurfaceType type = target->GetType();
+    if (type == gfxASurface::SurfaceTypeXlib ||
+        type == gfxASurface::SurfaceTypeXcb ||
+        type == gfxASurface::SurfaceTypeQuartz) {
       extend = gfxPattern::EXTEND_NONE;
     }
   }
-#endif
 
   aContext->NewPath();
   // No need to snap here; our transform has already taken care of it.
@@ -281,7 +278,7 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
       ->Paint(aContext, nullptr);
   }
 
-  if (image->GetFormat() == SHARED_TEXTURE &&
+  if (image->GetFormat() == Image::SHARED_TEXTURE &&
       BasicManager()->GetParentBackendType() == mozilla::layers::LAYERS_OPENGL) {
     SharedTextureImage *sharedImage = static_cast<SharedTextureImage*>(image);
     const SharedTextureImage::Data *data = sharedImage->GetData();
@@ -292,7 +289,7 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
     return;
   }
 
-  if (image->GetFormat() == PLANAR_YCBCR && BasicManager()->IsCompositingCheap()) {
+  if (image->GetFormat() == Image::PLANAR_YCBCR && BasicManager()->IsCompositingCheap()) {
     PlanarYCbCrImage *YCbCrImage = static_cast<PlanarYCbCrImage*>(image);
     const PlanarYCbCrImage::Data *data = YCbCrImage->GetData();
     NS_ASSERTION(data, "Must be able to retrieve yuv data from image!");

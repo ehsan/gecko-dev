@@ -99,7 +99,7 @@ ArchiveReaderEvent::ShareMainThread()
 
         // Just to be sure, if something goes wrong, the mimetype is an empty string:
         nsCString type;
-        if (NS_SUCCEEDED(GetType(ext, type)))
+        if (GetType(ext, type) == NS_OK)
           item->SetType(type);
       }
 

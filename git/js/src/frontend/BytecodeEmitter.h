@@ -115,14 +115,9 @@ struct BytecodeEmitter
     const bool      hasGlobalScope:1;   /* frontend::CompileScript's scope chain is the
                                            global object */
 
-    const bool      selfHostingMode:1;  /* Emit JSOP_CALLINTRINSIC instead of JSOP_NAME
-                                           and assert that JSOP_NAME and JSOP_*GNAME
-                                           don't ever get emitted. See the comment for
-                                           the field |selfHostingMode| in Parser.h for details. */
-
     BytecodeEmitter(BytecodeEmitter *parent, Parser *parser, SharedContext *sc,
                     HandleScript script, StackFrame *callerFrame, bool hasGlobalScope,
-                    unsigned lineno, bool selfHostingMode = false);
+                    unsigned lineno);
     bool init();
 
     /*

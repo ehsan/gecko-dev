@@ -41,8 +41,6 @@
 #include "nsAnimationManager.h"
 #include "nsTransitionManager.h"
 #include "nsIViewManager.h"
-#include "ImageLayers.h"
-#include "ImageContainer.h"
 
 #include "mozilla/StandardInteger.h"
 
@@ -1383,13 +1381,6 @@ nsDisplayBackground::nsDisplayBackground(nsDisplayListBuilder* aBuilder,
       aBuilder->SetHasFixedItems();
     }
   }
-}
-
-nsDisplayBackground::~nsDisplayBackground()
-{
-#ifdef NS_BUILD_REFCNT_LOGGING
-  MOZ_COUNT_DTOR(nsDisplayBackground);
-#endif
 }
 
 // Helper for RoundedRectIntersectsRect.

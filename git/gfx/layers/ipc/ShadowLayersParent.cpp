@@ -19,7 +19,6 @@
 #include "ShadowLayers.h"
 #include "ShadowLayerUtils.h"
 #include "TiledLayerBuffer.h"
-#include "gfxPlatform.h" 
 
 typedef std::vector<mozilla::layers::EditReply> EditReplyVector;
 

@@ -66,10 +66,9 @@ protected:
 
   nsRefPtr<gfxImageSurface> mCachedTempSurface;
   gfxIntSize mCachedSize;
-  gfxASurface::gfxImageFormat mCachedFormat;
+  gfxImageFormat mCachedFormat;
 
-  gfxImageSurface* GetTempSurface(const gfxIntSize& aSize,
-                                  const gfxASurface::gfxImageFormat aFormat)
+  gfxImageSurface* GetTempSurface(const gfxIntSize& aSize, const gfxImageFormat aFormat)
   {
     if (!mCachedTempSurface ||
         aSize.width != mCachedSize.width ||

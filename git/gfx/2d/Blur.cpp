@@ -348,8 +348,7 @@ AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
     mHasDirtyRect = false;
   }
 
-  mRect = IntRect(rect.x, rect.y, rect.width, rect.height);
-  if (mRect.IsEmpty()) {
+  if (rect.IsEmpty()) {
     return;
   }
 
@@ -362,14 +361,18 @@ AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
     skipRect.Deflate(Size(aBlurRadius + aSpreadRadius));
     mSkipRect = IntRect(skipRect.x, skipRect.y, skipRect.width, skipRect.height);
 
-    mSkipRect = mSkipRect.Intersect(mRect);
-    if (mSkipRect.IsEqualInterior(mRect))
+    IntRect shadowIntRect(rect.x, rect.y, rect.width, rect.height);
+    mSkipRect.IntersectRect(mSkipRect, shadowIntRect);
+
+    if (mSkipRect.IsEqualInterior(shadowIntRect))
       return;
 
-    mSkipRect -= mRect.TopLeft();
+    mSkipRect -= shadowIntRect.TopLeft();
   } else {
     mSkipRect = IntRect(0, 0, 0, 0);
   }
+
+  mRect = IntRect(rect.x, rect.y, rect.width, rect.height);
 
   CheckedInt<int32_t> stride = RoundUpToMultipleOf4(mRect.width);
   if (stride.isValid()) {

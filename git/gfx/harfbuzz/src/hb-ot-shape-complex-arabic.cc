@@ -1,5 +1,5 @@
 /*
- * Copyright © 2010,2012  Google, Inc.
+ * Copyright © 2010  Google, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -30,7 +30,7 @@
 
 
 /* buffer var allocations */
-#define arabic_shaping_action() complex_var_u8_0() /* arabic shaping action */
+#define arabic_shaping_action() complex_var_temporary_u8() /* arabic shaping action */
 
 
 /*
@@ -99,7 +99,7 @@ static uint16_t get_ligature (hb_codepoint_t first, hb_codepoint_t second)
   return 0;
 }
 
-static const hb_tag_t arabic_features[] =
+static const hb_tag_t arabic_syriac_features[] =
 {
   HB_TAG('i','n','i','t'),
   HB_TAG('m','e','d','i'),
@@ -127,7 +127,9 @@ enum {
 
   NONE,
 
-  ARABIC_NUM_FEATURES = NONE
+  COMMON_NUM_FEATURES = 4,
+  SYRIAC_NUM_FEATURES = 7,
+  TOTAL_NUM_FEATURES = NONE
 };
 
 static const struct arabic_state_table_entry {
@@ -182,8 +184,9 @@ collect_features_arabic (hb_ot_shape_planner_t *plan)
 
   map->add_gsub_pause (NULL);
 
-  for (unsigned int i = 0; i < ARABIC_NUM_FEATURES; i++)
-    map->add_bool_feature (arabic_features[i], false);
+  unsigned int num_features = plan->props.script == HB_SCRIPT_SYRIAC ? SYRIAC_NUM_FEATURES : COMMON_NUM_FEATURES;
+  for (unsigned int i = 0; i < num_features; i++)
+    map->add_bool_feature (arabic_syriac_features[i], false);
 
   map->add_gsub_pause (NULL);
 
@@ -197,55 +200,10 @@ collect_features_arabic (hb_ot_shape_planner_t *plan)
   map->add_bool_feature (HB_TAG('c','s','w','h'));
 }
 
-struct arabic_shape_plan_t
-{
-  ASSERT_POD ();
-
-  bool do_fallback;
-  /* The "+ 1" in the next array is to accommodate for the "NONE" command,
-   * which is not an OpenType feature, but this simplifies the code by not
-   * having to do a "if (... < NONE) ..." and just rely on the fact that
-   * mask_array[NONE] == 0. */
-  hb_mask_t mask_array[ARABIC_NUM_FEATURES + 1];
-};
-
-static void *
-data_create_arabic (const hb_ot_shape_plan_t *plan)
-{
-  arabic_shape_plan_t *arabic_plan = (arabic_shape_plan_t *) calloc (1, sizeof (arabic_shape_plan_t));
-  if (unlikely (!arabic_plan))
-    return NULL;
-
-  hb_mask_t total_masks = 0;
-  for (unsigned int i = 0; i < ARABIC_NUM_FEATURES; i++) {
-    arabic_plan->mask_array[i] = plan->map.get_1_mask (arabic_features[i]);
-    total_masks |= arabic_plan->mask_array[i];
-  }
-
-  /* Pitfalls:
-   * - This path fires if user force-set init/medi/fina/isol off,
-   * - If font does not declare script 'arab', well, what to do?
-   *   Most probably it's safe to assume that init/medi/fina/isol
-   *   still mean Arabic shaping, although they do not have to.
-   */
-  arabic_plan->do_fallback = 0 == total_masks;
-
-  return arabic_plan;
-}
-
-static void
-data_destroy_arabic (void *data)
-{
-  free (data);
-}
 
 static void
 arabic_fallback_shape (hb_font_t *font, hb_buffer_t *buffer)
 {
-  /* Only Arabic has presentation forms encoded in Unicode. */
-  if (buffer->props.script != HB_SCRIPT_ARABIC)
-    return;
-
   unsigned int count = buffer->len;
   hb_codepoint_t glyph;
 
@@ -278,7 +236,9 @@ arabic_fallback_shape (hb_font_t *font, hb_buffer_t *buffer)
 }
 
 static void
-arabic_joining (hb_buffer_t *buffer)
+setup_masks_arabic (const hb_ot_shape_plan_t *plan,
+		    hb_buffer_t              *buffer,
+		    hb_font_t                *font)
 {
   unsigned int count = buffer->len;
   unsigned int prev = 0, state = 0;
@@ -305,37 +265,30 @@ arabic_joining (hb_buffer_t *buffer)
     state = entry->next_state;
   }
 
-  HB_BUFFER_DEALLOCATE_VAR (buffer, arabic_shaping_action);
-}
+  hb_mask_t mask_array[TOTAL_NUM_FEATURES + 1] = {0};
+  hb_mask_t total_masks = 0;
+  unsigned int num_masks = buffer->props.script == HB_SCRIPT_SYRIAC ? SYRIAC_NUM_FEATURES : COMMON_NUM_FEATURES;
+  for (unsigned int i = 0; i < num_masks; i++) {
+    mask_array[i] = plan->map.get_1_mask (arabic_syriac_features[i]);
+    total_masks |= mask_array[i];
+  }
 
-static void
-preprocess_text_arabic (const hb_ot_shape_plan_t *plan,
-			hb_buffer_t              *buffer,
-			hb_font_t                *font)
-{
-  const arabic_shape_plan_t *arabic_plan = (const arabic_shape_plan_t *) plan->data;
-
-  if (unlikely (arabic_plan->do_fallback))
-  {
-    arabic_joining (buffer);
+  if (total_masks) {
+    /* Has OpenType tables */
+    for (unsigned int i = 0; i < count; i++)
+      buffer->info[i].mask |= mask_array[buffer->info[i].arabic_shaping_action()];
+  } else if (buffer->props.script == HB_SCRIPT_ARABIC) {
+    /* Fallback Arabic shaping to Presentation Forms */
+    /* Pitfalls:
+     * - This path fires if user force-set init/medi/fina/isol off,
+     * - If font does not declare script 'arab', well, what to do?
+     *   Most probably it's safe to assume that init/medi/fina/isol
+     *   still mean Arabic shaping, although they do not have to.
+     */
     arabic_fallback_shape (font, buffer);
   }
-}
 
-static void
-setup_masks_arabic (const hb_ot_shape_plan_t *plan,
-		    hb_buffer_t              *buffer,
-		    hb_font_t                *font)
-{
-  const arabic_shape_plan_t *arabic_plan = (const arabic_shape_plan_t *) plan->data;
-
-  if (likely (!arabic_plan->do_fallback))
-  {
-    arabic_joining (buffer);
-    unsigned int count = buffer->len;
-    for (unsigned int i = 0; i < count; i++)
-      buffer->info[i].mask |= arabic_plan->mask_array[buffer->info[i].arabic_shaping_action()];
-  }
+  HB_BUFFER_DEALLOCATE_VAR (buffer, arabic_shaping_action);
 }
 
 const hb_ot_complex_shaper_t _hb_ot_complex_shaper_arabic =
@@ -343,9 +296,8 @@ const hb_ot_complex_shaper_t _hb_ot_complex_shaper_arabic =
   "arabic",
   collect_features_arabic,
   NULL, /* override_features */
-  data_create_arabic,
-  data_destroy_arabic,
-  preprocess_text_arabic,
+  NULL, /* data_create */
+  NULL, /* data_destroy */
   NULL, /* normalization_preference */
   setup_masks_arabic,
   true, /* zero_width_attached_marks */

@@ -35,7 +35,6 @@
 #include "gfxUtils.h"
 #include "mozilla/FileUtils.h"
 #include "nsTArray.h"
-#include "nsRegion.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
 

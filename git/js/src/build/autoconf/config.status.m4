@@ -74,8 +74,6 @@ dnl We're going to need [ ] for python syntax.
 changequote(<<<, >>>)dnl
 echo creating $CONFIG_STATUS
 
-extra_python_path=${COMM_BUILD:+"'mozilla', "}
-
 cat > $CONFIG_STATUS <<EOF
 #!${PYTHON}
 # coding=$encoding
@@ -87,7 +85,7 @@ topsrcdir = '''${WIN_TOP_SRC:-$srcdir}'''
 if not os.path.isabs(topsrcdir):
     topsrcdir = os.path.normpath(os.path.join(os.path.dirname(<<<__file__>>>), topsrcdir))
 dnl Don't rely on virtualenv here. Standalone js doesn't use it.
-sys.path.append(os.path.join(topsrcdir, ${extra_python_path}'build'))
+sys.path.append(os.path.join(topsrcdir, ${COMM_BUILD:+'mozilla',} 'build'))
 from ConfigStatus import config_status
 
 args = {

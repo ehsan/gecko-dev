@@ -1213,13 +1213,13 @@ HTMLTableAccessible::IsProbablyLayoutTable()
   // XXX currently, we just check the first cell -- do we really need to do more?
   nsCOMPtr<nsIDOMElement> cellElement;
   nsresult rv = GetCellAt(0, 0, *getter_AddRefs(cellElement));
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIContent> cellContent(do_QueryInterface(cellElement));
-  NS_ENSURE_TRUE(cellContent, false);
+  NS_ENSURE_TRUE(cellContent, NS_ERROR_FAILURE);
   nsIFrame *cellFrame = cellContent->GetPrimaryFrame();
   if (!cellFrame) {
-    RETURN_LAYOUT_ANSWER(false, "Could not get frame for cellContent");
+    return NS_OK;
   }
   nsMargin border;
   cellFrame->GetBorder(border);

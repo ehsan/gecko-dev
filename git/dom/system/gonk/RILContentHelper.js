@@ -68,10 +68,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIFrameMessageManager");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gUUIDGenerator",
-                                   "@mozilla.org/uuid-generator;1",
-                                   "nsIUUIDGenerator");
-
 function MobileConnectionInfo() {}
 MobileConnectionInfo.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileConnectionInfo]),
@@ -244,7 +240,7 @@ RILContentHelper.prototype = {
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
 
-    cpmm.sendAsyncMessage("RIL:GetAvailableNetworks", {requestId: requestId});
+    cpmm.sendAsyncMessage("RIL:GetAvailableNetworks", requestId);
     return request;
   },
 
@@ -317,7 +313,7 @@ RILContentHelper.prototype = {
     }
 
     this._selectingNetwork = "automatic";
-    cpmm.sendAsyncMessage("RIL:SelectNetworkAuto", {requestId: requestId});
+    cpmm.sendAsyncMessage("RIL:SelectNetworkAuto", requestId);
     return request;
   },
 
@@ -431,10 +427,7 @@ RILContentHelper.prototype = {
 
   enumerateCalls: function enumerateCalls(callback) {
     debug("Requesting enumeration of calls for callback: " + callback);
-    // We need 'requestId' to meet the 'RILContentHelper <--> RadioInterfaceLayer'
-    // protocol.
-    let requestId = this._getRandomId();
-    cpmm.sendAsyncMessage("RIL:EnumerateCalls", {requestId: requestId});
+    cpmm.sendAsyncMessage("RIL:EnumerateCalls");
     if (!this._enumerationTelephonyCallbacks) {
       this._enumerationTelephonyCallbacks = [];
     }
@@ -570,7 +563,7 @@ RILContentHelper.prototype = {
         Services.obs.notifyObservers(null, kDataChangedTopic, null);
         break;
       case "RIL:EnumerateCalls":
-        this.handleEnumerateCalls(msg.json.calls);
+        this.handleEnumerateCalls(msg.json);
         break;
       case "RIL:GetAvailableNetworks":
         this.handleGetAvailableNetworks(msg.json);
@@ -727,10 +720,6 @@ RILContentHelper.prototype = {
                             "voicemailNotification",
                             [this.voicemailStatus]);
     }
-  },
-
-  _getRandomId: function _getRandomId() {
-    return gUUIDGenerator.generateUUID().toString();
   },
 
   _deliverCallback: function _deliverCallback(callbackType, name, args) {

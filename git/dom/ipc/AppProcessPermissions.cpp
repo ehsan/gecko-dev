@@ -8,12 +8,10 @@
 #include "AppProcessPermissions.h"
 #include "ContentParent.h"
 #include "mozIApplication.h"
-#include "mozilla/hal_sandbox/PHalParent.h"
 #include "nsIDOMApplicationRegistry.h"
 #include "TabParent.h"
 
 using namespace mozilla::dom;
-using namespace mozilla::hal_sandbox;
 using namespace mozilla::services;
 
 namespace mozilla {
@@ -51,12 +49,6 @@ AppProcessHasPermission(PContentParent* aActor, const char* aPermission)
     }
   }
   return false;
-}
-
-bool
-AppProcessHasPermission(PHalParent* aActor, const char* aPermission)
-{
-  return AppProcessHasPermission(aActor->Manager(), aPermission);
 }
 
 } // namespace mozilla

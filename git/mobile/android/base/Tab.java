@@ -553,27 +553,19 @@ public final class Tab {
     }
 
     public void addPluginLayer(Object surfaceOrView, Layer layer) {
-        synchronized(mPluginLayers) {
-            mPluginLayers.put(surfaceOrView, layer);
-        }
+        mPluginLayers.put(surfaceOrView, layer);
     }
 
     public Layer getPluginLayer(Object surfaceOrView) {
-        synchronized(mPluginLayers) {
-            return mPluginLayers.get(surfaceOrView);
-        }
+        return mPluginLayers.get(surfaceOrView);
     }
 
     public Collection<Layer> getPluginLayers() {
-        synchronized(mPluginLayers) {
-            return new ArrayList<Layer>(mPluginLayers.values());
-        }
+        return mPluginLayers.values();
     }
 
     public Layer removePluginLayer(Object surfaceOrView) {
-        synchronized(mPluginLayers) {
-            return mPluginLayers.remove(surfaceOrView);
-        }
+        return mPluginLayers.remove(surfaceOrView);
     }
 
     public int getCheckerboardColor() {

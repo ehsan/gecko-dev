@@ -5,7 +5,11 @@
 {
   if (typeof Components != "undefined") {
     var EXPORTED_SYMBOLS = ["OS"];
+    Components.utils.import("resource://gre/modules/ctypes.jsm");
+    Components.classes["@mozilla.org/net/osfileconstantsservice;1"].
+      getService(Components.interfaces.nsIOSFileConstantsService).init();
   }
+
   (function(exports) {
      "use strict";
      /*
@@ -22,15 +26,6 @@
      if (exports.OS.Shared.Type) {
        return; // Avoid double-initialization
      }
-
-     // Import components after having initialized |exports.OS|, to ensure
-     // that everybody uses the same definition of |OS|.
-     if (typeof Components != "undefined") {
-       Components.utils.import("resource://gre/modules/ctypes.jsm");
-       Components.classes["@mozilla.org/net/osfileconstantsservice;1"].
-         getService(Components.interfaces.nsIOSFileConstantsService).init();
-     }
-
 
      let LOG;
      if (typeof console != "undefined" && console.log) {
@@ -123,10 +118,8 @@
         */
        get in_ptr() {
          delete this.in_ptr;
-         let ptr_t = new PtrType(
-           "[in] " + this.name + "*",
-           this.implementation.ptr,
-           this);
+         let ptr_t = new PtrType("[in] " + this.name + "*",
+           this.implementation.ptr);
          Object.defineProperty(this, "in_ptr",
            {
              get: function() {
@@ -141,10 +134,8 @@
         */
        get out_ptr() {
          delete this.out_ptr;
-         let ptr_t = new PtrType(
-           "[out] " + this.name + "*",
-           this.implementation.ptr,
-           this);
+         let ptr_t = new PtrType("[out] " + this.name + "*",
+           this.implementation.ptr);
          Object.defineProperty(this, "out_ptr",
            {
              get: function() {
@@ -163,10 +154,8 @@
         */
        get inout_ptr() {
          delete this.inout_ptr;
-         let ptr_t = new PtrType(
-           "[inout] " + this.name + "*",
-           this.implementation.ptr,
-           this);
+         let ptr_t = new PtrType("[inout] " + this.name + "*",
+           this.implementation.ptr);
          Object.defineProperty(this, "inout_ptr",
            {
              get: function() {
@@ -204,17 +193,7 @@
         */
        cast: function cast(value) {
          return ctypes.cast(value, this.implementation);
-       },
-
-       /**
-        * Return the number of bytes in a value of |this| type.
-        *
-        * This may not be defined, e.g. for |void_t|, array types
-        * without length, etc.
-        */
-       get size() {
-         return this.implementation.size;
-       }
+        }
      };
 
 
@@ -223,19 +202,9 @@
       *
       * @param {string} name The name of this type.
       * @param {CType} implementation The type of this pointer.
-      * @param {Type} targetType The target type.
       */
-     function PtrType(name, implementation, targetType) {
+     function PtrType(name, implementation) {
        Type.call(this, name, implementation);
-       if (targetType == null || !targetType instanceof Type) {
-         throw new TypeError("targetType must be an instance of Type");
-       }
-       /**
-        * The type of values targeted by this pointer type.
-        */
-       Object.defineProperty(this, "targetType", {
-         value: targetType
-       });
      }
      PtrType.prototype = Object.create(Type.prototype);
 
@@ -402,8 +371,7 @@
       */
      Types.voidptr_t =
        new PtrType("void*",
-                   ctypes.voidptr_t,
-                   Types.void_t);
+                ctypes.voidptr_t);
 
      // void* is a special case as we can cast any pointer to/from it
      // so we have to shortcut |in_ptr|/|out_ptr|/|inout_ptr| and
@@ -428,15 +396,8 @@
      function IntType(name, implementation, signed) {
        Type.call(this, name, implementation);
        this.importFromC = projector(implementation, signed);
-       this.project = this.importFromC;
      };
      IntType.prototype = Object.create(Type.prototype);
-     IntType.prototype.toMsg = function toMsg(value) {
-       if (typeof value == "number") {
-         return value;
-       }
-       return this.project(value);
-     };
 
      /**
       * A C char (one byte)
@@ -804,50 +765,7 @@
      exports.OS.Shared.Utils = {};
 
      let Strings = exports.OS.Shared.Utils.Strings = {};
-
-     // A bogus array type used to perform pointer arithmetics
-     let gOffsetByType;
-
-     /**
-      * Advance a pointer by a number of items.
-      *
-      * This method implements adding an integer to a pointer in C.
-      *
-      * Example:
-      *   // ptr is a uint16_t*,
-      *   offsetBy(ptr, 3)
-      *  // returns a uint16_t* with the address ptr + 3 * 2 bytes
-      *
-      * @param {C pointer} pointer The start pointer.
-      * @param {number} length The number of items to advance. Must not be
-      * negative.
-      *
-      * @return {C pointer} |pointer| advanced by |length| items
-      */
-     exports.OS.Shared.offsetBy =
-       function offsetBy(pointer, length) {
-         if (length === undefined || length < 0) {
-           throw new TypeError("offsetBy expects a positive number");
-         }
-        if (!("isNull" in pointer)) {
-           throw new TypeError("offsetBy expects a pointer");
-         }
-         if (length == 0) {
-           return pointer;
-         }
-         let type = pointer.constructor;
-         let size = type.targetType.size;
-         if (size == 0 || size == null) {
-           throw new TypeError("offsetBy cannot be applied to a pointer without size");
-         }
-         let bytes = length * size;
-         if (!gOffsetByType || gOffsetByType.size <= bytes) {
-           gOffsetByType = ctypes.uint8_t.array(bytes * 2);
-         }
-         let addr = ctypes.cast(pointer, gOffsetByType.ptr).
-           contents.addressOfElement(bytes);
-         return ctypes.cast(addr, type);
-     };
+     let Pointers = exports.OS.Shared.Utils.Pointers = {};
 
      /**
       * Import a wide string (e.g. a |jschar.ptr|) as a string.
@@ -905,6 +823,9 @@
        }
        return Strings.importWString(decoded);
      };
+
+     exports.OS.Shared.Utils = { Strings: Strings };
+
 
      /**
       * Specific tools that don't really fit anywhere.

@@ -49,6 +49,7 @@ class TestServer(object):
         'clickElement': { 'ok': True },
         'getElementText': { 'value': TEST_GET_TEXT },
         'sendKeysToElement': { 'ok': True },
+        'getElementValue': { 'value': TEST_GET_VALUE },
         'clearElement': { 'ok': True },
         'isElementSelected': { 'value': True },
         'elementsEqual': { 'value': True },

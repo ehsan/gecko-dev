@@ -74,13 +74,10 @@ struct JSFunction : public JSObject
     bool hasRest()           const { return flags & JSFUN_HAS_REST; }
     bool isInterpreted()     const { return flags & JSFUN_INTERPRETED; }
     bool isNative()          const { return !isInterpreted(); }
-    bool isSelfHostedBuiltin()  const { return flags & JSFUN_SELF_HOSTED; }
     bool isNativeConstructor() const { return flags & JSFUN_CONSTRUCTOR; }
     bool isHeavyweight()     const { return JSFUN_HEAVYWEIGHT_TEST(flags); }
     bool isFunctionPrototype() const { return flags & JSFUN_PROTOTYPE; }
-    bool isInterpretedConstructor() const {
-        return isInterpreted() && !isFunctionPrototype() && !isSelfHostedBuiltin();
-    }
+    bool isInterpretedConstructor() const { return isInterpreted() && !isFunctionPrototype(); }
     bool isNamedLambda()     const { return (flags & JSFUN_LAMBDA) && atom; }
 
     /* Returns the strictness of this function, which must be interpreted. */
@@ -231,7 +228,7 @@ js_CloneFunctionObject(JSContext *cx, js::HandleFunction fun,
 
 extern JSFunction *
 js_DefineFunction(JSContext *cx, js::HandleObject obj, js::HandleId id, JSNative native,
-                  unsigned nargs, unsigned flags, const char *selfHostedName = NULL,
+                  unsigned nargs, unsigned flags,
                   js::gc::AllocKind kind = JSFunction::FinalizeKind);
 
 namespace js {

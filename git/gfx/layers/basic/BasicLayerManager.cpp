@@ -10,7 +10,6 @@
 #include "gfxSharedImageSurface.h"
 #include "gfxImageSurface.h"
 #include "gfxUtils.h"
-#include "gfxPlatform.h"
 #include "nsXULAppAPI.h"
 #include "RenderTrace.h"
 #include "sampler.h"

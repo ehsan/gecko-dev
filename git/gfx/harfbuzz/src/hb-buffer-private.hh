@@ -64,16 +64,14 @@ hb_segment_properties_equal (const hb_segment_properties_t *a,
 }
 
 
-#if 0
-static inline unsigned int
+static inline long
 hb_segment_properties_hash (const hb_segment_properties_t *p)
 {
   /* TODO improve */
-  return (unsigned int) p->direction +
-	 (unsigned int) p->script +
-	 (intptr_t) (p->language);
+  return (long) p->direction +
+	 (long) p->script +
+	 (long) p->language;
 }
-#endif
 
 
 

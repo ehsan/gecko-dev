@@ -146,7 +146,8 @@ SPSProfiler::push(const char *string, void *sp, JSScript *script, jsbytecode *pc
         stack[current].setLabel(string);
         stack[current].setStackAddress(sp);
         stack[current].setScript(script);
-        stack[current].setPC(pc);
+        if (pc != NULL)
+            stack_[current].setPC(pc);
     }
     *size = current + 1;
 }
@@ -403,10 +404,10 @@ SPSEntryMarker::~SPSEntryMarker()
 
 JS_FRIEND_API(jsbytecode*)
 ProfileEntry::pc() volatile {
-    return idx == NullPCIndex ? NULL : script()->code + idx;
+    return script()->code + idx;
 }
 
 JS_FRIEND_API(void)
 ProfileEntry::setPC(jsbytecode *pc) volatile {
-    idx = pc == NULL ? NullPCIndex : pc - script()->code;
+    idx = pc - script()->code;
 }

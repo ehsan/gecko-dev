@@ -183,18 +183,6 @@ OrientationObserver::~OrientationObserver()
   }
 }
 
-/* static */ void
-OrientationObserver::ShutDown()
-{
-  if (!sOrientationSensorObserver) {
-    return;
-  }
-
-  if (sOrientationSensorObserver->mAutoOrientationEnabled) {
-    sOrientationSensorObserver->DisableAutoOrientation();
-  }
-}
-
 void
 OrientationObserver::Notify(const hal::SensorData& aSensorData)
 {

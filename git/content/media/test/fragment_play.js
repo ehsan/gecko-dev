@@ -13,28 +13,32 @@ function onLoadedMetadata() {
   ok(v.mozFragmentEnd == e, "mozFragmentEnd (" + v.mozFragmentEnd + ") == end Time (" + e + ")");
   loadedMetadataRaised = true; 
   v.play();
+  return false;
 }
 
 function onSeeked() {
   if (completed)
-    return;
+    return false;
 
   var s = start == null ? 0 : start;
   ok(v.currentTime == s, "seeked currentTime is " + v.currentTime + " != " + s);
 
   seekedRaised = true;
+  return false;
 }
 
 function onTimeUpdate() {
   if (completed)
-    return;
+    return false;
 
   v._lastTimeUpdate = v.currentTime;
+  return false;
 }
+
 
 function onPause() {
   if (completed)
-    return;
+    return false;
 
   var e = end == null ? v.duration : end;
   var a = e - 0.05;
@@ -42,12 +46,13 @@ function onPause() {
   ok(v.currentTime >= a && v.currentTime <= b, "paused currentTime is " + a + " < " + v.currentTime + " < " + b + " ? " + v._lastTimeUpdate);
   pausedRaised = true;
   v.play();
+  return false;
 }
 
 
 function onEnded() {
   if (completed)
-    return;
+    return false;
 
   completed = true;
   ok(loadedMetadataRaised, "loadedmetadata event");
@@ -58,6 +63,7 @@ function onEnded() {
     ok(pausedRaised, "paused event: " + end + " " + v.duration);
   }
   finish();
+  return false;
 }
 
 v.addEventListener("ended", onEnded, false);

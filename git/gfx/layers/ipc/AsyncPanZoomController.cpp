@@ -506,6 +506,8 @@ const gfx::Point AsyncPanZoomController::GetVelocityVector() {
 }
 
 void AsyncPanZoomController::StartPanning(const MultiTouchInput& aEvent) {
+  SingleTouchData& touch = GetFirstSingleTouch(aEvent);
+
   float dx = mX.PanDistance(),
         dy = mY.PanDistance();
 

@@ -8,12 +8,9 @@
 
 #include "FrameLayerBuilder.h"
 #include "nsPresContext.h"
+#include "ImageLayers.h"
 
 namespace mozilla {
-
-namespace layers {
-class ImageContainer;
-}
 
 /**
  * Keeps a record of image containers for mask layers, containers are mapped
@@ -32,8 +29,10 @@ class MaskLayerImageCache
 {
   typedef mozilla::layers::ImageContainer ImageContainer;
 public:
-  MaskLayerImageCache();
-  ~MaskLayerImageCache();
+  MaskLayerImageCache()
+  {
+    mMaskImageContainers.Init();
+  }
 
   /**
    * Representation of a rounded rectangle in device pixel coordinates, in
