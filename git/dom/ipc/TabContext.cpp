@@ -10,7 +10,6 @@
 #include "mozilla/dom/TabChild.h"
 #include "nsIAppsService.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsServiceManagerUtils.h"
 
 #define NO_APP_ID (nsIScriptSecurityManager::NO_APP_ID)
 

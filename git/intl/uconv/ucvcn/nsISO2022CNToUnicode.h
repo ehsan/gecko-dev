@@ -5,6 +5,7 @@
 #ifndef nsISO2022CNToUnicode_h__
 #define nsISO2022CNToUnicode_h__
 #include "nsCOMPtr.h"
+#include "nsISupports.h"
 #include "nsUCSupport.h"
 
 #define MBYTE       0x8e

@@ -1,19 +1,17 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const TEST_URI = "data:text/html;charset=utf-8,<p>browser_telemetry_button_scratchpad.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p>browser_telemetry_buttonsandsidebar.js</p>";
 
 // Because we need to gather stats for the period of time that a tool has been
 // opened we make use of setTimeout() to create tool active times.
 const TOOL_DELAY = 200;
 
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
+let {Promise: promise} = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {});
 let {Services} = Cu.import("resource://gre/modules/Services.jsm", {});
 
 let require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
 let Telemetry = require("devtools/shared/telemetry");
-
-let numScratchpads = 0;
 
 function init() {
   Telemetry.prototype.telemetryInfo = {};
@@ -26,59 +24,53 @@ function init() {
 
       this.telemetryInfo[histogramId].push(value);
     }
-  };
+  }
 
-  Services.ww.registerNotification(windowObserver);
-  testButton("command-button-scratchpad");
+  testButtons();
 }
 
-function testButton(id) {
-  info("Testing " + id);
+function testButtons() {
+  info("Testing buttons");
 
   let target = TargetFactory.forTab(gBrowser.selectedTab);
 
   gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
-    info("inspector opened");
+    let container = toolbox.doc.getElementById("toolbox-buttons");
+    let buttons = container.getElementsByTagName("toolbarbutton");
 
-    let button = toolbox.doc.querySelector("#" + id);
-    ok(button, "Captain, we have the button");
+    // Copy HTMLCollection to array.
+    buttons = Array.prototype.slice.call(buttons);
 
-    delayedClicks(button, 4).then(null, console.error);
-  }).then(null, console.error);
-}
+    (function testButton() {
+      let button = buttons.pop();
 
-function windowObserver(aSubject, aTopic, aData) {
-  if (aTopic == "domwindowopened") {
-    let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-    win.addEventListener("load", function onLoad() {
-      win.removeEventListener("load", onLoad, false);
-
-      if (win.Scratchpad) {
-        win.Scratchpad.addObserver({
-          onReady: function() {
-            win.Scratchpad.removeObserver(this);
-            numScratchpads++;
-            win.close();
-
-            info("another scratchpad was opened and closed, count is now " + numScratchpads);
-
-            if (numScratchpads === 4) {
-              Services.ww.unregisterNotification(windowObserver);
-              info("4 scratchpads have been opened and closed, checking results");
-              checkResults("_SCRATCHPAD_");
+      if (button) {
+        info("Clicking button " + button.id);
+        button.click();
+        delayedClicks(button, 3).then(function(button) {
+          if (buttons.length == 0) {
+            // Remove scratchpads
+            let wins = Services.wm.getEnumerator("devtools:scratchpad");
+            while (wins.hasMoreElements()) {
+              let win = wins.getNext();
+              info("Closing scratchpad window");
+              win.close();
             }
-          },
+
+            testSidebar();
+          } else {
+            setTimeout(testButton, TOOL_DELAY);
+          }
         });
       }
-    }, false);
-  }
+    })();
+  }).then(null, reportError);
 }
 
 function delayedClicks(node, clicks) {
   let deferred = promise.defer();
   let clicked = 0;
 
-  // See TOOL_DELAY for why we need setTimeout here
   setTimeout(function delayedClick() {
     info("Clicking button " + node.id);
     node.click();
@@ -94,15 +86,39 @@ function delayedClicks(node, clicks) {
   return deferred.promise;
 }
 
-function checkResults(histIdFocus) {
+function testSidebar() {
+  info("Testing sidebar");
+
+  let target = TargetFactory.forTab(gBrowser.selectedTab);
+
+  gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
+    let inspector = toolbox.getCurrentPanel();
+    let sidebarTools = ["ruleview", "computedview", "fontinspector", "layoutview"];
+
+    // Concatenate the array with itself so that we can open each tool twice.
+    sidebarTools.push.apply(sidebarTools, sidebarTools);
+
+    setTimeout(function selectSidebarTab() {
+      let tool = sidebarTools.pop();
+      if (tool) {
+        inspector.sidebar.select(tool);
+        setTimeout(function() {
+          setTimeout(selectSidebarTab, TOOL_DELAY);
+        }, TOOL_DELAY);
+      } else {
+        checkResults();
+      }
+    }, TOOL_DELAY);
+  });
+}
+
+function checkResults() {
   let result = Telemetry.prototype.telemetryInfo;
 
   for (let [histId, value] of Iterator(result)) {
-    if (histId.startsWith("DEVTOOLS_INSPECTOR_") ||
-        !histId.contains(histIdFocus)) {
-      // Inspector stats are tested in
-      // browser_telemetry_toolboxtabs_{toolname}.js so we skip them here
-      // because we only open the inspector once for this test.
+    if (histId.startsWith("DEVTOOLS_INSPECTOR_")) {
+      // Inspector stats are tested in browser_telemetry_toolboxtabs.js so we
+      // skip them here because we only open the inspector once for this test.
       continue;
     }
 
@@ -131,6 +147,14 @@ function checkResults(histIdFocus) {
   finishUp();
 }
 
+function reportError(error) {
+  let stack = "    " + error.stack.replace(/\n?.*?@/g, "\n    JS frame :: ");
+
+  ok(false, "ERROR: " + error + " at " + error.fileName + ":" +
+            error.lineNumber + "\n\nStack trace:" + stack);
+  finishUp();
+}
+
 function finishUp() {
   gBrowser.removeCurrentTab();
 
@@ -138,7 +162,7 @@ function finishUp() {
   delete Telemetry.prototype._oldlog;
   delete Telemetry.prototype.telemetryInfo;
 
-  TargetFactory = Services = promise = require = numScratchpads = null;
+  TargetFactory = Services = promise = require = null;
 
   finish();
 }

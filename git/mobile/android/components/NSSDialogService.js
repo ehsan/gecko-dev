@@ -182,7 +182,7 @@ NSSDialogs.prototype = {
                                        this.getString("nssdialogs.cancel.label")
                                      ])
       .addLabel({ id: "requestedDetails", label: serverRequestedDetails } )
-      .addMenulist({
+      .addMenuList({
         id: "nicknames",
         label: this.getString("clientAuthAsk.message2"),
         values: certNickList, selected: selectedIndex

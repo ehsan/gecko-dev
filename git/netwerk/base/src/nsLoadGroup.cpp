@@ -17,7 +17,7 @@
 #include "mozilla/Atomics.h"
 #include "mozilla/Telemetry.h"
 #include "nsAutoPtr.h"
-#include "mozilla/net/PSpdyPush.h"
+#include "mozilla/net/PSpdyPush3.h"
 #include "nsITimedChannel.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIRequestObserver.h"
@@ -1101,7 +1101,7 @@ public:
     nsLoadGroupConnectionInfo();
 private:
     Atomic<uint32_t>       mBlockingTransactionCount;
-    nsAutoPtr<mozilla::net::SpdyPushCache> mSpdyCache;
+    nsAutoPtr<mozilla::net::SpdyPushCache3> mSpdyCache3;
 };
 
 NS_IMPL_ISUPPORTS1(nsLoadGroupConnectionInfo, nsILoadGroupConnectionInfo)
@@ -1135,18 +1135,17 @@ nsLoadGroupConnectionInfo::RemoveBlockingTransaction(uint32_t *_retval)
     return NS_OK;
 }
 
-/* [noscript] attribute SpdyPushCachePtr spdyPushCache; */
+/* [noscript] attribute SpdyPushCache3Ptr spdyPushCache3; */
 NS_IMETHODIMP
-nsLoadGroupConnectionInfo::GetSpdyPushCache(mozilla::net::SpdyPushCache **aSpdyPushCache)
+nsLoadGroupConnectionInfo::GetSpdyPushCache3(mozilla::net::SpdyPushCache3 **aSpdyPushCache3)
 {
-    *aSpdyPushCache = mSpdyCache.get();
+    *aSpdyPushCache3 = mSpdyCache3.get();
     return NS_OK;
 }
-
 NS_IMETHODIMP
-nsLoadGroupConnectionInfo::SetSpdyPushCache(mozilla::net::SpdyPushCache *aSpdyPushCache)
+nsLoadGroupConnectionInfo::SetSpdyPushCache3(mozilla::net::SpdyPushCache3 *aSpdyPushCache3)
 {
-    mSpdyCache = aSpdyPushCache;
+    mSpdyCache3 = aSpdyPushCache3;
     return NS_OK;
 }
 

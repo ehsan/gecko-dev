@@ -36,6 +36,9 @@ const DEFAULT_EDITOR_CONFIG = {
   showOverviewRuler: true
 };
 
+//For telemetry
+Cu.import("resource://gre/modules/Services.jsm")
+
 /**
  * Object defining the debugger view components.
  */
@@ -276,10 +279,13 @@ let DebuggerView = {
     if (this._editorSource.url == aSource.url && !aFlags.force) {
       return this._editorSource.promise;
     }
-    let transportType = gClient.localTransport ? "_LOCAL" : "_REMOTE";
+    let transportType = DebuggerController.client.localTransport
+      ? "_LOCAL"
+      : "_REMOTE";
+    //Telemetry probe
     let histogramId = "DEVTOOLS_DEBUGGER_DISPLAY_SOURCE" + transportType + "_MS";
     let histogram = Services.telemetry.getHistogramById(histogramId);
-    let startTime = Date.now();
+    let startTime = +new Date();
 
     let deferred = promise.defer();
 
@@ -300,7 +306,7 @@ let DebuggerView = {
       DebuggerView.Sources.selectedValue = aSource.url;
       DebuggerController.Breakpoints.updateEditorBreakpoints();
 
-      histogram.add(Date.now() - startTime);
+      histogram.add(+new Date() - startTime);
 
       // Resolve and notify that a source file was shown.
       window.emit(EVENTS.SOURCE_SHOWN, aSource);

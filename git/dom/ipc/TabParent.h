@@ -196,7 +196,7 @@ public:
     bool SendRealMouseEvent(nsMouseEvent& event);
     bool SendMouseWheelEvent(mozilla::WheelEvent& event);
     bool SendRealKeyEvent(nsKeyEvent& event);
-    bool SendRealTouchEvent(WidgetTouchEvent& event);
+    bool SendRealTouchEvent(nsTouchEvent& event);
 
     virtual PDocumentRendererParent*
     AllocPDocumentRendererParent(const nsRect& documentRect, const gfxMatrix& transform,

@@ -7,7 +7,6 @@
 #include "nsILocaleService.h"
 #include "nsIServiceManager.h"
 #include "prmem.h"
-#include "nsString.h"
 
 NS_IMPL_ISUPPORTS1(nsCollationMacUC, nsICollation)
 

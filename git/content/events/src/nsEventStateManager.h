@@ -655,8 +655,7 @@ protected:
    * the target element, as well as the orientation to trigger panning and
    * display visual boundary feedback. The decision is stored back in aEvent.
    */
-  void DecideGestureEvent(mozilla::WidgetGestureNotifyEvent* aEvent,
-                          nsIFrame* targetFrame);
+  void DecideGestureEvent(nsGestureNotifyEvent* aEvent, nsIFrame* targetFrame);
 
   // routines for the d&d gesture tracking state machine
   void BeginTrackingDragGesture ( nsPresContext* aPresContext, nsMouseEvent* inDownEvent,
@@ -705,9 +704,8 @@ protected:
    */
   void FillInEventFromGestureDown(nsMouseEvent* aEvent);
 
-  nsresult DoContentCommandEvent(mozilla::WidgetContentCommandEvent* aEvent);
-  nsresult DoContentCommandScrollEvent(
-             mozilla::WidgetContentCommandEvent* aEvent);
+  nsresult DoContentCommandEvent(nsContentCommandEvent* aEvent);
+  nsresult DoContentCommandScrollEvent(nsContentCommandEvent* aEvent);
 
   void DoQuerySelectedText(nsQueryContentEvent* aEvent);
 

@@ -414,7 +414,7 @@ WMFReader::ConfigureVideoFrameGeometry(IMFMediaType* aMediaType)
   }
 
   // Success! Save state.
-  mInfo.mVideo.mDisplay = displaySize;
+  mInfo.mDisplay = displaySize;
   GetDefaultStride(aMediaType, &mVideoStride);
   mVideoWidth = width;
   mVideoHeight = height;
@@ -470,7 +470,7 @@ WMFReader::ConfigureVideoDecoder()
 
   LOG("Successfully configured video stream");
 
-  mHasVideo = mInfo.mVideo.mHasVideo = true;
+  mHasVideo = mInfo.mHasVideo = true;
 
   return S_OK;
 }
@@ -534,9 +534,9 @@ WMFReader::ConfigureAudioDecoder()
   mAudioChannels = MFGetAttributeUINT32(mediaType, MF_MT_AUDIO_NUM_CHANNELS, 0);
   mAudioBytesPerSample = MFGetAttributeUINT32(mediaType, MF_MT_AUDIO_BITS_PER_SAMPLE, 16) / 8;
 
-  mInfo.mAudio.mChannels = mAudioChannels;
-  mInfo.mAudio.mRate = mAudioRate;
-  mHasAudio = mInfo.mAudio.mHasAudio = true;
+  mInfo.mAudioChannels = mAudioChannels;
+  mInfo.mAudioRate = mAudioRate;
+  mHasAudio = mInfo.mHasAudio = true;
 
   LOG("Successfully configured audio stream. rate=%u channels=%u bitsPerSample=%u",
       mAudioRate, mAudioChannels, mAudioBytesPerSample);
@@ -545,7 +545,7 @@ WMFReader::ConfigureAudioDecoder()
 }
 
 nsresult
-WMFReader::ReadMetadata(MediaInfo* aInfo,
+WMFReader::ReadMetadata(VideoInfo* aInfo,
                         MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
@@ -578,7 +578,7 @@ WMFReader::ReadMetadata(MediaInfo* aInfo,
   hr = ConfigureAudioDecoder();
   NS_ENSURE_TRUE(SUCCEEDED(hr), NS_ERROR_FAILURE);
 
-  if (mUseHwAccel && mInfo.mVideo.mHasVideo) {
+  if (mUseHwAccel && mInfo.mHasVideo) {
     RefPtr<IMFTransform> videoDecoder;
     hr = mSourceReader->GetServiceForStream(MF_SOURCE_READER_FIRST_VIDEO_STREAM,
                                             GUID_NULL,
@@ -608,12 +608,12 @@ WMFReader::ReadMetadata(MediaInfo* aInfo,
       hr = ConfigureVideoDecoder();
     }
   }
-  if (mInfo.HasVideo()) {
+  if (mInfo.mHasVideo) {
     LOG("Using DXVA: %s", (mUseHwAccel ? "Yes" : "No"));
   }
 
   // Abort if both video and audio failed to initialize.
-  NS_ENSURE_TRUE(mInfo.HasValidMedia(), NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(mInfo.mHasAudio || mInfo.mHasVideo, NS_ERROR_FAILURE);
 
   // Get the duration, and report it to the decoder if we have it.
   int64_t duration = 0;
@@ -841,7 +841,7 @@ WMFReader::CreateBasicVideoFrame(IMFSample* aSample,
   b.mPlanes[2].mOffset = 0;
   b.mPlanes[2].mSkip = 0;
 
-  VideoData *v = VideoData::Create(mInfo.mVideo,
+  VideoData *v = VideoData::Create(mInfo,
                                    mDecoder->GetImageContainer(),
                                    aOffsetBytes,
                                    aTimestampUsecs,
@@ -884,7 +884,7 @@ WMFReader::CreateD3DVideoFrame(IMFSample* aSample,
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
   NS_ENSURE_TRUE(image, E_FAIL);
 
-  VideoData *v = VideoData::CreateFromImage(mInfo.mVideo,
+  VideoData *v = VideoData::CreateFromImage(mInfo,
                                             mDecoder->GetImageContainer(),
                                             aOffsetBytes,
                                             aTimestampUsecs,

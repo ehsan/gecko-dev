@@ -4644,7 +4644,7 @@ IonBuilder::getSingletonPrototype(JSFunction *target)
         return NULL;
 
     jsid protoid = NameToId(cx->names().classPrototype);
-    types::HeapTypeSet *protoTypes = targetType->getProperty(cx, protoid);
+    types::HeapTypeSet *protoTypes = targetType->getProperty(cx, protoid, false);
     if (!protoTypes)
         return NULL;
 
@@ -5500,7 +5500,7 @@ IonBuilder::jsop_initelem_array()
         if (!(initializer->flags & types::OBJECT_FLAG_NON_PACKED))
             needStub = true;
     } else if (!initializer->unknownProperties()) {
-        types::HeapTypeSet *elemTypes = initializer->getProperty(cx, JSID_VOID);
+        types::HeapTypeSet *elemTypes = initializer->getProperty(cx, JSID_VOID, false);
         if (!elemTypes)
             return false;
         if (!TypeSetIncludes(elemTypes, value->type(), value->resultTypeSet())) {
@@ -6051,31 +6051,18 @@ TestSingletonProperty(JSContext *cx, JSObject *obj, JSObject *singleton,
     if (holder->getSlot(shape->slot()).isUndefined())
         return true;
 
-    // Ensure the property does not appear anywhere on the prototype chain
-    // before |holder|, and that |holder| only has the result object for its
-    // property.
-    while (true) {
-        types::TypeObject *objType = obj->getType(cx);
-        if (!objType)
-            return false;
-        if (objType->unknownProperties())
-            return true;
+    types::TypeObject *objType = obj->getType(cx);
+    if (!objType)
+        return false;
+    if (objType->unknownProperties())
+        return true;
 
-        types::HeapTypeSet *property = objType->getProperty(cx, id);
-        if (!property)
-            return false;
-        if (obj != holder) {
-            if (!property->empty())
-                return true;
-            property->addFreeze(cx);
-        } else {
-            if (property->getSingleton(cx) != singleton)
-                return true;
-            break;
-        }
-
-        obj = obj->getProto();
-    }
+    types::HeapTypeSet *property = objType->getProperty(cx, id, false);
+    if (!property)
+        return false;
+    objType->getFromPrototypes(cx, id, property);
+    if (property->getSingleton(cx) != singleton)
+        return true;
 
     *isKnownConstant = true;
     return true;
@@ -6158,12 +6145,12 @@ TestSingletonPropertyTypes(JSContext *cx, MDefinition *obj, JSObject *singleton,
 
             if (object->unknownProperties())
                 return true;
-            types::HeapTypeSet *property = object->getProperty(cx, id);
+            types::HeapTypeSet *property = object->getProperty(cx, id, false);
             if (!property)
                 return false;
-            if (!property->empty())
+            object->getFromPrototypes(cx, id, property);
+            if (property->getSingleton(cx) != singleton)
                 return true;
-            property->addFreeze(cx);
 
             if (object->proto) {
                 // Test this type.
@@ -6300,11 +6287,11 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
         return false;
     types::HeapTypeSet *propertyTypes = NULL;
     if (!staticType->unknownProperties()) {
-        propertyTypes = staticType->getProperty(cx, id);
+        propertyTypes = staticType->getProperty(cx, id, false);
         if (!propertyTypes)
             return false;
     }
-    if (propertyTypes && propertyTypes->isConfiguredProperty(cx, staticType)) {
+    if (propertyTypes && propertyTypes->isOwnProperty(cx, staticType, true)) {
         // The property has been reconfigured as non-configurable, non-enumerable
         // or non-writable.
         *psucceeded = false;
@@ -6411,11 +6398,11 @@ IonBuilder::setStaticName(JSObject *staticObject, PropertyName *name)
         return false;
     types::HeapTypeSet *propertyTypes = NULL;
     if (!staticType->unknownProperties()) {
-        propertyTypes = staticType->getProperty(cx, id);
+        propertyTypes = staticType->getProperty(cx, id, false);
         if (!propertyTypes)
             return false;
     }
-    if (!propertyTypes || propertyTypes->isConfiguredProperty(cx, staticType)) {
+    if (!propertyTypes || propertyTypes->isOwnProperty(cx, staticType, true)) {
         // The property has been reconfigured as non-configurable, non-enumerable
         // or non-writable.
         return jsop_setprop(name);
@@ -6442,8 +6429,15 @@ IonBuilder::setStaticName(JSObject *staticObject, PropertyName *name)
     // storing the type tag. This only works if the property does not have its initial
     // |undefined| value; if |undefined| is assigned at a later point, it will be added
     // to the type set.
+    //
+    // We also need to make sure the typeset reflects the inherited types from
+    // the prototype by calling getFromPrototype. Otherwise we may specialize
+    // on a typeset that changes before compilation ends, which would mean the
+    // current script wouldn't be recompiled even when our assumption here is
+    // made false.
     MIRType slotType = MIRType_None;
     if (propertyTypes && !staticObject->getSlot(shape->slot()).isUndefined()) {
+        staticType->getFromPrototypes(cx, id, propertyTypes);
         JSValueType knownType = propertyTypes->getKnownTypeTag(cx);
         if (knownType != JSVAL_TYPE_UNKNOWN)
             slotType = MIRTypeFromValueType(knownType);
@@ -7691,10 +7685,10 @@ GetDefiniteSlot(JSContext *cx, types::TemporaryTypeSet *types, JSAtom *atom)
     if (id != types::IdToTypeId(id))
         return NULL;
 
-    types::HeapTypeSet *propertyTypes = type->getProperty(cx, id);
+    types::HeapTypeSet *propertyTypes = type->getProperty(cx, id, false);
     if (!propertyTypes ||
         !propertyTypes->definiteProperty() ||
-        propertyTypes->isConfiguredProperty(cx, type))
+        propertyTypes->isOwnProperty(cx, type, true))
     {
         return NULL;
     }
@@ -7736,12 +7730,11 @@ inline bool
 TestTypeHasOwnProperty(JSContext *cx, types::TypeObject *typeObj, jsid id, bool &cont)
 {
     cont = true;
-    types::HeapTypeSet *propSet = typeObj->getProperty(cx, types::IdToTypeId(id));
+    types::HeapTypeSet *propSet = typeObj->getProperty(cx, types::IdToTypeId(id), false);
     if (!propSet)
         return false;
-    if (!propSet->empty())
+    if (propSet->ownProperty(false))
         cont = false;
-    // Note: Callers must explicitly freeze the property type set later on if optimizing.
     return true;
 }
 
@@ -7912,11 +7905,13 @@ FreezePropTypeSets(JSContext *cx, types::TemporaryTypeSet *types, JSObject *foun
             // just checked, so propSet cannot be NULL.
             jsid typeId = types::IdToTypeId(id);
             while (true) {
-                types::HeapTypeSet *propSet = curType->getProperty(cx, typeId);
+                types::HeapTypeSet *propSet = curType->getProperty(cx, typeId, false);
                 // This assert is now assured, since we have faulted them in
                 // above.
-                JS_ASSERT(propSet && propSet->empty());
-                propSet->addFreeze(cx);
+                JS_ASSERT(propSet);
+                // Asking, freeze by asking.
+                DebugOnly<bool> isOwn = propSet->isOwnProperty(cx, curType, false);
+                JS_ASSERT(!isOwn);
                 // Don't mark the proto. It will be held down by the shape
                 // guard. This allows us tp use properties found on prototypes
                 // with properties unknown to TI.
@@ -8021,49 +8016,37 @@ IonBuilder::annotateGetPropertyCache(JSContext *cx, MDefinition *obj, MGetProper
         if (!typeObj || typeObj->unknownProperties() || !typeObj->proto)
             continue;
 
-        types::HeapTypeSet *ownTypes = typeObj->getProperty(cx, id);
+        types::HeapTypeSet *ownTypes = typeObj->getProperty(cx, id, false);
         if (!ownTypes)
             continue;
 
-        if (!ownTypes->empty())
+        if (ownTypes->isOwnProperty(cx, typeObj, false))
             continue;
-        ownTypes->addFreeze(cx);
 
-        JSObject *singleton = NULL;
-        JSObject *proto = typeObj->proto;
-        while (true) {
-            types::TypeObject *protoType = proto->getType(cx);
-            if (!protoType)
-                return false;
-            if (!protoType->unknownProperties()) {
-                types::HeapTypeSet *protoTypes = protoType->getProperty(cx, id);
-                if (!protoTypes)
-                    return false;
+        RootedObject proto(cx, typeObj->proto);
+        types::TypeObject *protoType = proto->getType(cx);
+        if (!protoType)
+            return false;
+        if (protoType->unknownProperties())
+            continue;
 
-                singleton = protoTypes->getSingleton(cx);
-                if (singleton) {
-                    if (singleton->is<JSFunction>())
-                        break;
-                    singleton = NULL;
-                }
-            }
-            TaggedProto taggedProto = proto->getTaggedProto();
-            if (!taggedProto.isObject())
-                break;
-            proto = taggedProto.toObject();
-        }
-        if (!singleton)
+        types::HeapTypeSet *protoTypes = protoType->getProperty(cx, id, false);
+        if (!protoTypes)
+            return false;
+
+        JSObject *obj = protoTypes->getSingleton(cx);
+        if (!obj || !obj->is<JSFunction>())
             continue;
 
         bool knownConstant = false;
-        if (!TestSingletonProperty(cx, proto, singleton, id, &knownConstant))
+        if (!TestSingletonProperty(cx, proto, obj, id, &knownConstant))
             return false;
 
         // Don't add cases corresponding to non-observed pushes
-        if (!pushedTypes->hasType(types::Type::ObjectType(singleton)))
+        if (!pushedTypes->hasType(types::Type::ObjectType(obj)))
             continue;
 
-        if (!inlinePropTable->addEntry(typeObj, &singleton->as<JSFunction>()))
+        if (!inlinePropTable->addEntry(typeObj, &obj->as<JSFunction>()))
             return false;
     }
 
@@ -8208,7 +8191,7 @@ IonBuilder::jsop_getprop(PropertyName *name)
         return emitted;
 
     // Try to inline a common property getter, or make a call.
-    if (!getPropTryCommonGetter(&emitted, id, types) || emitted)
+    if (!getPropTryCommonGetter(&emitted, id, barrier, types) || emitted)
         return emitted;
 
     // Try to emit a monomorphic/polymorphic access based on baseline caches.
@@ -8431,7 +8414,8 @@ IonBuilder::getPropTryDefiniteSlot(bool *emitted, PropertyName *name,
 }
 
 bool
-IonBuilder::getPropTryCommonGetter(bool *emitted, jsid id, types::TemporaryTypeSet *types)
+IonBuilder::getPropTryCommonGetter(bool *emitted, jsid id,
+                                   bool barrier, types::TemporaryTypeSet *types)
 {
     JS_ASSERT(*emitted == false);
     JSFunction *commonGetter;
@@ -8455,7 +8439,8 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, jsid id, types::TemporaryTypeS
 
         if (get->isEffectful() && !resumeAfter(get))
             return false;
-        bool barrier = DOMCallNeedsBarrier(jitinfo, types);
+        if (!DOMCallNeedsBarrier(jitinfo, types))
+            barrier = false;
         if (!pushTypeBarrier(get, types, barrier))
             return false;
 
@@ -8590,7 +8575,9 @@ IonBuilder::getPropTryCache(bool *emitted, PropertyName *name, jsid id,
     current->pop();
     MGetPropertyCache *load = MGetPropertyCache::New(obj, name);
 
-    // Try to mark the cache as idempotent.
+    // Try to mark the cache as idempotent. We only do this if JM is enabled
+    // (its ICs are used to mark property reads as likely non-idempotent) or
+    // if we are compiling eagerly (to improve test coverage).
     //
     // In parallel execution, idempotency of caches is ignored, since we
     // repeat the entire ForkJoin workload if we bail out. Note that it's
@@ -8627,11 +8614,6 @@ IonBuilder::getPropTryCache(bool *emitted, PropertyName *name, jsid id,
 
     if (needsToMonitorMissingProperties(types))
         barrier = true;
-
-    // Caches can read values from prototypes, so update the barrier to
-    // reflect such possible values.
-    if (!barrier && !PropertyReadOnPrototypeNeedsTypeBarrier(cx, obj, name, types, &barrier))
-        return false;
 
     MIRType rvalType = MIRTypeFromValueType(types->getKnownTypeTag());
     if (barrier || IsNullOrUndefined(rvalType))
@@ -9486,7 +9468,7 @@ IonBuilder::jsop_instanceof()
             break;
 
         types::HeapTypeSet *protoTypes =
-            rhsType->getProperty(cx, NameToId(cx->names().classPrototype));
+            rhsType->getProperty(cx, NameToId(cx->names().classPrototype), false);
         JSObject *protoObject = protoTypes ? protoTypes->getSingleton(cx) : NULL;
         if (!protoObject)
             break;

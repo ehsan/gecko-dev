@@ -2026,9 +2026,8 @@ TextInputHandler::InsertText(NSAttributedString* aAttrString,
     }
     // Delete the selected range.
     nsRefPtr<TextInputHandler> kungFuDeathGrip(this);
-    WidgetContentCommandEvent deleteCommandEvent(true,
-                                                 NS_CONTENT_COMMAND_DELETE,
-                                                 mWidget);
+    nsContentCommandEvent deleteCommandEvent(true, NS_CONTENT_COMMAND_DELETE,
+                                             mWidget);
     DispatchEvent(deleteCommandEvent);
     NS_ENSURE_TRUE_VOID(deleteCommandEvent.mSucceeded);
     // Be aware! The widget might be destroyed here.
@@ -3738,7 +3737,7 @@ PluginTextInputHandler::HandleCarbonPluginKeyEvent(EventRef aKeyEvent)
     cocoaTextEvent.type = NPCocoaEventTextInput;
     cocoaTextEvent.data.text.text = (NPNSString*)text;
 
-    WidgetPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, mWidget);
+    nsPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, mWidget);
     nsCocoaUtils::InitPluginEvent(pluginEvent, cocoaTextEvent);
     DispatchEvent(pluginEvent);
 
@@ -3887,7 +3886,7 @@ PluginTextInputHandler::HandleKeyDownEventForPlugin(NSEvent* aNativeKeyEvent)
   mPluginComplexTextInputRequested = false;
 
   // Send key down event to the plugin.
-  WidgetPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, mWidget);
+  nsPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, mWidget);
   NPCocoaEvent cocoaEvent;
   ConvertCocoaKeyEventToNPCocoaEvent(aNativeKeyEvent, cocoaEvent);
   nsCocoaUtils::InitPluginEvent(pluginEvent, cocoaEvent);
@@ -3922,7 +3921,7 @@ PluginTextInputHandler::HandleKeyDownEventForPlugin(NSEvent* aNativeKeyEvent)
       mPluginComplexTextInputRequested = false;
 
       // Send key down event to the plugin.
-      WidgetPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, mWidget);
+      nsPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, mWidget);
       NPCocoaEvent cocoaEvent;
       ConvertCocoaKeyEventToNPCocoaEvent(aNativeKeyEvent, cocoaEvent);
       nsCocoaUtils::InitPluginEvent(pluginEvent, cocoaEvent);
@@ -4022,7 +4021,7 @@ PluginTextInputHandler::DispatchCocoaNPAPITextEvent(NSString* aString)
   cocoaTextEvent.type = NPCocoaEventTextInput;
   cocoaTextEvent.data.text.text = (NPNSString*)aString;
 
-  WidgetPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, mWidget);
+  nsPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, mWidget);
   nsCocoaUtils::InitPluginEvent(pluginEvent, cocoaTextEvent);
   return DispatchEvent(pluginEvent);
 

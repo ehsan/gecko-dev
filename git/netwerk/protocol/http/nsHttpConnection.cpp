@@ -272,7 +272,7 @@ nsHttpConnection::EnsureNPNComplete()
     if (NS_FAILED(rv))
         goto npnComplete;
 
-    LOG(("nsHttpConnection::EnsureNPNComplete %p negotiated to '%s'\n",
+    LOG(("nsHttpConnection::EnsureNPNComplete %p negotiated to '%s'",
          this, negotiatedNPN.get()));
 
     uint8_t spdyVersion;
@@ -408,11 +408,12 @@ nsHttpConnection::SetupSSL(uint32_t caps)
     if (gHttpHandler->IsSpdyEnabled() &&
         !(caps & NS_HTTP_DISALLOW_SPDY)) {
         LOG(("nsHttpConnection::SetupSSL Allow SPDY NPN selection"));
-        for (uint32_t index = 0; index < SpdyInformation::kCount; ++index) {
-            if (gHttpHandler->SpdyInfo()->ProtocolEnabled(index))
-                protocolArray.AppendElement(
-                    gHttpHandler->SpdyInfo()->VersionString[index]);
-        }
+        if (gHttpHandler->SpdyInfo()->ProtocolEnabled(0))
+            protocolArray.AppendElement(
+                gHttpHandler->SpdyInfo()->VersionString[0]);
+        if (gHttpHandler->SpdyInfo()->ProtocolEnabled(1))
+            protocolArray.AppendElement(
+                gHttpHandler->SpdyInfo()->VersionString[1]);
     }
 
     if (NS_SUCCEEDED(ssl->SetNPNList(protocolArray))) {

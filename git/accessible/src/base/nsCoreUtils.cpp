@@ -144,7 +144,7 @@ nsCoreUtils::DispatchTouchEvent(uint32_t aEventType, int32_t aX, int32_t aY,
   if (!nsDOMTouchEvent::PrefEnabled())
     return;
 
-  WidgetTouchEvent event(true, aEventType, aRootWidget);
+  nsTouchEvent event(true, aEventType, aRootWidget);
 
   event.time = PR_IntervalNow();
 

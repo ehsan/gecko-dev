@@ -17,7 +17,7 @@ class nsDOMCommandEvent : public nsDOMEvent,
 public:
   nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
                     nsPresContext* aPresContext,
-                    mozilla::WidgetCommandEvent* aEvent);
+                    nsCommandEvent* aEvent);
   virtual ~nsDOMCommandEvent();
 
   NS_DECL_ISUPPORTS_INHERITED

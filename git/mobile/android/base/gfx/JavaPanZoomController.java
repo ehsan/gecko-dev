@@ -129,9 +129,6 @@ class JavaPanZoomController
     /* Used to change the scrollY direction */
     private boolean mNegateWheelScrollY;
 
-    // Handler to be notified when overscroll occurs
-    private Overscroll mOverscroll;
-
     public JavaPanZoomController(PanZoomTarget target, View view, EventDispatcher eventDispatcher) {
         mTarget = target;
         mSubscroller = new SubdocumentScrollHelper(eventDispatcher);
@@ -1116,18 +1113,6 @@ class JavaPanZoomController
             RectF maxMargins = mTarget.getMaxMargins();
             return (metrics.marginLeft < maxMargins.left || metrics.marginRight < maxMargins.right);
         }
-        @Override
-        protected void overscrollFling(final float velocity) {
-            if (mOverscroll != null) {
-                mOverscroll.setVelocity(velocity, Overscroll.Axis.X);
-            }
-        }
-        @Override
-        protected void overscrollPan(final float distance) {
-            if (mOverscroll != null) {
-                mOverscroll.setDistance(distance, Overscroll.Axis.X);
-            }
-        }
     }
 
     private class AxisY extends Axis {
@@ -1149,18 +1134,6 @@ class JavaPanZoomController
             ImmutableViewportMetrics metrics = getMetrics();
             RectF maxMargins = mTarget.getMaxMargins();
             return (metrics.marginTop < maxMargins.top || metrics.marginBottom < maxMargins.bottom);
-        }
-        @Override
-        protected void overscrollFling(final float velocity) {
-            if (mOverscroll != null) {
-                mOverscroll.setVelocity(velocity, Overscroll.Axis.Y);
-            }
-        }
-        @Override
-        protected void overscrollPan(final float distance) {
-            if (mOverscroll != null) {
-                mOverscroll.setDistance(distance, Overscroll.Axis.Y);
-            }
         }
     }
 
@@ -1460,10 +1433,5 @@ class JavaPanZoomController
     @Override
     public void updateScrollOffset(float cssX, float cssY) {
         // Nothing to update, this class doesn't store the scroll offset locally.
-    }
-
-    @Override
-    public void setOverscrollHandler(final Overscroll handler) {
-        mOverscroll = handler;
     }
 }

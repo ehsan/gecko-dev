@@ -17,7 +17,7 @@
 #include "SpdyPush3.h"
 #include "SpdySession3.h"
 #include "SpdyStream3.h"
-#include "PSpdyPush.h"
+#include "PSpdyPush3.h"
 
 #include <algorithm>
 
@@ -285,16 +285,16 @@ SpdyStream3::ParseHttpRequestHeaders(const char *buf,
   if (mTransaction->RequestHead()->Method() == nsHttp::Get) {
     // from :scheme, :host, :path
     nsILoadGroupConnectionInfo *loadGroupCI = mTransaction->LoadGroupConnectionInfo();
-    SpdyPushCache *cache = nullptr;
+    SpdyPushCache3 *cache = nullptr;
     if (loadGroupCI)
-      loadGroupCI->GetSpdyPushCache(&cache);
+      loadGroupCI->GetSpdyPushCache3(&cache);
 
     SpdyPushedStream3 *pushedStream = nullptr;
     // we remove the pushedstream from the push cache so that
     // it will not be used for another GET. This does not destroy the
     // stream itself - that is done when the transactionhash is done with it.
     if (cache)
-      pushedStream = cache->RemovePushedStreamSpdy3(hashkey);
+      pushedStream = cache->RemovePushedStream(hashkey);
 
     if (pushedStream) {
       LOG3(("Pushed Stream Match located id=0x%X key=%s\n",

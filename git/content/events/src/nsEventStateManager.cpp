@@ -1073,13 +1073,12 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   case NS_CONTENT_COMMAND_REDO:
   case NS_CONTENT_COMMAND_PASTE_TRANSFERABLE:
     {
-      DoContentCommandEvent(static_cast<WidgetContentCommandEvent*>(aEvent));
+      DoContentCommandEvent(static_cast<nsContentCommandEvent*>(aEvent));
     }
     break;
   case NS_CONTENT_COMMAND_SCROLL:
     {
-      DoContentCommandScrollEvent(
-        static_cast<WidgetContentCommandEvent*>(aEvent));
+      DoContentCommandScrollEvent(static_cast<nsContentCommandEvent*>(aEvent));
     }
     break;
   case NS_TEXT_TEXT:
@@ -1399,7 +1398,7 @@ nsEventStateManager::DispatchCrossProcessEvent(nsEvent* aEvent,
     // Let the child process synthesize a mouse event if needed, and
     // ensure we don't synthesize one in this process.
     *aStatus = nsEventStatus_eConsumeNoDefault;
-    WidgetTouchEvent* touchEvent = static_cast<WidgetTouchEvent*>(aEvent);
+    nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
     return remote->SendRealTouchEvent(*touchEvent);
   }
   default: {
@@ -1516,7 +1515,7 @@ nsEventStateManager::HandleCrossProcessEvent(nsEvent *aEvent,
     //
     // This loop is similar to the one used in
     // PresShell::DispatchTouchEvent().
-    WidgetTouchEvent* touchEvent = static_cast<WidgetTouchEvent*>(aEvent);
+    nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
     const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
     for (uint32_t i = 0; i < touches.Length(); ++i) {
       Touch* touch = touches[i];
@@ -2809,7 +2808,7 @@ nsEventStateManager::DoScrollText(nsIScrollableFrame* aScrollableFrame,
 }
 
 void
-nsEventStateManager::DecideGestureEvent(WidgetGestureNotifyEvent* aEvent,
+nsEventStateManager::DecideGestureEvent(nsGestureNotifyEvent* aEvent,
                                         nsIFrame* targetFrame)
 {
 
@@ -2828,8 +2827,7 @@ nsEventStateManager::DecideGestureEvent(WidgetGestureNotifyEvent* aEvent,
    *
    * Note: we'll have to one-off various cases to ensure a good usable behavior
    */
-  WidgetGestureNotifyEvent::ePanDirection panDirection =
-    WidgetGestureNotifyEvent::ePanNone;
+  nsGestureNotifyEvent::ePanDirection panDirection = nsGestureNotifyEvent::ePanNone;
   bool displayPanFeedback = false;
   for (nsIFrame* current = targetFrame; current;
        current = nsLayoutUtils::GetCrossDocParentFrame(current)) {
@@ -2838,7 +2836,7 @@ nsEventStateManager::DecideGestureEvent(WidgetGestureNotifyEvent* aEvent,
 
     // Scrollbars should always be draggable
     if (currentFrameType == nsGkAtoms::scrollbarFrame) {
-      panDirection = WidgetGestureNotifyEvent::ePanNone;
+      panDirection = nsGestureNotifyEvent::ePanNone;
       break;
     }
 
@@ -2847,10 +2845,10 @@ nsEventStateManager::DecideGestureEvent(WidgetGestureNotifyEvent* aEvent,
     nsTreeBodyFrame* treeFrame = do_QueryFrame(current);
     if (treeFrame) {
       if (treeFrame->GetHorizontalOverflow()) {
-        panDirection = WidgetGestureNotifyEvent::ePanHorizontal;
+        panDirection = nsGestureNotifyEvent::ePanHorizontal;
       }
       if (treeFrame->GetVerticalOverflow()) {
-        panDirection = WidgetGestureNotifyEvent::ePanVertical;
+        panDirection = nsGestureNotifyEvent::ePanVertical;
       }
       break;
     }
@@ -2874,12 +2872,12 @@ nsEventStateManager::DecideGestureEvent(WidgetGestureNotifyEvent* aEvent,
         // Vertical panning has priority over horizontal panning, so
         // when vertical movement is possible we can just finish the loop.
         if (scrollRange.height > 0) {
-          panDirection = WidgetGestureNotifyEvent::ePanVertical;
+          panDirection = nsGestureNotifyEvent::ePanVertical;
           break;
         }
 
         if (canScrollHorizontally) {
-          panDirection = WidgetGestureNotifyEvent::ePanHorizontal;
+          panDirection = nsGestureNotifyEvent::ePanHorizontal;
           displayPanFeedback = false;
         }
       } else { //Not a XUL box
@@ -2887,13 +2885,13 @@ nsEventStateManager::DecideGestureEvent(WidgetGestureNotifyEvent* aEvent,
 
         //Check if we have visible scrollbars
         if (scrollbarVisibility & nsIScrollableFrame::VERTICAL) {
-          panDirection = WidgetGestureNotifyEvent::ePanVertical;
+          panDirection = nsGestureNotifyEvent::ePanVertical;
           displayPanFeedback = true;
           break;
         }
 
         if (scrollbarVisibility & nsIScrollableFrame::HORIZONTAL) {
-          panDirection = WidgetGestureNotifyEvent::ePanHorizontal;
+          panDirection = nsGestureNotifyEvent::ePanHorizontal;
           displayPanFeedback = true;
         }
       }
@@ -3223,8 +3221,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
   case NS_GESTURENOTIFY_EVENT_START:
     {
       if (nsEventStatus_eConsumeNoDefault != *aStatus)
-        DecideGestureEvent(static_cast<WidgetGestureNotifyEvent*>(aEvent),
-                           mCurrentTarget);
+        DecideGestureEvent(static_cast<nsGestureNotifyEvent*>(aEvent), mCurrentTarget);
     }
     break;
 
@@ -4924,7 +4921,7 @@ nsEventStateManager::IsShellVisible(nsIDocShell* aShell)
 }
 
 nsresult
-nsEventStateManager::DoContentCommandEvent(WidgetContentCommandEvent* aEvent)
+nsEventStateManager::DoContentCommandEvent(nsContentCommandEvent* aEvent)
 {
   EnsureDocument(mPresContext);
   NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
@@ -4999,8 +4996,7 @@ nsEventStateManager::DoContentCommandEvent(WidgetContentCommandEvent* aEvent)
 }
 
 nsresult
-nsEventStateManager::DoContentCommandScrollEvent(
-                       WidgetContentCommandEvent* aEvent)
+nsEventStateManager::DoContentCommandScrollEvent(nsContentCommandEvent* aEvent)
 {
   NS_ENSURE_TRUE(mPresContext, NS_ERROR_NOT_AVAILABLE);
   nsIPresShell* ps = mPresContext->GetPresShell();
@@ -5009,13 +5005,13 @@ nsEventStateManager::DoContentCommandScrollEvent(
 
   nsIScrollableFrame::ScrollUnit scrollUnit;
   switch (aEvent->mScroll.mUnit) {
-    case WidgetContentCommandEvent::eCmdScrollUnit_Line:
+    case nsContentCommandEvent::eCmdScrollUnit_Line:
       scrollUnit = nsIScrollableFrame::LINES;
       break;
-    case WidgetContentCommandEvent::eCmdScrollUnit_Page:
+    case nsContentCommandEvent::eCmdScrollUnit_Page:
       scrollUnit = nsIScrollableFrame::PAGES;
       break;
-    case WidgetContentCommandEvent::eCmdScrollUnit_Whole:
+    case nsContentCommandEvent::eCmdScrollUnit_Whole:
       scrollUnit = nsIScrollableFrame::WHOLE;
       break;
     default:

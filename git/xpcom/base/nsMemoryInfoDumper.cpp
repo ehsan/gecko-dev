@@ -20,8 +20,6 @@
 #include "nsJSEnvironment.h"
 #include "nsPrintfCString.h"
 #include "nsISimpleEnumerator.h"
-#include "nsServiceManagerUtils.h"
-#include "nsIFile.h"
 #include <errno.h>
 
 #ifdef XP_WIN

@@ -3586,17 +3586,6 @@ NewFunctionForwarder(JSContext *cx, JS::HandleId id, JS::HandleObject callable,
 nsresult
 ThrowAndFail(nsresult errNum, JSContext *cx, bool *retval);
 
-struct GlobalProperties {
-    GlobalProperties() { mozilla::PodZero(this); }
-    bool Parse(JSContext *cx, JS::HandleObject obj);
-    bool Define(JSContext *cx, JS::HandleObject obj);
-    bool XMLHttpRequest;
-    bool TextDecoder;
-    bool TextEncoder;
-    bool atob;
-    bool btoa;
-};
-
 // Infallible.
 already_AddRefed<nsIXPCComponents_utils_Sandbox>
 NewSandboxConstructor();
@@ -3606,6 +3595,17 @@ bool
 IsSandbox(JSObject *obj);
 
 struct SandboxOptions {
+    struct GlobalProperties {
+        GlobalProperties() { mozilla::PodZero(this); }
+        bool Parse(JSContext* cx, JS::HandleObject obj);
+        bool Define(JSContext* cx, JS::HandleObject obj);
+        bool XMLHttpRequest;
+        bool TextDecoder;
+        bool TextEncoder;
+        bool atob;
+        bool btoa;
+    };
+
     SandboxOptions(JSContext *cx)
         : wantXrays(true)
         , wantComponents(true)
@@ -3621,7 +3621,7 @@ struct SandboxOptions {
     JS::RootedObject proto;
     nsCString sandboxName;
     JS::RootedObject sameZoneAs;
-    GlobalProperties globalProperties;
+    GlobalProperties GlobalProperties;
     JS::RootedValue metadata;
 };
 
