@@ -10,6 +10,9 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedEnumeration;
+interface SVGAnimatedNumber;
+
 interface SVGFEConvolveMatrixElement : SVGElement {
 
   // Edge Mode Values

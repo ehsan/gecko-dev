@@ -5658,11 +5658,7 @@ JS_CallFunction(JSContext *cx, JSObject *objArg, JSFunction *fun, unsigned argc,
     assertSameCompartment(cx, obj, fun, JSValueArray(argv, argc));
     AutoLastFrameCheck lfc(cx);
 
-    RootedValue rv(cx);
-    if (!Invoke(cx, ObjectOrNullValue(obj), ObjectValue(*fun), argc, argv, &rv))
-        return false;
-    *rval = rv;
-    return true;
+    return Invoke(cx, ObjectOrNullValue(obj), ObjectValue(*fun), argc, argv, rval);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -5682,14 +5678,8 @@ JS_CallFunctionName(JSContext *cx, JSObject *objArg, const char *name, unsigned 
 
     RootedValue v(cx);
     RootedId id(cx, AtomToId(atom));
-    if (!JSObject::getGeneric(cx, obj, obj, id, &v))
-        return false;
-
-    RootedValue rv(cx);
-    if (!Invoke(cx, ObjectOrNullValue(obj), v, argc, argv, &rv))
-        return false;
-    *rval = rv;
-    return true;
+    return JSObject::getGeneric(cx, obj, obj, id, &v) &&
+           Invoke(cx, ObjectOrNullValue(obj), v, argc, argv, rval);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -5703,11 +5693,7 @@ JS_CallFunctionValue(JSContext *cx, JSObject *objArg, jsval fval, unsigned argc,
     assertSameCompartment(cx, obj, fval, JSValueArray(argv, argc));
     AutoLastFrameCheck lfc(cx);
 
-    RootedValue rv(cx);
-    if (!Invoke(cx, ObjectOrNullValue(obj), fval, argc, argv, &rv))
-        return false;
-    *rval = rv;
-    return true;
+    return Invoke(cx, ObjectOrNullValue(obj), fval, argc, argv, rval);
 }
 
 JS_PUBLIC_API(bool)
@@ -5718,11 +5704,7 @@ JS::Call(JSContext *cx, jsval thisv, jsval fval, unsigned argc, jsval *argv, jsv
     assertSameCompartment(cx, thisv, fval, JSValueArray(argv, argc));
     AutoLastFrameCheck lfc(cx);
 
-    RootedValue rv(cx);
-    if (!Invoke(cx, thisv, fval, argc, argv, &rv))
-        return false;
-    *rval = rv;
-    return true;
+    return Invoke(cx, thisv, fval, argc, argv, rval);
 }
 
 JS_PUBLIC_API(JSObject *)

@@ -43,13 +43,13 @@ SVGFEGaussianBlurElement::In1()
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEGaussianBlurElement::StdDeviationX()
 {
   return mNumberPairAttributes[STD_DEV].ToDOMAnimatedNumber(nsSVGNumberPair::eFirst, this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEGaussianBlurElement::StdDeviationY()
 {
   return mNumberPairAttributes[STD_DEV].ToDOMAnimatedNumber(nsSVGNumberPair::eSecond, this);

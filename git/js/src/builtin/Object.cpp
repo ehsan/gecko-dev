@@ -538,12 +538,7 @@ obj_watch_handler(JSContext *cx, JSObject *obj_, jsid id_, jsval old,
 
     JSObject *callable = (JSObject *)closure;
     Value argv[] = { IdToValue(id), old, *nvp };
-    RootedValue rv(cx);
-    if (!Invoke(cx, ObjectValue(*obj), ObjectOrNullValue(callable), ArrayLength(argv), argv, &rv))
-        return false;
-
-    *nvp = rv;
-    return true;
+    return Invoke(cx, ObjectValue(*obj), ObjectOrNullValue(callable), ArrayLength(argv), argv, nvp);
 }
 
 static JSBool

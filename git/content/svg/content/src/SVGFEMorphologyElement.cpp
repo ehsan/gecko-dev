@@ -64,19 +64,19 @@ SVGFEMorphologyElement::In1()
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFEMorphologyElement::Operator()
 {
   return mEnumAttributes[OPERATOR].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEMorphologyElement::RadiusX()
 {
   return mNumberPairAttributes[RADIUS].ToDOMAnimatedNumber(nsSVGNumberPair::eFirst, this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEMorphologyElement::RadiusY()
 {
   return mNumberPairAttributes[RADIUS].ToDOMAnimatedNumber(nsSVGNumberPair::eSecond, this);

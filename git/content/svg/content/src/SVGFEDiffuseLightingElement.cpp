@@ -31,26 +31,26 @@ SVGFEDiffuseLightingElement::In1()
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEDiffuseLightingElement::SurfaceScale()
 {
   return mNumberAttributes[SURFACE_SCALE].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEDiffuseLightingElement::DiffuseConstant()
 {
   return mNumberAttributes[DIFFUSE_CONSTANT].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEDiffuseLightingElement::KernelUnitLengthX()
 {
   return mNumberPairAttributes[KERNEL_UNIT_LENGTH].ToDOMAnimatedNumber(
     nsSVGNumberPair::eFirst, this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEDiffuseLightingElement::KernelUnitLengthY()
 {
   return mNumberPairAttributes[KERNEL_UNIT_LENGTH].ToDOMAnimatedNumber(
