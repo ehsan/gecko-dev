@@ -11,8 +11,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript">
-    var gAccRetrieval = null;
-
     function testThis(aID, aAcc, aRole, aAnchors, aName, aValid, aStartIndex,
                       aEndIndex)
     {
@@ -38,22 +36,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
          "Wrong seleccted state after focus for ID " + aID + "!");
     }
 
-    function testStates(aID, aAcc, aState, aExtraState, aAbsentState,
-                        aShowStateDebugFlag)
+    function testStates(aID, aAcc, aState, aExtraState, aAbsentState)
     {
       var state = {}, extraState = {};
       aAcc.getFinalState(state, extraState);
-
-      if (aShowStateDebugFlag) {
-        var list = gAccRetrieval.getStringStates(state.value, 0);
-
-        var str = "";
-        for (var i = 0; i < list.length; i++)
-          str += list.item(i) + "\n";
-
-        alert(str);
-      }
-
       is(state.value & aState, aState, "Wrong state bits for ID " + aID + "!");
       is(extraState.value & aExtraState, aExtraState, 
          "Wrong extra state bits for ID " + aID + "!");
@@ -85,15 +71,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
       const ext_state_invalid = 
             Components.interfaces.nsIAccessibleStates.STATE_INVALID;
 
-      gAccRetrieval = Components.classes["@mozilla.org/accessibleRetrieval;1"].
-                      getService(Components.interfaces.nsIAccessibleRetrieval);
+      var accService = Components.classes["@mozilla.org/accessibleRetrieval;1"].
+                       getService(Components.interfaces.nsIAccessibleRetrieval);
 
       //////////////////////////////////////////////////////////////////////////
       // normal hyperlink
       var normalHyperlinkElement = document.getElementById("NormalHyperlink");
       var normalHyperlinkAcc;
       try {
-        normalHyperlinkAcc = gAccRetrieval.getAccessibleFor(normalHyperlinkElement).
+        normalHyperlinkAcc = accService.getAccessibleFor(normalHyperlinkElement).
               QueryInterface(Components.interfaces.nsIAccessibleHyperLink);
       } catch(e) {
         ok(normalHyperlinkAcc, "no interface for normal hyperlink!");
@@ -116,7 +102,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
       var ariaHyperlinkElement = document.getElementById("AriaHyperlink");
       var ariaHyperlinkAcc;
       try {
-        ariaHyperlinkAcc = gAccRetrieval.getAccessibleFor(ariaHyperlinkElement).
+        ariaHyperlinkAcc = accService.getAccessibleFor(ariaHyperlinkElement).
             QueryInterface(Components.interfaces.nsIAccessibleHyperLink);
       } catch(e) {
         ok(ariaHyperlinkAcc, "no interface for ARIA Hyperlink!");
@@ -139,7 +125,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
       var invalidAriaHyperlinkAcc;
       try {
         invalidAriaHyperlinkAcc =
-               gAccRetrieval.getAccessibleFor(invalidAriaHyperlinkElement).
+               accService.getAccessibleFor(invalidAriaHyperlinkElement).
                QueryInterface(Components.interfaces.nsIAccessibleHyperLink);
       } catch(e) {
         ok(invalidAriaHyperlinkAcc, "no interface for invalid ARIA hyperlink!");
@@ -158,7 +144,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
       var imageMapHyperlinkAcc;
       try {
         imageMapHyperlinkAcc =
-             gAccRetrieval.getAccessibleFor(imageMapHyperlinkElement).
+             accService.getAccessibleFor(imageMapHyperlinkElement).
               QueryInterface(Components.interfaces.nsIAccessibleHyperLink);
       } catch(e) {
         ok(imageMapHyperlinkAcc, "no Image Map interface!");
@@ -216,7 +202,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
       var EmptyHLAcc;
       try {
         EmptyHLAcc =
-             gAccRetrieval.getAccessibleFor(emptyLinkElement).
+             accService.getAccessibleFor(emptyLinkElement).
              QueryInterface(Components.interfaces.nsIAccessibleHyperLink);
       } catch (e) {
         ok(EmptyHLAcc, "no interface for empty link!");
@@ -234,7 +220,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
       var hyperlinkWithSpanAcc;
       try {
         hyperlinkWithSpanAcc =
-              gAccRetrieval.getAccessibleFor(hyperlinkElementWithSpan).
+              accService.getAccessibleFor(hyperlinkElementWithSpan).
               QueryInterface(Components.interfaces.nsIAccessibleHyperLink);
       } catch(e) {
         ok(hyperlinkWithSpanAcc, "no interface for hyperlink with span!");
@@ -257,7 +243,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
       var namedAnchorElement = document.getElementById("namedAnchor");
       var namedAnchorAcc;
       try {
-        namedAnchorAcc = gAccRetrieval.getAccessibleFor(namedAnchorElement).
+        namedAnchorAcc = accService.getAccessibleFor(namedAnchorElement).
               QueryInterface(Components.interfaces.nsIAccessibleHyperLink);
       } catch(e) {
         ok(namedAnchorAcc, "no interface for named anchor!");
@@ -270,45 +256,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
                  (ext_state_horizontal), (state_focusable | state_linked));
 
       //////////////////////////////////////////////////////////////////////////
-      // No link (hasn't any attribute), should never have state_linked
-      var noLinkElement = document.getElementById("noLink");
-      var noLinkAcc;
-      try {
-        noLinkAcc = gAccRetrieval.getAccessibleFor(noLinkElement).
-              QueryInterface(Components.interfaces.nsIAccessibleHyperLink);
-      } catch(e) {
-        ok(noLinkAcc, "no interface for named anchor!");
-      }
-      testThis("noLink", noLinkAcc,
-               Components.interfaces.nsIAccessibleRole.ROLE_LINK, 1, 
-               "This should never be of state_linked", true, 262, 263);
-      testStates("noLink", noLinkAcc,
-                 0,
-                 (ext_state_horizontal), (state_focusable | state_linked));
-
-      //////////////////////////////////////////////////////////////////////////
-      // Link with registered 'click' event, should have state_linked
-      var linkWithClickElement = document.getElementById("linkWithClick");
-      var linkWithClickAcc;
-      try {
-        linkWithClickAcc = gAccRetrieval.getAccessibleFor(linkWithClickElement).
-              QueryInterface(Components.interfaces.nsIAccessibleHyperLink);
-      } catch(e) {
-        ok(linkWithClickAcc, "no interface for named anchor!");
-      }
-      testThis("linkWithClick", linkWithClickAcc,
-               Components.interfaces.nsIAccessibleRole.ROLE_LINK, 1, 
-               "This should have state_linked", true, 301, 302);
-      testStates("linkWithClick", linkWithClickAcc,
-                 (state_linked),
-                 (ext_state_horizontal), 0);
-
-      //////////////////////////////////////////////////////////////////////////
       // Maps to group links (bug 431615).
       var linksMapElement = document.getElementById("linksmap");
       var linksMapAcc;
       try {
-        linksMapAcc = gAccRetrieval.getAccessibleFor(linksMapElement);
+        linksMapAcc = accService.getAccessibleFor(linksMapElement);
       } catch(e) { }
     
       ok(linksMapAcc, "no accessible for map grouping links!");
@@ -326,7 +278,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
   <div id="content" style="display: none"></div>
   <pre id="test">
   </pre>
-
   <br>Simple link:<br>
   <a id="NormalHyperlink" href="http://www.mozilla.org">Mozilla Foundation</a>
   <br>ARIA link:<br>
@@ -357,10 +308,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
   <a id="LinkWithSpan" href="http://www.heise.de/"><span lang="de">Heise Online</span></a>
   <br>Named anchor, must not have "linked" state for it to be exposed correctly:<br>
   <a id="namedAnchor" name="named_anchor">This should never be of state_linked</a>
-  <br>Link having no attributes, must not have "linked" state:</br>
-  <a id="noLink">This should never be of state_linked</a>
-  <br>Link with registered 'click' event: </br>
-  <a id="linkWithClick" onclick="var clicked = true;">This should have state_linked</a>
 
   <br>Map that is used to group links (www.w3.org/TR/WCAG10-HTML-TECHS/#group-bypass),
    also see the bug 431615:<br>
