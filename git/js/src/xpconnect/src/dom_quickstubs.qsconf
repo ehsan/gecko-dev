@@ -335,7 +335,7 @@ members = [
     'nsIDOMNSHTMLOptionCollection.add',
 
     # dom/interfaces/json - None.
-    # All 4 methods of nsIJSON call GetCurrentNativeCallContext.
+    # All methods of nsIJSON call GetCurrentNativeCallContext.
 
     # dom/interfaces/load-save - None.
 
@@ -398,6 +398,9 @@ members = [
     'nsIBoxObject.width',
     'nsIBoxObject.height',
 
+    # FileReader
+    'nsIDOMFileReader.*',
+    
     # XHR
     'nsIXMLHttpRequest.*',
     # nsIXMLHttpRequest.channel is not used on the web, and more
@@ -471,6 +474,8 @@ irregularFilenames = {
     'nsIDOMTextMetrics': 'nsIDOMCanvasRenderingContext2D',
     'nsIDOMCanvasGradient': 'nsIDOMCanvasRenderingContext2D',
     'nsIDOMCanvasPattern': 'nsIDOMCanvasRenderingContext2D',
+
+    'nsIDOMBlob': 'nsIDOMFile',
 
     'nsIWebGLTexture': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLBuffer': 'nsIDOMWebGLRenderingContext',

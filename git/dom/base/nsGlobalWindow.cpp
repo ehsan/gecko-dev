@@ -170,7 +170,6 @@
 #include "nsDOMClassInfo.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsIScriptError.h"
-#include "nsIScriptEventManager.h" // For GetInterface()
 #include "nsIConsoleService.h"
 #include "nsIControllers.h"
 #include "nsIControllerContext.h"
@@ -190,6 +189,7 @@
 #include "nsFocusManager.h"
 #include "nsIXULWindow.h"
 #include "nsEventStateManager.h"
+#include "nsITimedChannel.h"
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #include "nsIDOMXULControlElement.h"
@@ -240,6 +240,8 @@
 
 #include "nsRefreshDriver.h"
 #include "mozAutoDocUpdate.h"
+
+#include "mozilla/Telemetry.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDOMLeakPRLog;
@@ -1350,7 +1352,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
   NS_INTERFACE_MAP_ENTRY(nsIDOMStorageIndexedDB)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowPerformance)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Window)
   OUTER_WINDOW_ONLY
@@ -2579,7 +2580,8 @@ nsGlobalWindow::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   } else if (msg == NS_MOUSE_BUTTON_DOWN &&
              NS_IS_TRUSTED_EVENT(aVisitor.mEvent)) {
     gMouseDown = PR_TRUE;
-  } else if (msg == NS_MOUSE_BUTTON_UP &&
+  } else if ((msg == NS_MOUSE_BUTTON_UP ||
+              msg == NS_DRAGDROP_END) &&
              NS_IS_TRUSTED_EVENT(aVisitor.mEvent)) {
     gMouseDown = PR_FALSE;
     if (gDragServiceDisabled) {
@@ -3001,8 +3003,15 @@ nsGlobalWindow::GetPerformance(nsIDOMPerformance** aPerformance)
         return NS_OK;
       }
       nsRefPtr<nsDOMNavigationTiming> timing = mDoc->GetNavigationTiming();
+      nsCOMPtr<nsITimedChannel> timedChannel(do_QueryInterface(mDoc->GetChannel()));
+      PRBool timingEnabled = PR_FALSE;
+      if (!timedChannel ||
+          !NS_SUCCEEDED(timedChannel->GetTimingEnabled(&timingEnabled)) ||
+          !timingEnabled) {
+        timedChannel = nsnull;
+      }
       if (timing) {
-        mPerformance = new nsPerformance(timing);
+        mPerformance = new nsPerformance(timing, timedChannel);
       }
     }
     NS_IF_ADDREF(*aPerformance = mPerformance);
@@ -8241,15 +8250,6 @@ nsGlobalWindow::GetInterface(const nsIID & aIID, void **aSink)
     }
   }
 #endif
-  else if (aIID.Equals(NS_GET_IID(nsIScriptEventManager))) {
-    if (mDoc) {
-      nsIScriptEventManager* mgr = mDoc->GetScriptEventManager();
-      if (mgr) {
-        *aSink = mgr;
-        NS_ADDREF(((nsISupports *) *aSink));
-      }
-    }
-  }
   else if (aIID.Equals(NS_GET_IID(nsIDOMWindowUtils))) {
     FORWARD_TO_OUTER(GetInterface, (aIID, aSink), NS_ERROR_NOT_INITIALIZED);
 
@@ -11001,6 +11001,7 @@ nsNavigator::GetBuildID(nsAString& aBuildID)
 NS_IMETHODIMP
 nsNavigator::JavaEnabled(PRBool *aReturn)
 {
+  Telemetry::AutoTimer<Telemetry::CHECK_JAVA_ENABLED> telemetryTimer;
   // Return true if we have a handler for "application/x-java-vm",
   // otherwise return false.
   *aReturn = PR_FALSE;

@@ -376,6 +376,7 @@ struct JSRuntime {
 
     /* Garbage collector state, used by jsgc.c. */
     js::GCChunkSet      gcChunkSet;
+    js::GCChunkSet      gcSystemChunkSet;
 
     js::RootedValueMap  gcRootsHash;
     js::GCLocks         gcLocksHash;
@@ -1931,37 +1932,6 @@ class AutoReleaseNullablePtr {
         ptr = ptr2;
     }
     ~AutoReleaseNullablePtr() { if (ptr) cx->free_(ptr); }
-};
-
-class AutoLocalNameArray {
-  public:
-    explicit AutoLocalNameArray(JSContext *cx, JSFunction *fun
-                                JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : context(cx),
-        mark(JS_ARENA_MARK(&cx->tempPool)),
-        names(fun->script()->bindings.getLocalNameArray(cx, &cx->tempPool)),
-        count(fun->script()->bindings.countLocalNames())
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    ~AutoLocalNameArray() {
-        JS_ARENA_RELEASE(&context->tempPool, mark);
-    }
-
-    operator bool() const { return !!names; }
-
-    uint32 length() const { return count; }
-
-    const jsuword &operator [](unsigned i) const { return names[i]; }
-
-  private:
-    JSContext   *context;
-    void        *mark;
-    jsuword     *names;
-    uint32      count;
-
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 template <class RefCountable>

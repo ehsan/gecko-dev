@@ -131,7 +131,6 @@
 #include "nsBidiUtils.h"
 
 #include "nsIDOMUserDataHandler.h"
-#include "nsScriptEventManager.h"
 #include "nsIDOMXPathEvaluator.h"
 #include "nsIXPathEvaluatorInternal.h"
 #include "nsIParserService.h"
@@ -1861,7 +1860,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChannel)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mStyleAttrStyleSheet, nsIStyleSheet)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptEventManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mXPathEvaluatorTearoff)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLayoutHistoryState)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnloadBlocker)
@@ -1917,7 +1915,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   }
   tmp->mFirstChild = nsnull;
 
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mScriptEventManager)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mXPathEvaluatorTearoff)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCachedRootElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDisplayDocument)
@@ -2048,16 +2045,14 @@ nsIDocument::GetExtraPropertyTable(PRUint16 aCategory)
   return mExtraPropertyTables[aCategory - 1];
 }
 
-nsresult
+void
 nsDocument::AddXMLEventsContent(nsIContent *aXMLEventsElement)
 {
   if (!mXMLEventsManager) {
     mXMLEventsManager = new nsXMLEventsManager();
-    NS_ENSURE_TRUE(mXMLEventsManager, NS_ERROR_OUT_OF_MEMORY);
     AddObserver(mXMLEventsManager);
   }
   mXMLEventsManager->AddXMLEventsContent(aXMLEventsElement);
-  return NS_OK;
 }
 
 void
@@ -6330,17 +6325,6 @@ nsDocument::FlushExternalResources(mozFlushType aType)
     return;
   }
   EnumerateExternalResources(Flush, &aType);
-}
-
-nsIScriptEventManager*
-nsDocument::GetScriptEventManager()
-{
-  if (!mScriptEventManager) {
-    mScriptEventManager = new nsScriptEventManager(this);
-    // automatically AddRefs
-  }
-
-  return mScriptEventManager;
 }
 
 void
