@@ -550,6 +550,8 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_LAMBDA_FC:
           case JSOP_GETFCSLOT:
           case JSOP_CALLFCSLOT:
+          case JSOP_ARGSUB:
+          case JSOP_ARGCNT:
           case JSOP_DEBUGGER:
           case JSOP_FUNCALL:
           case JSOP_FUNAPPLY:

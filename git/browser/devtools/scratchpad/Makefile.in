@@ -1,3 +1,4 @@
+#
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -11,15 +12,15 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is TPS.
-#    
-# The Initial Developer of the Original Code is
-# Mozilla foundation
+# The Original Code is Scratchpad Build Code.
+#
+# The Initial Developer of the Original Code is The Mozilla Foundation.
+#
 # Portions created by the Initial Developer are Copyright (C) 2011
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Jonathan Griffin <jgriffin@mozilla.com>
+#   Rob Campbell <rcampbell@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,44 +36,18 @@
 #
 # ***** END LICENSE BLOCK *****
 
-import sys
-from setuptools import setup, find_packages
+DEPTH		= ../../..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
 
-version = '0.2.40'
+include $(DEPTH)/config/autoconf.mk
 
-deps = ['pulsebuildmonitor >= 0.2', 'MozillaPulse == .4', 
-        'mozinfo == 0.3.1', 'mozprofile == 0.1a',
-        'mozprocess == 0.1a', 'mozrunner == 3.0a', 'mozregression == 0.3',
-        'mozautolog >= 0.2.1']
+ifdef ENABLE_TESTS
+	DIRS += test
+endif
 
-# we only support python 2.6+ right now
-assert sys.version_info[0] == 2
-assert sys.version_info[1] >= 6
+include $(topsrcdir)/config/rules.mk
 
-setup(name='tps',
-      version=version,
-      description='run automated multi-profile sync tests',
-      long_description="""\
-""",
-      classifiers=[], # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
-      keywords='',
-      author='Jonathan Griffin',
-      author_email='jgriffin@mozilla.com',
-      url='http://hg.mozilla.org/services/services-central',
-      license='MPL',
-      dependency_links = [
-         "http://people.mozilla.org/~jgriffin/packages/"
-      ],
-      packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
-      include_package_data=True,
-      zip_safe=False,
-      install_requires=deps,
-      entry_points="""
-      # -*- Entry points: -*-
-      [console_scripts]
-      runtps = tps.cli:main
-      """,
-      data_files=[
-        ('tps', ['config/config.json.in']),
-      ],
-      )
+libs::
+	$(NSINSTALL) $(srcdir)/*.jsm $(FINAL_TARGET)/modules/devtools

@@ -49,6 +49,7 @@
 #include "nsILocalFile.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "nsIPrefService.h"
 #include "nsIProfileChangeStatus.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIToolkitChromeRegistry.h"
@@ -67,7 +68,6 @@
 #include "nsReadableUtils.h"
 #include "mozilla/Services.h"
 #include "mozilla/Omnijar.h"
-#include "mozilla/Preferences.h"
 
 #include <stdlib.h>
 
@@ -508,7 +508,7 @@ LoadExtensionDirectories(nsINIParser &parser,
 {
   nsresult rv;
   PRInt32 i = 0;
-  nsCOMPtr<nsIPrefService> prefs =
+  nsCOMPtr<nsIPrefServiceInternal> prefs =
     do_GetService("@mozilla.org/preferences-service;1");
   do {
     nsCAutoString buf("Extension");
@@ -531,7 +531,7 @@ LoadExtensionDirectories(nsINIParser &parser,
       XRE_AddJarManifestLocation(aType, dir);
       if (!prefs)
         continue;
-      mozilla::Preferences::ReadExtensionPrefs(dir);
+      prefs->ReadExtensionPrefs(dir);
     }
     else {
       aDirectories.AppendObject(dir);

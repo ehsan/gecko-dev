@@ -211,24 +211,6 @@ let gSyncUI = {
     this.clearError(title);
   },
 
-  // Set visibility of "Setup Sync" link
-  showSetupSyncAboutHome: function SUI_showSetupSyncAboutHome(toShow) {
-    let browsers = gBrowser.browsers;
-    for (let i = 0; i < browsers.length; i++) {
-      let b = browsers[i];
-      if ("about:home" == b.currentURI.spec) {
-        b.contentDocument.getElementById("setupSyncLink").hidden = !toShow;
-      }
-    }
-  },
-
-  onSetupComplete: function SUI_onSetupComplete() {
-    // Remove "setup sync" link in about:home if it is open. 
-    this.showSetupSyncAboutHome(false);
-
-    onLoginFinish();
-  },
-
   onLoginError: function SUI_onLoginError() {
     // if login fails, any other notifications are essentially moot
     Weave.Notifications.removeAll();
@@ -273,8 +255,6 @@ let gSyncUI = {
 
   onStartOver: function SUI_onStartOver() {
     this.clearError();
-    // Make "setup sync" link visible in about:home if it is open. 
-    this.showSetupSyncAboutHome(true);
   },
 
   onQuotaNotice: function onQuotaNotice(subject, data) {
@@ -311,38 +291,14 @@ let gSyncUI = {
 
   //XXXzpao should be part of syncCommon.js - which we might want to make a module...
   //        To be fixed in a followup (bug 583366)
-
-  /**
-   * Invoke the Sync setup wizard.
-   *
-   * @param wizardType
-   *        Indicates type of wizard to launch:
-   *          null    -- regular set up wizard
-   *          "pair"  -- pair a device first
-   *          "reset" -- reset sync
-   */
-
-  openSetup: function SUI_openSetup(wizardType) {
+  openSetup: function SUI_openSetup() {
     let win = Services.wm.getMostRecentWindow("Weave:AccountSetup");
     if (win)
       win.focus();
     else {
       window.openDialog("chrome://browser/content/syncSetup.xul",
-                        "weaveSetup", "centerscreen,chrome,resizable=no",
-                        wizardType);
+                        "weaveSetup", "centerscreen,chrome,resizable=no");
     }
-  },
-
-  openAddDevice: function () {
-    if (!Weave.Utils.ensureMPUnlocked())
-      return;
-
-    let win = Services.wm.getMostRecentWindow("Sync:AddDevice");
-    if (win)
-      win.focus();
-    else
-      window.openDialog("chrome://browser/content/syncAddDevice.xul",
-                        "syncAddDevice", "centerscreen,chrome,resizable=no");
   },
 
   openQuotaDialog: function SUI_openQuotaDialog() {
@@ -506,7 +462,7 @@ let gSyncUI = {
         this.onQuotaNotice();
         break;
       case "weave:service:setup-complete":
-        this.onSetupComplete();
+        this.onLoginFinish();
         break;
       case "weave:service:login:start":
         this.onActivityStart();

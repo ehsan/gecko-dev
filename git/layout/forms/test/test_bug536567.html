@@ -7,7 +7,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=536567
   <title>Test for Bug 536567</title>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
-  <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css"/>
 </head>
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=536567">Mozilla Bug 536567</a>
@@ -22,9 +21,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cm = Components.manager;
-
-var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.reset();
 
 var ioSvc = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 var dirSvc = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
@@ -96,6 +92,7 @@ var tests = [
   "pb off"
 ];
 
+var index;
 var testIndex = 0;
 var content = document.getElementById('content');
 
@@ -121,9 +118,7 @@ function runTest() {
     testIndex++;
     runTest();
   } else {
-    var file = dirs[test[2]].clone();
-    file.append("file.file");
-    MockFilePicker.returnFiles = [file];
+    index = test[2];
     content.setAttribute ('src', domains[test[0]] + '/chrome/layout/forms/test/bug536567_subframe.html');
   }
 }
@@ -134,15 +129,14 @@ function endTest() {
       dirs[i].remove(true);
     }
 
-    MockFilePicker.reset();
     SimpleTest.finish();
 }
 
-MockFilePicker.showCallback = function(filepicker) {
+window.addEventListener("message", function(event) {
   var test = tests[testIndex];
   var returned = -1;
   for (var i = 0; i < dirs.length; i++) {
-    if (dirs[i].path == MockFilePicker.displayDirectory.path) {
+    if (dirs[i].path == event.data) {
       returned = i;
       break;
     }
@@ -152,12 +146,10 @@ MockFilePicker.showCallback = function(filepicker) {
   } else {
     is(returned, test[1], 'test ' + testIndex);
   }
-
-  SimpleTest.executeSoon(function() {
-    testIndex++;
-    runTest();
-  });
-};
+  
+  testIndex++;
+  runTest();
+}, false);
 
 window.onload = function() {
   SimpleTest.waitForExplicitFinish();

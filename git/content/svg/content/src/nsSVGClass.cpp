@@ -113,6 +113,13 @@ nsSVGClass::ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
+nsISMILAttr*
+nsSVGClass::ToSMILAttr(nsSVGStylableElement *aSVGElement)
+{
+  return new SMILString(this, aSVGElement);
+}
+
 NS_IMETHODIMP
 nsSVGClass::DOMAnimatedString::GetAnimVal(nsAString& aResult)
 { 
@@ -121,13 +128,6 @@ nsSVGClass::DOMAnimatedString::GetAnimVal(nsAString& aResult)
 #endif
   mVal->GetAnimValue(aResult, mSVGElement);
   return NS_OK;
-}
-
-#ifdef MOZ_SMIL
-nsISMILAttr*
-nsSVGClass::ToSMILAttr(nsSVGStylableElement *aSVGElement)
-{
-  return new SMILString(this, aSVGElement);
 }
 
 nsresult
