@@ -42,14 +42,9 @@
 #include "ImageLayerD3D9.h"
 #include "ColorLayerD3D9.h"
 #include "CanvasLayerD3D9.h"
-#include "nsIServiceManager.h"
-#include "nsIPrefService.h"
 #include "gfxWindowsPlatform.h"
 #include "nsIGfxInfo.h"
-
-#ifdef CAIRO_HAS_D2D_SURFACE
-#include "gfxD2DSurface.h"
-#endif
+#include "nsServiceManagerUtils.h"
 
 namespace mozilla {
 namespace layers {
@@ -57,7 +52,6 @@ namespace layers {
 DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nsnull;
 
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
-  : mIs3DEnabled(PR_FALSE)
 {
   mWidget = aWidget;
   mCurrentCallbackInfo.Callback = NULL;
@@ -72,10 +66,6 @@ LayerManagerD3D9::~LayerManagerD3D9()
 PRBool
 LayerManagerD3D9::Initialize()
 {
-  /* Check the user preference for whether 3d video is enabled or not */ 
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID); 
-  prefs->GetBoolPref("gfx.3d_video.enabled", &mIs3DEnabled);
-
   nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
   if (gfxInfo) {
     PRInt32 status;
@@ -212,53 +202,13 @@ LayerManagerD3D9::CreateCanvasLayer()
 already_AddRefed<ImageContainer>
 LayerManagerD3D9::CreateImageContainer()
 {
-  nsRefPtr<ImageContainer> container = new ImageContainerD3D9(this);
+  nsRefPtr<ImageContainer> container = new ImageContainerD3D9(device());
   return container.forget();
 }
-
-cairo_user_data_key_t gKeyD3D9Texture;
 
 void ReleaseTexture(void *texture)
 {
   static_cast<IDirect3DTexture9*>(texture)->Release();
-}
-
-already_AddRefed<gfxASurface>
-LayerManagerD3D9::CreateOptimalSurface(const gfxIntSize &aSize,
-                                   gfxASurface::gfxImageFormat aFormat)
-{
-#ifdef CAIRO_HAS_D2D_SURFACE
-  if ((aFormat != gfxASurface::ImageFormatRGB24 &&
-       aFormat != gfxASurface::ImageFormatARGB32) ||
-      gfxWindowsPlatform::GetPlatform()->GetRenderMode() !=
-        gfxWindowsPlatform::RENDER_DIRECT2D ||
-      !deviceManager()->IsD3D9Ex()) {
-    return LayerManager::CreateOptimalSurface(aSize, aFormat);
-  }
-
-  nsRefPtr<IDirect3DTexture9> texture;
-  
-  HANDLE sharedHandle = 0;
-  device()->CreateTexture(aSize.width, aSize.height, 1,
-                          D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8,
-                          D3DPOOL_DEFAULT, getter_AddRefs(texture), &sharedHandle);
-
-  nsRefPtr<gfxD2DSurface> surface =
-    new gfxD2DSurface(sharedHandle, aFormat == gfxASurface::ImageFormatRGB24 ?
-      gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA);
-
-  if (!surface || surface->CairoStatus()) {
-    return LayerManager::CreateOptimalSurface(aSize, aFormat);
-  }
-
-  surface->SetData(&gKeyD3D9Texture,
-                   texture.forget().get(),
-                   ReleaseTexture);
-
-  return surface.forget();
-#else
-  return LayerManager::CreateOptimalSurface(aSize, aFormat);
-#endif
 }
 
 void

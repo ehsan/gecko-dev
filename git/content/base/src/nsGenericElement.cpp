@@ -1355,8 +1355,7 @@ nsNSElementTearoff::GetNextElementSibling(nsIDOMElement** aResult)
 nsContentList*
 nsGenericElement::GetChildrenList()
 {
-  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
-  NS_ENSURE_TRUE(slots, nsnull);
+  nsGenericElement::nsDOMSlots *slots = DOMSlots();
 
   if (!slots->mChildrenList) {
     slots->mChildrenList = new nsContentList(this, kNameSpaceID_Wildcard, 
@@ -1384,8 +1383,7 @@ nsGenericElement::GetClassList(nsresult *aResult)
 {
   *aResult = NS_ERROR_OUT_OF_MEMORY;
 
-  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
-  NS_ENSURE_TRUE(slots, nsnull);
+  nsGenericElement::nsDOMSlots *slots = DOMSlots();
 
   if (!slots->mClassList) {
     nsCOMPtr<nsIAtom> classAttr = GetClassAttributeName();
@@ -2315,11 +2313,7 @@ NS_IMETHODIMP
 nsGenericElement::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
 {
   NS_ENSURE_ARG_POINTER(aAttributes);
-  nsDOMSlots *slots = GetDOMSlots();
-
-  if (!slots) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  nsDOMSlots *slots = DOMSlots();
 
   if (!slots->mAttributeMap) {
     slots->mAttributeMap = new nsDOMAttributeMap(this);
@@ -2862,11 +2856,7 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 #endif
   {
     if (aBindingParent) {
-      nsDOMSlots *slots = GetDOMSlots();
-
-      if (!slots) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
+      nsDOMSlots *slots = DOMSlots();
 
       slots->mBindingParent = aBindingParent; // Weak, so no addref happens.
     }
@@ -3292,8 +3282,7 @@ nsGenericElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
 nsresult
 nsGenericElement::GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
-  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
-  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+  nsGenericElement::nsDOMSlots *slots = DOMSlots();
 
   if (!slots->mSMILOverrideStyle) {
     slots->mSMILOverrideStyle = new nsDOMCSSAttributeDeclaration(this, PR_TRUE);
@@ -3316,8 +3305,7 @@ nsresult
 nsGenericElement::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
                                            PRBool aNotify)
 {
-  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
-  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+  nsGenericElement::nsDOMSlots *slots = DOMSlots();
 
   slots->mSMILOverrideStyleRule = aStyleRule;
 
@@ -4578,6 +4566,10 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   NS_ASSERTION(aNamespaceID != kNameSpaceID_Unknown,
                "Don't call SetAttr with unknown namespace");
 
+  if (!mAttrsAndChildren.CanFitMoreAttrs()) {
+    return NS_ERROR_FAILURE;
+  }
+
   nsAutoString oldValue;
   PRBool modification = PR_FALSE;
   PRBool hasListeners = aNotify &&
@@ -5216,7 +5208,8 @@ nsGenericElement::CheckHandleEventForLinksPrecondition(nsEventChainVisitor& aVis
 {
   if (aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
       !NS_IS_TRUSTED_EVENT(aVisitor.mEvent) ||
-      !aVisitor.mPresContext) {
+      !aVisitor.mPresContext ||
+      (aVisitor.mEvent->flags & NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS)) {
     return PR_FALSE;
   }
 
@@ -5261,6 +5254,8 @@ nsGenericElement::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
       GetLinkTarget(target);
       nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
                                   PR_FALSE, PR_TRUE);
+      // Make sure any ancestor links don't also TriggerLink
+      aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS;
     }
     break;
 
@@ -5269,6 +5264,9 @@ nsGenericElement::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
     // FALL THROUGH
   case NS_BLUR_CONTENT:
     rv = LeaveLink(aVisitor.mPresContext);
+    if (NS_SUCCEEDED(rv)) {
+      aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS;
+    }
     break;
 
   default:
@@ -5315,6 +5313,7 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
         if (handler && document) {
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
+            aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS;
             nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
             fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE |
                                nsIFocusManager::FLAG_NOSCROLL);
@@ -5346,16 +5345,22 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
                            NS_UI_ACTIVATE, 1);
 
         rv = shell->HandleDOMEventWithTarget(this, &actEvent, &status);
+        if (NS_SUCCEEDED(rv)) {
+          aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
+        }
       }
     }
     break;
 
   case NS_UI_ACTIVATE:
     {
-      nsAutoString target;
-      GetLinkTarget(target);
-      nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
-                                  PR_TRUE, PR_TRUE);
+      if (aVisitor.mEvent->originalTarget == this) {
+        nsAutoString target;
+        GetLinkTarget(target);
+        nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
+                                    PR_TRUE, PR_TRUE);
+        aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
+      }
     }
     break;
 

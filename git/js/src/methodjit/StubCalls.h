@@ -47,10 +47,16 @@ namespace js {
 namespace mjit {
 namespace stubs {
 
+typedef enum JSTrapType {
+    JSTRAP_NONE = 0,
+    JSTRAP_TRAP = 1,
+    JSTRAP_SINGLESTEP = 2
+} JSTrapType;
+
 void JS_FASTCALL This(VMFrame &f);
 JSObject * JS_FASTCALL NewInitArray(VMFrame &f, uint32 count);
 JSObject * JS_FASTCALL NewInitObject(VMFrame &f, JSObject *base);
-void JS_FASTCALL Trap(VMFrame &f, jsbytecode *pc);
+void JS_FASTCALL Trap(VMFrame &f, uint32 trapTypes);
 void JS_FASTCALL Debugger(VMFrame &f, jsbytecode *pc);
 void JS_FASTCALL Interrupt(VMFrame &f, jsbytecode *pc);
 void JS_FASTCALL InitElem(VMFrame &f, uint32 last);
@@ -101,7 +107,7 @@ void UncachedNewHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr);
 
 void JS_FASTCALL CreateThis(VMFrame &f, JSObject *proto);
 void JS_FASTCALL Throw(VMFrame &f);
-void JS_FASTCALL PutCallObject(VMFrame &f);
+void JS_FASTCALL PutStrictEvalCallObject(VMFrame &f);
 void JS_FASTCALL PutActivationObjects(VMFrame &f);
 void JS_FASTCALL GetCallObject(VMFrame &f);
 #if JS_MONOIC
@@ -215,6 +221,11 @@ JSBool JS_FASTCALL InstanceOf(VMFrame &f);
 void JS_FASTCALL FastInstanceOf(VMFrame &f);
 void JS_FASTCALL ArgCnt(VMFrame &f);
 void JS_FASTCALL Unbrand(VMFrame &f);
+
+template <bool strict> int32 JS_FASTCALL ConvertToTypedInt(JSContext *cx, Value *vp);
+void JS_FASTCALL ConvertToTypedFloat(JSContext *cx, Value *vp);
+
+void JS_FASTCALL Exception(VMFrame &f);
 
 } /* namespace stubs */
 

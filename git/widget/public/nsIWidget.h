@@ -511,6 +511,9 @@ class nsIWidget : public nsISupports {
     /**
      * Move this widget.
      *
+     * Coordinates refer to the top-left of the widget.  For toplevel windows
+     * with decorations, this is the top-left of the titlebar and frame .
+     *
      * @param aX the new x position expressed in the parent's coordinate system
      * @param aY the new y position expressed in the parent's coordinate system
      *
@@ -1396,6 +1399,14 @@ class nsIWidget_MOZILLA_2_0_BRANCH : public nsIWidget {
     // Hide build warnings about nsIWidget::GetLayerManager being hidden by
     // our GetLayerManager method above.
     using nsIWidget::GetLayerManager;
+
+    /**
+     * Called after the LayerManager draws the layer tree
+     *
+     * @param aManager The drawing LayerManager.
+     * @param aRect Current widget rect that is being drawn.
+     */
+    virtual void DrawOver(LayerManager* aManager, nsIntRect aRect) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIWidget_MOZILLA_2_0_BRANCH, NS_IWIDGET_MOZILLA_2_0_BRANCH_IID)

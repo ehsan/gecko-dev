@@ -132,11 +132,25 @@ ShadowLayersParent::~ShadowLayersParent()
   MOZ_COUNT_DTOR(ShadowLayersParent);
 }
 
+void
+ShadowLayersParent::Destroy()
+{
+  for (size_t i = 0; i < ManagedPLayerParent().Length(); ++i) {
+    ShadowLayerParent* slp =
+      static_cast<ShadowLayerParent*>(ManagedPLayerParent()[i]);
+    slp->Destroy();
+  }
+}
+
 bool
 ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
                                InfallibleTArray<EditReply>* reply)
 {
   MOZ_LAYERS_LOG(("[ParentSide] recieved txn with %d edits", cset.Length()));
+
+  if (layer_manager()->IsDestroyed()) {
+    return true;
+  }
 
   EditReplyVector replyv;
 
@@ -207,7 +221,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowCanvasLayer* canvas = static_cast<ShadowCanvasLayer*>(
         AsShadowLayer(ocb)->AsLayer());
       nsRefPtr<gfxSharedImageSurface> front =
-        new gfxSharedImageSurface(ocb.initialFront());
+        gfxSharedImageSurface::Open(ocb.initialFront());
       CanvasLayer::Data data;
       data.mSurface = front;
       data.mSize = ocb.size();
@@ -223,7 +237,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowImageLayer* image = static_cast<ShadowImageLayer*>(
         AsShadowLayer(ocb)->AsLayer());
 
-      image->Init(new gfxSharedImageSurface(ocb.initialFront()), ocb.size());
+      nsRefPtr<gfxSharedImageSurface> surf =
+        gfxSharedImageSurface::Open(ocb.initialFront());
+      image->Init(surf, ocb.size());
 
       break;
     }
@@ -396,8 +412,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowCanvasLayer* canvas =
         static_cast<ShadowCanvasLayer*>(shadow->AsLayer());
 
-      nsRefPtr<gfxSharedImageSurface> newBack =
-        canvas->Swap(new gfxSharedImageSurface(op.newFrontBuffer()));
+      nsRefPtr<gfxSharedImageSurface> newFront =
+        gfxSharedImageSurface::Open(op.newFrontBuffer());
+      nsRefPtr<gfxSharedImageSurface> newBack = canvas->Swap(newFront);
       canvas->Updated(op.updated());
 
       replyv.push_back(OpBufferSwap(shadow, NULL,
@@ -413,8 +430,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowImageLayer* image =
         static_cast<ShadowImageLayer*>(shadow->AsLayer());
 
-      nsRefPtr<gfxSharedImageSurface> newBack =
-        image->Swap(new gfxSharedImageSurface(op.newFrontBuffer()));
+      nsRefPtr<gfxSharedImageSurface> newFront =
+        gfxSharedImageSurface::Open(op.newFrontBuffer());
+      nsRefPtr<gfxSharedImageSurface> newBack = image->Swap(newFront);
 
       replyv.push_back(OpBufferSwap(shadow, NULL,
                                     newBack->GetShmem()));
@@ -441,6 +459,13 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
   Frame()->ShadowLayersUpdated();
 
+  return true;
+}
+
+bool
+ShadowLayersParent::RecvGetParentType(LayersBackend* aBackend)
+{
+  *aBackend = layer_manager()->GetBackendType();
   return true;
 }
 

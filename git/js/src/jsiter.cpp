@@ -165,7 +165,7 @@ NewKeyValuePair(JSContext *cx, jsid id, const Value &val, Value *rval)
     Value vec[2] = { IdToValue(id), val };
     AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(vec), vec);
 
-    JSObject *aobj = js_NewArrayObject(cx, 2, vec);
+    JSObject *aobj = NewDenseCopiedArray(cx, 2, vec);
     if (!aobj)
         return false;
     rval->setObject(*aobj);
@@ -615,11 +615,17 @@ EnumeratedIdVectorToIterator(JSContext *cx, JSObject *obj, uintN flags, AutoIdVe
 
 typedef Vector<uint32, 8> ShapeVector;
 
+static inline void
+UpdateNativeIterator(NativeIterator *ni, JSObject *obj)
+{
+    // Update the object for which the native iterator is associated, so
+    // SuppressDeletedPropertyHelper will recognize the iterator as a match.
+    ni->obj = obj;
+}
+
 bool
 GetIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
 {
-    uint32 hash;
-    JSObject **hp;
     Vector<uint32, 8> shapes(cx);
     uint32 key = 0;
 
@@ -643,7 +649,7 @@ GetIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
              * objects here, as they are not inserted into the cache and
              * will result in a miss.
              */
-            JSObject *last = JS_THREAD_DATA(cx)->lastNativeIterator;
+            JSObject *last = cx->compartment->nativeIterCache.last;
             JSObject *proto = obj->getProto();
             if (last) {
                 NativeIterator *lastni = last->getNativeIterator();
@@ -654,6 +660,7 @@ GetIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
                     proto->shape() == lastni->shapes_array[1] &&
                     !proto->getProto()) {
                     vp->setObject(*last);
+                    UpdateNativeIterator(lastni, obj);
                     RegisterEnumerator(cx, last, lastni);
                     return true;
                 }
@@ -680,9 +687,7 @@ GetIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
                 pobj = pobj->getProto();
             } while (pobj);
 
-            hash = key % JS_ARRAY_LENGTH(JS_THREAD_DATA(cx)->cachedNativeIterators);
-            hp = &JS_THREAD_DATA(cx)->cachedNativeIterators[hash];
-            JSObject *iterobj = *hp;
+            JSObject *iterobj = cx->compartment->nativeIterCache.get(key);
             if (iterobj) {
                 NativeIterator *ni = iterobj->getNativeIterator();
                 if (!(ni->flags & JSITER_ACTIVE) &&
@@ -691,9 +696,10 @@ GetIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
                     Compare(ni->shapes_array, shapes.begin(), ni->shapes_length)) {
                     vp->setObject(*iterobj);
 
+                    UpdateNativeIterator(ni, obj);
                     RegisterEnumerator(cx, iterobj, ni);
                     if (shapes.length() == 2)
-                        JS_THREAD_DATA(cx)->lastNativeIterator = iterobj;
+                        cx->compartment->nativeIterCache.last = iterobj;
                     return true;
                 }
             }
@@ -728,14 +734,11 @@ GetIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
     JSObject *iterobj = &vp->toObject();
 
     /* Cache the iterator object if possible. */
-    if (shapes.length()) {
-        uint32 hash = key % NATIVE_ITER_CACHE_SIZE;
-        JSObject **hp = &JS_THREAD_DATA(cx)->cachedNativeIterators[hash];
-        *hp = iterobj;
-    }
+    if (shapes.length())
+        cx->compartment->nativeIterCache.set(key, iterobj);
 
     if (shapes.length() == 2)
-        JS_THREAD_DATA(cx)->lastNativeIterator = iterobj;
+        cx->compartment->nativeIterCache.last = iterobj;
     return true;
 }
 
@@ -764,7 +767,7 @@ js_ThrowStopIteration(JSContext *cx)
 
     JS_ASSERT(!JS_IsExceptionPending(cx));
     if (js_FindClassObject(cx, NULL, JSProto_StopIteration, &v))
-        SetPendingException(cx, v);
+        cx->setPendingException(v);
     return JS_FALSE;
 }
 
@@ -967,6 +970,7 @@ public:
 bool
 js_SuppressDeletedProperty(JSContext *cx, JSObject *obj, jsid id)
 {
+    id = js_CheckForStringIndex(id);
     return SuppressDeletedPropertyHelper(cx, obj, SingleIdPredicate(id));
 }
 
@@ -1013,12 +1017,10 @@ js_IteratorMore(JSContext *cx, JSObject *iterobj, Value *rval)
         return false;
     if (!ExternalInvoke(cx, iterobj, *rval, 0, NULL, rval)) {
         /* Check for StopIteration. */
-        if (!cx->throwing || !js_ValueIsStopIteration(cx->exception))
+        if (!cx->isExceptionPending() || !js_ValueIsStopIteration(cx->getPendingException()))
             return false;
 
-        /* Inline JS_ClearPendingException(cx). */
-        cx->throwing = JS_FALSE;
-        cx->exception.setUndefined();
+        cx->clearPendingException();
         cx->iterValue.setMagic(JS_NO_ITER_VALUE);
         rval->setBoolean(false);
         return true;
@@ -1282,13 +1284,13 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
         break;
 
       case JSGENOP_THROW:
-        SetPendingException(cx, arg);
+        cx->setPendingException(arg);
         gen->state = JSGEN_RUNNING;
         break;
 
       default:
         JS_ASSERT(op == JSGENOP_CLOSE);
-        SetPendingException(cx, MagicValue(JS_GENERATOR_CLOSING));
+        cx->setPendingException(MagicValue(JS_GENERATOR_CLOSING));
         gen->state = JSGEN_CLOSING;
         break;
     }
@@ -1346,7 +1348,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
     if (gen->floatingFrame()->isYielding()) {
         /* Yield cannot fail, throw or be called on closing. */
         JS_ASSERT(ok);
-        JS_ASSERT(!cx->throwing);
+        JS_ASSERT(!cx->isExceptionPending());
         JS_ASSERT(gen->state == JSGEN_RUNNING);
         JS_ASSERT(op != JSGENOP_CLOSE);
         genfp->clearYielding();
@@ -1432,7 +1434,7 @@ generator_op(JSContext *cx, JSGeneratorOp op, Value *vp, uintN argc)
           case JSGENOP_SEND:
             return js_ThrowStopIteration(cx);
           case JSGENOP_THROW:
-            SetPendingException(cx, argc >= 1 ? vp[2] : UndefinedValue());
+            cx->setPendingException(argc >= 1 ? vp[2] : UndefinedValue());
             return JS_FALSE;
           default:
             JS_ASSERT(op == JSGENOP_CLOSE);

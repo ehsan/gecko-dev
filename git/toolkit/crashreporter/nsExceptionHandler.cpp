@@ -193,10 +193,25 @@ static const char kTimeSinceLastCrashParameter[] = "SecondsSinceLastCrash=";
 static const int kTimeSinceLastCrashParameterLen =
                                      sizeof(kTimeSinceLastCrashParameter)-1;
 
+static const char kSysMemoryParameter[] = "SystemMemoryUsePercentage=";
+static const int kSysMemoryParameterLen = sizeof(kSysMemoryParameter)-1;
+
+static const char kTotalVirtualMemoryParameter[] = "TotalVirtualMemory=";
+static const int kTotalVirtualMemoryParameterLen =
+  sizeof(kTotalVirtualMemoryParameter)-1;
+
+static const char kAvailableVirtualMemoryParameter[] = "AvailableVirtualMemory=";
+static const int kAvailableVirtualMemoryParameterLen =
+  sizeof(kAvailableVirtualMemoryParameter)-1;
+
 // this holds additional data sent via the API
 static AnnotationTable* crashReporterAPIData_Hash;
 static nsCString* crashReporterAPIData = nsnull;
 static nsCString* notesField = nsnull;
+
+#if defined(XP_WIN)
+static HMODULE dbghelp = NULL;
+#endif
 
 #if defined(MOZ_IPC)
 // OOP crash reporting
@@ -414,6 +429,34 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
         WriteFile(hFile, kTimeSinceLastCrashParameter,
                   kTimeSinceLastCrashParameterLen, &nBytes, NULL);
         WriteFile(hFile, timeSinceLastCrashString, timeSinceLastCrashStringLen,
+                  &nBytes, NULL);
+        WriteFile(hFile, "\n", 1, &nBytes, NULL);
+      }
+      // Try to get some information about memory.
+      MEMORYSTATUSEX statex;
+      statex.dwLength = sizeof(statex);
+      if (GlobalMemoryStatusEx(&statex)) {
+        char buffer[128];
+        int bufferLen;
+        WriteFile(hFile, kSysMemoryParameter,
+                  kSysMemoryParameterLen, &nBytes, NULL);
+        ltoa(statex.dwMemoryLoad, buffer, 10);
+        bufferLen = strlen(buffer);
+        WriteFile(hFile, buffer, bufferLen,
+                  &nBytes, NULL);
+        WriteFile(hFile, "\n", 1, &nBytes, NULL);
+        WriteFile(hFile, kTotalVirtualMemoryParameter,
+                  kTotalVirtualMemoryParameterLen, &nBytes, NULL);
+        _ui64toa(statex.ullTotalVirtual, buffer, 10);
+        bufferLen = strlen(buffer);
+        WriteFile(hFile, buffer, bufferLen,
+                  &nBytes, NULL);
+        WriteFile(hFile, "\n", 1, &nBytes, NULL);
+        WriteFile(hFile, kAvailableVirtualMemoryParameter,
+                  kAvailableVirtualMemoryParameterLen, &nBytes, NULL);
+        _ui64toa(statex.ullAvailVirtual, buffer, 10);
+        bufferLen = strlen(buffer);
+        WriteFile(hFile, buffer, bufferLen,
                   &nBytes, NULL);
         WriteFile(hFile, "\n", 1, &nBytes, NULL);
       }
@@ -678,6 +721,25 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
   }
 #endif
 
+#ifdef XP_WIN
+  // Try to determine what version of dbghelp.dll we're using.
+  // MinidumpWithFullMemoryInfo is only available in 6.2 or newer.
+  dbghelp = LoadLibraryW(L"dbghelp.dll");
+  MINIDUMP_TYPE minidump_type = MiniDumpNormal;
+  if (dbghelp) {
+    typedef LPAPI_VERSION (WINAPI *ImagehlpApiVersionPtr)(void);
+    ImagehlpApiVersionPtr imagehlp_api_version =
+      (ImagehlpApiVersionPtr)GetProcAddress(dbghelp, "ImagehlpApiVersion");
+    if (imagehlp_api_version) {
+      LPAPI_VERSION api_version = imagehlp_api_version();
+      if (api_version->MajorVersion > 6 ||
+          (api_version->MajorVersion == 6 && api_version->MinorVersion > 1)) {
+        minidump_type = MiniDumpWithFullMemoryInfo;
+      }
+    }
+  }
+#endif
+
   // now set the exception handler
   gExceptionHandler = new google_breakpad::
     ExceptionHandler(tempPath.get(),
@@ -689,7 +751,10 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
                      MinidumpCallback,
                      nsnull,
 #if defined(XP_WIN32)
-                     google_breakpad::ExceptionHandler::HANDLER_ALL);
+                     google_breakpad::ExceptionHandler::HANDLER_ALL,
+                     minidump_type,
+                     NULL,
+                     NULL);
 #else
                      true
 #if defined(XP_MACOSX)
@@ -958,6 +1023,12 @@ static void OOPDeinit();
 nsresult UnsetExceptionHandler()
 {
   delete gExceptionHandler;
+
+#if defined(XP_WIN)
+  if (dbghelp) {
+    FreeLibrary(dbghelp);
+  }
+#endif
 
   // do this here in the unlikely case that we succeeded in allocating
   // our strings but failed to allocate gExceptionHandler.

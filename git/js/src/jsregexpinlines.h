@@ -72,22 +72,47 @@ regexp_statics_construct(JSContext *cx, JSObject *parent)
     return obj;
 }
 
-/* Defined in the inlines header to avoid Yarr dependency includes in main header. */
+/*
+ * The "meat" of the builtin regular expression objects: it contains the
+ * mini-program that represents the source of the regular expression. Excepting
+ * refcounts, this is an immutable datastructure after compilation.
+ *
+ * Non-atomic refcounting is used, so single-thread invariants must be
+ * maintained: we check regexp operations are performed in a single
+ * compartment.
+ *
+ * Note: defined in the inlines header to avoid Yarr dependency includes in
+ * main header.
+ *
+ * Note: refCount cannot overflow because that would require more referring
+ * regexp objects than there is space for in addressable memory.
+ */
 class RegExp
 {
-    jsrefcount                  refCount;
-    JSString                    *source;
 #if ENABLE_YARR_JIT
     JSC::Yarr::RegexCodeBlock   compiled;
 #else
     JSRegExp                    *compiled;
 #endif
-    unsigned                    parenCount;
+    JSLinearString              *source;
+    size_t                      refCount;
+    unsigned                    parenCount; /* Must be |unsigned| to interface with YARR. */
     uint32                      flags;
+#ifdef DEBUG
+  public:
+    JSCompartment               *compartment;
 
-    RegExp(JSString *source, uint32 flags)
-      : refCount(1), source(source), compiled(), parenCount(0), flags(flags) {}
-    bool compileHelper(JSContext *cx, UString &pattern);
+  private:
+#endif
+
+    RegExp(JSLinearString *source, uint32 flags, JSCompartment *compartment)
+      : compiled(), source(source), refCount(1), parenCount(0), flags(flags)
+#ifdef DEBUG
+        , compartment(compartment)
+#endif
+    { }
+
+    bool compileHelper(JSContext *cx, JSLinearString &pattern);
     bool compile(JSContext *cx);
     static const uint32 allFlags = JSREG_FOLD | JSREG_GLOB | JSREG_MULTILINE | JSREG_STICKY;
     void handlePCREError(JSContext *cx, int error);
@@ -106,8 +131,8 @@ class RegExp
 #endif
     }
 
-    static bool isMetaChar(jschar c);
-    static bool hasMetaChars(const jschar *chars, size_t length);
+    static inline bool isMetaChar(jschar c);
+    static inline bool hasMetaChars(const jschar *chars, size_t length);
 
     /*
      * Parse regexp flags. Report an error and return false if an invalid
@@ -133,9 +158,13 @@ class RegExp
         return executeInternal(cx, NULL, input, lastIndex, test, rval);
     }
 
-    /* Factories. */
+    /* Factories */
+
     static RegExp *create(JSContext *cx, JSString *source, uint32 flags);
+
+    /* Would overload |create|, but |0| resolves ambiguously against pointer and uint. */
     static RegExp *createFlagged(JSContext *cx, JSString *source, JSString *flags);
+
     /*
      * Create an object with new regular expression internals.
      * @note    The context's regexp statics flags are OR'd into the provided flags,
@@ -149,12 +178,14 @@ class RegExp
     static RegExp *extractFrom(JSObject *obj);
     static RegExp *clone(JSContext *cx, const RegExp &other);
 
-    /* Mutators. */
-    void incref(JSContext *cx) { JS_ATOMIC_INCREMENT(&refCount); }
+    /* Mutators */
+
+    void incref(JSContext *cx);
     void decref(JSContext *cx);
 
-    /* Accessors. */
-    JSString *getSource() const { return source; }
+    /* Accessors */
+
+    JSLinearString *getSource() const { return source; }
     size_t getParenCount() const { return parenCount; }
     bool ignoreCase() const { return flags & JSREG_FOLD; }
     bool global() const { return flags & JSREG_GLOB; }
@@ -246,7 +277,7 @@ RegExp::createResult(JSContext *cx, JSString *input, int *buf, size_t matchItemC
      *  0:              matched string
      *  1..pairCount-1: paren matches
      */
-    JSObject *array = js_NewSlowArrayObject(cx);
+    JSObject *array = NewSlowEmptyArray(cx);
     if (!array)
         return NULL;
 
@@ -278,7 +309,7 @@ RegExp::createResult(JSContext *cx, JSString *input, int *buf, size_t matchItemC
 }
 
 inline bool
-RegExp::executeInternal(JSContext *cx, RegExpStatics *res, JSString *input,
+RegExp::executeInternal(JSContext *cx, RegExpStatics *res, JSString *inputstr,
                         size_t *lastIndex, bool test, Value *rval)
 {
 #if !ENABLE_YARR_JIT
@@ -303,8 +334,12 @@ RegExp::executeInternal(JSContext *cx, RegExpStatics *res, JSString *input,
     for (int *it = buf; it != buf + matchItemCount; ++it)
         *it = -1;
 
-    const jschar *chars = input->chars();
+    JSLinearString *input = inputstr->ensureLinear(cx);
+    if (!input)
+        return false;
+
     size_t len = input->length();
+    const jschar *chars = input->chars();
 
     /* 
      * inputOffset emulates sticky mode by matching from this offset into the char buf and
@@ -364,11 +399,14 @@ RegExp::executeInternal(JSContext *cx, RegExpStatics *res, JSString *input,
 inline RegExp *
 RegExp::create(JSContext *cx, JSString *source, uint32 flags)
 {
+    JSLinearString *flatSource = source->ensureLinear(cx);
+    if (!flatSource)
+        return NULL;
     RegExp *self;
     void *mem = cx->malloc(sizeof(*self));
     if (!mem)
         return NULL;
-    self = new (mem) RegExp(source, flags);
+    self = new (mem) RegExp(flatSource, flags, cx->compartment);
     if (!self->compile(cx)) {
         cx->destroy<RegExp>(self);
         return NULL;
@@ -422,12 +460,12 @@ YarrJITIsBroken(JSContext *cx)
 #endif  /* ANDROID */
 
 inline bool
-RegExp::compileHelper(JSContext *cx, UString &pattern)
+RegExp::compileHelper(JSContext *cx, JSLinearString &pattern)
 {
 #if ENABLE_YARR_JIT
     bool fellBack = false;
     int error = 0;
-    jitCompileRegex(*cx->runtime->regExpAllocator, compiled, pattern, parenCount, error, fellBack, ignoreCase(), multiline()
+    jitCompileRegex(*cx->compartment->regExpAllocator, compiled, pattern, parenCount, error, fellBack, ignoreCase(), multiline()
 #ifdef ANDROID
                     /* Temporary gross hack to work around buggy kernels. */
                     , YarrJITIsBroken(cx)
@@ -456,8 +494,13 @@ RegExp::compileHelper(JSContext *cx, UString &pattern)
 inline bool
 RegExp::compile(JSContext *cx)
 {
+    /* Flatten source early for the rest of compilation. */
+    if (!source->ensureLinear(cx))
+        return false;
+
     if (!sticky())
         return compileHelper(cx, *source);
+
     /*
      * The sticky case we implement hackily by prepending a caret onto the front
      * and relying on |::execute| to pseudo-slice the string when it sees a sticky regexp.
@@ -469,10 +512,10 @@ RegExp::compile(JSContext *cx)
     if (!cb.reserve(JS_ARRAY_LENGTH(prefix) + source->length() + JS_ARRAY_LENGTH(postfix)))
         return false;
     JS_ALWAYS_TRUE(cb.append(prefix, JS_ARRAY_LENGTH(prefix)));
-    JS_ALWAYS_TRUE(cb.append(source->chars(), source->length()));
+    JS_ALWAYS_TRUE(cb.append(source->flatChars(), source->length()));
     JS_ALWAYS_TRUE(cb.append(postfix, JS_ARRAY_LENGTH(postfix)));
 
-    JSString *fakeySource = js_NewStringFromCharBuffer(cx, cb);
+    JSLinearString *fakeySource = js_NewStringFromCharBuffer(cx, cb);
     if (!fakeySource)
         return false;
     return compileHelper(cx, *fakeySource);
@@ -512,9 +555,21 @@ RegExp::flagCount() const
 }
 
 inline void
+RegExp::incref(JSContext *cx)
+{
+#ifdef DEBUG
+    assertSameCompartment(cx, compartment);
+#endif
+    ++refCount;
+}
+
+inline void
 RegExp::decref(JSContext *cx)
 {
-    if (JS_ATOMIC_DECREMENT(&refCount) == 0)
+#ifdef DEBUG
+    assertSameCompartment(cx, compartment);
+#endif
+    if (--refCount == 0)
         cx->destroy<RegExp>(this);
 }
 
@@ -522,7 +577,12 @@ inline RegExp *
 RegExp::extractFrom(JSObject *obj)
 {
     JS_ASSERT_IF(obj, obj->isRegExp());
-    return static_cast<RegExp *>(obj->getPrivate());
+    RegExp *re = static_cast<RegExp *>(obj->getPrivate());
+#ifdef DEBUG
+    if (re)
+        CompartmentChecker::check(obj->getCompartment(), re->compartment);
+#endif
+    return re;
 }
 
 inline RegExp *

@@ -195,6 +195,12 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
                 CrashReporter::AnnotationTable notes;
                 notes.Init();
                 notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("content"));
+
+                char startTime[32];
+                sprintf(startTime, "%lld", static_cast<PRInt64>(mProcessStartTime));
+                notes.Put(NS_LITERAL_CSTRING("StartupTime"),
+                          nsDependentCString(startTime));
+
                 // TODO: Additional per-process annotations.
                 CrashReporter::AppendExtraData(dumpID, notes);
             }
@@ -234,6 +240,7 @@ ContentParent::ContentParent()
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
+    , mProcessStartTime(time(NULL))
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
@@ -365,14 +372,26 @@ ContentParent::Observe(nsISupports* aSubject,
         // We know prefs are ASCII here.
         NS_LossyConvertUTF16toASCII strData(aData);
 
-        PrefTuple pref;
         nsCOMPtr<nsIPrefServiceInternal> prefService =
           do_GetService("@mozilla.org/preferences-service;1");
 
-        prefService->MirrorPreference(strData, &pref);
-
-        if (!SendPreferenceUpdate(pref))
-            return NS_ERROR_NOT_AVAILABLE;
+        PRBool prefHasValue;
+        prefService->PrefHasUserValue(strData, &prefHasValue);
+        if (prefHasValue) {
+            // Pref was created, or previously existed and its value
+            // changed.
+            PrefTuple pref;
+            nsresult rv = prefService->MirrorPreference(strData, &pref);
+            NS_ASSERTION(NS_SUCCEEDED(rv), "Pref has value but can't mirror?");
+            if (!SendPreferenceUpdate(pref)) {
+                return NS_ERROR_NOT_AVAILABLE;
+            }
+        } else {
+            // Pref wasn't found.  It was probably removed.
+            if (!SendClearUserPreference(strData)) {
+                return NS_ERROR_NOT_AVAILABLE;
+            }
+        }
     }
     else if (!strcmp(aTopic, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC)) {
       NS_ConvertUTF16toUTF8 dataStr(aData);
@@ -530,8 +549,11 @@ bool
 ContentParent::RecvStartVisitedQuery(const IPC::URI& aURI)
 {
     nsCOMPtr<nsIURI> newURI(aURI);
-    IHistory *history = nsContentUtils::GetHistory(); 
-    history->RegisterVisitedCallback(newURI, nsnull);
+    nsCOMPtr<IHistory> history = services::GetHistoryService();
+    NS_ABORT_IF_FALSE(history, "History must exist at this point.");
+    if (history) {
+      history->RegisterVisitedCallback(newURI, nsnull);
+    }
     return true;
 }
 
@@ -543,8 +565,11 @@ ContentParent::RecvVisitURI(const IPC::URI& uri,
 {
     nsCOMPtr<nsIURI> ourURI(uri);
     nsCOMPtr<nsIURI> ourReferrer(referrer);
-    IHistory *history = nsContentUtils::GetHistory(); 
-    history->VisitURI(ourURI, ourReferrer, flags);
+    nsCOMPtr<IHistory> history = services::GetHistoryService();
+    NS_ABORT_IF_FALSE(history, "History must exist at this point");
+    if (history) {
+      history->VisitURI(ourURI, ourReferrer, flags);
+    }
     return true;
 }
 
@@ -554,8 +579,11 @@ ContentParent::RecvSetURITitle(const IPC::URI& uri,
                                       const nsString& title)
 {
     nsCOMPtr<nsIURI> ourURI(uri);
-    IHistory *history = nsContentUtils::GetHistory(); 
-    history->SetURITitle(ourURI, title);
+    nsCOMPtr<IHistory> history = services::GetHistoryService();
+    NS_ABORT_IF_FALSE(history, "History must exist at this point");
+    if (history) {
+      history->SetURITitle(ourURI, title);
+    }
     return true;
 }
 

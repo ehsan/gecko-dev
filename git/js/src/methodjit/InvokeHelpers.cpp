@@ -1,4 +1,4 @@
-/* -*- mOde: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=4 sw=4 et tw=99:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -81,7 +81,7 @@ FindExceptionHandler(JSContext *cx)
     JSScript *script = fp->script();
 
 top:
-    if (cx->throwing && script->trynotesOffset) {
+    if (cx->isExceptionPending() && JSScript::isValidOffset(script->trynotesOffset)) {
         // The PC is updated before every stub call, so we can use it here.
         unsigned offset = cx->regs->pc - script->main;
 
@@ -119,7 +119,7 @@ top:
 
 #if JS_HAS_GENERATORS
                   /* Catch cannot intercept the closing of a generator. */
-                  if (JS_UNLIKELY(cx->exception.isMagic(JS_GENERATOR_CLOSING)))
+                  if (JS_UNLIKELY(cx->getPendingException().isMagic(JS_GENERATOR_CLOSING)))
                       break;
 #endif
 
@@ -136,9 +136,9 @@ top:
                    * [retsub] should rethrow the exception.
                    */
                   cx->regs->sp[0].setBoolean(true);
-                  cx->regs->sp[1] = cx->exception;
+                  cx->regs->sp[1] = cx->getPendingException();
                   cx->regs->sp += 2;
-                  cx->throwing = JS_FALSE;
+                  cx->clearPendingException();
                   return pc;
 
                 case JSTRY_ITER:
@@ -150,15 +150,14 @@ top:
                    * adjustment and regs.sp[1] after, to save and restore the
                    * pending exception.
                    */
-                  AutoValueRooter tvr(cx, cx->exception);
+                  Value v = cx->getPendingException();
                   JS_ASSERT(js_GetOpcode(cx, fp->script(), pc) == JSOP_ENDITER);
-                  cx->throwing = JS_FALSE;
+                  cx->clearPendingException();
                   ok = !!js_CloseIterator(cx, &cx->regs->sp[-1].toObject());
                   cx->regs->sp -= 1;
                   if (!ok)
                       goto top;
-                  cx->throwing = JS_TRUE;
-                  cx->exception = tvr.value();
+                  cx->setPendingException(v);
                 }
             }
         }
@@ -308,18 +307,6 @@ stubs::CompileFunction(VMFrame &f, uint32 nactual)
      */
     fp->initCallFrameEarlyPrologue(fun, nactual);
 
-    /* Empty script does nothing. */
-    bool callingNew = fp->isConstructing();
-    if (script->isEmpty()) {
-        RemovePartialFrame(cx, fp);
-        Value *vp = f.regs.sp - (nactual + 2);
-        if (callingNew)
-            vp[0] = vp[1];
-        else
-            vp[0].setUndefined();
-        return NULL;
-    }
-
     if (nactual != fp->numFormalArgs()) {
         fp = (JSStackFrame *)FixupArity(f, nactual);
         if (!fp)
@@ -339,7 +326,7 @@ stubs::CompileFunction(VMFrame &f, uint32 nactual)
 
     CompileStatus status = CanMethodJIT(cx, script, fp);
     if (status == Compile_Okay)
-        return script->getJIT(callingNew)->invokeEntry;
+        return script->getJIT(fp->isConstructing())->invokeEntry;
 
     /* Function did not compile... interpret it. */
     JSBool ok = Interpret(cx, fp);
@@ -422,9 +409,7 @@ stubs::UncachedNewHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
     Value *vp = f.regs.sp - (argc + 2);
 
     /* Try to do a fast inline call before the general Invoke path. */
-    if (IsFunctionObject(*vp, &ucr->fun) && ucr->fun->isInterpreted() && 
-        !ucr->fun->script()->isEmpty())
-    {
+    if (IsFunctionObject(*vp, &ucr->fun) && ucr->fun->isInterpreted()) {
         ucr->callee = &vp->toObject();
         if (!UncachedInlineCall(f, JSFRAME_CONSTRUCTING, &ucr->codeAddr, argc))
             THROW();
@@ -476,12 +461,6 @@ stubs::UncachedCallHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
         ucr->fun = GET_FUNCTION_PRIVATE(cx, ucr->callee);
 
         if (ucr->fun->isInterpreted()) {
-            if (ucr->fun->u.i.script->isEmpty()) {
-                vp->setUndefined();
-                f.regs.sp = vp + 1;
-                return;
-            }
-
             if (!UncachedInlineCall(f, 0, &ucr->codeAddr, argc))
                 THROW();
             return;
@@ -501,8 +480,10 @@ stubs::UncachedCallHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
 }
 
 void JS_FASTCALL
-stubs::PutCallObject(VMFrame &f)
+stubs::PutStrictEvalCallObject(VMFrame &f)
 {
+    JS_ASSERT(f.fp()->isEvalFrame());
+    JS_ASSERT(f.fp()->script()->strictModeCode);
     JS_ASSERT(f.fp()->hasCallObj());
     js_PutCallObject(f.cx, f.fp());
 }
@@ -529,17 +510,17 @@ js_InternalThrow(VMFrame &f)
         switch (handler(cx, cx->fp()->script(), cx->regs->pc, Jsvalify(&rval),
                         cx->debugHooks->throwHookData)) {
           case JSTRAP_ERROR:
-            cx->throwing = JS_FALSE;
+            cx->clearPendingException();
             return NULL;
 
           case JSTRAP_RETURN:
-            cx->throwing = JS_FALSE;
+            cx->clearPendingException();
             cx->fp()->setReturnValue(rval);
             return JS_FUNC_TO_DATA_PTR(void *,
                    cx->jaegerCompartment()->forceReturnTrampoline());
 
           case JSTRAP_THROW:
-            cx->exception = rval;
+            cx->setPendingException(rval);
             break;
 
           default:
@@ -558,7 +539,7 @@ js_InternalThrow(VMFrame &f)
         // but we shouldn't return from a JS function, because we're not in a
         // JS function.
         bool lastFrame = (f.entryfp == f.fp());
-        js_UnwindScope(cx, 0, cx->throwing);
+        js_UnwindScope(cx, 0, cx->isExceptionPending());
 
         // For consistency with Interpret(), always run the script epilogue.
         // This simplifies interactions with RunTracer(), since it can assume
@@ -610,9 +591,14 @@ stubs::EnterScript(VMFrame &f)
     JSContext *cx = f.cx;
 
     if (fp->script()->debugMode) {
-        JSInterpreterHook hook = cx->debugHooks->callHook;
-        if (JS_UNLIKELY(hook != NULL) && !fp->isExecuteFrame()) {
-            fp->setHookData(hook(cx, fp, JS_TRUE, 0, cx->debugHooks->callHookData));
+        if (fp->isExecuteFrame()) {
+            JSInterpreterHook hook = cx->debugHooks->executeHook;
+            if (JS_UNLIKELY(hook != NULL))
+                fp->setHookData(hook(cx, fp, JS_TRUE, 0, cx->debugHooks->executeHookData));
+        } else {
+            JSInterpreterHook hook = cx->debugHooks->callHook;
+            if (JS_UNLIKELY(hook != NULL))
+                fp->setHookData(hook(cx, fp, JS_TRUE, 0, cx->debugHooks->callHookData));
         }
     }
 
@@ -627,10 +613,11 @@ stubs::LeaveScript(VMFrame &f)
     Probes::exitJSFun(cx, fp->maybeFun(), fp->maybeScript());
 
     if (fp->script()->debugMode) {
-        JSInterpreterHook hook = cx->debugHooks->callHook;
         void *hookData;
+        JSInterpreterHook hook =
+            fp->isExecuteFrame() ? cx->debugHooks->executeHook : cx->debugHooks->callHook;
 
-        if (hook && (hookData = fp->maybeHookData()) && !fp->isExecuteFrame()) {
+        if (JS_UNLIKELY(hook != NULL) && (hookData = fp->maybeHookData())) {
             JSBool ok = JS_TRUE;
             hook(cx, fp, JS_FALSE, &ok, hookData);
             if (!ok)
@@ -679,7 +666,7 @@ HandleErrorInExcessFrame(VMFrame &f, JSStackFrame *stopFp, bool searchedTopmostF
         JS_ASSERT(!fp->hasImacropc());
 
         /* If there's an exception and a handler, set the pc and leave. */
-        if (cx->throwing) {
+        if (cx->isExceptionPending()) {
             jsbytecode *pc = FindExceptionHandler(cx);
             if (pc) {
                 cx->regs->pc = pc;
@@ -693,7 +680,7 @@ HandleErrorInExcessFrame(VMFrame &f, JSStackFrame *stopFp, bool searchedTopmostF
             break;
 
         /* Unwind and return. */
-        returnOK &= bool(js_UnwindScope(cx, 0, returnOK || cx->throwing));
+        returnOK &= bool(js_UnwindScope(cx, 0, returnOK || cx->isExceptionPending()));
         returnOK = ScriptEpilogue(cx, fp, returnOK);
         InlineReturn(f);
     }
@@ -916,9 +903,12 @@ DisableTraceHint(VMFrame &f, ic::TraceICInfo &tic)
 static void
 EnableTraceHintAt(JSScript *script, js::mjit::JITScript *jit, jsbytecode *pc, uint16_t index)
 {
-    JS_ASSERT(index < jit->nTraceICs);
+    if (index >= jit->nTraceICs)
+        return;
     ic::TraceICInfo &tic = jit->traceICs[index];
-
+    if (!tic.initialized)
+        return;
+    
     JS_ASSERT(tic.jumpTargetPC == pc);
 
     JaegerSpew(JSpew_PICs, "Enabling trace IC %u in script %p\n", index, script);
@@ -991,7 +981,7 @@ RunTracer(VMFrame &f)
 
     // Even though ExecuteTree() bypasses the interpreter, it should propagate
     // error failures correctly.
-    JS_ASSERT_IF(cx->throwing, tpa == TPA_Error);
+    JS_ASSERT_IF(cx->isExceptionPending(), tpa == TPA_Error);
 
 	f.fp() = cx->fp();
     JS_ASSERT(f.fp() == cx->fp());

@@ -122,9 +122,9 @@ ElementPropertyTransition::ValuePortionFor(TimeStamp aRefreshTime) const
     // When duration is zero, we can still have a transition when delay
     // is nonzero.  mStartTime already incorporates delay.
     if (aRefreshTime >= mStartTime) {
-      timePortion = 0.0;
-    } else {
       timePortion = 1.0;
+    } else {
+      timePortion = 0.0;
     }
   } else {
     timePortion = (aRefreshTime - mStartTime).ToSeconds() / duration;
@@ -667,6 +667,19 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
       double valuePortion =
         oldPT.ValuePortionFor(mostRecentRefresh) * oldPT.mReversePortion +
         (1.0 - oldPT.mReversePortion); 
+      // A timing function with negative y1 (or y2!) might make
+      // valuePortion negative.  In this case, we still want to apply our
+      // reversing logic based on relative distances, not make duration
+      // negative.
+      if (valuePortion < 0.0)
+        valuePortion = -valuePortion;
+      // A timing function with y2 (or y1!) greater than one might
+      // advance past its terminal value.  It's probably a good idea to
+      // clamp valuePortion to be at most one to preserve the invariant
+      // that a transition will complete within at most its specified
+      // time.
+      if (valuePortion > 1.0)
+        valuePortion = 1.0;
 
       // Negative delays are essentially part of the transition
       // function, so reduce them along with the duration, but don't

@@ -219,28 +219,98 @@ struct BaseIC : public MacroAssemblerTypedefs {
     bool isCallOp();
 };
 
-struct BasePolyIC : public BaseIC {
-    BasePolyIC() : execPools(SystemAllocPolicy()) { }
-    ~BasePolyIC() { releasePools(); }
+class BasePolyIC : public BaseIC {
+    typedef Vector<JSC::ExecutablePool *, 2, SystemAllocPolicy> ExecPoolVector;
+
+    // ExecutablePools that IC stubs were generated into.  Very commonly (eg.
+    // 99.5% of BasePolyICs) there are 0 or 1, and there are lots of
+    // BasePolyICs, so we space-optimize for that case.  If the bottom bit of
+    // the pointer is 0, execPool should be used, and it will be NULL (for 0
+    // pools) or non-NULL (for 1 pool).  If the bottom bit of the
+    // pointer is 1, taggedExecPools should be used, but only after de-tagging
+    // (for 2 or more pools).
+    union {
+        JSC::ExecutablePool *execPool;      // valid when bottom bit is a 0
+        ExecPoolVector *taggedExecPools;    // valid when bottom bit is a 1
+    } u;
+
+    static bool isTagged(void *p) {
+        return !!(intptr_t(p) & 1);
+    }
+
+    static ExecPoolVector *tag(ExecPoolVector *p) {
+        JS_ASSERT(!isTagged(p));
+        return (ExecPoolVector *)(intptr_t(p) | 1);
+    }
+
+    static ExecPoolVector *detag(ExecPoolVector *p) {
+        JS_ASSERT(isTagged(p));
+        return (ExecPoolVector *)(intptr_t(p) & ~1);
+    }
+
+    bool areZeroPools()     { return !u.execPool; }
+    bool isOnePool()        { return u.execPool && !isTagged(u.execPool); }
+    bool areMultiplePools() { return isTagged(u.taggedExecPools); }
+
+    ExecPoolVector *multiplePools() {
+        JS_ASSERT(areMultiplePools());
+        return detag(u.taggedExecPools);
+    }
+
+  public:
+    BasePolyIC() {
+        u.execPool = NULL;
+    }
+
+    ~BasePolyIC() {
+        releasePools();
+        if (areMultiplePools())
+            delete multiplePools();
+    }
 
     void reset() {
         BaseIC::reset();
         releasePools();
-        execPools.clear();
+        if (areZeroPools()) {
+            // Common case:  do nothing.
+        } else if (isOnePool()) {
+            u.execPool = NULL;
+        } else {
+            multiplePools()->clear();
+        }
     }
 
-    typedef Vector<JSC::ExecutablePool *, 0, SystemAllocPolicy> ExecPoolVector;
-
-    // ExecutablePools that IC stubs were generated into.
-    ExecPoolVector execPools;
-
-    // Release ExecutablePools referred to by this PIC.
     void releasePools() {
-        for (JSC::ExecutablePool **pExecPool = execPools.begin();
-             pExecPool != execPools.end();
-             ++pExecPool) {
-            (*pExecPool)->release();
+        if (areZeroPools()) {
+            // Common case:  do nothing.
+        } else if (isOnePool()) {
+            u.execPool->release();
+        } else {
+            ExecPoolVector *execPools = multiplePools();
+            for (size_t i = 0; i < execPools->length(); i++)
+                (*execPools)[i]->release();
         }
+    }
+
+    bool addPool(JSContext *cx, JSC::ExecutablePool *pool) {
+        if (areZeroPools()) {
+            u.execPool = pool;
+            return true;
+        }
+        if (isOnePool()) {
+            JSC::ExecutablePool *oldPool = u.execPool;
+            JS_ASSERT(!isTagged(oldPool));
+            ExecPoolVector *execPools = new ExecPoolVector(SystemAllocPolicy()); 
+            if (!execPools)
+                return false;
+            if (!execPools->append(oldPool) || !execPools->append(pool)) {
+                delete execPools;
+                return false;
+            }
+            u.taggedExecPools = tag(execPools);
+            return true;
+        }
+        return multiplePools()->append(pool); 
     }
 };
 
@@ -316,7 +386,11 @@ struct GetElementIC : public BasePolyIC {
         return hasInlineTypeGuard() && !inlineTypeGuardPatched;
     }
     bool shouldPatchUnconditionalClaspGuard() {
-        return !hasInlineTypeGuard() && !inlineClaspGuardPatched;
+        // The clasp guard is only unconditional if the type is known to not
+        // be an int32.
+        if (idRemat.isTypeKnown() && idRemat.knownType() != JSVAL_TYPE_INT32)
+            return !inlineClaspGuardPatched;
+        return false;
     }
 
     void reset() {
@@ -330,6 +404,8 @@ struct GetElementIC : public BasePolyIC {
     LookupStatus update(JSContext *cx, JSObject *obj, const Value &v, jsid id, Value *vp);
     LookupStatus attachGetProp(JSContext *cx, JSObject *obj, const Value &v, jsid id,
                                Value *vp);
+    LookupStatus attachTypedArray(JSContext *cx, JSObject *obj, const Value &v, jsid id,
+                                  Value *vp);
     LookupStatus disable(JSContext *cx, const char *reason);
     LookupStatus error(JSContext *cx);
     bool shouldUpdate(JSContext *cx);
@@ -366,6 +442,10 @@ struct SetElementIC : public BaseIC {
     // True if this is from a strict-mode script.
     bool strictMode : 1;
 
+    // A bitmask of registers that are volatile and must be preserved across
+    // stub calls inside the IC.
+    uint32 volatileMask : 16;
+
     // If true, then keyValue contains a constant index value >= 0. Otherwise,
     // keyReg contains a dynamic integer index in any range.
     bool hasConstantKey : 1;
@@ -389,6 +469,7 @@ struct SetElementIC : public BaseIC {
         inlineHoleGuardPatched = false;
     }
     void purge(Repatcher &repatcher);
+    LookupStatus attachTypedArray(JSContext *cx, JSObject *obj, int32 key);
     LookupStatus attachHoleStub(JSContext *cx, JSObject *obj, int32 key);
     LookupStatus update(JSContext *cx, const Value &objval, const Value &idval);
     LookupStatus disable(JSContext *cx, const char *reason);

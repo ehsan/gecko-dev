@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -46,6 +47,7 @@
 #include "nsWrapperCache.h"
 #include "XPCWrapper.h"
 #include "AccessCheck.h"
+#include "nsJSUtils.h"
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 
@@ -452,10 +454,13 @@ nsXPCWrappedJSClass::BuildPropertyEnumerator(XPCCallContext& ccx,
         if(!name)
             goto out;
 
+        size_t length;
+        const jschar *chars = JS_GetStringCharsAndLength(cx, name, &length);
+        if (!chars)
+            goto out;
+
         nsCOMPtr<nsIProperty> property = 
-            new xpcProperty((const PRUnichar*) JS_GetStringChars(name), 
-                            (PRUint32) JS_GetStringLength(name),
-                            value);
+            new xpcProperty(chars, (PRUint32) length, value);
         if(!property)
             goto out;
 
@@ -1212,11 +1217,14 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
                                     rv = location->GetFilename(getter_Copies(sourceName));
                                 }
 
-                                rv = scriptError->Init(newMessage.get(),
-                                                       NS_ConvertASCIItoUTF16(sourceName).get(),
-                                                       nsnull,
-                                                       lineNumber, 0, 0,
-                                                       "XPConnect JavaScript");
+                                nsCOMPtr<nsIScriptError2> scriptError2 =
+                                    do_QueryInterface(scriptError);
+                                rv = scriptError2->InitWithWindowID(newMessage.get(),
+                                                                    NS_ConvertASCIItoUTF16(sourceName).get(),
+                                                                    nsnull,
+                                                                    lineNumber, 0, 0,
+                                                                    "XPConnect JavaScript",
+                                                                    nsJSUtils::GetCurrentlyRunningCodeWindowID(cx));
                                 if(NS_FAILED(rv))
                                     scriptError = nsnull;
                             }

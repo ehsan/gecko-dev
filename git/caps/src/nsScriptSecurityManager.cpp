@@ -114,7 +114,7 @@ static inline const PRUnichar *
 IDToString(JSContext *cx, jsid id)
 {
     if (JSID_IS_STRING(id))
-        return reinterpret_cast<PRUnichar*>(JS_GetStringChars(JSID_TO_STRING(id)));
+        return JS_GetInternedStringChars(JSID_TO_STRING(id));
 
     JSAutoRequest ar(cx);
     jsval idval;
@@ -123,7 +123,7 @@ IDToString(JSContext *cx, jsid id)
     JSString *str = JS_ValueToString(cx, idval);
     if(!str)
         return nsnull;
-    return reinterpret_cast<PRUnichar*>(JS_GetStringChars(str));
+    return JS_GetStringCharsZ(cx, str);
 }
 
 class nsAutoInPrincipalDomainOriginSetter {
@@ -864,6 +864,11 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
         case nsIXPCSecurityManager::ACCESS_CALL_METHOD:
             stringName.AssignLiteral("CallMethodDeniedOrigins");
         }
+
+        // Null out objectPrincipal for now, so we don't leak information about
+        // it.  Whenever we can report different error strings to content and
+        // the UI we can take this out again.
+        objectPrincipal = nsnull;
 
         NS_ConvertUTF8toUTF16 className(classInfoData.GetName());
         nsCAutoString subjectOrigin;
@@ -2172,6 +2177,9 @@ nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
                                                     nsresult *rv)
 {
     NS_PRECONDITION(rv, "Null out param");
+
+    *rv = NS_OK;
+
     if (!JS_ObjectIsFunction(cx, obj))
     {
         // Protect against pseudo-functions (like SJOWs).
@@ -2183,8 +2191,6 @@ nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
 
     JSFunction *fun = GET_FUNCTION_PRIVATE(cx, obj);
     JSScript *script = JS_GetFunctionScript(cx, fun);
-
-    *rv = NS_OK;
 
     if (!script)
     {

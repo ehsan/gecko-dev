@@ -119,7 +119,7 @@ nsresult gfxFontEntry::InitializeUVSMap()
 
     if (!mUVSData) {
         const PRUint32 kCmapTag = TRUETYPE_TAG('c','m','a','p');
-        nsAutoTArray<PRUint8,16384> buffer;
+        AutoFallibleTArray<PRUint8,16384> buffer;
         if (GetFontTable(kCmapTag, buffer) != NS_OK) {
             mUVSOffset = 0; // don't bother to read the table again
             return NS_ERROR_FAILURE;
@@ -197,7 +197,7 @@ public:
     // Adopts the content of aBuffer.
     // Pass a non-null aHashEntry only if it should be cleared if/when this
     // FontTableBlobData is deleted.
-    FontTableBlobData(nsTArray<PRUint8>& aBuffer,
+    FontTableBlobData(FallibleTArray<PRUint8>& aBuffer,
                       FontTableHashEntry *aHashEntry)
         : mHashEntry(aHashEntry), mHashtable()
     {
@@ -239,7 +239,7 @@ public:
 
 private:
     // The font table data block, owned (via adoption)
-    nsTArray<PRUint8> mTableData;
+    FallibleTArray<PRUint8> mTableData;
     // The blob destroy function needs to know the hashtable entry,
     FontTableHashEntry *mHashEntry;
     // and the owning hashtable, so that it can remove the entry.
@@ -250,7 +250,7 @@ private:
 };
 
 void
-gfxFontEntry::FontTableHashEntry::SaveTable(nsTArray<PRUint8>& aTable)
+gfxFontEntry::FontTableHashEntry::SaveTable(FallibleTArray<PRUint8>& aTable)
 {
     Clear();
     // adopts elements of aTable
@@ -262,7 +262,7 @@ gfxFontEntry::FontTableHashEntry::SaveTable(nsTArray<PRUint8>& aTable)
 
 hb_blob_t *
 gfxFontEntry::FontTableHashEntry::
-ShareTableAndGetBlob(nsTArray<PRUint8>& aTable,
+ShareTableAndGetBlob(FallibleTArray<PRUint8>& aTable,
                      nsTHashtable<FontTableHashEntry> *aHashtable)
 {
     Clear();
@@ -334,7 +334,7 @@ gfxFontEntry::GetExistingFontTable(PRUint32 aTag, hb_blob_t **aBlob)
 
 hb_blob_t *
 gfxFontEntry::ShareFontTableAndGetBlob(PRUint32 aTag,
-                                       nsTArray<PRUint8>* aBuffer)
+                                       FallibleTArray<PRUint8>* aBuffer)
 {
     if (NS_UNLIKELY(!mFontTableCache.IsInitialized())) {
         // we do this here rather than on fontEntry construction
@@ -357,7 +357,7 @@ gfxFontEntry::ShareFontTableAndGetBlob(PRUint32 aTag,
 }
 
 void
-gfxFontEntry::PreloadFontTable(PRUint32 aTag, nsTArray<PRUint8>& aTable)
+gfxFontEntry::PreloadFontTable(PRUint32 aTag, FallibleTArray<PRUint8>& aTable)
 {
     if (!mFontTableCache.IsInitialized()) {
         // This is intended for use with downloaded fonts, to cache the layout
@@ -732,7 +732,7 @@ gfxFontFamily::FindFontForChar(FontSearch *aMatchData)
 // returns true if other names were found, false otherwise
 PRBool
 gfxFontFamily::ReadOtherFamilyNamesForFace(gfxPlatformFontList *aPlatformFontList,
-                                           nsTArray<PRUint8>& aNameTable,
+                                           FallibleTArray<PRUint8>& aNameTable,
                                            PRBool useFullName)
 {
     const PRUint8 *nameData = aNameTable.Elements();
@@ -795,7 +795,7 @@ gfxFontFamily::ReadOtherFamilyNames(gfxPlatformFontList *aPlatformFontList)
     // read in other family names for the first face in the list
     PRUint32 i, numFonts = mAvailableFonts.Length();
     const PRUint32 kNAME = TRUETYPE_TAG('n','a','m','e');
-    nsAutoTArray<PRUint8,8192> buffer;
+    AutoFallibleTArray<PRUint8,8192> buffer;
 
     for (i = 0; i < numFonts; ++i) {
         gfxFontEntry *fe = mAvailableFonts[i];
@@ -843,7 +843,7 @@ gfxFontFamily::ReadFaceNames(gfxPlatformFontList *aPlatformFontList,
 
     PRUint32 i, numFonts = mAvailableFonts.Length();
     const PRUint32 kNAME = TRUETYPE_TAG('n','a','m','e');
-    nsAutoTArray<PRUint8,8192> buffer;
+    AutoFallibleTArray<PRUint8,8192> buffer;
     nsAutoString fullname, psname;
 
     PRBool firstTime = PR_TRUE, readAllFaces = PR_FALSE;
@@ -1055,7 +1055,7 @@ gfxFont::GetFontTable(PRUint32 aTag) {
     if (mFontEntry->GetExistingFontTable(aTag, &blob))
         return blob;
 
-    nsTArray<PRUint8> buffer;
+    FallibleTArray<PRUint8> buffer;
     PRBool haveTable = NS_SUCCEEDED(mFontEntry->GetFontTable(aTag, buffer));
 
     return mFontEntry->ShareFontTableAndGetBlob(aTag,
@@ -1435,13 +1435,12 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                               // behavior on long runs with no whitespace.
 
 PRBool
-gfxFont::InitTextRun(gfxContext *aContext,
-                     gfxTextRun *aTextRun,
-                     const PRUnichar *aString,
-                     PRUint32 aRunStart,
-                     PRUint32 aRunLength,
-                     PRInt32 aRunScript,
-                     PRBool aPreferPlatformShaping)
+gfxFont::SplitAndInitTextRun(gfxContext *aContext,
+                             gfxTextRun *aTextRun,
+                             const PRUnichar *aString,
+                             PRUint32 aRunStart,
+                             PRUint32 aRunLength,
+                             PRInt32 aRunScript)
 {
     PRBool ok;
 
@@ -1492,32 +1491,49 @@ gfxFont::InitTextRun(gfxContext *aContext,
             }
         }
 
-        if (mHarfBuzzShaper && !aPreferPlatformShaping) {
-            if (gfxPlatform::GetPlatform()->UseHarfBuzzLevel() >=
-                gfxUnicodeProperties::ScriptShapingLevel(aRunScript)) {
-                ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
-                                                  aRunStart, thisRunLength,
-                                                  aRunScript);
-            }
-        }
+        ok = InitTextRun(aContext, aTextRun, aString,
+                         aRunStart, thisRunLength, aRunScript);
 
-        if (!ok) {
-            if (!mPlatformShaper) {
-                CreatePlatformShaper();
-                NS_ASSERTION(mPlatformShaper, "no platform shaper available!");
-            }
-            if (mPlatformShaper) {
-                ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
-                                                  aRunStart, thisRunLength,
-                                                  aRunScript);
-            }
-        }
-        
         aRunStart += thisRunLength;
         aRunLength -= thisRunLength;
     } while (ok && aRunLength > 0);
 
     NS_WARN_IF_FALSE(ok, "shaper failed, expect scrambled or missing text");
+    return ok;
+}
+
+PRBool
+gfxFont::InitTextRun(gfxContext *aContext,
+                     gfxTextRun *aTextRun,
+                     const PRUnichar *aString,
+                     PRUint32 aRunStart,
+                     PRUint32 aRunLength,
+                     PRInt32 aRunScript,
+                     PRBool aPreferPlatformShaping)
+{
+    PRBool ok = PR_FALSE;
+
+    if (mHarfBuzzShaper && !aPreferPlatformShaping) {
+        if (gfxPlatform::GetPlatform()->UseHarfBuzzLevel() >=
+            gfxUnicodeProperties::ScriptShapingLevel(aRunScript)) {
+            ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
+                                              aRunStart, aRunLength,
+                                              aRunScript);
+        }
+    }
+
+    if (!ok) {
+        if (!mPlatformShaper) {
+            CreatePlatformShaper();
+            NS_ASSERTION(mPlatformShaper, "no platform shaper available!");
+        }
+        if (mPlatformShaper) {
+            ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
+                                              aRunStart, aRunLength,
+                                              aRunScript);
+        }
+    }
+
     return ok;
 }
 
@@ -1595,7 +1611,7 @@ gfxFont::InitMetricsFromSfntTables(Metrics& aMetrics)
         // If the conversion factor from FUnits is not yet set,
         // 'head' table is required; otherwise we cannot read any metrics
         // because we don't know unitsPerEm
-        nsAutoTArray<PRUint8,sizeof(HeadTable)> headData;
+        AutoFallibleTArray<PRUint8,sizeof(HeadTable)> headData;
         if (NS_FAILED(mFontEntry->GetFontTable(kHeadTableTag, headData)) ||
             headData.Length() < sizeof(HeadTable)) {
             return PR_FALSE; // no 'head' table -> not an sfnt
@@ -1609,7 +1625,7 @@ gfxFont::InitMetricsFromSfntTables(Metrics& aMetrics)
     }
 
     // 'hhea' table is required to get vertical extents
-    nsAutoTArray<PRUint8,sizeof(HheaTable)> hheaData;
+    AutoFallibleTArray<PRUint8,sizeof(HheaTable)> hheaData;
     if (NS_FAILED(mFontEntry->GetFontTable(kHheaTableTag, hheaData)) ||
         hheaData.Length() < sizeof(HheaTable)) {
         return PR_FALSE; // no 'hhea' table -> not an sfnt
@@ -1625,7 +1641,7 @@ gfxFont::InitMetricsFromSfntTables(Metrics& aMetrics)
     SET_SIGNED(externalLeading, hhea->lineGap);
 
     // 'post' table is required for underline metrics
-    nsAutoTArray<PRUint8,sizeof(PostTable)> postData;
+    AutoFallibleTArray<PRUint8,sizeof(PostTable)> postData;
     if (NS_FAILED(mFontEntry->GetFontTable(kPostTableTag, postData))) {
         return PR_TRUE; // no 'post' table -> sfnt is not valid
     }
@@ -1640,7 +1656,7 @@ gfxFont::InitMetricsFromSfntTables(Metrics& aMetrics)
 
     // 'OS/2' table is optional, if not found we'll estimate xHeight
     // and aveCharWidth by measuring glyphs
-    nsAutoTArray<PRUint8,sizeof(OS2Table)> os2data;
+    AutoFallibleTArray<PRUint8,sizeof(OS2Table)> os2data;
     if (NS_SUCCEEDED(mFontEntry->GetFontTable(kOS_2TableTag, os2data))) {
         OS2Table *os2 = reinterpret_cast<OS2Table*>(os2data.Elements());
 
@@ -2359,10 +2375,6 @@ gfxFontGroup::MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
     return textRun;
 }
 
-#define SMALL_GLYPH_RUN 128 // preallocated size of our auto arrays for per-glyph data;
-                            // some testing indicates that 90%+ of glyph runs will fit
-                            // without requiring a separate allocation
-
 void
 gfxFontGroup::InitTextRun(gfxContext *aContext,
                           gfxTextRun *aTextRun,
@@ -2376,23 +2388,21 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
     PRUint32 runStart = 0, runLimit = aLength;
     PRInt32 runScript = HB_SCRIPT_LATIN;
     while (scriptRuns.Next(runStart, runLimit, runScript)) {
-        InitTextRun(aContext, aTextRun, aString, aLength,
-                    runStart, runLimit, runScript);
+        InitScriptRun(aContext, aTextRun, aString, aLength,
+                      runStart, runLimit, runScript);
     }
 
-    // Is this actually necessary? Without it, gfxTextRun::CopyGlyphDataFrom may assert
-    // "Glyphruns not coalesced", but does that matter?
     aTextRun->SortGlyphRuns();
 }
 
 void
-gfxFontGroup::InitTextRun(gfxContext *aContext,
-                          gfxTextRun *aTextRun,
-                          const PRUnichar *aString,
-                          PRUint32 aTotalLength,
-                          PRUint32 aScriptRunStart,
-                          PRUint32 aScriptRunEnd,
-                          PRInt32 aRunScript)
+gfxFontGroup::InitScriptRun(gfxContext *aContext,
+                            gfxTextRun *aTextRun,
+                            const PRUnichar *aString,
+                            PRUint32 aTotalLength,
+                            PRUint32 aScriptRunStart,
+                            PRUint32 aScriptRunEnd,
+                            PRInt32 aRunScript)
 {
     gfxFont *mainFont = mFonts[0].get();
 
@@ -2412,9 +2422,9 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
                               runStart, (matchedLength > 0));
         if (matchedFont) {
             // do glyph layout and record the resulting positioned glyphs
-            if (!matchedFont->InitTextRun(aContext, aTextRun, aString,
-                                          runStart, matchedLength,
-                                          aRunScript)) {
+            if (!matchedFont->SplitAndInitTextRun(aContext, aTextRun, aString,
+                                                  runStart, matchedLength,
+                                                  aRunScript)) {
                 // glyph layout failed! treat as missing glyphs
                 matchedFont = nsnull;
             }
@@ -3591,7 +3601,8 @@ gfxTextRun::BreakAndMeasureText(PRUint32 aStart, PRUint32 aMaxLength,
                            spacingBuffer);
     }
     PRPackedBool hyphenBuffer[MEASUREMENT_BUFFER_SIZE];
-    PRBool haveHyphenation = (mFlags & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0;
+    PRBool haveHyphenation = aProvider &&
+                             (mFlags & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0;
     if (haveHyphenation) {
         aProvider->GetHyphenationBreaks(bufferStart, bufferLength,
                                         hyphenBuffer);
@@ -4027,7 +4038,7 @@ gfxTextRun::CopyGlyphDataFrom(gfxTextRun *aSource, PRUint32 aStart,
         g.SetCanBreakBefore(mCharacterGlyphs[i + aDest].CanBreakBefore());
         mCharacterGlyphs[i + aDest] = g;
         if (aStealData) {
-            aSource->mCharacterGlyphs[i + aStart].SetMissing(0);
+            aSource->mCharacterGlyphs[i + aStart] = CompressedGlyph();
         }
     }
 

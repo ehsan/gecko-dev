@@ -163,6 +163,8 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
     InitPopupMenuHook();
 #endif // OS_WIN
 #ifdef MOZ_X11
+    // Maemo flash can render plugin with any provided rectangle and not require this quirk.
+#ifndef MOZ_PLATFORM_MAEMO
     const char *description = NULL;
     mPluginIface->getvalue(GetNPP(), NPPVpluginDescriptionString,
                            &description);
@@ -172,6 +174,7 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
           PluginModuleChild::current()->AddQuirk(PluginModuleChild::QUIRK_FLASH_EXPOSE_COORD_TRANSLATION);
         }
     }
+#endif
 #endif
 }
 
@@ -621,6 +624,9 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
     return true;
 #endif
 
+    // XXX A previous call to mPluginIface->event might block, e.g. right click
+    // for context menu. Still, we might get here again, calling into the plugin
+    // a second time while it's in the previous call.
     if (!mPluginIface->event)
         *handled = false;
     else
@@ -1176,12 +1182,15 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
         return 0;
     }
 
+    LRESULT res = CallWindowProc(self->mPluginWndProc, hWnd, message, wParam,
+                                 lParam);
+
     // Make sure capture is released by the child on mouse events. Fixes a
     // problem with flash full screen mode mouse input. Appears to be
     // caused by a bug in flash, since we are not setting the capture
     // on the window. (In non-oopp land, we would set and release via
     // widget for other reasons.)
-    switch(message) {    
+    switch (message) {
       case WM_LBUTTONDOWN:
       case WM_MBUTTONDOWN:
       case WM_RBUTTONDOWN:
@@ -1191,9 +1200,6 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
       ReleaseCapture();
       break;
     }
-
-    LRESULT res = CallWindowProc(self->mPluginWndProc, hWnd, message, wParam,
-                                 lParam);
 
     if (message == WM_CLOSE)
         self->DestroyPluginWindow();
@@ -2071,6 +2077,24 @@ StreamNotifyChild::Recv__delete__(const NPReason& reason)
     return true;
 }
 
+bool
+StreamNotifyChild::RecvRedirectNotify(const nsCString& url, const int32_t& status)
+{
+    // NPP_URLRedirectNotify requires a non-null closure. Since core logic
+    // assumes that all out-of-process notify streams have non-null closure
+    // data it will assume that the plugin was notified at this point and
+    // expect a response otherwise the redirect will hang indefinitely.
+    if (!mClosure) {
+        SendRedirectNotifyResponse(false);
+    }
+
+    PluginInstanceChild* instance = static_cast<PluginInstanceChild*>(Manager());
+    if (instance->mPluginIface->urlredirectnotify)
+      instance->mPluginIface->urlredirectnotify(instance->GetNPP(), mURL.get(), status, mClosure);
+
+    return true;
+}
+
 void
 StreamNotifyChild::NPP_URLNotify(NPReason reason)
 {
@@ -2140,6 +2164,26 @@ PluginInstanceChild::NPN_NewStream(NPMIMEType aMIMEType, const char* aWindow,
 
     *aStream = &ps->mStream;
     return NPERR_NO_ERROR;
+}
+
+void
+PluginInstanceChild::NPN_URLRedirectResponse(void* notifyData, NPBool allow)
+{
+    if (!notifyData) {
+        return;
+    }
+
+    InfallibleTArray<PStreamNotifyChild*> notifyStreams;
+    ManagedPStreamNotifyChild(notifyStreams);
+    PRUint32 notifyStreamCount = notifyStreams.Length();
+    for (PRUint32 i = 0; i < notifyStreamCount; i++) {
+        StreamNotifyChild* sn = static_cast<StreamNotifyChild*>(notifyStreams[i]);
+        if (sn->mClosure == notifyData) {
+            sn->SendRedirectNotifyResponse(static_cast<bool>(allow));
+            return;
+        }
+    }
+    NS_ASSERTION(PR_FALSE, "Couldn't find stream for redirect response!");
 }
 
 bool
@@ -2289,9 +2333,9 @@ PluginInstanceChild::CreateOptSurface(void)
 #endif
 
     // Make common shmem implementation working for any platform
-    mCurrentSurface = new gfxSharedImageSurface();
-    return static_cast<gfxSharedImageSurface*>(mCurrentSurface.get())->
-        Init(this, gfxIntSize(mWindow.width, mWindow.height), format);
+    mCurrentSurface =
+        gfxSharedImageSurface::CreateUnsafe(this, gfxIntSize(mWindow.width, mWindow.height), format);
+    return !!mCurrentSurface;
 }
 
 bool
@@ -2774,10 +2818,11 @@ PluginInstanceChild::ReadbackDifferenceRect(const nsIntRect& rect)
     if (!mBackSurface)
         return false;
 
-    // We can read safely from XSurface and SharedDIBSurface, because
-    // PluginHost is not able to modify that surface
+    // We can read safely from XSurface,SharedDIBSurface and Unsafe SharedMemory,
+    // because PluginHost is not able to modify that surface
 #if defined(MOZ_X11)
-    if (mBackSurface->GetType() != gfxASurface::SurfaceTypeXlib)
+    if (mBackSurface->GetType() != gfxASurface::SurfaceTypeXlib &&
+        !gfxSharedImageSurface::IsSharedImage(mBackSurface))
         return false;
 #elif defined(XP_WIN)
     if (!SharedDIBSurface::IsSharedDIBSurface(mBackSurface))

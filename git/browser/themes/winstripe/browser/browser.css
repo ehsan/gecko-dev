@@ -74,6 +74,31 @@
   background-color: -moz-Dialog;
 }
 
+%ifdef WINSTRIPE_AERO
+@media not all and (-moz-windows-compositor) {
+%endif
+  #main-window[tabsintitlebar] #titlebar-content:not(:-moz-lwtheme),
+  #main-window[tabsintitlebar]:not([inFullscreen]) #TabsToolbar:not(:-moz-lwtheme) {
+    background-color: ActiveCaption;
+    color: CaptionText;
+  }
+  #main-window[tabsintitlebar] #titlebar-content:not(:-moz-lwtheme):-moz-window-inactive,
+  #main-window[tabsintitlebar]:not([inFullscreen]) #TabsToolbar:not(:-moz-lwtheme):-moz-window-inactive {
+    background-color: InactiveCaption;
+    color: InactiveCaptionText;
+  }
+
+  #main-window[tabsintitlebar] #titlebar:-moz-lwtheme {
+    visibility: hidden;
+  }
+  #main-window[tabsintitlebar] #titlebar-content:-moz-lwtheme {
+    -moz-binding: url("chrome://global/content/bindings/general.xml#windowdragbox");
+    visibility: visible;
+  }
+%ifdef WINSTRIPE_AERO
+}
+%endif
+
 #navigator-toolbox > toolbar:not(#toolbar-menubar):not(#TabsToolbar)[iconsize="small"],
 #navigator-toolbox > toolbar:not(#toolbar-menubar):not(#TabsToolbar)[defaulticonsize="small"]:not([iconsize]) {
   padding-top: 1px;
@@ -376,6 +401,14 @@
   -moz-appearance: -moz-window-button-box-maximized;
 }
 
+.titlebar-placeholder[type="appmenu-button"] {
+  margin-left: 4px;
+}
+
+.titlebar-placeholder[type="caption-buttons"] {
+  margin-left: 10px;
+}
+
 /* titlebar command buttons */
 
 #titlebar-min {
@@ -643,9 +676,9 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   min-width: 57px;
 }
 
-#TabsToolbar .toolbarbutton-1,
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-button,
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
+:-moz-any(#TabsToolbar, #addon-bar) .toolbarbutton-1,
+:-moz-any(#TabsToolbar, #addon-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-button,
+:-moz-any(#TabsToolbar, #addon-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
   -moz-appearance: toolbarbutton;
 %ifdef WINSTRIPE_AERO
   margin: -2px 0 -1px;
@@ -672,7 +705,7 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 %endif
 
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
+:-moz-any(#TabsToolbar, #addon-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
   -moz-appearance: none;
 }
 
@@ -1351,6 +1384,22 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   background-image: -moz-linear-gradient(rgb(244,156,128), rgb(215,101,77) 49%, rgb(194,66,48) 51%, rgb(170,41,23));
 }
 
+/* popup blocker button */
+
+#page-report-button {
+  list-style-image: url("chrome://browser/skin/urlbar-popup-blocked.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
+}
+
+#page-report-button:hover {
+  -moz-image-region: rect(0, 32px, 16px, 16px);
+}
+
+#page-report-button:hover:active,
+#page-report-button[open="true"] {
+  -moz-image-region: rect(0, 48px, 16px, 32px);
+}
+
 /* star button */
 
 #star-button {
@@ -1629,14 +1678,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-transition: none;
 }
 
-.tabs-newtab-button > .toolbarbutton-icon,
-#TabsToolbar > #new-tab-button > .toolbarbutton-icon,
-#TabsToolbar > toolbarpaletteitem > #new-tab-button > .toolbarbutton-icon,
-#alltabs-button > .toolbarbutton-icon {
-  width: auto;
-  height: auto;
-}
-
 .tabs-newtab-button > .toolbarbutton-icon {
   margin-top: -1px;
   margin-bottom: -1px;
@@ -1866,12 +1907,45 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 
 .popup-notification-icon[popupid="xpinstall-disabled"],
+.popup-notification-icon[popupid="addon-progress"],
+.popup-notification-icon[popupid="addon-install-cancelled"],
 .popup-notification-icon[popupid="addon-install-blocked"],
 .popup-notification-icon[popupid="addon-install-failed"],
 .popup-notification-icon[popupid="addon-install-complete"] {
   list-style-image: url(chrome://mozapps/skin/extensions/extensionGeneric.png);
   width: 32px;
   height: 32px;
+}
+
+.addon-progress-description {
+  width: 350px;
+  max-width: 350px;
+}
+
+.popup-progress-label,
+.popup-progress-meter {
+  -moz-margin-start: 0;
+  -moz-margin-end: 0;
+}
+
+.popup-progress-cancel {
+  -moz-appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  min-width: 0;
+  list-style-image: url(chrome://mozapps/skin/downloads/downloadButtons.png);
+  -moz-image-region: rect(0px, 32px, 16px, 16px);
+}
+
+.popup-progress-cancel:hover {
+  -moz-image-region: rect(16px, 32px, 32px, 16px);
+}
+
+.popup-progress-cancel:active {
+  -moz-image-region: rect(32px, 32px, 48px, 16px);
 }
 
 .popup-notification-icon[popupid="indexedDB-permissions-prompt"],

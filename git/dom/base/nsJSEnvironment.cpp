@@ -724,8 +724,13 @@ static JSBool
 ChangeCase(JSContext *cx, JSString *src, jsval *rval,
            void(* changeCaseFnc)(const nsAString&, nsAString&))
 {
+  nsDependentJSString depStr;
+  if (!depStr.init(cx, src)) {
+    return JS_FALSE;
+  }
+
   nsAutoString result;
-  changeCaseFnc(nsDependentJSString(src), result);
+  changeCaseFnc(depStr, result);
 
   JSString *ucstr = JS_NewUCStringCopyN(cx, (jschar*)result.get(), result.Length());
   if (!ucstr) {
@@ -779,11 +784,14 @@ LocaleCompare(JSContext *cx, JSString *src1, JSString *src2, jsval *rval)
     }
   }
 
+  nsDependentJSString depStr1, depStr2;
+  if (!depStr1.init(cx, src1) || !depStr2.init(cx, src2)) {
+    return JS_FALSE;
+  }
+
   PRInt32 result;
   rv = gCollation->CompareString(nsICollation::kCollationStrengthDefault,
-                                 nsDependentJSString(src1),
-                                 nsDependentJSString(src2),
-                                 &result);
+                                 depStr1, depStr2, &result);
 
   if (NS_FAILED(rv)) {
     nsDOMClassInfo::ThrowJSException(cx, rv);
@@ -877,20 +885,6 @@ DumpString(const nsAString &str)
 }
 #endif
 
-static void
-MaybeGC(JSContext *cx)
-{
-  size_t bytes = cx->runtime->gcBytes;
-  size_t lastBytes = cx->runtime->gcLastBytes;
-  if ((bytes > 8192 && bytes > lastBytes * 16)
-#ifdef DEBUG
-      || cx->runtime->gcZeal > 0
-#endif
-      ) {
-    JS_GC(cx);
-  }
-}
-
 static already_AddRefed<nsIPrompt>
 GetPromptFromContext(nsJSContext* ctx)
 {
@@ -929,7 +923,7 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
   PRTime callbackTime = ctx->mOperationCallbackTime;
   PRTime modalStateTime = ctx->mModalStateTime;
 
-  MaybeGC(cx);
+  JS_MaybeGC(cx);
 
   // Now restore the callback time and count, in case they got reset.
   ctx->mOperationCallbackTime = callbackTime;
@@ -1122,7 +1116,7 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
         JS_SetFrameReturnValue(cx, fp, rval);
         return JS_TRUE;
       case JSTRAP_ERROR:
-        cx->throwing = JS_FALSE;
+        JS_ClearPendingException(cx);
         return JS_FALSE;
       case JSTRAP_THROW:
         JS_SetPendingException(cx, rval);
@@ -1591,27 +1585,36 @@ JSValueToAString(JSContext *cx, jsval val, nsAString *result,
   }
 
   JSString* jsstring = ::JS_ValueToString(cx, val);
-  if (jsstring) {
-    result->Assign(reinterpret_cast<const PRUnichar*>
-                                   (::JS_GetStringChars(jsstring)),
-                   ::JS_GetStringLength(jsstring));
-  } else {
-    result->Truncate();
+  if (!jsstring) {
+    goto error;
+  }
 
-    // We failed to convert val to a string. We're either OOM, or the
-    // security manager denied access to .toString(), or somesuch, on
-    // an object. Treat this case as if the result were undefined.
+  size_t length;
+  const jschar *chars;
+  chars = ::JS_GetStringCharsAndLength(cx, jsstring, &length);
+  if (!chars) {
+    goto error;
+  }
 
-    if (isUndefined) {
-      *isUndefined = PR_TRUE;
-    }
+  result->Assign(chars, length);
+  return NS_OK;
 
-    if (!::JS_IsExceptionPending(cx)) {
-      // JS_ValueToString() returned null w/o an exception
-      // pending. That means we're OOM.
+error:
+  // We failed to convert val to a string. We're either OOM, or the
+  // security manager denied access to .toString(), or somesuch, on
+  // an object. Treat this case as if the result were undefined.
 
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
+  result->Truncate();
+
+  if (isUndefined) {
+    *isUndefined = PR_TRUE;
+  }
+
+  if (!::JS_IsExceptionPending(cx)) {
+    // JS_ValueToString()/JS_GetStringCharsAndLength returned null w/o an
+    // exception pending. That means we're OOM.
+
+    return NS_ERROR_OUT_OF_MEMORY;
   }
 
   return NS_OK;
@@ -2548,37 +2551,14 @@ nsJSContext::ConnectToInner(nsIScriptGlobalObject *aNewInner, void *aOuterGlobal
   JSObject *newInnerJSObject = (JSObject *)aNewInner->GetScriptGlobal(JAVASCRIPT);
   JSObject *outerGlobal = (JSObject *)aOuterGlobal;
 
-  // Make the inner and outer window both share the same
-  // prototype. The prototype we share is the outer window's
-  // prototype, this way XPConnect can still find the wrapper to
-  // use when making a call like alert() (w/o qualifying it with
-  // "window."). XPConnect looks up the wrapper based on the
-  // function object's parent, which is the object the function
-  // was called on, and when calling alert() we'll be calling the
-  // alert() function from the outer window's prototype off of the
-  // inner window. In this case XPConnect is able to find the
-  // outer (through the JSExtendedClass hook outerObject), so this
-  // prototype sharing works.
-
   // Now that we're connecting the outer global to the inner one,
   // we must have transplanted it. The JS engine tries to maintain
   // the global object's compartment as its default compartment,
   // so update that now since it might have changed.
   JS_SetGlobalObject(mContext, outerGlobal);
-
-  // We do *not* want to use anything else out of the outer
-  // object's prototype chain than the first prototype, which is
-  // the XPConnect prototype. The rest we want from the inner
-  // window's prototype, i.e. the global scope polluter and
-  // Object.prototype. This way the outer also gets the benefits
-  // of the global scope polluter, and the inner window's
-  // Object.prototype.
-  JSObject *proto = JS_GetPrototype(mContext, outerGlobal);
-  JSObject *innerProto = JS_GetPrototype(mContext, newInnerJSObject);
-  JSObject *innerProtoProto = JS_GetPrototype(mContext, innerProto);
-
-  JS_SetPrototype(mContext, newInnerJSObject, proto);
-  JS_SetPrototype(mContext, proto, innerProtoProto);
+  NS_ASSERTION(JS_GetPrototype(mContext, outerGlobal) ==
+               JS_GetPrototype(mContext, newInnerJSObject),
+               "outer and inner globals should have the same prototype");
 
   return NS_OK;
 }
@@ -2626,19 +2606,6 @@ nsJSContext::CreateOuterObject(nsIScriptGlobalObject *aGlobalObject,
     JS_SetOptions(mContext, JS_GetOptions(mContext) | JSOPTION_XML);
   }
 
-  nsIXPConnect *xpc = nsContentUtils::XPConnect();
-  nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-
-  nsresult rv = xpc->WrapNative(mContext, aCurrentInner->GetGlobalJSObject(),
-                                aCurrentInner, NS_GET_IID(nsISupports),
-                                getter_AddRefs(holder));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIXPConnectWrappedNative> wrapper(do_QueryInterface(holder));
-  NS_ABORT_IF_FALSE(wrapper, "bad wrapper");
-
-  wrapper->RefreshPrototype();
-
   JSObject *outer =
     NS_NewOuterWindowProxy(mContext, aCurrentInner->GetGlobalJSObject());
   if (!outer) {
@@ -2655,6 +2622,20 @@ nsJSContext::SetOuterObject(void *aOuterObject)
 
   // Force our context's global object to be the outer.
   JS_SetGlobalObject(mContext, outer);
+
+  // NB: JS_SetGlobalObject sets mContext->compartment.
+  JSObject *inner = JS_GetParent(mContext, outer);
+
+  nsIXPConnect *xpc = nsContentUtils::XPConnect();
+  nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
+  nsresult rv = xpc->GetWrappedNativeOfJSObject(mContext, inner,
+                                                getter_AddRefs(wrapper));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ABORT_IF_FALSE(wrapper, "bad wrapper");
+
+  wrapper->RefreshPrototype();
+  JS_SetPrototype(mContext, outer, JS_GetPrototype(mContext, inner));
+
   return NS_OK;
 }
 
@@ -3546,12 +3527,12 @@ nsJSContext::ScriptEvaluated(PRBool aTerminated)
 
 #ifdef JS_GC_ZEAL
   if (mContext->runtime->gcZeal >= 2) {
-    MaybeGC(mContext);
+    JS_MaybeGC(mContext);
   } else
 #endif
   if (mNumEvaluations > 20) {
     mNumEvaluations = 0;
-    MaybeGC(mContext);
+    JS_MaybeGC(mContext);
   }
 
   if (aTerminated) {
@@ -4009,26 +3990,24 @@ ReportAllJSExceptionsPrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryHighWaterMarkPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  PRInt32 highwatermark = nsContentUtils::GetIntPref(aPrefName, 32);
+  PRInt32 highwatermark = nsContentUtils::GetIntPref(aPrefName, 128);
 
-  if (highwatermark >= 32) {
-    /*
-     * There are two ways to allocate memory in SpiderMonkey. One is
-     * to use jsmalloc() and the other is to use GC-owned memory
-     * (e.g. js_NewGCThing()).
-     *
-     * In the browser, we don't cap the amount of GC-owned memory.
-     */
-    JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_MALLOC_BYTES,
-                      128L * 1024L * 1024L);
-    JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES,
-                      0xffffffff);
-  } else {
-    JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_MALLOC_BYTES,
-                      highwatermark * 1024L * 1024L);
-    JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES,
-                      highwatermark * 1024L * 1024L);
-  }
+  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_MALLOC_BYTES,
+                    highwatermark * 1024L * 1024L);
+  return 0;
+}
+
+static int
+SetMemoryMaxPrefChangedCallback(const char* aPrefName, void* aClosure)
+{
+  PRUint32 max = nsContentUtils::GetIntPref(aPrefName, -1);
+  if (max == -1UL)
+    max = 0xffffffff;
+  else
+    max = max * 1024L * 1024L;
+
+  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES,
+                    max);
   return 0;
 }
 
@@ -4071,7 +4050,8 @@ static JSObject*
 DOMReadStructuredClone(JSContext* cx,
                        JSStructuredCloneReader* reader,
                        uint32 tag,
-                       uint32 data)
+                       uint32 data,
+                       void* closure)
 {
   // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
@@ -4081,7 +4061,8 @@ DOMReadStructuredClone(JSContext* cx,
 static JSBool
 DOMWriteStructuredClone(JSContext* cx,
                         JSStructuredCloneWriter* writer,
-                        JSObject* obj)
+                        JSObject* obj,
+                        void *closure)
 {
   // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
@@ -4165,6 +4146,12 @@ nsJSRuntime::Init()
                                        nsnull);
   SetMemoryHighWaterMarkPrefChangedCallback("javascript.options.mem.high_water_mark",
                                             nsnull);
+
+  nsContentUtils::RegisterPrefCallback("javascript.options.mem.max",
+                                       SetMemoryMaxPrefChangedCallback,
+                                       nsnull);
+  SetMemoryMaxPrefChangedCallback("javascript.options.mem.max",
+                                  nsnull);
 
   nsContentUtils::RegisterPrefCallback("javascript.options.mem.gc_frequency",
                                        SetMemoryGCFrequencyPrefChangedCallback,

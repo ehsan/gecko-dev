@@ -15,7 +15,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- *   Mozilla Corporation.
+ * the Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -47,7 +47,7 @@
 
 #include "nsThreadUtils.h"
 
-#include "gfxImageSurface.h"
+#include "gfxPlatform.h"
 #include "GLContext.h"
 #include "GLContextProvider.h"
 
@@ -312,6 +312,11 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         { mIsGLES2 ? (PRFuncPtr*) NULL : (PRFuncPtr*) &mSymbols.fReadBuffer,
           { mIsGLES2 ? NULL : "ReadBuffer", NULL } },
 
+        { mIsGLES2 ? (PRFuncPtr*) NULL : (PRFuncPtr*) &mSymbols.fMapBuffer,
+          { mIsGLES2 ? NULL : "MapBuffer", NULL } },
+        { mIsGLES2 ? (PRFuncPtr*) NULL : (PRFuncPtr*) &mSymbols.fUnmapBuffer,
+          { mIsGLES2 ? NULL : "UnmapBuffer", NULL } },
+
         { NULL, { NULL } },
 
     };
@@ -320,6 +325,10 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
 
     if (mInitialized) {
         InitExtensions();
+
+        NS_ASSERTION(!IsExtensionSupported(GLContext::ARB_pixel_buffer_object) ||
+                     (mSymbols.fMapBuffer && mSymbols.fUnmapBuffer),
+                     "ARB_pixel_buffer_object supported without glMapBuffer/UnmapBuffer being available!");
 
         GLint v[4];
 
@@ -336,6 +345,8 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
                 "ATI",
                 "Qualcomm"
         };
+
+        fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
 
         mVendor = VendorOther;
         for (int i = 0; i < VendorOther; ++i) {
@@ -382,6 +393,10 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         mDebugMode |= DebugAbortOnError;
 #endif
 
+    // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
+    if (!mInitialized)
+      mSymbols.Zero();
+
     return mInitialized;
 }
 
@@ -402,6 +417,7 @@ static const char *sExtensionNames[] = {
     "GL_EXT_read_format_bgra",
     "GL_APPLE_client_storage",
     "GL_ARB_texture_non_power_of_two",
+    "GL_ARB_pixel_buffer_object",
     NULL
 };
 
@@ -534,8 +550,6 @@ BasicTextureImage::~BasicTextureImage()
         mGLContext->MakeCurrent();
         mGLContext->fDeleteTextures(1, &mTexture);
     }
-
-    mBackingSurface = nsnull;
 }
 
 gfxContext*
@@ -547,20 +561,12 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     ImageFormat format =
         (GetContentType() == gfxASurface::CONTENT_COLOR) ?
         gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
-    PRBool repaintEverything = PR_FALSE;
-    if (mGLContext->IsExtensionSupported(gl::GLContext::APPLE_client_storage)) {
-        repaintEverything =
-            !(mBackingSurface &&
-              mBackingSurface->GetSize() == gfxIntSize(mSize.width, mSize.height) &&
-              mBackingSurface->Format() == format);
-    }
-    if (!mTextureInited || repaintEverything)
+    if (!mTextureInited)
     {
         // if the texture hasn't been initialized yet, or something important
         // changed, we need to recreate our backing surface and force the
         // client to paint everything
         mUpdateRect = nsIntRect(nsIntPoint(0, 0), mSize);
-        mTextureInited = PR_FALSE;
     } else {
         mUpdateRect = aRegion.GetBounds();
     }
@@ -574,15 +580,22 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
         return NULL;
     }
 
-    nsRefPtr<gfxASurface> updateSurface =
-        CreateUpdateSurface(gfxIntSize(rgnSize.width, rgnSize.height),
-                            format);
+    nsRefPtr<gfxASurface> updateSurface = 
+      GetSurfaceForUpdate(gfxIntSize(rgnSize.width, rgnSize.height), format);
+
     if (!updateSurface)
         return NULL;
 
     updateSurface->SetDeviceOffset(gfxPoint(-mUpdateRect.x, -mUpdateRect.y));
 
     mUpdateContext = new gfxContext(updateSurface);
+   
+    // Clear the returned surface because it might have been re-used.
+    if (format == gfxASurface::ImageFormatARGB32) {
+      mUpdateContext->SetOperator(gfxContext::OPERATOR_CLEAR);
+      mUpdateContext->Paint();
+      mUpdateContext->SetOperator(gfxContext::OPERATOR_OVER);
+    }
     return mUpdateContext;
 }
 
@@ -598,74 +611,61 @@ BasicTextureImage::EndUpdate()
     // but important if we ever do anything directly with the surface.
     originalSurface->SetDeviceOffset(gfxPoint(0, 0));
 
-    nsRefPtr<gfxImageSurface> uploadImage = GetImageForUpload(originalSurface);
-    if (!uploadImage)
-        return PR_FALSE;
+    bool relative = FinishedSurfaceUpdate();
 
-    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+    // The rect to upload from the surface is mUpdateRect sized and located at mUpdateOffset.
+    nsIntRect surfaceRect(mUpdateOffset.x, mUpdateOffset.y, mUpdateRect.width, mUpdateRect.height);
 
-    // The images that come out of the cairo quartz surface are 16-byte aligned
-    // for performance. We know this is an RGBA surface, so we divide the
-    // stride by 4 to represent the number of elements long the row is.
-    mGLContext->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH,
-                             uploadImage->Stride() / 4);
+    mShaderType =
+      mGLContext->UploadSurfaceToTexture(originalSurface,
+                                         surfaceRect,
+                                         mTexture,
+                                         !mTextureInited,
+                                         mUpdateRect.TopLeft(),
+                                         relative);
+    FinishedSurfaceUpload();
 
-    DEBUG_GL_ERROR_CHECK(mGLContext);
-
-    if (!mTextureInited)
-    {
-        // If we can use the client storage extension, we should.
-        if (mGLContext->IsExtensionSupported(gl::GLContext::APPLE_client_storage)) {
-            mGLContext->fPixelStorei(LOCAL_GL_UNPACK_CLIENT_STORAGE_APPLE,
-                                     LOCAL_GL_TRUE);
-            DEBUG_GL_ERROR_CHECK(mGLContext);
-        }
-
-        mGLContext->fTexImage2D(LOCAL_GL_TEXTURE_2D,
-                                0,
-                                LOCAL_GL_RGBA,
-                                mUpdateRect.width,
-                                mUpdateRect.height,
-                                0,
-                                LOCAL_GL_RGBA,
-                                LOCAL_GL_UNSIGNED_BYTE,
-                                uploadImage->Data());
-
-        DEBUG_GL_ERROR_CHECK(mGLContext);
-
-        mTextureInited = PR_TRUE;
-
-        // Reset the pixel store attribute, and hold on to the update surface
-        // because we're using the client storage extension.
-        if (mGLContext->IsExtensionSupported(gl::GLContext::APPLE_client_storage)) {
-            mBackingSurface = uploadImage;
-            mGLContext->fPixelStorei(LOCAL_GL_UNPACK_CLIENT_STORAGE_APPLE,
-                                     LOCAL_GL_FALSE);
-          DEBUG_GL_ERROR_CHECK(mGLContext);
-        }
-    } else {
-        // By default, mUpdateOffset is initialized to (0, 0), so we will
-        // upload from the origin of the update surface. Subclasses can set
-        // mUpdateOffset in an overridden BeginUpdate or EndUpdate to change
-        // this.
-        unsigned char* data = uploadImage->Data() + mUpdateOffset.x * 4 +
-                                                    mUpdateOffset.y * uploadImage->Stride();
-        mGLContext->fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
-                                   0,
-                                   mUpdateRect.x,
-                                   mUpdateRect.y,
-                                   mUpdateRect.width,
-                                   mUpdateRect.height,
-                                   LOCAL_GL_RGBA,
-                                   LOCAL_GL_UNSIGNED_BYTE,
-                                   data);
-    }
-    mUpdateContext = NULL;
-
-    // Reset pixel store attributes to use the defaults.
-    mGLContext->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+    mUpdateContext = nsnull;
+    mTextureInited = PR_TRUE;
 
     return PR_TRUE;         // mTexture is bound
+}
+
+already_AddRefed<gfxASurface>
+BasicTextureImage::GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt)
+{
+    return gfxPlatform::GetPlatform()->
+      CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFmt));
+}
+
+bool
+BasicTextureImage::FinishedSurfaceUpdate()
+{
+  return false;
+}
+
+void
+BasicTextureImage::FinishedSurfaceUpload()
+{
+}
+
+bool 
+BasicTextureImage::DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion)
+{
+  nsIntRect bounds = aRegion.GetBounds();
+  if (!mTextureInited) {
+    bounds = nsIntRect(0, 0, mSize.width, mSize.height);
+  }
+
+  mShaderType =
+    mGLContext->UploadSurfaceToTexture(aSurf,
+                                       bounds,
+                                       mTexture,
+                                       !mTextureInited,
+                                       bounds.TopLeft(),
+                                       PR_FALSE);
+  mTextureInited = PR_TRUE;
+  return true;
 }
 
 void
@@ -1259,6 +1259,170 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     fEnable(LOCAL_GL_BLEND);
 
     PopViewportRect();
+}
+
+
+ShaderProgramType 
+GLContext::UploadSurfaceToTexture(gfxASurface *aSurface, 
+                                  const nsIntRect& aSrcRect,
+                                  GLuint& aTexture,
+                                  bool aOverwrite,
+                                  const nsIntPoint& aDstPoint,
+                                  bool aPixelBuffer)
+{
+  bool textureInited = aOverwrite ? false : true;
+  MakeCurrent();
+  fActiveTexture(LOCAL_GL_TEXTURE0);
+  
+  if (!aTexture) {
+    fGenTextures(1, &aTexture);
+    fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, 
+                   LOCAL_GL_TEXTURE_MIN_FILTER, 
+                   LOCAL_GL_LINEAR);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, 
+                   LOCAL_GL_TEXTURE_MAG_FILTER, 
+                   LOCAL_GL_LINEAR);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, 
+                   LOCAL_GL_TEXTURE_WRAP_S, 
+                   LOCAL_GL_CLAMP_TO_EDGE);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, 
+                   LOCAL_GL_TEXTURE_WRAP_T, 
+                   LOCAL_GL_CLAMP_TO_EDGE);
+    textureInited = false;
+  } else {
+    fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
+  }
+
+  nsRefPtr<gfxImageSurface> imageSurface = aSurface->GetAsImageSurface();
+  unsigned char* data = NULL;
+
+  if (!imageSurface || 
+      (imageSurface->Format() != gfxASurface::ImageFormatARGB32 &&
+       imageSurface->Format() != gfxASurface::ImageFormatRGB24 &&
+       imageSurface->Format() != gfxASurface::ImageFormatRGB16_565)) {
+    // We can't get suitable pixel data for the surface, make a copy
+    imageSurface = 
+      new gfxImageSurface(gfxIntSize(aSrcRect.width, aSrcRect.height), 
+                          gfxASurface::ImageFormatARGB32);
+  
+    nsRefPtr<gfxContext> context = new gfxContext(imageSurface);
+
+    context->Translate(-gfxPoint(aSrcRect.x, aSrcRect.y));
+    context->SetSource(aSurface);
+    context->Paint();
+    data = imageSurface->Data();
+    NS_ASSERTION(!aPixelBuffer, "Must be using an image compatible surface with pixel buffers!");
+  } else {
+    // If a pixel buffer is bound the data pointer parameter is relative
+    // to the start of the data block.
+    if (!aPixelBuffer) {
+      data = imageSurface->Data();
+    }
+    data += aSrcRect.y * imageSurface->Stride();
+    data += aSrcRect.x * 4;
+  }
+
+  GLenum format;
+  GLenum internalformat;
+  GLenum type;
+  PRInt32 pixelSize = gfxASurface::BytePerPixelFromFormat(imageSurface->Format());
+  ShaderProgramType shader;
+
+  switch (imageSurface->Format()) {
+    case gfxASurface::ImageFormatARGB32:
+      format = LOCAL_GL_RGBA;
+      type = LOCAL_GL_UNSIGNED_BYTE;
+      shader = BGRALayerProgramType;
+      break;
+    case gfxASurface::ImageFormatRGB24:
+      // Treat RGB24 surfaces as RGBA32 except for the shader
+      // program used.
+      format = LOCAL_GL_RGBA;
+      type = LOCAL_GL_UNSIGNED_BYTE;
+      shader = BGRXLayerProgramType;
+      break;
+    case gfxASurface::ImageFormatRGB16_565:
+      format = LOCAL_GL_RGB;
+      type = LOCAL_GL_UNSIGNED_SHORT_5_6_5;
+      shader = RGBALayerProgramType;
+      break;
+    default:
+      NS_ASSERTION(false, "Unhandled image surface format!");
+      format = 0;
+      type = 0;
+      shader = ShaderProgramType(0);
+  }
+
+#ifndef USE_GLES2
+  fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 
+               imageSurface->Stride() / pixelSize);
+
+  internalformat = LOCAL_GL_RGBA;
+#else
+  internalformat = format;
+
+  if (imageSurface->Stride() != aSrcRect.width * pixelSize) {
+    // Not using the whole row of texture data and GLES doesn't 
+    // support GL_UNPACK_ROW_LENGTH. We need to upload each row
+    // separately.
+    if (!textureInited) {
+      fTexImage2D(LOCAL_GL_TEXTURE_2D,
+                  0,
+                  internalformat,
+                  aSrcRect.width,
+                  aSrcRect.height,
+                  0,
+                  format,
+                  type,
+                  NULL);
+    }
+
+    for (int h = 0; h < aSrcRect.height; h++) {
+      fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
+                     0,
+                     aDstPoint.x,
+                     aDstPoint.y+h,
+                     aSrcRect.width,
+                     1,
+                     format,
+                     type,
+                     data);
+      data += imageSurface->Stride();
+    }
+
+    return shader;
+  }
+#endif
+
+
+  if (textureInited) {
+    fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
+                   0,
+                   aDstPoint.x,
+                   aDstPoint.y,
+                   aSrcRect.width,
+                   aSrcRect.height,
+                   format,
+                   type,
+                   data);
+  } else {
+    fTexImage2D(LOCAL_GL_TEXTURE_2D,
+                0,
+                internalformat,
+                aSrcRect.width,
+                aSrcRect.height,
+                0,
+                format,
+                type,
+                data);
+  }
+
+#ifndef USE_GLES2
+  fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+#endif
+
+  return shader;
 }
 
 void

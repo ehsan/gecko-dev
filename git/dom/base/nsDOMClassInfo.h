@@ -282,6 +282,7 @@ protected:
   static PRBool sDisableDocumentAllSupport;
   static PRBool sDisableGlobalScopePollutionSupport;
 
+public:
   static jsid sTop_id;
   static jsid sParent_id;
   static jsid sScrollbars_id;
@@ -321,6 +322,8 @@ protected:
   static jsid sOnsubmit_id;
   static jsid sOnreset_id;
   static jsid sOnchange_id;
+  static jsid sOninput_id;
+  static jsid sOninvalid_id;
   static jsid sOnselect_id;
   static jsid sOnload_id;
   static jsid sOnpopstate_id;
@@ -391,7 +394,11 @@ protected:
   static jsid sOnafterscriptexecute_id;
   static jsid sWrappedJSObject_id;
   static jsid sURL_id;
+  static jsid sKeyPath_id;
+  static jsid sAutoIncrement_id;
+  static jsid sUnique_id;
 
+protected:
   static JSPropertyOp sXPCNativeWrapperGetPropertyOp;
   static JSPropertyOp sXrayWrapperPropertyHolderGetPropertyOp;
 };
@@ -456,7 +463,7 @@ protected:
   {
     NS_ASSERTION(JSID_IS_STRING(id), "Don't pass non-string jsid's here!");
 
-    jschar *str = ::JS_GetStringChars(JSID_TO_STRING(id));
+    const jschar *str = ::JS_GetInternedStringChars(JSID_TO_STRING(id));
 
     if (str[0] == 'o' && str[1] == 'n') {
       return ReallyIsEventName(id, str[2]);
@@ -521,8 +528,7 @@ protected:
   }
 
   static nsresult GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
-                                JSObject *obj, JSString *str,
-                                PRBool *did_resolve);
+                                JSObject *obj, jsid id, PRBool *did_resolve);
 
 public:
   NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
@@ -1039,7 +1045,7 @@ protected:
   {
   }
 
-  static nsresult FindNamedItem(nsIForm *aForm, JSString *str,
+  static nsresult FindNamedItem(nsIForm *aForm, jsid id,
                                 nsISupports **aResult, nsWrapperCache **aCache);
 
 public:
@@ -1798,6 +1804,36 @@ public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsFileListSH(aData);
+  }
+};
+
+class nsWebGLViewportHandlerSH : public nsDOMGenericSH
+{
+protected:
+  nsWebGLViewportHandlerSH(nsDOMClassInfoData *aData) : nsDOMGenericSH(aData)
+  {
+  }
+
+  virtual ~nsWebGLViewportHandlerSH()
+  {
+  }
+
+public:
+  NS_IMETHOD PostCreatePrototype(JSContext * cx, JSObject * proto) {
+    nsresult rv = nsDOMGenericSH::PostCreatePrototype(cx, proto);
+    if (NS_SUCCEEDED(rv)) {
+      if (!::JS_DefineProperty(cx, proto, "VIEWPORT", INT_TO_JSVAL(0x0BA2),
+                               nsnull, nsnull, JSPROP_ENUMERATE))
+      {
+        return NS_ERROR_UNEXPECTED;
+      }
+    }
+    return rv;
+  }
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsWebGLViewportHandlerSH(aData);
   }
 };
 

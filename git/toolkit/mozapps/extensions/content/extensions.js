@@ -497,6 +497,8 @@ var gViewController = {
         }
       }
     }
+
+    window.controllers.removeController(this);
   },
 
   statePopped: function(e) {
@@ -544,6 +546,19 @@ var gViewController = {
       previousView: this.currentViewId
     }, document.title);
     this.loadViewInternal(aViewId, this.currentViewId);
+  },
+
+  // Replaces the existing view with a new one, rewriting the current history
+  // entry to match.
+  replaceView: function(aViewId) {
+    if (aViewId == this.currentViewId)
+      return;
+
+    gHistory.replaceState({
+      view: aViewId,
+      previousView: null
+    }, document.title);
+    this.loadViewInternal(aViewId, null);
   },
 
   loadInitialView: function(aViewId) {
@@ -933,6 +948,16 @@ var gViewController = {
       }
     },
 
+    cmd_purchaseItem: {
+      isEnabled: function(aAddon) {
+        if (!aAddon)
+          return false;
+        return !!aAddon.purchaseURL;
+      },
+      doCommand: function(aAddon) {
+        openURL(aAddon.purchaseURL);
+      }
+    },
 
     cmd_uninstallItem: {
       isEnabled: function(aAddon) {
@@ -1166,7 +1191,7 @@ function createItem(aObj, aIsInstall, aIsRemote) {
 
 function sortElements(aElements, aSortBy, aAscending) {
   const DATE_FIELDS = ["updateDate"];
-  const INTEGER_FIELDS = ["size", "relevancescore"];
+  const NUMERIC_FIELDS = ["size", "relevancescore", "purchaseAmount"];
 
   function dateCompare(a, b) {
     var aTime = a.getTime();
@@ -1178,7 +1203,7 @@ function sortElements(aElements, aSortBy, aAscending) {
     return 0;
   }
 
-  function intCompare(a, b) {
+  function numberCompare(a, b) {
     return a - b;
   }
 
@@ -1203,8 +1228,8 @@ function sortElements(aElements, aSortBy, aAscending) {
   var sortFunc = stringCompare;
   if (DATE_FIELDS.indexOf(aSortBy) != -1)
     sortFunc = dateCompare;
-  else if (INTEGER_FIELDS.indexOf(aSortBy) != -1)
-    sortFunc = intCompare;
+  else if (NUMERIC_FIELDS.indexOf(aSortBy) != -1)
+    sortFunc = numberCompare;
 
   aElements.sort(function(a, b) {
     if (!aAscending)
@@ -1362,9 +1387,13 @@ var gCategories = {
     });
   },
 
+  get selected() {
+    return this.node.selectedItem ? this.node.selectedItem.value : null;
+  },
+
   select: function(aId, aPreviousView) {
     var view = gViewController.parseViewId(aId);
-    if (view.type == "detail") {
+    if (view.type == "detail" && aPreviousView) {
       aId = aPreviousView;
       view = gViewController.parseViewId(aPreviousView);
     }
@@ -1484,6 +1513,10 @@ var gDiscoverView = {
   // after this then it must also load the discover homepage
   loaded: false,
   _browser: null,
+  _loading: null,
+  _error: null,
+  homepageURL: null,
+  _loadListeners: [],
 
   initialize: function() {
     if (Services.prefs.getPrefType(PREF_DISCOVERURL) == Services.prefs.PREF_INVALID) {
@@ -1493,16 +1526,37 @@ var gDiscoverView = {
     }
 
     this.node = document.getElementById("discover-view");
+    this._loading = document.getElementById("discover-loading");
+    this._error = document.getElementById("discover-error");
     this._browser = document.getElementById("discover-browser");
 
     var url = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
                 .getService(Ci.nsIURLFormatter)
                 .formatURLPref(PREF_DISCOVERURL);
 
-    var browser = gDiscoverView._browser;
+    var self = this;
+
+    function setURL(aURL) {
+      try {
+        self.homepageURL = Services.io.newURI(aURL, null, null);
+      } catch (e) {
+        self.showError();
+        notifyInitialized();
+        return;
+      }
+
+      self._browser.homePage = self.homepageURL.spec;
+      self._browser.addProgressListener(self, Ci.nsIWebProgress.NOTIFY_ALL |
+                                              Ci.nsIWebProgress.NOTIFY_STATE_ALL);
+
+      if (self.loaded)
+        self._loadBrowser(notifyInitialized);
+      else
+        notifyInitialized();
+    }
 
     if (Services.prefs.getBoolPref(PREF_BACKGROUND_UPDATE) == false) {
-      browser.homePage = url;
+      setURL(url);
       return;
     }
 
@@ -1520,38 +1574,121 @@ var gDiscoverView = {
         }
       });
 
-      browser.homePage = url + "#" + JSON.stringify(list);
-
-      if (gDiscoverView.loaded) {
-        browser.addEventListener("load", function() {
-          browser.removeEventListener("load", arguments.callee, true);
-          notifyInitialized();
-        }, true);
-        browser.goHome();
-      } else {
-        notifyInitialized();
-      }
+      setURL(url + "#" + JSON.stringify(list));
     });
   },
 
   show: function() {
-    if (!this.loaded) {
-      this.loaded = true;
-
-      var browser = gDiscoverView._browser;
-      browser.addEventListener("load", function() {
-        browser.removeEventListener("load", arguments.callee, true);
-        gViewController.updateCommands();
-        gViewController.notifyViewChanged();
-      }, true);
-      browser.goHome();
-    } else {
+    // If the view has loaded before and the error page is not visible then
+    // there is nothing else to do
+    if (this.loaded && this.node.selectedPanel != this._error) {
       gViewController.updateCommands();
       gViewController.notifyViewChanged();
+      return;
     }
+
+    this.loaded = true;
+
+    // No homepage means initialization isn't complete, the browser will get
+    // loaded once initialization is complete
+    if (!this.homepageURL) {
+      this._loadListeners.push(gViewController.notifyViewChanged.bind(gViewController));
+      return;
+    }
+
+    this._loadBrowser(gViewController.notifyViewChanged.bind(gViewController));
   },
 
   hide: function() { },
+
+  showError: function() {
+    this.node.selectedPanel = this._error;
+  },
+
+  _loadBrowser: function(aCallback) {
+    this.node.selectedPanel = this._loading;
+
+    if (aCallback)
+      this._loadListeners.push(aCallback);
+
+    if (this._browser.currentURI.equals(this.homepageURL))
+      this._browser.reload();
+    else
+      this._browser.goHome();
+  },
+
+  onLocationChange: function(aWebProgress, aRequest, aLocation) {
+    // Ignore the about:blank load
+    if (aLocation.spec == "about:blank")
+      return;
+
+    // If the hostname is the same as the new location's host and either the
+    // default scheme is insecure or the new location is secure then continue
+    // with the load
+    if (aLocation.host == this.homepageURL.host &&
+        (!this.homepageURL.schemeIs("https") || aLocation.schemeIs("https")))
+      return;
+
+    // Canceling the request will send an error to onStateChange which will show
+    // the error page
+    aRequest.cancel(Components.results.NS_BINDING_ABORTED);
+  },
+
+  onSecurityChange: function(aWebProgress, aRequest, aState) {
+    // Don't care about security if the page is not https
+    if (!this.homepageURL.schemeIs("https"))
+      return;
+
+    // If the request was secure then it is ok
+    if (aState & Ci.nsIWebProgressListener.STATE_IS_SECURE)
+      return;
+
+    // Canceling the request will send an error to onStateChange which will show
+    // the error page
+    aRequest.cancel(Components.results.NS_BINDING_ABORTED);
+  },
+
+  onStateChange: function(aWebProgress, aRequest, aStateFlags, aStatus) {
+    // Only care about the network stop status events
+    if (!(aStateFlags & (Ci.nsIWebProgressListener.STATE_IS_NETWORK)) ||
+        !(aStateFlags & (Ci.nsIWebProgressListener.STATE_STOP)))
+      return;
+
+    // Sometimes we stop getting onLocationChange events so we must redo the
+    // url tests here (bug 602256)
+    var location = this._browser.currentURI;
+
+    // Consider the successful load of about:blank as still loading
+    if (Components.isSuccessCode(aStatus) && location && location.spec == "about:blank")
+      return;
+
+    // If there was an error loading the page or the new hostname is not the
+    // same as the default hostname or the default scheme is secure and the new
+    // scheme is insecure then show the error page
+    if (!Components.isSuccessCode(aStatus) ||
+        (aRequest && aRequest instanceof Ci.nsIHttpChannel && !aRequest.requestSucceeded) ||
+        location.host != this.homepageURL.host ||
+        (this.homepageURL.schemeIs("https") && !location.schemeIs("https"))) {
+      this.showError();
+    } else {
+      // Got a successful load, make sure the browser is visible
+      this.node.selectedPanel = this._browser;
+      gViewController.updateCommands();
+    }
+
+    var listeners = this._loadListeners;
+    this._loadListeners = [];
+
+    listeners.forEach(function(aListener) {
+      aListener();
+    });
+  },
+
+  onProgressChange: function() { },
+  onStatusChange: function() { },
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
+                                         Ci.nsISupportsWeakReference]),
 
   getSelectedAddon: function() null
 };
@@ -1609,6 +1746,7 @@ var gSearchView = {
     this.showEmptyNotice(false);
     this.showAllResultsLink(0);
     this.showLoading(true);
+    this._sorters.showprice = false;
 
     gHeader.searchQuery = aQuery;
     aQuery = aQuery.trim().toLocaleLowerCase();
@@ -1643,8 +1781,11 @@ var gSearchView = {
 
         let item = createItem(aObj, aIsInstall, aIsRemote);
         item.setAttribute("relevancescore", score);
-        if (aIsRemote)
+        if (aIsRemote) {
           gCachedAddons[aObj.id] = aObj;
+          if (aObj.purchaseURL)
+            self._sorters.showprice = true;
+        }
 
         elements.push(item);
       });
@@ -2073,6 +2214,11 @@ var gDetailView = {
 
     this.node.setAttribute("type", aAddon.type);
 
+    // If the search category isn't selected then make sure to select the
+    // correct category
+    if (gCategories.selected != "addons://search/")
+      gCategories.select("addons://list/" + aAddon.type);
+
     document.getElementById("detail-name").textContent = aAddon.name;
     var icon = aAddon.icon64URL ? aAddon.icon64URL : aAddon.iconURL;
     document.getElementById("detail-icon").src = icon ? icon : null;
@@ -2105,11 +2251,24 @@ var gDetailView = {
     if ("contributionURL" in aAddon && aAddon.contributionURL) {
       contributions.hidden = false;
       var amount = document.getElementById("detail-contrib-suggested");
-      amount.value = gStrings.ext.formatStringFromName("contributionAmount2",
-                                                       [aAddon.contributionAmount],
-                                                       1);
+      if (aAddon.contributionAmount) {
+        amount.value = gStrings.ext.formatStringFromName("contributionAmount2",
+                                                         [aAddon.contributionAmount],
+                                                         1);
+        amount.hidden = false;
+      } else {
+        amount.hidden = true;
+      }
     } else {
       contributions.hidden = true;
+    }
+
+    if ("purchaseURL" in aAddon && aAddon.purchaseURL) {
+      var purchase = document.getElementById("detail-purchase-btn");
+      purchase.label = gStrings.ext.formatStringFromName("cmd.purchaseAddon.label",
+                                                         [aAddon.purchaseDisplayAmount],
+                                                         1);
+      purchase.accesskey = gStrings.ext.GetStringFromName("cmd.purchaseAddon.accesskey");
     }
 
     var updateDateRow = document.getElementById("detail-dateUpdated");
@@ -2242,7 +2401,10 @@ var gDetailView = {
           return;
         }
 
-        // This case should never happen in normal operation
+        // This might happen due to session restore restoring us back to an
+        // add-on that doesn't exist but otherwise shouldn't normally happen.
+        // Either way just revert to the default view.
+        gViewController.replaceView(VIEW_DEFAULT);
       });
     });
   },
@@ -2250,9 +2412,11 @@ var gDetailView = {
   hide: function() {
     this._updatePrefs.removeObserver("", this);
     this.clearLoading();
-    gEventManager.unregisterAddonListener(this, this._addon.id);
-    gEventManager.unregisterInstallListener(this);
-    this._addon = null;
+    if (this._addon) {
+      gEventManager.unregisterAddonListener(this, this._addon.id);
+      gEventManager.unregisterInstallListener(this);
+      this._addon = null;
+    }
   },
 
   updateState: function() {

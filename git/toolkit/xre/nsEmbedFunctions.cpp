@@ -35,6 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#if defined(MOZ_WIDGET_QT)
+#include "nsQAppInstance.h"
+#endif
+
 #ifdef MOZ_IPC
 #include "base/basictypes.h"
 #endif
@@ -70,6 +74,7 @@
 #include "nsExceptionHandler.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
+#include "nsJSUtils.h"
 #include "nsWidgetsCID.h"
 #include "nsXREDirProvider.h"
 
@@ -392,6 +397,10 @@ XRE_InitChildProcess(int aArgc,
   g_thread_init(NULL);
 #endif
 
+#if defined(MOZ_WIDGET_QT)
+  nsQAppInstance::AddRef();
+#endif
+
   if (PR_GetEnv("MOZ_DEBUG_CHILD_PROCESS")) {
 #ifdef OS_POSIX
       printf("\n\nCHILDCHILDCHILDCHILD\n  debug me @%d\n\n", getpid());
@@ -677,8 +686,9 @@ XRE_SendTestShellCommand(JSContext* aCx,
     TestShellParent* tsp = GetOrCreateTestShellParent();
     NS_ENSURE_TRUE(tsp, false);
 
-    nsDependentString command((PRUnichar*)JS_GetStringChars(aCommand),
-                              JS_GetStringLength(aCommand));
+    nsDependentJSString command;
+    NS_ENSURE_TRUE(command.init(aCx, aCommand), NS_ERROR_FAILURE);
+
     if (!aCallback) {
         return tsp->SendExecuteCommand(command);
     }

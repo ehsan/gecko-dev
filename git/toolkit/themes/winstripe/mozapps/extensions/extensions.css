@@ -445,6 +445,40 @@
 }
 
 
+/*** discover view ***/
+
+.discover-spacer-before,
+.discover-spacer-after {
+  -moz-box-flex: 1;
+}
+
+#discover-error .alert {
+  max-width: 45em;
+  -moz-box-flex: 1;
+}
+
+.discover-logo {
+  list-style-image: url("chrome://mozapps/skin/extensions/discover-logo.png");
+  -moz-margin-end: 15px;
+}
+
+.discover-title {
+  font-weight: bold;
+  font-size: 24px;
+  font-family: MetaWebPro-Book, "Trebuchet MS", sans-serif;
+  margin: 0 0 15px 0;
+}
+
+.discover-description {
+  text-align: justify;
+  margin: 0 0 15px 0;
+}
+
+.discover-footer {
+  text-align: justify;
+}
+
+
 /*** list ***/
 
 .list {
@@ -769,6 +803,8 @@
 
 #detail-screenshot {
   -moz-margin-end: 2em;
+  max-width: 300px;
+  max-height: 300px;
 }
 
 #detail-desc-container {
@@ -781,7 +817,7 @@
      bug 592712*/
   outline: solid transparent;
   white-space: pre-wrap;
-  min-width: 8em;
+  min-width: 10em;
 }
 
 #detail-contributions {

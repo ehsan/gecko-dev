@@ -1247,7 +1247,10 @@ AssertEq(JSContext *cx, uintN argc, jsval *vp)
     }
 
     jsval *argv = JS_ARGV(cx, vp);
-    if (!JS_SameValue(cx, argv[0], argv[1])) {
+    JSBool same;
+    if (!JS_SameValue(cx, argv[0], argv[1], &same))
+        return JS_FALSE;
+    if (!same) {
         JSAutoByteString bytes0, bytes1;
         const char *actual = ToSource(cx, &argv[0], &bytes0);
         const char *expected = ToSource(cx, &argv[1], &bytes1);
@@ -1338,6 +1341,10 @@ GCParameter(JSContext *cx, uintN argc, jsval *vp)
         vp[2] = STRING_TO_JSVAL(str);
     }
 
+    JSFlatString *flatStr = JS_FlattenString(cx, str);
+    if (!flatStr)
+        return JS_FALSE;
+
     size_t paramIndex = 0;
     for (;; paramIndex++) {
         if (paramIndex == JS_ARRAY_LENGTH(paramMap)) {
@@ -1347,7 +1354,7 @@ GCParameter(JSContext *cx, uintN argc, jsval *vp)
                            "gcNumber or gcTriggerFactor");
             return JS_FALSE;
         }
-        if (JS_MatchStringAndAscii(str, paramMap[paramIndex].name))
+        if (JS_FlatStringEqualsAscii(flatStr, paramMap[paramIndex].name))
             break;
     }
     JSGCParamKey param = paramMap[paramIndex].param;
@@ -1494,8 +1501,11 @@ CountHeap(JSContext *cx, uintN argc, jsval *vp)
         str = JS_ValueToString(cx, JS_ARGV(cx, vp)[1]);
         if (!str)
             return JS_FALSE;
+        JSFlatString *flatStr = JS_FlattenString(cx, str);
+        if (!flatStr)
+            return JS_FALSE;
         for (i = 0; ;) {
-            if (JS_MatchStringAndAscii(str, traceKindNames[i].name)) {
+            if (JS_FlatStringEqualsAscii(flatStr, traceKindNames[i].name)) {
                 traceKind = traceKindNames[i].kind;
                 break;
             }
@@ -1666,8 +1676,13 @@ TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
 {
     JSString *str = JSVAL_TO_STRING(closure);
     JSStackFrame *caller = JS_GetScriptedCaller(cx, NULL);
-    if (!JS_EvaluateUCInStackFrame(cx, caller,
-                                   JS_GetStringChars(str), JS_GetStringLength(str),
+
+    size_t length;
+    const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
+    if (!chars)
+        return JSTRAP_ERROR;
+
+    if (!JS_EvaluateUCInStackFrame(cx, caller, chars, length,
                                    caller->script()->filename,
                                    caller->script()->lineno,
                                    rval)) {
@@ -1975,7 +1990,7 @@ TryNotes(JSContext *cx, JSScript *script)
 {
     JSTryNote *tn, *tnlimit;
 
-    if (script->trynotesOffset == 0)
+    if (!JSScript::isValidOffset(script->trynotesOffset))
         return JS_TRUE;
 
     tn = script->trynotes()->vector;
@@ -2007,7 +2022,6 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive)
 
             SHOW_FLAG(LAMBDA);
             SHOW_FLAG(HEAVYWEIGHT);
-            SHOW_FLAG(PRIMITIVE_THIS);
             SHOW_FLAG(EXPR_CLOSURE);
             SHOW_FLAG(TRCINFO);
 
@@ -2019,16 +2033,17 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive)
                 else if (FUN_FLAT_CLOSURE(fun))
                     fputs(" FLAT_CLOSURE", stdout);
 
-                if (fun->u.i.nupvars) {
+                JSScript *script = fun->script();
+                if (script->bindings.hasUpvars()) {
                     fputs("\nupvars: {\n", stdout);
 
                     void *mark = JS_ARENA_MARK(&cx->tempPool);
-                    jsuword *localNames = fun->getLocalNameArray(cx, &cx->tempPool);
+                    jsuword *localNames = script->bindings.getLocalNameArray(cx, &cx->tempPool);
                     if (!localNames)
                         return false;
 
-                    JSUpvarArray *uva = fun->u.i.script->upvars();
-                    uintN upvar_base = fun->countArgsAndVars();
+                    JSUpvarArray *uva = script->upvars();
+                    uintN upvar_base = script->bindings.countArgsAndVars();
 
                     for (uint32 i = 0, n = uva->length; i < n; i++) {
                         JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(localNames[upvar_base + i]);
@@ -2053,7 +2068,7 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive)
     SrcNotes(cx, script);
     TryNotes(cx, script);
 
-    if (recursive && script->objectsOffset != 0) {
+    if (recursive && JSScript::isValidOffset(script->objectsOffset)) {
         JSObjectArray *objects = script->objects();
         for (uintN i = 0; i != objects->length; ++i) {
             JSObject *obj = objects->vector[i];
@@ -2078,8 +2093,11 @@ Disassemble(JSContext *cx, uintN argc, jsval *vp)
     bool lines = false, recursive = false;
     while (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         JSString *str = JSVAL_TO_STRING(argv[0]);
-        lines |= !!JS_MatchStringAndAscii(str, "-l");
-        recursive |= !!JS_MatchStringAndAscii(str, "-r");
+        JSFlatString *flatStr = JS_FlattenString(cx, str);
+        if (!flatStr)
+            return JS_FALSE;
+        lines |= !!JS_FlatStringEqualsAscii(flatStr, "-l");
+        recursive |= !!JS_FlatStringEqualsAscii(flatStr, "-r");
         if (!lines && !recursive)
             break;
         argv++, argc--;
@@ -2138,11 +2156,6 @@ DisassFile(JSContext *cx, uintN argc, jsval *vp)
     JS_SetOptions(cx, oldopts);
     if (!script)
         return JS_FALSE;
-
-    if (script->isEmpty()) {
-        JS_SET_RVAL(cx, vp, JSVAL_VOID);
-        return JS_TRUE;
-    }
 
     JSObject *obj = JS_NewScriptObject(cx, script);
     if (!obj)
@@ -2324,13 +2337,16 @@ DumpStats(JSContext *cx, uintN argc, jsval *vp)
         if (!str)
             return JS_FALSE;
         argv[i] = STRING_TO_JSVAL(str);
-        if (JS_MatchStringAndAscii(str, "arena")) {
+        JSFlatString *flatStr = JS_FlattenString(cx, str);
+        if (!flatStr)
+            return JS_FALSE;
+        if (JS_FlatStringEqualsAscii(flatStr, "arena")) {
 #ifdef JS_ARENAMETER
             JS_DumpArenaStats(stdout);
 #endif
-        } else if (JS_MatchStringAndAscii(str, "atom")) {
+        } else if (JS_FlatStringEqualsAscii(flatStr, "atom")) {
             js_DumpAtoms(cx, gOutFile);
-        } else if (JS_MatchStringAndAscii(str, "global")) {
+        } else if (JS_FlatStringEqualsAscii(flatStr, "global")) {
             DumpScope(cx, cx->globalObject, stdout);
         } else {
             if (!JS_ValueToId(cx, STRING_TO_JSVAL(str), &id))
@@ -2622,17 +2638,20 @@ Clear(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 Intern(JSContext *cx, uintN argc, jsval *vp)
 {
-    JSString *str;
-
-    str = JS_ValueToString(cx, argc == 0 ? JSVAL_VOID : vp[2]);
+    JSString *str = JS_ValueToString(cx, argc == 0 ? JSVAL_VOID : vp[2]);
     if (!str)
-        return JS_FALSE;
-    if (!JS_InternUCStringN(cx, JS_GetStringChars(str),
-                                JS_GetStringLength(str))) {
-        return JS_FALSE;
-    }
-    *vp = JSVAL_VOID;
-    return JS_TRUE;
+        return false;
+
+    size_t length;
+    const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
+    if (!chars)
+        return false;
+
+    if (!JS_InternUCStringN(cx, chars, length))
+        return false;
+
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+    return true;
 }
 
 static JSBool
@@ -2853,18 +2872,21 @@ split_getProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
     if (!cpx)
         return JS_TRUE;
 
-    if (JSID_IS_ATOM(id) && JS_MatchStringAndAscii(JSID_TO_STRING(id), "isInner")) {
+    if (JSID_IS_ATOM(id) && JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(id), "isInner")) {
         *vp = BOOLEAN_TO_JSVAL(cpx->isInner);
         return JS_TRUE;
     }
 
     if (!cpx->isInner && cpx->inner) {
         if (JSID_IS_ATOM(id)) {
-            JSString *str;
+            JSString *str = JSID_TO_STRING(id);
 
-            str = JSID_TO_STRING(id);
-            return JS_GetUCProperty(cx, cpx->inner, JS_GetStringChars(str),
-                                    JS_GetStringLength(str), vp);
+            size_t length;
+            const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
+            if (!chars)
+                return false;
+
+            return JS_GetUCProperty(cx, cpx->inner, chars, length, vp);
         }
         if (JSID_IS_INT(id))
             return JS_GetElement(cx, cpx->inner, JSID_TO_INT(id), vp);
@@ -2881,21 +2903,24 @@ split_setProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 
     cpx = split_get_private(cx, obj);
     if (!cpx)
-        return JS_TRUE;
+        return true;
     if (!cpx->isInner && cpx->inner) {
         if (JSID_IS_ATOM(id)) {
-            JSString *str;
+            JSString *str = JSID_TO_STRING(id);
 
-            str = JSID_TO_STRING(id);
-            return JS_SetUCProperty(cx, cpx->inner, JS_GetStringChars(str),
-                                    JS_GetStringLength(str), vp);
+            size_t length;
+            const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
+            if (!chars)
+                return false;
+
+            return JS_SetUCProperty(cx, cpx->inner, chars, length, vp);
         }
         if (JSID_IS_INT(id))
             return JS_SetElement(cx, cpx->inner, JSID_TO_INT(id), vp);
-        return JS_TRUE;
+        return true;
     }
 
-    return JS_TRUE;
+    return true;
 }
 
 static JSBool
@@ -2980,7 +3005,7 @@ split_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject **obj
 {
     ComplexObject *cpx;
 
-    if (JSID_IS_ATOM(id) && JS_MatchStringAndAscii(JSID_TO_STRING(id), "isInner")) {
+    if (JSID_IS_ATOM(id) && JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(id), "isInner")) {
         *objp = obj;
         return JS_DefinePropertyById(cx, obj, id, JSVAL_VOID, NULL, NULL, JSPROP_SHARED);
     }
@@ -3287,8 +3312,11 @@ EvalInContext(JSContext *cx, uintN argc, jsval *vp)
     if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "S / o", &str, &sobj))
         return false;
 
-    const jschar *src = JS_GetStringChars(str);
-    size_t srclen = JS_GetStringLength(str);
+    size_t srclen;
+    const jschar *src = JS_GetStringCharsAndLength(cx, str, &srclen);
+    if (!src)
+        return false;
+
     bool split = false, lazy = false;
     if (srclen == 4) {
         if (src[0] == 'l' && src[1] == 'a' && src[2] == 'z' && src[3] == 'y') {
@@ -3374,7 +3402,12 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
     if (saveCurrent)
         oldfp = JS_SaveFrameChain(cx);
 
-    JSBool ok = JS_EvaluateUCInStackFrame(cx, fp, str->chars(), str->length(),
+    size_t length;
+    const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
+    if (!chars)
+        return JS_FALSE;
+
+    JSBool ok = JS_EvaluateUCInStackFrame(cx, fp, chars, length,
                                           fp->script()->filename,
                                           JS_PCToLineNumber(cx, fp->script(),
                                                             fi.pc()),
@@ -4174,7 +4207,7 @@ Serialize(JSContext *cx, uintN argc, jsval *vp)
     jsval v = argc > 0 ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
     uint64 *datap;
     size_t nbytes;
-    if (!JS_WriteStructuredClone(cx, v, &datap, &nbytes))
+    if (!JS_WriteStructuredClone(cx, v, &datap, &nbytes, NULL, NULL))
         return false;
 
     JSObject *arrayobj = js_CreateTypedArray(cx, TypedArray::TYPE_UINT8, nbytes);
@@ -4206,10 +4239,24 @@ Deserialize(JSContext *cx, uintN argc, jsval *vp)
     }
 
     if (!JS_ReadStructuredClone(cx, (uint64 *) array->data, array->byteLength,
-                                JS_STRUCTURED_CLONE_VERSION, &v)) {
+                                JS_STRUCTURED_CLONE_VERSION, &v, NULL, NULL)) {
         return false;
     }
     JS_SET_RVAL(cx, vp, v);
+    return true;
+}
+
+JSBool
+MJitStats(JSContext *cx, uintN argc, jsval *vp)
+{
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(cx->runtime->mjitMemoryUsed));
+    return true;
+}
+
+JSBool
+StringStats(JSContext *cx, uintN argc, jsval *vp)
+{
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(cx->runtime->stringMemoryUsed));
     return true;
 }
 
@@ -4293,7 +4340,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("startTraceVis",  StartTraceVisNative, 1,0),
     JS_FN("stopTraceVis",   StopTraceVisNative,  0,0),
 #endif
-#ifdef DEBUG_ARRAYS
+#ifdef DEBUG
     JS_FN("arrayInfo",      js_ArrayInfo,   1,0),
 #endif
 #ifdef JS_THREADSAFE
@@ -4310,6 +4357,10 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("wrap",           Wrap,           1,0),
     JS_FN("serialize",      Serialize,      1,0),
     JS_FN("deserialize",    Deserialize,    1,0),
+#ifdef JS_METHODJIT
+    JS_FN("mjitstats",      MJitStats,      0,0),
+#endif
+    JS_FN("stringstats",    StringStats,    0,0),
     JS_FS_END
 };
 
@@ -4420,7 +4471,7 @@ static const char *const shell_help_messages[] = {
 "startTraceVis(filename)  Start TraceVis recording (stops any current recording)",
 "stopTraceVis()           Stop TraceVis recording",
 #endif
-#ifdef DEBUG_ARRAYS
+#ifdef DEBUG
 "arrayInfo(a1, a2, ...)   Report statistics about arrays",
 #endif
 #ifdef JS_THREADSAFE
@@ -4438,7 +4489,11 @@ static const char *const shell_help_messages[] = {
 "parent(obj)              Returns the parent of obj.\n",
 "wrap(obj)                Wrap an object into a noop wrapper.\n",
 "serialize(sd)            Serialize sd using JS_WriteStructuredClone. Returns a TypedArray.\n",
-"deserialize(a)           Deserialize data generated by serialize.\n"
+"deserialize(a)           Deserialize data generated by serialize.\n",
+#ifdef JS_METHODJIT
+"mjitstats()             Return stats on mjit memory usage.\n",
+#endif
+"stringstats()           Return stats on string memory usage.\n"
 };
 
 /* Help messages must match shell functions. */
@@ -4493,8 +4548,11 @@ Help(JSContext *cx, uintN argc, jsval *vp)
                 str = NULL;
             }
             if (str) {
+                JSFlatString *flatStr = JS_FlattenString(cx, str);
+                if (!flatStr)
+                    return JS_FALSE;
                 for (j = 0; shell_functions[j].name; j++) {
-                    if (JS_MatchStringAndAscii(str, shell_functions[j].name)) {
+                    if (JS_FlatStringEqualsAscii(flatStr, shell_functions[j].name)) {
                         if (!did_header) {
                             did_header = 1;
                             fputs(shell_help_header, gOutFile);

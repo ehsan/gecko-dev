@@ -66,7 +66,9 @@ namespace layers {
 
 using namespace mozilla::gl;
 
+#ifdef CHECK_CURRENT_PROGRAM
 int LayerManagerOGLProgram::sCurrentProgramKey = 0;
+#endif
 
 /**
  * LayerManagerOGL
@@ -598,6 +600,8 @@ LayerManagerOGL::Render()
   // Render our layers.
   RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() && !mTarget ? 0 : mBackBufferFBO,
                            nsIntPoint(0, 0));
+                           
+  static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(mWidget)->DrawOver(this, rect);
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
@@ -848,13 +852,13 @@ LayerManagerOGL::CopyToTarget()
 }
 
 LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
-  LayerManagerOGL::RGBALayerProgramType,
-  LayerManagerOGL::BGRALayerProgramType,
-  LayerManagerOGL::RGBXLayerProgramType,
-  LayerManagerOGL::BGRXLayerProgramType,
-  LayerManagerOGL::RGBARectLayerProgramType,
-  LayerManagerOGL::ColorLayerProgramType,
-  LayerManagerOGL::YCbCrLayerProgramType
+  gl::RGBALayerProgramType,
+  gl::BGRALayerProgramType,
+  gl::RGBXLayerProgramType,
+  gl::BGRXLayerProgramType,
+  gl::RGBARectLayerProgramType,
+  gl::ColorLayerProgramType,
+  gl::YCbCrLayerProgramType
 };
 
 #define FOR_EACH_LAYER_PROGRAM(vname)                       \

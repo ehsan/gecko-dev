@@ -105,8 +105,13 @@ inline bool
 JSObject::unbrand(JSContext *cx)
 {
     JS_ASSERT(isNative());
-    if (!branded())
-        setGeneric();
+    if (branded()) {
+        generateOwnShape(cx);
+        if (js_IsPropertyCacheDisabled(cx))  // check for rt->shapeGen overflow
+            return false;
+        flags &= ~BRANDED;
+    }
+    setGeneric();
     return true;
 }
 
@@ -189,14 +194,12 @@ ChangesMethodValue(const js::Value &prev, const js::Value &v)
 inline bool
 JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Value &v)
 {
-    if (flags & (BRANDED | METHOD_BARRIER)) {
-        if (shape.slot != SHAPE_INVALID_SLOT) {
-            const js::Value &prev = nativeGetSlot(shape.slot);
+    if (brandedOrHasMethodBarrier() && shape.slot != SHAPE_INVALID_SLOT) {
+        const js::Value &prev = nativeGetSlot(shape.slot);
 
-            if (ChangesMethodValue(prev, v)) {
-                JS_FUNCTION_METER(cx, mwritebarrier);
-                return methodShapeChange(cx, shape);
-            }
+        if (ChangesMethodValue(prev, v)) {
+            JS_FUNCTION_METER(cx, mwritebarrier);
+            return methodShapeChange(cx, shape);
         }
     }
     return true;
@@ -205,7 +208,7 @@ JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Va
 inline bool
 JSObject::methodWriteBarrier(JSContext *cx, uint32 slot, const js::Value &v)
 {
-    if (flags & (BRANDED | METHOD_BARRIER)) {
+    if (brandedOrHasMethodBarrier()) {
         const js::Value &prev = nativeGetSlot(slot);
 
         if (ChangesMethodValue(prev, v)) {
@@ -429,19 +432,36 @@ JSObject::setArgsElement(uint32 i, const js::Value &v)
     getArgsData()->slots[i] = v;
 }
 
-inline void
-JSObject::setCallObjCallee(JSObject &callee)
+inline bool
+JSObject::callIsForEval() const
 {
     JS_ASSERT(isCall());
-    JS_ASSERT(callee.isFunction());
-    return getSlotRef(JSSLOT_CALL_CALLEE).setObject(callee);
+    JS_ASSERT(getSlot(JSSLOT_CALL_CALLEE).isObjectOrNull());
+    JS_ASSERT_IF(getSlot(JSSLOT_CALL_CALLEE).isObject(),
+                 getSlot(JSSLOT_CALL_CALLEE).toObject().isFunction());
+    return getSlot(JSSLOT_CALL_CALLEE).isNull();
 }
 
-inline JSObject &
+inline JSStackFrame *
+JSObject::maybeCallObjStackFrame() const
+{
+    JS_ASSERT(isCall());
+    return reinterpret_cast<JSStackFrame *>(getPrivate());
+}
+
+inline void
+JSObject::setCallObjCallee(JSObject *callee)
+{
+    JS_ASSERT(isCall());
+    JS_ASSERT_IF(callee, callee->isFunction());
+    return getSlotRef(JSSLOT_CALL_CALLEE).setObjectOrNull(callee);
+}
+
+inline JSObject *
 JSObject::getCallObjCallee() const
 {
     JS_ASSERT(isCall());
-    return getSlot(JSSLOT_CALL_CALLEE).toObject();
+    return getSlot(JSSLOT_CALL_CALLEE).toObjectOrNull();
 }
 
 inline JSFunction *
@@ -455,6 +475,7 @@ inline const js::Value &
 JSObject::getCallObjArguments() const
 {
     JS_ASSERT(isCall());
+    JS_ASSERT(!callIsForEval());
     return getSlot(JSSLOT_CALL_ARGUMENTS);
 }
 
@@ -462,7 +483,42 @@ inline void
 JSObject::setCallObjArguments(const js::Value &v)
 {
     JS_ASSERT(isCall());
+    JS_ASSERT(!callIsForEval());
     setSlot(JSSLOT_CALL_ARGUMENTS, v);
+}
+
+inline const js::Value &
+JSObject::callObjArg(uintN i) const
+{
+    JS_ASSERT(isCall());
+    JS_ASSERT(i < getCallObjCalleeFunction()->nargs);
+    return getSlot(JSObject::CALL_RESERVED_SLOTS + i);
+}
+
+inline js::Value &
+JSObject::callObjArg(uintN i)
+{
+    JS_ASSERT(isCall());
+    JS_ASSERT(i < getCallObjCalleeFunction()->nargs);
+    return getSlotRef(JSObject::CALL_RESERVED_SLOTS + i);
+}
+
+inline const js::Value &
+JSObject::callObjVar(uintN i) const
+{
+    JSFunction *fun = getCallObjCalleeFunction();
+    JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
+    JS_ASSERT(i < fun->script()->bindings.countVars());
+    return getSlot(JSObject::CALL_RESERVED_SLOTS + fun->nargs + i);
+}
+
+inline js::Value &
+JSObject::callObjVar(uintN i)
+{
+    JSFunction *fun = getCallObjCalleeFunction();
+    JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
+    JS_ASSERT(i < fun->script()->bindings.countVars());
+    return getSlotRef(JSObject::CALL_RESERVED_SLOTS + fun->nargs + i);
 }
 
 inline const js::Value &
@@ -482,14 +538,25 @@ JSObject::setDateUTCTime(const js::Value &time)
 inline js::Value *
 JSObject::getFlatClosureUpvars() const
 {
-    JS_ASSERT(isFunction());
-    JS_ASSERT(FUN_FLAT_CLOSURE(getFunctionPrivate()));
+#ifdef DEBUG
+    JSFunction *fun = getFunctionPrivate();
+    JS_ASSERT(fun->isFlatClosure());
+    JS_ASSERT(fun->script()->bindings.countUpvars() == fun->script()->upvars()->length);
+#endif
     return (js::Value *) getSlot(JSSLOT_FLAT_CLOSURE_UPVARS).toPrivate();
 }
 
 inline js::Value
 JSObject::getFlatClosureUpvar(uint32 i) const
 {
+    JS_ASSERT(i < getFunctionPrivate()->script()->bindings.countUpvars());
+    return getFlatClosureUpvars()[i];
+}
+
+inline js::Value &
+JSObject::getFlatClosureUpvar(uint32 i)
+{
+    JS_ASSERT(i < getFunctionPrivate()->script()->bindings.countUpvars());
     return getFlatClosureUpvars()[i];
 }
 
@@ -505,8 +572,8 @@ inline bool
 JSObject::hasMethodObj(const JSObject& obj) const
 {
     return JSSLOT_FUN_METHOD_OBJ < numSlots() &&
-        getSlot(JSSLOT_FUN_METHOD_OBJ).isObject() &&
-        &getSlot(JSSLOT_FUN_METHOD_OBJ).toObject() == &obj;
+           getSlot(JSSLOT_FUN_METHOD_OBJ).isObject() &&
+           &getSlot(JSSLOT_FUN_METHOD_OBJ).toObject() == &obj;
 }
 
 inline void
@@ -527,32 +594,55 @@ JSObject::setNativeIterator(js::NativeIterator *ni)
     setPrivate(ni);
 }
 
-inline jsval
+inline JSLinearString *
 JSObject::getNamePrefix() const
+{
+    JS_ASSERT(isNamespace() || isQName());
+    const js::Value &v = getSlot(JSSLOT_NAME_PREFIX);
+    return !v.isUndefined() ? v.toString()->assertIsLinear() : NULL;
+}
+
+inline jsval
+JSObject::getNamePrefixVal() const
 {
     JS_ASSERT(isNamespace() || isQName());
     return js::Jsvalify(getSlot(JSSLOT_NAME_PREFIX));
 }
 
 inline void
-JSObject::setNamePrefix(jsval prefix)
+JSObject::setNamePrefix(JSLinearString *prefix)
 {
     JS_ASSERT(isNamespace() || isQName());
-    setSlot(JSSLOT_NAME_PREFIX, js::Valueify(prefix));
+    setSlot(JSSLOT_NAME_PREFIX, prefix ? js::StringValue(prefix) : js::UndefinedValue());
+}
+
+inline void
+JSObject::clearNamePrefix()
+{
+    JS_ASSERT(isNamespace() || isQName());
+    setSlot(JSSLOT_NAME_PREFIX, js::UndefinedValue());
+}
+
+inline JSLinearString *
+JSObject::getNameURI() const
+{
+    JS_ASSERT(isNamespace() || isQName());
+    const js::Value &v = getSlot(JSSLOT_NAME_URI);
+    return !v.isUndefined() ? v.toString()->assertIsLinear() : NULL;
 }
 
 inline jsval
-JSObject::getNameURI() const
+JSObject::getNameURIVal() const
 {
     JS_ASSERT(isNamespace() || isQName());
     return js::Jsvalify(getSlot(JSSLOT_NAME_URI));
 }
 
 inline void
-JSObject::setNameURI(jsval uri)
+JSObject::setNameURI(JSLinearString *uri)
 {
     JS_ASSERT(isNamespace() || isQName());
-    setSlot(JSSLOT_NAME_URI, js::Valueify(uri));
+    setSlot(JSSLOT_NAME_URI, uri ? js::StringValue(uri) : js::UndefinedValue());
 }
 
 inline jsval
@@ -569,18 +659,26 @@ JSObject::setNamespaceDeclared(jsval decl)
     setSlot(JSSLOT_NAMESPACE_DECLARED, js::Valueify(decl));
 }
 
-inline jsval
+inline JSLinearString *
 JSObject::getQNameLocalName() const
+{
+    JS_ASSERT(isQName());
+    const js::Value &v = getSlot(JSSLOT_QNAME_LOCAL_NAME);
+    return !v.isUndefined() ? v.toString()->assertIsLinear() : NULL;
+}
+
+inline jsval
+JSObject::getQNameLocalNameVal() const
 {
     JS_ASSERT(isQName());
     return js::Jsvalify(getSlot(JSSLOT_QNAME_LOCAL_NAME));
 }
 
 inline void
-JSObject::setQNameLocalName(jsval name)
+JSObject::setQNameLocalName(JSLinearString *name)
 {
     JS_ASSERT(isQName());
-    setSlot(JSSLOT_QNAME_LOCAL_NAME, js::Valueify(name));
+    setSlot(JSSLOT_QNAME_LOCAL_NAME, name ? js::StringValue(name) : js::UndefinedValue());
 }
 
 inline JSObject *
@@ -931,6 +1029,18 @@ namespace WithProto {
  * Note that as a template, there will be lots of instantiations, which means
  * the internals will be specialized based on the template parameters.
  */
+static JS_ALWAYS_INLINE bool
+FindProto(JSContext *cx, js::Class *clasp, JSObject *parent, JSObject ** proto)
+{
+    JSProtoKey protoKey = GetClassProtoKey(clasp);
+    if (!js_GetClassPrototype(cx, parent, protoKey, proto, clasp))
+        return false;
+    if (!(*proto) && !js_GetClassPrototype(cx, parent, JSProto_Object, proto))
+        return false;
+
+    return true;
+}
+
 namespace detail
 {
 template <bool withProto, bool isFunction>
@@ -940,11 +1050,8 @@ NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent,
 {
     /* Bootstrap the ur-object, and make it the default prototype object. */
     if (withProto == WithProto::Class && !proto) {
-        JSProtoKey protoKey = GetClassProtoKey(clasp);
-        if (!js_GetClassPrototype(cx, parent, protoKey, &proto, clasp))
-            return NULL;
-        if (!proto && !js_GetClassPrototype(cx, parent, JSProto_Object, &proto))
-            return NULL;
+        if (!FindProto (cx, clasp, parent, &proto))
+          return NULL;
     }
 
     /*
@@ -1023,13 +1130,6 @@ NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
 {
     gc::FinalizeKind kind = gc::GetGCObjectKind(JSCLASS_RESERVED_SLOTS(clasp));
     return NewObject<withProto>(cx, clasp, proto, parent, kind);
-}
-
-/* Creates a new array with a zero length and the given finalize kind. */
-static inline JSObject *
-NewArrayWithKind(JSContext* cx, gc::FinalizeKind kind)
-{
-    return NewNonFunction<WithProto::Class>(cx, &js_ArrayClass, NULL, NULL, kind);
 }
 
 /*

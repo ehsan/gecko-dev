@@ -335,7 +335,14 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
 
         if (!isUndefined && NS_SUCCEEDED(rv)) {
             NS_ASSERTION(JSVAL_IS_STRING(rval), "evalInSandbox is broken");
-            result = nsDependentJSString(JSVAL_TO_STRING(rval));
+
+            nsDependentJSString depStr;
+            if (!depStr.init(cx, JSVAL_TO_STRING(rval))) {
+                JS_ReportPendingException(cx);
+                isUndefined = PR_TRUE;
+            } else {
+                result = depStr;
+            }
         }
 
         stack->Pop(nsnull);
@@ -894,7 +901,12 @@ nsJSChannel::SetLoadFlags(nsLoadFlags aLoadFlags)
         }
         bogusLoadBackground = !loadGroupIsBackground;
     }
-    
+
+    // Classifying a javascript: URI doesn't help us, and requires
+    // NSS to boot, which we don't have in content processes.  See
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=617838.
+    aLoadFlags &= ~LOAD_CLASSIFY_URI;
+
     // Since the javascript channel is never the actual channel that
     // any data is loaded through, don't ever set the
     // LOAD_DOCUMENT_URI flag on it, since that could lead to two

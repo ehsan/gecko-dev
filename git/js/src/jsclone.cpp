@@ -49,18 +49,20 @@ namespace js
 {
 
 bool
-WriteStructuredClone(JSContext *cx, const Value &v, uint64 **bufp, size_t *nbytesp)
+WriteStructuredClone(JSContext *cx, const Value &v, uint64 **bufp, size_t *nbytesp,
+                     const JSStructuredCloneCallbacks *cb, void *cbClosure)
 {
     SCOutput out(cx);
-    JSStructuredCloneWriter w(out);
+    JSStructuredCloneWriter w(out, cb, cbClosure);
     return w.init() && w.write(v) && out.extractBuffer(bufp, nbytesp);
 }
 
 bool
-ReadStructuredClone(JSContext *cx, const uint64_t *data, size_t nbytes, Value *vp)
+ReadStructuredClone(JSContext *cx, const uint64_t *data, size_t nbytes, Value *vp,
+                    const JSStructuredCloneCallbacks *cb, void *cbClosure)
 {
     SCInput in(cx, data, nbytes);
-    JSStructuredCloneReader r(in);
+    JSStructuredCloneReader r(in, cb, cbClosure);
     return r.read(vp);
 }
 
@@ -280,17 +282,10 @@ ReinterpretPairAsDouble(uint32_t tag, uint32_t data)
     return ReinterpretUInt64AsDouble(PairToUInt64(tag, data));
 }
 
-static inline bool
-IsNonCanonicalizedNaN(jsdouble d)
-{
-    return ReinterpretDoubleAsUInt64(d) != ReinterpretDoubleAsUInt64(JS_CANONICALIZE_NAN(d));
-}
-
 bool
 SCOutput::writeDouble(jsdouble d)
 {
-    JS_ASSERT(!IsNonCanonicalizedNaN(d));
-    return write(ReinterpretDoubleAsUInt64(d));
+    return write(ReinterpretDoubleAsUInt64(JS_CANONICALIZE_NAN(d)));
 }
 
 template <class T>
@@ -350,9 +345,10 @@ JS_STATIC_ASSERT(JSString::MAX_LENGTH < UINT32_MAX);
 bool
 JSStructuredCloneWriter::writeString(uint32_t tag, JSString *str)
 {
-    const jschar *chars;
-    size_t length;
-    str->getCharsAndLength(chars, length);
+    size_t length = str->length();
+    const jschar *chars = str->getChars(context());
+    if (!chars)
+        return false;
     return out.writePair(tag, uint32_t(length)) && out.writeChars(chars, length);
 }
 
@@ -465,9 +461,8 @@ JSStructuredCloneWriter::startObject(JSObject *obj)
     HashSet<JSObject *>::AddPtr p = memory.lookupForAdd(obj);
     if (p) {
         JSContext *cx = context();
-        const JSStructuredCloneCallbacks *cb = cx->runtime->structuredCloneCallbacks;
-        if (cb)
-            cb->reportError(cx, JS_SCERR_RECURSION);
+        if (callbacks && callbacks->reportError)
+            callbacks->reportError(cx, JS_SCERR_RECURSION);
         else
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_SC_RECURSION);
         return false;
@@ -532,9 +527,8 @@ JSStructuredCloneWriter::startWrite(const js::Value &v)
             return writeString(SCTAG_STRING_OBJECT, obj->getPrimitiveThis().toString());
         }
 
-        const JSStructuredCloneCallbacks *cb = context()->runtime->structuredCloneCallbacks;
-        if (cb)
-            return cb->write(context(), this, obj);
+        if (callbacks && callbacks->write)
+            return callbacks->write(context(), this, obj, closure);
         /* else fall through */
     }
 
@@ -587,7 +581,9 @@ JSStructuredCloneWriter::write(const Value &v)
 bool
 JSStructuredCloneReader::checkDouble(jsdouble d)
 {
-    if (IsNonCanonicalizedNaN(d)) {
+    jsval_layout l;
+    l.asDouble = d;
+    if (!JSVAL_IS_DOUBLE(JSVAL_FROM_LAYOUT(l))) {
         JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL,
                              JSMSG_SC_BAD_SERIALIZED_DATA, "unrecognized NaN");
         return false;
@@ -750,9 +746,10 @@ JSStructuredCloneReader::startRead(Value *vp)
         JSString *str = readString(nchars);
         if (!str)
             return false;
-        const jschar *chars;
-        size_t length;
-        str->getCharsAndLength(chars, length);
+        size_t length = str->length();
+        const jschar *chars = str->getChars(context());
+        if (!chars)
+            return false;
         JSObject *obj = RegExp::createObjectNoStatics(context(), chars, length, data);
         if (!obj)
             return false;
@@ -763,7 +760,7 @@ JSStructuredCloneReader::startRead(Value *vp)
       case SCTAG_ARRAY_OBJECT:
       case SCTAG_OBJECT_OBJECT: {
         JSObject *obj = (tag == SCTAG_ARRAY_OBJECT)
-                        ? js_NewArrayObject(context(), 0, NULL)
+                        ? NewDenseEmptyArray(context())
                         : NewBuiltinClassInstance(context(), &js_ObjectClass);
         if (!obj || !objs.append(ObjectValue(*obj)))
             return false;
@@ -786,13 +783,12 @@ JSStructuredCloneReader::startRead(Value *vp)
         if (SCTAG_TYPED_ARRAY_MIN <= tag && tag <= SCTAG_TYPED_ARRAY_MAX)
             return readTypedArray(tag, data, vp);
 
-        const JSStructuredCloneCallbacks *cb = context()->runtime->structuredCloneCallbacks;
-        if (!cb) {
+        if (!callbacks || !callbacks->read) {
             JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL, JSMSG_SC_BAD_SERIALIZED_DATA,
                                  "unsupported type");
             return false;
         }
-        JSObject *obj = cb->read(context(), this, tag, data);
+        JSObject *obj = callbacks->read(context(), this, tag, data, closure);
         if (!obj)
             return false;
         vp->setObject(*obj);

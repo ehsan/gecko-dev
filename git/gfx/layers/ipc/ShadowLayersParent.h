@@ -64,6 +64,8 @@ public:
   ShadowLayersParent(ShadowLayerManager* aManager);
   ~ShadowLayersParent();
 
+  void Destroy();
+
   ShadowLayerManager* layer_manager() const { return mLayerManager; }
 
   ContainerLayer* GetRoot() const { return mRoot; }
@@ -71,6 +73,8 @@ public:
 protected:
   NS_OVERRIDE virtual bool RecvUpdate(const EditArray& cset,
                                       EditReplyArray* reply);
+
+  NS_OVERRIDE virtual bool RecvGetParentType(LayersBackend* aBackend);
 
   NS_OVERRIDE virtual PLayerParent* AllocPLayer();
   NS_OVERRIDE virtual bool DeallocPLayer(PLayerParent* actor);

@@ -508,7 +508,8 @@ argumentUnboxingTemplates = {
 # From JSData2Native.
 #
 # Omitted optional arguments are treated as though the caller had passed JS
-# `null`; this behavior is from XPCWrappedNative::CallMethod.
+# `null`; this behavior is from XPCWrappedNative::CallMethod. The 'jsval' type,
+# however, defaults to 'undefined'.
 #
 def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
                           nullBehavior, undefinedBehavior):
@@ -522,13 +523,19 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
     # optional - bool - True if the parameter is optional.
     # rvdeclared - bool - False if no |nsresult rv| has been declared earlier.
 
+    typeName = getBuiltinOrNativeTypeName(type)
+
     isSetter = (i is None)
 
     if isSetter:
         argPtr = "vp"
         argVal = "*vp"
     elif optional:
-        argVal = "(%d < argc ? argv[%d] : JSVAL_NULL)" % (i, i)
+        if typeName == "[jsval]":
+            val = "JSVAL_VOID"
+        else:
+            val = "JSVAL_NULL"
+        argVal = "(%d < argc ? argv[%d] : %s)" % (i, i, val)
         argPtr = "(%d < argc ? &argv[%d] : NULL)" % (i, i)
     else:
         argVal = "argv[%d]" % i
@@ -542,7 +549,6 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
         'undefinedBehavior': undefinedBehavior or 'DefaultUndefinedBehavior'
         }
 
-    typeName = getBuiltinOrNativeTypeName(type)
     if typeName is not None:
         template = argumentUnboxingTemplates.get(typeName)
         if template is not None:
@@ -1137,20 +1143,33 @@ traceableArgumentConversionTemplates = {
     'double':
           "    jsdouble ${name} = ${argVal};\n",
     '[astring]':
-          "    XPCReadableJSStringWrapper ${name}(${argVal});\n",
+          "    XPCReadableJSStringWrapper ${name};\n"
+          "    if (!${name}.init(cx, ${argVal})) {\n"
+          "${error}",
     '[domstring]':
-          "    XPCReadableJSStringWrapper ${name}(${argVal});\n",
+          "    XPCReadableJSStringWrapper ${name};\n"
+          "    if (!${name}.init(cx, ${argVal})) {\n"
+          "${error}",
     '[utf8string]':
-          "    NS_ConvertUTF16toUTF8 ${name}("
-          "(const PRUnichar *)JS_GetStringChars(${argVal}), "
-          "JS_GetStringLength(${argVal}));\n",
+          "    size_t ${name}_length;\n"
+          "    const jschar *${name}_chars = JS_GetStringCharsAndLength(cx, "
+          "${argVal}, &${name}_length);\n"
+          "    if (!${name}_chars) {\n"
+          "${error}"
+          "    NS_ConvertUTF16toUTF8 ${name}(${argVal}_chars, ${argVal}_length);\n",
     'string':
-          "    NS_ConvertUTF16toUTF8 ${name}_utf8("
-          "(const PRUnichar *)JS_GetStringChars(${argVal}), "
-          "JS_GetStringLength(${argVal}));\n"
+          "    size_t ${name}_length;\n"
+          "    const jschar *${name}_chars = JS_GetStringCharsAndLength(cx, "
+          "${argVal}, &${name}_length);\n"
+          "    if (!${name}_chars) {\n"
+          "${error}"
+          "    NS_ConvertUTF16toUTF8 ${name}_utf8(${name}_chars, ${name}_length);\n"
           "    const char *${name} = ${name}_utf8.get();\n",
     'wstring':
-          "    const PRUnichar *${name} = JS_GetStringChars({argVal});\n",
+          "    const jschar *${name}_chars = JS_GetStringCharsZ(cx, {argVal});\n"
+          "    if (!${name}_chars) {\n"
+          "${error}"
+          "    const PRUnichar *${name} = ${name}_chars;\n",
     }
 
 def writeTraceableArgumentConversion(f, member, i, name, type, haveCcx,
@@ -1159,7 +1178,8 @@ def writeTraceableArgumentConversion(f, member, i, name, type, haveCcx,
 
     params = {
         'name': name,
-        'argVal': argVal
+        'argVal': argVal,
+        'error': getFailureString(getTraceInfoDefaultReturn(member.realtype), 2)
         }
 
     typeName = getBuiltinOrNativeTypeName(type)

@@ -37,12 +37,14 @@
 #include "nsGkAtoms.h"
 #include "nsCOMPtr.h"
 #include "nsISVGValueUtils.h"
-#include "nsSVGPreserveAspectRatio.h"
+#include "SVGAnimatedPreserveAspectRatio.h"
 #include "nsSVGMatrix.h"
 #include "nsDOMError.h"
 #include "nsSVGUtils.h"
 #include "nsSVGMarkerElement.h"
 #include "gfxMatrix.h"
+
+using namespace mozilla;
 
 nsSVGElement::LengthInfo nsSVGMarkerElement::sLengthInfo[4] =
 {
@@ -371,7 +373,7 @@ nsSVGMarkerElement::GetViewBox()
   return &mViewBox;
 }
 
-nsSVGPreserveAspectRatio *
+SVGAnimatedPreserveAspectRatio *
 nsSVGMarkerElement::GetPreserveAspectRatio()
 {
   return &mPreserveAspectRatio;

@@ -87,17 +87,21 @@ LayerManagerD3D10::~LayerManagerD3D10()
   Destroy();
 }
 
+static bool
+IsOptimus()
+{
+  return GetModuleHandleA("nvumdshim.dll");
+}
+
 bool
 LayerManagerD3D10::Initialize()
 {
   HRESULT hr;
 
-  cairo_device_t *device = gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
-  if (!device) {
-    return false;
+  mDevice = gfxWindowsPlatform::GetPlatform()->GetD3D10Device();
+  if (!mDevice) {
+      return false;
   }
-
-  mDevice = cairo_d2d_device_get_device(device);
 
   UINT size = sizeof(ID3D10Effect*);
   if (FAILED(mDevice->GetPrivateData(sEffect, &size, mEffect.StartAssignment()))) {
@@ -182,6 +186,17 @@ LayerManagerD3D10::Initialize()
   swapDesc.SampleDesc.Quality = 0;
   swapDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   swapDesc.BufferCount = 1;
+  // We don't really need this flag, however it seems on some NVidia hardware
+  // smaller area windows do not present properly without this flag. This flag
+  // should have no negative consequences by itself. See bug 613790. This flag
+  // is broken on optimus devices. As a temporary solution we don't set it
+  // there, the only way of reliably detecting we're on optimus is looking for
+  // the DLL. See Bug 623807.
+  if (IsOptimus()) {
+    swapDesc.Flags = 0;
+  } else {
+    swapDesc.Flags = DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE;
+  }
   swapDesc.OutputWindow = (HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW);
   swapDesc.Windowed = TRUE;
 
@@ -285,7 +300,7 @@ LayerManagerD3D10::CreateCanvasLayer()
 already_AddRefed<ImageContainer>
 LayerManagerD3D10::CreateImageContainer()
 {
-  nsRefPtr<ImageContainer> layer = new ImageContainerD3D10(this);
+  nsRefPtr<ImageContainer> layer = new ImageContainerD3D10(mDevice);
   return layer.forget();
 }
 
@@ -432,8 +447,15 @@ LayerManagerD3D10::VerifyBufferSize()
   }
 
   mRTView = nsnull;
-  mSwapChain->ResizeBuffers(1, rect.width, rect.height,
-                            DXGI_FORMAT_B8G8R8A8_UNORM, 0);
+  if (IsOptimus()) {
+    mSwapChain->ResizeBuffers(1, rect.width, rect.height,
+                              DXGI_FORMAT_B8G8R8A8_UNORM,
+                              0);
+  } else {
+    mSwapChain->ResizeBuffers(1, rect.width, rect.height,
+                              DXGI_FORMAT_B8G8R8A8_UNORM,
+                              DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE);
+  }
 
 }
 

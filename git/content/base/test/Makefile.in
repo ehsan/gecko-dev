@@ -82,6 +82,7 @@ _TEST_FILES1 = 	test_bug5141.html \
 		test_bug311681.xml \
 		test_bug322317.html \
 		test_bug330925.xhtml \
+		test_bug331959.html \
 		test_bug333673.html \
 		test_bug337631.html \
 		test_bug338541.xhtml \
@@ -439,6 +440,7 @@ _TEST_FILES2 = \
 		file_bug601803b.html \
 		test_bug602838.html \
 		script_bug602838.sjs \
+		test_bug614583.html \
 		test_bug604660.html \
 		file_bug604660-1.xml \
 		file_bug604660-2.xsl \
@@ -450,6 +452,9 @@ _TEST_FILES2 = \
 		test_bug606729.html \
 		test_treewalker_nextsibling.xml \
 		test_bug614058.html \
+		test_bug590771.html \
+		test_bug622117.html \
+		test_bug622246.html \
 		$(NULL)
 
 # This test fails on the Mac for some reason

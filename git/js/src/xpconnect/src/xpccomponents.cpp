@@ -53,6 +53,7 @@
 #include "WrapperFactory.h"
 #include "XrayWrapper.h"
 #include "nsNullPrincipal.h"
+#include "nsJSUtils.h"
 
 #ifdef MOZ_JSLOADER
 #include "mozJSComponentLoader.h"
@@ -673,11 +674,10 @@ nsXPCComponents_InterfacesByID::NewResolve(nsIXPConnectWrappedNative *wrapper,
     if(mManager &&
        JSID_IS_STRING(id) &&
        38 == JS_GetStringLength(JSID_TO_STRING(id)) &&
-       nsnull != (name = JS_GetStringChars(JSID_TO_STRING(id))))
+       nsnull != (name = JS_GetInternedStringChars(JSID_TO_STRING(id))))
     {
         nsID iid;
-        if (!iid.Parse(NS_ConvertUTF16toUTF8(reinterpret_cast<const PRUnichar*>
-                                                             (name)).get()))
+        if (!iid.Parse(NS_ConvertUTF16toUTF8(name).get()))
             return NS_OK;
 
         nsCOMPtr<nsIInterfaceInfo> info;
@@ -2864,7 +2864,8 @@ nsXPCComponents_Utils::ReportError()
     nsCOMPtr<nsIConsoleService> console(
       do_GetService(NS_CONSOLESERVICE_CONTRACTID));
 
-    nsCOMPtr<nsIScriptError> scripterr(new nsScriptError());
+    nsCOMPtr<nsIScriptError2> scripterr(
+      do_CreateInstance(NS_SCRIPTERROR_CONTRACTID));
 
     nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID()));
     if(!scripterr || !console || !xpc)
@@ -2913,6 +2914,8 @@ nsXPCComponents_Utils::ReportError()
     if(NS_FAILED(rv) || !argv)
         return NS_OK;
 
+    const PRUint64 windowID = nsJSUtils::GetCurrentlyRunningCodeWindowID(cx);
+
     JSErrorReport* err = JS_ErrorFromException(cx, argv[0]);
     if(err)
     {
@@ -2922,19 +2925,20 @@ nsXPCComponents_Utils::ReportError()
 
         PRUint32 column = err->uctokenptr - err->uclinebuf;
 
-        rv = scripterr->Init(reinterpret_cast<const PRUnichar*>
-                                             (err->ucmessage),
-                             fileUni.get(),
-                             reinterpret_cast<const PRUnichar*>
-                                             (err->uclinebuf),
-                             err->lineno,
-                             column,
-                             err->flags,
-                             "XPConnect JavaScript");
+        rv = scripterr->InitWithWindowID(reinterpret_cast<const PRUnichar*>
+                                                       (err->ucmessage),
+                                         fileUni.get(),
+                                         reinterpret_cast<const PRUnichar*>
+                                                         (err->uclinebuf),
+                                         err->lineno,
+                                         column,
+                                         err->flags,
+                                         "XPConnect JavaScript", windowID);
         if(NS_FAILED(rv))
             return NS_OK;
 
-        console->LogMessage(scripterr);
+        nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scripterr);
+        console->LogMessage(logError);
         return NS_OK;
     }
 
@@ -2958,14 +2962,20 @@ nsXPCComponents_Utils::ReportError()
             frame->GetLineNumber(&lineNo);
         }
 
-        rv = scripterr->Init(reinterpret_cast<const PRUnichar*>
-                                             (JS_GetStringChars(msgstr)),
-                             NS_ConvertUTF8toUTF16(fileName).get(),
-                             nsnull,
-                             lineNo, 0,
-                             0, "XPConnect JavaScript");
+        const jschar *msgchars = JS_GetStringCharsZ(cx, msgstr);
+        if (!msgchars)
+            return NS_OK;
+
+        rv = scripterr->InitWithWindowID(reinterpret_cast<const PRUnichar *>(msgchars),
+                                         NS_ConvertUTF8toUTF16(fileName).get(),
+                                         nsnull,
+                                         lineNo, 0,
+                                         0, "XPConnect JavaScript", windowID);
         if(NS_SUCCEEDED(rv))
-            console->LogMessage(scripterr);
+        {
+            nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scripterr);
+            console->LogMessage(logError);
+        }
     }
 
     return NS_OK;
@@ -2996,12 +3006,12 @@ SandboxDump(JSContext *cx, uintN argc, jsval *vp)
     if (!str)
         return JS_FALSE;
 
-    jschar *chars = JS_GetStringChars(str);
+    size_t length;
+    const jschar *chars = JS_GetStringCharsZAndLength(cx, str, &length);
     if (!chars)
         return JS_FALSE;
 
-    nsDependentString wstr(reinterpret_cast<PRUnichar *>(chars),
-                           JS_GetStringLength(str));
+    nsDependentString wstr(chars, length);
     char *cstr = ToNewUTF8String(wstr);
     if (!cstr)
         return JS_FALSE;
@@ -3237,10 +3247,9 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSOb
                 return NS_ERROR_XPC_UNEXPECTED;
 
             if (xpc::WrapperFactory::IsXrayWrapper(proto) && !wantXrays) {
-                jsval v;
-                if (!JS_GetProperty(cx, proto, "wrappedJSObject", &v))
-                    return NS_ERROR_XPC_UNEXPECTED;
-
+                jsval v = OBJECT_TO_JSVAL(proto);
+                if (!xpc::WrapperFactory::WaiveXrayAndWrap(cx, &v))
+                    return NS_ERROR_FAILURE;
                 proto = JSVAL_TO_OBJECT(v);
             }
 
@@ -3332,10 +3341,15 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
     nsCOMPtr<nsIPrincipal> principal;
     nsISupports *prinOrSop = nsnull;
     if (JSVAL_IS_STRING(argv[0])) {
-        JSString *codebasestr = JSVAL_TO_STRING(argv[0]);
-        nsAutoString codebase(reinterpret_cast<PRUnichar*>
-                                              (JS_GetStringChars(codebasestr)),
-                              JS_GetStringLength(codebasestr));
+        JSString *codebaseStr = JSVAL_TO_STRING(argv[0]);
+        size_t codebaseLength;
+        const jschar *codebaseChars = JS_GetStringCharsAndLength(cx, codebaseStr,
+                                                                 &codebaseLength);
+        if (!codebaseChars) {
+            return ThrowAndFail(NS_ERROR_FAILURE, cx, _retval);
+        }
+
+        nsAutoString codebase(codebaseChars, codebaseLength);
         nsCOMPtr<nsIURI> uri;
         rv = NS_NewURI(getter_AddRefs(uri), codebase);
         if (NS_FAILED(rv)) {

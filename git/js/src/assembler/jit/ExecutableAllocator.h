@@ -116,20 +116,25 @@ private:
     typedef js::Vector<Allocation, 2 ,js::SystemAllocPolicy > AllocationList;
 
     // Reference count for automatic reclamation.
-    jsrefcount m_refCount;
+    unsigned m_refCount;
 
 public:
-      // It should be impossible for us to roll over, because only small
-      // pools have multiple holders, and they have one holder per chunk
-      // of generated code, and they only hold 16KB or so of code.
-      void addRef() { JS_ATOMIC_INCREMENT(&m_refCount); }
-      void release() { 
-	  JS_ASSERT(m_refCount != 0);
-	  if (JS_ATOMIC_DECREMENT(&m_refCount) == 0) 
-	      delete this; 
-      }
+    // It should be impossible for us to roll over, because only small
+    // pools have multiple holders, and they have one holder per chunk
+    // of generated code, and they only hold 16KB or so of code.
+    void addRef()
+    {
+        JS_ASSERT(m_refCount);
+        ++m_refCount;
+    }
 
-    //static PassRefPtr<ExecutablePool> create(size_t n)
+    void release()
+    { 
+        JS_ASSERT(m_refCount != 0);
+        if (--m_refCount == 0)
+            delete this;
+    }
+
     static ExecutablePool* create(size_t n)
     {
         ExecutablePool *pool = new ExecutablePool(n);
@@ -169,6 +174,13 @@ public:
     }
 
     size_t available() const { return (m_pools.length() > 1) ? 0 : m_end - m_freePtr; }
+
+    // Flag for downstream use, whether to try to release references to this pool.
+    bool m_destroy;
+
+    // GC number in which the m_destroy flag was most recently set. Used downstream to
+    // remember whether m_destroy was computed for the currently active GC.
+    size_t m_gcNumber;
 
 private:
     // On OOM, this will return an Allocation where pages is NULL.
@@ -393,7 +405,7 @@ private:
 
 // This constructor can fail due to OOM. If it does, m_freePtr will be
 // set to NULL. 
-inline ExecutablePool::ExecutablePool(size_t n) : m_refCount(1)
+inline ExecutablePool::ExecutablePool(size_t n) : m_refCount(1), m_destroy(false), m_gcNumber(0)
 {
     size_t allocSize = roundUpAllocationSize(n, JIT_ALLOCATOR_PAGE_SIZE);
     if (allocSize == OVERSIZE_ALLOCATION) {

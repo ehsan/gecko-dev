@@ -363,6 +363,20 @@ DeviceManagerD3D9::Init()
     return false;
   }
 
+  hr = mDevice->CreatePixelShader((DWORD*)ComponentPass1ShaderPS,
+                                  getter_AddRefs(mComponentPass1PS));
+
+  if (FAILED(hr)) {
+    return false;
+  }
+
+  hr = mDevice->CreatePixelShader((DWORD*)ComponentPass2ShaderPS,
+                                  getter_AddRefs(mComponentPass2PS));
+
+  if (FAILED(hr)) {
+    return false;
+  }
+
   hr = mDevice->CreatePixelShader((DWORD*)YCbCrShaderPS,
                                   getter_AddRefs(mYCbCrPS));
 
@@ -436,6 +450,12 @@ DeviceManagerD3D9::SetupRenderState()
   mDevice->SetRenderState(D3DRS_SRCBLENDALPHA, D3DBLEND_ONE);
   mDevice->SetRenderState(D3DRS_DESTBLENDALPHA, D3DBLEND_INVSRCALPHA);
   mDevice->SetRenderState(D3DRS_BLENDOPALPHA, D3DBLENDOP_ADD);
+  mDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(1, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(1, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(2, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(2, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(1, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
@@ -449,6 +469,15 @@ DeviceManagerD3D9::CreateSwapChain(HWND hWnd)
 {
   nsRefPtr<SwapChainD3D9> swapChain = new SwapChainD3D9(this);
   
+  // See bug 604647. This line means that if we create a window while the
+  // device is lost LayerManager initialization will fail, this window
+  // will be permanently unaccelerated. This should be a rare situation
+  // though and the need for a low-risk fix for this bug outweighs the
+  // downside.
+  if (!VerifyReadyForRendering()) {
+    return nsnull;
+  }
+
   if (!swapChain->Init(hWnd)) {
     return nsnull;
   }
@@ -467,6 +496,14 @@ DeviceManagerD3D9::SetShaderMode(ShaderMode aMode)
     case RGBALAYER:
       mDevice->SetVertexShader(mLayerVS);
       mDevice->SetPixelShader(mRGBAPS);
+      break;
+    case COMPONENTLAYERPASS1:
+      mDevice->SetVertexShader(mLayerVS);
+      mDevice->SetPixelShader(mComponentPass1PS);
+      break;
+    case COMPONENTLAYERPASS2:
+      mDevice->SetVertexShader(mLayerVS);
+      mDevice->SetPixelShader(mComponentPass2PS);
       break;
     case YCBCRLAYER:
       mDevice->SetVertexShader(mLayerVS);

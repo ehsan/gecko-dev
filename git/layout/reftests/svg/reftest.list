@@ -30,6 +30,7 @@ include svg-integration/reftest.list
 == clipPath-basic-02.svg pass.svg
 == clipPath-basic-03.svg pass.svg
 == clipPath-basic-04.svg pass.svg
+== clipPath-basic-05.svg pass.svg
 == clipPath-winding-01.svg pass.svg
 == clip-surface-clone-01.svg clip-surface-clone-01-ref.svg
 == conditions-01.svg pass.svg
@@ -124,6 +125,7 @@ fails == inline-in-xul-basic-01.xul pass.svg
 == markers-and-group-opacity-01.svg markers-and-group-opacity-01-ref.svg
 == marker-attribute-01.svg pass.svg
 == marker-viewBox-01.svg marker-viewBox-01-ref.svg
+== mask-basic-01.svg pass.svg
 == mask-containing-masked-content-01.svg pass.svg
 # Bug 456323
 # == mask-transformed-01.svg mask-transformed-01-ref.svg
@@ -133,15 +135,16 @@ fails == inline-in-xul-basic-01.xul pass.svg
 # Bug 588684
 random-if(gtk2Widget) == objectBoundingBox-and-fePointLight-01.svg objectBoundingBox-and-fePointLight-01-ref.svg
 == objectBoundingBox-and-mask.svg pass.svg
+== objectBoundingBox-and-mask-02.svg pass.svg
 == objectBoundingBox-and-pattern-01a.svg objectBoundingBox-and-pattern-01-ref.svg
 == objectBoundingBox-and-pattern-01b.svg objectBoundingBox-and-pattern-01-ref.svg
 == objectBoundingBox-and-pattern-01c.svg objectBoundingBox-and-pattern-01-ref.svg
 == objectBoundingBox-and-pattern-02.svg pass.svg
+== objectBoundingBox-and-pattern-03.svg objectBoundingBox-and-pattern-03-ref.svg
 == opacity-and-gradient-01.svg pass.svg
 == opacity-and-gradient-02.svg opacity-and-gradient-02-ref.svg
 == opacity-and-pattern-01.svg pass.svg
 == outer-svg-border-and-padding-01.svg outer-svg-border-and-padding-01-ref.svg 
-== polyline-points-invalid-01.svg pass.svg
 == path-01.svg path-01-ref.svg
 == path-02.svg pass.svg
 == path-03.svg pass.svg
@@ -150,6 +153,8 @@ random-if(gtk2Widget) == objectBoundingBox-and-fePointLight-01.svg objectBoundin
 == pattern-live-01b.svg pattern-live-01-ref.svg
 == pattern-live-01c.svg pattern-live-01-ref.svg
 == polygon-marker-01.svg pass.svg
+== polygon-points-negative-01.svg pass.svg
+== polyline-points-invalid-01.svg pass.svg
 == pseudo-classes-01.svg pass.svg
 # This test depends on :visited styles (which are asynchronous), so we run
 # it in layout/style/test/test_visited_reftests.html instead of using the
@@ -184,6 +189,7 @@ random-if(winWidget) == text-gradient-02.svg text-gradient-02-ref.svg # see bug 
 random-if(gtk2Widget) != text-language-01.xhtml text-language-01-ref.xhtml # Fails on Linux tryserver due to lack of CJK fonts.
 == text-layout-01.svg text-layout-01-ref.svg
 == text-layout-02.svg text-layout-02-ref.svg
+== text-layout-03.svg text-layout-03-ref.svg
 == text-scale-01.svg text-scale-01-ref.svg
 == text-stroke-scaling-01.svg text-stroke-scaling-01-ref.svg
 == text-style-01a.svg text-style-01-ref.svg

@@ -56,6 +56,8 @@ import android.graphics.*;
 import android.widget.*;
 import android.hardware.*;
 import android.location.*;
+import android.graphics.drawable.*;
+import android.content.res.*;
 
 import android.util.*;
 
@@ -85,7 +87,7 @@ class GeckoSurfaceView
         mSurfaceLock = new ReentrantLock();
 
         mEditableFactory = Editable.Factory.getInstance();
-        setupEditable("");
+        initEditable("");
         mIMEState = IME_STATE_DISABLED;
         mIMETypeHint = "";
         mIMEActionHint = "";
@@ -95,11 +97,37 @@ class GeckoSurfaceView
         super.finalize();
     }
 
+    void drawSplashScreen(SurfaceHolder holder, int width, int height) {
+        Canvas c = holder.lockCanvas();
+        if (c == null) {
+            Log.i("GeckoSurfaceView", "canvas is null");
+            return;
+        }
+        Resources res = getResources();
+        c.drawColor(res.getColor(R.color.splash_background));
+        Drawable drawable = res.getDrawable(R.drawable.splash);
+        int w = drawable.getIntrinsicWidth();
+        int h = drawable.getIntrinsicHeight();
+        int x = (width - w)/2;
+        int y = (height - h)/2;
+        drawable.setBounds(x, y, x + w, y + h);
+        drawable.draw(c);
+        Paint p = new Paint();
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(32f);
+        p.setAntiAlias(true);
+        p.setColor(res.getColor(R.color.splash_font));
+        c.drawText(res.getString(R.string.splash_screen_label), width/2, y + h + 32, p);
+        holder.unlockCanvasAndPost(c);
+    }
+
     /*
      * Called on main thread
      */
 
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        if (mShowingSplashScreen)
+            drawSplashScreen(holder, width, height);
         mSurfaceLock.lock();
 
         try {
@@ -132,7 +160,7 @@ class GeckoSurfaceView
                 GeckoAppShell.scheduleRedraw();
 
             if (!doSyncDraw) {
-                if (mDrawMode == DRAW_GLES_2)
+                if (mDrawMode == DRAW_GLES_2 || mShowingSplashScreen)
                     return;
                 Canvas c = holder.lockCanvas();
                 c.drawARGB(255, 255, 255, 255);
@@ -147,7 +175,7 @@ class GeckoSurfaceView
         try {
             bb = mSyncBuf.take();
         } catch (InterruptedException ie) {
-            Log.e("GeckoAppJava", "Threw exception while getting sync buf: " + ie);
+            Log.e("GeckoAppJava", "Threw exception while getting sync buf: ", ie);
         }
         if (bb != null && bb.capacity() == (width * height * 2)) {
             mSoftwareBitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.RGB_565);
@@ -261,7 +289,7 @@ class GeckoSurfaceView
                 try {
                     mSyncBuf.put(buffer);
                 } catch (InterruptedException ie) {
-                    Log.e("GeckoAppJava", "Threw exception while getting sync buf: " + ie);
+                    Log.e("GeckoAppJava", "Threw exception while getting sync buf: ", ie);
                 }
                 return;
             }
@@ -303,6 +331,7 @@ class GeckoSurfaceView
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT;
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE;
+        outAttrs.actionLabel = null;
         mKeyListener = TextKeyListener.getInstance();
 
         if (mIMEState == IME_STATE_PASSWORD)
@@ -339,13 +368,22 @@ class GeckoSurfaceView
             outAttrs.imeOptions = EditorInfo.IME_ACTION_SEARCH;
         else if (mIMEActionHint.equalsIgnoreCase("send"))
             outAttrs.imeOptions = EditorInfo.IME_ACTION_SEND;
-        else
+        else if (mIMEActionHint != null && mIMEActionHint.length() != 0)
             outAttrs.actionLabel = mIMEActionHint;
+            
         inputConnection.reset();
         return inputConnection;
     }
 
-    public void setupEditable(String contents)
+    public void setEditable(String contents)
+    {
+        mEditable.removeSpan(inputConnection);
+        mEditable.replace(0, mEditable.length(), contents);
+        mEditable.setSpan(inputConnection, 0, contents.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+        Selection.setSelection(mEditable, contents.length());
+    }
+
+    public void initEditable(String contents)
     {
         mEditable = mEditableFactory.newEditable(contents);
         mEditable.setSpan(inputConnection, 0, contents.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
@@ -386,6 +424,109 @@ class GeckoSurfaceView
         return true;
     }
 
+    @Override
+    public boolean onKeyPreIme(int keyCode, KeyEvent event) {
+        if (mIMEState != IME_STATE_DISABLED || event.isSystem())
+            return super.onKeyPreIme(keyCode, event);
+
+        switch (event.getAction()) {
+            case KeyEvent.ACTION_DOWN:
+                return onKeyDown(keyCode, event);
+            case KeyEvent.ACTION_UP:
+                return onKeyUp(keyCode, event);
+            case KeyEvent.ACTION_MULTIPLE:
+                return onKeyMultiple(keyCode, event.getRepeatCount(), event);
+        }
+        return super.onKeyPreIme(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BACK:
+                if (event.getRepeatCount() == 0) {
+                    event.startTracking();
+                    return true;
+                } else {
+                    return false;
+                }
+            case KeyEvent.KEYCODE_MENU:
+                if (event.getRepeatCount() == 0) {
+                    event.startTracking();
+                    break;
+                } else if ((event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0) {
+                    break;
+                }
+                // Ignore repeats for KEYCODE_MENU; they confuse the widget code.
+                return false;
+            case KeyEvent.KEYCODE_VOLUME_UP:
+            case KeyEvent.KEYCODE_VOLUME_DOWN:
+            case KeyEvent.KEYCODE_SEARCH:
+                return false;
+            case KeyEvent.KEYCODE_DEL:
+                // See comments in GeckoInputConnection.onKeyDel
+                if (inputConnection != null &&
+                    inputConnection.onKeyDel()) {
+                    return true;
+                }
+                break;
+            case KeyEvent.KEYCODE_ENTER:
+                if ((event.getFlags() & KeyEvent.FLAG_EDITOR_ACTION) != 0 &&
+                    mIMEActionHint.equalsIgnoreCase("next"))
+                    event = new KeyEvent(event.getAction(), KeyEvent.KEYCODE_TAB);
+                break;
+            default:
+                break;
+        }
+        // KeyListener returns true if it handled the event for us.
+        if (mIMEState == IME_STATE_DISABLED ||
+            keyCode == KeyEvent.KEYCODE_ENTER ||
+            !mKeyListener.onKeyDown(this, mEditable, keyCode, event))
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+        return true;
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BACK:
+                if (!event.isTracking() || event.isCanceled())
+                    return false;
+                break;
+            default:
+                break;
+        }
+        if (mIMEState == IME_STATE_DISABLED ||
+            keyCode == KeyEvent.KEYCODE_ENTER ||
+            !mKeyListener.onKeyUp(this, mEditable, keyCode, event))
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+        return true;
+    }
+
+    @Override
+    public boolean onKeyMultiple(int keyCode, int repeatCount, KeyEvent event) {
+        GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+        return true;
+    }
+
+    @Override
+    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BACK:
+                GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+                return true;
+            case KeyEvent.KEYCODE_MENU:
+                InputMethodManager imm = (InputMethodManager)
+                    getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.toggleSoftInputFromWindow(getWindowToken(),
+                                              imm.SHOW_FORCED, 0);
+                return true;
+            default:
+                break;
+        }
+        return false;
+    }
+
     // Is this surface valid for drawing into?
     boolean mSurfaceValid;
 
@@ -397,6 +538,8 @@ class GeckoSurfaceView
 
     // True if gecko requests a buffer
     int mDrawMode;
+
+    static boolean mShowingSplashScreen = true;
 
     // let's not change stuff around while we're in the middle of
     // starting drawing, ending drawing, or changing surface

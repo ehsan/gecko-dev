@@ -78,7 +78,7 @@ class nsAudioStreamLocal : public nsAudioStream
 
   ~nsAudioStreamLocal();
   nsAudioStreamLocal();
-  
+
   nsresult Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aFormat);
   void Shutdown();
   nsresult Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking);
@@ -90,6 +90,7 @@ class nsAudioStreamLocal : public nsAudioStream
   PRInt64 GetPosition();
   PRInt64 GetSampleOffset();
   PRBool IsPaused();
+  PRInt32 GetMinWriteSamples();
 
  private:
 
@@ -122,7 +123,7 @@ class nsAudioStreamRemote : public nsAudioStream
 
   nsAudioStreamRemote();
   ~nsAudioStreamRemote();
-  
+
   nsresult Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aFormat);
   void Shutdown();
   nsresult Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking);
@@ -134,6 +135,7 @@ class nsAudioStreamRemote : public nsAudioStream
   PRInt64 GetPosition();
   PRInt64 GetSampleOffset();
   PRBool IsPaused();
+  PRInt32 GetMinWriteSamples();
 
   nsRefPtr<AudioChild> mAudioChild;
 
@@ -299,10 +301,12 @@ void nsAudioStream::ShutdownLibrary()
 {
 }
 
-
 nsIThread *
 nsAudioStream::GetThread()
 {
+  if (!mAudioPlaybackThread) {
+    NS_NewThread(getter_AddRefs(mAudioPlaybackThread));
+  }
   return mAudioPlaybackThread;
 }
 
@@ -316,6 +320,23 @@ nsAudioStream* nsAudioStream::AllocateStream()
   return new nsAudioStreamLocal();
 }
 
+class AsyncShutdownPlaybackThread : public nsRunnable
+{
+public:
+  AsyncShutdownPlaybackThread(nsIThread* aThread) : mThread(aThread) {}
+  NS_IMETHODIMP Run() { return mThread->Shutdown(); }
+private:
+  nsCOMPtr<nsIThread> mThread;
+};
+
+nsAudioStream::~nsAudioStream()
+{
+  if (mAudioPlaybackThread) {
+    nsCOMPtr<nsIRunnable> event = new AsyncShutdownPlaybackThread(mAudioPlaybackThread);
+    NS_DispatchToMainThread(event);
+  }
+}
+
 nsAudioStreamLocal::nsAudioStreamLocal() :
   mVolume(1.0),
   mAudioHandle(0),
@@ -325,12 +346,6 @@ nsAudioStreamLocal::nsAudioStreamLocal() :
   mPaused(PR_FALSE),
   mInError(PR_FALSE)
 {
-#ifdef MOZ_IPC
-  // We only need this thread in the main process.
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
-    NS_NewThread(getter_AddRefs(mAudioPlaybackThread));
-  }
-#endif
 }
 
 nsAudioStreamLocal::~nsAudioStreamLocal()
@@ -560,6 +575,19 @@ PRBool nsAudioStreamLocal::IsPaused()
   return mPaused;
 }
 
+PRInt32 nsAudioStreamLocal::GetMinWriteSamples()
+{
+  size_t samples;
+  int r = sa_stream_get_min_write(static_cast<sa_stream_t*>(mAudioHandle),
+                                  &samples);
+  if (r == SA_ERROR_NOT_SUPPORTED)
+    return 1;
+  else if (r != SA_SUCCESS || samples > PR_INT32_MAX)
+    return -1;
+
+  return static_cast<PRInt32>(samples);
+}
+
 #ifdef MOZ_IPC
 
 nsAudioStreamRemote::nsAudioStreamRemote()
@@ -635,6 +663,13 @@ PRUint32
 nsAudioStreamRemote::Available()
 {
   return FAKE_BUFFER_SIZE;
+}
+
+PRInt32 nsAudioStreamRemote::GetMinWriteSamples()
+{
+  /** TODO: Implement this function for remoting. We could potentially remote
+            to a backend which has a start threshold... */
+  return 1;
 }
 
 void

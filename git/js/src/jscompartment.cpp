@@ -44,6 +44,7 @@
 #include "jsiter.h"
 #include "jsproxy.h"
 #include "jsscope.h"
+#include "jstracer.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/PolyIC.h"
 #include "methodjit/MonoIC.h"
@@ -54,16 +55,42 @@ using namespace js;
 using namespace js::gc;
 
 JSCompartment::JSCompartment(JSRuntime *rt)
-  : rt(rt), principals(NULL), data(NULL), marked(false), debugMode(rt->debugMode),
-    anynameObject(NULL), functionNamespaceObject(NULL)
+  : rt(rt),
+    principals(NULL),
+    gcBytes(0),
+    gcTriggerBytes(0),
+    gcLastBytes(0),
+    data(NULL),
+    marked(false),
+    active(false),
+    debugMode(rt->debugMode),
+    anynameObject(NULL),
+    functionNamespaceObject(NULL),
+    mathCache(NULL)
 {
     JS_INIT_CLIST(&scripts);
+
+    PodArrayZero(scriptsToGC);
 }
 
 JSCompartment::~JSCompartment()
 {
+#if ENABLE_YARR_JIT
+    delete regExpAllocator;
+#endif
+
+#if defined JS_TRACER
+    FinishJIT(&traceMonitor);
+#endif
 #ifdef JS_METHODJIT
     delete jaegerCompartment;
+#endif
+
+    delete mathCache;
+
+#ifdef DEBUG
+    for (size_t i = 0; i != JS_ARRAY_LENGTH(scriptsToGC); ++i)
+        JS_ASSERT(!scriptsToGC[i]);
 #endif
 }
 
@@ -81,9 +108,25 @@ JSCompartment::init()
     if (!crossCompartmentWrappers.init())
         return false;
 
-#ifdef JS_METHODJIT
-    if (!(jaegerCompartment = new mjit::JaegerCompartment))
+#ifdef JS_TRACER
+    if (!InitJIT(&traceMonitor)) {
         return false;
+    }
+#endif
+
+#if ENABLE_YARR_JIT
+    regExpAllocator = JSC::ExecutableAllocator::create();
+    if (!regExpAllocator)
+        return false;
+#endif
+
+#ifdef JS_METHODJIT
+    if (!(jaegerCompartment = new mjit::JaegerCompartment)) {
+#ifdef JS_TRACER
+        FinishJIT(&traceMonitor);
+#endif
+        return false;
+    }
     return jaegerCompartment->Initialize();
 #else
     return true;
@@ -168,17 +211,21 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
             if (obj->getCompartment() == this)
                 return true;
 
-            if (cx->runtime->preWrapObjectCallback)
+            if (cx->runtime->preWrapObjectCallback) {
                 obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
-            if (!obj)
-                return false;
+                if (!obj)
+                    return false;
+            }
 
             vp->setObject(*obj);
             if (obj->getCompartment() == this)
                 return true;
         } else {
-            if (cx->runtime->preWrapObjectCallback)
+            if (cx->runtime->preWrapObjectCallback) {
                 obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
+                if (!obj)
+                    return false;
+            }
 
             JS_ASSERT(!obj->isWrapper() || obj->getClass()->ext.innerObject);
             vp->setObject(*obj);
@@ -204,7 +251,10 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (vp->isString()) {
         Value orig = *vp;
         JSString *str = vp->toString();
-        JSString *wrapped = js_NewStringCopyN(cx, str->chars(), str->length());
+        const jschar *chars = str->getChars(cx);
+        if (!chars)
+            return false;
+        JSString *wrapped = js_NewStringCopyN(cx, chars, str->length());
         if (!wrapped)
             return false;
         vp->setString(wrapped);
@@ -310,52 +360,112 @@ JSCompartment::wrap(JSContext *cx, AutoIdVector &props)
     return true;
 }
 
-bool
-JSCompartment::wrapException(JSContext *cx)
+#if defined JS_METHODJIT && defined JS_MONOIC
+/*
+ * Check if the pool containing the code for jit should be destroyed, per the
+ * heuristics in JSCompartment::sweep.
+ */
+static inline bool
+ScriptPoolDestroyed(JSContext *cx, mjit::JITScript *jit,
+                    uint32 releaseInterval, uint32 &counter)
 {
-    JS_ASSERT(cx->compartment == this);
-
-    if (cx->throwing) {
-        AutoValueRooter tvr(cx, cx->exception);
-        cx->throwing = false;
-        cx->exception.setNull();
-        if (wrap(cx, tvr.addr())) {
-            cx->throwing = true;
-            cx->exception = tvr.value();
+    JSC::ExecutablePool *pool = jit->code.m_executablePool;
+    if (pool->m_gcNumber != cx->runtime->gcNumber) {
+        /*
+         * The m_destroy flag may have been set in a previous GC for a pool which had
+         * references we did not remove (e.g. from the compartment's ExecutableAllocator)
+         * and is still around. Forget we tried to destroy it in such cases.
+         */
+        pool->m_destroy = false;
+        pool->m_gcNumber = cx->runtime->gcNumber;
+        if (--counter == 0) {
+            pool->m_destroy = true;
+            counter = releaseInterval;
         }
-        return false;
     }
-    return true;
+    return pool->m_destroy;
+}
+#endif
+
+void
+JSCompartment::mark(JSTracer *trc)
+{
+    for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront())
+        MarkValue(trc, e.front().key, "cross-compartment wrapper");
 }
 
 void
-JSCompartment::sweep(JSContext *cx)
+JSCompartment::sweep(JSContext *cx, uint32 releaseInterval)
 {
     chunk = NULL;
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        JS_ASSERT_IF(IsAboutToBeFinalized(e.front().key.toGCThing()) &&
-                     !IsAboutToBeFinalized(e.front().value.toGCThing()),
+        JS_ASSERT_IF(IsAboutToBeFinalized(cx, e.front().key.toGCThing()) &&
+                     !IsAboutToBeFinalized(cx, e.front().value.toGCThing()),
                      e.front().key.isString());
-        if (IsAboutToBeFinalized(e.front().key.toGCThing()) ||
-            IsAboutToBeFinalized(e.front().value.toGCThing())) {
+        if (IsAboutToBeFinalized(cx, e.front().key.toGCThing()) ||
+            IsAboutToBeFinalized(cx, e.front().value.toGCThing())) {
             e.removeFront();
         }
     }
 
+#ifdef JS_TRACER
+    traceMonitor.sweep(cx);
+#endif
+
 #if defined JS_METHODJIT && defined JS_MONOIC
+
+    /*
+     * The release interval is the frequency with which we should try to destroy
+     * executable pools by releasing all JIT code in them, zero to never destroy pools.
+     * Initialize counter so that the first pool will be destroyed, and eventually drive
+     * the amount of JIT code in never-used compartments to zero. Don't discard anything
+     * for compartments which currently have active stack frames.
+     */
+    uint32 counter = 1;
+    bool discardScripts = !active && releaseInterval != 0;
+
     for (JSCList *cursor = scripts.next; cursor != &scripts; cursor = cursor->next) {
         JSScript *script = reinterpret_cast<JSScript *>(cursor);
-        if (script->hasJITCode())
-            mjit::ic::SweepCallICs(script);
+        if (script->hasJITCode()) {
+            mjit::ic::SweepCallICs(cx, script, discardScripts);
+            if (discardScripts) {
+                if (script->jitNormal &&
+                    ScriptPoolDestroyed(cx, script->jitNormal, releaseInterval, counter)) {
+                    mjit::ReleaseScriptCode(cx, script);
+                    continue;
+                }
+                if (script->jitCtor &&
+                    ScriptPoolDestroyed(cx, script->jitCtor, releaseInterval, counter)) {
+                    mjit::ReleaseScriptCode(cx, script);
+                }
+            }
+        }
     }
-#endif
+
+#endif /* JS_METHODJIT && JS_MONOIC */
+
+    active = false;
 }
 
 void
 JSCompartment::purge(JSContext *cx)
 {
     freeLists.purge();
+
+    /* Destroy eval'ed scripts. */
+    js_DestroyScriptsToGC(cx, this);
+
+    nativeIterCache.purge();
+
+#ifdef JS_TRACER
+    /*
+     * If we are about to regenerate shapes, we have to flush the JIT cache,
+     * which will eventually abort any current recording.
+     */
+    if (cx->runtime->gcRegenShapes)
+        traceMonitor.needFlush = JS_TRUE;
+#endif
 
 #ifdef JS_METHODJIT
     for (JSScript *script = (JSScript *)scripts.next;
@@ -367,8 +477,8 @@ JSCompartment::purge(JSContext *cx)
 # endif
 # if defined JS_MONOIC
             /*
-             * MICs do not refer to data which can be GC'ed, but are sensitive
-             * to shape regeneration.
+             * MICs do not refer to data which can be GC'ed and do not generate stubs
+             * which might need to be discarded, but are sensitive to shape regeneration.
              */
             if (cx->runtime->gcRegenShapes)
                 mjit::ic::PurgeMICs(cx, script);
@@ -376,4 +486,14 @@ JSCompartment::purge(JSContext *cx)
         }
     }
 #endif
+}
+
+MathCache *
+JSCompartment::allocMathCache(JSContext *cx)
+{
+    JS_ASSERT(!mathCache);
+    mathCache = new MathCache;
+    if (!mathCache)
+        js_ReportOutOfMemory(cx);
+    return mathCache;
 }

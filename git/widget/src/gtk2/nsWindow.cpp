@@ -392,7 +392,6 @@ nsWindow::nsWindow()
     mNeedsShow        = PR_FALSE;
     mEnabled          = PR_TRUE;
     mCreated          = PR_FALSE;
-    mPlaced           = PR_FALSE;
 
     mContainer           = nsnull;
     mGdkWindow           = nsnull;
@@ -1096,11 +1095,11 @@ nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
             // Yep?  Resize the window
             //Maybe, the toplevel has moved
 
-            // Note that if the widget needs to be shown because it
-            // was previously insane in Resize(x,y,w,h), then we need
+            // Note that if the widget needs to be positioned because its
+            // size was previously insane in Resize(x,y,w,h), then we need
             // to set the x and y here too, because the widget wasn't
             // moved back then
-            if (mIsTopLevel || mNeedsShow)
+            if (mNeedsMove)
                 NativeResize(mBounds.x, mBounds.y,
                              mBounds.width, mBounds.height, aRepaint);
             else
@@ -1155,7 +1154,7 @@ nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
     mBounds.y = aY;
     mBounds.SizeTo(GetSafeWindowSize(nsIntSize(aWidth, aHeight)));
 
-    mPlaced = PR_TRUE;
+    mNeedsMove = PR_TRUE;
 
     if (!mCreated)
         return NS_OK;
@@ -1198,7 +1197,6 @@ nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
         }
         else {
             mNeedsResize = PR_TRUE;
-            mNeedsMove = PR_TRUE;
         }
     }
 
@@ -1241,8 +1239,6 @@ nsWindow::Move(PRInt32 aX, PRInt32 aY)
         SetSizeMode(nsSizeMode_Normal);
     }
 
-    mPlaced = PR_TRUE;
-
     // Since a popup window's x/y coordinates are in relation to to
     // the parent, the parent might have moved so we always move a
     // popup window.
@@ -1257,6 +1253,8 @@ nsWindow::Move(PRInt32 aX, PRInt32 aY)
 
     if (!mCreated)
         return NS_OK;
+
+    mNeedsMove = PR_FALSE;
 
     if (mIsTopLevel) {
         gtk_window_move(GTK_WINDOW(mShell), aX, aY);
@@ -2311,7 +2309,6 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
     // by the layout engine.  Width and height are set elsewhere.
     nsIntPoint pnt(aEvent->x, aEvent->y);
     if (mIsTopLevel) {
-        mPlaced = PR_TRUE;
         // Need to translate this into the right coordinates
         mBounds.MoveTo(WidgetToScreenOffset());
         pnt = mBounds.TopLeft();
@@ -2894,7 +2891,24 @@ nsWindow::OnContainerFocusOutEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
     LOGFOCUS(("OnContainerFocusOutEvent [%p]\n", (void *)this));
 
     if (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog) {
-        check_for_rollup(aEvent->window, 0, 0, PR_FALSE, PR_TRUE);
+        nsCOMPtr<nsIDragService> dragService = do_GetService(kCDragServiceCID);
+        nsCOMPtr<nsIDragSession> dragSession;
+        dragService->GetCurrentSession(getter_AddRefs(dragSession));
+
+        // Rollup popups when a window is focused out unless a drag is occurring.
+        // This check is because drags grab the keyboard and cause a focus out on
+        // versions of GTK before 2.18.
+        PRBool shouldRollup = !dragSession;
+        if (!shouldRollup) {
+            // we also roll up when a drag is from a different application
+            nsCOMPtr<nsIDOMNode> sourceNode;
+            dragSession->GetSourceNode(getter_AddRefs(sourceNode));
+            shouldRollup = (sourceNode == nsnull);
+        }
+
+        if (shouldRollup) {
+            check_for_rollup(aEvent->window, 0, 0, PR_FALSE, PR_TRUE);
+        }
     }
 
 #ifdef MOZ_X11
@@ -3777,11 +3791,13 @@ nsWindow::Create(nsIWidget        *aParent,
     mBounds = aRect;
     if (mWindowType != eWindowType_child &&
         mWindowType != eWindowType_plugin) {
-        // The window manager might place us. Indicate that if we're
-        // shown, we want to go through
-        // nsWindow::NativeResize(x,y,w,h) to maybe set our own
-        // position.
-        mNeedsMove = PR_TRUE;
+        // We only move a toplevel window if someone has actually placed the
+        // window somewhere.  If no placement has taken place, we just let the
+        // window manager Do The Right Thing.
+        //
+        // Indicate that if we're shown, we at least need to have our size set.
+        // If we get explicitly moved, the position will also be set.
+        mNeedsResize = PR_TRUE;
     }
 
     // figure out our parent window
@@ -4311,13 +4327,7 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
     ResizeTransparencyBitmap(aWidth, aHeight);
 
     if (mIsTopLevel) {
-        // We only move the toplevel window if someone has
-        // actually placed the window somewhere.  If no placement
-        // has taken place, we just let the window manager Do The
-        // Right Thing.
-        if (mPlaced)
-            gtk_window_move(GTK_WINDOW(mShell), aX, aY);
-
+        gtk_window_move(GTK_WINDOW(mShell), aX, aY);
         gtk_window_resize(GTK_WINDOW(mShell), aWidth, aHeight);
     }
     else if (mContainer) {

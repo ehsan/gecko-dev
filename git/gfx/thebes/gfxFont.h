@@ -266,7 +266,7 @@ public:
         return PR_TRUE;
     }
 
-    virtual nsresult GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer) {
+    virtual nsresult GetFontTable(PRUint32 aTableTag, FallibleTArray<PRUint8>& aBuffer) {
         return NS_ERROR_FAILURE; // all platform subclasses should reimplement this!
     }
 
@@ -295,12 +295,12 @@ public:
     // Pass NULL for aBuffer to indicate that the table is not present and
     // NULL will be returned.  Also returns NULL on OOM.
     hb_blob_t *ShareFontTableAndGetBlob(PRUint32 aTag,
-                                        nsTArray<PRUint8>* aTable);
+                                        FallibleTArray<PRUint8>* aTable);
 
     // Preload a font table into the cache (used to store layout tables for
     // harfbuzz, when they will be stripped from the actual sfnt being
     // passed to platform font APIs for rasterization)
-    void PreloadFontTable(PRUint32 aTag, nsTArray<PRUint8>& aTable);
+    void PreloadFontTable(PRUint32 aTag, FallibleTArray<PRUint8>& aTable);
 
     nsString         mName;
 
@@ -428,12 +428,12 @@ private:
         // recorded in the hashtable entry so that others may use the same
         // table.
         hb_blob_t *
-        ShareTableAndGetBlob(nsTArray<PRUint8>& aTable,
+        ShareTableAndGetBlob(FallibleTArray<PRUint8>& aTable,
                              nsTHashtable<FontTableHashEntry> *aHashtable);
 
         // Transfer (not copy) elements of aTable to a new hb_blob_t that is
         // owned by the hashtable entry.
-        void SaveTable(nsTArray<PRUint8>& aTable);
+        void SaveTable(FallibleTArray<PRUint8>& aTable);
 
         // Return a strong reference to the blob.
         // Callers must hb_blob_destroy the returned blob.
@@ -513,6 +513,11 @@ public:
     // read in other family names, if any, and use functor to add each into cache
     virtual void ReadOtherFamilyNames(gfxPlatformFontList *aPlatformFontList);
 
+    // set when other family names have been read in
+    void SetOtherFamilyNamesInitialized() {
+        mOtherFamilyNamesInitialized = PR_TRUE;
+    }
+
     // read in other localized family names, fullnames and Postscript names
     // for all faces and append to lookup tables
     virtual void ReadFaceNames(gfxPlatformFontList *aPlatformFontList,
@@ -559,7 +564,7 @@ protected:
                                        PRBool anItalic, PRInt16 aStretch);
 
     PRBool ReadOtherFamilyNamesForFace(gfxPlatformFontList *aPlatformFontList,
-                                       nsTArray<PRUint8>& aNameTable,
+                                       FallibleTArray<PRUint8>& aNameTable,
                                        PRBool useFullName = PR_FALSE);
 
     // set whether this font family is in "bad" underline offset blacklist.
@@ -1181,18 +1186,15 @@ public:
         return mFontEntry->GetUVSGlyph(aCh, aVS); 
     }
 
-    // Default simply calls m[Platform|HarfBuzz]Shaper->InitTextRun().
-    // Override if the font class wants to give special handling
-    // to shaper failure.
-    // Returns PR_FALSE if shaping failed (though currently we
-    // don't have any good way to handle that situation).
-    virtual PRBool InitTextRun(gfxContext *aContext,
+    // call the (virtual) InitTextRun method to do glyph generation/shaping,
+    // limiting the length of text passed by processing the run in multiple
+    // segments if necessary
+    PRBool SplitAndInitTextRun(gfxContext *aContext,
                                gfxTextRun *aTextRun,
                                const PRUnichar *aString,
                                PRUint32 aRunStart,
                                PRUint32 aRunLength,
-                               PRInt32 aRunScript,
-                               PRBool aPreferPlatformShaping = PR_FALSE);
+                               PRInt32 aRunScript);
 
 protected:
     nsRefPtr<gfxFontEntry> mFontEntry;
@@ -1243,6 +1245,19 @@ protected:
     // some fonts have bad metrics, this method sanitize them.
     // if this font has bad underline offset, aIsBadUnderlineFont should be true.
     void SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont);
+
+    // Default simply calls m[Platform|HarfBuzz]Shaper->InitTextRun().
+    // Override if the font class wants to give special handling
+    // to shaper failure.
+    // Returns PR_FALSE if shaping failed (though currently we
+    // don't have any good way to handle that situation).
+    virtual PRBool InitTextRun(gfxContext *aContext,
+                               gfxTextRun *aTextRun,
+                               const PRUnichar *aString,
+                               PRUint32 aRunStart,
+                               PRUint32 aRunLength,
+                               PRInt32 aRunScript,
+                               PRBool aPreferPlatformShaping = PR_FALSE);
 };
 
 // proportion of ascent used for x-height, if unable to read value from font
@@ -1784,10 +1799,11 @@ public:
             return *this;
         }
         /**
-         * Missing glyphs are treated as cluster and ligature group starts.
+         * Missing glyphs are treated as ligature group starts; don't mess with
+         * the cluster-start flag (see bugs 618870 and 619286).
          */
         CompressedGlyph& SetMissing(PRUint32 aGlyphCount) {
-            mValue = (mValue & FLAG_CAN_BREAK_BEFORE) |
+            mValue = (mValue & (FLAG_CAN_BREAK_BEFORE | FLAG_NOT_CLUSTER_START)) |
                 (aGlyphCount << GLYPH_COUNT_SHIFT);
             return *this;
         }
@@ -2226,21 +2242,22 @@ protected:
     // you should call this with the *first* bad font.
     void InitMetricsForBadFont(gfxFont* aBadFont);
 
-    // Set up the textrun glyphs, by finding script and font ranges
-    // and calling each font's InitTextRun() as appropriate
+    // Set up the textrun glyphs for an entire text run:
+    // find script runs, and then call InitScriptRun for each
     void InitTextRun(gfxContext *aContext,
                      gfxTextRun *aTextRun,
                      const PRUnichar *aString,
                      PRUint32 aLength);
 
-    // InitTextRun helper to handle a single script run
-    void InitTextRun(gfxContext *aContext,
-                     gfxTextRun *aTextRun,
-                     const PRUnichar *aString,
-                     PRUint32 aTotalLength,
-                     PRUint32 aScriptRunStart,
-                     PRUint32 aScriptRunEnd,
-                     PRInt32 aRunScript);
+    // InitTextRun helper to handle a single script run, by finding font ranges
+    // and calling each font's InitTextRun() as appropriate
+    void InitScriptRun(gfxContext *aContext,
+                       gfxTextRun *aTextRun,
+                       const PRUnichar *aString,
+                       PRUint32 aTotalLength,
+                       PRUint32 aScriptRunStart,
+                       PRUint32 aScriptRunEnd,
+                       PRInt32 aRunScript);
 
     /* If aResolveGeneric is true, then CSS/Gecko generic family names are
      * replaced with preferred fonts.

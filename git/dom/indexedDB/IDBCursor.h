@@ -86,7 +86,7 @@ public:
          const nsACString& aContinueQuery,
          const nsACString& aContinueToQuery,
          const Key& aKey,
-         const nsAString& aValue);
+         JSAutoStructuredCloneBuffer& aCloneBuffer);
 
   // For INDEX cursors.
   static
@@ -113,12 +113,12 @@ public:
          const nsACString& aContinueToQuery,
          const Key& aKey,
          const Key& aObjectKey,
-         const nsAString& aValue);
+         JSAutoStructuredCloneBuffer& aCloneBuffer);
 
   enum Type
   {
     OBJECTSTORE = 0,
-    INDEX,
+    INDEXKEY,
     INDEXOBJECT
   };
 
@@ -149,6 +149,7 @@ protected:
   nsCOMPtr<nsIScriptContext> mScriptContext;
   nsCOMPtr<nsPIDOMWindow> mOwner;
 
+  // Not cycle-collected, these are guaranteed to be primitives!
   nsCOMPtr<nsIVariant> mCachedKey;
   nsCOMPtr<nsIVariant> mCachedObjectKey;
 
@@ -157,18 +158,20 @@ protected:
   nsCString mContinueQuery;
   nsCString mContinueToQuery;
 
+  // This one is cycle-collected!
   jsval mCachedValue;
 
   Key mRangeKey;
 
   Key mKey;
   Key mObjectKey;
-  nsString mValue;
+  JSAutoStructuredCloneBuffer mCloneBuffer;
   Key mContinueToKey;
 
   bool mHaveCachedValue;
   bool mValueRooted;
   bool mContinueCalled;
+  bool mHaveValue;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -494,49 +494,30 @@ JSThreadData::init()
 #endif
     if (!stackSpace.init())
         return false;
-#ifdef JS_TRACER
-    if (!InitJIT(&traceMonitor)) {
-        finish();
-        return false;
-    }
-#endif
     dtoaState = js_NewDtoaState();
     if (!dtoaState) {
         finish();
         return false;
     }
     nativeStackBase = GetNativeStackBase();
-    return true;
-}
 
-MathCache *
-JSThreadData::allocMathCache(JSContext *cx)
-{
-    JS_ASSERT(!mathCache);
-    mathCache = new MathCache;
-    if (!mathCache)
-        js_ReportOutOfMemory(cx);
-    return mathCache;
+#ifdef JS_TRACER
+    /* Set the default size for the code cache to 16MB. */
+    maxCodeCacheBytes = 16 * 1024 * 1024;
+#endif
+
+    return true;
 }
 
 void
 JSThreadData::finish()
 {
-#ifdef DEBUG
-    for (size_t i = 0; i != JS_ARRAY_LENGTH(scriptsToGC); ++i)
-        JS_ASSERT(!scriptsToGC[i]);
-#endif
-
     if (dtoaState)
         js_DestroyDtoaState(dtoaState);
 
     js_FinishGSNCache(&gsnCache);
     propertyCache.~PropertyCache();
-#if defined JS_TRACER
-    FinishJIT(&traceMonitor);
-#endif
     stackSpace.finish();
-    delete mathCache;
 }
 
 void
@@ -552,22 +533,6 @@ JSThreadData::purge(JSContext *cx)
 
     /* FIXME: bug 506341. */
     propertyCache.purge(cx);
-
-#ifdef JS_TRACER
-    /*
-     * If we are about to regenerate shapes, we have to flush the JIT cache,
-     * which will eventually abort any current recording.
-     */
-    if (cx->runtime->gcRegenShapes)
-        traceMonitor.needFlush = JS_TRUE;
-#endif
-
-    /* Destroy eval'ed scripts. */
-    js_DestroyScriptsToGC(cx, this);
-
-    /* Purge cached native iterators. */
-    memset(cachedNativeIterators, 0, sizeof(cachedNativeIterators));
-    lastNativeIterator = NULL;
 
     dtoaCache.s = NULL;
 }
@@ -736,7 +701,6 @@ js_PurgeThreads(JSContext *cx)
 
         if (JS_CLIST_IS_EMPTY(&thread->contextList)) {
             JS_ASSERT(cx->thread != thread);
-            js_DestroyScriptsToGC(cx, &thread->data);
 
             DestroyThread(thread);
             e.removeFront();
@@ -921,7 +885,7 @@ DumpEvalCacheMeter(JSContext *cx)
             EVAL_CACHE_METER_LIST(frob)
 #undef frob
         };
-        JSEvalCacheMeter *ecm = &JS_THREAD_DATA(cx)->evalCacheMeter;
+        JSEvalCacheMeter *ecm = &cx->compartment->evalCacheMeter;
 
         static JSAutoFile fp;
         if (!fp && !fp.open(filename, "w"))
@@ -1108,7 +1072,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
 #endif
 
         if (last) {
-            js_GC(cx, GC_LAST_CONTEXT);
+            js_GC(cx, NULL, GC_LAST_CONTEXT);
             DUMP_EVAL_CACHE_METER(cx);
             DUMP_FUNCTION_METER(cx);
 
@@ -1118,7 +1082,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
             JS_NOTIFY_ALL_CONDVAR(rt->stateChange);
         } else {
             if (mode == JSDCM_FORCE_GC)
-                js_GC(cx, GC_NORMAL);
+                js_GC(cx, NULL, GC_NORMAL);
             else if (mode == JSDCM_MAYBE_GC)
                 JS_MaybeGC(cx);
             JS_LOCK_GC(rt);
@@ -1393,7 +1357,7 @@ js_ReportOutOfMemory(JSContext *cx)
      * exception if any now so the hooks can replace the out-of-memory error
      * by a script-catchable exception.
      */
-    cx->throwing = JS_FALSE;
+    cx->clearPendingException();
     if (onError) {
         JSDebugErrorHook hook = cx->debugHooks->debugErrorHook;
         if (hook &&
@@ -1857,7 +1821,7 @@ js_InvokeOperationCallback(JSContext *cx)
     JS_UNLOCK_GC(rt);
 
     if (rt->gcIsNeeded) {
-        js_GC(cx, GC_NORMAL);
+        js_GC(cx, rt->gcTriggerCompartment, GC_NORMAL);
 
         /*
          * On trace we can exceed the GC quota, see comments in NewGCArena. So
@@ -2041,27 +2005,46 @@ JSContext::resetCompartment()
         scopeobj = &fp()->scopeChain();
     } else {
         scopeobj = globalObject;
-        if (!scopeobj) {
-            compartment = runtime->defaultCompartment;
-            return;
-        }
+        if (!scopeobj)
+            goto error;
 
         /*
          * Innerize. Assert, but check anyway, that this succeeds. (It
          * can only fail due to bugs in the engine or embedding.)
          */
         OBJ_TO_INNER_OBJECT(this, scopeobj);
-        if (!scopeobj) {
-            /*
-             * Bug. Return NULL, not defaultCompartment, to crash rather
-             * than open a security hole.
-             */
-            JS_ASSERT(0);
-            compartment = NULL;
-            return;
-        }
+        if (!scopeobj)
+            goto error;
     }
-    compartment = scopeobj->getCompartment();
+
+    compartment = scopeobj->compartment();
+
+    if (isExceptionPending())
+        wrapPendingException();
+    return;
+
+error:
+
+    /*
+     * If we try to use the context without a selected compartment,
+     * we will crash.
+     */
+    compartment = NULL;
+}
+
+/*
+ * Since this function is only called in the context of a pending exception,
+ * the caller must subsequently take an error path. If wrapping fails, we leave
+ * the exception cleared, which, in the context of an error path, will be
+ * interpreted as an uncatchable exception.
+ */
+void
+JSContext::wrapPendingException()
+{
+    Value v = getPendingException();
+    clearPendingException();
+    if (compartment->wrap(this, &v))
+        setPendingException(v);
 }
 
 void
@@ -2316,11 +2299,13 @@ JSContext::updateJITEnabled()
 
 namespace js {
 
-void
-SetPendingException(JSContext *cx, const Value &v)
+JS_FORCES_STACK JS_FRIEND_API(void)
+LeaveTrace(JSContext *cx)
 {
-    cx->throwing = JS_TRUE;
-    cx->exception = v;
+#ifdef JS_TRACER
+    if (JS_ON_TRACE(cx))
+        DeepBail(cx);
+#endif
 }
 
 } /* namespace js */

@@ -232,10 +232,12 @@ class THEBES_API LayerManager {
 
 public:
   enum LayersBackend {
-    LAYERS_BASIC = 0,
+    LAYERS_NONE = 0,
+    LAYERS_BASIC,
     LAYERS_OPENGL,
     LAYERS_D3D9,
-    LAYERS_D3D10
+    LAYERS_D3D10,
+    LAYERS_LAST
   };
 
   LayerManager() : mDestroyed(PR_FALSE), mSnapEffectiveTransforms(PR_TRUE)
@@ -308,6 +310,21 @@ public:
    */
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData) = 0;
+
+  /**
+   * Attempts to perform an "empty transaction", i.e., a BeginTransaction()
+   * followed by no changes to the layer tree and an EndTransaction with no
+   * ThebesLayer drawing callback. This will only work if no ThebesLayers
+   * need to be updated (i.e. the visible region of each ThebesLayer is already
+   * fully retained). Since this cannot be predicted in advance,
+   * DoEmptyTransaction is allowed to fail and return false. When
+   * DoEmptyTransaction fails it must be immediately (within the same paint
+   * event) followed by a normal BeginTransaction/EndTransaction pair.
+   */
+  virtual bool DoEmptyTransaction()
+  {
+    return false;
+  }
 
   PRBool IsSnappingEffectiveTransforms() { return mSnapEffectiveTransforms; } 
 
@@ -482,19 +499,13 @@ public:
      */
     CONTENT_OPAQUE = 0x01,
     /**
-     * ThebesLayers only!
-     * If this is set, the caller is promising that the visible region
-     * contains no text at all. If this is set,
-     * CONTENT_NO_TEXT_OVER_TRANSPARENT will also be set.
+     * If this is set, the caller is notifying that the contents of this layer
+     * require per-component alpha for optimal fidelity. However, there is no
+     * guarantee that component alpha will be supported for this layer at
+     * paint time.
+     * This should never be set at the same time as CONTENT_OPAQUE.
      */
-    CONTENT_NO_TEXT = 0x02,
-    /**
-     * ThebesLayers only!
-     * If this is set, the caller is promising that the visible region
-     * contains no text over transparent pixels (any text, if present,
-     * is over fully opaque pixels).
-     */
-    CONTENT_NO_TEXT_OVER_TRANSPARENT = 0x04
+    CONTENT_COMPONENT_ALPHA = 0x02
   };
   /**
    * CONSTRUCTION PHASE ONLY
@@ -504,6 +515,9 @@ public:
    */
   void SetContentFlags(PRUint32 aFlags)
   {
+    NS_ASSERTION((aFlags & (CONTENT_OPAQUE | CONTENT_COMPONENT_ALPHA)) !=
+                 (CONTENT_OPAQUE | CONTENT_COMPONENT_ALPHA),
+                 "Can't be opaque and require component alpha");
     mContentFlags = aFlags;
     Mutated();
   }
@@ -616,6 +630,20 @@ public:
   // it will often make painting of antialiased text faster and higher
   // quality.
   PRBool CanUseOpaqueSurface();
+
+  enum SurfaceMode {
+    SURFACE_OPAQUE,
+    SURFACE_SINGLE_CHANNEL_ALPHA,
+    SURFACE_COMPONENT_ALPHA
+  };
+  SurfaceMode GetSurfaceMode()
+  {
+    if (CanUseOpaqueSurface())
+      return SURFACE_OPAQUE;
+    if (mContentFlags & CONTENT_COMPONENT_ALPHA)
+      return SURFACE_COMPONENT_ALPHA;
+    return SURFACE_SINGLE_CHANNEL_ALPHA;
+  }
 
   /**
    * This setter can be used anytime. The user data for all keys is
@@ -839,7 +867,9 @@ protected:
     , mValidRegion()
     , mXResolution(1.0)
     , mYResolution(1.0)
-  {}
+  {
+    mContentFlags = 0; // Clear NO_TEXT, NO_TEXT_OVER_TRANSPARENT
+  }
 
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
@@ -921,13 +951,22 @@ public:
    */
   PRBool HasMultipleChildren();
 
+  /**
+   * Returns true if this container supports children with component alpha.
+   * Should only be called while painting a child of this layer.
+   */
+  PRBool SupportsComponentAlphaChildren() { return mSupportsComponentAlphaChildren; }
+
 protected:
   ContainerLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
       mFirstChild(nsnull),
       mLastChild(nsnull),
-      mUseIntermediateSurface(PR_FALSE)
-  {}
+      mUseIntermediateSurface(PR_FALSE),
+      mSupportsComponentAlphaChildren(PR_FALSE)
+  {
+    mContentFlags = 0; // Clear NO_TEXT, NO_TEXT_OVER_TRANSPARENT
+  }
 
   /**
    * A default implementation of ComputeEffectiveTransforms for use by OpenGL
@@ -946,6 +985,7 @@ protected:
   Layer* mLastChild;
   FrameMetrics mFrameMetrics;
   PRPackedBool mUseIntermediateSurface;
+  PRPackedBool mSupportsComponentAlphaChildren;
 };
 
 /**

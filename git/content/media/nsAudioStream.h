@@ -54,6 +54,8 @@ public:
     FORMAT_FLOAT32
   };
 
+  virtual ~nsAudioStream();
+
   // Initialize Audio Library. Some Audio backends require initializing the
   // library before using it. 
   static void InitLibrary();
@@ -64,7 +66,7 @@ public:
 
   // Thread, usually for MOZ_IPC handling, that is shared between audio streams.
   // This may return null in the child process
-  virtual nsIThread *GetThread();
+  nsIThread *GetThread();
 
   // AllocateStream will return either a local stream or a remoted stream
   // depending on where you call it from.  If MOZ_IPC is enabled, and you
@@ -115,6 +117,10 @@ public:
 
   // Returns PR_TRUE when the audio stream is paused.
   virtual PRBool IsPaused() = 0;
+
+  // Returns the minimum number of samples which must be written before
+  // you can be sure that something will be played.
+  virtual PRInt32 GetMinWriteSamples() = 0;
 
 protected:
   nsCOMPtr<nsIThread> mAudioPlaybackThread;

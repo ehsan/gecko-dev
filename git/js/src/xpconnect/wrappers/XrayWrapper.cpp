@@ -144,6 +144,8 @@ GetExpandoObject(JSContext *cx, JSObject *holder)
     JSObject *expando = holder->getSlot(JSSLOT_EXPANDO).toObjectOrNull();
     if (!expando) {
         expando =  JS_NewObjectWithGivenProto(cx, nsnull, nsnull, holder->getParent());
+        if (!expando)
+            return NULL;
         holder->setSlot(JSSLOT_EXPANDO, ObjectValue(*expando));
     }
     return expando;
@@ -647,6 +649,11 @@ EnumerateNames(JSContext *cx, JSObject *wrapper, uintN flags, js::AutoIdVector &
             return false;
 
         return js::GetPropertyNames(cx, wnObject, flags, &props);
+    }
+
+    if (WrapperFactory::IsPartiallyTransparent(wrapper)) {
+        JS_ReportError(cx, "Not allowed to enumerate cross origin objects");
+        return false;
     }
 
     // Enumerate expando properties first.

@@ -266,7 +266,7 @@ random == 99850-1b.html 99850-1-ref.html # bug 471629
 == 283686-2.html 283686-2-ref.html
 == 283686-3.html about:blank
 == 289384-1.xhtml 289384-ref.xhtml
-fails-if(d2d) HTTP == 289480.html#top 289480-ref.html # basically-verbatim acid2 test, HTTP for a 404 page -- bug 409329 for the non-Mac failures
+random-if(d2d) HTTP == 289480.html#top 289480-ref.html # basically-verbatim acid2 test, HTTP for a 404 page -- bug 578114 for the d2d failures
 asserts(1) == 290129-1.html 290129-1-ref.html # bug 315549/460637
 == 291078-1.html 291078-1-ref.html
 == 291078-2.html 291078-2-ref.html
@@ -1447,7 +1447,8 @@ random-if(!haveTestPlugin) == 546071-1.html 546071-1-ref.html
 == 552334-1.html 552334-1-ref.html
 random-if(d2d) == 555388-1.html 555388-1-ref.html
 == 556661-1.html 556661-1-ref.html
-== 557087.html 557087-ref.html
+== 557087-1.html 557087-ref.html
+== 557087-2.html 557087-ref.html
 == 557736-1.html 557736-1-ref.html
 == 559284-1.html 559284-1-ref.html
 == 560455-1.xul 560455-1-ref.xul
@@ -1506,7 +1507,8 @@ random-if(layersGPUAccelerated) == 564991-1.html 564991-1-ref.html
 == 577838-2.html 577838-2-ref.html
 random-if(layersGPUAccelerated) == 579323-1.html 579323-1-ref.html
 == 579349-1.html 579349-1-ref.html
-# == 579985-1.html 579985-1-ref.html
+== 579808-1.html 579808-1-ref.html
+random-if(layersGPUAccelerated) == 579985-1.html 579985-1-ref.html # this bug was only for a regression in BasicLayers anyway
 == 580160-1.html 580160-1-ref.html
 HTTP(..) == 580863-1.html 580863-1-ref.html
 random-if(layersGPUAccelerated) == 581317-1.html 581317-1-ref.html
@@ -1523,6 +1525,7 @@ asserts(0-1) == 582146-1.html about:blank
 == 586400-1.html 586400-1-ref.html
 == 589672-1.html 589672-1-ref.html
 == 593544-1.html 593544-1-ref.html
+== 594333-1.html 594333-1-ref.html
 == 594624-1.html 594624-1-ref.html
 == 594737-1.html 594737-1-ref.html
 == 597721-1.html 597721-1-ref.html

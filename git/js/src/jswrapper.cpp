@@ -348,18 +348,15 @@ AutoCompartment::enter()
     if (origin != destination) {
         LeaveTrace(context);
 
-#ifdef DEBUG
-        JSCompartment *oldCompartment = context->compartment;
-        context->resetCompartment();
-        wasSane = (context->compartment == oldCompartment);
-#endif
+        if (context->isExceptionPending())
+            return false;
 
         context->compartment = destination;
         JSObject *scopeChain = target->getGlobal();
         JS_ASSERT(scopeChain->isNative());
+
         frame.construct();
         if (!context->stack().pushDummyFrame(context, *scopeChain, &frame.ref())) {
-            frame.destroy();
             context->compartment = origin;
             return false;
         }
@@ -375,8 +372,6 @@ AutoCompartment::leave()
     if (origin != destination) {
         frame.destroy();
         context->resetCompartment();
-        JS_ASSERT_IF(wasSane && context->hasfp(), context->compartment == origin);
-        context->compartment->wrapException(context);
     }
     entered = false;
 }
@@ -526,11 +521,26 @@ CanReify(Value *vp)
            (obj->getNativeIterator()->flags & JSITER_ENUMERATE);
 }
 
+struct AutoCloseIterator
+{
+    AutoCloseIterator(JSContext *cx, JSObject *obj) : cx(cx), obj(obj) {}
+
+    ~AutoCloseIterator() { if (obj) js_CloseIterator(cx, obj); }
+
+    void clear() { obj = NULL; }
+
+  private:
+    JSContext *cx;
+    JSObject *obj;
+};
+
 static bool
 Reify(JSContext *cx, JSCompartment *origin, Value *vp)
 {
     JSObject *iterObj = &vp->toObject();
     NativeIterator *ni = iterObj->getNativeIterator();
+
+    AutoCloseIterator close(cx, iterObj);
 
     /* Wrap the iteratee. */
     JSObject *obj = ni->obj;
@@ -556,6 +566,7 @@ Reify(JSContext *cx, JSCompartment *origin, Value *vp)
             }
         }
 
+        close.clear();
         return js_CloseIterator(cx, iterObj) &&
                VectorToKeyIterator(cx, obj, ni->flags, keys, vp);
     }
@@ -573,6 +584,7 @@ Reify(JSContext *cx, JSCompartment *origin, Value *vp)
 
     }
 
+    close.clear();
     return js_CloseIterator(cx, iterObj) &&
            VectorToValueIterator(cx, obj, ni->flags, vals, vp);
 }
@@ -624,8 +636,7 @@ JSCrossCompartmentWrapper::construct(JSContext *cx, JSObject *wrapper, uintN arg
         return false;
 
     call.leave();
-    return call.origin->wrap(cx, rval) &&
-           call.origin->wrapException(cx);
+    return call.origin->wrap(cx, rval);
 }
 
 bool

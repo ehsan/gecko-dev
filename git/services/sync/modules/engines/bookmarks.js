@@ -13,15 +13,16 @@
  *
  * The Original Code is Bookmarks Sync.
  *
- * The Initial Developer of the Original Code is Mozilla.
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Dan Mills <thunder@mozilla.com>
- *  Jono DiCarlo <jdicarlo@mozilla.org>
- *  Anant Narayanan <anant@kix.in>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
+ *   Dan Mills <thunder@mozilla.com>
+ *   Jono DiCarlo <jdicarlo@mozilla.org>
+ *   Anant Narayanan <anant@kix.in>
+ *   Philipp von Weitershausen <philipp@weitershausen.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -209,12 +210,15 @@ BookmarksEngine.prototype = {
   },
 
   _processIncoming: function _processIncoming() {
-    SyncEngine.prototype._processIncoming.call(this);
-    // Reorder children.
-    this._tracker.ignoreAll = true;
-    this._store._orderChildren();
-    this._tracker.ignoreAll = false;
-    delete this._store._childrenToOrder;
+    try {
+      SyncEngine.prototype._processIncoming.call(this);
+    } finally {
+      // Reorder children.
+      this._tracker.ignoreAll = true;
+      this._store._orderChildren();
+      this._tracker.ignoreAll = false;
+      delete this._store._childrenToOrder;
+    }
   },
 
   _syncFinish: function _syncFinish() {
@@ -820,6 +824,22 @@ BookmarksStore.prototype = {
                                                       query);
   },
 
+  __haveGUIDColumn: null,
+  get _haveGUIDColumn() {
+    if (this.__haveGUIDColumn !== null) {
+      return this.__haveGUIDColumn;
+    }
+    let stmt;
+    try {
+      stmt = this._hsvc.DBConnection.createStatement(
+        "SELECT guid FROM moz_places");
+      stmt.finalize();
+      return this.__haveGUIDColumn = true;
+    } catch(ex) {
+      return this.__haveGUIDColumn = false;
+    }
+  },
+
   get _frecencyStm() {
     return this._getStmt(
         "SELECT frecency " +
@@ -836,6 +856,7 @@ BookmarksStore.prototype = {
   },
 
   get _checkGUIDItemAnnotationStm() {
+    // Gecko <2.0 only
     let stmt = this._getStmt(
       "SELECT b.id AS item_id, " +
         "(SELECT id FROM moz_anno_attributes WHERE name = :anno_name) AS name_id, " +
@@ -857,10 +878,39 @@ BookmarksStore.prototype = {
             ":expiration, :type, :date_added, :last_modified)");
   },
 
+  __setGUIDStm: null,
+  get _setGUIDStm() {
+    if (this.__setGUIDStm !== null) {
+      return this.__setGUIDStm;
+    }
+
+    // Obtains a statement to set the guid iff the guid column exists.
+    let stmt;
+    if (this._haveGUIDColumn) {
+      stmt = this._getStmt(
+        "UPDATE moz_bookmarks " +
+        "SET guid = :guid " +
+        "WHERE id = :item_id");
+    } else {
+      stmt = false;
+    }
+    return this.__setGUIDStm = stmt;
+  },
+
   // Some helper functions to handle GUIDs
   _setGUID: function _setGUID(id, guid) {
     if (arguments.length == 1)
       guid = Utils.makeGUID();
+
+    // If we can, set the GUID on moz_bookmarks and do not do any other work.
+    let (stmt = this._setGUIDStm) {
+      if (stmt) {
+        stmt.params.guid = guid;
+        stmt.params.item_id = id;
+        Utils.queryAsync(stmt);
+        return guid;
+      }
+    }
 
     // Ensure annotation name exists
     Utils.queryAsync(this._addGUIDAnnotationNameStm);
@@ -894,15 +944,32 @@ BookmarksStore.prototype = {
     return guid;
   },
 
+  __guidForIdStm: null,
   get _guidForIdStm() {
-    let stmt = this._getStmt(
-      "SELECT a.content AS guid " +
-      "FROM moz_items_annos a " +
-      "JOIN moz_anno_attributes n ON n.id = a.anno_attribute_id " +
-      "JOIN moz_bookmarks b ON b.id = a.item_id " +
-      "WHERE n.name = :anno_name AND b.id = :item_id");
-    stmt.params.anno_name = GUID_ANNO;
-    return stmt;
+    if (this.__guidForIdStm) {
+      return this.__guidForIdStm;
+    }
+
+    // Try to first read from moz_bookmarks.  Creating the statement will
+    // fail, however, if the guid column does not exist.  We fallback to just
+    // reading the annotation table in this case.
+    let stmt;
+    if (this._haveGUIDColumn) {
+      stmt = this._getStmt(
+        "SELECT guid " +
+        "FROM moz_bookmarks " +
+        "WHERE id = :item_id");
+    } else {
+      stmt = this._getStmt(
+        "SELECT a.content AS guid " +
+        "FROM moz_items_annos a " +
+        "JOIN moz_anno_attributes n ON n.id = a.anno_attribute_id " +
+        "JOIN moz_bookmarks b ON b.id = a.item_id " +
+        "WHERE n.name = '" + GUID_ANNO + "' " +
+        "AND b.id = :item_id");
+    }
+
+    return this.__guidForIdStm = stmt;
   },
 
   GUIDForId: function GUIDForId(id) {
@@ -915,21 +982,39 @@ BookmarksStore.prototype = {
 
     // Use the existing GUID if it exists
     let result = Utils.queryAsync(stmt, ["guid"])[0];
-    if (result)
+    if (result && result.guid)
       return result.guid;
 
     // Give the uri a GUID if it doesn't have one
     return this._setGUID(id);
   },
 
+  __idForGUIDStm: null,
   get _idForGUIDStm() {
-    let stmt = this._getStmt(
-      "SELECT a.item_id AS item_id " +
-      "FROM moz_items_annos a " +
-      "JOIN moz_anno_attributes n ON n.id = a.anno_attribute_id " +
-      "WHERE n.name = :anno_name AND a.content = :guid");
-    stmt.params.anno_name = GUID_ANNO;
-    return stmt;
+    if (this.__idForGUIDStm) {
+      return this.__idForGUIDStm;
+    }
+
+
+    // Try to first read from moz_bookmarks.  Creating the statement will
+    // fail, however, if the guid column does not exist.  We fallback to just
+    // reading the annotation table in this case.
+    let stmt;
+    if (this._haveGUIDColumn) {
+      stmt = this._getStmt(
+        "SELECT id AS item_id " +
+        "FROM moz_bookmarks " +
+        "WHERE guid = :guid");
+    } else {
+      stmt = this._getStmt(
+        "SELECT a.item_id AS item_id " +
+        "FROM moz_items_annos a " +
+        "JOIN moz_anno_attributes n ON n.id = a.anno_attribute_id " +
+        "WHERE n.name = '" + GUID_ANNO + "' " +
+        "AND a.content = :guid");
+    }
+
+    return this.__idForGUIDStm = stmt;
   },
 
   idForGUID: function idForGUID(guid) {

@@ -42,8 +42,10 @@
 #include "StubCalls-inl.h"
 #include "BaseCompiler.h"
 #include "assembler/assembler/LinkBuffer.h"
+#include "TypedArrayIC.h"
 #include "jsscope.h"
 #include "jsnum.h"
+#include "jstypedarray.h"
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
@@ -59,6 +61,9 @@ using namespace js::mjit;
 using namespace js::mjit::ic;
 
 typedef JSC::FunctionPtr FunctionPtr;
+typedef JSC::MacroAssembler::RegisterID RegisterID;
+typedef JSC::MacroAssembler::Jump Jump;
+typedef JSC::MacroAssembler::Imm32 Imm32;
 
 /* Rough over-estimate of how much memory we need to unprotect. */
 static const uint32 INLINE_PATH_LENGTH = 64;
@@ -79,7 +84,7 @@ class PICLinker : public LinkerHelper
         JSC::ExecutablePool *pool = LinkerHelper::init(cx);
         if (!pool)
             return false;
-        if (!ic.execPools.append(pool)) {
+        if (!ic.addPool(cx, pool)) {
             pool->release();
             js_ReportOutOfMemory(cx);
             return false;
@@ -826,7 +831,8 @@ class GetPropCompiler : public PICStubCompiler
         masm.load32(Address(pic.objReg, JSObject::JSSLOT_ARGS_LENGTH * sizeof(Value)),
                     pic.objReg);
         masm.move(pic.objReg, pic.shapeReg);
-        Jump overridden = masm.branchTest32(Assembler::NonZero, pic.shapeReg, Imm32(1));
+        Jump overridden = masm.branchTest32(Assembler::NonZero, pic.shapeReg,
+                                            Imm32(JSObject::ARGS_LENGTH_OVERRIDDEN_BIT));
         masm.rshift32(Imm32(JSObject::ARGS_PACKED_BITS_COUNT), pic.objReg);
         
         masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
@@ -890,6 +896,42 @@ class GetPropCompiler : public PICStubCompiler
         patchPreviousToHere(start);
 
         disable("array length done");
+
+        return Lookup_Cacheable;
+    }
+
+    LookupStatus generateStringObjLengthStub()
+    {
+        Assembler masm;
+
+        Jump notStringObj = masm.testObjClass(Assembler::NotEqual, pic.objReg, obj->getClass());
+        masm.loadPtr(Address(pic.objReg, offsetof(JSObject, slots)), pic.objReg);
+        masm.loadPayload(Address(pic.objReg, JSObject::JSSLOT_PRIMITIVE_THIS * sizeof(Value)),
+                         pic.objReg);
+        masm.loadPtr(Address(pic.objReg, JSString::offsetOfLengthAndFlags()), pic.objReg);
+        masm.urshift32(Imm32(JSString::LENGTH_SHIFT), pic.objReg);
+        masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
+        Jump done = masm.jump();
+
+        PICLinker buffer(masm, pic);
+        if (!buffer.init(cx))
+            return error();
+
+        if (!buffer.verifyRange(pic.lastCodeBlock(f.jit())) ||
+            !buffer.verifyRange(f.jit())) {
+            return disable("code memory is out of range");
+        }
+
+        buffer.link(notStringObj, pic.slowPathStart);
+        buffer.link(done, pic.fastPathRejoin);
+
+        CodeLocationLabel start = buffer.finalize();
+        JaegerSpew(JSpew_PICs, "generate string object length stub at %p\n",
+                   start.executableAddress());
+
+        patchPreviousToHere(start);
+
+        disable("string object length done");
 
         return Lookup_Cacheable;
     }
@@ -977,9 +1019,9 @@ class GetPropCompiler : public PICStubCompiler
         Assembler masm;
         Jump notString = masm.branchPtr(Assembler::NotEqual, pic.typeReg(),
                                         ImmType(JSVAL_TYPE_STRING));
-        masm.loadPtr(Address(pic.objReg, offsetof(JSString, mLengthAndFlags)), pic.objReg);
+        masm.loadPtr(Address(pic.objReg, JSString::offsetOfLengthAndFlags()), pic.objReg);
         // String length is guaranteed to be no more than 2**28, so the 32-bit operation is OK.
-        masm.urshift32(Imm32(JSString::FLAGS_LENGTH_SHIFT), pic.objReg);
+        masm.urshift32(Imm32(JSString::LENGTH_SHIFT), pic.objReg);
         masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
         Jump done = masm.jump();
 
@@ -1662,7 +1704,8 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
             return;
         } else if (!f.regs.sp[-1].isPrimitive()) {
             JSObject *obj = &f.regs.sp[-1].toObject();
-            if (obj->isArray() || (obj->isArguments() && !obj->isArgsLengthOverridden())) {
+            if (obj->isArray() || (obj->isArguments() && !obj->isArgsLengthOverridden()) ||
+                obj->isString()) {
                 GetPropCompiler cc(f, script, obj, *pic, NULL, DisabledLengthIC);
                 if (obj->isArray()) {
                     LookupStatus status = cc.generateArrayLengthStub();
@@ -1674,6 +1717,12 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
                     if (status == Lookup_Error)
                         THROW();
                     f.regs.sp[-1].setInt32(int32_t(obj->getArgsInitialLength()));
+                } else if (obj->isString()) {
+                    LookupStatus status = cc.generateStringObjLengthStub();
+                    if (status == Lookup_Error)
+                        THROW();
+                    JSString *str = obj->getPrimitiveThis().toString();
+                    f.regs.sp[-1].setInt32(str->length());
                 }
                 return;
             }
@@ -2136,7 +2185,7 @@ GetElementIC::attachGetProp(JSContext *cx, JSObject *obj, const Value &v, jsid i
 
     CodeLocationLabel cs = buffer.finalize();
 #if DEBUG
-    char *chars = js_DeflateString(cx, v.toString()->chars(), v.toString()->length());
+    char *chars = js_DeflateString(cx, v.toString()->nonRopeChars(), v.toString()->length());
     JaegerSpew(JSpew_PICs, "generated %s stub at %p for atom 0x%x (\"%s\") shape 0x%x (%s: %d)\n",
                js_CodeName[op], cs.executableAddress(), id, chars, holder->shape(),
                cx->fp()->script()->filename, js_FramePCToLineNumber(cx, cx->fp()));
@@ -2216,10 +2265,117 @@ GetElementIC::attachGetProp(JSContext *cx, JSObject *obj, const Value &v, jsid i
 }
 
 LookupStatus
+GetElementIC::attachTypedArray(JSContext *cx, JSObject *obj, const Value &v, jsid id, Value *vp)
+{
+    if (!v.isInt32())
+        return disable(cx, "typed array with string key");
+
+    if (op == JSOP_CALLELEM)
+        return disable(cx, "typed array with call");
+
+    // The fast-path guarantees that after the dense clasp guard, the type is
+    // known to be int32, either via type inference or the inline type check.
+    JS_ASSERT(hasInlineTypeGuard() || idRemat.knownType() == JSVAL_TYPE_INT32);
+
+    Assembler masm;
+
+    // Guard on this typed array's clasp.
+    Jump claspGuard = masm.testObjClass(Assembler::NotEqual, objReg, obj->getClass());
+
+    // Get the internal typed array.
+    masm.loadPtr(Address(objReg, offsetof(JSObject, privateData)), objReg);
+
+    // Bounds check.
+    Jump outOfBounds;
+    Address typedArrayLength(objReg, js::TypedArray::lengthOffset());
+    if (idRemat.isConstant()) {
+        JS_ASSERT(idRemat.value().toInt32() == v.toInt32());
+        outOfBounds = masm.branch32(Assembler::BelowOrEqual, typedArrayLength, Imm32(v.toInt32()));
+    } else {
+        outOfBounds = masm.branch32(Assembler::BelowOrEqual, typedArrayLength, idRemat.dataReg());
+    }
+
+    // Load the array's packed data vector.
+    masm.loadPtr(Address(objReg, js::TypedArray::dataOffset()), objReg);
+
+    js::TypedArray *tarray = js::TypedArray::fromJSObject(obj);
+    int shift = tarray->slotWidth();
+    if (idRemat.isConstant()) {
+        int32 index = v.toInt32();
+        Address addr(objReg, index * shift);
+        LoadFromTypedArray(masm, tarray, addr, typeReg, objReg);
+    } else {
+        Assembler::Scale scale = Assembler::TimesOne;
+        switch (shift) {
+          case 2:
+            scale = Assembler::TimesTwo;
+            break;
+          case 4:
+            scale = Assembler::TimesFour;
+            break;
+          case 8:
+            scale = Assembler::TimesEight;
+            break;
+        }
+        BaseIndex addr(objReg, idRemat.dataReg(), scale);
+        LoadFromTypedArray(masm, tarray, addr, typeReg, objReg);
+    }
+
+    Jump done1 = masm.jump();
+
+    outOfBounds.linkTo(masm.label(), &masm);
+    masm.loadValueAsComponents(UndefinedValue(), typeReg, objReg);
+
+    Jump done2 = masm.jump();
+
+    PICLinker buffer(masm, *this);
+    if (!buffer.init(cx))
+        return error(cx);
+
+    if (!buffer.verifyRange(cx->fp()->jit()))
+        return disable(cx, "code memory is out of range");
+
+    buffer.link(claspGuard, slowPathStart);
+    buffer.link(done1, fastPathRejoin);
+    buffer.link(done2, fastPathRejoin);
+
+    CodeLocationLabel cs = buffer.finalizeCodeAddendum();
+    JaegerSpew(JSpew_PICs, "generated getelem typed array stub at %p\n", cs.executableAddress());
+
+    // If we can generate a typed array stub, the clasp guard is conditional.
+    // Also, we only support one typed array.
+    JS_ASSERT(!shouldPatchUnconditionalClaspGuard());
+    JS_ASSERT(!inlineClaspGuardPatched);
+
+    Repatcher repatcher(cx->fp()->jit());
+    repatcher.relink(fastPathStart.jumpAtOffset(inlineClaspGuard), cs);
+    inlineClaspGuardPatched = true;
+
+    stubsGenerated++;
+
+    // In the future, it might make sense to attach multiple typed array stubs.
+    // For simplicitly, they are currently monomorphic.
+    if (stubsGenerated == MAX_GETELEM_IC_STUBS)
+        disable(cx, "max stubs reached");
+
+    disable(cx, "generated typed array stub");
+
+    // Fetch the value as expected of Lookup_Cacheable for GetElement.
+    if (!obj->getProperty(cx, id, vp))
+        return Lookup_Error;
+
+    return Lookup_Cacheable;
+}
+
+LookupStatus
 GetElementIC::update(JSContext *cx, JSObject *obj, const Value &v, jsid id, Value *vp)
 {
     if (v.isString())
         return attachGetProp(cx, obj, v, id, vp);
+
+    if (js_IsTypedArray(obj))
+        return attachTypedArray(cx, obj, v, id, vp);
+
     return disable(cx, "unhandled object and key type");
 }
 
@@ -2459,6 +2615,94 @@ SetElementIC::attachHoleStub(JSContext *cx, JSObject *obj, int32 keyval)
 }
 
 LookupStatus
+SetElementIC::attachTypedArray(JSContext *cx, JSObject *obj, int32 key)
+{
+    // Right now, only one clasp guard extension is supported.
+    JS_ASSERT(!inlineClaspGuardPatched);
+
+    Assembler masm;
+
+    // Guard on this typed array's clasp.
+    Jump claspGuard = masm.testObjClass(Assembler::NotEqual, objReg, obj->getClass());
+
+    // Get the internal typed array.
+    masm.loadPtr(Address(objReg, offsetof(JSObject, privateData)), objReg);
+
+    // Bounds check.
+    Jump outOfBounds;
+    Address typedArrayLength(objReg, js::TypedArray::lengthOffset());
+    if (hasConstantKey)
+        outOfBounds = masm.branch32(Assembler::BelowOrEqual, typedArrayLength, Imm32(keyValue));
+    else
+        outOfBounds = masm.branch32(Assembler::BelowOrEqual, typedArrayLength, keyReg);
+
+    // Load the array's packed data vector.
+    js::TypedArray *tarray = js::TypedArray::fromJSObject(obj);
+    masm.loadPtr(Address(objReg, js::TypedArray::dataOffset()), objReg);
+
+    int shift = tarray->slotWidth();
+    if (hasConstantKey) {
+        Address addr(objReg, keyValue * shift);
+        if (!StoreToTypedArray(cx, masm, tarray, addr, vr, volatileMask))
+            return error(cx);
+    } else {
+        Assembler::Scale scale = Assembler::TimesOne;
+        switch (shift) {
+          case 2:
+            scale = Assembler::TimesTwo;
+            break;
+          case 4:
+            scale = Assembler::TimesFour;
+            break;
+          case 8:
+            scale = Assembler::TimesEight;
+            break;
+        }
+        BaseIndex addr(objReg, keyReg, scale);
+        if (!StoreToTypedArray(cx, masm, tarray, addr, vr, volatileMask))
+            return error(cx);
+    }
+
+    Jump done = masm.jump();
+
+    // The stub does not rely on any pointers or numbers that could be ruined
+    // by a GC or shape regenerated GC. We let this stub live for the lifetime
+    // of the script.
+    JS_ASSERT(!execPool);
+    LinkerHelper buffer(masm);
+    execPool = buffer.init(cx);
+    if (!execPool)
+        return error(cx);
+
+    if (!buffer.verifyRange(cx->fp()->jit()))
+        return disable(cx, "code memory is out of range");
+
+    // Note that the out-of-bounds path simply does nothing.
+    buffer.link(claspGuard, slowPathStart);
+    buffer.link(outOfBounds, fastPathRejoin);
+    buffer.link(done, fastPathRejoin);
+    masm.finalize(buffer);
+
+    CodeLocationLabel cs = buffer.finalizeCodeAddendum();
+    JaegerSpew(JSpew_PICs, "generated setelem typed array stub at %p\n", cs.executableAddress());
+
+    Repatcher repatcher(cx->fp()->jit());
+    repatcher.relink(fastPathStart.jumpAtOffset(inlineClaspGuard), cs);
+    inlineClaspGuardPatched = true;
+
+    stubsGenerated++;
+
+    // In the future, it might make sense to attach multiple typed array stubs.
+    // For simplicitly, they are currently monomorphic.
+    if (stubsGenerated == MAX_GETELEM_IC_STUBS)
+        disable(cx, "max stubs reached");
+
+    disable(cx, "generated typed array stub");
+
+    return Lookup_Cacheable;
+}
+
+LookupStatus
 SetElementIC::update(JSContext *cx, const Value &objval, const Value &idval)
 {
     if (!objval.isObject())
@@ -2471,6 +2715,9 @@ SetElementIC::update(JSContext *cx, const Value &objval, const Value &idval)
 
     if (obj->isDenseArray())
         return attachHoleStub(cx, obj, key);
+
+    if (js_IsTypedArray(obj))
+        return attachTypedArray(cx, obj, key);
 
     return disable(cx, "unsupported object type");
 }

@@ -136,6 +136,11 @@ public:
   static nsDOMStorageManager* GetInstance();
   static void Shutdown();
 
+  /**
+   * Checks whether there is any data waiting to be flushed from a temp table.
+   */
+  PRBool UnflushedDataExists();
+
   static nsDOMStorageManager* gStorageManager;
 
 protected:
@@ -252,15 +257,6 @@ public:
   DOMStorageImpl(nsDOMStorage*, DOMStorageImpl&);
   ~DOMStorageImpl();
 
-  // Cross-process storage implementations never have InitAs(Session|Local|Global)Storage
-  // called, so the appropriate initialization needs to happen from the child.
-  void InitFromChild(bool aUseDB, bool aCanUseChromePersist,
-                     const nsACString& aDomain,
-                     const nsACString& aScopeDBKey,
-                     const nsACString& aQuotaDomainDBKey,
-                     const nsACString& aQuotaETLDplus1DomainDBKey,
-                     PRUint32 aStorageType);
-
   virtual void InitAsSessionStorage(nsIURI* aDomainURI);
   virtual void InitAsLocalStorage(nsIURI* aDomainURI, bool aCanUseChromePersist);
   virtual void InitAsGlobalStorage(const nsACString& aDomainDemanded);
@@ -334,6 +330,16 @@ private:
   friend class StorageParent;
 
   void Init(nsDOMStorage*);
+
+  // Cross-process storage implementations never have InitAs(Session|Local|Global)Storage
+  // called, so the appropriate initialization needs to happen from the child.
+  void InitFromChild(bool aUseDB, bool aCanUseChromePersist, bool aSessionOnly,
+                     const nsACString& aDomain,
+                     const nsACString& aScopeDBKey,
+                     const nsACString& aQuotaDomainDBKey,
+                     const nsACString& aQuotaETLDplus1DomainDBKey,
+                     PRUint32 aStorageType);
+  void SetSessionOnly(bool aSessionOnly);
 
   static nsresult InitDB();
 

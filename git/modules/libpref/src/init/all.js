@@ -189,8 +189,6 @@ pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
-pref("gfx.3d_video.enabled", false);
-
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.sanitize", true);
 #ifdef XP_MACOSX
@@ -597,8 +595,9 @@ pref("javascript.options.jitprofiling.chrome",  false);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721
-// Comment 32.
-pref("javascript.options.mem.high_water_mark", 32);
+// Comment 32 and Bug 613551.
+pref("javascript.options.mem.high_water_mark", 128);
+pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_frequency",   300);
 
 // advanced prefs
@@ -736,12 +735,6 @@ pref("network.http.prompt-temp-redirect", true);
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
 // Section 4.8 "High-Throughput Data Service Class"
 pref("network.http.qos", 0);
-
-// The number of milliseconds after sending a SYN for an HTTP connection,
-// to wait before trying a different connection. 0 means do not use a second
-// connection.
-// Temporarily Disabled for 4.0 Beta 8 - bug 614677
-pref("network.http.connection-retry-timeout", 0);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
@@ -3205,14 +3198,7 @@ pref("image.mem.max_ms_before_yield", 400);
 pref("image.mem.max_bytes_for_sync_decode", 150000);
 
 // WebGL prefs
-// keep disabled on linux until bug 578877 is fixed
-// This is not an ideal define, but it gets the right set of
-// build machines.
-#ifdef MOZ_WIDGET_GTK2
-pref("webgl.enabled_for_all_sites", false);
-#else
 pref("webgl.enabled_for_all_sites", true);
-#endif
 pref("webgl.shader_validator", true);
 pref("webgl.force_osmesa", false);
 pref("webgl.mochitest_native_gl", false);
@@ -3288,3 +3274,6 @@ pref("extensions.alwaysUnpack", false);
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);
+
+// Desktop Notification
+pref("notification.feature.enabled", false);

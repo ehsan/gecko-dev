@@ -49,6 +49,7 @@
 
 #include "mozilla/X11Util.h"
 
+#include "prenv.h"
 #include "GLContextProvider.h"
 #include "nsDebug.h"
 #include "nsIWidget.h"
@@ -233,6 +234,15 @@ public:
                     PRBool deleteDrawable,
                     gfxXlibSurface *pixmap = nsnull)
     {
+        const char *glxVendorString = sGLXLibrary.xQueryServerString(display, DefaultScreen(display), GLX_VENDOR);
+        if (strcmp(glxVendorString, "NVIDIA Corporation") &&
+            !PR_GetEnv("MOZ_GLX_IGNORE_BLACKLIST"))
+        {
+          printf("[GLX] currently only allowing the NVIDIA proprietary driver, as other drivers are giving too many crashes. "
+                 "To bypass this, define the MOZ_GLX_IGNORE_BLACKLIST environment variable.\n");
+          return nsnull;
+        }
+
         int db = 0, err;
         err = sGLXLibrary.xGetFBConfigAttrib(display, cfg,
                                              GLX_DOUBLEBUFFER, &db);
@@ -370,13 +380,6 @@ TRY_AGAIN_NO_SHARING:
         return PR_TRUE;
     }
 
-    virtual already_AddRefed<TextureImage>
-    CreateBasicTextureImage(GLuint aTexture,
-                            const nsIntSize& aSize,
-                            GLenum aWrapMode,
-                            TextureImage::ContentType aContentType,
-                            GLContext* aContext);
-
 private:
     friend class GLContextProviderGLX;
 
@@ -405,66 +408,6 @@ private:
 
     nsRefPtr<gfxXlibSurface> mPixmap;
 };
-
-// FIXME/bug 575505: this is a (very slow!) placeholder
-// implementation.  Much better would be to create a Pixmap, wrap that
-// in a GLXPixmap, and then glXBindTexImage() to our texture.
-class TextureImageGLX : public BasicTextureImage
-{
-    friend already_AddRefed<TextureImage>
-    GLContextGLX::CreateBasicTextureImage(GLuint,
-                                          const nsIntSize&,
-                                          GLenum,
-                                          TextureImage::ContentType,
-                                          GLContext*);
-
-protected:
-    virtual already_AddRefed<gfxASurface>
-    CreateUpdateSurface(const gfxIntSize& aSize, ImageFormat aFmt)
-    {
-        mUpdateFormat = aFmt;
-        return gfxPlatform::GetPlatform()->CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFmt));
-    }
-
-    virtual already_AddRefed<gfxImageSurface>
-    GetImageForUpload(gfxASurface* aUpdateSurface)
-    {
-        nsRefPtr<gfxImageSurface> image =
-            new gfxImageSurface(gfxIntSize(mUpdateRect.width,
-                                           mUpdateRect.height),
-                                mUpdateFormat);
-        nsRefPtr<gfxContext> tmpContext = new gfxContext(image);
-
-        tmpContext->SetSource(aUpdateSurface);
-        tmpContext->SetOperator(gfxContext::OPERATOR_SOURCE);
-        tmpContext->Paint();
-
-        return image.forget();
-    }
-
-private:
-    TextureImageGLX(GLuint aTexture,
-                    const nsIntSize& aSize,
-                    GLenum aWrapMode,
-                    ContentType aContentType,
-                    GLContext* aContext)
-        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext)
-    {}
-
-    ImageFormat mUpdateFormat;
-};
-
-already_AddRefed<TextureImage>
-GLContextGLX::CreateBasicTextureImage(GLuint aTexture,
-                                      const nsIntSize& aSize,
-                                      GLenum aWrapMode,
-                                      TextureImage::ContentType aContentType,
-                                      GLContext* aContext)
-{
-    nsRefPtr<TextureImageGLX> teximage(
-        new TextureImageGLX(aTexture, aSize, aWrapMode, aContentType, aContext));
-    return teximage.forget();
-}
 
 static GLContextGLX *
 GetGlobalContextGLX()
@@ -669,7 +612,7 @@ CreateOffscreenPixmapContext(const gfxIntSize& aSize,
     }
 
     ScopedXErrorHandler xErrorHandler;
-    GLXPixmap glxpixmap;
+    GLXPixmap glxpixmap = 0;
     bool error = false;
 
     nsRefPtr<gfxXlibSurface> xsurface = gfxXlibSurface::Create(DefaultScreenOfDisplay(display),

@@ -180,6 +180,9 @@ struct Address
 
     Address(Address addr, int32 offset)
       : base(addr.base), offset(addr.offset + offset), accSet(addr.accSet) {}
+
+  public:
+    Address() {}
 };
 
 
@@ -241,10 +244,10 @@ struct FCSlotsAddress : Address
       : Address(base, slot * sizeof(Value), ACCSET_FCSLOTS) {}
 };
 
-struct ArgsSlotsAddress : Address
+struct ArgsSlotOffsetAddress : Address
 {
-    ArgsSlotsAddress(nj::LIns *base, unsigned slot = 0)
-      : Address(base, slot * sizeof(Value), ACCSET_ARGS_DATA) {}
+    ArgsSlotOffsetAddress(nj::LIns *base, unsigned offset = 0)
+      : Address(base, offset, ACCSET_ARGS_DATA) {}
 };
 
 struct AnyAddress : Address
@@ -264,10 +267,11 @@ struct OffsetAddress : Address
       : Address(addr, offset) {}
 };
 
-bool IsPromoteInt(nj::LIns *ins);
-bool IsPromoteUint(nj::LIns *ins);
-bool IsPromote(nj::LIns *ins);
-nj::LIns *Demote(nj::LirWriter *out, nj::LIns *ins);
+bool IsPromotedInt32(nj::LIns *ins);
+bool IsPromotedUint32(nj::LIns *ins);
+bool IsPromotedInt32OrUint32(nj::LIns *ins);
+nj::LIns *DemoteToInt32(nj::LirWriter *out, nj::LIns *ins);
+nj::LIns *DemoteToUint32(nj::LirWriter *out, nj::LIns *ins);
 
 /* These would be private to class Writer if they weren't used in AccSet checking. */
 static const size_t sPayloadOffset = offsetof(jsval_layout, s.payload);
@@ -595,14 +599,14 @@ class Writer
     }
 
     nj::LIns *ldpStringLengthAndFlags(nj::LIns *str) const {
-        return name(lir->insLoad(nj::LIR_ldp, str, offsetof(JSString, mLengthAndFlags),
+        return name(lir->insLoad(nj::LIR_ldp, str, JSString::offsetOfLengthAndFlags(),
                                  ACCSET_STRING),
-                    "mLengthAndFlags");
+                    "lengthAndFlags");
     }
 
     nj::LIns *ldpStringChars(nj::LIns *str) const {
-        return name(lir->insLoad(nj::LIR_ldp, str, offsetof(JSString, mChars), ACCSET_STRING),
-                    "mChars");
+        return name(lir->insLoad(nj::LIR_ldp, str, JSString::offsetOfChars(), ACCSET_STRING),
+                    "chars");
     }
 
     nj::LIns *lduc2uiConstTypeMapEntry(nj::LIns *typemap, nj::LIns *index) const {
@@ -900,6 +904,10 @@ class Writer
         return lir->ins2ImmI(nj::LIR_ltui, x, imm);
     }
 
+    nj::LIns *gtui(nj::LIns *x, nj::LIns *y) const {
+        return lir->ins2(nj::LIR_gtui, x, y);
+    }
+
     nj::LIns *leui(nj::LIns *x, nj::LIns *y) const {
         return lir->ins2(nj::LIR_leui, x, y);
     }
@@ -1124,8 +1132,12 @@ class Writer
     }
 #endif
 
-    nj::LIns *demote(nj::LIns *ins) const {
-        return Demote(lir, ins);
+    nj::LIns *demoteToInt32(nj::LIns *ins) const {
+        return DemoteToInt32(lir, ins);
+    }
+
+    nj::LIns *demoteToUint32(nj::LIns *ins) const {
+        return DemoteToUint32(lir, ins);
     }
 
     /* Overflow arithmetic */
@@ -1185,7 +1197,7 @@ class Writer
     }
 
     nj::LIns *getStringLength(nj::LIns *str) const {
-        return name(rshupN(ldpStringLengthAndFlags(str), JSString::FLAGS_LENGTH_SHIFT),
+        return name(rshupN(ldpStringLengthAndFlags(str), JSString::LENGTH_SHIFT),
                     "strLength");
     }
 

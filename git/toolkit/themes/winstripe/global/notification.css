@@ -99,14 +99,10 @@ notification[type="critical"] .messageImage {
   }
 
   .popup-notification-menubutton > .button-menubutton-button {
-%ifdef WINSTRIPE_AERO
-    padding: 0;
-%else
-    padding: 2px 0;
-%endif
     -moz-padding-start: 8px;
     -moz-padding-end: 5px;
     -moz-border-end: none;
+    background-color: transparent;
   }
 
   .popup-notification-menubutton > .button-menubutton-dropmarker {
@@ -151,3 +147,8 @@ notification[type="critical"] .messageImage {
   }
 }
 %endif
+
+.popup-notification-closeitem {
+  list-style-image: url("chrome://global/skin/icons/close.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
+}
