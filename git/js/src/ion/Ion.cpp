@@ -45,6 +45,7 @@
 #include "vm/Stack-inl.h"
 #include "ion/IonFrames-inl.h"
 #include "ion/CompilerRoot.h"
+#include "methodjit/Retcon.h"
 #include "ExecutionModeInlines.h"
 
 #if JS_TRACE_LOGGING
@@ -1293,7 +1294,10 @@ AttachFinishedCompilations(JSContext *cx)
                 success = codegen->link();
             }
 
-            if (!success) {
+            if (success) {
+                if (script->hasIonScript())
+                    mjit::DisableScriptCodeForIon(script, script->ionScript()->osrPc());
+            } else {
                 // Silently ignore OOM during code generation, we're at an
                 // operation callback and can't propagate failures.
                 cx->clearPendingException();
@@ -1586,8 +1590,8 @@ Compile(JSContext *cx, HandleScript script, AbstractFramePtr fp, jsbytecode *osr
     }
 
     if (executionMode == SequentialExecution) {
-        if (IsBaselineEnabled(cx)) {
-            // If Baseline is enabled we use getUseCount instead of incUseCount to avoid
+        if (cx->methodJitEnabled || IsBaselineEnabled(cx)) {
+            // If JM is enabled we use getUseCount instead of incUseCount to avoid
             // bumping the use count twice.
             if (script->getUseCount() < js_IonOptions.usesBeforeCompile)
                 return Method_Skipped;
@@ -1944,6 +1948,8 @@ EnterIon(JSContext *cx, StackFrame *fp, void *jitcode)
 
     void *calleeToken;
     if (fp->isFunctionFrame()) {
+        fp->cleanupTornValues();
+
         // CountArgSlot include |this| and the |scopeChain| and maybe |argumentsObj|.
         // Keep |this|, but discard the others.
         maxArgc = CountArgSlots(fp->script(), fp->fun()) - StartArgSlot(fp->script(), fp->fun());
@@ -2291,6 +2297,8 @@ ion::Invalidate(types::TypeCompartment &types, FreeOp *fop,
     for (size_t i = 0; i < invalid.length(); i++) {
         const types::CompilerOutput &co = *invalid[i].compilerOutput(types);
         switch (co.kind()) {
+          case types::CompilerOutput::MethodJIT:
+            break;
           case types::CompilerOutput::Ion:
           case types::CompilerOutput::ParallelIon:
             JS_ASSERT(co.isValid());
@@ -2320,6 +2328,8 @@ ion::Invalidate(types::TypeCompartment &types, FreeOp *fop,
         types::CompilerOutput &co = *invalid[i].compilerOutput(types);
         ExecutionMode executionMode = SequentialExecution;
         switch (co.kind()) {
+          case types::CompilerOutput::MethodJIT:
+            continue;
           case types::CompilerOutput::Ion:
             break;
           case types::CompilerOutput::ParallelIon:

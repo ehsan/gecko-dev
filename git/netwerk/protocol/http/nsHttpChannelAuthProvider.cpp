@@ -51,7 +51,7 @@ nsHttpChannelAuthProvider::nsHttpChannelAuthProvider()
 
 nsHttpChannelAuthProvider::~nsHttpChannelAuthProvider()
 {
-    MOZ_ASSERT(!mAuthChannel, "Disconnect wasn't called");
+    NS_ASSERTION(!mAuthChannel, "Disconnect wasn't called");
 
     // release our reference to the handler
     nsHttpHandler *handler = gHttpHandler;
@@ -61,7 +61,7 @@ nsHttpChannelAuthProvider::~nsHttpChannelAuthProvider()
 NS_IMETHODIMP
 nsHttpChannelAuthProvider::Init(nsIHttpAuthenticableChannel *channel)
 {
-    MOZ_ASSERT(channel, "channel expected!");
+    NS_ASSERTION(channel, "channel expected!");
 
     mAuthChannel = channel;
 
@@ -95,7 +95,7 @@ nsHttpChannelAuthProvider::ProcessAuthentication(uint32_t httpStatus,
          "[this=%p channel=%p code=%u SSLConnectFailed=%d]\n",
          this, mAuthChannel, httpStatus, SSLConnectFailed));
 
-    MOZ_ASSERT(mAuthChannel, "Channel not initialized");
+    NS_ASSERTION(mAuthChannel, "Channel not initialized");
 
     nsCOMPtr<nsIProxyInfo> proxyInfo;
     nsresult rv = mAuthChannel->GetProxyInfo(getter_AddRefs(proxyInfo));
@@ -158,7 +158,7 @@ nsHttpChannelAuthProvider::AddAuthorizationHeaders()
     LOG(("nsHttpChannelAuthProvider::AddAuthorizationHeaders? "
          "[this=%p channel=%p]\n", this, mAuthChannel));
 
-    MOZ_ASSERT(mAuthChannel, "Channel not initialized");
+    NS_ASSERTION(mAuthChannel, "Channel not initialized");
 
     nsCOMPtr<nsIProxyInfo> proxyInfo;
     nsresult rv = mAuthChannel->GetProxyInfo(getter_AddRefs(proxyInfo));
@@ -209,7 +209,7 @@ nsHttpChannelAuthProvider::CheckForSuperfluousAuth()
     LOG(("nsHttpChannelAuthProvider::CheckForSuperfluousAuth? "
          "[this=%p channel=%p]\n", this, mAuthChannel));
 
-    MOZ_ASSERT(mAuthChannel, "Channel not initialized");
+    NS_ASSERTION(mAuthChannel, "Channel not initialized");
 
     // we've been called because it has been determined that this channel is
     // getting loaded without taking the userpass from the URL.  if the URL
@@ -228,7 +228,7 @@ nsHttpChannelAuthProvider::CheckForSuperfluousAuth()
 NS_IMETHODIMP
 nsHttpChannelAuthProvider::Cancel(nsresult status)
 {
-    MOZ_ASSERT(mAuthChannel, "Channel not initialized");
+    NS_ASSERTION(mAuthChannel, "Channel not initialized");
 
     if (mAsyncPromptAuthCancelable) {
         mAsyncPromptAuthCancelable->Cancel(status);
@@ -550,8 +550,8 @@ nsHttpChannelAuthProvider::GetAuthorizationMembers(bool                 proxyAut
                                                    nsISupports**&       continuationState)
 {
     if (proxyAuth) {
-        MOZ_ASSERT (UsingHttpProxy(),
-                    "proxyAuth is true, but no HTTP proxy is configured!");
+        NS_ASSERTION (UsingHttpProxy(),
+                      "proxyAuth is true, but no HTTP proxy is configured!");
 
         host = ProxyHost();
         port = ProxyPort();
@@ -1039,7 +1039,7 @@ NS_IMETHODIMP nsHttpChannelAuthProvider::OnAuthAvailable(nsISupports *aContext,
     rv = GetAuthenticator(mCurrentChallenge.get(), unused,
                           getter_AddRefs(auth));
     if (NS_FAILED(rv)) {
-        MOZ_ASSERT(false, "GetAuthenticator failed");
+        NS_ASSERTION(false, "GetAuthenticator failed");
         OnAuthCancelled(aContext, true);
         return NS_OK;
     }

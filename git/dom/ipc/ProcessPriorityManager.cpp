@@ -17,7 +17,6 @@
 #include "nsPrintfCString.h"
 #include "nsWeakPtr.h"
 #include "nsXULAppAPI.h"
-#include "nsIFrameLoader.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsITimer.h"
 #include "nsIObserver.h"

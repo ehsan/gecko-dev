@@ -160,39 +160,8 @@ TextureImageTextureHostOGL::SetCompositor(Compositor* aCompositor)
 }
 
 void
-TextureImageTextureHostOGL::EnsureBuffer(const nsIntSize& aSize,
-                                         gfxContentType aContentType)
-{
-  if (!mTexture ||
-      mTexture->GetSize() != aSize ||
-      mTexture->GetContentType() != aContentType) {
-    mTexture = mGL->CreateTextureImage(aSize,
-                                       aContentType,
-                                       WrapMode(mGL, mFlags & AllowRepeat),
-                                       FlagsToGLFlags(mFlags));
-  }
-  mTexture->Resize(aSize);
-}
-
-void
-TextureImageTextureHostOGL::CopyTo(const nsIntRect& aSourceRect,
-                                   TextureHost *aDest,
-                                   const nsIntRect& aDestRect)
-{
-  MOZ_ASSERT(aDest->AsSourceOGL(), "Incompatible destination type!");
-  TextureImageTextureHostOGL *dest =
-    aDest->AsSourceOGL()->AsTextureImageTextureHost();
-  MOZ_ASSERT(dest, "Incompatible destination type!");
-
-  mGL->BlitTextureImage(mTexture, aSourceRect,
-                        dest->mTexture, aDestRect);
-  dest->mTexture->MarkValid();
-}
-
-void
 TextureImageTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
-                                       nsIntRegion* aRegion,
-                                       nsIntPoint* aOffset)
+                                       nsIntRegion* aRegion)
 {
   if (!mGL) {
     NS_WARNING("trying to update TextureImageTextureHostOGL without a compositor?");
@@ -202,7 +171,7 @@ TextureImageTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
   nsIntSize size = surf.Size();
 
   if (!mTexture ||
-      (mTexture->GetSize() != size && !aOffset) ||
+      mTexture->GetSize() != size ||
       mTexture->GetContentType() != surf.ContentType()) {
     mTexture = mGL->CreateTextureImage(size,
                                        surf.ContentType(),
@@ -218,12 +187,7 @@ TextureImageTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
   } else {
     updateRegion = *aRegion;
   }
-  nsIntPoint offset;
-  if (aOffset) {
-    offset = *aOffset;
-  }
-  mTexture->DirectUpdate(surf.Get(), updateRegion, offset);
-  mFormat = FormatFromShaderType(mTexture->GetShaderProgramType());
+  mTexture->DirectUpdate(surf.Get(), updateRegion);
 
   if (mTexture->InUpdate()) {
     mTexture->EndUpdate();
@@ -273,8 +237,7 @@ SharedTextureHostOGL::DeleteTextures()
 
 void
 SharedTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
-                                 nsIntRegion* aRegion,
-                                 nsIntPoint* aOffset)
+                                 nsIntRegion* aRegion)
 {
   SwapTexturesImpl(aImage, aRegion);
 }
@@ -483,8 +446,7 @@ YCbCrTextureHostOGL::SetCompositor(Compositor* aCompositor)
 
 void
 YCbCrTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
-                                nsIntRegion* aRegion,
-                                nsIntPoint* aOffset)
+                                nsIntRegion* aRegion)
 {
   if (!mGL) {
     return;
@@ -739,8 +701,7 @@ RegisterTextureHostAtGrallocBufferActor(TextureHost* aTextureHost, const Surface
 
 void
 GrallocTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
-                                 nsIntRegion* aRegion,
-                                 nsIntPoint* aOffset)
+                                 nsIntRegion* aRegion)
 {
   SwapTexturesImpl(aImage, aRegion);
 }

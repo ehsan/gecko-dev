@@ -118,23 +118,11 @@ public class VideoCaptureDeviceInfoAndroid {
                     camera = null;
                     deviceList.add(newDevice);
                 }
-            } else {
-                camera = Camera.open();
-                Camera.Parameters parameters = camera.getParameters();
-                AndroidVideoCaptureDevice newDevice = new AndroidVideoCaptureDevice();
-                AddDeviceInfo(newDevice, parameters);
-                newDevice.deviceUniqueName = "Camera";
-                camera.release();
-                camera = null;
-                deviceList.add(newDevice);
             }
         }
         catch (Exception ex) {
-            Log.e(TAG, "Failed to init VideoCaptureDeviceInfo exception: " +
-                    ex.getMessage());
-            if (camera != null) {
-                camera.release();
-            }
+            Log.e(TAG, "Failed to init VideoCaptureDeviceInfo ex" +
+                    ex.getLocalizedMessage());
             return -1;
         }
         VerifyCapabilities();
@@ -148,11 +136,9 @@ public class VideoCaptureDeviceInfoAndroid {
         List<Size> sizes = parameters.getSupportedPreviewSizes();
         List<Integer> frameRates = parameters.getSupportedPreviewFrameRates();
         int maxFPS = 0;
-        if (frameRates != null) {
-            for(Integer frameRate:frameRates) {
-                if(frameRate > maxFPS) {
-                    maxFPS = frameRate;
-                }
+        for(Integer frameRate:frameRates) {
+            if(frameRate > maxFPS) {
+                maxFPS = frameRate;
             }
         }
 

@@ -22,7 +22,7 @@ Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
                                   "resource:///modules/devtools/gDevTools.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "devtools",
-                                  "resource://gre/modules/devtools/Loader.jsm");
+                                  "resource:///modules/devtools/gDevTools.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
                                   "resource:///modules/devtools/AppCacheUtils.jsm");
 
@@ -1928,7 +1928,7 @@ const { DebuggerServer } = Cu.import("resource://gre/modules/devtools/dbg-server
 gcli.addCommand({
   name: "listen",
   description: gcli.lookup("listenDesc"),
-  manual: gcli.lookupFormat("listenManual2", [BRAND_SHORT_NAME]),
+  manual: gcli.lookup("listenManual"),
   params: [
     {
       name: "port",

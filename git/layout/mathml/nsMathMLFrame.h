@@ -28,7 +28,7 @@ public:
   // nsIMathMLFrame ---
 
   virtual bool
-  IsSpaceLike() MOZ_OVERRIDE {
+  IsSpaceLike() {
     return NS_MATHML_IS_SPACE_LIKE(mPresentationData.flags);
   }
 

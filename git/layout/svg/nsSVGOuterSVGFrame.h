@@ -6,7 +6,6 @@
 #ifndef __NS_SVGOUTERSVGFRAME_H__
 #define __NS_SVGOUTERSVGFRAME_H__
 
-#include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
 #include "nsISVGSVGFrame.h"
 #include "nsSVGContainerFrame.h"
@@ -104,7 +103,7 @@ public:
   }
 
   // nsISVGSVGFrame interface:
-  virtual void NotifyViewportOrTransformChanged(uint32_t aFlags) MOZ_OVERRIDE;
+  virtual void NotifyViewportOrTransformChanged(uint32_t aFlags);
 
   // nsISVGChildFrame methods:
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,

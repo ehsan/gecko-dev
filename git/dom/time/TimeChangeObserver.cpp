@@ -11,7 +11,6 @@
 #include "nsDOMEvent.h"
 #include "nsContentUtils.h"
 #include "nsIObserverService.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 using namespace mozilla::hal;

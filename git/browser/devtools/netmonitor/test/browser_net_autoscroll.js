@@ -20,6 +20,7 @@ function test() {
   // (1) Check that the scroll position is maintained at the bottom
   // when the requests overflow the vertical size of the container.
   .then(() => {
+    debuggee.performRequests();
     return waitForRequestsToOverflowContainer(monitor, requestsContainer);
   }).then(() => {
     ok(scrolledToBottom(requestsContainer), "Scrolled to bottom on overflow.");

@@ -17,11 +17,9 @@
 #include "DOMCameraCapabilities.h"
 #include "DOMCameraControl.h"
 #include "CameraCommon.h"
-#include "mozilla/dom/CameraManagerBinding.h"
-#include "mozilla/dom/BindingUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
+using namespace dom;
 
 DOMCI_DATA(CameraControl, nsICameraControl)
 
@@ -284,8 +282,7 @@ nsDOMCameraControl::StartRecording(const JS::Value& aOptions, nsIDOMDeviceStorag
   #endif
 
   nsCOMPtr<nsIFile> folder;
-  rv = storageArea->GetRootDirectoryForFile(filename, getter_AddRefs(folder));
-  NS_ENSURE_SUCCESS(rv, rv);
+  storageArea->GetRootDirectory(getter_AddRefs(folder));
   return mCameraControl->StartRecording(&options, folder, filename, onSuccess, onError);
 }
 
@@ -352,16 +349,14 @@ nsDOMCameraControl::TakePicture(const JS::Value& aOptions, nsICameraTakePictureC
 {
   NS_ENSURE_TRUE(onSuccess, NS_ERROR_INVALID_ARG);
 
-  RootedDictionary<CameraPictureOptions> options(cx);
+  mozilla::idl::CameraPictureOptions options;
   mozilla::idl::CameraSize           size;
   mozilla::idl::CameraPosition       pos;
 
-  JS::Rooted<JS::Value> optionVal(cx, aOptions);
-  if (!options.Init(cx, optionVal)) {
-    return NS_ERROR_FAILURE;
-  }
+  nsresult rv = options.Init(cx, &aOptions);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsresult rv = size.Init(cx, &options.mPictureSize);
+  rv = size.Init(cx, &options.pictureSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
   /**
@@ -372,10 +367,10 @@ nsDOMCameraControl::TakePicture(const JS::Value& aOptions, nsICameraTakePictureC
   pos.longitude = NAN;
   pos.altitude = NAN;
   pos.timestamp = NAN;
-  rv = pos.Init(cx, &options.mPosition);
+  rv = pos.Init(cx, &options.position);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return mCameraControl->TakePicture(size, options.mRotation, options.mFileFormat, pos, options.mDateTime, onSuccess, onError);
+  return mCameraControl->TakePicture(size, options.rotation, options.fileFormat, pos, options.dateTime, onSuccess, onError);
 }
 
 /* [implicit_jscontext] void GetPreviewStreamVideoMode (in jsval aOptions, in nsICameraPreviewStreamCallback onSuccess, [optional] in nsICameraErrorCallback onError); */

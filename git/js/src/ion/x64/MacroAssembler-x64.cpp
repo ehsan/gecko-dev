@@ -120,7 +120,8 @@ MacroAssemblerX64::callWithABIPre(uint32_t *stackAdjust)
 #ifdef DEBUG
     {
         Label good;
-        testq(rsp, Imm32(StackAlignment - 1));
+        movl(rsp, rax);
+        testq(rax, Imm32(StackAlignment - 1));
         j(Equal, &good);
         breakpoint();
         bind(&good);

@@ -5,6 +5,7 @@
 
 #include "mozilla/dom/SVGTSpanElement.h"
 #include "mozilla/dom/SVGTSpanElementBinding.h"
+#include "nsContentUtils.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(TSpan)
 
@@ -49,6 +50,12 @@ SVGTSpanElement::IsAttributeMapped(const nsIAtom* name) const
 
   return FindAttributeDependence(name, map) ||
     SVGTSpanElementBase::IsAttributeMapped(name);
+}
+
+bool
+SVGTSpanElement::IsEventAttributeName(nsIAtom* aName)
+{
+  return nsContentUtils::IsEventAttributeName(aName, EventNameType_SVGGraphic);
 }
 
 } // namespace dom

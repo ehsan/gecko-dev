@@ -345,7 +345,12 @@ class AutoPropDescRooter : private JS::CustomAutoRooter
     StrictPropertyOp setter() const { return propDesc.setter(); }
 
   private:
-    virtual void trace(JSTracer *trc);
+    virtual void trace(JSTracer *trc) {
+        traceValue(trc, &propDesc.pd_, "AutoPropDescRooter pd");
+        traceValue(trc, &propDesc.value_, "AutoPropDescRooter value");
+        traceValue(trc, &propDesc.get_, "AutoPropDescRooter get");
+        traceValue(trc, &propDesc.set_, "AutoPropDescRooter set");
+    }
 
     PropDesc propDesc;
     SkipRoot skip;

@@ -21,6 +21,7 @@
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
 #include "gc/Marking.h"
+#include "methodjit/Retcon.h"
 #include "ion/BaselineJIT.h"
 #include "js/Vector.h"
 
@@ -236,6 +237,13 @@ BreakpointSite::BreakpointSite(JSScript *script, jsbytecode *pc)
 void
 BreakpointSite::recompile(FreeOp *fop)
 {
+#ifdef JS_METHODJIT
+    if (script->hasMJITInfo()) {
+        mjit::Recompiler::clearStackReferences(fop, script);
+        mjit::ReleaseScriptCode(fop, script);
+    }
+#endif
+
 #ifdef JS_ION
     if (script->hasBaselineScript())
         script->baselineScript()->toggleDebugTraps(script, pc);

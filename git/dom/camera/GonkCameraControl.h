@@ -65,7 +65,6 @@ public:
 
   void AutoFocusComplete(bool aSuccess);
   void TakePictureComplete(uint8_t* aData, uint32_t aLength);
-  void TakePictureError();
   void HandleRecorderEvent(int msg, int ext1, int ext2);
 
 protected:
@@ -128,7 +127,6 @@ private:
 
 // camera driver callbacks
 void ReceiveImage(nsGonkCameraControl* gc, uint8_t* aData, uint32_t aLength);
-void ReceiveImageError(nsGonkCameraControl* gc);
 void AutoFocusComplete(nsGonkCameraControl* gc, bool aSuccess);
 void ReceiveFrame(nsGonkCameraControl* gc, layers::GraphicBufferLocked* aBuffer);
 void OnShutter(nsGonkCameraControl* gc);

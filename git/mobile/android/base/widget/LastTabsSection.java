@@ -61,7 +61,7 @@ public class LastTabsSection extends AboutHomeSection {
                 new SessionParser() {
                     @Override
                     public void onTabRead(final SessionTab tab) {
-                        final String url = tab.getUrl();
+                        final String url = tab.getSelectedUrl();
                         // don't show last tabs for about:home
                         if (url.equals("about:home")) {
                             return;
@@ -69,7 +69,7 @@ public class LastTabsSection extends AboutHomeSection {
 
                         ContentResolver resolver = mContext.getContentResolver();
                         final Bitmap favicon = BrowserDB.getFaviconForUrl(resolver, url);
-                        final String title = tab.getTitle();
+                        final String title = tab.getSelectedTitle();
                         lastTabs.add(new TabInfo(url, title, favicon));
                     }
                 }.parse(jsonString);

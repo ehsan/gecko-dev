@@ -6,7 +6,6 @@
 #ifndef nsMathMLmmultiscriptsFrame_h___
 #define nsMathMLmmultiscriptsFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
@@ -21,12 +20,12 @@ public:
   friend nsIFrame* NS_NewMathMLmmultiscriptsFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE;
+  TransmitAutomaticData();
 
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+        nsHTMLReflowMetrics& aDesiredSize);
 
 protected:
   nsMathMLmmultiscriptsFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}

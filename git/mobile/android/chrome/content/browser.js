@@ -179,14 +179,6 @@ function fuzzyEquals(a, b) {
   return (Math.abs(a - b) < 1e-6);
 }
 
-/**
- * Convert a font size from CSS pixels (px) to twenteiths-of-a-point
- * (twips).
- */
-function convertFromPxToTwips(aSize) {
-  return (20.0 * 12.0 * (aSize/16.0));
-}
-
 #ifdef MOZ_CRASHREPORTER
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
@@ -956,14 +948,6 @@ var BrowserApp = {
     webBrowserPrint.print(printSettings, download);
   },
 
-  notifyPrefObservers: function(aPref) {
-    this._prefObservers[aPref].forEach(function(aRequestId) {
-      let request = { requestId : aRequestId,
-                      preferences : [aPref] };
-      this.getPreferences(request);
-    }, this);
-  },
-
   getPreferences: function getPreferences(aPrefsRequest, aListen) {
     let prefs = [];
 
@@ -1070,7 +1054,6 @@ var BrowserApp = {
       // determine which ui elements to show, we need to normalize these
       // preferences to be actual booleans.
       switch (prefName) {
-        case "browser.chrome.titlebarMode":
         case "network.cookie.cookieBehavior":
         case "font.size.inflation.minTwips":
           pref.type = "string";
@@ -1161,7 +1144,6 @@ var BrowserApp = {
       // When sending to Java, we normalized special preferences that use
       // integers and strings to represent booleans. Here, we convert them back
       // to their actual types so we can store them.
-      case "browser.chrome.titlebarMode":
       case "network.cookie.cookieBehavior":
       case "font.size.inflation.minTwips":
         json.type = "int";
@@ -1458,7 +1440,11 @@ var BrowserApp = {
         break;
 
       case "nsPref:changed":
-        this.notifyPrefObservers(aData);
+        for each (let requestId in this._prefObservers[aData]) {
+          let request = { requestId : requestId,
+                          preferences : [ aData ] };
+          this.getPreferences(request, false);
+        }
         break;
 
       default:
@@ -2604,45 +2590,16 @@ Tab.prototype = {
     }
   },
 
-  /**
-   * Retrieves the font size in twips for a given element.
-   */
-  getFontSizeInTwipsFor: function(aElement) {
-    // GetComputedStyle should always give us CSS pixels for a font size.
-    let fontSizeStr = this.window.getComputedStyle(aElement)['fontSize'];
-    let fontSize = fontSizeStr.slice(0, -2);
-    // This is in px, so we want to convert it to points then to twips.
-    return convertFromPxToTwips(fontSize);
-  },
-
-  /**
-   * This returns the zoom necessary to match the font size of an element to
-   * the minimum font size specified by the browser.zoom.reflowOnZoom.minFontSizeTwips
-   * preference.
-   */
-  getZoomToMinFontSize: function(aElement) {
-    let currentZoom = this._zoom;
-    let minFontSize = Services.prefs.getIntPref("browser.zoom.reflowZoom.minFontSizeTwips");
-    let curFontSize = this.getFontSizeInTwipsFor(aElement);
-    if (!fuzzyEquals(curFontSize*(currentZoom), minFontSize)) {
-      return 1.0 + minFontSize / curFontSize;
-    }
-
-    return 1.0;
-  },
-
   performReflowOnZoom: function(aViewport) {
-      let zoom = this._drawZoom ? this._drawZoom : aViewport.zoom;
-
-      let viewportWidth = gScreenWidth / zoom;
+      let viewportWidth = gScreenWidth / aViewport.zoom;
       let reflozTimeout = Services.prefs.getIntPref("browser.zoom.reflowZoom.reflowTimeout");
 
       if (gReflowPending) {
         clearTimeout(gReflowPending);
       }
 
-      // We add in a bit of fudge just so that the end characters
-      // don't accidentally get clipped. 15px is an arbitrary choice.
+      // We add in a bit of fudge just so that the end characters don't accidentally
+      // get clipped. 15px is an arbitrary choice.
       gReflowPending = setTimeout(doChangeMaxLineBoxWidth,
                                   reflozTimeout,
                                   viewportWidth - 15);
@@ -2997,21 +2954,7 @@ Tab.prototype = {
 
     // Adjust the max line box width to be no more than the viewport width, but
     // only if the reflow-on-zoom preference is enabled.
-    let isZooming = !fuzzyEquals(aViewport.zoom, this._zoom);
-    if (BrowserApp.selectedTab.reflozPinchSeen &&
-        isZooming && aViewport.zoom < 1.0) {
-      // In this case, we want to restore the max line box width,
-      // because we are pinch-zooming to zoom out.
-      BrowserEventHandler.resetMaxLineBoxWidth();
-      BrowserApp.selectedTab.reflozPinchSeen = false;
-    } else if (BrowserApp.selectedTab.reflozPinchSeen &&
-               isZooming) {
-      // In this case, the user pinch-zoomed in, so we don't want to
-      // preserve position as we would with reflow-on-zoom.
-      BrowserApp.selectedTab.probablyNeedRefloz = false;
-      BrowserApp.selectedTab._mReflozPoint = null;
-    }
-
+    let isZooming = Math.abs(aViewport.zoom - this._zoom) >= 1e-6;
     if (isZooming &&
         BrowserEventHandler.mReflozPref &&
         BrowserApp.selectedTab._mReflozPoint &&
@@ -3910,15 +3853,10 @@ var BrowserEventHandler = {
   },
 
   resetMaxLineBoxWidth: function() {
-    BrowserApp.selectedTab.probablyNeedRefloz = false;
-
-    if (gReflowPending) {
-      clearTimeout(gReflowPending);
-    }
-
-    let reflozTimeout = Services.prefs.getIntPref("browser.zoom.reflowZoom.reflowTimeout");
-    gReflowPending = setTimeout(doChangeMaxLineBoxWidth,
-                                reflozTimeout, 0);
+    let webNav = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+    let docShell = webNav.QueryInterface(Ci.nsIDocShell);
+    let docViewer = docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
+    docViewer.changeMaxLineBoxWidth(0);
   },
 
   updateReflozPref: function() {
@@ -4149,18 +4087,6 @@ var BrowserEventHandler = {
   onDoubleTap: function(aData) {
     let data = JSON.parse(aData);
 
-    // We only want to do this if reflow-on-zoom is enabled.
-    if (BrowserEventHandler.mReflozPref &&
-       !BrowserApp.selectedTab._mReflozPoint) {
-     let data = JSON.parse(aData);
-     let zoomPointX = data.x;
-     let zoomPointY = data.y;
-
-     BrowserApp.selectedTab._mReflozPoint = { x: zoomPointX, y: zoomPointY,
-       range: BrowserApp.selectedBrowser.contentDocument.caretPositionFromPoint(zoomPointX, zoomPointY) };
-       BrowserApp.selectedTab.probablyNeedRefloz = true;
-    }
-
     let zoom = BrowserApp.selectedTab._zoom;
     let element = ElementTouchHelper.anyElementFromPoint(data.x, data.y);
     if (!element) {
@@ -4195,21 +4121,9 @@ var BrowserEventHandler = {
 
     // if the rect is already taking up most of the visible area and is stretching the
     // width of the page, then we want to zoom out instead.
-    if (BrowserEventHandler.mReflozPref) {
-      let zoomFactor = BrowserApp.selectedTab.getZoomToMinFontSize(aElement);
-
-      bRect.width = zoomFactor == 1.0 ? bRect.width : gScreenWidth / zoomFactor;
-      bRect.height = zoomFactor == 1.0 ? bRect.height : bRect.height / zoomFactor;
-      if (zoomFactor == 1.0 || this._isRectZoomedIn(bRect, viewport)) {
-        if (aCanZoomOut) {
-          this._zoomOut();
-        }
-        return;
-      }
-    } else if (this._isRectZoomedIn(bRect, viewport)) {
-      if (aCanZoomOut) {
+    if (this._isRectZoomedIn(bRect, viewport)) {
+      if (aCanZoomOut)
         this._zoomOut();
-      }
       return;
     }
 

@@ -246,7 +246,6 @@ gfxPlatform::gfxPlatform()
     mFallbackUsesCmaps = UNINITIALIZED_VALUE;
 
     mGraphiteShapingEnabled = UNINITIALIZED_VALUE;
-    mOpenTypeSVGEnabled = UNINITIALIZED_VALUE;
     mBidiNumeralOption = UNINITIALIZED_VALUE;
 
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
@@ -874,17 +873,6 @@ gfxPlatform::UseCmapsDuringSystemFallback()
     }
 
     return mFallbackUsesCmaps;
-}
-
-bool
-gfxPlatform::OpenTypeSVGEnabled()
-{
-    if (mOpenTypeSVGEnabled == UNINITIALIZED_VALUE) {
-        mOpenTypeSVGEnabled =
-            Preferences::GetBool(GFX_PREF_OPENTYPE_SVG, false);
-    }
-
-    return mOpenTypeSVGEnabled > 0;
 }
 
 bool
@@ -1686,7 +1674,6 @@ gfxPlatform::FontsPrefsChanged(const char *aPref)
     } else if (!strcmp(BIDI_NUMERAL_PREF, aPref)) {
         mBidiNumeralOption = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_PREF_OPENTYPE_SVG, aPref)) {
-        mOpenTypeSVGEnabled = UNINITIALIZED_VALUE;
         gfxFontCache::GetCache()->AgeAllGenerations();
     }
 }

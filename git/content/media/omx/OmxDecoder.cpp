@@ -8,7 +8,6 @@
 
 #include "base/basictypes.h"
 #include <cutils/properties.h>
-#include <stagefright/foundation/AMessage.h>
 #include <stagefright/MediaExtractor.h>
 #include <stagefright/MetaData.h>
 #include <stagefright/OMXClient.h>
@@ -59,11 +58,7 @@ VideoGraphicBuffer::Unlock()
 {
   android::sp<android::OmxDecoder> omxDecoder = mOmxDecoder.promote();
   if (omxDecoder.get()) {
-    // Post kNotifyPostReleaseVideoBuffer message to OmxDecoder via ALooper.
-    // The message is delivered to OmxDecoder on ALooper thread.
-    // MediaBuffer::release() could take a very long time.
-    // PostReleaseVideoBuffer() prevents long time locking.
-    omxDecoder->PostReleaseVideoBuffer(mMediaBuffer);
+    omxDecoder->ReleaseVideoBuffer(mMediaBuffer);
   } else {
     NS_WARNING("OmxDecoder is not present");
     if (mMediaBuffer) {
@@ -150,24 +145,10 @@ OmxDecoder::OmxDecoder(MediaResource *aResource,
   mAudioMetadataRead(false),
   mPaused(false)
 {
-  mLooper = new ALooper;
-  mLooper->setName("OmxDecoder");
-
-  mReflector = new AHandlerReflector<OmxDecoder>(this);
-  // Register AMessage handler to ALooper.
-  mLooper->registerHandler(mReflector);
-  // Start ALooper thread.
-  mLooper->start();
 }
 
 OmxDecoder::~OmxDecoder()
 {
-  {
-    // Free all pending video buffers.
-    Mutex::Autolock autoLock(mSeekLock);
-    ReleaseAllPendingVideoBuffersLocked();
-  }
-
   ReleaseVideoBuffer();
   ReleaseAudioBuffer();
 
@@ -178,11 +159,6 @@ OmxDecoder::~OmxDecoder()
   if (mAudioSource.get()) {
     mAudioSource->stop();
   }
-
-  // unregister AMessage handler from ALooper.
-  mLooper->unregisterHandler(mReflector->id());
-  // Stop ALooper thread.
-  mLooper->stop();
 }
 
 class AutoStopMediaSource {
@@ -280,13 +256,6 @@ bool OmxDecoder::Init() {
     // for (h.264).  So if we don't get a hardware decoder, just give
     // up.
     int flags = kHardwareCodecsOnly;
-
-    char propQemu[PROPERTY_VALUE_MAX];
-    property_get("ro.kernel.qemu", propQemu, "");
-    if (!strncmp(propQemu, "1", 1)) {
-      // If we are in emulator, allow to fall back to software.
-      flags = 0;
-    }
     videoSource = OMXCodec::Create(omx,
                                    videoTrack->getFormat(),
                                    false, // decoder
@@ -635,9 +604,6 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
     // don't keep trying to decode if the decoder doesn't want to.
     return false;
   }
-  else if (err != OK && err != -ETIMEDOUT) {
-    return false;
-  }
 
   return true;
 }
@@ -691,11 +657,34 @@ bool OmxDecoder::ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs)
   else if (err == UNKNOWN_ERROR) {
     return false;
   }
-  else if (err != OK && err != -ETIMEDOUT) {
+
+  return true;
+}
+
+bool OmxDecoder::ReleaseVideoBuffer(MediaBuffer *aBuffer)
+{
+  Mutex::Autolock autoLock(mSeekLock);
+
+  if (!aBuffer) {
     return false;
   }
 
+  if (mIsVideoSeeking == true) {
+    mPendingVideoBuffers.push(aBuffer);
+  } else {
+    aBuffer->release();
+  }
   return true;
+}
+
+void OmxDecoder::ReleaseAllPendingVideoBuffersLocked()
+{
+  int size = mPendingVideoBuffers.size();
+  for (int i = 0; i < size; i++) {
+    MediaBuffer *buffer = mPendingVideoBuffers[i];
+    buffer->release();
+  }
+  mPendingVideoBuffers.clear();
 }
 
 nsresult OmxDecoder::Play() {
@@ -725,53 +714,5 @@ void OmxDecoder::Pause() {
     mAudioSource->pause();
   }
   mPaused = true;
-}
-
-// Called on ALooper thread.
-void OmxDecoder::onMessageReceived(const sp<AMessage> &msg)
-{
-  Mutex::Autolock autoLock(mSeekLock);
-
-  // Free pending video buffers when OmxDecoder is not seeking video.
-  // If OmxDecoder is in seeking video, the buffers are freed on seek exit. 
-  if (mIsVideoSeeking != true) {
-    ReleaseAllPendingVideoBuffersLocked();
-  }
-}
-
-void OmxDecoder::PostReleaseVideoBuffer(MediaBuffer *aBuffer)
-{
-  {
-    Mutex::Autolock autoLock(mPendingVideoBuffersLock);
-    mPendingVideoBuffers.push(aBuffer);
-  }
-
-  sp<AMessage> notify =
-            new AMessage(kNotifyPostReleaseVideoBuffer, mReflector->id());
-  // post AMessage to OmxDecoder via ALooper.
-  notify->post();
-}
-
-void OmxDecoder::ReleaseAllPendingVideoBuffersLocked()
-{
-  Vector<MediaBuffer *> releasingVideoBuffers;
-  {
-    Mutex::Autolock autoLock(mPendingVideoBuffersLock);
-
-    int size = mPendingVideoBuffers.size();
-    for (int i = 0; i < size; i++) {
-      MediaBuffer *buffer = mPendingVideoBuffers[i];
-      releasingVideoBuffers.push(buffer);
-    }
-    mPendingVideoBuffers.clear();
-  }
-  // Free all pending video buffers without holding mPendingVideoBuffersLock.
-  int size = releasingVideoBuffers.size();
-  for (int i = 0; i < size; i++) {
-    MediaBuffer *buffer;
-    buffer = releasingVideoBuffers[i];
-    buffer->release();
-  }
-  releasingVideoBuffers.clear();
 }
 

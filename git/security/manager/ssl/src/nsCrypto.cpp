@@ -1916,7 +1916,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   JSAutoByteString jsCallback(cx, jsString);
   NS_ENSURE_TRUE(!!jsCallback, NS_ERROR_OUT_OF_MEMORY);
 
-  nrv = xpc->WrapNative(cx, JS_GetGlobalForScopeChain(cx),
+  nrv = xpc->WrapNative(cx, ::JS_GetGlobalObject(cx),
                         static_cast<nsIDOMCrypto *>(this),
                         NS_GET_IID(nsIDOMCrypto), getter_AddRefs(holder));
   NS_ENSURE_SUCCESS(nrv, nrv);
@@ -2176,9 +2176,14 @@ NS_IMETHODIMP
 nsCryptoRunnable::Run()
 {
   nsNSSShutDownPreventionLock locker;
-  AutoPushJSContext cx(m_args->m_cx);
+  JSContext *cx = m_args->m_cx;
+
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, m_args->m_scope);
+
+  // make sure the right context is on the stack. must not return w/out popping
+  nsCxPusher pusher;
+  pusher.Push(cx);
 
   JSBool ok =
     JS_EvaluateScriptForPrincipals(cx, m_args->m_scope,

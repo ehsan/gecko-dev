@@ -11,7 +11,10 @@
 #ifndef LIBEGL_DISPLAY_H_
 #define LIBEGL_DISPLAY_H_
 
-#include "common/system.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #include <d3d9.h>
 #include <d3dcompiler.h>
 

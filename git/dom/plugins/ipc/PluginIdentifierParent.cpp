@@ -6,9 +6,8 @@
 
 #include "PluginIdentifierParent.h"
 
-#include "nsContentUtils.h"
-#include "nsNPAPIPlugin.h"
 #include "nsServiceManagerUtils.h"
+#include "nsNPAPIPlugin.h"
 #include "PluginScriptableObjectUtils.h"
 #include "mozilla/unused.h"
 

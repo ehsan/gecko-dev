@@ -61,7 +61,6 @@ MmsMessage::MmsMessage(int32_t                         aId,
 
 MmsMessage::MmsMessage(const mobilemessage::MmsMessageData& aData)
   : mId(aData.id())
-  , mThreadId(aData.threadId())
   , mDelivery(aData.delivery())
   , mDeliveryStatus(aData.deliveryStatus())
   , mSender(aData.sender())
@@ -189,10 +188,6 @@ MmsMessage::Create(int32_t               aId,
       status = eDeliveryStatus_Pending;
     } else if (statusStr.Equals(DELIVERY_STATUS_ERROR)) {
       status = eDeliveryStatus_Error;
-    } else if (statusStr.Equals(DELIVERY_STATUS_REJECTED)) {
-      status = eDeliveryStatus_Reject;
-    } else if (statusStr.Equals(DELIVERY_STATUS_MANUAL)) {
-      status = eDeliveryStatus_Manual;
     } else {
       return NS_ERROR_INVALID_ARG;
     }
@@ -282,7 +277,6 @@ MmsMessage::GetData(ContentParent* aParent,
   NS_ASSERTION(aParent, "aParent is null");
 
   aData.id() = mId;
-  aData.threadId() = mThreadId;
   aData.delivery() = mDelivery;
   aData.deliveryStatus() = mDeliveryStatus;
   aData.sender().Assign(mSender);
@@ -386,12 +380,6 @@ MmsMessage::GetDeliveryStatus(JSContext* aCx, JS::Value* aDeliveryStatus)
         break;
       case eDeliveryStatus_Error:
         statusStr = DELIVERY_STATUS_ERROR;
-        break;
-      case eDeliveryStatus_Reject:
-        statusStr = DELIVERY_STATUS_REJECTED;
-        break;
-      case eDeliveryStatus_Manual:
-        statusStr = DELIVERY_STATUS_MANUAL;
         break;
       case eDeliveryStatus_EndGuard:
       default:

@@ -12,7 +12,10 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <bfd.h>
-#include <cxxabi.h>
+
+extern "C" {
+  char *cplus_demangle (const char *mangled, int options);
+}
 
 static bfd *try_debug_file(const char *filename, unsigned long crc32)
 {
@@ -201,12 +204,9 @@ void leaky::ReadSymbols(const char *aFileName, u_long aBaseAddress)
       if (nm && nm[0]) {
         char* dnm = NULL;
         if (strncmp("__thunk", nm, 7)) {
-          dnm = abi::__cxa_demangle(nm, 0, 0, 0);
+          dnm = cplus_demangle(nm, 1);
         }
         (*sp)->Init(dnm ? dnm : nm, syminfo.value + aBaseAddress);
-        if (dnm) {
-          free(dnm);
-        }
         NEXT_SYMBOL;
       }
 //    }

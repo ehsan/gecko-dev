@@ -450,6 +450,7 @@ AudioBufferSourceNode::AudioBufferSourceNode(AudioContext* aContext)
   , mLoop(false)
   , mStartCalled(false)
   , mStopped(false)
+  , mOffsetAndDurationRemembered(false)
 {
   AudioBufferSourceNodeEngine* engine =
       new AudioBufferSourceNodeEngine(this, aContext->Destination());
@@ -493,11 +494,12 @@ AudioBufferSourceNode::Start(double aWhen, double aOffset,
                       std::numeric_limits<double>::min();
     SendOffsetAndDurationParametersToStream(ns, aOffset, duration);
   } else {
-    // Remember our arguments so that we can use them once we have a buffer
+    // Remember our argument so that we can use them once we have a buffer
     mOffset = aOffset;
     mDuration = aDuration.WasPassed() ?
                 aDuration.Value() :
                 std::numeric_limits<double>::min();
+    mOffsetAndDurationRemembered = true;
   }
 
   // Don't set parameter unnecessarily
@@ -525,7 +527,9 @@ AudioBufferSourceNode::SendBufferParameterToStream(JSContext* aCx)
     ns->SetBuffer(nullptr);
   }
 
-  SendOffsetAndDurationParametersToStream(ns, mOffset, mDuration);
+  if (mOffsetAndDurationRemembered) {
+    SendOffsetAndDurationParametersToStream(ns, mOffset, mDuration);
+  }
 }
 
 void
@@ -553,16 +557,15 @@ AudioBufferSourceNode::SendOffsetAndDurationParametersToStream(AudioNodeStream* 
 }
 
 void
-AudioBufferSourceNode::Stop(double aWhen, ErrorResult& aRv, bool aShuttingDown)
+AudioBufferSourceNode::Stop(double aWhen, ErrorResult& aRv)
 {
   if (!mStartCalled) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
-  if (!mBuffer || aShuttingDown) {
+  if (!mBuffer) {
     // We don't have a buffer, so the stream is never marked as finished.
-    // This can also happen if the AudioContext is being shut down.
     // Therefore we need to drop our playing ref right now.
     mPlayingRef.Drop(this);
   }

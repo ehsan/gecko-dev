@@ -465,11 +465,18 @@ protected:
                       // in our constructor).
 };
 
-// Helper-function to find the first non-anonymous-box descendent of aFrame.
-static nsIFrame*
-GetFirstNonAnonBoxDescendant(nsIFrame* aFrame)
+/**
+ * Helper-function to find the nsIContent* that we should use for comparing the
+ * DOM tree position of the given flex-item frame.
+ *
+ * In most cases, this will be aFrame->GetContent(), but if aFrame is an
+ * anonymous container, then its GetContent() won't be what we want. In such
+ * cases, we need to find aFrame's first non-anonymous-container descendant.
+ */
+static nsIContent*
+GetContentForComparison(const nsIFrame* aFrame)
 {
-  MOZ_ASSERT(aFrame, "null frame passed to GetFirstNonAnonBoxDescendant()");
+  MOZ_ASSERT(aFrame, "null frame passed to GetContentForComparison()");
   MOZ_ASSERT(aFrame->IsFlexItem(), "only intended for flex items");
 
   while (true) {
@@ -479,7 +486,7 @@ GetFirstNonAnonBoxDescendant(nsIFrame* aFrame)
     if (!pseudoTag ||                                 // No pseudotag.
         !nsCSSAnonBoxes::IsAnonBox(pseudoTag) ||      // Pseudotag isn't anon.
         pseudoTag == nsCSSAnonBoxes::mozNonElement) { // Text, not a container.
-      return aFrame;
+      return aFrame->GetContent();
     }
 
     // Otherwise, descend to its first child and repeat.
@@ -521,14 +528,7 @@ IsOrderLEQWithDOMFallback(nsIFrame* aFrame1,
     return order1 < order2;
   }
 
-  // The "order" values are equal, so we need to fall back on DOM comparison.
-  // For that, we need to dig through any anonymous box wrapper frames to find
-  // the actual frame that corresponds to our child content.
-  aFrame1 = GetFirstNonAnonBoxDescendant(aFrame1);
-  aFrame2 = GetFirstNonAnonBoxDescendant(aFrame2);
-
-  // Special case:
-  // If either frame is for generated content from ::before or ::after, then
+  // If either frame is for generated content from :before or ::after, then
   // we can't use nsContentUtils::PositionIsBefore(), since that method won't
   // recognize generated content as being an actual sibling of other nodes.
   // We know where ::before and ::after nodes *effectively* insert in the DOM
@@ -546,9 +546,9 @@ IsOrderLEQWithDOMFallback(nsIFrame* aFrame1,
     return false;
   }
 
-  // Usual case: Compare DOM position.
-  nsIContent* content1 = aFrame1->GetContent();
-  nsIContent* content2 = aFrame2->GetContent();
+  // Same "order" value --> use DOM position.
+  nsIContent* content1 = GetContentForComparison(aFrame1);
+  nsIContent* content2 = GetContentForComparison(aFrame2);
   MOZ_ASSERT(content1 != content2,
              "Two different flex items are using the same nsIContent node for "
              "comparison, so we may be sorting them in an arbitrary order");

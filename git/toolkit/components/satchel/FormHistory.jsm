@@ -78,7 +78,7 @@
  * an error occurred.
  */
 
-this.EXPORTED_SYMBOLS = ["FormHistory"];
+EXPORTED_SYMBOLS = [ "FormHistory" ];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -754,7 +754,7 @@ function expireOldEntriesVacuum(aExpireTime, aBeginningCount) {
   });
 }
 
-this.FormHistory = {
+const FormHistory = {
   search : function formHistorySearch(aSelectTerms, aSearchData, aCallbacks) {
     // if no terms selected, select everything
     aSelectTerms = (aSelectTerms) ?  aSelectTerms : validFields;

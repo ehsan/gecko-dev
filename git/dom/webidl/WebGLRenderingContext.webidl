@@ -807,11 +807,6 @@ interface WebGLExtensionDepthTexture
 };
 
 [NoInterfaceObject]
-interface WebGLExtensionElementIndexUint
-{
-};
-
-[NoInterfaceObject]
 interface WebGLExtensionLoseContext {
     void loseContext();
     void restoreContext();

@@ -34,8 +34,7 @@ public:
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aImage,
-                          nsIntRegion *aRegion,
-                          nsIntPoint*) MOZ_OVERRIDE
+                          nsIntRegion *aRegion) MOZ_OVERRIDE
   {
     AutoOpenSurface surf(OPEN_READ_ONLY, aImage);
     mFormat =

@@ -25,6 +25,7 @@ class nsContentList;
 class nsGlobalWindow;
 class nsIDOMWindow;
 class nsIForm;
+class nsIHTMLDocument;
 class nsNPAPIPluginInstance;
 class nsObjectLoadingContent;
 class nsIObjectLoadingContent;
@@ -80,7 +81,6 @@ struct nsExternalDOMClassInfoData : public nsDOMClassInfoData
 
 class nsDOMClassInfo : public nsXPCClassInfo
 {
-  friend class nsHTMLDocumentSH;
 public:
   nsDOMClassInfo(nsDOMClassInfoData* aData);
   virtual ~nsDOMClassInfo();
@@ -219,6 +219,7 @@ public:
   static jsid sSelf_id;
   static jsid sAll_id;
   static jsid sTags_id;
+  static jsid sDocumentURIObject_id;
   static jsid sJava_id;
   static jsid sPackages_id;
   static jsid sWrappedJSObject_id;
@@ -592,14 +593,53 @@ private:
 };
 
 
+// Document helper, for document.location and document.on*
+
+class nsDocumentSH : public nsNodeSH
+{
+public:
+  nsDocumentSH(nsDOMClassInfoData* aData) : nsNodeSH(aData)
+  {
+  }
+
+  virtual ~nsDocumentSH()
+  {
+  }
+
+public:
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsid id, uint32_t flags,
+                        JSObject **objp, bool *_retval);
+  NS_IMETHOD GetFlags(uint32_t* aFlags);
+  NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj);
+  NS_IMETHOD  PostTransplant(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                             JSObject *obj);
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsDocumentSH(aData);
+  }
+};
+
+
 // HTMLDocument helper
 
-class nsHTMLDocumentSH
+class nsHTMLDocumentSH : public nsDocumentSH
 {
 protected:
+  nsHTMLDocumentSH(nsDOMClassInfoData* aData) : nsDocumentSH(aData)
+  {
+  }
+
+  virtual ~nsHTMLDocumentSH()
+  {
+  }
+
   static JSBool GetDocumentAllNodeList(JSContext *cx, JS::Handle<JSObject*> obj,
                                        nsDocument *doc,
                                        nsContentList **nodeList);
+
 public:
   static JSBool DocumentAllGetProperty(JSContext *cx, JSHandleObject obj, JSHandleId id,
                                        JSMutableHandleValue vp);
@@ -616,8 +656,19 @@ public:
                                           JSHandleId id, unsigned flags,
                                           JS::MutableHandle<JSObject*> objp);
 
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsid id, uint32_t flags,
+                        JSObject **objp, bool *_retval);
+  NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsid id, jsval *vp, bool *_retval);
+
   static nsresult TryResolveAll(JSContext* cx, nsHTMLDocument* doc,
                                 JS::Handle<JSObject*> obj);
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsHTMLDocumentSH(aData);
+  }
 };
 
 

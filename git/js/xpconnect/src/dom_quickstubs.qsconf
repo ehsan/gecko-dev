@@ -53,6 +53,7 @@ members = [
     # dom/interfaces/core
     'nsIDOMDOMStringList.*',
 
+    'nsIDOMKeyEvent.*',
     'nsIDOMDragEvent.*',
     'nsIDOMProgressEvent.lengthComputable',
     'nsIDOMProgressEvent.loaded',
@@ -112,6 +113,8 @@ members = [
     'nsIIDBOpenDBRequest.*',
     'nsIIDBVersionChangeEvent.*',
     'nsIIndexedDatabaseManager.*',
+
+    'nsIDOMDOMError.*',
 
     # dom/file
     'nsIDOMLockedFile.*',

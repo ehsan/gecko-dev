@@ -23,7 +23,8 @@ class SVGIRect : public nsISupports,
                  public nsWrapperCache
 {
 public:
-  SVGIRect()
+  SVGIRect(nsIContent* aParent)
+    : mParent(aParent)
   {
     SetIsDOMBinding();
   }
@@ -37,7 +38,10 @@ public:
     return SVGRectBinding::Wrap(aCx, aScope, this);
   }
 
-  virtual nsIContent* GetParentObject() const = 0;
+  nsIContent* GetParentObject() const
+  {
+    return mParent;
+  }
 
   virtual float X() const = 0;
 
@@ -54,6 +58,9 @@ public:
   virtual float Height() const = 0;
 
   virtual void SetHeight(float aHeight, ErrorResult& aRv) = 0;
+
+private:
+  nsCOMPtr<nsIContent> mParent;
 };
 
 } // namespace dom

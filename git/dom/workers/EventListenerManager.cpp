@@ -209,7 +209,7 @@ EventListenerManager::FinalizeInternal(JSFreeOp* aFop)
 
 void
 EventListenerManager::Add(JSContext* aCx, const jsid& aType,
-                          JS::Handle<JSObject*> aListener, Phase aPhase,
+                          JSObject* aListener, Phase aPhase,
                           bool aWantsUntrusted, ErrorResult& aRv)
 {
   MOZ_ASSERT(aListener);
@@ -244,7 +244,7 @@ EventListenerManager::Add(JSContext* aCx, const jsid& aType,
 
 void
 EventListenerManager::Remove(JSContext* aCx, const jsid& aType,
-                             JS::Handle<JSObject*> aListener, Phase aPhase,
+                             JSObject* aListener, Phase aPhase,
                              bool aClearEmpty)
 {
   MOZ_ASSERT(aListener);

@@ -104,7 +104,7 @@ inline bool
 RegExpShared::isJITRuntimeEnabled(JSContext *cx)
 {
 #if ENABLE_YARR_JIT
-# if defined(ANDROID)
+# if defined(ANDROID) && defined(JS_METHODJIT)
     return !cx->jitIsBroken;
 # else
     return true;

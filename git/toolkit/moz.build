@@ -17,6 +17,7 @@ PARALLEL_DIRS += [
     'mozapps/handling',
     'mozapps/preferences',
     'mozapps/plugins',
+    'mozapps/shared',
     'obsolete',
     'profile',
     'themes',

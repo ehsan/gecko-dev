@@ -513,11 +513,11 @@ var gPluginHandler = {
     // only show notification for small subset of plugins
     let mimetype = pluginInfo.mimetype.split(";")[0];
     if (!this.canInstallThisMimeType(mimetype))
-      return false;
+      return;
 
     let pluginIdentifier = this.nameForSupportedPlugin(mimetype);
     if (!pluginIdentifier)
-      return false;
+      return;
 
     let displayName = this.supportedPlugins.plugins[pluginIdentifier].displayName;
 

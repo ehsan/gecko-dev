@@ -28,7 +28,6 @@
 
 #include "nsRefreshDriver.h"
 #include "nsITimer.h"
-#include "nsLayoutUtils.h"
 #include "nsPresContext.h"
 #include "nsComponentManagerUtils.h"
 #include "prlog.h"
@@ -632,6 +631,11 @@ nsRefreshDriver::RemoveImageRequest(imgIRequest* aRequest)
   mRequests.RemoveEntry(aRequest);
 }
 
+void nsRefreshDriver::ClearAllImageRequests()
+{
+  mRequests.Clear();
+}
+
 void
 nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
 {
@@ -976,10 +980,8 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
   mPresShellsToInvalidateIfHidden.Clear();
 
   if (mViewManagerFlushIsPending) {
-#ifdef MOZ_DUMP_PAINTING
-    if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-      printf("Starting ProcessPendingUpdates\n");
-    }
+#ifdef DEBUG_INVALIDATIONS
+    printf("Starting ProcessPendingUpdates\n");
 #endif
 #ifndef MOZ_WIDGET_GONK
     // Waiting for bug 830475 to work on B2G.
@@ -992,10 +994,8 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     mViewManagerFlushIsPending = false;
     nsRefPtr<nsViewManager> vm = mPresContext->GetPresShell()->GetViewManager();
     vm->ProcessPendingUpdates();
-#ifdef MOZ_DUMP_PAINTING
-    if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-      printf("Ending ProcessPendingUpdates\n");
-    }
+#ifdef DEBUG_INVALIDATIONS
+    printf("Ending ProcessPendingUpdates\n");
 #endif
   }
 }

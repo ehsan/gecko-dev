@@ -71,10 +71,10 @@ FileReaderSync::Constructor(const WorkerGlobalObject& aGlobal, ErrorResult& aRv)
 }
 
 JSObject*
-FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aBlob,
+FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JSObject& aBlob,
                                   ErrorResult& aRv)
 {
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
+  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(&aBlob);
   if (!blob) {
     aRv.Throw(NS_ERROR_INVALID_ARG);
     return nullptr;
@@ -117,11 +117,10 @@ FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aBlob,
 }
 
 void
-FileReaderSync::ReadAsBinaryString(JS::Handle<JSObject*> aBlob,
-                                   nsAString& aResult,
+FileReaderSync::ReadAsBinaryString(JSObject& aBlob, nsAString& aResult,
                                    ErrorResult& aRv)
 {
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
+  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(&aBlob);
   if (!blob) {
     aRv.Throw(NS_ERROR_INVALID_ARG);
     return;
@@ -153,12 +152,12 @@ FileReaderSync::ReadAsBinaryString(JS::Handle<JSObject*> aBlob,
 }
 
 void
-FileReaderSync::ReadAsText(JS::Handle<JSObject*> aBlob,
+FileReaderSync::ReadAsText(JSObject& aBlob,
                            const Optional<nsAString>& aEncoding,
                            nsAString& aResult,
                            ErrorResult& aRv)
 {
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
+  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(&aBlob);
   if (!blob) {
     aRv.Throw(NS_ERROR_INVALID_ARG);
     return;
@@ -209,10 +208,10 @@ FileReaderSync::ReadAsText(JS::Handle<JSObject*> aBlob,
 }
 
 void
-FileReaderSync::ReadAsDataURL(JS::Handle<JSObject*> aBlob, nsAString& aResult,
+FileReaderSync::ReadAsDataURL(JSObject& aBlob, nsAString& aResult,
                               ErrorResult& aRv)
 {
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
+  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(&aBlob);
   if (!blob) {
     aRv.Throw(NS_ERROR_INVALID_ARG);
     return;

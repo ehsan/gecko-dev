@@ -219,7 +219,7 @@
                      openInTabs="children"
                      oncommand="BookmarksEventHandler.onCommand(event, this.parentNode._placesView);"
                      onclick="BookmarksEventHandler.onClick(event, this.parentNode._placesView);"
-                     onpopupshowing="BookmarkingUI.onPopupShowing(event);
+                     onpopupshowing="BookmarksMenuButton.onPopupShowing(event);
                                      if (!this.parentNode._placesView)
                                        new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
                      tooltip="bhTooltip"

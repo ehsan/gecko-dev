@@ -174,14 +174,9 @@ public:
 
   /**
    * Update the texture host using the data from aSurfaceDescriptor.
-   *
-   * @param aImage Source image to update with.
-   * @param aRegion Region of the texture host to update.
-   * @param aOffset Offset in the source to update from
    */
   void Update(const SurfaceDescriptor& aImage,
-              nsIntRegion *aRegion = nullptr,
-              nsIntPoint* aOffset = nullptr);
+              nsIntRegion *aRegion = nullptr);
 
   /**
    * Change the current surface of the texture host to aImage. aResult will return
@@ -252,35 +247,8 @@ public:
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
 #endif
 
-  /**
-   * TEMPORARY.
-   *
-   * Ensure that a buffer of the given size/type has been allocated so that
-   * we can update it using Update and/or CopyTo.
-   */
-  virtual void EnsureBuffer(const nsIntSize& aSize, gfxASurface::gfxContentType aType)
-  {
-    NS_RUNTIMEABORT("TextureHost doesn't support EnsureBuffer");
-  }
-
-  /**
-   * Copy the contents of this TextureHost to aDest. aDest must already
-   * have a suitable buffer allocated using EnsureBuffer.
-   *
-   * @param aSourceRect Area of this texture host to copy.
-   * @param aDest Destination texture host.
-   * @param aDestRect Destination rect.
-   */
-  virtual void CopyTo(const nsIntRect& aSourceRect,
-                      TextureHost *aDest,
-                      const nsIntRect& aDestRect)
-  {
-    NS_RUNTIMEABORT("TextureHost doesn't support CopyTo");
-  }
-
 
   SurfaceDescriptor* GetBuffer() const { return mBuffer; }
-
   /**
    * Set a SurfaceDescriptor for this texture host. By setting a buffer and
    * allocator/de-allocator for the TextureHost, you cause the TextureHost to
@@ -308,8 +276,7 @@ protected:
    * to be thread-safe.
    */
   virtual void UpdateImpl(const SurfaceDescriptor& aImage,
-                          nsIntRegion *aRegion,
-                          nsIntPoint *aOffset = nullptr)
+                          nsIntRegion *aRegion)
   {
     NS_RUNTIMEABORT("Should not be reached");
   }
@@ -326,7 +293,7 @@ protected:
   virtual void SwapTexturesImpl(const SurfaceDescriptor& aImage,
                                 nsIntRegion *aRegion)
   {
-    UpdateImpl(aImage, aRegion, nullptr);
+    UpdateImpl(aImage, aRegion);
   }
 
   // An internal identifier for this texture host. Two texture hosts

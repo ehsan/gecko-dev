@@ -11,7 +11,12 @@ interface nsIDOMDeviceStorageChangeEvent;
 interface nsIDOMEventListener;
 interface nsIFile;
 
-[scriptable, uuid(be690a9b-f0b4-4cde-a505-0b442abe2109), builtinclass]
+dictionary DeviceStorageEnumerationParameters
+{
+  jsval since;
+};
+
+[scriptable, uuid(b6274c63-daa2-4c7a-aa45-b72e45b5f2d2), builtinclass]
 interface nsIDOMDeviceStorage : nsIDOMEventTarget
 {
     [implicit_jscontext] attribute jsval onchange;
@@ -39,9 +44,9 @@ interface nsIDOMDeviceStorage : nsIDOMEventTarget
 
     nsIDOMDOMRequest available();
 
-    // Note that the storageName is just a name (like sdcard), and doesn't
+    // Note that the volumeName is just a name (like sdcard), and doesn't
     // include any path information.
-    readonly attribute DOMString storageName;
+    readonly attribute DOMString volumeName;
 
-    [noscript] nsIFile getRootDirectoryForFile(in DOMString aName);
+    [noscript] readonly attribute nsIFile rootDirectory;
 };

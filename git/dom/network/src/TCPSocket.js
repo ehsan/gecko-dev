@@ -40,8 +40,11 @@ const BUFFER_SIZE = 65536;
 // sub-classes DOMError.  Bug 867872 has been filed to implement this and
 // contains a documented TCPError.webidl that maps all the error codes we use in
 // this file to slightly more readable explanations.
-function createTCPError(aWindow, aErrorName, aErrorType) {
-  return new (aWindow ? aWindow.DOMError : DOMError)(aErrorName);
+function createTCPError(aErrorName, aErrorType) {
+  let error = Cc["@mozilla.org/dom-error;1"]
+                .createInstance(Ci.nsIDOMDOMError);
+  error.wrappedJSObject.init(aErrorName);
+  return error;
 }
 
 
@@ -49,7 +52,7 @@ function createTCPError(aWindow, aErrorName, aErrorType) {
  * Debug logging function
  */
 
-let debug = false;
+let debug = true;
 function LOG(msg) {
   if (debug)
     dump("TCPSocket: " + msg + "\n");
@@ -269,7 +272,7 @@ TCPSocket.prototype = {
   callListenerError: function ts_callListenerError(type, name) {
     // XXX we're not really using TCPError at this time, so there's only a name
     // attribute to pass.
-    this.callListener(type, createTCPError(this.useWin, name));
+    this.callListener(type, createTCPError(name));
   },
 
   callListenerData: function ts_callListenerString(type, data) {
@@ -347,7 +350,7 @@ TCPSocket.prototype = {
 
     this._inChild = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime)
                        .processType != Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT;
-    LOG("content process: " + (this._inChild ? "true" : "false"));
+    LOG("content process: " + (this._inChild ? "true" : "false") + "\n");
 
     // in the testing case, init won't be called and
     // hasPrivileges will be null. We want to proceed to test.
@@ -363,8 +366,8 @@ TCPSocket.prototype = {
     LOG("window init: " + that.innerWindowID);
     Services.obs.addObserver(that, "inner-window-destroyed", true);
 
-    LOG("startup called");
-    LOG("Host info: " + host + ":" + port);
+    LOG("startup called\n");
+    LOG("Host info: " + host + ":" + port + "\n");
 
     that._readyState = kCONNECTING;
     that._host = host;
@@ -378,7 +381,7 @@ TCPSocket.prototype = {
       that._binaryType = options.binaryType || that._binaryType;
     }
 
-    LOG("SSL: " + that.ssl);
+    LOG("SSL: " + that.ssl + "\n");
 
     if (this._inChild) {
       that._socketBridge = Cc["@mozilla.org/tcp-socket-child;1"]
@@ -425,7 +428,7 @@ TCPSocket.prototype = {
     if (this._readyState === kCLOSED || this._readyState === kCLOSING)
       return;
 
-    LOG("close called");
+    LOG("close called\n");
     this._readyState = kCLOSING;
 
     if (this._inChild) {
@@ -632,7 +635,7 @@ TCPSocket.prototype = {
             break;
         }
       }
-      let err = createTCPError(this.useWin, errName, errType);
+      let err = createTCPError(errName, errType);
       this.callListener("error", err);
     }
     this.callListener("close");

@@ -727,7 +727,7 @@ pref("dom.allow_scripts_to_close_windows",          false);
 
 pref("dom.disable_open_during_load",                false);
 pref("dom.popup_maximum",                           20);
-pref("dom.popup_allowed_events", "change click dblclick mouseup reset submit touchend");
+pref("dom.popup_allowed_events", "change click dblclick mouseup reset submit");
 pref("dom.disable_open_click_delay", 1000);
 
 pref("dom.storage.enabled", true);
@@ -1739,19 +1739,6 @@ pref("layout.css.supports-rule.enabled", true);
 // Is support for CSS Flexbox enabled?
 pref("layout.css.flexbox.enabled", true);
 
-// Is support for CSS3 Fonts features enabled?
-// (includes font-variant-*, font-kerning, font-synthesis
-// and the @font-feature-values rule)
-// Note: with this enabled, font-feature-settings is aliased
-// to -moz-font-feature-settings.  When unprefixing, this should
-// be reversed, -moz-font-feature-settings should alias to
-// font-feature-settings.
-#ifdef RELEASE_BUILD
-pref("layout.css.font-features.enabled", false);
-#else
-pref("layout.css.font-features.enabled", true);
-#endif
-
 // Are sets of prefixed properties supported?
 pref("layout.css.prefixes.border-image", true);
 pref("layout.css.prefixes.transforms", true);
@@ -1825,8 +1812,6 @@ pref("hangmonitor.timeout", 0);
 pref("plugins.load_appdir_plugins", false);
 // If true, plugins will be click to play
 pref("plugins.click_to_play", false);
-// The default value for nsIPluginTag.enabledState (STATE_ENABLED = 2)
-pref("plugin.default.state", 2);
 
 #ifndef DEBUG
 // How long a plugin is allowed to process a synchronous IPC message
@@ -4081,8 +4066,6 @@ pref("dom.sms.requestStatusReport", true);
 
 // WebContacts
 pref("dom.mozContacts.enabled", false);
-pref("dom.navigator-property.disable.mozContacts", true);
-pref("dom.global-constructor.disable.mozContact", true);
 
 // WebAlarms
 pref("dom.mozAlarms.enabled", false);
@@ -4095,7 +4078,6 @@ pref("dom.mozNetworkStats.enabled", false);
 
 // WebSettings
 pref("dom.mozSettings.enabled", false);
-pref("dom.navigator-property.disable.mozSettings", true);
 pref("dom.mozPermissionSettings.enabled", false);
 
 // W3C touch events

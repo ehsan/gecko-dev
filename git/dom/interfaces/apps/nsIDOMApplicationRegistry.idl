@@ -6,8 +6,9 @@
 #include "nsIDOMEventTarget.idl"
 
 interface nsIDOMDOMRequest;
+interface nsIDOMDOMError;
 
-[scriptable, uuid(d33ee8a0-00e4-4669-b55d-f77fbee1153d)]
+[scriptable, uuid(d89870fe-5ba3-11e2-a5d2-cfa1d3f6e5f4)]
 interface mozIDOMApplication  : nsISupports
 {
   readonly attribute jsval manifest;
@@ -59,8 +60,7 @@ interface mozIDOMApplication  : nsISupports
   readonly attribute boolean readyToApplyDownload;
   readonly attribute long downloadSize;
 
-  // This is a DOMError
-  readonly attribute nsISupports downloadError;
+  readonly attribute nsIDOMDOMError downloadError;
 
   attribute nsIDOMEventListener ondownloadsuccess;
   attribute nsIDOMEventListener ondownloaderror;

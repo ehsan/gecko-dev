@@ -314,7 +314,7 @@ private:
   static bool AddonReflector(AddonEntryType *entry, JSContext *cx, JS::Handle<JSObject*> obj);
   static bool CreateHistogramForAddon(const nsACString &name,
                                       AddonHistogramInfo &info);
-  void ReadLateWritesStacks(nsIFile* aProfileDir);
+  void ReadLateWritesStacks();
   AddonMapType mAddonMap;
 
   // This is used for speedy string->Telemetry::ID conversions
@@ -743,11 +743,14 @@ GetFailedLockCount(nsIInputStream* inStream, uint32_t aCount,
 }
 
 nsresult
-GetFailedProfileLockFile(nsIFile* *aFile, nsIFile* aProfileDir)
+GetFailedProfileLockFile(nsIFile* *aFile, nsIFile* aProfileDir = nullptr)
 {
-  NS_ENSURE_ARG_POINTER(aProfileDir);
-
-  nsresult rv = aProfileDir->Clone(aFile);
+  nsresult rv;
+  if (aProfileDir) {
+    rv = aProfileDir->Clone(aFile);
+  } else {
+    rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, aFile);
+  }
   NS_ENSURE_SUCCESS(rv, rv);
 
   (*aFile)->AppendNative(NS_LITERAL_CSTRING("Telemetry.FailedProfileLocks.txt"));
@@ -758,12 +761,10 @@ class nsFetchTelemetryData : public nsRunnable
 {
 public:
   nsFetchTelemetryData(const char* aShutdownTimeFilename,
-                       nsIFile* aFailedProfileLockFile,
-                       nsIFile* aProfileDir)
+                       nsIFile* aFailedProfileLockFile)
     : mShutdownTimeFilename(aShutdownTimeFilename),
       mFailedProfileLockFile(aFailedProfileLockFile),
-      mTelemetry(TelemetryImpl::sTelemetry),
-      mProfileDir(aProfileDir)
+      mTelemetry(TelemetryImpl::sTelemetry)
   {
   }
 
@@ -771,7 +772,6 @@ private:
   const char* mShutdownTimeFilename;
   nsCOMPtr<nsIFile> mFailedProfileLockFile;
   nsCOMPtr<TelemetryImpl> mTelemetry;
-  nsCOMPtr<nsIFile> mProfileDir;
 
 public:
   void MainThread() {
@@ -786,7 +786,7 @@ public:
     LoadFailedLockCount(mTelemetry->mFailedLockCount);
     mTelemetry->mLastShutdownTime = 
       ReadLastShutdownDuration(mShutdownTimeFilename);
-    mTelemetry->ReadLateWritesStacks(mProfileDir);
+    mTelemetry->ReadLateWritesStacks();
     nsCOMPtr<nsIRunnable> e =
       NS_NewRunnableMethod(this, &nsFetchTelemetryData::MainThread);
     NS_ENSURE_STATE(e);
@@ -921,18 +921,8 @@ TelemetryImpl::AsyncFetchTelemetryData(nsIFetchTelemetryDataCallback *aCallback)
     return NS_OK;
   }
 
-  nsCOMPtr<nsIFile> profileDir;
-  nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
-                                       getter_AddRefs(profileDir));
-  if (NS_FAILED(rv)) {
-    mCachedTelemetryData = true;
-    aCallback->Complete();
-    return NS_OK;
-  }
-
   nsCOMPtr<nsIFile> failedProfileLockFile;
-  rv = GetFailedProfileLockFile(getter_AddRefs(failedProfileLockFile),
-                                profileDir);
+  nsresult rv = GetFailedProfileLockFile(getter_AddRefs(failedProfileLockFile));
   if (NS_FAILED(rv)) {
     mCachedTelemetryData = true;
     aCallback->Complete();
@@ -940,10 +930,8 @@ TelemetryImpl::AsyncFetchTelemetryData(nsIFetchTelemetryDataCallback *aCallback)
   }
 
   mCallbacks.AppendObject(aCallback);
-
   nsCOMPtr<nsIRunnable> event = new nsFetchTelemetryData(shutdownTimeFilename,
-                                                         failedProfileLockFile,
-                                                         profileDir);
+                                                         failedProfileLockFile);
 
   targetThread->Dispatch(event, NS_DISPATCH_NORMAL);
   return NS_OK;
@@ -1722,10 +1710,17 @@ ReadStack(const char *aFileName, Telemetry::ProcessedStack &aStack)
 }
 
 void
-TelemetryImpl::ReadLateWritesStacks(nsIFile* aProfileDir)
+TelemetryImpl::ReadLateWritesStacks()
 {
+  nsCOMPtr<nsIFile> profileDir;
+  nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
+                                       getter_AddRefs(profileDir));
+  if (!profileDir || NS_FAILED(rv)) {
+    return;
+  }
+
   nsAutoCString nativePath;
-  nsresult rv = aProfileDir->GetNativePath(nativePath);
+  rv = profileDir->GetNativePath(nativePath);
   if (NS_FAILED(rv)) {
     return;
   }

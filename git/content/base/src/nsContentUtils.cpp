@@ -6207,9 +6207,9 @@ nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
 }
 
 nsIPresShell*
-nsContentUtils::FindPresShellForDocument(const nsIDocument* aDoc)
+nsContentUtils::FindPresShellForDocument(nsIDocument* aDoc)
 {
-  const nsIDocument* doc = aDoc;
+  nsIDocument* doc = aDoc;
   nsIDocument* displayDoc = doc->GetDisplayDocument();
   if (displayDoc) {
     doc = displayDoc;
@@ -6241,7 +6241,7 @@ nsContentUtils::FindPresShellForDocument(const nsIDocument* aDoc)
 }
 
 nsIWidget*
-nsContentUtils::WidgetForDocument(const nsIDocument* aDoc)
+nsContentUtils::WidgetForDocument(nsIDocument* aDoc)
 {
   nsIPresShell* shell = FindPresShellForDocument(aDoc);
   if (shell) {
@@ -6261,7 +6261,7 @@ nsContentUtils::WidgetForDocument(const nsIDocument* aDoc)
 }
 
 static already_AddRefed<LayerManager>
-LayerManagerForDocumentInternal(const nsIDocument *aDoc, bool aRequirePersistent,
+LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
                                 bool* aAllowRetaining)
 {
   nsIWidget *widget = nsContentUtils::WidgetForDocument(aDoc);
@@ -6277,7 +6277,7 @@ LayerManagerForDocumentInternal(const nsIDocument *aDoc, bool aRequirePersistent
 }
 
 already_AddRefed<LayerManager>
-nsContentUtils::LayerManagerForDocument(const nsIDocument *aDoc, bool *aAllowRetaining)
+nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc, bool *aAllowRetaining)
 {
   return LayerManagerForDocumentInternal(aDoc, false, aAllowRetaining);
 }

@@ -19,7 +19,6 @@ import android.util.Log;
 public class GeckoPreferenceFragment extends PreferenceFragment {
 
     private static final String LOGTAG = "GeckoPreferenceFragment";
-    private int mPrefsRequestId = 0;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -32,14 +31,6 @@ public class GeckoPreferenceFragment extends PreferenceFragment {
 
         PreferenceScreen screen = getPreferenceScreen();
         setPreferenceScreen(screen);
-        mPrefsRequestId = ((GeckoPreferences)getActivity()).setupPreferences(screen);
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (mPrefsRequestId > 0) {
-            PrefsHelper.removeObserver(mPrefsRequestId);
-        }
+        ((GeckoPreferences)getActivity()).setupPreferences(screen);
     }
 }

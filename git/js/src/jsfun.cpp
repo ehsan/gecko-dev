@@ -33,6 +33,10 @@
 #include "vm/StringBuffer.h"
 #include "vm/Xdr.h"
 
+#ifdef JS_METHODJIT
+#include "methodjit/MethodJIT.h"
+#endif
+
 #include "jsfuninlines.h"
 #include "jsinferinlines.h"
 #include "jsinterpinlines.h"
@@ -128,6 +132,28 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         vp.setObject(*argsobj);
         return true;
     }
+
+#ifdef JS_METHODJIT
+    StackFrame *fp = NULL;
+    if (!iter.isIon())
+        fp = iter.interpFrame();
+
+    if (JSID_IS_ATOM(id, cx->names().caller) && fp && fp->prev()) {
+        /*
+         * If the frame was called from within an inlined frame, mark the
+         * innermost function as uninlineable to expand its frame and allow us
+         * to recover its callee object.
+         */
+        InlinedSite *inlined;
+        jsbytecode *prevpc = fp->prevpc(&inlined);
+        if (inlined) {
+            mjit::JITChunk *chunk = fp->prev()->jit()->chunk(prevpc);
+            JSFunction *fun = chunk->inlineFrames()[inlined->inlineIndex].fun;
+            fun->nonLazyScript()->uninlineable = true;
+            MarkTypeObjectFlags(cx, fun, OBJECT_FLAG_UNINLINEABLE);
+        }
+    }
+#endif
 
     if (JSID_IS_ATOM(id, cx->names().caller)) {
         ++iter;
@@ -415,14 +441,12 @@ template bool
 js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, MutableHandleObject);
 
 JSObject *
-js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun,
-                             NewObjectKind newKind /* = GenericObject */)
+js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun)
 {
     /* NB: Keep this in sync with XDRInterpretedFunction. */
 
     RootedFunction clone(cx, NewFunction(cx, NullPtr(), NULL, 0,
-                                         JSFunction::INTERPRETED, NullPtr(), NullPtr(),
-                                         JSFunction::FinalizeKind, newKind));
+                                         JSFunction::INTERPRETED, NullPtr(), NullPtr()));
     if (!clone)
         return NULL;
 
@@ -1495,8 +1519,7 @@ js::NewFunction(JSContext *cx, HandleObject funobjArg, Native native, unsigned n
 }
 
 JSFunction *
-js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, gc::AllocKind allocKind,
-                        NewObjectKind newKindArg /* = GenericObject */)
+js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, gc::AllocKind allocKind)
 {
     JS_ASSERT(parent);
     JS_ASSERT(!fun->isBoundFunction());
@@ -1504,7 +1527,7 @@ js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, 
     bool useSameScript = cx->compartment == fun->compartment() &&
                          !fun->hasSingletonType() &&
                          !types::UseNewTypeForClone(fun);
-    NewObjectKind newKind = useSameScript ? newKindArg : SingletonObject;
+    NewObjectKind newKind = useSameScript ? GenericObject : SingletonObject;
     JSObject *cloneobj = NewObjectWithClassProto(cx, &FunctionClass, NULL, SkipScopeParent(parent),
                                                  allocKind, newKind);
     if (!cloneobj)
@@ -1556,7 +1579,7 @@ js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, 
      * (JS_CloneFunctionObject) which dynamically ensures that 'script' has
      * no enclosing lexical scope (only the global scope).
      */
-    if (cloneRoot->isInterpreted() && !CloneFunctionScript(cx, fun, cloneRoot, newKindArg))
+    if (cloneRoot->isInterpreted() && !CloneFunctionScript(cx, fun, cloneRoot))
         return NULL;
 
     return cloneRoot;

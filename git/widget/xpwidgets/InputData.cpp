@@ -8,7 +8,6 @@
 #include "nsGUIEvent.h"
 #include "mozilla/dom/Touch.h"
 #include "nsDebug.h"
-#include "nsThreadUtils.h"
 
 namespace mozilla {
 

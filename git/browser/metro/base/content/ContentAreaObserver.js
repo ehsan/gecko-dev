@@ -290,7 +290,8 @@ var ContentAreaObserver = {
   },
 
   _getContentHeightForWindow: function (windowHeight) {
-    return windowHeight;
+    let contextUIHeight = BrowserUI.isTabsOnly ? Elements.toolbar.getBoundingClientRect().bottom : 0;
+    return windowHeight - contextUIHeight;
   },
 
   _getViewableHeightForContent: function (contentHeight) {

@@ -18,6 +18,12 @@
 
 namespace js {
 
+namespace mjit {
+struct NativeAddressInfo;
+struct JSActiveFrame;
+struct JITChunk;
+}
+
 namespace Probes {
 
 /*
@@ -106,6 +112,30 @@ enum JITReportGranularity {
  */
 JITReportGranularity
 JITGranularityRequested(JSContext *cx);
+
+#ifdef JS_METHODJIT
+/*
+ * New method JIT code has been created
+ */
+bool
+registerMJITCode(JSContext *cx, js::mjit::JITChunk *chunk,
+                 mjit::JSActiveFrame *outerFrame,
+                 mjit::JSActiveFrame **inlineFrames);
+
+/*
+ * Method JIT code is about to be discarded
+ */
+void
+discardMJITCode(FreeOp *fop, mjit::JITScript *jscr, mjit::JITChunk *chunk, void* address);
+
+/*
+ * IC code has been allocated within the given JITChunk
+ */
+bool
+registerICCode(JSContext *cx,
+               mjit::JITChunk *chunk, JSScript *script, jsbytecode* pc,
+               void *start, size_t size);
+#endif /* JS_METHODJIT */
 
 /*
  * A whole region of code has been deallocated, containing any number of ICs.

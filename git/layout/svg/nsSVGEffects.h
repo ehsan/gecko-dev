@@ -166,7 +166,7 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsISVGFilterProperty
-  virtual void Invalidate() MOZ_OVERRIDE { DoUpdate(); }
+  virtual void Invalidate() { DoUpdate(); }
 
 private:
   // nsSVGRenderingObserver

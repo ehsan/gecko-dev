@@ -108,14 +108,14 @@ DOMRequest::GetResult(JS::Value* aResult)
 }
 
 NS_IMETHODIMP
-DOMRequest::GetError(nsISupports** aError)
+DOMRequest::GetError(nsIDOMDOMError** aError)
 {
   NS_IF_ADDREF(*aError = GetError());
   return NS_OK;
 }
 
 void
-DOMRequest::FireSuccess(JS::Handle<JS::Value> aResult)
+DOMRequest::FireSuccess(JS::Value aResult)
 {
   NS_ASSERTION(!mDone, "mDone shouldn't have been set to true already!");
   NS_ASSERTION(!mError, "mError shouldn't have been set!");
@@ -138,7 +138,7 @@ DOMRequest::FireError(const nsAString& aError)
   NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
 
   mDone = true;
-  mError = new DOMError(GetOwner(), aError);
+  mError = DOMError::CreateWithName(aError);
 
   FireEvent(NS_LITERAL_STRING("error"), true, true);
 }
@@ -151,7 +151,7 @@ DOMRequest::FireError(nsresult aError)
   NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
 
   mDone = true;
-  mError = new DOMError(GetOwner(), aError);
+  mError = DOMError::CreateForNSResult(aError);
 
   FireEvent(NS_LITERAL_STRING("error"), true, true);
 }
@@ -222,8 +222,7 @@ DOMRequestService::FireSuccess(nsIDOMDOMRequest* aRequest,
                                const JS::Value& aResult)
 {
   NS_ENSURE_STATE(aRequest);
-  static_cast<DOMRequest*>(aRequest)->
-    FireSuccess(JS::Handle<JS::Value>::fromMarkedLocation(&aResult));
+  static_cast<DOMRequest*>(aRequest)->FireSuccess(aResult);
 
   return NS_OK;
 }
@@ -290,7 +289,7 @@ public:
   NS_IMETHODIMP
   Run()
   {
-    mReq->FireSuccess(JS::Handle<JS::Value>::fromMarkedLocation(&mResult));
+    mReq->FireSuccess(mResult);
     return NS_OK;
   }
 

@@ -87,16 +87,6 @@ public:
     DECL_WEBGL_EXTENSION_GOOP
 };
 
-class WebGLExtensionElementIndexUint
-    : public WebGLExtensionBase
-{
-public:
-    WebGLExtensionElementIndexUint(WebGLContext*);
-    virtual ~WebGLExtensionElementIndexUint();
-
-    DECL_WEBGL_EXTENSION_GOOP
-};
-
 class WebGLExtensionLoseContext
     : public WebGLExtensionBase
 {

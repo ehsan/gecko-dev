@@ -740,11 +740,6 @@ public:
            IsInteractionAllowed();
   }
 
-  bool HasIndependentSelection() const
-  {
-    return !!mSelConWeak;
-  }
-
   // Get the input event target. This might return null.
   virtual already_AddRefed<nsIContent> GetInputEventTargetContent() = 0;
 
@@ -777,9 +772,6 @@ public:
   // a host of the editor, i.e., the editor doesn't get focus, this does
   // nothing.
   nsresult InitializeSelection(nsIDOMEventTarget* aFocusEventTarget);
-
-  // Finalizes selection and caret for the editor.
-  void FinalizeSelection();
 
   // This method has to be called by nsEditorEventListener::Focus.
   // All actions that have to be done when the editor is focused needs to be

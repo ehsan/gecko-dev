@@ -4,6 +4,7 @@
 "use strict";
 
 var Appbar = {
+  get appbar()        { return document.getElementById('appbar'); },
   get consoleButton() { return document.getElementById('console-button'); },
   get jsShellButton() { return document.getElementById('jsshell-button'); },
   get zoomInButton()  { return document.getElementById('zoomin-button'); },
@@ -16,11 +17,8 @@ var Appbar = {
   activeTileset: null,
 
   init: function Appbar_init() {
-    window.addEventListener('MozContextUIShow', this);
-    window.addEventListener('MozContextUIDismiss', this);
-    window.addEventListener('MozAppbarDismiss', this);
-    Elements.contextappbar.addEventListener('MozAppbarShowing', this, false);
-    Elements.contextappbar.addEventListener('MozAppbarDismissing', this, false);
+    window.addEventListener('MozAppbarShowing', this, false);
+    window.addEventListener('MozAppbarDismissing', this, false);
     window.addEventListener('MozPrecisePointer', this, false);
     window.addEventListener('MozImprecisePointer', this, false);
     window.addEventListener('MozContextActionsChange', this, false);
@@ -38,16 +36,11 @@ var Appbar = {
 
   handleEvent: function Appbar_handleEvent(aEvent) {
     switch (aEvent.type) {
-      case 'MozContextUIShow':
-        Elements.appbar.show();
-        break;
-      case 'MozAppbarDismiss':
-      case 'MozContextUIDismiss':
       case 'URLChanged':
       case 'TabSelect':
       case 'ToolPanelShown':
       case 'ToolPanelHidden':
-        Elements.appbar.dismiss();
+        this.appbar.dismiss();
         break;
       case 'MozAppbarShowing':
         this._updatePinButton();
@@ -129,7 +122,7 @@ var Appbar = {
       }
 
       var x = this.moreButton.getBoundingClientRect().left;
-      var y = Elements.appbar.getBoundingClientRect().top;
+      var y = this.appbar.getBoundingClientRect().top;
       ContextMenuUI.showContextMenu({
         json: {
           types: typesArray,
@@ -178,17 +171,12 @@ var Appbar = {
       activeTileset.dispatchEvent(event);
       if (!event.defaultPrevented) {
         activeTileset.clearSelection();
-        Elements.contextappbar.dismiss();
+        this.appbar.dismiss();
       }
     }
   },
 
   showContextualActions: function(aVerbs) {
-    if (aVerbs.length)
-      Elements.contextappbar.show();
-    else
-      Elements.contextappbar.hide();
-
     let doc = document;
     // button element id to action verb lookup
     let buttonsMap = new Map();
@@ -203,7 +191,7 @@ var Appbar = {
     // sort buttons into 2 buckets - needing showing and needing hiding
     let toHide = [],
         toShow = [];
-    for (let btnNode of Elements.contextappbar.querySelectorAll("#contextualactions-tray > toolbarbutton")) {
+    for (let btnNode of this.appbar.querySelectorAll("#contextualactions-tray > toolbarbutton")) {
       // correct the hidden state for each button;
       // .. buttons present in the map should be visible, otherwise not
       if (buttonsMap.has(btnNode.id)) {
@@ -245,12 +233,12 @@ var Appbar = {
     let event = document.createEvent("Events");
     event.actions = verbs;
     event.initEvent("MozContextActionsChange", true, false);
-    Elements.contextappbar.dispatchEvent(event);
+    this.appbar.dispatchEvent(event);
 
     if (verbs.length) {
-      Elements.contextappbar.show(); // should be no-op if we're already showing
+      this.appbar.show(); // should be no-op if we're already showing
     } else {
-      Elements.contextappbar.dismiss();
+      this.appbar.dismiss();
     }
   },
 

@@ -281,7 +281,7 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule interface
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
   virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
 #endif
@@ -359,10 +359,10 @@ public:
   virtual nsIDOMCSSRule* GetExistingDOMRule();
 
   // The new mapping function.
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;

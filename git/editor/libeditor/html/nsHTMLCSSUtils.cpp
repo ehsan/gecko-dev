@@ -589,6 +589,7 @@ nsHTMLCSSUtils::GetComputedStyle(dom::Element* aElement)
   NS_ENSURE_TRUE(doc, nullptr);
 
   nsIPresShell* presShell = doc->GetShell();
+  NS_ASSERTION(presShell, "Trying to compute style without PresShell");
   NS_ENSURE_TRUE(presShell, nullptr);
 
   nsRefPtr<nsComputedDOMStyle> style =

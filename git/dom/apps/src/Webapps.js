@@ -286,6 +286,36 @@ WebappsRegistry.prototype = {
 }
 
 /**
+  * nsIDOMDOMError object
+  */
+function createDOMError(aError) {
+  let error = Cc["@mozilla.org/dom-error;1"]
+                .createInstance(Ci.nsIDOMDOMError);
+  error.wrappedJSObject.init(aError);
+  return error;
+}
+
+function DOMError() {
+  this.wrappedJSObject = this;
+}
+
+DOMError.prototype = {
+  init: function domerror_init(aError) {
+    this.name = aError;
+  },
+
+  classID: Components.ID("{dcc1d5b7-43d8-4740-9244-b3d8db0f503d}"),
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMDOMError]),
+
+  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{dcc1d5b7-43d8-4740-9244-b3d8db0f503d}"),
+                                    contractID: "@mozilla.org/dom-error;1",
+                                    interfaces: [Ci.nsIDOMDOMError],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
+                                    classDescription: "DOMError object"})
+}
+
+/**
   * mozIDOMApplication object
   */
 
@@ -429,7 +459,7 @@ WebappsApplication.prototype = {
   },
 
   get downloadError() {
-    return new this._window.DOMError(this._downloadError || '');
+    return createDOMError(this._downloadError);
   },
 
   download: function() {
@@ -756,4 +786,5 @@ WebappsApplicationMgmt.prototype = {
 }
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([WebappsRegistry,
-                                                     WebappsApplication]);
+                                                     WebappsApplication,
+                                                     DOMError]);

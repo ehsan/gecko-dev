@@ -17,7 +17,6 @@
 #include "nsWrapperCache.h"
 #include "AccessCheck.h"
 #include "nsJSUtils.h"
-#include "WrapperFactory.h"
 
 #include "nsWrapperCacheInlines.h"
 

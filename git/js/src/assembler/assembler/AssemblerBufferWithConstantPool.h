@@ -39,6 +39,7 @@
 #include "assembler/wtf/SegmentedVector.h"
 #include "assembler/wtf/Assertions.h"
 
+#include "methodjit/Logging.h"
 #include "jsnum.h"
 #define ASSEMBLER_HAS_CONSTANT_POOL 1
 

@@ -117,10 +117,7 @@ MediaConduitErrorCode WebrtcVideoConduit::Init()
   }
   jvm->AttachCurrentThread(&env, nullptr);
 
-  if (webrtc::VideoEngine::SetAndroidObjects(jvm, (void*)context) != 0) {
-    CSFLogError(logTag,  "%s: could not set Android objects", __FUNCTION__);
-    return kMediaConduitSessionNotInited;
-  }
+  webrtc::VideoEngine::SetAndroidObjects(jvm, (void*)context);
 
   env->DeleteGlobalRef(context);
 #endif

@@ -878,10 +878,6 @@ WebGLContext::InitAndValidateGL()
     mLoseContextOnHeapMinimize = Preferences::GetBool("webgl.lose-context-on-heap-minimize", false);
     mCanLoseContextInForeground = Preferences::GetBool("webgl.can-lose-context-in-foreground", true);
 
-    if (MinCapabilityMode()) {
-      mDisableFragHighP = true;
-    }
-
     mActiveTexture = 0;
     mWebGLError = LOCAL_GL_NO_ERROR;
 

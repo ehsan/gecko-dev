@@ -12,7 +12,6 @@
 #include "nsIPopupWindowManager.h"
 #include "nsISupportsArray.h"
 #include "nsIDocShell.h"
-#include "nsIDocument.h"
 
 // For PR_snprintf
 #include "prprf.h"

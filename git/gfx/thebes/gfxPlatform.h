@@ -365,11 +365,6 @@ public:
     bool UseCmapsDuringSystemFallback();
 
     /**
-     * Whether to render SVG glyphs within an OpenType font wrapper
-     */
-    bool OpenTypeSVGEnabled();
-
-    /**
      * Whether to use the SIL Graphite rendering engine
      * (for fonts that include Graphite tables)
      */
@@ -593,7 +588,6 @@ protected:
 
     int8_t  mAllowDownloadableFonts;
     int8_t  mGraphiteShapingEnabled;
-    int8_t  mOpenTypeSVGEnabled;
 
     int8_t  mBidiNumeralOption;
 

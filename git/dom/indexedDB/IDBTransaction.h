@@ -13,7 +13,7 @@
 #include "mozIStorageStatement.h"
 #include "mozIStorageFunction.h"
 #include "nsIIDBTransaction.h"
-#include "mozilla/dom/DOMError.h"
+#include "nsIDOMDOMError.h"
 #include "nsIRunnable.h"
 
 #include "nsAutoPtr.h"
@@ -222,8 +222,7 @@ public:
 
 private:
   nsresult
-  AbortInternal(nsresult aAbortCode,
-                already_AddRefed<mozilla::dom::DOMError> aError);
+  AbortInternal(nsresult aAbortCode, already_AddRefed<nsIDOMDOMError> aError);
 
   // Should only be called directly through IndexedDBDatabaseChild.
   static already_AddRefed<IDBTransaction>
@@ -240,7 +239,7 @@ private:
 
   nsRefPtr<IDBDatabase> mDatabase;
   nsRefPtr<DatabaseInfo> mDatabaseInfo;
-  nsRefPtr<DOMError> mError;
+  nsCOMPtr<nsIDOMDOMError> mError;
   nsTArray<nsString> mObjectStoreNames;
   ReadyState mReadyState;
   Mode mMode;

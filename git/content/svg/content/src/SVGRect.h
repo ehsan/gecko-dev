@@ -22,8 +22,8 @@ public:
   SVGRect(nsIContent* aParent, float x=0.0f, float y=0.0f, float w=0.0f,
           float h=0.0f);
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(SVGRect)
+  // nsISupports interface:
+  NS_DECL_ISUPPORTS
 
   // WebIDL
   virtual float X() const MOZ_OVERRIDE MOZ_FINAL
@@ -66,13 +66,7 @@ public:
     mHeight = aHeight;
   }
 
-  virtual nsIContent* GetParentObject() const
-  {
-    return mParent;
-  }
-
 protected:
-  nsCOMPtr<nsIContent> mParent;
   float mX, mY, mWidth, mHeight;
 };
 
