@@ -13,7 +13,6 @@
 #include "nsWeakPtr.h"
 #include "nsWeakReference.h"
 #include "Units.h"
-#include "mozilla/dom/SelectionStateChangedEvent.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/WeakPtr.h"
 
@@ -199,15 +198,10 @@ private:
    */
   void SetTilted(bool aIsTilt);
 
-  // Utility functions
+  // Utility function
   dom::Selection* GetSelection();
   already_AddRefed<nsFrameSelection> GetFrameSelection();
   nsIContent* GetFocusedContent();
-  void DispatchSelectionStateChangedEvent(dom::Selection* aSelection,
-                                          dom::SelectionState aState);
-  void DispatchSelectionStateChangedEvent(dom::Selection* aSelection,
-                                          const dom::Sequence<dom::SelectionState>& aStates);
-  nsRect GetSelectionBoundingRect(dom::Selection* aSel);
 
   /**
    * Detecting long tap using timer
@@ -248,7 +242,6 @@ private:
 
   bool mEndCaretVisible;
   bool mStartCaretVisible;
-  bool mSelectionVisibleInScrollFrames;
   bool mVisible;
 
   // Preference

@@ -10,14 +10,12 @@ this.EXPORTED_SYMBOLS = [
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
-// The time to wait before considering a transaction stuck and rejecting it.
-const TRANSACTIONS_QUEUE_TIMEOUT_MS = 120000 // 2 minutes
-
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Timer.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 
 XPCOMUtils.defineLazyModuleGetter(this, "AsyncShutdown",
                                   "resource://gre/modules/AsyncShutdown.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+                                  "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Services",
                                   "resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
@@ -33,10 +31,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 XPCOMUtils.defineLazyServiceGetter(this, "FinalizationWitnessService",
                                    "@mozilla.org/toolkit/finalizationwitness;1",
                                    "nsIFinalizationWitnessService");
-XPCOMUtils.defineLazyModuleGetter(this, "PromiseUtils",
-                                  "resource://gre/modules/PromiseUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "console",
-                                  "resource://gre/modules/devtools/Console.jsm");
+
 
 // Counts the number of created connections per database basename(). This is
 // used for logging to distinguish connection instances.
@@ -196,7 +191,7 @@ XPCOMUtils.defineLazyGetter(this, "Barriers", () => {
  * dispatch its method calls here.
  */
 function ConnectionData(connection, identifier, options={}) {
-  this._log = Log.repository.getLoggerWithMessagePrefix("Sqlite.Connection",
+  this._log = Log.repository.getLoggerWithMessagePrefix("Sqlite.Connection." +
                                                         identifier + ": ");
   this._log.info("Opened");
 
@@ -219,10 +214,7 @@ function ConnectionData(connection, identifier, options={}) {
   // Increments for each executed statement for the life of the connection.
   this._statementCounter = 0;
 
-  this._hasInProgressTransaction = false;
-  // Manages a chain of transactions promises, so that new transactions
-  // always happen in queue to the previous ones.  It never rejects.
-  this._transactionQueue = Promise.resolve();
+  this._inProgressTransaction = null;
 
   this._idleShrinkMS = options.shrinkMemoryOnConnectionIdleMS;
   if (this._idleShrinkMS) {
@@ -232,9 +224,7 @@ function ConnectionData(connection, identifier, options={}) {
     // shrinking now would not do anything.
   }
 
-  // Deferred whose promise is resolved when the connection closing procedure
-  // is complete.
-  this._deferredClose = PromiseUtils.defer();
+  this._deferredClose = Promise.defer();
   this._closeRequested = false;
 
   Barriers.connections.client.addBlocker(
@@ -244,7 +234,7 @@ function ConnectionData(connection, identifier, options={}) {
       identifier: this._identifier,
       isCloseRequested: this._closeRequested,
       hasDbConn: !!this._dbConn,
-      hasInProgressTransaction: this._hasInProgressTransaction,
+      hasInProgressTransaction: !!this._inProgressTransaction,
       pendingStatements: this._pendingStatements.size,
       statementCounter: this._statementCounter,
     })
@@ -278,16 +268,23 @@ ConnectionData.prototype = Object.freeze({
     //
     // If we don't have a transaction in progress, we can proceed with shutdown
     // immediately.
-    if (!this._hasInProgressTransaction) {
-      return this._finalize();
+    if (!this._inProgressTransaction) {
+      this._finalize(this._deferredClose);
+      return this._deferredClose.promise;
     }
 
-    // If instead we do have a transaction in progress, it might be rollback-ed
-    // automaticall by closing the connection.  Regardless, we wait for its
-    // completion, next enqueued transactions will be rejected.
+    // Else if we do have a transaction in progress, we forcefully roll it
+    // back. This is an async task, so we wait on it to finish before
+    // performing finalization.
     this._log.warn("Transaction in progress at time of close. Rolling back.");
 
-    return this._transactionQueue.then(() => this._finalize());
+    let onRollback = this._finalize.bind(this, this._deferredClose);
+
+    this.execute("ROLLBACK TRANSACTION").then(onRollback, onRollback);
+    this._inProgressTransaction.reject(new Error("Connection being closed."));
+    this._inProgressTransaction = null;
+
+    return this._deferredClose.promise;
   },
 
   clone: function (readOnly=false) {
@@ -305,7 +302,7 @@ ConnectionData.prototype = Object.freeze({
     return cloneStorageConnection(options);
   },
 
-  _finalize: function () {
+  _finalize: function (deferred) {
     this._log.debug("Finalizing connection.");
     // Cancel any pending statements.
     for (let [k, statement] of this._pendingStatements) {
@@ -338,8 +335,8 @@ ConnectionData.prototype = Object.freeze({
       this._dbConn = null;
       // Now that the connection is closed, no need to keep
       // a blocker for Barriers.connections.
-      Barriers.connections.client.removeBlocker(this._deferredClose.promise);
-      this._deferredClose.resolve();
+      Barriers.connections.client.removeBlocker(deferred.promise);
+      deferred.resolve();
     }
     if (wrappedConnections.has(this._identifier)) {
       wrappedConnections.delete(this._identifier);
@@ -348,7 +345,6 @@ ConnectionData.prototype = Object.freeze({
       this._log.debug("Calling asyncClose().");
       this._dbConn.asyncClose(markAsClosed);
     }
-    return this._deferredClose.promise;
   },
 
   executeCached: function (sql, params=null, onRow=null) {
@@ -366,23 +362,25 @@ ConnectionData.prototype = Object.freeze({
 
     this._clearIdleShrinkTimer();
 
-    return new Promise((resolve, reject) => {
-      try {
-        this._executeStatement(sql, statement, params, onRow).then(
-          result => {
-            this._startIdleShrinkTimer();
-            resolve(result);
-          },
-          error => {
-            this._startIdleShrinkTimer();
-            reject(error);
-          }
-        );
-      } catch (ex) {
-        this._startIdleShrinkTimer();
-        throw ex;
-      }
-    });
+    let deferred = Promise.defer();
+
+    try {
+      this._executeStatement(sql, statement, params, onRow).then(
+        result => {
+          this._startIdleShrinkTimer();
+          deferred.resolve(result);
+        },
+        error => {
+          this._startIdleShrinkTimer();
+          deferred.reject(error);
+        }
+      );
+    } catch (ex) {
+      this._startIdleShrinkTimer();
+      throw ex;
+    }
+
+    return deferred.promise;
   },
 
   execute: function (sql, params=null, onRow=null) {
@@ -404,132 +402,103 @@ ConnectionData.prototype = Object.freeze({
       this._startIdleShrinkTimer();
     };
 
-    return new Promise((resolve, reject) => {
-      try {
-        this._executeStatement(sql, statement, params, onRow).then(
-          rows => {
-            onFinished();
-            resolve(rows);
-          },
-          error => {
-            onFinished();
-            reject(error);
-          }
-        );
-      } catch (ex) {
-        onFinished();
-        throw ex;
-      }
-    });
+    let deferred = Promise.defer();
+
+    try {
+      this._executeStatement(sql, statement, params, onRow).then(
+        rows => {
+          onFinished();
+          deferred.resolve(rows);
+        },
+        error => {
+          onFinished();
+          deferred.reject(error);
+        }
+      );
+    } catch (ex) {
+      onFinished();
+      throw ex;
+    }
+
+    return deferred.promise;
   },
 
   get transactionInProgress() {
-    return this._open && this._hasInProgressTransaction;
+    return this._open && !!this._inProgressTransaction;
   },
 
   executeTransaction: function (func, type) {
     this.ensureOpen();
 
-    this._log.debug("Beginning transaction");
+    if (this._inProgressTransaction) {
+      throw new Error("A transaction is already active. Only one transaction " +
+                      "can be active at a time.");
+    }
 
-    let promise = this._transactionQueue.then(() => {
-      if (this._closeRequested) {
-        throw new Error("Transaction canceled due to a closed connection.");
+    this._log.debug("Beginning transaction");
+    let deferred = Promise.defer();
+    this._inProgressTransaction = deferred;
+    Task.spawn(function doTransaction() {
+      // It's tempting to not yield here and rely on the implicit serial
+      // execution of issued statements. However, the yield serves an important
+      // purpose: catching errors in statement execution.
+      yield this.execute("BEGIN " + type + " TRANSACTION");
+
+      let result;
+      try {
+        result = yield Task.spawn(func);
+      } catch (ex) {
+        // It's possible that a request to close the connection caused the
+        // error.
+        // Assertion: close() will unset
+        // this._inProgressTransaction when called.
+        if (!this._inProgressTransaction) {
+          this._log.warn("Connection was closed while performing transaction. " +
+                         "Received error should be due to closed connection: " +
+                         CommonUtils.exceptionStr(ex));
+          throw ex;
+        }
+
+        this._log.warn("Error during transaction. Rolling back: " +
+                       CommonUtils.exceptionStr(ex));
+        try {
+          yield this.execute("ROLLBACK TRANSACTION");
+        } catch (inner) {
+          this._log.warn("Could not roll back transaction. This is weird: " +
+                         CommonUtils.exceptionStr(inner));
+        }
+
+        throw ex;
       }
 
-      let transactionPromise = Task.spawn(function* () {
-        // At this point we should never have an in progress transaction, since
-        // they are enqueued.
-        if (this._hasInProgressTransaction) {
-          console.error("Unexpected transaction in progress when trying to start a new one.");
-        }
-        this._hasInProgressTransaction = true;
-        try {
-          // We catch errors in statement execution to detect nested transactions.
-          try {
-            yield this.execute("BEGIN " + type + " TRANSACTION");
-          } catch (ex) {
-            // Unfortunately, if we are wrapping an existing connection, a
-            // transaction could have been started by a client of the same
-            // connection that doesn't use Sqlite.jsm (e.g. C++ consumer).
-            // The best we can do is proceed without a transaction and hope
-            // things won't break.
-            if (wrappedConnections.has(this._identifier)) {
-              this._log.warn("A new transaction could not be started cause the wrapped connection had one in progress: " +
-                             CommonUtils.exceptionStr(ex));
-              // Unmark the in progress transaction, since it's managed by
-              // some other non-Sqlite.jsm client.  See the comment above.
-              this._hasInProgressTransaction = false;
-            } else {
-              this._log.warn("A transaction was already in progress, likely a nested transaction: " +
-                             CommonUtils.exceptionStr(ex));
-              throw ex;
-            }
-          }
+      // See comment above about connection being closed during transaction.
+      if (!this._inProgressTransaction) {
+        this._log.warn("Connection was closed while performing transaction. " +
+                       "Unable to commit.");
+        throw new Error("Connection closed before transaction committed.");
+      }
 
-          let result;
-          try {
-            result = yield Task.spawn(func);
-          } catch (ex) {
-            // It's possible that the exception has been caused by trying to
-            // close the connection in the middle of a transaction.
-            if (this._closeRequested) {
-              this._log.warn("Connection closed while performing a transaction: " +
-                             CommonUtils.exceptionStr(ex));
-            } else {
-              this._log.warn("Error during transaction. Rolling back: " +
-                             CommonUtils.exceptionStr(ex));
-              // If we began a transaction, we must rollback it.
-              if (this._hasInProgressTransaction) {
-                try {
-                  yield this.execute("ROLLBACK TRANSACTION");
-                } catch (inner) {
-                  this._log.warn("Could not roll back transaction: " +
-                                 CommonUtils.exceptionStr(inner));
-                }
-              }
-            }
-            // Rethrow the exception.
-            throw ex;
-          }
+      try {
+        yield this.execute("COMMIT TRANSACTION");
+      } catch (ex) {
+        this._log.warn("Error committing transaction: " +
+                       CommonUtils.exceptionStr(ex));
+        throw ex;
+      }
 
-          // See comment above about connection being closed during transaction.
-          if (this._closeRequested) {
-            this._log.warn("Connection closed before committing the transaction.");
-            throw new Error("Connection closed before committing the transaction.");
-          }
+      throw new Task.Result(result);
+    }.bind(this)).then(
+      function onSuccess(result) {
+        this._inProgressTransaction = null;
+        deferred.resolve(result);
+      }.bind(this),
+      function onError(error) {
+        this._inProgressTransaction = null;
+        deferred.reject(error);
+      }.bind(this)
+    );
 
-          // If we began a transaction, we must commit it.
-          if (this._hasInProgressTransaction) {
-            try {
-              yield this.execute("COMMIT TRANSACTION");
-            } catch (ex) {
-              this._log.warn("Error committing transaction: " +
-                             CommonUtils.exceptionStr(ex));
-              throw ex;
-            }
-          }
-
-          return result;
-        } finally {
-          this._hasInProgressTransaction = false;
-        }
-      }.bind(this));
-
-      // If a transaction yields on a never resolved promise, or is mistakenly
-      // nested, it could hang the transactions queue forever.  Thus we timeout
-      // the execution after a meaningful amount of time, to ensure in any case
-      // we'll proceed after a while.
-      let timeoutPromise = new Promise((resolve, reject) => {
-        setTimeout(() => reject(new Error("Transaction timeout, most likely caused by unresolved pending work.")),
-                   TRANSACTIONS_QUEUE_TIMEOUT_MS);
-      });
-      return Promise.race([transactionPromise, timeoutPromise]);
-    });
-    // Atomically update the queue before anyone else has a chance to enqueue
-    // further transactions.
-    this._transactionQueue = promise.catch(ex => { console.error(ex) });
-    return promise;
+    return deferred.promise;
   },
 
   shrinkMemory: function () {
@@ -606,7 +575,7 @@ ConnectionData.prototype = Object.freeze({
 
     let index = this._statementCounter++;
 
-    let deferred = PromiseUtils.defer();
+    let deferred = Promise.defer();
     let userCancelled = false;
     let errors = [];
     let rows = [];
@@ -769,6 +738,7 @@ function openConnection(options) {
     throw new Error("Sqlite.jsm has been shutdown. Cannot open connection to: " + options.path);
   }
 
+
   // Retains absolute paths and normalizes relative as relative to profile.
   let path = OS.Path.join(OS.Constants.Path.profileDir, options.path);
 
@@ -791,31 +761,30 @@ function openConnection(options) {
   let identifier = getIdentifierByPath(path);
 
   log.info("Opening database: " + path + " (" + identifier + ")");
-
-  return new Promise((resolve, reject) => {
-    let dbOptions = null;
-    if (!sharedMemoryCache) {
-      dbOptions = Cc["@mozilla.org/hash-property-bag;1"].
-        createInstance(Ci.nsIWritablePropertyBag);
-      dbOptions.setProperty("shared", false);
+  let deferred = Promise.defer();
+  let dbOptions = null;
+  if (!sharedMemoryCache) {
+    dbOptions = Cc["@mozilla.org/hash-property-bag;1"].
+      createInstance(Ci.nsIWritablePropertyBag);
+    dbOptions.setProperty("shared", false);
+  }
+  Services.storage.openAsyncDatabase(file, dbOptions, function(status, connection) {
+    if (!connection) {
+      log.warn("Could not open connection: " + status);
+      deferred.reject(new Error("Could not open connection: " + status));
+      return;
     }
-    Services.storage.openAsyncDatabase(file, dbOptions, (status, connection) => {
-      if (!connection) {
-        log.warn("Could not open connection: " + status);
-        reject(new Error("Could not open connection: " + status));
-        return;
-      }
-      log.info("Connection opened");
-      try {
-        resolve(
-          new OpenedConnection(connection.QueryInterface(Ci.mozIStorageAsyncConnection),
-                              identifier, openedOptions));
-      } catch (ex) {
-        log.warn("Could not open database: " + CommonUtils.exceptionStr(ex));
-        reject(ex);
-      }
-    });
+    log.info("Connection opened");
+    try {
+      deferred.resolve(
+        new OpenedConnection(connection.QueryInterface(Ci.mozIStorageAsyncConnection),
+                            identifier, openedOptions));
+    } catch (ex) {
+      log.warn("Could not open database: " + CommonUtils.exceptionStr(ex));
+      deferred.reject(ex);
+    }
   });
+  return deferred.promise;
 }
 
 /**
@@ -877,23 +846,23 @@ function cloneStorageConnection(options) {
   let identifier = getIdentifierByPath(path);
 
   log.info("Cloning database: " + path + " (" + identifier + ")");
+  let deferred = Promise.defer();
 
-  return new Promise((resolve, reject) => {
-    source.asyncClone(!!options.readOnly, (status, connection) => {
-      if (!connection) {
-        log.warn("Could not clone connection: " + status);
-        reject(new Error("Could not clone connection: " + status));
-      }
-      log.info("Connection cloned");
-      try {
-        let conn = connection.QueryInterface(Ci.mozIStorageAsyncConnection);
-        resolve(new OpenedConnection(conn, identifier, openedOptions));
-      } catch (ex) {
-        log.warn("Could not clone database: " + CommonUtils.exceptionStr(ex));
-        reject(ex);
-      }
-    });
+  source.asyncClone(!!options.readOnly, (status, connection) => {
+    if (!connection) {
+      log.warn("Could not clone connection: " + status);
+      deferred.reject(new Error("Could not clone connection: " + status));
+    }
+    log.info("Connection cloned");
+    try {
+      let conn = connection.QueryInterface(Ci.mozIStorageAsyncConnection);
+      deferred.resolve(new OpenedConnection(conn, identifier, openedOptions));
+    } catch (ex) {
+      log.warn("Could not clone database: " + CommonUtils.exceptionStr(ex));
+      deferred.reject(ex);
+    }
   });
+  return deferred.promise;
 }
 
 /**
@@ -1185,21 +1154,6 @@ OpenedConnection.prototype = Object.freeze({
 
   /**
    * Perform a transaction.
-   *
-   * *****************************************************************************
-   * YOU SHOULD _NEVER_ NEST executeTransaction CALLS FOR ANY REASON, NOR
-   * DIRECTLY, NOR THROUGH OTHER PROMISES.
-   * FOR EXAMPLE, NEVER DO SOMETHING LIKE:
-   *   yield executeTransaction(function* () {
-   *     ...some_code...
-   *     yield executeTransaction(function* () { // WRONG!
-   *       ...some_code...
-   *     })
-   *     yield someCodeThatExecuteTransaction(); // WRONG!
-   *     yield neverResolvedPromise; // WRONG!
-   *   });
-   * NESTING CALLS WILL BLOCK ANY FUTURE TRANSACTION UNTIL A TIMEOUT KICKS IN.
-   * *****************************************************************************
    *
    * A transaction is specified by a user-supplied function that is a
    * generator function which can be used by Task.jsm's Task.spawn(). The

@@ -17,10 +17,10 @@ function run_test() {
   do_print("Starting test at " + new Date().toTimeString());
   initTestDebuggerServer();
 
-  add_task(test_socket_conn_drops_after_invalid_header);
-  add_task(test_socket_conn_drops_after_invalid_header_2);
-  add_task(test_socket_conn_drops_after_too_large_length);
-  add_task(test_socket_conn_drops_after_too_long_header);
+  add_test(test_socket_conn_drops_after_invalid_header);
+  add_test(test_socket_conn_drops_after_invalid_header_2);
+  add_test(test_socket_conn_drops_after_too_large_length);
+  add_test(test_socket_conn_drops_after_too_long_header);
   run_next_test();
 }
 
@@ -46,17 +46,11 @@ function test_socket_conn_drops_after_too_long_header() {
   return test_helper(rawPacket + ':');
 }
 
-let test_helper = Task.async(function*(payload) {
-  let listener = DebuggerServer.createListener();
-  listener.portOrPath = -1;
+function test_helper(payload) {
+  let listener = DebuggerServer.openListener(-1);
   listener.allowConnection = () => true;
-  listener.open();
 
-  let transport = yield DebuggerClient.socketConnect({
-    host: "127.0.0.1",
-    port: listener.port
-  });
-  let closedDeferred = promise.defer();
+  let transport = DebuggerClient.socketConnect("127.0.0.1", listener.port);
   transport.hooks = {
     onPacket: function(aPacket) {
       this.onPacket = function(aPacket) {
@@ -70,9 +64,8 @@ let test_helper = Task.async(function*(payload) {
     },
     onClosed: function(aStatus) {
       do_check_true(true);
-      closedDeferred.resolve();
+      run_next_test();
     },
   };
   transport.ready();
-  return closedDeferred.promise;
-});
+}

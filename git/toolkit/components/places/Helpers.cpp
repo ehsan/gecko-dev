@@ -321,16 +321,6 @@ TruncateTitle(const nsACString& aTitle, nsACString& aTrimmed)
   }
 }
 
-PRTime
-RoundToMilliseconds(PRTime aTime) {
-  return aTime - (aTime % PR_USEC_PER_MSEC);
-}
-
-PRTime
-RoundedPRNow() {
-  return RoundToMilliseconds(PR_Now());
-}
-
 void
 ForceWALCheckpoint()
 {

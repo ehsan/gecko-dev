@@ -164,13 +164,7 @@ this.DownloadStore.prototype = {
           if (!this.onsaveitem(download)) {
             continue;
           }
-
-          let serializable = download.toSerializable();
-          if (!serializable) {
-            // This item cannot be persisted across sessions.
-            continue;
-          }
-          storeData.list.push(serializable);
+          storeData.list.push(download.toSerializable());
           atLeastOneDownload = true;
         } catch (ex) {
           // If an item cannot be converted to a serializable form, don't

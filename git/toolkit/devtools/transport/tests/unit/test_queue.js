@@ -25,7 +25,7 @@ function run_test() {
 
 /*** Tests ***/
 
-let test_transport = Task.async(function*(transportFactory) {
+function test_transport(transportFactory) {
   let clientDeferred = promise.defer();
   let serverDeferred = promise.defer();
 
@@ -36,7 +36,7 @@ let test_transport = Task.async(function*(transportFactory) {
 
   do_check_eq(Object.keys(DebuggerServer._connections).length, 0);
 
-  let transport = yield transportFactory();
+  let transport = transportFactory();
 
   // Sending from client to server
   function write_data({copyFrom}) {
@@ -133,7 +133,7 @@ let test_transport = Task.async(function*(transportFactory) {
   transport.ready();
 
   return promise.all([clientDeferred.promise, serverDeferred.promise]);
-});
+}
 
 /*** Test Utils ***/
 

@@ -236,9 +236,7 @@ var BrowserUI = {
       DebuggerServer.addBrowserActors();
       DebuggerServer.addActors('chrome://browser/content/dbg-metro-actors.js');
     }
-    let listener = DebuggerServer.createListener();
-    listener.portOrPath = port;
-    listener.open();
+    DebuggerServer.openListener(port);
   },
 
   stopDebugServer: function stopDebugServer() {

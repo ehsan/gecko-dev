@@ -799,8 +799,6 @@ pref("devtools.remote.wifi.scan", false);
 // N.B.: This does not set whether the device can be discovered via WiFi, only
 // whether the UI control to make such a choice is shown to the user
 pref("devtools.remote.wifi.visible", false);
-// Client must complete TLS handshake within this window (ms)
-pref("devtools.remote.tls-handshake-timeout", 10000);
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -4390,6 +4388,7 @@ pref("beacon.enabled", true);
 #endif
 
 // Camera prefs
+pref("camera.control.autofocus_moving_callback.enabled", true);
 pref("camera.control.face_detection.enabled", true);
 
 // Fetch API.

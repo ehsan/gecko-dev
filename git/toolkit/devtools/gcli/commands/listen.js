@@ -48,13 +48,10 @@ exports.items = [
       }
     ],
     exec: function(args, context) {
-      var listener = debuggerServer.createListener();
-      if (!listener) {
+      var reply = debuggerServer.openListener(args.port);
+      if (!reply) {
         throw new Error(gcli.lookup("listenDisabledOutput"));
       }
-
-      listener.portOrPath = args.port;
-      listener.open();
 
       if (debuggerServer.initialized) {
         return gcli.lookupFormat("listenInitOutput", [ "" + args.port ]);

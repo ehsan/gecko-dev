@@ -449,7 +449,6 @@ WiFiRuntime.prototype = {
     }
     connection.host = service.host;
     connection.port = service.port;
-    connection.encryption = service.encryption;
     connection.connect();
     return promise.resolve();
   },

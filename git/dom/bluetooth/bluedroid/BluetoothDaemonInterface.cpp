@@ -5,7 +5,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "BluetoothDaemonInterface.h"
-#include "BluetoothDaemonA2dpInterface.h"
 #include "BluetoothDaemonHandsfreeInterface.h"
 #include "BluetoothDaemonHelpers.h"
 #include "BluetoothDaemonSetupInterface.h"
@@ -1362,7 +1361,6 @@ class BluetoothDaemonProtocol MOZ_FINAL
   , public BluetoothDaemonCoreModule
   , public BluetoothDaemonSocketModule
   , public BluetoothDaemonHandsfreeModule
-  , public BluetoothDaemonA2dpModule
 {
 public:
   BluetoothDaemonProtocol(BluetoothDaemonConnection* aConnection);
@@ -1396,8 +1394,6 @@ private:
                        BluetoothDaemonPDU& aPDU, void* aUserData);
   void HandleHandsfreeSvc(const BluetoothDaemonPDUHeader& aHeader,
                           BluetoothDaemonPDU& aPDU, void* aUserData);
-  void HandleA2dpSvc(const BluetoothDaemonPDUHeader& aHeader,
-                     BluetoothDaemonPDU& aPDU, void* aUserData);
 
   BluetoothDaemonConnection* mConnection;
   nsTArray<void*> mUserDataQ;
@@ -1467,14 +1463,6 @@ BluetoothDaemonProtocol::HandleHandsfreeSvc(
 }
 
 void
-BluetoothDaemonProtocol::HandleA2dpSvc(
-  const BluetoothDaemonPDUHeader& aHeader, BluetoothDaemonPDU& aPDU,
-  void* aUserData)
-{
-  BluetoothDaemonA2dpModule::HandleSvc(aHeader, aPDU, aUserData);
-}
-
-void
 BluetoothDaemonProtocol::Handle(BluetoothDaemonPDU& aPDU)
 {
   static void (BluetoothDaemonProtocol::* const HandleSvc[])(
@@ -1485,9 +1473,7 @@ BluetoothDaemonProtocol::Handle(BluetoothDaemonPDU& aPDU)
     INIT_ARRAY_AT(0x03, nullptr), // HID host
     INIT_ARRAY_AT(0x04, nullptr), // PAN
     INIT_ARRAY_AT(BluetoothDaemonHandsfreeModule::SERVICE_ID,
-      &BluetoothDaemonProtocol::HandleHandsfreeSvc),
-    INIT_ARRAY_AT(BluetoothDaemonA2dpModule::SERVICE_ID,
-      &BluetoothDaemonProtocol::HandleA2dpSvc)
+      &BluetoothDaemonProtocol::HandleHandsfreeSvc)
   };
 
   BluetoothDaemonPDUHeader header;
@@ -2067,13 +2053,7 @@ BluetoothDaemonInterface::GetBluetoothHandsfreeInterface()
 BluetoothA2dpInterface*
 BluetoothDaemonInterface::GetBluetoothA2dpInterface()
 {
-  if (mA2dpInterface) {
-    return mA2dpInterface;
-  }
-
-  mA2dpInterface = new BluetoothDaemonA2dpInterface(mProtocol);
-
-  return mA2dpInterface;
+  return nullptr;
 }
 
 BluetoothAvrcpInterface*

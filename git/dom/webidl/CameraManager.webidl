@@ -24,6 +24,11 @@ dictionary CameraConfiguration
                                   // CameraControl.capabilities.recorderProfiles
 };
 
+callback CameraErrorCallback = void (DOMString error);
+
+callback GetCameraCallback = void (CameraControl camera,
+                                   CameraConfiguration configuration);
+
 [Func="nsDOMCameraManager::HasSupport"]
 interface CameraManager
 {
@@ -32,7 +37,9 @@ interface CameraManager
   */
   [Throws]
   Promise<CameraGetPromiseData> getCamera(DOMString camera,
-                                          optional CameraConfiguration initialConfiguration);
+                                          optional CameraConfiguration initialConfiguration,
+                                          optional GetCameraCallback callback,
+                                          optional CameraErrorCallback errorCallback);
 
   /* return an array of camera identifiers, e.g.
        [ "front", "back" ]

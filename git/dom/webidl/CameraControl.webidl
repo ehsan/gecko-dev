@@ -111,6 +111,17 @@ dictionary CameraStartRecordingOptions
   boolean autoEnableLowLightTorch = false;
 };
 
+callback CameraSetConfigurationCallback = void (CameraConfiguration configuration);
+callback CameraAutoFocusCallback = void (boolean focused);
+callback CameraTakePictureCallback = void (Blob picture);
+callback CameraStartRecordingCallback = void ();
+callback CameraShutterCallback = void ();
+callback CameraClosedCallback = void (DOMString reason);
+callback CameraReleaseCallback = void ();
+callback CameraRecorderStateChange = void (DOMString newState);
+callback CameraPreviewStateChange = void (DOMString newState);
+callback CameraAutoFocusMovingCallback = void (boolean isMoving);
+
 /*
     attributes here affect the preview, any pictures taken, and/or
     any video recorded by the camera.
@@ -220,11 +231,26 @@ interface CameraControl : MediaStream
   [Throws]
   attribute DOMString       isoMode;
 
+  /* the function to call on the camera's shutter event, to trigger
+     a shutter sound and/or a visual shutter indicator. */
+  attribute CameraShutterCallback? onShutter;
+
   /* the event dispatched on the camera's shutter event, to trigger
      a shutter sound and/or a visual shutter indicator.
 
      contains no event-specific data. */
-  attribute EventHandler    onshutter;
+  attribute EventHandler onshutter;
+
+  /* the function to call when the camera hardware is closed; this may
+     be due to a system failure, another process taking over the camera,
+     or a call to release().
+
+     The 'reason' will be one of the following string values:
+       - SystemFailure    : the camera subsystem failed and was closed;
+       - HardwareReleased : a call to release() was successful;
+       - NotAvailable     : the camera hardware is in use by another process.
+  */
+  attribute CameraClosedCallback? onClosed;
 
   /* the event dispatched when the camera hardware is closed; this may
      be due to a system failure, another process taking over the camera,
@@ -236,7 +262,12 @@ interface CameraControl : MediaStream
        - HardwareReleased : a call to release() was successful;
        - NotAvailable     : the camera hardware is in use by another process.
   */
-  attribute EventHandler    onclose;
+  attribute EventHandler onclose;
+
+  /* the function to call when the recorder changes state, either because
+     the recording process encountered an error, or because one of the
+     recording limits (see CameraStartRecordingOptions) was reached. */
+  attribute CameraRecorderStateChange? onRecorderStateChange;
 
   /* the event dispatched when the recorder changes state, either because
      the recording process encountered an error, or because one of the
@@ -244,14 +275,18 @@ interface CameraControl : MediaStream
 
      event type is CameraStateChangeEvent where:
          'newState' is the new recorder state */
-  attribute EventHandler    onrecorderstatechange;
+  attribute EventHandler onrecorderstatechange;
+
+  /* the function to call when the viewfinder stops or starts,
+     useful for synchronizing other UI elements. */
+  attribute CameraPreviewStateChange? onPreviewStateChange;
 
   /* the event dispatched when the viewfinder stops or starts,
      useful for synchronizing other UI elements.
 
      event type is CameraStateChangeEvent where:
          'newState' is the new preview state */
-  attribute EventHandler    onpreviewstatechange;
+  attribute EventHandler onpreviewstatechange;
 
   /* the size of the picture to be returned by a call to takePicture();
      an object with 'height' and 'width' properties that corresponds to
@@ -269,7 +304,7 @@ interface CameraControl : MediaStream
      'get' the exact value that was previously 'set'. If this setting is
      not supported, it is ignored. */
   [Throws]
-  attribute double          pictureQuality;
+  attribute double           pictureQuality;
 
   /* the size of the thumbnail to be included in the picture returned
      by a call to takePicture(), assuming the chosen fileFormat supports
@@ -291,7 +326,8 @@ interface CameraControl : MediaStream
 
   /* tell the camera to attempt to focus the image */
   [Throws]
-  Promise<boolean> autoFocus();
+  Promise<boolean> autoFocus(optional CameraAutoFocusCallback onSuccess,
+                             optional CameraErrorCallback onError);
 
   /* the event dispatched whenever the focus state changes due to calling
      autoFocus or due to continuous autofocus.
@@ -308,28 +344,45 @@ interface CameraControl : MediaStream
              'focused' if the focus is now set
              'focusing' if the focus is moving
              'unfocused' if last attempt to focus failed */
-  attribute EventHandler    onfocus;
+  attribute EventHandler onfocus;
+
+  /* if continuous autofocus is supported and focusMode is set to enable it,
+     then this function is called whenever the camera decides to start and
+     stop moving the focus position; it can be used to update a UI element to
+     indicate that the camera is still trying to focus, or has finished. Some
+     platforms do not support this event, in which case the callback is never
+     invoked. */
+  [Pref="camera.control.autofocus_moving_callback.enabled"]
+  attribute CameraAutoFocusMovingCallback? onAutoFocusMoving;
+
+  /* this function is called whenever auto focus completes, due to continuous
+     autofocus or a solicited auto focus.  */
+  attribute CameraAutoFocusCallback? onAutoFocusCompleted;
 
   /* capture an image and return it as a blob to the 'onSuccess' callback;
      if the camera supports it, this may be invoked while the camera is
      already recording video.
 
      invoking this function will stop the preview stream, which must be
-     manually restarted by calling resumePreview(). */
+     manually restarted (e.g. by calling .play() on it). */
   [Throws]
-  Promise<Blob> takePicture(optional CameraPictureOptions options);
+  Promise<Blob> takePicture(optional CameraPictureOptions aOptions,
+                            optional CameraTakePictureCallback onSuccess,
+                            optional CameraErrorCallback onError);
 
   /* the event dispatched when a picture is successfully taken; it is of the
      type BlobEvent, where the data attribute contains the picture. */
-  attribute EventHandler    onpicture;
+  attribute EventHandler onpicture;
 
-  /* start recording video; 'options' is a CameraStartRecordingOptions object.
+  /* start recording video; 'aOptions' is a CameraStartRecordingOptions object.
      If the success/error callbacks are not used, one may determine success by
      waiting for the recorderstatechange event. */
   [Throws]
-  Promise<void> startRecording(CameraStartRecordingOptions options,
+  Promise<void> startRecording(CameraStartRecordingOptions aOptions,
                                DeviceStorage storageArea,
-                               DOMString filename);
+                               DOMString filename,
+                               optional CameraStartRecordingCallback onSuccess,
+                               optional CameraErrorCallback onError);
 
   /* stop precording video. */
   [Throws]
@@ -344,14 +397,27 @@ interface CameraControl : MediaStream
      probably call this whenever the camera is not longer in the foreground
      (depending on your usage model).
 
+     the callbacks are optional, unless you really need to know when
+     the hardware is ultimately released.
+
      once this is called, the camera control object is to be considered
      defunct; a new instance will need to be created to access the camera. */
   [Throws]
-  Promise<void> release();
+  Promise<void> release(optional CameraReleaseCallback onSuccess,
+                        optional CameraErrorCallback onError);
 
-  /* changes the camera configuration on the fly. */
+  /* changes the camera configuration on the fly;
+     'configuration' is of type CameraConfiguration.
+
+     XXXmikeh the 'configuration' argument needs to be optional, else
+     the WebIDL compiler throws: "WebIDL.WebIDLError: error: Dictionary
+     argument or union argument containing a dictionary not followed by
+     a required argument must be optional"
+  */
   [Throws]
-  Promise<CameraConfiguration> setConfiguration(optional CameraConfiguration configuration);
+  Promise<CameraConfiguration> setConfiguration(optional CameraConfiguration configuration,
+                                                optional CameraSetConfigurationCallback onSuccess,
+                                                optional CameraErrorCallback onError);
 
   /* the event dispatched when the camera is successfully configured.
 
@@ -458,7 +524,12 @@ partial interface CameraControl
   [Throws, Pref="camera.control.face_detection.enabled"]
   void stopFaceDetection();
 
+  /* Callback for faces detected in the preview frame. If no faces are
+     detected, the callback is invoked with an empty sequence. */
+  [Pref="camera.control.face_detection.enabled"]
+  attribute CameraFaceDetectionCallback? onFacesDetected;
+
   /* CameraFacesDetectedEvent */
   [Pref="camera.control.face_detection.enabled"]
-  attribute EventHandler    onfacesdetected;
+  attribute EventHandler onfacesdetected;
 };
