@@ -269,9 +269,8 @@ public class BookmarkRecord extends Record {
 
       if (isQuery()) {
         Map<String, String> parts = Utils.extractURIComponents(PLACES_URI_PREFIX, this.bookmarkURI);
-        putPayload(payload, "queryId", parts.get("queryId"), true);
-        putPayload(payload, "folderName", parts.get("folderName"), true);
-        putPayload(payload, "bmkUri", parts.get("uri"));
+        putPayload(payload, "queryId", parts.get("queryId"));
+        putPayload(payload, "folderName", parts.get("folderName"));
         return;
       }
 
@@ -421,7 +420,7 @@ public class BookmarkRecord extends Record {
       b.append(encode(originalURI));
       previous = true;
     }
-    if (p1 != null && v1 != null) {
+    if (p1 != null) {
       if (previous) {
         b.append("&");
       }
@@ -430,7 +429,7 @@ public class BookmarkRecord extends Record {
       b.append(encode(v1));
       previous = true;
     }
-    if (p2 != null && v2 != null) {
+    if (p2 != null) {
       if (previous) {
         b.append("&");
       }
