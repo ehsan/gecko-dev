@@ -18,6 +18,7 @@
 #include "nsIScrollbarMediator.h"
 #include "mozilla/LookAndFeel.h"
 #include "nsThemeConstants.h"
+#include "nsRenderingContext.h"
 #include "nsIContent.h"
 #include "nsIDOMMutationEvent.h"
 

@@ -9,12 +9,13 @@
 const TAB_URL = EXAMPLE_URL + "doc_binary_search.html";
 const COFFEE_URL = EXAMPLE_URL + "code_binary_search.coffee";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gEditor, gSources;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gEditor = gDebugger.DebuggerView.editor;
@@ -118,7 +119,7 @@ function testHitBreakpoint() {
 
     // This will cause the breakpoint to be hit, and put us back in the
     // paused state.
-    callInTab(gTab, "binary_search", [0, 2, 3, 5, 7, 10], 5);
+    gDebuggee.binary_search([0, 2, 3, 5, 7, 10], 5);
   });
 
   return deferred.promise;
@@ -156,6 +157,7 @@ function testStepping() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gEditor = null;
