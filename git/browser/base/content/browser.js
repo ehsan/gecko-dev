@@ -170,10 +170,6 @@ let gInitialPages = [
 
 XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
 #ifdef XP_WIN
-  // Bug 666808 - AeroPeek support for e10s
-  if (gMultiProcessBrowser)
-    return null;
-
   const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
   if (WINTASKBAR_CONTRACTID in Cc &&
       Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
@@ -1139,8 +1135,11 @@ var gBrowserInit = {
     gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
     gBrowser.mPanelContainer.addEventListener("ResetBrowserThemePreview", LightWeightThemeWebInstaller, false, true);
 
-    if (Win7Features)
-      Win7Features.onOpenWindow();
+    // Bug 666808 - AeroPeek support for e10s
+    if (!gMultiProcessBrowser) {
+      if (Win7Features)
+        Win7Features.onOpenWindow();
+    }
 
    // called when we go into full screen, even if initiated by a web page script
     window.addEventListener("fullscreen", onFullScreen, true);
@@ -3656,7 +3655,8 @@ var XULBrowserWindow = {
     return this.reloadCommand = document.getElementById("Browser:Reload");
   },
   get statusTextField () {
-    return gBrowser.getStatusPanel();
+    delete this.statusTextField;
+    return this.statusTextField = document.getElementById("statusbar-display");
   },
   get isImage () {
     delete this.isImage;
@@ -3676,6 +3676,7 @@ var XULBrowserWindow = {
     delete this.throbberElement;
     delete this.stopCommand;
     delete this.reloadCommand;
+    delete this.statusTextField;
     delete this.statusText;
   },
 

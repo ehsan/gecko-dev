@@ -6,8 +6,7 @@
 package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.EditBookmarkDialog;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
+import org.mozilla.gecko.Favicons;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.GeckoProfile;
@@ -232,19 +231,19 @@ abstract class HomeFragment extends Fragment {
 
         @Override
         public String doInBackground(Void... params) {
-            return Favicons.getFaviconUrlForPageUrl(mUrl);
+            return Favicons.getInstance().getFaviconUrlForPageUrl(mUrl);
         }
 
         @Override
         public void onPostExecute(String faviconUrl) {
-            OnFaviconLoadedListener listener = new OnFaviconLoadedListener() {
+            Favicons.OnFaviconLoadedListener listener = new Favicons.OnFaviconLoadedListener() {
                 @Override
                 public void onFaviconLoaded(String url, Bitmap favicon) {
                     GeckoAppShell.createShortcut(mTitle, mUrl, favicon, "");
                 }
             };
 
-            Favicons.loadFavicon(mUrl, faviconUrl, 0, listener);
+            Favicons.getInstance().loadFavicon(mUrl, faviconUrl, 0, listener);
         }
     }
 

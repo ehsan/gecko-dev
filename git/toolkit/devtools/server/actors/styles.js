@@ -11,7 +11,6 @@ const events = require("sdk/event/core");
 const object = require("sdk/util/object");
 const { Class } = require("sdk/core/heritage");
 
-loader.lazyImporter(this, "Services", "resource://gre/modules/Services.jsm");
 loader.lazyGetter(this, "CssLogic", () => require("devtools/styleinspector/css-logic").CssLogic);
 loader.lazyGetter(this, "DOMUtils", () => Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils));
 
@@ -711,23 +710,13 @@ var StyleRuleActor = protocol.ActorClass({
    * @returns the rule with updated properties
    */
   modifyProperties: method(function(modifications) {
-    let validProps = new Map();
-
-    // Use a fresh element for each call to this function to prevent side effects
-    // that pop up based on property values that were already set on the element.
-    let tempElement = Services.appShell.hiddenDOMWindow.
-      document.createElement("div");
-
     for (let mod of modifications) {
       if (mod.type === "set") {
-        tempElement.style.setProperty(mod.name, mod.value, mod.priority || "");
-        this.rawStyle.setProperty(mod.name,
-          tempElement.style.getPropertyValue(mod.name), mod.priority || "");
+        this.rawStyle.setProperty(mod.name, mod.value, mod.priority || "");
       } else if (mod.type === "remove") {
         this.rawStyle.removeProperty(mod.name);
       }
     }
-
     return this;
   }, {
     request: { modifications: Arg(0, "array:json") },

@@ -108,10 +108,10 @@ let SyncFlyoutPanel = {
   },
 
   showInitialScreen: function() {
-    if (Weave.Status.login == Weave.LOGIN_SUCCEEDED) {
-      this.showConnected();
-    } else {
+    if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED) {
       this.showPreSetup();
+    } else {
+      this.showConnected();
     }
   },
 

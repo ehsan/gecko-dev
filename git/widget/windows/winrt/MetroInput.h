@@ -196,8 +196,6 @@ private:
   bool mTouchStartDefaultPrevented;
   bool mTouchMoveDefaultPrevented;
   bool mIsFirstTouchMove;
-  bool mCancelable;
-  bool mTouchCancelSent;
 
   // In the old Win32 way of doing things, we would receive a WM_TOUCH event
   // that told us the state of every touchpoint on the touch surface.  If
@@ -273,9 +271,8 @@ private:
 
   // Sync event dispatching
   void DispatchEventIgnoreStatus(nsGUIEvent *aEvent);
-  void DispatchTouchCancel();
 
-  nsDeque mInputEventQueue;
+   nsDeque mInputEventQueue;
   static nsEventStatus sThrowawayStatus;
 };
 
