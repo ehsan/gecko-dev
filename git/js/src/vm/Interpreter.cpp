@@ -225,7 +225,7 @@ NoSuchMethod(JSContext *cx, unsigned argc, Value *vp)
 
 #endif /* JS_HAS_NO_SUCH_METHOD */
 
-static inline bool
+inline bool
 GetPropertyOperation(JSContext *cx, StackFrame *fp, HandleScript script, jsbytecode *pc,
                      MutableHandleValue lval, MutableHandleValue vp)
 {
@@ -316,7 +316,7 @@ NameOperation(JSContext *cx, StackFrame *fp, jsbytecode *pc, MutableHandleValue 
     return FetchName<false>(cx, scopeRoot, pobjRoot, nameRoot, shapeRoot, vp);
 }
 
-static inline bool
+inline bool
 SetPropertyOperation(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue lval,
                      HandleValue rval)
 {
@@ -1061,7 +1061,7 @@ FrameGuard::~FrameGuard()
  * We set *vp to undefined early to reduce code size and bias this code for the
  * common and future-friendly cases.
  */
-static inline bool
+inline bool
 ComputeImplicitThis(JSContext *cx, HandleObject obj, MutableHandleValue vp)
 {
     vp.setUndefined();

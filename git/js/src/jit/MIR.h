@@ -6966,7 +6966,7 @@ class MSetPropertyInstruction : public MBinaryInstruction
     {}
 
   public:
-    MDefinition *object() const {
+    MDefinition *obj() const {
         return getOperand(0);
     }
     MDefinition *value() const {

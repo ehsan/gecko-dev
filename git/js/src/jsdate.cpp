@@ -100,7 +100,7 @@ using JS::GenericNaN;
  *     hashCode
  */
 
-static inline double
+inline double
 Day(double t)
 {
     return floor(t / msPerDay);
@@ -116,14 +116,14 @@ TimeWithinDay(double t)
 }
 
 /* ES5 15.9.1.3. */
-static inline bool
+inline bool
 IsLeapYear(double year)
 {
     JS_ASSERT(ToInteger(year) == year);
     return fmod(year, 4) == 0 && (fmod(year, 100) != 0 || fmod(year, 400) == 0);
 }
 
-static inline double
+inline double
 DaysInYear(double year)
 {
     if (!IsFinite(year))
@@ -131,7 +131,7 @@ DaysInYear(double year)
     return IsLeapYear(year) ? 366 : 365;
 }
 
-static inline double
+inline double
 DayFromYear(double y)
 {
     return 365 * (y - 1970) +
@@ -140,7 +140,7 @@ DayFromYear(double y)
            floor((y - 1601) / 400.0);
 }
 
-static inline double
+inline double
 TimeFromYear(double y)
 {
     return DayFromYear(y) * msPerDay;
@@ -171,14 +171,14 @@ YearFromTime(double t)
     return y;
 }
 
-static inline int
+inline int
 DaysInFebruary(double year)
 {
     return IsLeapYear(year) ? 29 : 28;
 }
 
 /* ES5 15.9.1.4. */
-static inline double
+inline double
 DayWithinYear(double t, double year)
 {
     JS_ASSERT_IF(IsFinite(t), YearFromTime(t) == year);
@@ -282,7 +282,7 @@ WeekDay(double t)
     return result;
 }
 
-static inline int
+inline int
 DayFromMonth(int month, bool isLeapYear)
 {
     /*
@@ -299,7 +299,7 @@ DayFromMonth(int month, bool isLeapYear)
 }
 
 template<typename T>
-static inline int
+inline int
 DayFromMonth(T month, bool isLeapYear) MOZ_DELETE;
 
 /* ES5 15.9.1.12 (out of order to accommodate DaylightSavingTA). */
@@ -333,7 +333,7 @@ MakeDay(double year, double month, double date)
 }
 
 /* ES5 15.9.1.13 (out of order to accommodate DaylightSavingTA). */
-static inline double
+inline double
 MakeDate(double day, double time)
 {
     /* Step 1. */

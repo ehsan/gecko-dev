@@ -468,8 +468,7 @@ TISInputSourceWrapper::InitByInputSourceID(const nsAFlatString &aID)
   if (aID.IsEmpty())
     return;
   CFStringRef idstr = ::CFStringCreateWithCharacters(kCFAllocatorDefault,
-                                                     reinterpret_cast<const UniChar*>(aID.get()),
-                                                     aID.Length());
+                                                     aID.get(), aID.Length());
   InitByInputSourceID(idstr);
   ::CFRelease(idstr);
 }

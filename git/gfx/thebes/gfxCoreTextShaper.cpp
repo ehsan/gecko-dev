@@ -88,15 +88,15 @@ gfxCoreTextShaper::ShapeText(gfxContext      *aContext,
         ::CFStringAppendCharacters(mutableString,
                                    isRightToLeft ? beginRTL : beginLTR,
                                    startOffset);
-        ::CFStringAppendCharacters(mutableString, reinterpret_cast<const UniChar*>(aText), length);
+        ::CFStringAppendCharacters(mutableString, aText, length);
         ::CFStringAppendCharacters(mutableString,
                                    endBidiWrap, mozilla::ArrayLength(endBidiWrap));
         stringObj = mutableString;
     } else {
         startOffset = 0;
         stringObj = ::CFStringCreateWithCharactersNoCopy(kCFAllocatorDefault,
-                                                         reinterpret_cast<const UniChar*>(aText),
-                                                         length, kCFAllocatorNull);
+                                                         aText, length,
+                                                         kCFAllocatorNull);
     }
 
     CFDictionaryRef attrObj;

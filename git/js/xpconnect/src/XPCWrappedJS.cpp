@@ -347,7 +347,7 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
                 XPCAutoLock lock(rt->GetMapLock());
                 map->Remove(root);
 
-                wrapper = nullptr;
+                wrapper = NULL;
             }
 
             goto return_wrapper;

@@ -319,8 +319,8 @@ nsIOService::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
     }
 
     // Finally, our category
-    nsCOMArray<nsIChannelEventSink> entries;
-    mChannelEventSinks.GetEntries(entries);
+    const nsCOMArray<nsIChannelEventSink>& entries =
+        mChannelEventSinks.GetEntries();
     int32_t len = entries.Count();
     for (int32_t i = 0; i < len; ++i) {
         nsresult rv = helper->DelegateOnChannelRedirect(entries[i], oldChan,

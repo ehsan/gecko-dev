@@ -408,12 +408,12 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     nsCOMPtr<nsIURI> uri;
     nsresult rv = NS_NewURI(getter_AddRefs(uri), spec);
     if (NS_FAILED(rv))
-        return nullptr;
+        return NULL;
 
     if (!mInitialized) {
         rv = ReallyInit();
         if (NS_FAILED(rv))
-            return nullptr;
+            return NULL;
     }
 
     ModuleEntry* mod;
@@ -427,18 +427,18 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     rv = ObjectForLocation(file, uri, &entry->obj,
                            &entry->location, false, &dummy);
     if (NS_FAILED(rv)) {
-        return nullptr;
+        return NULL;
     }
 
     nsCOMPtr<nsIXPConnect> xpc = do_GetService(kXPConnectServiceContractID,
                                                &rv);
     if (NS_FAILED(rv))
-        return nullptr;
+        return NULL;
 
     nsCOMPtr<nsIComponentManager> cm;
     rv = NS_GetComponentManager(getter_AddRefs(cm));
     if (NS_FAILED(rv))
-        return nullptr;
+        return NULL;
 
     JSCLContextHelper cx(mContext);
     JSAutoCompartment ac(cx, entry->obj);
@@ -453,7 +453,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
         fprintf(stderr, "WrapNative(%p,%p,nsIComponentManager) failed: %x\n",
                 (void *)(JSContext*)cx, (void *)mCompMgr, rv);
 #endif
-        return nullptr;
+        return NULL;
     }
 
     JSObject* cm_jsobj = cm_holder->GetJSObject();
@@ -461,7 +461,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
 #ifdef DEBUG_shaver
         fprintf(stderr, "GetJSObject of ComponentManager failed\n");
 #endif
-        return nullptr;
+        return NULL;
     }
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> file_holder;
@@ -470,12 +470,12 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
                          getter_AddRefs(file_holder));
 
     if (NS_FAILED(rv)) {
-        return nullptr;
+        return NULL;
     }
 
     JSObject* file_jsobj = file_holder->GetJSObject();
     if (!file_jsobj) {
-        return nullptr;
+        return NULL;
     }
 
     JSCLAutoErrorReporterSetter aers(cx, xpc::SystemErrorReporter);
@@ -483,7 +483,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     RootedValue NSGetFactory_val(cx);
     if (!JS_GetProperty(cx, entry->obj, "NSGetFactory", &NSGetFactory_val) ||
         JSVAL_IS_VOID(NSGetFactory_val)) {
-        return nullptr;
+        return NULL;
     }
 
     if (JS_TypeOfValue(cx, NSGetFactory_val) != JSTYPE_FUNCTION) {
@@ -491,14 +491,14 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
         uri->GetSpec(spec);
         JS_ReportError(cx, "%s has NSGetFactory property that is not a function",
                        spec.get());
-        return nullptr;
+        return NULL;
     }
 
     RootedObject jsGetFactoryObj(cx);
     if (!JS_ValueToObject(cx, NSGetFactory_val, &jsGetFactoryObj) ||
         !jsGetFactoryObj) {
         /* XXX report error properly */
-        return nullptr;
+        return NULL;
     }
 
     rv = xpc->WrapJS(cx, jsGetFactoryObj,
@@ -508,7 +508,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
 #ifdef DEBUG
         fprintf(stderr, "mJCL: couldn't get nsIModule from jsval\n");
 #endif
-        return nullptr;
+        return NULL;
     }
 
     // Cache this module for later
@@ -992,7 +992,7 @@ mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
     JS_SetOptions(cx, oldopts | (aPropagateExceptions ? JSOPTION_DONT_REPORT_UNCAUGHT : 0));
     bool ok = false;
     if (script) {
-        ok = JS_ExecuteScriptVersion(cx, obj, script, nullptr, JSVERSION_LATEST);
+        ok = JS_ExecuteScriptVersion(cx, obj, script, NULL, JSVERSION_LATEST);
     } else {
         jsval rval;
         ok = JS_CallFunction(cx, obj, function, 0, nullptr, &rval);
@@ -1050,7 +1050,7 @@ mozJSComponentLoader::UnloadModules()
     mImports.Clear();
     mThisObjects.Clear();
 
-    mModules.Enumerate(ClearModules, nullptr);
+    mModules.Enumerate(ClearModules, NULL);
 
     JS_DestroyContextNoGC(mContext);
     mContext = nullptr;

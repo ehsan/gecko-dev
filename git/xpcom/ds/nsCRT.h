@@ -109,7 +109,7 @@ public:
       // Establish string and get the first token:
       char* newStr;
       token = nsCRT::strtok(string, seps, &newStr);   
-      while (token != nullptr) {
+      while (token != NULL) {
         // While there are tokens in "string"
         printf(" %s\n", token);
         // Get next token:

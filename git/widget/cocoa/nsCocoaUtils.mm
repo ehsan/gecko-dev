@@ -352,7 +352,7 @@ nsCocoaUtils::GetStringForNSString(const NSString *aSrc, nsAString& aDist)
   }
 
   aDist.SetLength([aSrc length]);
-  [aSrc getCharacters: reinterpret_cast<unichar*>(aDist.BeginWriting())];
+  [aSrc getCharacters: aDist.BeginWriting()];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -364,7 +364,7 @@ nsCocoaUtils::ToNSString(const nsAString& aString)
   if (aString.IsEmpty()) {
     return [NSString string];
   }
-  return [NSString stringWithCharacters:reinterpret_cast<const unichar*>(aString.BeginReading())
+  return [NSString stringWithCharacters:aString.BeginReading()
                                  length:aString.Length()];
 }
 

@@ -76,7 +76,7 @@ AutoScriptEvaluate::~AutoScriptEvaluate()
     JS_EndRequest(mJSContext);
 
     if (mErrorReporterSet)
-        JS_SetErrorReporter(mJSContext, nullptr);
+        JS_SetErrorReporter(mJSContext, NULL);
 }
 
 // It turns out that some errors may be not worth reporting. So, this
@@ -1653,11 +1653,11 @@ static const JSClass XPCOutParamClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     FinalizeStub,
-    nullptr,   /* checkAccess */
-    nullptr,   /* call */
-    nullptr,   /* hasInstance */
-    nullptr,   /* construct */
-    nullptr    /* trace */
+    NULL,   /* checkAccess */
+    NULL,   /* call */
+    NULL,   /* hasInstance */
+    NULL,   /* construct */
+    NULL    /* trace */
 };
 
 bool

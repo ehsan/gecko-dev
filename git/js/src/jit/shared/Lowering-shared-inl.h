@@ -342,12 +342,6 @@ LIRGeneratorShared::useFixed(MDefinition *mir, Register reg)
 }
 
 LUse
-LIRGeneratorShared::useFixedAtStart(MDefinition *mir, Register reg)
-{
-    return use(mir, LUse(reg, true));
-}
-
-LUse
 LIRGeneratorShared::useFixed(MDefinition *mir, FloatRegister reg)
 {
     return use(mir, LUse(reg));

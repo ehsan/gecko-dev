@@ -10,8 +10,7 @@ MODULE = 'necko'
 
 EXPORTS.mozilla.net += [
     'DataChannel.h',
-    'DataChannelListener.h',
-    'DataChannelProtocol.h'
+    'DataChannelProtocol.h',
 ]
 
 CPP_SOURCES += [

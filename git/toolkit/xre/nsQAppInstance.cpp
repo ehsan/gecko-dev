@@ -13,9 +13,9 @@
 #include "prenv.h"
 #include <stdlib.h>
 
-QApplication *nsQAppInstance::sQAppInstance = nullptr;
+QApplication *nsQAppInstance::sQAppInstance = NULL;
 #ifdef MOZ_ENABLE_MEEGOTOUCH
-MComponentData* nsQAppInstance::sMComponentData = nullptr;
+MComponentData* nsQAppInstance::sMComponentData = NULL;
 #endif
 int nsQAppInstance::sQAppRefCount = 0;
 
@@ -38,9 +38,9 @@ void nsQAppInstance::Release(void) {
   if (sQAppInstance && !--sQAppRefCount) {
 #ifdef MOZ_ENABLE_MEEGOTOUCH
     delete sMComponentData;
-    sMComponentData = nullptr;
+    sMComponentData = NULL;
 #endif
     delete sQAppInstance;
-    sQAppInstance = nullptr;
+    sQAppInstance = NULL;
   }
 }

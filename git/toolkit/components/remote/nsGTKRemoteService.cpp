@@ -176,13 +176,13 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsGTKRemoteService)
 NS_DEFINE_NAMED_CID(NS_REMOTESERVICE_CID);
 
 static const mozilla::Module::CIDEntry kRemoteCIDs[] = {
-  { &kNS_REMOTESERVICE_CID, false, nullptr, nsGTKRemoteServiceConstructor },
-  { nullptr }
+  { &kNS_REMOTESERVICE_CID, false, NULL, nsGTKRemoteServiceConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kRemoteContracts[] = {
   { "@mozilla.org/toolkit/remote-service;1", &kNS_REMOTESERVICE_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kRemoteModule = {

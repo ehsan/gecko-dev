@@ -41,13 +41,13 @@ char*
 NS_strtok(const char *delims, char **str)
 {
   if (!*str)
-    return nullptr;
+    return NULL;
 
   char *ret = (char*) NS_strspnp(delims, *str);
 
   if (!*ret) {
     *str = ret;
-    return nullptr;
+    return NULL;
   }
 
   char *i = ret;
@@ -62,7 +62,7 @@ NS_strtok(const char *delims, char **str)
     ++i;
   } while (*i);
 
-  *str = nullptr;
+  *str = NULL;
   return ret;
 }
 

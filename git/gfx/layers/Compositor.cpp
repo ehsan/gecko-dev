@@ -39,23 +39,15 @@ Compositor::DrawDiagnostics(DiagnosticFlags aFlags,
                             const gfx::Matrix4x4& aTransform,
                             const gfx::Point& aOffset)
 {
-  if ((aFlags & DIAGNOSTIC_TILE) && !(mDiagnosticTypes & DIAGNOSTIC_TILE_BORDERS)) {
-    return;
-  }
-  if ((aFlags & DIAGNOSTIC_BIGIMAGE) && !(mDiagnosticTypes & DIAGNOSTIC_BIGIMAGE_BORDERS)) {
-    return;
-  }
-  if (!mDiagnosticTypes) {
+  if (!(mDiagnosticTypes & DIAGNOSTIC_TILE_BORDERS) && (aFlags & DIAGNOSTIC_TILE)) {
     return;
   }
 
-#ifdef MOZ_B2G
-  int lWidth = 4;
-#elif defined(ANDROID)
-  int lWidth = 10;
-#else
+  if (!(mDiagnosticTypes & DIAGNOSTIC_LAYER_BORDERS)) {
+    return;
+  }
+
   int lWidth = 2;
-#endif
   float opacity = 0.7;
 
   gfx::Color color;
@@ -65,7 +57,7 @@ Compositor::DrawDiagnostics(DiagnosticFlags aFlags,
       color = gfx::Color(0.0, 1.0, 1.0, 1.0); // greenish blue
     }
   } else if (aFlags & DIAGNOSTIC_IMAGE) {
-    color = gfx::Color(1.0, 0.0, 0.0, 1.0); // red
+    color = gfx::Color(0.5, 0.0, 0.0, 1.0); // red
   } else if (aFlags & DIAGNOSTIC_COLOR) {
     color = gfx::Color(0.0, 0.0, 1.0, 1.0); // blue
   } else if (aFlags & DIAGNOSTIC_CONTAINER) {

@@ -13,7 +13,7 @@ namespace CommandLineServiceMac {
 
 static const int kArgsGrowSize = 20;
 
-static char** sArgs = nullptr;
+static char** sArgs = NULL;
 static int sArgsAllocated = 0;
 static int sArgsUsed = 0;
 
@@ -35,7 +35,7 @@ void AddToCommandLine(const char* inArgText)
     return;
 
   sArgs[sArgsUsed++] = temp2;
-  sArgs[sArgsUsed] = nullptr;
+  sArgs[sArgsUsed] = NULL;
 
   return;
 }
@@ -46,7 +46,7 @@ void SetupMacCommandLine(int& argc, char**& argv, bool forRestart)
   if (!sArgs)
     return;
   sArgsAllocated = kArgsGrowSize;
-  sArgs[0] = nullptr;
+  sArgs[0] = NULL;
   sArgsUsed = 0;
 
   sBuildingCommandLine = true;

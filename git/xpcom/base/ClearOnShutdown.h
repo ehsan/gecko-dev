@@ -56,7 +56,7 @@ public:
   virtual void Shutdown()
   {
     if (mPtr) {
-      *mPtr = nullptr;
+      *mPtr = NULL;
     }
   }
 

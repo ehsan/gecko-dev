@@ -2606,7 +2606,7 @@ Parser<ParseHandler>::maybeParseDirective(Node list, Node pn, bool *cont)
                 }
             }
         } else if (directive == context->names().useAsm) {
-            if (pc->sc->isFunctionBox())
+            if (pc->sc->isFunctionBox() && !pc->isGenerator())
                 return asmJS(list);
             return report(ParseWarning, false, pn, JSMSG_USE_ASM_DIRECTIVE_FAIL);
         }

@@ -73,13 +73,13 @@ NS_DEFINE_NAMED_CID(NS_ANDROIDSYSTEMPROXYSERVICE_CID);
 void test() {};
 
 static const mozilla::Module::CIDEntry kSysProxyCIDs[] = {
-    { &kNS_ANDROIDSYSTEMPROXYSERVICE_CID, false, nullptr, nsAndroidSystemProxySettingsConstructor },
-    { nullptr }
+    { &kNS_ANDROIDSYSTEMPROXYSERVICE_CID, false, NULL, nsAndroidSystemProxySettingsConstructor },
+    { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kSysProxyContracts[] = {
     { NS_SYSTEMPROXYSETTINGS_CONTRACTID, &kNS_ANDROIDSYSTEMPROXYSERVICE_CID },
-    { nullptr }
+    { NULL }
 };
 
 static const mozilla::Module kSysProxyModule = {

@@ -3729,15 +3729,12 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         othervar = ExprVar('other')
         managertype = Type(_actorName(p.name, self.side), ptr=1)
-
-        if len(p.managesStmts):
-            otherstmt = StmtDecl(Decl(managertype,
-                                      othervar.name),
-                                 init=ExprCast(sourcevar,
-                                               managertype,
-                                               static=1))
-            clonemanagees.addstmt(otherstmt)
-
+        otherstmt = StmtDecl(Decl(managertype,
+                                  othervar.name),
+                             init=ExprCast(sourcevar,
+                                           managertype,
+                                           static=1))
+        clonemanagees.addstmt(otherstmt)
         actorvar = ExprVar('actor')
         for managee in p.managesStmts:
             block = StmtBlock()

@@ -128,14 +128,14 @@ void nsDBusService::HandleDBusDisconnect() {
 }
 
 nsresult nsDBusService::CreateConnection() {
-  mConnection = dbus_bus_get(DBUS_BUS_SYSTEM, nullptr);
+  mConnection = dbus_bus_get(DBUS_BUS_SYSTEM, NULL);
   if (!mConnection)
     return NS_ERROR_FAILURE;
 
   dbus_connection_set_exit_on_disconnect(mConnection, false);
-  dbus_connection_setup_with_g_main(mConnection, nullptr);
+  dbus_connection_setup_with_g_main(mConnection, NULL);
 
-  if (!dbus_connection_add_filter(mConnection, dbus_filter, this, nullptr))
+  if (!dbus_connection_add_filter(mConnection, dbus_filter, this, NULL))
     return NS_ERROR_FAILURE;
 
   mSingleClient->RegisterWithConnection(mConnection);

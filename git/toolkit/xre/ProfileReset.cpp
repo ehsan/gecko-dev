@@ -140,7 +140,7 @@ ProfileResetCleanup(nsIToolkitProfile* aOldProfile)
                                  kResetProgressURL,
                                  "_blank",
                                  "centerscreen,chrome,titlebar",
-                                 nullptr,
+                                 NULL,
                                  getter_AddRefs(progressWindow));
   if (NS_FAILED(rv)) return rv;
 

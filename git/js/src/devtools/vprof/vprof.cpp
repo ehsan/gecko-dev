@@ -78,7 +78,7 @@ static long glock = LOCK_IS_FREE;
 	#define vprof_printf printf
 #endif
 
-static inline entry* reverse (entry* s)
+inline static entry* reverse (entry* s)
 {
     entry_t e, n, p;
 
@@ -151,7 +151,7 @@ static void dumpProfile (void)
     entries = reverse(entries);
 }
 
-static inline entry_t findEntry (char* file, int line)
+inline static entry_t findEntry (char* file, int line)
 {
     for (entry_t e =  entries; e; e = e->next) {
         if ((e->line == line) && (VMPI_strcmp (e->file, file) == 0)) {

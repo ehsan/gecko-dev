@@ -110,9 +110,9 @@ class nsHashtable {
     void *Get(nsHashKey *aKey);
     void *Remove(nsHashKey *aKey);
     nsHashtable *Clone();
-    void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = nullptr);
+    void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = NULL);
     void Reset();
-    void Reset(nsHashtableEnumFunc destroyFunc, void* aClosure = nullptr);
+    void Reset(nsHashtableEnumFunc destroyFunc, void* aClosure = NULL);
 
     nsHashtable(nsIObjectInputStream* aStream,
                 nsHashtableReadEntryFunc aReadEntryFunc,
@@ -175,7 +175,7 @@ class nsSupportsHashtable
     nsISupports* Get(nsHashKey *aKey);
     bool Remove(nsHashKey *aKey, nsISupports **value = nullptr);
     nsHashtable *Clone();
-    void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = nullptr) {
+    void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = NULL) {
         nsHashtable::Enumerate(aEnumFunc, aClosure);
     }
     void Reset();

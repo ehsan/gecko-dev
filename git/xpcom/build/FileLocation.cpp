@@ -71,7 +71,7 @@ FileLocation::FileLocation(const FileLocation &file, const char *path)
 void
 FileLocation::Init(nsIFile* file)
 {
-  mBaseZip = nullptr;
+  mBaseZip = NULL;
   mBaseFile = file;
   mPath.Truncate();
 }
@@ -79,7 +79,7 @@ FileLocation::Init(nsIFile* file)
 void
 FileLocation::Init(nsIFile* file, const char* path)
 {
-  mBaseZip = nullptr;
+  mBaseZip = NULL;
   mBaseFile = file;
   mPath = path;
 }
@@ -88,7 +88,7 @@ void
 FileLocation::Init(nsZipArchive* zip, const char* path)
 {
   mBaseZip = zip;
-  mBaseFile = nullptr;
+  mBaseFile = NULL;
   mPath = path;
 }
 

@@ -253,15 +253,15 @@ NS_DEFINE_NAMED_CID(NS_FILECOMPLETE_CID);
 NS_DEFINE_NAMED_CID(NS_FILEVIEW_CID);
 
 static const mozilla::Module::CIDEntry kFileViewCIDs[] = {
-  { &kNS_FILECOMPLETE_CID, false, nullptr, nsFileCompleteConstructor },
-  { &kNS_FILEVIEW_CID, false, nullptr, nsFileViewConstructor },
-  { nullptr }
+  { &kNS_FILECOMPLETE_CID, false, NULL, nsFileCompleteConstructor },
+  { &kNS_FILEVIEW_CID, false, NULL, nsFileViewConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kFileViewContracts[] = {
   { NS_FILECOMPLETE_CONTRACTID, &kNS_FILECOMPLETE_CID },
   { NS_FILEVIEW_CONTRACTID, &kNS_FILEVIEW_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kFileViewModule = {

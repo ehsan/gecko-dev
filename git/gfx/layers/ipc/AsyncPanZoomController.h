@@ -359,10 +359,12 @@ protected:
   /**
    * Scales the viewport by an amount (note that it multiplies this scale in to
    * the current scale, it doesn't set it to |aScale|). Also considers a focus
-   * point so that the page zooms inward/outward from that point.
+   * point so that the page zooms outward from that point.
+   *
+   * XXX: Fix focus point calculations.
    */
-  void ScaleWithFocus(float aScale,
-                      const CSSPoint& aFocus);
+  void ScaleWithFocus(const mozilla::CSSToScreenScale& aScale,
+                      const ScreenPoint& aFocus);
 
   /**
    * Schedules a composite on the compositor thread. Wrapper for

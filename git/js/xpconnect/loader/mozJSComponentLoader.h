@@ -87,12 +87,12 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     public:
         ModuleEntry() : mozilla::Module() {
             mVersion = mozilla::Module::kVersion;
-            mCIDs = nullptr;
-            mContractIDs = nullptr;
-            mCategoryEntries = nullptr;
+            mCIDs = NULL;
+            mContractIDs = NULL;
+            mCategoryEntries = NULL;
             getFactoryProc = GetFactory;
-            loadProc = nullptr;
-            unloadProc = nullptr;
+            loadProc = NULL;
+            unloadProc = NULL;
 
             obj = nullptr;
             location = nullptr;
@@ -103,7 +103,7 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
         }
 
         void Clear() {
-            getfactoryobj = nullptr;
+            getfactoryobj = NULL;
 
             if (obj) {
                 JSAutoRequest ar(sSelf->mContext);
@@ -117,8 +117,8 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
             if (location)
                 NS_Free(location);
 
-            obj = nullptr;
-            location = nullptr;
+            obj = NULL;
+            location = NULL;
         }
 
         static already_AddRefed<nsIFactory> GetFactory(const mozilla::Module& module,

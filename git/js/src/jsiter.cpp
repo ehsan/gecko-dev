@@ -807,7 +807,7 @@ iterator_next_impl(JSContext *cx, CallArgs args)
     return js_IteratorNext(cx, thisObj, args.rval());
 }
 
-static bool
+bool
 iterator_next(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -872,7 +872,7 @@ const Class PropertyIteratorObject::class_ = {
     }
 };
 
-static const uint32_t CLOSED_INDEX = UINT32_MAX;
+const uint32_t CLOSED_INDEX = UINT32_MAX;
 
 JSObject *
 ElementIteratorObject::create(JSContext *cx, Handle<Value> target)

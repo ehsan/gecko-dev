@@ -35,11 +35,8 @@ class LIRGeneratorX64 : public LIRGeneratorX86Shared
 
     LDefinition tempToUnbox();
 
-    // x64 has a scratch register, so no need for another temp for dispatch
-    // ICs.
-    LDefinition tempForDispatchCache(MIRType outputType = MIRType_None) {
-        return LDefinition::BogusTemp();
-    }
+    LGetPropertyCacheT *newLGetPropertyCacheT(MGetPropertyCache *ins);
+    LGetElementCacheT *newLGetElementCacheT(MGetElementCache *ins);
 
   public:
     bool visitBox(MBox *box);

@@ -227,7 +227,7 @@ public:
     void GetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize, uint8_t * const aBuf);
 
     // Switch Java to composite with the Gecko Compositor thread
-    void RegisterCompositor(JNIEnv* env = nullptr);
+    void RegisterCompositor(JNIEnv* env = NULL);
     EGLSurface ProvideEGLSurface();
 
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result, JNIEnv* env = nullptr);
@@ -429,7 +429,7 @@ public:
 
 class AutoJObject {
 public:
-    AutoJObject(JNIEnv* aJNIEnv = nullptr) : mObject(nullptr)
+    AutoJObject(JNIEnv* aJNIEnv = NULL) : mObject(NULL)
     {
         mJNIEnv = aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv();
     }
@@ -484,7 +484,7 @@ public:
     void Purge() {
         if (mJNIEnv) {
             if (mHasFrameBeenPushed)
-                mJNIEnv->PopLocalFrame(nullptr);
+                mJNIEnv->PopLocalFrame(NULL);
             Push();
         }
     }
@@ -510,7 +510,7 @@ public:
         CheckForException();
 
         if (mHasFrameBeenPushed)
-            mJNIEnv->PopLocalFrame(nullptr);
+            mJNIEnv->PopLocalFrame(NULL);
     }
 
 private:
