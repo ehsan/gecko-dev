@@ -341,9 +341,6 @@ public:
     };
 
     X86Assembler()
-#ifdef DEBUG
-      : isOOLPath(false)
-#endif
     {
     }
 
@@ -2171,11 +2168,6 @@ public:
         void* copy = m_formatter.executableCopy(allocator);
         ASSERT(copy);
         return copy;
-    }
-
-    void* executableCopy(void* buffer)
-    {
-        return memcpy(buffer, m_formatter.buffer(), size());
     }
 
 private:

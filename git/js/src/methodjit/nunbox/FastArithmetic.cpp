@@ -229,13 +229,14 @@ void
 mjit::Compiler::slowLoadConstantDouble(Assembler &masm,
                                        FrameEntry *fe, FPRegisterID fpreg)
 {
-    jsval_layout jv;
+    jsdpun u;
     if (fe->getKnownType() == JSVAL_TYPE_INT32)
-        jv.asDouble = (double)fe->getValue().toInt32();
+        u.d = (double)fe->getValue().toInt32();
     else
-        jv.asDouble = fe->getValue().toDouble();
+        u.d = fe->getValue().toDouble();
 
-    masm.storeLayout(jv, frame.addressOf(fe));
+    masm.storeData32(Imm32(u.s.lo), frame.addressOf(fe));
+    masm.storeTypeTag(ImmTag(JSValueTag(u.s.hi)), frame.addressOf(fe));
     masm.loadDouble(frame.addressOf(fe), fpreg);
 }
 
@@ -473,7 +474,7 @@ mjit::Compiler::jsop_binary(JSOp op, VoidStub stub)
          */
         stubcc.masm.storeDouble(lfp, frame.addressOf(returnFe));
         if (canDoIntMath)
-            stubcc.masm.loadPayload(frame.addressOf(returnFe), returnReg);
+            stubcc.masm.loadData32(frame.addressOf(returnFe), returnReg);
 
         jmpDblRejoin = stubcc.masm.jump();
     }
@@ -627,8 +628,8 @@ mjit::Compiler::jsop_neg()
         stubcc.masm.neg32(reg);
 
         /* Sync back with double path. */
-        stubcc.masm.storePayload(reg, frame.addressOf(fe));
-        stubcc.masm.storeTypeTag(ImmType(JSVAL_TYPE_INT32), frame.addressOf(fe));
+        stubcc.masm.storeData32(reg, frame.addressOf(fe));
+        stubcc.masm.storeTypeTag(ImmTag(JSVAL_TAG_INT32), frame.addressOf(fe));
 
         jmpIntRejoin.setJump(stubcc.masm.jump());
     }

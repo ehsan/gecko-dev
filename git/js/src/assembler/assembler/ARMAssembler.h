@@ -46,7 +46,6 @@
     do {                                                   \
         js::JaegerSpew(js::JSpew_Insns,                    \
                        IPFX "FIXME insn printing %s:%d\n", \
-                       MAYBE_PAD,                          \
                        __FILE__, __LINE__);                \
     } while (0)
 #else
@@ -507,8 +506,7 @@ namespace JSC {
 
         void faddd_r(int dd, int dn, int dm, Condition cc = AL)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, %s, %s\n", MAYBE_PAD, "vadd.f64", nameFpRegD(dd), nameFpRegD(dn), nameFpRegD(dm));
+            FIXME_INSN_PRINTING;
             // TODO: emitInst doesn't work for VFP instructions, though it
             // seems to work for current usage.
             emitInst(static_cast<ARMWord>(cc) | FADDD, dd, dn, dm);
@@ -523,8 +521,7 @@ namespace JSC {
 
         void fdivd_r(int dd, int dn, int dm, Condition cc = AL)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, %s, %s\n", MAYBE_PAD, "vdiv.f64", nameFpRegD(dd), nameFpRegD(dn), nameFpRegD(dm));
+            FIXME_INSN_PRINTING;
             // TODO: emitInst doesn't work for VFP instructions, though it
             // seems to work for current usage.
             emitInst(static_cast<ARMWord>(cc) | FDIVD, dd, dn, dm);
@@ -532,8 +529,7 @@ namespace JSC {
 
         void fsubd_r(int dd, int dn, int dm, Condition cc = AL)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, %s, %s\n", MAYBE_PAD, "vsub.f64", nameFpRegD(dd), nameFpRegD(dn), nameFpRegD(dm));
+            FIXME_INSN_PRINTING;
             // TODO: emitInst doesn't work for VFP instructions, though it
             // seems to work for current usage.
             emitInst(static_cast<ARMWord>(cc) | FSUBD, dd, dn, dm);
@@ -541,8 +537,6 @@ namespace JSC {
 
         void fmuld_r(int dd, int dn, int dm, Condition cc = AL)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, %s, %s\n", MAYBE_PAD, "vmul.f64", nameFpRegD(dd), nameFpRegD(dn), nameFpRegD(dm));
             // TODO: emitInst doesn't work for VFP instructions, though it
             // seems to work for current usage.
             emitInst(static_cast<ARMWord>(cc) | FMULD, dd, dn, dm);
@@ -550,8 +544,6 @@ namespace JSC {
 
         void fcmpd_r(int dd, int dm, Condition cc = AL)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, %s\n", MAYBE_PAD, "vcmp.f64", nameFpRegD(dd), nameFpRegD(dm));
             // TODO: emitInst doesn't work for VFP instructions, though it
             // seems to work for current usage.
             emitInst(static_cast<ARMWord>(cc) | FCMPD, dd, 0, dm);
@@ -559,8 +551,6 @@ namespace JSC {
 
         void fsqrtd_r(int dd, int dm, Condition cc = AL)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, %s\n", MAYBE_PAD, "vsqrt.f64", nameFpRegD(dd), nameFpRegD(dm));
             // TODO: emitInst doesn't work for VFP instructions, though it
             // seems to work for current usage.
             emitInst(static_cast<ARMWord>(cc) | FSQRTD, dd, 0, dm);
@@ -656,20 +646,18 @@ namespace JSC {
             emitInst(static_cast<ARMWord>(cc) | STRH | HDT_UH | DT_UP | DT_PRE, rd, rb, rm);
         }
 
-        void fdtr_u(bool isLoad, int dd, int rn, ARMWord offset, Condition cc = AL)
+        void fdtr_u(bool isLoad, int rd, int rb, ARMWord op2, Condition cc = AL)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, [%s, #+%u]\n", MAYBE_PAD, "vldr.f64", nameFpRegD(dd), nameGpReg(rn), offset);
-            ASSERT(offset <= 0xff);
-            emitInst(static_cast<ARMWord>(cc) | FDTR | DT_UP | (isLoad ? DT_LOAD : 0), dd, rn, offset);
+            FIXME_INSN_PRINTING;
+            ASSERT(op2 <= 0xff);
+            emitInst(static_cast<ARMWord>(cc) | FDTR | DT_UP | (isLoad ? DT_LOAD : 0), rd, rb, op2);
         }
 
-        void fdtr_d(bool isLoad, int dd, int rn, ARMWord offset, Condition cc = AL)
+        void fdtr_d(bool isLoad, int rd, int rb, ARMWord op2, Condition cc = AL)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, [%s, #-%u]\n", MAYBE_PAD, "vldr.f64", nameFpRegD(dd), nameGpReg(rn), offset);
-            ASSERT(offset <= 0xff);
-            emitInst(static_cast<ARMWord>(cc) | FDTR | (isLoad ? DT_LOAD : 0), dd, rn, offset);
+            FIXME_INSN_PRINTING;
+            ASSERT(op2 <= 0xff);
+            emitInst(static_cast<ARMWord>(cc) | FDTR | (isLoad ? DT_LOAD : 0), rd, rb, op2);
         }
 
         void push_r(int reg, Condition cc = AL)
@@ -827,11 +815,6 @@ namespace JSC {
 
         // General helpers
 
-        void forceFlushConstantPool()
-        {
-            m_buffer.flushWithoutBarrier(true);
-        }
-
         int size()
         {
             return m_buffer.size();
@@ -875,8 +858,6 @@ namespace JSC {
         }
 
         void* executableCopy(ExecutablePool* allocator);
-        void* executableCopy(void* buffer);
-        void fixUpOffsets(void* buffer);
 
         // Patching helpers
 
@@ -929,28 +910,16 @@ namespace JSC {
 
         static void linkPointer(void* code, JmpDst from, void* to)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                           ISPFX "##linkPointer     ((%p + %#x)) points to ((%p))\n",
-                           code, from.m_offset, to);
-
             patchPointerInternal(reinterpret_cast<intptr_t>(code) + from.m_offset, to);
         }
 
         static void repatchInt32(void* from, int32_t to)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                           ISPFX "##repatchInt32    ((%p)) holds ((%p))\n",
-                           from, to);
-
             patchPointerInternal(reinterpret_cast<intptr_t>(from), reinterpret_cast<void*>(to));
         }
 
         static void repatchPointer(void* from, void* to)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                           ISPFX "##repatchPointer  ((%p)) points to ((%p))\n",
-                           from, to);
-
             patchPointerInternal(reinterpret_cast<intptr_t>(from), to);
         }
 
@@ -981,50 +950,28 @@ namespace JSC {
 
         void linkJump(JmpSrc from, JmpDst to)
         {
-            ARMWord  code = reinterpret_cast<ARMWord>(m_buffer.data());
-            ARMWord* insn = reinterpret_cast<ARMWord*>(code + from.m_offset);
+            ARMWord* insn = reinterpret_cast<ARMWord*>(m_buffer.data()) + (from.m_offset / sizeof(ARMWord));
             ARMWord* addr = getLdrImmAddressOnPool(insn, m_buffer.poolAddress());
-
-            js::JaegerSpew(js::JSpew_Insns,
-                           IPFX "##linkJump         ((%#x)) jumps to ((%#x))\n", MAYBE_PAD,
-                           from.m_offset, to.m_offset);
-
-            *addr = to.m_offset;
+            *addr = static_cast<ARMWord>(to.m_offset);
         }
 
         static void linkJump(void* code, JmpSrc from, void* to)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                           ISPFX "##linkJump        ((%p + %#x)) jumps to ((%p))\n",
-                           code, from.m_offset, to);
-
             patchPointerInternal(reinterpret_cast<intptr_t>(code) + from.m_offset, to);
         }
 
         static void relinkJump(void* from, void* to)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                           ISPFX "##relinkJump      ((%p)) jumps to ((%p))\n",
-                           from, to);
-
             patchPointerInternal(reinterpret_cast<intptr_t>(from) - sizeof(ARMWord), to);
         }
 
         static void linkCall(void* code, JmpSrc from, void* to)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                           ISPFX "##linkCall        ((%p + %#x)) jumps to ((%p))\n",
-                           code, from.m_offset, to);
-
             patchPointerInternal(reinterpret_cast<intptr_t>(code) + from.m_offset, to);
         }
 
         static void relinkCall(void* from, void* to)
         {
-            js::JaegerSpew(js::JSpew_Insns,
-                           ISPFX "##relinkCall      ((%p)) jumps to ((%p))\n",
-                           from, to);
-
             patchPointerInternal(reinterpret_cast<intptr_t>(from) - sizeof(ARMWord), to);
         }
 

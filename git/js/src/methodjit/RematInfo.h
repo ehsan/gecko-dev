@@ -49,8 +49,8 @@ struct ValueRemat {
     union {
         struct {
             union {
-                RegisterID  reg;
-                JSValueType knownType;
+                RegisterID reg;
+                JSValueTag tag;
             } type;
             RegisterID data : 5;
             bool isTypeKnown : 1;

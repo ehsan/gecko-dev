@@ -213,12 +213,12 @@ FrameState::storeTo(FrameEntry *fe, Address address, bool popped)
     JS_ASSERT(!freeRegs.hasReg(address.base));
 
     if (fe->data.inRegister()) {
-        masm.storePayload(fe->data.reg(), address);
+        masm.storeData32(fe->data.reg(), address);
     } else {
         JS_ASSERT(fe->data.inMemory());
         RegisterID reg = popped ? allocReg() : allocReg(fe, RematInfo::DATA);
-        masm.loadPayload(addressOf(fe), reg);
-        masm.storePayload(reg, address);
+        masm.loadData32(addressOf(fe), reg);
+        masm.storeData32(reg, address);
         if (popped)
             freeReg(reg);
         else
@@ -226,7 +226,7 @@ FrameState::storeTo(FrameEntry *fe, Address address, bool popped)
     }
 
     if (fe->isTypeKnown()) {
-        masm.storeTypeTag(ImmType(fe->getKnownType()), address);
+        masm.storeTypeTag(ImmTag(fe->getKnownTag()), address);
     } else if (fe->type.inRegister()) {
         masm.storeTypeTag(fe->type.reg(), address);
     } else {
@@ -348,14 +348,14 @@ FrameState::sync(Assembler &masm, Uses uses) const
                 /* :TODO: we can do better, the type is learned for all copies. */
                 if (fe->isTypeKnown()) {
                     //JS_ASSERT(fe->getTypeTag() == backing->getTypeTag());
-                    masm.storeTypeTag(ImmType(fe->getKnownType()), address);
+                    masm.storeTypeTag(ImmTag(fe->getKnownTag()), address);
                 } else {
                     masm.storeTypeTag(backing->type.reg(), address);
                 }
             }
 
             if (!fe->data.synced())
-                masm.storePayload(backing->data.reg(), address);
+                masm.storeData32(backing->data.reg(), address);
         }
     }
 }
@@ -480,7 +480,7 @@ FrameState::merge(Assembler &masm, Changes changes) const
         }
 
         if (fe->data.inRegister())
-            masm.loadPayload(addressOf(fe), fe->data.reg());
+            masm.loadData32(addressOf(fe), fe->data.reg());
         if (fe->type.inRegister())
             masm.loadTypeTag(addressOf(fe), fe->type.reg());
     }
@@ -520,7 +520,7 @@ FrameState::copyDataIntoReg(Assembler &masm, FrameEntry *fe)
     if (!freeRegs.empty())
         masm.move(tempRegForData(fe), reg);
     else
-        masm.loadPayload(addressOf(fe),reg);
+        masm.loadData32(addressOf(fe),reg);
 
     return reg;
 }
@@ -681,7 +681,7 @@ FrameState::ownRegForData(FrameEntry *fe)
         uncopy(fe);
         if (fe->isCopied()) {
             reg = allocReg();
-            masm.loadPayload(addressOf(fe), reg);
+            masm.loadData32(addressOf(fe), reg);
             return reg;
         }
     }
@@ -696,7 +696,7 @@ FrameState::ownRegForData(FrameEntry *fe)
     } else {
         JS_ASSERT(fe->data.inMemory());
         reg = allocReg();
-        masm.loadPayload(addressOf(fe), reg);
+        masm.loadData32(addressOf(fe), reg);
     }
     return reg;
 }
@@ -930,7 +930,7 @@ FrameState::storeLocal(uint32 n, bool popGuaranteed, bool typeChange)
         }
     } else {
         if (!wasSynced)
-            masm.storeTypeTag(ImmType(backing->getKnownType()), addressOf(localFe));
+            masm.storeTypeTag(ImmTag(backing->getKnownTag()), addressOf(localFe));
         localFe->type.setMemory();
     }
 

@@ -442,11 +442,6 @@ public:
         return m_assembler.buffer();
     }
 
-    void* executableCopy(void* buffer)
-    {
-        return m_assembler.executableCopy(buffer);
-    }
-
     Label label()
     {
         return Label(this);

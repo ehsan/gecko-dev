@@ -115,12 +115,10 @@ StubCompiler::linkExit(Jump j, Uses uses)
 void
 StubCompiler::leave()
 {
-    JaegerSpew(JSpew_Insns, " ---- BEGIN SLOW LEAVE CODE ---- \n");
     for (size_t i = 0; i < jumpList.length(); i++)
         jumpList[i].linkTo(masm.label(), &masm);
     jumpList.clear();
     generation++;
-    JaegerSpew(JSpew_Insns, " ---- END SLOW LEAVE CODE ---- \n");
 }
  
 void

@@ -45,6 +45,7 @@
 #include "jstl.h"
 #include "MethodJIT.h"
 #include "methodjit/FrameState.h"
+#include "methodjit/nunbox/Assembler.h"
 #include "CodeGenIncludes.h"
 
 namespace js {
@@ -121,7 +122,6 @@ class StubCompiler
     STUB_CALL_TYPE(VoidPtrStub);
     STUB_CALL_TYPE(BoolStub);
     STUB_CALL_TYPE(VoidStubAtom);
-    STUB_CALL_TYPE(VoidStubPC);
 
 #undef STUB_CALL_TYPE
 
