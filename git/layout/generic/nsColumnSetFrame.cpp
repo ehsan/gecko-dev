@@ -251,11 +251,6 @@ nsColumnSetFrame::PaintColumnRule(nsIRenderingContext* aCtx,
   border.SetBorderStyle(NS_SIDE_LEFT, ruleStyle);
   border.SetBorderColor(NS_SIDE_LEFT, ruleColor);
 
-  // Get our content rect as an absolute coordinate, not relative to
-  // our parent (which is what the X and Y normally is)
-  nsRect contentRect = GetContentRect() - GetRect().TopLeft() + aPt;
-  nsSize ruleSize(ruleWidth, contentRect.height);
-
   while (nextSibling) {
     // The frame tree goes RTL in RTL
     nsIFrame* leftSibling = isRTL ? nextSibling : child;
@@ -266,9 +261,12 @@ nsColumnSetFrame::PaintColumnRule(nsIRenderingContext* aCtx,
     nsPoint edgeOfLeftSibling = leftSibling->GetRect().TopRight() + aPt;
     nsPoint edgeOfRightSibling = rightSibling->GetRect().TopLeft() + aPt;
     nsPoint linePt((edgeOfLeftSibling.x + edgeOfRightSibling.x - ruleWidth) / 2,
-                   contentRect.y);
+                   edgeOfLeftSibling.y);
 
-    nsRect lineRect(linePt, ruleSize);
+    nscoord minimumHeight = PR_MIN(nsLayoutUtils::CalculateContentBottom(child),
+                                   nsLayoutUtils::CalculateContentBottom(nextSibling));
+    nsRect lineRect(linePt, nsSize(ruleWidth, minimumHeight));
+
     nsCSSRendering::PaintBorder(presContext, *aCtx, this, aDirtyRect,
                                 lineRect, border, GetStyleContext(),
                                 // Remember, we only have the "left" "border". Skip everything else
