@@ -152,7 +152,7 @@ function TabItem(tab, options) {
 
   // ___ reconnect to data from Storage
   if (!TabItems.reconnectingPaused())
-    this._reconnect(options);
+    this._reconnect();
 };
 
 TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
@@ -339,19 +339,11 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: _reconnect
   // Load the reciever's persistent data from storage. If there is none, 
   // treats it as a new tab. 
-  //
-  // Parameters:
-  //   options - an object with additional parameters, see below
-  //
-  // Possible options:
-  //   groupItemId - if the tab doesn't have any data associated with it and
-  //                 groupItemId is available, add the tab to that group.
-  _reconnect: function TabItem__reconnect(options) {
+  _reconnect: function TabItem__reconnect() {
     Utils.assertThrow(!this._reconnected, "shouldn't already be reconnected");
     Utils.assertThrow(this.tab, "should have a xul:tab");
 
     let tabData = Storage.getTabData(this.tab);
-    let groupItem;
 
     if (tabData && TabItems.storageSanity(tabData)) {
       this.loadThumbnail(tabData);
@@ -359,10 +351,13 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (this.parent)
         this.parent.remove(this, {immediately: true});
 
-      if (tabData.groupID)
+      let groupItem;
+
+      if (tabData.groupID) {
         groupItem = GroupItems.groupItem(tabData.groupID);
-      else
+      } else {
         groupItem = new GroupItem([], {immediately: true, bounds: tabData.bounds});
+      }
 
       if (groupItem) {
         groupItem.add(this, {immediately: true});
@@ -378,15 +373,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           UI.setActive(this.parent);
       }
     } else {
-      if (options && options.groupItemId)
-        groupItem = GroupItems.groupItem(options.groupItemId);
-
-      if (groupItem) {
-        groupItem.add(this, {immediately: true});
-      } else {
-        // create tab group by double click is handled in UI_init().
-        GroupItems.newTab(this, {immediately: true});
-      }
+      // create tab group by double click is handled in UI_init().
+      GroupItems.newTab(this, {immediately: true});
     }
 
     this._reconnected = true;
@@ -846,21 +834,12 @@ let TabItems = {
       AllTabs.register(name, this._eventListeners[name]);
     }
 
-    let activeGroupItem = GroupItems.getActiveGroupItem();
-    let activeGroupItemId = activeGroupItem ? activeGroupItem.id : null;
     // For each tab, create the link.
     AllTabs.tabs.forEach(function (tab) {
       if (tab.pinned)
         return;
 
-      let options = {immediately: true};
-      // if tab is visible in the tabstrip and doesn't have any data stored in 
-      // the session store (see TabItem__reconnect), it implies that it is a 
-      // new tab which is created before Panorama is initialized. Therefore, 
-      // passing the active group id to the link() method for setting it up.
-      if (!tab.hidden && activeGroupItemId)
-         options.groupItemId = activeGroupItemId;
-      self.link(tab, options);
+      self.link(tab, {immediately: true});
       self.update(tab);
     });
   },

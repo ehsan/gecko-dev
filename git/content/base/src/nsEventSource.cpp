@@ -872,7 +872,7 @@ nsEventSource::InitChannelAndRequestEventSource()
   if (csp) {
     channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
     channelPolicy->SetContentSecurityPolicy(csp);
-    channelPolicy->SetLoadType(nsIContentPolicy::TYPE_DATAREQUEST);
+    channelPolicy->SetLoadType(nsIContentPolicy::TYPE_SCRIPT);
   }
 
   nsCOMPtr<nsIChannel> channel;
@@ -1203,7 +1203,7 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
   rv = CheckInnerWindowCorrectness();
   NS_ENSURE_SUCCESS(rv, false);
   PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
-  rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_DATAREQUEST,
+  rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_SCRIPT,
                                  srcToTest,
                                  mPrincipal,
                                  doc,

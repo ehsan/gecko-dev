@@ -123,6 +123,17 @@ static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 /* SSM_UserCertChoice: enum for cert choice info */
 typedef enum {ASK, AUTO} SSM_UserCertChoice;
 
+
+static SECStatus PR_CALLBACK
+nsNSS_SSLGetClientAuthData(void *arg, PRFileDesc *socket,
+						   CERTDistNames *caNames,
+						   CERTCertificate **pRetCert,
+						   SECKEYPrivateKey **pRetKey);
+static SECStatus PR_CALLBACK
+nsNSS_SSLGetClientAuthData(void *arg, PRFileDesc *socket,
+						   CERTDistNames *caNames,
+						   CERTCertificate **pRetCert,
+						   SECKEYPrivateKey **pRetKey);
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
@@ -238,11 +249,12 @@ void nsNSSSocketInfo::virtualDestroyNSSReference()
 {
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS8(nsNSSSocketInfo,
+NS_IMPL_THREADSAFE_ISUPPORTS9(nsNSSSocketInfo,
                               nsITransportSecurityInfo,
                               nsISSLSocketControl,
                               nsIInterfaceRequestor,
                               nsISSLStatusProvider,
+                              nsIIdentityInfo,
                               nsIAssociatedContentSecurity,
                               nsISerializable,
                               nsIClassInfo,
@@ -417,10 +429,13 @@ nsNSSSocketInfo::EnsureDocShellDependentStuffKnown()
     // and all the data it has cached (like verification results).
     nsCOMPtr<nsISSLStatusProvider> statprov = do_QueryInterface(secureUI);
     if (statprov) {
-      nsCOMPtr<nsISSLStatus> sslstat;
-      statprov->GetSSLStatus(getter_AddRefs(sslstat));
-      if (sslstat) {
-        sslstat->GetServerCert(getter_AddRefs(mPreviousCert));
+      nsCOMPtr<nsISupports> isup_stat;
+      statprov->GetSSLStatus(getter_AddRefs(isup_stat));
+      if (isup_stat) {
+        nsCOMPtr<nsISSLStatus> sslstat = do_QueryInterface(isup_stat);
+        if (sslstat) {
+          sslstat->GetServerCert(getter_AddRefs(mPreviousCert));
+        }
       }
     }
   }
@@ -595,30 +610,13 @@ NS_IMETHODIMP
 nsNSSSocketInfo::Write(nsIObjectOutputStream* stream) {
   stream->WriteID(kNSSSocketInfoMagic);
 
-  nsRefPtr<nsSSLStatus> status = mSSLStatus;
-  nsCOMPtr<nsISerializable> certSerializable;
+  // Store the flag if there is the certificate present
+  stream->WriteBoolean(!!mCert);
 
-  // Write a redundant copy of the certificate for backward compatibility
-  // with previous versions, which also unnecessarily wrote it.
-  //
   // As we are reading the object our self, not using ReadObject, we have
   // to store it here 'manually' as well, mimicking our object stream
   // implementation.
-
-  if (status) {
-    nsCOMPtr<nsIX509Cert> cert = status->mServerCert;
-    certSerializable = do_QueryInterface(cert);
-
-    if (!certSerializable) {
-      NS_ERROR("certificate is missing or isn't serializable");
-      return NS_ERROR_UNEXPECTED;
-    }
-  } else {
-    NS_WARNING("Serializing nsNSSSocketInfo without mSSLStatus");
-  }
-
-  // Store the flag if there is the certificate present
-  stream->WriteBoolean(certSerializable);
+  nsCOMPtr<nsISerializable> certSerializable = do_QueryInterface(mCert);
   if (certSerializable) {
     stream->WriteID(kNSSCertificateCID);
     stream->WriteID(NS_GET_IID(nsISupports));
@@ -637,7 +635,7 @@ nsNSSSocketInfo::Write(nsIObjectOutputStream* stream) {
   stream->WriteWStringZ(mShortDesc.get());
   stream->WriteWStringZ(mErrorMessage.get());
 
-  stream->WriteCompoundObject(NS_ISUPPORTS_CAST(nsISSLStatus*, status),
+  stream->WriteCompoundObject(NS_ISUPPORTS_CAST(nsISSLStatus*, mSSLStatus),
                               NS_GET_IID(nsISupports), true);
 
   stream->Write32((PRUint32)mSubRequestsHighSecurity);
@@ -703,8 +701,8 @@ nsNSSSocketInfo::Read(nsIObjectInputStream* stream) {
         do_CreateInstance(kNSSCertificateCID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // This is the redundant copy of the certificate; just ignore it
     serializable->Read(stream);
+    mCert = do_QueryInterface(serializable);
 
     // We are done with reading the certificate, now read the version
     // as we did before.
@@ -713,6 +711,7 @@ nsNSSSocketInfo::Read(nsIObjectInputStream* stream) {
   else {
     // There seems not to be the certificate present in the stream.
     version = UUID_0;
+    mCert = nsnull;
   }
 
   // If the version field we have just read is not masked with 0xFFFF0000
@@ -731,12 +730,7 @@ nsNSSSocketInfo::Read(nsIObjectInputStream* stream) {
 
   nsCOMPtr<nsISupports> obj;
   stream->ReadObject(true, getter_AddRefs(obj));
-  
   mSSLStatus = reinterpret_cast<nsSSLStatus*>(obj.get());
-
-  if (!mSSLStatus) {
-    NS_WARNING("deserializing nsNSSSocketInfo without mSSLStatus");
-  }
 
   if (version >= 2) {
     stream->Read32((PRUint32*)&mSubRequestsHighSecurity);
@@ -854,11 +848,28 @@ nsresult nsNSSSocketInfo::GetPreviousCert(nsIX509Cert** _result)
   return NS_OK;
 }
 
-nsresult nsNSSSocketInfo::GetSSLStatus(nsISSLStatus** _result)
+nsresult nsNSSSocketInfo::GetCert(nsIX509Cert** _result)
 {
   NS_ENSURE_ARG_POINTER(_result);
 
-  *_result = mSSLStatus;
+  *_result = mCert;
+  NS_IF_ADDREF(*_result);
+
+  return NS_OK;
+}
+
+nsresult nsNSSSocketInfo::SetCert(nsIX509Cert *aCert)
+{
+  mCert = aCert;
+
+  return NS_OK;
+}
+
+nsresult nsNSSSocketInfo::GetSSLStatus(nsISupports** _result)
+{
+  NS_ENSURE_ARG_POINTER(_result);
+
+  *_result = NS_ISUPPORTS_CAST(nsISSLStatus*, mSSLStatus);
   NS_IF_ADDREF(*_result);
 
   return NS_OK;
@@ -2344,7 +2355,7 @@ SECStatus nsConvertCANamesToStrings(PRArenaPool* arena, char** caNameStrings,
         namestring = CERT_DerNameToAscii(dername);
         if (namestring == NULL) {
             /* XXX - keep going until we fail to convert the name */
-            caNameStrings[n] = const_cast<char*>("");
+            caNameStrings[n] = "";
         }
         else {
             caNameStrings[n] = PORT_ArenaStrdup(arena, namestring);
@@ -2728,36 +2739,6 @@ static bool hasExplicitKeyUsageNonRepudiation(CERTCertificate *cert)
   return !!(keyUsage & KU_NON_REPUDIATION);
 }
 
-class ClientAuthDataRunnable : public SyncRunnableBase
-{
-public:
-  ClientAuthDataRunnable(CERTDistNames* caNames,
-                         CERTCertificate** pRetCert,
-                         SECKEYPrivateKey** pRetKey,
-                         nsNSSSocketInfo * info,
-                         CERTCertificate * serverCert) 
-    : mRV(SECFailure)
-    , mErrorCodeToReport(SEC_ERROR_NO_MEMORY)
-    , mCANames(caNames)
-    , mPRetCert(pRetCert)
-    , mPRetKey(pRetKey)
-    , mSocketInfo(info)
-    , mServerCert(serverCert)
-  {
-  }
-
-  SECStatus mRV;                        // out
-  PRErrorCode mErrorCodeToReport;       // out
-protected:
-  virtual void RunOnTargetThread();
-private:
-  CERTDistNames* const mCANames;        // in
-  CERTCertificate** const mPRetCert;    // in/out
-  SECKEYPrivateKey** const mPRetKey;    // in/out
-  nsNSSSocketInfo * const mSocketInfo;  // in
-  CERTCertificate * const mServerCert;  // in
-};
-
 /*
  * Function: SECStatus SSM_SSLGetClientAuthData()
  * Purpose: this callback function is used to pull client certificate
@@ -2779,41 +2760,9 @@ SECStatus nsNSS_SSLGetClientAuthData(void* arg, PRFileDesc* socket,
 								   SECKEYPrivateKey** pRetKey)
 {
   nsNSSShutDownPreventionLock locker;
-
-  if (!socket || !caNames || !pRetCert || !pRetKey) {
-    PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-    return SECFailure;
-  }
-
-  nsRefPtr<nsNSSSocketInfo> info
-        = reinterpret_cast<nsNSSSocketInfo*>(socket->higher->secret);
-
-  CERTCertificate* serverCert = SSL_PeerCertificate(socket);
-  if (!serverCert) {
-    NS_NOTREACHED("Missing server certificate should have been detected during "
-                  "server cert authentication.");
-    PR_SetError(SSL_ERROR_NO_CERTIFICATE, 0);
-    return SECFailure;
-  }
-
-  // XXX: This should be done asynchronously; see bug 696976
-  nsRefPtr<ClientAuthDataRunnable> runnable =
-    new ClientAuthDataRunnable(caNames, pRetCert, pRetKey, info, serverCert);
-  nsresult rv = runnable->DispatchToMainThreadAndWait();
-  if (NS_FAILED(rv)) {
-    PR_SetError(SEC_ERROR_NO_MEMORY, 0);
-    return SECFailure;
-  }
-  
-  if (runnable->mRV != SECSuccess) {
-    PORT_SetError(runnable->mErrorCodeToReport);
-  }
-
-  return runnable->mRV;
-}
-
-void ClientAuthDataRunnable::RunOnTargetThread()
-{
+  void* wincx = NULL;
+  SECStatus ret = SECFailure;
+  nsNSSSocketInfo* info = NULL;
   PRArenaPool* arena = NULL;
   char** caNameStrings;
   CERTCertificate* cert = NULL;
@@ -2825,7 +2774,22 @@ void ClientAuthDataRunnable::RunOnTargetThread()
   PRIntn keyError = 0; /* used for private key retrieval error */
   SSM_UserCertChoice certChoice;
   PRInt32 NumberOfCerts = 0;
-  void * wincx = mSocketInfo;
+	
+  /* do some argument checking */
+  if (socket == NULL || caNames == NULL || pRetCert == NULL ||
+      pRetKey == NULL) {
+    PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
+    return SECFailure;
+  }
+
+  /* get PKCS11 pin argument */
+  wincx = SSL_RevealPinArg(socket);
+  if (wincx == NULL) {
+    return SECFailure;
+  }
+
+  /* get the socket info */
+  info = (nsNSSSocketInfo*)socket->higher->secret;
 
   /* create caNameStrings */
   arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -2834,13 +2798,14 @@ void ClientAuthDataRunnable::RunOnTargetThread()
   }
 
   caNameStrings = (char**)PORT_ArenaAlloc(arena, 
-                                          sizeof(char*)*(mCANames->nnames));
+                                          sizeof(char*)*(caNames->nnames));
   if (caNameStrings == NULL) {
     goto loser;
   }
 
-  mRV = nsConvertCANamesToStrings(arena, caNameStrings, mCANames);
-  if (mRV != SECSuccess) {
+
+  ret = nsConvertCANamesToStrings(arena, caNameStrings, caNames);
+  if (ret != SECSuccess) {
     goto loser;
   }
 
@@ -2862,9 +2827,9 @@ void ClientAuthDataRunnable::RunOnTargetThread()
     }
 
     /* filter the list to those issued by CAs supported by the server */
-    mRV = CERT_FilterCertListByCANames(certList, mCANames->nnames,
+    ret = CERT_FilterCertListByCANames(certList, caNames->nnames,
                                        caNameStrings, certUsageSSLClient);
-    if (mRV != SECSuccess) {
+    if (ret != SECSuccess) {
       goto noCert;
     }
 
@@ -2883,7 +2848,7 @@ void ClientAuthDataRunnable::RunOnTargetThread()
        * we do not use it
        */
 #if 0		/* XXX This must be re-enabled */
-      if (!CERT_MatchesScopeOfUse(node->cert, mSocketInfo->GetHostName,
+      if (!CERT_MatchesScopeOfUse(node->cert, info->GetHostName,
                                   info->GetHostIP, info->GetHostPort)) {
           node = CERT_LIST_NEXT(node);
           continue;
@@ -2926,9 +2891,16 @@ void ClientAuthDataRunnable::RunOnTargetThread()
   }
   else { // Not Auto => ask
     /* Get the SSL Certificate */
+    CERTCertificate* serverCert = NULL;
+    CERTCertificateCleaner serverCertCleaner(serverCert);
+    serverCert = SSL_PeerCertificate(socket);
+    if (serverCert == NULL) {
+      /* couldn't get the server cert: what do I do? */
+      goto loser;
+    }
 
     nsXPIDLCString hostname;
-    mSocketInfo->GetHostName(getter_Copies(hostname));
+    info->GetHostName(getter_Copies(hostname));
 
     nsresult rv;
     NS_DEFINE_CID(nssComponentCID, NS_NSSCOMPONENT_CID);
@@ -2942,7 +2914,8 @@ void ClientAuthDataRunnable::RunOnTargetThread()
     nsCString rememberedDBKey;
     if (cars) {
       bool found;
-      nsresult rv = cars->HasRememberedDecision(hostname, mServerCert,
+      nsresult rv = cars->HasRememberedDecision(hostname, 
+                                                serverCert,
                                                 rememberedDBKey, &found);
       if (NS_SUCCEEDED(rv) && found) {
         hasRemembered = true;
@@ -3009,14 +2982,14 @@ if (!hasRemembered)
       goto noCert;
     }
 
-    if (mCANames->nnames != 0) {
+    if (caNames->nnames != 0) {
       /* filter the list to those issued by CAs supported by the 
        * server 
        */
-      mRV = CERT_FilterCertListByCANames(certList, mCANames->nnames, 
+      ret = CERT_FilterCertListByCANames(certList, caNames->nnames, 
                                         caNameStrings, 
                                         certUsageSSLClient);
-      if (mRV != SECSuccess) {
+      if (ret != SECSuccess) {
         goto loser;
       }
     }
@@ -3056,13 +3029,13 @@ if (!hasRemembered)
     NS_ASSERTION(nicknames->numnicknames == NumberOfCerts, "nicknames->numnicknames != NumberOfCerts");
 
     /* Get CN and O of the subject and O of the issuer */
-    char *ccn = CERT_GetCommonName(&mServerCert->subject);
+    char *ccn = CERT_GetCommonName(&serverCert->subject);
     void *v = ccn;
     voidCleaner ccnCleaner(v);
     NS_ConvertUTF8toUTF16 cn(ccn);
 
     PRInt32 port;
-    mSocketInfo->GetPort(&port);
+    info->GetPort(&port);
 
     nsString cn_host_port;
     if (ccn && strcmp(ccn, hostname) == 0) {
@@ -3078,11 +3051,11 @@ if (!hasRemembered)
       cn_host_port.AppendLiteral(")");
     }
 
-    char *corg = CERT_GetOrgName(&mServerCert->subject);
+    char *corg = CERT_GetOrgName(&serverCert->subject);
     NS_ConvertUTF8toUTF16 org(corg);
     if (corg) PORT_Free(corg);
 
-    char *cissuer = CERT_GetOrgName(&mServerCert->issuer);
+    char *cissuer = CERT_GetOrgName(&serverCert->issuer);
     NS_ConvertUTF8toUTF16 issuer(cissuer);
     if (cissuer) PORT_Free(cissuer);
 
@@ -3141,11 +3114,9 @@ if (!hasRemembered)
         rv = NS_ERROR_NOT_AVAILABLE;
       }
       else {
-        rv = dialogs->ChooseCertificate(mSocketInfo, cn_host_port.get(),
-                                        org.get(), issuer.get(), 
-                                        (const PRUnichar**)certNicknameList,
-                                        (const PRUnichar**)certDetailsList,
-                                        CertsToUse, &selectedIndex, &canceled);
+        rv = dialogs->ChooseCertificate(info, cn_host_port.get(), org.get(), issuer.get(), 
+          (const PRUnichar**)certNicknameList, (const PRUnichar**)certDetailsList,
+          CertsToUse, &selectedIndex, &canceled);
       }
     }
 
@@ -3157,7 +3128,7 @@ if (!hasRemembered)
 
     // even if the user has canceled, we want to remember that, to avoid repeating prompts
     bool wantRemember = false;
-    mSocketInfo->GetRememberClientAuthCertificate(&wantRemember);
+    info->GetRememberClientAuthCertificate(&wantRemember);
 
     int i;
     if (!canceled)
@@ -3172,7 +3143,9 @@ if (!hasRemembered)
     }
 
     if (cars && wantRemember) {
-      cars->RememberDecision(hostname, mServerCert, canceled ? 0 : cert);
+      cars->RememberDecision(hostname, 
+                             serverCert, 
+                             canceled ? 0 : cert);
     }
 }
 
@@ -3199,16 +3172,14 @@ if (!hasRemembered)
 
 noCert:
 loser:
-  if (mRV == SECSuccess) {
-    mRV = SECFailure;
+  if (ret == SECSuccess) {
+    ret = SECFailure;
   }
   if (cert != NULL) {
     CERT_DestroyCertificate(cert);
     cert = NULL;
   }
 done:
-  int error = PR_GetError();
-
   if (extracted != NULL) {
     PR_Free(extracted);
   }
@@ -3222,12 +3193,10 @@ done:
     PORT_FreeArena(arena, false);
   }
 
-  *mPRetCert = cert;
-  *mPRetKey = privKey;
+  *pRetCert = cert;
+  *pRetKey = privKey;
 
-  if (mRV == SECFailure) {
-    mErrorCodeToReport = error;
-  }
+  return ret;
 }
 
 class CertErrorRunnable : public SyncRunnableBase
