@@ -445,11 +445,13 @@ var NewTabPopup = {
       let boxRect = this.box.getBoundingClientRect();
       this.box.top = tabRect.top + (tabRect.height / 2) - (boxRect.height / 2);
 
+      let tabs = document.getElementById("tabs");
+
       // We don't use anchorTo() here because the tab
       // being anchored to might be overflowing the tabs
       // scrollbox which confuses the dynamic arrow direction
       // calculation (see bug 662520).
-      if (Elements.tabList.getBoundingClientRect().left < 0)
+      if (tabs.getBoundingClientRect().left < 0)
         this.box.pointLeftAt(aTab);
       else
         this.box.pointRightAt(aTab);
@@ -521,7 +523,7 @@ var FindHelperUI = {
     Elements.browsers.addEventListener("PanFinished", this, false);
 
     // Listen for events where form assistant should be closed
-    Elements.tabList.addEventListener("TabSelect", this, true);
+    document.getElementById("tabs").addEventListener("TabSelect", this, true);
     Elements.browsers.addEventListener("URLChanged", this, true);
   },
 
@@ -673,7 +675,7 @@ var FormHelperUI = {
     messageManager.addMessageListener("FormAssist:AutoComplete", this);
 
     // Listen for events where form assistant should be closed or updated
-    let tabs = Elements.tabList;
+    let tabs = document.getElementById("tabs");
     tabs.addEventListener("TabSelect", this, true);
     tabs.addEventListener("TabClose", this, true);
     Elements.browsers.addEventListener("URLChanged", this, true);

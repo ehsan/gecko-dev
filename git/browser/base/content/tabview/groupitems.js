@@ -122,7 +122,6 @@ function GroupItem(listOfEls, options) {
   this.isDragging = false;
   $container
     .css({zIndex: -100})
-    .attr("data-id", this.id)
     .appendTo("body");
 
   // ___ Resizer
@@ -1051,7 +1050,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
         item.addSubscriber("close", this._onChildClose);
         item.setParent(this);
-        $el.attr("data-group", this.id);
 
         if (typeof item.setResizable == 'function')
           item.setResizable(false, options.immediately);
@@ -1137,7 +1135,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           this._activeTab = null;
       }
 
-      $el[0].removeAttribute("data-group");
       item.setParent(null);
       item.removeClass("stacked");
       item.isStacked = false;
