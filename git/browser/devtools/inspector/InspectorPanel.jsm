@@ -242,12 +242,8 @@ InspectorPanel.prototype = {
     function onDOMReady() {
       newWindow.removeEventListener("DOMContentLoaded", onDOMReady, true);
 
-      if (self._destroyed) {
-        return;
-      }
-
       if (!self.selection.node) {
-        self.selection.setNode(newWindow.document.documentElement, "navigateaway");
+        self.selection.setNode(newWindow.document.documentElement);
       }
       self._initMarkup();
     }
