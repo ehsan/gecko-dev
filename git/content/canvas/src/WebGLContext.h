@@ -245,6 +245,7 @@ public:
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     NS_IMETHOD SetIsOpaque(PRBool b) { return NS_OK; };
+    NS_IMETHOD Redraw(const gfxRect&) { return NS_ERROR_NOT_IMPLEMENTED; }
 
 protected:
     GLES20Wrap *gl;
@@ -266,7 +267,7 @@ protected:
 
     nsresult TexImageElementBase(nsIDOMHTMLElement *imageOrCanvas,
                                  gfxImageSurface **imageOut,
-                                 bool flipY, bool premultiplyAlpha);
+                                 PRBool flipY, PRBool premultiplyAlpha);
 
     GLuint mActiveTexture;
 
@@ -353,7 +354,7 @@ public:
     PRBool Deleted() { return mDeleted; }
     GLuint GLName() { return mName; }
 
-    void Set(nsICanvasArray *na) {
+    void Set(nsIWebGLArray *na) {
         mGLType = na->NativeType();
         mElementSize = na->NativeElementSize();
         mCount = na->NativeCount();
