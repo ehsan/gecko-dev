@@ -408,7 +408,6 @@ bool OmxDecoder::AllocateMediaResources()
     }
     if (mAudioSource->start() != OK) {
       NS_WARNING("Couldn't start OMX audio source");
-      mAudioSource.clear();
       return false;
     }
   }

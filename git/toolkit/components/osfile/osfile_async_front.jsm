@@ -718,9 +718,6 @@ let DirectoryIterator = function DirectoryIterator(path, options) {
   this._isClosed = false;
 };
 DirectoryIterator.prototype = {
-  iterator: function () this,
-  __iterator__: function () this,
-
   /**
    * Determine whether the directory exists.
    *

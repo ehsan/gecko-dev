@@ -1746,8 +1746,6 @@ nsDOMWindowUtils::DispatchDOMEventViaPresShell(nsIDOMNode* aTarget,
   nsRefPtr<nsIPresShell> targetShell = targetDoc->GetShell();
   NS_ENSURE_STATE(targetShell);
 
-  targetDoc->FlushPendingNotifications(Flush_Layout);
-
   nsEventStatus status = nsEventStatus_eIgnore;
   targetShell->HandleEventWithTarget(internalEvent, nullptr, content, &status);
   *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
