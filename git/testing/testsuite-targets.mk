@@ -423,7 +423,6 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 package-tests: stage-android
-package-tests: stage-instrumentation-tests
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
@@ -519,6 +518,8 @@ else
 	cp -RL $(DIST)/bin/jsapi-tests$(BIN_SUFFIX) $(PKG_STAGE)/cppunittests
 endif
 
+
+
 stage-jittest: make-stage-dir
 	$(NSINSTALL) -D $(PKG_STAGE)/jit-test/tests
 	cp -RL $(topsrcdir)/js/src/jsapi.h $(PKG_STAGE)/jit-test
@@ -551,9 +552,6 @@ stage-mozbase: make-stage-dir
 stage-web-platform-tests: make-stage-dir
 	$(MAKE) -C $(DEPTH)/testing/web-platform stage-package
 
-stage-instrumentation-tests: make-stage-dir
-	$(MAKE) -C $(DEPTH)/testing/instrumentation stage-package
-
 .PHONY: \
   mochitest \
   mochitest-plain \
@@ -581,6 +579,5 @@ stage-instrumentation-tests: make-stage-dir
   stage-marionette \
   stage-steeplechase \
   stage-web-platform-tests \
-  stage-instrumentation-tests \
   $(NULL)
 

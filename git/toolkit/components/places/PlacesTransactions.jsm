@@ -28,8 +28,8 @@ this.EXPORTED_SYMBOLS = ["PlacesTransactions"];
  * output (when the GUID for such a bookmark is propagated).
  *
  * GUIDs are readily available when dealing with the "output" of this API and
- * when result nodes are used (see nsINavHistoryResultNode::bookmarkGuid).
- * If you only have item-ids in hand, use PlacesUtils.promiseItemGuid for
+ * when result nodes are used (see nsINavHistoryResultNode::bookmarkGUID).
+ * If you only have item-ids in hand, use PlacesUtils.promiseItemGUID for
  * converting them.  Should you need to convert them back into itemIds, use
  * PlacesUtils.promiseItemId.
  *
@@ -58,17 +58,14 @@ this.EXPORTED_SYMBOLS = ["PlacesTransactions"];
  *  - feedURI: an nsIURI object, holding the url for a live bookmark.
  *  - siteURI: an nsIURI object, holding the url for the site with which
  *             a live bookmark is associated.
- *  - tag - a string.
- *  - tags: an array of strings.
- *  - guid, parentGuid, newParentGuid: a valid places GUID string.
+ *  - GUID, parentGUID, newParentGUID: a valid places GUID string.
  *  - title: a string
  *  - index, newIndex: the position of an item in its containing folder,
  *    starting from 0.
  *    integer and PlacesUtils.bookmarks.DEFAULT_INDEX
  *  - annotation: see PlacesUtils.setAnnotationsForItem
  *  - annotations: an array of annotation objects as above.
- *  - excludingAnnotation: a string (annotation name).
- *  - excludingAnnotations: an array of string (annotation names).
+ *  - tags: an array of strings.
  *
  * Batching transactions
  * ---------------------
@@ -581,7 +578,7 @@ DefineTransaction.isStrOrNull = v => typeof(v) == "string" || v === null;
 DefineTransaction.isURI = v => v instanceof Components.interfaces.nsIURI;
 DefineTransaction.isIndex = v => Number.isInteger(v) &&
                                  v >= PlacesUtils.bookmarks.DEFAULT_INDEX;
-DefineTransaction.isGuid = v => /^[a-zA-Z0-9\-_]{12}$/.test(v);
+DefineTransaction.isGUID = v => /^[a-zA-Z0-9\-_]{12}$/.test(v);
 DefineTransaction.isPrimitive = v => v === null || (typeof(v) != "object" &&
                                                     typeof(v) != "function");
 DefineTransaction.isAnnotationObject = function (obj) {
@@ -713,8 +710,8 @@ function (aInput, aRequiredProps = [], aOptionalProps = []) {
     return {};
 
   // If there's just a single required/optional property, we allow passing it
-  // as is, so, for example, one could do PlacesTransactions.RemoveItem(myGuid)
-  // rather than PlacesTransactions.RemoveItem({ guid: myGuid}).
+  // as is, so, for example, one could do PlacesTransactions.RemoveItem(myGUID)
+  // rather than PlacesTransactions.RemoveItem({ GUID: myGUID}).
   // This shortcut isn't supported for "complex" properties - e.g. one cannot
   // pass an annotation object this way (note there is no use case for this at
   // the moment anyway).
@@ -744,12 +741,11 @@ function (aInput, aRequiredProps = [], aOptionalProps = []) {
 // remove properties.
 DefineTransaction.defineInputProps(["uri", "feedURI", "siteURI"],
                                    DefineTransaction.isURI, null);
-DefineTransaction.defineInputProps(["guid", "parentGuid", "newParentGuid"],
-                                   DefineTransaction.isGuid);
+DefineTransaction.defineInputProps(["GUID", "parentGUID", "newParentGUID"],
+                                   DefineTransaction.isGUID);
 DefineTransaction.defineInputProps(["title"],
                                    DefineTransaction.isStrOrNull, null);
-DefineTransaction.defineInputProps(["keyword", "postData", "tag",
-                                    "excludingAnnotation"],
+DefineTransaction.defineInputProps(["keyword", "postData", "tag"],
                                    DefineTransaction.isStr, "");
 DefineTransaction.defineInputProps(["index", "newIndex"],
                                    DefineTransaction.isIndex,
@@ -758,9 +754,7 @@ DefineTransaction.defineInputProps(["annotation"],
                                    DefineTransaction.isAnnotationObject);
 DefineTransaction.defineArrayInputProp("uris", "uri");
 DefineTransaction.defineArrayInputProp("tags", "tag");
-DefineTransaction.defineArrayInputProp("annotations", "annotation");
-DefineTransaction.defineArrayInputProp("excludingAnnotations",
-                                       "excludingAnnotation");
+DefineTransaction.defineArrayInputProp("annotations", "annotation")
 
 /**
  * Internal helper for implementing the execute method of NewBookmark, NewFolder
@@ -768,22 +762,22 @@ DefineTransaction.defineArrayInputProp("excludingAnnotations",
  *
  * @param aTransaction
  *        The transaction object
- * @param aParentGuid
- *        The GUID of the parent folder
- * @param aCreateItemFunction(aParentId, aGuidToRestore)
+ * @param aParentGUID
+ *        The guid of the parent folder
+ * @param aCreateItemFunction(aParentId, aGUIDToRestore)
  *        The function to be called for creating the item on execute and redo.
  *        It should return the itemId for the new item
- *        - aGuidToRestore - the GUID to set for the item (used for redo).
+ *        - aGUIDToRestore - the GUID to set for the item (used for redo).
  * @param [optional] aOnUndo
  *        an additional function to call after undo
  * @param [optional] aOnRedo
  *        an additional function to call after redo
  */
-function* ExecuteCreateItem(aTransaction, aParentGuid, aCreateItemFunction,
+function* ExecuteCreateItem(aTransaction, aParentGUID, aCreateItemFunction,
                             aOnUndo = null, aOnRedo = null) {
-  let parentId = yield PlacesUtils.promiseItemId(aParentGuid),
+  let parentId = yield PlacesUtils.promiseItemId(aParentGUID),
       itemId = yield aCreateItemFunction(parentId, ""),
-      guid = yield PlacesUtils.promiseItemGuid(itemId);
+      guid = yield PlacesUtils.promiseItemGUID(itemId);
 
   // On redo, we'll restore the date-added and last-modified properties.
   let dateAdded = 0, lastModified = 0;
@@ -798,7 +792,7 @@ function* ExecuteCreateItem(aTransaction, aParentGuid, aCreateItemFunction,
     }
   };
   aTransaction.redo = function* () {
-    parentId = yield PlacesUtils.promiseItemId(aParentGuid);
+    parentId = yield PlacesUtils.promiseItemId(aParentGUID);
     itemId = yield aCreateItemFunction(parentId, guid);
     if (aOnRedo)
       yield aOnRedo();
@@ -822,16 +816,12 @@ function* ExecuteCreateItem(aTransaction, aParentGuid, aCreateItemFunction,
  * @param [optional] aRestoring (default: false)
  *        Whether or not the items are restored.  Only in restore mode, are
  *        the guid, dateAdded and lastModified properties honored.
- * @param [optional] aExcludingAnnotations
- *        Array of annotations names to ignore in aBookmarksTree. This argument
- *        is ignored if aRestoring is set.
  * @note the id, root and charset properties of items in aBookmarksTree are
  *       always ignored.  The index property is ignored for all items but the
  *       root one.
  * @return {Promise}
  */
-function* createItemsFromBookmarksTree(aBookmarksTree, aRestoring = false,
-                                       aExcludingAnnotations = []) {
+function* createItemsFromBookmarksTree(aBookmarksTree, aRestoring = false) {
   function extractLivemarkDetails(aAnnos) {
     let feedURI = null, siteURI = null;
     aAnnos = aAnnos.filter(
@@ -851,11 +841,11 @@ function* createItemsFromBookmarksTree(aBookmarksTree, aRestoring = false,
   }
 
   function* createItem(aItem,
-                       aParentGuid,
+                       aParentGUID,
                        aIndex = PlacesUtils.bookmarks.DEFAULT_INDEX) {
     let itemId;
     let guid = aRestoring ? aItem.guid : undefined;
-    let parentId = yield PlacesUtils.promiseItemId(aParentGuid);
+    let parentId = yield PlacesUtils.promiseItemId(aParentGUID);
     let annos = aItem.annos ? [...aItem.annos] : [];
     switch (aItem.type) {
       case PlacesUtils.TYPE_X_MOZ_PLACE: {
@@ -876,7 +866,7 @@ function* createItemsFromBookmarksTree(aBookmarksTree, aRestoring = false,
           itemId = PlacesUtils.bookmarks.createFolder(
               parentId, aItem.title, aIndex, guid);
           if (guid === undefined)
-            guid = yield PlacesUtils.promiseItemGuid(itemId);
+            guid = yield PlacesUtils.promiseItemGUID(itemId);
           if ("children" in aItem) {
             for (let child of aItem.children) {
               yield createItem(child, guid);
@@ -900,14 +890,8 @@ function* createItemsFromBookmarksTree(aBookmarksTree, aRestoring = false,
         break;
       }
     }
-    if (annos.length > 0) {
-      if (!aRestoring && aExcludingAnnotations.length > 0) {
-        annos = [for(a of annos)
-                 if (aExcludingAnnotations.indexOf(a.name) == -1) a];
-      }
-
+    if (annos.length > 0)
       PlacesUtils.setAnnotationsForItem(itemId, annos);
-    }
 
     if (aRestoring) {
       if ("dateAdded" in aItem)
@@ -918,7 +902,7 @@ function* createItemsFromBookmarksTree(aBookmarksTree, aRestoring = false,
     return itemId;
   }
   return yield createItem(aBookmarksTree,
-                          aBookmarksTree.parentGuid,
+                          aBookmarksTree.parentGUID,
                           aBookmarksTree.index);
 }
 
@@ -934,18 +918,18 @@ let PT = PlacesTransactions;
 /**
  * Transaction for creating a bookmark.
  *
- * Required Input Properties: uri, parentGuid.
+ * Required Input Properties: uri, parentGUID.
  * Optional Input Properties: index, title, keyword, annotations, tags.
  *
  * When this transaction is executed, it's resolved to the new bookmark's GUID.
  */
-PT.NewBookmark = DefineTransaction(["parentGuid", "uri"],
+PT.NewBookmark = DefineTransaction(["parentGUID", "uri"],
                                    ["index", "title", "keyword", "postData",
                                     "annotations", "tags"]);
 PT.NewBookmark.prototype = Object.seal({
-  execute: function (aParentGuid, aURI, aIndex, aTitle,
+  execute: function (aParentGUID, aURI, aIndex, aTitle,
                      aKeyword, aPostData, aAnnos, aTags) {
-    return ExecuteCreateItem(this, aParentGuid,
+    return ExecuteCreateItem(this, aParentGUID,
       function (parentId, guidToRestore = "") {
         let itemId = PlacesUtils.bookmarks.insertBookmark(
           parentId, aURI, aIndex, aTitle, guidToRestore);
@@ -973,16 +957,16 @@ PT.NewBookmark.prototype = Object.seal({
 /**
  * Transaction for creating a folder.
  *
- * Required Input Properties: title, parentGuid.
+ * Required Input Properties: title, parentGUID.
  * Optional Input Properties: index, annotations.
  *
  * When this transaction is executed, it's resolved to the new folder's GUID.
  */
-PT.NewFolder = DefineTransaction(["parentGuid", "title"],
+PT.NewFolder = DefineTransaction(["parentGUID", "title"],
                                  ["index", "annotations"]);
 PT.NewFolder.prototype = Object.seal({
-  execute: function (aParentGuid, aTitle, aIndex, aAnnos) {
-    return ExecuteCreateItem(this,  aParentGuid,
+  execute: function (aParentGUID, aTitle, aIndex, aAnnos) {
+    return ExecuteCreateItem(this,  aParentGUID,
       function(parentId, guidToRestore = "") {
         let itemId = PlacesUtils.bookmarks.createFolder(
           parentId, aTitle, aIndex, guidToRestore);
@@ -996,16 +980,16 @@ PT.NewFolder.prototype = Object.seal({
 /**
  * Transaction for creating a separator.
  *
- * Required Input Properties: parentGuid.
+ * Required Input Properties: parentGUID.
  * Optional Input Properties: index.
  *
  * When this transaction is executed, it's resolved to the new separator's
  * GUID.
  */
-PT.NewSeparator = DefineTransaction(["parentGuid"], ["index"]);
+PT.NewSeparator = DefineTransaction(["parentGUID"], ["index"]);
 PT.NewSeparator.prototype = Object.seal({
-  execute: function (aParentGuid, aIndex) {
-    return ExecuteCreateItem(this, aParentGuid,
+  execute: function (aParentGUID, aIndex) {
+    return ExecuteCreateItem(this, aParentGUID,
       function (parentId, guidToRestore = "") {
         let itemId = PlacesUtils.bookmarks.insertSeparator(
           parentId, aIndex, guidToRestore);
@@ -1018,22 +1002,22 @@ PT.NewSeparator.prototype = Object.seal({
  * Transaction for creating a live bookmark (see mozIAsyncLivemarks for the
  * semantics).
  *
- * Required Input Properties: feedURI, title, parentGuid.
+ * Required Input Properties: feedURI, title, parentGUID.
  * Optional Input Properties: siteURI, index, annotations.
  *
- * When this transaction is executed, it's resolved to the new livemark's
+ * When this transaction is executed, it's resolved to the new separators's
  * GUID.
  */
-PT.NewLivemark = DefineTransaction(["feedURI", "title", "parentGuid"],
+PT.NewLivemark = DefineTransaction(["feedURI", "title", "parentGUID"],
                                    ["siteURI", "index", "annotations"]);
 PT.NewLivemark.prototype = Object.seal({
-  execute: function* (aFeedURI, aTitle, aParentGuid, aSiteURI, aIndex, aAnnos) {
+  execute: function* (aFeedURI, aTitle, aParentGUID, aSiteURI, aIndex, aAnnos) {
     let livemarkInfo = { title: aTitle
                        , feedURI: aFeedURI
                        , siteURI: aSiteURI
                        , index: aIndex };
     let createItem = function* () {
-      livemarkInfo.parentId = yield PlacesUtils.promiseItemId(aParentGuid);
+      livemarkInfo.parentId = yield PlacesUtils.promiseItemId(aParentGUID);
       let livemark = yield PlacesUtils.livemarks.addLivemark(livemarkInfo);
       if (aAnnos.length > 0)
         PlacesUtils.setAnnotationsForItem(livemark.id, aAnnos);
@@ -1068,16 +1052,16 @@ PT.NewLivemark.prototype = Object.seal({
 /**
  * Transaction for moving an item.
  *
- * Required Input Properties: guid, newParentGuid.
+ * Required Input Properties: GUID, newParentGUID.
  * Optional Input Properties  newIndex.
  */
-PT.Move = DefineTransaction(["guid", "newParentGuid"], ["newIndex"]);
+PT.Move = DefineTransaction(["GUID", "newParentGUID"], ["newIndex"]);
 PT.Move.prototype = Object.seal({
-  execute: function* (aGuid, aNewParentGuid, aNewIndex) {
-    let itemId = yield PlacesUtils.promiseItemId(aGuid),
+  execute: function* (aGUID, aNewParentGUID, aNewIndex) {
+    let itemId = yield PlacesUtils.promiseItemId(aGUID),
         oldParentId = PlacesUtils.bookmarks.getFolderIdForItem(itemId),
         oldIndex = PlacesUtils.bookmarks.getItemIndex(itemId),
-        newParentId = yield PlacesUtils.promiseItemId(aNewParentGuid);
+        newParentId = yield PlacesUtils.promiseItemId(aNewParentGUID);
 
     PlacesUtils.bookmarks.moveItem(itemId, newParentId, aNewIndex);
 
@@ -1096,12 +1080,12 @@ PT.Move.prototype = Object.seal({
 /**
  * Transaction for setting the title for an item.
  *
- * Required Input Properties: guid, title.
+ * Required Input Properties: GUID, title.
  */
-PT.EditTitle = DefineTransaction(["guid", "title"]);
+PT.EditTitle = DefineTransaction(["GUID", "title"]);
 PT.EditTitle.prototype = Object.seal({
-  execute: function* (aGuid, aTitle) {
-    let itemId = yield PlacesUtils.promiseItemId(aGuid),
+  execute: function* (aGUID, aTitle) {
+    let itemId = yield PlacesUtils.promiseItemId(aGUID),
         oldTitle = PlacesUtils.bookmarks.getItemTitle(itemId);
     PlacesUtils.bookmarks.setItemTitle(itemId, aTitle);
     this.undo = () => { PlacesUtils.bookmarks.setItemTitle(itemId, oldTitle); };
@@ -1111,12 +1095,12 @@ PT.EditTitle.prototype = Object.seal({
 /**
  * Transaction for setting the URI for an item.
  *
- * Required Input Properties: guid, uri.
+ * Required Input Properties: GUID, uri.
  */
-PT.EditURI = DefineTransaction(["guid", "uri"]);
+PT.EditURI = DefineTransaction(["GUID", "uri"]);
 PT.EditURI.prototype = Object.seal({
-  execute: function* (aGuid, aURI) {
-    let itemId = yield PlacesUtils.promiseItemId(aGuid),
+  execute: function* (aGUID, aURI) {
+    let itemId = yield PlacesUtils.promiseItemId(aGUID),
         oldURI = PlacesUtils.bookmarks.getBookmarkURI(itemId),
         oldURITags = PlacesUtils.tagging.getTagsForURI(oldURI),
         newURIAdditionalTags = null;
@@ -1154,12 +1138,12 @@ PT.EditURI.prototype = Object.seal({
 /**
  * Transaction for setting annotations for an item.
  *
- * Required Input Properties: guid, annotationObject
+ * Required Input Properties: GUID, annotationObject
  */
-PT.Annotate = DefineTransaction(["guid", "annotations"]);
+PT.Annotate = DefineTransaction(["GUID", "annotations"]);
 PT.Annotate.prototype = {
-  execute: function* (aGuid, aNewAnnos) {
-    let itemId = yield PlacesUtils.promiseItemId(aGuid);
+  execute: function* (aGUID, aNewAnnos) {
+    let itemId = yield PlacesUtils.promiseItemId(aGUID);
     let currentAnnos = PlacesUtils.getAnnotationsForItem(itemId);
     let undoAnnos = [];
     for (let newAnno of aNewAnnos) {
@@ -1186,12 +1170,12 @@ PT.Annotate.prototype = {
 /**
  * Transaction for setting the keyword for a bookmark.
  *
- * Required Input Properties: guid, keyword.
+ * Required Input Properties: GUID, keyword.
  */
-PT.EditKeyword = DefineTransaction(["guid", "keyword"]);
+PT.EditKeyword = DefineTransaction(["GUID", "keyword"]);
 PT.EditKeyword.prototype = Object.seal({
-  execute: function* (aGuid, aKeyword) {
-    let itemId = yield PlacesUtils.promiseItemId(aGuid),
+  execute: function* (aGUID, aKeyword) {
+    let itemId = yield PlacesUtils.promiseItemId(aGUID),
         oldKeyword = PlacesUtils.bookmarks.getKeywordForBookmark(itemId);
     PlacesUtils.bookmarks.setKeywordForBookmark(itemId, aKeyword);
     this.undo = () => {
@@ -1203,12 +1187,12 @@ PT.EditKeyword.prototype = Object.seal({
 /**
  * Transaction for sorting a folder by name.
  *
- * Required Input Properties: guid.
+ * Required Input Properties: GUID.
  */
-PT.SortByName = DefineTransaction(["guid"]);
+PT.SortByName = DefineTransaction(["GUID"]);
 PT.SortByName.prototype = {
-  execute: function* (aGuid) {
-    let itemId = yield PlacesUtils.promiseItemId(aGuid),
+  execute: function* (aGUID) {
+    let itemId = yield PlacesUtils.promiseItemId(aGUID),
         oldOrder = [],  // [itemId] = old index
         contents = PlacesUtils.getFolderContents(itemId, false, false).root,
         count = contents.childCount;
@@ -1271,22 +1255,22 @@ PT.SortByName.prototype = {
 /**
  * Transaction for removing an item (any type).
  *
- * Required Input Properties: guid.
+ * Required Input Properties: GUID.
  */
-PT.Remove = DefineTransaction(["guid"]);
+PT.Remove = DefineTransaction(["GUID"]);
 PT.Remove.prototype = {
-  execute: function* (aGuid) {
+  execute: function* (aGUID) {
     const bms = PlacesUtils.bookmarks;
 
     let itemInfo = null;
     try {
-      itemInfo = yield PlacesUtils.promiseBookmarksTree(aGuid);
+      itemInfo = yield PlacesUtils.promiseBookmarksTree(aGUID);
     }
     catch(ex) {
       throw new Error("Failed to get info for the specified item (guid: " +
-                      aGuid + "). Ex: " + ex);
+                      aGUID + "). Ex: " + ex);
     }
-    PlacesUtils.bookmarks.removeItem(yield PlacesUtils.promiseItemId(aGuid));
+    PlacesUtils.bookmarks.removeItem(yield PlacesUtils.promiseItemId(aGUID));
     this.undo = createItemsFromBookmarksTree.bind(null, itemInfo, true);
   }
 };
@@ -1313,11 +1297,11 @@ PT.Tag.prototype = {
 
       if (yield promiseIsBookmarked(currentURI)) {
         // Tagging is only allowed for bookmarked URIs (but see 424160).
-        let unfiledGuid =
-          yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+        let unfileGUID =
+          yield PlacesUtils.promiseItemGUID(PlacesUtils.unfiledBookmarksFolderId);
         let createTxn = TransactionsHistory.getRawTransaction(
           PT.NewBookmark({ uri: currentURI
-                         , tags: aTags, parentGuid: unfiledGuid }));
+                         , tags: aTags, parentGUID: unfileGUID }));
         yield createTxn.execute();
         onUndo.unshift(createTxn.undo.bind(createTxn));
         onRedo.push(createTxn.redo.bind(createTxn));
@@ -1392,32 +1376,30 @@ PT.Untag.prototype = {
 /**
  * Transaction for copying an item.
  *
- * Required Input Properties: guid, newParentGuid
- * Optional Input Properties: newIndex, excludingAnnotations.
+ * Required Input Properties: guid, newParentGUID
+ * Optional Input Properties: newIndex.
  */
-PT.Copy = DefineTransaction(["guid", "newParentGuid"],
-                            ["newIndex", "excludingAnnotations"]);
+PT.Copy = DefineTransaction(["GUID", "newParentGUID"],
+                            ["newIndex"]);
 PT.Copy.prototype = {
-  execute: function* (aGuid, aNewParentGuid, aNewIndex, aExcludingAnnotations) {
+  execute: function* (aGUID, aNewParentGUID, aNewIndex) {
     let creationInfo = null;
     try {
-      creationInfo = yield PlacesUtils.promiseBookmarksTree(aGuid);
+      creationInfo = yield PlacesUtils.promiseBookmarksTree(aGUID);
     }
     catch(ex) {
       throw new Error("Failed to get info for the specified item (guid: " +
-                      aGuid + "). Ex: " + ex);
+                      aGUID + "). Ex: " + ex);
     }
-    creationInfo.parentGuid = aNewParentGuid;
+    creationInfo.parentGUID = aNewParentGUID;
     creationInfo.index = aNewIndex;
 
-    let newItemId =
-      yield createItemsFromBookmarksTree(creationInfo, false,
-                                         aExcludingAnnotations);
+    let newItemId = yield createItemsFromBookmarksTree(creationInfo, false);
     let newItemInfo = null;
     this.undo = function* () {
       if (!newItemInfo) {
-        let newItemGuid = yield PlacesUtils.promiseItemGuid(newItemId);
-        newItemInfo = yield PlacesUtils.promiseBookmarksTree(newItemGuid);
+        let newItemGUID = yield PlacesUtils.promiseItemGUID(newItemId);
+        newItemInfo = yield PlacesUtils.promiseBookmarksTree(newItemGUID);
       }
       PlacesUtils.bookmarks.removeItem(newItemId);
     };
@@ -1425,6 +1407,6 @@ PT.Copy.prototype = {
       newItemId = yield createItemsFromBookmarksTree(newItemInfo, true);
     }
 
-    return yield PlacesUtils.promiseItemGuid(newItemId);
+    return yield PlacesUtils.promiseItemGUID(newItemId);
   }
 };

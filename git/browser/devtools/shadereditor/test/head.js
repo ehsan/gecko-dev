@@ -241,11 +241,12 @@ function initBackend(aUrl) {
   return Task.spawn(function*() {
     let tab = yield addTab(aUrl);
     let target = TargetFactory.forTab(tab);
+    let debuggee = target.window.wrappedJSObject;
 
     yield target.makeRemote();
 
     let front = new WebGLFront(target.client, target.form);
-    return { target, front };
+    return [target, debuggee, front];
   });
 }
 
@@ -255,13 +256,14 @@ function initShaderEditor(aUrl) {
   return Task.spawn(function*() {
     let tab = yield addTab(aUrl);
     let target = TargetFactory.forTab(tab);
+    let debuggee = target.window.wrappedJSObject;
 
     yield target.makeRemote();
 
     Services.prefs.setBoolPref("devtools.shadereditor.enabled", true);
     let toolbox = yield gDevTools.showToolbox(target, "shadereditor");
     let panel = toolbox.getCurrentPanel();
-    return { target, panel };
+    return [target, debuggee, panel];
   });
 }
 

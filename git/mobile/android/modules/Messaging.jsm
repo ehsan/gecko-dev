@@ -34,28 +34,30 @@ let Messaging = {
    * Only one request listener can be registered for a given message.
    *
    * Example usage:
-   *   // aData is data sent from Java with the request. The return value is
-   *   // used to respond to the request. The return type *must* be an instance
-   *   // of Object.
-   *   let listener = function (aData) {
-   *     if (aData == "foo") {
-   *       return { response: "bar" };
+   *   Messaging.addListener({
+   *     // aMessage is the message name.
+   *     // aData is data sent from Java with the request.
+   *     // The return value is used to respond to the request. The return
+   *     //   type *must* be an instance of Object.
+   *     onRequest: function (aMessage, aData) {
+   *       if (aData == "foo") {
+   *         return { response: "bar" };
+   *       }
+   *       return {};
    *     }
-   *     return {};
-   *   };
-   *   Messaging.addListener(listener, "Demo:Request");
+   *   }, "Demo:Request");
    *
    * The listener may also be a generator function, useful for performing a
    * task asynchronously. For example:
-   *   let listener = function* (aData) {
-   *     // Respond with "bar" after 2 seconds.
-   *     yield new Promise(resolve => setTimeout(resolve, 2000));
-   *     return { response: "bar" };
-   *   };
-   *   Messaging.addListener(listener, "Demo:Request");
+   *   Messaging.addListener({
+   *     onRequest: function* (aMessage, aData) {
+   *       yield new Promise(resolve => setTimeout(resolve, 2000));
+   *       return { response: "bar" };
+   *     }
+   *   }, "Demo:Request");
    *
-   * @param aListener Listener callback taking a single data parameter (see
-   *                  example usage above).
+   * @param aListener Listener object with an onRequest function (see example
+   *                  usage above).
    * @param aMessage  Event name that this listener should observe.
    */
   addListener: function (aListener, aMessage) {

@@ -2431,9 +2431,9 @@ this.AddonManagerPrivate = {
   // Start a timer, record a simple measure of the time interval when
   // timer.done() is called
   simpleTimer: function(aName) {
-    let startTime = Cu.now();
+    let startTime = Date.now();
     return {
-      done: () => this.recordSimpleMeasure(aName, Math.round(Cu.now() - startTime))
+      done: () => this.recordSimpleMeasure(aName, Date.now() - startTime)
     };
   },
 

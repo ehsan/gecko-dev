@@ -1893,34 +1893,10 @@ MediaManager::GetBackend(uint64_t aWindowId)
   return mBackend;
 }
 
-static void
-StopSharingCallback(MediaManager *aThis,
-                    uint64_t aWindowID,
-                    StreamListeners *aListeners,
-                    void *aData)
-{
-  if (aListeners) {
-    auto length = aListeners->Length();
-    for (size_t i = 0; i < length; ++i) {
-      GetUserMediaCallbackMediaStreamListener *listener = aListeners->ElementAt(i);
-
-      if (listener->Stream()) { // aka HasBeenActivate()ed
-        listener->Invalidate();
-      }
-      listener->Remove();
-      listener->StopScreenWindowSharing();
-    }
-    aListeners->Clear();
-    aThis->RemoveWindowID(aWindowID);
-  }
-}
-
-
 void
 MediaManager::OnNavigation(uint64_t aWindowID)
 {
   NS_ASSERTION(NS_IsMainThread(), "OnNavigation called off main thread");
-  LOG(("OnNavigation for %llu", aWindowID));
 
   // Invalidate this window. The runnables check this value before making
   // a call to content.
@@ -1935,13 +1911,24 @@ MediaManager::OnNavigation(uint64_t aWindowID)
 
   // This is safe since we're on main-thread, and the windowlist can only
   // be added to from the main-thread
-  nsPIDOMWindow *window = static_cast<nsPIDOMWindow*>
-      (nsGlobalWindow::GetInnerWindowWithId(aWindowID));
-  if (window) {
-    IterateWindowListeners(window, StopSharingCallback, nullptr);
-  } else {
-    RemoveWindowID(aWindowID);
+  StreamListeners* listeners = GetWindowListeners(aWindowID);
+  if (!listeners) {
+    return;
   }
+
+  uint32_t length = listeners->Length();
+  for (uint32_t i = 0; i < length; i++) {
+    nsRefPtr<GetUserMediaCallbackMediaStreamListener> listener =
+      listeners->ElementAt(i);
+    if (listener->Stream()) { // aka HasBeenActivate()ed
+      listener->Invalidate();
+    }
+    listener->Remove();
+  }
+  listeners->Clear();
+
+  RemoveWindowID(aWindowID);
+  // listeners has been deleted
 }
 
 void
@@ -2226,93 +2213,92 @@ MediaManager::GetActiveMediaCaptureWindows(nsISupportsArray **aArray)
   return NS_OK;
 }
 
-// XXX flags might be better...
-struct CaptureWindowStateData {
-  bool *mVideo;
-  bool *mAudio;
-  bool *mScreenShare;
-  bool *mWindowShare;
-  bool *mAppShare;
-};
-
-static void
-CaptureWindowStateCallback(MediaManager *aThis,
-                           uint64_t aWindowID,
-                           StreamListeners *aListeners,
-                           void *aData)
-{
-  struct CaptureWindowStateData *data = (struct CaptureWindowStateData *) aData;
-
-  if (aListeners) {
-    auto length = aListeners->Length();
-    for (size_t i = 0; i < length; ++i) {
-      GetUserMediaCallbackMediaStreamListener *listener = aListeners->ElementAt(i);
-
-      if (listener->CapturingVideo()) {
-        *data->mVideo = true;
-      }
-      if (listener->CapturingAudio()) {
-        *data->mAudio = true;
-      }
-      if (listener->CapturingScreen()) {
-        *data->mScreenShare = true;
-      }
-      if (listener->CapturingWindow()) {
-        *data->mWindowShare = true;
-      }
-      if (listener->CapturingApplication()) {
-        *data->mAppShare = true;
-      }
-    }
-  }
-}
-
-
 NS_IMETHODIMP
 MediaManager::MediaCaptureWindowState(nsIDOMWindow* aWindow, bool* aVideo,
                                       bool* aAudio, bool *aScreenShare,
                                       bool* aWindowShare, bool *aAppShare)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-  struct CaptureWindowStateData data;
-  data.mVideo = aVideo;
-  data.mAudio = aAudio;
-  data.mScreenShare = aScreenShare;
-  data.mWindowShare = aWindowShare;
-  data.mAppShare = aAppShare;
-
   *aVideo = false;
   *aAudio = false;
   *aScreenShare = false;
   *aWindowShare = false;
   *aAppShare = false;
 
-  nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(aWindow);
-  if (piWin) {
-    IterateWindowListeners(piWin, CaptureWindowStateCallback, &data);
-  }
+  nsresult rv = MediaCaptureWindowStateInternal(aWindow, aVideo, aAudio, aScreenShare, aWindowShare, aAppShare);
 #ifdef DEBUG
+  nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(aWindow);
   LOG(("%s: window %lld capturing %s %s %s %s %s", __FUNCTION__, piWin ? piWin->WindowID() : -1,
        *aVideo ? "video" : "", *aAudio ? "audio" : "",
        *aScreenShare ? "screenshare" : "",  *aWindowShare ? "windowshare" : "",
        *aAppShare ? "appshare" : ""));
 #endif
+  return rv;
+}
+
+nsresult
+MediaManager::MediaCaptureWindowStateInternal(nsIDOMWindow* aWindow, bool* aVideo,
+                                              bool* aAudio, bool *aScreenShare,
+                                              bool* aWindowShare, bool *aAppShare)
+{
+  // We need to return the union of all streams in all innerwindows that
+  // correspond to that outerwindow.
+
+  // Iterate the docshell tree to find all the child windows, find
+  // all the listeners for each one, get the booleans, and merge the
+  // results.
+  nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(aWindow);
+  if (piWin) {
+    if (piWin->IsInnerWindow() || piWin->GetCurrentInnerWindow()) {
+      uint64_t windowID;
+      if (piWin->IsInnerWindow()) {
+        windowID = piWin->WindowID();
+      } else {
+        windowID = piWin->GetCurrentInnerWindow()->WindowID();
+      }
+      StreamListeners* listeners = GetActiveWindows()->Get(windowID);
+      if (listeners) {
+        uint32_t length = listeners->Length();
+        for (uint32_t i = 0; i < length; ++i) {
+          nsRefPtr<GetUserMediaCallbackMediaStreamListener> listener =
+            listeners->ElementAt(i);
+          if (listener->CapturingVideo()) {
+            *aVideo = true;
+          }
+          if (listener->CapturingAudio()) {
+            *aAudio = true;
+          }
+          if (listener->CapturingScreen()) {
+            *aScreenShare = true;
+          }
+          if (listener->CapturingWindow()) {
+            *aWindowShare = true;
+          }
+          if (listener->CapturingApplication()) {
+            *aAppShare = true;
+          }
+        }
+      }
+    }
+
+    // iterate any children of *this* window (iframes, etc)
+    nsCOMPtr<nsIDocShell> docShell = piWin->GetDocShell();
+    if (docShell) {
+      int32_t i, count;
+      docShell->GetChildCount(&count);
+      for (i = 0; i < count; ++i) {
+        nsCOMPtr<nsIDocShellTreeItem> item;
+        docShell->GetChildAt(i, getter_AddRefs(item));
+        nsCOMPtr<nsPIDOMWindow> win = item ? item->GetWindow() : nullptr;
+
+        MediaCaptureWindowStateInternal(win, aVideo, aAudio, aScreenShare, aWindowShare, aAppShare);
+      }
+    }
+  }
   return NS_OK;
 }
 
-static void
-StopScreensharingCallback(MediaManager *aThis,
-                          uint64_t aWindowID,
-                          StreamListeners *aListeners,
-                          void *aData)
-{
-  if (aListeners) {
-    auto length = aListeners->Length();
-    for (size_t i = 0; i < length; ++i) {
-      aListeners->ElementAt(i)->StopScreenWindowSharing();
-    }
-  }
-}
+// XXX abstract out the iteration over all children and provide a function pointer and data ptr
 
 void
 MediaManager::StopScreensharing(uint64_t aWindowID)
@@ -2325,17 +2311,18 @@ MediaManager::StopScreensharing(uint64_t aWindowID)
   if (!window) {
     return;
   }
-  IterateWindowListeners(window, &StopScreensharingCallback, nullptr);
+  StopScreensharing(window);
 }
 
-// lets us do all sorts of things to the listeners
 void
-MediaManager::IterateWindowListeners(nsPIDOMWindow *aWindow,
-                                     WindowListenerCallback aCallback,
-                                     void *aData)
+MediaManager::StopScreensharing(nsPIDOMWindow *aWindow)
 {
-  // Iterate the docshell tree to find all the child windows, and for each
-  // invoke the callback
+  // We need to stop window/screensharing for all streams in all innerwindows that
+  // correspond to that outerwindow.
+
+  // Iterate the docshell tree to find all the child windows, find
+  // all the listeners for each one, and tell them to stop
+  // window/screensharing
   nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(aWindow);
   if (piWin) {
     if (piWin->IsInnerWindow() || piWin->GetCurrentInnerWindow()) {
@@ -2346,8 +2333,12 @@ MediaManager::IterateWindowListeners(nsPIDOMWindow *aWindow,
         windowID = piWin->GetCurrentInnerWindow()->WindowID();
       }
       StreamListeners* listeners = GetActiveWindows()->Get(windowID);
-      // pass listeners so it can modify/delete the list
-      (*aCallback)(this, windowID, listeners, aData);
+      if (listeners) {
+        uint32_t length = listeners->Length();
+        for (uint32_t i = 0; i < length; ++i) {
+          listeners->ElementAt(i)->StopScreenWindowSharing();
+        }
+      }
     }
 
     // iterate any children of *this* window (iframes, etc)
@@ -2361,13 +2352,12 @@ MediaManager::IterateWindowListeners(nsPIDOMWindow *aWindow,
         nsCOMPtr<nsPIDOMWindow> win = item ? item->GetWindow() : nullptr;
 
         if (win) {
-          IterateWindowListeners(win, aCallback, aData);
+          StopScreensharing(win);
         }
       }
     }
   }
 }
-
 
 void
 MediaManager::StopMediaStreams()

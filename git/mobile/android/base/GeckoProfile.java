@@ -90,9 +90,10 @@ public final class GeckoProfile {
             }
         }
 
-        // If the guest profile should be used return it.
-        if (GuestSession.shouldUse(context, "")) {
-            return GeckoProfile.getGuestProfile(context);
+        // If the guest profile exists and is locked, return it
+        GeckoProfile guest = GeckoProfile.getGuestProfile(context);
+        if (guest != null && guest.locked()) {
+            return guest;
         }
 
         if (isGeckoApp) {
@@ -193,17 +194,12 @@ public final class GeckoProfile {
 
     public static GeckoProfile createGuestProfile(Context context) {
         try {
+            removeGuestProfile(context);
             // We need to force the creation of a new guest profile if we want it outside of the normal profile path,
             // otherwise GeckoProfile.getDir will try to be smart and build it for us in the normal profiles dir.
             getGuestDir(context).mkdir();
             GeckoProfile profile = getGuestProfile(context);
-
-            // If we're creating this guest session over the keyguard, don't lock it.
-            // This will force the guest session to exit if the user unlocks their phone
-            // and starts Fennec.
-            if (!GuestSession.isSecureKeyguardLocked(context)) {
-                profile.lock();
-            }
+            profile.lock();
 
             /*
              * Now do the things that createProfileDirectory normally does --
@@ -232,7 +228,7 @@ public final class GeckoProfile {
         return sGuestDir;
     }
 
-    public static GeckoProfile getGuestProfile(Context context) {
+    private static GeckoProfile getGuestProfile(Context context) {
         if (sGuestProfile == null) {
             File guestDir = getGuestDir(context);
             if (guestDir.exists()) {
@@ -246,11 +242,10 @@ public final class GeckoProfile {
 
     public static boolean maybeCleanupGuestProfile(final Context context) {
         final GeckoProfile profile = getGuestProfile(context);
+
         if (profile == null) {
             return false;
-        }
-
-        if (!profile.locked()) {
+        } else if (!profile.locked()) {
             profile.mInGuestMode = false;
 
             // If the guest dir exists, but it's unlocked, delete it
@@ -362,11 +357,6 @@ public final class GeckoProfile {
 
         try {
             final File lockFile = new File(profileDir, LOCK_FILE_NAME);
-            if (!lockFile.exists()) {
-                mLocked = LockState.UNLOCKED;
-                return true;
-            }
-
             final boolean result = delete(lockFile);
             if (result) {
                 mLocked = LockState.UNLOCKED;
@@ -377,7 +367,6 @@ public final class GeckoProfile {
         } catch(IOException ex) {
             Log.e(LOGTAG, "Error unlocking profile", ex);
         }
-
         mLocked = LockState.LOCKED;
         return false;
     }

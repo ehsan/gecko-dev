@@ -17,44 +17,35 @@
 #include "libGLESv2/constants.h"
 #include "libGLESv2/VertexAttribute.h"
 
-#include <vector>
-
 namespace rx
 {
 class Renderer;
-class VertexArrayImpl;
 }
 
 namespace gl
 {
 class Buffer;
 
-class VertexArray
+class VertexArray : public RefCountObject
 {
   public:
-    VertexArray(rx::VertexArrayImpl *impl, GLuint id, size_t maxAttribs);
+    VertexArray(rx::Renderer *renderer, GLuint id);
     ~VertexArray();
 
-    GLuint id() const;
-
-    const VertexAttribute& getVertexAttribute(size_t attributeIndex) const;
+    const VertexAttribute& getVertexAttribute(unsigned int attributeIndex) const;
     void detachBuffer(GLuint bufferName);
     void setVertexAttribDivisor(GLuint index, GLuint divisor);
     void enableAttribute(unsigned int attributeIndex, bool enabledState);
     void setAttributeState(unsigned int attributeIndex, gl::Buffer *boundBuffer, GLint size, GLenum type,
                            bool normalized, bool pureInteger, GLsizei stride, const void *pointer);
 
-    const VertexAttribute* getVertexAttributes() const { return mVertexAttributes.data(); }
+    const VertexAttribute* getVertexAttributes() const { return mVertexAttributes; }
     Buffer *getElementArrayBuffer() const { return mElementArrayBuffer.get(); }
-    void setElementArrayBuffer(Buffer *buffer);
+    void setElementArrayBuffer(Buffer *elementArrayBuffer) { mElementArrayBuffer.set(elementArrayBuffer); }
     GLuint getElementArrayBufferId() const { return mElementArrayBuffer.id(); }
-    size_t getMaxAttribs() const { return mVertexAttributes.size(); }
 
   private:
-    GLuint mId;
-
-    rx::VertexArrayImpl *mVertexArray;
-    std::vector<VertexAttribute> mVertexAttributes;
+    VertexAttribute mVertexAttributes[MAX_VERTEX_ATTRIBS];
     BindingPointer<Buffer> mElementArrayBuffer;
 };
 

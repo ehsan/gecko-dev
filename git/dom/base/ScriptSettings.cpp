@@ -154,7 +154,7 @@ GetIncumbentGlobal()
   // there's nothing on the JS stack, which will cause us to check the
   // incumbent script stack below.
   if (JSObject *global = JS::GetScriptedCallerGlobal(cx)) {
-    return xpc::NativeGlobal(global);
+    return xpc::GetNativeForGlobal(global);
   }
 
   // Ok, nothing from the JS engine. Let's use whatever's on the
@@ -175,7 +175,7 @@ GetCurrentGlobal()
     return nullptr;
   }
 
-  return xpc::NativeGlobal(global);
+  return xpc::GetNativeForGlobal(global);
 }
 
 nsIPrincipal*
@@ -300,12 +300,6 @@ bool
 AutoJSAPI::Init(nsIGlobalObject* aGlobalObject)
 {
   return Init(aGlobalObject, nsContentUtils::GetDefaultJSContextForThread());
-}
-
-bool
-AutoJSAPI::Init(JSObject* aObject)
-{
-  return Init(xpc::NativeGlobal(aObject));
 }
 
 bool

@@ -7,9 +7,10 @@
  */
 
 let test = Task.async(function*() {
-  let { target, panel } = yield initTimelinePanel(SIMPLE_URL);
+  let [target, debuggee, panel] = yield initTimelinePanel(SIMPLE_URL);
 
   ok(target, "Should have a target available.");
+  ok(debuggee, "Should have a debuggee available.");
   ok(panel, "Should have a panel available.");
 
   ok(panel.panelWin.gToolbox, "Should have a toolbox reference on the panel window.");

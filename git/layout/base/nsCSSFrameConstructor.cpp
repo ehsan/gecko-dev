@@ -7803,7 +7803,7 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
 #ifdef ACCESSIBILITY
     nsAccessibilityService* accService = nsIPresShell::AccService();
     if (accService) {
-      accService->ContentRemoved(mPresShell, aChild);
+      accService->ContentRemoved(mPresShell, aContainer, aChild);
     }
 #endif
 
