@@ -148,6 +148,11 @@ members = [
     'nsIDOMDOMStringList.*',
     'nsIDOMDOMTokenList.*',
     'nsIDOMDOMSettableTokenList.*',
+    'nsIDOMNameList.getName',
+    'nsIDOMNameList.contains',
+    'nsIDOMNameList.containsNS',
+    'nsIDOMNameList.length',
+    'nsIDOMNameList.getNamespaceURI',
     'nsIDOMXULDocument.getBoxObjectFor',
     'nsIDOMNSElement.*',
 
