@@ -65,6 +65,8 @@ public:
   // nsIJSEventListener interface
   virtual void SetEventName(nsIAtom* aName);
 
+  virtual void ToString(const nsAString& aEventName, nsAString& aResult);
+
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsJSEventListener,
                                                          nsIDOMEventListener)
 protected:
