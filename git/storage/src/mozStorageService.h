@@ -53,7 +53,6 @@
 #include "mozIStorageServiceQuotaManagement.h"
 
 class nsIXPConnect;
-struct sqlite3_vfs;
 
 namespace mozilla {
 namespace storage {
@@ -113,8 +112,6 @@ private:
    * synchronizing access to mLocaleCollation.
    */
   Mutex mMutex;
-  
-  sqlite3_vfs *mSqliteVFS;
 
   /**
    * Shuts down the storage service, freeing all of the acquired resources.

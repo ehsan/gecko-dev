@@ -1339,16 +1339,11 @@ class RegExpGuard
 
     /* init must succeed in order to call tryFlatMatch or normalizeRegExp. */
     bool
-    init(uintN argc, Value *vp, bool convertVoid = false)
+    init(uintN argc, Value *vp)
     {
         if (argc != 0 && VALUE_IS_REGEXP(cx, vp[2])) {
             rep.reset(vp[2].toObject());
         } else {
-            if (convertVoid && (argc == 0 || vp[2].isUndefined())) {
-                fm.patstr = cx->runtime->emptyString;
-                return true;
-            }
-            
             fm.patstr = ArgToRootedString(cx, argc, vp, 0);
             if (!fm.patstr)
                 return false;
@@ -1547,9 +1542,9 @@ str_match(JSContext *cx, uintN argc, Value *vp)
     JSString *str = ThisToStringForStringProto(cx, vp);
     if (!str)
         return false;
-    
+
     RegExpGuard g(cx);
-    if (!g.init(argc, vp, true))
+    if (!g.init(argc, vp))
         return false;
     if (const FlatMatch *fm = g.tryFlatMatch(cx, str, 1, argc))
         return BuildFlatMatchArray(cx, str, *fm, vp);
@@ -1582,7 +1577,7 @@ str_search(JSContext *cx, uintN argc, Value *vp)
         return false;
 
     RegExpGuard g(cx);
-    if (!g.init(argc, vp, true))
+    if (!g.init(argc, vp))
         return false;
     if (const FlatMatch *fm = g.tryFlatMatch(cx, str, 1, argc)) {
         vp->setInt32(fm->match());
@@ -1590,7 +1585,6 @@ str_search(JSContext *cx, uintN argc, Value *vp)
     }
     if (cx->isExceptionPending())  /* from tryFlatMatch */
         return false;
-    
     const RegExpPair *rep = g.normalizeRegExp(false, 1, argc, vp);
     if (!rep)
         return false;
@@ -5627,8 +5621,9 @@ Utf8ToOneUcs4Char(const uint8 *utf8Buffer, int utf8Length)
     }
 
     if (JS_UNLIKELY(ucs4Char < minucs4Char || (ucs4Char >= 0xD800 && ucs4Char <= 0xDFFF)))
-        return INVALID_UTF8;
-
+        ucs4Char = INVALID_UTF8;
+    else if (ucs4Char == 0xFFFE || ucs4Char == 0xFFFF)
+        ucs4Char = 0xFFFD;
     return ucs4Char;
 }
 

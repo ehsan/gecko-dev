@@ -6536,27 +6536,13 @@ nsHTMLEditRules::ReturnInHeader(nsISelection *aSelection,
     NS_ENSURE_SUCCESS(res, res);
     if (!sibling || !nsTextEditUtils::IsBreak(sibling))
     {
-      // create a paragraph
-      NS_NAMED_LITERAL_STRING(pType, "p");
-      nsCOMPtr<nsIDOMNode> pNode;
-      res = mHTMLEditor->CreateNode(pType, headerParent, offset+1, getter_AddRefs(pNode));
+      res = CreateMozBR(headerParent, offset+1, address_of(sibling));
       NS_ENSURE_SUCCESS(res, res);
-
-      // append a <br> to it
-      nsCOMPtr<nsIDOMNode> brNode;
-      res = mHTMLEditor->CreateBR(pNode, 0, address_of(brNode));
-      NS_ENSURE_SUCCESS(res, res);
-
-      // set selection to before the break
-      res = aSelection->Collapse(pNode, 0);
     }
-    else
-    {
-      res = nsEditor::GetNodeLocation(sibling, address_of(headerParent), &offset);
-      NS_ENSURE_SUCCESS(res, res);
-      // put selection after break
-      res = aSelection->Collapse(headerParent,offset+1);
-    }
+    res = nsEditor::GetNodeLocation(sibling, address_of(headerParent), &offset);
+    NS_ENSURE_SUCCESS(res, res);
+    // put selection after break
+    res = aSelection->Collapse(headerParent,offset+1);
   }
   else
   {
@@ -6793,19 +6779,14 @@ nsHTMLEditRules::ReturnInListItem(nsISelection *aSelection,
       res = mHTMLEditor->DeleteNode(aListItem);
       NS_ENSURE_SUCCESS(res, res);
       
-      // time to insert a paragraph
-      NS_NAMED_LITERAL_STRING(pType, "p");
-      nsCOMPtr<nsIDOMNode> pNode;
-      res = mHTMLEditor->CreateNode(pType, listparent, offset+1, getter_AddRefs(pNode));
-      NS_ENSURE_SUCCESS(res, res);
-
-      // append a <br> to it
+      // time to insert a break
       nsCOMPtr<nsIDOMNode> brNode;
-      res = mHTMLEditor->CreateBR(pNode, 0, address_of(brNode));
+      res = CreateMozBR(listparent, offset+1, address_of(brNode));
       NS_ENSURE_SUCCESS(res, res);
-
-      // set selection to before the break
-      res = aSelection->Collapse(pNode, 0);
+      
+      // set selection to before the moz br
+      selPriv->SetInterlinePosition(PR_TRUE);
+      res = aSelection->Collapse(listparent,offset+1);
     }
     return res;
   }

@@ -51,6 +51,6 @@ actual = (function(){return (arguments + '');})();
 reportCompare(expect, actual, summary);
 
 // see bug 336100 comment 29
-expect = '';
+expect = typeof window == 'undefined' ? '' : '[object Arguments]';
 actual = (function(){with (this) return(arguments + '');})();
 reportCompare(expect, actual, summary);

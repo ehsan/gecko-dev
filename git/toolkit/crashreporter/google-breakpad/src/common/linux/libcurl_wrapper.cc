@@ -29,6 +29,7 @@
 
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <curl/types.h>
 #include <dlfcn.h>
 
 #include <iostream>

@@ -59,6 +59,7 @@ PARALLEL_DIRS = \
   mozapps/xpinstall \
   obsolete \
   profile \
+  spatial-navigation \
   themes \
   $(NULL)
 

@@ -74,6 +74,7 @@
 #include "nsXMLNameSpaceMap.h"
 #include "nsThemeConstants.h"
 #include "nsContentErrors.h"
+#include "nsPrintfCString.h"
 #include "nsIMediaList.h"
 #include "nsILookAndFeel.h"
 #include "nsStyleUtil.h"

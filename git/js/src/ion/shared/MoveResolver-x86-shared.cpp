@@ -74,9 +74,8 @@ MoveResolverX86::setup(LMoveGroup *group)
         cycleFloatReg_ = freeRegs_.empty(true) ? InvalidFloatReg : freeRegs_.takeFloat();
 
         // No free registers to resolve a potential cycle, so reserve stack.
-        if (cycleReg_ == InvalidReg || cycleFloatReg_ == InvalidFloatReg) {
+        if (cycleReg_ == InvalidReg && cycleFloatReg_ == InvalidFloatReg) {
             codegen->masm.reserveStack(sizeof(double));
-            codegen->framePushed_ += sizeof(double);
             pushedAtCycle_ = codegen->framePushed_;
         }
     }
@@ -120,7 +119,7 @@ MoveResolverX86::tempReg()
     // point. This is totally random, and if it ends up being bad, we can
     // use actual heuristics later.
     spilledReg_ = Register::FromCode(2);
-    if (pushedAtSpill_ == -1) {
+    if (pushedAtSpill_ != -1) {
         codegen->masm.push(Operand(spilledReg_));
         codegen->framePushed_ += STACK_SLOT_SIZE;
         pushedAtSpill_ = codegen->framePushed_;
@@ -145,7 +144,7 @@ MoveResolverX86::tempFloatReg()
     // point. This is totally random, and if it ends up being bad, we can
     // use actual heuristics later.
     spilledFloatReg_ = FloatRegister::FromCode(7);
-    if (pushedAtDoubleSpill_ == -1) {
+    if (pushedAtDoubleSpill_ != -1) {
         codegen->masm.reserveStack(sizeof(double));
         codegen->framePushed_ += sizeof(double);
         pushedAtDoubleSpill_ = codegen->framePushed_;
@@ -316,20 +315,17 @@ MoveResolverX86::finish()
 
     int32 decrement = 0;
 
-    if (pushedAtDoubleSpill_ != -1) {
-        if (spilledFloatReg_ != InvalidFloatReg)
-            codegen->masm.movsd(doubleSpillSlot(), spilledFloatReg_);
+    if (spilledFloatReg_ != InvalidFloatReg && pushedAtDoubleSpill_ != -1) {
+        codegen->masm.movsd(doubleSpillSlot(), spilledFloatReg_);
         decrement += sizeof(double);
     }
-    if (pushedAtSpill_ != -1) {
-        if (spilledReg_ != InvalidReg)
-            codegen->masm.mov(spillSlot(), spilledReg_);
+    if (spilledReg_ != InvalidReg && pushedAtSpill_ != -1) {
+        codegen->masm.mov(spillSlot(), spilledReg_);
         decrement += STACK_SLOT_SIZE;
     }
     if (pushedAtCycle_ != -1)
         decrement += sizeof(double);
 
     codegen->masm.freeStack(decrement);
-    codegen->framePushed_ -= decrement;
 }
 

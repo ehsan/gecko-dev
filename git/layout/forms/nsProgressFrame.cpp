@@ -51,7 +51,6 @@
 #include "nsContentUtils.h"
 #include "nsFormControlFrame.h"
 #include "nsFontMetrics.h"
-#include "mozilla/dom/Element.h"
 
 
 nsIFrame*

@@ -178,12 +178,8 @@ float4 SampleRadialGradientPS( VS_RADIAL_OUTPUT In) : SV_Target
 
     float upper_t = lerp(t.y, t.x, isValid.x);
 
-    float4 output = tex.Sample(sSampler, float2(upper_t, 0.5));
-    // Premultiply
-    output *= output.a;
     // Multiply the output color by the input mask for the operation.
-    output *= mask.Sample(sMaskSampler, In.MaskTexCoord).a;
-    return output;
+    return tex.Sample(sSampler, float2(upper_t, 0.5)) * mask.Sample(sMaskSampler, In.MaskTexCoord).a;
 };
 
 float4 SampleRadialGradientA0PS( VS_RADIAL_OUTPUT In) : SV_Target
@@ -205,12 +201,7 @@ float4 SampleRadialGradientA0PS( VS_RADIAL_OUTPUT In) : SV_Target
       return float4(0, 0, 0, 0);
     }
 
-    float4 output = tex.Sample(sSampler, float2(t, 0.5));
-    // Premultiply
-    output *= output.a;
-    // Multiply the output color by the input mask for the operation.
-    output *= mask.Sample(sMaskSampler, In.MaskTexCoord).a;
-    return output;
+    return tex.Sample(sSampler, float2(t, 0.5)) * mask.Sample(sMaskSampler, In.MaskTexCoord).a;
 };
 
 float4 SampleShadowHPS( VS_OUTPUT In) : SV_Target

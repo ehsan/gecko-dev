@@ -1245,6 +1245,8 @@ function runTests()
   if (!kIMEEnabledSupported && !kIMEOpenSupported)
     return;
 
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
   // test for normal contents.
   runBasicTest(false, false, "Testing of normal contents");
 

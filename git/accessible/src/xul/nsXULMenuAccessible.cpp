@@ -58,7 +58,6 @@
 #include "nsWidgetsCID.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
@@ -465,7 +464,7 @@ nsXULMenuitemAccessible::KeyboardShortcut() const
 
   PRUint32 modifierMask = 0;
   if (modifiersStr.Find("shift") != -1)
-    modifierMask |= KeyBinding::kShift;
+    modifierMask != KeyBinding::kShift;
   if (modifiersStr.Find("alt") != -1)
     modifierMask |= KeyBinding::kAlt;
   if (modifiersStr.Find("meta") != -1)

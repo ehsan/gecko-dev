@@ -187,8 +187,10 @@ function writeSubmittedReport(crashID, viewURL) {
 }
 
 // the Submitter class represents an individual submission.
-function Submitter(id, submitSuccess, submitError, noThrottle) {
+function Submitter(id, element, submitSuccess, submitError, noThrottle) {
   this.id = id;
+  this.element = element;
+  this.document = element.ownerDocument;
   this.successCallback = submitSuccess;
   this.errorCallback = submitError;
   this.noThrottle = noThrottle;
@@ -221,6 +223,8 @@ Submitter.prototype = {
 
   cleanup: function Submitter_cleanup() {
     // drop some references just to be nice
+    this.element = null;
+    this.document = null;
     this.successCallback = null;
     this.errorCallback = null;
     this.iframe = null;
@@ -235,43 +239,74 @@ Submitter.prototype = {
   submitForm: function Submitter_submitForm()
   {
     let reportData = parseKeyValuePairsFromFile(this.extra);
-    if (!('ServerURL' in reportData)) {
+    let form = this.iframe.contentDocument.forms[0];
+    if ('ServerURL' in reportData) {
+      form.action = reportData.ServerURL;
+      delete reportData.ServerURL;
+    }
+    else {
       return false;
     }
-
-    let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
-              .createInstance(Ci.nsIXMLHttpRequest);
-    xhr.open("POST", reportData.ServerURL, true);
-    delete reportData.ServerURL;
-
-    let formData = Cc["@mozilla.org/files/formdata;1"]
-                   .createInstance(Ci.nsIDOMFormData);
     // add the other data
     for (let [name, value] in Iterator(reportData)) {
-      formData.append(name, value);
+      addFormEntry(this.iframe.contentDocument, form, name, value);
     }
     if (this.noThrottle) {
       // tell the server not to throttle this, since it was manually submitted
-      formData.append("Throttleable", "0");
+      addFormEntry(this.iframe.contentDocument, form, "Throttleable", "0");
     }
     // add the minidump
-    formData.append("upload_file_minidump", File(this.dump.path));
-    let self = this;
-    xhr.onreadystatechange = function (aEvt) {
-      if (xhr.readyState == 4) {
-        if (xhr.status != 200) {
-          self.notifyStatus(FAILED);
-          self.cleanup();
-        } else {
-          let ret = parseKeyValuePairs(xhr.responseText);
-          self.submitSuccess(ret);
-        }
-      }
-    };
-
-    xhr.send(formData);
+    this.iframe.contentDocument.getElementById('minidump').value
+      = this.dump.path;
+    this.iframe.docShell.QueryInterface(Ci.nsIWebProgress);
+    this.iframe.docShell.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
+    form.submit();
     return true;
   },
+
+  // web progress listener
+  QueryInterface: function(aIID)
+  {
+    if (aIID.equals(Ci.nsIWebProgressListener) ||
+        aIID.equals(Ci.nsISupportsWeakReference) ||
+        aIID.equals(Ci.nsISupports))
+      return this;
+    throw Components.results.NS_NOINTERFACE;
+  },
+
+  onStateChange: function(aWebProgress, aRequest, aFlag, aStatus)
+  {
+    if(aFlag & STATE_STOP) {
+      this.iframe.docShell.QueryInterface(Ci.nsIWebProgress);
+      this.iframe.docShell.removeProgressListener(this);
+
+      // check general request status first
+      if (!Components.isSuccessCode(aStatus)) {
+        this.element.removeChild(this.iframe);
+        this.notifyStatus(FAILED);
+        this.cleanup();
+        return 0;
+      }
+      // check HTTP status
+      if (aRequest instanceof Ci.nsIHttpChannel &&
+          aRequest.responseStatus != 200) {
+        this.element.removeChild(this.iframe);
+        this.notifyStatus(FAILED);
+        this.cleanup();
+        return 0;
+      }
+
+      var ret = parseKeyValuePairs(this.iframe.contentDocument.documentElement.textContent);
+      this.element.removeChild(this.iframe);
+      this.submitSuccess(ret);
+    }
+    return 0;
+  },
+
+  onLocationChange: function(aProgress, aRequest, aURI) {return 0;},
+  onProgressChange: function() {return 0;},
+  onStatusChange: function() {return 0;},
+  onSecurityChange: function() {return 0;},
 
   notifyStatus: function Submitter_notify(status, ret)
   {
@@ -311,12 +346,26 @@ Submitter.prototype = {
 
     this.dump = dump;
     this.extra = extra;
+    let iframe = this.document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "iframe");
+    iframe.setAttribute("type", "content");
+    iframe.style.width = 0;
+    iframe.style.minWidth = 0;
 
-    if (!this.submitForm()) {
-       this.notifyStatus(FAILED);
-       this.cleanup();
-       return false;
+    let self = this;
+    function loadHandler() {
+      if (iframe.contentWindow.location == "about:blank")
+        return;
+      iframe.removeEventListener("load", loadHandler, true);
+      if (!self.submitForm()) {
+        self.notifyStatus(FAILED);
+        self.cleanup();
+      }
     }
+
+    iframe.addEventListener("load", loadHandler, true);
+    this.element.appendChild(iframe);
+    this.iframe = iframe;
+    iframe.webNavigation.loadURI("chrome://global/content/crash-submit-form.xhtml", 0, null, null, null);
     return true;
   }
 };
@@ -329,43 +378,34 @@ let CrashSubmit = {
    *
    * @param id
    *        Filename (minus .dmp extension) of the minidump to submit.
-   * @param params
-   *        An object containing any of the following optional parameters:
-   *        - submitSuccess
-   *          A function that will be called if the report is submitted
-   *          successfully with two parameters: the id that was passed
-   *          to this function, and an object containing the key/value
-   *          data returned from the server in its properties.
-   *        - submitError
-   *          A function that will be called with one parameter if the
-   *          report fails to submit: the id that was passed to this
-   *          function.
-   *        - noThrottle
-   *          If true, this crash report should be submitted with
-   *          an extra parameter of "Throttleable=0" indicating that
-   *          it should be processed right away. This should be set
-   *          when the report is being submitted and the user expects
-   *          to see the results immediately. Defaults to false.
+   * @param element
+   *        A DOM element to which an iframe can be appended as a child,
+   *        used for form submission.
+   * @param submitSuccess
+   *        A function that will be called if the report is submitted
+   *        successfully with two parameters: the id that was passed
+   *        to this function, and an object containing the key/value
+   *        data returned from the server in its properties.
+   * @param submitError
+   *        A function that will be called with one parameter if the
+   *        report fails to submit: the id that was passed to this
+   *        function.
+   * @param noThrottle
+   *        If true, this crash report should be submitted with
+   *        an extra parameter of "Throttleable=0" indicating that
+   *        it should be processed right away. This should be set
+   *        when the report is being submitted and the user expects
+   *        to see the results immediately.
    *
    * @return true if the submission began successfully, or false if
    *         it failed for some reason. (If the dump file does not
    *         exist, for example.)
    */
-  submit: function CrashSubmit_submit(id, params)
+  submit: function CrashSubmit_submit(id, element, submitSuccess, submitError,
+                                      noThrottle)
   {
-    params = params || {};
-    let submitSuccess = null;
-    let submitError = null;
-    let noThrottle = false;
-
-    if ('submitSuccess' in params)
-      submitSuccess = params.submitSuccess;
-    if ('submitError' in params)
-      submitError = params.submitError;
-    if ('noThrottle' in params)
-      noThrottle = params.noThrottle;
-
     let submitter = new Submitter(id,
+                                  element,
                                   submitSuccess,
                                   submitError,
                                   noThrottle);

@@ -191,14 +191,12 @@ class LiveInterval : public InlineListNode<LiveInterval>
     Vector<Range, 1, IonAllocPolicy> ranges_;
     LAllocation alloc_;
     VirtualRegister *reg_;
-    uint32 index_;
     uint32 flags_;
 
   public:
 
-    LiveInterval(VirtualRegister *reg, uint32 index)
+    LiveInterval(VirtualRegister *reg)
       : reg_(reg),
-        index_(index),
         flags_(0)
     { }
 
@@ -240,14 +238,6 @@ class LiveInterval : public InlineListNode<LiveInterval>
         flags_ |= (1 << (uint32)flag);
     }
 
-    uint32 index() const {
-        return index_;
-    }
-
-    void setIndex(uint32 index) {
-        index_ = index;
-    }
-
     bool splitFrom(CodePosition pos, LiveInterval *after);
 };
 
@@ -283,7 +273,7 @@ class VirtualRegister : public TempObject
         block_ = block;
         ins_ = ins;
         def_ = def;
-        LiveInterval *initial = new LiveInterval(this, 0);
+        LiveInterval *initial = new LiveInterval(this);
         if (!initial)
             return false;
         return intervals_.append(initial);
@@ -310,17 +300,12 @@ class VirtualRegister : public TempObject
         JS_ASSERT(interval->numRanges());
 
         // Preserve ascending order for faster lookups.
-        LiveInterval **found = NULL;
         LiveInterval **i;
         for (i = intervals_.begin(); i != intervals_.end(); i++) {
-            if (!found && interval->start() < (*i)->start())
-                found = i;
-            if (found)
-                (*i)->setIndex((*i)->index() + 1);
+            if (interval->start() < (*i)->start())
+                break;
         }
-        if (!found)
-            found = intervals_.end();
-        return intervals_.insert(found, interval);
+        return intervals_.insert(i, interval);
     }
     size_t numUses() {
         return uses_.length();

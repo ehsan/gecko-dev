@@ -117,8 +117,6 @@ for (testnum = 1; testnum <= 15; testnum++) {
     // read new file and make sure the contents are the same.
     parser = parserForFile(newfilename);
     checkParserOutput(parser, testdata[testnum - 1].reference);
-    // cleanup after the test
-    newfile.remove(false);
 }
 
 /* ========== 16 ========== */
@@ -145,8 +143,6 @@ checkParserOutput(parser, {section: {key: "value"} });
 // read it in again, check for same data.
 parser = parserForFile("data/nonexistent-file.ini");
 checkParserOutput(parser, {section: {key: "value"} });
-// cleanup after the test
-newfile.remove(false);
 
 /* ========== 17 ========== */
 

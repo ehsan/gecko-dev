@@ -68,11 +68,7 @@ function bindDOMWindowUtils(sp, window) {
   function rebind(desc, prop) {
     if (prop in desc && typeof(desc[prop]) == "function") {
       var oldval = desc[prop];
-      try {
-        desc[prop] = function() { return oldval.apply(util, arguments); };
-      } catch (ex) {
-        dump("WARNING: Special Powers failed to rebind function: " + desc + "::" + prop + "\n");
-      }
+      desc[prop] = function() { return oldval.apply(util, arguments); };
     }
   }
   for (var i in proto) {
@@ -135,11 +131,7 @@ SpecialPowers.prototype = {
     } else {
       msg = {'op':'get', 'prefName': aPrefName,'prefType': aPrefType};
     }
-    var val = sendSyncMessage('SPPrefService', msg);
-
-    if (val == null || val[0] == null)
-      throw "Error getting pref";
-    return val[0];
+    return(sendSyncMessage('SPPrefService', msg)[0]);
   },
   _setPref: function(aPrefName, aPrefType, aValue, aIid) {
     var msg = {};
@@ -220,20 +212,6 @@ SpecialPowers.prototype = {
     var webNav = window.QueryInterface(Ci.nsIInterfaceRequestor)
                        .getInterface(Ci.nsIWebNavigation);
     webNav.loadURI(uri, referrer, charset, x, y);
-  },
-
-  snapshotWindow: function (win, withCaret) {
-    var el = this.window.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-    el.width = win.innerWidth;
-    el.height = win.innerHeight;
-    var ctx = el.getContext("2d");
-    var flags = 0;
-
-    ctx.drawWindow(win, win.scrollX, win.scrollY,
-                   win.innerWidth, win.innerHeight,
-                   "rgb(255,255,255)",
-                   withCaret ? ctx.DRAWWINDOW_DRAW_CARET : 0);
-    return el;
   },
 
   gc: function() {

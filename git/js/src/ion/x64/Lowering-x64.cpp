@@ -57,7 +57,7 @@ LIRGeneratorX64::fillBoxUses(LInstruction *lir, size_t n, MDefinition *mir)
 bool
 LIRGeneratorX64::visitConstant(MConstant *ins)
 {
-    if (!ins->isEmittedAtUses())
+    if (!ins->emitAtUses())
         return emitAtUses(ins);
 
     return LIRGenerator::visitConstant(ins);
@@ -69,7 +69,7 @@ LIRGeneratorX64::visitBox(MBox *box)
     MDefinition *opd = box->getOperand(0);
 
     // If the operand is a constant, emit near its uses.
-    if (opd->isConstant() && !box->isEmittedAtUses())
+    if (opd->isConstant() && !box->emitAtUses())
         return emitAtUses(box);
 
     if (opd->isConstant())

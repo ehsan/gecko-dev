@@ -648,9 +648,6 @@ class LBlock : public TempObject
     void removePhi(size_t index) {
         phis_.erase(&phis_[index]);
     }
-    void clearPhis() {
-        phis_.clear();
-    }
     MBasicBlock *mir() const {
         return block_;
     }

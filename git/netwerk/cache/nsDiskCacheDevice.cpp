@@ -81,10 +81,9 @@
 
 #include "mozilla/FunctionTimer.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Telemetry.h"
 
 static const char DISK_CACHE_DEVICE_ID[] = { "disk" };
-using namespace mozilla;
+
 
 /******************************************************************************
  *  nsDiskCacheEvictor
@@ -981,7 +980,6 @@ nsDiskCacheDevice::EvictEntries(const char * clientID)
 nsresult
 nsDiskCacheDevice::OpenDiskCache()
 {
-    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_OPEN> timer;
     // if we don't have a cache directory, create one and open it
     PRBool exists;
     nsresult rv = mCacheDirectory->Exists(&exists);

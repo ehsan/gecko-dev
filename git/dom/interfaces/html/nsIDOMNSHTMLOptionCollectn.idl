@@ -41,9 +41,8 @@
 
 interface nsIDOMHTMLOptionElement;
 interface nsIDOMHTMLSelectElement;
-interface nsIVariant;
 
-[scriptable, uuid(03bd61d6-b851-465a-ab3f-99945f77cfa5)]
+[scriptable, uuid(a4f2b279-8096-48ea-8a95-640c5a55b697)]
 interface nsIDOMNSHTMLOptionCollection : nsISupports
 {
            attribute long             selectedIndex;
@@ -53,12 +52,7 @@ interface nsIDOMNSHTMLOptionCollection : nsISupports
 
   [noscript] readonly attribute nsIDOMHTMLSelectElement select;
 
-  // This add method implementation means the following
-  // since IDL doesn't support overfload.
-  //   void add(in nsIDOMHTMLOptionElement,
-  //            [optional] in nsIDOMHTMLOptionElement)
-  //   void add(in nsIDOMHTMLOptionElement, in long)
-  void                      add(in nsIDOMHTMLOptionElement option,
-                                [optional] in nsIVariant before);
+  [optional_argc] void      add(in nsIDOMHTMLOptionElement option,
+                                [optional] in long index);
   void                      remove(in long index);
 };
