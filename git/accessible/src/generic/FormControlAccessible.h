@@ -18,7 +18,7 @@ template<int Max>
 class ProgressMeterAccessible : public nsLeafAccessible
 {
 public:
-  ProgressMeterAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  ProgressMeterAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
     nsLeafAccessible(aContent, aDoc)
   {
   }
@@ -42,7 +42,7 @@ class RadioButtonAccessible : public nsLeafAccessible
 {
 
 public:
-  RadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  RadioButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // nsIAccessible
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);

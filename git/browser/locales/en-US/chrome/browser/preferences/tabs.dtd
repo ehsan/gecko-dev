@@ -14,9 +14,6 @@
 <!ENTITY showTabBar.label             "Always show the tab bar">
 <!ENTITY showTabBar.accesskey         "b">
 
-<!ENTITY restoreTabsOnDemand.label        "Don’t load tabs until selected">
-<!ENTITY restoreTabsOnDemand.accesskey    "l">
-
 <!ENTITY switchToNewTabs.label        "When I open a link in a new tab, switch to it immediately">
 <!ENTITY switchToNewTabs.accesskey    "s">
 

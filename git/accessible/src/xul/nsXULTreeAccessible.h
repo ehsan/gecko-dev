@@ -25,7 +25,7 @@ class nsXULTreeAccessible : public nsAccessibleWrap
 public:
   using nsAccessible::GetChildAt;
 
-  nsXULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsXULTreeAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED
@@ -130,7 +130,7 @@ class nsXULTreeItemAccessibleBase : public nsAccessibleWrap
 public:
   using nsAccessible::GetParent;
 
-  nsXULTreeItemAccessibleBase(nsIContent* aContent, DocAccessible* aDoc,
+  nsXULTreeItemAccessibleBase(nsIContent* aContent, nsDocAccessible* aDoc,
                               nsAccessible* aParent, nsITreeBoxObject* aTree,
                               nsITreeView* aTreeView, PRInt32 aRow);
 
@@ -224,7 +224,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeItemAccessibleBase,
 class nsXULTreeItemAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
-  nsXULTreeItemAccessible(nsIContent* aContent, DocAccessible* aDoc,
+  nsXULTreeItemAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
                           nsAccessible* aParent, nsITreeBoxObject* aTree,
                           nsITreeView* aTreeView, PRInt32 aRow);
 
@@ -261,7 +261,7 @@ protected:
 class nsXULTreeColumnsAccessible : public nsXULColumnsAccessible
 {
 public:
-  nsXULTreeColumnsAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsXULTreeColumnsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
 protected:
 

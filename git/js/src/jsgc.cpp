@@ -3255,12 +3255,8 @@ SweepPhase(JSRuntime *rt, JSGCInvocationKind gckind, bool *startBackgroundSweep)
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_COMPARTMENTS);
 
         bool releaseTypes = ReleaseObservedTypes(rt);
-        for (CompartmentsIter c(rt); !c.done(); c.next()) {
-            if (c->isCollecting())
-                c->sweep(&fop, releaseTypes);
-            else
-                c->sweepCrossCompartmentWrappers();
-        }
+        for (GCCompartmentsIter c(rt); !c.done(); c.next())
+            c->sweep(&fop, releaseTypes);
     }
 
     {

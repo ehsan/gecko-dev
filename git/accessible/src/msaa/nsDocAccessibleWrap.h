@@ -7,22 +7,22 @@
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
-#ifndef mozilla_a11y_DocAccessibleWrap_h__
-#define mozilla_a11y_DocAccessibleWrap_h__
+#ifndef _nsDocAccessibleWrap_H_
+#define _nsDocAccessibleWrap_H_
 
 #include "ISimpleDOMDocument.h"
 
 #include "nsAccUtils.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "nsIDocShellTreeItem.h"
 
-class DocAccessibleWrap : public DocAccessible,
-                          public ISimpleDOMDocument
+class nsDocAccessibleWrap: public nsDocAccessible,
+                           public ISimpleDOMDocument
 {
 public:
-  DocAccessibleWrap(nsIDocument* aDocument, nsIContent* aRootContent,
-                    nsIPresShell* aPresShell);
-  virtual ~DocAccessibleWrap();
+  nsDocAccessibleWrap(nsIDocument* aDocument, nsIContent* aRootContent,
+                      nsIPresShell* aPresShell);
+  virtual ~nsDocAccessibleWrap();
 
     // IUnknown
     STDMETHODIMP_(ULONG) AddRef();
@@ -59,11 +59,11 @@ public:
   // nsAccessNode
   virtual void Shutdown();
 
-  // DocAccessible
+  // nsDocAccessible
   virtual void* GetNativeWindow() const;
 
 protected:
-  // DocAccessible
+  // nsDocAccessible
   virtual void DoInitialUpdate();
 
 protected:

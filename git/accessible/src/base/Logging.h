@@ -12,7 +12,7 @@
 
 class AccEvent;
 class nsAccessible;
-class DocAccessible;
+class nsDocAccessible;
 class nsIDocument;
 class nsIRequest;
 class nsIWebProgress;
@@ -54,13 +54,13 @@ void DocLoadEventHandled(AccEvent* aEvent);
  * Log the document was created.
  */
 void DocCreate(const char* aMsg, nsIDocument* aDocumentNode,
-               DocAccessible* aDocument = nsnull);
+               nsDocAccessible* aDocument = nsnull);
 
 /**
  * Log the document was destroyed.
  */
 void DocDestroy(const char* aMsg, nsIDocument* aDocumentNode,
-                DocAccessible* aDocument = nsnull);
+                nsDocAccessible* aDocument = nsnull);
 
 /**
  * Log the message, a piece of text on own line, no offset.

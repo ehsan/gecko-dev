@@ -11,7 +11,7 @@
 #include "nsRefreshDriver.h"
 
 class nsAccessible;
-class DocAccessible;
+class nsDocAccessible;
 class nsIContent;
 
 // Uncomment to log notifications processing.
@@ -87,7 +87,7 @@ private:
 class NotificationController : public nsARefreshObserver
 {
 public:
-  NotificationController(DocAccessible* aDocument, nsIPresShell* aPresShell);
+  NotificationController(nsDocAccessible* aDocument, nsIPresShell* aPresShell);
   virtual ~NotificationController();
 
   NS_IMETHOD_(nsrefcnt) AddRef(void);
@@ -108,7 +108,7 @@ public:
   /**
    * Schedule binding the child document to the tree of this document.
    */
-  void ScheduleChildDocBinding(DocAccessible* aDocument);
+  void ScheduleChildDocBinding(nsDocAccessible* aDocument);
 
   /**
    * Schedule the accessible tree update because of rendered text changes.
@@ -254,7 +254,7 @@ private:
   /**
    * The document accessible reference owning this queue.
    */
-  nsRefPtr<DocAccessible> mDocument;
+  nsRefPtr<nsDocAccessible> mDocument;
 
   /**
    * The presshell of the document accessible.
@@ -264,7 +264,7 @@ private:
   /**
    * Child documents that needs to be bound to the tree.
    */
-  nsTArray<nsRefPtr<DocAccessible> > mHangingChildDocuments;
+  nsTArray<nsRefPtr<nsDocAccessible> > mHangingChildDocuments;
 
   /**
    * Storage for content inserted notification information.
@@ -272,7 +272,7 @@ private:
   class ContentInsertion
   {
   public:
-    ContentInsertion(DocAccessible* aDocument, nsAccessible* aContainer);
+    ContentInsertion(nsDocAccessible* aDocument, nsAccessible* aContainer);
     virtual ~ContentInsertion() { mDocument = nsnull; }
 
     NS_INLINE_DECL_REFCOUNTING(ContentInsertion)
@@ -289,7 +289,7 @@ private:
     // The document used to process content insertion, matched to document of
     // the notification controller that this notification belongs to, therefore
     // it's ok to keep it as weak ref.
-    DocAccessible* mDocument;
+    nsDocAccessible* mDocument;
 
     // The container accessible that content insertion occurs within.
     nsRefPtr<nsAccessible> mContainer;

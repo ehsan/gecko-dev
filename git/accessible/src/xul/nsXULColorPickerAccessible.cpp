@@ -9,7 +9,7 @@
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "Role.h"
 #include "States.h"
 
@@ -23,7 +23,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULColorPickerTileAccessible::
-  nsXULColorPickerTileAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXULColorPickerTileAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc)
 {
 }
@@ -81,7 +81,7 @@ nsXULColorPickerTileAccessible::ContainerWidget() const
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULColorPickerAccessible::
-  nsXULColorPickerAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXULColorPickerAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsXULColorPickerTileAccessible(aContent, aDoc)
 {
   mFlags |= eMenuButtonAccessible;

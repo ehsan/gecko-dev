@@ -19,7 +19,7 @@ public:
   virtual ~RootAccessibleWrap();
 
   // RootAccessible
-  virtual void DocumentActivated(DocAccessible* aDocument);
+  virtual void DocumentActivated(nsDocAccessible* aDocument);
 };
 
 } // namespace a11y

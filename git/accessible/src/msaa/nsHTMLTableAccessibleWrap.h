@@ -21,7 +21,7 @@ class nsHTMLTableAccessibleWrap : public nsHTMLTableAccessible,
                                   public CAccessibleTable
 {
 public:
-  nsHTMLTableAccessibleWrap(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLTableAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
     nsHTMLTableAccessible(aContent, aDoc) {}
 
   // IUnknown
@@ -40,7 +40,7 @@ class nsHTMLTableCellAccessibleWrap : public nsHTMLTableCellAccessible,
                                       public CAccessibleTableCell
 {
 public:
-  nsHTMLTableCellAccessibleWrap(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLTableCellAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
     nsHTMLTableCellAccessible(aContent, aDoc) {}
 
   // IUnknown
@@ -60,7 +60,7 @@ class nsHTMLTableHeaderCellAccessibleWrap : public nsHTMLTableHeaderCellAccessib
 {
 public:
   nsHTMLTableHeaderCellAccessibleWrap(nsIContent* aContent,
-                                      DocAccessible* aDoc) :
+                                      nsDocAccessible* aDoc) :
     nsHTMLTableHeaderCellAccessible(aContent, aDoc) {}
 
   // IUnknown

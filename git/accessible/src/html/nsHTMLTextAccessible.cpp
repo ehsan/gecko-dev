@@ -5,7 +5,7 @@
 
 #include "nsHTMLTextAccessible.h"
 
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "nsAccUtils.h"
 #include "nsIAccessibleRelation.h"
 #include "nsTextEquivUtils.h"
@@ -20,7 +20,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLHRAccessible::
-  nsHTMLHRAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLHRAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsLeafAccessible(aContent, aDoc)
 {
 }
@@ -37,7 +37,7 @@ nsHTMLHRAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLBRAccessible::
-  nsHTMLBRAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLBRAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsLeafAccessible(aContent, aDoc)
 {
 }
@@ -66,7 +66,7 @@ nsHTMLBRAccessible::GetNameInternal(nsAString& aName)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLLabelAccessible::
-  nsHTMLLabelAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLLabelAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -90,7 +90,7 @@ nsHTMLLabelAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLOutputAccessible::
-  nsHTMLOutputAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLOutputAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }

@@ -10,7 +10,7 @@
 #include "nsIContent.h"
 
 class nsAccessible;
-class DocAccessible;
+class nsDocAccessible;
 struct WalkState;
 
 /**
@@ -19,7 +19,7 @@ struct WalkState;
 class nsAccTreeWalker
 {
 public:
-  nsAccTreeWalker(DocAccessible* aDoc, nsIContent* aNode, 
+  nsAccTreeWalker(nsDocAccessible* aDoc, nsIContent* aNode, 
                   bool aWalkAnonymousContent, bool aWalkCache = false);
   virtual ~nsAccTreeWalker();
 
@@ -59,7 +59,7 @@ private:
    */
   void PopState();
 
-  DocAccessible* mDoc;
+  nsDocAccessible* mDoc;
   PRInt32 mChildFilter;
   bool mWalkCache;
   WalkState* mState;

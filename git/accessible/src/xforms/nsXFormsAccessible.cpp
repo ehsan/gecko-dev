@@ -7,7 +7,7 @@
 
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "nsTextEquivUtils.h"
 #include "Role.h"
 #include "States.h"
@@ -47,7 +47,7 @@ nsXFormsAccessibleBase::nsXFormsAccessibleBase()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsAccessible::
-  nsXFormsAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXFormsAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -189,7 +189,7 @@ nsXFormsAccessible::CanHaveAnonChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsContainerAccessible::
-  nsXFormsContainerAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXFormsContainerAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsXFormsAccessible(aContent, aDoc)
 {
 }
@@ -212,7 +212,7 @@ nsXFormsContainerAccessible::CanHaveAnonChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsEditableAccessible::
-  nsXFormsEditableAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXFormsEditableAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsXFormsAccessible(aContent, aDoc)
 {
 }
@@ -264,7 +264,7 @@ nsXFormsEditableAccessible::GetEditor() const
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsSelectableAccessible::
-  nsXFormsSelectableAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXFormsSelectableAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsXFormsEditableAccessible(aContent, aDoc), mIsSelect1Element(nsnull)
 {
   mIsSelect1Element =
@@ -504,7 +504,7 @@ nsXFormsSelectableAccessible::GetItemByIndex(PRUint32* aIndex,
 
 nsXFormsSelectableItemAccessible::
   nsXFormsSelectableItemAccessible(nsIContent* aContent,
-                                   DocAccessible* aDoc) :
+                                   nsDocAccessible* aDoc) :
   nsXFormsAccessible(aContent, aDoc)
 {
 }

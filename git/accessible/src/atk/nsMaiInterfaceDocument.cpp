@@ -7,7 +7,7 @@
 #include "InterfaceInitFuncs.h"
 
 #include "nsAccessibleWrap.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "nsMai.h"
 
 static const char* const kDocTypeName = "W3C-doctype";
@@ -73,7 +73,7 @@ getDocumentAttributesCB(AtkDocument *aDocument)
 
   // according to atkobject.h, AtkAttributeSet is a GSList
   GSList* attributes = nsnull;
-  DocAccessible* document = accWrap->AsDoc();
+  nsDocAccessible* document = accWrap->AsDoc();
   nsAutoString aURL;
   nsresult rv = document->GetURL(aURL);
   if (NS_SUCCEEDED(rv))
@@ -100,7 +100,7 @@ getDocumentAttributeValueCB(AtkDocument *aDocument,
   if (!accWrap || !accWrap->IsDoc())
     return nsnull;
 
-  DocAccessible* document = accWrap->AsDoc();
+  nsDocAccessible* document = accWrap->AsDoc();
   nsresult rv;
   nsAutoString attrValue;
   if (!strcasecmp(aAttrName, kDocTypeName))

@@ -14,7 +14,7 @@
 #include "nsIPresShell.h"
 
 class nsAccessible;
-class DocAccessible;
+class nsDocAccessible;
 
 /**
  * Manage the document accessible life cycle.
@@ -33,12 +33,12 @@ public:
   /**
    * Return document accessible for the given DOM node.
    */
-  DocAccessible* GetDocAccessible(nsIDocument* aDocument);
+  nsDocAccessible *GetDocAccessible(nsIDocument *aDocument);
 
   /**
    * Return document accessible for the given presshell.
    */
-  DocAccessible* GetDocAccessible(const nsIPresShell* aPresShell)
+  nsDocAccessible* GetDocAccessible(const nsIPresShell* aPresShell)
   {
     return aPresShell ? GetDocAccessible(aPresShell->GetDocument()) : nsnull;
   }
@@ -52,7 +52,7 @@ public:
   /**
    * Return document accessible from the cache. Convenient method for testing.
    */
-  inline DocAccessible* GetDocAccessibleFromCache(nsIDocument* aDocument) const
+  inline nsDocAccessible* GetDocAccessibleFromCache(nsIDocument* aDocument) const
   {
     return mDocAccessibleCache.GetWeak(aDocument);
   }
@@ -95,7 +95,7 @@ private:
    * @param  aLoadEventType  [in] specifies the event type to fire load event,
    *                           if 0 then no event is fired
    */
-  void HandleDOMDocumentLoad(nsIDocument* aDocument,
+  void HandleDOMDocumentLoad(nsIDocument *aDocument,
                              PRUint32 aLoadEventType);
 
   /**
@@ -106,17 +106,17 @@ private:
   /**
    * Create document or root accessible.
    */
-  DocAccessible* CreateDocOrRootAccessible(nsIDocument* aDocument);
+  nsDocAccessible *CreateDocOrRootAccessible(nsIDocument *aDocument);
 
-  typedef nsRefPtrHashtable<nsPtrHashKey<const nsIDocument>, DocAccessible>
-    DocAccessibleHashtable;
+  typedef nsRefPtrHashtable<nsPtrHashKey<const nsIDocument>, nsDocAccessible>
+    nsDocAccessibleHashtable;
 
   /**
    * Get first entry of the document accessible from cache.
    */
   static PLDHashOperator
     GetFirstEntryInDocCache(const nsIDocument* aKey,
-                            DocAccessible* aDocAccessible,
+                            nsDocAccessible* aDocAccessible,
                             void* aUserArg);
 
   /**
@@ -132,16 +132,16 @@ private:
 
   static PLDHashOperator
     SearchAccessibleInDocCache(const nsIDocument* aKey,
-                               DocAccessible* aDocAccessible,
+                               nsDocAccessible* aDocAccessible,
                                void* aUserArg);
 
 #ifdef DEBUG
   static PLDHashOperator
     SearchIfDocIsRefreshing(const nsIDocument* aKey,
-                            DocAccessible* aDocAccessible, void* aUserArg);
+                            nsDocAccessible* aDocAccessible, void* aUserArg);
 #endif
 
-  DocAccessibleHashtable mDocAccessibleCache;
+  nsDocAccessibleHashtable mDocAccessibleCache;
 };
 
 #endif // nsAccDocManager_h_

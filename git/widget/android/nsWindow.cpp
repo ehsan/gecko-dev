@@ -132,7 +132,7 @@ nsWindow::LogWindow(nsWindow *win, int index, int indent)
 {
     char spaces[] = "                    ";
     spaces[indent < 20 ? indent : 20] = 0;
-    ALOG("%s [% 2d] 0x%08x [parent 0x%08x] [% 3d,% 3dx% 3d,% 3d] vis %d type %d",
+    ALOG("%s [% 2d] 0x%08x [parent 0x%08x] [% 3d,% 3d % 3dx% 3d] vis %d type %d",
          spaces, index, (intptr_t)win, (intptr_t)win->mParent,
          win->mBounds.x, win->mBounds.y,
          win->mBounds.width, win->mBounds.height,
@@ -241,10 +241,10 @@ nsWindow::Destroy(void)
 {
     nsBaseWidget::mOnDestroyCalled = true;
 
-    while (mChildren.Length()) {
+    for (PRUint32 i = 0; i < mChildren.Length(); ++i) {
         // why do we still have children?
-        ALOG("### Warning: Destroying window %p and reparenting child %p to null!", (void*)this, (void*)mChildren[0]);
-        mChildren[0]->SetParent(nsnull);
+        ALOG("### Warning: Destroying window %p and reparenting child %p to null!", (void*)this, (void*)mChildren[i]);
+        mChildren[i]->SetParent(nsnull);
     }
 
     if (IsTopLevel())
@@ -288,7 +288,9 @@ nsWindow::SetParent(nsIWidget *aNewParent)
         return NS_OK;
 
     // If we had a parent before, remove ourselves from its list of
-    // children.
+    // children.  If we didn't have a parent, then remove ourselves
+    // from the list of toplevel windows if we're about to get a
+    // parent.
     if (mParent)
         mParent->mChildren.RemoveElement(this);
 
@@ -1308,8 +1310,6 @@ nsWindow::OnMotionEvent(AndroidGeckoEvent *ae)
             return;
     }
 
-    nsRefPtr<nsWindow> kungFuDeathGrip(this);
-
 send_again:
 
     nsMouseEvent event(true,
@@ -1343,8 +1343,6 @@ getDistance(const nsIntPoint &p1, const nsIntPoint &p2)
 
 bool nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
 {
-    nsRefPtr<nsWindow> kungFuDeathGrip(this);
-
     // This is set to true once we have called SetPreventPanning() exactly
     // once for a given sequence of touch events. It is reset on the start
     // of the next sequence.

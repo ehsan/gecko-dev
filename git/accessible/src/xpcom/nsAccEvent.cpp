@@ -5,7 +5,7 @@
 
 #include "nsAccEvent.h"
 #include "nsAccUtils.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccEvent

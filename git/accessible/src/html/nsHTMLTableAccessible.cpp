@@ -9,7 +9,7 @@
 #include "nsAccessibilityService.h"
 #include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
 #include "Role.h"
@@ -43,7 +43,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLTableCellAccessible::
-  nsHTMLTableCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLTableCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -343,7 +343,7 @@ nsHTMLTableCellAccessible::GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
 
 nsHTMLTableHeaderCellAccessible::
   nsHTMLTableHeaderCellAccessible(nsIContent* aContent,
-                                  DocAccessible* aDoc) :
+                                  nsDocAccessible* aDoc) :
   nsHTMLTableCellAccessible(aContent, aDoc)
 {
 }
@@ -402,7 +402,7 @@ nsHTMLTableHeaderCellAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLTableAccessible::
-  nsHTMLTableAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLTableAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc), xpcAccessibleTable(this)
 {
 }
@@ -1323,7 +1323,7 @@ nsHTMLTableAccessible::IsProbablyLayoutTable()
 #define RETURN_LAYOUT_ANSWER(isLayout, heuristic) { return isLayout; }
 #endif
 
-  DocAccessible* docAccessible = Document();
+  nsDocAccessible* docAccessible = Document();
   if (docAccessible) {
     PRUint64 docState = docAccessible->State();
     if (docState & states::EDITABLE) {  // Need to see all elements while document is being edited

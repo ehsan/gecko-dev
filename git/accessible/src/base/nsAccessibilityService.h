@@ -172,7 +172,7 @@ public:
    * @param  aIsSubtreeHidden  [out, optional] indicates whether the node's
    *                             frame and its subtree is hidden
    */
-  nsAccessible* GetOrCreateAccessible(nsINode* aNode, DocAccessible* aDoc,
+  nsAccessible* GetOrCreateAccessible(nsINode* aNode, nsDocAccessible* aDoc,
                                       bool* aIsSubtreeHidden = nsnull);
 
   /**
@@ -204,28 +204,28 @@ private:
    * interface.
    */
   already_AddRefed<nsAccessible>
-    CreateAccessibleByType(nsIContent* aContent, DocAccessible* aDoc);
+    CreateAccessibleByType(nsIContent* aContent, nsDocAccessible* aDoc);
 
   /**
    * Create accessible for HTML node by tag name.
    */
   already_AddRefed<nsAccessible>
     CreateHTMLAccessibleByMarkup(nsIFrame* aFrame, nsIContent* aContent,
-                                 DocAccessible* aDoc);
+                                 nsDocAccessible* aDoc);
 
   /**
    * Create accessible if parent is a deck frame.
    */
   already_AddRefed<nsAccessible>
     CreateAccessibleForDeckChild(nsIFrame* aFrame, nsIContent* aContent,
-                                 DocAccessible* aDoc);
+                                 nsDocAccessible* aDoc);
 
 #ifdef MOZ_XUL
   /**
    * Create accessible for XUL tree element.
    */
   already_AddRefed<nsAccessible>
-    CreateAccessibleForXULTree(nsIContent* aContent, DocAccessible* aDoc);
+    CreateAccessibleForXULTree(nsIContent* aContent, nsDocAccessible* aDoc);
 #endif
 
   /**

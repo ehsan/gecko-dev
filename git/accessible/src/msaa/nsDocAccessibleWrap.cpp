@@ -6,7 +6,7 @@
 #include "mozilla/dom/TabChild.h"
 
 #include "Compatibility.h"
-#include "DocAccessibleWrap.h"
+#include "nsDocAccessibleWrap.h"
 #include "ISimpleDOMDocument_i.c"
 #include "nsIAccessibilityService.h"
 #include "nsWinUtils.h"
@@ -32,37 +32,35 @@ using namespace mozilla::a11y;
  */
 
 ////////////////////////////////////////////////////////////////////////////////
-// DocAccessibleWrap
+// nsDocAccessibleWrap
 ////////////////////////////////////////////////////////////////////////////////
 
-DocAccessibleWrap::
-  DocAccessibleWrap(nsIDocument* aDocument, nsIContent* aRootContent,
-                    nsIPresShell* aPresShell) :
-  DocAccessible(aDocument, aRootContent, aPresShell), mHWND(NULL)
+nsDocAccessibleWrap::
+  nsDocAccessibleWrap(nsIDocument* aDocument, nsIContent* aRootContent,
+                      nsIPresShell* aPresShell) :
+  nsDocAccessible(aDocument, aRootContent, aPresShell), mHWND(NULL)
 {
 }
 
-DocAccessibleWrap::~DocAccessibleWrap()
+nsDocAccessibleWrap::~nsDocAccessibleWrap()
 {
 }
 
 //-----------------------------------------------------
 // IUnknown interface methods - see iunknown.h for documentation
 //-----------------------------------------------------
-STDMETHODIMP_(ULONG)
-DocAccessibleWrap::AddRef()
+STDMETHODIMP_(ULONG) nsDocAccessibleWrap::AddRef()
 {
   return nsAccessNode::AddRef();
 }
 
-STDMETHODIMP_(ULONG) DocAccessibleWrap::Release()
+STDMETHODIMP_(ULONG) nsDocAccessibleWrap::Release()
 {
   return nsAccessNode::Release();
 }
 
 // Microsoft COM QueryInterface
-STDMETHODIMP
-DocAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
+STDMETHODIMP nsDocAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
 {
   *ppv = NULL;
 
@@ -75,8 +73,7 @@ DocAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
   return S_OK;
 }
 
-STDMETHODIMP
-DocAccessibleWrap::get_URL(/* [out] */ BSTR __RPC_FAR *aURL)
+STDMETHODIMP nsDocAccessibleWrap::get_URL(/* [out] */ BSTR __RPC_FAR *aURL)
 {
 __try {
   *aURL = NULL;
@@ -96,8 +93,7 @@ __try {
   return E_FAIL;
 }
 
-STDMETHODIMP
-DocAccessibleWrap::get_title( /* [out] */ BSTR __RPC_FAR *aTitle)
+STDMETHODIMP nsDocAccessibleWrap::get_title( /* [out] */ BSTR __RPC_FAR *aTitle)
 {
 __try {
   *aTitle = NULL;
@@ -114,8 +110,7 @@ __try {
   return E_FAIL;
 }
 
-STDMETHODIMP
-DocAccessibleWrap::get_mimeType(/* [out] */ BSTR __RPC_FAR *aMimeType)
+STDMETHODIMP nsDocAccessibleWrap::get_mimeType(/* [out] */ BSTR __RPC_FAR *aMimeType)
 {
 __try {
   *aMimeType = NULL;
@@ -135,8 +130,7 @@ __try {
   return E_FAIL;
 }
 
-STDMETHODIMP
-DocAccessibleWrap::get_docType(/* [out] */ BSTR __RPC_FAR *aDocType)
+STDMETHODIMP nsDocAccessibleWrap::get_docType(/* [out] */ BSTR __RPC_FAR *aDocType)
 {
 __try {
   *aDocType = NULL;
@@ -156,8 +150,7 @@ __try {
   return E_FAIL;
 }
 
-STDMETHODIMP
-DocAccessibleWrap::get_nameSpaceURIForID(/* [in] */  short aNameSpaceID,
+STDMETHODIMP nsDocAccessibleWrap::get_nameSpaceURIForID(/* [in] */  short aNameSpaceID,
   /* [out] */ BSTR __RPC_FAR *aNameSpaceURI)
 {
 __try {
@@ -184,7 +177,7 @@ __try {
 }
 
 STDMETHODIMP
-DocAccessibleWrap::put_alternateViewMediaTypes( /* [in] */ BSTR __RPC_FAR *aCommaSeparatedMediaTypes)
+nsDocAccessibleWrap::put_alternateViewMediaTypes( /* [in] */ BSTR __RPC_FAR *aCommaSeparatedMediaTypes)
 {
 __try {
   *aCommaSeparatedMediaTypes = NULL;
@@ -193,8 +186,7 @@ __try {
   return E_NOTIMPL;
 }
 
-STDMETHODIMP
-DocAccessibleWrap::get_accValue(
+STDMETHODIMP nsDocAccessibleWrap::get_accValue(
       /* [optional][in] */ VARIANT varChild,
       /* [retval][out] */ BSTR __RPC_FAR *pszValue)
 {
@@ -217,7 +209,7 @@ DocAccessibleWrap::get_accValue(
 // nsAccessNode
 
 void
-DocAccessibleWrap::Shutdown()
+nsDocAccessibleWrap::Shutdown()
 {
   // Do window emulation specific shutdown if emulation was started.
   if (nsWinUtils::IsWindowEmulationStarted()) {
@@ -230,25 +222,25 @@ DocAccessibleWrap::Shutdown()
     mHWND = nsnull;
   }
 
-  DocAccessible::Shutdown();
+  nsDocAccessible::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DocAccessible public
+// nsDocAccessible public
 
 void*
-DocAccessibleWrap::GetNativeWindow() const
+nsDocAccessibleWrap::GetNativeWindow() const
 {
-  return mHWND ? mHWND : DocAccessible::GetNativeWindow();
+  return mHWND ? mHWND : nsDocAccessible::GetNativeWindow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DocAccessible protected
+// nsDocAccessible protected
 
 void
-DocAccessibleWrap::DoInitialUpdate()
+nsDocAccessibleWrap::DoInitialUpdate()
 {
-  DocAccessible::DoInitialUpdate();
+  nsDocAccessible::DoInitialUpdate();
 
   if (nsWinUtils::IsWindowEmulationStarted()) {
     // Create window for tab document.
@@ -286,7 +278,7 @@ DocAccessibleWrap::DoInitialUpdate()
       sHWNDCache.Put(mHWND, this);
 
     } else {
-      DocAccessible* parentDocument = ParentDocument();
+      nsDocAccessible* parentDocument = ParentDocument();
       if (parentDocument)
         mHWND = parentDocument->GetNativeWindow();
     }

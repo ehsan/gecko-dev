@@ -4931,52 +4931,29 @@ nsDocument::GetBindingParent(nsIDOMNode* aNode, nsIDOMElement** aResult)
   return NS_OK;
 }
 
-static nsIContent*
+static nsresult
 GetElementByAttribute(nsIContent* aContent, nsIAtom* aAttrName,
-                      const nsAString& aAttrValue, bool aUniversalMatch)
+                      const nsAString& aAttrValue, bool aUniversalMatch,
+                      nsIDOMElement** aResult)
 {
   if (aUniversalMatch ? aContent->HasAttr(kNameSpaceID_None, aAttrName) :
                         aContent->AttrValueIs(kNameSpaceID_None, aAttrName,
                                               aAttrValue, eCaseMatters)) {
-    return aContent;
+    return CallQueryInterface(aContent, aResult);
   }
 
   for (nsIContent* child = aContent->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
 
-    nsIContent* matchedContent =
-      GetElementByAttribute(child, aAttrName, aAttrValue, aUniversalMatch);
-    if (matchedContent)
-      return matchedContent;
+    GetElementByAttribute(child, aAttrName, aAttrValue, aUniversalMatch,
+                          aResult);
+
+    if (*aResult)
+      return NS_OK;
   }
 
-  return nsnull;
-}
-
-nsIContent*
-nsDocument::GetAnonymousElementByAttribute(nsIContent* aElement,
-                                           nsIAtom* aAttrName,
-                                           const nsAString& aAttrValue) const
-{
-  nsINodeList* nodeList = BindingManager()->GetAnonymousNodesFor(aElement);
-  if (!nodeList)
-    return nsnull;
-
-  PRUint32 length = 0;
-  nodeList->GetLength(&length);
-
-  bool universalMatch = aAttrValue.EqualsLiteral("*");
-
-  for (PRUint32 i = 0; i < length; ++i) {
-    nsIContent* current = nodeList->GetNodeAt(i);
-    nsIContent* matchedElm =
-      GetElementByAttribute(current, aAttrName, aAttrValue, universalMatch);
-    if (matchedElm)
-      return matchedElm;
-  }
-
-  return nsnull;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -4987,12 +4964,32 @@ nsDocument::GetAnonymousElementByAttribute(nsIDOMElement* aElement,
 {
   *aResult = nsnull;
 
-  nsCOMPtr<nsIAtom> attribute = do_GetAtom(aAttrName);
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aElement));
+  nsCOMPtr<nsIDOMNodeList> nodeList;
+  GetAnonymousNodes(aElement, getter_AddRefs(nodeList));
 
-  nsIContent* matchedContent =
-    GetAnonymousElementByAttribute(content, attribute, aAttrValue);
-  return matchedContent ? CallQueryInterface(matchedContent, aResult) : NS_OK;
+  if (!nodeList)
+    return NS_OK;
+
+  nsCOMPtr<nsIAtom> attribute = do_GetAtom(aAttrName);
+
+  PRUint32 length;
+  nodeList->GetLength(&length);
+
+  bool universalMatch = aAttrValue.EqualsLiteral("*");
+
+  for (PRUint32 i = 0; i < length; ++i) {
+    nsCOMPtr<nsIDOMNode> current;
+    nodeList->Item(i, getter_AddRefs(current));
+
+    nsCOMPtr<nsIContent> content(do_QueryInterface(current));
+
+    GetElementByAttribute(content, attribute, aAttrValue, universalMatch,
+                          aResult);
+    if (*aResult)
+      return NS_OK;
+  }
+
+  return NS_OK;
 }
 
 

@@ -6,7 +6,7 @@
 
 #include "HTMLListAccessible.h"
 
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "Role.h"
 #include "States.h"
 
@@ -43,7 +43,7 @@ HTMLListAccessible::NativeState()
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLLIAccessible::
-  HTMLLIAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HTMLLIAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc), mBullet(nsnull)
 {
   mFlags |= eHTMLListItemAccessible;
@@ -109,7 +109,7 @@ HTMLLIAccessible::UpdateBullet(bool aHasBullet)
     return;
   }
 
-  DocAccessible* document = Document();
+  nsDocAccessible* document = Document();
   if (aHasBullet) {
     mBullet = new HTMLListBulletAccessible(mContent, mDoc);
     if (document->BindToDocument(mBullet, nsnull)) {

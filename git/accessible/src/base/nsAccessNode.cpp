@@ -50,7 +50,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsAccessNode, LastRelease())
 // nsAccessNode construction/desctruction
 
 nsAccessNode::
-  nsAccessNode(nsIContent* aContent, DocAccessible* aDoc) :
+  nsAccessNode(nsIContent* aContent, nsDocAccessible* aDoc) :
   mContent(aContent), mDoc(aDoc)
 {
 }
@@ -144,7 +144,7 @@ nsAccessNode::RootAccessible() const
     return nsnull;
   }
 
-  DocAccessible* docAcc = nsAccUtils::GetDocAccessibleFor(root);
+  nsDocAccessible* docAcc = nsAccUtils::GetDocAccessibleFor(root);
   return docAcc ? docAcc->AsRoot() : nsnull;
 }
 

@@ -1502,10 +1502,9 @@ nsWindow::GetClientOffset()
     int format_returned;
     int length_returned;
     long *frame_extents;
-    GdkWindow* window;
 
-    if (!mShell || !(window = gtk_widget_get_window(mShell)) ||
-        !gdk_property_get(window,
+    if (!mShell || !mShell->window ||
+        !gdk_property_get(mShell->window,
                           gdk_atom_intern ("_NET_FRAME_EXTENTS", FALSE),
                           cardinal_atom,
                           0, // offset

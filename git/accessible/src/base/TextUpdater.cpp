@@ -6,13 +6,13 @@
 #include "TextUpdater.h"
 
 #include "Accessible-inl.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "TextLeafAccessible.h"
 
 using namespace mozilla::a11y;
 
 void
-TextUpdater::Run(DocAccessible* aDocument, TextLeafAccessible* aTextLeaf,
+TextUpdater::Run(nsDocAccessible* aDocument, TextLeafAccessible* aTextLeaf,
                  const nsAString& aNewText)
 {
   NS_ASSERTION(aTextLeaf, "No text leaf accessible?");

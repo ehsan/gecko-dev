@@ -155,7 +155,7 @@ nsHttpResponseHead::ParseStatusLine(const char *line)
             mStatusText.AssignLiteral("OK");
         }
         else
-            mStatusText = nsDependentCString(++line);
+            mStatusText = ++line;
     }
 
     LOG(("Have status line [version=%u status=%u statusText=%s]\n",
@@ -214,7 +214,7 @@ nsHttpResponseHead::ParseHeaderLine(const char *line)
 nsresult
 nsHttpResponseHead::ComputeCurrentAge(PRUint32 now,
                                       PRUint32 requestTime,
-                                      PRUint32 *result) const
+                                      PRUint32 *result)
 {
     PRUint32 dateValue;
     PRUint32 ageValue;
@@ -256,7 +256,7 @@ nsHttpResponseHead::ComputeCurrentAge(PRUint32 now,
 //     freshnessLifetime = 0
 //
 nsresult
-nsHttpResponseHead::ComputeFreshnessLifetime(PRUint32 *result) const
+nsHttpResponseHead::ComputeFreshnessLifetime(PRUint32 *result)
 {
     *result = 0;
 
@@ -303,7 +303,7 @@ nsHttpResponseHead::ComputeFreshnessLifetime(PRUint32 *result) const
 }
 
 bool
-nsHttpResponseHead::MustValidate() const
+nsHttpResponseHead::MustValidate()
 {
     LOG(("nsHttpResponseHead::MustValidate ??\n"));
 
@@ -364,7 +364,7 @@ nsHttpResponseHead::MustValidate() const
 }
 
 bool
-nsHttpResponseHead::MustValidateIfExpired() const
+nsHttpResponseHead::MustValidateIfExpired()
 {
     // according to RFC2616, section 14.9.4:
     //
@@ -376,7 +376,7 @@ nsHttpResponseHead::MustValidateIfExpired() const
 }
 
 bool
-nsHttpResponseHead::IsResumable() const
+nsHttpResponseHead::IsResumable()
 {
     // even though some HTTP/1.0 servers may support byte range requests, we're not
     // going to bother with them, since those servers wouldn't understand If-Range.
@@ -387,7 +387,7 @@ nsHttpResponseHead::IsResumable() const
 }
 
 bool
-nsHttpResponseHead::ExpiresInPast() const
+nsHttpResponseHead::ExpiresInPast()
 {
     PRUint32 maxAgeVal, expiresVal, dateVal;
     
@@ -402,7 +402,7 @@ nsHttpResponseHead::ExpiresInPast() const
 }
 
 nsresult
-nsHttpResponseHead::UpdateHeaders(const nsHttpHeaderArray &headers)
+nsHttpResponseHead::UpdateHeaders(nsHttpHeaderArray &headers)
 {
     LOG(("nsHttpResponseHead::UpdateHeaders [this=%x]\n", this));
 
@@ -469,7 +469,7 @@ nsHttpResponseHead::Reset()
 }
 
 nsresult
-nsHttpResponseHead::ParseDateHeader(nsHttpAtom header, PRUint32 *result) const
+nsHttpResponseHead::ParseDateHeader(nsHttpAtom header, PRUint32 *result)
 {
     const char *val = PeekHeader(header);
     if (!val)
@@ -485,7 +485,7 @@ nsHttpResponseHead::ParseDateHeader(nsHttpAtom header, PRUint32 *result) const
 }
 
 nsresult
-nsHttpResponseHead::GetAgeValue(PRUint32 *result) const
+nsHttpResponseHead::GetAgeValue(PRUint32 *result)
 {
     const char *val = PeekHeader(nsHttp::Age);
     if (!val)
@@ -498,7 +498,7 @@ nsHttpResponseHead::GetAgeValue(PRUint32 *result) const
 // Return the value of the (HTTP 1.1) max-age directive, which itself is a
 // component of the Cache-Control response header
 nsresult
-nsHttpResponseHead::GetMaxAgeValue(PRUint32 *result) const
+nsHttpResponseHead::GetMaxAgeValue(PRUint32 *result)
 {
     const char *val = PeekHeader(nsHttp::Cache_Control);
     if (!val)
@@ -516,7 +516,7 @@ nsHttpResponseHead::GetMaxAgeValue(PRUint32 *result) const
 }
 
 nsresult
-nsHttpResponseHead::GetExpiresValue(PRUint32 *result) const
+nsHttpResponseHead::GetExpiresValue(PRUint32 *result)
 {
     const char *val = PeekHeader(nsHttp::Expires);
     if (!val)
@@ -539,7 +539,7 @@ nsHttpResponseHead::GetExpiresValue(PRUint32 *result) const
 }
 
 PRInt64
-nsHttpResponseHead::TotalEntitySize() const
+nsHttpResponseHead::TotalEntitySize()
 {
     const char* contentRange = PeekHeader(nsHttp::Content_Range);
     if (!contentRange)

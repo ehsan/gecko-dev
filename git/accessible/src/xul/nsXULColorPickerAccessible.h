@@ -15,7 +15,7 @@ class nsXULColorPickerTileAccessible : public nsAccessibleWrap
 {
 public:
   nsXULColorPickerTileAccessible(nsIContent* aContent,
-                                 DocAccessible* aDoc);
+                                 nsDocAccessible* aDoc);
 
   // nsAccessible
   virtual void Value(nsString& aValue);
@@ -33,7 +33,7 @@ public:
 class nsXULColorPickerAccessible : public nsXULColorPickerTileAccessible
 {
 public:
-  nsXULColorPickerAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsXULColorPickerAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // nsAccessible
   virtual mozilla::a11y::role NativeRole();

@@ -74,7 +74,7 @@ AccIterator::IteratorState::IteratorState(nsAccessible *aParent,
 ////////////////////////////////////////////////////////////////////////////////
 
 RelatedAccIterator::
-  RelatedAccIterator(DocAccessible* aDocument, nsIContent* aDependentContent,
+  RelatedAccIterator(nsDocAccessible* aDocument, nsIContent* aDependentContent,
                      nsIAtom* aRelAttr) :
   mDocument(aDocument), mRelAttr(aRelAttr), mProviders(nsnull),
   mBindingParent(nsnull), mIndex(0)
@@ -95,7 +95,7 @@ RelatedAccIterator::Next()
     return nsnull;
 
   while (mIndex < mProviders->Length()) {
-    DocAccessible::AttrRelProvider* provider = (*mProviders)[mIndex++];
+    nsDocAccessible::AttrRelProvider* provider = (*mProviders)[mIndex++];
 
     // Return related accessible for the given attribute and if the provider
     // content is in the same binding in the case of XBL usage.
@@ -126,7 +126,7 @@ RelatedAccIterator::Next()
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLLabelIterator::
-  HTMLLabelIterator(DocAccessible* aDocument, const nsAccessible* aAccessible,
+  HTMLLabelIterator(nsDocAccessible* aDocument, const nsAccessible* aAccessible,
                     LabelFilter aFilter) :
   mRelIter(aDocument, aAccessible->GetContent(), nsGkAtoms::_for),
   mAcc(aAccessible), mLabelFilter(aFilter)
@@ -177,7 +177,7 @@ HTMLLabelIterator::Next()
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLOutputIterator::
-HTMLOutputIterator(DocAccessible* aDocument, nsIContent* aElement) :
+HTMLOutputIterator(nsDocAccessible* aDocument, nsIContent* aElement) :
   mRelIter(aDocument, aElement, nsGkAtoms::_for)
 {
 }
@@ -200,7 +200,7 @@ HTMLOutputIterator::Next()
 ////////////////////////////////////////////////////////////////////////////////
 
 XULLabelIterator::
-  XULLabelIterator(DocAccessible* aDocument, nsIContent* aElement) :
+  XULLabelIterator(nsDocAccessible* aDocument, nsIContent* aElement) :
   mRelIter(aDocument, aElement, nsGkAtoms::control)
 {
 }
@@ -223,7 +223,7 @@ XULLabelIterator::Next()
 ////////////////////////////////////////////////////////////////////////////////
 
 XULDescriptionIterator::
-  XULDescriptionIterator(DocAccessible* aDocument, nsIContent* aElement) :
+  XULDescriptionIterator(nsDocAccessible* aDocument, nsIContent* aElement) :
   mRelIter(aDocument, aElement, nsGkAtoms::control)
 {
 }
@@ -245,7 +245,7 @@ XULDescriptionIterator::Next()
 ////////////////////////////////////////////////////////////////////////////////
 
 IDRefsIterator::
-  IDRefsIterator(DocAccessible* aDoc, nsIContent* aContent,
+  IDRefsIterator(nsDocAccessible* aDoc, nsIContent* aContent,
                  nsIAtom* aIDRefsAttr) :
   mContent(aContent), mDoc(aDoc), mCurrIdx(0)
 {
@@ -302,21 +302,32 @@ IDRefsIterator::GetElem(const nsDependentSubstring& aID)
 
   // If content is in anonymous subtree or an element having anonymous subtree
   // then use "anonid" attribute to get elements in anonymous subtree.
+  nsCOMPtr<nsIDOMElement> refDOMElm;
+  nsCOMPtr<nsIDOMDocumentXBL> xblDocument =
+    do_QueryInterface(mContent->OwnerDoc());
 
   // Check inside the binding the element is contained in.
   nsIContent* bindingParent = mContent->GetBindingParent();
   if (bindingParent) {
-    nsIContent* refElm = bindingParent->OwnerDoc()->
-      GetAnonymousElementByAttribute(bindingParent, nsGkAtoms::anonid, aID);
-
+    nsCOMPtr<nsIDOMElement> bindingParentElm = do_QueryInterface(bindingParent);
+    xblDocument->GetAnonymousElementByAttribute(bindingParentElm,
+                                                NS_LITERAL_STRING("anonid"),
+                                                aID,
+                                                getter_AddRefs(refDOMElm));
+    nsCOMPtr<dom::Element> refElm = do_QueryInterface(refDOMElm);
     if (refElm)
       return refElm;
   }
 
   // Check inside the binding of the element.
   if (mContent->OwnerDoc()->BindingManager()->GetBinding(mContent)) {
-    return mContent->OwnerDoc()->
-      GetAnonymousElementByAttribute(mContent, nsGkAtoms::anonid, aID);
+    nsCOMPtr<nsIDOMElement> elm = do_QueryInterface(mContent);
+    xblDocument->GetAnonymousElementByAttribute(elm,
+                                                NS_LITERAL_STRING("anonid"),
+                                                aID,
+                                                getter_AddRefs(refDOMElm));
+    nsCOMPtr<dom::Element> refElm = do_QueryInterface(refDOMElm);
+    return refElm;
   }
 
   return nsnull;

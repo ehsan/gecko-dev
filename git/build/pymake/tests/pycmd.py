@@ -9,5 +9,5 @@ def writeenvtofile(args):
     f.write(os.environ[args[1]])
 
 def asplode(args):
-  sys.exit(0)
+  sys.exit(args[0])
   return 0

@@ -41,7 +41,7 @@ class nsHyperTextAccessible : public nsAccessibleWrap,
                               public nsIAccessibleEditableText
 {
 public:
-  nsHyperTextAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsHyperTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
   virtual ~nsHyperTextAccessible() { }
 
   NS_DECL_ISUPPORTS_INHERITED

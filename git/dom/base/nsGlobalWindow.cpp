@@ -104,7 +104,6 @@
 #include "nsIHttpProtocolHandler.h"
 #include "nsIJSContextStack.h"
 #include "nsIJSRuntimeService.h"
-#include "nsILoadContext.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIPresShell.h"
 #include "nsIPrivateDOMEvent.h"
@@ -2142,147 +2141,109 @@ void
 nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
 {
   NS_ASSERTION(IsOuterWindow(), "Uh, SetDocShell() called on inner window!");
-  MOZ_ASSERT(aDocShell);
 
-  if (aDocShell == mDocShell) {
+  if (aDocShell == mDocShell)
     return;
-  }
 
-  mDocShell = aDocShell; // Weak Reference
-
-  NS_ASSERTION(!mNavigator, "Non-null mNavigator in outer window!");
-
-  if (mFrames) {
-    mFrames->SetDocShell(aDocShell);
-  }
-
-  // Get our enclosing chrome shell and retrieve its global window impl, so
-  // that we can do some forwarding to the chrome document.
-  nsCOMPtr<nsIDOMEventTarget> chromeEventHandler;
-  mDocShell->GetChromeEventHandler(getter_AddRefs(chromeEventHandler));
-  mChromeEventHandler = do_QueryInterface(chromeEventHandler);
-  if (!mChromeEventHandler) {
-    // We have no chrome event handler. If we have a parent,
-    // get our chrome event handler from the parent. If
-    // we don't have a parent, then we need to make a new
-    // window root object that will function as a chrome event
-    // handler and receive all events that occur anywhere inside
-    // our window.
-    nsCOMPtr<nsIDOMWindow> parentWindow;
-    GetParent(getter_AddRefs(parentWindow));
-    if (parentWindow.get() != static_cast<nsIDOMWindow*>(this)) {
-      nsCOMPtr<nsPIDOMWindow> piWindow(do_QueryInterface(parentWindow));
-      mChromeEventHandler = piWindow->GetChromeEventHandler();
-    }
-    else {
-      NS_NewWindowRoot(this, getter_AddRefs(mChromeEventHandler));
-    }
-  }
-
-  bool docShellActive;
-  mDocShell->GetIsActive(&docShellActive);
-  mIsBackground = !docShellActive;
-}
-
-void
-nsGlobalWindow::DetachFromDocShell()
-{
-  NS_ASSERTION(IsOuterWindow(), "Uh, DetachFromDocShell() called on inner window!");
-
-  // DetachFromDocShell means the window is being torn down. Drop our
+  // SetDocShell(nsnull) means the window is being torn down. Drop our
   // reference to the script context, allowing it to be deleted
   // later. Meanwhile, keep our weak reference to the script object
   // (mJSObject) so that it can be retrieved later (until it is
   // finalized by the JS GC).
 
-  NS_ASSERTION(PR_CLIST_IS_EMPTY(&mTimeouts),
-               "Uh, outer window holds timeouts!");
+  if (!aDocShell) {
+    NS_ASSERTION(PR_CLIST_IS_EMPTY(&mTimeouts),
+                 "Uh, outer window holds timeouts!");
 
-  // Call FreeInnerObjects on all inner windows, not just the current
-  // one, since some could be held by WindowStateHolder objects that
-  // are GC-owned.
-  for (nsRefPtr<nsGlobalWindow> inner = (nsGlobalWindow *)PR_LIST_HEAD(this);
-       inner != this;
-       inner = (nsGlobalWindow*)PR_NEXT_LINK(inner)) {
-    NS_ASSERTION(!inner->mOuterWindow || inner->mOuterWindow == this,
-                 "bad outer window pointer");
-    inner->FreeInnerObjects();
-  }
-
-  // Make sure that this is called before we null out the document.
-  NotifyDOMWindowDestroyed(this);
-
-  NotifyWindowIDDestroyed("outer-window-destroyed");
-
-  nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
-
-  if (currentInner) {
-    JSObject* obj = currentInner->FastGetGlobalJSObject();
-    if (obj) {
-      JSContext* cx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
-
-      JSAutoRequest ar(cx);
-
-      js::NukeChromeCrossCompartmentWrappersForGlobal(cx, obj,
-                                                      js::NukeForGlobalObject);
+    // Call FreeInnerObjects on all inner windows, not just the current
+    // one, since some could be held by WindowStateHolder objects that
+    // are GC-owned.
+    for (nsRefPtr<nsGlobalWindow> inner = (nsGlobalWindow *)PR_LIST_HEAD(this);
+         inner != this;
+         inner = (nsGlobalWindow*)PR_NEXT_LINK(inner)) {
+      NS_ASSERTION(!inner->mOuterWindow || inner->mOuterWindow == this,
+                   "bad outer window pointer");
+      inner->FreeInnerObjects();
     }
 
-    NS_ASSERTION(mDoc, "Must have doc!");
-    
-    // Remember the document's principal.
-    mDocumentPrincipal = mDoc->NodePrincipal();
+    // Make sure that this is called before we null out the document.
+    NotifyDOMWindowDestroyed(this);
 
-    // Release our document reference
-    mDocument = nsnull;
-    mDoc = nsnull;
-    mFocusedNode = nsnull;
-  }
+    NotifyWindowIDDestroyed("outer-window-destroyed");
 
-  ClearControllers();
+    nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
 
-  mChromeEventHandler = nsnull; // force release now
+    if (currentInner) {
+      NS_ASSERTION(mDoc, "Must have doc!");
+      
+      // Remember the document's principal.
+      mDocumentPrincipal = mDoc->NodePrincipal();
 
-  if (mArguments) { 
-    // We got no new document after someone called
-    // SetArguments(), drop our reference to the arguments.
-    mArguments = nsnull;
-    mArgumentsLast = nsnull;
-    mArgumentsOrigin = nsnull;
-  }
+      // Release our document reference
+      mDocument = nsnull;
+      mDoc = nsnull;
+      mFocusedNode = nsnull;
+    }
 
-  if (mContext) {
-    mContext->GC(js::gcreason::SET_DOC_SHELL);
-    mContext = nsnull;
-  }
+    ClearControllers();
+
+    mChromeEventHandler = nsnull; // force release now
+
+    if (mArguments) { 
+      // We got no new document after someone called
+      // SetArguments(), drop our reference to the arguments.
+      mArguments = nsnull;
+      mArgumentsLast = nsnull;
+      mArgumentsOrigin = nsnull;
+    }
+
+    if (mContext) {
+      mContext->GC(js::gcreason::SET_DOC_SHELL);
+      mContext = nsnull;
+    }
 
 #ifdef DEBUG
-  nsCycleCollector_DEBUG_shouldBeFreed(mContext);
-  nsCycleCollector_DEBUG_shouldBeFreed(static_cast<nsIScriptGlobalObject*>(this));
+    nsCycleCollector_DEBUG_shouldBeFreed(mContext);
+    nsCycleCollector_DEBUG_shouldBeFreed(static_cast<nsIScriptGlobalObject*>(this));
 #endif
+  }
 
-  mDocShell = nsnull; // Weak Reference
+  mDocShell = aDocShell;        // Weak Reference
 
   NS_ASSERTION(!mNavigator, "Non-null mNavigator in outer window!");
 
-  if (mFrames) {
-    mFrames->SetDocShell(nsnull);
+  if (mFrames)
+    mFrames->SetDocShell(aDocShell);
+
+  if (!mDocShell) {
+    MaybeForgiveSpamCount();
+    CleanUp(false);
+  } else {
+    // Get our enclosing chrome shell and retrieve its global window impl, so
+    // that we can do some forwarding to the chrome document.
+    nsCOMPtr<nsIDOMEventTarget> chromeEventHandler;
+    mDocShell->GetChromeEventHandler(getter_AddRefs(chromeEventHandler));
+    mChromeEventHandler = do_QueryInterface(chromeEventHandler);
+    if (!mChromeEventHandler) {
+      // We have no chrome event handler. If we have a parent,
+      // get our chrome event handler from the parent. If
+      // we don't have a parent, then we need to make a new
+      // window root object that will function as a chrome event
+      // handler and receive all events that occur anywhere inside
+      // our window.
+      nsCOMPtr<nsIDOMWindow> parentWindow;
+      GetParent(getter_AddRefs(parentWindow));
+      if (parentWindow.get() != static_cast<nsIDOMWindow*>(this)) {
+        nsCOMPtr<nsPIDOMWindow> piWindow(do_QueryInterface(parentWindow));
+        mChromeEventHandler = piWindow->GetChromeEventHandler();
+      }
+      else NS_NewWindowRoot(this, getter_AddRefs(mChromeEventHandler));
+    }
+
+    bool docShellActive;
+    mDocShell->GetIsActive(&docShellActive);
+    mIsBackground = !docShellActive;
   }
-
-  MaybeForgiveSpamCount();
-  CleanUp(false);
-
-    if (mLocalStorage) {
-      nsCOMPtr<nsIPrivacyTransitionObserver> obs = do_GetInterface(mLocalStorage);
-      if (obs) {
-        mDocShell->AddWeakPrivacyTransitionObserver(obs);
-      }
-    }
-    if (mSessionStorage) {
-      nsCOMPtr<nsIPrivacyTransitionObserver> obs = do_GetInterface(mSessionStorage);
-      if (obs) {
-        mDocShell->AddWeakPrivacyTransitionObserver(obs);
-      }
-    }
 }
 
 void
@@ -8123,11 +8084,6 @@ nsGlobalWindow::GetSessionStorage(nsIDOMStorage ** aSessionStorage)
     if (!mSessionStorage) {
       return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
     }
-
-    nsCOMPtr<nsIPrivacyTransitionObserver> obs = do_GetInterface(mSessionStorage);
-    if (obs) {
-      docShell->AddWeakPrivacyTransitionObserver(obs);
-    }
   }
 
 #ifdef PR_LOGGING
@@ -8157,7 +8113,8 @@ nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
 
     nsresult rv;
 
-    if (!nsDOMStorage::CanUseStorage())
+    bool unused;
+    if (!nsDOMStorage::CanUseStorage(&unused))
       return NS_ERROR_DOM_SECURITY_ERR;
 
     nsIPrincipal *principal = GetPrincipal();
@@ -8173,19 +8130,10 @@ nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
       mDocument->GetDocumentURI(documentURI);
     }
 
-    nsIDocShell* docShell = GetDocShell();
-    nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
-
     rv = storageManager->GetLocalStorageForPrincipal(principal,
                                                      documentURI,
-                                                     loadContext && loadContext->UsePrivateBrowsing(),
                                                      getter_AddRefs(mLocalStorage));
     NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsIPrivacyTransitionObserver> obs = do_GetInterface(mLocalStorage);
-    if (obs && docShell) {
-      docShell->AddWeakPrivacyTransitionObserver(obs);
-    }
   }
 
   NS_ADDREF(*aLocalStorage = mLocalStorage);

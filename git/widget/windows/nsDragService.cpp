@@ -46,7 +46,7 @@
 //
 //-------------------------------------------------------------------------
 nsDragService::nsDragService()
-  : mDataObject(nsnull), mSentLocalDropEvent(false)
+  : mNativeDragTarget(nsnull), mDataObject(nsnull), mSentLocalDropEvent(false)
 {
 }
 
@@ -57,6 +57,7 @@ nsDragService::nsDragService()
 //-------------------------------------------------------------------------
 nsDragService::~nsDragService()
 {
+  NS_IF_RELEASE(mNativeDragTarget);
   NS_IF_RELEASE(mDataObject);
 }
 

@@ -11,7 +11,7 @@
 #include "nsAccessible.h"
 
 class nsAccEvent;
-class DocAccessible;
+class nsDocAccessible;
 
 // Constants used to point whether the event is from user input.
 enum EIsFromUserInput
@@ -74,7 +74,7 @@ public:
   bool IsFromUserInput() const { return mIsFromUserInput; }
 
   nsAccessible *GetAccessible();
-  DocAccessible* GetDocAccessible();
+  nsDocAccessible* GetDocAccessible();
   nsINode* GetNode();
 
   /**

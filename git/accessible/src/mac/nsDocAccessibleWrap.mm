@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "DocAccessibleWrap.h"
+#include "nsDocAccessibleWrap.h"
 
 #import "mozAccessible.h"
 
-DocAccessibleWrap::
-  DocAccessibleWrap(nsIDocument* aDocument, nsIContent* aRootContent,
-                    nsIPresShell* aPresShell) :
-  DocAccessible(aDocument, aRootContent, aPresShell)
+nsDocAccessibleWrap::
+  nsDocAccessibleWrap(nsIDocument* aDocument, nsIContent* aRootContent,
+                      nsIPresShell* aPresShell) :
+  nsDocAccessible(aDocument, aRootContent, aPresShell)
 {
 }
 
-DocAccessibleWrap::~DocAccessibleWrap()
+nsDocAccessibleWrap::~nsDocAccessibleWrap()
 {
 }
 

@@ -7,7 +7,7 @@
 
 #include "nsAccUtils.h"
 #include "nsARIAMap.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "Role.h"
 
 #include "nsIDOMHTMLCollection.h"
@@ -25,7 +25,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLImageMapAccessible::
-  nsHTMLImageMapAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLImageMapAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHTMLImageAccessibleWrap(aContent, aDoc)
 {
   mFlags |= eImageMapAccessible;
@@ -149,7 +149,7 @@ nsHTMLImageMapAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLAreaAccessible::
-  nsHTMLAreaAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsHTMLAreaAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHTMLLinkAccessible(aContent, aDoc)
 {
 }
