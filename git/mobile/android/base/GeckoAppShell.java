@@ -2257,7 +2257,7 @@ public class GeckoAppShell
         sEventDispatcher.registerEventListener(event, listener);
     }
 
-    public static EventDispatcher getEventDispatcher() {
+    static EventDispatcher getEventDispatcher() {
         return sEventDispatcher;
     }
 

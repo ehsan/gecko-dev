@@ -10,7 +10,6 @@ import java.util.Set;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.background.common.DateUtils.DateFormatter;
 import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.background.healthreport.HealthReportStorage.Field;
 
@@ -23,11 +22,9 @@ public class HealthReportGenerator {
   private static final String LOG_TAG = "GeckoHealthGen";
 
   private final HealthReportStorage storage;
-  private final DateFormatter dateFormatter;
 
   public HealthReportGenerator(HealthReportStorage storage) {
     this.storage = storage;
-    this.dateFormatter = new DateFormatter();
   }
 
   @SuppressWarnings("static-method")
@@ -79,10 +76,10 @@ public class HealthReportGenerator {
     JSONObject document = new JSONObject();
 
     if (lastPingTime >= HealthReportConstants.EARLIEST_LAST_PING) {
-      document.put("lastPingDate", dateFormatter.getDateString(lastPingTime));
+      document.put("lastPingDate", HealthReportUtils.getDateString(lastPingTime));
     }
 
-    document.put("thisPingDate", dateFormatter.getDateString(now()));
+    document.put("thisPingDate", HealthReportUtils.getDateString(now()));
     document.put("version", PAYLOAD_VERSION);
 
     document.put("environments", getEnvironmentsJSON(currentEnvironment, envs));
@@ -150,7 +147,7 @@ public class HealthReportGenerator {
 
         if (dateChanged) {
           if (dateObject != null) {
-            days.put(dateFormatter.getDateStringForDay(lastDate), dateObject);
+            days.put(HealthReportUtils.getDateStringForDay(lastDate), dateObject);
           }
           dateObject = new JSONObject();
           lastDate = cDate;
@@ -182,7 +179,7 @@ public class HealthReportGenerator {
         cursor.moveToNext();
         continue;
       }
-      days.put(dateFormatter.getDateStringForDay(lastDate), dateObject);
+      days.put(HealthReportUtils.getDateStringForDay(lastDate), dateObject);
     } finally {
       cursor.close();
     }
