@@ -77,17 +77,17 @@ let gOutstandingGenerators = new NamableTracker();
 
 function AsyncException(initFrame, message) {
   this.message = message;
-  this._traceback = initFrame;
+  this._trace = initFrame;
 }
 AsyncException.prototype = {
   get message() { return this._message; },
   set message(value) { this._message = value; },
 
-  get traceback() { return this._traceback; },
-  set traceback(value) { this._traceback = value; },
+  get trace() { return this._trace; },
+  set trace(value) { this._trace = value; },
 
   addFrame: function AsyncException_addFrame(frame) {
-    this.traceback += (this.traceback? "\n" : "") + formatFrame(frame);
+    this.trace += (this.trace? "\n" : "") + formatFrame(frame);
   },
 
   toString: function AsyncException_toString() {
@@ -161,8 +161,8 @@ Generator.prototype = {
     this._onComplete = value;
   },
 
-  get traceback() {
-    return "unknown (async) :: " + this.name + "\n" + traceAsyncFrame(this._initFrame);
+  get trace() {
+    return "unknown (async) :: " + this.name + "\n" + trace(this._initFrame);
   },
 
   _handleException: function AsyncGen__handleException(e) {
@@ -177,17 +177,17 @@ Generator.prototype = {
         if (e instanceof AsyncException) {
           // FIXME: attempt to skip repeated frames, which can happen if the
           // child generator never yielded.  Would break for valid repeats (recursion)
-          if (e.traceback.indexOf(formatFrame(this._initFrame)) == -1)
+          if (e.trace.indexOf(formatFrame(this._initFrame)) == -1)
             e.addFrame(this._initFrame);
         } else {
-          e = new AsyncException(this.traceback, e);
+          e = new AsyncException(this.trace, e);
         }
 
       this._exception = e;
 
     } else {
       this._log.error("Exception: " + Utils.exceptionStr(e));
-      this._log.debug("Stack trace:\n" + (e.traceback? e.traceback : this.traceback));
+      this._log.debug("Stack trace:\n" + (e.trace? e.trace : this.trace));
     }
 
     // continue execution of caller.
@@ -264,7 +264,7 @@ Generator.prototype = {
     if (!this._generator) {
       this._log.error("Async method '" + this.name + "' is missing a 'yield' call " +
                       "(or called done() after being finalized)");
-      this._log.trace("Initial stack trace:\n" + this.traceback);
+      this._log.trace("Initial stack trace:\n" + this.trace);
     } else {
       this._generator.close();
     }
@@ -282,8 +282,8 @@ Generator.prototype = {
         this._log.error("Exception caught from onComplete handler of " +
                         this.name + " generator");
         this._log.error("Exception: " + Utils.exceptionStr(e));
-        this._log.trace("Current stack trace:\n" + traceAsyncFrame(Components.stack));
-        this._log.trace("Initial stack trace:\n" + this.traceback);
+        this._log.trace("Current stack trace:\n" + trace(Components.stack));
+        this._log.trace("Initial stack trace:\n" + this.trace);
       }
     }
     gOutstandingGenerators.remove(this);
@@ -293,14 +293,12 @@ Generator.prototype = {
 function formatFrame(frame) {
   // FIXME: sort of hackish, might be confusing if there are multiple
   // extensions with similar filenames
-  let tmp = "<file:unknown>";
-  if (frame.filename)
-    tmp = frame.filename.replace(/^file:\/\/.*\/([^\/]+.js)$/, "module:$1");
+  let tmp = frame.filename.replace(/^file:\/\/.*\/([^\/]+.js)$/, "module:$1");
   tmp += ":" + frame.lineNumber + " :: " + frame.name;
   return tmp;
 }
 
-function traceAsyncFrame(frame, str) {
+function trace(frame, str) {
   if (!str)
     str = "";
 
@@ -310,7 +308,7 @@ function traceAsyncFrame(frame, str) {
     frame = frame.caller;
 
   if (frame.caller)
-    str = traceAsyncFrame(frame.caller, str);
+    str = trace(frame.caller, str);
   str = formatFrame(frame) + (str? "\n" : "") + str;
 
   return str;
