@@ -9,7 +9,6 @@
 // Keep others in (case-insensitive) order:
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
-#include "mozilla/gfx/Helpers.h"
 #include "nsISVGChildFrame.h"
 #include "nsRenderingContext.h"
 #include "nsCSSFilterInstance.h"
@@ -143,6 +142,8 @@ nsFilterInstance::nsFilterInstance(nsIFrame *aTargetFrame,
     mFilterSpaceToDeviceSpaceTransform = filterToUserSpace * mPaintTransform;
   }
 
+  mAppUnitsPerCSSPx = mTargetFrame->PresContext()->AppUnitsPerCSSPixel();
+
   mFilterSpaceToFrameSpaceInCSSPxTransform =
     filterToUserSpace * GetUserSpaceToFrameSpaceInCSSPxTransform();
   // mFilterSpaceToFrameSpaceInCSSPxTransform is always invertible
@@ -178,7 +179,8 @@ nsFilterInstance::nsFilterInstance(nsIFrame *aTargetFrame,
 nsresult
 nsFilterInstance::ComputeUserSpaceToFilterSpaceScale()
 {
-  gfxMatrix canvasTransform = nsSVGUtils::GetCanvasTM(mTargetFrame);
+  gfxMatrix canvasTransform =
+    nsSVGUtils::GetCanvasTM(mTargetFrame, nsISVGChildFrame::FOR_OUTERSVG_TM);
   if (canvasTransform.IsSingular()) {
     // Nothing should be rendered.
     return NS_ERROR_FAILURE;
@@ -227,9 +229,6 @@ nsFilterInstance::BuildPrimitives()
       return rv;
     }
   }
-
-  mFilterDescription = FilterDescription(mPrimitiveDescriptions);
-
   return NS_OK;
 }
 
@@ -269,8 +268,9 @@ nsFilterInstance::ComputeNeededBoxes()
   nsIntRegion fillPaintNeededRegion;
   nsIntRegion strokePaintNeededRegion;
 
+  FilterDescription filter(mPrimitiveDescriptions);
   FilterSupport::ComputeSourceNeededRegions(
-    mFilterDescription, mPostFilterDirtyRegion,
+    filter, mPostFilterDirtyRegion,
     sourceGraphicNeededRegion, fillPaintNeededRegion, strokePaintNeededRegion);
 
   nsIntRect sourceBounds;
@@ -296,17 +296,23 @@ nsFilterInstance::BuildSourcePaint(SourceInfo *aSource,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
+  nsRefPtr<gfxContext> ctx = new gfxContext(offscreenDT);
+  ctx->Translate(-neededRect.TopLeft());
+
+  nsRefPtr<nsRenderingContext> tmpCtx(new nsRenderingContext());
+  tmpCtx->Init(mTargetFrame->PresContext()->DeviceContext(), ctx);
+
   gfxMatrix deviceToFilterSpace = GetFilterSpaceToDeviceSpaceTransform();
   if (!deviceToFilterSpace.Invert()) {
     return NS_ERROR_FAILURE;
   }
+  gfxContext *gfx = tmpCtx->ThebesContext();
+  gfx->Multiply(deviceToFilterSpace);
+
+  gfx->Save();
 
   if (!mPaintTransform.IsSingular()) {
-    nsRefPtr<gfxContext> gfx = new gfxContext(offscreenDT);
-    gfx->Save();
-    gfx->Multiply(mPaintTransform *
-                  deviceToFilterSpace *
-                  gfxMatrix::Translation(-neededRect.TopLeft()));
+    gfx->Multiply(mPaintTransform);
     gfx->Rectangle(FilterSpaceToUserSpace(neededRect));
     if ((aSource == &mFillPaint &&
          nsSVGUtils::SetupCairoFillPaint(mTargetFrame, gfx)) ||
@@ -314,8 +320,8 @@ nsFilterInstance::BuildSourcePaint(SourceInfo *aSource,
          nsSVGUtils::SetupCairoStrokePaint(mTargetFrame, gfx))) {
       gfx->Fill();
     }
-    gfx->Restore();
   }
+  gfx->Restore();
 
 
   aSource->mSourceSurface = offscreenDT->Snapshot();
@@ -356,6 +362,12 @@ nsFilterInstance::BuildSourceImage(DrawTarget* aTargetDT)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
+  nsRefPtr<gfxContext> ctx = new gfxContext(offscreenDT);
+  ctx->Translate(-neededRect.TopLeft());
+
+  nsRefPtr<nsRenderingContext> tmpCtx(new nsRenderingContext());
+  tmpCtx->Init(mTargetFrame->PresContext()->DeviceContext(), ctx);
+
   gfxRect r = FilterSpaceToUserSpace(neededRect);
   r.RoundOut();
   nsIntRect dirty;
@@ -377,13 +389,7 @@ nsFilterInstance::BuildSourceImage(DrawTarget* aTargetDT)
   if (!deviceToFilterSpace.Invert()) {
     return NS_ERROR_FAILURE;
   }
-  nsRefPtr<gfxContext> ctx = new gfxContext(offscreenDT);
-  ctx->SetMatrix(
-    ctx->CurrentMatrix().Translate(-neededRect.TopLeft()).
-                         PreMultiply(deviceToFilterSpace));
-
-  nsRefPtr<nsRenderingContext> tmpCtx(new nsRenderingContext());
-  tmpCtx->Init(mTargetFrame->PresContext()->DeviceContext(), ctx);
+  tmpCtx->ThebesContext()->Multiply(deviceToFilterSpace);
   mPaintCallback->Paint(tmpCtx, mTargetFrame, mPaintTransform, &dirty);
 
   mSourceGraphic.mSourceSurface = offscreenDT->Snapshot();
@@ -402,11 +408,12 @@ nsFilterInstance::Render(gfxContext* aContext)
     return NS_OK;
   }
 
+  Matrix oldDTMatrix;
   RefPtr<DrawTarget> dt = aContext->GetDrawTarget();
-
-  AutoSaveTransform autoSR(dt);
-  Matrix newTM = ToMatrix(ctm).PreTranslate(filterRect.x, filterRect.y) * dt->GetTransform();
-  dt->SetTransform(newTM);
+  oldDTMatrix = dt->GetTransform();
+  Matrix matrix = ToMatrix(ctm);
+  matrix.Translate(filterRect.x, filterRect.y);
+  dt->SetTransform(matrix * oldDTMatrix);
 
   ComputeNeededBoxes();
 
@@ -417,12 +424,15 @@ nsFilterInstance::Render(gfxContext* aContext)
   if (NS_FAILED(rv))
     return rv;
 
+  FilterDescription filter(mPrimitiveDescriptions);
   FilterSupport::RenderFilterDescription(
-    dt, mFilterDescription, ToRect(filterRect),
+    dt, filter, ToRect(filterRect),
     mSourceGraphic.mSourceSurface, mSourceGraphic.mSurfaceRect,
     mFillPaint.mSourceSurface, mFillPaint.mSurfaceRect,
     mStrokePaint.mSourceSurface, mStrokePaint.mSurfaceRect,
     mInputImages);
+
+  dt->SetTransform(oldDTMatrix);
 
   return NS_OK;
 }
@@ -434,8 +444,9 @@ nsFilterInstance::ComputePostFilterDirtyRegion()
     return nsRegion();
   }
 
+  FilterDescription filter(mPrimitiveDescriptions);
   nsIntRegion resultChangeRegion =
-    FilterSupport::ComputeResultChangeRegion(mFilterDescription,
+    FilterSupport::ComputeResultChangeRegion(filter,
       mPreFilterDirtyRegion, nsIntRegion(), nsIntRegion());
   return FilterSpaceToFrameSpace(resultChangeRegion);
 }
@@ -446,8 +457,9 @@ nsFilterInstance::ComputePostFilterExtents()
   nsIntRect sourceBounds;
   sourceBounds.UnionRect(mTargetBBoxInFilterSpace, mTargetBounds);
 
+  FilterDescription filter(mPrimitiveDescriptions);
   nsIntRegion postFilterExtents =
-    FilterSupport::ComputePostFilterExtents(mFilterDescription, sourceBounds);
+    FilterSupport::ComputePostFilterExtents(filter, sourceBounds);
   return FilterSpaceToFrameSpace(postFilterExtents.GetBounds());
 }
 
@@ -483,7 +495,7 @@ nsFilterInstance::FrameSpaceToFilterSpace(const nsRect* aRect) const
       return nsIntRect();
     }
     gfxRect rectInCSSPx =
-      nsLayoutUtils::RectToGfxRect(*aRect, nsPresContext::AppUnitsPerCSSPixel());
+      nsLayoutUtils::RectToGfxRect(*aRect, mAppUnitsPerCSSPx);
     gfxRect rectInFilterSpace =
       mFrameSpaceInCSSPxToFilterSpaceTransform.TransformBounds(rectInCSSPx);
     rectInFilterSpace.RoundOut();
@@ -504,7 +516,7 @@ nsFilterInstance::FilterSpaceToFrameSpace(const nsIntRect& aRect) const
   gfxRect r(aRect.x, aRect.y, aRect.width, aRect.height);
   r = mFilterSpaceToFrameSpaceInCSSPxTransform.TransformBounds(r);
   // nsLayoutUtils::RoundGfxRectToAppRect rounds out.
-  return nsLayoutUtils::RoundGfxRectToAppRect(r, nsPresContext::AppUnitsPerCSSPixel());
+  return nsLayoutUtils::RoundGfxRectToAppRect(r, mAppUnitsPerCSSPx);
 }
 
 nsIntRegion
@@ -537,5 +549,5 @@ nsFilterInstance::FilterSpaceToFrameSpace(const nsIntRegion& aRegion) const
 gfxMatrix
 nsFilterInstance::GetUserSpaceToFrameSpaceInCSSPxTransform() const
 {
-  return gfxMatrix::Translation(-nsSVGUtils::FrameSpaceInCSSPxToUserSpaceOffset(mTargetFrame));
+  return gfxMatrix().Translate(-nsSVGUtils::FrameSpaceInCSSPxToUserSpaceOffset(mTargetFrame));
 }

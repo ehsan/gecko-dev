@@ -108,19 +108,6 @@ function promiseWaitForCondition(aConditionFn) {
   return deferred.promise;
 }
 
-function promiseWaitForEvent(object, eventName, capturing = false) {
-  return new Promise((resolve) => {
-    function listener(event) {
-      info("Saw " + eventName);
-      object.removeEventListener(eventName, listener, capturing);
-      resolve(event);
-    }
-
-    info("Waiting for " + eventName);
-    object.addEventListener(eventName, listener, capturing);
-  });
-}
-
 function getTestPlugin(aName) {
   var pluginName = aName || "Test Plug-in";
   var ph = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
@@ -456,7 +443,6 @@ function waitForDocLoadComplete(aBrowser=gBrowser) {
     onStateChange: function (webProgress, req, flags, status) {
       let docStart = Ci.nsIWebProgressListener.STATE_IS_NETWORK |
                      Ci.nsIWebProgressListener.STATE_STOP;
-      info("Saw state " + flags.toString(16));
       if ((flags & docStart) == docStart) {
         aBrowser.removeProgressListener(progressListener);
         info("Browser loaded");

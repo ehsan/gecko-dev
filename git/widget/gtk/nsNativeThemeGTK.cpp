@@ -838,12 +838,11 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
 
   // translate everything so (0,0) is the top left of the drawingRect
   gfxContextAutoSaveRestore autoSR(ctx);
-  gfxMatrix tm;
-  if (!snapXY) { // else rects are in device coords
-    tm = ctx->CurrentMatrix();
+  if (snapXY) {
+    // Rects are in device coords.
+    ctx->IdentityMatrix(); 
   }
-  tm.Translate(rect.TopLeft() + gfxPoint(drawingRect.x, drawingRect.y));
-  ctx->SetMatrix(tm);
+  ctx->Translate(rect.TopLeft() + gfxPoint(drawingRect.x, drawingRect.y));
 
   NS_ASSERTION(!IsWidgetTypeDisabled(mDisabledWidgetTypes, aWidgetType),
                "Trying to render an unsafe widget!");

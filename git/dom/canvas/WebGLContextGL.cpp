@@ -966,7 +966,7 @@ WebGLContext::GetActiveUniform(WebGLProgram *prog, uint32_t index)
 
 void
 WebGLContext::GetAttachedShaders(WebGLProgram *prog,
-                                 Nullable<nsTArray<nsRefPtr<WebGLShader>>>& retval)
+                                 Nullable< nsTArray<WebGLShader*> > &retval)
 {
     retval.SetNull();
     if (IsContextLost())

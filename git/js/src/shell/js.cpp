@@ -1452,6 +1452,8 @@ Run(JSContext *cx, unsigned argc, jsval *vp)
     const char16_t *ucbuf = chars.twoByteRange().start().get();
     size_t buflen = str->length();
 
+    JS::Anchor<JSString *> a_str(str);
+
     RootedScript script(cx);
     int64_t startClock = PRMJ_Now();
     {
@@ -4032,8 +4034,9 @@ WrapWithProto(JSContext *cx, unsigned argc, jsval *vp)
 
     WrapperOptions options(cx);
     options.setProto(proto.toObjectOrNull());
+    options.selectDefaultClass(obj.toObject().isCallable());
     JSObject *wrapped = Wrapper::New(cx, &obj.toObject(), &obj.toObject().global(),
-                                     &Wrapper::singletonWithPrototype, options);
+                                     &Wrapper::singletonWithPrototype, &options);
     if (!wrapped)
         return false;
 
@@ -4795,6 +4798,7 @@ static bool
 PrintHelpString(JSContext *cx, jsval v)
 {
     JSString *str = v.toString();
+    JS::Anchor<JSString *> a_str(str);
 
     JSLinearString *linear = str->ensureLinear(cx);
     if (!linear)
@@ -4954,11 +4958,8 @@ env_setProperty(JSContext *cx, HandleObject obj, HandleId id, bool strict, Mutab
 #if !defined SOLARIS
     int rv;
 
-    if (JSID_IS_SYMBOL(id))
-        return true;
-    RootedString idstring(cx, IdToString(cx, id));
-    if (!idstring)
-        return false;
+    RootedValue idvalue(cx, IdToValue(id));
+    RootedString idstring(cx, ToString(cx, idvalue));
     JSAutoByteString idstr;
     if (!idstr.encodeLatin1(cx, idstring))
         return false;
@@ -5806,16 +5807,16 @@ SetRuntimeOptions(JSRuntime *rt, const OptionParser &op)
             return OptionFailure("ion-limit-script-size", str);
     }
 
-    int32_t warmUpCounter = op.getIntOption("ion-warmup-threshold");
-    if (warmUpCounter >= 0)
-        jit::js_JitOptions.setCompilerWarmUpThreshold(warmUpCounter);
+    int32_t useCount = op.getIntOption("ion-uses-before-compile");
+    if (useCount >= 0)
+        jit::js_JitOptions.setUsesBeforeCompile(useCount);
 
-    warmUpCounter = op.getIntOption("baseline-warmup-threshold");
-    if (warmUpCounter >= 0)
-        jit::js_JitOptions.baselineWarmUpThreshold = warmUpCounter;
+    useCount = op.getIntOption("baseline-uses-before-compile");
+    if (useCount >= 0)
+        jit::js_JitOptions.baselineUsesBeforeCompile = useCount;
 
     if (op.getBoolOption("baseline-eager"))
-        jit::js_JitOptions.baselineWarmUpThreshold = 0;
+        jit::js_JitOptions.baselineUsesBeforeCompile = 0;
 
     if (const char *str = op.getStringOption("ion-regalloc")) {
         if (strcmp(str, "lsra") == 0) {
@@ -6053,7 +6054,7 @@ main(int argc, char **argv, char **envp)
                                "On-Stack Replacement (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-limit-script-size", "on/off",
                                "Don't compile very large scripts (default: on, off to disable)")
-        || !op.addIntOption('\0', "ion-warmup-threshold", "COUNT",
+        || !op.addIntOption('\0', "ion-uses-before-compile", "COUNT",
                             "Wait for COUNT calls or iterations before compiling "
                             "(default: 1000)", -1)
         || !op.addStringOption('\0', "ion-regalloc", "[mode]",
@@ -6070,7 +6071,7 @@ main(int argc, char **argv, char **envp)
         || !op.addBoolOption('\0', "baseline", "Enable baseline compiler (default)")
         || !op.addBoolOption('\0', "no-baseline", "Disable baseline compiler")
         || !op.addBoolOption('\0', "baseline-eager", "Always baseline-compile methods")
-        || !op.addIntOption('\0', "baseline-warmup-threshold", "COUNT",
+        || !op.addIntOption('\0', "baseline-uses-before-compile", "COUNT",
                             "Wait for COUNT calls or iterations before baseline-compiling "
                             "(default: 10)", -1)
         || !op.addBoolOption('\0', "no-fpu", "Pretend CPU does not support floating-point operations "

@@ -32,7 +32,6 @@ describe("loop.conversation", function() {
       setLoopCharPref: sandbox.stub(),
       getLoopCharPref: sandbox.stub(),
       getLoopBoolPref: sandbox.stub(),
-      getCallData: sandbox.stub(),
       startAlerting: function() {},
       stopAlerting: function() {},
       ensureRegistered: function() {},
@@ -113,6 +112,7 @@ describe("loop.conversation", function() {
         sdk: {},
         pendingCallTimeout: 1000,
       });
+      sandbox.stub(client, "requestCallsInfo");
       sandbox.spy(conversation, "setIncomingSessionData");
       sandbox.stub(conversation, "setOutgoingSessionData");
     });
@@ -157,15 +157,31 @@ describe("loop.conversation", function() {
           sinon.assert.calledOnce(navigator.mozLoop.startAlerting);
         });
 
-        it("should call getCallData on navigator.mozLoop",
+        it("should set the loopVersion on the conversation model", function() {
+          router.incoming("fakeVersion");
+
+          expect(conversation.get("loopVersion")).to.equal("fakeVersion");
+        });
+
+        it("should call requestCallsInfo on the client",
           function() {
             router.incoming(42);
 
-            sinon.assert.calledOnce(navigator.mozLoop.getCallData);
-            sinon.assert.calledWith(navigator.mozLoop.getCallData, 42);
+            sinon.assert.calledOnce(client.requestCallsInfo);
+            sinon.assert.calledWith(client.requestCallsInfo, 42);
           });
 
-        describe("getCallData successful", function() {
+        it("should display an error if requestCallsInfo returns an error",
+          function(){
+            sandbox.stub(notifications, "errorL10n");
+            client.requestCallsInfo.callsArgWith(1, "failed");
+
+            router.incoming(42);
+
+            sinon.assert.calledOnce(notifications.errorL10n);
+          });
+
+        describe("requestCallsInfo successful", function() {
           var fakeSessionData, resolvePromise, rejectPromise;
 
           beforeEach(function() {
@@ -181,7 +197,7 @@ describe("loop.conversation", function() {
 
             sandbox.stub(router, "_setupWebSocketAndCallView");
 
-            navigator.mozLoop.getCallData.returns(fakeSessionData);
+            client.requestCallsInfo.callsArgWith(1, null, [fakeSessionData]);
           });
 
           it("should store the session data", function() {

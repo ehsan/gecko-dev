@@ -991,10 +991,9 @@ CanvasRenderingContext2D::EnsureTarget(RenderingMode aRenderingMode)
         if (!mTarget) {
           mTarget = layerManager->CreateDrawTarget(size, format);
         }
-      } else {
+      } else
         mTarget = layerManager->CreateDrawTarget(size, format);
         mode = RenderingMode::SoftwareBackendMode;
-      }
      } else {
         mTarget = gfxPlatform::GetPlatform()->CreateOffscreenCanvasDrawTarget(size, format);
         mode = RenderingMode::SoftwareBackendMode;
@@ -1278,7 +1277,7 @@ CanvasRenderingContext2D::Scale(double x, double y, ErrorResult& error)
   }
 
   Matrix newMatrix = mTarget->GetTransform();
-  mTarget->SetTransform(newMatrix.PreScale(x, y));
+  mTarget->SetTransform(newMatrix.Scale(x, y));
 }
 
 void
@@ -1303,7 +1302,8 @@ CanvasRenderingContext2D::Translate(double x, double y, ErrorResult& error)
     return;
   }
 
-  mTarget->SetTransform(Matrix(mTarget->GetTransform()).PreTranslate(x, y));
+  Matrix newMatrix = mTarget->GetTransform();
+  mTarget->SetTransform(newMatrix.Translate(x, y));
 }
 
 void
@@ -3023,9 +3023,9 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
 
     // Translate so that the anchor point is at 0,0, then scale and then
     // translate back.
-    newTransform.PreTranslate(aX, 0);
-    newTransform.PreScale(aMaxWidth.Value() / totalWidth, 1);
-    newTransform.PreTranslate(-aX, 0);
+    newTransform.Translate(aX, 0);
+    newTransform.Scale(aMaxWidth.Value() / totalWidth, 1);
+    newTransform.Translate(-aX, 0);
     /* we do this to avoid an ICE in the android compiler */
     Matrix androidCompilerBug = newTransform;
     mTarget->SetTransform(androidCompilerBug);
@@ -3520,10 +3520,9 @@ CanvasRenderingContext2D::DrawDirectlyToCanvas(
   src.Scale(scale.width, scale.height);
 
   nsRefPtr<gfxContext> context = new gfxContext(tempTarget);
-  context->SetMatrix(contextMatrix.
-                       Scale(1.0 / contextScale.width,
-                             1.0 / contextScale.height).
-                       Translate(dest.x - src.x, dest.y - src.y));
+  context->SetMatrix(contextMatrix);
+  context->Scale(1.0 / contextScale.width, 1.0 / contextScale.height);
+  context->Translate(gfxPoint(dest.x - src.x, dest.y - src.y));
 
   // FLAG_CLAMP is added for increased performance, since we never tile here.
   uint32_t modifiedFlags = image.mDrawingFlags | imgIContainer::FLAG_CLAMP;
@@ -3725,7 +3724,7 @@ CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& window, double x,
     }
 
     thebes = new gfxContext(drawDT);
-    thebes->SetMatrix(gfxMatrix::Scaling(matrix._11, matrix._22));
+    thebes->Scale(matrix._11, matrix._22);
   }
 
   nsCOMPtr<nsIPresShell> shell = presContext->PresShell();

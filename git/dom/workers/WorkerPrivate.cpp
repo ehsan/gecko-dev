@@ -1281,12 +1281,16 @@ private:
   virtual bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
   {
+    // Don't fire this event if the JS object has been disconnected from the
+    // private object.
+    if (!aWorkerPrivate->IsAcceptingEvents()) {
+      return true;
+    }
+
     JS::Rooted<JSObject*> target(aCx, aWorkerPrivate->GetWrapper());
 
     uint64_t innerWindowId;
     bool fireAtScope = true;
-
-    bool workerIsAcceptingEvents = aWorkerPrivate->IsAcceptingEvents();
 
     WorkerPrivate* parent = aWorkerPrivate->GetParent();
     if (parent) {
@@ -1315,19 +1319,9 @@ private:
         return true;
       }
 
-      // The innerWindowId is only required if we are going to ReportError
-      // below, which is gated on this condition. The inner window correctness
-      // check is only going to succeed when the worker is accepting events.
-      if (workerIsAcceptingEvents) {
-        aWorkerPrivate->AssertInnerWindowIsCorrect();
-        innerWindowId = aWorkerPrivate->GetInnerWindowId();
-      }
-    }
+      aWorkerPrivate->AssertInnerWindowIsCorrect();
 
-    // Don't fire this event if the JS object has been disconnected from the
-    // private object.
-    if (!workerIsAcceptingEvents) {
-      return true;
+      innerWindowId = aWorkerPrivate->GetInnerWindowId();
     }
 
     return ReportError(aCx, parent, fireAtScope, aWorkerPrivate, mMessage,

@@ -58,7 +58,7 @@ FallbackICSpew(JSContext *cx, ICFallbackStub *stub, const char *fmt, ...)
                 script->lineno(),
                 (int) script->pcToOffset(pc),
                 PCToLineNumber(script, pc),
-                script->getWarmUpCounter(),
+                script->getUseCount(),
                 (int) stub->numOptimizedStubs(),
                 fmtbuf);
     }
@@ -83,7 +83,7 @@ TypeFallbackICSpew(JSContext *cx, ICTypeMonitor_Fallback *stub, const char *fmt,
                 script->lineno(),
                 (int) script->pcToOffset(pc),
                 PCToLineNumber(script, pc),
-                script->getWarmUpCounter(),
+                script->getUseCount(),
                 (int) stub->numOptimizedMonitorStubs(),
                 fmtbuf);
     }
@@ -776,11 +776,11 @@ ICStubCompiler::emitPostWriteBarrierSlot(MacroAssembler &masm, Register obj, Val
 #endif // JSGC_GENERATIONAL
 
 //
-// WarmUpCounter_Fallback
+// UseCount_Fallback
 //
 
 static bool
-EnsureCanEnterIon(JSContext *cx, ICWarmUpCounter_Fallback *stub, BaselineFrame *frame,
+EnsureCanEnterIon(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *frame,
                   HandleScript script, jsbytecode *pc, void **jitcodePtr)
 {
     JS_ASSERT(jitcodePtr);
@@ -814,16 +814,16 @@ EnsureCanEnterIon(JSContext *cx, ICWarmUpCounter_Fallback *stub, BaselineFrame *
     else
         MOZ_CRASH("Invalid MethodStatus!");
 
-    // Failed to compile.  Reset warm-up counter and return.
+    // Failed to compile.  Reset use count and return.
     if (stat != Method_Compiled) {
-        // TODO: If stat == Method_CantCompile, insert stub that just skips the
-        // warm-up counter entirely, instead of resetting it.
+        // TODO: If stat == Method_CantCompile, insert stub that just skips the useCount
+        // entirely, instead of resetting it.
         bool bailoutExpected = script->hasIonScript() && script->ionScript()->bailoutExpected();
         if (stat == Method_CantCompile || bailoutExpected) {
-            JitSpew(JitSpew_BaselineOSR, "  Reset WarmUpCounter cantCompile=%s bailoutExpected=%s!",
+            JitSpew(JitSpew_BaselineOSR, "  Reset UseCount cantCompile=%s bailoutExpected=%s!",
                     stat == Method_CantCompile ? "yes" : "no",
                     bailoutExpected ? "yes" : "no");
-            script->resetWarmUpCounter();
+            script->resetUseCount();
         }
         return true;
     }
@@ -875,7 +875,7 @@ struct IonOsrTempData
 };
 
 static IonOsrTempData *
-PrepareOsrTempData(JSContext *cx, ICWarmUpCounter_Fallback *stub, BaselineFrame *frame,
+PrepareOsrTempData(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *frame,
                    HandleScript script, jsbytecode *pc, void *jitcode)
 {
     size_t numLocalsAndStackVals = frame->numValueSlots();
@@ -920,7 +920,7 @@ PrepareOsrTempData(JSContext *cx, ICWarmUpCounter_Fallback *stub, BaselineFrame 
 }
 
 static bool
-DoWarmUpCounterFallback(JSContext *cx, ICWarmUpCounter_Fallback *stub, BaselineFrame *frame,
+DoUseCountFallback(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *frame,
                    IonOsrTempData **infoPtr)
 {
     JS_ASSERT(infoPtr);
@@ -936,13 +936,13 @@ DoWarmUpCounterFallback(JSContext *cx, ICWarmUpCounter_Fallback *stub, BaselineF
 
     JS_ASSERT(!isLoopEntry || LoopEntryCanIonOsr(pc));
 
-    FallbackICSpew(cx, stub, "WarmUpCounter(%d)", isLoopEntry ? int(script->pcToOffset(pc)) : int(-1));
+    FallbackICSpew(cx, stub, "UseCount(%d)", isLoopEntry ? int(script->pcToOffset(pc)) : int(-1));
 
     if (!script->canIonCompile()) {
         // TODO: ASSERT that ion-compilation-disabled checker stub doesn't exist.
         // TODO: Clear all optimized stubs.
         // TODO: Add a ion-compilation-disabled checker IC stub
-        script->resetWarmUpCounter();
+        script->resetUseCount();
         return true;
     }
 
@@ -960,8 +960,8 @@ DoWarmUpCounterFallback(JSContext *cx, ICWarmUpCounter_Fallback *stub, BaselineF
 
     // Ensure that Ion-compiled code is available.
     JitSpew(JitSpew_BaselineOSR,
-            "WarmUpCounter for %s:%d reached %d at pc %p, trying to switch to Ion!",
-            script->filename(), script->lineno(), (int) script->getWarmUpCounter(), (void *) pc);
+            "UseCount for %s:%d reached %d at pc %p, trying to switch to Ion!",
+            script->filename(), script->lineno(), (int) script->getUseCount(), (void *) pc);
     void *jitcode = nullptr;
     if (!EnsureCanEnterIon(cx, stub, frame, script, pc, &jitcode))
         return false;
@@ -981,13 +981,13 @@ DoWarmUpCounterFallback(JSContext *cx, ICWarmUpCounter_Fallback *stub, BaselineF
     return true;
 }
 
-typedef bool (*DoWarmUpCounterFallbackFn)(JSContext *, ICWarmUpCounter_Fallback *, BaselineFrame *frame,
+typedef bool (*DoUseCountFallbackFn)(JSContext *, ICUseCount_Fallback *, BaselineFrame *frame,
                                      IonOsrTempData **infoPtr);
-static const VMFunction DoWarmUpCounterFallbackInfo =
-    FunctionInfo<DoWarmUpCounterFallbackFn>(DoWarmUpCounterFallback);
+static const VMFunction DoUseCountFallbackInfo =
+    FunctionInfo<DoUseCountFallbackFn>(DoUseCountFallback);
 
 bool
-ICWarmUpCounter_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
+ICUseCount_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 {
     // enterStubFrame is going to clobber the BaselineFrameReg, save it in R0.scratchReg()
     // first.
@@ -997,7 +997,7 @@ ICWarmUpCounter_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
     enterStubFrame(masm, R1.scratchReg());
 
     Label noCompiledCode;
-    // Call DoWarmUpCounterFallback to compile/check-for Ion-compiled function
+    // Call DoUseCountFallback to compile/check-for Ion-compiled function
     {
         // Push IonOsrTempData pointer storage
         masm.subPtr(Imm32(sizeof(void *)), BaselineStackReg);
@@ -1010,7 +1010,7 @@ ICWarmUpCounter_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
         // Push stub pointer.
         masm.push(BaselineStubReg);
 
-        if (!callVM(DoWarmUpCounterFallbackInfo, masm))
+        if (!callVM(DoUseCountFallbackInfo, masm))
             return false;
 
         // Pop IonOsrTempData pointer.

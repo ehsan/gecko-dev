@@ -2762,7 +2762,8 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::ParagraphDepthProperty()))
    * incremented during empty transactions.
    */  
   void AddPaintedPresShell(nsIPresShell* shell) { 
-    PaintedPresShellList()->AppendElement(do_GetWeakReference(shell));
+    nsWeakPtr weakShell = do_GetWeakReference(shell);
+    PaintedPresShellList()->AppendElement(weakShell);
   }
   
   /**

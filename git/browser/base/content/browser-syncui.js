@@ -2,15 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-#ifdef MOZ_SERVICES_CLOUDSYNC
-XPCOMUtils.defineLazyModuleGetter(this, "CloudSync",
-                                  "resource://gre/modules/CloudSync.jsm");
-#else
-let CloudSync = null;
-#endif
-
 // gSyncUI handles updating the tools menu and displaying notifications.
 let gSyncUI = {
   DEFAULT_EOL_URL: "https://www.mozilla.org/firefox/?utm_source=synceol",
@@ -131,9 +122,7 @@ let gSyncUI = {
     document.getElementById("sync-setup-state").hidden = true;
     document.getElementById("sync-syncnow-state").hidden = true;
 
-    if (CloudSync && CloudSync.ready && CloudSync().adapters.count) {
-      document.getElementById("sync-syncnow-state").hidden = false;
-    } else if (loginFailed) {
+    if (loginFailed) {
       document.getElementById("sync-reauth-state").hidden = false;
     } else if (needsSetup) {
       document.getElementById("sync-setup-state").hidden = false;
@@ -286,14 +275,7 @@ let gSyncUI = {
 
   // Commands
   doSync: function SUI_doSync() {
-    let needsSetup = this._needsSetup();
-    let loginFailed = this._loginFailed();
-
-    if (!(loginFailed || needsSetup)) {
-      setTimeout(function () Weave.Service.errorHandler.syncAndReportErrors(), 0);
-    }
-
-    Services.obs.notifyObservers(null, "cloudsync:user-sync", null);
+    setTimeout(function() Weave.Service.errorHandler.syncAndReportErrors(), 0);
   },
 
   handleToolbarButton: function SUI_handleStatusbarButton() {
@@ -314,11 +296,9 @@ let gSyncUI = {
    *          null    -- regular set up wizard
    *          "pair"  -- pair a device first
    *          "reset" -- reset sync
-   * @param entryPoint
-   *        Indicates the entrypoint from where this method was called.
    */
 
-  openSetup: function SUI_openSetup(wizardType, entryPoint = "syncbutton") {
+  openSetup: function SUI_openSetup(wizardType) {
     let xps = Components.classes["@mozilla.org/weave/service;1"]
                                 .getService(Components.interfaces.nsISupports)
                                 .wrappedJSObject;
@@ -327,13 +307,7 @@ let gSyncUI = {
         if (userData) {
           this.openPrefs();
         } else {
-          // If the user is also in an uitour, set the entrypoint to `uitour`
-          if (UITour.originTabs.get(window) && UITour.originTabs.get(window).has(gBrowser.selectedTab)) {
-            entryPoint = "uitour";
-          }
-          switchToTabHavingURI("about:accounts?entrypoint=" + entryPoint, true, {
-            replaceQueryString: true
-          });
+          switchToTabHavingURI("about:accounts", true);
         }
       });
     } else {
@@ -374,14 +348,8 @@ let gSyncUI = {
     openPreferences("paneSync");
   },
 
-  openSignInAgainPage: function (entryPoint = "syncbutton") {
-    // If the user is also in an uitour, set the entrypoint to `uitour`
-    if (UITour.originTabs.get(window) && UITour.originTabs.get(window).has(gBrowser.selectedTab)) {
-      entryPoint = "uitour";
-    }
-    switchToTabHavingURI("about:accounts?action=reauth&entrypoint=" + entryPoint, true, {
-      replaceQueryString: true
-    });
+  openSignInAgainPage: function () {
+    switchToTabHavingURI("about:accounts?action=reauth", true);
   },
 
   // Helpers

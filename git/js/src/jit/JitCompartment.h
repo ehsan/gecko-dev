@@ -193,9 +193,6 @@ class JitRuntime
     JitCode *mallocStub_;
     JitCode *freeStub_;
 
-    // Thunk called to finish compilation of an IonScript.
-    JitCode *lazyLinkStub_;
-
     // Thunk used by the debugger for breakpoint and step mode.
     JitCode *debugTrapHandler_;
 
@@ -241,7 +238,6 @@ class JitRuntime
     JitcodeGlobalTable *jitcodeGlobalTable_;
 
   private:
-    JitCode *generateLazyLinkStub(JSContext *cx);
     JitCode *generateExceptionTailStub(JSContext *cx);
     JitCode *generateBailoutTailStub(JSContext *cx);
     JitCode *generateEnterJIT(JSContext *cx, EnterJitType type);
@@ -371,10 +367,6 @@ class JitRuntime
 
     JitCode *freeStub() const {
         return freeStub_;
-    }
-
-    JitCode *lazyLinkStub() const {
-        return lazyLinkStub_;
     }
 
     bool ensureForkJoinGetSliceStubExists(JSContext *cx);

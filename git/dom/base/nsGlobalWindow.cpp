@@ -642,12 +642,6 @@ public:
                      JS::Handle<jsid> id, JS::Handle<JSObject*> callable) const MOZ_OVERRIDE;
   virtual bool unwatch(JSContext *cx, JS::Handle<JSObject*> proxy,
                        JS::Handle<jsid> id) const MOZ_OVERRIDE;
-  virtual bool isCallable(JSObject *obj) const MOZ_OVERRIDE {
-    return false;
-  }
-  virtual bool isConstructor(JSObject *obj) const MOZ_OVERRIDE {
-    return false;
-  }
 
   // Derived traps
   virtual bool has(JSContext *cx, JS::Handle<JSObject*> proxy,
@@ -700,6 +694,8 @@ const js::Class OuterWindowProxyClass =
         "Proxy",
         0, /* additional slots */
         0, /* additional class flags */
+        nullptr, /* call */
+        nullptr, /* construct */
         PROXY_MAKE_EXT(
             nullptr, /* outerObject */
             js::proxy_innerObject,
@@ -1059,7 +1055,7 @@ NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> parent, bool isChrome)
   JSObject *obj = js::Wrapper::New(cx, parent, parent,
                                    isChrome ? &nsChromeOuterWindowProxy::singleton
                                             : &nsOuterWindowProxy::singleton,
-                                   options);
+                                   &options);
 
   NS_ASSERTION(js::GetObjectClass(obj)->ext.innerObject, "bad class");
   return obj;
@@ -7133,23 +7129,17 @@ nsGlobalWindow::GetTopWindowRoot()
 }
 
 void
-nsGlobalWindow::Scroll(double aXScroll, double aYScroll,
+nsGlobalWindow::Scroll(int32_t aXScroll, int32_t aYScroll,
                        const ScrollOptions& aOptions)
 {
-  // Convert -Inf, Inf, and NaN to 0; otherwise, convert by C-style cast.
-  CSSIntPoint scrollPos(mozilla::ToZeroIfNonfinite(aXScroll),
-                        mozilla::ToZeroIfNonfinite(aYScroll));
-  ScrollTo(scrollPos, aOptions);
+  ScrollTo(CSSIntPoint(aXScroll, aYScroll), aOptions);
 }
 
 void
-nsGlobalWindow::ScrollTo(double aXScroll, double aYScroll,
+nsGlobalWindow::ScrollTo(int32_t aXScroll, int32_t aYScroll,
                          const ScrollOptions& aOptions)
 {
-  // Convert -Inf, Inf, and NaN to 0; otherwise, convert by C-style cast.
-  CSSIntPoint scrollPos(mozilla::ToZeroIfNonfinite(aXScroll),
-                        mozilla::ToZeroIfNonfinite(aYScroll));
-  ScrollTo(scrollPos, aOptions);
+  ScrollTo(CSSIntPoint(aXScroll, aYScroll), aOptions);
 }
 
 NS_IMETHODIMP
@@ -7206,20 +7196,19 @@ nsGlobalWindow::ScrollBy(int32_t aXScrollDif, int32_t aYScrollDif)
 }
 
 void
-nsGlobalWindow::ScrollBy(double aXScrollDif, double aYScrollDif,
+nsGlobalWindow::ScrollBy(int32_t aXScrollDif, int32_t aYScrollDif,
                          const ScrollOptions& aOptions)
 {
   FlushPendingNotifications(Flush_Layout);
   nsIScrollableFrame *sf = GetScrollFrame();
 
   if (sf) {
-    // Convert -Inf, Inf, and NaN to 0; otherwise, convert by C-style cast.
-    CSSIntPoint scrollDif(mozilla::ToZeroIfNonfinite(aXScrollDif),
-                          mozilla::ToZeroIfNonfinite(aYScrollDif));
+    CSSIntPoint scrollPos =
+      sf->GetScrollPositionCSSPixels() + CSSIntPoint(aXScrollDif, aYScrollDif);
     // It seems like it would make more sense for ScrollBy to use
     // SMOOTH mode, but tests seem to depend on the synchronous behaviour.
     // Perhaps Web content does too.
-    ScrollTo(sf->GetScrollPositionCSSPixels() + scrollDif, aOptions);
+    ScrollTo(scrollPos, aOptions);
   }
 }
 

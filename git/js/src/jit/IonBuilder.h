@@ -10,8 +10,6 @@
 // This file declares the data structures for building a MIRGraph from a
 // JSScript.
 
-#include "mozilla/LinkedList.h"
-
 #include "jit/BytecodeAnalysis.h"
 #include "jit/IonOptimizationLevels.h"
 #include "jit/MIR.h"
@@ -31,9 +29,7 @@ class BaselineFrameInspector;
 BaselineFrameInspector *
 NewBaselineFrameInspector(TempAllocator *temp, BaselineFrame *frame, CompileInfo *info);
 
-class IonBuilder
-  : public MIRGenerator,
-    public mozilla::LinkedListElement<IonBuilder>
+class IonBuilder : public MIRGenerator
 {
     enum ControlStatus {
         ControlStatus_Error,
@@ -347,12 +343,8 @@ class IonBuilder
     MConstant *constant(const Value &v);
     MConstant *constantInt(int32_t i);
 
-    // Improve the type information at tests
-    bool improveTypesAtTest(MDefinition *ins, bool trueBranch, MTest *test);
-    bool improveTypesAtCompare(MCompare *ins, bool trueBranch, MTest *test);
-    // Used to detect triangular structure at test.
-    bool detectAndOrStructure(MPhi *ins, bool *branchIsTrue);
-    bool replaceTypeSet(MDefinition *subject, types::TemporaryTypeSet *type, MTest *test);
+    // Filter the type information at tests
+    bool filterTypesAtTest(MTest *test);
 
     // Add a guard which ensure that the set of type which goes through this
     // generated code correspond to the observed types for the bytecode.

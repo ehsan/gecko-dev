@@ -34,9 +34,6 @@ ContentProcess::Init()
 void
 ContentProcess::CleanUp()
 {
-#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
-    mContent.CleanUpSandboxEnvironment();
-#endif
     mXREEmbed.Stop();
 }
 

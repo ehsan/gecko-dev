@@ -163,9 +163,8 @@ SimpleTiledLayerBuffer::ValidateTile(SimpleTiledLayerTile aTile,
   // do the drawing
   RefPtr<gfxContext> ctxt = new gfxContext(drawTarget);
 
-  ctxt->SetMatrix(
-    ctxt->CurrentMatrix().Scale(mResolution, mResolution).
-                          Translate(-aTileOrigin.x, -aTileOrigin.y));
+  ctxt->Scale(mResolution, mResolution);
+  ctxt->Translate(gfxPoint(-aTileOrigin.x, -aTileOrigin.y));
 
   mCallback(mThebesLayer, ctxt,
             drawRegion,

@@ -396,8 +396,7 @@ ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
 
   nsRefPtr<gfxContext> context = new gfxContext(mDrawTarget);
 
-  context->SetMatrix(
-    context->CurrentMatrix().Translate(-visibleRect.x, -visibleRect.y));
+  context->Translate(gfxPoint(-visibleRect.x, -visibleRect.y));
   if (aMode == SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA) {
     nsIntRegionRectIterator iter(aRegion);
     const nsIntRect *iterRect;

@@ -698,20 +698,8 @@ TypeSet::cloneObjectsOnly(LifoAlloc *alloc)
     if (!res)
         return nullptr;
 
-    res->flags &= ~TYPE_FLAG_BASE_MASK | TYPE_FLAG_ANYOBJECT;
+    res->flags &= TYPE_FLAG_ANYOBJECT;
 
-    return res;
-}
-
-TemporaryTypeSet *
-TypeSet::cloneWithoutObjects(LifoAlloc *alloc)
-{
-    TemporaryTypeSet *res = alloc->new_<TemporaryTypeSet>();
-    if (!res)
-        return nullptr;
-
-    res->flags = flags & ~TYPE_FLAG_ANYOBJECT;
-    res->setBaseObjectCount(0);
     return res;
 }
 
@@ -731,53 +719,6 @@ TypeSet::unionSets(TypeSet *a, TypeSet *b, LifoAlloc *alloc)
         for (size_t i = 0; i < b->getObjectCount() && !res->unknownObject(); i++) {
             if (TypeObjectKey *key = b->getObject(i))
                 res->addType(Type::ObjectType(key), alloc);
-        }
-    }
-
-    return res;
-}
-
-/* static */ TemporaryTypeSet *
-TypeSet::intersectSets(TemporaryTypeSet *a, TemporaryTypeSet *b, LifoAlloc *alloc)
-{
-    TemporaryTypeSet *res;
-    res = alloc->new_<TemporaryTypeSet>(a->baseFlags() & b->baseFlags(),
-                static_cast<TypeObjectKey**>(nullptr));
-    if (!res)
-        return nullptr;
-
-    res->setBaseObjectCount(0);
-    if (res->unknownObject())
-        return res;
-
-    MOZ_ASSERT(!a->unknownObject() || !b->unknownObject());
-
-    if (a->unknownObject()) {
-        for (size_t i = 0; i < b->getObjectCount(); i++) {
-            if (b->getObject(i))
-                res->addType(Type::ObjectType(b->getObject(i)), alloc);
-        }
-        return res;
-    }
-
-    if (b->unknownObject()) {
-        for (size_t i = 0; i < a->getObjectCount(); i++) {
-            if (b->getObject(i))
-                res->addType(Type::ObjectType(a->getObject(i)), alloc);
-        }
-        return res;
-    }
-
-    MOZ_ASSERT(!a->unknownObject() && !b->unknownObject());
-
-    for (size_t i = 0; i < a->getObjectCount(); i++) {
-        for (size_t j = 0; j < b->getObjectCount(); j++) {
-            if (b->getObject(j) != a->getObject(i))
-                continue;
-            if (!b->getObject(j))
-                continue;
-            res->addType(Type::ObjectType(b->getObject(j)), alloc);
-            break;
         }
     }
 
@@ -1250,7 +1191,7 @@ types::FinishCompilation(JSContext *cx, HandleScript script, ExecutionMode execu
 
     if (!succeeded || types.compilerOutputs->back().pendingInvalidation()) {
         types.compilerOutputs->back().invalidate();
-        script->resetWarmUpCounter();
+        script->resetUseCount();
         return false;
     }
 
@@ -2063,7 +2004,7 @@ TemporaryTypeSet::maybeCallable()
     unsigned count = getObjectCount();
     for (unsigned i = 0; i < count; i++) {
         const Class *clasp = getObjectClass(i);
-        if (clasp && (clasp->isProxy() || clasp->nonProxyCallable()))
+        if (clasp && clasp->isCallable())
             return true;
     }
 
@@ -2418,7 +2359,7 @@ TypeZone::addPendingRecompile(JSContext *cx, JSScript *script)
 
     // Let the script warm up again before attempting another compile.
     if (jit::IsBaselineEnabled(cx))
-        script->resetWarmUpCounter();
+        script->resetUseCount();
 
     if (script->hasIonScript())
         addPendingRecompile(cx, script->ionScript()->recompileInfo());

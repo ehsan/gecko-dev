@@ -30,13 +30,11 @@ SpeechGrammar::~SpeechGrammar()
 {
 }
 
-already_AddRefed<SpeechGrammar>
+SpeechGrammar*
 SpeechGrammar::Constructor(const GlobalObject& aGlobal,
                            ErrorResult& aRv)
 {
-  nsRefPtr<SpeechGrammar> speechGrammar =
-    new SpeechGrammar(aGlobal.GetAsSupports());
-  return speechGrammar.forget();
+  return new SpeechGrammar(aGlobal.GetAsSupports());
 }
 
 nsISupports*

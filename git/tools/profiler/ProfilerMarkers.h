@@ -156,7 +156,7 @@ private:
 class TouchDataPayload : public ProfilerMarkerPayload
 {
 public:
-  explicit TouchDataPayload(const mozilla::ScreenIntPoint& aPoint);
+  TouchDataPayload(const mozilla::ScreenIntPoint& aPoint);
   virtual ~TouchDataPayload() {}
 
 protected:

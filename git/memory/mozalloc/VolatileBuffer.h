@@ -91,7 +91,6 @@ public:
   }
 
 protected:
-  RefPtr<VolatileBuffer> mVBuf;
   void* mMapping;
 
   void Set(VolatileBuffer* vbuf) {
@@ -101,6 +100,7 @@ protected:
   }
 
 private:
+  RefPtr<VolatileBuffer> mVBuf;
   bool mPurged;
 
   void Lock() {
@@ -126,30 +126,13 @@ public:
   explicit VolatileBufferPtr(VolatileBuffer* vbuf) : VolatileBufferPtr_base(vbuf) {}
   VolatileBufferPtr() : VolatileBufferPtr_base(nullptr) {}
 
-  VolatileBufferPtr(VolatileBufferPtr&& aOther)
-    : VolatileBufferPtr_base(aOther.mVBuf)
-  {
-    aOther.Set(nullptr);
-  }
-
   operator T*() const {
     return (T*) mMapping;
   }
 
-  VolatileBufferPtr& operator=(VolatileBuffer* aVBuf)
-  {
-    Set(aVBuf);
-    return *this;
+  void operator =(VolatileBuffer* vbuf) {
+    Set(vbuf);
   }
-
-  VolatileBufferPtr& operator=(VolatileBufferPtr&& aOther)
-  {
-    MOZ_ASSERT(this != &aOther, "Self-moves are prohibited");
-    Set(aOther.mVBuf);
-    aOther.Set(nullptr);
-    return *this;
-  }
-
 private:
   VolatileBufferPtr(VolatileBufferPtr const& vbufptr) MOZ_DELETE;
 };

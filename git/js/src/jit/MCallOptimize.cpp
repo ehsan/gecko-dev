@@ -1982,9 +1982,9 @@ IonBuilder::inlineIsCallable(CallInfo &callInfo)
     } else {
         types::TemporaryTypeSet *types = callInfo.getArg(0)->resultTypeSet();
         const Class *clasp = types ? types->getKnownClass() : nullptr;
-        if (clasp && !clasp->isProxy()) {
+        if (clasp) {
             isCallableKnown = true;
-            isCallableConstant = clasp->nonProxyCallable();
+            isCallableConstant = clasp->isCallable();
         }
     }
 
