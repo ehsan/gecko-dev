@@ -45,7 +45,8 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 #include "nsContentUtils.h"
 
 #include "nsIDOMText.h"
@@ -393,7 +394,7 @@ nsMathMLmoFrame::ProcessOperatorData()
       // cache the default values of lspace & rspace that we get from the dictionary.
       // since these values are relative to the 'em' unit, convert to twips now
       nscoord em;
-      nsRefPtr<nsFontMetrics> fm =
+      nsCOMPtr<nsIFontMetrics> fm =
 	presContext->GetMetricsFor(GetStyleFont()->mFont);
       GetEmHeight(fm, em);
 
@@ -623,7 +624,7 @@ GetStretchHint(nsOperatorFlags aFlags, nsPresentationData aPresentationData,
 //       On input  - it contains our current size
 //       On output - the same size or the new size that we want
 NS_IMETHODIMP
-nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
+nsMathMLmoFrame::Stretch(nsIRenderingContext& aRenderingContext,
                          nsStretchDirection   aStretchDirection,
                          nsBoundingMetrics&   aContainerSize,
                          nsHTMLReflowMetrics& aDesiredStretchSize)
@@ -637,14 +638,15 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
   nsIFrame* firstChild = mFrames.FirstChild();
 
   // get the axis height;
+  nsCOMPtr<nsIFontMetrics> fm;
   aRenderingContext.SetFont(GetStyleFont()->mFont,
                             PresContext()->GetUserFontSet());
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
+  aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
   nscoord axisHeight, height;
   GetAxisHeight(aRenderingContext, fm, axisHeight);
 
   // get the leading to be left at the top and the bottom of the stretched char
-  // this seems more reliable than using fm->GetLeading() on suspicious fonts
+  // this seems more reliable than using fm->GetLeading() on suspicious fonts               
   nscoord em;
   GetEmHeight(fm, em);
   nscoord leading = NSToCoordRound(0.2f * em);
@@ -854,8 +856,9 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
     firstChild->SetPosition(firstChild->GetPosition() - nsPoint(0, dy));
   }
   else if (useMathMLChar) {
-    nscoord ascent = fm->MaxAscent();
-    nscoord descent = fm->MaxDescent();
+    nscoord ascent, descent;
+    fm->GetMaxAscent(ascent);
+    fm->GetMaxDescent(descent);
     aDesiredStretchSize.ascent = NS_MAX(mBoundingMetrics.ascent + leading, ascent);
     aDesiredStretchSize.height = aDesiredStretchSize.ascent +
                                  NS_MAX(mBoundingMetrics.descent + leading, descent);
@@ -966,7 +969,7 @@ nsMathMLmoFrame::Reflow(nsPresContext*          aPresContext,
     aDesiredSize.width = 0;
     aDesiredSize.height = 0;
     aDesiredSize.ascent = 0;
-    aDesiredSize.mBoundingMetrics = nsBoundingMetrics();
+    aDesiredSize.mBoundingMetrics.Clear();
     aStatus = NS_FRAME_COMPLETE;
 
     NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
@@ -1003,7 +1006,7 @@ nsMathMLmoFrame::MarkIntrinsicWidthsDirty()
 }
 
 /* virtual */ nscoord
-nsMathMLmoFrame::GetIntrinsicWidth(nsRenderingContext *aRenderingContext)
+nsMathMLmoFrame::GetIntrinsicWidth(nsIRenderingContext *aRenderingContext)
 {
   ProcessOperatorData();
   nscoord width;

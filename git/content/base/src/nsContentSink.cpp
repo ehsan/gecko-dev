@@ -287,27 +287,24 @@ nsContentSink::Init(nsIDocument* aDoc,
 
   mDocumentURI = aURI;
   mDocShell = do_QueryInterface(aContainer);
-  mScriptLoader = mDocument->ScriptLoader();
-
-  if (!mFragmentMode) {
-    if (mDocShell) {
-      PRUint32 loadType = 0;
-      mDocShell->GetLoadType(&loadType);
-      mDocument->SetChangeScrollPosWhenScrollingToRef(
-        (loadType & nsIDocShell::LOAD_CMD_HISTORY) == 0);
-    }
-
-    // use this to avoid a circular reference sink->document->scriptloader->sink
-    nsCOMPtr<nsIScriptLoaderObserver> proxy =
-      new nsScriptLoaderObserverProxy(this);
-    NS_ENSURE_TRUE(proxy, NS_ERROR_OUT_OF_MEMORY);
-
-    mScriptLoader->AddObserver(proxy);
-
-    ProcessHTTPHeaders(aChannel);
+  if (mDocShell) {
+    PRUint32 loadType = 0;
+    mDocShell->GetLoadType(&loadType);
+    mDocument->SetChangeScrollPosWhenScrollingToRef(
+      (loadType & nsIDocShell::LOAD_CMD_HISTORY) == 0);
   }
 
+  // use this to avoid a circular reference sink->document->scriptloader->sink
+  nsCOMPtr<nsIScriptLoaderObserver> proxy =
+      new nsScriptLoaderObserverProxy(this);
+  NS_ENSURE_TRUE(proxy, NS_ERROR_OUT_OF_MEMORY);
+
+  mScriptLoader = mDocument->ScriptLoader();
+  mScriptLoader->AddObserver(proxy);
+
   mCSSLoader = aDoc->CSSLoader();
+
+  ProcessHTTPHeaders(aChannel);
 
   mNodeInfoManager = aDoc->NodeInfoManager();
 
@@ -318,11 +315,10 @@ nsContentSink::Init(nsIDocument* aDoc,
     FavorPerformanceHint(!mDynamicLowerValue, 0);
   }
 
-  // prevent DropParserAndPerfHint from unblocking onload in the fragment
-  // case
-  mCanInterruptParser = !mFragmentMode && sCanInterruptParser;
+  mCanInterruptParser = sCanInterruptParser;
 
   return NS_OK;
+
 }
 
 NS_IMETHODIMP

@@ -132,7 +132,6 @@ class nsPresContext;
 class nsIChannel;
 struct nsIntMargin;
 class nsPIDOMWindow;
-class nsIDocumentLoaderFactory;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
@@ -565,7 +564,7 @@ public:
    * since this can happen due to content fixup when a form spans table rows or
    * table cells.
    */
-  static PRBool BelongsInForm(nsIContent *aForm,
+  static PRBool BelongsInForm(nsIDOMHTMLFormElement *aForm,
                               nsIContent *aContent);
 
   static nsresult CheckQName(const nsAString& aQualifiedName,
@@ -992,15 +991,6 @@ public:
   static PRUint32 GetEventId(nsIAtom* aName);
 
   /**
-   * Return the category for the event with the given name. The name is the
-   * event name *without* the 'on' prefix. Returns NS_EVENT if the event
-   * is not known to be in any particular category.
-   *
-   * @param aName the event name to look up
-   */
-  static PRUint32 GetEventCategory(const nsAString& aName);
-
-  /**
    * Return the event id and atom for the event with the given name.
    * The name is the event name *without* the 'on' prefix.
    * Returns NS_USER_DEFINED_EVENT on the aEventID if the
@@ -1172,12 +1162,6 @@ public:
     }
   }
 
-  static void DropScriptObject(PRUint32 aLangID, void *aObject,
-                               const char *name, void *aClosure)
-  {
-    DropScriptObject(aLangID, aObject, aClosure);
-  }
-
   /**
    * Unbinds the content from the tree and nulls it out if it's not null.
    */
@@ -1284,7 +1268,7 @@ public:
     if (aCache->PreservingWrapper()) {
       aCallback(nsIProgrammingLanguage::JAVASCRIPT,
                 aCache->GetWrapperPreserveColor(),
-                "Preserved wrapper", aClosure);
+                aClosure);
     }
   }
 
@@ -1420,14 +1404,6 @@ public:
    * Return true if aURI is a local file URI (i.e. file://).
    */
   static PRBool URIIsLocalFile(nsIURI *aURI);
-
-  /**
-   * Given a URI, return set beforeHash to the part before the '#', and
-   * afterHash to the remainder of the URI, including the '#'.
-   */
-  static nsresult SplitURIAtHash(nsIURI *aURI,
-                                 nsACString &aBeforeHash,
-                                 nsACString &aAfterHash);
 
   /**
    * Get the application manifest URI for this document.  The manifest URI
@@ -1765,42 +1741,6 @@ public:
    */
   static bool AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal);
 
-  enum ContentViewerType
-  {
-      TYPE_UNSUPPORTED,
-      TYPE_CONTENT,
-      TYPE_PLUGIN,
-      TYPE_UNKNOWN
-  };
-
-  static already_AddRefed<nsIDocumentLoaderFactory>
-  FindInternalContentViewer(const char* aType,
-                            ContentViewerType* aLoaderType = nsnull);
-
-  /**
-   * This helper method returns true if the aPattern pattern matches aValue.
-   * aPattern should not contain leading and trailing slashes (/).
-   * The pattern has to match the entire value not just a subset.
-   * aDocument must be a valid pointer (not null).
-   *
-   * This is following the HTML5 specification:
-   * http://dev.w3.org/html5/spec/forms.html#attr-input-pattern
-   *
-   * WARNING: This method mutates aPattern and aValue!
-   *
-   * @param aValue    the string to check.
-   * @param aPattern  the string defining the pattern.
-   * @param aDocument the owner document of the element.
-   * @result          whether the given string is matches the pattern.
-   */
-  static PRBool IsPatternMatching(nsAString& aValue, nsAString& aPattern,
-                                  nsIDocument* aDocument);
-
-  /**
-   * Calling this adds support for
-   * ontouch* event handler DOM attributes.
-   */
-  static void InitializeTouchEventTable();
 private:
   static PRBool InitializeEventTable();
 

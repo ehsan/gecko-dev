@@ -49,6 +49,7 @@
 #include "nsIBrowserDOMWindow.h"
 #include "nsIComponentManager.h"
 #include "nsIContent.h"
+#include "nsIContentUtils.h"
 #include "mozilla/dom/Element.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
@@ -200,7 +201,7 @@
 #include "nsIGlobalHistory3.h"
 
 #ifdef DEBUG_DOCSHELL_FOCUS
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #endif
 
 #include "nsIFrame.h"
@@ -214,7 +215,6 @@
 #endif
 
 #include "nsPluginError.h"
-#include "nsContentUtils.h"
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -584,6 +584,8 @@ SendPing(void *closure, nsIContent *content, nsIURI *uri, nsIIOService *ios)
   httpChan->SetRequestHeader(NS_LITERAL_CSTRING("accept"),
                              EmptyCString(), PR_FALSE);
   httpChan->SetRequestHeader(NS_LITERAL_CSTRING("accept-language"),
+                             EmptyCString(), PR_FALSE);
+  httpChan->SetRequestHeader(NS_LITERAL_CSTRING("accept-charset"),
                              EmptyCString(), PR_FALSE);
   httpChan->SetRequestHeader(NS_LITERAL_CSTRING("accept-encoding"),
                              EmptyCString(), PR_FALSE);
@@ -6488,9 +6490,11 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
   // too, of course.
   mFiredUnloadEvent = PR_FALSE;
 
-  nsCOMPtr<nsIDocumentLoaderFactory> docFactory =
-      nsContentUtils::FindInternalContentViewer("text/html");
+  nsCOMPtr<nsIContentUtils> cutils = do_GetService("@mozilla.org/content/contentutils;1");
+  if (!cutils)
+      return NS_ERROR_FAILURE;
 
+  nsCOMPtr<nsIDocumentLoaderFactory> docFactory = cutils->FindInternalContentViewer("text/html");
   if (docFactory) {
     // generate (about:blank) document to load
     docFactory->CreateBlankDocument(mLoadGroup, aPrincipal,
@@ -7285,7 +7289,7 @@ nsDocShell::RestoreFromHistory()
     // cached viewer size (skipping the resize if they are equal).
 
     if (newRootView) {
-        if (!newBounds.IsEmpty() && !newBounds.IsEqualEdges(oldBounds)) {
+        if (!newBounds.IsEmpty() && newBounds != oldBounds) {
 #ifdef DEBUG_PAGE_CACHE
             printf("resize widget(%d, %d, %d, %d)\n", newBounds.x,
                    newBounds.y, newBounds.width, newBounds.height);
@@ -7515,8 +7519,13 @@ nsDocShell::NewContentViewerObj(const char *aContentType,
 {
     nsCOMPtr<nsIChannel> aOpenedChannel = do_QueryInterface(request);
 
+    nsCOMPtr<nsIContentUtils> cutils = do_GetService("@mozilla.org/content/contentutils;1");
+    if (!cutils) {
+        return NS_ERROR_FAILURE;
+    }
+
     nsCOMPtr<nsIDocumentLoaderFactory> docLoaderFactory =
-        nsContentUtils::FindInternalContentViewer(aContentType);
+        cutils->FindInternalContentViewer(aContentType);
     if (!docLoaderFactory) {
         return NS_ERROR_FAILURE;
     }
@@ -8206,6 +8215,33 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     mAllowKeywordFixup =
       (aFlags & INTERNAL_LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP) != 0;
     mURIResultedInDocument = PR_FALSE;  // reset the clock...
+   
+    //
+    // First:
+    // Check to see if the new URI is an anchor in the existing document.
+    // Skip this check if we're doing some sort of abnormal load, if the
+    // new load is a non-history load and has postdata, or if we're doing
+    // a history load and the page identifiers of mOSHE and aSHEntry
+    // don't match.
+    //
+    PRBool allowScroll = PR_TRUE;
+    if (!aSHEntry) {
+        allowScroll = (aPostData == nsnull);
+    } else if (mOSHE) {
+        PRUint32 ourPageIdent;
+        mOSHE->GetPageIdentifier(&ourPageIdent);
+        PRUint32 otherPageIdent;
+        aSHEntry->GetPageIdentifier(&otherPageIdent);
+        allowScroll = (ourPageIdent == otherPageIdent);
+#ifdef DEBUG
+        if (allowScroll) {
+            nsCOMPtr<nsIInputStream> currentPostData;
+            mOSHE->GetPostData(getter_AddRefs(currentPostData));
+            NS_ASSERTION(currentPostData == aPostData,
+                         "Different POST data for entries for the same page?");
+        }
+#endif
+    }
 
     if (aLoadType == LOAD_NORMAL ||
         aLoadType == LOAD_STOP_CONTENT ||
@@ -8213,81 +8249,40 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         aLoadType == LOAD_HISTORY ||
         aLoadType == LOAD_LINK) {
 
-        // Split mCurrentURI and aURI on the '#' character.  Make sure we read
-        // the return values of SplitURIAtHash; it might fail because
-        // mCurrentURI is null, for instance, and we don't want to allow a
-        // short-circuited navigation in that case.
-        nsCAutoString curBeforeHash, curHash, newBeforeHash, newHash;
-        nsresult splitRv1, splitRv2;
-        splitRv1 = nsContentUtils::SplitURIAtHash(mCurrentURI, curBeforeHash, curHash);
-        splitRv2 = nsContentUtils::SplitURIAtHash(aURI, newBeforeHash, newHash);
+        PRBool wasAnchor = PR_FALSE;
+        PRBool doHashchange = PR_FALSE;
 
-        PRBool sameExceptHashes = NS_SUCCEEDED(splitRv1) &&
-                                  NS_SUCCEEDED(splitRv2) &&
-                                  curBeforeHash.Equals(newBeforeHash);
+        // Get the position of the scrollers.
+        nscoord cx = 0, cy = 0;
+        GetCurScrollPos(ScrollOrientation_X, &cx);
+        GetCurScrollPos(ScrollOrientation_Y, &cy);
 
-        PRBool sameDocIdent = PR_FALSE;
-        if (mOSHE && aSHEntry) {
-            // We're doing a history load.
-
-            PRUint64 ourDocIdent, otherDocIdent;
-            mOSHE->GetDocIdentifier(&ourDocIdent);
-            aSHEntry->GetDocIdentifier(&otherDocIdent);
-            sameDocIdent = (ourDocIdent == otherDocIdent);
-
-#ifdef DEBUG
-            if (sameDocIdent) {
-                nsCOMPtr<nsIInputStream> currentPostData;
-                mOSHE->GetPostData(getter_AddRefs(currentPostData));
-                NS_ASSERTION(currentPostData == aPostData,
-                             "Different POST data for entries for the same page?");
-            }
-#endif
+        if (allowScroll) {
+            NS_ENSURE_SUCCESS(ScrollIfAnchor(aURI, &wasAnchor, aLoadType,
+                                             &doHashchange),
+                              NS_ERROR_FAILURE);
         }
 
-        // A short-circuited load happens when we navigate between two SHEntries
-        // for the same document.  We do a short-circuited load under two
-        // circumstances.  Either
+        // If this is a history load, aSHEntry will have document identifier X
+        // if it was created as a result of a History.pushState() from a
+        // SHEntry with doc ident X, or if it was created by changing the hash
+        // of the URI corresponding to a SHEntry with doc ident X.
+        PRBool sameDocIdent = PR_FALSE;
+        if (mOSHE && aSHEntry) {
+          PRUint64 ourDocIdent, otherDocIdent;
+          mOSHE->GetDocIdentifier(&ourDocIdent);
+          aSHEntry->GetDocIdentifier(&otherDocIdent);
+          sameDocIdent = (ourDocIdent == otherDocIdent);
+        }
+
+        // Do a short-circuited load if the new URI differs from the current
+        // URI only in the hash, or if the two entries belong to the same
+        // document and don't point to the same object.
         //
-        //  a) we're navigating between two different SHEntries which have the
-        //     same document identifiers, or
-        //
-        //  b) we're navigating to a new shentry whose URI differs from the
-        //     current URI only in its hash, the new hash is non-empty, and
-        //     we're not doing a POST.
-        //
-        // The restriction tha the SHEntries in (a) must be different ensures
-        // that history.go(0) and the like trigger full refreshes, rather than
-        // short-circuited loads.
-        PRBool doShortCircuitedLoad = (sameDocIdent && mOSHE != aSHEntry) ||
-                                      (!aSHEntry && aPostData == nsnull &&
-                                       sameExceptHashes && !newHash.IsEmpty());
-
-        // Fire a hashchange event if we're doing a short-circuited load and the
-        // URIs differ only in their hashes.
-        PRBool doHashchange = doShortCircuitedLoad &&
-                              sameExceptHashes &&
-                              !curHash.Equals(newHash);
-
-        if (doShortCircuitedLoad) {
-            // Save the current URI; we need it if we fire a hashchange later.
-            nsCOMPtr<nsIURI> oldURI = mCurrentURI;
-
-            // Save the position of the scrollers.
-            nscoord cx = 0, cy = 0;
-            GetCurScrollPos(ScrollOrientation_X, &cx);
-            GetCurScrollPos(ScrollOrientation_Y, &cy);
-
-            // We scroll the window precisely when we fire a hashchange event.
-            if (doHashchange) {
-                // Take the '#' off the hashes before passing them to
-                // ScrollToAnchor.
-                nsDependentCSubstring curHashName(curHash, 1);
-                nsDependentCSubstring newHashName(newHash, 1);
-                rv = ScrollToAnchor(curHashName, newHashName, aLoadType);
-                NS_ENSURE_SUCCESS(rv, rv);
-            }
-
+        // (If we didn't check that the SHEntries are different objects,
+        // history.go(0) would short-circuit instead of triggering a true
+        // load, and we wouldn't dispatch an onload event to the page.)
+        if (wasAnchor || (sameDocIdent && (mOSHE != aSHEntry))) {
             mLoadType = aLoadType;
             mURIResultedInDocument = PR_TRUE;
 
@@ -8312,7 +8307,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             OnNewURI(aURI, nsnull, owner, mLoadType, PR_TRUE, PR_TRUE, PR_TRUE);
 
             nsCOMPtr<nsIInputStream> postData;
-            PRUint64 docIdent = PRUint64(-1);
+            PRUint32 pageIdent = PR_UINT32_MAX;
             nsCOMPtr<nsISupports> cacheKey;
 
             if (mOSHE) {
@@ -8326,8 +8321,19 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 // wouldn't want here.
                 if (aLoadType & LOAD_CMD_NORMAL) {
                     mOSHE->GetPostData(getter_AddRefs(postData));
-                    mOSHE->GetDocIdentifier(&docIdent);
+                    mOSHE->GetPageIdentifier(&pageIdent);
                     mOSHE->GetCacheKey(getter_AddRefs(cacheKey));
+                }
+
+                if (mLSHE && wasAnchor) {
+                    // If it's an anchor load, set mLSHE's doc identifier to
+                    // mOSHE's doc identifier -- These are the same documents,
+                    // as far as HTML5 is concerned.
+                    PRUint64 docIdent;
+                    rv = mOSHE->GetDocIdentifier(&docIdent);
+                    if (NS_SUCCEEDED(rv)) {
+                        mLSHE->SetDocIdentifier(docIdent);
+                    }
                 }
             }
 
@@ -8348,10 +8354,10 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 if (cacheKey)
                     mOSHE->SetCacheKey(cacheKey);
 
-                // Propagate our document identifier to the new mOSHE so that
-                // we'll know it's related by an anchor navigation or pushState.
-                if (docIdent != PRUint64(-1))
-                    mOSHE->SetDocIdentifier(docIdent);
+                // Propagate our page ident to the new mOSHE so that
+                // we'll know it just differed by a scroll on the page.
+                if (pageIdent != PR_UINT32_MAX)
+                    mOSHE->SetPageIdentifier(pageIdent);
             }
 
             /* restore previous position of scroller(s), if we're moving
@@ -8419,11 +8425,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                   window->DispatchSyncPopState();
                 }
 
-                if (doHashchange) {
-                  // Make sure to use oldURI here, not mCurrentURI, because by
-                  // now, mCurrentURI has changed!
-                  window->DispatchAsyncHashchange(oldURI, aURI);
-                }
+                if (doHashchange)
+                  window->DispatchAsyncHashchange();
             }
 
             return NS_OK;
@@ -9049,9 +9052,20 @@ nsresult nsDocShell::DoChannelLoad(nsIChannel * aChannel,
 }
 
 nsresult
-nsDocShell::ScrollToAnchor(nsACString & aCurHash, nsACString & aNewHash,
-                           PRUint32 aLoadType)
+nsDocShell::ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
+                           PRUint32 aLoadType, PRBool * aDoHashchange)
 {
+    NS_ASSERTION(aURI, "null uri arg");
+    NS_ASSERTION(aWasAnchor, "null anchor arg");
+    NS_PRECONDITION(aDoHashchange, "null hashchange arg");
+
+    if (!aURI || !aWasAnchor) {
+        return NS_ERROR_FAILURE;
+    }
+
+    *aWasAnchor = PR_FALSE;
+    *aDoHashchange = PR_FALSE;
+
     if (!mCurrentURI) {
         return NS_OK;
     }
@@ -9061,28 +9075,116 @@ nsDocShell::ScrollToAnchor(nsACString & aCurHash, nsACString & aNewHash,
     if (NS_FAILED(rv) || !shell) {
         // If we failed to get the shell, or if there is no shell,
         // nothing left to do here.
+        
         return rv;
+    }
+
+    // NOTE: we assume URIs are absolute for comparison purposes
+
+    nsCAutoString currentSpec;
+    NS_ENSURE_SUCCESS(mCurrentURI->GetSpec(currentSpec),
+                      NS_ERROR_FAILURE);
+
+    nsCAutoString newSpec;
+    NS_ENSURE_SUCCESS(aURI->GetSpec(newSpec), NS_ERROR_FAILURE);
+
+    // Search for hash marks in the current URI and the new URI and
+    // take a copy of everything to the left of the hash for
+    // comparison.
+
+    const char kHash = '#';
+
+    // Split the new URI into a left and right part
+    // (assume we're parsing it out right)
+    nsACString::const_iterator urlStart, urlEnd, refStart, refEnd;
+    newSpec.BeginReading(urlStart);
+    newSpec.EndReading(refEnd);
+    
+    PRInt32 hashNew = newSpec.FindChar(kHash);
+    if (hashNew == 0) {
+        return NS_OK;           // Strange URI
+    }
+
+    if (hashNew > 0) {
+        // found it
+        urlEnd = urlStart;
+        urlEnd.advance(hashNew);
+        
+        refStart = urlEnd;
+        ++refStart;             // advanced past '#'
+        
+    }
+    else {
+        // no hash at all
+        urlEnd = refStart = refEnd;
+    }
+    const nsACString& sNewLeft = Substring(urlStart, urlEnd);
+    const nsACString& sNewRef =  Substring(refStart, refEnd);
+                                          
+    // Split the current URI in a left and right part
+    nsACString::const_iterator currentLeftStart, currentLeftEnd,
+                               currentRefStart, currentRefEnd;
+    currentSpec.BeginReading(currentLeftStart);
+    currentSpec.EndReading(currentRefEnd);
+
+    PRInt32 hashCurrent = currentSpec.FindChar(kHash);
+    if (hashCurrent == 0) {
+        return NS_OK;           // Strange URI 
+    }
+
+    if (hashCurrent > 0) {
+        currentLeftEnd = currentLeftStart;
+        currentLeftEnd.advance(hashCurrent);
+
+        currentRefStart = currentLeftEnd;
+        ++currentRefStart; // advance past '#'
+    }
+    else {
+        // no hash at all in currentSpec
+        currentLeftEnd = currentRefStart = currentRefEnd;
     }
 
     // If we have no new anchor, we do not want to scroll, unless there is a
     // current anchor and we are doing a history load.  So return if we have no
     // new anchor, and there is no current anchor or the load is not a history
     // load.
-    if ((aCurHash.IsEmpty() || aLoadType != LOAD_HISTORY) &&
-        aNewHash.IsEmpty()) {
+    NS_ASSERTION(hashNew != 0 && hashCurrent != 0,
+                 "What happened to the early returns above?");
+    if (hashNew == kNotFound &&
+        (hashCurrent == kNotFound || aLoadType != LOAD_HISTORY)) {
         return NS_OK;
     }
+
+    // Compare the URIs.
+    //
+    // NOTE: this is a case sensitive comparison because some parts of the
+    // URI are case sensitive, and some are not. i.e. the domain name
+    // is case insensitive but the the paths are not.
+    //
+    // This means that comparing "http://www.ABC.com/" to "http://www.abc.com/"
+    // will fail this test.
+
+    if (!Substring(currentLeftStart, currentLeftEnd).Equals(sNewLeft)) {
+        return NS_OK;           // URIs not the same
+    }
+
+    // Now we know we are dealing with an anchor
+    *aWasAnchor = PR_TRUE;
+
+    // We should fire a hashchange event once we're done here if the two hashes
+    // are different.
+    *aDoHashchange = !Substring(currentRefStart, currentRefEnd).Equals(sNewRef);
 
     // Both the new and current URIs refer to the same page. We can now
     // browse to the hash stored in the new URI.
 
-    if (!aNewHash.IsEmpty()) {
+    if (!sNewRef.IsEmpty()) {
         // anchor is there, but if it's a load from history,
         // we don't have any anchor jumping to do
         PRBool scroll = aLoadType != LOAD_HISTORY &&
                         aLoadType != LOAD_RELOAD_NORMAL;
 
-        char *str = ToNewCString(aNewHash);
+        char *str = ToNewCString(sNewRef);
         if (!str) {
             return NS_ERROR_OUT_OF_MEMORY;
         }
@@ -9124,7 +9226,7 @@ nsDocShell::ScrollToAnchor(nsACString & aCurHash, nsACString & aNewHash,
             nsXPIDLString uStr;
 
             rv = textToSubURI->UnEscapeAndConvert(PromiseFlatCString(aCharset).get(),
-                                                  PromiseFlatCString(aNewHash).get(),
+                                                  PromiseFlatCString(sNewRef).get(),
                                                   getter_Copies(uStr));
             NS_ENSURE_SUCCESS(rv, rv);
 

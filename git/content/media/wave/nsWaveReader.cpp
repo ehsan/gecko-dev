@@ -153,7 +153,7 @@ nsresult nsWaveReader::Init(nsBuiltinDecoderReader* aCloneDonor)
 nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 {
   NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   PRBool loaded = LoadRIFFChunk() && LoadFormatChunk() && FindDataOffset();
   if (!loaded) {
@@ -164,21 +164,23 @@ nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
   mInfo.mHasVideo = PR_FALSE;
   mInfo.mAudioRate = mSampleRate;
   mInfo.mAudioChannels = mChannels;
+  mInfo.mDataOffset = -1;
 
   *aInfo = mInfo;
 
-  ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
-  ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+  MonitorAutoExit exitReaderMon(mMonitor);
+  MonitorAutoEnter decoderMon(mDecoder->GetMonitor());
 
-  mDecoder->GetStateMachine()->SetDuration(
-    static_cast<PRInt64>(BytesToTime(GetDataLength()) * USECS_PER_S));
+  float d = floorf(BytesToTime(GetDataLength() * 1000));
+  NS_ASSERTION(d <= PR_INT64_MAX, "Duration overflow");
+  mDecoder->GetStateMachine()->SetDuration(static_cast<PRInt64>(d));
 
   return NS_OK;
 }
 
 PRBool nsWaveReader::DecodeAudioData()
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
                "Should be on state machine thread or decode thread.");
 
@@ -227,18 +229,16 @@ PRBool nsWaveReader::DecodeAudioData()
     }
   }
 
-  double posTime = BytesToTime(pos);
-  double readSizeTime = BytesToTime(readSize);
-  NS_ASSERTION(posTime <= PR_INT64_MAX / USECS_PER_S, "posTime overflow");
-  NS_ASSERTION(readSizeTime <= PR_INT64_MAX / USECS_PER_S, "readSizeTime overflow");
+  float posTime = BytesToTime(pos);
+  float readSizeTime = BytesToTime(readSize);
+  NS_ASSERTION(posTime <= PR_INT64_MAX / 1000, "posTime overflow");
+  NS_ASSERTION(readSizeTime <= PR_INT64_MAX / 1000, "readSizeTime overflow");
   NS_ASSERTION(samples < PR_INT32_MAX, "samples overflow");
 
-  mAudioQueue.Push(new SoundData(pos,
-                                 static_cast<PRInt64>(posTime * USECS_PER_S),
-                                 static_cast<PRInt64>(readSizeTime * USECS_PER_S),
+  mAudioQueue.Push(new SoundData(pos, static_cast<PRInt64>(posTime * 1000),
+                                 static_cast<PRInt64>(readSizeTime * 1000),
                                  static_cast<PRInt32>(samples),
-                                 sampleBuffer.forget(),
-                                 mChannels));
+                                 sampleBuffer.forget(), mChannels));
 
   return PR_TRUE;
 }
@@ -246,7 +246,7 @@ PRBool nsWaveReader::DecodeAudioData()
 PRBool nsWaveReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                       PRInt64 aTimeThreshold)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
                "Should be on state machine or decode thread.");
 
@@ -255,25 +255,21 @@ PRBool nsWaveReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
 
 nsresult nsWaveReader::Seek(PRInt64 aTarget, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread(),
                "Should be on state machine thread.");
-  LOG(PR_LOG_DEBUG, ("%p About to seek to %lld", mDecoder, aTarget));
+  LOG(PR_LOG_DEBUG, ("%p About to seek to %lldms", mDecoder, aTarget));
   if (NS_FAILED(ResetDecode())) {
     return NS_ERROR_FAILURE;
   }
-  double d = BytesToTime(GetDataLength());
-  NS_ASSERTION(d < PR_INT64_MAX / USECS_PER_S, "Duration overflow"); 
-  PRInt64 duration = static_cast<PRInt64>(d * USECS_PER_S);
-  double seekTime = NS_MIN(aTarget, duration) / static_cast<double>(USECS_PER_S);
-  PRInt64 position = RoundDownToSample(static_cast<PRInt64>(TimeToBytes(seekTime)));
+  float d = BytesToTime(GetDataLength());
+  NS_ASSERTION(d < PR_INT64_MAX / 1000, "Duration overflow"); 
+  PRInt64 duration = static_cast<PRInt64>(d) * 1000;
+  PRInt64 seekTime = NS_MIN(aTarget, duration);
+  PRInt64 position = RoundDownToSample(static_cast<PRInt64>(TimeToBytes(seekTime) / 1000.f));
   NS_ASSERTION(PR_INT64_MAX - mWavePCMOffset > position, "Integer overflow during wave seek");
   position += mWavePCMOffset;
   return mDecoder->GetCurrentStream()->Seek(nsISeekableStream::NS_SEEK_SET, position);
-}
-
-static double RoundToUsecs(double aSeconds) {
-  return floor(aSeconds * USECS_PER_S) / USECS_PER_S;
 }
 
 nsresult nsWaveReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
@@ -285,11 +281,8 @@ nsresult nsWaveReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
     NS_ASSERTION(startOffset >= mWavePCMOffset, "Integer underflow in GetBuffered");
     NS_ASSERTION(endOffset >= mWavePCMOffset, "Integer underflow in GetBuffered");
 
-    // We need to round the buffered ranges' times to microseconds so that they
-    // have the same precision as the currentTime and duration attribute on 
-    // the media element.
-    aBuffered->Add(RoundToUsecs(BytesToTime(startOffset - mWavePCMOffset)),
-                   RoundToUsecs(BytesToTime(endOffset - mWavePCMOffset)));
+    aBuffered->Add(floorf(BytesToTime(startOffset - mWavePCMOffset) * 1000.f) / 1000.0,
+                   floorf(BytesToTime(endOffset - mWavePCMOffset) * 1000.f) / 1000.0);
     startOffset = mDecoder->GetCurrentStream()->GetNextCachedData(endOffset);
   }
   return NS_OK;
@@ -477,7 +470,7 @@ nsWaveReader::LoadFormatChunk()
     return PR_FALSE;
   }
 
-  ReentrantMonitorAutoEnter monitor(mDecoder->GetReentrantMonitor());
+  MonitorAutoEnter monitor(mDecoder->GetMonitor());
   mSampleRate = rate;
   mChannels = channels;
   mSampleSize = sampleSize;
@@ -509,13 +502,13 @@ nsWaveReader::FindDataOffset()
     return PR_FALSE;
   }
 
-  ReentrantMonitorAutoEnter monitor(mDecoder->GetReentrantMonitor());
+  MonitorAutoEnter monitor(mDecoder->GetMonitor());
   mWaveLength = length;
   mWavePCMOffset = PRUint32(offset);
   return PR_TRUE;
 }
 
-double
+float
 nsWaveReader::BytesToTime(PRInt64 aBytes) const
 {
   NS_ABORT_IF_FALSE(aBytes >= 0, "Must be >= 0");
@@ -523,7 +516,7 @@ nsWaveReader::BytesToTime(PRInt64 aBytes) const
 }
 
 PRInt64
-nsWaveReader::TimeToBytes(double aTime) const
+nsWaveReader::TimeToBytes(float aTime) const
 {
   NS_ABORT_IF_FALSE(aTime >= 0.0f, "Must be >= 0");
   return RoundDownToSample(PRInt64(aTime * mSampleRate * mSampleSize));

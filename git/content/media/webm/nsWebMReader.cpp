@@ -65,13 +65,14 @@ extern PRLogModuleInfo* gBuiltinDecoderLog;
 #define SEEK_LOG(type, msg)
 #endif
 
-static const unsigned NS_PER_USEC = 1000;
+static const unsigned NS_PER_MS = 1000000;
 static const double NS_PER_S = 1e9;
+static const double MS_PER_S = 1e3;
 
-// If a seek request is within SEEK_DECODE_MARGIN microseconds of the
+// If a seek request is within SEEK_DECODE_MARGIN milliseconds of the
 // current time, decode ahead from the current frame rather than performing
 // a full seek.
-static const int SEEK_DECODE_MARGIN = 250000;
+static const int SEEK_DECODE_MARGIN = 250;
 
 NS_SPECIALIZE_TEMPLATE
 class nsAutoRefTraits<NesteggPacketHolder> : public nsPointerRefTraits<NesteggPacketHolder>
@@ -135,7 +136,7 @@ nsWebMReader::nsWebMReader(nsBuiltinDecoder* aDecoder)
   mChannels(0),
   mVideoTrack(0),
   mAudioTrack(0),
-  mAudioStartUsec(-1),
+  mAudioStartMs(-1),
   mAudioSamples(0),
   mHasVideo(PR_FALSE),
   mHasAudio(PR_FALSE)
@@ -183,7 +184,7 @@ nsresult nsWebMReader::Init(nsBuiltinDecoderReader* aCloneDonor)
 nsresult nsWebMReader::ResetDecode()
 {
   mAudioSamples = 0;
-  mAudioStartUsec = -1;
+  mAudioStartMs = -1;
   nsresult res = NS_OK;
   if (NS_FAILED(nsBuiltinDecoderReader::ResetDecode())) {
     res = NS_ERROR_FAILURE;
@@ -211,7 +212,7 @@ void nsWebMReader::Cleanup()
 nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
 {
   NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   nestegg_io io;
   io.read = webm_read;
@@ -226,9 +227,9 @@ nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
   uint64_t duration = 0;
   r = nestegg_duration(mContext, &duration);
   if (r == 0) {
-    ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
-    ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
-    mDecoder->GetStateMachine()->SetDuration(duration / NS_PER_USEC);
+    MonitorAutoExit exitReaderMon(mMonitor);
+    MonitorAutoEnter decoderMon(mDecoder->GetMonitor());
+    mDecoder->GetStateMachine()->SetDuration(duration / NS_PER_MS);
   }
 
   unsigned int ntracks = 0;
@@ -330,6 +331,11 @@ nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
           mInfo.mStereoMode = STEREO_MODE_MONO;
         }
       }
+
+      // mDataOffset is not used by the WebM backend.
+      // See bug 566779 for a suggestion to refactor
+      // and remove it.
+      mInfo.mDataOffset = -1;
     }
     else if (!mHasAudio && type == NESTEGG_TRACK_AUDIO) {
       nestegg_audio_params params;
@@ -413,7 +419,7 @@ ogg_packet nsWebMReader::InitOggPacket(unsigned char* aData,
  
 PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  mMonitor.AssertCurrentThreadIn();
 
   int r = 0;
   unsigned int count = 0;
@@ -429,23 +435,23 @@ PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
   }
 
   const PRUint32 rate = mVorbisDsp.vi->rate;
-  PRUint64 tstamp_usecs = tstamp / NS_PER_USEC;
-  if (mAudioStartUsec == -1) {
+  PRUint64 tstamp_ms = tstamp / NS_PER_MS;
+  if (mAudioStartMs == -1) {
     // This is the first audio chunk. Assume the start time of our decode
     // is the start of this chunk.
-    mAudioStartUsec = tstamp_usecs;
+    mAudioStartMs = tstamp_ms;
   }
   // If there's a gap between the start of this sound chunk and the end of
   // the previous sound chunk, we need to increment the packet count so that
   // the vorbis decode doesn't use data from before the gap to help decode
   // from after the gap.
   PRInt64 tstamp_samples = 0;
-  if (!UsecsToSamples(tstamp_usecs, rate, tstamp_samples)) {
+  if (!MsToSamples(tstamp_ms, rate, tstamp_samples)) {
     NS_WARNING("Int overflow converting WebM timestamp to samples");
     return PR_FALSE;
   }
   PRInt64 decoded_samples = 0;
-  if (!UsecsToSamples(mAudioStartUsec, rate, decoded_samples)) {
+  if (!MsToSamples(mAudioStartMs, rate, decoded_samples)) {
     NS_WARNING("Int overflow converting WebM start time to samples");
     return PR_FALSE;
   }
@@ -455,13 +461,13 @@ PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
   }
   if (tstamp_samples > decoded_samples) {
 #ifdef DEBUG
-    PRInt64 usecs = 0;
-    LOG(PR_LOG_DEBUG, ("WebMReader detected gap of %lld, %lld samples, in audio stream\n",
-      SamplesToUsecs(tstamp_samples - decoded_samples, rate, usecs) ? usecs: -1,
+    PRInt64 ms = 0;
+    LOG(PR_LOG_DEBUG, ("WebMReader detected gap of %lldms, %lld samples, in audio stream\n",
+      SamplesToMs(tstamp_samples - decoded_samples, rate, ms) ? ms: -1,
       tstamp_samples - decoded_samples));
 #endif
     mPacketCount++;
-    mAudioStartUsec = tstamp_usecs;
+    mAudioStartMs = tstamp_ms;
     mAudioSamples = 0;
   }
 
@@ -497,17 +503,17 @@ PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
       }
 
       PRInt64 duration = 0;
-      if (!SamplesToUsecs(samples, rate, duration)) {
+      if (!SamplesToMs(samples, rate, duration)) {
         NS_WARNING("Int overflow converting WebM audio duration");
         return PR_FALSE;
       }
       PRInt64 total_duration = 0;
-      if (!SamplesToUsecs(total_samples, rate, total_duration)) {
+      if (!SamplesToMs(total_samples, rate, total_duration)) {
         NS_WARNING("Int overflow converting WebM audio total_duration");
         return PR_FALSE;
       }
       
-      PRInt64 time = tstamp_usecs + total_duration;
+      PRInt64 time = tstamp_ms + total_duration;
       total_samples += samples;
       SoundData* s = new SoundData(aOffset,
                                    time,
@@ -591,7 +597,7 @@ nsReturnRef<NesteggPacketHolder> nsWebMReader::NextPacket(TrackType aTrackType)
 
 PRBool nsWebMReader::DecodeAudioData()
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
     "Should be on state machine thread or decode thread.");
   nsAutoRef<NesteggPacketHolder> holder(NextPacket(AUDIO));
@@ -606,7 +612,7 @@ PRBool nsWebMReader::DecodeAudioData()
 PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                       PRInt64 aTimeThreshold)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
                "Should be on state machine or decode thread.");
 
@@ -654,19 +660,19 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
       }
       mVideoPackets.PushFront(next_holder.disown());
     } else {
-      ReentrantMonitorAutoExit exitMon(mReentrantMonitor);
-      ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+      MonitorAutoExit exitMon(mMonitor);
+      MonitorAutoEnter decoderMon(mDecoder->GetMonitor());
       nsBuiltinDecoderStateMachine* s =
         static_cast<nsBuiltinDecoderStateMachine*>(mDecoder->GetStateMachine());
       PRInt64 endTime = s->GetEndMediaTime();
       if (endTime == -1) {
         return PR_FALSE;
       }
-      next_tstamp = endTime * NS_PER_USEC;
+      next_tstamp = endTime * NS_PER_MS;
     }
   }
 
-  PRInt64 tstamp_usecs = tstamp / NS_PER_USEC;
+  PRInt64 tstamp_ms = tstamp / NS_PER_MS;
   for (PRUint32 i = 0; i < count; ++i) {
     unsigned char* data;
     size_t length;
@@ -679,7 +685,7 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
     memset(&si, 0, sizeof(si));
     si.sz = sizeof(si);
     vpx_codec_peek_stream_info(&vpx_codec_vp8_dx_algo, data, length, &si);
-    if (aKeyframeSkip && (!si.is_kf || tstamp_usecs < aTimeThreshold)) {
+    if (aKeyframeSkip && (!si.is_kf || tstamp_ms < aTimeThreshold)) {
       // Skipping to next keyframe...
       parsed++; // Assume 1 frame per chunk.
       continue;
@@ -696,7 +702,7 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
     // If the timestamp of the video frame is less than
     // the time threshold required then it is not added
     // to the video queue and won't be displayed.
-    if (tstamp_usecs < aTimeThreshold) {
+    if (tstamp_ms < aTimeThreshold) {
       parsed++; // Assume 1 frame per chunk.
       continue;
     }
@@ -727,8 +733,8 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
       VideoData *v = VideoData::Create(mInfo,
                                        mDecoder->GetImageContainer(),
                                        holder->mOffset,
-                                       tstamp_usecs,
-                                       next_tstamp / NS_PER_USEC,
+                                       tstamp_ms,
+                                       next_tstamp / NS_PER_MS,
                                        b,
                                        si.is_kf,
                                        -1);
@@ -756,7 +762,7 @@ PRBool nsWebMReader::CanDecodeToTarget(PRInt64 aTarget,
 nsresult nsWebMReader::Seek(PRInt64 aTarget, PRInt64 aStartTime, PRInt64 aEndTime,
                             PRInt64 aCurrentTime)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread(),
                "Should be on state machine thread.");
   LOG(PR_LOG_DEBUG, ("%p About to seek to %lldms", mDecoder, aTarget));
@@ -768,7 +774,7 @@ nsresult nsWebMReader::Seek(PRInt64 aTarget, PRInt64 aStartTime, PRInt64 aEndTim
       return NS_ERROR_FAILURE;
     }
     PRUint32 trackToSeek = mHasVideo ? mVideoTrack : mAudioTrack;
-    int r = nestegg_track_seek(mContext, trackToSeek, aTarget * NS_PER_USEC);
+    int r = nestegg_track_seek(mContext, trackToSeek, aTarget * NS_PER_MS);
     if (r != 0) {
       return NS_ERROR_FAILURE;
     }
@@ -780,7 +786,7 @@ nsresult nsWebMReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
 {
   nsMediaStream* stream = mDecoder->GetCurrentStream();
 
-  uint64_t timecodeScale;
+  PRUint64 timecodeScale;
   if (!mContext || nestegg_tstamp_scale(mContext, &timecodeScale) == -1) {
     return NS_OK;
   }
@@ -797,7 +803,7 @@ nsresult nsWebMReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
     nsresult res = stream->GetCachedRanges(ranges);
     NS_ENSURE_SUCCESS(res, res);
 
-    PRInt64 startTimeOffsetNS = aStartTime * NS_PER_USEC;
+    PRInt64 startTimeOffsetNS = aStartTime * NS_PER_MS;
     for (PRUint32 index = 0; index < ranges.Length(); index++) {
       mBufferedState->CalculateBufferedForRange(aBuffered,
                                                 ranges[index].mStart,

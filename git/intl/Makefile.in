@@ -43,9 +43,7 @@ VPATH     = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 PARALLEL_DIRS = \
-  hyphenation \
   locale \
-  locales \
   lwbrk \
   strres \
   unicharutil \

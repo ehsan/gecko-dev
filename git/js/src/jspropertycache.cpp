@@ -135,7 +135,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, uintN protoI
      * Optimize the cached vword based on our parameters and the current pc's
      * opcode format flags.
      */
-    pc = cx->regs().pc;
+    pc = cx->regs->pc;
     op = js_GetOpcode(cx, cx->fp()->script(), pc);
     cs = &js_CodeSpec[op];
     kshape = 0;
@@ -154,7 +154,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, uintN protoI
                  */
                 JS_ASSERT(pobj->hasMethodBarrier());
                 JSObject &funobj = shape->methodObject();
-                JS_ASSERT(funobj == pobj->nativeGetSlot(shape->slot).toObject());
+                JS_ASSERT(&funobj == &pobj->nativeGetSlot(shape->slot).toObject());
                 vword.setFunObj(funobj);
                 break;
             }
@@ -324,7 +324,7 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
     JSObject *obj, *pobj, *tmp;
     uint32 vcap;
 
-    StackFrame *fp = cx->fp();
+    JSStackFrame *fp = cx->fp();
 
     JS_ASSERT(this == &JS_PROPERTY_CACHE(cx));
     JS_ASSERT(uintN((fp->hasImacropc() ? fp->imacropc() : pc) - fp->script()->code)

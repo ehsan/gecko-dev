@@ -65,7 +65,7 @@ BasicTableLayoutStrategy::~BasicTableLayoutStrategy()
 }
 
 /* virtual */ nscoord
-BasicTableLayoutStrategy::GetMinWidth(nsRenderingContext* aRenderingContext)
+BasicTableLayoutStrategy::GetMinWidth(nsIRenderingContext* aRenderingContext)
 {
     DISPLAY_MIN_WIDTH(mTableFrame, mMinWidth);
     if (mMinWidth == NS_INTRINSIC_WIDTH_UNKNOWN)
@@ -74,7 +74,7 @@ BasicTableLayoutStrategy::GetMinWidth(nsRenderingContext* aRenderingContext)
 }
 
 /* virtual */ nscoord
-BasicTableLayoutStrategy::GetPrefWidth(nsRenderingContext* aRenderingContext,
+BasicTableLayoutStrategy::GetPrefWidth(nsIRenderingContext* aRenderingContext,
                                        PRBool aComputingSize)
 {
     DISPLAY_PREF_WIDTH(mTableFrame, mPrefWidth);
@@ -105,7 +105,7 @@ struct CellWidthInfo {
 // Used for both column and cell calculations.  The parts needed only
 // for cells are skipped when aIsCell is false.
 static CellWidthInfo
-GetWidthInfo(nsRenderingContext *aRenderingContext,
+GetWidthInfo(nsIRenderingContext *aRenderingContext,
              nsIFrame *aFrame, PRBool aIsCell)
 {
     nscoord minCoord, prefCoord;
@@ -232,14 +232,14 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
 }
 
 static inline CellWidthInfo
-GetCellWidthInfo(nsRenderingContext *aRenderingContext,
+GetCellWidthInfo(nsIRenderingContext *aRenderingContext,
                  nsTableCellFrame *aCellFrame)
 {
     return GetWidthInfo(aRenderingContext, aCellFrame, PR_TRUE);
 }
 
 static inline CellWidthInfo
-GetColWidthInfo(nsRenderingContext *aRenderingContext,
+GetColWidthInfo(nsIRenderingContext *aRenderingContext,
                 nsIFrame *aFrame)
 {
     return GetWidthInfo(aRenderingContext, aFrame, PR_FALSE);
@@ -253,7 +253,7 @@ GetColWidthInfo(nsRenderingContext *aRenderingContext,
  * browsers are).
  */
 void
-BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsRenderingContext* aRenderingContext)
+BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRenderingContext)
 {
     nsTableFrame *tableFrame = mTableFrame;
     nsTableCellMap *cellMap = tableFrame->GetCellMap();
@@ -413,7 +413,7 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsRenderingContext* aRend
 }
 
 void
-BasicTableLayoutStrategy::ComputeIntrinsicWidths(nsRenderingContext* aRenderingContext)
+BasicTableLayoutStrategy::ComputeIntrinsicWidths(nsIRenderingContext* aRenderingContext)
 {
     ComputeColumnIntrinsicWidths(aRenderingContext);
 

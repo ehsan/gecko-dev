@@ -59,12 +59,6 @@ public:
 
     gfxD2DSurface(cairo_surface_t *csurf);
 
-    void MovePixels(const nsIntRect& aSourceRect,
-                    const nsIntPoint& aDestTopLeft)
-    {
-        FastMovePixels(aSourceRect, aDestTopLeft);
-    }
-
     virtual ~gfxD2DSurface();
 
     void Present();

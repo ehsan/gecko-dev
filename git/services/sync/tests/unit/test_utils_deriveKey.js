@@ -1,7 +1,14 @@
-Cu.import("resource://services-crypto/WeaveCrypto.js");
-Cu.import("resource://services-sync/util.js");
+let cryptoSvc;
+try {
+  Components.utils.import("resource://services-crypto/WeaveCrypto.js");
+  cryptoSvc = new WeaveCrypto();
+} catch (ex) {
+  // Fallback to binary WeaveCrypto
+  cryptoSvc = Cc["@labs.mozilla.com/Weave/Crypto;1"]
+                .getService(Ci.IWeaveCrypto);
+}
 
-let cryptoSvc = new WeaveCrypto();
+Cu.import("resource://services-sync/util.js");
 
 function run_test() {
   if (this.gczeal) {

@@ -91,7 +91,7 @@
 #include "nsICapturePicker.h"
 #include "nsIFileURL.h"
 #include "nsDOMFile.h"
-#include "nsEventStates.h"
+#include "nsIEventStateManager.h"
 
 namespace dom = mozilla::dom;
 
@@ -218,7 +218,7 @@ PRBool CapturePickerAcceptCallback(const nsAString& aAccept, void* aClosure)
 }
 
 nsresult
-nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
+nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   // Get the NodeInfoManager and tag necessary to create input elements
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
@@ -499,7 +499,7 @@ nsFileControlFrame::BrowseMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
 }
 
 nscoord
-nsFileControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsFileControlFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);

@@ -123,13 +123,6 @@ public:
    */
   static nsIContent* GetRedirectedFocus(nsIContent* aContent);
 
-  /**
-   * Returns a flag indicating the source and/or reason of the focus change.
-   * This is used to indicate to the IME code if the focus come from a user 
-   * input or a script for example.
-   */
-  static PRUint32 GetFocusMoveReason(PRUint32 aFlags);
-
   static PRBool sMouseFocusesFormControl;
 
 protected:

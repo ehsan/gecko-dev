@@ -58,6 +58,7 @@
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsIEventStateManager.h"
 #include "nsStyleSet.h"
 #include "nsIStyleSheet.h"
 #include "nsCSSStyleSheet.h"
@@ -79,6 +80,7 @@
 #include "nsLayoutStylesheetCache.h"
 
 #include "nsViewsCID.h"
+#include "nsIDeviceContext.h"
 #include "nsIDeviceContextSpec.h"
 #include "nsIViewManager.h"
 #include "nsIView.h"
@@ -126,7 +128,6 @@
 #include "nsGfxCIID.h"
 #include "nsStyleSheetService.h"
 #include "nsURILoader.h"
-#include "nsRenderingContext.h"
 
 #include "nsIPrompt.h"
 #include "imgIContainer.h" // image animation mode constants
@@ -437,7 +438,7 @@ protected:
 
   nsWeakPtr mContainer; // it owns me!
   nsWeakPtr mTopContainerWhilePrinting;
-  nsRefPtr<nsDeviceContext> mDeviceContext;  // We create and own this baby
+  nsCOMPtr<nsIDeviceContext> mDeviceContext;  // We create and own this baby
 
   // the following six items are explicitly in this order
   // so they will be destroyed in the reverse order (pinkerton, scc)
@@ -516,6 +517,7 @@ protected:
 //------------------------------------------------------------------
 // Class IDs
 static NS_DEFINE_CID(kViewManagerCID,       NS_VIEW_MANAGER_CID);
+static NS_DEFINE_CID(kDeviceContextCID,     NS_DEVICE_CONTEXT_CID);
 
 //------------------------------------------------------------------
 nsresult
@@ -924,6 +926,23 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
         // be measuring/scaling with the print device context, not the
         // screen device context, but this is good enough to allow
         // printing reftests to work.
+#if 0
+        nsCOMPtr<nsIDeviceContextSpec> devspec =
+          do_CreateInstance("@mozilla.org/gfx/devicecontextspec;1", &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+        // mWindow has been initialized by preceding call to MakeWindow
+        rv = devspec->Init(mWindow, mPresContext->GetPrintSettings(), PR_FALSE);
+        NS_ENSURE_SUCCESS(rv, rv);
+        nsCOMPtr<nsIDeviceContext> devctx =
+          do_CreateInstance("@mozilla.org/gfx/devicecontext;1", &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+        rv = devctx->InitForPrinting(devspec);
+        NS_ENSURE_SUCCESS(rv, rv);
+        // XXX I'm breaking this code; I'm not sure I really want to mess with
+        // the document viewer at the moment to get the right device context
+        // (this won't break anyone, since page layout mode was never really
+        // usable)
+#endif
         double pageWidth = 0, pageHeight = 0;
         mPresContext->GetPrintSettings()->GetEffectivePageSize(&pageWidth,
                                                                &pageHeight);
@@ -1358,8 +1377,6 @@ DocumentViewerImpl::Open(nsISupports *aState, nsISHEntry *aSHEntry)
 
   nsresult rv = InitInternal(mParentWidget, aState, mBounds, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  mHidden = PR_FALSE;
 
   if (mPresShell)
     mPresShell->SetForwardingContainer(nsnull);
@@ -2278,7 +2295,7 @@ DocumentViewerImpl::MakeWindow(const nsSize& aSize, nsIView* aContainerView)
   if (NS_FAILED(rv))
     return rv;
 
-  nsDeviceContext *dx = mPresContext->DeviceContext();
+  nsIDeviceContext *dx = mPresContext->DeviceContext();
 
   rv = mViewManager->Init(dx);
   if (NS_FAILED(rv))
@@ -2429,10 +2446,13 @@ DocumentViewerImpl::CreateDeviceContext(nsIView* aContainerView)
   
   // Create a device context even if we already have one, since our widget
   // might have changed.
+  mDeviceContext = do_CreateInstance(kDeviceContextCID);
+  NS_ENSURE_TRUE(mDeviceContext, NS_ERROR_FAILURE);
   nsIWidget* widget = nsnull;
   if (aContainerView) {
     widget = aContainerView->GetNearestWidget(nsnull);
   }
+  // The device context needs a widget to be able to determine the screen it is on.
   if (!widget) {
     widget = mParentWidget;
   }
@@ -2440,7 +2460,6 @@ DocumentViewerImpl::CreateDeviceContext(nsIView* aContainerView)
     widget = widget->GetTopLevelWidget();
   }
 
-  mDeviceContext = new nsDeviceContext();
   mDeviceContext->Init(widget);
   return NS_OK;
 }
@@ -2734,7 +2753,8 @@ SetChildMinFontSize(nsIMarkupDocumentViewer* aChild, void* aClosure)
 {
   nsCOMPtr<nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH> branch =
     do_QueryInterface(aChild);
-  branch->SetMinFontSize(NS_PTR_TO_INT32(aClosure));
+  struct ZoomInfo* ZoomInfo = (struct ZoomInfo*) aClosure;
+  branch->SetMinFontSize(ZoomInfo->mZoom);
 }
 
 static void
@@ -2767,7 +2787,8 @@ SetExtResourceMinFontSize(nsIDocument* aDocument, void* aClosure)
   if (shell) {
     nsPresContext* ctxt = shell->GetPresContext();
     if (ctxt) {
-      ctxt->SetMinFontSize(NS_PTR_TO_INT32(aClosure));
+      struct ZoomInfo* ZoomInfo = static_cast<struct ZoomInfo*>(aClosure);
+      ctxt->SetMinFontSize(ZoomInfo->mZoom);
     }
   }
 
@@ -2846,7 +2867,8 @@ DocumentViewerImpl::SetMinFontSize(PRInt32 aMinFontSize)
   // change, our children's min font may be different, though it would be unusual).
   // Do this first, in case kids are auto-sizing and post reflow commands on
   // our presshell (which should be subsumed into our own style change reflow).
-  CallChildren(SetChildMinFontSize, NS_INT32_TO_PTR(aMinFontSize));
+  struct ZoomInfo ZoomInfo = { aMinFontSize };
+  CallChildren(SetChildMinFontSize, &ZoomInfo);
 
   // Now change our own min font
   nsPresContext* pc = GetPresContext();
@@ -2855,8 +2877,7 @@ DocumentViewerImpl::SetMinFontSize(PRInt32 aMinFontSize)
   }
 
   // And do the external resources
-  mDocument->EnumerateExternalResources(SetExtResourceMinFontSize,
-                                        NS_INT32_TO_PTR(aMinFontSize));
+  mDocument->EnumerateExternalResources(SetExtResourceMinFontSize, &ZoomInfo);
 
   batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
   
@@ -3091,7 +3112,7 @@ DocumentViewerImpl::SetHintCharacterSetSource(PRInt32 aHintCharacterSetSource)
   mHintCharsetSource = aHintCharacterSetSource;
   // now set the hint char set source on all children of mContainer
   CallChildren(SetChildHintCharacterSetSource,
-                      NS_INT32_TO_PTR(aHintCharacterSetSource));
+                      (void*) aHintCharacterSetSource);
   return NS_OK;
 }
 
@@ -3228,7 +3249,7 @@ NS_IMETHODIMP DocumentViewerImpl::SetBidiOptions(PRUint32 aBidiOptions)
     mPresContext->SetBidi(aBidiOptions, PR_TRUE); // could cause reflow
   }
   // now set bidi on all children of mContainer
-  CallChildren(SetChildBidiOptions, NS_INT32_TO_PTR(aBidiOptions));
+  CallChildren(SetChildBidiOptions, (void*) aBidiOptions);
   return NS_OK;
 }
 
@@ -3272,7 +3293,7 @@ NS_IMETHODIMP DocumentViewerImpl::SizeToContent()
 
   nscoord prefWidth;
   {
-    nsRefPtr<nsRenderingContext> rcx =
+    nsCOMPtr<nsIRenderingContext> rcx =
       presShell->GetReferenceRenderingContext();
     NS_ENSURE_TRUE(rcx, NS_ERROR_FAILURE);
     prefWidth = root->GetPrefWidth(rcx);

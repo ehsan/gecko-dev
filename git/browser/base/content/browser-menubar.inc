@@ -22,7 +22,6 @@
 # Contributor(s):
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #   Rob Campbell <rcampbell@mozilla.com>
-#   Steffen Wilberg <steffen.wilberg@web.de>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -92,6 +91,7 @@
                           accesskey="&sendPageCmd.accesskey;"
                           command="Browser:SendLink"/>
                 <menuseparator/>
+#ifndef WINCE
                 <menuitem id="menu_printSetup"
                           label="&printSetupCmd.label;"
                           accesskey="&printSetupCmd.accesskey;"
@@ -114,6 +114,7 @@
                           oncommand="BrowserImport();"/>
 #ifndef XP_MACOSX
                 <menuseparator/>
+#endif
 #endif
                 <menuitem id="goOfflineMenuitem"
                           label="&goOfflineCmd.label;"
@@ -380,15 +381,16 @@
                           oncommand="BrowserGoHome(event);"
                           onclick="checkForMiddleClick(this, event);"
                           key="goHome"/>
-                <menuseparator id="historyMenuHomeSeparator"
-                               class="show-only-for-keyboard"/>
                 <menuitem id="menu_showAllHistory"
                           label="&showAllHistoryCmd2.label;"
 #ifndef XP_MACOSX
                           key="showAllHistoryKb"
 #endif
                           command="Browser:ShowAllHistory"/>
-                <menuseparator id="showAllHistorySeparator"/>
+                <menuseparator id="startHistorySeparator"/>
+                <menuseparator id="endHistorySeparator"
+                               class="hide-if-empty-places-result"
+                               builder="end"/>
 #ifdef MOZ_SERVICES_SYNC
                 <menuitem id="sync-tabs-menuitem"
                           label="&syncTabsMenu.label;"
@@ -420,8 +422,6 @@
 #endif
                              onpopupshowing="document.getElementById('history-menu')._placesView.populateUndoWindowSubmenu();"/>
                 </menu>
-                <menuseparator id="startHistorySeparator"
-                               class="hide-if-empty-places-result"/>
               </menupopup>
             </menu>
 
@@ -443,11 +443,6 @@
                                if (!this.parentNode._placesView)
                                  new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
                tooltip="bhTooltip" popupsinherittooltip="true">
-      <menuitem id="bookmarksShowAll"
-                label="&showAllBookmarks2.label;"
-                command="Browser:ShowAllBookmarks"
-                key="manBookmarkKb"/>
-      <menuseparator id="organizeBookmarksSeparator"/>
       <menuitem id="menu_bookmarkThisPage"
                 label="&bookmarkThisPageCmd.label;"
                 command="Browser:AddBookmarkAs"
@@ -476,12 +471,16 @@
                 class="show-only-for-keyboard"
                 command="Browser:BookmarkAllTabs"
                 key="bookmarkAllTabsKb"/>
-      <menuseparator id="bookmarksToolbarSeparator"/>
+      <menuitem id="bookmarksShowAll"
+                label="&showAllBookmarks2.label;"
+                command="Browser:ShowAllBookmarks"
+                key="manBookmarkKb"/>
+      <menuseparator id="organizeBookmarksSeparator"/>
       <menu id="bookmarksToolbarFolderMenu"
             class="menu-iconic bookmark-item"
             label="&personalbarCmd.label;"
             container="true">
-        <menupopup id="bookmarksToolbarFolderPopup"
+        <menupopup id="bookmarksToolbarFolderPopup"  
 #ifndef XP_MACOSX
                    placespopup="true"
 #endif
@@ -489,13 +488,7 @@
                    onpopupshowing="if (!this.parentNode._placesView)
                                      new PlacesMenu(event, 'place:folder=TOOLBAR');"/>
       </menu>
-      <menuseparator id="bookmarksMenuItemsSeparator"/>
-      <!-- Bookmarks menu items -->
-      <menuseparator builder="end"
-                     class="hide-if-empty-places-result"/>
-      <menuitem id="menu_unsortedBookmarks"
-                label="&unsortedBookmarksCmd.label;"
-                oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"/>
+      <menuseparator/>
     </menupopup>
   </menu>
 

@@ -151,6 +151,4 @@ function run_test() {
                   title: "mo,z"}];
   populateDB(change4);
   do_check_false(isInResult(change4, root));
-
-  root.containerOpen = false;
 }

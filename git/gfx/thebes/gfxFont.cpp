@@ -65,7 +65,6 @@
 #include "nsBidiUtils.h"
 #include "nsUnicodeRange.h"
 #include "nsCompressedCharMap.h"
-#include "nsStyleConsts.h"
 
 #include "cairo.h"
 #include "gfxFontTest.h"
@@ -358,6 +357,25 @@ gfxFontEntry::ShareFontTableAndGetBlob(PRUint32 aTag,
     }
 
     return entry->ShareTableAndGetBlob(*aBuffer, &mFontTableCache);
+}
+
+void
+gfxFontEntry::PreloadFontTable(PRUint32 aTag, FallibleTArray<PRUint8>& aTable)
+{
+    if (!mFontTableCache.IsInitialized()) {
+        // This is intended for use with downloaded fonts, to cache the layout
+        // tables for harfbuzz, so initialize the cache for 3 entries to allow
+        // for GDEF/GSUB/GPOS.
+        mFontTableCache.Init(3);
+    }
+
+    FontTableHashEntry *entry = mFontTableCache.PutEntry(aTag);
+    if (NS_UNLIKELY(!entry)) { // OOM
+        return;
+    }
+
+    // adopts elements of aTable
+    entry->SaveTable(aTable);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1342,9 +1360,9 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                             advance, metrics.mBoundingBox.Height());
                     }
                     if (isRTL) {
-                        glyphRect -= gfxPoint(advance, 0);
+                        glyphRect.pos.x -= advance;
                     }
-                    glyphRect += gfxPoint(x, 0);
+                    glyphRect.pos.x += x;
                     metrics.mBoundingBox = metrics.mBoundingBox.Union(glyphRect);
                 }
             }
@@ -1371,9 +1389,9 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                             advance, metrics.mAscent + metrics.mDescent);
                     }
                     if (isRTL) {
-                        glyphRect -= gfxPoint(advance, 0);
+                        glyphRect.pos.x -= advance;
                     }
-                    glyphRect += gfxPoint(x, 0);
+                    glyphRect.pos.x += x;
                     metrics.mBoundingBox = metrics.mBoundingBox.Union(glyphRect);
                     x += direction*advance;
                 }
@@ -1396,7 +1414,7 @@ gfxFont::Measure(gfxTextRun *aTextRun,
         metrics.mBoundingBox = metrics.mBoundingBox.Union(fontBox);
     }
     if (isRTL) {
-        metrics.mBoundingBox -= gfxPoint(x, 0);
+        metrics.mBoundingBox.pos.x -= x;
     }
 
     metrics.mAdvanceWidth = x*direction;
@@ -1818,29 +1836,6 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont)
     }
 }
 
-gfxFloat
-gfxFont::SynthesizeSpaceWidth(PRUint32 aCh)
-{
-    // return an appropriate width for various Unicode space characters
-    // that we "fake" if they're not actually present in the font;
-    // returns negative value if the char is not a known space.
-    switch (aCh) {
-    case 0x2000:                                 // en quad
-    case 0x2002: return GetAdjustedSize() / 2;   // en space
-    case 0x2001:                                 // em quad
-    case 0x2003: return GetAdjustedSize();       // em space
-    case 0x2004: return GetAdjustedSize() / 3;   // three-per-em space
-    case 0x2005: return GetAdjustedSize() / 4;   // four-per-em space
-    case 0x2006: return GetAdjustedSize() / 6;   // six-per-em space
-    case 0x2007: return GetMetrics().zeroOrAveCharWidth; // figure space
-    case 0x2008: return GetMetrics().spaceWidth; // punctuation space 
-    case 0x2009: return GetAdjustedSize() / 5;   // thin space
-    case 0x200a: return GetAdjustedSize() / 10;  // hair space
-    case 0x202f: return GetAdjustedSize() / 5;   // narrow no-break space
-    default: return -1.0;
-    }
-}
-
 gfxGlyphExtents::~gfxGlyphExtents()
 {
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
@@ -1948,10 +1943,10 @@ gfxGlyphExtents::SetTightGlyphExtents(PRUint32 aGlyphID, const gfxRect& aExtents
     HashEntry *entry = mTightGlyphExtents.PutEntry(aGlyphID);
     if (!entry)
         return;
-    entry->x = aExtentsAppUnits.X();
-    entry->y = aExtentsAppUnits.Y();
-    entry->width = aExtentsAppUnits.Width();
-    entry->height = aExtentsAppUnits.Height();
+    entry->x = aExtentsAppUnits.pos.x;
+    entry->y = aExtentsAppUnits.pos.y;
+    entry->width = aExtentsAppUnits.size.width;
+    entry->height = aExtentsAppUnits.size.height;
 }
 
 gfxFontGroup::gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle, gfxUserFontSet *aUserFontSet)
@@ -2497,8 +2492,7 @@ gfxFontGroup::InitScriptRun(gfxContext *aContext,
         if (!matchedFont) {
             for (PRUint32 index = runStart; index < runStart + matchedLength; index++) {
                 // Record the char code so we can draw a box with the Unicode value
-                PRUint32 ch = aString[index];
-                if (NS_IS_HIGH_SURROGATE(ch) &&
+                if (NS_IS_HIGH_SURROGATE(aString[index]) &&
                     index + 1 < aScriptRunEnd &&
                     NS_IS_LOW_SURROGATE(aString[index+1])) {
                     aTextRun->SetMissingGlyph(index,
@@ -2506,27 +2500,7 @@ gfxFontGroup::InitScriptRun(gfxContext *aContext,
                                                                 aString[index+1]));
                     index++;
                 } else {
-                    gfxFloat wid = mainFont->SynthesizeSpaceWidth(ch);
-                    if (wid >= 0.0) {
-                        nscoord advance =
-                            aTextRun->GetAppUnitsPerDevUnit() * NS_floor(wid + 0.5);
-                        gfxTextRun::CompressedGlyph g;
-                        if (gfxTextRun::CompressedGlyph::IsSimpleAdvance(advance)) {
-                            aTextRun->SetSimpleGlyph(index,
-                                                     g.SetSimpleGlyph(advance,
-                                                         mainFont->GetSpaceGlyph()));
-                        } else {
-                            gfxTextRun::DetailedGlyph detailedGlyph;
-                            detailedGlyph.mGlyphID = mainFont->GetSpaceGlyph();
-                            detailedGlyph.mAdvance = advance;
-                            detailedGlyph.mXOffset = detailedGlyph.mYOffset = 0;
-                            g.SetComplex(PR_TRUE, PR_TRUE, 1);
-                            aTextRun->SetGlyphs(index,
-                                                g, &detailedGlyph);
-                        }
-                    } else {
-                        aTextRun->SetMissingGlyph(index, ch);
-                    }
+                    aTextRun->SetMissingGlyph(index, aString[index]);
                 }
             }
         }
@@ -2591,15 +2565,6 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
     if (!selectedFont && aPrevMatchedFont && aPrevMatchedFont->HasCharacter(aCh)) {
         selectedFont = aPrevMatchedFont;
         return selectedFont.forget();
-    }
-
-    // for known "space" characters, don't do a full system-fallback search;
-    // we'll synthesize appropriate-width spaces instead of missing-glyph boxes
-    if (gfxUnicodeProperties::GetGeneralCategory(aCh) ==
-            HB_CATEGORY_SPACE_SEPARATOR &&
-        GetFontAt(0)->SynthesizeSpaceWidth(aCh) >= 0.0)
-    {
-        return nsnull;
     }
 
     // -- otherwise look for other stuff
@@ -2701,6 +2666,7 @@ gfxFontGroup::GetGeneration()
 void
 gfxFontGroup::UpdateFontList()
 {
+    // if user font set is set, check to see if font list needs updating
     if (mUserFontSet && mCurrGeneration != GetGeneration()) {
         // xxx - can probably improve this to detect when all fonts were found, so no need to update list
         mFonts.Clear();
@@ -3119,9 +3085,25 @@ gfxTextRun::~gfxTextRun()
     MOZ_COUNT_DTOR(gfxTextRun);
 }
 
+gfxTextRun *
+gfxTextRun::Clone(const gfxTextRunFactory::Parameters *aParams, const void *aText,
+                  PRUint32 aLength, gfxFontGroup *aFontGroup, PRUint32 aFlags)
+{
+    if (!mCharacterGlyphs)
+        return nsnull;
+
+    nsAutoPtr<gfxTextRun> textRun;
+    textRun = gfxTextRun::Create(aParams, aText, aLength, aFontGroup, aFlags);
+    if (!textRun)
+        return nsnull;
+
+    textRun->CopyGlyphDataFrom(this, 0, mCharacterCount, 0);
+    return textRun.forget();
+}
+
 PRBool
 gfxTextRun::SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
-                                   PRUint8 *aBreakBefore,
+                                   PRPackedBool *aBreakBefore,
                                    gfxContext *aRefContext)
 {
     NS_ASSERTION(aStart + aLength <= mCharacterCount, "Overflow");
@@ -3131,12 +3113,12 @@ gfxTextRun::SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
     PRUint32 changed = 0;
     PRUint32 i;
     for (i = 0; i < aLength; ++i) {
-        PRUint8 canBreak = aBreakBefore[i];
+        PRBool canBreak = aBreakBefore[i];
         if (canBreak && !mCharacterGlyphs[aStart + i].IsClusterStart()) {
             // This can happen ... there is no guarantee that our linebreaking rules
             // align with the platform's idea of what constitutes a cluster.
             NS_WARNING("Break suggested inside cluster!");
-            canBreak = CompressedGlyph::FLAG_BREAK_TYPE_NONE;
+            canBreak = PR_FALSE;
         }
         changed |= mCharacterGlyphs[aStart + i].SetCanBreakBefore(canBreak);
     }
@@ -3642,12 +3624,12 @@ gfxTextRun::AccumulatePartialLigatureMetrics(gfxFont *aFont,
     // Where we are going to start "drawing" relative to our left baseline origin
     gfxFloat origin = IsRightToLeft() ? metrics.mAdvanceWidth - data.mPartAdvance : 0;
     ClipPartialLigature(this, &bboxLeft, &bboxRight, origin, &data);
-    metrics.mBoundingBox.x = bboxLeft;
-    metrics.mBoundingBox.width = bboxRight - bboxLeft;
+    metrics.mBoundingBox.pos.x = bboxLeft;
+    metrics.mBoundingBox.size.width = bboxRight - bboxLeft;
 
     // mBoundingBox is now relative to the left baseline origin for the entire
     // ligature. Shift it left.
-    metrics.mBoundingBox.x -=
+    metrics.mBoundingBox.pos.x -=
         IsRightToLeft() ? metrics.mAdvanceWidth - (data.mPartAdvance + data.mPartWidth)
             : data.mPartAdvance;    
     metrics.mAdvanceWidth = data.mPartWidth;
@@ -3723,9 +3705,7 @@ gfxTextRun::BreakAndMeasureText(PRUint32 aStart, PRUint32 aMaxLength,
     }
     PRPackedBool hyphenBuffer[MEASUREMENT_BUFFER_SIZE];
     PRBool haveHyphenation = aProvider &&
-        (aProvider->GetHyphensOption() == NS_STYLE_HYPHENS_AUTO ||
-         (aProvider->GetHyphensOption() == NS_STYLE_HYPHENS_MANUAL &&
-          (mFlags & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0));
+                             (mFlags & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0;
     if (haveHyphenation) {
         aProvider->GetHyphenationBreaks(bufferStart, bufferLength,
                                         hyphenBuffer);
@@ -3769,7 +3749,7 @@ gfxTextRun::BreakAndMeasureText(PRUint32 aStart, PRUint32 aMaxLength,
         // could be the first and last break opportunity on the line, and that
         // would trigger an infinite loop.
         if (!aSuppressInitialBreak || i > aStart) {
-            PRBool lineBreakHere = mCharacterGlyphs[i].CanBreakBefore() == 1;
+            PRBool lineBreakHere = mCharacterGlyphs[i].CanBreakBefore();
             PRBool hyphenation = haveHyphenation && hyphenBuffer[i - bufferStart];
             PRBool wordWrapping = aCanWordWrap && *aBreakPriority <= eWordWrapBreak;
 

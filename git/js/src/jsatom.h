@@ -125,20 +125,6 @@ IdToString(JSContext *cx, jsid id)
     return js_ValueToString(cx, IdToValue(id));
 }
 
-template<>
-struct DefaultHasher<jsid>
-{
-    typedef jsid Lookup;
-    static HashNumber hash(const Lookup &l) {
-        JS_ASSERT(l == js_CheckForStringIndex(l));
-        return JSID_BITS(l);
-    }
-    static bool match(const jsid &id, const Lookup &l) {
-        JS_ASSERT(l == js_CheckForStringIndex(l));
-        return id == l;
-    }
-};
-
 }
 
 #if JS_BYTES_PER_WORD == 4
@@ -435,8 +421,6 @@ struct JSAtomState
     JSAtom              *hasOwnAtom;
     JSAtom              *keysAtom;
     JSAtom              *iterateAtom;
-
-    JSAtom              *WeakMapAtom;
 
     /* Less frequently used atoms, pinned lazily by JS_ResolveStandardClass. */
     struct {

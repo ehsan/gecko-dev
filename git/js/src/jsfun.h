@@ -152,10 +152,12 @@ struct JSFunction : public JSObject_Slots2
     bool isConstructor()     const { return flags & JSFUN_CONSTRUCTOR; }
     bool isHeavyweight()     const { return JSFUN_HEAVYWEIGHT_TEST(flags); }
     bool isFlatClosure()     const { return FUN_KIND(this) == JSFUN_FLAT_CLOSURE; }
+
     bool isFunctionPrototype() const { return flags & JSFUN_PROTOTYPE; }
-    bool isInterpretedConstructor() const { return isInterpreted() && !isFunctionPrototype(); }
+
     /* Returns the strictness of this function, which must be interpreted. */
     inline bool inStrictMode() const;
+
     void setArgCount(uint16 nargs) {
         JS_ASSERT(this->nargs == 0);
         this->nargs = nargs;
@@ -489,7 +491,7 @@ js_DefineFunction(JSContext *cx, JSObject *obj, jsid id, js::Native native,
  * fact that JSINVOKE_CONSTRUCT (aka JSFRAME_CONSTRUCTING) is 1, and test that
  * with #if/#error in jsfun.c.
  */
-#define JSV2F_CONSTRUCT         ((uintN)js::INVOKE_CONSTRUCTOR)
+#define JSV2F_CONSTRUCT         JSINVOKE_CONSTRUCT
 #define JSV2F_SEARCH_STACK      0x10000
 
 extern JSFunction *
@@ -508,19 +510,19 @@ extern JSObject * JS_FASTCALL
 js_CreateCallObjectOnTrace(JSContext *cx, JSFunction *fun, JSObject *callee, JSObject *scopeChain);
 
 extern void
-js_PutCallObject(js::StackFrame *fp);
+js_PutCallObject(JSContext *cx, JSStackFrame *fp);
 
 extern JSBool JS_FASTCALL
-js_PutCallObjectOnTrace(JSObject *scopeChain, uint32 nargs, js::Value *argv,
-                        uint32 nvars, js::Value *slots);
+js_PutCallObjectOnTrace(JSContext *cx, JSObject *scopeChain, uint32 nargs,
+                        js::Value *argv, uint32 nvars, js::Value *slots);
 
 namespace js {
 
 JSObject *
-CreateFunCallObject(JSContext *cx, StackFrame *fp);
+CreateFunCallObject(JSContext *cx, JSStackFrame *fp);
 
 JSObject *
-CreateEvalCallObject(JSContext *cx, StackFrame *fp);
+CreateEvalCallObject(JSContext *cx, JSStackFrame *fp);
 
 extern JSBool
 GetCallArg(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
@@ -550,10 +552,10 @@ SetCallUpvar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, js::Value *vp
 } // namespace js
 
 extern JSBool
-js_GetArgsValue(JSContext *cx, js::StackFrame *fp, js::Value *vp);
+js_GetArgsValue(JSContext *cx, JSStackFrame *fp, js::Value *vp);
 
 extern JSBool
-js_GetArgsProperty(JSContext *cx, js::StackFrame *fp, jsid id, js::Value *vp);
+js_GetArgsProperty(JSContext *cx, JSStackFrame *fp, jsid id, js::Value *vp);
 
 /*
  * Get the arguments object for the given frame.  If the frame is strict mode
@@ -566,10 +568,10 @@ js_GetArgsProperty(JSContext *cx, js::StackFrame *fp, jsid id, js::Value *vp);
  *     function.
  */
 extern JSObject *
-js_GetArgsObject(JSContext *cx, js::StackFrame *fp);
+js_GetArgsObject(JSContext *cx, JSStackFrame *fp);
 
 extern void
-js_PutArgsObject(js::StackFrame *fp);
+js_PutArgsObject(JSContext *cx, JSStackFrame *fp);
 
 inline bool
 js_IsNamedLambda(JSFunction *fun) { return (fun->flags & JSFUN_LAMBDA) && fun->atom; }

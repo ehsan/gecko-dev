@@ -10,7 +10,7 @@ function test() {
   let createGroupItem = function () {
     let bounds = new cw.Rect(20, 20, 400, 200);
     let groupItem = new cw.GroupItem([], {bounds: bounds, immediately: true});
-    cw.UI.setActive(groupItem);
+    cw.GroupItems.setActiveGroupItem(groupItem);
 
     let groupItemId = groupItem.id;
     registerCleanupFunction(function() {

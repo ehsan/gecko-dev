@@ -44,8 +44,6 @@
 #include "jsbuiltins.h"
 #include "jscompartment.h"
 
-#include "jsgcinlines.h"
-
 using namespace js;
 using namespace js::gc;
 
@@ -74,7 +72,7 @@ ConservativeGCStats::dump(FILE *fp)
     fprintf(fp, "        excluded, wrong tag: %lu\n", ULSTAT(counter[CGCT_WRONGTAG]));
     fprintf(fp, "         excluded, not live: %lu\n", ULSTAT(counter[CGCT_NOTLIVE]));
     fprintf(fp, "            valid GC things: %lu\n", ULSTAT(counter[CGCT_VALID]));
-    fprintf(fp, "      valid but not aligned: %lu\n", ULSTAT(unaligned));
+    fprintf(fp, "      valid but not aligned: %lu\n", ULSTAT(counter[CGCT_VALIDWITHOFFSET]));
 #undef ULSTAT
 }
 #endif
@@ -115,17 +113,11 @@ UpdateCompartmentStats(JSCompartment *comp, unsigned thingKind, uint32 nlivearen
 
 static const char *const GC_ARENA_NAMES[] = {
     "object_0",
-    "object_0_background",
     "object_2",
-    "object_2_background",
     "object_4",
-    "object_4_background",
     "object_8",
-    "object_8_background",
     "object_12",
-    "object_12_background",
     "object_16",
-    "object_16_background",
     "function",
     "shape",
 #if JS_HAS_XML_SUPPORT
@@ -145,31 +137,62 @@ GetSizeAndThings(size_t &thingSize, size_t &thingsPerArena)
     thingsPerArena = Arena<T>::ThingsPerArena;
 }
 
+#if defined JS_DUMP_CONSERVATIVE_GC_ROOTS
+void *
+GetAlignedThing(void *thing, int thingKind)
+{
+    Cell *cell = (Cell *)thing;
+    switch (thingKind) {
+        case FINALIZE_OBJECT0:
+            return (void *)GetArena<JSObject>(cell)->getAlignedThing(thing);
+        case FINALIZE_OBJECT2:
+            return (void *)GetArena<JSObject_Slots2>(cell)->getAlignedThing(thing);
+        case FINALIZE_OBJECT4:
+            return (void *)GetArena<JSObject_Slots4>(cell)->getAlignedThing(thing);
+        case FINALIZE_OBJECT8:
+            return (void *)GetArena<JSObject_Slots8>(cell)->getAlignedThing(thing);
+        case FINALIZE_OBJECT12:
+            return (void *)GetArena<JSObject_Slots12>(cell)->getAlignedThing(thing);
+        case FINALIZE_OBJECT16:
+            return (void *)GetArena<JSObject_Slots16>(cell)->getAlignedThing(thing);
+        case FINALIZE_STRING:
+            return (void *)GetArena<JSString>(cell)->getAlignedThing(thing);
+        case FINALIZE_EXTERNAL_STRING:
+            return (void *)GetArena<JSExternalString>(cell)->getAlignedThing(thing);
+        case FINALIZE_SHORT_STRING:
+            return (void *)GetArena<JSShortString>(cell)->getAlignedThing(thing);
+        case FINALIZE_FUNCTION:
+            return (void *)GetArena<JSFunction>(cell)->getAlignedThing(thing);
+#if JS_HAS_XML_SUPPORT
+        case FINALIZE_XML:
+            return (void *)GetArena<JSXML>(cell)->getAlignedThing(thing);
+#endif
+        default:
+            JS_ASSERT(false);
+            return NULL;
+    }
+}
+#endif
+
 void GetSizeAndThingsPerArena(int thingKind, size_t &thingSize, size_t &thingsPerArena)
 {
     switch (thingKind) {
         case FINALIZE_OBJECT0:
-        case FINALIZE_OBJECT0_BACKGROUND:
             GetSizeAndThings<JSObject>(thingSize, thingsPerArena);
             break;
         case FINALIZE_OBJECT2:
-        case FINALIZE_OBJECT2_BACKGROUND:
             GetSizeAndThings<JSObject_Slots2>(thingSize, thingsPerArena);
             break;
         case FINALIZE_OBJECT4:
-        case FINALIZE_OBJECT4_BACKGROUND:
             GetSizeAndThings<JSObject_Slots4>(thingSize, thingsPerArena);
             break;
         case FINALIZE_OBJECT8:
-        case FINALIZE_OBJECT8_BACKGROUND:
             GetSizeAndThings<JSObject_Slots8>(thingSize, thingsPerArena);
             break;
         case FINALIZE_OBJECT12:
-        case FINALIZE_OBJECT12_BACKGROUND:
             GetSizeAndThings<JSObject_Slots12>(thingSize, thingsPerArena);
             break;
         case FINALIZE_OBJECT16:
-        case FINALIZE_OBJECT16_BACKGROUND:
             GetSizeAndThings<JSObject_Slots16>(thingSize, thingsPerArena);
             break;
         case FINALIZE_EXTERNAL_STRING:
@@ -188,7 +211,7 @@ void GetSizeAndThingsPerArena(int thingKind, size_t &thingSize, size_t &thingsPe
             break;
 #endif
         default:
-            JS_NOT_REACHED("wrong kind");
+            JS_ASSERT(false);
     }
 }
 
@@ -325,16 +348,16 @@ GCMarker::dumpConservativeRoots()
 
     conservativeStats.dump(fp);
 
-    for (void **thingp = conservativeRoots.begin(); thingp != conservativeRoots.end(); ++thingp) {
-        void *thing = thingp;
-        fprintf(fp, "  %p: ", thing);
-        
-        switch (GetGCThingTraceKind(thing)) {
+    for (ConservativeRoot *i = conservativeRoots.begin();
+         i != conservativeRoots.end();
+         ++i) {
+        fprintf(fp, "  %p: ", i->thing);
+        switch (GetFinalizableTraceKind(i->thingKind)) {
           default:
             JS_NOT_REACHED("Unknown trace kind");
 
           case JSTRACE_OBJECT: {
-            JSObject *obj = (JSObject *) thing;
+            JSObject *obj = (JSObject *) i->thing;
             fprintf(fp, "object %s", obj->getClass()->name);
             break;
           }
@@ -343,7 +366,7 @@ GCMarker::dumpConservativeRoots()
             break;
           }
           case JSTRACE_STRING: {
-            JSString *str = (JSString *) thing;
+            JSString *str = (JSString *) i->thing;
             if (str->isLinear()) {
                 char buf[50];
                 PutEscapedString(buf, sizeof buf, &str->asLinear(), '"');
@@ -355,7 +378,7 @@ GCMarker::dumpConservativeRoots()
           }
 # if JS_HAS_XML_SUPPORT
           case JSTRACE_XML: {
-            JSXML *xml = (JSXML *) thing;
+            JSXML *xml = (JSXML *) i->thing;
             fprintf(fp, "xml %u", (unsigned)xml->xml_class);
             break;
           }
@@ -419,7 +442,7 @@ GCTimer::finish(bool lastGC) {
                     TIMEDIFF(sweepObjectEnd, sweepStringEnd),
                     TIMEDIFF(sweepStringEnd, sweepShapeEnd),
                     TIMEDIFF(sweepShapeEnd, sweepDestroyEnd));
-            fprintf(gcFile, "%7d, %7d\n", newChunkCount, destroyChunkCount);
+            fprintf(gcFile, "%7d, %7d \n", newChunkCount, destroyChunkCount);
             fflush(gcFile);
 
             if (lastGC) {

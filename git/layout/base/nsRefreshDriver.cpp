@@ -96,7 +96,7 @@ nsRefreshDriver::GetRefreshTimerType() const
     return nsITimer::TYPE_ONE_SHOT;
   }
   if (HaveAnimationFrameListeners() || sPrecisePref) {
-    return nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP;
+    return nsITimer::TYPE_REPEATING_PRECISE;
   }
   return nsITimer::TYPE_REPEATING_SLACK;
 }
@@ -126,28 +126,20 @@ nsRefreshDriver::AdvanceTimeAndRefresh(PRInt64 aMilliseconds)
   mTestControllingRefreshes = true;
   mMostRecentRefreshEpochTime += aMilliseconds * 1000;
   mMostRecentRefresh += TimeDuration::FromMilliseconds(aMilliseconds);
-  nsCxPusher pusher;
-  if (pusher.PushNull()) {
-    Notify(nsnull);
-    pusher.Pop();
-  }
+  Notify(nsnull);
 }
 
 void
 nsRefreshDriver::RestoreNormalRefresh()
 {
   mTestControllingRefreshes = false;
-  nsCxPusher pusher;
-  if (pusher.PushNull()) {
-    Notify(nsnull); // will call UpdateMostRecentRefresh()
-    pusher.Pop();
-  }
+  Notify(nsnull); // will call UpdateMostRecentRefresh()
 }
 
 TimeStamp
 nsRefreshDriver::MostRecentRefresh() const
 {
-  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted(false);
+  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted();
 
   return mMostRecentRefresh;
 }
@@ -155,7 +147,7 @@ nsRefreshDriver::MostRecentRefresh() const
 PRInt64
 nsRefreshDriver::MostRecentRefreshEpochTime() const
 {
-  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted(false);
+  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted();
 
   return mMostRecentRefreshEpochTime;
 }
@@ -167,7 +159,7 @@ nsRefreshDriver::AddRefreshObserver(nsARefreshObserver *aObserver,
   ObserverArray& array = ArrayFor(aFlushType);
   PRBool success = array.AppendElement(aObserver) != nsnull;
 
-  EnsureTimerStarted(false);
+  EnsureTimerStarted();
 
   return success;
 }
@@ -181,7 +173,7 @@ nsRefreshDriver::RemoveRefreshObserver(nsARefreshObserver *aObserver,
 }
 
 void
-nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
+nsRefreshDriver::EnsureTimerStarted()
 {
   if (mTimer || mFrozen || !mPresContext) {
     // It's already been started, or we don't want to start it now or
@@ -189,15 +181,7 @@ nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
     return;
   }
 
-  if (!aAdjustingTimer) {
-    // If we didn't already have a timer and aAdjustingTimer is false,
-    // then we just got our first observer (or an explicit call to
-    // MostRecentRefresh by a caller who's likely to add an observer
-    // shortly).  This means we should fake a most-recent-refresh time
-    // of now so that said observer gets a reasonable refresh time, so
-    // things behave as though the timer had always been running.
-    UpdateMostRecentRefresh();
-  }
+  UpdateMostRecentRefresh();
 
   mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   if (!mTimer) {
@@ -205,7 +189,7 @@ nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
   }
 
   PRInt32 timerType = GetRefreshTimerType();
-  mTimerIsPrecise = (timerType == nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP);
+  mTimerIsPrecise = (timerType == nsITimer::TYPE_REPEATING_PRECISE);
 
   nsresult rv = mTimer->InitWithCallback(this,
                                          GetRefreshTimerInterval(),
@@ -287,8 +271,6 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
 {
   NS_PRECONDITION(!mFrozen, "Why are we notified while frozen?");
   NS_PRECONDITION(mPresContext, "Why are we notified after disconnection?");
-  NS_PRECONDITION(!nsContentUtils::GetCurrentJSContext(),
-                  "Shouldn't have a JSContext on the stack");
 
   if (mTestControllingRefreshes && aTimer) {
     // Ignore real refreshes from our timer (but honor the others).
@@ -401,7 +383,7 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
 
   if (mThrottled ||
       (mTimerIsPrecise !=
-       (GetRefreshTimerType() == nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP))) {
+       (GetRefreshTimerType() == nsITimer::TYPE_REPEATING_PRECISE))) {
     // Stop the timer now and restart it here.  Stopping is in the mThrottled
     // case ok because either it's already one-shot, and it just fired, and all
     // we need to do is null it out, or it's repeating and we need to reset it
@@ -413,7 +395,7 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
     // EnsureTimerStarted makes sure to not start the timer if it shouldn't be
     // started.
     StopTimer();
-    EnsureTimerStarted(true);
+    EnsureTimerStarted();
   }
 
   return NS_OK;
@@ -433,12 +415,8 @@ nsRefreshDriver::Thaw()
   NS_ASSERTION(mFrozen, "Thaw called on an unfrozen refresh driver");
   mFrozen = false;
   if (ObserverCount()) {
-    // FIXME: This isn't quite right, since our EnsureTimerStarted call
-    // updates our mMostRecentRefresh, but the DoRefresh call won't run
-    // and notify our observers until we get back to the event loop.
-    // Thus MostRecentRefresh() will lie between now and the DoRefresh.
     NS_DispatchToCurrentThread(NS_NewRunnableMethod(this, &nsRefreshDriver::DoRefresh));
-    EnsureTimerStarted(false);
+    EnsureTimerStarted();
   }
 }
 
@@ -451,7 +429,7 @@ nsRefreshDriver::SetThrottled(bool aThrottled)
       // We want to switch our timer type here, so just stop and
       // restart the timer.
       StopTimer();
-      EnsureTimerStarted(true);
+      EnsureTimerStarted();
     }
   }
 }
@@ -482,7 +460,7 @@ nsRefreshDriver::ScheduleBeforePaintEvent(nsIDocument* aDocument)
                mBeforePaintTargets.NoIndex,
                "Shouldn't have a paint event posted for this document");
   PRBool appended = mBeforePaintTargets.AppendElement(aDocument) != nsnull;
-  EnsureTimerStarted(false);
+  EnsureTimerStarted();
   return appended;
 }
 
@@ -495,7 +473,7 @@ nsRefreshDriver::ScheduleAnimationFrameListeners(nsIDocument* aDocument)
   mAnimationFrameListenerDocs.AppendElement(aDocument);
   // No need to worry about restarting our timer in precise mode if it's
   // already running; that will happen automatically when it fires.
-  EnsureTimerStarted(false);
+  EnsureTimerStarted();
 }
 
 void

@@ -45,7 +45,6 @@
 #define nsTextFragment_h___
 
 #include "nsString.h"
-#include "nsReadableUtils.h"
 #include "nsTraceRefcnt.h"
 class nsString;
 class nsCString;

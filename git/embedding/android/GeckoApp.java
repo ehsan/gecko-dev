@@ -265,10 +265,7 @@ abstract public class GeckoApp
     }
 
     boolean IsUnsupportedDevice() {
-        // We don't currently support devices with less than 512Mb of RAM, 
-        // and want to warn if run on such devices. Most 512Mb devices
-        // report about 350Mb available, so we check - somewhat arbitrarily - 
-        // for a minimum of 300Mb here.
+        // We don't currently support devices with less than 256Mb of RAM, warn on first run
         File meminfo = new File("/proc/meminfo");
         try {
             BufferedReader br = new BufferedReader(new FileReader(meminfo));
@@ -280,7 +277,7 @@ abstract public class GeckoApp
             totalMem = st.nextToken();
 
             Log.i("GeckoMemory", "MemTotal: " + Integer.parseInt(totalMem));
-            return Integer.parseInt(totalMem) < 300000L;
+            return Integer.parseInt(totalMem) <= 262144L;
         } catch (Exception ex) {
             // Will catch  NullPointerException if totalMem isn't found,
             // a NumberFormatException if the token isn't parsible
@@ -462,16 +459,6 @@ abstract public class GeckoApp
           ZipEntry entry = zipEntries.nextElement();
           if (entry.getName().startsWith("extensions/") && entry.getName().endsWith(".xpi")) {
             Log.i("GeckoAppJava", "installing extension : " + entry.getName());
-            unpackFile(zip, buf, entry, entry.getName());
-          }
-        }
-
-        // copy any hyphenation dictionaries file into a hyphenation/ directory
-        Enumeration<? extends ZipEntry> hyphenEntries = zip.entries();
-        while (hyphenEntries.hasMoreElements()) {
-          ZipEntry entry = hyphenEntries.nextElement();
-          if (entry.getName().startsWith("hyphenation/")) {
-            Log.i("GeckoAppJava", "installing hyphenation : " + entry.getName());
             unpackFile(zip, buf, entry, entry.getName());
           }
         }

@@ -69,7 +69,11 @@ installer:
 
 package:
 	rm -rf dist/fennec*
+ifeq ($(OS_ARCH),WINCE)
+	@$(MAKE) -C mobile/installer installer
+else
 	@$(MAKE) -C mobile/installer
+endif
 
 install::
 	@echo "Mobile can't be installed directly."
@@ -80,18 +84,6 @@ deb: package
 
 upload::
 	@$(MAKE) -C mobile/installer upload
-
-ifdef ENABLE_TESTS
-# Implemented in testing/testsuite-targets.mk
-
-mochitest-browser-chrome:
-	$(RUN_MOCHITEST) --browser-chrome
-	$(CHECK_TEST_ERROR)
-
-mochitest:: mochitest-browser-chrome
-
-.PHONY: mochitest-browser-chrome
-endif
 
 ifeq ($(OS_TARGET),Linux)
 deb: installer

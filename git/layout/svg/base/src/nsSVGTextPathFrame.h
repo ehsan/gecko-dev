@@ -91,6 +91,9 @@ protected:
   virtual void GetXY(SVGUserUnitList *aX, SVGUserUnitList *aY);
   virtual void GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy);
   virtual const SVGNumberList *GetRotate();
+
+private:
+  already_AddRefed<gfxFlattenedPath> GetFlattenedPath(nsIFrame *path);
 };
 
 #endif

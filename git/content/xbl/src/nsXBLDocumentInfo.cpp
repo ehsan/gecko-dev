@@ -76,7 +76,7 @@ public:
 
   virtual nsIScriptContext *GetContext();
   virtual JSObject *GetGlobalJSObject();
-  virtual void OnFinalize(JSObject* aObject);
+  virtual void OnFinalize(PRUint32 aLangID, void *aScriptGlobal);
   virtual void SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts);
 
   // nsIScriptObjectPrincipal methods
@@ -167,7 +167,7 @@ nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(nativeThis));
 
   if (sgo)
-    sgo->OnFinalize(obj);
+    sgo->OnFinalize(nsIProgrammingLanguage::JAVASCRIPT, obj);
 
   // The addref was part of JSObject construction
   NS_RELEASE(nativeThis);
@@ -383,10 +383,13 @@ nsXBLDocGlobalObject::GetGlobalJSObject()
 }
 
 void
-nsXBLDocGlobalObject::OnFinalize(JSObject* aObject)
+nsXBLDocGlobalObject::OnFinalize(PRUint32 aLangID, void *aObject)
 {
+  NS_ASSERTION(aLangID == nsIProgrammingLanguage::JAVASCRIPT,
+               "Only JS supported");
   NS_ASSERTION(aObject == mJSObject, "Wrong object finalized!");
-  mJSObject = NULL;
+
+  mJSObject = nsnull;
 }
 
 void

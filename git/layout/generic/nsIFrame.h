@@ -85,7 +85,7 @@ class nsHTMLReflowCommand;
 class nsIAtom;
 class nsPresContext;
 class nsIPresShell;
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsIView;
 class nsIWidget;
 class nsIDOMRange;
@@ -103,7 +103,6 @@ class gfxSkipChars;
 class gfxSkipCharsIterator;
 class gfxContext;
 class nsLineList_iterator;
-class nsAbsoluteContainingBlock;
 
 struct nsPeekOffsetStruct;
 struct nsPoint;
@@ -285,9 +284,6 @@ typedef PRUint64 nsFrameState;
 // Only meaningful for display roots, so we don't really need a global state
 // bit; we could free up this bit with a little extra complexity.
 #define NS_FRAME_UPDATE_LAYER_TREE                  NS_FRAME_STATE_BIT(36)
-
-// Frame can accept absolutely positioned children.
-#define NS_FRAME_HAS_ABSPOS_CHILDREN                NS_FRAME_STATE_BIT(37)
 
 // The lower 20 bits and upper 32 bits of the frame state are reserved
 // by this API.
@@ -588,8 +584,6 @@ public:
    *            name means the unnamed principal child list
    * @param   aChildList list of child frames. Each of the frames has its
    *            NS_FRAME_IS_DIRTY bit set.  Must not be empty.
-   *            This method cannot handle the child list returned by
-   *            GetAbsoluteListName().
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
    *            name,
    *          NS_ERROR_UNEXPECTED if the frame is an atomic frame or if the
@@ -900,8 +894,6 @@ public:
   NS_DECLARE_FRAME_PROPERTY(UsedPaddingProperty, DestroyMargin)
   NS_DECLARE_FRAME_PROPERTY(UsedBorderProperty, DestroyMargin)
 
-  NS_DECLARE_FRAME_PROPERTY(ScrollLayerCount, nsnull)
-
   /**
    * Return the distance between the border edge of the frame and the
    * margin edge of the frame.  Like GetRect(), returns the dimensions
@@ -949,9 +941,7 @@ public:
    * other rectangles of the frame, in app units, relative to the parent.
    */
   nsRect GetPaddingRect() const;
-  nsRect GetPaddingRectRelativeToSelf() const;
   nsRect GetContentRect() const;
-  nsRect GetContentRectRelativeToSelf() const;
 
   /**
    * Get the size, in app units, of the border radii. It returns FALSE iff all
@@ -1416,7 +1406,7 @@ public:
    *
    * This method must not return a negative value.
    */
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) = 0;
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext) = 0;
 
   /**
    * Get the intrinsic width of the frame.  This must be greater than or
@@ -1424,7 +1414,7 @@ public:
    *
    * Otherwise, all the comments for |GetMinWidth| above apply.
    */
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) = 0;
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext) = 0;
 
   /**
    * |InlineIntrinsicWidth| represents the intrinsic width information
@@ -1481,11 +1471,11 @@ public:
     // current line total is negative.  When it is, we need to ignore
     // optional breaks to prevent min-width from ending up bigger than
     // pref-width.
-    void ForceBreak(nsRenderingContext *aRenderingContext);
+    void ForceBreak(nsIRenderingContext *aRenderingContext);
 
     // If the break here is actually taken, aHyphenWidth must be added to the
     // width of the current line.
-    void OptionallyBreak(nsRenderingContext *aRenderingContext,
+    void OptionallyBreak(nsIRenderingContext *aRenderingContext,
                          nscoord aHyphenWidth = 0);
 
     // The last text frame processed so far in the current line, when
@@ -1500,7 +1490,7 @@ public:
   };
 
   struct InlinePrefWidthData : public InlineIntrinsicWidthData {
-    void ForceBreak(nsRenderingContext *aRenderingContext);
+    void ForceBreak(nsIRenderingContext *aRenderingContext);
   };
 
   /**
@@ -1523,7 +1513,7 @@ public:
    * which calls |GetMinWidth|.
    */
   virtual void
-  AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                     InlineMinWidthData *aData) = 0;
 
   /**
@@ -1537,7 +1527,7 @@ public:
    * based on using all *mandatory* breakpoints within the frame.
    */
   virtual void
-  AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                      InlinePrefWidthData *aData) = 0;
 
   /**
@@ -1554,7 +1544,7 @@ public:
     {}
   };
   virtual IntrinsicWidthOffsetData
-    IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext) = 0;
+    IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext) = 0;
 
   /*
    * For replaced elements only. Gets the intrinsic dimensions of this element.
@@ -1635,7 +1625,7 @@ public:
    *                     it's floating, absolutely positioned, or
    *                     inline-block).
    */
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap) = 0;
@@ -2705,17 +2695,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
       }
     }
   }  
-
-  /**
-   * Accessors for the absolute containing block.
-   */
-  PRBool IsAbsoluteContainer() const { return !!(mState & NS_FRAME_HAS_ABSPOS_CHILDREN); }
-  PRBool HasAbsolutelyPositionedChildren() const;
-  nsAbsoluteContainingBlock* GetAbsoluteContainingBlock() const;
-  virtual void MarkAsAbsoluteContainingBlock();
-  // Child frame types override this function to select their own child list name
-  virtual nsIAtom* GetAbsoluteListName() const { return nsGkAtoms::absoluteList; }
-
+  
 protected:
   // Members
   nsRect           mRect;
@@ -2725,8 +2705,6 @@ protected:
 private:
   nsIFrame*        mNextSibling;  // doubly-linked list of frames
   nsIFrame*        mPrevSibling;  // Do not touch outside SetNextSibling!
-
-  void MarkAbsoluteFramesForDisplayList(nsDisplayListBuilder* aBuilder, const nsRect& aDirtyRect);
 
   static void DestroyPaintedPresShellList(void* propertyValue) {
     nsTArray<nsWeakPtr>* list = static_cast<nsTArray<nsWeakPtr>*>(propertyValue);

@@ -193,15 +193,15 @@ nsRootAccessible::NativeState()
 
 #ifdef MOZ_XUL
   PRUint32 chromeFlags = GetChromeFlags();
-  if (chromeFlags & nsIWebBrowserChrome::CHROME_WINDOW_RESIZE)
+  if (chromeFlags & nsIWebBrowserChrome::CHROME_WINDOW_RESIZE) {
     states |= states::SIZEABLE;
+  }
+  if (chromeFlags & nsIWebBrowserChrome::CHROME_TITLEBAR) {
     // If it has a titlebar it's movable
     // XXX unless it's minimized or maximized, but not sure
     //     how to detect that
-  if (chromeFlags & nsIWebBrowserChrome::CHROME_TITLEBAR)
     states |= states::MOVEABLE;
-  if (chromeFlags & nsIWebBrowserChrome::CHROME_MODAL)
-    states |= states::MODAL;
+  }
 #endif
 
   nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
@@ -214,6 +214,12 @@ nsRootAccessible::NativeState()
     if (activeWindow == rootWindow)
       states |= states::ACTIVE;
   }
+
+#ifdef MOZ_XUL
+  if (GetChromeFlags() & nsIWebBrowserChrome::CHROME_MODAL) {
+    states |= states::MODAL;
+  }
+#endif
 
   return states;
 }
@@ -264,7 +270,7 @@ nsresult nsRootAccessible::AddEventListeners()
                    * const* e_end = docEvents + NS_ARRAY_LENGTH(docEvents);
          e < e_end; ++e) {
       nsresult rv = nstarget->AddEventListener(NS_ConvertASCIItoUTF16(*e),
-                                               this, PR_TRUE, PR_TRUE, 2);
+                                               this, PR_TRUE, PR_TRUE, 1);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }

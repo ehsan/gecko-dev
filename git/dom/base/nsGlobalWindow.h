@@ -62,6 +62,7 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDOMClientInformation.h"
+#include "nsIDOMViewCSS.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOM3EventTarget.h"
 #include "nsIDOMNSEventTarget.h"
@@ -279,6 +280,7 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsPIDOMEventTarget,
                        public nsIDOM3EventTarget,
                        public nsIDOMNSEventTarget,
+                       public nsIDOMViewCSS,
                        public nsIDOMStorageWindow,
                        public nsIDOMStorageIndexedDB,
                        public nsSupportsWeakReference,
@@ -318,7 +320,7 @@ public:
   // for the context is created by the context's GetNativeGlobal() method.
   virtual nsresult SetScriptContext(PRUint32 lang, nsIScriptContext *aContext);
   
-  virtual void OnFinalize(JSObject* aObject);
+  virtual void OnFinalize(PRUint32 aLangID, void *aScriptGlobal);
   virtual void SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts);
 
   // nsIScriptObjectPrincipal
@@ -416,6 +418,12 @@ public:
   virtual NS_HIDDEN_(void) SetHasOrientationEventListener();
   virtual NS_HIDDEN_(void) MaybeUpdateTouchState();
   virtual NS_HIDDEN_(void) UpdateTouchState();
+
+  // nsIDOMViewCSS
+  NS_DECL_NSIDOMVIEWCSS
+
+  // nsIDOMAbstractView
+  NS_DECL_NSIDOMABSTRACTVIEW
 
   // nsIDOMStorageWindow
   NS_DECL_NSIDOMSTORAGEWINDOW
@@ -540,7 +548,7 @@ public:
   virtual PRBool TakeFocus(PRBool aFocus, PRUint32 aFocusMethod);
   virtual void SetReadyForFocus();
   virtual void PageHidden();
-  virtual nsresult DispatchAsyncHashchange(nsIURI *aOldURI, nsIURI *aNewURI);
+  virtual nsresult DispatchAsyncHashchange();
   virtual nsresult DispatchSyncPopState();
 
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
@@ -580,9 +588,6 @@ private:
   void DisableAccelerationUpdates();
 
 protected:
-  friend class HashchangeCallback;
-  friend class nsBarProp;
-
   // Object Management
   virtual ~nsGlobalWindow();
   void CleanUp(PRBool aIgnoreModalDialog);
@@ -711,7 +716,7 @@ protected:
                            const nsAString &aPopupWindowName,
                            const nsAString &aPopupWindowFeatures);
   void FireOfflineStatusEvent();
-  nsresult FireHashchange(const nsAString &aOldURL, const nsAString &aNewURL);
+  nsresult FireHashchange();
 
   void FlushPendingNotifications(mozFlushType aType);
   void EnsureReflowFlushAndPaint();

@@ -62,6 +62,8 @@
 #include "prlog.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 
+static nsOfflineCacheUpdateService *gOfflineCacheUpdateService = nsnull;
+
 #if defined(PR_LOGGING)
 //
 // To enable logging (see prlog.h for full details):

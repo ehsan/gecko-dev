@@ -159,11 +159,10 @@ class JSString : public js::gc::Cell
                     JSLinearString *base;               /* JSDependentString */
                     JSString       *right;              /* JSRope */
                     size_t         capacity;            /* JSFlatString (extensible) */
-                    size_t         externalType;        /* JSExternalString */
+                    size_t         externalStringType;  /* JSExternalString */
                 } u2;
                 union {
                     JSString       *parent;             /* JSRope (temporary) */
-                    void           *externalClosure;    /* JSExternalString */
                     size_t         reserved;            /* may use for bug 615290 */
                 } u3;
             } s;
@@ -341,14 +340,6 @@ class JSString : public js::gc::Cell
         return *(JSFixedString *)this;
     }
 
-    bool isExternal() const;
-
-    JS_ALWAYS_INLINE
-    JSExternalString &asExternal() {
-        JS_ASSERT(isExternal());
-        return *(JSExternalString *)this;
-    }
-
     JS_ALWAYS_INLINE
     bool isAtom() const {
         bool atomized = (d.lengthAndFlags & ATOM_MASK) == ATOM_FLAGS;
@@ -373,7 +364,7 @@ class JSString : public js::gc::Cell
 
     /* Called during GC for any string. */
 
-    void mark(JSTracer *trc);
+    inline void mark(JSTracer *trc);
 
     /* Offsets for direct field from jit code. */
 
@@ -413,7 +404,7 @@ JS_STATIC_ASSERT(sizeof(JSRope) == sizeof(JSString));
 class JSLinearString : public JSString
 {
     friend class JSString;
-    void mark(JSTracer *trc);
+    inline void mark(JSTracer *trc);
 
   public:
     JS_ALWAYS_INLINE
@@ -551,31 +542,22 @@ class JSShortString : public JSInlineString
 
 JS_STATIC_ASSERT(sizeof(JSShortString) == 2 * sizeof(JSString));
 
-/*
- * The externalClosure stored in an external string is a black box to the JS
- * engine; see JS_NewExternalStringWithClosure.
- */
 class JSExternalString : public JSFixedString
 {
     static void staticAsserts() {
         JS_STATIC_ASSERT(TYPE_LIMIT == 8);
     }
 
-    void init(const jschar *chars, size_t length, intN type, void *closure);
+    void init(const jschar *chars, size_t length, intN type);
 
   public:
     static inline JSExternalString *new_(JSContext *cx, const jschar *chars,
-                                         size_t length, intN type, void *closure);
+                                         size_t length, intN type);
 
-    intN externalType() const {
-        JS_ASSERT(isExternal());
-        JS_ASSERT(d.s.u2.externalType < TYPE_LIMIT);
-        return d.s.u2.externalType;
-    }
-
-    void *externalClosure() const {
-        JS_ASSERT(isExternal());
-        return d.s.u3.externalClosure;
+    intN externalStringType() const {
+        JS_ASSERT(isFlat() && !isAtom());
+        JS_ASSERT(d.s.u2.externalStringType < TYPE_LIMIT);
+        return d.s.u2.externalStringType;
     }
 
     static const uintN TYPE_LIMIT = 8;
@@ -694,17 +676,13 @@ JS_STATIC_ASSERT(sizeof(JSStaticAtom) == sizeof(JSString));
 JS_ALWAYS_INLINE const jschar *
 JSString::getChars(JSContext *cx)
 {
-    if (JSLinearString *str = ensureLinear(cx))
-        return str->chars();
-    return NULL;
+    return ensureLinear(cx)->chars();
 }
 
 JS_ALWAYS_INLINE const jschar *
 JSString::getCharsZ(JSContext *cx)
 {
-    if (JSFlatString *str = ensureFlat(cx))
-        return str->chars();
-    return NULL;
+    return ensureFlat(cx)->chars();
 }
 
 JS_ALWAYS_INLINE JSLinearString *

@@ -115,7 +115,7 @@ bool ots_head_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
 }
 
 bool ots_head_should_serialise(OpenTypeFile *file) {
-  return file->head != NULL;
+  return file->head;
 }
 
 bool ots_head_serialise(OTSStream *out, OpenTypeFile *file) {

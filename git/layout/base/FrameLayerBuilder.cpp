@@ -47,7 +47,6 @@
 #include "nsCSSFrameConstructor.h"
 #include "gfxUtils.h"
 #include "nsImageFrame.h"
-#include "nsRenderingContext.h"
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -1315,23 +1314,15 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
 
     // Assign the item to a layer
     if (layerState == LAYER_ACTIVE_FORCE ||
-        layerState == LAYER_ACTIVE_EMPTY ||
         layerState == LAYER_ACTIVE && (aClip.mRoundedClipRects.IsEmpty() ||
         // We can use the visible rect here only because the item has its own
         // layer, like the comment below.
         !aClip.IsRectClippedByRoundedCorner(item->GetVisibleRect()))) {
-
-      // LAYER_ACTIVE_EMPTY means the layer is created just for its metadata.
-      // We should never see an empty layer with any visible content!
-      NS_ASSERTION(layerState != LAYER_ACTIVE_EMPTY ||
-                   itemVisibleRect.IsEmpty(),
-                   "State is LAYER_ACTIVE_EMPTY but visible rect is not.");
-
       // If the item would have its own layer but is invisible, just hide it.
       // Note that items without their own layers can't be skipped this
       // way, since their ThebesLayer may decide it wants to draw them
       // into its buffer even if they're currently covered.
-      if (itemVisibleRect.IsEmpty() && layerState != LAYER_ACTIVE_EMPTY) {
+      if (itemVisibleRect.IsEmpty()) {
         InvalidateForLayerChange(item, nsnull);
         continue;
       }
@@ -1651,7 +1642,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
   state.Finish(&flags);
 
   nsRect bounds = state.GetChildrenBounds();
-  NS_ASSERTION(bounds.IsEqualInterior(aChildren.GetBounds(aBuilder)), "Wrong bounds");
+  NS_ASSERTION(bounds == aChildren.GetBounds(aBuilder), "Wrong bounds");
   nsIntRect pixBounds = bounds.ToOutsidePixels(appUnitsPerDevPixel);
   containerLayer->SetVisibleRegion(pixBounds);
   // Make sure that rounding the visible region out didn't add any area
@@ -1892,7 +1883,11 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
     }
   }
 
-  nsRefPtr<nsRenderingContext> rc = new nsRenderingContext();
+  nsRefPtr<nsIRenderingContext> rc;
+  nsresult rv =
+    presContext->DeviceContext()->CreateRenderingContextInstance(*getter_AddRefs(rc));
+  if (NS_FAILED(rv))
+    return;
   rc->Init(presContext->DeviceContext(), aContext);
 
   Clip currentClip;

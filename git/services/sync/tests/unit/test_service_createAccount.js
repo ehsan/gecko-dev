@@ -39,12 +39,12 @@ function run_test() {
     do_check_eq(payload["captcha-response"], "response");
 
     _("A non-ASCII password is UTF-8 encoded.");
-    const moneyPassword = "moneyislike$£¥";
-    res = Service.createAccount("john@doe.com", moneyPassword,
+    res = Service.createAccount("john@doe.com", "moneyislike$\u20ac\xa5\u5143",
                                 "challenge", "response");
     do_check_eq(res, null);
     payload = JSON.parse(requestBody);
-    do_check_eq(payload.password, Utils.encodeUTF8(moneyPassword));
+    do_check_eq(payload.password,
+                Utils.encodeUTF8("moneyislike$\u20ac\xa5\u5143"));
 
     _("Invalid captcha or other user-friendly error.");
     res = Service.createAccount("jane@doe.com", "anothersecretpw",

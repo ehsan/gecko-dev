@@ -41,9 +41,10 @@
 #include "nsTimeRanges.h"
 #include "nsThreadUtils.h"
 
-using mozilla::ReentrantMonitorAutoEnter;
+using mozilla::MonitorAutoEnter;
 
 static const double NS_PER_S = 1e9;
+static const double MS_PER_S = 1e3;
 
 static PRUint32
 VIntLength(unsigned char aFirstByte, PRUint32* aMask)
@@ -66,7 +67,7 @@ VIntLength(unsigned char aFirstByte, PRUint32* aMask)
 
 void nsWebMBufferedParser::Append(const unsigned char* aBuffer, PRUint32 aLength,
                                   nsTArray<nsWebMTimeDataOffset>& aMapping,
-                                  ReentrantMonitor& aReentrantMonitor)
+                                  Monitor& aMonitor)
 {
   static const unsigned char CLUSTER_ID[] = { 0x1f, 0x43, 0xb6, 0x75 };
   static const unsigned char TIMECODE_ID = 0xe7;
@@ -171,7 +172,7 @@ void nsWebMBufferedParser::Append(const unsigned char* aBuffer, PRUint32 aLength
         // It's possible we've parsed this data before, so avoid inserting
         // duplicate nsWebMTimeDataOffset entries.
         {
-          ReentrantMonitorAutoEnter mon(aReentrantMonitor);
+          MonitorAutoEnter mon(aMonitor);
           PRUint32 idx;
           if (!aMapping.GreatestIndexLtEq(mBlockOffset, idx)) {
             nsWebMTimeDataOffset entry(mBlockOffset, mClusterTimecode + mBlockTimecode);
@@ -214,7 +215,7 @@ void nsWebMBufferedState::CalculateBufferedForRange(nsTimeRanges* aBuffered,
                                                     PRUint64 aTimecodeScale,
                                                     PRInt64 aStartTimeOffsetNS)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   // Find the first nsWebMTimeDataOffset at or after aStartOffset.
   PRUint32 start;
@@ -286,7 +287,7 @@ void nsWebMBufferedState::NotifyDataArrived(const char* aBuffer, PRUint32 aLengt
   mRangeParsers[idx].Append(reinterpret_cast<const unsigned char*>(aBuffer),
                             aLength,
                             mTimeMapping,
-                            mReentrantMonitor);
+                            mMonitor);
 
   // Merge parsers with overlapping regions and clean up the remnants.
   PRUint32 i = 0;

@@ -55,7 +55,6 @@ const PREF_CHECK_UPDATE_SECURITY = "extensions.checkUpdateSecurity";
 const PREF_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
 const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
 const PREF_GETADDONS_CACHE_ID_ENABLED = "extensions.%ID%.getAddons.cache.enabled";
-const PREF_UI_LASTCATEGORY = "extensions.ui.lastCategory";
 
 const BRANCH_REGEXP = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
@@ -112,28 +111,9 @@ function initialize() {
   gEventManager.initialize();
   Services.obs.addObserver(sendEMPong, "EM-ping", false);
   Services.obs.notifyObservers(window, "EM-loaded", "");
-
-  // If the initial view has already been selected (by a call to loadView from
-  // the above notifications) then bail out now
-  if (gViewController.initialViewSelected)
-    return;
-
-  // If there is a history state to restore then use that
-  if (window.history.state) {
-    gViewController.updateState(window.history.state);
-    return;
-  }
-
-  // Default to the last selected category
-  var view = gCategories.node.value;
-
-  // Allow passing in a view through the window arguments
-  if ("arguments" in window && window.arguments.length > 0 &&
-      "view" in window.arguments[0]) {
-    view = window.arguments[0].view;
-  }
-
-  gViewController.loadInitialView(view);
+  // Send this after the above notifications to give observers of them a chance
+  // to initialize us to a different view.
+  gViewController.updateState(window.history.state);
 }
 
 function notifyInitialized() {
@@ -535,7 +515,29 @@ var gViewController = {
   },
 
   updateState: function(state) {
-    this.loadViewInternal(state.view, state.previousView, state);
+    // If this is a navigation to a previous state then load that state
+    if (state) {
+      this.loadViewInternal(state.view, state.previousView, state);
+      return;
+    }
+
+    // If the initial view has already been selected (by a call to loadView) then
+    // bail out now
+    if (this.initialViewSelected)
+      return;
+
+    // Otherwise load the default view
+    var view = VIEW_DEFAULT;
+    if (gCategories.node.selectedItem &&
+        gCategories.node.selectedItem.id != "category-search")
+      view = gCategories.node.selectedItem.value;
+
+    if ("arguments" in window && window.arguments.length > 0) {
+      if ("view" in window.arguments[0])
+        view = window.arguments[0].view;
+    }
+
+    this.loadInitialView(view);
   },
 
   parseViewId: function(aViewId) {
@@ -549,23 +551,14 @@ var gViewController = {
   },
 
   loadView: function(aViewId) {
-    var isRefresh = false;
-    if (aViewId == this.currentViewId) {
-      if (this.isLoading)
-        return;
-      if (!("refresh" in this.currentViewObj))
-        return;
-      if (!this.currentViewObj.canRefresh())
-        return;
-      isRefresh = true;
-    }
+    if (aViewId == this.currentViewId)
+      return;
 
     var state = {
       view: aViewId,
       previousView: this.currentViewId
     };
-    if (!isRefresh)
-      gHistory.pushState(state);
+    gHistory.pushState(state);
     this.loadViewInternal(aViewId, this.currentViewId, state);
   },
 
@@ -605,7 +598,7 @@ var gViewController = {
     if (!viewObj.node)
       throw new Error("Root node doesn't exist for '" + view.type + "' view");
 
-    if (this.currentViewObj && aViewId != aPreviousView) {
+    if (this.currentViewObj) {
       try {
         let canHide = this.currentViewObj.hide();
         if (canHide === false)
@@ -624,11 +617,7 @@ var gViewController = {
 
     this.viewPort.selectedPanel = this.currentViewObj.node;
     this.viewPort.selectedPanel.setAttribute("loading", "true");
-
-    if (aViewId == aPreviousView)
-      this.currentViewObj.refresh(view.param, ++this.currentViewRequest, aState);
-    else
-      this.currentViewObj.show(view.param, ++this.currentViewRequest, aState);
+    this.currentViewObj.show(view.param, ++this.currentViewRequest, aState);
   },
 
   // Moves back in the document history and removes the current history entry
@@ -1415,15 +1404,7 @@ var gCategories = {
     this.node = document.getElementById("categories");
     this._search = this.get("addons://search/");
 
-    try {
-      this.node.value = Services.prefs.getCharPref(PREF_UI_LASTCATEGORY);
-    } catch (e) { }
-
-    // If there was no last view or no existing category matched the last view
-    // then the list will default to selecting the search category and we never
-    // want to show that as the first view so switch to the default category
-    if (this.node.selectedItem == this._search)
-      this.node.value = VIEW_DEFAULT;
+    this.maybeHideSearch();
 
     var self = this;
     this.node.addEventListener("select", function() {
@@ -1514,8 +1495,6 @@ var gCategories = {
       view = gViewController.parseViewId(aPreviousView);
     }
 
-    Services.prefs.setCharPref(PREF_UI_LASTCATEGORY, aId);
-
     if (this.node.selectedItem &&
         this.node.selectedItem.value == aId) {
       this.node.selectedItem.hidden = false;
@@ -1535,6 +1514,8 @@ var gCategories = {
       this.node.selectedItem = item;
       this.node.suppressOnSelect = false;
       this.node.ensureElementIsVisible(item);
+      // When supressing onselect last-selected doesn't get updated
+      this.node.setAttribute("last-selected", item.id);
 
       this.maybeHideSearch();
     }
@@ -1674,7 +1655,7 @@ var gDiscoverView = {
                                               Ci.nsIWebProgress.NOTIFY_STATE_ALL);
 
       if (self.loaded)
-        self._loadURL(self.homepageURL.spec, false, notifyInitialized);
+        self._loadURL(self.homepageURL.spec, notifyInitialized);
       else
         notifyInitialized();
     }
@@ -1708,7 +1689,7 @@ var gDiscoverView = {
     });
   },
 
-  show: function(aParam, aRequest, aState, aIsRefresh) {
+  show: function(aParam, aRequest, aState) {
     gViewController.updateCommands();
 
     // If we're being told to load a specific URL then just do that
@@ -1717,11 +1698,9 @@ var gDiscoverView = {
       this._loadURL(aState.url);
     }
 
-    // If the view has loaded before and still at the homepage (if refreshing),
-    // and the error page is not visible then there is nothing else to do
-    if (this.loaded && this.node.selectedPanel != this._error &&
-        (!aIsRefresh || (this._browser.currentURI &&
-         this._browser.currentURI.spec == this._browser.homePage))) {
+    // If the view has loaded before and the error page is not visible then
+    // there is nothing else to do
+    if (this.loaded && this.node.selectedPanel != this._error) {
       gViewController.notifyViewChanged();
       return;
     }
@@ -1735,19 +1714,8 @@ var gDiscoverView = {
       return;
     }
 
-    this._loadURL(this.homepageURL.spec, aIsRefresh,
+    this._loadURL(this.homepageURL.spec,
                   gViewController.notifyViewChanged.bind(gViewController));
-  },
-  
-  canRefresh: function() {
-    if (this._browser.currentURI &&
-        this._browser.currentURI.spec == this._browser.homePage)
-      return false;
-    return true;
-  },
-
-  refresh: function(aParam, aRequest, aState) {
-    this.show(aParam, aRequest, aState, true);
   },
 
   hide: function() { },
@@ -1756,7 +1724,7 @@ var gDiscoverView = {
     this.node.selectedPanel = this._error;
   },
 
-  _loadURL: function(aURL, aKeepHistory, aCallback) {
+  _loadURL: function(aURL, aCallback) {
     if (this._browser.currentURI.spec == aURL) {
       if (aCallback)
         aCallback();
@@ -1766,11 +1734,8 @@ var gDiscoverView = {
     if (aCallback)
       this._loadListeners.push(aCallback);
 
-    var flags = 0;
-    if (!aKeepHistory)
-      flags |= Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY;
-
-    this._browser.loadURIWithFlags(aURL, flags);
+    this._browser.loadURIWithFlags(aURL,
+                                   Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY);
   },
 
   onLocationChange: function(aWebProgress, aRequest, aLocation) {
@@ -1948,11 +1913,11 @@ var gSearchView = {
     var elements = [];
 
     function createSearchResults(aObjsList, aIsInstall, aIsRemote) {
-      aObjsList.forEach(function(aObj, aIndex) {
-        let score = aObjsList.length - aIndex;
-        if (!aIsRemote && aQuery.length > 0) {
+      aObjsList.forEach(function(aObj) {
+        let score = 0;
+        if (aQuery.length > 0) {
           score = self.getMatchScore(aObj, aQuery);
-          if (score == 0)
+          if (score == 0 && !aIsRemote)
             return;
         }
 

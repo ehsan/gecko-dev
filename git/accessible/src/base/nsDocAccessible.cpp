@@ -61,7 +61,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDOMXULPopupElement.h"
 #include "nsIEditingSession.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #include "nsIFrame.h"
 #include "nsHTMLSelectAccessible.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -273,16 +273,21 @@ nsDocAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
   }
 }
 
-void
-nsDocAccessible::Description(nsString& aDescription)
+NS_IMETHODIMP 
+nsDocAccessible::GetDescription(nsAString& aDescription)
 {
   if (mParent)
-    mParent->Description(aDescription);
+    mParent->GetDescription(aDescription);
 
-  if (aDescription.IsEmpty())
+  if (aDescription.IsEmpty()) {
+    nsAutoString description;
     nsTextEquivUtils::
       GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
-                             aDescription);
+                             description);
+    aDescription = description;
+  }
+
+  return NS_OK;
 }
 
 // nsAccessible public method

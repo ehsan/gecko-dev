@@ -92,12 +92,6 @@ public:
 
     virtual PRInt32 GetDefaultContextFlags() const;
 
-    void MovePixels(const nsIntRect& aSourceRect,
-                    const nsIntPoint& aDestTopLeft)
-    {
-        FastMovePixels(aSourceRect, aDestTopLeft);
-    }
-
 private:
     PRPackedBool mOwnsDC;
     PRPackedBool mForPrinting;

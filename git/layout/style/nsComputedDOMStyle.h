@@ -107,7 +107,8 @@ public:
   virtual mozilla::css::Declaration* GetCSSDeclaration(PRBool);
   virtual nsresult SetCSSDeclaration(mozilla::css::Declaration*);
   virtual nsIDocument* DocToUpdate();
-  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv);
+  virtual nsresult GetCSSParsingEnvironment(nsIURI**, nsIURI**, nsIPrincipal**,
+                                            mozilla::css::Loader**);
 
 private:
   void AssertFlushedPendingReflows() {
@@ -307,10 +308,8 @@ private:
   /* Text Properties */
   nsIDOMCSSValue* DoGetLineHeight();
   nsIDOMCSSValue* DoGetTextAlign();
-  nsIDOMCSSValue* DoGetMozTextBlink();
   nsIDOMCSSValue* DoGetTextDecoration();
   nsIDOMCSSValue* DoGetMozTextDecorationColor();
-  nsIDOMCSSValue* DoGetMozTextDecorationLine();
   nsIDOMCSSValue* DoGetMozTextDecorationStyle();
   nsIDOMCSSValue* DoGetTextIndent();
   nsIDOMCSSValue* DoGetTextTransform();
@@ -319,7 +318,6 @@ private:
   nsIDOMCSSValue* DoGetWordSpacing();
   nsIDOMCSSValue* DoGetWhiteSpace();
   nsIDOMCSSValue* DoGetWordWrap();
-  nsIDOMCSSValue* DoGetHyphens();
   nsIDOMCSSValue* DoGetMozTabSize();
 
   /* Visibility properties */

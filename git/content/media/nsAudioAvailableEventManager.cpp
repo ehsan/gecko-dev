@@ -39,8 +39,8 @@
 
 #include "nsTArray.h"
 #include "nsAudioAvailableEventManager.h"
-#include "VideoUtils.h"
 
+#define MILLISECONDS_PER_SECOND 1000.0f
 #define MAX_PENDING_EVENTS 100
 
 using namespace mozilla;
@@ -84,7 +84,7 @@ nsAudioAvailableEventManager::nsAudioAvailableEventManager(nsBuiltinDecoder* aDe
   mSignalBufferLength(mDecoder->GetFrameBufferLength()),
   mNewSignalBufferLength(mSignalBufferLength),
   mSignalBufferPosition(0),
-  mReentrantMonitor("media.audioavailableeventmanager")
+  mMonitor("media.audioavailableeventmanager")
 {
   MOZ_COUNT_CTOR(nsAudioAvailableEventManager);
 }
@@ -102,12 +102,12 @@ void nsAudioAvailableEventManager::Init(PRUint32 aChannels, PRUint32 aRate)
 
 void nsAudioAvailableEventManager::DispatchPendingEvents(PRUint64 aCurrentTime)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   while (mPendingEvents.Length() > 0) {
     nsAudioAvailableEventRunner* e =
       (nsAudioAvailableEventRunner*)mPendingEvents[0].get();
-    if (e->mTime * USECS_PER_S > aCurrentTime) {
+    if (e->mTime * MILLISECONDS_PER_SECOND > aCurrentTime) {
       break;
     }
     nsCOMPtr<nsIRunnable> event = mPendingEvents[0];
@@ -120,7 +120,7 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(SoundDataValue* aAudioD
                                                          PRUint32 aAudioDataLength,
                                                          PRUint64 aEndTimeSampleOffset)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   PRUint32 currentBufferSize = mNewSignalBufferLength;
   if (currentBufferSize == 0) {
@@ -202,7 +202,7 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(SoundDataValue* aAudioD
 
 void nsAudioAvailableEventManager::Clear()
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   mPendingEvents.Clear();
   mSignalBufferPosition = 0;
@@ -210,7 +210,7 @@ void nsAudioAvailableEventManager::Clear()
 
 void nsAudioAvailableEventManager::Drain(PRUint64 aEndTime)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   // Force all pending events to go now.
   for (PRUint32 i = 0; i < mPendingEvents.Length(); ++i) {
@@ -228,7 +228,7 @@ void nsAudioAvailableEventManager::Drain(PRUint64 aEndTime)
          (mSignalBufferLength - mSignalBufferPosition) * sizeof(float));
 
   // Force this last event to go now.
-  float time = (aEndTime / static_cast<float>(USECS_PER_S)) - 
+  float time = (aEndTime / MILLISECONDS_PER_SECOND) - 
                (mSignalBufferPosition / mSamplesPerSecond);
   nsCOMPtr<nsIRunnable> lastEvent =
     new nsAudioAvailableEventRunner(mDecoder, mSignalBuffer.forget(),
@@ -240,7 +240,7 @@ void nsAudioAvailableEventManager::Drain(PRUint64 aEndTime)
 
 void nsAudioAvailableEventManager::SetSignalBufferLength(PRUint32 aLength)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   mNewSignalBufferLength = aLength;
 }

@@ -411,7 +411,7 @@ void JS_FASTCALL
 stubs::GetElem(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     Value &lref = regs.sp[-2];
     Value &rref = regs.sp[-1];
@@ -451,7 +451,7 @@ stubs::GetElem(VMFrame &f)
             if (arg < obj->getArgsInitialLength()) {
                 copyFrom = obj->addressOfArgsElement(arg);
                 if (!copyFrom->isMagic()) {
-                    if (StackFrame *afp = (StackFrame *) obj->getPrivate())
+                    if (JSStackFrame *afp = (JSStackFrame *) obj->getPrivate())
                         copyFrom = &afp->canonicalActualArg(arg);
                     goto end_getelem;
                 }
@@ -496,7 +496,7 @@ void JS_FASTCALL
 stubs::CallElem(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     /* Find the object on which to look for |this|'s properties. */
     Value thisv = regs.sp[-2];
@@ -514,7 +514,7 @@ stubs::CallElem(VMFrame &f)
         THROW();
 
 #if JS_HAS_NO_SUCH_METHOD
-    if (JS_UNLIKELY(regs.sp[-2].isPrimitive()) && thisv.isObject()) {
+    if (JS_UNLIKELY(regs.sp[-2].isUndefined()) && thisv.isObject()) {
         regs.sp[-2] = regs.sp[-1];
         regs.sp[-1].setObject(*thisObj);
         if (!js_OnUnknownMethod(cx, regs.sp - 2))
@@ -531,7 +531,7 @@ void JS_FASTCALL
 stubs::SetElem(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     Value &objval = regs.sp[-3];
     Value &idval  = regs.sp[-2];
@@ -691,7 +691,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
     JSObject *obj2;
 
     JSContext *cx = f.cx;
-    StackFrame *fp = f.fp();
+    JSStackFrame *fp = f.fp();
 
     /*
      * A top-level function defined in Global or Eval code (see ECMA-262
@@ -744,7 +744,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
      * current scope chain even for the case of function expression statements
      * and functions defined by eval inside let or with blocks.
      */
-    JSObject *parent = &cx->stack.currentVarObj();
+    JSObject *parent = &fp->varobj(cx);
 
     /* ES5 10.5 (NB: with subsequent errata). */
     jsid id = ATOM_TO_JSID(fun->atom);
@@ -811,7 +811,7 @@ template void JS_FASTCALL stubs::DefFun<false>(VMFrame &f, JSFunction *fun);
 #define RELATIONAL(OP)                                                        \
     JS_BEGIN_MACRO                                                            \
         JSContext *cx = f.cx;                                                 \
-        FrameRegs &regs = f.regs;                                             \
+        JSFrameRegs &regs = f.regs;                                           \
         Value rval = regs.sp[-1];                                             \
         Value lval = regs.sp[-2];                                             \
         bool cond;                                                            \
@@ -879,7 +879,7 @@ static inline bool
 StubEqualityOp(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
@@ -1006,7 +1006,7 @@ void JS_FASTCALL
 stubs::Add(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
 
@@ -1078,7 +1078,7 @@ void JS_FASTCALL
 stubs::Sub(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
     double d1, d2;
     if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
         !ValueToNumber(cx, regs.sp[-1], &d2)) {
@@ -1092,7 +1092,7 @@ void JS_FASTCALL
 stubs::Mul(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
     double d1, d2;
     if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
         !ValueToNumber(cx, regs.sp[-1], &d2)) {
@@ -1107,7 +1107,7 @@ stubs::Div(VMFrame &f)
 {
     JSContext *cx = f.cx;
     JSRuntime *rt = cx->runtime;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     double d1, d2;
     if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
@@ -1139,7 +1139,7 @@ void JS_FASTCALL
 stubs::Mod(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     Value &lref = regs.sp[-2];
     Value &rref = regs.sp[-1];
@@ -1202,7 +1202,7 @@ void JS_FASTCALL
 stubs::Trap(VMFrame &f, uint32 trapTypes)
 {
     Value rval;
-    jsbytecode *pc = f.cx->regs().pc;
+    jsbytecode *pc = f.cx->regs->pc;
 
     /*
      * Trap may be called for a single-step interrupt trap and/or a
@@ -1247,7 +1247,7 @@ stubs::Trap(VMFrame &f, uint32 trapTypes)
 void JS_FASTCALL
 stubs::This(VMFrame &f)
 {
-    if (!ComputeThis(f.cx, f.fp()))
+    if (!f.fp()->computeThis(f.cx))
         THROW();
     f.regs.sp[-1] = f.fp()->thisValue();
 }
@@ -1296,7 +1296,7 @@ void JS_FASTCALL
 stubs::InitElem(VMFrame &f, uint32 last)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     /* Pop the element's value into rval. */
     JS_ASSERT(regs.sp - f.fp()->base() >= 3);
@@ -1508,20 +1508,17 @@ CanIncDecWithoutOverflow(int32_t i)
     return (i > JSVAL_INT_MIN) && (i < JSVAL_INT_MAX);
 }
 
-template <int32 N, bool POST, JSBool strict, bool qualified>
+template <int32 N, bool POST, JSBool strict>
 static inline bool
 ObjIncOp(VMFrame &f, JSObject *obj, jsid id)
 {
     JSContext *cx = f.cx;
+    JSStackFrame *fp = f.fp();
 
     f.regs.sp[0].setNull();
     f.regs.sp++;
     if (!obj->getProperty(cx, id, &f.regs.sp[-1]))
         return false;
-
-    uint32 setPropFlags = qualified
-                          ? JSRESOLVE_ASSIGNING
-                          : JSRESOLVE_ASSIGNING | JSRESOLVE_QUALIFIED;
 
     Value &ref = f.regs.sp[-1];
     int32_t tmp;
@@ -1530,12 +1527,11 @@ ObjIncOp(VMFrame &f, JSObject *obj, jsid id)
             ref.getInt32Ref() = tmp + N;
         else
             ref.getInt32Ref() = tmp += N;
-
-        {
-            JSAutoResolveFlags rf(cx, setPropFlags);
-            if (!obj->setProperty(cx, id, &ref, strict))
-                return false;
-        }
+        fp->setAssigning();
+        JSBool ok = obj->setProperty(cx, id, &ref, strict);
+        fp->clearAssigning();
+        if (!ok)
+            return false;
 
         /*
          * We must set regs.sp[-1] to tmp for both post and pre increments
@@ -1555,12 +1551,11 @@ ObjIncOp(VMFrame &f, JSObject *obj, jsid id)
             ref.setDouble(d);
         }
         v.setDouble(d);
-
-        {
-            JSAutoResolveFlags rf(cx, setPropFlags);
-            if (!obj->setProperty(cx, id, &v, strict))
-                return false;
-        }
+        fp->setAssigning();
+        JSBool ok = obj->setProperty(cx, id, &v, strict);
+        fp->clearAssigning();
+        if (!ok)
+            return false;
     }
 
     return true;
@@ -1601,7 +1596,7 @@ NameIncDec(VMFrame &f, JSObject *obj, JSAtom *origAtom)
         ReportAtomNotDefined(cx, atom);
         return false;
     }
-    return ObjIncOp<N, POST, strict, false>(f, obj, id);
+    return ObjIncOp<N, POST, strict>(f, obj, id);
 }
 
 template<JSBool strict>
@@ -1611,7 +1606,7 @@ stubs::PropInc(VMFrame &f, JSAtom *atom)
     JSObject *obj = ValueToObject(f.cx, &f.regs.sp[-1]);
     if (!obj)
         THROW();
-    if (!ObjIncOp<1, true, strict, true>(f, obj, ATOM_TO_JSID(atom)))
+    if (!ObjIncOp<1, true, strict>(f, obj, ATOM_TO_JSID(atom)))
         THROW();
     f.regs.sp[-2] = f.regs.sp[-1];
 }
@@ -1626,7 +1621,7 @@ stubs::PropDec(VMFrame &f, JSAtom *atom)
     JSObject *obj = ValueToObject(f.cx, &f.regs.sp[-1]);
     if (!obj)
         THROW();
-    if (!ObjIncOp<-1, true, strict, true>(f, obj, ATOM_TO_JSID(atom)))
+    if (!ObjIncOp<-1, true, strict>(f, obj, ATOM_TO_JSID(atom)))
         THROW();
     f.regs.sp[-2] = f.regs.sp[-1];
 }
@@ -1641,7 +1636,7 @@ stubs::IncProp(VMFrame &f, JSAtom *atom)
     JSObject *obj = ValueToObject(f.cx, &f.regs.sp[-1]);
     if (!obj)
         THROW();
-    if (!ObjIncOp<1, false, strict, true>(f, obj, ATOM_TO_JSID(atom)))
+    if (!ObjIncOp<1, false, strict>(f, obj, ATOM_TO_JSID(atom)))
         THROW();
     f.regs.sp[-2] = f.regs.sp[-1];
 }
@@ -1656,7 +1651,7 @@ stubs::DecProp(VMFrame &f, JSAtom *atom)
     JSObject *obj = ValueToObject(f.cx, &f.regs.sp[-1]);
     if (!obj)
         THROW();
-    if (!ObjIncOp<-1, false, strict, true>(f, obj, ATOM_TO_JSID(atom)))
+    if (!ObjIncOp<-1, false, strict>(f, obj, ATOM_TO_JSID(atom)))
         THROW();
     f.regs.sp[-2] = f.regs.sp[-1];
 }
@@ -1674,7 +1669,7 @@ stubs::ElemInc(VMFrame &f)
     jsid id;
     if (!FetchElementId(f, obj, f.regs.sp[-1], id, &f.regs.sp[-1]))
         THROW();
-    if (!ObjIncOp<1, true, strict, true>(f, obj, id))
+    if (!ObjIncOp<1, true, strict>(f, obj, id))
         THROW();
     f.regs.sp[-3] = f.regs.sp[-1];
 }
@@ -1692,7 +1687,7 @@ stubs::ElemDec(VMFrame &f)
     jsid id;
     if (!FetchElementId(f, obj, f.regs.sp[-1], id, &f.regs.sp[-1]))
         THROW();
-    if (!ObjIncOp<-1, true, strict, true>(f, obj, id))
+    if (!ObjIncOp<-1, true, strict>(f, obj, id))
         THROW();
     f.regs.sp[-3] = f.regs.sp[-1];
 }
@@ -1710,7 +1705,7 @@ stubs::IncElem(VMFrame &f)
     jsid id;
     if (!FetchElementId(f, obj, f.regs.sp[-1], id, &f.regs.sp[-1]))
         THROW();
-    if (!ObjIncOp<1, false, strict, true>(f, obj, id))
+    if (!ObjIncOp<1, false, strict>(f, obj, id))
         THROW();
     f.regs.sp[-3] = f.regs.sp[-1];
 }
@@ -1728,7 +1723,7 @@ stubs::DecElem(VMFrame &f)
     jsid id;
     if (!FetchElementId(f, obj, f.regs.sp[-1], id, &f.regs.sp[-1]))
         THROW();
-    if (!ObjIncOp<-1, false, strict, true>(f, obj, id))
+    if (!ObjIncOp<-1, false, strict>(f, obj, id))
         THROW();
     f.regs.sp[-3] = f.regs.sp[-1];
 }
@@ -1836,7 +1831,7 @@ static bool JS_FASTCALL
 InlineGetProp(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     Value *vp = &f.regs.sp[-1];
     JSObject *obj = ValueToObject(f.cx, vp);
@@ -1913,7 +1908,7 @@ void JS_FASTCALL
 stubs::CallProp(VMFrame &f, JSAtom *origAtom)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     Value lval;
     lval = regs.sp[-1];
@@ -1994,7 +1989,7 @@ stubs::CallProp(VMFrame &f, JSAtom *origAtom)
         }
     }
 #if JS_HAS_NO_SUCH_METHOD
-    if (JS_UNLIKELY(rval.isPrimitive()) && regs.sp[-1].isObject()) {
+    if (JS_UNLIKELY(rval.isUndefined()) && regs.sp[-1].isObject()) {
         regs.sp[-2].setString(origAtom);
         if (!js_OnUnknownMethod(cx, regs.sp - 2))
             THROW();
@@ -2005,7 +2000,7 @@ stubs::CallProp(VMFrame &f, JSAtom *origAtom)
 void JS_FASTCALL
 stubs::Length(VMFrame &f)
 {
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
     Value *vp = &regs.sp[-1];
 
     if (vp->isString()) {
@@ -2042,7 +2037,7 @@ InitPropOrMethod(VMFrame &f, JSAtom *atom, JSOp op)
 {
     JSContext *cx = f.cx;
     JSRuntime *rt = cx->runtime;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     /* Load the property's initial value into rval. */
     JS_ASSERT(regs.sp - f.fp()->base() >= 2);
@@ -2224,7 +2219,7 @@ JSBool JS_FASTCALL
 stubs::InstanceOf(VMFrame &f)
 {
     JSContext *cx = f.cx;
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 
     const Value &rref = regs.sp[-1];
     if (rref.isPrimitive()) {
@@ -2263,7 +2258,7 @@ stubs::ArgCnt(VMFrame &f)
 {
     JSContext *cx = f.cx;
     JSRuntime *rt = cx->runtime;
-    StackFrame *fp = f.fp();
+    JSStackFrame *fp = f.fp();
 
     jsid id = ATOM_TO_JSID(rt->atomState.lengthAtom);
     f.regs.sp++;
@@ -2274,9 +2269,9 @@ stubs::ArgCnt(VMFrame &f)
 void JS_FASTCALL
 stubs::EnterBlock(VMFrame &f, JSObject *obj)
 {
-    FrameRegs &regs = f.regs;
+    JSFrameRegs &regs = f.regs;
 #ifdef DEBUG
-    StackFrame *fp = f.fp();
+    JSStackFrame *fp = f.fp();
 #endif
 
     JS_ASSERT(obj->isStaticBlock());
@@ -2316,7 +2311,7 @@ void JS_FASTCALL
 stubs::LeaveBlock(VMFrame &f, JSObject *blockChain)
 {
     JSContext *cx = f.cx;
-    StackFrame *fp = f.fp();
+    JSStackFrame *fp = f.fp();
 
 #ifdef DEBUG
     JS_ASSERT(blockChain->isStaticBlock());
@@ -2552,9 +2547,9 @@ void JS_FASTCALL
 stubs::DefVarOrConst(VMFrame &f, JSAtom *atom)
 {
     JSContext *cx = f.cx;
-    StackFrame *fp = f.fp();
+    JSStackFrame *fp = f.fp();
 
-    JSObject *obj = &cx->stack.currentVarObj();
+    JSObject *obj = &fp->varobj(cx);
     JS_ASSERT(!obj->getOps()->defineProperty);
     uintN attrs = JSPROP_ENUMERATE;
     if (!fp->isEvalFrame())
@@ -2598,8 +2593,9 @@ void JS_FASTCALL
 stubs::SetConst(VMFrame &f, JSAtom *atom)
 {
     JSContext *cx = f.cx;
+    JSStackFrame *fp = f.fp();
 
-    JSObject *obj = &cx->stack.currentVarObj();
+    JSObject *obj = &fp->varobj(cx);
     const Value &ref = f.regs.sp[-1];
     if (!obj->defineProperty(cx, ATOM_TO_JSID(atom), ref,
                              PropertyStub, StrictPropertyStub,

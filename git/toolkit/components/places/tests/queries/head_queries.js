@@ -86,7 +86,21 @@ function populateDB(aArray) {
                                                        referrer, qdata.transType,
                                                        qdata.isRedirect, qdata.sessionID);
             if (qdata.title && !qdata.isDetails) {
-              PlacesUtils.history.setPageTitle(uri(qdata.uri), qdata.title);
+              // Set the page title synchronously, otherwise setPageTitle is LAZY.
+              let stmt = DBConn().createStatement(
+                "UPDATE moz_places SET title = :title WHERE url = :url"
+              );
+              stmt.params.title = qdata.title;
+              stmt.params.url = qdata.uri;
+              try {
+                stmt.execute();
+              }
+              catch (ex) {
+                print("Error while setting title.");
+              }
+              finally {
+                stmt.finalize();
+              }
             }
             if (qdata.visitCount && !qdata.isDetails) {
               // Set a fake visit_count, this is not a real count but can be used
@@ -375,8 +389,7 @@ function compareArrayToResult(aArray, aRoot) {
 function isInResult(aQueryData, aRoot) {
   var rv = false;
   var uri;
-  var wasOpen = aRoot.containerOpen;
-  if (!wasOpen)
+  if (!aRoot.containerOpen)
     aRoot.containerOpen = true;
 
   // If we have an array, pluck out the first item. If an object, pluc out the
@@ -393,8 +406,6 @@ function isInResult(aQueryData, aRoot) {
       break;
     }
   }
-  if (!wasOpen)
-    aRoot.containerOpen = false;
   return rv;
 }
 
@@ -405,8 +416,7 @@ function isInResult(aQueryData, aRoot) {
  */
 function displayResultSet(aRoot) {
 
-  var wasOpen = aRoot.containerOpen;
-  if (!wasOpen)
+  if (!aRoot.containerOpen)
     aRoot.containerOpen = true;
 
   if (!aRoot.hasChildren) {
@@ -419,6 +429,4 @@ function displayResultSet(aRoot) {
     LOG("Result Set URI: " + aRoot.getChild(i).uri + "   Title: " +
         aRoot.getChild(i).title + "   Visit Time: " + aRoot.getChild(i).time);
   }
-  if (!wasOpen)
-    aRoot.containerOpen = false;
 }

@@ -40,6 +40,7 @@
 
 var bmsvc = PlacesUtils.bookmarks;
 var lmsvc = PlacesUtils.livemarks;
+var mss = PlacesUtils.microsummaries;
 var ptSvc = PlacesUIUtils.ptm;
 var tagssvc = PlacesUtils.tagging;
 var annosvc = PlacesUtils.annotations;
@@ -99,6 +100,11 @@ bmsvc.addObserver(observer, false);
 var bmStartIndex = 0;
 
 // main
+
+function time() {
+    return (new Date()).getTime();
+}
+
 function run_test() {
   // get bookmarks root index
   var root = bmsvc.bookmarksMenuFolder;
@@ -536,7 +542,7 @@ function run_test() {
                       expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
   var hs = Cc["@mozilla.org/browser/nav-history-service;1"].
            getService(Ci.nsINavHistoryService);
-  hs.addVisit(uri("http://www.mozilla.org/"), Date.now() * 1000, null,
+  hs.addVisit(uri("http://www.mozilla.org/"), time() * 1000, null,
               hs.TRANSITION_TYPED, false, 0);
   var genPageAnnoTxn = ptSvc.setPageAnnotation(uri("http://www.mozilla.org/"), pageAnnoObj);
   genPageAnnoTxn.doTransaction();
@@ -579,6 +585,22 @@ function run_test() {
   do_check_eq(1, bmsvc.getItemIndex(b2));
   do_check_eq(2, bmsvc.getItemIndex(b3));
 
+  // editBookmarkMicrosummary
+  var tmpMs = mss.createMicrosummary(uri("http://testmicro.com"), 
+                                     uri("http://dietrich.ganx4.com/mozilla/test-microsummary.xml"));
+  ptSvc.doTransaction(
+  ptSvc.createItem(uri("http://dietrich.ganx4.com/mozilla/test-microsummary-content.php"),
+                   root, -1, "micro test", null, null, null));
+  var bId = (bmsvc.getBookmarkIdsForURI(uri("http://dietrich.ganx4.com/mozilla/test-microsummary-content.php")))[0];
+  do_check_true(!mss.hasMicrosummary(bId));
+  var txn18 = ptSvc.editBookmarkMicrosummary(bId, tmpMs);
+  txn18.doTransaction();
+  do_check_eq(observer._itemChangedId, bId);
+  do_check_true(mss.hasMicrosummary(bId));
+  txn18.undoTransaction();
+  do_check_eq(observer._itemChangedId, bId);
+  do_check_true(!mss.hasMicrosummary(bId));
+
   // Testing edit Post Data
   const POST_DATA_ANNO = "bookmarkProperties/POSTData";
   var postData = "foo";
@@ -595,7 +617,7 @@ function run_test() {
 
   // Test editing item date added
   var oldAdded = bmsvc.getItemDateAdded(bkmk1Id);
-  var newAdded = Date.now();
+  var newAdded = time();
   var eidaTxn = ptSvc.editItemDateAdded(bkmk1Id, newAdded);
   eidaTxn.doTransaction();
   do_check_eq(newAdded, bmsvc.getItemDateAdded(bkmk1Id));
@@ -604,7 +626,7 @@ function run_test() {
 
   // Test editing item last modified 
   var oldModified = bmsvc.getItemLastModified(bkmk1Id);
-  var newModified = Date.now();
+  var newModified = time();
   var eilmTxn = ptSvc.editItemLastModified(bkmk1Id, newModified);
   eilmTxn.doTransaction();
   do_check_eq(newModified, bmsvc.getItemLastModified(bkmk1Id));
@@ -712,7 +734,7 @@ function run_test() {
 
   // Test creating an item with child transactions.
   var childTxns = [];
-  var newDateAdded = Date.now() - 20000;
+  var newDateAdded = time() - 20000;
   childTxns.push(ptSvc.editItemDateAdded(null, newDateAdded));
   var itemChildAnnoObj = { name: "testAnno/testInt",
                            type: Ci.nsIAnnotationService.TYPE_INT32,

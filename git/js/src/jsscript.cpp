@@ -53,8 +53,6 @@
 #include "jsdbgapi.h"
 #include "jsemit.h"
 #include "jsfun.h"
-#include "jsgc.h"
-#include "jsgcmark.h"
 #include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
@@ -68,6 +66,7 @@
 #endif
 #include "methodjit/MethodJIT.h"
 
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
@@ -264,7 +263,10 @@ Bindings::sharpSlotBase(JSContext *cx)
 #if JS_HAS_SHARP_VARS
     if (JSAtom *name = js_Atomize(cx, "#array", 6, 0)) {
         uintN index = uintN(-1);
-        DebugOnly<BindingKind> kind = lookup(cx, name, &index);
+#ifdef DEBUG
+        BindingKind kind =
+#endif
+            lookup(cx, name, &index);
         JS_ASSERT(kind == VARIABLE);
         return int(index);
     }
@@ -1224,7 +1226,7 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
 
     script->compartment = cx->compartment;
 #ifdef CHECK_SCRIPT_OWNER
-    script->owner = cx->thread();
+    script->owner = cx->thread;
 #endif
 
     JS_APPEND_LINK(&script->links, &cx->compartment->scripts);
@@ -1469,7 +1471,7 @@ DestroyScript(JSContext *cx, JSScript *script)
         JS_PROPERTY_CACHE(cx).purgeForScript(cx, script);
 
 #ifdef CHECK_SCRIPT_OWNER
-        JS_ASSERT(script->owner == cx->thread());
+        JS_ASSERT(script->owner == cx->thread);
 #endif
     }
 
@@ -1516,12 +1518,26 @@ js_TraceScript(JSTracer *trc, JSScript *script)
 
     if (JSScript::isValidOffset(script->objectsOffset)) {
         JSObjectArray *objarray = script->objects();
-        MarkObjectRange(trc, objarray->length, objarray->vector, "objects");
+        uintN i = objarray->length;
+        do {
+            --i;
+            if (objarray->vector[i]) {
+                JS_SET_TRACING_INDEX(trc, "objects", i);
+                Mark(trc, objarray->vector[i]);
+            }
+        } while (i != 0);
     }
 
     if (JSScript::isValidOffset(script->regexpsOffset)) {
         JSObjectArray *objarray = script->regexps();
-        MarkObjectRange(trc, objarray->length, objarray->vector, "objects");
+        uintN i = objarray->length;
+        do {
+            --i;
+            if (objarray->vector[i]) {
+                JS_SET_TRACING_INDEX(trc, "regexps", i);
+                Mark(trc, objarray->vector[i]);
+            }
+        } while (i != 0);
     }
 
     if (JSScript::isValidOffset(script->constOffset)) {
@@ -1529,8 +1545,10 @@ js_TraceScript(JSTracer *trc, JSScript *script)
         MarkValueRange(trc, constarray->length, constarray->vector, "consts");
     }
 
-    if (script->u.object)
-        MarkObject(trc, *script->u.object, "object");
+    if (script->u.object) {
+        JS_SET_TRACING_NAME(trc, "object");
+        Mark(trc, script->u.object);
+    }
 
     if (IS_GC_MARKING_TRACER(trc) && script->filename)
         js_MarkScriptFilename(script->filename);
@@ -1645,7 +1663,7 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc)
 }
 
 uintN
-js_FramePCToLineNumber(JSContext *cx, StackFrame *fp)
+js_FramePCToLineNumber(JSContext *cx, JSStackFrame *fp)
 {
     return js_PCToLineNumber(cx, fp->script(),
                              fp->hasImacropc() ? fp->imacropc() : fp->pc(cx));
@@ -1661,7 +1679,7 @@ js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc)
     jssrcnote *sn;
     JSSrcNoteType type;
 
-    /* Cope with StackFrame.pc value prior to entering js_Interpret. */
+    /* Cope with JSStackFrame.pc value prior to entering js_Interpret. */
     if (!pc)
         return 0;
 
@@ -1761,22 +1779,6 @@ js_GetScriptLineExtent(JSScript *script)
         }
     }
     return 1 + lineno - script->lineno;
-}
-
-const char *
-js::CurrentScriptFileAndLineSlow(JSContext *cx, uintN *linenop)
-{
-    if (!cx->running()) {
-        *linenop = 0;
-        return NULL;
-    }
-
-    StackFrame *fp = cx->fp();
-    while (fp->isDummyFrame())
-        fp = fp->prev();
-
-    *linenop = js_FramePCToLineNumber(cx, fp);
-    return fp->script()->filename;
 }
 
 class DisablePrincipalsTranscoding {

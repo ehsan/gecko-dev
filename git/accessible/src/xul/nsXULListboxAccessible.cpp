@@ -862,15 +862,6 @@ nsXULListitemAccessible::GetListAccessible()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULListitemAccessible nsAccessible
-
-void
-nsXULListitemAccessible::Description(nsString& aDesc)
-{
-  nsAccessibleWrap::Description(aDesc);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // nsXULListitemAccessible. nsIAccessible
 
 /**

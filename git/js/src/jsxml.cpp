@@ -56,7 +56,7 @@
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsgc.h"
-#include "jsgcmark.h"
+#include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
@@ -71,10 +71,10 @@
 #include "jsvector.h"
 
 #include "jsatominlines.h"
+#include "jscntxtinlines.h"
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsstrinlines.h"
-
-#include "vm/Stack-inl.h"
 
 #ifdef DEBUG
 #include <string.h>     /* for #ifdef DEBUG memset calls */
@@ -1744,7 +1744,7 @@ ParseXMLSource(JSContext *cx, JSString *src)
     filename = NULL;
     lineno = 1;
     if (!i.done()) {
-        StackFrame *fp = i.fp();
+        JSStackFrame *fp = i.fp();
         op = (JSOp) *i.pc();
         if (op == JSOP_TOXML || op == JSOP_TOXMLLIST) {
             filename = fp->script()->filename;
@@ -4696,7 +4696,16 @@ xml_finalize(JSContext *cx, JSObject *obj)
 static void
 xml_trace_vector(JSTracer *trc, JSXML **vec, uint32 len)
 {
-    MarkXMLRange(trc, len, vec, "xml_vector");
+    uint32 i;
+    JSXML *xml;
+
+    for (i = 0; i < len; i++) {
+        xml = vec[i];
+        if (xml) {
+            JS_SET_TRACING_INDEX(trc, "xml_vector", i);
+            Mark(trc, xml);
+        }
+    }
 }
 
 /*
@@ -7215,13 +7224,13 @@ js_InitXMLClasses(JSContext *cx, JSObject *obj)
     return js_InitXMLClass(cx, obj);
 }
 
-namespace js {
-
-bool
-GlobalObject::getFunctionNamespace(JSContext *cx, Value *vp)
+JSBool
+js_GetFunctionNamespace(JSContext *cx, Value *vp)
 {
-    Value &v = getSlotRef(FUNCTION_NS);
-    if (v.isUndefined()) {
+    JSObject *global = cx->hasfp() ? cx->fp()->scopeChain().getGlobal() : cx->globalObject;
+
+    *vp = global->getReservedSlot(JSRESERVED_GLOBAL_FUNCTION_NS);
+    if (vp->isUndefined()) {
         JSRuntime *rt = cx->runtime;
         JSLinearString *prefix = rt->atomState.typeAtoms[JSTYPE_FUNCTION];
         JSLinearString *uri = rt->atomState.functionNamespaceURIAtom;
@@ -7238,14 +7247,13 @@ GlobalObject::getFunctionNamespace(JSContext *cx, Value *vp)
          */
         obj->clearProto();
 
-        v.setObject(*obj);
+        vp->setObject(*obj);
+        if (!js_SetReservedSlot(cx, global, JSRESERVED_GLOBAL_FUNCTION_NS, *vp))
+            return false;
     }
 
-    *vp = v;
     return true;
 }
-
-} // namespace js
 
 /*
  * Note the asymmetry between js_GetDefaultXMLNamespace and js_SetDefaultXML-
@@ -7306,7 +7314,8 @@ js_SetDefaultXMLNamespace(JSContext *cx, const Value &v)
     if (!ns)
         return JS_FALSE;
 
-    JSObject &varobj = cx->stack.currentVarObj();
+    JSStackFrame *fp = js_GetTopStackFrame(cx);
+    JSObject &varobj = fp->varobj(cx);
     if (!varobj.defineProperty(cx, JS_DEFAULT_XML_NAMESPACE_ID, ObjectValue(*ns),
                                PropertyStub, StrictPropertyStub, JSPROP_PERMANENT)) {
         return JS_FALSE;
@@ -7384,7 +7393,7 @@ js_ValueToXMLString(JSContext *cx, const Value &v)
 JSBool
 js_GetAnyName(JSContext *cx, jsid *idp)
 {
-    JSObject *global = cx->running() ? cx->fp()->scopeChain().getGlobal() : cx->globalObject;
+    JSObject *global = cx->hasfp() ? cx->fp()->scopeChain().getGlobal() : cx->globalObject;
     Value v = global->getReservedSlot(JSProto_AnyName);
     if (v.isUndefined()) {
         JSObject *obj = NewNonFunction<WithProto::Given>(cx, &js_AnyNameClass, NULL, global);
@@ -7625,7 +7634,7 @@ js_StepXMLListFilter(JSContext *cx, JSBool initialized)
     JSXMLFilter *filter;
 
     LeaveTrace(cx);
-    sp = Jsvalify(cx->regs().sp);
+    sp = Jsvalify(cx->regs->sp);
     if (!initialized) {
         /*
          * We haven't iterated yet, so initialize the filter based on the

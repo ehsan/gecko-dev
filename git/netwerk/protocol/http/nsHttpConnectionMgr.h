@@ -46,7 +46,7 @@
 #include "nsThreadUtils.h"
 #include "nsHashtable.h"
 #include "nsAutoPtr.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "nsISocketTransportService.h"
 
 #include "nsIObserver.h"
@@ -212,8 +212,6 @@ private:
         void     SetupBackupTimer();
         void     Abandon();
         
-        nsHttpTransaction *Transaction() { return mTransaction; }
-
     private:
         nsConnectionEntry              *mEnt;
         nsRefPtr<nsHttpTransaction>    mTransaction;
@@ -230,11 +228,11 @@ private:
     friend class nsHalfOpenSocket;
 
     //-------------------------------------------------------------------------
-    // NOTE: these members may be accessed from any thread (use mReentrantMonitor)
+    // NOTE: these members may be accessed from any thread (use mMonitor)
     //-------------------------------------------------------------------------
 
     PRInt32                      mRef;
-    mozilla::ReentrantMonitor    mReentrantMonitor;
+    mozilla::Monitor             mMonitor;
     nsCOMPtr<nsIEventTarget>     mSocketThreadTarget;
 
     // connection limits
@@ -260,7 +258,7 @@ private:
     PRBool   ProcessPendingQForEntry(nsConnectionEntry *);
     PRBool   AtActiveConnectionLimit(nsConnectionEntry *, PRUint8 caps);
     void     GetConnection(nsConnectionEntry *, nsHttpTransaction *,
-                           PRBool, nsHttpConnection **);
+                           nsHttpConnection **);
     nsresult DispatchTransaction(nsConnectionEntry *, nsAHttpTransaction *,
                                  PRUint8 caps, nsHttpConnection *);
     PRBool   BuildPipeline(nsConnectionEntry *, nsAHttpTransaction *, nsHttpPipeline **);

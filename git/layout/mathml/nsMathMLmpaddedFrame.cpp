@@ -45,6 +45,8 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmpaddedFrame.h"
 
@@ -374,7 +376,7 @@ nsMathMLmpaddedFrame::Reflow(nsPresContext*          aPresContext,
 }
 
 /* virtual */ nsresult
-nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLmpaddedFrame::Place(nsIRenderingContext& aRenderingContext,
                             PRBool               aPlaceOrigin,
                             nsHTMLReflowMetrics& aDesiredSize)
 {

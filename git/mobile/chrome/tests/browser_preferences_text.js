@@ -21,6 +21,7 @@ var expected = {
 function getPreferencesElements() {
    let prefElements = {};
    prefElements.panelOpen = document.getElementById("tool-panel-open");
+   prefElements.panelClose = document.getElementById("tool-panel-close");
    prefElements.panelContainer = document.getElementById("panel-container");
    prefElements.homeButton = document.getElementById("prefs-homepage-options");
    prefElements.doneButton = document.getElementById("select-buttons-done");
@@ -123,7 +124,7 @@ gTests.push({
     var clearDataButton = document.getElementById(clearData.element_id);
     is(clearDataButton.tagName, clearData.tagName, "Check for Clear Private Data button type");
 
-    BrowserUI.hidePanel();
+    prefs.panelClose.click()
     is(document.getElementById("panel-container").hidden, true, "Preferences panel should be closed");
     runNextTest();
   }

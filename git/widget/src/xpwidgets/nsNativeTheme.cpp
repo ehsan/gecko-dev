@@ -43,7 +43,7 @@
 #include "nsIFrame.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIDOMHTMLInputElement.h"
@@ -51,7 +51,6 @@
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
 #include "nsPIDOMWindow.h"
-#include "nsProgressFrame.h"
 
 nsNativeTheme::nsNativeTheme()
 : mAnimatedContentTimeout(PR_UINT32_MAX)
@@ -92,7 +91,7 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
   if (!shell)
     return nsEventStates();
 
-  nsEventStateManager* esm = shell->GetPresContext()->EventStateManager();
+  nsIEventStateManager* esm = shell->GetPresContext()->EventStateManager();
   nsEventStates flags = esm->GetContentState(aFrame->GetContent(), PR_TRUE);
   
   if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
@@ -249,19 +248,6 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
         return IsWidgetStyled(aPresContext, parentFrame,
                               parentFrame->GetStyleDisplay()->mAppearance);
       }
-    }
-  }
-
-  /**
-   * Progress bar appearance should be the same for the bar and the container
-   * frame. nsProgressFrame owns the logic and will tell us what we should do.
-   */
-  if (aWidgetType == NS_THEME_PROGRESSBAR_CHUNK ||
-      aWidgetType == NS_THEME_PROGRESSBAR) {
-    nsProgressFrame* progressFrame = do_QueryFrame(aWidgetType == NS_THEME_PROGRESSBAR_CHUNK
-                                       ? aFrame->GetParent() : aFrame);
-    if (progressFrame) {
-      return !progressFrame->ShouldUseNativeStyle();
     }
   }
 
@@ -457,15 +443,10 @@ nsNativeTheme::IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset)
 
 // progressbar:
 PRBool
-nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame,
-                                       nsEventStates aEventStates)
+nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame)
 {
   if (!aFrame)
     return PR_FALSE;
-
-  if (aFrame->GetContent()->IsHTML(nsWidgetAtoms::progress)) {
-    return aEventStates.HasState(NS_EVENT_STATE_INDETERMINATE);
-  }
 
   return aFrame->GetContent()->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::mode,
                                            NS_LITERAL_STRING("undetermined"),

@@ -337,7 +337,7 @@ private:
    */
    nscoord GetFontSize(nsIFrame *aFrame);
 
-  nsDeviceContext *mDC;
+  nsIDeviceContext *mDC;
 };
 
 

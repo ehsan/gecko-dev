@@ -46,7 +46,8 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmunderoverFrame.h"
 #include "nsMathMLmsubsupFrame.h"
@@ -278,7 +279,7 @@ i.e.,:
 */
 
 /* virtual */ nsresult
-nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
                                PRBool               aPlaceOrigin,
                                nsHTMLReflowMetrics& aDesiredSize)
 {
@@ -322,9 +323,11 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
 
   aRenderingContext.SetFont(GetStyleFont()->mFont,
                             PresContext()->GetUserFontSet());
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
+  nsCOMPtr<nsIFontMetrics> fm;
+  aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
 
-  nscoord xHeight = fm->XHeight();
+  nscoord xHeight = 0;
+  fm->GetXHeight (xHeight);
 
   nscoord ruleThickness;
   GetRuleThickness (aRenderingContext, fm, ruleThickness);

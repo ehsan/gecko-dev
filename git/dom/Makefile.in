@@ -50,6 +50,7 @@ DIRS = \
   interfaces/html \
   interfaces/events \
   interfaces/stylesheets \
+  interfaces/views \
   interfaces/sidebar \
   interfaces/css \
   interfaces/traversal \
@@ -79,8 +80,7 @@ DIRS += \
   base \
   src \
   locales \
-  plugins/base \
-  plugins/ipc \
+  plugins \
   indexedDB \
   system \
   ipc \

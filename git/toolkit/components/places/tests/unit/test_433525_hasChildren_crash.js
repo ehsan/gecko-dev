@@ -80,5 +80,4 @@ function run_test() {
   do_check_eq(queryNode.title, "test query");
   queryNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);
   do_check_eq(queryNode.hasChildren, true);
-  root.containerOpen = false;
 }

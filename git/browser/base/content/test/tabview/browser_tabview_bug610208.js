@@ -38,7 +38,7 @@ function test() {
       ok(!originalBounds.equals(groupItem.getChild(0).getBounds()), testName + ': tabs changed their size');
 
       // cleanup
-      cw.UI.setActive(groupItem);
+      cw.GroupItems.setActiveGroupItem(groupItem);
       win.gBrowser.loadOneTab('about:blank', {inBackground: true});
       afterAllTabsLoaded(callback, win);
     }, 500);

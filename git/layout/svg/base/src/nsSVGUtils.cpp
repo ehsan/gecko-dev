@@ -49,6 +49,7 @@
 #include "nsIURI.h"
 #include "nsStyleStruct.h"
 #include "nsIPresShell.h"
+#include "nsISVGGlyphFragmentLeaf.h"
 #include "nsNetUtil.h"
 #include "nsFrameList.h"
 #include "nsISVGChildFrame.h"
@@ -77,6 +78,7 @@
 #include "gfxImageSurface.h"
 #include "gfxPlatform.h"
 #include "nsSVGForeignObjectFrame.h"
+#include "nsIFontMetrics.h"
 #include "nsIDOMSVGUnitTypes.h"
 #include "nsSVGEffects.h"
 #include "nsMathUtils.h"
@@ -286,7 +288,7 @@ nsSVGUtils::GetFontXHeight(nsStyleContext *aStyleContext)
   nsPresContext *presContext = aStyleContext->PresContext();
   NS_ABORT_IF_FALSE(presContext, "NULL pres context in GetFontXHeight");
 
-  nsRefPtr<nsFontMetrics> fontMetrics;
+  nsCOMPtr<nsIFontMetrics> fontMetrics;
   nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
                                                getter_AddRefs(fontMetrics));
 
@@ -296,7 +298,8 @@ nsSVGUtils::GetFontXHeight(nsStyleContext *aStyleContext)
     return 1.0f;
   }
 
-  nscoord xHeight = fontMetrics->XHeight();
+  nscoord xHeight;
+  fontMetrics->GetXHeight(xHeight);
   return nsPresContext::AppUnitsToFloatCSSPixels(xHeight) /
          presContext->TextZoom();
 }
@@ -1139,26 +1142,6 @@ nsSVGUtils::ToAppPixelRect(nsPresContext *aPresContext, const gfxRect& rect)
                 aPresContext->DevPixelsToAppUnits(NSToIntCeil(rect.YMost()) - NSToIntFloor(rect.Y())));
 }
 
-gfxIntSize
-nsSVGUtils::ConvertToSurfaceSize(const gfxSize& aSize,
-                                 PRBool *aResultOverflows)
-{
-  gfxIntSize surfaceSize(ClampToInt(aSize.width), ClampToInt(aSize.height));
-
-  *aResultOverflows = surfaceSize.width != NS_round(aSize.width) ||
-    surfaceSize.height != NS_round(aSize.height);
-
-  if (!gfxASurface::CheckSurfaceSize(surfaceSize)) {
-    surfaceSize.width = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
-                               surfaceSize.width);
-    surfaceSize.height = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
-                                surfaceSize.height);
-    *aResultOverflows = PR_TRUE;
-  }
-
-  return surfaceSize;
-}
-
 gfxMatrix
 nsSVGUtils::ConvertSVGMatrixToThebes(nsIDOMSVGMatrix *aMatrix)
 {
@@ -1212,19 +1195,19 @@ nsSVGUtils::GetClipRectForFrame(nsIFrame *aFrame,
       gfxRect(clipPxRect.x, clipPxRect.y, clipPxRect.width, clipPxRect.height);
 
     if (NS_STYLE_CLIP_RIGHT_AUTO & disp->mClipFlags) {
-      clipRect.width = aWidth - clipRect.X();
+      clipRect.size.width = aWidth - clipRect.X();
     }
     if (NS_STYLE_CLIP_BOTTOM_AUTO & disp->mClipFlags) {
-      clipRect.height = aHeight - clipRect.Y();
+      clipRect.size.height = aHeight - clipRect.Y();
     }
 
     if (disp->mOverflowX != NS_STYLE_OVERFLOW_HIDDEN) {
-      clipRect.x = aX;
-      clipRect.width = aWidth;
+      clipRect.pos.x = aX;
+      clipRect.size.width = aWidth;
     }
     if (disp->mOverflowY != NS_STYLE_OVERFLOW_HIDDEN) {
-      clipRect.y = aY;
-      clipRect.height = aHeight;
+      clipRect.pos.y = aY;
+      clipRect.size.height = aHeight;
     }
      
     return clipRect;
@@ -1457,13 +1440,13 @@ nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
   double dy = style_expansion * (fabs(ctm.yy) + fabs(ctm.yx));
 
   gfxRect strokeExtents = aPathExtents;
-  strokeExtents.Inflate(dx, dy);
+  strokeExtents.Outset(dy, dx, dy, dx);
   return strokeExtents;
 }
 
 // ----------------------------------------------------------------------
 
-nsSVGRenderState::nsSVGRenderState(nsRenderingContext *aContext) :
+nsSVGRenderState::nsSVGRenderState(nsIRenderingContext *aContext) :
   mRenderMode(NORMAL), mRenderingContext(aContext), mPaintingToWindow(PR_FALSE)
 {
   mGfxContext = aContext->ThebesContext();
@@ -1480,13 +1463,15 @@ nsSVGRenderState::nsSVGRenderState(gfxASurface *aSurface) :
   mGfxContext = new gfxContext(aSurface);
 }
 
-nsRenderingContext*
+nsIRenderingContext*
 nsSVGRenderState::GetRenderingContext(nsIFrame *aFrame)
 {
   if (!mRenderingContext) {
-    mRenderingContext = new nsRenderingContext();
-    mRenderingContext->Init(aFrame->PresContext()->DeviceContext(),
-                            mGfxContext);
+    nsIDeviceContext* devCtx = aFrame->PresContext()->DeviceContext();
+    devCtx->CreateRenderingContextInstance(*getter_AddRefs(mRenderingContext));
+    if (!mRenderingContext)
+      return nsnull;
+    mRenderingContext->Init(devCtx, mGfxContext);
   }
   return mRenderingContext;
 }

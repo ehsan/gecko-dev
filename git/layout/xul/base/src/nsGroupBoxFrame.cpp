@@ -39,7 +39,6 @@
 
 #include "nsBoxFrame.h"
 #include "nsCSSRendering.h"
-#include "nsRenderingContext.h"
 #include "nsStyleContext.h"
 #include "nsDisplayList.h"
 
@@ -64,7 +63,7 @@ public:
 
   virtual PRBool HonorPrintBackgroundSettings() { return PR_FALSE; }
 
-  void PaintBorderBackground(nsRenderingContext& aRenderingContext,
+  void PaintBorderBackground(nsIRenderingContext& aRenderingContext,
       nsPoint aPt, const nsRect& aDirtyRect);
 
   // make sure we our kids get our orient and align instead of us.
@@ -124,13 +123,13 @@ public:
     aOutFrames->AppendElement(mFrame);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("XULGroupBackground", TYPE_XUL_GROUP_BACKGROUND)
 };
 
 void
 nsDisplayXULGroupBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                   nsRenderingContext* aCtx)
+                                   nsIRenderingContext* aCtx)
 {
   static_cast<nsGroupBoxFrame*>(mFrame)->
     PaintBorderBackground(*aCtx, ToReferenceFrame(), mVisibleRect);
@@ -156,7 +155,7 @@ nsGroupBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void
-nsGroupBoxFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
+nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     nsPoint aPt, const nsRect& aDirtyRect) {
   PRIntn skipSides = 0;
   const nsStyleBorder* borderStyleData = GetStyleBorder();
@@ -197,7 +196,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.height = border.top;
 
     aRenderingContext.PushState();
-    aRenderingContext.IntersectClip(clipRect);
+    aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext, skipSides);
 
@@ -211,7 +210,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.height = border.top;
 
     aRenderingContext.PushState();
-    aRenderingContext.IntersectClip(clipRect);
+    aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext, skipSides);
 
@@ -226,7 +225,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.height = mRect.height - (yoff + border.top);
   
     aRenderingContext.PushState();
-    aRenderingContext.IntersectClip(clipRect);
+    aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext, skipSides);
 

@@ -40,7 +40,7 @@ function onTabViewLoadedAndShown() {
   });
   
   // make it the active group so new tabs will be added to it
-  contentWindow.UI.setActive(groupItem);
+  contentWindow.GroupItems.setActiveGroupItem(groupItem);
   
   // collect the group titles
   let count = contentWindow.GroupItems.groupItems.length;

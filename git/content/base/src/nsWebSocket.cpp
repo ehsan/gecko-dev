@@ -897,9 +897,6 @@ IMPL_RUNNABLE_ON_MAIN_THREAD_METHOD_BEGIN(DoInitialRequest)
         buf->AppendLiteral("\r\n");
       }
       break;
-
-      case numberRequestHeaders:
-      break;
     }
 
     headersToSend.RemoveElementAt(headerPosToSendNow);
@@ -1736,9 +1733,10 @@ IMPL_RUNNABLE_ON_MAIN_THREAD_METHOD_BEGIN(AddWSConnecting)
   NS_ASSERTION(index == nsTArray<PRNetAddr>::NoIndex,
                "The ws connection shouldn't be already added in the "
                "serialization list.");
-  bool inserted = !!
 #endif
-  sWSsConnecting->InsertElementSorted(this, nsWSNetAddressComparator());
+
+  PRBool inserted =
+    !!(sWSsConnecting->InsertElementSorted(this, nsWSNetAddressComparator()));
   NS_ASSERTION(inserted, "Couldn't insert the ws connection into the "
                          "serialization list.");
 }
@@ -2960,7 +2958,6 @@ nsWebSocket::Initialize(nsISupports* aOwner,
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
-  JS::Anchor<JSString *> deleteProtector(jsstr);
   size_t length;
   const jschar *chars = JS_GetStringCharsAndLength(aContext, jsstr, &length);
   if (!chars) {
@@ -2968,7 +2965,6 @@ nsWebSocket::Initialize(nsISupports* aOwner,
   }
 
   urlParam.Assign(chars, length);
-  deleteProtector.clear();
 
   if (aArgc == 2) {
     jsstr = JS_ValueToString(aContext, aArgv[1]);
@@ -2976,7 +2972,6 @@ nsWebSocket::Initialize(nsISupports* aOwner,
       return NS_ERROR_DOM_SYNTAX_ERR;
     }
 
-    deleteProtector.set(jsstr);
     chars = JS_GetStringCharsAndLength(aContext, jsstr, &length);
     if (!chars) {
       return NS_ERROR_OUT_OF_MEMORY;

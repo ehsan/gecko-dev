@@ -68,8 +68,6 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsConsoleMessage.h"
-#include "nsAppDirectoryServiceDefs.h"
-#include "IDBFactory.h"
 #if defined(MOZ_SYDNEYAUDIO)
 #include "AudioParent.h"
 #endif
@@ -100,7 +98,6 @@
 
 #ifdef ANDROID
 #include "gfxAndroidPlatform.h"
-#include "AndroidBridge.h"
 #endif
 
 #include "nsIClipboard.h"
@@ -112,6 +109,7 @@ static const char* sClipboardTextFlavors[] = { kUnicodeMime };
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
+using mozilla::MonitorAutoEnter;
 using mozilla::unused; // heh
 using base::KillProcess;
 
@@ -286,9 +284,10 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
             TakeMinidump(getter_AddRefs(crashDump)) &&
                 CrashReporter::GetIDFromMinidump(crashDump, dumpID);
 
-            props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
-
             if (!dumpID.IsEmpty()) {
+                props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"),
+                                            dumpID);
+
                 CrashReporter::AnnotationTable notes;
                 notes.Init();
                 notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("content"));
@@ -332,7 +331,8 @@ ContentParent::DestroyTestShell(TestShellParent* aTestShell)
 }
 
 ContentParent::ContentParent()
-    : mGeolocationWatchID(-1)
+    : mMonitor("ContentParent::mMonitor")
+    , mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
@@ -441,24 +441,6 @@ ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissio
 }
 
 bool
-ContentParent::RecvGetIndexedDBDirectory(nsString* aDirectory)
-{
-    indexedDB::IDBFactory::NoteUsedByProcessType(GeckoProcessType_Content);
-
-    nsCOMPtr<nsIFile> dbDirectory;
-    nsresult rv = indexedDB::IDBFactory::GetDirectory(getter_AddRefs(dbDirectory));
-
-    if (NS_FAILED(rv)) {
-        NS_ERROR("Failed to get IndexedDB directory");
-        return true;
-    }
-
-    dbDirectory->GetPath(*aDirectory);
-
-    return true;
-}
-
-bool
 ContentParent::RecvSetClipboardText(const nsString& text, const PRInt32& whichClipboard)
 {
     nsresult rv;
@@ -533,22 +515,6 @@ ContentParent::RecvClipboardHasText(PRBool* hasText)
 
     clipboard->HasDataMatchingFlavors(sClipboardTextFlavors, 1, 
                                       nsIClipboard::kGlobalClipboard, hasText);
-    return true;
-}
-
-bool
-ContentParent::RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray<PRUint32>* colors)
-{
-#ifdef ANDROID
-    if (!AndroidBridge::Bridge())
-        return false;
-
-    colors->AppendElements(colorsCount);
-
-    // The array elements correspond to the members of AndroidSystemColors structure,
-    // so just pass the pointer to the elements buffer
-    AndroidBridge::Bridge()->GetSystemColors((AndroidSystemColors*)colors->Elements());
-#endif
     return true;
 }
 
@@ -685,7 +651,7 @@ void
 ContentParent::SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report)
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    for (PRInt32 i = 0; i < mMemoryReporters.Count(); i++)
+    for (PRUint32 i = 0; i < mMemoryReporters.Count(); i++)
         mgr->UnregisterReporter(mMemoryReporters[i]);
 
     for (PRUint32 i = 0; i < report.Length(); i++) {
@@ -1121,12 +1087,12 @@ ContentParent::RecvScriptError(const nsString& aMessage,
 NS_IMETHODIMP
 ContentParent::OnAccelerationChange(nsIAcceleration *aAcceleration)
 {
-    double alpha, beta, gamma;
-    aAcceleration->GetAlpha(&alpha);
-    aAcceleration->GetBeta(&beta);
-    aAcceleration->GetGamma(&gamma);
+    double x, y, z;
+    aAcceleration->GetX(&x);
+    aAcceleration->GetY(&y);
+    aAcceleration->GetZ(&z);
 
-    unused << SendAccelerationChanged(alpha, beta, gamma);
+    unused << SendAccelerationChanged(x, y, z);
     return NS_OK;
 }
 

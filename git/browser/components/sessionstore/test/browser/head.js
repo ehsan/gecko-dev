@@ -99,7 +99,6 @@ function waitForSaveState(aSaveStateCallback) {
   }, topic, false);
 };
 
-var gUniqueCounter = 0;
 function r() {
-  return Date.now() + "-" + (++gUniqueCounter);
+  return Math.floor(Date.now()) + Math.random();
 }

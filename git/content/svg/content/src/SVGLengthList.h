@@ -40,7 +40,6 @@
 #include "SVGLength.h"
 #include "nsTArray.h"
 #include "nsSVGElement.h"
-#include "nsIWeakReferenceUtils.h"
 
 namespace mozilla {
 
@@ -137,14 +136,14 @@ private:
   }
 
   void ReplaceItem(PRUint32 aIndex, const SVGLength &aLength) {
-    NS_ABORT_IF_FALSE(aIndex < mLengths.Length(),
-                      "DOM wrapper caller should have raised INDEX_SIZE_ERR");
+    NS_ASSERTION(aIndex < mLengths.Length(),
+                 "DOM wrapper caller should have raised INDEX_SIZE_ERR");
     mLengths[aIndex] = aLength;
   }
 
   void RemoveItem(PRUint32 aIndex) {
-    NS_ABORT_IF_FALSE(aIndex < mLengths.Length(),
-                      "DOM wrapper caller should have raised INDEX_SIZE_ERR");
+    NS_ASSERTION(aIndex < mLengths.Length(),
+                 "DOM wrapper caller should have raised INDEX_SIZE_ERR");
     mLengths.RemoveElementAt(aIndex);
   }
 
@@ -207,24 +206,23 @@ public:
   {}
 
   SVGLengthListAndInfo(nsSVGElement *aElement, PRUint8 aAxis, PRBool aCanZeroPadList)
-    : mElement(do_GetWeakReference(static_cast<nsINode*>(aElement)))
+    : mElement(aElement)
     , mAxis(aAxis)
     , mCanZeroPadList(aCanZeroPadList)
   {}
 
   void SetInfo(nsSVGElement *aElement, PRUint8 aAxis, PRBool aCanZeroPadList) {
-    mElement = do_GetWeakReference(static_cast<nsINode*>(aElement));
+    mElement = aElement;
     mAxis = aAxis;
     mCanZeroPadList = aCanZeroPadList;
   }
 
   nsSVGElement* Element() const {
-    nsCOMPtr<nsIContent> e = do_QueryReferent(mElement);
-    return static_cast<nsSVGElement*>(e.get());
+    return mElement; // .get();
   }
 
   PRUint8 Axis() const {
-    NS_ABORT_IF_FALSE(mElement, "Axis() isn't valid");
+    NS_ASSERTION(mElement, "Axis() isn't valid");
     return mAxis;
   }
 
@@ -293,11 +291,10 @@ public:
   }
 
 private:
-  // We must keep a weak reference to our element because we may belong to a
+  // We must keep a strong reference to our element because we may belong to a
   // cached baseVal nsSMILValue. See the comments starting at:
   // https://bugzilla.mozilla.org/show_bug.cgi?id=515116#c15
-  // See also https://bugzilla.mozilla.org/show_bug.cgi?id=653497
-  nsWeakPtr mElement;
+  nsRefPtr<nsSVGElement> mElement;
   PRUint8 mAxis;
   PRPackedBool mCanZeroPadList;
 };

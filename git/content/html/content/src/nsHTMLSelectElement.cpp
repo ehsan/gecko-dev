@@ -52,7 +52,7 @@
 
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsHTMLOptionElement.h"
-#include "nsEventStates.h"
+#include "nsIEventStateManager.h"
 #include "nsGUIEvent.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIBoxObject.h"
@@ -2169,19 +2169,22 @@ nsHTMLOptionCollection::SetSelectedIndex(PRInt32 aSelectedIndex)
 NS_IMETHODIMP
 nsHTMLOptionCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsISupports* item = GetNodeAt(aIndex);
+  nsresult rv;
+  nsISupports* item = GetNodeAt(aIndex, &rv);
   if (!item) {
     *aReturn = nsnull;
 
-    return NS_OK;
+    return rv;
   }
 
   return CallQueryInterface(item, aReturn);
 }
 
 nsIContent*
-nsHTMLOptionCollection::GetNodeAt(PRUint32 aIndex)
+nsHTMLOptionCollection::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
+  *aResult = NS_OK;
+
   return static_cast<nsIContent*>(ItemAsOption(aIndex));
 }
 
@@ -2206,8 +2209,11 @@ GetNamedItemHelper(nsTArray<nsRefPtr<nsHTMLOptionElement> > &aElements,
 
 nsISupports*
 nsHTMLOptionCollection::GetNamedItem(const nsAString& aName,
-                                     nsWrapperCache **aCache)
+                                     nsWrapperCache **aCache,
+                                     nsresult* aResult)
 {
+  *aResult = NS_OK;
+
   nsINode *item = GetNamedItemHelper(mElements, aName);
   *aCache = item;
   return item;

@@ -402,8 +402,6 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
     JSString *str;
     char *buffer;
     size_t size;
-    jschar *uc_buffer;
-    size_t uc_len;
     int lineno;
     int startline;
     FILE *file;
@@ -522,19 +520,10 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
                 hitEOF = JS_TRUE;
                 break;
             }
-        } while (!JS_BufferIsCompilableUnit(cx, JS_TRUE, obj, buffer, len));
+        } while (!JS_BufferIsCompilableUnit(cx, obj, buffer, len));
 
         if (hitEOF && !buffer)
             break;
-
-        if (!JS_DecodeUTF8(cx, buffer, len, NULL, &uc_len)) {
-            JS_ReportError(cx, "Invalid UTF-8 in input");
-            gExitCode = EXITCODE_RUNTIME_ERROR;
-            return;
-        }
-
-        uc_buffer = (jschar*)malloc(uc_len * sizeof(jschar));
-        JS_DecodeUTF8(cx, buffer, len, uc_buffer, &uc_len);
 
         /* Clear any pending exception from previous failed compiles. */
         JS_ClearPendingException(cx);
@@ -543,8 +532,8 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
         oldopts = JS_GetOptions(cx);
         if (!compileOnly)
             JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO);
-        scriptObj = JS_CompileUCScript(cx, obj, uc_buffer, uc_len, "typein",
-                                       startline);
+        scriptObj = JS_CompileScript(cx, obj, buffer, len, "typein",
+                                     startline);
         if (!compileOnly)
             JS_SetOptions(cx, oldopts);
 
@@ -562,7 +551,6 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
             }
         }
         *buffer = '\0';
-        free(uc_buffer);
     } while (!hitEOF && !gQuitting);
 
     free(buffer);
@@ -587,8 +575,6 @@ usage(void)
                       "  -w            Report strict warnings\n"
                       "  -W            Do not report strict warnings\n"
                       "  -x            Toggle JSOPTION_XML flag\n"
-                      "  -U            Enable UTF-8 C-strings; also affects scripts loaded via\n"
-                      "                run, snarf, read, or entered into the REPL\n"
                       "  -C            Compile-only; do not execute\n"
                       "  -i            Enable interactive read-eval-print loop\n"
                       "  -j            Enable the TraceMonkey tracing JIT\n"
@@ -627,7 +613,7 @@ usage(void)
                       "                Default is %u.\n", DEFAULT_MAX_STACK_SIZE);
 #ifdef DEBUG
     fprintf(gErrFile, "  -A <max>      After <max> memory allocations, act like we're OOM.\n");
-    fprintf(gErrFile, "  -O            At exit, print the number of memory allocations in \n"
+    fprintf(gErrFile, "  -O <max>      At exit, print the number of memory allocations in \n"
                       "                the program.\n");
 #endif
 #ifdef JS_THREADSAFE
@@ -962,9 +948,6 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             break;
 #endif
 
-        case 'U': /* Already handled in main() */
-            break;
-
         default:
             return usage();
         }
@@ -1134,21 +1117,8 @@ FileAsString(JSContext *cx, const char *pathname)
                     JS_ReportError(cx, "can't read %s: %s", pathname,
                                    (ptrdiff_t(cc) < 0) ? strerror(errno) : "short read");
                 } else {
-                    jschar *ucbuf;
-                    size_t uclen;
-
                     len = (size_t)cc;
-
-                    if (!JS_DecodeUTF8(cx, buf, len, NULL, &uclen)) {
-                        JS_ReportError(cx, "Invalid UTF-8 in file '%s'", pathname);
-                        gExitCode = EXITCODE_RUNTIME_ERROR;
-                        return NULL;
-                    }
-
-                    ucbuf = (jschar*)malloc(uclen * sizeof(jschar));
-                    JS_DecodeUTF8(cx, buf, len, ucbuf, &uclen);
-                    str = JS_NewUCStringCopyN(cx, ucbuf, uclen);
-                    free(ucbuf);
+                    str = JS_NewStringCopyN(cx, buf, len);
                 }
                 JS_free(cx, buf);
             }
@@ -1800,7 +1770,7 @@ GetTrapArgs(JSContext *cx, uintN argc, jsval *argv, JSScript **scriptp,
     uintN intarg;
     JSScript *script;
 
-    *scriptp = JS_GetFrameScript(cx, JS_GetScriptedCaller(cx, NULL));
+    *scriptp = JS_GetScriptedCaller(cx, NULL)->script();
     *ip = 0;
     if (argc != 0) {
         v = argv[0];
@@ -1823,12 +1793,11 @@ GetTrapArgs(JSContext *cx, uintN argc, jsval *argv, JSScript **scriptp,
 }
 
 static JSTrapStatus
-TrapHandler(JSContext *cx, JSScript *, jsbytecode *pc, jsval *rval,
+TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
             jsval closure)
 {
     JSString *str = JSVAL_TO_STRING(closure);
     JSStackFrame *caller = JS_GetScriptedCaller(cx, NULL);
-    JSScript *script = JS_GetFrameScript(cx, caller);
 
     size_t length;
     const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
@@ -1836,8 +1805,8 @@ TrapHandler(JSContext *cx, JSScript *, jsbytecode *pc, jsval *rval,
         return JSTRAP_ERROR;
 
     if (!JS_EvaluateUCInStackFrame(cx, caller, chars, length,
-                                   script->filename,
-                                   script->lineno,
+                                   caller->script()->filename,
+                                   caller->script()->lineno,
                                    rval)) {
         return JSTRAP_ERROR;
     }
@@ -1939,7 +1908,7 @@ LineToPC(JSContext *cx, uintN argc, jsval *vp)
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_LINE2PC_USAGE);
         return JS_FALSE;
     }
-    script = JS_GetFrameScript(cx, JS_GetScriptedCaller(cx, NULL));
+    script = JS_GetScriptedCaller(cx, NULL)->script();
     if (!GetTrapArgs(cx, argc, JS_ARGV(cx, vp), &script, &i))
         return JS_FALSE;
     lineno = (i == 0) ? script->lineno : (uintN)i;
@@ -3219,8 +3188,7 @@ ResolveClass(JSContext *cx, JSObject *obj, jsid id, JSBool *resolved)
 
     if (!*resolved) {
         if (JSID_IS_ATOM(id, CLASS_ATOM(cx, Reflect))) {
-            if (!IsStandardClassResolved(obj, &js_ReflectClass) &&
-                !js_InitReflectClass(cx, obj))
+            if (!js_InitReflectClass(cx, obj))
                 return JS_FALSE;
             *resolved = JS_TRUE;
         }
@@ -3575,8 +3543,6 @@ EvalInContext(JSContext *cx, uintN argc, jsval *vp)
         return true;
 
     JSStackFrame *fp = JS_GetScriptedCaller(cx, NULL);
-    JSScript *script = JS_GetFrameScript(cx, fp);
-    jsbytecode *pc = JS_GetFramePC(cx, fp);
     {
         JSAutoEnterCompartment ac;
         uintN flags;
@@ -3595,8 +3561,8 @@ EvalInContext(JSContext *cx, uintN argc, jsval *vp)
             return false;
         }
         if (!JS_EvaluateUCScript(cx, sobj, src, srclen,
-                                 script->filename,
-                                 JS_PCToLineNumber(cx, script, pc),
+                                 fp->script()->filename,
+                                 JS_PCToLineNumber(cx, fp->script(), fp->pc(cx)),
                                  vp)) {
             return false;
         }
@@ -3622,7 +3588,7 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
                         ? !!(JSVAL_TO_BOOLEAN(argv[2]))
                         : false;
 
-    JS_ASSERT(cx->running());
+    JS_ASSERT(cx->hasfp());
 
     FrameRegsIter fi(cx);
     for (uint32 i = 0; i < upCount; ++i, ++fi) {
@@ -3630,8 +3596,8 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
             break;
     }
 
-    StackFrame *const fp = fi.fp();
-    if (!fp->isScriptFrame()) {
+    JSStackFrame *const fp = fi.fp();
+    if (!JS_IsScriptFrame(cx, fp)) {
         JS_ReportError(cx, "cannot eval in non-script frame");
         return JS_FALSE;
     }
@@ -3645,7 +3611,7 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
     if (!chars)
         return JS_FALSE;
 
-    JSBool ok = JS_EvaluateUCInStackFrame(cx, Jsvalify(fp), chars, length,
+    JSBool ok = JS_EvaluateUCInStackFrame(cx, fp, chars, length,
                                           fp->script()->filename,
                                           JS_PCToLineNumber(cx, fp->script(),
                                                             fi.pc()),
@@ -4157,7 +4123,9 @@ WatchdogMain(void *arg)
             PRIntervalTime sleepDuration = gWatchdogHasTimeout
                                            ? gWatchdogTimeout - now
                                            : PR_INTERVAL_NO_TIMEOUT;
-            DebugOnly<PRStatus> status =
+#ifdef DEBUG
+            PRStatus status =
+#endif
                 PR_WaitCondVar(gWatchdogWakeup, sleepDuration);
             JS_ASSERT(status == PR_SUCCESS);
         }
@@ -4467,6 +4435,7 @@ Snarf(JSContext *cx, uintN argc, jsval *vp)
 {
     JSString *str;
     const char *pathname;
+    JSStackFrame *fp;
 
     if (!argc)
         return JS_FALSE;
@@ -4479,11 +4448,10 @@ Snarf(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
 
     /* Get the currently executing script's name. */
-    JSStackFrame *fp = JS_GetScriptedCaller(cx, NULL);
-    JSScript *script = JS_GetFrameScript(cx, fp);
-    JS_ASSERT(fp && script->filename);
+    fp = JS_GetScriptedCaller(cx, NULL);
+    JS_ASSERT(fp && fp->script()->filename);
 #ifdef XP_UNIX
-    pathname = MakeAbsolutePathname(cx, script->filename, filename.ptr());
+    pathname = MakeAbsolutePathname(cx, fp->script()->filename, filename.ptr());
     if (!pathname)
         return JS_FALSE;
 #else
@@ -4570,26 +4538,10 @@ Deserialize(JSContext *cx, uintN argc, jsval *vp)
 }
 
 JSBool
-MJitCodeStats(JSContext *cx, uintN argc, jsval *vp)
+MJitStats(JSContext *cx, uintN argc, jsval *vp)
 {
 #ifdef JS_METHODJIT
-    JSRuntime *rt = cx->runtime;
-    AutoLockGC lock(rt);
-    size_t n = 0;
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
-        n += (*c)->getMjitCodeSize();
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(n));
-#else
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-#endif
-    return true;
-}
-
-JSBool
-MJitDataStats(JSContext *cx, uintN argc, jsval *vp)
-{
-#ifdef JS_METHODJIT
-     JS_SET_RVAL(cx, vp, INT_TO_JSVAL(cx->runtime->mjitDataSize));
+     JS_SET_RVAL(cx, vp, INT_TO_JSVAL(cx->runtime->mjitMemoryUsed));
 #else
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
 #endif
@@ -4749,8 +4701,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("serialize",      Serialize,      1,0),
     JS_FN("deserialize",    Deserialize,    1,0),
 #ifdef JS_METHODJIT
-    JS_FN("mjitcodestats",  MJitCodeStats,  0,0),
-    JS_FN("mjitdatastats",  MJitDataStats,  0,0),
+    JS_FN("mjitstats",      MJitStats,      0,0),
 #endif
     JS_FN("stringstats",    StringStats,    0,0),
     JS_FN("newGlobal",      NewGlobal,      1,0),
@@ -4884,8 +4835,7 @@ static const char *const shell_help_messages[] = {
 "serialize(sd)            Serialize sd using JS_WriteStructuredClone. Returns a TypedArray.",
 "deserialize(a)           Deserialize data generated by serialize.",
 #ifdef JS_METHODJIT
-"mjitcodestats()          Return stats on mjit code memory usage.",
-"mjitdatastats()          Return stats on mjit data memory usage.",
+"mjitstats()              Return stats on mjit memory usage.",
 #endif
 "stringstats()            Return stats on string memory usage.",
 "newGlobal(kind)          Return a new global object, in the current\n"
@@ -5959,13 +5909,6 @@ main(int argc, char **argv, char **envp)
 
     argc--;
     argv++;
-
-    int i;
-    for (i = 0; i < argc; i++) {
-        if (argv[i][0] == '-' && argv[i][1] == 'U' && argv[i][2] == '\0') {
-            JS_SetCStringsAreUTF8();
-        }
-    }
 
 #ifdef XP_WIN
     // Set the timer calibration delay count to 0 so we get high

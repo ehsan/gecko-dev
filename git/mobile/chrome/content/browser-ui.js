@@ -487,11 +487,6 @@ var BrowserUI = {
       }, 0);
     });
 
-    // Only load IndexedDB.js when we actually need it. A general fix will happen in bug 647079.
-    messageManager.addMessageListener("IndexedDB:Prompt", function(aMessage) {
-      return IndexedDB.receiveMessage(aMessage);
-    });
-
     // Delay the panel UI and Sync initialization.
     window.addEventListener("UIReadyDelayed", function(aEvent) {
       window.removeEventListener(aEvent.type, arguments.callee, false);
@@ -661,21 +656,15 @@ var BrowserUI = {
     // Make sure we're online before attempting to load
     Util.forceOnline();
 
-    // Close the autocomplete panel and quickly update the urlbar value
+    // Give the new page lots of room
+    Browser.hideSidebars();
     this.closeAutoComplete();
+
     this._edit.value = aURI;
 
     let postData = {};
     aURI = Browser.getShortcutOrURI(aURI, postData);
     Browser.loadURI(aURI, { flags: Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP, postData: postData });
-
-    // If a page goes from remote (about:blank) to local (about:home), fennec
-    // create a tab for the local page and then close the about:blank tab.
-    // If the newly created tab spawn a new column the sidebars position can
-    // be messed up. Hopefully, the viewable area should be maximized when a
-    // new page is opened, so a call to Browser.hideSidebars() fill this
-    // requirement and fix the sidebars position.
-    Browser.hideSidebars();
 
     // Delay doing the fixup so the raw URI is passed to loadURIWithFlags
     // and the proper third-party fixup can be done
@@ -692,8 +681,6 @@ var BrowserUI = {
 
     this.hidePanel();
     this._hidePopup();
-    if (this.activeDialog)
-      this.activeDialog.close();
     this.activePanel = AllPagesList;
   },
 
@@ -891,8 +878,6 @@ var BrowserUI = {
     if (browser.canGoBack) {
       browser.goBack();
     } else if (tab.owner) {
-      // When going back, always return to the owner (not a sibling).
-      Browser.selectedTab = tab.owner;
       this.closeTab(tab);
     }
 #ifdef ANDROID
@@ -928,14 +913,9 @@ var BrowserUI = {
           let { x: x1, y: y1 } = Browser.getScrollboxPosition(Browser.controlsScrollboxScroller);
           tabs.removeClosedTab();
 
-          // If the tabs sidebar lives on the left side of the window, width
-          // variation should be taken into account to reposition the sidebars
-          if (tabs.getBoundingClientRect().left < 0) {
-            let [,, leftWidth, rightWidth] = Browser.computeSidebarVisibility();
-            let delta = (oldLeftWidth - leftWidth) || (oldRightWidth - rightWidth);
-            x1 += (x1 == leftWidth) ? delta : -delta;
-          }
-
+          let [,, leftWidth, rightWidth] = Browser.computeSidebarVisibility();
+          let delta = (oldLeftWidth - leftWidth) || (oldRightWidth - rightWidth);
+          x1 += (x1 == leftWidth) ? delta : -delta;
           Browser.controlsScrollboxScroller.scrollTo(x1, 0);
           Browser.tryFloatToolbar(0, 0);
         }
@@ -1113,13 +1093,8 @@ var BrowserUI = {
   },
 
   isCommandEnabled : function(cmd) {
-    // disable all commands during the first-run sidebar discovery
-    let broadcaster = document.getElementById("bcast_uidiscovery");
-    if (broadcaster && broadcaster.getAttribute("mode") == "discovery")
-      return false;
-
     let elem = document.getElementById(cmd);
-    if (elem && elem.getAttribute("disabled") == "true")
+    if (elem && (elem.getAttribute("disabled") == "true"))
       return false;
     return true;
   },

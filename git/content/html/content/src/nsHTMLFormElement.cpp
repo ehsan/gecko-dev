@@ -81,6 +81,7 @@
 #include "nsIHTMLCollection.h"
 
 #include "nsIConstraintValidation.h"
+#include "nsIEventStateManager.h"
 
 #include "nsIDOMHTMLButtonElement.h"
 
@@ -121,15 +122,20 @@ public:
   // nsIDOMHTMLCollection interface
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex)
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
   {
     FlushPendingNotifications();
+
+    *aResult = NS_OK;
 
     return mElements.SafeElementAt(aIndex, nsnull);
   }
   virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache **aCache)
+                                    nsWrapperCache **aCache,
+                                    nsresult* aResult)
   {
+    *aResult = NS_OK;
+
     nsISupports *item = NamedItemInternal(aName, PR_TRUE);
     *aCache = nsnull;
     return item;
@@ -221,7 +227,6 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   //
   // NS_FORM_INPUT_IMAGE
   // NS_FORM_LABEL
-  // NS_FORM_PROGRESS
 
   return PR_FALSE;
 }
@@ -2301,11 +2306,12 @@ nsFormControlList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsFormControlList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsISupports* item = GetNodeAt(aIndex);
+  nsresult rv;
+  nsISupports* item = GetNodeAt(aIndex, &rv);
   if (!item) {
     *aReturn = nsnull;
 
-    return NS_OK;
+    return rv;
   }
 
   return CallQueryInterface(item, aReturn);
@@ -2388,7 +2394,7 @@ nsFormControlList::AddElementToTable(nsGenericHTMLFormElement* aChild,
 
       // Found an element, create a list, add the element to the list and put
       // the list in the hash
-      nsSimpleContentList *list = new nsSimpleContentList(mForm);
+      nsBaseContentList *list = new nsBaseContentList();
       NS_ENSURE_TRUE(list, NS_ERROR_OUT_OF_MEMORY);
 
       NS_ASSERTION(content->GetParent(), "Item in list without parent");
@@ -2412,7 +2418,7 @@ nsFormControlList::AddElementToTable(nsGenericHTMLFormElement* aChild,
       NS_ENSURE_TRUE(nodeList, NS_ERROR_FAILURE);
 
       // Upcast, uggly, but it works!
-      nsSimpleContentList *list = static_cast<nsSimpleContentList *>
+      nsBaseContentList *list = static_cast<nsBaseContentList *>
                                            ((nsIDOMNodeList *)nodeList.get());
 
       NS_ASSERTION(list->Length() > 1,

@@ -86,7 +86,7 @@
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsGkAtoms.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsDOMCSSDeclaration.h"
@@ -136,7 +136,7 @@ static nsHashtable sGEUS_ElementCounts;
 void GEUS_ElementCreated(nsINodeInfo *aNodeInfo)
 {
   nsAutoString name;
-  aNodeInfo->GetName(name);
+  aNodeInfo->GetLocalName(name);
 
   nsStringKey key(name);
 
@@ -315,8 +315,8 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
         value->Type() == nsAttrValue::eCSSStyleRule) {
       // We can't just set this as a string, because that will fail
       // to reparse the string into style data until the node is
-      // inserted into the document.  Clone the Rule instead.
-      nsRefPtr<mozilla::css::Rule> ruleClone = value->GetCSSStyleRuleValue()->Clone();
+      // inserted into the document.  Clone the nsICSSRule instead.
+      nsCOMPtr<nsICSSRule> ruleClone = value->GetCSSStyleRuleValue()->Clone();
       nsRefPtr<mozilla::css::StyleRule> styleRule = do_QueryObject(ruleClone);
       NS_ENSURE_TRUE(styleRule, NS_ERROR_UNEXPECTED);
 
@@ -334,6 +334,12 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
   }
 
   return NS_OK;
+}
+
+nsresult
+nsGenericHTMLElement::GetTagName(nsAString& aTagName)
+{
+  return GetNodeName(aTagName);
 }
 
 NS_IMETHODIMP
@@ -362,6 +368,17 @@ nsGenericHTMLElement::SetAttribute(const nsAString& aName,
 
   return SetAttr(name->NamespaceID(), name->LocalName(), name->GetPrefix(),
                  aValue, PR_TRUE);
+}
+
+nsresult
+nsGenericHTMLElement::GetNodeName(nsAString& aNodeName)
+{
+  mNodeInfo->GetQualifiedName(aNodeName);
+
+  if (IsInHTMLDocument())
+    nsContentUtils::ASCIIToUpper(aNodeName);
+
+  return NS_OK;
 }
 
 // Implementation for nsIDOMHTMLElement
@@ -1039,8 +1056,9 @@ nsGenericHTMLElement::CheckHandleEventForAnchorsPreconditions(nsEventChainVisito
   //Need to check if we hit an imagemap area and if so see if we're handling
   //the event on that map or on a link farther up the tree.  If we're on a
   //link farther up, do nothing.
-  nsCOMPtr<nsIContent> target = aVisitor.mPresContext->EventStateManager()->
-    GetEventTargetContent(aVisitor.mEvent);
+  nsCOMPtr<nsIContent> target;
+  aVisitor.mPresContext->EventStateManager()->
+    GetEventTargetContent(aVisitor.mEvent, getter_AddRefs(target));
 
   return !target || !IsArea(target) || IsArea(this);
 }
@@ -1175,7 +1193,7 @@ nsGenericHTMLElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   PRBool accessKey = aName == nsGkAtoms::accesskey && 
                      aNameSpaceID == kNameSpaceID_None;
 
-  PRInt32 change = 0;
+  PRInt32 change;
   if (contentEditable) {
     change = GetContentEditableValue() == eTrue ? -1 : 0;
     SetMayHaveContentEditableAttr();
@@ -1210,7 +1228,7 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                 PRBool aNotify)
 {
   PRBool contentEditable = PR_FALSE;
-  PRInt32 contentEditableChange = 0;
+  PRInt32 contentEditableChange;
 
   // Check for event handlers
   if (aNameSpaceID == kNameSpaceID_None) {
@@ -2732,8 +2750,7 @@ nsGenericHTMLFormElement::CanBeDisabled() const
   return
     type != NS_FORM_LABEL &&
     type != NS_FORM_OBJECT &&
-    type != NS_FORM_OUTPUT &&
-    type != NS_FORM_PROGRESS;
+    type != NS_FORM_OUTPUT;
 }
 
 PRBool
@@ -3336,7 +3353,7 @@ nsGenericHTMLElement::RegUnRegAccessKey(PRBool aDoReg)
   nsPresContext *presContext = GetPresContext();
 
   if (presContext) {
-    nsEventStateManager *esm = presContext->EventStateManager();
+    nsIEventStateManager *esm = presContext->EventStateManager();
 
     // Register or unregister as appropriate.
     if (aDoReg) {

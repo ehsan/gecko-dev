@@ -70,12 +70,10 @@ class nsIDocument;
 class nsSMILAnimationController : public nsSMILTimeContainer,
                                   public nsARefreshObserver
 {
+protected:
+  nsSMILAnimationController();
 public:
-  nsSMILAnimationController(nsIDocument* aDoc);
   ~nsSMILAnimationController();
-
-  // Clears mDocument pointer. (Called by our nsIDocument when it's going away)
-  void Disconnect();
 
   // nsSMILContainer
   virtual void Pause(PRUint32 aType);
@@ -151,12 +149,14 @@ protected:
     nsSMILMilestone                              mMilestone;
   };
 
+  // Factory methods
+  friend nsSMILAnimationController*
+  NS_NewSMILAnimationController(nsIDocument* aDoc);
+  nsresult    Init(nsIDocument* aDoc);
+
   // Cycle-collection implementation helpers
   PR_STATIC_CALLBACK(PLDHashOperator) CompositorTableEntryTraverse(
       nsSMILCompositor* aCompositor, void* aArg);
-
-  // Returns mDocument's refresh driver, if it's got one.
-  nsRefreshDriver* GetRefreshDriver();
 
   // Methods for controlling whether we're sampling
   void StartSampling(nsRefreshDriver* aRefreshDriver);
@@ -242,5 +242,7 @@ protected:
   // removed or retargeted)
   nsAutoPtr<nsSMILCompositorTable> mLastCompositorTable;
 };
+
+nsSMILAnimationController* NS_NewSMILAnimationController(nsIDocument *doc);
 
 #endif // NS_SMILANIMATIONCONTROLLER_H_

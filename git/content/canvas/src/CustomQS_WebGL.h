@@ -671,6 +671,8 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(JSContext *cx, uintN argc,
     if (!obj)
         return JS_FALSE;
 
+    nsresult rv;
+
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
@@ -684,7 +686,7 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(JSContext *cx, uintN argc,
 
     nsIWebGLUniformLocation *location;
     xpc_qsSelfRef location_selfref;
-    nsresult rv = xpc_qsUnwrapArg(cx, argv[0], &location, &location_selfref.ptr, &argv[0]);
+    rv = xpc_qsUnwrapArg(cx, argv[0], &location, &location_selfref.ptr, &argv[0]);
     if (NS_FAILED(rv)) {
         xpc_qsThrowBadArg(cx, rv, vp, 0);
         return JS_FALSE;
@@ -744,6 +746,8 @@ helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(JSContext *cx, uintN argc, 
     if (!obj)
         return JS_FALSE;
 
+    nsresult rv;
+
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     js::AutoValueRooter tvr(cx);
@@ -786,7 +790,6 @@ helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(JSContext *cx, uintN argc, 
         return JS_FALSE;
     }
 
-    nsresult rv = NS_OK;
     if (nElements == 1) {
         rv = self->VertexAttrib1fv_array(location, wa);
     } else if (nElements == 2) {
@@ -950,7 +953,8 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(JSContext *cx, JSObject *obj,
         return;
     }
 
-    nsresult rv = NS_OK;
+    nsresult rv;
+
     if (nElements == 1) {
         rv = self->Uniform1iv_array(location, wa);
     } else if (nElements == 2) {
@@ -1021,7 +1025,8 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(JSContext *cx, JSObject *obj,
         return;
     }
 
-    nsresult rv = NS_OK;
+    nsresult rv;
+
     if (nElements == 1) {
         rv = self->Uniform1fv_array(location, wa);
     } else if (nElements == 2) {
@@ -1094,7 +1099,7 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(JSContext *cx, JSObject
         return;
     }
 
-    nsresult rv = NS_OK;
+    nsresult rv;
     if (nElements == 2) {
         rv = self->UniformMatrix2fv_array(location, transpose, wa);
     } else if (nElements == 3) {

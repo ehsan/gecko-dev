@@ -242,7 +242,7 @@ nsHTMLEditRules::~nsHTMLEditRules()
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLEditRules, nsTextEditRules)
 NS_IMPL_RELEASE_INHERITED(nsHTMLEditRules, nsTextEditRules)
-NS_IMPL_QUERY_INTERFACE_INHERITED1(nsHTMLEditRules, nsTextEditRules, nsIEditActionListener)
+NS_IMPL_QUERY_INTERFACE_INHERITED2(nsHTMLEditRules, nsTextEditRules, nsIHTMLEditRules, nsIEditActionListener)
 
 
 /********************************************************
@@ -727,7 +727,11 @@ nsHTMLEditRules::DidDoAction(nsISelection *aSelection,
   return nsTextEditRules::DidDoAction(aSelection, aInfo, aResult);
 }
   
-nsresult
+/********************************************************
+ *  nsIHTMLEditRules methods
+ ********************************************************/
+
+NS_IMETHODIMP 
 nsHTMLEditRules::GetListState(PRBool *aMixed, PRBool *aOL, PRBool *aUL, PRBool *aDL)
 {
   NS_ENSURE_TRUE(aMixed && aOL && aUL && aDL, NS_ERROR_NULL_POINTER);
@@ -778,7 +782,7 @@ nsHTMLEditRules::GetListState(PRBool *aMixed, PRBool *aOL, PRBool *aUL, PRBool *
   return res;
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsHTMLEditRules::GetListItemState(PRBool *aMixed, PRBool *aLI, PRBool *aDT, PRBool *aDD)
 {
   NS_ENSURE_TRUE(aMixed && aLI && aDT && aDD, NS_ERROR_NULL_POINTER);
@@ -831,7 +835,7 @@ nsHTMLEditRules::GetListItemState(PRBool *aMixed, PRBool *aLI, PRBool *aDT, PRBo
   return res;
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsHTMLEditRules::GetAlignment(PRBool *aMixed, nsIHTMLEditor::EAlignment *aAlign)
 {
   // for now, just return first alignment.  we'll lie about
@@ -1001,7 +1005,7 @@ nsIAtom* MarginPropertyAtomForIndent(nsHTMLCSSUtils* aHTMLCSSUtils, nsIDOMNode* 
     nsEditProperty::cssMarginRight : nsEditProperty::cssMarginLeft;
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsHTMLEditRules::GetIndentState(PRBool *aCanIndent, PRBool *aCanOutdent)
 {
   NS_ENSURE_TRUE(aCanIndent && aCanOutdent, NS_ERROR_FAILURE);
@@ -1104,7 +1108,7 @@ nsHTMLEditRules::GetIndentState(PRBool *aCanIndent, PRBool *aCanOutdent)
 }
 
 
-nsresult 
+NS_IMETHODIMP 
 nsHTMLEditRules::GetParagraphState(PRBool *aMixed, nsAString &outFormat)
 {
   // This routine is *heavily* tied to our ui choices in the paragraph
@@ -8792,7 +8796,7 @@ nsHTMLEditRules::MakeSureElemStartsOrEndsOnCR(nsIDOMNode *aNode, PRBool aStarts)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLEditRules::MakeSureElemStartsOrEndsOnCR(nsIDOMNode *aNode)
 {
   nsresult res = MakeSureElemStartsOrEndsOnCR(aNode, PR_FALSE);

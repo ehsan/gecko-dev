@@ -420,7 +420,7 @@ namespace nanojit
         return ((d << shift) >> shift) == d;
     }
 
-    Branches Assembler::asm_branch(bool onfalse, LIns *cond, NIns * const targ) {
+    NIns* Assembler::asm_branch(bool onfalse, LIns *cond, NIns * const targ) {
         LOpcode condop = cond->opcode();
         NanoAssert(cond->isCmp());
 
@@ -434,7 +434,7 @@ namespace nanojit
     #endif
             patch = asm_branch_far(onfalse, cond, targ);
         asm_cmp(condop, cond->oprnd1(), cond->oprnd2(), CR7);
-        return Branches(patch);
+        return patch;
     }
 
     NIns* Assembler::asm_branch_near(bool onfalse, LIns *cond, NIns * const targ) {

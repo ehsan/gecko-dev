@@ -203,7 +203,7 @@ nsDOMAttribute::SetOwnerDocument(nsIDocument* aDocument)
 NS_IMETHODIMP
 nsDOMAttribute::GetName(nsAString& aName)
 {
-  aName = mNodeInfo->QualifiedName();
+  mNodeInfo->GetQualifiedName(aName);
   return NS_OK;
 }
 
@@ -470,7 +470,7 @@ nsDOMAttribute::GetPrefix(nsAString& aPrefix)
 NS_IMETHODIMP
 nsDOMAttribute::GetLocalName(nsAString& aLocalName)
 {
-  mNodeInfo->GetName(aLocalName);
+  mNodeInfo->GetLocalName(aLocalName);
   return NS_OK;
 }
 

@@ -408,8 +408,7 @@ public:
   static const PRInt32 kStackSizingKTable[];
   static const PRInt32 kTableLayoutKTable[];
   static const PRInt32 kTextAlignKTable[];
-  static const PRInt32 kTextBlinkKTable[];
-  static const PRInt32 kTextDecorationLineKTable[];
+  static const PRInt32 kTextDecorationKTable[];
   static const PRInt32 kTextDecorationStyleKTable[];
   static const PRInt32 kTextTransformKTable[];
   static const PRInt32 kTransitionTimingFunctionKTable[];
@@ -425,7 +424,6 @@ public:
   static const PRInt32 kWidthKTable[]; // also min-width, max-width
   static const PRInt32 kWindowShadowKTable[];
   static const PRInt32 kWordwrapKTable[];
-  static const PRInt32 kHyphensKTable[];
 };
 
 #endif /* nsCSSProps_h___ */

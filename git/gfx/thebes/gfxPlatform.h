@@ -147,13 +147,12 @@ public:
     static gfxPlatform *GetPlatform();
 
     /**
-     * Start up Thebes.
+     * Start up Thebes. This can fail.
      */
-    static void Init();
+    static nsresult Init();
 
     /**
-     * Shut down Thebes.
-     * Init() arranges for this to be called at an appropriate time.
+     * Clean up static objects to shut down thebes.
      */
     static void Shutdown();
 
@@ -256,6 +255,11 @@ public:
      * Whether to sanitize downloaded fonts using the OTS library
      */
     PRBool SanitizeDownloadedFonts();
+
+    /**
+     * Whether to preserve OpenType layout tables when sanitizing
+     */
+    PRBool PreserveOTLTablesWhenSanitizing();
 
     /**
      * Whether to use the harfbuzz shaper (depending on script complexity).
@@ -377,6 +381,7 @@ protected:
                                                
     PRBool  mAllowDownloadableFonts;
     PRBool  mDownloadableFontsSanitize;
+    PRBool  mSanitizePreserveOTLTables;
 
     // which scripts should be shaped with harfbuzz
     PRInt32 mUseHarfBuzzScripts;

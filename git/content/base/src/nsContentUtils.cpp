@@ -58,6 +58,7 @@
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsDOMCID.h"
 #include "nsContentUtils.h"
+#include "nsIContentUtils.h"
 #include "nsIXPConnect.h"
 #include "nsIContent.h"
 #include "mozilla/dom/Element.h"
@@ -168,6 +169,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIChromeRegistry.h"
 #include "nsIMIMEHeaderParam.h"
 #include "nsIDOMXULCommandEvent.h"
+#include "nsIDOMAbstractView.h"
 #include "nsIDOMDragEvent.h"
 #include "nsDOMDataTransfer.h"
 #include "nsHtml5Module.h"
@@ -209,7 +211,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
 #endif
-#include "nsDOMTouchEvent.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::layers;
@@ -725,35 +726,6 @@ nsContentUtils::InitializeEventTable() {
 
   return PR_TRUE;
 }
-
-void
-nsContentUtils::InitializeTouchEventTable()
-{
-  static PRBool sEventTableInitialized = PR_FALSE;
-  if (!sEventTableInitialized && sAtomEventTable && sStringEventTable) {
-    sEventTableInitialized = PR_TRUE;
-    static const EventNameMapping touchEventArray[] = {
-      { nsGkAtoms::ontouchstart, NS_USER_DEFINED_EVENT, EventNameType_All, NS_INPUT_EVENT },
-      { nsGkAtoms::ontouchend, NS_USER_DEFINED_EVENT, EventNameType_All, NS_INPUT_EVENT },
-      { nsGkAtoms::ontouchmove, NS_USER_DEFINED_EVENT, EventNameType_All, NS_INPUT_EVENT },
-      { nsGkAtoms::ontouchenter, NS_USER_DEFINED_EVENT, EventNameType_All, NS_INPUT_EVENT },
-      { nsGkAtoms::ontouchleave, NS_USER_DEFINED_EVENT, EventNameType_All, NS_INPUT_EVENT },
-      { nsGkAtoms::ontouchcancel, NS_USER_DEFINED_EVENT, EventNameType_All, NS_INPUT_EVENT }
-    };
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(touchEventArray); ++i) {
-      if (!sAtomEventTable->Put(touchEventArray[i].mAtom, touchEventArray[i]) ||
-          !sStringEventTable->Put(Substring(nsDependentAtomString(touchEventArray[i].mAtom), 2),
-                                  touchEventArray[i])) {
-        delete sAtomEventTable;
-        sAtomEventTable = nsnull;
-        delete sStringEventTable;
-        sStringEventTable = nsnull;
-        return;
-      }
-    }
-  }
-}
-
 
 /**
  * Access a cached parser service. Don't addref. We need only one
@@ -2212,13 +2184,21 @@ nsContentUtils::NewURIWithDocumentCharset(nsIURI** aResult,
 
 // static
 PRBool
-nsContentUtils::BelongsInForm(nsIContent *aForm,
+nsContentUtils::BelongsInForm(nsIDOMHTMLFormElement *aForm,
                               nsIContent *aContent)
 {
   NS_PRECONDITION(aForm, "Must have a form");
   NS_PRECONDITION(aContent, "Must have a content node");
 
-  if (aForm == aContent) {
+  nsCOMPtr<nsIContent> form(do_QueryInterface(aForm));
+
+  if (!form) {
+    NS_ERROR("This should not happen, form is not an nsIContent!");
+
+    return PR_TRUE;
+  }
+
+  if (form == aContent) {
     // A form does not belong inside itself, so we return false here
 
     return PR_FALSE;
@@ -2227,7 +2207,7 @@ nsContentUtils::BelongsInForm(nsIContent *aForm,
   nsIContent* content = aContent->GetParent();
 
   while (content) {
-    if (content == aForm) {
+    if (content == form) {
       // aContent is contained within the form so we return true.
 
       return PR_TRUE;
@@ -2244,7 +2224,7 @@ nsContentUtils::BelongsInForm(nsIContent *aForm,
     content = content->GetParent();
   }
 
-  if (aForm->GetChildCount() > 0) {
+  if (form->GetChildCount() > 0) {
     // The form is a container but aContent wasn't inside the form,
     // return false
 
@@ -2255,7 +2235,7 @@ nsContentUtils::BelongsInForm(nsIContent *aForm,
   // we check whether the content comes after the form.  If it does,
   // return true.  If it does not, then it couldn't have been inside
   // the form in the HTML.
-  if (PositionIsBefore(aForm, aContent)) {
+  if (PositionIsBefore(form, aContent)) {
     // We could be in this form!
     // In the future, we may want to get document.forms, look at the
     // form after aForm, and if aContent is after that form after
@@ -3352,17 +3332,6 @@ nsContentUtils::GetEventId(nsIAtom* aName)
   return NS_USER_DEFINED_EVENT;
 }
 
-// static
-PRUint32
-nsContentUtils::GetEventCategory(const nsAString& aName)
-{
-  EventNameMapping mapping;
-  if (sStringEventTable->Get(aName, &mapping))
-    return mapping.mStructType;
-
-  return NS_EVENT;
-}
-
 nsIAtom*
 nsContentUtils::GetEventIdAndAtom(const nsAString& aName,
                                   PRUint32 aEventStruct,
@@ -3933,7 +3902,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
     nsString& tagName = *tagStack.AppendElement();
     NS_ENSURE_TRUE(&tagName, NS_ERROR_OUT_OF_MEMORY);
 
-    tagName = content->NodeInfo()->QualifiedName();
+    content->NodeInfo()->GetQualifiedName(tagName);
 
     // see if we need to add xmlns declarations
     PRUint32 count = content->GetAttrCount();
@@ -4741,22 +4710,21 @@ nsContentUtils::RemoveScriptBlocker()
 
   PRUint32 firstBlocker = sRunnersCountAtFirstBlocker;
   PRUint32 lastBlocker = (PRUint32)sBlockedScriptRunners->Count();
-  PRUint32 originalFirstBlocker = firstBlocker;
-  PRUint32 blockersCount = lastBlocker - firstBlocker;
   sRunnersCountAtFirstBlocker = 0;
   NS_ASSERTION(firstBlocker <= lastBlocker,
                "bad sRunnersCountAtFirstBlocker");
 
   while (firstBlocker < lastBlocker) {
     nsCOMPtr<nsIRunnable> runnable = (*sBlockedScriptRunners)[firstBlocker];
-    ++firstBlocker;
+    sBlockedScriptRunners->RemoveObjectAt(firstBlocker);
+    --lastBlocker;
 
     runnable->Run();
-    NS_ASSERTION(sRunnersCountAtFirstBlocker == 0,
+    NS_ASSERTION(lastBlocker == (PRUint32)sBlockedScriptRunners->Count() &&
+                 sRunnersCountAtFirstBlocker == 0,
                  "Bad count");
     NS_ASSERTION(!sScriptBlockerCount, "This is really bad");
   }
-  sBlockedScriptRunners->RemoveObjectsAt(originalFirstBlocker, blockersCount);
 }
 
 /* static */
@@ -5030,32 +4998,6 @@ nsContentUtils::URIIsLocalFile(nsIURI *aURI)
                                 nsIProtocolHandler::URI_IS_LOCAL_FILE,
                                 &isFile)) &&
          isFile;
-}
-
-nsresult
-nsContentUtils::SplitURIAtHash(nsIURI *aURI,
-                               nsACString &aBeforeHash,
-                               nsACString &aAfterHash)
-{
-  // See bug 225910 for why we can't do this using nsIURL.
-
-  aBeforeHash.Truncate();
-  aAfterHash.Truncate();
-
-  NS_ENSURE_ARG_POINTER(aURI);
-
-  nsCAutoString spec;
-  nsresult rv = aURI->GetSpec(spec);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRInt32 index = spec.FindChar('#');
-  if (index == -1) {
-    index = spec.Length();
-  }
-
-  aBeforeHash.Assign(Substring(spec, 0, index));
-  aAfterHash.Assign(Substring(spec, index));
-  return NS_OK;
 }
 
 /* static */
@@ -5522,8 +5464,9 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
   nsCOMPtr<nsIDOMXULCommandEvent> xulCommand = do_QueryInterface(event);
   nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(xulCommand);
   NS_ENSURE_STATE(pEvent);
+  nsCOMPtr<nsIDOMAbstractView> view = do_QueryInterface(doc->GetWindow());
   nsresult rv = xulCommand->InitCommandEvent(NS_LITERAL_STRING("command"),
-                                             PR_TRUE, PR_TRUE, doc->GetWindow(),
+                                             PR_TRUE, PR_TRUE, view,
                                              0, aCtrl, aAlt, aShift, aMeta,
                                              aSourceEvent);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -6230,8 +6173,7 @@ private:
 };
 
 static void
-DebugWrapperTraceCallback(PRUint32 langID, void *p, const char *name,
-                          void *closure)
+DebugWrapperTraceCallback(PRUint32 langID, void *p, void *closure)
 {
   DebugWrapperTraversalCallback* callback =
     static_cast<DebugWrapperTraversalCallback*>(closure);
@@ -6486,9 +6428,23 @@ nsContentUtils::AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal)
           IsSitePermAllow(princURI, "allowXULXBL"));
 }
 
+NS_IMPL_ISUPPORTS1(nsIContentUtils, nsIContentUtils)
+
+PRBool
+nsIContentUtils::IsSafeToRunScript()
+{
+  return nsContentUtils::IsSafeToRunScript();
+}
+
+PRBool
+nsIContentUtils::ParseIntMarginValue(const nsAString& aString, nsIntMargin& result)
+{
+  return nsContentUtils::ParseIntMarginValue(aString, result);
+}
+
 already_AddRefed<nsIDocumentLoaderFactory>
-nsContentUtils::FindInternalContentViewer(const char* aType,
-                                          ContentViewerType* aLoaderType)
+nsIContentUtils::FindInternalContentViewer(const char* aType,
+                                           ContentViewerType* aLoaderType)
 {
   if (aLoaderType) {
     *aLoaderType = TYPE_UNSUPPORTED;
@@ -6512,7 +6468,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
         *aLoaderType = TYPE_PLUGIN;
       else
       *aLoaderType = TYPE_UNKNOWN;
-    }
+    }   
     return docFactory.forget();
   }
 
@@ -6551,36 +6507,16 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
   return NULL;
 }
 
-// static
-PRBool
-nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
-                                  nsIDocument* aDocument)
+NS_IMPL_ISUPPORTS1(nsIContentUtils2, nsIContentUtils2)
+
+nsIInterfaceRequestor*
+nsIContentUtils2::GetSameOriginChecker()
 {
-  NS_ASSERTION(aDocument, "aDocument should be a valid pointer (not null)");
-  NS_ENSURE_TRUE(aDocument->GetScriptGlobalObject(), PR_TRUE);
+  return nsContentUtils::GetSameOriginChecker();
+}
 
-  JSContext* ctx = (JSContext*) aDocument->GetScriptGlobalObject()->
-                                  GetContext()->GetNativeContext();
-  NS_ENSURE_TRUE(ctx, PR_TRUE);
-
-  JSAutoRequest ar(ctx);
-
-  // The pattern has to match the entire value.
-  aPattern.Insert(NS_LITERAL_STRING("^(?:"), 0);
-  aPattern.Append(NS_LITERAL_STRING(")$"));
-
-  JSObject* re = JS_NewUCRegExpObjectNoStatics(ctx, reinterpret_cast<jschar*>
-                                                 (aPattern.BeginWriting()),
-                                                aPattern.Length(), 0);
-  NS_ENSURE_TRUE(re, PR_TRUE);
-
-  jsval rval = JSVAL_NULL;
-  size_t idx = 0;
-  JSBool res;
-
-  res = JS_ExecuteRegExpNoStatics(ctx, re, reinterpret_cast<jschar*>
-                                    (aValue.BeginWriting()),
-                                  aValue.Length(), &idx, JS_TRUE, &rval);
-
-  return res == JS_FALSE || rval != JSVAL_NULL;
+nsresult
+nsIContentUtils2::CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel)
+{
+  return nsContentUtils::CheckSameOrigin(aOldChannel, aNewChannel);
 }

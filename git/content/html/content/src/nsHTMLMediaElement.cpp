@@ -65,6 +65,7 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 
+#include "nsIRenderingContext.h"
 #include "nsITimer.h"
 
 #include "nsEventDispatcher.h"
@@ -254,8 +255,7 @@ class nsHTMLMediaElement::MediaLoadListener : public nsIStreamListener,
 
 public:
   MediaLoadListener(nsHTMLMediaElement* aElement)
-    : mElement(aElement),
-      mLoadID(aElement->GetCurrentLoadID())
+    : mElement(aElement)
   {
     NS_ABORT_IF_FALSE(mElement, "Must pass an element to call back");
   }
@@ -263,7 +263,6 @@ public:
 private:
   nsRefPtr<nsHTMLMediaElement> mElement;
   nsCOMPtr<nsIStreamListener> mNextListener;
-  PRUint32 mLoadID;
 };
 
 NS_IMPL_ISUPPORTS5(nsHTMLMediaElement::MediaLoadListener, nsIRequestObserver,
@@ -289,13 +288,6 @@ NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnStartRequest(nsIRequest* 
   // InitializeDecoderForChannel. So make sure mElement is cleared here.
   nsRefPtr<nsHTMLMediaElement> element;
   element.swap(mElement);
-
-  if (mLoadID != element->GetCurrentLoadID()) {
-    // The channel has been cancelled before we had a chance to create
-    // a decoder. Abort, don't dispatch an "error" event, as the new load
-    // may not be in an error state.
-    return NS_BINDING_ABORTED;
-  }
 
   // Don't continue to load if the request failed or has been canceled.
   nsresult rv;
@@ -380,13 +372,11 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLMediaElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLMediaElement, nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLoadBlockedDoc)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourceLoadCandidate)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLMediaElement, nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLoadBlockedDoc)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSourceLoadCandidate)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsHTMLMediaElement)
@@ -640,6 +630,8 @@ static PRBool HasPotentialResource(nsIContent *aElement)
 
 void nsHTMLMediaElement::SelectResource()
 {
+  NS_ASSERTION(!mDelayingLoadEvent,
+    "Load event should not be delayed at start of resource selection.");
   if (!HasPotentialResource(this)) {
     // The media element has neither a src attribute nor any source
     // element children, abort the load.
@@ -696,11 +688,10 @@ void nsHTMLMediaElement::NotifyLoadError()
   if (!mIsLoadingFromSourceChildren) {
     LOG(PR_LOG_DEBUG, ("NotifyLoadError(), no supported media error"));
     NoSupportedMediaSourceError();
-  } else if (mSourceLoadCandidate) {
+  } else {
+    NS_ASSERTION(mSourceLoadCandidate, "Must know the source we were loading from!");
     DispatchAsyncSourceError(mSourceLoadCandidate);
     QueueLoadFromSourceTask();
-  } else {
-    NS_WARNING("Should know the source we were loading from!");
   }
 }
 
@@ -1829,7 +1820,7 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
 
   double duration = aOriginal->GetDuration();
   if (duration >= 0) {
-    decoder->SetDuration(duration);
+    decoder->SetDuration(PRInt64(NS_round(duration * 1000)));
     decoder->SetSeekable(aOriginal->GetSeekable());
   }
 
@@ -1974,9 +1965,7 @@ void nsHTMLMediaElement::ResourceLoaded()
   mBegun = PR_FALSE;
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_IDLE;
   AddRemoveSelfReference();
-  if (mReadyState >= nsIDOMHTMLMediaElement::HAVE_METADATA) {
-    ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
-  }
+  ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
   // Ensure a progress event is dispatched at the end of download.
   DispatchAsyncEvent(NS_LITERAL_STRING("progress"));
   // The download has stopped.
@@ -1991,17 +1980,14 @@ void nsHTMLMediaElement::NetworkError()
 void nsHTMLMediaElement::DecodeError()
 {
   if (mIsLoadingFromSourceChildren) {
+    NS_ASSERTION(mSourceLoadCandidate, "Must know the source we were loading from!");
     if (mDecoder) {
       mDecoder->Shutdown();
       mDecoder = nsnull;
     }
     mError = nsnull;
-    if (mSourceLoadCandidate) {
-      DispatchAsyncSourceError(mSourceLoadCandidate);
-      QueueLoadFromSourceTask();
-    } else {
-      NS_WARNING("Should know the source we were loading from!");
-    }
+    DispatchAsyncSourceError(mSourceLoadCandidate);
+    QueueLoadFromSourceTask();
   } else {
     Error(nsIDOMMediaError::MEDIA_ERR_DECODE);
   }

@@ -29,8 +29,7 @@ function setPagePermission(type, uri, allow) {
     pm.add(uri, type, Ci.nsIPermissionManager.DENY_ACTION);
 }
 
-const kEntities = { "geolocation": "geolocation", "desktop-notification": "desktopNotification",
-                    "indexedDB": "offlineApps", "indexedDBQuota": "indexedDBQuota" };
+const kEntities = { "geolocation": "geolocation", "desktop-notification": "desktopNotification" };
 
 function ContentPermissionPrompt() {}
 

@@ -52,6 +52,7 @@
 #include "nsTArray.h"
 #include "nsHashSets.h"
 #include "nsIDOMXMLDocument.h"
+#include "nsIDOMDocumentView.h"
 #include "nsIDOMDocumentXBL.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMNSDocumentStyle.h"
@@ -108,7 +109,6 @@
 #include "nsIChannelEventSink.h"
 #include "imgIRequest.h"
 #include "nsIDOMDOMImplementation.h"
-#include "nsIDOMTouchEvent.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -166,12 +166,16 @@ public:
 
   void SetInvalidName();
   PRBool IsInvalidName();
-  void AddNameElement(nsIDocument* aDocument, Element* aElement);
+  void AddNameElement(Element* aElement);
   void RemoveNameElement(Element* aElement);
+  PRBool HasNameContentList() {
+    return mNameContentList != nsnull;
+  }
   PRBool IsEmpty();
   nsBaseContentList* GetNameContentList() {
     return mNameContentList;
   }
+  nsresult CreateNameContentList();
 
   /**
    * Returns the element if we know the element associated with this
@@ -254,7 +258,9 @@ private:
   // empty if there are no elementswith this ID.
   // The elements are stored as weak pointers.
   nsSmallVoidArray mIdContentList;
-  nsRefPtr<nsBaseContentList> mNameContentList;
+  // NAME_NOT_VALID if this id cannot be used as a 'name'.  Otherwise
+  // stores Elements.
+  nsBaseContentList *mNameContentList;
   nsRefPtr<nsContentList> mDocAllList;
   nsAutoPtr<nsTHashtable<ChangeCallbackEntry> > mChangeCallbacks;
   nsRefPtr<Element> mImageElement;
@@ -498,6 +504,7 @@ class nsDocument : public nsIDocument,
                    public nsIDOMDocumentEvent,
                    public nsIDOM3DocumentEvent,
                    public nsIDOMNSDocumentStyle,
+                   public nsIDOMDocumentView,
                    public nsIDOMDocumentRange,
                    public nsIDOMDocumentTraversal,
                    public nsIDOMDocumentXBL,
@@ -508,8 +515,7 @@ class nsDocument : public nsIDocument,
                    public nsIScriptObjectPrincipal,
                    public nsIRadioGroupContainer_MOZILLA_2_0_BRANCH,
                    public nsIApplicationCacheContainer,
-                   public nsStubMutationObserver,
-                   public nsIDOMDocumentTouch
+                   public nsStubMutationObserver
 {
 public:
   typedef mozilla::dom::Element Element;
@@ -814,6 +820,9 @@ public:
   // nsIDOMNSDocumentStyle
   NS_DECL_NSIDOMNSDOCUMENTSTYLE
 
+  // nsIDOMDocumentView
+  NS_DECL_NSIDOMDOCUMENTVIEW
+
   // nsIDOMDocumentRange
   NS_DECL_NSIDOMDOCUMENTRANGE
 
@@ -837,9 +846,6 @@ public:
 
   // nsIApplicationCacheContainer
   NS_DECL_NSIAPPLICATIONCACHECONTAINER
-
-  // nsIDOMDocumentTouch
-  NS_DECL_NSIDOMDOCUMENTTOUCH
 
   virtual nsresult Init();
   
@@ -1263,6 +1269,7 @@ protected:
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocument, nsDocument)      \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNSDocument, nsDocument)    \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentEvent, nsDocument) \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentView, nsDocument)  \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentTraversal,         \
                                      nsDocument)                              \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMEventTarget, nsDocument)   \

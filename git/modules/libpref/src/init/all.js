@@ -105,7 +105,7 @@ pref("dom.indexedDB.warningQuota", 50);
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
 
-pref("browser.sessionhistory.optimize_eviction", true);
+pref("browser.sessionhistory.optimize_eviction", false);
 
 pref("ui.use_native_colors", true);
 pref("ui.use_native_popup_windows", false);
@@ -194,6 +194,11 @@ pref("gfx.color_management.rendering_intent", 0);
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
 pref("gfx.downloadable_fonts.sanitize", true);
+#ifdef XP_MACOSX
+pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", false);
+#else
+pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", true);
+#endif
 
 // see gfx/thebes/gfxUnicodeProperties.h for definitions of script bits
 #ifdef XP_MACOSX
@@ -605,9 +610,9 @@ pref("javascript.options.relimit",          true);
 pref("javascript.options.tracejit.content",  true);
 pref("javascript.options.tracejit.chrome",   true);
 pref("javascript.options.methodjit.content", true);
-pref("javascript.options.methodjit.chrome",  true);
+pref("javascript.options.methodjit.chrome",  false);
 pref("javascript.options.jitprofiling.content", true);
-pref("javascript.options.jitprofiling.chrome",  true);
+pref("javascript.options.jitprofiling.chrome",  false);
 pref("javascript.options.methodjit_always", false);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
@@ -695,11 +700,8 @@ pref("network.http.proxy.keep-alive", true);
 // the packet is lost or delayed on the route.
 pref("network.http.keep-alive.timeout", 115);
 
-// Limit the absolute number of http connections.
-// Note: the socket transport service will clamp the number below 256 if the OS
-// cannot allocate that many FDs, and it also always tries to reserve up to 250
-// file descriptors for things other than sockets.   
-pref("network.http.max-connections", 256);
+// limit the absolute number of http connections.
+pref("network.http.max-connections", 30);
 
 // limit the absolute number of http connections that can be established per
 // host.  if a http proxy server is enabled, then the "server" is the proxy
@@ -1018,6 +1020,7 @@ pref("converter.html2txt.structs",          true); // Output structured phrases 
 pref("converter.html2txt.header_strategy",  1); // 0 = no indention; 1 = indention, increased with header level; 2 = numbering and slight indention
 
 pref("intl.accept_languages",               "chrome://global/locale/intl.properties");
+pref("intl.accept_charsets",                "iso-8859-1,*,utf-8");
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.static",     "chrome://global/locale/intl.properties");
@@ -1046,11 +1049,6 @@ pref("font.language.group",                 "chrome://global/locale/intl.propert
 pref("intl.uidirection.ar", "rtl");
 pref("intl.uidirection.he", "rtl");
 pref("intl.uidirection.fa", "rtl");
-
-// use en-US hyphenation by default for content tagged with plain lang="en"
-pref("intl.hyphenation-alias.en", "en-us");
-// and for other subtags of en-*, if no specific patterns are available
-pref("intl.hyphenation-alias.en-*", "en-us");
 
 pref("font.mathfont-family", "STIXNonUnicode, STIXSizeOneSym, STIXSize1, STIXGeneral, Standard Symbols L, DejaVu Sans, Cambria Math");
 
@@ -1751,39 +1749,6 @@ pref("gfx.font_rendering.cleartype.use_for_downloadable_fonts", true);
 
 // use cleartype rendering for all fonts always (win xp only)
 pref("gfx.font_rendering.cleartype.always_use_for_content", false);
-
-// ClearType tuning parameters for directwrite/d2d.
-//
-// Allows overriding of underlying registry values in:
-//   HKCU/Software/Microsoft/Avalon.Graphics/<display> (contrast and level)
-//   HKLM/Software/Microsoft/Avalon.Graphics/<display> (gamma, pixel structure)
-// and selection of the ClearType/antialiasing mode.
-//
-// A value of -1 implies use the default value, otherwise value ranges 
-// follow registry settings:
-//   gamma [1000, 2200]  default: based on screen, typically 2200 (== 2.2)
-//   enhanced contrast [0, 1000] default: 50
-//   cleartype level [0, 100] default: 100
-//   pixel structure [0, 2] default: 0 (flat/RGB/BGR)
-//   rendering mode [0, 5] default: 0
-//     0 = use default for font & size;
-//     1 = aliased;
-//     2 = GDI Classic;
-//     3 = GDI Natural Widths;
-//     4 = Natural;
-//     5 = Natural Symmetric
-//
-// See:
-//   http://msdn.microsoft.com/en-us/library/aa970267.aspx
-//   http://msdn.microsoft.com/en-us/library/dd368190%28v=VS.85%29.aspx
-// Note: DirectWrite uses the "Enhanced Contrast Level" value rather than the 
-// "Text Contrast Level" value
-
-pref("gfx.font_rendering.cleartype_params.gamma", -1);
-pref("gfx.font_rendering.cleartype_params.enhanced_contrast", -1);
-pref("gfx.font_rendering.cleartype_params.cleartype_level", -1);
-pref("gfx.font_rendering.cleartype_params.pixel_structure", -1);
-pref("gfx.font_rendering.cleartype_params.rendering_mode", -1);
 
 pref("ui.key.menuAccessKeyFocuses", true);
 

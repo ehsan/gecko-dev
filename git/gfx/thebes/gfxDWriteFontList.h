@@ -225,8 +225,6 @@ public:
 
     virtual gfxFontFamily* FindFamily(const nsAString& aFamily);
 
-    virtual void GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray);
-
 private:
     friend class gfxDWriteFontFamily;
 

@@ -71,7 +71,6 @@ members = [
     #'nsIDOMWindow.document',
     'nsIDOMWindow.getSelection',
     'nsIDOMWindow.scrollByLines',
-    'nsIDOMWindow.getComputedStyle',
     'nsIDOMJSWindow.dump',
     'nsIDOMScreen.top',
     'nsIDOMScreen.height',
@@ -109,7 +108,7 @@ members = [
     'nsIDOMDocument.createTextNode',
     'nsIDOMDocument.documentURI',
     'nsIDOMDocument.adoptNode',
-    'nsIDOMDocument.defaultView',
+    'nsIDOMDocument.renameNode',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -175,6 +174,7 @@ members = [
     'nsIDOMElementCSSInlineStyle.*',
     'nsIDOMCSS2Properties.*',
     'nsIDOMRect.*',
+    'nsIDOMViewCSS.getComputedStyle',
     'nsIDOMCSSStyleDeclaration.*',
 
     # dom/interfaces/events
@@ -204,10 +204,6 @@ members = [
     'nsIDOMNSUIEvent.pageX',
     'nsIDOMNSUIEvent.pageY',
     'nsIDOMNSUIEvent.isChar',
-
-    'nsIDOMTouch.*',
-    'nsIDOMTouchList.*',
-    'nsIDOMTouchEvent.*',
 
     # dom/interfaces/geolocation - None.
 
@@ -286,7 +282,6 @@ members = [
     'nsIDOMHTMLOptionElement.disabled',
     'nsIDOMHTMLOptionsCollection.item',
     'nsIDOMHTMLOptionsCollection.length',
-    'nsIDOMHTMLProgressElement.*',
     'nsIDOMHTMLSelectElement.name',
     'nsIDOMHTMLSelectElement.form',
     'nsIDOMHTMLSelectElement.add',
@@ -335,6 +330,8 @@ members = [
     'nsIDOMHTMLCanvasElement.height',
     'nsIDOMHTMLCanvasElement.getContext',
     'nsIDOMHTMLCanvasElement.toDataURL',
+    'nsIDOMNSHTMLDocument.width',
+    'nsIDOMNSHTMLDocument.height',
     'nsIDOMNSHTMLDocument.domain',
     'nsIDOMNSHTMLDocument.getSelection',
     'nsIDOMNSHTMLDocument.designMode',
@@ -391,6 +388,9 @@ members = [
     # dom/interfaces/traversal
     'nsIDOMDocumentTraversal.createNodeIterator',
     'nsIDOMNodeIterator.nextNode',
+
+    # dom/interfaces/views
+    'nsIDOMDocumentView.defaultView',
 
     # dom/interfaces/xbl - None.
 
@@ -506,9 +506,6 @@ irregularFilenames = {
     'nsIWebGLUniformLocation': 'nsIDOMWebGLRenderingContext',
 
     'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
-
-    'nsIDOMTouch': 'nsIDOMTouchEvent',
-    'nsIDOMTouchList': 'nsIDOMTouchEvent',
     }
 
 customIncludes = [

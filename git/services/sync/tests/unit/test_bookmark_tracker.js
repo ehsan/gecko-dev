@@ -147,16 +147,13 @@ function test_copying_places() {
     do_check_true(!!b1GUID);
 
     _("Make sure the destination folder is empty.");
-    let root = PlacesUtils.getFolderContents(f2, false, true).root;
-    do_check_eq(root.childCount, 0);
-    root.containerOpen = false;
+    do_check_eq(PlacesUtils.getFolderContents(f2, false, true).root.childCount, 0);
 
-    let f1Node = PlacesUtils.getFolderContents(f1, false, false).root;
-    _("Node to copy: " + f1Node.itemId);
+    let f1Node = PlacesUtils.getFolderContents(f1, false, false);
+    _("Node to copy: " + f1Node.root.itemId);
 
-    let serialized = PlacesUtils.wrapNode(f1Node, PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER);
+    let serialized = PlacesUtils.wrapNode(f1Node.root, PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER);
     _("Serialized to " + serialized);
-    f1Node.containerOpen = false;
 
     let raw = PlacesUtils.unwrapNodes(serialized, PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER).shift();
     let transaction = getFolderCopyTransaction(raw, f2, Svc.Bookmark.DEFAULT_INDEX, true);
@@ -165,11 +162,11 @@ function test_copying_places() {
     ptm.doTransaction(transaction);
 
     _("Verify that items have been copied.");
-    let f2Node = PlacesUtils.getFolderContents(f2, false, true).root;
-    do_check_eq(f2Node.childCount, 1);
+    let f2Node = PlacesUtils.getFolderContents(f2, false, true);
+    do_check_eq(f2Node.root.childCount, 1);
 
     _("Verify that the copied folder has different GUIDs.");
-    let c0 = f2Node.getChild(0);
+    let c0 = f2Node.root.getChild(0);
     do_check_eq(c0.title, "Folder One");
     do_check_neq(c0.itemId, f1);
     do_check_neq(store.GUIDForId(c0.itemId), f1GUID);
@@ -186,8 +183,6 @@ function test_copying_places() {
     do_check_neq(b0.itemId, b1);
     do_check_neq(store.GUIDForId(b0.itemId), b1GUID);
 
-    c0.containerOpen = false;
-    f2Node.containerOpen = false;
   } finally {
     tracker.clearChangedIDs();
     Svc.Obs.notify("weave:engine:stop-tracking");
@@ -247,7 +242,7 @@ function test_tracking() {
 
 function test_onItemChanged() {
   // Anno that's in ANNOS_TO_TRACK.
-  const DESCRIPTION_ANNO = "bookmarkProperties/description";
+  const GENERATOR_ANNO = "microsummary/generatorURI";
 
   _("Verify we've got an empty tracker to work with.");
   let tracker = engine._tracker;
@@ -268,7 +263,7 @@ function test_onItemChanged() {
     _("GUID: " + bGUID);
 
     Svc.Obs.notify("weave:engine:start-tracking");
-    Svc.Annos.setItemAnnotation(b, DESCRIPTION_ANNO, "A test description", 0,
+    Svc.Annos.setItemAnnotation(b, GENERATOR_ANNO, "http://foo.bar/", 0,
                                 Svc.Annos.EXPIRE_NEVER);
     do_check_true(tracker.changedIDs[bGUID] > 0);
 

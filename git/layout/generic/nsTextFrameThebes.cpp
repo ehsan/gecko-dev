@@ -63,12 +63,14 @@
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
 #include "nsCoord.h"
-#include "nsRenderingContext.h"
+#include "nsIFontMetrics.h"
+#include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
 #include "nsITimer.h"
 #include "nsTArray.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
+#include "nsIDeviceContext.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCompatibility.h"
@@ -106,10 +108,10 @@
 #endif
 #include "nsAutoPtr.h"
 
-#include "nsBidiFrames.h"
 #include "nsBidiPresUtils.h"
 #include "nsBidiUtils.h"
 
+#include "nsIThebesFontMetrics.h"
 #include "gfxFont.h"
 #include "gfxContext.h"
 #include "gfxTextRunWordCache.h"
@@ -309,7 +311,6 @@ public:
                             nscolor* aBackColor);
   void GetHighlightColors(nscolor* aForeColor,
                           nscolor* aBackColor);
-  void GetURLSecondaryColor(nscolor* aForeColor);
   void GetIMESelectionColors(PRInt32  aIndex,
                              nscolor* aForeColor,
                              nscolor* aBackColor);
@@ -865,7 +866,7 @@ public:
                 mChangedBreaks(PR_FALSE), mExistingTextRun(aExistingTextRun) {}
 
     virtual void SetBreaks(PRUint32 aOffset, PRUint32 aLength,
-                           PRUint8* aBreakBefore) {
+                           PRPackedBool* aBreakBefore) {
       if (mTextRun->SetPotentialLineBreaks(aOffset + mOffsetIntoTextRun, aLength,
                                            aBreakBefore, mContext)) {
         mChangedBreaks = PR_TRUE;
@@ -1145,7 +1146,6 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   }
 
   nsPresContext* presContext = aLineContainer->PresContext();
-  nsStyleContext* sc = aForFrame->GetStyleContext();
   BuildTextRunsScanner scanner(presContext, aContext, aLineContainer);
 
   nsBlockFrame* block = nsLayoutUtils::GetAsBlock(aLineContainer);
@@ -1583,32 +1583,34 @@ GetSpacingFlags(nscoord spacing)
 
 static gfxFontGroup*
 GetFontGroupForFrame(nsIFrame* aFrame,
-                     nsFontMetrics** aOutFontMetrics = nsnull)
+                     nsIFontMetrics** aOutFontMetrics = nsnull)
 {
   if (aOutFontMetrics)
     *aOutFontMetrics = nsnull;
 
-  nsRefPtr<nsFontMetrics> metrics;
+  nsCOMPtr<nsIFontMetrics> metrics;
   nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(metrics));
 
   if (!metrics)
     return nsnull;
 
+  nsIFontMetrics* metricsRaw = metrics;
   if (aOutFontMetrics) {
-    *aOutFontMetrics = metrics;
+    *aOutFontMetrics = metricsRaw;
     NS_ADDREF(*aOutFontMetrics);
   }
-  // XXX this is a bit bogus, we're releasing 'metrics' so the
-  // returned font-group might actually be torn down, although because
-  // of the way the device context caches font metrics, this seems to
-  // not actually happen. But we should fix this.
-  return metrics->GetThebesFontGroup();
+  nsIThebesFontMetrics* fm = static_cast<nsIThebesFontMetrics*>(metricsRaw);
+  // XXX this is a bit bogus, we're releasing 'metrics' so the returned font-group
+  // might actually be torn down, although because of the way the device context
+  // caches font metrics, this seems to not actually happen. But we should fix
+  // this.
+  return fm->GetThebesFontGroup();
 }
 
 static already_AddRefed<gfxContext>
-GetReferenceRenderingContext(nsTextFrame* aTextFrame, nsRenderingContext* aRC)
+GetReferenceRenderingContext(nsTextFrame* aTextFrame, nsIRenderingContext* aRC)
 {
-  nsRefPtr<nsRenderingContext> tmp = aRC;
+  nsCOMPtr<nsIRenderingContext> tmp = aRC;
   if (!tmp) {
     tmp = aTextFrame->PresContext()->PresShell()->GetReferenceRenderingContext();
     if (!tmp)
@@ -2038,9 +2040,6 @@ BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
     if (textStyle->mTextTransform == NS_STYLE_TEXT_TRANSFORM_CAPITALIZE) {
       flags |= nsLineBreaker::BREAK_NEED_CAPITALIZATION;
     }
-    if (textStyle->mHyphens == NS_STYLE_HYPHENS_AUTO) {
-      flags |= nsLineBreaker::BREAK_USE_AUTO_HYPHENATION;
-    }
 
     if (HasCompressedLeadingWhitespace(startFrame, textStyle,
                                        mappedFlow->GetContentEnd(), iter)) {
@@ -2460,9 +2459,6 @@ public:
   virtual gfxFloat GetHyphenWidth();
   virtual void GetHyphenationBreaks(PRUint32 aStart, PRUint32 aLength,
                                     PRPackedBool* aBreakBefore);
-  virtual PRInt8 GetHyphensOption() {
-    return mTextStyle->mHyphens;
-  }
 
   void GetSpacingInternal(PRUint32 aStart, PRUint32 aLength, Spacing* aSpacing,
                           PRBool aIgnoreTabs);
@@ -2498,7 +2494,7 @@ public:
     return mFontGroup;
   }
 
-  nsFontMetrics* GetFontMetrics() {
+  nsIFontMetrics* GetFontMetrics() {
     if (!mFontMetrics)
       InitFontGroupAndFontMetrics();
     return mFontMetrics;
@@ -2517,7 +2513,7 @@ protected:
 
   gfxTextRun*           mTextRun;
   gfxFontGroup*         mFontGroup;
-  nsRefPtr<nsFontMetrics> mFontMetrics;
+  nsCOMPtr<nsIFontMetrics> mFontMetrics;
   const nsStyleText*    mTextStyle;
   const nsTextFragment* mFrag;
   nsIFrame*             mLineContainer;
@@ -2832,9 +2828,7 @@ PropertyProvider::GetHyphenationBreaks(PRUint32 aStart, PRUint32 aLength,
   NS_PRECONDITION(IsInBounds(mStart, mLength, aStart, aLength), "Range out of bounds");
   NS_PRECONDITION(mLength != PR_INT32_MAX, "Can't call this with undefined length");
 
-  if (!mTextStyle->WhiteSpaceCanWrap() ||
-      mTextStyle->mHyphens == NS_STYLE_HYPHENS_NONE)
-  {
+  if (!mTextStyle->WhiteSpaceCanWrap()) {
     memset(aBreakBefore, PR_FALSE, aLength);
     return;
   }
@@ -2862,20 +2856,12 @@ PropertyProvider::GetHyphenationBreaks(PRUint32 aStart, PRUint32 aLength,
         mFrag->CharAt(run.GetOriginalOffset() + run.GetRunLength() - 1) == CH_SHY;
     } else {
       PRInt32 runOffsetInSubstring = run.GetSkippedOffset() - aStart;
-      memset(aBreakBefore + runOffsetInSubstring, PR_FALSE, run.GetRunLength());
+      memset(aBreakBefore + runOffsetInSubstring, 0, run.GetRunLength());
       // Don't allow hyphen breaks at the start of the line
       aBreakBefore[runOffsetInSubstring] = allowHyphenBreakBeforeNextChar &&
           (!(mFrame->GetStateBits() & TEXT_START_OF_LINE) ||
            run.GetSkippedOffset() > mStart.GetSkippedOffset());
       allowHyphenBreakBeforeNextChar = PR_FALSE;
-    }
-  }
-
-  if (mTextStyle->mHyphens == NS_STYLE_HYPHENS_AUTO) {
-    for (PRUint32 i = 0; i < aLength; ++i) {
-      if (mTextRun->CanHyphenateBefore(aStart + i)) {
-        aBreakBefore[i] = PR_TRUE;
-      }
     }
   }
 }
@@ -3054,7 +3040,7 @@ void nsBlinkTimer::Start()
   nsresult rv;
   mTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
   if (NS_OK == rv) {
-    mTimer->InitWithCallback(this, 250, nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP);
+    mTimer->InitWithCallback(this, 250, nsITimer::TYPE_REPEATING_PRECISE);
   }
 }
 
@@ -3277,17 +3263,6 @@ nsTextPaintStyle::GetHighlightColors(nscolor* aForeColor,
   EnsureSufficientContrast(&foreColor, &backColor);
   *aForeColor = foreColor;
   *aBackColor = backColor;
-}
-
-void
-nsTextPaintStyle::GetURLSecondaryColor(nscolor* aForeColor)
-{
-  NS_ASSERTION(aForeColor, "aForeColor is null");
-
-  nsILookAndFeel* look = mPresContext->LookAndFeel();
-  nscolor foreColor;
-  look->GetColor(nsILookAndFeel::eColor_graytext, foreColor);
-  *aForeColor = foreColor;
 }
 
 void
@@ -3734,9 +3709,9 @@ public:
   virtual nsIFrame* GetFirstInFlow() const;
   virtual nsIFrame* GetFirstContinuation() const;
 
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
   
   virtual nsresult GetRenderedText(nsAString* aString = nsnull,
@@ -3881,20 +3856,20 @@ nsContinuingTextFrame::GetFirstContinuation() const
 
 // Needed for text frames in XUL.
 /* virtual */ nscoord
-nsTextFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsTextFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   return nsLayoutUtils::MinWidthFromInline(this, aRenderingContext);
 }
 
 // Needed for text frames in XUL.
 /* virtual */ nscoord
-nsTextFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsTextFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   return nsLayoutUtils::PrefWidthFromInline(this, aRenderingContext);
 }
 
 /* virtual */ void
-nsContinuingTextFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+nsContinuingTextFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                          InlineMinWidthData *aData)
 {
   // Do nothing, since the first-in-flow accounts for everything.
@@ -3902,7 +3877,7 @@ nsContinuingTextFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
 }
 
 /* virtual */ void
-nsContinuingTextFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+nsContinuingTextFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                           InlinePrefWidthData *aData)
 {
   // Do nothing, since the first-in-flow accounts for everything.
@@ -4142,7 +4117,7 @@ public:
     }
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Text", TYPE_TEXT)
 
   virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder)
@@ -4157,7 +4132,7 @@ public:
 
 void
 nsDisplayText::Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) {
+                     nsIRenderingContext* aCtx) {
   // Add 1 pixel of dirty area around mVisibleRect to allow us to paint
   // antialiased pixels beyond the measured text extents.
   // This is temporary until we do this in the actual calculation of text extents.
@@ -4273,20 +4248,21 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext)
   // A mask of all possible decorations.
   // FIXME: Per spec, we still need to draw all relevant decorations
   // from ancestors, not just the nearest one from each.
-  PRUint8 decorMask = NS_STYLE_TEXT_DECORATION_LINE_LINES_MASK;
+  PRUint8 decorMask = NS_STYLE_TEXT_DECORATION_UNDERLINE | 
+                      NS_STYLE_TEXT_DECORATION_OVERLINE |
+                      NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
 
   PRBool isChild; // ignored
   for (nsIFrame* f = this; decorMask && f;
        NS_SUCCEEDED(f->GetParentStyleContextFrame(aPresContext, &f, &isChild))
          || (f = nsnull)) {
     nsStyleContext* context = f->GetStyleContext();
-    if (!context->HasTextDecorationLines()) {
+    if (!context->HasTextDecorations()) {
       break;
     }
     const nsStyleTextReset* styleText = context->GetStyleTextReset();
     if (!useOverride && 
-        (NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL &
-           styleText->mTextDecorationLine)) {
+        (NS_STYLE_TEXT_DECORATION_OVERRIDE_ALL & styleText->mTextDecoration)) {
       // This handles the <a href="blah.html"><font color="green">La 
       // la la</font></a> case. The link underline should be green.
       useOverride = PR_TRUE;
@@ -4295,7 +4271,7 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext)
     }
 
     // FIXME: see above (remove this check)
-    PRUint8 useDecorations = decorMask & styleText->mTextDecorationLine;
+    PRUint8 useDecorations = decorMask & styleText->mTextDecoration;
     if (useDecorations) {// a decoration defined here
       nscolor color = context->GetVisitedDependentColor(
                                  eCSSProperty_text_decoration_color);
@@ -4309,23 +4285,23 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext)
       // containing line; otherwise use the element's font); when
       // drawing it should always be relative to the line baseline.
       // This way we move the decorations for relative positioning.
-      if (NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE & useDecorations) {
+      if (NS_STYLE_TEXT_DECORATION_UNDERLINE & useDecorations) {
         decorations.mUnderColor = useOverride ? overrideColor : color;
         decorations.mUnderStyle = styleText->GetDecorationStyle();
-        decorMask &= ~NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE;
-        decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE;
+        decorMask &= ~NS_STYLE_TEXT_DECORATION_UNDERLINE;
+        decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_UNDERLINE;
       }
-      if (NS_STYLE_TEXT_DECORATION_LINE_OVERLINE & useDecorations) {
+      if (NS_STYLE_TEXT_DECORATION_OVERLINE & useDecorations) {
         decorations.mOverColor = useOverride ? overrideColor : color;
         decorations.mOverStyle = styleText->GetDecorationStyle();
-        decorMask &= ~NS_STYLE_TEXT_DECORATION_LINE_OVERLINE;
-        decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_LINE_OVERLINE;
+        decorMask &= ~NS_STYLE_TEXT_DECORATION_OVERLINE;
+        decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_OVERLINE;
       }
-      if (NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH & useDecorations) {
+      if (NS_STYLE_TEXT_DECORATION_LINE_THROUGH & useDecorations) {
         decorations.mStrikeColor = useOverride ? overrideColor : color;
         decorations.mStrikeStyle = styleText->GetDecorationStyle();
-        decorMask &= ~NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH;
-        decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH;
+        decorMask &= ~NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
+        decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
       }
     }
 
@@ -4367,9 +4343,10 @@ nsTextFrame::UnionTextDecorationOverflow(nsPresContext* aPresContext,
   if (IsFloatingFirstLetterChild()) {
     // The underline/overline drawable area must be contained in the overflow
     // rect when this is in floating first letter frame at *both* modes.
-    nsFontMetrics* fm = aProvider.GetFontMetrics();
-    nscoord fontAscent = fm->MaxAscent();
-    nscoord fontHeight = fm->MaxHeight();
+    nscoord fontAscent, fontHeight;
+    nsIFontMetrics* fm = aProvider.GetFontMetrics();
+    fm->GetMaxAscent(fontAscent);
+    fm->GetMaxHeight(fontHeight);
     nsRect fontRect(0, mAscent - fontAscent, GetSize().width, fontHeight);
     aVisualOverflowRect->UnionRect(*aVisualOverflowRect, fontRect);
   }
@@ -4417,7 +4394,7 @@ nsTextFrame::PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
     size.height = fontMetrics.underlineSize;
     nsCSSRendering::PaintDecorationLine(
       aCtx, lineColor, pt, size, ascent, fontMetrics.maxAscent,
-      NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, decorations.mOverStyle);
+      NS_STYLE_TEXT_DECORATION_OVERLINE, decorations.mOverStyle);
   }
   if (decorations.HasUnderline()) {
     lineColor = aOverrideColor ? *aOverrideColor : decorations.mUnderColor;
@@ -4425,7 +4402,7 @@ nsTextFrame::PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
     gfxFloat offset = aProvider.GetFontGroup()->GetUnderlineOffset();
     nsCSSRendering::PaintDecorationLine(
       aCtx, lineColor, pt, size, ascent, offset,
-      NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, decorations.mUnderStyle);
+      NS_STYLE_TEXT_DECORATION_UNDERLINE, decorations.mUnderStyle);
   }
   if (decorations.HasStrikeout()) {
     lineColor = aOverrideColor ? *aOverrideColor : decorations.mStrikeColor;
@@ -4433,7 +4410,7 @@ nsTextFrame::PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
     gfxFloat offset = fontMetrics.strikeoutOffset;
     nsCSSRendering::PaintDecorationLine(
       aCtx, lineColor, pt, size, ascent, offset,
-      NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH, decorations.mStrikeStyle);
+      NS_STYLE_TEXT_DECORATION_LINE_THROUGH, decorations.mStrikeStyle);
   }
 }
 
@@ -4579,7 +4556,7 @@ static void DrawSelectionDecorations(gfxContext* aContext, SelectionType aType,
   size.height *= relativeSize;
   nsCSSRendering::PaintDecorationLine(
     aContext, color, pt, size, aAscent, aFontMetrics.underlineOffset,
-    NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, style, descentLimit);
+    NS_STYLE_TEXT_DECORATION_UNDERLINE, style, descentLimit);
 }
 
 /**
@@ -4600,10 +4577,6 @@ static PRBool GetSelectionTextColors(SelectionType aType,
       return aTextPaintStyle.GetSelectionColors(aForeground, aBackground);
     case nsISelectionController::SELECTION_FIND:
       aTextPaintStyle.GetHighlightColors(aForeground, aBackground);
-      return PR_TRUE;
-    case nsISelectionController::SELECTION_URLSECONDARY:
-      aTextPaintStyle.GetURLSecondaryColor(aForeground);
-      *aBackground = NS_RGBA(0,0,0,0);
       return PR_TRUE;
     case nsISelectionController::SELECTION_IME_RAWINPUT:
     case nsISelectionController::SELECTION_IME_SELECTEDRAWTEXT:
@@ -5083,11 +5056,11 @@ nsTextFrame::GetSnappedBaselineY(gfxContext* aContext, gfxFloat aY)
   gfxRect putativeRect(0, baseline/appUnitsPerDevUnit, 1, 1);
   if (!aContext->UserToDevicePixelSnapped(putativeRect))
     return baseline;
-  return aContext->DeviceToUser(putativeRect.TopLeft()).y*appUnitsPerDevUnit;
+  return aContext->DeviceToUser(putativeRect.pos).y*appUnitsPerDevUnit;
 }
 
 void
-nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
+nsTextFrame::PaintText(nsIRenderingContext* aRenderingContext, nsPoint aPt,
                        const nsRect& aDirtyRect)
 {
   // Don't pass in aRenderingContext here, because we need a *reference*
@@ -5324,9 +5297,10 @@ nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
 
   nsRect givenRect = aRect;
 
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  gfxFontGroup* fontGroup = fm->GetThebesFontGroup();
+  nsIThebesFontMetrics* tfm = static_cast<nsIThebesFontMetrics*>(fm.get());
+  gfxFontGroup* fontGroup = tfm->GetThebesFontGroup();
   gfxFont* firstFont = fontGroup->GetFontAt(0);
   if (!firstFont)
     return PR_FALSE; // OOM
@@ -5374,8 +5348,9 @@ nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
     size.height *= relativeSize;
     decorationArea =
       nsCSSRendering::GetTextDecorationRect(aPresContext, size,
-        ascent, underlineOffset, NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE,
-        style, descentLimit);
+                                            ascent, underlineOffset,
+                                            NS_STYLE_TEXT_DECORATION_UNDERLINE,
+                                            style, descentLimit);
     aRect.UnionRect(aRect, decorationArea);
   }
   DestroySelectionDetails(details);
@@ -6051,7 +6026,7 @@ void nsTextFrame::MarkIntrinsicWidthsDirty()
 // XXX this doesn't handle characters shaped by line endings. We need to
 // temporarily override the "current line ending" settings.
 void
-nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
+nsTextFrame::AddInlineMinWidthForFlow(nsIRenderingContext *aRenderingContext,
                                       nsIFrame::InlineMinWidthData *aData)
 {
   PRUint32 flowEndInTextRun;
@@ -6070,13 +6045,17 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
   // otherwise we can just pass PR_INT32_MAX to mean "all the text"
   PRInt32 len = PR_INT32_MAX;
   PRBool hyphenating = frag->GetLength() > 0 &&
-    (textStyle->mHyphens == NS_STYLE_HYPHENS_AUTO ||
-     (textStyle->mHyphens == NS_STYLE_HYPHENS_MANUAL &&
-      (mTextRun->GetFlags() & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0));
+    (mTextRun->GetFlags() & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0;
   if (hyphenating) {
-    gfxSkipCharsIterator tmp(iter);
-    len = PR_MIN(GetContentOffset() + GetInFlowContentLength(),
-                 tmp.ConvertSkippedToOriginal(flowEndInTextRun)) - iter.GetOriginalOffset();
+    len = GetContentOffset() + GetInFlowContentLength() - iter.GetOriginalOffset();
+#ifdef DEBUG
+    // check that the length we're going to pass to PropertyProvider matches
+    // the expected range of text in the run
+    gfxSkipCharsIterator tmpIter(iter);
+    tmpIter.AdvanceOriginal(len);
+    NS_ASSERTION(tmpIter.GetSkippedOffset() == flowEndInTextRun,
+                 "nsTextFragment length mismatch?");
+#endif
   }
   PropertyProvider provider(mTextRun, textStyle, frag, this,
                             iter, len, nsnull, 0);
@@ -6153,11 +6132,9 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
          (mTextRun->GetFlags() & nsTextFrameUtils::TEXT_HAS_TRAILING_BREAK))) {
       if (preformattedNewline) {
         aData->ForceBreak(aRenderingContext);
-      } else if (i < flowEndInTextRun && hyphBreakBefore &&
-                 hyphBreakBefore[i - start])
-      {
+      } else if (hyphBreakBefore && hyphBreakBefore[i - start]) {
         aData->OptionallyBreak(aRenderingContext, provider.GetHyphenWidth());
-      } {
+      } else {
         aData->OptionallyBreak(aRenderingContext);
       }
       wordStart = i;
@@ -6176,7 +6153,7 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
 // XXX Need to do something here to avoid incremental reflow bugs due to
 // first-line and first-letter changing min-width
 /* virtual */ void
-nsTextFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+nsTextFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                nsIFrame::InlineMinWidthData *aData)
 {
   nsTextFrame* f;
@@ -6207,7 +6184,7 @@ nsTextFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
 // XXX this doesn't handle characters shaped by line endings. We need to
 // temporarily override the "current line ending" settings.
 void
-nsTextFrame::AddInlinePrefWidthForFlow(nsRenderingContext *aRenderingContext,
+nsTextFrame::AddInlinePrefWidthForFlow(nsIRenderingContext *aRenderingContext,
                                        nsIFrame::InlinePrefWidthData *aData)
 {
   PRUint32 flowEndInTextRun;
@@ -6300,7 +6277,7 @@ nsTextFrame::AddInlinePrefWidthForFlow(nsRenderingContext *aRenderingContext,
 // XXX Need to do something here to avoid incremental reflow bugs due to
 // first-line and first-letter changing pref-width
 /* virtual */ void
-nsTextFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+nsTextFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                 nsIFrame::InlinePrefWidthData *aData)
 {
   nsTextFrame* f;
@@ -6329,7 +6306,7 @@ nsTextFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
 }
 
 /* virtual */ nsSize
-nsTextFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsTextFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                          nsSize aCBSize, nscoord aAvailableWidth,
                          nsSize aMargin, nsSize aBorder, nsSize aPadding,
                          PRBool aShrinkWrap)
@@ -6352,7 +6329,7 @@ RoundOut(const gfxRect& aRect)
 nsRect
 nsTextFrame::ComputeTightBounds(gfxContext* aContext) const
 {
-  if ((GetStyleContext()->HasTextDecorationLines() &&
+  if ((GetStyleContext()->HasTextDecorations() &&
        eCompatibility_NavQuirks == PresContext()->CompatibilityMode()) ||
       (GetStateBits() & TEXT_HYPHEN_BREAK)) {
     // This is conservative, but OK.
@@ -6381,10 +6358,6 @@ static PRBool
 HasSoftHyphenBefore(const nsTextFragment* aFrag, gfxTextRun* aTextRun,
                     PRInt32 aStartOffset, const gfxSkipCharsIterator& aIter)
 {
-  if (aIter.GetSkippedOffset() < aTextRun->GetLength() &&
-      aTextRun->CanHyphenateBefore(aIter.GetSkippedOffset())) {
-    return PR_TRUE;
-  }
   if (!(aTextRun->GetFlags() & nsTextFrameUtils::TEXT_HAS_SHY))
     return PR_FALSE;
   gfxSkipCharsIterator iter = aIter;
@@ -6560,7 +6533,7 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
 
 void
 nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
-                        nsRenderingContext* aRenderingContext,
+                        nsIRenderingContext* aRenderingContext,
                         PRBool aShouldBlink,
                         nsHTMLReflowMetrics& aMetrics,
                         nsReflowStatus& aStatus)
@@ -6817,10 +6790,13 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   if (!length && !textMetrics.mAscent && !textMetrics.mDescent) {
     // If we're measuring a zero-length piece of text, update
     // the height manually.
-    nsFontMetrics* fm = provider.GetFontMetrics();
+    nsIFontMetrics* fm = provider.GetFontMetrics();
     if (fm) {
-      textMetrics.mAscent = gfxFloat(fm->MaxAscent());
-      textMetrics.mDescent = gfxFloat(fm->MaxDescent());
+      nscoord ascent, descent;
+      fm->GetMaxAscent(ascent);
+      fm->GetMaxDescent(descent);
+      textMetrics.mAscent = gfxFloat(ascent);
+      textMetrics.mDescent = gfxFloat(descent);
     }
   }
   // The "end" iterator points to the first character after the string mapped
@@ -6924,10 +6900,11 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   } else {
     // Otherwise, ascent should contain the overline drawable area.
     // And also descent should contain the underline drawable area.
-    // nsFontMetrics::GetMaxAscent/GetMaxDescent contains them.
-    nsFontMetrics* fm = provider.GetFontMetrics();
-    nscoord fontAscent = fm->MaxAscent();
-    nscoord fontDescent = fm->MaxDescent();
+    // nsIFontMetrics::GetMaxAscent/GetMaxDescent contains them.
+    nscoord fontAscent, fontDescent;
+    nsIFontMetrics* fm = provider.GetFontMetrics();
+    fm->GetMaxAscent(fontAscent);
+    fm->GetMaxDescent(fontDescent);
     aMetrics.ascent = NS_MAX(NSToCoordCeil(textMetrics.mAscent), fontAscent);
     nscoord descent = NS_MAX(NSToCoordCeil(textMetrics.mDescent), fontDescent);
     aMetrics.height = aMetrics.ascent + descent;
@@ -6959,7 +6936,6 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     AddStateBits(TEXT_HAS_NONCOLLAPSED_CHARACTERS);
   }
   if (charsFit > 0 && charsFit == length &&
-      textStyle->mHyphens != NS_STYLE_HYPHENS_NONE &&
       HasSoftHyphenBefore(frag, mTextRun, offset, end)) {
     // Record a potential break after final soft hyphen
     aLineLayout.NotifyOptionalBreakPosition(mContent, offset + length,
@@ -6992,7 +6968,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   aStatus = contentLength == maxContentLength
     ? NS_FRAME_COMPLETE : NS_FRAME_NOT_COMPLETE;
 
-  if (charsFit == 0 && length > 0 && !usedHyphenation) {
+  if (charsFit == 0 && length > 0) {
     // Couldn't place any text
     aStatus = NS_INLINE_LINE_BREAK_BEFORE();
   } else if (contentLength > 0 && mContentOffset + contentLength - 1 == newLineOffset) {
@@ -7082,7 +7058,7 @@ nsTextFrame::CanContinueTextRun() const
 }
 
 nsTextFrame::TrimOutput
-nsTextFrame::TrimTrailingWhiteSpace(nsRenderingContext* aRC)
+nsTextFrame::TrimTrailingWhiteSpace(nsIRenderingContext* aRC)
 {
   TrimOutput result;
   result.mChanged = PR_FALSE;

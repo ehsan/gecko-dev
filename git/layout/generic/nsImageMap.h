@@ -46,16 +46,18 @@
 #include "nsStubMutationObserver.h"
 #include "nsIDOMFocusListener.h"
 #include "nsIFrame.h"
+#include "nsIImageMap.h"
 
 class nsIDOMHTMLAreaElement;
 class nsIDOMHTMLMapElement;
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsIURI;
 class nsString;
 class nsIDOMEvent;
 class Area;
 
-class nsImageMap : public nsStubMutationObserver, public nsIDOMFocusListener
+class nsImageMap : public nsStubMutationObserver, public nsIDOMFocusListener,
+                   public nsIImageMap
 {
 public:
   nsImageMap();
@@ -71,7 +73,7 @@ public:
   PRBool IsInside(nscoord aX, nscoord aY,
                   nsIContent** aContent) const;
 
-  void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  void Draw(nsIFrame* aFrame, nsIRenderingContext& aRC);
   
   /** 
    * Called just before the nsImageFrame releases us. 
@@ -93,8 +95,9 @@ public:
   NS_IMETHOD Blur(nsIDOMEvent* aEvent);
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
-  nsresult GetBoundsForAreaContent(nsIContent *aContent,
-                                   nsRect& aBounds);
+  //nsIImageMap
+  NS_IMETHOD GetBoundsForAreaContent(nsIContent *aContent, 
+                                     nsRect& aBounds);
 
 protected:
   virtual ~nsImageMap();

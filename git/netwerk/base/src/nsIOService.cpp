@@ -182,7 +182,6 @@ nsIOService::nsIOService()
     , mShutdown(PR_FALSE)
     , mChannelEventSinks(NS_CHANNEL_EVENT_SINK_CATEGORY)
     , mContentSniffers(NS_CONTENT_SNIFFER_CATEGORY)
-    , mAutoDialEnabled(PR_FALSE)
 {
 }
 
@@ -305,7 +304,6 @@ nsIOService::InitializeSocketTransportService()
     if (mSocketTransportService) {
         rv = mSocketTransportService->Init();
         NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service init failed");
-        mSocketTransportService->SetAutodialEnabled(mAutoDialEnabled);
     }
 
     return rv;
@@ -852,7 +850,6 @@ nsIOService::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         PRBool enableAutodial = PR_FALSE;
         nsresult rv = prefs->GetBoolPref(AUTODIAL_PREF, &enableAutodial);
         // If pref not found, default to disabled.
-        mAutoDialEnabled = enableAutodial;
         if (NS_SUCCEEDED(rv)) {
             if (mSocketTransportService)
                 mSocketTransportService->SetAutodialEnabled(enableAutodial);

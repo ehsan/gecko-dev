@@ -59,18 +59,8 @@ XPIDLSRCS = \
 	gfxidltypes.idl \
 	$(NULL)
 
-EXPORTS_NAMESPACES = mozilla
-
-EXPORTS_mozilla = \
-	BaseMargin.h \
-	BasePoint.h \
-	BaseRect.h \
-	BaseSize.h \
-	$(NULL)
-
 EXPORTS	= \
 	gfxCore.h \
-	gfxCrashReporterUtils.h \
 	nsColor.h \
 	nsColorNames.h \
 	nsColorNameList.h \
@@ -82,18 +72,20 @@ EXPORTS	= \
 	nsSize.h \
 	nsMargin.h \
 	nsTransform2D.h \
-	nsRenderingContext.h \
-	nsFontMetrics.h \
-	nsDeviceContext.h \
+	nsIRenderingContext.h \
+	nsIFontMetrics.h \
+	nsIDeviceContext.h \
 	nsGfxCIID.h \
 	nsIRegion.h \
 	nsITheme.h \
 	nsThemeConstants.h \
-	nsBoundingMetrics.h \
+	gfxCrashReporterUtils.h \
+	nsIThebesFontMetrics.h \
 	$(NULL)
 
 ifdef MOZ_X11
-EXPORTS_mozilla	+= X11Util.h
+EXPORTS_NAMESPACES	= mozilla
+EXPORTS_mozilla		= X11Util.h
 endif
 
 CPPSRCS = \
@@ -104,11 +96,11 @@ CPPSRCS = \
         nsTransform2D.cpp \
         nsScriptableRegion.cpp \
         gfxCrashReporterUtils.cpp \
-        nsDeviceContext.cpp \
+        nsThebesDeviceContext.cpp \
         nsThebesRegion.cpp \
         nsThebesGfxFactory.cpp \
-        nsRenderingContext.cpp \
-        nsFontMetrics.cpp \
+        nsThebesRenderingContext.cpp \
+        nsThebesFontMetrics.cpp \
         nsThebesFontEnumerator.cpp \
        $(NULL)
 

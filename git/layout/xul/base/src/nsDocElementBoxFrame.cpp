@@ -39,10 +39,13 @@
 #include "nsCSSRendering.h"
 #include "nsIDocument.h"
 #include "nsPageFrame.h"
+#include "nsIRenderingContext.h"
 #include "nsGUIEvent.h"
 #include "nsIDOMEvent.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
+#include "nsIEventStateManager.h"
+#include "nsIDeviceContext.h"
 #include "nsIPresShell.h"
 #include "nsBoxFrame.h"
 #include "nsStackLayout.h"
@@ -71,7 +74,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         PRUint32 aFilter);
 
@@ -110,7 +113,7 @@ nsDocElementBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 nsresult
-nsDocElementBoxFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
+nsDocElementBoxFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   nsIDocument* doc = mContent->GetDocument();
   if (!doc) {

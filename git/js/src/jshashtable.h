@@ -43,7 +43,6 @@
 #ifndef jshashtable_h_
 #define jshashtable_h_
 
-#include "jsalloc.h"
 #include "jstl.h"
 
 namespace js {
@@ -795,8 +794,6 @@ struct PointerHasher
  */
 template <class T>
 struct DefaultHasher<T *>: PointerHasher<T *, tl::FloorLog2<sizeof(void *)>::result> { };
-
-/* Looking for a hasher for jsid?  Try the DefaultHasher<jsid> in jsatom.h. */
 
 /*
  * JS-friendly, STL-like container providing a hash-based map from keys to

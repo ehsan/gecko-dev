@@ -45,7 +45,7 @@
 #include "nsIFrame.h"
 
 class nsPresContext;
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsFloatManager;
 class nsLineLayout;
 class nsIPercentHeightObserver;
@@ -147,7 +147,7 @@ public:
   nsIFrame*           frame;
 
   // rendering context to use for measurement
-  nsRenderingContext* rendContext;
+  nsIRenderingContext* rendContext;
 
   // Computed margin values
   nsMargin         mComputedMargin;
@@ -159,13 +159,13 @@ public:
   nsMargin         mComputedPadding;
 
   // Callers using this constructor must call InitOffsets on their own.
-  nsCSSOffsetState(nsIFrame *aFrame, nsRenderingContext *aRenderingContext)
+  nsCSSOffsetState(nsIFrame *aFrame, nsIRenderingContext *aRenderingContext)
     : frame(aFrame)
     , rendContext(aRenderingContext)
   {
   }
 
-  nsCSSOffsetState(nsIFrame *aFrame, nsRenderingContext *aRenderingContext,
+  nsCSSOffsetState(nsIFrame *aFrame, nsIRenderingContext *aRenderingContext,
                    nscoord aContainingBlockWidth)
     : frame(aFrame)
     , rendContext(aRenderingContext)
@@ -247,9 +247,10 @@ struct nsHTMLReflowState : public nsCSSOffsetState {
   const nsHTMLReflowState *mCBReflowState;
 
   // the available width in which to reflow the frame. The space
-  // represents the amount of room for the frame's margin, border,
-  // padding, and content area. The frame size you choose should fit
-  // within the available width.
+  // represents the amount of room for the frame's border, padding,
+  // and content area (not the margin area. The parent frame deals
+  // with the child frame's margins). The frame size you choose should
+  // fit within the available width.
   nscoord              availableWidth;
 
   // A value of NS_UNCONSTRAINEDSIZE for the available height means
@@ -376,7 +377,7 @@ public:
   // use for measuring things.
   nsHTMLReflowState(nsPresContext*           aPresContext,
                     nsIFrame*                aFrame,
-                    nsRenderingContext*     aRenderingContext,
+                    nsIRenderingContext*     aRenderingContext,
                     const nsSize&            aAvailableSpace);
 
   // Initialize a reflow state for a child frames reflow. Some state

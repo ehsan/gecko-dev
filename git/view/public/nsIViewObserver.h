@@ -43,7 +43,7 @@
 #include "nsColor.h"
 #include "nsRect.h"
 
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsGUIEvent;
 
 #define NS_IVIEWOBSERVER_IID  \

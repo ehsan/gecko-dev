@@ -46,6 +46,8 @@
 #include "prlink.h"
 #include "nsWindow.h"
 #include "nsGTKToolkit.h"
+#include "nsIDeviceContext.h"
+#include "nsIRenderingContext.h"
 #include "nsIRollupListener.h"
 #include "nsIMenuRollup.h"
 #include "nsIDOMNode.h"
@@ -157,6 +159,9 @@ using mozilla::layers::LayerManagerOGL;
 // Don't put more than this many rects in the dirty region, just fluff
 // out to the bounding-box if there are more
 #define MAX_RECTS_IN_REGION 100
+
+/* For PrepareNativeWidget */
+static NS_DEFINE_IID(kDeviceContextCID, NS_DEVICE_CONTEXT_CID);
 
 /* utility functions */
 static PRBool     check_for_rollup(GdkWindow *aWindow,
@@ -2136,11 +2141,6 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         nsPaintEvent willPaintEvent(PR_TRUE, NS_WILL_PAINT, this);
         willPaintEvent.willSendDidPaint = PR_TRUE;
         DispatchEvent(&willPaintEvent, status);
-
-        // If the window has been destroyed during WILL_PAINT, there is
-        // nothing left to do.
-        if (!mGdkWindow)
-            return TRUE;
     }
 
     nsPaintEvent event(PR_TRUE, NS_PAINT, this);
@@ -3827,7 +3827,7 @@ nsWindow::Create(nsIWidget        *aParent,
                  nsNativeWidget    aNativeParent,
                  const nsIntRect  &aRect,
                  EVENT_CALLBACK    aHandleEventFunction,
-                 nsDeviceContext *aContext,
+                 nsIDeviceContext *aContext,
                  nsIAppShell      *aAppShell,
                  nsIToolkit       *aToolkit,
                  nsWidgetInitData *aInitData)

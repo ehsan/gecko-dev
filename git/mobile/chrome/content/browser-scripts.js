@@ -100,7 +100,6 @@ XPCOMUtils.defineLazyGetter(this, "CommonUI", function() {
   ["ExtensionsView", "chrome://browser/content/extensions.js"],
   ["MenuListHelperUI", "chrome://browser/content/MenuListHelperUI.js"],
   ["OfflineApps", "chrome://browser/content/OfflineApps.js"],
-  ["IndexedDB", "chrome://browser/content/IndexedDB.js"],
   ["PreferencesView", "chrome://browser/content/preferences.js"],
   ["Sanitizer", "chrome://browser/content/sanitize.js"],
   ["SelectHelperUI", "chrome://browser/content/SelectHelperUI.js"],

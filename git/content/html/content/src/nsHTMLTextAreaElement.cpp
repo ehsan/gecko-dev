@@ -58,7 +58,7 @@
 #include "nsMappedAttributes.h"
 #include "nsIFormControlFrame.h"
 #include "nsITextControlFrame.h"
-#include "nsEventStates.h"
+#include "nsIEventStateManager.h"
 #include "nsLinebreakConverter.h"
 #include "nsIDocument.h"
 #include "nsIFrame.h"
@@ -295,13 +295,6 @@ protected:
    * Get the mutable state of the element.
    */
   PRBool IsMutable() const;
-
-  /**
-   * Returns whether the current value is the empty string.
-   *
-   * @return whether the current value is the empty string.
-   */
-  bool IsValueEmpty() const;
 };
 
 
@@ -1093,9 +1086,12 @@ nsHTMLTextAreaElement::IntrinsicState() const
   }
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder) &&
-      !nsContentUtils::IsFocusedContent((nsIContent*)(this)) &&
-      IsValueEmpty()) {
-    state |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
+      !nsContentUtils::IsFocusedContent((nsIContent*)(this))) {
+    nsAutoString value;
+    GetValueInternal(value, PR_TRUE);
+    if (value.IsEmpty()) {
+      state |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
+    }
   }
 
   return state;
@@ -1254,15 +1250,6 @@ nsHTMLTextAreaElement::IsMutable() const
   return (!HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) && !IsDisabled());
 }
 
-bool
-nsHTMLTextAreaElement::IsValueEmpty() const
-{
-  nsAutoString value;
-  GetValueInternal(value, PR_TRUE);
-
-  return value.IsEmpty();
-}
-
 // nsIConstraintValidation
 
 NS_IMETHODIMP
@@ -1310,7 +1297,10 @@ nsHTMLTextAreaElement::IsValueMissing() const
     return PR_FALSE;
   }
 
-  return IsValueEmpty();
+  nsAutoString value;
+  GetValueInternal(value, PR_TRUE);
+
+  return value.IsEmpty();
 }
 
 void

@@ -66,7 +66,7 @@
 #include "nsStyleConsts.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #include "nsIDOMEvent.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsDOMCID.h"
@@ -92,6 +92,7 @@
 
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
+#include "nsIDOMViewCSS.h"
 #include "nsIXBLService.h"
 #include "nsPIDOMWindow.h"
 #include "nsIBoxObject.h"
@@ -109,6 +110,7 @@
 
 #include "nsIServiceManager.h"
 #include "nsIDOMEventListener.h"
+#include "nsEventStateManager.h"
 #include "nsIWebNavigation.h"
 #include "nsIBaseWindow.h"
 
@@ -2016,7 +2018,7 @@ nsDOMEventRTTearoff::AddEventListener(const nsAString& aType,
                                       nsIDOMEventListener *aListener,
                                       PRBool useCapture)
 {
-  return AddEventListener(aType, aListener, useCapture, PR_FALSE, 1);
+  return AddEventListener(aType, aListener, useCapture, PR_FALSE, 0);
 }
 
 NS_IMETHODIMP
@@ -2085,7 +2087,7 @@ nsDOMEventRTTearoff::AddEventListener(const nsAString& aType,
                                       PRBool aWantsUntrusted,
                                       PRUint8 optional_argc)
 {
-  NS_ASSERTION(!aWantsUntrusted || optional_argc > 1,
+  NS_ASSERTION(!aWantsUntrusted || optional_argc > 0,
                "Won't check if this is chrome, you want to set "
                "aWantsUntrusted to PR_FALSE or make the aWantsUntrusted "
                "explicit by making optional_argc non-zero.");
@@ -2097,7 +2099,7 @@ nsDOMEventRTTearoff::AddEventListener(const nsAString& aType,
   PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
 
   if (aWantsUntrusted ||
-      (optional_argc < 2 &&
+      (optional_argc == 0 &&
        !nsContentUtils::IsChromeDoc(mNode->GetOwnerDoc()))) {
     flags |= NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
   }
@@ -2169,14 +2171,14 @@ nsGenericElement::~nsGenericElement()
 NS_IMETHODIMP
 nsGenericElement::GetNodeName(nsAString& aNodeName)
 {
-  aNodeName = mNodeInfo->QualifiedNameCorrectedCase();
+  mNodeInfo->GetQualifiedName(aNodeName);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsGenericElement::GetLocalName(nsAString& aLocalName)
 {
-  mNodeInfo->GetName(aLocalName);
+  mNodeInfo->GetLocalName(aLocalName);
   return NS_OK;
 }
 
@@ -2282,15 +2284,18 @@ nsGenericElement::InternalIsSupported(nsISupports* aObject,
         PL_strcmp(v, "3.0") == 0) {
       *aReturn = PR_TRUE;
     }
-  } else if (PL_strcasecmp(f, "SVGEvents") == 0 ||
-             PL_strcasecmp(f, "SVGZoomEvents") == 0 ||
-             nsSVGFeatures::HaveFeature(aObject, aFeature)) {
+  }
+#ifdef MOZ_SVG
+  else if (PL_strcasecmp(f, "SVGEvents") == 0 ||
+           PL_strcasecmp(f, "SVGZoomEvents") == 0 ||
+           nsSVGFeatures::HaveFeature(aFeature)) {
     if (aVersion.IsEmpty() ||
         PL_strcmp(v, "1.0") == 0 ||
         PL_strcmp(v, "1.1") == 0) {
       *aReturn = PR_TRUE;
     }
   }
+#endif /* MOZ_SVG */
 #ifdef MOZ_SMIL
   else if (NS_SMILEnabled() && PL_strcasecmp(f, "TimeControl") == 0) {
     if (aVersion.IsEmpty() || PL_strcmp(v, "1.0") == 0) {
@@ -2376,7 +2381,7 @@ nsGenericElement::HasChildNodes(PRBool* aReturn)
 NS_IMETHODIMP
 nsGenericElement::GetTagName(nsAString& aTagName)
 {
-  aTagName = mNodeInfo->QualifiedNameCorrectedCase();
+  mNodeInfo->GetQualifiedName(aTagName);
   return NS_OK;
 }
 
@@ -3075,7 +3080,7 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 already_AddRefed<nsINodeList>
 nsGenericElement::GetChildren(PRUint32 aFilter)
 {
-  nsRefPtr<nsSimpleContentList> list = new nsSimpleContentList(this);
+  nsRefPtr<nsBaseContentList> list = new nsBaseContentList();
   if (!list) {
     return nsnull;
   }
@@ -4577,9 +4582,7 @@ nsGenericElement::MaybeCheckSameAttrVal(PRInt32 aNamespaceID, nsIAtom* aName,
         // Need to store the old value
         info.mValue->ToString(*aOldValue);
         valueMatches = aValue.Equals(*aOldValue);
-      } else {
-        NS_ABORT_IF_FALSE(aNotify,
-                          "Either hasListeners or aNotify should be true.");
+      } else if (aNotify) {
         valueMatches = info.mValue->Equals(aValue, eCaseMatters);
       }
       if (valueMatches && aPrefix == info.mName->GetPrefix()) {
@@ -5111,7 +5114,9 @@ nsGenericElement::List(FILE* out, PRInt32 aIndent,
 
   fputs(aPrefix.get(), out);
 
-  fputs(NS_LossyConvertUTF16toASCII(mNodeInfo->QualifiedName()).get(), out);
+  nsAutoString buf;
+  mNodeInfo->GetQualifiedName(buf);
+  fputs(NS_LossyConvertUTF16toASCII(buf).get(), out);
 
   fprintf(out, "@%p", (void *)this);
 
@@ -5199,7 +5204,8 @@ nsGenericElement::DumpContent(FILE* out, PRInt32 aIndent,
   PRInt32 indent;
   for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  const nsString& buf = mNodeInfo->QualifiedName();
+  nsAutoString buf;
+  mNodeInfo->GetQualifiedName(buf);
   fputs("<", out);
   fputs(NS_LossyConvertUTF16toASCII(buf).get(), out);
 
@@ -5371,8 +5377,10 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
                                nsIFocusManager::FLAG_NOSCROLL);
           }
 
+          nsIEventStateManager* esm =
+            aVisitor.mPresContext->EventStateManager();
           nsEventStateManager::SetActiveManager(
-            aVisitor.mPresContext->EventStateManager(), this);
+            static_cast<nsEventStateManager*>(esm), this);
         }
       }
     }
@@ -5459,6 +5467,7 @@ ParseSelectorList(nsINode* aNode,
   NS_ENSURE_STATE(doc);
 
   nsCSSParser parser(doc->CSSLoader());
+  NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
 
   nsCSSSelectorList* selectorList;
   nsresult rv = parser.ParseSelectorString(aSelectorString,
@@ -5521,7 +5530,7 @@ nsGenericElement::doQuerySelectorAll(nsINode* aRoot,
 {
   NS_PRECONDITION(aReturn, "Null out param?");
 
-  nsSimpleContentList* contentList = new nsSimpleContentList(aRoot);
+  nsBaseContentList* contentList = new nsBaseContentList();
   NS_ENSURE_TRUE(contentList, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aReturn = contentList);
   

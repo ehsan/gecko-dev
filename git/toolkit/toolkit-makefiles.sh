@@ -70,6 +70,7 @@ MAKEFILES_dom="
   dom/interfaces/stylesheets/Makefile
   dom/interfaces/threads/Makefile
   dom/interfaces/traversal/Makefile
+  dom/interfaces/views/Makefile
   dom/interfaces/xbl/Makefile
   dom/interfaces/xpath/Makefile
   dom/interfaces/xul/Makefile
@@ -83,8 +84,7 @@ MAKEFILES_dom="
   dom/src/storage/Makefile
   dom/src/threads/Makefile
   dom/locales/Makefile
-  dom/plugins/base/Makefile
-  dom/plugins/ipc/Makefile
+  dom/plugins/Makefile
   js/jetpack/Makefile
 "
 
@@ -171,7 +171,6 @@ MAKEFILES_intl="
   intl/locale/src/os2/Makefile
   intl/locale/src/windows/Makefile
   intl/locale/tests/Makefile
-  intl/locales/Makefile
   intl/lwbrk/Makefile
   intl/lwbrk/idl/Makefile
   intl/lwbrk/src/Makefile
@@ -356,6 +355,8 @@ MAKEFILES_libnestegg="
 
 MAKEFILES_plugin="
   modules/plugin/Makefile
+  modules/plugin/base/src/Makefile
+  modules/plugin/base/public/Makefile
 "
 
 MAKEFILES_netwerk="

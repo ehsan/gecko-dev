@@ -65,9 +65,9 @@ function init(aEvent)
     // Pref is unset
   }
 
-  // Include the build ID if this is an "a#" (nightly or aurora) build
+  // Include the build ID if this is a "pre" (i.e. non-release) build
   let version = Services.appinfo.version;
-  if (/a\d+$/.test(version)) {
+  if (version.indexOf("pre") != -1) {
     let buildID = Services.appinfo.appBuildID;
     let buildDate = buildID.slice(0,4) + "-" + buildID.slice(4,6) + "-" + buildID.slice(6,8);
     document.getElementById("version").value += " (" + buildDate + ")";
@@ -597,8 +597,6 @@ var gChannelSelector = {
   selectChannel: function(aSelectedItem) {
     document.getElementById("channelDescriptionDeck").selectedPanel =
       document.getElementById(aSelectedItem.value + "Description");
-    document.getElementById("channelMenulist").setAttribute("aria-describedby",
-      aSelectedItem.value + "Description");
   },
 
   cancel: function() {

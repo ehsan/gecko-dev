@@ -1329,13 +1329,8 @@ namespace nanojit
                 // Evict all registers, most conservative approach.
                 intersectRegisterState(label->regs);
             }
-            Branches branches = asm_branch(branchOnFalse, cond, 0);
-            if (branches.branch1) {
-                _patches.put(branches.branch1,to);
-            }
-            if (branches.branch2) {
-                _patches.put(branches.branch2,to);
-            }
+            NIns *branch = asm_branch(branchOnFalse, cond, 0);
+            _patches.put(branch,to);
         }
     }
 

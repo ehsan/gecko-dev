@@ -572,15 +572,11 @@ class DeviceManager:
   def processExist(self, appname):
     pid = None
 
-    #filter out extra spaces
+    #remove the environment variables in the cli if they exist
     parts = filter(lambda x: x != '', appname.split(' '))
-    appname = ' '.join(parts)
 
-    #filter out the quoted env string if it exists
-    #ex: '"name=value;name2=value2;etc=..." process args' -> 'process args'
-    parts = appname.split('"')
-    if (len(parts) > 2):
-      appname = ' '.join(parts[2:]).strip()
+    if len(parts[0].strip('"').split('=')) > 1:
+      appname = ' '.join(parts[1:])
   
     pieces = appname.split(' ')
     parts = pieces[0].split('/')
@@ -1000,35 +996,31 @@ class DeviceManager:
   # returns:
   #  success: status from test agent
   #  failure: None
-  def reboot(self, ipAddr=None, port=30000):
-    cmd = 'rebt'   
-
-    if (self.debug > 3): print "INFO: sending rebt command"
-    callbacksvrstatus = None    
-
-    if (ipAddr is not None):
-    #create update.info file:
-      try:
-        destname = '/data/data/com.mozilla.SUTAgentAndroid/files/update.info'
-        data = "%s,%s\rrebooting\r" % (ipAddr, port)
-        self.verifySendCMD(['push ' + destname + ' ' + str(len(data)) + '\r\n', data], newline = False)
-      except(DMError):
-        return None
-
-      ip, port = self.getCallbackIpAndPort(ipAddr, port)
-      cmd += " %s %s" % (ip, port)
-      # Set up our callback server
-      callbacksvr = callbackServer(ip, port, self.debug)
-
+  def reboot(self, wait = False):
+    cmd = 'rebt'
+    if (self.debug >= 3): print "INFO: sending rebt command"
+    
     try:
-      status = self.verifySendCMD([cmd])
-    except(DMError):
+      status = self.sendCMD([cmd])
+    except DMError:
       return None
 
-    if (ipAddr is not None):
-      status = callbacksvr.disconnect()
+    if (wait == True):
+      #this sleeps up to 5 minutes in 30 second intervals
+      count = 0
+      while (count < 10):
+        if (self.debug >= 4): print "DEBUG: sleeping 30 seconds while waiting for reboot"
+        time.sleep(30)
+        waitstatus = self.getDeviceRoot()
+        if (waitstatus is not None):
+          break
+        self.retries = 0
+        count += 1
 
-    if (self.debug > 3): print "INFO: rebt- got status back: " + str(status)
+      if (count >= 10):
+        return None
+
+    if (self.debug >= 3): print "INFO: rebt- got status back: " + str(status)
     return status
 
   # validate localDir from host to remoteDir on the device
@@ -1285,6 +1277,9 @@ class DeviceManager:
     except(DMError):
       return False
 
+    if (self.reboot(True) == None):
+      return False
+
     return True
 
 gCallbackData = ''
@@ -1294,14 +1289,11 @@ class myServer(SocketServer.TCPServer):
 
 class callbackServer():
   def __init__(self, ip, port, debuglevel):
-    global gCallbackData
-    if (debuglevel >= 1): print "DEBUG: gCallbackData is: %s on port: %s" % (gCallbackData, port)
-    gCallbackData = ''
     self.ip = ip
     self.port = port
     self.connected = False
     self.debug = debuglevel
-    if (self.debug >= 3): print "Creating server with " + str(ip) + ":" + str(port)
+    if (self.debug >= 3) : print "Creating server with " + str(ip) + ":" + str(port)
     self.server = myServer((ip, port), self.myhandler)
     self.server_thread = Thread(target=self.server.serve_forever) 
     self.server_thread.setDaemon(True)
@@ -1315,8 +1307,6 @@ class callbackServer():
         # Got the data back
         if (self.debug >= 3): print "Got data back from agent: " + str(gCallbackData)
         break
-      else:
-        if (self.debug >= 0): print '.',
       time.sleep(step)
       t += step
 
@@ -1324,10 +1314,7 @@ class callbackServer():
       if (self.debug >= 3): print "Shutting down server now"
       self.server.shutdown()
     except:
-      if (self.debug >= 1): print "Unable to shutdown callback server - check for a connection on port: " + str(self.port)
-
-    #sleep 1 additional step to ensure not only we are online, but all our services are online
-    time.sleep(step)
+      print "Unable to shutdown callback server - check for a connection on port: " + str(self.port)
     return gCallbackData
 
   class myhandler(SocketServer.BaseRequestHandler):

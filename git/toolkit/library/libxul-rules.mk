@@ -55,7 +55,9 @@ DEFINES += \
 	$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+ifneq ($(OS_ARCH),WINCE)
 OS_LIBS += $(call EXPAND_LIBNAME,usp10 oleaut32)
+endif
 endif
 
 export:: dlldeps.cpp

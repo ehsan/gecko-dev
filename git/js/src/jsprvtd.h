@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -120,7 +120,6 @@ extern "C++" {
 
 class JSDependentString;
 class JSExtensibleString;
-class JSExternalString;
 class JSLinearString;
 class JSFixedString;
 class JSStaticAtom;
@@ -138,18 +137,12 @@ class ExecuteArgsGuard;
 class InvokeFrameGuard;
 class InvokeArgsGuard;
 class InvokeSessionGuard;
-class StringBuffer;
 class TraceRecorder;
 struct TraceMonitor;
-
-class FrameRegs;
-class StackFrame;
-class StackSegment;
 class StackSpace;
-class ContextStack;
+class StackSegment;
 class FrameRegsIter;
-class CallReceiver;
-class CallArgs;
+class StringBuffer;
 
 struct Compiler;
 struct Parser;

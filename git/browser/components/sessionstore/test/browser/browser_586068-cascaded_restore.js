@@ -760,3 +760,6 @@ function countTabs() {
   return [needsRestore, isRestoring, wasRestored];
 }
 
+function r() {
+  return "" + Math.floor(Date.now()) + Math.random();
+}

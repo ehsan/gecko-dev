@@ -9,6 +9,7 @@ Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
 
+Engines.register(BookmarksEngine);
 let engine = Engines.get("bookmarks");
 let store = engine._store;
 
@@ -64,16 +65,7 @@ function makeLivemark(p, mintGUID) {
   return b;
 }
 
-
-function run_test() {
-  initTestLogging("Trace");
-  Log4Moz.repository.getLogger("Engine.Bookmarks").level = Log4Moz.Level.Trace;
-  Log4Moz.repository.getLogger("Store.Bookmarks").level  = Log4Moz.Level.Trace;
-
-  run_next_test();
-}
-
-add_test(function test_livemark_descriptions() {
+function test_livemark_descriptions(next) {
   let record = record631361.payload;
 
   function doRecord(r) {
@@ -94,10 +86,10 @@ add_test(function test_livemark_descriptions() {
   Svc.Annos.setItemAnnotation(id, DESCRIPTION_ANNO, "", 0,
                               Svc.Annos.EXPIRE_NEVER);
 
-  run_next_test();
-});
+  next();
+}
 
-add_test(function test_livemark_invalid() {
+function test_livemark_invalid(next) {
   _("Livemarks considered invalid by nsLivemarkService are skipped.");
   
   _("Parent is 0, which is invalid. Will be set to unfiled.");
@@ -135,5 +127,17 @@ add_test(function test_livemark_invalid() {
   do_check_eq(-1, store.idForGUID(lmParentRec.id, true));
   
   // Clear event loop.
-  Utils.delay(run_next_test, 0);
-});
+  Utils.delay(next, 0);
+}
+
+function run_test() {
+  do_test_pending();
+  initTestLogging("Trace");
+  Log4Moz.repository.getLogger("Engine.Bookmarks").level = Log4Moz.Level.Trace;
+  Log4Moz.repository.getLogger("Store.Bookmarks").level  = Log4Moz.Level.Trace;
+
+  asyncChainTests(
+    test_livemark_descriptions,
+    test_livemark_invalid,
+    do_test_finished)();
+}

@@ -57,7 +57,7 @@ class nsIAccessible;
 #endif
 
 class nsPluginInstanceOwner;
-class nsPluginHost;
+class nsIPluginHost;
 class nsIPluginInstance;
 class nsPresContext;
 class nsDisplayPlugin;
@@ -85,8 +85,8 @@ public:
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
@@ -220,7 +220,7 @@ protected:
                       const nsHTMLReflowState& aReflowState,
                       nsHTMLReflowMetrics& aDesiredSize);
 
-  nsresult InstantiatePlugin(nsPluginHost* aPluginHost, 
+  nsresult InstantiatePlugin(nsIPluginHost* aPluginHost, 
                              const char* aMimetype,
                              nsIURI* aURL);
 
@@ -248,12 +248,12 @@ protected:
   nsIntPoint GetWindowOriginInPixels(PRBool aWindowless);
 
   static void PaintPrintPlugin(nsIFrame* aFrame,
-                               nsRenderingContext* aRenderingContext,
+                               nsIRenderingContext* aRenderingContext,
                                const nsRect& aDirtyRect, nsPoint aPt);
-  void PrintPlugin(nsRenderingContext& aRenderingContext,
+  void PrintPlugin(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect);
   void PaintPlugin(nsDisplayListBuilder* aBuilder,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect, const nsRect& aPluginRect);
 
   /**
@@ -336,7 +336,7 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    PRBool* aForceTransparentSurface = nsnull);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion,

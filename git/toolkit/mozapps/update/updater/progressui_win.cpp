@@ -204,8 +204,6 @@ InitDialog(HWND hDlg)
 
   ReleaseDC(hWndInfo, hDCInfo);
 
-  CenterDialog(hDlg);  // make dialog appear in the center of the screen
-
   SetTimer(hDlg, TIMER_ID, TIMER_INTERVAL, NULL);
 }
 
@@ -242,12 +240,12 @@ InitProgressUI(int *argc, NS_tchar ***argv)
 int
 ShowProgressUI()
 {
-  // Only show the Progress UI if the process is taking a significant amount of
-  // time where a significant amount of time is defined as .5 seconds after
-  // ShowProgressUI is called sProgress is less than 70.
+  // Only show the Progress UI if the process is taking significant time. We
+  // measure significant time as sProgress being more than 60 out of 100.
+
   Sleep(500);
 
-  if (sQuit || sProgress > 70.0f)
+  if (sQuit || sProgress > 60.0f)
     return 0;
 
   // If we do not have updater.ini, then we should not bother showing UI.

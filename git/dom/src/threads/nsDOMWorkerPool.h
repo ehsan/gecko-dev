@@ -42,7 +42,7 @@
 
 // Other includes
 #include "jsapi.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "nsCOMPtr.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
@@ -55,7 +55,7 @@ class nsIScriptGlobalObject;
 
 class nsDOMWorkerPool
 {
-  typedef mozilla::ReentrantMonitor ReentrantMonitor;
+  typedef mozilla::Monitor Monitor;
 
 public:
   nsDOMWorkerPool(nsIScriptGlobalObject* aGlobalObject,
@@ -81,8 +81,8 @@ public:
   nsresult NoteWorker(nsDOMWorker* aWorker);
   void NoteDyingWorker(nsDOMWorker* aWorker);
 
-  ReentrantMonitor& GetReentrantMonitor() {
-    return mReentrantMonitor;
+  Monitor& GetMonitor() {
+    return mMonitor;
   }
 
   const PRUint64 WindowID() const {
@@ -106,8 +106,8 @@ private:
   // independently of the owning pool and other workers.
   nsTArray<nsDOMWorker*> mWorkers;
 
-  // ReentrantMonitor for suspending and resuming workers.
-  ReentrantMonitor mReentrantMonitor;
+  // Monitor for suspending and resuming workers.
+  Monitor mMonitor;
 
   PRPackedBool mCanceled;
   PRPackedBool mSuspended;

@@ -27,7 +27,7 @@ function sync_httpd_setup() {
 
   let catapultEngine = Engines.get("catapult");
   let engines        = {catapult: {version: catapultEngine.version,
-                                   syncID:  catapultEngine.syncID}};
+                                   syncID:  catapultEngine.syncID}}
 
   // Track these using the collections helper, which keeps modified times
   // up-to-date.
@@ -42,7 +42,7 @@ function sync_httpd_setup() {
     "/1.1/johndoe/storage/meta/global": upd("meta",    globalWBO.handler()),
     "/1.1/johndoe/storage/clients":     upd("clients", clientsColl.handler()),
     "/1.1/johndoe/storage/crypto/keys": upd("crypto",  keysWBO.handler())
-  };
+  }
   return httpd_setup(handlers);
 }
 
@@ -55,14 +55,13 @@ function setUp() {
 }
 
 function generateAndUploadKeys() {
-  generateNewKeys();
+  CollectionKeys.generateNewKeys();
   let serverKeys = CollectionKeys.asWBO("crypto", "keys");
   serverKeys.encrypt(Weave.Service.syncKeyBundle);
   return serverKeys.upload("http://localhost:8080/1.1/johndoe/storage/crypto/keys").success;
 }
 
-
-add_test(function test_backoff500() {
+function test_backoff500(next) {
   _("Test: HTTP 500 sets backoff status.");
   let server = sync_httpd_setup();
   setUp();
@@ -84,10 +83,10 @@ add_test(function test_backoff500() {
     Status.resetBackoff();
     Service.startOver();
   }
-  server.stop(run_next_test);
-});
+  server.stop(next);
+}
 
-add_test(function test_backoff503() {
+function test_backoff503(next) {
   _("Test: HTTP 503 with Retry-After header leads to backoff notification and sets backoff status.");
   let server = sync_httpd_setup();
   setUp();
@@ -117,10 +116,10 @@ add_test(function test_backoff503() {
     Status.resetBackoff();
     Service.startOver();
   }
-  server.stop(run_next_test);
-});
+  server.stop(next);
+}
 
-add_test(function test_overQuota() {
+function test_overQuota(next) {
   _("Test: HTTP 400 with body error code 14 means over quota.");
   let server = sync_httpd_setup();
   setUp();
@@ -143,10 +142,10 @@ add_test(function test_overQuota() {
     Status.resetSync();
     Service.startOver();
   }
-  server.stop(run_next_test);
-});
+  server.stop(next);
+}
 
-add_test(function test_service_networkError() {
+function test_service_networkError(next) {
   _("Test: Connection refused error from Service.sync() leads to the right status code.");
   setUp();
   // Provoke connection refused.
@@ -165,10 +164,10 @@ add_test(function test_service_networkError() {
     Status.resetSync();
     Service.startOver();
   }
-  run_next_test();
-});
+  next();
+}
 
-add_test(function test_service_offline() {
+function test_service_offline(next) {
   _("Test: Wanting to sync in offline mode leads to the right status code but does not increment the ignorable error count.");
   setUp();
   Svc.IO.offline = true;
@@ -187,10 +186,10 @@ add_test(function test_service_offline() {
     Service.startOver();
   }
   Svc.IO.offline = false;
-  run_next_test();
-});
+  next();
+}
 
-add_test(function test_service_reset_ignorableErrorCount() {
+function test_service_reset_ignorableErrorCount(next) {
   _("Test: Successful sync resets the ignorable error count.");
   let server = sync_httpd_setup();
   setUp();
@@ -214,10 +213,10 @@ add_test(function test_service_reset_ignorableErrorCount() {
     Status.resetSync();
     Service.startOver();
   }
-  server.stop(run_next_test);
-});
+  server.stop(next);
+}
 
-add_test(function test_engine_networkError() {
+function test_engine_networkError(next) {
   _("Test: Network related exceptions from engine.sync() lead to the right status code.");
   let server = sync_httpd_setup();
   setUp();
@@ -242,12 +241,12 @@ add_test(function test_engine_networkError() {
     Status.resetSync();
     Service.startOver();
   }
-  server.stop(run_next_test);
-});
+  server.stop(next);
+}
 
 // Slightly misplaced test as it doesn't actually test checkServerError,
 // but the observer for "weave:engine:sync:apply-failed".
-add_test(function test_engine_applyFailed() {
+function test_engine_applyFailed(next) {
   let server = sync_httpd_setup();
   setUp();
 
@@ -271,13 +270,24 @@ add_test(function test_engine_applyFailed() {
     Status.resetSync();
     Service.startOver();
   }
-  server.stop(run_next_test);
-});
+  server.stop(next);
+}
 
 function run_test() {
   if (DISABLE_TESTS_BUG_604565)
     return;
 
+  do_test_pending();
+
+  // Register engine once.
   Engines.register(CatapultEngine);
-  run_next_test();
+  asyncChainTests(test_backoff500,
+                  test_backoff503,
+                  test_overQuota,
+                  test_service_networkError,
+                  test_service_offline,
+                  test_service_reset_ignorableErrorCount,
+                  test_engine_networkError,
+                  test_engine_applyFailed,
+                  do_test_finished)();
 }

@@ -76,7 +76,7 @@ DOMCI_CLASS(MouseScrollEvent)
 DOMCI_CLASS(DragEvent)
 DOMCI_CLASS(KeyboardEvent)
 DOMCI_CLASS(PopupBlockedEvent)
-DOMCI_CLASS(DeviceOrientationEvent)
+DOMCI_CLASS(OrientationEvent)
 
 // HTML classes
 DOMCI_CLASS(HTMLDocument)
@@ -127,7 +127,6 @@ DOMCI_CLASS(HTMLOutputElement)
 DOMCI_CLASS(HTMLParagraphElement)
 DOMCI_CLASS(HTMLParamElement)
 DOMCI_CLASS(HTMLPreElement)
-DOMCI_CLASS(HTMLProgressElement)
 DOMCI_CLASS(HTMLQuoteElement)
 DOMCI_CLASS(HTMLScriptElement)
 DOMCI_CLASS(HTMLSelectElement)
@@ -157,6 +156,7 @@ DOMCI_CLASS(MediaList)
 DOMCI_CLASS(StyleSheetList)
 DOMCI_CLASS(CSSStyleSheet)
 DOMCI_CLASS(CSSStyleDeclaration)
+DOMCI_CLASS(ComputedCSSStyleDeclaration)
 DOMCI_CLASS(ROCSSPrimitiveValue)
 
 // Range classes
@@ -478,7 +478,6 @@ DOMCI_CLASS(PaintRequestList)
 
 DOMCI_CLASS(ScrollAreaEvent)
 DOMCI_CLASS(PopStateEvent)
-DOMCI_CLASS(HashChangeEvent)
 
 DOMCI_CLASS(EventListenerInfo)
 
@@ -513,13 +512,7 @@ DOMCI_CLASS(IDBDatabaseException)
 
 DOMCI_CLASS(EventException)
 
-DOMCI_CLASS(Touch)
-DOMCI_CLASS(TouchList)
-DOMCI_CLASS(TouchEvent)
-
 #ifdef MOZ_CSS_ANIMATIONS
 DOMCI_CLASS(MozCSSKeyframeRule)
 DOMCI_CLASS(MozCSSKeyframesRule)
 #endif
-
-DOMCI_CLASS(MediaQueryList)

@@ -2,6 +2,7 @@ let testURL_click = chromeRoot + "browser_click_content.html";
 
 let currentTab;
 let element;
+let isClickFired = false;
 let clickPosition = { x: null, y: null};
 
 //------------------------------------------------------------------------------
@@ -23,6 +24,7 @@ function test() {
 }
 
 function clickFired(aEvent) {
+  isClickFired = true;
   let [x, y] = browserViewToClient(aEvent.clientX, aEvent.clientY);
   clickPosition.x = x;
   clickPosition.y = y;
@@ -35,30 +37,29 @@ function testClickAndPosition() {
 
   // Check click
   element = currentTab.browser.contentDocument.getElementById("iframe-1");
-  element.addEventListener("click", function(aEvent) {
-    element.removeEventListener("click", arguments.callee, true);
-    clickFired(aEvent);
-    is(aEvent.type, "click", "Click fired");
-    checkClick();
-  }, true);
+  element.addEventListener("click", clickFired, true);
 
   EventUtils.synthesizeMouseForContent(element, 1, 1, {}, window);
+  waitFor(checkClick, function() { return isClickFired });
 }
 
 function checkClick() {
+  ok(isClickFired, "Click handler fired");
+  element.removeEventListener("click", clickFired, true);
+
   // Check position
+  isClickFired = false;
   element = currentTab.browser.contentDocument.documentElement;
-  element.addEventListener("click", function(aEvent) {
-    element.removeEventListener("click", arguments.callee, true);
-    clickFired(aEvent);
-    checkPosition();
-  }, true);
+  element.addEventListener("click", clickFired, true);
 
   let rect = getBoundingContentRect(element);
   EventUtils.synthesizeMouse(element, 1, rect.height + 10, {}, window);
+  waitFor(checkPosition, function() { return isClickFired });
 }
 
 function checkPosition() {
+  element.removeEventListener("click", clickFired, true);
+
   let rect = getBoundingContentRect(element);
   is(clickPosition.x, 1, "X position is correct");
   is(clickPosition.y, rect.height + 10, "Y position is correct");

@@ -40,7 +40,7 @@
 #ifndef mozilla_css_ImportRule_h__
 #define mozilla_css_ImportRule_h__
 
-#include "mozilla/css/Rule.h"
+#include "Rule.h"
 #include "nsIDOMCSSImportRule.h"
 #include "nsCSSRules.h"
 
@@ -73,9 +73,9 @@ public:
   virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
-  // Rule methods
+  // nsICSSRule methods
   virtual PRInt32 GetType() const;
-  virtual already_AddRefed<Rule> Clone() const;
+  virtual already_AddRefed<nsICSSRule> Clone() const;
 
   void SetSheet(nsCSSStyleSheet*);
 

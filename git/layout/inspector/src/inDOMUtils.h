@@ -40,12 +40,11 @@
 
 #include "inIDOMUtils.h"
 
+#include "nsIEventStateManager.h"
 #include "nsISupportsArray.h"
 
 class nsRuleNode;
 class nsStyleContext;
-class nsIAtom;
-class nsIContent;
 
 class inDOMUtils : public inIDOMUtils
 {
@@ -59,7 +58,6 @@ public:
 private:
   // aStyleContext must be released by the caller once he's done with aRuleNode.
   static nsresult GetRuleNodeForContent(nsIContent* aContent,
-                                        nsIAtom* aPseudo,
                                         nsStyleContext** aStyleContext,
                                         nsRuleNode** aRuleNode);
 };

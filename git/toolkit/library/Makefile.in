@@ -63,10 +63,12 @@ LIBRARY_NAME=XUL
 MAKE_FRAMEWORK=1
 endif
 
-VPATH += $(topsrcdir)/build/
-CPPSRCS += $(STDCXX_COMPAT)
 
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
+CPPSRCS += dlldeps-xul.cpp
+endif
+
+ifeq ($(OS_ARCH),WINCE)
 CPPSRCS += dlldeps-xul.cpp
 endif
 
@@ -126,7 +128,7 @@ GARBAGE += \
 endif
 endif
 
-ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
+ifneq (,$(filter OS2 WINCE WINNT,$(OS_ARCH)))
 SDK_LIBRARY = $(IMPORT_LIBRARY)
 else
 SDK_LIBRARY = $(SHARED_LIBRARY)
@@ -164,12 +166,6 @@ EXTRA_DSO_LDOPTS += \
 	-framework AudioToolbox \
 	-framework AudioUnit \
 	$(NULL)
-endif
-endif
-
-ifneq (,$(filter DragonFly FreeBSD GNU GNU_% NetBSD OpenBSD,$(OS_ARCH)))
-ifdef MOZ_SYDNEYAUDIO
-EXTRA_DSO_LDOPTS += -lossaudio
 endif
 endif
 
@@ -229,6 +225,16 @@ ifdef MOZ_CRASHREPORTER
 OS_LIBS += $(call EXPAND_LIBNAME,wininet)
 endif
 endif # WINNT
+ifeq ($(OS_ARCH),WINCE)
+OS_LIBS += $(call EXPAND_LIBNAME, aygshell uuid ole32 oleaut32 Ws2 ddraw)
+OS_LIBS += $(call EXPAND_LIBNAME, ceosutil libcmt comsuppw)
+ifdef WINCE_WINDOWS_MOBILE
+OS_LIBS += $(call EXPAND_LIBNAME, cellcore)
+endif
+ifdef HAS_OGLES
+OS_LIBS += $(call EXPAND_LIBNAME, libGLESv2 libEGL)
+endif
+endif
 
 ifdef MOZ_JPROF
 EXTRA_DSO_LDOPTS += -ljprof
@@ -245,11 +251,6 @@ export:: $(RDF_UTIL_SRC_CPPSRCS) $(INTL_UNICHARUTIL_UTIL_CPPSRCS)
 
 ifdef MOZ_ENABLE_LIBXUL
 include $(srcdir)/libxul-rules.mk
-endif
-
-ifeq ($(OS_ARCH),OpenBSD)
-# Needed by nsAuthGSSAPI
-EXTRA_DSO_LDOPTS += -lkrb5 -lcrypto
 endif
 
 ifdef MOZ_JAVAXPCOM
