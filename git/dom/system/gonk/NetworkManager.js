@@ -22,10 +22,6 @@ const DEFAULT_PREFERRED_NETWORK_TYPE = Ci.nsINetworkInterface.NETWORK_TYPE_WIFI;
 XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
                                    "@mozilla.org/settingsService;1",
                                    "nsISettingsService");
-XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
-  return Cc["@mozilla.org/parentprocessmessagemanager;1"]
-         .getService(Ci.nsIMessageBroadcaster);
-});
 
 XPCOMUtils.defineLazyServiceGetter(this, "gDNSService",
                                    "@mozilla.org/network/dns-service;1",
@@ -214,8 +210,6 @@ function NetworkManager() {
       debug("Error reading the 'tethering.wifi.enabled' setting: " + aErrorMessage);
     }
   });
-
-  ppmm.addMessageListener('NetworkInterfaceList:ListInterface', this);
 }
 NetworkManager.prototype = {
   classID:   NETWORKMANAGER_CID,
@@ -323,38 +317,6 @@ NetworkManager.prototype = {
         Services.obs.removeObserver(this, TOPIC_INTERFACE_UNREGISTERED);
         Services.obs.removeObserver(this, TOPIC_INTERFACE_STATE_CHANGED);
         break;
-    }
-  },
-
-  receiveMessage: function receiveMessage(aMsg) {
-    switch (aMsg.name) {
-      case "NetworkInterfaceList:ListInterface": {
-        let excludeMms = aMsg.json.exculdeMms;
-        let excludeSupl = aMsg.json.exculdeSupl;
-        let interfaces = [];
-
-        for each (let i in this.networkInterfaces) {
-          if ((i.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS && excludeMms) ||
-              (i.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_SUPL && excludeSupl)) {
-            continue;
-          }
-          interfaces.push({
-            state: i.state,
-            type: i.type,
-            name: i.name,
-            dhcp: i.dhcp,
-            ip: i.ip,
-            netmask: i.netmask,
-            broadcast: i.broadcast,
-            gateway: i.gateway,
-            dns1: i.dns1,
-            dns2: i.dns2,
-            httpProxyHost: i.httpProxyHost,
-            httpProxyPort: i.httpProxyPort
-          });
-        }
-        return interfaces;
-      }
     }
   },
 

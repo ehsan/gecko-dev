@@ -1263,8 +1263,7 @@ MmsService.prototype = {
     this.retrieveMessage(url,
                          this.retrieveMessageCallback.bind(this,
                                                            wish,
-                                                           savableMessage),
-                         domMessage);
+                                                           savableMessage));
   },
 
   /**
@@ -1295,7 +1294,8 @@ MmsService.prototype = {
         .saveReceivedMessage(savableMessage,
                              this.saveReceivedMessageCallback.bind(this,
                                                                    retrievalMode,
-                                                                   savableMessage));
+                                                                   savableMessage),
+                             domMessage);
     }).bind(this));
   },
 
@@ -1476,7 +1476,7 @@ MmsService.prototype = {
   retrieve: function retrieve(aMessageId, aRequest) {
     if (DEBUG) debug("Retrieving message with ID " + aMessageId);
     gMobileMessageDatabaseService.getMessageRecordById(aMessageId,
-        (function notifyResult(aRv, aMessageRecord, aDomMessage) {
+        (function notifyResult(aRv, aMessageRecord) {
       if (Ci.nsIMobileMessageCallback.SUCCESS_NO_ERROR != aRv) {
         if (DEBUG) debug("Function getMessageRecordById() return error.");
         aRequest.notifyGetMessageFailed(aRv);
@@ -1526,17 +1526,10 @@ MmsService.prototype = {
       let wish = aMessageRecord.headers["x-mms-delivery-report"];
       let responseNotify = function responseNotify(mmsStatus, retrievedMsg) {
         // If the mmsStatus is still MMS_PDU_STATUS_DEFERRED after retry,
-        // we should not store it into database and update its delivery
-        // status to 'error'.
+        // we should not store it into database.
         if (MMS.MMS_PDU_STATUS_RETRIEVED !== mmsStatus) {
           if (DEBUG) debug("RetrieveMessage fail after retry.");
-          gMobileMessageDatabaseService.setMessageDelivery(aMessageId,
-                                                           null,
-                                                           null,
-                                                           DELIVERY_STATUS_ERROR,
-                                                           function () {
-            aRequest.notifyGetMessageFailed(Ci.nsIMobileMessageCallback.INTERNAL_ERROR);
-          });
+          aRequest.notifyGetMessageFailed(Ci.nsIMobileMessageCallback.INTERNAL_ERROR);
           return;
         }
         // In OMA-TS-MMS_ENC-V1_3, Table 5 in page 25. This header field
@@ -1592,9 +1585,7 @@ MmsService.prototype = {
                             null,
                             null,
                             DELIVERY_STATUS_PENDING,
-                            this.retrieveMessage(url,
-                                                 responseNotify.bind(this),
-                                                 aDomMessage));
+                            this.retrieveMessage(url, responseNotify.bind(this)));
     }).bind(this));
   },
 
