@@ -445,8 +445,6 @@
 
 // Offline includes
 #include "nsIDOMLoadStatus.h"
-#include "nsIDOMLoadStatusEvent.h"
-
 // Geolocation
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMGeoPosition.h"
@@ -1243,8 +1241,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ARRAY_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(LoadStatus, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(LoadStatusEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(FileList, nsFileListSH,
@@ -2054,6 +2050,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentFragment)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Element, nsIDOMElement)
@@ -2068,6 +2065,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMAttr)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Attr)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Text, nsIDOMText)
@@ -3471,11 +3469,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(LoadStatus, nsIDOMLoadStatus)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMLoadStatus)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(LoadStatusEvent, nsIDOMLoadStatusEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMLoadStatusEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(ClientRect, nsIDOMClientRect)
@@ -6527,10 +6520,8 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // binding a name) a new undefined property that's not already
   // defined on our prototype chain. This way we can access this
   // expando w/o ever getting back into XPConnect.
-  JSStackFrame *fp = NULL;
   if ((flags & JSRESOLVE_ASSIGNING) &&
       !(flags & JSRESOLVE_WITH) &&
-      !(JS_FrameIterator(cx, &fp) && fp->regs && (JSOp)*fp->regs->pc == JSOP_BINDNAME) &&
       win->IsInnerWindow()) {
     JSObject *realObj;
     wrapper->GetJSObject(&realObj);
@@ -6564,9 +6555,14 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       // We don't need to worry about property attributes here as we
       // know here we're dealing with an undefined property set, so
       // we're not declaring readonly or permanent properties.
+      //
+      // Since we always create the undeclared property here without given a
+      // chance for the interpreter to report applicable strict mode warnings,
+      // we must take care to check those warnings here.
 
       JSString *str = JSVAL_TO_STRING(id);
-      if (!::JS_DefineUCProperty(cx, obj, ::JS_GetStringChars(str),
+      if (!::js_CheckUndeclaredVarAssignment(cx) ||
+          !::JS_DefineUCProperty(cx, obj, ::JS_GetStringChars(str),
                                  ::JS_GetStringLength(str), JSVAL_VOID,
                                  JS_PropertyStub, JS_PropertyStub,
                                  JSPROP_ENUMERATE)) {
@@ -6919,7 +6915,8 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
 
     *parentObj = globalObj;
 
-    return NS_OK;
+    return node->IsInNativeAnonymousSubtree() ?
+      NS_SUCCESS_CHROME_ACCESS_ONLY : NS_OK;
   }
 
   // If we have a document, make sure one of these is true
@@ -6980,7 +6977,8 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
 
       *parentObj = globalObj;
 
-      return NS_OK;
+      return node->IsInNativeAnonymousSubtree() ?
+        NS_SUCCESS_CHROME_ACCESS_ONLY : NS_OK;
     }
   }
 
@@ -6994,7 +6992,8 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
       (wrapper = static_cast<nsIXPConnectJSObjectHolder*>(doc->GetWrapper()))) {
     wrapper->GetJSObject(parentObj);
     if(*parentObj) {
-      return NS_OK;
+      return node->IsInNativeAnonymousSubtree() ?
+        NS_SUCCESS_CHROME_ACCESS_ONLY : NS_OK;
     }
   }
 
@@ -7002,10 +7001,12 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
   nsresult rv = WrapNative(cx, globalObj, native_parent, &v,
                            getter_AddRefs(holder));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *parentObj = JSVAL_TO_OBJECT(v);
 
-  return rv;
+  return node->IsInNativeAnonymousSubtree() ?
+    NS_SUCCESS_CHROME_ACCESS_ONLY : NS_OK;
 }
 
 NS_IMETHODIMP

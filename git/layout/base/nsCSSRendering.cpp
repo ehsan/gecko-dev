@@ -216,7 +216,7 @@ protected:
   nsIFrame* GetPrevContinuation(nsIFrame* aFrame)
   {
     nsIFrame* prevCont = aFrame->GetPrevContinuation();
-    if (!prevCont && (aFrame->GetStateBits() && NS_FRAME_IS_SPECIAL)) {
+    if (!prevCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
       nsIFrame* block =
         static_cast<nsIFrame*>
                    (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
@@ -235,7 +235,7 @@ protected:
   nsIFrame* GetNextContinuation(nsIFrame* aFrame)
   {
     nsIFrame* nextCont = aFrame->GetNextContinuation();
-    if (!nextCont && (aFrame->GetStateBits() && NS_FRAME_IS_SPECIAL)) {
+    if (!nextCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
       // The {ib} properties are only stored on first continuations
       aFrame = aFrame->GetFirstContinuation();
       nsIFrame* block =
@@ -334,11 +334,6 @@ static void DrawBorderImageComponent(nsIRenderingContext& aRenderingContext,
 static nscolor MakeBevelColor(PRIntn whichSide, PRUint8 style,
                               nscolor aBackgroundColor,
                               nscolor aBorderColor);
-
-/* Returns FALSE iff all returned aTwipsRadii == 0, TRUE otherwise */
-static PRBool GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
-                                   const nscoord& aFrameWidth,
-                                   nscoord aTwipsRadii[8]);
 
 static InlineBackgroundData* gInlineBGData = nsnull;
 
@@ -982,9 +977,7 @@ nsCSSRendering::FindRootFrame(nsIFrame* aForFrame)
  *
  * |FindBackground| returns true if a background should be painted, and
  * the resulting style context to use for the background information
- * will be filled in to |aBackground|.  It fills in a boolean indicating
- * whether the frame is the canvas frame, because PaintBackground must
- * propagate that frame's background color to the view manager.
+ * will be filled in to |aBackground|.
  */
 const nsStyleBackground*
 nsCSSRendering::FindRootFrameBackground(nsIFrame* aForFrame)
@@ -1070,9 +1063,10 @@ nsCSSRendering::DidPaint()
   gInlineBGData->Reset();
 }
 
-static PRBool
-GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
-                     const nscoord& aFrameWidth, nscoord aTwipsRadii[8])
+PRBool
+nsCSSRendering::GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
+                                     const nscoord& aFrameWidth,
+                                     nscoord aRadii[8])
 {
   PRBool result = PR_FALSE;
   
@@ -1082,20 +1076,20 @@ GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
 
     switch (c.GetUnit()) {
       case eStyleUnit_Percent:
-        aTwipsRadii[i] = (nscoord)(c.GetPercentValue() * aFrameWidth);
+        aRadii[i] = (nscoord)(c.GetPercentValue() * aFrameWidth);
         break;
 
       case eStyleUnit_Coord:
-        aTwipsRadii[i] = c.GetCoordValue();
+        aRadii[i] = c.GetCoordValue();
         break;
 
       default:
         NS_NOTREACHED("GetBorderRadiusTwips: bad unit");
-        aTwipsRadii[i] = 0;
+        aRadii[i] = 0;
         break;
     }
 
-    if (aTwipsRadii[i])
+    if (aRadii[i])
       result = PR_TRUE;
   }
   return result;

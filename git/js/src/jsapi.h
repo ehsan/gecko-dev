@@ -1207,7 +1207,10 @@ typedef enum JSGCParamKey {
     JSGC_BYTES = 4,
 
     /* Number of times when GC was invoked. */
-    JSGC_NUMBER = 5
+    JSGC_NUMBER = 5,
+
+    /* Max size of the code cache in bytes. */
+    JSGC_MAX_CODE_CACHE_BYTES = 6
 } JSGCParamKey;
 
 extern JS_PUBLIC_API(void)
@@ -1215,6 +1218,12 @@ JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32 value);
 
 extern JS_PUBLIC_API(uint32)
 JS_GetGCParameter(JSRuntime *rt, JSGCParamKey key);
+
+extern JS_PUBLIC_API(void)
+JS_SetGCParameterForThread(JSContext *cx, JSGCParamKey key, uint32 value);
+
+extern JS_PUBLIC_API(uint32)
+JS_GetGCParameterForThread(JSContext *cx, JSGCParamKey key);
 
 /*
  * Add a finalizer for external strings created by JS_NewExternalString (see
@@ -2452,7 +2461,7 @@ typedef JSBool (* JSONWriteCallback)(const jschar *buf, uint32 len, void *data);
  * JSON.stringify as specified by ES3.1 (draft)
  */
 JS_PUBLIC_API(JSBool)
-JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer,
+JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, jsval space,
              JSONWriteCallback callback, void *data);
 
 /*

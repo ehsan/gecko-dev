@@ -29,27 +29,13 @@
 typedef uint32_t __be32;
 typedef uint16_t __be16;
 
-/* all of the platforms that we use _MSC_VER on are little endian
- * so this is sufficient for now */
-#ifdef _MSC_VER
-#define LITTLE_ENDIAN
-#endif
-
-#ifdef __OS2__
-#define LITTLE_ENDIAN
-#endif
-
-#if !defined(BIG_ENDIAN) && !defined(LITTLE_ENDIAN)
-#error Unknown endianess
-#endif
-
 #if 0
 not used yet
 /* __builtin_bswap isn't available in older gccs
  * so open code it for now */
 static __be32 cpu_to_be32(int32_t v)
 {
-#ifdef LITTLE_ENDIAN
+#ifdef IS_LITTLE_ENDIAN
 	return ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24);
 	//return __builtin_bswap32(v);
 	return v;
@@ -59,7 +45,7 @@ static __be32 cpu_to_be32(int32_t v)
 
 static uint32_t be32_to_cpu(__be32 v)
 {
-#ifdef LITTLE_ENDIAN
+#ifdef IS_LITTLE_ENDIAN
 	return ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24);
 	//return __builtin_bswap32(v);
 #else
@@ -69,7 +55,7 @@ static uint32_t be32_to_cpu(__be32 v)
 
 static uint32_t be16_to_cpu(__be16 v)
 {
-#ifdef LITTLE_ENDIAN
+#ifdef IS_LITTLE_ENDIAN
 	return ((v & 0xff) << 8) | ((v & 0xff00) >> 8);
 #else
 	return v;
@@ -530,7 +516,10 @@ qcms_profile* qcms_profile_create_rgb_with_gamma(
 		return NO_MEM_PROFILE;
 
 	//XXX: should store the whitepoint
-	set_rgb_colorants(profile, white_point, primaries);
+	if (!set_rgb_colorants(profile, white_point, primaries)) {
+		qcms_profile_fini(profile);
+		return INVALID_PROFILE;
+	}
 
 	profile->redTRC = curve_from_gamma(gamma);
 	profile->blueTRC = curve_from_gamma(gamma);
@@ -556,7 +545,10 @@ qcms_profile* qcms_profile_create_rgb_with_table(
 		return NO_MEM_PROFILE;
 
 	//XXX: should store the whitepoint
-	set_rgb_colorants(profile, white_point, primaries);
+	if (!set_rgb_colorants(profile, white_point, primaries)) {
+		qcms_profile_fini(profile);
+		return INVALID_PROFILE;
+	}
 
 	profile->redTRC = curve_from_table(table, num_entries);
 	profile->blueTRC = curve_from_table(table, num_entries);

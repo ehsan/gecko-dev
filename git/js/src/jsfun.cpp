@@ -590,6 +590,14 @@ JSClass js_ArgumentsClass = {
 #define JSSLOT_CALL_ARGUMENTS            (JSSLOT_PRIVATE + 2)
 #define CALL_CLASS_FIXED_RESERVED_SLOTS  2
 
+JSClass js_DeclEnvClass = {
+    js_Object_str,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
+    JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
+    JSCLASS_NO_OPTIONAL_MEMBERS
+};
+
 JSObject *
 js_GetCallObject(JSContext *cx, JSStackFrame *fp)
 {
@@ -609,16 +617,38 @@ js_GetCallObject(JSContext *cx, JSStackFrame *fp)
 #endif
 
     /*
-     * Create the call object, using the frame's enclosing scope as
-     * its parent, and link the call to its stack frame.
+     * Create the call object, using the frame's enclosing scope as its
+     * parent, and link the call to its stack frame. For a named function
+     * expression Call's parent points to an environment object holding
+     * function's name.
      */
-    callobj = js_NewObject(cx, &js_CallClass, NULL, fp->scopeChain, 0);
+    JSAtom *lambdaName = (fp->fun->flags & JSFUN_LAMBDA) ? fp->fun->atom : NULL;
+    if (lambdaName) {
+        JSObject *env = js_NewObjectWithGivenProto(cx, &js_DeclEnvClass, NULL,
+                                                   fp->scopeChain, 0);
+        if (!env)
+            return NULL;
+
+        /* Root env. */
+        fp->scopeChain = env;
+    }
+
+    callobj = js_NewObjectWithGivenProto(cx, &js_CallClass, NULL,
+                                         fp->scopeChain, 0);
     if (!callobj)
         return NULL;
 
     JS_SetPrivate(cx, callobj, fp);
     JS_ASSERT(fp->fun == GET_FUNCTION_PRIVATE(cx, fp->callee));
     STOBJ_SET_SLOT(callobj, JSSLOT_CALLEE, OBJECT_TO_JSVAL(fp->callee));
+    if (lambdaName &&
+        !js_DefineNativeProperty(cx, fp->scopeChain, ATOM_TO_JSID(lambdaName),
+                                 OBJECT_TO_JSVAL(fp->callee), NULL, NULL,
+                                 JSPROP_PERMANENT | JSPROP_READONLY,
+                                 0, 0, NULL)) {
+        return NULL;
+    }
+
     fp->callobj = callobj;
 
     /*
@@ -746,12 +776,14 @@ call_enumerate(JSContext *cx, JSObject *obj)
             goto out;
 
         /*
-         * At this point the call object always has a property corresponding
-         * to the local name because call_resolve creates the property using
-         * JSPROP_PERMANENT.
+         * If this local name was not an upvar name, the call object will
+         * always have a property corresponding to the local name because
+         * call_resolve creates the property using JSPROP_PERMANENT.
          */
-        JS_ASSERT(prop && pobj == obj);
-        OBJ_DROP_PROPERTY(cx, pobj, prop);
+        if (prop) {
+            JS_ASSERT(pobj == obj);
+            OBJ_DROP_PROPERTY(cx, pobj, prop);
+        }
     }
     ok = JS_TRUE;
 
@@ -868,14 +900,6 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
     return CallPropertyOp(cx, obj, id, vp, JSCPK_VAR, JS_TRUE);
 }
 
-JSClass js_DeclEnvClass = {
-    js_Object_str,
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
-    JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
-    JSCLASS_NO_OPTIONAL_MEMBERS
-};
-
 static JSBool
 call_resolve(JSContext *cx, JSObject *obj, jsval idval, uintN flags,
              JSObject **objp)
@@ -944,30 +968,6 @@ call_resolve(JSContext *cx, JSObject *obj, jsval idval, uintN flags,
         return JS_TRUE;
     }
 
-    /*
-     * If fun is a named function expression and id matches its name, resolve
-     * this call object's saved callee function object under that name in obj's
-     * parent declarative environment object.
-     */
-    if ((fun->flags & JSFUN_LAMBDA) && JSID_TO_ATOM(id) == fun->atom) {
-        JSObject *parent = STOBJ_GET_PARENT(obj);
-
-        if (STOBJ_GET_CLASS(parent) != &js_DeclEnvClass) {
-            parent = js_NewObjectWithGivenProto(cx, &js_DeclEnvClass, NULL, parent, 0);
-            if (!parent)
-                return JS_FALSE;
-            STOBJ_SET_PARENT(obj, parent);
-
-            attrs = JSPROP_PERMANENT | JSPROP_READONLY;
-            if (!js_DefineNativeProperty(cx, parent, id, callee, NULL, NULL, attrs, 0, 0, NULL))
-                return JS_FALSE;
-        }
-
-        /* Do not resolve, let normal scope chain search find the name. */
-        JS_ASSERT(!*objp);
-        return JS_TRUE;
-    }
-
     /* Control flow reaches here only if id was not resolved. */
     return JS_TRUE;
 }
@@ -997,11 +997,10 @@ call_reserveSlots(JSContext *cx, JSObject *obj)
 }
 
 JS_FRIEND_DATA(JSClass) js_CallClass = {
-    js_Call_str,
+    "Call",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(CALL_CLASS_FIXED_RESERVED_SLOTS) |
-    JSCLASS_NEW_RESOLVE | JSCLASS_IS_ANONYMOUS |
-    JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Call),
+    JSCLASS_NEW_RESOLVE | JSCLASS_IS_ANONYMOUS | JSCLASS_MARK_IS_TRACE,
     JS_PropertyStub,    JS_PropertyStub,
     JS_PropertyStub,    JS_PropertyStub,
     call_enumerate,     (JSResolveOp)call_resolve,
@@ -1258,8 +1257,8 @@ fun_convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 #if JS_HAS_XDR
 
 /* XXX store parent and proto, if defined */
-static JSBool
-fun_xdrObject(JSXDRState *xdr, JSObject **objp)
+JSBool
+js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
 {
     JSContext *cx;
     JSFunction *fun;
@@ -1441,7 +1440,7 @@ bad:
 
 #else  /* !JS_HAS_XDR */
 
-#define fun_xdrObject NULL
+#define js_XDRFunctionObject NULL
 
 #endif /* !JS_HAS_XDR */
 
@@ -1563,7 +1562,7 @@ JS_FRIEND_DATA(JSClass) js_FunctionClass = {
     fun_convert,      fun_finalize,
     NULL,             NULL,
     NULL,             NULL,
-    fun_xdrObject,    fun_hasInstance,
+    js_XDRFunctionObject, fun_hasInstance,
     JS_CLASS_TRACE(fun_trace), fun_reserveSlots
 };
 
@@ -2100,24 +2099,6 @@ bad:
     return NULL;
 }
 
-JSObject *
-js_InitCallClass(JSContext *cx, JSObject *obj)
-{
-    JSObject *proto;
-
-    proto = JS_InitClass(cx, obj, NULL, &js_CallClass, NULL, 0,
-                         NULL, NULL, NULL, NULL);
-    if (!proto)
-        return NULL;
-
-    /*
-     * Null Call.prototype's proto slot so that Object.prototype.* does not
-     * pollute the scope of heavyweight functions.
-     */
-    OBJ_CLEAR_PROTO(cx, proto);
-    return proto;
-}
-
 JSFunction *
 js_NewFunction(JSContext *cx, JSObject *funobj, JSNative native, uintN nargs,
                uintN flags, JSObject *parent, JSAtom *atom)
@@ -2164,6 +2145,7 @@ js_NewFunction(JSContext *cx, JSObject *funobj, JSNative native, uintN nargs,
             fun->u.n.native = native;
             fun->u.n.trcinfo = NULL;
         }
+        JS_ASSERT(fun->u.n.native);
     }
     fun->atom = atom;
 
@@ -2767,7 +2749,7 @@ DestroyLocalNames(JSContext *cx, JSFunction *fun)
 {
     uintN n;
 
-    n = fun->nargs + fun->u.i.nvars;
+    n = JS_GET_LOCAL_NAME_COUNT(fun);
     if (n <= 1)
         return;
     if (n <= MAX_ARRAY_LOCALS)

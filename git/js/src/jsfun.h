@@ -170,6 +170,7 @@ struct JSFunction {
 
 extern JSClass js_ArgumentsClass;
 extern JS_FRIEND_DATA(JSClass) js_CallClass;
+extern JSClass js_DeclEnvClass;
 
 /* JS_FRIEND_DATA so that VALUE_IS_FUNCTION is callable from the shell. */
 extern JS_FRIEND_DATA(JSClass) js_FunctionClass;
@@ -195,9 +196,6 @@ js_InitFunctionClass(JSContext *cx, JSObject *obj);
 
 extern JSObject *
 js_InitArgumentsClass(JSContext *cx, JSObject *obj);
-
-extern JSObject *
-js_InitCallClass(JSContext *cx, JSObject *obj);
 
 extern JSFunction *
 js_NewFunction(JSContext *cx, JSObject *funobj, JSNative native, uintN nargs,
@@ -265,7 +263,7 @@ extern JS_FRIEND_API(JSBool)
 js_PutArgsObject(JSContext *cx, JSStackFrame *fp);
 
 extern JSBool
-js_XDRFunction(JSXDRState *xdr, JSObject **objp);
+js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp);
 
 typedef enum JSLocalKind {
     JSLOCAL_NONE,

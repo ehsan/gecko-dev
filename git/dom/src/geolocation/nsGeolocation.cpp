@@ -280,9 +280,6 @@ nsGeolocationRequest::Allow()
     
     // send the cached location
     SendLocation(lastPosition);
-    
-    // remove ourselves from the locators callback lists.
-    mLocator->RemoveRequest(this);
   }
 
   PRInt32 timeout;
@@ -351,8 +348,16 @@ NS_INTERFACE_MAP_END
 NS_IMPL_THREADSAFE_ADDREF(nsGeolocationService)
 NS_IMPL_THREADSAFE_RELEASE(nsGeolocationService)
 
+
+static PRBool sGeoEnabled = PR_TRUE;
+static int
+GeoEnabledChangedCallback(const char *aPrefName, void *aClosure)
+{
+  sGeoEnabled = nsContentUtils::GetBoolPref("geo.enabled", PR_TRUE);
+  return 0;
+}
+
 nsGeolocationService::nsGeolocationService()
- : mProviderStarted(PR_FALSE)
 {
   nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
   if (obs) {
@@ -360,6 +365,15 @@ nsGeolocationService::nsGeolocationService()
   }
 
   mTimeout = nsContentUtils::GetIntPref("geo.timeout", 6000);
+
+  nsContentUtils::RegisterPrefCallback("geo.enabled",
+                                       GeoEnabledChangedCallback,
+                                       nsnull);
+
+  GeoEnabledChangedCallback("geo.enabled", nsnull);
+
+  if (sGeoEnabled == PR_FALSE)
+    return;
 
   mProvider = do_GetService(NS_GEOLOCATION_PROVIDER_CONTRACTID);
   
@@ -450,28 +464,24 @@ nsGeolocationService::HasGeolocationProvider()
 nsresult
 nsGeolocationService::StartDevice()
 {
+  if (sGeoEnabled == PR_FALSE)
+    return NS_ERROR_NOT_AVAILABLE;
+
   if (!mProvider)
     return NS_ERROR_NOT_AVAILABLE;
   
-  if (!mProviderStarted) {
-
-    // if we have one, start it up.
-    nsresult rv = mProvider->Startup();
-    if (NS_FAILED(rv)) 
-      return NS_ERROR_NOT_AVAILABLE;
+  // if we have one, start it up.
+  nsresult rv = mProvider->Startup();
+  if (NS_FAILED(rv)) 
+    return NS_ERROR_NOT_AVAILABLE;
   
-    // lets monitor it for any changes.
-    mProvider->Watch(this);
-
-    // remember that we are started up
-    mProviderStarted = PR_TRUE;
-
-    // we do not want to keep the geolocation devices online
-    // indefinitely.  Close them down after a reasonable period of
-    // inactivivity
-    SetDisconnectTimer();
-
-  }
+  // lets monitor it for any changes.
+  mProvider->Watch(this);
+  
+  // we do not want to keep the geolocation devices online
+  // indefinitely.  Close them down after a reasonable period of
+  // inactivivity
+  SetDisconnectTimer();
 
   return NS_OK;
 }
@@ -494,7 +504,6 @@ nsGeolocationService::StopDevice()
 {
   if (mProvider) {
     mProvider->Shutdown();
-    mProviderStarted = PR_FALSE;
   }
 
   if(mDisconnectTimer) {
@@ -585,6 +594,8 @@ nsGeolocation::nsGeolocation(nsIDOMWindow* aContentDom)
 
 nsGeolocation::~nsGeolocation()
 {
+  if (mService)
+    Shutdown();
 }
 
 void
@@ -670,6 +681,9 @@ nsGeolocation::GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
                                   nsIDOMGeoPositionErrorCallback *errorCallback,
                                   nsIDOMGeoPositionOptions *options)
 {
+  if (sGeoEnabled == PR_FALSE)
+    return NS_ERROR_NOT_AVAILABLE;
+
   nsCOMPtr<nsIGeolocationPrompt> prompt = do_GetService(NS_GEOLOCATION_PROMPT_CONTRACTID);
   if (prompt == nsnull)
     return NS_ERROR_NOT_AVAILABLE;
@@ -697,6 +711,9 @@ nsGeolocation::WatchPosition(nsIDOMGeoPositionCallback *aCallback,
                              nsIDOMGeoPositionOptions *aOptions, 
                              PRInt32 *_retval NS_OUTPARAM)
 {
+  if (sGeoEnabled == PR_FALSE)
+    return NS_ERROR_NOT_AVAILABLE;
+
   nsCOMPtr<nsIGeolocationPrompt> prompt = do_GetService(NS_GEOLOCATION_PROMPT_CONTRACTID);
   if (prompt == nsnull)
     return NS_ERROR_NOT_AVAILABLE;

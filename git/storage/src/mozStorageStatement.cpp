@@ -50,9 +50,7 @@
 
 #include "mozStorageConnection.h"
 #include "mozStorageStatementJSHelper.h"
-#include "mozStorageValueArray.h"
 #include "mozStoragePrivateHelpers.h"
-#include "mozStorageEvents.h"
 #include "mozStorageStatementParams.h"
 #include "mozStorageStatementRow.h"
 #include "mozStorageStatement.h"
@@ -193,7 +191,7 @@ mozStorageStatement::mozStorageStatement()
 }
 
 nsresult
-mozStorageStatement::Initialize(mozStorageConnection *aDBConnection,
+mozStorageStatement::Initialize(Connection *aDBConnection,
                                 const nsACString & aSQLStatement)
 {
     NS_ASSERTION(aDBConnection, "No database connection given!");

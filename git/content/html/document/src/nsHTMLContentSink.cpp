@@ -191,6 +191,7 @@ public:
   virtual void FlushPendingNotifications(mozFlushType aType);
   NS_IMETHOD SetDocumentCharset(nsACString& aCharset);
   virtual nsISupports *GetTarget();
+  virtual PRBool IsScriptExecuting();
 
   // nsIHTMLContentSink
   NS_IMETHOD OpenContainer(const nsIParserNode& aNode);
@@ -3199,7 +3200,7 @@ HTMLContentSink::FlushPendingNotifications(mozFlushType aType)
     else if (mCurrentContext) {
       mCurrentContext->FlushText();
     }
-    if (aType >= Flush_Layout) {
+    if (aType >= Flush_InterruptibleLayout) {
       // Make sure that layout has started so that the reflow flush
       // will actually happen.
       StartLayout(PR_TRUE);
@@ -3270,6 +3271,12 @@ nsISupports *
 HTMLContentSink::GetTarget()
 {
   return mDocument;
+}
+
+PRBool
+HTMLContentSink::IsScriptExecuting()
+{
+  return IsScriptExecutingImpl();
 }
 
 #ifdef DEBUG

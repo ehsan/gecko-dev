@@ -762,8 +762,8 @@ JS_NewRuntime(uint32 maxbytes)
         JS_ASSERT(JSVAL_TRUE == BOOLEAN_TO_JSVAL(JS_TRUE));
 
         JS_ASSERT(JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_VOID) == 2);
-        JS_ASSERT(JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_HOLE) == 3);
-        JS_ASSERT(JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_ARETURN) == 4);
+        JS_ASSERT(JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_HOLE) == (2 | (JSVAL_HOLE_FLAG >> JSVAL_TAGBITS)));
+        JS_ASSERT(JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_ARETURN) == 8);
 
         js_NewRuntimeWasCalled = JS_TRUE;
     }
@@ -947,48 +947,21 @@ JS_EndRequest(JSContext *cx)
 {
 #ifdef JS_THREADSAFE
     JSRuntime *rt;
-    JSTitle *title, **todop;
-    JSBool shared;
 
     CHECK_REQUEST(cx);
     JS_ASSERT(CURRENT_THREAD_IS_ME(cx->thread));
     JS_ASSERT(cx->requestDepth > 0);
     JS_ASSERT(cx->outstandingRequests > 0);
     if (cx->requestDepth == 1) {
+        js_LeaveTrace(cx);  /* for GC safety */
+
         /* Lock before clearing to interlock with ClaimScope, in jslock.c. */
         rt = cx->runtime;
         JS_LOCK_GC(rt);
         cx->requestDepth = 0;
         cx->outstandingRequests--;
 
-        /* See whether cx has any single-threaded titles to start sharing. */
-        todop = &rt->titleSharingTodo;
-        shared = JS_FALSE;
-        while ((title = *todop) != NO_TITLE_SHARING_TODO) {
-            if (title->ownercx != cx) {
-                todop = &title->u.link;
-                continue;
-            }
-            *todop = title->u.link;
-            title->u.link = NULL;       /* null u.link for sanity ASAP */
-
-            /*
-             * If js_DropObjectMap returns null, we held the last ref to scope.
-             * The waiting thread(s) must have been killed, after which the GC
-             * collected the object that held this scope.  Unlikely, because it
-             * requires that the GC ran (e.g., from an operation callback)
-             * during this request, but possible.
-             */
-            if (js_DropObjectMap(cx, TITLE_TO_MAP(title), NULL)) {
-                js_InitLock(&title->lock);
-                title->u.count = 0;   /* NULL may not pun as 0 */
-                js_FinishSharingTitle(cx, title); /* set ownercx = NULL */
-                shared = JS_TRUE;
-            }
-        }
-        if (shared)
-            JS_NOTIFY_ALL_CONDVAR(rt->titleSharingDone);
-
+        js_ShareWaitingTitles(cx);
         js_RevokeGCLocalFreeLists(cx);
 
         /* Give the GC a chance to run if this was the last request running. */
@@ -1359,9 +1332,7 @@ JS_InitStandardClasses(JSContext *cx, JSObject *obj)
 
     /* Initialize the rest of the standard objects and functions. */
     return js_InitArrayClass(cx, obj) &&
-           js_InitBlockClass(cx, obj) &&
            js_InitBooleanClass(cx, obj) &&
-           js_InitCallClass(cx, obj) &&
            js_InitExceptionClasses(cx, obj) &&
            js_InitMathClass(cx, obj) &&
            js_InitNumberClass(cx, obj) &&
@@ -1426,13 +1397,11 @@ static JSStdName standard_class_atoms[] = {
     {js_InitFunctionAndObjectClasses,   EAGER_ATOM_AND_CLASP(Function)},
     {js_InitFunctionAndObjectClasses,   EAGER_ATOM_AND_CLASP(Object)},
     {js_InitArrayClass,                 EAGER_ATOM_AND_CLASP(Array)},
-    {js_InitBlockClass,                 EAGER_ATOM_AND_CLASP(Block)},
     {js_InitBooleanClass,               EAGER_ATOM_AND_CLASP(Boolean)},
     {js_InitDateClass,                  EAGER_ATOM_AND_CLASP(Date)},
     {js_InitMathClass,                  EAGER_ATOM_AND_CLASP(Math)},
     {js_InitNumberClass,                EAGER_ATOM_AND_CLASP(Number)},
     {js_InitStringClass,                EAGER_ATOM_AND_CLASP(String)},
-    {js_InitCallClass,                  EAGER_ATOM_AND_CLASP(Call)},
     {js_InitExceptionClasses,           EAGER_ATOM_AND_CLASP(Error)},
     {js_InitRegExpClass,                EAGER_ATOM_AND_CLASP(RegExp)},
 #if JS_HAS_SCRIPT_OBJECT
@@ -2629,6 +2598,26 @@ JS_GetGCParameter(JSRuntime *rt, JSGCParamKey key)
     }
 }
 
+JS_PUBLIC_API(void)
+JS_SetGCParameterForThread(JSContext *cx, JSGCParamKey key, uint32 value)
+{
+    JS_ASSERT(key == JSGC_MAX_CODE_CACHE_BYTES);
+#ifdef JS_TRACER
+    js_SetMaxCodeCacheBytes(cx, value);
+#endif
+}
+
+JS_PUBLIC_API(uint32)
+JS_GetGCParameterForThread(JSContext *cx, JSGCParamKey key)
+{
+    JS_ASSERT(key == JSGC_MAX_CODE_CACHE_BYTES);
+#ifdef JS_TRACER
+    return JS_THREAD_DATA(cx)->traceMonitor.maxCodeCacheBytes;
+#else
+    return 0;
+#endif
+}
+
 JS_PUBLIC_API(intN)
 JS_AddExternalStringFinalizer(JSStringFinalizeOp finalizer)
 {
@@ -2747,7 +2736,7 @@ JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
 {
     CHECK_REQUEST(cx);
     return js_InitClass(cx, obj, parent_proto, clasp, constructor, nargs,
-                        ps, fs, static_ps, static_fs, NULL);
+                        ps, fs, static_ps, static_fs);
 }
 
 #ifdef JS_THREADSAFE
@@ -2837,19 +2826,7 @@ JS_PUBLIC_API(JSBool)
 JS_SetPrototype(JSContext *cx, JSObject *obj, JSObject *proto)
 {
     CHECK_REQUEST(cx);
-    JS_ASSERT(obj != proto);
-    if (OBJ_IS_NATIVE(obj)) {
-        JS_LOCK_OBJ(cx, obj);
-        if (!js_GetMutableScope(cx, obj)) {
-            JS_UNLOCK_OBJ(cx, obj);
-            return JS_FALSE;
-        }
-        LOCKED_OBJ_SET_PROTO(obj, proto);
-        JS_UNLOCK_OBJ(cx, obj);
-        return JS_TRUE;
-    }
-    OBJ_SET_PROTO(cx, obj, proto);
-    return JS_TRUE;
+    return js_SetProtoOrParent(cx, obj, JSSLOT_PROTO, proto, JS_FALSE);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -2867,9 +2844,7 @@ JS_PUBLIC_API(JSBool)
 JS_SetParent(JSContext *cx, JSObject *obj, JSObject *parent)
 {
     CHECK_REQUEST(cx);
-    JS_ASSERT(obj != parent);
-    OBJ_SET_PARENT(cx, obj, parent);
-    return JS_TRUE;
+    return js_SetProtoOrParent(cx, obj, JSSLOT_PARENT, parent, JS_FALSE);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -2967,7 +2942,7 @@ JS_SealObject(JSContext *cx, JSObject *obj, JSBool deep)
     scope = js_GetMutableScope(cx, obj);
     if (scope) {
         SCOPE_SET_SEALED(scope);
-        SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
+        js_MakeScopeShapeUnique(cx, scope);
     }
     JS_UNLOCK_OBJ(cx, obj);
     if (!scope)
@@ -3016,8 +2991,8 @@ DefinePropertyById(JSContext *cx, JSObject *obj, jsid id, jsval value,
 {
     if (flags != 0 && OBJ_IS_NATIVE(obj)) {
         JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_DECLARING);
-        return js_DefineNativeProperty(cx, obj, id, value, getter, setter,
-                                       attrs, flags, tinyid, NULL);
+        return !!js_DefineNativeProperty(cx, obj, id, value, getter, setter,
+                                         attrs, flags, tinyid, NULL);
     }
     return OBJ_DEFINE_PROPERTY(cx, obj, id, value, getter, setter, attrs,
                                NULL);   
@@ -3060,9 +3035,9 @@ DefineUCProperty(JSContext *cx, JSObject *obj,
         return JS_FALSE;
     if (flags != 0 && OBJ_IS_NATIVE(obj)) {
         JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_DECLARING);
-        return js_DefineNativeProperty(cx, obj, ATOM_TO_JSID(atom), value,
-                                       getter, setter, attrs, flags, tinyid,
-                                       NULL);
+        return !!js_DefineNativeProperty(cx, obj, ATOM_TO_JSID(atom), value,
+                                         getter, setter, attrs, flags, tinyid,
+                                         NULL);
     }
     return OBJ_DEFINE_PROPERTY(cx, obj, ATOM_TO_JSID(atom), value,
                                getter, setter, attrs, NULL);
@@ -3158,6 +3133,7 @@ LookupPropertyById(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                    JSObject **objp, JSProperty **propp)
 {
     JSAutoResolveFlags rf(cx, flags);
+    CHECK_FOR_STRING_INDEX(id);
     return OBJ_LOOKUP_PROPERTY(cx, obj, id, objp, propp);
 }
 
@@ -3224,30 +3200,32 @@ JS_AliasProperty(JSContext *cx, JSObject *obj, const char *name,
     return ok;
 }
 
-static jsval
-LookupResult(JSContext *cx, JSObject *obj, JSObject *obj2, JSProperty *prop)
+static JSBool
+LookupResult(JSContext *cx, JSObject *obj, JSObject *obj2, JSProperty *prop,
+             jsval *vp)
 {
-    JSScopeProperty *sprop;
-    jsval rval;
-
     if (!prop) {
         /* XXX bad API: no way to tell "not defined" from "void value" */
-        return JSVAL_VOID;
+        *vp = JSVAL_VOID;
+        return JS_TRUE;
     }
+
+    JSBool ok = JS_TRUE;
     if (OBJ_IS_NATIVE(obj2)) {
+        JSScopeProperty *sprop = (JSScopeProperty *) prop;
+
         /* Peek at the native property's slot value, without doing a Get. */
-        sprop = (JSScopeProperty *)prop;
-        rval = SPROP_HAS_VALID_SLOT(sprop, OBJ_SCOPE(obj2))
+        *vp = SPROP_HAS_VALID_SLOT(sprop, OBJ_SCOPE(obj2))
                ? LOCKED_OBJ_GET_SLOT(obj2, sprop->slot)
                : JSVAL_TRUE;
     } else if (OBJ_IS_DENSE_ARRAY(cx, obj2)) {
-        rval = js_GetDenseArrayElementValue(obj2, prop);
+        ok = js_GetDenseArrayElementValue(cx, obj2, prop, vp);
     } else {
         /* XXX bad API: no way to return "defined but value unknown" */
-        rval = JSVAL_TRUE;
+        *vp = JSVAL_TRUE;
     }
     OBJ_DROP_PROPERTY(cx, obj2, prop);
-    return rval;
+    return ok;
 }
 
 static JSBool
@@ -3490,29 +3468,23 @@ JS_HasPropertyById(JSContext *cx, JSObject *obj, jsid id, JSBool *foundp)
 JS_PUBLIC_API(JSBool)
 JS_LookupProperty(JSContext *cx, JSObject *obj, const char *name, jsval *vp)
 {
-    JSBool ok;
     JSObject *obj2;
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupProperty(cx, obj, name, JSRESOLVE_QUALIFIED, &obj2, &prop);
-    if (ok)
-        *vp = LookupResult(cx, obj, obj2, prop);
-    return ok;
+    return LookupProperty(cx, obj, name, JSRESOLVE_QUALIFIED, &obj2, &prop) &&
+           LookupResult(cx, obj, obj2, prop, vp);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_LookupPropertyById(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
-    JSBool ok;
     JSObject *obj2;
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop);
-    if (ok)
-        *vp = LookupResult(cx, obj, obj2, prop);
-    return ok;
+    return LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop) &&
+           LookupResult(cx, obj, obj2, prop, vp);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3540,7 +3512,7 @@ JS_LookupPropertyWithFlagsById(JSContext *cx, JSObject *obj, jsid id,
          ? js_LookupPropertyWithFlags(cx, obj, id, flags, objp, &prop) >= 0
          : OBJ_LOOKUP_PROPERTY(cx, obj, id, objp, &prop);
     if (ok)
-        *vp = LookupResult(cx, obj, *objp, prop);
+        ok = LookupResult(cx, obj, *objp, prop, vp);
     return ok;
 }
 
@@ -3582,7 +3554,7 @@ JS_GetMethodById(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
     JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     CHECK_REQUEST(cx);
-    if (!js_GetMethod(cx, obj, id, vp, NULL))
+    if (!js_GetMethod(cx, obj, id, false, vp))
         return JS_FALSE;
     if (objp)
         *objp = obj;
@@ -3760,16 +3732,13 @@ JS_LookupUCProperty(JSContext *cx, JSObject *obj,
                     const jschar *name, size_t namelen,
                     jsval *vp)
 {
-    JSBool ok;
     JSObject *obj2;
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupUCProperty(cx, obj, name, namelen, JSRESOLVE_QUALIFIED,
-                          &obj2, &prop);
-    if (ok)
-        *vp = LookupResult(cx, obj, obj2, prop);
-    return ok;
+    return LookupUCProperty(cx, obj, name, namelen, JSRESOLVE_QUALIFIED,
+                            &obj2, &prop) &&
+           LookupResult(cx, obj, obj2, prop, vp);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3928,16 +3897,13 @@ JS_HasElement(JSContext *cx, JSObject *obj, jsint index, JSBool *foundp)
 JS_PUBLIC_API(JSBool)
 JS_LookupElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
 {
-    JSBool ok;
     JSObject *obj2;
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    ok = LookupPropertyById(cx, obj, INT_TO_JSID(index), JSRESOLVE_QUALIFIED,
-                            &obj2, &prop);
-    if (ok)
-        *vp = LookupResult(cx, obj, obj2, prop);
-    return ok;
+    return LookupPropertyById(cx, obj, INT_TO_JSID(index), JSRESOLVE_QUALIFIED,
+                              &obj2, &prop) &&
+           LookupResult(cx, obj, obj2, prop, vp);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -5259,12 +5225,7 @@ JS_TriggerOperationCallback(JSContext *cx)
 JS_PUBLIC_API(void)
 JS_TriggerAllOperationCallbacks(JSRuntime *rt)
 {
-    JSContext *acx, *iter;
-    JS_LOCK_GC(rt);
-    iter = NULL;
-    while ((acx = js_ContextIterator(rt, JS_FALSE, &iter)))
-        JS_TriggerOperationCallback(acx);
-    JS_UNLOCK_GC(rt);
+    js_TriggerAllOperationCallbacks(rt, JS_FALSE);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -5279,9 +5240,14 @@ JS_IsRunning(JSContext *cx)
 JS_PUBLIC_API(JSBool)
 JS_IsConstructing(JSContext *cx)
 {
-    JSStackFrame *fp;
+#ifdef JS_TRACER
+    if (JS_ON_TRACE(cx)) {
+        JS_ASSERT(cx->bailExit);
+        return *cx->bailExit->pc == JSOP_NEW;
+    }
+#endif
 
-    fp = js_GetTopStackFrame(cx);
+    JSStackFrame *fp = js_GetTopStackFrame(cx);
     return fp && (fp->flags & JSFRAME_CONSTRUCTING);
 }
 
@@ -5488,7 +5454,7 @@ JS_GetStringChars(JSString *str)
         if (s) {
             memcpy(s, JSSTRDEP_CHARS(str), n * sizeof *s);
             s[n] = 0;
-            JSFLATSTR_INIT(str, s, n);
+            JSFLATSTR_REINIT(str, s, n);
         } else {
             s = JSSTRDEP_CHARS(str);
         }
@@ -5586,11 +5552,11 @@ JS_EncodeString(JSContext *cx, JSString *str)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer,
+JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, jsval space,
              JSONWriteCallback callback, void *data)
 {
     CHECK_REQUEST(cx);
-    return js_Stringify(cx, vp, replacer, callback, data, 0);
+    return js_Stringify(cx, vp, replacer, space, callback, data);
 }
 
 JS_PUBLIC_API(JSBool)
