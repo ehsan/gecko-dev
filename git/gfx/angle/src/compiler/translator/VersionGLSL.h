@@ -4,10 +4,10 @@
 // found in the LICENSE file.
 //
 
-#ifndef COMPILER_TRANSLATOR_VERSIONGLSL_H_
-#define COMPILER_TRANSLATOR_VERSIONGLSL_H_
+#ifndef COMPILER_VERSIONGLSL_H_
+#define COMPILER_VERSIONGLSL_H_
 
-#include "compiler/translator/IntermNode.h"
+#include "compiler/translator/intermediate.h"
 
 // Traverses the intermediate tree to return the minimum GLSL version
 // required to legally access all built-in features used in the shader.
@@ -24,10 +24,9 @@
 //   - array as "out" function parameters
 //
 // TODO: ES3 equivalent versions of GLSL
-class TVersionGLSL : public TIntermTraverser
-{
-  public:
-    TVersionGLSL(sh::GLenum type);
+class TVersionGLSL : public TIntermTraverser {
+public:
+    TVersionGLSL(ShShaderType type);
 
     // Returns 120 if the following is used the shader:
     // - "invariant",
@@ -37,14 +36,21 @@ class TVersionGLSL : public TIntermTraverser
     // Else 110 is returned.
     int getVersion() { return mVersion; }
 
-    virtual void visitSymbol(TIntermSymbol *);
-    virtual bool visitAggregate(Visit, TIntermAggregate *);
+    virtual void visitSymbol(TIntermSymbol*);
+    virtual void visitConstantUnion(TIntermConstantUnion*);
+    virtual bool visitBinary(Visit, TIntermBinary*);
+    virtual bool visitUnary(Visit, TIntermUnary*);
+    virtual bool visitSelection(Visit, TIntermSelection*);
+    virtual bool visitAggregate(Visit, TIntermAggregate*);
+    virtual bool visitLoop(Visit, TIntermLoop*);
+    virtual bool visitBranch(Visit, TIntermBranch*);
 
-  protected:
+protected:
     void updateVersion(int version);
 
-  private:
+private:
+    ShShaderType mShaderType;
     int mVersion;
 };
 
-#endif  // COMPILER_TRANSLATOR_VERSIONGLSL_H_
+#endif  // COMPILER_VERSIONGLSL_H_

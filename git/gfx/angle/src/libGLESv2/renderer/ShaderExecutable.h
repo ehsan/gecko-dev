@@ -13,37 +13,38 @@
 #include "common/angleutils.h"
 #include "common/debug.h"
 
-#include <vector>
-#include <cstdint>
-
 namespace rx
 {
 
 class ShaderExecutable
 {
   public:
-    ShaderExecutable(const void *function, size_t length)
-        : mFunctionBuffer(length)
+    ShaderExecutable(const void *function, size_t length) : mLength(length)
     {
-        memcpy(mFunctionBuffer.data(), function, length);
+        mFunction = new char[length];
+        memcpy(mFunction, function, length);
+    }
+    
+    virtual ~ShaderExecutable()
+    {
+        delete[] mFunction;
     }
 
-    virtual ~ShaderExecutable() {}
-
-    const uint8_t *getFunction() const
+    void *getFunction() const
     {
-        return mFunctionBuffer.data();
+        return mFunction;
     }
 
     size_t getLength() const
     {
-        return mFunctionBuffer.size();
+        return mLength;
     }
 
   private:
     DISALLOW_COPY_AND_ASSIGN(ShaderExecutable);
 
-    std::vector<uint8_t> mFunctionBuffer;
+    void *mFunction;
+    const size_t mLength;
 };
 
 class UniformStorage

@@ -301,12 +301,6 @@ struct VolumeInfo {
   bool isSharing;
   bool isFormatting;
   bool isFake;
-  bool isUnmounting;
-};
-
-union MaybeFileDesc {
-    FileDescriptor;
-    void_t;
 };
 
 intr protocol PContent
@@ -383,7 +377,7 @@ child:
     async SetProcessSandbox();
 
     PMemoryReportRequest(uint32_t generation, bool anonymize,
-                         bool minimizeMemoryUsage, MaybeFileDesc DMDFile);
+                         bool minimizeMemoryUsage, FileDescriptor DMDFile);
 
     /**
      * Notify the AudioChannelService in the child processes.
@@ -450,7 +444,7 @@ child:
     // VolumeInfo above.
     FileSystemUpdate(nsString fsName, nsString mountPoint, int32_t fsState,
                      int32_t mountGeneration, bool isMediaPresent,
-                     bool isSharing, bool isFormatting, bool isFake, bool isUnmounting);
+                     bool isSharing, bool isFormatting, bool isFake);
 
     // Ask the Nuwa process to create a new child process.
     NuwaFork();

@@ -656,13 +656,9 @@ interface TestInterface {
 
   // binaryNames tests
   void methodRenamedFrom();
-  [BinaryName="otherMethodRenamedTo"]
-  void otherMethodRenamedFrom();
   void methodRenamedFrom(byte argument);
   readonly attribute byte attributeGetterRenamedFrom;
   attribute byte attributeRenamedFrom;
-  [BinaryName="otherAttributeRenamedTo"]
-  attribute byte otherAttributeRenamedFrom;
 
   void passDictionary(optional Dict x);
   [Cached, Pure]
@@ -833,9 +829,6 @@ interface TestInterface {
   attribute TestParentInterface jsonifierShouldSkipThis2;
   attribute TestCallbackInterface jsonifierShouldSkipThis3;
   jsonifier;
-
-  attribute byte dashed-attribute;
-  void dashed-method();
 
   // If you add things here, add them to TestExampleGen and TestJSImplGen as well
 };

@@ -25,12 +25,13 @@
 #include <functional>
 #include <vector>
 
-#include "gtest/gtest.h"
+#include "nssgtest.h"
 #include "pkix/pkixtypes.h"
 #include "pkixder.h"
 
 using namespace mozilla::pkix;
 using namespace mozilla::pkix::der;
+using namespace mozilla::pkix::test;
 
 namespace {
 
@@ -199,7 +200,7 @@ struct AlgorithmIdentifierTestInfo
 };
 
 class pkixder_DigestAlgorithmIdentifier
-  : public ::testing::Test
+  : public NSSTest
   , public ::testing::WithParamInterface<
                 AlgorithmIdentifierTestInfo<DigestAlgorithm>>
 {
@@ -363,7 +364,7 @@ static const AlgorithmIdentifierTestInfo<SignatureAlgorithm>
 };
 
 class pkixder_SignatureAlgorithmIdentifier
-  : public ::testing::Test
+  : public NSSTest
   , public ::testing::WithParamInterface<
                 AlgorithmIdentifierTestInfo<SignatureAlgorithm>>
 {

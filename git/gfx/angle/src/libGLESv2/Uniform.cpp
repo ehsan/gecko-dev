@@ -1,3 +1,4 @@
+#include "precompiled.h"
 //
 // Copyright (c) 2010-2013 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
@@ -12,7 +13,7 @@ namespace gl
 {
 
 LinkedUniform::LinkedUniform(GLenum type, GLenum precision, const std::string &name, unsigned int arraySize,
-                             const int blockIndex, const sh::BlockMemberInfo &blockInfo)
+                             const int blockIndex, const BlockMemberInfo &blockInfo)
     : type(type),
       precision(precision),
       name(name),
@@ -70,7 +71,7 @@ bool LinkedUniform::isInDefaultBlock() const
 size_t LinkedUniform::dataSize() const
 {
     ASSERT(type != GL_STRUCT_ANGLEX);
-    return VariableInternalSize(type) * elementCount();
+    return UniformInternalSize(type) * elementCount();
 }
 
 bool LinkedUniform::isSampler() const

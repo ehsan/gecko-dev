@@ -45,12 +45,4 @@ PrintTo(const Result& result, ::std::ostream* os)
 
 } } // namespace mozilla::pkix
 
-namespace mozilla { namespace pkix { namespace test {
-
-extern const std::time_t now;
-extern const std::time_t oneDayBeforeNow;
-extern const std::time_t oneDayAfterNow;
-
-} } } // namespace mozilla::pkix::test
-
 #endif // mozilla_pkix__pkixgtest_h

@@ -508,7 +508,9 @@ gssapi/gssapi.h
 gssapi.h
 gtk/gtk.h
 gtk/gtkx.h
-gtk/gtkunixprint.h
+gtk/gtkprinter.h
+gtk/gtkprintjob.h
+gtk/gtkprintunixdialog.h
 #ifdef ANDROID
 gui/BufferQueue.h
 gui/ConsumerBase.h
