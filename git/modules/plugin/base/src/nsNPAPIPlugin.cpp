@@ -36,10 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_WIDGET_QT
-#include <QX11Info>
-#endif
-
 #ifdef MOZ_IPC
 #include "base/basictypes.h"
 #endif 
@@ -281,7 +277,7 @@ static PRInt32 OSXVersion()
 #endif
 
 inline PRBool
-RunPluginOOP(const char* aFilePath, const nsPluginTag *aPluginTag)
+OOPPluginsEnabled(const char* aFilePath, const nsPluginTag *aPluginTag)
 {
   if (PR_GetEnv("MOZ_DISABLE_OOP_PLUGINS")) {
     return PR_FALSE;
@@ -309,6 +305,7 @@ RunPluginOOP(const char* aFilePath, const nsPluginTag *aPluginTag)
       }
     }
   }
+
 #endif
 
 #ifdef XP_WIN
@@ -358,9 +355,9 @@ GetNewPluginLibrary(const char* aFilePath,
   nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
   nsPluginTag* tag = host->FindTagForLibrary(aLibrary);
   if (tag) {
-    if (aFilePath && RunPluginOOP(aFilePath, tag)) {
+    if (aFilePath && OOPPluginsEnabled(aFilePath, tag)) {
       return PluginModuleParent::LoadModule(aFilePath);
-    }
+    }   
   }
 #endif
   return new PluginPRLibrary(aFilePath, aLibrary);
@@ -1843,7 +1840,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   switch(variable) {
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
   case NPNVxDisplay : {
-#if defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
+#ifdef MOZ_WIDGET_GTK2
     if (npp) {
       nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
       PRBool windowless = PR_FALSE;
@@ -1861,7 +1858,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
         return NPERR_NO_ERROR;
       }
     }
-#ifdef MOZ_WIDGET_GTK2
     // adobe nppdf calls XtGetApplicationNameAndClass(display,
     // &instance, &class) we have to init Xt toolkit before get
     // XtDisplay just call gtk_xtbin_new(w,0) once
@@ -1874,7 +1870,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     (*(Display **)result) =  GTK_XTBIN(gtkXtBinHolder)->xtdisplay;
     return NPERR_NO_ERROR;
 #endif
-#endif
     return NPERR_GENERIC_ERROR;
   }
 
@@ -1882,8 +1877,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     return NPERR_GENERIC_ERROR;
 #endif
 
-#if defined(XP_WIN) || defined(XP_OS2) || defined(MOZ_WIDGET_GTK2) \
- || defined(MOZ_WIDGET_QT)
+#if defined(XP_WIN) || defined(XP_OS2) || defined(MOZ_WIDGET_GTK2)
   case NPNVnetscapeWindow: {
     if (!npp || !npp->ndata)
       return NPERR_INVALID_INSTANCE_ERROR;
@@ -1935,10 +1929,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     *((NPNToolkitType*)result) = NPNVGtk2;
 #endif
 
-#ifdef MOZ_WIDGET_QT
-    /* Fake toolkit so flash plugin works */
-    *((NPNToolkitType*)result) = NPNVGtk2;
-#endif
     if (*(NPNToolkitType*)result)
         return NPERR_NO_ERROR;
 
@@ -1967,8 +1957,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 
   case NPNVSupportsWindowless: {
-#if defined(XP_WIN) || defined(XP_MACOSX) || \
-    (defined(MOZ_X11) && (defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)))
+#if defined(XP_WIN) || defined(XP_MACOSX) || (defined(MOZ_X11) && defined(MOZ_WIDGET_GTK2))
     *(NPBool*)result = PR_TRUE;
 #else
     *(NPBool*)result = PR_FALSE;

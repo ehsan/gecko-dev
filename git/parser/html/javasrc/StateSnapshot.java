@@ -154,9 +154,9 @@ public class StateSnapshot<T> implements TreeBuilderState<T> {
     }
     
     /**
-     * @see nu.validator.htmlparser.impl.TreeBuilderState#getListOfActiveFormattingElementsLength()
+     * @see nu.validator.htmlparser.impl.TreeBuilderState#getListLength()
      */
-    public int getListOfActiveFormattingElementsLength() {
+    public int getListLength() {
         return listOfActiveFormattingElements.length;
     }
 

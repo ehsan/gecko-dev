@@ -118,9 +118,8 @@ nsHtml5TreeOpExecutor::DidBuildModel(PRBool aTerminated)
   NS_PRECONDITION(mStarted, "Bad life cycle.");
 
   if (!aTerminated) {
-    // This is needed to avoid unblocking loads too many times on one hand
-    // and on the other hand to avoid destroying the frame constructor from
-    // within an update batch. See bug 537683.
+    // Break out of update batch if we are in one 
+    // and aren't forcibly terminating
     EndDocUpdate();
     
     // If the above caused a call to nsIParser::Terminate(), let that call
@@ -132,7 +131,7 @@ nsHtml5TreeOpExecutor::DidBuildModel(PRBool aTerminated)
   
   static_cast<nsHtml5Parser*> (mParser.get())->DropStreamParser();
 
-  // This comes from nsXMLContentSink and nsHTMLContentSink
+  // This is comes from nsXMLContentSink and nsHTMLContentSink
   DidBuildModelImpl(aTerminated);
 
   if (!mLayoutStarted) {
@@ -215,11 +214,11 @@ nsHtml5TreeOpExecutor::SetDocumentCharsetAndSource(nsACString& aCharset, PRInt32
     // nsHTMLDocument::StartDocumentLoad
     // We need to call muCV->SetPrevDocCharacterSet here in case
     // the charset is detected by parser DetectMetaTag
-    nsCOMPtr<nsIMarkupDocumentViewer> mucv;
+    nsCOMPtr<nsIMarkupDocumentViewer> muCV;
     nsCOMPtr<nsIContentViewer> cv;
     mDocShell->GetContentViewer(getter_AddRefs(cv));
     if (cv) {
-      mucv = do_QueryInterface(cv);
+      muCV = do_QueryInterface(cv);
     } else {
       // in this block of code, if we get an error result, we return
       // it but if we get a null pointer, that's perfectly legal for
@@ -237,12 +236,12 @@ nsHtml5TreeOpExecutor::SetDocumentCharsetAndSource(nsACString& aCharset, PRInt32
         nsresult rv =
           parent->GetContentViewer(getter_AddRefs(parentContentViewer));
         if (NS_SUCCEEDED(rv) && parentContentViewer) {
-          mucv = do_QueryInterface(parentContentViewer);
+          muCV = do_QueryInterface(parentContentViewer);
         }
       }
     }
-    if (mucv) {
-      mucv->SetPrevDocCharacterSet(aCharset);
+    if (muCV) {
+      muCV->SetPrevDocCharacterSet(aCharset);
     }
   }
 }
@@ -656,7 +655,7 @@ nsHtml5TreeOpExecutor::IsScriptEnabled()
 }
 
 void
-nsHtml5TreeOpExecutor::SetDocumentMode(nsHtml5DocumentMode m)
+nsHtml5TreeOpExecutor::DocumentMode(nsHtml5DocumentMode m)
 {
   nsCompatibility mode = eCompatibility_NavQuirks;
   switch (m) {
@@ -826,7 +825,6 @@ nsHtml5TreeOpExecutor::GetTokenizer()
 
 void
 nsHtml5TreeOpExecutor::Reset() {
-  DropHeldElements();
   mHasProcessedBase = PR_FALSE;
   mReadingFromStage = PR_FALSE;
   mOpQueue.Clear();

@@ -200,7 +200,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
           if (unit == nsAttrValue::eInteger || unit == nsAttrValue::eEnum) { 
             PRInt32 size;
             if (unit == nsAttrValue::eEnum) // int (+/-)
-              size = value->GetEnumValue() + 3;
+              size = value->GetEnumValue() + 3;  // XXX should be BASEFONT, not three see bug 3875
             else
               size = value->GetIntegerValue();
 

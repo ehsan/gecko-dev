@@ -60,8 +60,6 @@
 #define PLUGIN_VERSION     "1.0.0.0"
 
 #define ARRAY_LENGTH(a) (sizeof(a)/sizeof(a[0]))
-#define STATIC_ASSERT(condition)                                \
-    extern void np_static_assert(int arg[(condition) ? 1 : -1])
 
 //
 // Intentional crash
@@ -69,7 +67,7 @@
 
 int gCrashCount = 0;
 
-void
+static void
 NoteIntentionalCrash()
 {
   char* bloatLog = getenv("XPCOM_MEM_BLOAT_LOG");
@@ -159,11 +157,7 @@ static bool hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount
 static bool getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool callOnDestroy(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool reinitWidget(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getTopLevelWindowActivationState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getTopLevelWindowActivationEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -206,14 +200,10 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "getClipboardText",
   "callOnDestroy",
   "reinitWidget",
-  "crashInNestedLoop",
-  "propertyAndMethod",
-  "getTopLevelWindowActivationState",
-  "getTopLevelWindowActivationEventCount",
-  "getEventModel"
+  "propertyAndMethod"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
-static const ScriptableFunction sPluginMethodFunctions[] = {
+static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
   npnEvaluateTest,
   npnInvokeTest,
   npnInvokeDefaultTest,
@@ -254,16 +244,8 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   getClipboardText,
   callOnDestroy,
   reinitWidget,
-  crashPluginInNestedLoop,
-  propertyAndMethod,
-  getTopLevelWindowActivationState,
-  getTopLevelWindowActivationEventCount,
-  getEventModel
+  propertyAndMethod
 };
-
-STATIC_ASSERT(ARRAY_LENGTH(sPluginMethodIdentifierNames) ==
-              ARRAY_LENGTH(sPluginMethodFunctions));
-
 static const NPUTF8* sPluginPropertyIdentifierNames[] = {
   "propertyAndMethod"
 };
@@ -678,9 +660,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->writeReadyCount = 0;
   memset(&instanceData->window, 0, sizeof(instanceData->window));
   instanceData->crashOnDestroy = false;
-  instanceData->topLevelWindowActivationState = ACTIVATION_STATE_UNKNOWN;
-  instanceData->topLevelWindowActivationEventCount = 0;
-  instanceData->eventModel = 0;
   instance->pdata = instanceData;
 
   TestNPObject* scriptableObject = (TestNPObject*)NPN_CreateObject(instance, &sNPClass);
@@ -2732,29 +2711,12 @@ getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
   return true;
 }
 
-bool
-crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args,
-                        uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  return pluginCrashInNestedLoop(id);
-}
-
 #else
 bool
 getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
                  NPVariant* result)
 {
-  // XXX Not implemented!
-  return false;
-}
-
-bool
-crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args,
-                        uint32_t argCount, NPVariant* result)
-{
-  // XXX Not implemented!
+  /// XXX Not implemented!
   return false;
 }
 #endif
@@ -2801,63 +2763,5 @@ propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount,
                   NPVariant* result)
 {
   INT32_TO_NPVARIANT(5, *result);
-  return true;
-}
-
-// Returns top-level window activation state as indicated by Cocoa NPAPI's
-// NPCocoaEventWindowFocusChanged events - 'true' if active, 'false' if not.
-// Throws an exception if no events have been received and thus this state
-// is unknown.
-bool
-getTopLevelWindowActivationState(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                                 NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  // Throw an exception for unknown state.
-  if (id->topLevelWindowActivationState == ACTIVATION_STATE_UNKNOWN) {
-    return false;
-  }
-
-  if (id->topLevelWindowActivationState == ACTIVATION_STATE_ACTIVATED) {
-    BOOLEAN_TO_NPVARIANT(true, *result);
-  } else if (id->topLevelWindowActivationState == ACTIVATION_STATE_DEACTIVATED) {
-    BOOLEAN_TO_NPVARIANT(false, *result);
-  }
-
-  return true;
-}
-
-bool
-getTopLevelWindowActivationEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                                      NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  INT32_TO_NPVARIANT(id->topLevelWindowActivationEventCount, *result);
-
-  return true;
-}
-
-bool
-getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-              NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  INT32_TO_NPVARIANT(id->eventModel, *result);
-
   return true;
 }

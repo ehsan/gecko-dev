@@ -1683,7 +1683,7 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
     nsXPIDLCString value;
 
     while (p < p_end) {
-        while (nsCRT::IsAsciiSpace(*p) || *p == kComma)
+        while (nsCRT::IsAsciiSpace(*p))
             if (++p == p_end)
                 return PR_TRUE;
 

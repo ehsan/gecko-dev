@@ -164,6 +164,8 @@ static BrowserProcessSubThread* sIOThread;
 } /* anonymous namespace */
 #endif
 
+using mozilla::TimeStamp;
+
 // Registry Factory creation function defined in nsRegistry.cpp
 // We hook into this function locally to create and register the registry
 // Since noone outside xpcom needs to know about this and nsRegistry.cpp
@@ -516,6 +518,10 @@ NS_InitXPCOM3(nsIServiceManager* *result,
         sIOThread = ioThread.release();
     }
 #endif
+
+    // Set up TimeStamp
+    rv = TimeStamp::Startup();
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Establish the main thread here.
     rv = nsThreadManager::get()->Init();
@@ -878,6 +884,8 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     NS_PurgeAtomTable();
 
     NS_IF_RELEASE(gDebug);
+
+    TimeStamp::Shutdown();
 
 #ifdef MOZ_IPC
     if (sIOThread) {

@@ -303,12 +303,14 @@
       <method name="onDrop">
         <parameter name="aEvent"/>
         <body><![CDATA[
-          let url = browserDragAndDrop.drop(aEvent, { })
+          aEvent.stopPropagation();
+          var url = browserDragAndDrop.getDragURLFromDataTransfer(aEvent.dataTransfer)[0];
 
           // The URL bar automatically handles inputs with newline characters,
           // so we can get away with treating text/x-moz-url flavours as text/plain.
           if (url) {
-            aEvent.preventDefault();
+            nsDragAndDrop.dragDropSecurityCheck(aEvent, null, url);
+
             this.value = url;
             SetPageProxyState("invalid");
             try {

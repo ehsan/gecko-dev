@@ -605,6 +605,18 @@ nsAccessible::GetChildren(nsIArray **aOutChildren)
   return NS_OK;
 }
 
+nsIAccessible *nsAccessible::NextChild(nsCOMPtr<nsIAccessible>& aAccessible)
+{
+  nsCOMPtr<nsIAccessible> nextChild;
+  if (!aAccessible) {
+    GetFirstChild(getter_AddRefs(nextChild));
+  }
+  else {
+    aAccessible->GetNextSibling(getter_AddRefs(nextChild));
+  }
+  return (aAccessible = nextChild);
+}
+
 PRBool
 nsAccessible::GetAllowsAnonChildAccessibles()
 {
@@ -919,10 +931,8 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
     // where layout won't walk into things for us, such as image map areas and
     // sub documents (XXX: subdocuments should be handled by methods of
     // nsOuterDocAccessibles).
-    PRInt32 childCount = GetChildCount();
-    for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-      nsAccessible *child = GetChildAt(childIdx);
-
+    nsCOMPtr<nsIAccessible> child;
+    while (NextChild(child)) {
       PRInt32 childX, childY, childWidth, childHeight;
       child->GetBounds(&childX, &childY, &childWidth, &childHeight);
       if (aX >= childX && aX < childX + childWidth &&
@@ -2984,7 +2994,7 @@ void
 nsAccessible::TestChildCache(nsAccessible *aCachedChild)
 {
 #ifdef DEBUG
-  PRInt32 childCount = mChildren.Length();
+  PRUint32 childCount = mChildren.Length();
   if (childCount == 0) {
     NS_ASSERTION(!mAreChildrenInitialized, "No children but initialized!");
     return;

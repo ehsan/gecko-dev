@@ -234,10 +234,12 @@ private:
   // personal toolbar folder
   PRInt64 mToolbarFolder;
 
-  // The level of batches' nesting, 0 when no batches are open.
+  // the level of nesting of batches, 0 when no batches are open
   PRInt32 mBatchLevel;
-  // Current active transaction for a batch.
-  mozStorageTransaction* mBatchDBTransaction;
+
+  // true if the outermost batch has an associated transaction that should
+  // be committed when our batch level reaches 0 again.
+  PRBool mBatchHasTransaction;
 
   nsresult GetParentAndIndexOfFolder(PRInt64 aFolder,
                                      PRInt64* aParent,

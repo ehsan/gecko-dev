@@ -365,16 +365,14 @@ nsDocumentEncoder::SerializeToStringRecursive(nsIDOMNode* aNode,
   if (!maybeFixedNode)
     maybeFixedNode = aNode;
 
-  if (mIsCopying) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-    if (content){
-      nsIFrame* frame = content->GetPrimaryFrame();
-      if (frame) {
-        PRBool isSelectable;
-        frame->IsSelectable(&isSelectable, nsnull);
-        if (!isSelectable){
-          aDontSerializeRoot = PR_TRUE;
-        }
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
+  if (content){
+    nsIFrame* frame = content->GetPrimaryFrame();
+    if (frame) {
+      PRBool isSelectable;
+      frame->IsSelectable(&isSelectable, nsnull);
+      if (!isSelectable){
+        aDontSerializeRoot = PR_TRUE;
       }
     }
   }

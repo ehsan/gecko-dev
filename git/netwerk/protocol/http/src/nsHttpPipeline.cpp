@@ -277,7 +277,7 @@ nsHttpPipeline::PushBack(const char *data, PRUint32 length)
     }
     else if (length > mPushBackMax) {
         // grow push back buffer as necessary.
-        NS_ASSERTION(length <= nsIOService::gDefaultSegmentSize, "too big");
+        NS_ASSERTION(length <= NS_HTTP_SEGMENT_SIZE, "too big");
         mPushBackMax = length;
         mPushBackBuf = (char *) realloc(mPushBackBuf, mPushBackMax);
         if (!mPushBackBuf)
@@ -558,8 +558,8 @@ nsHttpPipeline::FillSendBuf()
         // allocate a single-segment pipe
         rv = NS_NewPipe(getter_AddRefs(mSendBufIn),
                         getter_AddRefs(mSendBufOut),
-                        nsIOService::gDefaultSegmentSize,  /* segment size */
-                        nsIOService::gDefaultSegmentSize,  /* max size */
+                        NS_HTTP_SEGMENT_SIZE,
+                        NS_HTTP_SEGMENT_SIZE,
                         PR_TRUE, PR_TRUE,
                         nsIOService::gBufferCache);
         if (NS_FAILED(rv)) return rv;

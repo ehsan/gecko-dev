@@ -429,7 +429,6 @@ protected:
   // Create the event listeners for the editor to install
   virtual nsresult CreateEventListeners();
 
-  virtual nsresult InstallEventListeners();
   virtual void RemoveEventListeners();
 
   // Return TRUE if aElement is a table-related elemet and caret was set

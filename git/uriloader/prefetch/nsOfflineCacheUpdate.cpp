@@ -2638,8 +2638,6 @@ nsOfflineCacheUpdateService::OfflineAppAllowedForURI(nsIURI *aURI,
                                                      PRBool *aAllowed)
 {
     *aAllowed = PR_FALSE;
-    if (!aURI)
-        return NS_OK;
 
     nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(aURI);
     if (!innerURI)

@@ -978,7 +978,7 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabl
 fails == 423823-1.html 423823-1-ref.html # scrolling rowgroups were removed in bug 28800
 == 424074-1.xul 424074-1-ref.xul
 != 424074-1.xul 424074-1-ref2.xul
-random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 424074-1-ref2.xul 424074-1-ref3.xul
+fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 424074-1-ref2.xul 424074-1-ref3.xul
 == 424236-1.html 424236-1-ref.html
 == 424236-2.html 424236-2-ref.html
 == 424236-3.html 424236-3-ref.html
@@ -1137,7 +1137,6 @@ random == 445004-1.html 445004-1-ref.html # bug 472268
 == 451168-1.html 451168-1-ref.html
 == 451876-1.html 451876-1-ref.html
 == 451876-2.html 451876-2-ref.html
-== 452915-1.html 452915-1-ref.html
 == 452964-1.html 452964-1-ref.html
 == 454361.html about:blank
 == 455105-1.html 455105-ref.html
@@ -1413,7 +1412,6 @@ fails HTTP(..) == 518172-2b.html 518172-b-ref.html # bug 518172
 == 539323-3.html 539323-3-ref.html
 == 541382-1.html 541382-1-ref.html
 random-if(!haveTestPlugin) == 541406-1.html 541406-1-ref.html
-== 542605-hidden-unscrollable.xul 542605-hidden-unscrollable-ref.xul
 == 542620-1.html 542620-1-ref.html
 == 545049-1.html 545049-1-ref.html
 == 546033-1.html 546033-1-ref.html
@@ -1424,4 +1422,3 @@ random-if(!haveTestPlugin) == 546071-1.html 546071-1-ref.html
 == 551699-1.html 551699-1-ref.html
 == 552334-1.html 552334-1-ref.html
 == 556661-1.html 556661-1-ref.html
-== 557736-1.html 557736-1-ref.html

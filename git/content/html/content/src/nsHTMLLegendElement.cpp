@@ -262,7 +262,7 @@ nsHTMLLegendElement::Focus()
     return NS_OK;
 
   PRInt32 tabIndex;
-  if (frame->IsFocusable(&tabIndex, PR_FALSE))
+  if (frame->IsFocusable(&tabIndex))
     return nsGenericHTMLElement::Focus();
 
   // If the legend isn't focusable, focus whatever is focusable following

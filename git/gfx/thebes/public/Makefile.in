@@ -12,6 +12,7 @@ MODULE		= thebes
 EXPORTS		= 	gfx3DMatrix.h \
 			gfxASurface.h \
 			gfxAlphaRecovery.h \
+			gfxBlur.h \
 			gfxColor.h \
 			gfxContext.h \
 			gfxFont.h \

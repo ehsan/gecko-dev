@@ -520,16 +520,8 @@ nsXULElement::GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
                                                            aDefer);
 }
 
-// returns true if the element is not a list
-static PRBool IsNonList(nsINodeInfo* aNodeInfo)
-{
-  return !aNodeInfo->Equals(nsGkAtoms::tree) &&
-         !aNodeInfo->Equals(nsGkAtoms::listbox) &&
-         !aNodeInfo->Equals(nsGkAtoms::richlistbox);
-}
-
 PRBool
-nsXULElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
+nsXULElement::IsFocusable(PRInt32 *aTabIndex)
 {
   /* 
    * Returns true if an element may be focused, and false otherwise. The inout
@@ -561,12 +553,6 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
 
   // elements are not focusable by default
   PRBool shouldFocus = PR_FALSE;
-
-#ifdef XP_MACOSX
-  // on Mac, mouse interactions only focus the element if it's a list
-  if (aWithMouse && IsNonList(mNodeInfo))
-    return PR_FALSE;
-#endif
 
   nsCOMPtr<nsIDOMXULControlElement> xulControl = 
     do_QueryInterface(static_cast<nsIContent*>(this));
@@ -609,7 +595,7 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
         // (textboxes are handled as html:input)
         // For compatibility, we only do this for controls, otherwise elements like <browser>
         // cannot take this focus.
-        if (IsNonList(mNodeInfo))
+        if (!mNodeInfo->Equals(nsGkAtoms::tree) && !mNodeInfo->Equals(nsGkAtoms::listbox))
           *aTabIndex = -1;
       }
     }

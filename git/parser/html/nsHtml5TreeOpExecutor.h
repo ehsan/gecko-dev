@@ -325,7 +325,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     void StartLayout();
     
-    void SetDocumentMode(nsHtml5DocumentMode m);
+    void DocumentMode(nsHtml5DocumentMode m);
 
     nsresult Init(nsIDocument* aDoc, nsIURI* aURI,
                   nsISupports* aContainer, nsIChannel* aChannel);
@@ -366,10 +366,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     
     inline void HoldElement(nsIContent* aContent) {
       mOwnedElements.AppendObject(aContent);
-    }
-
-    void DropHeldElements() {
-      mOwnedElements.Clear();
     }
 
     /**

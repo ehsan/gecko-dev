@@ -61,8 +61,6 @@ EXPORTS_mozilla/ipc = \
   ProtocolUtils.h \
   RPCChannel.h \
   SharedMemory.h \
-  SharedMemoryBasic.h \
-  SharedMemorySysV.h \
   Shmem.h \
   SyncChannel.h \
   ScopedXREEmbed.h \

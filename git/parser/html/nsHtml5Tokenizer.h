@@ -118,9 +118,9 @@ class nsHtml5Tokenizer
     jArray<PRUnichar,PRInt32> bmpChar;
     jArray<PRUnichar,PRInt32> astralChar;
   protected:
-    nsHtml5ElementName* endTagExpectation;
+    nsHtml5ElementName* contentModelElement;
   private:
-    jArray<PRUnichar,PRInt32> endTagExpectationAsArray;
+    jArray<PRUnichar,PRInt32> contentModelElementNameAsArray;
   protected:
     PRBool endTag;
   private:
@@ -144,10 +144,10 @@ class nsHtml5Tokenizer
     void setInterner(nsHtml5AtomTable* interner);
     void initLocation(nsString* newPublicId, nsString* newSystemId);
     ~nsHtml5Tokenizer();
-    void setStateAndEndTagExpectation(PRInt32 specialTokenizerState, nsIAtom* endTagExpectation);
-    void setStateAndEndTagExpectation(PRInt32 specialTokenizerState, nsHtml5ElementName* endTagExpectation);
+    void setContentModelFlag(PRInt32 contentModelFlag, nsIAtom* contentModelElement);
+    void setContentModelFlag(PRInt32 contentModelFlag, nsHtml5ElementName* contentModelElement);
   private:
-    void endTagExpectationToArray();
+    void contentModelElementToArray();
   public:
     void setLineNumber(PRInt32 line);
     inline PRInt32 getLineNumber()
@@ -157,52 +157,25 @@ class nsHtml5Tokenizer
 
     nsHtml5HtmlAttributes* emptyAttributes();
   private:
-    inline void clearStrBufAndAppend(PRUnichar c)
-    {
-      strBuf[0] = c;
-      strBufLen = 1;
-    }
-
-    inline void clearStrBuf()
-    {
-      strBufLen = 0;
-    }
-
+    void clearStrBufAndAppendCurrentC(PRUnichar c);
+    void clearStrBufAndAppendForceWrite(PRUnichar c);
+    void clearStrBufForNextState();
     void appendStrBuf(PRUnichar c);
   protected:
     nsString* strBufToString();
   private:
     void strBufToDoctypeName();
     void emitStrBuf();
-    inline void clearLongStrBuf()
-    {
-      longStrBufLen = 0;
-    }
-
-    inline void clearLongStrBufAndAppend(PRUnichar c)
-    {
-      longStrBuf[0] = c;
-      longStrBufLen = 1;
-    }
-
+    void clearLongStrBufForNextState();
+    void clearLongStrBuf();
+    void clearLongStrBufAndAppendCurrentC(PRUnichar c);
+    void clearLongStrBufAndAppendToComment(PRUnichar c);
     void appendLongStrBuf(PRUnichar c);
-    inline void appendSecondHyphenToBogusComment()
-    {
-      appendLongStrBuf('-');
-    }
-
-    inline void adjustDoubleHyphenAndAppendToLongStrBufAndErr(PRUnichar c)
-    {
-
-      appendLongStrBuf(c);
-    }
-
+    void appendSecondHyphenToBogusComment();
+    void adjustDoubleHyphenAndAppendToLongStrBufAndErr(PRUnichar c);
     void appendLongStrBuf(jArray<PRUnichar,PRInt32> buffer, PRInt32 offset, PRInt32 length);
-    inline void appendStrBufToLongStrBuf()
-    {
-      appendLongStrBuf(strBuf, 0, strBufLen);
-    }
-
+    void appendLongStrBuf(jArray<PRUnichar,PRInt32> arr);
+    void appendStrBufToLongStrBuf();
     nsString* longStrBufToString();
     void emitComment(PRInt32 provisionalHyphens, PRInt32 pos);
   protected:
@@ -214,6 +187,8 @@ class nsHtml5Tokenizer
     void attributeNameComplete();
     void addAttributeWithoutValue();
     void addAttributeWithValue();
+  protected:
+    void startErrorReporting();
   public:
     void start();
     PRBool tokenizeBuffer(nsHtml5UTF16Buffer* buffer);
@@ -259,7 +234,7 @@ class nsHtml5Tokenizer
   private:
     void emitCarriageReturn(PRUnichar* buf, PRInt32 pos);
     void emitReplacementCharacter(PRUnichar* buf, PRInt32 pos);
-    void setAdditionalAndRememberAmpersandLocation(PRUnichar add);
+    void rememberAmpersandLocation(PRUnichar add);
     void bogusDoctype();
     void bogusDoctypeWithoutQuirks();
     void emitOrAppendStrBuf(PRInt32 returnState);
@@ -282,6 +257,11 @@ class nsHtml5Tokenizer
   public:
     void end();
     void requestSuspension();
+    void becomeConfident();
+    PRBool isNextCharOnNewLine();
+    PRBool isPrevCR();
+    PRInt32 getLine();
+    PRInt32 getCol();
     PRBool isInDataState();
     void resetToDataState();
     void loadState(nsHtml5Tokenizer* other);
@@ -313,7 +293,6 @@ jArray<PRUnichar,PRInt32> nsHtml5Tokenizer::NOSCRIPT_ARR = 0;
 jArray<PRUnichar,PRInt32> nsHtml5Tokenizer::NOFRAMES_ARR = 0;
 #endif
 
-#define NS_HTML5TOKENIZER_DATA_AND_RCDATA_MASK ~1
 #define NS_HTML5TOKENIZER_DATA 0
 #define NS_HTML5TOKENIZER_RCDATA 1
 #define NS_HTML5TOKENIZER_SCRIPT_DATA 2
