@@ -16,7 +16,7 @@
 
 'use strict';
 
-var Promise = require('../util/promise').Promise;
+var promise = require('../util/promise');
 var l10n = require('../util/l10n');
 var spell = require('../util/spell');
 var Type = require('./types').Type;
@@ -171,7 +171,7 @@ SelectionType.prototype.getLookup = function(context) {
  * returns a promise of actual values.
  */
 function resolve(thing, context) {
-  return Promise.resolve(thing).then(function(resolved) {
+  return promise.resolve(thing).then(function(resolved) {
     if (typeof resolved === 'function') {
       return resolve(resolved(context), context);
     }
@@ -279,7 +279,7 @@ exports.findPredictions = function(arg, lookup) {
 };
 
 SelectionType.prototype.parse = function(arg, context) {
-  return Promise.resolve(this.getLookup(context)).then(function(lookup) {
+  return promise.resolve(this.getLookup(context)).then(function(lookup) {
     var predictions = exports.findPredictions(arg, lookup);
     return exports.convertPredictions(arg, predictions);
   }.bind(this));
@@ -293,22 +293,22 @@ exports.convertPredictions = function(arg, predictions) {
   if (predictions.length === 0) {
     var msg = l10n.lookupFormat('typesSelectionNomatch', [ arg.text ]);
     return new Conversion(undefined, arg, Status.ERROR, msg,
-                          Promise.resolve(predictions));
+                          promise.resolve(predictions));
   }
 
   if (predictions[0].name === arg.text) {
     var value = predictions[0].value;
     return new Conversion(value, arg, Status.VALID, '',
-                          Promise.resolve(predictions));
+                          promise.resolve(predictions));
   }
 
   return new Conversion(undefined, arg, Status.INCOMPLETE, '',
-                        Promise.resolve(predictions));
+                        promise.resolve(predictions));
 };
 
 SelectionType.prototype.getBlank = function(context) {
   var predictFunc = function(context2) {
-    return Promise.resolve(this.getLookup(context2)).then(function(lookup) {
+    return promise.resolve(this.getLookup(context2)).then(function(lookup) {
       return lookup.filter(function(option) {
         return !option.value.hidden;
       }).slice(0, Conversion.maxPredictions - 1);

@@ -16,7 +16,7 @@
 
 'use strict';
 
-var Promise = require('../util/promise').Promise;
+var promise = require('../util/promise');
 var Conversion = require('./types').Conversion;
 var Status = require('./types').Status;
 
@@ -84,7 +84,7 @@ exports.items = [
       if (typeof type.parse !== 'function') {
         type = this.types.createType(type);
       }
-      return Promise.resolve(type);
+      return promise.resolve(type);
     },
 
     // DelegateType is designed to be inherited from, so DelegateField needs a way
@@ -147,7 +147,7 @@ exports.items = [
     },
 
     parse: function(arg, context) {
-      return Promise.resolve(new Conversion(undefined, arg));
+      return promise.resolve(new Conversion(undefined, arg));
     }
   }
 ];

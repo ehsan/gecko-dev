@@ -245,7 +245,7 @@ Toolbox.prototype = {
         this._buildDockButtons();
         this._buildOptions();
         this._buildTabs();
-        let buttonsPromise = this._buildButtons();
+        this._buildButtons();
         this._addKeysToWindow();
         this._addReloadKeys();
         this._addToolSwitchingKeys();
@@ -255,10 +255,8 @@ Toolbox.prototype = {
         this._telemetry.toolOpened("toolbox");
 
         this.selectTool(this._defaultToolId).then(panel => {
-          buttonsPromise.then(() => {
-            this.emit("ready");
-            deferred.resolve();
-          }, deferred.reject);
+          this.emit("ready");
+          deferred.resolve();
         });
       };
 
@@ -548,20 +546,17 @@ Toolbox.prototype = {
     }
 
     if (!this.target.isLocalTab) {
-      return Promise.resolve();
+      return;
     }
 
     let spec = CommandUtils.getCommandbarSpec("devtools.toolbox.toolbarSpec");
     let environment = CommandUtils.createEnvironment(this, '_target');
-    return CommandUtils.createRequisition(environment).then(requisition => {
-      this._requisition = requisition;
-      return CommandUtils.createButtons(spec, this.target, this.doc,
-                                        requisition).then(buttons => {
-        let container = this.doc.getElementById("toolbox-buttons");
-        buttons.forEach(container.appendChild.bind(container));
-        this.setToolboxButtonsVisibility();
-      });
-    });
+    this._requisition = CommandUtils.createRequisition(environment);
+    let buttons = CommandUtils.createButtons(spec, this._target,
+                                             this.doc, this._requisition);
+    let container = this.doc.getElementById("toolbox-buttons");
+    buttons.forEach(container.appendChild.bind(container));
+    this.setToolboxButtonsVisibility();
   },
 
   /**

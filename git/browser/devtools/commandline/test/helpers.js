@@ -18,16 +18,16 @@
 
 // A copy of this code exists in firefox mochitests. They should be kept
 // in sync. Hence the exports synonym for non AMD contexts.
-var { helpers, gcli, assert } = (function() {
-
+this.EXPORTED_SYMBOLS = [ 'helpers' ];
 var helpers = {};
+this.helpers = helpers;
 
 var TargetFactory = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.TargetFactory;
 var require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
 
 var assert = { ok: ok, is: is, log: info };
 var util = require('gcli/util/util');
-var Promise = require('gcli/util/promise').Promise;
+var promise = require('gcli/util/promise');
 var cli = require('gcli/cli');
 var KeyEvent = require('gcli/util/util').KeyEvent;
 var gcli = require('gcli/index');
@@ -137,7 +137,7 @@ helpers.addTab = function(url, callback, options) {
 
     var reply = callback.call(null, options);
 
-    return Promise.resolve(reply).then(null, function(error) {
+    return promise.resolve(reply).then(null, function(error) {
       ok(false, error);
     }).then(function() {
       tabbrowser.removeTab(options.tab);
@@ -206,7 +206,7 @@ helpers.closeTab = function(options) {
   delete options.chromeWindow;
   delete options.isFirefox;
 
-  return Promise.resolve(undefined);
+  return promise.resolve(undefined);
 };
 
 /**
@@ -283,13 +283,13 @@ helpers.handleError = function(ex) {
  * @return A promise resolved with the event object when the event first happens
  */
 helpers.listenOnce = function(element, event, useCapture) {
-  return new Promise(function(resolve, reject) {
-    var onEvent = function(ev) {
-      element.removeEventListener(event, onEvent, useCapture);
-      resolve(ev);
-    };
-    element.addEventListener(event, onEvent, useCapture);
-  }.bind(this));
+  var deferred = promise.defer();
+  var onEvent = function(ev) {
+    element.removeEventListener(event, onEvent, useCapture);
+    deferred.resolve(ev);
+  };
+  element.addEventListener(event, onEvent, useCapture);
+  return deferred.promise;
 };
 
 /**
@@ -302,13 +302,13 @@ helpers.listenOnce = function(element, event, useCapture) {
  * function other parameters are dropped.
  */
 helpers.observeOnce = function(topic, ownsWeak=false) {
-  return new Promise(function(resolve, reject) {
-    let resolver = function(subject) {
-      Services.obs.removeObserver(resolver, topic);
-      resolve(subject);
-    };
-    Services.obs.addObserver(resolver, topic, ownsWeak);
-  }.bind(this));
+  let deferred = promise.defer();
+  let resolver = function(subject) {
+    Services.obs.removeObserver(resolver, topic);
+    deferred.resolve(subject);
+  };
+  Services.obs.addObserver(resolver, topic, ownsWeak);
+  return deferred.promise;
 };
 
 /**
@@ -317,14 +317,22 @@ helpers.observeOnce = function(topic, ownsWeak=false) {
  */
 helpers.promiseify = function(functionWithLastParamCallback, scope) {
   return function() {
+    let deferred = promise.defer();
+
     let args = [].slice.call(arguments);
-    return new Promise(resolve => {
-      args.push((...results) => {
-        resolve(results.length > 1 ? results : results[0]);
-      });
-      functionWithLastParamCallback.apply(scope, args);
+    args.push(function(callbackParam) {
+      deferred.resolve(callbackParam);
     });
-  };
+
+    try {
+      functionWithLastParamCallback.apply(scope, args);
+    }
+    catch (ex) {
+      deferred.resolve(ex);
+    }
+
+    return deferred.promise;
+  }
 };
 
 /**
@@ -345,7 +353,7 @@ helpers.addTabWithToolbar = function(url, callback, options) {
 
       var reply = callback.call(null, innerOptions);
 
-      return Promise.resolve(reply).then(null, function(error) {
+      return promise.resolve(reply).then(null, function(error) {
         ok(false, error);
         console.error(error);
       }).then(function() {
@@ -381,8 +389,8 @@ helpers.runTests = function(options, tests) {
 
   info("SETUP");
   var setupDone = (tests.setup != null) ?
-      Promise.resolve(tests.setup(options)) :
-      Promise.resolve();
+      promise.resolve(tests.setup(options)) :
+      promise.resolve();
 
   var testDone = setupDone.then(function() {
     return util.promiseEach(testNames, function(testName) {
@@ -391,13 +399,13 @@ helpers.runTests = function(options, tests) {
 
       if (typeof action === "function") {
         var reply = action.call(tests, options);
-        return Promise.resolve(reply);
+        return promise.resolve(reply);
       }
       else if (Array.isArray(action)) {
         return helpers.audit(options, action);
       }
 
-      return Promise.reject("test action '" + testName +
+      return promise.reject("test action '" + testName +
                             "' is not a function or helpers.audit() object");
     });
   }, recover);
@@ -405,8 +413,8 @@ helpers.runTests = function(options, tests) {
   return testDone.then(function() {
     info("SHUTDOWN");
     return (tests.shutdown != null) ?
-        Promise.resolve(tests.shutdown(options)) :
-        Promise.resolve();
+        promise.resolve(tests.shutdown(options)) :
+        promise.resolve();
   }, recover);
 };
 
@@ -540,7 +548,7 @@ helpers._createDebugCheck = function(options) {
   var hintsPromise = helpers._actual.hints(options);
   var predictionsPromise = helpers._actual.predictions(options);
 
-  return Promise.all(hintsPromise, predictionsPromise).then(function(values) {
+  return promise.all(hintsPromise, predictionsPromise).then(function(values) {
     var hints = values[0];
     var predictions = values[1];
     var output = '';
@@ -753,7 +761,7 @@ helpers._check = function(options, name, checks) {
   });
 
   if (checks == null) {
-    return Promise.resolve();
+    return promise.resolve();
   }
 
   var outstanding = [];
@@ -908,7 +916,7 @@ helpers._check = function(options, name, checks) {
     });
   }
 
-  return Promise.all(outstanding).then(function() {
+  return promise.all(outstanding).then(function() {
     // Ensure the promise resolves to nothing
     return undefined;
   });
@@ -924,7 +932,7 @@ helpers._check = function(options, name, checks) {
 helpers._exec = function(options, name, expected) {
   var requisition = options.requisition;
   if (expected == null) {
-    return Promise.resolve({});
+    return promise.resolve({});
   }
 
   var origLogErrors = cli.logErrors;
@@ -1008,7 +1016,7 @@ helpers._exec = function(options, name, expected) {
     if (expected.error) {
       cli.logErrors = origLogErrors;
     }
-    return Promise.resolve({});
+    return promise.resolve({});
   }
 };
 
@@ -1021,10 +1029,10 @@ helpers._setup = function(options, name, audit) {
   }
 
   if (typeof audit.setup === 'function') {
-    return Promise.resolve(audit.setup.call(audit));
+    return promise.resolve(audit.setup.call(audit));
   }
 
-  return Promise.reject('\'setup\' property must be a string or a function. Is ' + audit.setup);
+  return promise.reject('\'setup\' property must be a string or a function. Is ' + audit.setup);
 };
 
 /**
@@ -1032,9 +1040,9 @@ helpers._setup = function(options, name, audit) {
  */
 helpers._post = function(name, audit, data) {
   if (typeof audit.post === 'function') {
-    return Promise.resolve(audit.post.call(audit, data.output, data.text));
+    return promise.resolve(audit.post.call(audit, data.output, data.text));
   }
-  return Promise.resolve(audit.post);
+  return promise.resolve(audit.post);
 };
 
 /*
@@ -1170,7 +1178,7 @@ helpers.audit = function(options, audits) {
             'due to ' + audit.skipRemainingIf.name :
             '';
         assert.log('Skipped ' + name + ' ' + skipReason);
-        return Promise.resolve(undefined);
+        return promise.resolve(undefined);
       }
     }
 
@@ -1181,13 +1189,13 @@ helpers.audit = function(options, audits) {
       if (skip) {
         var reason = audit.skipIf.name ? 'due to ' + audit.skipIf.name : '';
         assert.log('Skipped ' + name + ' ' + reason);
-        return Promise.resolve(undefined);
+        return promise.resolve(undefined);
       }
     }
 
     if (skipReason != null) {
       assert.log('Skipped ' + name + ' ' + skipReason);
-      return Promise.resolve(undefined);
+      return promise.resolve(undefined);
     }
 
     var start = new Date().getTime();
@@ -1202,7 +1210,7 @@ helpers.audit = function(options, audits) {
       // a key-sequence (i.e. targeting terminal.js) when there is no terminal
       if (chunkLen === -1) {
         assert.log('Skipped ' + name + ' ' + skipReason);
-        return Promise.resolve(undefined);
+        return promise.resolve(undefined);
       }
 
       if (assert.currentTest) {
@@ -1261,6 +1269,3 @@ function log(message) {
     console.log(message);
   }
 }
-
-return { helpers: helpers, gcli: gcli, assert: assert };
-})();

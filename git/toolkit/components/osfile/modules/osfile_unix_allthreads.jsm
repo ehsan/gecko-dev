@@ -81,6 +81,7 @@ libc.declareLazy(LazyBindings, "strerror",
  */
 let OSError = function OSError(operation = "unknown operation",
                                errno = ctypes.errno, path = "") {
+  operation = operation;
   SharedAll.OSError.call(this, operation, path);
   this.unixErrno = errno;
 };

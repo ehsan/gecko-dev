@@ -16,7 +16,7 @@
 
 'use strict';
 
-var Promise = require('./util/promise').Promise;
+var promise = require('./util/promise');
 var util = require('./util/util');
 var host = require('./util/host');
 var l10n = require('./util/l10n');
@@ -40,7 +40,7 @@ var TrueNamedArgument = require('./types/types').TrueNamedArgument;
 var MergedArgument = require('./types/types').MergedArgument;
 var ScriptArgument = require('./types/types').ScriptArgument;
 
-var RESOLVED = Promise.resolve(undefined);
+var RESOLVED = promise.resolve(undefined);
 
 /**
  * This is a list of the known command line components to enable certain
@@ -196,7 +196,7 @@ Assignment.prototype.getPredictionRanked = function(context, rank) {
   }
 
   if (this.isInName()) {
-    return Promise.resolve(undefined);
+    return promise.resolve(undefined);
   }
 
   return this.getPredictions(context).then(function(predictions) {
@@ -550,7 +550,7 @@ Object.defineProperty(Requisition.prototype, 'executionContext', {
     if (this._executionContext == null) {
       this._executionContext = {
         defer: function() {
-          return Promise.defer();
+          return promise.defer();
         },
         typedData: function(type, data) {
           return {
@@ -607,7 +607,7 @@ Object.defineProperty(Requisition.prototype, 'conversionContext', {
     if (this._conversionContext == null) {
       this._conversionContext = {
         defer: function() {
-          return Promise.defer();
+          return promise.defer();
         },
 
         createView: view.createView,
@@ -861,7 +861,7 @@ Requisition.prototype.toCanonicalString = function() {
     }
 
     var val = assignment.param.type.stringify(assignment.value, ctx);
-    return Promise.resolve(val).then(function(str) {
+    return promise.resolve(val).then(function(str) {
       return ' ' + str;
     }.bind(this));
   }.bind(this));
@@ -1017,7 +1017,7 @@ Requisition.prototype.setAssignment = function(assignment, arg, options) {
       this._endChangeCheckOrder(updateId);
     }
 
-    return Promise.resolve(undefined);
+    return promise.resolve(undefined);
   }.bind(this);
 
   if (arg == null) {
@@ -1210,7 +1210,7 @@ Requisition.prototype.getStateData = function(start, rank) {
   var context = this.executionContext;
   var predictionPromise = (typed.trim().length !== 0) ?
                           current.getPredictionRanked(context, rank) :
-                          Promise.resolve(null);
+                          promise.resolve(null);
 
   return predictionPromise.then(function(prediction) {
     // directTabText is for when the current input is a prefix of the completion
@@ -1349,7 +1349,7 @@ Requisition.prototype._addSpace = function(assignment) {
     return this.setAssignment(assignment, arg);
   }
   else {
-    return Promise.resolve(undefined);
+    return promise.resolve(undefined);
   }
 };
 
@@ -1426,7 +1426,7 @@ Requisition.prototype.complete = function(cursor, rank) {
       outstanding.push(assignPromise);
     }
 
-    return Promise.all(outstanding).then(function() {
+    return promise.all(outstanding).then(function() {
       return true;
     }.bind(this));
   }.bind(this));
@@ -1438,10 +1438,10 @@ Requisition.prototype.complete = function(cursor, rank) {
 Requisition.prototype.decrement = function(assignment) {
   var ctx = this.executionContext;
   var val = assignment.param.type.decrement(assignment.value, ctx);
-  return Promise.resolve(val).then(function(replacement) {
+  return promise.resolve(val).then(function(replacement) {
     if (replacement != null) {
       var val = assignment.param.type.stringify(replacement, ctx);
-      return Promise.resolve(val).then(function(str) {
+      return promise.resolve(val).then(function(str) {
         var arg = assignment.arg.beget({ text: str });
         return this.setAssignment(assignment, arg);
       }.bind(this));
@@ -1455,10 +1455,10 @@ Requisition.prototype.decrement = function(assignment) {
 Requisition.prototype.increment = function(assignment) {
   var ctx = this.executionContext;
   var val = assignment.param.type.increment(assignment.value, ctx);
-  return Promise.resolve(val).then(function(replacement) {
+  return promise.resolve(val).then(function(replacement) {
     if (replacement != null) {
       var val = assignment.param.type.stringify(replacement, ctx);
-      return Promise.resolve(val).then(function(str) {
+      return promise.resolve(val).then(function(str) {
         var arg = assignment.arg.beget({ text: str });
         return this.setAssignment(assignment, arg);
       }.bind(this));
@@ -2046,7 +2046,7 @@ Requisition.prototype.exec = function(options) {
     var ex = new Error(this.getStatusMessage());
     // We only reject a call to exec if GCLI breaks. Errors with commands are
     // exposed in the 'error' status of the Output object
-    return Promise.resolve(onError(ex)).then(function(output) {
+    return promise.resolve(onError(ex)).then(function(output) {
       this.clear();
       return output;
     }.bind(this));
@@ -2060,7 +2060,7 @@ Requisition.prototype.exec = function(options) {
     catch (ex) {
       var data = (typeof ex.message === 'string' && ex.stack != null) ?
                  ex.message : ex;
-      return Promise.resolve(onError(data, ex));
+      return promise.resolve(onError(data, ex));
     }
     finally {
       this.clear();
@@ -2099,9 +2099,8 @@ function Output(options) {
   this.error = false;
   this.start = new Date();
 
-  this.promise = new Promise(function(resolve, reject) {
-    this._resolve = resolve;
-  }.bind(this));
+  this._deferred = promise.defer();
+  this.promise = this._deferred.promise;
 }
 
 /**
@@ -2129,7 +2128,7 @@ Output.prototype.complete = function(data, error) {
     throw new Error('No type from output of ' + this.typed);
   }
 
-  this._resolve();
+  this._deferred.resolve();
 };
 
 /**
