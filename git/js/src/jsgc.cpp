@@ -1086,7 +1086,7 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
     sweepKindIndex(0),
     abortSweepAfterCurrentGroup(false),
     arenasAllocatedDuringSweep(nullptr),
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     markingValidator(nullptr),
 #endif
     interFrameGC(0),
@@ -1115,9 +1115,7 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
     mallocBytes(0),
     mallocGCTriggered(false),
     scriptAndCountsVector(nullptr),
-#ifdef DEBUG
     inUnsafeRegion(0),
-#endif
     alwaysPreserveCode(false),
 #ifdef DEBUG
     noGCOrAllocationCheck(0),
@@ -2439,8 +2437,6 @@ GCHelperState::work()
     JS_ASSERT(!thread);
     thread = PR_GetCurrentThread();
 
-    TraceLogger *logger = TraceLoggerForCurrentThread();
-
     switch (state()) {
 
       case IDLE:
@@ -2448,14 +2444,22 @@ GCHelperState::work()
         break;
 
       case SWEEPING: {
-        AutoTraceLog logSweeping(logger, TraceLogger::GCSweeping);
+#if JS_TRACE_LOGGING
+        AutoTraceLog logger(TraceLogging::getLogger(TraceLogging::GC_BACKGROUND),
+                            TraceLogging::GC_SWEEPING_START,
+                            TraceLogging::GC_SWEEPING_STOP);
+#endif
         doSweep();
         JS_ASSERT(state() == SWEEPING);
         break;
       }
 
       case ALLOCATING: {
-        AutoTraceLog logAllocation(logger, TraceLogger::GCAllocation);
+#if JS_TRACE_LOGGING
+        AutoTraceLog logger(TraceLogging::getLogger(TraceLogging::GC_BACKGROUND),
+                            TraceLogging::GC_ALLOCATING_START,
+                            TraceLogging::GC_ALLOCATING_STOP);
+#endif
         do {
             Chunk *chunk;
             {
@@ -3159,10 +3163,6 @@ class js::gc::MarkingValidator
     BitmapMap map;
 };
 
-#endif // DEBUG
-
-#ifdef JS_GC_MARKING_VALIDATION
-
 js::gc::MarkingValidator::MarkingValidator(GCRuntime *gc)
   : gc(gc),
     initialized(false)
@@ -3351,12 +3351,12 @@ js::gc::MarkingValidator::validate()
     }
 }
 
-#endif // JS_GC_MARKING_VALIDATION
+#endif
 
 void
 GCRuntime::computeNonIncrementalMarkingForValidation()
 {
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     JS_ASSERT(!markingValidator);
     if (isIncremental && validate)
         markingValidator = js_new<MarkingValidator>(this);
@@ -3368,7 +3368,7 @@ GCRuntime::computeNonIncrementalMarkingForValidation()
 void
 GCRuntime::validateIncrementalMarking()
 {
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     if (markingValidator)
         markingValidator->validate();
 #endif
@@ -3377,7 +3377,7 @@ GCRuntime::validateIncrementalMarking()
 void
 GCRuntime::finishMarkingValidation()
 {
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     js_delete(markingValidator);
     markingValidator = nullptr;
 #endif
@@ -3386,7 +3386,7 @@ GCRuntime::finishMarkingValidation()
 static void
 AssertNeedsBarrierFlagsConsistent(JSRuntime *rt)
 {
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     bool anyNeedsBarrier = false;
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next())
         anyNeedsBarrier |= zone->needsBarrier();
@@ -5620,7 +5620,6 @@ JS::GetGCNumber()
 }
 #endif
 
-#ifdef DEBUG
 JS::AutoAssertOnGC::AutoAssertOnGC()
   : runtime(nullptr), gcNumber(0)
 {
@@ -5666,4 +5665,3 @@ JS::AutoAssertOnGC::VerifyIsSafeToGC(JSRuntime *rt)
     if (rt->gc.inUnsafeRegion > 0)
         MOZ_CRASH("[AutoAssertOnGC] possible GC in GC-unsafe region");
 }
-#endif

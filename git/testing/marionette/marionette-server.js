@@ -571,7 +571,9 @@ MarionetteServerConnection.prototype = {
       "platformVersion": Services.appinfo.platformVersion,
 
       // Supported features
+      "cssSelectorsEnabled": true,
       "handlesAlerts": false,
+      "javascriptEnabled": true,
       "nativeEvents": false,
       "rotatable": isB2G,
       "secureSsl": false,

@@ -8,7 +8,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 this.EXPORTED_SYMBOLS = [ "BingTranslation" ];
 
-Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
@@ -328,16 +327,14 @@ let BingTokenManager = {
     let params = [
       "grant_type=client_credentials",
       "scope=" + encodeURIComponent("http://api.microsofttranslator.com"),
-      "client_id=" +
-      getAuthTokenParam("%BING_API_CLIENTID%", "browser.translation.bing.clientIdOverride"),
-      "client_secret=" +
-      getAuthTokenParam("%BING_API_KEY%", "browser.translation.bing.apiKeyOverride")
+      "client_id=",
+      "client_secret="
     ];
 
     let deferred = Promise.defer();
     this._pendingRequest = deferred.promise;
     request.post(params.join("&"), function(err) {
-      BingTokenManager._pendingRequest = null;
+      this._pendingRequest = null;
 
       if (err) {
         deferred.reject(err);
@@ -369,17 +366,4 @@ function escapeXML(aStr) {
              .replace("'", "&apos;", "g")
              .replace("<", "&lt;", "g")
              .replace(">", "&gt;", "g");
-}
-
-/**
- * Fetch an auth token (clientID or client secret), which may be overridden by
- * a pref if it's set.
- */
-function getAuthTokenParam(key, prefName) {
-  let val;
-  try {
-    val = Services.prefs.getCharPref(prefName);
-  } catch(ex) {}
-
-  return encodeURIComponent(Services.urlFormatter.formatURL(val || key));
 }

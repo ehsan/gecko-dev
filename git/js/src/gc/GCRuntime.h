@@ -19,11 +19,6 @@
 #endif
 #include "gc/Tracer.h"
 
-/* Perform validation of incremental marking in debug builds but not on B2G. */
-#if defined(DEBUG) && !defined(MOZ_B2G)
-#define JS_GC_MARKING_VALIDATION
-#endif
-
 namespace js {
 
 struct ScriptAndCounts
@@ -415,7 +410,7 @@ class GCRuntime
      */
     js::gc::ArenaHeader   *arenasAllocatedDuringSweep;
 
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     js::gc::MarkingValidator *markingValidator;
 #endif
 
@@ -542,7 +537,6 @@ class GCRuntime
     /* Strong references on scripts held for PCCount profiling API. */
     js::ScriptAndCountsVector *scriptAndCountsVector;
 
-#ifdef DEBUG
     /*
      * Some regions of code are hard for the static rooting hazard analysis to
      * understand. In those cases, we trade the static analysis for a dynamic
@@ -550,7 +544,6 @@ class GCRuntime
      * might trigger, a GC.
      */
     int inUnsafeRegion;
-#endif
 
   private:
     /* Always preserve JIT code during GCs, for testing. */

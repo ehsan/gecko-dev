@@ -4549,11 +4549,6 @@ class MMod : public MBinaryArithInstruction
         return unsigned_;
     }
 
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return specialization_ < MIRType_Object;
-    }
-
     bool fallible() const;
 
     void computeRange(TempAllocator &alloc);
@@ -8665,11 +8660,8 @@ class MGetDOMProperty
         return info_->aliasSet();
     }
     size_t domMemberSlotIndex() const {
-        MOZ_ASSERT(info_->isAlwaysInSlot || info_->isLazilyCachedInSlot);
+        MOZ_ASSERT(info_->isInSlot);
         return info_->slotIndex;
-    }
-    bool valueMayBeInSlot() const {
-        return info_->isLazilyCachedInSlot;
     }
     MDefinition *object() {
         return getOperand(0);

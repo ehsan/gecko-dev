@@ -42,10 +42,10 @@
             </xul:hbox>
 
             <!-- translating -->
-            <xul:vbox class="translating-box" pack="center">
+            <xul:hbox class="translating-box" pack="center">
               <xul:label class="translate-infobar-element"
                          value="&translation.translatingContent.label;"/>
-            </xul:vbox>
+            </xul:hbox>
 
             <!-- translated -->
             <xul:hbox class="translated-box" align="center">
@@ -58,13 +58,11 @@
               </xul:menulist>
               <xul:label class="translate-infobar-element"
                          value="&translation.translatedTo.label;"/>
-              <xul:menulist class="translate-infobar-element"
-                            anonid="toLanguage"
+              <xul:menulist anonid="toLanguage"
                             oncommand="document.getBindingParent(this).translate()">
                 <xul:menupopup/>
               </xul:menulist>
-              <xul:label class="translate-infobar-element"
-                         value="&translation.translatedToSuffix.label;"/>
+              <xul:label value="&translation.translatedToSuffix.label;"/>
               <xul:button anonid="showOriginal"
                           class="translate-infobar-element"
                           label="&translation.showOriginal.button;"

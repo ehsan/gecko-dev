@@ -719,7 +719,6 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
         metrics.mMayHaveTouchListeners = innerWin->HasTouchEventListeners();
       }
     }
-    metrics.mMayHaveTouchCaret = presShell->MayHaveTouchCaret();
   }
 
   LayoutDeviceToParentLayerScale layoutToParentLayerScale =
@@ -1710,15 +1709,6 @@ nsDisplayItem::ZIndex() const
 }
 
 bool
-nsDisplayItem::ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                 nsRegion* aVisibleRegion,
-                                 const nsRect& aAllowVisibleRegionExpansion)
-{
-  return !mVisibleRect.IsEmpty() &&
-    !IsInvisibleInRect(aVisibleRegion->GetBounds());
-}
-
-bool
 nsDisplayItem::RecomputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion) {
   nsRect bounds = GetClippedBounds(aBuilder);
@@ -2655,20 +2645,26 @@ nsDisplayOutline::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 bool
-nsDisplayOutline::IsInvisibleInRect(const nsRect& aRect)
-{
+nsDisplayOutline::ComputeVisibility(nsDisplayListBuilder* aBuilder,
+                                    nsRegion* aVisibleRegion,
+                                    const nsRect& aAllowVisibleRegionExpansion) {
+  if (!nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
+                                        aAllowVisibleRegionExpansion)) {
+    return false;
+  }
+
   const nsStyleOutline* outline = mFrame->StyleOutline();
   nsRect borderBox(ToReferenceFrame(), mFrame->GetSize());
-  if (borderBox.Contains(aRect) &&
+  if (borderBox.Contains(aVisibleRegion->GetBounds()) &&
       !nsLayoutUtils::HasNonZeroCorner(outline->mOutlineRadius)) {
     if (outline->mOutlineOffset >= 0) {
-      // aRect is entirely inside the border-rect, and the outline isn't
-      // rendered inside the border-rect, so the outline is not visible.
-      return true;
+      // the visible region is entirely inside the border-rect, and the outline
+      // isn't rendered inside the border-rect, so the outline is not visible
+      return false;
     }
   }
 
-  return false;
+  return true;
 }
 
 void
@@ -2728,24 +2724,30 @@ nsDisplayCaret::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 bool
-nsDisplayBorder::IsInvisibleInRect(const nsRect& aRect)
-{
+nsDisplayBorder::ComputeVisibility(nsDisplayListBuilder* aBuilder,
+                                   nsRegion* aVisibleRegion,
+                                   const nsRect& aAllowVisibleRegionExpansion) {
+  if (!nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
+                                        aAllowVisibleRegionExpansion)) {
+    return false;
+  }
+
   nsRect paddingRect = mFrame->GetPaddingRect() - mFrame->GetPosition() +
     ToReferenceFrame();
   const nsStyleBorder *styleBorder;
-  if (paddingRect.Contains(aRect) &&
+  if (paddingRect.Contains(aVisibleRegion->GetBounds()) &&
       !(styleBorder = mFrame->StyleBorder())->IsBorderImageLoaded() &&
       !nsLayoutUtils::HasNonZeroCorner(styleBorder->mBorderRadius)) {
-    // aRect is entirely inside the content rect, and no part
+    // the visible region is entirely inside the content rect, and no part
     // of the border is rendered inside the content rect, so we are not
     // visible
     // Skip this if there's a border-image (which draws a background
     // too) or if there is a border-radius (which makes the border draw
     // further in).
-    return true;
+    return false;
   }
 
-  return false;
+  return true;
 }
   
 nsDisplayItemGeometry* 
@@ -2877,24 +2879,6 @@ nsDisplayBoxShadowOuter::GetBoundsInternal() {
 }
 
 bool
-nsDisplayBoxShadowOuter::IsInvisibleInRect(const nsRect& aRect)
-{
-  nsPoint origin = ToReferenceFrame();
-  nsRect frameRect(origin, mFrame->GetSize());
-  if (!frameRect.Contains(aRect))
-    return false;
-
-  // the visible region is entirely inside the border-rect, and box shadows
-  // never render within the border-rect (unless there's a border radius).
-  nscoord twipsRadii[8];
-  bool hasBorderRadii = mFrame->GetBorderRadii(twipsRadii);
-  if (!hasBorderRadii)
-    return true;
-
-  return RoundedRectContainsRect(frameRect, twipsRadii, aRect);
-}
-
-bool
 nsDisplayBoxShadowOuter::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                            nsRegion* aVisibleRegion,
                                            const nsRect& aAllowVisibleRegionExpansion) {
@@ -2905,7 +2889,21 @@ nsDisplayBoxShadowOuter::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 
   // Store the actual visible region
   mVisibleRegion.And(*aVisibleRegion, mVisibleRect);
-  return true;
+
+  nsPoint origin = ToReferenceFrame();
+  nsRect visibleBounds = aVisibleRegion->GetBounds();
+  nsRect frameRect(origin, mFrame->GetSize());
+  if (!frameRect.Contains(visibleBounds))
+    return true;
+
+  // the visible region is entirely inside the border-rect, and box shadows
+  // never render within the border-rect (unless there's a border radius).
+  nscoord twipsRadii[8];
+  bool hasBorderRadii = mFrame->GetBorderRadii(twipsRadii);
+  if (!hasBorderRadii)
+    return false;
+
+  return !RoundedRectContainsRect(frameRect, twipsRadii, visibleBounds);
 }
 
 void

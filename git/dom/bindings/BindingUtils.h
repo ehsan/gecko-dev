@@ -1405,7 +1405,7 @@ WrapNativeParent(JSContext* cx, T* p, nsWrapperCache* cache,
 
   // If useXBLScope is true, it means that the canonical reflector for this
   // native object should live in the XBL scope.
-  if (xpc::IsInContentXBLScope(parent)) {
+  if (xpc::IsInXBLScope(parent)) {
     return parent;
   }
   JS::Rooted<JSObject*> rootedParent(cx, parent);

@@ -299,7 +299,6 @@ MediaSource::MediaSource(nsPIDOMWindow* aWindow)
   , mDuration(UnspecifiedNaN<double>())
   , mDecoder(nullptr)
   , mReadyState(MediaSourceReadyState::Closed)
-  , mWaitForDataMonitor("MediaSource.WaitForData.Monitor")
 {
   mSourceBuffers = new SourceBufferList(this);
   mActiveSourceBuffers = new SourceBufferList(this);
@@ -394,20 +393,6 @@ MediaSource::NotifyEvicted(double aStart, double aEnd)
   // Cycle through all SourceBuffers and tell them to evict data in
   // the given range.
   mSourceBuffers->Evict(aStart, aEnd);
-}
-
-void
-MediaSource::WaitForData()
-{
-  MonitorAutoLock lock(mWaitForDataMonitor);
-  lock.Wait();
-}
-
-void
-MediaSource::NotifyGotData()
-{
-  MonitorAutoLock lock(mWaitForDataMonitor);
-  lock.NotifyAll();
 }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(MediaSource, DOMEventTargetHelper,

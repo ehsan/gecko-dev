@@ -10,8 +10,8 @@
  * and are distinct from e.g. web workers.
  */
 
-#ifndef vm_HelperThreads_h
-#define vm_HelperThreads_h
+#ifndef jsworkers_h
+#define jsworkers_h
 
 #include "mozilla/GuardObjects.h"
 #include "mozilla/PodOperations.h"
@@ -507,4 +507,4 @@ struct SourceCompressionTask
 
 } /* namespace js */
 
-#endif /* vm_HelperThreads_h */
+#endif /* jsworkers_h */
