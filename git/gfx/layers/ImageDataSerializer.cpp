@@ -48,23 +48,20 @@ struct SurfaceBufferInfo
 } // anonymous namespace
 
 static SurfaceBufferInfo*
-GetBufferInfo(uint8_t* aData, size_t aDataSize)
+GetBufferInfo(uint8_t* aBuffer)
 {
-  return aDataSize >= sizeof(SurfaceBufferInfo)
-         ? reinterpret_cast<SurfaceBufferInfo*>(aData)
-         : nullptr;
+  return reinterpret_cast<SurfaceBufferInfo*>(aBuffer);
 }
+
 
 void
 ImageDataSerializer::InitializeBufferInfo(IntSize aSize,
                                           SurfaceFormat aFormat)
 {
-  SurfaceBufferInfo* info = GetBufferInfo(mData, mDataSize);
-  MOZ_ASSERT(info); // OK to assert here, this method is client-side-only
+  SurfaceBufferInfo* info = GetBufferInfo(mData);
   info->width = aSize.width;
   info->height = aSize.height;
   info->format = aFormat;
-  Validate();
 }
 
 static inline uint32_t
@@ -74,7 +71,7 @@ ComputeStride(SurfaceFormat aFormat, uint32_t aWidth)
 }
 
 uint32_t
-ImageDataSerializerBase::ComputeMinBufferSize(IntSize aSize,
+ImageDataSerializer::ComputeMinBufferSize(IntSize aSize,
                                           SurfaceFormat aFormat)
 {
   uint32_t bufsize = aSize.height * ComputeStride(aFormat, aSize.width);
@@ -82,20 +79,11 @@ ImageDataSerializerBase::ComputeMinBufferSize(IntSize aSize,
        + GetAlignedStride<16>(bufsize);
 }
 
-void
-ImageDataSerializerBase::Validate()
+bool
+ImageDataSerializerBase::IsValid() const
 {
-  mIsValid = false;
-  if (!mData) {
-    return;
-  }
-  SurfaceBufferInfo* info = GetBufferInfo(mData, mDataSize);
-  if (!info) {
-    return;
-  }
-  size_t requiredSize =
-           ComputeMinBufferSize(IntSize(info->width, info->height), info->format);
-  mIsValid = requiredSize <= mDataSize;
+  // XXX - We could use some sanity checks here.
+  return !!mData;
 }
 
 uint8_t*
@@ -109,7 +97,7 @@ uint32_t
 ImageDataSerializerBase::GetStride() const
 {
   MOZ_ASSERT(IsValid());
-  SurfaceBufferInfo* info = GetBufferInfo(mData, mDataSize);
+  SurfaceBufferInfo* info = GetBufferInfo(mData);
   return ComputeStride(GetFormat(), info->width);
 }
 
@@ -117,7 +105,7 @@ IntSize
 ImageDataSerializerBase::GetSize() const
 {
   MOZ_ASSERT(IsValid());
-  SurfaceBufferInfo* info = GetBufferInfo(mData, mDataSize);
+  SurfaceBufferInfo* info = GetBufferInfo(mData);
   return IntSize(info->width, info->height);
 }
 
@@ -125,7 +113,7 @@ SurfaceFormat
 ImageDataSerializerBase::GetFormat() const
 {
   MOZ_ASSERT(IsValid());
-  return GetBufferInfo(mData, mDataSize)->format;
+  return GetBufferInfo(mData)->format;
 }
 
 TemporaryRef<gfxImageSurface>

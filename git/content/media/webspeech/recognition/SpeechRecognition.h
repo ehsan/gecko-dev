@@ -58,7 +58,6 @@ class SpeechRecognition MOZ_FINAL : public nsDOMEventTargetHelper,
                                     public SupportsWeakPtr<SpeechRecognition>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(SpeechRecognition)
   SpeechRecognition(nsPIDOMWindow* aOwnerWindow);
   virtual ~SpeechRecognition() {};
 

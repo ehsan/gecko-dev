@@ -96,7 +96,7 @@ nsDOMMouseEvent::InitMouseEvent(const nsAString& aType,
                                 int32_t aScreenY,
                                 int32_t aClientX,
                                 int32_t aClientY,
-                                int16_t aButton,
+                                uint16_t aButton,
                                 nsIDOMEventTarget *aRelatedTarget,
                                 const nsAString& aModifiersList)
 {
@@ -179,14 +179,14 @@ nsDOMMouseEvent::InitNSMouseEvent(const nsAString & aType, bool aCanBubble, bool
 }
 
 NS_IMETHODIMP
-nsDOMMouseEvent::GetButton(int16_t* aButton)
+nsDOMMouseEvent::GetButton(uint16_t* aButton)
 {
   NS_ENSURE_ARG_POINTER(aButton);
   *aButton = Button();
   return NS_OK;
 }
 
-int16_t
+uint16_t
 nsDOMMouseEvent::Button()
 {
   switch(mEvent->eventStructType)

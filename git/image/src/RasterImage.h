@@ -144,7 +144,6 @@ class RasterImage : public ImageResource
 #endif
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(RasterImage)
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIPROPERTIES
   NS_DECL_IMGICONTAINER

@@ -102,8 +102,7 @@ struct nsWidgetInitData {
       mIsDragPopup(false),
       mIsAnimationSuppressed(false),
       mSupportTranslucency(false),
-      mMouseTransparent(false),
-      mRequireOffMainThreadCompositing(false)
+      mMouseTransparent(false)
   {
   }
 
@@ -125,9 +124,6 @@ struct nsWidgetInitData {
   // true if the window should be transparent to mouse events. Currently this is
   // only valid for eWindowType_popup widgets
   bool          mMouseTransparent;
-  // Windows with out-of-process tabs always require OMTC. This flag designates
-  // such windows.
-  bool          mRequireOffMainThreadCompositing;
 };
 
 #endif // nsWidgetInitData_h__

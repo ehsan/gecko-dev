@@ -155,7 +155,6 @@ UNIFIED_SOURCES += [
     'perf/jsperf.cpp',
     'prmjtime.cpp',
     'vm/ArgumentsObject.cpp',
-    'vm/ArrayBufferObject.cpp',
     'vm/CallNonGenericMethod.cpp',
     'vm/CharacterEncoding.cpp',
     'vm/Compression.cpp',

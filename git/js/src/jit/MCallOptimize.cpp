@@ -775,9 +775,9 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
 
     if (outputType != MIRType_Int32 && outputType != MIRType_Double)
         return InliningStatus_NotInlined;
-    if (!IsNumberType(baseType))
+    if (baseType != MIRType_Int32 && baseType != MIRType_Double)
         return InliningStatus_NotInlined;
-    if (!IsNumberType(powerType))
+    if (powerType != MIRType_Int32 && powerType != MIRType_Double)
         return InliningStatus_NotInlined;
 
     callInfo.setImplicitlyUsedUnchecked();

@@ -51,13 +51,12 @@ const SQL = {
       "title TEXT," +
       "description TEXT," +
       "image_url TEXT," +
-      "filter TEXT," +
       "created INTEGER" +
     ")",
 
   insertItem:
-    "INSERT INTO items (dataset_id, url, title, description, image_url, filter, created) " +
-      "VALUES (:dataset_id, :url, :title, :description, :image_url, :filter, :created)",
+    "INSERT INTO items (dataset_id, url, title, description, image_url, created) " +
+      "VALUES (:dataset_id, :url, :title, :description, :image_url, :created)",
 
   deleteFromDataset:
     "DELETE FROM items WHERE dataset_id = :dataset_id"
@@ -243,7 +242,6 @@ HomeStorage.prototype = {
             title: item.title,
             description: item.description,
             image_url: item.image_url,
-            filter: item.filter,
             created: Date.now()
           };
           yield db.executeCached(SQL.insertItem, params);

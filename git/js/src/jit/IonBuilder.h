@@ -442,13 +442,11 @@ class IonBuilder : public MIRGenerator
     MDefinition *loadTypedObjectType(MDefinition *value);
     void loadTypedObjectData(MDefinition *typedObj,
                              MDefinition *offset,
-                             bool canBeNeutered,
                              MDefinition **owner,
                              MDefinition **ownerOffset);
     void loadTypedObjectElements(MDefinition *typedObj,
                                  MDefinition *offset,
                                  int32_t unit,
-                                 bool canBeNeutered,
                                  MDefinition **ownerElements,
                                  MDefinition **ownerScaledOffset);
     MDefinition *typeObjectForElementFromArrayStructType(MDefinition *typedObj);
@@ -457,26 +455,21 @@ class IonBuilder : public MIRGenerator
     bool storeScalarTypedObjectValue(MDefinition *typedObj,
                                      MDefinition *offset,
                                      ScalarTypeDescr::Type type,
-                                     bool canBeNeutered,
                                      MDefinition *value);
     bool checkTypedObjectIndexInBounds(size_t elemSize,
                                        MDefinition *obj,
                                        MDefinition *index,
-                                       TypeDescrSet objTypeDescrs,
                                        MDefinition **indexAsByteOffset,
-                                       bool *canBeNeutered);
+                                       TypeDescrSet objTypeDescrs);
     bool pushDerivedTypedObject(bool *emitted,
                                 MDefinition *obj,
                                 MDefinition *offset,
                                 TypeDescrSet derivedTypeDescrs,
-                                MDefinition *derivedTypeObj,
-                                bool canBeNeutered);
+                                MDefinition *derivedTypeObj);
     bool pushScalarLoadFromTypedObject(bool *emitted,
                                        MDefinition *obj,
                                        MDefinition *offset,
-                                       ScalarTypeDescr::Type type,
-                                       bool canBeNeutered);
-    MDefinition *neuterCheck(MDefinition *obj);
+                                       ScalarTypeDescr::Type type);
 
     // jsop_setelem() helpers.
     bool setElemTryTypedArray(bool *emitted, MDefinition *object,
@@ -491,7 +484,7 @@ class IonBuilder : public MIRGenerator
                              MDefinition *index, MDefinition *value);
     bool setElemTryCache(bool *emitted, MDefinition *object,
                          MDefinition *index, MDefinition *value);
-    bool setElemTryScalarElemOfTypedObject(bool *emitted,
+    bool setElemTryScalarPropOfTypedObject(bool *emitted,
                                            MDefinition *obj,
                                            MDefinition *index,
                                            TypeDescrSet objTypeReprs,

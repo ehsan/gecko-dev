@@ -12,14 +12,14 @@
 
 namespace js {
 
-class TypedObject; // subclass of JSObject* defined in builtin/TypedObject.h
+class TypedDatum; // subclass of JSObject* defined in builtin/TypedObject.h
 
 namespace jit {
 
 ForkJoinContext *ForkJoinContextPar();
 JSObject *NewGCThingPar(ForkJoinContext *cx, gc::AllocKind allocKind);
 bool ParallelWriteGuard(ForkJoinContext *cx, JSObject *object);
-bool IsInTargetRegion(ForkJoinContext *cx, TypedObject *object);
+bool IsInTargetRegion(ForkJoinContext *cx, TypedDatum *object);
 bool CheckOverRecursedPar(ForkJoinContext *cx);
 bool InterruptCheckPar(ForkJoinContext *cx);
 

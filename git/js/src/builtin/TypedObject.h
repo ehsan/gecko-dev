@@ -10,7 +10,6 @@
 #include "jsobj.h"
 
 #include "builtin/TypedObjectConstants.h"
-#include "vm/ArrayBufferObject.h"
 
 /*
  * -------------
@@ -56,33 +55,23 @@
  * engine and are not exposed to end users (though self-hosted code
  * sometimes accesses them).
  *
- * - Typed objects:
+ * - Typed datums, objects, and handles:
  *
- * A typed object is an instance of a *type object* (note the past
- * participle). There is one class for *transparent* typed objects and
- * one for *opaque* typed objects. These classes are equivalent in
- * basically every way, except that requesting the backing buffer of
- * an opaque typed object yields null. We use distinct js::Classes to
- * avoid the need for an extra slot in every typed object.
+ * A typed object is an instance of a type object. A handle is a
+ * relocatable pointer that points into other typed objects. Both of them
+ * are basically represented the same way, though they have distinct
+ * js::Class entries. They are both subtypes of `TypedDatum`.
  *
- * Note that whether a typed object is opaque is not directly
- * connected to its type. That is, opaque types are *always*
- * represented by opaque typed objects, but you may have opaque typed
- * objects for transparent types too. This can occur for two reasons:
- * (1) a transparent type may be embedded within an opaque type or (2)
- * users can choose to convert transparent typed objects into opaque
- * ones to avoid giving access to the buffer itself.
- *
- * Typed objects (no matter their class) are non-native objects that
- * fully override the property accessors etc. The overridden accessor
+ * Both typed objects and handles are non-native objects that fully
+ * override the property accessors etc. The overridden accessor
  * methods are the same in each and are defined in methods of
- * TypedObject.
+ * TypedDatum.
  *
- * Typed objects may be attached or unattached. An unattached typed
- * object has no memory associated with it; it is basically a null
- * pointer. When first created, objects are always attached, but they
- * can become unattached if their buffer is neutered (note that this
- * implies that typed objects of opaque types can never be unattached).
+ * Typed datums may be attached or unattached. An unattached typed
+ * datum has no memory associated with it; it is basically a null
+ * pointer.  This can only happen when a new handle is created, since
+ * typed object instances are always associated with memory at the
+ * point of creation.
  *
  * When a new typed object instance is created, fresh memory is
  * allocated and set as that typed object's private field. The object
@@ -155,15 +144,34 @@ class TypeDescr : public JSObject
     TypeRepresentation *typeRepresentation() const;
 
     TypeDescr::Kind kind() const;
+};
 
-    bool opaque() const;
+/*
+ * This object exists in order to encapsulate the typed object types
+ * somewhat, rather than sticking them all into the global object.
+ * Eventually it will go away and become a module.
+ */
+class TypedObjectModuleObject : public JSObject {
+  public:
+    enum Slot {
+        ArrayTypePrototype,
+        StructTypePrototype,
+        SlotCount
+    };
 
-    size_t alignment() {
-        return getReservedSlot(JS_DESCR_SLOT_ALIGNMENT).toInt32();
-    }
+    static const Class class_;
+
+    static bool getSuitableClaspAndProto(JSContext *cx,
+                                         TypeDescr::Kind kind,
+                                         const Class **clasp,
+                                         MutableHandleObject proto);
 };
 
 typedef Handle<TypeDescr*> HandleTypeDescr;
+
+bool InitializeCommonTypeDescriptorProperties(JSContext *cx,
+                                              HandleTypeDescr obj,
+                                              HandleObject typeReprOwnerObj);
 
 class SizedTypeDescr : public TypeDescr
 {
@@ -295,12 +303,6 @@ class X4TypeDescr : public SizedTypeDescr
     macro_(X4TypeDescr::TYPE_INT32, int32_t, int32)                  \
     macro_(X4TypeDescr::TYPE_FLOAT32, float, float32)
 
-bool IsTypedObjectClass(const Class *clasp); // Defined in TypedArrayObject.h
-
-bool InitializeCommonTypeDescriptorProperties(JSContext *cx,
-                                              HandleTypeDescr obj,
-                                              HandleObject typeReprOwnerObj);
-
 /*
  * Properties and methods of the `ArrayType` meta type object. There
  * is no `class_` field because `ArrayType` is just a native
@@ -430,50 +432,31 @@ class StructTypeDescr : public SizedTypeDescr {
 typedef Handle<StructTypeDescr*> HandleStructTypeDescr;
 
 /*
- * This object exists in order to encapsulate the typed object types
- * somewhat, rather than sticking them all into the global object.
- * Eventually it will go away and become a module.
- */
-class TypedObjectModuleObject : public JSObject {
-  public:
-    enum Slot {
-        ArrayTypePrototype,
-        StructTypePrototype,
-        SlotCount
-    };
-
-    static const Class class_;
-
-    static bool getSuitableClaspAndProto(JSContext *cx,
-                                         TypeDescr::Kind kind,
-                                         const Class **clasp,
-                                         MutableHandleObject proto);
-};
-
-/*
  * Base type for typed objects and handles. Basically any type whose
  * contents consist of typed memory.
  */
-class TypedObject : public ArrayBufferViewObject
+class TypedDatum : public JSObject
 {
   private:
-    static const bool IsTypedObjectClass = true;
+    static const bool IsTypedDatumClass = true;
 
     template<class T>
     static bool obj_getArrayElement(JSContext *cx,
-                                    Handle<TypedObject*> typedObj,
+                                    Handle<TypedDatum*> datum,
                                     Handle<TypeDescr*> typeDescr,
                                     uint32_t index,
                                     MutableHandleValue vp);
 
     template<class T>
     static bool obj_setArrayElement(JSContext *cx,
-                                    Handle<TypedObject*> typedObj,
+                                    Handle<TypedDatum*> datum,
                                     Handle<TypeDescr*> typeDescr,
                                     uint32_t index,
                                     MutableHandleValue vp);
 
   protected:
+    static void obj_finalize(js::FreeOp *op, JSObject *obj);
+
     static void obj_trace(JSTracer *trace, JSObject *object);
 
     static bool obj_lookupGeneric(JSContext *cx, HandleObject obj,
@@ -555,8 +538,7 @@ class TypedObject : public ArrayBufferViewObject
     // by the JIT.
     static size_t dataOffset();
 
-    // Helper for createUnattached()
-    static TypedObject *createUnattachedWithClass(JSContext *cx,
+    static TypedDatum *createUnattachedWithClass(JSContext *cx,
                                                  const Class *clasp,
                                                  HandleTypeDescr type,
                                                  int32_t length);
@@ -569,51 +551,31 @@ class TypedObject : public ArrayBufferViewObject
     // Arguments:
     // - type: type object for resulting object
     // - length: 0 unless this is an array, otherwise the length
-    static TypedObject *createUnattached(JSContext *cx, HandleTypeDescr type,
-                                        int32_t length);
+    template<class T>
+    static T *createUnattached(JSContext *cx, HandleTypeDescr type,
+                               int32_t length);
 
-    // Creates a typedObj that aliases the memory pointed at by `owner`
-    // at the given offset. The typedObj will be a handle iff type is a
+    // Creates a datum that aliases the memory pointed at by `owner`
+    // at the given offset. The datum will be a handle iff type is a
     // handle and a typed object otherwise.
-    static TypedObject *createDerived(JSContext *cx,
+    static TypedDatum *createDerived(JSContext *cx,
                                      HandleSizedTypeDescr type,
-                                     Handle<TypedObject*> typedContents,
+                                     Handle<TypedDatum*> typedContents,
                                      size_t offset);
 
-    // Creates a new typed object whose memory is freshly allocated
-    // and initialized with zeroes (or, in the case of references, an
-    // appropriate default value).
-    static TypedObject *createZeroed(JSContext *cx,
-                                    HandleTypeDescr typeObj,
-                                    int32_t length);
 
-    // User-accessible constructor (`new TypeDescriptor(...)`)
-    // used for sized types. Note that the callee here is the *type descriptor*,
-    // not the typedObj.
-    static bool constructSized(JSContext *cx, unsigned argc, Value *vp);
+    // If `this` is the owner of the memory, use this.
+    void attach(uint8_t *mem);
 
-    // As `constructSized`, but for unsized array types.
-    static bool constructUnsized(JSContext *cx, unsigned argc, Value *vp);
+    // Otherwise, use this to attach to memory referenced by another datum.
+    void attach(TypedDatum &datum, uint32_t offset);
 
-    // Use this method when `buffer` is the owner of the memory.
-    void attach(ArrayBufferObject &buffer, int32_t offset);
-
-    // Otherwise, use this to attach to memory referenced by another typedObj.
-    void attach(TypedObject &typedObj, int32_t offset);
-
-    // Invoked when array buffer is transferred elsewhere
-    void neuter(JSContext *cx);
-
-    int32_t offset() const {
-        return getReservedSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET).toInt32();
-    }
-
-    ArrayBufferObject &owner() const {
-        return getReservedSlot(JS_TYPEDOBJ_SLOT_OWNER).toObject().as<ArrayBufferObject>();
+    TypedDatum &owner() const {
+        return getReservedSlot(JS_DATUM_SLOT_OWNER).toObject().as<TypedDatum>();
     }
 
     TypeDescr &typeDescr() const {
-        return getReservedSlot(JS_TYPEDOBJ_SLOT_TYPE_DESCR).toObject().as<TypeDescr>();
+        return getReservedSlot(JS_DATUM_SLOT_TYPE_DESCR).toObject().as<TypeDescr>();
     }
 
     TypeRepresentation *typeRepresentation() const {
@@ -625,7 +587,7 @@ class TypedObject : public ArrayBufferViewObject
     }
 
     size_t length() const {
-        return getReservedSlot(JS_TYPEDOBJ_SLOT_LENGTH).toInt32();
+        return getReservedSlot(JS_DATUM_SLOT_LENGTH).toInt32();
     }
 
     size_t size() const {
@@ -656,17 +618,27 @@ class TypedObject : public ArrayBufferViewObject
     }
 };
 
-typedef Handle<TypedObject*> HandleTypedObject;
+typedef Handle<TypedDatum*> HandleTypedDatum;
 
-class TransparentTypedObject : public TypedObject
+class TypedObject : public TypedDatum
 {
   public:
     static const Class class_;
+
+    // Creates a new typed object whose memory is freshly allocated
+    // and initialized with zeroes (or, in the case of references, an
+    // appropriate default value).
+    static TypedObject *createZeroed(JSContext *cx,
+                                     HandleTypeDescr typeObj,
+                                     int32_t length);
+
+    // user-accessible constructor (`new TypeDescriptor(...)`)
+    static bool construct(JSContext *cx, unsigned argc, Value *vp);
 };
 
-typedef Handle<TransparentTypedObject*> HandleTransparentTypedObject;
+typedef Handle<TypedObject*> HandleTypedObject;
 
-class OpaqueTypedObject : public TypedObject
+class TypedHandle : public TypedDatum
 {
   public:
     static const Class class_;
@@ -674,27 +646,34 @@ class OpaqueTypedObject : public TypedObject
 };
 
 /*
- * Usage: NewOpaqueTypedObject(typeObj)
+ * Usage: NewTypedHandle(typeObj)
  *
  * Constructs a new, unattached instance of `Handle`.
  */
-bool NewOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp);
+bool NewTypedHandle(JSContext *cx, unsigned argc, Value *vp);
 
 /*
- * Usage: NewDerivedTypedObject(typeObj, owner, offset)
+ * Usage: NewTypedHandle(typeObj)
  *
  * Constructs a new, unattached instance of `Handle`.
  */
-bool NewDerivedTypedObject(JSContext *cx, unsigned argc, Value *vp);
+bool NewTypedHandle(JSContext *cx, unsigned argc, Value *vp);
 
 /*
- * Usage: AttachTypedObject(typedObj, newDatum, newOffset)
+ * Usage: NewDerivedTypedDatum(typeObj, owner, offset)
  *
- * Moves `typedObj` to point at the memory referenced by `newDatum` with
+ * Constructs a new, unattached instance of `Handle`.
+ */
+bool NewDerivedTypedDatum(JSContext *cx, unsigned argc, Value *vp);
+
+/*
+ * Usage: AttachHandle(handle, newOwner, newOffset)
+ *
+ * Moves `handle` to point at the memory owned by `newOwner` with
  * the offset `newOffset`.
  */
-bool AttachTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
-extern const JSJitInfo AttachTypedObjectJitInfo;
+bool AttachHandle(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo AttachHandleJitInfo;
 
 /*
  * Usage: ObjectIsTypeDescr(obj)
@@ -705,29 +684,37 @@ bool ObjectIsTypeDescr(ThreadSafeContext *cx, unsigned argc, Value *vp);
 extern const JSJitInfo ObjectIsTypeDescrJitInfo;
 
 /*
- * Usage: ObjectIsOpaqueTypedObject(obj)
+ * Usage: ObjectIsTypeRepresentation(obj)
+ *
+ * True if `obj` is a type representation object.
+ */
+bool ObjectIsTypeRepresentation(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo ObjectIsTypeRepresentationJitInfo;
+
+/*
+ * Usage: ObjectIsTypedHandle(obj)
  *
  * True if `obj` is a handle.
  */
-bool ObjectIsOpaqueTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
-extern const JSJitInfo ObjectIsOpaqueTypedObjectJitInfo;
+bool ObjectIsTypedHandle(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo ObjectIsTypedHandleJitInfo;
 
 /*
- * Usage: ObjectIsTransparentTypedObject(obj)
+ * Usage: ObjectIsTypedObject(obj)
  *
  * True if `obj` is a typed object.
  */
-bool ObjectIsTransparentTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
-extern const JSJitInfo ObjectIsTransparentTypedObjectJitInfo;
+bool ObjectIsTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo ObjectIsTypedObjectJitInfo;
 
 /*
- * Usage: TypedObjectIsAttached(obj)
+ * Usage: IsAttached(obj)
  *
- * Given a TypedObject `obj`, returns true if `obj` is
+ * Given a TypedDatum `obj`, returns true if `obj` is
  * "attached" (i.e., its data pointer is nullptr).
  */
-bool TypedObjectIsAttached(ThreadSafeContext *cx, unsigned argc, Value *vp);
-extern const JSJitInfo TypedObjectIsAttachedJitInfo;
+bool IsAttached(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo IsAttachedJitInfo;
 
 /*
  * Usage: ClampToUint8(v)
@@ -765,7 +752,7 @@ bool GetTypedObjectModule(JSContext *cx, unsigned argc, Value *vp);
 /*
  * Usage: GetFloat32x4TypeDescr()
  *
- * Returns the float32x4 type object. SIMD pseudo-module must have
+ * Returns the float32x4 type object. SIMD pseudo-module must have 
  * been initialized for this to be safe.
  */
 bool GetFloat32x4TypeDescr(JSContext *cx, unsigned argc, Value *vp);
@@ -773,7 +760,7 @@ bool GetFloat32x4TypeDescr(JSContext *cx, unsigned argc, Value *vp);
 /*
  * Usage: GetInt32x4TypeDescr()
  *
- * Returns the int32x4 type object. SIMD pseudo-module must have
+ * Returns the int32x4 type object. SIMD pseudo-module must have 
  * been initialized for this to be safe.
  */
 bool GetInt32x4TypeDescr(JSContext *cx, unsigned argc, Value *vp);
@@ -864,13 +851,6 @@ JS_FOR_EACH_UNIQUE_SCALAR_TYPE_REPR_CTYPE(JS_LOAD_SCALAR_CLASS_DEFN)
 JS_FOR_EACH_REFERENCE_TYPE_REPR(JS_STORE_REFERENCE_CLASS_DEFN)
 JS_FOR_EACH_REFERENCE_TYPE_REPR(JS_LOAD_REFERENCE_CLASS_DEFN)
 
-inline bool
-IsTypedObjectClass(const Class *class_)
-{
-    return class_ == &TransparentTypedObject::class_ ||
-           class_ == &OpaqueTypedObject::class_;
-}
-
 } // namespace js
 
 JSObject *
@@ -904,9 +884,9 @@ JSObject::is<js::TypeDescr>() const
 
 template <>
 inline bool
-JSObject::is<js::TypedObject>() const
+JSObject::is<js::TypedDatum>() const
 {
-    return IsTypedObjectClass(getClass());
+    return is<js::TypedObject>() || is<js::TypedHandle>();
 }
 
 #endif /* builtin_TypedObject_h */
