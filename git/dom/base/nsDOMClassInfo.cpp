@@ -1403,7 +1403,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CHROME_ONLY_CLASSINFO_DATA(ChromeWorker, nsDOMGenericSH,
                                        DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
-  NS_DEFINE_CLASSINFO_DATA(CanvasRenderingContextWebGL, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(WebGLRenderingContext, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLBuffer, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1635,6 +1635,7 @@ jsid nsDOMClassInfo::sOnmessage_id       = JSID_VOID;
 jsid nsDOMClassInfo::sOnbeforescriptexecute_id = JSID_VOID;
 jsid nsDOMClassInfo::sOnafterscriptexecute_id = JSID_VOID;
 jsid nsDOMClassInfo::sWrappedJSObject_id = JSID_VOID;
+jsid nsDOMClassInfo::sURL_id             = JSID_VOID;
 
 static const JSClass *sObjectClass = nsnull;
 
@@ -1680,12 +1681,12 @@ PrintWarningOnConsole(JSContext *cx, const char *stringBundleProperty)
   }
 
   nsCOMPtr<nsIConsoleService> consoleService
-    (do_GetService("@mozilla.org/consoleservice;1"));
+    (do_GetService(NS_CONSOLESERVICE_CONTRACTID));
   if (!consoleService) {
     return;
   }
 
-  nsCOMPtr<nsIScriptError> scriptError =
+  nsCOMPtr<nsIScriptError2> scriptError =
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
   if (!scriptError) {
     return;
@@ -1708,15 +1709,19 @@ PrintWarningOnConsole(JSContext *cx, const char *stringBundleProperty)
       }
     }
   }
-  nsresult rv = scriptError->Init(msg.get(),
-                                  sourcefile.get(),
-                                  EmptyString().get(),
-                                  lineno,
-                                  0, // column for error is not available
-                                  nsIScriptError::warningFlag,
-                                  "DOM:HTML");
+
+  nsresult rv = scriptError->InitWithWindowID(msg.get(),
+                                              sourcefile.get(),
+                                              EmptyString().get(),
+                                              lineno,
+                                              0, // column for error is not available
+                                              nsIScriptError::warningFlag,
+                                              "DOM:HTML",
+                                              nsJSUtils::GetCurrentlyRunningCodeWindowID(cx));
+
   if (NS_SUCCEEDED(rv)){
-    consoleService->LogMessage(scriptError);
+    nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scriptError);
+    consoleService->LogMessage(logError);
   }
 }
 
@@ -1860,6 +1865,7 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sOnafterscriptexecute_id, cx, "onafterscriptexecute");
 #endif // MOZ_MEDIA
   SET_JSID_TO_STRING(sWrappedJSObject_id, cx, "wrappedJSObject");
+  SET_JSID_TO_STRING(sURL_id,             cx, "URL");
 
   return NS_OK;
 }
@@ -3968,7 +3974,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(CanvasRenderingContextWebGL, nsIDOMWebGLRenderingContext)
+  DOM_CLASSINFO_MAP_BEGIN(WebGLRenderingContext, nsIDOMWebGLRenderingContext)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWebGLRenderingContext)
   DOM_CLASSINFO_MAP_END
 
@@ -4701,7 +4707,7 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   // XXX Is there a better way to check this?
   nsISupports *globalNative = XPConnect()->GetNativeOfWrapper(cx, global);
   nsCOMPtr<nsPIDOMWindow> piwin = do_QueryInterface(globalNative);
-  if(!piwin) {
+  if (!piwin) {
     return NS_OK;
   }
 
@@ -4709,6 +4715,15 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   if (win->IsClosedOrClosing()) {
     return NS_OK;
   }
+
+  // If the window is in a different compartment than the global object, then
+  // it's likely that global is a sandbox object whose prototype is a window.
+  // Don't do anything in this case.
+  if (win->FastGetGlobalJSObject() &&
+      global->compartment() != win->FastGetGlobalJSObject()->compartment()) {
+    return NS_OK;
+  }
+
   if (win->IsOuterWindow()) {
     // XXXjst: Do security checks here when we remove the security
     // checks on the inner window.
@@ -4946,7 +4961,7 @@ nsWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
     }
 
     *parentObj = win->GetCurrentInnerWindowInternal()->FastGetGlobalJSObject();
-    return win->IsChromeWindow() ? NS_OK : NS_SUCCESS_NEEDS_XOW;
+    return NS_OK;
   }
 
   JSObject *winObj = win->FastGetGlobalJSObject();
@@ -6334,6 +6349,13 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
       return NS_OK;
     }
 
+    // For now don't expose web sockets unless user has explicitly enabled them
+    if (name_struct->mDOMClassInfoID == eDOMClassInfo_WebSocket_id) {
+      if (!nsWebSocket::PrefEnabled()) {
+        return NS_OK;
+      }
+    }
+
     // Create the XPConnect prototype for our classinfo, PostCreateProto will
     // set up the prototype chain.
     nsCOMPtr<nsIXPConnectJSObjectHolder> proto_holder;
@@ -6730,9 +6752,6 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     }
 
     JSObject *funObj = ::JS_GetFunctionObject(fun);
-
-    nsAutoGCRoot root(&funObj, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
 
     if (!::JS_DefinePropertyById(cx, windowObj, id, JSVAL_VOID,
                                  JS_DATA_TO_FUNC_PTR(JSPropertyOp, funObj),

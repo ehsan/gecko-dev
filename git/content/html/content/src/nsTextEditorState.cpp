@@ -879,12 +879,16 @@ nsTextInputListener::EditAction()
   // no undo items; JS could change the value and we'd still need to save it)
   mFrame->SetValueChanged(PR_TRUE);
 
-  // Fire input event
-  mFrame->FireOnInput();
-
   if (!mSettingValue) {
     mTxtCtrlElement->OnValueChanged(PR_TRUE);
   }
+
+  // Fire input event
+  nsCOMPtr<nsIEditor_MOZILLA_2_0_BRANCH> editor20 = do_QueryInterface(editor);
+  NS_ASSERTION(editor20, "Something is very wrong!");
+  PRBool trusted = PR_FALSE;
+  editor20->GetLastKeypressEventTrusted(&trusted);
+  mFrame->FireOnInput(trusted);
 
   return NS_OK;
 }
@@ -1636,7 +1640,7 @@ nsTextEditorState::GetMaxLength(PRInt32* aMaxLength)
 void
 nsTextEditorState::GetValue(nsAString& aValue, PRBool aIgnoreWrap) const
 {
-  if (mEditor && mBoundFrame) {
+  if (mEditor && mBoundFrame && (mEditorInitialized || !IsSingleLineTextControl())) {
     PRBool canCache = aIgnoreWrap && !IsSingleLineTextControl();
     if (canCache && !mCachedValue.IsEmpty()) {
       aValue = mCachedValue;
@@ -1713,8 +1717,26 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
       mBoundFrame->SetFireChangeEventState(PR_TRUE);
     }
 
+#ifdef DEBUG
+    if (IsSingleLineTextControl()) {
+      NS_ASSERTION(mEditorInitialized || mInitializing,
+                   "We should never try to use the editor if we're not initialized unless we're being initialized");
+    }
+#endif
+
     nsAutoString currentValue;
-    mBoundFrame->GetText(currentValue);
+    if (!mEditorInitialized && IsSingleLineTextControl()) {
+      // Grab the current value directly from the text node to make sure that we
+      // deal with stale data correctly.
+      NS_ASSERTION(mRootNode, "We should have a root node here");
+      nsIContent *textContent = mRootNode->GetChildAt(0);
+      nsCOMPtr<nsIDOMCharacterData> textNode = do_QueryInterface(textContent);
+      if (textNode) {
+        textNode->GetData(currentValue);
+      }
+    } else {
+      mBoundFrame->GetText(currentValue);
+    }
 
     nsWeakFrame weakFrame(mBoundFrame);
 

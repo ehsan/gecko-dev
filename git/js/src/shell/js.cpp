@@ -458,9 +458,7 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
             JS_DestroyScript(cx, script);
         }
 
-        if (file != stdin)
-            fclose(file);
-        return;
+        goto cleanup;
     }
 
     /* It's an interactive filehandle; drop into read-eval-print loop. */
@@ -491,7 +489,7 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
                 if (errno) {
                     JS_ReportError(cx, strerror(errno));
                     free(buffer);
-                    return;
+                    goto cleanup;
                 }
                 hitEOF = JS_TRUE;
                 break;
@@ -512,7 +510,7 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
                         free(buffer);
                         free(line);
                         JS_ReportOutOfMemory(cx);
-                        return;
+                        goto cleanup;
                     }
                     buffer = newBuf;
                 }
@@ -566,6 +564,7 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
 
     free(buffer);
     fprintf(gOutFile, "\n");
+cleanup:
     if (file != stdin)
         fclose(file);
     return;
@@ -1014,11 +1013,10 @@ Options(JSContext *cx, uintN argc, jsval *vp)
         JS_ReportOutOfMemory(cx);
         return JS_FALSE;
     }
-    str = JS_NewString(cx, names, strlen(names));
-    if (!str) {
-        free(names);
+    str = JS_NewStringCopyZ(cx, names);
+    free(names);
+    if (!str)
         return JS_FALSE;
-    }
     *vp = STRING_TO_JSVAL(str);
     return JS_TRUE;
 }
@@ -1137,11 +1135,10 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
      * Turn buf into a JSString. Note that buflength includes the trailing null
      * character.
      */
-    str = JS_NewString(cx, buf, sawNewline ? buflength - 1 : buflength);
-    if (!str) {
-        JS_free(cx, buf);
+    str = JS_NewStringCopyN(cx, buf, sawNewline ? buflength - 1 : buflength);
+    JS_free(cx, buf);
+    if (!str)
         return JS_FALSE;
-    }
 
     *vp = STRING_TO_JSVAL(str);
     return JS_TRUE;
@@ -1978,7 +1975,7 @@ TryNotes(JSContext *cx, JSScript *script)
 {
     JSTryNote *tn, *tnlimit;
 
-    if (script->trynotesOffset == 0)
+    if (!JSScript::isValidOffset(script->trynotesOffset))
         return JS_TRUE;
 
     tn = script->trynotes()->vector;
@@ -2056,7 +2053,7 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive)
     SrcNotes(cx, script);
     TryNotes(cx, script);
 
-    if (recursive && script->objectsOffset != 0) {
+    if (recursive && JSScript::isValidOffset(script->objectsOffset)) {
         JSObjectArray *objects = script->objects();
         for (uintN i = 0; i != objects->length; ++i) {
             JSObject *obj = objects->vector[i];
@@ -2081,17 +2078,29 @@ Disassemble(JSContext *cx, uintN argc, jsval *vp)
     bool lines = false, recursive = false;
     while (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         JSString *str = JSVAL_TO_STRING(argv[0]);
-        lines |= JS_MatchStringAndAscii(str, "-l");
-        recursive |= JS_MatchStringAndAscii(str, "-r");
+        lines |= !!JS_MatchStringAndAscii(str, "-l");
+        recursive |= !!JS_MatchStringAndAscii(str, "-r");
         if (!lines && !recursive)
             break;
         argv++, argc--;
     }
 
-    for (uintN i = 0; i < argc; i++) {
-        if (!DisassembleValue(cx, argv[i], lines, recursive))
-            return false;
+    if (argc == 0) {
+        /* Without arguments, disassemble the current script. */
+        if (JSStackFrame *frame = JS_GetScriptedCaller(cx, NULL)) {
+            JSScript *script = JS_GetFrameScript(cx, frame);
+            if (!js_Disassemble(cx, script, lines, stdout))
+                return false;
+            SrcNotes(cx, script);
+            TryNotes(cx, script);
+        }
+    } else {
+        for (uintN i = 0; i < argc; i++) {
+            if (!DisassembleValue(cx, argv[i], lines, recursive))
+                return false;
+        }
     }
+
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
@@ -2129,11 +2138,6 @@ DisassFile(JSContext *cx, uintN argc, jsval *vp)
     JS_SetOptions(cx, oldopts);
     if (!script)
         return JS_FALSE;
-
-    if (script->isEmpty()) {
-        JS_SET_RVAL(cx, vp, JSVAL_VOID);
-        return JS_TRUE;
-    }
 
     JSObject *obj = JS_NewScriptObject(cx, script);
     if (!obj)
@@ -3380,8 +3384,8 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 ShapeOf(JSContext *cx, uintN argc, jsval *vp)
 {
-    jsval v = JS_ARGV(cx, vp)[0];
-    if (!JSVAL_IS_OBJECT(v)) {
+    jsval v;
+    if (argc < 1 || !JSVAL_IS_OBJECT(v = JS_ARGV(cx, vp)[0])) {
         JS_ReportError(cx, "shapeOf: object expected");
         return JS_FALSE;
     }
@@ -4058,7 +4062,7 @@ Parse(JSContext *cx, uintN argc, jsval *vp)
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
     js::Parser parser(cx);
     parser.init(JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
-                NULL, "<string>", 0);
+                "<string>", 0);
     if (!parser.parse(NULL))
         return JS_FALSE;
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -4132,12 +4136,10 @@ Snarf(JSContext *cx, uintN argc, jsval *vp)
         return ok;
     }
 
-    buf[len] = '\0';
-    str = JS_NewString(cx, buf, len);
-    if (!str) {
-        JS_free(cx, buf);
+    str = JS_NewStringCopyN(cx, buf, len);
+    JS_free(cx, buf);
+    if (!str)
         return JS_FALSE;
-    }
     *vp = STRING_TO_JSVAL(str);
     return JS_TRUE;
 }
@@ -4152,7 +4154,7 @@ Wrap(JSContext *cx, uintN argc, jsval *vp)
     }
 
     JSObject *obj = JSVAL_TO_OBJECT(v);
-    JSObject *wrapped = JSWrapper::New(cx, obj, obj->getProto(), obj->getParent(),
+    JSObject *wrapped = JSWrapper::New(cx, obj, obj->getProto(), obj->getGlobal(),
                                        &JSWrapper::singleton);
     if (!wrapped)
         return false;
@@ -4198,8 +4200,10 @@ Deserialize(JSContext *cx, uintN argc, jsval *vp)
         return false;
     }
 
-    if (!JS_ReadStructuredClone(cx, (uint64 *) array->data, array->byteLength, &v))
+    if (!JS_ReadStructuredClone(cx, (uint64 *) array->data, array->byteLength,
+                                JS_STRUCTURED_CLONE_VERSION, &v)) {
         return false;
+    }
     JS_SET_RVAL(cx, vp, v);
     return true;
 }
@@ -4284,7 +4288,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("startTraceVis",  StartTraceVisNative, 1,0),
     JS_FN("stopTraceVis",   StopTraceVisNative,  0,0),
 #endif
-#ifdef DEBUG_ARRAYS
+#ifdef DEBUG
     JS_FN("arrayInfo",      js_ArrayInfo,   1,0),
 #endif
 #ifdef JS_THREADSAFE
@@ -4411,7 +4415,7 @@ static const char *const shell_help_messages[] = {
 "startTraceVis(filename)  Start TraceVis recording (stops any current recording)",
 "stopTraceVis()           Stop TraceVis recording",
 #endif
-#ifdef DEBUG_ARRAYS
+#ifdef DEBUG
 "arrayInfo(a1, a2, ...)   Report statistics about arrays",
 #endif
 #ifdef JS_THREADSAFE

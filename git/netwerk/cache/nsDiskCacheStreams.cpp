@@ -668,6 +668,7 @@ nsDiskCacheStreamIO::OpenCacheFile(PRIntn flags, PRFileDesc ** fd)
     
     rv = cacheMap->GetLocalFileForDiskCacheRecord(&mBinding->mRecord,
                                                   nsDiskCache::kData,
+                                                  !!(flags & PR_CREATE_FILE),
                                                   getter_AddRefs(mLocalFile));
     if (NS_FAILED(rv))  return rv;
     
@@ -732,8 +733,11 @@ nsDiskCacheStreamIO::FlushBufferToFile()
         if (NS_FAILED(rv))  return rv;
 
         PRInt64 dataSize = mBinding->mCacheEntry->PredictedDataSize();
+// Appears to cause bug 617123?  Disabled for now.
+#if 0
         if (dataSize != -1)
             mozilla::fallocate(mFD, PR_MIN(dataSize, kPreallocateLimit));
+#endif
     }
     
     // write buffer

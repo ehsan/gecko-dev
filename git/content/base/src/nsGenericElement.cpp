@@ -1095,19 +1095,6 @@ nsIContent::IsEqual(nsIContent* aOther)
         return PR_FALSE;
       }
     }
-
-    // Child nodes count.
-    PRUint32 childCount = GetChildCount();
-    if (childCount != element2->GetChildCount()) {
-      return PR_FALSE;
-    }
-
-    // Iterate over child nodes.
-    for (PRUint32 i = 0; i < childCount; ++i) {
-      if (!GetChildAt(i)->IsEqual(element2->GetChildAt(i))) {
-        return PR_FALSE;
-      }
-    }
   } else {
     // Node value check.
     nsCOMPtr<nsIDOMNode> domNode1 = do_QueryInterface(this);
@@ -1120,6 +1107,18 @@ nsIContent::IsEqual(nsIContent* aOther)
     }
   }
 
+  // Child nodes count.
+  PRUint32 childCount = GetChildCount();
+  if (childCount != aOther->GetChildCount()) {
+    return PR_FALSE;
+  }
+
+  // Iterate over child nodes.
+  for (PRUint32 i = 0; i < childCount; ++i) {
+    if (!GetChildAt(i)->IsEqual(aOther->GetChildAt(i))) {
+      return PR_FALSE;
+    }
+  }
   return PR_TRUE;
 }
 
@@ -4007,12 +4006,10 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
     return NS_ERROR_NULL_POINTER;
   }
 
-  if (IsNodeOfType(eDATA_NODE)) {
+  if (!IsNodeOfType(eDOCUMENT) &&
+      !IsNodeOfType(eDOCUMENT_FRAGMENT) &&
+      !IsElement()) {
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
-  }
-
-  if (IsNodeOfType(eATTRIBUTE)) {
-    return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   nsIContent* refContent;
@@ -4580,6 +4577,10 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   NS_ENSURE_ARG_POINTER(aName);
   NS_ASSERTION(aNamespaceID != kNameSpaceID_Unknown,
                "Don't call SetAttr with unknown namespace");
+
+  if (!mAttrsAndChildren.CanFitMoreAttrs()) {
+    return NS_ERROR_FAILURE;
+  }
 
   nsAutoString oldValue;
   PRBool modification = PR_FALSE;

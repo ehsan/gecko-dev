@@ -41,6 +41,7 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
+#include "nsISupports.h"
 #include "jsobj.h"
 #include "nsAString.h"
 #include "nsIPrincipal.h"
@@ -58,6 +59,9 @@ nsresult
 xpc_CreateMTGlobalObject(JSContext *cx, JSClass *clasp,
                          nsISupports *ptr, JSObject **global,
                          JSCompartment **compartment);
+
+nsresult
+xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph);
 
 extern JSBool
 XPC_WN_Equality(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
@@ -118,6 +122,13 @@ xpc_GetCachedSlimWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
     }
 
     return nsnull;
+}
+
+inline JSObject*
+xpc_GetCachedSlimWrapper(nsWrapperCache *cache, JSObject *scope)
+{
+    jsval dummy;
+    return xpc_GetCachedSlimWrapper(cache, scope, &dummy);
 }
 
 #endif

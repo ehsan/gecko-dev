@@ -424,15 +424,19 @@
                  xbl:inherits="popupid"/>
       <xul:vbox flex="1">
         <xul:description class="popup-notification-description"
-                         xbl:inherits="value=label"/>
+                         xbl:inherits="xbl:text=label"/>
         <xul:spacer flex="1"/>
         <xul:hbox pack="end">
           <xul:button anonid="button"
                       class="popup-notification-menubutton"
-                      xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey,type=buttontype">
+                      type="menu-button"
+                      xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey">
             <xul:menupopup anonid="menupopup"
                            xbl:inherits="oncommand=menucommand">
               <children/>
+              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
+                            label="&closeNotificationItem.label;"
+                            xbl:inherits="oncommand=closeitemcommand"/>
             </xul:menupopup>
           </xul:button>
         </xul:hbox>

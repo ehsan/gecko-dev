@@ -337,16 +337,19 @@ struct JSObject : js::gc::Cell {
     inline bool nativeContains(const js::Shape &shape);
 
     enum {
-        DELEGATE        = 0x01,
-        SYSTEM          = 0x02,
-        NOT_EXTENSIBLE  = 0x04,
-        BRANDED         = 0x08,
-        GENERIC         = 0x10,
-        METHOD_BARRIER  = 0x20,
-        INDEXED         = 0x40,
-        OWN_SHAPE       = 0x80,
-        BOUND_FUNCTION  = 0x100,
-        HAS_EQUALITY    = 0x200
+        DELEGATE                  =  0x01,
+        SYSTEM                    =  0x02,
+        NOT_EXTENSIBLE            =  0x04,
+        BRANDED                   =  0x08,
+        GENERIC                   =  0x10,
+        METHOD_BARRIER            =  0x20,
+        INDEXED                   =  0x40,
+        OWN_SHAPE                 =  0x80,
+        BOUND_FUNCTION            = 0x100,
+        HAS_EQUALITY              = 0x200,
+        METHOD_THRASH_COUNT_MASK  = 0xc00,
+        METHOD_THRASH_COUNT_SHIFT =    10,
+        METHOD_THRASH_COUNT_MAX   = METHOD_THRASH_COUNT_MASK >> METHOD_THRASH_COUNT_SHIFT
     };
 
     /*
@@ -423,11 +426,25 @@ struct JSObject : js::gc::Cell {
      */
     bool branded()              { return !!(flags & BRANDED); }
 
+    /*
+     * NB: these return false on shape overflow but do not report any error.
+     * Callers who depend on shape guarantees should therefore bail off trace,
+     * e.g., on false returns.
+     */
     bool brand(JSContext *cx);
     bool unbrand(JSContext *cx);
 
     bool generic()              { return !!(flags & GENERIC); }
     void setGeneric()           { flags |= GENERIC; }
+
+    uintN getMethodThrashCount() const {
+        return (flags & METHOD_THRASH_COUNT_MASK) >> METHOD_THRASH_COUNT_SHIFT;
+    }
+
+    void setMethodThrashCount(uintN count) {
+        JS_ASSERT(count <= METHOD_THRASH_COUNT_MAX);
+        flags = (flags & ~METHOD_THRASH_COUNT_MASK) | (count << METHOD_THRASH_COUNT_SHIFT);
+    }
 
     bool hasSpecialEquality() const { return !!(flags & HAS_EQUALITY); }
     void assertSpecialEqualitySynced() const {
@@ -551,6 +568,8 @@ struct JSObject : js::gc::Cell {
     inline uint32 propertyCount() const;
 
     inline bool hasPropertyTable() const;
+
+    /* gc::FinalizeKind */ unsigned finalizeKind() const;
 
     uint32 numSlots() const { return capacity; }
 
@@ -750,8 +769,23 @@ struct JSObject : js::gc::Cell {
     inline const js::Value &getDenseArrayElement(uintN idx);
     inline js::Value* addressOfDenseArrayElement(uintN idx);
     inline void setDenseArrayElement(uintN idx, const js::Value &val);
-    inline bool ensureDenseArrayElements(JSContext *cx, uintN cap);
     inline void shrinkDenseArrayElements(JSContext *cx, uintN cap);
+
+    /*
+     * ensureDenseArrayElements ensures that the dense array can hold at least
+     * index + extra elements. It returns ED_OK on success, ED_FAILED on
+     * failure to grow the array, ED_SPARSE when the array is too sparse to
+     * grow (this includes the case of index + extra overflow). In the last
+     * two cases the array is kept intact.
+     */
+    enum EnsureDenseResult { ED_OK, ED_FAILED, ED_SPARSE };
+    inline EnsureDenseResult ensureDenseArrayElements(JSContext *cx, uintN index, uintN extra);
+
+    /*
+     * Check if after growing the dense array will be too sparse.
+     * newElementsHint is an estimated number of elements to be added.
+     */
+    bool willBeSparseDenseArray(uintN requiredCapacity, uintN newElementsHint);
 
     JSBool makeDenseArraySlow(JSContext *cx);
 
@@ -1013,8 +1047,17 @@ struct JSObject : js::gc::Cell {
 
     inline bool hasProperty(JSContext *cx, jsid id, bool *foundp, uintN flags = 0);
 
+    /*
+     * Allocate and free an object slot. Note that freeSlot is infallible: it
+     * returns true iff this is a dictionary-mode object and the freed slot was
+     * added to the freelist.
+     *
+     * FIXME: bug 593129 -- slot allocation should be done by object methods
+     * after calling object-parameter-free shape methods, avoiding coupling
+     * logic across the object vs. shape module wall.
+     */
     bool allocSlot(JSContext *cx, uint32 *slotp);
-    void freeSlot(JSContext *cx, uint32 slot);
+    bool freeSlot(JSContext *cx, uint32 slot);
 
     bool reportReadOnly(JSContext* cx, jsid id, uintN report = JSREPORT_ERROR);
     bool reportNotConfigurable(JSContext* cx, jsid id, uintN report = JSREPORT_ERROR);
@@ -1131,7 +1174,9 @@ struct JSObject : js::gc::Cell {
 
     inline JSObject *getThrowTypeError() const;
 
-    bool swap(JSContext *cx, JSObject *obj);
+    JS_FRIEND_API(JSObject *) clone(JSContext *cx, JSObject *proto, JSObject *parent);
+    JS_FRIEND_API(bool) copyPropertiesFrom(JSContext *cx, JSObject *obj);
+    bool swap(JSContext *cx, JSObject *other);
 
     const js::Shape *defineBlockVariable(JSContext *cx, jsid id, intN index);
 
