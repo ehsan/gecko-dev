@@ -17,6 +17,7 @@
 #include "nsISupportsImpl.h"            // for Layer::AddRef, etc
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
 using namespace mozilla::gfx;
 
@@ -48,8 +49,9 @@ public:
     if (IsHidden()) {
       return;
     }
-
-    CompositionOp op = GetEffectiveOperator(this);
+    CompositionOp mixBlendMode = GetEffectiveMixBlendMode();
+    CompositionOp op =
+      mixBlendMode != CompositionOp::OP_OVER ? mixBlendMode : GetOperator();
 
     DrawOptions opts = DrawOptions();
     opts.mCompositionOp = op;

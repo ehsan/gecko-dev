@@ -23,7 +23,6 @@ class ArrayBufferViewObject;
 //
 // - JSObject
 //   - ArrayBufferObject
-//     - SharedArrayBufferObject
 //   - ArrayBufferViewObject
 //     - DataViewObject
 //     - TypedArrayObject (declared in vm/TypedArrayObject.h)
@@ -186,7 +185,9 @@ class ArrayBufferObject : public JSObject
      */
     static bool neuterViews(JSContext *cx, Handle<ArrayBufferObject*> buffer);
 
-    uint8_t * dataPointer() const;
+    inline uint8_t * dataPointer() const {
+        return (uint8_t *) elements;
+    }
 
     /*
      * Discard the ArrayBuffer contents. For asm.js buffers, at least, should
@@ -200,10 +201,6 @@ class ArrayBufferObject : public JSObject
      */
     bool hasData() const {
         return getClass() == &class_;
-    }
-
-    bool isSharedArrayBuffer() const {
-        return getElementsHeader()->isSharedArrayBuffer();
     }
 
     bool isAsmJSArrayBuffer() const {
@@ -295,15 +292,11 @@ InitArrayBufferViewDataPointer(ArrayBufferViewObject *obj, ArrayBufferObject *bu
     PostBarrierTypedArrayObject(obj);
 }
 
-/*
- * Tests for either ArrayBufferObject or SharedArrayBufferObject.
- * For specific class testing, use e.g., obj->is<ArrayBufferObject>().
- */
-bool IsArrayBuffer(HandleValue v);
-bool IsArrayBuffer(HandleObject obj);
-bool IsArrayBuffer(JSObject *obj);
-ArrayBufferObject &AsArrayBuffer(HandleObject obj);
-ArrayBufferObject &AsArrayBuffer(JSObject *obj);
+MOZ_ALWAYS_INLINE bool
+IsArrayBuffer(HandleValue v)
+{
+    return v.isObject() && v.toObject().is<ArrayBufferObject>();
+}
 
 inline void
 ArrayBufferViewObject::setBufferLink(ArrayBufferObject *buffer)

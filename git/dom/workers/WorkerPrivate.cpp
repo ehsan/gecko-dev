@@ -43,7 +43,6 @@
 #include "mozilla/dom/FunctionBinding.h"
 #include "mozilla/dom/ImageData.h"
 #include "mozilla/dom/ImageDataBinding.h"
-#include "mozilla/dom/MessageEvent.h"
 #include "mozilla/dom/MessageEventBinding.h"
 #include "mozilla/dom/MessagePortList.h"
 #include "mozilla/dom/WorkerBinding.h"
@@ -53,6 +52,7 @@
 #include "nsCxPusher.h"
 #include "nsError.h"
 #include "nsEventDispatcher.h"
+#include "nsDOMMessageEvent.h"
 #include "nsDOMJSUtils.h"
 #include "nsHostObjectProtocolHandler.h"
 #include "nsJSEnvironment.h"
@@ -981,7 +981,8 @@ public:
       return false;
     }
 
-    nsRefPtr<MessageEvent> event = new MessageEvent(aTarget, nullptr, nullptr);
+    nsRefPtr<nsDOMMessageEvent> event =
+      new nsDOMMessageEvent(aTarget, nullptr, nullptr);
     nsresult rv =
       event->InitMessageEvent(NS_LITERAL_STRING("message"),
                               false /* non-bubbling */,
@@ -2792,7 +2793,9 @@ WorkerPrivateParent<Derived>::DispatchMessageEventToMessagePort(
 
   buffer.clear();
 
-  nsRefPtr<MessageEvent> event = new MessageEvent(port, nullptr, nullptr);
+  nsRefPtr<nsDOMMessageEvent> event =
+    new nsDOMMessageEvent(port, nullptr, nullptr);
+
   nsresult rv =
     event->InitMessageEvent(NS_LITERAL_STRING("message"), false, false, data,
                             EmptyString(), EmptyString(), nullptr);
@@ -5735,9 +5738,9 @@ WorkerPrivate::ConnectMessagePort(JSContext* aCx, uint64_t aMessagePortSerial)
 
   ErrorResult rv;
 
-  nsRefPtr<MessageEvent> event =
-    MessageEvent::Constructor(globalObject, aCx,
-                              NS_LITERAL_STRING("connect"), init, rv);
+  nsRefPtr<nsDOMMessageEvent> event =
+    nsDOMMessageEvent::Constructor(globalObject, aCx,
+                                   NS_LITERAL_STRING("connect"), init, rv);
 
   event->SetTrusted(true);
 

@@ -72,7 +72,6 @@ class Selection;
 class TextComposition;
 
 namespace dom {
-class DataTransfer;
 class Element;
 class EventTarget;
 }  // namespace dom
@@ -809,7 +808,7 @@ public:
   // Used to insert content from a data transfer into the editable area.
   // This is called for each item in the data transfer, with the index of
   // each item passed as aIndex.
-  virtual nsresult InsertFromDataTransfer(mozilla::dom::DataTransfer *aDataTransfer,
+  virtual nsresult InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
                                           int32_t aIndex,
                                           nsIDOMDocument *aSourceDoc,
                                           nsIDOMNode *aDestinationNode,

@@ -1568,11 +1568,8 @@ nsGlobalWindow::FreeInnerObjects()
     mDocBaseURI = mDoc->GetDocBaseURI();
 
     while (mDoc->EventHandlingSuppressed()) {
-      mDoc->UnsuppressEventHandlingAndFireEvents(nsIDocument::eEvents, false);
+      mDoc->UnsuppressEventHandlingAndFireEvents(false);
     }
-
-    // Note: we don't have to worry about eAnimationsOnly suppressions because
-    // they won't leak.
   }
 
   // Remove our reference to the document and the document principal.
@@ -8285,7 +8282,7 @@ nsGlobalWindow::EnterModalState()
 
     mSuspendedDoc = topDoc;
     if (mSuspendedDoc) {
-      mSuspendedDoc->SuppressEventHandling(nsIDocument::eAnimationsOnly);
+      mSuspendedDoc->SuppressEventHandling();
     }
   }
   topWin->mModalStateDepth++;
@@ -8382,8 +8379,7 @@ nsGlobalWindow::LeaveModalState()
 
     if (mSuspendedDoc) {
       nsCOMPtr<nsIDocument> currentDoc = topWin->GetExtantDoc();
-      mSuspendedDoc->UnsuppressEventHandlingAndFireEvents(nsIDocument::eAnimationsOnly,
-                                                          currentDoc == mSuspendedDoc);
+      mSuspendedDoc->UnsuppressEventHandlingAndFireEvents(currentDoc == mSuspendedDoc);
       mSuspendedDoc = nullptr;
     }
   }

@@ -54,5 +54,5 @@ NS_EVENT_CLASS(Widget, CommandEvent)
 NS_EVENT_CLASS(Widget, ContentCommandEvent)
 NS_EVENT_CLASS(Widget, PluginEvent)
 
-// InternalMutationEvent.h (dom/events)
+// MutationEvent.h (dom/events)
 NS_EVENT_CLASS(Internal, MutationEvent)

@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface DataTransfer;
+
 [Constructor(DOMString type, optional ClipboardEventInit eventInitDict)]
 interface ClipboardEvent : Event
 {

@@ -200,7 +200,7 @@ SourceBuffer::Abort(ErrorResult& aRv)
   }
   // TODO: Run reset parser algorithm.
   mAppendWindowStart = 0;
-  mAppendWindowEnd = PositiveInfinity<double>();
+  mAppendWindowEnd = PositiveInfinity();
 }
 
 void
@@ -239,7 +239,7 @@ SourceBuffer::SourceBuffer(MediaSource* aMediaSource, const nsACString& aType)
   : nsDOMEventTargetHelper(aMediaSource->GetParentObject())
   , mMediaSource(aMediaSource)
   , mAppendWindowStart(0)
-  , mAppendWindowEnd(PositiveInfinity<double>())
+  , mAppendWindowEnd(PositiveInfinity())
   , mTimestampOffset(0)
   , mAppendMode(SourceBufferAppendMode::Segments)
   , mUpdating(false)

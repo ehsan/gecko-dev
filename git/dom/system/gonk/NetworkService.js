@@ -265,15 +265,15 @@ NetworkService.prototype = {
   },
 
   resetRoutingTable: function(network) {
-    if (!network.ip || !network.prefixLength) {
-      if(DEBUG) debug("Either ip or prefixLength is null. Cannot reset routing table.");
+    if (!network.ip || !network.netmask) {
+      if(DEBUG) debug("Either ip or netmask is null. Cannot reset routing table.");
       return;
     }
     let options = {
       cmd: "removeNetworkRoute",
       ifname: network.name,
       ip: network.ip,
-      prefixLength: network.prefixLength
+      netmask: network.netmask
     };
     this.controlMessage(options, function() {});
   },
@@ -515,17 +515,15 @@ NetworkService.prototype = {
     let params = {
       cmd: "updateUpStream",
       isAsync: true,
-      preInternalIfname: previous.internalIfname,
-      preExternalIfname: previous.externalIfname,
-      curInternalIfname: current.internalIfname,
-      curExternalIfname: current.externalIfname
+      previous: previous,
+      current: current
     };
 
     this.controlMessage(params, function(data) {
       let code = data.resultCode;
       let reason = data.resultReason;
       if(DEBUG) debug("updateUpStream result: Code " + code + " reason " + reason);
-      callback.updateUpStreamResult(!isError(code), data.curExternalIfname);
+      callback.updateUpStreamResult(!isError(code), data.current.externalIfname);
     });
   },
 

@@ -40,7 +40,7 @@ using namespace js;
 using namespace js::jit;
 
 using mozilla::DebugOnly;
-using mozilla::FloatingPoint;
+using mozilla::DoubleExponentBias;
 using mozilla::Maybe;
 using mozilla::NegativeInfinity;
 using mozilla::PositiveInfinity;
@@ -2741,7 +2741,7 @@ CodeGenerator::visitCheckOverRecursed(LCheckOverRecursed *lir)
 
     // Since Ion frames exist on the C stack, the stack limit may be
     // dynamically set by JS_SetThreadStackLimit() and JS_SetNativeStackQuota().
-    const void *limitAddr = GetIonContext()->runtime->addressOfJitStackLimit();
+    const void *limitAddr = GetIonContext()->runtime->addressOfIonStackLimit();
 
     CheckOverRecursedFailure *ool = new(alloc()) CheckOverRecursedFailure(lir);
     if (!addOutOfLineCode(ool))
@@ -2834,7 +2834,7 @@ bool
 CodeGenerator::visitCheckOverRecursedPar(LCheckOverRecursedPar *lir)
 {
     // See above: unlike visitCheckOverRecursed(), this code runs in
-    // parallel mode and hence uses the jitStackLimit from the current
+    // parallel mode and hence uses the ionStackLimit from the current
     // thread state.  Also, we must check the interrupt flags because
     // on interrupt or abort, only the stack limit for the main thread
     // is reset, not the worker threads.  See comment in vm/ForkJoin.h
@@ -2844,7 +2844,7 @@ CodeGenerator::visitCheckOverRecursedPar(LCheckOverRecursedPar *lir)
     Register tempReg = ToRegister(lir->getTempReg());
 
     masm.loadPtr(Address(cxReg, offsetof(ForkJoinContext, perThreadData)), tempReg);
-    masm.loadPtr(Address(tempReg, offsetof(PerThreadData, jitStackLimit)), tempReg);
+    masm.loadPtr(Address(tempReg, offsetof(PerThreadData, ionStackLimit)), tempReg);
 
     // Conditional forward (unlikely) branch to failure.
     CheckOverRecursedFailurePar *ool = new(alloc()) CheckOverRecursedFailurePar(lir);
@@ -4328,6 +4328,14 @@ CodeGenerator::visitMathFunctionF(LMathFunctionF *ins)
 
     void *funptr = nullptr;
     switch (ins->mir()->function()) {
+      case MMathFunction::Log:   funptr = JS_FUNC_TO_DATA_PTR(void *, logf);   break;
+      case MMathFunction::Sin:   funptr = JS_FUNC_TO_DATA_PTR(void *, sinf);   break;
+      case MMathFunction::Cos:   funptr = JS_FUNC_TO_DATA_PTR(void *, cosf);   break;
+      case MMathFunction::Exp:   funptr = JS_FUNC_TO_DATA_PTR(void *, expf);   break;
+      case MMathFunction::Tan:   funptr = JS_FUNC_TO_DATA_PTR(void *, tanf);   break;
+      case MMathFunction::ATan:  funptr = JS_FUNC_TO_DATA_PTR(void *, atanf);  break;
+      case MMathFunction::ASin:  funptr = JS_FUNC_TO_DATA_PTR(void *, asinf);  break;
+      case MMathFunction::ACos:  funptr = JS_FUNC_TO_DATA_PTR(void *, acosf);  break;
       case MMathFunction::Floor: funptr = JS_FUNC_TO_DATA_PTR(void *, floorf); break;
       case MMathFunction::Ceil:  funptr = JS_FUNC_TO_DATA_PTR(void *, ceilf);  break;
       default:
@@ -8152,9 +8160,7 @@ CodeGenerator::emitAssertRangeD(const Range *r, FloatRegister input, FloatRegist
     // This code does not yet check r->canHaveFractionalPart(). This would require new
     // assembler interfaces to make rounding instructions available.
 
-    if (!r->hasInt32Bounds() && !r->canBeInfiniteOrNaN() &&
-        r->exponent() < FloatingPoint<double>::ExponentBias)
-    {
+    if (!r->hasInt32Bounds() && !r->canBeInfiniteOrNaN() && r->exponent() < DoubleExponentBias) {
         // Check the bounds implied by the maximum exponent.
         Label exponentLoOk;
         masm.loadConstantDouble(pow(2.0, r->exponent() + 1), temp);
@@ -8179,13 +8185,13 @@ CodeGenerator::emitAssertRangeD(const Range *r, FloatRegister input, FloatRegist
         // If we think the value also can't be an infinity, check that it isn't.
         if (!r->canBeInfiniteOrNaN()) {
             Label notposinf;
-            masm.loadConstantDouble(PositiveInfinity<double>(), temp);
+            masm.loadConstantDouble(PositiveInfinity(), temp);
             masm.branchDouble(Assembler::DoubleLessThan, input, temp, &notposinf);
             masm.assumeUnreachable("Input shouldn't be +Inf.");
             masm.bind(&notposinf);
 
             Label notneginf;
-            masm.loadConstantDouble(NegativeInfinity<double>(), temp);
+            masm.loadConstantDouble(NegativeInfinity(), temp);
             masm.branchDouble(Assembler::DoubleGreaterThan, input, temp, &notneginf);
             masm.assumeUnreachable("Input shouldn't be -Inf.");
             masm.bind(&notneginf);

@@ -20,7 +20,7 @@
 #include "nscore.h"
 #include "nsQuickSort.h"
 #include "nsDebug.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 #include <new>
 
 namespace JS {

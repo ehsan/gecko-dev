@@ -129,12 +129,6 @@ public:
   TrackRate SampleRate() const { return mSampleRate; }
 
   /**
-   * Convert a time in seconds on the destination stream to seconds
-   * on this stream.
-   */
-  double TimeFromDestinationTime(AudioNodeStream* aDestination,
-                                 double aSeconds);
-  /**
    * Convert a time in seconds on the destination stream to TrackTicks
    * on this stream.
    */

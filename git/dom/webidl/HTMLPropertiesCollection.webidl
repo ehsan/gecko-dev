@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface DOMStringList;
+
 interface HTMLPropertiesCollection : HTMLCollection {
   // inherits length and item()
   getter PropertyNodeList? namedItem(DOMString name); // overrides inherited namedItem()

@@ -116,9 +116,9 @@ function moveToPoint(aMessage) {
 }
 
 function showCurrent(aMessage) {
-  Logger.debug(() => {
-    return [aMessage.name, JSON.stringify(aMessage.json, null, ' ')];
-  });
+  if (Logger.logLevel >= Logger.DEBUG) {
+    Logger.debug(aMessage.name, JSON.stringify(aMessage.json, null, ' '));
+  }
 
   let vc = Utils.getVirtualCursor(content.document);
 
@@ -147,10 +147,10 @@ function forwardToChild(aMessage, aListener, aVCPosition) {
     return false;
   }
 
-  Logger.debug(() => {
-    return ['forwardToChild', Logger.accessibleToString(acc),
-            aMessage.name, JSON.stringify(aMessage.json, null, '  ')];
-  });
+  if (Logger.logLevel >= Logger.DEBUG) {
+    Logger.debug('forwardToChild', Logger.accessibleToString(acc),
+                 aMessage.name, JSON.stringify(aMessage.json, null, '  '));
+  }
 
   let mm = Utils.getMessageManager(acc.DOMNode);
 
@@ -400,8 +400,6 @@ addMessageListener(
       eventManager = new EventManager(this);
     }
     eventManager.start();
-
-    sendAsyncMessage('AccessFu:ContentStarted');
   });
 
 addMessageListener(

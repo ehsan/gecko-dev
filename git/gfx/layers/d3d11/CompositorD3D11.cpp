@@ -14,7 +14,6 @@
 #include "mozilla/layers/ContentHost.h"
 #include "mozilla/layers/Effects.h"
 #include "nsWindowsHelpers.h"
-#include "gfxPrefs.h"
 
 #ifdef MOZ_METRO
 #include <DXGI1_2.h>
@@ -226,7 +225,7 @@ CompositorD3D11::Initialize()
       return false;
     }
 
-    if (gfxPrefs::ComponentAlphaEnabled()) {
+    if (gfxPlatform::ComponentAlphaEnabled()) {
       D3D11_RENDER_TARGET_BLEND_DESC rtBlendComponent = {
         TRUE,
         D3D11_BLEND_ONE,
@@ -634,7 +633,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
     break;
   case EFFECT_COMPONENT_ALPHA:
     {
-      MOZ_ASSERT(gfxPrefs::ComponentAlphaEnabled());
+      MOZ_ASSERT(gfxPlatform::ComponentAlphaEnabled());
       MOZ_ASSERT(mAttachments->mComponentBlendState);
       EffectComponentAlpha* effectComponentAlpha =
         static_cast<EffectComponentAlpha*>(aEffectChain.mPrimaryEffect.get());
@@ -886,7 +885,7 @@ CompositorD3D11::CreateShaders()
   LOAD_PIXEL_SHADER(RGBShader);
   LOAD_PIXEL_SHADER(RGBAShader);
   LOAD_PIXEL_SHADER(YCbCrShader);
-  if (gfxPrefs::ComponentAlphaEnabled()) {
+  if (gfxPlatform::ComponentAlphaEnabled()) {
     LOAD_PIXEL_SHADER(ComponentAlphaShader);
   }
 

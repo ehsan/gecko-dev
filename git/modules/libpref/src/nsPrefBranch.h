@@ -21,7 +21,7 @@
 #include "nsWeakReference.h"
 #include "nsClassHashtable.h"
 #include "nsCRT.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/MemoryReporting.h"
 

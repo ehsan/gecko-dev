@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 #include "nsCycleCollectionParticipant.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 #include "js/GCAPI.h"
 
 namespace mozilla {

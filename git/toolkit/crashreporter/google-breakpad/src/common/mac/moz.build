@@ -38,4 +38,3 @@ LOCAL_INCLUDES += [
     '../..',
 ]
 
-CMFLAGS += ['-std=c99']

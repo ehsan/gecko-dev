@@ -12,12 +12,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
-  "resource://gre/modules/FileUtils.jsm");
-
-XPCOMUtils.defineLazyServiceGetter(this, "appsService",
-                                  "@mozilla.org/AppsService;1",
-                                  "nsIAppsService");
+XPCOMUtils.defineLazyGetter(this, "FileUtils", function() {
+  Cu.import("resource://gre/modules/FileUtils.jsm");
+  return FileUtils;
+});
 
 this.WebappRT = {
   _config: null,
@@ -55,14 +53,5 @@ this.WebappRT = {
   get localeManifest() {
     return new ManifestHelper(this.config.app.manifest,
                               this.config.app.origin);
-  },
-
-  get appID() {
-    let manifestURL = WebappRT.config.app.manifestURL;
-    if (!manifestURL) {
-      return Ci.nsIScriptSecurityManager.NO_APP_ID;
-    }
-
-    return appsService.getAppLocalIdByManifestURL(manifestURL);
   },
 };

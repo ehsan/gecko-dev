@@ -3930,7 +3930,10 @@ class MMathFunction
     static const char *FunctionName(Function function);
 
     bool isFloat32Commutative() const {
-        return function_ == Floor || function_ == Ceil;
+        return function_ == Log || function_ == Sin || function_ == Cos
+               || function_ == Exp || function_ == Tan || function_ == ATan
+               || function_ == ASin || function_ == ACos || function_ == Floor
+               || function_ == Ceil;
     }
     void trySpecializeFloat32(TempAllocator &alloc);
     void computeRange(TempAllocator &alloc);
@@ -7479,33 +7482,6 @@ class MForkJoinContext
         // Indicate that this instruction reads nothing, stores nothing.
         // (For all intents and purposes)
         return AliasSet::None();
-    }
-
-    bool possiblyCalls() const {
-        return true;
-    }
-};
-
-// Calls the ForkJoinGetSlice stub, used for inlining the eponymous intrinsic.
-// Only applicable in ParallelExecution.
-class MForkJoinGetSlice
-  : public MUnaryInstruction
-{
-    MForkJoinGetSlice(MDefinition *cx)
-      : MUnaryInstruction(cx)
-    {
-        setResultType(MIRType_Int32);
-    }
-
-  public:
-    INSTRUCTION_HEADER(ForkJoinGetSlice);
-
-    static MForkJoinGetSlice *New(TempAllocator &alloc, MDefinition *cx) {
-        return new(alloc) MForkJoinGetSlice(cx);
-    }
-
-    MDefinition *forkJoinContext() {
-        return getOperand(0);
     }
 
     bool possiblyCalls() const {

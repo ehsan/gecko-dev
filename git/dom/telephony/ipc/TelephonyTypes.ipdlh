@@ -17,8 +17,6 @@ struct IPCCallStateData
   bool     isOutGoing;
   bool     isEmergency;
   bool     isConference;
-  bool     isSwitchable;
-  bool     isMergeable;
 };
 
 } /* namespace telephony */

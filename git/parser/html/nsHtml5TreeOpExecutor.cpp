@@ -339,15 +339,15 @@ nsHtml5TreeOpExecutor::UpdateStyleSheet(nsIContent* aElement)
     aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);
     if (!relVal.IsEmpty()) {
       uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(relVal);
-      bool hasPrefetch = linkTypes & nsStyleLinkElement::ePREFETCH;
-      if (hasPrefetch || (linkTypes & nsStyleLinkElement::eNEXT)) {
+      bool hasPrefetch = linkTypes & PREFETCH;
+      if (hasPrefetch || (linkTypes & NEXT)) {
         nsAutoString hrefVal;
         aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
         if (!hrefVal.IsEmpty()) {
           PrefetchHref(hrefVal, aElement, hasPrefetch);
         }
       }
-      if (linkTypes & nsStyleLinkElement::eDNS_PREFETCH) {
+      if (linkTypes & DNS_PREFETCH) {
         nsAutoString hrefVal;
         aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
         if (!hrefVal.IsEmpty()) {

@@ -111,9 +111,6 @@ class MacroAssemblerX86Shared : public Assembler
     void and32(const Imm32 &imm, const Address &dest) {
         andl(imm, Operand(dest));
     }
-    void or32(const Register &src, const Register &dest) {
-        orl(src, dest);
-    }
     void or32(const Imm32 &imm, const Register &dest) {
         orl(imm, dest);
     }
@@ -159,9 +156,6 @@ class MacroAssemblerX86Shared : public Assembler
     void xor32(Imm32 imm, Register dest) {
         xorl(imm, dest);
     }
-    void xor32(Register src, Register dest) {
-        xorl(src, dest);
-    }
     void not32(Register reg) {
         notl(reg);
     }
@@ -183,10 +177,6 @@ class MacroAssemblerX86Shared : public Assembler
         lock_cmpxchg32(src, addr);
     }
 
-    void branch16(Condition cond, const Register &lhs, const Register &rhs, Label *label) {
-        cmpw(lhs, rhs);
-        j(cond, label);
-    }
     void branch32(Condition cond, const Operand &lhs, const Register &rhs, Label *label) {
         cmpl(lhs, rhs);
         j(cond, label);
@@ -209,10 +199,6 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void branch32(Condition cond, const Register &lhs, const Register &rhs, Label *label) {
         cmpl(lhs, rhs);
-        j(cond, label);
-    }
-    void branchTest16(Condition cond, const Register &lhs, const Register &rhs, Label *label) {
-        testw(lhs, rhs);
         j(cond, label);
     }
     void branchTest32(Condition cond, const Register &lhs, const Register &rhs, Label *label) {

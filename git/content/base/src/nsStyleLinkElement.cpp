@@ -120,18 +120,18 @@ nsStyleLinkElement::SetLineNumber(uint32_t aLineNumber)
   mLineNumber = aLineNumber;
 }
 
-static uint32_t ToLinkMask(const nsAString& aLink)
+uint32_t ToLinkMask(const nsAString& aLink)
 { 
   if (aLink.EqualsLiteral("prefetch"))
-    return nsStyleLinkElement::ePREFETCH;
+     return PREFETCH;
   else if (aLink.EqualsLiteral("dns-prefetch"))
-    return nsStyleLinkElement::eDNS_PREFETCH;
+     return DNS_PREFETCH;
   else if (aLink.EqualsLiteral("stylesheet"))
-    return nsStyleLinkElement::eSTYLESHEET;
+    return STYLESHEET;
   else if (aLink.EqualsLiteral("next"))
-    return nsStyleLinkElement::eNEXT;
+    return NEXT;
   else if (aLink.EqualsLiteral("alternate"))
-    return nsStyleLinkElement::eALTERNATE;
+    return ALTERNATE;
   else 
     return 0;
 }

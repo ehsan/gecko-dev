@@ -23,6 +23,7 @@
 #include "nsISupportsImpl.h"            // for gfxPattern::Release, etc
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "mozilla/gfx/Point.h"          // for IntSize
 
 using namespace mozilla::gfx;
@@ -129,7 +130,9 @@ BasicImageLayer::GetAndPaintCurrentImage(DrawTarget* aTarget,
     // The visible region can extend outside the image, so just draw
     // within the image bounds.
     SurfacePattern pat(surf, ExtendMode::CLAMP, Matrix(), ToFilter(mFilter));
-    CompositionOp op = GetEffectiveOperator(this);
+    CompositionOp mixBlendMode = GetEffectiveMixBlendMode();
+    CompositionOp op =
+    mixBlendMode != CompositionOp::OP_OVER ? mixBlendMode : GetOperator();
     DrawOptions opts(aOpacity, op);
 
     aTarget->MaskSurface(pat, aMaskSurface, Point(0, 0), opts);
@@ -169,7 +172,9 @@ BasicImageLayer::DeprecatedGetAndPaintCurrentImage(gfxContext* aContext,
   // The visible region can extend outside the image, so just draw
   // within the image bounds.
   if (aContext) {
-    CompositionOp op = GetEffectiveOperator(this);
+    CompositionOp mixBlendMode = GetEffectiveMixBlendMode();
+    CompositionOp op =
+      mixBlendMode != CompositionOp::OP_OVER ? mixBlendMode : GetOperator();
     AutoSetOperator setOptimizedOperator(aContext, ThebesOp(op));
 
     DeprecatedPaintContext(pat,

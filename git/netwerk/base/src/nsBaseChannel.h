@@ -44,7 +44,7 @@ class nsBaseChannel : public nsHashPropertyBag
                     , public nsITransportEventSink
                     , public nsIAsyncVerifyRedirectCallback
                     , public mozilla::net::PrivateBrowsingChannel<nsBaseChannel>
-                    , protected nsIStreamListener
+                    , private nsIStreamListener
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED

@@ -20,8 +20,8 @@
 #include "nsIContent.h"                 // for nsIContent
 #include "nsIController.h"              // for nsIController
 #include "nsID.h"
-#include "mozilla/dom/DOMStringList.h"
-#include "mozilla/dom/DataTransfer.h"
+#include "nsIDOMDOMStringList.h"        // for nsIDOMDOMStringList
+#include "nsIDOMDataTransfer.h"         // for nsIDOMDataTransfer
 #include "nsIDOMDocument.h"             // for nsIDOMDocument
 #include "nsIDOMDragEvent.h"            // for nsIDOMDragEvent
 #include "nsIDOMElement.h"              // for nsIDOMElement
@@ -59,7 +59,7 @@
 class nsPresContext;
 
 using namespace mozilla;
-using namespace mozilla::dom;
+using mozilla::dom::EventTarget;
 
 static nsINativeKeyBindings *sNativeEditorBindings = nullptr;
 
@@ -805,22 +805,29 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
     return false;
   }
 
-  nsCOMPtr<nsIDOMDataTransfer> domDataTransfer;
-  aEvent->GetDataTransfer(getter_AddRefs(domDataTransfer));
-  nsCOMPtr<DataTransfer> dataTransfer = do_QueryInterface(domDataTransfer);
+  nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
+  aEvent->GetDataTransfer(getter_AddRefs(dataTransfer));
   NS_ENSURE_TRUE(dataTransfer, false);
 
-  nsRefPtr<DOMStringList> types = dataTransfer->Types();
+  nsCOMPtr<nsIDOMDOMStringList> types;
+  dataTransfer->GetTypes(getter_AddRefs(types));
+  NS_ENSURE_TRUE(types, false);
 
   // Plaintext editors only support dropping text. Otherwise, HTML and files
   // can be dropped as well.
-  if (!types->Contains(NS_LITERAL_STRING(kTextMime)) &&
-      !types->Contains(NS_LITERAL_STRING(kMozTextInternal)) &&
-      (mEditor->IsPlaintextEditor() ||
-       (!types->Contains(NS_LITERAL_STRING(kHTMLMime)) &&
-        !types->Contains(NS_LITERAL_STRING(kFileMime))))) {
-    return false;
+  bool typeSupported;
+  types->Contains(NS_LITERAL_STRING(kTextMime), &typeSupported);
+  if (!typeSupported) {
+    types->Contains(NS_LITERAL_STRING(kMozTextInternal), &typeSupported);
+    if (!typeSupported && !mEditor->IsPlaintextEditor()) {
+      types->Contains(NS_LITERAL_STRING(kHTMLMime), &typeSupported);
+      if (!typeSupported) {
+        types->Contains(NS_LITERAL_STRING(kFileMime), &typeSupported);
+      }
+    }
   }
+
+  NS_ENSURE_TRUE(typeSupported, false);
 
   // If there is no source node, this is probably an external drag and the
   // drop is allowed. The later checks rely on checking if the drag target

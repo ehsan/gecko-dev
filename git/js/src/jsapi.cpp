@@ -78,7 +78,6 @@
 #include "vm/RegExpStatics.h"
 #include "vm/Runtime.h"
 #include "vm/Shape.h"
-#include "vm/SharedArrayObject.h"
 #include "vm/StopIterationObject.h"
 #include "vm/StringBuffer.h"
 #include "vm/TypedArrayObject.h"
@@ -421,7 +420,7 @@ JS_ValueToSource(JSContext *cx, HandleValue value)
 JS_PUBLIC_API(bool)
 JS_DoubleIsInt32(double d, int32_t *ip)
 {
-    return mozilla::NumberIsInt32(d, ip);
+    return mozilla::DoubleIsInt32(d, ip);
 }
 
 JS_PUBLIC_API(int32_t)
@@ -2143,7 +2142,7 @@ js::RecomputeStackLimit(JSRuntime *rt, StackKind kind)
 #endif
 
     // If there's no pending interrupt request set on the runtime's main thread's
-    // jitStackLimit, then update it so that it reflects the new nativeStacklimit.
+    // ionStackLimit, then update it so that it reflects the new nativeStacklimit.
     //
     // Note that, for now, we use the untrusted limit for ion. This is fine,
     // because it's the most conservative limit, and if we hit it, we'll bail
@@ -2151,10 +2150,10 @@ js::RecomputeStackLimit(JSRuntime *rt, StackKind kind)
 #ifdef JS_ION
     if (kind == StackForUntrustedScript) {
         JSRuntime::AutoLockForOperationCallback lock(rt);
-        if (rt->mainThread.jitStackLimit != uintptr_t(-1)) {
-            rt->mainThread.jitStackLimit = rt->mainThread.nativeStackLimit[kind];
+        if (rt->mainThread.ionStackLimit != uintptr_t(-1)) {
+            rt->mainThread.ionStackLimit = rt->mainThread.nativeStackLimit[kind];
 #ifdef JS_ARM_SIMULATOR
-            rt->mainThread.jitStackLimit = jit::Simulator::StackLimit();
+            rt->mainThread.ionStackLimit = jit::Simulator::StackLimit();
 #endif
         }
     }
@@ -6205,7 +6204,8 @@ HideScriptedCaller(JSContext *cx)
     MOZ_ASSERT(cx);
 
     // If there's no accessible activation on the stack, we'll return null from
-    // DescribeScriptedCaller anyway, so there's no need to annotate anything.
+    // JS_DescribeScriptedCaller anyway, so there's no need to annotate
+    // anything.
     Activation *act = cx->runtime()->mainThread.activation();
     if (!act)
         return;

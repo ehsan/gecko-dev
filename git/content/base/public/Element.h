@@ -635,7 +635,7 @@ public:
     }
   }
   void MozRequestFullScreen();
-  void MozRequestPointerLock();
+  inline void MozRequestPointerLock();
   Attr* GetAttributeNode(const nsAString& aName);
   already_AddRefed<Attr> SetAttributeNode(Attr& aNewAttr,
                                           ErrorResult& aError);
