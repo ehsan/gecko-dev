@@ -12,12 +12,13 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla gecko code.
+ * The Original Code is Mozilla XPCOM.
  *
  * The Initial Developer of the Original Code is
- * Benjamin Smedberg <bsmedberg@covad.net>
- * Portions created by the Initial Developer are Copyright (C) 2004
- * the Initial Developer. All Rights Reserved.
+ * Benjamin Smedberg <benjamin@smedbergs.us>
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Mozilla Foundation <http://www.mozilla.org/>. All Rights Reserved.
  *
  * Contributor(s):
  *
@@ -35,42 +36,46 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIGlobalHistory2.h"
-#include "nsIGlobalHistory.h"
-#include "nsIGenericFactory.h"
-#include "nsCOMPtr.h"
+#ifndef mozilla_ModuleLoader_h
+#define mozilla_ModuleLoader_h
+
+#include "nsISupports.h"
+#include "mozilla/Module.h"
+
+#define MOZILLA_MODULELOADER_PSEUDO_IID \
+{ 0xD951A8CE, 0x6E9F, 0x464F, \
+  { 0x8A, 0xC8, 0x14, 0x61, 0xC0, 0xD3, 0x63, 0xC8 } }
+
+namespace mozilla {
 
 /**
- * A compatibility wrapper for the nsIGlobalHistory2 interface. It provides
- * the old nsIGlobalHistory interface for extensions which still use it.
+ * Module loaders are responsible for loading a component file. The static
+ * component loader is special and does not use this abstract interface.
+ *
+ * @note Implementations of this interface should be threadsafe,
+ *       methods may be called from any thread.
  */
-
-// {a772eee4-0464-40d5-a329-a29dfda3791a}
-#define NS_GLOBALHISTORY2ADAPTER_CID \
- { 0xa772eee4, 0x0464, 0x405d, { 0xa3, 0x29, 0xa2, 0x9d, 0xfd, 0xa3, 0x79, 0x1a } }
-
-class nsGlobalHistory2Adapter : public nsIGlobalHistory
+class ModuleLoader : public nsISupports
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIGLOBALHISTORY
+  NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_MODULELOADER_PSEUDO_IID)
 
-  static NS_METHOD Create(nsISupports *aOuter,
-                          REFNSIID aIID,
-                          void **aResult);
+  /**
+   * Return the module for a specified file. The loader should cache
+   * the module and return the same module in future calls. The Module
+   * should either be statically or permanently allocated, it will not
+   * be freed.
+   */
+  virtual const Module* LoadModule(nsILocalFile* aFile) = 0;
 
-  static NS_METHOD RegisterSelf(nsIComponentManager* aCompMgr,
-                                nsIFile* aPath,
-                                const char* aLoaderStr,
-                                const char* aType,
-                                const nsModuleComponentInfo *aInfo);
-
-  NS_DEFINE_STATIC_CID_ACCESSOR(NS_GLOBALHISTORY2ADAPTER_CID)
-
-private:
-  nsGlobalHistory2Adapter();
-  ~nsGlobalHistory2Adapter();
-
-  nsresult Init();
-  nsCOMPtr<nsIGlobalHistory2> mHistory;
+  /**
+   * Return the module for a file located within a JAR.
+   */
+  virtual const Module* LoadModuleFromJAR(nsILocalFile* aJARFile,
+                                          const nsACString& aPath) = 0;
 };
+NS_DEFINE_STATIC_IID_ACCESSOR(ModuleLoader, MOZILLA_MODULELOADER_PSEUDO_IID)
+
+} // namespace mozilla
+
+#endif // mozilla_ModuleLoader_h
