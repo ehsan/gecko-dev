@@ -1362,50 +1362,6 @@ CacheFile::RemoveChunkInternal(CacheFileChunk *aChunk, bool aCacheChunk)
   mChunks.Remove(aChunk->Index());
 }
 
-int64_t
-CacheFile::BytesFromChunk(uint32_t aIndex)
-{
-  AssertOwnsLock();
-
-  if (!mDataSize)
-    return 0;
-
-  uint32_t lastChunk = (mDataSize - 1) / kChunkSize;
-  if (aIndex > lastChunk)
-    return 0;
-
-  uint32_t i;
-  for (i = aIndex; i <= lastChunk; ++i) {
-    CacheFileChunk * chunk;
-
-    chunk = mChunks.GetWeak(i);
-    if (chunk) {
-      MOZ_ASSERT(i == lastChunk || chunk->mDataSize == kChunkSize);
-      if (chunk->IsReady()) {
-        continue;
-      }
-
-      // don't search this chunk in cached
-      break;
-    }
-
-    chunk = mCachedChunks.GetWeak(i);
-    if (chunk) {
-      MOZ_ASSERT(i == lastChunk || chunk->mDataSize == kChunkSize);
-      continue;
-    }
-
-    break;
-  }
-
-  // theoretic bytes in advance
-  int64_t advance = int64_t(i - aIndex) * kChunkSize;
-  // real bytes till the end of the file
-  int64_t tail = mDataSize - (aIndex * kChunkSize);
-
-  return std::min(advance, tail);
-}
-
 nsresult
 CacheFile::RemoveInput(CacheFileInputStream *aInput)
 {
@@ -1584,21 +1540,13 @@ CacheFile::IsWriteInProgress()
   // Returns true when there is a potentially unfinished write operation.
   // Not using lock for performance reasons.  mMetadata is never released
   // during life time of CacheFile.
-
-  bool result = false;
-
-  if (!mMemoryOnly) {
-    result = mDataIsDirty ||
-             (mMetadata && mMetadata->IsDirty()) ||
-             mWritingMetadata;
-  }
-
-  result = result ||
-           mOpeningFile ||
-           mOutput ||
-           mChunks.Count();
-
-  return result;
+  return
+    mDataIsDirty ||
+    (mMetadata && mMetadata->IsDirty()) ||
+    mWritingMetadata ||
+    mOpeningFile ||
+    mOutput ||
+    mChunks.Count();
 }
 
 bool
@@ -1667,9 +1615,6 @@ CacheFile::WriteMetadataIfNeededLocked(bool aFireAndForget)
 void
 CacheFile::PostWriteTimer()
 {
-  if (mMemoryOnly)
-    return;
-
   LOG(("CacheFile::PostWriteTimer() [this=%p]", this));
 
   CacheFileIOManager::ScheduleMetadataWrite(this);

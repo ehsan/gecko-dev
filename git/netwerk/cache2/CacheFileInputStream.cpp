@@ -89,8 +89,9 @@ CacheFileInputStream::Available(uint64_t *_retval)
   *_retval = 0;
 
   if (mChunk) {
-    int64_t canRead = mFile->BytesFromChunk(mChunk->Index());
-    canRead -= (mPos % kChunkSize);
+    int64_t canRead;
+    const char *buf;
+    CanRead(&canRead, &buf);
 
     if (canRead > 0)
       *_retval = canRead;
@@ -187,8 +188,6 @@ CacheFileInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
 
   nsresult rv;
 
-  *_retval = 0;
-
   if (mClosed) {
     LOG(("CacheFileInputStream::ReadSegments() - Stream is closed. [this=%p, "
          "status=0x%08x]", this, mStatus));
@@ -196,78 +195,67 @@ CacheFileInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
     if NS_FAILED(mStatus)
       return mStatus;
 
+    *_retval = 0;
     return NS_OK;
   }
 
   EnsureCorrectChunk(false);
+  if (NS_FAILED(mStatus))
+    return mStatus;
 
-  while (true) {
-    if (NS_FAILED(mStatus))
-      return mStatus;
-
-    if (!mChunk) {
-      if (mListeningForChunk == -1) {
-        return NS_OK;
-      }
-      else {
-        return NS_BASE_STREAM_WOULD_BLOCK;
-      }
-    }
-
-    int64_t canRead;
-    const char *buf;
-    CanRead(&canRead, &buf);
-
-    if (canRead < 0) {
-      // file was truncated ???
-      MOZ_ASSERT(false, "SetEOF is currenty not implemented?!");
-      rv = NS_OK;
-    }
-    else if (canRead > 0) {
-      uint32_t toRead = std::min(static_cast<uint32_t>(canRead), aCount);
-
-      // We need to release the lock to avoid lock re-entering
-#ifdef DEBUG
-      int64_t oldPos = mPos;
-#endif
-      mInReadSegments = true;
-      lock.Unlock();
-      uint32_t read;
-      rv = aWriter(this, aClosure, buf, 0, toRead, &read);
-      lock.Lock();
-      mInReadSegments = false;
-#ifdef DEBUG
-      MOZ_ASSERT(oldPos == mPos);
-#endif
-
-      if (NS_SUCCEEDED(rv)) {
-        MOZ_ASSERT(read <= toRead,
-                   "writer should not write more than we asked it to write");
-
-        *_retval += read;
-        mPos += read;
-        aCount -= read;
-
-        // The last chunk is released after the caller closes this stream.
-        EnsureCorrectChunk(false);
-
-        if (mChunk && aCount) {
-          // We have the next chunk! Go on.
-          continue;
-        }
-      }
-
-      rv = NS_OK;
+  if (!mChunk) {
+    if (mListeningForChunk == -1) {
+      *_retval = 0;
+      return NS_OK;
     }
     else {
-      if (mFile->mOutput)
-        rv = NS_BASE_STREAM_WOULD_BLOCK;
-      else {
-        rv = NS_OK;
-      }
+      return NS_BASE_STREAM_WOULD_BLOCK;
+    }
+  }
+
+  int64_t canRead;
+  const char *buf;
+  CanRead(&canRead, &buf);
+
+  if (canRead < 0) {
+    // file was truncated ???
+    MOZ_ASSERT(false, "SetEOF is currenty not implemented?!");
+    *_retval = 0;
+    rv = NS_OK;
+  }
+  else if (canRead > 0) {
+    uint32_t toRead = std::min(static_cast<uint32_t>(canRead), aCount);
+
+    // We need to release the lock to avoid lock re-entering
+#ifdef DEBUG
+    int64_t oldPos = mPos;
+#endif
+    mInReadSegments = true;
+    lock.Unlock();
+    rv = aWriter(this, aClosure, buf, 0, toRead, _retval);
+    lock.Lock();
+    mInReadSegments = false;
+#ifdef DEBUG
+    MOZ_ASSERT(oldPos == mPos);
+#endif
+
+    if (NS_SUCCEEDED(rv)) {
+      MOZ_ASSERT(*_retval <= toRead,
+                 "writer should not write more than we asked it to write");
+      mPos += *_retval;
     }
 
-    break;
+    EnsureCorrectChunk(!(canRead < aCount && mPos % kChunkSize == 0));
+
+    rv = NS_OK;
+  }
+  else {
+    if (mFile->mOutput)
+      rv = NS_BASE_STREAM_WOULD_BLOCK;
+    else {
+      *_retval = 0;
+      rv = NS_OK;
+    }
   }
 
   LOG(("CacheFileInputStream::ReadSegments() [this=%p, rv=0x%08x, retval=%d",

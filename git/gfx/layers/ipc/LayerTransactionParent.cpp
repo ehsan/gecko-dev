@@ -179,11 +179,9 @@ bool
 LayerTransactionParent::RecvUpdateNoSwap(const InfallibleTArray<Edit>& cset,
                                          const TargetConfig& targetConfig,
                                          const bool& isFirstPaint,
-                                         const bool& scheduleComposite,
-                                         const uint32_t& paintSequenceNumber)
+                                         const bool& scheduleComposite)
 {
-  return RecvUpdate(cset, targetConfig, isFirstPaint, scheduleComposite,
-      paintSequenceNumber, nullptr);
+  return RecvUpdate(cset, targetConfig, isFirstPaint, scheduleComposite, nullptr);
 }
 
 bool
@@ -191,7 +189,6 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
                                    const TargetConfig& targetConfig,
                                    const bool& isFirstPaint,
                                    const bool& scheduleComposite,
-                                   const uint32_t& paintSequenceNumber,
                                    InfallibleTArray<EditReply>* reply)
 {
   profiler_tracing("Paint", "Composite", TRACING_INTERVAL_START);
@@ -212,7 +209,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   }
 
   // Clear fence handles used in previsou transaction.
-  DeprecatedClearPrevFenceHandles();
+  ClearPrevFenceHandles();
 
   EditReplyVector replyv;
 
@@ -550,8 +547,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   // other's buffer contents.
   LayerManagerComposite::PlatformSyncBeforeReplyUpdate();
 
-  mShadowLayersManager->ShadowLayersUpdated(this, targetConfig, isFirstPaint,
-      scheduleComposite, paintSequenceNumber);
+  mShadowLayersManager->ShadowLayersUpdated(this, targetConfig, isFirstPaint, scheduleComposite);
 
 #ifdef COMPOSITOR_PERFORMANCE_WARNING
   int compositeTime = (int)(mozilla::TimeStamp::Now() - updateStart).ToMilliseconds();
@@ -694,13 +690,6 @@ LayerTransactionParent::RecvSetAsyncScrollOffset(PLayerParent* aLayer,
 }
 
 bool
-LayerTransactionParent::RecvGetAPZTestData(APZTestData* aOutData)
-{
-  mShadowLayersManager->GetAPZTestData(this, aOutData);
-  return true;
-}
-
-bool
 LayerTransactionParent::Attach(ShadowLayerParent* aLayerParent,
                                CompositableHost* aCompositable,
                                bool aIsAsync)
@@ -828,17 +817,9 @@ LayerTransactionParent::SendFenceHandle(AsyncTransactionTracker* aTracker,
                                         const FenceHandle& aFence)
 {
   HoldUntilComplete(aTracker);
-  InfallibleTArray<AsyncParentMessageData> messages;
-  messages.AppendElement(OpDeliverFence(aTracker->GetId(),
+  mozilla::unused << SendParentAsyncMessage(OpDeliverFence(aTracker->GetId(),
                                         aTexture, nullptr,
                                         aFence));
-  mozilla::unused << SendParentAsyncMessage(messages);
-}
-
-void
-LayerTransactionParent::SendAsyncMessage(const InfallibleTArray<AsyncParentMessageData>& aMessage)
-{
-  mozilla::unused << SendParentAsyncMessage(aMessage);
 }
 
 } // namespace layers

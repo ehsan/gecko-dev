@@ -163,7 +163,7 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
         emitBranch(value.typeReg(), (Imm32)ImmType(JSVAL_TYPE_UNDEFINED), cond, ifTrue, ifFalse);
     }
 
-    bool emitTableSwitchDispatch(MTableSwitch *mir, Register index, Register base);
+    bool emitTableSwitchDispatch(MTableSwitch *mir, const Register &index, const Register &base);
 
   public:
     // Instruction visitors.
@@ -230,7 +230,7 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
     Register splitTagForTest(const ValueOperand &value);
 
     void storeElementTyped(const LAllocation *value, MIRType valueType, MIRType elementType,
-                           Register elements, const LAllocation *index);
+                           const Register &elements, const LAllocation *index);
 
   public:
     CodeGeneratorMIPS(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm);

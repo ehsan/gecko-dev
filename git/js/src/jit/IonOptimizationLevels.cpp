@@ -33,7 +33,6 @@ OptimizationInfo::initNormalOptimizationInfo()
     licm_ = true;
     uce_ = true;
     rangeAnalysis_ = true;
-    autoTruncate_ = true;
     registerAllocator_ = RegisterAllocator_LSRA;
 
     inlineMaxTotalBytecodeLength_ = 1000;
@@ -56,7 +55,6 @@ OptimizationInfo::initAsmjsOptimizationInfo()
     level_ = Optimization_AsmJS;
     edgeCaseAnalysis_ = false;
     eliminateRedundantChecks_ = false;
-    autoTruncate_ = false;
     registerAllocator_ = RegisterAllocator_Backtracking;
 }
 

@@ -739,34 +739,30 @@ ImageBridgeChild::DeallocPTextureChild(PTextureChild* actor)
 }
 
 bool
-ImageBridgeChild::RecvParentAsyncMessage(const InfallibleTArray<AsyncParentMessageData>& aMessages)
+ImageBridgeChild::RecvParentAsyncMessage(const mozilla::layers::AsyncParentMessageData& aMessage)
 {
-  for (AsyncParentMessageArray::index_type i = 0; i < aMessages.Length(); ++i) {
-    const AsyncParentMessageData& message = aMessages[i];
+  switch (aMessage.type()) {
+    case AsyncParentMessageData::TOpDeliverFence: {
+      const OpDeliverFence& op = aMessage.get_OpDeliverFence();
+      FenceHandle fence = op.fence();
+      PTextureChild* child = op.textureChild();
 
-    switch (message.type()) {
-      case AsyncParentMessageData::TOpDeliverFence: {
-        const OpDeliverFence& op = message.get_OpDeliverFence();
-        FenceHandle fence = op.fence();
-        PTextureChild* child = op.textureChild();
-
-        RefPtr<TextureClient> texture = TextureClient::AsTextureClient(child);
-        if (texture) {
-          texture->SetReleaseFenceHandle(fence);
-        }
-        HoldTransactionsToRespond(op.transactionId());
-        break;
+      RefPtr<TextureClient> texture = TextureClient::AsTextureClient(child);
+      if (texture) {
+        texture->SetReleaseFenceHandle(fence);
       }
+      HoldTransactionsToRespond(op.transactionId());
+      break;
+    }
     case AsyncParentMessageData::TOpReplyRemoveTexture: {
-      const OpReplyRemoveTexture& op = message.get_OpReplyRemoveTexture();
+      const OpReplyRemoveTexture& op = aMessage.get_OpReplyRemoveTexture();
 
       CompositableClient::TransactionCompleteted(op.compositableChild(), op.transactionId());
       break;
     }
-      default:
-        NS_ERROR("unknown AsyncParentMessageData type");
-        return false;
-    }
+    default:
+      NS_ERROR("unknown AsyncParentMessageData type");
+      return false;
   }
   return true;
 }

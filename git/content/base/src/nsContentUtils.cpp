@@ -1573,7 +1573,7 @@ nsContentUtils::CanCallerAccess(nsIDOMNode *aNode)
 bool
 nsContentUtils::CanCallerAccess(nsINode* aNode)
 {
-  return CanCallerAccess(SubjectPrincipal(), aNode->NodePrincipal());
+  return CanCallerAccess(GetSubjectPrincipal(), aNode->NodePrincipal());
 }
 
 // static
@@ -1585,7 +1585,7 @@ nsContentUtils::CanCallerAccess(nsPIDOMWindow* aWindow)
                       aWindow->GetCurrentInnerWindow() : aWindow);
   NS_ENSURE_TRUE(scriptObject, false);
 
-  return CanCallerAccess(SubjectPrincipal(), scriptObject->GetPrincipal());
+  return CanCallerAccess(GetSubjectPrincipal(), scriptObject->GetPrincipal());
 }
 
 //static
@@ -1687,7 +1687,7 @@ bool
 nsContentUtils::IsCallerChrome()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (SubjectPrincipal() == sSystemPrincipal) {
+  if (GetSubjectPrincipal() == sSystemPrincipal) {
     return true;
   }
 
@@ -2315,7 +2315,7 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
 
 // static
 nsIPrincipal*
-nsContentUtils::SubjectPrincipal()
+nsContentUtils::GetSubjectPrincipal()
 {
   JSContext* cx = GetCurrentJSContext();
   if (!cx) {
@@ -2330,11 +2330,8 @@ nsContentUtils::SubjectPrincipal()
 
 // static
 nsIPrincipal*
-nsContentUtils::ObjectPrincipal(JSObject* aObj)
+nsContentUtils::GetObjectPrincipal(JSObject* aObj)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(JS_GetObjectRuntime(aObj) == CycleCollectedJSRuntime::Get()->Runtime());
-
   // This is duplicated from nsScriptSecurityManager. We don't call through there
   // because the API unnecessarily requires a JSContext for historical reasons.
   JSCompartment *compartment = js::GetObjectCompartment(aObj);
@@ -6065,7 +6062,7 @@ nsContentUtils::GetContentSecurityPolicy(JSContext* aCx,
   MOZ_ASSERT(aCx == GetCurrentJSContext());
 
   nsCOMPtr<nsIContentSecurityPolicy> csp;
-  nsresult rv = SubjectPrincipal()->GetCsp(getter_AddRefs(csp));
+  nsresult rv = GetSubjectPrincipal()->GetCsp(getter_AddRefs(csp));
   if (NS_FAILED(rv)) {
     NS_ERROR("CSP: Failed to get CSP from principal.");
     return false;

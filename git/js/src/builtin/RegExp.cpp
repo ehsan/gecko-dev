@@ -8,10 +8,6 @@
 
 #include "jscntxt.h"
 
-#ifndef JS_YARR
-#include "irregexp/RegExpParser.h"
-#endif
-
 #include "vm/RegExpStatics.h"
 #include "vm/StringBuffer.h"
 
@@ -98,15 +94,11 @@ ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, RegExpShared &re,
 
     /* Switch between MatchOnly and IncludeSubpatterns modes. */
     if (matches.isPair) {
-#ifdef JS_YARR
         size_t lastIndex_orig = *lastIndex;
         /* Only one MatchPair slot provided: execute short-circuiting regexp. */
         status = re.executeMatchOnly(cx, chars, length, lastIndex, *matches.u.pair);
         if (status == RegExpRunStatus_Success && res)
             res->updateLazily(cx, input, &re, lastIndex_orig);
-#else
-        MOZ_CRASH();
-#endif
     } else {
         /* Vector of MatchPairs provided: execute full regexp. */
         status = re.execute(cx, chars, length, lastIndex, *matches.u.pairs);
@@ -115,6 +107,7 @@ ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, RegExpShared &re,
                 return RegExpRunStatus_Error;
         }
     }
+
     return status;
 }
 
@@ -290,16 +283,8 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
     if (!escapedSourceStr)
         return false;
 
-#ifdef JS_YARR
-    if (!RegExpShared::checkSyntax(cx, nullptr, escapedSourceStr))
+    if (!js::RegExpShared::checkSyntax(cx, nullptr, escapedSourceStr))
         return false;
-#else // JS_YARR
-    CompileOptions options(cx);
-    frontend::TokenStream dummyTokenStream(cx, options, nullptr, 0, nullptr);
-
-    if (!irregexp::ParsePatternSyntax(dummyTokenStream, cx->tempLifoAlloc(), escapedSourceStr->chars(), escapedSourceStr->length()))
-        return false;
-#endif // JS_YARR
 
     RegExpStatics *res = cx->global()->getRegExpStatics(cx);
     if (!res)
@@ -693,13 +678,8 @@ js::regexp_exec_no_statics(JSContext *cx, unsigned argc, Value *vp)
 static bool
 regexp_test_impl(JSContext *cx, CallArgs args)
 {
-#ifdef JS_YARR
     MatchPair match;
     MatchConduit conduit(&match);
-#else
-    ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    MatchConduit conduit(&matches);
-#endif
     RegExpRunStatus status = ExecuteRegExp(cx, args, conduit);
     args.rval().setBoolean(status == RegExpRunStatus_Success);
     return status != RegExpRunStatus_Error;
@@ -709,13 +689,8 @@ regexp_test_impl(JSContext *cx, CallArgs args)
 bool
 js::regexp_test_raw(JSContext *cx, HandleObject regexp, HandleString input, bool *result)
 {
-#ifdef JS_YARR
     MatchPair match;
     MatchConduit conduit(&match);
-#else
-    ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    MatchConduit conduit(&matches);
-#endif
     RegExpRunStatus status = ExecuteRegExp(cx, regexp, input, conduit, UpdateRegExpStatics);
     *result = (status == RegExpRunStatus_Success);
     return status != RegExpRunStatus_Error;
@@ -739,13 +714,8 @@ js::regexp_test_no_statics(JSContext *cx, unsigned argc, Value *vp)
     RootedObject regexp(cx, &args[0].toObject());
     RootedString string(cx, args[1].toString());
 
-#ifdef JS_YARR
     MatchPair match;
     MatchConduit conduit(&match);
-#else
-    ScopedMatchPairs matches(&cx->tempLifoAlloc());
-    MatchConduit conduit(&matches);
-#endif
     RegExpRunStatus status = ExecuteRegExp(cx, regexp, string, conduit, DontUpdateRegExpStatics);
     args.rval().setBoolean(status == RegExpRunStatus_Success);
     return status != RegExpRunStatus_Error;

@@ -2030,7 +2030,7 @@ nsGlobalWindow::SetInitialPrincipalToSubject()
   FORWARD_TO_OUTER_VOID(SetInitialPrincipalToSubject, ());
 
   // First, grab the subject principal.
-  nsCOMPtr<nsIPrincipal> newWindowPrincipal = nsContentUtils::SubjectPrincipal();
+  nsCOMPtr<nsIPrincipal> newWindowPrincipal = nsContentUtils::GetSubjectPrincipal();
 
   // Now, if we're about to use the system principal or an nsExpandedPrincipal,
   // make sure we're not using it for a content docshell.
@@ -6084,7 +6084,7 @@ nsGlobalWindow::MakeScriptDialogTitle(nsAString &aOutTitle)
   // Try to get a host from the running principal -- this will do the
   // right thing for javascript: and data: documents.
 
-  nsCOMPtr<nsIPrincipal> principal = nsContentUtils::SubjectPrincipal();
+  nsCOMPtr<nsIPrincipal> principal = nsContentUtils::GetSubjectPrincipal();
   nsCOMPtr<nsIURI> uri;
   nsresult rv = principal->GetURI(getter_AddRefs(uri));
   // Note - The check for the current JSContext here isn't necessarily sensical.
@@ -7622,8 +7622,8 @@ JSObject* nsGlobalWindow::CallerGlobal()
   // .source attribute. So we fall back to the compartment global there.
   JS::Rooted<JSObject*> incumbentGlobal(cx, &IncumbentJSGlobal());
   JS::Rooted<JSObject*> compartmentGlobal(cx, JS::CurrentGlobalOrNull(cx));
-  nsIPrincipal* incumbentPrin = nsContentUtils::ObjectPrincipal(incumbentGlobal);
-  nsIPrincipal* compartmentPrin = nsContentUtils::ObjectPrincipal(compartmentGlobal);
+  nsIPrincipal* incumbentPrin = nsContentUtils::GetObjectPrincipal(incumbentGlobal);
+  nsIPrincipal* compartmentPrin = nsContentUtils::GetObjectPrincipal(compartmentGlobal);
   return incumbentPrin->EqualsConsideringDomain(compartmentPrin) ? incumbentGlobal
                                                                  : compartmentGlobal;
 }
@@ -8093,7 +8093,7 @@ nsGlobalWindow::PostMessageMoz(JSContext* aCx, JS::Handle<JS::Value> aMessage,
       nsContentUtils::GetSecurityManager();
     MOZ_ASSERT(ssm);
 
-    nsCOMPtr<nsIPrincipal> principal = nsContentUtils::SubjectPrincipal();
+    nsCOMPtr<nsIPrincipal> principal = nsContentUtils::GetSubjectPrincipal();
     MOZ_ASSERT(principal);
 
     uint32_t appId;
@@ -8778,7 +8778,7 @@ nsGlobalWindow::GetFrameElement(ErrorResult& aError)
   if (aError.Failed() || !element) {
     return nullptr;
   }
-  if (!nsContentUtils::SubjectPrincipal()->
+  if (!nsContentUtils::GetSubjectPrincipal()->
          SubsumesConsideringDomain(element->NodePrincipal())) {
     return nullptr;
   }
@@ -8962,7 +8962,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aUrl, nsIVariant* aArgument,
   }
 
   nsRefPtr<DialogValueHolder> argHolder =
-    new DialogValueHolder(nsContentUtils::SubjectPrincipal(), aArgument);
+    new DialogValueHolder(nsContentUtils::GetSubjectPrincipal(), aArgument);
 
   // Before bringing up the window/dialog, unsuppress painting and flush
   // pending reflows.
@@ -11761,7 +11761,7 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
   // chrome privileges on content windows, but we do allow setTimeouts running
   // with content privileges on chrome windows (where they can't do very much,
   // of course).
-  nsCOMPtr<nsIPrincipal> subjectPrincipal = nsContentUtils::SubjectPrincipal();
+  nsCOMPtr<nsIPrincipal> subjectPrincipal = nsContentUtils::GetSubjectPrincipal();
   nsCOMPtr<nsIPrincipal> ourPrincipal = GetPrincipal();
   if (ourPrincipal->Subsumes(subjectPrincipal)) {
     timeout->mPrincipal = subjectPrincipal;
@@ -13490,7 +13490,7 @@ nsGlobalWindow::GetDialogArguments(JSContext* aCx, ErrorResult& aError)
   JS::Rooted<JSObject*> wrapper(aCx, GetWrapper());
   JSAutoCompartment ac(aCx, wrapper);
   JS::Rooted<JS::Value> args(aCx);
-  mDialogArguments->Get(aCx, wrapper, nsContentUtils::SubjectPrincipal(),
+  mDialogArguments->Get(aCx, wrapper, nsContentUtils::GetSubjectPrincipal(),
                         &args, aError);
   return args;
 }
@@ -13503,7 +13503,7 @@ nsGlobalModalWindow::GetDialogArguments(nsIVariant **aArguments)
 
   // This does an internal origin check, and returns undefined if the subject
   // does not subsumes the origin of the arguments.
-  return mDialogArguments->Get(nsContentUtils::SubjectPrincipal(), aArguments);
+  return mDialogArguments->Get(nsContentUtils::GetSubjectPrincipal(), aArguments);
 }
 
 JS::Value
@@ -13519,7 +13519,7 @@ nsGlobalWindow::GetReturnValue(JSContext* aCx, ErrorResult& aError)
   if (mReturnValue) {
     JS::Rooted<JSObject*> wrapper(aCx, GetWrapper());
     JSAutoCompartment ac(aCx, wrapper);
-    mReturnValue->Get(aCx, wrapper, nsContentUtils::SubjectPrincipal(),
+    mReturnValue->Get(aCx, wrapper, nsContentUtils::GetSubjectPrincipal(),
                       &returnValue, aError);
   }
   return returnValue;
@@ -13536,7 +13536,7 @@ nsGlobalModalWindow::GetReturnValue(nsIVariant **aRetVal)
     variant.forget(aRetVal);
     return NS_OK;
   }
-  return mReturnValue->Get(nsContentUtils::SubjectPrincipal(), aRetVal);
+  return mReturnValue->Get(nsContentUtils::GetSubjectPrincipal(), aRetVal);
 }
 
 void
@@ -13555,7 +13555,7 @@ nsGlobalWindow::SetReturnValue(JSContext* aCx,
     nsContentUtils::XPConnect()->JSToVariant(aCx, aReturnValue,
                                              getter_AddRefs(returnValue));
   if (!aError.Failed()) {
-    mReturnValue = new DialogValueHolder(nsContentUtils::SubjectPrincipal(),
+    mReturnValue = new DialogValueHolder(nsContentUtils::GetSubjectPrincipal(),
                                          returnValue);
   }
 }
@@ -13565,7 +13565,7 @@ nsGlobalModalWindow::SetReturnValue(nsIVariant *aRetVal)
 {
   FORWARD_TO_OUTER_MODAL_CONTENT_WINDOW(SetReturnValue, (aRetVal), NS_OK);
 
-  mReturnValue = new DialogValueHolder(nsContentUtils::SubjectPrincipal(),
+  mReturnValue = new DialogValueHolder(nsContentUtils::GetSubjectPrincipal(),
                                        aRetVal);
   return NS_OK;
 }

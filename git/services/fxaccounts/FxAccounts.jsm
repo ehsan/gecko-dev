@@ -25,7 +25,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
 
 // All properties exposed by the public FxAccounts API.
 let publicProperties = [
-  "accountStatus",
   "getAccountsClient",
   "getAccountsSignInURI",
   "getAccountsSignUpURI",
@@ -510,15 +509,6 @@ FxAccountsInternal.prototype = {
     }
     this.currentAccountState.abort();
     this.currentAccountState = new AccountState(this);
-  },
-
-  accountStatus: function accountStatus() {
-    return this.currentAccountState.getUserAccountData().then(data => {
-      if (!data) {
-        return false;
-      }
-      return this.fxAccountsClient.accountStatus(data.uid);
-    });
   },
 
   signOut: function signOut(localOnly) {

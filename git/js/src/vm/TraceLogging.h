@@ -128,8 +128,6 @@ namespace jit {
     _(YarrCompile)                                    \
     _(YarrInterpret)                                  \
     _(YarrJIT)                                        \
-    _(IrregexpCompile)                                \
-    _(IrregexpExecute)                                \
     _(VM)                                             \
                                                       \
     /* Specific passes during ion compilation */      \

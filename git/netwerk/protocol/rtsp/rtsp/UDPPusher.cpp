@@ -27,9 +27,6 @@
 #include "mozilla/NullPtr.h"
 #include "prnetdb.h"
 #include "prerr.h"
-#include "NetworkActivityMonitor.h"
-
-using namespace mozilla::net;
 
 namespace android {
 
@@ -40,11 +37,6 @@ UDPPusher::UDPPusher(const char *filename, unsigned port)
     CHECK(mFile != NULL);
 
     mSocket = PR_OpenUDPSocket(PR_AF_INET);
-    if (!mSocket) {
-        TRESPASS();
-    }
-
-    NetworkActivityMonitor::AttachIOLayer(mSocket);
 
     PRNetAddr addr;
     addr.inet.family = PR_AF_INET;

@@ -1922,7 +1922,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
   UpdateSharedCompositorFrameMetrics();
 }
 
-const FrameMetrics& AsyncPanZoomController::GetFrameMetrics() const {
+const FrameMetrics& AsyncPanZoomController::GetFrameMetrics() {
   mMonitor.AssertCurrentThreadIn();
   return mFrameMetrics;
 }
@@ -2220,14 +2220,14 @@ bool AsyncPanZoomController::Matches(const ScrollableLayerGuid& aGuid)
   return aGuid == GetGuid();
 }
 
-void AsyncPanZoomController::GetGuid(ScrollableLayerGuid* aGuidOut) const
+void AsyncPanZoomController::GetGuid(ScrollableLayerGuid* aGuidOut)
 {
   if (aGuidOut) {
     *aGuidOut = GetGuid();
   }
 }
 
-ScrollableLayerGuid AsyncPanZoomController::GetGuid() const
+ScrollableLayerGuid AsyncPanZoomController::GetGuid()
 {
   return ScrollableLayerGuid(mLayersId, mFrameMetrics);
 }

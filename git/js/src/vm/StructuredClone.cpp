@@ -1403,8 +1403,7 @@ JSStructuredCloneReader::startRead(Value *vp)
             return false;
 
         RegExpObject *reobj = RegExpObject::createNoStatics(context(), flat->chars(),
-                                                            flat->length(), flags, nullptr,
-                                                            context()->tempLifoAlloc());
+                                                            flat->length(), flags, nullptr);
         if (!reobj)
             return false;
         vp->setObject(*reobj);

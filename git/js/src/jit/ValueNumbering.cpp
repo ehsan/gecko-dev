@@ -101,8 +101,8 @@ ValueNumberer::simplifyControlInstruction(MControlInstruction *def)
         repl->setInWorklist();
 
     block->discardLastIns();
-    block->end(repl->toControlInstruction());
-    return repl->toControlInstruction();
+    block->end((MControlInstruction *)repl);
+    return (MControlInstruction *)repl;
 }
 
 void

@@ -2882,8 +2882,7 @@ AsmJSCacheOpenEntryForRead(JS::Handle<JSObject*> aGlobal,
                            const uint8_t** aMemory,
                            intptr_t *aHandle)
 {
-  nsIPrincipal* principal =
-    nsJSPrincipals::get(JS_GetCompartmentPrincipals(js::GetObjectCompartment(aGlobal)));
+  nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(aGlobal);
   return asmjscache::OpenEntryForRead(principal, aBegin, aLimit, aSize, aMemory,
                                       aHandle);
 }
@@ -2897,8 +2896,7 @@ AsmJSCacheOpenEntryForWrite(JS::Handle<JSObject*> aGlobal,
                             uint8_t** aMemory,
                             intptr_t* aHandle)
 {
-  nsIPrincipal* principal =
-    nsJSPrincipals::get(JS_GetCompartmentPrincipals(js::GetObjectCompartment(aGlobal)));
+  nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(aGlobal);
   return asmjscache::OpenEntryForWrite(principal, aInstalled, aBegin, aEnd,
                                        aSize, aMemory, aHandle);
 }

@@ -131,7 +131,7 @@ public:
   bool CanBeDeleted(const TimeStamp& aUntil) const;
 
   static RecordBatch* Register();
-  static void Close(void* aData);  // Registered on freeing thread data
+  static void Close(void* data);  // Registered on freeing thread data
   static RecordBatch* Clone(RecordBatch* aLog, const TimeStamp& aSince);
   static void Delete(RecordBatch* aLog);
 
@@ -181,9 +181,9 @@ RecordBatch::Register()
 }
 
 void
-RecordBatch::Close(void* aData)
+RecordBatch::Close(void* data)
 {
-  RecordBatch* batch = static_cast<RecordBatch*>(aData);
+  RecordBatch* batch = static_cast<RecordBatch*>(data);
   batch->Close();
 }
 
@@ -333,8 +333,8 @@ RecordBatch::CanBeDeleted(const TimeStamp& aUntil) const
 class EventFilter
 {
 public:
-  static EventFilter* Build(const char* aFilterVar);
-  bool EventPasses(const char* aFilterVar);
+  static EventFilter* Build(const char* filterVar);
+  bool EventPasses(const char* eventName);
 
   ~EventFilter()
   {
@@ -344,9 +344,9 @@ public:
   }
 
 private:
-  EventFilter(const char* aEventName, EventFilter* aNext)
-    : mFilter(PL_strdup(aEventName))
-    , mNext(aNext)
+  EventFilter(const char* eventName, EventFilter* next)
+    : mFilter(PL_strdup(eventName))
+    , mNext(next)
   {
     MOZ_COUNT_CTOR(EventFilter);
   }
@@ -357,9 +357,9 @@ private:
 
 // static
 EventFilter*
-EventFilter::Build(const char* aFilterVar)
+EventFilter::Build(const char* filterVar)
 {
-  if (!aFilterVar || !*aFilterVar) {
+  if (!filterVar || !*filterVar) {
     return nullptr;
   }
 
@@ -370,7 +370,7 @@ EventFilter::Build(const char* aFilterVar)
   int pos = 0, count, delta = 0;
 
   // Read up to a comma or EOF -> get name of an event first in the list
-  count = sscanf(aFilterVar, "%63[^,]%n", eventName, &delta);
+  count = sscanf(filterVar, "%63[^,]%n", eventName, &delta);
   if (count == 0) {
     return nullptr;
   }
@@ -378,7 +378,7 @@ EventFilter::Build(const char* aFilterVar)
   pos = delta;
 
   // Skip a comma, if present, accept spaces around it
-  count = sscanf(aFilterVar + pos, " , %n", &delta);
+  count = sscanf(filterVar + pos, " , %n", &delta);
   if (count != EOF) {
     pos += delta;
   }
@@ -386,18 +386,18 @@ EventFilter::Build(const char* aFilterVar)
   // eventName contains name of the first event in the list
   // second argument recursively parses the rest of the list string and
   // fills mNext of the just created EventFilter object chaining the objects
-  return new EventFilter(eventName, Build(aFilterVar + pos));
+  return new EventFilter(eventName, Build(filterVar + pos));
 }
 
 bool
-EventFilter::EventPasses(const char* aEventName)
+EventFilter::EventPasses(const char* eventName)
 {
-  if (!strcmp(aEventName, mFilter)) {
+  if (!strcmp(eventName, mFilter)) {
     return true;
   }
 
   if (mNext) {
-    return mNext->EventPasses(aEventName);
+    return mNext->EventPasses(eventName);
   }
 
   return false;
@@ -409,8 +409,7 @@ EventFilter* gEventFilter = nullptr;
 unsigned gThreadPrivateIndex;
 
 // static
-bool
-CheckEventFilters(uint32_t aType, void* aItem, const char* aText)
+bool CheckEventFilters(uint32_t aType, void* aItem, const char* aText)
 {
   if (!gEventFilter) {
     return true;
@@ -561,7 +560,7 @@ VisualEventTracerLog::~VisualEventTracerLog()
 }
 
 NS_IMETHODIMP
-VisualEventTracerLog::GetJSONString(nsACString& aResult)
+VisualEventTracerLog::GetJSONString(nsACString& _retval)
 {
   nsCString buffer;
 
@@ -610,7 +609,7 @@ VisualEventTracerLog::GetJSONString(nsACString& aResult)
   }
 
   buffer.Append(NS_LITERAL_CSTRING("]}\n"));
-  aResult.Assign(buffer);
+  _retval.Assign(buffer);
 
   return NS_OK;
 }
@@ -699,7 +698,7 @@ VisualEventTracer::Stop()
 }
 
 NS_IMETHODIMP
-VisualEventTracer::Snapshot(nsIVisualEventTracerLog** aResult)
+VisualEventTracer::Snapshot(nsIVisualEventTracerLog** _result)
 {
   if (!gInitialized) {
     return NS_ERROR_UNEXPECTED;
@@ -708,7 +707,7 @@ VisualEventTracer::Snapshot(nsIVisualEventTracerLog** aResult)
   RecordBatch* batch = RecordBatch::CloneLog();
 
   nsRefPtr<VisualEventTracerLog> log = new VisualEventTracerLog(batch);
-  log.forget(aResult);
+  log.forget(_result);
 
   return NS_OK;
 }

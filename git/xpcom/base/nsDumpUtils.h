@@ -99,7 +99,7 @@ public:
   }
 };
 
-typedef void (*FifoCallback)(const nsCString& aInputStr);
+typedef void (* FifoCallback)(const nsCString& inputStr);
 struct FifoInfo
 {
   nsCString mCommand;
@@ -142,7 +142,7 @@ private:
   FifoInfoArray mFifoInfo;
 };
 
-typedef void (*PipeCallback)(const uint8_t aRecvSig);
+typedef void (* PipeCallback)(const uint8_t recvSig);
 struct SignalInfo
 {
   uint8_t mSignal;

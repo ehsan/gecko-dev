@@ -388,7 +388,7 @@ DOMParser::Constructor(const GlobalObject& aOwner,
 {
   nsRefPtr<DOMParser> domParser = new DOMParser(aOwner.GetAsSupports());
   rv = domParser->InitInternal(aOwner.GetAsSupports(),
-                               nsContentUtils::SubjectPrincipal(),
+                               nsContentUtils::GetSubjectPrincipal(),
                                nullptr, nullptr);
   if (rv.Failed()) {
     return nullptr;
@@ -446,7 +446,7 @@ DOMParser::Init(nsIPrincipal* aPrincipal, nsIURI* aDocumentURI,
 
   nsCOMPtr<nsIPrincipal> principal = aPrincipal;
   if (!principal && !aDocumentURI) {
-    principal = nsContentUtils::SubjectPrincipal();
+    principal = nsContentUtils::GetSubjectPrincipal();
   }
 
   rv = Init(principal, aDocumentURI, aBaseURI,

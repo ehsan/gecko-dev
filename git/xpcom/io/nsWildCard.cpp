@@ -27,61 +27,57 @@ typedef int static_assert_character_code_arrangement['a' > 'A' ? 1 : -1];
 
 template<class T>
 static int
-alpha(T aChar)
+alpha(T c)
 {
-  return ('a' <= aChar && aChar <= 'z') ||
-         ('A' <= aChar && aChar <= 'Z');
+  return ('a' <= c && c <= 'z') ||
+         ('A' <= c && c <= 'Z');
 }
 
 template<class T>
 static int
-alphanumeric(T aChar)
+alphanumeric(T c)
 {
-  return ('0' <= aChar && aChar <= '9') || ::alpha(aChar);
+  return ('0' <= c && c <= '9') || ::alpha(c);
 }
 
 template<class T>
 static int
-lower(T aChar)
+lower(T c)
 {
-  return ('A' <= aChar && aChar <= 'Z') ? aChar + ('a' - 'A') : aChar;
+  return ('A' <= c && c <= 'Z') ? c + ('a' - 'A') : c;
 }
 
 template<class T>
 static int
-upper(T aChar)
+upper(T c)
 {
-  return ('a' <= aChar && aChar <= 'z') ? aChar - ('a' - 'A') : aChar;
+  return ('a' <= c && c <= 'z') ? c - ('a' - 'A') : c;
 }
 
 /* ----------------------------- _valid_subexp ---------------------------- */
 
 template<class T>
 static int
-_valid_subexp(const T* aExpr, T aStop1, T aStop2)
+_valid_subexp(const T *expr, T stop1, T stop2)
 {
   int x;
   int nsc = 0;     /* Number of special characters */
   int np;          /* Number of pipe characters in union */
   int tld = 0;     /* Number of tilde characters */
 
-  for (x = 0; aExpr[x] && (aExpr[x] != aStop1) && (aExpr[x] != aStop2); ++x) {
-    switch (aExpr[x]) {
+  for (x = 0; expr[x] && (expr[x] != stop1) && (expr[x] != stop2); ++x) {
+    switch(expr[x]) {
       case '~':
-        if (tld) {              /* at most one exclusion */
+        if(tld)                 /* at most one exclusion */
           return INVALID_SXP;
-        }
-        if (aStop1) {           /* no exclusions within unions */
+        if (stop1)              /* no exclusions within unions */
           return INVALID_SXP;
-        }
-        if (!aExpr[x + 1]) {    /* exclusion cannot be last character */
+        if (!expr[x+1])         /* exclusion cannot be last character */
           return INVALID_SXP;
-        }
-        if (!x) {               /* exclusion cannot be first character */
+        if (!x)                 /* exclusion cannot be first character */
           return INVALID_SXP;
-        }
         ++tld;
-      /* fall through */
+        /* fall through */
       case '*':
       case '?':
       case '$':
@@ -89,38 +85,31 @@ _valid_subexp(const T* aExpr, T aStop1, T aStop2)
         break;
       case '[':
         ++nsc;
-        if ((!aExpr[++x]) || (aExpr[x] == ']')) {
+        if((!expr[++x]) || (expr[x] == ']'))
           return INVALID_SXP;
-        }
-        for (; aExpr[x] && (aExpr[x] != ']'); ++x) {
-          if (aExpr[x] == '\\' && !aExpr[++x]) {
+        for(; expr[x] && (expr[x] != ']'); ++x) {
+          if(expr[x] == '\\' && !expr[++x])
             return INVALID_SXP;
-          }
         }
-        if (!aExpr[x]) {
+        if(!expr[x])
           return INVALID_SXP;
-        }
         break;
       case '(':
         ++nsc;
-        if (aStop1) {           /* no nested unions */
+        if (stop1)                  /* no nested unions */
           return INVALID_SXP;
-        }
         np = -1;
         do {
-          int t = ::_valid_subexp(&aExpr[++x], T(')'), T('|'));
-          if (t == 0 || t == INVALID_SXP) {
+          int t = ::_valid_subexp(&expr[++x], T(')'), T('|'));
+          if(t == 0 || t == INVALID_SXP)
             return INVALID_SXP;
-          }
-          x += t;
-          if (!aExpr[x]) {
+          x+=t;
+          if(!expr[x])
             return INVALID_SXP;
-          }
           ++np;
-        } while (aExpr[x] == '|');
-        if (np < 1) { /* must be at least one pipe */
+        } while (expr[x] == '|' );
+        if(np < 1)  /* must be at least one pipe */
           return INVALID_SXP;
-        }
         break;
       case ')':
       case ']':
@@ -128,39 +117,37 @@ _valid_subexp(const T* aExpr, T aStop1, T aStop2)
         return INVALID_SXP;
       case '\\':
         ++nsc;
-        if (!aExpr[++x]) {
+        if(!expr[++x])
           return INVALID_SXP;
-        }
         break;
       default:
         break;
     }
   }
-  if (!aStop1 && !nsc) { /* must be at least one special character */
+  if((!stop1) && (!nsc)) /* must be at least one special character */
     return NON_SXP;
-  }
-  return ((aExpr[x] == aStop1 || aExpr[x] == aStop2) ? x : INVALID_SXP);
+  return ((expr[x] == stop1 || expr[x] == stop2) ? x : INVALID_SXP);
 }
 
 
 template<class T>
 int
-NS_WildCardValid_(const T* aExpr)
+NS_WildCardValid_(const T *expr)
 {
-  int x = ::_valid_subexp(aExpr, T('\0'), T('\0'));
+  int x = ::_valid_subexp(expr, T('\0'), T('\0'));
   return (x < 0 ? x : VALID_SXP);
 }
 
 int
-NS_WildCardValid(const char* aExpr)
+NS_WildCardValid(const char *expr)
 {
-  return NS_WildCardValid_(aExpr);
+  return NS_WildCardValid_(expr);
 }
 
 int
-NS_WildCardValid(const char16_t* aExpr)
+NS_WildCardValid(const char16_t *expr)
 {
-  return NS_WildCardValid_(aExpr);
+  return NS_WildCardValid_(expr);
 }
 
 /* ----------------------------- _shexp_match ----------------------------- */
@@ -172,8 +159,7 @@ NS_WildCardValid(const char16_t* aExpr)
 
 template<class T>
 static int
-_shexp_match(const T* aStr, const T* aExpr, bool aCaseInsensitive,
-             unsigned int aLevel);
+_shexp_match(const T *str, const T *expr, bool case_insensitive, unsigned int level);
 
 /**
  * Count characters until we reach a NUL character or either of the
@@ -186,31 +172,29 @@ _shexp_match(const T* aStr, const T* aExpr, bool aCaseInsensitive,
  */
 template<class T>
 static int
-_scan_and_copy(const T* aExpr, T aStop1, T aStop2, T* aDest)
+_scan_and_copy(const T *expr, T stop1, T stop2, T *dest)
 {
   int sx;     /* source index */
   T cc;
 
-  for (sx = 0; (cc = aExpr[sx]) && cc != aStop1 && cc != aStop2; ++sx) {
+  for (sx = 0; (cc = expr[sx]) && cc != stop1 && cc != stop2; sx++) {
     if (cc == '\\') {
-      if (!aExpr[++sx]) {
-        return ABORTED;  /* should be impossible */
-      }
-    } else if (cc == '[') {
-      while ((cc = aExpr[++sx]) && cc != ']') {
-        if (cc == '\\' && !aExpr[++sx]) {
+      if (!expr[++sx])
+        return ABORTED; /* should be impossible */
+    }
+    else if (cc == '[') {
+      while ((cc = expr[++sx]) && cc != ']') {
+        if(cc == '\\' && !expr[++sx])
           return ABORTED;
-        }
       }
-      if (!cc) {
-        return ABORTED;  /* should be impossible */
-      }
+      if (!cc)
+        return ABORTED; /* should be impossible */
     }
   }
-  if (aDest && sx) {
+  if (dest && sx) {
     /* Copy all but the closing delimiter. */
-    memcpy(aDest, aExpr, sx * sizeof(T));
-    aDest[sx] = 0;
+    memcpy(dest, expr, sx * sizeof(T));
+    dest[sx] = 0;
   }
   return cc ? sx : ABORTED; /* index of closing delimiter */
 }
@@ -225,94 +209,84 @@ _scan_and_copy(const T* aExpr, T aStop1, T aStop2, T* aDest)
  */
 template<class T>
 static int
-_handle_union(const T* aStr, const T* aExpr, bool aCaseInsensitive,
-              unsigned int aLevel)
+_handle_union(const T *str, const T *expr, bool case_insensitive,
+              unsigned int level)
 {
   int sx;              /* source index */
   int cp;              /* source index of closing parenthesis */
   int count;
   int ret   = NOMATCH;
-  T* e2;
+  T *e2;
 
   /* Find the closing parenthesis that ends this union in the expression */
-  cp = ::_scan_and_copy(aExpr, T(')'), T('\0'), static_cast<T*>(nullptr));
-  if (cp == ABORTED || cp < 4) { /* must be at least "(a|b" before ')' */
+  cp = ::_scan_and_copy(expr, T(')'), T('\0'), static_cast<T*>(nullptr));
+  if (cp == ABORTED || cp < 4) /* must be at least "(a|b" before ')' */
     return ABORTED;
-  }
   ++cp;                /* now index of char after closing parenthesis */
-  e2 = (T*)NS_Alloc((1 + nsCharTraits<T>::length(aExpr)) * sizeof(T));
-  if (!e2) {
+  e2 = (T *) NS_Alloc((1 + nsCharTraits<T>::length(expr)) * sizeof(T));
+  if (!e2)
     return ABORTED;
-  }
   for (sx = 1; ; ++sx) {
-    /* Here, aExpr[sx] is one character past the preceding '(' or '|'. */
+    /* Here, expr[sx] is one character past the preceding '(' or '|'. */
     /* Copy everything up to the next delimiter to e2 */
-    count = ::_scan_and_copy(aExpr + sx, T(')'), T('|'), e2);
+    count = ::_scan_and_copy(expr + sx, T(')'), T('|'), e2);
     if (count == ABORTED || !count) {
       ret = ABORTED;
       break;
     }
     sx += count;
     /* Append everything after closing parenthesis to e2. This is safe. */
-    nsCharTraits<T>::copy(e2 + count, aExpr + cp,
-                          nsCharTraits<T>::length(aExpr + cp) + 1);
-    ret = ::_shexp_match(aStr, e2, aCaseInsensitive, aLevel + 1);
-    if (ret != NOMATCH || !aExpr[sx] || aExpr[sx] == ')') {
+    nsCharTraits<T>::copy(e2 + count, expr + cp, nsCharTraits<T>::length(expr + cp) + 1);
+    ret = ::_shexp_match(str, e2, case_insensitive, level + 1);
+    if (ret != NOMATCH || !expr[sx] || expr[sx] == ')')
       break;
-    }
   }
   NS_Free(e2);
-  if (sx < 2) {
+  if (sx < 2)
     ret = ABORTED;
-  }
   return ret;
 }
 
 /* returns 1 if val is in range from start..end, case insensitive. */
 static int
-_is_char_in_range(unsigned char aStart, unsigned char aEnd, unsigned char aVal)
+_is_char_in_range(unsigned char start, unsigned char end, unsigned char val)
 {
   char map[256];
-  memset(map, 0, sizeof(map));
-  while (aStart <= aEnd) {
-    map[lower(aStart++)] = 1;
-  }
-  return map[lower(aVal)];
+  memset(map, 0, sizeof map);
+  while (start <= end)
+    map[lower(start++)] = 1;
+  return map[lower(val)];
 }
 
 template<class T>
 static int
-_shexp_match(const T* aStr, const T* aExpr, bool aCaseInsensitive,
-             unsigned int aLevel)
+_shexp_match(const T *str, const T *expr, bool case_insensitive,
+             unsigned int level)
 {
   int x;   /* input string index */
   int y;   /* expression index */
-  int ret, neg;
+  int ret,neg;
 
-  if (aLevel > 20) {    /* Don't let the stack get too deep. */
+  if (level > 20)      /* Don't let the stack get too deep. */
     return ABORTED;
-  }
-  for (x = 0, y = 0; aExpr[y]; ++y, ++x) {
-    if (!aStr[x] && aExpr[y] != '$' && aExpr[y] != '*') {
+  for(x = 0, y = 0; expr[y]; ++y, ++x) {
+    if((!str[x]) && (expr[y] != '$') && (expr[y] != '*')) {
       return NOMATCH;
     }
-    switch (aExpr[y]) {
+    switch(expr[y]) {
       case '$':
-        if (aStr[x]) {
+        if(str[x])
           return NOMATCH;
-        }
         --x;                 /* we don't want loop to increment x */
         break;
       case '*':
-        while (aExpr[++y] == '*') {
-        }
-        if (!aExpr[y]) {
+        while(expr[++y] == '*'){}
+        if(!expr[y])
           return MATCH;
-        }
-        while (aStr[x]) {
-          ret = ::_shexp_match(&aStr[x++], &aExpr[y], aCaseInsensitive,
-                               aLevel + 1);
-          switch (ret) {
+        while(str[x]) {
+          ret = ::_shexp_match(&str[x++], &expr[y], case_insensitive,
+                               level + 1);
+          switch(ret) {
             case NOMATCH:
               continue;
             case ABORTED:
@@ -321,73 +295,65 @@ _shexp_match(const T* aStr, const T* aExpr, bool aCaseInsensitive,
               return MATCH;
           }
         }
-        if (aExpr[y] == '$' && aExpr[y + 1] == '\0' && !aStr[x]) {
+        if((expr[y] == '$') && (expr[y+1] == '\0') && (!str[x]))
           return MATCH;
-        } else {
+        else
           return NOMATCH;
-        }
       case '[': {
         T start, end = 0;
         int i;
-        neg = (aExpr[++y] == '^' && aExpr[y + 1] != ']');
-        if (neg) {
+        neg = ((expr[++y] == '^') && (expr[y+1] != ']'));
+        if (neg)
           ++y;
-        }
         i = y;
-        start = aExpr[i++];
-        if (start == '\\') {
-          start = aExpr[i++];
+        start = expr[i++];
+        if (start == '\\')
+          start = expr[i++];
+        if (::alphanumeric(start) && expr[i++] == '-') {
+          end = expr[i++];
+          if (end == '\\')
+            end = expr[i++];
         }
-        if (::alphanumeric(start) && aExpr[i++] == '-') {
-          end = aExpr[i++];
-          if (end == '\\') {
-            end = aExpr[i++];
-          }
-        }
-        if (::alphanumeric(end) && aExpr[i] == ']') {
+        if (::alphanumeric(end) && expr[i] == ']') {
           /* This is a range form: a-b */
-          T val = aStr[x];
+          T val = str[x];
           if (end < start) { /* swap them */
             T tmp = end;
             end = start;
             start = tmp;
           }
-          if (aCaseInsensitive && ::alpha(val)) {
-            val = ::_is_char_in_range((unsigned char)start,
-                                      (unsigned char)end,
-                                      (unsigned char)val);
-            if (neg == val) {
+          if (case_insensitive && ::alpha(val)) {
+            val = ::_is_char_in_range((unsigned char) start,
+                                      (unsigned char) end,
+                                      (unsigned char) val);
+            if (neg == val)
               return NOMATCH;
-            }
-          } else if (neg != (val < start || val > end)) {
+          }
+          else if (neg != ((val < start) || (val > end))) {
             return NOMATCH;
           }
           y = i;
-        } else {
+        }
+        else {
           /* Not range form */
           int matched = 0;
-          for (; aExpr[y] != ']'; ++y) {
-            if (aExpr[y] == '\\') {
+          for (; expr[y] != ']'; y++) {
+            if (expr[y] == '\\')
               ++y;
-            }
-            if (aCaseInsensitive) {
-              matched |= (::upper(aStr[x]) == ::upper(aExpr[y]));
-            } else {
-              matched |= (aStr[x] == aExpr[y]);
-            }
+            if(case_insensitive)
+              matched |= (::upper(str[x]) == ::upper(expr[y]));
+            else
+              matched |= (str[x] == expr[y]);
           }
-          if (neg == matched) {
+          if (neg == matched)
             return NOMATCH;
-          }
         }
       }
       break;
       case '(':
-        if (!aExpr[y + 1]) {
+        if (!expr[y+1])
           return ABORTED;
-        }
-        return ::_handle_union(&aStr[x], &aExpr[y], aCaseInsensitive,
-                               aLevel + 1);
+        return ::_handle_union(&str[x], &expr[y], case_insensitive, level + 1);
       case '?':
         break;
       case ')':
@@ -396,59 +362,50 @@ _shexp_match(const T* aStr, const T* aExpr, bool aCaseInsensitive,
         return ABORTED;
       case '\\':
         ++y;
-      /* fall through */
+        /* fall through */
       default:
-        if (aCaseInsensitive) {
-          if (::upper(aStr[x]) != ::upper(aExpr[y])) {
+        if(case_insensitive) {
+          if(::upper(str[x]) != ::upper(expr[y]))
             return NOMATCH;
-          }
-        } else {
-          if (aStr[x] != aExpr[y]) {
+        }
+        else {
+          if(str[x] != expr[y])
             return NOMATCH;
-          }
         }
         break;
     }
   }
-  return (aStr[x] ? NOMATCH : MATCH);
+  return (str[x] ? NOMATCH : MATCH);
 }
 
 
 template<class T>
 static int
-ns_WildCardMatch(const T* aStr, const T* aXp, bool aCaseInsensitive)
+ns_WildCardMatch(const T *str, const T *xp, bool case_insensitive)
 {
-  T* expr = nullptr;
-  int ret = MATCH;
+  T *expr = nullptr;
+  int x, ret = MATCH;
 
-  if (!nsCharTraits<T>::find(aXp, nsCharTraits<T>::length(aXp), T('~'))) {
-    return ::_shexp_match(aStr, aXp, aCaseInsensitive, 0);
-  }
+  if (!nsCharTraits<T>::find(xp, nsCharTraits<T>::length(xp), T('~')))
+    return ::_shexp_match(str, xp, case_insensitive, 0);
 
-  expr = (T*)NS_Alloc((nsCharTraits<T>::length(aXp) + 1) * sizeof(T));
-  if (!expr) {
+  expr = (T *) NS_Alloc((nsCharTraits<T>::length(xp) + 1) * sizeof(T));
+  if(!expr)
     return NOMATCH;
-  }
-  memcpy(expr, aXp, (nsCharTraits<T>::length(aXp) + 1) * sizeof(T));
+  memcpy(expr, xp, (nsCharTraits<T>::length(xp) + 1) * sizeof(T));
 
-  int x = ::_scan_and_copy(expr, T('~'), T('\0'), static_cast<T*>(nullptr));
+  x = ::_scan_and_copy(expr, T('~'), T('\0'), static_cast<T*>(nullptr));
   if (x != ABORTED && expr[x] == '~') {
     expr[x++] = '\0';
-    ret = ::_shexp_match(aStr, &expr[x], aCaseInsensitive, 0);
+    ret = ::_shexp_match(str, &expr[x], case_insensitive, 0);
     switch (ret) {
-      case NOMATCH:
-        ret = MATCH;
-        break;
-      case MATCH:
-        ret = NOMATCH;
-        break;
-      default:
-        break;
+      case NOMATCH: ret = MATCH;   break;
+      case MATCH:   ret = NOMATCH; break;
+      default:                     break;
     }
   }
-  if (ret == MATCH) {
-    ret = ::_shexp_match(aStr, expr, aCaseInsensitive, 0);
-  }
+  if (ret == MATCH)
+    ret = ::_shexp_match(str, expr, case_insensitive, 0);
 
   NS_Free(expr);
   return ret;
@@ -456,26 +413,27 @@ ns_WildCardMatch(const T* aStr, const T* aXp, bool aCaseInsensitive)
 
 template<class T>
 int
-NS_WildCardMatch_(const T* aStr, const T* aExpr, bool aCaseInsensitive)
+NS_WildCardMatch_(const T *str, const T *expr, bool case_insensitive)
 {
-  int is_valid = NS_WildCardValid(aExpr);
-  switch (is_valid) {
+  int is_valid = NS_WildCardValid(expr);
+  switch(is_valid) {
     case INVALID_SXP:
       return -1;
     default:
-      return ::ns_WildCardMatch(aStr, aExpr, aCaseInsensitive);
+      return ::ns_WildCardMatch(str, expr, case_insensitive);
   }
 }
 
 int
-NS_WildCardMatch(const char* aStr, const char* aXp, bool aCaseInsensitive)
+NS_WildCardMatch(const char *str, const char *xp,
+                 bool case_insensitive)
 {
-  return NS_WildCardMatch_(aStr, aXp, aCaseInsensitive);
+  return NS_WildCardMatch_(str, xp, case_insensitive);
 }
 
 int
-NS_WildCardMatch(const char16_t* aStr, const char16_t* aXp,
-                 bool aCaseInsensitive)
+NS_WildCardMatch(const char16_t *str, const char16_t *xp,
+                 bool case_insensitive)
 {
-  return NS_WildCardMatch_(aStr, aXp, aCaseInsensitive);
+  return NS_WildCardMatch_(str, xp, case_insensitive);
 }

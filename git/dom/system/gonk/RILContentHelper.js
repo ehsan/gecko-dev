@@ -21,8 +21,11 @@ Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-var RIL = {};
-Cu.import("resource://gre/modules/ril_consts.js", RIL);
+XPCOMUtils.defineLazyGetter(this, "RIL", function () {
+  let obj = {};
+  Cu.import("resource://gre/modules/ril_consts.js", obj);
+  return obj;
+});
 
 const NS_XPCOM_SHUTDOWN_OBSERVER_ID = "xpcom-shutdown";
 
@@ -786,13 +789,6 @@ RILContentHelper.prototype = {
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
 
-    let radioState = this.rilContexts[clientId].radioState;
-    if (radioState !== RIL.GECKO_DETAILED_RADIOSTATE_ENABLED) {
-      this.dispatchFireRequestError(requestId,
-                                    RIL.GECKO_ERROR_RADIO_NOT_AVAILABLE);
-      return request;
-    }
-
     cpmm.sendAsyncMessage("RIL:SetPreferredNetworkType", {
       clientId: clientId,
       data: {
@@ -811,13 +807,6 @@ RILContentHelper.prototype = {
 
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
-
-    let radioState = this.rilContexts[clientId].radioState;
-    if (radioState !== RIL.GECKO_DETAILED_RADIOSTATE_ENABLED) {
-      this.dispatchFireRequestError(requestId,
-                                    RIL.GECKO_ERROR_RADIO_NOT_AVAILABLE);
-      return request;
-    }
 
     cpmm.sendAsyncMessage("RIL:GetPreferredNetworkType", {
       clientId: clientId,

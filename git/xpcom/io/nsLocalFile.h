@@ -49,9 +49,9 @@
 #define NSRESULT_FOR_RETURN(ret) (((ret) < 0) ? NSRESULT_FOR_ERRNO() : NS_OK)
 
 inline nsresult
-nsresultForErrno(int aErr)
+nsresultForErrno(int err)
 {
-  switch (aErr) {
+  switch (err) {
     case 0:
       return NS_OK;
 #ifdef EDQUOT

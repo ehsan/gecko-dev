@@ -213,14 +213,16 @@ public:
 };
 
 template <class T>
-inline nsAutoPtr<T>*
+inline
+nsAutoPtr<T>*
 address_of(nsAutoPtr<T>& aPtr)
 {
   return aPtr.get_address();
 }
 
 template <class T>
-inline const nsAutoPtr<T>*
+inline
+const nsAutoPtr<T>*
 address_of(const nsAutoPtr<T>& aPtr)
 {
   return aPtr.get_address();
@@ -275,7 +277,8 @@ private:
 };
 
 template <class T>
-inline nsAutoPtrGetterTransfers<T>
+inline
+nsAutoPtrGetterTransfers<T>
 getter_Transfers(nsAutoPtr<T>& aSmartPtr)
 /*
   Used around a |nsAutoPtr| when
@@ -290,7 +293,8 @@ getter_Transfers(nsAutoPtr<T>& aSmartPtr)
 // Comparing two |nsAutoPtr|s
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const nsAutoPtr<T>& aLhs, const nsAutoPtr<U>& aRhs)
 {
   return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs.get());
@@ -298,7 +302,8 @@ operator==(const nsAutoPtr<T>& aLhs, const nsAutoPtr<U>& aRhs)
 
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const nsAutoPtr<T>& aLhs, const nsAutoPtr<U>& aRhs)
 {
   return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs.get());
@@ -308,28 +313,32 @@ operator!=(const nsAutoPtr<T>& aLhs, const nsAutoPtr<U>& aRhs)
 // Comparing an |nsAutoPtr| to a raw pointer
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const nsAutoPtr<T>& aLhs, const U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const U* aLhs, const nsAutoPtr<T>& aRhs)
 {
   return static_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const nsAutoPtr<T>& aLhs, const U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const U* aLhs, const nsAutoPtr<T>& aRhs)
 {
   return static_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
@@ -344,28 +353,32 @@ operator!=(const U* aLhs, const nsAutoPtr<T>& aRhs)
 
 #ifndef NSCAP_DONT_PROVIDE_NONCONST_OPEQ
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const nsAutoPtr<T>& aLhs, U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) == const_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(U* aLhs, const nsAutoPtr<T>& aRhs)
 {
   return const_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const nsAutoPtr<T>& aLhs, U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) != const_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(U* aLhs, const nsAutoPtr<T>& aRhs)
 {
   return const_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
@@ -377,7 +390,8 @@ operator!=(U* aLhs, const nsAutoPtr<T>& aRhs)
 // Comparing an |nsAutoPtr| to |0|
 
 template <class T>
-inline bool
+inline
+bool
 operator==(const nsAutoPtr<T>& aLhs, NSCAP_Zero* aRhs)
 // specifically to allow |smartPtr == 0|
 {
@@ -385,7 +399,8 @@ operator==(const nsAutoPtr<T>& aLhs, NSCAP_Zero* aRhs)
 }
 
 template <class T>
-inline bool
+inline
+bool
 operator==(NSCAP_Zero* aLhs, const nsAutoPtr<T>& aRhs)
 // specifically to allow |0 == smartPtr|
 {
@@ -393,7 +408,8 @@ operator==(NSCAP_Zero* aLhs, const nsAutoPtr<T>& aRhs)
 }
 
 template <class T>
-inline bool
+inline
+bool
 operator!=(const nsAutoPtr<T>& aLhs, NSCAP_Zero* aRhs)
 // specifically to allow |smartPtr != 0|
 {
@@ -401,7 +417,8 @@ operator!=(const nsAutoPtr<T>& aLhs, NSCAP_Zero* aRhs)
 }
 
 template <class T>
-inline bool
+inline
+bool
 operator!=(NSCAP_Zero* aLhs, const nsAutoPtr<T>& aRhs)
 // specifically to allow |0 != smartPtr|
 {
@@ -415,19 +432,21 @@ operator!=(NSCAP_Zero* aLhs, const nsAutoPtr<T>& aRhs)
 // because the compiler is lame.
 
 template <class T>
-inline bool
-operator==(const nsAutoPtr<T>& aLhs, int aRhs)
+inline
+bool
+operator==(const nsAutoPtr<T>& lhs, int rhs)
 // specifically to allow |smartPtr == 0|
 {
-  return static_cast<const void*>(aLhs.get()) == reinterpret_cast<const void*>(aRhs);
+  return static_cast<const void*>(lhs.get()) == reinterpret_cast<const void*>(rhs);
 }
 
 template <class T>
-inline bool
-operator==(int aLhs, const nsAutoPtr<T>& aRhs)
+inline
+bool
+operator==(int lhs, const nsAutoPtr<T>& rhs)
 // specifically to allow |0 == smartPtr|
 {
-  return reinterpret_cast<const void*>(aLhs) == static_cast<const void*>(aRhs.get());
+  return reinterpret_cast<const void*>(lhs) == static_cast<const void*>(rhs.get());
 }
 
 #endif // !defined(HAVE_CPP_TROUBLE_COMPARING_TO_ZERO)
@@ -597,14 +616,16 @@ public:
 };
 
 template <class T>
-inline nsAutoArrayPtr<T>*
+inline
+nsAutoArrayPtr<T>*
 address_of(nsAutoArrayPtr<T>& aPtr)
 {
   return aPtr.get_address();
 }
 
 template <class T>
-inline const nsAutoArrayPtr<T>*
+inline
+const nsAutoArrayPtr<T>*
 address_of(const nsAutoArrayPtr<T>& aPtr)
 {
   return aPtr.get_address();
@@ -659,7 +680,8 @@ private:
 };
 
 template <class T>
-inline nsAutoArrayPtrGetterTransfers<T>
+inline
+nsAutoArrayPtrGetterTransfers<T>
 getter_Transfers(nsAutoArrayPtr<T>& aSmartPtr)
 /*
   Used around a |nsAutoArrayPtr| when
@@ -674,7 +696,8 @@ getter_Transfers(nsAutoArrayPtr<T>& aSmartPtr)
 // Comparing two |nsAutoArrayPtr|s
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const nsAutoArrayPtr<T>& aLhs, const nsAutoArrayPtr<U>& aRhs)
 {
   return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs.get());
@@ -682,7 +705,8 @@ operator==(const nsAutoArrayPtr<T>& aLhs, const nsAutoArrayPtr<U>& aRhs)
 
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const nsAutoArrayPtr<T>& aLhs, const nsAutoArrayPtr<U>& aRhs)
 {
   return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs.get());
@@ -692,28 +716,32 @@ operator!=(const nsAutoArrayPtr<T>& aLhs, const nsAutoArrayPtr<U>& aRhs)
 // Comparing an |nsAutoArrayPtr| to a raw pointer
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const nsAutoArrayPtr<T>& aLhs, const U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const U* aLhs, const nsAutoArrayPtr<T>& aRhs)
 {
   return static_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const nsAutoArrayPtr<T>& aLhs, const U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const U* aLhs, const nsAutoArrayPtr<T>& aRhs)
 {
   return static_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
@@ -728,28 +756,32 @@ operator!=(const U* aLhs, const nsAutoArrayPtr<T>& aRhs)
 
 #ifndef NSCAP_DONT_PROVIDE_NONCONST_OPEQ
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const nsAutoArrayPtr<T>& aLhs, U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) == const_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(U* aLhs, const nsAutoArrayPtr<T>& aRhs)
 {
   return const_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const nsAutoArrayPtr<T>& aLhs, U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) != const_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(U* aLhs, const nsAutoArrayPtr<T>& aRhs)
 {
   return const_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
@@ -761,7 +793,8 @@ operator!=(U* aLhs, const nsAutoArrayPtr<T>& aRhs)
 // Comparing an |nsAutoArrayPtr| to |0|
 
 template <class T>
-inline bool
+inline
+bool
 operator==(const nsAutoArrayPtr<T>& aLhs, NSCAP_Zero* aRhs)
 // specifically to allow |smartPtr == 0|
 {
@@ -769,7 +802,8 @@ operator==(const nsAutoArrayPtr<T>& aLhs, NSCAP_Zero* aRhs)
 }
 
 template <class T>
-inline bool
+inline
+bool
 operator==(NSCAP_Zero* aLhs, const nsAutoArrayPtr<T>& aRhs)
 // specifically to allow |0 == smartPtr|
 {
@@ -777,7 +811,8 @@ operator==(NSCAP_Zero* aLhs, const nsAutoArrayPtr<T>& aRhs)
 }
 
 template <class T>
-inline bool
+inline
+bool
 operator!=(const nsAutoArrayPtr<T>& aLhs, NSCAP_Zero* aRhs)
 // specifically to allow |smartPtr != 0|
 {
@@ -785,7 +820,8 @@ operator!=(const nsAutoArrayPtr<T>& aLhs, NSCAP_Zero* aRhs)
 }
 
 template <class T>
-inline bool
+inline
+bool
 operator!=(NSCAP_Zero* aLhs, const nsAutoArrayPtr<T>& aRhs)
 // specifically to allow |0 != smartPtr|
 {
@@ -799,19 +835,21 @@ operator!=(NSCAP_Zero* aLhs, const nsAutoArrayPtr<T>& aRhs)
 // because the compiler is lame.
 
 template <class T>
-inline bool
-operator==(const nsAutoArrayPtr<T>& aLhs, int aRhs)
+inline
+bool
+operator==(const nsAutoArrayPtr<T>& lhs, int rhs)
 // specifically to allow |smartPtr == 0|
 {
-  return static_cast<const void*>(aLhs.get()) == reinterpret_cast<const void*>(aRhs);
+  return static_cast<const void*>(lhs.get()) == reinterpret_cast<const void*>(rhs);
 }
 
 template <class T>
-inline bool
-operator==(int aLhs, const nsAutoArrayPtr<T>& aRhs)
+inline
+bool
+operator==(int lhs, const nsAutoArrayPtr<T>& rhs)
 // specifically to allow |0 == smartPtr|
 {
-  return reinterpret_cast<const void*>(aLhs) == static_cast<const void*>(aRhs.get());
+  return reinterpret_cast<const void*>(lhs) == static_cast<const void*>(rhs.get());
 }
 
 #endif // !defined(HAVE_CPP_TROUBLE_COMPARING_TO_ZERO)
@@ -1119,14 +1157,16 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
 }
 
 template <class T>
-inline nsRefPtr<T>*
+inline
+nsRefPtr<T>*
 address_of(nsRefPtr<T>& aPtr)
 {
   return aPtr.get_address();
 }
 
 template <class T>
-inline const nsRefPtr<T>*
+inline
+const nsRefPtr<T>*
 address_of(const nsRefPtr<T>& aPtr)
 {
   return aPtr.get_address();
@@ -1181,7 +1221,8 @@ private:
 };
 
 template <class T>
-inline nsRefPtrGetterAddRefs<T>
+inline
+nsRefPtrGetterAddRefs<T>
 getter_AddRefs(nsRefPtr<T>& aSmartPtr)
 /*
   Used around a |nsRefPtr| when
@@ -1196,7 +1237,8 @@ getter_AddRefs(nsRefPtr<T>& aSmartPtr)
 // Comparing two |nsRefPtr|s
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const nsRefPtr<T>& aLhs, const nsRefPtr<U>& aRhs)
 {
   return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs.get());
@@ -1204,7 +1246,8 @@ operator==(const nsRefPtr<T>& aLhs, const nsRefPtr<U>& aRhs)
 
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const nsRefPtr<T>& aLhs, const nsRefPtr<U>& aRhs)
 {
   return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs.get());
@@ -1214,28 +1257,32 @@ operator!=(const nsRefPtr<T>& aLhs, const nsRefPtr<U>& aRhs)
 // Comparing an |nsRefPtr| to a raw pointer
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const nsRefPtr<T>& aLhs, const U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) == static_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const U* aLhs, const nsRefPtr<T>& aRhs)
 {
   return static_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const nsRefPtr<T>& aLhs, const U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) != static_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const U* aLhs, const nsRefPtr<T>& aRhs)
 {
   return static_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
@@ -1250,28 +1297,32 @@ operator!=(const U* aLhs, const nsRefPtr<T>& aRhs)
 
 #ifndef NSCAP_DONT_PROVIDE_NONCONST_OPEQ
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(const nsRefPtr<T>& aLhs, U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) == const_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator==(U* aLhs, const nsRefPtr<T>& aRhs)
 {
   return const_cast<const U*>(aLhs) == static_cast<const T*>(aRhs.get());
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(const nsRefPtr<T>& aLhs, U* aRhs)
 {
   return static_cast<const T*>(aLhs.get()) != const_cast<const U*>(aRhs);
 }
 
 template <class T, class U>
-inline bool
+inline
+bool
 operator!=(U* aLhs, const nsRefPtr<T>& aRhs)
 {
   return const_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
@@ -1283,7 +1334,8 @@ operator!=(U* aLhs, const nsRefPtr<T>& aRhs)
 // Comparing an |nsRefPtr| to |0|
 
 template <class T>
-inline bool
+inline
+bool
 operator==(const nsRefPtr<T>& aLhs, NSCAP_Zero* aRhs)
 // specifically to allow |smartPtr == 0|
 {
@@ -1291,7 +1343,8 @@ operator==(const nsRefPtr<T>& aLhs, NSCAP_Zero* aRhs)
 }
 
 template <class T>
-inline bool
+inline
+bool
 operator==(NSCAP_Zero* aLhs, const nsRefPtr<T>& aRhs)
 // specifically to allow |0 == smartPtr|
 {
@@ -1299,7 +1352,8 @@ operator==(NSCAP_Zero* aLhs, const nsRefPtr<T>& aRhs)
 }
 
 template <class T>
-inline bool
+inline
+bool
 operator!=(const nsRefPtr<T>& aLhs, NSCAP_Zero* aRhs)
 // specifically to allow |smartPtr != 0|
 {
@@ -1307,7 +1361,8 @@ operator!=(const nsRefPtr<T>& aLhs, NSCAP_Zero* aRhs)
 }
 
 template <class T>
-inline bool
+inline
+bool
 operator!=(NSCAP_Zero* aLhs, const nsRefPtr<T>& aRhs)
 // specifically to allow |0 != smartPtr|
 {
@@ -1321,25 +1376,28 @@ operator!=(NSCAP_Zero* aLhs, const nsRefPtr<T>& aRhs)
 // because the compiler is lame.
 
 template <class T>
-inline bool
-operator==(const nsRefPtr<T>& aLhs, int aRhs)
+inline
+bool
+operator==(const nsRefPtr<T>& lhs, int rhs)
 // specifically to allow |smartPtr == 0|
 {
-  return static_cast<const void*>(aLhs.get()) == reinterpret_cast<const void*>(aRhs);
+  return static_cast<const void*>(lhs.get()) == reinterpret_cast<const void*>(rhs);
 }
 
 template <class T>
-inline bool
-operator==(int aLhs, const nsRefPtr<T>& aRhs)
+inline
+bool
+operator==(int lhs, const nsRefPtr<T>& rhs)
 // specifically to allow |0 == smartPtr|
 {
-  return reinterpret_cast<const void*>(aLhs) == static_cast<const void*>(aRhs.get());
+  return reinterpret_cast<const void*>(lhs) == static_cast<const void*>(rhs.get());
 }
 
 #endif // !defined(HAVE_CPP_TROUBLE_COMPARING_TO_ZERO)
 
 template <class SourceType, class DestinationType>
-inline nsresult
+inline
+nsresult
 CallQueryInterface(nsRefPtr<SourceType>& aSourcePtr, DestinationType** aDestPtr)
 {
   return CallQueryInterface(aSourcePtr.get(), aDestPtr);
@@ -1392,42 +1450,48 @@ private:
 };
 
 template<class T>
-inline nsQueryObject<T>
+inline
+nsQueryObject<T>
 do_QueryObject(T* aRawPtr)
 {
   return nsQueryObject<T>(aRawPtr);
 }
 
 template<class T>
-inline nsQueryObject<T>
+inline
+nsQueryObject<T>
 do_QueryObject(nsCOMPtr<T>& aRawPtr)
 {
   return nsQueryObject<T>(aRawPtr);
 }
 
 template<class T>
-inline nsQueryObject<T>
+inline
+nsQueryObject<T>
 do_QueryObject(nsRefPtr<T>& aRawPtr)
 {
   return nsQueryObject<T>(aRawPtr);
 }
 
 template<class T>
-inline nsQueryObjectWithError<T>
+inline
+nsQueryObjectWithError<T>
 do_QueryObject(T* aRawPtr, nsresult* aErrorPtr)
 {
   return nsQueryObjectWithError<T>(aRawPtr, aErrorPtr);
 }
 
 template<class T>
-inline nsQueryObjectWithError<T>
+inline
+nsQueryObjectWithError<T>
 do_QueryObject(nsCOMPtr<T>& aRawPtr, nsresult* aErrorPtr)
 {
   return nsQueryObjectWithError<T>(aRawPtr, aErrorPtr);
 }
 
 template<class T>
-inline nsQueryObjectWithError<T>
+inline
+nsQueryObjectWithError<T>
 do_QueryObject(nsRefPtr<T>& aRawPtr, nsresult* aErrorPtr)
 {
   return nsQueryObjectWithError<T>(aRawPtr, aErrorPtr);

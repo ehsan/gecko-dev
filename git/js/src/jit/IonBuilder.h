@@ -818,6 +818,8 @@ class IonBuilder : public MIRGenerator
     CodeGenerator *backgroundCodegen() const { return backgroundCodegen_; }
     void setBackgroundCodegen(CodeGenerator *codegen) { backgroundCodegen_ = codegen; }
 
+    AbortReason abortReason() { return abortReason_; }
+
     TypeDescrSetHash *getOrCreateDescrSetHash(); // fallible
 
     types::CompilerConstraintList *constraints() {
@@ -835,6 +837,7 @@ class IonBuilder : public MIRGenerator
 
     JSContext *analysisContext;
     BaselineFrameInspector *baselineFrame_;
+    AbortReason abortReason_;
     TypeDescrSetHash *descrSetHash_;
 
     // Constraints for recording dependencies on type information.

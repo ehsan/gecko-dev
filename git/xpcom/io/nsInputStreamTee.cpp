@@ -26,10 +26,9 @@ using namespace mozilla;
 static PRLogModuleInfo*
 GetTeeLog()
 {
-  static PRLogModuleInfo* sLog;
-  if (!sLog) {
+  static PRLogModuleInfo *sLog;
+  if (!sLog)
     sLog = PR_NewLogModule("nsInputStreamTee");
-  }
   return sLog;
 }
 #define LOG(args) PR_LOG(GetTeeLog(), PR_LOG_DEBUG, args)
@@ -49,37 +48,33 @@ public:
   void InvalidateSink();
 
 private:
-  ~nsInputStreamTee()
-  {
-  }
+  ~nsInputStreamTee() {}
 
-  nsresult TeeSegment(const char* aBuf, uint32_t aCount);
+  nsresult TeeSegment(const char *buf, uint32_t count);
 
-  static NS_METHOD WriteSegmentFun(nsIInputStream*, void*, const char*,
-                                   uint32_t, uint32_t, uint32_t*);
+  static NS_METHOD WriteSegmentFun(nsIInputStream *, void *, const char *,
+                                   uint32_t, uint32_t, uint32_t *);
 
 private:
   nsCOMPtr<nsIInputStream>  mSource;
   nsCOMPtr<nsIOutputStream> mSink;
   nsCOMPtr<nsIEventTarget>  mEventTarget;
   nsWriteSegmentFun         mWriter;  // for implementing ReadSegments
-  void*                     mClosure; // for implementing ReadSegments
+  void                      *mClosure; // for implementing ReadSegments
   nsAutoPtr<Mutex>          mLock; // synchronize access to mSinkIsValid
   bool                      mSinkIsValid; // False if TeeWriteEvent fails
 };
 
-class nsInputStreamTeeWriteEvent : public nsRunnable
-{
+class nsInputStreamTeeWriteEvent : public nsRunnable {
 public:
   // aTee's lock is held across construction of this object
-  nsInputStreamTeeWriteEvent(const char* aBuf, uint32_t aCount,
-                             nsIOutputStream* aSink, nsInputStreamTee* aTee)
+  nsInputStreamTeeWriteEvent(const char *aBuf, uint32_t aCount,
+                             nsIOutputStream  *aSink,
+                             nsInputStreamTee *aTee)
   {
     // copy the buffer - will be free'd by dtor
-    mBuf = (char*)malloc(aCount);
-    if (mBuf) {
-      memcpy(mBuf, (char*)aBuf, aCount);
-    }
+    mBuf = (char *)malloc(aCount);
+    if (mBuf) memcpy(mBuf, (char *)aBuf, aCount);
     mCount = aCount;
     mSink = aSink;
     bool isNonBlocking;
@@ -114,7 +109,7 @@ public:
       rv = mSink->Write(mBuf + totalBytesWritten, mCount, &bytesWritten);
       if (NS_FAILED(rv)) {
         LOG(("nsInputStreamTeeWriteEvent::Run[%p] error %x in writing",
-             this, rv));
+             this,rv));
         mTee->InvalidateSink();
         break;
       }
@@ -128,14 +123,12 @@ public:
 protected:
   virtual ~nsInputStreamTeeWriteEvent()
   {
-    if (mBuf) {
-      free(mBuf);
-    }
+    if (mBuf) free(mBuf);
     mBuf = nullptr;
   }
 
 private:
-  char* mBuf;
+  char *mBuf;
   uint32_t mCount;
   nsCOMPtr<nsIOutputStream> mSink;
   // back pointer to the tee that created this runnable
@@ -143,7 +136,7 @@ private:
 };
 
 nsInputStreamTee::nsInputStreamTee(): mLock(nullptr)
-  , mSinkIsValid(true)
+                                    , mSinkIsValid(true)
 {
 }
 
@@ -162,28 +155,26 @@ nsInputStreamTee::InvalidateSink()
 }
 
 nsresult
-nsInputStreamTee::TeeSegment(const char* aBuf, uint32_t aCount)
+nsInputStreamTee::TeeSegment(const char *buf, uint32_t count)
 {
-  if (!mSink) {
-    return NS_OK;  // nothing to do
-  }
+  if (!mSink) return NS_OK; // nothing to do
   if (mLock) { // asynchronous case
     NS_ASSERTION(mEventTarget, "mEventTarget is null, mLock is not null.");
     if (!SinkIsValid()) {
       return NS_OK; // nothing to do
     }
     nsRefPtr<nsIRunnable> event =
-      new nsInputStreamTeeWriteEvent(aBuf, aCount, mSink, this);
+      new nsInputStreamTeeWriteEvent(buf, count, mSink, this);
     LOG(("nsInputStreamTee::TeeSegment [%p] dispatching write %u bytes\n",
-         this, aCount));
+         this, count));
     return mEventTarget->Dispatch(event, NS_DISPATCH_NORMAL);
   } else { // synchronous case
     NS_ASSERTION(!mEventTarget, "mEventTarget is not null, mLock is null.");
     nsresult rv;
     uint32_t totalBytesWritten = 0;
-    while (aCount) {
+    while (count) {
       uint32_t bytesWritten = 0;
-      rv = mSink->Write(aBuf + totalBytesWritten, aCount, &bytesWritten);
+      rv = mSink->Write(buf + totalBytesWritten, count, &bytesWritten);
       if (NS_FAILED(rv)) {
         // ok, this is not a fatal error... just drop our reference to mSink
         // and continue on as if nothing happened.
@@ -194,28 +185,27 @@ nsInputStreamTee::TeeSegment(const char* aBuf, uint32_t aCount)
         break;
       }
       totalBytesWritten += bytesWritten;
-      NS_ASSERTION(bytesWritten <= aCount, "wrote too much");
-      aCount -= bytesWritten;
+      NS_ASSERTION(bytesWritten <= count, "wrote too much");
+      count -= bytesWritten;
     }
     return NS_OK;
   }
 }
 
 NS_METHOD
-nsInputStreamTee::WriteSegmentFun(nsIInputStream* aIn, void* aClosure,
-                                  const char* aFromSegment, uint32_t aOffset,
-                                  uint32_t aCount, uint32_t* aWriteCount)
+nsInputStreamTee::WriteSegmentFun(nsIInputStream *in, void *closure, const char *fromSegment,
+                                  uint32_t offset, uint32_t count, uint32_t *writeCount)
 {
-  nsInputStreamTee* tee = reinterpret_cast<nsInputStreamTee*>(aClosure);
-  nsresult rv = tee->mWriter(aIn, tee->mClosure, aFromSegment, aOffset,
-                             aCount, aWriteCount);
-  if (NS_FAILED(rv) || (*aWriteCount == 0)) {
-    NS_ASSERTION((NS_FAILED(rv) ? (*aWriteCount == 0) : true),
+  nsInputStreamTee *tee = reinterpret_cast<nsInputStreamTee *>(closure);
+
+  nsresult rv = tee->mWriter(in, tee->mClosure, fromSegment, offset, count, writeCount);
+  if (NS_FAILED(rv) || (*writeCount == 0)) {
+    NS_ASSERTION((NS_FAILED(rv) ? (*writeCount == 0) : true),
                  "writer returned an error with non-zero writeCount");
     return rv;
   }
 
-  return tee->TeeSegment(aFromSegment, *aWriteCount);
+  return tee->TeeSegment(fromSegment, *writeCount);
 }
 
 NS_IMPL_ISUPPORTS(nsInputStreamTee,
@@ -224,9 +214,8 @@ NS_IMPL_ISUPPORTS(nsInputStreamTee,
 NS_IMETHODIMP
 nsInputStreamTee::Close()
 {
-  if (NS_WARN_IF(!mSource)) {
+  if (NS_WARN_IF(!mSource))
     return NS_ERROR_NOT_INITIALIZED;
-  }
   nsresult rv = mSource->Close();
   mSource = 0;
   mSink = 0;
@@ -234,95 +223,89 @@ nsInputStreamTee::Close()
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::Available(uint64_t* aAvail)
+nsInputStreamTee::Available(uint64_t *avail)
 {
-  if (NS_WARN_IF(!mSource)) {
+  if (NS_WARN_IF(!mSource))
     return NS_ERROR_NOT_INITIALIZED;
-  }
-  return mSource->Available(aAvail);
+  return mSource->Available(avail);
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::Read(char* aBuf, uint32_t aCount, uint32_t* aBytesRead)
+nsInputStreamTee::Read(char *buf, uint32_t count, uint32_t *bytesRead)
 {
-  if (NS_WARN_IF(!mSource)) {
+  if (NS_WARN_IF(!mSource))
     return NS_ERROR_NOT_INITIALIZED;
-  }
 
-  nsresult rv = mSource->Read(aBuf, aCount, aBytesRead);
-  if (NS_FAILED(rv) || (*aBytesRead == 0)) {
+  nsresult rv = mSource->Read(buf, count, bytesRead);
+  if (NS_FAILED(rv) || (*bytesRead == 0))
     return rv;
-  }
 
-  return TeeSegment(aBuf, *aBytesRead);
+  return TeeSegment(buf, *bytesRead);
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::ReadSegments(nsWriteSegmentFun aWriter,
-                               void* aClosure,
-                               uint32_t aCount,
-                               uint32_t* aBytesRead)
+nsInputStreamTee::ReadSegments(nsWriteSegmentFun writer,
+                               void *closure,
+                               uint32_t count,
+                               uint32_t *bytesRead)
 {
-  if (NS_WARN_IF(!mSource)) {
+  if (NS_WARN_IF(!mSource))
     return NS_ERROR_NOT_INITIALIZED;
-  }
 
-  mWriter = aWriter;
-  mClosure = aClosure;
+  mWriter = writer;
+  mClosure = closure;
 
-  return mSource->ReadSegments(WriteSegmentFun, this, aCount, aBytesRead);
+  return mSource->ReadSegments(WriteSegmentFun, this, count, bytesRead);
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::IsNonBlocking(bool* aResult)
+nsInputStreamTee::IsNonBlocking(bool *result)
 {
-  if (NS_WARN_IF(!mSource)) {
+  if (NS_WARN_IF(!mSource))
     return NS_ERROR_NOT_INITIALIZED;
-  }
-  return mSource->IsNonBlocking(aResult);
+  return mSource->IsNonBlocking(result);
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::SetSource(nsIInputStream* aSource)
+nsInputStreamTee::SetSource(nsIInputStream *source)
 {
-  mSource = aSource;
+  mSource = source;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::GetSource(nsIInputStream** aSource)
+nsInputStreamTee::GetSource(nsIInputStream **source)
 {
-  NS_IF_ADDREF(*aSource = mSource);
+  NS_IF_ADDREF(*source = mSource);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::SetSink(nsIOutputStream* aSink)
+nsInputStreamTee::SetSink(nsIOutputStream *sink)
 {
 #ifdef DEBUG
-  if (aSink) {
+  if (sink) {
     bool nonBlocking;
-    nsresult rv = aSink->IsNonBlocking(&nonBlocking);
-    if (NS_FAILED(rv) || nonBlocking) {
-      NS_ERROR("aSink should be a blocking stream");
-    }
+    nsresult rv = sink->IsNonBlocking(&nonBlocking);
+    if (NS_FAILED(rv) || nonBlocking)
+      NS_ERROR("sink should be a blocking stream");
   }
 #endif
-  mSink = aSink;
+  mSink = sink;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::GetSink(nsIOutputStream** aSink)
+nsInputStreamTee::GetSink(nsIOutputStream **sink)
 {
-  NS_IF_ADDREF(*aSink = mSink);
+  NS_IF_ADDREF(*sink = mSink);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::SetEventTarget(nsIEventTarget* aEventTarget)
+nsInputStreamTee::SetEventTarget(nsIEventTarget *anEventTarget)
 {
-  mEventTarget = aEventTarget;
+  mEventTarget = anEventTarget;
   if (mEventTarget) {
     // Only need synchronization if this is an async tee
     mLock = new Mutex("nsInputStreamTee.mLock");
@@ -331,51 +314,44 @@ nsInputStreamTee::SetEventTarget(nsIEventTarget* aEventTarget)
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::GetEventTarget(nsIEventTarget** aEventTarget)
+nsInputStreamTee::GetEventTarget(nsIEventTarget **anEventTarget)
 {
-  NS_IF_ADDREF(*aEventTarget = mEventTarget);
+  NS_IF_ADDREF(*anEventTarget = mEventTarget);
   return NS_OK;
 }
 
 
 nsresult
-NS_NewInputStreamTeeAsync(nsIInputStream** aResult,
-                          nsIInputStream* aSource,
-                          nsIOutputStream* aSink,
-                          nsIEventTarget* aEventTarget)
+NS_NewInputStreamTeeAsync(nsIInputStream **result,
+                          nsIInputStream *source,
+                          nsIOutputStream *sink,
+                          nsIEventTarget *anEventTarget)
 {
   nsresult rv;
 
   nsCOMPtr<nsIInputStreamTee> tee = new nsInputStreamTee();
-  if (!tee) {
+  if (!tee)
     return NS_ERROR_OUT_OF_MEMORY;
-  }
 
-  rv = tee->SetSource(aSource);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  rv = tee->SetSource(source);
+  if (NS_FAILED(rv)) return rv;
 
-  rv = tee->SetSink(aSink);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  rv = tee->SetSink(sink);
+  if (NS_FAILED(rv)) return rv;
 
-  rv = tee->SetEventTarget(aEventTarget);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  rv = tee->SetEventTarget(anEventTarget);
+  if (NS_FAILED(rv)) return rv;
 
-  NS_ADDREF(*aResult = tee);
+  NS_ADDREF(*result = tee);
   return rv;
 }
 
 nsresult
-NS_NewInputStreamTee(nsIInputStream** aResult,
-                     nsIInputStream* aSource,
-                     nsIOutputStream* aSink)
+NS_NewInputStreamTee(nsIInputStream **result,
+                     nsIInputStream *source,
+                     nsIOutputStream *sink)
 {
-  return NS_NewInputStreamTeeAsync(aResult, aSource, aSink, nullptr);
+  return NS_NewInputStreamTeeAsync(result, source, sink, nullptr);
 }
 
 #undef LOG
