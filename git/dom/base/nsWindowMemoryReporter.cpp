@@ -56,8 +56,7 @@ AddNonJSSizeOfWindowAndItsDescendents(nsGlobalWindow* aWindow,
 
   // Measure the inner window, if there is one.
   nsWindowSizes innerWindowSizes(moz_malloc_size_of);
-  nsGlobalWindow* inner = aWindow->IsOuterWindow() ? aWindow->GetCurrentInnerWindowInternal()
-                                                   : nullptr;
+  nsGlobalWindow* inner = aWindow->GetCurrentInnerWindowInternal();
   if (inner) {
     inner->AddSizeOfIncludingThis(&innerWindowSizes);
     innerWindowSizes.addToTabSizes(aSizes);

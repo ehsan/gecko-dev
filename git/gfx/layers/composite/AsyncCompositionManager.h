@@ -6,7 +6,7 @@
 #ifndef GFX_ASYNCCOMPOSITIONMANAGER_H
 #define GFX_ASYNCCOMPOSITIONMANAGER_H
 
-#include "Units.h"                      // for ScreenPoint, etc
+#include "Units.h"                      // for LayerPoint, etc
 #include "mozilla/layers/LayerManagerComposite.h"  // for LayerManagerComposite
 #include "mozilla/Attributes.h"         // for MOZ_DELETE, MOZ_FINAL, etc
 #include "mozilla/RefPtr.h"             // for RefCounted
@@ -28,17 +28,17 @@ class AutoResolveRefLayers;
 
 // Represents (affine) transforms that are calculated from a content view.
 struct ViewTransform {
-  explicit ViewTransform(ParentLayerToScreenScale aScale = ParentLayerToScreenScale(),
-                         ScreenPoint aTranslation = ScreenPoint())
-    : mScale(aScale)
-    , mTranslation(aTranslation)
+  ViewTransform(LayerPoint aTranslation = LayerPoint(),
+                ParentLayerToScreenScale aScale = ParentLayerToScreenScale())
+    : mTranslation(aTranslation)
+    , mScale(aScale)
   {}
 
   operator gfx::Matrix4x4() const
   {
     return
-      gfx::Matrix4x4().Scale(mScale.scale, mScale.scale, 1)
-                      .PostTranslate(mTranslation.x, mTranslation.y, 0);
+      gfx::Matrix4x4().Translate(mTranslation.x, mTranslation.y, 0) *
+      gfx::Matrix4x4().Scale(mScale.scale, mScale.scale, 1);
   }
 
   // For convenience, to avoid writing the cumbersome
@@ -55,8 +55,8 @@ struct ViewTransform {
     return !(*this == rhs);
   }
 
+  LayerPoint mTranslation;
   ParentLayerToScreenScale mScale;
-  ScreenPoint mTranslation;
 };
 
 /**
@@ -76,7 +76,7 @@ class AsyncCompositionManager MOZ_FINAL
 public:
   NS_INLINE_DECL_REFCOUNTING(AsyncCompositionManager)
 
-  explicit AsyncCompositionManager(LayerManagerComposite* aManager)
+  AsyncCompositionManager(LayerManagerComposite* aManager)
     : mLayerManager(aManager)
     , mIsFirstPaint(false)
     , mLayersUpdated(false)
@@ -124,13 +124,15 @@ public:
 private:
   void TransformScrollableLayer(Layer* aLayer);
   // Return true if an AsyncPanZoomController content transform was
-  // applied for |aLayer|.
-  bool ApplyAsyncContentTransformToTree(Layer* aLayer);
+  // applied for |aLayer|.  *aWantNextFrame is set to true if the
+  // controller wants another animation frame.
+  bool ApplyAsyncContentTransformToTree(TimeStamp aCurrentFrame, Layer* aLayer,
+                                        bool* aWantNextFrame);
   /**
    * Update the shadow transform for aLayer assuming that is a scrollbar,
    * so that it stays in sync with the content that is being scrolled by APZ.
    */
-  void ApplyAsyncTransformToScrollbar(ContainerLayer* aLayer);
+  void ApplyAsyncTransformToScrollbar(TimeStamp aCurrentFrame, ContainerLayer* aLayer);
 
   void SetFirstPaintViewport(const LayerIntPoint& aOffset,
                              const CSSToLayerScale& aZoom,
@@ -207,7 +209,7 @@ private:
 
 class MOZ_STACK_CLASS AutoResolveRefLayers {
 public:
-  explicit AutoResolveRefLayers(AsyncCompositionManager* aManager) : mManager(aManager)
+  AutoResolveRefLayers(AsyncCompositionManager* aManager) : mManager(aManager)
   {
     if (mManager) {
       mManager->ResolveRefLayers();

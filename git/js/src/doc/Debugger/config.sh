@@ -40,9 +40,7 @@ markdown Debugger.Source.md Debugger-API/Debugger.Source
 markdown Debugger.Memory.md Debugger-API/Debugger.Memory
   label 'memory'                                "Debugger.Memory"
   label 'tracking-allocs' '#trackingallocationsites' "Debugger.Memory: trackingAllocationSites"
-  label 'drain-alloc-log' '#drain-alloc-log'    "Debugger.Memory: drainAllocationsLog"
-  label 'max-alloc-log' '#max-alloc-log'        "Debugger.Memory: maxAllocationsLogLength"
-  label 'take-census'   '#take-census'          "Debugger.Memory: takeCensus"
+  label 'retsz'           '#retained-size'      "Debugger.Memory: Retained Sizes"
 
 # Images:
 RBASE=https://mdn.mozillademos.org/files

@@ -71,7 +71,7 @@ namespace layers {
 class TextureParent : public PTextureParent
 {
 public:
-  explicit TextureParent(CompositableParentManager* aManager);
+  TextureParent(CompositableParentManager* aManager);
 
   ~TextureParent();
 

@@ -20,7 +20,7 @@ class ShadowableLayer;
 class ShadowLayerChild : public PLayerChild
 {
 public:
-  explicit ShadowLayerChild(ShadowableLayer* aLayer);
+  ShadowLayerChild(ShadowableLayer* aLayer);
   virtual ~ShadowLayerChild();
 
   ShadowableLayer* layer() const { return mLayer; }

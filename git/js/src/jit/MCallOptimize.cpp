@@ -408,8 +408,7 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
         types::OBJECT_FLAG_LENGTH_OVERFLOW |
         types::OBJECT_FLAG_ITERATED;
 
-    MDefinition *obj = callInfo.thisArg();
-    types::TemporaryTypeSet *thisTypes = obj->resultTypeSet();
+    types::TemporaryTypeSet *thisTypes = callInfo.thisArg()->resultTypeSet();
     if (!thisTypes || thisTypes->getKnownClass() != &ArrayObject::class_)
         return InliningStatus_NotInlined;
     if (thisTypes->hasObjectFlags(constraints(), unhandledFlags))
@@ -420,18 +419,17 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
 
     callInfo.setImplicitlyUsedUnchecked();
 
-    obj = addMaybeCopyElementsForWrite(obj);
-
     types::TemporaryTypeSet *returnTypes = getInlineReturnTypeSet();
     bool needsHoleCheck = thisTypes->hasObjectFlags(constraints(), types::OBJECT_FLAG_NON_PACKED);
     bool maybeUndefined = returnTypes->hasType(types::Type::UndefinedType());
 
     BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(),
-                                                       obj, nullptr, returnTypes);
+                                                       callInfo.thisArg(), nullptr, returnTypes);
     if (barrier != BarrierKind::NoBarrier)
         returnType = MIRType_Value;
 
-    MArrayPopShift *ins = MArrayPopShift::New(alloc(), obj, mode, needsHoleCheck, maybeUndefined);
+    MArrayPopShift *ins = MArrayPopShift::New(alloc(), callInfo.thisArg(), mode,
+                                              needsHoleCheck, maybeUndefined);
     current->add(ins);
     current->push(ins);
     ins->setResultType(returnType);
@@ -552,12 +550,10 @@ IonBuilder::inlineArrayPush(CallInfo &callInfo)
         value = valueDouble;
     }
 
-    obj = addMaybeCopyElementsForWrite(obj);
-
     if (NeedsPostBarrier(info(), value))
-        current->add(MPostWriteBarrier::New(alloc(), obj, value));
+        current->add(MPostWriteBarrier::New(alloc(), callInfo.thisArg(), value));
 
-    MArrayPush *ins = MArrayPush::New(alloc(), obj, value);
+    MArrayPush *ins = MArrayPush::New(alloc(), callInfo.thisArg(), value);
     current->add(ins);
     current->push(ins);
 

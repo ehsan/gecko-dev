@@ -286,7 +286,7 @@ class TextureHost
 
   friend class AtomicRefCountedWithFinalize<TextureHost>;
 public:
-  explicit TextureHost(TextureFlags aFlags);
+  TextureHost(TextureFlags aFlags);
 
 protected:
   virtual ~TextureHost();
@@ -652,7 +652,7 @@ protected:
 class MOZ_STACK_CLASS AutoLockTextureHost
 {
 public:
-  explicit AutoLockTextureHost(TextureHost* aTexture)
+  AutoLockTextureHost(TextureHost* aTexture)
     : mTexture(aTexture)
   {
     mLocked = mTexture ? mTexture->Lock() : false;
@@ -679,7 +679,7 @@ private:
 class CompositingRenderTarget : public TextureSource
 {
 public:
-  explicit CompositingRenderTarget(const gfx::IntPoint& aOrigin)
+  CompositingRenderTarget(const gfx::IntPoint& aOrigin)
     : mOrigin(aOrigin)
   {}
   virtual ~CompositingRenderTarget() {}

@@ -52,7 +52,7 @@ class nsAnimationManager MOZ_FINAL
   : public mozilla::css::CommonAnimationManager
 {
 public:
-  explicit nsAnimationManager(nsPresContext *aPresContext)
+  nsAnimationManager(nsPresContext *aPresContext)
     : mozilla::css::CommonAnimationManager(aPresContext)
     , mObservingRefreshDriver(false)
   {

@@ -192,7 +192,12 @@ public:
 
   bool IsLoadingOrRunningTimeout() const
   {
-    const nsPIDOMWindow* win = IsInnerWindow() ? this : GetCurrentInnerWindow();
+    const nsPIDOMWindow *win = GetCurrentInnerWindow();
+
+    if (!win) {
+      win = this;
+    }
+
     return !win->mIsDocumentLoaded || win->mRunningTimeout;
   }
 
@@ -294,7 +299,6 @@ public:
 
   nsPIDOMWindow *GetCurrentInnerWindow() const
   {
-    MOZ_ASSERT(IsOuterWindow());
     return mInnerWindow;
   }
 

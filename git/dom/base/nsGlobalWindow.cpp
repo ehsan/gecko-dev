@@ -1482,11 +1482,10 @@ nsGlobalWindow::CleanUp()
   mChromeEventHandler = nullptr; // Forces Release
   mParentTarget = nullptr;
 
-  if (IsOuterWindow()) {
-    nsGlobalWindow* inner = GetCurrentInnerWindowInternal();
-    if (inner) {
-      inner->CleanUp();
-    }
+  nsGlobalWindow *inner = GetCurrentInnerWindowInternal();
+
+  if (inner) {
+    inner->CleanUp();
   }
 
   if (IsInnerWindow()) {
@@ -5916,8 +5915,15 @@ nsGlobalWindow::RefreshCompartmentPrincipal()
 static already_AddRefed<nsIDocShellTreeItem>
 GetCallerDocShellTreeItem()
 {
-  nsCOMPtr<nsIWebNavigation> callerWebNav = do_GetInterface(GetEntryGlobal());
-  nsCOMPtr<nsIDocShellTreeItem> callerItem = do_QueryInterface(callerWebNav);
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  nsCOMPtr<nsIDocShellTreeItem> callerItem;
+
+  if (cx) {
+    nsCOMPtr<nsIWebNavigation> callerWebNav =
+      do_GetInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
+
+    callerItem = do_QueryInterface(callerWebNav);
+  }
 
   return callerItem.forget();
 }
@@ -6551,7 +6557,7 @@ nsGlobalWindow::Focus(ErrorResult& aError)
     return;
   }
 
-  nsCOMPtr<nsIDOMWindow> caller = do_QueryInterface(GetEntryGlobal());
+  nsIDOMWindow *caller = nsContentUtils::GetWindowFromCaller();
   nsCOMPtr<nsIDOMWindow> opener;
   GetOpener(getter_AddRefs(opener));
 
@@ -7529,7 +7535,20 @@ nsGlobalWindow::FireAbuseEvents(bool aBlocked, bool aWindow,
 
   nsIURI *baseURL = nullptr;
 
-  nsCOMPtr<nsIDocument> doc = GetEntryDocument();
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  nsCOMPtr<nsPIDOMWindow> contextWindow;
+
+  if (cx) {
+    nsIScriptContext *currentCX = nsJSUtils::GetDynamicScriptContext(cx);
+    if (currentCX) {
+      contextWindow = do_QueryInterface(currentCX->GetGlobalObject());
+    }
+  }
+  if (!contextWindow) {
+    contextWindow = this;
+  }
+
+  nsCOMPtr<nsIDocument> doc = contextWindow->GetDoc();
   if (doc)
     baseURL = doc->GetDocBaseURI();
 
@@ -8234,7 +8253,7 @@ nsGlobalWindow::PostMessageMoz(JSContext* aCx, JS::Handle<JS::Value> aMessage,
   nsCOMPtr<nsIPrincipal> providedPrincipal;
 
   if (aTargetOrigin.EqualsASCII("/")) {
-    providedPrincipal = GetEntryGlobal()->PrincipalOrNull();
+    providedPrincipal = BrokenGetEntryGlobal()->PrincipalOrNull();
     if (NS_WARN_IF(!providedPrincipal))
       return;
   }
@@ -12784,7 +12803,11 @@ nsGlobalWindow::GetScrollFrame()
 nsresult
 nsGlobalWindow::SecurityCheckURL(const char *aURL)
 {
-  nsCOMPtr<nsPIDOMWindow> sourceWindow = do_QueryInterface(GetEntryGlobal());
+  nsCOMPtr<nsPIDOMWindow> sourceWindow;
+  JSContext* topCx = nsContentUtils::GetCurrentJSContext();
+  if (topCx) {
+    sourceWindow = do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(topCx));
+  }
   if (!sourceWindow) {
     sourceWindow = this;
   }

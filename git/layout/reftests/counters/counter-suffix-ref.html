@@ -7,7 +7,8 @@
     width: 3em;
     text-align: end;
     box-sizing: border-box;
-    font-variant-numeric: tabular-nums;
+    -moz-font-feature-settings: "tnum"; /* to match ua.css, see bug 1020143 */
+    font-feature-settings: "tnum";
   }
 </style>
 <div id="wrapper">

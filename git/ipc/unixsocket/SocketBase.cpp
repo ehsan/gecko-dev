@@ -76,7 +76,6 @@ SocketConsumerBase::NotifyError()
 
   mConnectionStatus = SOCKET_DISCONNECTED;
   mConnectDelayMs = CalculateConnectDelayMs();
-  mConnectTimestamp = 0;
   OnConnectError();
 }
 
@@ -87,7 +86,6 @@ SocketConsumerBase::NotifyDisconnect()
 
   mConnectionStatus = SOCKET_DISCONNECTED;
   mConnectDelayMs = CalculateConnectDelayMs();
-  mConnectTimestamp = 0;
   OnDisconnect();
 }
 
@@ -98,7 +96,7 @@ SocketConsumerBase::CalculateConnectDelayMs() const
 
   uint32_t connectDelayMs = mConnectDelayMs;
 
-  if (mConnectTimestamp && (PR_IntervalNow()-mConnectTimestamp) > connectDelayMs) {
+  if ((PR_IntervalNow()-mConnectTimestamp) > connectDelayMs) {
     // reset delay if connection has been opened for a while, or...
     connectDelayMs = 0;
   } else if (!connectDelayMs) {

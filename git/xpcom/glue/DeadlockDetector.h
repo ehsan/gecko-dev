@@ -83,7 +83,7 @@ private:
    */
   struct OrderingEntry
   {
-    explicit OrderingEntry(const T* aResource)
+    OrderingEntry(const T* aResource)
       : mOrderedLT()        // FIXME bug 456272: set to empirical dep size?
       , mExternalRefs()
       , mResource(aResource)

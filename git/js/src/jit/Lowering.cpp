@@ -156,13 +156,6 @@ LIRGenerator::visitNewArray(MNewArray *ins)
 }
 
 bool
-LIRGenerator::visitNewArrayCopyOnWrite(MNewArrayCopyOnWrite *ins)
-{
-    LNewArrayCopyOnWrite *lir = new(alloc()) LNewArrayCopyOnWrite(temp());
-    return define(lir, ins) && assignSafepoint(lir, ins);
-}
-
-bool
 LIRGenerator::visitNewObject(MNewObject *ins)
 {
     LNewObject *lir = new(alloc()) LNewObject(temp());
@@ -2170,13 +2163,6 @@ LIRGenerator::visitMaybeToDoubleElement(MMaybeToDoubleElement *ins)
                                                                     useRegisterAtStart(ins->value()),
                                                                     tempDouble());
     return defineBox(lir, ins);
-}
-
-bool
-LIRGenerator::visitMaybeCopyElementsForWrite(MMaybeCopyElementsForWrite *ins)
-{
-    LInstruction *check = new(alloc()) LMaybeCopyElementsForWrite(useRegister(ins->object()), temp());
-    return add(check, ins) && assignSafepoint(check, ins);
 }
 
 bool

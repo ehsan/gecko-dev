@@ -23,14 +23,14 @@ struct FenceHandleFromChild;
 
 struct FenceHandle {
   FenceHandle() {}
-  explicit FenceHandle(const FenceHandleFromChild& aFenceHandle) {}
+  FenceHandle(const FenceHandleFromChild& aFenceHandle) {}
   bool operator==(const FenceHandle&) const { return false; }
   bool IsValid() const { return false; }
 };
 
 struct FenceHandleFromChild {
   FenceHandleFromChild() {}
-  explicit FenceHandleFromChild(const FenceHandle& aFence) {}
+  FenceHandleFromChild(const FenceHandle& aFence) {}
   bool operator==(const FenceHandle&) const { return false; }
   bool operator==(const FenceHandleFromChild&) const { return false; }
   bool IsValid() const { return false; }

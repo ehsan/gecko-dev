@@ -1555,8 +1555,7 @@ ExpressionDecompiler::decompilePC(jsbytecode *pc)
       case JSOP_NEWARRAY:
         return write("[]");
       case JSOP_REGEXP:
-      case JSOP_OBJECT:
-      case JSOP_NEWARRAY_COPYONWRITE: {
+      case JSOP_OBJECT: {
         JSObject *obj = (op == JSOP_REGEXP)
                         ? script->getRegExp(GET_UINT32_INDEX(pc))
                         : script->getObject(GET_UINT32_INDEX(pc));

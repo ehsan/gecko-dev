@@ -65,10 +65,14 @@ function forwardToChild(aMessage, aListener, aVCPosition) {
 }
 
 function activateContextMenu(aMessage) {
+  function sendContextMenuCoordinates(aAccessible) {
+    let bounds = Utils.getBounds(aAccessible);
+    sendAsyncMessage('AccessFu:ActivateContextMenu', {bounds: bounds});
+  }
+
   let position = Utils.getVirtualCursor(content.document).position;
   if (!forwardToChild(aMessage, activateContextMenu, position)) {
-    sendAsyncMessage('AccessFu:ActivateContextMenu',
-      { bounds: Utils.getBounds(position, true) });
+    sendContextMenuCoordinates(position);
   }
 }
 
@@ -81,12 +85,16 @@ function presentCaretChange(aText, aOldOffset, aNewOffset) {
 }
 
 function scroll(aMessage) {
-  let position = Utils.getVirtualCursor(content.document).position;
-  if (!forwardToChild(aMessage, scroll, position)) {
+  function sendScrollCoordinates(aAccessible) {
+    let bounds = Utils.getBounds(aAccessible);
     sendAsyncMessage('AccessFu:DoScroll',
-                     { bounds: Utils.getBounds(position, true),
+                     { bounds: bounds,
                        page: aMessage.json.page,
                        horizontal: aMessage.json.horizontal });
+  }
+
+  let position = Utils.getVirtualCursor(content.document).position;
+  if (!forwardToChild(aMessage, scroll, position)) {
     sendScrollCoordinates(position);
   }
 }

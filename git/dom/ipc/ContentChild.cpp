@@ -944,7 +944,6 @@ bool
 ContentChild::RecvSpeakerManagerNotify()
 {
 #ifdef MOZ_WIDGET_GONK
-    // Only notify the process which has the SpeakerManager instance.
     nsRefPtr<SpeakerManagerService> service =
         SpeakerManagerService::GetSpeakerManagerService();
     if (service) {

@@ -293,14 +293,7 @@ AppCacheUtils.prototype = {
   },
 
   clearAll: function ACU_clearAll() {
-    if (!Services.prefs.getBoolPref("browser.cache.disk.enable")) {
-      throw new Error(l10n.GetStringFromName("cacheDisabled"));
-    }
-
-    let appCacheStorage = Services.cache2.appCacheStorage(LoadContextInfo.default, null);
-    appCacheStorage.asyncEvictStorage({
-      onCacheEntryDoomed: function(result) {}
-    });
+    Services.cache.evictEntries(Ci.nsICache.STORE_OFFLINE);
   },
 
   _getManifestURI: function ACU__getManifestURI() {
