@@ -122,19 +122,6 @@ nsSVGAnimationElement::GetAnimAttr(nsIAtom* aName) const
   return mAttrsAndChildren.GetAttr(aName, kNameSpaceID_None);
 }
 
-PRBool
-nsSVGAnimationElement::GetAnimAttr(nsIAtom* aAttName,
-                                   nsAString& aResult) const
-{
-  return GetAttr(kNameSpaceID_None, aAttName, aResult);
-}
-
-PRBool
-nsSVGAnimationElement::HasAnimAttr(nsIAtom* aAttName) const
-{
-  return HasAttr(kNameSpaceID_None, aAttName);
-}
-
 nsIContent*
 nsSVGAnimationElement::GetTargetElementContent()
 {

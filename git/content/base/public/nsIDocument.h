@@ -59,7 +59,7 @@
 #include "nsGkAtoms.h"
 #include "nsAutoPtr.h"
 #ifdef MOZ_SMIL
-#include "nsSMILAnimationController.h"
+class nsSMILAnimationController;
 #endif // MOZ_SMIL
 
 class nsIContent;
@@ -114,9 +114,10 @@ class Link;
 } // namespace dom
 } // namespace mozilla
 
+// 0bce8f8b-8e27-44e6-92bc-65d0805b7fb4
 #define NS_IDOCUMENT_IID      \
-{ 0x36f0a42c, 0x089b, 0x4909, \
-  { 0xb3, 0xee, 0xc5, 0xa4, 0x00, 0x90, 0x30, 0x02 } }
+{ 0x0bce8f8b, 0x8e27, 0x44e6, \
+  { 0x92, 0xbc, 0x65, 0xd0, 0x80, 0x5b, 0x7f, 0xb4 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -1164,14 +1165,7 @@ public:
                                   void* aData);
 
 #ifdef MOZ_SMIL
-  // Indicates whether mAnimationController has been (lazily) initialized.
-  // If this returns PR_TRUE, we're promising that GetAnimationController()
-  // will have a non-null return value.
-  PRBool HasAnimationController()  { return !!mAnimationController; }
-
-  // Getter for this document's SMIL Animation Controller. Performs lazy
-  // initialization, if this document supports animation and if
-  // mAnimationController isn't yet initialized.
+  // Getter for this document's SMIL Animation Controller
   virtual nsSMILAnimationController* GetAnimationController() = 0;
 #endif // MOZ_SMIL
 
@@ -1302,14 +1296,6 @@ public:
 
   virtual nsISupports* GetCurrentContentSink() = 0;
 
-  /**
-   * Register a filedata uri as being "owned" by this document. I.e. that its
-   * lifetime is connected with this document. When the document goes away it
-   * should "kill" the uri by calling
-   * nsFileDataProtocolHandler::RemoveFileDataEntry
-   */
-  virtual void RegisterFileDataUri(nsACString& aUri) = 0;
-
 protected:
   ~nsIDocument()
   {
@@ -1357,11 +1343,6 @@ protected:
   // These are non-owning pointers, the elements are responsible for removing
   // themselves when they go away.
   nsAutoPtr<nsTHashtable<nsPtrHashKey<nsIContent> > > mFreezableElements;
-
-#ifdef MOZ_SMIL
-  // SMIL Animation Controller, lazily-initialized in GetAnimationController
-  nsAutoPtr<nsSMILAnimationController> mAnimationController;
-#endif // MOZ_SMIL
 
   // Table of element properties for this document.
   nsPropertyTable mPropertyTable;

@@ -1230,6 +1230,10 @@ nsSVGElement::DidAnimateLength(PRUint8 aAttrEnum)
 void
 nsSVGElement::GetAnimatedLengthValues(float *aFirst, ...)
 {
+#ifdef MOZ_SMIL
+  FlushAnimations();
+#endif
+
   LengthAttributesInfo info = GetLengthInfo();
 
   NS_ASSERTION(info.mLengthCount > 0,
@@ -1873,8 +1877,11 @@ void
 nsSVGElement::AnimationNeedsResample()
 {
   nsIDocument* doc = GetCurrentDoc();
-  if (doc && doc->HasAnimationController()) {
-    doc->GetAnimationController()->SetResampleNeeded();
+  if (doc) {
+    nsSMILAnimationController* smilController = doc->GetAnimationController();
+    if (smilController) {
+      smilController->SetResampleNeeded();
+    }
   }
 }
 
@@ -1882,8 +1889,11 @@ void
 nsSVGElement::FlushAnimations()
 {
   nsIDocument* doc = GetCurrentDoc();
-  if (doc && doc->HasAnimationController()) {
-    doc->GetAnimationController()->FlushResampleRequests();
+  if (doc) {
+    nsSMILAnimationController* smilController = doc->GetAnimationController();
+    if (smilController) {
+      smilController->FlushResampleRequests();
+    }
   }
 }
 #endif // MOZ_SMIL

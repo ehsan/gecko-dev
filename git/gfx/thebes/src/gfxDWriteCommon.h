@@ -48,7 +48,6 @@
 #include "gfxFontConstants.h"
 #include "nsTArray.h"
 #include "gfxWindowsPlatform.h"
-#include "nsIUUIDGenerator.h"
 
 #include <windows.h>
 #include <dwrite.h>
@@ -107,11 +106,6 @@ FontStretchFromDWriteStretch(DWRITE_FONT_STRETCH aStretch)
     }
 }
 
-struct ffReferenceKey
-{
-    nsTArray<PRUint8> *mArray;
-    nsID mGUID;
-};
 
 class gfxDWriteFontFileLoader : public IDWriteFontFileLoader
 {

@@ -1080,12 +1080,10 @@ nsHTMLInputElement::UpdateFileList()
   if (mFileList) {
     mFileList->Clear();
 
-    nsIDocument* doc = GetOwnerDoc();
-
     nsCOMArray<nsIFile> files;
     GetFileArray(files);
     for (PRUint32 i = 0; i < (PRUint32)files.Count(); ++i) {
-      nsRefPtr<nsDOMFile> domFile = new nsDOMFile(files[i], doc);
+      nsRefPtr<nsDOMFile> domFile = new nsDOMFile(files[i]);
       if (domFile) {
         if (!mFileList->Append(domFile)) {
           return NS_ERROR_FAILURE;
