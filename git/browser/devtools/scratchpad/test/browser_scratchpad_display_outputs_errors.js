@@ -13,7 +13,7 @@ function test()
     openScratchpad(runTests, {"state":{"text":""}});
   }, true);
 
-  content.location = "data:text/html,<p>test that exceptions are output as " +
+  content.location = "data:text/html,<p>test that exceptions our output as " +
       "comments for 'display' and not sent to the console in Scratchpad";
 }
 
@@ -25,7 +25,6 @@ function runTests()
   let openComment = "\n/*\n";
   let closeComment = "\n*/";
   let error = "throw new Error(\"Ouch!\")";
-  let syntaxError = "(";
 
   let tests = [{
     method: "display",
@@ -41,13 +40,6 @@ function runTests()
     label: "error display output",
   },
   {
-    method: "display",
-    code: syntaxError,
-    result: syntaxError + openComment + "Exception: syntax error\n@" +
-            scratchpad.uniqueName + ":1" + closeComment,
-    label: "syntaxError display output",
-  },
-  {
     method: "run",
     code: message,
     result: message,
@@ -59,13 +51,6 @@ function runTests()
     result: error + openComment + "Exception: Ouch!\n@" +
             scratchpad.uniqueName + ":1" + closeComment,
     label: "error run output",
-  },
-  {
-    method: "run",
-    code: syntaxError,
-    result: syntaxError + openComment + "Exception: syntax error\n@" +
-            scratchpad.uniqueName + ":1" + closeComment,
-    label: "syntaxError run output",
   }];
 
   runAsyncTests(scratchpad, tests).then(finish);

@@ -24,7 +24,7 @@ public class PanelsPreferenceCategory extends CustomListCategory {
     public static final String LOGTAG = "PanelsPrefCategory";
 
     protected HomeConfig mHomeConfig;
-    protected List<PanelConfig> mPanelConfigs;
+    protected final List<PanelConfig> mPanelConfigs = new ArrayList<PanelConfig>();
 
     protected UiAsyncTask<Void, Void, List<PanelConfig>> mLoadTask;
     protected UiAsyncTask<Void, Void, Void> mSaveTask;
@@ -67,15 +67,17 @@ public class PanelsPreferenceCategory extends CustomListCategory {
 
             @Override
             public void onPostExecute(List<PanelConfig> panelConfigs) {
-                mPanelConfigs = panelConfigs;
-                displayPanelConfig();
+                displayPanelConfig(panelConfigs);
             }
         };
         mLoadTask.execute();
     }
 
-    private void displayPanelConfig() {
-        for (PanelConfig panelConfig : mPanelConfigs) {
+    private void displayPanelConfig(List<PanelConfig> panelConfigs) {
+        for (PanelConfig panelConfig: panelConfigs) {
+            // Populate our local copy of the panels.
+            mPanelConfigs.add(panelConfig);
+
             // Create and add the pref.
             final PanelsPreference pref = new PanelsPreference(getContext(), PanelsPreferenceCategory.this);
             pref.setTitle(panelConfig.getTitle());
@@ -100,10 +102,6 @@ public class PanelsPreferenceCategory extends CustomListCategory {
      * @param panelConfigs Configuration to be saved
      */
     private void saveHomeConfig() {
-        if (mPanelConfigs == null) {
-            return;
-        }
-
         final List<PanelConfig> panelConfigs = makeConfigListDeepCopy();
         mSaveTask = new UiAsyncTask<Void, Void, Void>(ThreadUtils.getBackgroundHandler()) {
             @Override

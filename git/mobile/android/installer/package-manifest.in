@@ -585,6 +585,7 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 
 @BINPATH@/components/Payment.js
 @BINPATH@/components/PaymentFlowInfo.js
+@BINPATH@/components/PaymentRequestInfo.js
 @BINPATH@/components/Payment.manifest
 @BINPATH@/components/PaymentsUI.js
 

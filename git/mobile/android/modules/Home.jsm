@@ -166,27 +166,16 @@ let HomePanels = {
   // Holds the currrent set of registered panels.
   _panels: {},
 
-  _panelToJSON : function(panel) {
-    return {
-      id: panel.id,
-      title: panel.title,
-      layout: panel.layout,
-      views: panel.views
-    };
-  },
-
-  _handleGet: function(data) {
-    let requestId = data.requestId;
-    let ids = data.ids || null;
-
+  _handleGet: function(requestId) {
     let panels = [];
     for (let id in this._panels) {
       let panel = this._panels[id];
-
-      // Null ids means we want to fetch all available panels
-      if (ids == null || ids.indexOf(panel.id) >= 0) {
-        panels.push(this._panelToJSON(panel));
-      }
+      panels.push({
+        id: panel.id,
+        title: panel.title,
+        layout: panel.layout,
+        views: panel.views
+      });
     }
 
     sendMessageToJava({
@@ -222,26 +211,14 @@ let HomePanels = {
     }
 
     this._panels[panel.id] = panel;
-
-    if (options.autoInstall) {
-      sendMessageToJava({
-        type: "HomePanels:Install",
-        panel: this._panelToJSON(panel)
-      });
-    }
   },
 
   remove: function(id) {
-    if (!(id in this._panels)) {
-      throw "Home.panels: Panel doesn't exist: id = " + id;
-    }
-
-    let panel = this._panels[id];
     delete this._panels[id];
 
     sendMessageToJava({
       type: "HomePanels:Remove",
-      panel: this._panelToJSON(panel)
+      id: id
     });
   },
 
@@ -265,7 +242,7 @@ this.Home = {
   observe: function(subject, topic, data) {
     switch(topic) {
       case "HomePanels:Get":
-        HomePanels._handleGet(JSON.parse(data));
+        HomePanels._handleGet(data);
         break;
     }
   }

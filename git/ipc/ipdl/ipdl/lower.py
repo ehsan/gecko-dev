@@ -1825,13 +1825,11 @@ def _generateMessageClass(clsname, msgid, prettyName, compress):
     # generate a logging function
     # 'pfx' will be something like "[FooParent] sent"
     pfxvar = ExprVar('__pfx')
-    otherprocess = ExprVar('__otherProcess')
-    receiving = ExprVar('__receiving')
+    outfvar = ExprVar('__outf')
     logger = MethodDefn(MethodDecl(
         'Log',
         params=([ Decl(Type('std::string', const=1, ref=1), pfxvar.name),
-                  Decl(Type('base::ProcessHandle'), otherprocess.name),
-                  Decl(Type('bool'), receiving.name) ]),
+                  Decl(Type('FILE', ptr=True), outfvar.name) ]),
         const=1))
     # TODO/cjones: allow selecting what information is printed to 
     # the log
@@ -1845,12 +1843,9 @@ def _generateMessageClass(clsname, msgid, prettyName, compress):
         StmtExpr(ExprCall(
             ExprVar('StringAppendF'),
             args=[ ExprAddrOf(msgvar),
-                   ExprLiteral.String('[time:%" PRId64 "][%d%s%d]'),
+                   ExprLiteral.String('[time:%" PRId64 "][%d]'),
                    ExprCall(ExprVar('PR_Now')),
-                   ExprCall(ExprVar('base::GetCurrentProcId')),
-                   ExprConditional(receiving, ExprLiteral.String('<-'),
-                                   ExprLiteral.String('->')),
-                   otherprocess ])),
+                   ExprCall(ExprVar('base::GetCurrentProcId')) ])),
         appendToMsg(pfxvar),
         appendToMsg(ExprLiteral.String(clsname +'(')),
         Whitespace.NL
@@ -1860,21 +1855,10 @@ def _generateMessageClass(clsname, msgid, prettyName, compress):
 
     logger.addstmt(appendToMsg(ExprLiteral.String('[TODO])\\n')))
 
-    logger.addstmts([
-        CppDirective('ifdef', 'ANDROID'),
-        StmtExpr(ExprCall(
-            ExprVar('__android_log_write'),
-            args=[ ExprVar('ANDROID_LOG_INFO'),
-                   ExprLiteral.String('GeckoIPC'),
-                   ExprCall(ExprSelect(msgvar, '.', 'c_str')) ])),
-        CppDirective('endif')
-    ])
-
     # and actually print the log message
     logger.addstmt(StmtExpr(ExprCall(
         ExprVar('fputs'),
-        args=[ ExprCall(ExprSelect(msgvar, '.', 'c_str')),
-               ExprVar('stderr') ])))
+        args=[ ExprCall(ExprSelect(msgvar, '.', 'c_str')), outfvar ])))
 
     cls.addstmt(logger)
 
@@ -4945,7 +4929,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             + sendstmts)
 
         destmts = self.deserializeReply(
-            md, ExprAddrOf(replyvar), self.side, errfnSend, actorvar)
+            md, ExprAddrOf(replyvar), self.side, errfnSend)
         ifsendok = StmtIf(ExprLiteral.FALSE)
         ifsendok.addifstmts(destmts)
         ifsendok.addifstmts([ Whitespace.NL,
@@ -5181,8 +5165,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                     '.', 'set_name'),
                 args=[ ExprLiteral.String(md.prettyMsgName(self.protocol.name
                                                            +'::')) ])),
-            self.logMessage(md, md.msgCast(msgexpr), 'Received ',
-                            receiving=True),
+            self.logMessage(md, md.msgCast(msgexpr), 'Received '),
             self.profilerLabel('Recv', md.decl.progname),
             Whitespace.NL
         ])
@@ -5217,10 +5200,10 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         return stmts
 
 
-    def deserializeReply(self, md, replyexpr, side, errfn, actor=None):
+    def deserializeReply(self, md, replyexpr, side, errfn):
         stmts = [ Whitespace.NL,
                    self.logMessage(md, md.replyCast(replyexpr),
-                                   'Received reply ', actor, receiving=True) ]
+                                   'Received reply ') ]
         if 0 == len(md.returns):
             return stmts
 
@@ -5243,7 +5226,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         return (
             sendok,
             ([ Whitespace.NL,
-               self.logMessage(md, msgexpr, 'Sending ', actor),
+               self.logMessage(md, msgexpr, 'Sending '),
                self.profilerLabel('AsyncSend', md.decl.progname) ]
             + self.transition(md, 'out', actor)
             + [ Whitespace.NL,
@@ -5260,7 +5243,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         return (
             sendok,
             ([ Whitespace.NL,
-               self.logMessage(md, msgexpr, 'Sending ', actor),
+               self.logMessage(md, msgexpr, 'Sending '),
                self.profilerLabel('Send', md.decl.progname) ]
             + self.transition(md, 'out', actor)
             + [ Whitespace.NL,
@@ -5329,14 +5312,13 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             decl.ret = md.actorDecl().bareType(self.side)
         return decl
 
-    def logMessage(self, md, msgptr, pfx, actor=None, receiving=False):
+    def logMessage(self, md, msgptr, pfx):
         actorname = _actorName(self.protocol.name, self.side)
-
-        return _ifLogging([ StmtExpr(ExprCall(
-            ExprSelect(msgptr, '->', 'Log'),
-            args=[ ExprLiteral.String('['+ actorname +'] '+ pfx),
-                   self.protocol.callOtherProcess(actor),
-                   ExprLiteral.TRUE if receiving else ExprLiteral.FALSE ])) ])
+        return _ifLogging([
+            StmtExpr(ExprCall(
+                ExprSelect(msgptr, '->', 'Log'),
+                args=[ ExprLiteral.String('['+ actorname +'] '+ pfx),
+                       ExprVar('stderr') ])) ])
 
     def profilerLabel(self, tag, msgname):
         return StmtExpr(ExprCall(ExprVar('PROFILER_LABEL'),

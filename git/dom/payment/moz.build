@@ -16,5 +16,6 @@ EXTRA_COMPONENTS += [
     'Payment.js',
     'Payment.manifest',
     'PaymentFlowInfo.js',
+    'PaymentRequestInfo.js',
 ]
 
