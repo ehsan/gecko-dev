@@ -20,7 +20,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsNetCID.h"
 #include "nsProxyRelease.h"
-#include "mozilla/Telemetry.h"
 
 static NS_DEFINE_CID(kStreamTransportServiceCID,
                      NS_STREAMTRANSPORTSERVICE_CID);
@@ -486,8 +485,6 @@ nsresult _OldCacheLoad::Start()
   LOG(("_OldCacheLoad::Start [this=%p, key=%s]", this, mCacheKey.get()));
   MOZ_ASSERT(NS_IsMainThread());
 
-  mLoadStart = mozilla::TimeStamp::Now();
-
   bool mainThreadOnly;
   if (mCallback && (
       NS_SUCCEEDED(mCallback->GetMainThreadOnly(&mainThreadOnly)) &&
@@ -559,24 +556,6 @@ _OldCacheLoad::Run()
     if (!mCallback) {
       LOG(("  duplicate call, bypassed"));
       return NS_OK;
-    }
-
-    if (NS_SUCCEEDED(mStatus)) {
-      if (mFlags & nsICacheStorage::OPEN_TRUNCATE) {
-        mozilla::Telemetry::AccumulateTimeDelta(
-          mozilla::Telemetry::NETWORK_CACHE_V1_TRUNCATE_TIME_MS,
-          mLoadStart);
-      }
-      else if (mNew) {
-        mozilla::Telemetry::AccumulateTimeDelta(
-          mozilla::Telemetry::NETWORK_CACHE_V1_MISS_TIME_MS,
-          mLoadStart);
-      }
-      else {
-        mozilla::Telemetry::AccumulateTimeDelta(
-          mozilla::Telemetry::NETWORK_CACHE_V1_HIT_TIME_MS,
-          mLoadStart);
-      }
     }
 
     if (mMainThreadOnly)

@@ -631,10 +631,14 @@ GlobalObject::addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger 
 }
 
 bool
-GlobalObject::getSelfHostedFunction(JSContext *cx, HandleAtom selfHostedName, HandleAtom name,
-                                    unsigned nargs, MutableHandleValue funVal)
+GlobalObject::getSelfHostedFunction(JSContext *cx, const JSFunctionSpec *fs, HandleAtom atom,
+                                    MutableHandleValue funVal)
 {
-    RootedId shId(cx, AtomToId(selfHostedName));
+    JS_ASSERT(fs->selfHostedName);
+    RootedAtom shAtom(cx, Atomize(cx, fs->selfHostedName, strlen(fs->selfHostedName)));
+    if (!shAtom)
+        return false;
+    RootedId shId(cx, AtomToId(shAtom));
     RootedObject holder(cx, cx->global()->intrinsicsHolder());
 
     if (HasDataProperty(cx, holder, shId, funVal.address()))
@@ -645,12 +649,12 @@ GlobalObject::getSelfHostedFunction(JSContext *cx, HandleAtom selfHostedName, Ha
     if (!funVal.isUndefined())
         return true;
 
-    JSFunction *fun = NewFunction(cx, NullPtr(), NULL, nargs, JSFunction::INTERPRETED_LAZY,
-                                  holder, name, JSFunction::ExtendedFinalizeKind, SingletonObject);
+    JSFunction *fun = NewFunction(cx, NullPtr(), NULL, fs->nargs, JSFunction::INTERPRETED_LAZY,
+                                  holder, atom, JSFunction::ExtendedFinalizeKind, SingletonObject);
     if (!fun)
         return false;
     fun->setIsSelfHostedBuiltin();
-    fun->setExtendedSlot(0, StringValue(selfHostedName));
+    fun->setExtendedSlot(0, PrivateValue(const_cast<JSFunctionSpec*>(fs)));
     funVal.setObject(*fun);
 
     return JSObject::defineGeneric(cx, holder, shId, funVal, NULL, NULL, 0);

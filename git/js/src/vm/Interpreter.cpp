@@ -1079,9 +1079,13 @@ AddOperation(JSContext *cx, HandleScript script, jsbytecode *pc,
 {
     if (lhs.isInt32() && rhs.isInt32()) {
         int32_t l = lhs.toInt32(), r = rhs.toInt32();
-        double d = double(l) + double(r);
-        if (!res->setNumber(d))
+        int32_t sum = l + r;
+        if (JS_UNLIKELY(bool((l ^ sum) & (r ^ sum) & 0x80000000))) {
+            res->setDouble(double(l) + double(r));
             types::TypeScript::MonitorOverflow(cx, script, pc);
+        } else {
+            res->setInt32(sum);
+        }
         return true;
     }
 

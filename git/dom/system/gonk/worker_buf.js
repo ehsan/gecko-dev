@@ -262,22 +262,22 @@ let Buf = {
     return this.readUint8() | this.readUint8() << 8;
   },
 
-  readInt32: function readInt32() {
+  readUint32: function readUint32() {
     return this.readUint8()       | this.readUint8() <<  8 |
            this.readUint8() << 16 | this.readUint8() << 24;
   },
 
-  readInt32List: function readInt32List() {
-    let length = this.readInt32();
+  readUint32List: function readUint32List() {
+    let length = this.readUint32();
     let ints = [];
     for (let i = 0; i < length; i++) {
-      ints.push(this.readInt32());
+      ints.push(this.readUint32());
     }
     return ints;
   },
 
   readString: function readString() {
-    let string_len = this.readInt32();
+    let string_len = this.readUint32();
     if (string_len < 0 || string_len >= this.INT32_MAX) {
       return null;
     }
@@ -293,7 +293,7 @@ let Buf = {
   },
 
   readStringList: function readStringList() {
-    let num_strings = this.readInt32();
+    let num_strings = this.readUint32();
     let strings = [];
     for (let i = 0; i < num_strings; i++) {
       strings.push(this.readString());
@@ -349,7 +349,7 @@ let Buf = {
     this.writeUint8((value >> 8) & 0xff);
   },
 
-  writeInt32: function writeInt32(value) {
+  writeUint32: function writeUint32(value) {
     this.writeUint8(value & 0xff);
     this.writeUint8((value >> 8) & 0xff);
     this.writeUint8((value >> 16) & 0xff);
@@ -358,10 +358,10 @@ let Buf = {
 
   writeString: function writeString(value) {
     if (value == null) {
-      this.writeInt32(-1);
+      this.writeUint32(-1);
       return;
     }
-    this.writeInt32(value.length);
+    this.writeUint32(value.length);
     for (let i = 0; i < value.length; i++) {
       this.writeUint16(value.charCodeAt(i));
     }
@@ -372,7 +372,7 @@ let Buf = {
   },
 
   writeStringList: function writeStringList(strings) {
-    this.writeInt32(strings.length);
+    this.writeUint32(strings.length);
     for (let i = 0; i < strings.length; i++) {
       this.writeString(strings[i]);
     }
@@ -587,7 +587,7 @@ let Buf = {
    * may call multiple read functions to extract data from the incoming buffer.
    */
   //processParcel: function processParcel() {
-  //  let something = this.readInt32();
+  //  let something = this.readUint32();
   //  ...
   //},
 
