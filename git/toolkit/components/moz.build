@@ -20,7 +20,6 @@ PARALLEL_DIRS += [
     'downloads',
     'exthelper',
     'filepicker',
-    'finalizationwitness',
     'find',
     'intl',
     'jsdownloads',

@@ -37,16 +37,12 @@ public class TopSitesGridItemView extends RelativeLayout {
     // Data backing this view.
     private String mTitle;
     private String mUrl;
-    private String mFaviconURL;
-
-    private Bitmap mThumbnail;
 
     // Pinned state.
     private boolean mIsPinned = false;
 
     // Empty state.
     private boolean mIsEmpty = true;
-    private int mLoadId = Favicons.NOT_LOADING;
 
     public TopSitesGridItemView(Context context) {
         this(context, null);
@@ -154,8 +150,6 @@ public class TopSitesGridItemView extends RelativeLayout {
             displayThumbnail(R.drawable.favicon);
             return;
         }
-        mThumbnail = thumbnail;
-        Favicons.cancelFaviconLoad(mLoadId);
 
         mThumbnailView.setScaleType(ScaleType.CENTER_CROP);
         mThumbnailView.setImageBitmap(thumbnail);
@@ -167,27 +161,16 @@ public class TopSitesGridItemView extends RelativeLayout {
      *
      * @param favicon The favicon to show as thumbnail.
      */
-    public void displayFavicon(Bitmap favicon, String faviconURL) {
-        if (mThumbnail != null) {
-            return;
-        }
-
+    public void displayFavicon(Bitmap favicon) {
         if (favicon == null) {
             // Should show default favicon.
             displayThumbnail(R.drawable.favicon);
             return;
         }
 
-        if (faviconURL != null) {
-            mFaviconURL = faviconURL;
-        }
-
         mThumbnailView.setScaleType(ScaleType.CENTER);
         mThumbnailView.setImageBitmap(favicon);
-
-        if (mFaviconURL != null) {
-            mThumbnailView.setBackgroundColor(Favicons.getFaviconColor(mFaviconURL));
-        }
+        mThumbnailView.setBackgroundColor(Favicons.getFaviconColor(favicon, mUrl));
     }
 
     /**
@@ -206,10 +189,5 @@ public class TopSitesGridItemView extends RelativeLayout {
 
         // Refresh for state change.
         refreshDrawableState();
-    }
-
-    public void setLoadId(int aLoadId) {
-        Favicons.cancelFaviconLoad(mLoadId);
-        mLoadId = aLoadId;
     }
 }
