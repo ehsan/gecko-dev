@@ -110,7 +110,6 @@ MediaStreamGraphImpl::RemoveStream(MediaStream* aStream)
     }
   }
 
-  // Ensure that mFirstCycleBreaker and mMixer are updated when necessary.
   SetStreamOrderDirty();
 
   mStreams.RemoveElement(aStream);
@@ -569,18 +568,8 @@ MediaStreamGraphImpl::UpdateStreamOrder()
 
   if (!mMixer && shouldMix) {
     mMixer = new AudioMixer(AudioMixerCallback);
-    for (uint32_t i = 0; i < mStreams.Length(); ++i) {
-      for (uint32_t i = 0; i < mStreams[i]->mAudioOutputStreams.Length(); ++i) {
-        mStreams[i]->mAudioOutputStreams[i].mStream->SetMicrophoneActive(true);
-      }
-    }
   } else if (mMixer && !shouldMix) {
     mMixer = nullptr;
-    for (uint32_t i = 0; i < mStreams.Length(); ++i) {
-      for (uint32_t i = 0; i < mStreams[i]->mAudioOutputStreams.Length(); ++i) {
-        mStreams[i]->mAudioOutputStreams[i].mStream->SetMicrophoneActive(false);
-      }
-    }
   }
 
   // The algorithm for finding cycles is based on Tim Leslie's iterative
@@ -703,18 +692,17 @@ MediaStreamGraphImpl::UpdateStreamOrder()
     MOZ_ASSERT(cycleStackMarker == ps->mCycleMarker);
     // If there are DelayNodes in this SCC, then they may break the cycles.
     bool haveDelayNode = false;
-    auto next = sccStack.getFirst();
+    auto next = static_cast<ProcessedMediaStream*>(sccStack.getFirst());
     // Streams in this SCC are identified by mCycleMarker <= cycleStackMarker.
     // (There may be other streams later in sccStack from other incompletely
     // searched SCCs, involving streams still on dfsStack.)
     //
     // DelayNodes in cycles must behave differently from those not in cycles,
     // so all DelayNodes in the SCC must be identified.
-    while (next && static_cast<ProcessedMediaStream*>(next)->
-           mCycleMarker <= cycleStackMarker) {
+    while (next && next->mCycleMarker <= cycleStackMarker) {
       auto ns = next->AsAudioNodeStream();
       // Get next before perhaps removing from list below.
-      next = next->getNext();
+      next = static_cast<ProcessedMediaStream*>(next->getNext());
       if (ns && ns->Engine()->AsDelayNodeEngine()) {
         haveDelayNode = true;
         // DelayNodes break cycles by producing their output in a
@@ -728,9 +716,8 @@ MediaStreamGraphImpl::UpdateStreamOrder()
       }
     }
     auto after_scc = next;
-    while ((next = sccStack.getFirst()) != after_scc) {
-      next->remove();
-      auto removed = static_cast<ProcessedMediaStream*>(next);
+    while ((next = static_cast<ProcessedMediaStream*>(sccStack.popFirst()))
+           != after_scc) {
       if (haveDelayNode) {
         // Return streams to the DFS stack again (to order and detect cycles
         // without delayNodes).  Any of these streams that are still inputs
@@ -739,14 +726,14 @@ MediaStreamGraphImpl::UpdateStreamOrder()
         // of these streams need input from streams on the visited stack, so
         // they can all be searched and ordered before the current stack head
         // is popped.
-        removed->mCycleMarker = NOT_VISITED;
-        dfsStack.insertFront(removed);
+        next->mCycleMarker = NOT_VISITED;
+        dfsStack.insertFront(next);
       } else {
         // Streams in cycles without any DelayNodes must be muted, and so do
         // not need input and can be ordered now.  They must be ordered before
         // their consumers so that their muted output is available.
-        removed->mCycleMarker = IN_MUTED_CYCLE;
-        mStreams[orderedStreamCount] = removed;
+        next->mCycleMarker = IN_MUTED_CYCLE;
+        mStreams[orderedStreamCount] = next;
         ++orderedStreamCount;
       }
     }
@@ -962,9 +949,6 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
                                          aStream->mAudioChannelType,
                                          AudioStream::LowLatency);
         audioOutputStream->mTrackID = tracks->GetID();
-
-        // If there is a mixer, there is a micrphone active.
-        audioOutputStream->mStream->SetMicrophoneActive(mMixer);
 
         LogLatency(AsyncLatencyLogger::AudioStreamCreate,
                    reinterpret_cast<uint64_t>(aStream),
@@ -2050,6 +2034,8 @@ MediaStream::RemoveAllListenersImpl()
 void
 MediaStream::DestroyImpl()
 {
+  RemoveAllListenersImpl();
+
   for (int32_t i = mConsumers.Length() - 1; i >= 0; --i) {
     mConsumers[i]->Disconnect();
   }
@@ -2057,7 +2043,6 @@ MediaStream::DestroyImpl()
     mAudioOutputStreams[i].mStream->Shutdown();
   }
   mAudioOutputStreams.Clear();
-  mGraph = nullptr;
 }
 
 void
@@ -2071,10 +2056,8 @@ MediaStream::Destroy()
     Message(MediaStream* aStream) : ControlMessage(aStream) {}
     virtual void Run()
     {
-      mStream->RemoveAllListenersImpl();
-      auto graph = mStream->GraphImpl();
       mStream->DestroyImpl();
-      graph->RemoveStream(mStream);
+      mStream->GraphImpl()->RemoveStream(mStream);
     }
     virtual void RunDuringShutdown()
     { Run(); }
@@ -2355,9 +2338,10 @@ MediaStream::ApplyTrackDisabling(TrackID aTrackID, MediaSegment* aSegment, Media
 void
 SourceMediaStream::DestroyImpl()
 {
-  // Hold mMutex while mGraph is reset so that other threads holding mMutex
-  // can null-check know that the graph will not destroyed.
-  MutexAutoLock lock(mMutex);
+  {
+    MutexAutoLock lock(mMutex);
+    mDestroyed = true;
+  }
   MediaStream::DestroyImpl();
 }
 
@@ -2366,7 +2350,7 @@ SourceMediaStream::SetPullEnabled(bool aEnabled)
 {
   MutexAutoLock lock(mMutex);
   mPullEnabled = aEnabled;
-  if (mPullEnabled && GraphImpl()) {
+  if (mPullEnabled && !mDestroyed) {
     GraphImpl()->EnsureNextIteration();
   }
 }
@@ -2386,8 +2370,8 @@ SourceMediaStream::AddTrack(TrackID aID, TrackRate aRate, TrackTicks aStart,
   data->mCommands = TRACK_CREATE;
   data->mData = aSegment;
   data->mHaveEnough = false;
-  if (auto graph = GraphImpl()) {
-    graph->EnsureNextIteration();
+  if (!mDestroyed) {
+    GraphImpl()->EnsureNextIteration();
   }
 }
 
@@ -2429,8 +2413,7 @@ SourceMediaStream::AppendToTrack(TrackID aID, MediaSegment* aSegment, MediaSegme
   MutexAutoLock lock(mMutex);
   // ::EndAllTrackAndFinished() can end these before the sources notice
   bool appended = false;
-  auto graph = GraphImpl();
-  if (!mFinished && graph) {
+  if (!mFinished) {
     TrackData *track = FindDataForTrack(aID);
     if (track) {
       // Data goes into mData, and on the next iteration of the MSG moves
@@ -2449,10 +2432,12 @@ SourceMediaStream::AppendToTrack(TrackID aID, MediaSegment* aSegment, MediaSegme
       NotifyDirectConsumers(track, aRawSegment ? aRawSegment : aSegment);
       track->mData->AppendFrom(aSegment); // note: aSegment is now dead
       appended = true;
-      graph->EnsureNextIteration();
     } else {
       aSegment->Clear();
     }
+  }
+  if (!mDestroyed) {
+    GraphImpl()->EnsureNextIteration();
   }
   return appended;
 }
@@ -2550,8 +2535,8 @@ SourceMediaStream::EndTrack(TrackID aID)
       track->mCommands |= TRACK_END;
     }
   }
-  if (auto graph = GraphImpl()) {
-    graph->EnsureNextIteration();
+  if (!mDestroyed) {
+    GraphImpl()->EnsureNextIteration();
   }
 }
 
@@ -2561,8 +2546,8 @@ SourceMediaStream::AdvanceKnownTracksTime(StreamTime aKnownTime)
   MutexAutoLock lock(mMutex);
   MOZ_ASSERT(aKnownTime >= mUpdateKnownTracksTime);
   mUpdateKnownTracksTime = aKnownTime;
-  if (auto graph = GraphImpl()) {
-    graph->EnsureNextIteration();
+  if (!mDestroyed) {
+    GraphImpl()->EnsureNextIteration();
   }
 }
 
@@ -2571,8 +2556,8 @@ SourceMediaStream::FinishWithLockHeld()
 {
   mMutex.AssertCurrentThreadOwns();
   mUpdateFinished = true;
-  if (auto graph = GraphImpl()) {
-    graph->EnsureNextIteration();
+  if (!mDestroyed) {
+    GraphImpl()->EnsureNextIteration();
   }
 }
 
@@ -2675,7 +2660,6 @@ MediaInputPort::Destroy()
     {
       mPort->Disconnect();
       --mPort->GraphImpl()->mPortCount;
-      mPort->SetGraphImpl(nullptr);
       NS_RELEASE(mPort);
     }
     virtual void RunDuringShutdown()
@@ -2702,7 +2686,7 @@ MediaInputPort::Graph()
 void
 MediaInputPort::SetGraphImpl(MediaStreamGraphImpl* aGraph)
 {
-  MOZ_ASSERT(!mGraph || !aGraph, "Should only be set once");
+  MOZ_ASSERT(!mGraph, "Should only be called once");
   mGraph = aGraph;
 }
 
@@ -2775,10 +2759,7 @@ ProcessedMediaStream::DestroyImpl()
     mInputs[i]->Disconnect();
   }
   MediaStream::DestroyImpl();
-  // The stream order is only important if there are connections, in which
-  // case MediaInputPort::Disconnect() called SetStreamOrderDirty().
-  // MediaStreamGraphImpl::RemoveStream() will also call
-  // SetStreamOrderDirty(), for other reasons.
+  GraphImpl()->SetStreamOrderDirty();
 }
 
 MediaStreamGraphImpl::MediaStreamGraphImpl(bool aRealtime, TrackRate aSampleRate)

@@ -298,17 +298,10 @@ static inline T UnexpectedFailure(T rv)
 }
 
 void
-xpc::TraceXPCGlobal(JSTracer *trc, JSObject *obj)
+TraceXPCGlobal(JSTracer *trc, JSObject *obj)
 {
     if (js::GetObjectClass(obj)->flags & JSCLASS_DOM_GLOBAL)
         mozilla::dom::TraceProtoAndIfaceCache(trc, obj);
-
-    // We might be called from a GC during the creation of a global, before we've
-    // been able to set up the compartment private or the XPCWrappedNativeScope,
-    // so we need to null-check those.
-    xpc::CompartmentPrivate* compartmentPrivate = xpc::CompartmentPrivate::Get(obj);
-    if (compartmentPrivate && compartmentPrivate->scope)
-        compartmentPrivate->scope->TraceInside(trc);
 }
 
 namespace xpc {

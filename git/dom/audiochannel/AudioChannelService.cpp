@@ -586,18 +586,14 @@ AudioChannelService::SendAudioChannelChangedNotification(uint64_t aChildID)
        kMozAudioChannelAttributeTable[index].value > higher &&
        kMozAudioChannelAttributeTable[index].value > (int16_t)AudioChannel::Normal;
        --index) {
-    // Each channel type will be split to fg and bg for recording the state,
-    // so here need to do a translation.
-    if (mChannelCounters[index * 2 + 1].IsEmpty()) {
-      continue;
+    if (kMozAudioChannelAttributeTable[index].value == (int16_t)AudioChannel::Content &&
+      mPlayableHiddenContentChildID != CONTENT_PROCESS_ID_UNKNOWN) {
+      higher = kMozAudioChannelAttributeTable[index].value;
     }
 
-    if (kMozAudioChannelAttributeTable[index].value == (int16_t)AudioChannel::Content) {
-      if (mPlayableHiddenContentChildID != CONTENT_PROCESS_ID_UNKNOWN) {
-        higher = kMozAudioChannelAttributeTable[index].value;
-        break;
-      }
-    } else {
+    // Each channel type will be split to fg and bg for recording the state,
+    // so here need to do a translation.
+    if (!mChannelCounters[index * 2 + 1].IsEmpty()) {
       higher = kMozAudioChannelAttributeTable[index].value;
       break;
     }

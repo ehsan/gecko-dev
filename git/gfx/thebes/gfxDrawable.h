@@ -13,6 +13,7 @@
 #include "mozilla/gfx/2D.h"
 
 class gfxASurface;
+class gfxImageSurface;
 class gfxContext;
 class gfxPattern;
 
@@ -39,6 +40,7 @@ public:
                         bool aRepeat,
                         const GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix()) = 0;
+    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface() { return nullptr; }
     virtual gfxIntSize Size() { return mSize; }
 
 protected:
@@ -54,6 +56,10 @@ protected:
  */
 class gfxSurfaceDrawable : public gfxDrawable {
 public:
+    gfxSurfaceDrawable(gfxASurface* aSurface, const gfxIntSize aSize,
+                       const gfxMatrix aTransform = gfxMatrix());
+    gfxSurfaceDrawable(mozilla::gfx::DrawTarget* aDT, const gfxIntSize aSize,
+                       const gfxMatrix aTransform = gfxMatrix());
     gfxSurfaceDrawable(mozilla::gfx::SourceSurface* aSurface, const gfxIntSize aSize,
                        const gfxMatrix aTransform = gfxMatrix());
     virtual ~gfxSurfaceDrawable() {}
@@ -64,7 +70,11 @@ public:
                         const GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix());
     
+    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
+
 protected:
+    nsRefPtr<gfxASurface> mSurface;
+    mozilla::RefPtr<mozilla::gfx::DrawTarget> mDrawTarget;
     mozilla::RefPtr<mozilla::gfx::SourceSurface> mSourceSurface;
     const gfxMatrix mTransform;
 };

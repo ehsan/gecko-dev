@@ -19,7 +19,13 @@ XPCOMUtils.defineLazyServiceGetter(this, "smsService",
                                    "nsISmsService");
 #endif
 
-this.MobileIdentitySmsVerificationFlow = function(aVerificationOptions,
+this.MobileIdentitySmsVerificationFlow = function(aOrigin,
+                                                  aMsisdn,
+                                                  aIccId,
+                                                  aServiceId,
+                                                  aExternal,
+                                                  aMtSender,
+                                                  aMoVerifier,
                                                   aUI,
                                                   aClient,
                                                   aVerifyStrategy) {
@@ -27,9 +33,15 @@ this.MobileIdentitySmsVerificationFlow = function(aVerificationOptions,
   // SMS MT or SMS MO+MT specific verify strategy.
   this.smsVerifyStrategy = aVerifyStrategy;
 
-  log.debug("aVerificationOptions ${}", aVerificationOptions);
-  MobileIdentityVerificationFlow.call(this, aVerificationOptions, aUI, aClient,
-                                      this._verifyStrategy, this._cleanupStrategy);
+  MobileIdentityVerificationFlow.call(this, {
+    origin: aOrigin,
+    msisdn: aMsisdn,
+    iccId: aIccId,
+    serviceId: aServiceId,
+    external: aExternal,
+    mtSender: aMtSender,
+    moVerifier: aMoVerifier
+  }, aUI, aClient, this._verifyStrategy, this._cleanupStrategy);
 };
 
 this.MobileIdentitySmsVerificationFlow.prototype = {

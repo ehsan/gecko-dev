@@ -60,10 +60,6 @@ const browserElementTestHelpers = {
     this._setPref('dom.mozBrowserFramesEnabled', value);
   },
 
-  setSelectionChangeEnabledPref: function(value) {
-    this._setPref('selectioncaret.enabled', value);
-  },
-
   getOOPByDefaultPref: function() {
     return this._getBoolPref("dom.ipc.browser_frames.oop_by_default");
   },

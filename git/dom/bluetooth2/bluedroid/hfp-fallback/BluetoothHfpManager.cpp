@@ -148,7 +148,7 @@ BluetoothHfpManager::Init()
 
 // static
 void
-BluetoothHfpManager::InitHfpInterface(BluetoothProfileResultHandler* aRes)
+BluetoothHfpManager::InitHfpInterface()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -157,15 +157,11 @@ BluetoothHfpManager::InitHfpInterface(BluetoothProfileResultHandler* aRes)
    *   Implement InitHfpInterface() for applications that want to create SCO
    *   link without a HFP connection (e.g., VoIP).
    */
-
-  if (aRes) {
-    aRes->Init();
-  }
 }
 
 // static
 void
-BluetoothHfpManager::DeinitHfpInterface(BluetoothProfileResultHandler* aRes)
+BluetoothHfpManager::DeinitHfpInterface()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -174,10 +170,6 @@ BluetoothHfpManager::DeinitHfpInterface(BluetoothProfileResultHandler* aRes)
    *   Implement DeinitHfpInterface() for applications that want to create SCO
    *   link without a HFP connection (e.g., VoIP).
    */
-
-  if (aRes) {
-    aRes->Deinit();
-  }
 }
 
 void

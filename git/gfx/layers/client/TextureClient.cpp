@@ -251,20 +251,19 @@ CreateBufferTextureClient(ISurfaceAllocator* aAllocator,
   return result.forget();
 }
 
-// static
+static
 TemporaryRef<TextureClient>
-TextureClient::CreateForDrawing(ISurfaceAllocator* aAllocator,
-                                gfx::SurfaceFormat aFormat,
-                                gfx::IntSize aSize,
-                                gfx::BackendType aMoz2DBackend,
-                                TextureFlags aTextureFlags,
-                                TextureAllocationFlags aAllocFlags)
+CreateTextureClientForDrawing(ISurfaceAllocator* aAllocator,
+                              SurfaceFormat aFormat,
+                              TextureFlags aTextureFlags,
+                              gfx::BackendType aMoz2DBackend,
+                              const gfx::IntSize& aSizeHint)
 {
   if (aMoz2DBackend == gfx::BackendType::NONE) {
     aMoz2DBackend = gfxPlatform::GetPlatform()->GetContentBackend();
   }
 
-  RefPtr<TextureClient> texture;
+  RefPtr<TextureClient> result;
 
 #if defined(MOZ_WIDGET_GONK) || defined(XP_WIN)
   int32_t maxTextureSize = aAllocator->GetMaxTextureSize();
@@ -276,23 +275,25 @@ TextureClient::CreateForDrawing(ISurfaceAllocator* aAllocator,
       (aMoz2DBackend == gfx::BackendType::DIRECT2D ||
         aMoz2DBackend == gfx::BackendType::DIRECT2D1_1) &&
       gfxWindowsPlatform::GetPlatform()->GetD2DDevice() &&
-      aSize.width <= maxTextureSize &&
-      aSize.height <= maxTextureSize) {
-    texture = new TextureClientD3D11(aFormat, aTextureFlags);
+      aSizeHint.width <= maxTextureSize &&
+      aSizeHint.height <= maxTextureSize &&
+      !(aTextureFlags & TextureFlags::ALLOC_FALLBACK)) {
+    result = new TextureClientD3D11(aFormat, aTextureFlags);
   }
   if (parentBackend == LayersBackend::LAYERS_D3D9 &&
       aMoz2DBackend == gfx::BackendType::CAIRO &&
       aAllocator->IsSameProcess() &&
-      aSize.width <= maxTextureSize &&
-      aSize.height <= maxTextureSize) {
+      aSizeHint.width <= maxTextureSize &&
+      aSizeHint.height <= maxTextureSize &&
+      !(aTextureFlags & TextureFlags::ALLOC_FALLBACK)) {
     if (gfxWindowsPlatform::GetPlatform()->GetD3D9Device()) {
-      texture = new CairoTextureClientD3D9(aFormat, aTextureFlags);
+      result = new CairoTextureClientD3D9(aFormat, aTextureFlags);
     }
   }
 
-  if (!texture && aFormat == SurfaceFormat::B8G8R8X8 &&
+  if (!result && aFormat == SurfaceFormat::B8G8R8X8 &&
       aAllocator->IsSameProcess()) {
-    texture = new DIBTextureClient(aFormat, aTextureFlags);
+    result = new DIBTextureClient(aFormat, aTextureFlags);
   }
 
 #endif
@@ -304,49 +305,61 @@ TextureClient::CreateForDrawing(ISurfaceAllocator* aAllocator,
 
   if (parentBackend == LayersBackend::LAYERS_BASIC &&
       aMoz2DBackend == gfx::BackendType::CAIRO &&
-      type == gfxSurfaceType::Xlib)
+      type == gfxSurfaceType::Xlib &&
+      !(aTextureFlags & TextureFlags::ALLOC_FALLBACK))
   {
-    texture = new TextureClientX11(aAllocator, aFormat, aTextureFlags);
+    result = new TextureClientX11(aAllocator, aFormat, aTextureFlags);
   }
 #ifdef GL_PROVIDER_GLX
   if (parentBackend == LayersBackend::LAYERS_OPENGL &&
       type == gfxSurfaceType::Xlib &&
+      !(aTextureFlags & TextureFlags::ALLOC_FALLBACK) &&
       aFormat != SurfaceFormat::A8 &&
       gl::sGLXLibrary.UseTextureFromPixmap())
   {
-    texture = new TextureClientX11(aAllocator, aFormat, aTextureFlags);
+    result = new TextureClientX11(aAllocator, aFormat, aTextureFlags);
   }
 #endif
 #endif
 
 #ifdef MOZ_WIDGET_GONK
-  if (!DisableGralloc(aFormat, aSize)) {
+  if (!DisableGralloc(aFormat, aSizeHint)) {
     // Don't allow Gralloc texture clients to exceed the maximum texture size.
     // BufferTextureClients have code to handle tiling the surface client-side.
-    if (aSize.width <= maxTextureSize && aSize.height <= maxTextureSize) {
-      texture = new GrallocTextureClientOGL(aAllocator, aFormat, aMoz2DBackend,
+    if (aSizeHint.width <= maxTextureSize && aSizeHint.height <= maxTextureSize) {
+      result = new GrallocTextureClientOGL(aAllocator, aFormat, aMoz2DBackend,
                                            aTextureFlags);
     }
   }
 #endif
 
-  MOZ_ASSERT(!texture || texture->CanExposeDrawTarget(), "texture cannot expose a DrawTarget?");
-
-  if (texture && texture->AllocateForSurface(aSize, aAllocFlags)) {
-    return texture;
-  }
-
-  if (texture) {
-    NS_WARNING("Failed to allocate a TextureClient, falling back to BufferTextureClient.");
-  }
-
   // Can't do any better than a buffer texture client.
-  texture = CreateBufferTextureClient(aAllocator, aFormat, aTextureFlags, aMoz2DBackend);
-
-  if (!texture->AllocateForSurface(aSize, aAllocFlags)) {
-    return nullptr;
+  if (!result) {
+    result = CreateBufferTextureClient(aAllocator, aFormat, aTextureFlags, aMoz2DBackend);
   }
 
+  MOZ_ASSERT(!result || result->CanExposeDrawTarget(), "texture cannot expose a DrawTarget?");
+  return result;
+}
+
+// static
+TemporaryRef<TextureClient>
+TextureClient::CreateForDrawing(ISurfaceAllocator* aAllocator,
+                                gfx::SurfaceFormat aFormat,
+                                gfx::IntSize aSize,
+                                gfx::BackendType aMoz2DBackend,
+                                TextureFlags aTextureFlags,
+                                TextureAllocationFlags aAllocFlags)
+{
+  RefPtr<TextureClient> texture =
+    CreateTextureClientForDrawing(aAllocator, aFormat,
+                                  aTextureFlags, aMoz2DBackend,
+                                  aSize);
+  if (texture) {
+    if (!texture->AllocateForSurface(aSize, aAllocFlags)) {
+      return nullptr;
+    }
+  }
   return texture;
 }
 

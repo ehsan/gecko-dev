@@ -482,9 +482,7 @@ public:
     rv = Close();
   }
 
-  bool PluginCrash(uint64_t aPluginID,
-                   const nsAString& aPluginName,
-                   const nsAString& aPluginDumpID);
+  bool PluginCrash(uint64_t aPluginID);
 
   nsresult InitializeDataChannel(int track_id, uint16_t aLocalport,
                                  uint16_t aRemoteport, uint16_t aNumstreams);

@@ -231,12 +231,6 @@ private:
     return mDecoders[mActiveVideoDecoder]->GetReader();
   }
 
-  void SetMediaSourceDuration(double aDuration) {
-    MOZ_ASSERT(NS_IsMainThread());
-    ErrorResult dummy;
-    mMediaSource->SetDuration(aDuration, dummy);
-  }
-
   nsTArray<nsRefPtr<SubBufferDecoder>> mPendingDecoders;
   nsTArray<nsRefPtr<SubBufferDecoder>> mDecoders;
 
@@ -591,9 +585,8 @@ MediaSourceReader::ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags)
   if (maxDuration != -1) {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mDecoder->SetMediaDuration(maxDuration);
-    nsRefPtr<nsIRunnable> task (
-      NS_NewRunnableMethodWithArg<double>(this, &MediaSourceReader::SetMediaSourceDuration, maxDuration));
-    NS_DispatchToMainThread(task);
+    ErrorResult dummy;
+    mMediaSource->SetDuration(maxDuration, dummy);
   }
 
   *aInfo = mInfo;

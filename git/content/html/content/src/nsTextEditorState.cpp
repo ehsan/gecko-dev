@@ -676,9 +676,7 @@ protected:
    */
   virtual ~nsTextInputListener();
 
-  nsresult  UpdateTextInputCommands(const nsAString& commandsToUpdate,
-                                    nsISelection* sel = nullptr,
-                                    int16_t reason = 0);
+  nsresult  UpdateTextInputCommands(const nsAString& commandsToUpdate);
 
 protected:
 
@@ -782,18 +780,16 @@ nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* 
     }
   }
 
-  UpdateTextInputCommands(NS_LITERAL_STRING("selectionchange"), aSel, aReason);
-
   // if the collapsed state did not change, don't fire notifications
   if (collapsed == mSelectionWasCollapsed)
     return NS_OK;
-
+  
   mSelectionWasCollapsed = collapsed;
 
   if (!weakFrame.IsAlive() || !nsContentUtils::IsFocusedContent(mFrame->GetContent()))
     return NS_OK;
 
-  return UpdateTextInputCommands(NS_LITERAL_STRING("select"), aSel, aReason);
+  return UpdateTextInputCommands(NS_LITERAL_STRING("select"));
 }
 
 // END nsIDOMSelectionListener
@@ -934,9 +930,7 @@ nsTextInputListener::EditAction()
 
 
 nsresult
-nsTextInputListener::UpdateTextInputCommands(const nsAString& commandsToUpdate,
-                                             nsISelection* sel,
-                                             int16_t reason)
+nsTextInputListener::UpdateTextInputCommands(const nsAString& commandsToUpdate)
 {
   nsIContent* content = mFrame->GetContent();
   NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
@@ -947,7 +941,7 @@ nsTextInputListener::UpdateTextInputCommands(const nsAString& commandsToUpdate,
   nsPIDOMWindow *domWindow = doc->GetWindow();
   NS_ENSURE_TRUE(domWindow, NS_ERROR_FAILURE);
 
-  return domWindow->UpdateCommands(commandsToUpdate, sel, reason);
+  return domWindow->UpdateCommands(commandsToUpdate);
 }
 
 // END nsTextInputListener

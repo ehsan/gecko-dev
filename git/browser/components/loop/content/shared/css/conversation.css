@@ -8,7 +8,7 @@
   position: relative;
 }
 
-.conversation-toolbar {
+.conversation .controls {
   position: absolute;
   z-index: 999; /* required to have it superimposed to the video element */
   left: 0;
@@ -20,13 +20,13 @@
   padding: 0;
 }
 
-.conversation-toolbar li {
+.conversation .controls li {
   float: left;
   font-size: 0px; /* prevents vertical bottom padding added to buttons in google
                      chrome */
 }
 
-.conversation-toolbar .btn {
+.conversation .controls .btn {
   width: 40px;
   height: 30px;
   background: transparent;
@@ -38,66 +38,66 @@
   cursor: pointer;
 }
 
-.conversation-toolbar .btn:hover {
+.conversation .controls .btn:hover {
   background-color: rgba(255, 255, 255, .35);
 }
 
 /* Hangup button */
-.conversation-toolbar .btn-hangup {
+.conversation .controls .btn-hangup {
   background-color: #D74345;
   background-image: url(../img/hangup-inverse-14x14.png);
 }
-.conversation-toolbar .btn-hangup:hover {
+.conversation .controls .btn-hangup:hover {
   background-color: #C53436;
 }
 @media (min-resolution: 2dppx) {
-  .conversation-toolbar .btn-hangup {
+  .conversation .controls .btn-hangup {
     background-image: url(../img/hangup-inverse-14x14@2x.png);
   }
 }
 
 /* Common media control buttons behavior */
-.conversation-toolbar .media-control {
+.conversation .controls .media-control {
   background-color: transparent;
   opacity: 1;
 }
-.conversation-toolbar .media-control:hover {
+.conversation .controls .media-control:hover {
   background-color: rgba(255, 255, 255, .35);
   opacity: 1;
 }
-.conversation-toolbar .media-control.muted {
+.conversation .controls .media-control.muted {
   background-color: #0096DD;
   opacity: 1;
 }
 
 /* Audio mute button */
-.conversation-toolbar .local-media.btn-mute-audio {
+.conversation .controls .local-media.btn-mute-audio {
   background-image: url(../img/audio-inverse-14x14.png);
 }
-.conversation-toolbar .local-media.btn-mute-audio.muted {
+.conversation .controls .local-media.btn-mute-audio.muted {
   background-image: url(../img/mute-inverse-14x14.png);
 }
 @media (min-resolution: 2dppx) {
-  .conversation-toolbar .local-media.btn-mute-audio {
+  .conversation .controls .local-media.btn-mute-audio {
     background-image: url(../img/audio-inverse-14x14@2x.png);
   }
-  .conversation-toolbar .local-media.btn-mute-audio.muted {
+  .conversation .controls .local-media.btn-mute-audio.muted {
     background-image: url(../img/mute-inverse-14x14@2x.png);
   }
 }
 
 /* Video mute button */
-.conversation-toolbar .local-media.btn-mute-video {
+.conversation .controls .local-media.btn-mute-video {
   background-image: url(../img/video-inverse-14x14.png);
 }
-.conversation-toolbar .local-media.btn-mute-video.muted {
+.conversation .controls .local-media.btn-mute-video.muted {
   background-image: url(../img/facemute-14x14.png);
 }
 @media (min-resolution: 2dppx) {
-  .conversation-toolbar .local-media.btn-mute-video {
+  .conversation .controls .local-media.btn-mute-video {
     background-image: url(../img/video-inverse-14x14@2x.png);
   }
-  .conversation-toolbar .local-media.btn-mute-video.muted {
+  .conversation .controls .local-media.btn-mute-video.muted {
     background-image: url(../img/facemute-14x14@2x.png);
   }
 }

@@ -935,10 +935,8 @@ VectorImage::CreateDrawableAndShow(const SVGDrawingParameters& aParams)
                              SurfaceFormat::B8G8R8A8,
                              GraphicsFilter::FILTER_NEAREST, aParams.flags);
 
-  RefPtr<SourceSurface> surface = target->Snapshot();
-
   // Attempt to cache the resulting surface.
-  SurfaceCache::Insert(surface,
+  SurfaceCache::Insert(target,
                        ImageKey(this),
                        SurfaceKey(aParams.imageRect.Size(), aParams.scale,
                                   aParams.svgContext, aParams.animationTime,
@@ -948,7 +946,7 @@ VectorImage::CreateDrawableAndShow(const SVGDrawingParameters& aParams)
   // then |target| is all that is keeping the pixel data alive, so we have
   // to draw before returning from this function.
   nsRefPtr<gfxDrawable> drawable =
-    new gfxSurfaceDrawable(surface, ThebesIntSize(aParams.imageRect.Size()));
+    new gfxSurfaceDrawable(target, ThebesIntSize(aParams.imageRect.Size()));
   Show(drawable, aParams);
 }
 

@@ -65,6 +65,7 @@ private:
   Stack* mStackToFill;
 #ifdef MOZ_THREADSTACKHELPER_PSEUDO
   const PseudoStack* const mPseudoStack;
+#endif
 #ifdef MOZ_THREADSTACKHELPER_NATIVE
   class CodeModulesProvider;
   class ThreadContext;
@@ -74,7 +75,6 @@ private:
 #endif
   size_t mMaxStackSize;
   size_t mMaxBufferSize;
-#endif
 
   bool PrepareStackBuffer(Stack& aStack);
   void FillStackBuffer();

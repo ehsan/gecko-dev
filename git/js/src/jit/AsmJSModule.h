@@ -335,7 +335,6 @@ class AsmJSModule
     class CodeRange
     {
         uint32_t nameIndex_;
-        uint32_t lineNumber_;
         uint32_t begin_;
         uint32_t profilingReturn_;
         uint32_t end_;
@@ -359,7 +358,7 @@ class AsmJSModule
         enum Kind { Function, Entry, FFI, Interrupt, Thunk, Inline };
 
         CodeRange() {}
-        CodeRange(uint32_t nameIndex, uint32_t lineNumber, const AsmJSFunctionLabels &l);
+        CodeRange(uint32_t nameIndex, const AsmJSFunctionLabels &l);
         CodeRange(Kind kind, uint32_t begin, uint32_t end);
         CodeRange(Kind kind, uint32_t begin, uint32_t profilingReturn, uint32_t end);
         CodeRange(AsmJSExit::BuiltinKind builtin, uint32_t begin, uint32_t pret, uint32_t end);
@@ -394,21 +393,9 @@ class AsmJSModule
             JS_ASSERT(isFunction() || isFFI() || isInterrupt() || isThunk());
             return profilingReturn_;
         }
-        uint32_t functionNameIndex() const {
-            JS_ASSERT(isFunction());
-            return nameIndex_;
-        }
         PropertyName *functionName(const AsmJSModule &module) const {
             JS_ASSERT(isFunction());
             return module.names_[nameIndex_].name();
-        }
-        const char *functionProfilingLabel(const AsmJSModule &module) const {
-            JS_ASSERT(isFunction());
-            return module.profilingLabels_[nameIndex_].get();
-        }
-        uint32_t functionLineNumber() const {
-            JS_ASSERT(isFunction());
-            return lineNumber_;
         }
         AsmJSExit::BuiltinKind thunkTarget() const {
             JS_ASSERT(isThunk());
@@ -442,8 +429,6 @@ class AsmJSModule
         const uint8_t *deserialize(ExclusiveContext *cx, const uint8_t *cursor);
         bool clone(ExclusiveContext *cx, Name *out) const;
     };
-
-    typedef mozilla::UniquePtr<char, JS::FreePolicy> ProfilingLabel;
 
 #if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
     // Function information to add to the VTune JIT profiler following linking.
@@ -618,7 +603,6 @@ class AsmJSModule
     Vector<FuncPtrTable,           0, SystemAllocPolicy> funcPtrTables_;
     Vector<uint32_t,               0, SystemAllocPolicy> builtinThunkOffsets_;
     Vector<Name,                   0, SystemAllocPolicy> names_;
-    Vector<ProfilingLabel,         0, SystemAllocPolicy> profilingLabels_;
     Vector<jit::AsmJSHeapAccess,   0, SystemAllocPolicy> heapAccesses_;
     Vector<jit::IonScriptCounts*,  0, SystemAllocPolicy> functionCounts_;
 #if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
@@ -817,15 +801,13 @@ class AsmJSModule
         if (len > pod.minHeapLength_)
             pod.minHeapLength_ = len;
     }
-    bool addFunctionCodeRange(PropertyName *name, uint32_t lineNumber,
-                              const AsmJSFunctionLabels &labels)
-    {
+    bool addFunctionCodeRange(PropertyName *name, const AsmJSFunctionLabels &labels) {
         JS_ASSERT(!isFinished());
         JS_ASSERT(name->isTenured());
         if (names_.length() >= UINT32_MAX)
             return false;
         uint32_t nameIndex = names_.length();
-        return names_.append(name) && codeRanges_.append(CodeRange(nameIndex, lineNumber, labels));
+        return names_.append(name) && codeRanges_.append(CodeRange(nameIndex, labels));
     }
     bool addEntryCodeRange(uint32_t begin, uint32_t end) {
         return codeRanges_.append(CodeRange(CodeRange::Entry, begin, end));

@@ -45,15 +45,6 @@
     }                                                                  \
   } while(0)
 
-#define ENSURE_BLUETOOTH_IS_READY_VOID(runnable)                       \
-  do {                                                                 \
-    if (!sBtInterface || !IsEnabled()) {                               \
-      NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth is not ready");     \
-      DispatchBluetoothReply(runnable, BluetoothValue(), errorStr);    \
-      return;                                                          \
-    }                                                                  \
-  } while(0)
-
 using namespace mozilla;
 using namespace mozilla::ipc;
 USING_BLUETOOTH_NAMESPACE
@@ -1501,14 +1492,14 @@ private:
   BluetoothReplyRunnable* mRunnable;
 };
 
-void
+bool
 BluetoothServiceBluedroid::SetPinCodeInternal(
   const nsAString& aDeviceAddress, const nsAString& aPinCode,
   BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  ENSURE_BLUETOOTH_IS_READY_VOID(aRunnable);
+  ENSURE_BLUETOOTH_IS_READY(aRunnable, false);
 
   bt_bdaddr_t remoteAddress;
   StringToBdAddressType(aDeviceAddress, &remoteAddress);
@@ -1517,14 +1508,16 @@ BluetoothServiceBluedroid::SetPinCodeInternal(
     &remoteAddress, true, aPinCode.Length(),
     (bt_pin_code_t*)NS_ConvertUTF16toUTF8(aPinCode).get(),
     new PinReplyResultHandler(aRunnable));
+
+  return true;
 }
 
-void
+bool
 BluetoothServiceBluedroid::SetPasskeyInternal(
   const nsAString& aDeviceAddress, uint32_t aPasskey,
   BluetoothReplyRunnable* aRunnable)
 {
-  return;
+  return true;
 }
 
 class SspReplyResultHandler MOZ_FINAL : public BluetoothResultHandler
@@ -1549,23 +1542,21 @@ private:
   BluetoothReplyRunnable* mRunnable;
 };
 
-void
+bool
 BluetoothServiceBluedroid::SetPairingConfirmationInternal(
   const nsAString& aDeviceAddress, bool aConfirm,
   BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  ENSURE_BLUETOOTH_IS_READY_VOID(aRunnable);
+  ENSURE_BLUETOOTH_IS_READY(aRunnable, false);
 
   bt_bdaddr_t remoteAddress;
   StringToBdAddressType(aDeviceAddress, &remoteAddress);
 
-  sBtInterface->SspReply(&remoteAddress,
-                         BT_SSP_VARIANT_PASSKEY_CONFIRMATION,
-                         aConfirm,
-                         0, /* aPasskey */
+  sBtInterface->SspReply(&remoteAddress, (bt_ssp_variant_t)0, aConfirm, 0,
                          new SspReplyResultHandler(aRunnable));
+  return true;
 }
 
 static void
