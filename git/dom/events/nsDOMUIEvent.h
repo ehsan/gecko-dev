@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_UIEvent_h_
-#define mozilla_dom_UIEvent_h_
+#ifndef nsDOMUIEvent_h
+#define nsDOMUIEvent_h
 
 #include "mozilla/Attributes.h"
 #include "nsIDOMUIEvent.h"
@@ -16,31 +16,30 @@
 
 class nsINode;
 
-namespace mozilla {
-namespace dom {
-
-class UIEvent : public nsDOMEvent,
-                public nsIDOMUIEvent
+class nsDOMUIEvent : public nsDOMEvent,
+                     public nsIDOMUIEvent
 {
+  typedef mozilla::CSSIntPoint CSSIntPoint;
 public:
-  UIEvent(EventTarget* aOwner,
-          nsPresContext* aPresContext,
-          WidgetGUIEvent* aEvent);
+  nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
+               nsPresContext* aPresContext,
+               mozilla::WidgetGUIEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(UIEvent, nsDOMEvent)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMUIEvent, nsDOMEvent)
 
   // nsIDOMUIEvent Interface
   NS_DECL_NSIDOMUIEVENT
-
+  
   // Forward to nsDOMEvent
   NS_FORWARD_TO_NSDOMEVENT_NO_SERIALIZATION_NO_DUPLICATION
   NS_IMETHOD DuplicatePrivateData() MOZ_OVERRIDE;
   NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType) MOZ_OVERRIDE;
   NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter) MOZ_OVERRIDE;
 
-  static nsIntPoint CalculateScreenPoint(nsPresContext* aPresContext,
-                                         WidgetEvent* aEvent)
+  static nsIntPoint
+  CalculateScreenPoint(nsPresContext* aPresContext,
+                       mozilla::WidgetEvent* aEvent)
   {
     if (!aEvent ||
         (aEvent->eventStructType != NS_MOUSE_EVENT &&
@@ -52,21 +51,20 @@ public:
       return nsIntPoint(0, 0);
     }
 
-    WidgetGUIEvent* event = aEvent->AsGUIEvent();
+    mozilla::WidgetGUIEvent* event = aEvent->AsGUIEvent();
     if (!event->widget) {
-      return LayoutDeviceIntPoint::ToUntyped(aEvent->refPoint);
+      return mozilla::LayoutDeviceIntPoint::ToUntyped(aEvent->refPoint);
     }
 
-    LayoutDeviceIntPoint offset = aEvent->refPoint +
-      LayoutDeviceIntPoint::FromUntyped(event->widget->WidgetToScreenOffset());
-    nscoord factor =
-      aPresContext->DeviceContext()->UnscaledAppUnitsPerDevPixel();
+    mozilla::LayoutDeviceIntPoint offset = aEvent->refPoint +
+      mozilla::LayoutDeviceIntPoint::FromUntyped(event->widget->WidgetToScreenOffset());
+    nscoord factor = aPresContext->DeviceContext()->UnscaledAppUnitsPerDevPixel();
     return nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(offset.x * factor),
                       nsPresContext::AppUnitsToIntCSSPixels(offset.y * factor));
   }
 
   static CSSIntPoint CalculateClientPoint(nsPresContext* aPresContext,
-                                          WidgetEvent* aEvent,
+                                          mozilla::WidgetEvent* aEvent,
                                           CSSIntPoint* aDefaultClientPoint)
   {
     if (!aEvent ||
@@ -97,15 +95,15 @@ public:
     return CSSIntPoint::FromAppUnitsRounded(pt);
   }
 
-  static already_AddRefed<UIEvent> Constructor(const GlobalObject& aGlobal,
-                                               const nsAString& aType,
-                                               const UIEventInit& aParam,
-                                               ErrorResult& aRv);
+  static already_AddRefed<nsDOMUIEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
+                                                    const nsAString& aType,
+                                                    const mozilla::dom::UIEventInit& aParam,
+                                                    mozilla::ErrorResult& aRv);
 
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return UIEventBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::UIEventBinding::Wrap(aCx, aScope, this);
   }
 
   nsIDOMWindow* GetView() const
@@ -166,29 +164,27 @@ protected:
   bool mIsPointerLocked;
   CSSIntPoint mLastClientPoint;
 
+  typedef mozilla::Modifiers Modifiers;
   static Modifiers ComputeModifierState(const nsAString& aModifiersList);
   bool GetModifierStateInternal(const nsAString& aKey);
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#define NS_FORWARD_TO_UIEVENT                               \
-  NS_FORWARD_NSIDOMUIEVENT(UIEvent::)                       \
+#define NS_FORWARD_TO_NSDOMUIEVENT                          \
+  NS_FORWARD_NSIDOMUIEVENT(nsDOMUIEvent::)                  \
   NS_FORWARD_TO_NSDOMEVENT_NO_SERIALIZATION_NO_DUPLICATION  \
   NS_IMETHOD DuplicatePrivateData()                         \
   {                                                         \
-    return UIEvent::DuplicatePrivateData();                 \
+    return nsDOMUIEvent::DuplicatePrivateData();            \
   }                                                         \
   NS_IMETHOD_(void) Serialize(IPC::Message* aMsg,           \
                               bool aSerializeInterfaceType) \
   {                                                         \
-    UIEvent::Serialize(aMsg, aSerializeInterfaceType);      \
+    nsDOMUIEvent::Serialize(aMsg, aSerializeInterfaceType); \
   }                                                         \
   NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg,   \
                                 void** aIter)               \
   {                                                         \
-    return UIEvent::Deserialize(aMsg, aIter);               \
+    return nsDOMUIEvent::Deserialize(aMsg, aIter);          \
   }
 
-#endif // mozilla_dom_UIEvent_h_
+#endif // nsDOMUIEvent_h

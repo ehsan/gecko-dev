@@ -6,35 +6,32 @@
 
 // This class implements a XUL "command" event.  See nsIDOMXULCommandEvent.idl
 
-#ifndef mozilla_dom_XULCommandEvent_h_
-#define mozilla_dom_XULCommandEvent_h_
+#ifndef nsDOMXULCommandEvent_h_
+#define nsDOMXULCommandEvent_h_
 
-#include "mozilla/dom/UIEvent.h"
-#include "mozilla/dom/XULCommandEventBinding.h"
+#include "nsDOMUIEvent.h"
 #include "nsIDOMXULCommandEvent.h"
+#include "mozilla/dom/XULCommandEventBinding.h"
 
-namespace mozilla {
-namespace dom {
-
-class XULCommandEvent : public UIEvent,
-                        public nsIDOMXULCommandEvent
+class nsDOMXULCommandEvent : public nsDOMUIEvent,
+                             public nsIDOMXULCommandEvent
 {
 public:
-  XULCommandEvent(EventTarget* aOwner,
-                  nsPresContext* aPresContext,
-                  WidgetInputEvent* aEvent);
+  nsDOMXULCommandEvent(mozilla::dom::EventTarget* aOwner,
+                       nsPresContext* aPresContext,
+                       mozilla::WidgetInputEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(XULCommandEvent, UIEvent)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMXULCommandEvent, nsDOMUIEvent)
   NS_DECL_NSIDOMXULCOMMANDEVENT
 
   // Forward our inherited virtual methods to the base class
-  NS_FORWARD_TO_UIEVENT
+  NS_FORWARD_TO_NSDOMUIEVENT
 
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return XULCommandEventBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::XULCommandEventBinding::Wrap(aCx, aScope, this);
   }
 
   bool AltKey();
@@ -56,7 +53,7 @@ public:
                         bool aCtrlKey, bool aAltKey,
                         bool aShiftKey, bool aMetaKey,
                         nsDOMEvent* aSourceEvent,
-                        ErrorResult& aRv)
+                        mozilla::ErrorResult& aRv)
   {
     aRv = InitCommandEvent(aType, aCanBubble, aCancelable, aView, aDetail,
                            aCtrlKey, aAltKey, aShiftKey, aMetaKey,
@@ -67,7 +64,4 @@ protected:
   nsCOMPtr<nsIDOMEvent> mSourceEvent;
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#endif // mozilla_dom_XULCommandEvent_h_
+#endif  // nsDOMXULCommandEvent_h_

@@ -71,7 +71,7 @@ static int32_t GetSystemParam(long flag, int32_t def)
 
 namespace mozilla {
 namespace widget {
-// This is in use here and in dom/events/TouchEvent.cpp
+// This is in use here and in nsDOMTouchEvent.cpp
 int32_t IsTouchDeviceSupportPresent()
 {
   int32_t touchCapabilities;

@@ -38,7 +38,6 @@ using mozilla::Abs;
 using mozilla::NumberEqualsInt32;
 using mozilla::NumberIsInt32;
 using mozilla::ExponentComponent;
-using mozilla::FloatingPoint;
 using mozilla::IsFinite;
 using mozilla::IsInfinite;
 using mozilla::IsNaN;
@@ -46,6 +45,7 @@ using mozilla::IsNegative;
 using mozilla::IsNegativeZero;
 using mozilla::PositiveInfinity;
 using mozilla::NegativeInfinity;
+using mozilla::SpecificNaN;
 using JS::ToNumber;
 using JS::GenericNaN;
 
@@ -745,29 +745,15 @@ js_math_random(JSContext *cx, unsigned argc, Value *vp)
 double
 js::math_round_impl(double x)
 {
-    int32_t ignored;
-    if (NumberIsInt32(x, &ignored))
-        return x;
+    int32_t i;
+    if (NumberIsInt32(x, &i))
+        return double(i);
 
     /* Some numbers are so big that adding 0.5 would give the wrong number. */
-    if (ExponentComponent(x) >= int_fast16_t(FloatingPoint<double>::ExponentShift))
+    if (ExponentComponent(x) >= 52)
         return x;
 
     return js_copysign(floor(x + 0.5), x);
-}
-
-float
-js::math_roundf_impl(float x)
-{
-    int32_t ignored;
-    if (NumberIsInt32(x, &ignored))
-        return x;
-
-    /* Some numbers are so big that adding 0.5 would give the wrong number. */
-    if (ExponentComponent(x) >= int_fast16_t(FloatingPoint<float>::ExponentShift))
-        return x;
-
-    return js_copysign(floorf(x + 0.5f), x);
 }
 
 bool /* ES5 15.8.2.15. */

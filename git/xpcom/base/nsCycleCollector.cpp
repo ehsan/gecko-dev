@@ -220,6 +220,13 @@ using namespace mozilla;
 // logs from MOZ_CC_LOG_ALL and MOZ_CC_LOG_SHUTDOWN, or other uses
 // of nsICycleCollectorListener)
 
+MOZ_NEVER_INLINE void
+CC_AbortIfNull(void *ptr)
+{
+    if (!ptr)
+        MOZ_CRASH();
+}
+
 // Various parameters of this collector can be tuned using environment
 // variables.
 
@@ -1225,9 +1232,7 @@ private:
 
     void CheckedPush(nsDeque &aQueue, PtrInfo *pi)
     {
-        if (!pi) {
-            MOZ_CRASH();
-        }
+        CC_AbortIfNull(pi);
         if (!aQueue.Push(pi, fallible_t())) {
             mVisitor.Failed();
         }
@@ -1313,6 +1318,7 @@ GraphWalker<Visitor>::DoWalk(nsDeque &aQueue)
     // built the graph, for hopefully-better locality.
     while (aQueue.GetSize() > 0) {
         PtrInfo *pi = static_cast<PtrInfo*>(aQueue.PopFront());
+        CC_AbortIfNull(pi);
 
         if (pi->mParticipant && mVisitor.ShouldVisitNode(pi)) {
             mVisitor.VisitNode(pi);
@@ -2530,10 +2536,7 @@ nsCycleCollector::MarkRoots(SliceBudget &aBudget)
 
     while (!aBudget.isOverBudget() && !mCurrNode->IsDone()) {
         PtrInfo *pi = mCurrNode->GetNext();
-        if (!pi) {
-            MOZ_CRASH();
-        }
-
+        CC_AbortIfNull(pi);
         // We need to call the builder's Traverse() method on deleted nodes, to
         // set their firstChild() that may be read by a prior non-deleted
         // neighbor.

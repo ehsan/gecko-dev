@@ -161,7 +161,7 @@ def check_for_crashes(dump_directory, symbols_path,
     return True
 
 
-def check_for_java_exception(logcat, quiet=False):
+def check_for_java_exception(logcat):
     """
     Print a summary of a fatal Java exception, if present in the provided
     logcat output.
@@ -170,9 +170,6 @@ def check_for_java_exception(logcat, quiet=False):
     PROCESS-CRASH | java-exception | java.lang.NullPointerException at org.mozilla.gecko.GeckoApp$21.run(GeckoApp.java:1833)
 
     `logcat` should be a list of strings.
-
-    If `quiet` is set, no PROCESS-CRASH message will be printed to stdout if a
-    crash is detected.
 
     Returns True if a fatal Java exception was found, False otherwise.
     """
@@ -197,8 +194,7 @@ def check_for_java_exception(logcat, quiet=False):
                 m = logre.search(logcat[i+2])
                 if m and m.group(1):
                     exception_location = m.group(1)
-                if not quiet:
-                    print "PROCESS-CRASH | java-exception | %s %s" % (exception_type, exception_location)
+                print "PROCESS-CRASH | java-exception | %s %s" % (exception_type, exception_location)
             else:
                 print "Automation Error: Logcat is truncated!"
             break

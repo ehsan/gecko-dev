@@ -10,13 +10,14 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS_INHERITED1(FocusEvent, UIEvent, nsIDOMFocusEvent)
+NS_IMPL_ISUPPORTS_INHERITED1(FocusEvent, nsDOMUIEvent, nsIDOMFocusEvent)
 
 FocusEvent::FocusEvent(EventTarget* aOwner,
                        nsPresContext* aPresContext,
                        InternalFocusEvent* aEvent)
-  : UIEvent(aOwner, aPresContext,
-            aEvent ? aEvent : new InternalFocusEvent(false, NS_FOCUS_CONTENT))
+  : nsDOMUIEvent(aOwner, aPresContext,
+                 aEvent ? aEvent :
+                          new InternalFocusEvent(false, NS_FOCUS_CONTENT))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -49,8 +50,7 @@ FocusEvent::InitFocusEvent(const nsAString& aType,
                            int32_t aDetail,
                            EventTarget* aRelatedTarget)
 {
-  nsresult rv =
-    UIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, aDetail);
+  nsresult rv = nsDOMUIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, aDetail);
   NS_ENSURE_SUCCESS(rv, rv);
   mEvent->AsFocusEvent()->relatedTarget = aRelatedTarget;
   return NS_OK;

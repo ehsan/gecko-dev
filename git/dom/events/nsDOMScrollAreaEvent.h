@@ -3,32 +3,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_ScrollAreaEvent_h_
-#define mozilla_dom_ScrollAreaEvent_h_
+#ifndef nsDOMScrollAreaEvent_h__
+#define nsDOMScrollAreaEvent_h__
 
-#include "mozilla/dom/DOMRect.h"
-#include "mozilla/dom/ScrollAreaEventBinding.h"
-#include "mozilla/dom/UIEvent.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
 #include "nsIDOMScrollAreaEvent.h"
+#include "nsDOMUIEvent.h"
 
-namespace mozilla {
-namespace dom {
+#include "mozilla/dom/DOMRect.h"
+#include "mozilla/dom/ScrollAreaEventBinding.h"
 
-class ScrollAreaEvent : public UIEvent,
-                        public nsIDOMScrollAreaEvent
+class nsDOMScrollAreaEvent : public nsDOMUIEvent,
+                             public nsIDOMScrollAreaEvent
 {
+  typedef mozilla::dom::DOMRect DOMRect;
+
 public:
-  ScrollAreaEvent(EventTarget* aOwner,
-                  nsPresContext* aPresContext,
-                  InternalScrollAreaEvent* aEvent);
+  nsDOMScrollAreaEvent(mozilla::dom::EventTarget* aOwner,
+                       nsPresContext *aPresContext,
+                       mozilla::InternalScrollAreaEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
 
   NS_DECL_NSIDOMSCROLLAREAEVENT
 
-  NS_FORWARD_NSIDOMUIEVENT(UIEvent::)
+  NS_FORWARD_NSIDOMUIEVENT(nsDOMUIEvent::)
 
   NS_FORWARD_TO_NSDOMEVENT_NO_SERIALIZATION_NO_DUPLICATION
   NS_IMETHOD DuplicatePrivateData()
@@ -41,7 +41,7 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return ScrollAreaEventBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::ScrollAreaEventBinding::Wrap(aCx, aScope, this);
   }
 
   float X() const
@@ -71,7 +71,7 @@ public:
                            int32_t aDetail,
                            float aX, float aY,
                            float aWidth, float aHeight,
-                           ErrorResult& aRv)
+                           mozilla::ErrorResult& aRv)
   {
     aRv = InitScrollAreaEvent(aType, aCanBubble, aCancelable, aView,
                               aDetail, aX, aY, aWidth, aHeight);
@@ -81,7 +81,4 @@ protected:
   DOMRect mClientArea;
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#endif // mozilla_dom_ScrollAreaEvent_h_
+#endif // nsDOMScrollAreaEvent_h__

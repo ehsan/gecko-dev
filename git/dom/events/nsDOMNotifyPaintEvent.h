@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_NotifyPaintEvent_h_
-#define mozilla_dom_NotifyPaintEvent_h_
+#ifndef nsDOMNotifyPaintEvent_h_
+#define nsDOMNotifyPaintEvent_h_
 
 #include "mozilla/Attributes.h"
 #include "nsIDOMNotifyPaintEvent.h"
@@ -16,20 +16,23 @@ class nsPaintRequestList;
 
 namespace mozilla {
 namespace dom {
-
 class DOMRect;
 class DOMRectList;
+}
+}
 
-class NotifyPaintEvent : public nsDOMEvent,
-                         public nsIDOMNotifyPaintEvent
+class nsDOMNotifyPaintEvent : public nsDOMEvent,
+                              public nsIDOMNotifyPaintEvent
 {
+  typedef mozilla::dom::DOMRect DOMRect;
+  typedef mozilla::dom::DOMRectList DOMRectList;
 
 public:
-  NotifyPaintEvent(EventTarget* aOwner,
-                   nsPresContext* aPresContext,
-                   WidgetEvent* aEvent,
-                   uint32_t aEventType,
-                   nsInvalidateRequestList* aInvalidateRequests);
+  nsDOMNotifyPaintEvent(mozilla::dom::EventTarget* aOwner,
+                        nsPresContext*           aPresContext,
+                        mozilla::WidgetEvent*    aEvent,
+                        uint32_t                 aEventType,
+                        nsInvalidateRequestList* aInvalidateRequests);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -47,7 +50,7 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return NotifyPaintEventBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::NotifyPaintEventBinding::Wrap(aCx, aScope, this);
   }
 
   already_AddRefed<DOMRectList> ClientRects();
@@ -61,7 +64,4 @@ private:
   nsTArray<nsInvalidateRequestList::Request> mInvalidateRequests;
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#endif // mozilla_dom_NotifyPaintEvent_h_
+#endif // nsDOMNotifyPaintEvent_h_

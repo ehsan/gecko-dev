@@ -320,7 +320,7 @@ NS_IMETHODIMP
 DataTransfer::GetFiles(nsIDOMFileList** aFileList)
 {
   ErrorResult rv;
-  NS_IF_ADDREF(*aFileList = GetFiles(rv));
+  *aFileList = GetFiles(rv);
   return rv.ErrorCode();
 }
 

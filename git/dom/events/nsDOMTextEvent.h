@@ -6,17 +6,15 @@
 #ifndef nsDOMTextEvent_h__
 #define nsDOMTextEvent_h__
 
-#include "mozilla/dom/UIEvent.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
+#include "nsDOMUIEvent.h"
 #include "nsIPrivateTextEvent.h"
 #include "nsPrivateTextRange.h"
 
-class nsDOMTextEvent : public mozilla::dom::UIEvent,
+class nsDOMTextEvent : public nsDOMUIEvent,
                        public nsIPrivateTextEvent
 {
-  typedef mozilla::dom::UIEvent UIEvent;
-
 public:
   nsDOMTextEvent(mozilla::dom::EventTarget* aOwner,
                  nsPresContext* aPresContext,
@@ -25,7 +23,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // Forward to base class
-  NS_FORWARD_TO_UIEVENT
+  NS_FORWARD_TO_NSDOMUIEVENT
 
   // nsIPrivateTextEvent interface
   NS_IMETHOD GetText(nsString& aText) MOZ_OVERRIDE;

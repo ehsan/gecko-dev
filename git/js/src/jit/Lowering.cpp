@@ -1179,17 +1179,8 @@ LIRGenerator::visitFloor(MFloor *ins)
 bool
 LIRGenerator::visitRound(MRound *ins)
 {
-    MIRType type = ins->num()->type();
-    JS_ASSERT(IsFloatingPointType(type));
-
-    if (type == MIRType_Double) {
-        LRound *lir = new (alloc()) LRound(useRegister(ins->num()), tempDouble());
-        if (!assignSnapshot(lir))
-            return false;
-        return define(lir, ins);
-    }
-
-    LRoundF *lir = new (alloc()) LRoundF(useRegister(ins->num()), tempDouble());
+    JS_ASSERT(ins->num()->type() == MIRType_Double);
+    LRound *lir = new(alloc()) LRound(useRegister(ins->num()), tempDouble());
     if (!assignSnapshot(lir))
         return false;
     return define(lir, ins);

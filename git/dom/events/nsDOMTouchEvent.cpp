@@ -4,52 +4,42 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/TouchEvent.h"
+#include "nsDOMTouchEvent.h"
+#include "nsContentUtils.h"
+#include "mozilla/Preferences.h"
 #include "mozilla/dom/Touch.h"
 #include "mozilla/dom/TouchListBinding.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/TouchEvents.h"
-#include "nsContentUtils.h"
 
-namespace mozilla {
+using namespace mozilla;
+using namespace mozilla::dom;
 
-#ifdef XP_WIN
-namespace widget {
-extern int32_t IsTouchDeviceSupportPresent();
-} // namespace widget
-#endif // #ifdef XP_WIN
+// TouchList
 
-namespace dom {
-
-/******************************************************************************
- * TouchList
- *****************************************************************************/
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(TouchList)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMTouchList)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(TouchList, mParent, mPoints)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsDOMTouchList, mParent, mPoints)
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(TouchList)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(TouchList)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMTouchList)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMTouchList)
 
-JSObject*
-TouchList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+/* virtual */ JSObject*
+nsDOMTouchList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return TouchListBinding::Wrap(aCx, aScope, this);
 }
 
-// static
-bool
-TouchList::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
+/* static */ bool
+nsDOMTouchList::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
 {
-  return TouchEvent::PrefEnabled(aCx, aGlobal);
+  return nsDOMTouchEvent::PrefEnabled(aCx, aGlobal);
 }
 
 Touch*
-TouchList::IdentifiedTouch(int32_t aIdentifier) const
+nsDOMTouchList::IdentifiedTouch(int32_t aIdentifier) const
 {
   for (uint32_t i = 0; i < mPoints.Length(); ++i) {
     Touch* point = mPoints[i];
@@ -60,15 +50,13 @@ TouchList::IdentifiedTouch(int32_t aIdentifier) const
   return nullptr;
 }
 
-/******************************************************************************
- * TouchEvent
- *****************************************************************************/
+// TouchEvent
 
-TouchEvent::TouchEvent(EventTarget* aOwner,
-                       nsPresContext* aPresContext,
-                       WidgetTouchEvent* aEvent)
-  : UIEvent(aOwner, aPresContext,
-            aEvent ? aEvent : new WidgetTouchEvent(false, 0, nullptr))
+nsDOMTouchEvent::nsDOMTouchEvent(mozilla::dom::EventTarget* aOwner,
+                                 nsPresContext* aPresContext,
+                                 WidgetTouchEvent* aEvent)
+  : nsDOMUIEvent(aOwner, aPresContext,
+                 aEvent ? aEvent : new WidgetTouchEvent(false, 0, nullptr))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -83,33 +71,38 @@ TouchEvent::TouchEvent(EventTarget* aOwner,
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_3(TouchEvent, UIEvent,
+NS_IMPL_CYCLE_COLLECTION_INHERITED_3(nsDOMTouchEvent, nsDOMUIEvent,
                                      mTouches,
                                      mTargetTouches,
                                      mChangedTouches)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(TouchEvent)
-NS_INTERFACE_MAP_END_INHERITING(UIEvent)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMTouchEvent)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
-NS_IMPL_ADDREF_INHERITED(TouchEvent, UIEvent)
-NS_IMPL_RELEASE_INHERITED(TouchEvent, UIEvent)
+NS_IMPL_ADDREF_INHERITED(nsDOMTouchEvent, nsDOMUIEvent)
+NS_IMPL_RELEASE_INHERITED(nsDOMTouchEvent, nsDOMUIEvent)
+
 
 void
-TouchEvent::InitTouchEvent(const nsAString& aType,
-                           bool aCanBubble,
-                           bool aCancelable,
-                           nsIDOMWindow* aView,
-                           int32_t aDetail,
-                           bool aCtrlKey,
-                           bool aAltKey,
-                           bool aShiftKey,
-                           bool aMetaKey,
-                           TouchList* aTouches,
-                           TouchList* aTargetTouches,
-                           TouchList* aChangedTouches,
-                           ErrorResult& aRv)
+nsDOMTouchEvent::InitTouchEvent(const nsAString& aType,
+                                bool aCanBubble,
+                                bool aCancelable,
+                                nsIDOMWindow* aView,
+                                int32_t aDetail,
+                                bool aCtrlKey,
+                                bool aAltKey,
+                                bool aShiftKey,
+                                bool aMetaKey,
+                                nsDOMTouchList* aTouches,
+                                nsDOMTouchList* aTargetTouches,
+                                nsDOMTouchList* aChangedTouches,
+                                mozilla::ErrorResult& aRv)
 {
-  aRv = UIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, aDetail);
+  aRv = nsDOMUIEvent::InitUIEvent(aType,
+                                  aCanBubble,
+                                  aCancelable,
+                                  aView,
+                                  aDetail);
   if (aRv.Failed()) {
     return;
   }
@@ -121,8 +114,8 @@ TouchEvent::InitTouchEvent(const nsAString& aType,
   mChangedTouches = aChangedTouches;
 }
 
-TouchList*
-TouchEvent::Touches()
+nsDOMTouchList*
+nsDOMTouchEvent::Touches()
 {
   if (!mTouches) {
     WidgetTouchEvent* touchEvent = mEvent->AsTouchEvent();
@@ -135,16 +128,16 @@ TouchEvent::Touches()
           unchangedTouches.AppendElement(touches[i]);
         }
       }
-      mTouches = new TouchList(ToSupports(this), unchangedTouches);
+      mTouches = new nsDOMTouchList(ToSupports(this), unchangedTouches);
     } else {
-      mTouches = new TouchList(ToSupports(this), touchEvent->touches);
+      mTouches = new nsDOMTouchList(ToSupports(this), touchEvent->touches);
     }
   }
   return mTouches;
 }
 
-TouchList*
-TouchEvent::TargetTouches()
+nsDOMTouchList*
+nsDOMTouchEvent::TargetTouches()
 {
   if (!mTargetTouches) {
     nsTArray< nsRefPtr<Touch> > targetTouches;
@@ -160,13 +153,13 @@ TouchEvent::TargetTouches()
         }
       }
     }
-    mTargetTouches = new TouchList(ToSupports(this), targetTouches);
+    mTargetTouches = new nsDOMTouchList(ToSupports(this), targetTouches);
   }
   return mTargetTouches;
 }
 
-TouchList*
-TouchEvent::ChangedTouches()
+nsDOMTouchList*
+nsDOMTouchEvent::ChangedTouches()
 {
   if (!mChangedTouches) {
     nsTArray< nsRefPtr<Touch> > changedTouches;
@@ -177,14 +170,20 @@ TouchEvent::ChangedTouches()
         changedTouches.AppendElement(touches[i]);
       }
     }
-    mChangedTouches = new TouchList(ToSupports(this), changedTouches);
+    mChangedTouches = new nsDOMTouchList(ToSupports(this), changedTouches);
   }
   return mChangedTouches;
 }
 
-// static
+#ifdef XP_WIN
+namespace mozilla {
+namespace widget {
+extern int32_t IsTouchDeviceSupportPresent();
+} }
+#endif
+
 bool
-TouchEvent::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
+nsDOMTouchEvent::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
 {
   bool prefValue = false;
   int32_t flag = 0;
@@ -197,7 +196,7 @@ TouchEvent::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
       // On Windows we auto-detect based on device support.
       if (!sDidCheckTouchDeviceSupport) {
         sDidCheckTouchDeviceSupport = true;
-        sIsTouchDeviceSupportPresent = widget::IsTouchDeviceSupportPresent();
+        sIsTouchDeviceSupportPresent = mozilla::widget::IsTouchDeviceSupportPresent();
       }
       prefValue = sIsTouchDeviceSupportPresent;
 #else
@@ -215,41 +214,35 @@ TouchEvent::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
 }
 
 bool
-TouchEvent::AltKey()
+nsDOMTouchEvent::AltKey()
 {
   return mEvent->AsTouchEvent()->IsAlt();
 }
 
 bool
-TouchEvent::MetaKey()
+nsDOMTouchEvent::MetaKey()
 {
   return mEvent->AsTouchEvent()->IsMeta();
 }
 
 bool
-TouchEvent::CtrlKey()
+nsDOMTouchEvent::CtrlKey()
 {
   return mEvent->AsTouchEvent()->IsControl();
 }
 
 bool
-TouchEvent::ShiftKey()
+nsDOMTouchEvent::ShiftKey()
 {
   return mEvent->AsTouchEvent()->IsShift();
 }
 
-} // namespace dom
-} // namespace mozilla
-
-using namespace mozilla;
-using namespace mozilla::dom;
-
 nsresult
 NS_NewDOMTouchEvent(nsIDOMEvent** aInstancePtrResult,
-                    EventTarget* aOwner,
+                    mozilla::dom::EventTarget* aOwner,
                     nsPresContext* aPresContext,
                     WidgetTouchEvent* aEvent)
 {
-  TouchEvent* it = new TouchEvent(aOwner, aPresContext, aEvent);
+  nsDOMTouchEvent* it = new nsDOMTouchEvent(aOwner, aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }
