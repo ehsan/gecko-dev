@@ -355,7 +355,7 @@ public:
   void PoisonOuterWindowProxy(JSObject *aObject);
   virtual void OnFinalize(JSObject* aObject);
 
-  virtual bool IsBlackForCC(bool aTracingNeeded = true);
+  virtual bool IsBlackForCC();
 
   // nsIScriptObjectPrincipal
   virtual nsIPrincipal* GetPrincipal();

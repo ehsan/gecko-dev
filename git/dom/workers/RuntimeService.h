@@ -101,7 +101,6 @@ class RuntimeService MOZ_FINAL : public nsIObserver
   nsCString mSystemCharset;
 
   static JSSettings sDefaultJSSettings;
-  static bool sDefaultPreferences[WORKERPREF_COUNT];
 
 public:
   struct NavigatorStrings
@@ -183,13 +182,6 @@ public:
   }
 
   static void
-  GetDefaultPreferences(bool aPreferences[WORKERPREF_COUNT])
-  {
-    AssertIsOnMainThread();
-    memcpy(aPreferences, sDefaultPreferences, WORKERPREF_COUNT * sizeof(bool));
-  }
-
-  static void
   SetDefaultJSContextOptions(const JS::ContextOptions& aContentOptions,
                              const JS::ContextOptions& aChromeOptions)
   {
@@ -200,9 +192,6 @@ public:
 
   void
   UpdateAllWorkerJSContextOptions();
-
-  void
-  UpdateAllWorkerPreference(WorkerPreference aPref, bool aValue);
 
   static void
   SetDefaultJSGCSettings(JSGCParamKey aKey, uint32_t aValue)
@@ -252,6 +241,9 @@ public:
   void
   GarbageCollectAllWorkers(bool aShrinking);
 
+  bool
+  WorkersDumpEnabled();
+
 private:
   RuntimeService();
   ~RuntimeService();
@@ -289,9 +281,6 @@ private:
 
   static void
   ShutdownIdleThreads(nsITimer* aTimer, void* aClosure);
-
-  static int
-  WorkerPrefChanged(const char* aPrefName, void* aClosure);
 };
 
 END_WORKERS_NAMESPACE

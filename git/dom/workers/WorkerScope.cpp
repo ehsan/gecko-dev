@@ -234,7 +234,10 @@ WorkerGlobalScope::Dump(const Optional<nsAString>& aString) const
     return;
   }
 
-  if (!mWorkerPrivate->DumpEnabled()) {
+  RuntimeService* runtimeService = RuntimeService::GetService();
+  MOZ_ASSERT(runtimeService);
+
+  if (!runtimeService->WorkersDumpEnabled()) {
     return;
   }
 

@@ -82,10 +82,12 @@ function testTabRestoreData(aFormData, aExpectedValues, aCallback) {
   let tab = gBrowser.addTab(testURL);
   let tabState = { entries: [{ url: testURL, formdata: aFormData}] };
 
-  whenBrowserLoaded(tab.linkedBrowser, function() {
+  tab.linkedBrowser.addEventListener("load", function(aEvent) {
+    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
     ss.setTabState(tab, JSON.stringify(tabState));
 
-    whenTabRestored(tab, function() {
+    tab.addEventListener("SSTabRestored", function(aEvent) {
+      tab.removeEventListener("SSTabRestored", arguments.callee);
       let doc = tab.linkedBrowser.contentDocument;
       let select = doc.getElementById("select_id");
       let value = select.options[select.selectedIndex].value;
@@ -96,7 +98,9 @@ function testTabRestoreData(aFormData, aExpectedValues, aCallback) {
 
       // clean up
       gBrowser.removeTab(tab);
-
+      // Call stopPropagation on the event so we won't fire the
+      // tabbrowser's SSTabRestored listeners.
+      aEvent.stopPropagation();
       aCallback();
     });
 
@@ -123,5 +127,5 @@ function testTabRestoreData(aFormData, aExpectedValues, aCallback) {
       is(value, aExpectedValues[0],
         "Collection has been saved correctly");
     });
-  });
+  }, true);
 }

@@ -356,7 +356,6 @@ class LiveInterval
     bool splitFrom(CodePosition pos, LiveInterval *after);
 
     void addUse(UsePosition *use);
-    void addUseAtEnd(UsePosition *use);
     UsePosition *nextUseAfter(CodePosition pos);
     CodePosition nextUsePosAfter(CodePosition pos);
     CodePosition firstIncompatibleUse(LAllocation alloc);
@@ -367,10 +366,6 @@ class LiveInterval
 
     UsePositionIterator usesEnd() const {
         return uses_.end();
-    }
-
-    bool usesEmpty() const {
-        return uses_.empty();
     }
 
     UsePosition *usesBack() {
@@ -651,7 +646,7 @@ class LiveRangeAllocator : public RegisterAllocator
         size_t i = 0;
         for (; i < graph.numNonCallSafepoints(); i++) {
             const LInstruction *ins = graph.getNonCallSafepoint(i);
-            if (from <= inputOf(ins))
+            if (from <= (forLSRA ? inputOf(ins) : outputOf(ins)))
                 break;
         }
         return i;
@@ -672,11 +667,11 @@ class LiveRangeAllocator : public RegisterAllocator
         size_t i = findFirstNonCallSafepoint(start);
         for (; i < graph.numNonCallSafepoints(); i++) {
             LInstruction *ins = graph.getNonCallSafepoint(i);
-            CodePosition pos = inputOf(ins);
+            CodePosition pos = forLSRA ? inputOf(ins) : outputOf(ins);
 
             // Safepoints are sorted, so we can shortcut out of this loop
             // if we go out of range.
-            if (interval->end() <= pos)
+            if (interval->end() < pos)
                 break;
 
             if (!interval->covers(pos))

@@ -5,10 +5,12 @@
 function test() {
   let tab1 = gBrowser.addTab("about:rights");
   let tab2 = gBrowser.addTab("about:mozilla");
-  whenBrowserLoaded(tab1.linkedBrowser, mainPart);
+  tab1.linkedBrowser.addEventListener("load", mainPart, true);
   waitForExplicitFinish();
 
   function mainPart() {
+    tab1.linkedBrowser.removeEventListener("load", mainPart, true);
+
     // Tell the session storer that the tab is pinned
     let newTabState = '{"entries":[{"url":"about:rights"}],"pinned":true,"userTypedValue":"Hello World!"}';
     ss.setTabState(tab1, newTabState);

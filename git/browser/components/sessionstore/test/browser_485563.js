@@ -10,7 +10,8 @@ function test() {
   let uniqueValue = Math.random() + "\u2028Second line\u2029Second paragraph\u2027";
 
   let tab = gBrowser.addTab();
-  whenBrowserLoaded(tab.linkedBrowser, function() {
+  tab.linkedBrowser.addEventListener("load", function(aEvent) {
+    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
     ss.setTabValue(tab, "bug485563", uniqueValue);
     let tabState = JSON.parse(ss.getTabState(tab));
     is(tabState.extData["bug485563"], uniqueValue,
@@ -22,5 +23,5 @@ function test() {
 
     gBrowser.removeTab(tab);
     finish();
-  });
+  }, true);
 }

@@ -15,6 +15,10 @@ LIBS		= \
 		$(XPCOM_LIBS) \
 		$(NULL)
 
+ifdef JS_SHARED_LIBRARY
+LIBS +=	$(MOZ_JS_LIBS)
+endif
+
 LIBS +=	$(NSPR_LIBS)
 
 NSDISTMODE = copy

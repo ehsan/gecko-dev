@@ -14,7 +14,8 @@ function test() {
   let testURL = "http://mochi.test:8888/browser/" +
     "browser/components/sessionstore/test/browser_form_restore_events_sample.html";
   let tab = gBrowser.addTab(testURL);
-  whenBrowserLoaded(tab.linkedBrowser, function() {
+  tab.linkedBrowser.addEventListener("load", function(aEvent) {
+    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
     let doc = tab.linkedBrowser.contentDocument;
 
     // text fields
@@ -44,7 +45,8 @@ function test() {
 
 
     let tab2 = gBrowser.duplicateTab(tab);
-    whenTabRestored(tab2, function() {
+    tab2.linkedBrowser.addEventListener("load", function(aEvent) {
+      tab2.linkedBrowser.removeEventListener("load", arguments.callee, true);
       let doc = tab2.linkedBrowser.contentDocument;
       let inputFired = doc.getElementById("inputFired").textContent.trim().split();
       let changeFired = doc.getElementById("changeFired").textContent.trim().split();
@@ -60,6 +62,6 @@ function test() {
       gBrowser.removeTab(tab);
 
       finish();
-    });
-  });
+    }, true);
+  }, true);
 }

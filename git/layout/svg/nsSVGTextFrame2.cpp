@@ -5052,10 +5052,11 @@ nsSVGTextFrame2::ShouldRenderAsPath(nsRenderingContext* aContext,
   }
 
   // Text has a stroke.
-  if (style->HasStroke() &&
-      SVGContentUtils::CoordToFloat(PresContext(),
-                                    static_cast<nsSVGElement*>(mContent),
-                                    style->mStrokeWidth) > 0) {
+  if (!(style->mStroke.mType == eStyleSVGPaintType_None ||
+        style->mStrokeOpacity == 0 ||
+        SVGContentUtils::CoordToFloat(PresContext(),
+                                      static_cast<nsSVGElement*>(mContent),
+                                      style->mStrokeWidth) == 0)) {
     return true;
   }
 
