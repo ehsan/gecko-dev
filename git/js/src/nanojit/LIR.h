@@ -419,7 +419,6 @@ namespace nanojit
 		public:
 			Entry(int) : name(0), size(0), align(0) {}
 			Entry(avmplus::String *n, size_t s, size_t a) : name(n),size(s),align(a) {}
-            ~Entry(); 
 			DRCWB(avmplus::String*) name;
 			size_t size:29, align:3;
 		};
@@ -430,7 +429,6 @@ namespace nanojit
     public:
 		AvmCore *core;
         LabelMap(AvmCore *, LabelMap* parent);
-        ~LabelMap();
         void add(const void *p, size_t size, size_t align, const char *name);
 		void add(const void *p, size_t size, size_t align, avmplus::String*);
 		const char *dup(const char *);
@@ -457,7 +455,6 @@ namespace nanojit
 		public:
 			Entry(int) : name(0) {}
 			Entry(avmplus::String *n) : name(n) {}
-            ~Entry();
 			DRCWB(avmplus::String*) name;
 		};
 		avmplus::SortedMap<LInsp, Entry*, avmplus::LIST_GCObjects> names;
@@ -473,7 +470,6 @@ namespace nanojit
 			_functions(_functions),
 			labels(r)
 		{}
-        ~LirNameMap();
 
 		void addName(LInsp i, const char *s);
 		void addName(LInsp i, avmplus::String *s);

@@ -71,7 +71,7 @@ namespace nanojit
 
 	Fragmento::~Fragmento()
 	{
-		clearFrags();
+		debug_only( clearFrags() );
         _frags->clear();		
 		while( _allocList.size() > 0 )
 		{
@@ -81,12 +81,6 @@ namespace nanojit
 #endif
 			_gcHeap->Free( _allocList.removeLast() );	
 		}
-        delete _frags;
-        delete _assm;
-#if defined(NJ_VERBOSE)
-        delete enterCounts;
-        delete mergeCounts;
-#endif
 		NanoAssert(_stats.freePages == _stats.pages );
 	}
 
@@ -174,7 +168,6 @@ namespace nanojit
         while (!_frags->isEmpty()) {
             Fragment *f = _frags->removeLast();
 			f->releaseTreeMem(this);
-            delete f;
 		}			
 
 		verbose_only( enterCounts->clear();)
@@ -461,7 +454,6 @@ namespace nanojit
 
 	Fragment::~Fragment()
 	{
-        onDestroy();
 		NanoAssert(_pages == 0);
     }
 	
@@ -635,6 +627,10 @@ namespace nanojit
 
 	void Fragment::releaseLirBuffer()
 	{
+        if (lirbuf) {
+            lirbuf->clear();
+            lirbuf = 0;
+        }
 		lastIns = 0;	
 	}
 
@@ -653,14 +649,13 @@ namespace nanojit
 	{
 		releaseLirBuffer();
 		releaseCode(frago);
-
+			
 		// now do it for all branches 
 		Fragment* branch = branches;
 		while(branch)
 		{
 			Fragment* next = branch->nextbranch;
 			branch->releaseTreeMem(frago);  // @todo safer here to recurse in case we support nested trees
-            delete branch;
 			branch = next;
 		}
 	}

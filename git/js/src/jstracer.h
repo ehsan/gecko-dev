@@ -174,7 +174,7 @@ public:
     bool matches(TypeMap& other);
 };
 
-class TreeInfo MMGC_SUBCLASS_DECL {
+class TreeInfo {
     nanojit::Fragment*      fragment;
 public:
     unsigned                entryNativeStackSlots;

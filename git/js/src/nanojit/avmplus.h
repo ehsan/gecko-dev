@@ -190,22 +190,12 @@ namespace nanojit
 
 class GCObject 
 {
-public:
-    static void operator delete (void *gcObject)
-    {
-        free(gcObject); 
-    }
 };
 
-#define MMGC_SUBCLASS_DECL : public GCObject
+#define MMGC_SUBCLASS_DECL
 
-class GCFinalizedObject : public GCObject
+class GCFinalizedObject
 {
-public:
-    static void operator delete (void *gcObject)
-    {
-        free(gcObject); 
-    }
 };
 
 class GCHeap
