@@ -8,14 +8,12 @@
 
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsCSSPseudoElements.h"
 #include "nsIDocument.h"
 #include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/StickyTimeDuration.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/dom/Element.h"
 #include "mozilla/dom/Nullable.h"
 #include "nsSMILKeySpline.h"
 #include "nsStyleStruct.h" // for nsTimingFunction
@@ -130,19 +128,14 @@ class Animation : public nsWrapperCache
 {
 public:
   Animation(nsIDocument* aDocument,
-            Element* aTarget,
-            nsCSSPseudoElements::Type aPseudoType,
             const AnimationTiming &aTiming,
             const nsSubstring& aName)
     : mDocument(aDocument)
-    , mTarget(aTarget)
     , mTiming(aTiming)
     , mName(aName)
     , mIsFinishedTransition(false)
     , mLastNotification(LAST_NOTIFICATION_NONE)
-    , mPseudoType(aPseudoType)
   {
-    MOZ_ASSERT(aTarget, "null animation target is not yet supported");
     SetIsDOMBinding();
   }
 
@@ -164,15 +157,6 @@ public:
   // This currently returns a new object each time when used from C++ but is
   // cached when used from JS.
   already_AddRefed<AnimationEffect> GetEffect();
-  Element* GetTarget() const {
-    // Currently we only implement Element.getAnimationPlayers() which only
-    // returns animations targetting Elements so we should this should never
-    // be called for an animation that targets a pseudo-element.
-    MOZ_ASSERT(mPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement,
-               "Requesting the target of an Animation that targets a"
-               " pseudo-element is not yet supported.");
-    return mTarget;
-  }
 
   void SetParentTime(Nullable<TimeDuration> aParentTime);
 
@@ -240,8 +224,15 @@ public:
     mIsFinishedTransition = true;
   }
 
-  bool IsCurrent() const;
-  bool IsInEffect() const;
+  bool IsCurrent() const {
+    if (IsFinishedTransition()) {
+      return false;
+    }
+
+    ComputedTiming computedTiming = GetComputedTiming();
+    return computedTiming.mPhase == ComputedTiming::AnimationPhase_Before ||
+           computedTiming.mPhase == ComputedTiming::AnimationPhase_Active;
+  }
 
   enum {
     LAST_NOTIFICATION_NONE = uint64_t(-1),
@@ -265,8 +256,7 @@ protected:
 
   // We use a document for a parent object since the other likely candidate,
   // the target element, can be empty.
-  nsCOMPtr<nsIDocument> mDocument;
-  nsCOMPtr<Element> mTarget;
+  nsRefPtr<nsIDocument> mDocument;
   Nullable<TimeDuration> mParentTime;
 
   AnimationTiming mTiming;
@@ -277,7 +267,6 @@ protected:
   // One of the LAST_NOTIFICATION_* constants, or an integer for the iteration
   // whose start we last notified on.
   uint64_t mLastNotification;
-  nsCSSPseudoElements::Type mPseudoType;
 
   InfallibleTArray<AnimationProperty> mProperties;
 };

@@ -314,7 +314,7 @@ class RegExpCompartment
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf);
 };
 
-class RegExpObject : public NativeObject
+class RegExpObject : public JSObject
 {
     static const unsigned LAST_INDEX_SLOT          = 0;
     static const unsigned SOURCE_SLOT              = 1;
@@ -407,7 +407,7 @@ class RegExpObject : public NativeObject
 
     void setShared(RegExpShared &shared) {
         MOZ_ASSERT(!maybeShared());
-        NativeObject::setPrivate(&shared);
+        JSObject::setPrivate(&shared);
     }
 
     static void trace(JSTracer *trc, JSObject *obj);
@@ -436,7 +436,7 @@ class RegExpObject : public NativeObject
      */
     bool createShared(JSContext *cx, RegExpGuard *g);
     RegExpShared *maybeShared() const {
-        return static_cast<RegExpShared *>(NativeObject::getPrivate());
+        return static_cast<RegExpShared *>(JSObject::getPrivate());
     }
 
     /* Call setShared in preference to setPrivate. */
@@ -463,7 +463,7 @@ RegExpToShared(JSContext *cx, HandleObject obj, RegExpGuard *g)
 
 template<XDRMode mode>
 bool
-XDRScriptRegExpObject(XDRState<mode> *xdr, MutableHandle<RegExpObject*> objp);
+XDRScriptRegExpObject(XDRState<mode> *xdr, HeapPtrObject *objp);
 
 extern JSObject *
 CloneScriptRegExpObject(JSContext *cx, RegExpObject &re);

@@ -137,8 +137,8 @@ IsUninitializedLexicalSlot(HandleObject obj, HandleShape shape)
     {
         return false;
     }
-    MOZ_ASSERT(obj->as<NativeObject>().containsPure(shape));
-    return IsUninitializedLexical(obj->as<NativeObject>().getSlot(shape->slot()));
+    MOZ_ASSERT(obj->nativeContainsPure(shape));
+    return IsUninitializedLexical(obj->nativeGetSlot(shape->slot()));
 }
 
 static inline bool
@@ -243,16 +243,15 @@ FetchName(JSContext *cx, HandleObject obj, HandleObject obj2, HandlePropertyName
         if (!JSObject::getGeneric(cx, obj, obj, id, vp))
             return false;
     } else {
-        RootedObject normalized(cx, obj);
+        Rooted<JSObject*> normalized(cx, obj);
         if (normalized->is<DynamicWithObject>() && !shape->hasDefaultGetter())
             normalized = &normalized->as<DynamicWithObject>().object();
         if (shape->isDataDescriptor() && shape->hasDefaultGetter()) {
             /* Fast path for Object instance properties. */
             MOZ_ASSERT(shape->hasSlot());
-            vp.set(obj2->as<NativeObject>().getSlot(shape->slot()));
-        } else {
-            if (!NativeGet(cx, normalized, obj2.as<NativeObject>(), shape, vp))
-                return false;
+            vp.set(obj2->nativeGetSlot(shape->slot()));
+        } else if (!NativeGet(cx, normalized, obj2, shape, vp)) {
+            return false;
         }
     }
 
@@ -267,7 +266,7 @@ FetchNameNoGC(JSObject *pobj, Shape *shape, MutableHandleValue vp)
     if (!shape || !pobj->isNative() || !shape->isDataDescriptor() || !shape->hasDefaultGetter())
         return false;
 
-    vp.set(pobj->as<NativeObject>().getSlot(shape->slot()));
+    vp.set(pobj->nativeGetSlot(shape->slot()));
     return !IsUninitializedLexical(vp);
 }
 
@@ -320,10 +319,8 @@ SetNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, HandleObject s
     if (scope->isUnqualifiedVarObj()) {
         MOZ_ASSERT(!scope->getOps()->setProperty);
         RootedId id(cx, NameToId(name));
-        return baseops::SetPropertyHelper<SequentialExecution>(cx,
-                                                               scope.as<NativeObject>(),
-                                                               scope.as<NativeObject>(),
-                                                               id, baseops::Unqualified, &valCopy,
+        return baseops::SetPropertyHelper<SequentialExecution>(cx, scope, scope, id,
+                                                               baseops::Unqualified, &valCopy,
                                                                strict);
     }
 

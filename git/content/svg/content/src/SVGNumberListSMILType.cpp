@@ -7,7 +7,6 @@
 #include "nsSMILValue.h"
 #include "SVGNumberList.h"
 #include "nsMathUtils.h"
-#include "mozilla/FloatingPoint.h"
 #include <math.h>
 
 /* The "identity" number list for a given number list attribute (the effective
@@ -156,7 +155,7 @@ SVGNumberListSMILType::ComputeDistance(const nsSMILValue& aFrom,
     total += delta * delta;
   }
   double distance = sqrt(total);
-  if (!IsFinite(distance)) {
+  if (!NS_finite(distance)) {
     return NS_ERROR_FAILURE;
   }
   aDistance = distance;

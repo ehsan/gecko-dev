@@ -64,6 +64,12 @@ AnimationPlayer::IsRunning() const
   return computedTiming.mPhase == ComputedTiming::AnimationPhase_Active;
 }
 
+bool
+AnimationPlayer::IsCurrent() const
+{
+  return GetSource() && GetSource()->IsCurrent();
+}
+
 Nullable<TimeDuration>
 AnimationPlayer::GetCurrentTimeDuration() const
 {

@@ -13,7 +13,6 @@
 #include "nsSVGAnimatedTransformList.h"
 #include "nsSVGAttrTearoffTable.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/FloatingPoint.h"
 
 namespace {
   const double kRadPerDegree = 2.0 * M_PI / 360.0;
@@ -264,7 +263,7 @@ SVGTransform::SetSkewX(float angle, ErrorResult& rv)
     return;
   }
 
-  if (!IsFinite(tan(angle * kRadPerDegree))) {
+  if (!NS_finite(tan(angle * kRadPerDegree))) {
     rv.Throw(NS_ERROR_RANGE_ERR);
     return;
   }
@@ -287,7 +286,7 @@ SVGTransform::SetSkewY(float angle, ErrorResult& rv)
     return;
   }
 
-  if (!IsFinite(tan(angle * kRadPerDegree))) {
+  if (!NS_finite(tan(angle * kRadPerDegree))) {
     rv.Throw(NS_ERROR_RANGE_ERR);
     return;
   }

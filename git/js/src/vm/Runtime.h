@@ -334,7 +334,7 @@ class NewObjectCache
         MOZ_ASSERT(entry_ == makeIndex(clasp, key, kind));
         Entry *entry = &entries[entry_];
 
-        MOZ_ASSERT(!obj->fakeNativeHasDynamicSlots() && !obj->fakeNativeHasDynamicElements());
+        MOZ_ASSERT(!obj->hasDynamicSlots() && !obj->hasDynamicElements());
 
         entry->clasp = clasp;
         entry->key = key;
@@ -822,7 +822,7 @@ struct JSRuntime : public JS::shadow::Runtime,
      * Self-hosting state cloned on demand into other compartments. Shared with the parent
      * runtime if there is one.
      */
-    js::NativeObject *selfHostingGlobal_;
+    JSObject *selfHostingGlobal_;
 
     /* Space for interpreter frames. */
     js::InterpreterStack interpreterStack_;

@@ -123,10 +123,8 @@ public:
    */
   void UpdateWrapper(JSObject* aNewObject, const JSObject* aOldObject)
   {
-    if (mWrapper) {
-      MOZ_ASSERT(mWrapper == aOldObject);
-      mWrapper = aNewObject;
-    }
+    MOZ_ASSERT(mWrapper == aOldObject);
+    mWrapper = aNewObject;
   }
 
   bool PreservingWrapper()

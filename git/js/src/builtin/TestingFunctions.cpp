@@ -36,8 +36,6 @@
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
-
 using namespace js;
 using namespace JS;
 
@@ -1371,7 +1369,7 @@ SetIonCheckGraphCoherency(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-class CloneBufferObject : public NativeObject {
+class CloneBufferObject : public JSObject {
     static const JSPropertySpec props_[2];
     static const size_t DATA_SLOT   = 0;
     static const size_t LENGTH_SLOT = 1;
@@ -1384,8 +1382,8 @@ class CloneBufferObject : public NativeObject {
         RootedObject obj(cx, JS_NewObject(cx, Jsvalify(&class_), JS::NullPtr(), JS::NullPtr()));
         if (!obj)
             return nullptr;
-        obj->as<CloneBufferObject>().setReservedSlot(DATA_SLOT, PrivateValue(nullptr));
-        obj->as<CloneBufferObject>().setReservedSlot(LENGTH_SLOT, Int32Value(0));
+        obj->setReservedSlot(DATA_SLOT, PrivateValue(nullptr));
+        obj->setReservedSlot(LENGTH_SLOT, Int32Value(0));
 
         if (!JS_DefineProperties(cx, obj, props_))
             return nullptr;
@@ -1978,7 +1976,7 @@ FindPath(JSContext *cx, unsigned argc, jsval *vp)
     //
     //   { node: undefined, edge: <string> }
     size_t length = nodes.length();
-    RootedArrayObject result(cx, NewDenseFullyAllocatedArray(cx, length));
+    RootedObject result(cx, NewDenseFullyAllocatedArray(cx, length));
     if (!result)
         return false;
     result->ensureDenseInitializedLength(cx, 0, length);
@@ -2071,7 +2069,7 @@ ByteSize(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     mozilla::MallocSizeOf mallocSizeOf = cx->runtime()->debuggerMallocSizeOf;
-    JS::ubi::Node node = args.get(0);
+    JS::ubi::Node node(args.get(0));
     if (node)
         args.rval().set(NumberValue(node.size(mallocSizeOf)));
     else

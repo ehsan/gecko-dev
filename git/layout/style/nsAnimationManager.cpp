@@ -226,8 +226,7 @@ nsIStyleRule*
 nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
                                        mozilla::dom::Element* aElement)
 {
-  // FIXME (bug 960465): This test should go away.
-  if (!mPresContext->RestyleManager()->IsProcessingAnimationStyleChange()) {
+  if (!mPresContext->IsProcessingAnimationStyleChange()) {
     if (!mPresContext->IsDynamic()) {
       // For print or print preview, ignore animations.
       return nullptr;
@@ -250,7 +249,7 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
     // build the animations list
     dom::AnimationTimeline* timeline = aElement->OwnerDoc()->Timeline();
     AnimationPlayerPtrArray newPlayers;
-    BuildAnimations(aStyleContext, aElement, timeline, newPlayers);
+    BuildAnimations(aStyleContext, timeline, newPlayers);
 
     if (newPlayers.IsEmpty()) {
       if (collection) {
@@ -414,7 +413,6 @@ ResolvedStyleCache::Get(nsPresContext *aPresContext,
 
 void
 nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
-                                    dom::Element* aTarget,
                                     dom::AnimationTimeline* aTimeline,
                                     AnimationPlayerPtrArray& aPlayers)
 {
@@ -455,8 +453,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
     timing.mFillMode = src.GetFillMode();
 
     nsRefPtr<Animation> destAnim =
-      new Animation(mPresContext->Document(), aTarget,
-                    aStyleContext->GetPseudoType(), timing, src.GetName());
+      new Animation(mPresContext->Document(), timing, src.GetName());
     dest->SetSource(destAnim);
 
     dest->mStartTime = now;
@@ -668,12 +665,12 @@ nsAnimationManager::GetAnimationRule(mozilla::dom::Element* aElement,
     return nullptr;
   }
 
-  RestyleManager* restyleManager = mPresContext->RestyleManager();
-  if (restyleManager->SkipAnimationRules()) {
+  if (mPresContext->IsProcessingRestyles() &&
+      !mPresContext->IsProcessingAnimationStyleChange()) {
     // During the non-animation part of processing restyles, we don't
     // add the animation rule.
 
-    if (collection->mStyleRule && restyleManager->PostAnimationRestyles()) {
+    if (collection->mStyleRule) {
       collection->PostRestyleForAnimation(mPresContext);
     }
 

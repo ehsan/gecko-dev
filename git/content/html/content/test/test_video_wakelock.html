@@ -42,7 +42,7 @@ function testVideoPlayPause() {
     video.pause();
   });
 
-  function testVideoPlayPauseListener(topic, state) {
+  navigator.mozPower.addWakeLockListener(function testVideoPlayPauseListener(topic, state) {
     var locked = state == "locked-foreground" ||
                  state == "locked-background";
 
@@ -62,9 +62,8 @@ function testVideoPlayPause() {
       navigator.mozPower.removeWakeLockListener(testVideoPlayPauseListener);
       runTests();
     }
-  }
+  });
 
-  navigator.mozPower.addWakeLockListener(testVideoPlayPauseListener);
   video.play();
 }
 
@@ -85,7 +84,7 @@ function testVideoPlay() {
     startDate = new Date();
   });
 
-  function testVideoPlayListener(topic, state) {
+  navigator.mozPower.addWakeLockListener(function testVideoPlayListener(topic, state) {
     var locked = state == "locked-foreground" ||
                  state == "locked-background";
 
@@ -109,9 +108,8 @@ function testVideoPlay() {
       navigator.mozPower.removeWakeLockListener(testVideoPlayListener);
       runTests();
     }
-  }
+  });
 
-  navigator.mozPower.addWakeLockListener(testVideoPlayListener);
   video.play();
 }
 
@@ -126,11 +124,8 @@ function runTests() {
   test();
 };
 
-SpecialPowers.pushPermissions(
-  [{'type': 'power', 'allow': true, 'context': document}],
-  function() {
-    SpecialPowers.pushPrefEnv({"set": [["media.wakelock_timeout", 500]]}, runTests);
-  });
+SpecialPowers.addPermission("power", true, document);
+SpecialPowers.pushPrefEnv({"set": [["media.wakelock_timeout", 500]]}, runTests);
 
 SimpleTest.waitForExplicitFinish();
 

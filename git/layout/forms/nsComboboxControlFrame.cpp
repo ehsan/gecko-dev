@@ -31,7 +31,6 @@
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 #include "nsITheme.h"
-#include "nsThemeConstants.h"
 #include "nsRenderingContext.h"
 #include "mozilla/Likely.h"
 #include <algorithm>
@@ -735,11 +734,8 @@ nsComboboxControlFrame::GetIntrinsicISize(nsRenderingContext* aRenderingContext,
   }
 
   // add room for the dropmarker button if there is one
-  if ((!IsThemed() ||
-       presContext->GetTheme()->ThemeNeedsComboboxDropmarker()) &&
-      StyleDisplay()->mAppearance != NS_THEME_NONE) {
+  if (!IsThemed() || presContext->GetTheme()->ThemeNeedsComboboxDropmarker())
     displayWidth += scrollbarWidth;
-  }
 
   return displayWidth;
 
@@ -817,8 +813,7 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
   // dropdown button.
   nscoord buttonWidth;
   const nsStyleDisplay *disp = StyleDisplay();
-  if ((IsThemed(disp) && !aPresContext->GetTheme()->ThemeNeedsComboboxDropmarker()) ||
-      StyleDisplay()->mAppearance == NS_THEME_NONE) {
+  if (IsThemed(disp) && !aPresContext->GetTheme()->ThemeNeedsComboboxDropmarker()) {
     buttonWidth = 0;
   }
   else {

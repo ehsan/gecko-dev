@@ -14,7 +14,7 @@
 
 namespace js {
 
-class StringObject : public NativeObject
+class StringObject : public JSObject
 {
     static const unsigned PRIMITIVE_VALUE_SLOT = 0;
     static const unsigned LENGTH_SLOT = 1;

@@ -1590,6 +1590,21 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
 
   nsIntPoint point(0, 0);
 
+  if (mCompositionString != mLastDispatchedCompositionString) {
+    WidgetCompositionEvent compositionUpdate(true, NS_COMPOSITION_UPDATE,
+                                             aWindow);
+    aWindow->InitEvent(compositionUpdate, &point);
+    compositionUpdate.data = mCompositionString;
+    mLastDispatchedCompositionString = mCompositionString;
+
+    aWindow->DispatchWindowEvent(&compositionUpdate);
+
+    if (!mIsComposing || aWindow->Destroyed()) {
+      return;
+    }
+    SetIMERelatedWindowsPos(aWindow, aIMEContext);
+  }
+
   WidgetTextEvent event(true, NS_TEXT_TEXT, aWindow);
 
   aWindow->InitEvent(event, &point);
@@ -1598,7 +1613,7 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
     event.mRanges = CreateTextRangeArray();
   }
 
-  event.theText = mLastDispatchedCompositionString = mCompositionString;
+  event.theText = mCompositionString.get();
 
   aWindow->DispatchWindowEvent(&event);
 

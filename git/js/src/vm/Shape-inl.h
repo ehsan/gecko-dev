@@ -162,14 +162,14 @@ EmptyShape::ensureInitialCustomShape(ExclusiveContext *cx, Handle<ObjectSubclass
 
     // If the provided object has a non-empty shape, it was given the cached
     // initial shape when created: nothing to do.
-    if (!obj->empty())
+    if (!obj->nativeEmpty())
         return true;
 
     // If no initial shape was assigned, do so.
     RootedShape shape(cx, ObjectSubclass::assignInitialShape(cx, obj));
     if (!shape)
         return false;
-    MOZ_ASSERT(!obj->empty());
+    MOZ_ASSERT(!obj->nativeEmpty());
 
     // If the object is a standard prototype -- |RegExp.prototype|,
     // |String.prototype|, |RangeError.prototype|, &c. -- GlobalObject.cpp's

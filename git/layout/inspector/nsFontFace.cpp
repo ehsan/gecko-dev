@@ -10,10 +10,6 @@
 #include "nsFontFaceLoader.h"
 #include "mozilla/gfx/2D.h"
 #include "zlib.h"
-#include "mozilla/dom/FontFaceSet.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
 
 nsFontFace::nsFontFace(gfxFontEntry*      aFontEntry,
                        gfxFontGroup*      aFontGroup,
@@ -92,13 +88,10 @@ nsFontFace::GetRule(nsIDOMCSSFontFaceRule **aRule)
   // in the relevant font group's user font set
   nsCSSFontFaceRule* rule = nullptr;
   if (mFontEntry->IsUserFont()) {
-    FontFaceSet::UserFontSet* fontSet =
-      static_cast<FontFaceSet::UserFontSet*>(mFontGroup->GetUserFontSet());
+    nsUserFontSet* fontSet =
+      static_cast<nsUserFontSet*>(mFontGroup->GetUserFontSet());
     if (fontSet) {
-      FontFaceSet* fontFaceSet = fontSet->GetFontFaceSet();
-      if (fontFaceSet) {
-        rule = fontFaceSet->FindRuleForEntry(mFontEntry);
-      }
+      rule = fontSet->FindRuleForEntry(mFontEntry);
     }
   }
 

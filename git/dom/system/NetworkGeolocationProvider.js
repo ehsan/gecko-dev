@@ -415,8 +415,8 @@ WifiGeoPositionProvider.prototype = {
                     .getService(Ci.nsIMobileConnectionService);
 
       let result = [];
-      for (let i = 0; i < service.numItems; i++) {
-        LOG("Looking for SIM in slot:" + i + " of " + service.numItems);
+      for (let i = 0; i < service.length; i++) {
+        LOG("Looking for SIM in slot:" + i + " of " + service.length);
         let connection = service.getItemByServiceId(i);
         let voice = connection && connection.voice;
         let cell = voice && voice.cell;
@@ -424,26 +424,12 @@ WifiGeoPositionProvider.prototype = {
         let network = voice && voice.network;
 
         if (network && cell && type) {
-          let radioTechFamily;
-          switch (type) {
-            case "gsm":
-            case "gprs":
-            case "edge":
-              radioTechFamily = "gsm";
-              break;
-            case "umts":
-            case "hsdpa":
-            case "hsupa":
-            case "hspa":
-            case "hspa+":
-              radioTechFamily = "wcdma";
-              break;
-            case "lte":
-              radioTechFamily = "lte";
-              break;
-            // CDMA cases to be handled in bug 1010282
-          };
-          result.push({ radio: radioTechFamily,
+          if (type === "gsm" || type === "gprs" || type === "edge") {
+            type = "gsm";
+          } else {
+            type = "wcdma";
+          }
+          result.push({ radio: type,
                       mobileCountryCode: voice.network.mcc,
                       mobileNetworkCode: voice.network.mnc,
                       locationAreaCode: cell.gsmLocationAreaCode,

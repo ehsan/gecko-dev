@@ -18,7 +18,7 @@
 
 #include "vm/StringBuffer.h"
 
-#include "vm/ObjectImpl-inl.h"
+#include "jsobjinlines.h"
 
 using namespace js;
 
@@ -596,7 +596,7 @@ JSONParserBase::createFinishedObject(PropertyVector &properties)
      * shape in manually.
      */
     gc::AllocKind allocKind = gc::GetGCObjectKind(properties.length());
-    RootedNativeObject obj(cx, NewNativeBuiltinClassInstance(cx, &JSObject::class_, allocKind));
+    RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_, allocKind));
     if (!obj)
         return nullptr;
 
@@ -643,7 +643,7 @@ JSONParserBase::finishArray(MutableHandleValue vp, ElementVector &elements)
 {
     MOZ_ASSERT(&elements == &stack.back().elements());
 
-    ArrayObject *obj = NewDenseCopiedArray(cx, elements.length(), elements.begin());
+    JSObject *obj = NewDenseCopiedArray(cx, elements.length(), elements.begin());
     if (!obj)
         return false;
 

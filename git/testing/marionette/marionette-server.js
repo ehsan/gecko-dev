@@ -2215,7 +2215,6 @@ MarionetteServerConnection.prototype = {
       while (winEnum.hasMoreElements()) {
         winEnum.getNext().messageManager.removeDelayedFrameScript(FRAME_SCRIPT);
       }
-      this.curBrowser.frameManager.removeSpecialPowers();
       this.curBrowser.frameManager.removeMessageManagerListeners(this.globalMessageManager);
     }
     this.switchToGlobalMessageManager();

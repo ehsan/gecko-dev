@@ -434,14 +434,7 @@ BaseTimeDurationPlatformUtils::ToSecondsSigDigits(int64_t aTicks)
 int64_t
 BaseTimeDurationPlatformUtils::TicksFromMilliseconds(double aMilliseconds)
 {
-  double result = ms2mt(aMilliseconds);
-  if (result > INT64_MAX) {
-    return INT64_MAX;
-  } else if (result < INT64_MIN) {
-    return INT64_MIN;
-  }
-
-  return result;
+  return ms2mt(aMilliseconds);
 }
 
 int64_t

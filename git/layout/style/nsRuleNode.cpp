@@ -1556,16 +1556,6 @@ nsRuleNode::Transition(nsIStyleRule* aRule, uint8_t aLevel,
   return next;
 }
 
-nsRuleNode*
-nsRuleNode::RuleTree()
-{
-  nsRuleNode* n = this;
-  while (n->mParent) {
-    n = n->mParent;
-  }
-  return n;
-}
-
 void nsRuleNode::SetUsedDirectly()
 {
   mDependentBits |= NS_RULE_NODE_USED_DIRECTLY;

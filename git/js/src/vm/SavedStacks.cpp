@@ -25,8 +25,7 @@
 #include "vm/StringBuffer.h"
 
 #include "jscntxtinlines.h"
-
-#include "vm/ObjectImpl-inl.h"
+#include "jsobjinlines.h"
 
 using mozilla::AddToHash;
 using mozilla::HashString;
@@ -281,7 +280,7 @@ SavedFrame::checkThis(JSContext *cx, CallArgs &args, const char *fnName)
     // Check for SavedFrame.prototype, which has the same class as SavedFrame
     // instances, however doesn't actually represent a captured stack frame. It
     // is the only object that is<SavedFrame>() but doesn't have a source.
-    if (thisObject.as<SavedFrame>().getReservedSlot(JSSLOT_SOURCE).isNull()) {
+    if (thisObject.getReservedSlot(JSSLOT_SOURCE).isNull()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              SavedFrame::class_.name, fnName, "prototype object");
         return nullptr;
@@ -593,10 +592,9 @@ SavedStacks::getOrCreateSavedFramePrototype(JSContext *cx)
     if (!global)
         return nullptr;
 
-    RootedNativeObject proto(cx,
-        NewNativeObjectWithGivenProto(cx, &SavedFrame::class_,
-                                      global->getOrCreateObjectPrototype(cx),
-                                      global));
+    RootedObject proto(cx, NewObjectWithGivenProto(cx, &SavedFrame::class_,
+                                                   global->getOrCreateObjectPrototype(cx),
+                                                   global));
     if (!proto
         || !JS_DefineProperties(cx, proto, SavedFrame::properties)
         || !JS_DefineFunctions(cx, proto, SavedFrame::methods)
@@ -605,11 +603,10 @@ SavedStacks::getOrCreateSavedFramePrototype(JSContext *cx)
         return nullptr;
     }
 
+    savedFrameProto.set(proto);
     // The only object with the SavedFrame::class_ that doesn't have a source
     // should be the prototype.
-    proto->setReservedSlot(SavedFrame::JSSLOT_SOURCE, NullValue());
-
-    savedFrameProto.set(proto);
+    savedFrameProto->setReservedSlot(SavedFrame::JSSLOT_SOURCE, NullValue());
     return savedFrameProto;
 }
 

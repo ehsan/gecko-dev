@@ -144,8 +144,8 @@ struct Cell
 {
   public:
     MOZ_ALWAYS_INLINE bool isTenured() const { return !IsInsideNursery(this); }
-    MOZ_ALWAYS_INLINE const TenuredCell &asTenured() const;
-    MOZ_ALWAYS_INLINE TenuredCell &asTenured();
+    MOZ_ALWAYS_INLINE const TenuredCell *asTenured() const;
+    MOZ_ALWAYS_INLINE TenuredCell *asTenured();
 
     inline JSRuntime *runtimeFromMainThread() const;
     inline JS::shadow::Runtime *shadowRuntimeFromMainThread() const;
@@ -183,7 +183,7 @@ class TenuredCell : public Cell
     MOZ_ALWAYS_INLINE void unmark(uint32_t color) const;
     MOZ_ALWAYS_INLINE void copyMarkBitsFrom(const TenuredCell *src);
 
-    // Note: this is in TenuredCell because JSObject subclasses are sometimes
+    // Note: this is in TenuredCell because ObjectImpl subclasses are sometimes
     // used tagged.
     static MOZ_ALWAYS_INLINE bool isNullLike(const Cell *thing) { return !thing; }
 
@@ -1146,18 +1146,18 @@ AssertValidColor(const TenuredCell *thing, uint32_t color)
 #endif
 }
 
-MOZ_ALWAYS_INLINE const TenuredCell &
+MOZ_ALWAYS_INLINE const TenuredCell *
 Cell::asTenured() const
 {
     MOZ_ASSERT(isTenured());
-    return *static_cast<const TenuredCell *>(this);
+    return static_cast<const TenuredCell *>(this);
 }
 
-MOZ_ALWAYS_INLINE TenuredCell &
+MOZ_ALWAYS_INLINE TenuredCell *
 Cell::asTenured()
 {
     MOZ_ASSERT(isTenured());
-    return *static_cast<TenuredCell *>(this);
+    return static_cast<TenuredCell *>(this);
 }
 
 inline JSRuntime *
@@ -1383,7 +1383,7 @@ Cell::isAligned() const
 {
     if (!isTenured())
         return true;
-    return asTenured().isAligned();
+    return asTenured()->isAligned();
 }
 
 bool

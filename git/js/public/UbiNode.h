@@ -274,10 +274,7 @@ class Node {
     }
 
     // Constructors accepting SpiderMonkey's other generic-pointer-ish types.
-    // Note that we *do* want an implicit constructor here: JS::Value and
-    // JS::ubi::Node are both essentially tagged references to other sorts of
-    // objects, so letting conversions happen automatically is appropriate.
-    MOZ_IMPLICIT Node(JS::HandleValue value);
+    explicit Node(JS::HandleValue value);
     Node(JSGCTraceKind kind, void *ptr);
 
     // copy construction and copy assignment just use memcpy, since we know

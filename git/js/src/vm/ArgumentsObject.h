@@ -9,8 +9,9 @@
 
 #include "mozilla/MemoryReporting.h"
 
+#include "jsobj.h"
+
 #include "gc/Barrier.h"
-#include "vm/ObjectImpl.h"
 
 namespace js {
 
@@ -107,7 +108,7 @@ static const unsigned ARGS_LENGTH_MAX = 500 * 1000;
  *   DATA_SLOT
  *     Stores an ArgumentsData*, described above.
  */
-class ArgumentsObject : public NativeObject
+class ArgumentsObject : public JSObject
 {
   protected:
     static const uint32_t INITIAL_LENGTH_SLOT = 0;
@@ -270,10 +271,9 @@ class ArgumentsObject : public NativeObject
         return getFixedSlotOffset(INITIAL_LENGTH_SLOT);
     }
 
-    static void MaybeForwardToCallObject(AbstractFramePtr frame, ArgumentsObject *obj,
-                                         ArgumentsData *data);
+    static void MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj, ArgumentsData *data);
     static void MaybeForwardToCallObject(jit::IonJSFrameLayout *frame, HandleObject callObj,
-                                         ArgumentsObject *obj, ArgumentsData *data);
+                                         JSObject *obj, ArgumentsData *data);
 };
 
 class NormalArgumentsObject : public ArgumentsObject

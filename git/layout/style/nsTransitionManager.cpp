@@ -175,9 +175,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
   }
 
 
-  // FIXME (bug 960465): This test should go away.
-  if (aNewStyleContext->PresContext()->RestyleManager()->
-        IsProcessingAnimationStyleChange()) {
+  if (aNewStyleContext->PresContext()->IsProcessingAnimationStyleChange()) {
     return nullptr;
   }
 
@@ -517,8 +515,7 @@ nsTransitionManager::ConsiderStartingTransition(
   timing.mFillMode = NS_STYLE_ANIMATION_FILL_MODE_BACKWARDS;
 
   nsRefPtr<ElementPropertyTransition> pt =
-    new ElementPropertyTransition(aElement->OwnerDoc(), aElement,
-                                  aNewStyleContext->GetPseudoType(), timing);
+    new ElementPropertyTransition(aElement->OwnerDoc(), timing);
   pt->mStartForReversingTest = startForReversingTest;
   pt->mReversePortion = reversePortion;
 
@@ -642,18 +639,16 @@ nsTransitionManager::WalkTransitionRule(
     return;
   }
 
-  RestyleManager* restyleManager = aData->mPresContext->RestyleManager();
-  if (restyleManager->SkipAnimationRules()) {
+  if (aData->mPresContext->IsProcessingRestyles() &&
+      !aData->mPresContext->IsProcessingAnimationStyleChange()) {
     // If we're processing a normal style change rather than one from
     // animation, don't add the transition rule.  This allows us to
     // compute the new style value rather than having the transition
     // override it, so that we can start transitioning differently.
 
-    if (restyleManager->PostAnimationRestyles()) {
-      // We need to immediately restyle with animation
-      // after doing this.
-      collection->PostRestyleForAnimation(mPresContext);
-    }
+    // We need to immediately restyle with animation
+    // after doing this.
+    collection->PostRestyleForAnimation(mPresContext);
     return;
   }
 

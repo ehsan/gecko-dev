@@ -14,7 +14,6 @@
 #include "nsError.h"
 #include "nsMathUtils.h"
 #include "mozilla/dom/SVGLengthBinding.h"
-#include "mozilla/FloatingPoint.h"
 #include "nsSVGAttrTearoffTable.h"
 
 // See the architecture comment in DOMSVGAnimatedLengthList.h.
@@ -229,7 +228,7 @@ DOMSVGLength::GetValue(ErrorResult& aRv)
   }
   if (HasOwner()) {
     float value = InternalItem().GetValueInUserUnits(Element(), Axis());
-    if (!IsFinite(value)) {
+    if (!NS_finite(value)) {
       aRv.Throw(NS_ERROR_FAILURE);
     }
     return value;
@@ -277,7 +276,7 @@ DOMSVGLength::SetValue(float aUserUnitValue, ErrorResult& aRv)
     float uuPerUnit = InternalItem().GetUserUnitsPerUnit(Element(), Axis());
     if (uuPerUnit > 0) {
       float newValue = aUserUnitValue / uuPerUnit;
-      if (IsFinite(newValue)) {
+      if (NS_finite(newValue)) {
         AutoChangeLengthNotifier notifier(this);
         InternalItem().SetValueAndUnit(newValue, InternalItem().GetUnit());
         return;
@@ -296,7 +295,7 @@ DOMSVGLength::SetValue(float aUserUnitValue, ErrorResult& aRv)
 NS_IMETHODIMP
 DOMSVGLength::SetValue(float aUserUnitValue)
 {
-  if (!IsFinite(aUserUnitValue)) {
+  if (!NS_finite(aUserUnitValue)) {
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
@@ -356,7 +355,7 @@ DOMSVGLength::SetValueInSpecifiedUnits(float aValue, ErrorResult& aRv)
 NS_IMETHODIMP
 DOMSVGLength::SetValueInSpecifiedUnits(float aValue)
 {
-  if (!IsFinite(aValue)) {
+  if (!NS_finite(aValue)) {
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
@@ -461,7 +460,7 @@ DOMSVGLength::NewValueSpecifiedUnits(uint16_t aUnit, float aValue,
 NS_IMETHODIMP
 DOMSVGLength::NewValueSpecifiedUnits(uint16_t aUnit, float aValue)
 {
-  if (!IsFinite(aValue)) {
+  if (!NS_finite(aValue)) {
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
@@ -493,7 +492,7 @@ DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit, ErrorResult& aRv)
     }
     float val = InternalItem().GetValueInSpecifiedUnit(
                                  aUnit, Element(), Axis());
-    if (IsFinite(val)) {
+    if (NS_finite(val)) {
       AutoChangeLengthNotifier notifier(this);
       InternalItem().SetValueAndUnit(val, aUnit);
       return;
@@ -501,7 +500,7 @@ DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit, ErrorResult& aRv)
   } else {
     SVGLength len(mValue, mUnit);
     float val = len.GetValueInSpecifiedUnit(aUnit, nullptr, 0);
-    if (IsFinite(val)) {
+    if (NS_finite(val)) {
       mValue = val;
       mUnit = aUnit;
       return;
