@@ -332,7 +332,7 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
 {
     JSContext *iter = nullptr;
     while (JSContext *acx = JS_ContextIterator(GetJSRuntime(), &iter)) {
-        JS_ASSERT(js::HasUnrootedGlobal(acx));
+        MOZ_ASSERT(js::HasUnrootedGlobal(acx));
         if (JSObject *global = JS_GetGlobalObject(acx))
             JS_CALL_OBJECT_TRACER(trc, global, "XPC global object");
     }
@@ -1686,7 +1686,7 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
 
     // gcTotal is the sum of everything we've reported for the GC heap.  It
     // should equal rtStats.gcHeapChunkTotal.
-    JS_ASSERT(gcTotal == rtStats.gcHeapChunkTotal);
+    MOZ_ASSERT(gcTotal == rtStats.gcHeapChunkTotal);
 
     return NS_OK;
 }
@@ -2066,7 +2066,7 @@ bool XPCJSRuntime::gExperimentalBindingsEnabled;
 
 bool PreserveWrapper(JSContext *cx, JSObject *obj)
 {
-    JS_ASSERT(IS_WRAPPER_CLASS(js::GetObjectClass(obj)));
+    MOZ_ASSERT(IS_WRAPPER_CLASS(js::GetObjectClass(obj)));
     nsISupports *native = nsXPConnect::GetXPConnect()->GetNativeOfWrapper(cx, obj);
     if (!native)
         return false;
