@@ -39,6 +39,7 @@
 #include "nsSVGSwitchElement.h"
 #include "DOMSVGTests.h"
 #include "nsIFrame.h"
+#include "nsISVGChildFrame.h"
 #include "nsSVGUtils.h"
 #include "mozilla/Preferences.h"
 
@@ -88,7 +89,7 @@ void
 nsSVGSwitchElement::MaybeInvalidate()
 {
   // We don't reuse UpdateActiveChild() and check if mActiveChild has changed
-  // to determine if we should invalidate. If we did that,
+  // to determine if we should call nsSVGUtils::UpdateGraphic. If we did that,
   // nsSVGUtils::UpdateGraphic would not invalidate the old mActiveChild area!
 
   if (FindActiveChild() == mActiveChild) {
@@ -97,7 +98,10 @@ nsSVGSwitchElement::MaybeInvalidate()
 
   nsIFrame *frame = GetPrimaryFrame();
   if (frame) {
-    nsSVGUtils::UpdateGraphic(frame);
+    nsISVGChildFrame* svgFrame = do_QueryFrame(frame);
+    if (svgFrame) {
+      nsSVGUtils::UpdateGraphic(svgFrame);
+    }
   }
 }
 

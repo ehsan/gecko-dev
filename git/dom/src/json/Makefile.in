@@ -62,6 +62,8 @@ LOCAL_INCLUDES = \
 
 DEFINES += -D_IMPL_NS_LAYOUT
 
-TEST_DIRS += test
+ifdef ENABLE_TESTS
+  DIRS += test
+endif
 
 include $(topsrcdir)/config/rules.mk

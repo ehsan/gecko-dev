@@ -116,7 +116,6 @@ bool nsStyleCoord::operator==(const nsStyleCoord& aOther) const
     case eStyleUnit_Degree:
     case eStyleUnit_Grad:
     case eStyleUnit_Radian:
-    case eStyleUnit_Turn:
       return mValue.mFloat == aOther.mValue.mFloat;
     case eStyleUnit_Coord:
     case eStyleUnit_Integer:
@@ -171,8 +170,7 @@ void nsStyleCoord::SetAngleValue(float aValue, nsStyleUnit aUnit)
 {
   if (aUnit == eStyleUnit_Degree ||
       aUnit == eStyleUnit_Grad ||
-      aUnit == eStyleUnit_Radian ||
-      aUnit == eStyleUnit_Turn) {
+      aUnit == eStyleUnit_Radian) {
     mUnit = aUnit;
     mValue.mFloat = aValue;
   } else {
@@ -214,7 +212,6 @@ nsStyleCoord::GetAngleValueInRadians() const
 
   switch (GetUnit()) {
   case eStyleUnit_Radian: return angle;
-  case eStyleUnit_Turn:   return angle * 2 * M_PI;
   case eStyleUnit_Degree: return angle * M_PI / 180.0;
   case eStyleUnit_Grad:   return angle * M_PI / 200.0;
 

@@ -161,6 +161,7 @@ public:
     jobject LockBuffer();
     unsigned char *LockBufferBits();
     void UnlockBuffer();
+    void GetRenderOffset(nsIntPoint &aOffset);
     bool BeginDrawing(int aWidth, int aHeight, int aTileWidth, int aTileHeight, const nsAString &aMetadata, bool aHasDirectTexture);
     void EndDrawing(const nsIntRect &aRect);
 
@@ -170,6 +171,7 @@ private:
     static jmethodID jUnlockBufferMethod;
 
 protected:
+     static jmethodID jGetRenderOffsetMethod;
      static jmethodID jBeginDrawingMethod;
      static jmethodID jEndDrawingMethod;
 };
