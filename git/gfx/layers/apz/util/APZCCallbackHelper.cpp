@@ -23,7 +23,7 @@ APZCCallbackHelper::HasValidPresShellId(nsIDOMWindowUtils* aUtils,
     uint32_t presShellId;
     nsresult rv = aUtils->GetPresShellId(&presShellId);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
-    return NS_SUCCEEDED(rv) && aMetrics.GetPresShellId() == presShellId;
+    return NS_SUCCEEDED(rv) && aMetrics.mPresShellId == presShellId;
 }
 
 static void

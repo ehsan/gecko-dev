@@ -5196,8 +5196,6 @@ HTMLInputElement::SetRangeText(const nsAString& aReplacement, uint32_t aStart,
       }
     }
     break;
-    default:
-      MOZ_CRASH("Unknown mode!");
   }
 
   Optional<nsAString> direction;

@@ -94,9 +94,9 @@ NS_IMETHODIMP AppCacheStorage::AsyncDoomURI(nsIURI *aURI, const nsACString & aId
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsRefPtr<_OldStorage> old = new _OldStorage(
-    LoadInfo(), WriteToDisk(), LookupAppCache(), true, mAppCache);
-  return old->AsyncDoomURI(aURI, aIdExtension, aCallback);
+  // TODO - remove entry from app cache
+  // I think no one is using this...
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP AppCacheStorage::AsyncEvictStorage(nsICacheEntryDoomCallback* aCallback)
@@ -131,12 +131,12 @@ NS_IMETHODIMP AppCacheStorage::AsyncEvictStorage(nsICacheEntryDoomCallback* aCal
   }
   else {
     // Discard the group
-    nsRefPtr<_OldStorage> old = new _OldStorage(
-      LoadInfo(), WriteToDisk(), LookupAppCache(), true, mAppCache);
-    rv = old->AsyncEvictStorage(aCallback);
+    nsAutoCString groupID;
+    rv = mAppCache->GetGroupID(groupID);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    return NS_OK;
+    rv = appCacheService->DeactivateGroup(groupID);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (aCallback)

@@ -204,7 +204,7 @@ Zone::discardJitCode(FreeOp *fop)
             // well to preserve them.
             if (script->hasParallelIonScript()) {
                 if (jit::ShouldPreserveParallelJITCode(runtimeFromMainThread(), script)) {
-                    script->parallelIonScript()->purgeCaches();
+                    script->parallelIonScript()->purgeCaches(this);
                     script->baselineScript()->setActive();
                 } else {
                     jit::FinishInvalidation<ParallelExecution>(fop, script);

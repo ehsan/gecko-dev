@@ -69,7 +69,7 @@
            " i=(%ld %lld) cb=(%d %d %d %d) rcs=(%.3f %.3f) dp=(%.3f %.3f %.3f %.3f) dpm=(%.3f %.3f %.3f %.3f) um=%d " \
            "v=(%.3f %.3f %.3f %.3f) s=(%.3f %.3f) sr=(%.3f %.3f %.3f %.3f) z(ld=%.3f r=%.3f cr=%.3f z=%.3f ts=%.3f) u=(%d %lu)\n", \
            __VA_ARGS__, \
-           fm.GetPresShellId(), fm.GetScrollId(), \
+           fm.mPresShellId, fm.GetScrollId(), \
            fm.mCompositionBounds.x, fm.mCompositionBounds.y, fm.mCompositionBounds.width, fm.mCompositionBounds.height, \
            fm.GetRootCompositionSize().width, fm.GetRootCompositionSize().height, \
            fm.mDisplayPort.x, fm.mDisplayPort.y, fm.mDisplayPort.width, fm.mDisplayPort.height, \
@@ -250,10 +250,6 @@ typedef GeckoContentController::APZStateChange APZStateChange;
  * "apz.x_stationary_size_multiplier", "apz.y_stationary_size_multiplier"
  * The multiplier we apply to the displayport size if it is not skating (see
  * documentation for the skate size multipliers above).
- *
- * "apz.zoom_animation_duration_ms"
- * This controls how long the zoom-to-rect animation takes.
- * Units: ms
  */
 
 /**
@@ -287,6 +283,11 @@ static const double AXIS_BREAKOUT_ANGLE = M_PI / 8.0; // 22.5 degrees
  * added to keep behavior consistent with IE.
  */
 static const double ALLOWED_DIRECT_PAN_ANGLE = M_PI / 3.0; // 60 degrees
+
+/**
+ * Duration of a zoom to animation.
+ */
+static const TimeDuration ZOOM_TO_DURATION = TimeDuration::FromSeconds(0.25);
 
 /**
  * Computed time function used for sampling frames of a zoom to animation.
@@ -418,8 +419,7 @@ class ZoomAnimation: public AsyncPanZoomAnimation {
 public:
   ZoomAnimation(CSSPoint aStartOffset, CSSToScreenScale aStartZoom,
                 CSSPoint aEndOffset, CSSToScreenScale aEndZoom)
-    : mTotalDuration(TimeDuration::FromMilliseconds(gfxPrefs::APZZoomAnimationDuration()))
-    , mStartOffset(aStartOffset)
+    : mStartOffset(aStartOffset)
     , mStartZoom(aStartZoom)
     , mEndOffset(aEndOffset)
     , mEndZoom(aEndZoom)
@@ -430,7 +430,6 @@ public:
 
 private:
   TimeDuration mDuration;
-  const TimeDuration mTotalDuration;
 
   // Old metrics from before we started a zoom animation. This is only valid
   // when we are in the "ANIMATED_ZOOM" state. This is used so that we can
@@ -1604,7 +1603,7 @@ void AsyncPanZoomController::RequestContentRepaint(FrameMetrics& aFrameMetrics) 
                       aFrameMetrics),
     GetFrameTime());
 
-  aFrameMetrics.SetPresShellId(mLastContentPaintMetrics.GetPresShellId());
+  aFrameMetrics.mPresShellId = mLastContentPaintMetrics.mPresShellId;
   mLastPaintRequestMetrics = aFrameMetrics;
 }
 
@@ -1644,7 +1643,7 @@ AsyncPanZoomController::FireAsyncScrollOnTimeout()
 bool ZoomAnimation::Sample(FrameMetrics& aFrameMetrics,
                            const TimeDuration& aDelta) {
   mDuration += aDelta;
-  double animPosition = mDuration / mTotalDuration;
+  double animPosition = mDuration / ZOOM_TO_DURATION;
 
   if (animPosition >= 1.0) {
     aFrameMetrics.SetZoom(mEndZoom);

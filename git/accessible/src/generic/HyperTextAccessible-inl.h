@@ -21,17 +21,15 @@ namespace a11y {
 inline bool
 HyperTextAccessible::IsValidOffset(int32_t aOffset)
 {
-  index_t offset = ConvertMagicOffset(aOffset);
-  return offset.IsValid() && offset <= CharacterCount();
+  return ConvertMagicOffset(aOffset) <= CharacterCount();
 }
 
 inline bool
 HyperTextAccessible::IsValidRange(int32_t aStartOffset, int32_t aEndOffset)
 {
-  index_t startOffset = ConvertMagicOffset(aStartOffset);
-  index_t endOffset = ConvertMagicOffset(aEndOffset);
-  return startOffset.IsValid() && endOffset.IsValid() &&
-    startOffset <= endOffset && endOffset <= CharacterCount();
+  uint32_t endOffset = ConvertMagicOffset(aEndOffset);
+  return ConvertMagicOffset(aStartOffset) <= endOffset &&
+    endOffset <= CharacterCount();
 }
 
 inline void
@@ -112,7 +110,7 @@ HyperTextAccessible::PasteText(int32_t aPosition)
   }
 }
 
-inline index_t
+inline uint32_t
 HyperTextAccessible::ConvertMagicOffset(int32_t aOffset) const
 {
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT)
@@ -121,7 +119,7 @@ HyperTextAccessible::ConvertMagicOffset(int32_t aOffset) const
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
     return CaretOffset();
 
-  return aOffset;
+  return aOffset < 0 ? std::numeric_limits<uint32_t>::max() : aOffset;
 }
 
 inline uint32_t

@@ -814,8 +814,7 @@ ToDisassemblySource(JSContext *cx, HandleValue v, JSAutoByteString *bytes)
         return true;
     }
 
-    JSRuntime *rt = cx->runtime();
-    if (rt->isHeapBusy() || !rt->gc.isAllocAllowed()) {
+    if (cx->runtime()->isHeapBusy() || cx->runtime()->gc.noGCOrAllocationCheck) {
         char *source = JS_sprintf_append(nullptr, "<value>");
         if (!source)
             return false;

@@ -899,7 +899,7 @@ ContentChild::AllocPJavaScriptChild()
 bool
 ContentChild::DeallocPJavaScriptChild(PJavaScriptChild *child)
 {
-    static_cast<mozilla::jsipc::JavaScriptChild *>(child)->decref();
+    delete child;
     return true;
 }
 

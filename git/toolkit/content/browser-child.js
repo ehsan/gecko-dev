@@ -11,7 +11,7 @@ Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import("resource://gre/modules/RemoteAddonsChild.jsm");
 Cu.import("resource://gre/modules/Timer.jsm");
 
-let FocusSyncHandler = {
+let SyncHandler = {
   init: function() {
     sendAsyncMessage("SetSyncHandler", {}, {handler: this});
   },
@@ -25,7 +25,7 @@ let FocusSyncHandler = {
   },
 };
 
-FocusSyncHandler.init();
+SyncHandler.init();
 
 let WebProgressListener = {
   init: function() {
@@ -122,6 +122,8 @@ let WebProgressListener = {
 WebProgressListener.init();
 
 let WebNavigation =  {
+  _webNavigation: docShell.QueryInterface(Ci.nsIWebNavigation),
+
   init: function() {
     addMessageListener("WebNavigation:GoBack", this);
     addMessageListener("WebNavigation:GoForward", this);
@@ -130,13 +132,8 @@ let WebNavigation =  {
     addMessageListener("WebNavigation:Reload", this);
     addMessageListener("WebNavigation:Stop", this);
 
-    this._webNavigation = docShell.QueryInterface(Ci.nsIWebNavigation);
-    this._sessionHistory = this._webNavigation.sessionHistory;
-
-    // Send a CPOW for the sessionHistory object. We need to make sure
-    // it stays alive as long as the content script since CPOWs are
-    // weakly held.
-    let history = this._sessionHistory;
+    // Send a CPOW for the sessionHistory object.
+    let history = this._webNavigation.sessionHistory;
     sendAsyncMessage("WebNavigation:setHistory", {}, {history: history});
   },
 
