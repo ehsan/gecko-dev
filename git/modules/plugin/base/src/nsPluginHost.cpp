@@ -4194,7 +4194,7 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
     rv = owner->GetDocument(getter_AddRefs(doc));
     if (NS_SUCCEEDED(rv) && doc) {
       // Create an absolute URL
-      rv = NS_MakeAbsoluteURI(absUrl, aURL, doc->GetDocBaseURI());
+      rv = NS_MakeAbsoluteURI(absUrl, aURL, doc->GetBaseURI());
     }
   }
 
@@ -4314,7 +4314,7 @@ nsPluginHost::DoURLLoadSecurityCheck(nsIPluginInstance *aInstance,
 
   // Create an absolute URL for the target in case the target is relative
   nsCOMPtr<nsIURI> targetURL;
-  NS_NewURI(getter_AddRefs(targetURL), aURL, doc->GetDocBaseURI());
+  NS_NewURI(getter_AddRefs(targetURL), aURL, doc->GetBaseURI());
   if (!targetURL)
     return NS_ERROR_FAILURE;
 

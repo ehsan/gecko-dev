@@ -480,6 +480,7 @@ case "$target" in
     ;;
 esac
 
+
 MOZ_ARG_WITH_STRING(windows-version,
 [  --with-windows-version=WINSDK_TARGETVER
                           Highest Windows version to target using this SDK
@@ -499,12 +500,27 @@ case "$WINSDK_TARGETVER" in
 
 esac
 
+dnl Vista SDK specific api (deprecated)
+MOZ_ARG_DISABLE_BOOL(vista-sdk-requirements,
+[  --disable-vista-sdk-requirements
+                           Do not build Vista SDK specific code],
+   MOZ_DISABLE_VISTA_SDK_REQUIREMENTS=1,
+   MOZ_DISABLE_VISTA_SDK_REQUIREMENTS=$_PLATFORM_MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
 if test -n "$COMPILE_ENVIRONMENT"; then
+if test -n "$MOZ_DISABLE_VISTA_SDK_REQUIREMENTS"; then
+    AC_MSG_WARN([--disable-vista-sdk-requirements is deprecated, use --with-windows-version=502 instead])
+    MOZ_WINSDK_TARGETVER=05020000
+fi
+
 if test "$MOZ_WINSDK_TARGETVER" -lt "06000000"; then
+    MOZ_DISABLE_VISTA_SDK_REQUIREMENTS=1
+    AC_DEFINE(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
     # We can't build parental controls either
     MOZ_DISABLE_PARENTAL_CONTROLS=1
 fi
 fi
+
+AC_SUBST(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
 
 case "$target" in
 *-cygwin*|*-mingw*|*-msvc*|*-mks*|*-wince|*-winmo)
@@ -2100,7 +2116,7 @@ ia64*-hpux*)
             # -Os is broken on gcc 4.1.x and 4.2.x, we need to tweak it to get good results.
             MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
         esac
-        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fomit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
+        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fomit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
         MOZ_DEBUG_FLAGS="-g"
     fi
 
@@ -2125,6 +2141,7 @@ ia64*-hpux*)
 *-wince*|*-winmo*)
     TARGET_COMPILER_ABI=msvc
     _PLATFORM_DEFAULT_TOOLKIT=cairo-windows
+    _PLATFORM_MOZ_DISABLE_VISTA_SDK_REQUIREMENTS=1
     MOZ_TOOLS_DIR=`cd $MOZ_TOOLS && pwd -W`
     MOZ_BUILD_ROOT=`cd $MOZ_BUILD_ROOT && pwd -W`
     AR_LIST="$AR -list"
@@ -2704,6 +2721,7 @@ alpha*-*-osf*)
     # $ORIGIN/.. is for shared libraries under components/ to locate shared
     # libraries one level up (e.g. libnspr4.so)
     LDFLAGS="$LDFLAGS -z ignore -R '\$\$ORIGIN:\$\$ORIGIN/..'"
+    MOZ_MEMORY=1
     if test "$SOLARIS_SUNPRO_CC"; then
        LIBS="-lCrun -lCstd $LIBS"
        NS_USE_NATIVE=1
@@ -5071,6 +5089,8 @@ MOZ_ARG_HEADER(Toolkit Options)
         AC_MSG_ERROR([You must specify a default toolkit (perhaps $_PLATFORM_DEFAULT_TOOLKIT).])
     fi
 
+AC_DEFINE_UNQUOTED(MOZ_DEFAULT_TOOLKIT,"$MOZ_WIDGET_TOOLKIT")
+
 dnl ========================================================
 dnl = Enable the toolkit as needed                         =
 dnl ========================================================
@@ -5190,6 +5210,7 @@ if test "$COMPILE_ENVIRONMENT"; then
 
 fi # COMPILE_ENVIRONMENT
 
+AC_SUBST(MOZ_DEFAULT_TOOLKIT)
 AC_SUBST(MOZ_FS_LAYOUT)
 
 dnl ========================================================
@@ -5628,6 +5649,9 @@ dnl ========================================================
 dnl = Disable IPC support for tabs and plugins
 dnl ========================================================
 case "${target}" in
+powerpc-apple-darwin*)
+    MOZ_IPC=
+    ;;
 *-wince*)
     MOZ_IPC=
     ;;
@@ -7522,7 +7546,7 @@ MOZ_PROFILE_GUIDED_OPTIMIZE_DISABLE=)
 AC_SUBST(MOZ_PROFILE_GUIDED_OPTIMIZE_DISABLE)
 
 _SAVE_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS -fprofile-generate -fprofile-correction"
+CFLAGS="$CFLAGS -fprofile-generate"
 
 AC_MSG_CHECKING([whether C compiler supports -fprofile-generate])
 AC_TRY_COMPILE([], [return 0;],
@@ -7532,7 +7556,7 @@ AC_MSG_RESULT([$result])
 
 if test $result = "yes"; then
   PROFILE_GEN_LDFLAGS="-fprofile-generate"
-  PROFILE_USE_CFLAGS="-fprofile-use -fprofile-correction -Wcoverage-mismatch -freorder-blocks-and-partition"
+  PROFILE_USE_CFLAGS="-fprofile-use"
   PROFILE_USE_LDFLAGS="-fprofile-use"
 else
   CFLAGS="$_SAVE_CFLAGS -fprofile-arcs"

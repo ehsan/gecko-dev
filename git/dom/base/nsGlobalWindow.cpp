@@ -203,7 +203,7 @@
 #include "nsIPopupWindowManager.h"
 
 #include "nsIDragService.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -5177,7 +5177,7 @@ nsGlobalWindow::FireAbuseEvents(PRBool aBlocked, PRBool aWindow,
   contextWindow->GetDocument(getter_AddRefs(domdoc));
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(domdoc));
   if (doc)
-    baseURL = doc->GetDocBaseURI();
+    baseURL = doc->GetBaseURI();
 
   // use the base URI to build what would have been the popup's URI
   nsCOMPtr<nsIIOService> ios(do_GetService(NS_IOSERVICE_CONTRACTID));
@@ -6651,8 +6651,9 @@ nsGlobalWindow::RemoveGroupedEventListener(const nsAString & aType,
 
     mListenerManager->RemoveEventListenerByType(aListener, aType, flags,
                                                 aEvtGrp);
+    return NS_OK;
   }
-  return NS_OK;
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -8985,7 +8986,7 @@ nsGlobalWindow::BuildURIfromBase(const char *aURL, nsIURI **aBuiltURI,
     sourceWindow->GetDocument(getter_AddRefs(domDoc));
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
     if (doc) {
-      baseURI = doc->GetDocBaseURI();
+      baseURI = doc->GetBaseURI();
       charset = doc->GetDocumentCharacterSet();
     }
   }

@@ -76,7 +76,7 @@
 #include "nsIDOMNSEventTarget.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsFocusManager.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 
 #ifdef MOZ_XUL
@@ -85,7 +85,7 @@
 #include "nsIXULWindow.h"
 #endif
 
-using namespace mozilla;
+using namespace mozilla::dom;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
@@ -147,7 +147,7 @@ nsRootAccessible::GetRoleInternal(PRUint32 *aRole)
   }
 
   // If it's a <dialog> or <wizard>, use nsIAccessibleRole::ROLE_DIALOG instead
-  dom::Element *root = mDocument->GetRootElement();
+  Element *root = mDocument->GetRootElement();
   if (root) {
     nsCOMPtr<nsIDOMElement> rootElement(do_QueryInterface(root));
     if (rootElement) {

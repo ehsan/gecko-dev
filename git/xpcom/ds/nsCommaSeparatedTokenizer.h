@@ -36,18 +36,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef __nsCharSeparatedTokenizer_h
-#define __nsCharSeparatedTokenizer_h
+#ifndef __nsCommaSeparatedTokenizer_h
+#define __nsCommaSeparatedTokenizer_h
 
 #include "nsDependentSubstring.h"
 
 /**
- * This parses a SeparatorChar-separated string into tokens.
- * Whitespace surrounding tokens is not treated as part of tokens, however
- * whitespace inside a token is. If the final token is the empty string, it is
- * not returned.
+ * This parses a comma separated string into tokens. Whitespace surrounding
+ * tokens are not treated as part of tokens, however whitespace inside a token
+ * is. If the final token is the empty string it is not returned.
  *
- * Some examples, with SeparatorChar = ',':
+ * Some examples:
  *
  * "foo, bar, baz" ->      "foo" "bar" "baz"
  * "foo,bar,baz" ->        "foo" "bar" "baz"
@@ -56,26 +55,15 @@
  * "foo,,bar,baz" ->       "foo" "" "bar" "baz"
  * "foo,bar,baz," ->       "foo" "bar" "baz"
  */
-class nsCharSeparatedTokenizer
+
+class nsCommaSeparatedTokenizer
 {
 public:
-    // Flags -- only one for now. If we need more, they should be defined to
-    // be 1<<1, 1<<2, etc. (They're masks, and aFlags/mFlags are bitfields.)
-    enum {
-        SEPARATOR_OPTIONAL = 1
-    };
-
-    nsCharSeparatedTokenizer(const nsSubstring& aSource,
-                             PRUnichar aSeparatorChar,
-                             PRUint32  aFlags = 0)
-        : mLastTokenEndedWithSeparator(PR_FALSE),
-          mSeparatorChar(aSeparatorChar),
-          mFlags(aFlags)
+    nsCommaSeparatedTokenizer(const nsSubstring& aSource)
     {
         aSource.BeginReading(mIter);
         aSource.EndReading(mEnd);
 
-        // Skip initial whitespace
         while (mIter != mEnd && isWhitespace(*mIter)) {
             ++mIter;
         }
@@ -92,9 +80,9 @@ public:
         return mIter != mEnd;
     }
 
-    PRBool lastTokenEndedWithSeparator()
+    PRBool lastTokenEndedWithComma()
     {
-        return mLastTokenEndedWithSeparator;
+        return mLastTokenEndedWithComma;
     }
 
     /**
@@ -107,52 +95,35 @@ public:
         NS_ASSERTION(mIter == mEnd || !isWhitespace(*mIter),
                      "Should be at beginning of token if there is one");
 
-        // Search until we hit separator or end (or whitespace, if separator
-        // isn't required -- see clause with 'break' below).
-        while (mIter != mEnd && *mIter != mSeparatorChar) {
-          // Skip to end of current word.
-          while (mIter != mEnd &&
-                 !isWhitespace(*mIter) && *mIter != mSeparatorChar) {
+        // Search until we hit comma or end
+        while (mIter != mEnd && *mIter != ',') {
+          while (mIter != mEnd && !isWhitespace(*mIter) && *mIter != ',') {
               ++mIter;
           }
           end = mIter;
 
-          // Skip whitespace after current word.
           while (mIter != mEnd && isWhitespace(*mIter)) {
               ++mIter;
           }
-          if (mFlags & SEPARATOR_OPTIONAL) {
-            // We've hit (and skipped) whitespace, and that's sufficient to end
-            // our token, regardless of whether we've reached a SeparatorChar.
-            break;
-          } // (else, we'll keep looping until we hit mEnd or SeparatorChar)
         }
+        mLastTokenEndedWithComma = mIter != mEnd;
 
-        mLastTokenEndedWithSeparator = (mIter != mEnd &&
-                                        *mIter == mSeparatorChar);
-        NS_ASSERTION((mFlags & SEPARATOR_OPTIONAL) ||
-                     (mLastTokenEndedWithSeparator == (mIter != mEnd)),
-                     "If we require a separator and haven't hit the end of "
-                     "our string, then we shouldn't have left the loop "
-                     "unless we hit a separator");
-
-        // Skip separator (and any whitespace after it), if we're at one.
-        if (mLastTokenEndedWithSeparator) {
+        // Skip comma
+        if (mLastTokenEndedWithComma) {
+            NS_ASSERTION(*mIter == ',', "Ended loop too soon");
             ++mIter;
 
             while (mIter != mEnd && isWhitespace(*mIter)) {
                 ++mIter;
             }
         }
-
+        
         return Substring(begin, end);
     }
 
 private:
     nsSubstring::const_char_iterator mIter, mEnd;
-    PRPackedBool mLastTokenEndedWithSeparator;
-    PRUnichar mSeparatorChar;
-    PRUint32  mFlags;
+    PRPackedBool mLastTokenEndedWithComma;
 
     PRBool isWhitespace(PRUnichar aChar)
     {
@@ -162,12 +133,10 @@ private:
     }
 };
 
-class nsCCharSeparatedTokenizer
+class nsCCommaSeparatedTokenizer
 {
 public:
-    nsCCharSeparatedTokenizer(const nsCSubstring& aSource,
-                              char aSeparatorChar)
-        : mSeparatorChar(aSeparatorChar)
+    nsCCommaSeparatedTokenizer(const nsCSubstring& aSource)
     {
         aSource.BeginReading(mIter);
         aSource.EndReading(mEnd);
@@ -192,10 +161,9 @@ public:
     {
         nsCSubstring::const_char_iterator end = mIter, begin = mIter;
 
-        // Search until we hit separator or end.
-        while (mIter != mEnd && *mIter != mSeparatorChar) {
-          while (mIter != mEnd &&
-                 !isWhitespace(*mIter) && *mIter != mSeparatorChar) {
+        // Search until we hit comma or end
+        while (mIter != mEnd && *mIter != ',') {
+          while (mIter != mEnd && !isWhitespace(*mIter) && *mIter != ',') {
               ++mIter;
           }
           end = mIter;
@@ -204,23 +172,22 @@ public:
               ++mIter;
           }
         }
-
-        // Skip separator (and any whitespace after it).
+        
+        // Skip comma
         if (mIter != mEnd) {
-            NS_ASSERTION(*mIter == mSeparatorChar, "Ended loop too soon");
+            NS_ASSERTION(*mIter == ',', "Ended loop too soon");
             ++mIter;
 
             while (mIter != mEnd && isWhitespace(*mIter)) {
                 ++mIter;
             }
         }
-
+        
         return Substring(begin, end);
     }
 
 private:
     nsCSubstring::const_char_iterator mIter, mEnd;
-    char mSeparatorChar;
 
     PRBool isWhitespace(unsigned char aChar)
     {
@@ -230,4 +197,4 @@ private:
     }
 };
 
-#endif /* __nsCharSeparatedTokenizer_h */
+#endif /* __nsWhitespaceTokenizer_h */

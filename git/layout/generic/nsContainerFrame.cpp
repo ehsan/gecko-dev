@@ -73,7 +73,7 @@
 #include "nsThemeConstants.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsThemeConstants.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 #ifdef NS_DEBUG
 #undef NOISY

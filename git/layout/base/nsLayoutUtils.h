@@ -1188,8 +1188,6 @@ class nsSetAttrRunnable : public nsRunnable
 public:
   nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
                     const nsAString& aValue);
-  nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
-                    PRInt32 aValue);
 
   NS_DECL_NSIRUNNABLE
 

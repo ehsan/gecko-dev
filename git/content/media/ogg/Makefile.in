@@ -55,6 +55,7 @@ CPPSRCS		= \
 		nsOggDecoder.cpp \
 		nsOggCodecState.cpp \
 		nsOggReader.cpp \
+		nsOggPlayStateMachine.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1

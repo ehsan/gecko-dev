@@ -91,7 +91,7 @@
 #include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
 #include "mozilla/Services.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 

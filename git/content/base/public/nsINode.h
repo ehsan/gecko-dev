@@ -47,7 +47,6 @@
 #include "nsWrapperCache.h"
 #include "nsIProgrammingLanguage.h" // for ::JAVASCRIPT
 #include "nsDOMError.h"
-#include "nsDOMString.h"
 
 class nsIContent;
 class nsIDocument;
@@ -66,8 +65,6 @@ class nsChildContentList;
 class nsNodeWeakReference;
 class nsNodeSupportsWeakRefTearoff;
 class nsIEditor;
-class nsIVariant;
-class nsIDOMUserDataHandler;
 
 namespace mozilla {
 namespace dom {
@@ -271,8 +268,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x58695b2f, 0x39bd, 0x434d, \
-  { 0xa2, 0x0b, 0xde, 0xd3, 0xa8, 0xa0, 0xb6, 0x95 } } 
+{ 0xbc347b50, 0xa9b8, 0x419e, \
+ { 0xb1, 0x21, 0x76, 0x8f, 0x90, 0x05, 0x8d, 0xbf } } 
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -704,43 +701,14 @@ public:
    * observer, which means that it is the responsibility of the observer to
    * remove itself in case it dies before the node.  If an observer is added
    * while observers are being notified, it may also be notified.  In general,
-   * adding observers while inside a notification is not a good idea.  An
-   * observer that is already observing the node must not be added without
-   * being removed first.
+   * adding observers while inside a notification is not a good idea.
    */
-  void AddMutationObserver(nsIMutationObserver* aMutationObserver)
-  {
-    nsSlots* slots = GetSlots();
-    if (slots) {
-      NS_ASSERTION(slots->mMutationObservers.IndexOf(aMutationObserver) ==
-                   nsTArray_base::NoIndex,
-                   "Observer already in the list");
-      slots->mMutationObservers.AppendElement(aMutationObserver);
-    }
-  }
-
-  /**
-   * Same as above, but only adds the observer if its not observing
-   * the node already.
-   */
-  void AddMutationObserverUnlessExists(nsIMutationObserver* aMutationObserver)
-  {
-    nsSlots* slots = GetSlots();
-    if (slots) {
-      slots->mMutationObservers.AppendElementUnlessExists(aMutationObserver);
-    }
-  }
+  virtual void AddMutationObserver(nsIMutationObserver* aMutationObserver);
 
   /**
    * Removes a mutation observer.
    */
-  void RemoveMutationObserver(nsIMutationObserver* aMutationObserver)
-  {
-    nsSlots* slots = GetExistingSlots();
-    if (slots) {
-      slots->mMutationObservers.RemoveElement(aMutationObserver);
-    }
-  }
+  virtual void RemoveMutationObserver(nsIMutationObserver* aMutationObserver);
 
   /**
    * Clones this node. This needs to be overriden by all node classes. aNodeInfo
@@ -987,106 +955,6 @@ public:
     NS_NOTREACHED("SetScriptTypeID not implemented");
     return NS_ERROR_NOT_IMPLEMENTED;
   }
-
-  /**
-   * Get the base URI for any relative URIs within this piece of
-   * content. Generally, this is the document's base URI, but certain
-   * content carries a local base for backward compatibility, and XML
-   * supports setting a per-node base URI.
-   *
-   * @return the base URI
-   */
-  virtual already_AddRefed<nsIURI> GetBaseURI() const = 0;
-
-  void GetBaseURI(nsAString &aURI) const;
-
-  virtual void GetTextContent(nsAString &aTextContent)
-  {
-    SetDOMStringToNull(aTextContent);
-  }
-  virtual nsresult SetTextContent(const nsAString& aTextContent)
-  {
-    return NS_OK;
-  }
-
-  /**
-   * Associate an object aData to aKey on this node. If aData is null any
-   * previously registered object and UserDataHandler associated to aKey on
-   * this node will be removed.
-   * Should only be used to implement the DOM Level 3 UserData API.
-   *
-   * @param aKey the key to associate the object to
-   * @param aData the object to associate to aKey on this node (may be null)
-   * @param aHandler the UserDataHandler to call when the node is
-   *                 cloned/deleted/imported/renamed (may be null)
-   * @param aResult [out] the previously registered object for aKey on this
-   *                      node, if any
-   * @return whether adding the object and UserDataHandler succeeded
-   */
-  nsresult SetUserData(const nsAString& aKey, nsIVariant* aData,
-                       nsIDOMUserDataHandler* aHandler, nsIVariant** aResult);
-
-  /**
-   * Get the UserData object registered for a Key on this node, if any.
-   * Should only be used to implement the DOM Level 3 UserData API.
-   *
-   * @param aKey the key to get UserData for
-   * @return aResult the previously registered object for aKey on this node, if
-   *                 any
-   */
-  nsIVariant* GetUserData(const nsAString& aKey)
-  {
-    nsCOMPtr<nsIAtom> key = do_GetAtom(aKey);
-    if (!key) {
-      return nsnull;
-    }
-
-    return static_cast<nsIVariant*>(GetProperty(DOM_USER_DATA, key));
-  }
-
-  nsresult GetFeature(const nsAString& aFeature,
-                      const nsAString& aVersion,
-                      nsISupports** aReturn);
-
-  /**
-   * Compares the document position of a node to this node.
-   *
-   * @param aOtherNode The node whose position is being compared to this node
-   *
-   * @return  The document position flags of the nodes. aOtherNode is compared
-   *          to this node, i.e. if aOtherNode is before this node then
-   *          DOCUMENT_POSITION_PRECEDING will be set.
-   *
-   * @see nsIDOMNode
-   * @see nsIDOM3Node
-   */
-  PRUint16 CompareDocumentPosition(nsINode* aOtherNode);
-  nsresult CompareDocumentPosition(nsINode* aOtherNode, PRUint16* aResult)
-  {
-    NS_ENSURE_ARG(aOtherNode);
-
-    *aResult = CompareDocumentPosition(aOtherNode);
-
-    return NS_OK;
-  }
-
-  PRBool IsSameNode(nsINode *aOtherNode)
-  {
-    return aOtherNode == this;
-  }
-
-  virtual PRBool IsEqualNode(nsINode *aOtherNode) = 0;
-
-  void LookupPrefix(const nsAString& aNamespaceURI, nsAString& aPrefix);
-  PRBool IsDefaultNamespace(const nsAString& aNamespaceURI)
-  {
-    nsAutoString defaultNamespace;
-    LookupNamespaceURI(EmptyString(), defaultNamespace);
-    return aNamespaceURI.Equals(defaultNamespace);
-  }
-  void LookupNamespaceURI(const nsAString& aNamespacePrefix,
-                          nsAString& aNamespaceURI);
-
 protected:
 
   // Override this function to create a custom slots class.
@@ -1162,14 +1030,6 @@ protected:
   virtual nsresult ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
                                          nsINode* aRefChild);
   nsresult RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn);
-
-  /**
-   * Returns the Element that should be used for resolving namespaces
-   * on this node (ie the ownerElement for attributes, the documentElement for
-   * documents, the node itself for elements and for other nodes the parentNode
-   * if it is an element).
-   */
-  virtual mozilla::dom::Element* GetNameSpaceElement() = 0;
 
   nsCOMPtr<nsINodeInfo> mNodeInfo;
 

@@ -1524,6 +1524,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocument)
 NS_INTERFACE_TABLE_HEAD(nsDocument)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_DOCUMENT_INTERFACE_TABLE_BEGIN(nsDocument)
+    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsINode)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOM3DocumentEvent)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMDocumentStyle)
@@ -1537,15 +1538,12 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsISupportsWeakReference)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIRadioGroupContainer)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIMutationObserver)
+    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMNodeSelector)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIApplicationCacheContainer)
+    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMXPathNSResolver)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDocument)
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3Node, new nsNode3Tearoff(this))
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
-                                 new nsNode3Tearoff(this))
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMNodeSelector,
-                                 new nsNodeSelectorTearoff(this))
   if (aIID.Equals(NS_GET_IID(nsIDOMXPathEvaluator)) ||
       aIID.Equals(NS_GET_IID(nsIXPathEvaluatorInternal))) {
     if (!mXPathEvaluatorTearoff) {
@@ -2300,9 +2298,9 @@ nsDocument::StopDocumentLoad()
 void
 nsDocument::SetDocumentURI(nsIURI* aURI)
 {
-  nsCOMPtr<nsIURI> oldBase = GetDocBaseURI();
+  nsCOMPtr<nsIURI> oldBase = nsIDocument::GetBaseURI();
   mDocumentURI = NS_TryToMakeImmutable(aURI);
-  nsIURI* newBase = GetDocBaseURI();
+  nsIURI* newBase = nsIDocument::GetBaseURI();
 
   PRBool equalBases = PR_FALSE;
   if (oldBase && newBase) {
@@ -2814,7 +2812,94 @@ NS_IMETHODIMP
 nsDocument::GetElementsByClassName(const nsAString& aClasses,
                                    nsIDOMNodeList** aReturn)
 {
-  return nsContentUtils::GetElementsByClassName(this, aClasses, aReturn);
+  return GetElementsByClassNameHelper(this, aClasses, aReturn);
+}
+
+struct ClassMatchingInfo {
+  nsCOMArray<nsIAtom> mClasses;
+  nsCaseTreatment mCaseTreatment;
+};
+
+// static GetElementsByClassName helpers
+nsresult
+nsDocument::GetElementsByClassNameHelper(nsINode* aRootNode,
+                                         const nsAString& aClasses,
+                                         nsIDOMNodeList** aReturn)
+{
+  NS_PRECONDITION(aRootNode, "Must have root node");
+  
+  nsAttrValue attrValue;
+  attrValue.ParseAtomArray(aClasses);
+  // nsAttrValue::Equals is sensitive to order, so we'll send an array
+  ClassMatchingInfo* info = new ClassMatchingInfo;
+  NS_ENSURE_TRUE(info, NS_ERROR_OUT_OF_MEMORY);
+
+  if (attrValue.Type() == nsAttrValue::eAtomArray) {
+    info->mClasses.AppendObjects(*(attrValue.GetAtomArrayValue()));
+  } else if (attrValue.Type() == nsAttrValue::eAtom) {
+    info->mClasses.AppendObject(attrValue.GetAtomValue());
+  }
+
+  nsBaseContentList* elements;
+  if (info->mClasses.Count() > 0) {
+    info->mCaseTreatment =
+      aRootNode->GetOwnerDoc()->GetCompatibilityMode() ==
+        eCompatibility_NavQuirks ?
+          eIgnoreCase : eCaseMatters;
+
+    elements =
+      NS_GetFuncStringContentList(aRootNode, MatchClassNames,
+                                  DestroyClassNameArray, info,
+                                  aClasses).get();
+  } else {
+    delete info;
+    info = nsnull;
+    elements = new nsBaseContentList();
+    NS_IF_ADDREF(elements);
+  }
+  if (!elements) {
+    delete info;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  // Transfer ownership
+  *aReturn = elements;
+
+  return NS_OK;
+}
+
+// static
+PRBool
+nsDocument::MatchClassNames(nsIContent* aContent,
+                            PRInt32 aNamespaceID,
+                            nsIAtom* aAtom, void* aData)
+{
+  // We can't match if there are no class names
+  const nsAttrValue* classAttr = aContent->GetClasses();
+  if (!classAttr) {
+    return PR_FALSE;
+  }
+  
+  // need to match *all* of the classes
+  ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
+  PRInt32 length = info->mClasses.Count();
+  PRInt32 i;
+  for (i = 0; i < length; ++i) {
+    if (!classAttr->Contains(info->mClasses.ObjectAt(i),
+                             info->mCaseTreatment)) {
+      return PR_FALSE;
+    }
+  }
+  
+  return PR_TRUE;
+}
+
+// static
+void
+nsDocument::DestroyClassNameArray(void* aData)
+{
+  ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
+  delete info;
 }
 
 NS_IMETHODIMP
@@ -3770,9 +3855,8 @@ nsDocument::ScriptLoader()
 void
 nsDocument::AddObserver(nsIDocumentObserver* aObserver)
 {
-  NS_ASSERTION(mObservers.IndexOf(aObserver) == nsTArray_base::NoIndex,
-               "Observer already in the list");
-  mObservers.AppendElement(aObserver);
+  // The array makes sure the observer isn't already in the list
+  mObservers.AppendElementUnlessExists(aObserver);
   AddMutationObserver(aObserver);
 }
 
@@ -4720,7 +4804,7 @@ nsDocument::LoadBindingDocument(const nsAString& aURI)
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aURI,
                           mCharacterSet.get(),
-                          GetDocBaseURI());
+                          static_cast<nsIDocument *>(this)->GetBaseURI());
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Figure out the right principal to use
@@ -5634,27 +5718,90 @@ nsDocument::IsSupported(const nsAString& aFeature, const nsAString& aVersion,
                                                aFeature, aVersion, aReturn);
 }
 
-void
+NS_IMETHODIMP
+nsDocument::GetBaseURI(nsAString &aURI)
+{
+  nsCAutoString spec;
+  if (nsIDocument::GetBaseURI()) {
+    nsIDocument::GetBaseURI()->GetSpec(spec);
+  }
+
+  CopyUTF8toUTF16(spec, aURI);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDocument::GetTextContent(nsAString &aTextContent)
 {
   SetDOMStringToNull(aTextContent);
+
+  return NS_OK;
 }
 
-PRBool
-nsDocument::IsEqualNode(nsINode* aOther)
+NS_IMETHODIMP
+nsDocument::SetTextContent(const nsAString& aTextContent)
 {
-  if (!aOther || !aOther->IsNodeOfType(eDOCUMENT))
-    return PR_FALSE;
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsDocument::CompareDocumentPosition(nsIDOMNode* aOther, PRUint16* aReturn)
+{
+  NS_ENSURE_ARG_POINTER(aOther);
+
+  // We could optimize this by getting the other nodes current document
+  // and comparing with ourself. But then we'd have to deal with the
+  // current document being null and such so it's easier this way.
+  // It's hardly a case to optimize anyway.
+
+  nsCOMPtr<nsINode> other = do_QueryInterface(aOther);
+  NS_ENSURE_TRUE(other, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+
+  *aReturn = nsContentUtils::ComparePosition(other, this);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocument::IsSameNode(nsIDOMNode* aOther, PRBool* aReturn)
+{
+  PRBool sameNode = PR_FALSE;
+
+  if (this == aOther) {
+    sameNode = PR_TRUE;
+  }
+
+  *aReturn = sameNode;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocument::IsEqualNode(nsIDOMNode* aOther, PRBool* aReturn)
+{
+  *aReturn = PR_FALSE;
+
+  if (!aOther)
+    return NS_OK;
+
+  // Node type check by QI.  We also reuse this later.
+  nsCOMPtr<nsIDocument> aOtherDoc = do_QueryInterface(aOther);
+  if (!aOtherDoc) {
+    return NS_OK;
+  }
 
   // Child nodes check.
   PRUint32 childCount = GetChildCount();
-  if (childCount != aOther->GetChildCount()) {
-    return PR_FALSE;
+  if (childCount != aOtherDoc->GetChildCount()) {
+    return NS_OK;
   }
 
   for (PRUint32 i = 0; i < childCount; i++) {
-    if (!GetChildAt(i)->IsEqual(aOther->GetChildAt(i))) {
-      return PR_FALSE;
+    nsIContent* aChild1 = GetChildAt(i);
+    nsIContent* aChild2 = aOtherDoc->GetChildAt(i);
+    if (!nsNode3Tearoff::AreNodesEqual(aChild1, aChild2)) {
+      return NS_OK;
     }
   }
 
@@ -5662,7 +5809,68 @@ nsDocument::IsEqualNode(nsINode* aOther)
      node value, attributes.
    */
 
-  return PR_TRUE;
+  *aReturn = PR_TRUE;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocument::IsDefaultNamespace(const nsAString& aNamespaceURI,
+                               PRBool* aReturn)
+{
+  nsAutoString defaultNamespace;
+  LookupNamespaceURI(EmptyString(), defaultNamespace);
+  *aReturn = aNamespaceURI.Equals(defaultNamespace);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocument::GetFeature(const nsAString& aFeature,
+                       const nsAString& aVersion,
+                       nsISupports** aReturn)
+{
+  return nsGenericElement::InternalGetFeature(static_cast<nsIDOMDocument*>(this),
+                                              aFeature, aVersion, aReturn);
+}
+
+NS_IMETHODIMP
+nsDocument::SetUserData(const nsAString &aKey,
+                        nsIVariant *aData,
+                        nsIDOMUserDataHandler *aHandler,
+                        nsIVariant **aResult)
+{
+  return nsNodeUtils::SetUserData(this, aKey, aData, aHandler, aResult);
+}
+
+NS_IMETHODIMP
+nsDocument::GetUserData(const nsAString &aKey,
+                        nsIVariant **aResult)
+{
+  return nsNodeUtils::GetUserData(this, aKey, aResult);
+}
+
+NS_IMETHODIMP
+nsDocument::LookupPrefix(const nsAString& aNamespaceURI,
+                         nsAString& aPrefix)
+{
+  nsCOMPtr<nsIDOM3Node> root(do_QueryInterface(GetRootElement()));
+  if (root) {
+    return root->LookupPrefix(aNamespaceURI, aPrefix);
+  }
+
+  SetDOMStringToNull(aPrefix);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocument::LookupNamespaceURI(const nsAString& aNamespacePrefix,
+                               nsAString& aNamespaceURI)
+{
+  if (NS_FAILED(nsContentUtils::LookupNamespaceURI(GetRootElement(),
+                                                   aNamespacePrefix,
+                                                   aNamespaceURI))) {
+    SetDOMStringToNull(aNamespaceURI);
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -7395,6 +7603,20 @@ nsDocument::SetScriptTypeID(PRUint32 aScriptType)
 {
     NS_ERROR("Can't change default script type for a document");
     return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsDocument::QuerySelector(const nsAString& aSelector,
+                          nsIDOMElement **aReturn)
+{
+  return nsGenericElement::doQuerySelector(this, aSelector, aReturn);
+}
+
+NS_IMETHODIMP
+nsDocument::QuerySelectorAll(const nsAString& aSelector,
+                             nsIDOMNodeList **aReturn)
+{
+  return nsGenericElement::doQuerySelectorAll(this, aSelector, aReturn);
 }
 
 nsresult

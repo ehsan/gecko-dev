@@ -59,7 +59,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsINodeInfo.h"
 #include "nsIPrincipal.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 

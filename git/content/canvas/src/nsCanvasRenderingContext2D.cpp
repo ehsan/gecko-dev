@@ -1969,7 +1969,7 @@ CreateFontStyleRule(const nsAString& aFont,
     nsIPrincipal* principal = aNode->NodePrincipal();
     nsIDocument* document = aNode->GetOwnerDoc();
     nsIURI* docURL = document->GetDocumentURI();
-    nsIURI* baseURL = document->GetDocBaseURI();
+    nsIURI* baseURL = document->GetBaseURI();
 
     nsresult rv = parser.ParseStyleAttribute(styleAttr, docURL, baseURL,
                                              principal, aResult);

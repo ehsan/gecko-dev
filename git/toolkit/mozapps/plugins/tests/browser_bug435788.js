@@ -62,35 +62,6 @@ function getResultItem(name, version) {
   return null;
 }
 
-// Logs the currently displaying wizard page
-function page_shown() {
-  function show_button_state(name) {
-    var button = gPFS.document.documentElement.getButton(name);
-    info("Button " + name + ". hidden: " + button.hidden +
-         ", disabled: " + button.disabled);
-  }
-
-  info("Page shown: " +
-       gPFS.document.documentElement.currentPage.getAttribute("label"));
-  show_button_state("next");
-  show_button_state("finish");
-}
-
-function pfs_loaded() {
-  info("PFS loaded");
-  gPFS.document.documentElement.addEventListener("pageshow", page_shown, false);
-  gPFS.document.documentElement.addEventListener("wizardfinish", function() {
-    info("wizardfinish event");
-  }, false);
-  gPFS.document.documentElement.addEventListener("wizardnext", function() {
-    info("wizardnext event");
-  }, false);
-  gPFS.addEventListener("unload", function() {
-    info("unload event");
-  }, false);
-  page_shown();
-}
-
 // Test a working installer
 function prepare_test_1() {
   ok(true, "Test 1");
@@ -110,7 +81,7 @@ function prepare_test_1() {
 }
 
 function test_1_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_2, false);
   gSeenAvailable = false;
 
@@ -137,10 +108,7 @@ function test_1_complete() {
   ok(item, "Should have seen the installed item");
   is(item.status, "Installed", "Should have been a successful install");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test a broken installer (returns exit code 1)
@@ -160,7 +128,7 @@ function prepare_test_2() {
 }
 
 function test_2_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_3, false);
   gSeenAvailable = false;
 
@@ -187,10 +155,7 @@ function test_2_complete() {
   ok(item, "Should have seen the installed item");
   is(item.status, "Failed", "Should have been a failed install");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test both working and broken together
@@ -214,7 +179,7 @@ function prepare_test_3() {
 }
 
 function test_3_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_4, false);
   gSeenAvailable = false;
 
@@ -245,10 +210,7 @@ function test_3_complete() {
   ok(item, "Should have seen the installed item");
   is(item.status, "Failed", "Should have been a failed install");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test an installer with a bad hash
@@ -268,7 +230,7 @@ function prepare_test_4() {
 }
 
 function test_4_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_5, false);
   gSeenAvailable = false;
 
@@ -295,10 +257,7 @@ function test_4_complete() {
   ok(item, "Should have seen the installed item");
   is(item.status, "Failed", "Should have not been a successful install");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test a working xpi
@@ -319,7 +278,7 @@ function prepare_test_5() {
 }
 
 function test_5_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_6, false);
   gSeenAvailable = false;
 
@@ -351,10 +310,7 @@ function test_5_complete() {
   ok(em.getItemForID("bug435788_1@tests.mozilla.org"), "Should have installed the extension");
   em.cancelInstallItem("bug435788_1@tests.mozilla.org");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test a broke xpi (no install.rdf)
@@ -374,7 +330,7 @@ function prepare_test_6() {
 }
 
 function test_6_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_7, false);
   gSeenAvailable = false;
 
@@ -401,10 +357,7 @@ function test_6_complete() {
   ok(item, "Should have seen the installed item");
   is(item.status, "Failed", "Should have been a failed install");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test both working and broken xpi
@@ -428,7 +381,7 @@ function prepare_test_7() {
 }
 
 function test_7_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_8, false);
   gSeenAvailable = false;
 
@@ -464,10 +417,7 @@ function test_7_complete() {
   ok(em.getItemForID("bug435788_1@tests.mozilla.org"), "Should have installed the extension");
   em.cancelInstallItem("bug435788_1@tests.mozilla.org");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test an xpi with a bad hash
@@ -487,7 +437,7 @@ function prepare_test_8() {
 }
 
 function test_8_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_9, false);
   gSeenAvailable = false;
 
@@ -518,10 +468,7 @@ function test_8_complete() {
            getService(Ci.nsIExtensionManager);
   ok(!em.getItemForID("bug435788_1@tests.mozilla.org"), "Should not have installed the extension");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test when no plugin exists in the datasource
@@ -541,7 +488,7 @@ function prepare_test_9() {
 }
 
 function test_9_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_10, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
@@ -555,10 +502,7 @@ function test_9_start() {
 function test_9_complete() {
   is(getResultCount(), 0, "Should have found no plugins");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test when the datasource is invalid xml
@@ -580,7 +524,7 @@ function prepare_test_10() {
 }
 
 function test_10_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_11, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
@@ -594,10 +538,7 @@ function test_10_start() {
 function test_10_complete() {
   is(getResultCount(), 0, "Should have found no plugins");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }
 
 // Test when no datasource is returned
@@ -619,22 +560,19 @@ function prepare_test_11() {
 }
 
 function test_11_start() {
-  pfs_loaded();
+  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", finishTest, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     ok(false, "Should not have found plugins to install");
   }, false);
   gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
-    executeSoon(test_11_complete);
+    executeSoon(test_10_complete);
   }, false);
 }
 
 function test_11_complete() {
   is(getResultCount(), 0, "Should have found no plugins");
 
-  var finish = gPFS.document.documentElement.getButton("finish");
-  ok(!finish.hidden, "Finish button should not be hidden");
-  ok(!finish.disabled, "Finish button should not be disabled");
-  finish.click();
+  gPFS.document.documentElement.getButton("finish").click();
 }

@@ -167,9 +167,10 @@ nsSVGOuterSVGFrame::Init(nsIContent* aContent,
     if (doc->GetRootElement() == mContent) {
       mIsRootContent = PR_TRUE;
     }
+    // AddMutationObserver checks that the observer is not already added.
     // sSVGMutationObserver has the same lifetime as the document so does
     // not need to be removed
-    doc->AddMutationObserverUnlessExists(&sSVGMutationObserver);
+    doc->AddMutationObserver(&sSVGMutationObserver);
   }
 
   SuspendRedraw();  // UnsuspendRedraw is in DidReflow

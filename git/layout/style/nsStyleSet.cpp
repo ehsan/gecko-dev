@@ -60,7 +60,7 @@
 #include "nsRuleProcessorData.h"
 #include "nsTransitionManager.h"
 #include "nsIEventStateManager.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 

@@ -58,7 +58,7 @@
 #include "nsISupportsPrimitives.h"
 #include "prtypes.h"
 #include "nsSupportsPrimitives.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 

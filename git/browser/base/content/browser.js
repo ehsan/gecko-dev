@@ -1301,8 +1301,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     dump("nsSessionStore could not be initialized: " + ex + "\n");
   }
 
-  PlacesToolbarHelper.updateState();
-
   // bookmark-all-tabs command
   gBookmarkAllTabsHandler.init();
 
@@ -3352,8 +3350,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
     updateEditUIVisibility();
 #endif
   }
-
-  PlacesToolbarHelper.updateState();
 
   UpdateUrlbarSearchSplitterState();
 

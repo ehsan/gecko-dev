@@ -44,15 +44,9 @@ class gfxGDIShaper : public gfxFontShaper
 {
 public:
     gfxGDIShaper(gfxGDIFont *aFont)
-        : gfxFontShaper(aFont)
-    {
-        MOZ_COUNT_CTOR(gfxGDIShaper);
-    }
+        : gfxFontShaper(aFont) { }
 
-    virtual ~gfxGDIShaper()
-    {
-        MOZ_COUNT_DTOR(gfxGDIShaper);
-    }
+    virtual ~gfxGDIShaper() { }
 
     virtual PRBool InitTextRun(gfxContext *aContext,
                                gfxTextRun *aTextRun,

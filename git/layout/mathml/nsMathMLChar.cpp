@@ -65,6 +65,9 @@
 #include "prprf.h"         // For PR_snprintf()
 
 #if ALERT_MISSING_FONTS
+#include "nsIDOMWindow.h"
+#include "nsINonBlockingAlertService.h"
+#include "nsIWindowWatcher.h"
 #include "nsIStringBundle.h"
 #endif
 #include "nsDisplayList.h"
@@ -166,8 +169,19 @@ AlertMissingFonts(nsString& aMissingFonts)
   sb->FormatStringFromName(NS_LITERAL_STRING("mathfont_missing_dialog_message").get(),
                            strings, 1, getter_Copies(message));
 
-  // XXX Bug 309090 - could show a notification bar here. Bug 563114 removed
-  // the nsINonBlockingAlertService interface that was previously used here.
+  nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
+  if (!wwatch)
+    return;
+
+  nsCOMPtr<nsIDOMWindow> parent;
+  wwatch->GetActiveWindow(getter_AddRefs(parent));
+  nsresult rv;
+  nsCOMPtr<nsINonBlockingAlertService> prompter =
+    do_GetService("@mozilla.org/embedcomp/nbalert-service;1", &rv);
+
+  if (prompter && parent) {
+    prompter->ShowNonBlockingAlert(parent, title.get(), message.get());
+  }
 }
 #endif
 

@@ -49,7 +49,7 @@
 #include "nsIBrowserDOMWindow.h"
 #include "nsIComponentManager.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOM3Document.h"
@@ -225,7 +225,7 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 
-using namespace mozilla;
+using namespace mozilla::dom;
 
 // Number of documents currently loading
 static PRInt32 gNumberOfDocumentsLoading = 0;
@@ -2843,7 +2843,7 @@ PrintDocTree(nsIDocShellTreeItem * aParentNode, int aLevel)
   if (vm) {
     vm->GetWidget(getter_AddRefs(widget));
   }
-  dom::Element* rootElement = doc->GetRootElement();
+  Element* rootElement = doc->GetRootElement();
 
   printf("DS %p  Ty %s  Doc %p DW %p EM %p CN %p\n",  
     (void*)parentAsDocShell.get(), 
@@ -9254,7 +9254,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     else {
         // 2a: Resolve aURL relative to mURI
 
-        nsIURI* docBaseURI = document->GetDocBaseURI();
+        nsIURI* docBaseURI = document->GetBaseURI();
         if (!docBaseURI)
             return NS_ERROR_FAILURE;
 

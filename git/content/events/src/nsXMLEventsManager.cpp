@@ -77,7 +77,7 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     nsCOMPtr<nsIURI> handlerURI;
     PRBool equals = PR_FALSE;
     nsIURI *docURI = aDocument->GetDocumentURI();
-    nsIURI *baseURI = aDocument->GetDocBaseURI();
+    nsIURI *baseURI = aDocument->GetBaseURI();
     rv = NS_NewURI( getter_AddRefs(handlerURI), handlerURIStr, nsnull, baseURI);
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIURL> handlerURL(do_QueryInterface(handlerURI));

@@ -469,7 +469,7 @@
 #include "nsIDOMNSMouseEvent.h"
 
 #include "nsIEventListenerService.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
@@ -6356,7 +6356,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         // child frame. Define a property for this index.
 
         *_retval = ::JS_DefineElement(cx, obj, JSVAL_TO_INT(id), JSVAL_VOID,
-                                      nsnull, nsnull, JSPROP_SHARED);
+                                      nsnull, nsnull, 0);
 
         if (*_retval) {
           *objp = obj;

@@ -2874,13 +2874,13 @@ pref("geo.enabled", true);
 pref("accelerometer.enabled", true);
 
 // Enable/Disable HTML5 parser
-pref("html5.enable", true);
+pref("html5.enable", false);
 // Toggle which thread the HTML5 parser uses for stream parsing
 pref("html5.offmainthread", true);
 // Time in milliseconds between the time a network buffer is seen and the 
 // timer firing when the timer hasn't fired previously in this parse in the 
 // off-the-main-thread HTML5 parser.
-pref("html5.flushtimer.initialdelay", 120);
+pref("html5.flushtimer.initialdelay", 200);
 // Time in milliseconds between the time a network buffer is seen and the 
 // timer firing when the timer has already fired previously in this parse.
 pref("html5.flushtimer.subsequentdelay", 120);

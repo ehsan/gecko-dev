@@ -125,7 +125,6 @@
 #include "nsIDOMUserDataHandler.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIEditor.h"
-#include "nsIEditorIMESupport.h"
 #include "nsIEditorDocShell.h"
 #include "nsEventDispatcher.h"
 #include "nsContentCreatorFunctions.h"
@@ -154,7 +153,6 @@
 #include "mozAutoDocUpdate.h"
 
 #include "nsCSSParser.h"
-#include "nsTPtrArray.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGFeatures.h"
@@ -281,6 +279,24 @@ nsINode::nsSlots*
 nsINode::CreateSlots()
 {
   return new nsSlots(mFlagsOrSlots);
+}
+
+void
+nsINode::AddMutationObserver(nsIMutationObserver* aMutationObserver)
+{
+  nsSlots* slots = GetSlots();
+  if (slots) {
+    slots->mMutationObservers.AppendElementUnlessExists(aMutationObserver);
+  }
+}
+
+void
+nsINode::RemoveMutationObserver(nsIMutationObserver* aMutationObserver)
+{
+  nsSlots* slots = GetExistingSlots();
+  if (slots) {
+    slots->mMutationObservers.RemoveElement(aMutationObserver);
+  }
 }
 
 PRBool
@@ -571,215 +587,6 @@ nsINode::RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
   return rv;
 }
 
-void
-nsINode::GetBaseURI(nsAString &aURI) const
-{
-  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
-
-  nsCAutoString spec;
-  if (baseURI) {
-    baseURI->GetSpec(spec);
-  }
-
-  CopyUTF8toUTF16(spec, aURI);
-}
-
-void
-nsINode::LookupPrefix(const nsAString& aNamespaceURI, nsAString& aPrefix)
-{
-  Element *element = GetNameSpaceElement();
-  nsIAtom *prefix = element ? element->LookupPrefix(aNamespaceURI) : nsnull;
-  if (prefix) {
-    prefix->ToString(aPrefix);
-  }
-  else {
-    SetDOMStringToNull(aPrefix);
-  }
-}
-
-static nsresult
-SetUserDataProperty(PRUint16 aCategory, nsINode *aNode, nsIAtom *aKey,
-                    nsISupports* aValue, void** aOldValue)
-{
-  nsresult rv = aNode->SetProperty(aCategory, aKey, aValue,
-                                   nsPropertyTable::SupportsDtorFunc, PR_TRUE,
-                                   aOldValue);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Property table owns it now.
-  NS_ADDREF(aValue);
-
-  return NS_OK;
-}
-
-nsresult
-nsINode::SetUserData(const nsAString &aKey, nsIVariant *aData,
-                     nsIDOMUserDataHandler *aHandler, nsIVariant **aResult)
-{
-  *aResult = nsnull;
-
-  nsCOMPtr<nsIAtom> key = do_GetAtom(aKey);
-  if (!key) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  nsresult rv;
-  void *data;
-  if (aData) {
-    rv = SetUserDataProperty(DOM_USER_DATA, this, key, aData, &data);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-  else {
-    data = UnsetProperty(DOM_USER_DATA, key);
-  }
-
-  // Take over ownership of the old data from the property table.
-  nsCOMPtr<nsIVariant> oldData = dont_AddRef(static_cast<nsIVariant*>(data));
-
-  if (aData && aHandler) {
-    nsCOMPtr<nsIDOMUserDataHandler> oldHandler;
-    rv = SetUserDataProperty(DOM_USER_DATA_HANDLER, this, key, aHandler,
-                             getter_AddRefs(oldHandler));
-    if (NS_FAILED(rv)) {
-      // We failed to set the handler, remove the data.
-      DeleteProperty(DOM_USER_DATA, key);
-
-      return rv;
-    }
-  }
-  else {
-    DeleteProperty(DOM_USER_DATA_HANDLER, key);
-  }
-
-  oldData.swap(*aResult);
-
-  return NS_OK;
-}
-
-PRUint16
-nsINode::CompareDocumentPosition(nsINode* aOtherNode)
-{
-  NS_PRECONDITION(aOtherNode, "don't pass null");
-
-  if (this == aOtherNode) {
-    return 0;
-  }
-
-  nsAutoTPtrArray<nsINode, 32> parents1, parents2;
-
-  nsINode *node1 = aOtherNode, *node2 = this;
-
-  // Check if either node is an attribute
-  nsIAttribute* attr1 = nsnull;
-  if (node1->IsNodeOfType(nsINode::eATTRIBUTE)) {
-    attr1 = static_cast<nsIAttribute*>(node1);
-    nsIContent* elem = attr1->GetContent();
-    // If there is an owner element add the attribute
-    // to the chain and walk up to the element
-    if (elem) {
-      node1 = elem;
-      parents1.AppendElement(static_cast<nsINode*>(attr1));
-    }
-  }
-  if (node2->IsNodeOfType(nsINode::eATTRIBUTE)) {
-    nsIAttribute* attr2 = static_cast<nsIAttribute*>(node2);
-    nsIContent* elem = attr2->GetContent();
-    if (elem == node1 && attr1) {
-      // Both nodes are attributes on the same element.
-      // Compare position between the attributes.
-
-      PRUint32 i;
-      const nsAttrName* attrName;
-      for (i = 0; (attrName = elem->GetAttrNameAt(i)); ++i) {
-        if (attrName->Equals(attr1->NodeInfo())) {
-          NS_ASSERTION(!attrName->Equals(attr2->NodeInfo()),
-                       "Different attrs at same position");
-          return nsIDOM3Node::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC |
-            nsIDOM3Node::DOCUMENT_POSITION_PRECEDING;
-        }
-        if (attrName->Equals(attr2->NodeInfo())) {
-          return nsIDOM3Node::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC |
-            nsIDOM3Node::DOCUMENT_POSITION_FOLLOWING;
-        }
-      }
-      NS_NOTREACHED("neither attribute in the element");
-      return nsIDOM3Node::DOCUMENT_POSITION_DISCONNECTED;
-    }
-
-    if (elem) {
-      node2 = elem;
-      parents2.AppendElement(static_cast<nsINode*>(attr2));
-    }
-  }
-
-  // We now know that both nodes are either nsIContents or nsIDocuments.
-  // If either node started out as an attribute, that attribute will have
-  // the same relative position as its ownerElement, except if the
-  // ownerElement ends up being the container for the other node
-
-  // Build the chain of parents
-  do {
-    parents1.AppendElement(node1);
-    node1 = node1->GetNodeParent();
-  } while (node1);
-  do {
-    parents2.AppendElement(node2);
-    node2 = node2->GetNodeParent();
-  } while (node2);
-
-  // Check if the nodes are disconnected.
-  PRUint32 pos1 = parents1.Length();
-  PRUint32 pos2 = parents2.Length();
-  nsINode* top1 = parents1.ElementAt(--pos1);
-  nsINode* top2 = parents2.ElementAt(--pos2);
-  if (top1 != top2) {
-    return top1 < top2 ?
-      (nsIDOM3Node::DOCUMENT_POSITION_PRECEDING |
-       nsIDOM3Node::DOCUMENT_POSITION_DISCONNECTED |
-       nsIDOM3Node::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC) :
-      (nsIDOM3Node::DOCUMENT_POSITION_FOLLOWING |
-       nsIDOM3Node::DOCUMENT_POSITION_DISCONNECTED |
-       nsIDOM3Node::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC);
-  }
-
-  // Find where the parent chain differs and check indices in the parent.
-  nsINode* parent = top1;
-  PRUint32 len;
-  for (len = NS_MIN(pos1, pos2); len > 0; --len) {
-    nsINode* child1 = parents1.ElementAt(--pos1);
-    nsINode* child2 = parents2.ElementAt(--pos2);
-    if (child1 != child2) {
-      // child1 or child2 can be an attribute here. This will work fine since
-      // IndexOf will return -1 for the attribute making the attribute be
-      // considered before any child.
-      return parent->IndexOf(child1) < parent->IndexOf(child2) ?
-        static_cast<PRUint16>(nsIDOM3Node::DOCUMENT_POSITION_PRECEDING) :
-        static_cast<PRUint16>(nsIDOM3Node::DOCUMENT_POSITION_FOLLOWING);
-    }
-    parent = child1;
-  }
-
-  // We hit the end of one of the parent chains without finding a difference
-  // between the chains. That must mean that one node is an ancestor of the
-  // other. The one with the shortest chain must be the ancestor.
-  return pos1 < pos2 ?
-    (nsIDOM3Node::DOCUMENT_POSITION_PRECEDING |
-     nsIDOM3Node::DOCUMENT_POSITION_CONTAINS) :
-    (nsIDOM3Node::DOCUMENT_POSITION_FOLLOWING |
-     nsIDOM3Node::DOCUMENT_POSITION_CONTAINED_BY);    
-}
-
-void
-nsINode::LookupNamespaceURI(const nsAString& aNamespacePrefix,
-                            nsAString& aNamespaceURI)
-{
-  Element *element = GetNameSpaceElement();
-  if (!element || NS_FAILED(element->LookupNamespaceURI(aNamespacePrefix,
-                                                        aNamespaceURI))) {
-    SetDOMStringToNull(aNamespaceURI);
-  }
-}
-
 //----------------------------------------------------------------------
 
 PRInt32
@@ -827,81 +634,6 @@ nsIContent::GetFlattenedTreeParent() const
     }
   }
   return parent;
-}
-
-PRUint32
-nsIContent::GetDesiredIMEState()
-{
-  if (!IsEditableInternal()) {
-    return IME_STATUS_DISABLE;
-  }
-  nsIContent *editableAncestor = nsnull;
-  for (nsIContent* parent = GetParent();
-       parent && parent->HasFlag(NODE_IS_EDITABLE);
-       parent = parent->GetParent()) {
-    editableAncestor = parent;
-  }
-  // This is in another editable content, use the result of it.
-  if (editableAncestor) {
-    return editableAncestor->GetDesiredIMEState();
-  }
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc) {
-    return IME_STATUS_DISABLE;
-  }
-  nsIPresShell* ps = doc->GetPrimaryShell();
-  if (!ps) {
-    return IME_STATUS_DISABLE;
-  }
-  nsPresContext* pc = ps->GetPresContext();
-  if (!pc) {
-    return IME_STATUS_DISABLE;
-  }
-  nsIEditor* editor = GetHTMLEditor(pc);
-  nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(editor);
-  if (!imeEditor) {
-    return IME_STATUS_DISABLE;
-  }
-  // Use "enable" for the default value because IME is disabled unexpectedly,
-  // it makes serious a11y problem.
-  PRUint32 state = IME_STATUS_ENABLE;
-  nsresult rv = imeEditor->GetPreferredIMEState(&state);
-  NS_ENSURE_SUCCESS(rv, IME_STATUS_ENABLE);
-  return state;
-}
-
-nsresult
-nsIContent::LookupNamespaceURI(const nsAString& aNamespacePrefix,
-                               nsAString& aNamespaceURI) const
-{
-  if (aNamespacePrefix.EqualsLiteral("xml")) {
-    // Special-case for xml prefix
-    aNamespaceURI.AssignLiteral("http://www.w3.org/XML/1998/namespace");
-    return NS_OK;
-  }
-
-  if (aNamespacePrefix.EqualsLiteral("xmlns")) {
-    // Special-case for xmlns prefix
-    aNamespaceURI.AssignLiteral("http://www.w3.org/2000/xmlns/");
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIAtom> name;
-  if (!aNamespacePrefix.IsEmpty()) {
-    name = do_GetAtom(aNamespacePrefix);
-    NS_ENSURE_TRUE(name, NS_ERROR_OUT_OF_MEMORY);
-  }
-  else {
-    name = nsGkAtoms::xmlns;
-  }
-  // Trace up the content parent chain looking for the namespace
-  // declaration that declares aNamespacePrefix.
-  const nsIContent* content = this;
-  do {
-    if (content->GetAttr(kNameSpaceID_XMLNS, name, aNamespaceURI))
-      return NS_OK;
-  } while ((content = content->GetParent()));
-  return NS_ERROR_FAILURE;
 }
 
 //----------------------------------------------------------------------
@@ -962,12 +694,12 @@ nsChildContentList::IndexOf(nsIContent* aContent)
 
 //----------------------------------------------------------------------
 
-NS_IMPL_CYCLE_COLLECTION_1(nsNode3Tearoff, mNode)
+NS_IMPL_CYCLE_COLLECTION_1(nsNode3Tearoff, mContent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsNode3Tearoff)
   NS_INTERFACE_MAP_ENTRY(nsIDOM3Node)
   NS_INTERFACE_MAP_ENTRY(nsIDOMXPathNSResolver)
-NS_INTERFACE_MAP_END_AGGREGATED(mNode)
+NS_INTERFACE_MAP_END_AGGREGATED(mContent)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsNode3Tearoff)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsNode3Tearoff)
@@ -975,7 +707,14 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsNode3Tearoff)
 NS_IMETHODIMP
 nsNode3Tearoff::GetBaseURI(nsAString& aURI)
 {
-  mNode->GetBaseURI(aURI);
+  nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
+  nsCAutoString spec;
+
+  if (baseURI) {
+    baseURI->GetSpec(spec);
+  }
+
+  CopyUTF8toUTF16(spec, aURI);
   
   return NS_OK;
 }
@@ -983,7 +722,26 @@ nsNode3Tearoff::GetBaseURI(nsAString& aURI)
 NS_IMETHODIMP
 nsNode3Tearoff::GetTextContent(nsAString &aTextContent)
 {
-  mNode->GetTextContent(aTextContent);
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(mContent));
+  NS_ASSERTION(node, "We have an nsIContent which doesn't support nsIDOMNode");
+
+  PRUint16 nodeType;
+  node->GetNodeType(&nodeType);
+  if (nodeType == nsIDOMNode::DOCUMENT_TYPE_NODE ||
+      nodeType == nsIDOMNode::NOTATION_NODE) {
+    SetDOMStringToNull(aTextContent);
+
+    return NS_OK;
+  }
+
+  if (nodeType == nsIDOMNode::TEXT_NODE ||
+      nodeType == nsIDOMNode::CDATA_SECTION_NODE ||
+      nodeType == nsIDOMNode::COMMENT_NODE ||
+      nodeType == nsIDOMNode::PROCESSING_INSTRUCTION_NODE) {
+    return node->GetNodeValue(aTextContent);
+  }
+
+  nsContentUtils::GetNodeTextContent(mContent, PR_TRUE, aTextContent);
 
   return NS_OK;
 }
@@ -991,18 +749,39 @@ nsNode3Tearoff::GetTextContent(nsAString &aTextContent)
 NS_IMETHODIMP
 nsNode3Tearoff::SetTextContent(const nsAString &aTextContent)
 {
-  return mNode->SetTextContent(aTextContent);
+  // Batch possible DOMSubtreeModified events.
+  mozAutoSubtreeModified subtree(mContent->GetOwnerDoc(), nsnull);
+
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(mContent));
+  NS_ASSERTION(node, "We have an nsIContent which doesn't support nsIDOMNode");
+
+  PRUint16 nodeType;
+  node->GetNodeType(&nodeType);
+  if (nodeType == nsIDOMNode::DOCUMENT_TYPE_NODE ||
+      nodeType == nsIDOMNode::NOTATION_NODE) {
+    return NS_OK;
+  }
+
+  if (nodeType == nsIDOMNode::TEXT_NODE ||
+      nodeType == nsIDOMNode::CDATA_SECTION_NODE ||
+      nodeType == nsIDOMNode::COMMENT_NODE ||
+      nodeType == nsIDOMNode::PROCESSING_INSTRUCTION_NODE) {
+    return node->SetNodeValue(aTextContent);
+  }
+
+  return nsContentUtils::SetNodeTextContent(mContent, aTextContent, PR_FALSE);
 }
 
 NS_IMETHODIMP
 nsNode3Tearoff::CompareDocumentPosition(nsIDOMNode* aOther,
                                         PRUint16* aReturn)
 {
+  NS_ENSURE_ARG_POINTER(aOther);
+
   nsCOMPtr<nsINode> other = do_QueryInterface(aOther);
-  NS_ENSURE_ARG(other);
+  NS_ENSURE_TRUE(other, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
 
-  *aReturn = mNode->CompareDocumentPosition(other);
-
+  *aReturn = nsContentUtils::ComparePosition(other, mContent);
   return NS_OK;
 }
 
@@ -1010,29 +789,30 @@ NS_IMETHODIMP
 nsNode3Tearoff::IsSameNode(nsIDOMNode* aOther,
                            PRBool* aReturn)
 {
-  nsCOMPtr<nsINode> other = do_QueryInterface(aOther);
-  *aReturn = mNode->IsSameNode(other);
+  nsCOMPtr<nsIContent> other(do_QueryInterface(aOther));
+  *aReturn = mContent == other;
 
   return NS_OK;
 }
 
 PRBool
-nsIContent::IsEqual(nsIContent* aOther)
+nsNode3Tearoff::AreNodesEqual(nsIContent* aContent1,
+                              nsIContent* aContent2)
 {
   // We use nsIContent instead of nsINode for the attributes of elements.
 
-  NS_PRECONDITION(aOther, "Who called IsEqual?");
+  NS_PRECONDITION(aContent1 && aContent2, "Who called AreNodesEqual?");
 
   nsAutoString string1, string2;
 
   // Prefix, namespace URI, local name, node name check.
-  if (!NodeInfo()->Equals(aOther->NodeInfo())) {
+  if (!aContent1->NodeInfo()->Equals(aContent2->NodeInfo())) {
     return PR_FALSE;
   }
 
-  if (Tag() == nsGkAtoms::documentTypeNodeName) {
-    nsCOMPtr<nsIDOMDocumentType> docType1 = do_QueryInterface(this);
-    nsCOMPtr<nsIDOMDocumentType> docType2 = do_QueryInterface(aOther);
+  if (aContent1->Tag() == nsGkAtoms::documentTypeNodeName) {
+    nsCOMPtr<nsIDOMDocumentType> docType1 = do_QueryInterface(aContent1);
+    nsCOMPtr<nsIDOMDocumentType> docType2 = do_QueryInterface(aContent2);
 
     NS_ASSERTION(docType1 && docType2, "Why don't we have a document type node?");
 
@@ -1061,22 +841,25 @@ nsIContent::IsEqual(nsIContent* aOther)
     }
   }
 
-  if (IsElement()) {
-    // Both are elements (we checked that their nodeinfos are equal). Do the
-    // check on attributes.
-    Element* element2 = aOther->AsElement();
-    PRUint32 attrCount = GetAttrCount();
+  if (aContent1->IsElement()) {
+    // aContent1 is an element.  So is aContent2, since the nodeinfos
+    // were equal.  Do the check on attributes.
+    Element* element1 = aContent1->AsElement();
+    Element* element2 = aContent2->AsElement();
+    PRUint32 attrCount = element1->GetAttrCount();
     if (attrCount != element2->GetAttrCount()) {
       return PR_FALSE;
     }
 
     // Iterate over attributes.
     for (PRUint32 i = 0; i < attrCount; ++i) {
-      const nsAttrName* attrName1 = GetAttrNameAt(i);
+      const nsAttrName* attrName1 = element1->GetAttrNameAt(i);
 #ifdef DEBUG
       PRBool hasAttr =
 #endif
-      GetAttr(attrName1->NamespaceID(), attrName1->LocalName(), string1);
+      element1->GetAttr(attrName1->NamespaceID(),
+                        attrName1->LocalName(),
+                        string1);
       NS_ASSERTION(hasAttr, "Why don't we have an attr?");
 
       if (!element2->AttrValueIs(attrName1->NamespaceID(),
@@ -1088,21 +871,23 @@ nsIContent::IsEqual(nsIContent* aOther)
     }
 
     // Child nodes count.
-    PRUint32 childCount = GetChildCount();
+    PRUint32 childCount = element1->GetChildCount();
     if (childCount != element2->GetChildCount()) {
       return PR_FALSE;
     }
 
     // Iterate over child nodes.
     for (PRUint32 i = 0; i < childCount; ++i) {
-      if (!GetChildAt(i)->IsEqual(element2->GetChildAt(i))) {
+      nsIContent* child1 = element1->GetChildAt(i);
+      nsIContent* child2 = element2->GetChildAt(i);
+      if (!AreNodesEqual(child1, child2)) {
         return PR_FALSE;
       }
     }
   } else {
-    // Node value check.
-    nsCOMPtr<nsIDOMNode> domNode1 = do_QueryInterface(this);
-    nsCOMPtr<nsIDOMNode> domNode2 = do_QueryInterface(aOther);
+    // aContent1 is not an element.  Node value check.
+    nsCOMPtr<nsIDOMNode> domNode1 = do_QueryInterface(aContent1);
+    nsCOMPtr<nsIDOMNode> domNode2 = do_QueryInterface(aContent2);
     NS_ASSERTION(domNode1 && domNode2, "How'd we get nsIContent without nsIDOMNode?");
     domNode1->GetNodeValue(string1);
     domNode2->GetNodeValue(string2);
@@ -1114,23 +899,22 @@ nsIContent::IsEqual(nsIContent* aOther)
   return PR_TRUE;
 }
 
-PRBool
-nsIContent::IsEqualNode(nsINode* aOther)
-{
-  if (!aOther || !aOther->IsNodeOfType(eCONTENT))
-    return PR_FALSE;
-
-  return IsEqual(static_cast<nsIContent*>(aOther));
-}
-
 NS_IMETHODIMP
 nsNode3Tearoff::IsEqualNode(nsIDOMNode* aOther, PRBool* aReturn)
 {
-  // Since we implement nsINode, aOther must as well.
-  nsCOMPtr<nsINode> other = do_QueryInterface(aOther);
+  *aReturn = PR_FALSE;
 
-  *aReturn = other && mNode->IsEqualNode(other);
+  if (!aOther)
+    return NS_OK;
 
+  // Since we implement nsIContent, aOther must as well.
+  nsCOMPtr<nsIContent> aOtherContent = do_QueryInterface(aOther);
+  // Documents and attributes don't implement nsIContent.
+  if (!aOtherContent) {
+    return NS_OK;
+  }
+
+  *aReturn = nsNode3Tearoff::AreNodesEqual(mContent, aOtherContent);
   return NS_OK;
 }
 
@@ -1139,7 +923,8 @@ nsNode3Tearoff::GetFeature(const nsAString& aFeature,
                            const nsAString& aVersion,
                            nsISupports** aReturn)
 {
-  return mNode->GetFeature(aFeature, aVersion, aReturn);
+  return nsGenericElement::InternalGetFeature(static_cast<nsIDOM3Node*>(this),
+                                              aFeature, aVersion, aReturn);
 }
 
 NS_IMETHODIMP
@@ -1148,27 +933,28 @@ nsNode3Tearoff::SetUserData(const nsAString& aKey,
                             nsIDOMUserDataHandler* aHandler,
                             nsIVariant** aResult)
 {
-  return mNode->SetUserData(aKey, aData, aHandler, aResult);
+  return nsNodeUtils::SetUserData(mContent, aKey, aData, aHandler, aResult);
 }
 
 NS_IMETHODIMP
 nsNode3Tearoff::GetUserData(const nsAString& aKey,
                             nsIVariant** aResult)
 {
-  NS_IF_ADDREF(*aResult = mNode->GetUserData(aKey));
-
-  return NS_OK;
+  return nsNodeUtils::GetUserData(mContent, aKey, aResult);
 }
 
-nsIAtom*
-nsIContent::LookupPrefix(const nsAString& aNamespaceURI)
+NS_IMETHODIMP
+nsNode3Tearoff::LookupPrefix(const nsAString& aNamespaceURI,
+                             nsAString& aPrefix)
 {
+  SetDOMStringToNull(aPrefix);
+
   // XXX Waiting for DOM spec to list error codes.
 
   // Trace up the content parent chain looking for the namespace
   // declaration that defines the aNamespaceURI namespace. Once found,
   // return the prefix (i.e. the attribute localName).
-  for (nsIContent* content = this; content;
+  for (nsIContent* content = mContent; content;
        content = content->GetParent()) {
     PRUint32 attrCount = content->GetAttrCount();
 
@@ -1180,21 +966,15 @@ nsIContent::LookupPrefix(const nsAString& aNamespaceURI)
                                aNamespaceURI, eCaseMatters)) {
         // If the localName is "xmlns", the prefix we output should be
         // null.
-        nsIAtom *localName = name->LocalName();
+        if (name->LocalName() != nsGkAtoms::xmlns) {
+          name->LocalName()->ToString(aPrefix);
+        }
 
-        return localName == nsGkAtoms::xmlns ? nsnull : localName;
+        return NS_OK;
       }
     }
   }
 
-  return nsnull;
-}
-
-NS_IMETHODIMP
-nsNode3Tearoff::LookupPrefix(const nsAString& aNamespaceURI,
-                             nsAString& aPrefix)
-{
-  mNode->LookupPrefix(aNamespaceURI, aPrefix);
   return NS_OK;
 }
 
@@ -1202,7 +982,11 @@ NS_IMETHODIMP
 nsNode3Tearoff::LookupNamespaceURI(const nsAString& aNamespacePrefix,
                                    nsAString& aNamespaceURI)
 {
-  mNode->LookupNamespaceURI(aNamespacePrefix, aNamespaceURI);
+  if (NS_FAILED(nsContentUtils::LookupNamespaceURI(mContent,
+                                                   aNamespacePrefix,
+                                                   aNamespaceURI))) {
+    SetDOMStringToNull(aNamespaceURI);
+  }
   return NS_OK;
 }
 
@@ -1210,98 +994,10 @@ NS_IMETHODIMP
 nsNode3Tearoff::IsDefaultNamespace(const nsAString& aNamespaceURI,
                                    PRBool* aReturn)
 {
-  *aReturn = mNode->IsDefaultNamespace(aNamespaceURI);
+  nsAutoString defaultNamespace;
+  LookupNamespaceURI(EmptyString(), defaultNamespace);
+  *aReturn = aNamespaceURI.Equals(defaultNamespace);
   return NS_OK;
-}
-
-nsIContent*
-nsGenericElement::GetFirstElementChild()
-{
-  nsAttrAndChildArray& children = mAttrsAndChildren;
-  PRUint32 i, count = children.ChildCount();
-  for (i = 0; i < count; ++i) {
-    nsIContent* child = children.ChildAt(i);
-    if (child->IsElement()) {
-      return child;
-    }
-  }
-  
-  return nsnull;
-}
-
-nsIContent*
-nsGenericElement::GetLastElementChild()
-{
-  nsAttrAndChildArray& children = mAttrsAndChildren;
-  PRUint32 i = children.ChildCount();
-  while (i > 0) {
-    nsIContent* child = children.ChildAt(--i);
-    if (child->IsElement()) {
-      return child;
-    }
-  }
-  
-  return nsnull;
-}
-
-nsIContent*
-nsGenericElement::GetPreviousElementSibling()
-{
-  nsIContent* parent = GetParent();
-  if (!parent) {
-    return nsnull;
-  }
-
-  NS_ASSERTION(parent->IsElement() ||
-               parent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT),
-               "Parent content must be an element or a doc fragment");
-
-  nsAttrAndChildArray& children =
-    static_cast<nsGenericElement*>(parent)->mAttrsAndChildren;
-  PRInt32 index = children.IndexOfChild(this);
-  if (index < 0) {
-    return nsnull;
-  }
-
-  PRUint32 i = index;
-  while (i > 0) {
-    nsIContent* child = children.ChildAt((PRUint32)--i);
-    if (child->IsElement()) {
-      return child;
-    }
-  }
-  
-  return nsnull;
-}
-
-nsIContent*
-nsGenericElement::GetNextElementSibling()
-{
-  nsIContent* parent = GetParent();
-  if (!parent) {
-    return nsnull;
-  }
-
-  NS_ASSERTION(parent->IsElement() ||
-               parent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT),
-               "Parent content must be an element or a doc fragment");
-
-  nsAttrAndChildArray& children =
-    static_cast<nsGenericElement*>(parent)->mAttrsAndChildren;
-  PRInt32 index = children.IndexOfChild(this);
-  if (index < 0) {
-    return nsnull;
-  }
-
-  PRUint32 i, count = children.ChildCount();
-  for (i = (PRUint32)index + 1; i < count; ++i) {
-    nsIContent* child = children.ChildAt(i);
-    if (child->IsElement()) {
-      return child;
-    }
-  }
-  
-  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -1309,9 +1005,16 @@ nsNSElementTearoff::GetFirstElementChild(nsIDOMElement** aResult)
 {
   *aResult = nsnull;
 
-  nsIContent *result = mContent->GetFirstElementChild();
-
-  return result ? CallQueryInterface(result, aResult) : NS_OK;
+  nsAttrAndChildArray& children = mContent->mAttrsAndChildren;
+  PRUint32 i, count = children.ChildCount();
+  for (i = 0; i < count; ++i) {
+    nsIContent* child = children.ChildAt(i);
+    if (child->IsElement()) {
+      return CallQueryInterface(child, aResult);
+    }
+  }
+  
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1319,9 +1022,16 @@ nsNSElementTearoff::GetLastElementChild(nsIDOMElement** aResult)
 {
   *aResult = nsnull;
 
-  nsIContent *result = mContent->GetLastElementChild();
-
-  return result ? CallQueryInterface(result, aResult) : NS_OK;
+  nsAttrAndChildArray& children = mContent->mAttrsAndChildren;
+  PRUint32 i = children.ChildCount();
+  while (i > 0) {
+    nsIContent* child = children.ChildAt(--i);
+    if (child->IsElement()) {
+      return CallQueryInterface(child, aResult);
+    }
+  }
+  
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1329,9 +1039,31 @@ nsNSElementTearoff::GetPreviousElementSibling(nsIDOMElement** aResult)
 {
   *aResult = nsnull;
 
-  nsIContent *result = mContent->GetPreviousElementSibling();
+  nsIContent* parent = mContent->GetParent();
+  if (!parent) {
+    return NS_OK;
+  }
 
-  return result ? CallQueryInterface(result, aResult) : NS_OK;
+  NS_ASSERTION(parent->IsElement() ||
+               parent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT),
+               "Parent content must be an element or a doc fragment");
+
+  nsAttrAndChildArray& children =
+    static_cast<nsGenericElement*>(parent)->mAttrsAndChildren;
+  PRInt32 index = children.IndexOfChild(mContent);
+  if (index < 0) {
+    return NS_OK;
+  }
+
+  PRUint32 i = index;
+  while (i > 0) {
+    nsIContent* child = children.ChildAt((PRUint32)--i);
+    if (child->IsElement()) {
+      return CallQueryInterface(child, aResult);
+    }
+  }
+  
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1339,19 +1071,41 @@ nsNSElementTearoff::GetNextElementSibling(nsIDOMElement** aResult)
 {
   *aResult = nsnull;
 
-  nsIContent *result = mContent->GetNextElementSibling();
+  nsIContent* parent = mContent->GetParent();
+  if (!parent) {
+    return NS_OK;
+  }
 
-  return result ? CallQueryInterface(result, aResult) : NS_OK;
+  NS_ASSERTION(parent->IsElement() ||
+               parent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT),
+               "Parent content must be an element or a doc fragment");
+
+  nsAttrAndChildArray& children =
+    static_cast<nsGenericElement*>(parent)->mAttrsAndChildren;
+  PRInt32 index = children.IndexOfChild(mContent);
+  if (index < 0) {
+    return NS_OK;
+  }
+
+  PRUint32 i, count = children.ChildCount();
+  for (i = (PRUint32)index + 1; i < count; ++i) {
+    nsIContent* child = children.ChildAt(i);
+    if (child->IsElement()) {
+      return CallQueryInterface(child, aResult);
+    }
+  }
+  
+  return NS_OK;
 }
 
 nsContentList*
-nsGenericElement::GetChildrenList()
+nsNSElementTearoff::GetChildrenList()
 {
-  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
+  nsGenericElement::nsDOMSlots *slots = mContent->GetDOMSlots();
   NS_ENSURE_TRUE(slots, nsnull);
 
   if (!slots->mChildrenList) {
-    slots->mChildrenList = new nsContentList(this, nsGkAtoms::_asterix,
+    slots->mChildrenList = new nsContentList(mContent, nsGkAtoms::_asterix,
                                              kNameSpaceID_Wildcard, PR_FALSE);
   }
 
@@ -1361,50 +1115,43 @@ nsGenericElement::GetChildrenList()
 NS_IMETHODIMP
 nsNSElementTearoff::GetChildElementCount(PRUint32* aResult)
 {
-  return mContent->GetChildElementCount(aResult);
+  *aResult = 0;
+
+  nsContentList* list = GetChildrenList();
+  NS_ENSURE_TRUE(list, NS_ERROR_OUT_OF_MEMORY);
+
+  *aResult = list->Length(PR_TRUE);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsNSElementTearoff::GetChildren(nsIDOMNodeList** aResult)
 {
-  return mContent->GetChildren(aResult);
-}
+  *aResult = nsnull;
 
-nsIDOMDOMTokenList*
-nsGenericElement::GetClassList(nsresult *aResult)
-{
-  *aResult = NS_ERROR_OUT_OF_MEMORY;
+  nsContentList* list = GetChildrenList();
+  NS_ENSURE_TRUE(list, NS_ERROR_OUT_OF_MEMORY);
 
-  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
-  NS_ENSURE_TRUE(slots, nsnull);
+  NS_ADDREF(*aResult = list);
 
-  if (!slots->mClassList) {
-    nsCOMPtr<nsIAtom> classAttr = GetClassAttributeName();
-    if (!classAttr) {
-      *aResult = NS_OK;
-
-      return nsnull;
-    }
-
-    slots->mClassList = new nsDOMTokenList(this, classAttr);
-    NS_ENSURE_TRUE(slots->mClassList, nsnull);
-  }
-
-  *aResult = NS_OK;
-
-  return slots->mClassList;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsNSElementTearoff::GetClassList(nsIDOMDOMTokenList** aResult)
 {
-  *aResult = nsnull;
+  nsGenericElement::nsDOMSlots *slots = mContent->GetDOMSlots();
+  NS_ENSURE_TRUE(slots, nsnull);
 
-  nsresult rv;
-  nsIDOMDOMTokenList* list = mContent->GetClassList(&rv);
-  NS_ENSURE_TRUE(list, rv);
+  if (!slots->mClassList) {
+    nsCOMPtr<nsIAtom> classAttr = mContent->GetClassAttributeName();
+    NS_ENSURE_TRUE(classAttr, NS_OK);
+    slots->mClassList = new nsDOMTokenList(mContent, classAttr);
+    NS_ENSURE_TRUE(slots->mClassList, NS_ERROR_OUT_OF_MEMORY);
+  }
 
-  NS_ADDREF(*aResult = list);
+  NS_ADDREF(*aResult = slots->mClassList);
 
   return NS_OK;
 }
@@ -1450,7 +1197,7 @@ NS_IMETHODIMP
 nsNSElementTearoff::GetElementsByClassName(const nsAString& aClasses,
                                            nsIDOMNodeList** aReturn)
 {
-  return mContent->GetElementsByClassName(aClasses, aReturn);
+  return nsDocument::GetElementsByClassNameHelper(mContent, aClasses, aReturn);
 }
 
 nsIFrame*
@@ -1486,17 +1233,18 @@ nsGenericElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
 }
 
 nsIScrollableFrame*
-nsGenericElement::GetScrollFrame(nsIFrame **aStyledFrame)
+nsNSElementTearoff::GetScrollFrame(nsIFrame **aStyledFrame)
 {
   // it isn't clear what to return for SVG nodes, so just return nothing
-  if (IsSVG()) {
+  if (mContent->IsSVG()) {
     if (aStyledFrame) {
       *aStyledFrame = nsnull;
     }
     return nsnull;
   }
 
-  nsIFrame* frame = GetStyledFrame();
+  nsIFrame* frame =
+    (static_cast<nsGenericElement*>(mContent))->GetStyledFrame();
 
   if (aStyledFrame) {
     *aStyledFrame = frame;
@@ -1513,11 +1261,11 @@ nsGenericElement::GetScrollFrame(nsIFrame **aStyledFrame)
       return scrollFrame;
   }
 
-  nsIDocument* doc = GetOwnerDoc();
+  nsIDocument* doc = mContent->GetOwnerDoc();
   PRBool quirksMode = doc->GetCompatibilityMode() == eCompatibility_NavQuirks;
   Element* elementWithRootScrollInfo =
     quirksMode ? doc->GetBodyElement() : doc->GetRootElement();
-  if (this == elementWithRootScrollInfo) {
+  if (mContent == elementWithRootScrollInfo) {
     // In quirks mode, the scroll info for the body element should map to the
     // root scrollable frame.
     // In strict mode, the scroll info for the root element should map to the
@@ -1528,26 +1276,23 @@ nsGenericElement::GetScrollFrame(nsIFrame **aStyledFrame)
   return nsnull;
 }
 
-PRInt32
-nsGenericElement::GetScrollTop()
-{
-  nsIScrollableFrame* sf = GetScrollFrame();
-
-  return sf ?
-         nsPresContext::AppUnitsToIntCSSPixels(sf->GetScrollPosition().y) :
-         0;
-}
-
-NS_IMETHODIMP
+nsresult
 nsNSElementTearoff::GetScrollTop(PRInt32* aScrollTop)
 {
-  *aScrollTop = mContent->GetScrollTop();
+  NS_ENSURE_ARG_POINTER(aScrollTop);
+  *aScrollTop = 0;
+
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (sf) {
+    nscoord y = sf->GetScrollPosition().y;
+    *aScrollTop = nsPresContext::AppUnitsToIntCSSPixels(y);
+  }
 
   return NS_OK;
 }
 
-void
-nsGenericElement::SetScrollTop(PRInt32 aScrollTop)
+nsresult
+nsNSElementTearoff::SetScrollTop(PRInt32 aScrollTop)
 {
   nsIScrollableFrame* sf = GetScrollFrame();
   if (sf) {
@@ -1555,36 +1300,27 @@ nsGenericElement::SetScrollTop(PRInt32 aScrollTop)
     pt.y = nsPresContext::CSSPixelsToAppUnits(aScrollTop);
     sf->ScrollTo(pt, nsIScrollableFrame::INSTANT);
   }
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::SetScrollTop(PRInt32 aScrollTop)
-{
-  mContent->SetScrollTop(aScrollTop);
 
   return NS_OK;
 }
 
-PRInt32
-nsGenericElement::GetScrollLeft()
-{
-  nsIScrollableFrame* sf = GetScrollFrame();
-
-  return sf ?
-         nsPresContext::AppUnitsToIntCSSPixels(sf->GetScrollPosition().x) :
-         0;
-}
-
-NS_IMETHODIMP
+nsresult
 nsNSElementTearoff::GetScrollLeft(PRInt32* aScrollLeft)
 {
-  *aScrollLeft = mContent->GetScrollLeft();
+  NS_ENSURE_ARG_POINTER(aScrollLeft);
+  *aScrollLeft = 0;
+
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (sf) {
+    nscoord x = sf->GetScrollPosition().x;
+    *aScrollLeft = nsPresContext::AppUnitsToIntCSSPixels(x);
+  }
 
   return NS_OK;
 }
 
-void
-nsGenericElement::SetScrollLeft(PRInt32 aScrollLeft)
+nsresult
+nsNSElementTearoff::SetScrollLeft(PRInt32 aScrollLeft)
 {
   nsIScrollableFrame* sf = GetScrollFrame();
   if (sf) {
@@ -1592,70 +1328,58 @@ nsGenericElement::SetScrollLeft(PRInt32 aScrollLeft)
     pt.x = nsPresContext::CSSPixelsToAppUnits(aScrollLeft);
     sf->ScrollTo(pt, nsIScrollableFrame::INSTANT);
   }
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::SetScrollLeft(PRInt32 aScrollLeft)
-{
-  mContent->SetScrollLeft(aScrollLeft);
 
   return NS_OK;
 }
 
-PRInt32
-nsGenericElement::GetScrollHeight()
+nsresult
+nsNSElementTearoff::GetScrollHeight(PRInt32* aScrollHeight)
 {
-  if (IsSVG())
-    return 0;
+  NS_ENSURE_ARG_POINTER(aScrollHeight);
+  *aScrollHeight = 0;
+
+  if (mContent->IsSVG())
+    return NS_OK;
 
   nsIScrollableFrame* sf = GetScrollFrame();
   if (!sf) {
     nsRect rcFrame;
     nsCOMPtr<nsIContent> parent;
-    GetOffsetRect(rcFrame, getter_AddRefs(parent));
-    return rcFrame.height;
+    (static_cast<nsGenericElement *>(mContent))->GetOffsetRect(rcFrame, getter_AddRefs(parent));
+    *aScrollHeight = rcFrame.height;
+    return NS_OK;
   }
 
   nscoord height = sf->GetScrollRange().height + sf->GetScrollPortRect().height;
-  return nsPresContext::AppUnitsToIntCSSPixels(height);
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::GetScrollHeight(PRInt32* aScrollHeight)
-{
-  *aScrollHeight = mContent->GetScrollHeight();
-
+  *aScrollHeight = nsPresContext::AppUnitsToIntCSSPixels(height);
   return NS_OK;
 }
 
-PRInt32
-nsGenericElement::GetScrollWidth()
+nsresult
+nsNSElementTearoff::GetScrollWidth(PRInt32* aScrollWidth)
 {
-  if (IsSVG())
-    return 0;
+  NS_ENSURE_ARG_POINTER(aScrollWidth);
+  *aScrollWidth = 0;
+
+  if (mContent->IsSVG())
+    return NS_OK;
 
   nsIScrollableFrame* sf = GetScrollFrame();
   if (!sf) {
     nsRect rcFrame;
     nsCOMPtr<nsIContent> parent;
-    GetOffsetRect(rcFrame, getter_AddRefs(parent));
-    return rcFrame.width;
+    (static_cast<nsGenericElement *>(mContent))->GetOffsetRect(rcFrame, getter_AddRefs(parent));
+    *aScrollWidth = rcFrame.width;
+    return NS_OK;
   }
 
   nscoord width = sf->GetScrollRange().width + sf->GetScrollPortRect().width;
-  return nsPresContext::AppUnitsToIntCSSPixels(width);
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::GetScrollWidth(PRInt32 *aScrollWidth)
-{
-  *aScrollWidth = mContent->GetScrollWidth();
-
+  *aScrollWidth = nsPresContext::AppUnitsToIntCSSPixels(width);
   return NS_OK;
 }
 
 nsRect
-nsGenericElement::GetClientAreaRect()
+nsNSElementTearoff::GetClientAreaRect()
 {
   nsIFrame* styledFrame;
   nsIScrollableFrame* sf = GetScrollFrame(&styledFrame);
@@ -1676,36 +1400,40 @@ nsGenericElement::GetClientAreaRect()
   return nsRect(0, 0, 0, 0);
 }
 
-NS_IMETHODIMP
-nsNSElementTearoff::GetClientTop(PRInt32 *aClientTop)
+nsresult
+nsNSElementTearoff::GetClientTop(PRInt32* aLength)
 {
-  *aClientTop = mContent->GetClientTop();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::GetClientLeft(PRInt32 *aClientLeft)
-{
-  *aClientLeft = mContent->GetClientLeft();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::GetClientHeight(PRInt32 *aClientHeight)
-{
-  *aClientHeight = mContent->GetClientHeight();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::GetClientWidth(PRInt32 *aClientWidth)
-{
-  *aClientWidth = mContent->GetClientWidth();
+  NS_ENSURE_ARG_POINTER(aLength);
+  *aLength = nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().y);
   return NS_OK;
 }
 
 nsresult
-nsGenericElement::GetBoundingClientRect(nsIDOMClientRect** aResult)
+nsNSElementTearoff::GetClientLeft(PRInt32* aLength)
+{
+  NS_ENSURE_ARG_POINTER(aLength);
+  *aLength = nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().x);
+  return NS_OK;
+}
+
+nsresult
+nsNSElementTearoff::GetClientHeight(PRInt32* aLength)
+{
+  NS_ENSURE_ARG_POINTER(aLength);
+  *aLength = nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().height);
+  return NS_OK;
+}
+
+nsresult
+nsNSElementTearoff::GetClientWidth(PRInt32* aLength)
+{
+  NS_ENSURE_ARG_POINTER(aLength);
+  *aLength = nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().width);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
   // Weak ref, since we addref it below
   nsClientRect* rect = new nsClientRect();
@@ -1714,7 +1442,7 @@ nsGenericElement::GetBoundingClientRect(nsIDOMClientRect** aResult)
 
   NS_ADDREF(*aResult = rect);
   
-  nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
+  nsIFrame* frame = mContent->GetPrimaryFrame(Flush_Layout);
   if (!frame) {
     // display:none, perhaps? Return the empty rect
     return NS_OK;
@@ -1727,13 +1455,7 @@ nsGenericElement::GetBoundingClientRect(nsIDOMClientRect** aResult)
 }
 
 NS_IMETHODIMP
-nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
-{
-  return mContent->GetBoundingClientRect(aResult);
-}
-
-nsresult
-nsGenericElement::GetClientRects(nsIDOMClientRectList** aResult)
+nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
 {
   *aResult = nsnull;
 
@@ -1741,7 +1463,7 @@ nsGenericElement::GetClientRects(nsIDOMClientRectList** aResult)
   if (!rectList)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
+  nsIFrame* frame = mContent->GetPrimaryFrame(Flush_Layout);
   if (!frame) {
     // display:none, perhaps? Return an empty list
     *aResult = rectList.forget().get();
@@ -1755,12 +1477,6 @@ nsGenericElement::GetClientRects(nsIDOMClientRectList** aResult)
     return builder.mRV;
   *aResult = rectList.forget().get();
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
-{
-  return mContent->GetClientRects(aResult);
 }
 
 //----------------------------------------------------------------------
@@ -2019,11 +1735,11 @@ nsDOMEventRTTearoff::AddEventListener(const nsAString& aType,
 
 //----------------------------------------------------------------------
 
-NS_IMPL_CYCLE_COLLECTION_1(nsNodeSelectorTearoff, mNode)
+NS_IMPL_CYCLE_COLLECTION_1(nsNodeSelectorTearoff, mContent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsNodeSelectorTearoff)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNodeSelector)
-NS_INTERFACE_MAP_END_AGGREGATED(mNode)
+NS_INTERFACE_MAP_END_AGGREGATED(mContent)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsNodeSelectorTearoff)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsNodeSelectorTearoff)
@@ -2032,16 +1748,14 @@ NS_IMETHODIMP
 nsNodeSelectorTearoff::QuerySelector(const nsAString& aSelector,
                                      nsIDOMElement **aReturn)
 {
-  nsresult rv;
-  nsIContent* result = nsGenericElement::doQuerySelector(mNode, aSelector, &rv);
-  return result ? CallQueryInterface(result, aReturn) : rv;
+  return nsGenericElement::doQuerySelector(mContent, aSelector, aReturn);
 }
 
 NS_IMETHODIMP
 nsNodeSelectorTearoff::QuerySelectorAll(const nsAString& aSelector,
                                         nsIDOMNodeList **aReturn)
 {
-  return nsGenericElement::doQuerySelectorAll(mNode, aSelector, aReturn);
+  return nsGenericElement::doQuerySelectorAll(mContent, aSelector, aReturn);
 }
 
 //----------------------------------------------------------------------
@@ -2154,26 +1868,6 @@ nsGenericElement::SetPrefix(const nsAString& aPrefix)
   return NS_OK;
 }
 
-static already_AddRefed<nsIDOMNSFeatureFactory>
-GetDOMFeatureFactory(const nsAString& aFeature, const nsAString& aVersion)
-{
-  nsIDOMNSFeatureFactory *factory = nsnull;
-  nsCOMPtr<nsICategoryManager> categoryManager =
-    do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
-  if (categoryManager) {
-    nsCAutoString featureCategory(NS_DOMNS_FEATURE_PREFIX);
-    AppendUTF16toUTF8(aFeature, featureCategory);
-    nsXPIDLCString contractID;
-    nsresult rv = categoryManager->GetCategoryEntry(featureCategory.get(),
-                                                    NS_ConvertUTF16toUTF8(aVersion).get(),
-                                                    getter_Copies(contractID));
-    if (NS_SUCCEEDED(rv)) {
-      CallGetService(contractID.get(), &factory);  // addrefs
-    }
-  }
-  return factory;
-}
-
 nsresult
 nsGenericElement::InternalIsSupported(nsISupports* aObject,
                                       const nsAString& aFeature,
@@ -2251,19 +1945,41 @@ nsGenericElement::InternalIsSupported(nsISupports* aObject,
 }
 
 nsresult
-nsINode::GetFeature(const nsAString& aFeature,
-                    const nsAString& aVersion,
-                    nsISupports** aReturn)
+nsGenericElement::InternalGetFeature(nsISupports* aObject,
+                                    const nsAString& aFeature,
+                                    const nsAString& aVersion,
+                                    nsISupports** aReturn)
 {
   *aReturn = nsnull;
   nsCOMPtr<nsIDOMNSFeatureFactory> factory =
     GetDOMFeatureFactory(aFeature, aVersion);
 
   if (factory) {
-    factory->GetFeature(this, aFeature, aVersion, aReturn);
+    factory->GetFeature(aObject, aFeature, aVersion, aReturn);
   }
 
   return NS_OK;
+}
+
+already_AddRefed<nsIDOMNSFeatureFactory>
+nsGenericElement::GetDOMFeatureFactory(const nsAString& aFeature,
+                                       const nsAString& aVersion)
+{
+  nsIDOMNSFeatureFactory *factory = nsnull;
+  nsCOMPtr<nsICategoryManager> categoryManager =
+    do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
+  if (categoryManager) {
+    nsCAutoString featureCategory(NS_DOMNS_FEATURE_PREFIX);
+    AppendUTF16toUTF8(aFeature, featureCategory);
+    nsXPIDLCString contractID;
+    nsresult rv = categoryManager->GetCategoryEntry(featureCategory.get(),
+                                                    NS_ConvertUTF16toUTF8(aVersion).get(),
+                                                    getter_Copies(contractID));
+    if (NS_SUCCEEDED(rv)) {
+      CallGetService(contractID.get(), &factory);  // addrefs
+    }
+  }
+  return factory;
 }
 
 NS_IMETHODIMP
@@ -3452,7 +3168,10 @@ nsGenericElement::GetBaseURI() const
   GetAttr(kNameSpaceID_XML, nsGkAtoms::base, value);
   if (value.IsEmpty()) {
     // No xml:base, so we just use the parent's base URL
-    return parentBase.forget();
+    nsIURI *base = nsnull;
+    parentBase.swap(base);
+
+    return base;
   }
 
   nsCOMPtr<nsIURI> ourBase;
@@ -3465,7 +3184,16 @@ nsGenericElement::GetBaseURI() const
                                 nsIScriptSecurityManager::STANDARD);
   }
 
-  return NS_SUCCEEDED(rv) ? ourBase.forget() : parentBase.forget();
+  nsIURI *base;
+  if (NS_FAILED(rv)) {
+    base = parentBase;
+  } else {
+    base = ourBase;
+  }
+
+  NS_IF_ADDREF(base);
+
+  return base;    
 }
 
 PRBool
@@ -5539,24 +5267,29 @@ FindFirstMatchingElement(nsIContent* aMatchingElement,
 }
 
 /* static */
-nsIContent*
+nsresult
 nsGenericElement::doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
-                                  nsresult *aResult)
+                                  nsIDOMElement **aReturn)
 {
-  NS_PRECONDITION(aResult, "Null out param?");
+  NS_PRECONDITION(aReturn, "Null out param?");
 
   nsAutoPtr<nsCSSSelectorList> selectorList;
   nsPresContext* presContext;
-  *aResult = ParseSelectorList(aRoot, aSelector,
-                               getter_Transfers(selectorList),
-                               &presContext);
-  NS_ENSURE_SUCCESS(*aResult, nsnull);
+  nsresult rv = ParseSelectorList(aRoot, aSelector,
+                                  getter_Transfers(selectorList),
+                                  &presContext);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsIContent* foundElement = nsnull;
   TryMatchingElementsInSubtree(aRoot, nsnull, presContext, selectorList,
                                FindFirstMatchingElement, &foundElement);
 
-  return foundElement;
+  if (foundElement) {
+    return CallQueryInterface(foundElement, aReturn);
+  }
+
+  *aReturn = nsnull;
+  return NS_OK;
 }
 
 static PRBool
@@ -5592,29 +5325,30 @@ nsGenericElement::doQuerySelectorAll(nsINode* aRoot,
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsNSElementTearoff::MozMatchesSelector(const nsAString& aSelector, PRBool* aReturn)
+{
+  NS_PRECONDITION(aReturn, "Null out param?");
+  *aReturn = nsGenericElement::doMatchesSelector(mContent, aSelector);
+  return NS_OK;
+}
 
+/* static */
 PRBool
-nsGenericElement::MozMatchesSelector(const nsAString& aSelector)
+nsGenericElement::doMatchesSelector(Element* aElement,
+                                    const nsAString& aSelector)
 {
   nsAutoPtr<nsCSSSelectorList> selectorList;
   nsPresContext* presContext;
   PRBool matches = PR_FALSE;
 
-  if (NS_SUCCEEDED(ParseSelectorList(this, aSelector,
+  if (NS_SUCCEEDED(ParseSelectorList(aElement, aSelector,
                                      getter_Transfers(selectorList),
                                      &presContext)))
   {
-    RuleProcessorData data(presContext, this, nsnull);
+    RuleProcessorData data(presContext, aElement, nsnull);
     matches = nsCSSRuleProcessor::SelectorListMatches(data, selectorList);
   }
 
   return matches;
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::MozMatchesSelector(const nsAString& aSelector, PRBool* aReturn)
-{
-  NS_PRECONDITION(aReturn, "Null out param?");
-  *aReturn = mContent->MozMatchesSelector(aSelector);
-  return NS_OK;
 }

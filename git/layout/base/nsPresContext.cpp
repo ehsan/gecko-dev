@@ -95,7 +95,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsObjectFrame.h"
 #include "nsTransitionManager.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"

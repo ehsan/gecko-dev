@@ -221,8 +221,6 @@ TaskbarTabPreview::GlobalWndProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lPa
     preview->mProxyWindow = hWnd;
   } else {
     preview = reinterpret_cast<TaskbarTabPreview*>(::GetPropW(hWnd, TASKBARPREVIEW_HWNDID));
-    if (nMsg == WM_DESTROY)
-      ::RemovePropW(hWnd, TASKBARPREVIEW_HWNDID);
   }
 
   if (preview)

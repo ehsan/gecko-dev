@@ -55,7 +55,7 @@
 #include "nsRuleWalker.h"
 #include "nsRuleData.h"
 #include "nsRuleProcessorData.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 

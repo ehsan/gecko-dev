@@ -73,7 +73,7 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsThreadUtils.h"
 #include "nsIScrollableFrame.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 

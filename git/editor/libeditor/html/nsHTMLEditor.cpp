@@ -97,8 +97,6 @@
 #include "SetDocTitleTxn.h"
 #include "nsGUIEvent.h"
 #include "nsTextFragment.h"
-#include "nsFocusManager.h"
-#include "nsPIDOMWindow.h"
 
 // netwerk
 #include "nsIURI.h"
@@ -3947,6 +3945,8 @@ NS_IMETHODIMP
 nsHTMLEditor::StartOperation(PRInt32 opID, nsIEditor::EDirection aDirection)
 {
   nsEditor::StartOperation(opID, aDirection);  // will set mAction, mDirection
+  if (! ((mAction==kOpInsertText) || (mAction==kOpInsertIMEText)) )
+    ClearInlineStylesCache();
   if (mRules) return mRules->BeforeEdit(mAction, mDirection);
   return NS_OK;
 }
@@ -3958,6 +3958,8 @@ NS_IMETHODIMP
 nsHTMLEditor::EndOperation()
 {
   // post processing
+  if (! ((mAction==kOpInsertText) || (mAction==kOpInsertIMEText) || (mAction==kOpIgnore)) )
+    ClearInlineStylesCache();
   nsresult res = NS_OK;
   if (mRules) res = mRules->AfterEdit(mAction, mDirection);
   nsEditor::EndOperation();  // will clear mAction, mDirection
@@ -4249,6 +4251,11 @@ nsHTMLEditor::GetEnclosingTable(nsIDOMNode *aNode)
 #ifdef XP_MAC
 #pragma mark -
 #endif
+
+void nsHTMLEditor::ClearInlineStylesCache()
+{
+  mCachedNode = nsnull;
+}
 
 #ifdef PRE_NODE_IN_BODY
 nsCOMPtr<nsIDOMElement> nsHTMLEditor::FindPreElement()
@@ -5623,80 +5630,5 @@ nsresult
 nsHTMLEditor::GetReturnInParagraphCreatesNewParagraph(PRBool *aCreatesNewParagraph)
 {
   *aCreatesNewParagraph = mCRInParagraphCreatesParagraph;
-  return NS_OK;
-}
-
-PRBool
-nsHTMLEditor::HasFocus()
-{
-  NS_ENSURE_TRUE(mDocWeak, PR_FALSE);
-
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, PR_FALSE);
-
-  nsCOMPtr<nsIContent> focusedContent = fm->GetFocusedContent();
-
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  PRBool inDesignMode = doc->HasFlag(NODE_IS_EDITABLE);
-  if (!focusedContent) {
-    // in designMode, nobody gets focus in most cases.
-    return inDesignMode ? OurWindowHasFocus() : PR_FALSE;
-  }
-
-  if (inDesignMode) {
-    return OurWindowHasFocus() ?
-      nsContentUtils::ContentIsDescendantOf(focusedContent, doc) : PR_FALSE;
-  }
-
-  // We're HTML editor for contenteditable
-
-  // If the focused content isn't editable, or it has independent selection,
-  // we don't have focus.
-  if (!focusedContent->HasFlag(NODE_IS_EDITABLE) ||
-      IsIndependentSelectionContent(focusedContent)) {
-    return PR_FALSE;
-  }
-  nsCOMPtr<nsIContent> rootContent = do_QueryInterface(GetRoot());
-  if (!rootContent) {
-    return PR_FALSE;
-  }
-  // If the focused content is a descendant of our editor root, we're focused.
-  return nsContentUtils::ContentIsDescendantOf(focusedContent, rootContent);
-}
-
-PRBool
-nsHTMLEditor::OurWindowHasFocus()
-{
-  NS_ENSURE_TRUE(mDocWeak, PR_FALSE);
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, PR_FALSE);
-  nsCOMPtr<nsIDOMWindow> focusedWindow;
-  fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
-  if (!focusedWindow) {
-    return PR_FALSE;
-  }
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  nsCOMPtr<nsIDOMWindow> ourWindow = do_QueryInterface(doc->GetWindow());
-  return ourWindow == focusedWindow;
-}
-
-PRBool
-nsHTMLEditor::IsIndependentSelectionContent(nsIContent* aContent)
-{
-  NS_PRECONDITION(aContent, "aContent must not be null");
-  nsIFrame* frame = aContent->GetPrimaryFrame();
-  return (frame && (frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION));
-}
-
-NS_IMETHODIMP
-nsHTMLEditor::GetPreferredIMEState(PRUint32 *aState)
-{
-  if (IsReadonly() || IsDisabled()) {
-    *aState = nsIContent::IME_STATUS_DISABLE;
-    return NS_OK;
-  }
-
-  // HTML editor don't prefer the CSS ime-mode because IE didn't do so too.
-  *aState = nsIContent::IME_STATUS_ENABLE;
   return NS_OK;
 }
