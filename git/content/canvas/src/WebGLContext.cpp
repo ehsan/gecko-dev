@@ -63,6 +63,7 @@
 
 using namespace mozilla;
 using namespace mozilla::gl;
+using namespace mozilla::layers;
 
 nsresult NS_NewCanvasRenderingContextWebGL(nsICanvasRenderingContextWebGL** aResult);
 
@@ -85,6 +86,7 @@ WebGLContext::WebGLContext()
     mGeneration = 0;
     mInvalidated = PR_FALSE;
     mResetLayer = PR_TRUE;
+    mVerbose = PR_FALSE;
 
     mActiveTexture = 0;
     mSynthesizedGLError = LOCAL_GL_NO_ERROR;
@@ -102,6 +104,12 @@ WebGLContext::WebGLContext()
 
     mBlackTexturesAreInitialized = PR_FALSE;
     mFakeBlackStatus = DoNotNeedFakeBlack;
+
+    mFakeVertexAttrib0Array = nsnull;
+    mVertexAttrib0Vector[0] = 0;
+    mVertexAttrib0Vector[1] = 0;
+    mVertexAttrib0Vector[2] = 0;
+    mVertexAttrib0Vector[3] = 1;
 }
 
 WebGLContext::~WebGLContext()
@@ -209,7 +217,9 @@ WebGLContext::DestroyResourcesAndContext()
 
     // We just got rid of everything, so the context had better
     // have been going away.
+#ifdef DEBUG
     printf_stderr("--- WebGL context destroyed: %p\n", gl.get());
+#endif
 
     gl = nsnull;
 }
@@ -295,7 +305,11 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
     NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
 
-    PRBool forceOSMesa;
+    PRBool verbose = PR_FALSE;
+    prefService->GetBoolPref("webgl.verbose", &verbose);
+    mVerbose = verbose;
+
+    PRBool forceOSMesa = PR_FALSE;
     prefService->GetBoolPref("webgl.force_osmesa", &forceOSMesa);
 
     if (!forceOSMesa) {
@@ -369,7 +383,9 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         return NS_ERROR_FAILURE;
     }
 
+#ifdef DEBUG
     printf_stderr ("--- WebGL context created: %p\n", gl.get());
+#endif
 
     mWidth = width;
     mHeight = height;
@@ -508,7 +524,7 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
                              LayerManager *aManager)
 {
     if (!mResetLayer && aOldLayer &&
-        aOldLayer->GetUserData() == &gWebGLLayerUserData) {
+        aOldLayer->HasUserData(&gWebGLLayerUserData)) {
         NS_ADDREF(aOldLayer);
         if (mInvalidated) {
             aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
@@ -522,7 +538,7 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
         NS_WARNING("CreateCanvasLayer returned null!");
         return nsnull;
     }
-    canvasLayer->SetUserData(&gWebGLLayerUserData);
+    canvasLayer->SetUserData(&gWebGLLayerUserData, nsnull);
 
     CanvasLayer::Data data;
 
@@ -542,7 +558,8 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
     data.mGLBufferIsPremultiplied = PR_FALSE;
 
     canvasLayer->Initialize(data);
-    canvasLayer->SetIsOpaqueContent(gl->CreationFormat().alpha == 0 ? PR_TRUE : PR_FALSE);
+    PRUint32 flags = gl->CreationFormat().alpha == 0 ? Layer::CONTENT_OPAQUE : 0;
+    canvasLayer->SetContentFlags(flags);
     canvasLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
 
     mInvalidated = PR_FALSE;

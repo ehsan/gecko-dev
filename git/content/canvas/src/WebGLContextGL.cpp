@@ -150,6 +150,10 @@ WebGLContext::ActiveTexture(WebGLenum texture)
 NS_IMETHODIMP
 WebGLContext::AttachShader(nsIWebGLProgram *pobj, nsIWebGLShader *shobj)
 {
+    // if pobj or shobj are null/not specified, it's an error
+    if (pobj == nsnull || shobj == nsnull)
+        return ErrorInvalidValue("attachShader");
+
     WebGLuint progname, shadername;
     WebGLProgram *program;
     WebGLShader *shader;
@@ -223,7 +227,7 @@ WebGLContext::BindFramebuffer(WebGLenum target, nsIWebGLFramebuffer *fbobj)
     WebGLFramebuffer *wfb;
 
     if (target != LOCAL_GL_FRAMEBUFFER)
-        return ErrorInvalidOperation("BindFramebuffer: target must be GL_FRAMEBUFFER");
+        return ErrorInvalidEnum("BindFramebuffer: target must be GL_FRAMEBUFFER");
 
     if (!GetConcreteObjectAndGLName("bindFramebuffer", fbobj, &wfb, &framebuffername, &isNull))
         return NS_OK;
@@ -580,6 +584,12 @@ WebGLContext::CopyTexImage2D(WebGLenum target,
     if (level < 0)
         return ErrorInvalidValue("copyTexImage2D: level may not be negative");
 
+    if (level >= 1) {
+        if (!(is_pot_assuming_nonnegative(width) &&
+              is_pot_assuming_nonnegative(height)))
+            return ErrorInvalidValue("copyTexImage2D: with level > 0, width and height must be powers of two");
+    }
+
     if (!CanvasUtils::CheckSaneSubrectSize(x,y,width, height, mWidth, mHeight))
         return ErrorInvalidOperation("CopyTexImage2D: copied rectangle out of bounds");
 
@@ -860,10 +870,63 @@ WebGLContext::DisableVertexAttribArray(WebGLuint index)
 
     MakeContextCurrent();
 
-    gl->fDisableVertexAttribArray(index);
+    if (index || gl->IsGLES2())
+        gl->fDisableVertexAttribArray(index);
+
     mAttribBuffers[index].enabled = PR_FALSE;
 
     return NS_OK;
+}
+
+PRBool
+WebGLContext::NeedFakeVertexAttrib0()
+{
+    return !gl->IsGLES2() &&
+           !mAttribBuffers[0].enabled;
+}
+
+void
+WebGLContext::DoFakeVertexAttrib0(WebGLuint vertexCount)
+{
+    if (!NeedFakeVertexAttrib0())
+        return;
+
+    mFakeVertexAttrib0Array = new WebGLfloat[4 * vertexCount];
+
+    for(size_t i = 0; i < vertexCount; ++i) {
+        mFakeVertexAttrib0Array[4 * i + 0] = mVertexAttrib0Vector[0];
+        mFakeVertexAttrib0Array[4 * i + 1] = mVertexAttrib0Vector[1];
+        mFakeVertexAttrib0Array[4 * i + 2] = mVertexAttrib0Vector[2];
+        mFakeVertexAttrib0Array[4 * i + 3] = mVertexAttrib0Vector[3];
+    }
+
+    gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+    gl->fVertexAttribPointer(0, 4, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, mFakeVertexAttrib0Array);
+}
+
+void
+WebGLContext::UndoFakeVertexAttrib0()
+{
+    if (!NeedFakeVertexAttrib0())
+        return;
+
+    mFakeVertexAttrib0Array = nsnull;
+
+    // first set the bound buffer as needed for subsequent gl->fVertexAttribPointer call.
+    // since in DoFakeVertexAttrib0() we called bindBuffer on buffer zero, we only need to do that if
+    // we have a nonzero buffer binding for this attrib.
+    if (mAttribBuffers[0].buf)
+        gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mAttribBuffers[0].buf->GLName());
+
+    gl->fVertexAttribPointer(0,
+                             mAttribBuffers[0].size,
+                             mAttribBuffers[0].type,
+                             mAttribBuffers[0].normalized,
+                             mAttribBuffers[0].stride,
+                             (const GLvoid *) mAttribBuffers[0].byteOffset);
+
+    // now restore the bound buffer to its state before we did this whole draw call business
+    gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mBoundArrayBuffer ? mBoundArrayBuffer->GLName() : 0);
 }
 
 PRBool
@@ -983,7 +1046,11 @@ WebGLContext::DrawArrays(GLenum mode, WebGLint first, WebGLsizei count)
     MakeContextCurrent();
 
     BindFakeBlackTextures();
+    DoFakeVertexAttrib0(checked_firstPlusCount.value());
+
     gl->fDrawArrays(mode, first, count);
+
+    UndoFakeVertexAttrib0();
     UnbindFakeBlackTextures();
 
     Invalidate();
@@ -1056,7 +1123,11 @@ WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type, Web
     MakeContextCurrent();
 
     BindFakeBlackTextures();
+    DoFakeVertexAttrib0(checked_neededCount.value());
+
     gl->fDrawElements(mode, count, type, (GLvoid*) (byteOffset));
+
+    UndoFakeVertexAttrib0();
     UnbindFakeBlackTextures();
 
     Invalidate();
@@ -1248,8 +1319,12 @@ WebGLContext::GenerateMipmap(WebGLenum target)
     if (!tex)
         return ErrorInvalidOperation("generateMipmap: no texture is bound to this target");
 
-    if (!tex->IsGenerateMipmapAllowed()) {
-        return ErrorInvalidOperation("generateMipmap: texture does not satisfy requirements for generateMipmap");
+    if (!tex->IsFirstImagePowerOfTwo()) {
+        return ErrorInvalidOperation("generateMipmap: the width or height of this texture is not a power of two");
+    }
+
+    if (!tex->AreAllLevel0ImageInfosEqual()) {
+        return ErrorInvalidOperation("generateMipmap: the six faces of this cube map have different dimensions, format, or type.");
     }
 
     tex->SetGeneratedMipmap();
@@ -1318,7 +1393,8 @@ WebGLContext::GetAttachedShaders(nsIWebGLProgram *pobj, nsIVariant **retval)
     *retval = nsnull;
 
     WebGLProgram *prog;
-    if (!GetConcreteObject("getAttachedShaders", pobj, &prog))
+    PRBool isNull;
+    if (!GetConcreteObject("getAttachedShaders", pobj, &prog, &isNull)) 
         return NS_OK;
 
     nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
@@ -1326,10 +1402,13 @@ WebGLContext::GetAttachedShaders(nsIWebGLProgram *pobj, nsIVariant **retval)
 
     MakeContextCurrent();
 
-    if (prog->AttachedShaders().Length() == 0) {
+    if (isNull) {
+        wrval->SetAsVoid();
+        // note no return, we still want to return the variant
+        ErrorInvalidValue("getAttachedShaders: invalid program");
+    } else if (prog->AttachedShaders().Length() == 0) {
         wrval->SetAsEmptyArray();
-    }
-    else {
+    } else {
         wrval->SetAsArray(nsIDataType::VTYPE_INTERFACE,
                         &NS_GET_IID(nsIWebGLShader),
                         prog->AttachedShaders().Length(),
@@ -1690,7 +1769,7 @@ WebGLContext::GetFramebufferAttachmentParameter(WebGLenum target, WebGLenum atta
                 break;
 
             default:
-                return ErrorInvalidEnum("GetFramebufferAttachmentParameter: invalid parameter");
+                return ErrorInvalidEnumInfo("GetFramebufferAttachmentParameter: pname", pname);
         }
     } else if (atype == LOCAL_GL_TEXTURE) {
         switch (pname) {
@@ -1716,10 +1795,22 @@ WebGLContext::GetFramebufferAttachmentParameter(WebGLenum target, WebGLenum atta
                 break;
 
             default:
-                return ErrorInvalidEnum("GetFramebufferAttachmentParameter: invalid parameter");
+                return ErrorInvalidEnumInfo("GetFramebufferAttachmentParameter: pname", pname);
         }
-    } else {
-        NS_WARNING("Unknown framebuffer attachment type?");
+    } else if (atype == LOCAL_GL_NONE) {
+        switch (pname) {
+            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
+                wrval->SetAsInt32(atype);
+                break;
+
+            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
+                wrval->SetAsEmpty();
+                break;
+
+            default:
+                return ErrorInvalidEnumInfo("GetFramebufferAttachmentParameter: pname", pname);
+        }
+    } else { // GL bug? should never happen
         return NS_ERROR_FAILURE;
     }
 
@@ -2006,13 +2097,16 @@ WebGLContext::GetTexParameter(WebGLenum target, WebGLenum pname, nsIVariant **re
 {
     *retval = nsnull;
 
-    nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
-    NS_ENSURE_TRUE(wrval, NS_ERROR_FAILURE);
-
     MakeContextCurrent();
 
     if (!ValidateTextureTargetEnum(target, "getTexParameter: target"))
         return NS_OK;
+
+    if (!activeBoundTextureForTarget(target))
+        return ErrorInvalidOperation("getTexParameter: no texture bound");
+
+    nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
+    NS_ENSURE_TRUE(wrval, NS_ERROR_FAILURE);
 
     switch (pname) {
         case LOCAL_GL_TEXTURE_MIN_FILTER:
@@ -2180,17 +2274,22 @@ WebGLContext::GetVertexAttrib(WebGLuint index, WebGLenum pname, nsIVariant **ret
 {
     *retval = nsnull;
 
+    if (index >= mAttribBuffers.Length())
+        return ErrorInvalidValue("getVertexAttrib: invalid index");
+
     nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
     NS_ENSURE_TRUE(wrval, NS_ERROR_FAILURE);
 
     MakeContextCurrent();
 
     switch (pname) {
-        // int
+        case LOCAL_GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING:
+            wrval->SetAsISupports(mAttribBuffers[index].buf);
+            break;
+
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_SIZE:
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_STRIDE:
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_TYPE:
-        case LOCAL_GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING:
         {
             PRInt32 i = 0;
             gl->fGetVertexAttribiv(index, pname, (GLint*) &i);
@@ -2200,12 +2299,20 @@ WebGLContext::GetVertexAttrib(WebGLuint index, WebGLenum pname, nsIVariant **ret
 
         case LOCAL_GL_CURRENT_VERTEX_ATTRIB:
         {
-            GLfloat fv[4] = { 0 };
-            gl->fGetVertexAttribfv(index, LOCAL_GL_CURRENT_VERTEX_ATTRIB, fv);
+            WebGLfloat vec[4] = {0, 0, 0, 1};
+            if (index) {
+                gl->fGetVertexAttribfv(index, LOCAL_GL_CURRENT_VERTEX_ATTRIB, &vec[0]);
+            } else {
+                vec[0] = mVertexAttrib0Vector[0];
+                vec[1] = mVertexAttrib0Vector[1];
+                vec[2] = mVertexAttrib0Vector[2];
+                vec[3] = mVertexAttrib0Vector[3];
+            }
             wrval->SetAsArray(nsIDataType::VTYPE_FLOAT, nsnull,
-                              4, static_cast<void*>(fv));
+                              4, vec);
         }
             break;
+
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_ENABLED:
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_NORMALIZED:
         {
@@ -2215,8 +2322,10 @@ WebGLContext::GetVertexAttrib(WebGLuint index, WebGLenum pname, nsIVariant **ret
         }
             break;
 
-        // not supported; doesn't make sense to return a pointer unless we have some kind of buffer object abstraction
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_POINTER:
+            wrval->SetAsUint32(mAttribBuffers[index].byteOffset);
+            break;
+
         default:
             return ErrorInvalidEnumInfo("getVertexAttrib: parameter", pname);
     }
@@ -2230,7 +2339,16 @@ WebGLContext::GetVertexAttrib(WebGLuint index, WebGLenum pname, nsIVariant **ret
 NS_IMETHODIMP
 WebGLContext::GetVertexAttribOffset(WebGLuint index, WebGLenum pname, WebGLuint *retval)
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    *retval = 0;
+
+    if (index >= mAttribBuffers.Length())
+        return ErrorInvalidValue("getVertexAttribOffset: invalid index");
+
+    if (pname != LOCAL_GL_VERTEX_ATTRIB_ARRAY_POINTER)
+        return ErrorInvalidEnum("getVertexAttribOffset: bad parameter");
+
+    *retval = mAttribBuffers[index].byteOffset;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2381,7 +2499,7 @@ WebGLContext::ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsiz
                               WebGLenum format, WebGLenum type, void *data, PRUint32 byteLength)
 {
     if (HTMLCanvasElement()->IsWriteOnly() && !nsContentUtils::IsCallerTrustedForRead()) {
-        LogMessage("ReadPixels: Not allowed");
+        LogMessage(mVerbose, "ReadPixels: Not allowed");
         return NS_ERROR_DOM_SECURITY_ERR;
     }
 
@@ -2545,6 +2663,9 @@ WebGLContext::RenderbufferStorage(WebGLenum target, WebGLenum internalformat, We
 
     MakeContextCurrent();
     gl->fRenderbufferStorage(target, internalformat, width, height);
+
+    // now we need to initialize the renderbuffer to 0 as per the thread "about RenderBufferStorage"
+    // on the public_webgl list
 
     return NS_OK;
 }
@@ -2740,7 +2861,10 @@ WebGLContext::DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
 
 #define OBTAIN_UNIFORM_LOCATION(info)                                   \
     WebGLUniformLocation *location_object;                              \
-    if (!GetConcreteObject(info, ploc, &location_object))               \
+    PRBool isNull;                                                      \
+    if (!GetConcreteObject(info, ploc, &location_object, &isNull))      \
+        return NS_OK;                                                   \
+    if (isNull)                                                         \
         return NS_OK;                                                   \
     if (mCurrentProgram != location_object->Program())                  \
         return ErrorInvalidOperation("%s: this uniform location doesn't correspond to the current program", info); \
@@ -2760,26 +2884,9 @@ WebGLContext::name##_array(nsIWebGLUniformLocation *ploc, js::TypedArray *wa) \
     if (!wa || wa->type != js::TypedArray::arrayType)                   \
         return ErrorInvalidOperation(#name ": array must be " #arrayType);      \
     if (wa->length == 0 || wa->length % cnt != 0)                       \
-        return ErrorInvalidOperation(#name ": array must be > 0 elements and have a length multiple of %d", cnt); \
+        return ErrorInvalidValue(#name ": array must be > 0 elements and have a length multiple of %d", cnt); \
     MakeContextCurrent();                                               \
     gl->f##name(location, wa->length / cnt, (ptrType *)wa->data);            \
-    return NS_OK;                                                       \
-}
-
-#define SIMPLE_ARRAY_METHOD_NO_COUNT(name, cnt, arrayType, ptrType)  \
-NS_IMETHODIMP                                                           \
-WebGLContext::name(PRInt32 dummy) {                                     \
-     return NS_ERROR_NOT_IMPLEMENTED;                                   \
-}                                                                       \
-NS_IMETHODIMP                                                           \
-WebGLContext::name##_array(WebGLuint idx, js::TypedArray *wa)              \
-{                                                                       \
-    if (!wa || wa->type != js::TypedArray::arrayType)                   \
-        return ErrorInvalidOperation(#name ": array must be " #arrayType);      \
-    if (wa->length < cnt)                                               \
-        return ErrorInvalidOperation(#name ": array must be >= %d elements", cnt); \
-    MakeContextCurrent();                                               \
-    gl->f##name(idx, (ptrType *)wa->data);                              \
     return NS_OK;                                                       \
 }
 
@@ -2851,10 +2958,109 @@ SIMPLE_MATRIX_METHOD_UNIFORM(UniformMatrix2fv, 2, TYPE_FLOAT32, WebGLfloat)
 SIMPLE_MATRIX_METHOD_UNIFORM(UniformMatrix3fv, 3, TYPE_FLOAT32, WebGLfloat)
 SIMPLE_MATRIX_METHOD_UNIFORM(UniformMatrix4fv, 4, TYPE_FLOAT32, WebGLfloat)
 
-GL_SAME_METHOD_2(VertexAttrib1f, VertexAttrib1f, PRUint32, WebGLfloat)
-GL_SAME_METHOD_3(VertexAttrib2f, VertexAttrib2f, PRUint32, WebGLfloat, WebGLfloat)
-GL_SAME_METHOD_4(VertexAttrib3f, VertexAttrib3f, PRUint32, WebGLfloat, WebGLfloat, WebGLfloat)
-GL_SAME_METHOD_5(VertexAttrib4f, VertexAttrib4f, PRUint32, WebGLfloat, WebGLfloat, WebGLfloat, WebGLfloat)
+NS_IMETHODIMP
+WebGLContext::VertexAttrib1f(PRUint32 index, WebGLfloat x0)
+{
+    MakeContextCurrent();
+
+    if (index) {
+        gl->fVertexAttrib1f(index, x0);
+    } else {
+        mVertexAttrib0Vector[0] = x0;
+        mVertexAttrib0Vector[1] = 0;
+        mVertexAttrib0Vector[2] = 0;
+        mVertexAttrib0Vector[3] = 1;
+        if (gl->IsGLES2())
+            gl->fVertexAttrib1f(index, x0);
+    }
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+WebGLContext::VertexAttrib2f(PRUint32 index, WebGLfloat x0, WebGLfloat x1)
+{
+    MakeContextCurrent();
+
+    if (index) {
+        gl->fVertexAttrib2f(index, x0, x1);
+    } else {
+        mVertexAttrib0Vector[0] = x0;
+        mVertexAttrib0Vector[1] = x1;
+        mVertexAttrib0Vector[2] = 0;
+        mVertexAttrib0Vector[3] = 1;
+        if (gl->IsGLES2())
+            gl->fVertexAttrib2f(index, x0, x1);
+    }
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+WebGLContext::VertexAttrib3f(PRUint32 index, WebGLfloat x0, WebGLfloat x1, WebGLfloat x2)
+{
+    MakeContextCurrent();
+
+    if (index) {
+        gl->fVertexAttrib3f(index, x0, x1, x2);
+    } else {
+        mVertexAttrib0Vector[0] = x0;
+        mVertexAttrib0Vector[1] = x1;
+        mVertexAttrib0Vector[2] = x2;
+        mVertexAttrib0Vector[3] = 1;
+        if (gl->IsGLES2())
+            gl->fVertexAttrib3f(index, x0, x1, x2);
+    }
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+WebGLContext::VertexAttrib4f(PRUint32 index, WebGLfloat x0, WebGLfloat x1,
+                                             WebGLfloat x2, WebGLfloat x3)
+{
+    MakeContextCurrent();
+
+    if (index) {
+        gl->fVertexAttrib4f(index, x0, x1, x2, x3);
+    } else {
+        mVertexAttrib0Vector[0] = x0;
+        mVertexAttrib0Vector[1] = x1;
+        mVertexAttrib0Vector[2] = x2;
+        mVertexAttrib0Vector[3] = x3;
+        if (gl->IsGLES2())
+            gl->fVertexAttrib4f(index, x0, x1, x2, x3);
+    }
+
+    return NS_OK;
+}
+
+#define SIMPLE_ARRAY_METHOD_NO_COUNT(name, cnt, arrayType, ptrType)  \
+NS_IMETHODIMP                                                           \
+WebGLContext::name(PRInt32 dummy) {                                     \
+     return NS_ERROR_NOT_IMPLEMENTED;                                   \
+}                                                                       \
+NS_IMETHODIMP                                                           \
+WebGLContext::name##_array(WebGLuint idx, js::TypedArray *wa)           \
+{                                                                       \
+    if (!wa || wa->type != js::TypedArray::arrayType)                   \
+        return ErrorInvalidOperation(#name ": array must be " #arrayType); \
+    if (wa->length < cnt)                                               \
+        return ErrorInvalidOperation(#name ": array must be >= %d elements", cnt); \
+    MakeContextCurrent();                                               \
+    ptrType *ptr = (ptrType *)wa->data;                                  \
+    if (idx) {                                                        \
+        gl->f##name(idx, ptr);                                          \
+    } else {                                                            \
+        mVertexAttrib0Vector[0] = ptr[0];                               \
+        mVertexAttrib0Vector[1] = cnt > 1 ? ptr[1] : ptrType(0);        \
+        mVertexAttrib0Vector[2] = cnt > 2 ? ptr[2] : ptrType(0);        \
+        mVertexAttrib0Vector[3] = cnt > 3 ? ptr[3] : ptrType(1);        \
+        if (gl->IsGLES2())                                              \
+            gl->f##name(idx, ptr);                                      \
+    }                                                                   \
+    return NS_OK;                                                       \
+}
 
 SIMPLE_ARRAY_METHOD_NO_COUNT(VertexAttrib1fv, 1, TYPE_FLOAT32, WebGLfloat)
 SIMPLE_ARRAY_METHOD_NO_COUNT(VertexAttrib2fv, 2, TYPE_FLOAT32, WebGLfloat)
@@ -2949,7 +3155,6 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
 {
     WebGLShader *shader;
     WebGLuint shadername;
-
     if (!GetConcreteObjectAndGLName("compileShader", sobj, &shader, &shadername))
         return NS_OK;
     MakeContextCurrent();
@@ -3129,23 +3334,32 @@ WebGLContext::ShaderSource(nsIWebGLShader *sobj, const nsAString& source)
 
 NS_IMETHODIMP
 WebGLContext::VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type,
-                                  WebGLboolean normalized, WebGLuint stride,
-                                  WebGLuint byteOffset)
+                                  WebGLboolean normalized, WebGLsizei stride,
+                                  WebGLsizeiptr byteOffset)
 {
     if (mBoundArrayBuffer == nsnull)
         return ErrorInvalidOperation("VertexAttribPointer: must have valid GL_ARRAY_BUFFER binding");
 
+    WebGLsizei requiredAlignment = 1;
     switch (type) {
       case LOCAL_GL_BYTE:
       case LOCAL_GL_UNSIGNED_BYTE:
+          requiredAlignment = 1;
+          break;
       case LOCAL_GL_SHORT:
       case LOCAL_GL_UNSIGNED_SHORT:
+          requiredAlignment = 2;
+          break;
       // XXX case LOCAL_GL_FIXED:
       case LOCAL_GL_FLOAT:
+          requiredAlignment = 4;
           break;
       default:
           return ErrorInvalidEnumInfo("VertexAttribPointer: type", type);
     }
+
+    // requiredAlignment should always be a power of two.
+    WebGLsizei requiredAlignmentMask = requiredAlignment - 1;
 
     if (index >= mAttribBuffers.Length())
         return ErrorInvalidValue("VertexAttribPointer: index out of range - %d >= %d", index, mAttribBuffers.Length());
@@ -3153,14 +3367,27 @@ WebGLContext::VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type
     if (size < 1 || size > 4)
         return ErrorInvalidValue("VertexAttribPointer: invalid element size");
 
+    if (stride < 0 || stride > 255) // see WebGL spec section 6.6 "Vertex Attribute Data Stride"
+        return ErrorInvalidValue("VertexAttribPointer: negative stride");
+
+    if (byteOffset < 0)
+        return ErrorInvalidValue("VertexAttribPointer: negative offset");
+
+    if (stride & requiredAlignmentMask) {
+        return ErrorInvalidValue("VertexAttribPointer: stride doesn't satisfy the alignment "
+                                 "requirement of given type");
+    }
+
+    if (byteOffset & requiredAlignmentMask) {
+        return ErrorInvalidValue("VertexAttribPointer: byteOffset doesn't satisfy the alignment "
+                                 "requirement of given type");
+
+    }
+    
     /* XXX make work with bufferSubData & heterogeneous types 
     if (type != mBoundArrayBuffer->GLType())
         return ErrorInvalidOperation("VertexAttribPointer: type must match bound VBO type: %d != %d", type, mBoundArrayBuffer->GLType());
     */
-
-    // XXX 0 stride?
-    //if (stride < (GLuint) size)
-    //    return ErrorInvalidOperation("VertexAttribPointer: stride must be >= size!");
 
     WebGLVertexAttribData &vd = mAttribBuffers[index];
 
@@ -3169,6 +3396,7 @@ WebGLContext::VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type
     vd.size = size;
     vd.byteOffset = byteOffset;
     vd.type = type;
+    vd.normalized = normalized;
 
     MakeContextCurrent();
 
