@@ -891,13 +891,11 @@ CalculateContainingBlockSizeForAbsolutes(const nsHTMLReflowState& aReflowState,
     // frame and not always sticking them in block frames.
 
     // First, find the reflow state for the outermost frame for this
-    // content, except for fieldsets where the inner anonymous frame has
-    // the correct padding area with the legend taken into account.
+    // content.
     const nsHTMLReflowState* aLastRS = &aReflowState;
     const nsHTMLReflowState* lastButOneRS = &aReflowState;
     while (aLastRS->parentReflowState &&
-           aLastRS->parentReflowState->frame->GetContent() == frame->GetContent() &&
-           aLastRS->parentReflowState->frame->GetType() != nsGkAtoms::fieldSetFrame) {
+           aLastRS->parentReflowState->frame->GetContent() == frame->GetContent()) {
       lastButOneRS = aLastRS;
       aLastRS = aLastRS->parentReflowState;
     }

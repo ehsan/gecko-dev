@@ -508,73 +508,49 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function() {
 });
 
 XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
-  let _ril = null;
-  let _pendingMessages = [];  // For queueing "RIL =SetRadioEnabled" messages.
-  let _isProcessingPending = false;
-  let _timer = null;
-  let _request = null;
-  let _deactivatingDeferred = {};
-  let _initializedCardState = {};
-  let _allCardStateInitialized = !RILQUIRKS_RADIO_OFF_WO_CARD;
-
   return {
+    ril: null,
+    pendingMessages: [],  // For queueing "RIL:SetRadioEnabled" messages.
+    timer: null,
+    request: null,
+    deactivatingDeferred: {},
+
     init: function(ril) {
-      _ril = ril;
-    },
-
-    receiveCardState: function(clientId) {
-      if (_allCardStateInitialized) {
-        return;
-      }
-
-      if (DEBUG) debug("RadioControl: receive cardState from " + clientId);
-      _initializedCardState[clientId] = true;
-      if (Object.keys(_initializedCardState).length == _ril.numRadioInterfaces) {
-        _allCardStateInitialized = true;
-        this._startProcessingPending();
-      }
+      this.ril = ril;
     },
 
     receiveMessage: function(msg) {
-      if (DEBUG) debug("RadioControl: receiveMessage: " + JSON.stringify(msg));
-      _pendingMessages.push(msg);
-      this._startProcessingPending();
+      if (DEBUG) debug("setRadioEnabled: receiveMessage: " + JSON.stringify(msg));
+      this.pendingMessages.push(msg);
+      if (this.pendingMessages.length === 1 && !this.isDeactivatingDataCalls()) {
+        this._processNextMessage();
+      }
     },
 
     isDeactivatingDataCalls: function() {
-      return _request !== null;
+      return this.request !== null;
     },
 
     finishDeactivatingDataCalls: function(clientId) {
-      if (DEBUG) debug("RadioControl: finishDeactivatingDataCalls: " + clientId);
-      let deferred = _deactivatingDeferred[clientId];
+      if (DEBUG) debug("setRadioEnabled: finishDeactivatingDataCalls: " + clientId);
+      let deferred = this.deactivatingDeferred[clientId];
       if (deferred) {
         deferred.resolve();
       }
     },
 
-    _startProcessingPending: function() {
-      if (!_isProcessingPending) {
-        if (DEBUG) debug("RadioControl: start dequeue");
-        _isProcessingPending = true;
-        this._processNextMessage();
-      }
-    },
-
     _processNextMessage: function() {
-      if (_pendingMessages.length === 0 || !_allCardStateInitialized) {
-        if (DEBUG) debug("RadioControl: stop dequeue");
-        _isProcessingPending = false;
+      if (this.pendingMessages.length === 0) {
         return;
       }
 
-      let msg = _pendingMessages.shift();
+      let msg = this.pendingMessages.shift();
       this._handleMessage(msg);
     },
 
     _getNumCards: function() {
       let numCards = 0;
-      for (let i = 0, N = _ril.numRadioInterfaces; i < N; ++i) {
+      for (let i = 0, N = this.ril.numRadioInterfaces; i < N; ++i) {
         if (this._isCardPresentAtClient(i)) {
           numCards++;
         }
@@ -583,7 +559,7 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
     },
 
     _isCardPresentAtClient: function(clientId) {
-      let cardState = _ril.getRadioInterface(clientId).rilContext.cardState;
+      let cardState = this.ril.getRadioInterface(clientId).rilContext.cardState;
       return cardState !== RIL.GECKO_CARDSTATE_UNDETECTED &&
         cardState !== RIL.GECKO_CARDSTATE_UNKNOWN;
     },
@@ -610,9 +586,9 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
     },
 
     _handleMessage: function(msg) {
-      if (DEBUG) debug("RadioControl: handleMessage: " + JSON.stringify(msg));
+      if (DEBUG) debug("setRadioEnabled: handleMessage: " + JSON.stringify(msg));
       let clientId = msg.json.clientId || 0;
-      let radioInterface = _ril.getRadioInterface(clientId);
+      let radioInterface = this.ril.getRadioInterface(clientId);
 
       if (!radioInterface.isValidStateForSetRadioEnabled()) {
         radioInterface.setRadioEnabledResponse(msg.target, msg.json.data,
@@ -637,17 +613,17 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
 
         this._processNextMessage();
       } else {
-        _request = function() {
+        this.request = (function() {
           radioInterface.receiveMessage(msg);
-        };
+        }).bind(this);
 
         // In 2G network, modem takes 35+ seconds to process deactivate data
         // call request if device has active voice call (please see bug 964974
         // for more details). Therefore we should hangup all active voice calls
         // first. And considering some DSDS architecture, toggling one radio may
         // toggle both, so we send hangUpAll to all clients.
-        for (let i = 0, N = _ril.numRadioInterfaces; i < N; ++i) {
-          let iface = _ril.getRadioInterface(i);
+        for (let i = 0, N = this.ril.numRadioInterfaces; i < N; ++i) {
+          let iface = this.ril.getRadioInterface(i);
           iface.workerMessenger.send("hangUpAll");
         }
 
@@ -655,7 +631,7 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
         // toggle both. Therefore, for safely turning off, we should first
         // explicitly deactivate all data calls from all clients.
         this._deactivateDataCalls().then(() => {
-          if (DEBUG) debug("RadioControl: deactivation done");
+          if (DEBUG) debug("setRadioEnabled: deactivation done");
           this._executeRequest();
         });
 
@@ -664,11 +640,11 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
     },
 
     _deactivateDataCalls: function() {
-      if (DEBUG) debug("RadioControl: deactivating data calls...");
-      _deactivatingDeferred = {};
+      if (DEBUG) debug("setRadioEnabled: deactivating data calls...");
+      this.deactivatingDeferred = {};
 
       let promise = Promise.resolve();
-      for (let i = 0, N = _ril.numRadioInterfaces; i < N; ++i) {
+      for (let i = 0, N = this.ril.numRadioInterfaces; i < N; ++i) {
         promise = promise.then(this._deactivateDataCallsForClient(i));
       }
 
@@ -676,35 +652,35 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
     },
 
     _deactivateDataCallsForClient: function(clientId) {
-      return function() {
-        let deferred = _deactivatingDeferred[clientId] = Promise.defer();
+      return (function() {
+        let deferred = this.deactivatingDeferred[clientId] = Promise.defer();
         let dataConnectionHandler = gDataConnectionManager.getConnectionHandler(clientId);
         dataConnectionHandler.deactivateDataCalls();
         return deferred.promise;
-      };
+      }).bind(this);
     },
 
     _createTimer: function() {
-      if (_timer) {
-        _timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+      if (!this.timer) {
+        this.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
       }
-      _timer.initWithCallback(this._executeRequest.bind(this),
-                              RADIO_POWER_OFF_TIMEOUT,
-                              Ci.nsITimer.TYPE_ONE_SHOT);
+      this.timer.initWithCallback(this._executeRequest.bind(this),
+                                  RADIO_POWER_OFF_TIMEOUT,
+                                  Ci.nsITimer.TYPE_ONE_SHOT);
     },
 
     _cancelTimer: function() {
-      if (_timer) {
-        _timer.cancel();
+      if (this.timer) {
+        this.timer.cancel();
       }
     },
 
     _executeRequest: function() {
-      if (typeof _request === "function") {
-        if (DEBUG) debug("RadioControl: executeRequest");
+      if (typeof this.request === "function") {
+        if (DEBUG) debug("setRadioEnabled: executeRequest");
         this._cancelTimer();
-        _request();
-        _request = null;
+        this.request();
+        this.request = null;
       }
       this._processNextMessage();
     },
@@ -2179,7 +2155,6 @@ RadioInterface.prototype = {
         break;
       case "cardstatechange":
         this.rilContext.cardState = message.cardState;
-        gRadioEnabledController.receiveCardState(this.clientId);
         gMessageManager.sendIccMessage("RIL:CardStateChanged",
                                        this.clientId, message);
         break;

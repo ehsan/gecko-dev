@@ -200,6 +200,7 @@ class ScopeObject : public JSObject
      * enclosing scope of a ScopeObject is necessarily non-null.
      */
     inline JSObject &enclosingScope() const {
+        AutoThreadSafeAccess ts(this);
         return getFixedSlot(SCOPE_CHAIN_SLOT).toObject();
     }
 
@@ -251,6 +252,7 @@ class CallObject : public ScopeObject
 
     /* True if this is for a strict mode eval frame. */
     bool isForEval() const {
+        AutoThreadSafeAccess ts(this);
         JS_ASSERT(getFixedSlot(CALLEE_SLOT).isObjectOrNull());
         JS_ASSERT_IF(getFixedSlot(CALLEE_SLOT).isObject(),
                      getFixedSlot(CALLEE_SLOT).toObject().is<JSFunction>());
@@ -262,6 +264,7 @@ class CallObject : public ScopeObject
      * only be called if !isForEval.)
      */
     JSFunction &callee() const {
+        AutoThreadSafeAccess ts(this);
         return getFixedSlot(CALLEE_SLOT).toObject().as<JSFunction>();
     }
 
@@ -407,7 +410,7 @@ class BlockObject : public NestedScopeObject
 
     /* Return the number of variables associated with this block. */
     uint32_t slotCount() const {
-        return propertyCount();
+        return propertyCountForCompilation();
     }
 
     /*
@@ -461,6 +464,9 @@ class StaticBlockObject : public BlockObject
      * variable of the block isAliased.
      */
     bool needsClone() {
+        // The first variable slot will always indicate whether the object has
+        // any aliased vars. Bypass slotValue() to allow testing this off thread.
+        AutoThreadSafeAccess ts(this);
         return !getFixedSlot(RESERVED_SLOTS).isFalse();
     }
 
@@ -802,7 +808,7 @@ class DebugScopes
   public:
     void mark(JSTracer *trc);
     void sweep(JSRuntime *rt);
-#if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
+#if defined(DEBUG) && defined(JSGC_GENERATIONAL)
     void checkHashTablesAfterMovingGC(JSRuntime *rt);
 #endif
 

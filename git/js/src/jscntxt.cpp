@@ -116,6 +116,7 @@ js::ExistingCloneFunctionAtCallsite(const CallsiteCloneTable &table, JSFunction 
     JS_ASSERT(fun->nonLazyScript()->shouldCloneAtCallsite());
     JS_ASSERT(!fun->nonLazyScript()->enclosingStaticScope());
     JS_ASSERT(types::UseNewTypeForClone(fun));
+    JS_ASSERT(CurrentThreadCanReadCompilationData());
 
     /*
      * If we start allocating function objects in the nursery, then the callsite
@@ -152,6 +153,8 @@ js::CloneFunctionAtCallsite(JSContext *cx, HandleFunction fun, HandleScript scri
 
     typedef CallsiteCloneKey Key;
     typedef CallsiteCloneTable Table;
+
+    AutoLockForCompilation lock(cx);
 
     Table &table = cx->compartment()->callsiteClones;
     if (!table.initialized() && !table.init())

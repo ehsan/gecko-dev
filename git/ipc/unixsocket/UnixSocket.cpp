@@ -672,8 +672,6 @@ UnixSocketImpl::SetSocketFlags()
 
 UnixSocketConsumer::UnixSocketConsumer() : mImpl(nullptr)
                                          , mConnectionStatus(SOCKET_DISCONNECTED)
-                                         , mConnectTimestamp(0)
-                                         , mConnectDelayMs(0)
 {
 }
 
@@ -913,7 +911,6 @@ UnixSocketConsumer::NotifySuccess()
 {
   MOZ_ASSERT(NS_IsMainThread());
   mConnectionStatus = SOCKET_CONNECTED;
-  mConnectTimestamp = PR_IntervalNow();
   OnConnectSuccess();
 }
 
@@ -922,7 +919,6 @@ UnixSocketConsumer::NotifyError()
 {
   MOZ_ASSERT(NS_IsMainThread());
   mConnectionStatus = SOCKET_DISCONNECTED;
-  mConnectDelayMs = CalculateConnectDelayMs();
   OnConnectError();
 }
 
@@ -931,7 +927,6 @@ UnixSocketConsumer::NotifyDisconnect()
 {
   MOZ_ASSERT(NS_IsMainThread());
   mConnectionStatus = SOCKET_DISCONNECTED;
-  mConnectDelayMs = CalculateConnectDelayMs();
   OnDisconnect();
 }
 
@@ -983,26 +978,6 @@ UnixSocketConsumer::ListenSocket(UnixSocketConnector* aConnector)
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
                                    new SocketAcceptTask(mImpl));
   return true;
-}
-
-uint32_t
-UnixSocketConsumer::CalculateConnectDelayMs() const
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  uint32_t connectDelayMs = mConnectDelayMs;
-
-  if ((PR_IntervalNow()-mConnectTimestamp) > connectDelayMs) {
-    // reset delay if connection has been opened for a while, or...
-    connectDelayMs = 0;
-  } else if (!connectDelayMs) {
-    // ...start with a delay of ~1 sec, or...
-    connectDelayMs = 1<<10;
-  } else if (connectDelayMs < (1<<16)) {
-    // ...otherwise increase delay by a factor of 2
-    connectDelayMs <<= 1;
-  }
-  return connectDelayMs;
 }
 
 } // namespace ipc

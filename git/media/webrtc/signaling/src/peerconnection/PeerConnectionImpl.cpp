@@ -660,7 +660,7 @@ PeerConnectionImpl::ConvertRTCConfiguration(const RTCConfiguration& aSrc,
       NS_ConvertUTF16toUTF8 username(server.mUsername);
 
 #ifdef MOZ_WIDGET_GONK
-      if (transport == kNrIceTransportTcp)
+      if (transport.get() == kNrIceTransportTcp)
           continue;
 #endif
       if (!aDst->addTurnServer(host.get(), port,

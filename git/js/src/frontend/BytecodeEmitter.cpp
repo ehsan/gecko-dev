@@ -2865,10 +2865,12 @@ frontend::EmitFunctionScript(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNo
     RootedFunction fun(cx, bce->script->functionNonDelazifying());
     JS_ASSERT(fun->isInterpreted());
 
-    if (fun->isInterpretedLazy())
+    if (fun->isInterpretedLazy()) {
+        AutoLockForCompilation lock(cx);
         fun->setUnlazifiedScript(bce->script);
-    else
+    } else {
         fun->setScript(bce->script);
+    }
 
     bce->tellDebuggerAboutCompiledScript(cx);
 

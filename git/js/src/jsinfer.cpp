@@ -688,6 +688,9 @@ TypeScript::FreezeTypeSets(CompilerConstraintList *constraints, JSScript *script
                            TemporaryTypeSet **pArgTypes,
                            TemporaryTypeSet **pBytecodeTypes)
 {
+    JS_ASSERT(CurrentThreadCanReadCompilationData());
+    AutoThreadSafeAccess ts(script);
+
     LifoAlloc *alloc = constraints->alloc();
     StackTypeSet *existing = script->types->typeArray();
 
@@ -807,6 +810,7 @@ TypeObjectKey::proto()
 bool
 ObjectImpl::hasTenuredProto() const
 {
+    AutoThreadSafeAccess ts(this);
     return type_->hasTenuredProto();
 }
 
@@ -852,6 +856,7 @@ HeapTypeSetKey
 TypeObjectKey::property(jsid id)
 {
     JS_ASSERT(!unknownProperties());
+    JS_ASSERT(CurrentThreadCanReadCompilationData());
 
     HeapTypeSetKey property;
     property.object_ = this;
@@ -1508,8 +1513,10 @@ ObjectStateChange(ExclusiveContext *cxArg, TypeObject *object, bool markingUnkno
     HeapTypeSet *types = object->maybeGetProperty(JSID_EMPTY);
 
     /* Mark as unknown after getting the types, to avoid assertion. */
-    if (markingUnknown)
+    if (markingUnknown) {
+        AutoLockForCompilation lock(cxArg);
         object->addFlags(OBJECT_FLAG_DYNAMIC_MASK | OBJECT_FLAG_UNKNOWN_PROPERTIES);
+    }
 
     if (types) {
         if (JSContext *cx = cxArg->maybeJSContext()) {
@@ -2329,6 +2336,7 @@ TypeCompartment::markSetsUnknown(JSContext *cx, TypeObject *target)
         }
     }
 
+    AutoLockForCompilation lock(cx);
     target->addFlags(OBJECT_FLAG_SETS_MARKED_UNKNOWN);
 }
 
@@ -2748,9 +2756,28 @@ TypeCompartment::newTypedObject(JSContext *cx, IdValuePair *properties, size_t n
 // TypeObject
 /////////////////////////////////////////////////////////////////////
 
+#ifdef DEBUG
+void
+TypeObject::assertCanAccessProto() const
+{
+    // The proto pointer for type objects representing singletons may move.
+    JS_ASSERT_IF(singleton(), CurrentThreadCanReadCompilationData());
+
+    // Any proto pointer which is in the nursery may be moved, and may not be
+    // accessed during off thread compilation.
+#if defined(JSGC_GENERATIONAL) && defined(JS_THREADSAFE)
+    PerThreadData *pt = TlsPerThreadData.get();
+    TaggedProto proto(proto_);
+    JS_ASSERT_IF(proto.isObject() && !proto.toObject()->isTenured(),
+                 !pt || !pt->ionCompiling);
+#endif
+}
+#endif // DEBUG
+
 void
 TypeObject::setProto(JSContext *cx, TaggedProto proto)
 {
+    JS_ASSERT(CurrentThreadCanWriteCompilationData());
     JS_ASSERT(singleton());
 
     if (proto.isObject() && IsInsideNursery(cx->runtime(), proto.toObject()))
@@ -3029,7 +3056,10 @@ TypeObject::setFlags(ExclusiveContext *cx, TypeObjectFlags flags)
                      singleton()->lastProperty()->hasObjectFlag(BaseShape::ITERATED_SINGLETON));
     }
 
-    addFlags(flags);
+    {
+        AutoLockForCompilation lock(cx);
+        addFlags(flags);
+    }
 
     InferSpew(ISpewOps, "%s: setFlags 0x%x", TypeObjectString(this), flags);
 
@@ -3074,8 +3104,10 @@ void
 TypeObject::clearAddendum(ExclusiveContext *cx)
 {
     JS_ASSERT(!(flags() & OBJECT_FLAG_ADDENDUM_CLEARED));
-
-    addFlags(OBJECT_FLAG_ADDENDUM_CLEARED);
+    {
+        AutoLockForCompilation lock(cx);
+        addFlags(OBJECT_FLAG_ADDENDUM_CLEARED);
+    }
 
     /*
      * It is possible for the object to not have a new script or other
@@ -3489,7 +3521,10 @@ CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun)
 #endif
     new (newScript) TypeNewScript();
 
-    type->setAddendum(newScript);
+    {
+        AutoLockForCompilation lock(cx);
+        type->setAddendum(newScript);
+    }
 
     if (!newScript) {
         cx->compartment()->types.setPendingNukeTypes(cx);
@@ -3657,7 +3692,10 @@ JSScript::makeTypes(JSContext *cx)
     for (unsigned i = 0; i < count; i++)
         new (&typeArray[i]) StackTypeSet();
 
-    types = typeScript;
+    {
+        AutoLockForCompilation lock(cx);
+        types = typeScript;
+    }
 
 #ifdef DEBUG
     for (unsigned i = 0; i < nTypeSets(); i++) {
@@ -3787,8 +3825,12 @@ JSObject::splicePrototype(JSContext *cx, const Class *clasp, Handle<TaggedProto>
         return true;
     }
 
-    type->setClasp(clasp);
-    type->setProto(cx, proto);
+    {
+        AutoLockForCompilation lock(cx);
+        type->setClasp(clasp);
+        type->setProto(cx, proto);
+    }
+
     return true;
 }
 
@@ -3841,7 +3883,10 @@ JSObject::makeLazyType(JSContext *cx, HandleObject obj)
     if (obj->is<JSFunction>() && obj->as<JSFunction>().isInterpreted())
         type->interpretedFunction = &obj->as<JSFunction>();
 
-    obj->type_ = type;
+    {
+        AutoLockForCompilation lock(cx);
+        obj->type_ = type;
+    }
 
     return type;
 }
@@ -4583,6 +4628,7 @@ TypeScript::printTypes(JSContext *cx, HandleScript script) const
 void
 TypeObject::setAddendum(TypeObjectAddendum *addendum)
 {
+    JS_ASSERT(CurrentThreadCanWriteCompilationData());
     this->addendum = addendum;
 }
 

@@ -1363,10 +1363,8 @@ GetPropertyIC::tryAttachDOMProxyShadowed(JSContext *cx, IonScript *ion,
     JS_ASSERT(canAttachStub());
     JS_ASSERT(!*emitted);
     JS_ASSERT(IsCacheableDOMProxy(obj));
-    JS_ASSERT(monitoredResult());
-    JS_ASSERT(output().hasValue());
 
-    if (idempotent())
+    if (idempotent() || !output().hasValue())
         return true;
 
     *emitted = true;
@@ -1409,8 +1407,6 @@ GetPropertyIC::tryAttachDOMProxyUnshadowed(JSContext *cx, IonScript *ion, Handle
     JS_ASSERT(canAttachStub());
     JS_ASSERT(!*emitted);
     JS_ASSERT(IsCacheableDOMProxy(obj));
-    JS_ASSERT(monitoredResult());
-    JS_ASSERT(output().hasValue());
 
     RootedObject checkObj(cx, obj->getTaggedProto().toObjectOrNull());
     RootedObject holder(cx);
@@ -1425,7 +1421,7 @@ GetPropertyIC::tryAttachDOMProxyUnshadowed(JSContext *cx, IonScript *ion, Handle
         return true;
 
     // Make sure we observe our invariants if we're gonna deoptimize.
-    if (!holder && idempotent())
+    if (!holder && (idempotent() || !output().hasValue()))
         return true;
 
     *emitted = true;
@@ -1512,11 +1508,6 @@ GetPropertyIC::tryAttachProxy(JSContext *cx, IonScript *ion, HandleObject obj,
     if (!obj->is<ProxyObject>())
         return true;
 
-    // TI can't be sure about our properties, so make sure anything
-    // we return can be monitored directly.
-    if (!monitoredResult())
-        return true;
-
     // Skim off DOM proxies.
     if (IsCacheableDOMProxy(obj)) {
         RootedId id(cx, NameToId(name));
@@ -1551,13 +1542,11 @@ GetPropertyIC::tryAttachGenericProxy(JSContext *cx, IonScript *ion, HandleObject
     JS_ASSERT(canAttachStub());
     JS_ASSERT(!*emitted);
     JS_ASSERT(obj->is<ProxyObject>());
-    JS_ASSERT(monitoredResult());
-    JS_ASSERT(output().hasValue());
 
     if (hasGenericProxyStub())
         return true;
 
-    if (idempotent())
+    if (idempotent() || !output().hasValue())
         return true;
 
     *emitted = true;

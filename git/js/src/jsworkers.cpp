@@ -93,6 +93,8 @@ js::StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder)
     if (!WorkerThreadState().ionWorklist().append(builder))
         return false;
 
+    cx->runtime()->addCompilationThread();
+
     WorkerThreadState().notifyAll(GlobalWorkerThreadState::PRODUCER);
     return true;
 }
@@ -647,6 +649,8 @@ GlobalWorkerThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
         JSObject *newProto = GetClassPrototypePure(&parseTask->scopeChain->global(), key);
         JS_ASSERT(newProto);
 
+        // Note: this is safe to do without requiring the compilation lock, as
+        // the new type is not yet available to compilation threads.
         object->setProtoUnchecked(newProto);
     }
 
@@ -787,7 +791,11 @@ WorkerThread::handleIonWorkload()
         jit::IonContext ictx(jit::CompileRuntime::get(rt),
                              jit::CompileCompartment::get(ionBuilder->script()->compartment()),
                              &ionBuilder->alloc());
-        ionBuilder->setBackgroundCodegen(jit::CompileBackEnd(ionBuilder));
+        AutoEnterIonCompilation ionCompiling;
+        bool succeeded = ionBuilder->build();
+        ionBuilder->clearForBackEnd();
+        if (succeeded)
+            ionBuilder->setBackgroundCodegen(jit::CompileBackEnd(ionBuilder));
     }
 
     FinishOffThreadIonCompile(ionBuilder);

@@ -787,6 +787,10 @@ MacroAssembler::initGCThing(const Register &obj, JSObject *templateObject)
 {
     // Fast initialization of an empty object returned by NewGCThing().
 
+    AutoThreadSafeAccess ts0(templateObject);
+    AutoThreadSafeAccess ts1(templateObject->lastProperty());
+    AutoThreadSafeAccess ts2(templateObject->lastProperty()->base()); // For isNative() assertions.
+
     JS_ASSERT(!templateObject->hasDynamicElements());
 
     storePtr(ImmGCPtr(templateObject->lastProperty()), Address(obj, JSObject::offsetOfShape()));
@@ -818,7 +822,7 @@ MacroAssembler::initGCThing(const Register &obj, JSObject *templateObject)
 
         // Fixed slots of non-array objects are required to be initialized.
         // Use the values currently in the template object.
-        size_t nslots = Min(templateObject->numFixedSlots(),
+        size_t nslots = Min(templateObject->numFixedSlotsForCompilation(),
                             templateObject->lastProperty()->slotSpan(templateObject->getClass()));
         for (unsigned i = 0; i < nslots; i++) {
             storeValue(templateObject->getFixedSlot(i),

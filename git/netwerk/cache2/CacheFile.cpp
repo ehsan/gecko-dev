@@ -177,10 +177,8 @@ CacheFile::~CacheFile()
   LOG(("CacheFile::~CacheFile() [this=%p]", this));
 
   MutexAutoLock lock(mLock);
-  if (!mMemoryOnly && mReady) {
-    // mReady flag indicates we have metadata plus in a valid state.
+  if (!mMemoryOnly)
     WriteMetadataIfNeededLocked(true);
-  }
 }
 
 nsresult
@@ -1336,11 +1334,6 @@ CacheFile::WriteMetadataIfNeededLocked(bool aFireAndForget)
 
   AssertOwnsLock();
   MOZ_ASSERT(!mMemoryOnly);
-
-  if (!mMetadata) {
-    MOZ_CRASH("Must have metadata here");
-    return;
-  }
 
   if (!aFireAndForget) {
     // if aFireAndForget is set, we are called from dtor. Write

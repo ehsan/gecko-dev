@@ -45,6 +45,7 @@ struct JitOptions
     bool checkOsiPointRegisters;
 #endif
     bool checkRangeAnalysis;
+    bool checkThreadSafety;
     bool compileTryCatch;
     bool disableGvn;
     bool disableLicm;
