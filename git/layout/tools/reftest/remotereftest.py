@@ -346,7 +346,6 @@ class RemoteReftest(RefTest):
         profileDir = profile.profile
 
         prefs = {}
-        prefs["app.update.url.android"] = ""
         prefs["browser.firstrun.show.localepicker"] = False
         prefs["font.size.inflation.emPerLine"] = 0
         prefs["font.size.inflation.minTwips"] = 0

@@ -972,7 +972,8 @@ CompositorParent::CompositeToTarget(DrawTarget* aTarget, const nsIntRect* aRect)
   RenderTraceLayers(mLayerManager->GetRoot(), "0000");
 
 #ifdef MOZ_DUMP_PAINTING
-  if (gfxPrefs::DumpHostLayers()) {
+  static bool gDumpCompositorTree = false;
+  if (gDumpCompositorTree) {
     printf_stderr("Painting --- compositing layer tree:\n");
     mLayerManager->Dump();
   }

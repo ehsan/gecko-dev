@@ -798,18 +798,12 @@ VectorImage::Draw(gfxContext* aContext,
   // Draw.
   if (frameRef) {
     RefPtr<SourceSurface> surface = frameRef->GetSurface();
-    if (surface) {
-      nsRefPtr<gfxDrawable> svgDrawable =
-        new gfxSurfaceDrawable(surface, ThebesIntSize(frameRef->GetSize()));
-      Show(svgDrawable, params);
-      return NS_OK;
-    }
-
-    // We lost our surface due to some catastrophic event.
-    RecoverFromLossOfSurfaces();
+    nsRefPtr<gfxDrawable> svgDrawable =
+      new gfxSurfaceDrawable(surface, ThebesIntSize(frameRef->GetSize()));
+    Show(svgDrawable, params);
+  } else {
+    CreateSurfaceAndShow(params);
   }
-
-  CreateSurfaceAndShow(params);
 
   return NS_OK;
 }
@@ -884,15 +878,6 @@ VectorImage::Show(gfxDrawable* aDrawable, const SVGDrawingParameters& aParams)
 
   MOZ_ASSERT(mRenderingObserver, "Should have a rendering observer by now");
   mRenderingObserver->ResumeHonoringInvalidations();
-}
-
-void
-VectorImage::RecoverFromLossOfSurfaces()
-{
-  NS_WARNING("An imgFrame became invalid. Attempting to recover...");
-
-  // Discard all existing frames, since they're probably all now invalid.
-  SurfaceCache::RemoveImage(ImageKey(this));
 }
 
 //******************************************************************************

@@ -579,7 +579,7 @@
       if (!attr)
         return undefined;
 
-      let styles = attr.split(";");
+      let styles = attr.value.split(";");
       for (let i = 0; i < styles.length; i++) {
         let style = styles[i].split(":");
         let name = style[0].trim();
@@ -591,7 +591,8 @@
     },
 
     setStyle: function (styleName, styleValue) {
-      let value = this.node.getAttribute("style") || "";
+      let attr = this.node.getAttribute("style");
+      let value = (attr ? attr.value : "");
       let index = 0;
       do {
         let next = value.indexOf(";", index) + 1;

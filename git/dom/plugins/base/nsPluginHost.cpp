@@ -1494,8 +1494,7 @@ nsPluginHost::EnumerateSiteData(const nsACString& domain,
 NS_IMETHODIMP
 nsPluginHost::RegisterPlayPreviewMimeType(const nsACString& mimeType,
                                           bool ignoreCTP,
-                                          const nsACString& redirectURL,
-                                          const nsACString& whitelist)
+                                          const nsACString& redirectURL)
 {
   nsAutoCString mt(mimeType);
   nsAutoCString url(redirectURL);
@@ -1504,10 +1503,9 @@ nsPluginHost::RegisterPlayPreviewMimeType(const nsACString& mimeType,
     url.AssignLiteral("data:application/x-moz-playpreview;,");
     url.Append(mimeType);
   }
-  nsAutoCString wl(whitelist);
 
   nsRefPtr<nsPluginPlayPreviewInfo> playPreview =
-    new nsPluginPlayPreviewInfo(mt.get(), ignoreCTP, url.get(), wl.get());
+    new nsPluginPlayPreviewInfo(mt.get(), ignoreCTP, url.get());
   mPlayPreviewMimeTypes.AppendElement(playPreview);
   return NS_OK;
 }
