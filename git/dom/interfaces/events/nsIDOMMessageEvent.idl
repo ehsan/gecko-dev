@@ -51,7 +51,6 @@ interface nsIDOMMessageEvent : nsIDOMEvent
   /**
    * Custom string data associated with this event.
    */
-  [implicit_jscontext]
   readonly attribute jsval data;
   
   /**

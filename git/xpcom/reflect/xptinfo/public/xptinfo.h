@@ -74,6 +74,9 @@ public:
     PRBool IsPointer() const
         {return 0 != (XPT_TDP_IS_POINTER(flags));}
 
+    PRBool IsUniquePointer() const
+        {return 0 != (XPT_TDP_IS_UNIQUE_POINTER(flags));}
+
     PRBool IsReference() const
         {return 0 != (XPT_TDP_IS_REFERENCE(flags));}
 

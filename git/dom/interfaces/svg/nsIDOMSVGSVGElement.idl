@@ -74,6 +74,7 @@ interface nsIDOMSVGSVGElement
     nsIDOMSVGFitToViewBox,
     nsIDOMSVGZoomAndPan,
     events::nsIDOMEventTarget,
+    css::nsIDOMDocumentCSS
 */
 { 
   readonly attribute nsIDOMSVGAnimatedLength x;
