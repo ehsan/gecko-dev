@@ -100,6 +100,12 @@
 
 #include NEW_H     // for placement new
 
+
+#ifdef XP_BEOS
+#include <FindDirectory.h>
+#include <Path.h>
+#endif
+
 #include "mozilla/Omnijar.h"
 #include "nsJAR.h"
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);

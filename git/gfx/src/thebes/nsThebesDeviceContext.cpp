@@ -77,6 +77,9 @@ static nsSystemFontsWin *gSystemFonts = nsnull;
 #include "nsSystemFontsOS2.h"
 #include "gfxPDFSurface.h"
 static nsSystemFontsOS2 *gSystemFonts = nsnull;
+#elif defined(XP_BEOS)
+#include "nsSystemFontsBeOS.h"
+static nsSystemFontsBeOS *gSystemFonts = nsnull;
 #elif XP_MACOSX
 #include "nsSystemFontsMac.h"
 #include "gfxQuartzSurface.h"
@@ -806,6 +809,8 @@ nsThebesDeviceContext::GetSystemFont(nsSystemFontID aID, nsFont *aFont) const
         gSystemFonts = new nsSystemFontsWin();
 #elif XP_OS2
         gSystemFonts = new nsSystemFontsOS2();
+#elif defined(XP_BEOS)
+        gSystemFonts = new nsSystemFontsBeOS();
 #elif XP_MACOSX
         gSystemFonts = new nsSystemFontsMac();
 #elif defined(MOZ_WIDGET_QT)

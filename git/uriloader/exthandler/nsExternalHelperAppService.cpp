@@ -1243,7 +1243,6 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
 , mContentLength(-1)
 , mProgress(0)
 , mDataBuffer(nsnull)
-, mKeepRequestAlive(PR_FALSE)
 , mRequest(nsnull)
 {
 
@@ -1745,7 +1744,6 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     // do this first! make sure we don't try to take an action until the user tells us what they want to do
     // with it...
     mReceivedDispositionInfo = PR_FALSE; 
-    mKeepRequestAlive = PR_TRUE;
 
     // invoke the dialog!!!!! use mWindowContext as the window context parameter for the dialog request
     mDialog = do_CreateInstance( NS_HELPERAPPLAUNCHERDLG_CONTRACTID, &rv );
@@ -1996,10 +1994,7 @@ NS_IMETHODIMP nsExternalAppHandler::OnStopRequest(nsIRequest *request, nsISuppor
                                                   nsresult aStatus)
 {
   mStopRequestIssued = PR_TRUE;
-
-  if (!mKeepRequestAlive)
-    mRequest = nsnull;
-
+  mRequest = nsnull;
   // Cancel if the request did not complete successfully.
   if (!mCanceled && NS_FAILED(aStatus))
   {
@@ -2139,8 +2134,6 @@ nsresult nsExternalAppHandler::CreateProgressListener()
   // its observer). This cycle will be broken in Cancel, CloseProgressWindow or
   // OnStopRequest.
   SetWebProgressListener(tr);
-
-  mRequest = nsnull;
 
   return rv;
 }
@@ -2475,9 +2468,6 @@ NS_IMETHODIMP nsExternalAppHandler::Cancel(nsresult aReason)
   // Break our reference cycle with the helper app dialog (set up in
   // OnStartRequest)
   mDialog = nsnull;
-
-  mRequest = nsnull;
-
   // shutdown our stream to the temp file
   if (mOutStream)
   {

@@ -69,6 +69,10 @@ CPPSRCS		= \
 		PluginPRLibrary.cpp \
 		$(NULL)
 
+ifeq ($(OS_ARCH), BeOS)
+	CPPSRCS += nsPluginsDirBeOS.cpp
+	CPPSRCS += nsPluginNativeWindow.cpp
+else
 ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 	CPPSRCS += nsPluginsDirWin.cpp
 	CPPSRCS += nsPluginNativeWindowWin.cpp
@@ -91,6 +95,7 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 	CPPSRCS += nsPluginNativeWindowQt.cpp
 else
 	CPPSRCS += nsPluginNativeWindow.cpp
+endif
 endif
 endif
 endif
