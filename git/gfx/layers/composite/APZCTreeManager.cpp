@@ -222,10 +222,6 @@ APZCTreeManager::ReceiveInputEvent(const InputData& aEvent)
           nsRefPtr<AsyncPanZoomController> apzc2 = GetTargetAPZC(ScreenPoint(multiTouchInput.mTouches[i].mScreenPoint));
           mApzcForInputBlock = CommonAncestor(mApzcForInputBlock.get(), apzc2.get());
           APZC_LOG("Using APZC %p as the common ancestor\n", mApzcForInputBlock.get());
-          // For now, we only ever want to do pinching on the root APZC for a given layers id. So
-          // when we find the common ancestor of multiple points, also walk up to the root APZC.
-          mApzcForInputBlock = RootAPZCForLayersId(mApzcForInputBlock);
-          APZC_LOG("Using APZC %p as the root APZC for multi-touch\n", mApzcForInputBlock.get());
         }
       } else if (mApzcForInputBlock) {
         APZC_LOG("Re-using APZC %p as continuation of event block\n", mApzcForInputBlock.get());
@@ -293,10 +289,6 @@ APZCTreeManager::ReceiveInputEvent(const nsInputEvent& aEvent,
             GetTargetAPZC(ScreenPoint(point.x, point.y));
           mApzcForInputBlock = CommonAncestor(mApzcForInputBlock.get(), apzc2.get());
           APZC_LOG("Using APZC %p as the common ancestor\n", mApzcForInputBlock.get());
-          // For now, we only ever want to do pinching on the root APZC for a given layers id. So
-          // when we find the common ancestor of multiple points, also walk up to the root APZC.
-          mApzcForInputBlock = RootAPZCForLayersId(mApzcForInputBlock);
-          APZC_LOG("Using APZC %p as the root APZC for multi-touch\n", mApzcForInputBlock.get());
         }
       } else if (mApzcForInputBlock) {
         APZC_LOG("Re-using APZC %p as continuation of event block\n", mApzcForInputBlock.get());
@@ -665,15 +657,6 @@ APZCTreeManager::CommonAncestor(AsyncPanZoomController* aApzc1, AsyncPanZoomCont
     aApzc2 = aApzc2->GetParent();
   }
   return nullptr;
-}
-
-AsyncPanZoomController*
-APZCTreeManager::RootAPZCForLayersId(AsyncPanZoomController* aApzc)
-{
-  while (aApzc && !aApzc->IsRootForLayersId()) {
-    aApzc = aApzc->GetParent();
-  }
-  return aApzc;
 }
 
 }

@@ -130,8 +130,8 @@ protected:
 
 class nsXBLProtoImplAnonymousMethod : public nsXBLProtoImplMethod {
 public:
-  nsXBLProtoImplAnonymousMethod(const PRUnichar* aName) :
-    nsXBLProtoImplMethod(aName)
+  nsXBLProtoImplAnonymousMethod() :
+    nsXBLProtoImplMethod(EmptyString().get())
   {}
   
   nsresult Execute(nsIContent* aBoundElement);
