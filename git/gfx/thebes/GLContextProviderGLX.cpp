@@ -552,12 +552,11 @@ public:
         mInUpdate = PR_FALSE;
     }
 
-
-    virtual bool DirectUpdate(gfxASurface* aSurface, const nsIntRegion& aRegion, const nsIntPoint& aFrom)
+    virtual bool DirectUpdate(gfxASurface* aSurface, const nsIntRegion& aRegion)
     {
         nsRefPtr<gfxContext> ctx = new gfxContext(mUpdateSurface);
         gfxUtils::ClipToRegion(ctx, aRegion);
-        ctx->SetSource(aSurface, aFrom);
+        ctx->SetSource(aSurface);
         ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
         ctx->Paint();
         return true;
@@ -566,7 +565,7 @@ public:
     virtual void BindTexture(GLenum aTextureUnit)
     {
         mGLContext->fActiveTexture(aTextureUnit);
-        mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+        mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, Texture());
         sGLXLibrary.BindTexImage(mPixmap);
         mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
     }
@@ -584,10 +583,6 @@ public:
 
     virtual PRBool InUpdate() const { return mInUpdate; }
 
-    virtual GLuint GetTextureID() {
-        return mTexture;
-    };
-
 private:
    TextureImageGLX(GLuint aTexture,
                    const nsIntSize& aSize,
@@ -596,12 +591,11 @@ private:
                    GLContext* aContext,
                    gfxASurface* aSurface,
                    GLXPixmap aPixmap)
-        : TextureImage(aSize, aWrapMode, aContentType)
+        : TextureImage(aTexture, aSize, aWrapMode, aContentType)
         , mGLContext(aContext)
         , mUpdateSurface(aSurface)
         , mPixmap(aPixmap)
         , mInUpdate(PR_FALSE)
-        , mTexture(aTexture)
     {
         if (aSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
             mShaderType = gl::RGBALayerProgramType;
@@ -614,7 +608,6 @@ private:
     nsRefPtr<gfxASurface> mUpdateSurface;
     GLXPixmap mPixmap;
     PRPackedBool mInUpdate;
-    GLuint mTexture;
 };
 
 already_AddRefed<TextureImage>

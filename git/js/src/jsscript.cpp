@@ -166,28 +166,32 @@ Bindings::add(JSContext *cx, JSAtom *name, BindingKind kind)
     return true;
 }
 
-bool
-Bindings::getLocalNameArray(JSContext *cx, Vector<JSAtom *> *namesp)
+jsuword *
+Bindings::getLocalNameArray(JSContext *cx, JSArenaPool *pool)
 {
-    JS_ASSERT(lastBinding);
-    JS_ASSERT(hasLocalNames());
+   JS_ASSERT(lastBinding);
 
-    Vector<JSAtom *> &names = *namesp;
-    JS_ASSERT(names.empty());
+   JS_ASSERT(hasLocalNames());
 
     uintN n = countLocalNames();
-    if (!names.growByUninitialized(n))
-        return false;
+    jsuword *names;
+
+    JS_ASSERT(SIZE_MAX / size_t(n) > sizeof *names);
+    JS_ARENA_ALLOCATE_CAST(names, jsuword *, pool, size_t(n) * sizeof *names);
+    if (!names) {
+        js_ReportOutOfMemory(cx);
+        return NULL;
+    }
 
 #ifdef DEBUG
-    JSAtom * const POISON = reinterpret_cast<JSAtom *>(0xdeadbeef);
-    for (uintN i = 0; i < n; i++)
-        names[i] = POISON;
+    for (uintN i = 0; i != n; i++)
+        names[i] = 0xdeadbeef;
 #endif
 
     for (Shape::Range r = lastBinding; !r.empty(); r.popFront()) {
         const Shape &shape = r.front();
         uintN index = uint16(shape.shortid);
+        jsuword constFlag = 0;
 
         if (shape.getter() == GetCallArg) {
             JS_ASSERT(index < nargs);
@@ -197,23 +201,27 @@ Bindings::getLocalNameArray(JSContext *cx, Vector<JSAtom *> *namesp)
         } else {
             JS_ASSERT(index < nvars);
             index += nargs;
+            if (!shape.writable())
+                constFlag = 1;
         }
 
+        JSAtom *atom;
         if (JSID_IS_ATOM(shape.propid)) {
-            names[index] = JSID_TO_ATOM(shape.propid);
+            atom = JSID_TO_ATOM(shape.propid);
         } else {
             JS_ASSERT(JSID_IS_INT(shape.propid));
             JS_ASSERT(shape.getter() == GetCallArg);
-            names[index] = NULL;
+            atom = NULL;
         }
+
+        names[index] = jsuword(atom);
     }
 
 #ifdef DEBUG
-    for (uintN i = 0; i < n; i++)
-        JS_ASSERT(names[i] != POISON);
+    for (uintN i = 0; i != n; i++)
+        JS_ASSERT(names[i] != 0xdeadbeef);
 #endif
-
-    return true;
+    return names;
 }
 
 const Shape *
@@ -386,16 +394,26 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
             return false;
         }
 
-        Vector<JSAtom *> names(cx);
+        jsuword *names;
         if (xdr->mode == JSXDR_ENCODE) {
-            if (!script->bindings.getLocalNameArray(cx, &names))
+            names = script->bindings.getLocalNameArray(cx, &cx->tempPool);
+            if (!names)
                 return false;
             PodZero(bitmap, bitmapLength);
             for (uintN i = 0; i < nameCount; i++) {
-                if (i < nargs && names[i])
+                if (i < nargs
+                    ? JS_LOCAL_NAME_TO_ATOM(names[i]) != NULL
+                    : JS_LOCAL_NAME_IS_CONST(names[i]))
+                {
                     bitmap[i >> JS_BITS_PER_UINT32_LOG2] |= JS_BIT(i & (JS_BITS_PER_UINT32 - 1));
+                }
             }
         }
+#ifdef __GNUC__
+        else {
+            names = NULL;   /* quell GCC uninitialized warning */
+        }
+#endif
         for (uintN i = 0; i < bitmapLength; ++i) {
             if (!JS_XDRUint32(xdr, &bitmap[i]))
                 return false;
@@ -410,14 +428,14 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
                     if (!bindings.addDestructuring(cx, &dummy))
                         return false;
                 } else {
-                    JS_ASSERT(!names[i]);
+                    JS_ASSERT(!JS_LOCAL_NAME_TO_ATOM(names[i]));
                 }
                 continue;
             }
 
             JSAtom *name;
             if (xdr->mode == JSXDR_ENCODE)
-                name = names[i];
+                name = JS_LOCAL_NAME_TO_ATOM(names[i]);
             if (!js_XDRAtom(xdr, &name))
                 return false;
             if (xdr->mode == JSXDR_DECODE) {

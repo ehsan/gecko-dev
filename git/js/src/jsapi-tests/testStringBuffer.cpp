@@ -22,7 +22,7 @@ BEGIN_TEST(testStringBuffer_finishString)
 
     JSAtom *finishedAtom = buffer.finishAtom();
     CHECK(finishedAtom);
-    CHECK_EQUAL(atom, finishedAtom);
+    CHECK(atom == finishedAtom);
     return true;
 }
 END_TEST(testStringBuffer_finishString)
