@@ -190,6 +190,8 @@ Resource.prototype = {
   _request: function Res__request(action, data) {
     let self = yield;
     let iter = 0;
+    
+    let cb = self.cb;
     let channel = this._createRequest();
     
     if ("undefined" != typeof(data))
@@ -207,12 +209,15 @@ Resource.prototype = {
       upload.setUploadStream(iStream, 'text/plain', this._data.length);
     }
 
-    let listener = new ChannelListener(self.cb, this._onProgress, this._log);
+    let listener = new ChannelListener(cb, this._onProgress, this._log);
     channel.requestMethod = action;
     this._data = yield channel.asyncOpen(listener, null);
 
-    if (Utils.checkStatus(channel.responseStatus, null, [[400,499],501,505])) {
-      this._log.debug(action + " request failed (" + channel.responseStatus + ")");
+    // FIXME: this should really check a variety of permanent errors,
+    // rather than just >= 400
+    if (channel.responseStatus >= 400) {
+      this._log.debug(action + " request failed (" +
+        channel.responseStatus + ")");
       if (this._data)
         this._log.debug("Error response: \n" + this._data);
       throw new RequestException(this, action, channel);
@@ -228,6 +233,7 @@ Resource.prototype = {
         }
         break;
       case "GET":
+      case "PUT":
       case "POST":
         this._log.trace(action + " Body:\n" + this._data);
         yield this.filterDownload(self.cb);
