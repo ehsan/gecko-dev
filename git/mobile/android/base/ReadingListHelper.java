@@ -11,7 +11,6 @@ import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.DBUtils;
 import org.mozilla.gecko.db.ReadingListAccessor;
 import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSObject;
@@ -35,8 +34,6 @@ public final class ReadingListHelper implements NativeEventListener {
     private final ReadingListAccessor readingListAccessor;
     private final ContentObserver contentObserver;
 
-    volatile boolean fetchInBackground = true;
-
     public ReadingListHelper(Context context, GeckoProfile profile) {
         this.context = context;
         this.db = profile.getDB();
@@ -49,9 +46,7 @@ public final class ReadingListHelper implements NativeEventListener {
         contentObserver = new ContentObserver(null) {
             @Override
             public void onChange(boolean selfChange) {
-                if (fetchInBackground) {
-                    fetchContent();
-                }
+                fetchContent();
             }
         };
 
@@ -144,50 +139,21 @@ public final class ReadingListHelper implements NativeEventListener {
         if (message.has("id")) {
             values.put(ReadingListItems._ID, message.getInt("id"));
         }
-
-        // url is actually required...
-        String url = null;
         if (message.has("url")) {
-            url = message.getString("url");
-            values.put(ReadingListItems.URL, url);
+            values.put(ReadingListItems.URL, message.getString("url"));
         }
-
-        String title = null;
         if (message.has("title")) {
-            title = message.getString("title");
-            values.put(ReadingListItems.TITLE, title);
+            values.put(ReadingListItems.TITLE, message.getString("title"));
         }
-
-        // TODO: message actually has "length", but that's no use for us. See Bug 1127451.
-        if (message.has("word_count")) {
-            values.put(ReadingListItems.WORD_COUNT, message.getInt("word_count"));
+        if (message.has("length")) {
+            values.put(ReadingListItems.LENGTH, message.getInt("length"));
         }
-
         if (message.has("excerpt")) {
             values.put(ReadingListItems.EXCERPT, message.getString("excerpt"));
         }
-
         if (message.has("status")) {
-            final int status = message.getInt("status");
-            values.put(ReadingListItems.CONTENT_STATUS, status);
-            if (status == ReadingListItems.STATUS_FETCHED_ARTICLE) {
-                if (message.has("resolved_title")) {
-                    values.put(ReadingListItems.RESOLVED_TITLE, message.getString("resolved_title"));
-                } else {
-                    if (title != null) {
-                        values.put(ReadingListItems.RESOLVED_TITLE, title);
-                    }
-                }
-                if (message.has("resolved_url")) {
-                    values.put(ReadingListItems.RESOLVED_URL, message.getString("resolved_url"));
-                } else {
-                    if (url != null) {
-                        values.put(ReadingListItems.RESOLVED_URL, url);
-                    }
-                }
-            }
+            values.put(ReadingListItems.CONTENT_STATUS, message.getInt("status"));
         }
-
         return values;
     }
 
@@ -291,14 +257,5 @@ public final class ReadingListHelper implements NativeEventListener {
                 }
             }
         });
-    }
-
-    @RobocopTarget
-    /**
-     * Test code will want to disable background fetches to avoid upsetting
-     * the test harness. Call this by accessing the instance from BrowserApp.
-     */
-    public void disableBackgroundFetches() {
-        fetchInBackground = false;
     }
 }

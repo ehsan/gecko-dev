@@ -2743,22 +2743,21 @@ NetworkDetailsView.prototype = {
     }
 
     /**
-     * A helper that sets value and tooltiptext attributes of an element to
-     * specified value.
+     * A helper that sets label text to specified value.
      *
      * @param string selector
-     *        A selector for the element.
+     *        A selector for the label.
      * @param string value
-     *        The value to set. If this evaluates to false a placeholder string
-     *        <Not Available> is used instead.
+     *        The value label should have. If this evaluates to false a
+     *        placeholder string <Not Available> is used instead.
      */
-    function setValue(selector, value) {
+    function setLabel(selector, value) {
       let label = $(selector);
       if (!value) {
-        label.setAttribute("value", L10N.getStr("netmonitor.security.notAvailable"));
-        label.setAttribute("tooltiptext", label.getAttribute("value"));
+        label.value = L10N.getStr("netmonitor.security.notAvailable");
+        label.setAttribute("tooltiptext", label.value);
       } else {
-        label.setAttribute("value", value);
+        label.value = value;
         label.setAttribute("tooltiptext", value);
       }
     }
@@ -2786,43 +2785,43 @@ NetworkDetailsView.prototype = {
       let disabledLabel = L10N.getStr("netmonitor.security.disabled");
 
       // Connection parameters
-      setValue("#security-protocol-version-value", securityInfo.protocolVersion);
-      setValue("#security-ciphersuite-value", securityInfo.cipherSuite);
+      setLabel("#security-protocol-version-value", securityInfo.protocolVersion);
+      setLabel("#security-ciphersuite-value", securityInfo.cipherSuite);
 
       // Host header
       let domain = NetMonitorView.RequestsMenu._getUriHostPort(url);
       let hostHeader = L10N.getFormatStr("netmonitor.security.hostHeader", domain);
-      setValue("#security-info-host-header", hostHeader);
+      setLabel("#security-info-host-header", hostHeader);
 
       // Parameters related to the domain
-      setValue("#security-http-strict-transport-security-value",
+      setLabel("#security-http-strict-transport-security-value",
                 securityInfo.hsts ? enabledLabel : disabledLabel);
 
-      setValue("#security-public-key-pinning-value",
+      setLabel("#security-public-key-pinning-value",
                 securityInfo.hpkp ? enabledLabel : disabledLabel);
 
       // Certificate parameters
       let cert = securityInfo.cert;
-      setValue("#security-cert-subject-cn", cert.subject.commonName);
-      setValue("#security-cert-subject-o", cert.subject.organization);
-      setValue("#security-cert-subject-ou", cert.subject.organizationalUnit);
+      setLabel("#security-cert-subject-cn", cert.subject.commonName);
+      setLabel("#security-cert-subject-o", cert.subject.organization);
+      setLabel("#security-cert-subject-ou", cert.subject.organizationalUnit);
 
-      setValue("#security-cert-issuer-cn", cert.issuer.commonName);
-      setValue("#security-cert-issuer-o", cert.issuer.organization);
-      setValue("#security-cert-issuer-ou", cert.issuer.organizationalUnit);
+      setLabel("#security-cert-issuer-cn", cert.issuer.commonName);
+      setLabel("#security-cert-issuer-o", cert.issuer.organization);
+      setLabel("#security-cert-issuer-ou", cert.issuer.organizationalUnit);
 
-      setValue("#security-cert-validity-begins", cert.validity.start);
-      setValue("#security-cert-validity-expires", cert.validity.end);
+      setLabel("#security-cert-validity-begins", cert.validity.start);
+      setLabel("#security-cert-validity-expires", cert.validity.end);
 
-      setValue("#security-cert-sha1-fingerprint", cert.fingerprint.sha1);
-      setValue("#security-cert-sha256-fingerprint", cert.fingerprint.sha256);
+      setLabel("#security-cert-sha1-fingerprint", cert.fingerprint.sha1);
+      setLabel("#security-cert-sha256-fingerprint", cert.fingerprint.sha256);
     } else {
       infobox.hidden = true;
       errorbox.hidden = false;
 
       // Strip any HTML from the message.
       let plain = DOMParser.parseFromString(securityInfo.errorMessage, "text/html");
-      setValue("#security-error-message", plain.body.textContent);
+      $("#security-error-message").textContent = plain.body.textContent;
     }
   }),
 
