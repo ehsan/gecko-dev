@@ -22,7 +22,6 @@
  *  David Dahl <ddahl@mozilla.com>
  *  Patrick Walton <pcwalton@mozilla.com>
  *  Julian Viereck <jviereck@mozilla.com>
- *  Mihai Șucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -69,8 +68,6 @@ const TEST_FILTER_URI = "http://example.com/browser/toolkit/components/console/h
 const TEST_PROPERTY_PROVIDER_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-property-provider.html";
 
 const TEST_ERROR_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-error.html";
-
-const TEST_DUPLICATE_ERROR_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-duplicate-error.html";
 
 function noCacheUriSpec(aUriSpec) {
   return aUriSpec + "?_=" + Date.now();
@@ -573,6 +570,39 @@ function testCompletion()
   is(input.selectionEnd, 23, "end selection is alright");
 }
 
+function testJSInputExpand()
+{
+  let HUD = HUDService.hudWeakReferences[hudId].get();
+  let jsterm = HUD.jsterm;
+  let input = jsterm.inputNode;
+  input.focus();
+
+  is(input.getAttribute("multiline"), "true", "multiline is enabled");
+
+  // Tests if the inputNode expands.
+  input.value = "hello\nworld\n";
+  let length = input.value.length;
+  input.selectionEnd = length;
+  input.selectionStart = length;
+  // Performs an "d". This will trigger/test for the input event that should
+  // change the "row" attribute of the inputNode.
+  EventUtils.synthesizeKey("d", {});
+  is(input.getAttribute("rows"), "3", "got 3 rows");
+
+  // Add some more rows. Tests for the 8 row limit.
+  input.value = "row1\nrow2\nrow3\nrow4\nrow5\nrow6\nrow7\nrow8\nrow9\nrow10\n";
+  length = input.value.length;
+  input.selectionEnd = length;
+  input.selectionStart = length;
+  EventUtils.synthesizeKey("d", {});
+  is(input.getAttribute("rows"), "8", "got 8 rows");
+
+  // Test if the inputNode shrinks again.
+  input.value = "";
+  EventUtils.synthesizeKey("d", {});
+  is(input.getAttribute("rows"), "1", "got 1 row");
+}
+
 function testExecutionScope()
 {
   content.location.href = TEST_URI;
@@ -659,47 +689,17 @@ function testErrorOnPageReload() {
   // see bug 580030: the error handler fails silently after page reload.
   // https://bugzilla.mozilla.org/show_bug.cgi?id=580030
 
-  var consoleObserver = {
-    QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
-
-    observe: function (aMessage)
-    {
-      // we ignore errors we don't care about
-      if (!(aMessage instanceof Ci.nsIScriptError) ||
-        aMessage.category != "content javascript") {
-        return;
-      }
-
-      Services.console.unregisterListener(this);
-
-      const successMsg = "Found the error message after page reload";
-      const errMsg = "Could not get the error message after page reload";
-
-      var display = HUDService.getDisplayByURISpec(content.location.href);
-      var outputNode = display.querySelectorAll(".hud-output-node")[0];
-
-      executeSoon(function () {
-        testLogEntry(outputNode, "fooBazBaz",
-          { success: successMsg, err: errMsg });
-
-        testDuplicateError();
-      });
-    }
-  };
-
   var pageReloaded = false;
-  browser.addEventListener("load", function() {
+  browser.addEventListener("DOMContentLoaded", function onDOMLoad() {
     if (!pageReloaded) {
       pageReloaded = true;
       content.location.reload();
       return;
     }
 
-    browser.removeEventListener("load", arguments.callee, true);
+    browser.removeEventListener("DOMContentLoaded", onDOMLoad, false);
 
-    // dispatch a click event to the button in the test page and listen for
-    // errors.
-
+    // dispatch a click event to the button in the test page.
     var contentDocument = browser.contentDocument.wrappedJSObject;
     var button = contentDocument.getElementsByTagName("button")[0];
     var clickEvent = contentDocument.createEvent("MouseEvents");
@@ -707,53 +707,25 @@ function testErrorOnPageReload() {
       browser.contentWindow.wrappedJSObject, 0, 0, 0, 0, 0, false, false,
       false, false, 0, null);
 
-    Services.console.registerListener(consoleObserver);
+    var successMsg = "Found the error message after page reload";
+    var errMsg = "Could not get the error message after page reload";
+
+    var display = HUDService.getDisplayByURISpec(content.location.href);
+    var outputNode = display.querySelectorAll(".hud-output-node")[0];
+
+    button.addEventListener("click", function onClickHandler() {
+      button.removeEventListener("click", onClickHandler, false);
+
+      testLogEntry(outputNode, "fooBazBaz",
+        { success: successMsg, err: errMsg });
+
+      testWebConsoleClose();
+    }, false);
+
     button.dispatchEvent(clickEvent);
-  }, true);
+  }, false);
 
-  content.location = TEST_ERROR_URI;
-}
-
-function testDuplicateError() {
-  // see bug 582201 - exceptions show twice in WebConsole
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=582201
-
-  var consoleObserver = {
-    QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
-
-    observe: function (aMessage)
-    {
-      // we ignore errors we don't care about
-      if (!(aMessage instanceof Ci.nsIScriptError) ||
-        aMessage.category != "content javascript") {
-        return;
-      }
-
-      Services.console.unregisterListener(this);
-
-      var display = HUDService.getDisplayByURISpec(content.location.href);
-      var outputNode = display.querySelectorAll(".hud-output-node")[0];
-
-      executeSoon(function () {
-        var text = outputNode.textContent;
-        var error1pos = text.indexOf("fooDuplicateError1");
-        ok(error1pos > -1, "found fooDuplicateError1");
-        if (error1pos > -1) {
-          ok(text.indexOf("fooDuplicateError1", error1pos + 1) == -1,
-            "no duplicate for fooDuplicateError1");
-        }
-
-        ok(text.indexOf("test-duplicate-error.html") > -1,
-          "found test-duplicate-error.html");
-
-        text = null;
-        testWebConsoleClose();
-      });
-    }
-  };
-
-  Services.console.registerListener(consoleObserver);
-  content.location = TEST_DUPLICATE_ERROR_URI;
+  content.location.href = TEST_ERROR_URI;
 }
 
 /**
@@ -844,6 +816,7 @@ function test() {
       testExecutionScope();
       testCompletion();
       testPropertyProvider();
+      testJSInputExpand();
       testNet();
     });
   }, false);

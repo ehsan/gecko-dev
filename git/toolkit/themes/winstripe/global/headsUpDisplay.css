@@ -59,7 +59,6 @@
 .hud-output-node div {
     -moz-user-select: text;
     white-space: pre-wrap;
-    -moz-user-focus: normal;
 }
 
 .hud-output-node .hud-network {
@@ -154,6 +153,10 @@
     border: none !important;
     padding: 0px 0px 0px 16px !important;
     -moz-appearance: none !important;
+}
+
+.jsterm-input-node textarea {
+    overflow-x: hidden;
 }
 
 .jsterm-output-line {

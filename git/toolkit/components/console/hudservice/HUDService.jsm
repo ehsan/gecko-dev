@@ -26,7 +26,6 @@
  *   Johnathan Nightingale <jnightingale@mozilla.com>
  *   Patrick Walton <pcwalton@mozilla.com>
  *   Julian Viereck <jviereck@mozilla.com>
- *   Mihai Șucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -205,18 +204,14 @@ HUD_SERVICE.prototype =
     var origOnerrorFunc = window.onerror;
     window.onerror = function windowOnError(aErrorMsg, aURL, aLineNumber)
     {
-      if (aURL && !(aURL in self.uriRegistry)) {
-        var lineNum = "";
-        if (aLineNumber) {
-          lineNum = self.getFormatStr("errLine", [aLineNumber]);
-        }
-        console.error(aErrorMsg + " @ " + aURL + " " + lineNum);
+      var lineNum = "";
+      if (aLineNumber) {
+        lineNum = self.getFormatStr("errLine", [aLineNumber]);
       }
-
+      console.error(aErrorMsg + " @ " + aURL + " " + lineNum);
       if (origOnerrorFunc) {
         origOnerrorFunc(aErrorMsg, aURL, aLineNumber);
       }
-
       return false;
     };
   },
@@ -1675,8 +1670,6 @@ function HeadsUpDisplay(aConfig)
   this.XULFactory = NodeFactory("xul", "xul", this.chromeDocument);
   this.textFactory = NodeFactory("text", "xul", this.chromeDocument);
 
-  this.chromeWindow = HUDService.getChromeWindowFromContentWindow(this.contentWindow);
-
   // create a panel dynamically and attach to the parentNode
   let hudBox = this.createHUD();
 
@@ -1762,15 +1755,9 @@ HeadsUpDisplay.prototype = {
   {
     this.hudId = this.HUDBox.getAttribute("id");
 
+    // set outputNode
     this.outputNode = this.HUDBox.querySelectorAll(".hud-output-node")[0];
 
-    this.contextMenu = this.HUDBox.querySelector("#" + this.hudId +
-        "-output-contextmenu");
-    this.copyOutputMenuItem = this.HUDBox.
-      querySelector("menuitem[command=cmd_copy]");
-
-    this.chromeWindow = HUDService.
-      getChromeWindowFromContentWindow(this.contentWindow);
     this.chromeDocument = this.HUDBox.ownerDocument;
 
     if (this.outputNode) {
@@ -1833,6 +1820,18 @@ HeadsUpDisplay.prototype = {
   },
 
   /**
+   * Clears the HeadsUpDisplay output node of any log messages
+   *
+   * @returns void
+   */
+  clearConsoleOutput: function HUD_clearConsoleOutput()
+  {
+    for each (var node in this.outputNode.childNodes) {
+      this.outputNode.removeChild(node);
+    }
+  },
+
+  /**
    * Build the UI of each HeadsUpDisplay
    *
    * @returns nsIDOMNode
@@ -1863,7 +1862,6 @@ HeadsUpDisplay.prototype = {
     this.outputNode = this.makeXULNode("vbox");
     this.outputNode.setAttribute("class", "hud-output-node");
     this.outputNode.setAttribute("flex", "1");
-    this.outputNode.setAttribute("context", this.hudId + "-output-contextmenu");
 
     this.filterSpacer = this.makeXULNode("spacer");
     this.filterSpacer.setAttribute("flex", "1");
@@ -1884,16 +1882,6 @@ HeadsUpDisplay.prototype = {
     var command = "HUDConsoleUI.command(this)";
     this.consoleClearButton.setAttribute("oncommand", command);
 
-    this.copyOutputMenuItem = this.makeXULNode("menuitem");
-    this.copyOutputMenuItem.setAttribute("label", this.getStr("copyCmd.label"));
-    this.copyOutputMenuItem.setAttribute("accesskey", this.getStr("copyCmd.accesskey"));
-    this.copyOutputMenuItem.setAttribute("key", "key_copy");
-    this.copyOutputMenuItem.setAttribute("command", "cmd_copy");
-
-    this.contextMenu = this.makeXULNode("menupopup");
-    this.contextMenu.setAttribute("id", this.hudId + "-output-contextmenu");
-    this.contextMenu.appendChild(this.copyOutputMenuItem);
-
     this.filterPrefs = HUDService.getDefaultFilterPrefs(this.hudId);
 
     let consoleFilterToolbar = this.makeFilterToolbar();
@@ -1902,11 +1890,6 @@ HeadsUpDisplay.prototype = {
     consoleWrap.appendChild(consoleFilterToolbar);
 
     consoleWrap.appendChild(this.outputNode);
-
-    // We want the context menu inside the console wrapper, but outside the
-    // outputNode.
-    outerWrap.appendChild(this.contextMenu);
-
     outerWrap.appendChild(consoleWrap);
 
     this.HUDBox.lastTimestamp = 0;
@@ -2485,8 +2468,10 @@ JSTerm.prototype = {
     this.createSandbox();
     this.inputNode = this.mixins.inputNode;
     this.scrollToNode = this.mixins.scrollToNode;
-    let eventHandler = this.keyDown();
-    this.inputNode.addEventListener('keypress', eventHandler, false);
+    let eventHandlerKeyDown = this.keyDown();
+    this.inputNode.addEventListener('keypress', eventHandlerKeyDown, false);
+    let eventHandlerInput = this.inputEventHandler();
+    this.inputNode.addEventListener('input', eventHandlerInput, false);
     this.outputNode = this.mixins.outputNode;
     if (this.mixins.cssClassOverride) {
       this.cssClassOverride = this.mixins.cssClassOverride;
@@ -2614,6 +2599,16 @@ JSTerm.prototype = {
     outputNode.lastTimestamp = 0;
   },
 
+  inputEventHandler: function JSTF_inputEventHandler()
+  {
+    var self = this;
+    function handleInputEvent(aEvent) {
+      self.inputNode.setAttribute("rows",
+        Math.min(8, self.inputNode.value.split("\n").length));
+    }
+    return handleInputEvent;
+  },
+
   keyDown: function JSTF_keyDown(aEvent)
   {
     var self = this;
@@ -2657,6 +2652,7 @@ JSTerm.prototype = {
           case 13:
             // return
             self.execute();
+            aEvent.preventDefault();
             break;
           case 38:
             // up arrow: history previous
@@ -2771,7 +2767,7 @@ JSTerm.prototype = {
   {
     var firstLineBreak = this.codeInputString.indexOf("\n");
     return ((firstLineBreak == -1) ||
-            (this.codeInputString.selectionStart <= firstLineBreak));
+            (this.inputNode.selectionStart <= firstLineBreak));
   },
 
   caretInLastLine: function JSTF_caretInLastLine()
@@ -2951,6 +2947,8 @@ JSTermFirefoxMixin.prototype = {
   {
     let inputNode = this.xulElementFactory("textbox");
     inputNode.setAttribute("class", "jsterm-input-node");
+    inputNode.setAttribute("multiline", "true");
+    inputNode.setAttribute("rows", "1");
 
     if (this.existingConsoleNode == undefined) {
       // create elements
