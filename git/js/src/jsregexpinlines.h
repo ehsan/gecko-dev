@@ -196,8 +196,6 @@ class RegExp
         JS_ASSERT((flags & allFlags) == flags);
         return flags;
     }
-
-    uint32 flagCount() const;
 };
 
 class RegExpMatchBuilder
@@ -508,14 +506,14 @@ RegExp::compile(JSContext *cx)
     static const jschar prefix[] = {'^', '(', '?', ':'};
     static const jschar postfix[] = {')'};
 
-    JSCharBuffer cb(cx);
-    if (!cb.reserve(JS_ARRAY_LENGTH(prefix) + source->length() + JS_ARRAY_LENGTH(postfix)))
+    StringBuffer sb(cx);
+    if (!sb.reserve(JS_ARRAY_LENGTH(prefix) + source->length() + JS_ARRAY_LENGTH(postfix)))
         return false;
-    JS_ALWAYS_TRUE(cb.append(prefix, JS_ARRAY_LENGTH(prefix)));
-    JS_ALWAYS_TRUE(cb.append(source->flatChars(), source->length()));
-    JS_ALWAYS_TRUE(cb.append(postfix, JS_ARRAY_LENGTH(postfix)));
+    JS_ALWAYS_TRUE(sb.append(prefix, JS_ARRAY_LENGTH(prefix)));
+    JS_ALWAYS_TRUE(sb.append(source->chars(), source->length()));
+    JS_ALWAYS_TRUE(sb.append(postfix, JS_ARRAY_LENGTH(postfix)));
 
-    JSLinearString *fakeySource = js_NewStringFromCharBuffer(cx, cb);
+    JSLinearString *fakeySource = sb.finishString();
     if (!fakeySource)
         return false;
     return compileHelper(cx, *fakeySource);
@@ -543,15 +541,6 @@ RegExp::hasMetaChars(const jschar *chars, size_t length)
             return true;
     }
     return false;
-}
-
-inline uint32
-RegExp::flagCount() const
-{
-    uint32 nflags = 0;
-    for (uint32 tmpFlags = flags; tmpFlags != 0; tmpFlags &= tmpFlags - 1)
-        nflags++;
-    return nflags;
 }
 
 inline void
