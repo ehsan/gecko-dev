@@ -47,19 +47,18 @@ let visits = [];
  *
  * @param  aSequence
  *         an array that contains query options in the form:
- *         [includeHidden, redirectsMode, maxResults, sortingMode]
+ *         [includeHidden, redirectsMode, maxResults]
  */
 function check_results_callback(aSequence) {
   // Sanity check: we should receive 3 parameters.
-  do_check_eq(aSequence.length, 4);
+  do_check_eq(aSequence.length, 3);
   let includeHidden = aSequence[0];
   let redirectsMode = aSequence[1];
   let maxResults = aSequence[2];
-  let sortingMode = aSequence[3];
+
   print("\nTESTING: includeHidden(" + includeHidden + ")," +
                   " redirectsMode(" + redirectsMode + ")," +
-                  " maxResults("    + maxResults    + ")," +
-                  " sortingMode("   + sortingMode   + ").");
+                  " maxResults("    + maxResults    + ").");
 
   // Build expectedData array.
   let expectedData = visits.filter(function(aVisit, aIndex, aArray) {
@@ -87,19 +86,6 @@ function check_results_callback(aSequence) {
     }
   });
 
-  // Sort expectedData.
-  if (sortingMode > 0) {
-    function comparator(a, b) {
-      if (sortingMode == Ci.nsINavHistoryQueryOptions.SORT_BY_DATE_DESCENDING)
-        return b.lastVisit - a.lastVisit;
-      else if (sortingMode == Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING)
-        return b.visitCount - a.visitCount;
-      else
-        return 0;
-    }
-    expectedData.sort(comparator);
-  }
-
   // Crop results to maxResults if it's defined.
   if (maxResults) {
     expectedData = expectedData.filter(function(aVisit, aIndex) {
@@ -112,7 +98,6 @@ function check_results_callback(aSequence) {
   let options = histsvc.getNewQueryOptions();
   options.includeHidden = includeHidden;
   options.redirectsMode = redirectsMode;
-  options.sortingMode = sortingMode;
   if (maxResults)
     options.maxResults = maxResults;
 
@@ -216,7 +201,6 @@ function add_visits_to_database() {
 
   // We don't really bother on this, but we need a time to add visits.
   let timeInMicroseconds = Date.now() * 1000;
-  let visitCount = 1;
 
   // Array of all possible transition types we could be redirected from.
   let t = [
@@ -224,11 +208,7 @@ function add_visits_to_database() {
     Ci.nsINavHistoryService.TRANSITION_TYPED,
     Ci.nsINavHistoryService.TRANSITION_BOOKMARK,
     Ci.nsINavHistoryService.TRANSITION_EMBED,
-    // Would make hard sorting by visit date because last_visit_date is actually
-    // calculated excluding download transitions, but the query includes
-    // downloads.
-    // TODO: Bug 488966 could fix this behavior.
-    //Ci.nsINavHistoryService.TRANSITION_DOWNLOAD,
+    Ci.nsINavHistoryService.TRANSITION_DOWNLOAD,
   ];
 
   // we add a visit for each of the above transition types.
@@ -237,8 +217,7 @@ function add_visits_to_database() {
       transType: transition,
       uri: "http://" + transition + ".example.com/",
       title: transition + "-example",
-      lastVisit: timeInMicroseconds--,
-      visitCount: transition == Ci.nsINavHistoryService.TRANSITION_EMBED ? 0 : visitCount++,
+      lastVisit: timeInMicroseconds,
       isInQuery: true }));
 
   // Add a REDIRECT_TEMPORARY layer of visits for each of the above visits.
@@ -247,10 +226,9 @@ function add_visits_to_database() {
       transType: Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY,
       uri: "http://" + transition + ".redirect.temp.example.com/",
       title: transition + "-redirect-temp-example",
-      lastVisit: timeInMicroseconds--,
+      lastVisit: timeInMicroseconds,
       isRedirect: true,
       referrer: "http://" + transition + ".example.com/",
-      visitCount: visitCount++,
       isInQuery: true }));
 
   // Add a REDIRECT_PERMANENT layer of visits for each of the above redirects.
@@ -259,19 +237,10 @@ function add_visits_to_database() {
       transType: Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT,
       uri: "http://" + transition + ".redirect.perm.example.com/",
       title: transition + "-redirect-perm-example",
-      lastVisit: timeInMicroseconds--,
+      lastVisit: timeInMicroseconds,
       isRedirect: true,
       referrer: "http://" + transition + ".redirect.temp.example.com/",
-      visitCount: visitCount++,
       isInQuery: true }));
-
-  // Add an unvisited bookmark in the database, it should never appear.
-  visits.push({ isBookmark: true,
-    uri: "http://unvisited.bookmark.com/",
-    parentFolder: bmsvc.bookmarksMenuFolder,
-    index: bmsvc.DEFAULT_INDEX,
-    title: "Unvisited Bookmark",
-    isInQuery: false });
 
   // Put visits in the database.
   populateDB(visits);
@@ -288,14 +257,9 @@ function run_test() {
   redirectsMode_options =  [Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_ALL,
                             Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_SOURCE,
                             Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET];
-  maxResults_options = [5, 10, 20, null];
-  // These sortingMode are choosen to toggle using special queries for history
-  // menu and most visited smart bookmark.
-  sorting_options = [Ci.nsINavHistoryQueryOptions.SORT_BY_NONE,
-                     Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING,
-                     Ci.nsINavHistoryQueryOptions.SORT_BY_DATE_DESCENDING];
+  maxResults_options = [5, 10, null];
   // Will execute check_results_callback() for each generated combination.
-  cartProd([includeHidden_options, redirectsMode_options, maxResults_options, sorting_options],
+  cartProd([includeHidden_options, redirectsMode_options, maxResults_options],
            check_results_callback);
 
   // Clean up so we can't pollute next tests.

@@ -132,7 +132,8 @@ function test_ftp_channel() {
 }
 
 function end() {
-  httpserv.stop(do_test_finished);
+  httpserv.stop();
+  do_test_finished();
 }
 
 function run_test() {

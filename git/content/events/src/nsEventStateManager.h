@@ -65,7 +65,7 @@ class nsDOMDataTransfer;
 // mac uses click-hold context menus, a holdover from 4.x
 // touch screens (like hildon) could use this also, 
 // perhaps we should move to NS_TOUCHSCREEN
-#if defined(XP_MACOSX) || defined(MOZ_PLATFORM_HILDON)
+#if defined(XP_MACOSX) || defined(NS_HILDON)
 #define CLICK_HOLD_CONTEXT_MENUS 1
 #endif
 
@@ -312,7 +312,9 @@ protected:
   } ScrollQuantity;
   nsresult DoScrollText(nsPresContext* aPresContext,
                         nsIFrame* aTargetFrame,
-                        nsMouseScrollEvent* aMouseEvent,
+                        nsInputEvent* aEvent,
+                        PRInt32 aNumLines,
+                        PRBool aScrollHorizontal,
                         ScrollQuantity aScrollQuantity);
   void DoScrollHistory(PRInt32 direction);
   void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);

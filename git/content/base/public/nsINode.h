@@ -45,7 +45,6 @@
 #include "nsINodeInfo.h"
 #include "nsCOMPtr.h"
 #include "nsWrapperCache.h"
-#include "nsIProgrammingLanguage.h" // for ::JAVASCRIPT
 
 class nsIContent;
 class nsIDocument;
@@ -240,8 +239,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xfc22c6df, 0x3e8e, 0x47c3, \
-  { 0x96, 0xa6, 0xaf, 0x14, 0x3c, 0x05, 0x88, 0x68 } }
+{ 0x7bccc9bd, 0x30eb, 0x47c0, \
+ { 0x8b, 0xc7, 0x6f, 0x19, 0x75, 0xc8, 0xe7, 0xd7 } }
  
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -772,22 +771,6 @@ public:
   }
 
   /**
-   * Returns PR_TRUE if |this| or any of its ancestors is native anonymous.
-   */
-  PRBool IsInNativeAnonymousSubtree() const
-  {
-#ifdef DEBUG
-    if (HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)) {
-      return PR_TRUE;
-    }
-    CheckNotNativeAnonymous();
-    return PR_FALSE;
-#else
-    return HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE);
-#endif
-  }
-
-  /**
    * Get the root content of an editor. So, this node must be a descendant of
    * an editor. Note that this should be only used for getting input or textarea
    * editor's root content. This method doesn't support HTML editors.
@@ -863,21 +846,6 @@ public:
     nsIContent* const * mEnd;
   };
 
-  /**
-   * The default script type (language) ID for this node.
-   * All nodes must support fetching the default script language.
-   */
-  virtual PRUint32 GetScriptTypeID() const
-  { return nsIProgrammingLanguage::JAVASCRIPT; }
-
-  /**
-   * Not all nodes support setting a new default language.
-   */
-  NS_IMETHOD SetScriptTypeID(PRUint32 aLang)
-  {
-    NS_NOTREACHED("SetScriptTypeID not implemented");
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
 protected:
 
   // Override this function to create a custom slots class.
@@ -923,12 +891,6 @@ protected:
   {
     return IsEditableInternal();
   }
-
-#ifdef DEBUG
-  // Note: virtual so that IsInNativeAnonymousSubtree can be called accross
-  // module boundaries.
-  virtual void CheckNotNativeAnonymous() const;
-#endif
 
   nsresult GetParentNode(nsIDOMNode** aParentNode);
   nsresult GetChildNodes(nsIDOMNodeList** aChildNodes);

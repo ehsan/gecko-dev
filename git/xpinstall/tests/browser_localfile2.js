@@ -18,7 +18,6 @@ function test() {
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function() {
-    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
     // Allow the in-page load handler to run first
     executeSoon(page_loaded);
   }, true);
@@ -26,6 +25,8 @@ function test() {
 }
 
 function page_loaded() {
+  gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, false);
+
   var doc = gBrowser.contentDocument;
   is(doc.getElementById("return").textContent, "exception", "installTrigger should have failed");
   gBrowser.removeCurrentTab();

@@ -78,7 +78,6 @@ const URI_UPDATES_PROPERTIES    = "chrome://mozapps/locale/update/updates.proper
 const URI_UPDATE_NS             = "http://www.mozilla.org/2005/app-update";
 
 const KEY_APPDIR          = "XCurProcD";
-const KEY_GRED            = "GreD";
 #ifdef XP_WIN
 const KEY_UPDROOT         = "UpdRootD";
 const KEY_UAPPDATA        = "UAppData";
@@ -93,7 +92,7 @@ const FILE_UPDATES_DB     = "updates.xml";
 const FILE_UPDATE_ACTIVE  = "active-update.xml";
 const FILE_PERMS_TEST     = "update.test";
 const FILE_LAST_LOG       = "last-update.log";
-const FILE_UPDATE_LOCALE  = "update.locale";
+const FILE_UPDATER_INI    = "updater.ini";
 
 const MODE_RDONLY   = 0x01;
 const MODE_WRONLY   = 0x02;
@@ -364,11 +363,8 @@ function getUpdatesDir(key) {
   }
   updateDir.append(DIR_UPDATES);
   updateDir.append("0");
-  if (!updateDir.exists() && !key) {
-    LOG("General", "getUpdatesDir - update directory " + updateDir.path +
-        " doesn't exist, creating...");
+  if (!updateDir.exists() && !key)
     updateDir.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-  }
   return updateDir;
 }
 
@@ -382,10 +378,8 @@ function getUpdatesDir(key) {
 function readStatusFile(dir) {
   var statusFile = dir.clone();
   statusFile.append(FILE_UPDATE_STATUS);
-  var status = readStringFromFile(statusFile) || STATE_NONE;
-  LOG("General", "readStatusFile - status: " + status + ", path: " +
-      statusFile.path);
-  return status;
+  LOG("General", "readStatusFile - Reading Status File: " + statusFile.path);
+  return readStringFromFile(statusFile) || STATE_NONE;
 }
 
 /**
@@ -476,8 +470,6 @@ function cleanUpUpdatesDir(key) {
         updateDir.path + " - This is almost always bad. Exception = " + e);
     throw e;
   }
-  LOG("General", "cleanUpUpdatesDir - successfully removed update directory: " +
-      updateDir.path);
 }
 
 /**
@@ -519,26 +511,19 @@ function getPref(func, preference, defaultValue) {
 }
 
 /**
- * Gets the locale from the update.locale file for replacing %LOCALE% in the
- * update url. The update.locale file can be located in the application
- * directory or the GRE directory with preference given to it being located in
- * the application directory.
+ * Gets the locale specified by the 'Locale' key in the 'Installation' section
+ * of updater.ini.
  */
 function getLocale() {
   if (gLocale)
     return gLocale;
 
-  var localeFile = getFile(KEY_APPDIR, [FILE_UPDATE_LOCALE]);
-  if (!localeFile.exists())
-    localeFile = getFile(KEY_GRED, [FILE_UPDATE_LOCALE]);
-
-  if (!localeFile.exists())
-    throw Components.Exception(FILE_UPDATE_LOCALE + " file doesn't exist in " +
-                               "either the " + KEY_APPDIR + " or " + KEY_GRED +
-                               " directories", Cr.NS_ERROR_FILE_NOT_FOUND);
-
-  gLocale = readStringFromFile(localeFile);
-  LOG("General", "getLocale - getting locale from file: " + localeFile.path +
+  var updaterIni = getFile(KEY_APPDIR, [FILE_UPDATER_INI]);
+  var iniParser = Cc["@mozilla.org/xpcom/ini-parser-factory;1"].
+                  getService(Ci.nsIINIParserFactory).
+                  createINIParser(updaterIni);
+  gLocale = iniParser.getString("Installation", "Locale");
+  LOG("General", "getLocale - getting locale from file: " + updaterIni.path +
       ", locale: " + gLocale);
   return gLocale;
 }
@@ -655,10 +640,8 @@ function readStringFromFile(file) {
   var fis = Cc["@mozilla.org/network/file-input-stream;1"].
             createInstance(Ci.nsIFileInputStream);
   var modeFlags = MODE_RDONLY;
-  if (!file.exists()) {
-    LOG("General", "readStringFromFile - file doesn't exist: " + file.path);
+  if (!file.exists())
     return null;
-  }
   fis.init(file, modeFlags, PERMS_FILE, 0);
   var sis = Cc["@mozilla.org/scriptableinputstream;1"].
             createInstance(Ci.nsIScriptableInputStream);
@@ -786,9 +769,9 @@ UpdatePatch.prototype = {
    * See nsIUpdateService.idl
    */
   get state() {
-    if (this._properties.state)
-      return this._properties.state;
-    return STATE_NONE;
+    if (!this.statusFileExists)
+      return STATE_NONE;
+    return this._properties.state;
   },
   set state(val) {
     this._properties.state = val;
@@ -1205,8 +1188,7 @@ UpdateService.prototype = {
 #endif
 
     if (status == STATE_DOWNLOADING) {
-      LOG("UpdateService", "_postUpdateProcessing - patch found in " +
-          "downloading state");
+      LOG("UpdateService", "_postUpdateProcessing - downloading patch");
     }
     else if (status != null) {
       // null status means the update.status file is not present, because either:
@@ -1230,8 +1212,16 @@ UpdateService.prototype = {
       if (status == STATE_SUCCEEDED) {
         update.statusText = bundle.GetStringFromName("installSuccess");
 
-        // Update the patch's metadata.
-        um.activeUpdate = update;
+        // Dig through the update history to find the patch that was just
+        // installed and update its metadata.
+        for (var i = 0; i < um.updateCount; ++i) {
+          var umUpdate = um.getUpdateAt(i);
+          if (umUpdate && umUpdate.version == update.version &&
+              umUpdate.buildID == update.buildID) {
+            umUpdate.statusText = update.statusText;
+            break;
+          }
+        }
 
         prompter.showUpdateInstalled();
 
@@ -1684,7 +1674,7 @@ UpdateService.prototype = {
           // fall through to checking if write access to the 
           // installation directory is available.
           LOG("UpdateService", "canUpdate - on Vista, appDir is not under " +
-              "Program Files");
+              "the Program Files");
         }
       }
 
@@ -1780,20 +1770,6 @@ UpdateService.prototype = {
   downloadUpdate: function AUS_downloadUpdate(update, background) {
     if (!update)
       throw Cr.NS_ERROR_NULL_POINTER;
-
-    let ai = Cc["@mozilla.org/xre/app-info;1"].
-             getService(Ci.nsIXULAppInfo);
-    let vc = Cc["@mozilla.org/xpcom/version-comparator;1"].
-             getService(Ci.nsIVersionComparator);
-    // Don't download the update if the update's version is less than the
-    // current application's version.
-    if (update.version && vc.compare(update.version, ai.version) < 0) {
-      LOG("UpdateService", "downloadUpdate - removing update for previous " +
-          "application version " + update.version);
-      cleanupActiveUpdate();
-      return STATE_NONE;
-    }
-
     if (this.isDownloading) {
       if (update.isCompleteUpdate == this._downloader.isCompleteUpdate &&
           background == this._downloader.background) {
@@ -1903,7 +1879,7 @@ UpdateManager.prototype = {
           LOG("UpdateManager", "_loadXMLFileIntoArray - invalid update");
           continue;
         }
-        result.push(update);
+        result.push(new Update(updateElement));
       }
     }
     catch (e) {
@@ -1922,10 +1898,10 @@ UpdateManager.prototype = {
       this._updates = this._loadXMLFileIntoArray(getUpdateFile(
                         [FILE_UPDATES_DB]));
 
-      var activeUpdates = this._loadXMLFileIntoArray(getUpdateFile(
-                            [FILE_UPDATE_ACTIVE]));
-      if (activeUpdates.length > 0)
-        this._activeUpdate = activeUpdates[0];
+      // Make sure that any active update is part of our updates list
+      var active = this.activeUpdate;
+      if (active)
+        this._addUpdate(active);
     }
   },
 
@@ -1954,7 +1930,6 @@ UpdateManager.prototype = {
       // User switched channels, clear out any old active updates and remove
       // partial downloads
       this._activeUpdate = null;
-      this.saveUpdates();
 
       // Destroy the updates directory, since we're done with it.
       cleanUpUpdatesDir();
@@ -1998,7 +1973,8 @@ UpdateManager.prototype = {
       }
     }
     // Otherwise add it to the front of the list.
-    this._updates.unshift(update);
+    if (update)
+      this._updates = [update].concat(this._updates);
   },
 
   /**
@@ -2043,22 +2019,8 @@ UpdateManager.prototype = {
   saveUpdates: function UM_saveUpdates() {
     this._writeUpdatesToXMLFile([this._activeUpdate],
                                 getUpdateFile([FILE_UPDATE_ACTIVE]));
-    if (this._activeUpdate)
-      this._addUpdate(this._activeUpdate);
-
-    this._ensureUpdates();
-    // Don't write updates that have a temporary state to the updates.xml file.
     if (this._updates) {
-      let updates = this._updates.slice();
-      for (let i = updates.length - 1; i >= 0; --i) {
-        let state = updates[i].state;
-        if (state == STATE_NONE || state == STATE_DOWNLOADING ||
-            state == STATE_PENDING) {
-          updates.splice(i, 1);
-        }
-      }
-
-      this._writeUpdatesToXMLFile(updates.slice(0, 10),
+      this._writeUpdatesToXMLFile(this._updates.slice(0, 10),
                                   getUpdateFile([FILE_UPDATES_DB]));
     }
   },
@@ -2699,6 +2661,10 @@ Downloader.prototype = {
         LOG("Downloader", "onStopRequest - download verification failed");
         state = STATE_DOWNLOAD_FAILED;
 
+        var brandStrings = sbs.createBundle(URI_BRAND_PROPERTIES);
+        var brandShortName = brandStrings.GetStringFromName("brandShortName");
+        this._update.statusText = updateStrings.formatStringFromName("verificationError",
+                                                                     [brandShortName], 1);
         // TODO: use more informative error code here
         status = Cr.NS_ERROR_UNEXPECTED;
 
@@ -2739,9 +2705,6 @@ Downloader.prototype = {
     if (deleteActiveUpdate) {
       this._update.installDate = (new Date()).getTime();
       um.activeUpdate = null;
-    }
-    else {
-      um.activeUpdate.state = state;
     }
     um.saveUpdates();
 

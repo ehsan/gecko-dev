@@ -211,7 +211,6 @@ nsTableRowFrame::AppendFrames(nsIAtom*        aListName,
   for (nsIFrame* childFrame = aFrameList; childFrame;
        childFrame = childFrame->GetNextSibling()) {
     nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
-    NS_ASSERTION(cellFrame, "Unexpected frame");
     if (cellFrame) {
       // Add the cell to the cell map
       tableFrame->AppendCell(*cellFrame, GetRowIndex());
@@ -245,7 +244,6 @@ nsTableRowFrame::InsertFrames(nsIAtom*        aListName,
   for (nsIFrame* childFrame = aFrameList; childFrame;
        childFrame = childFrame->GetNextSibling()) {
     nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
-    NS_ASSERTION(cellFrame, "Unexpected frame");
     if (cellFrame) {
       cellChildren.AppendElement(cellFrame);
     }
@@ -1238,18 +1236,21 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
           PRBool collapseGroup = (NS_STYLE_VISIBILITY_COLLAPSE ==
                                   groupVis->mVisible);
           PRBool isCollapsed = collapseCol || collapseGroup;
-          if (!isCollapsed) {
+          if (isCollapsed) {
+            tableFrame->SetNeedToCollapse(PR_TRUE);
+          }
+          else {
             cRect.width += tableFrame->GetColumnWidth(colX);
             isVisible = PR_TRUE;
-            if ((actualColSpan > 1)) {
-              nsTableColFrame* nextColFrame =
-                tableFrame->GetColFrame(colX + colIncrement);
-              const nsStyleVisibility* nextColVis =
+          }
+          if (!isCollapsed &&  (actualColSpan > 1)) {
+            nsTableColFrame* nextColFrame =
+              tableFrame->GetColFrame(colX + colIncrement);
+            const nsStyleVisibility* nextColVis =
               nextColFrame->GetStyleVisibility();
-              if ( (NS_STYLE_VISIBILITY_COLLAPSE != nextColVis->mVisible) &&
-                  tableFrame->ColumnHasCellSpacingBefore(colX + colIncrement)) {
-                cRect.width += cellSpacingX;
-              }
+            if ( (NS_STYLE_VISIBILITY_COLLAPSE != nextColVis->mVisible) &&
+                tableFrame->ColumnHasCellSpacingBefore(colX + colIncrement)) {
+              cRect.width += cellSpacingX;
             }
           }
         }

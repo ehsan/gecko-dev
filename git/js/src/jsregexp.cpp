@@ -71,6 +71,9 @@
 #include "jstracer.h"
 using namespace avmplus;
 using namespace nanojit;
+
+/* Amount of memory in the RE fragmento before flushing. */
+#define MAX_MEM_IN_RE_FRAGMENTO (1 << 20)
 #endif
 
 typedef enum REOp {
@@ -2063,7 +2066,7 @@ class RegExpNativeCompiler {
     {
         if (fragment->lirbuf->outOMem()) 
             return JS_FALSE;
-        ins->setTarget(lir->ins0(LIR_label)); 
+        ins->target(lir->ins0(LIR_label)); 
         return JS_TRUE;
     }
 
@@ -2073,7 +2076,7 @@ class RegExpNativeCompiler {
             return JS_FALSE;
         LIns* fail = lir->ins0(LIR_label);
         for (size_t i = 0; i < fails.size(); ++i) {
-            fails[i]->setTarget(fail);
+            fails[i]->target(fail);
         }
         fails.clear();
         return JS_TRUE;
@@ -2179,13 +2182,13 @@ class RegExpNativeCompiler {
          */
         RECharSet *charSet = &re->classList[node->u.ucclass.index];
         size_t bitmapLen = (charSet->length >> 3) + 1;
-        /* insSkip() can't hold large data blocks. */
+        /* skip() can't hold large data blocks. */
         if (bitmapLen > 1024)
             return NULL;
         /* The following line allocates charSet.u.bits if successful. */
         if (!charSet->converted && !ProcessCharSet(cx, re, charSet))
             return NULL;
-        LIns* skip = lirBufWriter->insSkip(bitmapLen);
+        LIns* skip = lirBufWriter->skip(bitmapLen);
         if (fragment->lirbuf->outOMem())
             return NULL;
         void* bitmapData = skip->payload();
@@ -2355,9 +2358,9 @@ class RegExpNativeCompiler {
      */
     GuardRecord* insertGuard(jschar* re_chars, size_t re_length)
     {
-        LIns* skip = lirBufWriter->insSkip(sizeof(GuardRecord) + 
-                                           sizeof(RESideExit) + 
-                                           (re_length-1) * sizeof(jschar));
+        LIns* skip = lirBufWriter->skip(sizeof(GuardRecord) + 
+                                        sizeof(RESideExit) + 
+                                        (re_length-1) * sizeof(jschar));
         GuardRecord* guard = (GuardRecord *) skip->payload();
         memset(guard, 0, sizeof(*guard));
         RESideExit* exit = (RESideExit*)(guard+1);
@@ -2401,7 +2404,7 @@ class RegExpNativeCompiler {
 
         /* FIXME Use bug 463260 smart pointer when available. */
 #ifdef NJ_VERBOSE
-        debug_only_v(fragment->lirbuf->names = new (&gc) LirNameMap(&gc, fragmento->labels);)
+        debug_only_v(fragment->lirbuf->names = new (&gc) LirNameMap(&gc, NULL, fragmento->labels);)
 #endif
         /* FIXME Use bug 463260 smart pointer when available. */
 #ifdef NJ_VERBOSE
@@ -2439,7 +2442,7 @@ class RegExpNativeCompiler {
         return JS_TRUE;
     fail:
         if (lirbuf->outOMem() || oom || 
-            js_OverfullFragmento(&JS_TRACE_MONITOR(cx), fragmento)) {
+            js_OverfullFragmento(fragmento, MAX_MEM_IN_RE_FRAGMENTO)) {
             fragmento->clearFrags();
             lirbuf->rewind();
         } else {
@@ -4376,22 +4379,6 @@ js_InitRegExpStatics(JSContext *cx)
     JS_ClearRegExpStatics(cx);
 }
 
-JS_FRIEND_API(void)
-js_SaveRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
-                     JSTempValueRooter *tvr)
-{
-  *statics = cx->regExpStatics;
-  JS_PUSH_TEMP_ROOT_STRING(cx, statics->input, tvr);
-}
-
-JS_FRIEND_API(void)
-js_RestoreRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
-                        JSTempValueRooter *tvr)
-{
-  cx->regExpStatics = *statics;
-  JS_POP_TEMP_ROOT(cx, tvr);
-}
-
 void
 js_TraceRegExpStatics(JSTracer *trc, JSContext *acx)
 {
@@ -4559,8 +4546,8 @@ regexp_call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
 #include "jsxdrapi.h"
 
-JSBool
-js_XDRRegExpObject(JSXDRState *xdr, JSObject **objp)
+static JSBool
+regexp_xdrObject(JSXDRState *xdr, JSObject **objp)
 {
     JSRegExp *re;
     JSString *source;
@@ -4599,7 +4586,7 @@ js_XDRRegExpObject(JSXDRState *xdr, JSObject **objp)
 
 #else  /* !JS_HAS_XDR */
 
-#define js_XDRRegExpObject NULL
+#define regexp_xdrObject NULL
 
 #endif /* !JS_HAS_XDR */
 
@@ -4623,7 +4610,7 @@ JSClass js_RegExpClass = {
     JS_ConvertStub,     regexp_finalize,
     NULL,               NULL,
     regexp_call,        NULL,
-    js_XDRRegExpObject, NULL,
+    regexp_xdrObject,   NULL,
     JS_CLASS_TRACE(regexp_trace), 0
 };
 
@@ -4919,6 +4906,21 @@ regexp_test(JSContext *cx, uintN argc, jsval *vp)
     return JS_TRUE;
 }
 
+#ifdef JS_TRACER
+static JSBool FASTCALL
+Regexp_p_test(JSContext* cx, JSObject* regexp, JSString* str)
+{
+    jsval vp[3] = { JSVAL_NULL, OBJECT_TO_JSVAL(regexp), STRING_TO_JSVAL(str) };
+    if (!regexp_exec_sub(cx, regexp, 1, vp + 2, JS_TRUE, vp))
+        return JSVAL_TO_BOOLEAN(JSVAL_VOID);
+    return *vp == JSVAL_TRUE;
+}
+
+JS_DEFINE_TRCINFO_1(regexp_test,
+    (3, (static, BOOL_RETRY, Regexp_p_test, CONTEXT, THIS, STRING,  1, 1)))
+
+#endif
+
 static JSFunctionSpec regexp_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  regexp_toString,    0,0),
@@ -4926,7 +4928,7 @@ static JSFunctionSpec regexp_methods[] = {
     JS_FN(js_toString_str,  regexp_toString,    0,0),
     JS_FN("compile",        regexp_compile,     2,0),
     JS_FN("exec",           regexp_exec,        1,0),
-    JS_FN("test",           regexp_test,        1,0),
+    JS_TN("test",           regexp_test,        1,0, regexp_test_trcinfo),
     JS_FS_END
 };
 
@@ -4960,12 +4962,60 @@ RegExp(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return regexp_compile_sub(cx, obj, argc, argv, rval);
 }
 
+#ifdef JS_TRACER
+
+static JSObject* FASTCALL
+RegExp_tn1(JSContext *cx, JSObject *proto, JSString *str)
+{
+    JSObject* obj = js_NewNativeObject(cx, &js_RegExpClass, proto, JSSLOT_PRIVATE);
+    if (!obj)
+        return NULL;
+
+    jsval argv[] = { JSVAL_NULL, OBJECT_TO_JSVAL(obj), STRING_TO_JSVAL(str) };
+    jsval rval;
+
+    if (!regexp_compile_sub(cx, obj, 1, argv + 2, &rval))
+        return NULL;
+
+    JS_ASSERT(JSVAL_IS_OBJECT(rval));
+    return JSVAL_TO_OBJECT(rval);
+}
+
+static JSObject* FASTCALL
+RegExp_tn2(JSContext *cx, JSObject *proto, JSString *str, JSString *opt)
+{
+    JSObject* obj = js_NewNativeObject(cx, &js_RegExpClass, proto, JSSLOT_PRIVATE);
+    if (!obj)
+        return NULL;
+
+    jsval argv[] = { JSVAL_NULL, OBJECT_TO_JSVAL(obj), STRING_TO_JSVAL(str), STRING_TO_JSVAL(opt) };
+    jsval rval;
+
+    if (!regexp_compile_sub(cx, obj, 2, argv + 2, &rval))
+        return NULL;
+
+    JS_ASSERT(JSVAL_IS_OBJECT(rval));
+    return JSVAL_TO_OBJECT(rval);
+}
+
+JS_DEFINE_TRCINFO_2(RegExp,
+    (3, (extern, CONSTRUCTOR_RETRY, RegExp_tn1, CONTEXT, CALLEE_PROTOTYPE, STRING,         0, 0)),
+    (4, (extern, CONSTRUCTOR_RETRY, RegExp_tn2, CONTEXT, CALLEE_PROTOTYPE, STRING, STRING, 0, 0)))
+
+#else  /* !JS_TRACER */
+
+# define RegExp_trcinfo NULL
+
+#endif /* !JS_TRACER */
+
 JSObject *
 js_InitRegExpClass(JSContext *cx, JSObject *obj)
 {
     JSObject *proto = js_InitClass(cx, obj, NULL, &js_RegExpClass, RegExp, 1,
                                    regexp_props, regexp_methods,
-                                   regexp_static_props, NULL);
+                                   regexp_static_props, NULL,
+                                   RegExp_trcinfo);
+
     if (!proto)
         return NULL;
 

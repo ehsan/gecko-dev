@@ -179,12 +179,13 @@ struct InlineBackgroundData
 
 protected:
   nsIFrame*     mFrame;
-  nsBlockFrame* mBlockFrame;
-  nsRect        mBoundingBox;
   nscoord       mContinuationPoint;
   nscoord       mUnbrokenWidth;
-  nscoord       mLineContinuationPoint;
+  nsRect        mBoundingBox;
+
   PRBool        mBidiEnabled;
+  nsBlockFrame* mBlockFrame;
+  nscoord       mLineContinuationPoint;
   
   void SetFrame(nsIFrame* aFrame)
   {
@@ -215,7 +216,7 @@ protected:
   nsIFrame* GetPrevContinuation(nsIFrame* aFrame)
   {
     nsIFrame* prevCont = aFrame->GetPrevContinuation();
-    if (!prevCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
+    if (!prevCont && (aFrame->GetStateBits() && NS_FRAME_IS_SPECIAL)) {
       nsIFrame* block =
         static_cast<nsIFrame*>
                    (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
@@ -234,7 +235,7 @@ protected:
   nsIFrame* GetNextContinuation(nsIFrame* aFrame)
   {
     nsIFrame* nextCont = aFrame->GetNextContinuation();
-    if (!nextCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
+    if (!nextCont && (aFrame->GetStateBits() && NS_FRAME_IS_SPECIAL)) {
       // The {ib} properties are only stored on first continuations
       aFrame = aFrame->GetFirstContinuation();
       nsIFrame* block =
@@ -333,6 +334,11 @@ static void DrawBorderImageComponent(nsIRenderingContext& aRenderingContext,
 static nscolor MakeBevelColor(PRIntn whichSide, PRUint8 style,
                               nscolor aBackgroundColor,
                               nscolor aBorderColor);
+
+/* Returns FALSE iff all returned aTwipsRadii == 0, TRUE otherwise */
+static PRBool GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
+                                   const nscoord& aFrameWidth,
+                                   nscoord aTwipsRadii[8]);
 
 static InlineBackgroundData* gInlineBGData = nsnull;
 
@@ -976,7 +982,9 @@ nsCSSRendering::FindRootFrame(nsIFrame* aForFrame)
  *
  * |FindBackground| returns true if a background should be painted, and
  * the resulting style context to use for the background information
- * will be filled in to |aBackground|.
+ * will be filled in to |aBackground|.  It fills in a boolean indicating
+ * whether the frame is the canvas frame, because PaintBackground must
+ * propagate that frame's background color to the view manager.
  */
 const nsStyleBackground*
 nsCSSRendering::FindRootFrameBackground(nsIFrame* aForFrame)
@@ -1062,10 +1070,9 @@ nsCSSRendering::DidPaint()
   gInlineBGData->Reset();
 }
 
-PRBool
-nsCSSRendering::GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
-                                     const nscoord& aFrameWidth,
-                                     nscoord aRadii[8])
+static PRBool
+GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
+                     const nscoord& aFrameWidth, nscoord aTwipsRadii[8])
 {
   PRBool result = PR_FALSE;
   
@@ -1075,20 +1082,20 @@ nsCSSRendering::GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
 
     switch (c.GetUnit()) {
       case eStyleUnit_Percent:
-        aRadii[i] = (nscoord)(c.GetPercentValue() * aFrameWidth);
+        aTwipsRadii[i] = (nscoord)(c.GetPercentValue() * aFrameWidth);
         break;
 
       case eStyleUnit_Coord:
-        aRadii[i] = c.GetCoordValue();
+        aTwipsRadii[i] = c.GetCoordValue();
         break;
 
       default:
         NS_NOTREACHED("GetBorderRadiusTwips: bad unit");
-        aRadii[i] = 0;
+        aTwipsRadii[i] = 0;
         break;
     }
 
-    if (aRadii[i])
+    if (aTwipsRadii[i])
       result = PR_TRUE;
   }
   return result;
@@ -1178,19 +1185,10 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     // (renderContext == shadowContext) which is why we set up the color and clip
     // before doing this.
     shadowContext->NewPath();
-    if (hasBorderRadius) {
-      gfxCornerSizes clipRectRadii;
-      gfxFloat spreadDistance = -shadowItem->mSpread / twipsPerPixel;
-      gfxFloat borderSizes[4] = {
-        spreadDistance, spreadDistance,
-        spreadDistance, spreadDistance
-      };
-      nsCSSBorderRenderer::ComputeInnerRadii(borderRadii, borderSizes,
-                                             &clipRectRadii);
-      shadowContext->RoundedRectangle(shadowRect, clipRectRadii);
-    } else {
+    if (hasBorderRadius)
+      shadowContext->RoundedRectangle(shadowRect, borderRadii);
+    else
       shadowContext->Rectangle(shadowRect);
-    }
     shadowContext->Fill();
 
     blurringArea.DoPaint();
@@ -1236,7 +1234,10 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
                                            &innerRadii);
   }
 
+  gfxRect frameGfxRect = RectToGfxRect(paddingRect, twipsPerPixel);
+  frameGfxRect.Round();
   gfxRect dirtyGfxRect = RectToGfxRect(aDirtyRect, twipsPerPixel);
+
   for (PRUint32 i = shadows->Length(); i > 0; --i) {
     nsCSSShadowItem* shadowItem = shadows->ShadowAt(i - 1);
     if (!shadowItem->mInset)
@@ -1298,20 +1299,10 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
     // not paint in, and blur and apply it
     shadowContext->NewPath();
     shadowContext->Rectangle(shadowPaintRect);
-    if (hasBorderRadius) {
-      // Calculate the radii the inner clipping rect will have
-      gfxCornerSizes clipRectRadii;
-      gfxFloat spreadDistance = shadowItem->mSpread / twipsPerPixel;
-      gfxFloat borderSizes[4] = {
-        spreadDistance, spreadDistance,
-        spreadDistance, spreadDistance
-      };
-      nsCSSBorderRenderer::ComputeInnerRadii(innerRadii, borderSizes,
-                                             &clipRectRadii);
-      shadowContext->RoundedRectangle(shadowClipRect, clipRectRadii, PR_FALSE);
-    } else {
+    if (hasBorderRadius)
+      shadowContext->RoundedRectangle(shadowClipRect, innerRadii, PR_FALSE);
+    else
       shadowContext->Rectangle(shadowClipRect);
-    }
     shadowContext->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
     shadowContext->Fill();
 

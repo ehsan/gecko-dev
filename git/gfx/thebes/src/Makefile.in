@@ -61,10 +61,7 @@ CPPSRCS	+= 	gfxWindowsPlatform.cpp \
 
 ifdef WINCE
 DEFINES += -DMOZ_FT2_FONTS
-CPPSRCS	+= gfxFT2Fonts.cpp \
-	   gfxDDrawSurface.cpp \
-	   $(NULL)
-EXTRA_DSO_LDOPTS += ddraw.lib
+CPPSRCS	+= gfxFT2Fonts.cpp
 else
 CPPSRCS	+= gfxWindowsFonts.cpp 
 endif

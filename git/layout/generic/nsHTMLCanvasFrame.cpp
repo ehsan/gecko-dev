@@ -236,17 +236,19 @@ nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
   if (inner.width == 0 || inner.height == 0)
     return;
 
-  gfxRect devInner(presContext->AppUnitsToGfxUnits(inner));
-
   nsIntSize sizeCSSPixels = GetCanvasSize();
-  gfxFloat sx = devInner.size.width / (gfxFloat) sizeCSSPixels.width;
-  gfxFloat sy = devInner.size.height / (gfxFloat) sizeCSSPixels.height;
+  nsSize sizeAppUnits(nsPresContext::CSSPixelsToAppUnits(sizeCSSPixels.width),
+                      nsPresContext::CSSPixelsToAppUnits(sizeCSSPixels.height));
 
   gfxContext *ctx = aRenderingContext.ThebesContext();
 
+  gfxFloat sx = inner.width / (gfxFloat) sizeAppUnits.width;
+  gfxFloat sy = inner.height / (gfxFloat) sizeAppUnits.height;
+
   ctx->Save();
 
-  ctx->Translate(devInner.pos);
+  ctx->Translate(gfxPoint(presContext->AppUnitsToGfxUnits(inner.x),
+                          presContext->AppUnitsToGfxUnits(inner.y)));
   ctx->Scale(sx, sy);
 
   canvas->RenderContexts(ctx);

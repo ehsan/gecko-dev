@@ -82,8 +82,6 @@
 
 #include <dlfcn.h>
 
-#include <ApplicationServices/ApplicationServices.h>
-
 #undef DEBUG_IME
 #undef DEBUG_UPDATE
 #undef INVALIDATE_DEBUGGING  // flash areas as they are invalidated
@@ -124,9 +122,7 @@ CFStringRef kOurTISPropertyUnicodeKeyLayoutData = NULL;
 CFStringRef kOurTISPropertyInputSourceID = NULL;
 CFStringRef kOurTISPropertyInputSourceLanguages = NULL;
 
-// these are defined in nsCocoaWindow.mm
-extern PRBool gCocoaWindowMethodsSwizzled;
-extern PRBool gConsumeRollupEvent;
+extern PRBool gCocoaWindowMethodsSwizzled; // Defined in nsCocoaWindow.mm
 
 PRBool gChildViewMethodsSwizzled = PR_FALSE;
 
@@ -152,8 +148,6 @@ nsIWidget         * gRollupWidget   = nsnull;
 PRUint32 gLastModifierState = 0;
 
 PRBool gUserCancelledDrag = PR_FALSE;
-
-PRUint32 nsChildView::sLastInputEventCount = 0;
 
 @interface ChildView(Private)
 
@@ -546,7 +540,7 @@ nsChildView::~nsChildView()
   // notify the children that we're gone
   for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
     nsChildView* childView = static_cast<nsChildView*>(kid);
-    childView->ResetParent();
+    childView->mParentWidget = nsnull;
   }
 
   NS_WARN_IF_FALSE(mOnDestroyCalled, "nsChildView object destroyed without calling Destroy()");
@@ -1002,7 +996,7 @@ NS_IMETHODIMP nsChildView::Show(PRBool aState)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-// Change the parent of this widget
+// Reset the parent of this widget
 NS_IMETHODIMP
 nsChildView::SetParent(nsIWidget* aNewParent)
 {
@@ -1033,17 +1027,6 @@ nsChildView::SetParent(nsIWidget* aNewParent)
   return NS_OK;
   
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-void nsChildView::ResetParent()
-{
-  if (!mOnDestroyCalled) {
-    if (mParentWidget)
-      mParentWidget->RemoveChild(this);
-    if (mView)
-      [mView removeFromSuperview];
-  }
-  mParentWidget = nsnull;
 }
 
 nsIWidget*
@@ -2065,54 +2048,6 @@ NS_IMETHODIMP nsChildView::GetAttention(PRInt32 aCycleCount)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-/* static */
-PRBool nsChildView::DoHasPendingInputEvent()
-{
-  return sLastInputEventCount != GetCurrentInputEventCount(); 
-}
-
-/* static */
-PRUint32 nsChildView::GetCurrentInputEventCount()
-{
-  // Can't use kCGAnyInputEventType because that updates too rarely for us (and
-  // always in increments of 30+!) and because apparently it's sort of broken
-  // on Tiger.  So just go ahead and query the counters we care about.
-  static const CGEventType eventTypes[] = {
-    kCGEventLeftMouseDown,
-    kCGEventLeftMouseUp,
-    kCGEventRightMouseDown,
-    kCGEventRightMouseUp,
-    kCGEventMouseMoved,
-    kCGEventLeftMouseDragged,
-    kCGEventRightMouseDragged,
-    kCGEventKeyDown,
-    kCGEventKeyUp,
-    kCGEventScrollWheel,
-    kCGEventTabletPointer,
-    kCGEventOtherMouseDown,
-    kCGEventOtherMouseUp,
-    kCGEventOtherMouseDragged
-  };
-
-  PRUint32 eventCount = 0;
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(eventTypes); ++i) {
-    eventCount +=
-      CGEventSourceCounterForEventType(kCGEventSourceStateCombinedSessionState,
-                                       eventTypes[i]);
-  }
-  return eventCount;
-}
-
-/* static */
-void nsChildView::UpdateCurrentInputEventCount()
-{
-  sLastInputEventCount = GetCurrentInputEventCount();
-}
-
-PRBool nsChildView::HasPendingInputEvent()
-{
-  return DoHasPendingInputEvent();
-}
 
 #pragma mark -
 
@@ -3199,27 +3134,24 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 }
 
 
-// Returns true if the event should no longer be processed, false otherwise.
-// This does not return whether or not anything was rolled up.
 - (BOOL)maybeRollup:(NSEvent*)theEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  BOOL consumeEvent = NO;
-
+  PRBool retVal = PR_FALSE;
   if (gRollupWidget && gRollupListener) {
     NSWindow* currentPopup = static_cast<NSWindow*>(gRollupWidget->GetNativeData(NS_NATIVE_WINDOW));
     if (!nsCocoaUtils::IsEventOverWindow(theEvent, currentPopup)) {
-      // event is not over the rollup window, default is to roll up
-      PRBool shouldRollup = PR_TRUE;
-
-      // check to see if scroll events should roll up the popup
+      PRBool rollup = PR_TRUE;
       if ([theEvent type] == NSScrollWheel) {
-        gRollupListener->ShouldRollupOnMouseWheelEvent(&shouldRollup);
-        // always consume scroll events that aren't over the popup
-        consumeEvent = YES;
+        gRollupListener->ShouldRollupOnMouseWheelEvent(&rollup);
+        // We don't want the event passed on for scrollwheel events if we're
+        // not supposed to close the popup.  Otherwise the background window
+        // will scroll when a custom context menu or the autoscroll popup is
+        // open (and the mouse isn't over the popup) -- which doesn't seem right.
+        // This change resolves bmo bug 344367.
+        retVal = PR_TRUE;
       }
-
       // if we're dealing with menus, we probably have submenus and
       // we don't want to rollup if the click is in a parent menu of
       // the current submenu
@@ -3232,20 +3164,21 @@ static const PRInt32 sShadowInvalidationInterval = 100;
           nsIWidget* widget = widgetChain[i];
           NSWindow* currWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
           if (nsCocoaUtils::IsEventOverWindow(theEvent, currWindow)) {
-            shouldRollup = PR_FALSE;
+            rollup = PR_FALSE;
             break;
           }
-        }
-      }
+        } // foreach parent menu widget
+      } // if rollup listener knows about menus
 
-      if (shouldRollup) {
+      // if we've determined that we should still rollup, do it.
+      if (rollup) {
         gRollupListener->Rollup(nsnull);
-        consumeEvent = (BOOL)gConsumeRollupEvent;
+        retVal = PR_TRUE;
       }
     }
   }
 
-  return consumeEvent;
+  return retVal;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
@@ -6295,30 +6228,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   }
 
   if (mDragService) {
-    // set the dragend point from the current mouse location
-    nsDragService* dragService = static_cast<nsDragService *>(mDragService);
-    NSPoint pnt = [NSEvent mouseLocation];
-    FlipCocoaScreenCoordinate(pnt);
-    dragService->SetDragEndPoint(nsIntPoint(NSToIntRound(pnt.x), NSToIntRound(pnt.y)));
-
-    // XXX: dropEffect should be updated per |operation|. 
-    // As things stand though, |operation| isn't well handled within "our"
-    // events, that is, when the drop happens within the window: it is set
-    // either to NSDragOperationGeneric or to NSDragOperationNone.
-    // For that reason, it's not yet possible to override dropEffect per the
-    // given OS value, and it's also unclear what's the correct dropEffect 
-    // value for NSDragOperationGeneric that is passed by other applications.
-    // All that said, NSDragOperationNone is still reliable.
-    if (operation == NSDragOperationNone) {
-      nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
-      dragService->GetDataTransfer(getter_AddRefs(dataTransfer));
-      nsCOMPtr<nsIDOMNSDataTransfer> dataTransferNS =
-        do_QueryInterface(dataTransfer);
-
-      if (dataTransferNS)
-        dataTransferNS->SetDropEffectInt(nsIDragService::DRAGDROP_ACTION_NONE);
-    }
-
     mDragService->EndDragSession(PR_TRUE);
     NS_RELEASE(mDragService);
   }

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 et :
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -43,10 +43,11 @@
 #include "mozIStorageStatementWrapper.h"
 #include "nsIXPCScriptable.h"
 
+class mozStorageStatement;
+
+
 namespace mozilla {
 namespace storage {
-
-class Statement;
 
 class StatementRow : public mozIStorageStatementRow
                    , public nsIXPCScriptable
@@ -56,12 +57,12 @@ public:
   NS_DECL_MOZISTORAGESTATEMENTROW
   NS_DECL_NSIXPCSCRIPTABLE
 
-  StatementRow(Statement *aStatement);
+  StatementRow(mozStorageStatement *aStatement);
 protected:
 
-  Statement *mStatement;
+  mozStorageStatement *mStatement;
 
-  friend class Statement;
+  friend class ::mozStorageStatement;
 };
 
 } // namespace storage

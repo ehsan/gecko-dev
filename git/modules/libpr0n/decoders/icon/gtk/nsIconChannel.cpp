@@ -191,6 +191,7 @@ ensure_icon_factory()
   if (!gIconFactory) {
     gIconFactory = gtk_icon_factory_new();
     gtk_icon_factory_add_default(gIconFactory);
+    g_object_unref(gIconFactory);
   }
 }
 #endif
@@ -519,13 +520,6 @@ nsIconChannel::Shutdown() {
     gProtoWindow = nsnull;
     gStockImageWidget = nsnull;
   }
-#if GTK_CHECK_VERSION(2,4,0)
-  if (gIconFactory) {
-    gtk_icon_factory_remove_default(gIconFactory);
-    g_object_unref(gIconFactory);
-    gIconFactory = nsnull;
-  }
-#endif
 #ifdef MOZ_ENABLE_GNOMEUI
   if (gIconTheme) {
     g_object_unref(G_OBJECT(gIconTheme));

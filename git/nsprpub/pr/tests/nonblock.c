@@ -42,7 +42,11 @@
 #include "prprf.h"
 #include "prnetdb.h"
 #include "plerror.h"
+#ifndef XP_MAC
 #include "obsolete/probslet.h"
+#else
+#include "probslet.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -66,6 +70,16 @@
 
 #if defined(USE_PR_SELECT)
 #include "pprio.h"
+#endif
+
+#ifdef XP_MAC
+int fprintf(FILE *stream, const char *fmt, ...)
+{
+PR_LogPrint(fmt);
+return 0;
+}
+#define printf PR_LogPrint
+extern void SetupMacPrintfLog(char *logFile);
 #endif
 
 static void PR_CALLBACK
@@ -150,6 +164,10 @@ static PRIntn PR_CALLBACK RealMain( PRIntn argc, char **argv )
     PRSocketOptionData optval;
     PRIntn i;
     PRIntervalTime unitTime = PR_MillisecondsToInterval(UNIT_TIME);
+
+#ifdef XP_MAC
+	SetupMacPrintfLog("nonblock.log");
+#endif
 
     /* Create a listening socket */
     if ((listenSock = PR_NewTCPSocket()) == NULL) {

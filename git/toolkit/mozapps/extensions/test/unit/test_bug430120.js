@@ -98,7 +98,8 @@ function pathHandler(metadata, response) {
               gOSVersion + "&1.9&distribution&distribution-version");
   gBlocklist.observe(null, "quit-application", "");
   gBlocklist.observe(null, "xpcom-shutdown", "");
-  testserver.stop(do_test_finished);
+  testserver.stop();
+  do_test_finished();
 }
 
 function run_test() {

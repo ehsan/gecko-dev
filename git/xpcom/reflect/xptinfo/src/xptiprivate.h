@@ -66,8 +66,9 @@
 #include "nsMemory.h"
 
 #include "nsISupportsArray.h"
-#include "nsCOMArray.h"
+#include "nsSupportsArray.h"
 #include "nsInt64.h"
+
 #include "nsQuickSort.h"
 
 #include "nsXPIDLString.h"
@@ -967,7 +968,7 @@ private:
     PRLock*                      mAutoRegLock;
     PRMonitor*                   mInfoMonitor;
     PRLock*                      mAdditionalManagersLock;
-    nsCOMArray<nsISupports>      mAdditionalManagers;
+    nsSupportsArray              mAdditionalManagers;
     nsCOMPtr<nsISupportsArray>   mSearchPath;
 };
 

@@ -578,7 +578,7 @@ struct nsStyleBorder {
     return mComputedBorder;
   }
 
-  // Get the actual border width for a particular side, in appunits.  Note that
+  // Get the actual border width for a particular side, in twips.  Note that
   // this is zero if and only if there is no border to be painted for this
   // side.  That is, this value takes into account the border style and the
   // value is rounded to the nearest device pixel by NS_ROUND_BORDER_TO_PIXELS.
@@ -1301,13 +1301,14 @@ struct nsStyleContent {
   nsStyleCoord  mMarkerOffset;  // [reset] coord, auto
 
 protected:
-  nsStyleContentData* mContents;
-  nsStyleCounterData* mIncrements;
-  nsStyleCounterData* mResets;
-
   PRUint32            mContentCount;
+  nsStyleContentData* mContents;
+
   PRUint32            mIncrementCount;
+  nsStyleCounterData* mIncrements;
+
   PRUint32            mResetCount;
+  nsStyleCounterData* mResets;
 };
 
 struct nsStyleUIReset {
@@ -1454,11 +1455,11 @@ enum nsStyleSVGPaintType {
 
 struct nsStyleSVGPaint
 {
+  nsStyleSVGPaintType mType;
   union {
     nscolor mColor;
     nsIURI *mPaintServer;
   } mPaint;
-  nsStyleSVGPaintType mType;
   nscolor mFallbackColor;
 
   nsStyleSVGPaint() : mType(nsStyleSVGPaintType(0)) { mPaint.mPaintServer = nsnull; }
@@ -1536,12 +1537,12 @@ struct nsStyleSVGReset {
   static nsChangeHint MaxDifference();
 #endif
 
-  nsCOMPtr<nsIURI> mClipPath;         // [reset]
-  nsCOMPtr<nsIURI> mFilter;           // [reset]
-  nsCOMPtr<nsIURI> mMask;             // [reset]
   nscolor          mStopColor;        // [reset]
   nscolor          mFloodColor;       // [reset]
   nscolor          mLightingColor;    // [reset]
+  nsCOMPtr<nsIURI> mClipPath;         // [reset]
+  nsCOMPtr<nsIURI> mFilter;           // [reset]
+  nsCOMPtr<nsIURI> mMask;             // [reset]
 
   float            mStopOpacity;      // [reset]
   float            mFloodOpacity;     // [reset]

@@ -76,6 +76,7 @@
 #include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
 #include "nsContentCID.h"
+#include "nsAOLCiter.h"
 #include "nsInternetCiter.h"
 #include "nsEventDispatcher.h"
 #include "nsGkAtoms.h"
@@ -115,27 +116,12 @@ nsPlaintextEditor::~nsPlaintextEditor()
   // Remove event listeners. Note that if we had an HTML editor,
   //  it installed its own instead of these
   RemoveEventListeners();
-
-  if (mRules)
-    mRules->DetachEditor();
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsPlaintextEditor)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsPlaintextEditor, nsEditor)
-  if (tmp->mRules)
-    tmp->mRules->DetachEditor();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRules)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsPlaintextEditor, nsEditor)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRules)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsPlaintextEditor, nsEditor)
 NS_IMPL_RELEASE_INHERITED(nsPlaintextEditor, nsEditor)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsPlaintextEditor)
+NS_INTERFACE_MAP_BEGIN(nsPlaintextEditor)
   NS_INTERFACE_MAP_ENTRY(nsIPlaintextEditor)
   NS_INTERFACE_MAP_ENTRY(nsIEditorMailSupport)
 NS_INTERFACE_MAP_END_INHERITING(nsEditor)
@@ -735,7 +721,6 @@ NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
   if (!bCollapsed &&
       (aAction == eNextWord || aAction == ePreviousWord ||
        aAction == eToBeginningOfLine || aAction == eToEndOfLine))
-  {
     if (mCaretStyle == 1)
     {
       result = selection->CollapseToStart();
@@ -745,7 +730,6 @@ NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
     { 
       aAction = eNone;
     }
-  }
 
   nsTextRulesInfo ruleInfo(nsTextEditRules::kDeleteSelection);
   ruleInfo.collapsedAction = aAction;
@@ -1483,12 +1467,38 @@ nsPlaintextEditor::PasteAsQuotation(PRInt32 aSelectionType)
   return rv;
 }
 
+// Utility routine to make a new citer.  This addrefs, of course.
+static nsICiter* MakeACiter()
+{
+  // Make a citer of an appropriate type
+  nsICiter* citer = 0;
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) return 0;
+
+  char *citationType = 0;
+  rv = prefBranch->GetCharPref("mail.compose.citationType", &citationType);
+                          
+  if (NS_SUCCEEDED(rv) && citationType[0] && !strncmp(citationType, "aol", 3))
+    citer = new nsAOLCiter;
+  else
+    citer = new nsInternetCiter;
+
+  if (citationType)
+    PL_strfree(citationType);
+
+  if (citer)
+    NS_ADDREF(citer);
+  return citer;
+}
+
 NS_IMETHODIMP
 nsPlaintextEditor::InsertAsQuotation(const nsAString& aQuotedText,
                                      nsIDOMNode **aNodeInserted)
 {
   // We have the text.  Cite it appropriately:
-  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  nsCOMPtr<nsICiter> citer = dont_AddRef(MakeACiter());
 
   // Let the citer quote it for us:
   nsString quotedStuff;
@@ -1590,7 +1600,7 @@ nsPlaintextEditor::Rewrap(PRBool aRespectNewlines)
                           &isCollapsed, current);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  nsCOMPtr<nsICiter> citer = dont_AddRef(MakeACiter());
   if (NS_FAILED(rv)) return rv;
   if (!citer) return NS_ERROR_UNEXPECTED;
 
@@ -1619,7 +1629,7 @@ nsPlaintextEditor::StripCites()
                                    &isCollapsed, current);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  nsCOMPtr<nsICiter> citer = dont_AddRef(MakeACiter());
   if (!citer) return NS_ERROR_UNEXPECTED;
 
   nsString stripped;
@@ -1752,7 +1762,8 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
                                          &(aReply->mCursorIsCollapsed),
                                          &view);
     aReply->mCursorPosition =
-       rect.ToOutsidePixels(ps->GetPresContext()->AppUnitsPerDevPixel());
+       nsRect::ToOutsidePixels(rect,
+                               ps->GetPresContext()->AppUnitsPerDevPixel());
     NS_ASSERTION(NS_SUCCEEDED(result), "cannot get caret position");
     if (NS_SUCCEEDED(result) && view)
       aReply->mReferenceWidget = view->GetWidget();

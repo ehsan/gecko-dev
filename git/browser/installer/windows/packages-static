@@ -26,7 +26,6 @@ bin\defaults\profile\prefs.js
 bin\defaults\profile\mimeTypes.rdf
 bin\defaults\profile\chrome\*
 bin\uninstall\helper.exe
-bin\update.locale
 bin\updater.ini
 bin\dictionaries\*
 
@@ -214,7 +213,6 @@ bin\components\nsTryToClose.js
 bin\components\nsHelperAppDlg.js
 bin\components\nsDownloadManagerUI.js
 bin\components\nsProxyAutoConfig.js
-bin\components\NetworkGeolocationProvider.js
 bin\components\nsSearchService.js
 bin\components\nsSearchSuggestions.js
 bin\components\nsSidebar.js

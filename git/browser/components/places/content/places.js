@@ -285,34 +285,25 @@ var PlacesOrganizer = {
   },
 
   /**
-   * Handle clicks on the tree.
-   * Single Left click, right click or modified click do not result in any
-   * special action, since they're related to selection.
+   * Handle clicks on the tree. If the user middle clicks on a URL, load that
+   * URL according to rules. Single clicks or modified clicks do not result in
+   * any special action, since they're related to selection.
    * @param   aEvent
    *          The mouse event.
    */
   onTreeClick: function PO_onTreeClick(aEvent) {
-    // Only handle clicks on tree children.
     if (aEvent.target.localName != "treechildren")
       return;
 
     var currentView = aEvent.currentTarget;
     var selectedNode = currentView.selectedNode;
-    if (selectedNode) {
-      var doubleClickOnFlatList = (aEvent.button == 0 && aEvent.detail == 2 &&
-                                   aEvent.target.parentNode.flatList);
-      var middleClick = (Event.button == 1 && aEvent.detail == 1);
-
-      if (PlacesUtils.nodeIsURI(selectedNode) &&
-          (doubleClickOnFlatList || middleClick)) {
-        // Open associated uri in the browser.
-        PlacesOrganizer.openSelectedNode(aEvent);
-      }
-      else if (middleClick &&
-               PlacesUtils.nodeIsContainer(selectedNode)) {
-        // The command execution function will take care of seeing if the
-        // selection is a folder or a different container type, and will
-        // load its contents in tabs.
+    if (selectedNode && aEvent.button == 1) {
+      if (PlacesUtils.nodeIsURI(selectedNode))
+        PlacesUIUtils.openNodeWithEvent(selectedNode, aEvent);
+      else if (PlacesUtils.nodeIsContainer(selectedNode)) {
+        // The command execution function will take care of seeing the
+        // selection is a folder/container and loading its contents in
+        // tabs for us.
         PlacesUIUtils.openContainerNodeInTabs(selectedNode, aEvent);
       }
     }
@@ -490,7 +481,6 @@ var PlacesOrganizer = {
             Ci.nsIFilePicker.modeOpen);
     fp.appendFilter(PlacesUIUtils.getString("bookmarksRestoreFilterName"),
                     PlacesUIUtils.getString("bookmarksRestoreFilterExtension"));
-    fp.appendFilters(Ci.nsIFilePicker.filterAll);
 
     var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
                  getService(Ci.nsIProperties);
@@ -667,16 +657,9 @@ var PlacesOrganizer = {
 
       // don't update the panel if we are already editing this node unless we're
       // in multi-edit mode
-      if (aSelectedNode) {
-        var concreteId = PlacesUtils.getConcreteItemId(aSelectedNode);
-        var nodeIsSame = gEditItemOverlay.itemId == aSelectedNode.itemId ||
-                         gEditItemOverlay.itemId == concreteId ||
-                         (aSelectedNode.itemId == -1 && gEditItemOverlay.uri &&
-                          gEditItemOverlay.uri == aSelectedNode.uri);
-        if (nodeIsSame && detailsDeck.selectedIndex == 1 &&
-            !gEditItemOverlay.multiEdit)
-          return;
-      }
+      if (aSelectedNode && gEditItemOverlay.itemId == aSelectedNode.itemId &&
+          detailsDeck.selectedIndex == 1 && !gEditItemOverlay.multiEdit)
+        return;
     }
 
     // Clean up the panel before initing it again.

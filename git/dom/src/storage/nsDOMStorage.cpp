@@ -23,7 +23,6 @@
  *   Neil Deakin <enndeakin@sympatico.ca>
  *   Johnny Stenback <jst@mozilla.com>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Honza Bambas <honzab@firemni.cz>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -243,7 +242,6 @@ nsDOMStorageManager::Initialize()
     os->AddObserver(gStorageManager, "cookie-changed", PR_FALSE);
     os->AddObserver(gStorageManager, "offline-app-removed", PR_FALSE);
     os->AddObserver(gStorageManager, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
-    os->AddObserver(gStorageManager, "perm-changed", PR_FALSE);
 
     nsCOMPtr<nsIPrivateBrowsingService> pbs =
       do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
@@ -357,39 +355,6 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
       mInPrivateBrowsing = PR_TRUE;
     else if (!nsCRT::strcmp(aData, NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).get()))
       mInPrivateBrowsing = PR_FALSE;
-#ifdef MOZ_STORAGE
-    nsresult rv = nsDOMStorage::InitDB();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return nsDOMStorage::gStorageDB->DropPrivateBrowsingStorages();
-#endif
-  } else if (!strcmp(aTopic, "perm-changed")) {
-    // Check for cookie permission change
-    nsCOMPtr<nsIPermission> perm(do_QueryInterface(aSubject));
-    if (perm) {
-      nsCAutoString type;
-      perm->GetType(type);
-      if (type != NS_LITERAL_CSTRING("cookie"))
-        return NS_OK;
-
-      PRUint32 cap = 0;
-      perm->GetCapability(&cap);
-      if (!(cap & nsICookiePermission::ACCESS_SESSION) ||
-          nsDependentString(aData) != NS_LITERAL_STRING("deleted"))
-        return NS_OK;
-
-      nsCAutoString host;
-      perm->GetHost(host);
-      if (host.IsEmpty())
-        return NS_OK;
-
-#ifdef MOZ_STORAGE
-      nsresult rv = nsDOMStorage::InitDB();
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      return nsDOMStorage::gStorageDB->DropSessionOnlyStoragesForHost(host);
-#endif
-    }
   }
 
   return NS_OK;
@@ -420,7 +385,7 @@ nsDOMStorageManager::ClearOfflineApps()
 
 NS_IMETHODIMP
 nsDOMStorageManager::GetLocalStorageForPrincipal(nsIPrincipal *aPrincipal,
-                                                 nsIDOMStorage **aResult)
+                                                 nsIDOMStorage2 **aResult)
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
   *aResult = nsnull;
@@ -462,7 +427,7 @@ nsDOMStorageManager::RemoveFromStoragesHash(nsDOMStorage* aStorage)
 //
 
 #ifdef MOZ_STORAGE
-nsDOMStorageDBWrapper* nsDOMStorage::gStorageDB = nsnull;
+nsDOMStorageDB* nsDOMStorage::gStorageDB = nsnull;
 #endif
 
 nsDOMStorageEntry::nsDOMStorageEntry(KeyTypePointer aStr)
@@ -500,13 +465,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStorage)
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsDOMStorage, nsIDOMStorageObsolete)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsDOMStorage, nsIDOMStorageObsolete)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsDOMStorage, nsIDOMStorage)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsDOMStorage, nsIDOMStorage)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMStorage)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMStorageObsolete)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMStorageObsolete)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMStorage)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMStorage)
   NS_INTERFACE_MAP_ENTRY(nsPIDOMStorage)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(StorageObsolete)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Storage)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
@@ -516,17 +481,10 @@ NS_NewDOMStorage(nsISupports* aOuter, REFNSIID aIID, void** aResult)
   if (!storage)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  return storage->QueryInterface(aIID, aResult);
-}
+  NS_ADDREF(storage);
+  *aResult = storage;
 
-NS_IMETHODIMP
-NS_NewDOMStorage2(nsISupports* aOuter, REFNSIID aIID, void** aResult)
-{
-  nsDOMStorage2* storage = new nsDOMStorage2();
-  if (!storage)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  return storage->QueryInterface(aIID, aResult);
+  return NS_OK;
 }
 
 nsDOMStorage::nsDOMStorage()
@@ -540,20 +498,6 @@ nsDOMStorage::nsDOMStorage()
     nsDOMStorageManager::gStorageManager->AddToStoragesHash(this);
 }
 
-static PLDHashOperator
-CopyStorageItems(nsSessionStorageEntry* aEntry, void* userArg)
-{
-  nsDOMStorage* newstorage = static_cast<nsDOMStorage*>(userArg);
-
-  newstorage->SetItem(aEntry->GetKey(), aEntry->mItem->GetValueInternal());
-
-  if (aEntry->mItem->IsSecure()) {
-    newstorage->SetSecure(aEntry->GetKey(), PR_TRUE);
-  }
-
-  return PL_DHASH_NEXT;
-}
-
 nsDOMStorage::nsDOMStorage(nsDOMStorage& aThat)
   : mUseDB(PR_FALSE) // Any clone is not using the database
   , mSessionOnly(PR_TRUE)
@@ -565,8 +509,6 @@ nsDOMStorage::nsDOMStorage(nsDOMStorage& aThat)
 #endif
 {
   mItems.Init(8);
-  aThat.mItems.EnumerateEntries(CopyStorageItems, this);
-
   if (nsDOMStorageManager::gStorageManager)
     nsDOMStorageManager::gStorageManager->AddToStoragesHash(this);
 }
@@ -577,55 +519,23 @@ nsDOMStorage::~nsDOMStorage()
     nsDOMStorageManager::gStorageManager->RemoveFromStoragesHash(this);
 }
 
-static
-nsresult
-GetDomainURI(nsIPrincipal *aPrincipal, nsIURI **_domain)
-{
-  nsCOMPtr<nsIURI> uri;
-  nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Check if we really got any URI. System principal doesn't return a URI
-  // instance and we would crash in NS_GetInnermostURI below.
-  if (!uri)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(uri);
-  if (!innerURI)
-    return NS_ERROR_UNEXPECTED;
-  innerURI.forget(_domain);
-
-  return NS_OK;
-}
-
-nsresult
-nsDOMStorage::InitAsSessionStorage(nsIPrincipal *aPrincipal)
-{
-  nsCOMPtr<nsIURI> domainURI;
-  nsresult rv = GetDomainURI(aPrincipal, getter_AddRefs(domainURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // No need to check for a return value. If this would fail we would not get
-  // here as we call GetPrincipalURIAndHost (nsDOMStorage.cpp:88) from
-  // nsDOMStorage::CanUseStorage before we query the storage manager for a new
-  // sessionStorage. It calls GetAsciiHost on innermost URI. If it fails, we
-  // won't get to InitAsSessionStorage.
-  domainURI->GetAsciiHost(mDomain);
-
-#ifdef MOZ_STORAGE
-  mUseDB = PR_FALSE;
-  mScopeDBKey.Truncate();
-  mQuotaDomainDBKey.Truncate();
-#endif
-  return NS_OK;
-}
-
 nsresult
 nsDOMStorage::InitAsLocalStorage(nsIPrincipal *aPrincipal)
 {
-  nsCOMPtr<nsIURI> domainURI;
-  nsresult rv = GetDomainURI(aPrincipal, getter_AddRefs(domainURI));
+  nsresult rv;
+
+  nsCOMPtr<nsIURI> uri;
+  rv = aPrincipal->GetURI(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // Check if we really got any URI. System principal doesn't return a URI
+  // instance and we would crash in NS_GetInnermostURI bellow.
+  if (!uri)
+    return NS_ERROR_NOT_AVAILABLE;
+
+  nsCOMPtr<nsIURI> innerUri = NS_GetInnermostURI(uri);
+  if (!innerUri)
+    return NS_ERROR_UNEXPECTED;
 
   // No need to check for a return value. If this would fail we would not get
   // here as we call GetPrincipalURIAndHost (nsDOMStorage.cpp:88) from
@@ -633,10 +543,10 @@ nsDOMStorage::InitAsLocalStorage(nsIPrincipal *aPrincipal)
   // localStorage. It calls GetAsciiHost on innermost URI. If it fails, we won't
   // get to InitAsLocalStorage. Actually, mDomain will get replaced with
   // mPrincipal in bug 455070. It is not even used for localStorage.
-  domainURI->GetAsciiHost(mDomain);
+  innerUri->GetAsciiHost(mDomain);
 
 #ifdef MOZ_STORAGE
-  nsDOMStorageDBWrapper::CreateOriginScopeDBKey(domainURI, mScopeDBKey);
+  nsDOMStorageDB::CreateOriginScopeDBKey(innerUri, mScopeDBKey);
 
   // XXX Bug 357323, we have to solve the issue how to define
   // origin for file URLs. In that case CreateOriginScopeDBKey
@@ -644,7 +554,7 @@ nsDOMStorage::InitAsLocalStorage(nsIPrincipal *aPrincipal)
   // in that case because it produces broken entries w/o owner.
   mUseDB = !mScopeDBKey.IsEmpty();
 
-  nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(mDomain, PR_TRUE, mQuotaDomainDBKey);
+  nsDOMStorageDB::CreateQuotaDomainDBKey(mDomain, PR_TRUE, mQuotaDomainDBKey);
 #endif
 
   mLocalStorage = PR_TRUE;
@@ -656,7 +566,7 @@ nsDOMStorage::InitAsGlobalStorage(const nsACString &aDomainDemanded)
 {
   mDomain = aDomainDemanded;
 #ifdef MOZ_STORAGE
-  nsDOMStorageDBWrapper::CreateDomainScopeDBKey(aDomainDemanded, mScopeDBKey);
+  nsDOMStorageDB::CreateDomainScopeDBKey(aDomainDemanded, mScopeDBKey);
 
   // XXX Bug 357323, we have to solve the issue how to define
   // origin for file URLs. In that case CreateOriginScopeDBKey
@@ -665,7 +575,21 @@ nsDOMStorage::InitAsGlobalStorage(const nsACString &aDomainDemanded)
   if (!(mUseDB = !mScopeDBKey.IsEmpty()))
     mScopeDBKey.AppendLiteral(":");
 
-  nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(aDomainDemanded, PR_TRUE, mQuotaDomainDBKey);
+  nsDOMStorageDB::CreateQuotaDomainDBKey(aDomainDemanded, PR_TRUE, mQuotaDomainDBKey);
+#endif
+  return NS_OK;
+}
+
+nsresult
+nsDOMStorage::InitAsSessionStorage(nsIURI* aURI)
+{
+  nsCAutoString domain;
+  aURI->GetAsciiHost(domain);
+  mDomain = domain;
+#ifdef MOZ_STORAGE
+  mUseDB = PR_FALSE;
+  mScopeDBKey.Truncate();
+  mQuotaDomainDBKey.Truncate();
 #endif
   return NS_OK;
 }
@@ -712,11 +636,7 @@ nsDOMStorage::CanUseStorage(PRPackedBool* aSessionOnly)
   if (perm == nsIPermissionManager::DENY_ACTION)
     return PR_FALSE;
 
-  // In private browsing mode we ougth to behave as in session-only cookies
-  // mode to prevent detection of being in private browsing mode and ensuring
-  // that there will be no traces left.
-  if (perm == nsICookiePermission::ACCESS_SESSION ||
-      nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode()) {
+  if (perm == nsICookiePermission::ACCESS_SESSION) {
     *aSessionOnly = PR_TRUE;
   }
   else if (perm != nsIPermissionManager::ALLOW_ACTION) {
@@ -737,9 +657,6 @@ nsDOMStorage::CanUseStorage(PRPackedBool* aSessionOnly)
 PRBool
 nsDOMStorage::CacheStoragePermissions()
 {
-  // Bug 488446, disallowing storage use when in session only mode.
-  // This is temporary fix before we find complete solution for storage
-  // behavior in private browsing mode or session-only cookies mode.
   if (!CanUseStorage(&mSessionOnly))
     return PR_FALSE;
 
@@ -1086,7 +1003,7 @@ nsDOMStorage::InitDB()
 {
 #ifdef MOZ_STORAGE
   if (!gStorageDB) {
-    gStorageDB = new nsDOMStorageDBWrapper();
+    gStorageDB = new nsDOMStorageDB();
     if (!gStorageDB)
       return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1281,11 +1198,41 @@ nsDOMStorage::ClearAll()
   mItemsCached = PR_FALSE;
 }
 
+static PLDHashOperator
+CopyStorageItems(nsSessionStorageEntry* aEntry, void* userArg)
+{
+  nsDOMStorage* newstorage = static_cast<nsDOMStorage*>(userArg);
+
+  newstorage->SetItem(aEntry->GetKey(), aEntry->mItem->GetValueInternal());
+
+  if (aEntry->mItem->IsSecure()) {
+    newstorage->SetSecure(aEntry->GetKey(), PR_TRUE);
+  }
+
+  return PL_DHASH_NEXT;
+}
+
 already_AddRefed<nsIDOMStorage>
 nsDOMStorage::Clone()
 {
-  NS_ASSERTION(PR_FALSE, "Old DOMStorage doesn't implement cloning");
-  return nsnull;
+  if (UseDB()) {
+    NS_ERROR("Uh, don't clone a global or local storage object.");
+
+    return nsnull;
+  }
+
+  nsDOMStorage* storage = new nsDOMStorage(*this);
+  if (!storage)
+    return nsnull;
+
+  mItems.EnumerateEntries(CopyStorageItems, storage);
+
+  NS_ADDREF(storage);
+
+  if (nsDOMStorageManager::gStorageManager)
+    nsDOMStorageManager::gStorageManager->AddToStoragesHash(storage);
+
+  return storage;
 }
 
 struct KeysArrayBuilderStruct
@@ -1320,10 +1267,10 @@ nsDOMStorage::GetKeys()
   return keystruct.keys;
 }
 
-nsIPrincipal*
-nsDOMStorage::Principal()
+const nsCString &
+nsDOMStorage::Domain()
 {
-  return nsnull;
+  return mDomain;
 }
 
 PRBool
@@ -1334,12 +1281,13 @@ nsDOMStorage::CanAccessSystem(nsIPrincipal *aPrincipal)
 
   nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
   if (!ssm)
-    return PR_FALSE;
+    return PR_TRUE;
 
   PRBool isSystem;
-  nsresult rv = ssm->IsSystemPrincipal(aPrincipal, &isSystem);
+  if (NS_SUCCEEDED(ssm->IsSystemPrincipal(aPrincipal, &isSystem) && isSystem))
+    return PR_TRUE;
 
-  return NS_SUCCEEDED(rv) && isSystem;
+  return PR_FALSE;
 }
 
 PRBool
@@ -1371,7 +1319,7 @@ nsDOMStorage::BroadcastChangeNotification()
   // Fire off a notification that a storage object changed. If the
   // storage object is a session storage object, we don't pass a
   // domain, but if it's a global storage object we do.
-  observerService->NotifyObservers((nsIDOMStorageObsolete *)this,
+  observerService->NotifyObservers((nsIDOMStorage *)this,
                                    "dom-storage-changed",
                                    UseDB() ? NS_ConvertUTF8toUTF16(mDomain).get() : nsnull);
 }
@@ -1385,38 +1333,17 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMStorage2)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mStorage)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStorage2)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mStorage, nsIDOMStorageObsolete)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mStorage, nsIDOMStorage)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsDOMStorage2, nsIDOMStorage)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsDOMStorage2, nsIDOMStorage)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsDOMStorage2, nsIDOMStorage2)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsDOMStorage2, nsIDOMStorage2)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMStorage2)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMStorage)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMStorage)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMStorage2)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMStorage2)
   NS_INTERFACE_MAP_ENTRY(nsPIDOMStorage)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Storage)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Storage2)
 NS_INTERFACE_MAP_END
-
-nsDOMStorage2::nsDOMStorage2()
-{
-}
-
-nsDOMStorage2::nsDOMStorage2(nsDOMStorage2& aThat)
-{
-  mStorage = new nsDOMStorage(*aThat.mStorage.get());
-  mPrincipal = aThat.mPrincipal;
-}
-
-nsresult
-nsDOMStorage2::InitAsSessionStorage(nsIPrincipal *aPrincipal)
-{
-  mStorage = new nsDOMStorage();
-  if (!mStorage)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  mPrincipal = aPrincipal;
-  return mStorage->InitAsSessionStorage(aPrincipal);
-}
 
 nsresult
 nsDOMStorage2::InitAsLocalStorage(nsIPrincipal *aPrincipal)
@@ -1436,16 +1363,23 @@ nsDOMStorage2::InitAsGlobalStorage(const nsACString &aDomainDemanded)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+nsresult
+nsDOMStorage2::InitAsSessionStorage(nsIURI* aURI)
+{
+  mStorage = new nsDOMStorage();
+  if (!mStorage)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  return mStorage->InitAsSessionStorage(aURI);
+}
+
 already_AddRefed<nsIDOMStorage>
 nsDOMStorage2::Clone()
 {
-  nsDOMStorage2* storage = new nsDOMStorage2(*this);
-  if (!storage)
-    return nsnull;
-
-  NS_ADDREF(storage);
-
-  return storage;
+  // XXX: this will need to be fixed before sessionStorage is moved
+  // to nsIDOMStorage2.
+  NS_ASSERTION(PR_FALSE, "Cannot clone nsDOMStorage2");
+  return nsnull;
 }
 
 nsTArray<nsString> *
@@ -1454,10 +1388,10 @@ nsDOMStorage2::GetKeys()
   return mStorage->GetKeys();
 }
 
-nsIPrincipal*
-nsDOMStorage2::Principal()
+const nsCString &
+nsDOMStorage2::Domain()
 {
-  return mPrincipal;
+  return mStorage->Domain();
 }
 
 PRBool
@@ -1525,7 +1459,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF(nsDOMStorageList)
 NS_IMPL_RELEASE(nsDOMStorageList)
 
-nsIDOMStorageObsolete*
+nsIDOMStorage*
 nsDOMStorageList::GetNamedItem(const nsAString& aDomain, nsresult* aResult)
 {
   nsCAutoString requestedDomain;
@@ -1580,7 +1514,7 @@ nsDOMStorageList::GetNamedItem(const nsAString& aDomain, nsresult* aResult)
 
 NS_IMETHODIMP
 nsDOMStorageList::NamedItem(const nsAString& aDomain,
-                            nsIDOMStorageObsolete** aStorage)
+                            nsIDOMStorage** aStorage)
 {
   nsresult rv;
   NS_IF_ADDREF(*aStorage = GetNamedItem(aDomain, &rv));
@@ -1595,7 +1529,7 @@ nsDOMStorageList::CanAccessDomain(const nsACString& aRequestedDomain,
   return aRequestedDomain.Equals(aCurrentDomain);
 }
 
-nsIDOMStorageObsolete*
+nsIDOMStorage*
 nsDOMStorageList::GetStorageForDomain(const nsACString& aRequestedDomain,
                                       const nsACString& aCurrentDomain,
                                       PRBool aNoCurrentDomainCheck,
@@ -1623,7 +1557,7 @@ nsDOMStorageList::GetStorageForDomain(const nsACString& aRequestedDomain,
   *aResult = NS_OK;
 
   // now have a valid domain, so look it up in the storage table
-  nsIDOMStorageObsolete* storage = mStorages.GetWeak(usedDomain);
+  nsIDOMStorage* storage = mStorages.GetWeak(usedDomain);
   if (!storage) {
     nsRefPtr<nsDOMStorage> newstorage;
     newstorage = new nsDOMStorage();
@@ -1697,7 +1631,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMStorageItem)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStorageItem)
   {
-    cb.NoteXPCOMChild((nsIDOMStorageObsolete*) tmp->mStorage);
+    cb.NoteXPCOMChild((nsIDOMStorage*) tmp->mStorage);
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 

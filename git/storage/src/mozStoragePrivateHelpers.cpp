@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 et
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -46,11 +46,8 @@
 
 #include "mozStoragePrivateHelpers.h"
 
-namespace mozilla {
-namespace storage {
-
 nsresult
-convertResultCode(int aSQLiteResultCode)
+ConvertResultCode(int aSQLiteResultCode)
 {
   switch (aSQLiteResultCode) {
     case SQLITE_OK:
@@ -88,18 +85,18 @@ convertResultCode(int aSQLiteResultCode)
 }
 
 void
-checkAndLogStatementPerformance(sqlite3_stmt *aStatement)
+CheckAndLogStatementPerformance(sqlite3_stmt *aStatement)
 {
   // Check to see if the query performed sorting operations or not.  If it
   // did, it may need to be optimized!
-  int count = ::sqlite3_stmt_status(aStatement, SQLITE_STMTSTATUS_SORT, 1);
+  int count = sqlite3_stmt_status(aStatement, SQLITE_STMTSTATUS_SORT, 1);
   if (count <= 0)
     return;
 
-  const char *sql = ::sqlite3_sql(aStatement);
+  const char *sql = sqlite3_sql(aStatement);
 
   // Check to see if this is marked to not warn
-  if (::strstr(sql, "/* do not warn (bug "))
+  if (strstr(sql, "/* do not warn (bug "))
     return;
 
   nsCAutoString message;
@@ -115,6 +112,3 @@ checkAndLogStatementPerformance(sqlite3_stmt *aStatement)
                  "details.");
   NS_WARNING(message.get());
 }
-
-} // namespace storage
-} // namespace mozilla

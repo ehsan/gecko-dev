@@ -85,51 +85,32 @@ private:
 
 #endif // NS_DEBUG
 
-#define NS_CCAR_REFCNT_BIT 1
-#define NS_CCAR_REFCNT_TO_TAGGED(rc_) \
-  NS_INT32_TO_PTR((rc_ << 1) | NS_CCAR_REFCNT_BIT)
-#define NS_CCAR_PURPLE_ENTRY_TO_TAGGED(pe_) \
-  static_cast<void*>(pe_)
-#define NS_CCAR_TAGGED_TO_REFCNT(tagged_) \
-  nsrefcnt(NS_PTR_TO_INT32(tagged_) >> 1)
-#define NS_CCAR_TAGGED_TO_PURPLE_ENTRY(tagged_) \
-  static_cast<nsPurpleBufferEntry*>(tagged_)
-#define NS_CCAR_TAGGED_STABILIZED_REFCNT NS_CCAR_PURPLE_ENTRY_TO_TAGGED(0)
+#define NS_PURPLE_BIT ((PRUint32)(1 << 31))
+
+#define NS_PURPLE_MASK (~NS_PURPLE_BIT)
+#define NS_PURPLE_BIT_SET(x) ((x) & (NS_PURPLE_BIT))
+#define NS_CLEAR_PURPLE_BIT(x) ((x) &= (NS_PURPLE_MASK))
+#define NS_VALUE_WITHOUT_PURPLE_BIT(x) ((x) & (NS_PURPLE_MASK))
+
 
 // Support for ISupports classes which interact with cycle collector.
-
-/**
- * This struct (once shipped) will be FROZEN with respect to the
- * NS_CycleCollectorSuspect2 and NS_CycleCollectorForget2 functions.  If
- * we need to change the struct, we'll need Suspect3 and Forget3 for the
- * new versions.
- */
-struct nsPurpleBufferEntry {
-  union {
-    nsISupports *mObject;                 // when low bit unset
-    nsPurpleBufferEntry *mNextInFreeList; // when low bit set
-  };
-  // When an object is in the purple buffer, it replaces its reference
-  // count with a (tagged) pointer to this entry, so we store the
-  // reference count for it.
-  nsrefcnt mRefCnt;
-};
 
 class nsCycleCollectingAutoRefCnt {
 
 public:
   nsCycleCollectingAutoRefCnt()
-    : mTagged(NS_CCAR_REFCNT_TO_TAGGED(0))
+    : mValue(0)
   {}
 
   nsCycleCollectingAutoRefCnt(nsrefcnt aValue)
-    : mTagged(NS_CCAR_REFCNT_TO_TAGGED(aValue))
+    : mValue(aValue)
   {
+    NS_CLEAR_PURPLE_BIT(mValue);
   }
 
   nsrefcnt incr(nsISupports *owner)
   {
-    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT)) {
+    if (NS_UNLIKELY(mValue == NS_PURPLE_BIT)) {
       // The sentinel value "purple bit alone, refcount 0" means
       // that we're stabilized, during finalization. In this
       // state we lie about our actual refcount if anyone asks
@@ -139,94 +120,66 @@ public:
       return 2;
     }
 
-    nsrefcnt refcount;
-    if (IsPurple()) {
-      nsPurpleBufferEntry *e = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged);
-      NS_ASSERTION(e->mObject == owner, "wrong entry");
-      refcount = e->mRefCnt;
-      NS_ASSERTION(refcount != 0, "purple ISupports pointer with zero refcnt");
+    nsrefcnt tmp = get();
+    PRBool purple = static_cast<PRBool>(NS_PURPLE_BIT_SET(mValue));
 
-      if (NS_LIKELY(NS_CycleCollectorForget2(e))) {
-        // |e| is now invalid
-        ++refcount;
-        mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
-      } else {
-        ++refcount;
-        e->mRefCnt = refcount;
-      }
-    } else {
-      refcount = NS_CCAR_TAGGED_TO_REFCNT(mTagged);
-      ++refcount;
-      mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
+    if (NS_UNLIKELY(purple)) {
+      NS_ASSERTION(tmp != 0, "purple ISupports pointer with zero refcnt");
+      if (!NS_CycleCollectorForget(owner))
+        tmp |= NS_PURPLE_BIT;
     }
 
-    return refcount;
+    mValue = tmp + 1;
+    return mValue;
   }
 
   void stabilizeForDeletion(nsISupports *owner)
   {
-    mTagged = NS_CCAR_TAGGED_STABILIZED_REFCNT;
+    mValue = NS_PURPLE_BIT;
   }
 
   nsrefcnt decr(nsISupports *owner)
   {
-    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
+    if (NS_UNLIKELY(mValue == NS_PURPLE_BIT))
       return 1;
 
-    nsrefcnt refcount;
-    if (IsPurple()) {
-      nsPurpleBufferEntry *e = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged);
-      NS_ASSERTION(e->mObject == owner, "wrong entry");
-      refcount = e->mRefCnt;
-      --refcount;
-      
-      if (NS_UNLIKELY(refcount == 0)) {
-        if (NS_UNLIKELY(!NS_CycleCollectorForget2(e))) {
-          NS_NOTREACHED("forget should not fail when reference count hits 0");
-        }
-        mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
-      } else {
-        e->mRefCnt = refcount;
-      }
-    } else {
-      refcount = NS_CCAR_TAGGED_TO_REFCNT(mTagged);
-      --refcount;
+    nsrefcnt tmp = get();
+    NS_ASSERTION(tmp >= 1, "decr() called with zero refcnt");
 
-      nsPurpleBufferEntry *e;
-      if (NS_LIKELY(refcount > 0) &&
-          ((e = NS_CycleCollectorSuspect2(owner)))) {
-        e->mRefCnt = refcount;
-        mTagged = NS_CCAR_PURPLE_ENTRY_TO_TAGGED(e);
-      } else {
-        mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
+    PRBool purple = static_cast<PRBool>(NS_PURPLE_BIT_SET(mValue));
+    PRBool shouldBePurple = tmp > 1;
+
+    if (NS_UNLIKELY(shouldBePurple && !purple)) {
+      if (!NS_CycleCollectorSuspect(owner))
+        shouldBePurple = PR_FALSE;
+    } else if (NS_UNLIKELY(tmp == 1 && purple)) {
+      if (!NS_CycleCollectorForget(owner)) {
+        NS_NOTREACHED("forget should not fail when reference count hits 0");
       }
     }
 
-    return refcount;
+    --tmp;
+
+    if (shouldBePurple)
+      mValue = tmp | NS_PURPLE_BIT;
+    else
+      mValue = tmp;
+
+    return tmp;
   }
 
   void unmarkPurple()
   {
-    NS_ASSERTION(IsPurple(), "must be purple");
-    nsrefcnt refcount = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mRefCnt;
-    mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
-  }
-
-  PRBool IsPurple() const
-  {
-    NS_ASSERTION(mTagged != NS_CCAR_TAGGED_STABILIZED_REFCNT,
-                 "should have checked for stabilization first");
-    return !(NS_PTR_TO_INT32(mTagged) & NS_CCAR_REFCNT_BIT);
+    if (NS_LIKELY(mValue != NS_PURPLE_BIT))
+      NS_CLEAR_PURPLE_BIT(mValue);
   }
 
   nsrefcnt get() const
   {
-    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
+    if (NS_UNLIKELY(mValue == NS_PURPLE_BIT))
       return 1;
 
-    return NS_UNLIKELY(IsPurple())
-             ? NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mRefCnt
-             : NS_CCAR_TAGGED_TO_REFCNT(mTagged);
+    return NS_VALUE_WITHOUT_PURPLE_BIT(mValue);
   }
 
   operator nsrefcnt() const
@@ -235,7 +188,7 @@ public:
   }
 
  private:
-  void *mTagged;
+  nsrefcnt mValue;
 };
 
 class nsAutoRefCnt {

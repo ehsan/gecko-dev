@@ -339,7 +339,7 @@ class nsParser : public nsIParser,
      *  @return PR_TRUE if parser can be interrupted, PR_FALSE if it can not be interrupted.
      *  @update  kmcclusk 5/18/98
      */
-    virtual PRBool CanInterrupt();
+    PRBool CanInterrupt(void);
 
     /**  
      *  Set to parser state to indicate whether parsing tokens can be interrupted
@@ -389,9 +389,18 @@ class nsParser : public nsIParser,
       return sSpeculativeThreadPool;
     }
 
-    PRBool IsScriptExecuting() {
-      return mSink && mSink->IsScriptExecuting();
-    }
+    /**
+     * Tells the parser that a script is now executing. The only data we
+     * should resume parsing for is document.written data. We'll deal with any
+     * data that comes in over the network later.
+     */
+    virtual void ScriptExecuting();
+
+    /**
+     * Tells the parser that the script is done executing. We should now
+     * continue the regular parsing process.
+     */
+    virtual void ScriptDidExecute();
 
  protected:
 
@@ -477,6 +486,7 @@ protected:
     PRInt32             mCharsetSource;
     
     PRUint16            mFlags;
+    PRUint32            mScriptsExecuting;
 
     nsString            mUnusedInput;
     nsCString           mCharset;

@@ -1998,6 +1998,19 @@ nsXULDocument::Init()
 nsresult
 nsXULDocument::StartLayout(void)
 {
+    if (!GetRootContent()) {
+#ifdef PR_LOGGING
+        if (PR_LOG_TEST(gXULLog, PR_LOG_WARNING)) {
+            nsCAutoString urlspec;
+            mDocumentURI->GetSpec(urlspec);
+
+            PR_LOG(gXULLog, PR_LOG_WARNING,
+                   ("xul: unable to layout '%s'; no root content", urlspec.get()));
+        }
+#endif
+        return NS_OK;
+    }
+
     nsPresShellIterator iter(this);
     nsCOMPtr<nsIPresShell> shell;
     while ((shell = iter.GetNextShell())) {
@@ -3809,10 +3822,9 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
     // Check if need to construct a tree builder or content builder.
     PRBool isTreeBuilder = PR_FALSE;
 
-    // return successful if the element is not is a document, as an inline
-    // script could have removed it
-    nsIDocument *document = aElement->GetCurrentDoc();
-    NS_ENSURE_TRUE(document, NS_OK);
+    nsIDocument *document = aElement->GetOwnerDoc();
+    NS_ASSERTION(document, "no document");
+    NS_ENSURE_TRUE(document, NS_ERROR_UNEXPECTED);
 
     PRInt32 nameSpaceID;
     nsIAtom* baseTag = document->BindingManager()->

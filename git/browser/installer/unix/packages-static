@@ -26,7 +26,6 @@ bin/defaults/profile/localstore.rdf
 bin/defaults/profile/prefs.js
 bin/defaults/profile/mimeTypes.rdf
 bin/defaults/profile/chrome/*
-bin/update.locale
 bin/updater.ini
 bin/dictionaries/*
 
@@ -217,7 +216,6 @@ bin/components/nsFilePicker.js
 bin/components/nsHelperAppDlg.js
 bin/components/nsDownloadManagerUI.js
 bin/components/nsProxyAutoConfig.js
-bin/components/NetworkGeolocationProvider.js
 bin/components/nsSidebar.js
 bin/components/nsExtensionManager.js
 bin/components/nsBlocklistService.js

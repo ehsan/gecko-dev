@@ -55,7 +55,6 @@ REQUIRES	= xpcom \
 		  dom \
 		  js \
 		  locale \
-		  view \
 		  pref \
 		  necko \
 		  xpconnect \
@@ -161,7 +160,6 @@ EXPORTS =  			\
 	nsISVGValue.h              \
 	nsISVGValueObserver.h      \
 	nsISVGValueUtils.h         \
-	nsSVGFeatures.h            \
 	nsSVGNumber.h              \
 	nsSVGRect.h                \
 	nsSVGPoint.h               \

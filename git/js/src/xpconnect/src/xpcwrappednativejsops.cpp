@@ -469,26 +469,21 @@ DefinePropertyIfFound(XPCCallContext& ccx,
     NS_ASSERTION(member->IsAttribute(), "way broken!");
 
     propFlags |= JSPROP_GETTER | JSPROP_SHARED;
-    JSObject* funobj = JSVAL_TO_OBJECT(funval);
-    JSPropertyOp getter = JS_DATA_TO_FUNC_PTR(JSPropertyOp, funobj);
-    JSPropertyOp setter;
     if(member->IsWritableAttribute())
     {
         propFlags |= JSPROP_SETTER;
         propFlags &= ~JSPROP_READONLY;
-        setter = getter;
-    }
-    else
-    {
-        setter = js_GetterOnlyPropertyStub;
     }
 
     AutoResolveName arn(ccx, idval);
     if(resolved)
         *resolved = JS_TRUE;
 
+    JSObject* funobj = JSVAL_TO_OBJECT(funval);
     return JS_ValueToId(ccx, idval, &id) &&
-           JS_DefinePropertyById(ccx, obj, id, JSVAL_VOID, getter, setter,
+           JS_DefinePropertyById(ccx, obj, id, JSVAL_VOID,
+                                 JS_DATA_TO_FUNC_PTR(JSPropertyOp, funobj),
+                                 JS_DATA_TO_FUNC_PTR(JSPropertyOp, funobj),
                                  propFlags);
 }
 
@@ -1399,7 +1394,7 @@ XPC_WN_GetObjectOpsWithCall(JSContext *cx, JSClass *clazz)
 
 JSBool xpc_InitWrappedNativeJSOps()
 {
-    if(!XPC_WN_NoCall_JSOps.lookupProperty)
+    if(!XPC_WN_NoCall_JSOps.newObjectMap)
     {
         memcpy(&XPC_WN_NoCall_JSOps, &js_ObjectOps, sizeof(JSObjectOps));
         XPC_WN_NoCall_JSOps.enumerate = XPC_WN_JSOp_Enumerate;

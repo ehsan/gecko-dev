@@ -85,13 +85,13 @@ public:
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMArray<nsICSSRule> mOrderedRules;
   nsAutoPtr<nsXMLNameSpaceMap> mNameSpaceMap;
+  PRBool                 mComplete;
   // Linked list of child sheets.  This is al fundamentally broken, because
   // each of the child sheets has a unique parent... We can only hope (and
   // currently this is the case) that any time page JS can get ts hands on a
   // child sheet that means we've already ensured unique inners throughout its
   // parent chain and things are good.
   nsRefPtr<nsCSSStyleSheet> mFirstChild;
-  PRBool                 mComplete;
 
 #ifdef DEBUG
   PRBool                 mPrincipalSet;
@@ -182,10 +182,6 @@ public:
 
   // nsIDOMCSSStyleSheet interface
   NS_DECL_NSIDOMCSSSTYLESHEET
-
-  // Function used as a callback to rebuild our inner's child sheet
-  // list after we clone a unique inner for ourselves.
-  static PRBool RebuildChildList(nsICSSRule* aRule, void* aBuilder);
 
 private:
   nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,

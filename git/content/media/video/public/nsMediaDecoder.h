@@ -38,14 +38,14 @@
 #if !defined(nsMediaDecoder_h_)
 #define nsMediaDecoder_h_
 
-#include "mozilla/XPCOM.h"
-
+#include "nsIObserver.h"
 #include "nsIPrincipal.h"
 #include "nsSize.h"
 #include "prlog.h"
 #include "gfxContext.h"
 #include "gfxRect.h"
 #include "nsITimer.h"
+#include "prinrval.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gVideoDecoderLog;
@@ -61,10 +61,7 @@ class nsHTMLMediaElement;
 // called from any thread.
 class nsMediaDecoder : public nsIObserver
 {
-public:
-  typedef mozilla::TimeStamp TimeStamp;
-  typedef mozilla::TimeDuration TimeDuration;
-
+ public:
   nsMediaDecoder();
   virtual ~nsMediaDecoder();
 
@@ -106,6 +103,9 @@ public:
   // Start playback of a video. 'Load' must have previously been
   // called.
   virtual nsresult Play() = 0;
+
+  // Stop playback of a video, and stop download of video stream.
+  virtual void Stop() = 0;
 
   // Start downloading the video. Decode the downloaded data up to the
   // point of the first frame of data.
@@ -210,28 +210,18 @@ public:
   virtual void Shutdown();
 
   // Suspend any media downloads that are in progress. Called by the
-  // media element when it is sent to the bfcache, or when we need
-  // to throttle the download. Call on the main thread only. This can
-  // be called multiple times, there's an internal "suspend count".
+  // media element when it is sent to the bfcache. Call on the main
+  // thread only.
   virtual void Suspend() = 0;
 
   // Resume any media downloads that have been suspended. Called by the
-  // media element when it is restored from the bfcache, or when we need
-  // to stop throttling the download. Call on the main thread only.
-  // The download will only actually resume once as many Resume calls
-  // have been made as Suspend calls.
+  // media element when it is restored from the bfcache. Call on the
+  // main thread only.
   virtual void Resume() = 0;
 
   // Returns a weak reference to the media element we're decoding for,
   // if it's available.
   nsHTMLMediaElement* GetMediaElement();
-
-  // Moves any existing channel loads into the background, so that they don't
-  // block the load event. This is called when we stop delaying the load
-  // event. Any new loads initiated (for example to seek) will also be in the
-  // background. Implementations of this must call MoveLoadsToBackground() on
-  // their nsMediaStream.
-  virtual void MoveLoadsToBackground()=0;
 
 protected:
 
@@ -241,14 +231,12 @@ protected:
   // Stop progress information timer.
   nsresult StopProgress();
 
-  // Set the RGB width, height, pixel aspect ratio, and framerate.
-  // Ownership of the passed RGB buffer is transferred to the decoder.
-  // This is the only nsMediaDecoder method that may be called from
-  // threads other than the main thread.
+  // Set the RGB width, height and framerate. Ownership of the passed RGB
+  // buffer is transferred to the decoder.  This is the only nsMediaDecoder
+  // method that may be called from threads other than the main thread.
   void SetRGBData(PRInt32 aWidth,
                   PRInt32 aHeight,
                   float aFramerate,
-                  float aAspectRatio,
                   unsigned char* aRGBBuffer);
 
 protected:
@@ -270,14 +258,14 @@ protected:
 
   // Time that the last progress event was fired. Read/Write from the
   // main thread only.
-  TimeStamp mProgressTime;
+  PRIntervalTime mProgressTime;
 
   // Time that data was last read from the media resource. Used for
   // computing if the download has stalled and to rate limit progress events
-  // when data is arriving slower than PROGRESS_MS. A value of null indicates
+  // when data is arriving slower than PROGRESS_MS. A value of 0 indicates
   // that a stall event has already fired and not to fire another one until
   // more data is received. Read/Write from the main thread only.
-  TimeStamp mDataTime;
+  PRIntervalTime mDataTime;
 
   // Lock around the video RGB, width and size data. This
   // is used in the decoder backend threads and the main thread
@@ -294,9 +282,6 @@ protected:
   // expressed in numbers of frames per second.
   float mFramerate;
 
-  // Pixel aspect ratio (ratio of the pixel width to pixel height)
-  float mAspectRatio;
-
   // Has our size changed since the last repaint?
   PRPackedBool mSizeChanged;
 
@@ -305,6 +290,12 @@ protected:
   // being run that operates on the element and decoder during shutdown.
   // Read/Write from the main thread only.
   PRPackedBool mShuttingDown;
+
+  // True if the decoder is currently in the Stop() method. This is used to
+  // prevent recursive calls into Stop while it is spinning the event loop
+  // waiting for the playback event loop to shutdown. Read/Write from the
+  // main thread only.
+  PRPackedBool mStopping;
 };
 
 #endif

@@ -146,6 +146,8 @@ struct nsBoxLayoutMetrics
   nscoord mAscent;
 
   nsSize mLastSize;
+
+  PRPackedBool mWasCollapsed;
 };
 
 struct nsContentAndOffset
@@ -201,6 +203,28 @@ PRBool nsIFrameDebug::GetShowEventTargetFrameBorder()
  * means that you cannot perform logging before then.
  */
 static PRLogModuleInfo* gLogModule;
+
+static PRLogModuleInfo* gFrameVerifyTreeLogModuleInfo;
+
+static PRBool gFrameVerifyTreeEnable = PRBool(0x55);
+
+PRBool
+nsIFrameDebug::GetVerifyTreeEnable()
+{
+  if (gFrameVerifyTreeEnable == PRBool(0x55)) {
+    if (nsnull == gFrameVerifyTreeLogModuleInfo) {
+      gFrameVerifyTreeLogModuleInfo = PR_NewLogModule("frameverifytree");
+      gFrameVerifyTreeEnable = 0 != gFrameVerifyTreeLogModuleInfo->level;
+    }
+  }
+  return gFrameVerifyTreeEnable;
+}
+
+void
+nsIFrameDebug::SetVerifyTreeEnable(PRBool aEnabled)
+{
+  gFrameVerifyTreeEnable = aEnabled;
+}
 
 static PRLogModuleInfo* gStyleVerifyTreeLogModuleInfo;
 
@@ -442,9 +466,6 @@ nsFrame::RemoveFrame(nsIAtom*        aListName,
 void
 nsFrame::Destroy()
 {
-  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-    "destroy called on frame while scripts not blocked");
-
 #ifdef MOZ_SVG
   nsSVGEffects::InvalidateDirectRenderingObservers(this);
 #endif
@@ -455,14 +476,10 @@ nsFrame::Destroy()
   nsPresContext* presContext = PresContext();
 
   nsIPresShell *shell = presContext->GetPresShell();
-  if (mState & NS_FRAME_OUT_OF_FLOW) {
-    nsPlaceholderFrame* placeholder =
-      shell->FrameManager()->GetPlaceholderFrameFor(this);
-    if (placeholder) {
-      shell->FrameManager()->UnregisterPlaceholderFrame(placeholder);
-      placeholder->SetOutOfFlowFrame(nsnull);
-    }
-  }
+  NS_ASSERTION(!(mState & NS_FRAME_OUT_OF_FLOW) ||
+               !shell->FrameManager()->GetPlaceholderFrameFor(this),
+               "Deleting out of flow without tearing down placeholder "
+               "relationship; see comments in nsFrame.h");
 
   shell->NotifyDestroyingFrame(this);
 
@@ -565,14 +582,6 @@ nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   if (!EqualImages(oldBorderImage, GetStyleBorder()->GetBorderImage())) {
     // stop and restart the image loading/notification
     PresContext()->SetupBorderImageLoaders(this, GetStyleBorder());
-  }
-
-  // If the page contains markup that overrides text direction, and
-  // does not contain any characters that would activate the Unicode
-  // bidi algorithm, we need to call |SetBidiEnabled| on the pres
-  // context before reflow starts.  See bug 115921.
-  if (GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-    PresContext()->SetBidiEnabled();
   }
 }
 
@@ -855,7 +864,7 @@ void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
 
   nsRect rect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize());
   rect.IntersectRect(rect, aDirtyRect);
-  nsIntRect pxRect = rect.ToOutsidePixels(mFrame->PresContext()->AppUnitsPerDevPixel());
+  nsIntRect pxRect = nsRect::ToOutsidePixels(rect, mFrame->PresContext()->AppUnitsPerDevPixel());
   ctx->NewPath();
   ctx->Rectangle(gfxRect(pxRect.x, pxRect.y, pxRect.width, pxRect.height), PR_TRUE);
   ctx->Fill();
@@ -3593,7 +3602,7 @@ nsIntRect nsIFrame::GetScreenRectExternal() const
 
 nsIntRect nsIFrame::GetScreenRect() const
 {
-  return GetScreenRectInAppUnits().ToNearestPixels(PresContext()->AppUnitsPerDevPixel());
+  return nsRect::ToOutsidePixels(GetScreenRectInAppUnits(), PresContext()->AppUnitsPerDevPixel());
 }
 
 // virtual
@@ -4036,22 +4045,11 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
     return;
   }
 
-  // Invalidate the old frame border box if the frame has borders. Those
-  // borders may be moving.
+  // Invalidate the old frame borders if the frame has borders. Those borders
+  // may be moving.
   const nsStyleBorder* border = GetStyleBorder();
   NS_FOR_CSS_SIDES(side) {
     if (border->GetActualBorderWidth(side) != 0) {
-      if ((side == NS_SIDE_LEFT || side == NS_SIDE_TOP) &&
-          !nsLayoutUtils::HasNonZeroCornerOnSide(border->mBorderRadius, side) &&
-          !border->GetBorderImage() &&
-          border->GetBorderStyle(side) == NS_STYLE_BORDER_STYLE_SOLID) {
-        // We also need to be sure that the bottom-left or top-right
-        // corner is simple. For example, if the bottom or right border
-        // has a different color, we would need to invalidate the corner
-        // area. But that's OK because if there is a right or bottom border,
-        // we'll invalidate the entire border-box here anyway.
-        continue;
-      }
       Invalidate(nsRect(0, 0, aOldRect.width, aOldRect.height));
       return;
     }
@@ -4463,6 +4461,13 @@ nsFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 
     }
     list = GetAdditionalChildListName(listIndex++);
   } while (nsnull != list);
+}
+
+NS_IMETHODIMP
+nsFrame::VerifyTree() const
+{
+  NS_ASSERTION(0 == (mState & NS_FRAME_IN_REFLOW), "frame is in reflow");
+  return NS_OK;
 }
 #endif
 
@@ -6760,6 +6765,18 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
   return NS_OK;
 }
 
+PRBool
+nsFrame::GetWasCollapsed(nsBoxLayoutState& aState)
+{
+  return BoxMetrics()->mWasCollapsed;
+}
+
+void
+nsFrame::SetWasCollapsed(nsBoxLayoutState& aState, PRBool aCollapsed)
+{
+  BoxMetrics()->mWasCollapsed = aCollapsed;
+}
+
 nsBoxLayoutMetrics*
 nsFrame::BoxMetrics() const
 {
@@ -6812,6 +6829,7 @@ nsFrame::InitBoxMetrics(PRBool aClear)
   nsFrame::MarkIntrinsicWidthsDirty();
   metrics->mBlockAscent = 0;
   metrics->mLastSize.SizeTo(0, 0);
+  metrics->mWasCollapsed = PR_FALSE;
 }
 
 // Box layout debugging

@@ -51,7 +51,6 @@
 #include "nsNetCID.h"
 #include "nsNetError.h"
 #include "nsDNSPrefetch.h"
-#include "nsProtocolProxyService.h"
 #include "prsystem.h"
 #include "prnetdb.h"
 #include "prmon.h"
@@ -329,7 +328,6 @@ nsDNSService::Init()
     PRBool   enableIDN        = PR_TRUE;
     PRBool   disableIPv6      = PR_FALSE;
     PRBool   disablePrefetch  = PR_FALSE;
-    int      proxyType        = nsProtocolProxyService::eProxyConfig_Direct;
     
     nsAdoptingCString ipv4OnlyDomains;
 
@@ -347,9 +345,6 @@ nsDNSService::Init()
         prefs->GetBoolPref(kPrefDisableIPv6, &disableIPv6);
         prefs->GetCharPref(kPrefIPv4OnlyDomains, getter_Copies(ipv4OnlyDomains));
         prefs->GetBoolPref(kPrefDisablePrefetch, &disablePrefetch);
-
-        // If a manual proxy is in use, disable prefetch implicitly
-        prefs->GetIntPref("network.proxy.type", &proxyType);
     }
 
     if (firstTime) {
@@ -365,10 +360,6 @@ nsDNSService::Init()
             prefs->AddObserver(kPrefIPv4OnlyDomains, this, PR_FALSE);
             prefs->AddObserver(kPrefDisableIPv6, this, PR_FALSE);
             prefs->AddObserver(kPrefDisablePrefetch, this, PR_FALSE);
-
-            // Monitor these to see if there is a change in proxy configuration
-            // If a manual proxy is in use, disable prefetch implicitly
-            prefs->AddObserver("network.proxy.type", this, PR_FALSE);
         }
     }
 
@@ -389,9 +380,7 @@ nsDNSService::Init()
         mIDN = idn;
         mIPv4OnlyDomains = ipv4OnlyDomains; // exchanges buffer ownership
         mDisableIPv6 = disableIPv6;
-
-        // Disable prefetching either by explicit preference or if a manual proxy is configured 
-        mDisablePrefetch = disablePrefetch || (proxyType == nsProtocolProxyService::eProxyConfig_Manual);
+        mDisablePrefetch = disablePrefetch;
     }
     
     nsDNSPrefetch::Initialize(this);
@@ -426,7 +415,7 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
     {
         nsAutoLock lock(mLock);
 
-        if (mDisablePrefetch && (flags & RESOLVE_SPECULATE))
+        if (mDisablePrefetch && (flags & (RESOLVE_PRIORITY_LOW | RESOLVE_PRIORITY_MEDIUM)))
             return NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
 
         res = mResolver;

@@ -62,7 +62,6 @@
 #include "nsMenuUtilsX.h"
 #include "nsStyleConsts.h"
 #include "nsNativeThemeColors.h"
-#include "nsChildView.h"
 
 #include "gfxPlatform.h"
 #include "qcms.h"
@@ -80,8 +79,6 @@ PRInt32 gXULModalLevel = 0;
 nsCocoaWindowList *gGeckoAppModalWindowList = NULL;
 
 PRBool gCocoaWindowMethodsSwizzled = PR_FALSE;
-
-PRBool gConsumeRollupEvent;
 
 // defined in nsMenuBarX.mm
 extern NSMenu* sApplicationMenu; // Application menu shared by all menubars
@@ -149,19 +146,10 @@ nsCocoaWindow::~nsCocoaWindow()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // Notify the children that we're gone.  Popup windows (e.g. tooltips) can
-  // have nsChildView children.  'kid' is an nsChildView object if and only if
-  // its 'type' is 'eWindowType_child'.
+  // notify the children that we're gone
   for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
-    nsWindowType kidType;
-    kid->GetWindowType(kidType);
-    if (kidType == eWindowType_child) {
-      nsChildView* childView = static_cast<nsChildView*>(kid);
-      childView->ResetParent();
-    } else {
-      nsCocoaWindow* childWindow = static_cast<nsCocoaWindow*>(kid);
-      childWindow->mParent = nsnull;
-    }
+    nsCocoaWindow* childWindow = static_cast<nsCocoaWindow*>(kid);
+    childWindow->mParent = nsnull;
   }
 
   if (mWindow) {
@@ -1288,9 +1276,6 @@ NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener * aListener,
     NS_ADDREF(aListener);
     gRollupWidget = this;
     NS_ADDREF(this);
-
-    gConsumeRollupEvent = aConsumeRollupEvent;
-
     // Sometimes more than one popup window can be visible at the same time
     // (e.g. nested non-native context menus, or the test case (attachment
     // 276885) for bmo bug 392389, which displays a non-native combo-box in
@@ -1327,11 +1312,6 @@ NS_IMETHODIMP nsCocoaWindow::GetAttention(PRInt32 aCycleCount)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-PRBool
-nsCocoaWindow::HasPendingInputEvent()
-{
-  return nsChildView::DoHasPendingInputEvent();
-}
 
 NS_IMETHODIMP nsCocoaWindow::SetWindowShadowStyle(PRInt32 aStyle)
 {

@@ -68,10 +68,10 @@ namespace nanojit
                 op == LIR_loop ||
                 op == LIR_label ||
                 op == LIR_live ||
-                ins->isRet()) {
+                isRet(op)) {
                 return false;
             }
-	        return !ins->resv()->used;
+	        return ins->resv() == 0;
 	    }
 
 	public:
@@ -126,7 +126,7 @@ namespace nanojit
 				if (i->oprnd1())
 					block.add(i->oprnd1());
             }
-            else if (i->isRet() || i->isBranch()) {
+            else if (isRet(i->opcode()) || i->isBranch()) {
                 flush_add(i);
             }
 			else {
@@ -220,7 +220,6 @@ namespace nanojit
 		NanoAssert(vic != NULL);
 
 	    Reservation* resv = getresv(vic);
-        NanoAssert(resv);
 
 		// restore vic
 	    Register r = resv->reg;
@@ -231,6 +230,17 @@ namespace nanojit
 		return r;
 	}
 
+	void Assembler::reserveReset()
+	{
+		_resvTable[0].arIndex = 0;
+		int i;
+        for(i=1; i<NJ_MAX_STACK_ENTRY; i++) {
+			_resvTable[i].arIndex = i-1;
+            _resvTable[i].used = 0;
+        }
+		_resvFree= i-1;
+	}
+
     /**
      * these instructions don't have to be saved & reloaded to spill,
      * they can just be recalculated w/out any inputs.
@@ -239,10 +249,41 @@ namespace nanojit
         return i->isconst() || i->isconstq() || i->isop(LIR_alloc);
     }
 
+	Reservation* Assembler::reserveAlloc(LInsp i)
+	{
+		uint32_t item = _resvFree;
+		/* If there are no free reservations, mark the table as full and re-use an index.
+		 * This will clobber that reservation, but the error will be caught as soon as 
+		 * the current LIR instruction returns back to gen().
+		 */
+		if (!item) {
+			setError(ResvFull); 
+			item = 1;
+		}
+        Reservation *r = &_resvTable[item];
+		_resvFree = r->arIndex;
+		r->reg = UnknownReg;
+		r->arIndex = 0;
+        r->used = 1;
+        i->setresv(item);
+		return r;
+	}
+
+	void Assembler::reserveFree(LInsp i)
+	{
+        Reservation *rs = getresv(i);
+        NanoAssert(rs == &_resvTable[i->resv()]);
+		rs->arIndex = _resvFree;
+        rs->used = 0;
+		_resvFree = i->resv();
+        i->setresv(0);
+	}
+
 	void Assembler::internalReset()
 	{
 		// readies for a brand spanking new code generation pass.
 		registerResetAll();
+		reserveReset();
 		arReset();
         pending_lives.clear();
 	}
@@ -355,8 +396,9 @@ namespace nanojit
 	
 	void Assembler::pageValidate()
 	{
-        NanoAssert(!error());
-		// _nIns and _nExitIns need to be at least on one of these pages
+		if (error()) return;
+		// _nIns and _nExitIns need to be at least on
+		// one of these pages
 		NanoAssertMsg( onPage(_nIns)&& onPage(_nExitIns,true), "Native instruction pointer overstep paging bounds; check overrideProtect for last instruction");
 	}
 	#endif
@@ -365,7 +407,7 @@ namespace nanojit
 	
 	void Assembler::resourceConsistencyCheck()
 	{
-        NanoAssert(!error());
+		if (error()) return;
 
 #ifdef NANOJIT_IA32
         NanoAssert((_allocator.active[FST0] && _fpuStkDepth == -1) ||
@@ -384,6 +426,8 @@ namespace nanojit
 				continue;
 			Reservation *r = getresv(ins);
             NanoAssert(r != 0);
+			int32_t idx = r - _resvTable;
+			NanoAssertMsg(idx, "MUST have a resource for the instruction for it to have a stack location assigned to it");
             if (r->arIndex) {
                 if (ins->isop(LIR_alloc)) {
                     int j=i+1;
@@ -405,6 +449,21 @@ namespace nanojit
 		}
 	
 		registerConsistencyCheck();
+				
+		// check resv table
+		int32_t inuseCount = 0;
+		int32_t notInuseCount = 0;
+        for(uint32_t i=1; i < sizeof(_resvTable)/sizeof(_resvTable[0]); i++) {
+            _resvTable[i].used ? inuseCount++ : notInuseCount++;
+        }
+
+		int32_t freeCount = 0;
+		uint32_t free = _resvFree;
+        while(free) {
+			free = _resvTable[free].arIndex;
+			freeCount++;
+		}
+		NanoAssert( ( freeCount==notInuseCount && inuseCount+notInuseCount==(NJ_MAX_STACK_ENTRY-1) ) );
 	}
 
 	void Assembler::registerConsistencyCheck()
@@ -427,6 +486,9 @@ namespace nanojit
 					// @todo we should be able to check across RegAlloc's somehow (to include savedGP...)
 					Reservation *v = getresv(ins);
 					NanoAssert(v != 0);
+					int32_t idx = v - _resvTable;
+					NanoAssert(idx >= 0 && idx < NJ_MAX_STACK_ENTRY);
+					NanoAssertMsg(idx, "MUST have a resource for the instruction for it to have a register assigned to it");
 					NanoAssertMsg( regs->getActive(v->reg)==ins, "Register record mismatch");
 				}			
 			}
@@ -508,7 +570,7 @@ namespace nanojit
 
 		// if we didn't have a reservation, allocate one now
         if (!resv)
-			resv = i->initResv();
+			resv = reserveAlloc(i);
 
         r = resv->reg;
 
@@ -557,7 +619,7 @@ namespace nanojit
 	{
 		Reservation* resv = getresv(i);
 		if (!resv)
-			resv = i->initResv();
+			resv = reserveAlloc(i);
         if (!resv->arIndex) {
 			resv->arIndex = arReserve(i);
             NanoAssert(resv->arIndex <= _activation.highwatermark);
@@ -596,7 +658,7 @@ namespace nanojit
 		}
 		if (index)
             arFree(index);			// free any stack stack space associated with entry
-        i->clearResv();
+		reserveFree(i);		// clear fields of entry and add it to free list
 	}
 
 	void Assembler::evict(Register r)
@@ -610,7 +672,6 @@ namespace nanojit
         Fragment *frag = lr->exit->target;
 		NanoAssert(frag->fragEntry != 0);
 		NIns* was = nPatchBranch((NIns*)lr->jmp, frag->fragEntry);
-		NanoAssert(frag->fragEntry != was);
 		verbose_only(verbose_outputf("patching jump at %p to target %p (was %p)\n",
 			lr->jmp, frag->fragEntry, was);)
 		(void)was;
@@ -737,7 +798,7 @@ namespace nanojit
 		
 		// When outOMem, nIns is set to startingIns and we overwrite the region until the error is handled
 		underrunProtect(LARGEST_UNDERRUN_PROT);  // the largest value passed to underrunProtect() 
-        recordStartingInstructionPointer();
+		_startingIns = _nIns;
 		
 	#ifdef AVMPLUS_PORTING_API
 		_endJit2Addr = _nExitIns;
@@ -808,8 +869,7 @@ namespace nanojit
 		    }
         }
 		else {
-            // In case of failure, reset _nIns ready for the next assembly run.
-            resetInstructionPointer();
+			_nIns = _startingIns;  // in case of failure reset nIns ready for the next assembly run
 		}
 	}
 
@@ -866,8 +926,7 @@ namespace nanojit
 		}
 		else
 		{
-            // In case of failure, reset _nIns ready for the next assembly run.
-            resetInstructionPointer();
+			_nIns = _startingIns;  // in case of failure reset nIns ready for the next assembly run
 		}
 		
 		NanoAssertMsgf(error() || _fpuStkDepth == 0,"_fpuStkDepth %d",_fpuStkDepth);
@@ -945,7 +1004,7 @@ namespace nanojit
 
 				if (!resv->arIndex && resv->reg == UnknownReg)
 				{
-                    i->clearResv();
+					reserveFree(i);
 				}
 			}
 		}
@@ -1074,6 +1133,12 @@ namespace nanojit
                     freeRsrcOf(ins, 0);
                     break;
                 }
+				case LIR_short:
+				{
+                    countlir_imm();
+					asm_short(ins);
+					break;
+				}
 				case LIR_int:
 				{
                     countlir_imm();
@@ -1204,12 +1269,14 @@ namespace nanojit
 					asm_u2f(ins);
 					break;
 				}
+				case LIR_st:
 				case LIR_sti:
 				{
                     countlir_st();
                     asm_store32(ins->oprnd1(), ins->immdisp(), ins->oprnd2());
                     break;
 				}
+				case LIR_stq:
 				case LIR_stqi:
 				{
                     countlir_stq();
@@ -1553,6 +1620,8 @@ namespace nanojit
 	
 	uint32_t Assembler::arReserve(LIns* l)
 	{
+		NanoAssert(!l->isTramp());
+
 		//verbose_only(printActivationState());
         int32_t size = l->isop(LIR_alloc) ? (l->size()>>2) : l->isQuad() ? 2 : sizeof(intptr_t)>>2;
         AR &ar = _activation;
@@ -1794,27 +1863,10 @@ namespace nanojit
 		debug_only(saved.used = 0);  // marker that we are no longer in exit path
 	}
 	
-    // scan table for instruction with the lowest priority, meaning it is used
-    // furthest in the future.
-    LIns* Assembler::findVictim(RegAlloc &regs, RegisterMask allow)
-    {
-        NanoAssert(allow != 0);
-        LIns *i, *a=0;
-        int allow_pri = 0x7fffffff;
-        for (Register r=FirstReg; r <= LastReg; r = nextreg(r))
-        {
-            if ((allow & rmask(r)) && (i = regs.getActive(r)) != 0)
-            {
-                int pri = canRemat(i) ? 0 : regs.getPriority(r);
-                if (!a || pri < allow_pri) {
-                    a = i;
-                    allow_pri = pri;
-                }
-            }
-        }
-        NanoAssert(a != 0);
-        return a;
-    }
+	void Assembler::setCallTable(const CallInfo* functions)
+	{
+		_functions = functions;
+	}
 
 	#ifdef NJ_VERBOSE
 		char Assembler::outline[8192];

@@ -44,7 +44,6 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLAppletElement.h"
 #include "nsIDOMHTMLEmbedElement.h"
-#include "nsThreadUtils.h"
 #ifdef MOZ_SVG
 #include "nsIDOMGetSVGDocument.h"
 #include "nsIDOMSVGDocument.h"
@@ -130,8 +129,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  void StartObjectLoad() { StartObjectLoad(PR_TRUE); }
-
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLSharedObjectElement,
                                                      nsGenericHTMLElement)
 
@@ -175,12 +172,10 @@ nsHTMLSharedObjectElement::nsHTMLSharedObjectElement(nsINodeInfo *aNodeInfo,
   : nsGenericHTMLElement(aNodeInfo),
     mIsDoneAddingChildren(aNodeInfo->Equals(nsGkAtoms::embed) || !aFromParser)
 {
-  RegisterFreezableElement();
 }
 
 nsHTMLSharedObjectElement::~nsHTMLSharedObjectElement()
 {
-  UnregisterFreezableElement();
   DestroyImageLoadingContent();
 }
 
@@ -255,9 +250,9 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
 
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
-    nsContentUtils::AddScriptRunner(
-      new nsRunnableMethod<nsHTMLSharedObjectElement>(this,
-                                                      &nsHTMLSharedObjectElement::StartObjectLoad));
+    // Don't need to notify: We have no frames yet, since we weren't in a
+    // document
+    StartObjectLoad(PR_FALSE);
   }
 
   return NS_OK;

@@ -40,7 +40,6 @@
 
 #include "nsITransaction.h"
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsTransactionStack;
 class nsTransactionRedoStack;
@@ -59,8 +58,6 @@ public:
   virtual ~nsTransactionItem();
   nsrefcnt AddRef();
   nsrefcnt Release();
-
-  NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsTransactionItem)
 
   virtual nsresult AddChild(nsTransactionItem *aTransactionItem);
   virtual nsresult GetTransaction(nsITransaction **aTransaction);

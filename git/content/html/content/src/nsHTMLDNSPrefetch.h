@@ -81,6 +81,7 @@ public:
 private:
   static nsresult Prefetch(nsAString &host, PRUint16 flags);
   static nsresult Prefetch(nsGenericHTMLElement *aElement, PRUint16 flags);
+  static PRBool   IsSecureBaseContext(nsIDocument *aDocument);
   
 public:
   class nsListener : public nsIDNSListener

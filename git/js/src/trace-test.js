@@ -65,9 +65,6 @@ for (var p in jitProps)
 
 function test(f)
 {
-  // Clear out any accumulated confounding state in the oracle / JIT cache.
-  gc();
-
   if (!testName || testName == f.name) {
     var expectedJITstats = f.jitstats;
     if (hadJITstats && expectedJITstats)
@@ -1667,6 +1664,11 @@ function testNestedExitStackOuter() {
   return counter;
 }
 testNestedExitStackOuter.expected = 81;
+testNestedExitStackOuter.jitstats = {
+    recorderStarted: 5,
+    recorderAborted: 1,
+    traceTriggered: 10
+};
 test(testNestedExitStackOuter);
 
 function testHOTLOOPSize() {
@@ -4180,8 +4182,8 @@ function testBug458838() {
 testBug458838.expected = 10;
 testBug458838.jitstats = {
   recorderStarted: 1,
-  recorderAborted: 0,
-  traceCompleted: 1
+  recorderAborted: 1,
+  traceCompleted: 0
 };
 test(testBug458838);
 
@@ -4993,246 +4995,6 @@ function testDeepPropertyShadowing()
     assertEq(h(tree), 2);
 }
 test(testDeepPropertyShadowing);
-
-// Complicated whitebox test for bug 487845.
-function testGlobalShapeChangeAfterDeepBail() {
-    function f(name) {
-        this[name] = 1;  // may change global shape
-        for (var i = 0; i < 4; i++)
-            ; // MonitorLoopEdge eventually triggers assertion
-    }
-
-    // When i==3, deep-bail, then change global shape enough times to exhaust
-    // the array of GlobalStates.
-    var arr = [[], [], [], ["bug0", "bug1", "bug2", "bug3", "bug4"]];
-    for (var i = 0; i < arr.length; i++)
-        arr[i].forEach(f);
-}
-test(testGlobalShapeChangeAfterDeepBail);
-for (let i = 0; i < 5; i++)
-    delete this["bug" + i];
-
-function testFunctionIdentityChange()
-{
-  function a() {}
-  function b() {}
-
-  var o = { a: a, b: b };
-
-  for (var prop in o)
-  {
-    for (var i = 0; i < 1000; i++)
-      o[prop]();
-  }
-
-  return true;
-}
-testFunctionIdentityChange.expected = true;
-testFunctionIdentityChange.jitstats = {
-  recorderStarted: 2,
-  traceCompleted: 2,
-  sideExitIntoInterpreter: 3
-};
-test(testFunctionIdentityChange);
-
-function testStringObjectLength() {
-    var x = new String("foo"), y = 0;
-    for (var i = 0; i < 10; ++i)
-        y = x.length;
-    return y;
-}
-testStringObjectLength.expected = 3;
-test(testStringObjectLength);
-
-var _quit;
-function testNestedDeepBail()
-{
-    _quit = false;
-    function loop() {
-        for (var i = 0; i < 4; i++)
-            ;
-    }
-    loop();
-
-    function f() {
-        loop();
-        _quit = true;
-    }
-    var stk = [[1], [], [], [], []];
-    while (!_quit)
-        stk.pop().forEach(f);
-}
-test(testNestedDeepBail);
-delete _quit;
-
-function testSlowNativeCtor() {
-    for (var i = 0; i < 4; i++)
-	new Date().valueOf();
-}
-test(testSlowNativeCtor);
-
-function testSlowNativeBail() {
-    var a = ['0', '1', '2', '3', '+'];
-    try {
-	for (var i = 0; i < a.length; i++)
-	    new RegExp(a[i]);
-    } catch (exc) {
-	assertEq(""+exc.stack.match(/^RegExp/), "RegExp");
-    }
-}
-test(testSlowNativeBail);
-
-/* Test the proper operation of the left shift operator. This is especially
- * important on ARM as an explicit mask is required at the native instruction
- * level. */
-function testShiftLeft()
-{
-    var r = [];
-    var i = 0;
-    var j = 0;
-
-    var shifts = [0,1,7,8,15,16,23,24,31];
-
-    /* Samples from the simple shift range. */
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = 1 << shifts[i];
-
-    /* Samples outside the normal shift range. */
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = 1 << (shifts[i] + 32);
-
-    /* Samples far outside the normal shift range. */
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = 1 << (shifts[i] + 224);
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = 1 << (shifts[i] + 256);
-
-    return r.join(",");
-}
-testShiftLeft.expected =
-    "1,2,128,256,32768,65536,8388608,16777216,-2147483648,"+
-    "1,2,128,256,32768,65536,8388608,16777216,-2147483648,"+
-    "1,2,128,256,32768,65536,8388608,16777216,-2147483648,"+
-    "1,2,128,256,32768,65536,8388608,16777216,-2147483648";
-test(testShiftLeft);
-
-/* Test the proper operation of the logical right shift operator. This is
- * especially important on ARM as an explicit mask is required at the native
- * instruction level. */
-function testShiftRightLogical()
-{
-    var r = [];
-    var i = 0;
-    var j = 0;
-
-    var shifts = [0,1,7,8,15,16,23,24,31];
-
-    /* Samples from the simple shift range. */
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = -2147483648 >>> shifts[i];
-
-    /* Samples outside the normal shift range. */
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = -2147483648 >>> (shifts[i] + 32);
-
-    /* Samples far outside the normal shift range. */
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = -2147483648 >>> (shifts[i] + 224);
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = -2147483648 >>> (shifts[i] + 256);
-
-    return r.join(",");
-}
-/* Note: Arguments to the ">>>" operator are converted to unsigned 32-bit
- * integers during evaluation. As a result, -2147483648 >>> 0 evaluates to the
- * unsigned interpretation of the same value, which is 2147483648. */
-testShiftRightLogical.expected =
-    "2147483648,1073741824,16777216,8388608,65536,32768,256,128,1,"+
-    "2147483648,1073741824,16777216,8388608,65536,32768,256,128,1,"+
-    "2147483648,1073741824,16777216,8388608,65536,32768,256,128,1,"+
-    "2147483648,1073741824,16777216,8388608,65536,32768,256,128,1";
-test(testShiftRightLogical);
-
-/* Test the proper operation of the arithmetic right shift operator. This is
- * especially important on ARM as an explicit mask is required at the native
- * instruction level. */
-function testShiftRightArithmetic()
-{
-    var r = [];
-    var i = 0;
-    var j = 0;
-
-    var shifts = [0,1,7,8,15,16,23,24,31];
-
-    /* Samples from the simple shift range. */
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = -2147483648 >> shifts[i];
-
-    /* Samples outside the normal shift range. */
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = -2147483648 >> (shifts[i] + 32);
-
-    /* Samples far outside the normal shift range. */
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = -2147483648 >> (shifts[i] + 224);
-    for (i = 0; i < shifts.length; i++)
-        r[j++] = -2147483648 >> (shifts[i] + 256);
-
-    return r.join(",");
-}
-testShiftRightArithmetic.expected =
-    "-2147483648,-1073741824,-16777216,-8388608,-65536,-32768,-256,-128,-1,"+
-    "-2147483648,-1073741824,-16777216,-8388608,-65536,-32768,-256,-128,-1,"+
-    "-2147483648,-1073741824,-16777216,-8388608,-65536,-32768,-256,-128,-1,"+
-    "-2147483648,-1073741824,-16777216,-8388608,-65536,-32768,-256,-128,-1";
-test(testShiftRightArithmetic);
-
-function testStringConstructorWithExtraArg() {
-    for (let i = 0; i < 5; ++i)
-        new String(new String(), 2);
-    return "ok";
-}
-testStringConstructorWithExtraArg.expected = "ok";
-test(testStringConstructorWithExtraArg);
-
-function testConstructorBail() {
-    for (let i = 0; i < 5; ++i) new Number(/x/);
-}
-test(testConstructorBail);
-
-function testNewArrayCount()
-{
-  var a = [];
-  for (var i = 0; i < 5; i++)
-    a = [0];
-  assertEq(a.__count__, 1);
-  for (var i = 0; i < 5; i++)
-    a = [0, , 2];
-  assertEq(a.__count__, 2);
-}
-test(testNewArrayCount);
-
-function testNewArrayCount2() {
-    var x = 0;
-    for (var i = 0; i < 10; ++i)
-        x = new Array(1,2,3).__count__;
-    return x;
-}
-testNewArrayCount2.expected = 3;
-test(testNewArrayCount2);
-
-function testGetCallObjInlined(i) {
-    if (i > 7) eval("1");
-    return 1;
-}
-
-function testGetCallObj() {
-    for (var i = 0; i < 10; ++i)
-        testGetCallObjInlined(i);
-    return "ok";
-}
-testGetCallObj.expected = "ok";
-test(testGetCallObj);
 
 /*****************************************************************************
  *                                                                           *

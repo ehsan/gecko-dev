@@ -49,8 +49,6 @@ menu,
 menuitem {
   -moz-appearance: menuitem;
   -moz-box-align: center;
-  -moz-margin-start: 2px !important;
-  -moz-margin-end: 1px !important;
   color: MenuText;
   background-color:  Menu;
   font: menu;
@@ -86,7 +84,7 @@ menuitem.spell-suggestion {
 }
 
 .menu-text {
-  -moz-margin-start: 21px !important;
+  -moz-margin-start: 18px !important;
   font-weight: inherit;
 }
 
@@ -104,11 +102,10 @@ menuitem.spell-suggestion {
 }
 
 .menu-iconic-text {
-  -moz-margin-start: 3px !important;
+  -moz-margin-start: 2px !important;
 }
 
 .menu-iconic-left {
-  -moz-margin-start: 2px !important;
   min-width: 16px;
   min-height: 16px;
 }

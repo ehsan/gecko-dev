@@ -58,7 +58,7 @@
 #include "nsIObserverService.h"
 
 static NS_DEFINE_CID(kDNSServiceCID, NS_DNSSERVICE_CID);
-PRBool sDisablePrefetchHTTPSPref;
+static PRBool sDisablePrefetchHTTPSPref;
 static PRBool sInitialized = PR_FALSE;
 static nsIDNSService *sDNSService = nsnull;
 static nsHTMLDNSPrefetch::nsDeferrals *sPrefetches = nsnull;
@@ -118,10 +118,35 @@ nsHTMLDNSPrefetch::Shutdown()
 }
 
 PRBool
+nsHTMLDNSPrefetch::IsSecureBaseContext (nsIDocument *aDocument)
+{
+  nsIURI *docURI = aDocument->GetDocumentURI();
+  nsCAutoString scheme;
+  docURI->GetScheme(scheme);
+  return scheme.EqualsLiteral("https");
+}
+
+PRBool
 nsHTMLDNSPrefetch::IsAllowed (nsIDocument *aDocument)
 {
+  if (IsSecureBaseContext(aDocument) && sDisablePrefetchHTTPSPref)
+    return PR_FALSE;
+    
+  // Check whether the x-dns-prefetch-control HTTP response header is set to override 
+  // the default. This may also be set by meta tag. Chromium treats any value other
+  // than 'on' (case insensitive) as 'off'.
+
+  nsAutoString control;
+  aDocument->GetHeaderData(nsGkAtoms::headerDNSPrefetchControl, control);
+  
+  if (!control.IsEmpty() && !control.LowerCaseEqualsLiteral("on"))
+    return PR_FALSE;
+
   // There is no need to do prefetch on non UI scenarios such as XMLHttpRequest.
-  return aDocument->IsDNSPrefetchAllowed() && aDocument->GetWindow();
+  if (!aDocument->GetWindow())
+    return PR_FALSE;
+
+  return PR_TRUE;
 }
 
 nsresult
@@ -158,7 +183,7 @@ nsHTMLDNSPrefetch::Prefetch(nsAString &hostname, PRUint16 flags)
     return NS_ERROR_NOT_AVAILABLE;
 
   nsCOMPtr<nsICancelable> tmpOutstanding;
-  return sDNSService->AsyncResolve(NS_ConvertUTF16toUTF8(hostname), flags | nsIDNSService::RESOLVE_SPECULATE,
+  return sDNSService->AsyncResolve(NS_ConvertUTF16toUTF8(hostname), flags,
                                    sDNSListener, nsnull, getter_AddRefs(tmpOutstanding));
 }
 
@@ -268,7 +293,7 @@ nsHTMLDNSPrefetch::nsDeferrals::SubmitQueue()
         nsCOMPtr<nsICancelable> tmpOutstanding;
 
         sDNSService->AsyncResolve(hostName, 
-                                  mEntries[mTail].mFlags | nsIDNSService::RESOLVE_SPECULATE,
+                                  mEntries[mTail].mFlags,
                                   sDNSListener, nsnull, getter_AddRefs(tmpOutstanding));
       }
     }

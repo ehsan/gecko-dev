@@ -54,22 +54,23 @@ function run_test()
   srv.registerPathHandler("/writeInt", writeInt);
   srv.start(4444);
 
-  runHttpTests(tests, testComplete(srv));
+  runHttpTests(tests, function() { srv.stop(); });
 }
 
 
 // TEST DATA
 
-function succeeded(ch, cx, status, data)
+function succeeded(ch, cx, status)
 {
+
   do_check_true(Components.isSuccessCode(status));
-  do_check_eq(data.map(function(v) String.fromCharCode(v)).join(""), "1234");
 }
 
 function check_1234(ch, cx)
 {
   do_check_eq(ch.getResponseHeader("Content-Length"), "4");
 }
+
 
 // PATH HANDLERS
 

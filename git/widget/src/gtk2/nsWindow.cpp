@@ -54,7 +54,7 @@
 #include "nsIDOMNode.h"
 
 #include "nsWidgetsCID.h"
-#include "nsDragService.h"
+#include "nsIDragService.h"
 #include "nsIDragSessionGTK.h"
 
 #include "nsGtkKeyUtils.h"
@@ -177,7 +177,6 @@ static gboolean expose_event_cb           (GtkWidget *widget,
                                            GdkEventExpose *event);
 static gboolean configure_event_cb        (GtkWidget *widget,
                                            GdkEventConfigure *event);
-static void     container_unrealize_cb    (GtkWidget *widget);
 static void     size_allocate_cb          (GtkWidget *widget,
                                            GtkAllocation *allocation);
 static gboolean delete_event_cb           (GtkWidget *widget,
@@ -355,8 +354,6 @@ PRBool gDisableNativeTheme = PR_FALSE;
 // If this is 1, then a 24bpp buffer surface is always
 // created for exposes, even if the display has a different depth
 static PRBool gForce24bpp = PR_FALSE;
-
-static GtkWidget *gInvisibleContainer = NULL;
 
 nsWindow::nsWindow()
 {
@@ -645,79 +642,6 @@ nsWindow::Create(nsNativeWidget aParent,
     return rv;
 }
 
-static GtkWidget*
-EnsureInvisibleContainer()
-{
-    if (!gInvisibleContainer) {
-        // GtkWidgets need to be anchored to a GtkWindow to be realized (to
-        // have a window).  Using GTK_WINDOW_POPUP rather than
-        // GTK_WINDOW_TOPLEVEL in the hope that POPUP results in less
-        // initialization and window manager interaction.
-        GtkWidget* window = gtk_window_new(GTK_WINDOW_POPUP);
-        gInvisibleContainer = moz_container_new();
-        gtk_container_add(GTK_CONTAINER(window), gInvisibleContainer);
-        gtk_widget_realize(gInvisibleContainer);
-
-    }
-    return gInvisibleContainer;
-}
-
-static void
-CheckDestroyInvisibleContainer()
-{
-    NS_PRECONDITION(gInvisibleContainer, "oh, no");
-
-    if (!gdk_window_peek_children(gInvisibleContainer->window)) {
-        // No children, so not in use.
-        // Make sure to destroy the GtkWindow also.
-        gtk_widget_destroy(gInvisibleContainer->parent);
-        gInvisibleContainer = NULL;
-    }
-}
-
-// Change the containing GtkWidget on a sub-hierarchy of GdkWindows belonging
-// to aOldWidget and rooted at aWindow, and reparent any child GtkWidgets of
-// the GdkWindow hierarchy.  If aNewWidget is NULL, the reference to
-// aOldWidget is removed from its GdkWindows, and child GtkWidgets are
-// destroyed.
-static void
-SetWidgetForHierarchy(GdkWindow *aWindow,
-                      GtkWidget *aOldWidget,
-                      GtkWidget *aNewWidget)
-{
-    gpointer data;
-    gdk_window_get_user_data(aWindow, &data);
-
-    if (data != aOldWidget) {
-        if (!GTK_IS_WIDGET(data))
-            return;
-
-        GtkWidget* widget = static_cast<GtkWidget*>(data);
-        if (widget->parent != aOldWidget)
-            return;
-
-        // This window belongs to a child widget, which will no longer be a
-        // child of aOldWidget.
-        if (aNewWidget) {
-            gtk_widget_reparent(widget, aNewWidget);
-        } else {
-            // aNewWidget == NULL indicates that the window is about to be
-            // destroyed.
-            gtk_widget_destroy(widget);
-        }
-
-        return;
-    }
-
-    GList *children = gdk_window_get_children(aWindow);
-    for(GList *list = children; list; list = list->next) {
-        SetWidgetForHierarchy(GDK_WINDOW(list->data), aOldWidget, aNewWidget);
-    }
-    g_list_free(children);
-
-    gdk_window_set_user_data(aWindow, aNewWidget);
-}
-
 NS_IMETHODIMP
 nsWindow::Destroy(void)
 {
@@ -800,24 +724,6 @@ nsWindow::Destroy(void)
         mDragLeaveTimer = nsnull;
     }
 
-    GtkWidget *owningWidget = GetMozContainerWidget();
-    if (mShell) {
-        gtk_widget_destroy(mShell);
-        mShell = nsnull;
-        mContainer = nsnull;
-    }
-    else if (mContainer) {
-        gtk_widget_destroy(GTK_WIDGET(mContainer));
-        mContainer = nsnull;
-    }
-    else if (owningWidget) {
-        // Remove references from GdkWindows back to their container
-        // widget while the GdkWindow hierarchy is still available.
-        // (OnContainerUnrealize does this when the MozContainer widget is
-        // destroyed.)
-        SetWidgetForHierarchy(mDrawingarea->clip_window, owningWidget, NULL);
-    }
-
     if (mDrawingarea) {
         g_object_set_data(G_OBJECT(mDrawingarea->clip_window),
                           "nsWindow", NULL);
@@ -829,15 +735,18 @@ nsWindow::Destroy(void)
         g_object_set_data(G_OBJECT(mDrawingarea->inner_window),
                           "mozdrawingarea", NULL);
 
-        NS_ASSERTION(!get_gtk_widget_for_gdk_window(mDrawingarea->inner_window),
-                     "widget reference not removed");
-
         g_object_unref(mDrawingarea);
         mDrawingarea = nsnull;
     }
 
-    if (gInvisibleContainer && owningWidget == gInvisibleContainer) {
-        CheckDestroyInvisibleContainer();
+    if (mShell) {
+        gtk_widget_destroy(mShell);
+        mShell = nsnull;
+        mContainer = nsnull;
+    }
+    else if (mContainer) {
+        gtk_widget_destroy(GTK_WIDGET(mContainer));
+        mContainer = nsnull;
     }
 
     OnDestroy();
@@ -860,63 +769,29 @@ nsWindow::GetParent(void)
 NS_IMETHODIMP
 nsWindow::SetParent(nsIWidget *aNewParent)
 {
-    if (mContainer || !mDrawingarea || !mParent) {
-        NS_NOTREACHED("nsWindow::SetParent - reparenting a non-child window");
-        return NS_ERROR_NOT_IMPLEMENTED;
-    }
+    NS_ENSURE_ARG_POINTER(aNewParent);
 
-    // nsBaseWidget::SetZIndex adds child widgets to the parent's list.
-    nsCOMPtr<nsIWidget> kungFuDeathGrip = this;
-    mParent->RemoveChild(this);
+    GdkWindow* newParentWindow =
+        static_cast<GdkWindow*>(aNewParent->GetNativeData(NS_NATIVE_WINDOW));
+    NS_ASSERTION(newParentWindow, "Parent widget has a null native window handle");
 
-    mParent = aNewParent;
-
-    GtkWidget* oldContainer = GetMozContainerWidget();
-    if (!oldContainer) {
-        // The GdkWindows have been destroyed so there is nothing else to
-        // reparent.
-        NS_ABORT_IF_FALSE(GDK_WINDOW_OBJECT(mDrawingarea->inner_window)->destroyed,
-                          "live GdkWindow with no widget");
-        return NS_OK;
-    }
-
-    NS_ABORT_IF_FALSE(!GDK_WINDOW_OBJECT(mDrawingarea->inner_window)->destroyed,
-                      "destroyed GdkWindow with widget");
-
-    GdkWindow* newParentWindow = NULL;
-    GtkWidget* newContainer = NULL;
-    if (aNewParent) {
-        newParentWindow = static_cast<GdkWindow*>
-            (aNewParent->GetNativeData(NS_NATIVE_WINDOW));
-        if (newParentWindow) {
-            newContainer = get_gtk_widget_for_gdk_window(newParentWindow);
+    if (!mShell && mDrawingarea) {
+#ifdef DEBUG
+        if (!mContainer) {
+            // Check that the new Parent window has the same MozContainer
+            gpointer old_container;
+            gdk_window_get_user_data(mDrawingarea->inner_window,
+                                     &old_container);
+            gpointer new_container;
+            gdk_window_get_user_data(newParentWindow, &new_container);
+            NS_ASSERTION(old_container == new_container,
+                         "FIXME: Wrong MozContainer on MozDrawingarea");
         }
-    } else {
-        // aNewParent is NULL, but reparent to a hidden window to avoid
-        // destroying the GdkWindow and its descendants.
-        // An invisible container widget is needed to hold descendant
-        // GtkWidgets.
-        newContainer = EnsureInvisibleContainer();
-        newParentWindow = newContainer->window;
-    }
-
-    if (!newContainer) {
-        // The new parent GdkWindow has been destroyed.
-        NS_ABORT_IF_FALSE(!newParentWindow ||
-                          GDK_WINDOW_OBJECT(newParentWindow)->destroyed,
-                          "live GdkWindow with no widget");
-        Destroy();
-    } else {
-        if (newContainer != oldContainer) {
-            NS_ABORT_IF_FALSE(!GDK_WINDOW_OBJECT(newParentWindow)->destroyed,
-                              "destroyed GdkWindow with widget");
-            SetWidgetForHierarchy(mDrawingarea->clip_window, oldContainer,
-                                  newContainer);
-        }
-
+#endif
         moz_drawingarea_reparent(mDrawingarea, newParentWindow);
+    } else {
+        NS_NOTREACHED("nsWindow::SetParent - reparenting a non-child window");
     }
-
     return NS_OK;
 }
 
@@ -2036,39 +1911,6 @@ nsWindow::GetAttention(PRInt32 aCycleCount)
     return NS_OK;
 }
 
-PRBool
-nsWindow::HasPendingInputEvent()
-{
-    // This sucks, but gtk/gdk has no way to answer the question we want while
-    // excluding paint events, and there's no X API that will let us peek
-    // without blocking or removing.  To prevent event reordering, peek
-    // anything except expose events.  Reordering expose and others should be
-    // ok, hopefully.
-    PRBool haveEvent;
-#ifdef MOZ_X11
-    XEvent ev;
-    haveEvent =
-        XCheckMaskEvent(GDK_DISPLAY(),
-                        KeyPressMask | KeyReleaseMask | ButtonPressMask |
-                        ButtonReleaseMask | EnterWindowMask | LeaveWindowMask |
-                        PointerMotionMask | PointerMotionHintMask |
-                        Button1MotionMask | Button2MotionMask |
-                        Button3MotionMask | Button4MotionMask |
-                        Button5MotionMask | ButtonMotionMask | KeymapStateMask |
-                        VisibilityChangeMask | StructureNotifyMask |
-                        ResizeRedirectMask | SubstructureNotifyMask |
-                        SubstructureRedirectMask | FocusChangeMask |
-                        PropertyChangeMask | ColormapChangeMask |
-                        OwnerGrabButtonMask, &ev);
-    if (haveEvent) {
-        XPutBackEvent(GDK_DISPLAY(), &ev);
-    }
-#else
-    haveEvent = PR_FALSE;
-#endif
-    return haveEvent;
-}
-
 void
 nsWindow::LoseFocus(void)
 {
@@ -2459,21 +2301,6 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
     DispatchEvent(&event, status);
 
     return FALSE;
-}
-
-void
-nsWindow::OnContainerUnrealize(GtkWidget *aWidget)
-{
-    // The GdkWindows are about to be destroyed (but not deleted), so remove
-    // their references back to their container widget while the GdkWindow
-    // hierarchy is still available.
-
-    NS_ASSERTION(mContainer == MOZ_CONTAINER(aWidget),
-                 "unexpected \"unrealize\" signal");
-
-    if (mDrawingarea) {
-        SetWidgetForHierarchy(mDrawingarea->clip_window, aWidget, NULL);
-    }
 }
 
 void
@@ -3665,13 +3492,6 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
 
     // Make sure to end the drag session. If this drag started in a
     // different app, we won't get a drag_end signal to end it from.
-    gint x, y;
-    GdkDisplay* display = gdk_display_get_default();
-    if (display) {
-      // get the current cursor position
-      gdk_display_get_pointer(display, NULL, &x, &y, NULL);
-      ((nsDragService *)dragService.get())->SetDragEndPoint(nsIntPoint(x, y));
-    }
     dragService->EndDragSession(PR_TRUE);
 
     return TRUE;
@@ -4047,8 +3867,6 @@ nsWindow::NativeCreate(nsIWidget        *aParent,
     }
 
     if (mContainer) {
-        g_signal_connect(G_OBJECT(mContainer), "unrealize",
-                         G_CALLBACK(container_unrealize_cb), NULL);
         g_signal_connect_after(G_OBJECT(mContainer), "size_allocate",
                                G_CALLBACK(size_allocate_cb), NULL);
         g_signal_connect(G_OBJECT(mContainer), "expose_event",
@@ -5364,17 +5182,6 @@ configure_event_cb(GtkWidget *widget,
         return FALSE;
 
     return window->OnConfigureEvent(widget, event);
-}
-
-/* static */
-void
-container_unrealize_cb (GtkWidget *widget)
-{
-    nsRefPtr<nsWindow> window = get_window_for_gtk_widget(widget);
-    if (!window)
-        return;
-
-    window->OnContainerUnrealize(widget);
 }
 
 /* static */
@@ -6893,8 +6700,7 @@ IM_commit_cb(GtkIMContext *aContext,
     // if gFocusWindow is null, use the last focused gIMEFocusWindow
     nsRefPtr<nsWindow> window = gFocusWindow ? gFocusWindow : gIMEFocusWindow;
 
-    if (!window || IM_get_input_context(window) != aContext &&
-        !(window->mIMEData && window->mIMEData->mEnabled == nsIWidget::IME_STATUS_PASSWORD)) 
+    if (!window || IM_get_input_context(window) != aContext)
         return;
 
     /* If IME doesn't change they keyevent that generated this commit,

@@ -159,6 +159,7 @@ class nsWaveDecoder : public nsMediaDecoder
   virtual void SetVolume(float aVolume);
 
   virtual nsresult Play();
+  virtual void Stop();
   virtual void Pause();
 
   // Set the current time of the media to aTime.  This may cause mStream to
@@ -218,12 +219,6 @@ class nsWaveDecoder : public nsMediaDecoder
 
   // Change the element's ready state as necessary. Main thread only.
   void UpdateReadyStateForData();
-
-  // Tells mStream to put all loads in the background.
-  virtual void MoveLoadsToBackground();
-
-  // Called asynchronously to shut down the decoder
-  void Stop();
 
 private:
   // Notifies the element that seeking has started.

@@ -36,18 +36,19 @@ function getNotificationBar(aBox, aKind) {
  *
  * Clicks the specified notification button.
  */
-function clickNotificationButton(aBar, aButtonIndex) {
+function clickNotificationButton(aBar, aButtonName) {
     // This is a bit of a hack. The notification doesn't have an API to
     // trigger buttons, so we dive down into the implementation and twiddle
     // the buttons directly.
-    var button = aBar.getElementsByTagName("button").item(aButtonIndex);
-    ok(button, "Got button " + aButtonIndex);
-    button.doCommand();
+    var buttons = aBar.getElementsByTagName("button");
+    var clicked = false;
+    for (var i = 0; i < buttons.length; i++) {
+        if (buttons[i].label == aButtonName) {
+            buttons[i].click();
+            clicked = true;
+            break;
+        }
+    }
+
+    ok(clicked, "Clicked \"" + aButtonName + "\" button"); 
 }
-
-const kRememberButton = 0;
-const kNeverButton = 1;
-const kNotNowButton = 2;
-
-const kChangeButton = 0;
-const kDontChangeButton = 1;

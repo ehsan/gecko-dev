@@ -43,6 +43,11 @@
 #include "nsCOMPtr.h"
 #include "nsIEditor.h"
 
+#define SPLIT_ELEMENT_TXN_CID \
+{/* 690c6290-ac48-11d2-86d8-000064657374 */ \
+0x690c6290, 0xac48, 0x11d2, \
+{0x86, 0xd8, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74} }
+
 class nsEditor;
 
 /**
@@ -52,6 +57,9 @@ class nsEditor;
 class SplitElementTxn : public EditTxn
 {
 public:
+
+  static const nsIID& GetCID() { static const nsIID iid = SPLIT_ELEMENT_TXN_CID; return iid; }
+
   /** initialize the transaction.
     * @param aEditor  the provider of core editing operations
     * @param aNode    the node to split
@@ -62,12 +70,10 @@ public:
   NS_IMETHOD Init (nsEditor   *aEditor,
                    nsIDOMNode *aNode,
                    PRInt32     aOffset);
-
+protected:
   SplitElementTxn();
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SplitElementTxn, EditTxn)
-  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
-
+public:
   NS_DECL_EDITTXN
 
   NS_IMETHOD RedoTransaction(void);
@@ -91,6 +97,9 @@ protected:
   /** the parent shared by mExistingRightNode and mNewLeftNode */
   nsCOMPtr<nsIDOMNode> mParent;
   nsEditor*  mEditor;
+
+  friend class TransactionFactory;
+
 };
 
 #endif

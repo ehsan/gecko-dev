@@ -1307,8 +1307,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
   NS_ENSURE_SUCCESS(rv, rv);
   aRenderingContext->SetFont(fontMet);
 
-  lineHeight =
-    nsHTMLReflowState::CalcLineHeight(GetStyleContext(), NS_AUTOHEIGHT);
+  lineHeight = nsHTMLReflowState::CalcLineHeight(this);
   fontMet->GetAveCharWidth(charWidth);
   fontMet->GetMaxAdvance(charMaxAdvance);
 
@@ -1387,21 +1386,6 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
 void
 nsTextControlFrame::DelayedEditorInit()
 {
-  nsIDocument* doc = mContent->GetCurrentDoc();
-  if (!doc) {
-    return;
-  }
-  
-  nsWeakFrame weakFrame(this);
-
-  // Flush out content on our document.  Have to do this, because script
-  // blockers don't prevent the sink flushing out content and notifying in the
-  // process, which can destroy frames.
-  doc->FlushPendingNotifications(Flush_ContentAndNotify);
-  if (!weakFrame.IsAlive()) {
-    return;
-  }
-  
   // Make sure that editor init doesn't do things that would kill us off
   // (especially off the script blockers it'll create for its DOM mutations).
   nsAutoScriptBlocker scriptBlocker;
@@ -1853,26 +1837,14 @@ nsTextControlFrame::GetMaxSize(nsBoxLayoutState& aState)
 nscoord
 nsTextControlFrame::GetBoxAscent(nsBoxLayoutState& aState)
 {
-  // Return the baseline of the first (nominal) row, with centering for
-  // single-line controls.
-
-  // First calculate the ascent wrt the client rect
-  nsRect clientRect;
-  GetClientRect(clientRect);
-  nscoord lineHeight =
-    IsSingleLineTextControl() ? clientRect.height :
-    nsHTMLReflowState::CalcLineHeight(GetStyleContext(), NS_AUTOHEIGHT);
-
-  nsCOMPtr<nsIFontMetrics> fontMet;
-  nsresult rv =
-    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet));
-  NS_ENSURE_SUCCESS(rv, 0);
-
-  nscoord ascent = nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight);
-
-  // Now adjust for our borders and padding
-  ascent += clientRect.y;
-
+  // First calculate the ascent of the text inside
+  nscoord ascent = nsStackFrame::GetBoxAscent(aState);
+    
+  // Now adjust the ascent for our borders and padding
+  nsMargin borderPadding;
+  GetBorderAndPadding(borderPadding);
+  ascent += borderPadding.top;
+  
   return ascent;
 }
 

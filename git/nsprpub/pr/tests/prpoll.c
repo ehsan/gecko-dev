@@ -49,7 +49,11 @@
 #include "prprf.h"
 #include "prnetdb.h"
 
+#ifndef XP_MAC
 #include "private/pprio.h"
+#else
+#include "pprio.h"
+#endif
 
 #define CLIENT_LOOPS	5
 #define BUF_SIZE		128

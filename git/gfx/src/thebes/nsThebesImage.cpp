@@ -244,12 +244,6 @@ nsThebesImage::ImageUpdated(nsIDeviceContext *aContext, PRUint8 aFlags, nsIntRec
         return NS_ERROR_OUT_OF_MEMORY;
 
     mDecoded.UnionRect(mDecoded, *aUpdateRect);
-
-    // clamp to bounds, in case someone sends a bogus
-    // updateRect (I'm looking at you, gif decoder)
-    nsIntRect boundsRect(0, 0, mWidth, mHeight);
-    mDecoded.IntersectRect(mDecoded, boundsRect);
-
 #ifdef XP_MACOSX
     if (mQuartzSurface)
         mQuartzSurface->Flush();
@@ -553,6 +547,8 @@ nsThebesImage::Draw(gfxContext*        aContext,
         NS_WARNING("Destination area too large, bailing out");
         return;
     }
+
+    // BEGIN working around cairo/pixman bug (bug 364968)
     // Compute device-space-to-image-space transform. We need to sanity-
     // check it to work around a pixman bug :-(
     // XXX should we only do this for certain surface types?
@@ -566,11 +562,6 @@ nsThebesImage::Draw(gfxContext*        aContext,
     gfxMatrix deviceToImage = deviceToUser;
     deviceToImage.Multiply(userSpaceToImageSpace);
   
-    PRBool pushedGroup = PR_FALSE;
-    if (currentTarget->GetType() != gfxASurface::SurfaceTypeQuartz) {
-        // BEGIN working around cairo/pixman bug (bug 364968)
-        // Quartz's limits for matrix are much larger than pixman
-
     // Our device-space-to-image-space transform may not be acceptable to pixman.
     if (!IsSafeImageTransformComponent(deviceToImage.xx) ||
         !IsSafeImageTransformComponent(deviceToImage.xy) ||
@@ -580,6 +571,7 @@ nsThebesImage::Draw(gfxContext*        aContext,
         return;
     }
 
+    PRBool pushedGroup = PR_FALSE;
     if (!IsSafeImageTransformComponent(deviceToImage.x0) ||
         !IsSafeImageTransformComponent(deviceToImage.y0)) {
         // We'll push a group, which will hopefully reduce our transform's
@@ -600,7 +592,6 @@ nsThebesImage::Draw(gfxContext*        aContext,
         pushedGroup = PR_TRUE;
     }
     // END working around cairo/pixman bug (bug 364968)
-    }
   
     nsRefPtr<gfxPattern> pattern = new gfxPattern(surface);
     pattern->SetMatrix(userSpaceToImageSpace);
@@ -620,46 +611,27 @@ nsThebesImage::Draw(gfxContext*        aContext,
             // EXTEND_PAD won't help us here; we have to create a temporary
             // surface to hold the subimage of pixels we're allowed to
             // sample
-
-            gfxRect userSpaceClipExtents = aContext->GetClipExtents();
-            // This isn't optimal --- if aContext has a rotation then
-            // GetClipExtents will have to do a bounding-box computation,
-            // and TransformBounds might too, so we could get a better
-            // result if we computed image space clip extents in one go
-            // --- but it doesn't really matter and this is easier to
-            // understand.
-            gfxRect imageSpaceClipExtents =
-              userSpaceToImageSpace.TransformBounds(userSpaceClipExtents);
-            // Inflate by one pixel because bilinear filtering will sample
-            // at most one pixel beyond the computed image pixel coordinate.
-            imageSpaceClipExtents.Outset(1.0);
-
-            gfxRect needed =
-              imageSpaceClipExtents.Intersect(sourceRect).Intersect(subimage);
+            gfxRect needed = subimage.Intersect(sourceRect);
             needed.RoundOut();
-            // if 'needed' is empty, nothing will be drawn since aFill
-            // must be entirely outside the clip region, so it doesn't
-            // matter what we do here, but we should avoid trying to
-            // create a zero-size surface.
-            if (!needed.IsEmpty()) {
-                gfxIntSize size(PRInt32(needed.Width()), PRInt32(needed.Height()));
-                nsRefPtr<gfxASurface> temp =
-                    gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, format);
-                if (temp && temp->CairoStatus() == 0) {
-                    gfxContext tmpCtx(temp);
-                    tmpCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
-                    nsRefPtr<gfxPattern> tmpPattern = new gfxPattern(surface);
+            gfxIntSize size(PRInt32(needed.Width()), PRInt32(needed.Height()));
+            NS_ASSERTION(size.width > 0 && size.height > 0,
+                         "We must have some needed pixels, otherwise we don't know what to sample");
+            nsRefPtr<gfxASurface> temp =
+                gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, format);
+            if (temp && temp->CairoStatus() == 0) {
+                gfxContext tmpCtx(temp);
+                tmpCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
+                nsRefPtr<gfxPattern> tmpPattern = new gfxPattern(surface);
+                if (tmpPattern) {
+                    tmpPattern->SetExtend(gfxPattern::EXTEND_REPEAT);
+                    tmpPattern->SetMatrix(gfxMatrix().Translate(needed.pos));
+                    tmpCtx.SetPattern(tmpPattern);
+                    tmpCtx.Paint();
+                    tmpPattern = new gfxPattern(temp);
                     if (tmpPattern) {
-                        tmpPattern->SetExtend(gfxPattern::EXTEND_REPEAT);
-                        tmpPattern->SetMatrix(gfxMatrix().Translate(needed.pos));
-                        tmpCtx.SetPattern(tmpPattern);
-                        tmpCtx.Paint();
-                        tmpPattern = new gfxPattern(temp);
-                        if (tmpPattern) {
-                            pattern.swap(tmpPattern);
-                            pattern->SetMatrix(
-                                gfxMatrix(userSpaceToImageSpace).Multiply(gfxMatrix().Translate(-needed.pos)));
-                        }
+                        pattern.swap(tmpPattern);
+                        pattern->SetMatrix(
+                            gfxMatrix(userSpaceToImageSpace).Multiply(gfxMatrix().Translate(-needed.pos)));
                     }
                 }
             }

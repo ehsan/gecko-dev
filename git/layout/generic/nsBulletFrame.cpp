@@ -95,7 +95,7 @@ nsBulletFrame::Destroy()
 {
   // Stop image loading first
   if (mImageRequest) {
-    mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+    mImageRequest->Cancel(NS_ERROR_FAILURE);
     mImageRequest = nsnull;
   }
 

@@ -106,7 +106,8 @@ private:
 
 public:
   // XXXbz this method needs to actually return errors!
-  nsresult ConstructRootFrame(nsIFrame** aNewFrame);
+  nsresult ConstructRootFrame(nsIContent*     aDocElement,
+                              nsIFrame**      aNewFrame);
 
   nsresult ReconstructDocElementHierarchy();
 
@@ -281,6 +282,11 @@ private:
   struct FrameConstructionItem;
   class FrameConstructionItemList;
 
+  nsresult ReconstructDocElementHierarchyInternal();
+
+  nsresult ReinsertContent(nsIContent*    aContainer,
+                           nsIContent*    aChild);
+
   nsresult ConstructPageFrame(nsIPresShell*  aPresShell, 
                               nsPresContext* aPresContext,
                               nsIFrame*      aParentFrame,
@@ -327,16 +333,15 @@ private:
                                  nsIFrame*                aParentFrame,
                                  FrameConstructionItemList& aItems);
 
-  // Construct the frames for the document element.  This must always return a
-  // singe new frame (which may, of course, have a bunch of kids).
-  // XXXbz no need to return a frame here, imo.
-  nsresult ConstructDocElementFrame(nsIContent*              aDocElement,
-                                    nsILayoutHistoryState*   aFrameState,
+  nsresult ConstructDocElementFrame(nsFrameConstructorState& aState,
+                                    nsIContent*              aDocElement,
+                                    nsIFrame*                aParentFrame,
                                     nsIFrame**               aNewFrame);
 
-  // Set up our mDocElementContainingBlock correctly for the given root
-  // content.
-  nsresult SetUpDocElementContainingBlock(nsIContent* aDocElement);
+  nsresult ConstructDocElementTableFrame(nsIContent*            aDocElement,
+                                         nsIFrame*              aParentFrame,
+                                         nsIFrame**             aNewTableFrame,
+                                         nsFrameConstructorState& aState);
 
   /**
    * CreateAttributeContent creates a single content/frame combination for an
@@ -390,15 +395,14 @@ private:
                                   nsIAtom*                 aPseudoElement,
                                   FrameConstructionItemList& aItems);
 
-  // This method can change aFrameList: it can chop off the end and put it in a
-  // special sibling of aParentFrame.  It can also change aState by moving some
-  // floats out of it.  aPrevSibling must be the frame after which aFrameList
-  // is to be placed on aParentFrame's principal child list.  It may be null if
-  // aFrameList is being added at the beginning of the child list.
+  // This method can change aFrameList: it can chop off the end and
+  // put it in a special sibling of aParentFrame.  It can also change
+  // aState by moving some floats out of it.
   nsresult AppendFrames(nsFrameConstructorState&       aState,
+                        nsIContent*                    aContainer,
                         nsIFrame*                      aParentFrame,
                         nsFrameItems&                  aFrameList,
-                        nsIFrame*                      aPrevSibling);
+                        nsIFrame*                      aAfterFrame);
 
   // BEGIN TABLE SECTION
   /**
@@ -743,11 +747,6 @@ private:
       PRBool operator!=(const Iterator& aOther) const {
         return !(*this == aOther);
       }
-      Iterator& operator=(const Iterator& aOther) {
-        NS_ASSERTION(mEnd == aOther.mEnd, "Iterators for different lists?");
-        mCurrent = aOther.mCurrent;
-        return *this;
-      }
 
       operator FrameConstructionItem& () {
         return item();
@@ -762,17 +761,6 @@ private:
         NS_ASSERTION(!IsDone(), "Should have checked IsDone()!");
         mCurrent = PR_NEXT_LINK(mCurrent);
       }
-      void SetToEnd() { mCurrent = mEnd; }
-
-      // Skip over all items that want a parent type different from the given
-      // one.  Return whether the iterator is done after doing that.  The
-      // iterator must not be done when this is called.
-      inline PRBool SkipItemsWantingParentType(ParentType aParentType);
-
-      // Skip over whitespace.  Return whether the iterator is done after doing
-      // that.  The iterator must not be done, and must be pointing to a
-      // whitespace item when this is called.
-      inline PRBool SkipWhitespace();
 
       // Remove the item pointed to by this iterator from its current list and
       // Append it to aTargetList.  This iterator is advanced to point to the
@@ -796,12 +784,9 @@ private:
       // case this call just appends the given item to the list.
       void InsertItem(FrameConstructionItem* aItem);
 
-      // Delete the items between this iterator and aEnd, including the item
-      // this iterator currently points to but not including the item pointed
-      // to by aEnd.  When this returns, this iterator will point to the same
-      // item as aEnd.  This iterator must not equal aEnd when this method is
-      // called.
-      void DeleteItemsTo(const Iterator& aEnd);
+      // Delete the item pointed to by this iterator, and point ourselves to
+      // the next item in the list.
+      void DeleteItem();
 
     private:
       PRCList* mCurrent;
@@ -855,11 +840,9 @@ private:
     ParentType DesiredParentType() {
       return FCDATA_DESIRED_PARENT_TYPE(mFCData->mBits);
     }
-
-    // Don't call this unless the frametree really depends on the answer!
-    // Especially so for generated content, where we don't want to reframe
-    // things.
-    PRBool IsWhitespace() const;
+    PRBool IsWhitespace() const {
+      return mIsText && mContent->TextIsOnlyWhitespace();
+    }
 
     // The FrameConstructionData to use.
     const FrameConstructionData* mFCData;
@@ -1360,18 +1343,17 @@ private:
 
   // Determine whether we need to wipe out what we just did and start over
   // because we're doing something like adding block kids to an inline frame
-  // (and therefore need an {ib} split).  aPrevSibling must be correct, even in
-  // aIsAppend cases.  Passing aIsAppend false even when an append is happening
-  // is ok in terms of correctness, but can lead to unnecessary reframing.  If
-  // aIsAppend is true, then the caller MUST call
-  // nsCSSFrameConstructor::AppendFrames (as opposed to
-  // nsFrameManager::InsertFrames directly) to add the new frames.
+  // (and therefore need an {ib} split).  If aIsAppend is true, aPrevSibling is
+  // ignored.  Otherwise it may be used to determine whether to reframe when
+  // inserting into the block of an {ib} split.  Passing a null aPrevSibling in
+  // the non-append case is ok in terms of correctness.  It might reframe when
+  // we don't really need to, but that's it.
   // @return PR_TRUE if we reconstructed the containing block, PR_FALSE
   // otherwise
   PRBool WipeContainingBlock(nsFrameConstructorState& aState,
                              nsIFrame*                aContainingBlock,
                              nsIFrame*                aFrame,
-                             FrameConstructionItemList& aItems,
+                             const FrameConstructionItemList& aItems,
                              PRBool                   aIsAppend,
                              nsIFrame*                aPrevSibling);
 
@@ -1477,6 +1459,9 @@ private:
                                  nsIFrame*                aPrevSibling,
                                  nsFrameItems&            aFrameItems);
 
+  nsresult RemoveFixedItems(const nsFrameConstructorState& aState,
+                            nsIFrame*                      aRootElementFrame);
+
   // Find the right frame to use for aContent when looking for sibling
   // frames for aTargetContent.  If aPrevSibling is true, this
   // will look for last continuations, etc, as necessary.  This calls
@@ -1500,17 +1485,6 @@ private:
   // on purpose, so as not to modify the callee's iterator.
   nsIFrame* FindNextSibling(ChildIterator aIter,
                             const ChildIterator& aLast);
-
-  // Find the right previous sibling for an insertion.  This also updates the
-  // parent frame to point to the correct continuation of the parent frame to
-  // use, and returns whether this insertion is to be treated as an append.
-  // aChild is the child being inserted and aIndexInContainer its index in
-  // aContainer (which is aChild's DOM parent).
-  nsIFrame* GetInsertionPrevSibling(nsIFrame*& aParentFrame, /* inout */
-                                    nsIContent* aContainer,
-                                    nsIContent* aChild,
-                                    PRInt32 aIndexInContainer,
-                                    PRBool* aIsAppend);
 
   // see if aContent and aSibling are legitimate siblings due to restrictions
   // imposed by table columns
@@ -1593,8 +1567,7 @@ private:
   nsIFrame*           mRootElementFrame;
   // This is the frame for the root element that has no pseudo-element style.
   nsIFrame*           mRootElementStyleFrame;
-  // This is the containing block for fixed-pos frames --- the
-  // viewport or page frame
+  // This is the containing block for fixed-pos frames --- the viewport
   nsIFrame*           mFixedContainingBlock;
   // This is the containing block that contains the root element ---
   // the real "initial containing block" according to CSS 2.1.

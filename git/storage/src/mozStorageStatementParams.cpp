@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 et :
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -91,8 +91,9 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
   }
   else if (JSVAL_IS_STRING(aId)) {
     JSString *str = JSVAL_TO_STRING(aId);
-    NS_ConvertUTF16toUTF8 name(::JS_GetStringChars(str),
-                               ::JS_GetStringLength(str));
+    nsCAutoString name(":");
+    name.Append(NS_ConvertUTF16toUTF8(::JS_GetStringChars(str),
+                                      ::JS_GetStringLength(str)));
 
     // check to see if there's a parameter with this name
     PRUint32 index;
@@ -205,9 +206,11 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
     jschar *nameChars = ::JS_GetStringChars(str);
     size_t nameLength = ::JS_GetStringLength(str);
 
+    nsCAutoString name(":");
+    name.Append(NS_ConvertUTF16toUTF8(nameChars, nameLength));
+
     // Check to see if there's a parameter with this name, and if not, let
     // the rest of the prototype chain be checked.
-    NS_ConvertUTF16toUTF8 name(nameChars, nameLength);
     nsresult rv = mStatement->GetParameterIndex(name, &idx);
     if (NS_FAILED(rv))
       return NS_OK;

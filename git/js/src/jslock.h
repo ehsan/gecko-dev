@@ -103,10 +103,14 @@ struct JSTitle {
 };
 
 /*
- * Title structure is always allocated as a field of JSScope.
+ * Title structures must be immediately preceded by JSObjectMap structures for
+ * maps that use titles for threadsafety.  This is enforced by assertion in
+ * jsscope.h; see bug 408416 for future remedies to this somewhat fragile
+ * architecture.
  */
-#define TITLE_TO_SCOPE(title)                                                 \
-    ((JSScope *)((uint8 *) (title) - offsetof(JSScope, title)))
+
+#define TITLE_TO_MAP(title)                                                   \
+    ((JSObjectMap *)((char *)(title) - sizeof(JSObjectMap)))
 
 /*
  * Atomic increment and decrement for a reference counter, given jsrefcount *p.
@@ -193,15 +197,10 @@ js_GetSlotThreadSafe(JSContext *, JSObject *, uint32);
 extern void js_SetSlotThreadSafe(JSContext *, JSObject *, uint32, jsval);
 extern void js_InitLock(JSThinLock *);
 extern void js_FinishLock(JSThinLock *);
+extern void js_FinishSharingTitle(JSContext *cx, JSTitle *title);
 
-/*
- * This function must be called with the GC lock held.
- */
-extern void
-js_ShareWaitingTitles(JSContext *cx);
-
-extern void
-js_NudgeOtherContexts(JSContext *cx);
+extern void js_NudgeOtherContexts(JSContext *cx);
+extern void js_NudgeThread(JSContext *cx, JSThread *thread);
 
 #ifdef DEBUG
 
@@ -302,12 +301,6 @@ extern void js_SetScopeInfo(JSScope *scope, const char *file, int line);
 extern JSBool
 js_CompareAndSwap(jsword *w, jsword ov, jsword nv);
 
-/* Atomically bitwise-or the mask into the word *w using compare and swap. */
-extern void
-js_AtomicSetMask(jsword *w, jsword mask);
-
-#define JS_ATOMIC_SET_MASK(w, mask) js_AtomicSetMask(w, mask)
-
 #else
 
 static inline JSBool
@@ -316,9 +309,7 @@ js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
     return (*w == ov) ? *w = nv, JS_TRUE : JS_FALSE;
 }
 
-#define JS_ATOMIC_SET_MASK(w, mask) (*(w) |= (mask))
-
-#endif /* JS_THREADSAFE */
+#endif
 
 JS_END_EXTERN_C
 

@@ -45,8 +45,6 @@ const Cc = Components.classes;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/distribution.js");
 
@@ -1038,26 +1036,6 @@ GeolocationPrompt.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationPrompt]),
  
   prompt: function(request) {
-    var pm = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
-
-    var result = pm.testExactPermission(request.requestingURI, "geo");
-
-    if (result == Ci.nsIPermissionManager.ALLOW_ACTION) {
-      request.allow();
-      return;
-    }
-    
-    if (result == Ci.nsIPermissionManager.DENY_ACTION) {
-      request.cancel();
-      return;
-    }
-
-    function setPagePermission(uri, allow) {
-      if (allow == true)
-        pm.add(uri, "geo", Ci.nsIPermissionManager.ALLOW_ACTION);
-      else
-        pm.add(uri, "geo", Ci.nsIPermissionManager.DENY_ACTION);
-    }
 
     function getChromeWindow(aWindow) {
       var chromeWin = aWindow 
@@ -1072,8 +1050,7 @@ GeolocationPrompt.prototype = {
     }
 
     var requestingWindow = request.requestingWindow.top;
-    var chromeWindowObject = getChromeWindow(requestingWindow).wrappedJSObject;
-    var tabbrowser = chromeWindowObject.gBrowser;
+    var tabbrowser = getChromeWindow(requestingWindow).wrappedJSObject.gBrowser;
     var browser = tabbrowser.getBrowserForDocument(requestingWindow.document);
     var notificationBox = tabbrowser.getNotificationBox(browser);
 
@@ -1083,58 +1060,23 @@ GeolocationPrompt.prototype = {
       var browserBundle = bundleService.createBundle("chrome://browser/locale/browser.properties");
 
       var buttons = [{
-              label: browserBundle.GetStringFromName("geolocation.shareLocation"),
-              accessKey: browserBundle.GetStringFromName("geolocation.shareLocation.accesskey"),
-              callback: function(notification) {                  
-                  if (notification.getElementsByClassName("rememberChoice")[0].checked)
-                      setPagePermission(request.requestingURI, true);
-                  request.allow(); 
-              },
-          },
-          {
-              label: browserBundle.GetStringFromName("geolocation.dontShareLocation"),
-              accessKey: browserBundle.GetStringFromName("geolocation.dontShareLocation.accesskey"),
-              callback: function(notification) {
-                  if (notification.getElementsByClassName("rememberChoice")[0].checked)
-                      setPagePermission(request.requestingURI, false);
-                  request.cancel();
-              },
-          }];
+        label: browserBundle.GetStringFromName("geolocation.tellThem"),
+        accessKey: browserBundle.GetStringFromName("geolocation.tellThemKey"),
+        callback: function() request.allow() ,
+        },
+        {
+        label: browserBundle.GetStringFromName("geolocation.dontTellThem"),
+        accessKey: browserBundle.GetStringFromName("geolocation.dontTellThemKey"),
+        callback: function() request.cancel() ,
+        }];
       
       var message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
-                                                       [request.requestingURI.host], 1);      
-
-      var newBar = notificationBox.appendNotification(message,
-                                                      "geolocation",
-                                                      "chrome://browser/skin/Geo.png",
-                                                      notificationBox.PRIORITY_INFO_HIGH,
-                                                      buttons);
-
-      // For whatever reason, if we do this immediately
-      // (eg, without the setTimeout), the "link"
-      // element does not show up in the notification
-      // bar.
-      function geolocation_hacks_to_notification () {
-
-        var checkbox = newBar.ownerDocument.createElementNS(XULNS, "checkbox");
-        checkbox.className = "rememberChoice";
-        checkbox.setAttribute("label", browserBundle.GetStringFromName("geolocation.remember"));
-        checkbox.setAttribute("accesskey", browserBundle.GetStringFromName("geolocation.remember.accesskey"));
-        newBar.appendChild(checkbox);
-
-        var link = newBar.ownerDocument.createElementNS(XULNS, "label");
-        link.className = "text-link";
-        link.setAttribute("value", browserBundle.GetStringFromName("geolocation.learnMore"));
-
-        var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
-        link.href = formatter.formatURLPref("browser.geolocation.warning.infoURL");
-
-        var description = newBar.ownerDocument.getAnonymousElementByAttribute(newBar, "anonid", "messageText");
-        description.appendChild(link);
-      };
-
-      chromeWindowObject.setTimeout(geolocation_hacks_to_notification, 0);
-
+                                                       [request.requestingURI.spec], 1);      
+      notificationBox.appendNotification(message,
+                                         "geolocation",
+                                         "chrome://browser/skin/Info.png",
+                                         notificationBox.PRIORITY_INFO_HIGH,
+                                         buttons);
     }
   },
 };

@@ -121,7 +121,7 @@ public:
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
-  virtual PRBool          HasPendingInputEvent();
+  NS_IMETHOD              GetLastInputEventTime(PRUint32& aTime);
   NS_IMETHOD              SetIcon(const nsAString &anIconSpec);
   NS_IMETHOD              BeginSecureKeyboardInput();
   NS_IMETHOD              EndSecureKeyboardInput();
@@ -179,6 +179,10 @@ protected:
   nsCursor          mCursor;
   nsWindowType      mWindowType;
   nsBorderStyle     mBorderStyle;
+  PRPackedBool      mIsShiftDown;
+  PRPackedBool      mIsControlDown;
+  PRPackedBool      mIsAltDown;
+  PRPackedBool      mIsDestroying;
   PRPackedBool      mOnDestroyCalled;
   nsIntRect         mBounds;
   nsIntRect*        mOriginalBounds;

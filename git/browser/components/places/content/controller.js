@@ -127,13 +127,6 @@ PlacesController.prototype = {
     case "cmd_redo":
       return PlacesUIUtils.ptm.numberOfRedoItems > 0;
     case "cmd_cut":
-      var nodes = this._view.getSelectionNodes();
-      // If selection includes history nodes there's no reason to allow cut.
-      for (var i = 0; i < nodes.length; i++) {
-        if (nodes[i].itemId == -1)
-          return false;
-      }
-      // Otherwise fallback to cmd_delete check.
     case "cmd_delete":
       return this._hasRemovableSelection(false);
     case "placesCmd_deleteDataHost":
@@ -192,9 +185,6 @@ PlacesController.prototype = {
              !PlacesUtils.nodeIsReadOnly(selectedNode) &&
              this._view.getResult().sortingMode ==
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
-    case "placesCmd_createBookmark":
-      var node = this._view.selectedNode;
-      return node && PlacesUtils.nodeIsURI(node) && node.itemId == -1;
     default:
       return false;
     }
@@ -241,14 +231,8 @@ PlacesController.prototype = {
       this.remove("Remove Selection");
       break;
     case "placesCmd_deleteDataHost":
-      var host;
-      if (PlacesUtils.nodeIsHost(this._view.selectedNode)) {
-        var queries = this._view.selectedNode.getQueries({});
-        host = queries[0].domain;
-      }
-      else
-        host = PlacesUtils._uri(this._view.selectedNode.uri).host;
-      PlacesUIUtils.privateBrowsing.removeDataFromDomain(host);
+      let uri = PlacesUtils._uri(this._view.selectedNode.uri);
+      PlacesUIUtils.privateBrowsing.removeDataFromDomain(uri.host);
       break;
     case "cmd_selectAll":
       this.selectAll();
@@ -288,10 +272,6 @@ PlacesController.prototype = {
       break;
     case "placesCmd_sortBy:name":
       this.sortFolderByName();
-      break;
-    case "placesCmd_createBookmark":
-      var node = this._view.selectedNode;
-      PlacesUIUtils.showMinimalAddBookmarkUI(PlacesUtils._uri(node.uri), node.title);
       break;
     }
   },
@@ -921,18 +901,18 @@ PlacesController.prototype = {
       if (this._shouldSkipNode(node, removedFolders))
         continue;
 
-      if (PlacesUtils.nodeIsTagQuery(node.parent)) {
-        // This is a uri node inside a tag container.  It needs a special
-        // untag transaction.
+      if (PlacesUtils.nodeIsFolder(node))
+        removedFolders.push(node);
+      else if (PlacesUtils.nodeIsTagQuery(node.parent)) {
         var tagItemId = PlacesUtils.getConcreteItemId(node.parent);
         var uri = PlacesUtils._uri(node.uri);
         transactions.push(PlacesUIUtils.ptm.untagURI(uri, [tagItemId]));
+        continue;
       }
       else if (PlacesUtils.nodeIsTagQuery(node) && node.parent &&
                PlacesUtils.nodeIsQuery(node.parent) &&
                asQuery(node.parent).queryOptions.resultType ==
                  Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_QUERY) {
-        // This is a tag container.
         // Untag all URIs tagged with this tag only if the tag container is
         // child of the "Tags" query in the library, in all other places we
         // must only remove the query node.
@@ -940,35 +920,19 @@ PlacesController.prototype = {
         var URIs = PlacesUtils.tagging.getURIsForTag(tag);
         for (var j = 0; j < URIs.length; j++)
           transactions.push(PlacesUIUtils.ptm.untagURI(URIs[j], [tag]));
+        continue;
       }
-      else if (PlacesUtils.nodeIsURI(node) &&
-               PlacesUtils.nodeIsQuery(node.parent) &&
+      else if (PlacesUtils.nodeIsQuery(node.parent) &&
                asQuery(node.parent).queryOptions.queryType ==
-                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
-        // This is a uri node inside an history query.
+                Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY &&
+               node.uri) {
+        // remove page from history, history deletes are not undoable
         var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
         bhist.removePage(PlacesUtils._uri(node.uri));
-        // History deletes are not undoable, so we don't have a transaction.
+        continue;
       }
-      else if (node.itemId == -1 &&
-               PlacesUtils.nodeIsQuery(node) &&
-               asQuery(node).queryOptions.queryType ==
-                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
-        // This is a dynamically generated history query, like queries
-        // grouped by site, time or both.  Dynamically generated queries don't
-        // have an itemId even if they are descendants of a bookmark.
-        this._removeHistoryContainer(node);
-        // History deletes are not undoable, so we don't have a transaction.
-      }
-      else {
-        // This is a common bookmark item.
-        if (PlacesUtils.nodeIsFolder(node)) {
-          // If this is a folder we add it to our array of folders, used
-          // to skip nodes that are children of an already removed folder.
-          removedFolders.push(node);
-        }
-        transactions.push(PlacesUIUtils.ptm.removeItem(node.itemId));
-      }
+
+      transactions.push(PlacesUIUtils.ptm.removeItem(node.itemId));
     }
   },
 
@@ -1005,17 +969,24 @@ PlacesController.prototype = {
 
     for (var i = 0; i < nodes.length; ++i) {
       var node = nodes[i];
-      if (PlacesUtils.nodeIsURI(node)) {
+      if (PlacesUtils.nodeIsHost(node))
+        bhist.removePagesFromHost(node.title, true);
+      else if (PlacesUtils.nodeIsURI(node)) {
         var uri = PlacesUtils._uri(node.uri);
         // avoid trying to delete the same url twice
         if (URIs.indexOf(uri) < 0) {
           URIs.push(uri);
         }
       }
-      else if (PlacesUtils.nodeIsQuery(node) &&
-               asQuery(node).queryOptions.queryType ==
-                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY)
-        this._removeHistoryContainer(node);
+      else if (PlacesUtils.nodeIsDay(node)) {
+        var query = node.getQueries({})[0];
+        var beginTime = query.beginTime;
+        var endTime = query.endTime;
+        NS_ASSERT(query && beginTime && endTime,
+                  "A valid date container query should exist!");
+        // We want to exclude beginTime from the removal
+        bhist.removePagesByTimeframe(beginTime+1, endTime);
+      }
     }
 
     // if we have to delete a lot of urls RemovePage will be slow, it's better
@@ -1035,32 +1006,6 @@ PlacesController.prototype = {
       // rebuilding the full treeView
       for (var i = 0; i < URIs.length; ++i)
         bhist.removePage(URIs[i]);
-    }
-  },
-
-  /**
-   * Removes history visits for an history container node.
-   * @param   [in] aContainerNode
-   *          The container node to remove.
-   */
-  _removeHistoryContainer: function PC_removeHistoryContainer(aContainerNode) {
-    var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
-    if (PlacesUtils.nodeIsHost(aContainerNode)) {
-      // Site container.
-      bhist.removePagesFromHost(aContainerNode.title, true);
-    }
-    else if (PlacesUtils.nodeIsDay(aContainerNode)) {
-      // Day container.
-      var query = aContainerNode.getQueries({})[0];
-      var beginTime = query.beginTime;
-      var endTime = query.endTime;
-      NS_ASSERT(query && beginTime && endTime,
-                "A valid date container query should exist!");
-      // We want to exclude beginTime from the removal because
-      // removePagesByTimeframe includes both extremes, while date containers
-      // exclude the lower extreme.  So, if we would not exclude it, we would
-      // end up removing more history than requested.
-      bhist.removePagesByTimeframe(beginTime+1, endTime);
     }
   },
 
@@ -1154,8 +1099,7 @@ PlacesController.prototype = {
                       createInstance(Ci.nsITransferable);
       var foundFolder = false, foundLink = false;
       var copiedFolders = [];
-      var placeString, mozURLString, htmlString, unicodeString;
-      placeString = mozURLString = htmlString = unicodeString = "";
+      var placeString = mozURLString = htmlString = unicodeString = "";
 
       for (var i = 0; i < nodes.length; ++i) {
         var node = nodes[i];

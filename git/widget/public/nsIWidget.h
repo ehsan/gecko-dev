@@ -100,10 +100,10 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_NATIVE_TSF_DISPLAY_ATTR_MGR 102
 #endif
 
-// 3d277f04-93f4-4384-9fdc-e1e2d1fc4e33
+// af70b716-2e34-463f-8f1c-273dbddd845b
 #define NS_IWIDGET_IID \
-{ 0x3d277f04, 0x93f4, 0x4384, \
- { 0x9f, 0xdc, 0xe1, 0xe2, 0xd1, 0xfc, 0x4e, 0x33 } }
+{ 0xaf70b716, 0x2e34, 0x463f, \
+  { 0x8f, 0x1c, 0x27, 0x3d, 0xbd, 0xdd, 0x84, 0x5b } }
 
 /*
  * Window shadow styles
@@ -805,10 +805,16 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD GetAttention(PRInt32 aCycleCount) = 0;
 
     /**
-     * Ask whether there user input events pending.  All input events are
-     * included, including those not targeted at this nsIwidget instance.
+     * Get the last user input event time in milliseconds. If there are any pending
+     * native toolkit input events it returns the current time. All input events are 
+     * included (ie. it is *not* limited to events targeted at this nsIWidget instance.
+     *
+     * @param aTime Last user input time in milliseconds. This value can be used to compare
+     * durations but can not be used for determining wall clock time. The value returned 
+     * is platform dependent, but is compatible with the expression 
+     * PR_IntervalToMicroseconds(PR_IntervalNow()).
      */
-    virtual PRBool HasPendingInputEvent() = 0;
+    NS_IMETHOD GetLastInputEventTime(PRUint32& aTime) = 0;
 
     /**
      * Called when when we need to begin secure keyboard input, such as when a password field
@@ -980,11 +986,6 @@ class nsIWidget : public nsISupports {
     /*
      * IME enabled states, the aState value of SetIMEEnabled/GetIMEEnabled
      * should be one value of following values.
-     *
-     * WARNING: If you change these values, you also need to edit:
-     *   nsIDOMWindowUtils.idl
-     *   nsDOMWindowUtils::SetIMEEnabled
-     *   nsContentUtils::GetWidgetStatusFromIMEStatus
      */
     enum IMEStatus {
       /*
@@ -1043,9 +1044,6 @@ class nsIWidget : public nsISupports {
      *  is receiving or giving up focus
      * aFocus is true if node is receiving focus
      * aFocus is false if node is giving up focus (blur)
-     *
-     * If this returns NS_ERROR_*, OnIMETextChange and OnIMESelectionChange
-     * and OnIMEFocusChange(PR_FALSE) will be never called.
      */
     NS_IMETHOD OnIMEFocusChange(PRBool aFocus) = 0;
 

@@ -182,7 +182,7 @@ InstallerObserver.prototype = {
       // Make sure the file is executable
       result.permissions = 0770;
       var process = Components.classes["@mozilla.org/process/util;1"]
-                              .createInstance(Components.interfaces.nsIProcess);
+                              .createInstance(Components.interfaces.nsIProcess2);
       process.init(result);
       var self = this;
       process.runAsync([], 0, {

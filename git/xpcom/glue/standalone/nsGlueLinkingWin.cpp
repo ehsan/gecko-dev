@@ -45,12 +45,6 @@
 #include <stdio.h>
 #include <tchar.h>
 
-#ifdef WINCE
-#define MOZ_LOADLIBRARY_FLAGS 0
-#else
-#define MOZ_LOADLIBRARY_FLAGS LOAD_WITH_ALTERED_SEARCH_PATH
-#endif
-
 struct DependentLib
 {
     HINSTANCE     libHandle;
@@ -76,16 +70,12 @@ AppendDependentLib(HINSTANCE libHandle)
 static void
 ReadDependentCB(const char *aDependentLib)
 {
-    wchar_t wideDependentLib[MAX_PATH];
-    MultiByteToWideChar(CP_UTF8, 0, aDependentLib, -1, wideDependentLib, MAX_PATH);
-
+    
     HINSTANCE h =
-        LoadLibraryExW(wideDependentLib, NULL, MOZ_LOADLIBRARY_FLAGS);
-
-    if (!h) {
-        wprintf(L"Error loading %s\n", wideDependentLib);
+        LoadLibraryExW(NS_ConvertUTF8toUTF16(aDependentLib).get(), NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+    if (!h)
         return;
-    }
+
     AppendDependentLib(h);
 }
 
@@ -141,7 +131,7 @@ GetFrozenFunctionsFunc
 XPCOMGlueLoad(const char *aXpcomFile)
 {
     wchar_t xpcomFile[MAXPATHLEN];
-    MultiByteToWideChar(CP_UTF8, 0, aXpcomFile,-1,
+    MultiByteToWideChar(CP_ACP, 0, aXpcomFile,-1,
                         xpcomFile, MAXPATHLEN);
    
     
@@ -163,14 +153,14 @@ XPCOMGlueLoad(const char *aXpcomFile)
         if (lastSlash) {
             *lastSlash = '\0';
             char xpcomDir_narrow[MAXPATHLEN];
-            WideCharToMultiByte(CP_UTF8, 0, xpcomDir,-1,
+            WideCharToMultiByte(CP_ACP, 0, xpcomDir,-1,
                                 xpcomDir_narrow, MAX_PATH, NULL, NULL);
 
             XPCOMGlueLoadDependentLibs(xpcomDir_narrow, ReadDependentCB);
             
             _snwprintf(lastSlash, MAXPATHLEN - wcslen(xpcomDir), L"\\" LXUL_DLL);
             sXULLibrary =
-                LoadLibraryExW(xpcomDir, NULL, MOZ_LOADLIBRARY_FLAGS);
+                LoadLibraryExW(xpcomDir, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
 
 #ifdef DEBUG
             if (!sXULLibrary) 
@@ -187,14 +177,14 @@ XPCOMGlueLoad(const char *aXpcomFile)
                               0,
                               NULL
                               );
-                wprintf(L"Error loading %s: %s\n", xpcomDir, lpMsgBuf);
-                LocalFree(lpMsgBuf);
+                wprintf(L"Error loading xul.dll: %s\n", lpMsgBuf);
             }
 #endif //DEBUG                
         }
     }
     HINSTANCE h =
-        LoadLibraryExW(xpcomFile, NULL, MOZ_LOADLIBRARY_FLAGS);
+        LoadLibraryExW(xpcomFile, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+
 
     if (!h) 
     {
@@ -211,8 +201,7 @@ XPCOMGlueLoad(const char *aXpcomFile)
                       0,
                       NULL
                       );
-        wprintf(L"Error loading %s: %s\n", xpcomFile, lpMsgBuf);
-        LocalFree(lpMsgBuf);
+        wprintf(L"Error loading xpcom.dll: %s\n", lpMsgBuf);
 #endif        
         return nsnull;
     }

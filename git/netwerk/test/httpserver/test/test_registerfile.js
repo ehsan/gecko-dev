@@ -40,6 +40,12 @@
 
 const BASE = "http://localhost:4444";
 
+function isException(e, code)
+{
+  if (e !== code && e.result !== code)
+    do_throw("unexpected error: " + e);
+}
+
 var file = do_get_file("test_registerfile.js");
 
 function onStart(ch, cx)
@@ -72,5 +78,5 @@ function run_test()
   srv.registerFile("/foo", file);
   srv.start(4444);
 
-  runHttpTests([test], testComplete(srv));
+  runHttpTests([test], function() { srv.stop(); });
 }

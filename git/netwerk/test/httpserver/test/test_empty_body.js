@@ -57,7 +57,7 @@ function run_test()
 
   srv.start(4444);
 
-  runHttpTests(tests, testComplete(srv));
+  runHttpTests(tests, function() { srv.stop(); });
 }
 
 // TEST DATA

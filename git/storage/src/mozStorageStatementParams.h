@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 et :
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -47,11 +47,10 @@
 #include "jsdate.h"
 
 class mozIStorageStatement;
+class mozStorageStatement;
 
 namespace mozilla {
 namespace storage {
-
-class Statement;
 
 class StatementParams : public mozIStorageStatementParams
                       , public nsIXPCScriptable
@@ -68,7 +67,7 @@ protected:
   mozIStorageStatement *mStatement;
   PRUint32 mParamCount;
 
-  friend class Statement;
+  friend class ::mozStorageStatement;
 };
 
 static

@@ -80,7 +80,7 @@
                   oncommand="openHelpLink('firefox-help')"
 #ifdef XP_MACOSX
                   label="&helpContentsMac.label;"
-                  key="key_openHelpMac"/>
+                  key="key_openHelpMacFrontend"/>
 #else
                   label="&helpContents.label;"
                   accesskey="&helpContents.accesskey;"
@@ -100,6 +100,7 @@
         <menuseparator id="updateSeparator"/>
 #ifdef MOZ_UPDATER
         <menuitem id="checkForUpdates"
+                  accesskey="&updateCmd.accesskey;"
                   label="&updateCmd.label;"
                   class="menuitem-iconic"
                   oncommand="checkForUpdates();"/>
@@ -114,20 +115,20 @@
 
     <keyset id="baseMenuKeyset">
 #ifdef XP_MACOSX
-        <key id="key_openHelpMac"
+        <key id="key_openHelpMacFrontend"
              oncommand="openHelpLink('firefox-help');"
-             key="&helpMac.commandkey;"
-             modifiers="accel"/>
+             key="&openHelpMac.frontendCommandkey;"
+             modifiers="&openHelpMac.frontendModifiers;"/>
 <!-- These are used to build the Application menu under Cocoa widgets -->
         <key id="key_preferencesCmdMac"
              key="&preferencesCmdMac.commandkey;"
-             modifiers="accel"/>
+             modifiers="&preferencesCmdMac.modifiers;"/>
         <key id="key_hideThisAppCmdMac"
              key="&hideThisAppCmdMac.commandkey;"
-             modifiers="accel"/>
+             modifiers="&hideThisAppCmdMac.modifiers;"/>
         <key id="key_hideOtherAppsCmdMac"
              key="&hideOtherAppsCmdMac.commandkey;"
-             modifiers="accel,alt"/>
+             modifiers="&hideOtherAppsCmdMac.modifiers;"/>
 #else
         <key id="key_openHelp"
             oncommand="openHelpLink('firefox-help');"

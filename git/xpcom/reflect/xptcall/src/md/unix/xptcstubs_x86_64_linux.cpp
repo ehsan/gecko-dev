@@ -38,8 +38,6 @@
 
 // Implement shared vtbl methods.
 
-// Keep this in sync with the darwin version.
-
 #include "xptcprivate.h"
 #include "xptiprivate.h"
 

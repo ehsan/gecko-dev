@@ -31,7 +31,6 @@
    -   Michael Ventnor <ventnor.bugzilla@yahoo.com.au>
    -   Mark Pilgrim <pilgrim@gmail.com>
    -   Dão Gottwald <dao@mozilla.com>
-   -   Paul O’Shannessy <paul@oshannessy.com>
    -
    - Alternatively, the contents of this file may be used under the terms of
    - either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -810,9 +809,6 @@
             if (this.mCurrentBrowser == newBrowser && !aForceUpdate)
               return;
 
-            if (this.mCurrentTab != this.selectedTab)
-              this.mCurrentTab.owner = null;
-
             if (this.mCurrentBrowser) {
               // Only save the focused element if it is in our content window
               // or in an ancestor window.
@@ -1306,8 +1302,20 @@
             this._browsers = null; 
 
             // If this new tab is owned by another, assert that relationship
-            if (aOwner)
+            if (aOwner !== undefined && aOwner !== null) {
               t.owner = aOwner;
+
+              var self = this;
+              function attrChanged(event) {
+                if (event.attrName == "selectedIndex" &&
+                    event.prevValue != event.newValue)
+                  self.resetOwner(parseInt(event.prevValue));
+              }
+              if (!this.mTabChangedListenerAdded) {
+                this.mTabBox.addEventListener("DOMAttrModified", attrChanged, false);
+                this.mTabChangedListenerAdded = true;
+              }
+            }
 
             var b = document.createElementNS(
               "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
@@ -1480,6 +1488,20 @@
         </body>
       </method>
 
+      <method name="resetOwner">
+        <parameter name="oldIndex"/>
+        <body>
+          <![CDATA[
+            // Reset the owner property, since we're leaving the modally opened
+            // tab for another.
+            if (oldIndex < this.mTabContainer.childNodes.length) {
+              var tab = this.mTabContainer.childNodes[oldIndex];
+              tab.owner = null;
+            }
+          ]]>
+        </body>
+      </method>
+
       <field name="_removingTabs">
         []
       </field>
@@ -1488,7 +1510,7 @@
         <parameter name="aTab"/>
         <body>
           <![CDATA[
-            this._endRemoveTab(this._beginRemoveTab(aTab, false, null, true));
+            this._endRemoveTab(this._beginRemoveTab(aTab, true, null, true));
           ]]>
         </body>
       </method>
@@ -1502,7 +1524,7 @@
       <!-- Returns everything that _endRemoveTab needs in an array. -->
       <method name="_beginRemoveTab">
         <parameter name="aTab"/>
-        <parameter name="aTabWillBeMoved"/>
+        <parameter name="aFireBeforeUnload"/>
         <parameter name="aCloseWindowWithLastTab"/>
         <parameter name="aCloseWindowFastpath"/>
         <body>
@@ -1512,7 +1534,7 @@
 
             var browser = this.getBrowserForTab(aTab);
 
-            if (!aTabWillBeMoved) {
+            if (aFireBeforeUnload) {
               let ds = browser.docShell;
               if (ds.contentViewer && !ds.contentViewer.permitUnload())
                 return null;
@@ -1520,7 +1542,7 @@
 
             var closeWindow = false;
             var l = this.mTabs.length - this._removingTabs.length;
-            var newTab = false;
+            var newTab;
             if (l == 1) {
               closeWindow = aCloseWindowWithLastTab != null ?
                             aCloseWindowWithLastTab :
@@ -1535,7 +1557,8 @@
                   (this._windowIsClosing = window.closeWindow(true)))
                 return null;
 
-              newTab = true;
+              newTab = this.addTab("about:blank");
+              newTab.collapsed = true;
               l++;
             }
             if (l == 2) {
@@ -1551,8 +1574,8 @@
             // Dispatch a notification.
             // We dispatch it before any teardown so that event listeners can
             // inspect the tab that's about to close.
-            var evt = document.createEvent("UIEvent");
-            evt.initUIEvent("TabClose", true, false, window, aTabWillBeMoved ? 1 : 0);
+            var evt = document.createEvent("Events");
+            evt.initEvent("TabClose", true, false);
             aTab.dispatchEvent(evt);
 
             // Remove the tab's filter and progress listener.
@@ -1588,8 +1611,6 @@
 
             // update the UI early for responsiveness
             aTab.collapsed = true;
-            if (aNewTab)
-              this.addTab("about:blank");
             this.tabContainer._fillTrailingGap();
             this._blurTab(aTab);
 
@@ -1607,8 +1628,11 @@
               };
               setTimeout(_delayedUpdate, 0, this.tabContainer);
 
-              if (aNewTab && gURLBar)
-                gURLBar.focus();
+              if (aNewTab) {
+                aNewTab.collapsed = false;
+                if (gURLBar)
+                  gURLBar.focus();
+              }
             }
 
             // We're going to remove the tab and the browser now.
@@ -1710,14 +1734,13 @@
         <parameter name="aOtherTab"/>
         <body>
           <![CDATA[
-            // That's gBrowser for the other window, not the tab's browser!
             var remoteBrowser =
               aOtherTab.ownerDocument.defaultView.getBrowser();
 
             // First, start teardown of the other browser.  Make sure to not
             // fire the beforeunload event in the process.  Close the other
             // window if this was its last tab.
-            var endRemoveArgs = remoteBrowser._beginRemoveTab(aOtherTab, true, true);
+            var endRemoveArgs = remoteBrowser._beginRemoveTab(aOtherTab, false, true);
 
             // Unhook our progress listener
             var ourIndex = aOurTab._tPos;
@@ -1728,19 +1751,8 @@
             filter.removeProgressListener(tabListener);
             var tabListenerBlank = tabListener.mBlank;
 
-            // Workarounds for bug 458697
-            // Icon might have been set on DOMLinkAdded, don't override that.
-            if (!ourBrowser.mIconURL && aOtherTab.linkedBrowser.mIconURL)
-              this.setIcon(aOurTab, aOtherTab.linkedBrowser.mIconURL);
-            var isBusy = aOtherTab.hasAttribute("busy");
-            if (isBusy) {
-              aOurTab.setAttribute("busy", "true");
-              if (aOurTab == this.selectedTab)
-                this.mIsBusy = true;
-            }
-
             // Swap the docshells
-            ourBrowser.swapDocShells(aOtherTab.linkedBrowser);
+            ourBrowser.swapDocShells(remoteBrowser.getBrowserForTab(aOtherTab));
 
             // Finish tearing down the tab that's going away.
             remoteBrowser._endRemoveTab(endRemoveArgs);
@@ -1755,10 +1767,7 @@
             ourBrowser.webProgress.addProgressListener(filter,
               Components.interfaces.nsIWebProgress.NOTIFY_ALL);
 
-            if (isBusy)
-              this.setTabTitleLoading(aOurTab);
-            else
-              this.setTabTitle(aOurTab);
+            this.setTabTitle(aOurTab);
             this.updateIcon(aOurTab);
 
             // If the tab was already selected (this happpens in the scenario
@@ -2252,31 +2261,51 @@
         <body>
           <![CDATA[
             // Note: while this case is correctly handled here, this event
-            // isn't dispatched when the tab is moved within the tabstrip,
+            // isn't dispatched when the tab is moved within the tabstript,
             // see bug 460801.
 
             // * mozUserCancelled = the user pressed ESC to cancel the drag
+            // * Within our browser window, the detach-target is the content
+            //   area. That case is handled by contentAreaDNDObserver.
+            // * The dragLeftWindow solution is suboptimal, a better solution
+            //   is on bug 466379.
             var dt = aEvent.dataTransfer;
-            if (dt.mozUserCancelled || dt.dropEffect != "none")
+            if (dt.mozUserCancelled || !this._dragLeftWindow)
               return;
 
-            // Disable detach within the browser toolbox
-            var eX = aEvent.screenX;
-            var wX = window.screenX;
-            // check if the drop point is horizontally within the window
-            if (eX > wX && eX < (wX + window.outerWidth)) {
-              var bo = this.mTabContainer.mTabstrip.boxObject;
-              // also avoid detaching if the the tab was dropped too close to
-              // the tabbar (half a tab)
-              var endScreenY = bo.screenY + 1.5 * bo.height;
-              var eY = aEvent.screenY;
-              if (eY < endScreenY && eY > window.screenY)
-                return;
+            // The dropEffect == "none" scenarios:
+            // 1. No-op (no postion change) - "catched" by !dragLeftWindow
+            // 2. On the browser chrome (on element which don't handle
+            //    text/plain or the tab type) - ditto.
+            // 2. Drop outside the browser window - the case that is handled
+            //    here.
+            if (dt.dropEffect == "none") {
+              var draggedTab = dt.mozGetDataAt(TAB_DROP_TYPE, 0);
+              this.replaceTabWithWindow(draggedTab);
             }
-
-            var draggedTab = dt.mozGetDataAt(TAB_DROP_TYPE, 0);
-            this.replaceTabWithWindow(draggedTab);
             aEvent.stopPropagation();
+          ]]>
+        </body>
+      </method>
+
+      <method name="browserWindowOnDragEnter">
+        <parameter name="aEvent"/>
+        <body>
+          <![CDATA[
+            this._dragLeftWindow = false;
+          ]]>
+        </body>
+      </method>
+
+      <method name="browserWindowOnDragLeave">
+        <parameter name="aEvent"/>
+        <body>
+          <![CDATA[
+            // If the clientX or clientY values are positive, the mouse is
+            // still dragged within our window. How would that happen? Either
+            // by the dragleave event that is dispatched right before the drop,
+            // or by a bubbled dragleave event
+            this._dragLeftWindow = aEvent.clientX < 0 || aEvent.clientY < 0;
           ]]>
         </body>
       </method>
@@ -2288,16 +2317,16 @@
         <body>
           <![CDATA[
             if (this.mTabs.length == 1)
-              return null;
+              return;
 
             // tell a new window to take the "dropped" tab
             var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
                       getService(Ci.nsIWindowWatcher);
-            return ww.openWindow(window,
-                                 getBrowserURL(),
-                                 null,
-                                 "chrome,dialog=no,all",
-                                 aTab);
+            ww.openWindow(window,
+                          getBrowserURL(),
+                          null,
+                          "chrome,dialog=no,all",
+                          aTab);
           ]]>
         </body>
       </method>
@@ -3253,8 +3282,8 @@
               return;
             }
 
-            this.mTabstrip._smoothScrollByPixels(this.mTabstrip._isRTLScrollbox ?
-                                                 selEnd - tsboEnd : selStart - tsboStart);
+            this.mTabstrip._smoothScrollByPixels(this.mTabstrip._isLTRScrollbox ?
+                                                 selStart - tsboStart : selEnd - tsboEnd);
           }
 
           // start the flash timer
@@ -3407,10 +3436,6 @@
           this.clientTop; // just using this to flush style updates
         }
       ]]>
-      </handler>
-      <handler event="mousedown" button="1">
-        this.style.MozUserFocus = 'ignore';
-        this.clientTop;
       </handler>
       <handler event="mousedown" button="2">
         this.style.MozUserFocus = 'ignore';

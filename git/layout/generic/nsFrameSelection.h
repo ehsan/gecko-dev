@@ -49,10 +49,10 @@
 #include "nsIRange.h"
 
 // IID for the nsFrameSelection interface
-// 0ea74459-e3f9-48b0-8aa4-5dfef53bf1f7
+// d78edc5a-28d0-48f0-8abb-1597b1591556
 #define NS_FRAME_SELECTION_IID      \
-{ 0xea74459, 0xe3f9, 0x48b0, \
-  { 0x8a, 0xa4, 0x5d, 0xfe, 0xf5, 0x3b, 0xf1, 0xf7 } }
+{ 0xd78edc5a, 0x28d0, 0x48f0, \
+  { 0x8a, 0xbb, 0x15, 0x97, 0xb1, 0x59, 0x15, 0x56 } }
 
 #ifdef IBMBIDI // Constant for Set/Get CaretBidiLevel
 #define BIDI_LEVEL_UNDEFINED 0x80
@@ -75,7 +75,6 @@ struct SelectionDetails
   PRInt32 mStart;
   PRInt32 mEnd;
   SelectionType mType;
-  nsTextRangeStyle mTextRangeStyle;
   SelectionDetails *mNext;
 };
 

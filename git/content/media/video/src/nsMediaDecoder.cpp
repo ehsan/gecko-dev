@@ -68,13 +68,13 @@ nsMediaDecoder::nsMediaDecoder() :
   mElement(0),
   mRGBWidth(-1),
   mRGBHeight(-1),
-  mProgressTime(),
-  mDataTime(),
+  mProgressTime(0),
+  mDataTime(0),
   mVideoUpdateLock(nsnull),
   mFramerate(0.0),
-  mAspectRatio(1.0),
   mSizeChanged(PR_FALSE),
-  mShuttingDown(PR_FALSE)
+  mShuttingDown(PR_FALSE),
+  mStopping(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsMediaDecoder);
 }
@@ -114,14 +114,6 @@ nsresult nsMediaDecoder::InitLogger()
   return NS_OK;
 }
 
-static PRInt32 ConditionDimension(float aValue, PRInt32 aDefault)
-{
-  // This will exclude NaNs and infinities
-  if (aValue >= 1.0 && aValue <= 10000.0)
-    return PRInt32(NS_round(aValue));
-  return aDefault;
-}
-
 void nsMediaDecoder::Invalidate()
 {
   if (!mElement)
@@ -132,20 +124,7 @@ void nsMediaDecoder::Invalidate()
   {
     nsAutoLock lock(mVideoUpdateLock);
     if (mSizeChanged) {
-      nsIntSize scaledSize(mRGBWidth, mRGBHeight);
-      // Apply the aspect ratio to produce the intrinsic size we report
-      // to the element.
-      if (mAspectRatio > 1.0) {
-        // Increase the intrinsic width
-        scaledSize.width =
-          ConditionDimension(mAspectRatio*scaledSize.width, scaledSize.width);
-      } else {
-        // Increase the intrinsic height
-        scaledSize.height =
-          ConditionDimension(scaledSize.height/mAspectRatio, scaledSize.height);
-      }
-      mElement->UpdateMediaSize(scaledSize);
-
+      mElement->UpdateMediaSize(nsIntSize(mRGBWidth, mRGBHeight));
       mSizeChanged = PR_FALSE;
       if (frame) {
         nsPresContext* presContext = frame->PresContext();      
@@ -174,27 +153,25 @@ void nsMediaDecoder::Progress(PRBool aTimer)
   if (!mElement)
     return;
 
-  TimeStamp now = TimeStamp::Now();
+  PRIntervalTime now = PR_IntervalNow();
 
   if (!aTimer) {
     mDataTime = now;
   }
 
+  PRUint32 progressDelta = PR_IntervalToMilliseconds(now - mProgressTime);
+  PRUint32 networkDelta = PR_IntervalToMilliseconds(now - mDataTime);
+
   // If PROGRESS_MS has passed since the last progress event fired and more
   // data has arrived since then, fire another progress event.
-  if ((mProgressTime.IsNull() ||
-       now - mProgressTime >= TimeDuration::FromMilliseconds(PROGRESS_MS)) &&
-      !mDataTime.IsNull() &&
-      now - mDataTime <= TimeDuration::FromMilliseconds(PROGRESS_MS)) {
+  if (progressDelta >= PROGRESS_MS && networkDelta <= PROGRESS_MS) {
     mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("progress"));
     mProgressTime = now;
   }
 
-  if (!mDataTime.IsNull() &&
-      now - mDataTime >= TimeDuration::FromMilliseconds(STALL_MS)) {
-    mElement->DownloadStalled();
-    // Null it out
-    mDataTime = TimeStamp();
+  if (mDataTime != 0 && networkDelta >= STALL_MS) {
+    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("stalled"));
+    mDataTime = 0;
   }
 }
 
@@ -221,16 +198,13 @@ nsresult nsMediaDecoder::StopProgress()
   return rv;
 }
 
-void nsMediaDecoder::SetRGBData(PRInt32 aWidth, PRInt32 aHeight, float aFramerate,
-                                float aAspectRatio, unsigned char* aRGBBuffer)
+void nsMediaDecoder::SetRGBData(PRInt32 aWidth, PRInt32 aHeight, float aFramerate, unsigned char* aRGBBuffer)
 {
   nsAutoLock lock(mVideoUpdateLock);
 
-  if (mRGBWidth != aWidth || mRGBHeight != aHeight ||
-      mAspectRatio != aAspectRatio) {
+  if (mRGBWidth != aWidth || mRGBHeight != aHeight) {
     mRGBWidth = aWidth;
     mRGBHeight = aHeight;
-    mAspectRatio = aAspectRatio;
     mSizeChanged = PR_TRUE;
   }
   mFramerate = aFramerate;
@@ -251,7 +225,7 @@ void nsMediaDecoder::Paint(gfxContext* aContext,
     new gfxImageSurface(mRGB,
                         gfxIntSize(mRGBWidth, mRGBHeight), 
                         mRGBWidth * 4,
-                        gfxASurface::ImageFormatRGB24);    
+                        gfxASurface::ImageFormatARGB32);    
 
   if (!surface)
     return;

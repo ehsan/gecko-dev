@@ -207,6 +207,7 @@ public:
       mCVar(PR_DestroyCondVar),
       mKeepParsing(PR_FALSE),
       mCurrentlyParsing(PR_FALSE),
+      mNumURIs(0),
       mNumConsumed(0),
       mContext(nsnull),
       mTerminated(PR_FALSE) {
@@ -266,8 +267,6 @@ private:
                          const nsAString &elementType,
                          PrefetchType type);
 
-  void FlushURIs();
-
   // These members are only accessed on the speculatively parsing thread.
   nsTokenAllocator mTokenAllocator;
 
@@ -283,6 +282,7 @@ private:
 
   enum { kBatchPrefetchURIs = 5 };
   nsAutoTArray<PrefetchEntry, kBatchPrefetchURIs> mURIs;
+  PRUint16 mNumURIs;
 
   // Number of characters consumed by the last speculative parse.
   PRUint32 mNumConsumed;
@@ -381,19 +381,12 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
     switch (pe.type) {
       case nsSpeculativeScriptThread::SCRIPT:
         doc->ScriptLoader()->PreloadURI(uri, pe.charset, pe.elementType);
-        break;
-      case nsSpeculativeScriptThread::STYLESHEET: {
+        break; 
+      case nsSpeculativeScriptThread::STYLESHEET:
         nsCOMPtr<nsICSSLoaderObserver> obs = new nsDummyCSSLoaderObserver();
         doc->CSSLoader()->LoadSheet(uri, doc->NodePrincipal(),
                                     NS_LossyConvertUTF16toASCII(pe.charset),
                                     obs);
-        break;
-      }
-      case nsSpeculativeScriptThread::IMAGE:
-        NS_NOTREACHED("We don't scan these yet");
-        break;
-      case nsSpeculativeScriptThread::NONE:
-        NS_NOTREACHED("Uninitialized preload entry?");
         break;
     }
   }
@@ -425,15 +418,6 @@ nsSpeculativeScriptThread::Run()
     }
   }
   mTokenizer->DidTokenize(PR_FALSE);
-
-  if (mKeepParsing) {
-    // Ran out of room in this part of the document -- flush out the URIs we
-    // gathered so far so we don't end up waiting for the parser's current
-    // load to finish.
-    if (!mURIs.IsEmpty()) {
-      FlushURIs();
-    }
-  }
 
   {
     nsAutoLock al(mLock.get());
@@ -501,7 +485,7 @@ nsSpeculativeScriptThread::StartParsing(nsParser *aParser)
 
     if (mNumConsumed > context->mNumConsumed) {
       // We consumed more the last time we tried speculatively parsing than we
-      // did the last time we actually parsed.
+      // did the last time we actually parsed. 
       PRUint32 distance = Distance(start, end);
       start.advance(PR_MIN(mNumConsumed - context->mNumConsumed, distance));
     }
@@ -566,9 +550,10 @@ nsSpeculativeScriptThread::StopParsing(PRBool /*aFromDocWrite*/)
     mDocument = nsnull;
     mTokenizer = nsnull;
     mScanner = nsnull;
-  } else if (mURIs.Length()) {
+  } else if (mNumURIs) {
     // Note: Don't do this if we're terminated.
     nsPreloadURIs::PreloadURIs(mURIs, this);
+    mNumURIs = 0;
     mURIs.Clear();
   }
 
@@ -613,11 +598,12 @@ nsSpeculativeScriptThread::ProcessToken(CToken *aToken)
         //     <link rel="stylesheet" href= charset= type>
         //     <script src= charset= type=>
         if (ptype != NONE) {
+      
             // loop over all attributes to extract relevant info
             for (; i < attrs ; ++i) {
               CAttributeToken *attr = static_cast<CAttributeToken *>(mTokenizer->PopToken());
               NS_ASSERTION(attr->GetTokenType() == eToken_attribute, "Weird token");
-
+    
               if (attr->GetKey().EqualsLiteral("src")) {
                 src.Assign(attr->GetValue());
               } else if (attr->GetKey().EqualsLiteral("href")) {
@@ -665,31 +651,23 @@ nsSpeculativeScriptThread::ProcessToken(CToken *aToken)
 
 void
 nsSpeculativeScriptThread::AddToPrefetchList(const nsAString &src,
-                                             const nsAString &charset,
-                                             const nsAString &elementType,
-                                             PrefetchType type)
+                                      const nsAString &charset,
+                                      const nsAString &elementType,
+                                      PrefetchType type)
 {
-  PrefetchEntry *pe = mURIs.AppendElement();
+  PrefetchEntry *pe = mURIs.InsertElementAt(mNumURIs++);
   pe->type = type;
   pe->uri = src;
   pe->charset = charset;
   pe->elementType = elementType;
 
-  if (mURIs.Length() == kBatchPrefetchURIs) {
-    FlushURIs();
-  }
-}
+  if (mNumURIs == kBatchPrefetchURIs) {
+    nsCOMPtr<nsIRunnable> r = new nsPreloadURIs(mURIs, this);
 
-void
-nsSpeculativeScriptThread::FlushURIs()
-{
-  nsCOMPtr<nsIRunnable> r = new nsPreloadURIs(mURIs, this);
-  if (!r) {
-    return;
+    mNumURIs = 0;
+    mURIs.Clear();
+    NS_DispatchToMainThread(r, NS_DISPATCH_NORMAL);
   }
-
-  mURIs.Clear();
-  NS_DispatchToMainThread(r, NS_DISPATCH_NORMAL);
 }
 
 nsICharsetAlias* nsParser::sCharsetAliasService = nsnull;
@@ -839,6 +817,7 @@ nsParser::Initialize(PRBool aConstructor)
   mFlags = NS_PARSER_FLAG_OBSERVERS_ENABLED |
            NS_PARSER_FLAG_PARSER_ENABLED |
            NS_PARSER_FLAG_CAN_TOKENIZE;
+  mScriptsExecuting = 0;
 
   MOZ_TIMER_DEBUGLOG(("Reset: Parse Time: nsParser::nsParser(), this=%p\n", this));
   MOZ_TIMER_RESET(mParseTime);
@@ -1741,7 +1720,7 @@ nsParser::ContinueInterruptedParsing()
   // If there are scripts executing, then the content sink is jumping the gun
   // (probably due to a synchronous XMLHttpRequest) and will re-enable us
   // later, see bug 460706.
-  if (IsScriptExecuting()) {
+  if (mScriptsExecuting) {
     return NS_OK;
   }
 
@@ -1835,8 +1814,21 @@ void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev)
   mFlags &= ~NS_PARSER_FLAG_PENDING_CONTINUE_EVENT;
   mContinueEvent = nsnull;
 
-  NS_ASSERTION(!IsScriptExecuting(), "Interrupted in the middle of a script?");
+  NS_ASSERTION(mScriptsExecuting == 0, "Interrupted in the middle of a script?");
   ContinueInterruptedParsing();
+}
+
+void
+nsParser::ScriptExecuting()
+{
+  ++mScriptsExecuting;
+}
+
+void
+nsParser::ScriptDidExecute()
+{
+  NS_ASSERTION(mScriptsExecuting > 0, "Too many calls to ScriptDidExecute");
+  --mScriptsExecuting;
 }
 
 nsresult
@@ -2169,9 +2161,9 @@ nsParser::ParseFragment(const nsAString& aSourceBuffer,
     result = Parse(aSourceBuffer + NS_LITERAL_STRING("</"),
                    &theContext, aMimeType, PR_FALSE, aMode);
     fragSink->DidBuildContent();
-
+ 
     if (NS_SUCCEEDED(result)) {
-      nsAutoString endContext;
+      nsAutoString endContext;       
       for (theIndex = 0; theIndex < theCount; theIndex++) {
          // we already added an end tag chunk above
         if (theIndex > 0) {
@@ -2189,7 +2181,7 @@ nsParser::ParseFragment(const nsAString& aSourceBuffer,
 
         endContext.AppendLiteral(">");
       }
-
+       
       result = Parse(endContext, &theContext, aMimeType,
                      PR_TRUE, aMode);
     }
@@ -2904,7 +2896,7 @@ nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
 
     // Don't bother to start parsing until we've seen some
     // non-whitespace data
-    if (!IsScriptExecuting() &&
+    if (mScriptsExecuting == 0 &&
         theContext->mScanner->FirstNonWhitespacePosition() >= 0) {
       if (mSink) {
         mSink->WillParse();
@@ -2928,8 +2920,7 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
 {
   nsresult rv = NS_OK;
 
-  if ((mFlags & NS_PARSER_FLAG_PARSER_ENABLED) &&
-      mSpeculativeScriptThread) {
+  if (mSpeculativeScriptThread) {
     mSpeculativeScriptThread->StopParsing(PR_FALSE);
   }
 
@@ -2949,7 +2940,7 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
   if (mParserFilter)
     mParserFilter->Finish();
 
-  if (!IsScriptExecuting() && NS_SUCCEEDED(rv)) {
+  if (mScriptsExecuting == 0 && NS_SUCCEEDED(rv)) {
     if (mSink) {
       mSink->WillParse();
     }

@@ -59,7 +59,6 @@ try {
 
 var gSelectionListener = {
   timeout: 0,
-  attached: false,
   notifySelectionChanged: function(doc, sel, reason)
   {
     // Coalesce notifications within 100ms intervals.
@@ -296,7 +295,6 @@ function onLoadContent()
   window.content.getSelection()
    .QueryInterface(nsISelectionPrivate)
    .addSelectionListener(gSelectionListener);
-  gSelectionListener.attached = true;
 }
 
 function onUnloadContent()
@@ -306,15 +304,6 @@ function onUnloadContent()
   // or toggling of syntax highlighting.
   //
   document.getElementById('cmd_goToLine').setAttribute('disabled', 'true');
-
-  // If we're not just unloading the initial "about:blank" which doesn't have
-  // a selection listener, get rid of it so it doesn't try to fire after the
-  // window has gone away.
-  if (gSelectionListener.attached) {
-    window.content.getSelection().QueryInterface(nsISelectionPrivate)
-          .removeSelectionListener(gSelectionListener);
-    gSelectionListener.attached = false;
-  }
 }
 
 function HandleAppCommandEvent(evt)
@@ -699,16 +688,11 @@ function highlightSyntax()
 // browser.js to call PageLoader.loadPage() instead of BrowserReloadWithFlags()
 function BrowserSetForcedCharacterSet(aCharset)
 {
-  var docCharset = getBrowser().docShell.QueryInterface(Ci.nsIDocCharset);
+  var docCharset = getBrowser().docShell.QueryInterface(
+                            Components.interfaces.nsIDocCharset);
   docCharset.charset = aCharset;
-  if (isHistoryEnabled()) {
-    var PageLoader = getBrowser().webNavigation.QueryInterface(pageLoaderIface);
-    PageLoader.loadPage(PageLoader.currentDescriptor,
-                        pageLoaderIface.DISPLAY_NORMAL);
-  } else {
-    getBrowser().webNavigation
-                .reload(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
-  }
+  var PageLoader = getBrowser().webNavigation.QueryInterface(pageLoaderIface);
+  PageLoader.loadPage(PageLoader.currentDescriptor, pageLoaderIface.DISPLAY_NORMAL);
 }
 
 // fix for bug #229503
@@ -721,15 +705,8 @@ function BrowserSetForcedDetector(doReload)
   getBrowser().documentCharsetInfo.forcedDetector = true; 
   if (doReload)
   {
-    if (isHistoryEnabled()) {
-      var PageLoader = getBrowser().webNavigation
-                                   .QueryInterface(pageLoaderIface);
-      PageLoader.loadPage(PageLoader.currentDescriptor,
-                          pageLoaderIface.DISPLAY_NORMAL);
-    } else {
-      getBrowser().webNavigation
-                  .reload(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
-    }
+    var PageLoader = getBrowser().webNavigation.QueryInterface(pageLoaderIface);
+    PageLoader.loadPage(PageLoader.currentDescriptor, pageLoaderIface.DISPLAY_NORMAL);
   }
 }
 

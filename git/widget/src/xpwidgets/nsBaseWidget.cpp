@@ -99,6 +99,10 @@ nsBaseWidget::nsBaseWidget()
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
+, mIsShiftDown(PR_FALSE)
+, mIsControlDown(PR_FALSE)
+, mIsAltDown(PR_FALSE)
+, mIsDestroying(PR_FALSE)
 , mOnDestroyCalled(PR_FALSE)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nsnull)
@@ -793,10 +797,9 @@ nsBaseWidget::GetAttention(PRInt32 aCycleCount) {
     return NS_OK;
 }
 
-PRBool
-nsBaseWidget::HasPendingInputEvent()
-{
-  return PR_FALSE;
+NS_IMETHODIMP
+nsBaseWidget::GetLastInputEventTime(PRUint32& aTime) {
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP

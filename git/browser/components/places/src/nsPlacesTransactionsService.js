@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Sungjoon Steve Won <stevewon@gmail.com> (Original Author)
  *   Asaf Romano <mano@mozilla.com>
- *   Marco Bonarco <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -235,26 +234,6 @@ placesTransactionsService.prototype = {
   },
 
   // nsITransactionManager
-  beginBatch: function() {
-    this.mTransactionManager.beginBatch();
-
-    // A no-op transaction is pushed to the stack, in order to make safe and
-    // easy to implement "Undo" an unknown number of transactions (including 0),
-    // "above" beginBatch and endBatch. Otherwise,implementing Undo that way
-    // head to dataloss: for example, if no changes were done in the
-    // edit-item panel, the last transaction on the undo stack would be the
-    // initial createItem transaction, or even worse, the batched editing of
-    // some other item.
-    // DO NOT MOVE this to the window scope, that would leak (bug 490068)! 
-    this.doTransaction({ doTransaction: function() { },
-                         undoTransaction: function() { },
-                         redoTransaction: function() { },
-                         isTransient: false,
-                         merge: function() { return false; } });
-  },
-
-  endBatch: function() this.mTransactionManager.endBatch(),
-
   doTransaction: function placesTxn_doTransaction(txn) {
     this.mTransactionManager.doTransaction(txn);
     this._updateCommands();
@@ -271,6 +250,8 @@ placesTransactionsService.prototype = {
   },
 
   clear: function() this.mTransactionManager.clear(),
+  beginBatch: function() this.mTransactionManager.beginBatch(),
+  endBatch: function() this.mTransactionManager.endBatch(),
 
   get numberOfUndoItems() {
     return this.mTransactionManager.numberOfUndoItems;
@@ -411,12 +392,10 @@ placesCreateFolderTransactions.prototype = {
   },
 
   undoTransaction: function PCFT_undoTransaction() {
-    // Undo transactions should always be done in reverse order.
-    for (var i = this._childItemsTransactions.length - 1; i >= 0 ; i--) {
+    for (var i = 0; i < this._childItemsTransactions.length; ++i) {
       var txn = this._childItemsTransactions[i];
       txn.undoTransaction();
     }
-    // Remove item only after all child transactions have been reverted.
     PlacesUtils.bookmarks.removeFolder(this._id);
   }
 };
@@ -457,13 +436,11 @@ placesCreateItemTransactions.prototype = {
   },
 
   undoTransaction: function PCIT_undoTransaction() {
-    // Undo transactions should always be done in reverse order.
-    for (var i = this._childTransactions.length - 1; i >= 0; i--) {
+    PlacesUtils.bookmarks.removeItem(this._id);
+    for (var i = 0; i < this._childTransactions.length; ++i) {
       var txn = this._childTransactions[i];
       txn.undoTransaction();
     }
-    // Remove item only after all child transactions have been reverted.
-    PlacesUtils.bookmarks.removeItem(this._id);
   }
 };
 

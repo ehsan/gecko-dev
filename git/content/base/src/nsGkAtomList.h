@@ -115,9 +115,6 @@ GK_ATOM(attribute, "attribute")
 GK_ATOM(attributeSet, "attribute-set")
 GK_ATOM(aural, "aural")
 GK_ATOM(_auto, "auto")
-#ifdef MOZ_MEDIA
-GK_ATOM(autobuffer, "autobuffer")
-#endif
 GK_ATOM(autocheck, "autocheck")
 GK_ATOM(autocomplete, "autocomplete")
 #ifdef MOZ_MEDIA
@@ -1009,7 +1006,6 @@ GK_ATOM(zeroDigit, "zero-digit")
 GK_ATOM(percentage, "%")
 GK_ATOM(A, "A")
 GK_ATOM(alignment_baseline, "alignment-baseline")
-GK_ATOM(allowReorder, "allowReorder")
 GK_ATOM(altGlyph, "altGlyph")
 GK_ATOM(altGlyphDef, "altGlyphDef")
 GK_ATOM(altGlyphItem, "altGlyphItem")

@@ -68,9 +68,11 @@ public:
                   const nsAString& aString,
                   nsIEditor *aEditor);
 
-  InsertTextTxn();
+private:
+	
+	InsertTextTxn();
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(InsertTextTxn, EditTxn)
+public:
 	
   NS_DECL_EDITTXN
 
@@ -100,6 +102,8 @@ protected:
 
   /** the editor, which we'll need to get the selection */
   nsIEditor *mEditor;   
+
+  friend class TransactionFactory;
 };
 
 #endif

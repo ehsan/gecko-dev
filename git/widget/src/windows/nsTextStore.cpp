@@ -621,50 +621,6 @@ nsTextStore::UpdateCompositionExtent(ITfRange* aRangeNew)
   return S_OK;
 }
 
-static PRBool
-GetColor(const TF_DA_COLOR &aTSFColor, nscolor &aResult)
-{
-  switch (aTSFColor.type) {
-    case TF_CT_SYSCOLOR: {
-      DWORD sysColor = ::GetSysColor(aTSFColor.nIndex);
-      aResult = NS_RGB(GetRValue(sysColor), GetGValue(sysColor),
-                       GetBValue(sysColor));
-      return PR_TRUE;
-    }
-    case TF_CT_COLORREF:
-      aResult = NS_RGB(GetRValue(aTSFColor.cr), GetGValue(aTSFColor.cr),
-                       GetBValue(aTSFColor.cr));
-      return PR_TRUE;
-    case TF_CT_NONE:
-    default:
-      return PR_FALSE;
-  }
-}
-
-static PRBool
-GetLineStyle(TF_DA_LINESTYLE aTSFLineStyle, PRUint8 &aTextRangeLineStyle)
-{
-  switch (aTSFLineStyle) {
-    case TF_LS_NONE:
-      aTextRangeLineStyle = nsTextRangeStyle::LINESTYLE_NONE;
-      return PR_TRUE;
-    case TF_LS_SOLID:
-      aTextRangeLineStyle = nsTextRangeStyle::LINESTYLE_SOLID;
-      return PR_TRUE;
-    case TF_LS_DOT:
-      aTextRangeLineStyle = nsTextRangeStyle::LINESTYLE_DOTTED;
-      return PR_TRUE;
-    case TF_LS_DASH:
-      aTextRangeLineStyle = nsTextRangeStyle::LINESTYLE_DASHED;
-      return PR_TRUE;
-    case TF_LS_SQUIGGLE:
-      aTextRangeLineStyle = nsTextRangeStyle::LINESTYLE_WAVY;
-      return PR_TRUE;
-    default:
-      return PR_FALSE;
-  }
-}
-
 HRESULT
 nsTextStore::SendTextEventForCompositionString()
 {
@@ -701,6 +657,12 @@ nsTextStore::SendTextEventForCompositionString()
 
   nsAutoTArray<nsTextRange, 4> textRanges;
   nsTextRange newRange;
+  newRange.mStartOffset =
+    PRUint32(mCompositionSelection.acpStart - mCompositionStart);
+  newRange.mEndOffset =
+    PRUint32(mCompositionSelection.acpEnd - mCompositionStart);
+  newRange.mRangeType = NS_TEXTRANGE_CARETPOSITION;
+  textRanges.AppendElement(newRange);
   // No matter if we have display attribute info or not,
   // we always pass in at least one range to NS_TEXT_TEXT
   newRange.mStartOffset = 0;
@@ -715,7 +677,6 @@ nsTextStore::SendTextEventForCompositionString()
     if (FAILED(GetRangeExtent(range, &start, &length)))
       continue;
 
-    nsTextRange newRange;
     newRange.mStartOffset = PRUint32(start - mCompositionStart);
     // The end of the last range in the array is
     // always kept at the end of composition
@@ -723,28 +684,8 @@ nsTextStore::SendTextEventForCompositionString()
 
     TF_DISPLAYATTRIBUTE attr;
     hr = GetDisplayAttribute(attrPropetry, range, &attr);
-    if (FAILED(hr)) {
-      newRange.mRangeType = NS_TEXTRANGE_RAWINPUT;
-    } else {
-      newRange.mRangeType = GetGeckoSelectionValue(attr);
-      if (GetColor(attr.crText, newRange.mRangeStyle.mForegroundColor)) {
-        newRange.mRangeStyle.mDefinedStyles |=
-                               nsTextRangeStyle::DEFINED_FOREGROUND_COLOR;
-      }
-      if (GetColor(attr.crBk, newRange.mRangeStyle.mBackgroundColor)) {
-        newRange.mRangeStyle.mDefinedStyles |=
-                               nsTextRangeStyle::DEFINED_BACKGROUND_COLOR;
-      }
-      if (GetColor(attr.crLine, newRange.mRangeStyle.mUnderlineColor)) {
-        newRange.mRangeStyle.mDefinedStyles |=
-                               nsTextRangeStyle::DEFINED_UNDERLINE_COLOR;
-      }
-      if (GetLineStyle(attr.lsStyle, newRange.mRangeStyle.mLineStyle)) {
-        newRange.mRangeStyle.mDefinedStyles |=
-                               nsTextRangeStyle::DEFINED_LINESTYLE;
-        newRange.mRangeStyle.mIsBoldLine = attr.fBoldLine != 0;
-      }
-    }
+    newRange.mRangeType =
+      SUCCEEDED(hr) ? GetGeckoSelectionValue(attr) : NS_TEXTRANGE_RAWINPUT;
 
     nsTextRange& lastRange = textRanges[textRanges.Length() - 1];
     if (lastRange.mStartOffset == newRange.mStartOffset) {
@@ -756,39 +697,6 @@ nsTextStore::SendTextEventForCompositionString()
       textRanges.AppendElement(newRange);
     }
   }
-
-  // We need to hack for Korean Input System which is Korean standard TIP.
-  // It sets no change style to IME selection (the selection is always only
-  // one).  So, the composition string looks like normal (or committed) string.
-  // At this time, mCompositionSelection range is same as the composition
-  // string range.  Other applications set a wide caret which covers the
-  // composition string, however, Gecko doesn't support the wide caret drawing
-  // now (Gecko doesn't support XOR drawing), unfortunately.  For now, we should
-  // change the range style to undefined.
-  if (mCompositionSelection.acpStart != mCompositionSelection.acpEnd &&
-      textRanges.Length() == 1) {
-    nsTextRange& range = textRanges[0];
-    LONG start = PR_MIN(mCompositionSelection.acpStart,
-                        mCompositionSelection.acpEnd);
-    LONG end = PR_MAX(mCompositionSelection.acpStart,
-                      mCompositionSelection.acpEnd);
-    if (range.mStartOffset == start - mCompositionStart &&
-        range.mEndOffset == end - mCompositionStart &&
-        range.mRangeStyle.IsNoChangeStyle()) {
-      range.mRangeStyle.Clear();
-      // The looks of selected type is better than others.
-      range.mRangeType = NS_TEXTRANGE_SELECTEDRAWTEXT;
-    }
-  }
-
-  // The caret position has to be collapsed.
-  LONG caretPosition = PR_MAX(mCompositionSelection.acpStart,
-                              mCompositionSelection.acpEnd);
-  caretPosition -= mCompositionStart;
-  nsTextRange caretRange;
-  caretRange.mStartOffset = caretRange.mEndOffset = PRUint32(caretPosition);
-  caretRange.mRangeType = NS_TEXTRANGE_CARETPOSITION;
-  textRanges.AppendElement(caretRange);
 
   event.theText = mCompositionString;
   event.rangeArray = textRanges.Elements();

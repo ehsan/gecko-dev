@@ -56,7 +56,6 @@ _TEST_FILES = \
 		test_bug288789.html \
 		test_bug323656.html \
 		test_bug344830.html \
-		test_bug348681.html \
 		test_bug382429.html \
 		test_bug384527.html \
 		test_bug385751.html \
@@ -71,9 +70,6 @@ _TEST_FILES = \
 		test_bug405178.html \
 		test_bug416168.html \
 		test_bug421436.html \
-		$(warning test_bug421839-1.html disabled because it calls finish twice which can cause timeouts) \
-		test_bug421839-2.html \
-		bug421839-2-page.html \
 		test_bug448860.html \
 		test_bug460532.html \
 		test_bug468167.html \
@@ -82,11 +78,10 @@ _TEST_FILES = \
 		test_movement_by_characters.html \
 		test_movement_by_words.html \
 		test_plugin_clipping.xhtml \
-		test_plugin_position.xhtml \
 		test_selection_underline.html \
 		$(NULL)
 # disabled temporarily
-#		test_bug488417.html \
+# 		test_plugin_position.xhtml \
 
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

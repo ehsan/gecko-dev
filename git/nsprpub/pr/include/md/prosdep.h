@@ -126,6 +126,9 @@ PR_BEGIN_EXTERN_C
 #elif defined(QNX)
 #include "md/_qnx.h"
 
+#elif defined(VMS)
+#include "md/_openvms.h"
+
 #elif defined(NTO)
 #include "md/_nto.h"
 

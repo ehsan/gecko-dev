@@ -71,29 +71,23 @@ js_GetMutableScope(JSContext *cx, JSObject *obj)
     JS_ASSERT(JS_IS_SCOPE_LOCKED(cx, scope));
     if (scope->object == obj)
         return scope;
-
-    /*
-     * Compile-time block objects each have their own scope, created at
-     * birth, and runtime clone of a block objects are never mutated.
-     */
-    JS_ASSERT(STOBJ_GET_CLASS(obj) != &js_BlockClass);
-    newscope = js_NewScope(cx, scope->map.ops, LOCKED_OBJ_GET_CLASS(obj), obj);
+    newscope = js_NewScope(cx, 0, scope->map.ops, LOCKED_OBJ_GET_CLASS(obj),
+                           obj);
     if (!newscope)
         return NULL;
     JS_LOCK_SCOPE(cx, newscope);
-    obj->map = &newscope->map;
-
-    JS_ASSERT(newscope->freeslot == JSSLOT_FREE(STOBJ_GET_CLASS(obj)));
+    obj->map = js_HoldObjectMap(cx, &newscope->map);
+    JS_ASSERT(newscope->map.freeslot == JSSLOT_FREE(STOBJ_GET_CLASS(obj)));
     clasp = STOBJ_GET_CLASS(obj);
     if (clasp->reserveSlots) {
         freeslot = JSSLOT_FREE(clasp) + clasp->reserveSlots(cx, obj);
         if (freeslot > STOBJ_NSLOTS(obj))
             freeslot = STOBJ_NSLOTS(obj);
-        if (newscope->freeslot < freeslot)
-            newscope->freeslot = freeslot;
+        if (newscope->map.freeslot < freeslot)
+            newscope->map.freeslot = freeslot;
     }
+    scope = (JSScope *) js_DropObjectMap(cx, &scope->map, obj);
     JS_TRANSFER_SCOPE_LOCK(cx, scope, newscope);
-    js_DropScope(cx, scope, obj);
     return newscope;
 }
 
@@ -108,9 +102,8 @@ js_GetMutableScope(JSContext *cx, JSObject *obj)
 #define SCOPE_TABLE_NBYTES(n)   ((n) * sizeof(JSScopeProperty *))
 
 static void
-InitMinimalScope(JSContext *cx, JSScope *scope)
+InitMinimalScope(JSScope *scope)
 {
-    js_LeaveTraceIfGlobalObject(cx, scope->object);
     scope->shape = 0;
     scope->hashShift = JS_DHASH_BITS - MIN_SCOPE_SIZE_LOG2;
     scope->entryCount = scope->removedCount = 0;
@@ -160,21 +153,19 @@ CreateScopeTable(JSContext *cx, JSScope *scope, JSBool report)
 }
 
 JSScope *
-js_NewScope(JSContext *cx, JSObjectOps *ops, JSClass *clasp, JSObject *obj)
+js_NewScope(JSContext *cx, jsrefcount nrefs, JSObjectOps *ops, JSClass *clasp,
+            JSObject *obj)
 {
-    JS_ASSERT(OPS_IS_NATIVE(ops));
-    JS_ASSERT(obj);
+    JSScope *scope;
 
-    JSScope *scope = (JSScope *) JS_malloc(cx, sizeof(JSScope));
+    scope = (JSScope *) JS_malloc(cx, sizeof(JSScope));
     if (!scope)
         return NULL;
 
-    scope->map.ops = ops;
+    js_InitObjectMap(&scope->map, nrefs, ops, clasp);
     scope->object = obj;
-    scope->nrefs = 1;
-    scope->freeslot = JSSLOT_FREE(clasp);
     scope->flags = 0;
-    InitMinimalScope(cx, scope);
+    InitMinimalScope(scope);
 
 #ifdef JS_THREADSAFE
     js_InitTitle(cx, &scope->title);
@@ -203,28 +194,6 @@ js_DestroyScope(JSContext *cx, JSScope *scope)
     LIVE_SCOPE_METER(cx, cx->runtime->liveScopeProps -= scope->entryCount);
     JS_RUNTIME_UNMETER(cx->runtime, liveScopes);
     JS_free(cx, scope);
-}
-
-void
-js_HoldScope(JSScope *scope)
-{
-    JS_ASSERT(scope->nrefs >= 0);
-    JS_ATOMIC_INCREMENT(&scope->nrefs);
-}
-
-JSBool
-js_DropScope(JSContext *cx, JSScope *scope, JSObject *obj)
-{
-    JS_ASSERT(scope->nrefs > 0);
-    JS_ATOMIC_DECREMENT(&scope->nrefs);
-
-    if (scope->nrefs == 0) {
-        js_DestroyScope(cx, scope);
-        return false;
-    }
-    if (scope->object == obj)
-        scope->object = NULL;
-    return true;
 }
 
 #ifdef JS_DUMP_PROPTREE_STATS
@@ -819,8 +788,8 @@ HashChunks(PropTreeKidsChunk *chunk, uintN n)
  * only when inserting a new child.  Thus there may be races to find or add a
  * node that result in duplicates.  We expect such races to be rare!
  *
- * We use rt->gcLock, not rt->rtLock, to avoid nesting the former inside the
- * latter in js_GenerateShape below.
+ * We use rt->gcLock, not rt->rtLock, to allow the GC potentially to nest here
+ * under js_GenerateShape.
  */
 static JSScopeProperty *
 GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
@@ -832,6 +801,7 @@ GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
     JSScopeProperty *sprop;
     PropTreeKidsChunk *chunk;
     uintN i, n;
+    uint32 shape;
 
     rt = cx->runtime;
     if (!parent) {
@@ -918,6 +888,12 @@ GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
     }
 
 locked_not_found:
+    /*
+     * Call js_GenerateShape before the allocation to prevent collecting the
+     * new property when the shape generation triggers the GC.
+     */
+    shape = js_GenerateShape(cx, JS_TRUE, NULL);
+
     sprop = NewScopeProperty(rt);
     if (!sprop)
         goto out_of_memory;
@@ -930,7 +906,7 @@ locked_not_found:
     sprop->flags = child->flags;
     sprop->shortid = child->shortid;
     sprop->parent = sprop->kids = NULL;
-    sprop->shape = js_GenerateShape(cx, JS_TRUE);
+    sprop->shape = shape;
 
     if (!parent) {
         entry->child = sprop;
@@ -1125,7 +1101,7 @@ js_AddScopeProperty(JSContext *cx, JSScope *scope, jsid id,
             }
             SCOPE_SET_MIDDLE_DELETE(scope);
         }
-        js_MakeScopeShapeUnique(cx, scope);
+        SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
 
         /*
          * If we fail later on trying to find or create a new sprop, we will
@@ -1297,7 +1273,7 @@ js_AddScopeProperty(JSContext *cx, JSScope *scope, jsid id,
          * be regenerated later as the scope diverges (from the property cache
          * point of view) from the structural type associated with sprop.
          */
-        js_ExtendScopeShape(cx, scope, sprop);
+        SCOPE_EXTEND_SHAPE(cx, scope, sprop);
 
         /* Store the tree node pointer in the table entry for id. */
         if (scope->table)
@@ -1437,11 +1413,10 @@ js_ChangeScopePropertyAttrs(JSContext *cx, JSScope *scope,
     }
 
     if (newsprop) {
-        js_LeaveTraceIfGlobalObject(cx, scope->object);
         if (scope->shape == sprop->shape)
             scope->shape = newsprop->shape;
         else
-            js_MakeScopeShapeUnique(cx, scope);
+            SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
     }
 #ifdef JS_DUMP_PROPTREE_STATS
     else
@@ -1513,7 +1488,7 @@ js_RemoveScopeProperty(JSContext *cx, JSScope *scope, jsid id)
     } else if (!SCOPE_HAD_MIDDLE_DELETE(scope)) {
         SCOPE_SET_MIDDLE_DELETE(scope);
     }
-    js_MakeScopeShapeUnique(cx, scope);
+    SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
     CHECK_ANCESTOR_LINE(scope, JS_TRUE);
 
     /* Last, consider shrinking scope's table if its load factor is <= .25. */
@@ -1535,7 +1510,7 @@ js_ClearScope(JSContext *cx, JSScope *scope)
     if (scope->table)
         free(scope->table);
     SCOPE_CLR_MIDDLE_DELETE(scope);
-    InitMinimalScope(cx, scope);
+    InitMinimalScope(scope);
     JS_ATOMIC_INCREMENT(&cx->runtime->propertyRemovals);
 }
 
@@ -1757,10 +1732,12 @@ js_SweepScopeProperties(JSContext *cx)
              */
             if (sprop->flags & SPROP_MARK) {
                 sprop->flags &= ~SPROP_MARK;
-                if (sprop->flags & SPROP_FLAG_SHAPE_REGEN)
+                if (sprop->flags & SPROP_FLAG_SHAPE_REGEN) {
                     sprop->flags &= ~SPROP_FLAG_SHAPE_REGEN;
-                else
-                    sprop->shape = js_RegenerateShapeForGC(cx);
+                } else {
+                    sprop->shape = ++cx->runtime->shapeGen;
+                    JS_ASSERT(sprop->shape != 0);
+                }
                 liveCount++;
                 continue;
             }

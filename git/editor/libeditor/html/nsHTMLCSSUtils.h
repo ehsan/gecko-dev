@@ -341,7 +341,7 @@ private:
     *                                 RemoveCSSEquivalentToHTMLInlineStyleSet
     */
 
-  void      BuildCSSDeclarations(nsTArray<nsIAtom*> & aPropertyArray,
+  void      BuildCSSDeclarations(nsVoidArray & aPropertyArray,
                                  nsTArray<nsString> & cssValueArray,
                                  const CSSEquivTable * aEquivTable,
                                  const nsAString * aValue,
@@ -364,7 +364,7 @@ private:
                                                  nsIAtom * aHTMLProperty,
                                                  const nsAString *aAttribute,
                                                  const nsAString *aValue,
-                                                 nsTArray<nsIAtom*> & aPropertyArray,
+                                                 nsVoidArray & aPropertyArray,
                                                  nsTArray<nsString> & aValueArray,
                                                  PRBool aGetOrRemoveRequest);
 

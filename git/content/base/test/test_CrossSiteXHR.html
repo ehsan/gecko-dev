@@ -3,7 +3,7 @@
 <head>
   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=utf-8">
   <title>Test for Cross Site XMLHttpRequest</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -460,10 +460,10 @@ function runTest() {
     if ("headers" in test) {
       req.url += "&headers=" + escape(test.headers.toSource());
       reqHeaders =
-        escape([name for (name in test.headers)].map(String.toLowerCase).filter(function(name)
-          name != "content-type" &&
-          name != "accept" &&
-          name != "accept-language").sort().join(","));
+        escape([name for (name in test.headers)].filter(function(name)
+          name != "Content-Type" &&
+          name != "Accept" &&
+          name != "Accept-Language").join(","));
       req.url += reqHeaders ? "&requestHeaders=" + reqHeaders : "";
     }
     if ("allowHeaders" in test)

@@ -123,7 +123,8 @@ var RecommendedCallback = {
   },
 
   searchFailed: function() {
-    server.stop(do_test_finished);
+    do_test_finished();
+    server.stop();
     do_throw("Recommended results failed");
   }
 };
@@ -134,23 +135,27 @@ var SearchCallback = {
     do_check_eq(total, 100);
     checkResults(addons);
 
-    server.stop(do_test_finished);
+    do_test_finished();
+    server.stop();
   },
 
   searchFailed: function() {
-    server.stop(do_test_finished);
+    do_test_finished();
+    server.stop();
     do_throw("Search results failed");
   }
 };
 
 var FailCallback = {
   searchSucceeded: function(addons, length, total) {
-    server.stop(do_test_finished);
+    do_test_finished();
+    server.stop();
     do_throw("Should not be called");
   },
 
   searchFailed: function() {
-    server.stop(do_test_finished);
+    do_test_finished();
+    server.stop();
     do_throw("Should not be called");
   }
 };

@@ -93,6 +93,7 @@ SDK_XPIDLSRCS = \
 		$(NULL)
 
 XPIDLSRCS	= \
+		nsCDocShell.idl			\
 		nsCDefaultURIFixup.idl		\
 		nsIDocShell.idl			\
 		nsIDocShellLoadInfo.idl	\
@@ -123,6 +124,7 @@ EXPORTS		= nsDocShellLoadTypes.h
 
 CPPSRCS		= \
 		nsDocShell.cpp		\
+		nsWebShell.cpp		\
 		nsDocShellLoadInfo.cpp		\
 		nsDocShellEditorData.cpp	\
 		nsDocShellTransferableHooks.cpp \

@@ -104,7 +104,6 @@ CSRCS =             \
 	lltest.c        \
 	lock.c          \
 	lockfile.c      \
-	logfile.c       \
 	logger.c		\
 	makedir.c		\
 	mbcs.c			\
@@ -148,7 +147,6 @@ CSRCS =             \
 	prpollml.c		\
 	ranfile.c       \
 	randseed.c      \
-	reinit.c        \
 	rmdir.c			\
 	rwlocktest.c    \
 	sel_spd.c  		\

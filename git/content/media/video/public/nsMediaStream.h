@@ -38,13 +38,12 @@
 #if !defined(nsMediaStream_h_)
 #define nsMediaStream_h_
 
-#include "mozilla/XPCOM.h"
+#include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 #include "nsIChannel.h"
 #include "nsIPrincipal.h"
 #include "nsIURI.h"
 #include "nsIStreamListener.h"
-#include "nsIChannelEventSink.h"
-#include "nsIInterfaceRequestor.h"
 #include "prlock.h"
 #include "nsMediaCache.h"
 
@@ -65,28 +64,25 @@ class nsMediaDecoder;
  * kind of average of the data passing through over the time the
  * channel is active.
  * 
- * All methods take "now" as a parameter so the user of this class can
- * control the timeline used.
+ * Timestamps and time durations are measured in PRIntervalTimes, but
+ * all methods take "now" as a parameter so the user of this class can
+ * define what the timeline means.
  */
 class nsChannelStatistics {
 public:
-  typedef mozilla::TimeStamp TimeStamp;
-  typedef mozilla::TimeDuration TimeDuration;
-
   nsChannelStatistics() { Reset(); }
   void Reset() {
-    mLastStartTime = TimeStamp();
-    mAccumulatedTime = TimeDuration(0);
+    mLastStartTime = mAccumulatedTime = 0;
     mAccumulatedBytes = 0;
     mIsStarted = PR_FALSE;
   }
-  void Start(TimeStamp aNow) {
+  void Start(PRIntervalTime aNow) {
     if (mIsStarted)
       return;
     mLastStartTime = aNow;
     mIsStarted = PR_TRUE;
   }
-  void Stop(TimeStamp aNow) {
+  void Stop(PRIntervalTime aNow) {
     if (!mIsStarted)
       return;
     mAccumulatedTime += aNow - mLastStartTime;
@@ -101,28 +97,25 @@ public:
     mAccumulatedBytes += aBytes;
   }
   double GetRateAtLastStop(PRPackedBool* aReliable) {
-    double seconds = mAccumulatedTime.ToSeconds();
-    *aReliable = seconds >= 1.0;
-    if (seconds <= 0.0)
-      return 0.0;
-    return double(mAccumulatedBytes)/seconds;
+    *aReliable = mAccumulatedTime >= PR_TicksPerSecond();
+    return double(mAccumulatedBytes)*PR_TicksPerSecond()/mAccumulatedTime;
   }
-  double GetRate(TimeStamp aNow, PRPackedBool* aReliable) {
-    TimeDuration time = mAccumulatedTime;
+  double GetRate(PRIntervalTime aNow, PRPackedBool* aReliable) {
+    PRIntervalTime time = mAccumulatedTime;
     if (mIsStarted) {
       time += aNow - mLastStartTime;
     }
-    double seconds = time.ToSeconds();
-    *aReliable = seconds >= 3.0;
-    if (seconds <= 0.0)
+    *aReliable = time >= PR_TicksPerSecond();
+    NS_ASSERTION(time >= 0, "Time wraparound?");
+    if (time <= 0)
       return 0.0;
-    return double(mAccumulatedBytes)/seconds;
+    return double(mAccumulatedBytes)*PR_TicksPerSecond()/time;
   }
 private:
-  PRInt64      mAccumulatedBytes;
-  TimeDuration mAccumulatedTime;
-  TimeStamp    mLastStartTime;
-  PRPackedBool mIsStarted;
+  PRInt64        mAccumulatedBytes;
+  PRIntervalTime mAccumulatedTime;
+  PRIntervalTime mLastStartTime;
+  PRPackedBool   mIsStarted;
 };
 
 /*
@@ -149,6 +142,8 @@ public:
   }
 
   // The following can be called on the main thread only:
+  // Get the current principal for the channel
+  already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
   // Get the decoder
   nsMediaDecoder* Decoder() { return mDecoder; }
   // Close the stream, stop any listeners, channels, etc.
@@ -156,15 +151,9 @@ public:
   // return an error.
   virtual nsresult Close() = 0;
   // Suspend any downloads that are in progress.
-  // If aCloseImmediately is set, resources should be released immediately
-  // since we don't expect to resume again any time soon. Otherwise we
-  // may resume again soon so resources should be held for a little
-  // while.
-  virtual void Suspend(PRBool aCloseImmediately) = 0;
+  virtual void Suspend() = 0;
   // Resume any downloads that have been suspended.
   virtual void Resume() = 0;
-  // Get the current principal for the channel
-  virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal() = 0;
 
   // These methods are called off the main thread.
   // The mode is initially MODE_PLAYBACK.
@@ -209,10 +198,6 @@ public:
   virtual nsresult Seek(PRInt32 aWhence, PRInt64 aOffset) = 0;
   // Report the current offset in bytes from the start of the stream.
   virtual PRInt64 Tell() = 0;
-  // Moves any existing channel loads into the background, so that they don't
-  // block the load event. Any new loads initiated (for example to seek)
-  // will also be in the background.
-  void MoveLoadsToBackground();
 
   // These can be called on any thread.
   // Cached blocks associated with this stream will not be evicted
@@ -230,9 +215,6 @@ public:
   // header and give us more or less data than it reported. We will adjust
   // the result of GetLength to reflect the data that's actually arriving.
   virtual PRInt64 GetLength() = 0;
-  // Returns the offset of the first byte of cached data at or after aOffset,
-  // or -1 if there is no such cached data.
-  virtual PRInt64 GetNextCachedData(PRInt64 aOffset) = 0;
   // Returns the end of the bytes starting at the given offset
   // which are in cache.
   virtual PRInt64 GetCachedDataEnd(PRInt64 aOffset) = 0;
@@ -261,8 +243,7 @@ protected:
   nsMediaStream(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
     mDecoder(aDecoder),
     mChannel(aChannel),
-    mURI(aURI),
-    mLoadInBackground(PR_FALSE)
+    mURI(aURI)
   {
     MOZ_COUNT_CTOR(nsMediaStream);
   }
@@ -287,10 +268,6 @@ protected:
   // URI in case the stream needs to be re-opened. Access from
   // main thread only.
   nsCOMPtr<nsIURI> mURI;
-
-  // PR_TRUE if MoveLoadsToBackground() has been called, i.e. the load event
-  // has been fired, and all channel loads will be in the background.
-  PRPackedBool mLoadInBackground;
 };
 
 /**
@@ -313,7 +290,7 @@ public:
   // and no more data from the old load will be notified via
   // nsMediaCacheStream::NotifyDataReceived/Ended.
   // This can fail.
-  nsresult CacheClientSeek(PRInt64 aOffset, PRBool aResume);
+  nsresult CacheClientSeek(PRInt64 aOffset);
   // Suspend the current load since data is currently not wanted
   nsresult CacheClientSuspend();
   // Resume the current load since data is wanted again
@@ -322,9 +299,8 @@ public:
   // Main thread
   virtual nsresult Open(nsIStreamListener** aStreamListener);
   virtual nsresult Close();
-  virtual void     Suspend(PRBool aCloseImmediately);
+  virtual void     Suspend();
   virtual void     Resume();
-  virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
   // Return PR_TRUE if the stream has been closed.
   PRBool IsClosed() const { return mCacheStream.IsClosed(); }
 
@@ -340,24 +316,18 @@ public:
   virtual void    Unpin();
   virtual double  GetDownloadRate(PRPackedBool* aIsReliable);
   virtual PRInt64 GetLength();
-  virtual PRInt64 GetNextCachedData(PRInt64 aOffset);
   virtual PRInt64 GetCachedDataEnd(PRInt64 aOffset);
   virtual PRBool  IsDataCachedToEndOfStream(PRInt64 aOffset);
   virtual PRBool  IsSuspendedByCache();
 
 protected:
-  class Listener : public nsIStreamListener,
-                   public nsIInterfaceRequestor,
-                   public nsIChannelEventSink
-  {
+  class Listener : public nsIStreamListener {
   public:
     Listener(nsMediaChannelStream* aStream) : mStream(aStream) {}
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIREQUESTOBSERVER
     NS_DECL_NSISTREAMLISTENER
-    NS_DECL_NSICHANNELEVENTSINK
-    NS_DECL_NSIINTERFACEREQUESTOR
 
     void Revoke() { mStream = nsnull; }
 
@@ -372,12 +342,10 @@ protected:
   nsresult OnDataAvailable(nsIRequest* aRequest,
                            nsIInputStream* aStream,
                            PRUint32 aCount);
-  nsresult OnChannelRedirect(nsIChannel* aOld, nsIChannel* aNew, PRUint32 aFlags);
 
-  // Opens the channel, using an HTTP byte range request to start at mOffset
+  // Opens the channel, using an HTTP byte range request to start at aOffset
   // if possible. Main thread only.
-  nsresult OpenChannel(nsIStreamListener** aStreamListener);
-  void SetupChannelHeaders();
+  nsresult OpenChannel(nsIStreamListener** aStreamListener, PRInt64 aOffset);
   // Closes the channel. Main thread only.
   void CloseChannel();
 
@@ -389,15 +357,9 @@ protected:
                                       PRUint32 *aWriteCount);
 
   // Main thread access only
-  PRInt64            mOffset;
   nsRefPtr<Listener> mListener;
   PRUint32           mSuspendCount;
-  // When this flag is set, if we get a network error we should silently
-  // reopen the stream.
-  PRPackedBool       mReopenOnError;
-  // When this flag is set, we should not report the next close of the
-  // channel.
-  PRPackedBool       mIgnoreClose;
+  PRPackedBool       mSeeking;
 
   // Any thread access
   nsMediaCacheStream mCacheStream;

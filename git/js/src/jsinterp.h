@@ -129,9 +129,8 @@ struct JSStackFrame {
     JSObject        *xmlNamespace;  /* null or default xml namespace in E4X */
     JSStackFrame    *displaySave;   /* previous value of display entry for
                                        script->staticLevel */
-
-#ifdef __cplusplus /* Aargh, LiveConnect, bug 442399. */
-    inline void assertValidStackDepth(uintN depth);
+#ifdef DEBUG
+    jsrefcount      pcDisabledSave; /* for balanced property cache control */
 #endif
 };
 
@@ -148,15 +147,6 @@ StackBase(JSStackFrame *fp)
 {
     return fp->slots + fp->script->nfixed;
 }
-
-#ifdef __cplusplus /* Aargh, LiveConnect, bug 442399. */
-void
-JSStackFrame::assertValidStackDepth(uintN depth)
-{
-    JS_ASSERT(0 <= regs->sp - StackBase(this));
-    JS_ASSERT(depth <= uintptr_t(regs->sp - StackBase(this)));
-}
-#endif
 
 static JS_INLINE uintN
 GlobalVarCount(JSStackFrame *fp)
@@ -189,6 +179,7 @@ typedef struct JSInlineFrame {
 #define JSFRAME_YIELDING       0x40 /* js_Interpret dispatched JSOP_YIELD */
 #define JSFRAME_ITERATOR       0x80 /* trying to get an iterator for for-in */
 #define JSFRAME_GENERATOR     0x200 /* frame belongs to generator-iterator */
+#define JSFRAME_IMACRO_START  0x400 /* imacro starting -- see jstracer.h */
 
 #define JSFRAME_OVERRIDE_SHIFT 24   /* override bit-set params; see jsfun.c */
 #define JSFRAME_OVERRIDE_BITS  8
@@ -235,19 +226,19 @@ typedef struct JSInlineFrame {
 #define PCVCAP_TAGMASK          JS_BITMASK(PCVCAP_TAGBITS)
 #define PCVCAP_TAG(t)           ((t) & PCVCAP_TAGMASK)
 
-#define PCVCAP_MAKE(t,s,p)      ((uint32(t) << PCVCAP_TAGBITS) |              \
+#define PCVCAP_MAKE(t,s,p)      (((t) << PCVCAP_TAGBITS) |                    \
                                  ((s) << PCVCAP_PROTOBITS) |                  \
                                  (p))
 #define PCVCAP_SHAPE(t)         ((t) >> PCVCAP_TAGBITS)
 
 #define SHAPE_OVERFLOW_BIT      JS_BIT(32 - PCVCAP_TAGBITS)
 
-#ifndef JS_THREADSAFE
-# define js_GenerateShape(cx, gcLocked)    js_GenerateShape (cx)
-#endif
-
+/*
+ * When sprop is not null and the shape generation triggers the GC due to a
+ * shape overflow, the functions roots sprop.
+ */
 extern uint32
-js_GenerateShape(JSContext *cx, JSBool gcLocked);
+js_GenerateShape(JSContext *cx, JSBool gcLocked, JSScopeProperty *sprop);
 
 struct JSPropCacheEntry {
     jsbytecode          *kpc;           /* pc if vcap tag is <= 1, else atom */
@@ -256,12 +247,6 @@ struct JSPropCacheEntry {
     jsuword             vword;          /* value word, see PCVAL_* below */
 };
 
-/*
- * Special value for functions returning JSPropCacheEntry * to distinguish
- * between failure and no no-cache-fill cases.
- */
-#define JS_NO_PROP_CACHE_FILL ((JSPropCacheEntry *) NULL + 1)
-
 #if defined DEBUG_brendan || defined DEBUG_brendaneich
 #define JS_PROPERTY_CACHE_METERING 1
 #endif
@@ -269,8 +254,8 @@ struct JSPropCacheEntry {
 typedef struct JSPropertyCache {
     JSPropCacheEntry    table[PROPERTY_CACHE_SIZE];
     JSBool              empty;
+    jsrefcount          disabled;       /* signed for anti-underflow asserts */
 #ifdef JS_PROPERTY_CACHE_METERING
-    JSPropCacheEntry    *pctestentry;   /* entry of the last PC-based test */
     uint32              fills;          /* number of cache entry fills */
     uint32              nofills;        /* couldn't fill (e.g. default get) */
     uint32              rofills;        /* set on read-only prop can't fill */
@@ -344,14 +329,12 @@ typedef struct JSPropertyCache {
  * Fill property cache entry for key cx->fp->pc, optimized value word computed
  * from obj and sprop, and entry capability forged from 24-bit OBJ_SHAPE(obj),
  * 4-bit scopeIndex, and 4-bit protoIndex.
- *
- * Return the filled cache entry or JS_NO_PROP_CACHE_FILL if caching was not
- * possible.
  */
-extern JS_REQUIRES_STACK JSPropCacheEntry *
-js_FillPropertyCache(JSContext *cx, JSObject *obj,
-                     uintN scopeIndex, uintN protoIndex, JSObject *pobj,
-                     JSScopeProperty *sprop, JSBool adding);
+extern JS_REQUIRES_STACK void
+js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
+                     uintN scopeIndex, uintN protoIndex,
+                     JSObject *pobj, JSScopeProperty *sprop,
+                     JSPropCacheEntry **entryp);
 
 /*
  * Property cache lookup macros. PROPERTY_CACHE_TEST is designed to inline the
@@ -374,7 +357,6 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
         JSPropertyCache *cache_ = &JS_PROPERTY_CACHE(cx);                     \
         uint32 kshape_ = (JS_ASSERT(OBJ_IS_NATIVE(obj)), OBJ_SHAPE(obj));     \
         entry = &cache_->table[PROPERTY_CACHE_HASH_PC(pc, kshape_)];          \
-        PCMETER(cache_->pctestentry = entry);                                 \
         PCMETER(cache_->tests++);                                             \
         JS_ASSERT(&obj != &pobj);                                             \
         if (entry->kpc == pc && entry->kshape == kshape_) {                   \
@@ -416,6 +398,12 @@ js_PurgePropertyCache(JSContext *cx, JSPropertyCache *cache);
 
 extern void
 js_PurgePropertyCacheForScript(JSContext *cx, JSScript *script);
+
+extern void
+js_DisablePropertyCache(JSContext *cx);
+
+extern void
+js_EnablePropertyCache(JSContext *cx);
 
 /*
  * Interpreter stack arena-pool alloc and free functions.
@@ -464,19 +452,6 @@ extern const uint16 js_PrimitiveTestFlags[];
     (JS_ASSERT(!JSVAL_IS_VOID(thisv)),                                        \
      JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
                       js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
-
-static inline JSObject *
-js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
-{
-    if (fp->flags & JSFRAME_COMPUTED_THIS)
-        return fp->thisp;
-    JSObject* obj = js_ComputeThis(cx, JS_TRUE, fp->argv);
-    if (!obj)
-        return NULL;
-    fp->thisp = obj;
-    fp->flags |= JSFRAME_COMPUTED_THIS;
-    return obj;
-}
 
 /*
  * NB: js_Invoke requires that cx is currently running JS (i.e., that cx->fp
@@ -529,7 +504,7 @@ extern JSBool
 js_InternalGetOrSet(JSContext *cx, JSObject *obj, jsid id, jsval fval,
                     JSAccessMode mode, uintN argc, jsval *argv, jsval *rval);
 
-extern JS_FORCES_STACK JSBool
+extern JSBool
 js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
            JSStackFrame *down, uintN flags, jsval *result);
 
@@ -555,7 +530,7 @@ js_InternNonIntElementId(JSContext *cx, JSObject *obj, jsval idval, jsid *idp);
  * Given an active context, a static scope level, and an upvar cookie, return
  * the value of the upvar.
  */
-extern jsval&
+extern jsval
 js_GetUpvar(JSContext *cx, uintN level, uintN cookie);
 
 /*
@@ -614,6 +589,9 @@ js_LeaveWith(JSContext *cx);
 
 extern JS_REQUIRES_STACK JSClass *
 js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth);
+
+extern jsint
+js_CountWithBlocks(JSContext *cx, JSStackFrame *fp);
 
 /*
  * Unwind block and scope chains to match the given depth. The function sets

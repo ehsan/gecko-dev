@@ -766,15 +766,6 @@ public:
                                 PRInt32              aLength);
 
   /**
-   * Gets the baseline to vertically center text from a font within a
-   * line of specified height.
-   *
-   * Returns the baseline position relative to the top of the line.
-   */
-  static nscoord GetCenteredFontBaseline(nsIFontMetrics* aFontMetrics,
-                                         nscoord         aLineHeight);
-
-  /**
    * Derive a baseline of |aFrame| (measured from its top border edge)
    * from its first in-flow line box (not descending into anything with
    * 'overflow' not 'visible', potentially including aFrame itself).
@@ -953,13 +944,6 @@ public:
   static PRBool HasNonZeroCorner(const nsStyleCorners& aCorners);
 
   /**
-   * Determine if there is any corner radius on corners adjacent to the
-   * given side.
-   */
-  static PRBool HasNonZeroCornerOnSide(const nsStyleCorners& aCorners,
-                                       PRUint8 aSide);
-
-  /**
    * Determine if a widget is likely to require transparency or translucency.
    *   @param aFrame the frame of a <window>, <popup> or <menupopup> element.
    *   @return a value suitable for passing to SetWindowTranslucency
@@ -1013,26 +997,6 @@ public:
    * @param aFrame The nsIFrame object, which uses text fragment data.
    */
   static nsTextFragment* GetTextFragmentForPrinting(const nsIFrame* aFrame);
-
-  /**
-   * Return whether aFrame is an inline frame in the first part of an {ib}
-   * split.
-   */
-  static PRBool FrameIsInFirstPartOfIBSplit(const nsIFrame* aFrame) {
-    return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      !aFrame->GetFirstContinuation()->
-        GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
-  }
-
-  /**
-   * Return whether aFrame is an inline frame in the last part of an {ib}
-   * split.
-   */
-  static PRBool FrameIsInLastPartOfIBSplit(const nsIFrame* aFrame) {
-    return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      !aFrame->GetFirstContinuation()->
-        GetProperty(nsGkAtoms::IBSplitSpecialSibling);
-  }
 };
 
 class nsAutoDisableGetUsedXAssertions

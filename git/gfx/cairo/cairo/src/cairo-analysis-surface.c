@@ -38,6 +38,7 @@
 
 #include "cairo-analysis-surface-private.h"
 #include "cairo-paginated-private.h"
+#include "cairo-region-private.h"
 #include "cairo-meta-surface-private.h"
 
 typedef struct {
@@ -214,7 +215,7 @@ _add_operation  (cairo_analysis_surface_t *surface,
      * region there is no benefit in emitting a native operation as
      * the fallback image will be painted on top.
      */
-    if (cairo_region_contains_rectangle (&surface->fallback_region, rect) == CAIRO_REGION_OVERLAP_IN)
+    if (_cairo_region_contains_rectangle (&surface->fallback_region, rect) == PIXMAN_REGION_IN)
 	return CAIRO_INT_STATUS_IMAGE_FALLBACK;
 
     if (backend_status == CAIRO_INT_STATUS_FLATTEN_TRANSPARENCY) {
@@ -225,7 +226,7 @@ _add_operation  (cairo_analysis_surface_t *surface,
 	 * natively supported and the backend will blend the
 	 * transparency into the white background.
 	 */
-	if (cairo_region_contains_rectangle (&surface->supported_region, rect) == CAIRO_REGION_OVERLAP_OUT)
+	if (_cairo_region_contains_rectangle (&surface->supported_region, rect) == PIXMAN_REGION_OUT)
 	    backend_status = CAIRO_STATUS_SUCCESS;
     }
 
@@ -234,7 +235,9 @@ _add_operation  (cairo_analysis_surface_t *surface,
 	 * this region will be emitted as native operations.
 	 */
 	surface->has_supported = TRUE;
-	status = cairo_region_union_rectangle (&surface->supported_region, rect);
+	status = _cairo_region_union_rect (&surface->supported_region,
+					   &surface->supported_region,
+					   rect);
 	return status;
     }
 
@@ -243,7 +246,9 @@ _add_operation  (cairo_analysis_surface_t *surface,
      * emitted.
      */
     surface->has_unsupported = TRUE;
-    status = cairo_region_union_rectangle (&surface->fallback_region, rect);
+    status = _cairo_region_union_rect (&surface->fallback_region,
+				       &surface->fallback_region,
+				       rect);
 
     /* The status CAIRO_INT_STATUS_IMAGE_FALLBACK is used to indicate
      * unsupported operations to the meta surface as using
@@ -773,13 +778,13 @@ _cairo_analysis_surface_create (cairo_surface_t		*target,
     surface->has_supported = FALSE;
     surface->has_unsupported = FALSE;
 
-    _cairo_region_init (&surface->supported_region);
-    _cairo_region_init (&surface->fallback_region);
-
     surface->page_bbox.p1.x = 0;
     surface->page_bbox.p1.y = 0;
     surface->page_bbox.p2.x = 0;
     surface->page_bbox.p2.y = 0;
+
+    _cairo_region_init (&surface->supported_region);
+    _cairo_region_init (&surface->fallback_region);
 
     if (width == -1 && height == -1) {
 	surface->current_clip.x      = CAIRO_RECT_INT_MIN;

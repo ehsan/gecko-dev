@@ -1082,7 +1082,10 @@ nsEventListenerManager::HandleEventSubType(nsListenerStruct* aListenerStruct,
     }
   }
 
-  if (NS_SUCCEEDED(result)) {
+  // nsCxPusher will push and pop (automatically) the current cx onto the
+  // context stack
+  nsCxPusher pusher;
+  if (NS_SUCCEEDED(result) && pusher.Push(aCurrentTarget)) {
     // nsIDOMEvent::currentTarget is set in nsEventDispatcher.
     result = aListener->HandleEvent(aDOMEvent);
   }
@@ -1154,7 +1157,6 @@ found:
   nsAutoTObserverArray<nsListenerStruct, 2>::EndLimitedIterator iter(mListeners);
   nsAutoPopupStatePusher popupStatePusher(nsDOMEvent::GetEventPopupControlState(aEvent));
   PRBool hasListener = PR_FALSE;
-  nsCxPusher pusher;
   while (iter.HasMore()) {
     nsListenerStruct* ls = &iter.GetNext();
     PRBool useTypeInterface =
@@ -1178,11 +1180,9 @@ found:
           if (*aDOMEvent) {
             nsRefPtr<nsIDOMEventListener> kungFuDeathGrip = ls->mListener;
             if (useTypeInterface) {
-              pusher.Pop();
               DispatchToInterface(*aDOMEvent, ls->mListener,
                                   dispData->method, *typeData->iid);
-            } else if (useGenericInterface &&
-                       pusher.RePush(aCurrentTarget)) {
+            } else if (useGenericInterface) {
               HandleEventSubType(ls, ls->mListener, *aDOMEvent,
                                  aCurrentTarget, aFlags);
             }
@@ -1284,15 +1284,15 @@ nsEventListenerManager::RemoveEventListener(const nsAString& aType,
 NS_IMETHODIMP
 nsEventListenerManager::DispatchEvent(nsIDOMEvent* aEvent, PRBool *_retval)
 {
-  nsCOMPtr<nsINode> targetNode(do_QueryInterface(mTarget));
-  if (!targetNode) {
+  nsCOMPtr<nsIContent> targetContent(do_QueryInterface(mTarget));
+  if (!targetContent) {
     // nothing to dispatch on -- bad!
     return NS_ERROR_FAILURE;
   }
   
   // XXX sXBL/XBL2 issue -- do we really want the owner here?  What
   // if that's the XBL document?  Would we want its presshell?  Or what?
-  nsCOMPtr<nsIDocument> document = targetNode->GetOwnerDoc();
+  nsCOMPtr<nsIDocument> document = targetContent->GetOwnerDoc();
 
   // Do nothing if the element does not belong to a document
   if (!document) {
@@ -1308,7 +1308,7 @@ nsEventListenerManager::DispatchEvent(nsIDOMEvent* aEvent, PRBool *_retval)
 
   nsEventStatus status = nsEventStatus_eIgnore;
   nsresult rv =
-    nsEventDispatcher::DispatchDOMEvent(targetNode, nsnull, aEvent,
+    nsEventDispatcher::DispatchDOMEvent(targetContent, nsnull, aEvent,
                                         context, &status);
   *_retval = (status != nsEventStatus_eConsumeNoDefault);
   return rv;

@@ -519,12 +519,6 @@ pref("dom.popup_allowed_events", "change click dblclick mouseup reset submit");
 pref("dom.disable_open_click_delay", 1000);
 
 pref("dom.storage.enabled", true);
-pref("dom.storage.default_quota",      5120);
-
-// Parsing perf prefs. For now just mimic what the old code did.
-#ifndef XP_WIN
-pref("content.sink.pending_event_mode", 0);
-#endif
 
 // Disable popups from plugins by default
 //   0 = openAllowed
@@ -1092,18 +1086,6 @@ pref("layout.css.report_errors", true);
 
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
-
-// Override DPI. A value of -1 means use the maxium of 96 and the system DPI.
-// A value of 0 means use the system DPI. A positive value is used as the DPI.
-// This sets the physical size of a device pixel and thus controls the
-// interpretation of physical units such as "pt".
-pref("layout.css.dpi", -1);
-
-// Set the number of device pixels per CSS pixel. A value <= 0 means choose
-// automatically based on the DPI. A positive value is used as-is. This effectively
-// controls the size of a CSS "px". This is only used for pixel-based
-// (screen) output devices.
-pref("layout.css.devPixelsPerPx", -1);
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -2011,6 +1993,7 @@ pref("ui.panel.default_level_parent", false);
 #ifdef XP_OS2
 
 pref("ui.key.menuAccessKeyFocuses", true);
+pref("layout.css.dpi", -1); // max(96dpi, System setting)
 
 pref("font.alias-list", "sans,sans-serif,serif,monospace,Tms Rmn,Helv,Courier,Times New Roman");
 
@@ -2211,6 +2194,8 @@ pref("ui.panel.default_level_parent", false);
 
 #ifdef XP_BEOS
 
+pref("layout.css.dpi", -1); // max(96dpi, System setting)
+
 pref("intl.font_charset", "");
 pref("intl.font_spec_list", "");
 pref("mail.signature_date", 0);
@@ -2309,6 +2294,7 @@ pref("ui.panel.default_level_parent", false);
 pref("network.hosts.smtp_server", "localhost");
 pref("network.hosts.pop_server", "pop");
 pref("network.protocol-handler.warn-external.file", false);
+pref("layout.css.dpi", -1); // max(96dpi, System setting)
 pref("browser.drag_out_of_frame_style", 1);
 pref("editor.singleLine.pasteNewlines", 0);
 
@@ -2730,6 +2716,3 @@ pref("network.tcp.sendbuffer", 131072);
 #ifdef WINCE
 pref("mozilla.widget.disable-native-theme", true);
 #endif
-
-// Enable/Disable the geolocation API for content
-pref("geo.enabled", true);

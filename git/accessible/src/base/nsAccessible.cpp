@@ -43,7 +43,6 @@
 
 #include "nsIAccessibleDocument.h"
 #include "nsIAccessibleHyperText.h"
-#include "nsIXBLAccessible.h"
 #include "nsAccessibleTreeWalker.h"
 
 #include "nsIDOMElement.h"
@@ -284,13 +283,6 @@ nsAccessible::GetName(nsAString& aName)
   if (!aName.IsEmpty())
     return NS_OK;
 
-  nsCOMPtr<nsIXBLAccessible> xblAccessible(do_QueryInterface(mDOMNode));
-  if (xblAccessible) {
-    nsresult rv = xblAccessible->GetAccessibleName(aName);
-    if (!aName.IsEmpty())
-      return NS_OK;
-  }
-
   nsresult rv = GetNameInternal(aName);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -327,27 +319,21 @@ nsAccessible::GetName(nsAString& aName)
 
 NS_IMETHODIMP nsAccessible::GetDescription(nsAString& aDescription)
 {
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
   // There are 4 conditions that make an accessible have no accDescription:
   // 1. it's a text node; or
   // 2. It has no DHTML describedby property
   // 3. it doesn't have an accName; or
   // 4. its title attribute already equals to its accName nsAutoString name; 
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  NS_ASSERTION(content, "No content of valid accessible!");
-  if (!content)
-    return NS_ERROR_FAILURE;
-
+  if (!content) {
+    return NS_ERROR_FAILURE;  // Node shut down
+  }
   if (!content->IsNodeOfType(nsINode::eTEXT)) {
     nsAutoString description;
     nsresult rv = nsTextEquivUtils::
       GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
                              description);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (description.IsEmpty()) {
+    if (NS_FAILED(rv)) {
       PRBool isXUL = content->IsNodeOfType(nsINode::eXUL);
       if (isXUL) {
         // Try XUL <description control="[id]">description text</description>
@@ -1090,23 +1076,29 @@ NS_IMETHODIMP nsAccessible::GetFocusedChild(nsIAccessible **aFocusedChild)
   return NS_OK;
 }
 
-// nsAccessible::GetChildAtPoint()
-nsresult
-nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
-                              nsIAccessible **aChild)
+// nsIAccessible getDeepestChildAtPoint(in long x, in long y)
+NS_IMETHODIMP
+nsAccessible::GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                     nsIAccessible **aAccessible)
 {
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
+
+  if (!mDOMNode) {
+    return NS_ERROR_FAILURE;  // Already shut down
+  }
+
   // If we can't find the point in a child, we will return the fallback answer:
-  // we return |this| if the point is within it, otherwise nsnull.
-  PRInt32 x = 0, y = 0, width = 0, height = 0;
-  nsresult rv = GetBounds(&x, &y, &width, &height);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  // we return |this| if the point is within it, otherwise nsnull
   nsCOMPtr<nsIAccessible> fallbackAnswer;
-  if (aX >= x && aX < x + width && aY >= y && aY < y + height)
+  PRInt32 x, y, width, height;
+  GetBounds(&x, &y, &width, &height);
+  if (aX >= x && aX < x + width &&
+      aY >= y && aY < y + height) {
     fallbackAnswer = this;
-
+  }
   if (nsAccUtils::MustPrune(this)) {  // Do not dig any further
-    NS_IF_ADDREF(*aChild = fallbackAnswer);
+    NS_IF_ADDREF(*aAccessible = fallbackAnswer);
     return NS_OK;
   }
 
@@ -1117,7 +1109,7 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
   // for DOM parent but GetFrameForPoint() should be called for containing block
   // to get an out of flow element.
   nsCOMPtr<nsIAccessibleDocument> accDocument;
-  rv = GetAccessibleDocument(getter_AddRefs(accDocument));
+  nsresult rv = GetAccessibleDocument(getter_AddRefs(accDocument));
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(accDocument, NS_ERROR_FAILURE);
 
@@ -1135,10 +1127,9 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
 
   nsCOMPtr<nsIPresShell> presShell = presContext->PresShell();
   nsIFrame *foundFrame = presShell->GetFrameForPoint(frame, offset);
-
-  nsIContent* content = nsnull;
+  nsCOMPtr<nsIContent> content;
   if (!foundFrame || !(content = foundFrame->GetContent())) {
-    NS_IF_ADDREF(*aChild = fallbackAnswer);
+    NS_IF_ADDREF(*aAccessible = fallbackAnswer);
     return NS_OK;
   }
 
@@ -1148,7 +1139,7 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
   nsCOMPtr<nsIDOMNode> relevantNode;
   accService->GetRelevantContentNodeFor(node, getter_AddRefs(relevantNode));
   if (!relevantNode) {
-    NS_IF_ADDREF(*aChild = fallbackAnswer);
+    NS_IF_ADDREF(*aAccessible = fallbackAnswer);
     return NS_OK;
   }
 
@@ -1160,17 +1151,16 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
     accDocument->GetAccessibleInParentChain(relevantNode, PR_TRUE,
                                             getter_AddRefs(accessible));
     if (!accessible) {
-      NS_IF_ADDREF(*aChild = fallbackAnswer);
+      NS_IF_ADDREF(*aAccessible = fallbackAnswer);
       return NS_OK;
     }
   }
 
   if (accessible == this) {
-    // Manually walk through accessible children and see if the are within this
-    // point. Skip offscreen or invisible accessibles. This takes care of cases
-    // where layout won't walk into things for us, such as image map areas and
-    // sub documents (XXX: subdocuments should be handled by methods of
-    // nsOuterDocAccessibles).
+    // Manually walk through accessible children and see if
+    // the are within this point.
+    // This takes care of cases where layout won't walk into
+    // things for us, such as image map areas and sub documents
     nsCOMPtr<nsIAccessible> child;
     while (NextChild(child)) {
       PRInt32 childX, childY, childWidth, childHeight;
@@ -1178,40 +1168,16 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
       if (aX >= childX && aX < childX + childWidth &&
           aY >= childY && aY < childY + childHeight &&
           (nsAccUtils::State(child) & nsIAccessibleStates::STATE_INVISIBLE) == 0) {
-
-        if (aDeepestChild)
-          return child->GetDeepestChildAtPoint(aX, aY, aChild);
-
-        NS_IF_ADDREF(*aChild = child);
+        // Don't walk into offscreen or invisible items
+        NS_IF_ADDREF(*aAccessible = child);
         return NS_OK;
       }
     }
-
-    // The point is in this accessible but not in a child. We are allowed to
-    // return |this| as the answer.
-    NS_IF_ADDREF(*aChild = accessible);
-    return NS_OK;
+    // Fall through -- the point is in this accessible but not in a child
+    // We are allowed to return |this| as the answer
   }
 
-  // Since DOM node of obtained accessible may be out of flow then we should
-  // ensure obtained accessible is a child of this accessible.
-  nsCOMPtr<nsIAccessible> parent, child(accessible);
-  while (PR_TRUE) {
-    child->GetParent(getter_AddRefs(parent));
-    if (!parent) {
-      // Reached the top of the hierarchy. These bounds were inside an
-      // accessible that is not a descendant of this one.
-      NS_IF_ADDREF(*aChild = fallbackAnswer);      
-      return NS_OK;
-    }
-
-    if (parent == this) {
-      NS_ADDREF(*aChild = (aDeepestChild ? accessible : child));
-      return NS_OK;
-    }
-    child.swap(parent);
-  }
-
+  NS_IF_ADDREF(*aAccessible = accessible);
   return NS_OK;
 }
 
@@ -1220,27 +1186,43 @@ NS_IMETHODIMP
 nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
                               nsIAccessible **aAccessible)
 {
-  NS_ENSURE_ARG_POINTER(aAccessible);
-  *aAccessible = nsnull;
+  nsresult rv = GetDeepestChildAtPoint(aX, aY, aAccessible);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
+  if (!*aAccessible || *aAccessible == this)
+    return NS_OK;
 
-  return GetChildAtPoint(aX, aY, PR_FALSE, aAccessible);
-}
+  // Get direct child containing the deepest child at the given point.
+  nsCOMPtr<nsIAccessible> parent, accessible;
+  accessible.swap(*aAccessible);
 
-// nsIAccessible getDeepestChildAtPoint(in long x, in long y)
-NS_IMETHODIMP
-nsAccessible::GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     nsIAccessible **aAccessible)
-{
-  NS_ENSURE_ARG_POINTER(aAccessible);
-  *aAccessible = nsnull;
+  while (PR_TRUE) {
+    accessible->GetParent(getter_AddRefs(parent));
+    if (!parent) {
+      NS_NOTREACHED("Obtained accessible isn't a child of this accessible.");
 
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
+      // Reached the top of the hierarchy. These bounds were inside an
+      // accessible that is not a descendant of this one.
 
-  return GetChildAtPoint(aX, aY, PR_TRUE, aAccessible);
+      // If we can't find the point in a child, we will return the fallback
+      // answer: we return |this| if the point is within it, otherwise nsnull.
+      PRInt32 x, y, width, height;
+      GetBounds(&x, &y, &width, &height);
+      if (aX >= x && aX < x + width && aY >= y && aY < y + height)
+        NS_ADDREF(*aAccessible = this);
+
+      return NS_OK;
+    }
+
+    if (parent == this) {
+      // We reached |this|, so |accessible| is the child we want to return.
+      NS_ADDREF(*aAccessible = accessible);
+      return NS_OK;
+    }
+    accessible.swap(parent);
+  }
+
+  return NS_OK;
 }
 
 void nsAccessible::GetBoundsRect(nsRect& aTotalBounds, nsIFrame** aBoundingFrame)
@@ -2353,17 +2335,6 @@ nsAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
    case eSwitchAction:
      aName.AssignLiteral("switch");
      return NS_OK;
-     
-   case eSortAction:
-     aName.AssignLiteral("sort");
-     return NS_OK;
-   
-   case eExpandAction:
-     if (states & nsIAccessibleStates::STATE_COLLAPSED)
-       aName.AssignLiteral("expand");
-     else
-       aName.AssignLiteral("collapse");
-     return NS_OK;
   }
 
   return NS_ERROR_INVALID_ARG;
@@ -2672,15 +2643,6 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
       nsCOMPtr<nsIContent> regionContent = do_QueryInterface(GetAtomicRegion());
       return nsRelUtils::
         AddTargetFromContent(aRelationType, aRelation, regionContent);
-    }
-
-  case nsIAccessibleRelation::RELATION_SUBWINDOW_OF:
-  case nsIAccessibleRelation::RELATION_EMBEDS:
-  case nsIAccessibleRelation::RELATION_EMBEDDED_BY:
-  case nsIAccessibleRelation::RELATION_POPUP_FOR:
-  case nsIAccessibleRelation::RELATION_PARENT_WINDOW_OF:
-    {
-      return NS_OK_NO_RELATION_TARGET;
     }
 
   default:
@@ -3244,7 +3206,7 @@ nsAccessible::GetAttrValue(nsIAtom *aProperty, double *aValue)
   NS_ENSURE_ARG_POINTER(aValue);
   *aValue = 0;
 
-  if (IsDefunct())
+  if (!mDOMNode)
     return NS_ERROR_FAILURE;  // Node already shut down
 
  if (!mRoleMapEntry || mRoleMapEntry->valueRule == eNoValue)
@@ -3253,19 +3215,12 @@ nsAccessible::GetAttrValue(nsIAtom *aProperty, double *aValue)
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   NS_ENSURE_STATE(content);
 
-  nsAutoString attrValue;
-  content->GetAttr(kNameSpaceID_None, aProperty, attrValue);
+  PRInt32 result = NS_OK;
+  nsAutoString value;
+  if (content->GetAttr(kNameSpaceID_None, aProperty, value))
+    *aValue = value.ToFloat(&result);
 
-  // Return zero value if there is no attribute or its value is empty.
-  if (attrValue.IsEmpty())
-    return NS_OK;
-
-  PRInt32 error = NS_OK;
-  double value = attrValue.ToFloat(&error);
-  if (NS_SUCCEEDED(error))
-    *aValue = value;
-
-  return NS_OK;
+  return result;
 }
 
 PRUint32
@@ -3274,11 +3229,8 @@ nsAccessible::GetActionRule(PRUint32 aStates)
   if (aStates & nsIAccessibleStates::STATE_UNAVAILABLE)
     return eNoAction;
 
-  nsIContent* content = nsCoreUtils::GetRoleContent(mDOMNode);
-  if (!content)
-    return eNoAction;
-  
   // Check if it's simple xlink.
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   if (nsCoreUtils::IsXLink(content))
     return eJumpAction;
 
@@ -3288,16 +3240,10 @@ nsAccessible::GetActionRule(PRUint32 aStates)
 
   if (isOnclick)
     return eClickAction;
-  
-  // Get an action based on ARIA role.
-  if (mRoleMapEntry &&
-      mRoleMapEntry->actionRule != eNoAction)
-    return mRoleMapEntry->actionRule;
 
-  // Get an action based on ARIA attribute.
-  if (nsAccUtils::HasDefinedARIAToken(content,
-                                   nsAccessibilityAtoms::aria_expanded))
-    return eExpandAction;
+  // Get an action based on ARIA role.
+  if (mRoleMapEntry)
+    return mRoleMapEntry->actionRule;
 
   return eNoAction;
 }

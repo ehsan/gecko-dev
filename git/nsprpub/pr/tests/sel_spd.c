@@ -51,6 +51,17 @@
 #include <getopt.h>
 #endif
 
+#ifdef XP_MAC
+#include "prlog.h"
+int fprintf(FILE *stream, const char *fmt, ...)
+{
+PR_LogPrint(fmt);
+return 0;
+}
+#define printf PR_LogPrint
+extern void SetupMacPrintfLog(char *logFile);
+#endif
+
 #define PORT_BASE 19000
 
 typedef struct timer_slot_t {
@@ -65,13 +76,13 @@ typedef struct timer_slot_t {
 static long _iterations = 5;
 static long _client_data = 8192;
 
-#ifdef SYMBIAN
+#if defined(XP_MAC) || defined(SYMBIAN)
 /*
- * Symbian OS does not scale well specially the requirement for thread stack
+ * Mac does not scale well specially the requirement for thread stack
  * space and buffer allocation space.  It is easy to get into a fragmented
  * memory and not be able to allocate thread stack or client/server data
  * buffer.
- */
+*/
 static long _server_data = (8*1024);
 static long _threads_max = 10, _threads = 10;
 #else
@@ -476,6 +487,10 @@ int main(int argc, char **argv)
 
 	PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
     PR_STDIO_INIT();
+
+#ifdef XP_MAC
+	SetupMacPrintfLog("sel_spd.log");
+#endif
 
 	fprintf(stdout, "Running test for %d iterations with %d simultaneous threads.\n", 
 		_iterations, _threads);

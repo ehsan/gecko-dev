@@ -69,7 +69,7 @@ function check200(ch)
   do_check_eq(ch.responseStatusText, "OK");
 }
 
-function checkFile(ch, cx, status, data)
+function checkFile(ch)
 {
   do_check_eq(ch.responseStatus, 200);
   do_check_true(ch.requestSucceeded);
@@ -78,8 +78,6 @@ function checkFile(ch, cx, status, data)
   actualFile.append("test_registerdirectory.js");
   do_check_eq(ch.getResponseHeader("Content-Length"),
               actualFile.fileSize.toString());
-  do_check_eq(data.map(function(v) String.fromCharCode(v)).join(""),
-              fileContents(actualFile));
 }
 
 
@@ -103,8 +101,8 @@ test = new Test(BASE + "/test_registerdirectory.js",
                   serverBasePath = testsDirectory.clone();
                   srv.registerDirectory("/", serverBasePath);
                 },
-                null,
-                checkFile);
+                checkFile,
+                null);
 tests.push(test);
 
 
@@ -168,8 +166,8 @@ test = new Test(BASE + "/test_registerdirectory.js",
                   serverBasePath = testsDirectory.clone();
                   srv.registerDirectory("/", serverBasePath);
                 },
-                null,
-                checkFile);
+                checkFile,
+                null);
 tests.push(test);
 
 
@@ -258,8 +256,8 @@ test = new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js
                   srv.registerDirectory("/foo/test_registerdirectory.js/",
                                         serverBasePath);
                 },
-                null,
-                checkFile);
+                checkFile,
+                null);
 tests.push(test);
 
 
@@ -268,7 +266,7 @@ tests.push(test);
  ************************************/
 
 test = new Test(BASE + "/foo/test_registerdirectory.js",
-                nocache, null, checkFile);
+                nocache, checkFile, null);
 tests.push(test);
 
 
@@ -292,7 +290,7 @@ tests.push(test);
  **************************************/
 
 test = new Test(BASE + "/foo/test_registerdirectory.js/test_registerdirectory.js",
-                nocache, null, checkFile);
+                nocache, checkFile, null);
 tests.push(test);
 
 
@@ -323,7 +321,7 @@ function run_test()
   srv = createServer();
   srv.start(4444);
 
-  runHttpTests(tests, testComplete(srv));
+  runHttpTests(tests, function() { srv.stop(); });
 }
 
 

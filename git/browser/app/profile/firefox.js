@@ -390,28 +390,16 @@ pref("privacy.popups.policy",               1);
 pref("privacy.popups.usecustom",            true);
 pref("privacy.popups.firstTime",            true);
 pref("privacy.popups.showBrowserMessage",   true);
-
-pref("privacy.item.cookies",                false);
-
-pref("privacy.clearOnShutdown.history",     true);
-pref("privacy.clearOnShutdown.formdata",    true);
-pref("privacy.clearOnShutdown.passwords",   false);
-pref("privacy.clearOnShutdown.downloads",   true);
-pref("privacy.clearOnShutdown.cookies",     true);
-pref("privacy.clearOnShutdown.cache",       true);
-pref("privacy.clearOnShutdown.sessions",    true);
-pref("privacy.clearOnShutdown.offlineApps", false);
-pref("privacy.clearOnShutdown.siteSettings", false);
-
-pref("privacy.cpd.history",                 true);
-pref("privacy.cpd.formdata",                true);
-pref("privacy.cpd.passwords",               false);
-pref("privacy.cpd.downloads",               true);
-pref("privacy.cpd.cookies",                 true);
-pref("privacy.cpd.cache",                   true);
-pref("privacy.cpd.sessions",                true);
-pref("privacy.cpd.offlineApps",             false);
-pref("privacy.cpd.siteSettings",            false);
+ 
+pref("privacy.item.history",     true);
+pref("privacy.item.formdata",    true);
+pref("privacy.item.passwords",   false);
+pref("privacy.item.downloads",   true);
+pref("privacy.item.cookies",     false);
+pref("privacy.item.cache",       true);
+pref("privacy.item.sessions",    true);
+pref("privacy.item.offlineApps", false);
+pref("privacy.item.siteSettings", false);
 
 // What default should we use for the time span in the sanitizer:
 // 0 - Clear everything
@@ -421,8 +409,6 @@ pref("privacy.cpd.siteSettings",            false);
 // 4 - Today
 pref("privacy.sanitize.timeSpan", 1);
 pref("privacy.sanitize.sanitizeOnShutdown", false);
-
-pref("privacy.sanitize.migrateFx3Prefs",    false);
 
 pref("network.proxy.share_proxy_settings",  false); // use the same proxy settings for all protocols
 
@@ -461,8 +447,8 @@ pref("browser.gesture.pinch.out.shift", "cmd_fullZoomReset");
 pref("browser.gesture.pinch.in.shift", "cmd_fullZoomReset");
 pref("browser.gesture.twist.latched", false);
 pref("browser.gesture.twist.threshold", 25);
-pref("browser.gesture.twist.right", "");
-pref("browser.gesture.twist.left", "");
+pref("browser.gesture.twist.right", "Browser:NextTab");
+pref("browser.gesture.twist.left", "Browser:PrevTab");
 pref("browser.gesture.tap", "cmd_fullZoomReset");
 
 // 0=lines, 1=pages, 2=history , 3=text size
@@ -679,6 +665,11 @@ pref("browser.safebrowsing.provider.0.keyURL", "https://sb-ssl.google.com/safebr
 pref("browser.safebrowsing.provider.0.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/report?");
 pref("browser.safebrowsing.provider.0.gethashURL", "http://safebrowsing.clients.google.com/safebrowsing/gethash?client={moz:client}&appver={moz:version}&pver=2.2");
 
+// privacy policy -- Both url and fallbackurl must exist, although they may
+// point to the same file.  fallbackurl must be a chrome url
+pref("browser.safebrowsing.provider.0.privacy.url", "http://www.google.com/tools/firefox/firefox_privacy.html?hl=%LOCALE%");
+pref("browser.safebrowsing.provider.0.privacy.fallbackurl", "chrome://browser/content/preferences/phishEULA.xhtml");
+
 // HTML report pages
 pref("browser.safebrowsing.provider.0.reportGenericURL", "http://{moz:locale}.phish-generic.mozilla.com/?hl={moz:locale}");
 pref("browser.safebrowsing.provider.0.reportErrorURL", "http://{moz:locale}.phish-error.mozilla.com/?hl={moz:locale}");
@@ -686,9 +677,8 @@ pref("browser.safebrowsing.provider.0.reportPhishURL", "http://{moz:locale}.phis
 pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.malware-report.mozilla.com/?hl={moz:locale}");
 pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
 
-// FAQ URLs
+// FAQ URL
 pref("browser.safebrowsing.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/phishing-protection/");
-pref("browser.geolocation.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/geolocation/");
 
 // Name of the about: page contributed by safebrowsing to handle display of error
 // pages on phishing/malware hits.  (bug 399233)
@@ -746,9 +736,6 @@ pref("browser.sessionstore.postdata", 0);
 pref("browser.sessionstore.privacy_level", 1);
 // how many tabs can be reopened (per window)
 pref("browser.sessionstore.max_tabs_undo", 10);
-// how many windows can be reopened (per session) - on non-OS X platforms this
-// pref may be ignored when dealing with pop-up windows to ensure proper startup
-pref("browser.sessionstore.max_windows_undo", 3);
 // number of crashes that can occur before the about:sessionrestore page is displayed
 // (this pref has no effect if more than 6 hours have passed since the last crash)
 pref("browser.sessionstore.max_resumed_crashes", 1);
@@ -833,13 +820,3 @@ pref("browser.privatebrowsing.dont_prompt_on_enter", false);
 // Don't try to alter this pref, it'll be reset the next time you use the
 // bookmarking dialog
 pref("browser.bookmarks.editDialog.firstEditField", "namePicker");
-
-// base url for the wifi geolocation network provider
-pref("geo.wifi.uri", "https://www.google.com/loc/json");
-
-// Whether to use a panel that looks like an OS X sheet for customization
-#ifdef XP_MACOSX
-pref("toolbar.customization.usesheet", true);
-#else
-pref("toolbar.customization.usesheet", false);
-#endif

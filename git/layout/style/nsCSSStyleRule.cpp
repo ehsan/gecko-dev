@@ -197,12 +197,12 @@ nsPseudoClassList::~nsPseudoClassList(void)
 }
 
 nsAttrSelector::nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr)
-  : mValue(),
-    mNext(nsnull),
+  : mNameSpace(aNameSpace),
     mAttr(nsnull),
-    mNameSpace(aNameSpace),
     mFunction(NS_ATTR_FUNC_SET),
-    mCaseSensitive(1)
+    mCaseSensitive(1),
+    mValue(),
+    mNext(nsnull)
 {
   MOZ_COUNT_CTOR(nsAttrSelector);
 
@@ -211,12 +211,12 @@ nsAttrSelector::nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr)
 
 nsAttrSelector::nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr, PRUint8 aFunction, 
                                const nsString& aValue, PRBool aCaseSensitive)
-  : mValue(aValue),
-    mNext(nsnull),
+  : mNameSpace(aNameSpace),
     mAttr(nsnull),
-    mNameSpace(aNameSpace),
     mFunction(aFunction),
-    mCaseSensitive(aCaseSensitive)
+    mCaseSensitive(aCaseSensitive),
+    mValue(aValue),
+    mNext(nsnull)
 {
   MOZ_COUNT_CTOR(nsAttrSelector);
 
@@ -226,12 +226,12 @@ nsAttrSelector::nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr, PRUint
 nsAttrSelector::nsAttrSelector(PRInt32 aNameSpace, nsIAtom* aAttr,
                                PRUint8 aFunction, const nsString& aValue,
                                PRBool aCaseSensitive)
-  : mValue(aValue),
-    mNext(nsnull),
+  : mNameSpace(aNameSpace),
     mAttr(aAttr),
-    mNameSpace(aNameSpace),
     mFunction(aFunction),
-    mCaseSensitive(aCaseSensitive)
+    mCaseSensitive(aCaseSensitive),
+    mValue(aValue),
+    mNext(nsnull)
 {
   MOZ_COUNT_CTOR(nsAttrSelector);
 }
@@ -258,15 +258,14 @@ nsAttrSelector::~nsAttrSelector(void)
 // -- nsCSSSelector -------------------------------
 
 nsCSSSelector::nsCSSSelector(void)
-  : mTag(nsnull),
-    mIDList(nsnull),
-    mClassList(nsnull),
+  : mNameSpace(kNameSpaceID_Unknown), mTag(nsnull), 
+    mIDList(nsnull), 
+    mClassList(nsnull), 
     mPseudoClassList(nsnull),
-    mAttrList(nsnull),
+    mAttrList(nsnull), 
+    mOperator(0),
     mNegations(nsnull),
-    mNext(nsnull),
-    mNameSpace(kNameSpaceID_Unknown),
-    mOperator(0)
+    mNext(nsnull)
 {
   MOZ_COUNT_CTOR(nsCSSSelector);
 }

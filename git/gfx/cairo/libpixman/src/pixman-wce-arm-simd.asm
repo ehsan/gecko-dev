@@ -24,7 +24,7 @@ $PrologName
         
 
     FUNC_HEADER fbCompositeSrcAdd_8000x8000arm
-    stmfd	sp!, {r4, r5, r6, r7, r8, fp, lr}
+    stmdb	sp!, {r4, r5, r6, r7, r8, fp, lr}
     add	fp, sp, #24	; 0x18
     ldr	r2, [r1, #120]
     ldr	r4, [r3, #120]
@@ -47,53 +47,19 @@ $PrologName
     cmp	r4, r2
     ldrh	r6, [fp, #28]
     beq	fbCompositeSrcAdd_8000x8000arm1
-fbCompositeSrcAdd_8000x8000arm7
-    cmp	r6, #0	; 0x0
-    movne	lr, ip
-    movne	r0, r5
-    movne	r1, r6
-    beq	fbCompositeSrcAdd_8000x8000arm2
-fbCompositeSrcAdd_8000x8000arm5
-    tst	lr, #3	; 0x3
-    sub	r3, r1, #1	; 0x1
-    bne	fbCompositeSrcAdd_8000x8000arm3
-    tst	r0, #3	; 0x3
-    beq	fbCompositeSrcAdd_8000x8000arm4
-fbCompositeSrcAdd_8000x8000arm3
-    uxth	r1, r3
-    cmp	r1, #0	; 0x0
-    ldrb	r3, [lr]
-    ldrb	r2, [r0], #1
-    uqadd8	r3, r2, r3
-    strb	r3, [lr], #1
-    bne	fbCompositeSrcAdd_8000x8000arm5
-fbCompositeSrcAdd_8000x8000arm2
-    add	ip, ip, r7
-    add	r5, r5, r8
-fbCompositeSrcAdd_8000x8000arm12
-    sub	r3, r4, #1	; 0x1
-    ldr	r2, fbCompositeSrcAdd_8000x8000arm0 ; 0xffff
-    uxth	r4, r3
-    cmp	r4, r2
-    bne	fbCompositeSrcAdd_8000x8000arm7
-fbCompositeSrcAdd_8000x8000arm1
-    ldmfd	sp!, {r4, r5, r6, r7, r8, fp, pc}
-fbCompositeSrcAdd_8000x8000arm4
-    cmp	r1, #3	; 0x3
-    bls	fbCompositeSrcAdd_8000x8000arm8
-fbCompositeSrcAdd_8000x8000arm9
-    sub	r3, r1, #4	; 0x4
-    ldr	r2, [r0], #4
-    uxth	r1, r3
-    cmp	r1, #3	; 0x3
-    ldr	r3, [lr]
-    uqadd8	r2, r2, r3
-    str	r2, [lr], #4
-    bhi	fbCompositeSrcAdd_8000x8000arm9
 fbCompositeSrcAdd_8000x8000arm8
-    cmp	r1, #0	; 0x0
+    cmp	r6, #0	; 0x0
     beq	fbCompositeSrcAdd_8000x8000arm2
-fbCompositeSrcAdd_8000x8000arm11
+    tst	ip, #3	; 0x3
+    beq	fbCompositeSrcAdd_8000x8000arm3
+    mov	lr, ip
+    mov	r0, r5
+    mov	r1, r6
+    b	fbCompositeSrcAdd_8000x8000arm4
+fbCompositeSrcAdd_8000x8000arm6
+    tst	lr, #3	; 0x3
+    beq	fbCompositeSrcAdd_8000x8000arm5
+fbCompositeSrcAdd_8000x8000arm4
     sub	r3, r1, #1	; 0x1
     ldrb	r2, [lr]
     uxth	r1, r3
@@ -101,17 +67,55 @@ fbCompositeSrcAdd_8000x8000arm11
     ldrb	r3, [r0], #1
     uqadd8	r2, r3, r2
     strb	r2, [lr], #1
-    bne	fbCompositeSrcAdd_8000x8000arm11
+    bne	fbCompositeSrcAdd_8000x8000arm6
+fbCompositeSrcAdd_8000x8000arm2
     add	ip, ip, r7
     add	r5, r5, r8
-    b	fbCompositeSrcAdd_8000x8000arm12
+fbCompositeSrcAdd_8000x8000arm13
+    sub	r3, r4, #1	; 0x1
+    ldr	r2, fbCompositeSrcAdd_8000x8000arm0 ; 0xffff
+    uxth	r4, r3
+    cmp	r4, r2
+    bne	fbCompositeSrcAdd_8000x8000arm8
+fbCompositeSrcAdd_8000x8000arm1
+    ldmia	sp!, {r4, r5, r6, r7, r8, fp, pc}
+fbCompositeSrcAdd_8000x8000arm3
+    mov	r1, r6
+    mov	lr, ip
+    mov	r0, r5
+fbCompositeSrcAdd_8000x8000arm5
+    cmp	r1, #3	; 0x3
+    bls	fbCompositeSrcAdd_8000x8000arm9
+fbCompositeSrcAdd_8000x8000arm10
+    sub	r3, r1, #4	; 0x4
+    ldr	r2, [r0], #4
+    uxth	r1, r3
+    cmp	r1, #3	; 0x3
+    ldr	r3, [lr]
+    uqadd8	r2, r2, r3
+    str	r2, [lr], #4
+    bhi	fbCompositeSrcAdd_8000x8000arm10
+    cmp	r1, #0	; 0x0
+    beq	fbCompositeSrcAdd_8000x8000arm2
+fbCompositeSrcAdd_8000x8000arm9
+    sub	r3, r1, #1	; 0x1
+    ldrb	r2, [lr]
+    uxth	r1, r3
+    cmp	r1, #0	; 0x0
+    ldrb	r3, [r0], #1
+    uqadd8	r2, r3, r2
+    strb	r2, [lr], #1
+    bne	fbCompositeSrcAdd_8000x8000arm9
+    add	ip, ip, r7
+    add	r5, r5, r8
+    b	fbCompositeSrcAdd_8000x8000arm13
 fbCompositeSrcAdd_8000x8000arm0
     dcd 0x0000ffff
     ENTRY_END
     ENDP
 
     FUNC_HEADER fbCompositeSrc_8888x8888arm
-    stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr}
+    stmdb	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr}
     add	fp, sp, #32	; 0x20
     sub	sp, sp, #28	; 0x1c
     ldrh	r0, [fp, #32]
@@ -174,7 +178,7 @@ fbCompositeSrc_8888x8888arm3
     bne	fbCompositeSrc_8888x8888arm5
 fbCompositeSrc_8888x8888arm0
     sub	sp, fp, #32	; 0x20
-    ldmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, pc}
+    ldmia	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, pc}
 fbCompositeSrc_8888x8888arm1
     dcd 0x00800080
 fbCompositeSrc_8888x8888arm2
@@ -183,7 +187,7 @@ fbCompositeSrc_8888x8888arm2
     ENDP
 
     FUNC_HEADER fbCompositeSrc_8888x8x8888arm
-    stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr}
+    stmdb	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr}
     add	fp, sp, #32	; 0x20
     sub	sp, sp, #36	; 0x24
     mov	r0, r2
@@ -334,7 +338,7 @@ fbCompositeSrc_8888x8x8888arm37
     bne	fbCompositeSrc_8888x8x8888arm39
 fbCompositeSrc_8888x8x8888arm1
     sub	sp, fp, #32	; 0x20
-    ldmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, pc}
+    ldmia	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, pc}
 fbCompositeSrc_8888x8x8888arm2
     ldr	r3, [r0]
     ands	r1, r3, #1	; 0x1
@@ -377,7 +381,7 @@ fbCompositeSrc_8888x8x8888arm36
     ENDP
 
     FUNC_HEADER fbCompositeSolidMask_nx8x8888arm
-    stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr}
+    stmdb	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr}
     add	fp, sp, #32	; 0x20
     sub	sp, sp, #36	; 0x24
     mov	r6, r2
@@ -528,7 +532,7 @@ fbCompositeSolidMask_nx8x8888arm38
     bne	fbCompositeSolidMask_nx8x8888arm40
 fbCompositeSolidMask_nx8x8888arm1
     sub	sp, fp, #32	; 0x20
-    ldmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, pc}
+    ldmia	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, pc}
 fbCompositeSolidMask_nx8x8888arm2
     ldr	r3, [r0]
     ands	r0, r3, #1	; 0x1

@@ -2710,9 +2710,8 @@ nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
   }
 
   NS_ENSURE_TRUE(aCurrentTarget, PR_FALSE);
-  nsresult rv;
-  nsIScriptContext* scx =
-    aCurrentTarget->GetContextForEventHandlers(&rv);
+  nsCOMPtr<nsIScriptContext> scx;
+  nsresult rv = aCurrentTarget->GetContextForEventHandlers(getter_AddRefs(scx));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   if (!scx) {
@@ -2734,34 +2733,6 @@ nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
   // script context about scripts having been evaluated in such a
   // case, calling with a null cx is fine in that case.
   return Push(cx);
-}
-
-PRBool
-nsCxPusher::RePush(nsPIDOMEventTarget *aCurrentTarget)
-{
-  if (!mPushedSomething) {
-    return Push(aCurrentTarget);
-  }
-
-  if (aCurrentTarget) {
-    nsresult rv;
-    nsIScriptContext* scx =
-      aCurrentTarget->GetContextForEventHandlers(&rv);
-    if (NS_FAILED(rv)) {
-      Pop();
-      return PR_FALSE;
-    }
-
-    // If we have the same script context and native context is still
-    // alive, no need to Pop/Push.
-    if (scx && scx == mScx &&
-        scx->GetNativeContext()) {
-      return PR_TRUE;
-    }
-  }
-
-  Pop();
-  return Push(aCurrentTarget);
 }
 
 PRBool
@@ -3765,7 +3736,7 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
     // i is unsigned, so i >= is always true
     for (PRUint32 i = 0; i < childCount; ++i) {
       nsIContent* child = aContent->GetChildAt(removeIndex);
-      if (removeIndex == 0 && child && child->IsNodeOfType(nsINode::eTEXT)) {
+      if (removeIndex == 0 && child->IsNodeOfType(nsINode::eTEXT)) {
         nsresult rv = child->SetText(aValue, PR_TRUE);
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3878,31 +3849,13 @@ nsContentUtils::IsInSameAnonymousTree(nsINode* aNode,
  
 }
 
-class AnonymousContentDestroyer : public nsRunnable {
-public:
-  AnonymousContentDestroyer(nsCOMPtr<nsIContent>* aContent) {
-    mContent.swap(*aContent);
-    mParent = mContent->GetParent();
-    mDoc = mContent->GetOwnerDoc();
-  }
-  NS_IMETHOD Run() {
-    mContent->UnbindFromTree();
-    return NS_OK;
-  }
-private:
-  nsCOMPtr<nsIContent> mContent;
-  // Hold strong refs to the parent content and document so that they
-  // don't die unexpectedly
-  nsCOMPtr<nsIDocument> mDoc;
-  nsCOMPtr<nsIContent> mParent;
-};
-
 /* static */
 void
 nsContentUtils::DestroyAnonymousContent(nsCOMPtr<nsIContent>* aContent)
 {
   if (*aContent) {
-    AddScriptRunner(new AnonymousContentDestroyer(aContent));
+    (*aContent)->UnbindFromTree();
+    *aContent = nsnull;
   }
 }
 
@@ -4550,38 +4503,26 @@ nsContentUtils::URIIsLocalFile(nsIURI *aURI)
 }
 
 /* static */
-nsIScriptContext*
+nsresult
 nsContentUtils::GetContextForEventHandlers(nsINode* aNode,
-                                           nsresult* aRv)
+                                           nsIScriptContext** aContext)
 {
-  *aRv = NS_OK;
+  *aContext = nsnull;
   nsIDocument* ownerDoc = aNode->GetOwnerDoc();
-  if (!ownerDoc) {
-    *aRv = NS_ERROR_UNEXPECTED;
-    return nsnull;
-  }
-
+  NS_ENSURE_STATE(ownerDoc);
+  nsCOMPtr<nsIScriptGlobalObject> sgo;
   PRBool hasHadScriptObject = PR_TRUE;
-  nsIScriptGlobalObject* sgo =
-    ownerDoc->GetScriptHandlingObject(hasHadScriptObject);
+  sgo = ownerDoc->GetScriptHandlingObject(hasHadScriptObject);
   // It is bad if the document doesn't have event handling context,
   // but it used to have one.
-  if (!sgo && hasHadScriptObject) {
-    *aRv = NS_ERROR_UNEXPECTED;
-    return nsnull;
-  }
-
+  NS_ENSURE_STATE(sgo || !hasHadScriptObject);
   if (sgo) {
-    nsIScriptContext* scx = sgo->GetContext();
+    NS_IF_ADDREF(*aContext = sgo->GetContext());
     // Bad, no context from script global object!
-    if (!scx) {
-      *aRv = NS_ERROR_UNEXPECTED;
-      return nsnull;
-    }
-    return scx;
+    NS_ENSURE_STATE(*aContext);
   }
 
-  return nsnull;
+  return NS_OK;
 }
 
 /* static */

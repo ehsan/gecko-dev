@@ -723,6 +723,7 @@ const PRInt32 nsCSSProps::kCursorKTable[] = {
   eCSSKeyword__moz_copy, NS_STYLE_CURSOR_COPY,
   eCSSKeyword__moz_alias, NS_STYLE_CURSOR_ALIAS,
   eCSSKeyword__moz_context_menu, NS_STYLE_CURSOR_CONTEXT_MENU,
+  eCSSKeyword__moz_cell, NS_STYLE_CURSOR_CELL,
   // -moz- prefixed vendor specific
   eCSSKeyword__moz_grab, NS_STYLE_CURSOR_GRAB,
   eCSSKeyword__moz_grabbing, NS_STYLE_CURSOR_GRABBING,
@@ -877,9 +878,8 @@ const PRInt32 nsCSSProps::kIMEModeKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kLineHeightKTable[] = {
-  // -moz- prefixed, intended for internal use for single-line controls
-  eCSSKeyword__moz_block_height, NS_STYLE_LINE_HEIGHT_BLOCK_HEIGHT,
+// XXX What's the point?
+const PRInt32 nsCSSProps::kKeyEquivalentKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 

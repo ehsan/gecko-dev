@@ -45,7 +45,6 @@
 #include "nsISupports.idl"
 #include "nsIArray.idl"
 #include "nsIURI.idl"
-#include "nsIVariant.idl"
 
 interface nsIFile;
 interface nsINavHistoryContainerResultNode;
@@ -626,7 +625,7 @@ interface nsINavHistoryResult : nsISupports
  * DANGER! If you are in the middle of a batch transaction, there may be a
  * database transaction active. You can still access the DB, but be careful.
  */
-[scriptable, uuid(14065711-8a91-4d96-ba32-59512f5401b6)]
+[scriptable, uuid(eacb76eb-3eeb-419b-a963-9b3a9d65f356)]
 interface nsINavHistoryObserver : nsISupports
 {
   /**
@@ -681,15 +680,6 @@ interface nsINavHistoryObserver : nsISupports
   void onTitleChanged(in nsIURI aURI, in AString aPageTitle);
 
   /**
-   * This page and all of its visits are about to be deleted.  Note: the page
-   * may not necessarily have actually existed for this function to be called.
-   *
-   * @param aURI
-   *        The URI being deleted.
-   */
-  void onBeforeDeleteURI(in nsIURI aURI);
-
-  /**
    * This page and all of its visits are being deleted. Note: the page may not
    * necessarily have actually existed for this function to be called.
    *
@@ -714,7 +704,7 @@ interface nsINavHistoryObserver : nsISupports
   void onPageChanged(in nsIURI aURI, in unsigned long aWhat, in AString aValue);
 
   /**
-   * Called when a history entry expires. You will receive notifications that
+   * Called when a history entry expires. You will recieve notifications that
    * a specific visit has expired with the time of that visit. When the last
    * visit for a history entry expires, the history entry itself is deleted
    * and aWholeEntry is set. (If your observer only cares about URLs and not
@@ -739,7 +729,7 @@ interface nsINavHistoryObserver : nsISupports
  * can be non-negligible.
  */
 
-[scriptable, uuid(6f5668f0-da8e-4069-a0de-6680e5cd8570)]
+[scriptable, uuid(53B51AFE-9DE8-40AD-9C81-F2CC1701F1FF)]
 interface nsINavHistoryQuery : nsISupports
 {
   /**
@@ -850,25 +840,6 @@ interface nsINavHistoryQuery : nsISupports
   attribute boolean annotationIsNot;
   attribute AUTF8String annotation;
   readonly attribute boolean hasAnnotation;
-
-  /**
-   * Limit results to items that are tagged with all of the given tags.  This
-   * attribute must be set to an array of strings.  When called as a getter it
-   * will return an array of strings sorted ascending in lexicographical order.
-   * The array may be empty in either case.  Duplicate tags may be specified
-   * when setting the attribute, but the getter returns only unique tags.
-   *
-   * To search for items that are tagged with any given tags rather than all,
-   * multiple queries may be passed to nsINavHistoryService.executeQueries().
-   */
-  attribute nsIVariant tags;
-
-  /**
-   * If 'tagsAreNot' is true, the results are instead limited to items that
-   * are not tagged with any of the given tags.  This attribute is used in
-   * conjunction with the 'tags' attribute.
-   */
-  attribute boolean tagsAreNot;
 
   /**
    * Limit results to items that are in all of the given folders.

@@ -374,18 +374,6 @@ LoginManagerStorage_legacy.prototype = {
 
 
     /*
-     * searchLogins
-     *
-     * Not implemented. This interface was added to perform arbitrary searches.
-     * Since the legacy storage module is no longer used, there is no need to
-     * implement it here.
-     */
-    searchLogins : function (count, matchData) {
-        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-    },
-
-
-    /*
      * removeAllLogins
      *
      * Removes all logins from storage.
@@ -910,7 +898,6 @@ LoginManagerStorage_legacy.prototype = {
         var parseState = STATE.HEADER;
 
         var processEntry = false;
-        var discardEntry = false;
 
         do {
             var hasMore = lineStream.readLine(line);
@@ -981,15 +968,9 @@ LoginManagerStorage_legacy.prototype = {
                 // (or "." to indicate end of hostrealm)
                 case STATE.USERFIELD:
                     if (line.value == ".") {
-                        discardEntry = false;
                         parseState = STATE.REALM;
                         break;
                     }
-
-                    // If we're discarding the entry, keep looping in this
-                    // state until we hit the "." marking the end of the entry.
-                    if (discardEntry)
-                        break;
 
                     var entry = new this._nsLoginInfo();
                     entry.hostname  = hostname;
@@ -1008,12 +989,6 @@ LoginManagerStorage_legacy.prototype = {
                 // Line is the HTML 'name' attribute for the password field,
                 // with a leading '*' character
                 case STATE.PASSFIELD:
-                    if (line.value.charAt(0) != '*') {
-                        discardEntry = true;
-                        entry = null;
-                        parseState = STATE.USERFIELD;
-                        break;
-                    }
                     entry.passwordField = line.value.substr(1);
                     parseState++;
                     break;

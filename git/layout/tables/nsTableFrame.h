@@ -374,6 +374,12 @@ public:
                                         nsIFrame**      aProviderFrame,
                                         PRBool*         aIsChild);
 
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
+  {
+    return nsHTMLContainerFrame::IsFrameOfType(aFlags &
+      ~nsIFrame::eExcludesIgnorableWhitespace);
+  }
+
   /**
    * Get the "type" of the frame
    *
@@ -605,9 +611,6 @@ protected:
     */
   void AdjustForCollapsingRowsCols(nsHTMLReflowMetrics& aDesiredSize,
                                    nsMargin             aBorderPadding);
-
-  /** check if columns or colgroups are collapsed  */
-  void CheckCollapsedColumns();
 
   nsITableLayoutStrategy* LayoutStrategy() const {
     return static_cast<nsTableFrame*>(GetFirstInFlow())->

@@ -349,36 +349,19 @@ namespace avmplus {
 #endif
 
 #if defined (AVMPLUS_ARM)
-        // Whether or not to generate VFP instructions.
+        // whethergenerate VFP instructions
 # if defined (NJ_FORCE_SOFTFLOAT)
         static const bool vfp = false;
 # else
         bool vfp;
 # endif
 
-        // The ARM architecture version.
-# if defined (NJ_FORCE_ARM_ARCH_VERSION)
-        static const unsigned int arch = NJ_FORCE_ARM_ARCH_VERSION;
+        // whether generate ARMv6t2 instructions (MOVT/MOVW)
+# if defined (NJ_FORCE_NO_ARM_V6T2)
+        static const bool v6t2 = false;
 # else
-        unsigned int arch;
+        bool v6t2;
 # endif
-
-        // Support for Thumb, even if it isn't used by nanojit. This is used to
-        // determine whether or not to generate interworking branches.
-# if defined (NJ_FORCE_NO_ARM_THUMB)
-        static const bool thumb = false;
-# else
-        bool thumb;
-# endif
-
-        // Support for Thumb2, even if it isn't used by nanojit. This is used to
-        // determine whether or not to use some of the ARMv6T2 instructions.
-# if defined (NJ_FORCE_NO_ARM_THUMB2)
-        static const bool thumb2 = false;
-# else
-        bool thumb2;
-# endif
-
 #endif
 
 #if defined (NJ_FORCE_SOFTFLOAT)

@@ -45,7 +45,6 @@
 
 #include "nsAccessibleEventData.h"
 #include "nsHyperTextAccessible.h"
-#include "nsHTMLTableAccessible.h"
 #include "nsAccessibilityAtoms.h"
 #include "nsAccessibleTreeWalker.h"
 #include "nsAccessible.h"
@@ -322,8 +321,6 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
 PRBool
 nsAccUtils::HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom)
 {
-  NS_ASSERTION(aContent, "aContent is null in call to HasDefinedARIAToken!");
-
   if (!aContent->HasAttr(kNameSpaceID_None, aAtom) ||
       aContent->AttrValueIs(kNameSpaceID_None, aAtom,
                             nsAccessibilityAtoms::_empty, eCaseMatters) ||
@@ -716,26 +713,6 @@ nsAccUtils::GetLiveAttrValue(PRUint32 aRule, nsAString& aValue)
   }
 }
 
-already_AddRefed<nsAccessible>
-nsAccUtils::QueryAccessible(nsIAccessible *aAccessible)
-{
-  nsAccessible* accessible = nsnull;
-  if (aAccessible)
-    CallQueryInterface(aAccessible, &accessible);
-  
-  return accessible;
-}
-
-already_AddRefed<nsHTMLTableAccessible>
-nsAccUtils::QueryAccessibleTable(nsIAccessibleTable *aAccessibleTable)
-{
-  nsHTMLTableAccessible* accessible = nsnull;
-  if (aAccessibleTable)
-    CallQueryInterface(aAccessibleTable, &accessible);
-  
-  return accessible;
-}
-
 #ifdef DEBUG_A11Y
 
 PRBool
@@ -848,6 +825,7 @@ nsAccUtils::GetMultiSelectFor(nsIDOMNode *aNode)
   if (0 == (state & nsIAccessibleStates::STATE_SELECTABLE))
     return nsnull;
 
+  PRUint32 containerRole;
   while (0 == (state & nsIAccessibleStates::STATE_MULTISELECTABLE)) {
     nsIAccessible *current = accessible;
     current->GetParent(getter_AddRefs(accessible));

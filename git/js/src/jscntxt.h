@@ -123,18 +123,30 @@ struct GlobalState {
  */
 struct JSTraceMonitor {
     /*
-     * The context currently executing JIT-compiled code on this thread, or
-     * NULL if none. Among other things, this can in certain cases prevent
-     * last-ditch GC and suppress calls to JS_ReportOutOfMemory.
+     * Flag set when running (or recording) JIT-compiled code. This prevents
+     * both interpreter activation and last-ditch garbage collection when up
+     * against our runtime's memory limits. This flag also suppresses calls to
+     * JS_ReportOutOfMemory when failing due to runtime limits.
      *
-     * !tracecx && !recorder: not on trace
-     * !tracecx && !recorder && prohibitFlush: deep-bailed
-     * !tracecx && recorder && !recorder->deepAborted: recording
-     * !tracecx && recorder && recorder->deepAborted: deep aborted
-     * tracecx && !recorder: executing a trace
-     * tracecx && recorder: executing inner loop, recording outer loop
+     * !onTrace && !recorder: not on trace.
+     * onTrace && recorder: recording a trace.
+     * onTrace && !recorder: executing a trace.
+     * !onTrace && recorder && !prohibitRecording:
+     *      not on trace; deep-aborted while recording.
+     * !onTrace && recorder && prohibitRecording:
+     *      not on trace; deep-bailed in SpiderMonkey code called from a
+     *      trace. JITted code is on the stack.
      */
-    JSContext               *tracecx;
+    JSPackedBool            onTrace;
+
+    /*
+     * Do not start recording after a deep bail.  That would free JITted code
+     * pages that we will later return to.
+     */
+    JSPackedBool            prohibitRecording;
+
+    /* See reservedObjects below. */
+    JSPackedBool            useReservedObjects;
 
     CLS(nanojit::LirBuffer) lirbuf;
     CLS(nanojit::Fragmento) fragmento;
@@ -142,31 +154,14 @@ struct JSTraceMonitor {
     jsval                   *reservedDoublePool;
     jsval                   *reservedDoublePoolPtr;
 
-    struct GlobalState      globalStates[MONITOR_N_GLOBAL_STATES];
-    struct VMFragment*      vmfragments[FRAGMENT_TABLE_SIZE];
-    JSDHashTable            recordAttempts;
-
-    /*
-     * Maximum size of the code cache before we start flushing. 1/16 of this
-     * size is used as threshold for the regular expression code cache.
-     */
-    uint32                  maxCodeCacheBytes;
-
-    /*
-     * If nonzero, do not flush the JIT cache after a deep bail. That would
-     * free JITted code pages that we will later return to. Instead, set the
-     * needFlush flag so that it can be flushed later.
-     *
-     * NB: needFlush and useReservedObjects are packed together.
-     */
-    uintN                   prohibitFlush;
-    JSPackedBool            needFlush;
+    struct GlobalState globalStates[MONITOR_N_GLOBAL_STATES];
+    struct VMFragment* vmfragments[FRAGMENT_TABLE_SIZE];
+    JSBool needFlush;
 
     /*
      * reservedObjects is a linked list (via fslots[0]) of preallocated JSObjects.
      * The JIT uses this to ensure that leaving a trace tree can't fail.
      */
-    JSPackedBool            useReservedObjects;
     JSObject                *reservedObjects;
 
     /* Fragmento for the regular expression compiler. This is logically
@@ -181,13 +176,8 @@ struct JSTraceMonitor {
 
 typedef struct InterpStruct InterpStruct;
 
-/*
- * N.B. JS_ON_TRACE(cx) is true if JIT code is on the stack in the current
- * thread, regardless of whether cx is the context in which that trace is
- * executing.  cx must be a context on the current thread.
- */
 #ifdef JS_TRACER
-# define JS_ON_TRACE(cx)            (JS_TRACE_MONITOR(cx).tracecx != NULL)
+# define JS_ON_TRACE(cx)            (JS_TRACE_MONITOR(cx).onTrace)
 #else
 # define JS_ON_TRACE(cx)            JS_FALSE
 #endif
@@ -258,7 +248,7 @@ struct JSThreadData {
  * that can be accessed without a global lock.
  */
 struct JSThread {
-    /* Linked list of all contexts in use on this thread. */
+    /* Linked list of all contexts active on this thread. */
     JSCList             contextList;
 
     /* Opaque thread-id, from NSPR's PR_GetCurrentThread(). */
@@ -270,10 +260,6 @@ struct JSThread {
      */
     uint32              gcMallocBytes;
 
-    /* Indicates that the thread is waiting in ClaimTitle from jslock.cpp. */
-    JSTitle             *titleToShare;
-
-    /* Factored out of JSThread for !JS_THREADSAFE embedding in JSRuntime. */
     JSThreadData        data;
 };
 
@@ -335,7 +321,7 @@ struct JSSetSlotRequest {
     JSObject            *obj;           /* object containing slot to set */
     JSObject            *pobj;          /* new proto or parent reference */
     uint16              slot;           /* which to set, proto or parent */
-    JSPackedBool        cycle;          /* true if a cycle was detected */
+    uint16              errnum;         /* JSMSG_NO_ERROR or error result */
     JSSetSlotRequest    *next;          /* next request in GC worklist */
 };
 
@@ -345,20 +331,6 @@ struct JSRuntime {
 
     /* Context create/destroy callback. */
     JSContextCallback   cxCallback;
-
-    /*
-     * Shape regenerated whenever a prototype implicated by an "add property"
-     * property cache fill and induced trace guard has a readonly property or a
-     * setter defined on it. This number proxies for the shapes of all objects
-     * along the prototype chain of all objects in the runtime on which such an
-     * add-property result has been cached/traced.
-     *
-     * See bug 492355 for more details.
-     *
-     * This comes early in JSRuntime to minimize the immediate format used by
-     * trace-JITted code that reads it.
-     */
-    uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
     JSGCChunkInfo       *gcChunkList;
@@ -377,7 +349,6 @@ struct JSRuntime {
     uint32              gcNumber;
     JSTracer            *gcMarkingTracer;
     uint32              gcTriggerFactor;
-    volatile JSBool     gcIsNeeded;
 
     /*
      * NB: do not pack another flag here by claiming gcPadding unless the new
@@ -575,16 +546,15 @@ struct JSRuntime {
      * Object shape (property cache structural type) identifier generator.
      *
      * Type 0 stands for the empty scope, and must not be regenerated due to
-     * uint32 wrap-around. Since js_GenerateShape (in jsinterp.cpp) uses
-     * atomic pre-increment, the initial value for the first typed non-empty
-     * scope will be 1.
+     * uint32 wrap-around. Since we use atomic pre-increment, the initial
+     * value for the first typed non-empty scope will be 1.
      *
+     * The GC compresses live types, minimizing rt->shapeGen in the process.
      * If this counter overflows into SHAPE_OVERFLOW_BIT (in jsinterp.h), the
-     * cache is disabled, to avoid aliasing two different types. It stays
-     * disabled until a triggered GC at some later moment compresses live
-     * types, minimizing rt->shapeGen in the process.
+     * GC will disable property caches for all threads, to avoid aliasing two
+     * different types. Updated by js_GenerateShape (in jsinterp.c).
      */
-    volatile uint32     shapeGen;
+    uint32              shapeGen;
 
     /* Literal table maintained by jsatom.c functions. */
     JSAtomState         atomState;
@@ -962,7 +932,7 @@ struct JSContext {
     char                *lastMessage;
 #ifdef DEBUG
     void                *tracefp;
-    jsbytecode          *tracePrevPc;
+    JSOp                tracePrevOp;
 #endif
 
     /* Per-context optional error reporter. */
@@ -985,6 +955,7 @@ struct JSContext {
     jsrefcount          requestDepth;
     /* Same as requestDepth but ignoring JS_SuspendRequest/JS_ResumeRequest */
     jsrefcount          outstandingRequests;
+    JSTitle             *titleToShare;      /* weak reference, see jslock.c */
     JSTitle             *lockedSealedTitle; /* weak ref, for low-cost sealed
                                                title locking */
     JSCList             threadLinks;        /* JSThread contextList linkage */
@@ -1029,10 +1000,6 @@ struct JSContext {
      */
     InterpState         *interpState;
     VMSideExit          *bailExit;
-
-    /* Used when calling natives from trace to root the vp vector. */
-    uintN               nativeVpLen;
-    jsval               *nativeVp;
 #endif
 };
 
@@ -1240,47 +1207,6 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp);
 extern JS_FRIEND_API(JSContext *)
 js_NextActiveContext(JSRuntime *, JSContext *);
 
-#ifdef JS_THREADSAFE
-
-/*
- * Count the number of contexts entered requests on the current thread.
- */
-uint32
-js_CountThreadRequests(JSContext *cx);
-
-/*
- * This is a helper for code at can potentially run outside JS request to
- * ensure that the GC is not running when the function returns.
- *
- * This function must be called with the GC lock held.
- */
-extern void
-js_WaitForGC(JSRuntime *rt);
-
-/*
- * If we're in one or more requests (possibly on more than one context)
- * running on the current thread, indicate, temporarily, that all these
- * requests are inactive so a possible GC can proceed on another thread.
- * This function returns the number of discounted requests. The number must
- * be passed later to js_ActivateRequestAfterGC to reactivate the requests.
- *
- * This function must be called with the GC lock held.
- */
-uint32
-js_DiscountRequestsForGC(JSContext *cx);
-
-/*
- * This function must be called with the GC lock held.
- */
-void
-js_RecountRequestsAfterGC(JSRuntime *rt, uint32 requestDebit);
-
-#else /* !JS_THREADSAFE */
-
-# define js_WaitForGC(rt)    ((void) 0)
-
-#endif
-
 /*
  * JSClass.resolve and watchpoint recursion damping machinery.
  */
@@ -1446,14 +1372,6 @@ extern JSErrorFormatString js_ErrorFormatString[JSErr_Limit];
 extern JSBool
 js_InvokeOperationCallback(JSContext *cx);
 
-#ifndef JS_THREADSAFE
-# define js_TriggerAllOperationCallbacks(rt, gcLocked) \
-    js_TriggerAllOperationCallbacks (rt)
-#endif
-
-void
-js_TriggerAllOperationCallbacks(JSRuntime *rt, JSBool gcLocked);
-
 extern JSStackFrame *
 js_GetScriptedCaller(JSContext *cx, JSStackFrame *fp);
 
@@ -1462,9 +1380,9 @@ js_GetCurrentBytecodePC(JSContext* cx);
 
 #ifdef JS_TRACER
 /*
- * Reconstruct the JS stack and clear cx->tracecx. We must be currently in a
- * _FAIL builtin from trace on cx or another context on the same thread. The
- * machine code for the trace remains on the C stack when js_DeepBail returns.
+ * Reconstruct the JS stack and clear cx->onTrace. We must be currently
+ * executing a _FAIL builtin from trace on cx. The machine code for the trace
+ * remains on the C stack when js_DeepBail returns.
  *
  * Implemented in jstracer.cpp.
  */
@@ -1479,13 +1397,6 @@ js_LeaveTrace(JSContext *cx)
     if (JS_ON_TRACE(cx))
         js_DeepBail(cx);
 #endif
-}
-
-static JS_INLINE void
-js_LeaveTraceIfGlobalObject(JSContext *cx, JSObject *obj)
-{
-    if (!obj->fslots[JSSLOT_PARENT])
-        js_LeaveTrace(cx);
 }
 
 static JS_INLINE JSBool
@@ -1510,28 +1421,6 @@ js_GetTopStackFrame(JSContext *cx)
 {
     js_LeaveTrace(cx);
     return cx->fp;
-}
-
-static JS_INLINE JSBool
-js_IsPropertyCacheDisabled(JSContext *cx)
-{
-    return cx->runtime->shapeGen >= SHAPE_OVERFLOW_BIT;
-}
-
-static JS_INLINE uint32
-js_RegenerateShapeForGC(JSContext *cx)
-{
-    JS_ASSERT(cx->runtime->gcRunning);
-
-    /*
-     * Under the GC, compared with js_GenerateShape, we don't need to use
-     * atomic increments but we still must make sure that after an overflow
-     * the shape stays such.
-     */
-    uint32 shape = cx->runtime->shapeGen;
-    shape = (shape + 1) | (shape & SHAPE_OVERFLOW_BIT);
-    cx->runtime->shapeGen = shape;
-    return shape;
 }
 
 JS_END_EXTERN_C

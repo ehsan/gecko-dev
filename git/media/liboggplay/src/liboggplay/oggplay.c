@@ -285,35 +285,6 @@ oggplay_get_video_fps(OggPlay *me, int track, int* fps_denom, int* fps_num) {
 }
 
 OggPlayErrorCode
-oggplay_get_video_aspect_ratio(OggPlay *me, int track, int* aspect_denom, int* aspect_num) {
-  OggPlayTheoraDecode *decode;
-
-  if (me == NULL) {
-    return E_OGGPLAY_BAD_OGGPLAY;
-  }
-
-  if (track < 0 || track >= me->num_tracks) {
-    return E_OGGPLAY_BAD_TRACK;
-  }
-
-  if (me->decode_data[track]->decoded_type != OGGPLAY_YUV_VIDEO) {
-    return E_OGGPLAY_WRONG_TRACK_TYPE;
-  }
-
-  decode = (OggPlayTheoraDecode *)(me->decode_data[track]);
-
-  if ((decode->video_info.aspect_denominator == 0)
-    || (decode->video_info.aspect_numerator == 0)) {
-    return E_OGGPLAY_UNINITIALISED;
-  }
-
-  (*aspect_denom) = decode->video_info.aspect_denominator;
-  (*aspect_num) = decode->video_info.aspect_numerator;
-
-  return E_OGGPLAY_OK;
-}
-
-OggPlayErrorCode
 oggplay_convert_video_to_rgb(OggPlay *me, int track, int convert) {
   OggPlayTheoraDecode *decode;
 
@@ -737,15 +708,14 @@ read_more_data:
     oggplay_data_clean_list (me->decode_data[i]);
   }
 
-  if (me->shutdown) {
-    return E_OGGPLAY_OK;
-  }
-
   if (info == NULL) {
     goto read_more_data;
   }
 
   me->target += me->callback_period;
+  if (me->shutdown) {
+    return E_OGGPLAY_OK;
+  }
   if (r == -1) {
     return E_OGGPLAY_USER_INTERRUPT;
   }

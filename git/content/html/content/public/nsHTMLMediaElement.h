@@ -42,7 +42,6 @@
 #include "nsThreadUtils.h"
 #include "nsIDOMRange.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsILoadGroup.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
@@ -106,9 +105,7 @@ public:
 
   // Called by the video decoder object, on the main thread,
   // when it has read the first frame of the video
-  // aResourceFullyLoaded should be true if the resource has been
-  // fully loaded and the caller will call ResourceLoaded next.
-  void FirstFrameLoaded(PRBool aResourceFullyLoaded);
+  void FirstFrameLoaded();
 
   // Called by the video decoder object, on the main thread,
   // when the resource has completed downloading.
@@ -129,20 +126,6 @@ public:
   // Called by the video decoder object, on the main thread,
   // when the resource has completed seeking.
   void SeekCompleted();
-
-  // Called by the media stream, on the main thread, when the download
-  // has been suspended by the cache or because the element itself
-  // asked the decoder to suspend the download.
-  void DownloadSuspended();
-
-  // Called by the media stream, on the main thread, when the download
-  // has been resumed by the cache or because the element itself
-  // asked the decoder to resumed the download.
-  void DownloadResumed();
-
-  // Called by the media decoder to indicate that the download has stalled
-  // (no data has arrived for a while).
-  void DownloadStalled();
 
   // Draw the latest video data. See nsMediaDecoder for 
   // details.
@@ -205,7 +188,8 @@ public:
   void Freeze();
   void Thaw();
 
-  // Returns true if we can handle this MIME type.
+  // Returns true if we can handle this MIME type in a <video> or <audio>
+  // element.
   // If it returns true, then it also returns a null-terminated list
   // of supported codecs in *aSupportedCodecs, and a null-terminated list
   // of codecs that *may* be supported in *aMaybeSupportedCodecs. These
@@ -213,12 +197,6 @@ public:
   static PRBool CanHandleMediaType(const char* aMIMEType,
                                    const char*** aSupportedCodecs,
                                    const char*** aMaybeSupportedCodecs);
-
-  // Returns true if we should handle this MIME type when it appears
-  // as an <object> or as a toplevel page. If, in practice, our support
-  // for the type is more limited than appears in the wild, we should return
-  // false here even if CanHandleMediaType would return true.
-  static PRBool ShouldHandleMediaType(const char* aMIMEType);
 
   /**
    * Initialize data for available media types
@@ -250,11 +228,6 @@ public:
    */
   PRUint32 GetCurrentLoadID() { return mCurrentLoadID; }
 
-  /**
-   * Returns the load group for this media element's owner document.
-   * XXX XBL2 issue.
-   */
-  already_AddRefed<nsILoadGroup> GetDocumentLoadGroup();
 
 protected:
   class MediaLoadListener;
@@ -332,25 +305,8 @@ protected:
    */
   void ChangeDelayLoadStatus(PRBool aDelay);
 
-  /**
-   * If we suspended downloading after the first frame, unsuspend now.
-   */
-  void StopSuspendingAfterFirstFrame();
-
-  /**
-   * Called when our channel is redirected to another channel.
-   * Updates our mChannel reference to aNewChannel.
-   */
-  nsresult OnChannelRedirect(nsIChannel *aChannel,
-                             nsIChannel *aNewChannel,
-                             PRUint32 aFlags);
-
   nsRefPtr<nsMediaDecoder> mDecoder;
 
-  // Holds a reference to the first channel we open to the media resource.
-  // Once the decoder is created, control over the channel passes to the
-  // decoder, and we null out this reference. We must store this in case
-  // we need to cancel the channel before control of it passes to the decoder.
   nsCOMPtr<nsIChannel> mChannel;
 
   // Error attribute
@@ -461,12 +417,4 @@ protected:
   // PR_TRUE when we've got a task queued to call SelectResource(),
   // or while we're running SelectResource().
   PRPackedBool mIsRunningSelectResource;
-
-  // PR_TRUE if we suspended the decoder because we were paused,
-  // autobuffer and autoplay were not set, and we loaded the first frame.
-  PRPackedBool mSuspendedAfterFirstFrame;
-
-  // PR_TRUE if we are allowed to suspend the decoder because we were paused,
-  // autobuffer and autoplay were not set, and we loaded the first frame.
-  PRPackedBool mAllowSuspendAfterFirstFrame;
 };

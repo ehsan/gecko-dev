@@ -56,7 +56,7 @@ function run_test()
                           veryLongRequestLine);
   srv.start(PORT);
 
-  runRawTests(tests, testComplete(srv));
+  runRawTests(tests, function() { srv.stop(); });
 }
 
 

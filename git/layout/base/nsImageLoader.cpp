@@ -193,7 +193,7 @@ NS_IMETHODIMP nsImageLoader::FrameChanged(imgIContainer *aContainer,
     return NS_OK;
   }
   
-  nsRect r = dirtyRect->ToAppUnits(nsPresContext::AppUnitsPerCSSPixel());
+  nsRect r = nsIntRect::ToAppUnits(*dirtyRect, nsPresContext::AppUnitsPerCSSPixel());
 
   RedrawDirtyFrame(&r);
 

@@ -47,14 +47,13 @@
 #include "nsIEditor.h"
 #include "nsIEditActionListener.h"
 #include "nsITextServicesDocument.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsTSDNotifier.h"
 #include "nsISelectionController.h"
 #include "nsITextServicesFilter.h"
 #include "nsWeakReference.h"
 
 class nsIRangeUtils;
-class OffsetEntry;
 
 /** implementation of a text services object.
  *
@@ -104,7 +103,7 @@ private:
   nsCOMPtr<nsIContent>            mPrevTextBlock;
   nsCOMPtr<nsIContent>            mNextTextBlock;
   nsCOMPtr<nsIEditActionListener> mNotifier;
-  nsTArray<OffsetEntry*>          mOffsetTable;
+  nsVoidArray                     mOffsetTable;
 
   PRInt32                         mSelStartIndex;
   PRInt32                         mSelStartOffset;
@@ -212,14 +211,14 @@ private:
   PRBool SelectionIsCollapsed();
   PRBool SelectionIsValid();
 
-  static nsresult CreateOffsetTable(nsTArray<OffsetEntry*> *aOffsetTable,
+  static nsresult CreateOffsetTable(nsVoidArray *aOffsetTable,
                              nsIContentIterator *aIterator,
                              TSDIteratorStatus *aIteratorStatus,
                              nsIDOMRange *aIterRange,
                              nsString *aStr);
-  static nsresult ClearOffsetTable(nsTArray<OffsetEntry*> *aOffsetTable);
+  static nsresult ClearOffsetTable(nsVoidArray *aOffsetTable);
 
-  static nsresult NodeHasOffsetEntry(nsTArray<OffsetEntry*> *aOffsetTable,
+  static nsresult NodeHasOffsetEntry(nsVoidArray *aOffsetTable,
                                      nsIDOMNode *aNode,
                                      PRBool *aHasEntry,
                                      PRInt32 *aEntryIndex);
@@ -227,8 +226,7 @@ private:
   nsresult RemoveInvalidOffsetEntries();
   nsresult SplitOffsetEntry(PRInt32 aTableIndex, PRInt32 aOffsetIntoEntry);
 
-  static nsresult FindWordBounds(nsTArray<OffsetEntry*> *offsetTable,
-                                 nsString *blockStr,
+  static nsresult FindWordBounds(nsVoidArray *offsetTable, nsString *blockStr,
                                  nsIDOMNode *aNode, PRInt32 aNodeOffset,
                                  nsIDOMNode **aWordStartNode,
                                  PRInt32 *aWordStartOffset,

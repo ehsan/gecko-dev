@@ -40,9 +40,7 @@ const nsIDOMDocument = Components.interfaces.nsIDOMDocument;
 const nsIDOMEvent = Components.interfaces.nsIDOMEvent;
 const nsIDOMHTMLDocument = Components.interfaces.nsIDOMHTMLDocument;
 const nsIDOMNode = Components.interfaces.nsIDOMNode;
-const nsIDOMNSHTMLElement = Components.interfaces.nsIDOMNSHTMLElement;
 const nsIDOMWindow = Components.interfaces.nsIDOMWindow;
-const nsIDOMXULElement = Components.interfaces.nsIDOMXULElement;
 
 const nsIPropertyElement = Components.interfaces.nsIPropertyElement;
 
@@ -123,25 +121,22 @@ function addA11yLoadEvent(aFunc)
 // Get DOM node/accesible helpers
 
 /**
- * Return the DOM node by identifier (may be accessible, DOM node or ID).
+ * Return the DOM node.
  */
-function getNode(aAccOrNodeOrID)
+function getNode(aNodeOrID)
 {
-  if (!aAccOrNodeOrID)
+  if (!aNodeOrID)
     return null;
 
-  if (aAccOrNodeOrID instanceof nsIDOMNode)
-    return aAccOrNodeOrID;
+  var node = aNodeOrID;
 
-  if (aAccOrNodeOrID instanceof nsIAccessible) {
-    aAccOrNodeOrID.QueryInterface(nsIAccessNode);
-    return aAccOrNodeOrID.DOMNode;
-  }
+  if (!(aNodeOrID instanceof nsIDOMNode)) {
+    node = document.getElementById(aNodeOrID);
 
-  node = document.getElementById(aAccOrNodeOrID);
-  if (!node) {
-    ok(false, "Can't get DOM element for " + aAccOrNodeOrID);
-    return null;
+    if (!node) {
+      ok(false, "Can't get DOM element for " + aNodeOrID);
+      return null;
+    }
   }
 
   return node;
@@ -220,7 +215,7 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
         acc.QueryInterface(aInterfaces[index]);
       } catch (e) {
         if (!(aDoNotFailIf & DONOTFAIL_IF_NO_INTERFACE))
-          ok(false, "Can't query " + aInterfaces[index] + " for " + aAccOrElmOrID);
+          ok(false, "Can't query " + aInterfaces[index] + " for " + aID);
 
         return null;
       }
@@ -231,7 +226,7 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
   try {
     acc.QueryInterface(aInterfaces);
   } catch (e) {
-    ok(false, "Can't query " + aInterfaces + " for " + aAccOrElmOrID);
+    ok(false, "Can't query " + aInterfaces + " for " + aID);
     return null;
   }
   
@@ -271,45 +266,6 @@ function ensureAccessibleTree(aAccOrElmOrID)
 }
 
 /**
- * Compare expected and actual accessibles trees.
- */
-function testAccessibleTree(aAccOrElmOrID, aAccTree)
-{
-  var acc = getAccessible(aAccOrElmOrID);
-  if (!acc)
-    return;
-
-  for (var prop in aAccTree) {
-    var msg = "Wrong value of property '" + prop + "'.";
-    if (prop == "role") {
-      is(roleToString(acc[prop]), roleToString(aAccTree[prop]), msg);
-
-    } else if (prop == "states") {
-      var statesObj = aAccTree[prop];
-      testStates(acc, statesObj.states, statesObj.extraStates,
-                 statesObj.absentStates, statesObj.absentExtraStates);
-
-    } else if (prop != "children") {
-      is(acc[prop], aAccTree[prop], msg);
-    }
-  }
-
-  if ("children" in aAccTree && aAccTree["children"] instanceof Array) {
-    var children = acc.children;
-    is(children.length, aAccTree.children.length,
-       "Different amount of expected children of " + prettyName(acc) + ".");
-
-    if (aAccTree.children.length == children.length) { 
-      for (var i = 0; i < children.length; i++) {
-        var child = children.queryElementAt(i, nsIAccessible);
-        testAccessibleTree(child, aAccTree.children[i]);
-      }
-    }
-  }
-}
-
-
-/**
  * Convert role to human readable string.
  */
 function roleToString(aRole)
@@ -336,7 +292,7 @@ function statesToString(aStates, aExtraStates)
  */
 function eventTypeToString(aEventType)
 {
-  return gAccRetrieval.getStringEventType(aEventType);
+  gAccRetrieval.getStringEventType(aEventType);
 }
 
 /**
@@ -354,14 +310,8 @@ function prettyName(aIdentifier)
 {
   if (aIdentifier instanceof nsIAccessible) {
     var acc = getAccessible(aIdentifier, [nsIAccessNode]);
-    var msg = "[" + getNodePrettyName(acc.DOMNode) +
-      ", role: " + roleToString(acc.role);
-
-    if (acc.name)
-      msg += ", name: '" + acc.name + "'"
-    msg += "]";
-
-    return msg;
+    return getNodePrettyName(acc.DOMNode) + ", role: " +
+      roleToString(acc.finalRole);
   }
 
   if (aIdentifier instanceof nsIDOMNode)
@@ -387,12 +337,8 @@ addLoadEvent(initialize);
 
 function getNodePrettyName(aNode)
 {
-  try {
-    if (aNode.nodeType == nsIDOMNode.ELEMENT_NODE && aNode.hasAttribute("id"))
-      return " '" + aNode.getAttribute("id") + "' ";
+  if (aNode.nodeType == nsIDOMNode.ELEMENT_NODE && aNode.hasAttribute("id"))
+    return " '" + aNode.getAttribute("id") + "' ";
 
-    return " '" + aNode.localName + " node' ";
-  } catch (e) {
-    return "no node info";
-  }
+  return " '" + aNode.localName + " node' ";
 }

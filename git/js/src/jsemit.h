@@ -183,6 +183,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
     };
 
     JSAtomList      lexdeps;        /* unresolved lexical name dependencies */
+    JSAtomList      upvars;         /* resolved lexical name dependencies */
     JSTreeContext   *parent;        /* enclosing function or global context */
     uintN           staticLevel;    /* static compilation unit nesting level */
 
@@ -260,7 +261,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
 #define TCF_HAS_SHARPS        0x8000 /* source contains sharp defs or uses */
 
 /*
- * Sticky deoptimization flags to propagate from FunctionBody.
+ * Flags to propagate from FunctionBody.
  */
 #define TCF_FUN_FLAGS           (TCF_FUN_SETS_OUTER_NAME |                    \
                                  TCF_FUN_USES_ARGUMENTS  |                    \

@@ -51,6 +51,7 @@
 #include "nsCycleCollectionParticipant.h"
 
 class nsNavHistory;
+class nsIDateTimeFormat;
 class nsIWritablePropertyBag;
 class nsNavHistoryQuery;
 class nsNavHistoryQueryOptions;
@@ -99,7 +100,6 @@ private:
                      PRInt64 aSessionId, PRInt64 aReferringId,          \
                      PRUint32 aTransitionType, PRUint32* aAdded);      \
   NS_IMETHOD OnTitleChanged(nsIURI* aURI, const nsAString& aPageTitle); \
-  NS_IMETHOD OnBeforeDeleteURI(nsIURI *aURI);                           \
   NS_IMETHOD OnDeleteURI(nsIURI *aURI);                                 \
   NS_IMETHOD OnClearHistory();                                          \
   NS_IMETHOD OnPageChanged(nsIURI *aURI, PRUint32 aWhat,                \
@@ -160,7 +160,7 @@ public:
 public:
   // two-stage init, use NewHistoryResult to construct
   nsNavHistoryResult(nsNavHistoryContainerResultNode* mRoot);
-  virtual ~nsNavHistoryResult();
+  ~nsNavHistoryResult();
   nsresult Init(nsINavHistoryQuery** aQueries,
                 PRUint32 aQueryCount,
                 nsNavHistoryQueryOptions *aOptions);
@@ -187,12 +187,10 @@ public:
   PRBool mIsBookmarkFolderObserver;
   PRBool mIsAllBookmarksObserver;
 
-  typedef nsTArray< nsRefPtr<nsNavHistoryQueryResultNode> > QueryObserverList;
-  QueryObserverList mHistoryObservers;
-  QueryObserverList mAllBookmarksObservers;
-
-  typedef nsTArray< nsRefPtr<nsNavHistoryFolderResultNode> > FolderObserverList;
-  nsDataHashtable<nsTrimInt64HashKey, FolderObserverList*> mBookmarkFolderObservers;
+  nsTArray<nsNavHistoryQueryResultNode*> mHistoryObservers;
+  nsTArray<nsNavHistoryQueryResultNode*> mAllBookmarksObservers;
+  typedef nsTArray<nsRefPtr<nsNavHistoryFolderResultNode> > FolderObserverList;
+  nsDataHashtable<nsTrimInt64HashKey, FolderObserverList* > mBookmarkFolderObservers;
   FolderObserverList* BookmarkFolderObserversForId(PRInt64 aFolderId, PRBool aCreate);
 
   void RecursiveExpandCollapse(nsNavHistoryContainerResultNode* aContainer,
@@ -528,8 +526,6 @@ public:
     PRBool aReadOnly, const nsACString& aDynamicContainerType,
     nsNavHistoryQueryOptions* aOptions);
 
-  virtual ~nsNavHistoryContainerResultNode();
-
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_NAVHISTORYCONTAINERRESULTNODE_IID)
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -697,8 +693,6 @@ public:
                               PRTime aTime,
                               const nsCOMArray<nsNavHistoryQuery>& aQueries,
                               nsNavHistoryQueryOptions* aOptions);
-
-  virtual ~nsNavHistoryQueryResultNode();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_COMMON_RESULTNODE_TO_BASE

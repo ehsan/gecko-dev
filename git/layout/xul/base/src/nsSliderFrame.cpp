@@ -120,8 +120,6 @@ nsSliderFrame::Init(nsIContent*      aContent,
     gSnapMultiplier = nsContentUtils::GetIntPref("slider.snapMultiplier");
   }
 
-  mCurPos = GetCurrentPosition(aContent);
-
   CreateViewForFrame(PresContext(), this, GetStyleContext(), PR_TRUE);
   return rv;
 }
@@ -232,24 +230,6 @@ public:
   nsCOMPtr<nsIAtom> mWhich;
   PRInt32 mValue;
   PRBool mUserChanged;
-};
-
-class nsDragStateChangedRunnable : public nsRunnable
-{
-public:
-  nsDragStateChangedRunnable(nsISliderListener* aListener,
-                             PRBool aDragBeginning)
-  : mListener(aListener),
-    mDragBeginning(aDragBeginning)
-  {}
-
-  NS_IMETHODIMP Run()
-  {
-    return mListener->DragStateChanged(mDragBeginning);
-  }
-
-  nsCOMPtr<nsISliderListener> mListener;
-  PRBool mDragBeginning;
 };
 
 NS_IMETHODIMP
@@ -1006,16 +986,6 @@ nsSliderFrame::MouseUp(nsIDOMEvent* aMouseEvent)
 void
 nsSliderFrame::DragThumb(PRBool aGrabMouseEvents)
 {
-  // inform the parent <scale> that a drag is beginning or ending
-  nsIFrame* parent = GetParent();
-  if (parent) {
-    nsCOMPtr<nsISliderListener> sliderListener = do_QueryInterface(parent->GetContent());
-    if (sliderListener) {
-      nsContentUtils::AddScriptRunner(
-        new nsDragStateChangedRunnable(sliderListener, aGrabMouseEvents));
-    }
-  }
-
   // get its view
   nsIView* view = GetView();
 

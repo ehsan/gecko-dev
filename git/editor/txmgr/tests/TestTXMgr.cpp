@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Serge Gautherie <sgautherie.bz@free.fr>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -36,9 +35,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "TestHarness.h"
-
+#include <stdlib.h>
+#include <stdio.h>
+#include "nsXPCOM.h"
 #include "nsITransactionManager.h"
+#include "nsIComponentManager.h"
 #include "nsComponentManagerUtils.h"
 
 static PRInt32 sConstructorCount     = 0;
@@ -499,7 +500,7 @@ public:
     // of date.
     //
     if (sDoOrderArr && mVal != sDoOrderArr[sDoCount]) {
-      printf("ERROR: DoTransaction expected %d got %d.\n",
+      printf("ERROR: ~SimpleTransaction expected %d got %d.\n",
              mVal, sDoOrderArr[sDoCount]);
       exit(NS_ERROR_FAILURE);
     }
@@ -522,7 +523,7 @@ public:
     // of date.
     //
     if (sUndoOrderArr && mVal != sUndoOrderArr[sUndoCount]) {
-      printf("ERROR: UndoTransaction expected %d got %d.\n",
+      printf("ERROR: ~SimpleTransaction expected %d got %d.\n",
              mVal, sUndoOrderArr[sUndoCount]);
       exit(NS_ERROR_FAILURE);
     }
@@ -545,7 +546,7 @@ public:
     // of date.
     //
     if (sRedoOrderArr && mVal != sRedoOrderArr[sRedoCount]) {
-      printf("ERROR: RedoTransaction expected %d got %d.\n",
+      printf("ERROR: ~SimpleTransaction expected %d got %d.\n",
              mVal, sRedoOrderArr[sRedoCount]);
       exit(NS_ERROR_FAILURE);
     }
@@ -905,8 +906,8 @@ quick_test(TestTransactionFactory *factory)
    *******************************************************************/
 
   printf("Call Clear() with empty undo and redo stack ... ");
-
   result = mgr->Clear();
+
   if (NS_FAILED(result)) {
     printf("ERROR: Clear on empty undo and redo stack failed. (%d)\n", result);
     return result;
@@ -1200,6 +1201,7 @@ quick_test(TestTransactionFactory *factory)
   }
 
   result = mgr->Clear();
+
   if (NS_FAILED(result)) {
     printf("ERROR: Clear() failed. (%d)\n", result);
     return result;
@@ -1584,6 +1586,7 @@ quick_test(TestTransactionFactory *factory)
   }
 
   result = mgr->Clear();
+
   if (NS_FAILED(result)) {
     printf("ERROR: Clear() failed. (%d)\n",
            result);
@@ -2664,12 +2667,6 @@ quick_test(TestTransactionFactory *factory)
     printf("ERROR: GetNumberOfRedoItems() expected 10 got %d. (%d)\n",
            numitems, result);
     return NS_ERROR_FAILURE;
-  }
-
-  result = mgr->Clear();
-  if (NS_FAILED(result)) {
-    printf("ERROR: Clear() failed. (%d)\n", result);
-    return result;
   }
 
   printf("passed\n");
@@ -4374,12 +4371,6 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->Clear();
-  if (NS_FAILED(result)) {
-    printf("ERROR: Clear() failed. (%d)\n", result);
-    return result;
-  }
-
   printf("passed\n");
 
   /*******************************************************************
@@ -4568,11 +4559,7 @@ stress_test(TestTransactionFactory *factory, PRInt32 iterations)
     }
   }
 
-  result = mgr->Clear();
-  if (NS_FAILED(result)) {
-    printf("ERROR: Clear() failed. (%d)\n", result);
-    return result;
-  }
+  // printf("%d  %d -  ", sConstructorCount, sDestructorCount);
 
   if (sConstructorCount != sDestructorCount) {
     printf("ERROR: Transaction constructor count (%d) != destructor count (%d).\n",
@@ -4677,11 +4664,9 @@ aggregation_batch_stress_test()
 int
 main (int argc, char *argv[])
 {
-  ScopedXPCOM xpcom("nsITransactionManager");
-  if (xpcom.failed())
-    return 1;
-
-  nsresult result;
+  nsresult result = NS_InitXPCOM2(nsnull, nsnull, nsnull);
+  if (NS_FAILED(result))
+    return result;
 
   result = simple_test();
 
