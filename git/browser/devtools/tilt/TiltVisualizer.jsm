@@ -1549,6 +1549,20 @@ TiltVisualizer.Prefs = {
   },
 
   /**
+   * Specifies if Tilt should be enabled even if WebGL may not be available.
+   */
+  get forceEnabled()
+  {
+    return this._forceEnabled;
+  },
+
+  set forceEnabled(value)
+  {
+    TiltUtils.Preferences.set("force-enabled", "boolean", value);
+    this._forceEnabled = value;
+  },
+
+  /**
    * Loads the preferences.
    */
   load: function TVC_load()
@@ -1556,6 +1570,7 @@ TiltVisualizer.Prefs = {
     let prefs = TiltUtils.Preferences;
 
     TiltVisualizer.Prefs._enabled = prefs.get("enabled", "boolean");
+    TiltVisualizer.Prefs._forceEnabled = prefs.get("force-enabled", "boolean");
   }
 };
 
