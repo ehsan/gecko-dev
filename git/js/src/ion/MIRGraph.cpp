@@ -352,6 +352,8 @@ MBasicBlock::linkOsrValues(MStart *start)
         MDefinition *def = slots_[i];
         if (i == info().scopeChainSlot())
             def->toOsrScopeChain()->setResumePoint(res);
+        else if (info().hasArguments() && i == info().argsObjSlot())
+            JS_ASSERT(def->isConstant() && def->toConstant()->value() == UndefinedValue());
         else
             def->toOsrValue()->setResumePoint(res);
     }
@@ -454,10 +456,22 @@ MBasicBlock::scopeChain()
     return getSlot(info().scopeChainSlot());
 }
 
+MDefinition *
+MBasicBlock::argumentsObject()
+{
+    return getSlot(info().argsObjSlot());
+}
+
 void
 MBasicBlock::setScopeChain(MDefinition *scopeObj)
 {
     setSlot(info().scopeChainSlot(), scopeObj);
+}
+
+void
+MBasicBlock::setArgumentsObject(MDefinition *argsObj)
+{
+    setSlot(info().argsObjSlot(), argsObj);
 }
 
 void
