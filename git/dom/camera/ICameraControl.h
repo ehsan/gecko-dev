@@ -211,7 +211,8 @@ public:
 
     NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RecorderProfile)
 
-    RecorderProfile()
+    RecorderProfile(const nsAString& aName)
+      : mName(aName)
     { }
 
     const nsString& GetName() const       { return mName; }

@@ -6,12 +6,13 @@ MARIONETTE_HEAD_JS = "head.js";
 
 let url = "https://www.example.com";
 
-function sendNDEF(peer) {
+function sendNDEF(techType, sessionToken) {
   let tnf = NDEF.TNF_WELL_KNOWN;
   let type = new Uint8Array(NfcUtils.fromUTF8("U"));
   let payload = new Uint8Array(NfcUtils.fromUTF8(url));
   let ndef = [new MozNDEFRecord({tnf: tnf, type: type, payload: payload})];
 
+  let peer = window.navigator.mozNfc.getNFCPeer(sessionToken);
   let promise = peer.sendNDEF(ndef);
   promise.then(() => {
     log("Successfully sent NDEF message");
@@ -32,8 +33,9 @@ function sendNDEF(peer) {
 function handleTechnologyDiscoveredRE0(msg) {
   log("Received \'nfc-manager-tech-discovered\' " + JSON.stringify(msg));
   is(msg.type, "techDiscovered", "check for correct message type");
-  is(msg.isP2P, "check for \'P2P\' in tech list");
-  sendNDEF(msg.peer);
+  let index = msg.techList.indexOf("P2P");
+  isnot(index, -1, "check for \'P2P\' in tech list");
+  sendNDEF(msg.techList[index], msg.sessionToken);
 }
 
 function testOnPeerReadyRE0() {

@@ -160,22 +160,20 @@ describe("loop.conversation", function() {
         sdk: {}
       });
       dispatcher = new loop.Dispatcher();
-      conversationStore = new loop.store.ConversationStore(
-        dispatcher, {
-          client: client,
-          mozLoop: navigator.mozLoop,
-          sdkDriver: {}
-        });
-
-      conversationStore.setStoreState({contact: {
-        name: [ "Mr Smith" ],
-        email: [{
-          type: "home",
-          value: "fakeEmail",
-          pref: true
-        }]
-      }});
-
+      conversationStore = new loop.store.ConversationStore({
+        contact: {
+          name: [ "Mr Smith" ],
+          email: [{
+            type: "home",
+            value: "fakeEmail",
+            pref: true
+          }]
+        }
+      }, {
+        client: client,
+        dispatcher: dispatcher,
+        sdkDriver: {}
+      });
       roomStore = new loop.store.RoomStore(dispatcher, {
         mozLoop: navigator.mozLoop,
       });
