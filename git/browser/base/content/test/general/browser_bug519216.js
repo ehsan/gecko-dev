@@ -1,5 +1,6 @@
 function test() {
   waitForExplicitFinish();
+  gBrowser.stop();
   gBrowser.addProgressListener(progressListener1);
   gBrowser.addProgressListener(progressListener2);
   gBrowser.addProgressListener(progressListener3);
@@ -40,6 +41,10 @@ var progressListener4 = {
   onLocationChange: function onLocationChange() {
     ok(expectListener4, "didn't call progressListener4 for the first location change");
     gBrowser.removeProgressListener(this);
-    executeSoon(finish);
+    executeSoon(function () {
+      gBrowser.addTab();
+      gBrowser.removeCurrentTab();
+      finish();
+    });
   }
 };

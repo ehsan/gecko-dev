@@ -161,12 +161,12 @@ var WifiManager = (function() {
 
   // Regular Wifi stuff.
   var netUtil = WifiNetUtil(controlMessage);
-  var wifiCommand = WifiCommand(controlMessage, manager.ifname, sdkVersion);
+  var wifiCommand = WifiCommand(controlMessage, manager.ifname);
 
   // Wifi P2P stuff
   var p2pManager;
   if (p2pSupported) {
-    let p2pCommand = WifiCommand(controlMessage, WifiP2pManager.INTERFACE_NAME, sdkVersion);
+    let p2pCommand = WifiCommand(controlMessage, WifiP2pManager.INTERFACE_NAME);
     p2pManager = WifiP2pManager(p2pCommand, netUtil);
   }
 
@@ -3019,7 +3019,7 @@ WifiWorker.prototype = {
     let self = this;
     let detail = msg.data;
     if (detail.method === "pbc") {
-      WifiManager.wpsPbc(function(ok) {
+      WifiManager.wpsPbc(WifiManager.ifname, function(ok) {
         if (ok)
           self._sendMessage(message, true, true, msg);
         else
