@@ -251,6 +251,7 @@
 #ifdef MOZ_CSS_ANIMATIONS
 #include "nsIDOMAnimationEvent.h"
 #endif
+#include "nsIDOMNSDocumentStyle.h"
 #include "nsIDOMDocumentXBL.h"
 #include "nsIDOMElementCSSInlineStyle.h"
 #include "nsIDOMLinkStyle.h"
@@ -794,6 +795,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLDListElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(HTMLDelElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLDirectoryElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLDivElement, nsElementSH,
@@ -826,6 +829,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLInputElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(HTMLInsElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLIsIndexElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLLIElement, nsElementSH,
@@ -841,8 +846,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(HTMLMenuElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLMetaElement, nsElementSH,
-                           ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(HTMLModElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLOListElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
@@ -2325,6 +2328,8 @@ nsDOMClassInfo::RegisterExternalClasses()
 
 #define DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES                                    \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSDocument)                                 \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentStyle)                              \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSDocumentStyle)                            \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentXBL)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)                              \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
@@ -2723,6 +2728,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLDelElement, nsIDOMHTMLElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLModElement)
+    DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(HTMLDirectoryElement, nsIDOMHTMLDirectoryElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDirectoryElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
@@ -2804,6 +2814,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLInsElement, nsIDOMHTMLElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLModElement)
+    DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(HTMLIsIndexElement, nsIDOMHTMLIsIndexElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLIsIndexElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
@@ -2842,11 +2857,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLMetaElement, nsIDOMHTMLMetaElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMetaElement)
-    DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(HTMLModElement, nsIDOMHTMLModElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLModElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 

@@ -54,11 +54,7 @@ CPPSRCS		= \
 		nsPosixLocale.cpp \
 		$(NULL)
 
-ifeq (android,$(MOZ_WIDGET_TOOLKIT))
-CPPSRCS		+= nsAndroidCharset.cpp
-else
 CPPSRCS		+= nsUNIXCharset.cpp
-endif
 
 ifdef ENABLE_TESTS
 DIRS		+= tests

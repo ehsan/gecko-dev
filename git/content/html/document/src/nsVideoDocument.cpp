@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "MediaDocument.h"
+#include "nsMediaDocument.h"
 #include "nsGkAtoms.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
@@ -43,10 +43,9 @@
 #include "nsIDocShellTreeItem.h"
 #include "mozilla/dom/Element.h"
 
-namespace mozilla {
-namespace dom {
+using namespace mozilla::dom;
 
-class VideoDocument : public MediaDocument
+class nsVideoDocument : public nsMediaDocument
 {
 public:
   virtual nsresult StartDocumentLoad(const char*         aCommand,
@@ -65,24 +64,25 @@ protected:
   nsresult CreateSyntheticVideoDocument(nsIChannel* aChannel,
                                         nsIStreamListener** aListener);
 
-  nsRefPtr<MediaDocumentStreamListener> mStreamListener;
+  nsRefPtr<nsMediaDocumentStreamListener> mStreamListener;
 };
 
 nsresult
-VideoDocument::StartDocumentLoad(const char*         aCommand,
-                                 nsIChannel*         aChannel,
-                                 nsILoadGroup*       aLoadGroup,
-                                 nsISupports*        aContainer,
-                                 nsIStreamListener** aDocListener,
-                                 PRBool              aReset,
-                                 nsIContentSink*     aSink)
+nsVideoDocument::StartDocumentLoad(const char*         aCommand,
+                                   nsIChannel*         aChannel,
+                                   nsILoadGroup*       aLoadGroup,
+                                   nsISupports*        aContainer,
+                                   nsIStreamListener** aDocListener,
+                                   PRBool              aReset,
+                                   nsIContentSink*     aSink)
 {
   nsresult rv =
-    MediaDocument::StartDocumentLoad(aCommand, aChannel, aLoadGroup, aContainer,
-                                     aDocListener, aReset, aSink);
+    nsMediaDocument::StartDocumentLoad(aCommand, aChannel, aLoadGroup,
+                                       aContainer, aDocListener, aReset,
+                                       aSink);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mStreamListener = new MediaDocumentStreamListener(this);
+  mStreamListener = new nsMediaDocumentStreamListener(this);
   if (!mStreamListener)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -96,11 +96,11 @@ VideoDocument::StartDocumentLoad(const char*         aCommand,
 }
 
 nsresult
-VideoDocument::CreateSyntheticVideoDocument(nsIChannel* aChannel,
-                                            nsIStreamListener** aListener)
+nsVideoDocument::CreateSyntheticVideoDocument(nsIChannel* aChannel,
+                                              nsIStreamListener** aListener)
 {
   // make our generic document
-  nsresult rv = MediaDocument::CreateSyntheticDocument();
+  nsresult rv = nsMediaDocument::CreateSyntheticDocument();
   NS_ENSURE_SUCCESS(rv, rv);
 
   Element* body = GetBodyElement();
@@ -137,7 +137,7 @@ VideoDocument::CreateSyntheticVideoDocument(nsIChannel* aChannel,
 }
 
 void
-VideoDocument::UpdateTitle(nsIChannel* aChannel)
+nsVideoDocument::UpdateTitle(nsIChannel* aChannel)
 {
   if (!aChannel)
     return;
@@ -147,13 +147,10 @@ VideoDocument::UpdateTitle(nsIChannel* aChannel)
   SetTitle(fileName);
 }
 
-} // namespace dom
-} // namespace mozilla
-
 nsresult
 NS_NewVideoDocument(nsIDocument** aResult)
 {
-  mozilla::dom::VideoDocument* doc = new mozilla::dom::VideoDocument();
+  nsVideoDocument* doc = new nsVideoDocument();
   if (!doc) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

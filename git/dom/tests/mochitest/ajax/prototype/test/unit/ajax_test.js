@@ -32,6 +32,20 @@ new Test.Unit.Runner({
     this.assertEqual("Hello world!", h2.innerHTML);
   },
   
+  testAsynchronousRequest: function() {
+    this.assertEqual("", $("content").innerHTML);
+    
+    new Ajax.Request("../fixtures/hello.js", extendDefault({
+      asynchronous: true,
+      method: 'get',
+      evalJS: 'force'
+    }));
+    this.wait(1000, function() {
+      var h2 = $("content").firstChild;
+      this.assertEqual("Hello world!", h2.innerHTML);
+    });
+  },
+  
   testUpdater: function() {
     this.assertEqual("", $("content").innerHTML);
     

@@ -1430,7 +1430,7 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2D::SetTransform(float m11, float m12, float m21, float m22, float dx, float dy)
 {
     if (!FloatValidate(m11,m12,m21,m22,dx,dy))
-        return NS_OK;
+        return NS_ERROR_DOM_SYNTAX_ERR;
 
     gfxMatrix matrix(m11, m12, m21, m22, dx, dy);
     mThebes->SetMatrix(matrix);
@@ -2097,7 +2097,7 @@ nsCanvasRenderingContext2D::BezierCurveTo(float cp1x, float cp1y,
                                           float x, float y)
 {
     if (!FloatValidate(cp1x,cp1y,cp2x,cp2y,x,y))
-        return NS_OK;
+        return NS_ERROR_DOM_SYNTAX_ERR;
 
     mHasPath = PR_TRUE;
     mThebes->CurveTo(gfxPoint(cp1x, cp1y),
@@ -2111,7 +2111,7 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2D::ArcTo(float x1, float y1, float x2, float y2, float radius)
 {
     if (!FloatValidate(x1,y1,x2,y2,radius))
-        return NS_OK;
+        return NS_ERROR_DOM_SYNTAX_ERR;
 
     if (radius < 0)
         return NS_ERROR_DOM_INDEX_SIZE_ERR;
