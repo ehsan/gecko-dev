@@ -64,22 +64,20 @@ ifdef DEHYDRA_PATH
 DIRS += static-checker
 endif
 
-VPATH += $(topsrcdir)/build
 
-CPPSRCS = \
-  nsIFileEnumerator.cpp \
-  TestCallTemplates.cpp \
-  TestINIParser.cpp \
-  TestRacingServiceManager.cpp \
-  TestRegistrationOrder.cpp \
-  TestThreadPoolListener.cpp \
-  TestTimers.cpp \
-  TestBlockingProcess.cpp \
-  TestQuickReturn.cpp \
-  TestArguments.cpp \
-  TestUnicodeArguments.cpp \
-  $(STDCPPFLAGS) \
-  $(NULL)
+CPPSRCS		= \
+		nsIFileEnumerator.cpp \
+		TestCallTemplates.cpp \
+		TestINIParser.cpp \
+		TestRacingServiceManager.cpp \
+		TestRegistrationOrder.cpp \
+		TestThreadPoolListener.cpp \
+		TestTimers.cpp \
+		TestBlockingProcess.cpp \
+		TestQuickReturn.cpp \
+		TestArguments.cpp \
+		TestUnicodeArguments.cpp \
+		$(NULL)
 
 ifdef WRAP_STL_INCLUDES
 CPPSRCS += TestSTLWrappers.cpp
@@ -226,8 +224,3 @@ check::
 	  $(DIST)/bin/TestRegistrationOrder$(BIN_SUFFIX) $(regOrderDir)
 
 GARBAGE += TestScriptable.h
-
-ifdef STDCXX_COMPAT
-TestCheckedInt: $(STDCXX_COMPAT:.cpp=.$(OBJ_SUFFIX))
-TestCheckedInt: LIBS += $(STDCXX_COMPAT:.cpp=.$(OBJ_SUFFIX))
-endif
