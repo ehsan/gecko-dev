@@ -34,7 +34,7 @@ struct JSCompartment;
 namespace js {
 
 class GCHelperThread;
-class Shape;
+struct Shape;
 struct SliceBudget;
 
 enum HeapState {

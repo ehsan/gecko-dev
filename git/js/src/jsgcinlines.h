@@ -22,7 +22,7 @@ using JS::AssertCanGC;
 
 namespace js {
 
-class Shape;
+struct Shape;
 
 /*
  * This auto class should be used around any code that might cause a mark bit to

@@ -3564,9 +3564,8 @@ void nsHTMLMediaElement::UpdateAudioChannelPlayingState()
   // The nsHTMLMediaElement is registered to the AudioChannelService only on B2G.
 #ifdef MOZ_B2G
   bool playingThroughTheAudioChannel =
-     (mReadyState >= nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA &&
-      !mPaused &&
-      !IsPlaybackEnded());
+     (mReadyState >= nsIDOMHTMLMediaElement::HAVE_FUTURE_DATA &&
+      IsPotentiallyPlaying());
   if (playingThroughTheAudioChannel != mPlayingThroughTheAudioChannel) {
     mPlayingThroughTheAudioChannel = playingThroughTheAudioChannel;
 

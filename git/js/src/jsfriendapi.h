@@ -238,14 +238,13 @@ extern JS_FRIEND_API(bool)
 IsAtomsCompartment(const JSCompartment *c);
 
 /*
- * Check whether it is OK to assign an undeclared variable with the name
- * |propname| at the current location in script.  It is not an error if there is
- * no current script location, or if that location is not an assignment to an
- * undeclared variable.  Reports an error if one needs to be reported (and,
- * particularly, always reports when it returns false).
+ * Check whether it is OK to assign an undeclared property with name
+ * propname of the global object in the current script on cx.  Reports
+ * an error if one needs to be reported (in particular in all cases
+ * when it returns false).
  */
 extern JS_FRIEND_API(bool)
-ReportIfUndeclaredVarAssignment(JSContext *cx, HandleString propname);
+CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname);
 
 struct WeakMapTracer;
 
@@ -299,10 +298,8 @@ GCThingTraceKind(void *thing);
 extern JS_FRIEND_API(void)
 IterateGrayObjects(JSCompartment *compartment, GCThingCallback cellCallback, void *data);
 
-#ifdef JS_HAS_CTYPES
 extern JS_FRIEND_API(size_t)
 SizeOfDataIfCDataObject(JSMallocSizeOfFun mallocSizeOf, JSObject *obj);
-#endif
 
 /*
  * Shadow declarations of JS internal structures, for access by inline access
@@ -321,8 +318,7 @@ struct BaseShape {
     JSObject    *parent;
 };
 
-class Shape {
-public:
+struct Shape {
     shadow::BaseShape *base;
     jsid              _1;
     uint32_t          slotInfo;
@@ -1550,12 +1546,6 @@ IdToJsval(jsid id)
 {
     return IdToValue(id);
 }
-
-extern JS_FRIEND_API(bool)
-IsReadOnlyDateMethod(JS::IsAcceptableThis test, JS::NativeImpl method);
-
-extern JS_FRIEND_API(bool)
-IsTypedArrayThisCheck(JS::IsAcceptableThis test);
 
 } /* namespace js */
 

@@ -353,7 +353,7 @@ mjit::Compiler::scanInlineCalls(uint32_t index, uint32_t depth)
             if (status != Compile_Okay)
                 return status;
 
-            if (!script->analysis()->jaegerInlineable(argc)) {
+            if (!script->analysis()->inlineable(argc)) {
                 okay = false;
                 break;
             }

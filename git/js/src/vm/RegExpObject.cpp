@@ -795,10 +795,14 @@ js::XDRScriptRegExpObject(XDRState<mode> *xdr, HeapPtrObject *objp)
         return false;
     if (mode == XDR_DECODE) {
         RegExpFlag flags = RegExpFlag(flagsword);
-        RegExpObject *reobj = RegExpObject::createNoStatics(xdr->cx(), source, flags, NULL);
+        Rooted<RegExpObject*> reobj(xdr->cx(), RegExpObject::createNoStatics(xdr->cx(), source, flags, NULL));
         if (!reobj)
             return false;
 
+        if (!JSObject::clearParent(xdr->cx(), reobj))
+            return false;
+        if (!JSObject::clearType(xdr->cx(), reobj))
+            return false;
         objp->init(reobj);
     }
     return true;
@@ -816,5 +820,12 @@ js::CloneScriptRegExpObject(JSContext *cx, RegExpObject &reobj)
     /* NB: Keep this in sync with XDRScriptRegExpObject. */
 
     RootedAtom source(cx, reobj.getSource());
-    return RegExpObject::createNoStatics(cx, source, reobj.getFlags(), NULL);
+    Rooted<RegExpObject*> clone(cx, RegExpObject::createNoStatics(cx, source, reobj.getFlags(), NULL));
+    if (!clone)
+        return NULL;
+    if (!JSObject::clearParent(cx, clone))
+        return NULL;
+    if (!JSObject::clearType(cx, clone))
+        return NULL;
+    return clone;
 }

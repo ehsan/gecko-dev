@@ -19,7 +19,6 @@ Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/PermissionsInstaller.jsm");
 Cu.import("resource://gre/modules/OfflineCacheInstaller.jsm");
 Cu.import("resource://gre/modules/SystemMessagePermissionsChecker.jsm");
-Cu.import("resource://gre/modules/AppDownloadManager.jsm");
 
 function debug(aMsg) {
   //dump("-*-*- Webapps.jsm : " + aMsg + "\n");
@@ -69,6 +68,7 @@ this.DOMApplicationRegistry = {
   webapps: { },
   children: [ ],
   allAppsLaunchable: false,
+  downloads: { },
 
   init: function() {
     this.messages = ["Webapps:Install", "Webapps:Uninstall",
@@ -91,8 +91,6 @@ this.DOMApplicationRegistry = {
     cpmm.addMessageListener("Activities:Register:OK", this);
 
     Services.obs.addObserver(this, "xpcom-shutdown", false);
-
-    AppDownloadManager.registerCancelFunction(this.cancelDownload.bind(this));
 
     this.appsFile = FileUtils.getFile(DIRECTORY_NAME,
                                       ["webapps", "webapps.json"], true);
@@ -869,10 +867,9 @@ this.DOMApplicationRegistry = {
     Services.obs.notifyObservers(aMm, "webapps-launch", JSON.stringify(aData));
   },
 
-  cancelDownload: function cancelDownload(aManifestURL, aError) {
+  cancelDownload: function cancelDownload(aManifestURL) {
     debug("cancelDownload " + aManifestURL);
-    let error = aError || "DOWNLOAD_CANCELED";
-    let download = AppDownloadManager.get(aManifestURL);
+    let download = this.downloads[aManifestURL];
     if (!download) {
       debug("Could not find a download for " + aManifestURL);
       return;
@@ -901,9 +898,8 @@ this.DOMApplicationRegistry = {
                              { type: "canceled",
                                manifestURL:  app.manifestURL,
                                app: app,
-                               error: error });
+                               error: "DOWNLOAD_CANCELED" });
     }).bind(this));
-    AppDownloadManager.remove(aManifestURL);
   },
 
   startDownload: function startDownload(aManifestURL) {
@@ -1084,7 +1080,7 @@ this.DOMApplicationRegistry = {
       appId: this._appIdForManifestURL(aApp.manifestURL),
       previousState: aIsUpdate ? "installed" : "pending"
     };
-    AppDownloadManager.add(aApp.manifestURL, download);
+    this.downloads[aApp.manifestURL] = download;
 
     cacheUpdate.addObserver(new AppcacheObserver(aApp), false);
     if (aOfflineCacheObserver) {
@@ -1126,12 +1122,10 @@ this.DOMApplicationRegistry = {
       aData.event = "downloadavailable";
       aData.app = {
         downloadAvailable: true,
-        downloadSize: manifest.size,
-        updateManifest: aManifest
+        downloadSize: manifest.size
       }
       DOMApplicationRegistry._saveApps(function() {
         aMm.sendAsyncMessage("Webapps:CheckForUpdate:Return:OK", aData);
-        delete aData.app.updateManifest;
       });
     }
 
@@ -1167,7 +1161,7 @@ this.DOMApplicationRegistry = {
 
       app.installState = "installed";
       app.downloading = false;
-      app.downloadSize = 0;
+      app.downloadsize = 0;
       app.readyToApplyDownload = false;
       app.downloadAvailable = !!manifest.appcache_path;
 
@@ -1180,7 +1174,6 @@ this.DOMApplicationRegistry = {
 
       this._saveApps(function() {
         aData.app = app;
-        app.manifest = aManifest;
         if (!manifest.appcache_path) {
           aData.event = "downloadapplied";
           aMm.sendAsyncMessage("Webapps:CheckForUpdate:Return:OK", aData);
@@ -1198,7 +1191,6 @@ this.DOMApplicationRegistry = {
           updateSvc.checkForUpdate(Services.io.newURI(aData.manifestURL, null, null),
                                    app.localId, false, updateObserver);
         }
-        delete app.manifest;
       });
 
       // Update the permissions for this app.
@@ -1731,7 +1723,7 @@ this.DOMApplicationRegistry = {
         return;
       }
 
-      let download = AppDownloadManager.get(aApp.manifestURL);
+      let download = self.downloads[aApp.manifestURL];
       app.downloading = false;
       // If there were not enough storage to download the packaged app we
       // won't have a record of the download details, so we just set the
@@ -1742,8 +1734,6 @@ this.DOMApplicationRegistry = {
                               manifestURL:  aApp.manifestURL,
                               error: aError,
                               app: app });
-      self._saveApps();
-      AppDownloadManager.remove(aApp.manifestURL);
     }
 
     function download() {
@@ -1751,17 +1741,11 @@ this.DOMApplicationRegistry = {
 
       let requestChannel = NetUtil.newChannel(aManifest.fullPackagePath())
                                   .QueryInterface(Ci.nsIHttpChannel);
-      if (app.packageEtag) {
-        requestChannel.setRequestHeader("If-None-Match", app.packageEtag);
-      }
-
-      AppDownloadManager.add(aApp.manifestURL,
-        {
-          channel: requestChannel,
-          appId: id,
-          previousState: aIsUpdate ? "installed" : "pending"
-        }
-      );
+      self.downloads[aApp.manifestURL] = {
+        channel: requestChannel,
+        appId: id,
+        previousState: aIsUpdate ? "installed" : "pending"
+      };
 
       let lastProgressTime = 0;
       requestChannel.notificationCallbacks = {
@@ -1833,36 +1817,6 @@ this.DOMApplicationRegistry = {
           bufferedOutputStream.close();
           outputStream.close();
 
-          if (requestChannel.responseStatus == 304) {
-            // The package's Etag has not changed.
-            // We send a "applied" event right away.
-            app.downloading = false;
-            app.downloadAvailable = false;
-            app.downloadSize = 0;
-            app.installState = "installed";
-            app.readyToApplyDownload = false;
-            self.broadcastMessage("Webapps:PackageEvent", {
-                                    type: "applied",
-                                    manifestURL: aApp.manifestURL,
-                                    app: app });
-            // Save the updated registry, and cleanup the tmp directory.
-            self._saveApps();
-            let file = FileUtils.getFile("TmpD", ["webapps", id], false);
-            if (file && file.exists()) {
-              file.remove(true);
-            }
-            return;
-          }
-
-          // Save the new Etag for the package.
-          app.packageEtag = requestChannel.getResponseHeader("Etag");
-          debug("Package etag=" + app.packageEtag);
-
-          if (!Components.isSuccessCode(aStatusCode)) {
-            cleanup("NETWORK_ERROR");
-            return;
-          }
-
           let certdb;
           try {
             certdb = Cc["@mozilla.org/security/x509certdb;1"]
@@ -1920,14 +1874,14 @@ this.DOMApplicationRegistry = {
                             : isSigned  ? Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
                                         : Ci.nsIPrincipal.APP_STATUS_INSTALLED;
 
-              if (AppsUtils.getAppManifestStatus(manifest) > maxStatus) {
+              if (AppsUtils.getAppManifestStatus(aManifest) > maxStatus) {
                 throw "INVALID_SECURITY_LEVEL";
               }
-              aApp.appStatus = AppsUtils.getAppManifestStatus(manifest);
 
               if (aOnSuccess) {
                 aOnSuccess(id, manifest);
               }
+              delete self.downloads[aApp.manifestURL];
             } catch (e) {
               // Something bad happened when reading the package.
               if (typeof e == 'object') {
@@ -1937,9 +1891,7 @@ this.DOMApplicationRegistry = {
                 cleanup(e);
               }
             } finally {
-              AppDownloadManager.remove(aApp.manifestURL);
-              if (zipReader)
-                zipReader.close();
+              zipReader.close();
             }
           });
         }
@@ -1963,8 +1915,7 @@ this.DOMApplicationRegistry = {
       if (freeBytes) {
         debug("Free storage: " + freeBytes + ". Download size: " +
               aApp.downloadSize);
-        if (freeBytes <=
-            aApp.downloadSize + AppDownloadManager.MIN_REMAINING_FREESPACE) {
+        if (freeBytes <= aApp.downloadSize) {
           cleanup("INSUFFICIENT_STORAGE");
           return;
         }

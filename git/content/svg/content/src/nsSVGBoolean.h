@@ -59,7 +59,6 @@ public:
 
     DOMAnimatedBoolean(nsSVGBoolean* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-    virtual ~DOMAnimatedBoolean();
 
     nsSVGBoolean* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;

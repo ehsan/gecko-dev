@@ -264,6 +264,22 @@ xpcshell-tests:
 	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS) \
 	  $(LIBXUL_DIST)/bin/xpcshell
 
+REMOTE_XPCSHELL = \
+	rm -f ./$@.log && \
+	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
+	  -I$(topsrcdir)/build \
+	  -I$(topsrcdir)/testing/mozbase/mozdevice/mozdevice \
+	  $(topsrcdir)/testing/xpcshell/remotexpcshelltests.py \
+	  --manifest=$(DEPTH)/_tests/xpcshell/xpcshell.ini \
+	  --build-info-json=$(DEPTH)/mozinfo.json \
+	  --no-logfiles \
+	  --testing-modules-dir=$(call core_abspath,_tests/modules) \
+	  --dm_trans=$(DM_TRANS) \
+	  --deviceIP=${TEST_DEVICE} \
+	  --objdir=$(DEPTH) \
+	  $(SYMBOLS_PATH) \
+	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+
 B2G_XPCSHELL = \
 	rm -f ./@.log && \
 	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
@@ -298,17 +314,7 @@ xpcshell-tests-b2g:
 xpcshell-tests-remote: DM_TRANS?=adb
 xpcshell-tests-remote:
 	@if [ "${TEST_DEVICE}" != "" -o "$(DM_TRANS)" = "adb" ]; \
-          then $(PYTHON) -u $(topsrcdir)/testing/xpcshell/remotexpcshelltests.py \
-	    --manifest=$(DEPTH)/_tests/xpcshell/xpcshell_android.ini \
-	    --build-info-json=$(DEPTH)/mozinfo.json \
-	    --no-logfiles \
-	    --testing-modules-dir=$(call core_abspath,_tests/modules) \
-	    --dm_trans=$(DM_TRANS) \
-	    --deviceIP=${TEST_DEVICE} \
-	    --objdir=$(DEPTH) \
-	    $(SYMBOLS_PATH) \
-	    $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS); \
-	    $(CHECK_TEST_ERROR); \
+          then $(call REMOTE_XPCSHELL); $(CHECK_TEST_ERROR); \
         else \
           echo "please prepare your host with environment variables for TEST_DEVICE"; \
         fi

@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSVGString.h"
-#include "nsSVGAttrTearoffTable.h"
 #include "nsSMILValue.h"
 #include "SMILStringType.h"
 
@@ -22,9 +21,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGString::DOMAnimatedString)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedString)
 NS_INTERFACE_MAP_END
-
-static nsSVGAttrTearoffTable<nsSVGString, nsSVGString::DOMAnimatedString>
-  sSVGAnimatedStringTearoffTable;
 
 /* Implementation */
 
@@ -76,20 +72,12 @@ nsresult
 nsSVGString::ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
                                  nsSVGElement *aSVGElement)
 {
-  nsRefPtr<DOMAnimatedString> domAnimatedString =
-    sSVGAnimatedStringTearoffTable.GetTearoff(this);
-  if (!domAnimatedString) {
-    domAnimatedString = new DOMAnimatedString(this, aSVGElement);
-    sSVGAnimatedStringTearoffTable.AddTearoff(this, domAnimatedString);
-  }
+  *aResult = new DOMAnimatedString(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  domAnimatedString.forget(aResult);
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsSVGString::DOMAnimatedString::~DOMAnimatedString()
-{
-  sSVGAnimatedStringTearoffTable.RemoveTearoff(mVal);
 }
 
 nsISMILAttr*

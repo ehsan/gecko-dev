@@ -191,7 +191,7 @@ WebSocket::ConsoleError()
 }
 
 
-void
+nsresult
 WebSocket::FailConnection(uint16_t aReasonCode,
                           const nsACString& aReasonString)
 {
@@ -200,6 +200,8 @@ WebSocket::FailConnection(uint16_t aReasonCode,
   ConsoleError();
   mFailed = true;
   CloseConnection(aReasonCode, aReasonString);
+
+  return NS_OK;
 }
 
 nsresult
@@ -860,7 +862,8 @@ WebSocket::CreateAndDispatchSimpleEvent(const nsString& aName)
   rv = event->InitEvent(aName, false, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
 }
@@ -928,7 +931,8 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
                                       EmptyString(), nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
 }
@@ -958,7 +962,8 @@ WebSocket::CreateAndDispatchCloseEvent(bool aWasClean,
                                   aWasClean, aCode, aReason);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
 }

@@ -1601,9 +1601,7 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
     if (rv != NS_OK) {
       return rv;
     }
-    if (aBackground) {
-      *aBackground = bgItem;
-    }
+    *aBackground = bgItem;
     return NS_OK;
   }
 

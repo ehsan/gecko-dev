@@ -39,16 +39,12 @@
 
 /* SIP Message queue waiting thread and the main thread IPC names */
 #ifdef __ANDROID__
-/* Note that for unit tests to work, this directory currently _must_ be
-   world-writable or the tests must be run as root. See bug 823741 for the
-   gory details.  */
-#define SIP_IPC_TEMP_BASEPATH "/data/local/tmp"
+#define SIP_IPC_TEMP_PATH "/data/data/com.cisco.telephony.provider/SIP-%d"
 #else
-#define SIP_IPC_TEMP_BASEPATH "/tmp"
+#define SIP_IPC_TEMP_PATH "/tmp/SIP-%d"
 #endif
-#define SIP_IPC_TEMP_DIRNAME "SIP-%d"
-#define SIP_MSG_SERV_SUFFIX "/Main"
-#define SIP_MSG_CLNT_SUFFIX "/MsgQ"
+#define SIP_MSG_SERV_NAME "Main"
+#define SIP_MSG_CLNT_NAME "MsgQ"
 
 #define SIP_PAUSE_WAIT_IPC_LISTEN_READY_TIME   50  /* 50ms. */
 #define SIP_MAX_WAIT_FOR_IPC_LISTEN_READY    1200  /* 50 * 1200 = 1 minutes */
@@ -136,42 +132,6 @@ sip_platform_task_init (void)
 }
 
 /**
- * sip_get_sock_dir_tmpl creates a template for the name of a directory
- * where IPC sockets will live. If the TMPDIR environment is set, that is used
- * as a base; otherwise SIP_IPC_TEMP_BASEPATH is used as a fallback.
- * SIP_IPC_TEMP_DIRNAME is added as a child directory, and if suffix is non-null,
- * that is appended to the end.
- *
- * The primary motivation for using TMPDIR is that that is how Fennec
- * (GeckoAppShell.java) passes in a scratch directory that is guaranteed to be
- * writable on Android, and there's no other reliable way to get such a thing.
- *
- * @param[out] out    buffer to be written to
- * @param[in] outlen  length of out buffer so we don't overrun
- * @param[in] suffix  if non-NULL, appended to the template
- *
- * @return            The length of the written output not including the NULL
- *                    terminator, or -1 if an error occurs.
- */
-static PRUint32 sip_get_sock_dir_tmpl(char *out, PRUint32 outlen,
-                                      const char *suffix) {
-
-    char *tmpdir;
-    tmpdir = getenv("TMPDIR");
-
-    if (suffix) {
-        return PR_snprintf(out, outlen, "%s/%s%s",
-                           tmpdir ? tmpdir : SIP_IPC_TEMP_BASEPATH,
-                           SIP_IPC_TEMP_DIRNAME,
-                           suffix);
-    }
-
-    return PR_snprintf(out, outlen, "%s/%s",
-                       tmpdir ? tmpdir : SIP_IPC_TEMP_BASEPATH,
-                       SIP_IPC_TEMP_DIRNAME);
-}
-
-/**
  *  sip_create_IPC_sock creates and bind the socket for IPC.
  *
  *  @param[in]name - pointer to the const. character for the
@@ -248,7 +208,6 @@ void sip_platform_task_msgqwait (void *arg)
     uint8_t       num_messages = 0;
     uint8_t       response = 0;
     boolean       quit_thread = FALSE;
-    char          template[sizeof(sip_serv_sock_addr.sun_path)];
 
     if (msgq == NULL) {
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"task msgq is null, exiting\n", fname);
@@ -285,8 +244,8 @@ void sip_platform_task_msgqwait (void *arg)
      * The main thread is ready. set global client socket address
      * so that the server can send back response.
      */
-    sip_get_sock_dir_tmpl(template, sizeof(template), SIP_MSG_CLNT_SUFFIX);
-    cpr_set_sockun_addr(&sip_clnt_sock_addr, template, getpid());
+    cpr_set_sockun_addr(&sip_clnt_sock_addr,
+                        SIP_IPC_TEMP_PATH "/" SIP_MSG_CLNT_NAME, getpid());
 
     sip_ipc_clnt_socket = sip_create_IPC_sock(sip_clnt_sock_addr.sun_path);
 
@@ -408,9 +367,6 @@ static void sip_process_int_msg (void)
         syshdr = int_msg->syshdr;
         if (msg != NULL && syshdr != NULL) {
             if (syshdr->Cmd == THREAD_UNLOAD) {
-                char template[sizeof(sip_serv_sock_addr.sun_path)];
-                char stmpdir[sizeof(sip_serv_sock_addr.sun_path)];
-
                 /*
                  * Cleanup here, as SIPTaskProcessListEvent wont return.
                  * - Remove last tmp file and tmp dir.
@@ -418,8 +374,8 @@ static void sip_process_int_msg (void)
                 cprCloseSocket(sip_ipc_serv_socket);
                 unlink(sip_serv_sock_addr.sun_path);
 
-                sip_get_sock_dir_tmpl(template, sizeof(template), NULL);
-                PR_snprintf(stmpdir, sizeof(stmpdir), template, getpid());
+                char stmpdir[sizeof(sip_serv_sock_addr.sun_path)];
+                PR_snprintf(stmpdir, sizeof(stmpdir), SIP_IPC_TEMP_PATH, getpid());
                 if (rmdir(stmpdir) != 0) {
                     CCSIP_DEBUG_ERROR(SIP_F_PREFIX"failed to remove temp dir\n",
                                       fname);
@@ -496,20 +452,16 @@ sip_platform_task_loop (void *arg)
      * Setup IPC socket addresses for main thread (server)
      */
     {
-      char template[sizeof(sip_serv_sock_addr.sun_path)];
       char stmpdir[sizeof(sip_serv_sock_addr.sun_path)];
-
-      sip_get_sock_dir_tmpl(template, sizeof(template), NULL);
-      PR_snprintf(stmpdir, sizeof(stmpdir), template, getpid());
+      PR_snprintf(stmpdir, sizeof(stmpdir), SIP_IPC_TEMP_PATH, getpid());
 
       if (mkdir(stmpdir, 0700) != 0) {
           CCSIP_DEBUG_ERROR(SIP_F_PREFIX"failed to create temp dir\n", fname);
           return;
       }
-
-      sip_get_sock_dir_tmpl(template, sizeof(template), SIP_MSG_SERV_SUFFIX);
-      cpr_set_sockun_addr(&sip_serv_sock_addr, template, getpid());
     }
+    cpr_set_sockun_addr(&sip_serv_sock_addr,
+                        SIP_IPC_TEMP_PATH "/" SIP_MSG_SERV_NAME, getpid());
 
     /*
      * Create IPC between the message queue thread and this main

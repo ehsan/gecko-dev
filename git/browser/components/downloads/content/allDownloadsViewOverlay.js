@@ -16,7 +16,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
 Cu.import("resource:///modules/DownloadsCommon.jsm");
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
 const nsIDM = Ci.nsIDownloadManager;
 
@@ -29,8 +28,6 @@ const DOWNLOAD_VIEW_SUPPORTED_COMMANDS =
   "downloadsCmd_pauseResume", "downloadsCmd_cancel",
   "downloadsCmd_open", "downloadsCmd_show", "downloadsCmd_retry",
   "downloadsCmd_openReferrer"];
-
-const NOT_AVAILABLE = Number.MAX_VALUE;
 
 function GetFileForFileURI(aFileURI)
   Cc["@mozilla.org/network/protocol;1?name=file"]
@@ -63,18 +60,14 @@ function GetFileForFileURI(aFileURI)
  *        The data item of a the session download. Required if aPlacesNode is not set
  * @param [optional] aPlacesNode
  *        The places node for a past download. Required if aDataItem is not set.
- * @param [optional] aAnnotations
- *        Map containing annotations values, to speed up the initial loading.
  */
-function DownloadElementShell(aDataItem, aPlacesNode, aAnnotations) {
+function DownloadElementShell(aDataItem, aPlacesNode) {
   this._element = document.createElement("richlistitem");
   this._element._shell = this;
 
   this._element.classList.add("download");
   this._element.classList.add("download-state");
 
- if (aAnnotations)
-    this._annotations = aAnnotations;
   if (aDataItem)
     this.dataItem = aDataItem;
   if (aPlacesNode)
@@ -86,11 +79,10 @@ DownloadElementShell.prototype = {
   get element() this._element,
 
   // The data item for the download
-  _dataItem: null,
   get dataItem() this._dataItem,
 
   set dataItem(aValue) {
-    if ((this._dataItem = aValue)) {
+    if (this._dataItem = aValue) {
       this._wasDone = this._dataItem.done;
       this._wasInProgress = this._dataItem.inProgress;
     }
@@ -103,15 +95,10 @@ DownloadElementShell.prototype = {
     return aValue;
   },
 
-  _placesNode: null,
   get placesNode() this._placesNode,
   set placesNode(aNode) {
     if (this._placesNode != aNode) {
-      // Preserve the annotations map if this is the first loading and we got
-      // cached values.
-      if (this._placesNode || !this._annotations) {
-        this._annotations = new Map();
-      }
+      this._annotations = new Map();
       this._placesNode = aNode;
       if (!this._dataItem && this._placesNode) {
         this._wasInProgress = false;
@@ -149,30 +136,21 @@ DownloadElementShell.prototype = {
 
   // Helper for getting a places annotation set for the download.
   _getAnnotation: function DES__getAnnotation(aAnnotation, aDefaultValue) {
-    let value;
     if (this._annotations.has(aAnnotation))
-      value = this._annotations.get(aAnnotation);
+      return this._annotations.get(aAnnotation);
 
-    // If the value is cached, or we know it doesn't exist, avoid a database
-    // lookup.
-    if (value === undefined) {
-      try {
-        value = PlacesUtils.annotations.getPageAnnotation(
-          this._downloadURIObj, aAnnotation);
-      }
-      catch(ex) {
-        value = NOT_AVAILABLE;
-      }
+    let value;
+    try {
+      value = PlacesUtils.annotations.getPageAnnotation(
+        this._downloadURIObj, aAnnotation);
     }
-
-    if (value === NOT_AVAILABLE) {
+    catch(ex) {
       if (aDefaultValue === undefined) {
         throw new Error("Could not get required annotation '" + aAnnotation +
                         "' for download with url '" + this.downloadURI + "'");
       }
       value = aDefaultValue;
     }
-
     this._annotations.set(aAnnotation, value);
     return value;
   },
@@ -449,7 +427,6 @@ DownloadElementShell.prototype = {
       case "downloadsCmd_cancel":
         return this._dataItem != null;
     }
-    return false;
   },
 
   _getTargetFileOrPartFileIfExists: function DES__getTargetFileOrPartFileIfExists() {
@@ -545,7 +522,6 @@ DownloadElementShell.prototype = {
         case nsIDM.DOWNLOAD_BLOCKED_POLICY:
           return "downloadsCmd_openReferrer";
       }
-      return "";
     }
     let command = getDefaultCommandForState(this._state);
     if (this.isCommandEnabled(command))
@@ -607,38 +583,6 @@ DownloadsPlacesView.prototype = {
     }
   },
 
-  _getAnnotationsFor: function DPV_getAnnotationsFor(aURI) {
-    if (!this._cachedAnnotations) {
-      this._cachedAnnotations = new Map();
-      for (let name of [ DESTINATION_FILE_URI_ANNO,
-                         DESTINATION_FILE_NAME_ANNO,
-                         DOWNLOAD_STATE_ANNO ]) {
-        let results = PlacesUtils.annotations.getAnnotationsWithName(name);
-        for (let result of results) {
-          let url = result.uri.spec;
-          if (!this._cachedAnnotations.has(url))
-            this._cachedAnnotations.set(url, new Map());
-          let m = this._cachedAnnotations.get(url);
-          m.set(result.annotationName, result.annotationValue);
-        }
-      }
-    }
-
-    let annotations = this._cachedAnnotations.get(aURI);
-    if (!annotations) {
-      // There are no annotations for this entry, that means it is quite old.
-      // Make up a fake annotations entry with default values.
-      annotations = new Map();
-      annotations.set(DESTINATION_FILE_URI_ANNO, NOT_AVAILABLE);
-      annotations.set(DESTINATION_FILE_NAME_ANNO, NOT_AVAILABLE);
-    }
-    // The state annotation has been added recently, so it's likely missing.
-    if (!annotations.has(DOWNLOAD_STATE_ANNO)) {
-      annotations.set(DOWNLOAD_STATE_ANNO, NOT_AVAILABLE);
-    }
-    return annotations;
-  },
-
   /**
    * Given a data item for a session download, or a places node for a past
    * download, updates the view as necessary.
@@ -667,8 +611,7 @@ DownloadsPlacesView.prototype = {
    *        to the richlistbox at the end.
    */
   _addDownloadData:
-  function DPV_addDownloadData(aDataItem, aPlacesNode, aNewest = false,
-                               aDocumentFragment = null) {
+  function DPV_addDownload(aDataItem, aPlacesNode, aNewest = false, aDocumentFragment = null) {
     let downloadURI = aPlacesNode ? aPlacesNode.uri : aDataItem.uri;
     let shellsForURI = this._downloadElementsShellsForURI.get(downloadURI, null);
     if (!shellsForURI) {
@@ -714,9 +657,9 @@ DownloadsPlacesView.prototype = {
     }
 
     if (shouldCreateShell) {
-      let shell = new DownloadElementShell(aDataItem, aPlacesNode,
-                                           this._getAnnotationsFor(downloadURI));
+      let shell = new DownloadElementShell(aDataItem, aPlacesNode);
       newOrUpdatedShell = shell;
+      element = shell.element;
       shellsForURI.add(shell);
       if (aDataItem)
         this._viewItemsForDataItems.set(aDataItem, shell);
@@ -819,8 +762,8 @@ DownloadsPlacesView.prototype = {
     }
   },
 
-  _place: "",
   get place() this._place,
+
   set place(val) {
     // Don't reload everything if we don't have to.
     if (this._place == val) {
@@ -843,7 +786,6 @@ DownloadsPlacesView.prototype = {
     return val;
   },
 
-  _result: null,
   get result() this._result,
   set result(val) {
     if (this._result == val)
@@ -1080,7 +1022,6 @@ DownloadsPlacesView.prototype = {
     // Set the state attribute so that only the appropriate items are displayed.
     let contextMenu = document.getElementById("downloadsContextMenu");
     contextMenu.setAttribute("state", element._shell._state);
-    return true;
   },
 
   onKeyPress: function DPV_onKeyPress(aEvent) {

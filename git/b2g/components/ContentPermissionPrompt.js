@@ -120,9 +120,6 @@ ContentPermissionPrompt.prototype = {
 
     let principal = request.principal;
     let isApp = principal.appStatus != Ci.nsIPrincipal.APP_STATUS_NOT_INSTALLED;
-    let remember = principal.appStatus == Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
-                   ? true
-                   : request.remember;
 
     let details = {
       type: "permission-prompt",
@@ -130,7 +127,7 @@ ContentPermissionPrompt.prototype = {
       id: requestId,
       origin: principal.origin,
       isApp: isApp,
-      remember: remember
+      remember: request.remember
     };
 
     this._permission = access;

@@ -525,7 +525,7 @@ IsSetterPC(jsbytecode *pc)
  */
 class PCCounts
 {
-    friend class ::JSScript;
+    friend struct ::JSScript;
     double *counts;
 #ifdef DEBUG
     size_t capacity;

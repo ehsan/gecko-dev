@@ -24,15 +24,6 @@ const VISITS = [
   }
 ];
 
-const HIDDEN_VISITS = [
-  { isVisit: true,
-    transType: TRANSITION_FRAMED_LINK,
-    uri: "http://hidden.example.com/",
-    title: "red",
-    lastVisit: timeInMicroseconds--
-  },
-];
-
 const TEST_DATA = [
   { searchTerms: "example",
     includeHidden: true,
@@ -42,7 +33,7 @@ const TEST_DATA = [
     includeHidden: false,
     expectedResults: 1
   },
-  { searchTerms: "red",
+  { searchTerms: "redir",
     includeHidden: true,
     expectedResults: 1
   }
@@ -68,17 +59,8 @@ add_task(function test_searchTerms_includeHidden()
 
     let root = PlacesUtils.history.executeQuery(query, options).root;
     root.containerOpen = true;
-
     let cc = root.childCount;
-    // Live update with hidden visits.
-    yield task_populateDB(HIDDEN_VISITS);
-    let cc_update = root.childCount;
-
     root.containerOpen = false;
-
     do_check_eq(cc, data.expectedResults);
-    do_check_eq(cc_update, data.expectedResults + (data.includeHidden ? 1 : 0));
-
-    PlacesUtils.bhistory.removePage(uri("http://hidden.example.com/"));
   }
 });

@@ -47,6 +47,7 @@ void
 AudioChannelServiceChild::Shutdown()
 {
   if (gAudioChannelServiceChild) {
+    delete gAudioChannelServiceChild;
     gAudioChannelServiceChild = nullptr;
   }
 }

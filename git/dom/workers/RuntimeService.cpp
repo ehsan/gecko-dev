@@ -306,15 +306,14 @@ public:
   bool
   Dispatch(JSContext* aCx)
   {
-    AutoSyncLoopHolder syncLoop(mWorkerPrivate);
-    mSyncQueueKey = syncLoop.SyncQueueKey();
+    mSyncQueueKey = mWorkerPrivate->CreateNewSyncLoop();
 
     if (NS_FAILED(NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL))) {
       JS_ReportError(aCx, "Failed to dispatch to main thread!");
       return false;
     }
 
-    return syncLoop.RunAndForget(aCx);
+    return mWorkerPrivate->RunSyncLoop(aCx, mSyncQueueKey);
   }
 
   NS_IMETHOD

@@ -58,7 +58,7 @@ public:
   NS_DECL_NSIGFXINFODEBUG
 #endif
 
-  virtual uint32_t OperatingSystemVersion() const;
+  virtual uint32_t OperatingSystemVersion() const { return mOSVersion; }
 
 protected:
 
@@ -85,10 +85,9 @@ private:
   nsCString mAdapterDescription;
 
   OperatingSystem mOS;
+  uint32_t mOSVersion;
 
   nsString mModel, mHardware, mManufacturer, mProduct;
-  nsCString mOSVersion;
-  uint32_t mOSVersionInteger;
 };
 
 } // namespace widget

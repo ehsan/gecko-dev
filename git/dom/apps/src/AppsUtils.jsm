@@ -48,7 +48,6 @@ this.AppsUtils = {
       lastUpdateCheck: aApp.lastUpdateCheck,
       updateTime: aApp.updateTime,
       etag: aApp.etag,
-      packageEtag: aApp.packageEtag,
       installerAppId: aApp.installerAppId || Ci.nsIScriptSecurityManager.NO_APP_ID,
       installerIsBrowser: !!aApp.installerIsBrowser
     };

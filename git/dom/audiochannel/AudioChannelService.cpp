@@ -59,6 +59,7 @@ AudioChannelService::Shutdown()
   }
 
   if (gAudioChannelService) {
+    delete gAudioChannelService;
     gAudioChannelService = nullptr;
   }
 }

@@ -14,8 +14,9 @@ namespace dom {
 static const PRUnichar kReplacementChar = static_cast<PRUnichar>(0xFFFD);
 
 void
-TextDecoderBase::Init(const nsAString& aEncoding, const bool aFatal,
-                      ErrorResult& aRv)
+TextDecoder::Init(const nsAString& aEncoding,
+                  const TextDecoderOptions& aFatal,
+                  ErrorResult& aRv)
 {
   nsAutoString label(aEncoding);
   EncodingUtils::TrimSpaceCharacters(label);
@@ -30,7 +31,7 @@ TextDecoderBase::Init(const nsAString& aEncoding, const bool aFatal,
   // If the constructor is called with an options argument,
   // and the fatal property of the dictionary is set,
   // set the internal fatal flag of the decoder object.
-  mFatal = aFatal;
+  mFatal = aFatal.mFatal;
 
   // Create a decoder object for mEncoding.
   nsCOMPtr<nsICharsetConverterManager> ccm =
@@ -52,10 +53,10 @@ TextDecoderBase::Init(const nsAString& aEncoding, const bool aFatal,
 }
 
 void
-TextDecoderBase::Decode(const ArrayBufferView* aView,
-                        const bool aStream,
-                        nsAString& aOutDecodedString,
-                        ErrorResult& aRv)
+TextDecoder::Decode(const ArrayBufferView* aView,
+                    const TextDecodeOptions& aOptions,
+                    nsAString& aOutDecodedString,
+                    ErrorResult& aRv)
 {
   const char* data;
   int32_t length;
@@ -93,7 +94,7 @@ TextDecoderBase::Decode(const ArrayBufferView* aView,
 
   // If the internal streaming flag of the decoder object is not set,
   // then reset the encoding algorithm state to the default values
-  if (!aStream) {
+  if (!aOptions.mStream) {
     mDecoder->Reset();
     if (rv == NS_OK_UDEC_MOREINPUT) {
       if (mFatal) {
@@ -112,7 +113,7 @@ TextDecoderBase::Decode(const ArrayBufferView* aView,
 }
 
 void
-TextDecoderBase::GetEncoding(nsAString& aEncoding)
+TextDecoder::GetEncoding(nsAString& aEncoding)
 {
   CopyASCIItoUTF16(mEncoding, aEncoding);
   nsContentUtils::ASCIIToLower(aEncoding);

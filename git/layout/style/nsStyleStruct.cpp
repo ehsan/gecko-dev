@@ -970,7 +970,6 @@ nsStyleSVGReset::nsStyleSVGReset()
     mFloodOpacity            = 1.0f;
     mDominantBaseline        = NS_STYLE_DOMINANT_BASELINE_AUTO;
     mVectorEffect            = NS_STYLE_VECTOR_EFFECT_NONE;
-    mMaskType                = NS_STYLE_MASK_TYPE_LUMINANCE;
 }
 
 nsStyleSVGReset::~nsStyleSVGReset() 
@@ -991,7 +990,6 @@ nsStyleSVGReset::nsStyleSVGReset(const nsStyleSVGReset& aSource)
   mFloodOpacity = aSource.mFloodOpacity;
   mDominantBaseline = aSource.mDominantBaseline;
   mVectorEffect = aSource.mVectorEffect;
-  mMaskType = aSource.mMaskType;
 }
 
 nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) const
@@ -1012,8 +1010,7 @@ nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) cons
              mLightingColor != aOther.mLightingColor ||
              mStopOpacity   != aOther.mStopOpacity   ||
              mFloodOpacity  != aOther.mFloodOpacity  ||
-             mVectorEffect  != aOther.mVectorEffect  ||
-             mMaskType      != aOther.mMaskType)
+             mVectorEffect  != aOther.mVectorEffect)
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
 
   return hint;

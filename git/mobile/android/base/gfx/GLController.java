@@ -6,6 +6,7 @@
 package org.mozilla.gecko.gfx;
 
 import javax.microedition.khronos.egl.EGL10;
+import javax.microedition.khronos.egl.EGL11;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;
 import javax.microedition.khronos.egl.EGLDisplay;
@@ -16,12 +17,14 @@ public class GLController {
     private static final String LOGTAG = "GeckoGLController";
 
     private LayerView mView;
+    private int mGLVersion;
     private boolean mSurfaceValid;
     private int mWidth, mHeight;
 
     private EGL10 mEGL;
     private EGLDisplay mEGLDisplay;
     private EGLConfig mEGLConfig;
+    private EGLSurface mEGLSurface;
 
     private static final int LOCAL_EGL_OPENGL_ES2_BIT = 4;
 
@@ -34,13 +37,42 @@ public class GLController {
         EGL10.EGL_NONE
     };
 
-    GLController(LayerView view) {
+    public GLController(LayerView view) {
         mView = view;
+        mGLVersion = 2;
         mSurfaceValid = false;
     }
 
-    /* This function is invoked by JNI */
-    void resumeCompositorIfValid() {
+    public void setGLVersion(int version) {
+        mGLVersion = version;
+    }
+
+    public EGLDisplay getEGLDisplay()       { return mEGLDisplay;         }
+    public EGLConfig getEGLConfig()         { return mEGLConfig;          }
+    public EGLSurface getEGLSurface()       { return mEGLSurface;         }
+    public LayerView getView()              { return mView;               }
+
+    public boolean hasSurface() {
+        return mEGLSurface != null;
+    }
+
+    public boolean swapBuffers() {
+        return mEGL.eglSwapBuffers(mEGLDisplay, mEGLSurface);
+    }
+
+    public boolean checkForLostContext() {
+        if (mEGL.eglGetError() != EGL11.EGL_CONTEXT_LOST) {
+            return false;
+        }
+
+        mEGLDisplay = null;
+        mEGLConfig = null;
+        mEGLSurface = null;
+        return true;
+    }
+
+    // This function is invoked by JNI
+    public void resumeCompositorIfValid() {
         synchronized (this) {
             if (!mSurfaceValid) {
                 return;
@@ -49,10 +81,9 @@ public class GLController {
         mView.getListener().compositionResumeRequested(mWidth, mHeight);
     }
 
-    /* Wait until we are allowed to use EGL functions on the Surface backing
-     * this window.
-     * This function is invoked by JNI */
-    synchronized void waitForValidSurface() {
+    // Wait until we are allowed to use EGL functions on the Surface backing
+    // this window. This function is invoked by JNI
+    public synchronized void waitForValidSurface() {
         while (!mSurfaceValid) {
             try {
                 wait();
@@ -60,6 +91,14 @@ public class GLController {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    public synchronized int getWidth() {
+        return mWidth;
+    }
+
+    public synchronized int getHeight() {
+        return mHeight;
     }
 
     synchronized void surfaceDestroyed() {
@@ -125,7 +164,7 @@ public class GLController {
      * Provides an EGLSurface without assuming ownership of this surface.
      * This class does not keep a reference to the provided EGL surface; the
      * caller assumes ownership of the surface once it is returned.
-     * This function is invoked by JNI */
+     */
     private EGLSurface provideEGLSurface() {
         if (mEGL == null) {
             initEGL();

@@ -3390,7 +3390,7 @@ WorkerPrivate::RunSyncLoop(JSContext* aCx, uint32_t aSyncLoopKey)
       NS_ASSERTION(syncQueue->mQueue.IsEmpty(), "Unprocessed sync events!");
 
       bool result = syncQueue->mResult;
-      DestroySyncLoop(aSyncLoopKey);
+      mSyncQueues.RemoveElementAt(aSyncLoopKey);
 
 #ifdef DEBUG
       syncQueue = nullptr;
@@ -3422,14 +3422,6 @@ WorkerPrivate::StopSyncLoop(uint32_t aSyncLoopKey, bool aSyncResult)
 
   syncQueue->mResult = aSyncResult;
   syncQueue->mComplete = true;
-}
-
-void
-WorkerPrivate::DestroySyncLoop(uint32_t aSyncLoopKey)
-{
-  AssertIsOnWorkerThread();
-
-  mSyncQueues.RemoveElementAt(aSyncLoopKey);
 }
 
 bool

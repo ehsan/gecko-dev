@@ -8,8 +8,8 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLDivElement.h"
 
-class nsHTMLDivElement MOZ_FINAL : public nsGenericHTMLElement,
-                                   public nsIDOMHTMLDivElement
+class nsHTMLDivElement : public nsGenericHTMLElement,
+                         public nsIDOMHTMLDivElement
 {
 public:
   nsHTMLDivElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -61,10 +61,6 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
   virtual nsIDOMNode* AsDOMNode() { return this; }
-
-protected:
-  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope,
-                             bool *aTriedToWrap) MOZ_OVERRIDE;
 };
 
 #endif /* nsHTMLDivElement_h___ */

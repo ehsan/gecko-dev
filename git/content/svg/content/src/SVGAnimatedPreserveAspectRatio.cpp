@@ -8,7 +8,6 @@
 #include "SVGAnimatedPreserveAspectRatio.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsSMILValue.h"
-#include "nsSVGAttrTearoffTable.h"
 #include "SMILEnumType.h"
 #include "nsAttrValueInlines.h"
 
@@ -67,13 +66,6 @@ static const char *sAlignStrings[] =
     "xMaxYMid", "xMinYMax", "xMidYMax", "xMaxYMax" };
 
 static const char *sMeetOrSliceStrings[] = { "meet", "slice" };
-
-static nsSVGAttrTearoffTable<SVGAnimatedPreserveAspectRatio, SVGAnimatedPreserveAspectRatio::DOMAnimPAspectRatio>
-  sSVGAnimatedPAspectRatioTearoffTable;
-static nsSVGAttrTearoffTable<SVGAnimatedPreserveAspectRatio, SVGAnimatedPreserveAspectRatio::DOMBaseVal>
-  sBaseSVGPAspectRatioTearoffTable;
-static nsSVGAttrTearoffTable<SVGAnimatedPreserveAspectRatio, SVGAnimatedPreserveAspectRatio::DOMAnimVal>
-  sAnimSVGPAspectRatioTearoffTable;
 
 static uint16_t
 GetAlignForString(const nsAString &aAlignString)
@@ -138,20 +130,12 @@ SVGAnimatedPreserveAspectRatio::ToDOMBaseVal(
   nsIDOMSVGPreserveAspectRatio **aResult,
   nsSVGElement *aSVGElement)
 {
-  nsRefPtr<DOMBaseVal> domBaseVal =
-    sBaseSVGPAspectRatioTearoffTable.GetTearoff(this);
-  if (!domBaseVal) {
-    domBaseVal = new DOMBaseVal(this, aSVGElement);
-    sBaseSVGPAspectRatioTearoffTable.AddTearoff(this, domBaseVal);
-  }
+  *aResult = new DOMBaseVal(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  domBaseVal.forget(aResult);
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-SVGAnimatedPreserveAspectRatio::DOMBaseVal::~DOMBaseVal()
-{
-  sBaseSVGPAspectRatioTearoffTable.RemoveTearoff(mVal);
 }
 
 nsresult
@@ -159,20 +143,12 @@ SVGAnimatedPreserveAspectRatio::ToDOMAnimVal(
   nsIDOMSVGPreserveAspectRatio **aResult,
   nsSVGElement *aSVGElement)
 {
-  nsRefPtr<DOMAnimVal> domAnimVal =
-    sAnimSVGPAspectRatioTearoffTable.GetTearoff(this);
-  if (!domAnimVal) {
-    domAnimVal = new DOMAnimVal(this, aSVGElement);
-    sAnimSVGPAspectRatioTearoffTable.AddTearoff(this, domAnimVal);
-  }
+  *aResult = new DOMAnimVal(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  domAnimVal.forget(aResult);
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-SVGAnimatedPreserveAspectRatio::DOMAnimVal::~DOMAnimVal()
-{
-  sAnimSVGPAspectRatioTearoffTable.RemoveTearoff(mVal);
 }
 
 static nsresult
@@ -330,19 +306,12 @@ SVGAnimatedPreserveAspectRatio::ToDOMAnimatedPreserveAspectRatio(
   nsIDOMSVGAnimatedPreserveAspectRatio **aResult,
   nsSVGElement *aSVGElement)
 {
-  nsRefPtr<DOMAnimPAspectRatio> domAnimatedPAspectRatio =
-    sSVGAnimatedPAspectRatioTearoffTable.GetTearoff(this);
-  if (!domAnimatedPAspectRatio) {
-    domAnimatedPAspectRatio = new DOMAnimPAspectRatio(this, aSVGElement);
-    sSVGAnimatedPAspectRatioTearoffTable.AddTearoff(this, domAnimatedPAspectRatio);
-  }
-  domAnimatedPAspectRatio.forget(aResult);
-  return NS_OK;
-}
+  *aResult = new DOMAnimPAspectRatio(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-SVGAnimatedPreserveAspectRatio::DOMAnimPAspectRatio::~DOMAnimPAspectRatio()
-{
-  sSVGAnimatedPAspectRatioTearoffTable.RemoveTearoff(mVal);
+  NS_ADDREF(*aResult);
+  return NS_OK;
 }
 
 nsISMILAttr*

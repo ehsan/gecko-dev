@@ -24,6 +24,7 @@ class RemoteOptions(ReftestOptions):
         defaults = {}
         defaults["logFile"] = "reftest.log"
         # app, xrePath and utilityPath variables are set in main function
+        defaults["remoteTestRoot"] = None
         defaults["app"] = ""
         defaults["xrePath"] = ""
         defaults["utilityPath"] = ""
@@ -86,19 +87,13 @@ class RemoteOptions(ReftestOptions):
                     help = "the transport to use to communicate with device: [adb|sut]; default=sut")
         defaults["dm_trans"] = "sut"
 
-        self.add_option("--remoteTestRoot", action = "store",
-                    type = "string", dest = "remoteTestRoot",
-                    help = "remote directory to use as test root (eg. /mnt/sdcard/tests or /data/local/tests)")
-        defaults["remoteTestRoot"] = None
-
         defaults["localLogName"] = None
 
         self.set_defaults(**defaults)
 
     def verifyRemoteOptions(self, options):
         # Ensure our defaults are set properly for everything we can infer
-        if not options.remoteTestRoot:
-            options.remoteTestRoot = self._automation._devicemanager.getDeviceRoot() + '/reftest'
+        options.remoteTestRoot = self._automation._devicemanager.getDeviceRoot() + '/reftest'
         options.remoteProfile = options.remoteTestRoot + "/profile"
 
         # Verify that our remotewebserver is set properly
@@ -382,11 +377,11 @@ def main(args):
     try:
         if (options.dm_trans == "adb"):
             if (options.deviceIP):
-                dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
+                dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort)
             else:
-                dm = devicemanagerADB.DeviceManagerADB(None, None, deviceRoot=options.remoteTestRoot)
+                dm = devicemanagerADB.DeviceManagerADB(None, None)
         else:
-            dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
+            dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
     except devicemanager.DMError:
         print "Error: exception while initializing devicemanager.  Most likely the device is not in a testable state."
         return 1

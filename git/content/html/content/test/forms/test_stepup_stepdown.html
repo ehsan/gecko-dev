@@ -66,7 +66,7 @@ function checkAvailability()
   var element = document.createElement("input");
   element.setAttribute('value', '0');
 
-  for (data of testData) {
+  for each (data in testData) {
     var exceptionCaught = false;
     element.type = data[0];
     try {
@@ -85,7 +85,7 @@ function checkAvailability()
     is(exceptionCaught, !data[1], "stepUp() availability is not correct");
   }
 
-  for (data of todoList) {
+  for each (data in todoList) {
     var exceptionCaught = false;
     element.type = data[0];
     try {
@@ -180,7 +180,7 @@ function checkStepDownForNumber()
     [ '1',  '2',    null,  null,  null, '-1',   false ],
   ];
 
-  for (var data of testData) {
+  for each (var data in testData) {
     var element = document.createElement("input");
     element.type = 'number';
 
@@ -290,7 +290,7 @@ function checkStepUpForNumber()
     [ '1',  '2',    null,  null,  null, '3',   false ],
   ];
 
-  for (var data of testData) {
+  for each (var data in testData) {
     var element = document.createElement("input");
     element.type = 'number';
 

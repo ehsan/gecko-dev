@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsError.h"
-#include "nsSVGAttrTearoffTable.h"
 #include "nsSVGBoolean.h"
 #include "nsSMILValue.h"
 #include "SMILBoolType.h"
@@ -25,9 +24,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGBoolean::DOMAnimatedBoolean)
 NS_INTERFACE_MAP_END
 
 /* Implementation */
-
-static nsSVGAttrTearoffTable<nsSVGBoolean, nsSVGBoolean::DOMAnimatedBoolean>
-  sSVGAnimatedBooleanTearoffTable;
 
 static nsresult
 GetValueFromString(const nsAString &aValueAsString,
@@ -121,20 +117,12 @@ nsresult
 nsSVGBoolean::ToDOMAnimatedBoolean(nsIDOMSVGAnimatedBoolean **aResult,
                                    nsSVGElement *aSVGElement)
 {
-  nsRefPtr<DOMAnimatedBoolean> domAnimatedBoolean =
-    sSVGAnimatedBooleanTearoffTable.GetTearoff(this);
-  if (!domAnimatedBoolean) {
-    domAnimatedBoolean = new DOMAnimatedBoolean(this, aSVGElement);
-    sSVGAnimatedBooleanTearoffTable.AddTearoff(this, domAnimatedBoolean);
-  }
+  *aResult = new DOMAnimatedBoolean(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  domAnimatedBoolean.forget(aResult);
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsSVGBoolean::DOMAnimatedBoolean::~DOMAnimatedBoolean()
-{
-  sSVGAnimatedBooleanTearoffTable.RemoveTearoff(mVal);
 }
 
 nsISMILAttr*

@@ -3440,7 +3440,8 @@ nsresult GetEventAndTarget(nsIDocument* aDoc, nsISupports* aTarget,
   rv = event->InitEvent(aEventName, aCanBubble, aCancelable);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(aTrusted);
+  rv = event->SetTrusted(aTrusted);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = event->SetTarget(target);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -17,10 +17,6 @@
 #include "nsHTMLDocument.h"
 #include "nsICSSDeclaration.h"
 #include "nsSVGStylableElement.h"
-#include "mozilla/dom/EventTargetBinding.h"
-#include "mozilla/dom/NodeBinding.h"
-#include "mozilla/dom/ElementBinding.h"
-#include "mozilla/dom/HTMLElementBinding.h"
 
 template<class T>
 struct ProtoIDAndDepth
@@ -31,21 +27,16 @@ struct ProtoIDAndDepth
     };
 };
 
-#define NEW_BINDING(_native, _id)                                             \
+#define NEW_BINDING(_native)                                                  \
 template<>                                                                    \
 struct ProtoIDAndDepth<_native>                                               \
 {                                                                             \
     enum {                                                                    \
-        PrototypeID = mozilla::dom::prototypes::id::_id,                      \
+        PrototypeID = mozilla::dom::PrototypeIDMap<_native>::PrototypeID,     \
         Depth = mozilla::dom::PrototypeTraits<                                \
             static_cast<mozilla::dom::prototypes::ID>(PrototypeID)>::Depth    \
     };                                                                        \
 }
-
-NEW_BINDING(mozilla::dom::EventTarget, EventTarget);
-NEW_BINDING(nsINode, Node);
-NEW_BINDING(mozilla::dom::Element, Element);
-NEW_BINDING(nsGenericHTMLElement, HTMLElement);
 
 #define DEFINE_UNWRAP_CAST(_interface, _base, _bit)                           \
 template <>                                                                   \

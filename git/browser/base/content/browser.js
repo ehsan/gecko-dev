@@ -1762,8 +1762,7 @@ function HandleAppCommandEvent(evt) {
     BrowserReloadSkipCache();
     break;
   case "Stop":
-    if (XULBrowserWindow.stopCommand.getAttribute("disabled") != "true")
-      BrowserStop();
+    BrowserStop();
     break;
   case "Search":
     BrowserSearch.webSearch();

@@ -60,30 +60,15 @@ InlineFrameIterator::forEachCanonicalActualArg(Op op, unsigned start, unsigned c
 
     JS_ASSERT(start <= end && end <= nactual);
 
-    if (more()) {
-        // There is still a parent frame of this inlined frame.
-        // Take arguments of the caller (parent inlined frame) it holds all actual
-        // arguments, needed in case of overflow, and because the analyze phase
-        // disable Ion inlining if the function redefine its arguments with JSOP_SETARG.
+    // Currently inlining does not support overflow of arguments, we have to
+    // add this feature in IonBuilder.cpp and in Bailouts.cpp before
+    // continuing. We need to add it to Bailouts.cpp because we need to know
+    // how to walk over the oveflow of arguments.
+    JS_ASSERT_IF(more(), end <= nformal);
 
-        InlineFrameIterator it(this);
-        ++it;
-        SnapshotIterator s(it.snapshotIterator());
-
-        // Skip over all slots untill we get to the arguments slots
-        // the +2 is for [this] and [scopechain]
-        JS_ASSERT(s.slots() >= nactual + 2);
-        unsigned skip = s.slots() - nactual - 2;
-        for (unsigned j = 0; j < skip; j++)
-            s.skip();
-
-        s.readFrameArgs(op, NULL, NULL, NULL, start, nactual, end);
-    } else {
-        SnapshotIterator s(si_);
-        Value *argv = frame_->actualArgs();
-        s.readFrameArgs(op, argv, NULL, NULL, start, nformal, end);
-    }
-
+    SnapshotIterator s(si_);
+    Value *argv = frame_->actualArgs();
+    s.readFrameArgs(op, argv, NULL, NULL, start, nformal, end);
 }
 
 } // namespace ion

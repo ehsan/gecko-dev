@@ -483,18 +483,6 @@ var BrowserApp = {
         ContentAreaUtils.internalSave(aTarget.currentURI.spec, null, null, contentDisposition, type, false, "SaveImageTitle", null,
                                       aTarget.ownerDocument.documentURIObject, aTarget.ownerDocument, true, null);
       });
-
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.setWallpaper"),
-      NativeWindow.contextmenus.imageSaveableContext,
-      function(aTarget) {
-        let src = aTarget.src;
-        sendMessageToJava({
-          gecko: {
-            type: "Wallpaper:Set",
-            url: src
-          }
-        });
-      });
   },
 
   onAppUpdated: function() {
@@ -1487,37 +1475,17 @@ var NativeWindow = {
       }
     },
 
-    get _target() {
-      if (this._targetRef)
-        return this._targetRef.get();
-      return null;
-    },
-  
-    set _target(aTarget) {
-      if (aTarget)
-        this._targetRef = Cu.getWeakReference(aTarget);
-      else this._targetRef = null;
-    },
-
     _sendToContent: function(aX, aY) {
-      // find and store the top most element this context menu is being shown for
-      // use the highlighted element if possible, otherwise look for nearby clickable elements
-      // If we still don't find one we fall back to using anything
-      let target = BrowserEventHandler._highlightElement || ElementTouchHelper.elementFromPoint(aX, aY);
-      if (!target)
-        target = ElementTouchHelper.anyElementFromPoint(aX, aY);
-
-      if (!target)
-        return;
-
-      // store a weakref to the target to be used when the context menu event returns
-      this._target = target;
+      // initially we look for nearby clickable elements. If we don't find one we fall back to using whatever this click was on
+      let rootElement = ElementTouchHelper.elementFromPoint(aX, aY);
+      if (!rootElement)
+        rootElement = ElementTouchHelper.anyElementFromPoint(aX, aY)
 
       this.menuitems = {};
       let menuitemsSet = false;
-
-      // now walk up the tree and for each node look for any context menu items that apply
-      let element = target;
+      let element = rootElement;
+      if (!element)
+        return;
 
       while (element) {
         for each (let item in this.items) {
@@ -1534,45 +1502,34 @@ var NativeWindow = {
 
       // only send the contextmenu event to content if we are planning to show a context menu (i.e. not on every long tap)
       if (menuitemsSet) {
-        let event = target.ownerDocument.createEvent("MouseEvent");
+        let event = rootElement.ownerDocument.createEvent("MouseEvent");
         event.initMouseEvent("contextmenu", true, true, content,
                              0, aX, aY, aX, aY, false, false, false, false,
                              0, null);
-        target.ownerDocument.defaultView.addEventListener("contextmenu", this, false);
-        target.dispatchEvent(event);
-      } else {
-        this._target = null;
-        BrowserEventHandler._cancelTapHighlight();
-
-        if (SelectionHandler.canSelect(rootElement))
-          SelectionHandler.startSelection(rootElement, aX, aY);
+        rootElement.ownerDocument.defaultView.addEventListener("contextmenu", this, false);
+        rootElement.dispatchEvent(event);
+      } else if (SelectionHandler.canSelect(rootElement)) {
+        SelectionHandler.startSelection(rootElement, aX, aY);
       }
     },
 
     _show: function(aEvent) {
-      let popupNode = this._target;
-      this._target = null;
-      if (aEvent.defaultPrevented || !popupNode) {
+      if (aEvent.defaultPrevented)
         return;
-      }
 
       Haptic.performSimpleAction(Haptic.LongPress);
 
-      // spin through the tree looking for a title for this context menu
-      let node = popupNode;
-      let title ="";
-      while(node && !title) {
-        if (node.hasAttribute("title")) {
-          title = node.getAttribute("title")
-        } else if ((node instanceof Ci.nsIDOMHTMLAnchorElement && node.href) ||
-                (node instanceof Ci.nsIDOMHTMLAreaElement && node.href)) {
-          title = this._getLinkURL(node);
-        } else if (node instanceof Ci.nsIImageLoadingContent && node.currentURI) {
-          title = node.currentURI.spec;
-        } else if (node instanceof Ci.nsIDOMHTMLMediaElement) {
-          title = (node.currentSrc || node.src);
-        }
-        node = node.parentNode;
+      let popupNode = aEvent.originalTarget;
+      let title = "";
+      if (popupNode.hasAttribute("title")) {
+        title = popupNode.getAttribute("title")
+      } else if ((popupNode instanceof Ci.nsIDOMHTMLAnchorElement && popupNode.href) ||
+              (popupNode instanceof Ci.nsIDOMHTMLAreaElement && popupNode.href)) {
+        title = this._getLinkURL(popupNode);
+      } else if (popupNode instanceof Ci.nsIImageLoadingContent && popupNode.currentURI) {
+        title = popupNode.currentURI.spec;
+      } else if (popupNode instanceof Ci.nsIDOMHTMLMediaElement) {
+        title = (popupNode.currentSrc || popupNode.src);
       }
 
       // convert this.menuitems object to an array for sending to native code
@@ -1605,12 +1562,12 @@ var NativeWindow = {
     },
 
     handleEvent: function(aEvent) {
-      BrowserEventHandler._cancelTapHighlight();
       aEvent.target.ownerDocument.defaultView.removeEventListener("contextmenu", this, false);
       this._show(aEvent);
     },
 
     observe: function(aSubject, aTopic, aData) {
+      BrowserEventHandler._cancelTapHighlight();
       let data = JSON.parse(aData);
       // content gets first crack at cancelling context menus
       this._sendToContent(data.x, data.y);
@@ -3564,7 +3521,7 @@ Tab.prototype = {
   },
 
   /** Update viewport when the metadata changes. */
-  updateViewportMetadata: function updateViewportMetadata(aMetadata, aInitialLoad) {
+  updateViewportMetadata: function updateViewportMetadata(aMetadata) {
     if (Services.prefs.getBoolPref("browser.ui.zoom.force-user-scalable")) {
       aMetadata.allowZoom = true;
       aMetadata.minZoom = aMetadata.maxZoom = NaN;
@@ -3580,12 +3537,12 @@ Tab.prototype = {
       aMetadata.maxZoom *= scaleRatio;
 
     ViewportHandler.setMetadataForDocument(this.browser.contentDocument, aMetadata);
-    this.updateViewportSize(gScreenWidth, aInitialLoad);
+    this.updateViewportSize(gScreenWidth);
     this.sendViewportMetadata();
   },
 
   /** Update viewport when the metadata or the window size changes. */
-  updateViewportSize: function updateViewportSize(aOldScreenWidth, aInitialLoad) {
+  updateViewportSize: function updateViewportSize(aOldScreenWidth) {
     // When this function gets called on window resize, we must execute
     // this.sendViewportUpdate() so that refreshDisplayPort is called.
     // Ensure that when making changes to this function that code path
@@ -3677,7 +3634,7 @@ Tab.prototype = {
     // within the screen width. Note that "actual content" may be different
     // with respect to CSS pixels because of the CSS viewport size changing.
     let zoomScale = (screenW * oldBrowserWidth) / (aOldScreenWidth * viewportW);
-    let zoom = (aInitialLoad && metadata.defaultZoom) ? metadata.defaultZoom : this.clampZoom(this._zoom * zoomScale);
+    let zoom = this.clampZoom(this._zoom * zoomScale);
     this.setResolution(zoom, false);
     this.setScrollClampingSize(zoom);
     this.sendViewportUpdate();
@@ -3734,7 +3691,7 @@ Tab.prototype = {
           // things here before calling updateMetadata.
           this.setBrowserSize(kDefaultCSSViewportWidth, kDefaultCSSViewportHeight);
           this.setResolution(gScreenWidth / this.browserWidth, false);
-          ViewportHandler.updateMetadata(this, true);
+          ViewportHandler.updateMetadata(this);
 
           // Note that if we draw without a display-port, things can go wrong. By the
           // time we execute this, it's almost certain a display-port has been set via
@@ -3757,7 +3714,7 @@ Tab.prototype = {
         break;
       case "nsPref:changed":
         if (aData == "browser.ui.zoom.force-user-scalable")
-          ViewportHandler.updateMetadata(this, false);
+          ViewportHandler.updateMetadata(this);
         break;
     }
   },
@@ -5171,7 +5128,7 @@ var ViewportHandler = {
         let browser = BrowserApp.getBrowserForDocument(document);
         let tab = BrowserApp.getTabForBrowser(browser);
         if (tab)
-          this.updateMetadata(tab, false);
+          this.updateMetadata(tab);
         break;
     }
   },
@@ -5194,9 +5151,9 @@ var ViewportHandler = {
     }
   },
 
-  updateMetadata: function updateMetadata(tab, aInitialLoad) {
+  updateMetadata: function updateMetadata(tab) {
     let metadata = this.getViewportMetadata(tab.browser.contentWindow);
-    tab.updateViewportMetadata(metadata, aInitialLoad);
+    tab.updateViewportMetadata(metadata);
   },
 
   /**
@@ -5233,8 +5190,6 @@ var ViewportHandler = {
     let allowZoomStr = windowUtils.getDocumentMetadata("viewport-user-scalable");
     let allowZoom = !/^(0|no|false)$/.test(allowZoomStr) && (minScale != maxScale);
 
-    let autoSize = true;
-
     if (isNaN(scale) && isNaN(minScale) && isNaN(maxScale) && allowZoomStr == "" && widthStr == "" && heightStr == "") {
       // Only check for HandheldFriendly if we don't have a viewport meta tag
       let handheldFriendly = windowUtils.getDocumentMetadata("HandheldFriendly");
@@ -5244,23 +5199,15 @@ var ViewportHandler = {
       let doctype = aWindow.document.doctype;
       if (doctype && /(WAP|WML|Mobile)/.test(doctype.publicId))
         return { defaultZoom: 1, autoSize: true, allowZoom: true };
-
-      let defaultZoom = Services.prefs.getIntPref("browser.viewport.defaultZoom");
-      if (defaultZoom >= 0) {
-        scale = defaultZoom / 1000;
-        autoSize = false;
-      }
     }
 
     scale = this.clamp(scale, kViewportMinScale, kViewportMaxScale);
     minScale = this.clamp(minScale, kViewportMinScale, kViewportMaxScale);
     maxScale = this.clamp(maxScale, minScale, kViewportMaxScale);
 
-    if (autoSize) {
-      // If initial scale is 1.0 and width is not set, assume width=device-width
-      autoSize = (widthStr == "device-width" ||
-                  (!widthStr && (heightStr == "device-height" || scale == 1.0)));
-    }
+    // If initial scale is 1.0 and width is not set, assume width=device-width
+    let autoSize = (widthStr == "device-width" ||
+                    (!widthStr && (heightStr == "device-height" || scale == 1.0)));
 
     return {
       defaultZoom: scale,

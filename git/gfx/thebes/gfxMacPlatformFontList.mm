@@ -62,7 +62,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsCharTraits.h"
 
-#include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 
 #include <unistd.h>
@@ -736,7 +735,7 @@ gfxMacPlatformFontList::InitFontList()
     // start the delayed cmap loader
     StartLoader(kDelayBeforeLoadingCmaps, kIntervalBetweenLoadingCmaps);
 
-    return NS_OK;
+	return NS_OK;
 }
 
 void
@@ -827,15 +826,11 @@ gfxMacPlatformFontList::GetStandardFamilyName(const nsAString& aFontName, nsAStr
 
 void
 gfxMacPlatformFontList::ATSNotification(ATSFontNotificationInfoRef aInfo,
-                                        void* aUserArg)
+                                    void* aUserArg)
 {
     // xxx - should be carefully pruning the list of fonts, not rebuilding it from scratch
-    static_cast<gfxMacPlatformFontList*>(aUserArg)->UpdateFontList();
-
-    // modify a preference that will trigger reflow everywhere
-    static const char kPrefName[] = "font.internaluseonly.changed";
-    bool fontInternalChange = Preferences::GetBool(kPrefName, false);
-    Preferences::SetBool(kPrefName, !fontInternalChange);
+    gfxMacPlatformFontList *qfc = (gfxMacPlatformFontList*)aUserArg;
+    qfc->UpdateFontList();
 }
 
 gfxFontEntry*

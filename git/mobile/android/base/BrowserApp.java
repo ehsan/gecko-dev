@@ -499,12 +499,8 @@ abstract public class BrowserApp extends GeckoApp
         showAwesomebar(AwesomeBar.Target.NEW_TAB);
     }
 
-    public void showNormalTabs() {
-        showTabs(TabsPanel.Panel.NORMAL_TABS);
-    }
-
-    public void showPrivateTabs() {
-        showTabs(TabsPanel.Panel.PRIVATE_TABS);
+    public void showLocalTabs() {
+        showTabs(TabsPanel.Panel.LOCAL_TABS);
     }
 
     public void showRemoteTabs() {

@@ -286,10 +286,8 @@ SimpleTest._logResult = function(test, passString, failString) {
         } else {
             parentRunner.log(msg);
         }
-    } else if (typeof dump === "function") {
-        dump(msg + "\n");
     } else {
-        // Non-Mozilla browser?  Just do nothing.
+        dump(msg + "\n");
     }
 };
 
@@ -602,7 +600,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
 
     // Build a default validator function for common string input.
     var inputValidatorFn = typeof(aExpectedStringOrValidatorFn) == "string"
-        ? function(aData) { return aData == aExpectedStringOrValidatorFn; }
+        ? function(aData) aData == aExpectedStringOrValidatorFn
         : aExpectedStringOrValidatorFn;
 
     // reset for the next use
@@ -630,7 +628,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
             reset();
             successFn();
         } else {
-            setTimeout(function() { return wait(validatorFn, successFn, failureFn, flavor); }, 100);
+            setTimeout(function() wait(validatorFn, successFn, failureFn, flavor), 100);
         }
     }
 
@@ -638,7 +636,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
     var preExpectedVal = SimpleTest._waitForClipboardMonotonicCounter +
                          "-waitForClipboard-known-value";
     SpecialPowers.clipboardCopyString(preExpectedVal);
-    wait(function(aData) { return aData  == preExpectedVal; },
+    wait(function(aData) aData  == preExpectedVal,
          function() {
            // Call the original setup fn
            aSetupFn();

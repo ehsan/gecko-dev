@@ -1184,8 +1184,6 @@ TryConvertToGname(BytecodeEmitter *bce, ParseNode *pn, JSOp *op)
         !pn->isDeoptimized() &&
         !bce->sc->strict)
     {
-        // If you change anything here, you might also need to change
-        // js::CheckUndeclaredVarAssignment.
         switch (*op) {
           case JSOP_NAME:     *op = JSOP_GETGNAME; break;
           case JSOP_SETNAME:  *op = JSOP_SETGNAME; break;
@@ -1720,7 +1718,7 @@ BytecodeEmitter::reportStrictWarning(ParseNode *pn, unsigned errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
-    bool result = tokenStream()->reportStrictWarningErrorNumberVA(pn, errorNumber, args);
+    bool result = tokenStream()->reportStrictWarningErrorNumberVA(pn, sc->strict, errorNumber, args);
     va_end(args);
     return result;
 }

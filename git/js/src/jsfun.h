@@ -21,9 +21,8 @@ ForwardDeclareJS(Script);
 
 namespace js { class FunctionExtended; }
 
-class JSFunction : public JSObject
+struct JSFunction : public JSObject
 {
-  public:
     enum Flags {
         INTERPRETED      = 0x0001,  /* function has a JSScript and environment. */
         NATIVE_CTOR      = 0x0002,  /* native that can be called as a constructor */
@@ -59,7 +58,7 @@ class JSFunction : public JSObject
     uint16_t        flags;        /* bitfield composed of the above Flags enum */
     union U {
         class Native {
-            friend class JSFunction;
+            friend struct JSFunction;
             js::Native          native;       /* native method pointer or null */
             const JSJitInfo     *jitinfo;     /* Information about this function to be
                                                  used by the JIT;
@@ -336,7 +335,7 @@ namespace js {
  */
 class FunctionExtended : public JSFunction
 {
-    friend class JSFunction;
+    friend struct JSFunction;
 
     /* Reserved slots available for storage by particular native functions. */
     HeapValue extendedSlots[2];

@@ -89,7 +89,7 @@ function checkSanitizing(element)
     "1.234567898765432",
   ];
 
-  for (value of testData) {
+  for each (value in testData) {
     element.setAttribute('value', value);
     is(element.value, sanitizeValue(type, value),
        "The value has not been correctly sanitized for type=" + type);
@@ -133,7 +133,7 @@ function checkSanitizing(element)
 
 var pref = SpecialPowers.getBoolPref("dom.experimental_forms");
 SpecialPowers.setBoolPref("dom.experimental_forms", true);
-for (type of inputTypes) {
+for each (type in inputTypes) {
   var form = document.forms[0];
   var element = document.createElement("input");
   element.style.display = "none";
@@ -155,7 +155,7 @@ for (type of inputTypes) {
   form.removeChild(element);
 }
 
-for (type of todoTypes) {
+for each (type in todoTypes) {
   // The only meaning of this is to have a failure when new types are introduced
   // so we will know we have to write the tests here.
   var form = document.forms[0];

@@ -65,7 +65,6 @@ class nsScriptLoader;
 class nsSMILAnimationController;
 class nsStyleSet;
 class nsWindowSizes;
-class nsSmallVoidArray;
 
 namespace mozilla {
 namespace css {

@@ -726,7 +726,7 @@ function onLoad() {
   Telemetry.asyncFetchTelemetryData(displayPingData);
 }
 
-function displayPingData() {
+function displayPingData(ping) {
   let ping = TelemetryPing.getPayload();
 
   // Show simple measurements

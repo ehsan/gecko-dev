@@ -156,7 +156,7 @@ function reflectUnsignedInt(aParameters)
 
   var values = [ 1, 3, 42, 2147483647 ];
 
-  for (var value of values) {
+  for each (var value in values) {
     element[attr] = value;
     is(element[attr], value, "." + attr + " should be equals " + value);
     is(element.getAttribute(attr), value,
@@ -188,7 +188,7 @@ function reflectUnsignedInt(aParameters)
     [ 3147483647,  3147483647 ],
   ];
 
-  for (var values of nonValidValues) {
+  for each (var values in nonValidValues) {
     element[attr] = values[0];
     is(element.getAttribute(attr), values[1],
        "@" + attr + " should be equals to " + values[1]);
@@ -196,7 +196,7 @@ function reflectUnsignedInt(aParameters)
        "." + attr + " should be equals to " + defaultValue);
   }
 
-  for (var values of nonValidValues) {
+  for each (var values in nonValidValues) {
     element.setAttribute(attr, values[0]);
     is(element.getAttribute(attr), values[0],
        "@" + attr + " should be equals to " + values[0]);

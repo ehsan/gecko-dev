@@ -4796,13 +4796,6 @@ dom_genericMethod(JSContext* cx, unsigned argc, JS::Value *vp)
     return method(cx, obj, val.toPrivate(), argc, vp);
 }
 
-static void
-InitDOMObject(HandleObject obj)
-{
-    /* Fow now just initialize to a constant we can check. */
-    SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL((void *)0x1234));
-}
-
 static JSBool
 dom_constructor(JSContext* cx, unsigned argc, JS::Value *vp)
 {
@@ -4822,7 +4815,8 @@ dom_constructor(JSContext* cx, unsigned argc, JS::Value *vp)
     if (!domObj)
         return false;
 
-    InitDOMObject(domObj);
+    /* Fow now just initialize to a constant we can check. */
+    SetReservedSlot(domObj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL((void *)0x1234));
 
     args.rval().setObject(*domObj);
     return true;
@@ -4942,13 +4936,11 @@ NewGlobalObject(JSContext *cx)
         };
         SetDOMCallbacks(cx->runtime, &DOMcallbacks);
 
-        RootedObject domProto(cx, JS_InitClass(cx, glob, NULL, &dom_class, dom_constructor, 0,
-                                               dom_props, dom_methods, NULL, NULL));
-        if (!domProto)
+        if (!JS_InitClass(cx, glob, NULL, &dom_class, dom_constructor, 0,
+                          dom_props, dom_methods, NULL, NULL))
+        {
             return NULL;
-
-        /* Initialize FakeDOMObject.prototype */
-        InitDOMObject(domProto);
+        }
     }
 
     return glob;
