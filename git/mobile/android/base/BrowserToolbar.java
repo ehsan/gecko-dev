@@ -115,6 +115,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         public void onStopEditing();
     }
 
+    private LayoutParams mAwesomeBarParams;
     private View mUrlDisplayContainer;
     private View mUrlEditContainer;
     private CustomEditText mUrlEditText;
@@ -152,6 +153,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
     private boolean mHasSoftMenuButton;
 
     private boolean mShowSiteSecurity;
+    private boolean mShowReader;
     private boolean mSpinnerVisible;
 
     private boolean mDelayRestartInput;
@@ -269,6 +271,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         registerEventListener("Reader:LongClick");
 
         mShowSiteSecurity = false;
+        mShowReader = false;
 
         mAnimatingEntry = false;
 
@@ -978,12 +981,17 @@ public class BrowserToolbar extends GeckoRelativeLayout
 
         // Handle the viewing mode page actions
         setSiteSecurityVisibility(mShowSiteSecurity && !isLoading);
-        mPageActionLayout.setVisibility(!isLoading ? View.VISIBLE : View.GONE);
 
+        boolean inReaderMode = false;
+        Tab tab = Tabs.getInstance().getSelectedTab();
+        if (tab != null)
+            inReaderMode = ReaderModeUtils.isAboutReader(tab.getURL());
+
+        mPageActionLayout.setVisibility(!isLoading ? View.VISIBLE : View.GONE);
         // We want title to fill the whole space available for it when there are icons
         // being shown on the right side of the toolbar as the icons already have some
         // padding in them. This is just to avoid wasting space when icons are shown.
-        mTitle.setPadding(0, 0, (!isLoading ? mTitlePadding : 0), 0);
+        mTitle.setPadding(0, 0, (!isLoading && !(mShowReader || inReaderMode) ? mTitlePadding : 0), 0);
         updateFocusOrder();
     }
 

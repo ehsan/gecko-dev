@@ -60,7 +60,6 @@ function HTMLEditor(htmlDocument)
   };
 
   config.extraKeys[ctrl("Enter")] = this.hide;
-  config.extraKeys["F2"] = this.hide;
   config.extraKeys["Esc"] = this.hide.bind(this, false);
 
   this.container.addEventListener("click", this.hide, false);
@@ -141,8 +140,6 @@ HTMLEditor.prototype = {
 
     this.editor.refresh();
     this.editor.focus();
-
-    this.emit("popupshown");
   },
 
   /**
@@ -164,9 +161,9 @@ HTMLEditor.prototype = {
     let newValue = this.editor.getText();
     let valueHasChanged = this._originalValue !== newValue;
     let preventCommit = shouldCommit === false || !valueHasChanged;
+    this.emit("popup-hidden", !preventCommit, newValue);
     this._originalValue = undefined;
     this._visible = undefined;
-    this.emit("popuphidden", !preventCommit, newValue);
   },
 
   /**

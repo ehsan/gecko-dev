@@ -186,7 +186,7 @@ OpusTrackEncoder::GetPacketDuration()
   return GetOutputSampleRate() * kFrameDurationMs / 1000;
 }
 
-already_AddRefed<TrackMetadataBase>
+nsRefPtr<TrackMetadataBase>
 OpusTrackEncoder::GetMetadata()
 {
   {
@@ -201,7 +201,7 @@ OpusTrackEncoder::GetMetadata()
     return nullptr;
   }
 
-  nsRefPtr<OpusMetadata> meta = new OpusMetadata();
+  OpusMetadata* meta = new OpusMetadata();
 
   mLookahead = 0;
   int error = opus_encoder_ctl(mEncoder, OPUS_GET_LOOKAHEAD(&mLookahead));
@@ -222,7 +222,7 @@ OpusTrackEncoder::GetMetadata()
   SerializeOpusCommentHeader(vendor, comments,
                              &meta->mCommentHeader);
 
-  return meta.forget();
+  return meta;
 }
 
 nsresult
@@ -281,7 +281,7 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
     iter.Next();
   }
 
-  nsRefPtr<EncodedFrame> audiodata = new EncodedFrame();
+  EncodedFrame* audiodata = new EncodedFrame();
   audiodata->SetFrameType(EncodedFrame::AUDIO_FRAME);
   if (mResampler) {
     nsAutoTArray<AudioDataValue, 9600> resamplingDest;
