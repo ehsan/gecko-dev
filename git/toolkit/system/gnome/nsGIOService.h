@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,14 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Geolocation.
+ * The Original Code is the Mozilla GNOME integration code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
- * Portions created by the Initial Developer are Copyright (C) 2008
+ * The Initial Developer of the Original Code is
+ * Red Hat, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Doug Turner <dougt@meer.net>  (Original Author)
+ *  Jan Horak <jhorak@redhat.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,43 +36,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIGeolocationProvider.h"
-#include "nsIDOMGeoPosition.h"
+#ifndef nsGIOService_h_
+#define nsGIOService_h_
 
-#include "nsCOMPtr.h"
+#include "nsIGIOService.h"
 
-#include <glib.h>
-#include <errno.h>
-#include <gpsbt.h>
-#include <gpsmgr.h>
+#define NS_GIOSERVICE_CID \
+{0xe3a1f3c9, 0x3ae1, 0x4b40, {0xa5, 0xe0, 0x7b, 0x45, 0x7f, 0xc9, 0xa9, 0xad}}
 
-extern "C" {
-  // need to extern these because of:
-  // https://bugs.maemo.org/show_bug.cgi?id=3226
-  #include <location/location-gps-device.h>
-  #include <location/location-gpsd-control.h>
-}
-
-class MaemoLocationProvider : public nsIGeolocationProvider
+class nsGIOService : public nsIGIOService
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIGEOLOCATIONPROVIDER
+  NS_DECL_NSIGIOSERVICE
 
-  MaemoLocationProvider();
-
-  void Update(nsIDOMGeoPosition* aPosition);
-
-private:
-  ~MaemoLocationProvider();
-
-  nsCOMPtr<nsIGeolocationUpdate> mCallback;
-
-  LocationGPSDevice *mGPSDevice;
-
-  gulong mCallbackChanged;
-
-  PRBool mHasSeenLocation;
-  PRTime mLastSeenTime;
-
+  NS_HIDDEN_(nsresult) Init();
 };
+
+#endif
+
