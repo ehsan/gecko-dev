@@ -3380,9 +3380,11 @@ js::NewDenseAllocatedArrayWithTemplate(JSContext *cx, uint32_t length, JSObject 
 JSObject *
 js::NewDenseCopyOnWriteArray(JSContext *cx, HandleObject templateObject, gc::InitialHeap heap)
 {
+    RootedTypeObject type(cx, templateObject->type());
     RootedShape shape(cx, templateObject->lastProperty());
 
     JS_ASSERT(!gc::IsInsideNursery(templateObject));
+    HeapSlot *elements = templateObject->getDenseElementsAllowCopyOnWrite();
 
     JSObject *metadata = nullptr;
     if (!NewObjectMetadata(cx, &metadata))
@@ -3393,7 +3395,7 @@ js::NewDenseCopyOnWriteArray(JSContext *cx, HandleObject templateObject, gc::Ini
             return nullptr;
     }
 
-    Rooted<ArrayObject *> arr(cx, JSObject::createCopyOnWriteArray(cx, heap, shape, templateObject));
+    Rooted<ArrayObject *> arr(cx, JSObject::createArray(cx, heap, shape, type, elements));
     if (!arr)
         return nullptr;
 

@@ -48,13 +48,11 @@ class IdToObjectMap
 
     bool init();
     void trace(JSTracer *trc);
-    void sweep();
+    void finalize(JSFreeOp *fop);
 
     bool add(ObjectId id, JSObject *obj);
     JSObject *find(ObjectId id);
     void remove(ObjectId id);
-
-    void fixupAfterMovingGC();
 
   private:
     Table table_;
@@ -71,13 +69,11 @@ class ObjectToIdMap
     ~ObjectToIdMap();
 
     bool init();
-    void sweep();
+    void finalize(JSFreeOp *fop);
 
     bool add(JSContext *cx, JSObject *obj, ObjectId id);
     ObjectId find(JSObject *obj);
     void remove(JSObject *obj);
-
-    void fixupAfterMovingGC();
 
   private:
     static void keyMarkCallback(JSTracer *trc, JSObject *key, void *data);
@@ -103,8 +99,6 @@ class JavaScriptShared
 
     bool Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpows, JS::MutableHandleObject objp);
     bool Wrap(JSContext *cx, JS::HandleObject aObj, InfallibleTArray<CpowEntry> *outCpows);
-
-    void fixupAfterMovingGC();
 
   protected:
     bool toVariant(JSContext *cx, JS::HandleValue from, JSVariant *to);

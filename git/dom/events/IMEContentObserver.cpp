@@ -386,7 +386,7 @@ IMEContentObserver::NotifySelectionChanged(nsIDOMDocument* aDOMDocument,
 class PositionChangeEvent MOZ_FINAL : public nsRunnable
 {
 public:
-  explicit PositionChangeEvent(IMEContentObserver* aDispatcher)
+  PositionChangeEvent(IMEContentObserver* aDispatcher)
     : mDispatcher(aDispatcher)
   {
     MOZ_ASSERT(mDispatcher);
@@ -1037,7 +1037,7 @@ IMEContentObserver::MaybeNotifyIMEOfPositionChange()
 class AsyncMergeableNotificationsFlusher : public nsRunnable
 {
 public:
-  explicit AsyncMergeableNotificationsFlusher(IMEContentObserver* aIMEContentObserver)
+  AsyncMergeableNotificationsFlusher(IMEContentObserver* aIMEContentObserver)
     : mIMEContentObserver(aIMEContentObserver)
   {
     MOZ_ASSERT(mIMEContentObserver);

@@ -30,7 +30,7 @@ class nsIChannel;
 class CachedFileHolder
 {
 public:
-  explicit CachedFileHolder(nsIFile* cacheFile);
+  CachedFileHolder(nsIFile* cacheFile);
   ~CachedFileHolder();
 
   void AddRef();

@@ -182,10 +182,6 @@ CheckMarkedThing(JSTracer *trc, T **thingp)
     if (IsInsideNursery(thing))
         return;
 
-#ifdef JSGC_COMPACTING
-    JS_ASSERT_IF(!MovingTracer::IsMovingTracer(trc), !IsForwarded(*thingp));
-#endif
-
     /*
      * Permanent atoms are not associated with this runtime, but will be ignored
      * during marking.

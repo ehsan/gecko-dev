@@ -60,7 +60,7 @@ namespace lul {
 class TaggedUWord {
 public:
   // Construct a valid one.
-  explicit TaggedUWord(uintptr_t w)
+  TaggedUWord(uintptr_t w)
     : mValue(w)
     , mValid(true)
   {}
@@ -165,7 +165,7 @@ class CFICache;
 class LUL {
 public:
   // Create; supply a logging sink.  Initialises the rw-lock.
-  explicit LUL(void (*aLog)(const char*));
+  LUL(void (*aLog)(const char*));
 
   // Destroy.  This acquires mRWlock for writing.  By doing that, waits
   // for all unwinder threads to finish any Unwind() calls they may be

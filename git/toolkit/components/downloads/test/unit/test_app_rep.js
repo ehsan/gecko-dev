@@ -64,10 +64,8 @@ function run_test() {
   // Ensure safebrowsing is enabled for this test, even if the app
   // doesn't have it enabled.
   Services.prefs.setBoolPref("browser.safebrowsing.malware.enabled", true);
-  Services.prefs.setBoolPref("browser.safebrowsing.downloads.enabled", true);
   do_register_cleanup(function() {
     Services.prefs.clearUserPref("browser.safebrowsing.malware.enabled");
-    Services.prefs.clearUserPref("browser.safebrowsing.downloads.enabled");
   });
 
   // Set block and allow tables explicitly, since the allowlist is normally

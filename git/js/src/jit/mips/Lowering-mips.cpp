@@ -532,12 +532,6 @@ LIRGeneratorMIPS::visitForkJoinGetSlice(MForkJoinGetSlice *ins)
 }
 
 bool
-LIRGeneratorMIPS::visitSimdTernaryBitwise(MSimdTernaryBitwise *ins)
-{
-    MOZ_CRASH("NYI");
-}
-
-bool
 LIRGeneratorMIPS::visitSimdSplatX4(MSimdSplatX4 *ins)
 {
     MOZ_CRASH("NYI");

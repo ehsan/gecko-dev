@@ -262,7 +262,7 @@ public:
   nsresult GetJsObject(JSContext* aCx, JSObject** aObject) const;
 
 protected:
-  explicit RecorderProfileManager(uint32_t aCameraId);
+  RecorderProfileManager(uint32_t aCameraId);
   virtual ~RecorderProfileManager();
 
   uint32_t mCameraId;

@@ -1129,7 +1129,7 @@ namespace mozilla {
 
 class WebGLContextUserData : public LayerUserData {
 public:
-    explicit WebGLContextUserData(HTMLCanvasElement* aContent)
+    WebGLContextUserData(HTMLCanvasElement *aContent)
         : mContent(aContent)
     {}
 
@@ -1510,8 +1510,8 @@ class UpdateContextLossStatusTask : public nsRunnable
     nsRefPtr<WebGLContext> mContext;
 
 public:
-    explicit UpdateContextLossStatusTask(WebGLContext* aContext)
-        : mContext(aContext)
+    UpdateContextLossStatusTask(WebGLContext* context)
+        : mContext(context)
     {
     }
 

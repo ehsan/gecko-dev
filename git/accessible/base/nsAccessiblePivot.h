@@ -25,7 +25,7 @@ class nsAccessiblePivot MOZ_FINAL : public nsIAccessiblePivot
 public:
   typedef mozilla::a11y::Accessible Accessible;
 
-  explicit nsAccessiblePivot(Accessible* aRoot);
+  nsAccessiblePivot(Accessible* aRoot);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsAccessiblePivot, nsIAccessiblePivot)

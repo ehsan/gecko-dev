@@ -303,7 +303,7 @@ void imgRequest::ContinueCancel(nsresult aStatus)
 class imgRequestMainThreadEvict : public nsRunnable
 {
 public:
-  explicit imgRequestMainThreadEvict(imgRequest *aImgRequest)
+  imgRequestMainThreadEvict(imgRequest *aImgRequest)
     : mImgRequest(aImgRequest)
   {
     MOZ_ASSERT(!NS_IsMainThread(), "Create me off main thread only!");

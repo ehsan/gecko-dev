@@ -11,7 +11,7 @@
 class RwLockAutoEnterRead
 {
 public:
-  explicit RwLockAutoEnterRead(PRRWLock* aRwLock)
+  RwLockAutoEnterRead(PRRWLock* aRwLock)
     : mRwLock(aRwLock)
   {
     MOZ_ASSERT(mRwLock);
@@ -30,7 +30,7 @@ protected:
 class RwLockAutoEnterWrite
 {
 public:
-  explicit RwLockAutoEnterWrite(PRRWLock* aRwLock)
+  RwLockAutoEnterWrite(PRRWLock* aRwLock)
     : mRwLock(aRwLock)
   {
     MOZ_ASSERT(mRwLock);

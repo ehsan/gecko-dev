@@ -58,7 +58,7 @@ public:
              uint64_t aExpiryDate,
              bool aReadReportRequested);
 
-  explicit MmsMessage(const mobilemessage::MmsMessageData& aData);
+  MmsMessage(const mobilemessage::MmsMessageData& aData);
 
   static nsresult Create(int32_t aId,
                          uint64_t aThreadId,

@@ -33,8 +33,8 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICONTENTPERMISSIONREQUEST
 
-  explicit DesktopNotificationRequest(DesktopNotification* aNotification)
-    : mDesktopNotification(aNotification) {}
+  DesktopNotificationRequest(DesktopNotification* notification)
+    : mDesktopNotification(notification) {}
 
   NS_IMETHOD Run() MOZ_OVERRIDE
   {

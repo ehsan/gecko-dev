@@ -3634,7 +3634,7 @@ class nsPluginDestroyRunnable : public nsRunnable,
                                 public PRCList
 {
 public:
-  explicit nsPluginDestroyRunnable(nsNPAPIPluginInstance *aInstance)
+  nsPluginDestroyRunnable(nsNPAPIPluginInstance *aInstance)
     : mInstance(aInstance)
   {
     PR_INIT_CLIST(this);

@@ -1595,25 +1595,6 @@ GCRuntime::removeFinalizeCallback(JSFinalizeCallback callback)
     }
 }
 
-bool
-GCRuntime::addMovingGCCallback(JSMovingGCCallback callback, void *data)
-{
-    return movingCallbacks.append(Callback<JSMovingGCCallback>(callback, data));
-}
-
-void
-GCRuntime::removeMovingGCCallback(JSMovingGCCallback callback)
-{
-    for (Callback<JSMovingGCCallback> *p = movingCallbacks.begin();
-         p < movingCallbacks.end(); p++)
-    {
-        if (p->op == callback) {
-            movingCallbacks.erase(p);
-            break;
-        }
-    }
-}
-
 JS::GCSliceCallback
 GCRuntime::setSliceCallback(JS::GCSliceCallback callback) {
     return stats.setSliceCallback(callback);
@@ -2153,7 +2134,7 @@ ArenaList::pickArenasToRelocate()
 
 #ifdef DEBUG
 inline bool
-PtrIsInRange(const void *ptr, const void *start, size_t length)
+PtrIsInRange(void *ptr, void *start, size_t length)
 {
     return uintptr_t(ptr) - uintptr_t(start) < length;
 }
@@ -2172,20 +2153,30 @@ RelocateCell(Zone *zone, Cell *src, AllocKind thingKind, size_t thingSize)
     // Copy source cell contents to destination.
     memcpy(dst, src, thingSize);
 
+    // Fixup the pointer to inline object elements if necessary.
     if (thingKind <= FINALIZE_OBJECT_LAST) {
         JSObject *srcObj = static_cast<JSObject *>(src);
         JSObject *dstObj = static_cast<JSObject *>(dst);
-
-        // Fixup the pointer to inline object elements if necessary.
         if (srcObj->hasFixedElements())
             dstObj->setFixedElements();
 
-        // Call object moved hook if present.
-        if (JSObjectMovedOp op = srcObj->getClass()->ext.objectMovedOp)
-            op(dstObj, srcObj);
+        if (srcObj->is<ArrayBufferObject>()) {
+            // We must fix up any inline data pointers while we know the source
+            // object and before we mark any of the views.
+            ArrayBufferObject::fixupDataPointerAfterMovingGC(
+                srcObj->as<ArrayBufferObject>(), dstObj->as<ArrayBufferObject>());
+        } else if (srcObj->is<TypedArrayObject>()) {
+            TypedArrayObject &typedArray = srcObj->as<TypedArrayObject>();
+            if (!typedArray.hasBuffer()) {
+                JS_ASSERT(srcObj->getPrivate() ==
+                          srcObj->fixedData(TypedArrayObject::FIXED_DATA_START));
+                dstObj->setPrivate(dstObj->fixedData(TypedArrayObject::FIXED_DATA_START));
+            }
+        }
+
 
         JS_ASSERT_IF(dstObj->isNative(),
-                     !PtrIsInRange((const Value*)dstObj->getDenseElements(), src, thingSize));
+                     !PtrIsInRange((HeapSlot*)dstObj->getDenseElements(), src, thingSize));
     }
 
     // Copy the mark bits.
@@ -2302,6 +2293,13 @@ GCRuntime::relocateArenas()
     return relocatedList;
 }
 
+struct MovingTracer : JSTracer {
+    MovingTracer(JSRuntime *rt) : JSTracer(rt, Visit, TraceWeakMapValues) {}
+
+    static void Visit(JSTracer *jstrc, void **thingp, JSGCTraceKind kind);
+    static void Sweep(JSTracer *jstrc);
+};
+
 void
 MovingTracer::Visit(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
 {
@@ -2348,11 +2346,8 @@ MovingTracer::Sweep(JSTracer *jstrc)
     /* Type inference may put more blocks here to free. */
     rt->freeLifoAlloc.freeAll();
 
-    /* Clear runtime caches that can contain cell pointers. */
-    // TODO: Should possibly just call PurgeRuntime() here.
+    /* Clear the new object cache as this can contain cell pointers. */
     rt->newObjectCache.purge();
-    rt->nativeIterCache.purge();
-    rt->regExpTestCache.purge();
 }
 
 /*
@@ -2360,18 +2355,15 @@ MovingTracer::Sweep(JSTracer *jstrc)
  */
 static void
 UpdateCellPointers(MovingTracer *trc, Cell *cell, JSGCTraceKind traceKind) {
-    if (traceKind == JSTRACE_OBJECT) {
-        JSObject *obj = static_cast<JSObject *>(cell);
-        obj->fixupAfterMovingGC();
-    } else if (traceKind == JSTRACE_SHAPE) {
+    TraceChildren(trc, cell, traceKind);
+
+    if (traceKind == JSTRACE_SHAPE) {
         Shape *shape = static_cast<Shape *>(cell);
         shape->fixupAfterMovingGC();
     } else if (traceKind == JSTRACE_BASE_SHAPE) {
         BaseShape *base = static_cast<BaseShape *>(cell);
         base->fixupAfterMovingGC();
     }
-
-    TraceChildren(trc, cell, traceKind);
 }
 
 /*
@@ -2431,17 +2423,10 @@ GCRuntime::updatePointersToRelocatedCells()
 
     // Mark all gray roots, making sure we call the trace callback to get the
     // current set.
-    if (JSTraceDataOp op = grayRootTracer.op)
-        (*op)(&trc, grayRootTracer.data);
+    marker.resetBufferedGrayRoots();
+    markAllGrayReferences(gcstats::PHASE_COMPACT_UPDATE_GRAY);
 
     MovingTracer::Sweep(&trc);
-
-    // Call callbacks to get the rest of the system to fixup other untraced pointers.
-    for (Callback<JSMovingGCCallback> *p = rt->gc.movingCallbacks.begin();
-         p < rt->gc.movingCallbacks.end(); p++)
-    {
-        p->op(rt, p->data);
-    }
 }
 
 void

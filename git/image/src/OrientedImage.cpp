@@ -164,7 +164,7 @@ OrientedImage::GetImageContainer(LayerManager* aManager, ImageContainer** _retva
 
 struct MatrixBuilder
 {
-  explicit MatrixBuilder(bool aInvert) : mInvert(aInvert) { }
+  MatrixBuilder(bool aInvert) : mInvert(aInvert) { }
 
   gfxMatrix Build() { return mMatrix; }
 

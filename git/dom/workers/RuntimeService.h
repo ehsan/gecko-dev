@@ -78,7 +78,7 @@ private:
     WorkerPrivate* mWorkerPrivate;
     SharedWorkerInfo* mSharedWorkerInfo;
 
-    explicit MatchSharedWorkerInfo(WorkerPrivate* aWorkerPrivate)
+    MatchSharedWorkerInfo(WorkerPrivate* aWorkerPrivate)
     : mWorkerPrivate(aWorkerPrivate), mSharedWorkerInfo(nullptr)
     { }
   };

@@ -15,7 +15,7 @@ namespace dom {
 class TextMetrics MOZ_FINAL : public NonRefcountedDOMObject
 {
 public:
-  explicit TextMetrics(float aValue) : width(aValue)
+  TextMetrics(float w) : width(w)
   {
     MOZ_COUNT_CTOR(TextMetrics);
   }

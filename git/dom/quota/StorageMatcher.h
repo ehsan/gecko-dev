@@ -21,7 +21,7 @@ class StorageMatcher : public ValueType
 
   struct Closure
   {
-    explicit Closure(SelfType& aSelf)
+    Closure(SelfType& aSelf)
     : mSelf(aSelf), mPattern(EmptyCString()), mIndexes(nullptr)
     { }
 

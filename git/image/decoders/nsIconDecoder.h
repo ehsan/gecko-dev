@@ -38,7 +38,7 @@ class nsIconDecoder : public Decoder
 {
 public:
 
-  explicit nsIconDecoder(RasterImage &aImage);
+  nsIconDecoder(RasterImage &aImage);
   virtual ~nsIconDecoder();
 
   virtual void WriteInternal(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy);

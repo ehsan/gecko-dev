@@ -33,7 +33,7 @@ class WorkerDataStore MOZ_FINAL : public DOMEventTargetHelper
 public:
   NS_DECL_ISUPPORTS_INHERITED
 
-  explicit WorkerDataStore(WorkerGlobalScope* aScope);
+  WorkerDataStore(WorkerGlobalScope* aScope);
 
   // WebIDL (internal functions)
 

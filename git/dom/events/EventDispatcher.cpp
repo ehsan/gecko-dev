@@ -71,7 +71,7 @@ private:
 class EventTargetChainItem
 {
 private:
-  explicit EventTargetChainItem(EventTarget* aTarget);
+  EventTargetChainItem(EventTarget* aTarget);
 public:
   EventTargetChainItem()
     : mFlags(0)

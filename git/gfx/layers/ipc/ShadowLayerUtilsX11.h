@@ -31,7 +31,7 @@ struct SurfaceDescriptorX11 {
   SurfaceDescriptorX11()
   { }
 
-  explicit SurfaceDescriptorX11(gfxXlibSurface* aSurf);
+  SurfaceDescriptorX11(gfxXlibSurface* aSurf);
 
   SurfaceDescriptorX11(Drawable aDrawable, XID aFormatID,
                        const gfx::IntSize& aSize);

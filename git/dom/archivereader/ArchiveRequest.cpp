@@ -23,8 +23,8 @@ class ArchiveRequestEvent : public nsRunnable
 public:
   NS_DECL_NSIRUNNABLE
 
-  explicit ArchiveRequestEvent(ArchiveRequest* aRequest)
-  : mRequest(aRequest)
+  ArchiveRequestEvent(ArchiveRequest* request)
+  : mRequest(request)
   {
     MOZ_COUNT_CTOR(ArchiveRequestEvent);
   }

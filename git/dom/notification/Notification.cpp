@@ -184,7 +184,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
-  explicit NotificationObserver(Notification* aNotification)
+  NotificationObserver(Notification* aNotification)
     : mNotification(aNotification) {}
 
 protected:

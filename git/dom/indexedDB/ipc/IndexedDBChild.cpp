@@ -103,7 +103,7 @@ public:
 class IPCDeleteDatabaseHelper : public AsyncConnectionHelper
 {
 public:
-  explicit IPCDeleteDatabaseHelper(IDBRequest* aRequest)
+  IPCDeleteDatabaseHelper(IDBRequest* aRequest)
   : AsyncConnectionHelper(static_cast<IDBDatabase*>(nullptr), aRequest)
   { }
 

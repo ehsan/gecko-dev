@@ -82,7 +82,7 @@ ProfileUnlockerWin::Init()
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
-  nsModuleHandle module(::LoadLibraryW(L"Rstrtmgr.dll"));
+  nsModuleHandle module(::LoadLibraryW(MOZ_UTF16("Rstrtmgr.dll")));
   if (!module) {
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -110,7 +110,7 @@ ProfileUnlockerWin::Init()
 
   mQueryFullProcessImageName =
     reinterpret_cast<QUERYFULLPROCESSIMAGENAME>(::GetProcAddress(
-                                  ::GetModuleHandleW(L"kernel32.dll"),
+                                  ::GetModuleHandleW(MOZ_UTF16("kernel32.dll")),
                                   "QueryFullProcessImageNameW"));
   if (!mQueryFullProcessImageName) {
     return NS_ERROR_NOT_AVAILABLE;

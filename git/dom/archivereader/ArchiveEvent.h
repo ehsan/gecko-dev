@@ -54,7 +54,7 @@ class ArchiveReaderEvent : public nsRunnable
 public:
   NS_DECL_NSIRUNNABLE
 
-  explicit ArchiveReaderEvent(ArchiveReader* aArchiveReader);
+  ArchiveReaderEvent(ArchiveReader* aArchiveReader);
 
 protected:
   virtual ~ArchiveReaderEvent();

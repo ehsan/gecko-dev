@@ -31,7 +31,7 @@ class VersionChangeListener MOZ_FINAL : public nsIDOMEventListener
 public:
   NS_DECL_ISUPPORTS
 
-  explicit VersionChangeListener(IDBDatabase* aDatabase)
+  VersionChangeListener(IDBDatabase* aDatabase)
     : mDatabase(aDatabase)
   {}
 

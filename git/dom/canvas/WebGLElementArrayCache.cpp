@@ -144,8 +144,8 @@ public:
   // Constructor. Takes a reference to the WebGLElementArrayCache that is to be
   // the parent. Does not initialize the tree. Should be followed by a call
   // to Update() to attempt initializing the tree.
-  explicit WebGLElementArrayCacheTree(WebGLElementArrayCache& aValue)
-    : mParent(aValue)
+  WebGLElementArrayCacheTree(WebGLElementArrayCache& p)
+    : mParent(p)
   {
   }
 

@@ -2358,23 +2358,10 @@ bool HTMLMediaElement::ParseAttribute(int32_t aNamespaceID,
 
       AudioChannel audioChannel = static_cast<AudioChannel>(aResult.GetEnumValue());
 
-      if (audioChannel == mAudioChannel ||
-          !CheckAudioChannelPermissions(aValue)) {
-        return true;
-      }
-
-      // We cannot change the AudioChannel of a decoder.
-      if (mDecoder) {
-        return true;
-      }
-
-      mAudioChannel = audioChannel;
-
-      if (mSrcStream) {
-        nsRefPtr<MediaStream> stream = mSrcStream->GetStream();
-        if (stream) {
-          stream->SetAudioChannelType(mAudioChannel);
-        }
+      if (audioChannel != mAudioChannel &&
+          !mDecoder &&
+          CheckAudioChannelPermissions(aValue)) {
+        mAudioChannel = audioChannel;
       }
 
       return true;
@@ -2835,12 +2822,6 @@ void HTMLMediaElement::SetupSrcMediaStreamPlayback(DOMMediaStream* aStream)
   NS_ASSERTION(!mSrcStream && !mSrcStreamListener, "Should have been ended already");
 
   mSrcStream = aStream;
-
-  nsRefPtr<MediaStream> stream = mSrcStream->GetStream();
-  if (stream) {
-    stream->SetAudioChannelType(mAudioChannel);
-  }
-
   // XXX if we ever support capturing the output of a media element which is
   // playing a stream, we'll need to add a CombineWithPrincipal call here.
   mSrcStreamListener = new StreamListener(this);

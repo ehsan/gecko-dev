@@ -28,7 +28,7 @@ public:
   /**
    * ProfilerMarkerPayload takes ownership of aStack
    */
-  explicit ProfilerMarkerPayload(ProfilerBacktrace* aStack = nullptr);
+  ProfilerMarkerPayload(ProfilerBacktrace* aStack = nullptr);
   ProfilerMarkerPayload(const mozilla::TimeStamp& aStartTime,
                         const mozilla::TimeStamp& aEndTime,
                         ProfilerBacktrace* aStack = nullptr);
@@ -91,7 +91,7 @@ private:
 class ProfilerMarkerImagePayload : public ProfilerMarkerPayload
 {
 public:
-  explicit ProfilerMarkerImagePayload(gfxASurface *aImg);
+  ProfilerMarkerImagePayload(gfxASurface *aImg);
 
 protected:
   virtual void

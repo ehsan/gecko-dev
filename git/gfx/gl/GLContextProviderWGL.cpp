@@ -635,7 +635,7 @@ GLContextProviderWGL::CreateHeadless()
         return nullptr;
     }
 
-    nsRefPtr<GLContext> retGL = glContext.get();
+    nsRefPtr<GLContext> retGL = glContext;
     return retGL.forget();
 }
 

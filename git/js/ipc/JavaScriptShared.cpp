@@ -41,12 +41,14 @@ IdToObjectMap::trace(JSTracer *trc)
 }
 
 void
-IdToObjectMap::sweep()
+IdToObjectMap::finalize(JSFreeOp *fop)
 {
     for (Table::Enum e(table_); !e.empty(); e.popFront()) {
         DebugOnly<JSObject *> prior = e.front().value().get();
         if (JS_IsAboutToBeFinalized(&e.front().value()))
             e.removeFront();
+        else
+            MOZ_ASSERT(e.front().value() == prior);
     }
 }
 
@@ -95,14 +97,14 @@ ObjectToIdMap::init()
 }
 
 void
-ObjectToIdMap::sweep()
+ObjectToIdMap::finalize(JSFreeOp *fop)
 {
     for (Table::Enum e(*table_); !e.empty(); e.popFront()) {
         JSObject *obj = e.front().key();
         if (JS_IsAboutToBeFinalizedUnbarriered(&obj))
             e.removeFront();
-        else if (obj != e.front().key())
-            e.rekeyFront(obj);
+        else
+            MOZ_ASSERT(obj == e.front().key());
     }
 }
 
@@ -594,9 +596,3 @@ JavaScriptShared::Wrap(JSContext *cx, HandleObject aObj, InfallibleTArray<CpowEn
     return true;
 }
 
-void JavaScriptShared::fixupAfterMovingGC()
-{
-    objects_.sweep();
-    cpows_.sweep();
-    objectIds_.sweep();
-}

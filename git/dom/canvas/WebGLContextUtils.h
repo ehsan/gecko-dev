@@ -36,7 +36,7 @@ struct GLComponents
         : mComponents(0)
     { }
 
-    explicit GLComponents(GLenum aFormat);
+    GLComponents(GLenum format);
 
     // Returns true iff other has all (or more) of
     // the components present in this GLComponents
