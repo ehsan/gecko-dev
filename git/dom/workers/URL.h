@@ -7,39 +7,27 @@
 #ifndef mozilla_dom_workers_url_h__
 #define mozilla_dom_workers_url_h__
 
-#include "Workers.h"
+#include "mozilla/dom/workers/bindings/DOMBindingBase.h"
+#include "mozilla/dom/URLBinding.h"
 
-#include "mozilla/ErrorResult.h"
-#include "mozilla/dom/BindingDeclarations.h"
-#include "mozilla/dom/NonRefcountedDOMObject.h"
-
-namespace mozilla {
-namespace dom {
-struct objectURLOptions;
-}
-}
+#include "EventTarget.h"
 
 BEGIN_WORKERS_NAMESPACE
 
 class URLProxy;
 
-class URL MOZ_FINAL : public NonRefcountedDOMObject
+class URL MOZ_FINAL : public DOMBindingBase
 {
 public:
 
   URL(WorkerPrivate* aWorkerPrivate, URLProxy* aURLProxy);
   ~URL();
 
-  nsISupports*
-  GetParentObject() const
-  {
-    // There's only one global on a worker, so we don't need to specify.
-    return nullptr;
-  }
+  virtual void
+  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
 
-  JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope,
-             bool* aTookOwnership);
+  virtual void
+  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
 
   // Methods for WebIDL
 

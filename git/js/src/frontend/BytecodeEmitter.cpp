@@ -1720,7 +1720,10 @@ BytecodeEmitter::needsImplicitThis()
     if (!script->compileAndGo)
         return true;
 
-    if (sc->isFunctionBox()) {
+    if (sc->isModuleBox()) {
+        /* Modules can never occur inside a with-statement */
+        return false;
+    } if (sc->isFunctionBox()) {
         if (sc->asFunctionBox()->inWith)
             return true;
     } else {
@@ -6504,6 +6507,11 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
       case PNK_NOP:
         JS_ASSERT(pn->getArity() == PN_NULLARY);
         break;
+
+      case PNK_MODULE:
+        // TODO: Add emitter support for modules
+        bce->reportError(nullptr, JSMSG_SYNTAX_ERROR);
+        return false;
 
       default:
         JS_ASSERT(0);

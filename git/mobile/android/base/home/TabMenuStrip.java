@@ -104,10 +104,6 @@ public class TabMenuStrip extends LinearLayout
 
         setScrollingData(position, positionOffset);
 
-        if (fromTab == null || toTab == null) {
-            return;
-        }
-
         final int fromTabLeft =  fromTab.getLeft();
         final int fromTabRight = fromTab.getRight();
 

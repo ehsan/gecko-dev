@@ -7,7 +7,7 @@
 [PrefControlled,
  Constructor(DOMString scriptURL, optional DOMString name)]
 interface SharedWorker : EventTarget {
-    readonly attribute MessagePort port;
+    readonly attribute WorkerMessagePort port;
 };
 
 SharedWorker implements AbstractWorker;

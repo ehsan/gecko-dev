@@ -349,17 +349,13 @@ pref("gfx.font_rendering.graphite.enabled", true);
 //  SHAPING_THAI      = 0x0040
 // (see http://mxr.mozilla.org/mozilla-central/ident?i=ShapingType)
 // Scripts not listed are grouped in the default category.
-// Set the pref to 255 to have all text shaped via the harfbuzz backend.
+// Set the pref to -1 to have all text shaped via the harfbuzz backend.
 #ifdef XP_WIN
-// Use harfbuzz for everything except Hangul (0x08). Harfbuzz doesn't yet
-// have a Hangul shaper, which means that the marks U+302E/302F would not
-// reorder properly in Malgun Gothic or similar fonts.
-pref("gfx.font_rendering.harfbuzz.scripts", 247);
+// use harfbuzz for default (0x01) + arabic (0x02) + hebrew (0x04)
+pref("gfx.font_rendering.harfbuzz.scripts", 7);
 #else
-// Use harfbuzz for all scripts (except when using AAT fonts on OS X).
-// AFAICT, Core Text doesn't support full OpenType Hangul shaping anyway,
-// so there's no benefit to excluding it here.
-pref("gfx.font_rendering.harfbuzz.scripts", 255);
+// use harfbuzz for all scripts (except when using AAT fonts on OS X)
+pref("gfx.font_rendering.harfbuzz.scripts", -1);
 #endif
 
 #ifdef XP_WIN

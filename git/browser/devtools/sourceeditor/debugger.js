@@ -6,6 +6,38 @@
 
 const dbginfo = new WeakMap();
 
+// Private functions
+
+/**
+ * Adds a marker to the breakpoints gutter.
+ * Type should be either a 'breakpoint' or a 'debugLocation'.
+ */
+function addMarker(cm, line, type) {
+  let info = cm.lineInfo(line);
+
+  if (info.gutterMarkers)
+    return void info.gutterMarkers.breakpoints.classList.add(type);
+
+  let mark = cm.getWrapperElement().ownerDocument.createElement("div");
+  mark.className = type;
+  mark.innerHTML = "";
+
+  cm.setGutterMarker(info.line, "breakpoints", mark);
+}
+
+/**
+ * Removes a marker from the breakpoints gutter.
+ * Type should be either a 'breakpoint' or a 'debugLocation'.
+ */
+function removeMarker(cm, line, type) {
+  let info = cm.lineInfo(line);
+
+  if (!info || !info.gutterMarkers)
+    return;
+
+  info.gutterMarkers.breakpoints.classList.remove(type);
+}
+
 // These functions implement search within the debugger. Since
 // search in the debugger is different from other components,
 // we can't use search.js CodeMirror addon. This is a slightly
@@ -123,7 +155,7 @@ function addBreakpoint(ctx, line, cond) {
   let meta = dbginfo.get(ed);
   let info = cm.lineInfo(line);
 
-  ed.addMarker(line, "breakpoints", "breakpoint");
+  addMarker(cm, line, "breakpoint");
   meta.breakpoints[line] = { condition: cond };
 
   info.handle.on("delete", function onDelete() {
@@ -147,7 +179,7 @@ function removeBreakpoint(ctx, line) {
   let info = cm.lineInfo(line);
 
   meta.breakpoints[info.line] = null;
-  ed.removeMarker(info.line, "breakpoints", "breakpoint");
+  removeMarker(cm, info.line, "breakpoint");
   ed.emit("breakpointRemoved", line);
 }
 
@@ -171,11 +203,11 @@ function getBreakpoints(ctx) {
  * display the line on which the Debugger is currently paused.
  */
 function setDebugLocation(ctx, line) {
-  let { ed } = ctx;
+  let { ed, cm } = ctx;
   let meta = dbginfo.get(ed);
 
   meta.debugLocation = line;
-  ed.addMarker(line, "breakpoints", "debugLocation");
+  addMarker(cm, line, "debugLocation");
 }
 
 /**
@@ -194,11 +226,11 @@ function getDebugLocation(ctx) {
  * also removes a visual anchor from the breakpoints gutter.
  */
 function clearDebugLocation(ctx) {
-  let { ed } = ctx;
+  let { ed, cm } = ctx;
   let meta = dbginfo.get(ed);
 
   if (meta.debugLocation != null) {
-    ed.removeMarker(meta.debugLocation, "breakpoints", "debugLocation");
+    removeMarker(cm, meta.debugLocation, "debugLocation");
     meta.debugLocation = null;
   }
 }

@@ -7,9 +7,11 @@
  * http://www.whatwg.org/specs/web-apps/current-work/#channel-messaging
  */
 
+[Pref="dom.messageChannel.enabled"]
 interface MessagePort : EventTarget {
+  // TODO void postMessage(any message, optional sequence<Transferable> transfer);
   [Throws]
-  void postMessage(any message, optional sequence<Transferable> transferable);
+  void postMessage(any message, optional any transfer);
 
   void start();
   void close();

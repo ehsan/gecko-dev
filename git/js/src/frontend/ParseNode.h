@@ -9,6 +9,7 @@
 
 #include "mozilla/Attributes.h"
 
+#include "builtin/Module.h"
 #include "frontend/TokenStream.h"
 
 namespace js {
@@ -134,6 +135,7 @@ class UpvarCookie
     F(FORHEAD) \
     F(ARGSBODY) \
     F(SPREAD) \
+    F(MODULE) \
     \
     /* Unary operators. */ \
     F(TYPEOF) \
@@ -429,6 +431,7 @@ class BreakStatement;
 class ContinueStatement;
 class ConditionalExpression;
 class PropertyAccess;
+class ModuleBox;
 
 class ParseNode
 {
@@ -523,6 +526,7 @@ class ParseNode
             union {
                 JSAtom      *atom;      /* lexical name or label atom */
                 ObjectBox   *objbox;    /* block or regexp object */
+                ModuleBox   *modulebox; /* module object */
                 FunctionBox *funbox;    /* function object */
             };
             union {
@@ -1424,7 +1428,9 @@ class ObjectBox
     JSObject *object;
 
     ObjectBox(JSObject *object, ObjectBox *traceLink);
+    bool isModuleBox() { return object->is<Module>(); }
     bool isFunctionBox() { return object->is<JSFunction>(); }
+    ModuleBox *asModuleBox();
     FunctionBox *asFunctionBox();
     void trace(JSTracer *trc);
 
@@ -1435,6 +1441,7 @@ class ObjectBox
     ObjectBox *emitLink;
 
     ObjectBox(JSFunction *function, ObjectBox *traceLink);
+    ObjectBox(Module *module, ObjectBox *traceLink);
 };
 
 enum ParseReportKind

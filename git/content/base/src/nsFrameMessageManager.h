@@ -25,7 +25,6 @@
 #include "nsWeakPtr.h"
 #include "mozilla/Attributes.h"
 #include "js/RootingAPI.h"
-#include "nsTObserverArray.h"
 
 namespace mozilla {
 namespace dom {
@@ -115,11 +114,6 @@ class nsAXPCNativeCallContext;
 
 struct nsMessageListenerInfo
 {
-  bool operator==(const nsMessageListenerInfo& aOther) const
-  {
-    return &aOther == this;
-  }
-
   // Exactly one of mStrongListener and mWeakListener must be non-null.
   nsCOMPtr<nsIMessageListener> mStrongListener;
   nsWeakPtr mWeakListener;
@@ -276,8 +270,7 @@ protected:
   friend class MMListenerRemover;
   // We keep the message listeners as arrays in a hastable indexed by the
   // message name. That gives us fast lookups in ReceiveMessage().
-  nsClassHashtable<nsStringHashKey,
-                   nsAutoTObserverArray<nsMessageListenerInfo, 1>> mListeners;
+  nsClassHashtable<nsStringHashKey, nsTArray<nsMessageListenerInfo>> mListeners;
   nsCOMArray<nsIContentFrameMessageManager> mChildManagers;
   bool mChrome;     // true if we're in the chrome process
   bool mGlobal;     // true if we're the global frame message manager

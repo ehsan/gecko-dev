@@ -2138,7 +2138,8 @@ static bool SelectorMatches(Element* aElement,
   bool result = true;
   if (aSelector->mAttrList) {
     // test for attribute match
-    if (!aElement->HasAttrs()) {
+    uint32_t attrCount = aElement->GetAttrCount();
+    if (attrCount == 0) {
       // if no attributes on the content, no match
       return false;
     } else {
@@ -2159,8 +2160,9 @@ static bool SelectorMatches(Element* aElement,
           // have a chance at matching, of course, are ones that the element
           // actually has attributes in), short-circuiting if we ever match.
           result = false;
-          const nsAttrName* attrName;
-          for (uint32_t i = 0; (attrName = aElement->GetAttrNameAt(i)); ++i) {
+          for (uint32_t i = 0; i < attrCount; ++i) {
+            const nsAttrName* attrName = aElement->GetAttrNameAt(i);
+            NS_ASSERTION(attrName, "GetAttrCount lied or GetAttrNameAt failed");
             if (attrName->LocalName() != matchAttribute) {
               continue;
             }
