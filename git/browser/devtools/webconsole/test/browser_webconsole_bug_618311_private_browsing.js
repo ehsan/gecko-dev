@@ -24,23 +24,17 @@ function test() {
     togglePBAndThen(function() {
       ok(pb.privateBrowsingEnabled, "private browsing is enabled");
 
-      openConsole(gBrowser.selectedTab, function(hud) {
+      openConsole(gBrowser.selectedTab, function() {
         content.location = TEST_URI;
-        waitForSuccess({
-          name: "network message displayed",
-          validatorFn: function()
-          {
-            return hud.outputNode.querySelector(".webconsole-msg-network");
-          },
-          successFn: performTest,
-          failureFn: finishTest,
-        });
+        gBrowser.selectedBrowser.addEventListener("load", tabLoaded, true);
       });
     });
   }, true);
 }
 
-function performTest() {
+function tabLoaded() {
+  gBrowser.selectedBrowser.removeEventListener("load", tabLoaded, true);
+
   let hudId = HUDService.getHudIdByWindow(content);
   let HUD = HUDService.hudReferences[hudId];
 

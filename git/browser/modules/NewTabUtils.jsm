@@ -208,8 +208,7 @@ let AllPages = {
    */
   unregister: function AllPages_unregister(aPage) {
     let index = this._pages.indexOf(aPage);
-    if (index > -1)
-      this._pages.splice(index, 1);
+    this._pages.splice(index, 1);
   },
 
   /**

@@ -27,23 +27,13 @@ function consoleOpened(aHud) {
 function tabLoad2(aEvent) {
   browser.removeEventListener(aEvent.type, tabLoad2, true);
 
-  waitForSuccess({
-    name: "network message displayed",
-    validatorFn: function()
-    {
-      return outputNode.querySelector(".hud-networkinfo .hud-clickable");
-    },
-    successFn: function() {
-      outputItem = outputNode.querySelector(".hud-networkinfo .hud-clickable");
-      ok(outputItem, "found a network message");
-      document.addEventListener("popupshown", networkPanelShown, false);
+  outputItem = outputNode.querySelector(".hud-networkinfo .hud-clickable");
+  ok(outputItem, "found a network message");
+  document.addEventListener("popupshown", networkPanelShown, false);
 
-      // Send the mousedown and click events such that the network panel opens.
-      EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
-      EventUtils.sendMouseEvent({type: "click"}, outputItem);
-    },
-    failureFn: finishTest,
-  });
+  // Send the mousedown and click events such that the network panel opens.
+  EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
+  EventUtils.sendMouseEvent({type: "click"}, outputItem);
 }
 
 function networkPanelShown(aEvent) {

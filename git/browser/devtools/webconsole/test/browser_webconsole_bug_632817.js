@@ -54,29 +54,13 @@ function testPageLoad()
 
 function testPageLoadBody()
 {
-  let loaded = false;
-  let requestCallbackInvoked = false;
-
   // Turn off logging of request bodies and check again.
   requestCallback = function() {
     ok(lastRequest, "Page load was logged again");
     lastRequest = null;
     requestCallback = null;
-    requestCallbackInvoked = true;
-
-    if (loaded) {
-      executeSoon(testXhrGet);
-    }
+    executeSoon(testXhrGet);
   };
-
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    loaded = true;
-
-    if (requestCallbackInvoked) {
-      executeSoon(testXhrGet);
-    }
-  }, true);
 
   content.location.reload();
 }
@@ -116,19 +100,7 @@ function testFormSubmission()
   requestCallback = function() {
     ok(lastRequest, "testFormSubmission() was logged");
     is(lastRequest.request.method, "POST", "Method is correct");
-    waitForSuccess({
-      name: "all network request displayed",
-      validatorFn: function() {
-        return hud.outputNode.querySelectorAll(".webconsole-msg-network")
-               .length == 5;
-      },
-      successFn: testLiveFilteringOnSearchStrings,
-      failureFn: function() {
-        let nodes = hud.outputNode.querySelectorAll(".webconsole-msg-network");
-        info("nodes: " + nodes.length + "\n");
-        finishTest();
-      },
-    });
+    executeSoon(testLiveFilteringOnSearchStrings);
   };
 
   let form = content.document.querySelector("form");

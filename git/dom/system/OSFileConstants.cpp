@@ -9,10 +9,6 @@
 #include "unistd.h"
 #endif // defined(XP_UNIX)
 
-#if defined(XP_MACOSX) || defined(__FreeBSD__) || defined(__OpenBSD__)
-#include "copyfile.h"
-#endif // defined(XP_MAC) || defined(__FreeBSD__) || defined(__OpenBSD__)
-
 #if defined(XP_WIN)
 #include <windows.h>
 #endif // defined(XP_WIN)
@@ -148,15 +144,6 @@ static dom::ConstantSpec gLibcProperties[] =
   INT_CONSTANT(SEEK_END),
   INT_CONSTANT(SEEK_SET),
 
-  // copyfile
-#if defined(COPYFILE_DATA)
-  INT_CONSTANT(COPYFILE_DATA),
-  INT_CONSTANT(COPYFILE_EXCL),
-  INT_CONSTANT(COPYFILE_XATTR),
-  INT_CONSTANT(COPYFILE_STAT),
-  INT_CONSTANT(COPYFILE_ACL),
-#endif // defined(COPYFILE_DATA)
-
   // error values
   INT_CONSTANT(EACCES),
   INT_CONSTANT(EAGAIN),
@@ -238,7 +225,7 @@ static dom::ConstantSpec gWinProperties[] =
   INT_CONSTANT(FILE_ATTRIBUTE_READONLY),
   INT_CONSTANT(FILE_ATTRIBUTE_TEMPORARY),
 
-  // CreateFile error constant
+  // SetFilePointer error constant
   { "INVALID_HANDLE_VALUE", INT_TO_JSVAL(INT_PTR(INVALID_HANDLE_VALUE)) },
 
 
@@ -254,7 +241,6 @@ static dom::ConstantSpec gWinProperties[] =
   INT_CONSTANT(INVALID_SET_FILE_POINTER),
 
   // Errors
-  INT_CONSTANT(ERROR_FILE_EXISTS),
   INT_CONSTANT(ERROR_FILE_NOT_FOUND),
   INT_CONSTANT(ERROR_ACCESS_DENIED),
 
