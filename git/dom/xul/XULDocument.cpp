@@ -2711,9 +2711,11 @@ XULDocument::LoadOverlayInternal(nsIURI* aURI, bool aIsDynamic,
             // OnStopRequest, so it needs a Terminate.
             parser->Terminate();
 
-            // Just move on to the next overlay.
+            // Just move on to the next overlay.  NS_OpenURI could fail
+            // just because a channel could not be opened, which can happen
+            // if a file or chrome package does not exist.
             ReportMissingOverlay(aURI);
-
+            
             // XXX the error could indicate an internal error as well...
             *aFailureFromContent = true;
             return rv;
@@ -2721,7 +2723,7 @@ XULDocument::LoadOverlayInternal(nsIURI* aURI, bool aIsDynamic,
 
         // If it's a 'chrome:' prototype document, then put it into
         // the prototype cache; other XUL documents will be reloaded
-        // each time.  We must do this after AsyncOpen,
+        // each time.  We must do this after NS_OpenURI and AsyncOpen,
         // or chrome code will wrongly create a cached chrome channel
         // instead of a real one. Prototypes are only cached when the
         // document to be overlayed is chrome to avoid caching overlay

@@ -8,6 +8,7 @@
 #include "mozilla/mozalloc.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/NullPtr.h"
 
 /* VolatileBuffer
  *

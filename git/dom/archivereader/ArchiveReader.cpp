@@ -48,7 +48,7 @@ ArchiveReader::Constructor(const GlobalObject& aGlobal,
 
 ArchiveReader::ArchiveReader(File& aBlob, nsPIDOMWindow* aWindow,
                              const nsACString& aEncoding)
-  : mFileImpl(aBlob.Impl())
+  : mBlob(&aBlob)
   , mWindow(aWindow)
   , mStatus(NOT_STARTED)
   , mEncoding(aEncoding)
@@ -95,7 +95,7 @@ nsresult
 ArchiveReader::GetInputStream(nsIInputStream** aInputStream)
 {
   // Getting the input stream
-  mFileImpl->GetInternalStream(aInputStream);
+  mBlob->GetInternalStream(aInputStream);
   NS_ENSURE_TRUE(*aInputStream, NS_ERROR_UNEXPECTED);
   return NS_OK;
 }
@@ -103,9 +103,9 @@ ArchiveReader::GetInputStream(nsIInputStream** aInputStream)
 nsresult
 ArchiveReader::GetSize(uint64_t* aSize)
 {
-  ErrorResult rv;
-  *aSize = mFileImpl->GetSize(rv);
-  return rv.ErrorCode();
+  nsresult rv = mBlob->GetSize(aSize);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return NS_OK;
 }
 
 // Here we open the archive:
@@ -199,7 +199,7 @@ ArchiveReader::GenerateArchiveRequest()
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(ArchiveReader,
-                                      mFileImpl,
+                                      mBlob,
                                       mWindow,
                                       mData.fileList,
                                       mRequests)

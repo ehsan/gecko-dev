@@ -25,6 +25,7 @@
 #include <fcntl.h>
 
 #include "mozilla/Atomics.h"
+#include "mozilla/NullPtr.h"
 #include "mozilla/SandboxInfo.h"
 #include "mozilla/unused.h"
 #include "sandbox/linux/seccomp-bpf/linux_seccomp.h"

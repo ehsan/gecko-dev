@@ -381,8 +381,10 @@ OscillatorNode::OscillatorNode(AudioContext* aContext)
               ChannelCountMode::Max,
               ChannelInterpretation::Speakers)
   , mType(OscillatorType::Sine)
-  , mFrequency(new AudioParam(this, SendFrequencyToStream, 440.0f))
-  , mDetune(new AudioParam(this, SendDetuneToStream, 0.0f))
+  , mFrequency(new AudioParam(MOZ_THIS_IN_INITIALIZER_LIST(),
+               SendFrequencyToStream, 440.0f))
+  , mDetune(new AudioParam(MOZ_THIS_IN_INITIALIZER_LIST(),
+            SendDetuneToStream, 0.0f))
   , mStartCalled(false)
   , mStopped(false)
 {
@@ -548,3 +550,4 @@ OscillatorNode::NotifyMainThreadStateChanged()
 
 }
 }
+

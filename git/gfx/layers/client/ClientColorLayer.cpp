@@ -18,11 +18,12 @@ namespace layers {
 
 using namespace mozilla::gfx;
 
-class ClientColorLayer : public ColorLayer,
+class ClientColorLayer : public ColorLayer, 
                          public ClientLayer {
 public:
   explicit ClientColorLayer(ClientLayerManager* aLayerManager) :
-    ColorLayer(aLayerManager, static_cast<ClientLayer*>(this))
+    ColorLayer(aLayerManager,
+               static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
   {
     MOZ_COUNT_CTOR(ClientColorLayer);
   }

@@ -80,10 +80,6 @@
   background: url("chrome://browser/skin/images/exitfullscreen-hdpi.png") no-repeat center;
 }
 
-.controlBar[fullscreen-unavailable] .fullscreenButton {
-  display: none;
-}
-
 /* bars */
 .scrubberStack {
   width: 100%;

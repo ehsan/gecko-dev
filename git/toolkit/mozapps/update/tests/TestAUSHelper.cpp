@@ -50,6 +50,7 @@
 # define LOG_S "%s"
 #endif
 
+#include "mozilla/NullPtr.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

@@ -376,7 +376,8 @@ static const char *gPrefLangNames[] = {
 gfxPlatform::gfxPlatform()
   : mTileWidth(-1)
   , mTileHeight(-1)
-  , mAzureCanvasBackendCollector(this, &gfxPlatform::GetAzureBackendInfo)
+  , mAzureCanvasBackendCollector(MOZ_THIS_IN_INITIALIZER_LIST(),
+                                 &gfxPlatform::GetAzureBackendInfo)
 {
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     mFallbackUsesCmaps = UNINITIALIZED_VALUE;

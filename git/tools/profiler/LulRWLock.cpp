@@ -6,6 +6,7 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/NullPtr.h"
 
 #include "LulRWLock.h"
 

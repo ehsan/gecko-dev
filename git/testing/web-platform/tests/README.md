@@ -8,12 +8,10 @@ the Web Apps Security Working Group.
 Running the Tests
 =================
 
-The tests are designed to be run from your local computer. The test
-environment requires Python 2.7+ (but not Python 3.x). You will also
-need a copy of OpenSSL. For users on Windows this is available from
-[the openssl website](https://www.openssl.org/related/binaries.html).
+The tests are designed to be run from your local computer. The test environment
+requires Python 2.7+ (but not Python 3.x).
 
-To get the tests running, you need to set up the test domains in your
+To get the tests running, you need to set up the test domains in your 
 [`hosts` file](http://en.wikipedia.org/wiki/Hosts_%28file%29%23Location_in_the_file_system). The following entries are required:
 
 ```
@@ -52,15 +50,6 @@ to some port of your choice e.g.
 
 ```
 "http":[1234, "auto"]
-```
-
-If you installed OpenSSL in such a way that running `openssl` at a
-command line doesn't work, you also need to adjust the path to the
-OpenSSL binary. This can be done by adding a section to `config.json`
-like:
-
-```
-"ssl": {"openssl": {"binary": "/path/to/openssl"}}
 ```
 
 Test Runner

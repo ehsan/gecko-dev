@@ -9,8 +9,9 @@
 
 namespace mozilla {
 
-MP4Stream::MP4Stream(MediaResource* aResource)
+MP4Stream::MP4Stream(MediaResource* aResource, Monitor* aDemuxerMonitor)
   : mResource(aResource)
+  , mDemuxerMonitor(aDemuxerMonitor)
 {
   MOZ_COUNT_CTOR(MP4Stream);
   MOZ_ASSERT(aResource);
@@ -22,9 +23,15 @@ MP4Stream::~MP4Stream()
 }
 
 bool
-MP4Stream::BlockingReadAt(int64_t aOffset, void* aBuffer, size_t aCount,
-                          size_t* aBytesRead)
+MP4Stream::ReadAt(int64_t aOffset, void* aBuffer, size_t aCount,
+                  size_t* aBytesRead)
 {
+  // The read call can acquire various monitors, including both the decoder
+  // monitor and gMediaCache's monitor. So we need to unlock ours to avoid
+  // deadlock.
+  mDemuxerMonitor->AssertCurrentThreadOwns();
+  MonitorAutoUnlock unlock(*mDemuxerMonitor);
+
   uint32_t sum = 0;
   uint32_t bytesRead = 0;
   do {
@@ -41,29 +48,15 @@ MP4Stream::BlockingReadAt(int64_t aOffset, void* aBuffer, size_t aCount,
   return true;
 }
 
-// We surreptitiously reimplement the supposedly-blocking ReadAt as a non-
-// blocking CachedReadAt, and record when it fails. This allows MP4Reader
-// to retry the read as an actual blocking read without holding the lock.
-bool
-MP4Stream::ReadAt(int64_t aOffset, void* aBuffer, size_t aCount,
-                  size_t* aBytesRead)
-{
-  if (mFailedRead.isSome()) {
-    mFailedRead.reset();
-  }
-
-  if (!CachedReadAt(aOffset, aBuffer, aCount, aBytesRead)) {
-    mFailedRead.emplace(aOffset, aCount);
-    return false;
-  }
-
-  return true;
-}
-
 bool
 MP4Stream::CachedReadAt(int64_t aOffset, void* aBuffer, size_t aCount,
                         size_t* aBytesRead)
 {
+  // The read call can acquire various monitors, including both the decoder
+  // monitor and gMediaCache's monitor. So we need to unlock ours to avoid
+  // deadlock.
+  mDemuxerMonitor->AssertCurrentThreadOwns();
+  MonitorAutoUnlock unlock(*mDemuxerMonitor);
 
   nsresult rv = mResource->ReadFromCache(reinterpret_cast<char*>(aBuffer),
                                          aOffset, aCount);

@@ -87,9 +87,6 @@ private:
   // Read everything into mGethashTables and mDisallowCompletionTables
   nsresult ReadTablesFromPrefs();
 
-  // Build a comma-separated list of tables to check
-  void BuildTables(bool trackingProtectionEnabled, nsCString& tables);
-
   nsRefPtr<nsUrlClassifierDBServiceWorker> mWorker;
   nsCOMPtr<nsIUrlClassifierDBServiceWorker> mWorkerProxy;
 

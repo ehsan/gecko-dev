@@ -17,7 +17,6 @@ namespace js {
 class DeclEnvObject;
 class StaticWithObject;
 class InlineTypedObject;
-class GeneratorObject;
 
 namespace jit {
 
@@ -314,7 +313,6 @@ template <> struct TypeToDataType<HandleFunction> { static const DataType result
 template <> struct TypeToDataType<Handle<NativeObject *> > { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<Handle<InlineTypedObject *> > { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<Handle<ArrayObject *> > { static const DataType result = Type_Handle; };
-template <> struct TypeToDataType<Handle<GeneratorObject *> > { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<Handle<PlainObject *> > { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<Handle<StaticWithObject *> > { static const DataType result = Type_Handle; };
 template <> struct TypeToDataType<Handle<StaticBlockObject *> > { static const DataType result = Type_Handle; };
@@ -350,9 +348,6 @@ template <> struct TypeToArgProperties<Handle<InlineTypedObject *> > {
 };
 template <> struct TypeToArgProperties<Handle<ArrayObject *> > {
     static const uint32_t result = TypeToArgProperties<ArrayObject *>::result | VMFunction::ByRef;
-};
-template <> struct TypeToArgProperties<Handle<GeneratorObject *> > {
-    static const uint32_t result = TypeToArgProperties<GeneratorObject *>::result | VMFunction::ByRef;
 };
 template <> struct TypeToArgProperties<Handle<PlainObject *> > {
     static const uint32_t result = TypeToArgProperties<PlainObject *>::result | VMFunction::ByRef;
@@ -426,9 +421,6 @@ template <> struct TypeToRootType<Handle<InlineTypedObject *> > {
     static const uint32_t result = VMFunction::RootObject;
 };
 template <> struct TypeToRootType<Handle<ArrayObject *> > {
-    static const uint32_t result = VMFunction::RootObject;
-};
-template <> struct TypeToRootType<Handle<GeneratorObject *> > {
     static const uint32_t result = VMFunction::RootObject;
 };
 template <> struct TypeToRootType<Handle<PlainObject *> > {
@@ -668,8 +660,7 @@ class AutoDetectInvalidation
 };
 
 bool InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Value *rval);
-JSObject *NewGCObject(JSContext *cx, gc::AllocKind allocKind, gc::InitialHeap initialHeap,
-                      const js::Class *clasp);
+JSObject *NewGCObject(JSContext *cx, gc::AllocKind allocKind, gc::InitialHeap initialHeap);
 
 bool CheckOverRecursed(JSContext *cx);
 bool CheckOverRecursedWithExtra(JSContext *cx, BaselineFrame *frame,
@@ -747,8 +738,8 @@ bool FinalSuspend(JSContext *cx, HandleObject obj, BaselineFrame *frame, jsbytec
 bool InterpretResume(JSContext *cx, HandleObject obj, HandleValue val, HandlePropertyName kind,
                      MutableHandleValue rval);
 bool DebugAfterYield(JSContext *cx, BaselineFrame *frame);
-bool GeneratorThrowOrClose(JSContext *cx, BaselineFrame *frame, Handle<GeneratorObject*> genObj,
-                           HandleValue arg, uint32_t resumeKind);
+bool GeneratorThrowOrClose(JSContext *cx, BaselineFrame *frame, HandleObject obj, HandleValue arg,
+                           uint32_t resumeKind);
 
 bool StrictEvalPrologue(JSContext *cx, BaselineFrame *frame);
 bool HeavyweightFunPrologue(JSContext *cx, BaselineFrame *frame);

@@ -10,6 +10,7 @@
 #define mozilla_GuardObjects_h
 
 #include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 #include "mozilla/Types.h"
 
 #ifdef __cplusplus

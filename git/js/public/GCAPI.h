@@ -7,6 +7,8 @@
 #ifndef js_GCAPI_h
 #define js_GCAPI_h
 
+#include "mozilla/NullPtr.h"
+
 #include "js/HeapAPI.h"
 
 namespace js {
