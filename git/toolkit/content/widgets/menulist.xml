@@ -559,7 +559,11 @@
     <handlers>
       <handler event="focus" phase="capturing">
         <![CDATA[
-          this.setAttribute('focused','true');
+          if (!this.hasAttribute('focused')) {
+            if (event.originalTarget != this.inputField)
+              this.inputField.focus();
+            this.setAttribute('focused','true');
+          }
         ]]>
       </handler>
 

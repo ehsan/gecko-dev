@@ -182,6 +182,7 @@
         <parameter name="isDragging"/>
         <body/>
       </method>
+
     </implementation>
 
     <handlers>

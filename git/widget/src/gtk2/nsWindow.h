@@ -117,6 +117,8 @@ public:
     // event handling code
     void InitKeyEvent(nsKeyEvent &aEvent, GdkEventKey *aGdkEvent);
 
+    void DispatchGotFocusEvent(void);
+    void DispatchLostFocusEvent(void);
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
     void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
@@ -208,7 +210,8 @@ public:
     NS_IMETHOD         MakeFullScreen(PRBool aFullScreen);
     NS_IMETHOD         HideWindowChrome(PRBool aShouldHide);
 
-    // utility method
+    // utility methods
+    void               LoseFocus();
     gint               ConvertBorderStyles(nsBorderStyle aStyle);
 
     // event callbacks
@@ -475,6 +478,7 @@ private:
                         mContainerBlockFocus : 1,
                         mIsVisible : 1,
                         mRetryPointerGrab : 1,
+                        mActivatePending : 1,
                         mRetryKeyboardGrab : 1;
     GtkWindow          *mTransientParent;
     PRInt32             mSizeState;

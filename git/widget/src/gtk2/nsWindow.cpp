@@ -381,6 +381,7 @@ nsWindow::nsWindow()
     mIsVisible           = PR_FALSE;
     mRetryPointerGrab    = PR_FALSE;
     mRetryKeyboardGrab   = PR_FALSE;
+    mActivatePending     = PR_FALSE;
     mTransientParent     = nsnull;
     mWindowType          = eWindowType_child;
     mSizeState           = nsSizeMode_Normal;
@@ -509,6 +510,23 @@ nsWindow::InitKeyEvent(nsKeyEvent &aEvent, GdkEventKey *aGdkEvent)
 }
 
 void
+nsWindow::DispatchGotFocusEvent(void)
+{
+    nsGUIEvent event(PR_TRUE, NS_GOTFOCUS, this);
+    nsEventStatus status;
+    DispatchEvent(&event, status);
+}
+
+void
+nsWindow::DispatchLostFocusEvent(void)
+{
+    nsGUIEvent event(PR_TRUE, NS_LOSTFOCUS, this);
+    nsEventStatus status;
+    DispatchEvent(&event, status);
+}
+
+
+void
 nsWindow::DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus)
 {
     nsSizeEvent event(PR_TRUE, NS_SIZE, this);
@@ -526,9 +544,6 @@ nsWindow::DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus)
 void
 nsWindow::DispatchActivateEvent(void)
 {
-    if (!mIsTopLevel)
-        return;
-
 #ifdef ACCESSIBILITY
     DispatchActivateEventAccessible();
 #endif //ACCESSIBILITY
@@ -540,9 +555,6 @@ nsWindow::DispatchActivateEvent(void)
 void
 nsWindow::DispatchDeactivateEvent(void)
 {
-    if (!mIsTopLevel)
-        return;
-
     nsGUIEvent event(PR_TRUE, NS_DEACTIVATE, this);
     nsEventStatus status;
     DispatchEvent(&event, status);
@@ -1392,8 +1404,14 @@ nsWindow::SetFocus(PRBool aRaise)
         gtk_widget_grab_focus(owningWidget);
         owningWindow->mContainerBlockFocus = PR_FALSE;
 
-        gFocusWindow = this;
-        DispatchActivateEvent();
+        DispatchGotFocusEvent();
+
+        // unset the activate flag
+        if (owningWindow->mActivatePending) {
+            owningWindow->mActivatePending = PR_FALSE;
+            DispatchActivateEvent();
+        }
+
         return NS_OK;
     }
 
@@ -1403,19 +1421,23 @@ nsWindow::SetFocus(PRBool aRaise)
         return NS_OK;
     }
 
-#ifdef USE_XIM
+    // If there is already a focused child window, dispatch a LOSTFOCUS
+    // event from that widget and unset its got focus flag.
     if (gFocusWindow) {
+        nsRefPtr<nsWindow> kungFuDeathGrip = gFocusWindow;
+#ifdef USE_XIM
         // If the focus window and this window share the same input
         // context we don't have to change the focus of the IME
         // context
-        nsRefPtr<nsWindow> kungFuDeathGrip = gFocusWindow;
         if (IM_get_input_context(this) !=
             IM_get_input_context(gFocusWindow))
             gFocusWindow->IMELoseFocus();
-    }
 #endif
+        gFocusWindow->LoseFocus();
+    }
 
-    // Set this window to be the focused child window
+    // Set this window to be the focused child window, update our has
+    // focus flag and dispatch a GOTFOCUS event.
     gFocusWindow = this;
 
 #ifdef USE_XIM
@@ -1425,7 +1447,13 @@ nsWindow::SetFocus(PRBool aRaise)
     LOGFOCUS(("  widget now has focus - dispatching events [%p]\n",
               (void *)this));
 
-    DispatchActivateEvent();
+    DispatchGotFocusEvent();
+
+    // unset the activate flag
+    if (owningWindow->mActivatePending) {
+        owningWindow->mActivatePending = PR_FALSE;
+        DispatchActivateEvent();
+    }
 
     LOGFOCUS(("  done dispatching events in SetFocus() [%p]\n",
               (void *)this));
@@ -2039,6 +2067,19 @@ nsWindow::HasPendingInputEvent()
     haveEvent = PR_FALSE;
 #endif
     return haveEvent;
+}
+
+void
+nsWindow::LoseFocus(void)
+{
+    // make sure that we reset our key down counter so the next keypress
+    // for this widget will get the down event
+    memset(mKeyDownFlags, 0, sizeof(mKeyDownFlags));
+
+    // Dispatch a lostfocus event
+    DispatchLostFocusEvent();
+
+    LOGFOCUS(("  widget lost focus [%p]\n", (void *)this));
 }
 
 #if 0
@@ -2747,7 +2788,7 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     // check to see if we should rollup
     nsWindow *containerWindow = GetContainerWindow();
     if (!gFocusWindow && containerWindow) {
-        gFocusWindow = this;
+        containerWindow->mActivatePending = PR_FALSE;
         DispatchActivateEvent();
     }
 
@@ -2866,8 +2907,9 @@ nsWindow::OnContainerFocusInEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
         return;
     }
 
-#if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_ENABLE_GCONF)
     if (mIsTopLevel) {
+        mActivatePending = PR_TRUE;
+#if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_ENABLE_GCONF)
         // For mobile/maemo, it is desired to disable the word completion widget
         // at the bottom of the screen for some reasons: it interacts badly with
         // keyboard events sometimes and disabling it will give more screen space
@@ -2890,17 +2932,24 @@ nsWindow::OnContainerFocusInEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
                                           PR_FALSE, nsnull);
                 g_object_unref(gConfClient);
             }
-    }
 #endif
-
+    }
     // Unset the urgency hint, if possible
     GtkWidget* top_window = nsnull;
     GetToplevelWidget(&top_window);
     if (top_window && (GTK_WIDGET_VISIBLE(top_window)))
         SetUrgencyHint(top_window, PR_FALSE);
 
-    gFocusWindow = this;
-    DispatchActivateEvent();
+    // dispatch a got focus event
+    DispatchGotFocusEvent();
+
+    // send the activate event if it wasn't already sent via any
+    // SetFocus() calls that were the result of the GOTFOCUS event
+    // above.
+    if (mActivatePending) {
+        mActivatePending = PR_FALSE;
+        DispatchActivateEvent();
+    }
 
     LOGFOCUS(("Events sent from focus in event [%p]\n", (void *)this));
 }
@@ -2919,7 +2968,7 @@ nsWindow::OnContainerFocusOutEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
 #endif /* MOZ_X11 */
 
     // Figure out if the focus widget is the child of this window.  If
-    // it is, send a deactivate event for it.
+    // it is, send a focus out and deactivate event for it.
     if (!gFocusWindow)
         return;
 
@@ -2961,12 +3010,16 @@ nsWindow::OnContainerFocusOutEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
     gFocusWindow->IMELoseFocus();
 #endif
 
+    gFocusWindow->LoseFocus();
+
     // We only dispatch a deactivate event if we are a toplevel
     // window, otherwise the embedding code takes care of it.
-    if (NS_LIKELY(!gFocusWindow->mIsDestroyed))
-        DispatchDeactivateEvent();
+    if (mIsTopLevel && NS_LIKELY(!gFocusWindow->mIsDestroyed))
+        gFocusWindow->DispatchDeactivateEvent();
 
     gFocusWindow = nsnull;
+
+    mActivatePending = PR_FALSE;
 
     LOGFOCUS(("Done with container focus out [%p]\n", (void *)this));
 }

@@ -60,11 +60,8 @@ DOM_SRCDIRS = \
   content/xul/document/src \
   content/events/src \
   content/base/src \
-  content/html/content/src \
   content/html/document/src \
-  layout/generic \
   layout/style \
-  layout/xul/base/src \
   layout/xul/base/src/tree/src \
   $(NULL)
 

@@ -56,7 +56,7 @@
 #include "nsILookAndFeel.h"
 #include "nsIComponentManager.h"
 #include "nsITimer.h"
-#include "nsFocusManager.h"
+#include "nsIFocusController.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShell.h"
 #include "nsPIDOMWindow.h"
@@ -497,36 +497,45 @@ nsXULPopupManager::ShowPopupWithAnchorAlign(nsIContent* aPopup,
 }
 
 static void
-CheckCaretDrawingState() {
+CheckCaretDrawingState(nsIDocument *aDocument) {
 
   // There is 1 caret per document, we need to find the focused
   // document and erase its caret.
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    nsCOMPtr<nsIDOMWindow> window;
-    fm->GetFocusedWindow(getter_AddRefs(window));
-    if (!window)
-      return;
+  if (!aDocument)
+    return;
 
-    nsCOMPtr<nsIDOMWindowInternal> windowInternal = do_QueryInterface(window);
+  nsCOMPtr<nsISupports> container = aDocument->GetContainer();
+  nsCOMPtr<nsPIDOMWindow> windowPrivate = do_GetInterface(container);
+  if (!windowPrivate)
+    return;
 
-    nsCOMPtr<nsIDOMDocument> domDoc;
-    nsCOMPtr<nsIDocument> focusedDoc;
-    windowInternal->GetDocument(getter_AddRefs(domDoc));
-    focusedDoc = do_QueryInterface(domDoc);
-    if (!focusedDoc)
-      return;
+  nsIFocusController *focusController =
+    windowPrivate->GetRootFocusController();
+  if (!focusController)
+    return;
 
-    nsIPresShell* presShell = focusedDoc->GetPrimaryShell();
-    if (!presShell)
-      return;
+  nsCOMPtr<nsIDOMWindowInternal> windowInternal;
+  focusController->GetFocusedWindow(getter_AddRefs(windowInternal));
+  if (!windowInternal)
+    return;
 
-    nsRefPtr<nsCaret> caret;
-    presShell->GetCaret(getter_AddRefs(caret));
-    if (!caret)
-      return;
-    caret->CheckCaretDrawingState();
-  }
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  nsCOMPtr<nsIDocument> focusedDoc;
+  windowInternal->GetDocument(getter_AddRefs(domDoc));
+  focusedDoc = do_QueryInterface(domDoc);
+  if (!focusedDoc)
+    return;
+
+  nsIPresShell* presShell = focusedDoc->GetPrimaryShell();
+  if (!presShell)
+    return;
+
+  nsRefPtr<nsCaret> caret;
+  presShell->GetCaret(getter_AddRefs(caret));
+  if (!caret)
+    return;
+  caret->CheckCaretDrawingState();
+
 }
 
 void
@@ -598,7 +607,7 @@ nsXULPopupManager::ShowPopupCallback(nsIContent* aPopup,
 
   // Caret visibility may have been affected, ensure that
   // the caret isn't now drawn when it shouldn't be.
-  CheckCaretDrawingState();
+  CheckCaretDrawingState(aPopup->GetCurrentDoc());
 }
 
 void
@@ -1000,22 +1009,19 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
   if (aPopupType == ePopupTypePanel &&
       !aPopup->AttrValueIs(kNameSpaceID_None, nsGkAtoms::noautofocus,
                            nsGkAtoms::_true, eCaseMatters)) {
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm) {
-      nsIDocument* doc = aPopup->GetCurrentDoc();
+    nsIEventStateManager* esm = presShell->GetPresContext()->EventStateManager();
 
-      // Only remove the focus if the currently focused item is ouside the
-      // popup. It isn't a big deal if the current focus is in a child popup
-      // inside the popup as that shouldn't be visible. This check ensures that
-      // a node inside the popup that is focused during a popupshowing event
-      // remains focused.
-      nsCOMPtr<nsIDOMElement> currentFocusElement;
-      fm->GetFocusedElement(getter_AddRefs(currentFocusElement));
-      nsCOMPtr<nsIContent> currentFocus = do_QueryInterface(currentFocusElement);
-      if (doc && currentFocus &&
-          !nsContentUtils::ContentIsDescendantOf(currentFocus, aPopup)) {
-        fm->ClearFocus(doc->GetWindow());
-      }
+    // Only remove the focus if the currently focused item is ouside the
+    // popup. It isn't a big deal if the current focus is in a child popup
+    // inside the popup as that shouldn't be visible. This check ensures that
+    // a node inside the popup that is focused during a popupshowing event
+    // remains focused.
+    nsCOMPtr<nsIContent> currentFocus;
+    esm->GetFocusedContent(getter_AddRefs(currentFocus));
+    if (currentFocus &&
+        !nsContentUtils::ContentIsDescendantOf(currentFocus, aPopup)) {
+      esm->SetContentState(nsnull, NS_EVENT_STATE_FOCUS);
+      esm->SetFocusedContent(nsnull);
     }
   }
 
@@ -1062,18 +1068,15 @@ nsXULPopupManager::FirePopupHidingEvent(nsIContent* aPopup,
   if (aPopupType == ePopupTypePanel &&
       !aPopup->AttrValueIs(kNameSpaceID_None, nsGkAtoms::noautofocus,
                            nsGkAtoms::_true, eCaseMatters)) {
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm) {
-      nsIDocument* doc = aPopup->GetCurrentDoc();
+    nsIEventStateManager* esm = presShell->GetPresContext()->EventStateManager();
 
-      // Remove the focus from the focused node only if it is inside the popup.
-      nsCOMPtr<nsIDOMElement> currentFocusElement;
-      fm->GetFocusedElement(getter_AddRefs(currentFocusElement));
-      nsCOMPtr<nsIContent> currentFocus = do_QueryInterface(currentFocusElement);
-      if (doc && currentFocus &&
-          nsContentUtils::ContentIsDescendantOf(currentFocus, aPopup)) {
-        fm->ClearFocus(doc->GetWindow());
-      }
+    // Remove the focus from the focused node only if it is inside the popup.
+    nsCOMPtr<nsIContent> currentFocus;
+    esm->GetFocusedContent(getter_AddRefs(currentFocus));
+    if (currentFocus &&
+        nsContentUtils::ContentIsDescendantOf(currentFocus, aPopup)) {
+      esm->SetContentState(nsnull, NS_EVENT_STATE_FOCUS);
+      esm->SetFocusedContent(nsnull);
     }
   }
 
@@ -1220,17 +1223,14 @@ nsXULPopupManager::MayShowPopup(nsMenuPopupFrame* aPopup)
   // open popups when they are focused and visible
   if (type != nsIDocShellTreeItem::typeChrome) {
     // only allow popups in active windows
-    nsCOMPtr<nsIDocShellTreeItem> root;
-    dsti->GetRootTreeItem(getter_AddRefs(root));
-    nsCOMPtr<nsIDOMWindow> rootWin = do_GetInterface(root);
-
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (!fm || !rootWin)
+    nsCOMPtr<nsPIDOMWindow> win = do_GetInterface(dsti);
+    if (!win)
       return PR_FALSE;
 
-    nsCOMPtr<nsIDOMWindow> activeWindow;
-    fm->GetActiveWindow(getter_AddRefs(activeWindow));
-    if (activeWindow != rootWin)
+    PRBool active;
+    nsIFocusController* focusController = win->GetRootFocusController();
+    focusController->GetActive(&active);
+    if (!active)
       return PR_FALSE;
 
     // only allow popups in visible frames

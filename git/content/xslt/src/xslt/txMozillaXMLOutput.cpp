@@ -453,12 +453,11 @@ txMozillaXMLOutput::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
 
             aLowercaseLocalName = owner;
         }
-        return startElementInternal(nsnull, 
-                                    aLowercaseLocalName, 
-                                    kNameSpaceID_XHTML);
+        return startElementInternal(nsnull, aLowercaseLocalName,
+                                    kNameSpaceID_None, kNameSpaceID_XHTML);
     }
 
-    return startElementInternal(aPrefix, aLocalName, aNsID);
+    return startElementInternal(aPrefix, aLocalName, aNsID, aNsID);
 }
 
 nsresult
@@ -466,11 +465,11 @@ txMozillaXMLOutput::startElement(nsIAtom* aPrefix,
                                  const nsSubstring& aLocalName,
                                  const PRInt32 aNsID)
 {
-    PRInt32 nsId = aNsID;
+    PRInt32 elemType = aNsID;
     nsCOMPtr<nsIAtom> lname;
 
     if (mOutputFormat.mMethod == eHTMLOutput && aNsID == kNameSpaceID_None) {
-        nsId = kNameSpaceID_XHTML;
+        elemType = kNameSpaceID_XHTML;
 
         nsAutoString lnameStr;
         ToLowerCase(aLocalName, lnameStr);
@@ -484,21 +483,22 @@ txMozillaXMLOutput::startElement(nsIAtom* aPrefix,
     NS_ENSURE_TRUE(lname, NS_ERROR_OUT_OF_MEMORY);
 
     // Check that it's a valid name
-    if (!nsContentUtils::IsValidNodeName(lname, aPrefix, nsId)) {
+    if (!nsContentUtils::IsValidNodeName(lname, aPrefix, aNsID)) {
         // Try without prefix
         aPrefix = nsnull;
-        if (!nsContentUtils::IsValidNodeName(lname, aPrefix, nsId)) {
+        if (!nsContentUtils::IsValidNodeName(lname, aPrefix, aNsID)) {
             return NS_ERROR_XSLT_BAD_NODE_NAME;
         }
     }
 
-    return startElementInternal(aPrefix, lname, nsId);
+    return startElementInternal(aPrefix, lname, aNsID, elemType);
 }
 
 nsresult
 txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
                                          nsIAtom* aLocalName,
-                                         PRInt32 aNsID)
+                                         PRInt32 aNsID,
+                                         PRInt32 aElemType)
 {
     TX_ENSURE_CURRENTNODE;
 
@@ -539,12 +539,12 @@ txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
     ni = mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-    NS_NewElement(getter_AddRefs(mOpenedElement), aNsID, ni, PR_FALSE);
+    NS_NewElement(getter_AddRefs(mOpenedElement), aElemType, ni, PR_FALSE);
 
     // Set up the element and adjust state
     if (!mNoFixup) {
-        if (aNsID == kNameSpaceID_XHTML) {
-            mOpenedElementIsHTML = (mOutputFormat.mMethod == eHTMLOutput);
+        if (aElemType == kNameSpaceID_XHTML) {
+            mOpenedElementIsHTML = aNsID != kNameSpaceID_XHTML;
             rv = startHTMLElement(mOpenedElement, mOpenedElementIsHTML);
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -971,7 +971,7 @@ txMozillaXMLOutput::createHTMLElement(nsIAtom* aName,
 
     nsCOMPtr<nsINodeInfo> ni;
     ni = mNodeInfoManager->GetNodeInfo(aName, nsnull,
-                                       kNameSpaceID_XHTML);
+                                       kNameSpaceID_None);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
     return NS_NewHTMLElement(aResult, ni, PR_FALSE);
