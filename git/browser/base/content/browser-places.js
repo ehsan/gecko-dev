@@ -740,7 +740,6 @@ var PlacesMenuDNDHandler = {
   _closeDelayMs: 500,
   _loadTimer: null,
   _closeTimer: null,
-  _closingTimerNode: null,
 
   /**
    * Called when the user enters the <menu> element during a drag.
@@ -752,15 +751,6 @@ var PlacesMenuDNDHandler = {
     if (!this._isStaticContainer(event.target))
       return;
 
-    // If we re-enter the same menu or anchor before the close timer runs out,
-    // we should ensure that we do not close:
-    if (this._closeTimer && this._closingTimerNode === event.currentTarget) {
-      this._closeTimer.cancel();
-      this._closingTimerNode = null;
-      this._closeTimer = null;
-    }
-
-    PlacesControllerDragHelper.currentDropTarget = event.target;
     let popup = event.target.lastChild;
     if (this._loadTimer || popup.state === "showing" || popup.state === "open")
       return;
@@ -777,6 +767,8 @@ var PlacesMenuDNDHandler = {
 
   /**
    * Handles dragleave on the <menu> element.
+   * @returns true if the element is a container element (menu or 
+   *          menu-toolbarbutton), false otherwise.
    */
   onDragLeave: function PMDH_onDragLeave(event) {
     // Handle menu-button separate targets.
@@ -789,7 +781,6 @@ var PlacesMenuDNDHandler = {
     if (!this._isStaticContainer(event.target))
       return;
 
-    PlacesControllerDragHelper.currentDropTarget = null;
     let popup = event.target.lastChild;
 
     if (this._loadTimer) {
@@ -797,10 +788,8 @@ var PlacesMenuDNDHandler = {
       this._loadTimer = null;
     }
     this._closeTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    this._closingTimerNode = event.currentTarget;
     this._closeTimer.initWithCallback(function() {
       this._closeTimer = null;
-      this._closingTimerNode = null;
       let node = PlacesControllerDragHelper.currentDropTarget;
       let inHierarchy = false;
       while (node && !inHierarchy) {
@@ -856,7 +845,6 @@ var PlacesMenuDNDHandler = {
                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                 Ci.nsITreeView.DROP_ON);
     PlacesControllerDragHelper.onDrop(ip, event.dataTransfer);
-    PlacesControllerDragHelper.currentDropTarget = null;
     event.stopPropagation();
   }
 };

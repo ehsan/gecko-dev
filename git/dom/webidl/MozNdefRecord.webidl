@@ -6,7 +6,7 @@
 /* Copyright © 2013 Deutsche Telekom, Inc. */
 
 [Constructor(octet tnf, Uint8Array type, Uint8Array id, Uint8Array payload)]
-interface MozNDEFRecord
+interface MozNdefRecord
 {
   /**
    * Type Name Field (3-bits) - Specifies the NDEF record type in general.
