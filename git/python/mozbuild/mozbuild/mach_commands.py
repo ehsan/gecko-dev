@@ -813,7 +813,7 @@ class DebugProgram(MachCommandBase):
                 print(e)
                 return 1
         args = [debugger]
-        extra_env = { 'MOZ_CRASHREPORTER_DISABLE' : '1' }
+        extra_env = {}
         if debugparams:
             import pymake.process
             argv, badchar = pymake.process.clinetoargv(debugparams, os.getcwd())

@@ -39,11 +39,6 @@ XPCOMUtils.defineLazyGetter(this, "CertUtils",
     return mod;
   });
 
-#ifdef MOZ_CRASHREPORTER
-XPCOMUtils.defineLazyServiceGetter(this, "gCrashReporter",
-                                   "@mozilla.org/xre/app-info;1",
-                                   "nsICrashReporter");
-#endif
 
 const FILE_CACHE                = "experiments.json";
 const OBSERVER_TOPIC            = "experiments-changed";
@@ -678,6 +673,11 @@ Experiments.Experiments.prototype = {
       return this._pendingTasks.loadFromCache;
     }
 
+    if (this._pendingTasks.updateManifest) {
+      // We're already updating the manifest, no need to load the cached version.
+      return this._pendingTasks.updateManifest;
+    }
+
     let path = this._cacheFilePath;
     this._pendingTasks.loadFromCache = Task.spawn(function () {
       try {
@@ -888,7 +888,6 @@ Experiments.Experiments.prototype = {
             yield activeExperiment.stop();
             yield activeExperiment.start();
           } catch (e) {
-            gLogger.error(e);
             // On failure try the next experiment.
             activeExperiment = null;
           }
@@ -922,7 +921,6 @@ Experiments.Experiments.prototype = {
             try {
               yield experiment.start();
               activeChanged = true;
-              activeExperiment = experiment;
               break;
             } catch (e) {
               // On failure try the next experiment.
@@ -934,12 +932,6 @@ Experiments.Experiments.prototype = {
       if (activeChanged) {
         Services.obs.notifyObservers(null, OBSERVER_TOPIC, null);
       }
-
-#ifdef MOZ_CRASHREPORTER
-      if (activeExperiment) {
-        gCrashReporter.annotateCrashReport("ActiveExperiment", activeExperiment.id);
-      }
-#endif
 
       throw new Task.Result(activeChanged);
     }.bind(this));

@@ -3382,6 +3382,10 @@ IsCacheableGetPropCall(JSContext *cx, JSObject *obj, JSObject *holder, Shape *sh
 {
     JS_ASSERT(isScripted);
 
+    // Currently we only optimize getter calls for getters bound on prototypes.
+    if (obj == holder)
+        return false;
+
     if (!shape || !IsCacheableProtoChain(obj, holder, isDOMProxy))
         return false;
 
@@ -3778,10 +3782,6 @@ static bool TryAttachNativeGetElemStub(JSContext *cx, HandleScript script, jsbyt
         if (isCallElem)
             return true;
 #endif
-
-        // For now, we do not handle own property getters
-        if (obj == holder)
-            return true;
 
         // If a suitable stub already exists, nothing else to do.
         if (GetElemNativeStubExists(stub, obj, holder, propName, needsAtomize))
@@ -5648,8 +5648,9 @@ TryAttachGlobalNameStub(JSContext *cx, HandleScript script, jsbytecode *pc,
         return true;
     }
 
-    bool isScripted;
-    if (IsCacheableGetPropCall(cx, global, global, shape, &isScripted) && !isScripted)
+    if (shape->hasGetterValue() && shape->getterValue().isObject() &&
+        shape->getterObject()->is<JSFunction>() &&
+        shape->getterObject()->as<JSFunction>().isNative())
     {
 #ifdef JS_HAS_NO_SUCH_METHOD
         if (JSOp(*pc) == JSOP_CALLGNAME)
@@ -6171,10 +6172,6 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
             return true;
 #endif
 
-        // Don't handle scripted own property getters
-        if (obj == holder)
-            return true;
-
         RootedFunction callee(cx, &shape->getterObject()->as<JSFunction>());
         JS_ASSERT(obj != holder);
         JS_ASSERT(callee->hasScript());
@@ -6204,6 +6201,7 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
 #endif
 
         RootedFunction callee(cx, &shape->getterObject()->as<JSFunction>());
+        JS_ASSERT(obj != holder);
         JS_ASSERT(callee->isNative());
 
         IonSpew(IonSpew_BaselineIC, "  Generating GetProp(%s%s/NativeGetter %p) stub",
@@ -6213,7 +6211,6 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
 
         ICStub *newStub = nullptr;
         if (isDOMProxy) {
-            JS_ASSERT(obj != holder);
             ICStub::Kind kind;
             if (domProxyHasGeneration) {
                 if (UpdateExistingGenerationalDOMProxyStub(stub, obj)) {
@@ -6227,10 +6224,6 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
             Rooted<ProxyObject*> proxy(cx, &obj->as<ProxyObject>());
             ICGetPropCallDOMProxyNativeCompiler
                 compiler(cx, kind, monitorStub, proxy, holder, callee, script->pcToOffset(pc));
-            newStub = compiler.getStub(compiler.getStubSpace(script));
-        } else if (obj == holder) {
-            ICGetProp_CallNative::Compiler compiler(cx, monitorStub, obj, callee,
-                                                    script->pcToOffset(pc));
             newStub = compiler.getStub(compiler.getStubSpace(script));
         } else {
             ICGetProp_CallNativePrototype::Compiler compiler(cx, monitorStub, obj, holder, callee,
