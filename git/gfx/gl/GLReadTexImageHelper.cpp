@@ -533,7 +533,8 @@ GLReadTexImageHelper::ReadTexImage(GLuint aTextureId,
 
         ScopedGLState scopedScissorTestState(mGL, LOCAL_GL_SCISSOR_TEST, false);
         ScopedGLState scopedBlendState(mGL, LOCAL_GL_BLEND, false);
-        ScopedViewportRect scopedViewportRect(mGL, 0, 0, aSize.width, aSize.height);
+
+        ScopedViewportRect(mGL, 0, 0, aSize.width, aSize.height);
 
         /* Setup renderbuffer */
         mGL->fGenRenderbuffers(1, &rb);

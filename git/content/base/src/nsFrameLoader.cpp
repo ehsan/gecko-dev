@@ -1293,11 +1293,19 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     otherTabChild->SetChromeMessageManager(ourMessageManager);
   }
   // Swap and setup things in parent message managers.
+  nsFrameMessageManager* ourParentManager = mMessageManager ?
+    mMessageManager->GetParentManager() : nullptr;
+  nsFrameMessageManager* otherParentManager = aOther->mMessageManager ?
+    aOther->mMessageManager->GetParentManager() : nullptr;
   if (mMessageManager) {
-    mMessageManager->SetCallback(aOther);
+    mMessageManager->RemoveFromParent();
+    mMessageManager->SetParentManager(otherParentManager);
+    mMessageManager->SetCallback(aOther, false);
   }
   if (aOther->mMessageManager) {
-    aOther->mMessageManager->SetCallback(this);
+    aOther->mMessageManager->RemoveFromParent();
+    aOther->mMessageManager->SetParentManager(ourParentManager);
+    aOther->mMessageManager->SetCallback(this, false);
   }
   mMessageManager.swap(aOther->mMessageManager);
 
@@ -2410,8 +2418,8 @@ nsFrameLoader::EnsureMessageManager()
   }
 
   if (mMessageManager) {
-    if (ShouldUseRemoteProcess() && mRemoteBrowserShown) {
-      mMessageManager->InitWithCallback(this);
+    if (ShouldUseRemoteProcess()) {
+      mMessageManager->SetCallback(mRemoteBrowserShown ? this : nullptr);
     }
     return NS_OK;
   }
@@ -2441,7 +2449,7 @@ nsFrameLoader::EnsureMessageManager()
     mChildMessageManager =
       new nsInProcessTabChildGlobal(mDocShell, mOwnerContent, mMessageManager);
     // Force pending frame scripts to be loaded.
-    mMessageManager->InitWithCallback(this);
+    mMessageManager->SetCallback(this);
   }
   return NS_OK;
 }

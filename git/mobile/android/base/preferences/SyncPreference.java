@@ -15,8 +15,6 @@ import android.preference.Preference;
 import android.util.AttributeSet;
 
 class SyncPreference extends Preference {
-    private static final boolean DEFAULT_TO_FXA = false;
-
     private Context mContext;
 
     public SyncPreference(Context context, AttributeSet attrs) {
@@ -42,21 +40,6 @@ class SyncPreference extends Preference {
 
     @Override
     protected void onClick() {
-        // If we're not defaulting to FxA, just do what we've always done.
-        if (!DEFAULT_TO_FXA) {
-            openSync11Settings();
-            return;
-        }
-
-        // If there's a legacy Sync account (or a pickled one on disk),
-        // open the settings page.
-        if (SyncAccounts.syncAccountsExist(mContext)) {
-            SyncAccounts.openSyncSettings(mContext);
-            return;
-        }
-
-        // Otherwise, launch the FxA "Get started" activity, which will
-        // dispatch to the right location.
-        launchFxASetup();
+        openSync11Settings();
     }
 }

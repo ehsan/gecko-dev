@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
 import org.mozilla.gecko.mozglue.JNITarget;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
@@ -79,9 +78,7 @@ public class Tabs implements GeckoEventListener {
         @Override
         public void run() {
             try {
-                final Context context = getAppContext();
-                boolean syncIsSetup = SyncAccounts.syncAccountsExist(context) ||
-                                      FirefoxAccounts.firefoxAccountsExist(context);
+                boolean syncIsSetup = SyncAccounts.syncAccountsExist(getAppContext());
                 if (syncIsSetup) {
                     TabsAccessor.persistLocalTabs(getContentResolver(), getTabsInOrder());
                 }

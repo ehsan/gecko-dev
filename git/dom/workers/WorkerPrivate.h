@@ -131,7 +131,6 @@ public:
     nsCString mPathname;
     nsCString mSearch;
     nsCString mHash;
-    nsString mOrigin;
   };
 
   struct LoadInfo
