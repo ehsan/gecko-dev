@@ -39,28 +39,20 @@ WriteZeroesToAudioBlock(AudioChunk* aChunk, uint32_t aStart, uint32_t aLength)
   }
 }
 
-void AudioBufferAddWithScale(const float* aInput,
-                             float aScale,
-                             float* aOutput,
-                             uint32_t aSize)
-{
-  if (aScale == 1.0f) {
-    for (uint32_t i = 0; i < aSize; ++i) {
-      aOutput[i] += aInput[i];
-    }
-  } else {
-    for (uint32_t i = 0; i < aSize; ++i) {
-      aOutput[i] += aInput[i]*aScale;
-    }
-  }
-}
-
 void
 AudioBlockAddChannelWithScale(const float aInput[WEBAUDIO_BLOCK_SIZE],
                               float aScale,
                               float aOutput[WEBAUDIO_BLOCK_SIZE])
 {
-  AudioBufferAddWithScale(aInput, aScale, aOutput, WEBAUDIO_BLOCK_SIZE);
+  if (aScale == 1.0f) {
+    for (uint32_t i = 0; i < WEBAUDIO_BLOCK_SIZE; ++i) {
+      aOutput[i] += aInput[i];
+    }
+  } else {
+    for (uint32_t i = 0; i < WEBAUDIO_BLOCK_SIZE; ++i) {
+      aOutput[i] += aInput[i]*aScale;
+    }
+  }
 }
 
 void
@@ -78,24 +70,6 @@ AudioBlockCopyChannelWithScale(const float* aInput,
 }
 
 void
-BufferComplexMultiply(const float* aInput,
-                      const float* aScale,
-                      float* aOutput,
-                      uint32_t aSize)
-{
-  for (uint32_t i = 0; i < aSize * 2; i += 2) {
-    float real1 = aInput[i];
-    float imag1 = aInput[i + 1];
-    float real2 = aScale[i];
-    float imag2 = aScale[i + 1];
-    float realResult = real1 * real2 - imag1 * imag2;
-    float imagResult = real1 * imag2 + imag1 * real2;
-    aOutput[i] = realResult;
-    aOutput[i + 1] = imagResult;
-  }
-}
-
-void
 AudioBlockCopyChannelWithScale(const float aInput[WEBAUDIO_BLOCK_SIZE],
                                const float aScale[WEBAUDIO_BLOCK_SIZE],
                                float aOutput[WEBAUDIO_BLOCK_SIZE])
@@ -106,23 +80,14 @@ AudioBlockCopyChannelWithScale(const float aInput[WEBAUDIO_BLOCK_SIZE],
 }
 
 void
-AudioBufferInPlaceScale(float aBlock[WEBAUDIO_BLOCK_SIZE],
-                        uint32_t aChannelCount,
-                        float aScale)
-{
-  AudioBufferInPlaceScale(aBlock, aChannelCount, aScale, WEBAUDIO_BLOCK_SIZE);
-}
-
-void
-AudioBufferInPlaceScale(float* aBlock,
-                        uint32_t aChannelCount,
-                        float aScale,
-                        uint32_t aSize)
+AudioBlockInPlaceScale(float aBlock[WEBAUDIO_BLOCK_SIZE],
+                       uint32_t aChannelCount,
+                       float aScale)
 {
   if (aScale == 1.0f) {
     return;
   }
-  for (uint32_t i = 0; i < aSize * aChannelCount; ++i) {
+  for (uint32_t i = 0; i < WEBAUDIO_BLOCK_SIZE * aChannelCount; ++i) {
     *aBlock++ *= aScale;
   }
 }
@@ -158,16 +123,4 @@ AudioBlockPanStereoToStereo(const float aInputL[WEBAUDIO_BLOCK_SIZE],
     }
   }
 }
-
-float
-AudioBufferSumOfSquares(const float* aInput, uint32_t aLength)
-{
-  float sum = 0.0f;
-  while (aLength--) {
-    sum += *aInput * *aInput;
-    ++aInput;
-  }
-  return sum;
-}
-
 }

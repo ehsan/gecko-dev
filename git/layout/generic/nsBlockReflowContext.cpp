@@ -300,7 +300,8 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
         // parent is not this because we are executing pullup code).
         // Floats will eventually be removed via nsBlockFrame::RemoveFloat
         // which detaches the placeholder from the float.
-        nsOverflowContinuationTracker::AutoFinish fini(aState.mOverflowTracker, mFrame);
+/* XXX promote DeleteChildsNextInFlow to nsIFrame to elminate this cast */
+        aState.mOverflowTracker->Finish(mFrame);
         static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
           ->DeleteNextInFlowChild(mPresContext, kidNextInFlow, true);
       }

@@ -35,10 +35,6 @@ public:
     return 0;
   }
 
-  uint32_t MaxChannelCount() const;
-  virtual void SetChannelCount(uint32_t aChannelCount,
-                               ErrorResult& aRv) MOZ_OVERRIDE;
-
   void StartRendering();
 
   void DestroyGraph();

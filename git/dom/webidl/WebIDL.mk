@@ -43,7 +43,6 @@ webidl_files = \
   CommandEvent.webidl \
   Comment.webidl \
   CompositionEvent.webidl \
-  ConvolverNode.webidl \
   Coordinates.webidl \
   CSS.webidl \
   CSSPrimitiveValue.webidl \

@@ -11,8 +11,6 @@
 #include <mozilla/Types.h>
 #include "nsXPCOMStrings.h"
 
-namespace mozilla {
-
 class GStreamerFormatHelper {
   /* This class can be used to query the GStreamer registry for the required
    * demuxers/decoders from nsHTMLMediaElement::CanPlayType.
@@ -29,13 +27,12 @@ class GStreamerFormatHelper {
     bool CanHandleContainerCaps(GstCaps* aCaps);
     bool CanHandleCodecCaps(GstCaps* aCaps);
 
-    static GstCaps* ConvertFormatsToCaps(const char* aMIMEType,
-                                         const nsAString* aCodecs);
-
-    static void Shutdown();
+   static void Shutdown();
 
   private:
     GStreamerFormatHelper();
+    GstCaps* ConvertFormatsToCaps(const char* aMIMEType,
+                                  const nsAString* aCodecs);
     char* const *CodecListFromCaps(GstCaps* aCaps);
     bool HaveElementsToProcessCaps(GstCaps* aCaps);
     GList* GetFactories();
@@ -47,12 +44,6 @@ class GStreamerFormatHelper {
 
     /* table to convert from codec MIME types to GStreamer caps */
     static char const *const mCodecs[9][2];
-
-    /*
-     * True iff we were able to find the proper GStreamer libs and the functions
-     * we need.
-     */
-    static bool sLoadOK;
 
     /* whitelist of supported container/codec gst caps */
     GstCaps* mSupportedContainerCaps;
@@ -72,7 +63,5 @@ class GStreamerFormatHelper {
      * GStreamer registry. */
     uint32_t mCookie;
 };
-
-} //namespace mozilla
 
 #endif

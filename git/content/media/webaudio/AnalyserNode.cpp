@@ -10,6 +10,7 @@
 #include "AudioNodeStream.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/PodOperations.h"
+#include "kiss_fft/kiss_fftr.h"
 
 namespace mozilla {
 namespace dom {
@@ -79,7 +80,7 @@ AnalyserNode::AnalyserNode(AudioContext* aContext)
               1,
               ChannelCountMode::Explicit,
               ChannelInterpretation::Speakers)
-  , mAnalysisBlock(2048)
+  , mFFTSize(2048)
   , mMinDecibels(-100.)
   , mMaxDecibels(-30.)
   , mSmoothingTimeConstant(.8)
@@ -106,8 +107,8 @@ AnalyserNode::SetFftSize(uint32_t aValue, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return;
   }
-  if (FftSize() != aValue) {
-    mAnalysisBlock.SetFFTSize(aValue);
+  if (mFFTSize != aValue) {
+    mFFTSize = aValue;
     AllocateBuffer();
   }
 }
@@ -203,25 +204,28 @@ AnalyserNode::FFTAnalysis()
   if (mWriteIndex == 0) {
     inputBuffer = mBuffer.Elements();
   } else {
-    inputBuffer = static_cast<float*>(moz_malloc(FftSize() * sizeof(float)));
+    inputBuffer = static_cast<float*>(moz_malloc(mFFTSize * sizeof(float)));
     if (!inputBuffer) {
       return false;
     }
-    memcpy(inputBuffer, mBuffer.Elements() + mWriteIndex, sizeof(float) * (FftSize() - mWriteIndex));
-    memcpy(inputBuffer + FftSize() - mWriteIndex, mBuffer.Elements(), sizeof(float) * mWriteIndex);
+    memcpy(inputBuffer, mBuffer.Elements() + mWriteIndex, sizeof(float) * (mFFTSize - mWriteIndex));
+    memcpy(inputBuffer + mFFTSize - mWriteIndex, mBuffer.Elements(), sizeof(float) * mWriteIndex);
     allocated = true;
   }
+  nsAutoArrayPtr<kiss_fft_cpx> outputBuffer(new kiss_fft_cpx[FrequencyBinCount() + 1]);
 
-  ApplyBlackmanWindow(inputBuffer, FftSize());
+  ApplyBlackmanWindow(inputBuffer, mFFTSize);
 
-  mAnalysisBlock.PerformFFT(inputBuffer);
+  kiss_fftr_cfg fft = kiss_fftr_alloc(mFFTSize, 0, nullptr, nullptr);
+  kiss_fftr(fft, inputBuffer, outputBuffer);
+  free(fft);
 
   // Normalize so than an input sine wave at 0dBfs registers as 0dBfs (undo FFT scaling factor).
-  const double magnitudeScale = 1.0 / FftSize();
+  const double magnitudeScale = 1.0 / mFFTSize;
 
   for (uint32_t i = 0; i < mOutputBuffer.Length(); ++i) {
-    double scalarMagnitude = NS_hypot(mAnalysisBlock.RealData(i),
-                                      mAnalysisBlock.ImagData(i)) *
+    double scalarMagnitude = sqrt(outputBuffer[i].r * outputBuffer[i].r +
+                                  outputBuffer[i].i * outputBuffer[i].i) *
                              magnitudeScale;
     mOutputBuffer[i] = mSmoothingTimeConstant * mOutputBuffer[i] +
                        (1.0 - mSmoothingTimeConstant) * scalarMagnitude;
@@ -252,10 +256,10 @@ bool
 AnalyserNode::AllocateBuffer()
 {
   bool result = true;
-  if (mBuffer.Length() != FftSize()) {
-    result = mBuffer.SetLength(FftSize());
+  if (mBuffer.Length() != mFFTSize) {
+    result = mBuffer.SetLength(mFFTSize);
     if (result) {
-      memset(mBuffer.Elements(), 0, sizeof(float) * FftSize());
+      memset(mBuffer.Elements(), 0, sizeof(float) * mFFTSize);
       mWriteIndex = 0;
 
       result = mOutputBuffer.SetLength(FrequencyBinCount());
@@ -288,8 +292,8 @@ AnalyserNode::AppendChunk(const AudioChunk& aChunk)
                                   mBuffer.Elements() + mWriteIndex);
   }
   if (channelCount > 1) {
-    AudioBufferInPlaceScale(mBuffer.Elements() + mWriteIndex, 1,
-                            1.0f / aChunk.mChannelData.Length());
+    AudioBlockInPlaceScale(mBuffer.Elements() + mWriteIndex, 1,
+                           1.0f / aChunk.mChannelData.Length());
   }
   mWriteIndex += chunkDuration;
   MOZ_ASSERT(mWriteIndex <= bufferSize);

@@ -6,17 +6,14 @@
 #ifndef WEBGLBUFFER_H_
 #define WEBGLBUFFER_H_
 
-#include "WebGLObjectModel.h"
 #include "WebGLElementArrayCache.h"
-#include "GLDefs.h"
+#include "WebGLObjectModel.h"
 
 #include "nsWrapperCache.h"
 
 #include "mozilla/LinkedList.h"
 
 namespace mozilla {
-
-class WebGLElementArrayCache;
 
 class WebGLBuffer MOZ_FINAL
     : public nsISupports

@@ -112,5 +112,4 @@ CPP_SOURCES += [
     'VideoSegment.cpp',
     'VideoStreamTrack.cpp',
     'VideoUtils.cpp',
-    'WebVTTLoadListener.cpp',
 ]

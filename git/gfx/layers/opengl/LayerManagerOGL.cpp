@@ -1182,7 +1182,7 @@ GetFrameBufferInternalFormat(GLContext* gl,
   return LOCAL_GL_RGBA;
 }
 
-bool
+void
 LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                                       GLuint aCurrentFrameBuffer,
                                       GLuint *aFBO, GLuint *aTexture)
@@ -1275,12 +1275,7 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
     msg.AppendInt(aRect.width);
     msg.Append(", aRect.height ");
     msg.AppendInt(aRect.height);
-    NS_WARNING(msg.get());
-
-    mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-    mGLContext->fDeleteFramebuffers(1, &fbo);
-    mGLContext->fDeleteTextures(1, &tex);
-    return false;
+    NS_RUNTIMEABORT(msg.get());
   }
 
   SetupPipeline(aRect.width, aRect.height, DontApplyWorldTransform);
@@ -1293,7 +1288,6 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
 
   *aFBO = fbo;
   *aTexture = tex;
-  return true;
 }
 
 TemporaryRef<DrawTarget>

@@ -192,13 +192,13 @@ extern mozilla::ThreadLocal<PerThreadData *> TlsPerThreadData;
 inline JSRuntime *
 GetRuntime(const JSContext *cx)
 {
-    return ContextFriendFields::get(cx)->runtime_;
+    return ContextFriendFields::get(cx)->runtime;
 }
 
 inline JSCompartment *
 GetContextCompartment(const JSContext *cx)
 {
-    return ContextFriendFields::get(cx)->compartment_;
+    return ContextFriendFields::get(cx)->compartment;
 }
 
 inline JS::Zone *

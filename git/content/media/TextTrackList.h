@@ -38,9 +38,12 @@ public:
     return mTextTracks.Length();
   }
 
-  // Time is in seconds.
-  void Update(double aTime);
-
+  void Update(double time) {
+    uint32_t length = Length(), i;
+    for( i = 0; i < length; i++ ) {
+      mTextTracks[i]->Update(time);
+    }
+  }
   TextTrack* IndexedGetter(uint32_t aIndex, bool& aFound);
 
   already_AddRefed<TextTrack> AddTextTrack(TextTrackKind aKind,

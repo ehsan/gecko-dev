@@ -13,7 +13,3 @@ function finishJSTest() {
   SimpleTest.finish();
 }
 
-function description(str) {
-  info(str);
-}
-

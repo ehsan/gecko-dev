@@ -11,6 +11,9 @@ import android.content.res.Resources;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.View;
 import android.widget.TextView;
 
 public class MenuItemDefault extends TextView
@@ -32,17 +35,25 @@ public class MenuItemDefault extends TextView
     }
 
     public MenuItemDefault(Context context, AttributeSet attrs) {
-        this(context, attrs, R.attr.menuItemDefaultStyle);
+        this(context, attrs, R.style.MenuItemDefault);
     }
 
     public MenuItemDefault(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
 
-        Resources res = getResources();
+        Resources res = context.getResources();
         int width = res.getDimensionPixelSize(R.dimen.menu_item_row_width);
         int height = res.getDimensionPixelSize(R.dimen.menu_item_row_height);
         setMinimumWidth(width);
         setMinimumHeight(height);
+        setGravity(Gravity.CENTER_VERTICAL);
+
+        float density = res.getDisplayMetrics().density;
+        int padding = (int) (10 * density);
+        setPadding(padding, 0, padding, 0);
+
+        int drawablePadding = (int) (6 * density);
+        setCompoundDrawablePadding(drawablePadding);
 
         int stateIconSize = res.getDimensionPixelSize(R.dimen.menu_item_state_icon);
         Rect stateIconBounds = new Rect(0, 0, stateIconSize, stateIconSize);
@@ -73,39 +84,32 @@ public class MenuItemDefault extends TextView
     }
 
     @Override
-    public void initialize(GeckoMenuItem item) {
-        if (item == null)
-            return;
-
-        setTitle(item.getTitle());        
-        setIcon(item.getIcon());
-        setEnabled(item.isEnabled());
-        setCheckable(item.isCheckable());
-        setChecked(item.isChecked());
-        setSubMenuIndicator(item.hasSubMenu());
+    public View getView() {
+        return this;
     }
 
-    void setIcon(Drawable icon) {
+    @Override
+    public void setIcon(Drawable icon) {
         mIcon = icon;
 
-        if (mIcon != null) {
+        if (mIcon != null)
             mIcon.setBounds(sIconBounds);
-            mIcon.setAlpha(isEnabled() ? 255 : 99);
-        }
 
         setCompoundDrawables(mIcon, null, mState, null);
     }
 
-    void setIcon(int icon) {
+    @Override
+    public void setIcon(int icon) {
         Drawable drawable = null;
 
         if (icon != 0)
-            drawable = getResources().getDrawable(icon);
+            drawable = getContext().getResources().getDrawable(icon);
          
         setIcon(drawable);
     }
 
-    void setTitle(CharSequence title) {
+    @Override
+    public void setTitle(CharSequence title) {
         setText(title);
     }
 
@@ -120,21 +124,24 @@ public class MenuItemDefault extends TextView
             mState.setAlpha(enabled ? 255 : 99);
     }
 
-    private void setCheckable(boolean checkable) {
+    @Override
+    public void setCheckable(boolean checkable) {
         if (mCheckable != checkable) {
             mCheckable = checkable;
             refreshDrawableState();
         }
     }
 
-    private void setChecked(boolean checked) {
+    @Override
+    public void setChecked(boolean checked) {
         if (mChecked != checked) {
             mChecked = checked;
             refreshDrawableState();
         }
     }
 
-    private void setSubMenuIndicator(boolean hasSubMenu) {
+    @Override
+    public void setSubMenuIndicator(boolean hasSubMenu) {
         if (mHasSubMenu != hasSubMenu) {
             mHasSubMenu = hasSubMenu;
             refreshDrawableState();

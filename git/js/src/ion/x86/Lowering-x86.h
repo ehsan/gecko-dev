@@ -29,6 +29,9 @@ class LIRGeneratorX86 : public LIRGeneratorX86Shared
     void lowerUntypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock *block, size_t lirIndex);
     bool defineUntypedPhi(MPhi *phi, size_t lirIndex);
 
+    bool lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs,
+                     MDefinition *rhs);
+
     LGetPropertyCacheT *newLGetPropertyCacheT(MGetPropertyCache *ins);
 
   public:
