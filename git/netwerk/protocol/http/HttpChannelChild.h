@@ -70,7 +70,6 @@ public:
   NS_IMETHOD SetRequestHeader(const nsACString& aHeader, 
                               const nsACString& aValue, 
                               bool aMerge);
-  NS_IMETHOD RedirectTo(nsIURI *newURI);
   // nsIHttpChannelInternal
   NS_IMETHOD SetupFallbackChannel(const char *aFallbackKey);
   NS_IMETHOD GetLocalAddress(nsACString& addr);

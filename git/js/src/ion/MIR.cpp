@@ -248,70 +248,43 @@ MDefinition::removeUse(MUseIterator use)
 }
 
 MUseIterator
-MNode::replaceOperand(MUseIterator use, MDefinition *def)
+MNode::replaceOperand(MUseIterator use, MDefinition *ins)
 {
-    JS_ASSERT(def != NULL);
-    uint32_t index = use->index();
-    MDefinition *prev = use->producer();
-
-    JS_ASSERT(use->index() < numOperands());
-    JS_ASSERT(use->producer() == getOperand(index));
-    JS_ASSERT(use->consumer() == this);
-
-    if (prev == def)
+    MDefinition *used = getOperand(use->index());
+    if (used == ins)
         return use;
 
-    MUseIterator result(prev->removeUse(use));
-    setOperand(index, def);
+    MUse *save = *use;
+    MUseIterator result(used->removeUse(use));
+    if (ins) {
+        setOperand(save->index(), ins);
+        ins->linkUse(save);
+    }
     return result;
 }
 
 void
 MNode::replaceOperand(size_t index, MDefinition *def)
 {
-    JS_ASSERT(def != NULL);
-    MUse *use = getUseFor(index);
-    MDefinition *prev = use->producer();
+    MDefinition *d = getOperand(index);
+    for (MUseIterator i(d->usesBegin()); i != d->usesEnd(); i++) {
+        if (i->index() == index && i->node() == this) {
+            replaceOperand(i, def);
+            return;
+        }
+    }
 
-    JS_ASSERT(use->index() == index);
-    JS_ASSERT(use->index() < numOperands());
-    JS_ASSERT(use->producer() == getOperand(index));
-    JS_ASSERT(use->consumer() == this);
-
-    if (prev == def)
-        return;
-
-    prev->removeUse(use);
-    setOperand(index, def);
-}
-
-void
-MNode::discardOperand(size_t index)
-{
-    MUse *use = getUseFor(index);
-
-    JS_ASSERT(use->index() == index);
-    JS_ASSERT(use->producer() == getOperand(index));
-    JS_ASSERT(use->consumer() == this);
-
-    use->producer()->removeUse(use);
-
-#ifdef DEBUG
-    // Causes any producer/consumer lookups to trip asserts.
-    use->set(NULL, NULL, index);
-#endif
+    JS_NOT_REACHED("could not find use");
 }
 
 void
 MDefinition::replaceAllUsesWith(MDefinition *dom)
 {
-    JS_ASSERT(dom != NULL);
-    if (dom == this)
-        return;
-
-    for (MUseIterator i(usesBegin()); i != usesEnd(); ) {
-        JS_ASSERT(i->producer() == this);
-        i = i->consumer()->replaceOperand(i, dom);
+    for (MUseIterator i(uses_.begin()); i != uses_.end(); ) {
+        MUse *use = *i;
+        i = uses_.removeAt(i);
+        use->node()->setOperand(use->index(), dom);
+        dom->linkUse(use);
     }
 }
 
@@ -501,27 +474,18 @@ MPhi::New(uint32_t slot)
 void
 MPhi::removeOperand(size_t index)
 {
-    MUse *use = getUseFor(index);
-
     JS_ASSERT(index < inputs_.length());
     JS_ASSERT(inputs_.length() > 1);
-
-    JS_ASSERT(use->index() == index);
-    JS_ASSERT(use->producer() == getOperand(index));
-    JS_ASSERT(use->consumer() == this);
-
-    // Remove use from producer's use chain.
-    use->producer()->removeUse(use);
 
     // If we have phi(..., a, b, c, d, ..., z) and we plan
     // on removing a, then first shift downward so that we have
     // phi(..., b, c, d, ..., z, z):
     size_t length = inputs_.length();
-    for (size_t i = index; i < length - 1; i++) {
-        MUse *next = MPhi::getUseFor(i + 1);
-        next->producer()->removeUse(next);
-        MPhi::setOperand(i, next->producer());
-    }
+    for (size_t i = index + 1; i < length; i++)
+        replaceOperand(i - 1, getOperand(i));
+
+    // remove the final operand that now appears twice:
+    replaceOperand(length - 1, NULL);
 
     // truncate the inputs_ list:
     inputs_.shrinkBy(1);
@@ -559,56 +523,17 @@ MPhi::congruentTo(MDefinition *const &ins) const
 }
 
 bool
-MPhi::initLength(size_t length)
+MPhi::addInput(MDefinition *ins)
 {
-    // Initializes a new MPhi to have an Operand vector of at least the given
-    // length. This permits use of setOperand() instead of addInputSlow(), the
-    // latter of which may call realloc().
-    JS_ASSERT(numOperands() == 0);
-    return inputs_.resizeUninitialized(length);
-}
-
-bool
-MPhi::addInputSlow(MDefinition *ins)
-{
-    // The list of inputs to an MPhi is given as a vector of MUse nodes,
-    // each of which is in the list of the producer MDefinition.
-    // Because appending to a vector may reallocate the vector, it is possible
-    // that this operation may cause the producers' linked lists to reference
-    // invalid memory. Therefore, in the event of moving reallocation, each
-    // MUse must be removed and reinserted from/into its producer's use chain.
-    uint32_t index = inputs_.length();
-    bool performingRealloc = !inputs_.canAppendWithoutRealloc(1);
-
-    // Remove all MUses from all use lists, in case realloc() moves.
-    if (performingRealloc) {
-        for (uint32_t i = 0; i < index; i++) {
-            MUse *use = &inputs_[i];
-            use->producer()->removeUse(use);
-        }
-    }
-
-    // Insert the new input.
-    if (!inputs_.append(MUse()))
-        return false;
-    MPhi::setOperand(index, ins);
-
-    // Add all previously-removed MUses back.
-    if (performingRealloc) {
-        for (uint32_t i = 0; i < index; i++) {
-            MUse *use = &inputs_[i];
-            use->producer()->addUse(use);
-        }
-    }
-
-    return true;
+    ins->addUse(this, inputs_.length());
+    return inputs_.append(ins);
 }
 
 uint32_t
 MPrepareCall::argc() const
 {
     JS_ASSERT(useCount() == 1);
-    MCall *call = usesBegin()->consumer()->toDefinition()->toCall();
+    MCall *call = usesBegin()->node()->toDefinition()->toCall();
     return call->numStackArgs();
 }
 
@@ -630,7 +555,7 @@ MCall::addArg(size_t argnum, MPassArg *arg)
     // The operand vector is initialized in reverse order by the IonBuilder.
     // It cannot be checked for consistency until all arguments are added.
     arg->setArgnum(argnum);
-    setOperand(argnum + NumNonArgumentOperands, arg->toDefinition());
+    MNode::initOperand(argnum + NumNonArgumentOperands, arg->toDefinition());
 }
 
 void
@@ -722,10 +647,10 @@ NeedNegativeZeroCheck(MDefinition *def)
 {
     // Test if all uses have the same semantics for -0 and 0
     for (MUseIterator use = def->usesBegin(); use != def->usesEnd(); use++) {
-        if (use->consumer()->isResumePoint())
+        if (use->node()->isResumePoint())
             continue;
 
-        MDefinition *use_def = use->consumer()->toDefinition();
+        MDefinition *use_def = use->node()->toDefinition();
         switch (use_def->op()) {
           case MDefinition::Op_Add: {
             // If add is truncating -0 and 0 are observed as the same.
@@ -1502,7 +1427,7 @@ MResumePoint *
 MResumePoint::New(MBasicBlock *block, jsbytecode *pc, MResumePoint *parent, Mode mode)
 {
     MResumePoint *resume = new MResumePoint(block, pc, parent, mode);
-    if (!resume->init())
+    if (!resume->init(block))
         return NULL;
     resume->inherit(block);
     return resume;
@@ -1519,6 +1444,15 @@ MResumePoint::MResumePoint(MBasicBlock *block, jsbytecode *pc, MResumePoint *cal
 {
 }
 
+bool
+MResumePoint::init(MBasicBlock *block)
+{
+    operands_ = block->graph().allocate<MDefinition *>(stackDepth());
+    if (!operands_)
+        return false;
+    return true;
+}
+
 void
 MResumePoint::inherit(MBasicBlock *block)
 {
@@ -1528,7 +1462,7 @@ MResumePoint::inherit(MBasicBlock *block)
         // and LStackArg does not define a value.
         if (def->isPassArg())
             def = def->toPassArg()->getArgument();
-        setOperand(i, def);
+        initOperand(i, def);
     }
 }
 

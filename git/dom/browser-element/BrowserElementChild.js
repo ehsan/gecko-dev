@@ -155,11 +155,8 @@ BrowserElementChild.prototype = {
                                this._keyEventHandler.bind(this),
                                /* useCapture = */ true);
     els.addSystemEventListener(global, 'DOMWindowClose',
-                               this._windowCloseHandler.bind(this),
+                               this._closeHandler.bind(this),
                                /* useCapture = */ false);
-    els.addSystemEventListener(global, 'DOMWindowCreated',
-                               this._windowCreatedHandler.bind(this),
-                               /* useCapture = */ true);
     els.addSystemEventListener(global, 'contextmenu',
                                this._contextmenuHandler.bind(this),
                                /* useCapture = */ false);
@@ -404,7 +401,7 @@ BrowserElementChild.prototype = {
     }
   },
 
-  _windowCloseHandler: function(e) {
+  _closeHandler: function(e) {
     let win = e.target;
     if (win != content || e.defaultPrevented) {
       return;
@@ -415,23 +412,6 @@ BrowserElementChild.prototype = {
 
     // Inform the window implementation that we handled this close ourselves.
     e.preventDefault();
-  },
-
-  _windowCreatedHandler: function(e) {
-    let targetDocShell = e.target.defaultView
-          .QueryInterface(Ci.nsIInterfaceRequestor)
-          .getInterface(Ci.nsIWebNavigation);
-    if (targetDocShell != docShell) {
-      return;
-    }
-
-    let uri = docShell.QueryInterface(Ci.nsIWebNavigation).currentURI;
-    debug("Window created: " + uri.spec);
-    if (uri.spec != "about:blank") {
-      this._addMozAfterPaintHandler(function () {
-        sendAsyncMsg('documentfirstpaint');
-      });
-    }
   },
 
   _contextmenuHandler: function(e) {

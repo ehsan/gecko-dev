@@ -307,15 +307,6 @@ public:
     PostRestyleEventCommon(aElement, aRestyleHint, aMinChangeHint, true);
   }
 
-  OverflowChangedTracker *GetOverflowChangedTracker() const 
-  { 
-    return mOverflowChangedTracker; 
-  }
-  void SetOverflowChangedTracker(OverflowChangedTracker *aTracker)
-  {
-    mOverflowChangedTracker = aTracker;    
-  }
-
 private:
   /**
    * Notify the frame constructor that an element needs to have its
@@ -1903,8 +1894,6 @@ private:
   nsChangeHint        mRebuildAllExtraHint;
 
   nsCOMPtr<nsILayoutHistoryState> mTempFrameTreeState;
-
-  OverflowChangedTracker *mOverflowChangedTracker;
 
   // The total number of animation flushes by this frame constructor.
   // Used to keep the layer and animation manager in sync.

@@ -1036,6 +1036,13 @@ protected:
    */
   virtual Element* GetOffsetRect(nsRect& aRect);
 
+  /**
+   * Retrieve the size of the padding rect of this element.
+   *
+   * @param aSize the size of the padding rect
+   */
+  nsIntSize GetPaddingRectSize();
+
   nsIFrame* GetStyledFrame();
 
   virtual Element* GetNameSpaceElement()

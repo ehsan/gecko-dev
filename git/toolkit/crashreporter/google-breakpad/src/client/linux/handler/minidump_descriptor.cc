@@ -65,9 +65,8 @@ void MinidumpDescriptor::UpdatePath() {
 
   GUID guid;
   char guid_str[kGUIDStringLength + 1];
-  if (!CreateGUID(&guid) || !GUIDToString(&guid, guid_str, sizeof(guid_str))) {
-    assert(false);
-  }
+  bool r = CreateGUID(&guid) && GUIDToString(&guid, guid_str, sizeof(guid_str));
+  assert(r);
 
   path_.clear();
   path_ = directory_ + "/" + guid_str + ".dmp";  

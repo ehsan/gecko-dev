@@ -82,6 +82,17 @@ public:
   NS_DECL_ISUPPORTS
 };
 
+// IID for the TestCallbackInterface
+#define NS_TEST_CALLBACK_INTERFACE_IID \
+{ 0xbf711ba4, 0xc8f6, 0x46cf, \
+ { 0xba, 0x5b, 0xaa, 0xe2, 0x78, 0x18, 0xe6, 0x4a } }
+class TestCallbackInterface : public nsISupports
+{
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_TEST_CALLBACK_INTERFACE_IID)
+  NS_DECL_ISUPPORTS
+};
+
 class TestNonWrapperCacheInterface : public nsISupports
 {
 public:
@@ -111,25 +122,26 @@ public:
   // And now our actual WebIDL API
   // Constructors
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*, ErrorResult&);
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, const nsAString&, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*, const nsAString&,
+                                              ErrorResult&);
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, uint32_t, const Nullable<bool>&,
-                ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*, uint32_t,
+                                              const Nullable<bool>&,
+                                              ErrorResult&);
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, TestInterface*, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*, TestInterface*,
+                                              ErrorResult&);
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, TestNonCastableInterface&, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*,
+                                              TestNonCastableInterface&,
+                                              ErrorResult&);
   /*  static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, uint32_t, uint32_t,
-                const TestInterfaceOrOnlyForUseInConstructor&, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*,
+                                              uint32_t, uint32_t,
+                                              const TestInterfaceOrOnlyForUseInConstructor&,
+                                              ErrorResult&);
   */
   
   // Integer types
@@ -463,11 +475,9 @@ public:
   void ExerciseTypedefInterfaces3(TestInterface&);
 
   // Static methods and attributes
-  static void StaticMethod(const GlobalObject&, bool);
-  static void StaticMethodWithContext(const GlobalObject&, JSContext*,
-                                      JS::Value);
-  static bool StaticAttribute(const GlobalObject&);
-  static void SetStaticAttribute(const GlobalObject&, bool);
+  static void StaticMethod(nsISupports*, bool);
+  static bool StaticAttribute(nsISupports*);
+  static void SetStaticAttribute(nsISupports*, bool);
 
   // Overload resolution tests
   bool Overload1(TestInterface&);

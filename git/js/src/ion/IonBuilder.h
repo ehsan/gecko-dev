@@ -189,8 +189,8 @@ class IonBuilder : public MIRGenerator
     }
 
     JSFunction *getSingleCallTarget(types::StackTypeSet *calleeTypes);
-    bool getPolyCallTargets(types::StackTypeSet *calleeTypes,
-                            AutoObjectVector &targets, uint32_t maxTargets);
+    unsigned getPolyCallTargets(types::StackTypeSet *calleeTypes,
+                                AutoObjectVector &targets, uint32_t maxTargets);
     bool canInlineTarget(JSFunction *target);
 
     void popCfgStack();

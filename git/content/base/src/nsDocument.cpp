@@ -1373,6 +1373,10 @@ nsDocument::~nsDocument()
            ("DOCUMENT %p destroyed", this));
 #endif
 
+#ifdef DEBUG
+  nsCycleCollector_DEBUG_wasFreed(static_cast<nsIDocument*>(this));
+#endif
+
   NS_ASSERTION(!mIsShowing, "Destroying a currently-showing document");
 
   mInDestructor = true;
@@ -10445,15 +10449,15 @@ nsDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 }
 
 already_AddRefed<nsIDocument>
-nsIDocument::Constructor(const GlobalObject& aGlobal, ErrorResult& rv)
+nsIDocument::Constructor(nsISupports* aGlobal, ErrorResult& rv)
 {
-  nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(aGlobal.Get());
+  nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(aGlobal);
   if (!global) {
     rv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
   }
 
-  nsCOMPtr<nsIScriptObjectPrincipal> prin = do_QueryInterface(aGlobal.Get());
+  nsCOMPtr<nsIScriptObjectPrincipal> prin = do_QueryInterface(aGlobal);
   if (!prin) {
     rv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;

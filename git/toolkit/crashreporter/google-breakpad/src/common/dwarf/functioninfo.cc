@@ -121,7 +121,8 @@ bool CUFunctionInfoHandler::StartCompilationUnit(uint64 offset,
 // subroutines. For line info, the DW_AT_stmt_list lives in the
 // compile unit tag.
 
-bool CUFunctionInfoHandler::StartDIE(uint64 offset, enum DwarfTag tag) {
+bool CUFunctionInfoHandler::StartDIE(uint64 offset, enum DwarfTag tag,
+                                     const AttributeList& attrs) {
   switch (tag) {
     case DW_TAG_subprogram:
     case DW_TAG_inlined_subroutine: {

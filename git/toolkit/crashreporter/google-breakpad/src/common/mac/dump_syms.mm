@@ -227,24 +227,18 @@ string DumpSymbols::Identifier() {
 // dwarf2reader::LineInfo and populates a Module and a line vector
 // with the results.
 class DumpSymbols::DumperLineToModule:
-      public DwarfCUToModule::LineToModuleHandler {
+      public DwarfCUToModule::LineToModuleFunctor {
  public:
   // Create a line-to-module converter using BYTE_READER.
   DumperLineToModule(dwarf2reader::ByteReader *byte_reader)
       : byte_reader_(byte_reader) { }
-
-  void StartCompilationUnit(const string& compilation_dir) {
-    compilation_dir_ = compilation_dir;
-  }
-
-  void ReadProgram(const char *program, uint64 length,
-                   Module *module, vector<Module::Line> *lines) {
-    DwarfLineToModule handler(module, compilation_dir_, lines);
+  void operator()(const char *program, uint64 length,
+                  Module *module, vector<Module::Line> *lines) {
+    DwarfLineToModule handler(module, lines);
     dwarf2reader::LineInfo parser(program, length, byte_reader_, &handler);
     parser.Start();
   }
  private:
-  string compilation_dir_;
   dwarf2reader::ByteReader *byte_reader_;  // WEAK
 };
 

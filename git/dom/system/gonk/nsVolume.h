@@ -60,13 +60,13 @@ public:
   void LogState() const;
 
   const nsString& Name() const        { return mName; }
-  nsCString NameStr() const           { return NS_LossyConvertUTF16toASCII(mName); }
+  const char* NameStr() const         { return NS_LossyConvertUTF16toASCII(mName).get(); }
 
   int32_t MountGeneration() const     { return mMountGeneration; }
   bool IsMountLocked() const          { return mMountLocked; }
 
   const nsString& MountPoint() const  { return mMountPoint; }
-  nsCString MountPointStr() const     { return NS_LossyConvertUTF16toASCII(mMountPoint); }
+  const char* MountPointStr() const   { return NS_LossyConvertUTF16toASCII(mMountPoint).get(); }
 
   int32_t State() const               { return mState; }
   const char* StateStr() const        { return NS_VolumeStateStr(mState); }

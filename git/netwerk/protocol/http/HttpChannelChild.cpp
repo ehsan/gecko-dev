@@ -863,7 +863,6 @@ HttpChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
 NS_IMETHODIMP
 HttpChannelChild::OnRedirectVerifyCallback(nsresult result)
 {
-  OptionalURIParams redirectURI;
   nsCOMPtr<nsIHttpChannel> newHttpChannel =
       do_QueryInterface(mRedirectChannelChild);
 
@@ -882,28 +881,16 @@ HttpChannelChild::OnRedirectVerifyCallback(nsresult result)
     newHttpChannelChild->GetClientSetRequestHeaders(&headerTuples);
   }
 
-  if (NS_SUCCEEDED(result)) {
-    // we know this is an HttpChannelChild
-    HttpChannelChild* base =
-      static_cast<HttpChannelChild*>(mRedirectChannelChild.get());
-    // Note: this is where we would notify "http-on-modify-response" observers.
-    // We have deliberately disabled this for child processes (see bug 806753)
-    //
-    // After we verify redirect, nsHttpChannel may hit the network: must give
-    // "http-on-modify-request" observers the chance to cancel before that.
-    //base->CallOnModifyRequestObservers();
-
-    /* If there was an API redirect of this redirect, we need to send it
-     * down here, since it can't get sent via SendAsyncOpen. */
-    SerializeURI(base->mAPIRedirectToURI, redirectURI);
-  } else {
-    /* If the redirect was canceled, bypass OMR and send an empty API
-     * redirect URI */
-    SerializeURI(nullptr, redirectURI);
-  }
+  // Note: this is where we would notify "http-on-modify-response" observers.
+  // We have deliberately disabled this for child processes (see bug 806753)
+  // 
+  // After we verify redirect, nsHttpChannel may hit the network: must give
+  // "http-on-modify-request" observers the chance to cancel before that.
+  //if (NS_SUCCEEDED(result))
+  //  gHttpHandler->OnModifyRequest(newHttpChannel);
 
   if (mIPCOpen)
-    SendRedirect2Verify(result, *headerTuples, redirectURI);
+    SendRedirect2Verify(result, *headerTuples);
 
   return NS_OK;
 }
@@ -1009,11 +996,11 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
   // OnStart/OnStopRequest
   //
 
-  // Note: this is where we would notify "http-on-modify-request" observers.
+  // Note: this is where we would notify "http-on-modify-response" observers.
   // We have deliberately disabled this for child processes (see bug 806753)
   //
   // notify "http-on-modify-request" observers
-  //CallOnModifyRequestObservers();
+  //gHttpHandler->OnModifyRequest(this);
 
   mIsPending = true;
   mWasOpened = true;
@@ -1074,16 +1061,15 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
   URIParams uri;
   SerializeURI(mURI, uri);
 
-  OptionalURIParams originalURI, documentURI, referrer, redirectURI;
+  OptionalURIParams originalURI, documentURI, referrer;
   SerializeURI(mOriginalURI, originalURI);
   SerializeURI(mDocumentURI, documentURI);
   SerializeURI(mReferrer, referrer);
-  SerializeURI(mAPIRedirectToURI, redirectURI);
 
   OptionalInputStreamParams uploadStream;
   SerializeInputStream(mUploadStream, uploadStream);
 
-  SendAsyncOpen(uri, originalURI, documentURI, referrer, redirectURI, mLoadFlags,
+  SendAsyncOpen(uri, originalURI, documentURI, referrer, mLoadFlags,
                 mClientSetRequestHeaders, mRequestHead.Method(), uploadStream,
                 mUploadStreamHasHeaders, mPriority, mRedirectionLimit,
                 mAllowPipelining, mForceAllowThirdPartyCookie, mSendResumeAt,
@@ -1114,13 +1100,6 @@ HttpChannelChild::SetRequestHeader(const nsACString& aHeader,
   tuple->mValue = aValue;
   tuple->mMerge = aMerge;
   return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpChannelChild::RedirectTo(nsIURI *newURI)
-{
-  // disabled until/unless addons run in child or something else needs this
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //-----------------------------------------------------------------------------

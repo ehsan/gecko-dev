@@ -31,7 +31,7 @@ BluetoothRILTelephonyCallback::CallStateChanged(uint32_t aCallIndex,
                                                 bool aIsActive)
 {
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-  hfp->HandleCallStateChanged(aCallIndex, aCallState, aNumber, true);
+  hfp->CallStateChanged(aCallIndex, aCallState, aNumber, aIsActive);
 
   return NS_OK;
 }
@@ -44,7 +44,7 @@ BluetoothRILTelephonyCallback::EnumerateCallState(uint32_t aCallIndex,
                                                   bool* aResult)
 {
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-  hfp->HandleCallStateChanged(aCallIndex, aCallState, aNumber, false);
+  hfp->EnumerateCallState(aCallIndex, aCallState, aNumber, aIsActive);
   *aResult = true;
   return NS_OK;
 }
@@ -64,9 +64,11 @@ BluetoothRilListener::BluetoothRilListener()
 bool
 BluetoothRilListener::StartListening()
 {
-  nsCOMPtr<nsIRILContentHelper> ril =
-    do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
-  NS_ENSURE_TRUE(ril, false);
+  nsCOMPtr<nsIRILContentHelper> ril = do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
+  if (!ril) {
+    NS_ERROR("No RIL Service!");
+    return false;
+  }
 
   nsresult rv = ril->RegisterTelephonyCallback(mRILTelephonyCallback);
   NS_ENSURE_SUCCESS(rv, false);
@@ -79,9 +81,11 @@ BluetoothRilListener::StartListening()
 bool
 BluetoothRilListener::StopListening()
 {
-  nsCOMPtr<nsIRILContentHelper> ril =
-    do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
-  NS_ENSURE_TRUE(ril, false);
+  nsCOMPtr<nsIRILContentHelper> ril = do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
+  if (!ril) {
+    NS_ERROR("No RIL Service!");
+    return false;
+  }
 
   nsresult rv = ril->UnregisterTelephonyCallback(mRILTelephonyCallback);
 

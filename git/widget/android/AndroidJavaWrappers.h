@@ -21,12 +21,13 @@
 #if defined(DEBUG) || defined(FORCE_ALOG)
 #define ALOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gecko" , ## args)
 #else
-#define ALOG(args...) ((void)0)
+#define ALOG(args...)
 #endif
 #endif
 
 class nsIAndroidDisplayport;
 class nsIAndroidViewport;
+
 
 namespace mozilla {
 

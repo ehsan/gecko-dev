@@ -135,7 +135,8 @@ class CUFunctionInfoHandler: public Dwarf2Handler {
 
   // Start to process a DIE at OFFSET from the beginning of the
   // .debug_info section.  We only care about function related DIE's.
-  virtual bool StartDIE(uint64 offset, enum DwarfTag tag);
+  virtual bool StartDIE(uint64 offset, enum DwarfTag tag,
+                        const AttributeList& attrs);
 
   // Called when we have an attribute with unsigned data to give to
   // our handler.  The attribute is for the DIE at OFFSET from the

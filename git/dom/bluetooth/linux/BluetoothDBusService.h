@@ -42,6 +42,11 @@ public:
                                          BluetoothReplyRunnable* aRunnable);
 
   virtual nsresult
+  GetProperties(BluetoothObjectType aType,
+                const nsAString& aPath,
+                BluetoothReplyRunnable* aRunnable);
+
+  virtual nsresult
   GetDevicePropertiesInternal(const BluetoothSignal& aSignal);
 
   virtual nsresult

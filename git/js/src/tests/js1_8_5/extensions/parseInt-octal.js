@@ -4,8 +4,7 @@
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 583925;
 var summary =
-  "parseInt should treat leading-zero inputs (with radix unspecified) as " +
-  "decimal, not octal (this changed in bug 786135)";
+  "parseInt should treat leading-zero inputs as octal regardless of whether caller is strict or laissez-faire mode code";
 
 print(BUGNUMBER + ": " + summary);
 
@@ -13,15 +12,15 @@ print(BUGNUMBER + ": " + summary);
  * BEGIN TEST *
  **************/
 
-assertEq(parseInt("08"), 8);
-assertEq(parseInt("09"), 9);
-assertEq(parseInt("014"), 14);
+assertEq(parseInt("08"), 0);
+assertEq(parseInt("09"), 0);
+assertEq(parseInt("014"), 12);
 
 function strictParseInt(s) { "use strict"; return parseInt(s); }
 
-assertEq(strictParseInt("08"), 8);
-assertEq(strictParseInt("09"), 9);
-assertEq(strictParseInt("014"), 14);
+assertEq(strictParseInt("08"), 0);
+assertEq(strictParseInt("09"), 0);
+assertEq(strictParseInt("014"), 12);
 
 /******************************************************************************/
 

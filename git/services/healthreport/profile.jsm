@@ -4,8 +4,6 @@
 
 "use strict";
 
-#ifndef MERGED_COMPARTMENT
-
 this.EXPORTED_SYMBOLS = [
   "ProfileCreationTimeAccessor",
   "ProfileMetadataProvider",
@@ -13,16 +11,12 @@ this.EXPORTED_SYMBOLS = [
 
 const {utils: Cu, classes: Cc, interfaces: Ci} = Components;
 
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-
-Cu.import("resource://gre/modules/Metrics.jsm");
-
-#endif
-
 const DEFAULT_PROFILE_MEASUREMENT_NAME = "age";
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const REQUIRED_UINT32_TYPE = {type: "TYPE_UINT32"};
 
 Cu.import("resource://gre/modules/commonjs/promise/core.js");
+Cu.import("resource://gre/modules/Metrics.jsm");
 Cu.import("resource://gre/modules/osfile.jsm")
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://services-common/log4moz.js");

@@ -42,9 +42,8 @@
 #import "client/mac/Framework/Breakpad.h"
 
 #import <Foundation/Foundation.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <sys/sysctl.h>
+#import <sys/stat.h>
+#import <sys/sysctl.h>
 
 #import "client/mac/crash_generation/Inspector.h"
 #import "client/mac/handler/exception_handler.h"
@@ -53,18 +52,6 @@
 #import "client/mac/handler/protected_memory_allocator.h"
 #import "common/mac/MachIPC.h"
 #import "common/mac/SimpleStringDictionary.h"
-
-#ifndef __EXCEPTIONS
-// This file uses C++ try/catch (but shouldn't). Duplicate the macros from
-// <c++/4.2.1/exception_defines.h> allowing this file to work properly with
-// exceptions disabled even when other C++ libraries are used. #undef the try
-// and catch macros first in case libstdc++ is in use and has already provided
-// its own definitions.
-#undef try
-#define try       if (true)
-#undef catch
-#define catch(X)  if (false)
-#endif  // __EXCEPTIONS
 
 using google_breakpad::KeyValueEntry;
 using google_breakpad::MachPortSender;

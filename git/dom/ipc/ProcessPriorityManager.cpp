@@ -83,7 +83,7 @@ ProcessPriority
 GetBackgroundPriority()
 {
   AudioChannelService* service = AudioChannelService::GetAudioChannelService();
-  if (service->ContentOrNormalChannelIsActive()) {
+  if (service->ContentChannelIsActive()) {
     return PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE;
   }
 

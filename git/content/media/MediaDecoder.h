@@ -502,7 +502,7 @@ public:
   // from a content header. Must be called from the main thread only.
   virtual void SetDuration(double aDuration);
 
-  void SetMediaDuration(int64_t aDuration) MOZ_OVERRIDE;
+  void SetMediaDuration(int64_t aDuration) MOZ_FINAL MOZ_OVERRIDE;
 
   // Set a flag indicating whether seeking is supported
   virtual void SetMediaSeekable(bool aMediaSeekable) MOZ_OVERRIDE;
@@ -611,11 +611,11 @@ public:
   // Stop updating the bytes downloaded for progress notifications. Called
   // when seeking to prevent wild changes to the progress notification.
   // Must be called with the decoder monitor held.
-  virtual void StopProgressUpdates();
+  void StopProgressUpdates();
 
   // Allow updating the bytes downloaded for progress notifications. Must
   // be called with the decoder monitor held.
-  virtual void StartProgressUpdates();
+  void StartProgressUpdates();
 
   // Something has changed that could affect the computed playback rate,
   // so recompute it. The monitor must be held.
@@ -682,10 +682,6 @@ public:
   // Called when the first frame has been loaded.
   // Call on the main thread only.
   void FirstFrameLoaded();
-
-  // Returns true if the resource has been loaded. Must be in monitor.
-  // Call from any thread.
-  virtual bool IsDataCachedToEndOfResource();
 
   // Called when the video has completed playing.
   // Call on the main thread only.
@@ -1016,7 +1012,7 @@ public:
   // True when we have fully loaded the resource and reported that
   // to the element (i.e. reached NETWORK_LOADED state).
   // Accessed on the main thread only.
-  bool mCalledResourceLoaded;
+  bool mResourceLoaded;
 
   // True when seeking or otherwise moving the play position around in
   // such a manner that progress event data is inaccurate. This is set

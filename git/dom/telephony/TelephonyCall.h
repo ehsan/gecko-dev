@@ -100,10 +100,6 @@ private:
 
   void
   ChangeStateInternal(uint16_t aCallState, bool aFireEvents);
-
-  nsresult
-  DispatchCallEvent(const nsAString& aType,
-                    nsIDOMTelephonyCall* aCall);
 };
 
 END_TELEPHONY_NAMESPACE

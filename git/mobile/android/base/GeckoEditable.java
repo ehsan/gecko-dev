@@ -77,9 +77,9 @@ final class GeckoEditable
     private final SpannableStringBuilder mText;
     private final SpannableStringBuilder mChangedText;
     private final Editable mProxy;
+    private final GeckoEditableListener mListener;
     private final ActionQueue mActionQueue;
 
-    private GeckoEditableListener mListener;
     private int mSavedSelectionStart;
     private volatile int mGeckoUpdateSeqno;
     private int mUIUpdateSeqno;
@@ -545,8 +545,10 @@ final class GeckoEditable
     @Override
     public void notifyIMEEnabled(final int state, final String typeHint,
                           final String modeHint, final String actionHint) {
-        // Because we want to be able to bind GeckoEditable to the newest LayerView instance,
-        // this can be called from the Java UI thread in addition to the Gecko thread.
+        if (DEBUG) {
+            // GeckoEditableListener methods should all be called from the Gecko thread
+            GeckoApp.assertOnGeckoThread();
+        }
         geckoPostToUI(new Runnable() {
             public void run() {
                 // Make sure there are no other things going on
@@ -556,10 +558,10 @@ final class GeckoEditable
                 // InputConnectionHandler.onCreateInputConnection
                 LayerView v = GeckoApp.mAppContext.getLayerView();
                 if (v != null) {
-                    mListener = GeckoInputConnection.create(v, GeckoEditable.this);
                     v.setInputConnectionHandler((InputConnectionHandler)mListener);
-                    mListener.notifyIMEEnabled(state, typeHint, modeHint, actionHint);
                 }
+                mListener.notifyIMEEnabled(state, typeHint,
+                                           modeHint, actionHint);
             }
         });
     }

@@ -100,10 +100,6 @@ private:
                const nsAString& aNumber,
                nsIDOMTelephonyCall** aResult);
 
-  nsresult
-  DispatchCallEvent(const nsAString& aType,
-                    nsIDOMTelephonyCall* aCall);
-
   class RILTelephonyCallback : public nsIRILTelephonyCallback
   {
     Telephony* mTelephony;

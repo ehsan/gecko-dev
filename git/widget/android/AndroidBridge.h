@@ -327,7 +327,7 @@ public:
     void CreateMessageList(const dom::sms::SmsFilterData& aFilter, bool aReverse, nsISmsRequest* aRequest);
     void GetNextMessageInList(int32_t aListId, nsISmsRequest* aRequest);
     void ClearMessageList(int32_t aListId);
-    already_AddRefed<nsISmsRequest> DequeueSmsRequest(uint32_t aRequestId);
+    already_AddRefed<nsISmsRequest> DequeueSmsRequest(int32_t aRequestId);
 
     bool IsTablet();
 
@@ -406,7 +406,7 @@ protected:
 
     int mAPIVersion;
 
-    bool QueueSmsRequest(nsISmsRequest* aRequest, uint32_t* aRequestIdOut);
+    int32_t QueueSmsRequest(nsISmsRequest* aRequest);
 
     // other things
     jmethodID jNotifyIME;
@@ -664,5 +664,6 @@ private:
 
 protected:
 };
+
 
 #endif /* AndroidBridge_h__ */

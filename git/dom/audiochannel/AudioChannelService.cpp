@@ -67,7 +67,6 @@ NS_IMPL_ISUPPORTS0(AudioChannelService)
 
 AudioChannelService::AudioChannelService()
 : mCurrentHigherChannel(AUDIO_CHANNEL_LAST)
-, mCurrentVisibleHigherChannel(AUDIO_CHANNEL_LAST)
 , mActiveContentChildIDsFrozen(false)
 {
   // Creation of the hash table.
@@ -215,11 +214,10 @@ AudioChannelService::GetMutedInternal(AudioChannelType aType, uint64_t aChildID,
 }
 
 bool
-AudioChannelService::ContentOrNormalChannelIsActive()
+AudioChannelService::ContentChannelIsActive()
 {
   return !mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].IsEmpty() ||
-         !mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN].IsEmpty() ||
-         !mChannelCounters[AUDIO_CHANNEL_INT_NORMAL].IsEmpty();
+         !mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN].IsEmpty();
 }
 
 void
@@ -261,34 +259,30 @@ AudioChannelService::SendAudioChannelChangedNotification()
     higher = AUDIO_CHANNEL_NORMAL;
   }
 
-  AudioChannelType visibleHigher = higher;
-
   // Top-Down in the hierarchy for non-visible elements
-  if (higher == AUDIO_CHANNEL_LAST) {
-    if (!mChannelCounters[AUDIO_CHANNEL_INT_PUBLICNOTIFICATION_HIDDEN].IsEmpty()) {
-      higher = AUDIO_CHANNEL_PUBLICNOTIFICATION;
-    }
+  else if (!mChannelCounters[AUDIO_CHANNEL_INT_PUBLICNOTIFICATION_HIDDEN].IsEmpty()) {
+    higher = AUDIO_CHANNEL_PUBLICNOTIFICATION;
+  }
 
-    else if (!mChannelCounters[AUDIO_CHANNEL_INT_RINGER_HIDDEN].IsEmpty()) {
-      higher = AUDIO_CHANNEL_RINGER;
-    }
+  else if (!mChannelCounters[AUDIO_CHANNEL_INT_RINGER_HIDDEN].IsEmpty()) {
+    higher = AUDIO_CHANNEL_RINGER;
+  }
 
-    else if (!mChannelCounters[AUDIO_CHANNEL_INT_TELEPHONY_HIDDEN].IsEmpty()) {
-      higher = AUDIO_CHANNEL_TELEPHONY;
-    }
+  else if (!mChannelCounters[AUDIO_CHANNEL_INT_TELEPHONY_HIDDEN].IsEmpty()) {
+    higher = AUDIO_CHANNEL_TELEPHONY;
+  }
 
-    else if (!mChannelCounters[AUDIO_CHANNEL_INT_ALARM_HIDDEN].IsEmpty()) {
-      higher = AUDIO_CHANNEL_ALARM;
-    }
+  else if (!mChannelCounters[AUDIO_CHANNEL_INT_ALARM_HIDDEN].IsEmpty()) {
+    higher = AUDIO_CHANNEL_ALARM;
+  }
 
-    else if (!mChannelCounters[AUDIO_CHANNEL_INT_NOTIFICATION_HIDDEN].IsEmpty()) {
-      higher = AUDIO_CHANNEL_NOTIFICATION;
-    }
+  else if (!mChannelCounters[AUDIO_CHANNEL_INT_NOTIFICATION_HIDDEN].IsEmpty()) {
+    higher = AUDIO_CHANNEL_NOTIFICATION;
+  }
 
-    // Content channels play in background if just one is active.
-    else if (!mActiveContentChildIDs.IsEmpty()) {
-      higher = AUDIO_CHANNEL_CONTENT;
-    }
+  // Content channels play in background if just one is active.
+  else if (!mActiveContentChildIDs.IsEmpty()) {
+    higher = AUDIO_CHANNEL_CONTENT;
   }
 
   if (higher != mCurrentHigherChannel) {
@@ -303,20 +297,6 @@ AudioChannelService::SendAudioChannelChangedNotification()
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     obs->NotifyObservers(nullptr, "audio-channel-changed", channelName.get());
-  }
-
-  if (visibleHigher != mCurrentVisibleHigherChannel) {
-    mCurrentVisibleHigherChannel = visibleHigher;
-
-    nsString channelName;
-    if (mCurrentVisibleHigherChannel != AUDIO_CHANNEL_LAST) {
-      channelName.AssignASCII(ChannelName(mCurrentVisibleHigherChannel));
-    } else {
-      channelName.AssignLiteral("none");
-    }
-
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(nullptr, "visible-audio-channel-changed", channelName.get());
   }
 }
 

@@ -190,31 +190,15 @@ class MinidumpContext : public MinidumpStream {
   const MDRawContextPPC*   GetContextPPC() const;
   const MDRawContextSPARC* GetContextSPARC() const;
   const MDRawContextX86*   GetContextX86() const;
-
+ 
   // Print a human-readable representation of the object to stdout.
   void Print();
-
- protected:
-  explicit MinidumpContext(Minidump* minidump);
-
-  // The CPU-specific context structure.
-  union {
-    MDRawContextBase*  base;
-    MDRawContextX86*   x86;
-    MDRawContextPPC*   ppc;
-    MDRawContextAMD64* amd64;
-    // on Solaris SPARC, sparc is defined as a numeric constant,
-    // so variables can NOT be named as sparc
-    MDRawContextSPARC* ctx_sparc;
-    MDRawContextARM*   arm;
-  } context_;
-
-  // Store this separately because of the weirdo AMD64 context
-  u_int32_t context_flags_;
 
  private:
   friend class MinidumpThread;
   friend class MinidumpException;
+
+  explicit MinidumpContext(Minidump* minidump);
 
   bool Read(u_int32_t expected_size);
 
@@ -227,6 +211,21 @@ class MinidumpContext : public MinidumpStream {
   // match.  Returns true if the CPU type matches or if the minidump does
   // not contain a system info stream.
   bool CheckAgainstSystemInfo(u_int32_t context_cpu_type);
+
+  // Store this separately because of the weirdo AMD64 context
+  u_int32_t context_flags_;
+
+  // The CPU-specific context structure.
+  union {
+    MDRawContextBase*  base;
+    MDRawContextX86*   x86;
+    MDRawContextPPC*   ppc;
+    MDRawContextAMD64* amd64;
+    // on Solaris SPARC, sparc is defined as a numeric constant,
+    // so variables can NOT be named as sparc
+    MDRawContextSPARC* ctx_sparc;
+    MDRawContextARM*   arm;
+  } context_;
 };
 
 
@@ -269,12 +268,11 @@ class MinidumpMemoryRegion : public MinidumpObject,
   // Print a human-readable representation of the object to stdout.
   void Print();
 
- protected:
-  explicit MinidumpMemoryRegion(Minidump* minidump);
-
  private:
   friend class MinidumpThread;
   friend class MinidumpMemoryList;
+
+  explicit MinidumpMemoryRegion(Minidump* minidump);
 
   // Identify the base address and size of the memory region, and the
   // location it may be found in the minidump file.
@@ -302,34 +300,28 @@ class MinidumpMemoryRegion : public MinidumpObject,
 // the thread that caused an exception, the context carried by
 // MinidumpException is probably desired instead of the CPU context
 // provided here.
-// Note that a MinidumpThread may be valid() even if it does not
-// contain a memory region or context.
 class MinidumpThread : public MinidumpObject {
  public:
   virtual ~MinidumpThread();
 
   const MDRawThread* thread() const { return valid_ ? &thread_ : NULL; }
-  // GetMemory may return NULL even if the MinidumpThread is valid,
-  // if the thread memory cannot be read.
-  virtual MinidumpMemoryRegion* GetMemory();
-  // GetContext may return NULL even if the MinidumpThread is valid.
-  virtual MinidumpContext* GetContext();
+  MinidumpMemoryRegion* GetMemory();
+  MinidumpContext* GetContext();
 
   // The thread ID is used to determine if a thread is the exception thread,
   // so a special getter is provided to retrieve this data from the
   // MDRawThread structure.  Returns false if the thread ID cannot be
   // determined.
-  virtual bool GetThreadID(u_int32_t *thread_id) const;
+  bool GetThreadID(u_int32_t *thread_id) const;
 
   // Print a human-readable representation of the object to stdout.
   void Print();
 
- protected:
-  explicit MinidumpThread(Minidump* minidump);
-
  private:
   // These objects are managed by MinidumpThreadList.
   friend class MinidumpThreadList;
+
+  explicit MinidumpThread(Minidump* minidump);
 
   // This works like MinidumpStream::Read, but is driven by
   // MinidumpThreadList.  No size checking is done, because
@@ -353,21 +345,18 @@ class MinidumpThreadList : public MinidumpStream {
   }
   static u_int32_t max_threads() { return max_threads_; }
 
-  virtual unsigned int thread_count() const {
+  unsigned int thread_count() const {
     return valid_ ? thread_count_ : 0;
   }
 
   // Sequential access to threads.
-  virtual MinidumpThread* GetThreadAtIndex(unsigned int index) const;
+  MinidumpThread* GetThreadAtIndex(unsigned int index) const;
 
   // Random access to threads.
   MinidumpThread* GetThreadByID(u_int32_t thread_id);
 
   // Print a human-readable representation of the object to stdout.
   void Print();
-
- protected:
-  explicit MinidumpThreadList(Minidump* aMinidump);
 
  private:
   friend class Minidump;
@@ -376,6 +365,8 @@ class MinidumpThreadList : public MinidumpStream {
   typedef vector<MinidumpThread> MinidumpThreads;
 
   static const u_int32_t kStreamType = MD_THREAD_LIST_STREAM;
+
+  explicit MinidumpThreadList(Minidump* aMinidump);
 
   bool Read(u_int32_t aExpectedSize);
 
@@ -535,15 +526,14 @@ class MinidumpModuleList : public MinidumpStream,
   // Print a human-readable representation of the object to stdout.
   void Print();
 
- protected:
-  explicit MinidumpModuleList(Minidump* minidump);
-
  private:
   friend class Minidump;
 
   typedef vector<MinidumpModule> MinidumpModules;
 
   static const u_int32_t kStreamType = MD_MODULE_LIST_STREAM;
+
+  explicit MinidumpModuleList(Minidump* minidump);
 
   bool Read(u_int32_t expected_size);
 
@@ -732,20 +722,20 @@ class MinidumpSystemInfo : public MinidumpStream {
   // Print a human-readable representation of the object to stdout.
   void Print();
 
- protected:
-  explicit MinidumpSystemInfo(Minidump* minidump);
-  MDRawSystemInfo system_info_;
-
-  // Textual representation of the OS service pack, for minidumps produced
-  // by MiniDumpWriteDump on Windows.
-  const string* csd_version_;
-
  private:
   friend class Minidump;
 
   static const u_int32_t kStreamType = MD_SYSTEM_INFO_STREAM;
 
+  explicit MinidumpSystemInfo(Minidump* minidump);
+
   bool Read(u_int32_t expected_size);
+
+  MDRawSystemInfo system_info_;
+
+  // Textual representation of the OS service pack, for minidumps produced
+  // by MiniDumpWriteDump on Windows.
+  const string* csd_version_;
 
   // A string identifying the CPU vendor, if known.
   const string* cpu_vendor_;
@@ -908,16 +898,6 @@ class Minidump {
 
   virtual const MDRawHeader* header() const { return valid_ ? &header_ : NULL; }
 
-  // Reads the CPU information from the system info stream and generates the
-  // appropriate CPU flags.  The returned context_cpu_flags are the same as
-  // if the CPU type bits were set in the context_flags of a context record.
-  // On success, context_cpu_flags will have the flags that identify the CPU.
-  // If a system info stream is missing, context_cpu_flags will be 0.
-  // Returns true if the current position in the stream was not changed.
-  // Returns false when the current location in the stream was changed and the
-  // attempt to restore the original position failed.
-  bool GetContextCPUFlagsFromSystemInfo(u_int32_t* context_cpu_flags);
-
   // Reads the minidump file's header and top-level stream directory.
   // The minidump is expected to be positioned at the beginning of the
   // header.  Read() sets up the stream list and map, and validates the
@@ -933,7 +913,7 @@ class Minidump {
   MinidumpMemoryList* GetMemoryList();
   MinidumpException* GetException();
   MinidumpAssertion* GetAssertion();
-  virtual MinidumpSystemInfo* GetSystemInfo();
+  MinidumpSystemInfo* GetSystemInfo();
   MinidumpMiscInfo* GetMiscInfo();
   MinidumpBreakpadInfo* GetBreakpadInfo();
   MinidumpMemoryInfoList* GetMemoryInfoList();

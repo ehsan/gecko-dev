@@ -228,8 +228,6 @@ class Context: public Section {
   // Create a context belonging to DUMP whose contents are a copy of CONTEXT.
   Context(const Dump &dump, const MDRawContextX86 &context);
   Context(const Dump &dump, const MDRawContextARM &context);
-  // Add an empty context to the dump.
-  Context(const Dump &dump) : Section(dump) {}
   // Add constructors for other architectures here. Remember to byteswap.
 };
 

@@ -57,11 +57,7 @@ MightNeedIMEFocus(const nsWidgetInitData* aInitData)
 {
   // In the puppet-widget world, popup widgets are just dummies and
   // shouldn't try to mess with IME state.
-#ifdef MOZ_CROSS_PROCESS_IME
   return !IsPopup(aInitData);
-#else
-  return false;
-#endif
 }
 
 
@@ -339,10 +335,6 @@ PuppetWidget::GetThebesSurface()
 nsresult
 PuppetWidget::IMEEndComposition(bool aCancel)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return NS_OK;
-#endif
-
   nsEventStatus status;
   nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
   InitEvent(textEvent, nullptr);
@@ -382,10 +374,6 @@ NS_IMETHODIMP_(void)
 PuppetWidget::SetInputContext(const InputContext& aContext,
                               const InputContextAction& aAction)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return;
-#endif
-
   if (!mTabChild) {
     return;
   }
@@ -402,10 +390,6 @@ PuppetWidget::SetInputContext(const InputContext& aContext,
 NS_IMETHODIMP_(InputContext)
 PuppetWidget::GetInputContext()
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return InputContext();
-#endif
-
   InputContext context;
   if (mTabChild) {
     int32_t enabled, open;
@@ -421,10 +405,6 @@ PuppetWidget::GetInputContext()
 NS_IMETHODIMP
 PuppetWidget::OnIMEFocusChange(bool aFocus)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return NS_OK;
-#endif
-
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
@@ -469,10 +449,6 @@ PuppetWidget::GetIMEUpdatePreference()
 NS_IMETHODIMP
 PuppetWidget::OnIMETextChange(uint32_t aStart, uint32_t aEnd, uint32_t aNewEnd)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return NS_OK;
-#endif
-
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
@@ -496,10 +472,6 @@ PuppetWidget::OnIMETextChange(uint32_t aStart, uint32_t aEnd, uint32_t aNewEnd)
 NS_IMETHODIMP
 PuppetWidget::OnIMESelectionChange(void)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return NS_OK;
-#endif
-
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
@@ -549,23 +521,21 @@ PuppetWidget::Paint()
   mDirtyRegion.SetEmpty();
   mPaintTask.Revoke();
 
-  mAttachedWidgetListener->WillPaintWindow(this);
-
-  if (mAttachedWidgetListener) {
+  {
 #ifdef DEBUG
     debug_DumpPaintEvent(stderr, this, region,
                          nsAutoCString("PuppetWidget"), 0);
 #endif
 
     if (mozilla::layers::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
-      mAttachedWidgetListener->PaintWindow(this, region, 0);
+      mAttachedWidgetListener->PaintWindow(this, region, nsIWidgetListener::WILL_SEND_DID_PAINT);
     } else {
       nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
       ctx->Rectangle(gfxRect(0,0,0,0));
       ctx->Clip();
       AutoLayerManagerSetup setupLayerManager(this, ctx,
                                               BUFFER_NONE);
-      mAttachedWidgetListener->PaintWindow(this, region, 0);
+      mAttachedWidgetListener->PaintWindow(this, region, nsIWidgetListener::WILL_SEND_DID_PAINT);
       mTabChild->NotifyPainted();
     }
   }

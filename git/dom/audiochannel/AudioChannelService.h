@@ -57,7 +57,7 @@ public:
    * Return true if there is a content channel active in this process
    * or one of its subprocesses.
    */
-  virtual bool ContentOrNormalChannelIsActive();
+  virtual bool ContentChannelIsActive();
 
 protected:
   void Notify();
@@ -127,7 +127,6 @@ protected:
   nsTArray<uint64_t> mChannelCounters[AUDIO_CHANNEL_INT_LAST];
 
   AudioChannelType mCurrentHigherChannel;
-  AudioChannelType mCurrentVisibleHigherChannel;
 
   nsTArray<uint64_t> mActiveContentChildIDs;
   bool mActiveContentChildIDsFrozen;

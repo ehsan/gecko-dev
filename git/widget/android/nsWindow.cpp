@@ -131,7 +131,6 @@ nsWindow::TopWindow()
 void
 nsWindow::LogWindow(nsWindow *win, int index, int indent)
 {
-#if defined(DEBUG) || defined(FORCE_ALOG)
     char spaces[] = "                    ";
     spaces[indent < 20 ? indent : 20] = 0;
     ALOG("%s [% 2d] 0x%08x [parent 0x%08x] [% 3d,% 3dx% 3d,% 3d] vis %d type %d",
@@ -139,7 +138,6 @@ nsWindow::LogWindow(nsWindow *win, int index, int indent)
          win->mBounds.x, win->mBounds.y,
          win->mBounds.width, win->mBounds.height,
          win->mIsVisible, win->mWindowType);
-#endif
 }
 
 void
@@ -1013,9 +1011,8 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
 
     // If we have no covering child, then we need to render this.
     if (coveringChildIndex == -1) {
+        bool painted = false;
         nsIntRegion region = invalidRect;
-
-        mWidgetListener->WillPaintWindow(this);
 
         switch (GetLayerManager(nullptr)->GetBackendType()) {
             case mozilla::layers::LAYERS_BASIC: {
@@ -1027,8 +1024,18 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
                     AutoLayerManagerSetup
                       setupLayerManager(this, ctx, mozilla::layers::BUFFER_NONE);
 
-                    mWidgetListener->PaintWindow(this, region, 0);
+                    painted = mWidgetListener->PaintWindow(this, region, 0);
                 }
+
+                // XXX uhh.. we can't just ignore this because we no longer have
+                // what we needed before, but let's keep drawing the children anyway?
+#if 0
+                if (!painted)
+                    return false;
+#endif
+
+                // XXX if we got an ignore for the parent, do we still want to draw the children?
+                // We don't really have a good way not to...
                 break;
             }
 
@@ -1037,15 +1044,13 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
                 static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nullptr))->
                     SetClippingRegion(nsIntRegion(boundsRect));
 
-                mWidgetListener->PaintWindow(this, region, 0);
+                painted = mWidgetListener->PaintWindow(this, region, 0);
                 break;
             }
 
             default:
                 NS_ERROR("Invalid layer manager");
         }
-
-        mWidgetListener->DidPaintWindow();
 
         // We had no covering child, so make sure we draw all the children,
         // starting from index 0.
@@ -1698,7 +1703,7 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
 #ifdef DEBUG_ANDROID_IME
 #define ALOGIME(args...) ALOG(args)
 #else
-#define ALOGIME(args...) ((void)0)
+#define ALOGIME(args...)
 #endif
 
 static nscolor

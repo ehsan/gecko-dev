@@ -194,7 +194,7 @@ MBasicBlock::inherit(MBasicBlock *pred, uint32_t popped)
 
     // Create a resume point using our initial stack state.
     entryResumePoint_ = new MResumePoint(this, pc(), callerResumePoint, MResumePoint::ResumeAt);
-    if (!entryResumePoint_->init())
+    if (!entryResumePoint_->init(this))
         return false;
 
     if (pred) {
@@ -204,16 +204,15 @@ MBasicBlock::inherit(MBasicBlock *pred, uint32_t popped)
         if (kind_ == PENDING_LOOP_HEADER) {
             for (size_t i = 0; i < stackDepth(); i++) {
                 MPhi *phi = MPhi::New(i);
-                if (!phi->initLength(1))
+                if (!phi->addInput(pred->getSlot(i)))
                     return false;
-                phi->setOperand(0, pred->getSlot(i));
                 addPhi(phi);
                 setSlot(i, phi);
-                entryResumePoint()->setOperand(i, phi);
+                entryResumePoint()->initOperand(i, phi);
             }
         } else {
             for (size_t i = 0; i < stackDepth(); i++)
-                entryResumePoint()->setOperand(i, getSlot(i));
+                entryResumePoint()->initOperand(i, getSlot(i));
         }
     }
 
@@ -266,7 +265,7 @@ void
 MBasicBlock::initSlot(uint32_t slot, MDefinition *ins)
 {
     slots_[slot] = ins;
-    entryResumePoint()->setOperand(slot, ins);
+    entryResumePoint()->initOperand(slot, ins);
 }
 
 void
@@ -465,22 +464,11 @@ MBasicBlock::moveBefore(MInstruction *at, MInstruction *ins)
     at->block()->insertBefore(at, ins);
 }
 
-static inline void
-AssertSafelyDiscardable(MDefinition *def)
-{
-#ifdef DEBUG
-    // Instructions captured by resume points cannot be safely discarded, since
-    // they are necessary for interpreter frame reconstruction in case of bailout.
-    JS_ASSERT(def->useCount() == 0);
-#endif
-}
-
 void
 MBasicBlock::discard(MInstruction *ins)
 {
-    AssertSafelyDiscardable(ins);
     for (size_t i = 0; i < ins->numOperands(); i++)
-        ins->discardOperand(i);
+        ins->replaceOperand(i, NULL);
 
     instructions_.remove(ins);
 }
@@ -488,9 +476,8 @@ MBasicBlock::discard(MInstruction *ins)
 MInstructionIterator
 MBasicBlock::discardAt(MInstructionIterator &iter)
 {
-    AssertSafelyDiscardable(*iter);
     for (size_t i = 0; i < iter->numOperands(); i++)
-        iter->discardOperand(i);
+        iter->replaceOperand(i, NULL);
 
     return instructions_.removeAt(iter);
 }
@@ -498,9 +485,8 @@ MBasicBlock::discardAt(MInstructionIterator &iter)
 MInstructionReverseIterator
 MBasicBlock::discardAt(MInstructionReverseIterator &iter)
 {
-    AssertSafelyDiscardable(*iter);
     for (size_t i = 0; i < iter->numOperands(); i++)
-        iter->discardOperand(i);
+        iter->replaceOperand(i, NULL);
 
     return instructions_.removeAt(iter);
 }
@@ -569,7 +555,7 @@ MBasicBlock::discardPhiAt(MPhiIterator &at)
     JS_ASSERT(!phis_.empty());
 
     for (size_t i = 0; i < at->numOperands(); i++)
-        at->discardOperand(i);
+        at->replaceOperand(i, NULL);
 
     MPhiIterator result = phis_.removeAt(at);
 
@@ -601,32 +587,33 @@ MBasicBlock::addPredecessorPopN(MBasicBlock *pred, uint32_t popped)
         MDefinition *other = pred->getSlot(i);
 
         if (mine != other) {
+            MPhi *phi;
+
             // If the current instruction is a phi, and it was created in this
             // basic block, then we have already placed this phi and should
             // instead append to its operands.
             if (mine->isPhi() && mine->block() == this) {
                 JS_ASSERT(predecessors_.length());
-                if (!mine->toPhi()->addInputSlow(other))
-                    return false;
+                phi = mine->toPhi();
             } else {
                 // Otherwise, create a new phi node.
-                MPhi *phi = MPhi::New(i);
+                phi = MPhi::New(i);
                 addPhi(phi);
 
                 // Prime the phi for each predecessor, so input(x) comes from
                 // predecessor(x).
-                if (!phi->initLength(predecessors_.length() + 1))
-                    return false;
-
                 for (size_t j = 0; j < predecessors_.length(); j++) {
                     JS_ASSERT(predecessors_[j]->getSlot(i) == mine);
-                    phi->setOperand(j, mine);
+                    if (!phi->addInput(mine))
+                        return false;
                 }
-                phi->setOperand(predecessors_.length(), other);
 
                 setSlot(i, phi);
                 entryResumePoint()->replaceOperand(i, phi);
             }
+
+            if (!phi->addInput(other))
+                return false;
         }
     }
 
@@ -652,8 +639,8 @@ MBasicBlock::assertUsesAreNotWithin(MUseIterator use, MUseIterator end)
 {
 #ifdef DEBUG
     for (; use != end; use++) {
-        JS_ASSERT_IF(use->consumer()->isDefinition(),
-                     use->consumer()->toDefinition()->block()->id() < id());
+        JS_ASSERT_IF(use->node()->isDefinition(),
+                     use->node()->toDefinition()->block()->id() < id());
     }
 #endif
 }
@@ -696,7 +683,7 @@ MBasicBlock::setBackedge(MBasicBlock *pred)
             exitDef = entryDef->getOperand(0);
         }
 
-        if (!entryDef->addInputSlow(exitDef))
+        if (!entryDef->addInput(exitDef))
             return false;
 
         JS_ASSERT(entryDef->slot() < pred->stackDepth());

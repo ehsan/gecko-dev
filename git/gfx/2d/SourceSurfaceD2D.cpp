@@ -171,9 +171,7 @@ DataSourceSurfaceD2D::DataSourceSurfaceD2D(SourceSurfaceD2D* aSourceSurface)
 
   renderTarget->BeginDraw();
   renderTarget->DrawBitmap(aSourceSurface->mBitmap,
-                           D2D1::RectF(0, 0,
-                                       Float(mSize.width),
-                                       Float(mSize.height)));
+                           D2D1::RectF(0, 0, mSize.width, mSize.height));
   renderTarget->EndDraw();
 
   desc.CPUAccessFlags = D3D10_CPU_ACCESS_READ;

@@ -122,18 +122,13 @@ new TestCase( SECTION,
 
 new TestCase( SECTION,
 	      'parseInt("0022")',
-	      22,
+	      18,
 	      parseInt("0022"));
 
 new TestCase( SECTION,
-	      'parseInt("0022", 8)',
-	      18,
-	      parseInt("0022", 8));
-
-new TestCase( SECTION,
-	      'parseInt("0022", 10)',
+	      'parseInt("0022",10)',
 	      22,
-	      parseInt("0022", 10) );
+	      parseInt("0022",10) );
 
 new TestCase( SECTION,
 	      'parseInt("0x1000000000000080")',
