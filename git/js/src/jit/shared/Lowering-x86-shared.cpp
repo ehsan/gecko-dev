@@ -32,38 +32,42 @@ LIRGeneratorX86Shared::newLTableSwitchV(MTableSwitch *tableswitch)
     return new(alloc()) LTableSwitchV(temp(), tempDouble(), temp(), tableswitch);
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitGuardShape(MGuardShape *ins)
 {
     MOZ_ASSERT(ins->obj()->type() == MIRType_Object);
 
     LGuardShape *guard = new(alloc()) LGuardShape(useRegisterAtStart(ins->obj()));
-    assignSnapshot(guard, ins->bailoutKind());
-    add(guard, ins);
-    redefine(ins, ins->obj());
+    if (!assignSnapshot(guard, ins->bailoutKind()))
+        return false;
+    if (!add(guard, ins))
+        return false;
+    return redefine(ins, ins->obj());
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitGuardObjectType(MGuardObjectType *ins)
 {
     MOZ_ASSERT(ins->obj()->type() == MIRType_Object);
 
     LGuardObjectType *guard = new(alloc()) LGuardObjectType(useRegisterAtStart(ins->obj()));
-    assignSnapshot(guard, Bailout_ObjectIdentityOrTypeGuard);
-    add(guard, ins);
-    redefine(ins, ins->obj());
+    if (!assignSnapshot(guard, Bailout_ObjectIdentityOrTypeGuard))
+        return false;
+    if (!add(guard, ins))
+        return false;
+    return redefine(ins, ins->obj());
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitPowHalf(MPowHalf *ins)
 {
     MDefinition *input = ins->input();
     MOZ_ASSERT(input->type() == MIRType_Double);
     LPowHalfD *lir = new(alloc()) LPowHalfD(useRegisterAtStart(input));
-    defineReuseInput(lir, ins, 0);
+    return defineReuseInput(lir, ins, 0);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerForShift(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir,
                                      MDefinition *lhs, MDefinition *rhs)
 {
@@ -76,24 +80,24 @@ LIRGeneratorX86Shared::lowerForShift(LInstructionHelper<1, 2, 0> *ins, MDefiniti
     else
         ins->setOperand(1, lhs != rhs ? useFixed(rhs, ecx) : useFixedAtStart(rhs, ecx));
 
-    defineReuseInput(ins, mir, 0);
+    return defineReuseInput(ins, mir, 0);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerForALU(LInstructionHelper<1, 1, 0> *ins, MDefinition *mir,
                                    MDefinition *input)
 {
     ins->setOperand(0, useRegisterAtStart(input));
-    defineReuseInput(ins, mir, 0);
+    return defineReuseInput(ins, mir, 0);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerForALU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir,
                                    MDefinition *lhs, MDefinition *rhs)
 {
     ins->setOperand(0, useRegisterAtStart(lhs));
     ins->setOperand(1, lhs != rhs ? useOrConstant(rhs) : useOrConstantAtStart(rhs));
-    defineReuseInput(ins, mir, 0);
+    return defineReuseInput(ins, mir, 0);
 }
 
 static bool
@@ -113,7 +117,7 @@ UseAVXEncoding(MIRType type)
 }
 
 template<size_t Temps>
-void
+bool
 LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, Temps> *ins, MDefinition *mir, MDefinition *lhs, MDefinition *rhs)
 {
     // Without AVX, we'll need to use the x86 encodings where one of the
@@ -121,26 +125,26 @@ LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, Temps> *ins, MDefini
     if (!UseAVXEncoding(mir->type())) {
         ins->setOperand(0, useRegisterAtStart(lhs));
         ins->setOperand(1, lhs != rhs ? use(rhs) : useAtStart(rhs));
-        defineReuseInput(ins, mir, 0);
-    } else {
-        ins->setOperand(0, useRegisterAtStart(lhs));
-        ins->setOperand(1, useAtStart(rhs));
-        define(ins, mir);
+        return defineReuseInput(ins, mir, 0);
     }
+
+    ins->setOperand(0, useRegisterAtStart(lhs));
+    ins->setOperand(1, useAtStart(rhs));
+    return define(ins, mir);
 }
 
-template void LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir,
+template bool LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir,
                                                  MDefinition *lhs, MDefinition *rhs);
-template void LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, 1> *ins, MDefinition *mir,
+template bool LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, 1> *ins, MDefinition *mir,
                                                  MDefinition *lhs, MDefinition *rhs);
 
-void
+bool
 LIRGeneratorX86Shared::lowerForCompIx4(LSimdBinaryCompIx4 *ins, MSimdBinaryComp *mir, MDefinition *lhs, MDefinition *rhs)
 {
-    lowerForALU(ins, mir, lhs, rhs);
+    return lowerForALU(ins, mir, lhs, rhs);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerForCompFx4(LSimdBinaryCompFx4 *ins, MSimdBinaryComp *mir, MDefinition *lhs, MDefinition *rhs)
 {
     // Swap the operands around to fit the instructions that x86 actually has.
@@ -156,36 +160,34 @@ LIRGeneratorX86Shared::lowerForCompFx4(LSimdBinaryCompFx4 *ins, MSimdBinaryComp 
         break;
     }
 
-    lowerForFPU(ins, mir, lhs, rhs);
+    return lowerForFPU(ins, mir, lhs, rhs);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerForBitAndAndBranch(LBitAndAndBranch *baab, MInstruction *mir,
                                                MDefinition *lhs, MDefinition *rhs)
 {
     baab->setOperand(0, useRegisterAtStart(lhs));
     baab->setOperand(1, useRegisterOrConstantAtStart(rhs));
-    add(baab, mir);
+    return add(baab, mir);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs)
 {
     // Note: lhs is used twice, so that we can restore the original value for the
     // negative zero check.
     LMulI *lir = new(alloc()) LMulI(useRegisterAtStart(lhs), useOrConstant(rhs), use(lhs));
-    if (mul->fallible())
-        assignSnapshot(lir, Bailout_DoubleOutput);
-    defineReuseInput(lir, mul, 0);
+    if (mul->fallible() && !assignSnapshot(lir, Bailout_DoubleOutput))
+        return false;
+    return defineReuseInput(lir, mul, 0);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerDivI(MDiv *div)
 {
-    if (div->isUnsigned()) {
-        lowerUDiv(div);
-        return;
-    }
+    if (div->isUnsigned())
+        return lowerUDiv(div);
 
     // Division instructions are slow. Division by constant denominators can be
     // rewritten to use other instructions.
@@ -206,109 +208,96 @@ LIRGeneratorX86Shared::lowerDivI(MDiv *div)
                 // lhs copy register is needed.
                 lir = new(alloc()) LDivPowTwoI(lhs, useRegister(div->lhs()), shift, rhs < 0);
             }
-            if (div->fallible())
-                assignSnapshot(lir, Bailout_DoubleOutput);
-            defineReuseInput(lir, div, 0);
-            return;
-        }
-        if (rhs != 0 &&
-            gen->optimizationInfo().registerAllocator() != RegisterAllocator_LSRA)
+            if (div->fallible() && !assignSnapshot(lir, Bailout_DoubleOutput))
+                return false;
+            return defineReuseInput(lir, div, 0);
+        } else if (rhs != 0 &&
+                   gen->optimizationInfo().registerAllocator() != RegisterAllocator_LSRA)
         {
             LDivOrModConstantI *lir;
             lir = new(alloc()) LDivOrModConstantI(useRegister(div->lhs()), rhs, tempFixed(eax));
-            if (div->fallible())
-                assignSnapshot(lir, Bailout_DoubleOutput);
-            defineFixed(lir, div, LAllocation(AnyRegister(edx)));
-            return;
+            if (div->fallible() && !assignSnapshot(lir, Bailout_DoubleOutput))
+                return false;
+            return defineFixed(lir, div, LAllocation(AnyRegister(edx)));
         }
     }
 
     LDivI *lir = new(alloc()) LDivI(useRegister(div->lhs()), useRegister(div->rhs()),
                                     tempFixed(edx));
-    if (div->fallible())
-        assignSnapshot(lir, Bailout_DoubleOutput);
-    defineFixed(lir, div, LAllocation(AnyRegister(eax)));
+    if (div->fallible() && !assignSnapshot(lir, Bailout_DoubleOutput))
+        return false;
+    return defineFixed(lir, div, LAllocation(AnyRegister(eax)));
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerModI(MMod *mod)
 {
-    if (mod->isUnsigned()) {
-        lowerUMod(mod);
-        return;
-    }
+    if (mod->isUnsigned())
+        return lowerUMod(mod);
 
     if (mod->rhs()->isConstant()) {
         int32_t rhs = mod->rhs()->toConstant()->value().toInt32();
         int32_t shift = FloorLog2(Abs(rhs));
         if (rhs != 0 && uint32_t(1) << shift == Abs(rhs)) {
             LModPowTwoI *lir = new(alloc()) LModPowTwoI(useRegisterAtStart(mod->lhs()), shift);
-            if (mod->fallible())
-                assignSnapshot(lir, Bailout_DoubleOutput);
-            defineReuseInput(lir, mod, 0);
-            return;
-        }
-        if (rhs != 0 &&
-            gen->optimizationInfo().registerAllocator() != RegisterAllocator_LSRA)
+            if (mod->fallible() && !assignSnapshot(lir, Bailout_DoubleOutput))
+                return false;
+            return defineReuseInput(lir, mod, 0);
+        } else if (rhs != 0 &&
+                   gen->optimizationInfo().registerAllocator() != RegisterAllocator_LSRA)
         {
             LDivOrModConstantI *lir;
             lir = new(alloc()) LDivOrModConstantI(useRegister(mod->lhs()), rhs, tempFixed(edx));
-            if (mod->fallible())
-                assignSnapshot(lir, Bailout_DoubleOutput);
-            defineFixed(lir, mod, LAllocation(AnyRegister(eax)));
-            return;
+            if (mod->fallible() && !assignSnapshot(lir, Bailout_DoubleOutput))
+                return false;
+            return defineFixed(lir, mod, LAllocation(AnyRegister(eax)));
         }
     }
 
     LModI *lir = new(alloc()) LModI(useRegister(mod->lhs()),
                                     useRegister(mod->rhs()),
                                     tempFixed(eax));
-    if (mod->fallible())
-        assignSnapshot(lir, Bailout_DoubleOutput);
-    defineFixed(lir, mod, LAllocation(AnyRegister(edx)));
+    if (mod->fallible() && !assignSnapshot(lir, Bailout_DoubleOutput))
+        return false;
+    return defineFixed(lir, mod, LAllocation(AnyRegister(edx)));
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitAsmJSNeg(MAsmJSNeg *ins)
 {
-    switch (ins->type()) {
-      case MIRType_Int32:
-        defineReuseInput(new(alloc()) LNegI(useRegisterAtStart(ins->input())), ins, 0);
-        break;
-      case MIRType_Float32:
-        defineReuseInput(new(alloc()) LNegF(useRegisterAtStart(ins->input())), ins, 0);
-        break;
-      case MIRType_Double:
-        defineReuseInput(new(alloc()) LNegD(useRegisterAtStart(ins->input())), ins, 0);
-        break;
-      default:
-        MOZ_CRASH();
-    }
+    if (ins->type() == MIRType_Int32)
+        return defineReuseInput(new(alloc()) LNegI(useRegisterAtStart(ins->input())), ins, 0);
+
+    if (ins->type() == MIRType_Float32)
+        return defineReuseInput(new(alloc()) LNegF(useRegisterAtStart(ins->input())), ins, 0);
+
+    MOZ_ASSERT(ins->type() == MIRType_Double);
+    return defineReuseInput(new(alloc()) LNegD(useRegisterAtStart(ins->input())), ins, 0);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerUDiv(MDiv *div)
 {
     LUDivOrMod *lir = new(alloc()) LUDivOrMod(useRegister(div->lhs()),
                                               useRegister(div->rhs()),
                                               tempFixed(edx));
-    if (div->fallible())
-        assignSnapshot(lir, Bailout_DoubleOutput);
-    defineFixed(lir, div, LAllocation(AnyRegister(eax)));
+    if (div->fallible() && !assignSnapshot(lir, Bailout_DoubleOutput))
+        return false;
+    return defineFixed(lir, div, LAllocation(AnyRegister(eax)));
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerUMod(MMod *mod)
 {
     LUDivOrMod *lir = new(alloc()) LUDivOrMod(useRegister(mod->lhs()),
                                               useRegister(mod->rhs()),
                                               tempFixed(eax));
-    if (mod->fallible())
-        assignSnapshot(lir, Bailout_DoubleOutput);
-    defineFixed(lir, mod, LAllocation(AnyRegister(edx)));
+    if (mod->fallible() && !assignSnapshot(lir, Bailout_DoubleOutput))
+        return false;
+    return defineFixed(lir, mod, LAllocation(AnyRegister(edx)));
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerUrshD(MUrsh *mir)
 {
     MDefinition *lhs = mir->lhs();
@@ -326,55 +315,58 @@ LIRGeneratorX86Shared::lowerUrshD(MUrsh *mir)
     LAllocation rhsAlloc = rhs->isConstant() ? useOrConstant(rhs) : useFixed(rhs, ecx);
 
     LUrshD *lir = new(alloc()) LUrshD(lhsUse, rhsAlloc, tempCopy(lhs, 0));
-    define(lir, mir);
+    return define(lir, mir);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerConstantDouble(double d, MInstruction *mir)
 {
-    define(new(alloc()) LDouble(d), mir);
+    return define(new(alloc()) LDouble(d), mir);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerConstantFloat32(float f, MInstruction *mir)
 {
-    define(new(alloc()) LFloat32(f), mir);
+    return define(new(alloc()) LFloat32(f), mir);
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitConstant(MConstant *ins)
 {
     if (ins->type() == MIRType_Double)
-        lowerConstantDouble(ins->value().toDouble(), ins);
-    else if (ins->type() == MIRType_Float32)
-        lowerConstantFloat32(ins->value().toDouble(), ins);
-    else if (ins->canEmitAtUses())
-        emitAtUses(ins); // Emit non-double constants at their uses.
-    else
-        LIRGeneratorShared::visitConstant(ins);
+        return lowerConstantDouble(ins->value().toDouble(), ins);
+
+    if (ins->type() == MIRType_Float32)
+        return lowerConstantFloat32(ins->value().toDouble(), ins);
+
+    // Emit non-double constants at their uses.
+    if (ins->canEmitAtUses())
+        return emitAtUses(ins);
+
+    return LIRGeneratorShared::visitConstant(ins);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerTruncateDToInt32(MTruncateToInt32 *ins)
 {
     MDefinition *opd = ins->input();
     MOZ_ASSERT(opd->type() == MIRType_Double);
 
     LDefinition maybeTemp = Assembler::HasSSE3() ? LDefinition::BogusTemp() : tempDouble();
-    define(new(alloc()) LTruncateDToInt32(useRegister(opd), maybeTemp), ins);
+    return define(new(alloc()) LTruncateDToInt32(useRegister(opd), maybeTemp), ins);
 }
 
-void
+bool
 LIRGeneratorX86Shared::lowerTruncateFToInt32(MTruncateToInt32 *ins)
 {
     MDefinition *opd = ins->input();
     MOZ_ASSERT(opd->type() == MIRType_Float32);
 
     LDefinition maybeTemp = Assembler::HasSSE3() ? LDefinition::BogusTemp() : tempFloat32();
-    define(new(alloc()) LTruncateFToInt32(useRegister(opd), maybeTemp), ins);
+    return define(new(alloc()) LTruncateFToInt32(useRegister(opd), maybeTemp), ins);
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitForkJoinGetSlice(MForkJoinGetSlice *ins)
 {
     // We fix eax and edx for cmpxchg and div.
@@ -384,10 +376,10 @@ LIRGeneratorX86Shared::visitForkJoinGetSlice(MForkJoinGetSlice *ins)
                           tempFixed(edx),
                           tempFixed(ForkJoinGetSliceReg_temp0),
                           tempFixed(ForkJoinGetSliceReg_temp1));
-    defineFixed(lir, ins, LAllocation(AnyRegister(ForkJoinGetSliceReg_output)));
+    return defineFixed(lir, ins, LAllocation(AnyRegister(ForkJoinGetSliceReg_output)));
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArrayElement *ins)
 {
     MOZ_ASSERT(ins->arrayType() != Scalar::Float32);
@@ -436,13 +428,10 @@ LIRGeneratorX86Shared::visitCompareExchangeTypedArrayElement(MCompareExchangeTyp
     LCompareExchangeTypedArrayElement *lir =
         new(alloc()) LCompareExchangeTypedArrayElement(elements, index, oldval, newval, tempDef);
 
-    if (fixedOutput)
-        defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
-    else
-        define(lir, ins);
+    return fixedOutput ? defineFixed(lir, ins, LAllocation(AnyRegister(eax))) : define(lir, ins);
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElementBinop *ins)
 {
     MOZ_ASSERT(ins->arrayType() != Scalar::Uint8Clamped);
@@ -526,13 +515,10 @@ LIRGeneratorX86Shared::visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElemen
     LAtomicTypedArrayElementBinop *lir =
         new(alloc()) LAtomicTypedArrayElementBinop(elements, index, value, tempDef1, tempDef2);
 
-    if (fixedOutput)
-        defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
-    else
-        define(lir, ins);
+    return fixedOutput ? defineFixed(lir, ins, LAllocation(AnyRegister(eax))) : define(lir, ins);
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins)
 {
     MDefinition *ptr = ins->ptr();
@@ -574,10 +560,10 @@ LIRGeneratorX86Shared::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *
     LAsmJSCompareExchangeHeap *lir =
         new(alloc()) LAsmJSCompareExchangeHeap(useRegister(ptr), oldval, newval);
 
-    defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
+    return defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins)
 {
     MDefinition *ptr = ins->ptr();
@@ -652,10 +638,10 @@ LIRGeneratorX86Shared::visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins)
     LAsmJSAtomicBinopHeap *lir =
         new(alloc()) LAsmJSAtomicBinopHeap(useRegister(ptr), value, tempDef);
 
-    defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
+    return defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitSimdTernaryBitwise(MSimdTernaryBitwise *ins)
 {
     MOZ_ASSERT(IsSimdType(ins->type()));
@@ -673,13 +659,14 @@ LIRGeneratorX86Shared::visitSimdTernaryBitwise(MSimdTernaryBitwise *ins)
         // The output is constrained to be in the same register as the second
         // argument to avoid redundantly copying the result into place. The
         // register allocator will move the result if necessary.
-        defineReuseInput(lins, ins, 1);
-    } else {
-        MOZ_CRASH("Unknown SIMD kind when doing bitwise operations");
+        return defineReuseInput(lins, ins, 1);
     }
+
+    MOZ_CRASH("Unknown SIMD kind when doing bitwise operations");
+    return false;
 }
 
-void
+bool
 LIRGeneratorX86Shared::visitSimdSplatX4(MSimdSplatX4 *ins)
 {
     LAllocation x = useRegisterAtStart(ins->getOperand(0));
@@ -687,17 +674,16 @@ LIRGeneratorX86Shared::visitSimdSplatX4(MSimdSplatX4 *ins)
 
     switch (ins->type()) {
       case MIRType_Int32x4:
-        define(lir, ins);
-        break;
+        return define(lir, ins);
       case MIRType_Float32x4:
-        defineReuseInput(lir, ins, 0);
-        break;
+        return defineReuseInput(lir, ins, 0);
       default:
         MOZ_CRASH("Unknown SIMD kind");
     }
 }
 
-void
+
+bool
 LIRGeneratorX86Shared::visitSimdValueX4(MSimdValueX4 *ins)
 {
     if (ins->type() == MIRType_Float32x4) {
@@ -708,15 +694,15 @@ LIRGeneratorX86Shared::visitSimdValueX4(MSimdValueX4 *ins)
         LAllocation z = useRegister(ins->getOperand(2));
         LAllocation w = useRegister(ins->getOperand(3));
         LDefinition copyY = tempCopy(ins->getOperand(1), 1);
-        defineReuseInput(new (alloc()) LSimdValueFloat32x4(x, y, z, w, copyY), ins, 0);
-    } else {
-        MOZ_ASSERT(ins->type() == MIRType_Int32x4);
-
-        // No defineReuseInput => useAtStart for everyone.
-        LAllocation x = useRegisterAtStart(ins->getOperand(0));
-        LAllocation y = useRegisterAtStart(ins->getOperand(1));
-        LAllocation z = useRegisterAtStart(ins->getOperand(2));
-        LAllocation w = useRegisterAtStart(ins->getOperand(3));
-        define(new(alloc()) LSimdValueInt32x4(x, y, z, w), ins);
+        return defineReuseInput(new (alloc()) LSimdValueFloat32x4(x, y, z, w, copyY), ins, 0);
     }
+
+    // No defineReuseInput => useAtStart for everyone.
+    LAllocation x = useRegisterAtStart(ins->getOperand(0));
+    LAllocation y = useRegisterAtStart(ins->getOperand(1));
+    LAllocation z = useRegisterAtStart(ins->getOperand(2));
+    LAllocation w = useRegisterAtStart(ins->getOperand(3));
+
+    MOZ_ASSERT(ins->type() == MIRType_Int32x4);
+    return define(new(alloc()) LSimdValueInt32x4(x, y, z, w), ins);
 }

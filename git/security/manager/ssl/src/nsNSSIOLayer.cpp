@@ -1844,14 +1844,13 @@ void
 nsSSLIOLayerHelpers::loadVersionFallbackLimit()
 {
   // see nsNSSComponent::setEnabledTLSVersions for pref handling rules
-  uint32_t limit = Preferences::GetUint("security.tls.version.fallback-limit",
-                                        1); // 1 = TLS 1.0
-  SSLVersionRange defaults = { SSL_LIBRARY_VERSION_TLS_1_0,
-                               SSL_LIBRARY_VERSION_TLS_1_0 };
-  SSLVersionRange filledInRange;
-  nsNSSComponent::FillTLSVersionRange(filledInRange, limit, limit, defaults);
-
-  mVersionFallbackLimit = filledInRange.max;
+  int32_t limit = 1;   // 1 = TLS 1.0
+  Preferences::GetInt("security.tls.version.fallback-limit", &limit);
+  limit += SSL_LIBRARY_VERSION_3_0;
+  mVersionFallbackLimit = (uint16_t)limit;
+  if (limit != (int32_t)mVersionFallbackLimit) { // overflow check
+    mVersionFallbackLimit = SSL_LIBRARY_VERSION_TLS_1_0;
+  }
 }
 
 void

@@ -412,7 +412,7 @@ class MDefinition : public MNode
 
     virtual Opcode op() const = 0;
     virtual const char *opName() const = 0;
-    virtual void accept(MDefinitionVisitor *visitor) = 0;
+    virtual bool accept(MDefinitionVisitor *visitor) = 0;
 
     void printName(FILE *fp) const;
     static void PrintOpcodeName(FILE *fp, Opcode op);
@@ -903,8 +903,8 @@ class MInstruction
     const char *opName() const {                                            \
         return #opcode;                                                     \
     }                                                                       \
-    void accept(MDefinitionVisitor *visitor) {                              \
-        visitor->visit##opcode(this);                                       \
+    bool accept(MDefinitionVisitor *visitor) {                              \
+        return visitor->visit##opcode(this);                                \
     }                                                                       \
     virtual TypePolicy *typePolicy();                                       \
     virtual MIRType typePolicySpecialization();
@@ -10534,25 +10534,24 @@ class MGetDOMProperty
     bool init(TempAllocator &alloc, MDefinition *obj, MDefinition *guard,
               MDefinition *globalGuard) {
         MOZ_ASSERT(obj);
-        // guard can be null.
+        MOZ_ASSERT(guard);
         // globalGuard can be null.
-        size_t operandCount = 1;
-        if (guard)
-            ++operandCount;
+        size_t operandCount;
         if (globalGuard)
-            ++operandCount;
+            operandCount = 3;
+        else
+            operandCount = 2;
+
         if (!MVariadicInstruction::init(alloc, operandCount))
             return false;
         initOperand(0, obj);
 
-        size_t operandIndex = 1;
-        // Pin the guard, if we have one as an operand if we want to hoist later.
-        if (guard)
-            initOperand(operandIndex++, guard);
+        // Pin the guard as an operand if we want to hoist later.
+        initOperand(1, guard);
 
         // And the same for the global guard, if we have one.
         if (globalGuard)
-            initOperand(operandIndex, globalGuard);
+            initOperand(2, globalGuard);
 
         return true;
     }

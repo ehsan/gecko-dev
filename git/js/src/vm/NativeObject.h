@@ -311,10 +311,12 @@ IsObjectValueInCompartment(Value v, JSCompartment *comp);
 inline void
 DenseRangeWriteBarrierPost(JSRuntime *rt, NativeObject *obj, uint32_t start, uint32_t count)
 {
+#ifdef JSGC_GENERATIONAL
     if (count > 0) {
         JS::shadow::Runtime *shadowRuntime = JS::shadow::Runtime::asShadowRuntime(rt);
         shadowRuntime->gcStoreBufferPtr()->putSlotFromAnyThread(obj, HeapSlot::Element, start, count);
     }
+#endif
 }
 
 /*
@@ -1162,12 +1164,14 @@ class NativeObject : public JSObject
     inline void privateWriteBarrierPre(void **oldval);
 
     void privateWriteBarrierPost(void **pprivate) {
+#ifdef JSGC_GENERATIONAL
         gc::Cell **cellp = reinterpret_cast<gc::Cell **>(pprivate);
         MOZ_ASSERT(cellp);
         MOZ_ASSERT(*cellp);
         gc::StoreBuffer *storeBuffer = (*cellp)->storeBuffer();
         if (storeBuffer)
             storeBuffer->putCellFromAnyThread(cellp);
+#endif
     }
 
     /* Private data accessors. */
@@ -1244,11 +1248,13 @@ class PlainObject : public NativeObject
 inline void
 NativeObject::privateWriteBarrierPre(void **oldval)
 {
+#ifdef JSGC_INCREMENTAL
     JS::shadow::Zone *shadowZone = this->shadowZoneFromAnyThread();
     if (shadowZone->needsIncrementalBarrier()) {
         if (*oldval && getClass()->trace)
             getClass()->trace(shadowZone->barrierTracer(), this);
     }
+#endif
 }
 
 #ifdef DEBUG

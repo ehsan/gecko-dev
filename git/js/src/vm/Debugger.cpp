@@ -1683,10 +1683,9 @@ Debugger::slowPathPromiseHook(JSContext *cx, Hook hook, HandleObject promise)
 {
     MOZ_ASSERT(hook == OnNewPromise || hook == OnPromiseSettled);
     RootedValue rval(cx);
-
-    // Promise hooks are infallible and we ignore errors from uncaught
-    // exceptions by design.
-    (void) dispatchHook(cx, &rval, hook, promise);
+    DebugOnly<JSTrapStatus> status = dispatchHook(cx, &rval, hook, promise);
+    MOZ_ASSERT(status == JSTRAP_CONTINUE);
+    MOZ_ASSERT(!cx->isExceptionPending());
 }
 
 
@@ -1888,8 +1887,10 @@ UpdateExecutionObservabilityOfScriptsInZone(JSContext *cx, Zone *zone,
 {
     using namespace js::jit;
 
+#ifdef JSGC_GENERATIONAL
     // See note in js::ReleaseAllJITCode.
     cx->runtime()->gc.evictNursery();
+#endif
 
     AutoSuppressProfilerSampling suppressProfilerSampling(cx);
 
@@ -2341,8 +2342,8 @@ const Class Debugger::jsclass = {
     "Debugger",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUG_COUNT),
-    nullptr, nullptr, JS_PropertyStub, JS_StrictPropertyStub,
-    nullptr, nullptr, nullptr, Debugger::finalize,
+    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Debugger::finalize,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
     nullptr,              /* construct   */
@@ -3821,8 +3822,8 @@ const Class DebuggerScript_class = {
     "Script",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSCRIPT_COUNT),
-    nullptr, nullptr, JS_PropertyStub, JS_StrictPropertyStub,
-    nullptr, nullptr, nullptr, nullptr,
+    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, nullptr,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
     nullptr,              /* construct   */
@@ -4337,7 +4338,7 @@ DebuggerScript_getAllOffsets(JSContext *cx, unsigned argc, Value *vp)
             RootedId id(cx, INT_TO_JSID(lineno));
 
             bool found;
-            if (!HasOwnProperty(cx, result, id, &found))
+            if (!js::HasOwnProperty(cx, result, id, &found))
                 return false;
             if (found && !JSObject::getGeneric(cx, result, result, id, &offsetsv))
                 return false;
@@ -4775,8 +4776,8 @@ const Class DebuggerSource_class = {
     "Source",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSOURCE_COUNT),
-    nullptr, nullptr, JS_PropertyStub, JS_StrictPropertyStub,
-    nullptr, nullptr, nullptr, nullptr,
+    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, nullptr,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
     nullptr,              /* construct   */
@@ -5121,8 +5122,8 @@ DebuggerFrame_finalize(FreeOp *fop, JSObject *obj)
 
 const Class DebuggerFrame_class = {
     "Frame", JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGFRAME_COUNT),
-    nullptr, nullptr, JS_PropertyStub, JS_StrictPropertyStub,
-    nullptr, nullptr, nullptr, DebuggerFrame_finalize
+    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, DebuggerFrame_finalize
 };
 
 static NativeObject *
@@ -5340,7 +5341,8 @@ DebuggerFrame_getOlder(JSContext *cx, unsigned argc, Value *vp)
 
 const Class DebuggerArguments_class = {
     "Arguments", JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGARGUMENTS_COUNT),
-    nullptr, nullptr, JS_PropertyStub, JS_StrictPropertyStub
+    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 
 /* The getter used for each element of frame.arguments. See DebuggerFrame_getArguments. */
@@ -5853,8 +5855,8 @@ const Class DebuggerObject_class = {
     "Object",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGOBJECT_COUNT),
-    nullptr, nullptr, JS_PropertyStub, JS_StrictPropertyStub,
-    nullptr, nullptr, nullptr, nullptr,
+    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, nullptr,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
     nullptr,              /* construct   */
@@ -6761,8 +6763,8 @@ const Class DebuggerEnv_class = {
     "Environment",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGENV_COUNT),
-    nullptr, nullptr, JS_PropertyStub, JS_StrictPropertyStub,
-    nullptr, nullptr, nullptr, nullptr,
+    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, nullptr,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
     nullptr,              /* construct   */

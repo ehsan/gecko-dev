@@ -20,6 +20,7 @@
 #include "mozilla/StaticPtr.h"
 #include "nsIMemoryReporter.h"
 #include "nsComponentManagerUtils.h"
+#include "nsITimer.h"
 #include <algorithm>
 #include "MediaShutdownManager.h"
 #include "AudioChannelService.h"
@@ -37,6 +38,12 @@ using namespace mozilla::layers;
 using namespace mozilla::dom;
 
 namespace mozilla {
+
+// Number of milliseconds between progress events as defined by spec
+static const uint32_t PROGRESS_MS = 350;
+
+// Number of milliseconds of no data before a stall event is fired as defined by spec
+static const uint32_t STALL_MS = 3000;
 
 // Number of estimated seconds worth of data we need to have buffered
 // ahead of the current playback position before we allow the media decoder
@@ -495,6 +502,9 @@ void MediaDecoder::Shutdown()
 
   ChangeState(PLAY_STATE_SHUTDOWN);
 
+  if (mProgressTimer) {
+    StopProgress();
+  }
   mOwner = nullptr;
 
   MediaShutdownManager::Instance().Unregister(this);
@@ -980,9 +990,7 @@ void MediaDecoder::NotifyBytesDownloaded()
     ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
     UpdatePlaybackRate();
   }
-  if (mOwner) {
-    mOwner->DownloadProgressed();
-  }
+  Progress(false);
 }
 
 void MediaDecoder::NotifyDownloadEnded(nsresult aStatus)
@@ -1534,6 +1542,65 @@ void MediaDecoder::BreakCycles() {
 MediaDecoderOwner* MediaDecoder::GetMediaOwner() const
 {
   return mOwner;
+}
+
+static void ProgressCallback(nsITimer* aTimer, void* aClosure)
+{
+  MediaDecoder* decoder = static_cast<MediaDecoder*>(aClosure);
+  decoder->Progress(true);
+}
+
+void MediaDecoder::Progress(bool aTimer)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  if (!mOwner)
+    return;
+
+  TimeStamp now = TimeStamp::Now();
+
+  if (!aTimer) {
+    mDataTime = now;
+  }
+
+  // If PROGRESS_MS has passed since the last progress event fired and more
+  // data has arrived since then, fire another progress event.
+  if ((mProgressTime.IsNull() ||
+       now - mProgressTime >= TimeDuration::FromMilliseconds(PROGRESS_MS)) &&
+      !mDataTime.IsNull() &&
+      now - mDataTime <= TimeDuration::FromMilliseconds(PROGRESS_MS)) {
+    mOwner->DownloadProgressed();
+    mProgressTime = now;
+  }
+
+  if (!mDataTime.IsNull() &&
+      now - mDataTime >= TimeDuration::FromMilliseconds(STALL_MS)) {
+    mOwner->DownloadStalled();
+    // Null it out
+    mDataTime = TimeStamp();
+  }
+}
+
+nsresult MediaDecoder::StartProgress()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  NS_ASSERTION(!mProgressTimer, "Already started progress timer.");
+
+  mProgressTimer = do_CreateInstance("@mozilla.org/timer;1");
+  return mProgressTimer->InitWithFuncCallback(ProgressCallback,
+                                              this,
+                                              PROGRESS_MS,
+                                              nsITimer::TYPE_REPEATING_SLACK);
+}
+
+nsresult MediaDecoder::StopProgress()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  NS_ASSERTION(mProgressTimer, "Already stopped progress timer.");
+
+  nsresult rv = mProgressTimer->Cancel();
+  mProgressTimer = nullptr;
+
+  return rv;
 }
 
 void MediaDecoder::FireTimeUpdate()

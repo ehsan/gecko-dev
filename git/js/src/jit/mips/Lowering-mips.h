@@ -22,9 +22,9 @@ class LIRGeneratorMIPS : public LIRGeneratorShared
   protected:
     // Adds a box input to an instruction, setting operand |n| to the type and
     // |n+1| to the payload.
-    void useBox(LInstruction *lir, size_t n, MDefinition *mir,
+    bool useBox(LInstruction *lir, size_t n, MDefinition *mir,
                 LUse::Policy policy = LUse::REGISTER, bool useAtStart = false);
-    void useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Register reg1, Register reg2);
+    bool useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Register reg1, Register reg2);
 
     // x86 has constraints on what registers can be formatted for 1-byte
     // stores and loads; on MIPS all registers are okay.
@@ -45,74 +45,74 @@ class LIRGeneratorMIPS : public LIRGeneratorShared
     }
 
     void lowerUntypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock *block, size_t lirIndex);
-    void defineUntypedPhi(MPhi *phi, size_t lirIndex);
-    void lowerForShift(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs,
+    bool defineUntypedPhi(MPhi *phi, size_t lirIndex);
+    bool lowerForShift(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs,
                        MDefinition *rhs);
-    void lowerUrshD(MUrsh *mir);
+    bool lowerUrshD(MUrsh *mir);
 
-    void lowerForALU(LInstructionHelper<1, 1, 0> *ins, MDefinition *mir,
+    bool lowerForALU(LInstructionHelper<1, 1, 0> *ins, MDefinition *mir,
                      MDefinition *input);
-    void lowerForALU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir,
+    bool lowerForALU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir,
                      MDefinition *lhs, MDefinition *rhs);
 
-    void lowerForFPU(LInstructionHelper<1, 1, 0> *ins, MDefinition *mir,
+    bool lowerForFPU(LInstructionHelper<1, 1, 0> *ins, MDefinition *mir,
                      MDefinition *src);
     template<size_t Temps>
-    void lowerForFPU(LInstructionHelper<1, 2, Temps> *ins, MDefinition *mir,
+    bool lowerForFPU(LInstructionHelper<1, 2, Temps> *ins, MDefinition *mir,
                      MDefinition *lhs, MDefinition *rhs);
 
-    void lowerForCompIx4(LSimdBinaryCompIx4 *ins, MSimdBinaryComp *mir,
+    bool lowerForCompIx4(LSimdBinaryCompIx4 *ins, MSimdBinaryComp *mir,
                          MDefinition *lhs, MDefinition *rhs)
     {
         return lowerForFPU(ins, mir, lhs, rhs);
     }
-    void lowerForCompFx4(LSimdBinaryCompFx4 *ins, MSimdBinaryComp *mir,
+    bool lowerForCompFx4(LSimdBinaryCompFx4 *ins, MSimdBinaryComp *mir,
                          MDefinition *lhs, MDefinition *rhs)
     {
         return lowerForFPU(ins, mir, lhs, rhs);
     }
 
-    void lowerForBitAndAndBranch(LBitAndAndBranch *baab, MInstruction *mir,
+    bool lowerForBitAndAndBranch(LBitAndAndBranch *baab, MInstruction *mir,
                                  MDefinition *lhs, MDefinition *rhs);
-    void lowerConstantDouble(double d, MInstruction *ins);
-    void lowerConstantFloat32(float d, MInstruction *ins);
-    void lowerTruncateDToInt32(MTruncateToInt32 *ins);
-    void lowerTruncateFToInt32(MTruncateToInt32 *ins);
-    void lowerDivI(MDiv *div);
-    void lowerModI(MMod *mod);
-    void lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs);
-    void lowerUDiv(MDiv *div);
-    void lowerUMod(MMod *mod);
-    void visitPowHalf(MPowHalf *ins);
-    void visitAsmJSNeg(MAsmJSNeg *ins);
+    bool lowerConstantDouble(double d, MInstruction *ins);
+    bool lowerConstantFloat32(float d, MInstruction *ins);
+    bool lowerTruncateDToInt32(MTruncateToInt32 *ins);
+    bool lowerTruncateFToInt32(MTruncateToInt32 *ins);
+    bool lowerDivI(MDiv *div);
+    bool lowerModI(MMod *mod);
+    bool lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs);
+    bool lowerUDiv(MDiv *div);
+    bool lowerUMod(MMod *mod);
+    bool visitPowHalf(MPowHalf *ins);
+    bool visitAsmJSNeg(MAsmJSNeg *ins);
 
     LTableSwitch *newLTableSwitch(const LAllocation &in, const LDefinition &inputCopy,
                                   MTableSwitch *ins);
     LTableSwitchV *newLTableSwitchV(MTableSwitch *ins);
 
   public:
-    void visitConstant(MConstant *ins);
-    void visitBox(MBox *box);
-    void visitUnbox(MUnbox *unbox);
-    void visitReturn(MReturn *ret);
-    void lowerPhi(MPhi *phi);
-    void visitGuardShape(MGuardShape *ins);
-    void visitGuardObjectType(MGuardObjectType *ins);
-    void visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble *ins);
-    void visitAsmJSUnsignedToFloat32(MAsmJSUnsignedToFloat32 *ins);
-    void visitAsmJSLoadHeap(MAsmJSLoadHeap *ins);
-    void visitAsmJSStoreHeap(MAsmJSStoreHeap *ins);
-    void visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins);
-    void visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins);
-    void visitAsmJSLoadFuncPtr(MAsmJSLoadFuncPtr *ins);
-    void visitStoreTypedArrayElementStatic(MStoreTypedArrayElementStatic *ins);
-    void visitForkJoinGetSlice(MForkJoinGetSlice *ins);
-    void visitSimdTernaryBitwise(MSimdTernaryBitwise *ins);
-    void visitSimdSplatX4(MSimdSplatX4 *ins);
-    void visitSimdValueX4(MSimdValueX4 *ins);
-    void visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArrayElement *ins);
-    void visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElementBinop *ins);
-    void visitSubstr(MSubstr *ins);
+    bool visitConstant(MConstant *ins);
+    bool visitBox(MBox *box);
+    bool visitUnbox(MUnbox *unbox);
+    bool visitReturn(MReturn *ret);
+    bool lowerPhi(MPhi *phi);
+    bool visitGuardShape(MGuardShape *ins);
+    bool visitGuardObjectType(MGuardObjectType *ins);
+    bool visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble *ins);
+    bool visitAsmJSUnsignedToFloat32(MAsmJSUnsignedToFloat32 *ins);
+    bool visitAsmJSLoadHeap(MAsmJSLoadHeap *ins);
+    bool visitAsmJSStoreHeap(MAsmJSStoreHeap *ins);
+    bool visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins);
+    bool visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins);
+    bool visitAsmJSLoadFuncPtr(MAsmJSLoadFuncPtr *ins);
+    bool visitStoreTypedArrayElementStatic(MStoreTypedArrayElementStatic *ins);
+    bool visitForkJoinGetSlice(MForkJoinGetSlice *ins);
+    bool visitSimdTernaryBitwise(MSimdTernaryBitwise *ins);
+    bool visitSimdSplatX4(MSimdSplatX4 *ins);
+    bool visitSimdValueX4(MSimdValueX4 *ins);
+    bool visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArrayElement *ins);
+    bool visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElementBinop *ins);
+    bool visitSubstr(MSubstr *ins);
 };
 
 typedef LIRGeneratorMIPS LIRGeneratorSpecific;

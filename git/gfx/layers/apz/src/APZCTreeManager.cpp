@@ -614,7 +614,7 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
 
         result = mInputQueue->ReceiveInputEvent(
           apzc,
-          /* aTargetConfirmed = */ hitResult == ApzcHitRegion,
+          /* aTargetConfirmed = */ hitResult,
           wheelInput, aOutInputBlockId);
 
         // Update the out-parameters so they are what the caller expects.
@@ -902,30 +902,6 @@ APZCTreeManager::ProcessEvent(WidgetInputEvent& aEvent,
 }
 
 nsEventStatus
-APZCTreeManager::ProcessWheelEvent(WidgetWheelEvent& aEvent,
-                                   ScrollableLayerGuid* aOutTargetGuid,
-                                   uint64_t* aOutInputBlockId)
-{
-  ScrollWheelInput::ScrollMode scrollMode = ScrollWheelInput::SCROLLMODE_INSTANT;
-  if (Preferences::GetBool("general.smoothScroll")) {
-    scrollMode = ScrollWheelInput::SCROLLMODE_SMOOTH;
-  }
-
-  ScreenPoint origin(aEvent.refPoint.x, aEvent.refPoint.y);
-  ScrollWheelInput input(aEvent.time, aEvent.timeStamp, 0,
-                         scrollMode,
-                         ScrollWheelInput::SCROLLDELTA_LINE,
-                         origin,
-                         aEvent.lineOrPageDeltaX,
-                         aEvent.lineOrPageDeltaY);
-
-  nsEventStatus status = ReceiveInputEvent(input, aOutTargetGuid, aOutInputBlockId);
-  aEvent.refPoint.x = input.mOrigin.x;
-  aEvent.refPoint.y = input.mOrigin.y;
-  return status;
-}
-
-nsEventStatus
 APZCTreeManager::ReceiveInputEvent(WidgetInputEvent& aEvent,
                                    ScrollableLayerGuid* aOutTargetGuid,
                                    uint64_t* aOutInputBlockId)
@@ -958,17 +934,6 @@ APZCTreeManager::ReceiveInputEvent(WidgetInputEvent& aEvent,
       }
       return result;
     }
-    case eWheelEventClass: {
-      WidgetWheelEvent& wheelEvent = *aEvent.AsWheelEvent();
-      if (wheelEvent.IsControl() ||
-          wheelEvent.deltaMode != nsIDOMWheelEvent::DOM_DELTA_LINE)
-      {
-        // Don't send through APZ if we could be ctrl+zooming or if the delta
-        // mode is not line-based.
-        return ProcessEvent(aEvent, aOutTargetGuid, aOutInputBlockId);
-      }
-      return ProcessWheelEvent(wheelEvent, aOutTargetGuid, aOutInputBlockId);
-    }
     default: {
       return ProcessEvent(aEvent, aOutTargetGuid, aOutInputBlockId);
     }
@@ -986,9 +951,10 @@ APZCTreeManager::ZoomToRect(const ScrollableLayerGuid& aGuid,
 }
 
 void
-APZCTreeManager::ContentReceivedInputBlock(uint64_t aInputBlockId, bool aPreventDefault)
+APZCTreeManager::ContentReceivedTouch(uint64_t aInputBlockId,
+                                      bool aPreventDefault)
 {
-  mInputQueue->ContentReceivedInputBlock(aInputBlockId, aPreventDefault);
+  mInputQueue->ContentReceivedTouch(aInputBlockId, aPreventDefault);
 }
 
 void

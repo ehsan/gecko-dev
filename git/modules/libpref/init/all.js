@@ -1041,7 +1041,11 @@ pref("javascript.options.mem.gc_dynamic_heap_growth", true);
 pref("javascript.options.mem.gc_dynamic_mark_slice", true);
 pref("javascript.options.mem.gc_allocation_threshold_mb", 30);
 pref("javascript.options.mem.gc_decommit_threshold_mb", 32);
+#ifdef JSGC_GENERATIONAL
 pref("javascript.options.mem.gc_min_empty_chunk_count", 1);
+#else
+pref("javascript.options.mem.gc_min_empty_chunk_count", 0);
+#endif
 pref("javascript.options.mem.gc_max_empty_chunk_count", 30);
 
 pref("javascript.options.showInConsole", false);
@@ -3838,7 +3842,7 @@ pref("webgl.max-warnings-per-context", 32);
 pref("webgl.enable-draft-extensions", false);
 pref("webgl.enable-privileged-extensions", false);
 #ifdef XP_WIN
-pref("webgl.angle.try-d3d11", true);
+pref("webgl.angle.try-d3d11", false);
 pref("webgl.angle.force-d3d11", false);
 #endif
 
@@ -4366,7 +4370,6 @@ pref("touchcaret.expiration.time", 3000);
 
 // Turn off selection caret by default
 pref("selectioncaret.enabled", false);
-pref("selectioncaret.noneditable", false);
 
 // This will inflate size of selection caret frame when we checking if
 // user click on selection caret or not. In app units.

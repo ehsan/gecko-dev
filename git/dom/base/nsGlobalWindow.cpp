@@ -566,9 +566,7 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
   mRunningTimeout(nullptr), mMutationBits(0), mIsDocumentLoaded(false),
   mIsHandlingResizeEvent(false), mIsInnerWindow(aOuterWindow != nullptr),
   mMayHavePaintEventListener(false), mMayHaveTouchEventListener(false),
-  mMayHaveTouchCaret(false),
-  mMayHaveScrollWheelEventListener(false),
-  mMayHaveMouseEnterLeaveEventListener(false),
+  mMayHaveTouchCaret(false), mMayHaveMouseEnterLeaveEventListener(false),
   mMayHavePointerEnterLeaveEventListener(false),
   mIsModalContentWindow(false),
   mIsActive(false), mIsBackground(false),
@@ -2612,14 +2610,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     xpc::Scriptability::Get(GetWrapperPreserveColor()).SetDocShellAllowsScript(allow);
 
     if (!aState) {
-      // Get the "window" property once so it will be cached on our inner.  We
-      // have to do this here, not in binding code, because this has to happen
-      // after we've created the outer window proxy and stashed it in the outer
-      // nsGlobalWindow, so GetWrapperPreserveColor() on that outer
-      // nsGlobalWindow doesn't return null and nsGlobalWindow::OuterObject
-      // works correctly.
-      JS::Rooted<JS::Value> unused(cx);
-      if (!JS_GetProperty(cx, newInnerGlobal, "window", &unused)) {
+      JS::Rooted<JSObject*> rootedWrapper(cx, GetWrapperPreserveColor());
+      if (!JS_DefineProperty(cx, newInnerGlobal, "window", rootedWrapper,
+                             JSPROP_ENUMERATE | JSPROP_READONLY |
+                             JSPROP_PERMANENT,
+                             JS_STUBGETTER, JS_STUBSETTER)) {
         NS_ERROR("can't create the 'window' property");
         return NS_ERROR_FAILURE;
       }
@@ -3512,9 +3507,11 @@ nsGlobalWindow::GetDocument(nsIDOMDocument** aDocument)
   return NS_OK;
 }
 
-nsGlobalWindow*
-nsGlobalWindow::Window()
+nsIDOMWindow*
+nsGlobalWindow::GetWindow(ErrorResult& aError)
 {
+  FORWARD_TO_OUTER_OR_THROW(GetWindow, (aError), aError, nullptr);
+
   return this;
 }
 
@@ -3522,12 +3519,10 @@ NS_IMETHODIMP
 nsGlobalWindow::GetWindow(nsIDOMWindow** aWindow)
 {
   ErrorResult rv;
-  FORWARD_TO_OUTER_OR_THROW(GetWindow, (aWindow), rv, rv.ErrorCode());
-
-  nsCOMPtr<nsIDOMWindow> window = Window();
+  nsCOMPtr<nsIDOMWindow> window = GetWindow(rv);
   window.forget(aWindow);
 
-  return NS_OK;
+  return rv.ErrorCode();
 }
 
 nsIDOMWindow*
@@ -9275,36 +9270,6 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs_,
   return rv.ErrorCode();
 }
 
-class ChildCommandDispatcher : public nsRunnable
-{
-public:
-  ChildCommandDispatcher(nsGlobalWindow* aWindow,
-                         nsITabChild* aTabChild,
-                         const nsAString& aAction)
-  : mWindow(aWindow), mTabChild(aTabChild), mAction(aAction) {}
-
-  NS_IMETHOD Run()
-  {
-    nsCOMPtr<nsPIWindowRoot> root = mWindow->GetTopWindowRoot();
-    if (!root) {
-      return NS_OK;
-    }
-
-    nsTArray<nsCString> enabledCommands, disabledCommands;
-    root->GetEnabledDisabledCommands(enabledCommands, disabledCommands);
-    if (enabledCommands.Length() || disabledCommands.Length()) {
-      mTabChild->EnableDisableCommands(mAction, enabledCommands, disabledCommands);
-    }
-
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<nsGlobalWindow>             mWindow;
-  nsCOMPtr<nsITabChild>                mTabChild;
-  nsString                             mAction;
-};
-
 class CommandDispatcher : public nsRunnable
 {
 public:
@@ -9324,12 +9289,6 @@ public:
 NS_IMETHODIMP
 nsGlobalWindow::UpdateCommands(const nsAString& anAction, nsISelection* aSel, int16_t aReason)
 {
-  // If this is a child process, redirect to the parent process.
-  if (nsCOMPtr<nsITabChild> child = do_GetInterface(GetDocShell())) {
-    nsContentUtils::AddScriptRunner(new ChildCommandDispatcher(this, child, anAction));
-    return NS_OK;
-  }
-
   nsPIDOMWindow *rootWindow = nsGlobalWindow::GetPrivateRoot();
   if (!rootWindow)
     return NS_OK;

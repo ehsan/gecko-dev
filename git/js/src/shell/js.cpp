@@ -1020,13 +1020,13 @@ static const uint32_t CacheEntry_BYTECODE = 1;
 
 static const JSClass CacheEntry_class = {
     "CacheEntryObject", JSCLASS_HAS_RESERVED_SLOTS(2),
-    nullptr,               /* addProperty */
-    nullptr,               /* delProperty */
+    JS_PropertyStub,       /* addProperty */
+    JS_DeletePropertyStub, /* delProperty */
     JS_PropertyStub,       /* getProperty */
     JS_StrictPropertyStub, /* setProperty */
-    nullptr,               /* enumerate */
-    nullptr,               /* resolve */
-    nullptr,               /* convert */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
     nullptr,               /* finalize */
     nullptr,               /* call */
     nullptr,               /* hasInstance */
@@ -2569,10 +2569,10 @@ sandbox_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
 static const JSClass sandbox_class = {
     "sandbox",
     JSCLASS_GLOBAL_FLAGS,
-    nullptr,           nullptr,
+    JS_PropertyStub,   JS_DeletePropertyStub,
     JS_PropertyStub,   JS_StrictPropertyStub,
     sandbox_enumerate, sandbox_resolve,
-    nullptr, nullptr,
+    JS_ConvertStub, nullptr,
     nullptr, nullptr, nullptr,
     JS_GlobalObjectTraceHook
 };
@@ -3962,10 +3962,13 @@ ObjectEmulatingUndefined(JSContext *cx, unsigned argc, jsval *vp)
     static const JSClass cls = {
         "ObjectEmulatingUndefined",
         JSCLASS_EMULATES_UNDEFINED,
-        nullptr,
-        nullptr,
         JS_PropertyStub,
-        JS_StrictPropertyStub
+        JS_DeletePropertyStub,
+        JS_PropertyStub,
+        JS_StrictPropertyStub,
+        JS_EnumerateStub,
+        JS_ResolveStub,
+        JS_ConvertStub
     };
 
     RootedObject obj(cx, JS_NewObject(cx, &cls, JS::NullPtr(), JS::NullPtr()));
@@ -4782,10 +4785,10 @@ global_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
 
 static const JSClass global_class = {
     "global", JSCLASS_GLOBAL_FLAGS,
-    nullptr,          nullptr,
+    JS_PropertyStub,  JS_DeletePropertyStub,
     JS_PropertyStub,  JS_StrictPropertyStub,
     global_enumerate, global_resolve,
-    nullptr, nullptr,
+    JS_ConvertStub,   nullptr,
     nullptr, nullptr, nullptr,
     JS_GlobalObjectTraceHook
 };
@@ -4899,13 +4902,13 @@ static const JSFunctionSpec dom_methods[] = {
 
 static const JSClass dom_class = {
     "FakeDOMObject", JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(2),
-    nullptr,               /* addProperty */
-    nullptr,               /* delProperty */
+    JS_PropertyStub,       /* addProperty */
+    JS_DeletePropertyStub, /* delProperty */
     JS_PropertyStub,       /* getProperty */
     JS_StrictPropertyStub, /* setProperty */
-    nullptr,               /* enumerate */
-    nullptr,               /* resolve */
-    nullptr,               /* convert */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
     nullptr,               /* finalize */
     nullptr,               /* call */
     nullptr,               /* hasInstance */
@@ -5805,7 +5808,7 @@ main(int argc, char **argv, char **envp)
         || !op.addStringOption('\0', "ion-range-analysis", "on/off",
                                "Range analysis (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-sink", "on/off",
-                               "Sink code motion (default: off, on to enable)")
+                               "Sink code motion (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-loop-unrolling", "on/off",
                                "Loop unrolling (default: off, on to enable)")
         || !op.addBoolOption('\0', "ion-check-range-analysis",
@@ -5850,7 +5853,9 @@ main(int argc, char **argv, char **envp)
         || !op.addBoolOption('\0', "dump-entrained-variables", "Print variables which are "
                              "unnecessarily entrained by inner functions")
 #endif
+#ifdef JSGC_GENERATIONAL
         || !op.addBoolOption('\0', "no-ggc", "Disable Generational GC")
+#endif
         || !op.addBoolOption('\0', "no-incremental-gc", "Disable Incremental GC")
         || !op.addIntOption('\0', "available-memory", "SIZE",
                             "Select GC settings based on available memory (MB)", 0)
@@ -5873,7 +5878,9 @@ main(int argc, char **argv, char **envp)
         || !op.addIntOption('\0', "mips-sim-stop-at", "NUMBER", "Stop the MIPS simulator after the given "
                             "NUMBER of instructions.", -1)
 #endif
+#ifdef JSGC_GENERATIONAL
         || !op.addIntOption('\0', "nursery-size", "SIZE-MB", "Set the maximum nursery size in MB", 16)
+#endif
 #ifdef JS_GC_ZEAL
         || !op.addStringOption('z', "gc-zeal", "LEVEL[,N]",
                                "Specifies zealous garbage collection, overriding the environement "
@@ -5944,7 +5951,9 @@ main(int argc, char **argv, char **envp)
         return 1;
 
     size_t nurseryBytes = JS::DefaultNurseryBytes;
+#ifdef JSGC_GENERATIONAL
     nurseryBytes = op.getIntOption("nursery-size") * 1024L * 1024L;
+#endif
 
     /* Use the same parameters as the browser in xpcjsruntime.cpp. */
     rt = JS_NewRuntime(JS::DefaultHeapMaxBytes, nurseryBytes);
@@ -5959,9 +5968,11 @@ main(int argc, char **argv, char **envp)
     gInterruptFunc.emplace(rt, NullValue());
 
     JS_SetGCParameter(rt, JSGC_MAX_BYTES, 0xffffffff);
+#ifdef JSGC_GENERATIONAL
     Maybe<JS::AutoDisableGenerationalGC> noggc;
     if (op.getBoolOption("no-ggc"))
         noggc.emplace(rt);
+#endif
 
     size_t availMem = op.getIntOption("available-memory");
     if (availMem > 0)
@@ -6025,7 +6036,9 @@ main(int argc, char **argv, char **envp)
     for (size_t i = 0; i < workerThreads.length(); i++)
         PR_JoinThread(workerThreads[i]);
 
+#ifdef JSGC_GENERATIONAL
     noggc.reset();
+#endif
 
     JS_DestroyRuntime(rt);
     JS_ShutDown();

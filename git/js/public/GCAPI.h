@@ -286,21 +286,6 @@ extern JS_FRIEND_API(bool)
 IsIncrementalGCEnabled(JSRuntime *rt);
 
 /*
- * Compacting GC defaults to enabled, but may be disabled for testing or in
- * embeddings that have not implemented the necessary object moved hooks or weak
- * pointer callbacks.  There is not currently a way to re-enable compacting GC
- * once it has been disabled on the runtime.
- */
-extern JS_FRIEND_API(void)
-DisableCompactingGC(JSRuntime *rt);
-
-/*
- * Returns true if compacting GC is enabled.
- */
-extern JS_FRIEND_API(bool)
-IsCompactingGCEnabled(JSRuntime *rt);
-
-/*
  * Returns true while an incremental GC is ongoing, both when actively
  * collecting and between slices.
  */
@@ -349,7 +334,7 @@ WasIncrementalGC(JSRuntime *rt);
 class JS_FRIEND_API(AutoDisableGenerationalGC)
 {
     js::gc::GCRuntime *gc;
-#ifdef JS_GC_ZEAL
+#if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
     bool restartVerifier;
 #endif
 
@@ -486,7 +471,7 @@ class JS_PUBLIC_API(AutoCheckCannotGC) : public AutoAssertOnGC
  * JSTRACE_SHAPE. |thing| should be non-null.
  */
 extern JS_FRIEND_API(bool)
-UnmarkGrayGCThingRecursively(GCCellPtr thing);
+UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind);
 
 } /* namespace JS */
 
@@ -499,6 +484,7 @@ ExposeGCThingToActiveJS(JS::GCCellPtr thing)
     MOZ_ASSERT(thing.kind() != JSTRACE_SHAPE);
 
     JS::shadow::Runtime *rt = GetGCThingRuntime(thing.asCell());
+#ifdef JSGC_GENERATIONAL
     /*
      * GC things residing in the nursery cannot be gray: they have no mark bits.
      * All live objects in the nursery are moved to tenured at the beginning of
@@ -506,21 +492,24 @@ ExposeGCThingToActiveJS(JS::GCCellPtr thing)
      */
     if (IsInsideNursery(thing.asCell()))
         return;
+#endif
     if (IsIncrementalBarrierNeededOnTenuredGCThing(rt, thing))
         JS::IncrementalReferenceBarrier(thing);
     else if (JS::GCThingIsMarkedGray(thing.asCell()))
-        JS::UnmarkGrayGCThingRecursively(thing);
+        JS::UnmarkGrayGCThingRecursively(thing.asCell(), thing.kind());
 }
 
 static MOZ_ALWAYS_INLINE void
 MarkGCThingAsLive(JSRuntime *aRt, JS::GCCellPtr thing)
 {
     JS::shadow::Runtime *rt = JS::shadow::Runtime::asShadowRuntime(aRt);
+#ifdef JSGC_GENERATIONAL
     /*
      * Any object in the nursery will not be freed during any GC running at that time.
      */
     if (IsInsideNursery(thing.asCell()))
         return;
+#endif
     if (IsIncrementalBarrierNeededOnTenuredGCThing(rt, thing))
         JS::IncrementalReferenceBarrier(thing);
 }
