@@ -12,7 +12,6 @@ this.EXPORTED_SYMBOLS = ["MobileIdentityClient"];
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://services-common/hawkclient.js");
-Cu.import("resource://services-common/hawkrequest.js");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://services-crypto/utils.js");
 Cu.import("resource://gre/modules/MobileIdentityCommon.jsm");
@@ -105,8 +104,15 @@ this.MobileIdentityClient.prototype = {
    *        }
    */
   _deriveHawkCredentials: function(aSessionToken) {
-    return deriveHawkCredentials(aSessionToken, CREDENTIALS_DERIVATION_INFO,
-                          CREDENTIALS_DERIVATION_SIZE);
+    let token = CommonUtils.hexToBytes(aSessionToken);
+    let out = CryptoUtils.hkdf(token, undefined,
+                               CREDENTIALS_DERIVATION_INFO,
+                               CREDENTIALS_DERIVATION_SIZE);
+    return {
+      algorithm: "sha256",
+      key: CommonUtils.bytesAsHex(out.slice(32, 64)),
+      id: CommonUtils.bytesAsHex(out.slice(0, 32))
+    };
   },
 
   /**
@@ -130,11 +136,11 @@ this.MobileIdentityClient.prototype = {
     let deferred = Promise.defer();
 
     this.hawk.request(path, method, credentials, jsonPayload).then(
-      (response) => {
-        log.debug("MobileIdentityClient -> response.body " + response.body);
+      (responseText) => {
+        log.debug("MobileIdentityClient -> responseText " + responseText);
         try {
-          let responseObj = JSON.parse(response.body);
-          deferred.resolve(responseObj);
+          let response = JSON.parse(responseText);
+          deferred.resolve(response);
         } catch (err) {
           deferred.reject({error: err});
         }

@@ -574,7 +574,7 @@ SCInput::readPtr(void **p)
     uint64_t u;
     if (!readNativeEndian(&u))
         return false;
-    *p = reinterpret_cast<void*>(NativeEndian::swapFromLittleEndian(u));
+    *p = reinterpret_cast<void*>(u);
     return true;
 }
 

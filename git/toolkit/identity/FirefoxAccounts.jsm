@@ -44,14 +44,12 @@ Cu.import("resource://gre/modules/FxAccountsCommon.js");
 log.warn("The FxAccountsManager is only functional in B2G at this time.");
 var FxAccountsManager = null;
 var ONVERIFIED_NOTIFICATION = null;
-var ONLOGOUT_NOTIFICATION = null;
 #endif
 
 function FxAccountsService() {
   Services.obs.addObserver(this, "quit-application-granted", false);
   if (ONVERIFIED_NOTIFICATION) {
     Services.obs.addObserver(this, ONVERIFIED_NOTIFICATION, false);
-    Services.obs.addObserver(this, ONLOGOUT_NOTIFICATION, false);
   }
 
   // Maintain interface parity with Identity.jsm and MinimalIdentity.jsm
@@ -69,18 +67,12 @@ FxAccountsService.prototype = {
   observe: function observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case null:
-        // Paranoia against matching null ONVERIFIED or ONLOGOUT
+        // Paranoia against matching null ONVERIFIED_NOTIFICATION
         break;
       case ONVERIFIED_NOTIFICATION:
         log.debug("Received " + ONVERIFIED_NOTIFICATION + "; firing request()s");
         for (let [rpId,] of this._rpFlows) {
           this.request(rpId);
-        }
-        break;
-      case ONLOGOUT_NOTIFICATION:
-        log.debug("Received " + ONLOGOUT_NOTIFICATION + "; doLogout()s fired");
-        for (let [rpId,] of this._rpFlows) {
-          this.doLogout(rpId);
         }
         break;
       case "quit-application-granted":
