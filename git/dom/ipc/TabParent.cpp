@@ -40,8 +40,9 @@
 
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
+#include "mozilla/ipc/DocumentRendererShmemParent.h"
+#include "mozilla/ipc/DocumentRendererNativeIDParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
-#include "mozilla/docshell/OfflineCacheUpdateParent.h"
 
 #include "nsIURI.h"
 #include "nsFocusManager.h"
@@ -218,19 +219,48 @@ TabParent::GetSSLStatus(nsISupports ** aStatus)
 }
 
 
-PDocumentRendererParent*
-TabParent::AllocPDocumentRenderer(const nsRect& documentRect,
-                                  const gfxMatrix& transform,
-                                  const nsString& bgcolor,
-                                  const PRUint32& renderFlags,
-                                  const bool& flushLayout,
-                                  const nsIntSize& renderSize)
+mozilla::ipc::PDocumentRendererParent*
+TabParent::AllocPDocumentRenderer(const PRInt32& x,
+        const PRInt32& y, const PRInt32& w, const PRInt32& h, const nsString& bgcolor,
+        const PRUint32& flags, const bool& flush)
 {
     return new DocumentRendererParent();
 }
 
 bool
 TabParent::DeallocPDocumentRenderer(PDocumentRendererParent* actor)
+{
+    delete actor;
+    return true;
+}
+
+mozilla::ipc::PDocumentRendererShmemParent*
+TabParent::AllocPDocumentRendererShmem(const PRInt32& x,
+        const PRInt32& y, const PRInt32& w, const PRInt32& h, const nsString& bgcolor,
+        const PRUint32& flags, const bool& flush, const gfxMatrix& aMatrix,
+        Shmem& buf)
+{
+    return new DocumentRendererShmemParent();
+}
+
+bool
+TabParent::DeallocPDocumentRendererShmem(PDocumentRendererShmemParent* actor)
+{
+    delete actor;
+    return true;
+}
+
+mozilla::ipc::PDocumentRendererNativeIDParent*
+TabParent::AllocPDocumentRendererNativeID(const PRInt32& x,
+        const PRInt32& y, const PRInt32& w, const PRInt32& h, const nsString& bgcolor,
+        const PRUint32& flags, const bool& flush, const gfxMatrix& aMatrix,
+        const PRUint32& nativeID)
+{
+    return new DocumentRendererNativeIDParent();
+}
+
+bool
+TabParent::DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* actor)
 {
     delete actor;
     return true;
@@ -500,17 +530,8 @@ bool
 TabParent::RecvSetIMEEnabled(const PRUint32& aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget && AllowContentIME()) {
+  if (widget)
     widget->SetIMEEnabled(aValue);
-
-    nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-    if (observerService) {
-      nsAutoString state;
-      state.AppendInt(aValue);
-      observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
-    }
-  }
-
   return true;
 }
 
@@ -527,7 +548,7 @@ bool
 TabParent::RecvSetIMEOpenState(const PRBool& aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget && AllowContentIME())
+  if (widget)
     widget->SetIMEOpenState(aValue);
   return true;
 }
@@ -663,43 +684,13 @@ PRenderFrameParent*
 TabParent::AllocPRenderFrame()
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  NS_WARN_IF_FALSE(frameLoader, "'message sent to unknown actor ID' coming up");
-  return frameLoader ? new RenderFrameParent(frameLoader) : nsnull;
+  return new RenderFrameParent(frameLoader);
 }
 
 bool
 TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
 {
   delete aFrame;
-  return true;
-}
-
-mozilla::docshell::POfflineCacheUpdateParent*
-TabParent::AllocPOfflineCacheUpdate(const URI& aManifestURI,
-                                    const URI& aDocumentURI,
-                                    const nsCString& aClientID,
-                                    const bool& stickDocument)
-{
-  nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
-    new mozilla::docshell::OfflineCacheUpdateParent();
-
-  nsresult rv = update->Schedule(aManifestURI, aDocumentURI, aClientID,
-                                 stickDocument);
-  if (NS_FAILED(rv))
-    return nsnull;
-
-  POfflineCacheUpdateParent* result = update.get();
-  update.forget();
-  return result;
-}
-
-bool
-TabParent::DeallocPOfflineCacheUpdate(mozilla::docshell::POfflineCacheUpdateParent* actor)
-{
-  mozilla::docshell::OfflineCacheUpdateParent* update =
-    static_cast<mozilla::docshell::OfflineCacheUpdateParent*>(actor);
-
-  update->Release();
   return true;
 }
 
@@ -711,19 +702,6 @@ TabParent::ShouldDelayDialogs()
   PRBool delay = PR_FALSE;
   frameLoader->GetDelayRemoteDialogs(&delay);
   return delay;
-}
-
-PRBool
-TabParent::AllowContentIME()
-{
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, PR_FALSE);
-
-  nsCOMPtr<nsIContent> focusedContent = fm->GetFocusedContent();
-  if (focusedContent && focusedContent->IsEditable())
-    return PR_FALSE;
-
-  return PR_TRUE;
 }
 
 already_AddRefed<nsFrameLoader>

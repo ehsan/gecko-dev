@@ -134,9 +134,7 @@ function tearDown()
   catch (ex) {
     log(ex);
   }
-  while (gBrowser.tabs.length > 1) {
-    gBrowser.removeCurrentTab();
-  }
+  gBrowser.removeCurrentTab();
   tab = browser = hudId = hud = filterBox = outputNode = cs = null;
 }
 

@@ -130,14 +130,17 @@ public:
 class nsHTMLListBulletAccessible : public nsLeafAccessible
 {
 public:
-  nsHTMLListBulletAccessible(nsIContent* aContent, nsIWeakReference* aShell);
+  nsHTMLListBulletAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                             const nsAString& aBulletText);
+
+  // nsIAccessNode
+  NS_IMETHOD GetUniqueID(void **aUniqueID);
 
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
 
   // nsAccessNode
   virtual void Shutdown();
-  virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
   virtual PRUint32 NativeRole();
@@ -177,7 +180,8 @@ public:
 class nsHTMLLIAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLLIAccessible(nsIContent* aContent, nsIWeakReference* aShell);
+  nsHTMLLIAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                     const nsAString& aBulletText);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

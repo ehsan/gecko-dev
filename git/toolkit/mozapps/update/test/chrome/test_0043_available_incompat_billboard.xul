@@ -43,11 +43,12 @@ const TESTS = [ {
 gDisableNoUpdateAddon = true;
 
 function runTest() {
-  debugDump("entering");
+  debugDump("Entering runTest");
 
   let url = URL_UPDATE + "?showBillboard=1&showPrompt=1&showDetails=1" +
             getVersionParams(getNewerAppVersion(), getNewerPlatformVersion());
   setUpdateURLOverride(url);
+  debugDump(PREF_APP_UPDATE_URL_OVERRIDE + ": " + url);
 
   gAUS.notify(null);
 }

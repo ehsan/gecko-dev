@@ -545,12 +545,14 @@ nsXULTreeBuilder::IsContainer(PRInt32 aIndex, PRBool* aResult)
 
     nsTreeRows::iterator iter = mRows[aIndex];
 
-    PRBool isContainer;
-    iter->mMatch->mResult->GetIsContainer(&isContainer);
+    if (iter->mContainerType == nsTreeRows::eContainerType_Unknown) {
+        PRBool isContainer;
+        iter->mMatch->mResult->GetIsContainer(&isContainer);
 
-    iter->mContainerType = isContainer
-        ? nsTreeRows::eContainerType_Container
-        : nsTreeRows::eContainerType_Noncontainer;
+        iter->mContainerType = isContainer
+            ? nsTreeRows::eContainerType_Container
+            : nsTreeRows::eContainerType_Noncontainer;
+    }
 
     *aResult = (iter->mContainerType == nsTreeRows::eContainerType_Container);
     return NS_OK;

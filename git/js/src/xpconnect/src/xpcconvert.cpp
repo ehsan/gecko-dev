@@ -1210,7 +1210,8 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             }
             else if(IS_SLIM_WRAPPER_OBJECT(flat))
             {
-                if(flat->compartment() == cx->compartment)
+                if(flat->getCompartment() ==
+                   xpcscope->GetGlobalJSObject()->getCompartment())
                 {
                     *d = OBJECT_TO_JSVAL(flat);
                     return JS_TRUE;
@@ -1830,8 +1831,7 @@ XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
         data->ToString(formattedMsg);
 
         rv = ConstructException(NS_ERROR_XPC_JAVASCRIPT_ERROR_WITH_DETAILS,
-                                formattedMsg.get(), ifaceName, methodName,
-                                static_cast<nsIScriptError*>(data),
+                                formattedMsg.get(), ifaceName, methodName, data,
                                 exceptn, nsnull, nsnull);
 
         NS_RELEASE(data);

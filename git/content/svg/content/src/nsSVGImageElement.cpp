@@ -212,7 +212,7 @@ nsSVGImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   return rv;
 }
 
-nsEventStates
+PRInt32
 nsSVGImageElement::IntrinsicState() const
 {
   return nsSVGImageElementBase::IntrinsicState() |

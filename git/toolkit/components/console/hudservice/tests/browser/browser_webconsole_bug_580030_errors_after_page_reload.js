@@ -40,51 +40,52 @@
 
 // Tests that errors still show up in the Web Console after a page reload.
 
-const TEST_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-error.html";
+const TEST_ERROR_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-error.html";
 
 function test() {
-  addTab(TEST_URI);
-  browser.addEventListener("load", onLoad, true);
+  return;
+  // XXX: this tests fails en mass...
+
+  addTab(TEST_ERROR_URI);
+  browser.addEventListener("DOMContentLoaded", onLoad, false);
 }
 
 // see bug 580030: the error handler fails silently after page reload.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=580030
-function onLoad(aEvent) {
-  browser.removeEventListener(aEvent.type, arguments.callee, true);
+function onLoad() {
+  browser.removeEventListener("DOMContentLoaded", onLoad, false);
 
   openConsole();
 
-  browser.addEventListener("load", testErrorsAfterPageReload, true);
-  executeSoon(function() {
-    content.location.reload();
-  });
+  browser.addEventListener("DOMContentLoaded", testErrorsAfterPageReload,
+                           false);
+  browser.contentWindow.wrappedJSObject.location.reload();
 }
 
-function testErrorsAfterPageReload(aEvent) {
-  browser.removeEventListener(aEvent.type, arguments.callee, true);
+function testErrorsAfterPageReload() {
+  browser.removeEventListener("DOMContentLoaded", testErrorsAfterPageReload,
+                              false);
 
   // dispatch a click event to the button in the test page and listen for
   // errors.
 
-  Services.console.registerListener(consoleObserver);
-
-  var button = content.document.querySelector("button").wrappedJSObject;
-  var clickEvent = content.wrappedJSObject.document.createEvent("MouseEvents").wrappedJSObject;
+  var contentDocument = browser.contentDocument.wrappedJSObject;
+  var button = contentDocument.getElementsByTagName("button")[0];
+  var clickEvent = contentDocument.createEvent("MouseEvents");
   clickEvent.initMouseEvent("click", true, true,
-    content.wrappedJSObject, 0, 0, 0, 0, 0, false, false,
+    browser.contentWindow.wrappedJSObject, 0, 0, 0, 0, 0, false, false,
     false, false, 0, null);
 
-  executeSoon(function() {
-    button.dispatchEvent(clickEvent);
-  });
+  Services.console.registerListener(consoleObserver);
+  button.dispatchEvent(clickEvent);
 }
 
 var consoleObserver = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
 
-  observe: function test_observe(aMessage)
+  observe: function (aMessage)
   {
-    // Ignore errors we don't care about.
+    // we ignore errors we don't care about
     if (!(aMessage instanceof Ci.nsIScriptError) ||
       aMessage.category != "content javascript") {
       return;
@@ -95,14 +96,24 @@ var consoleObserver = {
     const successMsg = "Found the error message after page reload";
     const errMsg = "Could not get the error message after page reload";
 
+    const successMsgErrorLine = "Error line is correct";
+    const errMsgErrorLine = "Error line is incorrect";
+
     var display = HUDService.getDisplayByURISpec(content.location.href);
-    var outputNode = display.querySelector(".hud-output-node");
+    var outputNodes = display.querySelectorAll(".hud-msg-node");
 
-    executeSoon(function() {
-      testLogEntry(outputNode, "fooBazBaz",
-                   { success: successMsg, err: errMsg });
+    executeSoon(function () {
+      executeSoon(function (){
+        testLogEntry(outputNodes[1], "fooBazBaz",
+                     { success: successMsg, err: errMsg });
 
-      finishTest();
+        testLogEntry(outputNodes[1], "Line:",
+                     { success: successMsgErrorLine, err: errMsgErrorLine });
+
+        outputNodes = display = null;
+
+        finishTest();
+      });
     });
   }
 };

@@ -595,9 +595,8 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
     struct iovec iov = {const_cast<char*>(out_bytes), amt_to_write};
     msgh.msg_iov = &iov;
     msgh.msg_iovlen = 1;
-    static const int tmp = CMSG_SPACE(sizeof(
-        int[FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE]));
-    char buf[tmp];
+    char buf[CMSG_SPACE(
+        sizeof(int[FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE]))];
 
     if (message_send_bytes_written_ == 0 &&
         !msg->file_descriptor_set()->empty()) {

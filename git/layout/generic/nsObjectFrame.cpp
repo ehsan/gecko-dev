@@ -1255,7 +1255,7 @@ nsDisplayPlugin::Paint(nsDisplayListBuilder* aBuilder,
                        nsIRenderingContext* aCtx)
 {
   nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
-  f->PaintPlugin(aBuilder, *aCtx, mVisibleRect, GetBounds(aBuilder));
+  f->PaintPlugin(*aCtx, mVisibleRect, GetBounds(aBuilder));
 }
 
 PRBool
@@ -1267,12 +1267,8 @@ nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 }
 
 PRBool
-nsDisplayPlugin::IsOpaque(nsDisplayListBuilder* aBuilder,
-                          PRBool* aForceTransparentSurface)
+nsDisplayPlugin::IsOpaque(nsDisplayListBuilder* aBuilder)
 {
-  if (aForceTransparentSurface) {
-    *aForceTransparentSurface = PR_FALSE;
-  }
   nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
   return f->IsOpaque();
 }
@@ -1779,8 +1775,7 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
 }
 
 void
-nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
-                           nsIRenderingContext& aRenderingContext,
+nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
                            const nsRect& aDirtyRect, const nsRect& aPluginRect)
 {
   // Screen painting code
@@ -2015,7 +2010,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
         nativeDraw.EndNativeDrawing();
       } while (nativeDraw.ShouldRenderAgain());
       nativeDraw.PaintToContext();
-    } else if (!aBuilder->IsPaintingToWindow()) {
+    } else if (!(ctx->GetFlags() & gfxContext::FLAG_DESTINED_FOR_SCREEN)) {
       // Get PrintWindow dynamically since it's not present on Win2K,
       // which we still support
       typedef BOOL (WINAPI * PrintWindowPtr)
@@ -2283,16 +2278,6 @@ nsObjectFrame::Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamList
                "Instantiation should still be prevented!");
   mPreventInstantiation = PR_FALSE;
 
-#ifdef ACCESSIBILITY
-  if (PresContext()->PresShell()->IsAccessibilityActive()) {
-    nsCOMPtr<nsIAccessibilityService> accService =
-      do_GetService("@mozilla.org/accessibilityService;1");
-    if (accService) {
-      accService->RecreateAccessible(PresContext()->PresShell(), mContent);
-    }
-  }
-#endif
-
   return rv;
 }
 
@@ -2307,10 +2292,6 @@ nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
     return NS_OK;
   }
 
-  // XXXbz can aMimeType ever actually be null here?  If not, either
-  // the callers are wrong (and passing "" instead of null) or we can
-  // remove the codepaths dealing with null aMimeType in
-  // InstantiateEmbeddedPlugin.
   NS_ASSERTION(aMimeType || aURI, "Need a type or a URI!");
 
   // Note: If PrepareInstanceOwner() returns an error, |this| may very
@@ -2354,16 +2335,6 @@ nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
 
   NS_ASSERTION(mPreventInstantiation,
                "Instantiation should still be prevented!");
-
-#ifdef ACCESSIBILITY
-  if (PresContext()->PresShell()->IsAccessibilityActive()) {
-    nsCOMPtr<nsIAccessibilityService> accService =
-      do_GetService("@mozilla.org/accessibilityService;1");
-    if (accService) {
-      accService->RecreateAccessible(PresContext()->PresShell(), mContent);
-    }
-  }
-#endif
 
   mPreventInstantiation = PR_FALSE;
 

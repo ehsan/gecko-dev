@@ -52,7 +52,6 @@
 #include "nsIResumableChannel.h"
 #include "nsIApplicationCacheChannel.h"
 #include "nsEscape.h"
-#include "nsPrintfCString.h"
 
 namespace mozilla {
 namespace net {

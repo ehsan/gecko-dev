@@ -94,13 +94,6 @@ public:
     mErrorCode = aErrorCode;
   }
 
-  static IDBTransaction* GetCurrentTransaction();
-
-  nsISupports* GetSource()
-  {
-    return mRequest ? mRequest->Source() : nsnull;
-  }
-
 protected:
   AsyncConnectionHelper(IDBDatabase* aDatabase,
                         IDBRequest* aRequest);
@@ -178,7 +171,6 @@ private:
 
   PRUint16 mErrorCode;
   PRPackedBool mError;
-  PRPackedBool mDispatched;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -2278,7 +2278,7 @@ NS_IMETHODIMP nsEditor::ScrollSelectionIntoView(PRBool aScrollToAnchor)
       region = nsISelectionController::SELECTION_ANCHOR_REGION;
 
     selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
-                                    region, 0);
+                                    region, PR_FALSE);
   }
 
   return NS_OK;
@@ -2333,20 +2333,6 @@ NS_IMETHODIMP nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
                 *aInOutOffset = PRInt32(length);
                 *aInOutNode = possibleTextNode;
               }
-            }
-          }
-        } else {
-          // The selection might be at the end of the last textnode child,
-          // in which case we can just append to the textnode in question.
-          nsCOMPtr<nsIDOMNode> possibleTextNode;
-          res = children->Item(*aInOutOffset - 1, getter_AddRefs(possibleTextNode));
-          nodeAsText = do_QueryInterface(possibleTextNode);
-          if (nodeAsText) {
-            PRUint32 length;
-            res = nodeAsText->GetLength(&length);
-            if (NS_SUCCEEDED(res)) {
-              *aInOutOffset = PRInt32(length);
-              *aInOutNode = possibleTextNode;
             }
           }
         }

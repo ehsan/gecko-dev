@@ -2032,17 +2032,42 @@ nsresult nsExternalAppHandler::ExecuteDesiredAction()
   nsresult rv = NS_OK;
   if (mProgressListenerInitialized && !mCanceled)
   {
-    rv = MoveFile(mFinalFileDestination);
-    if (NS_SUCCEEDED(rv))
+    nsHandlerInfoAction action = nsIMIMEInfo::saveToDisk;
+    mMimeInfo->GetPreferredAction(&action);
+    if (action == nsIMIMEInfo::useHelperApp ||
+        action == nsIMIMEInfo::useSystemDefault)
     {
-      nsHandlerInfoAction action = nsIMIMEInfo::saveToDisk;
-      mMimeInfo->GetPreferredAction(&action);
-      if (action == nsIMIMEInfo::useHelperApp ||
-          action == nsIMIMEInfo::useSystemDefault)
+      // Make sure the suggested name is unique since in this case we don't
+      // have a file name that was guaranteed to be unique by going through
+      // the File Save dialog
+      rv = mFinalFileDestination->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+      if (NS_SUCCEEDED(rv))
       {
-        rv = OpenWithApplication();
+        // Source and dest dirs should be == so this should just do a rename
+        rv = MoveFile(mFinalFileDestination);
+        if (NS_SUCCEEDED(rv))
+          rv = OpenWithApplication();
       }
-      else if(action == nsIMIMEInfo::saveToDisk)
+      else
+      {
+        // Cancel the download and report an error.  We do not want to end up in
+        // a state where it appears that we have a normal download that is
+        // pointing to a file that we did not actually create.
+        nsAutoString path;
+        mTempFile->GetPath(path);
+        SendStatusChange(kWriteError, rv, nsnull, path);
+        Cancel(rv);
+
+        // We still need to notify if we have a progress listener, so we cannot
+        // return at this point.
+      }
+    }
+    else // Various unknown actions go here too
+    {
+      // XXX Put progress dialog in barber-pole mode
+      //     and change text to say "Copying from:".
+      rv = MoveFile(mFinalFileDestination);
+      if (NS_SUCCEEDED(rv) && action == nsIMIMEInfo::saveToDisk)
       {
         nsCOMPtr<nsILocalFile> destfile(do_QueryInterface(mFinalFileDestination));
         gExtProtSvc->FixFilePermissions(destfile);
@@ -2373,7 +2398,7 @@ nsresult nsExternalAppHandler::OpenWithApplication()
 // LaunchWithApplication should only be called by the helper app dialog which allows
 // the user to say launch with application or save to disk. It doesn't actually 
 // perform launch with application. That won't happen until we are done downloading
-// the content and are sure we've shown a progress dialog. This was done to simplify the 
+// the content and are sure we've showna progress dialog. This was done to simplify the 
 // logic that was showing up in this method. 
 NS_IMETHODIMP nsExternalAppHandler::LaunchWithApplication(nsIFile * aApplication, PRBool aRememberThisPreference)
 {
@@ -2433,26 +2458,16 @@ NS_IMETHODIMP nsExternalAppHandler::LaunchWithApplication(nsIFile * aApplication
 #else
   fileToUse->Append(mSuggestedFileName);  
 #endif
+  
+  // We'll make sure this results in a unique name later
 
-  nsresult rv = fileToUse->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
-  if(NS_SUCCEEDED(rv))
-  {
-    mFinalFileDestination = do_QueryInterface(fileToUse);
-    // launch the progress window now that the user has picked the desired action.
-    if (!mProgressListenerInitialized)
-      CreateProgressListener();
-  }
-  else
-  {
-    // Cancel the download and report an error.  We do not want to end up in
-    // a state where it appears that we have a normal download that is
-    // pointing to a file that we did not actually create.
-    nsAutoString path;
-    mTempFile->GetPath(path);
-    SendStatusChange(kWriteError, rv, nsnull, path);
-    Cancel(rv);
-  }
-  return rv;
+  mFinalFileDestination = do_QueryInterface(fileToUse);
+
+  // launch the progress window now that the user has picked the desired action.
+  if (!mProgressListenerInitialized)
+   CreateProgressListener();
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsExternalAppHandler::Cancel(nsresult aReason)

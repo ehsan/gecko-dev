@@ -63,24 +63,23 @@ class GetHelper : public AsyncConnectionHelper
 public:
   GetHelper(IDBTransaction* aTransaction,
             IDBRequest* aRequest,
-            IDBIndex* aIndex,
-            const Key& aKey)
-  : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex), mKey(aKey)
+            const Key& aKey,
+            PRInt64 aId,
+            bool aUnique,
+            bool aAutoIncrement)
+  : AsyncConnectionHelper(aTransaction, aRequest), mKey(aKey), mId(aId),
+    mUnique(aUnique), mAutoIncrement(aAutoIncrement)
   { }
 
   PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection);
   PRUint16 GetSuccessResult(nsIWritableVariant* aResult);
 
-  void ReleaseMainThreadObjects()
-  {
-    mIndex = nsnull;
-    AsyncConnectionHelper::ReleaseMainThreadObjects();
-  }
-
 protected:
   // In-params.
-  nsRefPtr<IDBIndex> mIndex;
   Key mKey;
+  const PRInt64 mId;
+  const bool mUnique;
+  const bool mAutoIncrement;
 };
 
 class GetObjectHelper : public GetHelper
@@ -88,9 +87,11 @@ class GetObjectHelper : public GetHelper
 public:
   GetObjectHelper(IDBTransaction* aTransaction,
                   IDBRequest* aRequest,
-                  IDBIndex* aIndex,
-                  const Key& aKey)
-  : GetHelper(aTransaction, aRequest, aIndex, aKey)
+                  const Key& aKey,
+                  PRInt64 aId,
+                  bool aUnique,
+                  bool aAutoIncrement)
+  : GetHelper(aTransaction, aRequest, aKey, aId, aUnique, aAutoIncrement)
   { }
 
   PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection);
@@ -105,10 +106,13 @@ class GetAllHelper : public GetHelper
 public:
   GetAllHelper(IDBTransaction* aTransaction,
                IDBRequest* aRequest,
-               IDBIndex* aIndex,
                const Key& aKey,
+               PRInt64 aId,
+               bool aUnique,
+               bool aAutoIncrement,
                const PRUint32 aLimit)
-  : GetHelper(aTransaction, aRequest, aIndex, aKey), mLimit(aLimit)
+  : GetHelper(aTransaction, aRequest, aKey, aId, aUnique, aAutoIncrement),
+    mLimit(aLimit)
   { }
 
   PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection);
@@ -124,10 +128,13 @@ class GetAllObjectsHelper : public GetHelper
 public:
   GetAllObjectsHelper(IDBTransaction* aTransaction,
                       IDBRequest* aRequest,
-                      IDBIndex* aIndex,
                       const Key& aKey,
+                      PRInt64 aId,
+                      bool aUnique,
+                      bool aAutoIncrement,
                       const PRUint32 aLimit)
-  : GetHelper(aTransaction, aRequest, aIndex, aKey), mLimit(aLimit)
+  : GetHelper(aTransaction, aRequest, aKey, aId, aUnique, aAutoIncrement),
+    mLimit(aLimit)
   { }
 
   PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection);
@@ -144,13 +151,17 @@ public:
   OpenCursorHelper(IDBTransaction* aTransaction,
                    IDBRequest* aRequest,
                    IDBIndex* aIndex,
+                   PRInt64 aId,
+                   bool aUnique,
+                   bool aAutoIncrement,
                    const Key& aLeftKey,
                    const Key& aRightKey,
                    PRUint16 aKeyRangeFlags,
                    PRUint16 aDirection,
                    PRBool aPreload)
-  : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex),
-    mLeftKey(aLeftKey), mRightKey(aRightKey), mKeyRangeFlags(aKeyRangeFlags),
+  : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex), mId(aId),
+    mUnique(aUnique), mAutoIncrement(aAutoIncrement), mLeftKey(aLeftKey),
+    mRightKey(aRightKey), mKeyRangeFlags(aKeyRangeFlags),
     mDirection(aDirection), mPreload(aPreload)
   { }
 
@@ -166,6 +177,9 @@ public:
 private:
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
+  const PRInt64 mId;
+  const bool mUnique;
+  const bool mAutoIncrement;
   const Key mLeftKey;
   const Key mRightKey;
   const PRUint16 mKeyRangeFlags;
@@ -182,13 +196,17 @@ public:
   OpenObjectCursorHelper(IDBTransaction* aTransaction,
                          IDBRequest* aRequest,
                          IDBIndex* aIndex,
+                         PRInt64 aId,
+                         bool aUnique,
+                         bool aAutoIncrement,
                          const Key& aLeftKey,
                          const Key& aRightKey,
                          PRUint16 aKeyRangeFlags,
                          PRUint16 aDirection,
                          PRBool aPreload)
-  : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex),
-    mLeftKey(aLeftKey), mRightKey(aRightKey), mKeyRangeFlags(aKeyRangeFlags),
+  : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex), mId(aId),
+    mUnique(aUnique), mAutoIncrement(aAutoIncrement), mLeftKey(aLeftKey),
+    mRightKey(aRightKey), mKeyRangeFlags(aKeyRangeFlags),
     mDirection(aDirection), mPreload(aPreload)
   { }
 
@@ -204,6 +222,9 @@ public:
 private:
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
+  const PRInt64 mId;
+  const bool mUnique;
+  const bool mAutoIncrement;
   const Key mLeftKey;
   const Key mRightKey;
   const PRUint16 mKeyRangeFlags;
@@ -348,7 +369,8 @@ IDBIndex::Get(nsIVariant* aKey,
   nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
-  nsRefPtr<GetHelper> helper(new GetHelper(transaction, request, this, key));
+  nsRefPtr<GetHelper> helper =
+    new GetHelper(transaction, request, key, mId, mUnique, mAutoIncrement);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -376,7 +398,8 @@ IDBIndex::GetObject(nsIVariant* aKey,
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetObjectHelper> helper =
-    new GetObjectHelper(transaction, request, this, key);
+    new GetObjectHelper(transaction, request, key, mId, mUnique,
+                        mAutoIncrement);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -410,7 +433,8 @@ IDBIndex::GetAll(nsIVariant* aKey,
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetAllHelper> helper =
-    new GetAllHelper(transaction, request, this, key, aLimit);
+    new GetAllHelper(transaction, request, key, mId, mUnique, mAutoIncrement,
+                     aLimit);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -444,7 +468,8 @@ IDBIndex::GetAllObjects(nsIVariant* aKey,
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetAllObjectsHelper> helper =
-    new GetAllObjectsHelper(transaction, request, this, key, aLimit);
+    new GetAllObjectsHelper(transaction, request, key, mId, mUnique,
+                            mAutoIncrement, aLimit);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -510,8 +535,9 @@ IDBIndex::OpenCursor(nsIIDBKeyRange* aKeyRange,
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<OpenCursorHelper> helper =
-    new OpenCursorHelper(transaction, request, this, leftKey, rightKey,
-                         keyRangeFlags, aDirection, aPreload);
+    new OpenCursorHelper(transaction, request, this, mId, mUnique,
+                         mAutoIncrement, leftKey, rightKey, keyRangeFlags,
+                         aDirection, aPreload);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -578,8 +604,9 @@ IDBIndex::OpenObjectCursor(nsIIDBKeyRange* aKeyRange,
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<OpenObjectCursorHelper> helper =
-    new OpenObjectCursorHelper(transaction, request, this, leftKey, rightKey,
-                               keyRangeFlags, aDirection, aPreload);
+    new OpenObjectCursorHelper(transaction, request, this, mId, mUnique,
+                               mAutoIncrement, leftKey, rightKey, keyRangeFlags,
+                               aDirection, aPreload);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -594,14 +621,12 @@ GetHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ASSERTION(aConnection, "Passed a null connection!");
 
   nsCOMPtr<mozIStorageStatement> stmt =
-    mTransaction->IndexGetStatement(mIndex->IsUnique(),
-                                    mIndex->IsAutoIncrement());
+    mTransaction->IndexGetStatement(mUnique, mAutoIncrement);
   NS_ENSURE_TRUE(stmt, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   mozStorageStatementScoper scoper(stmt);
 
-  nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"),
-                                      mIndex->Id());
+  nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"), mId);
   NS_ENSURE_SUCCESS(rv, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   NS_NAMED_LITERAL_CSTRING(value, "value");
@@ -673,14 +698,12 @@ GetObjectHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ASSERTION(aConnection, "Passed a null connection!");
 
   nsCOMPtr<mozIStorageStatement> stmt =
-    mTransaction->IndexGetObjectStatement(mIndex->IsUnique(),
-                                          mIndex->IsAutoIncrement());
+    mTransaction->IndexGetObjectStatement(mUnique, mAutoIncrement);
   NS_ENSURE_TRUE(stmt, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   mozStorageStatementScoper scoper(stmt);
 
-  nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"),
-                                      mIndex->Id());
+  nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"), mId);
   NS_ENSURE_SUCCESS(rv, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   NS_NAMED_LITERAL_CSTRING(value, "value");
@@ -738,9 +761,9 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   nsCString keyColumn;
   nsCString tableName;
 
-  if (mIndex->IsAutoIncrement()) {
+  if (mAutoIncrement) {
     keyColumn.AssignLiteral("ai_object_data_id");
-    if (mIndex->IsUnique()) {
+    if (mUnique) {
       tableName.AssignLiteral("ai_unique_index_data");
     }
     else {
@@ -749,7 +772,7 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   }
   else {
     keyColumn.AssignLiteral("object_data_key");
-    if (mIndex->IsUnique()) {
+    if (mUnique) {
       tableName.AssignLiteral("unique_index_data");
     }
     else {
@@ -783,7 +806,7 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   mozStorageStatementScoper scoper(stmt);
 
-  nsresult rv = stmt->BindInt64ByName(indexId, mIndex->Id());
+  nsresult rv = stmt->BindInt64ByName(indexId, mId);
   NS_ENSURE_SUCCESS(rv, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   if (!mKey.IsUnset()) {
@@ -864,10 +887,10 @@ GetAllObjectsHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   nsCString objectDataId;
   nsCString indexTableName;
 
-  if (mIndex->IsAutoIncrement()) {
+  if (mAutoIncrement) {
     dataTableName.AssignLiteral("ai_object_data");
     objectDataId.AssignLiteral("ai_object_data_id");
-    if (mIndex->IsUnique()) {
+    if (mUnique) {
       indexTableName.AssignLiteral("ai_unique_index_data");
     }
     else {
@@ -877,7 +900,7 @@ GetAllObjectsHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   else {
     dataTableName.AssignLiteral("object_data");
     objectDataId.AssignLiteral("object_data_id");
-    if (mIndex->IsUnique()) {
+    if (mUnique) {
       indexTableName.AssignLiteral("unique_index_data");
     }
     else {
@@ -914,7 +937,7 @@ GetAllObjectsHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   mozStorageStatementScoper scoper(stmt);
 
-  nsresult rv = stmt->BindInt64ByName(indexId, mIndex->Id());
+  nsresult rv = stmt->BindInt64ByName(indexId, mId);
   NS_ENSURE_SUCCESS(rv, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   if (!mKey.IsUnset()) {
@@ -987,9 +1010,9 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   nsCString table;
   nsCString keyColumn;
 
-  if (mIndex->IsAutoIncrement()) {
+  if (mAutoIncrement) {
     keyColumn.AssignLiteral("ai_object_data_id");
-    if (mIndex->IsUnique()) {
+    if (mUnique) {
       table.AssignLiteral("ai_unique_index_data");
     }
     else {
@@ -998,7 +1021,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   }
   else {
     keyColumn.AssignLiteral("object_data_key");
-    if (mIndex->IsUnique()) {
+    if (mUnique) {
       table.AssignLiteral("unique_index_data");
     }
     else {
@@ -1077,7 +1100,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   mozStorageStatementScoper scoper(stmt);
 
-  nsresult rv = stmt->BindInt64ByName(indexId, mIndex->Id());
+  nsresult rv = stmt->BindInt64ByName(indexId, mId);
   NS_ENSURE_SUCCESS(rv, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   if (!mLeftKey.IsUnset()) {
@@ -1190,10 +1213,10 @@ OpenObjectCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   nsCString objectTable;
   nsCString objectDataId;
 
-  if (mIndex->IsAutoIncrement()) {
+  if (mAutoIncrement) {
     objectTable.AssignLiteral("ai_object_data");
     objectDataId.AssignLiteral("ai_object_data_id");
-    if (mIndex->IsUnique()) {
+    if (mUnique) {
       indexTable.AssignLiteral("ai_unique_index_data");
     }
     else {
@@ -1203,7 +1226,7 @@ OpenObjectCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   else {
     objectTable.AssignLiteral("object_data");
     objectDataId.AssignLiteral("object_data_id");
-    if (mIndex->IsUnique()) {
+    if (mUnique) {
       indexTable.AssignLiteral("unique_index_data");
     }
     else {
@@ -1294,7 +1317,7 @@ OpenObjectCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   mozStorageStatementScoper scoper(stmt);
 
-  nsresult rv = stmt->BindInt64ByName(indexId, mIndex->Id());
+  nsresult rv = stmt->BindInt64ByName(indexId, mId);
   NS_ENSURE_SUCCESS(rv, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   if (!mLeftKey.IsUnset()) {

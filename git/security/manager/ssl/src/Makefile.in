@@ -108,10 +108,6 @@ ifdef MOZ_XUL
 CPPSRCS += nsCertTree.cpp
 endif
 
-ifdef MOZ_IPC
-CPPSRCS += nsNSSCertificateFakeTransport.cpp
-endif
-
 CSRCS += md4.c
 
 

@@ -288,17 +288,7 @@ nsTokenEventRunnable::Run()
 PRBool EnsureNSSInitialized(EnsureNSSOperator op)
 {
 #ifdef MOZ_IPC
-  if (GeckoProcessType_Default != XRE_GetProcessType())
-  {
-    if (op == nssEnsureOnChromeOnly)
-    {
-      // If the component needs PSM/NSS initialized only on the chrome process,
-      // pretend we successfully initiated it but in reality we bypass it.
-      // It's up to the programmer to check for process type in such components
-      // and take care not to call anything that needs NSS/PSM initiated.
-      return PR_TRUE;
-    }
-
+  if (GeckoProcessType_Default != XRE_GetProcessType()) {
     NS_ERROR("Trying to initialize PSM/NSS in a non-chrome process!");
     return PR_FALSE;
   }
@@ -312,7 +302,7 @@ PRBool EnsureNSSInitialized(EnsureNSSOperator op)
     // In following 4 cases we are protected by monitor of XPCOM component
     // manager - we are inside of do_GetService call for nss component, so it is
     // safe to move with the flags here.
-  case nssLoadingComponent:
+  case nssLoading:
     if (loading)
       return PR_FALSE; // We are reentered during nss component creation
     loading = PR_TRUE;
@@ -337,7 +327,6 @@ PRBool EnsureNSSInitialized(EnsureNSSOperator op)
     // If the component has not yet been loaded and is not currently loading
     // call do_GetService for nss component to ensure it.
   case nssEnsure:
-  case nssEnsureOnChromeOnly:
     // We are reentered during nss component creation or nss component is already up
     if (PR_AtomicAdd(&haveLoaded, 0) || loading)
       return PR_TRUE;
@@ -2055,7 +2044,7 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, PRUint32 aRSABufLen,
     // this way we don't have to worry about goto across variable
     // declarations.  We have no loops in this code, so it's OK.
     do {
-      nsCOMPtr<nsIX509Cert> pCert = nsNSSCertificate::Create(cert);
+      nsCOMPtr<nsIX509Cert> pCert = new nsNSSCertificate(cert);
       if (!pCert) {
         rv2 = NS_ERROR_OUT_OF_MEMORY;
         break;

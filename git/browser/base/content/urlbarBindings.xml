@@ -130,24 +130,11 @@
           if (!pasteAndGo)
             return;
           var controller = document.commandDispatcher.getControllerForCommand("cmd_paste");
-          var couldBeURL = controller.isCommandEnabled("cmd_paste");
-          if (couldBeURL) {
-            let cbSvc = Cc["@mozilla.org/widget/clipboard;1"].
-                          getService(Ci.nsIClipboard);
-            let xferable = Cc["@mozilla.org/widget/transferable;1"].
-                            createInstance(Ci.nsITransferable);
-            xferable.addDataFlavor("text/unicode");
-            cbSvc.getData(xferable, cbSvc.kGlobalClipboard);
-            let data = {};
-            xferable.getTransferData("text/unicode", data, {});
-            data = data.value.QueryInterface(Ci.nsISupportsString).data;
-            try {
-              makeURI(data);
-            } catch (ex) { // clipboard data is not a URL
-              couldBeURL = false;
-            }
-          }
-          pasteAndGo.hidden = !couldBeURL;
+          var enabled = controller.isCommandEnabled("cmd_paste");
+          if (enabled)
+            pasteAndGo.removeAttribute("disabled");
+          else
+            pasteAndGo.setAttribute("disabled", "true");
         }, false);
 
         var insertLocation = cxmenu.firstChild;
@@ -160,8 +147,7 @@
                                    GetStringFromName("pasteAndGo.label");
           pasteAndGo.setAttribute("label", label);
           pasteAndGo.setAttribute("anonid", "paste-and-go");
-          pasteAndGo.setAttribute("oncommand",
-              "gURLBar.value = ''; goDoCommand('cmd_paste'); gURLBar.handleCommand();");
+          pasteAndGo.setAttribute("oncommand", "goDoCommand('cmd_paste'); gURLBar.handleCommand();");
           cxmenu.insertBefore(pasteAndGo, insertLocation.nextSibling);
         }
       ]]></constructor>
@@ -626,7 +612,7 @@
       ]]></field>
 
       <field name="_overLinkDelayTimer"><![CDATA[
-        null
+        undefined
       ]]></field>
 
       <method name="setOverLink">
@@ -635,13 +621,13 @@
           // If the over-link is already scheduled to appear or hide, cancel it.
           if (this._overLinkDelayTimer) {
             clearTimeout(this._overLinkDelayTimer);
-            this._overLinkDelayTimer = null;
+            delete this._overLinkDelayTimer;
           }
 
           // Hide the over-link if aURL is falsey or if the URL bar is focused.
           if (!aURL || this.focused) {
             this._overLinkDelayTimer = setTimeout(function overLinkOut(self) {
-              self._overLinkDelayTimer = null;
+              delete self._overLinkDelayTimer;
               let style = window.getComputedStyle(self._overLinkBox, null);
               self._overLinkTransitioning = style.opacity != 0;
               self.removeAttribute("overlinkstate");
@@ -661,7 +647,7 @@
           // part for performance reasons: otherwise mousing over the bookmarks
           // menu for example is very laggy.
           this._overLinkDelayTimer = setTimeout(function overLinkIn(self) {
-            self._overLinkDelayTimer = null;
+            delete self._overLinkDelayTimer;
             self._updateOverLink(aURL);
             let style = window.getComputedStyle(self._overLinkBox, null);
             self._overLinkTransitioning = style.opacity != 1;

@@ -1468,10 +1468,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBIndex, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBVersionChangeEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBVersionChangeRequest, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 };
 
 // Objects that should be constructable through |new Name();|
@@ -4055,8 +4051,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(IDBDatabase, nsIIDBDatabase)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBDatabase)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(IDBErrorEvent, nsIIDBErrorEvent)
@@ -4080,8 +4074,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(IDBObjectStore, nsIIDBObjectStore)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBObjectStore)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(IDBTransaction, nsIIDBTransaction)
@@ -4092,8 +4084,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(IDBCursor, nsIIDBCursor)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBCursor)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(IDBKeyRange, nsIIDBKeyRange)
@@ -4102,21 +4092,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(IDBIndex, nsIIDBIndex)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBIndex)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBVersionChangeEvent, nsIIDBVersionChangeEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBVersionChangeEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBVersionChangeRequest, nsIIDBVersionChangeRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBVersionChangeRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
 #ifdef NS_DEBUG
@@ -5814,7 +5789,7 @@ nsDOMConstructor::Create(const PRUnichar* aName,
   nsPIDOMWindow* outerWindow = aOwner->GetOuterWindow();
   nsPIDOMWindow* currentInner =
     outerWindow ? outerWindow->GetCurrentInnerWindow() : aOwner;
-  if (!currentInner ||
+  if (!outerWindow ||
       (aOwner != currentInner &&
        !nsContentUtils::CanCallerAccess(currentInner) &&
        !(currentInner = aOwner)->IsInnerWindow())) {
@@ -7095,13 +7070,15 @@ nsLocationSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   }
 
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_GetInterface(ds);
-  if (!sgo) {
-    NS_WARNING("Refusing to create a location in the wrong scope because the "
-	       "docshell is being destroyed");
-    return NS_ERROR_UNEXPECTED;
+
+  if (sgo) {
+    JSObject *global = sgo->GetGlobalJSObject();
+
+    if (global) {
+      *parentObj = global;
+    }
   }
 
-  *parentObj = sgo->GetGlobalJSObject();
   return NS_OK;
 }
 
@@ -9755,14 +9732,6 @@ nsHTMLPluginObjElementSH::GetPluginJSObject(JSContext *cx, JSObject *obj,
 
   JSAutoRequest ar(cx);
 
-  // NB: We need an AutoEnterCompartment because we can be called from
-  // nsObjectFrame when the plugin loads after the JS object for our content
-  // node has been created.
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, obj)) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
   if (plugin_inst) {
     plugin_inst->GetJSObject(cx, plugin_obj);
     if (*plugin_obj) {
@@ -10216,46 +10185,54 @@ nsStorageSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                           JSObject *obj, PRUint32 enum_op, jsval *statep,
                           jsid *idp, PRBool *_retval)
 {
-  if (enum_op == JSENUMERATE_INIT || enum_op == JSENUMERATE_INIT_ALL) {
-    nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
-
-    // XXXndeakin need to free the keys afterwards
-    nsTArray<nsString> *keys = storage->GetKeys();
-    NS_ENSURE_TRUE(keys, NS_ERROR_OUT_OF_MEMORY);
-
-    *statep = PRIVATE_TO_JSVAL(keys);
-
-    if (idp) {
-      *idp = INT_TO_JSID(keys->Length());
-    }
-    return NS_OK;
-  }
-
   nsTArray<nsString> *keys =
     (nsTArray<nsString> *)JSVAL_TO_PRIVATE(*statep);
 
-  if (enum_op == JSENUMERATE_NEXT && keys->Length() != 0) {
-    nsString& key = keys->ElementAt(0);
-    JSString *str =
-      JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>
-                                              (key.get()),
-                          key.Length());
-    NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
+  switch (enum_op) {
+    case JSENUMERATE_INIT:
+    case JSENUMERATE_INIT_ALL:
+    {
+      nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
 
-    JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
+      // XXXndeakin need to free the keys afterwards
+      keys = storage->GetKeys();
+      NS_ENSURE_TRUE(keys, NS_ERROR_OUT_OF_MEMORY);
 
-    keys->RemoveElementAt(0);
+      *statep = PRIVATE_TO_JSVAL(keys);
 
-    return NS_OK;
+      if (idp) {
+        *idp = INT_TO_JSID(keys->Length());
+      }
+      break;
+    }
+    case JSENUMERATE_NEXT:
+      if (keys->Length() != 0) {
+        nsString& key = keys->ElementAt(0);
+        JSString *str =
+          JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>
+                                                  (key.get()),
+                              key.Length());
+        NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
+
+        JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
+
+        keys->RemoveElementAt(0);
+
+        break;
+      }
+
+      // Fall through
+    case JSENUMERATE_DESTROY:
+      delete keys;
+
+      *statep = JSVAL_NULL;
+
+      break;
+    default:
+      NS_NOTREACHED("Bad call from the JS engine");
+
+      return NS_ERROR_FAILURE;
   }
-
-  // destroy the keys array if we have no keys or if we're done
-  NS_ABORT_IF_FALSE(enum_op == JSENUMERATE_DESTROY ||
-                    (enum_op == JSENUMERATE_NEXT && keys->Length() == 0),
-                    "Bad call from the JS engine");
-  delete keys;
-
-  *statep = JSVAL_NULL;
 
   return NS_OK;
 }
@@ -10410,46 +10387,54 @@ nsStorage2SH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                            JSObject *obj, PRUint32 enum_op, jsval *statep,
                            jsid *idp, PRBool *_retval)
 {
-  if (enum_op == JSENUMERATE_INIT || enum_op == JSENUMERATE_INIT_ALL) {
-    nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
-
-    // XXXndeakin need to free the keys afterwards
-    nsTArray<nsString> *keys = storage->GetKeys();
-    NS_ENSURE_TRUE(keys, NS_ERROR_OUT_OF_MEMORY);
-
-    *statep = PRIVATE_TO_JSVAL(keys);
-
-    if (idp) {
-      *idp = INT_TO_JSID(keys->Length());
-    }
-    return NS_OK;
-  }
-
   nsTArray<nsString> *keys =
     (nsTArray<nsString> *)JSVAL_TO_PRIVATE(*statep);
 
-  if (enum_op == JSENUMERATE_NEXT && keys->Length() != 0) {
-    nsString& key = keys->ElementAt(0);
-    JSString *str =
-      JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>
-                                              (key.get()),
-                          key.Length());
-    NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
+  switch (enum_op) {
+    case JSENUMERATE_INIT:
+    case JSENUMERATE_INIT_ALL:
+    {
+      nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
 
-    JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
+      // XXXndeakin need to free the keys afterwards
+      keys = storage->GetKeys();
+      NS_ENSURE_TRUE(keys, NS_ERROR_OUT_OF_MEMORY);
 
-    keys->RemoveElementAt(0);
+      *statep = PRIVATE_TO_JSVAL(keys);
 
-    return NS_OK;
+      if (idp) {
+        *idp = INT_TO_JSID(keys->Length());
+      }
+      break;
+    }
+    case JSENUMERATE_NEXT:
+      if (keys->Length() != 0) {
+        nsString& key = keys->ElementAt(0);
+        JSString *str =
+          JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>
+                                                  (key.get()),
+                              key.Length());
+        NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
+
+        JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
+
+        keys->RemoveElementAt(0);
+
+        break;
+      }
+
+      // Fall through
+    case JSENUMERATE_DESTROY:
+      delete keys;
+
+      *statep = JSVAL_NULL;
+
+      break;
+    default:
+      NS_NOTREACHED("Bad call from the JS engine");
+
+      return NS_ERROR_FAILURE;
   }
-
-  // destroy the keys array if we have no keys or if we're done
-  NS_ABORT_IF_FALSE(enum_op == JSENUMERATE_DESTROY ||
-                    (enum_op == JSENUMERATE_NEXT && keys->Length() == 0),
-                    "Bad call from the JS engine");
-  delete keys;
-
-  *statep = JSVAL_NULL;
 
   return NS_OK;
 }

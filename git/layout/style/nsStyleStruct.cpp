@@ -1941,7 +1941,6 @@ nsTransition::nsTransition(const nsTransition& aCopy)
   , mDuration(aCopy.mDuration)
   , mDelay(aCopy.mDelay)
   , mProperty(aCopy.mProperty)
-  , mUnknownProperty(aCopy.mUnknownProperty)
 {
 }
 

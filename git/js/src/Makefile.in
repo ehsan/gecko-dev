@@ -87,17 +87,7 @@ else
 MODULE_OPTIMIZE_FLAGS = -O2 -ip
 endif
 else # not INTEL_CXX
-
-MODULE_OPTIMIZE_FLAGS = -O3 -fstrict-aliasing
-
-# We normally want -fomit-frame-pointer, but we want an explicit
-# -fno-omit-frame-pointer if we're using a sampling profiler.
-ifndef MOZ_PROFILING
-MODULE_OPTIMIZE_FLAGS += -fomit-frame-pointer
-else
-MODULE_OPTIMIZE_FLAGS += -fno-omit-frame-pointer
-endif
-
+MODULE_OPTIMIZE_FLAGS = -O3 -fstrict-aliasing -fomit-frame-pointer
 endif
 else # not GNU_CXX
 ifeq ($(OS_ARCH),SunOS)
@@ -580,11 +570,11 @@ endif
 ifdef ENABLE_TRACEJIT
 ifndef WINCE
 check::
-	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/trace-test/trace_test.py \
+	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/jit-test/jit_test.py \
 	        --no-slow --no-progress --tinderbox $(DIST)/bin/js$(BIN_SUFFIX)
 
 check-valgrind::
-	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/trace-test/trace_test.py \
+	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/jit-test/jit_test.py \
 	        --valgrind --no-slow --no-progress --tinderbox $(DIST)/bin/js$(BIN_SUFFIX)
 endif
 endif

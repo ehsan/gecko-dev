@@ -4099,9 +4099,6 @@ nsIFrame::InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
         aDamageRect + nsPoint(aX, aY));
     // Don't need to invalidate any more Thebes layers
     aFlags |= INVALIDATE_NO_THEBES_LAYERS;
-    if (aFlags & INVALIDATE_ONLY_THEBES_LAYERS) {
-      return;
-    }
   }
   if (IsTransformed()) {
     nsRect newDamageRect;
@@ -4235,9 +4232,6 @@ nsIFrame::InvalidateRoot(const nsRect& aDamageRect, PRUint32 aFlags)
   if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
       !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
     FrameLayerBuilder::InvalidateThebesLayerContents(this, aDamageRect);
-    if (aFlags & INVALIDATE_ONLY_THEBES_LAYERS) {
-      return;
-    }
   }
 
   PRUint32 flags =
@@ -6519,12 +6513,8 @@ nsIFrame::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
         // will be enough to make them keyboard scrollable.
         nsIScrollableFrame *scrollFrame = do_QueryFrame(this);
         if (scrollFrame) {
-          nsIScrollableFrame::ScrollbarStyles styles =
-            scrollFrame->GetScrollbarStyles();
-          if (styles.mVertical == NS_STYLE_OVERFLOW_SCROLL ||
-              styles.mVertical == NS_STYLE_OVERFLOW_AUTO ||
-              styles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL ||
-              styles.mHorizontal == NS_STYLE_OVERFLOW_AUTO) {
+          nsMargin margin = scrollFrame->GetActualScrollbarSizes();
+          if (margin.top || margin.right || margin.bottom || margin.left) {
             // Scroll bars will be used for overflow
             isFocusable = PR_TRUE;
             tabIndex = 0;

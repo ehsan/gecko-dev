@@ -1203,8 +1203,7 @@ nsTextServicesDocument::ScrollSelectionIntoView()
 
   // After ScrollSelectionIntoView(), the pending notifications might be flushed
   // and PresShell/PresContext/Frames may be dead. See bug 418470.
-  result = mSelCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION,
-                                            nsISelectionController::SCROLL_SYNCHRONOUS);
+  result = mSelCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
 
   UNLOCK_DOC(this);
 

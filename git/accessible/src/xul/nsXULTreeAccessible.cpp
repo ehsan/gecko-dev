@@ -509,13 +509,15 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
 
     if (accessible) {
       nsRefPtr<AccEvent> event =
-        new AccEvent(nsIAccessibleEvent::EVENT_HIDE, accessible);
+        new AccEvent(nsIAccessibleEvent::EVENT_HIDE, accessible, PR_FALSE);
       nsEventShell::FireEvent(event);
 
-      // Shutdown and remove accessible from document cache and tree cache.
+      accessible->Shutdown();
+
+      // Remove accessible from document cache and tree cache.
       nsDocAccessible *docAccessible = GetDocAccessible();
       if (docAccessible)
-        docAccessible->ShutdownAccessible(accessible);
+        docAccessible->RemoveAccessNodeFromCache(accessible);
 
       mAccessibleCache.Remove(key);
     }
@@ -537,10 +539,12 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
     nsAccessible *accessible = mAccessibleCache.GetWeak(key);
 
     if (accessible) {
-      // Shutdown and remove accessible from document cache and tree cache.
+      accessible->Shutdown();
+
+      // Remove accessible from document cache and tree cache.
       nsDocAccessible *docAccessible = GetDocAccessible();
       if (docAccessible)
-        docAccessible->ShutdownAccessible(accessible);
+        docAccessible->RemoveAccessNodeFromCache(accessible);
 
       mAccessibleCache.Remove(key);
     }
@@ -606,7 +610,7 @@ nsXULTreeAccessible::TreeViewChanged()
   // AT because it should be expensive to fire destroy events for each tree item
   // in cache.
   nsRefPtr<AccEvent> eventDestroy =
-    new AccEvent(nsIAccessibleEvent::EVENT_HIDE, this);
+    new AccEvent(nsIAccessibleEvent::EVENT_HIDE, this, PR_FALSE);
   if (!eventDestroy)
     return;
 
@@ -617,7 +621,7 @@ nsXULTreeAccessible::TreeViewChanged()
   mTree->GetView(getter_AddRefs(mTreeView));
 
   nsRefPtr<AccEvent> eventCreate =
-    new AccEvent(nsIAccessibleEvent::EVENT_SHOW, this);
+    new AccEvent(nsIAccessibleEvent::EVENT_SHOW, this, PR_FALSE);
   if (!eventCreate)
     return;
 
@@ -657,6 +661,18 @@ nsXULTreeItemAccessibleBase::
 NS_IMPL_ISUPPORTS_INHERITED1(nsXULTreeItemAccessibleBase,
                              nsAccessible,
                              nsXULTreeItemAccessibleBase)
+
+////////////////////////////////////////////////////////////////////////////////
+// nsXULTreeItemAccessibleBase: nsIAccessNode implementation
+
+NS_IMETHODIMP
+nsXULTreeItemAccessibleBase::GetUniqueID(void **aUniqueID)
+{
+  // Since mContent is same for all tree items and tree itself, use |this|
+  // pointer as the unique ID.
+  *aUniqueID = static_cast<void*>(this);
+  return NS_OK;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsIAccessible implementation
@@ -870,12 +886,6 @@ nsXULTreeItemAccessibleBase::Shutdown()
   mRow = -1;
 
   nsAccessibleWrap::Shutdown();
-}
-
-bool
-nsXULTreeItemAccessibleBase::IsPrimaryForNode() const
-{
-  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

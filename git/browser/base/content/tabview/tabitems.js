@@ -202,10 +202,11 @@ function TabItem(tab, options) {
   this._updateDebugBounds();
 
   TabItems.register(this);
-
-  if (!this.reconnected)
+  
+  if (!this.reconnected) {
     GroupItems.newTab(this, options);
-
+  }
+  
   // tabs which were not reconnected at all or were not immediately added
   // to a group get the same treatment.
   if (!this.reconnected || (reconnected && !reconnected.addedToGroup) ) {
@@ -389,12 +390,10 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           $fav.css({top:4,left:4});
           widthRange = new Range(40, 45);
           proportion = widthRange.proportion(css.width); // between 0 and 1
-        }
-
-        if (proportion <= .1)
-          $close.hide();
-        else
           $close.show().css({opacity:proportion});
+          if (proportion <= .1)
+            $close.hide()
+        }
 
         var pad = 1 + 5 * proportion;
         var alphaRange = new Range(0.1,0.2);
@@ -803,7 +802,7 @@ let TabItems = {
         let oldURL = tabItem.url;
         tabItem.url = tabUrl;
 
-        if (!tabItem.reconnected)
+        if (!tabItem.reconnected && (oldURL == 'about:blank' || !oldURL))
           this.reconnect(tabItem);
 
         tabItem.save();
@@ -1056,10 +1055,10 @@ let TabItems = {
         item.reconnected = true;
         found = {addedToGroup: tabData.groupID};
       } else {
-        // We should never have any orphaned tabs. Therefore, item is not 
-        // connected if it has no parent and GroupItems.newTab() would handle 
-        // the group creation.
-        item.reconnected = (item.parent != null);
+        // if it's not a blank tab or it belongs to a group, it would mean 
+        // the item is reconnected.
+        item.reconnected = 
+          (item.tab.linkedBrowser.currentURI.spec != 'about:blank' || item.parent);
       }
       item.save();
 

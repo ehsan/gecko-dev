@@ -737,7 +737,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
 
         if(traceKind == JSTRACE_OBJECT) {
             JSObject *global = static_cast<JSObject*>(p), *parent;
-            while((parent = global->getParent()))
+            while((parent = JS_GetParent(cx, global)))
                 global = parent;
             char fullname[100];
             JS_snprintf(fullname, sizeof(fullname),
@@ -942,7 +942,7 @@ static JSClass xpcTempGlobalClass = {
 nsresult
 xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
                        const nsACString &origin, nsIPrincipal *principal,
-                       bool wantXrays, JSObject **global,
+                       bool preferXrays, JSObject **global,
                        JSCompartment **compartment)
 {
     XPCCompartmentMap& map = nsXPConnect::GetRuntimeInstance()->GetCompartmentMap();
@@ -973,7 +973,7 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
         js::SwitchToCompartment sc(cx, *compartment);
 
         xpc::CompartmentPrivate *priv =
-            new xpc::CompartmentPrivate(ToNewCString(local_origin), wantXrays);
+            new xpc::CompartmentPrivate(ToNewCString(local_origin), preferXrays);
         JS_SetCompartmentPrivate(cx, *compartment, priv);
         map.Put(local_origin, *compartment);
     }

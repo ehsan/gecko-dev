@@ -141,8 +141,6 @@ XPIDLSRCS	= \
 		nsIURIWithPrincipal.idl \
 		nsIURIClassifier.idl \
 		nsIRedirectResultListener.idl \
-		mozIThirdPartyUtil.idl \
-		nsISerializationHelper.idl \
 		$(NULL)
 
 ifdef MOZ_TOOLKIT_SEARCH

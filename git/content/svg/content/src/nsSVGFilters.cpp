@@ -5337,7 +5337,7 @@ public:
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
 
   // imgIDecoderObserver
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
@@ -5488,7 +5488,7 @@ nsSVGFEImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   return rv;
 }
 
-nsEventStates
+PRInt32
 nsSVGFEImageElement::IntrinsicState() const
 {
   return nsSVGFEImageElementBase::IntrinsicState() |
@@ -5565,8 +5565,8 @@ nsSVGFEImageElement::Filter(nsSVGFilterInstance *instance,
 
     gfxMatrix TM = viewBoxTM * xyTM;
     
-    nsRefPtr<gfxContext> ctx = new gfxContext(aTarget->mImage);
-    nsSVGUtils::CompositePatternMatrix(ctx, thebesPattern, TM, nativeWidth, nativeHeight, 1.0);
+    gfxContext ctx(aTarget->mImage);
+    nsSVGUtils::CompositePatternMatrix(&ctx, thebesPattern, TM, nativeWidth, nativeHeight, 1.0);
   }
 
   return NS_OK;

@@ -32,14 +32,7 @@ function test() {
 function end_test() {
   Services.prefs.clearUserPref("extensions.update.url");
 
-  // Test generates a lot of available installs so just cancel them all
-  AddonManager.getAllInstalls(function(aInstalls) {
-    aInstalls.forEach(function(aInstall) {
-      aInstall.cancel();
-    });
-
-    finish();
-  });
+  finish();
 }
 
 function install_test_addons(aCallback) {

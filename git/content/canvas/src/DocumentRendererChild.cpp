@@ -99,16 +99,11 @@ FlushLayoutForTree(nsIDOMWindow* aWindow)
 }
 
 bool
-DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
-                                      const nsRect& documentRect,
-                                      const gfxMatrix& transform,
-                                      const nsString& bgcolor,
-                                      PRUint32 renderFlags,
-                                      PRBool flushLayout, 
-                                      const nsIntSize& renderSize,
-                                      nsCString& data)
+DocumentRendererChild::RenderDocument(nsIDOMWindow *window, const PRInt32& x, const PRInt32& y, const PRInt32& w, const PRInt32& h,
+                                      const nsString& aBGColor, const PRUint32& flags, const PRBool& flush, 
+                                      PRUint32& _width, PRUint32& _height, nsCString& data)
 {
-    if (flushLayout)
+    if (flush)
         FlushLayoutForTree(window);
 
     nsCOMPtr<nsPresContext> presContext;
@@ -124,25 +119,26 @@ DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
 
     nscolor bgColor;
     nsCSSParser parser;
-    nsresult rv = parser.ParseColorString(PromiseFlatString(bgcolor),
+    nsresult rv = parser.ParseColorString(PromiseFlatString(aBGColor),
                                           nsnull, 0, &bgColor);
     if (NS_FAILED(rv))
         return false;
 
     nsIPresShell* presShell = presContext->PresShell();
 
+    nsRect r(x, y, w, h);
+
+    _width = nsPresContext::AppUnitsToIntCSSPixels(w);
+    _height = nsPresContext::AppUnitsToIntCSSPixels(h);
+
     // Draw directly into the output array.
-    data.SetLength(renderSize.width * renderSize.height * 4);
-
-    nsRefPtr<gfxImageSurface> surf =
-        new gfxImageSurface(reinterpret_cast<uint8*>(data.BeginWriting()),
-                            gfxIntSize(renderSize.width, renderSize.height),
-                            4 * renderSize.width,
-                            gfxASurface::ImageFormatARGB32);
+    data.SetLength(_width * _height * 4);
+    nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(reinterpret_cast<PRUint8*>(const_cast<char*>(data.get())),
+                                                         gfxIntSize(_width, _height),
+                                                         4 * _width, gfxASurface::ImageFormatARGB32);
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
-    ctx->SetMatrix(transform);
 
-    presShell->RenderDocument(documentRect, renderFlags, bgColor, ctx);
+    presShell->RenderDocument(r, flags, bgColor, ctx);
 
     return true;
 }

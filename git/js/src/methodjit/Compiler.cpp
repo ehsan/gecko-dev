@@ -61,7 +61,7 @@
 
 using namespace js;
 using namespace js::mjit;
-#if defined(JS_POLYIC) || defined(JS_MONOIC)
+#if defined JS_POLYIC
 using namespace js::mjit::ic;
 #endif
 
@@ -4258,6 +4258,13 @@ mjit::Compiler::jsop_instanceof()
     MaybeJump isFalse;
     if (!lhs->isTypeKnown())
         isFalse = frame.testPrimitive(Assembler::Equal, lhs);
+
+    /* Quick test to avoid wrapped objects. */
+    masm.loadPtr(Address(obj, offsetof(JSObject, clasp)), temp);
+    masm.loadPtr(Address(temp, offsetof(Class, ext) +
+                              offsetof(ClassExtension, wrappedObject)), temp);
+    j = masm.branchTestPtr(Assembler::NonZero, temp, temp);
+    stubcc.linkExit(j, Uses(3));
 
     Address protoAddr(obj, offsetof(JSObject, proto));
     Label loop = masm.label();

@@ -61,19 +61,6 @@
 #define NS_NETUTIL_CONTRACTID \
     "@mozilla.org/network/util;1"
 
-// serialization scriptable helper
-#define NS_SERIALIZATION_HELPER_CLASSNAME \
-  "nsSerializationHelper"
-#define NS_SERIALIZATION_HELPER_CONTRACTID \
-  "@mozilla.org/network/serialization-helper;1"
-#define NS_SERIALIZATION_HELPER_CID                  \
-{ /* D6EF593D-A429-4b14-A887-D9E2F765D9ED */         \
-  0xd6ef593d,                                        \
-  0xa429,                                            \
-  0x4b14,                                           \
-  { 0xa8, 0x87, 0xd9, 0xe2, 0xf7, 0x65, 0xd9, 0xed } \
-}
-
 // service implementing nsIProtocolProxyService and nsPIProtocolProxyService.
 #define NS_PROTOCOLPROXYSERVICE_CLASSNAME \
     "nsProtocolProxyService"
@@ -525,19 +512,6 @@
    {0x8e, 0x1c, 0xd1, 0xaf, 0x79, 0xdf, 0xd1, 0x2f}  \
 }
 
-#define NS_APPLICATIONCACHE_CLASSNAME \
-    "nsApplicationCache"
-#define NS_APPLICATIONCACHE_CONTRACTID \
-    "@mozilla.org/network/application-cache;1"
-
-#define NS_APPLICATIONCACHE_CID             \
-{ /* 463440c5-baad-4f3c-9e50-0b107abe7183 */ \
-    0x463440c5, \
-    0xbaad, \
-    0x4f3c, \
-   {0x9e, 0x50, 0xb, 0x10, 0x7a, 0xbe, 0x71, 0x83 } \
-}
-
 /******************************************************************************
  * netwerk/protocol/http/ classes
  */
@@ -709,18 +683,6 @@
     0x23f9,                                          \
     0x11d5,                                          \
     {0xae, 0xa8, 0x8f, 0xcc, 0x07, 0x93, 0xe9, 0x7f} \
-}
-
-/******************************************************************************
- * netwerk/protocol/wyciwyg/ classes
- */
-
-#define NS_WYCIWYGPROTOCOLHANDLER_CID                \
-{ /* {0xe7509b46-2eB2-410a-9d7c-c3ce73284d01} */     \
-  0xe7509b46,                                        \
-  0x2eb2,                                            \
-  0x410a,                                            \
-  {0x9d, 0x7c, 0xc3, 0xce, 0x73, 0x28, 0x4d, 0x01}   \
 }
 
 /******************************************************************************

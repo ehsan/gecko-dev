@@ -1042,12 +1042,11 @@ nsSVGPathList::Playback(gfxContext *aCtx)
 already_AddRefed<gfxFlattenedPath>
 nsSVGPathList::GetFlattenedPath(const gfxMatrix& aMatrix)
 {
-  nsRefPtr<gfxContext> ctx =
-    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  gfxContext ctx(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  ctx->SetMatrix(aMatrix);
-  Playback(ctx);
-  ctx->IdentityMatrix();
+  ctx.SetMatrix(aMatrix);
+  Playback(&ctx);
+  ctx.IdentityMatrix();
 
-  return ctx->GetFlattenedPath();
+  return ctx.GetFlattenedPath();
 }
