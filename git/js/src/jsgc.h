@@ -83,7 +83,10 @@ struct Shape;
 
 namespace gc {
 
-/* The kind of GC thing with a finalizer. */
+/*
+ * The kind of GC thing with a finalizer. The external strings follow the
+ * ordinary string to simplify js_GetExternalStringGCType.
+ */
 enum FinalizeKind {
     FINALIZE_OBJECT0,
     FINALIZE_OBJECT2,
@@ -93,7 +96,6 @@ enum FinalizeKind {
     FINALIZE_OBJECT16,
     FINALIZE_OBJECT_LAST = FINALIZE_OBJECT16,
     FINALIZE_FUNCTION,
-    FINALIZE_SHAPE,
 #if JS_HAS_XML_SUPPORT
     FINALIZE_XML,
 #endif
@@ -111,74 +113,47 @@ struct ArenaHeader {
     Arena<FreeCell> *next;
     FreeCell        *freeList;
     unsigned        thingKind;
-#ifdef DEBUG
-    size_t          thingSize;
     bool            isUsed;
+    size_t          thingSize;
+#ifdef DEBUG
     bool            hasFreeThings;
 #endif
 };
 
-template <typename T, size_t N, size_t R1, size_t R2>
+template <typename T>
+union ThingOrCell {
+    T               t;
+    FreeCell        cell;
+};
+
+template <typename T, size_t N, size_t R>
 struct Things {
-    char filler1[R1];
-    T    things[N];
-    char filler[R2];
-};
-
-template <typename T, size_t N, size_t R1>
-struct Things<T, N, R1, 0> {
-    char filler1[R1];
-    T    things[N];
-};
-
-template <typename T, size_t N, size_t R2>
-struct Things<T, N, 0, R2> {
-    T    things[N];
-    char filler2[R2];
+    ThingOrCell<T>  things[N];
+    char            filler[R];
 };
 
 template <typename T, size_t N>
-struct Things<T, N, 0, 0> {
-    T things[N];
+struct Things<T, N, 0> {
+    ThingOrCell<T>  things[N];
 };
 
 template <typename T>
 struct Arena {
     static const size_t ArenaSize = 4096;
 
-    ArenaHeader aheader;
+    struct AlignedArenaHeader {
+        T align[(sizeof(ArenaHeader) + sizeof(T) - 1) / sizeof(T)];
+    };
 
-    /*
-     * Layout of an arena:
-     * An arena is 4K. We want it to have a header followed by a list of T
-     * objects. However, each object should be aligned to a sizeof(T)-boundary.
-     * To achieve this, we pad before and after the object array.
-     *
-     * +-------------+-----+----+----+-----+----+-----+
-     * | ArenaHeader | pad | T0 | T1 | ... | Tn | pad |
-     * +-------------+-----+----+----+-----+----+-----+
-     *
-     * <----------------------------------------------> = 4096 bytes
-     *               <-----> = Filler1Size
-     * <-------------------> = HeaderSize
-     *                     <--------------------------> = SpaceAfterHeader
-     *                                          <-----> = Filler2Size
-     */
-    static const size_t Filler1Size =
-        tl::If< sizeof(ArenaHeader) % sizeof(T) == 0, size_t,
-                0,
-                sizeof(T) - sizeof(ArenaHeader) % sizeof(T) >::result;
-    static const size_t HeaderSize = sizeof(ArenaHeader) + Filler1Size;
-    static const size_t SpaceAfterHeader = ArenaSize - HeaderSize;
-    static const size_t Filler2Size = SpaceAfterHeader % sizeof(T);
-    static const size_t ThingsPerArena = SpaceAfterHeader / sizeof(T);
+    /* We want things in the arena to be aligned, so align the header. */
+    union {
+        ArenaHeader aheader;
+        AlignedArenaHeader align;
+    };
 
-    Things<T, ThingsPerArena, Filler1Size, Filler2Size> t;
-
-    static void staticAsserts() {
-        JS_STATIC_ASSERT(offsetof(Arena<T>, t.things) % sizeof(T) == 0);
-        JS_STATIC_ASSERT(sizeof(Arena<T>) == ArenaSize);
-    }
+    static const size_t ThingsPerArena = (ArenaSize - sizeof(AlignedArenaHeader)) / sizeof(T);
+    static const size_t FillerSize = ArenaSize - sizeof(AlignedArenaHeader) - sizeof(T) * ThingsPerArena;
+    Things<T, ThingsPerArena, FillerSize> t;
 
     inline Chunk *chunk() const;
     inline size_t arenaIndex() const;
@@ -191,13 +166,14 @@ struct Arena {
     inline ConservativeGCTest mark(T *thing, JSTracer *trc);
     void markDelayedChildren(JSTracer *trc);
     inline bool inFreeList(void *thing) const;
-    inline T *getAlignedThing(const void *thing);
+    inline T *getAlignedThing(void *thing);
 #ifdef DEBUG
     inline bool assureThingIsAligned(void *thing);
 #endif
 
     void init(JSCompartment *compartment, unsigned thingKind);
 };
+JS_STATIC_ASSERT(sizeof(Arena<FreeCell>) == 4096);
 
 /*
  * Live objects are marked black. How many other additional colors are available
@@ -328,9 +304,7 @@ EmptyArenaLists::getNext(JSCompartment *comp, unsigned thingKind) {
     if (arena) {
         JS_ASSERT(arena->header()->isUsed == false);
         JS_ASSERT(arena->header()->thingSize == sizeof(T));
-#ifdef DEBUG
         arena->header()->isUsed = true;
-#endif
         arena->header()->thingKind = thingKind;
         arena->header()->compartment = comp;
         return arena;
@@ -419,7 +393,7 @@ STATIC_POSTCONDITION_ASSUME(return < ArenaBitmap::BitCount)
 size_t
 Cell::cellIndex() const
 {
-    return this->asFreeCell() - arena()->t.things[0].asFreeCell();
+    return reinterpret_cast<const FreeCell *>(this) - reinterpret_cast<FreeCell *>(&arena()->t);
 }
 
 template <typename T>
@@ -455,11 +429,11 @@ Arena<T>::bitmap() const
 
 template <typename T>
 inline T *
-Arena<T>::getAlignedThing(const void *thing)
+Arena<T>::getAlignedThing(void *thing)
 {
     jsuword start = reinterpret_cast<jsuword>(&t.things[0]);
     jsuword offset = reinterpret_cast<jsuword>(thing) - start;
-    offset -= offset % sizeof(T);
+    offset -= offset % aheader.thingSize;
     return reinterpret_cast<T *>(start + offset);
 }
 
@@ -514,12 +488,12 @@ GetArena(Cell *cell)
     return reinterpret_cast<Arena<T> *>(cell->arena());
 }
 
-#define JSTRACE_XML         3
+#define JSTRACE_XML         2
 
 /*
  * One past the maximum trace kind.
  */
-#define JSTRACE_LIMIT       4
+#define JSTRACE_LIMIT       3
 
 /*
  * Lower limit after which we limit the heap growth
@@ -547,7 +521,6 @@ GetFinalizableTraceKind(size_t thingKind)
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT12 */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT16 */
         JSTRACE_OBJECT,     /* FINALIZE_FUNCTION */
-        JSTRACE_SHAPE,      /* FINALIZE_SHAPE */
 #if JS_HAS_XML_SUPPORT      /* FINALIZE_XML */
         JSTRACE_XML,
 #endif
@@ -560,8 +533,37 @@ GetFinalizableTraceKind(size_t thingKind)
     return map[thingKind];
 }
 
-inline uint32
-GetGCThingTraceKind(const void *thing);
+static inline bool
+IsFinalizableStringKind(unsigned thingKind)
+{
+    return unsigned(FINALIZE_SHORT_STRING) <= thingKind &&
+           thingKind <= unsigned(FINALIZE_EXTERNAL_STRING);
+}
+
+/*
+ * Get the type of the external string or -1 if the string was not created
+ * with JS_NewExternalString.
+ */
+static inline intN
+GetExternalStringGCType(JSExternalString *str)
+{
+    JS_STATIC_ASSERT(FINALIZE_STRING + 1 == FINALIZE_EXTERNAL_STRING);
+    JS_ASSERT(!JSString::isStatic(str));
+
+    unsigned thingKind = str->externalStringType;
+    JS_ASSERT(IsFinalizableStringKind(thingKind));
+    return intN(thingKind);
+}
+
+static inline uint32
+GetGCThingTraceKind(void *thing)
+{
+    JS_ASSERT(thing);
+    if (JSString::isStatic(thing))
+        return JSTRACE_STRING;
+    Cell *cell = reinterpret_cast<Cell *>(thing);
+    return GetFinalizableTraceKind(cell->arena()->header()->thingKind);
+}
 
 static inline JSRuntime *
 GetGCThingRuntime(void *thing)
@@ -744,6 +746,13 @@ extern bool
 CheckAllocation(JSContext *cx);
 #endif
 
+/*
+ * Get the type of the external string or -1 if the string was not created
+ * with JS_NewExternalString.
+ */
+extern intN
+js_GetExternalStringGCType(JSString *str);
+
 extern JS_FRIEND_API(uint32)
 js_GetGCThingTraceKind(void *thing);
 
@@ -801,7 +810,7 @@ extern void
 js_UnlockGCThingRT(JSRuntime *rt, void *thing);
 
 extern JS_FRIEND_API(bool)
-IsAboutToBeFinalized(JSContext *cx, const void *thing);
+IsAboutToBeFinalized(JSContext *cx, void *thing);
 
 extern JS_FRIEND_API(bool)
 js_GCThingIsMarked(void *thing, uintN color);
@@ -1041,7 +1050,7 @@ struct GCMarker : public JSTracer {
         color = newColor;
     }
 
-    void delayMarkingChildren(const void *thing);
+    void delayMarkingChildren(void *thing);
 
     JS_FRIEND_API(void) markDelayedChildren();
 };
@@ -1073,7 +1082,7 @@ namespace gc {
 #if JS_HAS_XML_SUPPORT
 # define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) < JSTRACE_LIMIT)
 #else
-# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_SHAPE)
+# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_STRING)
 #endif
 
 /*

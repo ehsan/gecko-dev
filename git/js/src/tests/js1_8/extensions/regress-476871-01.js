@@ -15,11 +15,11 @@
  * The Original Code is JavaScript Engine testing utilities.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communication Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s):
+ * Contributor(s): Gary Kwong
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,43 +35,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+//-----------------------------------------------------------------------------
+var BUGNUMBER = 476871;
+var summary = 'Do not assert: *(JSObject**)slot == NULL';
+var actual = '';
+var expect = '';
 
-/**
- *  File Name:          RegExp/regress-001.js
- *  ECMA Section:       N/A
- *  Description:        Regression test case:
- *  JS regexp anchoring on empty match bug
- *  http://bugzilla.mozilla.org/show_bug.cgi?id=2157
- *
- *  Author:             christine@netscape.com
- *  Date:               19 February 1999
- */
-var SECTION = "RegExp/hex-001.js";
-var VERSION = "ECMA_2";
-var TITLE   = "JS regexp anchoring on empty match bug";
-var BUGNUMBER = "2157";
+printBugNumber(BUGNUMBER);
+printStatus (summary);
 
-startTest();
+jit(true);
 
-AddRegExpCases( /a||b/(''),
-		"//a||b/('')",
-		1,
-		[''] );
+let ([] = false) { (this.watch("x", /a/g)); };
+(function () { (eval("(function(){for each (x in [1, 2, 2]);});"))(); })();
 
-test();
+jit(false);
 
-function AddRegExpCases( regexp, str_regexp, length, matches_array ) {
-
-  AddTestCase(
-    "( " + str_regexp + " ).length",
-    regexp.length,
-    regexp.length );
-
-
-  for ( var matches = 0; matches < matches_array.length; matches++ ) {
-    AddTestCase(
-      "( " + str_regexp + " )[" + matches +"]",
-      matches_array[matches],
-      regexp[matches] );
-  }
-}
+reportCompare(expect, actual, summary);

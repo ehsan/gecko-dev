@@ -57,7 +57,7 @@ function test()
 //  print('jit are necessary for the crash.');
 
   jit(true);
-  [1,2,3].map(function(v, i, t) { return /a/gi.exec(v); });
+  [1,2,3].map(/a/gi);
   jit(false);
 
   reportCompare(expect, actual, summary);

@@ -156,6 +156,7 @@ typedef struct JSPropertyDescriptor JSPropertyDescriptor;
 typedef struct JSPropertySpec    JSPropertySpec;
 typedef struct JSObjectMap       JSObjectMap;
 typedef struct JSRuntime         JSRuntime;
+typedef struct JSScript          JSScript;
 typedef struct JSStackFrame      JSStackFrame;
 typedef struct JSXDRState        JSXDRState;
 typedef struct JSExceptionState  JSExceptionState;
@@ -340,6 +341,14 @@ typedef JSBool
 (* JSHasInstanceOp)(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
 
 /*
+ * Deprecated function type for JSClass.mark. All new code should define
+ * JSTraceOp instead to ensure the traversal of traceable things stored in
+ * the native structures.
+ */
+typedef uint32
+(* JSMarkOp)(JSContext *cx, JSObject *obj, void *arg);
+
+/*
  * Function type for trace operation of the class called to enumerate all
  * traceable things reachable from obj's private data structure. For each such
  * thing, a trace implementation must call
@@ -355,9 +364,26 @@ typedef JSBool
  * the traversal is a part of the marking phase through calling
  * JS_IsGCMarkingTracer and apply a special code like emptying caches or
  * marking its native structures.
+ *
+ * To define the tracer for a JSClass, the implementation must add
+ * JSCLASS_MARK_IS_TRACE to class flags and use JS_CLASS_TRACE(method)
+ * macro below to convert JSTraceOp to JSMarkOp when initializing or
+ * assigning JSClass.mark field.
  */
 typedef void
 (* JSTraceOp)(JSTracer *trc, JSObject *obj);
+
+#if defined __GNUC__ && __GNUC__ >= 4 && !defined __cplusplus
+# define JS_CLASS_TRACE(method)                                               \
+    (__builtin_types_compatible_p(JSTraceOp, __typeof(&(method)))             \
+     ? (JSMarkOp)(method)                                                     \
+     : js_WrongTypeForClassTracer)
+
+extern JSMarkOp js_WrongTypeForClassTracer;
+
+#else
+# define JS_CLASS_TRACE(method) ((JSMarkOp)(method))
+#endif
 
 /*
  * Tracer callback, called for each traceable thing directly referenced by a
@@ -440,6 +466,12 @@ typedef void
 
 typedef JSBool
 (* JSOperationCallback)(JSContext *cx);
+
+/*
+ * Deprecated form of JSOperationCallback.
+ */
+typedef JSBool
+(* JSBranchCallback)(JSContext *cx, JSScript *script);
 
 typedef void
 (* JSErrorReporter)(JSContext *cx, const char *message, JSErrorReport *report);

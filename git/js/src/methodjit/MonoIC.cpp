@@ -392,38 +392,36 @@ class EqualityCompiler : public BaseCompiler
         const ValueRemat &lvr = ic.lvr;
         const ValueRemat &rvr = ic.rvr;
 
-        JS_ASSERT_IF(lvr.isConstant(), lvr.isType(JSVAL_TYPE_STRING));
-        JS_ASSERT_IF(rvr.isConstant(), rvr.isType(JSVAL_TYPE_STRING));
-
-        if (!lvr.isType(JSVAL_TYPE_STRING)) {
+        if (!lvr.isConstant() && !lvr.isType(JSVAL_TYPE_STRING)) {
             Jump lhsFail = masm.testString(Assembler::NotEqual, lvr.typeReg());
             linkToStub(lhsFail);
         }
         
-        if (!rvr.isType(JSVAL_TYPE_STRING)) {
+        if (!rvr.isConstant() && !rvr.isType(JSVAL_TYPE_STRING)) {
             Jump rhsFail = masm.testString(Assembler::NotEqual, rvr.typeReg());
             linkToStub(rhsFail);
         }
 
         RegisterID tmp = ic.tempReg;
         
-        /* JSString::isAtom === (lengthAndFlags & ATOM_MASK == 0) */
-        JS_STATIC_ASSERT(JSString::ATOM_FLAGS == 0);
-        Imm32 atomMask(JSString::ATOM_MASK);
+        /* Test if lhs/rhs are atomized. */
+        Imm32 atomizedFlags(JSString::FLAT | JSString::ATOMIZED);
         
         masm.load32(Address(lvr.dataReg(), JSString::offsetOfLengthAndFlags()), tmp);
-        Jump lhsNotAtomized = masm.branchTest32(Assembler::NonZero, tmp, atomMask);
+        masm.and32(Imm32(JSString::TYPE_FLAGS_MASK), tmp);
+        Jump lhsNotAtomized = masm.branch32(Assembler::NotEqual, tmp, atomizedFlags);
         linkToStub(lhsNotAtomized);
 
         if (!rvr.isConstant()) {
             masm.load32(Address(rvr.dataReg(), JSString::offsetOfLengthAndFlags()), tmp);
-            Jump rhsNotAtomized = masm.branchTest32(Assembler::NonZero, tmp, atomMask);
+            masm.and32(Imm32(JSString::TYPE_FLAGS_MASK), tmp);
+            Jump rhsNotAtomized = masm.branch32(Assembler::NotEqual, tmp, atomizedFlags);
             linkToStub(rhsNotAtomized);
         }
 
         if (rvr.isConstant()) {
             JSString *str = rvr.value().toString();
-            JS_ASSERT(str->isAtom());
+            JS_ASSERT(str->isAtomized());
             Jump test = masm.branchPtr(ic.cond, lvr.dataReg(), ImmPtr(str));
             linkTrue(test);
         } else {

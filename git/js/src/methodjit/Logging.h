@@ -38,13 +38,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#if !defined jsjaeger_logging_h__
+#if !defined jsjaeger_logging_h__ && (defined JS_METHODJIT || defined JS_TRACER)
 #define jsjaeger_logging_h__
 
-#include "assembler/wtf/Platform.h"
 #include "prmjtime.h"
-
-#if defined(JS_METHODJIT) || ENABLE_YARR_JIT
 
 namespace js {
 
@@ -110,8 +107,6 @@ static inline void JaegerSpew(JaegerSpewChannel channel, const char *fmt, ...)
 #endif
 
 }
-
-#endif
 
 #endif
 
