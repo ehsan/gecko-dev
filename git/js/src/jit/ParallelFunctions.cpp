@@ -82,18 +82,18 @@ jit::ParallelWriteGuard(ForkJoinContext *cx, JSObject *object)
 
     JS_ASSERT(ForkJoinContext::current() == cx);
 
-    if (object->is<TypedObject>()) {
-        TypedObject &typedObj = object->as<TypedObject>();
+    if (object->is<TypedDatum>()) {
+        TypedDatum &datum = object->as<TypedDatum>();
 
-        // Note: check target region based on `typedObj`, not the owner.
-        // This is because `typedObj` may point to some subregion of the
+        // Note: check target region based on `datum`, not the owner.
+        // This is because `datum` may point to some subregion of the
         // owner and we only care if that *subregion* is within the
         // target region, not the entire owner.
-        if (IsInTargetRegion(cx, &typedObj))
+        if (IsInTargetRegion(cx, &datum))
             return true;
 
         // Also check whether owner is thread-local.
-        ArrayBufferObject &owner = typedObj.owner();
+        TypedDatum &owner = datum.owner();
         return cx->isThreadLocal(&owner);
     }
 
@@ -101,7 +101,7 @@ jit::ParallelWriteGuard(ForkJoinContext *cx, JSObject *object)
     return cx->isThreadLocal(object);
 }
 
-// Check that |object| (which must be a typed typedObj) maps
+// Check that |object| (which must be a typed datum) maps
 // to memory in the target region.
 //
 // For efficiency, we assume that all handles which the user has
@@ -110,10 +110,10 @@ jit::ParallelWriteGuard(ForkJoinContext *cx, JSObject *object)
 // it. This invariant is maintained by the PJS APIs, where the target
 // region and handles are always elements of the same output array.
 bool
-jit::IsInTargetRegion(ForkJoinContext *cx, TypedObject *typedObj)
+jit::IsInTargetRegion(ForkJoinContext *cx, TypedDatum *datum)
 {
-    JS_ASSERT(typedObj->is<TypedObject>()); // in case JIT supplies something bogus
-    uint8_t *typedMem = typedObj->typedMem();
+    JS_ASSERT(datum->is<TypedDatum>()); // in case JIT supplies something bogus
+    uint8_t *typedMem = datum->typedMem();
     return (typedMem >= cx->targetRegionStart &&
             typedMem <  cx->targetRegionEnd);
 }

@@ -8,7 +8,7 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
 #elif defined(MOZ_WIDGET_QT)
-#include <QWindow>
+#include <QWidget>
 #endif
 
 #include "nsShmImage.h"
@@ -169,14 +169,14 @@ nsShmImage::Put(GdkWindow* aWindow, cairo_rectangle_list_t* aRects)
 
 #elif defined(MOZ_WIDGET_QT)
 void
-nsShmImage::Put(QWindow* aWindow, QRect& aRect)
+nsShmImage::Put(QWidget* aWindow, QRect& aRect)
 {
     Display* dpy = gfxQtPlatform::GetXDisplay(aWindow);
     Drawable d = aWindow->winId();
 
     GC gc = XCreateGC(dpy, d, 0, nullptr);
     // Avoid out of bounds painting
-    QRect inter = aRect.intersected(aWindow->geometry());
+    QRect inter = aRect.intersected(aWindow->rect());
     XShmPutImage(dpy, d, gc, mImage,
                  inter.x(), inter.y(),
                  inter.x(), inter.y(),

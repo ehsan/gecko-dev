@@ -121,7 +121,6 @@ private:
   class CacheEntry : public mozilla::RefCounted<CacheEntry> 
   {
   public:
-    MOZ_DECLARE_REFCOUNTED_TYPENAME(DeviceStorageUsedSpaceCache::CacheEntry)
     bool mDirty;
     nsString mStorageName;
     int64_t  mFreeBytes;

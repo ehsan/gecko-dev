@@ -43,7 +43,6 @@
 #include "nsXPCOMStrings.h"
 
 using mozilla::Preferences;
-using mozilla::TimeStamp;
 using mozilla::Telemetry::Accumulate;
 using safe_browsing::ClientDownloadRequest;
 using safe_browsing::ClientDownloadRequest_SignatureInfo;

@@ -125,14 +125,13 @@ class TypeRepresentationHelper;
 
 class TypeRepresentation {
   protected:
-    TypeRepresentation(TypeDescr::Kind kind, size_t alignment, bool opaque);
+    TypeRepresentation(TypeDescr::Kind kind, bool opaque);
 
     // in order to call addToTableOrFree()
     friend class TypeRepresentationHelper;
 
     TypeDescr::Kind kind_;
     bool opaque_;
-    size_t alignment_;
 
     JSObject *addToTableOrFree(JSContext *cx, TypeRepresentationHash::AddPtr &p);
 
@@ -149,7 +148,6 @@ class TypeRepresentation {
     bool opaque() const { return opaque_; }
     bool transparent() const { return !opaque_; }
     JSObject *ownerObject() const { return ownerObject_.get(); }
-    size_t alignment() const { return alignment_; }
 
     static bool isOwnerObject(JSObject &obj);
     static TypeRepresentation *fromOwnerObject(JSObject &obj);
@@ -208,9 +206,11 @@ class SizedTypeRepresentation : public TypeRepresentation {
     SizedTypeRepresentation(TypeDescr::Kind kind, bool opaque, size_t size, size_t align);
 
     size_t size_;
+    size_t alignment_;
 
   public:
     size_t size() const { return size_; }
+    size_t alignment() const { return alignment_; }
 
     // Initializes memory that contains `count` instances of this type.
     // `count` must be at least 1.

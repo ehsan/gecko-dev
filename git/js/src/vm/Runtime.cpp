@@ -301,8 +301,7 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime, JSUseHelperThreads useHelperThrea
 #ifdef DEBUG
     enteredPolicy(nullptr),
 #endif
-    largeAllocationFailureCallback(nullptr),
-    oomCallback(nullptr)
+    largeAllocationFailureCallback(nullptr)
 {
     liveRuntimesCount++;
 

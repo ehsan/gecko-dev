@@ -170,16 +170,12 @@ let ErrorPage = {
   },
 
   init: function errorPageInit() {
-    Services.obs.addObserver(this, 'inprocess-browser-shown', false);
-    Services.obs.addObserver(this, 'remote-browser-shown', false);
+    Services.obs.addObserver(this, 'in-process-browser-or-app-frame-shown', false);
+    Services.obs.addObserver(this, 'remote-browser-frame-shown', false);
   },
 
   observe: function errorPageObserve(aSubject, aTopic, aData) {
     let frameLoader = aSubject.QueryInterface(Ci.nsIFrameLoader);
-    // Ignore notifications that aren't from a BrowserOrApp
-    if (!frameLoader.ownerIsBrowserOrAppFrame) {
-      return;
-    }
     this._listenError(frameLoader);
   }
 };

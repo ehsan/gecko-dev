@@ -956,14 +956,13 @@ InitBaselineFrameForOsr(BaselineFrame *frame, StackFrame *interpFrame, uint32_t 
     return frame->initForOsr(interpFrame, numStackValues);
 }
 
-JSObject *
-CreateDerivedTypedObj(JSContext *cx, HandleObject descr,
-                      HandleObject owner, int32_t offset)
+JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject descr,
+                                HandleObject owner, int32_t offset)
 {
     JS_ASSERT(descr->is<SizedTypeDescr>());
-    JS_ASSERT(owner->is<TypedObject>());
+    JS_ASSERT(owner->is<TypedDatum>());
     Rooted<SizedTypeDescr*> descr1(cx, &descr->as<SizedTypeDescr>());
-    Rooted<TypedObject*> owner1(cx, &owner->as<TypedObject>());
+    Rooted<TypedDatum*> owner1(cx, &owner->as<TypedDatum>());
     return TypedObject::createDerived(cx, descr1, owner1, offset);
 }
 
