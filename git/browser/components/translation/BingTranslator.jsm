@@ -46,7 +46,6 @@ this.BingTranslation = function(translationDocument, sourceLanguage, targetLangu
   this.targetLanguage = targetLanguage;
   this._pendingRequests = 0;
   this._partialSuccess = false;
-  this._translatedCharacterCount = 0;
 };
 
 this.BingTranslation.prototype = {
@@ -106,8 +105,6 @@ this.BingTranslation.prototype = {
          this._parseChunkResult(bingRequest)) {
        // error on request
        this._partialSuccess = true;
-       // Count the number of characters successfully translated.
-       this._translatedCharacterCount += bingRequest.characterCount;
      }
 
     // Check if all pending requests have been
@@ -118,9 +115,7 @@ this.BingTranslation.prototype = {
     // the "Error" state will appear.
     if (this._pendingRequests == 0) {
       if (this._partialSuccess) {
-        this._onFinishedDeferred.resolve({
-          characterCount: this._translatedCharacterCount
-        });
+        this._onFinishedDeferred.resolve("success");
       } else {
         this._onFinishedDeferred.reject("failure");
       }
@@ -242,7 +237,6 @@ function BingRequest(translationData, sourceLanguage, targetLanguage) {
   this.translationData = translationData;
   this.sourceLanguage = sourceLanguage;
   this.targetLanguage = targetLanguage;
-  this.characterCount = 0;
 }
 
 BingRequest.prototype = {
@@ -269,7 +263,6 @@ BingRequest.prototype = {
 
       for (let [, text] of this.translationData) {
         requestString += '<s:string>' + text + '</s:string>';
-        this.characterCount += text.length;
       }
 
       requestString += '</Texts>' +

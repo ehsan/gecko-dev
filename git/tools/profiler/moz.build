@@ -35,7 +35,6 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
         'SaveProfileTask.cpp',
         'SyncProfile.cpp',
         'TableTicker.cpp',
-        'ThreadResponsiveness.cpp',
         'UnwinderThread2.cpp',
     ]
 

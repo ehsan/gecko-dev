@@ -738,13 +738,12 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
     }
   }
 
-  if (gfxPlatform::UsesOffMainThreadCompositing()) {
+  if (CompositorParent::CompositorLoop()) {
     // Our remote frame will push layers updates to the compositor,
     // and we'll keep an indirect reference to that tree.
     *aId = mLayersId = CompositorParent::AllocateLayerTreeId();
     if (lm && lm->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
-      ClientLayerManager *clientManager =
-        static_cast<ClientLayerManager*>(lm.get());
+      ClientLayerManager *clientManager = static_cast<ClientLayerManager*>(lm.get());
       clientManager->GetRemoteRenderer()->SendNotifyChildCreated(mLayersId);
     }
     if (aScrollingBehavior == ASYNC_PAN_ZOOM) {
@@ -754,7 +753,6 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
   } else if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild::GetSingleton()->SendAllocateLayerTreeId(aId);
     mLayersId = *aId;
-    CompositorChild::Get()->SendNotifyChildCreated(mLayersId);
   }
   // Set a default RenderFrameParent
   mFrameLoader->SetCurrentRemoteFrame(this);

@@ -19,7 +19,6 @@
 #include "nsHttpHandler.h"
 #include "nsHttpConnection.h"
 #include "nsILoadGroup.h"
-#include "nsISupportsPriority.h"
 #include "prprf.h"
 #include "prnetdb.h"
 #include "SpdyPush31.h"
@@ -2661,7 +2660,7 @@ SpdySession31::DispatchOnTunnel(nsAHttpTransaction *aHttpTransaction,
     nsRefPtr<SpdyConnectTransaction> connectTrans =
       new SpdyConnectTransaction(ci, aCallbacks,
                                  trans->Caps(), trans, this);
-    AddStream(connectTrans, nsISupportsPriority::PRIORITY_NORMAL,
+    AddStream(connectTrans, trans->Priority(),
               false, nullptr);
     SpdyStream31 *tunnel = mStreamTransactionHash.Get(connectTrans);
     MOZ_ASSERT(tunnel);

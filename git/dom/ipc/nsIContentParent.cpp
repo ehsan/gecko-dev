@@ -236,12 +236,10 @@ nsIContentParent::RecvSyncMessage(const nsString& aMsg,
 {
   // FIXME Permission check in Content process
   nsIPrincipal* principal = aPrincipal;
-  if (IsContentParent()) {
-    ContentParent* parent = AsContentParent();
-    if (!ContentParent::IgnoreIPCPrincipal() &&
-        parent && principal && !AssertAppPrincipal(parent, principal)) {
-      return false;
-    }
+  ContentParent* parent = AsContentParent();
+  if (!Preferences::GetBool("dom.testing.ignore_ipc_principal", false) &&
+      parent && principal && !AssertAppPrincipal(parent, principal)) {
+    return false;
   }
 
   nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
@@ -264,12 +262,10 @@ nsIContentParent::AnswerRpcMessage(const nsString& aMsg,
 {
   // FIXME Permission check in Content process
   nsIPrincipal* principal = aPrincipal;
-  if (IsContentParent()) {
-    ContentParent* parent = AsContentParent();
-    if (!ContentParent::IgnoreIPCPrincipal() &&
-        parent && principal && !AssertAppPrincipal(parent, principal)) {
-      return false;
-    }
+  ContentParent* parent = AsContentParent();
+  if (!Preferences::GetBool("dom.testing.ignore_ipc_principal", false) &&
+      parent && principal && !AssertAppPrincipal(parent, principal)) {
+    return false;
   }
 
   nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
@@ -290,12 +286,10 @@ nsIContentParent::RecvAsyncMessage(const nsString& aMsg,
 {
   // FIXME Permission check in Content process
   nsIPrincipal* principal = aPrincipal;
-  if (IsContentParent()) {
-    ContentParent* parent = AsContentParent();
-    if (!ContentParent::IgnoreIPCPrincipal() &&
-        parent && principal && !AssertAppPrincipal(parent, principal)) {
-      return false;
-    }
+  ContentParent* parent = AsContentParent();
+  if (!Preferences::GetBool("dom.testing.ignore_ipc_principal", false) &&
+      parent && principal && !AssertAppPrincipal(parent, principal)) {
+    return false;
   }
 
   nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;

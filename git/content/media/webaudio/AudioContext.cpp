@@ -14,7 +14,6 @@
 #include "mozilla/dom/OfflineAudioContextBinding.h"
 #include "mozilla/dom/OwningNonNull.h"
 #include "MediaStreamGraph.h"
-#include "AudioChannelService.h"
 #include "AudioDestinationNode.h"
 #include "AudioBufferSourceNode.h"
 #include "AudioBuffer.h"
@@ -132,9 +131,7 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  nsRefPtr<AudioContext> object =
-    new AudioContext(window, false,
-                     AudioChannelService::GetDefaultAudioChannel());
+  nsRefPtr<AudioContext> object = new AudioContext(window, false);
 
   RegisterWeakMemoryReporter(object);
 

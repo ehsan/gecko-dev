@@ -50,8 +50,6 @@ public:
   Constructor(const GlobalObject& aGlobal,
               ErrorResult& aRv);
 
-  ~MediaSource();
-
   SourceBufferList* SourceBuffers();
   SourceBufferList* ActiveSourceBuffers();
   MediaSourceReadyState ReadyState();

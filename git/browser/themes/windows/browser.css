@@ -1728,6 +1728,7 @@ toolbarbutton[type="socialmark"] > .toolbarbutton-icon {
 
 .panel-promo-closebutton > .toolbarbutton-text {
   padding: 0;
+  margin: 0;
 }
 
 /* ::::: content area ::::: */

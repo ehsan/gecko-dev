@@ -78,3 +78,7 @@ label {
   padding: 4px 2px;
   border: none !important;
 }
+
+.alertCloseButton > .toolbarbutton-text {
+  display: none;
+}

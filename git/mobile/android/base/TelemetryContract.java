@@ -31,10 +31,6 @@ public interface TelemetryContract {
         // Cancel a state, action, etc.
         CANCEL("cancel.1"),
 
-        // Start casting a video.
-        // Note: Only used in JavaScript for now, but here for completeness.
-        CAST("cast.1"),
-
         // Editing an item.
         EDIT("edit.1"),
 

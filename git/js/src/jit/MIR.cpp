@@ -391,14 +391,17 @@ void
 MDefinition::replaceAllUsesWith(MDefinition *dom)
 {
     JS_ASSERT(dom != nullptr);
-    JS_ASSERT(dom != this);
+    if (dom == this)
+        return;
 
     for (size_t i = 0, e = numOperands(); i < e; i++)
         getOperand(i)->setUseRemovedUnchecked();
 
-    for (MUseIterator i(usesBegin()); i != usesEnd(); i++)
-        i->setProducerUnchecked(dom);
-    dom->uses_.takeElements(uses_);
+    for (MUseIterator i(usesBegin()); i != usesEnd(); ) {
+        MUse *use = *i++;
+        JS_ASSERT(use->producer() == this);
+        use->replaceProducer(dom);
+    }
 }
 
 bool
@@ -3037,7 +3040,7 @@ MAsmJSCall::New(TempAllocator &alloc, const CallSiteDesc &desc, Callee callee,
     for (size_t i = 0; i < call->argRegs_.length(); i++)
         call->argRegs_[i] = args[i].reg;
 
-    if (!call->init(alloc, call->argRegs_.length() + (callee.which() == Callee::Dynamic ? 1 : 0)))
+    if (!call->operands_.init(alloc, call->argRegs_.length() + (callee.which() == Callee::Dynamic ? 1 : 0)))
         return nullptr;
     // FixedList doesn't initialize its elements, so do an unchecked init.
     for (size_t i = 0; i < call->argRegs_.length(); i++)

@@ -415,8 +415,7 @@ RegExpObject::toString(JSContext *cx) const
         if (!sb.reserve(len + 2))
             return nullptr;
         sb.infallibleAppend('/');
-        if (!sb.append(src))
-            return nullptr;
+        sb.infallibleAppend(src->chars(), len);
         sb.infallibleAppend('/');
     } else {
         if (!sb.append("/(?:)/"))
@@ -538,16 +537,15 @@ RegExpShared::compile(JSContext *cx, bool matchOnly, const jschar *sampleChars, 
      * The sticky case we implement hackily by prepending a caret onto the front
      * and relying on |::execute| to pseudo-slice the string when it sees a sticky regexp.
      */
-    static const char prefix[] = {'^', '(', '?', ':'};
-    static const char postfix[] = {')'};
+    static const jschar prefix[] = {'^', '(', '?', ':'};
+    static const jschar postfix[] = {')'};
 
     using mozilla::ArrayLength;
     StringBuffer sb(cx);
     if (!sb.reserve(ArrayLength(prefix) + source->length() + ArrayLength(postfix)))
         return false;
     sb.infallibleAppend(prefix, ArrayLength(prefix));
-    if (!sb.append(source))
-        return false;
+    sb.infallibleAppend(source->chars(), source->length());
     sb.infallibleAppend(postfix, ArrayLength(postfix));
 
     RootedAtom fakeySource(cx, sb.finishAtom());

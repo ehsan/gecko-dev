@@ -14,7 +14,8 @@ struct LinkedUWTBuffer;
 class SyncProfile : public ThreadProfile
 {
 public:
-  SyncProfile(ThreadInfo* aInfo, int aEntrySize);
+  SyncProfile(const char* aName, int aEntrySize, PseudoStack *aStack,
+              Thread::tid_t aThreadId, bool aIsMainThread);
   ~SyncProfile();
 
   bool SetUWTBuffer(LinkedUWTBuffer* aBuff);

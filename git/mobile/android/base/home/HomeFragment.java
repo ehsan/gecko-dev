@@ -24,7 +24,6 @@ import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.home.TopSitesGridView.TopSitesGridContextMenuInfo;
 import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 import org.mozilla.gecko.widget.ButtonToast;
@@ -46,7 +45,7 @@ import android.widget.Toast;
 
 /**
  * HomeFragment is an empty fragment that can be added to the HomePager.
- * Subclasses can add their own views.
+ * Subclasses can add their own views. 
  */
 abstract class HomeFragment extends Fragment {
     // Log Tag.
@@ -114,9 +113,7 @@ abstract class HomeFragment extends Fragment {
             menu.findItem(R.id.home_remove).setVisible(false);
         }
 
-        if (!StringUtils.isShareableUrl(info.url) || GeckoProfile.get(getActivity()).inGuestMode()) {
-            menu.findItem(R.id.home_share).setVisible(false);
-        }
+        menu.findItem(R.id.home_share).setVisible(!GeckoProfile.get(getActivity()).inGuestMode());
 
         final boolean canOpenInReader = (info.display == Combined.DISPLAY_READER);
         menu.findItem(R.id.home_open_in_reader).setVisible(canOpenInReader);

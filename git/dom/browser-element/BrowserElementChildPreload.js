@@ -13,8 +13,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/BrowserElementPromptService.jsm");
 
-let kLongestReturnedString = 128;
-
 // Event whitelisted for bubbling.
 let whitelistedEvents = [
   Ci.nsIDOMKeyEvent.DOM_VK_ESCAPE,   // Back button.
@@ -697,8 +695,7 @@ BrowserElementChild.prototype = {
   _getSystemCtxMenuData: function(elem) {
     if ((elem instanceof Ci.nsIDOMHTMLAnchorElement && elem.href) ||
         (elem instanceof Ci.nsIDOMHTMLAreaElement && elem.href)) {
-      return {uri: elem.href,
-              text: elem.textContent.substring(0, kLongestReturnedString)};
+      return {uri: elem.href};
     }
     if (elem instanceof Ci.nsIImageLoadingContent && elem.currentURI) {
       return {uri: elem.currentURI.spec};

@@ -25,18 +25,16 @@ LayoutHelpers.prototype = {
 
   /**
    * Get box quads adjusted for iframes and zoom level.
-
+   *
    * @param {DOMNode} node
    *        The node for which we are to get the box model region quads
    * @param  {String} region
    *         The box model region to return:
    *         "content", "padding", "border" or "margin"
-   * @return {Object} An object that has the same structure as one quad returned
-   *         by getBoxQuads
    */
   getAdjustedQuads: function(node, region) {
-    if (!node || !node.getBoxQuads) {
-      return null;
+    if (!node) {
+      return;
     }
 
     let [quads] = node.getBoxQuads({
@@ -44,10 +42,10 @@ LayoutHelpers.prototype = {
     });
 
     if (!quads) {
-      return null;
+      return;
     }
 
-    let [xOffset, yOffset] = this.getFrameOffsets(node);
+    let [xOffset, yOffset] = this._getNodeOffsets(node);
     let scale = this.calculateScale(node);
 
     return {
@@ -88,12 +86,6 @@ LayoutHelpers.prototype = {
     };
   },
 
-  /**
-   * Get the current zoom factor applied to the container window of a given node
-   * @param {DOMNode}
-   *        The node for which the zoom factor should be calculated
-   * @return {Number}
-   */
   calculateScale: function(node) {
     let win = node.ownerDocument.defaultView;
     let winUtils = win.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -105,14 +97,12 @@ LayoutHelpers.prototype = {
    * Compute the absolute position and the dimensions of a node, relativalely
    * to the root window.
    *
-   * @param {DOMNode} aNode
+   * @param nsIDOMNode aNode
    *        a DOM element to get the bounds for
-   * @param {DOMWindow} aContentWindow
+   * @param nsIWindow aContentWindow
    *        the content window holding the node
-   * @return {Object}
-   *         A rect object with the {top, left, width, height} properties
    */
-  getRect: function(aNode, aContentWindow) {
+  getRect: function LH_getRect(aNode, aContentWindow) {
     let frameWin = aNode.ownerDocument.defaultView;
     let clientRect = aNode.getBoundingClientRect();
 
@@ -125,6 +115,7 @@ LayoutHelpers.prototype = {
 
     // We iterate through all the parent windows.
     while (true) {
+
       // Are we in the top-level window?
       if (this.isTopLevelWindow(frameWin)) {
         break;
@@ -158,15 +149,15 @@ LayoutHelpers.prototype = {
    * suitable API for determining the offset between the iframe's content and
    * its bounding client rect. Bug 626359 should provide us with such an API.
    *
-   * @param {DOMNode} aIframe
+   * @param aIframe
    *        The iframe.
-   * @return {Array} [offsetTop, offsetLeft]
-   *         offsetTop is the distance from the top of the iframe and the top of
-   *         the content document.
-   *         offsetLeft is the distance from the left of the iframe and the left
-   *         of the content document.
+   * @returns array [offsetTop, offsetLeft]
+   *          offsetTop is the distance from the top of the iframe and the
+   *            top of the content document.
+   *          offsetLeft is the distance from the left of the iframe and the
+   *            left of the content document.
    */
-  getIframeContentOffset: function(aIframe) {
+  getIframeContentOffset: function LH_getIframeContentOffset(aIframe) {
     let style = aIframe.contentWindow.getComputedStyle(aIframe, null);
 
     // In some cases, the computed style is null
@@ -187,14 +178,12 @@ LayoutHelpers.prototype = {
    * Find an element from the given coordinates. This method descends through
    * frames to find the element the user clicked inside frames.
    *
-   * @param {DOMDocument} aDocument the document to look into.
-   * @param {Number} aX
-   * @param {Number} aY
-   * @return {DOMNode}
-   *         the element node found at the given coordinates, or null if no node
-   *         was found
+   * @param DOMDocument aDocument the document to look into.
+   * @param integer aX
+   * @param integer aY
+   * @returns Node|null the element node found at the given coordinates.
    */
-  getElementFromPoint: function(aDocument, aX, aY) {
+  getElementFromPoint: function LH_elementFromPoint(aDocument, aX, aY) {
     let node = aDocument.elementFromPoint(aX, aY);
     if (node && node.contentDocument) {
       if (node instanceof Ci.nsIDOMHTMLIFrameElement) {
@@ -225,12 +214,10 @@ LayoutHelpers.prototype = {
   /**
    * Scroll the document so that the element "elem" appears in the viewport.
    *
-   * @param {DOMNode} elem
-   *        The element that needs to appear in the viewport.
-   * @param {Boolean} centered
-   *        true if you want it centered, false if you want it to appear on the
-   *        top of the viewport. It is true by default, and that is usually what
-   *        you want.
+   * @param Element elem the element that needs to appear in the viewport.
+   * @param bool centered true if you want it centered, false if you want it to
+   * appear on the top of the viewport. It is true by default, and that is
+   * usually what you want.
    */
   scrollIntoViewIfNeeded: function(elem, centered) {
     // We want to default to centering the element in the page,
@@ -306,10 +293,10 @@ LayoutHelpers.prototype = {
    * Check if a node and its document are still alive
    * and attached to the window.
    *
-   * @param {DOMNode} aNode
-   * @return {Boolean}
+   * @param aNode
    */
-  isNodeConnected: function(aNode) {
+  isNodeConnected: function LH_isNodeConnected(aNode)
+  {
     try {
       let connected = (aNode.ownerDocument && aNode.ownerDocument.defaultView &&
                       !(aNode.compareDocumentPosition(aNode.ownerDocument.documentElement) &
@@ -323,11 +310,8 @@ LayoutHelpers.prototype = {
 
   /**
    * like win.parent === win, but goes through mozbrowsers and mozapps iframes.
-   *
-   * @param {DOMWindow} win
-   * @return {Boolean}
    */
-  isTopLevelWindow: function(win) {
+  isTopLevelWindow: function LH_isTopLevelWindow(win) {
     let docShell = win.QueryInterface(Ci.nsIInterfaceRequestor)
                    .getInterface(Ci.nsIWebNavigation)
                    .QueryInterface(Ci.nsIDocShell);
@@ -337,9 +321,6 @@ LayoutHelpers.prototype = {
 
   /**
    * Check a window is part of the top level window.
-   *
-   * @param {DOMWindow} win
-   * @return {Boolean}
    */
   isIncludedInTopLevelWindow: function LH_isIncludedInTopLevelWindow(win) {
     if (this.isTopLevelWindow(win)) {
@@ -356,11 +337,8 @@ LayoutHelpers.prototype = {
 
   /**
    * like win.parent, but goes through mozbrowsers and mozapps iframes.
-   *
-   * @param {DOMWindow} win
-   * @return {DOMWindow}
    */
-  getParentWindow: function(win) {
+  getParentWindow: function LH_getParentWindow(win) {
     if (this.isTopLevelWindow(win)) {
       return null;
     }
@@ -380,12 +358,10 @@ LayoutHelpers.prototype = {
   /**
    * like win.frameElement, but goes through mozbrowsers and mozapps iframes.
    *
-   * @param {DOMWindow} win
-   *        The window to get the frame for
-   * @return {DOMNode}
-   *         The element in which the window is embedded.
+   * @param DOMWindow win The window to get the frame for
+   * @return DOMElement The element in which the window is embedded.
    */
-  getFrameElement: function(win) {
+  getFrameElement: function LH_getFrameElement(win) {
     if (this.isTopLevelWindow(win)) {
       return null;
     }
@@ -398,14 +374,12 @@ LayoutHelpers.prototype = {
   },
 
   /**
-   * Get the x/y offsets for of all the parent frames of a given node
+   * Get the x and y offsets for a node taking iframes into account.
    *
    * @param {DOMNode} node
    *        The node for which we are to get the offset
-   * @return {Array}
-   *         The frame offset [x, y]
    */
-  getFrameOffsets: function(node) {
+  _getNodeOffsets: function(node) {
     let xOffset = 0;
     let yOffset = 0;
     let frameWin = node.ownerDocument.defaultView;
@@ -438,61 +412,4 @@ LayoutHelpers.prototype = {
 
     return [xOffset * scale, yOffset * scale];
   },
-
-  /**
-   * Get the 4 bounding points for a node taking iframes into account.
-   * Note that for transformed nodes, this will return the untransformed bound.
-   *
-   * @param {DOMNode} node
-   * @return {Object}
-   *         An object with p1,p2,p3,p4 properties being {x,y} objects
-   */
-  getNodeBounds: function(node) {
-    if (!node) {
-      return;
-    }
-
-    let scale = this.calculateScale(node);
-
-    // Find out the offset of the node in its current frame
-    let offsetLeft = 0;
-    let offsetTop = 0;
-    let el = node;
-    while (el && el.parentNode) {
-      offsetLeft += el.offsetLeft;
-      offsetTop += el.offsetTop;
-      el = el.offsetParent;
-    }
-
-    // Also take scrolled containers into account
-    let el = node;
-    while (el && el.parentNode) {
-      if (el.scrollTop) {
-        offsetTop -= el.scrollTop;
-      }
-      if (el.scrollLeft) {
-        offsetLeft -= el.scrollLeft;
-      }
-      el = el.parentNode;
-    }
-
-    // And add the potential frame offset if the node is nested
-    let [xOffset, yOffset] = this.getFrameOffsets(node);
-    xOffset += offsetLeft;
-    yOffset += offsetTop;
-
-    xOffset *= scale;
-    yOffset *= scale;
-
-    // Get the width and height
-    let width = node.offsetWidth * scale;
-    let height = node.offsetHeight * scale;
-
-    return {
-      p1: {x: xOffset, y: yOffset},
-      p2: {x: xOffset + width, y: yOffset},
-      p3: {x: xOffset + width, y: yOffset + height},
-      p4: {x: xOffset, y: yOffset + height}
-    };
-  }
 };

@@ -2264,7 +2264,7 @@ void CacheFileIOManager::GetProfilelessCacheDirectory(nsIFile** result)
   *result = nullptr;
 
   nsRefPtr<CacheFileIOManager> ioMan = gInstance;
-  if (!ioMan || !ioMan->mCacheProfilelessDirectory) {
+  if (!ioMan) {
     return;
   }
 

@@ -379,7 +379,7 @@ RadialGradientEffectD2D1::CreateGradientTexture()
     gfxWarning() << "Failed to create resource texture: " << hr;
   }
 
-  return tex.forget();
+  return tex;
 }
 
 }

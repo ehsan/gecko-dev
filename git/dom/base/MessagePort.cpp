@@ -13,7 +13,6 @@
 #include "nsContentUtils.h"
 #include "nsGlobalWindow.h"
 #include "nsPresContext.h"
-#include "ScriptSettings.h"
 
 #include "nsIDocument.h"
 #include "nsIDOMFile.h"
@@ -272,14 +271,14 @@ PostMessageRunnable::Run()
 {
   MOZ_ASSERT(mPort);
 
-  nsCOMPtr<nsIGlobalObject> globalObject = do_QueryInterface(mPort->GetOwner());
-  if (NS_WARN_IF(!globalObject)) {
-    return NS_ERROR_UNEXPECTED;
-  }
+  // Get the JSContext for the target window
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(mPort->GetOwner());
+  NS_ENSURE_STATE(sgo);
+  nsCOMPtr<nsIScriptContext> scriptContext = sgo->GetContext();
+  AutoPushJSContext cx(scriptContext ? scriptContext->GetNativeContext()
+                                     : nsContentUtils::GetSafeJSContext());
 
-  AutoJSAPI jsapi;
-  JSContext* cx = jsapi.cx();
-  JSAutoCompartment ac(cx, globalObject->GetGlobalJSObject());
+  MOZ_ASSERT(cx);
 
   // Deserialize the structured clone data
   JS::Rooted<JS::Value> messageData(cx);

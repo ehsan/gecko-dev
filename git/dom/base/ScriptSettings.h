@@ -66,25 +66,33 @@ inline JSObject& IncumbentJSGlobal()
 }
 
 class ScriptSettingsStack;
-class ScriptSettingsStackEntry {
-  friend class ScriptSettingsStack;
-
-public:
-  ScriptSettingsStackEntry(nsIGlobalObject *aGlobal, bool aCandidate);
-  ~ScriptSettingsStackEntry();
-
-  bool NoJSAPI() { return !mGlobalObject; }
-
-protected:
+struct ScriptSettingsStackEntry {
   nsCOMPtr<nsIGlobalObject> mGlobalObject;
   bool mIsCandidateEntryPoint;
 
-private:
-  // This constructor is only for use by AutoNoJSAPI.
-  friend class AutoNoJSAPI;
-  ScriptSettingsStackEntry();
+  ScriptSettingsStackEntry(nsIGlobalObject *aGlobal, bool aCandidate)
+    : mGlobalObject(aGlobal)
+    , mIsCandidateEntryPoint(aCandidate)
+  {
+    MOZ_ASSERT(mGlobalObject);
+    MOZ_ASSERT(mGlobalObject->GetGlobalJSObject(),
+               "Must have an actual JS global for the duration on the stack");
+    MOZ_ASSERT(JS_IsGlobalObject(mGlobalObject->GetGlobalJSObject()),
+               "No outer windows allowed");
+  }
 
-  ScriptSettingsStackEntry *mOlder;
+  ~ScriptSettingsStackEntry() {
+    // We must have an actual JS global for the entire time this is on the stack.
+    MOZ_ASSERT_IF(mGlobalObject, mGlobalObject->GetGlobalJSObject());
+  }
+
+  bool NoJSAPI() { return this == &NoJSAPISingleton; }
+  static ScriptSettingsStackEntry NoJSAPISingleton;
+
+private:
+  ScriptSettingsStackEntry() : mGlobalObject(nullptr)
+                             , mIsCandidateEntryPoint(true)
+  {}
 };
 
 /*
@@ -164,6 +172,7 @@ public:
                   bool aIsMainThread = NS_IsMainThread(),
                   // Note: aCx is mandatory off-main-thread.
                   JSContext* aCx = nullptr);
+  ~AutoEntryScript();
 
   void SetWebIDLCallerPrincipal(nsIPrincipal *aPrincipal) {
     mWebIDLCallerPrincipal = aPrincipal;
@@ -171,6 +180,7 @@ public:
 
 private:
   JSAutoCompartment mAc;
+  dom::ScriptSettingsStack& mStack;
   // It's safe to make this a weak pointer, since it's the subject principal
   // when we go on the stack, so can't go away until after we're gone.  In
   // particular, this is only used from the CallSetup constructor, and only in
@@ -188,7 +198,9 @@ private:
 class AutoIncumbentScript : protected ScriptSettingsStackEntry {
 public:
   AutoIncumbentScript(nsIGlobalObject* aGlobalObject);
+  ~AutoIncumbentScript();
 private:
+  dom::ScriptSettingsStack& mStack;
   JS::AutoHideScriptedCaller mCallerOverride;
 };
 
@@ -200,10 +212,12 @@ private:
  *
  * This class may not be instantiated if an exception is pending.
  */
-class AutoNoJSAPI : protected ScriptSettingsStackEntry {
+class AutoNoJSAPI {
 public:
   AutoNoJSAPI(bool aIsMainThread = NS_IsMainThread());
+  ~AutoNoJSAPI();
 private:
+  dom::ScriptSettingsStack& mStack;
   mozilla::Maybe<AutoCxPusher> mCxPusher;
 };
 

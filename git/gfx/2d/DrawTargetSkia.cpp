@@ -135,7 +135,7 @@ DrawTargetSkia::Snapshot()
       return nullptr;
   }
 
-  return snapshot.forget();
+  return snapshot;
 }
 
 static void
@@ -587,7 +587,7 @@ DrawTargetSkia::CreateSourceSurfaceFromData(unsigned char *aData,
     return nullptr;
   }
     
-  return newSurf.forget();
+  return newSurf;
 }
 
 TemporaryRef<DrawTarget>
@@ -597,7 +597,7 @@ DrawTargetSkia::CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFor
   if (!target->Init(aSize, aFormat)) {
     return nullptr;
   }
-  return target.forget();
+  return target;
 }
 
 bool
@@ -638,7 +638,7 @@ DrawTargetSkia::OptimizeSourceSurface(SourceSurface *aSurface) const
                                                              map.mStride,
                                                              dataSurf->GetFormat());
   dataSurf->Unmap();
-  return result.forget();
+  return result;
 }
 
 TemporaryRef<SourceSurface>
@@ -808,7 +808,8 @@ DrawTargetSkia::GetNativeSurface(NativeSurfaceType aType)
 TemporaryRef<PathBuilder> 
 DrawTargetSkia::CreatePathBuilder(FillRule aFillRule) const
 {
-  return new PathBuilderSkia(aFillRule);
+  RefPtr<PathBuilderSkia> pb = new PathBuilderSkia(aFillRule);
+  return pb;
 }
 
 void
