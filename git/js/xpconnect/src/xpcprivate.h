@@ -4279,22 +4279,6 @@ public:
                                   nsIVariant* variant,
                                   nsresult* pErr, jsval* pJSVal);
 
-    bool IsPurple()
-    {
-        return mRefCnt.IsPurple();
-    }
-
-    void RemovePurple()
-    {
-        mRefCnt.RemovePurple();
-    }
-
-    void SetCCGeneration(PRUint32 aGen)
-    {
-        mCCGeneration = aGen;
-    }
-
-    PRUint32 CCGeneration() { return mCCGeneration; }
 protected:
     virtual ~XPCVariant() { }
 
@@ -4303,8 +4287,7 @@ protected:
 protected:
     nsDiscriminatedUnion mData;
     jsval                mJSVal;
-    bool                 mReturnRawObject : 1;
-    PRUint32             mCCGeneration : 31;
+    JSBool               mReturnRawObject;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(XPCVariant, XPCVARIANT_IID)
