@@ -366,12 +366,13 @@ nsXPCComponents_Interfaces::NewResolve(nsIXPConnectWrappedNative *wrapper,
 
                         *objp = obj;
                         *_retval = JS_ValueToId(cx, id, &idid) &&
-                                   JS_DefinePropertyById(cx, obj, idid,
-                                                         OBJECT_TO_JSVAL(idobj),
-                                                         nsnull, nsnull,
-                                                         JSPROP_ENUMERATE |
-                                                         JSPROP_READONLY |
-                                                         JSPROP_PERMANENT);
+                                   OBJ_DEFINE_PROPERTY(cx, obj, idid,
+                                                       OBJECT_TO_JSVAL(idobj),
+                                                       nsnull, nsnull,
+                                                       JSPROP_ENUMERATE |
+                                                       JSPROP_READONLY |
+                                                       JSPROP_PERMANENT,
+                                                       nsnull);
                     }
                 }
             }
@@ -706,12 +707,13 @@ nsXPCComponents_InterfacesByID::NewResolve(nsIXPConnectWrappedNative *wrapper,
 
                     *objp = obj;
                     *_retval = JS_ValueToId(cx, id, &idid) &&
-                        JS_DefinePropertyById(cx, obj, idid,
-                                              OBJECT_TO_JSVAL(idobj),
-                                              nsnull, nsnull,
-                                              JSPROP_ENUMERATE |
-                                              JSPROP_READONLY |
-                                              JSPROP_PERMANENT);
+                        OBJ_DEFINE_PROPERTY(cx, obj, idid,
+                                            OBJECT_TO_JSVAL(idobj),
+                                            nsnull, nsnull,
+                                            JSPROP_ENUMERATE |
+                                            JSPROP_READONLY |
+                                            JSPROP_PERMANENT,
+                                            nsnull);
                 }
             }
         }
@@ -999,12 +1001,13 @@ nsXPCComponents_Classes::NewResolve(nsIXPConnectWrappedNative *wrapper,
 
                         *objp = obj;
                         *_retval = JS_ValueToId(cx, id, &idid) &&
-                                   JS_DefinePropertyById(cx, obj, idid,
-                                                         OBJECT_TO_JSVAL(idobj),
-                                                         nsnull, nsnull,
-                                                         JSPROP_ENUMERATE |
-                                                         JSPROP_READONLY |
-                                                         JSPROP_PERMANENT);
+                                   OBJ_DEFINE_PROPERTY(cx, obj, idid,
+                                                       OBJECT_TO_JSVAL(idobj),
+                                                       nsnull, nsnull,
+                                                       JSPROP_ENUMERATE |
+                                                       JSPROP_READONLY |
+                                                       JSPROP_PERMANENT,
+                                                       nsnull);
                     }
                 }
             }
@@ -1270,12 +1273,13 @@ nsXPCComponents_ClassesByID::NewResolve(nsIXPConnectWrappedNative *wrapper,
 
                         *objp = obj;
                         *_retval = JS_ValueToId(cx, id, &idid) &&
-                                   JS_DefinePropertyById(cx, obj, idid,
-                                                         OBJECT_TO_JSVAL(idobj),
-                                                         nsnull, nsnull,
-                                                         JSPROP_ENUMERATE |
-                                                         JSPROP_READONLY |
-                                                         JSPROP_PERMANENT);
+                                   OBJ_DEFINE_PROPERTY(cx, obj, idid,
+                                                       OBJECT_TO_JSVAL(idobj),
+                                                       nsnull, nsnull,
+                                                       JSPROP_ENUMERATE |
+                                                       JSPROP_READONLY |
+                                                       JSPROP_PERMANENT,
+                                                       nsnull);
                     }
                 }
             }
@@ -1497,11 +1501,12 @@ nsXPCComponents_Results::NewResolve(nsIXPConnectWrappedNative *wrapper,
                 *objp = obj;
                 if(!JS_NewNumberValue(cx, (jsdouble)rv, &val) ||
                    !JS_ValueToId(cx, id, &idid) ||
-                   !JS_DefinePropertyById(cx, obj, idid, val,
-                                          nsnull, nsnull,
-                                          JSPROP_ENUMERATE |
-                                          JSPROP_READONLY |
-                                          JSPROP_PERMANENT))
+                   !OBJ_DEFINE_PROPERTY(cx, obj, idid, val,
+                                        nsnull, nsnull,
+                                        JSPROP_ENUMERATE |
+                                        JSPROP_READONLY |
+                                        JSPROP_PERMANENT,
+                                        nsnull))
                 {
                     return NS_ERROR_UNEXPECTED;
                 }
@@ -3958,9 +3963,10 @@ nsXPCComponents::NewResolve(nsIXPConnectWrappedNative *wrapper,
         return NS_OK;
 
     *objp = obj;
-    *_retval = JS_DefinePropertyById(cx, obj, idid, JSVAL_VOID, nsnull, nsnull,
-                                     JSPROP_ENUMERATE | JSPROP_PERMANENT |
-                                     attrs);
+    *_retval = OBJ_DEFINE_PROPERTY(cx, obj, idid, JSVAL_VOID,
+                                   nsnull, nsnull,
+                                   JSPROP_ENUMERATE | JSPROP_PERMANENT | attrs,
+                                   nsnull);
     return NS_OK;
 }
 
@@ -4061,9 +4067,11 @@ nsXPCComponents::AttachNewComponentsObject(XPCCallContext& ccx,
     JSObject* obj;
 
     return NS_SUCCEEDED(wrapper->GetJSObject(&obj)) &&
-           obj && JS_DefinePropertyById(ccx, aGlobal, id, OBJECT_TO_JSVAL(obj),
-                                        nsnull, nsnull,
-                                        JSPROP_PERMANENT | JSPROP_READONLY);
+           obj && OBJ_DEFINE_PROPERTY(ccx,
+                                      aGlobal, id, OBJECT_TO_JSVAL(obj),
+                                      nsnull, nsnull,
+                                      JSPROP_PERMANENT | JSPROP_READONLY,
+                                      nsnull);
 }
 
 /* void lookupMethod (); */

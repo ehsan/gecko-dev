@@ -806,11 +806,6 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
         nsContentUtils::GetEventArgNames(nameSpace, aName, &argCount,
                                          &argNames);
 
-        nsCxPusher pusher;
-        if (!pusher.Push((JSContext*)context->GetNativeContext())) {
-          return NS_ERROR_FAILURE;
-        }
-
         rv = context->CompileEventHandler(aName, argCount, argNames,
                                           aBody,
                                           url.get(), lineNo,
@@ -1010,12 +1005,6 @@ nsEventListenerManager::CompileEventHandlerInternal(nsIScriptContext *aContext,
           lineNo = 1;
         }
       }
-
-      nsCxPusher pusher;
-      if (!pusher.Push((JSContext*)aContext->GetNativeContext())) {
-        return NS_ERROR_FAILURE;
-      }
-
 
       if (handlerOwner) {
         // Always let the handler owner compile the event
