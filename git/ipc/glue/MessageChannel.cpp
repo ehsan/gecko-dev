@@ -57,7 +57,6 @@ MessageChannel::MessageChannel(MessageListener *aListener)
     mPendingRPCReplies(0),
     mCurrentRPCTransaction(0),
     mDispatchingSyncMessage(false),
-    mDispatchingUrgentMessageCount(0),
     mRemoteStackDepthGuess(false),
     mSawInterruptOutMsg(false)
 {
@@ -417,7 +416,6 @@ MessageChannel::Send(Message* aMsg, Message* aReply)
 
     IPC_ASSERT(aMsg->is_sync(), "can only Send() sync messages here");
     IPC_ASSERT(!DispatchingSyncMessage(), "violation of sync handler invariant");
-    IPC_ASSERT(!DispatchingUrgentMessage(), "sync messages forbidden while handling urgent message");
     IPC_ASSERT(!AwaitingSyncReply(), "nested sync messages are not supported");
 
     AutoEnterPendingReply replies(mPendingSyncReplies);
@@ -939,11 +937,7 @@ MessageChannel::DispatchUrgentMessage(const Message& aMsg)
 
     Message *reply = nullptr;
 
-    mDispatchingUrgentMessageCount++;
-    Result rv = mListener->OnCallReceived(aMsg, reply);
-    mDispatchingUrgentMessageCount--;
-
-    if (!MaybeHandleError(rv, "DispatchUrgentMessage")) {
+    if (!MaybeHandleError(mListener->OnCallReceived(aMsg, reply), "DispatchUrgentMessage")) {
         delete reply;
         reply = new Message();
         reply->set_urgent();

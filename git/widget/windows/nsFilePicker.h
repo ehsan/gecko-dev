@@ -30,7 +30,6 @@
 #include "nsdefs.h"
 #include <commdlg.h>
 #include <shobjidl.h>
-#undef LogSeverity // SetupAPI.h #defines this as DWORD
 
 class nsILoadContext;
 

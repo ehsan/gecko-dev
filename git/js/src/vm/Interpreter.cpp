@@ -3609,7 +3609,7 @@ js::Lambda(JSContext *cx, HandleFunction fun, HandleObject parent)
         clone = js_fun_bind(cx, clone, thisval, nullptr, 0);
         if (!clone)
             return nullptr;
-        clone->as<JSFunction>().setArrow();
+        clone->as<JSFunction>().flags |= JSFunction::ARROW;
     }
 
     JS_ASSERT(clone->global() == clone->global());

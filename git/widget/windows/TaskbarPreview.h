@@ -10,7 +10,6 @@
 
 #include <windows.h>
 #include <shobjidl.h>
-#undef LogSeverity // SetupAPI.h #defines this as DWORD
 
 #include <nsITaskbarPreview.h>
 #include <nsAutoPtr.h>
