@@ -146,16 +146,6 @@ TemporaryRef<TextureHost> CreateTextureHostBasic(const SurfaceDescriptor& aDesc,
                                                  ISurfaceAllocator* aDeallocator,
                                                  TextureFlags aFlags);
 
-// implemented in TextureD3D11.cpp
-TemporaryRef<TextureHost> CreateTextureHostD3D11(const SurfaceDescriptor& aDesc,
-                                                 ISurfaceAllocator* aDeallocator,
-                                                 TextureFlags aFlags);
-
-// implemented in TextureD3D9.cpp
-TemporaryRef<TextureHost> CreateTextureHostD3D9(const SurfaceDescriptor& aDesc,
-                                                ISurfaceAllocator* aDeallocator,
-                                                TextureFlags aFlags);
-
 // static
 TemporaryRef<TextureHost>
 TextureHost::Create(const SurfaceDescriptor& aDesc,
@@ -176,9 +166,8 @@ TextureHost::Create(const SurfaceDescriptor& aDesc,
 #endif
 #ifdef XP_WIN
     case LAYERS_D3D11:
-      return CreateTextureHostD3D11(aDesc, aDeallocator, aFlags);
     case LAYERS_D3D9:
-      return CreateTextureHostD3D9(aDesc, aDeallocator, aFlags);
+      // XXX - not implemented yet
 #endif
     default:
       MOZ_CRASH("Couldn't create texture host");
@@ -371,7 +360,7 @@ BufferTextureHost::Updated(const nsIntRegion* aRegion)
   }
   if (GetFlags() & TEXTURE_IMMEDIATE_UPLOAD) {
     DebugOnly<bool> result = MaybeUpload(mPartialUpdate ? &mMaybeUpdatedRegion : nullptr);
-    NS_WARN_IF_FALSE(result, "Failed to upload a texture");
+    MOZ_ASSERT(result);
   }
 }
 
@@ -381,11 +370,7 @@ BufferTextureHost::SetCompositor(Compositor* aCompositor)
   if (mCompositor == aCompositor) {
     return;
   }
-  RefPtr<NewTextureSource> it = mFirstSource;
-  while (it) {
-    it->SetCompositor(aCompositor);
-    it = it->GetNextSibling();
-  }
+  DeallocateDeviceData();
   mCompositor = aCompositor;
 }
 
@@ -479,7 +464,7 @@ BufferTextureHost::Upload(nsIntRegion *aRegion)
       if (!mFirstSource) {
         mFirstSource = mCompositor->CreateDataTextureSource(mFlags);
       }
-      mFirstSource->Update(surf, aRegion);
+      mFirstSource->Update(surf, mFlags, aRegion);
       return true;
     }
 
@@ -524,9 +509,9 @@ BufferTextureHost::Upload(nsIntRegion *aRegion)
                                                     gfx::FORMAT_A8);
     // We don't support partial updates for Y U V textures
     NS_ASSERTION(!aRegion, "Unsupported partial updates for YCbCr textures");
-    if (!srcY->Update(tempY) ||
-        !srcU->Update(tempCb) ||
-        !srcV->Update(tempCr)) {
+    if (!srcY->Update(tempY, mFlags) ||
+        !srcU->Update(tempCb, mFlags) ||
+        !srcV->Update(tempCr, mFlags)) {
       NS_WARNING("failed to update the DataTextureSource");
       return false;
     }
@@ -546,7 +531,7 @@ BufferTextureHost::Upload(nsIntRegion *aRegion)
       return false;
     }
 
-    if (!mFirstSource->Update(surf.get(), aRegion)) {
+    if (!mFirstSource->Update(surf.get(), mFlags, aRegion)) {
       NS_WARNING("failed to update the DataTextureSource");
       return false;
     }

@@ -111,10 +111,9 @@ public:
 
 private:
   friend class AudioBufferSourceNodeEngine;
-  // START is sent during Start().
-  // STOP is sent during Stop().
-  // OFFSET and DURATION are sent when SetBuffer() and Start() have
-  // been called (along with sending the buffer).
+  // START, OFFSET and DURATION are always set by start() (along with setting
+  // mBuffer to something non-null).
+  // STOP is set by stop().
   enum EngineParameters {
     SAMPLE_RATE,
     START,
@@ -130,7 +129,9 @@ private:
 
   void SendLoopParametersToStream();
   void SendBufferParameterToStream(JSContext* aCx);
-  void SendOffsetAndDurationParametersToStream(AudioNodeStream* aStream);
+  void SendOffsetAndDurationParametersToStream(AudioNodeStream* aStream,
+                                               double aOffset,
+                                               double aDuration);
   static void SendPlaybackRateToStream(AudioNode* aNode);
 
 private:

@@ -67,13 +67,13 @@ NS_IMPL_RELEASE_INHERITED(SpeechRecognition, nsDOMEventTargetHelper)
 
 struct SpeechRecognition::TestConfig SpeechRecognition::mTestConfig;
 
-SpeechRecognition::SpeechRecognition(nsPIDOMWindow* aOwnerWindow)
-  : nsDOMEventTargetHelper(aOwnerWindow)
-  , mEndpointer(kSAMPLE_RATE)
+SpeechRecognition::SpeechRecognition()
+  : mEndpointer(kSAMPLE_RATE)
   , mAudioSamplesPerChunk(mEndpointer.FrameSize())
   , mSpeechDetectionTimer(do_CreateInstance(NS_TIMER_CONTRACTID))
 {
   SR_LOG("created SpeechRecognition");
+  SetIsDOMBinding();
 
   mTestConfig.Init();
   if (mTestConfig.mEnableTests) {
@@ -121,7 +121,8 @@ SpeechRecognition::Constructor(const GlobalObject& aGlobal,
   }
 
   MOZ_ASSERT(win->IsInnerWindow());
-  nsRefPtr<SpeechRecognition> object = new SpeechRecognition(win);
+  nsRefPtr<SpeechRecognition> object = new SpeechRecognition();
+  object->BindToOwner(win);
   return object.forget();
 }
 

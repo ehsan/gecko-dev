@@ -7,12 +7,11 @@
 #define mozilla_dom_power_WakeLock_h
 
 #include "nsCOMPtr.h"
+#include "nsIDOMWakeLock.h"
 #include "nsIDOMEventListener.h"
 #include "nsIObserver.h"
 #include "nsString.h"
 #include "nsWeakReference.h"
-#include "nsWrapperCache.h"
-#include "mozilla/ErrorResult.h"
 
 class nsIDOMWindow;
 
@@ -21,18 +20,19 @@ namespace dom {
 
 class ContentParent;
 
-class WakeLock MOZ_FINAL
-  : public nsIDOMEventListener
-  , public nsWrapperCache
+namespace power {
+
+class WakeLock
+  : public nsIDOMMozWakeLock
+  , public nsIDOMEventListener
   , public nsIObserver
   , public nsSupportsWeakReference
 {
 public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMMOZWAKELOCK
   NS_DECL_NSIDOMEVENTLISTENER
   NS_DECL_NSIOBSERVER
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(WakeLock, nsIDOMEventListener)
 
   // Note: WakeLock lives for the lifetime of the document in order to avoid
   // exposing GC behavior to pages. This means that
@@ -51,17 +51,6 @@ public:
   // dies, the lock is released.  A wake lock initialized via this method is
   // always considered visible.
   nsresult Init(const nsAString &aTopic, ContentParent* aContentParent);
-
-  // WebIDL methods
-
-  nsISupports* GetParentObject() const;
-
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-  void GetTopic(nsAString& aTopic);
-
-  void Unlock(ErrorResult& aRv);
 
 private:
   void     DoUnlock();
@@ -82,6 +71,7 @@ private:
   nsWeakPtr mWindow;
 };
 
+} // namespace power
 } // namespace dom
 } // namespace mozilla
 

@@ -149,8 +149,6 @@ public:
    */
   virtual void DeallocateDeviceData() = 0;
 
-  virtual void SetCompositor(Compositor* aCompositor) {}
-
   void SetNextSibling(NewTextureSource* aTexture)
   {
     mNextSibling = aTexture;
@@ -197,6 +195,7 @@ public:
    * the device texture it uploads to internally.
    */
   virtual bool Update(gfx::DataSourceSurface* aSurface,
+                      TextureFlags aFlags,
                       nsIntRegion* aDestRegion = nullptr,
                       gfx::IntPoint* aSrcOffset = nullptr) = 0;
 

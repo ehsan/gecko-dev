@@ -20,7 +20,6 @@
 
 class nsIDOMFile;
 class nsIFileStorage;
-class nsPIDOMWindow;
 
 namespace mozilla {
 namespace dom {
@@ -94,14 +93,9 @@ public:
   CreateFileObject(LockedFile* aLockedFile, uint32_t aFileSize) = 0;
 
 protected:
-  FileHandle(nsPIDOMWindow* aWindow)
-    : nsDOMEventTargetHelper(aWindow)
+  FileHandle()
   {
-  }
-
-  FileHandle(nsDOMEventTargetHelper* aOwner)
-    : nsDOMEventTargetHelper(aOwner)
-  {
+    SetIsDOMBinding();
   }
 
   ~FileHandle()
