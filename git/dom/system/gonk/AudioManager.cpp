@@ -199,7 +199,8 @@ public:
 };
 
 AudioManager::AudioManager() : mPhoneState(PHONE_STATE_CURRENT),
-                 mObserver(new HeadphoneSwitchObserver())
+                 mObserver(new HeadphoneSwitchObserver()),
+                 mFMChannelIsMuted(0)
 {
   RegisterSwitchObserver(SWITCH_HEADPHONES, mObserver);
 
@@ -422,8 +423,12 @@ AudioManager::SetStreamVolumeIndex(int32_t aStream, int32_t aIndex) {
   status_t status =
     AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(aStream), aIndex);
 
+  // sync the fm stream volume with music volume, except set fm volume by audioChannelServices
+  if (aStream == AUDIO_STREAM_FM && IsDeviceOn(AUDIO_DEVICE_OUT_FM)) {
+    mFMChannelIsMuted = aIndex == 0;
+  }
   // sync fm volume with music stream type
-  if (aStream == AUDIO_STREAM_MUSIC && IsDeviceOn(AUDIO_DEVICE_OUT_FM)) {
+  if (aStream == AUDIO_STREAM_MUSIC && IsDeviceOn(AUDIO_DEVICE_OUT_FM) && !mFMChannelIsMuted) {
     AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_FM), aIndex);
   }
 
