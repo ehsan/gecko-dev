@@ -139,9 +139,6 @@ private:
 
   /* Deflate dictionary */
   Array<unsigned char> dictionary;
-
-  /* Special allocator for inflate to use the same buffers for every chunk */
-  zxx_stream::StaticAllocator allocator;
 };
 
 inline void

@@ -15,7 +15,6 @@
 #include "mozilla/Array.h"
 #include "mozilla/DebugOnly.h"
 
-#include "builtin/SIMD.h"
 #include "jit/AtomicOp.h"
 #include "jit/FixedList.h"
 #include "jit/InlineList.h"
@@ -1959,18 +1958,26 @@ class MSimdBinaryArith
 {
   public:
     enum Operation {
-#define OP_LIST_(OP) Op_##OP,
-        ARITH_COMMONX4_SIMD_OP(OP_LIST_)
-        ARITH_FLOAT32X4_SIMD_OP(OP_LIST_)
-#undef OP_LIST_
+        Add,
+        Sub,
+        Mul,
+        Div,
+        Min,
+        Max,
+        MinNum,
+        MaxNum
     };
 
     static const char* OperationName(Operation op) {
         switch (op) {
-#define OP_CASE_LIST_(OP) case Op_##OP: return #OP;
-          ARITH_COMMONX4_SIMD_OP(OP_CASE_LIST_)
-          ARITH_FLOAT32X4_SIMD_OP(OP_CASE_LIST_)
-#undef OP_CASE_LIST_
+          case Add:    return "Add";
+          case Sub:    return "Sub";
+          case Mul:    return "Mul";
+          case Div:    return "Div";
+          case Min:    return "Min";
+          case Max:    return "Max";
+          case MinNum: return "MinNum";
+          case MaxNum: return "MaxNum";
         }
         MOZ_CRASH("unexpected operation");
     }
@@ -1981,11 +1988,11 @@ class MSimdBinaryArith
     MSimdBinaryArith(MDefinition *left, MDefinition *right, Operation op, MIRType type)
       : MBinaryInstruction(left, right), operation_(op)
     {
-        MOZ_ASSERT_IF(type == MIRType_Int32x4, op == Op_add || op == Op_sub || op == Op_mul);
+        MOZ_ASSERT_IF(type == MIRType_Int32x4, op == Add || op == Sub || op == Mul);
         MOZ_ASSERT(IsSimdType(type));
         setResultType(type);
         setMovable();
-        if (op == Op_add || op == Op_mul || op == Op_min || op == Op_max)
+        if (op == Add || op == Mul || op == Min || op == Max)
             setCommutative();
     }
 

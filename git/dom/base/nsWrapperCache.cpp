@@ -6,7 +6,7 @@
 
 #include "nsWrapperCacheInlines.h"
 
-#include "js/Proxy.h"
+#include "jsproxy.h"
 #include "mozilla/dom/DOMJSProxyHandler.h"
 #include "mozilla/HoldDropJSObjects.h"
 #include "nsCycleCollectionTraversalCallback.h"

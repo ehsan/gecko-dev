@@ -587,7 +587,8 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mIsPaintingToWindow(false),
       mIsCompositingCheap(false),
       mContainsPluginItem(false),
-      mAncestorHasApzAwareEventHandler(false),
+      mAncestorHasTouchEventHandler(false),
+      mAncestorHasScrollEventHandler(false),
       mHaveScrollableDisplayPort(false),
       mWindowDraggingAllowed(false),
       mIsBuildingForPopup(nsLayoutUtils::IsPopup(aReferenceFrame))
@@ -1629,9 +1630,6 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(nsDisplayListBuilder* aB
                      1.0f/containerParameters.mYScale);
   root->SetScaleToResolution(presShell->ScaleToResolution(),
       containerParameters.mXScale);
-  root->SetForceDispatchToContentRegion(
-      aBuilder->IsBuildingLayerEventRegions() &&
-      nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(presShell));
 
   if (gfxPrefs::LayoutUseContainersForRootFrames()) {
     bool isRoot = presContext->IsRootContentDocument();
@@ -3153,7 +3151,9 @@ nsDisplayLayerEventRegions::AddFrame(nsDisplayListBuilder* aBuilder,
   } else {
     mHitRegion.Or(mHitRegion, borderBox);
   }
-  if (aBuilder->GetAncestorHasApzAwareEventHandler()) {
+  if (aBuilder->GetAncestorHasTouchEventHandler() ||
+      aBuilder->GetAncestorHasScrollEventHandler())
+  {
     mDispatchToContentHitRegion.Or(mDispatchToContentHitRegion, borderBox);
   }
 }
@@ -4064,9 +4064,6 @@ nsDisplaySubDocument::nsDisplaySubDocument(nsDisplayListBuilder* aBuilder,
     , mScrollParentId(aBuilder->GetCurrentScrollParentId())
 {
   MOZ_COUNT_CTOR(nsDisplaySubDocument);
-  mForceDispatchToContentRegion =
-    aBuilder->IsBuildingLayerEventRegions() &&
-    nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(aFrame->PresContext()->PresShell());
 }
 
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -4088,9 +4085,7 @@ nsDisplaySubDocument::BuildLayer(nsDisplayListBuilder* aBuilder,
     params.mInLowPrecisionDisplayPort = true; 
   }
 
-  nsRefPtr<Layer> layer = nsDisplayOwnLayer::BuildLayer(aBuilder, aManager, params);
-  layer->AsContainerLayer()->SetForceDispatchToContentRegion(mForceDispatchToContentRegion);
-  return layer.forget();
+  return nsDisplayOwnLayer::BuildLayer(aBuilder, aManager, params);
 }
 
 UniquePtr<FrameMetrics>

@@ -27,6 +27,7 @@ class FullParseHandler
 {
     ParseNodeAllocator allocator;
     TokenStream &tokenStream;
+    bool foldConstants;
 
     ParseNode *allocParseNode(size_t size) {
         MOZ_ASSERT(size == sizeof(ParseNode));
@@ -70,10 +71,11 @@ class FullParseHandler
     typedef Definition *DefinitionNode;
 
     FullParseHandler(ExclusiveContext *cx, LifoAlloc &alloc,
-                     TokenStream &tokenStream, Parser<SyntaxParseHandler> *syntaxParser,
-                     LazyScript *lazyOuterFunction)
+                     TokenStream &tokenStream, bool foldConstants,
+                     Parser<SyntaxParseHandler> *syntaxParser, LazyScript *lazyOuterFunction)
       : allocator(cx, alloc),
         tokenStream(tokenStream),
+        foldConstants(foldConstants),
         lazyOuterFunction_(lazyOuterFunction),
         lazyInnerFunctionIndex(0),
         syntaxParser(syntaxParser)
@@ -215,10 +217,10 @@ class FullParseHandler
         TokenPos pos(left->pn_pos.begin, right->pn_pos.end);
         return new_<BinaryNode>(kind, op, pos, left, right);
     }
-    ParseNode *appendOrCreateList(ParseNodeKind kind, ParseNode *left, ParseNode *right,
-                                  ParseContext<FullParseHandler> *pc, JSOp op = JSOP_NOP)
+    ParseNode *newBinaryOrAppend(ParseNodeKind kind, ParseNode *left, ParseNode *right,
+                                 ParseContext<FullParseHandler> *pc, JSOp op = JSOP_NOP)
     {
-        return ParseNode::appendOrCreateList(kind, op, left, right, this, pc);
+        return ParseNode::newBinaryOrAppend(kind, op, left, right, this, pc, foldConstants);
     }
 
     ParseNode *newTernary(ParseNodeKind kind,
@@ -538,26 +540,10 @@ class FullParseHandler
         block->pn_expr = body;
     }
 
-    ParseNode *newLetExpression(ParseNode *vars, ParseNode *block, const TokenPos &pos) {
-        ParseNode *letExpr = newBinary(PNK_LETEXPR, vars, block);
-        if (!letExpr)
-            return nullptr;
-        letExpr->pn_pos = pos;
-        return letExpr;
-    }
-
-    ParseNode *newLetBlock(ParseNode *vars, ParseNode *block, const TokenPos &pos) {
-        ParseNode *letBlock = newBinary(PNK_LETBLOCK, vars, block);
-        if (!letBlock)
-            return nullptr;
-        letBlock->pn_pos = pos;
-        return letBlock;
-    }
-
     ParseNode *newAssignment(ParseNodeKind kind, ParseNode *lhs, ParseNode *rhs,
                              ParseContext<FullParseHandler> *pc, JSOp op)
     {
-        return newBinary(kind, lhs, rhs, op);
+        return newBinaryOrAppend(kind, lhs, rhs, pc, op);
     }
 
     bool isUnparenthesizedYieldExpression(ParseNode *node) {
@@ -614,9 +600,6 @@ class FullParseHandler
         return new_<ListNode>(kind, op, kid);
     }
 
-    ParseNode *newCatchList() {
-        return new_<ListNode>(PNK_CATCHLIST, JSOP_NOP, pos());
-    }
 
     ParseNode *newCommaExpressionList(ParseNode *kid) {
         return newList(PNK_COMMA, kid, JSOP_NOP);

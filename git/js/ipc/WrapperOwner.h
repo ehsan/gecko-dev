@@ -12,7 +12,7 @@
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "js/Class.h"
-#include "js/Proxy.h"
+#include "jsproxy.h"
 
 namespace mozilla {
 namespace jsipc {
@@ -28,7 +28,7 @@ class WrapperOwner : public virtual JavaScriptShared
     bool init();
 
     // Standard internal methods.
-    // (The traps should be in the same order like js/Proxy.h)
+    // (The traps should be in the same order like js/src/jsproxy.h)
     bool getOwnPropertyDescriptor(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
                                   JS::MutableHandle<JSPropertyDescriptor> desc);
     bool defineProperty(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,

@@ -127,7 +127,9 @@ function checkRSAChains(inadequateKeySize, adequateKeySize) {
   // adequate size for DV
   intFullName = intNotOKName + "-" + rootOKName;
   eeFullName = eeOKName + "-" + intNotOKName + "-" + rootOKName;
-  expectedNamesForOCSP = [ eeFullName ];
+  expectedNamesForOCSP = gEVExpected
+                       ? [ intFullName ]
+                       : [ eeFullName ];
   addKeySizeTestForEV(expectedNamesForOCSP, rootOKCertFileName,
                       [ intFullName ], eeFullName, false);
 
@@ -135,10 +137,7 @@ function checkRSAChains(inadequateKeySize, adequateKeySize) {
   // adequate size for DV
   intFullName = intOKName + "-" + rootOKName;
   eeFullName = eeNotOKName + "-" + intOKName + "-" + rootOKName;
-  expectedNamesForOCSP = gEVExpected
-                       ? [ intFullName,
-                           eeFullName ]
-                       : [ eeFullName ];
+  expectedNamesForOCSP = [ eeFullName ];
   addKeySizeTestForEV(expectedNamesForOCSP, rootOKCertFileName,
                       [ intFullName ], eeFullName, false);
 }

@@ -224,8 +224,6 @@ nsGeolocationSettings::HandleGeolocationAlaEnabledChange(const JS::Value& aVal)
 void
 nsGeolocationSettings::HandleGeolocationPerOriginSettingsChange(const JS::Value& aVal)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   if (!aVal.isObject()) {
     return;
   }
@@ -233,17 +231,11 @@ nsGeolocationSettings::HandleGeolocationPerOriginSettingsChange(const JS::Value&
   // clear the hash table
   mPerOriginSettings.Clear();
 
-  // root the object and get the global
-  JS::Rooted<JSObject*> obj(nsContentUtils::RootingCx(), &aVal.toObject());
-  MOZ_ASSERT(obj);
-  nsIGlobalObject* global = xpc::NativeGlobal(obj);
-  NS_ENSURE_TRUE_VOID(global && global->GetGlobalJSObject());
-
-  // because the spec requires calling getters when enumerating the key of a
-  // dictionary
-  AutoEntryScript aes(global);
-  aes.TakeOwnershipOfErrorReporting();
-  JSContext *cx = aes.cx();
+  // enumerate the array
+  AutoJSAPI jsapi;
+  jsapi.Init();
+  JSContext* cx = jsapi.cx();
+  JS::Rooted<JSObject*> obj(cx, &aVal.toObject());
   JS::AutoIdArray ids(cx, JS_Enumerate(cx, obj));
 
   // if we get no ids then the exception list is empty and we can return here.

@@ -20,6 +20,9 @@
 
 #include "jsatom.h"
 #include "jsclist.h"
+#ifdef DEBUG
+# include "jsproxy.h"
+#endif
 #include "jsscript.h"
 
 #ifdef XP_MACOSX
@@ -31,9 +34,6 @@
 #include "gc/Tracer.h"
 #include "irregexp/RegExpStack.h"
 #include "js/HashTable.h"
-#ifdef DEBUG
-# include "js/Proxy.h" // For AutoEnterPolicy
-#endif
 #include "js/Vector.h"
 #include "vm/CommonPropertyNames.h"
 #include "vm/DateTime.h"

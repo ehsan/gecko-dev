@@ -72,8 +72,7 @@ struct PresentedMatchesReference
   { \
     ByteString(reinterpret_cast<const uint8_t*>(a), sizeof(a) - 1), \
     ByteString(reinterpret_cast<const uint8_t*>(b), sizeof(b) - 1), \
-    Result::ERROR_BAD_DER, \
-    false \
+    Result::ERROR_BAD_DER \
   }
 
 static const PresentedMatchesReference DNSID_MATCH_PARAMS[] =

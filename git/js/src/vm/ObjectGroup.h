@@ -236,15 +236,11 @@ class ObjectGroup : public gc::TenuredCell
     TypeNewScript *anyNewScript();
     void detachNewScript(bool writeBarrier);
 
-    ObjectGroupFlags flagsDontCheckGeneration() {
-        return flags_;
-    }
-
   public:
 
     ObjectGroupFlags flags() {
         maybeSweep(nullptr);
-        return flagsDontCheckGeneration();
+        return flags_;
     }
 
     void addFlags(ObjectGroupFlags flags) {
@@ -382,27 +378,15 @@ class ObjectGroup : public gc::TenuredCell
         MOZ_ASSERT((flags & OBJECT_FLAG_DYNAMIC_MASK) == flags);
         return !!(this->flags() & flags);
     }
-
     bool hasAllFlags(ObjectGroupFlags flags) {
         MOZ_ASSERT((flags & OBJECT_FLAG_DYNAMIC_MASK) == flags);
         return (this->flags() & flags) == flags;
-    }
-
-    bool hasAllFlagsDontCheckGeneration(ObjectGroupFlags flags) {
-        MOZ_ASSERT((flags & OBJECT_FLAG_DYNAMIC_MASK) == flags);
-        return (this->flagsDontCheckGeneration() & flags) == flags;
     }
 
     bool unknownProperties() {
         MOZ_ASSERT_IF(flags() & OBJECT_FLAG_UNKNOWN_PROPERTIES,
                       hasAllFlags(OBJECT_FLAG_DYNAMIC_MASK));
         return !!(flags() & OBJECT_FLAG_UNKNOWN_PROPERTIES);
-    }
-
-    bool unknownPropertiesDontCheckGeneration() {
-        MOZ_ASSERT_IF(flagsDontCheckGeneration() & OBJECT_FLAG_UNKNOWN_PROPERTIES,
-                      hasAllFlagsDontCheckGeneration(OBJECT_FLAG_DYNAMIC_MASK));
-        return !!(flagsDontCheckGeneration() & OBJECT_FLAG_UNKNOWN_PROPERTIES);
     }
 
     bool shouldPreTenure() {

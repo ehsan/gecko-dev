@@ -190,37 +190,31 @@
     _(shiftLeftByScalar)             \
     _(shiftRightArithmeticByScalar)  \
     _(shiftRightLogicalByScalar)
-#define ARITH_FLOAT32X4_SIMD_OP(_)   \
-    _(div)                           \
-    _(max)                           \
-    _(min)                           \
-    _(maxNum)                        \
-    _(minNum)
 #define FOREACH_FLOAT32X4_SIMD_OP(_) \
-    ARITH_FLOAT32X4_SIMD_OP(_)       \
     _(abs)                           \
     _(sqrt)                          \
     _(reciprocal)                    \
     _(reciprocalSqrt)                \
     _(fromInt32x4)                   \
-    _(fromInt32x4Bits)
-#define ARITH_COMMONX4_SIMD_OP(_)    \
+    _(fromInt32x4Bits)               \
+    _(div)                           \
+    _(max)                           \
+    _(min)                           \
+    _(maxNum)                        \
+    _(minNum)
+#define FOREACH_COMMONX4_SIMD_OP(_)  \
     _(add)                           \
     _(sub)                           \
-    _(mul)
-#define BITWISE_COMMONX4_SIMD_OP(_)  \
-    _(and)                           \
-    _(or)                            \
-    _(xor)
-#define FOREACH_COMMONX4_SIMD_OP(_)  \
-    ARITH_COMMONX4_SIMD_OP(_)        \
-    BITWISE_COMMONX4_SIMD_OP(_)      \
+    _(mul)                           \
     _(lessThan)                      \
     _(lessThanOrEqual)               \
     _(equal)                         \
     _(notEqual)                      \
     _(greaterThan)                   \
     _(greaterThanOrEqual)            \
+    _(and)                           \
+    _(or)                            \
+    _(xor)                           \
     _(bitselect)                     \
     _(select)                        \
     _(swizzle)                       \

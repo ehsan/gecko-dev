@@ -443,10 +443,11 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
                                 Directives directives, GeneratorKind generatorKind);
 
     /*
-     * Create a new function object given a name (which is optional if this is
-     * a function expression).
+     * Create a new function object given parse context (pc) and a name (which
+     * is optional if this is a function expression).
      */
-    JSFunction *newFunction(HandleAtom atom, FunctionSyntaxKind kind, JSObject *proto = nullptr);
+    JSFunction *newFunction(GenericParseContext *pc, HandleAtom atom, FunctionSyntaxKind kind,
+                            JSObject *proto = nullptr);
 
     void trace(JSTracer *trc);
 
@@ -557,7 +558,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node debuggerStatement();
 
     Node lexicalDeclaration(bool isConst);
-    Node letDeclarationOrBlock();
+    Node letStatement();
     Node importDeclaration();
     Node exportDeclaration();
     Node expressionStatement(InvokedPrediction invoked = PredictUninvoked);
@@ -614,7 +615,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node generatorComprehension(uint32_t begin);
 
     bool argumentList(Node listNode, bool *isSpread);
-    Node deprecatedLetBlockOrExpression(LetContext letContext);
+    Node letBlock(LetContext letContext);
     Node destructuringExpr(BindData<ParseHandler> *data, TokenKind tt);
     Node destructuringExprWithoutYield(BindData<ParseHandler> *data, TokenKind tt, unsigned msg);
 

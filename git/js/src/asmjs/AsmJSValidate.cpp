@@ -183,114 +183,6 @@ CaseBody(ParseNode *pn)
     return BinaryRight(pn);
 }
 
-static inline ParseNode *
-BinaryOpLeft(ParseNode *pn)
-{
-    MOZ_ASSERT(pn->isBinaryOperation());
-    MOZ_ASSERT(pn->isArity(PN_LIST));
-    MOZ_ASSERT(pn->pn_count == 2);
-    return ListHead(pn);
-}
-
-static inline ParseNode *
-BinaryOpRight(ParseNode *pn)
-{
-    MOZ_ASSERT(pn->isBinaryOperation());
-    MOZ_ASSERT(pn->isArity(PN_LIST));
-    MOZ_ASSERT(pn->pn_count == 2);
-    return NextNode(ListHead(pn));
-}
-
-static inline ParseNode *
-BitwiseLeft(ParseNode *pn)
-{
-    return BinaryOpLeft(pn);
-}
-
-static inline ParseNode *
-BitwiseRight(ParseNode *pn)
-{
-    return BinaryOpRight(pn);
-}
-
-static inline ParseNode *
-MultiplyLeft(ParseNode *pn)
-{
-    MOZ_ASSERT(pn->isKind(PNK_STAR));
-    return BinaryOpLeft(pn);
-}
-
-static inline ParseNode *
-MultiplyRight(ParseNode *pn)
-{
-    MOZ_ASSERT(pn->isKind(PNK_STAR));
-    return BinaryOpRight(pn);
-}
-
-static inline ParseNode *
-AddSubLeft(ParseNode *pn)
-{
-    MOZ_ASSERT(pn->isKind(PNK_ADD) || pn->isKind(PNK_SUB));
-    return BinaryOpLeft(pn);
-}
-
-static inline ParseNode *
-AddSubRight(ParseNode *pn)
-{
-    MOZ_ASSERT(pn->isKind(PNK_ADD) || pn->isKind(PNK_SUB));
-    return BinaryOpRight(pn);
-}
-
-static inline ParseNode *
-DivOrModLeft(ParseNode *pn)
-{
-    MOZ_ASSERT(pn->isKind(PNK_DIV) || pn->isKind(PNK_MOD));
-    return BinaryOpLeft(pn);
-}
-
-static inline ParseNode *
-DivOrModRight(ParseNode *pn)
-{
-    MOZ_ASSERT(pn->isKind(PNK_DIV) || pn->isKind(PNK_MOD));
-    return BinaryOpRight(pn);
-}
-
-static inline ParseNode *
-ComparisonLeft(ParseNode *pn)
-{
-    return BinaryOpLeft(pn);
-}
-
-static inline ParseNode *
-ComparisonRight(ParseNode *pn)
-{
-    return BinaryOpRight(pn);
-}
-
-static inline ParseNode *
-AndOrLeft(ParseNode *pn)
-{
-    return BinaryOpLeft(pn);
-}
-
-static inline ParseNode *
-AndOrRight(ParseNode *pn)
-{
-    return BinaryOpRight(pn);
-}
-
-static inline ParseNode *
-RelationalLeft(ParseNode *pn)
-{
-    return BinaryOpLeft(pn);
-}
-
-static inline ParseNode *
-RelationalRight(ParseNode *pn)
-{
-    return BinaryOpRight(pn);
-}
-
 static inline bool
 IsExpressionStatement(ParseNode *pn)
 {
@@ -3820,13 +3712,13 @@ CheckTypeAnnotation(ModuleCompiler &m, ParseNode *coercionNode, AsmJSCoercion *c
 {
     switch (coercionNode->getKind()) {
       case PNK_BITOR: {
-        ParseNode *rhs = BitwiseRight(coercionNode);
+        ParseNode *rhs = BinaryRight(coercionNode);
         uint32_t i;
         if (!IsLiteralInt(m, rhs, &i) || i != 0)
             return m.fail(rhs, "must use |0 for argument/return coercion");
         *coercion = AsmJS_ToInt32;
         if (coercedExpr)
-            *coercedExpr = BitwiseLeft(coercionNode);
+            *coercedExpr = BinaryLeft(coercionNode);
         return true;
       }
       case PNK_POS: {
@@ -4437,10 +4329,8 @@ static bool
 FoldMaskedArrayIndex(FunctionCompiler &f, ParseNode **indexExpr, int32_t *mask,
                      NeedsBoundsCheck *needsBoundsCheck)
 {
-    MOZ_ASSERT((*indexExpr)->isKind(PNK_BITAND));
-
-    ParseNode *indexNode = BitwiseLeft(*indexExpr);
-    ParseNode *maskNode = BitwiseRight(*indexExpr);
+    ParseNode *indexNode = BinaryLeft(*indexExpr);
+    ParseNode *maskNode = BinaryRight(*indexExpr);
 
     uint32_t mask2;
     if (IsLiteralOrConstInt(f, maskNode, &mask2)) {
@@ -4498,17 +4388,16 @@ CheckArrayAccess(FunctionCompiler &f, ParseNode *viewName, ParseNode *indexExpr,
 
     MDefinition *pointerDef;
     if (indexExpr->isKind(PNK_RSH)) {
-        ParseNode *shiftAmountNode = BitwiseRight(indexExpr);
+        ParseNode *shiftNode = BinaryRight(indexExpr);
+        ParseNode *pointerNode = BinaryLeft(indexExpr);
 
         uint32_t shift;
-        if (!IsLiteralInt(f.m(), shiftAmountNode, &shift))
-            return f.failf(shiftAmountNode, "shift amount must be constant");
+        if (!IsLiteralInt(f.m(), shiftNode, &shift))
+            return f.failf(shiftNode, "shift amount must be constant");
 
         unsigned requiredShift = TypedArrayShift(*viewType);
         if (shift != requiredShift)
-            return f.failf(shiftAmountNode, "shift amount must be %u", requiredShift);
-
-        ParseNode *pointerNode = BitwiseLeft(indexExpr);
+            return f.failf(shiftNode, "shift amount must be %u", requiredShift);
 
         if (pointerNode->isKind(PNK_BITAND))
             FoldMaskedArrayIndex(f, &pointerNode, &mask, needsBoundsCheck);
@@ -4707,7 +4596,6 @@ static bool
 CheckAssign(FunctionCompiler &f, ParseNode *assign, MDefinition **def, Type *type)
 {
     MOZ_ASSERT(assign->isKind(PNK_ASSIGN));
-
     ParseNode *lhs = BinaryLeft(assign);
     ParseNode *rhs = BinaryRight(assign);
 
@@ -5206,8 +5094,8 @@ CheckFuncPtrCall(FunctionCompiler &f, ParseNode *callNode, RetType retType, MDef
     if (!indexExpr->isKind(PNK_BITAND))
         return f.fail(indexExpr, "function-pointer table index expression needs & mask");
 
-    ParseNode *indexNode = BitwiseLeft(indexExpr);
-    ParseNode *maskNode = BitwiseRight(indexExpr);
+    ParseNode *indexNode = BinaryLeft(indexExpr);
+    ParseNode *maskNode = BinaryRight(indexExpr);
 
     uint32_t mask;
     if (!IsLiteralInt(f.m(), maskNode, &mask) || mask == UINT32_MAX || !IsPowerOfTwo(mask + 1))
@@ -5852,12 +5740,22 @@ CheckSimdOperationCall(FunctionCompiler &f, ParseNode *call, const ModuleCompile
     AsmJSSimdType opType = global->simdOperationType();
 
     switch (global->simdOperation()) {
-#define OP_CHECK_CASE_LIST_(OP)                                                         \
-      case AsmJSSimdOperation_##OP:                                                     \
-        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::Op_##OP, def, type);
-      ARITH_COMMONX4_SIMD_OP(OP_CHECK_CASE_LIST_)
-      ARITH_FLOAT32X4_SIMD_OP(OP_CHECK_CASE_LIST_)
-#undef OP_CHECK_CASE_LIST_
+      case AsmJSSimdOperation_add:
+        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::Add, def, type);
+      case AsmJSSimdOperation_sub:
+        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::Sub, def, type);
+      case AsmJSSimdOperation_mul:
+        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::Mul, def, type);
+      case AsmJSSimdOperation_div:
+        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::Div, def, type);
+      case AsmJSSimdOperation_max:
+        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::Max, def, type);
+      case AsmJSSimdOperation_min:
+        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::Min, def, type);
+      case AsmJSSimdOperation_maxNum:
+        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::MaxNum, def, type);
+      case AsmJSSimdOperation_minNum:
+        return CheckSimdBinary(f, call, opType, MSimdBinaryArith::MinNum, def, type);
 
       case AsmJSSimdOperation_lessThan:
         return CheckSimdBinary(f, call, opType, MSimdBinaryComp::lessThan, def, type);
@@ -6389,8 +6287,8 @@ static bool
 CheckMultiply(FunctionCompiler &f, ParseNode *star, MDefinition **def, Type *type)
 {
     MOZ_ASSERT(star->isKind(PNK_STAR));
-    ParseNode *lhs = MultiplyLeft(star);
-    ParseNode *rhs = MultiplyRight(star);
+    ParseNode *lhs = BinaryLeft(star);
+    ParseNode *rhs = BinaryRight(star);
 
     MDefinition *lhsDef;
     Type lhsType;
@@ -6432,8 +6330,8 @@ CheckAddOrSub(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *typ
     JS_CHECK_RECURSION_DONT_REPORT(f.cx(), return f.m().failOverRecursed());
 
     MOZ_ASSERT(expr->isKind(PNK_ADD) || expr->isKind(PNK_SUB));
-    ParseNode *lhs = AddSubLeft(expr);
-    ParseNode *rhs = AddSubRight(expr);
+    ParseNode *lhs = BinaryLeft(expr);
+    ParseNode *rhs = BinaryRight(expr);
 
     MDefinition *lhsDef, *rhsDef;
     Type lhsType, rhsType;
@@ -6494,9 +6392,8 @@ static bool
 CheckDivOrMod(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *type)
 {
     MOZ_ASSERT(expr->isKind(PNK_DIV) || expr->isKind(PNK_MOD));
-
-    ParseNode *lhs = DivOrModLeft(expr);
-    ParseNode *rhs = DivOrModRight(expr);
+    ParseNode *lhs = BinaryLeft(expr);
+    ParseNode *rhs = BinaryRight(expr);
 
     MDefinition *lhsDef, *rhsDef;
     Type lhsType, rhsType;
@@ -6549,9 +6446,8 @@ CheckComparison(FunctionCompiler &f, ParseNode *comp, MDefinition **def, Type *t
 {
     MOZ_ASSERT(comp->isKind(PNK_LT) || comp->isKind(PNK_LE) || comp->isKind(PNK_GT) ||
                comp->isKind(PNK_GE) || comp->isKind(PNK_EQ) || comp->isKind(PNK_NE));
-
-    ParseNode *lhs = ComparisonLeft(comp);
-    ParseNode *rhs = ComparisonRight(comp);
+    ParseNode *lhs = BinaryLeft(comp);
+    ParseNode *rhs = BinaryRight(comp);
 
     MDefinition *lhsDef, *rhsDef;
     Type lhsType, rhsType;
@@ -6588,8 +6484,8 @@ CheckComparison(FunctionCompiler &f, ParseNode *comp, MDefinition **def, Type *t
 static bool
 CheckBitwise(FunctionCompiler &f, ParseNode *bitwise, MDefinition **def, Type *type)
 {
-    ParseNode *lhs = BitwiseLeft(bitwise);
-    ParseNode *rhs = BitwiseRight(bitwise);
+    ParseNode *lhs = BinaryLeft(bitwise);
+    ParseNode *rhs = BinaryRight(bitwise);
 
     int32_t identityElement;
     bool onlyOnRight;
@@ -7312,20 +7208,20 @@ static bool
 CheckHeapLengthCondition(ModuleCompiler &m, ParseNode *cond, PropertyName *newBufferName,
                          uint32_t *mask, uint32_t *minLength, uint32_t *maxLength)
 {
-    if (!cond->isKind(PNK_OR) || !AndOrLeft(cond)->isKind(PNK_OR))
+    if (!cond->isKind(PNK_OR) || !BinaryLeft(cond)->isKind(PNK_OR))
         return m.fail(cond, "expecting byteLength & K || byteLength <= L || byteLength > M");
 
-    ParseNode *cond1 = AndOrLeft(AndOrLeft(cond));
-    ParseNode *cond2 = AndOrRight(AndOrLeft(cond));
-    ParseNode *cond3 = AndOrRight(cond);
+    ParseNode *cond1 = BinaryLeft(BinaryLeft(cond));
+    ParseNode *cond2 = BinaryRight(BinaryLeft(cond));
+    ParseNode *cond3 = BinaryRight(cond);
 
     if (!cond1->isKind(PNK_BITAND))
         return m.fail(cond1, "expecting byteLength & K");
 
-    if (!CheckByteLengthCall(m, BitwiseLeft(cond1), newBufferName))
+    if (!CheckByteLengthCall(m, BinaryLeft(cond1), newBufferName))
         return false;
 
-    ParseNode *maskNode = BitwiseRight(cond1);
+    ParseNode *maskNode = BinaryRight(cond1);
     if (!IsLiteralInt(m, maskNode, mask))
         return m.fail(maskNode, "expecting integer literal mask");
     if ((*mask & 0xffffff) != 0xffffff)
@@ -7334,10 +7230,10 @@ CheckHeapLengthCondition(ModuleCompiler &m, ParseNode *cond, PropertyName *newBu
     if (!cond2->isKind(PNK_LE))
         return m.fail(cond2, "expecting byteLength <= L");
 
-    if (!CheckByteLengthCall(m, RelationalLeft(cond2), newBufferName))
+    if (!CheckByteLengthCall(m, BinaryLeft(cond2), newBufferName))
         return false;
 
-    ParseNode *minLengthNode = RelationalRight(cond2);
+    ParseNode *minLengthNode = BinaryRight(cond2);
     uint32_t minLengthExclusive;
     if (!IsLiteralInt(m, minLengthNode, &minLengthExclusive))
         return m.fail(minLengthNode, "expecting integer literal");
@@ -7350,10 +7246,10 @@ CheckHeapLengthCondition(ModuleCompiler &m, ParseNode *cond, PropertyName *newBu
     if (!cond3->isKind(PNK_GT))
         return m.fail(cond3, "expecting byteLength > M");
 
-    if (!CheckByteLengthCall(m, RelationalLeft(cond3), newBufferName))
+    if (!CheckByteLengthCall(m, BinaryLeft(cond3), newBufferName))
         return false;
 
-    ParseNode *maxLengthNode = RelationalRight(cond3);
+    ParseNode *maxLengthNode = BinaryRight(cond3);
     if (!IsLiteralInt(m, maxLengthNode, maxLength))
         return m.fail(maxLengthNode, "expecting integer literal");
     if (*maxLength > 0x80000000)
