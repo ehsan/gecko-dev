@@ -12,14 +12,6 @@
 # include <mach/mach.h>
 #endif
 
-#include "jstypes.h"
-
-#include "ds/LifoAlloc.h"
-#include "js/CallArgs.h"
-
-struct JSContext;
-struct JSRuntime;
-
 namespace js {
 
 class ScriptSource;
@@ -56,7 +48,7 @@ CompileAsmJS(JSContext *cx, AsmJSParser &parser, frontend::ParseNode *stmtList, 
 extern JSBool
 LinkAsmJS(JSContext *cx, unsigned argc, JS::Value *vp);
 
-// The JSNative for the functions nested in an asm.js module. Calling this
+// The js::Native for the functions nested in an asm.js module. Calling this
 // native will trampoline into generated code.
 extern JSBool
 CallAsmJS(JSContext *cx, unsigned argc, JS::Value *vp);
@@ -173,10 +165,10 @@ struct AsmJSParallelTask
 // module functions.
 #ifdef JS_ION
 extern bool
-IsAsmJSModuleNative(JSNative native);
+IsAsmJSModuleNative(js::Native native);
 #else
 inline bool
-IsAsmJSModuleNative(JSNative native)
+IsAsmJSModuleNative(js::Native native)
 {
     return false;
 }
@@ -187,17 +179,17 @@ IsAsmJSModuleNative(JSNative native)
 // Return whether asm.js optimization is inhibitted by the platform or
 // dynamically disabled:
 extern JSBool
-IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, JS::Value *vp);
+IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp);
 
 // Return whether the given value is a function containing "use asm" that has
 // been validated according to the asm.js spec.
 extern JSBool
-IsAsmJSModule(JSContext *cx, unsigned argc, JS::Value *vp);
+IsAsmJSModule(JSContext *cx, unsigned argc, Value *vp);
 
 // Return whether the given value is a nested function in an asm.js module that
 // has been both compile- and link-time validated.
 extern JSBool
-IsAsmJSFunction(JSContext *cx, unsigned argc, JS::Value *vp);
+IsAsmJSFunction(JSContext *cx, unsigned argc, Value *vp);
 
 } // namespace js
 

@@ -17,6 +17,9 @@
 
 #include <pulse/pulseaudio.h>
 
+// Set this define to make the code behave like in GTalk/libjingle
+//#define WEBRTC_PA_GTALK
+
 // We define this flag if it's missing from our headers, because we want to be
 // able to compile against old headers but still use PA_STREAM_ADJUST_LATENCY
 // if run against a recent version of the library.
@@ -308,7 +311,7 @@ private:
     bool _inputDeviceIsSpecified;
     bool _outputDeviceIsSpecified;
 
-    int sample_rate_hz_;
+    uint32_t _samplingFreq;
     uint8_t _recChannels;
     uint8_t _playChannels;
 

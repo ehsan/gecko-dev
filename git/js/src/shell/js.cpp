@@ -44,7 +44,6 @@
 #include "frontend/Parser.h"
 #include "vm/Shape.h"
 #include "vm/TypedArrayObject.h"
-#include "vm/WrapperObject.h"
 
 #include "prmjtime.h"
 
@@ -2325,7 +2324,7 @@ Clone(JSContext *cx, unsigned argc, jsval *vp)
         Maybe<JSAutoCompartment> ac;
         RootedObject obj(cx, JSVAL_IS_PRIMITIVE(args[0]) ? NULL : &args[0].toObject());
 
-        if (obj && obj->is<CrossCompartmentWrapperObject>()) {
+        if (obj && IsCrossCompartmentWrapper(obj)) {
             obj = UncheckedUnwrap(obj);
             ac.construct(cx, obj);
             args[0] = ObjectValue(*obj);

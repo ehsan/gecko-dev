@@ -167,18 +167,14 @@ CreateBasicDeprecatedTextureHost(SurfaceDescriptorType aDescriptorType,
                              uint32_t aTextureHostFlags,
                              uint32_t aTextureFlags)
 {
-  RefPtr<DeprecatedTextureHost> result = nullptr;
   if (aDescriptorType == SurfaceDescriptor::TYCbCrImage) {
-    result = new YCbCrDeprecatedTextureHostBasic();
-  } else {
-    MOZ_ASSERT(aDescriptorType == SurfaceDescriptor::TShmem ||
-               aDescriptorType == SurfaceDescriptor::TMemoryImage,
-               "We can only support Shmem currently");
-    result = new DeprecatedTextureHostBasic();
+    return new YCbCrDeprecatedTextureHostBasic();
   }
 
-  result->SetFlags(aTextureFlags);
-  return result.forget();
+  MOZ_ASSERT(aDescriptorType == SurfaceDescriptor::TShmem ||
+             aDescriptorType == SurfaceDescriptor::TMemoryImage,
+             "We can only support Shmem currently");
+  return new DeprecatedTextureHostBasic();
 }
 
 BasicCompositor::BasicCompositor(nsIWidget *aWidget)

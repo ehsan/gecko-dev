@@ -168,9 +168,8 @@ DrawTargetD2D1::MaskSurface(const Pattern &aSource,
                             const DrawOptions &aOptions)
 {
   RefPtr<ID2D1Bitmap> bitmap;
-  Matrix mat;
 
-  RefPtr<ID2D1Image> image = GetImageForSurface(aMask, mat, EXTEND_CLAMP);
+  RefPtr<ID2D1Image> image = GetImageForSurface(aMask, Matrix(), EXTEND_CLAMP);
 
   PrepareForDrawing(aOptions.mCompositionOp, aSource);
 
