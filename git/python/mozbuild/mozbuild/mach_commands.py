@@ -61,11 +61,6 @@ class Build(MachCommandBase):
 
         return status
 
-    @Command('clobber', help='Clobber the tree (delete the object directory).')
-    def clobber(self):
-        self.remove_objdir()
-        return 0
-
 
 @CommandProvider
 class Warnings(MachCommandBase):
