@@ -66,9 +66,6 @@ function InitWithToolbox(aToolbox)
   dispatchCustomizationEvent("beforecustomization");
   gToolboxDocument = gToolbox.ownerDocument;
   gToolbox.customizing = true;
-  forEachCustomizableToolbar(function (toolbar) {
-    toolbar.setAttribute("customizing", "true");
-  });
 
   var elts = getRootElements();
   for (let i=0; i < elts.length; i++) {
@@ -101,9 +98,6 @@ function finishToolbarCustomization()
   unwrapToolbarItems();
   persistCurrentSets();
   gToolbox.customizing = false;
-  forEachCustomizableToolbar(function (toolbar) {
-    toolbar.removeAttribute("customizing");
-  });
 
   notifyParentComplete();
 }

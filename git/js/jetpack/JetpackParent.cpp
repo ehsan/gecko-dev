@@ -172,15 +172,6 @@ private:
   JSContext* mCX;
 };
 
-// We have to delete the JetpackProcessParent on the I/O thread after event
-// loop iteration in which JetpackParent::ActorDestroy runs is finished.
-static void
-DelayedDestroyProcess(JetpackProcessParent* o)
-{
-  XRE_GetIOMessageLoop()
-    ->PostTask(FROM_HERE, new DeleteTask<JetpackProcessParent>(o));
-}
-
 void
 JetpackParent::ActorDestroy(ActorDestroyReason why)
 {
@@ -209,8 +200,8 @@ JetpackParent::ActorDestroy(ActorDestroyReason why)
       NS_ERROR("Unexpected actordestroy reason for toplevel actor.");
   }  
 
-  MessageLoop::current()->
-    PostTask(FROM_HERE, NewRunnableFunction(DelayedDestroyProcess, mSubprocess));
+  XRE_GetIOMessageLoop()
+    ->PostTask(FROM_HERE, new DeleteTask<JetpackProcessParent>(mSubprocess));
   mSubprocess = NULL;
 }
 

@@ -214,10 +214,6 @@ nsAccDocManager::OnStateChange(nsIWebProgress *aWebProgress,
     nsEventShell::FireEvent(reloadEvent);
   }
 
-  // Mark the document accessible as loading, if it stays alive then we'll mark
-  // it as loaded when we receive proper notification.
-  docAcc->MarkAsLoading();
-
   // Fire state busy change event. Use delayed event since we don't care
   // actually if event isn't delivered when the document goes away like a shot.
   nsRefPtr<AccEvent> stateEvent =
@@ -314,7 +310,8 @@ nsAccDocManager::HandleEvent(nsIDOMEvent *aEvent)
       nsCoreUtils::IsErrorPage(document)) {
     NS_LOG_ACCDOCLOAD2("handled 'DOMContentLoaded' event", document)
     HandleDOMDocumentLoad(document,
-                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE);
+                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE,
+                          PR_TRUE);
   }
 
   return NS_OK;
@@ -325,7 +322,8 @@ nsAccDocManager::HandleEvent(nsIDOMEvent *aEvent)
 
 void
 nsAccDocManager::HandleDOMDocumentLoad(nsIDocument *aDocument,
-                                       PRUint32 aLoadEventType)
+                                       PRUint32 aLoadEventType,
+                                       PRBool aMarkAsLoaded)
 {
   // Document accessible can be created before we were notified the DOM document
   // was loaded completely. However if it's not created yet then create it.
@@ -337,8 +335,8 @@ nsAccDocManager::HandleDOMDocumentLoad(nsIDocument *aDocument,
       return;
   }
 
-  // Mark the document as loaded to drop off the busy state flag on it.
-  docAcc->MarkAsLoaded();
+  if (aMarkAsLoaded)
+    docAcc->MarkAsLoaded();
 
   // Do not fire document complete/stop events for root chrome document
   // accessibles and for frame/iframe documents because
