@@ -14,12 +14,10 @@ const { models, buttons, views, viewsFor, modelFor } = require('./namespace');
 const { isBrowser, getMostRecentBrowserWindow, windows, isWindowPrivate } = require('../../window/utils');
 const { setStateFor } = require('../state');
 const { defer } = require('../../core/promise');
-const { isPrivateBrowsingSupported, data } = require('../../self');
+const { isPrivateBrowsingSupported } = require('../../self');
 
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const WEB_PANEL_BROWSER_ID = 'web-panels-browser';
-
-const resolveURL = (url) => url ? data.url(url) : url;
 
 function create(window, details) {
   let id = makeID(details.id);
@@ -31,7 +29,7 @@ function create(window, details) {
   let menuitem = document.createElementNS(XUL_NS, 'menuitem');
   menuitem.setAttribute('id', id);
   menuitem.setAttribute('label', details.title);
-  menuitem.setAttribute('sidebarurl', resolveURL(details.sidebarurl));
+  menuitem.setAttribute('sidebarurl', details.sidebarurl);
   menuitem.setAttribute('checked', 'false');
   menuitem.setAttribute('type', 'checkbox');
   menuitem.setAttribute('group', 'sidebar');
@@ -76,8 +74,6 @@ exports.updateTitle = updateTitle;
 function updateURL(sidebar, url) {
   let eleID = makeID(sidebar.id);
 
-  url = resolveURL(url);
-
   for (let window of windows(null, { includePrivate: true })) {
     // update the menuitem
     let mi = window.document.getElementById(eleID);
@@ -115,10 +111,8 @@ function isSidebarShowing(window, sidebar) {
   }
 
   if (sidebarTitle.value == modelFor(sidebar).title) {
-    let url = resolveURL(modelFor(sidebar).url);
-
     // checks if the sidebar is loading
-    if (win.gWebPanelURI == url) {
+    if (win.gWebPanelURI == modelFor(sidebar).url) {
       return true;
     }
 
@@ -128,11 +122,11 @@ function isSidebarShowing(window, sidebar) {
       return false;
     }
 
-    if (ele.getAttribute('cachedurl') == url) {
+    if (ele.getAttribute('cachedurl') ==  modelFor(sidebar).url) {
       return true;
     }
 
-    if (ele && ele.contentWindow && ele.contentWindow.location == url) {
+    if (ele && ele.contentWindow && ele.contentWindow.location == modelFor(sidebar).url) {
       return true;
     }
   }
@@ -160,7 +154,7 @@ function showSidebar(window, sidebar, newURL) {
     let menuitem = window.document.getElementById(makeID(model.id));
     menuitem.setAttribute('checked', true);
 
-    window.openWebPanel(model.title, resolveURL(newURL || model.url));
+    window.openWebPanel(model.title, newURL || model.url);
   }
 
   return promise;

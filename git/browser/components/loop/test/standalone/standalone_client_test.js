@@ -15,6 +15,15 @@ describe("loop.StandaloneClient", function() {
       callback,
       fakeToken;
 
+  var fakeErrorRes = JSON.stringify({
+      status: "errors",
+      errors: [{
+        location: "url",
+        name: "token",
+        description: "invalid token"
+      }]
+    });
+
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
     fakeXHR = sandbox.useFakeXMLHttpRequest();
@@ -41,19 +50,12 @@ describe("loop.StandaloneClient", function() {
     });
 
     describe("requestCallInfo", function() {
-      var client, fakeServerErrorDescription;
+      var client;
 
       beforeEach(function() {
         client = new loop.StandaloneClient(
           {baseServerUrl: "http://fake.api"}
         );
-        fakeServerErrorDescription = {
-          code: 401,
-          errno: 101,
-          error: "error",
-          message: "invalid token",
-          info: "error info"
-        };
       });
 
       it("should prevent launching a conversation when token is missing",
@@ -89,25 +91,12 @@ describe("loop.StandaloneClient", function() {
       it("should send an error when the request fails", function() {
         client.requestCallInfo("fake", "audio", callback);
 
-        requests[0].respond(401, {"Content-Type": "application/json"},
-                            JSON.stringify(fakeServerErrorDescription));
+        requests[0].respond(400, {"Content-Type": "application/json"},
+                            fakeErrorRes);
         sinon.assert.calledWithMatch(callback, sinon.match(function(err) {
-          return /HTTP 401 Unauthorized/.test(err.message);
+          return /400.*invalid token/.test(err.message);
         }));
       });
-
-      it("should attach the server error description object to the error " +
-         "passed to the callback",
-        function() {
-          client.requestCallInfo("fake", "audio", callback);
-
-          requests[0].respond(401, {"Content-Type": "application/json"},
-                              JSON.stringify(fakeServerErrorDescription));
-
-          sinon.assert.calledWithMatch(callback, sinon.match(function(err) {
-            return err.errno === fakeServerErrorDescription.errno;
-          }));
-        });
 
       it("should send an error if the data is not valid", function() {
         client.requestCallInfo("fake", "audio", callback);

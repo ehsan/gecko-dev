@@ -65,5 +65,6 @@ MOZ_PAY=1
 MOZ_ACTIVITIES=1
 MOZ_JSDOWNLOADS=1
 MOZ_WEBM_ENCODER=1
-# Enable generational GC on desktop.
+# Enable exact rooting and generational GC on desktop.
+JSGC_USE_EXACT_ROOTING=1
 JSGC_GENERATIONAL=1

@@ -143,7 +143,6 @@ const EMPTY_DOC = "<?xml version=\"1.0\"?>\n" +
                   "/>";
 
 const BROWSER_SEARCH_PREF = "browser.search.";
-const LOCALE_PREF = "general.useragent.locale";
 
 const USER_DEFINED = "{searchTerms}";
 
@@ -591,12 +590,13 @@ function sherlockBytesToLines(aBytes, aCharsetCode) {
  * exists in nsHttpHandler.cpp when building the UA string.
  */
 function getLocale() {
-  let locale = getLocalizedPref(LOCALE_PREF);
+  const localePref = "general.useragent.locale";
+  var locale = getLocalizedPref(localePref);
   if (locale)
     return locale;
 
-  // Not localized.
-  return Services.prefs.getCharPref(LOCALE_PREF);
+  // Not localized
+  return Services.prefs.getCharPref(localePref);
 }
 
 /**
@@ -3190,27 +3190,6 @@ SearchService.prototype = {
     }.bind(this));
   },
 
-  _asyncReInit: function () {
-    // Start by clearing the initialized state, so we don't abort early.
-    gInitialized = false;
-
-    // Clear the engines, too, so we don't stick with the stale ones.
-    this._engines = {};
-    this.__sortedEngines = null;
-
-    // Typically we'll re-init as a result of a pref observer,
-    // so signal to 'callers' that we're done. 
-    return this._asyncLoadEngines()
-               .then(() => {
-                       Services.obs.notifyObservers(null, SEARCH_SERVICE_TOPIC, "reinit-complete");
-                       gInitialized = true;
-                     },
-                     (err) => {
-                       LOG("Reinit failed: " + err);
-                       Services.obs.notifyObservers(null, SEARCH_SERVICE_TOPIC, "reinit-failed");
-                     });
-  },
-
   _readCacheFile: function SRCH_SVC__readCacheFile(aFile) {
     let stream = Cc["@mozilla.org/network/file-input-stream;1"].
                  createInstance(Ci.nsIFileInputStream);
@@ -4171,21 +4150,11 @@ SearchService.prototype = {
         break;
 
       case "nsPref:changed":
-        if (aVerb == LOCALE_PREF) {
-          // Locale changed. Re-init. We rely on observers, because we can't
-          // return this promise to anyone.
-          this._asyncReInit();
-          break;
-        }
-
         let currPref = BROWSER_SEARCH_PREF + "selectedEngine";
+        let defPref = BROWSER_SEARCH_PREF + "defaultenginename";
         if (aVerb == currPref && !this._changingCurrentEngine) {
           this._setEngineByPref("currentEngine", currPref);
-          break;
-        }
-
-        let defPref = BROWSER_SEARCH_PREF + "defaultenginename";
-        if (aVerb == defPref && !this._changingDefaultEngine) {
+        } else if (aVerb == defPref && !this._changingDefaultEngine) {
           this._setEngineByPref("defaultEngine", defPref);
         }
         break;
@@ -4236,7 +4205,6 @@ SearchService.prototype = {
     Services.obs.addObserver(this, QUIT_APPLICATION_TOPIC, false);
     Services.prefs.addObserver(BROWSER_SEARCH_PREF + "defaultenginename", this, false);
     Services.prefs.addObserver(BROWSER_SEARCH_PREF + "selectedEngine", this, false);
-    Services.prefs.addObserver(LOCALE_PREF, this, false);
 
     // The current stage of shutdown. Used to help analyze crash
     // signatures in case of shutdown timeout.
@@ -4284,7 +4252,6 @@ SearchService.prototype = {
     Services.obs.removeObserver(this, QUIT_APPLICATION_TOPIC);
     Services.prefs.removeObserver(BROWSER_SEARCH_PREF + "defaultenginename", this);
     Services.prefs.removeObserver(BROWSER_SEARCH_PREF + "selectedEngine", this);
-    Services.prefs.removeObserver(LOCALE_PREF, this);
   },
 
   QueryInterface: function SRCH_SVC_QI(aIID) {

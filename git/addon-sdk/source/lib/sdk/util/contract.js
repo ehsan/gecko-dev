@@ -9,7 +9,6 @@ module.metadata = {
 };
 
 const { validateOptions: valid } = require("../deprecated/api-utils");
-const method = require("method/core");
 
 // Function takes property validation rules and returns function that given
 // an `options` object will return validated / normalized options back. If
@@ -19,9 +18,9 @@ const method = require("method/core");
 // property getter and setters can be mixed into prototype. For more details
 // see `properties` function below.
 function contract(rules) {
-  const validator = (instance, options) => {
-    return valid(options || instance || {}, rules);
-  };
+  function validator(options) {
+    return valid(options || {}, rules);
+  }
   validator.rules = rules
   validator.properties = function(modelFor) {
     return properties(modelFor, rules);
@@ -49,7 +48,4 @@ function properties(modelFor, rules) {
   }, {});
   return Object.create(Object.prototype, descriptor);
 }
-exports.properties = properties;
-
-const validate = method("contract/validate");
-exports.validate = validate;
+exports.properties = properties

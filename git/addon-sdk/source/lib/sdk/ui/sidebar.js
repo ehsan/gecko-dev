@@ -17,7 +17,7 @@ const { off, emit, setListeners } = require('../event/core');
 const { EventTarget } = require('../event/target');
 const { URL } = require('../url');
 const { add, remove, has, clear, iterator } = require('../lang/weak-set');
-const { id: addonID, data } = require('../self');
+const { id: addonID } = require('../self');
 const { WindowTracker } = require('../deprecated/window-utils');
 const { isShowing } = require('./sidebar/utils');
 const { isBrowser, getMostRecentBrowserWindow, windows, isWindowPrivate } = require('../window/utils');
@@ -34,8 +34,6 @@ const { ensure } = require('../system/unload');
 const { identify } = require('./id');
 const { uuid } = require('../util/uuid');
 const { viewFor } = require('../view/core');
-
-const resolveURL = (url) => url ? data.url(url) : url;
 
 const sidebarNS = ns();
 
@@ -109,7 +107,7 @@ const Sidebar = Class({
 
           let sbTitle = window.document.getElementById('sidebar-title');
           function onWebPanelSidebarCreated() {
-            if (panelBrowser.contentWindow.location != resolveURL(model.url) ||
+            if (panelBrowser.contentWindow.location != model.url ||
                 sbTitle.value != model.title) {
               return;
             }
@@ -266,8 +264,6 @@ const Sidebar = Class({
 exports.Sidebar = Sidebar;
 
 function validateTitleAndURLCombo(sidebar, title, url) {
-  url = resolveURL(url);
-  
   if (sidebar.title == title && sidebar.url == url) {
     return false;
   }

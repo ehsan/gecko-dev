@@ -3,20 +3,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 'use strict';
 
-const { validateOptions } = require("../deprecated/api-utils");
-const { data } = require("../self");
+const { validateOptions } = require('../deprecated/api-utils');
 
 function Options(options) {
   if ('string' === typeof options)
     options = { url: options };
 
   return validateOptions(options, {
-    url: {
-      is: ["string"],
-      map: (v) => v ? data.url(v) : v
-    },
+    url: { is: ["string"] },
     inBackground: {
-      map: Boolean,
+      map: function(v) !!v,
       is: ["undefined", "boolean"]
     },
     isPinned: { is: ["undefined", "boolean"] },

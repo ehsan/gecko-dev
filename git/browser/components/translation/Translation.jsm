@@ -70,8 +70,7 @@ this.Translation = {
     let trUI = aBrowser.translationUI;
 
     // Set all values before showing a new translation infobar.
-    trUI._state = Translation.serviceUnavailable ? Translation.STATE_UNAVAILABLE
-                                                 : aData.state;
+    trUI._state = aData.state;
     trUI.detectedLanguage = aData.detectedLanguage;
     trUI.translatedFrom = aData.translatedFrom;
     trUI.translatedTo = aData.translatedTo;
@@ -236,6 +235,23 @@ TranslationUI.prototype = {
     }
 
     return true;
+  },
+
+  showTranslationUI: function(aDetectedLanguage) {
+    this.detectedLanguage = aDetectedLanguage;
+
+    // Reset all values before showing a new translation infobar.
+    this.state = 0;
+    this.translatedFrom = "";
+    this.translatedTo = "";
+    this.originalShown = true;
+
+    this.showURLBarIcon();
+
+    if (!this.shouldShowInfoBar(this.browser.currentURI))
+      return null;
+
+    return this.showTranslationInfoBar();
   },
 
   receiveMessage: function(msg) {

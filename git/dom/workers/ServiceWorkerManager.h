@@ -10,7 +10,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/LinkedList.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ServiceWorkerContainer.h"
@@ -73,20 +72,33 @@ private:
  * _GetNewestWorker(serviceWorkerRegistration)", we represent the description
  * by this class and spawn a ServiceWorker in the right global when required.
  */
-class ServiceWorkerInfo MOZ_FINAL
+class ServiceWorkerInfo
 {
   nsCString mScriptSpec;
-
-  ~ServiceWorkerInfo()
-  { }
-
 public:
-  NS_INLINE_DECL_REFCOUNTING(ServiceWorkerInfo)
+
+  bool
+  IsValid() const
+  {
+    return !mScriptSpec.IsVoid();
+  }
+
+  void
+  Invalidate()
+  {
+    mScriptSpec.SetIsVoid(true);
+  }
 
   const nsCString&
   GetScriptSpec() const
   {
+    MOZ_ASSERT(IsValid());
     return mScriptSpec;
+  }
+
+  ServiceWorkerInfo()
+  {
+    Invalidate();
   }
 
   explicit ServiceWorkerInfo(const nsACString& aScriptSpec)
@@ -98,8 +110,6 @@ public:
 // non-ISupports classes.
 class ServiceWorkerRegistration MOZ_FINAL : public nsISupports
 {
-  uint32_t mControlledDocumentsCounter;
-
   virtual ~ServiceWorkerRegistration();
 
 public:
@@ -110,9 +120,9 @@ public:
   // the URLs of the following three workers.
   nsCString mScriptSpec;
 
-  nsRefPtr<ServiceWorkerInfo> mCurrentWorker;
-  nsRefPtr<ServiceWorkerInfo> mWaitingWorker;
-  nsRefPtr<ServiceWorkerInfo> mInstallingWorker;
+  ServiceWorkerInfo mCurrentWorker;
+  ServiceWorkerInfo mWaitingWorker;
+  ServiceWorkerInfo mInstallingWorker;
 
   nsAutoPtr<UpdatePromise> mUpdatePromise;
   nsRefPtr<ServiceWorkerUpdateInstance> mUpdateInstance;
@@ -137,37 +147,16 @@ public:
 
   explicit ServiceWorkerRegistration(const nsACString& aScope);
 
-  already_AddRefed<ServiceWorkerInfo>
-  Newest()
+  ServiceWorkerInfo
+  Newest() const
   {
-    nsRefPtr<ServiceWorkerInfo> newest;
-    if (mInstallingWorker) {
-      newest = mInstallingWorker;
-    } else if (mWaitingWorker) {
-      newest = mWaitingWorker;
+    if (mInstallingWorker.IsValid()) {
+      return mInstallingWorker;
+    } else if (mWaitingWorker.IsValid()) {
+      return mWaitingWorker;
     } else {
-      newest = mCurrentWorker;
+      return mCurrentWorker;
     }
-
-    return newest.forget();
-  }
-
-  void
-  StartControllingADocument()
-  {
-    ++mControlledDocumentsCounter;
-  }
-
-  void
-  StopControllingADocument()
-  {
-    --mControlledDocumentsCounter;
-  }
-
-  bool
-  IsControllingDocuments() const
-  {
-    return mControlledDocumentsCounter > 0;
   }
 };
 
@@ -197,11 +186,6 @@ public:
 
   static ServiceWorkerManager* FactoryCreate()
   {
-    AssertIsOnMainThread();
-    if (!Preferences::GetBool("dom.serviceWorkers.enabled")) {
-      return nullptr;
-    }
-
     ServiceWorkerManager* res = new ServiceWorkerManager;
     NS_ADDREF(res);
     return res;
@@ -231,8 +215,6 @@ public:
     // window's container to be notified if it's in scope.
     // The containers inform the SWM on creation and destruction.
     nsTObserverArray<ServiceWorkerContainer*> mServiceWorkerContainers;
-
-    nsRefPtrHashtable<nsISupportsHashKey, ServiceWorkerRegistration> mControlledDocuments;
 
     ServiceWorkerDomainInfo()
     { }
@@ -308,7 +290,7 @@ private:
 
   void
   Install(ServiceWorkerRegistration* aRegistration,
-          ServiceWorkerInfo* aServiceWorkerInfo);
+          ServiceWorkerInfo aServiceWorkerInfo);
 
   NS_IMETHOD
   CreateServiceWorkerForWindow(nsPIDOMWindow* aWindow,
