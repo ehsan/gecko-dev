@@ -460,13 +460,12 @@ private:
 // used when picking fallback font
 struct FontSearch {
     FontSearch(const PRUint32 aCharacter, gfxFont *aFont) :
-        mCh(aCharacter), mFontToMatch(aFont), mMatchRank(0), mCount(0) {
+        mCh(aCharacter), mFontToMatch(aFont), mMatchRank(0) {
     }
     const PRUint32         mCh;
     gfxFont*               mFontToMatch;
     PRInt32                mMatchRank;
     nsRefPtr<gfxFontEntry> mBestMatch;
-    PRUint32               mCount;
 };
 
 class gfxFontFamily {
@@ -968,7 +967,7 @@ public:
         return nsnull;
     }
 
-    virtual gfxFloat GetAdjustedSize() {
+    gfxFloat GetAdjustedSize() const {
         return mAdjustedSize > 0.0 ? mAdjustedSize : mStyle.size;
     }
 
@@ -1010,16 +1009,16 @@ public:
         return 0;
     }
 
-    // subclasses may provide (possibly hinted) glyph widths (in font units);
+    // subclasses may provide hinted glyph widths (in font units);
     // if they do not override this, harfbuzz will use unhinted widths
     // derived from the font tables
-    virtual PRBool ProvidesGlyphWidths() {
+    virtual PRBool ProvidesHintedWidths() const {
         return PR_FALSE;
     }
 
     // The return value is interpreted as a horizontal advance in 16.16 fixed
     // point format.
-    virtual PRInt32 GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID) {
+    virtual PRInt32 GetHintedGlyphWidth(gfxContext *aCtx, PRUint16 aGID) {
         return -1;
     }
 

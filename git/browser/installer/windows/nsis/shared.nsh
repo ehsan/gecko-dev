@@ -130,28 +130,9 @@
     ${If} "$0" == ""
       ShellLink::GetShortCutTarget "$DESKTOP\${BrandFullName}.lnk"
       Pop $0
-      ${GetLongPath} "$0" $0
+      ; Needs to handle short paths
       ${If} "$0" == "$INSTDIR\${FileMainEXE}"
         Delete "$DESKTOP\${BrandFullName}.lnk"
-      ${EndIf}
-    ${EndIf}
-  ${EndIf}
-
-  SetShellVarContext all  ; Set $SMPROGRAMS to All Users
-  ${Unless} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-    SetShellVarContext current  ; Set $SMPROGRAMS to the current user's Start
-                                ; Menu Programs directory
-  ${EndUnless}
-
-  ${If} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-    ShellLink::GetShortCutArgs "$SMPROGRAMS\${BrandFullName}.lnk"
-    Pop $0
-    ${If} "$0" == ""
-      ShellLink::GetShortCutTarget "$SMPROGRAMS\${BrandFullName}.lnk"
-      Pop $0
-      ${GetLongPath} "$0" $0
-      ${If} "$0" == "$INSTDIR\${FileMainEXE}"
-        Delete "$SMPROGRAMS\${BrandFullName}.lnk"
       ${EndIf}
     ${EndIf}
   ${EndIf}
@@ -162,7 +143,7 @@
     ${If} "$0" == ""
       ShellLink::GetShortCutTarget "$QUICKLAUNCH\${BrandFullName}.lnk"
       Pop $0
-      ${GetLongPath} "$0" $0
+      ; Needs to handle short paths
       ${If} "$0" == "$INSTDIR\${FileMainEXE}"
         Delete "$QUICKLAUNCH\${BrandFullName}.lnk"
       ${EndIf}
@@ -177,7 +158,6 @@
   ${StrFilter} "${FileMainEXE}" "+" "" "" $0
   StrCpy $R1 "Software\Clients\StartMenuInternet\$0\InstallInfo"
   WriteRegDWORD HKLM "$R1" "IconsVisible" 1
-
   SetShellVarContext all  ; Set $DESKTOP to All Users
   ${Unless} ${FileExists} "$DESKTOP\${BrandFullName}.lnk"
     CreateShortCut "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" \
@@ -187,40 +167,15 @@
     ${Unless} ${FileExists} "$DESKTOP\${BrandFullName}.lnk"
       SetShellVarContext current  ; Set $DESKTOP to the current user's desktop
       ${Unless} ${FileExists} "$DESKTOP\${BrandFullName}.lnk"
-        CreateShortCut "$DESKTOP\${BrandFullName}.lnk" \
-                       "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-        ShellLink::SetShortCutWorkingDirectory "$DESKTOP\${BrandFullName}.lnk" \
-                                               "$INSTDIR"
+        CreateShortCut "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
+        ShellLink::SetShortCutWorkingDirectory "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR"
         ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "${AppUserModelID}"
       ${EndUnless}
     ${EndUnless}
   ${EndUnless}
-
-  SetShellVarContext all  ; Set $DESKTOP to All Users
-  ${Unless} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-    CreateShortCut "$SMPROGRAMS\${BrandFullName}.lnk" \
-                   "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-    ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
-                                           "$INSTDIR"
-    ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "${AppUserModelID}"
-    ${Unless} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-      SetShellVarContext current  ; Set $SMPROGRAMS to the current user's Start
-                                  ; Menu Programs directory
-      ${Unless} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-        CreateShortCut "$SMPROGRAMS\${BrandFullName}.lnk" \
-                       "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-        ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
-                                               "$INSTDIR"
-        ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "${AppUserModelID}"
-      ${EndUnless}
-    ${EndUnless}
-  ${EndUnless}
-
   ${Unless} ${FileExists} "$QUICKLAUNCH\${BrandFullName}.lnk"
-    CreateShortCut "$QUICKLAUNCH\${BrandFullName}.lnk" \
-                   "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-    ShellLink::SetShortCutWorkingDirectory "$QUICKLAUNCH\${BrandFullName}.lnk" \
-                                           "$INSTDIR"
+    CreateShortCut "$QUICKLAUNCH\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
+    ShellLink::SetShortCutWorkingDirectory "$QUICKLAUNCH\${BrandFullName}.lnk" "$INSTDIR"
     ApplicationID::Set "$QUICKLAUNCH\${BrandFullName}.lnk" "${AppUserModelID}"
   ${EndUnless}
 !macroend
@@ -671,7 +626,7 @@
   ${GetShortcutsLogPath} $0
   ${If} ${FileExists} "$0"
     ClearErrors
-    ReadINIStr $5 "$0" "SMPROGRAMS" "RelativePathToDir"
+    ReadINIStr $1 "$0" "SMPROGRAMS" "RelativePathToDir"
     ${Unless} ${Errors}
       ClearErrors
       ReadINIStr $1 "$0" "STARTMENU" "Shortcut0"
@@ -679,7 +634,7 @@
         ; The STARTMENU ini section doesn't exist.
         ${LogStartMenuShortcut} "${BrandFullName}.lnk"
         ${GetLongPath} "$SMPROGRAMS" $2
-        ${GetLongPath} "$2\$5" $1
+        ${GetLongPath} "$2\$1" $1
         ${If} "$1" != ""
           ClearErrors
           ReadINIStr $3 "$0" "SMPROGRAMS" "Shortcut0"

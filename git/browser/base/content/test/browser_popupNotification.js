@@ -58,7 +58,6 @@ function cleanUp() {
 
 var gActiveListeners = {};
 var gActiveObservers = {};
-var gShownState = {};
 
 function runNextTest() {
   let nextTest = tests[gTestIndex];
@@ -92,7 +91,6 @@ function runNextTest() {
       info("[Test #" + gTestIndex + "] popup showing");
     });
     doOnPopupEvent("popupshown", function () {
-      gShownState[gTestIndex] = true;
       info("[Test #" + gTestIndex + "] popup shown");
       nextTest.onShown(this);
     });
@@ -103,11 +101,6 @@ function runNextTest() {
                         nextTest.onHidden :
                         [nextTest.onHidden];
     doOnPopupEvent("popuphidden", function () {
-      if (!gShownState[gTestIndex]) {
-        // This is expected to happen for test 9, so let's not treat it as a failure.
-        info("Popup from test " + gTestIndex + " was hidden before its popupshown fired");
-      }
-
       let onHidden = onHiddenArray.shift();
       info("[Test #" + gTestIndex + "] popup hidden (" + onHiddenArray.length + " hides remaining)");
       onHidden.call(nextTest, this);

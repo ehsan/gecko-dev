@@ -105,6 +105,7 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro CleanUpdatesDir
 !insertmacro CopyFilesFromDir
 !insertmacro CreateRegKey
+!insertmacro FindSMProgramsDir
 !insertmacro GetPathFromString
 !insertmacro GetParent
 !insertmacro IsHandlerForInstallDir

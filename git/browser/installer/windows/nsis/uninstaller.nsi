@@ -90,6 +90,7 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro AddDDEHandlerValues
 !insertmacro CleanVirtualStore
 !insertmacro ElevateUAC
+!insertmacro FindSMProgramsDir
 !insertmacro GetLongPath
 !insertmacro GetPathFromString
 !insertmacro IsHandlerForInstallDir

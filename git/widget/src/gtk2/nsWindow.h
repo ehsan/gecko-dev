@@ -390,7 +390,6 @@ private:
     PRBool             GetDragInfo(nsMouseEvent* aMouseEvent,
                                    GdkWindow** aWindow, gint* aButton,
                                    gint* aRootX, gint* aRootY);
-    void               ClearCachedResources();
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;

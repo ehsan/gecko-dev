@@ -5835,11 +5835,9 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
   else if (my < winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
     bottom = PR_TRUE;
 
-  if (mx >= winRect.left && mx < (winRect.left +
-                                  (bottom ? (2*mHorResizeMargin) : mHorResizeMargin)))
+  if (mx >= winRect.left && mx < (winRect.left + mHorResizeMargin))
     left = PR_TRUE;
-  else if (mx < winRect.right && mx >= (winRect.right -
-                                        (bottom ? (2*mHorResizeMargin) : mHorResizeMargin)))
+  else if (mx < winRect.right && mx >= (winRect.right - mHorResizeMargin))
     right = PR_TRUE;
 
   if (top) {

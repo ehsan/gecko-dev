@@ -377,16 +377,12 @@ private:
   /**
    * If aDoCreation is true, this creates the device context, creates a
    * prescontext if necessary, and calls MakeWindow.
-   *
-   * If aForceSetNewDocument is false, then SetNewDocument won't be
-   * called if the window's current document is already mDocument.
    */
   nsresult InitInternal(nsIWidget* aParentWidget,
                         nsISupports *aState,
                         const nsIntRect& aBounds,
                         PRBool aDoCreation,
-                        PRBool aNeedMakeCX = PR_TRUE,
-                        PRBool aForceSetNewDocument = PR_TRUE);
+                        PRBool aNeedMakeCX = PR_TRUE);
   /**
    * @param aDoInitialReflow set to true if you want to kick off the initial
    * reflow
@@ -404,7 +400,6 @@ private:
   nsresult GetDocumentSelection(nsISelection **aSelection);
 
   void DestroyPresShell();
-  void DestroyPresContext();
 
 #ifdef NS_PRINTING
   // Called when the DocViewer is notified that the state
@@ -837,15 +832,8 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
                                  nsISupports *aState,
                                  const nsIntRect& aBounds,
                                  PRBool aDoCreation,
-                                 PRBool aNeedMakeCX /*= PR_TRUE*/,
-                                 PRBool aForceSetNewDocument /* = PR_TRUE*/)
+                                 PRBool aNeedMakeCX /*= PR_TRUE*/)
 {
-  if (mIsPageMode) {
-    // XXXbz should the InitInternal in SetPageMode just pass PR_FALSE
-    // here itself?
-    aForceSetNewDocument = PR_FALSE;
-  }
-
   // We don't want any scripts to run here. That can cause flushing,
   // which can cause reentry into initialization of this document viewer,
   // which would be disastrous.
@@ -964,7 +952,7 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
     if (window) {
       nsCOMPtr<nsIDocument> curDoc =
         do_QueryInterface(window->GetExtantDocument());
-      if (aForceSetNewDocument || curDoc != mDocument) {
+      if (!mIsPageMode || curDoc != mDocument) {
         window->SetNewDocument(mDocument, aState, PR_FALSE);
         nsJSContext::LoadStart();
       }
@@ -1635,7 +1623,9 @@ DocumentViewerImpl::Destroy()
   }
 
   if (mPresContext) {
-    DestroyPresContext();
+    mPresContext->SetContainer(nsnull);
+    mPresContext->SetLinkHandler(nsnull);
+    mPresContext = nsnull;
   }
 
   mWindow = nsnull;
@@ -1724,7 +1714,7 @@ DocumentViewerImpl::SetDocumentInternal(nsIDocument* aDocument,
       window->SetNewDocument(aDocument, nsnull, aForceReuseInnerWindow);
     }
 
-    // Clear the list of old child docshells. Child docshells for the new
+    // Clear the list of old child docshells. CChild docshells for the new
     // document will be constructed as frames are created.
     if (!aDocument->IsStaticDocument()) {
       nsCOMPtr<nsIDocShellTreeNode> node = do_QueryInterface(container);
@@ -1745,14 +1735,37 @@ DocumentViewerImpl::SetDocumentInternal(nsIDocument* aDocument,
 
   // Replace the current pres shell with a new shell for the new document
 
+  nsCOMPtr<nsILinkHandler> linkHandler;
   if (mPresShell) {
+    nsSize currentSize(0, 0);
+
+    if (mViewManager) {
+      mViewManager->GetWindowDimensions(&currentSize.width, &currentSize.height);
+    }
+
+    if (mPresContext) {
+      // Save the linkhandler (nsPresShell::Destroy removes it from
+      // mPresContext).
+      linkHandler = mPresContext->GetLinkHandler();
+    }
+
     DestroyPresShell();
+
+    nsIView* containerView = FindContainerView();
+
+    // This destroys the root view because it was associated with the root frame,
+    // which has been torn down. Recreate the viewmanager and root view.
+    MakeWindow(currentSize, containerView);
   }
 
+  // And if we're already given a prescontext...
   if (mPresContext) {
-    DestroyPresContext();
+    // If we had a linkHandler and it got removed, put it back.
+    if (linkHandler) {
+      mPresContext->SetLinkHandler(linkHandler);
+    }
 
-    InitInternal(mParentWidget, nsnull, mBounds, PR_TRUE, PR_TRUE, PR_FALSE);
+    rv = InitPresentationStuff(PR_FALSE);
   }
 
   return rv;
@@ -2035,8 +2048,11 @@ DocumentViewerImpl::Hide(void)
 
   DestroyPresShell();
 
-  DestroyPresContext();
+  // Clear weak refs
+  mPresContext->SetContainer(nsnull);
+  mPresContext->SetLinkHandler(nsnull);                             
 
+  mPresContext   = nsnull;
   mViewManager   = nsnull;
   mWindow        = nsnull;
   mDeviceContext = nsnull;
@@ -4214,9 +4230,12 @@ NS_IMETHODIMP DocumentViewerImpl::SetPageMode(PRBool aPageMode, nsIPrintSettings
   }
 
   if (mPresContext) {
-    DestroyPresContext();
+    mPresContext->SetContainer(nsnull);
+    mPresContext->SetLinkHandler(nsnull);
   }
 
+  mPresShell    = nsnull;
+  mPresContext  = nsnull;
   mViewManager  = nsnull;
   mWindow       = nsnull;
 
@@ -4259,14 +4278,6 @@ DocumentViewerImpl::DestroyPresShell()
   nsAutoScriptBlocker scriptBlocker;
   mPresShell->Destroy();
   mPresShell = nsnull;
-}
-
-void
-DocumentViewerImpl::DestroyPresContext()
-{
-  mPresContext->SetContainer(nsnull);
-  mPresContext->SetLinkHandler(nsnull);
-  mPresContext = nsnull;
 }
 
 PRBool

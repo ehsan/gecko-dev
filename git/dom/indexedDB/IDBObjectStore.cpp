@@ -251,6 +251,9 @@ private:
 
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
+
+  // Out-params.
+  PRInt64 mId;
 };
 
 class DeleteIndexHelper : public AsyncConnectionHelper
@@ -2126,13 +2129,8 @@ CreateIndexHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
   }
 
-#ifdef DEBUG
-  {
-    PRInt64 id;
-    aConnection->GetLastInsertRowID(&id);
-    NS_ASSERTION(mIndex->Id() == id, "Bad index id!");
-  }
-#endif
+  // Get the id of this object store, and store it for future use.
+  (void)aConnection->GetLastInsertRowID(&mId);
 
   // Now we need to populate the index with data from the object store.
   rv = InsertDataFromObjectStore(aConnection);
@@ -2146,9 +2144,11 @@ CreateIndexHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 nsresult
 CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
 {
+  bool autoIncrement = mIndex->IsAutoIncrement();
+
   nsCAutoString table;
   nsCAutoString columns;
-  if (mIndex->IsAutoIncrement()) {
+  if (autoIncrement) {
     table.AssignLiteral("ai_object_data");
     columns.AssignLiteral("id, data");
   }
@@ -2173,40 +2173,27 @@ CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
   PRBool hasResult;
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
     nsCOMPtr<mozIStorageStatement> insertStmt =
-      mTransaction->IndexUpdateStatement(mIndex->IsAutoIncrement(),
-                                         mIndex->IsUnique(), false);
+      mTransaction->IndexUpdateStatement(autoIncrement, mIndex->IsUnique(),
+                                         false);
     NS_ENSURE_TRUE(insertStmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     mozStorageStatementScoper scoper2(insertStmt);
 
-    rv = insertStmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"),
-                                     mIndex->Id());
+    rv = insertStmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"), mId);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     rv = insertStmt->BindInt64ByName(NS_LITERAL_CSTRING("object_data_id"),
                                      stmt->AsInt64(0));
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-    if (!mIndex->IsAutoIncrement()) {
-      NS_NAMED_LITERAL_CSTRING(objectDataKey, "object_data_key");
-
-      PRInt32 keyType;
-      rv = stmt->GetTypeOfIndex(2, &keyType);
+    if (!autoIncrement) {
+      // XXX does this cause problems with the affinity?
+      nsString key;
+      rv = stmt->GetString(2, key);
       NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-      if (keyType == mozIStorageStatement::VALUE_TYPE_INTEGER) {
-        rv = insertStmt->BindInt64ByName(objectDataKey, stmt->AsInt64(2));
-      }
-      else if (keyType == mozIStorageStatement::VALUE_TYPE_TEXT) {
-        nsString stringKey;
-        rv = stmt->GetString(2, stringKey);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-        rv = insertStmt->BindStringByName(objectDataKey, stringKey);
-      }
-      else {
-        NS_NOTREACHED("Bad SQLite type!");
-      }
+      rv = insertStmt->BindStringByName(NS_LITERAL_CSTRING("object_data_key"),
+                                        key);
       NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     }
 
@@ -2222,11 +2209,12 @@ CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
                                                            &cx, key);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    NS_NAMED_LITERAL_CSTRING(value, "value");
+
     if (key.IsUnset()) {
       continue;
     }
 
-    NS_NAMED_LITERAL_CSTRING(value, "value");
     if (key.IsInt()) {
       rv = insertStmt->BindInt64ByName(value, key.IntValue());
     }

@@ -54,10 +54,8 @@
 NotificationController::NotificationController(nsDocAccessible* aDocument,
                                                nsIPresShell* aPresShell) :
   mObservingState(eNotObservingRefresh), mDocument(aDocument),
-  mPresShell(aPresShell), mTreeConstructedState(eTreeConstructionPending)
+  mPresShell(aPresShell)
 {
-  // Schedule initial accessible tree construction.
-  ScheduleProcessing();
 }
 
 NotificationController::~NotificationController()
@@ -131,10 +129,6 @@ NotificationController::ScheduleContentInsertion(nsAccessible* aContainer,
                                                  nsIContent* aStartChildNode,
                                                  nsIContent* aEndChildNode)
 {
-  // Ignore content insertions until we constructed accessible tree.
-  if (mTreeConstructedState == eTreeConstructionPending)
-    return;
-
   nsRefPtr<ContentInsertion> insertion =
     new ContentInsertion(mDocument, aContainer, aStartChildNode, aEndChildNode);
 
@@ -182,15 +176,6 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
   // Any generic notifications should be queued if we're processing content
   // insertions or generic notifications.
   mObservingState = eRefreshProcessingForUpdate;
-
-  // Initial accessible tree construction.
-  if (mTreeConstructedState == eTreeConstructionPending) {
-    mTreeConstructedState = eTreeConstructed;
-    mDocument->CacheChildrenInSubtree(mDocument);
-
-    NS_ASSERTION(mContentInsertions.Length() == 0,
-                 "Pending content insertions while initial accessible tree isn't created!");
-  }
 
   // Process content inserted notifications to update the tree. Process other
   // notifications like DOM events and then flush event queue. If any new

@@ -95,19 +95,14 @@ function addTab(aURL)
  *        find only messages that are visible, not hidden by the filter.
  * @param {boolean} [aFailIfFound=false]
  *        fail the test if the string is found in the output node.
- * @param {string} aClass [optional]
- *        find only messages with the given CSS class.
  */
 function testLogEntry(aOutputNode, aMatchString, aMsg, aOnlyVisible,
-                      aFailIfFound, aClass)
+                      aFailIfFound)
 {
   let selector = ".hud-msg-node";
   // Skip entries that are hidden by the filter.
   if (aOnlyVisible) {
     selector += ":not(.hud-filtered-by-type)";
-  }
-  if (aClass) {
-    selector += "." + aClass;
   }
 
   let msgs = aOutputNode.querySelectorAll(selector);
@@ -118,29 +113,8 @@ function testLogEntry(aOutputNode, aMatchString, aMsg, aOnlyVisible,
       found = true;
       break;
     }
-
-    // Search the labels too.
-    let labels = msgs[i].querySelectorAll("label");
-    for (let j = 0; j < labels.length; j++) {
-      if (labels[j].getAttribute("value").indexOf(aMatchString) > -1) {
-        found = true;
-        break;
-      }
-    }
   }
-
   is(found, !aFailIfFound, aMsg);
-}
-
-/**
- * A convenience method to call testLogEntry().
- *
- * @param string aString
- *        The string to find.
- */
-function findLogEntry(aString)
-{
-  testLogEntry(outputNode, aString, "found " + aString);
 }
 
 function openConsole()

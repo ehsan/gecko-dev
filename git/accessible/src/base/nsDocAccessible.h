@@ -190,15 +190,6 @@ public:
   nsresult FireDelayedAccessibleEvent(AccEvent* aEvent);
 
   /**
-   * Handle anchor jump when page is loaded.
-   */
-  inline void HandleAnchorJump(nsIContent* aTargetNode)
-  {
-    HandleNotification<nsDocAccessible, nsIContent>
-      (this, &nsDocAccessible::ProcessAnchorJump, aTargetNode);
-  }
-
-  /**
    * Process the generic notification.
    *
    * @note  The caller must guarantee that the given instance still exists when
@@ -398,11 +389,6 @@ protected:
    * accessible events as result of the processing.
    */
   void ProcessPendingEvent(AccEvent* aEvent);
-
-  /**
-   * Process anchor jump notification and fire scrolling end event.
-   */
-  void ProcessAnchorJump(nsIContent* aTargetNode);
 
   /**
    * Update the accessible tree for inserted content.

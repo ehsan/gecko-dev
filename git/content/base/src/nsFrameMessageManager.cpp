@@ -581,7 +581,6 @@ CachedScriptUnrooter(const nsAString& aKey,
 {
   JSContext* cx = static_cast<JSContext*>(aUserArg);
   JS_RemoveObjectRoot(cx, &(aData->mObject));
-  delete aData;
   return PL_DHASH_REMOVE;
 }
 

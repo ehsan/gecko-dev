@@ -2377,7 +2377,6 @@ nsCacheService::ProcessPendingRequests(nsCacheEntry * entry)
         // XXX what should we do if there are only READ requests in queue?
         // XXX serialize their accesses, give them only read access, but force them to check validate flag?
         // XXX or do readers simply presume the entry is valid
-        // See fix for bug #467392 below
     }
 
     nsCacheAccessMode  accessGranted = nsICache::ACCESS_NONE;
@@ -2422,15 +2421,7 @@ nsCacheService::ProcessPendingRequests(nsCacheEntry * entry)
                 }
                 
             } else {
-                // read-only request to an invalid entry - need to wait for
-                // the entry to become valid so we post an event to process
-                // the request again later (bug #467392)
-                nsCOMPtr<nsIRunnable> ev =
-                    new nsProcessRequestEvent(request);
-                rv = DispatchToCacheIOThread(ev);
-                if (NS_FAILED(rv)) {
-                    delete request; // avoid leak
-                }
+                // XXX bad state
             }
         } else {
 

@@ -169,11 +169,9 @@ ContainerLayerD3D9::RenderLayer()
   nsRefPtr<IDirect3DSurface9> previousRenderTarget;
   nsRefPtr<IDirect3DTexture9> renderTexture;
   float previousRenderTargetOffset[4];
-  RECT containerClipRect;
+  RECT oldClipRect;
   float renderTargetOffset[] = { 0, 0, 0, 0 };
   float oldViewMatrix[4][4];
-
-  device()->GetScissorRect(&containerClipRect);
 
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
   PRBool useIntermediate = UseIntermediateSurface();
@@ -261,6 +259,7 @@ ContainerLayerD3D9::RenderLayer()
 
     if (clipRect || useIntermediate) {
       RECT r;
+      device()->GetScissorRect(&oldClipRect);
       if (clipRect) {
         r.left = (LONG)(clipRect->x - renderTargetOffset[0]);
         r.top = (LONG)(clipRect->y - renderTargetOffset[1]);
@@ -300,10 +299,10 @@ ContainerLayerD3D9::RenderLayer()
           }
         }
         // Intersect with current clip rect.
-        r.left = NS_MAX<PRInt32>(containerClipRect.left, r.left);
-        r.right = NS_MIN<PRInt32>(containerClipRect.right, r.right);
-        r.top = NS_MAX<PRInt32>(containerClipRect.top, r.top);
-        r.bottom = NS_MIN<PRInt32>(containerClipRect.bottom, r.bottom);
+        r.left = NS_MAX<PRInt32>(oldClipRect.left, r.left);
+        r.right = NS_MIN<PRInt32>(oldClipRect.right, r.right);
+        r.top = NS_MAX<PRInt32>(oldClipRect.top, r.top);
+        r.bottom = NS_MIN<PRInt32>(oldClipRect.bottom, r.bottom);
       } else {
         // > 0 is implied during the intersection when useIntermediate == true;
         r.left = NS_MAX<LONG>(0, r.left);
@@ -316,6 +315,10 @@ ContainerLayerD3D9::RenderLayer()
     }
 
     layerToRender->RenderLayer();
+
+    if (clipRect || useIntermediate) {
+      device()->SetScissorRect(&oldClipRect);
+    }
   }
 
   if (useIntermediate) {
@@ -334,11 +337,8 @@ ContainerLayerD3D9::RenderLayer()
 
     mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
 
-    device()->SetScissorRect(&containerClipRect);
     device()->SetTexture(0, renderTexture);
     device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
-  } else {
-    device()->SetScissorRect(&containerClipRect);
   }
 }
 

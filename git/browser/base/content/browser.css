@@ -155,18 +155,13 @@ splitmenu {
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#splitmenu");
 }
 
-.splitmenu-menuitem {
-  -moz-binding: url("chrome://global/content/bindings/menu.xml#menuitem");
+.split-menuitem-item {
   list-style-image: inherit;
   -moz-image-region: inherit;
 }
 
-.splitmenu-menuitem[iconic="true"] {
-  -moz-binding: url("chrome://global/content/bindings/menu.xml#menuitem-iconic");
-}
-
-.splitmenu-menu > .menu-text,
-:-moz-any(.splitmenu-menu, .splitmenu-menuitem) > .menu-accel-container {
+.split-menuitem-menu > .menu-text,
+.split-menuitem-menu > .menu-accel-container {
   display: none;
 }
 
@@ -284,7 +279,7 @@ panel[noactions] > richlistbox > richlistitem[type~="action"] > .ac-url-box > .a
   visibility: visible;
 }
 
-#urlbar:not([actiontype]) > #urlbar-display-box {
+#urlbar:not([actiontype]) > #urlbar-display {
   display: none;
 }
 

@@ -24,7 +24,6 @@
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ehsan Akhgari <ehsan@mozilla.com>
  * Raymond Lee <raymond@appcoast.com>
- * Tim Taubert <tim.taubert@gmx.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -63,7 +62,7 @@ function TabItem(tab, options) {
   var $div = iQ('<div>')
     .addClass('tab')
     .html("<div class='thumb'>" +
-          "<img class='cached-thumb' style='display:none'/><canvas moz-opaque/></div>" +
+          "<img class='cached-thumb' style='display:none'/><canvas moz-opaque='true'/></div>" +
           "<div class='favicon'><img/></div>" +
           "<span class='tab-title'>&nbsp;</span>"
     )
@@ -497,8 +496,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       this._hasBeenDrawn = true;
     }
 
-    UI.clearShouldResizeItems();
-
     this._updateDebugBounds();
     rect = this.getBounds(); // ensure that it's a <Rect>
 
@@ -809,7 +806,7 @@ let TabItems = {
     this.minTabHeight = this.minTabWidth * this.tabHeight / this.tabWidth;
 
     let $canvas = iQ("<canvas>")
-      .attr('moz-opaque', '');
+      .attr('moz-opaque', true);
     $canvas.appendTo(iQ("body"));
     $canvas.hide();
     this.tempCanvas = $canvas[0];
