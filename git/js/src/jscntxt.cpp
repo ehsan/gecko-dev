@@ -45,6 +45,10 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef ANDROID
+# include <fstream>
+# include <string>
+#endif  // ANDROID
 
 #include "jsstdint.h"
 
@@ -434,7 +438,7 @@ void
 FrameRegsIter::incSlow(JSStackFrame *fp, JSStackFrame *prev)
 {
     JS_ASSERT(prev);
-    JS_ASSERT(curpc == curfp->pc(cx, fp));
+    JS_ASSERT(curpc == prev->savedpc_);
     JS_ASSERT(fp == curseg->getInitialFrame());
 
     /*
@@ -2035,10 +2039,16 @@ void
 JSContext::pushSegmentAndFrame(js::StackSegment *newseg, JSFrameRegs &newregs)
 {
     JS_ASSERT(regs != &newregs);
-    if (hasActiveSegment())
+    if (hasActiveSegment()) {
+        JS_ASSERT(regs->fp->savedpc_ == JSStackFrame::sInvalidpc);
+        regs->fp->savedpc_ = regs->pc;
         currentSegment->suspend(regs);
+    }
     newseg->setPreviousInContext(currentSegment);
     currentSegment = newseg;
+#ifdef DEBUG
+    newregs.fp->savedpc_ = JSStackFrame::sInvalidpc;
+#endif
     setCurrentRegs(&newregs);
     newseg->joinContext(this, newregs.fp);
 }
@@ -2048,6 +2058,7 @@ JSContext::popSegmentAndFrame()
 {
     JS_ASSERT(currentSegment->maybeContext() == this);
     JS_ASSERT(currentSegment->getInitialFrame() == regs->fp);
+    JS_ASSERT(regs->fp->savedpc_ == JSStackFrame::sInvalidpc);
     currentSegment->leaveContext();
     currentSegment = currentSegment->getPreviousInContext();
     if (currentSegment) {
@@ -2056,6 +2067,9 @@ JSContext::popSegmentAndFrame()
         } else {
             setCurrentRegs(currentSegment->getSuspendedRegs());
             currentSegment->resume();
+#ifdef DEBUG
+            regs->fp->savedpc_ = JSStackFrame::sInvalidpc;
+#endif
         }
     } else {
         JS_ASSERT(regs->fp->prev() == NULL);
@@ -2068,6 +2082,8 @@ JSContext::saveActiveSegment()
 {
     JS_ASSERT(hasActiveSegment());
     currentSegment->save(regs);
+    JS_ASSERT(regs->fp->savedpc_ == JSStackFrame::sInvalidpc);
+    regs->fp->savedpc_ = regs->pc;
     setCurrentRegs(NULL);
 }
 
@@ -2077,6 +2093,9 @@ JSContext::restoreSegment()
     js::StackSegment *ccs = currentSegment;
     setCurrentRegs(ccs->getSuspendedRegs());
     ccs->restore();
+#ifdef DEBUG
+    regs->fp->savedpc_ = JSStackFrame::sInvalidpc;
+#endif
 }
 
 JSGenerator *
@@ -2187,18 +2206,68 @@ JSContext::purge()
     FreeOldArenas(runtime, &regExpPool);
 }
 
+static bool
+ComputeIsJITBroken()
+{
+#ifndef ANDROID
+    return false;
+#else  // ANDROID
+    if (getenv("JS_IGNORE_JIT_BROKENNESS")) {
+        return false;
+    }
+
+    bool broken = false;
+    std::string line;
+    std::ifstream cpuinfo("/proc/cpuinfo");
+    do {
+        if (0 == line.find("Hardware")) {
+            const char* blacklist[] = {
+                "SGH-T959",     // Samsung i9000, Vibrant device
+                "SGH-I897",     // Samsung i9000, Captivate device
+                "SCH-I500",     // Samsung i9000, Fascinate device
+                "SPH-D700",     // Samsung i9000, Epic device
+                NULL
+            };
+            for (const char* hw = blacklist[0]; hw; ++hw) {
+                if (line.npos != line.find(hw)) {
+                    broken = true;
+                    break;
+                }
+            }
+            break;
+        }
+        std::getline(cpuinfo, line);
+    } while(!cpuinfo.fail() && !cpuinfo.eof());
+    return broken;
+#endif  // ifndef ANDROID
+}
+
+static bool
+IsJITBrokenHere()
+{
+    static bool computedIsBroken = false;
+    static bool isBroken = false;
+    if (!computedIsBroken) {
+        isBroken = ComputeIsJITBroken();
+        computedIsBroken = true;
+    }
+    return isBroken;
+}
+
 void
 JSContext::updateJITEnabled()
 {
 #ifdef JS_TRACER
     traceJitEnabled = ((options & JSOPTION_JIT) &&
+                       !IsJITBrokenHere() &&
                        (debugHooks == &js_NullDebugHooks ||
                         (debugHooks == &runtime->globalDebugHooks &&
                          !runtime->debuggerInhibitsJIT())));
 #endif
 #ifdef JS_METHODJIT
-    methodJitEnabled = (options & JSOPTION_METHODJIT)
-# if defined JS_CPU_X86 || defined JS_CPU_X64
+    methodJitEnabled = (options & JSOPTION_METHODJIT) &&
+                       !IsJITBrokenHere()
+# ifdef JS_CPU_X86
                        && JSC::MacroAssemblerX86Common::getSSEState() >=
                           JSC::MacroAssemblerX86Common::HasSSE2
 # endif

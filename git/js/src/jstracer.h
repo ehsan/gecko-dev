@@ -401,6 +401,7 @@ struct FrameInfo;
 
 struct VMSideExit : public nanojit::SideExit
 {
+    JSObject* block;
     jsbytecode* pc;
     jsbytecode* imacpc;
     intptr_t sp_adj;
@@ -1113,8 +1114,6 @@ class TraceRecorder
     JS_REQUIRES_STACK nanojit::LIns* alu(nanojit::LOpcode op, jsdouble v0, jsdouble v1,
                                          nanojit::LIns* s0, nanojit::LIns* s1);
 
-    void label(nanojit::LIns* br);
-    void label(nanojit::LIns* br1, nanojit::LIns* br2);
     nanojit::LIns* i2d(nanojit::LIns* i);
     nanojit::LIns* d2i(nanojit::LIns* f, bool resultCanBeImpreciseIfFractional = false);
     nanojit::LIns* f2u(nanojit::LIns* f);
@@ -1406,9 +1405,7 @@ class TraceRecorder
     /* The destructor should only be called through finish*, not directly. */
     ~TraceRecorder();
     JS_REQUIRES_STACK AbortableRecordingStatus finishSuccessfully();
-
-    enum AbortResult { NORMAL_ABORT, JIT_RESET };
-    JS_REQUIRES_STACK AbortResult finishAbort(const char* reason);
+    JS_REQUIRES_STACK AbortableRecordingStatus finishAbort(const char* reason);
 
     friend class ImportBoxedStackSlotVisitor;
     friend class ImportUnboxedStackSlotVisitor;
@@ -1425,7 +1422,7 @@ class TraceRecorder
     friend MonitorResult MonitorLoopEdge(JSContext*, uintN&);
     friend TracePointAction MonitorTracePoint(JSContext*, uintN &inlineCallCount,
                                               bool &blacklist);
-    friend AbortResult AbortRecording(JSContext*, const char*);
+    friend void AbortRecording(JSContext*, const char*);
     friend class BoxArg;
     friend void TraceMonitor::sweep();
 
@@ -1512,7 +1509,7 @@ MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount);
 extern JS_REQUIRES_STACK TracePointAction
 MonitorTracePoint(JSContext*, uintN& inlineCallCount, bool& blacklist);
 
-extern JS_REQUIRES_STACK TraceRecorder::AbortResult
+extern JS_REQUIRES_STACK void
 AbortRecording(JSContext* cx, const char* reason);
 
 extern void

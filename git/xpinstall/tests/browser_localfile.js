@@ -1,9 +1,7 @@
 // Load in the test harness
 var scriptLoader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"]
                              .getService(Components.interfaces.mozIJSSubScriptLoader);
-
-var rootDir = getRootDirectory(window.location.href);
-scriptLoader.loadSubScript(rootDir + "harness.js", this);
+scriptLoader.loadSubScript("chrome://mochikit/content/browser/xpinstall/tests/harness.js", this);
 
 // ----------------------------------------------------------------------------
 // Tests installing an local file works when loading the url
