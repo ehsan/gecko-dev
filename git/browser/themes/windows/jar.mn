@@ -81,14 +81,15 @@ browser.jar:
         skin/classic/browser/webRTC-shareDevice-64.png
         skin/classic/browser/webRTC-sharingDevice-16.png
 *       skin/classic/browser/customizableui/panelUIOverlay.css       (customizableui/panelUIOverlay.css)
+*       skin/classic/browser/downloads/allDownloadsViewOverlay.css   (downloads/allDownloadsViewOverlay.css)
         skin/classic/browser/downloads/buttons.png                   (downloads/buttons.png)
+        skin/classic/browser/downloads/contentAreaDownloadsView.css  (downloads/contentAreaDownloadsView.css)
         skin/classic/browser/downloads/download-glow.png             (downloads/download-glow.png)
         skin/classic/browser/downloads/download-notification-finish.png (downloads/download-notification-finish.png)
         skin/classic/browser/downloads/download-notification-start.png (downloads/download-notification-start.png)
         skin/classic/browser/downloads/download-summary.png          (downloads/download-summary.png)
 *       skin/classic/browser/downloads/downloads.css                 (downloads/downloads.css)
-*       skin/classic/browser/downloads/allDownloadsViewOverlay.css   (downloads/allDownloadsViewOverlay.css)
-        skin/classic/browser/downloads/contentAreaDownloadsView.css  (downloads/contentAreaDownloadsView.css)
+*       skin/classic/browser/downloads/indicator.css                 (downloads/indicator.css)
         skin/classic/browser/feeds/feedIcon.png                      (feeds/feedIcon.png)
         skin/classic/browser/feeds/feedIcon16.png                    (feeds/feedIcon16.png)
         skin/classic/browser/feeds/audioFeedIcon.png                 (feeds/feedIcon.png)
@@ -334,10 +335,10 @@ browser.jar:
         skin/classic/aero/browser/Secure24.png                       (Secure24-aero.png)
         skin/classic/aero/browser/setDesktopBackground.css
         skin/classic/aero/browser/slowStartup-16.png
+        skin/classic/aero/browser/Toolbar.png
+        skin/classic/aero/browser/Toolbar-inverted.png
         skin/classic/aero/browser/toolbarbutton-dropdown-arrow.png
         skin/classic/aero/browser/toolbarbutton-dropdown-arrow-inverted.png
-        skin/classic/aero/browser/Toolbar.png                        (Toolbar-aero.png)
-        skin/classic/aero/browser/Toolbar-inverted.png               (Toolbar-inverted-aero.png)
         skin/classic/aero/browser/urlbar-arrow.png
         skin/classic/aero/browser/urlbar-popup-blocked.png
         skin/classic/aero/browser/urlbar-history-dropmarker.png
@@ -347,14 +348,15 @@ browser.jar:
         skin/classic/aero/browser/webRTC-shareDevice-64.png
         skin/classic/aero/browser/webRTC-sharingDevice-16.png
 *       skin/classic/aero/browser/customizableui/panelUIOverlay.css  (customizableui/panelUIOverlay.css)
+*       skin/classic/aero/browser/downloads/allDownloadsViewOverlay.css (downloads/allDownloadsViewOverlay-aero.css)
         skin/classic/aero/browser/downloads/buttons.png              (downloads/buttons-aero.png)
+        skin/classic/aero/browser/downloads/contentAreaDownloadsView.css (downloads/contentAreaDownloadsView.css)
         skin/classic/aero/browser/downloads/download-glow.png        (downloads/download-glow.png)
         skin/classic/aero/browser/downloads/download-notification-finish.png (downloads/download-notification-finish.png)
         skin/classic/aero/browser/downloads/download-notification-start.png (downloads/download-notification-start.png)
         skin/classic/aero/browser/downloads/download-summary.png     (downloads/download-summary.png)
 *       skin/classic/aero/browser/downloads/downloads.css            (downloads/downloads-aero.css)
-*       skin/classic/aero/browser/downloads/allDownloadsViewOverlay.css (downloads/allDownloadsViewOverlay-aero.css)
-        skin/classic/aero/browser/downloads/contentAreaDownloadsView.css (downloads/contentAreaDownloadsView.css)
+*       skin/classic/aero/browser/downloads/indicator.css            (downloads/indicator-aero.css)
         skin/classic/aero/browser/feeds/feedIcon.png                 (feeds/feedIcon-aero.png)
         skin/classic/aero/browser/feeds/feedIcon16.png               (feeds/feedIcon16-aero.png)
         skin/classic/aero/browser/feeds/audioFeedIcon.png            (feeds/feedIcon-aero.png)
