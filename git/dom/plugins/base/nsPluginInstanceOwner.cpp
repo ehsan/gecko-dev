@@ -1045,13 +1045,13 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
                   "re-cache of attrs/params not implemented! use the DOM "
                     "node directy instead");
 
-  // Convert to a 16-bit count. Subtract 3 in case we add an extra
-  // "src", "wmode", or "codebase" entry below.
+  // Convert to a 16-bit count. Subtract 2 in case we add an extra
+  // "src" or "wmode" entry below.
   uint32_t cattrs = mContent->GetAttrCount();
-  if (cattrs < 0x0000FFFC) {
+  if (cattrs < 0x0000FFFD) {
     mNumCachedAttrs = static_cast<uint16_t>(cattrs);
   } else {
-    mNumCachedAttrs = 0xFFFC;
+    mNumCachedAttrs = 0xFFFD;
   }
 
   // Check if we are java for special codebase handling
@@ -1081,7 +1081,7 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
   mydomElement->GetElementsByTagNameNS(xhtml_ns, NS_LITERAL_STRING("param"),
                                        getter_AddRefs(allParams));
   if (allParams) {
-    uint32_t numAllParams;
+    uint32_t numAllParams; 
     allParams->GetLength(&numAllParams);
     for (uint32_t i = 0; i < numAllParams; i++) {
       nsCOMPtr<nsIDOMNode> pnode;
@@ -1144,25 +1144,12 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
     mNumCachedAttrs++;
   }
 
-  // "plugins.force.wmode" forces us to send a specific "wmode" parameter,
-  // used by flash to select a rendering mode. Common values include
-  // "opaque", "transparent", "windowed", "direct"
-  nsCString wmodeType;
-  nsAdoptingCString wmodePref = Preferences::GetCString("plugins.force.wmode");
-  if (!wmodePref.IsEmpty()) {
+  // "plugins.force.wmode" preference is forcing wmode type for plugins
+  // possible values - "opaque", "transparent", "windowed"
+  nsAdoptingCString wmodeType = Preferences::GetCString("plugins.force.wmode");
+  if (!wmodeType.IsEmpty()) {
     mNumCachedAttrs++;
-    wmodeType = wmodePref;
   }
-#if defined(XP_WIN) || defined(XP_LINUX)
-  // Bug 923745 - Until we support windowed mode plugins in content processes,
-  // force flash to use a windowless rendering mode. This hack should go away
-  // when bug 923746 lands. (OS X plugins always use some native widgets, so
-  // unfortunately this does not help there)
-  else if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    mNumCachedAttrs++;
-    wmodeType.AssignLiteral("transparent");
-  }
-#endif
 
   // (Bug 738396) java has quirks in its codebase parsing, pass the
   // absolute codebase URI as content sees it.

@@ -35,8 +35,7 @@ Finder.prototype = {
     this._listeners = this._listeners.filter(l => l != aListener);
   },
 
-  _notify: function (aSearchString, aResult, aFindBackwards, aDrawOutline) {
-    this._searchString = aSearchString;
+  _notify: function (aResult, aFindBackwards, aDrawOutline) {
     this._outlineLink(aDrawOutline);
 
     let foundLink = this._fastFind.foundLink;
@@ -61,7 +60,7 @@ Finder.prototype = {
   },
 
   get searchString() {
-    return this._searchString;
+    return this._fastFind.searchString;
   },
 
   set caseSensitive(aSensitive) {
@@ -77,8 +76,7 @@ Finder.prototype = {
    */
   fastFind: function (aSearchString, aLinksOnly, aDrawOutline) {
     let result = this._fastFind.find(aSearchString, aLinksOnly);
-    let searchString = this._fastFind.searchString;
-    this._notify(searchString, result, false, aDrawOutline);
+    this._notify(result, false, aDrawOutline);
   },
 
   /**
@@ -92,17 +90,16 @@ Finder.prototype = {
    */
   findAgain: function (aFindBackwards, aLinksOnly, aDrawOutline) {
     let result = this._fastFind.findAgain(aFindBackwards, aLinksOnly);
-    let searchString = this._fastFind.searchString;
-    this._notify(searchString, result, aFindBackwards, aDrawOutline);
+    this._notify(result, aFindBackwards, aDrawOutline);
   },
 
   highlight: function (aHighlight, aWord) {
+    this._searchString = aWord;
     let found = this._highlight(aHighlight, aWord, null);
-    if (aHighlight) {
-      let result = found ? Ci.nsITypeAheadFind.FIND_FOUND
-                         : Ci.nsITypeAheadFind.FIND_NOTFOUND;
-      this._notify(aWord, result, false, false);
-    }
+    if (found)
+      this._notify(Ci.nsITypeAheadFind.FIND_FOUND, false, false);
+    else
+      this._notify(Ci.nsITypeAheadFind.FIND_NOTFOUND, false, false);
   },
 
   enableSelection: function() {
@@ -286,7 +283,7 @@ Finder.prototype = {
         }
       }
 
-      // Removing the highlighting always succeeds, so return true.
+      //Removing the highlighting always succeeds, so return true.
       found = true;
     }
 

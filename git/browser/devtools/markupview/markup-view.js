@@ -987,8 +987,7 @@ MarkupView.prototype = {
    * Initialize the preview panel.
    */
   _initPreview: function() {
-    this._previewEnabled = Services.prefs.getBoolPref("devtools.inspector.markupPreview");
-    if (!this._previewEnabled) {
+    if (!Services.prefs.getBoolPref("devtools.inspector.markupPreview")) {
       return;
     }
 
@@ -1018,9 +1017,6 @@ MarkupView.prototype = {
    * Move the preview viewbox.
    */
   _updatePreview: function() {
-    if (!this._previewEnabled) {
-      return;
-    }
     let win = this._frame.contentWindow;
 
     if (win.scrollMaxY == 0) {
@@ -1056,9 +1052,6 @@ MarkupView.prototype = {
    * Hide the preview while resizing, to avoid slowness.
    */
   _resizePreview: function() {
-    if (!this._previewEnabled) {
-      return;
-    }
     let win = this._frame.contentWindow;
     this._previewBar.classList.add("hide");
     win.clearTimeout(this._resizePreviewTimeout);

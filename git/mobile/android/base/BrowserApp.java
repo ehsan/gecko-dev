@@ -108,7 +108,7 @@ abstract public class BrowserApp extends GeckoApp
     private BrowserSearch mBrowserSearch;
     private View mBrowserSearchContainer;
 
-    private BrowserToolbar mBrowserToolbar;
+    public static BrowserToolbar mBrowserToolbar;
     private HomePager mHomePager;
     private View mHomePagerContainer;
     protected Telemetry.Timer mAboutHomeStartupTimer = null;
@@ -847,7 +847,7 @@ abstract public class BrowserApp extends GeckoApp
         mBrowserToolbar.updateBackButton(false);
         mBrowserToolbar.updateForwardButton(false);
 
-        mDoorHangerPopup.setAnchor(mBrowserToolbar.getDoorHangerAnchor());
+        mDoorHangerPopup.setAnchor(mBrowserToolbar.mFavicon);
 
         // Listen to margin changes to position the toolbar correctly
         if (isDynamicToolbarEnabled()) {

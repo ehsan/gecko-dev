@@ -18,8 +18,6 @@
 #ifdef XP_WIN
 #include <process.h>
 #define getpid _getpid
-#else
-#include <unistd.h>
 #endif
 
 #include "nsXULAppAPI.h"
