@@ -138,5 +138,8 @@ function fileRead(aInputStream, aStatus)
   gFile.remove(false);
   gFile = null;
   gScratchpad = null;
+  gScratchpadWindow.close();
+  gScratchpadWindow = null;
+  gBrowser.removeCurrentTab();
   finish();
 }
