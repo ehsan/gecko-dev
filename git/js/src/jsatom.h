@@ -294,7 +294,7 @@ struct AtomStateEntry {
     AtomStateEntry(const AtomStateEntry &other) : bits(other.bits) {}
 
     AtomStateEntry(JSFixedString *futureAtom, bool intern)
-      : bits(uintptr_t(futureAtom) | uintptr_t(intern))
+      : bits(uintptr_t(futureAtom) | intern)
     {}
 
     bool isInterned() const {
