@@ -364,6 +364,13 @@ MAKEFILES_libnestegg="
   media/libnestegg/src/Makefile
 "
 
+MAKEFILES_mathml="
+  content/mathml/Makefile
+  content/mathml/content/Makefile
+  content/mathml/content/src/Makefile
+  layout/mathml/Makefile
+"
+
 MAKEFILES_netwerk="
   netwerk/Makefile
   netwerk/base/Makefile
@@ -752,6 +759,7 @@ add_makefiles "
   $MAKEFILES_libjar
   $MAKEFILES_libreg
   $MAKEFILES_libpref
+  $MAKEFILES_mathml
   $MAKEFILES_plugin
   $MAKEFILES_netwerk
   $MAKEFILES_uriloader
@@ -1102,15 +1110,6 @@ if [ "$MOZ_MAPINFO" ]; then
   "
 fi
 
-if [ "$MOZ_MATHML" ]; then
-  add_makefiles "
-    content/mathml/Makefile
-    content/mathml/content/Makefile
-    content/mathml/content/src/Makefile
-    layout/mathml/Makefile
-  "
-fi
-
 if [ "$MOZ_SMIL" ]; then
   add_makefiles "
     content/smil/Makefile
@@ -1123,12 +1122,6 @@ if [ "$MOZ_XTF" ]; then
     content/xtf/Makefile
     content/xtf/public/Makefile
     content/xtf/src/Makefile
-  "
-fi
-
-if [ "$MOZ_STATIC_COMPONENTS" ]; then
-  add_makefiles "
-    modules/staticmod/Makefile
   "
 fi
 

@@ -716,7 +716,13 @@ nsSHistory::GetCanGoBack(PRBool * aCanGoBack)
   NS_ENSURE_ARG_POINTER(aCanGoBack);
   *aCanGoBack = PR_FALSE;
 
+  // If there is already a pending navigation, we cannot go back.
   PRInt32 index = -1;
+  NS_ENSURE_SUCCESS(GetRequestedIndex(&index), NS_ERROR_FAILURE);
+
+  if(index != -1)
+    return NS_OK;
+
   NS_ENSURE_SUCCESS(GetIndex(&index), NS_ERROR_FAILURE);
   if(index > 0)
      *aCanGoBack = PR_TRUE;
@@ -730,8 +736,14 @@ nsSHistory::GetCanGoForward(PRBool * aCanGoForward)
   NS_ENSURE_ARG_POINTER(aCanGoForward);
   *aCanGoForward = PR_FALSE;
 
+  // If there is already a pending navigation, we cannot go forward.
   PRInt32 index = -1;
   PRInt32 count = -1;
+
+  NS_ENSURE_SUCCESS(GetRequestedIndex(&index), NS_ERROR_FAILURE);
+
+  if(index != -1)
+    return NS_OK;
 
   NS_ENSURE_SUCCESS(GetIndex(&index), NS_ERROR_FAILURE);
   NS_ENSURE_SUCCESS(GetCount(&count), NS_ERROR_FAILURE);
@@ -1003,7 +1015,7 @@ nsSHistory::EvictGlobalContentViewer()
         // This SHEntry has a ContentViewer, so check how far away it is from
         // the currently used SHEntry within this SHistory object
         if (viewer) {
-          PRInt32 distance = PR_ABS(shist->mIndex - i);
+          PRInt32 distance = NS_ABS(shist->mIndex - i);
           
 #ifdef DEBUG_PAGE_CACHE
           printf("Has a cached content viewer: %s\n", spec.get());
@@ -1213,7 +1225,7 @@ PRBool IsSameTree(nsISHEntry* aEntry1, nsISHEntry* aEntry2)
   container1->GetChildCount(&count1);
   container2->GetChildCount(&count2);
   // We allow null entries in the end of the child list.
-  PRInt32 count = PR_MAX(count1, count2);
+  PRInt32 count = NS_MAX(count1, count2);
   for (PRInt32 i = 0; i < count; ++i) {
     nsCOMPtr<nsISHEntry> child1, child2;
     container1->GetChildAt(i, getter_AddRefs(child1));

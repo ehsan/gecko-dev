@@ -239,6 +239,8 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   mFocusBackgroundColor = mBackgroundColor;
   mFocusRingWidth = 1;
 
+  mBodyTextColor = mDefaultColor;
+
   if (aType == eContext_Galley) {
     mMedium = nsGkAtoms::screen;
   } else {
@@ -713,6 +715,9 @@ nsPresContext::GetUserPreferences()
 
   mFocusRingStyle =
     Preferences::GetInt("browser.display.focus_ring_style", mFocusRingStyle);
+
+  mBodyTextColor = mDefaultColor;
+  
   // * use fonts?
   mUseDocumentFonts =
     Preferences::GetInt("browser.display.use_document_fonts") != 0;
@@ -767,8 +772,10 @@ nsPresContext::GetUserPreferences()
 }
 
 void
-nsPresContext::AppUnitsPerDevPixelChanged()
+nsPresContext::InvalidateThebesLayers()
 {
+  if (!mShell)
+    return;
   nsIFrame* rootFrame = mShell->FrameManager()->GetRootFrame();
   if (rootFrame) {
     // FrameLayerBuilder caches invalidation-related values that depend on the
@@ -776,6 +783,12 @@ nsPresContext::AppUnitsPerDevPixelChanged()
     // is completely flushed.
     FrameLayerBuilder::InvalidateThebesLayersInSubtree(rootFrame);
   }
+}
+
+void
+nsPresContext::AppUnitsPerDevPixelChanged()
+{
+  InvalidateThebesLayers();
 
   mDeviceContext->FlushFontCache();
 
@@ -863,6 +876,7 @@ nsPresContext::UpdateAfterPreferencesChanged()
     mShell->SetPreferenceStyleRules(PR_TRUE);
   }
 
+  InvalidateThebesLayers();
   mDeviceContext->FlushFontCache();
 
   nsChangeHint hint = nsChangeHint(0);

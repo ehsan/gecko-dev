@@ -755,8 +755,7 @@ let UI = {
         if (gBrowser.tabs.length > 1) {
           // Don't return to TabView if there are any app tabs
           for (let a = 0; a < gBrowser._numPinnedTabs; a++) {
-            let theTab = gBrowser.tabs[a]; 
-            if (gBrowser._removingTabs.indexOf(theTab) == -1) 
+            if (!gBrowser.tabs[a].closing)
               return;
           }
 
@@ -996,21 +995,28 @@ let UI = {
     [
 #ifdef XP_UNIX
       "quitApplication",
+#else
+      "redo",
 #endif
 #ifdef XP_MACOSX
-      "preferencesCmdMac", "minimizeWindow",
+      "preferencesCmdMac", "minimizeWindow", "hideThisAppCmdMac",
 #endif
       "newNavigator", "newNavigatorTab", "undo", "cut", "copy", "paste", 
       "selectAll", "find"
-     ].forEach(function(key) {
+    ].forEach(function(key) {
       let element = gWindow.document.getElementById("key_" + key);
       keys[key] = element.getAttribute("key").toLocaleLowerCase().charCodeAt(0);
     });
 
     // for key combinations with shift key, the charCode of upper case letters 
     // are different to the lower case ones so need to handle them differently.
-    ["closeWindow", "tabview", "undoCloseTab", "undoCloseWindow",
-     "privatebrowsing", "redo"].forEach(function(key) {
+    [
+#ifdef XP_UNIX
+      "redo",
+#endif
+      "closeWindow", "tabview", "undoCloseTab", "undoCloseWindow",
+      "privatebrowsing"
+    ].forEach(function(key) {
       let element = gWindow.document.getElementById("key_" + key);
       keys[key] = element.getAttribute("key").toLocaleUpperCase().charCodeAt(0);
     });
@@ -1037,6 +1043,10 @@ let UI = {
         Keys.meta = true;
 
       function processBrowserKeys(evt) {
+        // let any keys with alt to pass through
+        if (evt.altKey)
+          return;
+
 #ifdef XP_MACOSX
         if (evt.metaKey) {
 #else
@@ -1045,15 +1055,17 @@ let UI = {
           let preventDefault = true;
           if (evt.shiftKey) {
             switch (evt.charCode) {
-              case self._browserKeys.privatebrowsing:
-              case self._browserKeys.undoCloseTab:
-              case self._browserKeys.undoCloseWindow:
-              case self._browserKeys.closeWindow:
-              case self._browserKeys.redo:
-                preventDefault = false;
-                break;
               case self._browserKeys.tabview:
                 self.exit();
+                break;
+#ifdef XP_UNIX
+              case self._browserKeys.redo:
+#endif
+              case self._browserKeys.closeWindow:
+              case self._browserKeys.undoCloseTab:
+              case self._browserKeys.undoCloseWindow:
+              case self._browserKeys.privatebrowsing:
+                preventDefault = false;
                 break;
             }
           } else {
@@ -1061,6 +1073,16 @@ let UI = {
               case self._browserKeys.find:
                 self.enableSearch();
                 break;
+#ifdef XP_UNIX
+              case self._browserKeys.quitApplication:
+#else
+              case self._browserKeys.redo:
+#endif
+#ifdef XP_MACOSX
+              case self._browserKeys.preferencesCmdMac:
+              case self._browserKeys.minimizeWindow:
+              case self._browserKeys.hideThisAppCmdMac:
+#endif
               case self._browserKeys.newNavigator:
               case self._browserKeys.newNavigatorTab:
               case self._browserKeys.undo:
@@ -1070,17 +1092,6 @@ let UI = {
               case self._browserKeys.selectAll:
                 preventDefault = false;
                 break;
-#ifdef XP_UNIX
-              case self._browserKeys.quitApplication:
-                preventDefault = false;
-                break;
-#endif
-#ifdef XP_MACOSX
-              case self._browserKeys.preferencesCmdMac:
-              case self._browserKeys.minimizeWindow:
-                preventDefault = false;
-                break;
-#endif
             }
           }
           if (preventDefault) {

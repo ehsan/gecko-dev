@@ -1009,7 +1009,7 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 #ifdef JS_GC_ZEAL
   PRInt32 zeal = Preferences::GetInt(js_zeal_option_str, -1);
   if (zeal >= 0)
-    ::JS_SetGCZeal(context->mContext, (PRUint8)zeal);
+    ::JS_SetGCZeal(context->mContext, (PRUint8)zeal, JS_DEFAULT_ZEAL_FREQ, JS_FALSE);
 #endif
 
   return 0;
@@ -3386,7 +3386,7 @@ nsJSContext::PokeCC()
   CallCreateInstance("@mozilla.org/timer;1", &sCCTimer);
 
   if (!sCCTimer) {
-    NS_WARNING("Failed to create timer");
+    // Failed to create timer (probably because we're in XPCOM shutdown)
     return;
   }
 

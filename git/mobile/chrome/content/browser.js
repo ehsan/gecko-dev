@@ -266,7 +266,7 @@ var Browser = {
       ViewableAreaObserver.update();
 
       // Restore the previous scroll position
-      let restorePosition = Browser.controlsPosition;
+      let restorePosition = Browser.controlsPosition || { hideSidebars: true };
       if (restorePosition.hideSidebars) {
         restorePosition.hideSidebars = false;
         Browser.hideSidebars();
@@ -378,6 +378,11 @@ var Browser = {
     let event = document.createEvent("Events");
     event.initEvent("UIReady", true, false);
     window.dispatchEvent(event);
+
+    // if we have an opener this was not the first window opened and will not
+    // receive an initial resize event. instead we fire the resize handler manually
+    if (window.opener)
+      resizeHandler({ target: window });
   },
 
   _alertShown: function _alertShown() {
@@ -1107,7 +1112,7 @@ var Browser = {
     if (prefValue > 0)
       return prefValue / 100;
 
-    let dpi = this.windowUtils.displayDPI;
+    let dpi = Utils.displayDPI;
     if (dpi < 200) // Includes desktop displays, and LDPI and MDPI Android devices
       return 1;
     else if (dpi < 300) // Includes Nokia N900, and HDPI Android devices
@@ -1804,7 +1809,7 @@ const ContentTouchHandler = {
   panningPrevented: false,
 
   updateCanCancel: function(aX, aY) {
-    let dpi = Browser.windowUtils.displayDPI;
+    let dpi = Utils.displayDPI;
 
     const kSafetyX = Services.prefs.getIntPref("dom.w3c_touch_events.safetyX") / 240 * dpi;
     const kSafetyY = Services.prefs.getIntPref("dom.w3c_touch_events.safetyY") / 240 * dpi;
@@ -2731,7 +2736,8 @@ Tab.prototype = {
 
     try {
       let flags = aParams.flags || Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-      browser.loadURIWithFlags(aURI, flags, aParams.referrerURI, aParams.charset, aParams.postData);
+      let postData = aParams.postData ? aParams.postData.value : null;
+      browser.loadURIWithFlags(aURI, flags, aParams.referrerURI, aParams.charset, postData);
     } catch(e) {
       dump("Error: " + e + "\n");
     }
