@@ -18,7 +18,6 @@ public final class ThreadUtils {
     private static Thread sBackgroundThread;
 
     private static Handler sUiHandler;
-    private static Handler sGeckoHandler;
 
     @SuppressWarnings("serial")
     public static class UiThreadBlockedException extends RuntimeException {
@@ -56,9 +55,8 @@ public final class ThreadUtils {
         sUiHandler = handler;
     }
 
-    public static void setGeckoThread(Thread thread, Handler handler) {
+    public static void setGeckoThread(Thread thread) {
         sGeckoThread = thread;
-        sGeckoHandler = handler;
     }
 
     public static void setBackgroundThread(Thread thread) {
@@ -79,10 +77,6 @@ public final class ThreadUtils {
 
     public static Thread getGeckoThread() {
         return sGeckoThread;
-    }
-
-    public static Handler getGeckoHandler() {
-        return sGeckoHandler;
     }
 
     public static Thread getBackgroundThread() {

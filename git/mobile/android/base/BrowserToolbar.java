@@ -232,16 +232,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
         mMenuIcon = (GeckoImageView) findViewById(R.id.menu_icon);
         mActionItemBar = (LinearLayout) findViewById(R.id.menu_items);
         mHasSoftMenuButton = !HardwareUtils.hasMenuButton();
-
-        // We use different layouts on phones and tablets, so adjust the focus
-        // order appropriately.
-        if (HardwareUtils.isTablet()) {
-            mFocusOrder = Arrays.asList(mTabs, mBack, mForward, this,
-                    mSiteSecurity, mReader, mStop, mActionItemBar, mMenu);
-        } else {
-            mFocusOrder = Arrays.asList(this, mSiteSecurity, mReader, mStop,
-                    mTabs, mMenu);
-        }
     }
 
     @Override
@@ -428,6 +418,16 @@ public class BrowserToolbar extends GeckoRelativeLayout
                     mTabs.setTouchDelegate(delegate);
                 }
             });
+        }
+
+        // We use different layouts on phones and tablets, so adjust the focus
+        // order appropriately.
+        if (HardwareUtils.isTablet()) {
+            mFocusOrder = Arrays.asList(mTabs, mBack, mForward, this,
+                    mSiteSecurity, mReader, mStop, mActionItemBar, mMenu);
+        } else {
+            mFocusOrder = Arrays.asList(this, mSiteSecurity, mReader, mStop,
+                    mTabs, mMenu);
         }
     }
 
@@ -893,27 +893,26 @@ public class BrowserToolbar extends GeckoRelativeLayout
                 continue;
             }
 
-            if (view == mActionItemBar) {
-                final int childCount = mActionItemBar.getChildCount();
-                for (int child = 0; child < childCount; child++) {
-                    View childView = mActionItemBar.getChildAt(child);
-                    if (prevView != null) {
-                        childView.setNextFocusLeftId(prevView.getId());
-                        prevView.setNextFocusRightId(childView.getId());
+            if (prevView != null) {
+                if (view == mActionItemBar) {
+                    final int childCount = mActionItemBar.getChildCount();
+                    if (childCount > 1) {
+                        View firstChild = mActionItemBar.getChildAt(0);
+                        firstChild.setNextFocusLeftId(prevView.getId());
+                        prevView.setNextFocusRightId(firstChild.getId());
                     }
-                    prevView = childView;
+                    view = mActionItemBar.getChildAt(childCount - 1);
                 }
-            } else {
-                if (prevView != null) {
-                    view.setNextFocusLeftId(prevView.getId());
-                    prevView.setNextFocusRightId(view.getId());
-                }
-                prevView = view;
-            }
-        }
 
-        if (needsNewFocus) {
-            requestFocus();
+                view.setNextFocusLeftId(prevView.getId());
+                prevView.setNextFocusRightId(view.getId());
+            }
+
+            if (needsNewFocus) {
+                requestFocus();
+            }
+
+            prevView = view;
         }
     }
 

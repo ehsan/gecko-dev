@@ -14,18 +14,14 @@
 #include "nsAutoRef.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/dom/HTMLTrackElement.h"
-
-struct webvtt_parser_t;
-struct webvtt_cue;
-typedef int webvtt_error;
+#include "webvtt/parser.h"
+#include "webvtt/util.h"
 
 template <>
 class nsAutoRefTraits<webvtt_parser_t> : public nsPointerRefTraits<webvtt_parser_t>
 {
 public:
-  static void Release(webvtt_parser_t* aParser) {
-    // Call parser dtor here.
-  }
+  static void Release(webvtt_parser_t* aParser) { webvtt_delete_parser(aParser); }
 };
 
 namespace mozilla {
@@ -79,6 +75,13 @@ private:
 
   void OnParsedCue(webvtt_cue* aCue);
   int OnReportError(uint32_t aLine, uint32_t aCol, webvtt_error aError);
+
+  static void WEBVTT_CALLBACK OnParsedCueWebVTTCallBack(void* aUserData,
+                                                        webvtt_cue* aCue);
+  static int WEBVTT_CALLBACK OnReportErrorWebVTTCallBack(void* aUserData,
+                                                         uint32_t aLine,
+                                                         uint32_t aCol,
+                                                         webvtt_error aError);
 };
 
 

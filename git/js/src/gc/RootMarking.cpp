@@ -572,20 +572,16 @@ AutoGCRooter::trace(JSTracer *trc)
 /* static */ void
 AutoGCRooter::traceAll(JSTracer *trc)
 {
-    for (ContextIter cx(trc->runtime); !cx.done(); cx.next()) {
-        for (js::AutoGCRooter *gcr = cx->autoGCRooters; gcr; gcr = gcr->down)
-            gcr->trace(trc);
-    }
+    for (js::AutoGCRooter *gcr = trc->runtime->autoGCRooters; gcr; gcr = gcr->down)
+        gcr->trace(trc);
 }
 
 /* static */ void
 AutoGCRooter::traceAllWrappers(JSTracer *trc)
 {
-    for (ContextIter cx(trc->runtime); !cx.done(); cx.next()) {
-        for (js::AutoGCRooter *gcr = cx->autoGCRooters; gcr; gcr = gcr->down) {
-            if (gcr->tag_ == WRAPVECTOR || gcr->tag_ == WRAPPER)
-                gcr->trace(trc);
-        }
+    for (js::AutoGCRooter *gcr = trc->runtime->autoGCRooters; gcr; gcr = gcr->down) {
+        if (gcr->tag_ == WRAPVECTOR || gcr->tag_ == WRAPPER)
+            gcr->trace(trc);
     }
 }
 
@@ -717,7 +713,7 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
         }
 
         /* Do not discard scripts with counts while profiling. */
-        if (rt->profilingScripts && !rt->isHeapMinorCollecting()) {
+        if (rt->profilingScripts) {
             for (CellIterUnderGC i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
                 JSScript *script = i.get<JSScript>();
                 if (script->hasScriptCounts) {

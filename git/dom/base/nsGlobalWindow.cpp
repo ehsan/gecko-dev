@@ -1367,11 +1367,7 @@ nsGlobalWindow::CleanUp(bool aIgnoreModalDialog)
     NS_RELEASE(mObserver);
   }
 
-  if (mNavigator) {
-    mNavigator->Invalidate();
-    mNavigator = nullptr;
-  }
-
+  mNavigator = nullptr;
   mScreen = nullptr;
   mMenubar = nullptr;
   mToolbar = nullptr;

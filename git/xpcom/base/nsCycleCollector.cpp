@@ -23,9 +23,6 @@
 // unlinking them they will self-destruct (since a garbage cycle is
 // only keeping itself alive with internal links, by definition).
 //
-// Snow-white is an addition to the original algorithm. Snow-white object
-// has reference count zero and is just waiting for deletion.
-//
 // Grey nodes are being scanned. Nodes that turn grey will turn
 // either black if we determine that they're live, or white if we
 // determine that they're a garbage cycle. After the main collection
@@ -62,6 +59,9 @@
 // An object is purple-safe if it satisfies the following properties:
 //
 //  - The object is scan-safe.
+//  - If the object calls |nsCycleCollector::suspect(this)|,
+//    it will null out the pointer from the purple buffer entry to
+//    the object before being destroyed.
 //
 // When we receive a pointer |ptr| via
 // |nsCycleCollector::suspect(ptr)|, we assume it is purple-safe. We
@@ -84,7 +84,7 @@
 // there should be no objects released from the scan-safe set during
 // the scan.
 //
-// We *do* call |Root| and |Unroot| on every white object, on
+// We *do* call |AddRef| and |Release| on every white object, on
 // either side of the calls to |Unlink|. This keeps the set of white
 // objects alive during the unlinking.
 //
@@ -106,6 +106,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsCycleCollectionNoteRootCallback.h"
 #include "nsCycleCollectorUtils.h"
+#include "nsIProgrammingLanguage.h"
 #include "nsBaseHashtable.h"
 #include "nsHashKeys.h"
 #include "nsDeque.h"
@@ -117,10 +118,13 @@
 #include "nsPrintfCString.h"
 #include "nsTArray.h"
 #include "nsIConsoleService.h"
+#include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
 #include "mozilla/Attributes.h"
 #include "nsICycleCollectorListener.h"
+#include "nsIXPConnect.h"
+#include "nsIJSRuntimeService.h"
 #include "nsIMemoryReporter.h"
 #include "nsIFile.h"
 #include "nsDirectoryServiceDefs.h"
@@ -760,11 +764,12 @@ public:
         void
         Visit(nsPurpleBuffer &aBuffer, nsPurpleBufferEntry *aEntry)
         {
-            if (aEntry->mRefCnt) {
-                aEntry->mRefCnt->RemoveFromPurpleBuffer();
-                aEntry->mRefCnt = nullptr;
+            if (aEntry->mObject) {
+                void *obj = aEntry->mObject;
+                nsCycleCollectionParticipant *cp = aEntry->mParticipant;
+                CanonicalizeParticipant(&obj, &cp);
+                cp->UnmarkIfPurple(obj);
             }
-            aEntry->mObject = nullptr;
             --aBuffer.mCount;
         }
     };
@@ -778,14 +783,13 @@ public:
     void SelectPointers(GCGraphBuilder &builder);
 
     // RemoveSkippable removes entries from the purple buffer if
-    // nsPurpleBufferEntry::mRefCnt is 0 or if the object's
+    // nsPurpleBufferEntry::mObject is null or if the object's
     // nsXPCOMCycleCollectionParticipant::CanSkip() returns true or
-    // if nsPurpleBufferEntry::mRefCnt->IsPurple() is false.
+    // if nsPurpleBufferEntry::mNotPurple is true.
     // If removeChildlessNodes is true, then any nodes in the purple buffer
     // that will have no children in the cycle collector graph will also be
     // removed. CanSkip() may be run on these children.
-    void RemoveSkippable(bool removeChildlessNodes,
-                         CC_ForgetSkippableCallback aCb);
+    void RemoveSkippable(bool removeChildlessNodes);
 
     nsPurpleBufferEntry* NewEntry()
     {
@@ -804,26 +808,24 @@ public:
         return e;
     }
 
-    void Put(void *p, nsCycleCollectionParticipant *cp,
-             nsCycleCollectingAutoRefCnt *aRefCnt)
+    nsPurpleBufferEntry* Put(void *p, nsCycleCollectionParticipant *cp)
     {
         nsPurpleBufferEntry *e = NewEntry();
 
         ++mCount;
 
         e->mObject = p;
-        e->mRefCnt = aRefCnt;
         e->mParticipant = cp;
+        e->mNotPurple = false;
+
+        // Caller is responsible for filling in result's mRefCnt.
+        return e;
     }
 
     void Remove(nsPurpleBufferEntry *e)
     {
         MOZ_ASSERT(mCount != 0, "must have entries");
 
-        if (e->mRefCnt) {
-            e->mRefCnt->RemoveFromPurpleBuffer();
-            e->mRefCnt = nullptr;
-        }
         e->mNextInFreeList =
             (nsPurpleBufferEntry*)(uintptr_t(mFreeList) | uintptr_t(1));
         mFreeList = e;
@@ -869,11 +871,14 @@ struct SelectPointersVisitor
     void
     Visit(nsPurpleBuffer &aBuffer, nsPurpleBufferEntry *aEntry)
     {
-        MOZ_ASSERT(!(aEntry->mObject && !aEntry->mRefCnt->get()),
-                   "SelectPointersVisitor: snow-white object in the purple buffer");
-        if (!aEntry->mObject ||
-            !aEntry->mRefCnt->IsPurple() ||
-            AddPurpleRoot(mBuilder, aEntry->mObject, aEntry->mParticipant)) {
+        if (aEntry->mObject && aEntry->mNotPurple) {
+            void* o = aEntry->mObject;
+            nsCycleCollectionParticipant* cp = aEntry->mParticipant;
+            CanonicalizeParticipant(&o, &cp);
+            cp->UnmarkIfPurple(o);
+            aBuffer.Remove(aEntry);
+        } else if (!aEntry->mObject ||
+                   AddPurpleRoot(mBuilder, aEntry->mObject, aEntry->mParticipant)) {
             aBuffer.Remove(aEntry);
         }
     }
@@ -1051,8 +1056,7 @@ public:
     nsresult Init();
     void ShutdownThreads();
 
-    void Suspect(void *n, nsCycleCollectionParticipant *cp,
-                 nsCycleCollectingAutoRefCnt *aRefCnt);
+    nsPurpleBufferEntry* Suspect(void *n, nsCycleCollectionParticipant *cp);
 
     void CheckThreadSafety();
 
@@ -1074,12 +1078,6 @@ public:
     // Start and finish an individual collection.
     bool BeginCollection(ccType aCCType, nsICycleCollectorListener *aListener);
     bool FinishCollection(nsICycleCollectorListener *aListener);
-
-    void FreeSnowWhite(bool aUntilNoSWInPurpleBuffer);
-
-    // If there is a cycle collector available in the current thread,
-    // this calls FreeSnowWhite(false).
-    static void TryToFreeSnowWhite();
 
     uint32_t SuspectedCount();
     void Shutdown();
@@ -1167,8 +1165,6 @@ nsCycleCollectorRunner::Collect(ccType aCCType,
     nsAutoTArray<PtrInfo*, 4000> whiteNodes;
     if (!mCollector->PrepareForCollection(aResults, &whiteNodes))
         return;
-
-    mCollector->FreeSnowWhite(true);
 
     MOZ_ASSERT(!mListener, "Should have cleared this already!");
     if (aListener && NS_FAILED(aListener->Begin()))
@@ -2085,6 +2081,8 @@ AddPurpleRoot(GCGraphBuilder &builder, void *root, nsCycleCollectionParticipant 
         }
     }
 
+    cp->UnmarkIfPurple(root);
+
     return true;
 }
 
@@ -2149,144 +2147,38 @@ MayHaveChild(void *o, nsCycleCollectionParticipant* cp)
     return cf.MayHaveChild();
 }
 
-struct SnowWhiteObject
-{
-  void* mPointer;
-  nsCycleCollectionParticipant* mParticipant;
-  nsCycleCollectingAutoRefCnt* mRefCnt;
-};
-
-class SnowWhiteKiller
+class RemoveSkippableVisitor
 {
 public:
-    SnowWhiteKiller(uint32_t aMaxCount)
-    {
-        mObjects.SetCapacity(aMaxCount);
-    }
-
-    ~SnowWhiteKiller()
-    {
-        for (uint32_t i = 0; i < mObjects.Length(); ++i) {
-            SnowWhiteObject& o = mObjects[i];
-            if (!o.mRefCnt->get() && !o.mRefCnt->IsInPurpleBuffer()) {
-                o.mRefCnt->stabilizeForDeletion();
-                o.mParticipant->DeleteCycleCollectable(o.mPointer);
-            }
-        }
-    }
-
-    void
-    Visit(nsPurpleBuffer& aBuffer, nsPurpleBufferEntry* aEntry)
-    {
-        if (aEntry->mObject && !aEntry->mRefCnt->get()) {
-            void *o = aEntry->mObject;
-            nsCycleCollectionParticipant *cp = aEntry->mParticipant;
-            CanonicalizeParticipant(&o, &cp);
-            SnowWhiteObject swo = { o, cp, aEntry->mRefCnt };
-            mObjects.AppendElement(swo);
-            aBuffer.Remove(aEntry);
-        }
-    }
-
-    bool HasSnowWhiteObjects()
-    {
-      return mObjects.Length() > 0;
-    }
-private:
-    nsTArray<SnowWhiteObject> mObjects;
-};
-
-class RemoveSkippableVisitor : public SnowWhiteKiller
-{
-public:
-    RemoveSkippableVisitor(uint32_t aMaxCount, bool aRemoveChildlessNodes,
-                           CC_ForgetSkippableCallback aCb)
-        : SnowWhiteKiller(aMaxCount),
-          mRemoveChildlessNodes(aRemoveChildlessNodes),
-          mCallback(aCb)
+    RemoveSkippableVisitor(bool aRemoveChildlessNodes)
+        : mRemoveChildlessNodes(aRemoveChildlessNodes)
     {}
-
-    ~RemoveSkippableVisitor()
-    {
-        // Note, we must call the callback before SnowWhiteKiller calls
-        // DeleteCycleCollectable!
-        if (mCallback) {
-            mCallback();
-        }
-    }
 
     void
     Visit(nsPurpleBuffer &aBuffer, nsPurpleBufferEntry *aEntry)
     {
         if (aEntry->mObject) {
-            if (!aEntry->mRefCnt->get()) {
-              SnowWhiteKiller::Visit(aBuffer, aEntry);
-              return;
-            }
             void *o = aEntry->mObject;
             nsCycleCollectionParticipant *cp = aEntry->mParticipant;
             CanonicalizeParticipant(&o, &cp);
-            if (aEntry->mRefCnt->IsPurple() && !cp->CanSkip(o, false) &&
+            if (!aEntry->mNotPurple && !cp->CanSkip(o, false) &&
                 (!mRemoveChildlessNodes || MayHaveChild(o, cp))) {
                 return;
             }
+            cp->UnmarkIfPurple(o);
         }
         aBuffer.Remove(aEntry);
     }
 
 private:
     bool mRemoveChildlessNodes;
-    CC_ForgetSkippableCallback mCallback;
 };
 
 void
-nsPurpleBuffer::RemoveSkippable(bool removeChildlessNodes,
-                                CC_ForgetSkippableCallback aCb)
+nsPurpleBuffer::RemoveSkippable(bool removeChildlessNodes)
 {
-    RemoveSkippableVisitor visitor(Count(), removeChildlessNodes, aCb);
+    RemoveSkippableVisitor visitor(removeChildlessNodes);
     VisitEntries(visitor);
-    // If we're about to delete some objects when visitor goes out of scope,
-    // try to delete some more soon.
-    if (visitor.HasSnowWhiteObjects()) {
-        nsCycleCollector_dispatchDeferredDeletion();
-    }
-}
-
-class AsyncFreeSnowWhite : public nsRunnable
-{
-public:
-  NS_IMETHOD Run()
-  {
-      nsCycleCollector::TryToFreeSnowWhite();
-      return NS_OK;
-  }
-
-  static void Dispatch()
-  {
-      nsRefPtr<AsyncFreeSnowWhite> ev = new AsyncFreeSnowWhite();
-      NS_DispatchToCurrentThread(ev);
-  }
-};
-
-void
-nsCycleCollector::FreeSnowWhite(bool aUntilNoSWInPurpleBuffer)
-{
-    do {
-        SnowWhiteKiller visitor(mPurpleBuf.Count());
-        mPurpleBuf.VisitEntries(visitor);
-        if (!visitor.HasSnowWhiteObjects()) {
-            break;
-        }
-    } while (aUntilNoSWInPurpleBuffer);
-}
-
-/* static */ void
-nsCycleCollector::TryToFreeSnowWhite()
-{
-  CollectorData* data = sCollectorData.get();
-  if (data->mCollector) {
-      data->mCollector->FreeSnowWhite(false);
-  }
 }
 
 void
@@ -2301,7 +2193,10 @@ nsCycleCollector::ForgetSkippable(bool removeChildlessNodes)
     if (mJSRuntime) {
         mJSRuntime->PrepareForForgetSkippable();
     }
-    mPurpleBuf.RemoveSkippable(removeChildlessNodes, mForgetSkippableCB);
+    mPurpleBuf.RemoveSkippable(removeChildlessNodes);
+    if (mForgetSkippableCB) {
+        mForgetSkippableCB();
+    }
 }
 
 MOZ_NEVER_INLINE void
@@ -2537,8 +2432,6 @@ nsCycleCollector::CollectWhite(nsICycleCollectorListener *aListener)
     }
     timeLog.Checkpoint("CollectWhite::Unroot");
 
-    nsCycleCollector_dispatchDeferredDeletion();
-
     return count > 0;
 }
 
@@ -2715,9 +2608,8 @@ nsCycleCollector_isScanSafe(void *s, nsCycleCollectionParticipant *cp)
 }
 #endif
 
-void
-nsCycleCollector::Suspect(void *n, nsCycleCollectionParticipant *cp,
-                          nsCycleCollectingAutoRefCnt *aRefCnt)
+nsPurpleBufferEntry*
+nsCycleCollector::Suspect(void *n, nsCycleCollectionParticipant *cp)
 {
     CheckThreadSafety();
 
@@ -2726,15 +2618,16 @@ nsCycleCollector::Suspect(void *n, nsCycleCollectionParticipant *cp,
     // see some spurious refcount traffic here.
 
     if (mScanInProgress)
-        return;
+        return nullptr;
 
     MOZ_ASSERT(nsCycleCollector_isScanSafe(n, cp),
                "suspected a non-scansafe pointer");
 
     if (mParams.mDoNothing)
-        return;
+        return nullptr;
 
-    mPurpleBuf.Put(n, cp, aRefCnt);
+    // Caller is responsible for filling in result's mRefCnt.
+    return mPurpleBuf.Put(n, cp);
 }
 
 void
@@ -2866,7 +2759,6 @@ nsCycleCollector::ShutdownCollect(nsICycleCollectorListener *aListener)
         FixGrayBits(true);
         if (aListener && NS_FAILED(aListener->Begin()))
             aListener = nullptr;
-        FreeSnowWhite(true);
         if (!(BeginCollection(ShutdownCC, aListener) &&
               FinishCollection(aListener)))
             break;
@@ -3010,9 +2902,6 @@ nsCycleCollector::SuspectedCount()
 void
 nsCycleCollector::Shutdown()
 {
-    // Always delete snow white objects.
-    FreeSnowWhite(true);
-
 #ifndef DEBUG
     if (PR_GetEnv("XPCOM_CC_RUN_DURING_SHUTDOWN"))
 #endif
@@ -3141,40 +3030,8 @@ cyclecollector::TestJSHolder(void* aHolder)
 }
 #endif
 
-void
-cyclecollector::DeferredFinalize(nsISupports* aSupports)
-{
-    CollectorData *data = sCollectorData.get();
-
-    // We should have started the cycle collector by now, and not completely
-    // shut down.
-    MOZ_ASSERT(data);
-    // And we should have a runtime.
-    MOZ_ASSERT(data->mRuntime);
-
-    data->mRuntime->DeferredFinalize(aSupports);
-}
-
-void
-cyclecollector::DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,
-                                 DeferredFinalizeFunction aFunc,
-                                 void* aThing)
-{
-    CollectorData *data = sCollectorData.get();
-
-    // We should have started the cycle collector by now, and not completely
-    // shut down.
-    MOZ_ASSERT(data);
-    // And we should have a runtime.
-    MOZ_ASSERT(data->mRuntime);
-
-    data->mRuntime->DeferredFinalize(aAppendFunc, aFunc, aThing);
-}
-
-void
-NS_CycleCollectorSuspect3(void *n, nsCycleCollectionParticipant *cp,
-                          nsCycleCollectingAutoRefCnt *aRefCnt,
-                          bool* aShouldDelete)
+nsPurpleBufferEntry*
+NS_CycleCollectorSuspect2(void *n, nsCycleCollectionParticipant *cp)
 {
     CollectorData *data = sCollectorData.get();
 
@@ -3182,22 +3039,10 @@ NS_CycleCollectorSuspect3(void *n, nsCycleCollectionParticipant *cp,
     MOZ_ASSERT(data);
 
     if (!data->mCollector) {
-        if (aRefCnt->get() == 0) {
-            if (!aShouldDelete) {
-                CanonicalizeParticipant(&n, &cp);
-                aRefCnt->stabilizeForDeletion();
-                cp->DeleteCycleCollectable(n);
-            } else {
-                *aShouldDelete = true;
-            }
-        } else {
-          // Make sure we'll get called again.
-          aRefCnt->RemoveFromPurpleBuffer();
-        }
-        return;
+        return nullptr;
     }
 
-    return data->mCollector->Suspect(n, cp, aRefCnt);
+    return data->mCollector->Suspect(n, cp);
 }
 
 uint32_t
@@ -3284,12 +3129,6 @@ nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes)
     TimeLog timeLog;
     data->mCollector->ForgetSkippable(aRemoveChildlessNodes);
     timeLog.Checkpoint("ForgetSkippable()");
-}
-
-void
-nsCycleCollector_dispatchDeferredDeletion()
-{
-    AsyncFreeSnowWhite::Dispatch();
 }
 
 void

@@ -20,6 +20,7 @@ from functools import wraps
 
 from manifestparser import TestManifest
 from mozhttpd import MozHttpd
+from telnetlib import Telnet
 
 from marionette import Marionette
 from marionette_test import MarionetteJSTestCase, MarionetteTestCase
@@ -334,12 +335,11 @@ class MarionetteTestRunner(object):
         elif self.address:
             host, port = self.address.split(':')
             try:
-                #establish a socket connection so we can vertify the data come back
-                connection = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-                connection.connect((host,int(port)))
-                connection.close()
-            except Exception, e:
-                raise Exception("Could not connect to given marionette host:port: %s" % e)
+                #establish a telnet connection so we can vertify the data come back
+                tlconnection = Telnet(host, port)
+            except:
+                raise Exception("could not connect to given marionette host/port")
+
             if self.emulator:
                 self.marionette = Marionette.getMarionetteOrExit(
                                              host=host, port=int(port),
@@ -426,12 +426,6 @@ class MarionetteTestRunner(object):
         self.logger.info('passed: %d' % self.passed)
         self.logger.info('failed: %d' % self.failed)
         self.logger.info('todo: %d' % self.todo)
-
-        if self.failed > 0:
-            self.logger.info('\nFAILED TESTS\n-------')
-            for failed_test in self.failures:
-                self.logger.info('%s' % failed_test[0])
-
         try:
             self.marionette.check_for_crash()
         except:
@@ -466,7 +460,7 @@ class MarionetteTestRunner(object):
         if os.path.isdir(filepath):
             for root, dirs, files in os.walk(filepath):
                 for filename in files:
-                    if ((filename.startswith('test_') or filename.startswith('browser_')) and
+                    if ((filename.startswith('test_') or filename.startswith('browser_')) and 
                         (filename.endswith('.py') or filename.endswith('.js'))):
                         filepath = os.path.join(root, filename)
                         self.run_test(filepath)

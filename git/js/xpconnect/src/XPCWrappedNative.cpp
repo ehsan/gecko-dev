@@ -824,8 +824,13 @@ XPCWrappedNative::Destroy()
     if (mIdentity) {
         XPCJSRuntime* rt = GetRuntime();
         if (rt && rt->GetDoingFinalization()) {
-            nsContentUtils::DeferredFinalize(mIdentity);
-            mIdentity = nullptr;
+            if (rt->DeferredRelease(mIdentity)) {
+                mIdentity = nullptr;
+            } else {
+                NS_WARNING("Failed to append object for deferred release.");
+                // XXX do we really want to do this???
+                NS_RELEASE(mIdentity);
+            }
         } else {
             NS_RELEASE(mIdentity);
         }
@@ -1163,7 +1168,11 @@ XPCWrappedNative::FlatJSObjectFinalized()
 #endif
                 XPCJSRuntime* rt = GetRuntime();
                 if (rt) {
-                    nsContentUtils::DeferredFinalize(obj);
+                    if (!rt->DeferredRelease(obj)) {
+                        NS_WARNING("Failed to append object for deferred release.");
+                        // XXX do we really want to do this???
+                        obj->Release();
+                    }
                 } else {
                     obj->Release();
                 }

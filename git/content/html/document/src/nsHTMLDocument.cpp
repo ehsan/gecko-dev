@@ -1126,12 +1126,12 @@ nsHTMLDocument::SetBody(nsGenericHTMLElement* newBody, ErrorResult& rv)
   }
 
   // Use DOM methods so that we pass through the appropriate security checks.
-  nsCOMPtr<Element> currentBody = GetBodyElement();
+  Element* currentBody = GetBodyElement();
   if (currentBody) {
     root->ReplaceChild(*newBody, *currentBody, rv);
-  } else {
-    root->AppendChild(*newBody, rv);
   }
+
+  root->AppendChild(*newBody, rv);
 }
 
 NS_IMETHODIMP

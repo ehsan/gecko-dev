@@ -144,12 +144,7 @@ function updatePagesAndWait() {
 
 //////////////////////////////////////////////////////////////////////////
 
-function tearDown() {
-  clearHistory();
-}
-
 function test() {
-  registerCleanupFunction(tearDown);
   runTests();
 }
 
@@ -437,3 +432,5 @@ gTests.push({
 
   }
 });
+
+

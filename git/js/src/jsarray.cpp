@@ -37,7 +37,6 @@
 #include "vm/ArgumentsObject-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/ObjectImpl-inl.h"
-#include "vm/Runtime-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -423,10 +422,7 @@ js::CanonicalizeArrayLengthValue(JSContext *cx, HandleValue v, uint32_t *newLen)
     if (d == *newLen)
         return true;
 
-    if (!cx->isJSContext())
-        return false;
-
-    JS_ReportErrorNumber(cx->asJSContext(), js_GetErrorMessage, NULL, JSMSG_BAD_ARRAY_LENGTH);
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_ARRAY_LENGTH);
     return false;
 }
 
@@ -464,13 +460,13 @@ js::ArraySetLength(JSContext *cx, Handle<ArrayObject*> arr, HandleId id, unsigne
             return true;
 
         if (setterIsStrict) {
-            return JS_ReportErrorFlagsAndNumber(cx->asJSContext(),
-                                                JSREPORT_ERROR, js_GetErrorMessage, NULL,
+            return JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL,
                                                 JSMSG_CANT_REDEFINE_ARRAY_LENGTH);
         }
 
-        return JSObject::reportReadOnly(cx->asJSContext(), id, JSREPORT_STRICT | JSREPORT_WARNING);
+        return JSObject::reportReadOnly(cx, id, JSREPORT_STRICT | JSREPORT_WARNING);
     }
+
 
     /* Step 8. */
     bool succeeded = true;
@@ -660,8 +656,7 @@ js::ArraySetLength(JSContext *cx, Handle<ArrayObject*> arr, HandleId id, unsigne
 }
 
 bool
-js::WouldDefinePastNonwritableLength(ExclusiveContext *cx,
-                                     HandleObject obj, uint32_t index, bool strict,
+js::WouldDefinePastNonwritableLength(JSContext *cx, HandleObject obj, uint32_t index, bool strict,
                                      bool *definesPast)
 {
     if (!obj->is<ArrayObject>()) {
@@ -682,19 +677,13 @@ js::WouldDefinePastNonwritableLength(ExclusiveContext *cx,
     }
 
     *definesPast = true;
-
-    if (!cx->isJSContext())
-        return true;
-
-    JSContext *ncx = cx->asJSContext();
-
-    if (!strict && !ncx->hasExtraWarningsOption())
+    if (!strict && !cx->hasExtraWarningsOption())
         return true;
 
     // Error in strict mode code or warn with strict option.
     // XXX include the index and maybe array length in the error message
     unsigned flags = strict ? JSREPORT_ERROR : (JSREPORT_STRICT | JSREPORT_WARNING);
-    return JS_ReportErrorFlagsAndNumber(ncx, flags, js_GetErrorMessage, NULL,
+    return JS_ReportErrorFlagsAndNumber(cx, flags, js_GetErrorMessage, NULL,
                                         JSMSG_CANT_DEFINE_PAST_ARRAY_LENGTH);
 }
 
@@ -778,7 +767,7 @@ Class ArrayObject::class_ = {
 };
 
 static bool
-AddLengthProperty(ExclusiveContext *cx, HandleObject obj)
+AddLengthProperty(JSContext *cx, HandleObject obj)
 {
     /*
      * Add the 'length' property for a newly created array,
@@ -2706,75 +2695,6 @@ array_isArray(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
-IsArrayConstructor(const Value &v)
-{
-    // This must only return true if v is *the* Array constructor for the
-    // current compartment; we rely on the fact that any other Array
-    // constructor would be represented as a wrapper.
-    return v.isObject() &&
-           v.toObject().is<JSFunction>() &&
-           v.toObject().as<JSFunction>().isNative() &&
-           v.toObject().as<JSFunction>().native() == js_Array;
-}
-
-static JSBool
-ArrayFromCallArgs(JSContext *cx, RootedTypeObject &type, CallArgs &args)
-{
-    if (!InitArrayTypes(cx, type, args.array(), args.length()))
-        return false;
-    JSObject *obj = (args.length() == 0)
-        ? NewDenseEmptyArray(cx)
-        : NewDenseCopiedArray(cx, args.length(), args.array());
-    if (!obj)
-        return false;
-    obj->setType(type);
-    args.rval().setObject(*obj);
-    return true;
-}
-
-static JSBool
-array_of(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (IsArrayConstructor(args.thisv()) || !IsConstructor(args.thisv())) {
-        // IsArrayConstructor(this) will usually be true in practice. This is
-        // the most common path.
-        RootedTypeObject type(cx, GetTypeCallerInitObject(cx, JSProto_Array));
-        if (!type)
-            return false;
-        return ArrayFromCallArgs(cx, type, args);
-    }
-
-    // Step 4.
-    RootedObject obj(cx);
-    {
-        RootedValue v(cx);
-        Value argv[1] = {NumberValue(argc)};
-        if (!InvokeConstructor(cx, args.thisv(), 1, argv, v.address()))
-            return false;
-        obj = ToObject(cx, v);
-        if (!obj)
-            return false;
-    }
-
-    // Step 8.
-    for (unsigned k = 0; k < argc; k++) {
-        if (!JSObject::defineElement(cx, obj, k, args.handleAt(k)))
-            return false;
-    }
-
-    // Steps 9-10.
-    RootedValue v(cx, NumberValue(argc));
-    if (!JSObject::setProperty(cx, obj, obj, cx->names().length, &v, true))
-        return false;
-
-    // Step 11.
-    args.rval().setObject(*obj);
-    return true;
-}
-
 #define GENERIC JSFUN_GENERIC_NATIVE
 
 static const JSFunctionSpec array_methods[] = {
@@ -2825,7 +2745,6 @@ static const JSFunctionSpec array_static_methods[] = {
          {"some",               {NULL, NULL},       2,0, "ArrayStaticSome"},
          {"reduce",             {NULL, NULL},       2,0, "ArrayStaticReduce"},
          {"reduceRight",        {NULL, NULL},       2,0, "ArrayStaticReduceRight"},
-    JS_FN("of",                 array_of,           0,0),
     JS_FS_END
 };
 
@@ -2838,8 +2757,18 @@ js_Array(JSContext *cx, unsigned argc, Value *vp)
     if (!type)
         return false;
 
-    if (args.length() != 1 || !args[0].isNumber())
-        return ArrayFromCallArgs(cx, type, args);
+    if (args.length() != 1 || !args[0].isNumber()) {
+        if (!InitArrayTypes(cx, type, args.array(), args.length()))
+            return false;
+        JSObject *obj = (args.length() == 0)
+                        ? NewDenseEmptyArray(cx)
+                        : NewDenseCopiedArray(cx, args.length(), args.array());
+        if (!obj)
+            return false;
+        obj->setType(type);
+        args.rval().setObject(*obj);
+        return true;
+    }
 
     uint32_t length;
     if (args[0].isInt32()) {
@@ -2893,7 +2822,7 @@ js_InitArrayClass(JSContext *cx, HandleObject obj)
     if (!proto)
         return NULL;
 
-    RootedTypeObject type(cx, cx->getNewType(&ArrayObject::class_, proto.get()));
+    RootedTypeObject type(cx, proto->getNewType(cx, &ArrayObject::class_));
     if (!type)
         return NULL;
 
@@ -2951,7 +2880,7 @@ js_InitArrayClass(JSContext *cx, HandleObject obj)
  */
 
 static inline bool
-EnsureNewArrayElements(ExclusiveContext *cx, JSObject *obj, uint32_t length)
+EnsureNewArrayElements(JSContext *cx, JSObject *obj, uint32_t length)
 {
     /*
      * If ensureElements creates dynamically allocated slots, then having
@@ -2969,84 +2898,81 @@ EnsureNewArrayElements(ExclusiveContext *cx, JSObject *obj, uint32_t length)
 
 template<bool allocateCapacity>
 static JS_ALWAYS_INLINE ArrayObject *
-NewArray(ExclusiveContext *cxArg, uint32_t length,
-         JSObject *protoArg, NewObjectKind newKind = GenericObject)
+NewArray(JSContext *cx, uint32_t length, JSObject *protoArg, NewObjectKind newKind = GenericObject)
 {
     gc::AllocKind allocKind = GuessArrayGCKind(length);
     JS_ASSERT(CanBeFinalizedInBackground(allocKind, &ArrayObject::class_));
     allocKind = GetBackgroundAllocKind(allocKind);
 
+    NewObjectCache &cache = cx->runtime()->newObjectCache;
+
     NewObjectCache::EntryIndex entry = -1;
-    if (JSContext *cx = cxArg->maybeJSContext()) {
-        NewObjectCache &cache = cx->runtime()->newObjectCache;
-        if (newKind == GenericObject &&
-            !cx->compartment()->objectMetadataCallback &&
-            cache.lookupGlobal(&ArrayObject::class_, cx->global(), allocKind, &entry))
-        {
-            RootedObject obj(cx, cache.newObjectFromHit(cx, entry,
-                                                        GetInitialHeap(newKind, &ArrayObject::class_)));
-            if (obj) {
-                /* Fixup the elements pointer and length, which may be incorrect. */
-                Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
-                arr->setFixedElements();
-                ArrayObject::setLength(cx, arr, length);
-                if (allocateCapacity && !EnsureNewArrayElements(cx, arr, length))
-                    return NULL;
-                return arr;
-            }
+    if (newKind == GenericObject &&
+        !cx->compartment()->objectMetadataCallback &&
+        cache.lookupGlobal(&ArrayObject::class_, cx->global(), allocKind, &entry))
+    {
+        RootedObject obj(cx, cache.newObjectFromHit(cx, entry,
+                                                    GetInitialHeap(newKind, &ArrayObject::class_)));
+        if (obj) {
+            /* Fixup the elements pointer and length, which may be incorrect. */
+            Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
+            arr->setFixedElements();
+            ArrayObject::setLength(cx, arr, length);
+            if (allocateCapacity && !EnsureNewArrayElements(cx, arr, length))
+                return NULL;
+            return arr;
         }
     }
 
-    RootedObject proto(cxArg, protoArg);
+    RootedObject proto(cx, protoArg);
     if (protoArg)
         JS::PoisonPtr(&protoArg);
 
-    if (!proto && !FindProto(cxArg, &ArrayObject::class_, &proto))
+    if (!proto && !FindProto(cx, &ArrayObject::class_, &proto))
         return NULL;
 
-    RootedTypeObject type(cxArg, cxArg->getNewType(&ArrayObject::class_, proto.get()));
+    RootedTypeObject type(cx, proto->getNewType(cx, &ArrayObject::class_));
     if (!type)
         return NULL;
 
     JSObject *metadata = NULL;
-    if (!NewObjectMetadata(cxArg, &metadata))
+    if (!NewObjectMetadata(cx, &metadata))
         return NULL;
 
     /*
      * Get a shape with zero fixed slots, regardless of the size class.
      * See JSObject::createArray.
      */
-    RootedShape shape(cxArg, EmptyShape::getInitialShape(cxArg, &ArrayObject::class_,
-                                                         TaggedProto(proto), cxArg->global(),
-                                                         metadata, gc::FINALIZE_OBJECT0));
+    RootedShape shape(cx, EmptyShape::getInitialShape(cx, &ArrayObject::class_, TaggedProto(proto),
+                                                      cx->global(), metadata, gc::FINALIZE_OBJECT0));
     if (!shape)
         return NULL;
 
-    Rooted<ArrayObject*> arr(cxArg, JSObject::createArray(cxArg, allocKind,
-                                                          GetInitialHeap(newKind, &ArrayObject::class_),
-                                                          shape, type, length));
-    if (!arr)
+    RootedObject obj(cx, JSObject::createArray(cx, allocKind,
+                                               GetInitialHeap(newKind, &ArrayObject::class_),
+                                               shape, type, length));
+    if (!obj)
         return NULL;
+
+    Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
 
     if (shape->isEmptyShape()) {
-        if (!AddLengthProperty(cxArg, arr))
+        if (!AddLengthProperty(cx, arr))
             return NULL;
         shape = arr->lastProperty();
-        EmptyShape::insertInitialShape(cxArg, shape, proto);
+        EmptyShape::insertInitialShape(cx, shape, proto);
     }
 
-    if (newKind == SingletonObject && !JSObject::setSingletonType(cxArg, arr))
+    if (newKind == SingletonObject && !JSObject::setSingletonType(cx, arr))
         return NULL;
 
-    if (entry != -1) {
-        cxArg->asJSContext()->runtime()->newObjectCache.fillGlobal(entry, &ArrayObject::class_,
-                                                                   cxArg->global(), allocKind, arr);
-    }
+    if (entry != -1)
+        cache.fillGlobal(entry, &ArrayObject::class_, cx->global(), allocKind, arr);
 
-    if (allocateCapacity && !EnsureNewArrayElements(cxArg, arr, length))
+    if (allocateCapacity && !EnsureNewArrayElements(cx, arr, length))
         return NULL;
 
-    Probes::createObject(cxArg, arr);
+    Probes::createObject(cx, arr);
     return arr;
 }
 
@@ -3058,14 +2984,14 @@ js::NewDenseEmptyArray(JSContext *cx, JSObject *proto /* = NULL */,
 }
 
 ArrayObject * JS_FASTCALL
-js::NewDenseAllocatedArray(ExclusiveContext *cx, uint32_t length, JSObject *proto /* = NULL */,
+js::NewDenseAllocatedArray(JSContext *cx, uint32_t length, JSObject *proto /* = NULL */,
                            NewObjectKind newKind /* = GenericObject */)
 {
     return NewArray<true>(cx, length, proto, newKind);
 }
 
 ArrayObject * JS_FASTCALL
-js::NewDenseUnallocatedArray(ExclusiveContext *cx, uint32_t length, JSObject *proto /* = NULL */,
+js::NewDenseUnallocatedArray(JSContext *cx, uint32_t length, JSObject *proto /* = NULL */,
                              NewObjectKind newKind /* = GenericObject */)
 {
     return NewArray<false>(cx, length, proto, newKind);

@@ -13,7 +13,7 @@ function testSteps()
   let request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = request.result;
 
@@ -31,7 +31,7 @@ function testSteps()
       };
     }
   }
-  yield undefined;
+  yield;
 
   isnot(firstKey, undefined, "got first key");
 
@@ -49,7 +49,7 @@ function testSteps()
       continueToNextStep();
     }
   }
-  yield undefined;
+  yield;
 
   is(seenEntryCount, entryCount, "Correct entry count");
 
@@ -64,7 +64,7 @@ function testSteps()
   request = db.transaction("foo", "readwrite").objectStore("foo").clear();
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   ok(event.target.result === undefined, "Correct event.target.result");
   ok(request.result === undefined, "Correct request.result");
@@ -79,15 +79,15 @@ function testSteps()
     }
     continueToNextStep();
   }
-  yield undefined;
+  yield;
 
   request = db.transaction("foo", "readwrite").objectStore("foo").add({});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   isnot(event.target.result, firstKey, "Got a different key");
 
   finishTest();
-  yield undefined;
+  yield;
 }

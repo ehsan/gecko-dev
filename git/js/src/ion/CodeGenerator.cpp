@@ -1329,7 +1329,8 @@ CodeGenerator::visitOutOfLineCallPostWriteBarrier(OutOfLineCallPostWriteBarrier 
         masm.movePtr(ImmGCPtr(&obj->toConstant()->toObject()), objreg);
     } else {
         objreg = ToRegister(obj);
-        regs.takeUnchecked(objreg);
+        if (regs.has(objreg))
+            regs.take(objreg);
     }
 
     Register runtimereg = regs.takeAny();
@@ -1429,7 +1430,7 @@ CodeGenerator::visitCallNative(LCallNative *call)
     int unusedStack = StackOffsetOfPassedArg(callargslot);
 
     // Registers used for callWithABI() argument-passing.
-    const Register argContextReg   = ToRegister(call->getArgContextReg());
+    const Register argJSContextReg = ToRegister(call->getArgJSContextReg());
     const Register argUintNReg     = ToRegister(call->getArgUintNReg());
     const Register argVpReg        = ToRegister(call->getArgVpReg());
 
@@ -1440,10 +1441,8 @@ CodeGenerator::visitCallNative(LCallNative *call)
 
     masm.checkStackAlignment();
 
-    // Sequential native functions have the signature:
+    // Native functions have the signature:
     //  bool (*)(JSContext *, unsigned, Value *vp)
-    // and parallel native functions have the signature:
-    //  ParallelResult (*)(ForkJoinSlice *, unsigned, Value *vp)
     // Where vp[0] is space for an outparam, vp[1] is |this|, and vp[2] onward
     // are the function arguments.
 
@@ -1455,12 +1454,7 @@ CodeGenerator::visitCallNative(LCallNative *call)
     masm.Push(ObjectValue(*target));
 
     // Preload arguments into registers.
-    //
-    // Note that for parallel execution, loadContext does an ABI call, so we
-    // need to do this before we load the other argument registers, otherwise
-    // we'll hose them.
-    ExecutionMode executionMode = gen->info().executionMode();
-    masm.loadContext(argContextReg, tempReg, executionMode);
+    masm.loadJSContext(argJSContextReg);
     masm.move32(Imm32(call->numStackArgs()), argUintNReg);
     masm.movePtr(StackPointer, argVpReg);
 
@@ -1470,46 +1464,30 @@ CodeGenerator::visitCallNative(LCallNative *call)
     uint32_t safepointOffset;
     if (!masm.buildFakeExitFrame(tempReg, &safepointOffset))
         return false;
-    masm.enterFakeExitFrame(argContextReg, tempReg, executionMode);
+    masm.enterFakeExitFrame();
 
     if (!markSafepointAt(safepointOffset, call))
         return false;
 
     // Construct and execute call.
     masm.setupUnalignedABICall(3, tempReg);
-    masm.passABIArg(argContextReg);
+    masm.passABIArg(argJSContextReg);
     masm.passABIArg(argUintNReg);
     masm.passABIArg(argVpReg);
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, target->native()));
 
-    Label success, failure;
-    switch (executionMode) {
-      case SequentialExecution:
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, target->native()));
-
-        // Test for failure.
-        masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, &failure);
-        break;
-
-      case ParallelExecution:
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, target->parallelNative()));
-
-        // ParallelResult has more nuanced failure, but for now we fail on
-        // anything that's != TP_SUCCESS.
-        masm.branch32(Assembler::NotEqual, ReturnReg, Imm32(TP_SUCCESS), &failure);
-        break;
-
-      default:
-        MOZ_ASSUME_UNREACHABLE("No such execution mode");
-    }
+    // Test for failure.
+    Label success, exception;
+    masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, &exception);
 
     // Load the outparam vp[0] into output register(s).
     masm.loadValue(Address(StackPointer, IonNativeExitFrameLayout::offsetOfResult()), JSReturnOperand);
     masm.jump(&success);
 
-    // Handle failure case.
+    // Handle exception case.
     {
-        masm.bind(&failure);
-        masm.handleFailure(executionMode);
+        masm.bind(&exception);
+        masm.handleException();
     }
     masm.bind(&success);
 
@@ -3959,7 +3937,7 @@ CodeGenerator::visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBran
     return true;
 }
 
-typedef JSString *(*ConcatStringsFn)(JSContext *, HandleString, HandleString);
+typedef JSString *(*ConcatStringsFn)(ThreadSafeContext *, HandleString, HandleString);
 static const VMFunction ConcatStringsInfo = FunctionInfo<ConcatStringsFn>(ConcatStrings<CanGC>);
 
 bool
@@ -7114,7 +7092,7 @@ CodeGenerator::visitAsmJSCall(LAsmJSCall *ins)
     MAsmJSCall *mir = ins->mir();
 
 #if defined(JS_CPU_ARM) && !defined(JS_CPU_ARM_HARDFP)
-    for (unsigned i = 0, e = ins->numOperands(); i < e; i++) {
+    for (unsigned i = 0; i < ins->numOperands(); i++) {
         LAllocation *a = ins->getOperand(i);
         if (a->isFloatReg()) {
             FloatRegister fr = ToFloatRegister(a);

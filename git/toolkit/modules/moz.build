@@ -20,7 +20,6 @@ EXTRA_JS_MODULES += [
     'PrivateBrowsingUtils.jsm',
     'Promise.jsm',
     'PropertyListUtils.jsm',
-    'RemoteSecurityUI.jsm',
     'RemoteWebProgress.jsm',
     'Sqlite.jsm',
     'Task.jsm',

@@ -62,7 +62,6 @@ namespace android {
 namespace mozilla {
     namespace gfx {
         class SharedSurface;
-        class DataSourceSurface;
         struct SurfaceCaps;
     }
 
@@ -755,8 +754,6 @@ public:
         return false;
     }
 
-    virtual GLenum GetPreferredARGB32Format() { return LOCAL_GL_RGBA; }
-
     virtual bool RenewSurface() { return false; }
 
     /**
@@ -869,7 +866,7 @@ public:
      * The aDstPoint parameter is ignored if no texture was provided
      * or aOverwrite is true.
      *
-     * \param aData Image data to upload.
+     * \param aSurface Surface to upload.
      * \param aDstRegion Region of texture to upload to.
      * \param aTexture Texture to use, or 0 to have one created for you.
      * \param aOverwrite Over an existing texture with a new one.
@@ -884,39 +881,14 @@ public:
      *  texture unit being active.
      * \return Surface format of this texture.
      */
-    SurfaceFormat UploadImageDataToTexture(unsigned char* aData,
-                                           int32_t aStride,
-                                           gfxASurface::gfxImageFormat aFormat,
-                                           const nsIntRegion& aDstRegion,
-                                           GLuint& aTexture,
-                                           bool aOverwrite = false,
-                                           bool aPixelBuffer = false,
-                                           GLenum aTextureUnit = LOCAL_GL_TEXTURE0,
-                                           GLenum aTextureTarget = LOCAL_GL_TEXTURE_2D);
-
-    /**
-     * Convenience wrapper around UploadImageDataToTexture for gfxASurfaces. 
-     */
     SurfaceFormat UploadSurfaceToTexture(gfxASurface *aSurface,
                                          const nsIntRegion& aDstRegion,
                                          GLuint& aTexture,
                                          bool aOverwrite = false,
                                          const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
                                          bool aPixelBuffer = false,
-                                         GLenum aTextureUnit = LOCAL_GL_TEXTURE0,
-                                         GLenum aTextureTarget = LOCAL_GL_TEXTURE_2D);
+                                         GLenum aTextureUnit = LOCAL_GL_TEXTURE0);
 
-    /**
-     * Same as above, for DataSourceSurfaces.
-     */
-    SurfaceFormat UploadSurfaceToTexture(gfx::DataSourceSurface *aSurface,
-                                         const nsIntRegion& aDstRegion,
-                                         GLuint& aTexture,
-                                         bool aOverwrite = false,
-                                         const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                         bool aPixelBuffer = false,
-                                         GLenum aTextureUnit = LOCAL_GL_TEXTURE0,
-                                         GLenum aTextureTarget = LOCAL_GL_TEXTURE_2D);
 
     void TexImage2D(GLenum target, GLint level, GLint internalformat,
                     GLsizei width, GLsizei height, GLsizei stride,

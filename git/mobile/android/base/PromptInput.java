@@ -99,9 +99,7 @@ class PromptInput {
 
         public View getView(Context context) throws UnsupportedOperationException {
             EditText input = (EditText) super.getView(context);
-            input.setInputType(InputType.TYPE_CLASS_TEXT |
-                               InputType.TYPE_TEXT_VARIATION_PASSWORD |
-                               InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+            input.setInputType(InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
             return input;
         }
 

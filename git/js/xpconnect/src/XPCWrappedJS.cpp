@@ -9,7 +9,6 @@
 #include "xpcprivate.h"
 #include "nsCxPusher.h"
 #include "nsAtomicRefcnt.h"
-#include "nsContentUtils.h"
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
 #include "nsTextFormatter.h"
@@ -509,7 +508,7 @@ nsXPCWrappedJS::Unlink()
     if (mOuter) {
         XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
         if (rt->GetThreadRunningGC()) {
-            nsContentUtils::DeferredFinalize(mOuter);
+            rt->DeferredRelease(mOuter);
             mOuter = nullptr;
         } else {
             NS_RELEASE(mOuter);

@@ -31,10 +31,15 @@
 
   (function(exports) {
      "use strict";
-     if (exports.OS && exports.OS.Win && exports.OS.Win.File) {
-       return; // Avoid double initialization
+     if (!exports.OS) {
+       exports.OS = {};
      }
-     exports.OS = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm").OS;
+     if (!exports.OS.Win) {
+       exports.OS.Win = {};
+     }
+     if (exports.OS.Win.File) {
+       return; // Avoid double-initialization
+     }
      exports.OS.Win.File = {};
 
      let LOG = OS.Shared.LOG.bind(OS.Shared, "Win", "back");

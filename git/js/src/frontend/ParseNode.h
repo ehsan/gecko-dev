@@ -51,17 +51,7 @@ class UpvarCookie
     uint16_t slot()  const { JS_ASSERT(!isFree()); return slot_; }
 
     // This fails and issues an error message if newLevel is too large.
-    bool set(TokenStream &ts, unsigned newLevel, uint16_t newSlot) {
-        // This is an unsigned-to-uint16_t conversion, test for too-high
-        // values.  In practice, recursion in Parser and/or BytecodeEmitter
-        // will blow the stack if we nest functions more than a few hundred
-        // deep, so this will never trigger.  Oh well.
-        if (newLevel >= FREE_LEVEL)
-            return ts.reportError(JSMSG_TOO_DEEP);
-        level_ = newLevel;
-        slot_ = newSlot;
-        return true;
-    }
+    bool set(JSContext *cx, unsigned newLevel, uint16_t newSlot);
 
     void makeFree() {
         level_ = FREE_LEVEL;
@@ -801,13 +791,8 @@ class ParseNode
 #endif
     ;
 
-    bool getConstantValue(ExclusiveContext *cx, bool strictChecks, MutableHandleValue vp);
+    bool getConstantValue(JSContext *cx, bool strictChecks, MutableHandleValue vp);
     inline bool isConstant();
-
-    template <class NodeType>
-    inline bool is() const {
-        return NodeType::test(*this);
-    }
 
     /* Casting operations. */
     template <class NodeType>
@@ -1180,7 +1165,7 @@ class PropertyAccess : public ParseNode
 {
   public:
     PropertyAccess(ParseNode *lhs, PropertyName *name, uint32_t begin, uint32_t end)
-      : ParseNode(PNK_DOT, JSOP_NOP, PN_NAME, TokenPos(begin, end))
+      : ParseNode(PNK_DOT, JSOP_GETPROP, PN_NAME, TokenPos(begin, end))
     {
         JS_ASSERT(lhs != NULL);
         JS_ASSERT(name != NULL);
@@ -1207,7 +1192,7 @@ class PropertyByValue : public ParseNode
 {
   public:
     PropertyByValue(ParseNode *lhs, ParseNode *propExpr, uint32_t begin, uint32_t end)
-      : ParseNode(PNK_ELEM, JSOP_NOP, PN_BINARY, TokenPos(begin, end))
+      : ParseNode(PNK_ELEM, JSOP_GETELEM, PN_BINARY, TokenPos(begin, end))
     {
         pn_u.binary.left = lhs;
         pn_u.binary.right = propExpr;
@@ -1355,9 +1340,7 @@ struct Definition : public ParseNode
 class ParseNodeAllocator
 {
   public:
-    explicit ParseNodeAllocator(ExclusiveContext *cx, LifoAlloc &alloc)
-      : cx(cx), alloc(alloc), freelist(NULL)
-    {}
+    explicit ParseNodeAllocator(JSContext *cx) : cx(cx), freelist(NULL) {}
 
     void *allocNode();
     void freeNode(ParseNode *pn);
@@ -1365,8 +1348,7 @@ class ParseNodeAllocator
     void prepareNodeForMutation(ParseNode *pn);
 
   private:
-    ExclusiveContext *cx;
-    LifoAlloc &alloc;
+    JSContext *cx;
     ParseNode *freelist;
 };
 

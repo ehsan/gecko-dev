@@ -205,12 +205,12 @@ BasicTiledLayerBuffer::ValidateTileInternal(BasicTiledLayerTile aTile,
                                             const nsIntRect& aDirtyRect)
 {
   if (aTile.IsPlaceholderTile()) {
-    RefPtr<DeprecatedTextureClient> textureClient =
-      new DeprecatedTextureClientTile(mManager, TextureInfo(BUFFER_TILED));
-    aTile.mDeprecatedTextureClient = static_cast<DeprecatedTextureClientTile*>(textureClient.get());
+    RefPtr<TextureClient> textureClient =
+      new TextureClientTile(mManager, TextureInfo(BUFFER_TILED));
+    aTile.mTextureClient = static_cast<TextureClientTile*>(textureClient.get());
   }
-  aTile.mDeprecatedTextureClient->EnsureAllocated(gfx::IntSize(GetTileLength(), GetTileLength()), GetContentType());
-  gfxASurface* writableSurface = aTile.mDeprecatedTextureClient->LockImageSurface();
+  aTile.mTextureClient->EnsureAllocated(gfx::IntSize(GetTileLength(), GetTileLength()), GetContentType());
+  gfxASurface* writableSurface = aTile.mTextureClient->LockImageSurface();
   // Bug 742100, this gfxContext really should live on the stack.
   nsRefPtr<gfxContext> ctxt = new gfxContext(writableSurface);
 
@@ -471,8 +471,8 @@ BasicTiledLayerBuffer::DeepCopy() const
   for (size_t i = 0; i < result.mRetainedTiles.Length(); i++) {
     if (result.mRetainedTiles[i].IsPlaceholderTile()) continue;
 
-    result.mRetainedTiles[i].mDeprecatedTextureClient =
-      new DeprecatedTextureClientTile(*result.mRetainedTiles[i].mDeprecatedTextureClient);
+    result.mRetainedTiles[i].mTextureClient =
+      new TextureClientTile(*result.mRetainedTiles[i].mTextureClient);
   }
 
   return result;

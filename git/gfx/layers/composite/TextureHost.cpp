@@ -12,68 +12,68 @@ namespace mozilla {
 namespace layers {
 
 // implemented in TextureOGL.cpp
-TemporaryRef<DeprecatedTextureHost> CreateDeprecatedTextureHostOGL(SurfaceDescriptorType aDescriptorType,
-                                                           uint32_t aDeprecatedTextureHostFlags,
-                                                           uint32_t aTextureFlags);
+TemporaryRef<TextureHost> CreateTextureHostOGL(SurfaceDescriptorType aDescriptorType,
+                                               uint32_t aTextureHostFlags,
+                                               uint32_t aTextureFlags);
 // implemented in BasicCompositor.cpp
-TemporaryRef<DeprecatedTextureHost> CreateBasicDeprecatedTextureHost(SurfaceDescriptorType aDescriptorType,
-                                                             uint32_t aDeprecatedTextureHostFlags,
-                                                             uint32_t aTextureFlags);
+TemporaryRef<TextureHost> CreateBasicTextureHost(SurfaceDescriptorType aDescriptorType,
+                                                 uint32_t aTextureHostFlags,
+                                                 uint32_t aTextureFlags);
 
-TemporaryRef<DeprecatedTextureHost> CreateDeprecatedTextureHostD3D9(SurfaceDescriptorType aDescriptorType,
-                                                            uint32_t aDeprecatedTextureHostFlags,
-                                                            uint32_t aTextureFlags)
+TemporaryRef<TextureHost> CreateTextureHostD3D9(SurfaceDescriptorType aDescriptorType,
+                                                uint32_t aTextureHostFlags,
+                                                uint32_t aTextureFlags)
 {
   NS_RUNTIMEABORT("not implemented");
   return nullptr;
 }
 
 #ifdef XP_WIN
-TemporaryRef<DeprecatedTextureHost> CreateDeprecatedTextureHostD3D11(SurfaceDescriptorType aDescriptorType,
-                                                             uint32_t aDeprecatedTextureHostFlags,
-                                                             uint32_t aTextureFlags);
+TemporaryRef<TextureHost> CreateTextureHostD3D11(SurfaceDescriptorType aDescriptorType,
+                                                 uint32_t aTextureHostFlags,
+                                                 uint32_t aTextureFlags);
 #endif
 
-/* static */ TemporaryRef<DeprecatedTextureHost>
-DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptorType aDescriptorType,
-                                           uint32_t aDeprecatedTextureHostFlags,
-                                           uint32_t aTextureFlags)
+/* static */ TemporaryRef<TextureHost>
+TextureHost::CreateTextureHost(SurfaceDescriptorType aDescriptorType,
+                               uint32_t aTextureHostFlags,
+                               uint32_t aTextureFlags)
 {
   switch (Compositor::GetBackend()) {
     case LAYERS_OPENGL:
-      return CreateDeprecatedTextureHostOGL(aDescriptorType,
-                                        aDeprecatedTextureHostFlags,
-                                        aTextureFlags);
+      return CreateTextureHostOGL(aDescriptorType,
+                                  aTextureHostFlags,
+                                  aTextureFlags);
     case LAYERS_D3D9:
-      return CreateDeprecatedTextureHostD3D9(aDescriptorType,
-                                         aDeprecatedTextureHostFlags,
-                                         aTextureFlags);
+      return CreateTextureHostD3D9(aDescriptorType,
+                                   aTextureHostFlags,
+                                   aTextureFlags);
 #ifdef XP_WIN
     case LAYERS_D3D11:
-      return CreateDeprecatedTextureHostD3D11(aDescriptorType,
-                                          aDeprecatedTextureHostFlags,
-                                          aTextureFlags);
+      return CreateTextureHostD3D11(aDescriptorType,
+                                    aTextureHostFlags,
+                                    aTextureFlags);
 #endif
     case LAYERS_BASIC:
-      return CreateBasicDeprecatedTextureHost(aDescriptorType,
-                                          aDeprecatedTextureHostFlags,
-                                          aTextureFlags);
+      return CreateBasicTextureHost(aDescriptorType,
+                                    aTextureHostFlags,
+                                    aTextureFlags);
     default:
       MOZ_CRASH("Couldn't create texture host");
   }
 }
 
 
-DeprecatedTextureHost::DeprecatedTextureHost()
+TextureHost::TextureHost()
   : mFlags(0)
   , mBuffer(nullptr)
   , mFormat(gfx::FORMAT_UNKNOWN)
   , mDeAllocator(nullptr)
 {
-  MOZ_COUNT_CTOR(DeprecatedTextureHost);
+  MOZ_COUNT_CTOR(TextureHost);
 }
 
-DeprecatedTextureHost::~DeprecatedTextureHost()
+TextureHost::~TextureHost()
 {
   if (mBuffer) {
     if (!(mFlags & OwnByClient)) {
@@ -85,21 +85,21 @@ DeprecatedTextureHost::~DeprecatedTextureHost()
     }
     delete mBuffer;
   }
-  MOZ_COUNT_DTOR(DeprecatedTextureHost);
+  MOZ_COUNT_DTOR(TextureHost);
 }
 
 void
-DeprecatedTextureHost::Update(const SurfaceDescriptor& aImage,
-                          nsIntRegion* aRegion,
-                          nsIntPoint* aOffset)
+TextureHost::Update(const SurfaceDescriptor& aImage,
+                    nsIntRegion* aRegion,
+                    nsIntPoint* aOffset)
 {
   UpdateImpl(aImage, aRegion, aOffset);
 }
 
 void
-DeprecatedTextureHost::SwapTextures(const SurfaceDescriptor& aImage,
-                                SurfaceDescriptor* aResult,
-                                nsIntRegion* aRegion)
+TextureHost::SwapTextures(const SurfaceDescriptor& aImage,
+                          SurfaceDescriptor* aResult,
+                          nsIntRegion* aRegion)
 {
   SwapTexturesImpl(aImage, aRegion);
 
@@ -119,7 +119,7 @@ TextureSource::PrintInfo(nsACString& aTo, const char* aPrefix)
 }
 
 void
-DeprecatedTextureHost::PrintInfo(nsACString& aTo, const char* aPrefix)
+TextureHost::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   aTo += aPrefix;
   aTo += nsPrintfCString("%s (0x%p)", Name(), this);

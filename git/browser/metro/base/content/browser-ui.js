@@ -47,6 +47,9 @@ let Elements = {};
   ["progress",           "progress-control"],
   ["progressContainer",  "progress-container"],
   ["contentNavigator",   "content-navigator"],
+  ["aboutFlyout",        "about-flyoutpanel"],
+  ["prefsFlyout",        "prefs-flyoutpanel"],
+  ["syncFlyout",         "sync-flyoutpanel"]
 ].forEach(function (aElementGlobal) {
   let [name, id] = aElementGlobal;
   XPCOMUtils.defineLazyGetter(Elements, name, function() {
@@ -155,6 +158,9 @@ var BrowserUI = {
         FormHelperUI.init();
         FindHelperUI.init();
         PdfJs.init();
+#ifdef MOZ_SERVICES_SYNC
+        Sync.init();
+#endif
       } catch(ex) {
         Util.dumpLn("Exception in delay load module:", ex.message);
       }
@@ -504,7 +510,7 @@ var BrowserUI = {
     this.setOnTabAnimationEnd(function() {
 	    Browser.closeTab(tabToClose, { forceClose: true } );
         if (wasCollapsed)
-          ContextUI.dismissTabsWithDelay(kNewTabAnimationDelayMsec);
+          ContextUI.dismissWithDelay(kNewTabAnimationDelayMsec);
     });
   },
 
@@ -546,7 +552,7 @@ var BrowserUI = {
 
   selectTabAndDismiss: function selectTabAndDismiss(aTab) {
     this.selectTab(aTab);
-    ContextUI.dismissTabs();
+    ContextUI.dismiss();
   },
 
   selectTabAtIndex: function selectTabAtIndex(aIndex) {
@@ -612,6 +618,12 @@ var BrowserUI = {
       return true;
     }
     return false;
+  },
+
+  // If the user types in the address bar, cancel pending
+  // navbar autohide if set.
+  navEditKeyPress: function navEditKeyPress() {
+    ContextUI.cancelDismiss();
   },
 
   observe: function BrowserUI_observe(aSubject, aTopic, aData) {
@@ -1029,12 +1041,12 @@ var BrowserUI = {
       return;
     }
 
-    if (Browser.selectedTab.isLoading()) {
-      Browser.selectedBrowser.stop();
+    if (ContextUI.dismiss()) {
       return;
     }
 
-    if (ContextUI.dismiss()) {
+    if (Browser.selectedTab.isLoading()) {
+      Browser.selectedBrowser.stop();
       return;
     }
   },
@@ -1316,13 +1328,11 @@ var BrowserUI = {
         PanelUI.show("history-container");
         break;
       case "cmd_remoteTabs":
-#ifdef MOZ_SERVICES_SYNC
         if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED) {
-          FlyoutPanelsUI.show('SyncFlyout');
+          Sync.open();
         } else {
           PanelUI.show("remotetabs-container");
         }
-#endif
         break;
       case "cmd_quit":
         // Only close one window
@@ -1345,7 +1355,8 @@ var BrowserUI = {
         SanitizeUI.onSanitize();
         break;
       case "cmd_flyout_back":
-        FlyoutPanelsUI.onBackButton();
+        FlyoutPanelsUI.hide();
+        MetroUtils.showSettingsFlyout();
         break;
       case "cmd_panel":
         PanelUI.toggle();
@@ -1514,6 +1525,37 @@ var StartUI = {
         aEvent.stopPropagation();
         break;
     }
+  }
+};
+
+var SyncPanelUI = {
+  init: function() {
+    // Run some setup code the first time the panel is shown.
+    Elements.syncFlyout.addEventListener("PopupChanged", function onShow(aEvent) {
+      if (aEvent.detail && aEvent.target === Elements.syncFlyout) {
+        Elements.syncFlyout.removeEventListener("PopupChanged", onShow, false);
+        Sync.init();
+      }
+    }, false);
+  }
+};
+
+var FlyoutPanelsUI = {
+  init: function() {
+    AboutPanelUI.init();
+    PreferencesPanelView.init();
+    SyncPanelUI.init();
+
+    // make sure to hide all flyouts when window is deactivated
+    window.addEventListener("deactivate", function(window) {
+      FlyoutPanelsUI.hide();
+    });
+  },
+
+  hide: function() {
+    Elements.aboutFlyout.hide();
+    Elements.prefsFlyout.hide();
+    Elements.syncFlyout.hide();
   }
 };
 
@@ -1804,17 +1846,17 @@ var SettingsCharm = {
     // Options
     this.addEntry({
         label: Strings.browser.GetStringFromName("optionsCharm"),
-        onselected: function() FlyoutPanelsUI.show('PrefsFlyout')
+        onselected: function() Elements.prefsFlyout.show()
     });
-    // Sync
+    // Sync 
     this.addEntry({
         label: Strings.browser.GetStringFromName("syncCharm"),
-        onselected: function() FlyoutPanelsUI.show('SyncFlyout')
+        onselected: function() Elements.syncFlyout.show()
     });
     // About
     this.addEntry({
         label: Strings.browser.GetStringFromName("aboutCharm1"),
-        onselected: function() FlyoutPanelsUI.show('AboutFlyout')
+        onselected: function() Elements.aboutFlyout.show()
     });
     // Help
     this.addEntry({

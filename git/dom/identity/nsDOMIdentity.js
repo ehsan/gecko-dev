@@ -21,13 +21,7 @@ const MAX_RP_CALLS = 100;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "checkDeprecated",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "checkRenamed",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "objectCopy",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
+Cu.import("resource://gre/modules/identity/IdentityUtils.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
                                    "@mozilla.org/uuid-generator;1",

@@ -21,21 +21,21 @@ ContentHostBase::ContentHostBase(const TextureInfo& aTextureInfo)
 ContentHostBase::~ContentHostBase()
 {}
 
-DeprecatedTextureHost*
-ContentHostBase::GetDeprecatedTextureHost()
+TextureHost*
+ContentHostBase::GetTextureHost()
 {
-  return mDeprecatedTextureHost;
+  return mTextureHost;
 }
 
 void
 ContentHostBase::DestroyFrontHost()
 {
-  MOZ_ASSERT(!mDeprecatedTextureHost || mDeprecatedTextureHost->GetDeAllocator(),
+  MOZ_ASSERT(!mTextureHost || mTextureHost->GetDeAllocator(),
              "We won't be able to destroy our SurfaceDescriptor");
-  MOZ_ASSERT(!mDeprecatedTextureHostOnWhite || mDeprecatedTextureHostOnWhite->GetDeAllocator(),
+  MOZ_ASSERT(!mTextureHostOnWhite || mTextureHostOnWhite->GetDeAllocator(),
              "We won't be able to destroy our SurfaceDescriptor");
-  mDeprecatedTextureHost = nullptr;
-  mDeprecatedTextureHostOnWhite = nullptr;
+  mTextureHost = nullptr;
+  mTextureHostOnWhite = nullptr;
 }
 
 void
@@ -50,17 +50,17 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
 {
   NS_ASSERTION(aVisibleRegion, "Requires a visible region");
 
-  AutoLockDeprecatedTextureHost lock(mDeprecatedTextureHost);
-  AutoLockDeprecatedTextureHost lockOnWhite(mDeprecatedTextureHostOnWhite);
+  AutoLockTextureHost lock(mTextureHost);
+  AutoLockTextureHost lockOnWhite(mTextureHostOnWhite);
 
-  if (!mDeprecatedTextureHost ||
+  if (!mTextureHost ||
       !lock.IsValid() ||
       !lockOnWhite.IsValid()) {
     return;
   }
 
   RefPtr<TexturedEffect> effect =
-    CreateTexturedEffect(mDeprecatedTextureHost, mDeprecatedTextureHostOnWhite, aFilter);
+    CreateTexturedEffect(mTextureHost, mTextureHostOnWhite, aFilter);
 
   aEffectChain.mPrimaryEffect = effect;
 
@@ -81,7 +81,7 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
   region.MoveBy(-origin);           // translate into TexImage space, buffer origin might not be at texture (0,0)
 
   // Figure out the intersecting draw region
-  TextureSource* source = mDeprecatedTextureHost;
+  TextureSource* source = mTextureHost;
   MOZ_ASSERT(source);
   gfx::IntSize texSize = source->GetSize();
   nsIntRect textureRect = nsIntRect(0, 0, texSize.width, texSize.height);
@@ -113,8 +113,8 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
     tileIter->BeginTileIteration();
   }
 
-  if (mDeprecatedTextureHostOnWhite) {
-    iterOnWhite = mDeprecatedTextureHostOnWhite->AsTileIterator();
+  if (mTextureHostOnWhite) {
+    iterOnWhite = mTextureHostOnWhite->AsTileIterator();
     MOZ_ASSERT(!tileIter || tileIter->GetTileCount() == iterOnWhite->GetTileCount(),
                "Tile count mismatch on component alpha texture");
     if (iterOnWhite) {
@@ -203,11 +203,11 @@ void
 ContentHostBase::SetCompositor(Compositor* aCompositor)
 {
   CompositableHost::SetCompositor(aCompositor);
-  if (mDeprecatedTextureHost) {
-    mDeprecatedTextureHost->SetCompositor(aCompositor);
+  if (mTextureHost) {
+    mTextureHost->SetCompositor(aCompositor);
   }
-  if (mDeprecatedTextureHostOnWhite) {
-    mDeprecatedTextureHostOnWhite->SetCompositor(aCompositor);
+  if (mTextureHostOnWhite) {
+    mTextureHostOnWhite->SetCompositor(aCompositor);
   }
 }
 
@@ -222,16 +222,16 @@ ContentHostBase::Dump(FILE* aFile,
   if (aDumpHtml) {
     fprintf(aFile, "<ul>");
   }
-  if (mDeprecatedTextureHost) {
+  if (mTextureHost) {
     fprintf(aFile, "%s", aPrefix);
     fprintf(aFile, aDumpHtml ? "<li> <a href=" : "Front buffer: ");
-    DumpDeprecatedTextureHost(aFile, mDeprecatedTextureHost);
+    DumpTextureHost(aFile, mTextureHost);
     fprintf(aFile, aDumpHtml ? "> Front buffer </a></li> " : " ");
   }
-  if (mDeprecatedTextureHostOnWhite) {
+  if (mTextureHostOnWhite) {
     fprintf(aFile, "%s", aPrefix);
-    fprintf(aFile, aDumpHtml ? "<li> <a href=" : "DeprecatedTextureHost on white: ");
-    DumpDeprecatedTextureHost(aFile, mDeprecatedTextureHostOnWhite);
+    fprintf(aFile, aDumpHtml ? "<li> <a href=" : "TextureHost on white: ");
+    DumpTextureHost(aFile, mTextureHostOnWhite);
     fprintf(aFile, aDumpHtml ? "> Front buffer on white </a> </li> " : " ");
   }
   if (aDumpHtml) {
@@ -247,18 +247,18 @@ ContentHostSingleBuffered::~ContentHostSingleBuffered()
 }
 
 void
-ContentHostSingleBuffered::EnsureDeprecatedTextureHost(TextureIdentifier aTextureId,
+ContentHostSingleBuffered::EnsureTextureHost(TextureIdentifier aTextureId,
                                              const SurfaceDescriptor& aSurface,
                                              ISurfaceAllocator* aAllocator,
                                              const TextureInfo& aTextureInfo)
 {
   MOZ_ASSERT(aTextureId == TextureFront ||
              aTextureId == TextureOnWhiteFront);
-  RefPtr<DeprecatedTextureHost> *newHost =
+  RefPtr<TextureHost> *newHost =
     (aTextureId == TextureFront) ? &mNewFrontHost : &mNewFrontHostOnWhite;
 
-  *newHost = DeprecatedTextureHost::CreateDeprecatedTextureHost(aSurface.type(),
-                                            aTextureInfo.mDeprecatedTextureHostFlags,
+  *newHost = TextureHost::CreateTextureHost(aSurface.type(),
+                                            aTextureInfo.mTextureHostFlags,
                                             aTextureInfo.mTextureFlags);
 
   (*newHost)->SetBuffer(new SurfaceDescriptor(aSurface), aAllocator);
@@ -278,7 +278,7 @@ ContentHostSingleBuffered::DestroyTextures()
   mNewFrontHost = nullptr;
   mNewFrontHostOnWhite = nullptr;
 
-  // don't touch mDeprecatedTextureHost, we might need it for compositing
+  // don't touch mTextureHost, we might need it for compositing
 }
 
 void
@@ -289,22 +289,22 @@ ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
 {
   aUpdatedRegionBack->SetEmpty();
 
-  if (!mDeprecatedTextureHost && !mNewFrontHost) {
+  if (!mTextureHost && !mNewFrontHost) {
     mInitialised = false;
     return;
   }
 
   if (mNewFrontHost) {
     DestroyFrontHost();
-    mDeprecatedTextureHost = mNewFrontHost;
+    mTextureHost = mNewFrontHost;
     mNewFrontHost = nullptr;
     if (mNewFrontHostOnWhite) {
-      mDeprecatedTextureHostOnWhite = mNewFrontHostOnWhite;
+      mTextureHostOnWhite = mNewFrontHostOnWhite;
       mNewFrontHostOnWhite = nullptr;
     }
   }
 
-  MOZ_ASSERT(mDeprecatedTextureHost);
+  MOZ_ASSERT(mTextureHost);
   MOZ_ASSERT(!mNewFrontHostOnWhite, "New white host without a new black?");
 
   // updated is in screen coordinates. Convert it to buffer coordinates.
@@ -326,9 +326,9 @@ ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
   MOZ_ASSERT((destBounds.y % size.height) + destBounds.height <= size.height,
                "updated region lies across rotation boundaries!");
 
-  mDeprecatedTextureHost->Update(*mDeprecatedTextureHost->GetBuffer(), &destRegion);
-  if (mDeprecatedTextureHostOnWhite) {
-    mDeprecatedTextureHostOnWhite->Update(*mDeprecatedTextureHostOnWhite->GetBuffer(), &destRegion);
+  mTextureHost->Update(*mTextureHost->GetBuffer(), &destRegion);
+  if (mTextureHostOnWhite) {
+    mTextureHostOnWhite->Update(*mTextureHostOnWhite->GetBuffer(), &destRegion);
   }
   mInitialised = true;
 
@@ -343,13 +343,13 @@ ContentHostDoubleBuffered::~ContentHostDoubleBuffered()
 }
 
 void
-ContentHostDoubleBuffered::EnsureDeprecatedTextureHost(TextureIdentifier aTextureId,
+ContentHostDoubleBuffered::EnsureTextureHost(TextureIdentifier aTextureId,
                                              const SurfaceDescriptor& aSurface,
                                              ISurfaceAllocator* aAllocator,
                                              const TextureInfo& aTextureInfo)
 {
-  RefPtr<DeprecatedTextureHost> newHost = DeprecatedTextureHost::CreateDeprecatedTextureHost(aSurface.type(),
-                                                               aTextureInfo.mDeprecatedTextureHostFlags,
+  RefPtr<TextureHost> newHost = TextureHost::CreateTextureHost(aSurface.type(),
+                                                               aTextureInfo.mTextureHostFlags,
                                                                aTextureInfo.mTextureFlags);
 
   newHost->SetBuffer(new SurfaceDescriptor(aSurface), aAllocator);
@@ -408,7 +408,7 @@ ContentHostDoubleBuffered::DestroyTextures()
     mBackHostOnWhite = nullptr;
   }
 
-  // don't touch mDeprecatedTextureHost, we might need it for compositing
+  // don't touch mTextureHost, we might need it for compositing
 }
 
 void
@@ -417,7 +417,7 @@ ContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
                                         const nsIntRegion& aOldValidRegionBack,
                                         nsIntRegion* aUpdatedRegionBack)
 {
-  if (!mDeprecatedTextureHost && !mNewFrontHost) {
+  if (!mTextureHost && !mNewFrontHost) {
     mInitialised = false;
 
     *aUpdatedRegionBack = aUpdated;
@@ -426,29 +426,29 @@ ContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
 
   if (mNewFrontHost) {
     DestroyFrontHost();
-    mDeprecatedTextureHost = mNewFrontHost;
+    mTextureHost = mNewFrontHost;
     mNewFrontHost = nullptr;
     if (mNewFrontHostOnWhite) {
-      mDeprecatedTextureHostOnWhite = mNewFrontHostOnWhite;
+      mTextureHostOnWhite = mNewFrontHostOnWhite;
       mNewFrontHostOnWhite = nullptr;
     }
   }
 
-  MOZ_ASSERT(mDeprecatedTextureHost);
+  MOZ_ASSERT(mTextureHost);
   MOZ_ASSERT(!mNewFrontHostOnWhite, "New white host without a new black?");
   MOZ_ASSERT(mBackHost);
 
-  RefPtr<DeprecatedTextureHost> oldFront = mDeprecatedTextureHost;
-  mDeprecatedTextureHost = mBackHost;
+  RefPtr<TextureHost> oldFront = mTextureHost;
+  mTextureHost = mBackHost;
   mBackHost = oldFront;
 
-  oldFront = mDeprecatedTextureHostOnWhite;
-  mDeprecatedTextureHostOnWhite = mBackHostOnWhite;
+  oldFront = mTextureHostOnWhite;
+  mTextureHostOnWhite = mBackHostOnWhite;
   mBackHostOnWhite = oldFront;
 
-  mDeprecatedTextureHost->Update(*mDeprecatedTextureHost->GetBuffer());
-  if (mDeprecatedTextureHostOnWhite) {
-    mDeprecatedTextureHostOnWhite->Update(*mDeprecatedTextureHostOnWhite->GetBuffer());
+  mTextureHost->Update(*mTextureHost->GetBuffer());
+  if (mTextureHostOnWhite) {
+    mTextureHostOnWhite->Update(*mTextureHostOnWhite->GetBuffer());
   }
   mInitialised = true;
 
@@ -468,7 +468,7 @@ ContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
 }
 
 void
-ContentHostIncremental::EnsureDeprecatedTextureHostIncremental(ISurfaceAllocator* aAllocator,
+ContentHostIncremental::EnsureTextureHostIncremental(ISurfaceAllocator* aAllocator,
                                                      const TextureInfo& aTextureInfo,
                                                      const nsIntRect& aBufferRect)
 {
@@ -504,19 +504,19 @@ ContentHostIncremental::ProcessTextureUpdates()
 void
 ContentHostIncremental::TextureCreationRequest::Execute(ContentHostIncremental* aHost)
 {
-  RefPtr<DeprecatedTextureHost> newHost =
-    DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptor::TShmem,
-                                   mTextureInfo.mDeprecatedTextureHostFlags,
+  RefPtr<TextureHost> newHost =
+    TextureHost::CreateTextureHost(SurfaceDescriptor::TShmem,
+                                   mTextureInfo.mTextureHostFlags,
                                    mTextureInfo.mTextureFlags);
   Compositor* compositor = aHost->GetCompositor();
   if (compositor) {
     newHost->SetCompositor(compositor);
   }
-  RefPtr<DeprecatedTextureHost> newHostOnWhite;
+  RefPtr<TextureHost> newHostOnWhite;
   if (mTextureInfo.mTextureFlags & ComponentAlpha) {
     newHostOnWhite =
-      DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptor::TShmem,
-                                     mTextureInfo.mDeprecatedTextureHostFlags,
+      TextureHost::CreateTextureHost(SurfaceDescriptor::TShmem,
+                                     mTextureInfo.mTextureHostFlags,
                                      mTextureInfo.mTextureFlags);
     Compositor* compositor = aHost->GetCompositor();
     if (compositor) {
@@ -524,7 +524,7 @@ ContentHostIncremental::TextureCreationRequest::Execute(ContentHostIncremental* 
     }
   }
 
-  if (mTextureInfo.mDeprecatedTextureHostFlags & TEXTURE_HOST_COPY_PREVIOUS) {
+  if (mTextureInfo.mTextureHostFlags & TEXTURE_HOST_COPY_PREVIOUS) {
     nsIntRect bufferRect = aHost->mBufferRect;
     nsIntPoint bufferRotation = aHost->mBufferRotation;
     nsIntRect overlap;
@@ -595,46 +595,46 @@ ContentHostIncremental::TextureCreationRequest::Execute(ContentHostIncremental* 
     dstRectDrawBottomLeft.MoveBy(-mBufferRect.TopLeft());
 
     newHost->EnsureBuffer(mBufferRect.Size(),
-                          ContentForFormat(aHost->mDeprecatedTextureHost->GetFormat()));
+                          ContentForFormat(aHost->mTextureHost->GetFormat()));
 
-    aHost->mDeprecatedTextureHost->CopyTo(srcRect, newHost, dstRect);
+    aHost->mTextureHost->CopyTo(srcRect, newHost, dstRect);
     if (bufferRotation != nsIntPoint(0, 0)) {
       // Draw the remaining quadrants. We call BlitTextureImage 3 extra
       // times instead of doing a single draw call because supporting that
       // with a tiled source is quite tricky.
 
       if (!srcRectDrawTopRight.IsEmpty())
-        aHost->mDeprecatedTextureHost->CopyTo(srcRectDrawTopRight,
+        aHost->mTextureHost->CopyTo(srcRectDrawTopRight,
                                           newHost, dstRectDrawTopRight);
       if (!srcRectDrawTopLeft.IsEmpty())
-        aHost->mDeprecatedTextureHost->CopyTo(srcRectDrawTopLeft,
+        aHost->mTextureHost->CopyTo(srcRectDrawTopLeft,
                                           newHost, dstRectDrawTopLeft);
       if (!srcRectDrawBottomLeft.IsEmpty())
-        aHost->mDeprecatedTextureHost->CopyTo(srcRectDrawBottomLeft,
+        aHost->mTextureHost->CopyTo(srcRectDrawBottomLeft,
                                           newHost, dstRectDrawBottomLeft);
     }
 
     if (newHostOnWhite) {
       newHostOnWhite->EnsureBuffer(mBufferRect.Size(),
-                                   ContentForFormat(aHost->mDeprecatedTextureHostOnWhite->GetFormat()));
-      aHost->mDeprecatedTextureHostOnWhite->CopyTo(srcRect, newHostOnWhite, dstRect);
+                                   ContentForFormat(aHost->mTextureHostOnWhite->GetFormat()));
+      aHost->mTextureHostOnWhite->CopyTo(srcRect, newHostOnWhite, dstRect);
       if (bufferRotation != nsIntPoint(0, 0)) {
         // draw the remaining quadrants
         if (!srcRectDrawTopRight.IsEmpty())
-          aHost->mDeprecatedTextureHostOnWhite->CopyTo(srcRectDrawTopRight,
+          aHost->mTextureHostOnWhite->CopyTo(srcRectDrawTopRight,
                                                    newHostOnWhite, dstRectDrawTopRight);
         if (!srcRectDrawTopLeft.IsEmpty())
-          aHost->mDeprecatedTextureHostOnWhite->CopyTo(srcRectDrawTopLeft,
+          aHost->mTextureHostOnWhite->CopyTo(srcRectDrawTopLeft,
                                                    newHostOnWhite, dstRectDrawTopLeft);
         if (!srcRectDrawBottomLeft.IsEmpty())
-          aHost->mDeprecatedTextureHostOnWhite->CopyTo(srcRectDrawBottomLeft,
+          aHost->mTextureHostOnWhite->CopyTo(srcRectDrawBottomLeft,
                                                    newHostOnWhite, dstRectDrawBottomLeft);
       }
     }
   }
 
-  aHost->mDeprecatedTextureHost = newHost;
-  aHost->mDeprecatedTextureHostOnWhite = newHostOnWhite;
+  aHost->mTextureHost = newHost;
+  aHost->mTextureHostOnWhite = newHostOnWhite;
 
   aHost->mBufferRect = mBufferRect;
   aHost->mBufferRotation = nsIntPoint();
@@ -673,9 +673,9 @@ ContentHostIncremental::TextureUpdateRequest::Execute(ContentHostIncremental* aH
   nsIntPoint offset = -mUpdated.GetBounds().TopLeft();
 
   if (mTextureId == TextureFront) {
-    aHost->mDeprecatedTextureHost->Update(mDescriptor, &mUpdated, &offset);
+    aHost->mTextureHost->Update(mDescriptor, &mUpdated, &offset);
   } else {
-    aHost->mDeprecatedTextureHostOnWhite->Update(mDescriptor, &mUpdated, &offset);
+    aHost->mTextureHostOnWhite->Update(mDescriptor, &mUpdated, &offset);
   }
 }
 
@@ -695,9 +695,9 @@ ContentHostSingleBuffered::PrintInfo(nsACString& aTo, const char* aPrefix)
   nsAutoCString pfx(aPrefix);
   pfx += "  ";
 
-  if (mDeprecatedTextureHost) {
+  if (mTextureHost) {
     aTo += "\n";
-    mDeprecatedTextureHost->PrintInfo(aTo, pfx.get());
+    mTextureHost->PrintInfo(aTo, pfx.get());
   }
 }
 
@@ -716,9 +716,9 @@ ContentHostDoubleBuffered::PrintInfo(nsACString& aTo, const char* aPrefix)
   nsAutoCString prefix(aPrefix);
   prefix += "  ";
 
-  if (mDeprecatedTextureHost) {
+  if (mTextureHost) {
     aTo += "\n";
-    mDeprecatedTextureHost->PrintInfo(aTo, prefix.get());
+    mTextureHost->PrintInfo(aTo, prefix.get());
   }
 
   if (mBackHost) {
@@ -743,13 +743,13 @@ ContentHostDoubleBuffered::Dump(FILE* aFile,
   if (mBackHost) {
     fprintf(aFile, "%s", aPrefix);
     fprintf(aFile, aDumpHtml ? "<li> <a href=" : "Back buffer: ");
-    DumpDeprecatedTextureHost(aFile, mBackHost);
+    DumpTextureHost(aFile, mBackHost);
     fprintf(aFile, aDumpHtml ? " >Back buffer</a></li>" : " ");
   }
   if (mBackHostOnWhite) {
     fprintf(aFile, "%s", aPrefix);
     fprintf(aFile, aDumpHtml ? "<li> <a href=" : "Back buffer on white: ");
-    DumpDeprecatedTextureHost(aFile, mBackHostOnWhite);
+    DumpTextureHost(aFile, mBackHostOnWhite);
     fprintf(aFile, aDumpHtml ? " >Back buffer on white</a> </li>" : " ");
   }
   if (aDumpHtml) {

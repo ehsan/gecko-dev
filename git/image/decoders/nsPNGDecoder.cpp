@@ -141,10 +141,11 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                                gfxASurface::gfxImageFormat format)
 {
   // Our first full frame is automatically created by the image decoding
-  // infrastructure. Just use it as long as it matches up.
+  // infrastructure. Just use it as long as we're not creating a subframe.
   MOZ_ASSERT(HasSize());
   if (mNumFrames != 0 ||
-      !GetCurrentFrame()->GetRect().IsEqualEdges(nsIntRect(x_offset, y_offset, width, height))) {
+      x_offset != 0 || y_offset != 0 ||
+      width != mImageMetadata.GetWidth() || height != mImageMetadata.GetHeight()) {
     NeedNewFrame(mNumFrames, x_offset, y_offset, width, height, format);
   } else if (mNumFrames == 0) {
     // Our preallocated frame matches up, with the possible exception of alpha.

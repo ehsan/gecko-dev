@@ -57,8 +57,11 @@ function test() {
   }
 
   function testOnWindow(aIsPrivate, aCallback) {
-    let win = whenNewWindowLoaded({ private: aIsPrivate }, aCallback);
-    windowsToClose.push(win);
+    let win = OpenBrowserWindow({ private: aIsPrivate });
+    waitForFocus(function() {
+      windowsToClose.push(win);
+      executeSoon(function() aCallback(win));
+    }, win);
   }
 
   addEngine(function() {

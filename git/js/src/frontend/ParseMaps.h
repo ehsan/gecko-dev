@@ -30,7 +30,7 @@ typedef InlineMap<JSAtom *, DefinitionList, 24> AtomDefnListMap;
  * the list and map->vector must point to pre-allocated memory.
  */
 void
-InitAtomMap(AtomIndexMap *indices, HeapPtr<JSAtom> *atoms);
+InitAtomMap(JSContext *cx, AtomIndexMap *indices, HeapPtr<JSAtom> *atoms);
 
 /*
  * A pool that permits the reuse of the backing storage for the defn, index, or
@@ -68,14 +68,7 @@ class ParseMapPool
     }
 
     void *allocateFresh();
-    void *allocate() {
-        if (recyclable.empty())
-            return allocateFresh();
-
-        void *map = recyclable.popCopy();
-        asAtomMap(map)->clear();
-        return map;
-    }
+    void *allocate();
 
     /* Arbitrary atom map type, that has keys and values of the same kind. */
     typedef AtomIndexMap AtomMapT;
@@ -97,9 +90,7 @@ class ParseMapPool
 
     /* Fallibly aquire one of the supported map types from the pool. */
     template <typename T>
-    T *acquire() {
-        return reinterpret_cast<T *>(allocate());
-    }
+    T *acquire();
 
     /* Release one of the supported map types back to the pool. */
 
@@ -127,8 +118,8 @@ struct AtomThingMapPtr
 
     void init() { clearMap(); }
 
-    bool ensureMap(ExclusiveContext *cx);
-    void releaseMap(ExclusiveContext *cx);
+    bool ensureMap(JSContext *cx);
+    void releaseMap(JSContext *cx);
 
     bool hasMap() const { return map_; }
     Map *getMap() { return map_; }
@@ -149,10 +140,10 @@ typedef AtomThingMapPtr<AtomIndexMap> AtomIndexMapPtr;
 template <typename AtomThingMapPtrT>
 class OwnedAtomThingMapPtr : public AtomThingMapPtrT
 {
-    ExclusiveContext *cx;
+    JSContext *cx;
 
   public:
-    explicit OwnedAtomThingMapPtr(ExclusiveContext *cx) : cx(cx) {
+    explicit OwnedAtomThingMapPtr(JSContext *cx) : cx(cx) {
         AtomThingMapPtrT::init();
     }
 
@@ -244,8 +235,8 @@ class DefinitionList
     }
 
     static Node *
-    allocNode(ExclusiveContext *cx, LifoAlloc &alloc, uintptr_t bits, Node *tail);
-
+    allocNode(JSContext *cx, uintptr_t bits, Node *tail);
+            
   public:
     class Range
     {
@@ -336,18 +327,17 @@ class DefinitionList
      * Return true on success. On OOM, report on cx and return false.
      */
     template <typename ParseHandler>
-    bool pushFront(ExclusiveContext *cx, LifoAlloc &alloc,
-                   typename ParseHandler::DefinitionNode defn) {
+    bool pushFront(JSContext *cx, typename ParseHandler::DefinitionNode defn) {
         Node *tail;
         if (isMultiple()) {
             tail = firstNode();
         } else {
-            tail = allocNode(cx, alloc, u.bits, NULL);
+            tail = allocNode(cx, u.bits, NULL);
             if (!tail)
                 return false;
         }
 
-        Node *node = allocNode(cx, alloc, ParseHandler::definitionToBits(defn), tail);
+        Node *node = allocNode(cx, ParseHandler::definitionToBits(defn), tail);
         if (!node)
             return false;
         *this = DefinitionList(node);
@@ -370,20 +360,11 @@ class DefinitionList
 #endif
 };
 
-typedef AtomDefnMap::Range      AtomDefnRange;
-typedef AtomDefnMap::AddPtr     AtomDefnAddPtr;
-typedef AtomDefnMap::Ptr        AtomDefnPtr;
-typedef AtomIndexMap::AddPtr    AtomIndexAddPtr;
-typedef AtomIndexMap::Ptr       AtomIndexPtr;
-typedef AtomDefnListMap::Ptr    AtomDefnListPtr;
-typedef AtomDefnListMap::AddPtr AtomDefnListAddPtr;
-typedef AtomDefnListMap::Range  AtomDefnListRange;
-
 /*
  * AtomDecls is a map of atoms to (sequences of) Definitions. It is used by
  * ParseContext to store declarations. A declaration associates a name with a
  * Definition.
- *
+ * 
  * Declarations with function scope (such as const, var, and function) are
  * unique in the sense that they override any previous declarations with the
  * same name. For such declarations, we only need to store a single Definition,
@@ -405,15 +386,14 @@ class AtomDecls
     /* AtomDeclsIter needs to get at the DefnListMap directly. */
     friend class AtomDeclsIter;
 
-    ExclusiveContext *cx;
-    LifoAlloc &alloc;
+    JSContext   *cx;
     AtomDefnListMap  *map;
 
     AtomDecls(const AtomDecls &other) MOZ_DELETE;
     void operator=(const AtomDecls &other) MOZ_DELETE;
 
   public:
-    explicit AtomDecls(ExclusiveContext *cx, LifoAlloc &alloc) : cx(cx), alloc(alloc), map(NULL) {}
+    explicit AtomDecls(JSContext *cx) : cx(cx), map(NULL) {}
 
     ~AtomDecls();
 
@@ -424,33 +404,13 @@ class AtomDecls
     }
 
     /* Return the definition at the head of the chain for |atom|. */
-    DefinitionNode lookupFirst(JSAtom *atom) const {
-        JS_ASSERT(map);
-        AtomDefnListPtr p = map->lookup(atom);
-        if (!p)
-            return ParseHandler::nullDefinition();
-        return p.value().front<ParseHandler>();
-    }
+    inline DefinitionNode lookupFirst(JSAtom *atom) const;
 
     /* Perform a lookup that can iterate over the definitions associated with |atom|. */
-    DefinitionList::Range lookupMulti(JSAtom *atom) const {
-        JS_ASSERT(map);
-        if (AtomDefnListPtr p = map->lookup(atom))
-            return p.value().all();
-        return DefinitionList::Range();
-    }
+    inline DefinitionList::Range lookupMulti(JSAtom *atom) const;
 
     /* Add-or-update a known-unique definition for |atom|. */
-    bool addUnique(JSAtom *atom, DefinitionNode defn) {
-        JS_ASSERT(map);
-        AtomDefnListAddPtr p = map->lookupForAdd(atom);
-        if (!p)
-            return map->add(p, atom, DefinitionList(ParseHandler::definitionToBits(defn)));
-        JS_ASSERT(!p.value().isMultiple());
-        p.value() = DefinitionList(ParseHandler::definitionToBits(defn));
-        return true;
-    }
-
+    inline bool addUnique(JSAtom *atom, DefinitionNode defn);
     bool addShadow(JSAtom *atom, DefinitionNode defn);
 
     /* Updating the definition for an entry that is known to exist is infallible. */
@@ -484,6 +444,15 @@ class AtomDecls
     void dump();
 #endif
 };
+
+typedef AtomDefnMap::Range      AtomDefnRange;
+typedef AtomDefnMap::AddPtr     AtomDefnAddPtr;
+typedef AtomDefnMap::Ptr        AtomDefnPtr;
+typedef AtomIndexMap::AddPtr    AtomIndexAddPtr;
+typedef AtomIndexMap::Ptr       AtomIndexPtr;
+typedef AtomDefnListMap::Ptr    AtomDefnListPtr;
+typedef AtomDefnListMap::AddPtr AtomDefnListAddPtr;
+typedef AtomDefnListMap::Range  AtomDefnListRange;
 
 } /* namespace frontend */
 

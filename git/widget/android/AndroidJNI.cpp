@@ -803,14 +803,21 @@ NS_EXPORT jobject JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_getNextMessageFromQueue(JNIEnv* jenv, jclass, jobject queue)
 {
     static jclass jMessageQueueCls = nullptr;
+    static jfieldID jMessagesField;
     static jmethodID jNextMethod;
     if (!jMessageQueueCls) {
         jMessageQueueCls = (jclass) jenv->NewGlobalRef(jenv->FindClass("android/os/MessageQueue"));
+        jMessagesField = jenv->GetFieldID(jMessageQueueCls, "mMessages", "Landroid/os/Message;");
         jNextMethod = jenv->GetMethodID(jMessageQueueCls, "next", "()Landroid/os/Message;");
     }
-    if (!jMessageQueueCls || !jNextMethod)
+    if (!jMessageQueueCls || !jMessagesField || !jNextMethod)
         return NULL;
-    return jenv->CallObjectMethod(queue, jNextMethod);
+    jobject msg = jenv->GetObjectField(queue, jMessagesField);
+    // if queue.mMessages is null, queue.next() will block, which we don't want
+    if (!msg)
+        return msg;
+    msg = jenv->CallObjectMethod(queue, jNextMethod);
+    return msg;
 }
 
 NS_EXPORT void JNICALL

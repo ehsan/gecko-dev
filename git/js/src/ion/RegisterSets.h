@@ -331,8 +331,16 @@ class TypedRegisterSet
     static inline TypedRegisterSet NonVolatile() {
         return TypedRegisterSet(T::Codes::AllocatableMask & T::Codes::NonVolatileMask);
     }
+    void intersect(TypedRegisterSet other) {
+        bits_ &= ~other.bits_;
+    }
     bool has(T reg) const {
         return !!(bits_ & (1 << reg.code()));
+    }
+    bool hasNextRegister(T reg) const {
+        if (reg.code() == sizeof(bits_)*8)
+            return false;
+        return !!(bits_ & (1 << (reg.code()+1)));
     }
     void addUnchecked(T reg) {
         bits_ |= (1 << reg.code());
@@ -362,7 +370,7 @@ class TypedRegisterSet
     }
     void take(T reg) {
         JS_ASSERT(has(reg));
-        takeUnchecked(reg);
+        bits_ &= ~(1 << reg.code());
     }
     void takeUnchecked(T reg) {
         bits_ &= ~(1 << reg.code());
@@ -593,23 +601,26 @@ class RegisterSet {
     }
 
     void maybeTake(Register reg) {
-        gpr_.takeUnchecked(reg);
+        if (gpr_.has(reg))
+            gpr_.take(reg);
     }
     void maybeTake(FloatRegister reg) {
-        fpu_.takeUnchecked(reg);
+        if (fpu_.has(reg))
+            fpu_.take(reg);
     }
     void maybeTake(AnyRegister reg) {
-        if (reg.isFloat())
-            fpu_.takeUnchecked(reg.fpu());
-        else
-            gpr_.takeUnchecked(reg.gpr());
+        if (has(reg))
+            take(reg);
     }
     void maybeTake(ValueOperand value) {
 #if defined(JS_NUNBOX32)
-        gpr_.takeUnchecked(value.typeReg());
-        gpr_.takeUnchecked(value.payloadReg());
+        if (gpr_.has(value.typeReg()))
+            gpr_.take(value.typeReg());
+        if (gpr_.has(value.payloadReg()))
+            gpr_.take(value.payloadReg());
 #elif defined(JS_PUNBOX64)
-        gpr_.takeUnchecked(value.valueReg());
+        if (gpr_.has(value.valueReg()))
+            gpr_.take(value.valueReg());
 #else
 #error "Bad architecture"
 #endif

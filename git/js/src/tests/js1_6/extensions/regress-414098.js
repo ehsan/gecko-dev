@@ -26,7 +26,12 @@ reportCompare("3|54|1|", actual, "forEach");
 actual = a.join(' - ');
 reportCompare("3 - 54 - 1", actual, "join");
 
+actual = String(a.sort());
+reportCompare("1,54,54", actual, "sort");
+
 a[2]=3;
+reportCompare(actual, "1,54,54", "setter");
+
 actual = a.pop();
 reportCompare(actual, 3, "pop");
 

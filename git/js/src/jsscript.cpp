@@ -51,7 +51,7 @@ using mozilla::PodZero;
 typedef Rooted<GlobalObject *> RootedGlobalObject;
 
 /* static */ unsigned
-Bindings::argumentsVarIndex(ExclusiveContext *cx, InternalBindingsHandle bindings)
+Bindings::argumentsVarIndex(JSContext *cx, InternalBindingsHandle bindings)
 {
     HandlePropertyName arguments = cx->names().arguments;
     BindingIter bi(bindings);
@@ -61,7 +61,7 @@ Bindings::argumentsVarIndex(ExclusiveContext *cx, InternalBindingsHandle binding
 }
 
 bool
-Bindings::initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle self,
+Bindings::initWithTemporaryStorage(JSContext *cx, InternalBindingsHandle self,
                                    unsigned numArgs, unsigned numVars,
                                    Binding *bindingArray)
 {
@@ -69,12 +69,10 @@ Bindings::initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle 
     JS_ASSERT(self->bindingArrayAndFlag_ == TEMPORARY_STORAGE_BIT);
 
     if (numArgs > UINT16_MAX || numVars > UINT16_MAX) {
-        if (cx->isJSContext()) {
-            JS_ReportErrorNumber(cx->asJSContext(), js_GetErrorMessage, NULL,
-                                 self->numArgs_ > self->numVars_ ?
-                                 JSMSG_TOO_MANY_FUN_ARGS :
-                                 JSMSG_TOO_MANY_LOCALS);
-        }
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                             self->numArgs_ > self->numVars_ ?
+                             JSMSG_TOO_MANY_FUN_ARGS :
+                             JSMSG_TOO_MANY_LOCALS);
         return false;
     }
 
@@ -121,7 +119,7 @@ Bindings::initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle 
             return false;
 #endif
 
-        StackBaseShape base(cx, &CallObject::class_, cx->global(), NULL,
+        StackBaseShape base(cx->compartment(), &CallObject::class_, cx->global(), NULL,
                             BaseShape::VAROBJ | BaseShape::DELEGATE);
 
         UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
@@ -1496,7 +1494,7 @@ ScriptSource::sourceMap()
  */
 
 SharedScriptData *
-js::SharedScriptData::new_(ExclusiveContext *cx, uint32_t codeLength,
+js::SharedScriptData::new_(JSContext *cx, uint32_t codeLength,
                            uint32_t srcnotesLength, uint32_t natoms)
 {
     uint32_t baseLength = codeLength + srcnotesLength;
@@ -1515,21 +1513,22 @@ js::SharedScriptData::new_(ExclusiveContext *cx, uint32_t codeLength,
 }
 
 bool
-js::SaveSharedScriptData(ExclusiveContext *cx, Handle<JSScript *> script, SharedScriptData *ssd)
+js::SaveSharedScriptData(JSContext *cx, Handle<JSScript *> script, SharedScriptData *ssd)
 {
     ASSERT(script != NULL);
     ASSERT(ssd != NULL);
 
+    JSRuntime *rt = cx->runtime();
     ScriptBytecodeHasher::Lookup l(ssd);
 
-    ScriptDataTable::AddPtr p = cx->scriptDataTable().lookupForAdd(l);
+    ScriptDataTable::AddPtr p = rt->scriptDataTable.lookupForAdd(l);
     if (p) {
         js_free(ssd);
         ssd = *p;
     } else {
-        if (!cx->scriptDataTable().add(p, ssd)) {
+        if (!rt->scriptDataTable.add(p, ssd)) {
             js_free(ssd);
-            js_ReportOutOfMemory(cx);
+            JS_ReportOutOfMemory(cx);
             return false;
         }
     }
@@ -1541,11 +1540,8 @@ js::SaveSharedScriptData(ExclusiveContext *cx, Handle<JSScript *> script, Shared
      * old scripts or exceptions pointing to the bytecode may no longer be
      * reachable. This is effectively a read barrier.
      */
-    if (cx->isJSContext()) {
-        JSRuntime *rt = cx->asJSContext()->runtime();
-        if (JS::IsIncrementalGCInProgress(rt) && rt->gcIsFull)
-            ssd->marked = true;
-    }
+    if (JS::IsIncrementalGCInProgress(rt) && rt->gcIsFull)
+        ssd->marked = true;
 #endif
 
     script->code = ssd->data;
@@ -1691,25 +1687,8 @@ ScriptDataSize(uint32_t nbindings, uint32_t nobjects, uint32_t nregexps,
     return size;
 }
 
-void
-JSScript::initCompartmentAndPrincipals(ExclusiveContext *cx, const CompileOptions &options)
-{
-    compartment_ = cx->compartment_;
-
-    /* Establish invariant: principals implies originPrincipals. */
-    if (options.principals) {
-        JS_ASSERT(options.principals == cx->compartment_->principals);
-        originPrincipals
-            = options.originPrincipals ? options.originPrincipals : options.principals;
-        JS_HoldPrincipals(originPrincipals);
-    } else if (options.originPrincipals) {
-        originPrincipals = options.originPrincipals;
-        JS_HoldPrincipals(originPrincipals);
-    }
-}
-
 JSScript *
-JSScript::Create(ExclusiveContext *cx, HandleObject enclosingScope, bool savedCallerFun,
+JSScript::Create(JSContext *cx, HandleObject enclosingScope, bool savedCallerFun,
                  const CompileOptions &options, unsigned staticLevel,
                  JS::HandleScriptSource sourceObject, uint32_t bufStart, uint32_t bufEnd)
 {
@@ -1724,7 +1703,18 @@ JSScript::Create(ExclusiveContext *cx, HandleObject enclosingScope, bool savedCa
 
     script->enclosingScopeOrOriginalFunction_ = enclosingScope;
     script->savedCallerFun = savedCallerFun;
-    script->initCompartmentAndPrincipals(cx, options);
+    script->compartment_ = cx->compartment();
+
+    /* Establish invariant: principals implies originPrincipals. */
+    if (options.principals) {
+        JS_ASSERT(options.principals == cx->compartment()->principals);
+        script->originPrincipals
+            = options.originPrincipals ? options.originPrincipals : options.principals;
+        JS_HoldPrincipals(script->originPrincipals);
+    } else if (options.originPrincipals) {
+        script->originPrincipals = options.originPrincipals;
+        JS_HoldPrincipals(script->originPrincipals);
+    }
 
     script->compileAndGo = options.compileAndGo;
     script->selfHosted = options.selfHostingMode;
@@ -1738,10 +1728,7 @@ JSScript::Create(ExclusiveContext *cx, HandleObject enclosingScope, bool savedCa
     // stack if we nest functions more than a few hundred deep, so this will
     // never trigger.  Oh well.
     if (staticLevel > UINT16_MAX) {
-        if (cx->isJSContext()) {
-            JS_ReportErrorNumber(cx->asJSContext(),
-                                 js_GetErrorMessage, NULL, JSMSG_TOO_DEEP, js_function_str);
-        }
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_TOO_DEEP, js_function_str);
         return NULL;
     }
     script->staticLevel = uint16_t(staticLevel);
@@ -1754,7 +1741,7 @@ JSScript::Create(ExclusiveContext *cx, HandleObject enclosingScope, bool savedCa
 }
 
 static inline uint8_t *
-AllocScriptData(ExclusiveContext *cx, size_t size)
+AllocScriptData(JSContext *cx, size_t size)
 {
     uint8_t *data = static_cast<uint8_t *>(cx->calloc_(JS_ROUNDUP(size, sizeof(Value))));
     if (!data)
@@ -1766,7 +1753,7 @@ AllocScriptData(ExclusiveContext *cx, size_t size)
 }
 
 /* static */ bool
-JSScript::partiallyInit(ExclusiveContext *cx, HandleScript script, uint32_t nobjects,
+JSScript::partiallyInit(JSContext *cx, Handle<JSScript*> script, uint32_t nobjects,
                         uint32_t nregexps, uint32_t ntrynotes, uint32_t nconsts, uint32_t nTypeSets)
 {
     size_t size = ScriptDataSize(script->bindings.count(), nobjects, nregexps, ntrynotes, nconsts);
@@ -1837,7 +1824,7 @@ JSScript::partiallyInit(ExclusiveContext *cx, HandleScript script, uint32_t nobj
 }
 
 /* static */ bool
-JSScript::fullyInitTrivial(ExclusiveContext *cx, Handle<JSScript*> script)
+JSScript::fullyInitTrivial(JSContext *cx, Handle<JSScript*> script)
 {
     if (!partiallyInit(cx, script, 0, 0, 0, 0, 0))
         return false;
@@ -1853,7 +1840,7 @@ JSScript::fullyInitTrivial(ExclusiveContext *cx, Handle<JSScript*> script)
 }
 
 /* static */ bool
-JSScript::fullyInitFromEmitter(ExclusiveContext *cx, HandleScript script, BytecodeEmitter *bce)
+JSScript::fullyInitFromEmitter(JSContext *cx, Handle<JSScript*> script, BytecodeEmitter *bce)
 {
     /* The counts of indexed things must be checked during code generation. */
     JS_ASSERT(bce->atomIndices->count() <= INDEX_LIMIT);
@@ -1887,7 +1874,7 @@ JSScript::fullyInitFromEmitter(ExclusiveContext *cx, HandleScript script, Byteco
     PodCopy<jsbytecode>(code + prologLength, bce->code().begin(), mainLength);
     if (!FinishTakingSrcNotes(cx, bce, (jssrcnote *)(code + script->length)))
         return false;
-    InitAtomMap(bce->atomIndices.getMap(), ssd->atoms(script->length, nsrcnotes));
+    InitAtomMap(cx, bce->atomIndices.getMap(), ssd->atoms(script->length, nsrcnotes));
 
     if (!SaveSharedScriptData(cx, script, ssd))
         return false;
@@ -3015,8 +3002,7 @@ LazyScript::sourceObject() const
 }
 
 /* static */ LazyScript *
-LazyScript::Create(ExclusiveContext *cx, uint32_t numFreeVariables, uint32_t numInnerFunctions,
-                   JSVersion version,
+LazyScript::Create(JSContext *cx, uint32_t numFreeVariables, uint32_t numInnerFunctions, JSVersion version,
                    uint32_t begin, uint32_t end, uint32_t lineno, uint32_t column)
 {
     JS_ASSERT(begin <= end);

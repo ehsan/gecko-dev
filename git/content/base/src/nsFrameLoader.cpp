@@ -2066,7 +2066,7 @@ nsFrameLoader::TryRemoteBrowser()
     rootChromeWin->GetBrowserDOMWindow(getter_AddRefs(browserDOMWin));
     mRemoteBrowser->SetBrowserDOMWindow(browserDOMWin);
 
-    mChildHost = mRemoteBrowser->Manager();
+    mChildHost = static_cast<ContentParent*>(mRemoteBrowser->Manager());
   }
   return true;
 }
@@ -2240,10 +2240,10 @@ bool
 nsFrameLoader::DoSendAsyncMessage(const nsAString& aMessage,
                                   const StructuredCloneData& aData)
 {
-  TabParent* tabParent = mRemoteBrowser;
+  PBrowserParent* tabParent = GetRemoteBrowser();
   if (tabParent) {
     ClonedMessageData data;
-    ContentParent* cp = tabParent->Manager();
+    ContentParent* cp = static_cast<ContentParent*>(tabParent->Manager());
     if (!BuildClonedMessageDataForParent(cp, aData, data)) {
       return false;
     }

@@ -411,7 +411,7 @@ Cookies.prototype = {
           } catch (ex) {}
         });
 
-        yield undefined;
+        yield;
       }
 
       CtypesHelpers.finalize();

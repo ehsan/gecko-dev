@@ -816,6 +816,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     analysisPurgeCallback(NULL),
     analysisPurgeTriggerBytes(0),
     gcMallocBytes(0),
+    autoGCRooters(NULL),
     scriptAndCountsVector(NULL),
     NaNValue(UndefinedValue()),
     negativeInfinityValue(UndefinedValue()),
@@ -2410,18 +2411,6 @@ JS_TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind)
     js::TraceChildren(trc, thing, kind);
 }
 
-static size_t
-CountDecimalDigits(size_t num)
-{
-    size_t numDigits = 0;
-    do {
-        num /= 10;
-        numDigits++;
-    } while (num > 0);
-
-    return numDigits;
-}
-
 JS_PUBLIC_API(void)
 JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
                      JSGCTraceKind kind, JSBool details)
@@ -2503,19 +2492,8 @@ JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
             *buf++ = ' ';
             bufsize--;
             JSString *str = (JSString *)thing;
-
-            if (str->isLinear()) {
-                bool willFit = str->length() + strlen("<length > ") +
-                               CountDecimalDigits(str->length()) < bufsize;
-
-                n = JS_snprintf(buf, bufsize, "<length %d%s> ",
-                                (int)str->length(),
-                                willFit ? "" : " (truncated)");
-                buf += n;
-                bufsize -= n;
-
+            if (str->isLinear())
                 PutEscapedString(buf, bufsize, &str->asLinear(), 0);
-            }
             else
                 JS_snprintf(buf, bufsize, "<rope: length %d>", (int)str->length());
             break;
@@ -2806,11 +2784,10 @@ JS_MaybeGC(JSContext *cx)
 }
 
 JS_PUBLIC_API(void)
-JS_SetGCCallback(JSRuntime *rt, JSGCCallback cb, void *data)
+JS_SetGCCallback(JSRuntime *rt, JSGCCallback cb)
 {
     AssertHeapIsIdle(rt);
     rt->gcCallback = cb;
-    rt->gcCallbackData = data;
 }
 
 JS_PUBLIC_API(void)
@@ -5180,10 +5157,6 @@ JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
       noScriptRval(cx->hasOption(JSOPTION_NO_SCRIPT_RVAL)),
       selfHostingMode(false),
       canLazilyParse(true),
-      strictOption(cx->hasOption(JSOPTION_STRICT_MODE)),
-      extraWarningsOption(cx->hasExtraWarningsOption()),
-      werrorOption(cx->hasWErrorOption()),
-      asmJSOption(cx->hasOption(JSOPTION_ASMJS)),
       sourcePolicy(SAVE_SOURCE)
 {
 }
@@ -5314,8 +5287,7 @@ JS_BufferIsCompilableUnit(JSContext *cx, JSObject *objArg, const char *utf8, siz
     {
         CompileOptions options(cx);
         options.setCompileAndGo(false);
-        Parser<frontend::FullParseHandler> parser(cx, &cx->tempLifoAlloc(),
-                                                  options, chars, length,
+        Parser<frontend::FullParseHandler> parser(cx, options, chars, length,
                                                   /* foldConstants = */ true, NULL, NULL);
         older = JS_SetErrorReporter(cx, NULL);
         if (!parser.parse(obj) && parser.tokenStream.isUnexpectedEOF()) {
@@ -7126,18 +7098,7 @@ JS_CallOnce(JSCallOnceType *once, JSInitCallback func)
 }
 
 AutoGCRooter::AutoGCRooter(JSContext *cx, ptrdiff_t tag)
-  : down(ContextFriendFields::get(cx)->autoGCRooters),
-    tag_(tag),
-    stackTop(&ContextFriendFields::get(cx)->autoGCRooters)
-{
-    JS_ASSERT(this != *stackTop);
-    *stackTop = this;
-}
-
-AutoGCRooter::AutoGCRooter(ContextFriendFields *cx, ptrdiff_t tag)
-  : down(cx->autoGCRooters),
-    tag_(tag),
-    stackTop(&cx->autoGCRooters)
+  : down(cx->runtime()->autoGCRooters), tag_(tag), stackTop(&cx->runtime()->autoGCRooters)
 {
     JS_ASSERT(this != *stackTop);
     *stackTop = this;

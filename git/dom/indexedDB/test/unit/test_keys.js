@@ -16,7 +16,7 @@ function testSteps()
   openRequest.onerror = errorHandler;
   openRequest.onupgradeneeded = grabEventAndContinueHandler;
   openRequest.onsuccess = unexpectedSuccessHandler;
-  let event = yield undefined;
+  let event = yield;
   let db = event.target.result;
   let trans = event.target.transaction;
 
@@ -178,20 +178,20 @@ function testSteps()
       let req = store.add(i, -0);
       req.addEventListener("error", new ExpectError("ConstraintError", true));
       req.onsuccess = unexpectedSuccessHandler;
-      yield undefined;
+      yield;
     }
     else if (Array.isArray(keyI) && keyI.length === 1 && keyI[0] === 0) {
       doCompare([-0]);
       let req = store.add(i, [-0]);
       req.addEventListener("error", new ExpectError("ConstraintError", true));
       req.onsuccess = unexpectedSuccessHandler;
-      yield undefined;
+      yield;
     }
   }
 
   store.openCursor().onsuccess = grabEventAndContinueHandler;
   for (i = 0; i < keys.length; ++i) {
-    event = yield undefined;
+    event = yield;
     let cursor = event.target.result;
     is(indexedDB.cmp(cursor.key, keys[i]), 0,
        "Read back key should cmp as equal");
@@ -201,7 +201,7 @@ function testSteps()
 
     cursor.continue();
   }
-  event = yield undefined;
+  event = yield;
   is(event.target.result, undefined, "no more results expected");
 
   var nan = 0/0;
@@ -262,8 +262,8 @@ function testSteps()
   }
 
   openRequest.onsuccess = grabEventAndContinueHandler;
-  yield undefined;
+  yield;
 
   finishTest();
-  yield undefined;
+  yield;
 }

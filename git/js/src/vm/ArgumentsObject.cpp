@@ -180,7 +180,7 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     bool strict = callee->strict();
     Class *clasp = strict ? &StrictArgumentsObject::class_ : &NormalArgumentsObject::class_;
 
-    RootedTypeObject type(cx, cx->getNewType(clasp, proto.get()));
+    RootedTypeObject type(cx, proto->getNewType(cx, clasp));
     if (!type)
         return NULL;
 

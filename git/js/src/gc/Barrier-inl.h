@@ -427,9 +427,7 @@ DenseRangeWriteBarrierPost(JSRuntime *rt, JSObject *obj, uint32_t start, uint32_
 }
 
 /*
- * This is a post barrier for HashTables whose key is a GC pointer. Any
- * insertion into a HashTable not marked as part of the runtime, with a GC
- * pointer as a key, must call this immediately after each insertion.
+ * This is a post barrier for HashTables whose key can be moved during a GC.
  */
 template <class Map, class Key>
 inline void
@@ -440,7 +438,6 @@ HashTableWriteBarrierPost(JSRuntime *rt, Map *map, const Key &key)
         rt->gcStoreBuffer.putGeneric(gc::HashKeyRef<Map, Key>(map, key));
 #endif
 }
-
 
 inline
 EncapsulatedId::~EncapsulatedId()

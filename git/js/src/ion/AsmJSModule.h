@@ -220,7 +220,7 @@ class AsmJSModule
 
         ExportedFunction(JSFunction *fun,
                          PropertyName *maybeFieldName,
-                         mozilla::MoveRef<ArgCoercionVector> argCoercions,
+                         MoveRef<ArgCoercionVector> argCoercions,
                          ReturnType returnType)
           : fun_(fun),
             maybeFieldName_(maybeFieldName),
@@ -238,10 +238,10 @@ class AsmJSModule
         }
 
       public:
-        ExportedFunction(mozilla::MoveRef<ExportedFunction> rhs)
+        ExportedFunction(MoveRef<ExportedFunction> rhs)
           : fun_(rhs->fun_),
             maybeFieldName_(rhs->maybeFieldName_),
-            argCoercions_(mozilla::Move(rhs->argCoercions_)),
+            argCoercions_(Move(rhs->argCoercions_)),
             returnType_(rhs->returnType_),
             hasCodePtr_(rhs->hasCodePtr_),
             u(rhs->u)
@@ -501,11 +501,10 @@ class AsmJSModule
     }
 
     bool addExportedFunction(JSFunction *fun, PropertyName *maybeFieldName,
-                             mozilla::MoveRef<ArgCoercionVector> argCoercions,
-                             ReturnType returnType)
+                             MoveRef<ArgCoercionVector> argCoercions, ReturnType returnType)
     {
         ExportedFunction func(fun, maybeFieldName, argCoercions, returnType);
-        return exports_.append(mozilla::Move(func));
+        return exports_.append(Move(func));
     }
     unsigned numExportedFunctions() const {
         return exports_.length();
@@ -688,12 +687,13 @@ class AsmJSModule
     }
 
     void patchBoundsChecks(unsigned heapSize) {
-        if (heapSize == 0)
-            return;
-
         ion::AutoFlushCache afc("patchBoundsCheck");
-        uint32_t bits;
+        int bits = -1;
         JS_CEILING_LOG2(bits, heapSize);
+        if (bits == -1) {
+            // tried to size the array to 0, that is bad, but not horrible
+            return;
+        }
 
         for (unsigned i = 0; i < boundsChecks_.length(); i++)
             ion::Assembler::updateBoundsCheck(bits, (ion::Instruction*)(boundsChecks_[i].offset() + code_));

@@ -126,19 +126,8 @@ template <bool>
 struct SkCompileAssert {
 };
 
-/*
- * The SK_COMPILE_ASSERT definition creates an otherwise-unused typedef.  This
- * triggers compiler warnings with some versions of gcc, so mark the typedef
- * as permissibly-unused to disable the warnings.
- */
-#  if defined(__GNUC__)
-#    define SK_COMPILE_ASSERT_UNUSED_ATTRIBUTE __attribute__((unused))
-#  else
-#    define SK_COMPILE_ASSERT_UNUSED_ATTRIBUTE /* nothing */
-#  endif
-
 #define SK_COMPILE_ASSERT(expr, msg) \
-    typedef SkCompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1] SK_COMPILE_ASSERT_UNUSED_ATTRIBUTE
+    typedef SkCompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1]
 
 /*
  *  Usage:  SK_MACRO_CONCAT(a, b)   to construct the symbol ab

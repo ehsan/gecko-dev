@@ -810,32 +810,32 @@ class LInstructionHelper : public LInstruction
     FixedArityList<LDefinition, Temps> temps_;
 
   public:
-    size_t numDefs() const MOZ_FINAL MOZ_OVERRIDE {
+    size_t numDefs() const {
         return Defs;
     }
-    LDefinition *getDef(size_t index) MOZ_FINAL MOZ_OVERRIDE {
+    LDefinition *getDef(size_t index) {
         return &defs_[index];
     }
-    size_t numOperands() const MOZ_FINAL MOZ_OVERRIDE {
+    size_t numOperands() const {
         return Operands;
     }
-    LAllocation *getOperand(size_t index) MOZ_FINAL MOZ_OVERRIDE {
+    LAllocation *getOperand(size_t index) {
         return &operands_[index];
     }
-    size_t numTemps() const MOZ_FINAL MOZ_OVERRIDE {
+    size_t numTemps() const {
         return Temps;
     }
-    LDefinition *getTemp(size_t index) MOZ_FINAL MOZ_OVERRIDE {
+    LDefinition *getTemp(size_t index) {
         return &temps_[index];
     }
 
-    void setDef(size_t index, const LDefinition &def) MOZ_FINAL MOZ_OVERRIDE {
+    void setDef(size_t index, const LDefinition &def) {
         defs_[index] = def;
     }
-    void setOperand(size_t index, const LAllocation &a) MOZ_FINAL MOZ_OVERRIDE {
+    void setOperand(size_t index, const LAllocation &a) {
         operands_[index] = a;
     }
-    void setTemp(size_t index, const LDefinition &a) MOZ_FINAL MOZ_OVERRIDE {
+    void setTemp(size_t index, const LDefinition &a) {
         temps_[index] = a;
     }
 

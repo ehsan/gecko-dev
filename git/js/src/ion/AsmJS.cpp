@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Move.h"
-
 #include "jsmath.h"
 #include "jsworkers.h"
 #include "prmjtime.h"
@@ -1454,7 +1452,7 @@ class MOZ_STACK_CLASS ModuleCompiler
             for (unsigned i = 0; i < slowFunctions_.length(); i++) {
                 SlowFunction &func = slowFunctions_[i];
                 JSAutoByteString name;
-                if (!AtomToPrintableString(cx_, func.name, &name))
+                if (!js_AtomToPrintableString(cx_, func.name, &name))
                     return;
                 slowFuns.reset(JS_smprintf("%s%s:%u:%u (%ums)%s", slowFuns.get(),
                                            name.ptr(), func.line, func.column, func.ms,
@@ -5774,12 +5772,7 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
 
     // 5. Fill the arguments
     unsigned offsetToArgs = 3 * sizeof(size_t) + sizeof(Value);
-    unsigned offsetToCallerStackArgs = masm.framePushed();
-#if defined(JS_CPU_X86) || defined(JS_CPU_X64)
-    offsetToCallerStackArgs += NativeFrameSize;
-#else
-    offsetToCallerStackArgs += ShadowStackSpace;
-#endif
+    unsigned offsetToCallerStackArgs = NativeFrameSize + masm.framePushed();
     FillArgumentArray(m, exit.argTypes(), offsetToArgs, offsetToCallerStackArgs, scratch);
 
     // Get the pointer to the ion code

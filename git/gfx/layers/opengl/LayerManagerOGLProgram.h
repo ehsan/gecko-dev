@@ -37,14 +37,11 @@ enum ShaderProgramType {
   RGBXLayerProgramType,
   BGRXLayerProgramType,
   RGBARectLayerProgramType,
-  BGRARectLayerProgramType,
   RGBAExternalLayerProgramType,
   ColorLayerProgramType,
   YCbCrLayerProgramType,
   ComponentAlphaPass1ProgramType,
-  ComponentAlphaPass1RGBProgramType,
   ComponentAlphaPass2ProgramType,
-  ComponentAlphaPass2RGBProgramType,
   Copy2DProgramType,
   Copy2DRectProgramType,
   NumProgramTypes
@@ -127,10 +124,6 @@ struct ProgramProfileOGL
     if (aMask == Mask2d &&
         (aType == Copy2DProgramType ||
          aType == Copy2DRectProgramType))
-      return false;
-
-    if (aMask != MaskNone &&
-        aType == BGRARectLayerProgramType)
       return false;
 
     return aMask != Mask3d ||

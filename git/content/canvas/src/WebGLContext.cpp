@@ -964,19 +964,6 @@ WebGLContext::MozGetUnderlyingParamString(uint32_t pname, nsAString& retval)
 
 bool WebGLContext::IsExtensionSupported(JSContext *cx, WebGLExtensionID ext) const
 {
-    // Chrome contexts need access to debug information even when
-    // webgl.disable-extensions is set. This is used in the graphics
-    // section of about:support.
-    if (xpc::AccessCheck::isChrome(js::GetContextCompartment(cx))) {
-        switch (ext) {
-            case WEBGL_debug_renderer_info:
-                return true;
-            default:
-                // For warnings-as-errors.
-                break;
-        }
-    }
-
     if (mDisableExtensions) {
         return false;
     }
@@ -1031,6 +1018,8 @@ bool WebGLContext::IsExtensionSupported(JSContext *cx, WebGLExtensionID ext) con
                 return true;
             }
             return false;
+        case WEBGL_debug_renderer_info:
+            return xpc::AccessCheck::isChrome(js::GetContextCompartment(cx));
         default:
             // For warnings-as-errors.
             break;

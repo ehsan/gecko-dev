@@ -38,6 +38,28 @@ void JSD_ASSERT_VALID_EXEC_HOOK(JSDExecHook* jsdhook)
 }
 #endif
 
+#ifdef LIVEWIRE
+static JSBool
+HasFileExtention(const char* name, const char* ext)
+{
+    int i;
+    int len = strlen(ext);
+    const char* p = strrchr(name,'.');
+    if( !p )
+        return JS_FALSE;
+    p++;
+    for(i = 0; i < len; i++ )
+    {
+        JS_ASSERT(islower(ext[i]));
+        if( 0 == p[i] || tolower(p[i]) != ext[i] )
+            return JS_FALSE;
+    }
+    if( 0 != p[i] )
+        return JS_FALSE;
+    return JS_TRUE;
+}    
+#endif /* LIVEWIRE */
+
 static JSDScript*
 _newJSDScript(JSDContext*  jsdc,
               JSContext    *cx,
@@ -71,7 +93,45 @@ _newJSDScript(JSDContext*  jsdc,
     jsdscript->lineBase     = lineno;
     jsdscript->lineExtent   = (unsigned)NOT_SET_YET;
     jsdscript->data         = NULL;
+#ifndef LIVEWIRE
     jsdscript->url          = (char*) jsd_BuildNormalizedURL(raw_filename);
+#else
+    jsdscript->app = LWDBG_GetCurrentApp();    
+    if( jsdscript->app && raw_filename )
+    {
+        jsdscript->url = jsdlw_BuildAppRelativeFilename(jsdscript->app, raw_filename);
+        if( function )
+        {
+            JSString* funid = JS_GetFunctionId(function);
+            char* funbytes;
+            const char* funnanme;
+            if( fuinid )
+            {
+                funbytes = JS_EncodeString(cx, funid);
+                funname = funbytes ? funbytes : "";
+            }
+            else
+            {
+                funbytes = NULL;
+                funname = "anonymous";
+            }
+            jsdscript->lwscript = 
+                LWDBG_GetScriptOfFunction(jsdscript->app,funname);
+            JS_Free(cx, funbytes);
+    
+            /* also, make sure this file is added to filelist if is .js file */
+            if( HasFileExtention(raw_filename,"js") || 
+                HasFileExtention(raw_filename,"sjs") )
+            {
+                jsdlw_PreLoadSource(jsdc, jsdscript->app, raw_filename, JS_FALSE);
+            }
+        }
+        else
+        {
+            jsdscript->lwscript = LWDBG_GetCurrentTopLevelScript();
+        }
+    }
+#endif
 
     JS_INIT_CLIST(&jsdscript->hooks);
     
@@ -453,6 +513,15 @@ jsd_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, unsigned line)
 
     if( !jsdscript )
         return 0;
+#ifdef LIVEWIRE
+    if( jsdscript->lwscript )
+    {
+        unsigned newline;
+        jsdlw_RawToProcessedLineNumber(jsdc, jsdscript, line, &newline);
+        if( line != newline )
+            line = newline;
+    }
+#endif
 
     AutoSafeJSContext cx;
     JSAutoCompartment ac(cx, jsdscript->script);
@@ -477,6 +546,15 @@ jsd_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, uintptr_t pc)
         return first;
     if( line > last )
         return last;
+
+#ifdef LIVEWIRE
+    if( jsdscript && jsdscript->lwscript )
+    {
+        unsigned newline;
+        jsdlw_ProcessedToRawLineNumber(jsdc, jsdscript, line, &newline);
+        line = newline;
+    }
+#endif
 
     return line;    
 }
@@ -708,6 +786,7 @@ jsd_TrapHandler(JSContext *cx, JSScript *script_, jsbytecode *pc, jsval *rval,
     JSD_ExecutionHookProc hook;
     void* hookData;
     JSDContext*  jsdc;
+    JSDScript* jsdscript;
 
     JSD_LOCK();
 
@@ -725,6 +804,7 @@ jsd_TrapHandler(JSContext *cx, JSScript *script_, jsbytecode *pc, jsval *rval,
 
     hook = jsdhook->hook;
     hookData = jsdhook->callerdata;
+    jsdscript = jsdhook->jsdscript;
 
     /* do not use jsdhook-> after this point */
     JSD_UNLOCK();
@@ -734,6 +814,11 @@ jsd_TrapHandler(JSContext *cx, JSScript *script_, jsbytecode *pc, jsval *rval,
 
     if( JSD_IS_DANGEROUS_THREAD(jsdc) )
         return JSTRAP_CONTINUE;
+
+#ifdef LIVEWIRE
+    if( ! jsdlw_UserCodeAtPC(jsdc, jsdscript, (uintptr_t)pc) )
+        return JSTRAP_CONTINUE;
+#endif
 
     return jsd_CallExecutionHook(jsdc, cx, JSD_HOOK_BREAKPOINT,
                                  hook, hookData, rval);

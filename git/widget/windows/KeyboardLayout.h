@@ -394,9 +394,8 @@ private:
 
   /*
    * Dispatches a plugin event after the specified message is removed.
-   * Returns true if the widget is destoyed.  Otherwise, false.
    */
-  bool RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg) const;
+  void RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg) const;
 
   bool IsKeyDownMessage() const
   {

@@ -180,9 +180,6 @@ public:
     virtual mozilla::RefPtr<mozilla::gfx::DrawTarget>
       CreateDrawTargetForSurface(gfxASurface *aSurface, const mozilla::gfx::IntSize& aSize);
 
-    virtual mozilla::RefPtr<mozilla::gfx::DrawTarget>
-      CreateDrawTargetForUpdateSurface(gfxASurface *aSurface, const mozilla::gfx::IntSize& aSize);
-
     /*
      * Creates a SourceSurface for a gfxASurface. This function does no caching,
      * so the caller should cache the gfxASurface if it will be used frequently.
@@ -467,7 +464,6 @@ public:
     static bool GetPrefLayersAccelerationDisabled();
     static bool GetPrefLayersPreferOpenGL();
     static bool GetPrefLayersPreferD3D9();
-    static int  GetPrefLayoutFrameRate();
 
     /**
      * Are we going to try color management?

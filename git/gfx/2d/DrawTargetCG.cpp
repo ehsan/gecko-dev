@@ -1030,23 +1030,13 @@ DrawTargetCG::Init(CGContextRef cgContext, const IntSize &aSize)
   mData = nullptr;
 
   assert(mCg);
+  // CGContext's default to have the origin at the bottom left
+  // so flip it to the top left
+  CGContextTranslateCTM(mCg, 0, mSize.height);
+  CGContextScaleCTM(mCg, 1, -1);
 
-  // CGContext's default to have the origin at the bottom left.
-  // However, currently the only use of this function is to construct a
-  // DrawTargetCG around a CGContextRef from a cairo quartz surface which
-  // already has it's origin adjusted.
-  //
-  // CGContextTranslateCTM(mCg, 0, mSize.height);
-  // CGContextScaleCTM(mCg, 1, -1);
-
+  //XXX: set correct format
   mFormat = FORMAT_B8G8R8A8;
-  if (GetContextType(mCg) == CG_CONTEXT_TYPE_BITMAP) {
-    CGColorSpaceRef colorspace;
-    colorspace = CGBitmapContextGetColorSpace (mCg);
-    if (CGColorSpaceGetNumberOfComponents(colorspace) == 1) {
-        mFormat = FORMAT_A8;
-    }
-  }
 
   return true;
 }
@@ -1176,33 +1166,6 @@ DrawTargetCG::MarkChanged()
   }
 }
 
-CGContextRef
-BorrowedCGContext::BorrowCGContextFromDrawTarget(DrawTarget *aDT)
-{
-  if (aDT->GetType() == BACKEND_COREGRAPHICS || aDT->GetType() == BACKEND_COREGRAPHICS_ACCELERATED) {
-    DrawTargetCG* cgDT = static_cast<DrawTargetCG*>(aDT);
-    cgDT->MarkChanged();
-
-    // swap out the context
-    CGContextRef cg = cgDT->mCg;
-    cgDT->mCg = nullptr;
-
-    // save the state to make it easier for callers to avoid mucking with things
-    CGContextSaveGState(cg);
-
-    return cg;
-  }
-  return nullptr;
-}
-
-void
-BorrowedCGContext::ReturnCGContextToDrawTarget(DrawTarget *aDT, CGContextRef cg)
-{
-  DrawTargetCG* cgDT = static_cast<DrawTargetCG*>(aDT);
-
-  CGContextRestoreGState(cg);
-  cgDT->mCg = cg;
-}
 
 
 }

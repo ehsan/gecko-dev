@@ -99,16 +99,15 @@ abstract public class BrowserApp extends GeckoApp
     private AboutHome mAboutHome;
     protected Telemetry.Timer mAboutHomeStartupTimer = null;
 
-    private static final int GECKO_TOOLS_MENU = -1;
     private static final int ADDON_MENU_OFFSET = 1000;
     private class MenuItemInfo {
         public int id;
         public String label;
         public String icon;
-        public boolean checkable = false;
-        public boolean checked = false;
-        public boolean enabled = true;
-        public boolean visible = true;
+        public boolean checkable;
+        public boolean checked;
+        public boolean enabled;
+        public boolean visible;
         public int parent;
     }
 
@@ -986,13 +985,21 @@ abstract public class BrowserApp extends GeckoApp
                 MenuItemInfo info = new MenuItemInfo();
                 info.label = message.getString("name");
                 info.id = message.getInt("id") + ADDON_MENU_OFFSET;
-                info.icon = message.optString("icon", null);
-                info.checked = message.optBoolean("checked", false);
-                info.enabled = message.optBoolean("enabled", true);
-                info.visible = message.optBoolean("visible", true);
-                info.checkable = message.optBoolean("checkable", false);
-                int parent = message.optInt("parent", 0);
-                info.parent = parent <= 0 ? parent : parent + ADDON_MENU_OFFSET;
+                info.checkable = false;
+                info.checked = false;
+                info.enabled = true;
+                info.visible = true;
+                String iconRes = null;
+                try { // icon is optional
+                    iconRes = message.getString("icon");
+                } catch (Exception ex) { }
+                info.icon = iconRes;
+                try {
+                    info.checkable = message.getBoolean("checkable");
+                } catch (Exception ex) { }
+                try { // parent is optional
+                    info.parent = message.getInt("parent") + ADDON_MENU_OFFSET;
+                } catch (Exception ex) { }
                 final MenuItemInfo menuItemInfo = info;
                 ThreadUtils.postToUiThread(new Runnable() {
                     @Override
@@ -1242,7 +1249,6 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        mToast.onSaveInstanceState(outState);
         outState.putBoolean(STATE_DYNAMIC_TOOLBAR_ENABLED, mDynamicToolbarEnabled);
         outState.putInt(STATE_ABOUT_HOME_TOP_PADDING, mAboutHome.getTopPadding());
     }
@@ -1386,26 +1392,6 @@ abstract public class BrowserApp extends GeckoApp
         }
     }
 
-    private Menu findParentMenu(Menu menu, MenuItem item) {
-        final int itemId = item.getItemId();
-
-        final int count = (menu != null) ? menu.size() : 0;
-        for (int i = 0; i < count; i++) {
-            MenuItem menuItem = menu.getItem(i);
-            if (menuItem.getItemId() == itemId) {
-                return menu;
-            }
-            if (menuItem.hasSubMenu()) {
-                Menu parent = findParentMenu(menuItem.getSubMenu(), item);
-                if (parent != null) {
-                    return parent;
-                }
-            }
-        }
-
-        return null;
-    }
-
     private void addAddonMenuItem(final MenuItemInfo info) {
         if (mMenu == null) {
             if (mAddonMenuItemsCache == null)
@@ -1418,19 +1404,14 @@ abstract public class BrowserApp extends GeckoApp
         Menu menu;
         if (info.parent == 0) {
             menu = mMenu;
-        } else if (info.parent == GECKO_TOOLS_MENU) {
-            MenuItem tools = mMenu.findItem(R.id.tools);
-            menu = tools != null ? tools.getSubMenu() : mMenu;
         } else {
             MenuItem parent = mMenu.findItem(info.parent);
             if (parent == null)
                 return;
 
-            Menu parentMenu = findParentMenu(mMenu, parent);
-
             if (!parent.hasSubMenu()) {
-                parentMenu.removeItem(parent.getItemId());
-                menu = parentMenu.addSubMenu(Menu.NONE, parent.getItemId(), Menu.NONE, parent.getTitle());
+                mMenu.removeItem(parent.getItemId());
+                menu = mMenu.addSubMenu(Menu.NONE, parent.getItemId(), Menu.NONE, parent.getTitle());
                 if (parent.getIcon() != null)
                     ((SubMenu) menu).getItem().setIcon(parent.getIcon());
             } else {
@@ -1508,10 +1489,21 @@ abstract public class BrowserApp extends GeckoApp
         if (mAddonMenuItemsCache != null && !mAddonMenuItemsCache.isEmpty()) {
             for (MenuItemInfo item : mAddonMenuItemsCache) {
                  if (item.id == id) {
-                     item.checkable = options.optBoolean("checkable", item.checkable);
-                     item.checked = options.optBoolean("checked", item.checked);
-                     item.enabled = options.optBoolean("enabled", item.enabled);
-                     item.visible = options.optBoolean("visible", item.visible);
+                     try {
+                        item.checkable = options.getBoolean("checkable");
+                     } catch (JSONException e) {}
+
+                     try {
+                        item.checked = options.getBoolean("checked");
+                     } catch (JSONException e) {}
+
+                     try {
+                        item.enabled = options.getBoolean("enabled");
+                     } catch (JSONException e) {}
+
+                     try {
+                        item.visible = options.getBoolean("visible");
+                     } catch (JSONException e) {}
                      break;
                  }
             }
@@ -1522,10 +1514,21 @@ abstract public class BrowserApp extends GeckoApp
 
         MenuItem menuItem = mMenu.findItem(id);
         if (menuItem != null) {
-            menuItem.setCheckable(options.optBoolean("checkable", menuItem.isCheckable()));
-            menuItem.setChecked(options.optBoolean("checked", menuItem.isChecked()));
-            menuItem.setEnabled(options.optBoolean("enabled", menuItem.isEnabled()));
-            menuItem.setVisible(options.optBoolean("visible", menuItem.isVisible()));
+            try {
+               menuItem.setCheckable(options.getBoolean("checkable"));
+            } catch (JSONException e) {}
+
+            try {
+               menuItem.setChecked(options.getBoolean("checked"));
+            } catch (JSONException e) {}
+
+            try {
+               menuItem.setEnabled(options.getBoolean("enabled"));
+            } catch (JSONException e) {}
+
+            try {
+               menuItem.setVisible(options.getBoolean("visible"));
+            } catch (JSONException e) {}
         }
     }
 

@@ -363,15 +363,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   },
 
   /**
-   * Copy the request url from the currently selected item.
-   */
-  copyUrl: function() {
-    let selected = this.selectedItem.attachment;
-
-    clipboardHelper.copyString(selected.url, this.document);
-  },
-
-  /**
    * Send a new HTTP request using the data in the custom request form.
    */
   sendCustomRequest: function() {
@@ -1171,11 +1162,8 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * Handle the context menu opening. Hide items if no request is selected.
    */
   _onContextShowing: function() {
-    let resendElement = $("#request-menu-context-resend");
-    resendElement.hidden = !this.selectedItem || this.selectedItem.attachment.isCustom;
-
-    let copyUrlElement = $("#request-menu-context-copy-url");
-    copyUrlElement.hidden = !this.selectedItem;
+    let element = $("#request-menu-context-resend");
+    element.hidden = !this.selectedItem || this.selectedItem.attachment.isCustom;
   },
 
   /**

@@ -9,8 +9,6 @@
 
 #include "jsapi.h"
 
-#include "vm/Runtime.h"
-
 namespace js {
 namespace gc {
 
