@@ -1,0 +1,4 @@
+changeset 048ac1585bb6076bf5423db128a27630ecf09dfc
+manifest fe55cfecf30e8082ba8375d397c0c253364b89a2
+extra rebase_source:6e656d3c3071d2aecccf87500deacc896734eba4
+files accessible/xpcom/xpcAccessibleDocument.cpp
