@@ -205,29 +205,23 @@ class Assembler : public BaseAssembler
         storePtr(imm, valueOf(address));
     }
 
-    void storeValue(const Value &v, Address address) {
-        jsval_layout jv;
-        jv.asBits = JSVAL_BITS(Jsvalify(v));
-
-        storePtr(Imm64(jv.asBits), valueOf(address));
-    }
-
-    void storeValue(const Value &v, BaseIndex address) {
-        jsval_layout jv;
-        jv.asBits = JSVAL_BITS(Jsvalify(v));
-
-        storePtr(Imm64(jv.asBits), valueOf(address));        
-    }
-
     /*
      * Only does one store. Returns label after store.
      * This is useless, but matches NunboxAssembler's interface.
      */
-    Label storeValueForIC(const Value &v, Address address) {
+    Label storeValue(const Value &v, Address address) {
         jsval_layout jv;
         jv.asBits = JSVAL_BITS(Jsvalify(v));
 
         storePtr(Imm64(jv.asBits), valueOf(address));
+        return label();
+    }
+
+    Label storeValue(const Value &v, BaseIndex address) {
+        jsval_layout jv;
+        jv.asBits = JSVAL_BITS(Jsvalify(v));
+
+        storePtr(Imm64(jv.asBits), valueOf(address));        
         return label();
     }
 
