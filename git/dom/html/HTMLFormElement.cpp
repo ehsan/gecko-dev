@@ -2196,10 +2196,13 @@ HTMLFormElement::GetRequiredRadioCount(const nsAString& aName) const
 }
 
 void
-HTMLFormElement::RadioRequiredWillChange(const nsAString& aName,
-                                         bool aRequiredAdded)
+HTMLFormElement::RadioRequiredChanged(const nsAString& aName,
+                                      nsIFormControl* aRadio)
 {
-  if (aRequiredAdded) {
+  nsCOMPtr<nsIContent> element = do_QueryInterface(aRadio);
+  NS_ASSERTION(element, "radio controls have to be content elements!");
+
+  if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
     mRequiredRadioButtonCounts.Put(aName,
                                    mRequiredRadioButtonCounts.Get(aName)+1);
   } else {

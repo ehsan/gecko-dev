@@ -73,7 +73,6 @@ class nsIInterfaceRequestor;
 class nsIIOService;
 class nsIJSRuntimeService;
 class nsILineBreaker;
-class nsIMessageBroadcaster;
 class nsNameSpaceManager;
 class nsIObserver;
 class nsIParser;
@@ -122,7 +121,6 @@ class Element;
 class EventTarget;
 class NodeInfo;
 class Selection;
-class TabParent;
 } // namespace dom
 
 namespace layers {
@@ -169,9 +167,6 @@ struct nsShortcutCandidate {
   uint32_t mCharCode;
   bool     mIgnoreShift;
 };
-
-typedef void (*CallOnRemoteChildFunction) (mozilla::dom::TabParent* aTabParent,
-                                           void* aArg);
 
 class nsContentUtils
 {
@@ -2216,14 +2211,6 @@ public:
    */
   static void GetHostOrIPv6WithBrackets(nsIURI* aURI, nsAString& aHost);
 
-  /*
-   * Call the given callback on all remote children of the given top-level
-   * window.
-   */
-  static void CallOnAllRemoteChildren(nsIDOMWindow* aWindow,
-                                      CallOnRemoteChildFunction aCallback,
-                                      void* aArg);
-
 private:
   static bool InitializeEventTable();
 
@@ -2258,10 +2245,6 @@ private:
   // Fills in aInfo with the tokens from the supplied autocomplete attribute.
   static AutocompleteAttrState InternalSerializeAutocompleteAttribute(const nsAttrValue* aAttrVal,
                                                                       mozilla::dom::AutocompleteInfo& aInfo);
-
-  static void CallOnAllRemoteChildren(nsIMessageBroadcaster* aManager,
-                                      CallOnRemoteChildFunction aCallback,
-                                      void* aArg);
 
   static nsIXPConnect *sXPConnect;
 

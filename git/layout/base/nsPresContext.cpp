@@ -1752,12 +1752,6 @@ nsPresContext::UIResolutionChangedSubdocumentCallback(nsIDocument* aDocument,
   return true;
 }
 
-static void
-NotifyUIResolutionChanged(TabParent* aTabParent, void* aArg)
-{
-  aTabParent->UIResolutionChanged();
-}
-
 void
 nsPresContext::UIResolutionChangedInternal()
 {
@@ -1768,13 +1762,50 @@ nsPresContext::UIResolutionChangedInternal()
     AppUnitsPerDevPixelChanged();
   }
 
-  // Recursively notify all remote leaf descendants that the
-  // resolution of the user interface has changed.
-  nsContentUtils::CallOnAllRemoteChildren(mDocument->GetWindow(),
-                                          NotifyUIResolutionChanged, nullptr);
+  nsCOMPtr<nsIDOMChromeWindow> chromeWindow(do_QueryInterface(mDocument->GetWindow()));
+  nsCOMPtr<nsIMessageBroadcaster> windowMM;
+  if (chromeWindow) {
+    chromeWindow->GetMessageManager(getter_AddRefs(windowMM));
+  }
+  if (windowMM) {
+    NotifyUIResolutionChanged(windowMM);
+  }
 
   mDocument->EnumerateSubDocuments(UIResolutionChangedSubdocumentCallback,
                                    nullptr);
+}
+
+void
+nsPresContext::NotifyUIResolutionChanged(nsIMessageBroadcaster* aManager)
+{
+  uint32_t tabChildCount = 0;
+  aManager->GetChildCount(&tabChildCount);
+  for (uint32_t j = 0; j < tabChildCount; ++j) {
+    nsCOMPtr<nsIMessageListenerManager> childMM;
+    aManager->GetChildAt(j, getter_AddRefs(childMM));
+    if (!childMM) {
+      continue;
+    }
+
+    nsCOMPtr<nsIMessageBroadcaster> nonLeafMM = do_QueryInterface(childMM);
+    if (nonLeafMM) {
+      NotifyUIResolutionChanged(nonLeafMM);
+      continue;
+    }
+
+    nsCOMPtr<nsIMessageSender> tabMM = do_QueryInterface(childMM);
+
+    mozilla::dom::ipc::MessageManagerCallback* cb =
+     static_cast<nsFrameMessageManager*>(tabMM.get())->GetCallback();
+    if (cb) {
+      nsFrameLoader* fl = static_cast<nsFrameLoader*>(cb);
+      PBrowserParent* remoteBrowser = fl->GetRemoteBrowser();
+      TabParent* remote = static_cast<TabParent*>(remoteBrowser);
+      if (remote) {
+        remote->UIResolutionChanged();
+      }
+    }
+  }
 }
 
 void
