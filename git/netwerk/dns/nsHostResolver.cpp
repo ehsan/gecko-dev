@@ -875,8 +875,8 @@ nsHostResolver::ConditionallyCreateThread(nsHostRecord *rec)
 #include "nsIUUIDGenerator.h"
 #include "nsServiceManagerUtils.h"
 #include "prlink.h"
-#include "windns.h"
-#include "windows.h"
+#include "Windns.h"
+#include "Windows.h"
 
 typedef DNS_STATUS (__stdcall * DnsQueryFunc) (PCTSTR lpstrName, WORD wType,
                                                DWORD Options, PVOID pExtra,

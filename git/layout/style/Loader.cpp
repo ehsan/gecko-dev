@@ -449,8 +449,7 @@ SheetLoadData::OnProcessNextEvent(nsIThreadInternal* aThread,
 
 NS_IMETHODIMP
 SheetLoadData::AfterProcessNextEvent(nsIThreadInternal* aThread,
-                                     uint32_t aRecursionDepth,
-                                     bool aEventWasProcessed)
+                                     uint32_t aRecursionDepth)
 {
   // We want to fire our load even before or after event processing,
   // whichever comes first.

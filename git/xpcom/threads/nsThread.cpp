@@ -4,17 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsThread.h"
-
-#include "base/message_loop.h"
-
-// Chromium's logging can sometimes leak through...
-#ifdef LOG
-#undef LOG
-#endif
-
 #include "mozilla/ReentrantMonitor.h"
 #include "nsMemoryPressure.h"
+#include "nsThread.h"
 #include "nsThreadManager.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
@@ -222,7 +214,6 @@ public:
   } 
   NS_IMETHOD Run() {
     mThread->mShutdownContext = mShutdownContext;
-    MessageLoop::current()->Quit();
     return NS_OK;
   }
 private:
@@ -250,32 +241,28 @@ nsThread::ThreadFunc(void *arg)
   event->Run();  // unblocks nsThread::Init
   event = nullptr;
 
-  { // Scope for MessageLoop.
-    nsAutoPtr<MessageLoop> loop(
-      new MessageLoop(MessageLoop::TYPE_MOZILLA_NONMAINTHREAD));
+  // Now, process incoming events...
+  while (!self->ShuttingDown())
+    NS_ProcessNextEvent(self);
 
-    // Now, process incoming events...
-    loop->Run();
-
-    // Do NS_ProcessPendingEvents but with special handling to set
-    // mEventsAreDoomed atomically with the removal of the last event. The key
-    // invariant here is that we will never permit PutEvent to succeed if the
-    // event would be left in the queue after our final call to
-    // NS_ProcessPendingEvents.
-    while (true) {
-      {
-        MutexAutoLock lock(self->mLock);
-        if (!self->mEvents->HasPendingEvent()) {
-          // No events in the queue, so we will stop now. Don't let any more
-          // events be added, since they won't be processed. It is critical
-          // that no PutEvent can occur between testing that the event queue is
-          // empty and setting mEventsAreDoomed!
-          self->mEventsAreDoomed = true;
-          break;
-        }
+  // Do NS_ProcessPendingEvents but with special handling to set
+  // mEventsAreDoomed atomically with the removal of the last event. The key
+  // invariant here is that we will never permit PutEvent to succeed if the
+  // event would be left in the queue after our final call to
+  // NS_ProcessPendingEvents.
+  while (true) {
+    {
+      MutexAutoLock lock(self->mLock);
+      if (!self->mEvents.HasPendingEvent()) {
+        // No events in the queue, so we will stop now. Don't let any more
+        // events be added, since they won't be processed. It is critical
+        // that no PutEvent can occur between testing that the event queue is
+        // empty and setting mEventsAreDoomed!
+        self->mEventsAreDoomed = true;
+        break;
       }
-      NS_ProcessPendingEvents(self);
     }
+    NS_ProcessPendingEvents(self);
   }
 
   // Inform the threadmanager that this thread is going away
@@ -299,7 +286,6 @@ int sCanaryOutputFD = -1;
 
 nsThread::nsThread(MainThreadFlag aMainThread, uint32_t aStackSize)
   : mLock("nsThread.mLock")
-  , mEvents(&mEventsRoot)
   , mPriority(PRIORITY_NORMAL)
   , mThread(nullptr)
   , mRunningEvent(0)
@@ -339,7 +325,7 @@ nsThread::Init()
   // that mThread is set properly.
   {
     MutexAutoLock lock(mLock);
-    mEventsRoot.PutEvent(startup);
+    mEvents.PutEvent(startup);
   }
 
   // Wait for thread to call ThreadManager::SetupCurrentThread, which completes
@@ -358,16 +344,15 @@ nsThread::InitCurrentThread()
 }
 
 nsresult
-nsThread::PutEvent(nsIRunnable *event, nsNestedEventTarget *target)
+nsThread::PutEvent(nsIRunnable *event)
 {
   {
     MutexAutoLock lock(mLock);
-    nsChainedEventQueue *queue = target ? target->mQueue : &mEventsRoot;
-    if (!queue || (queue == &mEventsRoot && mEventsAreDoomed)) {
+    if (mEventsAreDoomed) {
       NS_WARNING("An event was posted to a thread that will never run it (rejected)");
       return NS_ERROR_UNEXPECTED;
     }
-    if (!queue->PutEvent(event))
+    if (!mEvents.PutEvent(event))
       return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -378,14 +363,18 @@ nsThread::PutEvent(nsIRunnable *event, nsNestedEventTarget *target)
   return NS_OK;
 }
 
-nsresult
-nsThread::DispatchInternal(nsIRunnable *event, uint32_t flags,
-                           nsNestedEventTarget *target)
+//-----------------------------------------------------------------------------
+// nsIEventTarget
+
+NS_IMETHODIMP
+nsThread::Dispatch(nsIRunnable *event, uint32_t flags)
 {
+  LOG(("THRD(%p) Dispatch [%p %x]\n", this, event, flags));
+
   if (NS_WARN_IF(!event))
     return NS_ERROR_INVALID_ARG;
 
-  if (gXPCOMThreadsShutDown && MAIN_THREAD != mIsMainThread && !target) {
+  if (gXPCOMThreadsShutDown && MAIN_THREAD != mIsMainThread) {
     return NS_ERROR_ILLEGAL_DURING_SHUTDOWN;
   }
 
@@ -402,7 +391,7 @@ nsThread::DispatchInternal(nsIRunnable *event, uint32_t flags,
         new nsThreadSyncDispatch(thread, event);
     if (!wrapper)
       return NS_ERROR_OUT_OF_MEMORY;
-    nsresult rv = PutEvent(wrapper, target);
+    nsresult rv = PutEvent(wrapper);
     // Don't wait for the event to finish if we didn't dispatch it...
     if (NS_FAILED(rv))
       return rv;
@@ -413,18 +402,7 @@ nsThread::DispatchInternal(nsIRunnable *event, uint32_t flags,
   }
 
   NS_ASSERTION(flags == NS_DISPATCH_NORMAL, "unexpected dispatch flags");
-  return PutEvent(event, target);
-}
-
-//-----------------------------------------------------------------------------
-// nsIEventTarget
-
-NS_IMETHODIMP
-nsThread::Dispatch(nsIRunnable *event, uint32_t flags)
-{
-  LOG(("THRD(%p) Dispatch [%p %x]\n", this, event, flags));
-
-  return DispatchInternal(event, flags, nullptr);
+  return PutEvent(event);
 }
 
 NS_IMETHODIMP
@@ -476,7 +454,7 @@ nsThread::Shutdown()
   if (!event)
     return NS_ERROR_OUT_OF_MEMORY;
   // XXXroc What if posting the event fails due to OOM?
-  PutEvent(event, nullptr);
+  PutEvent(event);
 
   // We could still end up with other events being added after the shutdown
   // task, but that's okay because we process pending events in ThreadFunc
@@ -512,7 +490,7 @@ nsThread::HasPendingEvents(bool *result)
   if (NS_WARN_IF(PR_GetCurrentThread() != mThread))
     return NS_ERROR_NOT_SAME_THREAD;
 
-  *result = mEvents->GetEvent(false, nullptr);
+  *result = mEvents.GetEvent(false, nullptr);
   return NS_OK;
 }
 
@@ -623,7 +601,7 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
 
     // If we are shutting down, then do not wait for new events.
     nsCOMPtr<nsIRunnable> event;
-    mEvents->GetEvent(mayWait && !ShuttingDown(), getter_AddRefs(event));
+    mEvents.GetEvent(mayWait && !ShuttingDown(), getter_AddRefs(event));
 
     *result = (event.get() != nullptr);
 
@@ -641,14 +619,13 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
 
   --mRunningEvent;
 
-  NOTIFY_EVENT_OBSERVERS(AfterProcessNextEvent,
-                         (this, mRunningEvent, *result));
+  NOTIFY_EVENT_OBSERVERS(AfterProcessNextEvent, (this, mRunningEvent));
 
   if (obs)
-    obs->AfterProcessNextEvent(this, mRunningEvent, *result);
+    obs->AfterProcessNextEvent(this, mRunningEvent);
 
   if (notifyMainThreadObserver && sMainThreadObserver)
-    sMainThreadObserver->AfterProcessNextEvent(this, mRunningEvent, *result);
+    sMainThreadObserver->AfterProcessNextEvent(this, mRunningEvent);
 
   return rv;
 }
@@ -763,62 +740,6 @@ nsThread::RemoveObserver(nsIThreadObserver *observer)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsThread::PushEventQueue(nsIEventTarget **result)
-{
-  if (NS_WARN_IF(PR_GetCurrentThread() != mThread))
-    return NS_ERROR_NOT_SAME_THREAD;
-
-  nsChainedEventQueue *queue = new nsChainedEventQueue();
-  queue->mEventTarget = new nsNestedEventTarget(this, queue);
-
-  {
-    MutexAutoLock lock(mLock);
-    queue->mNext = mEvents;
-    mEvents = queue;
-  }
-
-  NS_ADDREF(*result = queue->mEventTarget);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThread::PopEventQueue(nsIEventTarget *innermostTarget)
-{
-  if (NS_WARN_IF(PR_GetCurrentThread() != mThread))
-    return NS_ERROR_NOT_SAME_THREAD;
-
-  if (NS_WARN_IF(!innermostTarget))
-    return NS_ERROR_NULL_POINTER;
-
-  // Don't delete or release anything while holding the lock.
-  nsAutoPtr<nsChainedEventQueue> queue;
-  nsRefPtr<nsNestedEventTarget> target;
-
-  {
-    MutexAutoLock lock(mLock);
-
-    // Make sure we're popping the innermost event target.
-    if (NS_WARN_IF(mEvents->mEventTarget != innermostTarget))
-      return NS_ERROR_UNEXPECTED;
-
-    MOZ_ASSERT(mEvents != &mEventsRoot);
-
-    queue = mEvents;
-    mEvents = mEvents->mNext;
-
-    nsCOMPtr<nsIRunnable> event;
-    while (queue->GetEvent(false, getter_AddRefs(event)))
-      mEvents->PutEvent(event);
-
-    // Don't let the event target post any more events.
-    queue->mEventTarget.swap(target);
-    target->mQueue = nullptr;
-  }
-
-  return NS_OK;
-}
-
 nsresult
 nsThread::SetMainThreadObserver(nsIThreadObserver* aObserver)
 {
@@ -846,23 +767,4 @@ nsThreadSyncDispatch::Run()
     mOrigin->Dispatch(this, NS_DISPATCH_NORMAL);
   }
   return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
-
-NS_IMPL_ISUPPORTS1(nsThread::nsNestedEventTarget, nsIEventTarget)
-
-NS_IMETHODIMP
-nsThread::nsNestedEventTarget::Dispatch(nsIRunnable *event, uint32_t flags)
-{
-  LOG(("THRD(%p) Dispatch [%p %x] to nested loop %p\n", mThread.get(), event,
-       flags, this));
-
-  return mThread->DispatchInternal(event, flags, this);
-}
-
-NS_IMETHODIMP
-nsThread::nsNestedEventTarget::IsOnCurrentThread(bool *result)
-{
-  return mThread->IsOnCurrentThread(result);
 }

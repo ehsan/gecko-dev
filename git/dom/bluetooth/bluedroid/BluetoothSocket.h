@@ -66,6 +66,7 @@ public:
   }
 
   void CloseDroidSocket();
+  bool IsWaitingForClientFd();
   bool SendDroidSocketData(mozilla::ipc::UnixSocketRawData* aData);
 
 private:
