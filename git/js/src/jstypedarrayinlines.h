@@ -11,7 +11,6 @@
 #include "jsobj.h"
 #include "jstypedarray.h"
 
-#include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 
 // Sentinel value used to initialize ArrayBufferViews' NEXT_BUFFER_SLOTs to

@@ -18,13 +18,13 @@
 using namespace js;
 
 bool
-js::ObjectImpl::uninlinedIsNative() const
+js::ObjectImpl::isNativeSlow() const
 {
     return isNative();
 }
 
 uint32_t
-js::ObjectImpl::uninlinedSlotSpan() const
+js::ObjectImpl::slotSpanSlow() const
 {
     return slotSpan();
 }
@@ -922,7 +922,7 @@ TypedElementsHeader<T>::setElement(JSContext *cx, Handle<ObjectImpl*> obj,
         d = 0.0;
     } else if (v.isPrimitive()) {
         if (v.isString()) {
-            if (!StringToNumber(cx, v.toString(), &d))
+            if (!ToNumber(cx, v, &d))
                 return false;
         } else if (v.isUndefined()) {
             d = js_NaN;

@@ -47,7 +47,6 @@
 #include "jstypedarrayinlines.h"
 #include "builtin/Iterator-inl.h"
 #include "vm/ArrayObject-inl.h"
-#include "vm/ArgumentsObject-inl.h"
 #include "vm/BooleanObject-inl.h"
 #include "vm/NumberObject-inl.h"
 #include "vm/RegExpStatics-inl.h"
@@ -1054,44 +1053,18 @@ js::ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccesso
     return true;
 }
 
-bool
-js::DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
+// Duplicated in Object.cpp
+static bool
+DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
 {
     AutoIdVector ids(cx);
     AutoPropDescArrayRooter descs(cx);
     if (!ReadPropertyDescriptors(cx, props, true, &ids, &descs))
         return false;
 
-    if (obj->is<ArrayObject>()) {
-        bool dummy;
-        Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
-        for (size_t i = 0, len = ids.length(); i < len; i++) {
-            if (!DefinePropertyOnArray(cx, arr, ids.handleAt(i), descs[i], true, &dummy))
-                return false;
-        }
-        return true;
-    }
-
-    if (obj->getOps()->lookupGeneric) {
-        /*
-         * FIXME: Once ScriptedIndirectProxies are removed, this code should call
-         * TrapDefineOwnProperty directly
-         */
-        if (obj->isProxy()) {
-            for (size_t i = 0, len = ids.length(); i < len; i++) {
-                RootedValue pd(cx, descs[i].pd());
-                if (!Proxy::defineProperty(cx, obj, ids.handleAt(i), pd))
-                    return false;
-            }
-            return true;
-        }
-        bool dummy;
-        return Reject(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE, true, &dummy);
-    }
-
     bool dummy;
     for (size_t i = 0, len = ids.length(); i < len; i++) {
-        if (!DefinePropertyOnObject(cx, obj, ids.handleAt(i), descs[i], true, &dummy))
+        if (!DefineProperty(cx, obj, ids.handleAt(i), descs[i], true, &dummy))
             return false;
     }
 
@@ -1102,18 +1075,6 @@ extern JSBool
 js_PopulateObject(JSContext *cx, HandleObject newborn, HandleObject props)
 {
     return DefineProperties(cx, newborn, props);
-}
-
-js::types::TypeObject*
-JSObject::uninlinedGetType(JSContext *cx)
-{
-    return getType(cx);
-}
-
-void
-JSObject::uninlinedSetType(js::types::TypeObject *newType)
-{
-    setType(newType);
 }
 
 /* static */ inline unsigned
@@ -1581,7 +1542,7 @@ JSObject *
 js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject *proto,
                                   NewObjectKind newKind /* = GenericObject */)
 {
-    RootedObject res(cx);
+    JSObject *res;
 
     if (proto) {
         RootedTypeObject type(cx, proto->getNewType(cx, &ObjectClass, &callee->as<JSFunction>()));
@@ -5168,7 +5129,7 @@ DumpProperty(JSObject *obj, Shape &shape)
 }
 
 bool
-JSObject::uninlinedIsProxy() const
+JSObject::isProxySlow() const
 {
     return isProxy();
 }

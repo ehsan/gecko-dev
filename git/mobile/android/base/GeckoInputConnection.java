@@ -125,22 +125,6 @@ class GeckoInputConnection
             }
         }
 
-        public void sendEventFromUiThread(final Handler uiHandler,
-                                          final GeckoEditableClient client,
-                                          final GeckoEvent event) {
-            final Handler icHandler = client.getInputConnectionHandler();
-            if (icHandler.getLooper() == uiHandler.getLooper()) {
-                // IC thread is UI thread; safe to send event directly
-                client.sendEvent(event);
-                return;
-            }
-            runOnIcThread(icHandler, new Runnable() {
-                @Override public void run() {
-                    client.sendEvent(event);
-                }
-            });
-        }
-
         public Editable getEditableForUiThread(final Handler uiHandler,
                                                final GeckoEditableClient client) {
             if (DEBUG) {
@@ -798,8 +782,7 @@ class GeckoInputConnection
 
         View view = getView();
         if (view == null) {
-            InputThreadUtils.sInstance.sendEventFromUiThread(ThreadUtils.getUiHandler(),
-                mEditableClient, GeckoEvent.createKeyEvent(event, 0));
+            mEditableClient.sendEvent(GeckoEvent.createKeyEvent(event, 0));
             return true;
         }
 
@@ -816,7 +799,7 @@ class GeckoInputConnection
         if (skip ||
             (down && !keyListener.onKeyDown(view, uiEditable, keyCode, event)) ||
             (!down && !keyListener.onKeyUp(view, uiEditable, keyCode, event))) {
-            InputThreadUtils.sInstance.sendEventFromUiThread(uiHandler, mEditableClient,
+            mEditableClient.sendEvent(
                 GeckoEvent.createKeyEvent(event, TextKeyListener.getMetaState(uiEditable)));
             if (skip && down) {
                 // Usually, the down key listener call above adjusts meta states for us.

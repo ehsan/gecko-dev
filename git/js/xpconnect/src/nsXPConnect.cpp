@@ -1619,7 +1619,7 @@ nsXPConnect::ReadFunction(nsIObjectInputStream *stream, JSContext *cx, JSObject 
 }
 
 /* These are here to be callable from a debugger */
-extern "C" {
+JS_BEGIN_EXTERN_C
 JS_EXPORT_API(void) DumpJSStack()
 {
     nsresult rv;
@@ -1668,4 +1668,5 @@ JS_EXPORT_API(void) DumpCompleteHeap()
     nsJSContext::CycleCollectNow(alltracesListener);
 }
 
-} // extern "C"
+JS_END_EXTERN_C
+

@@ -233,37 +233,29 @@ js::GetPrefixInteger(JSContext *cx, const jschar *start, const jschar *end, int 
 static JSBool
 num_isNaN(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (args.length() == 0) {
-        args.rval().setBoolean(true);
-        return true;
+    if (argc == 0) {
+        vp->setBoolean(true);
+        return JS_TRUE;
     }
-
     double x;
-    if (!ToNumber(cx, args.handleAt(0), &x))
+    if (!ToNumber(cx, vp[2], &x))
         return false;
-
-    args.rval().setBoolean(mozilla::IsNaN(x));
-    return true;
+    vp->setBoolean(mozilla::IsNaN(x));
+    return JS_TRUE;
 }
 
 static JSBool
 num_isFinite(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (args.length() == 0) {
-        args.rval().setBoolean(false);
-        return true;
+    if (argc == 0) {
+        vp->setBoolean(false);
+        return JS_TRUE;
     }
-
     double x;
-    if (!ToNumber(cx, args.handleAt(0), &x))
-        return false;
-
-    args.rval().setBoolean(mozilla::IsFinite(x));
-    return true;
+    if (!ToNumber(cx, vp[2], &x))
+        return JS_FALSE;
+    vp->setBoolean(mozilla::IsFinite(x));
+    return JS_TRUE;
 }
 
 static JSBool
@@ -1351,8 +1343,8 @@ js::NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
     return sb.appendInflated(cstr, cstrlen);
 }
 
-bool
-js::StringToNumber(JSContext *cx, JSString *str, double *result)
+static bool
+StringToNumber(JSContext *cx, JSString *str, double *result)
 {
     size_t length = str->length();
     const jschar *chars = str->getChars(NULL);

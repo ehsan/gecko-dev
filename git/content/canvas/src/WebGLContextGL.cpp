@@ -665,18 +665,6 @@ WebGLContext::Clear(WebGLbitfield mask)
     mShouldPresent = true;
 }
 
-static WebGLclampf
-GLClampFloat(WebGLclampf val)
-{
-    if (val < 0.0)
-        return 0.0;
-
-    if (val > 1.0)
-        return 1.0;
-
-    return val;
-}
-
 void
 WebGLContext::ClearColor(WebGLclampf r, WebGLclampf g,
                          WebGLclampf b, WebGLclampf a)
@@ -685,10 +673,10 @@ WebGLContext::ClearColor(WebGLclampf r, WebGLclampf g,
         return;
 
     MakeContextCurrent();
-    mColorClearValue[0] = GLClampFloat(r);
-    mColorClearValue[1] = GLClampFloat(g);
-    mColorClearValue[2] = GLClampFloat(b);
-    mColorClearValue[3] = GLClampFloat(a);
+    mColorClearValue[0] = r;
+    mColorClearValue[1] = g;
+    mColorClearValue[2] = b;
+    mColorClearValue[3] = a;
     gl->fClearColor(r, g, b, a);
 }
 
@@ -699,7 +687,7 @@ WebGLContext::ClearDepth(WebGLclampf v)
         return;
 
     MakeContextCurrent();
-    mDepthClearValue = GLClampFloat(v);
+    mDepthClearValue = v;
     gl->fClearDepth(v);
 }
 

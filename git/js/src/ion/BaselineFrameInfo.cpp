@@ -11,8 +11,6 @@
 #include "jsanalyze.h"
 #include "jsinferinlines.h"
 
-#include "vm/Shape-inl.h"
-
 using namespace js;
 using namespace js::ion;
 

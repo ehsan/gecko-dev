@@ -9,7 +9,7 @@
 
 #include "jsobj.h"
 
-struct JSExnPrivate;
+class JSExnPrivate;
 
 namespace js {
 

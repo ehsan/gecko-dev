@@ -15,15 +15,12 @@
 #include "vm/DateObject.h"
 #include "vm/NumberObject.h"
 #include "vm/Probes.h"
-#include "vm/ScopeObject.h"
 #include "vm/StringObject.h"
 
 #include "jsatominlines.h"
-#include "jscompartmentinlines.h"
-#include "jsinferinlines.h"
+#include "jsfuninlines.h"
 
 #include "vm/ObjectImpl-inl.h"
-#include "vm/Shape-inl.h"
 
 /* static */ inline JSBool
 JSObject::setGenericAttributes(JSContext *cx, js::HandleObject obj,

@@ -130,7 +130,7 @@ public class GeckoPreferences
             if (!onIsMultiPane()) {
                 fragmentArgs.putString(INTENT_EXTRA_RESOURCES, "preferences");
             } else {
-                fragmentArgs.putString(INTENT_EXTRA_RESOURCES, "preferences_customize_tablet");
+                fragmentArgs.putString(INTENT_EXTRA_RESOURCES, "preferences_general");
             }
         }
 

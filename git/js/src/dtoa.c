@@ -244,6 +244,10 @@ extern void *MALLOC(size_t);
 #include "math.h"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef CONST
 #ifdef KR_headers
 #define CONST /* blank */
@@ -3246,3 +3250,6 @@ dtoa
 		*rve = s;
 	return s0;
 	}
+#ifdef __cplusplus
+}
+#endif

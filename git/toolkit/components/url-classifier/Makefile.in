@@ -25,4 +25,9 @@ DISABLED_EXTRA_COMPONENTS = \
   nsURLClassifier.manifest \
   $(NULL)
 
+# Same as JS components that are run through the pre-processor.
+EXTRA_JS_MODULES = \
+  SafeBrowsing.jsm \
+  $(NULL)
+
 include $(topsrcdir)/config/rules.mk

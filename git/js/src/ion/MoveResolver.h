@@ -99,9 +99,6 @@ class MoveResolver
                 return disp_ == other.disp_;
             return true;
         }
-        bool operator !=(const MoveOperand &other) const {
-            return !operator==(other);
-        }
     };
 
     class Move

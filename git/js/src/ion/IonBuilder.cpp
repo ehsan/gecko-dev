@@ -10,7 +10,6 @@
 
 #include "builtin/Eval.h"
 #include "frontend/SourceNotes.h"
-#include "ion/BaselineFrame.h"
 #include "ion/BaselineInspector.h"
 #include "ion/Ion.h"
 #include "ion/IonAnalysis.h"
@@ -19,13 +18,11 @@
 #include "ion/Lowering.h"
 #include "ion/MIRGraph.h"
 
+#include "CompileInfo-inl.h"
+#include "ExecutionModeInlines.h"
 #include "jsanalyzeinlines.h"
 #include "jsscriptinlines.h"
 #include "jstypedarrayinlines.h"
-
-#include "ion/CompileInfo-inl.h"
-#include "ion/ExecutionModeInlines.h"
-#include "vm/ScopeObject-inl.h"
 
 #ifdef JS_THREADSAFE
 # include "prthread.h"

@@ -14,12 +14,10 @@
 #include "vm/GlobalObject.h"
 
 #include "jsobjinlines.h"
-#include "jsscriptinlines.h"
 
 #include "frontend/ParseMaps-inl.h"
 #include "frontend/Parser-inl.h"
 #include "frontend/SharedContext-inl.h"
-#include "vm/ScopeObject-inl.h"
 
 using namespace js;
 using namespace js::frontend;

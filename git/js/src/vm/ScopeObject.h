@@ -89,12 +89,7 @@ struct ScopeCoordinate
     uint16_t hops;
     uint16_t slot;
 
-    inline ScopeCoordinate(jsbytecode *pc)
-      : hops(GET_UINT16(pc)), slot(GET_UINT16(pc + 2))
-    {
-        JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
-    }
-
+    inline ScopeCoordinate(jsbytecode *pc);
     inline ScopeCoordinate() {}
 };
 

@@ -7,6 +7,8 @@
 #include "jsmath.h"
 #include "jscntxt.h"
 
+#include "jstypedarrayinlines.h"
+
 #include "AsmJS.h"
 #include "AsmJSModule.h"
 #include "frontend/BytecodeCompiler.h"
@@ -16,9 +18,6 @@
 #ifdef MOZ_VTUNE
 # include "jitprofiling.h"
 #endif
-
-#include "jsfuninlines.h"
-#include "jstypedarrayinlines.h"
 
 using namespace js;
 using namespace js::ion;

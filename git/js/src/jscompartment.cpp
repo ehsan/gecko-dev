@@ -23,7 +23,6 @@
 #include "js/RootingAPI.h"
 #include "vm/StopIterationObject.h"
 
-#include "jsfuninlines.h"
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
@@ -490,8 +489,6 @@ JSCompartment::markAllCrossCompartmentWrappers(JSTracer *trc)
 void
 JSCompartment::mark(JSTracer *trc)
 {
-    JS_ASSERT(!trc->runtime->isHeapMinorCollecting());
-
 #ifdef JS_ION
     if (ionCompartment_)
         ionCompartment_->mark(trc, this);
