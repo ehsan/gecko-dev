@@ -182,8 +182,7 @@ nsSVGFilterProperty::nsSVGFilterProperty(nsIURI *aURI,
 }
 
 nsSVGFilterFrame *
-nsSVGFilterProperty::GetFilterFrame()
-{
+nsSVGFilterProperty::GetFilterFrame() {
   return static_cast<nsSVGFilterFrame *>
     (GetReferencedFrame(nsGkAtoms::svgFilterFrame, nsnull));
 }
@@ -231,24 +230,6 @@ nsSVGFilterProperty::DoUpdate()
 }
 
 void
-nsSVGMarkerProperty::DoUpdate()
-{
-  nsSVGRenderingObserver::DoUpdate();
-  if (!mFrame)
-    return;
-
-  if (mFrame->IsFrameOfType(nsIFrame::eSVG)) {
-    nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
-    if (outerSVGFrame) {
-      // marker changes can change the covered region
-      outerSVGFrame->UpdateAndInvalidateCoveredRegion(mFrame);
-    }
-  } else {
-    InvalidateAllContinuations(mFrame);
-  }
-}
-
-void
 nsSVGPaintingProperty::DoUpdate()
 {
   nsSVGRenderingObserver::DoUpdate();
@@ -268,10 +249,6 @@ nsSVGPaintingProperty::DoUpdate()
 static nsSVGRenderingObserver *
 CreateFilterProperty(nsIURI *aURI, nsIFrame *aFrame)
 { return new nsSVGFilterProperty(aURI, aFrame); }
-
-static nsSVGRenderingObserver *
-CreateMarkerProperty(nsIURI *aURI, nsIFrame *aFrame)
-{ return new nsSVGMarkerProperty(aURI, aFrame); }
 
 static nsSVGRenderingObserver *
 CreatePaintingProperty(nsIURI *aURI, nsIFrame *aFrame)
@@ -297,13 +274,6 @@ GetEffectProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp,
   return prop;
 }
 
-nsSVGMarkerProperty *
-nsSVGEffects::GetMarkerProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp)
-{
-  return static_cast<nsSVGMarkerProperty*>(
-          GetEffectProperty(aURI, aFrame, aProp, CreateMarkerProperty));
-}
-
 nsSVGPaintingProperty *
 nsSVGEffects::GetPaintingProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp)
 {
@@ -326,8 +296,7 @@ nsSVGEffects::GetEffectProperties(nsIFrame *aFrame)
 }
 
 nsSVGClipPathFrame *
-nsSVGEffects::EffectProperties::GetClipPathFrame(PRBool *aOK)
-{
+nsSVGEffects::EffectProperties::GetClipPathFrame(PRBool *aOK) {
   if (!mClipPath)
     return nsnull;
   return static_cast<nsSVGClipPathFrame *>
@@ -335,8 +304,7 @@ nsSVGEffects::EffectProperties::GetClipPathFrame(PRBool *aOK)
 }
 
 nsSVGMaskFrame *
-nsSVGEffects::EffectProperties::GetMaskFrame(PRBool *aOK)
-{
+nsSVGEffects::EffectProperties::GetMaskFrame(PRBool *aOK) {
   if (!mMask)
     return nsnull;
   return static_cast<nsSVGMaskFrame *>
@@ -349,10 +317,6 @@ nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
   aFrame->DeleteProperty(nsGkAtoms::filter);
   aFrame->DeleteProperty(nsGkAtoms::mask);
   aFrame->DeleteProperty(nsGkAtoms::clipPath);
-
-  aFrame->DeleteProperty(nsGkAtoms::marker_start);
-  aFrame->DeleteProperty(nsGkAtoms::marker_mid);
-  aFrame->DeleteProperty(nsGkAtoms::marker_end);
 
   aFrame->DeleteProperty(nsGkAtoms::stroke);
   aFrame->DeleteProperty(nsGkAtoms::fill);

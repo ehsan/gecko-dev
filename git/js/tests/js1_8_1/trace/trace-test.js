@@ -61,31 +61,15 @@ function test(f)
 
 function check(desc, actual, expected)
 {
-  if (expected instanceof RegExp) {
-    if (reportMatch(expected, actual + '', desc)) {
-      passes.push(desc);
-      print(desc, ": passed");
-      return;
-    }
-
-    fails.push(desc);
-    print(desc, ": FAILED: expected", typeof(expected), "(", expected, ") != actual",
-          typeof(actual), "(", actual, ")");
-    return;
-  }
-
   if (expected == actual) {
     reportCompare(expected + '', actual + '', desc);
     passes.push(desc);
-    print(desc, ": passed");
-    return;
+    return print(desc, ": passed");
   }
-
   reportCompare(expected, actual, desc);
   fails.push(desc);
   print(desc, ": FAILED: expected", typeof(expected), "(", expected, ") != actual",
-        typeof(actual), "(", actual, ")");
-  return
+	typeof(actual), "(", actual, ")");
 }
 
 function ifInsideLoop()
@@ -751,7 +735,7 @@ function missingArgTest2() {
   }
   return a.join(",");
 }
-missingArgTest2.expected = /(Object,Array,Object|{},\[\],{"foo":"bar"})/;
+missingArgTest2.expected = "Object,Array,Object";
 test(missingArgTest2);
 
 function deepForInLoop() {
