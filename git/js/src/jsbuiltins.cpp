@@ -335,23 +335,23 @@ JS_DEFINE_CALLINFO_4(extern, OBJECT, js_NewNullClosure, CONTEXT, OBJECT, OBJECT,
 JS_REQUIRES_STACK JSBool FASTCALL
 js_PopInterpFrame(JSContext* cx, TracerState* state)
 {
-    JS_ASSERT(cx->hasfp() && cx->fp()->down);
-    JSStackFrame* const fp = cx->fp();
+    JS_ASSERT(cx->fp && cx->fp->down);
+    JSStackFrame* const fp = cx->fp;
 
     /*
      * Mirror frame popping code from inline_return in js_Interpret. There are
      * some things we just don't want to handle. In those cases, the trace will
      * MISMATCH_EXIT.
      */
-    if (fp->hasHookData())
+    if (fp->hookData)
         return JS_FALSE;
-    if (cx->version != fp->getCallerVersion())
+    if (cx->version != fp->callerVersion)
         return JS_FALSE;
     if (fp->flags & JSFRAME_CONSTRUCTING)
         return JS_FALSE;
-    if (fp->hasIMacroPC())
+    if (fp->imacpc)
         return JS_FALSE;
-    if (fp->hasBlockChain())
+    if (fp->blockChain)
         return JS_FALSE;
 
     fp->putActivationObjects(cx);

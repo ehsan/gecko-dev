@@ -803,7 +803,7 @@ GetEnumAttr(nsGenericHTMLElement* aContent,
 
 nsresult
 GetSubmissionFromForm(nsGenericHTMLElement* aForm,
-                      nsGenericHTMLElement* aOriginatingElement,
+                      nsIContent* aOriginatingElement,
                       nsFormSubmission** aFormSubmission)
 {
   // Get all the information necessary to encode the form data
@@ -812,21 +812,11 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
 
   // Get encoding type (default: urlencoded)
   PRInt32 enctype = NS_FORM_ENCTYPE_URLENCODED;
-  if (aOriginatingElement &&
-      aOriginatingElement->HasAttr(kNameSpaceID_None, nsGkAtoms::formenctype)) {
-    GetEnumAttr(aOriginatingElement, nsGkAtoms::formenctype, &enctype);
-  } else {
-    GetEnumAttr(aForm, nsGkAtoms::enctype, &enctype);
-  }
+  GetEnumAttr(aForm, nsGkAtoms::enctype, &enctype);
 
   // Get method (default: GET)
   PRInt32 method = NS_FORM_METHOD_GET;
-  if (aOriginatingElement &&
-      aOriginatingElement->HasAttr(kNameSpaceID_None, nsGkAtoms::formmethod)) {
-    GetEnumAttr(aOriginatingElement, nsGkAtoms::formmethod, &method);
-  } else {
-    GetEnumAttr(aForm, nsGkAtoms::method, &method);
-  }
+  GetEnumAttr(aForm, nsGkAtoms::method, &method);
 
   // Get charset
   nsCAutoString charset;
@@ -844,14 +834,7 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
     if (enctype == NS_FORM_ENCTYPE_MULTIPART ||
         enctype == NS_FORM_ENCTYPE_TEXTPLAIN) {
       nsAutoString enctypeStr;
-      if (aOriginatingElement &&
-          aOriginatingElement->HasAttr(kNameSpaceID_None,
-                                       nsGkAtoms::formenctype)) {
-        aOriginatingElement->GetAttr(kNameSpaceID_None, nsGkAtoms::formenctype,
-                                     enctypeStr);
-      } else {
-        aForm->GetAttr(kNameSpaceID_None, nsGkAtoms::enctype, enctypeStr);
-      }
+      aForm->GetAttr(kNameSpaceID_None, nsGkAtoms::enctype, enctypeStr);
       const PRUnichar* enctypeStrPtr = enctypeStr.get();
       SendJSWarning(doc, "ForgotPostWarning",
                     &enctypeStrPtr, 1);

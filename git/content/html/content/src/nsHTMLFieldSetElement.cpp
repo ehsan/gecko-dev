@@ -41,12 +41,12 @@
 #include "nsStyleConsts.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
-#include "nsIConstraintValidation.h"
+#include "nsConstraintValidation.h"
 
 
 class nsHTMLFieldSetElement : public nsGenericHTMLFormElement,
                               public nsIDOMHTMLFieldSetElement,
-                              public nsIConstraintValidation
+                              public nsConstraintValidation
 {
 public:
   nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -74,8 +74,8 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsXPCClassInfo* GetClassInfo();
 
-  // nsIConstraintValidation
-  PRBool IsBarredFromConstraintValidation() const { return PR_TRUE; };
+  // nsConstraintValidation
+  PRBool IsBarredFromConstraintValidation() { return PR_TRUE; };
 };
 
 // construction, destruction
@@ -102,9 +102,8 @@ DOMCI_NODE_DATA(HTMLFieldSetElement, nsHTMLFieldSetElement)
 
 // QueryInterface implementation for nsHTMLFieldSetElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFieldSetElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLFieldSetElement,
-                                   nsIDOMHTMLFieldSetElement,
-                                   nsIConstraintValidation)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLFieldSetElement,
+                                   nsIDOMHTMLFieldSetElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLFieldSetElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFieldSetElement)
@@ -112,8 +111,8 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFieldSetElement)
 
 // nsIDOMHTMLFieldSetElement
 
-// nsIConstraintValidation
-NS_IMPL_NSICONSTRAINTVALIDATION(nsHTMLFieldSetElement)
+// nsConstraintValidation
+NS_IMPL_NSCONSTRAINTVALIDATION(nsHTMLFieldSetElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLFieldSetElement)
 

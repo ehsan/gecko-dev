@@ -1,5 +1,5 @@
 var o = {
-    set x(v) {
+    set x() {
         return 42;
     }
 };

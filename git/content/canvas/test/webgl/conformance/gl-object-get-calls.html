@@ -22,6 +22,7 @@ OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
+
 <html>
 <head>
 <link rel="stylesheet" href="../resources/js-test-style.css"/>
@@ -35,23 +36,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 <script>
 description("Test of get calls against GL objects like getBufferParameter, etc.");
 
-function sizeInBytes(type) {
-  switch (type) {
-  case gl.BYTE:
-  case gl.UNSIGNED_BYTE:
-    return 1;
-  case gl.SHORT:
-  case gl.UNSIGNED_SHORT:
-    return 2;
-  case gl.INT:
-  case gl.UNSIGNED_INT:
-  case gl.FLOAT:
-    return 4;
-  default:
-    throw "unknown type";
-  }
-}
-
 var gl = create3DContext();
 
 var standardVert = loadStandardVertexShader(gl);
@@ -63,11 +47,11 @@ gl.linkProgram(standardProgram);
 var shaders = gl.getAttachedShaders(standardProgram);
 shouldBe('shaders.length', '2');
 shouldBeTrue('shaders[0] == standardVert && shaders[1] == standardFrag || shaders[1] == standardVert && shaders[0] == standardFrag');
-glErrorShouldBe(gl, gl.NO_ERROR);
+shouldBe('gl.getError()', 'gl.NO_ERROR');
 shouldBeUndefined('gl.getAttachedShaders(null)');
-glErrorShouldBe(gl, gl.INVALID_VALUE);
-shouldThrow('gl.getAttachedShaders(standardVert)');
-glErrorShouldBe(gl, gl.NO_ERROR);
+shouldBe('gl.getError()', 'gl.INVALID_VALUE');
+shouldBeUndefined('gl.getAttachedShaders(standardVert)');
+shouldBe('gl.getError()', 'gl.INVALID_VALUE');
 
 // Test getBufferParameter
 var buffer = gl.createBuffer();
@@ -98,19 +82,14 @@ glErrorShouldBe(gl, gl.NO_ERROR);
 gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, 2, 2);
 glErrorShouldBe(gl, gl.NO_ERROR);
 gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderbuffer);
-// FIXME: on some machines (in particular the WebKit commit bots) the
-// framebuffer status is FRAMEBUFFER_UNSUPPORTED; more investigation
-// is needed why this is the case, because the FBO allocated
-// internally by the WebKit implementation has almost identical
-// parameters to this one. See https://bugs.webkit.org/show_bug.cgi?id=31843.
 shouldBe('gl.checkFramebufferStatus(gl.FRAMEBUFFER)', 'gl.FRAMEBUFFER_COMPLETE');
 shouldBe('gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE)', 'gl.TEXTURE');
-shouldBe('gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME)', 'texture');
+shouldBeNonNull('gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME)');
 shouldBe('gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL)', '0');
 shouldBe('gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE)', '0');
 
 shouldBe('gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE)', 'gl.RENDERBUFFER');
-shouldBe('gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME)', 'renderbuffer');
+shouldBeNonNull('gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME)');
 
 // Test getProgramParameter
 shouldBe('gl.getProgramParameter(standardProgram, gl.DELETE_STATUS)', 'false');
@@ -235,16 +214,12 @@ gl.bufferData(gl.ARRAY_BUFFER, array, gl.DYNAMIC_DRAW);
 // 1 for these tests instead.
 gl.enableVertexAttribArray(1);
 gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 0, 0);
-shouldBe('gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING)', 'buffer');
+shouldBeNonNull('gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING)');
 shouldBe('gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_ENABLED)', 'true');
 shouldBe('gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_SIZE)', '4');
-// Stride MUST be the value the user put in.
-shouldBe('gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_STRIDE)', '0');
+shouldBe('(gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_STRIDE) == 0) || (gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_STRIDE) == 4 * gl.sizeInBytes(gl.FLOAT))', 'true');
 shouldBe('gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_TYPE)', 'gl.FLOAT');
 shouldBe('gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_NORMALIZED)', 'false');
-gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 36, 12);
-shouldBe('gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_STRIDE)', '36');
-shouldBe('gl.getVertexAttribOffset(1, gl.VERTEX_ATTRIB_ARRAY_POINTER)', '12');
 gl.disableVertexAttribArray(1);
 shouldBe('gl.getVertexAttrib(1, gl.VERTEX_ATTRIB_ARRAY_ENABLED)', 'false');
 gl.vertexAttrib4f(1, 5, 6, 7, 8);

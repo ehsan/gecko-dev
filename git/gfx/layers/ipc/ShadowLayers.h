@@ -214,7 +214,7 @@ public:
   /**
    * True if this is forwarding to a ShadowLayerManager.
    */
-  PRBool HasShadowManager() const { return !!mShadowManager; }
+  PRBool HasShadowManager() { return !!mShadowManager; }
 
   PRBool AllocDoubleBuffer(const gfxIntSize& aSize,
                            gfxASurface::gfxImageFormat aFormat,
@@ -248,7 +248,7 @@ public:
 
   void SetForwarder(PLayersParent* aForwarder)
   {
-    NS_ASSERTION(!aForwarder || !HasForwarder(), "stomping live forwarder?");
+    NS_ASSERTION(!HasForwarder(), "setting forwarder twice?");
     mForwarder = aForwarder;
   }
 

@@ -51,49 +51,46 @@ Tests.teardown = function(gl,tex) {
 }
 
 Tests.testTexImage2D = function(gl) {
-    assertOk("height > backHeight", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,0, 17,1,0);
     });
-    assertOk("width > backWidth", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,0, 1,17,0);
     });
-    assertOk("x + width > backWidth", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 16,0, 1,1,0);
     });
-    assertOk("y + height > backHeight", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,16, 1,1,0);
     });
-    assertOk("Negative X", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, -1,0, 1,1,0);
     });
-    assertOk("Negative Y", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,-1, 1,1,0);
     });
-    assertFail("Negative height", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,0, -1,1,0);
     });
-    assertFail("Negative width", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,0, 1,-1,0);
     });
-    assertFail("Non 0 border", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,0, 1,1,1);
     });
-    assertFail("Negative border",function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,0, 1,1,-1);
     });
-    assertOk("Good Args", function(){
+    assertOk(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,0, 16,16,0);
     });
-    assertFail("NPOT texture to > level 0", function(){
-        gl.copyTexImage2D(gl.TEXTURE_2D, 1, gl.RGBA, 0,0, 15,16,0);
-    });
-    assertFail("Bad target", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.FLOAT, 0, gl.RGBA, 0,0, 16,16,0);
     });
-    assertFail("Bad internal format", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.FLOAT, 0,0, 16,16,0);
     });
-    assertFail("Negative level", function(){
+    assertFail(function(){
         gl.copyTexImage2D(gl.TEXTURE_2D, -1, gl.RGBA, 0,0, 16,16,0);
     });
 }

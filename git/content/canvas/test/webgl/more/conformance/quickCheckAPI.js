@@ -428,10 +428,7 @@ ArgGenerators = {
       return [bufferTarget.random(), GL.createBuffer()];
     },
     checkArgValidity : function(target, buf) {
-      if (!bufferTarget.has(target))
-        return false;
-      GL.bindBuffer(target, buf);
-      return GL.isBuffer(buf);
+      return bufferTarget.has(target) && GL.isBuffer(buf);
     },
     cleanup : function(t, buf, m) {
       GL.deleteBuffer(buf);
@@ -442,11 +439,7 @@ ArgGenerators = {
       return [GL.FRAMEBUFFER, Math.random() > 0.5 ? null : GL.createFramebuffer()];
     },
     checkArgValidity : function(target, fbo) {
-      if (target != GL.FRAMEBUFFER)
-        return false;
-      if (fbo != null)
-          GL.bindFramebuffer(target, fbo);
-      return (fbo == null || GL.isFramebuffer(fbo));
+      return target == GL.FRAMEBUFFER && (fbo == null || GL.isFramebuffer(fbo));
     },
     cleanup : function(target, fbo) {
       GL.bindFramebuffer(target, null);
@@ -459,11 +452,7 @@ ArgGenerators = {
       return [GL.RENDERBUFFER, Math.random() > 0.5 ? null : GL.createRenderbuffer()];
     },
     checkArgValidity : function(target, rbo) {
-      if (target != GL.RENDERBUFFER)
-        return false;
-      if (rbo != null)
-        GL.bindRenderbuffer(target, rbo);
-      return (rbo == null || GL.isRenderbuffer(rbo));
+      return target == GL.RENDERBUFFER && (rbo == null || GL.isRenderbuffer(rbo));
     },
     cleanup : function(target, rbo) {
       GL.bindRenderbuffer(target, null);
@@ -476,11 +465,7 @@ ArgGenerators = {
       return [bindTextureTarget.random(), Math.random() > 0.5 ? null : GL.createTexture()];
     },
     checkArgValidity : function(target, o) {
-      if (!bindTextureTarget.has(target))
-        return false;
-      if (o != null)
-        GL.bindTexture(target, o);
-      return (o == null || GL.isTexture(o));
+      return bindTextureTarget.has(target) && (o == null || GL.isTexture(o));
     },
     cleanup : function(target, o) {
       GL.bindTexture(target, null);
@@ -577,12 +562,9 @@ ArgGenerators = {
       return [Math.random() > 0.5 ? null : GL.createFramebuffer()];
     },
     checkArgValidity : function(fbo) {
-      if (fbo != null)
-        GL.bindFramebuffer(GL.FRAMEBUFFER, fbo);
       return fbo == null || GL.isFramebuffer(fbo);
     },
     cleanup : function(fbo){
-      GL.bindFramebuffer(GL.FRAMEBUFFER, null);
       if (fbo != null)
         try{ GL.deleteFramebuffer(fbo); } catch(e) {}
     }
@@ -647,25 +629,13 @@ ArgGenerators = {
 
   deleteBuffer : {
     generate : function() { return [GL.createBuffer()]; },
-    checkArgValidity : function(o) {
-      GL.bindBuffer(GL.ARRAY_BUFFER, o);
-      return GL.isBuffer(o);
-    },
-    cleanup : function(o) {
-      GL.bindBuffer(GL.ARRAY_BUFFER, null);
-      try { GL.deleteBuffer(o); } catch(e) {}
-    }
+    checkArgValidity : function(o) { return GL.isBuffer(o); },
+    cleanup : function(o) { try { GL.deleteBuffer(o); } catch(e) {} }
   },
   deleteFramebuffer : {
     generate : function() { return [GL.createFramebuffer()]; },
-    checkArgValidity : function(o) {
-      GL.bindFramebuffer(GL.FRAMEBUFFER, o);
-      return GL.isFramebuffer(o);
-    },
-    cleanup : function(o) {
-      GL.bindFramebuffer(GL.FRAMEBUFFER, null);
-      try { GL.deleteFramebuffer(o); } catch(e) {}
-    }
+    checkArgValidity : function(o) { return GL.isFramebuffer(o); },
+    cleanup : function(o) { try { GL.deleteFramebuffer(o); } catch(e) {} }
   },
   deleteProgram : {
     generate : function() { return [GL.createProgram()]; },
@@ -674,14 +644,8 @@ ArgGenerators = {
   },
   deleteRenderbuffer : {
     generate : function() { return [GL.createRenderbuffer()]; },
-    checkArgValidity : function(o) {
-      GL.bindRenderbuffer(GL.RENDERBUFFER, o);
-      return GL.isRenderbuffer(o);
-    },
-    cleanup : function(o) {
-      GL.bindRenderbuffer(GL.RENDERBUFFER, null);
-      try { GL.deleteRenderbuffer(o); } catch(e) {}
-    }
+    checkArgValidity : function(o) { return GL.isRenderbuffer(o); },
+    cleanup : function(o) { try { GL.deleteRenderbuffer(o); } catch(e) {} }
   },
   deleteShader : {
     generate : function() { return [GL.createShader(shaderType.random())]; },
@@ -690,14 +654,8 @@ ArgGenerators = {
   },
   deleteTexture : {
     generate : function() { return [GL.createTexture()]; },
-    checkArgValidity : function(o) {
-      GL.bindTexture(GL.TEXTURE_2D, o);
-      return GL.isTexture(o);
-    },
-    cleanup : function(o) {
-      GL.bindTexture(GL.TEXTURE_2D, null);
-      try { GL.deleteTexture(o); } catch(e) {}
-    }
+    checkArgValidity : function(o) { return GL.isTexture(o); },
+    cleanup : function(o) { try { GL.deleteTexture(o); } catch(e) {} }
   },
   depthFunc : {
     generate : function() { return [depthFuncFunc.random()]; },
@@ -1020,10 +978,11 @@ ArgGenerators = {
       return [tex, tex2];
     },
     generate : function() {
-      var format = texImageFormat.random();
       if (Math.random() < 0.5) {
         var img = randomImage(16,16);
-        var a = [ texImageTarget.random(), 0, format, format, GL.UNSIGNED_BYTE, img ];
+        var a = [ texImageTarget.random(), 0, img ];
+        if (Math.random() < 0.5) a.push(randomBool());
+        if (Math.random() < 0.5) a.push(randomBool());
         return a;
       } else {
         var pix = null;
@@ -1032,35 +991,29 @@ ArgGenerators = {
         }
         return [
           texImageTarget.random(), 0,
-          format, 16, 16, 0,
-          format, GL.UNSIGNED_BYTE, pix
+          texImageInternalFormat.random(), 16, 16, 0,
+          texImageFormat.random(), GL.UNSIGNED_BYTE, pix
         ];
       }
     },
     checkArgValidity : function(target, level, internalformat, width, height, border, format, type, data) {
-               // or : function(target, level, internalformat, format, type, image)
       if (!texImageTarget.has(target) || castToInt(level) < 0)
         return false;
-      if (arguments.length <= 6) {
-        var xformat = width;
-        var xtype = height;
-        var ximage = border;
-        if ((ximage instanceof HTMLImageElement ||
-             ximage instanceof HTMLVideoElement ||
-             ximage instanceof HTMLCanvasElement ||
-             ximage instanceof ImageData) &&
-            texImageInternalFormat.has(internalformat) &&
-            texImageFormat.has(xformat) &&
-            texImageType.has(xtype) &&
-            internalformat == xformat)
+      if (arguments.length <= 5) {
+        var image = internalformat;
+        var flipY = width;
+        var asPremultipliedAlpha = height;
+        if (image instanceof HTMLImageElement ||
+            image instanceof HTMLVideoElement ||
+            image instanceof HTMLCanvasElement ||
+            (image.width && image.length && image.data))
           return true;
         return false;
       }
       var w = castToInt(width), h = castToInt(height), b = castToInt(border);
       return texImageInternalFormat.has(internalformat) && w >= 0 && h >= 0 &&
             b == 0 && (data == null || data.byteLength == w*h*4) &&
-            texImageFormat.has(format) && texImageType.has(type)
-            && internalformat == format;
+            texImageFormat.has(format) && texImageType.has(type);
     },
     teardown : function(tex, tex2) {
       GL.bindTexture(GL.TEXTURE_2D, null);

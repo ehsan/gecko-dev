@@ -205,6 +205,9 @@ nsresult nsBuiltinDecoder::Load(nsMediaStream* aStream,
     mStream = aStream;
   }
 
+  nsresult rv = NS_NewThread(getter_AddRefs(mStateMachineThread));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   mDecoderStateMachine = CreateStateMachine();
   if (!mDecoderStateMachine) {
     return NS_ERROR_FAILURE;
@@ -221,18 +224,6 @@ nsresult nsBuiltinDecoder::Load(nsMediaStream* aStream,
 
   ChangeState(PLAY_STATE_LOADING);
 
-  return StartStateMachineThread();
-}
-
-nsresult nsBuiltinDecoder::StartStateMachineThread()
-{
-  NS_ASSERTION(mDecoderStateMachine,
-               "Must have state machine to start state machine thread");
-  if (mStateMachineThread) {
-    return NS_OK;
-  }
-  nsresult rv = NS_NewThread(getter_AddRefs(mStateMachineThread));
-  NS_ENSURE_SUCCESS(rv, rv);
   return mStateMachineThread->Dispatch(mDecoderStateMachine, NS_DISPATCH_NORMAL);
 }
 
@@ -240,8 +231,6 @@ nsresult nsBuiltinDecoder::Play()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   MonitorAutoEnter mon(mMonitor);
-  nsresult res = StartStateMachineThread();
-  NS_ENSURE_SUCCESS(res,res);
   if (mPlayState == PLAY_STATE_SEEKING) {
     mNextState = PLAY_STATE_PLAYING;
     return NS_OK;
@@ -250,6 +239,7 @@ nsresult nsBuiltinDecoder::Play()
     return Seek(0);
 
   ChangeState(PLAY_STATE_PLAYING);
+
   return NS_OK;
 }
 
@@ -277,7 +267,7 @@ nsresult nsBuiltinDecoder::Seek(float aTime)
     ChangeState(PLAY_STATE_SEEKING);
   }
 
-  return StartStateMachineThread();
+  return NS_OK;
 }
 
 nsresult nsBuiltinDecoder::PlaybackRateChanged()
@@ -303,32 +293,11 @@ already_AddRefed<nsIPrincipal> nsBuiltinDecoder::GetCurrentPrincipal()
   return mStream ? mStream->GetCurrentPrincipal() : nsnull;
 }
 
-void nsBuiltinDecoder::AudioAvailable(float* aFrameBuffer,
-                                      PRUint32 aFrameBufferLength,
-                                      PRUint64 aTime)
+void nsBuiltinDecoder::MetadataLoaded()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  if (mShuttingDown) {
+  if (mShuttingDown)
     return;
-  }
-
-  if (!mElement->MayHaveAudioAvailableEventListener()) {
-    return;
-  }
-
-  mElement->NotifyAudioAvailable(aFrameBuffer, aFrameBufferLength, aTime);
-}
-
-void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
-                                      PRUint32 aRate,
-                                      PRUint32 aFrameBufferLength)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  if (mShuttingDown) {
-    return;
-  }
-
-  mFrameBufferLength = aFrameBufferLength;
 
   // Only inform the element of MetadataLoaded if not doing a load() in order
   // to fulfill a seek, otherwise we'll get multiple metadataloaded events.
@@ -346,7 +315,7 @@ void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
     // Make sure the element and the frame (if any) are told about
     // our new size.
     Invalidate();
-    mElement->MetadataLoaded(aChannels, aRate);
+    mElement->MetadataLoaded();
   }
 
   if (!mResourceLoaded) {
@@ -360,7 +329,6 @@ void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
 
   // Only inform the element of FirstFrameLoaded if not doing a load() in order
   // to fulfill a seek, otherwise we'll get multiple loadedfirstframe events.
-  MonitorAutoEnter mon(mMonitor);
   PRBool resourceIsLoaded = !mResourceLoaded && mStream &&
     mStream->IsDataCachedToEndOfStream(mDecoderPosition);
   if (mElement && notifyElement) {
@@ -371,6 +339,7 @@ void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
   // before reaching here, so only change the
   // state if we're still set to the original
   // loading state.
+  MonitorAutoEnter mon(mMonitor);
   if (mPlayState == PLAY_STATE_LOADING) {
     if (mRequestedSeekTime >= 0.0) {
       ChangeState(PLAY_STATE_SEEKING);

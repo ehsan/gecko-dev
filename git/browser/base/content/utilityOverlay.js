@@ -452,15 +452,6 @@ function openTroubleshootingPage()
   openUILinkIn("about:support", "tab");
 }
 
-/**
- * Opens the feedback page for this version of the application.
- */
-function openFeedbackPage()
-{
-  openUILinkIn("http://input.mozilla.com/sad", "tab");
-}
-
-
 #ifdef MOZ_UPDATER
 /**
  * Opens the update manager and checks for updates to the application.

@@ -56,6 +56,7 @@ NATIVE_THEME_SUPPORT = 1
 
 CSRCS		= \
 		mozcontainer.c \
+		keysym2ucs.c \
 		$(NULL)
 
 ifdef ACCESSIBILITY
@@ -160,6 +161,3 @@ INCLUDES	+= \
 		-I$(srcdir)/../shared \
 		-I$(topsrcdir)/other-licenses/atk-1.0 \
 		$(NULL)
-ifdef MOZ_X11
-INCLUDES   	+= -I$(srcdir)/../shared/x11
-endif //MOZ_X11

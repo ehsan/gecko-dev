@@ -30,9 +30,6 @@ void main()
 }
 </script>
 <script id="fshader2d" type="x-shader/x-fragment">
-#ifdef GL_ES
-precision highp float;
-#endif
 uniform sampler2D tex2d;
 varying vec2 texCoord;
 void main()
@@ -41,9 +38,6 @@ void main()
 }
 </script>
 <script id="fshaderCube" type="x-shader/x-fragment">
-#ifdef GL_ES
-precision highp float;
-#endif
 uniform samplerCube texCube;
 void main()
 {
@@ -51,7 +45,7 @@ void main()
 }
 </script>
 
-<script>
+  <script>
 function init()
 {
   if (window.initNonKhronosFramework) {
@@ -82,7 +76,7 @@ function init()
   gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([-1, 1,0, 1,1,0, -1,-1,0,
-                        -1,-1,0, 1,1,0,  1,-1,0]),
+                           -1,-1,0, 1,1,0,  1,-1,0]),
       gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0);
   gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
@@ -92,7 +86,7 @@ function init()
   gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([ 0,0, 1,0, 0,1,
-                         0,1, 1,0, 1,1]),
+                            0,1, 1,0, 1,1]),
       gl.STATIC_DRAW);
   gl.enableVertexAttribArray(1);
   gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
@@ -109,7 +103,6 @@ function init()
 
   // make a cube texture
   var texCube = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_CUBE_MAP, texCube);
   ctx2d.fillStyle = "rgba(255, 0, 255, 255)";
   ctx2d.fillRect(0, 0, 1, 1);
   var targets = [
@@ -185,7 +178,11 @@ function init()
 init();
 successfullyParsed = true;
 </script>
+</body>
 <script src="../resources/js-test-post.js"></script>
+
+<script>
+</script>
 
 </body>
 </html>

@@ -2216,10 +2216,6 @@ nsTreeBodyFrame::GetImage(PRInt32 aRowIndex, nsTreeColumn* aCol, PRBool aUseCont
     if (!imageRequest)
       return NS_ERROR_FAILURE;
 
-    // We don't want discarding/decode-on-draw for xul images
-    imageRequest->RequestDecode();
-    imageRequest->LockImage();
-
     // In a case it was already cached.
     imageRequest->GetImage(aResult);
     nsTreeImageCacheEntry cacheEntry(imageRequest, imgDecoderObserver);
@@ -2811,7 +2807,7 @@ nsTreeBodyFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-      nsDisplayGeneric(aBuilder, this, ::PaintTreeBody, "XULTreeBody",
+      nsDisplayGeneric(this, ::PaintTreeBody, "XULTreeBody",
                        nsDisplayItem::TYPE_XUL_TREE_BODY));
 }
 

@@ -39,10 +39,7 @@
 #include "TabChild.h"
 #include "mozilla/dom/PContentChild.h"
 #include "mozilla/dom/PContentDialogChild.h"
-#include "mozilla/layers/PLayersChild.h"
-#include "mozilla/layout/RenderFrameChild.h"
 
-#include "BasicLayers.h"
 #include "nsIWebBrowser.h"
 #include "nsIWebBrowserSetup.h"
 #include "nsEmbedCID.h"
@@ -89,12 +86,19 @@
 #include "nsSerializationHelper.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
-#include "nsIEventListenerManager.h"
-#include "nsGeolocation.h"
+
+#ifdef MOZ_WIDGET_QT
+#include <QX11EmbedWidget>
+#include <QGraphicsView>
+#include <QGraphicsWidget>
+#endif
+
+#ifdef MOZ_WIDGET_GTK2
+#include <gdk/gdkx.h>
+#include <gtk/gtk.h>
+#endif
 
 using namespace mozilla::dom;
-using namespace mozilla::layers;
-using namespace mozilla::layout;
 
 NS_IMPL_ISUPPORTS1(ContentListener, nsIDOMEventListener)
 
@@ -117,8 +121,7 @@ public:
 
 
 TabChild::TabChild(PRUint32 aChromeFlags)
-  : mRemoteFrame(nsnull)
-  , mTabChildGlobal(nsnull)
+  : mTabChildGlobal(nsnull)
   , mChromeFlags(aChromeFlags)
 {
     printf("creating %d!\n", NS_IsMainThread());
@@ -127,6 +130,10 @@ TabChild::TabChild(PRUint32 aChromeFlags)
 nsresult
 TabChild::Init()
 {
+#ifdef MOZ_WIDGET_GTK2
+  gtk_init(NULL, NULL);
+#endif
+
   nsCOMPtr<nsIWebBrowser> webBrowser = do_CreateInstance(NS_WEBBROWSER_CONTRACTID);
   if (!webBrowser) {
     NS_ERROR("Couldn't create a nsWebBrowser?");
@@ -411,24 +418,72 @@ TabChild::ArraysToParams(const nsTArray<int>& aIntParams,
   }
 }
 
-void
-TabChild::DestroyWindow()
+bool
+TabChild::RecvCreateWidget(const MagicWindowHandle& parentWidget)
+{
+    nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mWebNav);
+    if (!baseWindow) {
+        NS_ERROR("mWebNav doesn't QI to nsIBaseWindow");
+        return true;
+    }
+
+#ifdef MOZ_WIDGET_GTK2
+    GtkWidget* win = gtk_plug_new((GdkNativeWindow)parentWidget);
+    gtk_widget_show(win);
+#elif defined(MOZ_WIDGET_QT)
+    QX11EmbedWidget *embedWin = nsnull;
+    if (parentWidget) {
+      embedWin = new QX11EmbedWidget();
+      NS_ENSURE_TRUE(embedWin, false);
+      embedWin->embedInto(parentWidget);
+      embedWin->show();
+    }
+    QGraphicsView *view = new QGraphicsView(new QGraphicsScene(), embedWin);
+    NS_ENSURE_TRUE(view, false);
+    QGraphicsWidget *win = new QGraphicsWidget();
+    NS_ENSURE_TRUE(win, false);
+    view->scene()->addItem(win);
+#elif defined(XP_WIN)
+    HWND win = parentWidget;
+#elif defined(ANDROID)
+    // Fake pointer to make baseWindow->InitWindow work
+    // The android widget code is mostly disabled in the child process
+    // so it won't choke on this
+    void *win = (void *)0x1234;
+#elif defined(XP_MACOSX)
+#  warning IMPLEMENT ME
+#else
+#error You lose!
+#endif
+
+#if !defined(XP_MACOSX)
+    baseWindow->InitWindow(win, 0, 0, 0, 0, 0);
+    baseWindow->Create();
+    baseWindow->SetVisibility(PR_TRUE);
+#endif
+
+    // IPC uses a WebBrowser object for which DNS prefetching is turned off
+    // by default. But here we really want it, so enable it explicitly
+    nsCOMPtr<nsIWebBrowserSetup> webBrowserSetup = do_QueryInterface(baseWindow);
+    if (webBrowserSetup) {
+      webBrowserSetup->SetProperty(nsIWebBrowserSetup::SETUP_ALLOW_DNS_PREFETCH,
+                                   PR_TRUE);
+    } else {
+        NS_WARNING("baseWindow doesn't QI to nsIWebBrowserSetup, skipping "
+                   "DNS prefetching enable step.");
+    }
+
+    return InitTabChildGlobal();
+}
+
+bool
+TabChild::DestroyWidget()
 {
     nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mWebNav);
     if (baseWindow)
         baseWindow->Destroy();
 
-    // NB: the order of mWidget->Destroy() and mRemoteFrame->Destroy()
-    // is important: we want to kill off remote layers before their
-    // frames
-    if (mWidget) {
-        mWidget->Destroy();
-    }
-
-    if (mRemoteFrame) {
-        mRemoteFrame->Destroy();
-        mRemoteFrame = nsnull;
-    }
+    return true;
 }
 
 void
@@ -453,11 +508,6 @@ TabChild::~TabChild()
     }
     if (mCx) {
       DestroyCx();
-    }
-    
-    nsIEventListenerManager* elm = mTabChildGlobal->GetListenerManager(PR_FALSE);
-    if (elm) {
-      elm->Disconnect();
     }
     mTabChildGlobal->mTabChild = nsnull;
 }
@@ -609,54 +659,20 @@ TabChild::RecvLoadURL(const nsCString& uri)
         NS_WARNING("mWebNav->LoadURI failed. Eating exception, what else can I do?");
     }
 
-    return NS_SUCCEEDED(rv);
+    return true;
 }
 
 bool
-TabChild::RecvShow(const nsIntSize& size)
+TabChild::RecvMove(const PRUint32& x,
+                   const PRUint32& y,
+                   const PRUint32& width,
+                   const PRUint32& height)
 {
-    printf("[TabChild] SHOW (w,h)= (%d, %d)\n", size.width, size.height);
-
-    nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mWebNav);
-    if (!baseWindow) {
-        NS_ERROR("mWebNav doesn't QI to nsIBaseWindow");
-        return false;
-    }
-
-    if (!InitWidget(size)) {
-        return false;
-    }
-
-    baseWindow->InitWindow(0, mWidget,
-                           0, 0, size.width, size.height);
-    baseWindow->Create();
-    baseWindow->SetVisibility(PR_TRUE);
-
-    // IPC uses a WebBrowser object for which DNS prefetching is turned off
-    // by default. But here we really want it, so enable it explicitly
-    nsCOMPtr<nsIWebBrowserSetup> webBrowserSetup = do_QueryInterface(baseWindow);
-    if (webBrowserSetup) {
-      webBrowserSetup->SetProperty(nsIWebBrowserSetup::SETUP_ALLOW_DNS_PREFETCH,
-                                   PR_TRUE);
-    } else {
-        NS_WARNING("baseWindow doesn't QI to nsIWebBrowserSetup, skipping "
-                   "DNS prefetching enable step.");
-    }
-
-    return InitTabChildGlobal();
-}
-
-bool
-TabChild::RecvMove(const nsIntSize& size)
-{
-    printf("[TabChild] RESIZE to (w,h)= (%ud, %ud)\n", size.width, size.height);
-
-    mWidget->Resize(0, 0, size.width, size.height,
-                    PR_TRUE);
+    printf("[TabChild] MOVE to (x,y)=(%ud, %ud), (w,h)= (%ud, %ud)\n",
+           x, y, width, height);
 
     nsCOMPtr<nsIBaseWindow> baseWin = do_QueryInterface(mWebNav);
-    baseWin->SetPositionAndSize(0, 0, size.width, size.height,
-                                PR_TRUE);
+    baseWin->SetPositionAndSize(x, y, width, height, PR_TRUE);
     return true;
 }
 
@@ -967,7 +983,6 @@ TabChild::AllocPGeolocationRequest(const IPC::URI&)
 bool
 TabChild::DeallocPGeolocationRequest(PGeolocationRequestChild* actor)
 {
-  static_cast<nsGeolocationRequest*>(actor)->Release();
   return true;
 }
 
@@ -988,9 +1003,6 @@ TabChild::RecvActivateFrameEvent(const nsString& aType, const bool& capture)
 bool
 TabChild::RecvLoadRemoteScript(const nsString& aURL)
 {
-  if (!mCx && !InitTabChildGlobal())
-    return false;
-
   LoadFrameScriptInternal(aURL);
   return true;
 }
@@ -1043,30 +1055,14 @@ TabChild::RecvDestroy()
   );
 
   // XXX what other code in ~TabChild() should we be running here?
-  DestroyWindow();
+  DestroyWidget();
 
   return Send__delete__(this);
-}
-
-PRenderFrameChild*
-TabChild::AllocPRenderFrame()
-{
-    return new RenderFrameChild();
-}
-
-bool
-TabChild::DeallocPRenderFrame(PRenderFrameChild* aFrame)
-{
-    delete aFrame;
-    return true;
 }
 
 bool
 TabChild::InitTabChildGlobal()
 {
-  if (mCx && mTabChildGlobal)
-    return true;
-
   nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mWebNav);
   NS_ENSURE_TRUE(window, false);
   nsCOMPtr<nsIDOMEventTarget> chromeHandler =
@@ -1144,53 +1140,6 @@ TabChild::InitTabChildGlobal()
   JS_SetGlobalObject(cx, global);
   DidCreateCx();
   return true;
-}
-
-bool
-TabChild::InitWidget(const nsIntSize& size)
-{
-    NS_ABORT_IF_FALSE(!mWidget && !mRemoteFrame, "CreateWidget twice?");
-
-    mWidget = nsIWidget::CreatePuppetWidget();
-    if (!mWidget) {
-        NS_ERROR("couldn't create fake widget");
-        return false;
-    }
-    mWidget->Create(
-        nsnull, 0,              // no parents
-        nsIntRect(nsIntPoint(0, 0), size),
-        nsnull,                 // HandleWidgetEvent
-        nsnull                  // nsIDeviceContext
-        );
-
-    RenderFrameChild* remoteFrame =
-        static_cast<RenderFrameChild*>(SendPRenderFrameConstructor());
-    if (!remoteFrame) {
-      NS_WARNING("failed to construct RenderFrame");
-      return false;
-    }
-
-    NS_ABORT_IF_FALSE(0 == remoteFrame->ManagedPLayersChild().Length(),
-                      "shouldn't have a shadow manager yet");
-    PLayersChild* shadowManager = remoteFrame->SendPLayersConstructor();
-    if (!shadowManager) {
-      NS_WARNING("failed to construct LayersChild");
-      // This results in |remoteFrame| being deleted.
-      PRenderFrameChild::Send__delete__(remoteFrame);
-      return false;
-    }
-
-    LayerManager* lm = mWidget->GetLayerManager();
-    NS_ABORT_IF_FALSE(LayerManager::LAYERS_BASIC == lm->GetBackendType(),
-                      "content processes should only be using BasicLayers");
-
-    BasicShadowLayerManager* bslm = static_cast<BasicShadowLayerManager*>(lm);
-    NS_ABORT_IF_FALSE(!bslm->HasShadowManager(),
-                      "PuppetWidget shouldn't have shadow manager yet");
-    bslm->SetShadowManager(shadowManager);
-
-    mRemoteFrame = remoteFrame;
-    return true;
 }
 
 static bool

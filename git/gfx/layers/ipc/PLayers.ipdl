@@ -40,7 +40,6 @@
 
 //include protocol PCompositor;
 include protocol PLayer;
-include protocol PRenderFrame;
 
 using gfx3DMatrix;
 using gfxRGBA;
@@ -201,7 +200,7 @@ union EditReply {
 
 
 sync protocol PLayers {
-  manager PRenderFrame /*or PCompositor or PMedia or PPlugin*/;
+  //manager PCompositor /*or PContent or PMedia or PPlugin*/;
   manages PLayer;
 
 parent:

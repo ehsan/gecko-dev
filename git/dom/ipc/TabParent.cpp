@@ -39,11 +39,10 @@
 #include "mozilla/dom/ExternalHelperAppParent.h"
 #include "TabParent.h"
 
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/ipc/DocumentRendererShmemParent.h"
 #include "mozilla/ipc/DocumentRendererNativeIDParent.h"
-#include "mozilla/layout/RenderFrameParent.h"
+#include "mozilla/dom/ContentParent.h"
 
 #include "nsIURI.h"
 #include "nsFocusManager.h"
@@ -78,9 +77,10 @@
 using namespace mozilla;
 #endif
 
-using namespace mozilla::dom;
-using namespace mozilla::ipc;
-using namespace mozilla::layout;
+using mozilla::ipc::DocumentRendererParent;
+using mozilla::ipc::DocumentRendererShmemParent;
+using mozilla::ipc::DocumentRendererNativeIDParent;
+using mozilla::dom::ContentParent;
 
 // The flags passed by the webProgress notifications are 16 bits shifted
 // from the ones registered by webProgressListeners.
@@ -437,16 +437,9 @@ TabParent::LoadURL(nsIURI* aURI)
 }
 
 void
-TabParent::Show(const nsIntSize& size)
+TabParent::Move(PRUint32 x, PRUint32 y, PRUint32 width, PRUint32 height)
 {
-    // sigh
-    unused << SendShow(size);
-}
-
-void
-TabParent::Move(const nsIntSize& size)
-{
-    unused << SendMove(size);
+    unused << SendMove(x, y, width, height);
 }
 
 void
@@ -796,20 +789,6 @@ TabParent::HandleDelayedDialogs()
                                          NS_LITERAL_STRING("MozDelayedModalDialog"),
                                          PR_TRUE, PR_TRUE);
   }
-}
-
-PRenderFrameParent*
-TabParent::AllocPRenderFrame()
-{
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  return new RenderFrameParent(frameLoader);
-}
-
-bool
-TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
-{
-  delete aFrame;
-  return true;
 }
 
 PRBool

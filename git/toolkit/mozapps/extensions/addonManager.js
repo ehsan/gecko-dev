@@ -145,33 +145,24 @@ amManager.prototype = {
         if (aInstall) {
           installs.push(aInstall);
           if (aCallback) {
-            function callCallback(aUri, aStatus) {
-              try {
-                aCallback.onInstallEnded(aUri, aStatus);
-              }
-              catch (e) {
-                Components.utils.reportError(e);
-              }
-            }
-
             aInstall.addListener({
               onDownloadCancelled: function(aInstall) {
-                callCallback(uri, USER_CANCELLED);
+                aCallback.onInstallEnded(uri, USER_CANCELLED);
               },
 
               onDownloadFailed: function(aInstall) {
                 if (aInstall.error == AddonManager.ERROR_CORRUPT_FILE)
-                  callCallback(uri, CANT_READ_ARCHIVE);
+                  aCallback.onInstallEnded(uri, CANT_READ_ARCHIVE);
                 else
-                  callCallback(uri, DOWNLOAD_ERROR);
+                  aCallback.onInstallEnded(uri, DOWNLOAD_ERROR);
               },
 
               onInstallFailed: function(aInstall) {
-                callCallback(uri, EXECUTION_ERROR);
+                aCallback.onInstallEnded(uri, EXECUTION_ERROR);
               },
 
               onInstallEnded: function(aInstall, aStatus) {
-                callCallback(uri, SUCCESS);
+                aCallback.onInstallEnded(uri, SUCCESS);
               }
             });
           }

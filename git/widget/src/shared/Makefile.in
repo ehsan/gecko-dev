@@ -51,10 +51,6 @@ DEFINES += \
   -D_IMPL_NS_WIDGET \
   $(NULL)
 
-ifdef MOZ_X11
-PARALLEL_DIRS  = x11
-endif //MOZ_X11
-
 CPPSRCS		= \
 		WidgetUtils.cpp \
 		$(NULL)

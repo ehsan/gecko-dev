@@ -176,17 +176,11 @@ protected:
     PRPackedBool mIsVisible;
     nsTArray<nsWindow*> mChildren;
     nsWindow* mParent;
-
-    bool mGestureFinished;
     double mStartDist;
-    double mLastDist;
-    nsAutoPtr<nsIntPoint> mStartPoint;
-
     nsCOMPtr<nsIdleService> mIdleService;
-
+    
     PRUint32 mIMEEnabled;
     PRBool mIMEComposing;
-    nsString mIMEComposingText;
     nsAutoTArray<nsTextRange, 4> mIMERanges;
 
     static void DumpWindows();
@@ -195,9 +189,6 @@ protected:
 
 private:
     void InitKeyEvent(nsKeyEvent& event, mozilla::AndroidGeckoEvent& key);
-    void DispatchGestureEvent(mozilla::AndroidGeckoEvent *ae);
-    void DispatchGestureEvent(PRUint32 msg, PRUint32 direction, double delta,
-                               const nsIntPoint &refPoint, PRUint64 time);
     void HandleSpecialKey(mozilla::AndroidGeckoEvent *ae);
 };
 

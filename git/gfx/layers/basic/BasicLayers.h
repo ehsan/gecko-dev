@@ -226,14 +226,9 @@ public:
   virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer();
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer();
 
+  virtual const char* Name() const { return "BasicShadowLayerManager"; }
+
   ShadowableLayer* Hold(Layer* aLayer);
-
-  PLayersChild* GetShadowManager() const { return mShadowManager; }
-
-  void SetShadowManager(PLayersChild* aShadowManager)
-  {
-    mShadowManager = aShadowManager;
-  }
 
 private:
   LayerRefArray mKeepAlive;

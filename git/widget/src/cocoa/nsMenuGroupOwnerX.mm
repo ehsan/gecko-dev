@@ -53,15 +53,13 @@
 #include "nsHashtable.h"
 #include "nsThreadUtils.h"
 
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIWidget.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 
 #include "nsINode.h"
-
-namespace dom = mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsMenuGroupOwnerX, nsIMutationObserver)
 
@@ -139,7 +137,7 @@ void nsMenuGroupOwnerX::NodeWillBeDestroyed(const nsINode * aNode)
 
 
 void nsMenuGroupOwnerX::AttributeWillChange(nsIDocument* aDocument,
-                                            dom::Element* aContent,
+                                            nsIContent* aContent,
                                             PRInt32 aNameSpaceID,
                                             nsIAtom* aAttribute,
                                             PRInt32 aModType)
@@ -147,16 +145,16 @@ void nsMenuGroupOwnerX::AttributeWillChange(nsIDocument* aDocument,
 }
 
 
-void nsMenuGroupOwnerX::AttributeChanged(nsIDocument* aDocument,
-                                         dom::Element* aElement,
+void nsMenuGroupOwnerX::AttributeChanged(nsIDocument * aDocument,
+                                         nsIContent * aContent,
                                          PRInt32 aNameSpaceID,
-                                         nsIAtom* aAttribute,
+                                         nsIAtom * aAttribute,
                                          PRInt32 aModType)
 {
   nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-  nsChangeObserver* obs = LookupContentChangeObserver(aElement);
+  nsChangeObserver* obs = LookupContentChangeObserver(aContent);
   if (obs)
-    obs->ObserveAttributeChanged(aDocument, aElement, aAttribute);
+    obs->ObserveAttributeChanged(aDocument, aContent, aAttribute);
 }
 
 

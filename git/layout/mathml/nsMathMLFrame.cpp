@@ -454,9 +454,8 @@ nsCSSMapping {
 #if defined(NS_DEBUG) && defined(SHOW_BOUNDING_BOX)
 class nsDisplayMathMLBoundingMetrics : public nsDisplayItem {
 public:
-  nsDisplayMathMLBoundingMetrics(nsDisplayListBuilder* aBuilder,
-                                 nsIFrame* aFrame, const nsRect& aRect)
-    : nsDisplayItem(aBuilder, aFrame), mRect(aRect) {
+  nsDisplayMathMLBoundingMetrics(nsIFrame* aFrame, const nsRect& aRect)
+    : nsDisplayItem(aFrame), mRect(aRect) {
     MOZ_COUNT_CTOR(nsDisplayMathMLBoundingMetrics);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -476,7 +475,7 @@ void nsDisplayMathMLBoundingMetrics::Paint(nsDisplayListBuilder* aBuilder,
                                            nsIRenderingContext* aCtx)
 {
   aCtx->SetColor(NS_RGB(0,0,255));
-  aCtx->DrawRect(mRect + ToReferenceFrame());
+  aCtx->DrawRect(mRect + aBuilder->ToReferenceFrame(mFrame));
 }
 
 nsresult
@@ -493,15 +492,14 @@ nsMathMLFrame::DisplayBoundingMetrics(nsDisplayListBuilder* aBuilder,
   nscoord h = aMetrics.ascent + aMetrics.descent;
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-      nsDisplayMathMLBoundingMetrics(aBuilder, this, nsRect(x,y,w,h)));
+      nsDisplayMathMLBoundingMetrics(this, nsRect(x,y,w,h)));
 }
 #endif
 
 class nsDisplayMathMLBar : public nsDisplayItem {
 public:
-  nsDisplayMathMLBar(nsDisplayListBuilder* aBuilder,
-                     nsIFrame* aFrame, const nsRect& aRect)
-    : nsDisplayItem(aBuilder, aFrame), mRect(aRect) {
+  nsDisplayMathMLBar(nsIFrame* aFrame, const nsRect& aRect)
+    : nsDisplayItem(aFrame), mRect(aRect) {
     MOZ_COUNT_CTOR(nsDisplayMathMLBar);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -522,7 +520,7 @@ void nsDisplayMathMLBar::Paint(nsDisplayListBuilder* aBuilder,
 {
   // paint the bar with the current text color
   aCtx->SetColor(mFrame->GetStyleColor()->mColor);
-  aCtx->FillRect(mRect + ToReferenceFrame());
+  aCtx->FillRect(mRect + aBuilder->ToReferenceFrame(mFrame));
 }
 
 nsresult
@@ -533,5 +531,5 @@ nsMathMLFrame::DisplayBar(nsDisplayListBuilder* aBuilder,
     return NS_OK;
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-      nsDisplayMathMLBar(aBuilder, aFrame, aRect));
+      nsDisplayMathMLBar(aFrame, aRect));
 }
