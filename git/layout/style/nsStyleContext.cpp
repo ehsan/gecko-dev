@@ -259,7 +259,7 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
   if (!mChild && !mEmptyChild &&
       !(mBits & nsCachedStyleData::GetBitForSID(aSID)) &&
       mCachedStyleData.GetStyleData(aSID))
-    return const_cast<nsStyleStruct*>(current);
+    return NS_CONST_CAST(nsStyleStruct*, current);
 
   nsStyleStruct* result;
   nsPresContext *presContext = PresContext();
@@ -268,7 +268,7 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
 #define UNIQUE_CASE(c_)                                                       \
   case eStyleStruct_##c_:                                                     \
     result = new (presContext) nsStyle##c_(                                   \
-      * static_cast<const nsStyle##c_ *>(current));                           \
+      * NS_STATIC_CAST(const nsStyle##c_ *, current));                        \
     break;
 
   UNIQUE_CASE(Display)
@@ -286,7 +286,7 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
   if (!result) {
     NS_WARNING("Ran out of memory while trying to allocate memory for a unique nsStyleStruct! "
                "Returning the non-unique data.");
-    return const_cast<nsStyleStruct*>(current);
+    return NS_CONST_CAST(nsStyleStruct*, current);
   }
 
   SetStyle(aSID, result);
@@ -309,24 +309,24 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, nsStyleStruct* aStruct)
 
   const nsCachedStyleData::StyleStructInfo& info =
       nsCachedStyleData::gInfo[aSID];
-  char* resetOrInheritSlot = reinterpret_cast<char*>(&mCachedStyleData) +
+  char* resetOrInheritSlot = NS_REINTERPRET_CAST(char*, &mCachedStyleData) +
                              info.mCachedStyleDataOffset;
-  char* resetOrInherit = reinterpret_cast<char*>
-                                         (*reinterpret_cast<void**>(resetOrInheritSlot));
+  char* resetOrInherit = NS_REINTERPRET_CAST(char*,
+      *NS_REINTERPRET_CAST(void**, resetOrInheritSlot));
   if (!resetOrInherit) {
     nsPresContext *presContext = mRuleNode->GetPresContext();
     if (mCachedStyleData.IsReset(aSID)) {
       mCachedStyleData.mResetData = new (presContext) nsResetStyleData;
-      resetOrInherit = reinterpret_cast<char*>(mCachedStyleData.mResetData);
+      resetOrInherit = NS_REINTERPRET_CAST(char*, mCachedStyleData.mResetData);
     } else {
       mCachedStyleData.mInheritedData =
           new (presContext) nsInheritedStyleData;
       resetOrInherit =
-          reinterpret_cast<char*>(mCachedStyleData.mInheritedData);
+          NS_REINTERPRET_CAST(char*, mCachedStyleData.mInheritedData);
     }
   }
   char* dataSlot = resetOrInherit + info.mInheritResetOffset;
-  *reinterpret_cast<nsStyleStruct**>(dataSlot) = aStruct;
+  *NS_REINTERPRET_CAST(nsStyleStruct**, dataSlot) = aStruct;
 }
 
 void
@@ -371,8 +371,8 @@ nsStyleContext::ApplyStyleFixups(nsPresContext* aPresContext)
     if (disp->mDisplay != NS_STYLE_DISPLAY_NONE &&
         disp->mDisplay != NS_STYLE_DISPLAY_BLOCK &&
         disp->mDisplay != NS_STYLE_DISPLAY_TABLE) {
-      nsStyleDisplay *mutable_display = static_cast<nsStyleDisplay*>
-                                                   (GetUniqueStyleData(eStyleStruct_Display));
+      nsStyleDisplay *mutable_display = NS_STATIC_CAST(nsStyleDisplay*,
+        GetUniqueStyleData(eStyleStruct_Display));
       if (mutable_display->mDisplay == NS_STYLE_DISPLAY_INLINE_TABLE)
         mutable_display->mDisplay = NS_STYLE_DISPLAY_TABLE;
       else
@@ -437,7 +437,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
     NS_ASSERTION(NS_IsHintSubset(nsStyle##struct_::MaxDifference(), maxHint), \
                  "Struct placed in the wrong maxHint section");               \
     const nsStyle##struct_* this##struct_ =                                   \
-        static_cast<const nsStyle##struct_*>(                                 \
+        NS_STATIC_CAST(const nsStyle##struct_*,                               \
                        PeekStyleData(eStyleStruct_##struct_));                \
     if (this##struct_) {                                                      \
       const nsStyle##struct_* other##struct_ = aOther->GetStyle##struct_();   \

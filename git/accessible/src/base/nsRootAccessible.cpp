@@ -62,7 +62,6 @@
 #include "nsIEventListenerManager.h"
 #include "nsIFocusController.h"
 #include "nsIFrame.h"
-#include "nsIMenuFrame.h"
 #include "nsIHTMLDocument.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIMenuParent.h"
@@ -94,7 +93,7 @@
 NS_IMPL_QUERY_HEAD(nsRootAccessible)
 NS_IMPL_QUERY_BODY(nsIDOMEventListener)
 if (aIID.Equals(NS_GET_IID(nsRootAccessible)))
-  foundInterface = reinterpret_cast<nsISupports*>(this);
+  foundInterface = NS_REINTERPRET_CAST(nsISupports*, this);
 else
 NS_IMPL_QUERY_TAIL_INHERITING(nsDocAccessible)
 
@@ -477,19 +476,26 @@ PRBool nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
     return PR_FALSE;
   }
 
+  nsCOMPtr<nsPIAccessible> privateAccessible =
+    do_QueryInterface(finalFocusAccessible);
+  NS_ASSERTION(privateAccessible , "No nsPIAccessible for nsIAccessible");
+  if (!privateAccessible) {
+    return PR_FALSE;
+  }
+
   PRUint32 role = Role(finalFocusAccessible);
   if (role == nsIAccessibleRole::ROLE_MENUITEM) {
     if (!mIsInDHTMLMenu) {  // Entering menus
       PRUint32 naturalRole; // The natural role is the role that this type of element normally has
       finalFocusAccessible->GetRole(&naturalRole);
       if (role != naturalRole) { // Must be a DHTML menuitem
-         nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_MENU_START, this);
+         FireToolkitEvent(nsIAccessibleEvent::EVENT_MENU_START, this, nsnull);
          mIsInDHTMLMenu = nsIAccessibleRole::ROLE_MENUITEM;
       }
     }
   }
   else if (mIsInDHTMLMenu) {
-    nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_MENU_END, this);
+    FireToolkitEvent(nsIAccessibleEvent::EVENT_MENU_END, this, nsnull);
     mIsInDHTMLMenu = PR_FALSE;
   }
 
@@ -497,7 +503,7 @@ PRBool nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
   gLastFocusedNode = finalFocusNode;
   NS_IF_ADDREF(gLastFocusedNode);
 
-  nsCOMPtr<nsIAccessibleDocument> docAccessible = do_QueryInterface(finalFocusAccessible);
+  nsCOMPtr<nsIAccessibleDocument> docAccessible = do_QueryInterface(privateAccessible);
   if (docAccessible) {
     // Doc is gaining focus, but actual focus may be on an element within document
     nsCOMPtr<nsIDOMNode> realFocusedNode = GetCurrentFocus();
@@ -509,8 +515,15 @@ PRBool nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
     }
   }
 
-  FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_FOCUS,
-                          finalFocusNode, nsnull);
+  privateAccessible->FireToolkitEvent(nsIAccessibleEvent::EVENT_FOCUS,
+                                      finalFocusAccessible, nsnull);
+
+  // Fire state change event for focus
+  nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
+    new nsAccStateChangeEvent(finalFocusAccessible,
+                              nsIAccessibleStates::STATE_FOCUSED,
+                              PR_FALSE, PR_TRUE);
+  FireAccessibleEvent(accEvent);
 
   return PR_TRUE;
 }
@@ -704,12 +717,12 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
         // for each tree item. Perhaps each tree item will need to cache its
         // selection state and fire an event after a DOM "select" event when
         // that state changes. nsXULTreeAccessible::UpdateTreeSelection();
-        return nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SELECTION_WITHIN,
-                                        accessible);
+        return privAcc->FireToolkitEvent(nsIAccessibleEvent::EVENT_SELECTION_WITHIN,
+                                         accessible, nsnull);
       }
 
-      return nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SELECTION,
-                                      treeItemAccessible);
+      return privAcc->FireToolkitEvent(nsIAccessibleEvent::EVENT_SELECTION,
+                                       treeItemAccessible, nsnull);
     }
   }
   else
@@ -747,10 +760,12 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     FireAccessibleFocusEvent(accessible, focusedItem, aEvent);
   }
   else if (eventType.EqualsLiteral("NameChange")) {
-    nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE, accessible);
+    privAcc->FireToolkitEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE,
+                              accessible, nsnull);
   }
   else if (eventType.EqualsLiteral("AlertActive")) { 
-    nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_ALERT, accessible);
+    privAcc->FireToolkitEvent(nsIAccessibleEvent::EVENT_ALERT, 
+                              accessible, nsnull);
   }
   else if (eventType.EqualsLiteral("popupshown")) {
     // Don't fire menupopup events for combobox and autocomplete lists
@@ -767,7 +782,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
       event = nsIAccessibleEvent::EVENT_SHOW;
     }
     if (event) {
-      nsAccUtils::FireAccEvent(event, accessible);
+      privAcc->FireToolkitEvent(event, accessible, nsnull);
     }
   }
 
@@ -794,29 +809,28 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
   }
   else if (eventType.EqualsLiteral("DOMMenuInactive")) {
     if (Role(accessible) == nsIAccessibleRole::ROLE_MENUPOPUP) {
-      nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END,
-                               accessible);
+      privAcc->FireToolkitEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END,
+                                accessible, nsnull);
     }
   }
   else if (eventType.EqualsLiteral("DOMMenuItemActive")) {
     if (!treeItemAccessible) {
-      nsCOMPtr<nsPIAccessNode> menuAccessNode = do_QueryInterface(accessible);
-      NS_ENSURE_TRUE(menuAccessNode, NS_ERROR_FAILURE);
-      nsIFrame* menuFrame = menuAccessNode->GetFrame();
-      NS_ENSURE_TRUE(menuFrame, NS_ERROR_FAILURE);
-      nsIMenuFrame* imenuFrame;
-      CallQueryInterface(menuFrame, &imenuFrame);
-      NS_ENSURE_TRUE(imenuFrame, NS_ERROR_FAILURE);
-      if (imenuFrame->IsOnMenuBar()) {
-        if (!imenuFrame->IsOnActiveMenuBar()) {
+      nsCOMPtr<nsIAccessible> containerAccessible;
+      accessible->GetParent(getter_AddRefs(containerAccessible));
+      NS_ENSURE_TRUE(containerAccessible, NS_OK);
+      if (Role(containerAccessible) == nsIAccessibleRole::ROLE_MENUBAR) {
+        nsCOMPtr<nsPIAccessNode> menuBarAccessNode(do_QueryInterface(containerAccessible));
+        NS_ENSURE_TRUE(menuBarAccessNode, NS_ERROR_FAILURE);
+        nsCOMPtr<nsIMenuParent> menuParent = do_QueryInterface(menuBarAccessNode->GetFrame());
+        NS_ENSURE_TRUE(menuParent, NS_ERROR_FAILURE);
+        PRBool isActive;
+        menuParent->GetIsActive(isActive);
+        if (!isActive) {
           // It is a top level menuitem. Only fire a focus event when the menu bar
           // is active.
           return NS_OK;
         }
       } else {
-        nsCOMPtr<nsIAccessible> containerAccessible;
-        accessible->GetParent(getter_AddRefs(containerAccessible));
-        NS_ENSURE_TRUE(containerAccessible, NS_ERROR_FAILURE);
         // It is not top level menuitem
         // Only fire focus event if it is not inside collapsed popup
         if (State(containerAccessible) & nsIAccessibleStates::STATE_COLLAPSED)
@@ -826,14 +840,28 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     FireAccessibleFocusEvent(accessible, aTargetNode, aEvent, PR_TRUE);
   }
   else if (eventType.EqualsLiteral("DOMMenuBarActive")) {
-    nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_MENU_START, accessible);
+    privAcc->FireToolkitEvent(nsIAccessibleEvent::EVENT_MENU_START,
+                              accessible, nsnull);
   }
   else if (eventType.EqualsLiteral("DOMMenuBarInactive")) {
-    nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_MENU_END, accessible);
+    privAcc->FireToolkitEvent(nsIAccessibleEvent::EVENT_MENU_END,
+                              accessible, nsnull);
     FireCurrentFocusEvent();
   }
   else if (eventType.EqualsLiteral("ValueChange")) {
-    nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, accessible);
+    PRUint32 role;
+    accessible->GetFinalRole(&role);
+    if (role == nsIAccessibleRole::ROLE_PROGRESSBAR) {
+      // For progressmeter, fire EVENT_SHOW on 1st value change
+      nsAutoString value;
+      accessible->GetValue(value);
+      if (value.EqualsLiteral("0%")) {
+        privAcc->FireToolkitEvent(nsIAccessibleEvent::EVENT_SHOW, 
+                                  accessible, nsnull);
+      }
+    }
+    privAcc->FireToolkitEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, 
+                              accessible, nsnull);
   }
   return NS_OK;
 }
@@ -866,7 +894,7 @@ void nsRootAccessible::GetTargetNode(nsIDOMEvent *aEvent, nsIDOMNode **aTargetNo
 
 void nsRootAccessible::FireFocusCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsRootAccessible *rootAccessible = static_cast<nsRootAccessible*>(aClosure);
+  nsRootAccessible *rootAccessible = NS_STATIC_CAST(nsRootAccessible*, aClosure);
   NS_ASSERTION(rootAccessible, "How did we get here without a root accessible?");
   rootAccessible->FireCurrentFocusEvent();
 }

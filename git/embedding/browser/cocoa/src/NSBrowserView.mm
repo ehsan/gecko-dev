@@ -591,10 +591,11 @@ nsCocoaBrowserListener::SetContainer(id <NSBrowserContainer> aContainer)
   NS_ADDREF(_webBrowser);
 
   // Set the container nsIWebBrowserChrome
-  _webBrowser->SetContainerWindow(static_cast<nsIWebBrowserChrome *>(_listener));
+  _webBrowser->SetContainerWindow(NS_STATIC_CAST(nsIWebBrowserChrome *, 
+						 _listener));
   
   // Register as a listener for web progress
-  nsCOMPtr<nsIWeakReference> weak = do_GetWeakReference(static_cast<nsIWebProgressListener*>(_listener));
+  nsCOMPtr<nsIWeakReference> weak = do_GetWeakReference(NS_STATIC_CAST(nsIWebProgressListener*, _listener));
   _webBrowser->AddWebBrowserListener(weak, NS_GET_IID(nsIWebProgressListener));
 
   // Hook up the widget hierarchy with us as the parent
@@ -789,7 +790,8 @@ nsCocoaBrowserListener::SetContainer(id <NSBrowserContainer> aContainer)
 
   if (_webBrowser) {
     // Set the container nsIWebBrowserChrome
-    _webBrowser->SetContainerWindow(static_cast<nsIWebBrowserChrome *>(_listener));
+    _webBrowser->SetContainerWindow(NS_STATIC_CAST(nsIWebBrowserChrome *, 
+						   _listener));
 
     NSRect frame = [self frame];
  

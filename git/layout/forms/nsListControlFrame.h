@@ -401,7 +401,7 @@ protected:
   void     InitSelectionRange(PRInt32 aClickedIndex);
 
   nsSelectsAreaFrame* GetOptionsContainer() const {
-    return static_cast<nsSelectsAreaFrame*>(GetScrolledFrame());
+    return NS_STATIC_CAST(nsSelectsAreaFrame*, GetScrolledFrame());
   }
 
   nscoord HeightOfARow() {

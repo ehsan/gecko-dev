@@ -140,7 +140,7 @@ nsXULTemplateBuilder::nsXULTemplateBuilder(void)
 static PLDHashOperator
 DestroyMatchList(nsISupports* aKey, nsTemplateMatch* aMatch, void* aContext)
 {
-    nsFixedSizeAllocator* pool = static_cast<nsFixedSizeAllocator *>(aContext);
+    nsFixedSizeAllocator* pool = NS_STATIC_CAST(nsFixedSizeAllocator *, aContext);
 
     // delete all the matches in the list
     while (aMatch) {
@@ -231,7 +231,7 @@ static PLDHashOperator
 TraverseMatchList(nsISupports* aKey, nsTemplateMatch* aMatch, void* aContext)
 {
     nsCycleCollectionTraversalCallback *cb =
-        static_cast<nsCycleCollectionTraversalCallback*>(aContext);
+        NS_STATIC_CAST(nsCycleCollectionTraversalCallback*, aContext);
 
     cb->NoteXPCOMChild(aKey);
     nsTemplateMatch* match = aMatch;
@@ -1037,8 +1037,7 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
                                        nsIContent*  aContent,
                                        PRInt32      aNameSpaceID,
                                        nsIAtom*     aAttribute,
-                                       PRInt32      aModType,
-                                       PRUint32     aStateMask)
+                                       PRInt32      aModType)
 {
     if (aContent == mRoot && aNameSpaceID == kNameSpaceID_None) {
         // Check for a change to the 'ref' attribute on an atom, in which
@@ -1426,7 +1425,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     if (! context)
         return NS_ERROR_UNEXPECTED;
 
-    JSContext* jscontext = reinterpret_cast<JSContext*>(context->GetNativeContext());
+    JSContext* jscontext = NS_REINTERPRET_CAST(JSContext*, context->GetNativeContext());
     NS_ASSERTION(context != nsnull, "no jscontext");
     if (! jscontext)
         return NS_ERROR_UNEXPECTED;
@@ -1467,7 +1466,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
         // builder
         nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
         rv = xpc->WrapNative(jscontext, jselement,
-                             static_cast<nsIXULTemplateBuilder*>(this),
+                             NS_STATIC_CAST(nsIXULTemplateBuilder*, this),
                              NS_GET_IID(nsIXULTemplateBuilder),
                              getter_AddRefs(wrapper));
         NS_ENSURE_SUCCESS(rv, rv);
@@ -1642,7 +1641,7 @@ nsXULTemplateBuilder::SubstituteTextAppendText(nsXULTemplateBuilder* aThis,
                                                void* aClosure)
 {
     // Append aString to the closure's result
-    SubstituteTextClosure* c = static_cast<SubstituteTextClosure*>(aClosure);
+    SubstituteTextClosure* c = NS_STATIC_CAST(SubstituteTextClosure*, aClosure);
     c->str.Append(aText);
 }
 
@@ -1653,7 +1652,7 @@ nsXULTemplateBuilder::SubstituteTextReplaceVariable(nsXULTemplateBuilder* aThis,
 {
     // Substitute the value for the variable and append to the
     // closure's result.
-    SubstituteTextClosure* c = static_cast<SubstituteTextClosure*>(aClosure);
+    SubstituteTextClosure* c = NS_STATIC_CAST(SubstituteTextClosure*, aClosure);
 
     nsAutoString replacementText;
 
@@ -1913,12 +1912,6 @@ nsXULTemplateBuilder::CompileTemplate(nsIContent* aTemplate,
                 if (! memberVariable) continue;
 
                 if (hasQuery) {
-                    nsCOMPtr<nsIAtom> tag;
-                    DetermineRDFQueryRef(aQuerySet->mQueryNode,
-                                         getter_AddRefs(tag));
-                    if (tag)
-                        aQuerySet->SetTag(tag);
-
                     if (! aQuerySet->mCompiledQuery) {
                         nsCOMPtr<nsIDOMNode> query(do_QueryInterface(aQuerySet->mQueryNode));
 
@@ -2512,7 +2505,7 @@ nsXULTemplateBuilder::AddSimpleRuleBindings(nsTemplateRule* aRule,
     while (elements.Count()) {
         // Pop the next element off the stack
         PRUint32 i = (PRUint32)(elements.Count() - 1);
-        nsIContent* element = static_cast<nsIContent*>(elements[i]);
+        nsIContent* element = NS_STATIC_CAST(nsIContent*, elements[i]);
         elements.RemoveElementAt(i);
 
         // Iterate through its attributes, looking for substitutions
@@ -2557,7 +2550,7 @@ nsXULTemplateBuilder::AddBindingsFor(nsXULTemplateBuilder* aThis,
     if (!StringBeginsWith(aVariable, NS_LITERAL_STRING("rdf:")))
         return;
 
-    nsTemplateRule* rule = static_cast<nsTemplateRule*>(aClosure);
+    nsTemplateRule* rule = NS_STATIC_CAST(nsTemplateRule*, aClosure);
 
     nsCOMPtr<nsIAtom> var = do_GetAtom(aVariable);
 

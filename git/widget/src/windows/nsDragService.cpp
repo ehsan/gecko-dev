@@ -267,7 +267,7 @@ nsDragService::GetDataObjCollection(IDataObject* aDataObj)
     nsIDataObjCollection* dataObj;
     if (aDataObj->QueryInterface(IID_IDataObjCollection,
                                  (void**)&dataObj) == S_OK) {
-      dataObjCol = static_cast<nsDataObjCollection*>(aDataObj);
+      dataObjCol = NS_STATIC_CAST(nsDataObjCollection*, aDataObj);
       dataObj->Release();
     }
   }

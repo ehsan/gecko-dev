@@ -127,15 +127,7 @@ sub add_file($$) {
 
     my ($infile, $factor) = @_;
 
-    if ($infile =~ /\.bz2$/) {
-        # XXX This doesn't propagate errors from bzip2.
-        open (INFILE, "bzip2 -cd '$infile' |") || die "Can't open input \"$infile\"";
-    } elsif ($infile =~ /\.gz$/) {
-        # XXX This doesn't propagate errors from gzip.
-        open (INFILE, "gzip -cd '$infile' |") || die "Can't open input \"$infile\"";
-    } else {
-        open (INFILE, "<$infile") || die "Can't open input \"$infile\"";
-    }
+    open (INFILE, "<$infile") || die "Can't open input \"$infile\"";
     while ( ! eof(INFILE) ) {
         # read the type and address
         my $line = <INFILE>;

@@ -162,7 +162,7 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
     if (event->message == NS_LOAD_ERROR &&
         event->eventStructType == NS_SCRIPT_ERROR_EVENT) {
       nsScriptErrorEvent *scriptEvent =
-        static_cast<nsScriptErrorEvent*>(event);
+        NS_STATIC_CAST(nsScriptErrorEvent*, event);
       // Create a temp argv for the error event.
       nsCOMPtr<nsIMutableArray> tempargv = 
         do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
@@ -228,7 +228,7 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
                      NS_ERROR_UNEXPECTED);
 
       nsBeforePageUnloadEvent *beforeUnload =
-        static_cast<nsBeforePageUnloadEvent *>(event);
+        NS_STATIC_CAST(nsBeforePageUnloadEvent *, event);
 
       if (dataType != nsIDataType::VTYPE_VOID) {
         aEvent->PreventDefault();

@@ -200,14 +200,10 @@ struct JSToken {
     JSTokenPos          pos;            /* token position in file */
     jschar              *ptr;           /* beginning of token in line buffer */
     union {
-        struct {                        /* name or string literal */
+        struct {                        /* non-numeric literal */
             JSOp        op;             /* operator, for minimal parser */
             JSAtom      *atom;          /* atom table entry */
         } s;
-        struct {                        /* object literal */
-            JSOp        op;             /* operator, for minimal parser */
-            JSParsedObjectBox *pob;     /* object literal node */
-        } o;
         struct {                        /* atom pair, for XML PIs */
             JSAtom      *atom2;         /* auxiliary atom table entry */
             JSAtom      *atom;          /* main atom table entry */
@@ -217,7 +213,6 @@ struct JSToken {
 };
 
 #define t_op            u.s.op
-#define t_pob           u.o.pob
 #define t_atom          u.s.atom
 #define t_atom2         u.p.atom2
 #define t_dval          u.dval
@@ -254,7 +249,6 @@ struct JSTokenStream {
     void                *listenerTSData;/* listener data for this TokenStream */
     jschar              *saveEOL;       /* save next end of line in userbuf, to
                                            optimize for very long lines */
-    JSParseContext      *parseContext;
 };
 
 #define CURRENT_TOKEN(ts)       ((ts)->tokens[(ts)->cursor])

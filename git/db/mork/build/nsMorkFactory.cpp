@@ -85,7 +85,7 @@ nsMorkFactoryFactory::QueryInterface(REFNSIID iid, void** result)
   *result = nsnull;
   if(iid.Equals(NS_GET_IID(nsIMdbFactoryFactory)) ||
     iid.Equals(NS_GET_IID(nsISupports))) {
-    *result = static_cast<nsIMdbFactoryFactory*>(this);
+    *result = NS_STATIC_CAST(nsIMdbFactoryFactory*, this);
     AddRef();
     return NS_OK;
   }

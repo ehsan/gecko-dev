@@ -373,9 +373,9 @@ nsTreeBodyFrame::EnsureBoxObject()
         nsCOMPtr<nsITreeBoxObject> realTreeBoxObject = do_QueryInterface(pBox);
         if (realTreeBoxObject) {
           nsITreeBoxObject* innerTreeBoxObject =
-            static_cast<nsTreeBoxObject*>(realTreeBoxObject.get())->GetTreeBody();
+            NS_STATIC_CAST(nsTreeBoxObject*, realTreeBoxObject.get())->GetTreeBody();
           ENSURE_TRUE(!innerTreeBoxObject || innerTreeBoxObject ==
-                      static_cast<nsITreeBoxObject*>(this));
+                      NS_STATIC_CAST(nsITreeBoxObject*, this));
           mTreeBoxObject = realTreeBoxObject;
           mColumns->SetTree(mTreeBoxObject);
         }
@@ -2125,13 +2125,9 @@ nsTreeBodyFrame::GetImage(PRInt32 aRowIndex, nsTreeColumn* aCol, PRBool aUseCont
       if (!srcURI)
         return NS_ERROR_FAILURE;
 
-      // XXXbz what's the origin principal for this stuff that comes from our
-      // view?  I guess we should assume that it's the node's principal...
-      if (nsContentUtils::CanLoadImage(srcURI, mContent, doc,
-                                       mContent->NodePrincipal())) {
+      if (nsContentUtils::CanLoadImage(srcURI, mContent, doc)) {
         nsresult rv = nsContentUtils::LoadImage(srcURI,
                                                 doc,
-                                                mContent->NodePrincipal(),
                                                 doc->GetDocumentURI(),
                                                 imgDecoderObserver,
                                                 nsIRequest::LOAD_NORMAL,
@@ -2674,7 +2670,7 @@ static void
 PaintTreeBody(nsIFrame* aFrame, nsIRenderingContext* aCtx,
               const nsRect& aDirtyRect, nsPoint aPt)
 {
-  static_cast<nsTreeBodyFrame*>(aFrame)->PaintTreeBody(*aCtx, aDirtyRect, aPt);
+  NS_STATIC_CAST(nsTreeBodyFrame*, aFrame)->PaintTreeBody(*aCtx, aDirtyRect, aPt);
 }
 
 // Painting routines
@@ -4209,7 +4205,7 @@ nsTreeBodyFrame::ComputeDropPosition(nsGUIEvent* aEvent, PRInt32* aRow, PRInt16*
 void
 nsTreeBodyFrame::OpenCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsTreeBodyFrame* self = static_cast<nsTreeBodyFrame*>(aClosure);
+  nsTreeBodyFrame* self = NS_STATIC_CAST(nsTreeBodyFrame*, aClosure);
   if (self) {
     aTimer->Cancel();
     self->mSlots->mTimer = nsnull;
@@ -4224,7 +4220,7 @@ nsTreeBodyFrame::OpenCallback(nsITimer *aTimer, void *aClosure)
 void
 nsTreeBodyFrame::CloseCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsTreeBodyFrame* self = static_cast<nsTreeBodyFrame*>(aClosure);
+  nsTreeBodyFrame* self = NS_STATIC_CAST(nsTreeBodyFrame*, aClosure);
   if (self) {
     aTimer->Cancel();
     self->mSlots->mTimer = nsnull;
@@ -4240,7 +4236,7 @@ nsTreeBodyFrame::CloseCallback(nsITimer *aTimer, void *aClosure)
 void
 nsTreeBodyFrame::LazyScrollCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsTreeBodyFrame* self = static_cast<nsTreeBodyFrame*>(aClosure);
+  nsTreeBodyFrame* self = NS_STATIC_CAST(nsTreeBodyFrame*, aClosure);
   if (self) {
     aTimer->Cancel();
     self->mSlots->mTimer = nsnull;
@@ -4259,7 +4255,7 @@ nsTreeBodyFrame::LazyScrollCallback(nsITimer *aTimer, void *aClosure)
 void
 nsTreeBodyFrame::ScrollCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsTreeBodyFrame* self = static_cast<nsTreeBodyFrame*>(aClosure);
+  nsTreeBodyFrame* self = NS_STATIC_CAST(nsTreeBodyFrame*, aClosure);
   if (self) {
     // Don't scroll if we are already at the top or bottom of the view.
     if (self->mView && self->CanAutoScroll(self->mSlots->mDropRow)) {

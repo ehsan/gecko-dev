@@ -608,8 +608,6 @@ SIOUX.h
 size_t.h
 someincludefile.h
 Sound.h
-sqlite3.h
-sqlite3file.h
 ssdef.h
 sslerr.h
 ssl.h
@@ -686,7 +684,6 @@ sys/prctl.h
 sys/priv.h
 sys/procfs.h
 sys/pstat.h
-sys/ptrace.h
 sys/queue.h
 sys/reg.h
 sys/regset.h

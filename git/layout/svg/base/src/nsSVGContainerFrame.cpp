@@ -240,9 +240,6 @@ nsSVGDisplayContainerFrame::InitialUpdate()
 NS_IMETHODIMP
 nsSVGDisplayContainerFrame::NotifyCanvasTMChanged(PRBool suppressInvalidation)
 {
-  if (!suppressInvalidation)
-    nsSVGUtils::UpdateFilterRegion(this);
-
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
     nsISVGChildFrame* SVGFrame = nsnull;
@@ -251,6 +248,8 @@ nsSVGDisplayContainerFrame::NotifyCanvasTMChanged(PRBool suppressInvalidation)
       SVGFrame->NotifyCanvasTMChanged(suppressInvalidation);
     }
   }
+  if (!suppressInvalidation)
+    nsSVGUtils::UpdateFilterRegion(this);
 
   return NS_OK;
 }

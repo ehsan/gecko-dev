@@ -37,17 +37,14 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccessibilityUtils.h"
-
-#include "nsPIAccessible.h"
-#include "nsAccessibleEventData.h"
-
 #include "nsIDOMXULSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsIEventListenerManager.h"
 
 void
-nsAccUtils::GetAccAttr(nsIPersistentProperties *aAttributes, nsIAtom *aAttrName,
-                       nsAString& aAttrValue)
+nsAccessibilityUtils::GetAccAttr(nsIPersistentProperties *aAttributes,
+                                 nsIAtom *aAttrName,
+                                 nsAString& aAttrValue)
 {
   nsCAutoString attrName;
   aAttrName->ToUTF8String(attrName);
@@ -55,8 +52,9 @@ nsAccUtils::GetAccAttr(nsIPersistentProperties *aAttributes, nsIAtom *aAttrName,
 }
 
 void
-nsAccUtils::SetAccAttr(nsIPersistentProperties *aAttributes, nsIAtom *aAttrName,
-                       const nsAString& aAttrValue)
+nsAccessibilityUtils::SetAccAttr(nsIPersistentProperties *aAttributes,
+                                 nsIAtom *aAttrName,
+                                 const nsAString& aAttrValue)
 {
   nsAutoString oldValue;
   nsCAutoString attrName;
@@ -66,9 +64,10 @@ nsAccUtils::SetAccAttr(nsIPersistentProperties *aAttributes, nsIAtom *aAttrName,
 }
 
 void
-nsAccUtils::GetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                             PRInt32 *aLevel, PRInt32 *aPosInSet,
-                             PRInt32 *aSetSize)
+nsAccessibilityUtils::GetAccGroupAttrs(nsIPersistentProperties *aAttributes,
+                                       PRInt32 *aLevel,
+                                       PRInt32 *aPosInSet,
+                                       PRInt32 *aSetSize)
 {
   *aLevel = 0;
   *aPosInSet = 0;
@@ -100,7 +99,7 @@ nsAccUtils::GetAccGroupAttrs(nsIPersistentProperties *aAttributes,
 }
 
 PRBool
-nsAccUtils::HasAccGroupAttrs(nsIPersistentProperties *aAttributes)
+nsAccessibilityUtils::HasAccGroupAttrs(nsIPersistentProperties *aAttributes)
 {
   nsAutoString value;
 
@@ -114,9 +113,10 @@ nsAccUtils::HasAccGroupAttrs(nsIPersistentProperties *aAttributes)
 }
 
 void
-nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                             PRInt32 aLevel, PRInt32 aPosInSet,
-                             PRInt32 aSetSize)
+nsAccessibilityUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
+                                       PRInt32 aLevel,
+                                       PRInt32 aPosInSet,
+                                       PRInt32 aSetSize)
 {
   nsAutoString value;
 
@@ -137,8 +137,8 @@ nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
 }
 
 void
-nsAccUtils::SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
-                                               nsIPersistentProperties *aAttributes)
+nsAccessibilityUtils::SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
+                                                         nsIPersistentProperties *aAttributes)
 {
   nsCOMPtr<nsIDOMXULSelectControlItemElement> item(do_QueryInterface(aNode));
   if (!item)
@@ -157,28 +157,12 @@ nsAccUtils::SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
   SetAccGroupAttrs(aAttributes, 0, indexOf + 1, itemsCount);
 }
 
-PRBool
-nsAccUtils::HasListener(nsIContent *aContent, const nsAString& aEventType)
+PRBool nsAccessibilityUtils::HasListener(nsIContent *aContent, const nsAString& aEventType)
 {
   NS_ENSURE_ARG_POINTER(aContent);
   nsCOMPtr<nsIEventListenerManager> listenerManager;
   aContent->GetListenerManager(PR_FALSE, getter_AddRefs(listenerManager));
 
   return listenerManager && listenerManager->HasListenersFor(aEventType);  
-}
-
-nsresult
-nsAccUtils::FireAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible)
-{
-  NS_ENSURE_ARG(aAccessible);
-
-  nsCOMPtr<nsPIAccessible> pAccessible(do_QueryInterface(aAccessible));
-  NS_ASSERTION(pAccessible, "Accessible doesn't implement nsPIAccessible");
-
-  nsCOMPtr<nsIAccessibleEvent> event =
-    new nsAccEvent(aEventType, aAccessible, nsnull);
-  NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
-
-  return pAccessible->FireAccessibleEvent(event);
 }
 

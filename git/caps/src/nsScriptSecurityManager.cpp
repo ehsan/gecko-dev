@@ -106,7 +106,7 @@ JSValIDToString(JSContext *cx, const jsval idval)
     JSString *str = JS_ValueToString(cx, idval);
     if(!str)
         return nsnull;
-    return reinterpret_cast<PRUnichar*>(JS_GetStringChars(str));
+    return NS_REINTERPRET_CAST(PRUnichar*, JS_GetStringChars(str));
 }
 
 static nsIScriptContext *
@@ -127,7 +127,7 @@ inline void SetPendingException(JSContext *cx, const PRUnichar *aMsg)
 {
     JSAutoRequest ar(cx);
     JSString *str = JS_NewUCStringCopyZ(cx,
-                        reinterpret_cast<const jschar*>(aMsg));
+                        NS_REINTERPRET_CAST(const jschar*, aMsg));
     if (str)
         JS_SetPendingException(cx, STRING_TO_JSVAL(str));
 }
@@ -150,7 +150,7 @@ class ClassInfoData
 public:
     ClassInfoData(nsIClassInfo *aClassInfo, const char *aName)
         : mClassInfo(aClassInfo),
-          mName(const_cast<char *>(aName)),
+          mName(NS_CONST_CAST(char *, aName)),
           mDidGetFlags(PR_FALSE),
           mMustFreeName(PR_FALSE)
     {
@@ -200,7 +200,7 @@ public:
             if (mName) {
                 mMustFreeName = PR_TRUE;
             } else {
-                mName = const_cast<char *>("UnnamedClass");
+                mName = NS_CONST_CAST(char *, "UnnamedClass");
             }
         }
 
@@ -383,14 +383,6 @@ nsScriptSecurityManager::GetChannelPrincipal(nsIChannel* aChannel,
     }
 
     return GetCodebasePrincipal(uri, aPrincipal);
-}
-
-NS_IMETHODIMP
-nsScriptSecurityManager::IsSystemPrincipal(nsIPrincipal* aPrincipal,
-                                           PRBool* aIsSystem)
-{
-    *aIsSystem = (aPrincipal == mSystemPrincipal);
-    return NS_OK;
 }
 
 ////////////////////
@@ -1056,8 +1048,8 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
         printf("ClassLookup ");
 #endif
 
-        cpolicy = static_cast<ClassPolicy*>
-                             (PL_DHashTableOperate(dpolicy,
+        cpolicy = NS_STATIC_CAST(ClassPolicy*,
+                                 PL_DHashTableOperate(dpolicy,
                                                       aClassData.GetName(),
                                                       PL_DHASH_LOOKUP));
 
@@ -1076,8 +1068,8 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
     PropertyPolicy* ppolicy = nsnull;
     if (cpolicy != NO_POLICY_FOR_CLASS)
     {
-        ppolicy = static_cast<PropertyPolicy*>
-                             (PL_DHashTableOperate(cpolicy->mPolicy,
+        ppolicy = NS_STATIC_CAST(PropertyPolicy*,
+                                 PL_DHashTableOperate(cpolicy->mPolicy,
                                                       (void*)aProperty,
                                                       PL_DHASH_LOOKUP));
     }
@@ -1088,8 +1080,8 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
         (!ppolicy || PL_DHASH_ENTRY_IS_FREE(ppolicy)))
     {
         ppolicy =
-            static_cast<PropertyPolicy*>
-                       (PL_DHashTableOperate(dpolicy->mWildcardPolicy->mPolicy,
+            NS_STATIC_CAST(PropertyPolicy*,
+                           PL_DHashTableOperate(dpolicy->mWildcardPolicy->mPolicy,
                                                 (void*)aProperty,
                                                 PL_DHASH_LOOKUP));
     }
@@ -1100,16 +1092,16 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
     if (dpolicy != mDefaultPolicy &&
         (!ppolicy || PL_DHASH_ENTRY_IS_FREE(ppolicy)))
     {
-        cpolicy = static_cast<ClassPolicy*>
-                             (PL_DHashTableOperate(mDefaultPolicy,
+        cpolicy = NS_STATIC_CAST(ClassPolicy*,
+                                 PL_DHashTableOperate(mDefaultPolicy,
                                                       aClassData.GetName(),
                                                       PL_DHASH_LOOKUP));
 
         if (PL_DHASH_ENTRY_IS_BUSY(cpolicy))
         {
             ppolicy =
-                static_cast<PropertyPolicy*>
-                           (PL_DHashTableOperate(cpolicy->mPolicy,
+                NS_STATIC_CAST(PropertyPolicy*,
+                               PL_DHashTableOperate(cpolicy->mPolicy,
                                                     (void*)aProperty,
                                                     PL_DHASH_LOOKUP));
         }
@@ -1118,8 +1110,8 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
             mDefaultPolicy->mWildcardPolicy)
         {
             ppolicy =
-              static_cast<PropertyPolicy*>
-                         (PL_DHashTableOperate(mDefaultPolicy->mWildcardPolicy->mPolicy,
+              NS_STATIC_CAST(PropertyPolicy*,
+                             PL_DHashTableOperate(mDefaultPolicy->mWildcardPolicy->mPolicy,
                                                   (void*)aProperty,
                                                   PL_DHASH_LOOKUP));
         }
@@ -1833,8 +1825,8 @@ nsScriptSecurityManager::DoGetCertificatePrincipal(const nsACString& aCertFinger
             // Make sure this principal has names, so if we ever go to save it
             // we'll save them.  If we get a name mismatch here we'll throw,
             // but that's desirable.
-            rv = static_cast<nsPrincipal*>
-                            (static_cast<nsIPrincipal*>(fromTable))
+            rv = NS_STATIC_CAST(nsPrincipal*,
+                                NS_STATIC_CAST(nsIPrincipal*, fromTable))
                 ->EnsureCertData(aSubjectName, aPrettyName, aCertificate);
             if (NS_FAILED(rv)) {
                 // We have a subject name mismatch for the same cert id.
@@ -1848,9 +1840,9 @@ nsScriptSecurityManager::DoGetCertificatePrincipal(const nsACString& aCertFinger
         if (!aURI) {
             // We were asked to just get the base certificate, so output
             // what we have in the table.
-            certificate = static_cast<nsPrincipal*>
-                                     (static_cast<nsIPrincipal*>
-                                                 (fromTable));
+            certificate = NS_STATIC_CAST(nsPrincipal*,
+                                         NS_STATIC_CAST(nsIPrincipal*,
+                                                        fromTable));
         } else {
             // We found a certificate and now need to install a codebase
             // on it.  We don't want to modify the principal in the hash
@@ -2040,7 +2032,7 @@ nsScriptSecurityManager::GetScriptPrincipal(JSContext *cx,
         // Script didn't have principals -- shouldn't happen.
         return nsnull;
     }
-    nsJSPrincipals *nsJSPrin = static_cast<nsJSPrincipals *>(jsp);
+    nsJSPrincipals *nsJSPrin = NS_STATIC_CAST(nsJSPrincipals *, jsp);
     nsIPrincipal* result = nsJSPrin->nsIPrincipalPtr;
     if (!result)
         *rv = NS_ERROR_FAILURE;
@@ -3236,7 +3228,7 @@ nsScriptSecurityManager::SystemPrincipalSingletonConstructor()
     nsIPrincipal *sysprin = nsnull;
     if (gScriptSecMan)
         NS_ADDREF(sysprin = gScriptSecMan->mSystemPrincipal);
-    return static_cast<nsSystemPrincipal*>(sysprin);
+    return NS_STATIC_CAST(nsSystemPrincipal*, sysprin);
 }
 
 nsresult
@@ -3468,7 +3460,7 @@ nsScriptSecurityManager::InitDomainPolicy(JSContext* cx,
         {  //-- pref value is the name of a capability
             nsCStringKey secLevelKey(prefValue);
             secLevel.capability =
-                reinterpret_cast<char*>(mCapabilities->Get(&secLevelKey));
+                NS_REINTERPRET_CAST(char*, mCapabilities->Get(&secLevelKey));
             if (!secLevel.capability)
             {
                 secLevel.capability = NS_strdup(prefValue);
@@ -3482,8 +3474,8 @@ nsScriptSecurityManager::InitDomainPolicy(JSContext* cx,
         *end = '\0';
         // Find or store this class in the classes table
         ClassPolicy* cpolicy = 
-          static_cast<ClassPolicy*>
-                     (PL_DHashTableOperate(aDomainPolicy, start,
+          NS_STATIC_CAST(ClassPolicy*,
+                         PL_DHashTableOperate(aDomainPolicy, start,
                                               PL_DHASH_ADD));
         if (!cpolicy)
             break;
@@ -3513,10 +3505,10 @@ nsScriptSecurityManager::InitDomainPolicy(JSContext* cx,
 
         // Store this property in the class policy
         const void* ppkey =
-          reinterpret_cast<const void*>(STRING_TO_JSVAL(propertyKey));
+          NS_REINTERPRET_CAST(const void*, STRING_TO_JSVAL(propertyKey));
         PropertyPolicy* ppolicy = 
-          static_cast<PropertyPolicy*>
-                     (PL_DHashTableOperate(cpolicy->mPolicy, ppkey,
+          NS_STATIC_CAST(PropertyPolicy*,
+                         PL_DHashTableOperate(cpolicy->mPolicy, ppkey,
                                               PL_DHASH_ADD));
         if (!ppolicy)
             break;

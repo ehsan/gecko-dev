@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Boris Zbarsky <bzbarsky@mit.edu> (original author)
  *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
- *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -92,27 +91,13 @@ public:
 
   /** 
    * Given a frame, search up the frame tree until we find an
-   * ancestor that (or the frame itself) is of type aFrameType, if any.
+   * ancestor "Page" frame, if any.
    *
-   * @param aFrame the frame to start at
-   * @param aFrameType the frame type to look for
-   * @return a frame of the given type or nsnull if no
-   *         such ancestor exists
-   */
-  static nsIFrame* GetClosestFrameOfType(nsIFrame* aFrame, nsIAtom* aFrameType);
-
-  /** 
-   * Given a frame, search up the frame tree until we find an
-   * ancestor that (or the frame itself) is a "Page" frame, if any.
-   *
-   * @param aFrame the frame to start at
+   * @param the frame to start at
    * @return a frame of type nsGkAtoms::pageFrame or nsnull if no
    *         such ancestor exists
    */
-  static nsIFrame* GetPageFrame(nsIFrame* aFrame)
-  {
-    return GetClosestFrameOfType(aFrame, nsGkAtoms::pageFrame);
-  }
+  static nsIFrame* GetPageFrame(nsIFrame* aFrame);
 
   /**
    * IsGeneratedContentFor returns PR_TRUE if aFrame is generated
@@ -244,7 +229,7 @@ public:
     * @return the root frame for the view
     */
   static nsIFrame* GetFrameFor(nsIView *aView)
-  { return static_cast<nsIFrame*>(aView->GetClientData()); }
+  { return NS_STATIC_CAST(nsIFrame*, aView->GetClientData()); }
   
   /**
     * GetScrollableFrameFor returns the scrollable frame for a scrollable view
@@ -341,7 +326,7 @@ public:
    * for some reason the coordinates for the mouse are not known (e.g.,
    * the event is not a GUI event).
    */
-  static nsPoint GetEventCoordinatesRelativeTo(const nsEvent* aEvent,
+  static nsPoint GetEventCoordinatesRelativeTo(nsEvent* aEvent,
                                                nsIFrame* aFrame);
 
 /**
@@ -431,6 +416,11 @@ public:
                                               nsPoint aDelta,
                                               const nsRect& aCopyRect,
                                               nsRegion* aRepaintRegion);
+                                       
+  static nsresult CreateOffscreenContext(nsIDeviceContext* deviceContext,
+                                         nsIDrawingSurface* surface,
+                                         const nsRect& aRect,
+                                         nsIRenderingContext** aResult);
 
   /**
    * Compute the used z-index of aFrame; returns zero for elements to which

@@ -41,9 +41,3 @@
 
 gTestsuite = 'js1_6';
 
-// explicitly turn on js16
-if (typeof version != 'undefined')
-{
-  version(160);
-}
-

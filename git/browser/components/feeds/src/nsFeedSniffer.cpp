@@ -388,7 +388,7 @@ nsFeedSniffer::AppendSegmentToString(nsIInputStream* inputStream,
                                      PRUint32 count,
                                      PRUint32* writeCount)
 {
-  nsCString* decodedData = static_cast<nsCString*>(closure);
+  nsCString* decodedData = NS_STATIC_CAST(nsCString*, closure);
   decodedData->Append(rawSegment, count);
   *writeCount = count;
   return NS_OK;

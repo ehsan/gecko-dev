@@ -624,7 +624,7 @@ nsNavHistoryExpire::StartTimer(PRUint32 aMilleseconds)
 void // static
 nsNavHistoryExpire::TimerCallback(nsITimer* aTimer, void* aClosure)
 {
-  nsNavHistoryExpire* that = static_cast<nsNavHistoryExpire*>(aClosure);
+  nsNavHistoryExpire* that = NS_STATIC_CAST(nsNavHistoryExpire*, aClosure);
   that->mTimerSet = PR_FALSE;
   that->DoPartialExpiration();
 }

@@ -44,9 +44,8 @@
 
 #include "nsRect.h"
 
-// Returns the height (from lowest 'y' to highest 'y', regardless of sign) of
-// the global coordinate system that includes all NSScreen objects.
-float CocoaScreenCoordsHeight();
+// get the highest point on any screen
+float HighestPointOnAnyScreen();
 
 /*
  * Gecko rects (nsRect) contain an origin (x,y) in a coordinate

@@ -73,24 +73,19 @@
 #include "nsStackLayout.h"
 #include "nsStyleSet.h"
 #include "nsTextControlFrame.h"
+#include "nsTextTransformer.h"
 #include "nsXBLWindowKeyHandler.h"
 #include "txMozillaXSLTProcessor.h"
 #include "nsDOMStorage.h"
 #include "nsCellMap.h"
 #include "nsTextFrameTextRunCache.h"
 #include "nsCCUncollectableMarker.h"
-#include "nsXULPopupManager.h"
-#include "nsTextFragment.h"
 
 #ifdef MOZ_XUL
 #include "nsXULContentUtils.h"
 #include "nsXULElement.h"
 #include "nsXULPrototypeCache.h"
 #include "nsXULTooltipListener.h"
-
-#ifndef MOZ_NO_INSPECTOR_APIS
-#include "inDOMView.h"
-#endif
 #endif
 
 #ifdef MOZ_MATHML
@@ -100,6 +95,10 @@
 
 #ifdef MOZ_SVG
 PRBool NS_SVGEnabled();
+#endif
+
+#ifndef MOZ_NO_INSPECTOR_APIS
+#include "inDOMView.h"
 #endif
 
 #ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
@@ -170,17 +169,16 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
+#ifndef MOZ_NO_INSPECTOR_APIS
+  inDOMView::InitAtoms();
+#endif
+
 #ifdef MOZ_XUL
   rv = nsXULContentUtils::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsXULContentUtils");
     return rv;
   }
-
-#ifndef MOZ_NO_INSPECTOR_APIS
-  inDOMView::InitAtoms();
-#endif
-
 #endif
 
 #ifdef MOZ_MATHML
@@ -200,9 +198,14 @@ nsLayoutStatics::Initialize()
 #ifdef DEBUG
   nsFrame::DisplayReflowStartup();
 #endif
+  rv = nsTextTransformer::Initialize();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsTextTransformer");
+    return rv;
+  }
   nsDOMAttribute::Initialize();
 
-  rv = txMozillaXSLTProcessor::Startup();
+  rv = txMozillaXSLTProcessor::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize txMozillaXSLTProcessor");
     return rv;
@@ -220,19 +223,12 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  rv = nsXULPopupManager::Init();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsXULPopupManager");
-    return rv;
-  }
-
   return NS_OK;
 }
 
 void
 nsLayoutStatics::Shutdown()
 {
-  nsXULPopupManager::Shutdown();
   nsDOMStorageManager::Shutdown();
   txMozillaXSLTProcessor::Shutdown();
   nsDOMAttribute::Shutdown();
@@ -269,6 +265,7 @@ nsLayoutStatics::Shutdown()
 #endif
 
   nsCSSFrameConstructor::ReleaseGlobals();
+  nsTextTransformer::Shutdown();
   nsSpaceManager::Shutdown();
   nsImageFrame::ReleaseGlobals();
 

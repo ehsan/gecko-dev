@@ -72,7 +72,7 @@ public:
     THEBES_INLINE_DECL_REFCOUNTING(FontEntry)
 
     FontEntry(nsString &aName) :
-        mName(aName), mWeight(0)
+        mName(aName), mWeight(0), mTraits(0)
     {
     }
 
@@ -81,6 +81,11 @@ public:
         if (!mWeight)
             RealizeWeightAndTraits();
         return mWeight;
+    }
+    PRUint32 Traits() {
+        if (!mWeight)
+            RealizeWeightAndTraits();
+        return mTraits;
     }
     PRBool IsFixedPitch();
     PRBool IsItalicStyle();
@@ -94,8 +99,7 @@ protected:
 
     nsString mName;
     PRInt32 mWeight;
-    PRPackedBool mFixedPitch;
-    PRPackedBool mItalicStyle;
+    PRUint32 mTraits;
 };
 
 class gfxQuartzFontCache {
@@ -129,8 +133,6 @@ public:
     void UpdateFontList() { InitFontList(); }
 
     const nsString& GetPostscriptNameForFontID(ATSUFontID fid);
-
-    PRBool IsFixedPitch(ATSUFontID fid);
 
 private:
     static gfxQuartzFontCache *sSharedFontCache;

@@ -46,7 +46,7 @@ class nsHTMLLinkAccessible : public nsLinkableAccessible
   NS_DECL_ISUPPORTS_INHERITED
 
 public:
-  nsHTMLLinkAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
+  nsHTMLLinkAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell, nsIFrame *aFrame);
   
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& _retval); 

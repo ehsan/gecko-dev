@@ -1203,7 +1203,7 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
 
   // This ASSUMES that all encodings above inherit from nsFormSubmission, which
   // they currently do.  If that changes, change this too.
-  static_cast<nsFormSubmission*>(*aFormSubmission)->Init();
+  NS_STATIC_CAST(nsFormSubmission*, *aFormSubmission)->Init();
 
   return NS_OK;
 }

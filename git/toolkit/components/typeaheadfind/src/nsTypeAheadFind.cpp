@@ -1190,7 +1190,7 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
     frameTraversal->Next();
     nsISupports* currentItem;
     frameTraversal->CurrentItem(&currentItem);
-    frame = static_cast<nsIFrame*>(currentItem);
+    frame = NS_STATIC_CAST(nsIFrame*, currentItem);
     if (!frame)
       return PR_FALSE;
 

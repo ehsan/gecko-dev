@@ -171,7 +171,7 @@ nsTableFrame::GetParentStyleContextFrame(nsPresContext* aPresContext,
     return NS_OK;
   }
     
-  return static_cast<nsFrame*>(mParent)->
+  return NS_STATIC_CAST(nsFrame*, mParent)->
           DoGetParentStyleContextFrame(aPresContext, aProviderFrame, aIsChild);
 }
 
@@ -199,17 +199,19 @@ nsTableFrame::nsTableFrame(nsStyleContext* aContext)
 NS_IMPL_ADDREF_INHERITED(nsTableFrame, nsHTMLContainerFrame)
 NS_IMPL_RELEASE_INHERITED(nsTableFrame, nsHTMLContainerFrame)
 
-NS_IMETHODIMP
-nsTableFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+nsresult nsTableFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
-
-  if (aIID.Equals(NS_GET_IID(nsITableLayout))) {
-    *aInstancePtr = static_cast<nsITableLayout*>(this);
+  if (NULL == aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
+  if (aIID.Equals(NS_GET_IID(nsITableLayout))) 
+  { // note there is no addref here, frames are not addref'd
+    *aInstancePtr = (void*)(nsITableLayout*)this;
     return NS_OK;
   }
-
-  return nsHTMLContainerFrame::QueryInterface(aIID, aInstancePtr);
+  else {
+    return nsHTMLContainerFrame::QueryInterface(aIID, aInstancePtr);
+  }
 }
 
 NS_IMETHODIMP
@@ -899,7 +901,7 @@ nsTableFrame::DidResizeColumns()
     return; // already marked
 
   for (nsTableFrame *f = this; f;
-       f = static_cast<nsTableFrame*>(f->GetNextInFlow()))
+       f = NS_STATIC_CAST(nsTableFrame*, f->GetNextInFlow()))
     f->mBits.mResizedColumns = PR_TRUE;
 }
 
@@ -945,7 +947,7 @@ nsTableFrame::DestroyAnonymousColFrames(PRInt32 aNumFrames)
     nsTableColFrame* colFrame = GetColFrame(colX);
     if (colFrame && (eColAnonymousCell == colFrame->GetColType())) {
       nsTableColGroupFrame* cgFrame =
-        static_cast<nsTableColGroupFrame*>(colFrame->GetParent());
+        NS_STATIC_CAST(nsTableColGroupFrame*, colFrame->GetParent());
       // remove the frame from the colgroup
       cgFrame->RemoveChild(*colFrame, PR_FALSE);
       // remove the frame from the cache, but not the cell map 
@@ -1281,7 +1283,7 @@ public:
   // the table frame, so allow this display element to blow out to our
   // overflow rect.
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
-    return static_cast<nsTableFrame*>(mFrame)->GetOverflowRect() +
+    return NS_STATIC_CAST(nsTableFrame*, mFrame)->GetOverflowRect() +
       aBuilder->ToReferenceFrame(mFrame);
   }
   NS_DISPLAY_DECL_NAME("TableBorderBackground")
@@ -1291,7 +1293,7 @@ void
 nsDisplayTableBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
-  static_cast<nsTableFrame*>(mFrame)->
+  NS_STATIC_CAST(nsTableFrame*, mFrame)->
     PaintTableBorderBackground(*aCtx, aDirtyRect,
                                aBuilder->ToReferenceFrame(mFrame));
 }
@@ -1584,7 +1586,7 @@ ProcessRowInserted(nsTableFrame&   aTableFrame,
 /* virtual */ void
 nsTableFrame::MarkIntrinsicWidthsDirty()
 {
-  static_cast<nsTableFrame*>(GetFirstInFlow())->
+  NS_STATIC_CAST(nsTableFrame*, GetFirstInFlow())->
     mTableLayoutStrategy->MarkIntrinsicWidthsDirty();
 
   // XXXldb Call SetBCDamageArea?
@@ -1690,24 +1692,41 @@ nsTableFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                 NS_UNCONSTRAINEDSIZE);
 }
 
-// Return true if aParentReflowState.frame or any of its ancestors within
-// the containing table have non-auto height. (e.g. pct or fixed height)
-PRBool
-nsTableFrame::AncestorsHaveStyleHeight(const nsHTMLReflowState& aParentReflowState)
+// Return true if aStylePosition has a pct height
+static PRBool 
+IsPctStyleHeight(const nsStylePosition* aStylePosition)
 {
-  for (const nsHTMLReflowState* rs = &aParentReflowState;
-       rs && rs->frame; rs = rs->parentReflowState) {
-    nsIAtom* frameType = rs->frame->GetType();
-    if (IS_TABLE_CELL(frameType)                     ||
+  return (aStylePosition && 
+          (eStyleUnit_Percent == aStylePosition->mHeight.GetUnit()));
+}
+
+// Return true if aStylePosition has a coord height
+static PRBool 
+IsFixedStyleHeight(const nsStylePosition* aStylePosition)
+{
+  return (aStylePosition && 
+          (eStyleUnit_Coord == aStylePosition->mHeight.GetUnit()));
+}
+
+// Return true if any of aReflowState.frame's ancestors within the containing table
+// have a pct or fixed height
+static PRBool
+AncestorsHaveStyleHeight(const nsHTMLReflowState& aReflowState)
+{
+  for (const nsHTMLReflowState* parentRS = aReflowState.parentReflowState;
+       parentRS && parentRS->frame; 
+       parentRS = parentRS->parentReflowState) {
+    nsIAtom* frameType = parentRS->frame->GetType();
+    if (IS_TABLE_CELL(frameType)                         ||
         (nsGkAtoms::tableRowFrame      == frameType) ||
         (nsGkAtoms::tableRowGroupFrame == frameType)) {
-      if (rs->mStylePosition->mHeight.GetUnit() != eStyleUnit_Auto) {
+      if (::IsPctStyleHeight(parentRS->mStylePosition) || ::IsFixedStyleHeight(parentRS->mStylePosition)) {
         return PR_TRUE;
       }
     }
     else if (nsGkAtoms::tableFrame == frameType) {
       // we reached the containing table, so always return
-      if (rs->mStylePosition->mHeight.GetUnit() != eStyleUnit_Auto) {
+      if (::IsPctStyleHeight(parentRS->mStylePosition) || ::IsFixedStyleHeight(parentRS->mStylePosition)) {
         return PR_TRUE;
       }
       else return PR_FALSE;
@@ -1723,8 +1742,8 @@ nsTableFrame::CheckRequestSpecialHeightReflow(const nsHTMLReflowState& aReflowSt
   if (!aReflowState.frame->GetPrevInFlow() &&  // 1st in flow
       (NS_UNCONSTRAINEDSIZE == aReflowState.mComputedHeight ||  // no computed height
        0                    == aReflowState.mComputedHeight) && 
-      eStyleUnit_Percent == aReflowState.mStylePosition->mHeight.GetUnit() && // pct height
-      nsTableFrame::AncestorsHaveStyleHeight(*aReflowState.parentReflowState)) {
+      ::IsPctStyleHeight(aReflowState.mStylePosition) && // pct height
+      ::AncestorsHaveStyleHeight(aReflowState)) {
     nsTableFrame::RequestSpecialHeightReflow(aReflowState);
   }
 }
@@ -1845,12 +1864,7 @@ NS_METHOD nsTableFrame::Reflow(nsPresContext*          aPresContext,
   PRBool haveDesiredHeight = PR_FALSE;
   PRBool reflowedChildren  = PR_FALSE;
 
-  if (aReflowState.mComputedHeight != NS_UNCONSTRAINEDSIZE ||
-      // Also check mVResize, to handle the first Reflow preceding a
-      // special height Reflow, when we've already had a special height
-      // Reflow (where mComputedHeight would not be
-      // NS_UNCONSTRAINEDSIZE, but without a style change in between).
-      aReflowState.mFlags.mVResize) {
+  if (aReflowState.mComputedHeight != NS_UNCONSTRAINEDSIZE) {
     // XXX Eventually, we should modify DistributeHeightToRows to use
     // nsTableRowFrame::GetHeight instead of nsIFrame::GetSize().height.
     // That way, it will make its calculations based on internal table
@@ -1882,7 +1896,7 @@ NS_METHOD nsTableFrame::Reflow(nsPresContext*          aPresContext,
     nsIFrame* lastChildReflowed = nsnull;
 
     nsHTMLReflowState &mutable_rs =
-      const_cast<nsHTMLReflowState&>(aReflowState);
+      NS_CONST_CAST(nsHTMLReflowState&, aReflowState);
     PRBool oldSpecialHeightReflow = mutable_rs.mFlags.mSpecialHeightReflow;
     mutable_rs.mFlags.mSpecialHeightReflow = PR_FALSE;
 
@@ -2480,7 +2494,7 @@ nsMargin
 nsTableFrame::GetOuterBCBorder() const
 {
   if (NeedToCalcBCBorders())
-    const_cast<nsTableFrame*>(this)->CalcBCBorders();
+    NS_CONST_CAST(nsTableFrame*, this)->CalcBCBorders();
 
   nsMargin border(0, 0, 0, 0);
   PRInt32 p2t = nsPresContext::AppUnitsPerCSSPixel();
@@ -3085,14 +3099,9 @@ nsTableFrame::CalcDesiredHeight(const nsHTMLReflowState& aReflowState, nsHTMLRef
   nsMargin borderPadding = GetChildAreaOffset(&aReflowState);
 
   // get the natural height based on the last child's (row group or scroll frame) rect
-  FrameArray rowGroups;
-  PRUint32 numRowGroups;
-  {
-    // Scope for the dummies so we don't use them by accident
-    nsTableRowGroupFrame *dummy1, *dummy2;
-    numRowGroups = OrderRowGroups(rowGroups, &dummy1, &dummy2);
-  }
-  if (numRowGroups == 0) {
+  RowGroupArray rowGroups;
+  OrderRowGroups(rowGroups);
+  if (rowGroups.Length() == 0) {
     // tables can be used as rectangular items without content
     nscoord tableSpecifiedHeight = CalcBorderBoxHeight(aReflowState);
     if ((NS_UNCONSTRAINEDSIZE != tableSpecifiedHeight) &&
@@ -3110,7 +3119,7 @@ nsTableFrame::CalcDesiredHeight(const nsHTMLReflowState& aReflowState, nsHTMLRef
   nscoord desiredHeight = borderPadding.top + borderPadding.bottom;
   if (rowCount > 0 && colCount > 0) {
     desiredHeight += cellSpacingY;
-    for (PRUint32 rgX = 0; rgX < numRowGroups; rgX++) {
+    for (PRUint32 rgX = 0; rgX < rowGroups.Length(); rgX++) {
       desiredHeight += rowGroups[rgX]->GetSize().height + cellSpacingY;
     }
   }
@@ -4051,8 +4060,8 @@ BCMapCellIterator::SetInfo(nsTableRowFrame* aRow,
     aCellInfo.cell = (nsBCTableCellFrame*)aCellData->GetCellFrame(); 
     if (aCellInfo.cell) {
       if (!aCellInfo.topRow) {
-        aCellInfo.topRow = static_cast<nsTableRowFrame*>
-                                      (aCellInfo.cell->GetParent());
+        aCellInfo.topRow = NS_STATIC_CAST(nsTableRowFrame*,
+                                          aCellInfo.cell->GetParent());
         if (!aCellInfo.topRow) ABORT0();
         aCellInfo.rowIndex = aCellInfo.topRow->GetRowIndex();
       }
@@ -4106,8 +4115,8 @@ BCMapCellIterator::SetInfo(nsTableRowFrame* aRow,
   }
 
   // col group frame info
-  aCellInfo.cg = static_cast<nsTableColGroupFrame*>
-                            (aCellInfo.leftCol->GetParent());
+  aCellInfo.cg = NS_STATIC_CAST(nsTableColGroupFrame*,
+                                aCellInfo.leftCol->GetParent());
   PRInt32 cgStart  = aCellInfo.cg->GetStartColumnIndex();
   PRInt32 cgEnd    = PR_MAX(0, cgStart + aCellInfo.cg->GetColCount() - 1);
   aCellInfo.cgLeft  = (cgStart == aColIndex);
@@ -6587,7 +6596,7 @@ DestroyCoordFunc(void*           aFrame,
                  void*           aPropertyValue,
                  void*           aDtorData)
 {
-  delete static_cast<nscoord*>(aPropertyValue);
+  delete NS_STATIC_CAST(nscoord*, aPropertyValue);
 }
 
 // Destructor function point properties
@@ -6597,7 +6606,7 @@ DestroyPointFunc(void*           aFrame,
                  void*           aPropertyValue,
                  void*           aDtorData)
 {
-  delete static_cast<nsPoint*>(aPropertyValue);
+  delete NS_STATIC_CAST(nsPoint*, aPropertyValue);
 }
 
 // Destructor function for nscoord properties
@@ -6607,7 +6616,7 @@ DestroyBCPropertyDataFunc(void*           aFrame,
                           void*           aPropertyValue,
                           void*           aDtorData)
 {
-  delete static_cast<BCPropertyData*>(aPropertyValue);
+  delete NS_STATIC_CAST(BCPropertyData*, aPropertyValue);
 }
 
 void*
@@ -6690,15 +6699,15 @@ nsTableFrame::DumpTableFrames(nsIFrame* aFrame)
   nsTableFrame* tableFrame = nsnull;
 
   if (nsGkAtoms::tableFrame == aFrame->GetType()) { 
-    tableFrame = static_cast<nsTableFrame*>(aFrame);
+    tableFrame = NS_STATIC_CAST(nsTableFrame*, aFrame);
   }
   else {
     tableFrame = nsTableFrame::GetTableFrame(aFrame);
   }
-  tableFrame = static_cast<nsTableFrame*>(tableFrame->GetFirstInFlow());
+  tableFrame = NS_STATIC_CAST(nsTableFrame*, tableFrame->GetFirstInFlow());
   while (tableFrame) {
     DumpTableFramesRecur(tableFrame, 0);
-    tableFrame = static_cast<nsTableFrame*>(tableFrame->GetNextInFlow());
+    tableFrame = NS_STATIC_CAST(nsTableFrame*, tableFrame->GetNextInFlow());
   }
 }
 #endif

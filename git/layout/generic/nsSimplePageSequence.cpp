@@ -136,13 +136,15 @@ nsSimplePageSequenceFrame::~nsSimplePageSequenceFrame()
   if (mPageData) delete mPageData;
 }
 
-NS_IMETHODIMP
+nsresult
 nsSimplePageSequenceFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
-
+  NS_PRECONDITION(0 != aInstancePtr, "null ptr");
+  if (NULL == aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
   if (aIID.Equals(NS_GET_IID(nsIPageSequenceFrame))) {
-    *aInstancePtr = static_cast<nsIPageSequenceFrame*>(this);
+    *aInstancePtr = (void*)(nsIPageSequenceFrame*)this;
     return NS_OK;
   }
   return nsContainerFrame::QueryInterface(aIID, aInstancePtr);
@@ -291,7 +293,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     PR_PL(("AV W: %d   H: %d\n", kidReflowState.availableWidth, kidReflowState.availableHeight));
 
     // Set the shared data into the page frame before reflow
-    nsPageFrame * pf = static_cast<nsPageFrame*>(kidFrame);
+    nsPageFrame * pf = NS_STATIC_CAST(nsPageFrame*, kidFrame);
     pf->SetSharedPageData(mPageData);
 
     // Place and size the page. If the page is narrower than our
@@ -337,7 +339,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   // Set Page Number Info
   PRInt32 pageNum = 1;
   for (page = mFrames.FirstChild(); page; page = page->GetNextSibling()) {
-    nsPageFrame * pf = static_cast<nsPageFrame*>(page);
+    nsPageFrame * pf = NS_STATIC_CAST(nsPageFrame*, page);
     if (pf != nsnull) {
       pf->SetPageNumInfo(pageNum, pageTot);
     }
@@ -611,7 +613,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
     }
 
     // cast the frame to be a page frame
-    nsPageFrame * pf = static_cast<nsPageFrame*>(mCurrentPageFrame);
+    nsPageFrame * pf = NS_STATIC_CAST(nsPageFrame*, mCurrentPageFrame);
     pf->SetPageNumInfo(mPageNum, mTotalPages);
     pf->SetSharedPageData(mPageData);
 
@@ -675,7 +677,7 @@ nsSimplePageSequenceFrame::DoPageEnd()
 static void PaintPageSequence(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                              const nsRect& aDirtyRect, nsPoint aPt)
 {
-  static_cast<nsSimplePageSequenceFrame*>(aFrame)->PaintPageSequence(*aCtx, aDirtyRect, aPt);
+  NS_STATIC_CAST(nsSimplePageSequenceFrame*, aFrame)->PaintPageSequence(*aCtx, aDirtyRect, aPt);
 }
 
 //------------------------------------------------------------------------------

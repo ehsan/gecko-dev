@@ -141,8 +141,6 @@ function acceptDialog()
 
   gDialogParams.SetInt(0, 1);
 
-  gDialogParams.SetString(0, selectedProfile.profile.name);
-
   return true;
 }
 

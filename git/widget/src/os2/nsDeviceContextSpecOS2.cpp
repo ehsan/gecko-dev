@@ -221,7 +221,8 @@ nsresult nsDeviceContextSpecOS2::SetPrintSettingsFromDevMode(nsIPrintSettings* a
 
 NS_IMETHODIMP nsDeviceContextSpecOS2 :: QueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
+  if (nsnull == aInstancePtr)
+    return NS_ERROR_NULL_POINTER;
 
   if (aIID.Equals(kIDeviceContextSpecIID))
   {
@@ -242,8 +243,7 @@ NS_IMETHODIMP nsDeviceContextSpecOS2 :: QueryInterface(REFNSIID aIID, void** aIn
     return NS_OK;
   }
 
-  *aInstancePtr = nsnull;
-  return NS_ERROR_NO_INTERFACE;
+  return NS_NOINTERFACE;
 }
 
 NS_IMPL_ADDREF(nsDeviceContextSpecOS2)

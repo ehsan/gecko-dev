@@ -166,7 +166,7 @@ nsXBLProtoImplMethod::InstallMember(nsIScriptContext* aContext,
     NS_ENSURE_SUCCESS(rv, rv);
     
     if (!::JS_DefineUCProperty(cx, targetClassObject,
-                               reinterpret_cast<const jschar*>(mName), 
+                               NS_REINTERPRET_CAST(const jschar*, mName), 
                                name.Length(), OBJECT_TO_JSVAL(method),
                                NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_OUT_OF_MEMORY;

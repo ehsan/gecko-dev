@@ -40,8 +40,19 @@ MOZ_APP_NAME=firefox
 MOZ_UPDATER=1
 MOZ_PHOENIX=1
 
-MOZ_ENABLE_LIBXUL=1
+case "$target_os" in
+darwin*)
+  # libxul is causing performance issues due to mach-o not hiding symbols
+  # Disable it temporarily
+  MOZ_ENABLE_LIBXUL=
+  ;;
+*)
+  MOZ_ENABLE_LIBXUL=1
+  ;;
+esac
+
 MOZ_PLACES=1
+MOZ_PLACES_BOOKMARKS=1
 # always enabled for form history
 MOZ_MORKREADER=1
 MOZ_SAFE_BROWSING=1

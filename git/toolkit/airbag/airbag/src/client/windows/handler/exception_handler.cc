@@ -50,7 +50,7 @@ ExceptionHandler::ExceptionHandler(const wstring &dump_path,
                                    FilterCallback filter,
                                    MinidumpCallback callback,
                                    void *callback_context,
-                                   int handler_types)
+                                   bool install_handler)
     : filter_(filter),
       callback_(callback),
       callback_context_(callback_context),
@@ -62,7 +62,7 @@ ExceptionHandler::ExceptionHandler(const wstring &dump_path,
       next_minidump_path_c_(NULL),
       dbghelp_module_(NULL),
       minidump_write_dump_(NULL),
-      handler_types_(handler_types),
+      installed_handler_(install_handler),
       previous_filter_(NULL),
       previous_pch_(NULL),
       handler_thread_(0),
@@ -82,10 +82,11 @@ ExceptionHandler::ExceptionHandler(const wstring &dump_path,
   set_dump_path(dump_path);
 
   // Set synchronization primitives and the handler thread.  Each
-  // ExceptionHandler object gets its own handler thread because that's the
-  // only way to reliably guarantee sufficient stack space in an exception,
-  // and it allows an easy way to get a snapshot of the requesting thread's
-  // context outside of an exception.
+  // ExceptionHandler object gets its own handler thread, even if
+  // install_handler is false, because that's the only way to reliably
+  // guarantee sufficient stack space in an exception, and the only way to
+  // get a snapshot of the requesting thread's context outside of an
+  // exception.
   InitializeCriticalSection(&handler_critical_section_);
   handler_start_semaphore_ = CreateSemaphore(NULL, 0, 1, NULL);
   handler_finish_semaphore_ = CreateSemaphore(NULL, 0, 1, NULL);
@@ -104,7 +105,7 @@ ExceptionHandler::ExceptionHandler(const wstring &dump_path,
         GetProcAddress(dbghelp_module_, "MiniDumpWriteDump"));
   }
 
-  if (handler_types != HANDLER_NONE) {
+  if (install_handler) {
     if (!handler_stack_critical_section_initialized_) {
       InitializeCriticalSection(&handler_stack_critical_section_);
       handler_stack_critical_section_initialized_ = true;
@@ -118,17 +119,13 @@ ExceptionHandler::ExceptionHandler(const wstring &dump_path,
       handler_stack_ = new vector<ExceptionHandler *>();
     }
     handler_stack_->push_back(this);
-
-    if (handler_types & HANDLER_EXCEPTION)
-      previous_filter_ = SetUnhandledExceptionFilter(HandleException);
+    previous_filter_ = SetUnhandledExceptionFilter(HandleException);
 
 #if _MSC_VER >= 1400  // MSVC 2005/8
-    if (handler_types & HANDLER_INVALID_PARAMETER)
-      previous_iph_ = _set_invalid_parameter_handler(HandleInvalidParameter);
+    previous_iph_ = _set_invalid_parameter_handler(HandleInvalidParameter);
 #endif  // _MSC_VER >= 1400
 
-    if (handler_types & HANDLER_PURECALL)
-      previous_pch_ = _set_purecall_handler(HandlePureVirtualCall);
+    previous_pch_ = _set_purecall_handler(HandlePureVirtualCall);
 
     LeaveCriticalSection(&handler_stack_critical_section_);
   }
@@ -139,19 +136,16 @@ ExceptionHandler::~ExceptionHandler() {
     FreeLibrary(dbghelp_module_);
   }
 
-  if (handler_types_ != HANDLER_NONE) {
+  if (installed_handler_) {
     EnterCriticalSection(&handler_stack_critical_section_);
 
-    if (handler_types_ & HANDLER_EXCEPTION)
-      SetUnhandledExceptionFilter(previous_filter_);
+    SetUnhandledExceptionFilter(previous_filter_);
 
 #if _MSC_VER >= 1400  // MSVC 2005/8
-    if (handler_types_ & HANDLER_INVALID_PARAMETER)
-      _set_invalid_parameter_handler(previous_iph_);
+    _set_invalid_parameter_handler(previous_iph_);
 #endif  // _MSC_VER >= 1400
 
-    if (handler_types_ & HANDLER_PURECALL)
-      _set_purecall_handler(previous_pch_);
+    _set_purecall_handler(previous_pch_);
 
     if (handler_stack_->back() == this) {
       handler_stack_->pop_back();
@@ -416,11 +410,7 @@ bool ExceptionHandler::WriteMinidumpOnHandlerThread(
 }
 
 bool ExceptionHandler::WriteMinidump() {
-  return WriteMinidumpForException(NULL);
-}
-
-bool ExceptionHandler::WriteMinidumpForException(EXCEPTION_POINTERS *exinfo) {
-  bool success = WriteMinidumpOnHandlerThread(exinfo, NULL);
+  bool success = WriteMinidumpOnHandlerThread(NULL, NULL);
   UpdateNextID();
   return success;
 }
@@ -429,8 +419,7 @@ bool ExceptionHandler::WriteMinidumpForException(EXCEPTION_POINTERS *exinfo) {
 bool ExceptionHandler::WriteMinidump(const wstring &dump_path,
                                      MinidumpCallback callback,
                                      void *callback_context) {
-  ExceptionHandler handler(dump_path, NULL, callback, callback_context,
-                           HANDLER_NONE);
+  ExceptionHandler handler(dump_path, NULL, callback, callback_context, false);
   return handler.WriteMinidump();
 }
 

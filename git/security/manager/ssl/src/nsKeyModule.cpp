@@ -87,7 +87,7 @@ nsKeyObject::InitKey(PRInt16 aAlgorithm, void * aKey)
 
   switch (aAlgorithm) {
     case nsIKeyObject::RC4:
-      mSymKey = reinterpret_cast<PK11SymKey*>(aKey);
+      mSymKey = NS_REINTERPRET_CAST(PK11SymKey*, aKey);
 
       if (!mSymKey) {
         NS_ERROR("no symkey");

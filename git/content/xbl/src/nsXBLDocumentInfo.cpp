@@ -233,9 +233,9 @@ XBL_ProtoErrorReporter(JSContext *cx,
     PRUint32 column = report->uctokenptr - report->uclinebuf;
 
     errorObject->Init
-         (reinterpret_cast<const PRUnichar*>(report->ucmessage),
+         (NS_REINTERPRET_CAST(const PRUnichar*, report->ucmessage),
           NS_ConvertUTF8toUTF16(report->filename).get(),
-          reinterpret_cast<const PRUnichar*>(report->uclinebuf),
+          NS_REINTERPRET_CAST(const PRUnichar*, report->uclinebuf),
           report->lineno, column, report->flags,
           "xbl javascript"
           );
@@ -372,8 +372,8 @@ nsXBLDocGlobalObject::GetGlobalJSObject()
   if (!mScriptContext)
     return nsnull;
 
-  JSContext* cx = static_cast<JSContext*>
-                             (mScriptContext->GetNativeContext());
+  JSContext* cx = NS_STATIC_CAST(JSContext*,
+                                 mScriptContext->GetNativeContext());
   if (!cx)
     return nsnull;
 
@@ -442,8 +442,8 @@ static PRIntn PR_CALLBACK
 TraverseProtos(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb = 
-    static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
-  nsXBLPrototypeBinding *proto = static_cast<nsXBLPrototypeBinding*>(aData);
+    NS_STATIC_CAST(nsCycleCollectionTraversalCallback*, aClosure);
+  nsXBLPrototypeBinding *proto = NS_STATIC_CAST(nsXBLPrototypeBinding*, aData);
   proto->Traverse(*cb);
   return kHashEnumerateNext;
 }
@@ -518,7 +518,7 @@ nsXBLDocumentInfo::GetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBin
 
   const nsPromiseFlatCString& flat = PromiseFlatCString(aRef);
   nsCStringKey key(flat.get());
-  *aResult = static_cast<nsXBLPrototypeBinding*>(mBindingTable->Get(&key));
+  *aResult = NS_STATIC_CAST(nsXBLPrototypeBinding*, mBindingTable->Get(&key));
 
   return NS_OK;
 }
@@ -526,7 +526,7 @@ nsXBLDocumentInfo::GetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBin
 static PRBool PR_CALLBACK
 DeletePrototypeBinding(nsHashKey* aKey, void* aData, void* aClosure)
 {
-  nsXBLPrototypeBinding* binding = static_cast<nsXBLPrototypeBinding*>(aData);
+  nsXBLPrototypeBinding* binding = NS_STATIC_CAST(nsXBLPrototypeBinding*, aData);
   delete binding;
   return PR_TRUE;
 }

@@ -77,10 +77,10 @@
 #include "gfxMatrix.h"
 #include "gfxRect.h"
 #include "gfxImageSurface.h"
+#include "gfxMatrix.h"
 #include "nsStubMutationObserver.h"
 #include "gfxPlatform.h"
 #include "nsSVGForeignObjectFrame.h"
-#include "nsIFontMetrics.h"
 
 class nsSVGPropertyBase : public nsStubMutationObserver {
 public:
@@ -115,7 +115,7 @@ nsSVGPropertyBase::nsSVGPropertyBase(nsIContent *aContent,
 
   NS_ADDREF(this); // addref to allow QI - SupportsDtorFunc releases
   mFrame->SetProperty(aName,
-                      static_cast<nsISupports*>(this),
+                      NS_STATIC_CAST(nsISupports*, this),
                       nsPropertyTable::SupportsDtorFunc);
 }
 
@@ -131,8 +131,7 @@ nsSVGPropertyBase::AttributeChanged(nsIDocument *aDocument,
                                     nsIContent *aContent,
                                     PRInt32 aNameSpaceID,
                                     nsIAtom *aAttribute,
-                                    PRInt32 aModType,
-                                    PRUint32 aStateMask)
+                                    PRInt32 aModType)
 {
   DoUpdate();
 }
@@ -201,9 +200,9 @@ nsSVGFilterProperty::GetFilterFrame()
   nsCOMPtr<nsIContent> filter = do_QueryReferent(mObservedContent);
   if (filter) {
     nsIFrame *frame =
-      static_cast<nsGenericElement*>(filter.get())->GetPrimaryFrame();
+      NS_STATIC_CAST(nsGenericElement*, filter.get())->GetPrimaryFrame();
     if (frame && frame->GetType() == nsGkAtoms::svgFilterFrame)
-      return static_cast<nsSVGFilterFrame*>(frame);
+      return NS_STATIC_CAST(nsSVGFilterFrame*, frame);
   }
 
   return nsnull;
@@ -266,9 +265,9 @@ nsSVGClipPathProperty::GetClipPathFrame()
   nsCOMPtr<nsIContent> clipPath = do_QueryReferent(mObservedContent);
   if (clipPath) {
     nsIFrame *frame =
-      static_cast<nsGenericElement*>(clipPath.get())->GetPrimaryFrame();
+      NS_STATIC_CAST(nsGenericElement*, clipPath.get())->GetPrimaryFrame();
     if (frame && frame->GetType() == nsGkAtoms::svgClipPathFrame)
-      return static_cast<nsSVGClipPathFrame*>(frame);
+      return NS_STATIC_CAST(nsSVGClipPathFrame*, frame);
   }
 
   return nsnull;
@@ -325,9 +324,9 @@ nsSVGMaskProperty::GetMaskFrame()
   nsCOMPtr<nsIContent> mask = do_QueryReferent(mObservedContent);
   if (mask) {
     nsIFrame *frame =
-      static_cast<nsGenericElement*>(mask.get())->GetPrimaryFrame();
+      NS_STATIC_CAST(nsGenericElement*, mask.get())->GetPrimaryFrame();
     if (frame && frame->GetType() == nsGkAtoms::svgMaskFrame)
-      return static_cast<nsSVGMaskFrame*>(frame);
+      return NS_STATIC_CAST(nsSVGMaskFrame*, frame);
   }
 
   return nsnull;
@@ -469,78 +468,6 @@ NS_SVGEnabled()
   return gSVGEnabled;
 }
 
-const nsStyleFont*
-nsSVGUtils::GetStyleFontForContent(nsIContent* aContent)
-{
-  nsIDocument *doc = aContent->GetCurrentDoc();
-
-  if (doc) {
-    nsIFrame* frame = nsGenericElement::GetPrimaryFrameFor(aContent, doc);
-    if (frame) {
-      return frame->GetStyleContext()->GetStyleFont();
-    }
-  }
-
-  return nsnull;
-}
-
-float
-nsSVGUtils::GetFontSize(nsIContent *aContent)
-{
-  if (!aContent) {
-    NS_WARNING("no element in GetFontSize()");
-    return 1.0f;
-  }
-
-  nsPresContext *presContext = nsContentUtils::GetContextForContent(aContent);
-  if (!presContext) {
-    NS_WARNING("no context in GetFontSize()");
-    return 1.0f;
-  }
-
-  const nsStyleFont* fontData = GetStyleFontForContent(aContent);
-  if (!fontData) {
-    NS_WARNING("no StyleFont in GetFontSize()");
-    return 1.0f;
-  }
-
-  return (float)nsPresContext::AppUnitsToFloatCSSPixels(fontData->mSize) /
-                presContext->TextZoom();
-}
-
-float
-nsSVGUtils::GetFontXHeight(nsIContent *aContent)
-{
-  if (!aContent) {
-    NS_WARNING("no element in GetFontXHeight()");
-    return 1.0f;
-  }
-
-  nsPresContext *presContext = nsContentUtils::GetContextForContent(aContent);
-  if (!presContext) {
-    NS_WARNING("no context in GetFontXHeight()");
-    return 1.0f;
-  }
-
-  const nsStyleFont* fontData = GetStyleFontForContent(aContent);
-  if (!fontData) {
-    NS_WARNING("no StyleFont in GetFontXHeight()");
-    return 1.0f;
-  }
-
-  nsCOMPtr<nsIFontMetrics> fontMetrics = presContext->
-                                         GetMetricsFor(fontData->mFont);
-  if (!fontMetrics) {
-    NS_WARNING("no FontMetrics in GetFontXHeight()");
-    return 1.0f;
-  }
-
-  nscoord xHeight;
-  fontMetrics->GetXHeight(xHeight);
-  return (float)nsPresContext::AppUnitsToFloatCSSPixels(xHeight) /
-                presContext->TextZoom();
-}
-
 void
 nsSVGUtils::UnPremultiplyImageDataAlpha(PRUint8 *data, 
                                         PRInt32 stride,
@@ -670,7 +597,7 @@ nsSVGUtils::CoordToFloat(nsPresContext *aPresContext,
         break;
 
       nsWeakPtr weakCtx =
-        do_GetWeakReference(static_cast<nsGenericElement*>(aContent));
+        do_GetWeakReference(NS_STATIC_CAST(nsGenericElement*, aContent));
       length->SetContext(weakCtx, nsSVGUtils::XY);
       length->GetValue(&val);
       break;
@@ -764,8 +691,8 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame)
 
     if (aFrame->GetStateBits() & NS_STATE_SVG_FILTERED) {
       nsSVGFilterProperty *property;
-      property = static_cast<nsSVGFilterProperty *>
-                            (aFrame->GetProperty(nsGkAtoms::filter));
+      property = NS_STATIC_CAST(nsSVGFilterProperty *,
+                                aFrame->GetProperty(nsGkAtoms::filter));
       rect = property->GetRect();
     }
     aFrame = aFrame->GetParent();
@@ -779,8 +706,8 @@ nsSVGUtils::UpdateFilterRegion(nsIFrame *aFrame)
 {
   if (aFrame->GetStateBits() & NS_STATE_SVG_FILTERED) {
     nsSVGFilterProperty *property;
-    property = static_cast<nsSVGFilterProperty *>
-                          (aFrame->GetProperty(nsGkAtoms::filter));
+    property = NS_STATIC_CAST(nsSVGFilterProperty *,
+                              aFrame->GetProperty(nsGkAtoms::filter));
     property->UpdateRect();
   }
 }
@@ -810,8 +737,8 @@ nsSVGUtils::ObjectSpace(nsIDOMSVGRect *aRect, nsSVGLength2 *aLength)
       nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
     fraction = aLength->GetAnimValInSpecifiedUnits() / 100;
   } else
-    fraction = aLength->GetAnimValue(static_cast<nsSVGSVGElement*>
-                                                (nsnull));
+    fraction = aLength->GetAnimValue(NS_STATIC_CAST(nsSVGSVGElement*,
+                                                    nsnull));
 
   return fraction * axis;
 }
@@ -843,7 +770,7 @@ nsSVGUtils::TransformPoint(nsIDOMSVGMatrix *matrix,
 float
 nsSVGUtils::AngleBisect(float a1, float a2)
 {
-  float delta = fmod(a2 - a1, static_cast<float>(2*M_PI));
+  float delta = fmod(a2 - a1, NS_STATIC_CAST(float, 2*M_PI));
   if (delta < 0) {
     delta += 2*M_PI;
   }
@@ -861,7 +788,7 @@ nsSVGUtils::GetOuterSVGFrame(nsIFrame *aFrame)
 {
   while (aFrame) {
     if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG) {
-      return static_cast<nsSVGOuterSVGFrame*>(aFrame);
+      return NS_STATIC_CAST(nsSVGOuterSVGFrame*, aFrame);
     }
     aFrame = aFrame->GetParent();
   }
@@ -984,16 +911,16 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame)
     // foreignObject is the one non-leaf svg frame that isn't a SVGContainer
     if (aFrame->GetType() == nsGkAtoms::svgForeignObjectFrame) {
       nsSVGForeignObjectFrame *foreignFrame =
-        static_cast<nsSVGForeignObjectFrame*>(aFrame);
+        NS_STATIC_CAST(nsSVGForeignObjectFrame*, aFrame);
       return foreignFrame->GetCanvasTM();
     }
-    nsSVGContainerFrame *containerFrame = static_cast<nsSVGContainerFrame*>
-                                                     (aFrame);
+    nsSVGContainerFrame *containerFrame = NS_STATIC_CAST(nsSVGContainerFrame*,
+                                                         aFrame);
     return containerFrame->GetCanvasTM();
   }
 
-  nsSVGGeometryFrame *geometryFrame = static_cast<nsSVGGeometryFrame*>
-                                                 (aFrame);
+  nsSVGGeometryFrame *geometryFrame = NS_STATIC_CAST(nsSVGGeometryFrame*,
+                                                     aFrame);
   nsCOMPtr<nsIDOMSVGMatrix> matrix;
   nsIDOMSVGMatrix *retval;
   geometryFrame->GetCanvasTM(getter_AddRefs(matrix));
@@ -1065,8 +992,8 @@ GetFilterFrame(nsFrameState aState, nsIFrame *aFrame)
 {
   if (aState & NS_STATE_SVG_FILTERED) {
     nsSVGFilterProperty *property;
-    property = static_cast<nsSVGFilterProperty *>
-                          (aFrame->GetProperty(nsGkAtoms::filter));
+    property = NS_STATIC_CAST(nsSVGFilterProperty *,
+                              aFrame->GetProperty(nsGkAtoms::filter));
     return property->GetFilterFrame();
   }
   return nsnull;
@@ -1077,8 +1004,8 @@ GetClipPathFrame(nsFrameState aState, nsIFrame *aFrame)
 {
   if (aState & NS_STATE_SVG_CLIPPED) {
     nsSVGClipPathProperty *property;
-    property = static_cast<nsSVGClipPathProperty *>
-                          (aFrame->GetProperty(nsGkAtoms::clipPath));
+    property = NS_STATIC_CAST(nsSVGClipPathProperty *,
+                              aFrame->GetProperty(nsGkAtoms::clipPath));
     return property->GetClipPathFrame();
   }
   return nsnull;
@@ -1089,8 +1016,8 @@ GetMaskFrame(nsFrameState aState, nsIFrame *aFrame)
 {
   if (aState & NS_STATE_SVG_MASKED) {
     nsSVGMaskProperty *property;
-    property = static_cast<nsSVGMaskProperty *>
-                          (aFrame->GetProperty(nsGkAtoms::mask));
+    property = NS_STATIC_CAST(nsSVGMaskProperty *,
+                              aFrame->GetProperty(nsGkAtoms::mask));
     return property->GetMaskFrame();
   }
   return nsnull;
@@ -1385,8 +1312,6 @@ nsSVGUtils::GetThebesComputationalSurface()
     nsRefPtr<gfxASurface> surface =
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(1, 1),
                                                          gfxASurface::ImageFormatARGB32);
-    NS_ASSERTION(surface && !surface->CairoStatus(),
-                 "Could not create offscreen surface");
     mThebesComputationalSurface = surface;
     // we want to keep this surface around
     NS_IF_ADDREF(mThebesComputationalSurface);
@@ -1472,7 +1397,7 @@ nsSVGUtils::CanOptimizeOpacity(nsIFrame *aFrame)
     if (type == nsGkAtoms::svgImageFrame)
       return PR_TRUE;
     if (type == nsGkAtoms::svgPathGeometryFrame) {
-      nsSVGGeometryFrame *geom = static_cast<nsSVGGeometryFrame*>(aFrame);
+      nsSVGGeometryFrame *geom = NS_STATIC_CAST(nsSVGGeometryFrame*, aFrame);
       if (!(geom->HasFill() && geom->HasStroke()))
         return PR_TRUE;
     }
@@ -1485,8 +1410,8 @@ nsSVGUtils::CanOptimizeOpacity(nsIFrame *aFrame)
 nsSVGRenderState::nsSVGRenderState(nsIRenderingContext *aContext) :
   mRenderMode(NORMAL), mRenderingContext(aContext)
 {
-  mGfxContext = static_cast<gfxContext*>
-                           (aContext->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT));
+  mGfxContext = NS_STATIC_CAST(gfxContext*,
+                               aContext->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT));
 }
 
 nsSVGRenderState::nsSVGRenderState(gfxContext *aContext) :

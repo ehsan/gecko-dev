@@ -223,8 +223,7 @@ int LoadLineInfo(struct nlist *list,
     struct LineInfo line;
     while (cur_list < list_end && cur_list->n_type == N_SLINE) {
       line.rva_to_func = cur_list->n_value;
-      // n_desc is a signed short
-      line.line_num = (unsigned short)cur_list->n_desc;
+      line.line_num = cur_list->n_desc;
       func_info->line_info.push_back(line);
       ++cur_list;
     }

@@ -236,7 +236,7 @@ nsGenericDOMDataNode::IsSupported(const nsAString& aFeature,
                                   const nsAString& aVersion,
                                   PRBool* aReturn)
 {
-  return nsGenericElement::InternalIsSupported(static_cast<nsIContent*>(this),
+  return nsGenericElement::InternalIsSupported(NS_STATIC_CAST(nsIContent*, this),
                                                aFeature, aVersion, aReturn);
 }
 
@@ -409,8 +409,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
 
   PRBool haveMutationListeners = aNotify &&
     nsContentUtils::HasMutationListeners(this,
-      NS_EVENT_BITS_MUTATION_CHARACTERDATAMODIFIED,
-      this);
+      NS_EVENT_BITS_MUTATION_CHARACTERDATAMODIFIED);
 
   nsCOMPtr<nsIAtom> oldValue;
   if (haveMutationListeners) {
@@ -580,10 +579,10 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   // Set parent
   if (aParent) {
     mParentPtrBits =
-      reinterpret_cast<PtrBits>(aParent) | PARENT_BIT_PARENT_IS_CONTENT;
+      NS_REINTERPRET_CAST(PtrBits, aParent) | PARENT_BIT_PARENT_IS_CONTENT;
   }
   else {
-    mParentPtrBits = reinterpret_cast<PtrBits>(aDocument);
+    mParentPtrBits = NS_REINTERPRET_CAST(PtrBits, aDocument);
   }
 
   // XXXbz sXBL/XBL2 issue!
@@ -598,8 +597,6 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   }
 
   nsNodeUtils::ParentChainChanged(this);
-
-  UpdateEditableState();
 
   NS_POSTCONDITION(aDocument == GetCurrentDoc(), "Bound to wrong document");
   NS_POSTCONDITION(aParent == GetParent(), "Bound to wrong parent");
@@ -702,7 +699,7 @@ nsGenericDOMDataNode::DispatchDOMEvent(nsEvent* aEvent,
                                        nsPresContext* aPresContext,
                                        nsEventStatus* aEventStatus)
 {
-  return nsEventDispatcher::DispatchDOMEvent(static_cast<nsINode*>(this),
+  return nsEventDispatcher::DispatchDOMEvent(NS_STATIC_CAST(nsINode*, this),
                                              aEvent, aDOMEvent,
                                              aPresContext, aEventStatus);
 }

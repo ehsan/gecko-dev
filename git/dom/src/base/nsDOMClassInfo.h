@@ -280,6 +280,8 @@ protected:
   static jsval sOnmousemove_id;
   static jsval sOnfocus_id;
   static jsval sOnblur_id;
+  static jsval sOnonline_id;
+  static jsval sOnoffline_id;
   static jsval sOnsubmit_id;
   static jsval sOnreset_id;
   static jsval sOnchange_id;
@@ -1623,26 +1625,6 @@ public:
   }
 };
 
-class nsLoadStatusListSH : public nsArraySH
-{
-protected:
-  nsLoadStatusListSH(nsDOMClassInfoData *aData) : nsArraySH(aData)
-  {
-  }
-
-  virtual ~nsLoadStatusListSH()
-  {
-  }
-
-  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                             nsISupports **aResult);
-
-public:
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsLoadStatusListSH(aData);
-  }
-};
 
 
 void InvalidateContextAndWrapperCache();

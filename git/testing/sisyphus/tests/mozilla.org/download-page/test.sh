@@ -4,8 +4,6 @@ TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
 TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
 source ${TEST_BIN}/library.sh
 
-TEST_DLDIR=${TEST_DLDIR:-$TEST_DIR/tests/mozilla.org/download-page}
-
 TEST_DOWNLOAD_PAGE_TIMEOUT=${TEST_DOWNLOAD_PAGE_TIMEOUT:-60}
 TEST_DOWNLOAD_BUILD_TIMEOUT=${TEST_DOWNLOAD_BUILD_TIMEOUT:-900}
 
@@ -80,23 +78,21 @@ fi
 
 executable=`get_executable $product $branch $executablepath`
 
-urlfile=`mktemp /tmp/URLS.XXXX`
-
 if [[ "$test" == "all" ]]; then
-    $timed_run.py $TEST_DOWNLOAD_PAGE_TIMEOUT "test download" \
+    $TEST_BIN/timed_run.py $TEST_DOWNLOAD_PAGE_TIMEOUT "test download" \
 	"$executable" -P "$profilename" -spider -start -quit \
 	-uri "$allurl" -timeout=$TEST_DOWNLOAD_PAGE_TIMEOUT \
 	-hook "http://$TEST_HTTP/tests/mozilla.org/download-page/collect-urls-userhook.js" | \
-	grep 'href: ' | sed 's/^href: //' > $urlfile
+	grep 'href: ' | sed 's/^href: //' > urls.txt
 elif [[ "$test" == "ftp" ]]; then
-    $timed_run.py $TEST_DOWNLOAD_PAGE_TIMEOUT "test download" \
+    $TEST_BIN/timed_run.py $TEST_DOWNLOAD_PAGE_TIMEOUT "test download" \
 	"$executable" -P "$profilename" -spider -start -quit \
 	-uri "$allurl" -timeout=$TEST_DOWNLOAD_PAGE_TIMEOUT \
 	-hook "http://$TEST_HTTP/tests/mozilla.org/download-page/userhook-ftp.js" | \
-	grep 'href: ' | sed 's/^href: //' > $urlfile
+	grep 'href: ' | sed 's/^href: //' > urls.txt
 fi
 
-cat $urlfile | while read url; do
+cat urls.txt | while read url; do
 
     echo "Processing $url"
 
@@ -127,7 +123,7 @@ cat $urlfile | while read url; do
 	    ;;
     esac
 
-    filepath=`mktemp /tmp/DOWNLOAD.XXXXXX`
+    filepath=`mktemp DOWNLOAD.XXXXXX`
     
     downloadexecutablepath="/tmp/download-$downloadproduct-$downloadbranch"
     downloadprofilepath="/tmp/download-$downloadproduct-$downloadbranch-profile"
@@ -139,14 +135,14 @@ cat $urlfile | while read url; do
 
     if ! install-build.sh  -p "$downloadproduct" -b "$downloadbranch" \
 	-x $downloadexecutablepath \
-	-f $filepath; then
+	-f `pwd`/$filepath; then
 	continue
     fi
 
     rm $filepath
 
     if [[ "$downloadproduct" == "thunderbird" ]]; then
-	template="-L $TEST_DIR/profiles/imap"
+	template="-L /work/mozilla/mozilla.com/test.mozilla.com/www/profiles/imap"
     else
 	unset template
     fi
@@ -155,7 +151,7 @@ cat $urlfile | while read url; do
 	-x $downloadexecutablepath \
 	-D $downloadprofilepath \
 	-N $downloadprofilename \
-	-U $TEST_DIR/prefs/mail-user.js \
+	-U /work/mozilla/mozilla.com/test.mozilla.com/www/prefs/mail-user.js \
 	$template; then
 	continue
     fi
@@ -163,7 +159,7 @@ cat $urlfile | while read url; do
     if ! install-extensions.sh -p "$downloadproduct" -b "$downloadbranch" \
 	-x $downloadexecutablepath \
 	-N $downloadprofilename \
-	-E $TEST_DIR/xpi; then
+	-E /work/mozilla/mozilla.com/test.mozilla.com/www/xpi; then
 	continue
     fi
 
@@ -187,6 +183,5 @@ cat $urlfile | while read url; do
 	continue
     fi
 
-done
 
-rm $urlfile
+done

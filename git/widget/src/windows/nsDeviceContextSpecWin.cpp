@@ -389,7 +389,7 @@ CheckForPrintToFile(nsIPrintSettings* aPS, LPTSTR aPrinterName, PRUnichar* aUPri
   } else {
     nsCAutoString nativeName;
     NS_CopyUnicodeToNative(nsDependentString(aUPrinterName), nativeName);
-    CheckForPrintToFileWithName(const_cast<char*>(nativeName.get()), toFile);
+    CheckForPrintToFileWithName(NS_CONST_CAST(char*, nativeName.get()), toFile);
   }
 #endif
   // Since the driver wasn't a "Print To File" Driver, check to see
@@ -529,11 +529,12 @@ NS_IMETHODIMP nsDeviceContextSpecWin::GetSurfaceForPrinter(gfxASurface **surface
     nsXPIDLString filename;
     mPrintSettings->GetToFileName(getter_Copies(filename));
 
-    double width, height;
-    mPrintSettings->GetEffectivePageSize(&width, &height);
+    PRInt32 width, height;
+    mPrintSettings->GetPageSizeInTwips(&width, &height);
+    double w, h;
     // convert twips to points
-    width /= 20;
-    height /= 20;
+    w = width/20;
+    h = height/20;
 
     nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
     nsresult rv = file->InitWithPath(filename);
@@ -545,7 +546,7 @@ NS_IMETHODIMP nsDeviceContextSpecWin::GetSurfaceForPrinter(gfxASurface **surface
     if (NS_FAILED(rv))
       return rv;
 
-    newSurface = new gfxPDFSurface(stream, gfxSize(width, height));
+    newSurface = new gfxPDFSurface(stream, gfxSize(w, h));
   } else {
     if (mDevMode) {
       HDC dc = ::CreateDC(mDriverName, mDeviceName, NULL, mDevMode);
@@ -749,7 +750,7 @@ nsDeviceContextSpecWin::GetDataFromPrinter(const PRUnichar * aName, nsIPrintSett
   HANDLE hPrinter = NULL;
   nsCAutoString nativeName;
   NS_CopyUnicodeToNative(nsDependentString(aName), nativeName);
-  BOOL status = ::OpenPrinter(const_cast<char*>(nativeName.get()),
+  BOOL status = ::OpenPrinter(NS_CONST_CAST(char*, nativeName.get()),
                               &hPrinter, NULL);
   if (status) {
 
@@ -758,7 +759,7 @@ nsDeviceContextSpecWin::GetDataFromPrinter(const PRUnichar * aName, nsIPrintSett
 
     // Allocate a buffer of the correct size.
     dwNeeded = ::DocumentProperties(NULL, hPrinter,
-                                    const_cast<char*>(nativeName.get()),
+                                    NS_CONST_CAST(char*, nativeName.get()),
                                     NULL, NULL, 0);
 
     pDevMode = (LPDEVMODE)::HeapAlloc (::GetProcessHeap(), HEAP_ZERO_MEMORY, dwNeeded);
@@ -766,14 +767,14 @@ nsDeviceContextSpecWin::GetDataFromPrinter(const PRUnichar * aName, nsIPrintSett
 
     // Get the default DevMode for the printer and modify it for our needs.
     dwRet = DocumentProperties(NULL, hPrinter, 
-                               const_cast<char*>(nativeName.get()),
+                               NS_CONST_CAST(char*, nativeName.get()),
                                pDevMode, NULL, DM_OUT_BUFFER);
 
     if (dwRet == IDOK && aPS) {
       SetupDevModeFromSettings(pDevMode, aPS);
       // Sets back the changes we made to the DevMode into the Printer Driver
       dwRet = ::DocumentProperties(NULL, hPrinter,
-                                   const_cast<char*>(nativeName.get()),
+                                   NS_CONST_CAST(char*, nativeName.get()),
                                    pDevMode, pDevMode,
                                    DM_IN_BUFFER | DM_OUT_BUFFER);
     }
@@ -788,7 +789,7 @@ nsDeviceContextSpecWin::GetDataFromPrinter(const PRUnichar * aName, nsIPrintSett
 
     SetDevMode(pDevMode); // cache the pointer and takes responsibility for the memory
 
-    SetDeviceName(const_cast<char*>(nativeName.get()));
+    SetDeviceName(NS_CONST_CAST(char*, nativeName.get()));
 
     SetDriverName("WINSPOOL");
 

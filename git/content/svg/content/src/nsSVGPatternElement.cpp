@@ -43,6 +43,7 @@
 #include "nsIDOMSVGAnimatedEnum.h"
 #include "nsSVGAnimatedString.h"
 #include "nsCOMPtr.h"
+#include "nsISVGSVGElement.h"
 #include "nsGkAtoms.h"
 #include "nsSVGAnimatedRect.h"
 #include "nsSVGRect.h"
@@ -332,8 +333,7 @@ nsSVGPatternElement::AttributeChanged(nsIDocument *aDocument,
                                       nsIContent *aContent,
                                       PRInt32 aNameSpaceID,
                                       nsIAtom *aAttribute,
-                                      PRInt32 aModType,
-                                      PRUint32 aStateMask)
+                                      PRInt32 aModType)
 {
   PushUpdate();
 }

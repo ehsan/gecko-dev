@@ -226,7 +226,7 @@ txStylesheetCompiler::startElementInternal(PRInt32 aNamespaceID,
     nsresult rv = NS_OK;
     PRInt32 i;
     for (i = mInScopeVariables.Count() - 1; i >= 0; --i) {
-        ++(static_cast<txInScopeVariable*>(mInScopeVariables[i]))->mLevel;
+        ++(NS_STATIC_CAST(txInScopeVariable*, mInScopeVariables[i]))->mLevel;
     }
 
     // Update the elementcontext if we have special attributes
@@ -356,7 +356,7 @@ txStylesheetCompiler::startElementInternal(PRInt32 aNamespaceID,
         }
     }
 
-    rv = pushPtr(const_cast<txElementHandler*>(handler));
+    rv = pushPtr(NS_CONST_CAST(txElementHandler*, handler));
     NS_ENSURE_SUCCESS(rv, rv);
 
     mElementContext->mDepth++;
@@ -379,7 +379,7 @@ txStylesheetCompiler::endElement()
     PRInt32 i;
     for (i = mInScopeVariables.Count() - 1; i >= 0; --i) {
         txInScopeVariable* var =
-            static_cast<txInScopeVariable*>(mInScopeVariables[i]);
+            NS_STATIC_CAST(txInScopeVariable*, mInScopeVariables[i]);
         if (!--(var->mLevel)) {
             nsAutoPtr<txInstruction> instr(new txRemoveVariable(var->mName));
             NS_ENSURE_TRUE(instr, NS_ERROR_OUT_OF_MEMORY);
@@ -393,14 +393,14 @@ txStylesheetCompiler::endElement()
     }
 
     const txElementHandler* handler =
-        const_cast<const txElementHandler*>
-                  (static_cast<txElementHandler*>(popPtr()));
+        NS_CONST_CAST(const txElementHandler*,
+                      NS_STATIC_CAST(txElementHandler*, popPtr()));
     rv = (handler->mEndFunction)(*this);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!--mElementContext->mDepth) {
         // this will delete the old object
-        mElementContext = static_cast<txElementContext*>(popObject());
+        mElementContext = NS_STATIC_CAST(txElementContext*, popObject());
     }
 
     return NS_OK;
@@ -644,7 +644,7 @@ txStylesheetCompilerState::~txStylesheetCompilerState()
     
     PRInt32 i;
     for (i = mInScopeVariables.Count() - 1; i >= 0; --i) {
-        delete static_cast<txInScopeVariable*>(mInScopeVariables[i]);
+        delete NS_STATIC_CAST(txInScopeVariable*, mInScopeVariables[i]);
     }
 }
 
@@ -662,7 +662,7 @@ txStylesheetCompilerState::pushHandlerTable(txHandlerTable* aTable)
 void
 txStylesheetCompilerState::popHandlerTable()
 {
-    mHandlerTable = static_cast<txHandlerTable*>(popPtr());
+    mHandlerTable = NS_STATIC_CAST(txHandlerTable*, popPtr());
 }
 
 nsresult
@@ -679,7 +679,7 @@ txStylesheetCompilerState::pushSorter(txPushNewContext* aSorter)
 void
 txStylesheetCompilerState::popSorter()
 {
-    mSorter = static_cast<txPushNewContext*>(popPtr());
+    mSorter = NS_STATIC_CAST(txPushNewContext*, popPtr());
 }
 
 nsresult
@@ -699,7 +699,7 @@ void
 txStylesheetCompilerState::popChooseGotoList()
 {
     // this will delete the old value
-    mChooseGotoList = static_cast<txList*>(popObject());
+    mChooseGotoList = NS_STATIC_CAST(txList*, popObject());
 }
 
 nsresult
@@ -711,7 +711,7 @@ txStylesheetCompilerState::pushObject(TxObject* aObject)
 TxObject*
 txStylesheetCompilerState::popObject()
 {
-    return static_cast<TxObject*>(mObjectStack.pop());
+    return NS_STATIC_CAST(TxObject*, mObjectStack.pop());
 }
 
 nsresult
@@ -768,7 +768,7 @@ txStylesheetCompilerState::addInstruction(nsAutoPtr<txInstruction> aInstruction)
     
     PRInt32 i, count = mGotoTargetPointers.Count();
     for (i = 0; i < count; ++i) {
-        *static_cast<txInstruction**>(mGotoTargetPointers[i]) = newInstr;
+        *NS_STATIC_CAST(txInstruction**, mGotoTargetPointers[i]) = newInstr;
     }
     mGotoTargetPointers.Clear();
 
@@ -797,7 +797,7 @@ txStylesheetCompilerState::loadIncludedStylesheet(const nsAString& aURI)
     // step back to the dummy-item
     mToplevelIterator.previous();
     
-    txACompileObserver* observer = static_cast<txStylesheetCompiler*>(this);
+    txACompileObserver* observer = NS_STATIC_CAST(txStylesheetCompiler*, this);
 
     nsRefPtr<txStylesheetCompiler> compiler =
         new txStylesheetCompiler(aURI, mStylesheet, &mToplevelIterator,
@@ -834,7 +834,7 @@ txStylesheetCompilerState::loadImportedStylesheet(const nsAString& aURI,
     txListIterator iter(&aFrame->mToplevelItems);
     iter.next(); // go to the end of the list
 
-    txACompileObserver* observer = static_cast<txStylesheetCompiler*>(this);
+    txACompileObserver* observer = NS_STATIC_CAST(txStylesheetCompiler*, this);
 
     nsRefPtr<txStylesheetCompiler> compiler =
         new txStylesheetCompiler(aURI, mStylesheet, &iter, observer);

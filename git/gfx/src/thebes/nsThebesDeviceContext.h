@@ -75,6 +75,7 @@ public:
     NS_IMETHOD InitForPrinting(nsIDeviceContextSpec *aDevSpec);
     NS_IMETHOD CreateRenderingContext(nsIView *aView, nsIRenderingContext *&aContext);
 
+    NS_IMETHOD CreateRenderingContext(nsIDrawingSurface *aSurface, nsIRenderingContext *&aContext);
     NS_IMETHOD CreateRenderingContext(nsIWidget *aWidget, nsIRenderingContext *&aContext);
     NS_IMETHOD CreateRenderingContext(nsIRenderingContext *&aContext);
     NS_IMETHOD CreateRenderingContextInstance(nsIRenderingContext *&aContext);
@@ -154,7 +155,7 @@ private:
     nsRefPtrHashtable<nsISupportsHashKey, gfxASurface> mWidgetSurfaceCache;
 
     nsRefPtr<gfxASurface> mPrintingSurface;
-    nsCOMPtr<nsIDeviceContextSpec> mDeviceContextSpec;
+    nsIDeviceContextSpec *mDeviceContextSpec;
 };
 
 #endif /* _NS_CAIRODEVICECONTEXT_H_ */

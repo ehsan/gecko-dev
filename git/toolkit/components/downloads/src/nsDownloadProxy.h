@@ -99,20 +99,29 @@ public:
                               nsIRequest* aRequest, PRUint32 aStateFlags,
                               PRUint32 aStatus)
   {
-    return mInner->OnStateChange(aWebProgress, aRequest, aStateFlags, aStatus);
+    nsCOMPtr<nsIWebProgressListener> listener = do_QueryInterface(mInner);
+    if (listener)
+      return listener->OnStateChange(aWebProgress, aRequest, aStateFlags, aStatus);
+    return NS_OK;
   }
   
   NS_IMETHODIMP OnStatusChange(nsIWebProgress *aWebProgress,
                                nsIRequest *aRequest, nsresult aStatus,
                                const PRUnichar *aMessage)
   {
-    return mInner->OnStatusChange(aWebProgress, aRequest, aStatus, aMessage);
+    nsCOMPtr<nsIWebProgressListener> listener = do_QueryInterface(mInner);
+    if (listener)
+      return listener->OnStatusChange(aWebProgress, aRequest, aStatus, aMessage);
+    return NS_OK;
   }
 
   NS_IMETHODIMP OnLocationChange(nsIWebProgress *aWebProgress,
                                  nsIRequest *aRequest, nsIURI *aLocation)
   {
-    return mInner->OnLocationChange(aWebProgress, aRequest, aLocation);
+    nsCOMPtr<nsIWebProgressListener> listener = do_QueryInterface(mInner);
+    if (listener)
+      return listener->OnLocationChange(aWebProgress, aRequest, aLocation);
+    return NS_OK;
   }
   
   NS_IMETHODIMP OnProgressChange(nsIWebProgress *aWebProgress,
@@ -122,11 +131,14 @@ public:
                                  PRInt32 aCurTotalProgress,
                                  PRInt32 aMaxTotalProgress)
   {
-    return mInner->OnProgressChange(aWebProgress, aRequest,
-                                    aCurSelfProgress,
-                                    aMaxSelfProgress,
-                                    aCurTotalProgress,
-                                    aMaxTotalProgress);
+    nsCOMPtr<nsIWebProgressListener> listener = do_QueryInterface(mInner);
+    if (listener)
+      return listener->OnProgressChange(aWebProgress, aRequest,
+                                        aCurSelfProgress,
+                                        aMaxSelfProgress,
+                                        aCurTotalProgress,
+                                        aMaxTotalProgress);
+    return NS_OK;
   }
 
   NS_IMETHODIMP OnProgressChange64(nsIWebProgress *aWebProgress,
@@ -136,11 +148,14 @@ public:
                                    PRInt64 aCurTotalProgress,
                                    PRInt64 aMaxTotalProgress)
   {
-    return mInner->OnProgressChange64(aWebProgress, aRequest,
-                                      aCurSelfProgress,
-                                      aMaxSelfProgress,
-                                      aCurTotalProgress,
-                                      aMaxTotalProgress);
+    nsCOMPtr<nsIWebProgressListener2> listener = do_QueryInterface(mInner);
+    if (listener)
+      return listener->OnProgressChange64(aWebProgress, aRequest,
+                                          aCurSelfProgress,
+                                          aMaxSelfProgress,
+                                          aCurTotalProgress,
+                                          aMaxTotalProgress);
+    return NS_OK;
   }
 
   NS_IMETHODIMP OnRefreshAttempted(nsIWebProgress *aWebProgress,
@@ -156,7 +171,10 @@ public:
   NS_IMETHODIMP OnSecurityChange(nsIWebProgress *aWebProgress,
                                  nsIRequest *aRequest, PRUint32 aState)
   {
-    return mInner->OnSecurityChange(aWebProgress, aRequest, aState);
+    nsCOMPtr<nsIWebProgressListener> listener = do_QueryInterface(mInner);
+    if (listener)
+      return listener->OnSecurityChange(aWebProgress, aRequest, aState);
+    return NS_OK;
   }
 
 private:

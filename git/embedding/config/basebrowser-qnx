@@ -48,6 +48,7 @@ components/xpconnect.xpt
 
 libgkgfx.so 
 libgfxpsshar.so
+components/libgfxps.so
 components/gfx.xpt 
 components/widget.xpt
 
@@ -237,8 +238,6 @@ res/viewsource.css
 res/hiddenWindow.html
 res/ua.css
 res/forms.css
-res/contenteditable.css
-res/designmode.css
 res/arrow.gif
 res/arrowd.gif
 res/loading-image.gif

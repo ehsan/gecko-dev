@@ -79,8 +79,10 @@ REQUIRES =  xpcom \
 
 CPPSRCS		= \
 		nsThebesDeviceContext.cpp \
+		nsThebesDrawingSurface.cpp \
 		nsThebesImage.cpp \
 		nsThebesRegion.cpp \
+		nsThebesBlender.cpp \
 		nsThebesGfxFactory.cpp \
 		nsThebesRenderingContext.cpp \
 		nsThebesFontMetrics.cpp \
@@ -130,7 +132,7 @@ CPPSRCS          += nsSystemFontsMac.cpp
  endif
 endif
 
-EXPORTS         += nsIThebesFontMetrics.h
+EXPORTS         += nsIThebesRenderingContext.h nsIThebesFontMetrics.h
 
 LOCAL_INCLUDES	= \
 		-I$(srcdir)/. \
@@ -139,7 +141,6 @@ LOCAL_INCLUDES	= \
 		$(NULL)
 
 EXTRA_DSO_LDOPTS += \
-		$(MOZ_FIX_LINK_PATHS) \
 		../shared/$(LIB_PREFIX)gfxshared_s.$(LIB_SUFFIX) \
 		$(LIBS_DIR) \
 		$(EXTRA_DSO_LIBS) \

@@ -55,13 +55,11 @@ typedef nsFrame nsSVGGeometryFrameBase;
 class nsSVGGeometryFrame : public nsSVGGeometryFrameBase,
                            public nsISVGValueObserver
 {
-protected:
-  nsSVGGeometryFrame(nsStyleContext *aContext) : nsSVGGeometryFrameBase(aContext) {}
-  NS_IMETHOD InitSVG();
-
 public:
-  // nsIFrame interface:
+  nsSVGGeometryFrame(nsStyleContext *aContext);
   virtual void Destroy();
+
+  // nsIFrame interface:
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow);
@@ -117,6 +115,8 @@ protected:
   virtual nsresult UpdateGraphic(PRBool suppressInvalidation = PR_FALSE) = 0;
 
   nsSVGPaintServerFrame *GetPaintServer(const nsStyleSVGPaint *aPaint);
+
+  NS_IMETHOD InitSVG();
 
 private:
   nsresult GetStrokeDashArray(double **arr, PRUint32 *count);

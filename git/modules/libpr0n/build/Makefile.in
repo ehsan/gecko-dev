@@ -54,7 +54,6 @@ PACKAGE_FILE = imglib2.pkg
 
 REQUIRES	= xpcom \
 		  string \
-		  thebes \
 		  necko \
 		  nkcache \
 		  gfx \

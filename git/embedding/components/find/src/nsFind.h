@@ -67,8 +67,6 @@ public:
   nsFind();
   virtual ~nsFind();
 
-  static already_AddRefed<nsIDOMRange> CreateRange();
-
 protected:
   static PRInt32 sInstanceCount;
 

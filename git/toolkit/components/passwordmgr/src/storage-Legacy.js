@@ -38,16 +38,16 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
 function LoginManagerStorage_legacy() { };
 
 LoginManagerStorage_legacy.prototype = {
 
-    classDescription  : "LoginManagerStorage_legacy",
-    contractID : "@mozilla.org/login-manager/storage/legacy;1",
-    classID : Components.ID("{e09e4ca6-276b-4bb4-8b71-0635a3a2a007}"),
-    QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage]),
+    QueryInterface : function (iid) {
+        const interfaces = [Ci.nsILoginManagerStorage, Ci.nsISupports];
+        if (!interfaces.some( function(v) { return iid.equals(v) } ))
+            throw Components.results.NS_ERROR_NO_INTERFACE;
+        return this;
+    },
 
     __logService : null, // Console logging service, used for debugging.
     get _logService() {
@@ -169,19 +169,6 @@ LoginManagerStorage_legacy.prototype = {
      *
      */
     addLogin : function (login) {
-        // We rely on using login.wrappedJSObject. addLogin is the
-        // only entry point where we might get a nsLoginInfo object
-        // that wasn't created by us (and so might not be a JS
-        // implementation being wrapped)
-        if (!login.wrappedJSObject) {
-            var clone = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                        createInstance(Ci.nsILoginInfo);
-            clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
-                       login.username,      login.password,
-                       login.usernameField, login.passwordField);
-            login = clone;
-        }
-
         var key = login.hostname;
 
         // If first entry for key, create an Array to hold it's logins.
@@ -204,10 +191,6 @@ LoginManagerStorage_legacy.prototype = {
 
         if (!logins)
             throw "No logins found for hostname (" + key + ")";
-
-        // The specified login isn't encrypted, so we need to ensure
-        // the logins we're comparing with are decrypted.
-        this._decryptLogins(logins);
 
         for (var i = 0; i < logins.length; i++) {
             if (logins[i].equals(login)) {
@@ -242,15 +225,12 @@ LoginManagerStorage_legacy.prototype = {
      * Returns an array of nsAccountInfo.
      */
     getAllLogins : function (count) {
-        var result = [], userCanceled;
+        var result = [];
 
         // Each entry is an array -- append the array entries to |result|.
         for each (var hostLogins in this._logins) {
             result = result.concat(hostLogins);
         }
-
-        // decrypt entries for caller.
-        [result, userCanceled] = this._decryptLogins(result);
 
         count.value = result.length; // needed for XPCOM
         return result;
@@ -258,11 +238,11 @@ LoginManagerStorage_legacy.prototype = {
 
 
     /*
-     * removeAllLogins
+     * clearAllLogins
      *
-     * Removes all logins from storage.
+     * Clears all logins from storage.
      */
-    removeAllLogins : function () {
+    clearAllLogins : function () {
         this._logins = {};
         // Disabled hosts kept, as one presumably doesn't want to erase those.
 
@@ -320,7 +300,7 @@ LoginManagerStorage_legacy.prototype = {
             return [];
         }
 
-        var result = [], userCanceled;
+        var result = [];
 
         for each (var login in hostLogins) {
 
@@ -337,15 +317,6 @@ LoginManagerStorage_legacy.prototype = {
 
             result.push(login);
         }
-
-        // Decrypt entries found for the caller.
-        [result, userCanceled] = this._decryptLogins(result);
-
-        // We want to throw in this case, so that the Login Manager
-        // knows to stop processing forms on the page so the user isn't
-        // prompted multiple times.
-        if (userCanceled)
-            throw "User canceled Master Password entry";
 
         count.value = result.length; // needed for XPCOM
         return result;
@@ -412,6 +383,7 @@ LoginManagerStorage_legacy.prototype = {
      */
     _readFile : function () {
         var oldFormat = false;
+        var writeOnFinish = false;
 
         this.log("Reading passwords from " + this._signonsFile.path);
 
@@ -512,7 +484,7 @@ LoginManagerStorage_legacy.prototype = {
 
                 // Line is a username
                 case STATE.USERVALUE:
-                    entry.wrappedJSObject.encryptedUsername = line.value;
+                    entry.username = this._decrypt(line.value);
                     parseState++;
                     break;
 
@@ -525,7 +497,7 @@ LoginManagerStorage_legacy.prototype = {
 
                 // Line is a password
                 case STATE.PASSVALUE:
-                    entry.wrappedJSObject.encryptedPassword = line.value;
+                    entry.password = this._decrypt(line.value);
                     if (oldFormat) {
                         entry.formSubmitURL = "";
                         processEntry = true;
@@ -545,17 +517,23 @@ LoginManagerStorage_legacy.prototype = {
             }
 
             if (processEntry) {
-                if (!this._logins[hostname])
-                    this._logins[hostname] = [];
-
-                this._logins[hostname].push(entry);
-
+                if (entry.username == "" && entry.password == "") {
+                    // Discard bogus entry, and update the file when done.
+                    writeOnFinish = true;
+                } else {
+                    if (!this._logins[hostname])
+                        this._logins[hostname] = [];
+                    this._logins[hostname].push(entry);
+                }
                 entry = null;
                 processEntry = false;
             }
         } while (hasMore);
 
         lineStream.close();
+
+        if (writeOnFinish)
+            this._writeFile();
 
         return;
     },
@@ -616,7 +594,6 @@ LoginManagerStorage_legacy.prototype = {
             // write each login known for the host
             var lastRealm = null;
             var firstEntry = true;
-            var userCanceled = false;
             for each (var login in this._logins[hostname]) {
 
                 // If this login is for a new realm, start a new entry.
@@ -634,28 +611,8 @@ LoginManagerStorage_legacy.prototype = {
 
                 firstEntry = false;
 
-                // Get the encrypted value of the username. Newly added
-                // logins will need the plaintext value encrypted.
-                var encUsername = login.wrappedJSObject.encryptedUsername;
-                if (!encUsername) {
-                    [encUsername, userCanceled] = this._encrypt(login.username);
-                    login.wrappedJSObject.encryptedUsername = encUsername;
-                }
-
-                if (userCanceled)
-                    break;
-
-                // Get the encrypted value of the password. Newly added
-                // logins will need the plaintext value encrypted.
-                var encPassword = login.wrappedJSObject.encryptedPassword;
-                if (!encPassword) {
-                    [encPassword, userCanceled] = this._encrypt(login.password);
-                    login.wrappedJSObject.encryptedPassword = encPassword;
-                }
-
-                if (userCanceled)
-                    break;
-
+                var encUsername = this._encrypt(login.username);
+                var encPassword = this._encrypt(login.password);
 
                 writeLine((login.usernameField ?  login.usernameField : ""));
                 writeLine(encUsername);
@@ -665,13 +622,6 @@ LoginManagerStorage_legacy.prototype = {
                 writeLine((login.formSubmitURL ? login.formSubmitURL : ""));
 
                 lastRealm = login.httpRealm;
-            }
-
-            if (userCanceled) {
-                this.log("User canceled Master Password, aborting write.");
-                // .close will cause an abort w/o modifying original file
-                outputStream.close();
-                return;
             }
 
             // write end-of-host marker
@@ -685,110 +635,25 @@ LoginManagerStorage_legacy.prototype = {
 
 
     /*
-     * _decryptLogins
-     *
-     * Decrypts username and password fields in the provided array of
-     * logins. This is deferred from the _readFile() code, so that
-     * the user is not prompted for a master password (if set) until
-     * the entries are actually used.
-     *
-     * The entries specified by the array will be decrypted, if possible.
-     * An array of successfully decrypted logins will be returned. The return
-     * value should be given to external callers (since still-encrypted
-     * entries are useless), whereas internal callers generally don't want
-     * to lose unencrypted entries (eg, because the user clicked Cancel
-     * instead of entering their master password)
-     */
-    _decryptLogins : function (logins) {
-        var result = [], userCanceled = false;
-
-        for each (var login in logins) {
-            if (!login.username)
-                [login.username, userCanceled] =
-                    this._decrypt(login.wrappedJSObject.encryptedUsername);
-
-            if (userCanceled)
-                break;
-
-            if (!login.password)
-                [login.password, userCanceled] =
-                    this._decrypt(login.wrappedJSObject.encryptedPassword);
-
-            // Probably can't hit this case, but for completeness...
-            if (userCanceled)
-                break;
-
-            // If decryption failed (corrupt entry?) skip it.
-            // XXX remove it from the original list entirely?
-            if (!login.username || !login.password)
-                continue;
-
-            // Force any old mime64-obscured entries to be reencrypted.
-            if (login.wrappedJSObject.encryptedUsername &&
-                login.wrappedJSObject.encryptedUsername.charAt(0) == '~')
-                login.wrappedJSObject.encryptedUsername = null;
-
-            if (login.wrappedJSObject.encryptedPassword &&
-                login.wrappedJSObject.encryptedPassword.charAt(0) == '~')
-                login.wrappedJSObject.encryptedPassword = null;
-
-            result.push(login);
-        }
-
-        return [result, userCanceled];
-    },
-
-
-    /*
      * _encrypt
      *
-     * Encrypts the specified string, using the SecretDecoderRing.
-     *
-     * Returns [cipherText, userCanceled] where:
-     *  cipherText   -- the encrypted string, or null if it failed.
-     *  userCanceled -- if the encryption failed, this is true if the
-     *                  user selected Cancel when prompted to enter their
-     *                  Master Password. The caller should bail out, and not
-     *                  not request that more things be encrypted (which 
-     *                  results in prompting the user for a Master Password
-     *                  over and over.)
      */
     _encrypt : function (plainText) {
-        var cipherText = null, userCanceled = false;
-
-        try {
-            var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
-                            createInstance(Ci.nsIScriptableUnicodeConverter);
-            converter.charset = "UTF-8";
-            var plainOctet = converter.ConvertFromUnicode(plainText);
-            plainOctet += converter.Finish();
-            cipherText = this._decoderRing.encryptString(plainOctet);
-        } catch (e) {
-            this.log("Failed to encrypt string. (" + e.name + ")");
-            if (e.result == Components.results.NS_ERROR_NOT_AVAILABLE)
-                userCanceled = true;
-        }
-
-        return [cipherText, userCanceled];
+        var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
+                             .createInstance(Ci.nsIScriptableUnicodeConverter);
+        converter.charset = "UTF-8";
+        var plainOctet = converter.ConvertFromUnicode(plainText);
+        plainOctet += converter.Finish();
+        return this._decoderRing.encryptString(plainOctet);
     },
 
 
     /*
-     * _decrypt
+     * decrypt
      *
-     * Decrypts the specified string, using the SecretDecoderRing.
-     *
-     * Returns [plainText, userCanceled] where:
-     *  plainText    -- the decrypted string, or null if it failed.
-     *  userCanceled -- if the decryption failed, this is true if the
-     *                  user selected Cancel when prompted to enter their
-     *                  Master Password. The caller should bail out, and not
-     *                  not request that more things be decrypted (which 
-     *                  results in prompting the user for a Master Password
-     *                  over and over.)
      */
     _decrypt : function (cipherText) {
-        var plainText = null, userCanceled = false;
+        var plainText = null;
 
         try {
             var plainOctet;
@@ -805,23 +670,66 @@ LoginManagerStorage_legacy.prototype = {
             converter.charset = "UTF-8";
             plainText = converter.ConvertToUnicode(plainOctet);
         } catch (e) {
-            this.log("Failed to decrypt string: " + cipherText +
-                " (" + e.name + ")");
-
-            // If the user clicks Cancel, we get NS_ERROR_NOT_AVAILABLE.
-            // If the cipherText is bad / wrong key, we get NS_ERROR_FAILURE
-            // Wrong passwords are handled by the decoderRing reprompting;
-            // we get no notification.
-            if (e.result == Components.results.NS_ERROR_NOT_AVAILABLE)
-                userCanceled = true;
+            this.log("Failed to decrypt string: " + cipherText);
         }
 
-        return [plainText, userCanceled];
+        return plainText;
     },
 
 }; // end of nsLoginManagerStorage_legacy implementation
 
-var component = [LoginManagerStorage_legacy];
+
+
+
+// Boilerplate code for component registration...
+var gModule = {
+    registerSelf: function(componentManager, fileSpec, location, type) {
+        componentManager = componentManager.QueryInterface(
+                                                Ci.nsIComponentRegistrar);
+        for each (var obj in this._objects) 
+            componentManager.registerFactoryLocation(obj.CID,
+                    obj.className, obj.contractID,
+                    fileSpec, location, type);
+    },
+
+    unregisterSelf: function (componentManager, location, type) {
+        for each (var obj in this._objects) 
+            componentManager.unregisterFactoryLocation(obj.CID, location);
+    },
+    
+    getClassObject: function(componentManager, cid, iid) {
+        if (!iid.equals(Ci.nsIFactory))
+            throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+  
+        for (var key in this._objects) {
+            if (cid.equals(this._objects[key].CID))
+                return this._objects[key].factory;
+        }
+    
+        throw Components.results.NS_ERROR_NO_INTERFACE;
+    },
+  
+    _objects: {
+        service: {
+            CID : Components.ID("{e09e4ca6-276b-4bb4-8b71-0635a3a2a007}"),
+            contractID : "@mozilla.org/login-manager/storage/legacy;1",
+            className  : "LoginManagerStorage_legacy",
+            factory    : aFactory = {
+                createInstance: function(aOuter, aIID) {
+                    if (aOuter != null)
+                        throw Components.results.NS_ERROR_NO_AGGREGATION;
+                    var svc = new LoginManagerStorage_legacy();
+                    return svc.QueryInterface(aIID);
+                }
+            }
+        }
+    },
+  
+    canUnload: function(componentManager) {
+        return true;
+    }
+};
+
 function NSGetModule(compMgr, fileSpec) {
-    return XPCOMUtils.generateModule(component);
+    return gModule;
 }

@@ -39,24 +39,17 @@
 
 #include "nsCocoaUtils.h"
 
-// Returns the height (from lowest 'y' to highest 'y', regardless of sign) of
-// the global coordinate system that includes all NSScreen objects.
-float CocoaScreenCoordsHeight()
+float HighestPointOnAnyScreen()
 {
-  float globalLowestY = 0;
-  float globalHighestY = 0;
-  NSArray *allScreens = [NSScreen screens];
-  for (unsigned i = 0; i < [allScreens count]; ++i) {
-    NSScreen *aScreen = (NSScreen*) [allScreens objectAtIndex:i];
-    NSRect screenFrame = [aScreen frame];
-    float screenLowestY = screenFrame.origin.y;
-    float screenHighestY = screenFrame.origin.y + screenFrame.size.height;
-    if (screenLowestY < globalLowestY)
-      globalLowestY = screenLowestY;
-    if (screenHighestY > globalHighestY)
-      globalHighestY = screenHighestY;
+  float highestScreenPoint = 0.0;
+  NSArray* allScreens = [NSScreen screens];
+  for (unsigned int i = 0; i < [allScreens count]; i++) {
+    NSRect currScreenFrame = [[allScreens objectAtIndex:i] frame];
+    float currScreenHighestPoint = currScreenFrame.origin.y + currScreenFrame.size.height;
+    if (currScreenHighestPoint > highestScreenPoint)
+      highestScreenPoint = currScreenHighestPoint;
   }
-  return globalHighestY - globalLowestY;
+  return highestScreenPoint;
 }
 
 
@@ -65,7 +58,7 @@ NSRect geckoRectToCocoaRect(const nsRect &geckoRect)
   // We only need to change the Y coordinate by starting with the screen
   // height, subtracting the gecko Y coordinate, and subtracting the height.
   return NSMakeRect(geckoRect.x,
-                    CocoaScreenCoordsHeight() - geckoRect.y - geckoRect.height,
+                    HighestPointOnAnyScreen() - geckoRect.y - geckoRect.height,
                     geckoRect.width,
                     geckoRect.height);
 }
@@ -77,7 +70,7 @@ nsRect cocoaRectToGeckoRect(const NSRect &cocoaRect)
   // height and subtracting both the cocoa y origin and the height of the
   // cocoa rect.
   return nsRect((nscoord)cocoaRect.origin.x,
-                (nscoord)(CocoaScreenCoordsHeight() - (cocoaRect.origin.y + cocoaRect.size.height)),
+                (nscoord)(HighestPointOnAnyScreen() - (cocoaRect.origin.y + cocoaRect.size.height)),
                 (nscoord)cocoaRect.size.width,
                 (nscoord)cocoaRect.size.height);
 }

@@ -67,10 +67,10 @@ nsWindowRoot::nsWindowRoot(nsIDOMWindow* aWindow)
   nsFocusController::Create(getter_AddRefs(mFocusController));
 
   nsCOMPtr<nsIDOMFocusListener> focusListener(do_QueryInterface(mFocusController));
-  mRefCnt.incr(static_cast<nsIDOMEventTarget*>(this));
+  mRefCnt.incr(NS_STATIC_CAST(nsIDOMEventTarget*, this));
   AddEventListener(NS_LITERAL_STRING("focus"), focusListener, PR_TRUE);
   AddEventListener(NS_LITERAL_STRING("blur"), focusListener, PR_TRUE);
-  mRefCnt.decr(static_cast<nsIDOMEventTarget*>(this));
+  mRefCnt.decr(NS_STATIC_CAST(nsIDOMEventTarget*, this));
 }
 
 nsWindowRoot::~nsWindowRoot()
@@ -111,7 +111,7 @@ nsWindowRoot::DispatchEvent(nsIDOMEvent* aEvt, PRBool *_retval)
 {
   nsEventStatus status = nsEventStatus_eIgnore;
   nsresult rv =  nsEventDispatcher::DispatchDOMEvent(
-    static_cast<nsPIDOMEventTarget*>(this), nsnull, aEvt, nsnull, &status);
+    NS_STATIC_CAST(nsPIDOMEventTarget*, this), nsnull, aEvt, nsnull, &status);
   *_retval = (status != nsEventStatus_eConsumeNoDefault);
   return rv;
 }
@@ -122,7 +122,7 @@ nsWindowRoot::DispatchDOMEvent(nsEvent* aEvent,
                                nsPresContext* aPresContext,
                                nsEventStatus* aEventStatus)
 {
-  return nsEventDispatcher::DispatchDOMEvent(static_cast<nsPIDOMEventTarget*>(this),
+  return nsEventDispatcher::DispatchDOMEvent(NS_STATIC_CAST(nsPIDOMEventTarget*, this),
                                              aEvent, aDOMEvent,
                                              aPresContext, aEventStatus);
 }
@@ -220,7 +220,7 @@ nsWindowRoot::GetListenerManager(PRBool aCreateIfNotFound,
     mListenerManager = do_CreateInstance(kEventListenerManagerCID, &rv);
     if (NS_FAILED(rv)) return rv;
     mListenerManager->SetListenerTarget(
-      static_cast<nsPIDOMEventTarget*>(this));
+      NS_STATIC_CAST(nsPIDOMEventTarget*, this));
   }
 
   *aResult = mListenerManager;
@@ -262,12 +262,6 @@ nsWindowRoot::GetFocusController(nsIFocusController** aResult)
   *aResult = mFocusController;
   NS_IF_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsIDOMWindow*
-nsWindowRoot::GetWindow()
-{
-  return mWindow;
 }
 
 NS_IMETHODIMP

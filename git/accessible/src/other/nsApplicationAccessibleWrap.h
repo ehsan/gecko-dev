@@ -47,7 +47,6 @@ class nsApplicationAccessibleWrap: public nsApplicationAccessible
 {
 public:
   static void PreCreate() {}
-  static void Unload() {}
 };
 
 #endif

@@ -277,7 +277,8 @@ public:
   NS_HIDDEN_(void)  SetNoneValue();
   NS_HIDDEN_(void)  SetNormalValue();
   NS_HIDDEN_(void)  SetSystemFontValue();
-  NS_HIDDEN_(void)  StartImageLoad(nsIDocument* aDocument)
+  NS_HIDDEN_(void)  StartImageLoad(nsIDocument* aDocument,
+                                   PRBool aIsBGImage = PR_FALSE)
                                    const;  // Not really const, but pretending
 
   // Returns an already addrefed buffer.  Can return null on allocation
@@ -406,7 +407,8 @@ public:
     // this header is included all over.
     // aString must not be null.
     Image(nsIURI* aURI, nsStringBuffer* aString, nsIURI* aReferrer,
-          nsIPrincipal* aOriginPrincipal, nsIDocument* aDocument) NS_HIDDEN;
+          nsIPrincipal* aOriginPrincipal, nsIDocument* aDocument,
+          PRBool aIsBGImage = PR_FALSE) NS_HIDDEN;
     ~Image() NS_HIDDEN;
 
     // Inherit operator== from nsCSSValue::URL
@@ -420,7 +422,7 @@ public:
 
 private:
   static const PRUnichar* GetBufferValue(nsStringBuffer* aBuffer) {
-    return static_cast<PRUnichar*>(aBuffer->Data());
+    return NS_STATIC_CAST(PRUnichar*, aBuffer->Data());
   }
 
 protected:

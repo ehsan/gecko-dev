@@ -45,6 +45,7 @@
 #include "nsILocalFile.h"
 #include "nsIPrintJobGTK.h"
 #include "nsString.h"
+#include "nsTempfilePS.h"
 #include "nsDeviceContextSpecG.h"
 
 /* Print job class for print preview operations. */
@@ -54,55 +55,108 @@ class nsPrintJobPreviewGTK : public nsIPrintJobGTK {
         /* see nsIPrintJobGTK.h. Print preview doesn't actually
          * implement printing.
          */
-        virtual nsresult Submit()
+        nsresult StartSubmission(FILE **aHandle)
             { return NS_ERROR_GFX_PRINTING_NOT_IMPLEMENTED; }
 
+        nsresult FinishSubmission()
+            { return NS_ERROR_GFX_PRINTING_NOT_IMPLEMENTED; }
+
+        nsresult SetNumCopies(int aNumCopies)
+            { return NS_ERROR_NOT_IMPLEMENTED; }
+
     protected:
-        virtual nsresult Init(nsDeviceContextSpecGTK *);
-        nsresult InitSpoolFile(PRUint32 aPermissions);
+        /* See nsIPrintJobGTK.h. */
+        nsresult Init(nsDeviceContextSpecGTK *);
 };
 
 
 /* Print job class for print-to-file. */
-class nsPrintJobFileGTK : public nsPrintJobPreviewGTK {
+class nsPrintJobFileGTK : public nsIPrintJobGTK {
     public:
-        virtual nsresult Submit();
+        nsPrintJobFileGTK();
+        ~nsPrintJobFileGTK();
+
+        /* see nsIPrintJobGTK.h */
+        nsresult StartSubmission(FILE **aHandle);
+        nsresult FinishSubmission();
+
+        nsresult SetNumCopies(int aNumCopies)
+            { return NS_ERROR_NOT_IMPLEMENTED; }
 
     protected:
-        virtual nsresult Init(nsDeviceContextSpecGTK *);
-        nsCOMPtr<nsILocalFile> mDestFile;
-};
+        /* see nsIPrintJobGTK.h */
+        nsresult Init(nsDeviceContextSpecGTK *);
 
-/* This is the class for printing to a pipe. */
-class nsPrintJobPipeGTK : public nsPrintJobPreviewGTK {
-    public:
-        virtual nsresult Submit();
+        /**
+         * Set the destination file handle.
+         * @param aHandle New value for the handle.
+         */
+        void SetDestHandle(FILE *aHandle) { mDestHandle = aHandle; }
 
-    protected:
-        virtual nsresult Init(nsDeviceContextSpecGTK *);
+        /**
+         * Get the current value for the destination file handle.
+         * @return the current value for the destination file handle.
+         */
+        FILE *GetDestHandle() { return mDestHandle; }
+
+        /**
+         * Set a string representing the destination. For print-to-file
+         * this is the name of the destination file. Subclasses could
+         * store something else here.
+         * @param aDest Destination filename.
+         */
+        void SetDestination(const char *aDest) { mDestination = aDest; }
+
+        /**
+         * Get the string representing the destination.
+         * @return The current value of the destination string.
+         */
+        nsCString& GetDestination() { return mDestination; }
+
 
     private:
-        nsCString mCommand;
+        FILE *mDestHandle;                  // Destination file handle
+        nsCString mDestination;
+};
+
+/* This is the class for printing to a pipe. The destination for
+ * GetDestination() and SetDestination() is a command to be executed,
+ * rather than a filename.
+ */
+class nsPrintJobPipeGTK : public nsPrintJobFileGTK {
+    public:
+        /* see nsIPrintJobGTK.h */
+        ~nsPrintJobPipeGTK();
+        nsresult StartSubmission(FILE **aHandle);
+        nsresult FinishSubmission();
+
+    protected:
+        nsresult Init(nsDeviceContextSpecGTK *);
+
+    private:
         nsCString mPrinterName;
 };
 
 
-/* This class submits print jobs through CUPS. */
-class nsPrintJobCUPS : public nsIPrintJobGTK {
+/* This class submits print jobs through CUPS. mDestHandle and
+ * mDestination point to a temporary file used to assemble the
+ * final print job.
+ */
+class nsPrintJobCUPS : public nsPrintJobFileGTK {
     public:
-        virtual nsresult Submit();
-        virtual nsresult SetNumCopies(int aNumCopies);
-        virtual void SetJobTitle(const PRUnichar *aTitle);
+        nsresult StartSubmission(FILE **aHandle);
+        nsresult FinishSubmission();
+        nsresult SetNumCopies(int aNumCopies);
+        void SetJobTitle(const PRUnichar *aTitle);
 
     protected:
-        virtual nsresult Init(nsDeviceContextSpecGTK *);
+        nsresult Init(nsDeviceContextSpecGTK *);
 
     private:
         nsCUPSShim mCups;
         nsCString mPrinterName;
         nsCString mNumCopies;
         nsCString mJobTitle;        // IsVoid() if no title
-        nsCString mSpoolName;
 };
 
 #endif /* nsPrintJobPS_h__ */

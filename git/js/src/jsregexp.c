@@ -70,7 +70,7 @@ typedef enum REOp {
 #undef REOP_DEF
 } REOp;
 
-#define REOP_IS_SIMPLE(op)  ((op) <= REOP_NCLASS)
+#define REOP_IS_SIMPLE(op)  ((op) <= (unsigned)REOP_NCLASS)
 
 #ifdef REGEXP_DEBUG
 const char *reop_names[] = {
@@ -1652,7 +1652,7 @@ EmitREBytecode(CompilerState *state, JSRegExp *re, size_t treeDepth,
             emitStateSP->continueOp = REOP_ENDALT;
             ++emitStateSP;
             JS_ASSERT((size_t)(emitStateSP - emitStateStack) <= treeDepth);
-            t = (RENode *) t->u.kid2;
+            t = t->u.kid2;
             op = t->op;
             JS_ASSERT(op < REOP_LIMIT);
             continue;
@@ -1756,7 +1756,7 @@ EmitREBytecode(CompilerState *state, JSRegExp *re, size_t treeDepth,
             emitStateSP->jumpToJumpFlag = JS_FALSE;
             ++emitStateSP;
             JS_ASSERT((size_t)(emitStateSP - emitStateStack) <= treeDepth);
-            t = (RENode *) t->kid;
+            t = t->kid;
             op = t->op;
             JS_ASSERT(op < REOP_LIMIT);
             continue;
@@ -1906,7 +1906,7 @@ EmitREBytecode(CompilerState *state, JSRegExp *re, size_t treeDepth,
                 break;
             --emitStateSP;
             t = emitStateSP->continueNode;
-            op = (REOp) emitStateSP->continueOp;
+            op = emitStateSP->continueOp;
         }
     }
 
@@ -2013,6 +2013,7 @@ js_NewRegExp(JSContext *cx, JSTokenStream *ts,
     }
 
     re->flags = flags;
+    re->cloneIndex = 0;
     re->parenCount = state.parenCount;
     re->source = str;
 
@@ -2884,10 +2885,8 @@ ExecuteREBytecode(REGlobalData *gData, REMatchState *x)
                 JS_ASSERT(parenIndex < gData->regexp->parenCount);
                 cap = &x->parens[parenIndex];
                 cap->length = x->cp - (gData->cpbegin + cap->index);
-#if defined(DEBUG_crowder) || defined(DEBUG_mrbkap)
                 JS_ASSERT(x->cp >= (gData->cpbegin + cap->index));
                 JS_ASSERT((int)cap->length <= (gData->cpend - gData->cpbegin));
-#endif
                 op = (REOp) *pc++;
 
                 if (!result)
@@ -3020,7 +3019,7 @@ ExecuteREBytecode(REGlobalData *gData, REMatchState *x)
 
               case REOP_ENDCHILD: /* marks the end of a quantifier child */
                 pc = curState[-1].continue_pc;
-                op = (REOp) curState[-1].continue_op;
+                op = curState[-1].continue_op;
 
                 if (!result)
                     result = x;
@@ -3218,7 +3217,7 @@ ExecuteREBytecode(REGlobalData *gData, REMatchState *x)
                 (REBackTrackData *) ((char *)backTrackData - backTrackData->sz);
             x->cp = backTrackData->cp;
             pc = backTrackData->backtrack_pc;
-            op = (REOp) backTrackData->backtrack_op;
+            op = backTrackData->backtrack_op;
             JS_ASSERT(op < REOP_LIMIT);
             gData->stateStackTop = backTrackData->saveStateStackTop;
             JS_ASSERT(gData->stateStackTop);
@@ -3573,16 +3572,15 @@ enum regexp_tinyid {
     REGEXP_STICKY       = -6
 };
 
-#define REGEXP_PROP_ATTRS     (JSPROP_PERMANENT | JSPROP_SHARED)
-#define RO_REGEXP_PROP_ATTRS  (REGEXP_PROP_ATTRS | JSPROP_READONLY)
+#define REGEXP_PROP_ATTRS (JSPROP_PERMANENT|JSPROP_SHARED)
 
 static JSPropertySpec regexp_props[] = {
-    {"source",     REGEXP_SOURCE,      RO_REGEXP_PROP_ATTRS,0,0},
-    {"global",     REGEXP_GLOBAL,      RO_REGEXP_PROP_ATTRS,0,0},
-    {"ignoreCase", REGEXP_IGNORE_CASE, RO_REGEXP_PROP_ATTRS,0,0},
+    {"source",     REGEXP_SOURCE,      REGEXP_PROP_ATTRS | JSPROP_READONLY,0,0},
+    {"global",     REGEXP_GLOBAL,      REGEXP_PROP_ATTRS | JSPROP_READONLY,0,0},
+    {"ignoreCase", REGEXP_IGNORE_CASE, REGEXP_PROP_ATTRS | JSPROP_READONLY,0,0},
     {"lastIndex",  REGEXP_LAST_INDEX,  REGEXP_PROP_ATTRS,0,0},
-    {"multiline",  REGEXP_MULTILINE,   RO_REGEXP_PROP_ATTRS,0,0},
-    {"sticky",     REGEXP_STICKY,      RO_REGEXP_PROP_ATTRS,0,0},
+    {"multiline",  REGEXP_MULTILINE,   REGEXP_PROP_ATTRS | JSPROP_READONLY,0,0},
+    {"sticky",     REGEXP_STICKY,      REGEXP_PROP_ATTRS | JSPROP_READONLY,0,0},
     {0,0,0,0,0}
 };
 
@@ -3747,53 +3745,51 @@ regexp_static_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     }
     return JS_TRUE;
 }
-#define REGEXP_STATIC_PROP_ATTRS    (REGEXP_PROP_ATTRS | JSPROP_ENUMERATE)
-#define RO_REGEXP_STATIC_PROP_ATTRS (REGEXP_STATIC_PROP_ATTRS | JSPROP_READONLY)
 
 static JSPropertySpec regexp_static_props[] = {
     {"input",
      REGEXP_STATIC_INPUT,
-     REGEXP_STATIC_PROP_ATTRS,
+     JSPROP_ENUMERATE|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_setProperty},
     {"multiline",
      REGEXP_STATIC_MULTILINE,
-     REGEXP_STATIC_PROP_ATTRS,
+     JSPROP_ENUMERATE|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_setProperty},
     {"lastMatch",
      REGEXP_STATIC_LAST_MATCH,
-     RO_REGEXP_STATIC_PROP_ATTRS,
+     JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
     {"lastParen",
      REGEXP_STATIC_LAST_PAREN,
-     RO_REGEXP_STATIC_PROP_ATTRS,
+     JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
     {"leftContext",
      REGEXP_STATIC_LEFT_CONTEXT,
-     RO_REGEXP_STATIC_PROP_ATTRS,
+     JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
     {"rightContext",
      REGEXP_STATIC_RIGHT_CONTEXT,
-     RO_REGEXP_STATIC_PROP_ATTRS,
+     JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
 
     /* XXX should have block scope and local $1, etc. */
-    {"$1", 0, RO_REGEXP_STATIC_PROP_ATTRS,
+    {"$1", 0, JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
-    {"$2", 1, RO_REGEXP_STATIC_PROP_ATTRS,
+    {"$2", 1, JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
-    {"$3", 2, RO_REGEXP_STATIC_PROP_ATTRS,
+    {"$3", 2, JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
-    {"$4", 3, RO_REGEXP_STATIC_PROP_ATTRS,
+    {"$4", 3, JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
-    {"$5", 4, RO_REGEXP_STATIC_PROP_ATTRS,
+    {"$5", 4, JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
-    {"$6", 5, RO_REGEXP_STATIC_PROP_ATTRS,
+    {"$6", 5, JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
-    {"$7", 6, RO_REGEXP_STATIC_PROP_ATTRS,
+    {"$7", 6, JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
-    {"$8", 7, RO_REGEXP_STATIC_PROP_ATTRS,
+    {"$8", 7, JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
-    {"$9", 8, RO_REGEXP_STATIC_PROP_ATTRS,
+    {"$9", 8, JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_SHARED,
      regexp_static_getProperty,    regexp_static_getProperty},
 
     {0,0,0,0,0}
@@ -3838,7 +3834,7 @@ regexp_xdrObject(JSXDRState *xdr, JSObject **objp)
         if (!re)
             return JS_FALSE;
         source = re->source;
-        flagsword = (uint32)re->flags;
+        flagsword = ((uint32)re->cloneIndex << 16) | re->flags;
     }
     if (!JS_XDRString(xdr, &source) ||
         !JS_XDRUint32(xdr, &flagsword)) {
@@ -3848,7 +3844,7 @@ regexp_xdrObject(JSXDRState *xdr, JSObject **objp)
         obj = js_NewObject(xdr->cx, &js_RegExpClass, NULL, NULL);
         if (!obj)
             return JS_FALSE;
-        re = js_NewRegExp(xdr->cx, NULL, source, (uint8)flagsword, JS_FALSE);
+        re = js_NewRegExp(xdr->cx, NULL, source, (uint16)flagsword, JS_FALSE);
         if (!re)
             return JS_FALSE;
         if (!JS_SetPrivate(xdr->cx, obj, re) ||
@@ -3856,6 +3852,7 @@ regexp_xdrObject(JSXDRState *xdr, JSObject **objp)
             js_DestroyRegExp(xdr->cx, re);
             return JS_FALSE;
         }
+        re->cloneIndex = (uint16)(flagsword >> 16);
         *objp = obj;
     }
     return JS_TRUE;
@@ -4276,7 +4273,7 @@ js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *parent)
     clone = js_NewObject(cx, &js_RegExpClass, NULL, parent);
     if (!clone)
         return NULL;
-    re = (JSRegExp *) JS_GetPrivate(cx, obj);
+    re = JS_GetPrivate(cx, obj);
     if (!JS_SetPrivate(cx, clone, re) || !js_SetLastIndex(cx, clone, 0)) {
         cx->weakRoots.newborn[GCX_OBJECT] = NULL;
         return NULL;

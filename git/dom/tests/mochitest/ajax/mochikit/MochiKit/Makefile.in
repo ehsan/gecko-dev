@@ -39,7 +39,7 @@ DEPTH		= ../../../../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir	= dom/tests/mochitest/ajax/mochikit/MochiKit
+relativesrcdir	= dom/tests/mochitest/ajax/mochikit/Mochikit
 
 include $(DEPTH)/config/autoconf.mk
 

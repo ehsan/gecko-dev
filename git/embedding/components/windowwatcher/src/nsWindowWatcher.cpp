@@ -277,7 +277,6 @@ public:
 protected:
   nsCOMPtr<nsIThreadJSContextStack>  mService;
   JSContext                         *mContext;
-  nsCOMPtr<nsIScriptContext>         mContextKungFuDeathGrip;
 };
 
 JSContextAutoPopper::JSContextAutoPopper() : mContext(nsnull)
@@ -310,7 +309,6 @@ nsresult JSContextAutoPopper::Push(JSContext *cx)
     // Save cx in mContext to indicate need to pop.
     if (cx && NS_SUCCEEDED(mService->Push(cx))) {
       mContext = cx;
-      mContextKungFuDeathGrip = nsWWJSUtils::GetDynamicScriptContext(cx);
     }
   }
   return mContext ? NS_OK : NS_ERROR_FAILURE;
@@ -656,7 +654,10 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
         // chrome is always allowed, so clear the flag if the opener is chrome
         if (popupConditions) {
-          popupConditions = !isCallerChrome;
+          PRBool isChrome = PR_FALSE;
+          if (sm)
+            sm->SubjectPrincipalIsSystem(&isChrome);
+          popupConditions = !isChrome;
         }
 
         if (popupConditions)
@@ -820,17 +821,6 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
       }
     }
 
-    PRBool isSystem;
-    rv = sm->IsSystemPrincipal(newWindowPrincipal, &isSystem);
-    if (NS_FAILED(rv) || isSystem) {
-      // Don't pass this principal along to content windows
-      PRInt32 itemType;
-      rv = newDocShellItem->GetItemType(&itemType);
-      if (NS_FAILED(rv) || itemType != nsIDocShellTreeItem::typeChrome) {
-        newWindowPrincipal = nsnull;        
-      }
-    }
-
     nsCOMPtr<nsPIDOMWindow> newWindow = do_QueryInterface(*_retval);
 #ifdef DEBUG
     nsCOMPtr<nsPIDOMWindow> newDebugWindow = do_GetInterface(newDocShell);
@@ -977,13 +967,13 @@ nsWindowWatcher::GetPrompt(nsIDOMWindow *aParent, const nsIID& aIID,
                            void **_retval)
 {
   if (aIID.Equals(NS_GET_IID(nsIPrompt)))
-    return NS_NewPrompter(reinterpret_cast<nsIPrompt**>(_retval), aParent);
+    return NS_NewPrompter(NS_REINTERPRET_CAST(nsIPrompt**, _retval), aParent);
   if (aIID.Equals(NS_GET_IID(nsIAuthPrompt)))
-    return NS_NewAuthPrompter(reinterpret_cast<nsIAuthPrompt**>(_retval),
+    return NS_NewAuthPrompter(NS_REINTERPRET_CAST(nsIAuthPrompt**, _retval),
                               aParent);
   if (aIID.Equals(NS_GET_IID(nsIAuthPrompt2))) {
-    nsresult rv = NS_NewAuthPrompter2(reinterpret_cast<nsIAuthPrompt2**>
-                                                      (_retval),
+    nsresult rv = NS_NewAuthPrompter2(NS_REINTERPRET_CAST(nsIAuthPrompt2**,
+                                                          _retval),
                                       aParent);
     if (rv == NS_NOINTERFACE) {
       // Return an wrapped nsIAuthPrompt (if we can)
@@ -991,7 +981,7 @@ nsWindowWatcher::GetPrompt(nsIDOMWindow *aParent, const nsIID& aIID,
       rv = NS_NewAuthPrompter(getter_AddRefs(prompt), aParent);
       if (NS_SUCCEEDED(rv)) {
         NS_WrapAuthPrompt(prompt,
-                          reinterpret_cast<nsIAuthPrompt2**>(_retval));
+                          NS_REINTERPRET_CAST(nsIAuthPrompt2**, _retval));
         if (!*_retval)
           rv = NS_ERROR_NOT_AVAILABLE;
       }
@@ -1218,7 +1208,7 @@ nsWindowWatcher::GetChromeForWindow(nsIDOMWindow *aWindow, nsIWebBrowserChrome *
     if (info->mChromeWeak != nsnull) {
       return info->mChromeWeak->
                             QueryReferent(NS_GET_IID(nsIWebBrowserChrome),
-                                          reinterpret_cast<void**>(_retval));
+                                          NS_REINTERPRET_CAST(void**, _retval));
     }
     *_retval = info->mChrome;
     NS_IF_ADDREF(*_retval);

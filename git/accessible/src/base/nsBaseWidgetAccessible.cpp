@@ -243,7 +243,7 @@ void nsLinkableAccessible::CacheActionContent()
         }
       }
     }
-    if (nsAccUtils::HasListener(walkUpContent, NS_LITERAL_STRING("click"))) {
+    if (nsAccessibilityUtils::HasListener(walkUpContent, NS_LITERAL_STRING("click"))) {
       mActionContent = walkUpContent;
       mIsOnclick = PR_TRUE;
       break;

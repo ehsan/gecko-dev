@@ -128,7 +128,6 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIXULWindow.h"
-#include "nsXULPopupManager.h"
 
 //----------------------------------------------------------------------
 //
@@ -199,8 +198,8 @@ struct BroadcastListener {
 
 nsXULDocument::nsXULDocument(void)
     : nsXMLDocument("application/vnd.mozilla.xul+xml"),
-      mState(eState_Master),
-      mResolutionPhase(nsForwardReference::eStart)
+      mResolutionPhase(nsForwardReference::eStart),
+      mState(eState_Master)
 {
 
     // NOTE! nsDocument::operator new() zeroes out all members, so don't
@@ -296,7 +295,7 @@ static PRIntn
 TraverseElement(const PRUnichar* aID, nsIContent* aElement, void* aContext)
 {
     nsCycleCollectionTraversalCallback *cb =
-        static_cast<nsCycleCollectionTraversalCallback*>(aContext);
+        NS_STATIC_CAST(nsCycleCollectionTraversalCallback*, aContext);
 
     cb->NoteXPCOMChild(aElement);
 
@@ -308,7 +307,7 @@ TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
                          void* aContext)
 {
     nsCycleCollectionTraversalCallback *cb =
-        static_cast<nsCycleCollectionTraversalCallback*>(aContext);
+        NS_STATIC_CAST(nsCycleCollectionTraversalCallback*, aContext);
 
     cb->NoteXPCOMChild(aKey);
     cb->NoteXPCOMChild(aData);
@@ -320,7 +319,7 @@ static PLDHashOperator PR_CALLBACK
 TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
 {
     nsCycleCollectionTraversalCallback *cb =
-        static_cast<nsCycleCollectionTraversalCallback*>(aContext);
+        NS_STATIC_CAST(nsCycleCollectionTraversalCallback*, aContext);
 
     cb->NoteXPCOMChild(aData);
 
@@ -347,7 +346,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
 
     PRUint32 i, count = tmp->mPrototypes.Length();
     for (i = 0; i < count; ++i) {
-        cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
+        cb.NoteXPCOMChild(NS_STATIC_CAST(nsIScriptGlobalObjectOwner*, 
+                                         tmp->mPrototypes[i]));
     }
     
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTooltipNode)
@@ -645,7 +645,7 @@ PR_STATIC_CALLBACK(void)
 ClearBroadcasterMapEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry)
 {
     BroadcasterMapEntry* entry =
-        static_cast<BroadcasterMapEntry*>(aEntry);
+        NS_STATIC_CAST(BroadcasterMapEntry*, aEntry);
     for (PRInt32 i = entry->mListeners.Count() - 1; i >= 0; --i) {
         delete (BroadcastListener*)entry->mListeners[i];
     }
@@ -737,14 +737,14 @@ nsXULDocument::AddBroadcastListenerFor(nsIDOMElement* aBroadcaster,
     NS_ENSURE_ARG(aBroadcaster && aListener);
     
     nsresult rv =
-        nsContentUtils::CheckSameOrigin(static_cast<nsDocument *>(this),
+        nsContentUtils::CheckSameOrigin(NS_STATIC_CAST(nsDocument *, this),
                                         aBroadcaster);
 
     if (NS_FAILED(rv)) {
         return rv;
     }
 
-    rv = nsContentUtils::CheckSameOrigin(static_cast<nsDocument *>(this),
+    rv = nsContentUtils::CheckSameOrigin(NS_STATIC_CAST(nsDocument *, this),
                                          aListener);
 
     if (NS_FAILED(rv)) {
@@ -772,14 +772,14 @@ nsXULDocument::AddBroadcastListenerFor(nsIDOMElement* aBroadcaster,
     }
 
     BroadcasterMapEntry* entry =
-        static_cast<BroadcasterMapEntry*>
-                   (PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
+        NS_STATIC_CAST(BroadcasterMapEntry*,
+                       PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
                                             PL_DHASH_LOOKUP));
 
     if (PL_DHASH_ENTRY_IS_FREE(entry)) {
         entry =
-            static_cast<BroadcasterMapEntry*>
-                       (PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
+            NS_STATIC_CAST(BroadcasterMapEntry*,
+                           PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
                                                 PL_DHASH_ADD));
 
         if (! entry)
@@ -797,7 +797,7 @@ nsXULDocument::AddBroadcastListenerFor(nsIDOMElement* aBroadcaster,
 
     BroadcastListener* bl;
     for (PRInt32 i = entry->mListeners.Count() - 1; i >= 0; --i) {
-        bl = static_cast<BroadcastListener*>(entry->mListeners[i]);
+        bl = NS_STATIC_CAST(BroadcastListener*, entry->mListeners[i]);
 
         if ((bl->mListener == aListener) && (bl->mAttribute == attr))
             return NS_OK;
@@ -827,15 +827,15 @@ nsXULDocument::RemoveBroadcastListenerFor(nsIDOMElement* aBroadcaster,
         return NS_OK;
 
     BroadcasterMapEntry* entry =
-        static_cast<BroadcasterMapEntry*>
-                   (PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
+        NS_STATIC_CAST(BroadcasterMapEntry*,
+                       PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
                                             PL_DHASH_LOOKUP));
 
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
         nsCOMPtr<nsIAtom> attr = do_GetAtom(aAttr);
         for (PRInt32 i = entry->mListeners.Count() - 1; i >= 0; --i) {
             BroadcastListener* bl =
-                static_cast<BroadcastListener*>(entry->mListeners[i]);
+                NS_STATIC_CAST(BroadcastListener*, entry->mListeners[i]);
 
             if ((bl->mListener == aListener) && (bl->mAttribute == attr)) {
                 entry->mListeners.RemoveElementAt(i);
@@ -920,8 +920,7 @@ nsXULDocument::ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
 void
 nsXULDocument::AttributeChanged(nsIDocument* aDocument,
                                 nsIContent* aElement, PRInt32 aNameSpaceID,
-                                nsIAtom* aAttribute, PRInt32 aModType,
-                                PRUint32 aStateMask)
+                                nsIAtom* aAttribute, PRInt32 aModType)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
 
@@ -944,8 +943,8 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
     if (mBroadcasterMap && CanBroadcast(aNameSpaceID, aAttribute)) {
         nsCOMPtr<nsIDOMElement> domele = do_QueryInterface(aElement);
         BroadcasterMapEntry* entry =
-            static_cast<BroadcasterMapEntry*>
-                       (PL_DHashTableOperate(mBroadcasterMap, domele.get(),
+            NS_STATIC_CAST(BroadcasterMapEntry*,
+                           PL_DHashTableOperate(mBroadcasterMap, domele.get(),
                                                 PL_DHASH_LOOKUP));
 
         if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
@@ -953,32 +952,27 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
             nsAutoString value;
             PRBool attrSet = aElement->GetAttr(kNameSpaceID_None, aAttribute, value);
 
-            nsCOMArray<nsIContent> listenerArray;
-            PRInt32 i;
-            for (i = entry->mListeners.Count() - 1; i >= 0; --i) {
+            for (PRInt32 i = entry->mListeners.Count() - 1; i >= 0; --i) {
                 BroadcastListener* bl =
-                    static_cast<BroadcastListener*>(entry->mListeners[i]);
+                    NS_STATIC_CAST(BroadcastListener*, entry->mListeners[i]);
 
                 if ((bl->mAttribute == aAttribute) ||
                     (bl->mAttribute == nsGkAtoms::_asterix)) {
                     nsCOMPtr<nsIContent> listener
                         = do_QueryInterface(bl->mListener);
-                    listenerArray.AppendObject(listener);
-                }
-            }
 
-            for (i = 0; i < listenerArray.Count(); ++i) {
-                nsIContent* listener = listenerArray[i];
-                if (attrSet) {
-                    listener->SetAttr(kNameSpaceID_None, aAttribute, value,
-                                      PR_TRUE);
+                    if (attrSet) {
+                        listener->SetAttr(kNameSpaceID_None, aAttribute, value,
+                                          PR_TRUE);
+                    }
+                    else {
+                        listener->UnsetAttr(kNameSpaceID_None, aAttribute,
+                                            PR_TRUE);
+                    }
+
+                    ExecuteOnBroadcastHandlerFor(aElement, bl->mListener,
+                                                 aAttribute);
                 }
-                else {
-                    listener->UnsetAttr(kNameSpaceID_None, aAttribute,
-                                        PR_TRUE);
-                }
-                nsCOMPtr<nsIDOMElement> listenerEl = do_QueryInterface(listener);
-                ExecuteOnBroadcastHandlerFor(aElement, listenerEl, aAttribute);
             }
         }
     }
@@ -1462,49 +1456,84 @@ nsXULDocument::SetPopupNode(nsIDOMNode* aNode)
     return rv;
 }
 
-// Returns the rangeOffset element from the XUL Popup Manager. This is for
-// chrome callers only.
+NS_IMETHODIMP
+nsXULDocument::GetTrustedPopupEvent(nsIDOMEvent** aEvent)
+{
+    nsresult rv;
+
+    nsCOMPtr<nsIFocusController> focusController;
+    GetFocusController(getter_AddRefs(focusController));
+    NS_ENSURE_TRUE(focusController, NS_ERROR_FAILURE);
+
+    rv = focusController->GetPopupEvent(aEvent);
+
+    return rv;
+}
+
+NS_IMETHODIMP
+nsXULDocument::SetTrustedPopupEvent(nsIDOMEvent* aEvent)
+{
+    nsresult rv;
+
+    nsCOMPtr<nsIFocusController> focusController;
+    GetFocusController(getter_AddRefs(focusController));
+    NS_ENSURE_TRUE(focusController, NS_ERROR_FAILURE);
+
+    rv = focusController->SetPopupEvent(aEvent);
+
+    return rv;
+}
+
+// Returns the rangeOffset element from the popupEvent. This is for chrome
+// callers only.
 NS_IMETHODIMP
 nsXULDocument::GetPopupRangeParent(nsIDOMNode** aRangeParent)
 {
     NS_ENSURE_ARG_POINTER(aRangeParent);
     *aRangeParent = nsnull;
 
-    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-    if (!pm)
-        return NS_ERROR_FAILURE;
+    nsCOMPtr<nsIDOMEvent> event;
+    nsresult rv = GetTrustedPopupEvent(getter_AddRefs(event));
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (! event)
+        return NS_ERROR_UNEXPECTED; // no event active
 
-    PRInt32 offset;
-    pm->GetMouseLocation(aRangeParent, &offset);
+    nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(event, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = uiEvent->GetRangeParent(aRangeParent); // addrefs
 
-    if (*aRangeParent && !nsContentUtils::CanCallerAccess(*aRangeParent)) {
+    if (NS_SUCCEEDED(rv) && *aRangeParent &&
+            !nsContentUtils::CanCallerAccess(*aRangeParent)) {
         NS_RELEASE(*aRangeParent);
         return NS_ERROR_DOM_SECURITY_ERR;
     }
-
-    return NS_OK;
+    return rv;
 }
 
-// Returns the rangeOffset element from the XUL Popup Manager. We check the
-// rangeParent to determine if the caller has rights to access to the data.
+// Returns the rangeOffset element from the popupEvent. We check the rangeParent
+// to determine if the caller has rights to access to the data.
 NS_IMETHODIMP
 nsXULDocument::GetPopupRangeOffset(PRInt32* aRangeOffset)
 {
     NS_ENSURE_ARG_POINTER(aRangeOffset);
 
-    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-    if (!pm)
-        return NS_ERROR_FAILURE;
+    nsCOMPtr<nsIDOMEvent> event;
+    nsresult rv = GetTrustedPopupEvent(getter_AddRefs(event));
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (! event)
+        return NS_ERROR_UNEXPECTED; // no event active
 
-    PRInt32 offset;
+    nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(event, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     nsCOMPtr<nsIDOMNode> parent;
-    pm->GetMouseLocation(getter_AddRefs(parent), &offset);
+    rv = uiEvent->GetRangeParent(getter_AddRefs(parent));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (parent && !nsContentUtils::CanCallerAccess(parent))
         return NS_ERROR_DOM_SECURITY_ERR;
 
-    *aRangeOffset = offset;
-    return NS_OK;
+    return uiEvent->GetRangeOffset(aRangeOffset);
 }
 
 NS_IMETHODIMP
@@ -1810,7 +1839,7 @@ nsXULDocument::RemoveElementsFromMapByContent(const PRUnichar* aID,
                                               nsIContent* aElement,
                                               void* aClosure)
 {
-    nsIContent* content = reinterpret_cast<nsIContent*>(aClosure);
+    nsIContent* content = NS_REINTERPRET_CAST(nsIContent*, aClosure);
     return (aElement == content) ? HT_ENUMERATE_REMOVE : HT_ENUMERATE_NEXT;
 }
 
@@ -1967,7 +1996,7 @@ nsXULDocument::MatchAttribute(nsIContent* aContent,
                               void* aData)
 {
     NS_PRECONDITION(aContent, "Must have content node to work with!");
-    nsString* attrValue = static_cast<nsString*>(aData);
+    nsString* attrValue = NS_STATIC_CAST(nsString*, aData);
     if (aNamespaceID != kNameSpaceID_Unknown &&
         aNamespaceID != kNameSpaceID_Wildcard) {
         return attrValue->EqualsLiteral("*") ?
@@ -2595,6 +2624,9 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     *aShouldReturn = PR_FALSE;
     *aFailureFromContent = PR_FALSE;
 
+    nsCOMPtr<nsIScriptSecurityManager> secMan = do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULLog, PR_LOG_DEBUG)) {
         nsCAutoString urlspec;
@@ -2607,9 +2639,6 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
 
     if (aIsDynamic)
         mResolutionPhase = nsForwardReference::eStart;
-
-    nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-    NS_ENSURE_TRUE(secMan, NS_ERROR_NOT_AVAILABLE);
 
     // Chrome documents are allowed to load overlays from anywhere.
     // Also, any document may load a chrome:// overlay.
@@ -2676,9 +2705,10 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
         // Not there. Initiate a load.
         PR_LOG(gXULLog, PR_LOG_DEBUG, ("xul: overlay was not cached"));
 
-        // We'll set the right principal on the proto doc when we get
-        // OnStartRequest from the parser, so just pass in a null principal for
-        // now.
+        // No one ever uses overlay principals for anything, so it's OK to give
+        // them the null principal.  Too bad this code insists on the sort of
+        // syncloading that can't provide us the right principal from the
+        // channel...
         nsCOMPtr<nsIParser> parser;
         rv = PrepareToLoadPrototype(aURI, "view", nsnull, getter_AddRefs(parser));
         if (NS_FAILED(rv)) return rv;
@@ -2695,8 +2725,7 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
         // Add an observer to the parser; this'll get called when
         // Necko fires its On[Start|Stop]Request() notifications,
         // and will let us recover from a missing overlay.
-        ParserObserver* parserObserver =
-            new ParserObserver(this, mCurrentPrototype);
+        ParserObserver* parserObserver = new ParserObserver(this);
         if (! parserObserver)
             return NS_ERROR_OUT_OF_MEMORY;
 
@@ -2749,7 +2778,7 @@ FirePendingMergeNotification(nsIURI* aKey, nsCOMPtr<nsIObserver>& aObserver, voi
     aObserver->Observe(aKey, "xul-overlay-merged", EmptyString().get());
 
     typedef nsInterfaceHashtable<nsURIHashKey,nsIObserver> table;
-    table* observers = static_cast<table*>(aClosure);
+    table* observers = NS_STATIC_CAST(table*, aClosure);
     observers->Remove(aKey);
 
     return PL_DHASH_REMOVE;
@@ -2843,7 +2872,7 @@ nsXULDocument::ResumeWalk()
             case nsXULPrototypeNode::eType_Element: {
                 // An 'element', which may contain more content.
                 nsXULPrototypeElement* protoele =
-                    static_cast<nsXULPrototypeElement*>(childproto);
+                    NS_STATIC_CAST(nsXULPrototypeElement*, childproto);
 
                 nsCOMPtr<nsIContent> child;
 
@@ -2900,7 +2929,7 @@ nsXULDocument::ResumeWalk()
                 // A script reference. Execute the script immediately;
                 // this may have side effects in the content model.
                 nsXULPrototypeScript* scriptproto =
-                    static_cast<nsXULPrototypeScript*>(childproto);
+                    NS_STATIC_CAST(nsXULPrototypeScript*, childproto);
 
                 if (scriptproto->mSrcURI) {
                     // A transcluded script reference; this may
@@ -2935,7 +2964,7 @@ nsXULDocument::ResumeWalk()
                     NS_ENSURE_SUCCESS(rv, rv);
 
                     nsXULPrototypeText* textproto =
-                        static_cast<nsXULPrototypeText*>(childproto);
+                        NS_STATIC_CAST(nsXULPrototypeText*, childproto);
                     text->SetText(textproto->mValue, PR_FALSE);
 
                     rv = element->AppendChildTo(text, PR_FALSE);
@@ -2946,7 +2975,7 @@ nsXULDocument::ResumeWalk()
 
             case nsXULPrototypeNode::eType_PI: {
                 nsXULPrototypePI* piProto =
-                    static_cast<nsXULPrototypePI*>(childproto);
+                    NS_STATIC_CAST(nsXULPrototypePI*, childproto);
 
                 // <?xul-overlay?> and <?xml-stylesheet?> don't have effect
                 // outside the prolog, like they used to. Issue a warning.
@@ -3700,9 +3729,7 @@ nsXULDocument::AddPrototypeSheets()
         nsCOMPtr<nsIURI> uri = sheets[i];
 
         nsCOMPtr<nsICSSStyleSheet> incompleteSheet;
-        rv = CSSLoader()->LoadSheet(uri, mCurrentPrototype->GetURI(),
-                                    mCurrentPrototype->DocumentPrincipal(),
-                                    this, getter_AddRefs(incompleteSheet));
+        rv = CSSLoader()->LoadSheet(uri, this, getter_AddRefs(incompleteSheet));
 
         // XXXldb We need to prevent bogus sheets from being held in the
         // prototype's list, but until then, don't propagate the failure
@@ -4244,7 +4271,7 @@ nsXULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild, PRBool aNo
         aChild->GetAttr(kNameSpaceID_None, nsGkAtoms::position, posStr);
         if (!posStr.IsEmpty()) {
             // Positions are one-indexed.
-            PRInt32 pos = posStr.ToInteger(reinterpret_cast<PRInt32*>(&rv));
+            PRInt32 pos = posStr.ToInteger(NS_REINTERPRET_CAST(PRInt32*, &rv));
             // Note: if the insertion index (which is |pos - 1|) would be less
             // than 0 or greater than the number of children aParent has, then
             // don't insert, since the position is bogus.  Just skip on to
@@ -4335,14 +4362,15 @@ nsXULDocument::CachedChromeStreamListener::OnDataAvailable(nsIRequest *request,
 // ParserObserver
 //
 
-nsXULDocument::ParserObserver::ParserObserver(nsXULDocument* aDocument,
-                                              nsXULPrototypeDocument* aPrototype)
-    : mDocument(aDocument), mPrototype(aPrototype)
+nsXULDocument::ParserObserver::ParserObserver(nsXULDocument* aDocument)
+    : mDocument(aDocument)
 {
+    NS_ADDREF(mDocument);
 }
 
 nsXULDocument::ParserObserver::~ParserObserver()
 {
+    NS_IF_RELEASE(mDocument);
 }
 
 NS_IMPL_ISUPPORTS1(nsXULDocument::ParserObserver, nsIRequestObserver)
@@ -4351,22 +4379,6 @@ NS_IMETHODIMP
 nsXULDocument::ParserObserver::OnStartRequest(nsIRequest *request,
                                               nsISupports* aContext)
 {
-    // Guard against buggy channels calling OnStartRequest multiple times.
-    if (mPrototype) {
-        nsCOMPtr<nsIChannel> channel = do_QueryInterface(request);
-        nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-        if (channel && secMan) {
-            nsCOMPtr<nsIPrincipal> principal;
-            secMan->GetChannelPrincipal(channel, getter_AddRefs(principal));
-
-            // Failure there is ok -- it'll just set a (safe) null principal
-            mPrototype->SetDocumentPrincipal(principal);            
-        }
-
-        // Make sure to avoid cycles
-        mPrototype = nsnull;
-    }
-        
     return NS_OK;
 }
 
@@ -4395,7 +4407,7 @@ nsXULDocument::ParserObserver::OnStopRequest(nsIRequest *request,
     // Drop the reference to the document to break cycle between the
     // document, the parser, the content sink, and the parser
     // observer.
-    mDocument = nsnull;
+    NS_RELEASE(mDocument);
 
     return rv;
 }

@@ -52,7 +52,11 @@ class nsILocalFile;
 class nsINIParser;
 class nsIPermissionManager;
 class nsIPrefBranch;
+#ifdef MOZ_PLACES_BOOKMARKS
 class nsINavBookmarksService;
+#else
+class nsIBookmarksService;
+#endif
 class nsIRDFResource;
 
 class nsOperaProfileMigrator : public nsIBrowserProfileMigrator
@@ -104,6 +108,7 @@ protected:
   nsresult CopyHistory(PRBool aReplace);
 
   nsresult CopyBookmarks(PRBool aReplace);
+#ifdef MOZ_PLACES_BOOKMARKS
   void     ClearToolbarFolder(nsINavBookmarksService * aBookmarksService, PRInt64 aToolbarFolder);
   nsresult ParseBookmarksFolder(nsILineInputStream* aStream, 
                                 PRInt64 aFolder,
@@ -114,6 +119,18 @@ protected:
                              nsIStringBundle* aBundle, 
                              PRInt64 aParentFolder);
 #endif // defined(XP_WIN) || (defined(XP_UNIX) && !defined(XP_MACOSX))
+#else
+  void     ClearToolbarFolder(nsIBookmarksService* aBookmarksService, nsIRDFResource* aToolbarFolder);
+  nsresult ParseBookmarksFolder(nsILineInputStream* aStream, 
+                                nsIRDFResource* aFolder,
+                                nsIRDFResource* aToolbar, 
+                                nsIBookmarksService* aBMS);
+#if defined(XP_WIN) || (defined(XP_UNIX) && !defined(XP_MACOSX))
+  nsresult CopySmartKeywords(nsIBookmarksService* aBMS, 
+                             nsIStringBundle* aBundle, 
+                             nsIRDFResource* aParentFolder);
+#endif // defined(XP_WIN) || (defined(XP_UNIX) && !defined(XP_MACOSX))
+#endif // MOZ_PLACES_BOOKMARKS
 
   void     GetOperaProfile(const PRUnichar* aProfile, nsILocalFile** aFile);
 

@@ -1,4 +1,4 @@
-<!ENTITY places.bm.title
+<!ENTITY places.title
   "Bookmarks Manager">
 <!ENTITY file.label
   "File">
@@ -51,9 +51,9 @@
 <!ENTITY help.advancedTips.accesskey
   "T">
 
-<!ENTITY cmd.findInBookmarks.label 
+<!ENTITY cmd.find.label 
   "Find in Bookmarks...">
-<!ENTITY cmd.findInBookmarks.accesskey
+<!ENTITY cmd.find.accesskey
   "F">
 <!ENTITY cmd.findCurrent.label
   "Find in Current Collection...">
@@ -220,9 +220,9 @@
   "Current Collection Only">
 <!ENTITY search.collection.accesskey
   "C">
-<!ENTITY search.allBookmarks.label
+<!ENTITY search.all.label
   "All Bookmarks">
-<!ENTITY search.allBookmarks.accesskey
+<!ENTITY search.all.accesskey
   "A">
 <!ENTITY saveSearch.label
   "Save">

@@ -549,54 +549,54 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     switch(aEvent->eventStructType) {
     case NS_MUTATION_EVENT:
       return NS_NewDOMMutationEvent(aDOMEvent, aPresContext,
-                                    static_cast<nsMutationEvent*>(aEvent));
+                                    NS_STATIC_CAST(nsMutationEvent*,aEvent));
     case NS_GUI_EVENT:
     case NS_COMPOSITION_EVENT:
     case NS_RECONVERSION_EVENT:
     case NS_QUERYCARETRECT_EVENT:
     case NS_SCROLLPORT_EVENT:
       return NS_NewDOMUIEvent(aDOMEvent, aPresContext,
-                              static_cast<nsGUIEvent*>(aEvent));
+                              NS_STATIC_CAST(nsGUIEvent*,aEvent));
     case NS_KEY_EVENT:
       return NS_NewDOMKeyboardEvent(aDOMEvent, aPresContext,
-                                    static_cast<nsKeyEvent*>(aEvent));
+                                    NS_STATIC_CAST(nsKeyEvent*,aEvent));
     case NS_MOUSE_EVENT:
     case NS_MOUSE_SCROLL_EVENT:
     case NS_POPUP_EVENT:
       return NS_NewDOMMouseEvent(aDOMEvent, aPresContext,
-                                 static_cast<nsInputEvent*>(aEvent));
+                                 NS_STATIC_CAST(nsInputEvent*,aEvent));
     case NS_POPUPBLOCKED_EVENT:
       return NS_NewDOMPopupBlockedEvent(aDOMEvent, aPresContext,
-                                        static_cast<nsPopupBlockedEvent*>
-                                                   (aEvent));
+                                        NS_STATIC_CAST(nsPopupBlockedEvent*,
+                                                       aEvent));
     case NS_TEXT_EVENT:
       return NS_NewDOMTextEvent(aDOMEvent, aPresContext,
-                                static_cast<nsTextEvent*>(aEvent));
+                                NS_STATIC_CAST(nsTextEvent*,aEvent));
     case NS_BEFORE_PAGE_UNLOAD_EVENT:
       return
         NS_NewDOMBeforeUnloadEvent(aDOMEvent, aPresContext,
-                                   static_cast<nsBeforePageUnloadEvent*>
-                                              (aEvent));
+                                   NS_STATIC_CAST(nsBeforePageUnloadEvent*,
+                                                  aEvent));
     case NS_PAGETRANSITION_EVENT:
       return NS_NewDOMPageTransitionEvent(aDOMEvent, aPresContext,
-                                          static_cast<nsPageTransitionEvent*>
-                                                     (aEvent));
+                                          NS_STATIC_CAST(nsPageTransitionEvent*,
+                                                         aEvent));
 #ifdef MOZ_SVG
     case NS_SVG_EVENT:
       return NS_NewDOMSVGEvent(aDOMEvent, aPresContext,
                                aEvent);
     case NS_SVGZOOM_EVENT:
       return NS_NewDOMSVGZoomEvent(aDOMEvent, aPresContext,
-                                   static_cast<nsGUIEvent*>(aEvent));
+                                   NS_STATIC_CAST(nsGUIEvent*,aEvent));
 #endif // MOZ_SVG
 
     case NS_XUL_COMMAND_EVENT:
       return NS_NewDOMXULCommandEvent(aDOMEvent, aPresContext,
-                                      static_cast<nsXULCommandEvent*>
-                                                 (aEvent));
+                                      NS_STATIC_CAST(nsXULCommandEvent*,
+                                                     aEvent));
     case NS_COMMAND_EVENT:
       return NS_NewDOMCommandEvent(aDOMEvent, aPresContext,
-                                   static_cast<nsCommandEvent*>(aEvent));
+                                   NS_STATIC_CAST(nsCommandEvent*, aEvent));
     }
 
     // For all other types of events, create a vanilla event object.

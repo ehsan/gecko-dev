@@ -75,22 +75,26 @@ nsrefcnt nsTableRowGroupFrame::Release(void)
   return 1;//implementation of nsLineIterator
 }
 
-NS_IMETHODIMP
+
+nsresult
 nsTableRowGroupFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
-
+  if (NULL == aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
   static NS_DEFINE_IID(kITableRowGroupIID, NS_ITABLEROWGROUPFRAME_IID);
   if (aIID.Equals(kITableRowGroupIID)) {
     *aInstancePtr = (void*)this;
     return NS_OK;
   }
-  if (aIID.Equals(NS_GET_IID(nsILineIteratorNavigator))) {
-    *aInstancePtr = static_cast<nsILineIteratorNavigator*>(this);
+  else if (aIID.Equals(NS_GET_IID(nsILineIteratorNavigator)))
+  { // note there is no addref here, frames are not addref'd
+    *aInstancePtr = (void*)(nsILineIteratorNavigator*)this;
     return NS_OK;
   }
-
-  return nsHTMLContainerFrame::QueryInterface(aIID, aInstancePtr);
+  else {
+    return nsHTMLContainerFrame::QueryInterface(aIID, aInstancePtr);
+  }
 }
 
 /* virtual */ PRBool
@@ -198,7 +202,7 @@ PaintRowGroupBackground(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                                  TableBackgroundPainter::eOrigin_TableRowGroup,
                                  aFrame->PresContext(), *aCtx,
                                  aDirtyRect - aPt);
-  painter.PaintRowGroup(static_cast<nsTableRowGroupFrame*>(aFrame));
+  painter.PaintRowGroup(NS_STATIC_CAST(nsTableRowGroupFrame*, aFrame));
 }
 
 // Handle the child-traversal part of DisplayGenericTablePart
@@ -207,7 +211,7 @@ DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
             const nsRect& aDirtyRect, const nsDisplayListSet& aLists)
 {
   nscoord overflowAbove;
-  nsTableRowGroupFrame* f = static_cast<nsTableRowGroupFrame*>(aFrame);
+  nsTableRowGroupFrame* f = NS_STATIC_CAST(nsTableRowGroupFrame*, aFrame);
   // Don't try to use the row cursor if we have to descend into placeholders;
   // we might have rows containing placeholders, where the row's overflow
   // area doesn't intersect the dirty rect but we need to descend into the row
@@ -1301,6 +1305,10 @@ nsTableRowGroupFrame::Reflow(nsPresContext*          aPresContext,
   // just set our width to what was available. The table will calculate the width and not use our value.
   aDesiredSize.width = aReflowState.availableWidth;
 
+  // if we have a nextinflow we are not complete
+  if (GetNextInFlow()) {
+    aStatus |= NS_FRAME_NOT_COMPLETE;
+  }
   aDesiredSize.mOverflowArea.UnionRect(aDesiredSize.mOverflowArea, nsRect(0, 0, aDesiredSize.width,
 	                                                                      aDesiredSize.height)); 
   FinishAndStoreOverflow(&aDesiredSize);
@@ -1799,7 +1807,7 @@ static void
 DestroyFrameCursorData(void* aObject, nsIAtom* aPropertyName,
                        void* aPropertyValue, void* aData)
 {
-  delete static_cast<nsTableRowGroupFrame::FrameCursorData*>(aPropertyValue);
+  delete NS_STATIC_CAST(nsTableRowGroupFrame::FrameCursorData*, aPropertyValue);
 }
 
 void
@@ -1849,8 +1857,8 @@ nsTableRowGroupFrame::GetFirstRowContaining(nscoord aY, nscoord* aOverflowAbove)
   if (!(GetStateBits() & NS_ROWGROUP_HAS_ROW_CURSOR))
     return nsnull;
 
-  FrameCursorData* property = static_cast<FrameCursorData*>
-                                         (GetProperty(nsGkAtoms::rowCursorProperty));
+  FrameCursorData* property = NS_STATIC_CAST(FrameCursorData*,
+    GetProperty(nsGkAtoms::rowCursorProperty));
   PRUint32 cursorIndex = property->mCursorIndex;
   PRUint32 frameCount = property->mFrames.Length();
   if (cursorIndex >= frameCount)

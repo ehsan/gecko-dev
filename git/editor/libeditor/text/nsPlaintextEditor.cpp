@@ -300,17 +300,16 @@ nsPlaintextEditor::CreateEventListeners()
                                       this);
   }
 
-  nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShellWeak);
   if (!mDragListenerP) {
     // get a drag listener
+    nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShellWeak);
     rv |= NS_NewEditorDragListener(getter_AddRefs(mDragListenerP), presShell,
                                    this);
   }
 
   if (!mFocusListenerP) {
     // get a focus listener
-    rv |= NS_NewEditorFocusListener(getter_AddRefs(mFocusListenerP),
-                                    this, presShell);
+    rv |= NS_NewEditorFocusListener(getter_AddRefs(mFocusListenerP), this);
   }
 
   return rv;
@@ -865,7 +864,7 @@ nsPlaintextEditor::BeginComposition(nsTextEventReply* aReply)
   if(mFlags & nsIPlaintextEditor::eEditorPasswordMask)  {
     if (mRules) {
       nsIEditRules *p = mRules.get();
-      nsTextEditRules *textEditRules = static_cast<nsTextEditRules *>(p);
+      nsTextEditRules *textEditRules = NS_STATIC_CAST(nsTextEditRules *, p);
       textEditRules->ResetIMETextPWBuf();
     }
     else  {

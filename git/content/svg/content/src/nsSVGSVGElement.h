@@ -41,23 +41,22 @@
 #define __NS_SVGSVGELEMENT_H__
 
 #include "nsSVGStylableElement.h"
-#include "nsIDOMSVGSVGElement.h"
+#include "nsISVGSVGElement.h"
 #include "nsIDOMSVGFitToViewBox.h"
 #include "nsIDOMSVGLocatable.h"
 #include "nsIDOMSVGZoomAndPan.h"
 #include "nsIDOMSVGMatrix.h"
 #include "nsSVGLength2.h"
 
-class nsISVGEnum;
-
-#define QI_AND_CAST_TO_NSSVGSVGELEMENT(base)                                  \
-  (nsCOMPtr<nsIDOMSVGSVGElement>(do_QueryInterface(base)) ?                   \
-   static_cast<nsSVGSVGElement*>(base.get()) : nsnull)
+#define QI_TO_NSSVGSVGELEMENT(base)                                           \
+  NS_STATIC_CAST(nsSVGSVGElement*,                                            \
+    NS_STATIC_CAST(nsISVGSVGElement*,                                         \
+      nsCOMPtr<nsISVGSVGElement>(do_QueryInterface(base))));
 
 typedef nsSVGStylableElement nsSVGSVGElementBase;
 
 class nsSVGSVGElement : public nsSVGSVGElementBase,
-                        public nsIDOMSVGSVGElement,
+                        public nsISVGSVGElement, // : nsIDOMSVGSVGElement
                         public nsIDOMSVGFitToViewBox,
                         public nsIDOMSVGLocatable,
                         public nsIDOMSVGZoomAndPan
@@ -76,6 +75,7 @@ protected:
   void SetCoordCtxRect(nsIDOMSVGRect* aCtxRect);
 
 public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISVGSVGELEMENT_IID)
 
   // interfaces:
   NS_DECL_ISUPPORTS_INHERITED
@@ -89,34 +89,12 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGSVGElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGSVGElementBase::)
 
-  // helper methods for implementing SVGZoomEvent:
+  // nsISVGSVGElement interface:
   NS_IMETHOD GetCurrentScaleNumber(nsIDOMSVGNumber **aResult);
   NS_IMETHOD GetZoomAndPanEnum(nsISVGEnum **aResult);
-
-  /**
-   * For use by zoom controls to allow currentScale, currentTranslate.x and
-   * currentTranslate.y to be set by a single operation that dispatches a
-   * single SVGZoom event (instead of one SVGZoom and two SVGScroll events).
-   */
   NS_IMETHOD SetCurrentScaleTranslate(float s, float x, float y);
-
-  /**
-   * For use by pan controls to allow currentTranslate.x and currentTranslate.y
-   * to be set by a single operation that dispatches a single SVGScroll event
-   * (instead of two).
-   */
   NS_IMETHOD SetCurrentTranslate(float x, float y);
-
-  /**
-   * Record the current values of currentScale, currentTranslate.x and
-   * currentTranslate.y prior to changing the value of one of them.
-   */
   NS_IMETHOD_(void) RecordCurrentScaleTranslate();
-
-  /**
-   * Retrieve the value of currentScale, currentTranslate.x or
-   * currentTranslate.y prior to the last change made to any one of them.
-   */
   NS_IMETHOD_(float) GetPreviousTranslate_x();
   NS_IMETHOD_(float) GetPreviousTranslate_y();
   NS_IMETHOD_(float) GetPreviousScale();

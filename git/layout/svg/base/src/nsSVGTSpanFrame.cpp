@@ -135,8 +135,8 @@ nsSVGTSpanFrame::GetCanvasTM()
   }
 
   NS_ASSERTION(mParent, "null parent");
-  nsSVGContainerFrame *containerFrame = static_cast<nsSVGContainerFrame*>
-                                                   (mParent);
+  nsSVGContainerFrame *containerFrame = NS_STATIC_CAST(nsSVGContainerFrame*,
+                                                       mParent);
   return containerFrame->GetCanvasTM();  
 }
 

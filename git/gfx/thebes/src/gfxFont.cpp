@@ -57,15 +57,6 @@
 
 gfxFontCache *gfxFontCache::gGlobalCache = nsnull;
 
-#ifdef DEBUG_roc
-#define DEBUG_TEXT_RUN_STORAGE_METRICS
-#endif
-
-#ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
-static PRUint32 gTextRunStorageHighWaterMark = 0;
-static PRUint32 gTextRunStorage = 0;
-#endif
-
 nsresult
 gfxFontCache::Init()
 {
@@ -79,10 +70,6 @@ gfxFontCache::Shutdown()
 {
     delete gGlobalCache;
     gGlobalCache = nsnull;
-
-#ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
-    printf("Textrun storage high water mark=%d\n", gTextRunStorageHighWaterMark);
-#endif
 }
 
 PRBool
@@ -172,33 +159,6 @@ ToDeviceUnits(double aAppUnits, double aDevUnitsPerAppUnit)
     return aAppUnits*aDevUnitsPerAppUnit;
 }
 
-struct GlyphBuffer {
-#define GLYPH_BUFFER_SIZE (2048/sizeof(cairo_glyph_t))
-    cairo_glyph_t mGlyphBuffer[GLYPH_BUFFER_SIZE];
-    unsigned int mNumGlyphs;
-
-    GlyphBuffer()
-        : mNumGlyphs(0) { }
-
-    cairo_glyph_t *AppendGlyph() {
-        return &mGlyphBuffer[mNumGlyphs++];
-    }
-
-    void Flush(cairo_t *cr, PRBool drawToPath, PRBool finish = PR_FALSE) {
-        if (!finish && mNumGlyphs != GLYPH_BUFFER_SIZE)
-            return;
-
-        if (drawToPath)
-            cairo_glyph_path(cr, mGlyphBuffer, mNumGlyphs);
-        else
-            cairo_show_glyphs(cr, mGlyphBuffer, mNumGlyphs);
-
-        mNumGlyphs = 0;
-    }
-#undef GLYPH_BUFFER_SIZE
-};
-
-
 void
 gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
               gfxContext *aContext, PRBool aDrawToPath, gfxPoint *aPt,
@@ -212,24 +172,21 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
     const double devUnitsPerAppUnit = 1.0/double(appUnitsPerDevUnit);
     PRBool isRTL = aTextRun->IsRightToLeft();
     double direction = aTextRun->GetDirection();
+    nsAutoTArray<cairo_glyph_t,200> glyphBuffer;
     PRUint32 i;
     // Current position in appunits
     double x = aPt->x;
     double y = aPt->y;
 
-    cairo_t *cr = aContext->GetCairo();
-    SetupCairoFont(cr);
-
-    GlyphBuffer glyphs;
-    cairo_glyph_t *glyph;
-    
     if (aSpacing) {
         x += direction*aSpacing[0].mBefore;
     }
     for (i = aStart; i < aEnd; ++i) {
         const gfxTextRun::CompressedGlyph *glyphData = &charGlyphs[i];
         if (glyphData->IsSimpleGlyph()) {
-            glyph = glyphs.AppendGlyph();
+            cairo_glyph_t *glyph = glyphBuffer.AppendElement();
+            if (!glyph)
+                return;
             glyph->index = glyphData->GetSimpleGlyph();
             double advance = glyphData->GetSimpleAdvance();
             // Perhaps we should put a scale in the cairo context instead of
@@ -245,11 +202,12 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
             } else {
                 x += advance;
             }
-            glyphs.Flush(cr, aDrawToPath);
         } else if (glyphData->IsComplexCluster()) {
             const gfxTextRun::DetailedGlyph *details = aTextRun->GetDetailedGlyphs(i);
             for (;;) {
-                glyph = glyphs.AppendGlyph();
+                cairo_glyph_t *glyph = glyphBuffer.AppendElement();
+                if (!glyph)
+                    return;
                 glyph->index = details->mGlyphID;
                 glyph->x = ToDeviceUnits(x + details->mXOffset, devUnitsPerAppUnit);
                 glyph->y = ToDeviceUnits(y + details->mYOffset, devUnitsPerAppUnit);
@@ -261,7 +219,6 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
                 if (details->mIsLastGlyph)
                     break;
                 ++details;
-                glyphs.Flush(cr, aDrawToPath);
             }
         } else if (glyphData->IsMissing()) {
             const gfxTextRun::DetailedGlyph *details = aTextRun->GetDetailedGlyphs(i);
@@ -291,19 +248,20 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
         }
     }
 
-    if (gfxFontTestStore::CurrentStore()) {
-        /* This assumes that the tests won't have anything that results
-         * in more than GLYPH_BUFFER_SIZE glyphs.  Do this before we
-         * flush, since that'll blow away the num_glyphs.
-         */
-        gfxFontTestStore::CurrentStore()->AddItem(GetUniqueName(),
-                                                  glyphs.mGlyphBuffer, glyphs.mNumGlyphs);
+    *aPt = gfxPoint(x, y);
+
+    cairo_t *cr = aContext->GetCairo();
+    SetupCairoFont(cr);
+    if (aDrawToPath) {
+        cairo_glyph_path(cr, glyphBuffer.Elements(), glyphBuffer.Length());
+    } else {
+        cairo_show_glyphs(cr, glyphBuffer.Elements(), glyphBuffer.Length());
     }
 
-    // draw any remaining glyphs
-    glyphs.Flush(cr, aDrawToPath, PR_TRUE);
-
-    *aPt = gfxPoint(x, y);
+    if (gfxFontTestStore::CurrentStore()) {
+        gfxFontTestStore::CurrentStore()->AddItem(GetUniqueName(),
+                                                  glyphBuffer.Elements(), glyphBuffer.Length());
+    }
 }
 
 gfxFont::RunMetrics
@@ -652,26 +610,6 @@ gfxTextRun::GlyphRunIterator::NextRun()  {
     return PR_TRUE;
 }
 
-#ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
-static void
-AccountStorageForTextRun(gfxTextRun *aTextRun, PRInt32 aSign)
-{
-    // Ignores detailed glyphs... we don't know when those have been constructed
-    // Also ignores gfxSkipChars dynamic storage (which won't be anything
-    // for preformatted text)
-    // Also ignores GlyphRun array, again because it hasn't been constructed
-    // by the time this gets called. If there's only one glyphrun that's stored
-    // directly in the textrun anyway so no additional overhead.
-    PRInt32 bytesPerChar = sizeof(gfxTextRun::CompressedGlyph);
-    if (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_PERSISTENT) {
-      bytesPerChar += (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_8BIT) ? 1 : 2;
-    }
-    PRInt32 bytes = sizeof(gfxTextRun) + aTextRun->GetLength()*bytesPerChar;
-    gTextRunStorage += bytes*aSign;
-    gTextRunStorageHighWaterMark = PR_MAX(gTextRunStorageHighWaterMark, gTextRunStorage);
-}
-#endif
-
 gfxTextRun::gfxTextRun(const gfxTextRunFactory::Parameters *aParams, const void *aText,
                        PRUint32 aLength, gfxFontGroup *aFontGroup, PRUint32 aFlags)
   : mUserData(aParams->mUserData),
@@ -691,7 +629,7 @@ gfxTextRun::gfxTextRun(const gfxTextRunFactory::Parameters *aParams, const void 
         }
     }
     if (mFlags & gfxTextRunFactory::TEXT_IS_8BIT) {
-        mText.mSingle = static_cast<const PRUint8 *>(aText);
+        mText.mSingle = NS_STATIC_CAST(const PRUint8 *, aText);
         if (!(mFlags & gfxTextRunFactory::TEXT_IS_PERSISTENT)) {
             PRUint8 *newText = new PRUint8[aLength];
             if (!newText) {
@@ -703,7 +641,7 @@ gfxTextRun::gfxTextRun(const gfxTextRunFactory::Parameters *aParams, const void 
             mText.mSingle = newText;    
         }
     } else {
-        mText.mDouble = static_cast<const PRUnichar *>(aText);
+        mText.mDouble = NS_STATIC_CAST(const PRUnichar *, aText);
         if (!(mFlags & gfxTextRunFactory::TEXT_IS_PERSISTENT)) {
             PRUnichar *newText = new PRUnichar[aLength];
             if (!newText) {
@@ -715,16 +653,10 @@ gfxTextRun::gfxTextRun(const gfxTextRunFactory::Parameters *aParams, const void 
             mText.mDouble = newText;    
         }
     }
-#ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
-    AccountStorageForTextRun(this, 1);
-#endif
 }
 
 gfxTextRun::~gfxTextRun()
 {
-#ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
-    AccountStorageForTextRun(this, -1);
-#endif
     if (!(mFlags & gfxTextRunFactory::TEXT_IS_PERSISTENT)) {
         if (mFlags & gfxTextRunFactory::TEXT_IS_8BIT) {
             delete[] mText.mSingle;
@@ -754,8 +686,7 @@ gfxTextRun::Clone(const gfxTextRunFactory::Parameters *aParams, const void *aTex
 
 PRBool
 gfxTextRun::SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
-                                   PRPackedBool *aBreakBefore,
-                                   gfxContext *aRefContext)
+                                   PRPackedBool *aBreakBefore)
 {
     NS_ASSERTION(aStart + aLength <= mCharacterCount, "Overflow");
 
@@ -1396,14 +1327,12 @@ gfxTextRun::BreakAndMeasureText(PRUint32 aStart, PRUint32 aMaxLength,
     // 2) some of the text fit up to a break opportunity (width > aWidth && lastBreak >= 0)
     // 3) none of the text fits before a break opportunity (width > aWidth && lastBreak < 0)
     PRUint32 charsFit;
-    PRBool usedHyphenation = PR_FALSE;
     if (width - trimmableAdvance <= aWidth) {
         charsFit = aMaxLength;
     } else if (lastBreak >= 0) {
         charsFit = lastBreak - aStart;
         trimmableChars = lastBreakTrimmableChars;
         trimmableAdvance = lastBreakTrimmableAdvance;
-        usedHyphenation = lastBreakUsedHyphenation;
     } else {
         charsFit = aMaxLength;
     }
@@ -1415,7 +1344,7 @@ gfxTextRun::BreakAndMeasureText(PRUint32 aStart, PRUint32 aMaxLength,
         *aTrimWhitespace = trimmableAdvance;
     }
     if (aUsedHyphenation) {
-        *aUsedHyphenation = usedHyphenation;
+        *aUsedHyphenation = lastBreakUsedHyphenation;
     }
     if (aLastBreak && charsFit == aMaxLength) {
         if (lastBreak < 0) {
@@ -1487,8 +1416,7 @@ gfxTextRun::GetAdvanceWidth(PRUint32 aStart, PRUint32 aLength,
 PRBool
 gfxTextRun::SetLineBreaks(PRUint32 aStart, PRUint32 aLength,
                           PRBool aLineBreakBefore, PRBool aLineBreakAfter,
-                          gfxFloat *aAdvanceWidthDelta,
-                          gfxContext *aRefContext)
+                          gfxFloat *aAdvanceWidthDelta)
 {
     // Do nothing because our shaping does not currently take linebreaks into
     // account. There is no change in advance width.
@@ -1521,16 +1449,14 @@ gfxTextRun::FindFirstGlyphRunContaining(PRUint32 aOffset)
 }
 
 nsresult
-gfxTextRun::AddGlyphRun(gfxFont *aFont, PRUint32 aUTF16Offset, PRBool aForceNewRun)
+gfxTextRun::AddGlyphRun(gfxFont *aFont, PRUint32 aUTF16Offset)
 {
     PRUint32 numGlyphRuns = mGlyphRuns.Length();
-    if (!aForceNewRun &&
-        numGlyphRuns > 0)
-    {
+    if (numGlyphRuns > 0) {
         GlyphRun *lastGlyphRun = &mGlyphRuns[numGlyphRuns - 1];
 
         NS_ASSERTION(lastGlyphRun->mCharacterOffset <= aUTF16Offset,
-                     "Glyph runs out of order (and run not forced)");
+                     "Glyph runs out of order");
 
         if (lastGlyphRun->mFont == aFont)
             return NS_OK;
@@ -1540,8 +1466,8 @@ gfxTextRun::AddGlyphRun(gfxFont *aFont, PRUint32 aUTF16Offset, PRBool aForceNewR
         }
     }
 
-    NS_ASSERTION(aForceNewRun || numGlyphRuns > 0 || aUTF16Offset == 0,
-                 "First run doesn't cover the first character (and run not forced)?");
+    NS_ASSERTION(numGlyphRuns > 0 || aUTF16Offset == 0,
+                 "First run doesn't cover the first character?");
 
     GlyphRun *glyphRun = mGlyphRuns.AppendElement();
     if (!glyphRun)
@@ -1549,13 +1475,6 @@ gfxTextRun::AddGlyphRun(gfxFont *aFont, PRUint32 aUTF16Offset, PRBool aForceNewR
     glyphRun->mFont = aFont;
     glyphRun->mCharacterOffset = aUTF16Offset;
     return NS_OK;
-}
-
-void
-gfxTextRun::SortGlyphRuns()
-{
-    GlyphRunOffsetComparator comp;
-    mGlyphRuns.Sort(comp);
 }
 
 PRUint32
@@ -1677,7 +1596,7 @@ gfxTextRun::CopyGlyphDataFrom(gfxTextRun *aSource, PRUint32 aStart,
     PRUint32 i;
     for (i = 0; i < aLength; ++i) {
         CompressedGlyph g = aSource->mCharacterGlyphs[i + aStart];
-        g.SetCanBreakBefore(mCharacterGlyphs[i + aDest].CanBreakBefore());
+        g.SetCanBreakBefore(PR_FALSE);
         mCharacterGlyphs[i + aDest] = g;
         if (aStealData) {
             aSource->mCharacterGlyphs[i + aStart].SetMissing();

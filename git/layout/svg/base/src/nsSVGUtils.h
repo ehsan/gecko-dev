@@ -73,7 +73,6 @@ struct gfxRect;
 struct gfxMatrix;
 struct gfxSize;
 struct gfxIntSize;
-struct nsStyleFont;
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -163,16 +162,6 @@ private:
 class nsSVGUtils
 {
 public:
-  /*
-   * Get a font-size (em) of an nsIContent
-   */
-  static float GetFontSize(nsIContent *aContent);
-
-  /*
-   * Get an x-height of of an nsIContent
-   */
-  static float GetFontXHeight(nsIContent *aContent);
-
   /*
    * Converts image data from premultipled to unpremultiplied alpha
    */
@@ -386,11 +375,6 @@ public:
 private:
   /* Computational (nil) surfaces */
   static gfxASurface *mThebesComputationalSurface;
-
-  /*
-   * Get an nsStyleFont from an nsIContent
-   */
-  static const nsStyleFont* GetStyleFontForContent(nsIContent *aContent);
 };
 
 #endif

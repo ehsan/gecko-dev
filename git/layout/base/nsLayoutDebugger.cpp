@@ -170,7 +170,7 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     nsRect rect = i->GetBounds(aBuilder);
     switch (i->GetType()) {
       case nsDisplayItem::TYPE_CLIP: {
-        nsDisplayClip* c = static_cast<nsDisplayClip*>(i);
+        nsDisplayClip* c = NS_STATIC_CAST(nsDisplayClip*, i);
         rect = c->GetClipRect();
         break;
       }

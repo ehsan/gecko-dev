@@ -134,7 +134,6 @@ inFlasher::SetInvert(PRBool aInvert)
 NS_IMETHODIMP
 inFlasher::RepaintElement(nsIDOMElement* aElement)
 {
-  NS_ENSURE_ARG_POINTER(aElement);
   nsCOMPtr<nsIDOMWindowInternal> window = inLayoutUtils::GetWindowFor(aElement);
   if (!window) return NS_OK;
   nsCOMPtr<nsIPresShell> presShell = inLayoutUtils::GetPresShellFor(window);
@@ -150,7 +149,6 @@ inFlasher::RepaintElement(nsIDOMElement* aElement)
 NS_IMETHODIMP 
 inFlasher::DrawElementOutline(nsIDOMElement* aElement)
 {
-  NS_ENSURE_ARG_POINTER(aElement);
   nsCOMPtr<nsIDOMWindowInternal> window = inLayoutUtils::GetWindowFor(aElement);
   if (!window) return NS_OK;
   nsCOMPtr<nsIPresShell> presShell = inLayoutUtils::GetPresShellFor(window);
@@ -185,7 +183,8 @@ inFlasher::DrawElementOutline(nsIDOMElement* aElement)
 NS_IMETHODIMP
 inFlasher::ScrollElementIntoView(nsIDOMElement *aElement)
 {
-  NS_ENSURE_ARG_POINTER(aElement);
+  NS_PRECONDITION(aElement, "Dude, where's my arg?!");
+
   nsCOMPtr<nsIDOMWindowInternal> window = inLayoutUtils::GetWindowFor(aElement);
   if (!window) {
     return NS_OK;

@@ -138,7 +138,6 @@ CPPSRCS	= \
 	nsExternalHelperAppService.cpp	\
 	nsExternalProtocolHandler.cpp \
 	nsMIMEInfoImpl.cpp \
-	nsHandlerAppImpl.cpp \
 	$(OSHELPER) \
 	$(NULL)
 

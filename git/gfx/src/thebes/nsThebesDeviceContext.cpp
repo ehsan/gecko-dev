@@ -43,6 +43,7 @@
 
 #include "nsThebesDeviceContext.h"
 #include "nsThebesRenderingContext.h"
+#include "nsThebesDrawingSurface.h"
 
 #include "nsIView.h"
 #include "nsILookAndFeel.h"
@@ -117,6 +118,8 @@ nsThebesDeviceContext::nsThebesDeviceContext()
     mDepth = 0;
     mWidth = 0;
     mHeight = 0;
+
+    mDeviceContextSpec = nsnull;
 
     mWidgetSurfaceCache.Init();
 
@@ -283,6 +286,26 @@ nsThebesDeviceContext::CreateRenderingContext(nsIView *aView,
     widget = aView->GetWidget();
 
     return CreateRenderingContext(widget, aContext);
+}
+
+NS_IMETHODIMP
+nsThebesDeviceContext::CreateRenderingContext(nsIDrawingSurface *aSurface,
+                                              nsIRenderingContext *&aContext)
+{
+    nsresult rv;
+
+    aContext = nsnull;
+    nsCOMPtr<nsIRenderingContext> pContext;
+    rv = CreateRenderingContextInstance(*getter_AddRefs(pContext));
+    if (NS_SUCCEEDED(rv)) {
+        rv = pContext->Init(this, aSurface);
+        if (NS_SUCCEEDED(rv)) {
+            aContext = pContext;
+            NS_ADDREF(aContext);
+        }
+    }
+
+    return rv;
 }
 
 NS_IMETHODIMP
@@ -502,7 +525,7 @@ nsThebesDeviceContext::InitForPrinting(nsIDeviceContextSpec *aDevice)
 {
     NS_ENSURE_ARG_POINTER(aDevice);
 
-    mDeviceContextSpec = aDevice;
+    NS_ADDREF(mDeviceContextSpec = aDevice);
 
     nsresult rv = aDevice->GetSurfaceForPrinter(getter_AddRefs(mPrintingSurface));
     if (NS_FAILED(rv))

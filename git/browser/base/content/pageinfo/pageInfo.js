@@ -375,15 +375,13 @@ function toggleGroupbox(id)
   var elt = document.getElementById(id);
   if (elt.hasAttribute("closed")) {
     elt.removeAttribute("closed");
-    if (elt.flexWhenOpened)
-      elt.flex = elt.flexWhenOpened;
+    if (id == "metaTags")
+      elt.flex = 1;
   }
   else {
     elt.setAttribute("closed", "true");
-    if (elt.flex) {
-      elt.flexWhenOpened = elt.flex;
+    if (id == "metaTags")
       elt.flex = 0;
-    }
   }
 }
 

@@ -555,7 +555,7 @@ nsToolkitProfileService::SetSelectedProfile(nsIToolkitProfile* aProfile)
 {
     if (mChosen != aProfile) {
         // XXXbz Why is this cast OK?
-        mChosen = static_cast<nsToolkitProfile*>(aProfile);
+        mChosen = NS_STATIC_CAST(nsToolkitProfile*, aProfile);
         mDirty = PR_TRUE;
     }
     return NS_OK;

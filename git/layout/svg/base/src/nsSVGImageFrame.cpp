@@ -37,6 +37,7 @@
 #include "nsSVGPathGeometryFrame.h"
 #include "nsIDOMSVGMatrix.h"
 #include "nsIDOMSVGAnimPresAspRatio.h"
+#include "nsIDOMSVGPresAspectRatio.h"
 #include "imgIContainer.h"
 #include "gfxIImageFrame.h"
 #include "nsStubImageDecoderObserver.h"
@@ -76,15 +77,16 @@ private:
 
 class nsSVGImageFrame : public nsSVGPathGeometryFrame
 {
+protected:
   friend nsIFrame*
   NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 
-protected:
-  nsSVGImageFrame(nsStyleContext* aContext) : nsSVGPathGeometryFrame(aContext) {}
   virtual ~nsSVGImageFrame();
   NS_IMETHOD InitSVG();
 
 public:
+  nsSVGImageFrame(nsStyleContext* aContext) : nsSVGPathGeometryFrame(aContext) {}
+
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect);
   NS_IMETHOD GetFrameForPointSVG(float x, float y, nsIFrame** hit);
@@ -119,6 +121,8 @@ public:
 private:
   already_AddRefed<nsIDOMSVGMatrix> GetImageTransform();
 
+  nsCOMPtr<nsIDOMSVGPreserveAspectRatio> mPreserveAspectRatio;
+
   nsCOMPtr<imgIDecoderObserver> mListener;
 
   nsCOMPtr<imgIContainer> mImageContainer;
@@ -134,7 +138,9 @@ NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleConte
 {
   nsCOMPtr<nsIDOMSVGImageElement> Rect = do_QueryInterface(aContent);
   if (!Rect) {
-    NS_ERROR("Can't create frame! Content is not an SVG image!");
+#ifdef DEBUG
+    printf("warning: trying to construct an SVGImageFrame for a content element that doesn't support the right interfaces\n");
+#endif
     return nsnull;
   }
 
@@ -149,7 +155,7 @@ nsSVGImageFrame::~nsSVGImageFrame()
     if (imageLoader) {
       imageLoader->RemoveObserver(mListener);
     }
-    reinterpret_cast<nsSVGImageListener*>(mListener.get())->SetFrame(nsnull);
+    NS_REINTERPRET_CAST(nsSVGImageListener*, mListener.get())->SetFrame(nsnull);
   }
   mListener = nsnull;
 }
@@ -162,6 +168,14 @@ nsSVGImageFrame::InitSVG()
   
   nsCOMPtr<nsIDOMSVGImageElement> Rect = do_QueryInterface(mContent);
   NS_ASSERTION(Rect,"wrong content element");
+
+  {
+    nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> ratio;
+    Rect->GetPreserveAspectRatio(getter_AddRefs(ratio));
+    ratio->GetAnimVal(getter_AddRefs(mPreserveAspectRatio));
+    NS_ASSERTION(mPreserveAspectRatio, "no preserveAspectRatio");
+    if (!mPreserveAspectRatio) return NS_ERROR_FAILURE;
+  }
 
   mListener = new nsSVGImageListener(this);
   if (!mListener) return NS_ERROR_OUT_OF_MEMORY;
@@ -201,7 +215,7 @@ nsSVGImageFrame::GetImageTransform()
   GetCanvasTM(getter_AddRefs(ctm));
 
   float x, y, width, height;
-  nsSVGElement *element = static_cast<nsSVGElement*>(mContent);
+  nsSVGElement *element = NS_STATIC_CAST(nsSVGElement*, mContent);
   element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
 
   PRInt32 nativeWidth, nativeHeight;
@@ -235,12 +249,6 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect)
   if (!GetStyleVisibility()->IsVisible())
     return NS_OK;
 
-  float x, y, width, height;
-  nsSVGElement *element = static_cast<nsSVGElement*>(mContent);
-  element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
-  if (width <= 0 || height <= 0)
-    return NS_OK;
-
   if (!mImageContainer) {
     nsCOMPtr<imgIRequest> currentRequest;
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
@@ -262,7 +270,7 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect)
 
     nsThebesImage *thebesImage = nsnull;
     if (img)
-      thebesImage = static_cast<nsThebesImage*>(img.get());
+      thebesImage = NS_STATIC_CAST(nsThebesImage*, img.get());
 
     if (thebesImage)
       thebesSurface = thebesImage->ThebesSurface();
@@ -278,6 +286,10 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect)
       GetCanvasTM(getter_AddRefs(ctm));
 
       if (ctm) {
+        float x, y, width, height;
+        nsSVGElement *element = NS_STATIC_CAST(nsSVGElement*, mContent);
+        element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
+
         nsSVGUtils::SetClipRect(gfx, ctm, x, y, width, height);
       }
     }

@@ -373,7 +373,7 @@ nsTextInputListener::Blur(nsIDOMEvent* aEvent)
 static void
 DoCommandCallback(const char *aCommand, void *aData)
 {
-  nsTextControlFrame *frame = static_cast<nsTextControlFrame*>(aData);
+  nsTextControlFrame *frame = NS_STATIC_CAST(nsTextControlFrame*, aData);
   nsIContent *content = frame->GetContent();
 
   nsCOMPtr<nsIControllers> controllers;
@@ -983,26 +983,27 @@ NS_IMPL_RELEASE_INHERITED(nsTextControlFrame, nsBoxFrame)
 NS_IMETHODIMP
 nsTextControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
-
+  if (NULL == aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
   if (aIID.Equals(NS_GET_IID(nsIFormControlFrame))) {
-    *aInstancePtr = static_cast<nsIFormControlFrame*>(this);
+    *aInstancePtr = (void*) ((nsIFormControlFrame*) this);
     return NS_OK;
   }
   if (aIID.Equals(NS_GET_IID(nsIAnonymousContentCreator))) {
-    *aInstancePtr = static_cast<nsIAnonymousContentCreator*>(this);
+    *aInstancePtr = (void*)(nsIAnonymousContentCreator*) this;
     return NS_OK;
   }
   if (aIID.Equals(NS_GET_IID(nsITextControlFrame))) {
-    *aInstancePtr = static_cast<nsITextControlFrame*>(this);
+    *aInstancePtr = (void*)(nsITextControlFrame*) this;
     return NS_OK;
   }
   if (aIID.Equals(NS_GET_IID(nsIScrollableViewProvider)) && IsScrollable()) {
-    *aInstancePtr = static_cast<nsIScrollableViewProvider*>(this);
+    *aInstancePtr = (void*)(nsIScrollableViewProvider*) this;
     return NS_OK;
   }
   if (aIID.Equals(NS_GET_IID(nsIPhonetic))) {
-    *aInstancePtr = static_cast<nsIPhonetic*>(this);
+    *aInstancePtr = (void*)(nsIPhonetic*) this;
     return NS_OK;
   }
 
@@ -1015,7 +1016,7 @@ NS_IMETHODIMP nsTextControlFrame::GetAccessible(nsIAccessible** aAccessible)
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTextFieldAccessible(static_cast<nsIFrame*>(this), aAccessible);
+    return accService->CreateHTMLTextFieldAccessible(NS_STATIC_CAST(nsIFrame*, this), aAccessible);
   }
 
   return NS_ERROR_FAILURE;
@@ -1130,12 +1131,12 @@ nsTextControlFrame::PreDestroy()
 
 //unregister self from content
   mTextListener->SetFrame(nsnull);
-  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
+  nsFormControlFrame::RegUnRegAccessKey(NS_STATIC_CAST(nsIFrame*, this), PR_FALSE);
   if (mTextListener)
   {
     if (mContent)
     {
-      mContent->RemoveEventListenerByIID(static_cast<nsIDOMFocusListener  *>(mTextListener), NS_GET_IID(nsIDOMFocusListener));
+      mContent->RemoveEventListenerByIID(NS_STATIC_CAST(nsIDOMFocusListener  *,mTextListener), NS_GET_IID(nsIDOMFocusListener));
     }
 
     nsCOMPtr<nsIDOMEventGroup> systemGroup;
@@ -1143,8 +1144,8 @@ nsTextControlFrame::PreDestroy()
     nsCOMPtr<nsIDOM3EventTarget> dom3Targ = do_QueryInterface(mContent);
     if (dom3Targ) {
       // cast because of ambiguous base
-      nsIDOMEventListener *listener = static_cast<nsIDOMKeyListener*>
-                                                 (mTextListener);
+      nsIDOMEventListener *listener = NS_STATIC_CAST(nsIDOMKeyListener*,
+                                                     mTextListener);
 
       dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keydown"),
                                            listener, PR_FALSE, systemGroup);
@@ -1387,8 +1388,8 @@ nsTextControlFrame::CreateFrameFor(nsIContent*      aContent)
 
   // Create a SelectionController
 
-  mSelCon = static_cast<nsISelectionController*>
-                       (new nsTextInputSelectionImpl(mFrameSel, shell, aContent));
+  mSelCon = NS_STATIC_CAST(nsISelectionController*,
+              new nsTextInputSelectionImpl(mFrameSel, shell, aContent));
   if (!mSelCon)
     return nsnull;
   mTextListener = new nsTextInputListener();
@@ -1516,8 +1517,8 @@ nsTextControlFrame::CreateFrameFor(nsIContent*      aContent)
       }
     }
 
-    selPriv->AddSelectionListener(static_cast<nsISelectionListener*>
-                                             (mTextListener));
+    selPriv->AddSelectionListener(NS_STATIC_CAST(nsISelectionListener*,
+                                                 mTextListener));
   }
   
   if (mContent) {
@@ -2732,7 +2733,7 @@ nsTextControlFrame::SetInitialChildList(nsIAtom*        aListName,
   //register focus and key listeners
   if (mContent) {
     // register the event listeners with the DOM event receiver
-    rv = mContent->AddEventListenerByIID(static_cast<nsIDOMFocusListener *>(mTextListener),
+    rv = mContent->AddEventListenerByIID(NS_STATIC_CAST(nsIDOMFocusListener *,mTextListener),
                                          NS_GET_IID(nsIDOMFocusListener));
     NS_ASSERTION(NS_SUCCEEDED(rv), "failed to register focus listener");
     // XXXbryner do we need to check for a null presshell here?
@@ -2745,8 +2746,8 @@ nsTextControlFrame::SetInitialChildList(nsIAtom*        aListName,
   nsCOMPtr<nsIDOM3EventTarget> dom3Targ = do_QueryInterface(mContent);
   if (dom3Targ) {
     // cast because of ambiguous base
-    nsIDOMEventListener *listener = static_cast<nsIDOMKeyListener*>
-                                               (mTextListener);
+    nsIDOMEventListener *listener = NS_STATIC_CAST(nsIDOMKeyListener*,
+                                                   mTextListener);
 
     dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keydown"),
                                       listener, PR_FALSE, systemGroup);

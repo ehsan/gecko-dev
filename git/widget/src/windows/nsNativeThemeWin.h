@@ -138,7 +138,6 @@ private:
   HANDLE mHeaderTheme;
 
   BOOL mFlatMenus;
-  OSVERSIONINFO mOsVersion;
 };
 
 // Creator function

@@ -941,7 +941,7 @@ NS_INTERFACE_MAP_BEGIN(nsStandardURL)
     NS_INTERFACE_MAP_ENTRY(nsIMutable)
     // see nsStandardURL::Equals
     if (aIID.Equals(kThisImplCID))
-        foundInterface = static_cast<nsIURI *>(this);
+        foundInterface = NS_STATIC_CAST(nsIURI *, this);
     else
 NS_INTERFACE_MAP_END
 
@@ -1511,16 +1511,13 @@ nsStandardURL::SetPort(PRInt32 port)
         buf.Assign(':');
         buf.AppendInt(port);
         mSpec.Insert(buf, mHost.mPos + mHost.mLen);
-        mAuthority.mLen += buf.Length();
         ShiftFromPath(buf.Length());
     }
-    else if (port == -1 || port == mDefaultPort) {
+    else if (port == -1) {
         // need to remove the port number from the URL spec
         PRUint32 start = mHost.mPos + mHost.mLen;
-        PRUint32 lengthToCut = mPath.mPos - start;
-        mSpec.Cut(start, lengthToCut);
-        mAuthority.mLen -= lengthToCut;
-        ShiftFromPath(-lengthToCut);
+        mSpec.Cut(start, mPath.mPos - start);
+        ShiftFromPath(start - mPath.mPos);
     }
     else {
         // need to replace the existing port
@@ -1529,10 +1526,8 @@ nsStandardURL::SetPort(PRInt32 port)
         PRUint32 start = mHost.mPos + mHost.mLen + 1;
         PRUint32 length = mPath.mPos - start;
         mSpec.Replace(start, length, buf);
-        if (buf.Length() != length) {
-            mAuthority.mLen += buf.Length() - length;
+        if (buf.Length() != length)
             ShiftFromPath(buf.Length() - length);
-        }
     }
 
     mPort = port;

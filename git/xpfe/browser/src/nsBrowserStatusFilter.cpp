@@ -347,7 +347,7 @@ nsBrowserStatusFilter::ProcessTimeout()
 void
 nsBrowserStatusFilter::TimeoutHandler(nsITimer *aTimer, void *aClosure)
 {
-    nsBrowserStatusFilter *self = reinterpret_cast<nsBrowserStatusFilter *>(aClosure);
+    nsBrowserStatusFilter *self = NS_REINTERPRET_CAST(nsBrowserStatusFilter *, aClosure);
     if (!self) {
         NS_ERROR("no self");
         return;

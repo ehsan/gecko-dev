@@ -401,7 +401,7 @@ nsProtocolProxyService::PrefsChanged(nsIPrefBranch *prefBranch,
                 LOG(("unknown proxy type: %lu; assuming direct\n", type));
                 type = eProxyConfig_Direct;
             }
-            mProxyConfig = static_cast<ProxyConfig>(type);
+            mProxyConfig = NS_STATIC_CAST(ProxyConfig, type);
             reloadPAC = PR_TRUE;
         }
     }

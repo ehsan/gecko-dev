@@ -115,8 +115,6 @@ private:
   // no copy's or assigns
   nsRange(const nsRange&);
   nsRange& operator=(const nsRange&);
-
-  nsINode* IsValidBoundary(nsINode* aNode);
  
 public:
 /******************************************************************************

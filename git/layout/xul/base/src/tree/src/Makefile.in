@@ -62,7 +62,6 @@ REQUIRES	= xpcom \
 		  js \
 		  webshell \
 		  pref \
-		  unicharutil \
 		  $(NULL)
 
 CPPSRCS		= \

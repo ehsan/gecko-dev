@@ -63,7 +63,10 @@ class   nsIRollupListener;
 class   nsGUIEvent;
 struct  nsColorMap;
 class   imgIContainer;
+
+#ifdef MOZ_CAIRO_GFX
 class   gfxASurface;
+#endif
 
 /**
  * Callback function that processes events.
@@ -792,8 +795,6 @@ class nsIWidget : public nsISupports {
     /**
      * Return the widget's toolkit
      *
-     * An AddRef has NOT been done for the caller.
-     *
      * @return the toolkit this widget was created in. See nsToolkit.
      */
 
@@ -1027,10 +1028,12 @@ class nsIWidget : public nsISupports {
      */
     NS_IMETHOD GetLastInputEventTime(PRUint32& aTime) = 0;
 
+#ifdef MOZ_CAIRO_GFX
     /**
      * Get the Thebes surface associated with this widget.
      */
     virtual gfxASurface *GetThebesSurface() = 0;
+#endif
 
     /**
      * Set a flag that makes any window resizes use native window animation.

@@ -50,7 +50,11 @@ NS_INTERFACE_MAP_BEGIN(nsSVGGeometryFrame)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGGeometryFrameBase)
 
 //----------------------------------------------------------------------
-// nsIFrame methods
+
+nsSVGGeometryFrame::nsSVGGeometryFrame(nsStyleContext* aContext)
+  : nsSVGGeometryFrameBase(aContext)
+{
+}
 
 void
 nsSVGGeometryFrame::Destroy()
@@ -58,6 +62,48 @@ nsSVGGeometryFrame::Destroy()
   // Remove the properties before the frame goes away, since we need it for QI
   RemovePaintServerProperties();
   nsSVGGeometryFrameBase::Destroy();
+}
+
+void
+nsSVGGeometryFrame::RemovePaintServerProperties()
+{
+  DeleteProperty(nsGkAtoms::fill);
+  DeleteProperty(nsGkAtoms::stroke);
+  RemoveStateBits(NS_STATE_SVG_PSERVER_MASK);
+}
+
+nsSVGPaintServerFrame *
+nsSVGGeometryFrame::GetPaintServer(const nsStyleSVGPaint *aPaint)
+{
+  if (aPaint->mType != eStyleSVGPaintType_Server)
+    return nsnull;
+
+  nsIURI *uri;
+  uri = aPaint->mPaint.mPaintServer;
+  if (!uri)
+    return nsnull;
+
+  nsIFrame *result;
+  if (NS_FAILED(nsSVGUtils::GetReferencedFrame(&result, uri, mContent,
+                                               PresContext()->PresShell())))
+    return nsnull;
+
+  nsIAtom *type = result->GetType();
+  if (type != nsGkAtoms::svgLinearGradientFrame &&
+      type != nsGkAtoms::svgRadialGradientFrame &&
+      type != nsGkAtoms::svgPatternFrame)
+    return nsnull;
+
+  // Loop check for pattern
+  if (type == nsGkAtoms::svgPatternFrame &&
+      nsContentUtils::ContentIsDescendantOf(mContent, result->GetContent()))
+    return nsnull;
+
+  nsSVGPaintServerFrame *server =
+    NS_STATIC_CAST(nsSVGPaintServerFrame*, result);
+
+  server->AddObserver(this);
+  return server;
 }
 
 NS_IMETHODIMP
@@ -96,9 +142,6 @@ nsSVGGeometryFrame::DidSetStyleContext()
   return NS_OK;
 }
 
-//----------------------------------------------------------------------
-// nsISVGValueObserver methods:
-
 NS_IMETHODIMP
 nsSVGGeometryFrame::WillModifySVGObservable(nsISVGValue* observable,
 					   nsISVGValue::modificationType aModType)
@@ -120,7 +163,7 @@ nsSVGGeometryFrame::DidModifySVGObservable(nsISVGValue* observable,
     return NS_OK;
 
   if (GetStateBits() & NS_STATE_SVG_FILL_PSERVER) {
-    nsIFrame *ps = static_cast<nsIFrame*>(GetProperty(nsGkAtoms::fill));
+    nsIFrame *ps = NS_STATIC_CAST(nsIFrame*, GetProperty(nsGkAtoms::fill));
     if (frame == ps) {
       if (aModType == nsISVGValue::mod_die) {
         DeleteProperty(nsGkAtoms::fill);
@@ -131,7 +174,7 @@ nsSVGGeometryFrame::DidModifySVGObservable(nsISVGValue* observable,
   }
 
   if (GetStateBits() & NS_STATE_SVG_STROKE_PSERVER) {
-    nsIFrame *ps = static_cast<nsIFrame*>(GetProperty(nsGkAtoms::stroke));
+    nsIFrame *ps = NS_STATIC_CAST(nsIFrame*, GetProperty(nsGkAtoms::stroke));
     if (frame == ps) {
       if (aModType == nsISVGValue::mod_die) {
         DeleteProperty(nsGkAtoms::stroke);
@@ -147,53 +190,11 @@ nsSVGGeometryFrame::DidModifySVGObservable(nsISVGValue* observable,
 
 //----------------------------------------------------------------------
 
-void
-nsSVGGeometryFrame::RemovePaintServerProperties()
-{
-  DeleteProperty(nsGkAtoms::fill);
-  DeleteProperty(nsGkAtoms::stroke);
-  RemoveStateBits(NS_STATE_SVG_PSERVER_MASK);
-}
-
-nsSVGPaintServerFrame *
-nsSVGGeometryFrame::GetPaintServer(const nsStyleSVGPaint *aPaint)
-{
-  if (aPaint->mType != eStyleSVGPaintType_Server)
-    return nsnull;
-
-  nsIURI *uri;
-  uri = aPaint->mPaint.mPaintServer;
-  if (!uri)
-    return nsnull;
-
-  nsIFrame *result;
-  if (NS_FAILED(nsSVGUtils::GetReferencedFrame(&result, uri, mContent,
-                                               PresContext()->PresShell())))
-    return nsnull;
-
-  nsIAtom *type = result->GetType();
-  if (type != nsGkAtoms::svgLinearGradientFrame &&
-      type != nsGkAtoms::svgRadialGradientFrame &&
-      type != nsGkAtoms::svgPatternFrame)
-    return nsnull;
-
-  // Loop check for pattern
-  if (type == nsGkAtoms::svgPatternFrame &&
-      nsContentUtils::ContentIsDescendantOf(mContent, result->GetContent()))
-    return nsnull;
-
-  nsSVGPaintServerFrame *server =
-    static_cast<nsSVGPaintServerFrame*>(result);
-
-  server->AddObserver(this);
-  return server;
-}
-
 float
 nsSVGGeometryFrame::GetStrokeWidth()
 {
-  nsSVGElement *ctx = static_cast<nsSVGElement*>
-                                 (GetType() == nsGkAtoms::svgGlyphFrame ?
+  nsSVGElement *ctx = NS_STATIC_CAST(nsSVGElement*,
+                                     GetType() == nsGkAtoms::svgGlyphFrame ?
                                      mContent->GetParent() : mContent);
 
   return
@@ -221,7 +222,7 @@ nsSVGGeometryFrame::GetStrokeDashArray(gfxFloat **aDashes, PRUint32 *aCount)
       for (PRUint32 i = 0; i < count; i++) {
         dashes[i] =
           nsSVGUtils::CoordToFloat(presContext,
-                                   static_cast<nsSVGElement*>(mContent),
+                                   NS_STATIC_CAST(nsSVGElement*, mContent),
                                    dasharray[i]);
         if (dashes[i] < 0.0f) {
           delete [] dashes;
@@ -250,7 +251,7 @@ nsSVGGeometryFrame::GetStrokeDashoffset()
 {
   return
     nsSVGUtils::CoordToFloat(PresContext(),
-                             static_cast<nsSVGElement*>(mContent),
+                             NS_STATIC_CAST(nsSVGElement*, mContent),
                              GetStyleSVG()->mStrokeDashoffset);
 }
 
@@ -264,8 +265,8 @@ static void
 PServerPropertyDtor(void *aObject, nsIAtom *aPropertyName,
                     void *aPropertyValue, void *aData)
 {
-  nsIFrame *ps = static_cast<nsIFrame*>(aPropertyValue);
-  nsSVGUtils::RemoveObserver(static_cast<nsIFrame*>(aObject), ps);
+  nsIFrame *ps = NS_STATIC_CAST(nsIFrame*, aPropertyValue);
+  nsSVGUtils::RemoveObserver(NS_STATIC_CAST(nsIFrame*, aObject), ps);
 }
 
 PRBool
@@ -359,8 +360,8 @@ nsSVGGeometryFrame::SetupCairoFill(gfxContext *aContext,
   float opacity = MaybeOptimizeOpacity(GetStyleSVG()->mFillOpacity);
 
   if (GetStateBits() & NS_STATE_SVG_FILL_PSERVER) {
-    nsSVGPaintServerFrame *ps = static_cast<nsSVGPaintServerFrame*>
-                                           (GetProperty(nsGkAtoms::fill));
+    nsSVGPaintServerFrame *ps = NS_STATIC_CAST(nsSVGPaintServerFrame*,
+                                               GetProperty(nsGkAtoms::fill));
     return ps->SetupPaintServer(aContext, this, opacity, aClosure);
   } else if (GetStyleSVG()->mFill.mType == eStyleSVGPaintType_Server) {
     SetupCairoColor(aContext,
@@ -429,8 +430,8 @@ nsSVGGeometryFrame::SetupCairoStroke(gfxContext *aContext,
   float opacity = MaybeOptimizeOpacity(GetStyleSVG()->mStrokeOpacity);
 
   if (GetStateBits() & NS_STATE_SVG_STROKE_PSERVER) {
-    nsSVGPaintServerFrame *ps = static_cast<nsSVGPaintServerFrame*>
-                                           (GetProperty(nsGkAtoms::stroke));
+    nsSVGPaintServerFrame *ps = NS_STATIC_CAST(nsSVGPaintServerFrame*,
+                                               GetProperty(nsGkAtoms::stroke));
     return ps->SetupPaintServer(aContext, this, opacity, aClosure);
   } else if (GetStyleSVG()->mStroke.mType == eStyleSVGPaintType_Server) {
     SetupCairoColor(aContext,

@@ -57,8 +57,6 @@ include $(srcdir)/../objs.mk
 
 EXTRA_DEPS += $(srcdir)/../objs.mk
 
-LOCAL_INCLUDES	+= -I$(srcdir)/.. \
-
 REQUIRES=xpcom \
 		string \
 		uconv \

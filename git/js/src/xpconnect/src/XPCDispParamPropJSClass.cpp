@@ -52,7 +52,8 @@
 inline
 XPCDispParamPropJSClass* GetParamProp(JSContext* cx, JSObject* obj)
 {
-    return reinterpret_cast<XPCDispParamPropJSClass*>(JS_GetPrivate(cx, obj));
+    return NS_REINTERPRET_CAST(XPCDispParamPropJSClass*, 
+                               JS_GetPrivate(cx, obj));
 }
 
 /**
@@ -210,8 +211,8 @@ XPCDispParamPropJSClass::XPCDispParamPropJSClass(XPCWrappedNative* wrapper,
 {
     NS_ADDREF(mWrapper);
     dispObj->QueryInterface(NSID_IDISPATCH, 
-                                              reinterpret_cast<void**>
-                                                              (&mDispObj));
+                                              NS_REINTERPRET_CAST(void**,
+                                              &mDispObj));
 }
 
 XPCDispParamPropJSClass::~XPCDispParamPropJSClass()

@@ -290,28 +290,31 @@ nsComboboxControlFrame::~nsComboboxControlFrame()
 NS_IMETHODIMP
 nsComboboxControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
+  NS_PRECONDITION(0 != aInstancePtr, "null ptr");
+  if (NULL == aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
 
   if (aIID.Equals(NS_GET_IID(nsIComboboxControlFrame))) {
-    *aInstancePtr = static_cast<nsIComboboxControlFrame*>(this);
+    *aInstancePtr = (void*)(nsIComboboxControlFrame*)this;
     return NS_OK;
   } else if (aIID.Equals(NS_GET_IID(nsIFormControlFrame))) {
-    *aInstancePtr = static_cast<nsIFormControlFrame*>(this);
+    *aInstancePtr = (void*)(nsIFormControlFrame*)this;
     return NS_OK;
   } else if (aIID.Equals(NS_GET_IID(nsIAnonymousContentCreator))) {                                         
-    *aInstancePtr = static_cast<nsIAnonymousContentCreator*>(this);
+    *aInstancePtr = (void*)(nsIAnonymousContentCreator*)this;
     return NS_OK;   
   } else if (aIID.Equals(NS_GET_IID(nsISelectControlFrame))) {
-    *aInstancePtr = static_cast<nsISelectControlFrame*>(this);
+    *aInstancePtr = (void *)(nsISelectControlFrame*)this;
     return NS_OK;
   } else if (aIID.Equals(NS_GET_IID(nsIStatefulFrame))) {
-    *aInstancePtr = static_cast<nsIStatefulFrame*>(this);
+    *aInstancePtr = (void*)(nsIStatefulFrame*)this;
     return NS_OK;
   } else if (aIID.Equals(NS_GET_IID(nsIRollupListener))) {
-    *aInstancePtr = static_cast<nsIRollupListener*>(this);
+    *aInstancePtr = (void*)(nsIRollupListener*)this;
     return NS_OK;
   } else if (aIID.Equals(NS_GET_IID(nsIScrollableViewProvider))) {
-    *aInstancePtr = static_cast<nsIScrollableViewProvider*>(this);
+    *aInstancePtr = (void*)(nsIScrollableViewProvider*)this;
     return NS_OK;
   } 
   
@@ -877,7 +880,7 @@ nsComboboxControlFrame::AddOption(nsPresContext* aPresContext, PRInt32 aIndex)
     ++mDisplayedIndex;
   }
 
-  nsListControlFrame* lcf = static_cast<nsListControlFrame*>(mDropdownFrame);
+  nsListControlFrame* lcf = NS_STATIC_CAST(nsListControlFrame*, mDropdownFrame);
   return lcf->AddOption(aPresContext, aIndex);
 }
   
@@ -898,7 +901,7 @@ nsComboboxControlFrame::RemoveOption(nsPresContext* aPresContext, PRInt32 aIndex
     RedisplayText(-1);
   }
 
-  nsListControlFrame* lcf = static_cast<nsListControlFrame*>(mDropdownFrame);
+  nsListControlFrame* lcf = NS_STATIC_CAST(nsListControlFrame*, mDropdownFrame);
   return lcf->RemoveOption(aPresContext, aIndex);
 }
 
@@ -1161,7 +1164,7 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
   }
 
   nsRefPtr<nsStyleContext> textStyleContext;
-  textStyleContext = styleSet->ResolveStyleForNonElement(mStyleContext);
+  textStyleContext = styleSet->ResolveStyleForNonElement(styleContext);
   if (NS_UNLIKELY(!textStyleContext)) {
     return nsnull;
   }
@@ -1205,7 +1208,7 @@ nsComboboxControlFrame::Destroy()
   // Revoke any pending RedisplayTextEvent
   mRedisplayTextEvent.Revoke();
 
-  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
+  nsFormControlFrame::RegUnRegAccessKey(NS_STATIC_CAST(nsIFrame*, this), PR_FALSE);
 
   if (mDroppedDown) {
     // Get parent view
@@ -1333,7 +1336,7 @@ public:
 void nsDisplayComboboxFocus::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
-  static_cast<nsComboboxControlFrame*>(mFrame)
+  NS_STATIC_CAST(nsComboboxControlFrame*, mFrame)
     ->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(mFrame));
 }
 

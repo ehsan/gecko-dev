@@ -45,9 +45,11 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= test_places
 
-XPCSHELL_TESTS = unit \
-                 bookmarks \
-                 $(NULL)
+XPCSHELL_TESTS = unit
+
+ifdef MOZ_PLACES_BOOKMARKS
+XPCSHELL_TESTS += bookmarks
+endif
 
 ifdef MOZ_MOCHITEST
 DIRS = chrome

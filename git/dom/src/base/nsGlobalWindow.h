@@ -119,7 +119,6 @@ class nsGlobalWindowObserver;
 class nsGlobalWindow;
 
 class nsDOMOfflineResourceList;
-class nsDOMOfflineLoadStatusList;
 
 // permissible values for CheckOpenAllow
 enum OpenAllowValue {
@@ -130,7 +129,7 @@ enum OpenAllowValue {
 
 extern nsresult
 NS_CreateJSTimeoutHandler(nsIScriptContext *aContext,
-                          PRBool *aIsInterval,
+                          PRBool aIsInterval,
                           PRInt32 *aInterval,
                           nsIScriptTimeoutHandler **aRet);
 
@@ -149,12 +148,12 @@ struct nsTimeout : PRCList
 
   nsTimeout* Next() {
     // Note: might not actually return an nsTimeout.  Use IsTimeout to check.
-    return static_cast<nsTimeout*>(PR_NEXT_LINK(this));
+    return NS_STATIC_CAST(nsTimeout*, PR_NEXT_LINK(this));
   }
 
   nsTimeout* Prev() {
     // Note: might not actually return an nsTimeout.  Use IsTimeout to check.
-    return static_cast<nsTimeout*>(PR_PREV_LINK(this));
+    return NS_STATIC_CAST(nsTimeout*, PR_PREV_LINK(this));
   }
 
   // Window for which this timeout fires
@@ -304,11 +303,11 @@ public:
 
   virtual NS_HIDDEN_(nsPIDOMEventTarget*) GetTargetForDOMEvent()
   {
-    return static_cast<nsPIDOMEventTarget*>(GetOuterWindowInternal());
+    return NS_STATIC_CAST(nsPIDOMEventTarget*, GetOuterWindowInternal());
   }
   virtual NS_HIDDEN_(nsPIDOMEventTarget*) GetTargetForEventTargetChain()
   {
-    return static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
+    return NS_STATIC_CAST(nsPIDOMEventTarget*, GetCurrentInnerWindowInternal());
   }
   virtual NS_HIDDEN_(nsresult) PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual NS_HIDDEN_(nsresult) PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -377,17 +376,17 @@ public:
 
   nsGlobalWindow *GetOuterWindowInternal()
   {
-    return static_cast<nsGlobalWindow *>(GetOuterWindow());
+    return NS_STATIC_CAST(nsGlobalWindow *, GetOuterWindow());
   }
 
   nsGlobalWindow *GetCurrentInnerWindowInternal()
   {
-    return static_cast<nsGlobalWindow *>(mInnerWindow);
+    return NS_STATIC_CAST(nsGlobalWindow *, mInnerWindow);
   }
 
   nsGlobalWindow *EnsureInnerWindowInternal()
   {
-    return static_cast<nsGlobalWindow *>(EnsureInnerWindow());
+    return NS_STATIC_CAST(nsGlobalWindow *, EnsureInnerWindow());
   }
 
   PRBool IsFrozen() const
@@ -594,12 +593,12 @@ protected:
 
   nsTimeout* FirstTimeout() {
     // Note: might not actually return an nsTimeout.  Use IsTimeout to check.
-    return static_cast<nsTimeout*>(PR_LIST_HEAD(&mTimeouts));
+    return NS_STATIC_CAST(nsTimeout*, PR_LIST_HEAD(&mTimeouts));
   }
 
   nsTimeout* LastTimeout() {
     // Note: might not actually return an nsTimeout.  Use IsTimeout to check.
-    return static_cast<nsTimeout*>(PR_LIST_TAIL(&mTimeouts));
+    return NS_STATIC_CAST(nsTimeout*, PR_LIST_TAIL(&mTimeouts));
   }
 
   PRBool IsTimeout(PRCList* aList) {
@@ -759,7 +758,6 @@ protected:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
   nsRefPtr<nsDOMOfflineResourceList> mOfflineResources;
-  nsRefPtr<nsDOMOfflineLoadStatusList> mPendingOfflineLoads;
   nsIDocShell* mDocShell; // weak reference
 
   static jsval       sPrefInternal_id;

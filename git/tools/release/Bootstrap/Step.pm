@@ -16,7 +16,6 @@ use base 'Exporter';
 our @EXPORT = qw(catfile);
 
 my $DEFAULT_TIMEOUT = 3600;
-my $DEFAULT_LOGFILE = 'default.log';
 
 sub new {
     my $proto = shift;
@@ -30,17 +29,13 @@ sub Shell {
     my $this = shift;
     my %args = @_;
     my $cmd = $args{'cmd'};
-    my $cmdArgs = exists($args{'cmdArgs'}) ? $args{'cmdArgs'} : [];
+    my $cmdArgs = defined($args{'cmdArgs'}) ? $args{'cmdArgs'} : [];
     my $dir = $args{'dir'};
-    my $timeout = exists($args{'timeout'}) ? $args{'timeout'} :
-     $DEFAULT_TIMEOUT;
-    my $ignoreExitValue = exists($args{'ignoreExitValue'}) ? 
-     $args{'ignoreExitValue'} : 0;
+    my $timeout = $args{'timeout'} ? $args{'timeout'} : $DEFAULT_TIMEOUT;
+    my $logFile = $args{'logFile'};
+    my $ignoreExitValue = $args{'ignoreExitValue'};
     my $rv = '';
     my $config = new Bootstrap::Config();
-
-    my $logFile = exists($args{'logFile'}) ? $args{'logFile'} : 
-     catfile($config->Get(var => 'logDir'), $DEFAULT_LOGFILE);
 
     if (ref($cmdArgs) ne 'ARRAY') {
         die("ASSERT: Bootstrap::Step::Shell(): cmdArgs is not an array ref\n");

@@ -172,14 +172,14 @@ STDMETHODIMP XPCDispatchTearOff::QueryInterface(const struct _GUID & guid,
 {
     if(IsEqualIID(guid, IID_IDispatch))
     {
-        *pPtr = static_cast<IDispatch*>(this);
+        *pPtr = NS_STATIC_CAST(IDispatch*,this);
         NS_ADDREF_THIS();
         return NS_OK;
     }
 
     if(IsEqualIID(guid, IID_ISupportErrorInfo))
     {
-        *pPtr = static_cast<IDispatch*>(this);
+        *pPtr = NS_STATIC_CAST(IDispatch*,this);
         NS_ADDREF_THIS();
         return NS_OK;
     }

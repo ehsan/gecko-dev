@@ -138,7 +138,8 @@ nsXULTabAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
   nsresult rv = nsLeafAccessible::GetAttributesInternal(aAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAccUtils::SetAccAttrsForXULSelectControlItem(mDOMNode, aAttributes);
+  nsAccessibilityUtils::
+    SetAccAttrsForXULSelectControlItem(mDOMNode, aAttributes);
 
   return NS_OK;
 }

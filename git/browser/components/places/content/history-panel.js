@@ -64,15 +64,21 @@ function HistorySidebarInit()
 
   initContextMenu();
   
-  initPlace();
+  // set the place on the tree dynamically
+  // otherwise, we will end up calling the place's tree's load() twice
+  var optionsRef = {};
+  var queriesRef = {};
+  PlacesUtils.history.queryStringToQueries(ORGANIZER_ROOT_HISTORY_UNSORTED, queriesRef, {}, optionsRef);
+  SetSortingAndGrouping(optionsRef.value);
+  var place = PlacesUtils.history.queriesToQueryString(queriesRef.value, 1, optionsRef.value);
+  gHistoryTree.place = place;
 
   gSearchBox.focus();
 }
 
 function initContextMenu() {
   // Force-hide items in the context menu which never apply to this view
-  var alwaysHideElements = ["placesContext_new:bookmark",
-                            "placesContext_new:folder",
+  var alwaysHideElements = ["placesContext_new:folder",
                             "placesContext_new:separator",
                             "placesContext_cut",
                             "placesContext_paste",
@@ -105,8 +111,12 @@ function historyAddBookmarks()
   var node = gHistoryTree.selectedURINode;
   if (!node) 
     return;
-
+  
+#ifdef MOZ_PLACES_BOOKMARKS
   PlacesUtils.showMinimalAddBookmarkUI(PlacesUtils._uri(node.uri), node.title);
+#else
+  BookmarksUtils.addBookmark(node.uri, node.title, undefined);
+#endif
 }
 
 function SetSortingAndGrouping(aOptions) 
@@ -138,34 +148,24 @@ function SetSortingAndGrouping(aOptions)
   aOptions.sortingMode = sortingMode;
 }
 
-function initPlace()
-{
-  // call load() on the tree manually
-  // instead of setting the place attribute in history-panel.xul
-  // otherwise, we will end up calling load() twice
-  var optionsRef = {};
-  var queriesRef = {};
-  PlacesUtils.history.queryStringToQueries(ORGANIZER_ROOT_HISTORY_UNSORTED, queriesRef, {}, optionsRef);
-  SetSortingAndGrouping(optionsRef.value);
-  gHistoryTree.load(queriesRef.value, optionsRef.value);
-}
-
 function searchHistory(aInput)
 {
   if (aInput) {
     if (!gSearching) {
-      // Unset grouping when searching; 
+      // Unset grouping when searching; applyFilter will update the view
       var options = gHistoryTree.getResult().root.queryOptions;
       options.setGroupingMode([], 0);
       gSearching = true;
     }
-    
-    // applyFilter will update the view by calling load()
-    gHistoryTree.applyFilter(aInput, false /* onlyBookmarks */, 
-                             null /* folderRestrict */, null);
   }
   else {
-    initPlace();
+    // applyFilter will update the view
+    var options = gHistoryTree.getResult().root.queryOptions;
+    SetSortingAndGrouping(options);
     gSearching = false;
   }
+
+  gHistoryTree.applyFilter(aInput, false /* onlyBookmarks */, 
+                           0 /* folderRestrict */, null); 
 }
+

@@ -122,19 +122,15 @@ inline const char *
 NS_CP_ContentTypeName(PRUint32 contentType)
 {
   switch (contentType) {
-    CASE_RETURN( TYPE_OTHER             );
-    CASE_RETURN( TYPE_SCRIPT            );
-    CASE_RETURN( TYPE_IMAGE             );
-    CASE_RETURN( TYPE_STYLESHEET        );
-    CASE_RETURN( TYPE_OBJECT            );
-    CASE_RETURN( TYPE_DOCUMENT          );
-    CASE_RETURN( TYPE_SUBDOCUMENT       );
-    CASE_RETURN( TYPE_REFRESH           );
-    CASE_RETURN( TYPE_XBL               );
-    CASE_RETURN( TYPE_PING              );
-    CASE_RETURN( TYPE_XMLHTTPREQUEST    );
-    CASE_RETURN( TYPE_OBJECT_SUBREQUEST );
-   default:
+    CASE_RETURN( TYPE_OTHER      );
+    CASE_RETURN( TYPE_SCRIPT     );
+    CASE_RETURN( TYPE_IMAGE      );
+    CASE_RETURN( TYPE_STYLESHEET );
+    CASE_RETURN( TYPE_OBJECT     );
+    CASE_RETURN( TYPE_DOCUMENT   );
+    CASE_RETURN( TYPE_SUBDOCUMENT);
+    CASE_RETURN( TYPE_REFRESH    );
+  default:
     return "<Unknown Type>";
   }
 }

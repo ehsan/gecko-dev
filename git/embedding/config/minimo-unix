@@ -42,9 +42,10 @@ libgkgfx.so
 libgtksuperwin.so 
 libgtkembedmoz.so 
 libgfxpsshar.so
-components/libgkgfxthebes.so
+components/libgfx_gtk.so
 components/libgfxps.so
 components/gfx.xpt 
+components/libwidget_gtk.so
 components/libwidget_gtk2.so
 components/widget.xpt
 
@@ -183,8 +184,6 @@ res/quirk.css
 res/viewsource.css
 res/ua.css
 res/forms.css
-res/contenteditable.css
-res/designmode.css
 res/arrow.gif
 res/arrowd.gif
 res/loading-image.gif

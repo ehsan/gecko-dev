@@ -48,10 +48,7 @@ include $(DEPTH)/config/autoconf.mk
 ifdef MOZ_ENABLE_XREMOTE
 DIRS += remote
 endif
-DIRS += \
-        urlformatter \
-        contentprefs \
-        $(NULL)
+DIRS += urlformatter
 
 # These component dirs are built only for XUL apps
 
@@ -97,13 +94,11 @@ ifndef MOZ_SUITE
 ifdef MOZ_XUL
 DIRS += \
 	autocomplete \
+	history \
 	passwordmgr \
 	satchel \
 	$(NULL)
 endif # MOZ_XUL
-ifndef MOZ_PLACES
-DIRS +=	history
-endif # MOZ_PLACES
 endif # MOZ_SUITE
 endif # MOZ_THUNDERBIRD
 
@@ -113,8 +108,10 @@ endif
 
 ifndef MOZ_SUITE
 # XXX Suite doesn't want these just yet
+ifdef MOZ_XPINSTALL
 ifdef MOZ_RDF
 DIRS +=	downloads
+endif
 endif
 endif # MOZ_SUITE
 

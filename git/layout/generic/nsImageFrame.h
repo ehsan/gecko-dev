@@ -187,13 +187,19 @@ protected:
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
 
+  void TriggerLink(nsPresContext* aPresContext,
+                   nsIURI* aURI,
+                   const nsString& aTargetSpec,
+                   nsINode* aTriggerNode,
+                   PRBool aClick);
+
   PRBool IsServerImageMap();
 
   void TranslateEventCoords(const nsPoint& aPoint,
                             nsIntPoint& aResult);
 
   PRBool GetAnchorHREFTargetAndNode(nsIURI** aHref, nsString& aTarget,
-                                    nsIContent** aNode);
+                                    nsINode** aNode);
   /**
    * Computes the width of the string that fits into the available space
    *

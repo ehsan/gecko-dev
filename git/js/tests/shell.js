@@ -39,14 +39,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Spidermonkey shell now defaults to 1.8, so set the basic version to
-// 1.5 for backwards compatibility.
-
-if (typeof version != 'undefined')
-{
-  version(150);
-}
-
 var FAILED = "FAILED!: ";
 var STATUS = "STATUS: ";
 var VERBOSE = false;
@@ -154,7 +146,7 @@ function TestCase(n, d, e, a)
 }
 
 TestCase.prototype.dump = function () {
-  dump('\njstest: '      + this.path + ' ' +
+  dump('jstest: '      + this.path + ' ' +
        'bug: '         + this.bugnumber + ' ' +
        'result: '      + (this.passed ? 'PASSED':'FAILED') + ' ' +
        'type: '        + this.type + ' ' +
@@ -231,7 +223,7 @@ function toPrinted(value)
   {
     value = String(value);
   }
-  value = value.replace(/\\n/g, 'NL').replace(/\n/g, 'NL').replace(/\\r/g, 'CR');
+  value = value.replace(/\\n/g, '\\\\n').replace(/\n/g, '\\n');
   return value;
 }
 

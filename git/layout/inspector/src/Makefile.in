@@ -52,6 +52,7 @@ REQUIRES	= xpcom \
 		  gfx \
 		  layout \
 		  content \
+		  xul \
 		  widget \
 		  locale \
 		  necko \
@@ -65,6 +66,7 @@ REQUIRES        += accessibility
 endif
 
 CPPSRCS= \
+  inDOMView.cpp \
   inDeepTreeWalker.cpp \
   inFlasher.cpp \
   inSearchLoop.cpp \
@@ -72,15 +74,6 @@ CPPSRCS= \
   inDOMUtils.cpp \
   inLayoutUtils.cpp \
 	$(NULL)
-
-ifdef MOZ_XUL
-REQUIRES += \
-  xul \
-  $(NULL)
-CPPSRCS += \
-  inDOMView.cpp \
-  $(NULL)
-endif
 
 FORCE_STATIC_LIB = 1
 # This library is used by other shared libs in a static build

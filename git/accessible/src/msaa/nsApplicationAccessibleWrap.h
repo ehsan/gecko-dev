@@ -45,8 +45,6 @@
 
 #include "AccessibleApplication.h"
 
-#include "nsIXULAppInfo.h"
-
 class nsApplicationAccessibleWrap: public nsApplicationAccessible,
                                    public IAccessibleApplication
 {
@@ -72,10 +70,6 @@ public:
 
 public:
   static void PreCreate();
-  static void Unload();
-
-private:
-  static nsIXULAppInfo* sAppInfo;
 };
 
 #endif

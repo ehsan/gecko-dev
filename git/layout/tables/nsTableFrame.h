@@ -115,10 +115,6 @@ public:
 
   static float GetTwipsToPixels(nsPresContext* aPresContext);
 
-  // Return true if aParentReflowState.frame or any of its ancestors within
-  // the containing table have non-auto height. (e.g. pct or fixed height)
-  static PRBool AncestorsHaveStyleHeight(const nsHTMLReflowState& aParentReflowState);
-
   // See if a special height reflow will occur due to having a pct height when
   // the pct height basis may not yet be valid.
   static void CheckRequestSpecialHeightReflow(const nsHTMLReflowState& aReflowState);
@@ -527,7 +523,7 @@ protected:
                                    nsMargin             aBorderPadding);
 
   nsITableLayoutStrategy* LayoutStrategy() {
-    return static_cast<nsTableFrame*>(GetFirstInFlow())->
+    return NS_STATIC_CAST(nsTableFrame*, GetFirstInFlow())->
       mTableLayoutStrategy;
   }
 
@@ -854,7 +850,7 @@ inline PRBool nsTableFrame::NeedColSpanExpansion() const
 
 inline nsFrameList& nsTableFrame::GetColGroups()
 {
-  return static_cast<nsTableFrame*>(GetFirstInFlow())->mColGroups;
+  return NS_STATIC_CAST(nsTableFrame*, GetFirstInFlow())->mColGroups;
 }
 
 inline nsVoidArray& nsTableFrame::GetColCache()

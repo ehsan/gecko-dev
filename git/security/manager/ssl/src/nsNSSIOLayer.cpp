@@ -73,7 +73,6 @@
 #include "nsThreadUtils.h"
 #include "nsIDocShell.h"
 #include "nsISecureBrowserUI.h"
-#include "nsProxyRelease.h"
 
 #include "ssl.h"
 #include "secerr.h"
@@ -318,7 +317,7 @@ nsNSSSocketInfo::SetNotificationCallbacks(nsIInterfaceRequestor* aCallbacks)
   nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
   NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
                        NS_GET_IID(nsIInterfaceRequestor),
-                       static_cast<nsIInterfaceRequestor*>(aCallbacks),
+                       NS_STATIC_CAST(nsIInterfaceRequestor*,aCallbacks),
                        NS_PROXY_SYNC,
                        getter_AddRefs(proxiedCallbacks));
 
@@ -336,18 +335,10 @@ nsNSSSocketInfo::SetNotificationCallbacks(nsIInterfaceRequestor* aCallbacks)
   nsCOMPtr<nsIDocShell> docshell(do_GetInterface(mCallbacks));
   if (docshell)
   {
-    nsCOMPtr<nsIDocShell> proxiedDocShell;
-    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
-                         NS_GET_IID(nsIDocShell),
-                         docshell.get(),
-                         NS_PROXY_SYNC,
-                         getter_AddRefs(proxiedDocShell));
-    nsISecureBrowserUI* secureUI;
-    proxiedDocShell->GetSecurityUI(&secureUI);
+    nsCOMPtr<nsISecureBrowserUI> secureUI;
+    docshell->GetSecurityUI(getter_AddRefs(secureUI));
     if (secureUI)
     {
-      nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
-      NS_ProxyRelease(mainThread, secureUI, PR_FALSE);
       mExternalErrorReporting = PR_TRUE;
     }
   }
@@ -631,7 +622,7 @@ displayAlert(nsAFlatString &formattedString, nsNSSSocketInfo *infoObject)
   nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
   NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
                        NS_GET_IID(nsIInterfaceRequestor),
-                       static_cast<nsIInterfaceRequestor*>(infoObject),
+                       NS_STATIC_CAST(nsIInterfaceRequestor*, infoObject),
                        NS_PROXY_SYNC,
                        getter_AddRefs(proxiedCallbacks));
 
@@ -1427,9 +1418,9 @@ nsContinueDespiteCertError(nsNSSSocketInfo  *infoObject,
     if (NS_FAILED(rv)) 
       return PR_FALSE;
   }
-  nsIInterfaceRequestor *csi = static_cast<nsIInterfaceRequestor*>
-                                          (infoObject);
-  nsIX509Cert *callBackCert = static_cast<nsIX509Cert*>(nssCert);
+  nsIInterfaceRequestor *csi = NS_STATIC_CAST(nsIInterfaceRequestor*,
+                                                 infoObject);
+  nsIX509Cert *callBackCert = NS_STATIC_CAST(nsIX509Cert*, nssCert);
   CERTCertificate *peerCert = nssCert->GetCert();
   NS_ASSERTION(peerCert, "Got nsnull cert back from nsNSSCertificate");
   switch (error) {

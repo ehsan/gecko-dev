@@ -128,7 +128,7 @@ nsIdleService::RemoveIdleObserver(nsIObserver* aObserver, PRUint32 aTime)
 void
 nsIdleService::IdleTimerCallback(nsITimer* aTimer, void* aClosure)
 {
-    static_cast<nsIdleService*>(aClosure)->CheckAwayState();
+    NS_STATIC_CAST(nsIdleService*, aClosure)->CheckAwayState();
 }
 
 void

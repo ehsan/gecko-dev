@@ -136,10 +136,9 @@ class nsStyleSet
 
   // Test if style is dependent on the presence of an attribute.
   nsReStyleHint HasAttributeDependentStyle(nsPresContext* aPresContext,
-                                           nsIContent*    aContent,
-                                           nsIAtom*       aAttribute,
-                                           PRInt32        aModType,
-                                           PRUint32       aStateMask);
+                                           nsIContent*     aContent,
+                                           nsIAtom*        aAttribute,
+                                           PRInt32         aModType);
 
   // APIs for registering objects that can supply additional
   // rules during processing.
@@ -235,10 +234,6 @@ class nsStyleSet
                                               nsIAtom* aPseudoTag);
 
   nsPresContext* PresContext() { return mRuleTree->GetPresContext(); }
-
-  // Return true if aContent or one of its ancestors in the
-  // bindingParent chain is native anonymous.
-  static PRBool IsNativeAnonymous(nsIContent* aContent);
 
   static nsIURI  *gQuirkURI;
 

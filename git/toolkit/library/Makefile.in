@@ -102,15 +102,10 @@ ifeq ($(OS_ARCH),WINNT)
 CPPSRCS += dlldeps-javaxpcom.cpp
 LOCAL_INCLUDES += -I$(JAVA_INCLUDE_PATH)/win32
 else
-ifeq ($(OS_ARCH),OS2)
-CPPSRCS += dlldeps-javaxpcom.cpp
-LOCAL_INCLUDES += -I$(JAVA_INCLUDE_PATH)/os2
-else
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 EXTRA_DSO_LDOPTS += -framework JavaVM
 else
 LOCAL_INCLUDES += -I$(JAVA_INCLUDE_PATH)/linux
-endif
 endif
 endif
 
@@ -141,8 +136,6 @@ GARBAGE	+= \
 	$(wildcard *.$(OBJ_SUFFIX)) \
 	dlldeps-javaxpcom.cpp \
 	$(NULL)
-
-LOCAL_INCLUDES += -I$(topsrcdir)/intl/unicharutil/util
 
 ifdef MOZ_RDF
 EXTRA_DEPS += \
@@ -199,8 +192,8 @@ EXTRA_DSO_LDOPTS += \
 	$(NULL)
 endif
 
-ifeq (gtk2,$(MOZ_WIDGET_TOOLKIT))
-EXTRA_DSO_LDOPTS += $(XLDFLAGS) $(XLIBS) $(MOZ_XFT_LIBS) $(MOZ_GTK2_LIBS) $(XT_LIBS) -lgthread-2.0
+ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
+EXTRA_DSO_LDOPTS += $(XLDFLAGS) $(XLIBS) $(MOZ_XFT_LIBS) $(MOZ_GTK2_LIBS) $(XT_LIBS)
 endif
 
 ifdef MOZ_ENABLE_XFT
@@ -229,8 +222,4 @@ endif
 ifdef MOZ_JAVAXPCOM
 dlldeps-javaxpcom.cpp: $(topsrcdir)/extensions/java/xpcom/src/dlldeps-javaxpcom.cpp
 	$(INSTALL) $^ .
-endif
-
-ifneq (,$(filter layout-debug,$(MOZ_EXTENSIONS)))
-DEFINES += -DMOZ_ENABLE_EXTENSION_LAYOUT_DEBUG
 endif

@@ -42,12 +42,14 @@
 #define downloadmanager___h___
 
 #include "nsIDownloadManager.h"
+#include "nsIXPInstallManagerUI.h"
 #include "nsIDownloadProgressListener.h"
 #include "nsIDownload.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMEventListener.h"
 #include "nsIWebProgressListener.h"
 #include "nsIWebProgressListener2.h"
+#include "nsIXPIProgressDialog.h"
 #include "nsIURI.h"
 #include "nsIWebBrowserPersist.h"
 #include "nsILocalFile.h"
@@ -60,7 +62,6 @@
 #include "nsIMIMEInfo.h"
 #include "nsITimer.h"
 #include "mozIStorageConnection.h"
-#include "mozIStorageStatement.h"
 #include "nsISupportsArray.h"
 #include "nsCOMArray.h"
 #include "nsArrayEnumerator.h"
@@ -74,16 +75,16 @@ class nsXPIProgressListener;
 class nsDownload;
 
 class nsDownloadManager : public nsIDownloadManager,
+                          public nsIXPInstallManagerUI,
                           public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOWNLOADMANAGER
+  NS_DECL_NSIXPINSTALLMANAGERUI
   NS_DECL_NSIOBSERVER
 
   nsresult Init();
-
-  static nsDownloadManager *GetSingleton();
 
   virtual ~nsDownloadManager();
 
@@ -96,15 +97,7 @@ protected:
   nsresult CreateTable();
   nsresult ImportDownloadHistory();
   nsresult GetDownloadFromDB(PRUint32 aID, nsDownload **retVal);
-
-  inline nsresult AddToCurrentDownloads(nsDownload *aDl)
-  {
-    if (!mCurrentDownloads.AppendObject(aDl))
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    return NS_OK;
-  }
-
+  nsresult AddToCurrentDownloads(nsDownload *aDl);
 
   /**
    * Adds a download with the specified information to the DB.
@@ -137,16 +130,11 @@ protected:
   nsDownload *FindDownload(PRUint32 aID);
   nsresult PauseResumeDownload(PRUint32 aID, PRBool aPause);
   nsresult CancelAllDownloads();
+  inline PRBool RemoveDownloadFromCurrent(nsDownload *aDownload)
+  {
+    return mCurrentDownloads.RemoveObject(aDownload);
+  }
 
-  /**
-   * Removes download from "current downloads," updates download state, and
-   * notifies observers.
-   *
-   * This method removes the cycle created when starting the download, so 
-   * make sure to use kungFuDeathGrip if you want to access member variables
-   */
-  nsresult FinishDownload(nsDownload *aDownload, DownloadState aState,
-                          const char *aTopic);
 
   void     ConfirmCancelDownloads(PRInt32 aCount,
                                   nsISupportsPRBool* aCancelDownloads,
@@ -165,33 +153,57 @@ protected:
   static PRBool IsInFinalStage(DownloadState aState)
   {
     return aState == nsIDownloadManager::DOWNLOAD_NOTSTARTED ||
-           aState == nsIDownloadManager::DOWNLOAD_DOWNLOADING;
+           aState == nsIDownloadManager::DOWNLOAD_DOWNLOADING ||
+           aState == nsIXPInstallManagerUI::INSTALL_INSTALLING;
   }
 
   static PRBool IsInProgress(DownloadState aState) 
   {
     return aState == nsIDownloadManager::DOWNLOAD_NOTSTARTED || 
            aState == nsIDownloadManager::DOWNLOAD_DOWNLOADING || 
-           aState == nsIDownloadManager::DOWNLOAD_PAUSED;
+           aState == nsIDownloadManager::DOWNLOAD_PAUSED || 
+           aState == nsIXPInstallManagerUI::INSTALL_DOWNLOADING ||
+           aState == nsIXPInstallManagerUI::INSTALL_INSTALLING;
   }
 
   static PRBool CompletedSuccessfully(DownloadState aState)
   {
-    return aState == nsIDownloadManager::DOWNLOAD_FINISHED;
+    return aState == nsIDownloadManager::DOWNLOAD_FINISHED || 
+           aState == nsIXPInstallManagerUI::INSTALL_FINISHED;
   }
 
 private:
   nsCOMArray<nsIDownloadProgressListener> mListeners;
+  nsCOMPtr<nsIXPIProgressDialog> mXPIProgress;
   nsCOMPtr<nsIStringBundle> mBundle;
   nsCOMPtr<nsITimer> mDMOpenTimer;
   nsCOMPtr<mozIStorageConnection> mDBConn;
   nsCOMArray<nsDownload> mCurrentDownloads;
   nsCOMPtr<nsIObserverService> mObserverService;
-  nsCOMPtr<mozIStorageStatement> mUpdateDownloadStatement;
-
-  static nsDownloadManager *gDownloadManagerService;
 
   friend class nsDownload;
+};
+
+class nsXPIProgressListener : public nsIXPIProgressDialog
+{
+public:
+  NS_DECL_NSIXPIPROGRESSDIALOG
+  NS_DECL_ISUPPORTS
+
+  nsXPIProgressListener() { }
+  nsXPIProgressListener(nsDownloadManager* aManager);
+  virtual ~nsXPIProgressListener();
+
+  void AddDownload(nsIDownload* aDownload);
+
+  PRBool HasActiveXPIOperations();
+
+protected:
+  void RemoveDownloadAtIndex(PRUint32 aIndex);
+
+private:
+  nsDownloadManager* mDownloadManager;
+  nsCOMPtr<nsISupportsArray> mDownloads;
 };
 
 class nsDownload : public nsIDownload

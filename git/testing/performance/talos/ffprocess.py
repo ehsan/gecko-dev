@@ -41,16 +41,15 @@ __author__ = 'annie.sullivan@gmail.com (Annie Sullivan)'
 
 
 
-import platform
 import os
 import re
 import time
 
 import config
 
-if platform.system() == "Linux":
+if config.OS == "linux":
     from ffprocess_linux import *
-elif platform.system() == "Windows":
+elif config.OS == "win32":
     from ffprocess_win32 import *
 
 

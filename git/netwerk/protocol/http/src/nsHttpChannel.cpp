@@ -272,7 +272,7 @@ nsHttpChannel::Connect(PRBool firstTime)
         // are we offline?
         PRBool offline = gIOService->IsOffline();
         if (offline)
-            mLoadFlags |= (LOAD_ONLY_FROM_CACHE | LOAD_CHECK_OFFLINE_CACHE);
+            mLoadFlags |= LOAD_ONLY_FROM_CACHE;
         else if (PL_strcmp(mConnectionInfo->ProxyType(), "unknown") == 0)
             return ResolveProxy();  // Lazily resolve proxy info
 
@@ -329,10 +329,6 @@ nsHttpChannel::Connect(PRBool firstTime)
 
     // check to see if authorization headers should be included
     AddAuthorizationHeaders();
-
-    if (mLoadFlags & LOAD_NO_NETWORK_IO) {
-        return NS_ERROR_NEEDS_NETWORK;
-    }
 
     // hit the net...
     rv = SetupTransaction();
@@ -652,7 +648,7 @@ nsHttpChannel::ApplyContentConversions()
 static void
 CallTypeSniffers(void *aClosure, const PRUint8 *aData, PRUint32 aCount)
 {
-  nsIChannel *chan = static_cast<nsIChannel*>(aClosure);
+  nsIChannel *chan = NS_STATIC_CAST(nsIChannel*, aClosure);
 
   const nsCOMArray<nsIContentSniffer>& sniffers =
     gIOService->GetContentSniffers();
@@ -710,20 +706,9 @@ nsHttpChannel::CallOnStartRequest()
         gIOService->GetContentSniffers().Count() != 0) {
         // NOTE: We can have both a txn pump and a cache pump when the cache
         // content is partial. In that case, we need to read from the cache,
-        // because that's the one that has the initial contents. If that fails
-        // then give the transaction pump a shot.
-
-        nsIChannel* thisChannel = static_cast<nsIChannel*>(this);
-
-        PRBool typeSniffersCalled = PR_FALSE;
-        if (mCachePump) {
-          typeSniffersCalled =
-            NS_SUCCEEDED(mCachePump->PeekStream(CallTypeSniffers, thisChannel));
-        }
-        
-        if (!typeSniffersCalled && mTransactionPump) {
-          mTransactionPump->PeekStream(CallTypeSniffers, thisChannel);
-        }
+        // because that's the one that has the initial contents.
+        nsInputStreamPump* pump = mCachePump ? mCachePump : mTransactionPump;
+        pump->PeekStream(CallTypeSniffers, NS_STATIC_CAST(nsIChannel*, this));
     }
 
     LOG(("  calling mListener->OnStartRequest\n"));
@@ -1311,10 +1296,9 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
 
     // Set the desired cache access mode accordingly...
     nsCacheAccessMode accessRequested;
-    if (mLoadFlags & (LOAD_ONLY_FROM_CACHE | INHIBIT_CACHING)) {
+    if (offline || (mLoadFlags & INHIBIT_CACHING)) {
         // If we have been asked to bypass the cache and not write to the
-        // cache, then don't use the cache at all.  Unless we're actually
-        // offline, which takes precedence over BYPASS_LOCAL_CACHE.
+        // cache, then don't use the cache at all.
         if (BYPASS_LOCAL_CACHE(mLoadFlags) && !offline)
             return NS_ERROR_NOT_AVAILABLE;
         accessRequested = nsICache::ACCESS_READ;
@@ -1335,7 +1319,7 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
     rv = session->OpenCacheEntry(cacheKey, accessRequested, PR_FALSE,
                                  getter_AddRefs(mCacheEntry));
 
-    if ((mLoadFlags & LOAD_CHECK_OFFLINE_CACHE) &&
+    if (offline &&
         !(NS_SUCCEEDED(rv) || rv == NS_ERROR_CACHE_WAIT_FOR_VALIDATION)) {
         // couldn't find it in the main cache, check the offline cache
 
@@ -1550,12 +1534,10 @@ nsHttpChannel::CheckCache()
     NS_ENSURE_SUCCESS(rv, rv);
     buf.Adopt(0);
 
-    // Don't bother to validate LOAD_ONLY_FROM_CACHE items.
-    // Don't bother to validate items that are read-only,
-    // unless they are read-only because of INHIBIT_CACHING.
-    if (mLoadFlags & LOAD_ONLY_FROM_CACHE ||
-        (mCacheAccess == nsICache::ACCESS_READ &&
-         !(mLoadFlags & INHIBIT_CACHING))) {
+    // If we were only granted read access, then assume the entry is valid.
+    // unless it is INHBIT_CACHING
+    if (mCacheAccess == nsICache::ACCESS_READ &&
+        !(mLoadFlags & INHIBIT_CACHING)) {
         mCachedContentIsValid = PR_TRUE;
         return NS_OK;
     }
@@ -2135,8 +2117,8 @@ nsHttpChannel::InstallOfflineCacheListener()
 PR_STATIC_CALLBACK(PLDHashOperator)
 CopyProperties(const nsAString& aKey, nsIVariant *aData, void *aClosure)
 {
-    nsIWritablePropertyBag* bag = static_cast<nsIWritablePropertyBag*>
-                                             (aClosure);
+    nsIWritablePropertyBag* bag = NS_STATIC_CAST(nsIWritablePropertyBag*,
+                                                 aClosure);
     bag->SetProperty(aKey, aData);
     return PL_DHASH_NEXT;
 }
@@ -2406,7 +2388,7 @@ GetAuthPrompt(nsIInterfaceRequestor *ifreq, PRBool proxyAuth,
     if (promptProvider)
         promptProvider->GetAuthPrompt(promptReason,
                                       NS_GET_IID(nsIAuthPrompt2),
-                                      reinterpret_cast<void**>(result));
+                                      NS_REINTERPRET_CAST(void**, result));
     else
         NS_QueryAuthPrompt2(ifreq, result);
 }

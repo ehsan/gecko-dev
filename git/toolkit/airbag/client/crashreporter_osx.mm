@@ -47,8 +47,6 @@
 using std::string;
 using std::vector;
 
-using namespace CrashReporter;
-
 static NSAutoreleasePool* gMainPool;
 static CrashReporterUI* gUI = 0;
 static string gDumpFile;
@@ -384,7 +382,7 @@ static bool RestartApplication()
     reply = [r UTF8String];
   }
 
-  SendCompleted(success, reply);
+  CrashReporterSendCompleted(success, reply);
 
   if (success) {
     [NSApp terminate:self];
@@ -428,8 +426,7 @@ void UIShutdown()
 
 void UIShowDefaultUI()
 {
-  [gUI showErrorUI: gStrings[ST_CRASHREPORTERDEFAULT]];
-  [NSApp run];
+  UIError(gStrings[ST_CRASHREPORTERDEFAULT]);
 }
 
 void UIShowCrashUI(const string& dumpfile,
@@ -445,7 +442,7 @@ void UIShowCrashUI(const string& dumpfile,
   [NSApp run];
 }
 
-void UIError_impl(const string& message)
+void UIError(const string& message)
 {
   if (!gUI) {
     // UI failed to initialize, printing is the best we can do
@@ -503,16 +500,6 @@ bool UIEnsurePathExists(const string& path)
   return true;
 }
 
-bool UIFileExists(const string& path)
-{
-  struct stat sb;
-  int ret = stat(path.c_str(), &sb);
-  if (ret == -1 || !(sb.st_mode & S_IFREG))
-    return false;
-
-  return true;
-}
-
 bool UIMoveFile(const string& file, const string& newfile)
 {
   return (rename(file.c_str(), newfile.c_str()) != -1);
@@ -521,14 +508,4 @@ bool UIMoveFile(const string& file, const string& newfile)
 bool UIDeleteFile(const string& file)
 {
   return (unlink(file.c_str()) != -1);
-}
-
-std::ifstream* UIOpenRead(const string& filename)
-{
-  return new std::ifstream(filename.c_str(), std::ios::in);
-}
-
-std::ofstream* UIOpenWrite(const string& filename)
-{
-  return new std::ofstream(filename.c_str(), std::ios::out);
 }

@@ -38,7 +38,7 @@
 var gTestfile = 'regress-326453.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 326453;
-var summary = 'Do not assert: while decompiling';
+var summary = 'JS_Assertion while decompiling';
 var actual = 'No Crash';
 var expect = 'No Crash';
 

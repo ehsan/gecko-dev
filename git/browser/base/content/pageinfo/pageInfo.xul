@@ -26,7 +26,6 @@
 #   Daniel Brooks <db48x@yahoo.com>
 #   Gervase Markham <gerv@gerv.net>
 #   Florian QUEZE <f.qu@queze.net>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -178,7 +177,7 @@
         </rows>
       </grid>
       <separator class="thin"/>
-      <groupbox id="metaTags" flex="1" class="collapsable treebox">
+      <groupbox id="metaTags" flex="1">
         <caption id="metaTagsCaption" onclick="toggleGroupbox('metaTags');"/>
         <tree id="metatree" flex="1" hidecolumnpicker="true" contextmenu="picontext">
           <treecols>
@@ -283,8 +282,7 @@
         </grid>
         <hbox align="end">
           <vbox>
-            <checkbox id="blockImage" hidden="true" oncommand="onBlockImage()"
-                      accesskey="&mediaBlockImage.accesskey;"/>
+            <checkbox id="blockImage" hidden="true" oncommand="onBlockImage()"/>
             <label control="thepreviewimage" value="&mediaPreview;" class="header"/>
           </vbox>
           <spacer flex="1"/>
@@ -303,7 +301,7 @@
       </vbox>
       <hbox id="mediaSaveBox" collapsed="true">
         <spacer flex="1"/>
-        <button label="&mediaSaveAs;" accesskey="&mediaSaveAs2.accesskey;"
+        <button label="&mediaSaveAs;" accesskey="&mediaSaveAs.accesskey;"
                 icon="save" oncommand="saveMedia();"/>
       </hbox>
     </vbox>

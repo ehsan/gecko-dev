@@ -503,7 +503,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(AsyncWriteThread, nsIRunnable)
 nsresult
 mozStorageService::InitStorageAsyncIO()
 {
-  sqlite3OsVtbl* vtable = &sqlite3Os;
+  sqlite3OsVtbl* vtable = sqlite3_os_switch();
 
   sqliteOrigOpenReadWrite = vtable->xOpenReadWrite;
   sqliteOrigOpenReadOnly = vtable->xOpenReadOnly;
@@ -556,6 +556,9 @@ mozStorageService::InitStorageAsyncIO()
 nsresult
 mozStorageService::FlushAsyncIO()
 {
+  AsyncMessage *message = 0;
+  int rc;
+
   // single threaded? nothing to do.
   if (!AsyncWriteThreadInstance)
     return NS_OK;
@@ -572,7 +575,7 @@ mozStorageService::FlushAsyncIO()
 
   PR_Lock(flushLock);
 
-  int rc = AsyncBarrier(flushLock, flushCond);
+  rc = AsyncBarrier(flushLock, flushCond);
   if (rc == SQLITE_OK) {
     // the async thread will notify us once it reaches
     // the ASYNC_BARRIER operation; only wait if
@@ -706,7 +709,7 @@ AsyncOpenFile(const char* aName, AsyncOsFile** aFile,
       goto error_out;
   }
 
-  *aFile = static_cast<AsyncOsFile*>(nsMemory::Alloc(sizeof(AsyncOsFile)));
+  *aFile = NS_STATIC_CAST(AsyncOsFile*, nsMemory::Alloc(sizeof(AsyncOsFile)));
   if (! *aFile) {
     rc = SQLITE_NOMEM;
     goto error_out;
@@ -784,8 +787,8 @@ AppendNewAsyncMessage(AsyncOsFile* aFile, PRUint32 aOp,
                                          const char *aData)
 {
   // allocate one buffer, we will put the buffer immediately after our struct
-  AsyncMessage* p = static_cast<AsyncMessage*>
-                               (nsMemory::Alloc(sizeof(AsyncMessage) + (aData ? aDataSize : 0)));
+  AsyncMessage* p = NS_STATIC_CAST(AsyncMessage*,
+      nsMemory::Alloc(sizeof(AsyncMessage) + (aData ? aDataSize : 0)));
   if (! p)
     return SQLITE_NOMEM;
 
@@ -968,7 +971,7 @@ AsyncClose(OsFile** aFile)
 {
   if (AsyncWriteError != SQLITE_OK)
     return AsyncWriteError;
-  AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(*aFile);
+  AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, *aFile);
   if (! asyncfile->mOpen) {
     NS_NOTREACHED("Attempting to write to a file with a close pending!");
     return SQLITE_INTERNAL;
@@ -990,13 +993,13 @@ AsyncWrite(OsFile* aFile, const void* aBuf, int aCount)
 {
   if (AsyncWriteError != SQLITE_OK)
     return AsyncWriteError;
-  AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(aFile);
+  AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, aFile);
   if (! asyncfile->mOpen) {
     NS_NOTREACHED("Attempting to write to a file with a close pending!");
     return SQLITE_INTERNAL;
   }
   int rc = AppendNewAsyncMessage(asyncfile, ASYNC_WRITE, asyncfile->mOffset,
-                                 aCount, static_cast<const char*>(aBuf));
+                                 aCount, NS_STATIC_CAST(const char*, aBuf));
   asyncfile->mOffset += aCount;
   return rc;
 }
@@ -1012,7 +1015,7 @@ AsyncTruncate(OsFile* aFile, sqlite_int64 aNumBytes)
 {
   if (AsyncWriteError != SQLITE_OK)
     return AsyncWriteError;
-  AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(aFile);
+  AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, aFile);
   if (! asyncfile->mOpen) {
     NS_NOTREACHED("Attempting to write to a file with a close pending!");
     return SQLITE_INTERNAL;
@@ -1032,7 +1035,7 @@ AsyncOpenDirectory(OsFile* aFile, const char* aName)
 {
   if (AsyncWriteError != SQLITE_OK)
     return AsyncWriteError;
-  AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(aFile);
+  AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, aFile);
   if (! asyncfile->mOpen) {
     NS_NOTREACHED("Attempting to write to a file with a close pending!");
     return SQLITE_INTERNAL;
@@ -1052,7 +1055,7 @@ AsyncSync(OsFile* aFile, int aFullsync)
 {
   if (AsyncWriteError != SQLITE_OK)
     return AsyncWriteError;
-  AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(aFile);
+  AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, aFile);
   if (! asyncfile->mOpen) {
     NS_NOTREACHED("Attempting to write to a file with a close pending!");
     return SQLITE_INTERNAL;
@@ -1071,7 +1074,7 @@ AsyncSetFullSync(OsFile* aFile, int aValue)
 {
   if (AsyncWriteError != SQLITE_OK)
     return;
-  AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(aFile);
+  AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, aFile);
   if (! asyncfile->mOpen) {
     NS_NOTREACHED("Attempting to write to a file with a close pending!");
     return;
@@ -1101,7 +1104,7 @@ AsyncRead(OsFile* aFile, void *aBuffer, int aCount)
   // any messages while we do this. Open exclusive may also change mBaseRead.
   nsAutoLock lock(AsyncQueueLock);
 
-  AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(aFile);
+  AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, aFile);
   if (! asyncfile->mOpen) {
     NS_NOTREACHED("Attempting to write to a file with a close pending!");
     return SQLITE_INTERNAL;
@@ -1168,7 +1171,7 @@ AsyncRead(OsFile* aFile, void *aBuffer, int aCount)
         PRInt32 copycount = PR_MIN(p->mBytes - beginIn, aCount - beginOut);
 
         if (copycount > 0) {
-          memcpy(&static_cast<char*>(aBuffer)[beginOut],
+          memcpy(&NS_STATIC_CAST(char*, aBuffer)[beginOut],
                  &p->mBuf[beginIn], copycount);
         }
       }
@@ -1194,7 +1197,7 @@ AsyncSeek(OsFile* aFile, sqlite_int64 aOffset)
 {
   if (AsyncWriteError != SQLITE_OK)
     return AsyncWriteError;
-  AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(aFile);
+  AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, aFile);
   if (! asyncfile->mOpen) {
     NS_NOTREACHED("Attempting to write to a file with a close pending!");
     return SQLITE_INTERNAL;
@@ -1221,7 +1224,7 @@ AsyncFileSize(OsFile* aFile, sqlite_int64* aSize)
   if (AsyncWriteError != SQLITE_OK)
     return AsyncWriteError;
 
-  AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(aFile);
+  AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, aFile);
   if (! asyncfile->mOpen) {
     NS_NOTREACHED("Attempting to write to a file with a close pending!");
     return SQLITE_INTERNAL;
@@ -1273,7 +1276,7 @@ AsyncFileHandle(OsFile* aFile)
   return SQLITE_OK;
 
   // If you actually wanted the file handle you would do this:
-  //AsyncOsFile* asyncfile = static_cast<AsyncOsFile*>(aFile);
+  //AsyncOsFile* asyncfile = NS_STATIC_CAST(AsyncOsFile*, aFile);
   //return sqlite3OsFileHandle(asyncfile->mBaseRead);
 }
 
@@ -1433,15 +1436,6 @@ ProcessOneMessage(AsyncMessage* aMessage)
     case ASYNC_DELETE:
       NS_ASSERTION(sqliteOrigDelete, "No delete pointer");
       rc = sqliteOrigDelete(aMessage->mBuf);
-#ifdef XP_WIN
-      if (SQLITE_IOERR == rc) {
-        NS_WARNING("SQLite returned an error when trying to delete.  "
-                   "See http://www.sqlite.org/cvstrac/tktview?tn=2441.  "
-                   "This warning is safe to ignore on shutdown.");
-        // We now ignore the error, which sucks, and is arguably a bug in sqlite
-        rc = SQLITE_OK;
-      }
-#endif
       break;
 
     case ASYNC_SYNCDIRECTORY:
@@ -1536,18 +1530,8 @@ ProcessAsyncMessages()
       // check for error
       if (rc != SQLITE_OK) {
         AsyncWriteError = rc;
+        NS_NOTREACHED("FILE ERROR");
 
-        nsAutoString logMessage;
-        logMessage.AssignLiteral("mozStorage: error code ");
-        logMessage.AppendInt(rc);
-        logMessage.AppendLiteral(" for database ");
-        if (message->mFile && message->mFile->mFilename)
-          logMessage.Append(NS_ConvertUTF8toUTF16(*message->mFile->mFilename));
-
-#ifdef DEBUG
-        printf("%s\n", NS_ConvertUTF16toUTF8(logMessage).get());
-#endif
-          
         // log error to console
         nsresult rv;
         nsCOMPtr<nsIConsoleService> consoleSvc =
@@ -1555,11 +1539,15 @@ ProcessAsyncMessages()
         if (NS_FAILED(rv)) {
           NS_WARNING("Couldn't get the console service for logging file error");
         } else {
+          nsAutoString logMessage;
+          logMessage.AssignLiteral("mozStorage: error code ");
+          logMessage.AppendInt(rc);
+          logMessage.AppendLiteral(" for database ");
+          if (message->mFile && message->mFile->mFilename)
+            logMessage.Append(NS_ConvertUTF8toUTF16(*message->mFile->mFilename));
           rv = consoleSvc->LogStringMessage(logMessage.get());
           NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Couldn't log message on async error");
         }
-
-        NS_NOTREACHED("FILE ERROR");
 
         // tell user to restart
         DisplayAsyncWriteError();

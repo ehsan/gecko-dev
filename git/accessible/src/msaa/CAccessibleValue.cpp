@@ -58,8 +58,8 @@ CAccessibleValue::QueryInterface(REFIID iid, void** ppv)
     if (!valueAcc)
       return E_NOINTERFACE;
 
-    *ppv = static_cast<IAccessibleValue*>(this);
-    (reinterpret_cast<IUnknown*>(*ppv))->AddRef();
+    *ppv = NS_STATIC_CAST(IAccessibleValue*, this);
+    (NS_REINTERPRET_CAST(IUnknown*, *ppv))->AddRef();
     return S_OK;
   }
 

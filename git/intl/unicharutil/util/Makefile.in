@@ -62,12 +62,10 @@ REQUIRES=xpcom \
 EXPORTS = \
 	nsUnicharUtils.h \
 	nsCompressedCharMap.h \
-	nsBidiUtils.h \
 	$(NULL)
 
 CPPSRCS	= \
 	nsUnicharUtils.cpp \
-	nsBidiUtils.cpp \
 	$(NULL)
 
 FORCE_STATIC_LIB = 1

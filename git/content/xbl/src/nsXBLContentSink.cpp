@@ -117,9 +117,12 @@ nsXBLContentSink::MaybeStartLayout(PRBool aIgnorePendingSheets)
 }
 
 nsresult
-nsXBLContentSink::FlushText()
+nsXBLContentSink::FlushText(PRBool aCreateTextNode,
+                            PRBool* aDidFlush)
 {
   if (mTextLength == 0) {
+    if (aDidFlush)
+      *aDidFlush = PR_FALSE;
     return NS_OK;
   }
 
@@ -130,6 +133,8 @@ nsXBLContentSink::FlushText()
     if (mSecondaryState == eXBL_InHandler)
       mHandler->AppendHandlerText(text);
     mTextLength = 0;
+    if (aDidFlush)
+      *aDidFlush = PR_TRUE;
     return NS_OK;
   }
   else if (mState == eXBL_InImplementation) {
@@ -164,6 +169,8 @@ nsXBLContentSink::FlushText()
       mField->AppendFieldText(text);
     }
     mTextLength = 0;
+    if (aDidFlush)
+      *aDidFlush = PR_TRUE;
     return NS_OK;
   }
 
@@ -189,11 +196,13 @@ nsXBLContentSink::FlushText()
 
     if (isWS && mTextLength > 0) {
       mTextLength = 0;
+      if (aDidFlush)
+        *aDidFlush = PR_TRUE;
       return NS_OK;
     }
   }
 
-  return nsXMLContentSink::FlushText();
+  return nsXMLContentSink::FlushText(aCreateTextNode, aDidFlush);
 }
 
 NS_IMETHODIMP

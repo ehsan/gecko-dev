@@ -28,7 +28,7 @@ CurrentFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
         return NS_ERROR_XPATH_BAD_ARGUMENT_COUNT;
 
     txExecutionState* es = 
-        static_cast<txExecutionState*>(aContext->getPrivateContext());
+        NS_STATIC_CAST(txExecutionState*, aContext->getPrivateContext());
     if (!es) {
         NS_ASSERTION(0,
             "called xslt extension function \"current\" with wrong context");

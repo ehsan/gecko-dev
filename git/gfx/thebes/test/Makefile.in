@@ -59,7 +59,6 @@ CPPSRCS = \
 	gfxSurfaceRefCountTest.cpp \
 	gfxFontSelectionTest.cpp \
 	gfxTextRunPerfTest.cpp \
-	gfxWordCacheTest.cpp \
 	$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)

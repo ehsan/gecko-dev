@@ -58,8 +58,10 @@
 #include <gdk/gdkx.h>
 #include "nsCRT.h"
 
+#ifdef MOZ_CAIRO_GFX
 #include "gfxASurface.h"
 #include "nsImageToPixbuf.h"
+#endif
 
 static PRLogModuleInfo *sDragLm = NULL;
 
@@ -201,6 +203,7 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
                                                  1,
                                                  &event);
 
+#ifdef MOZ_CAIRO_GFX
         GdkPixbuf* dragPixbuf = nsnull;
         nsRect dragRect;
         if (mHasImage || mSelection) {
@@ -219,7 +222,10 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
                                    mScreenY - NSToIntRound(dragRect.y));
         else
           gtk_drag_set_icon_default(context);
-
+#else
+        // use a default icon
+        gtk_drag_set_icon_default(context);
+#endif
         gtk_target_list_unref(sourceList);
     }
 
@@ -338,7 +344,7 @@ nsDragService::GetNumDropItems(PRUint32 * aNumItems)
         GdkAtom gdkFlavor = gdk_atom_intern(gTextUriListType, FALSE);
         GetTargetDragData(gdkFlavor);
         if (mTargetDragData) {
-            const char *data = reinterpret_cast<char*>(mTargetDragData);
+            const char *data = NS_REINTERPRET_CAST(char*, mTargetDragData);
             *aNumItems = CountTextUriListItems(data, mTargetDragDataLen);
         } else
             *aNumItems = 1;
@@ -378,15 +384,12 @@ nsDragService::GetData(nsITransferable * aTransferable,
 
     if (isList) {
         PR_LOG(sDragLm, PR_LOG_DEBUG, ("it's a list..."));
-        // find a matching flavor
-        for (i = 0; i < cnt; ++i) {
-            nsCOMPtr<nsISupports> genericWrapper;
-            flavorList->GetElementAt(i, getter_AddRefs(genericWrapper));
-            nsCOMPtr<nsISupportsCString> currentFlavor;
-            currentFlavor = do_QueryInterface(genericWrapper);
-            if (!currentFlavor)
-                continue;
-
+        nsCOMPtr<nsISupports> genericWrapper;
+        // there is always one element if it's a list
+        flavorList->GetElementAt(0, getter_AddRefs(genericWrapper));
+        nsCOMPtr<nsISupportsCString> currentFlavor;
+        currentFlavor = do_QueryInterface(genericWrapper);
+        if (currentFlavor) {
             nsXPIDLCString flavorStr;
             currentFlavor->ToString(getter_Copies(flavorStr));
             PR_LOG(sDragLm,
@@ -397,31 +400,30 @@ nsDragService::GetData(nsITransferable * aTransferable,
             mSourceDataItems->GetElementAt(aItemIndex,
                                            getter_AddRefs(genericItem));
             nsCOMPtr<nsITransferable> item(do_QueryInterface(genericItem));
-            if (!item)
-                continue;
-
-            nsCOMPtr<nsISupports> data;
-            PRUint32 tmpDataLen = 0;
-            PR_LOG(sDragLm, PR_LOG_DEBUG,
-                   ("trying to get transfer data for %s\n",
-                   (const char *)flavorStr));
-            rv = item->GetTransferData(flavorStr,
-                                       getter_AddRefs(data),
-                                       &tmpDataLen);
-            if (NS_FAILED(rv)) {
-                PR_LOG(sDragLm, PR_LOG_DEBUG, ("failed.\n"));
-                continue;
+            if (item) {
+                nsCOMPtr<nsISupports> data;
+                PRUint32 tmpDataLen = 0;
+                PR_LOG(sDragLm, PR_LOG_DEBUG,
+                       ("trying to get transfer data for %s\n",
+                       (const char *)flavorStr));
+                rv = item->GetTransferData(flavorStr,
+                                           getter_AddRefs(data),
+                                           &tmpDataLen);
+                if (NS_FAILED(rv)) {
+                    PR_LOG(sDragLm, PR_LOG_DEBUG, ("failed.\n"));
+                    return NS_ERROR_FAILURE;
+                }
+                PR_LOG(sDragLm, PR_LOG_DEBUG, ("succeeded.\n"));
+                rv = aTransferable->SetTransferData(flavorStr,data,tmpDataLen);
+                if (NS_FAILED(rv)) {
+                    PR_LOG(sDragLm,
+                           PR_LOG_DEBUG,
+                           ("fail to set transfer data into transferable!\n"));
+                    return NS_ERROR_FAILURE;
+                }
+                // ok, we got the data
+                return NS_OK;
             }
-            PR_LOG(sDragLm, PR_LOG_DEBUG, ("succeeded.\n"));
-            rv = aTransferable->SetTransferData(flavorStr,data,tmpDataLen);
-            if (NS_FAILED(rv)) {
-                PR_LOG(sDragLm,
-                       PR_LOG_DEBUG,
-                       ("fail to set transfer data into transferable!\n"));
-                continue;
-            }
-            // ok, we got the data
-            return NS_OK;
         }
         // if we got this far, we failed
         return NS_ERROR_FAILURE;
@@ -442,7 +444,7 @@ nsDragService::GetData(nsITransferable * aTransferable,
             GdkAtom gdkFlavor = gdk_atom_intern(flavorStr, FALSE);
             PR_LOG(sDragLm, PR_LOG_DEBUG,
                    ("looking for data in type %s, gdk flavor %ld\n",
-                   static_cast<const char*>(flavorStr), gdkFlavor));
+                   NS_STATIC_CAST(const char*,flavorStr), gdkFlavor));
             PRBool dataFound = PR_FALSE;
             if (gdkFlavor) {
                 GetTargetDragData(gdkFlavor);
@@ -465,7 +467,7 @@ nsDragService::GetData(nsITransferable * aTransferable,
                     if (mTargetDragData) {
                         PR_LOG(sDragLm, PR_LOG_DEBUG, ("Got textplain data\n"));
                         const char* castedText =
-                                    reinterpret_cast<char*>(mTargetDragData);
+                                    NS_REINTERPRET_CAST(char*, mTargetDragData);
                         PRUnichar* convertedText = nsnull;
                         PRInt32 convertedTextLen = 0;
                         nsPrimitiveHelpers::ConvertPlatformPlainTextToUnicode(
@@ -497,7 +499,7 @@ nsDragService::GetData(nsITransferable * aTransferable,
                         PR_LOG(sDragLm, PR_LOG_DEBUG,
                                ("Got text/uri-list data\n"));
                         const char *data =
-                                   reinterpret_cast<char*>(mTargetDragData);
+                                   NS_REINTERPRET_CAST(char*, mTargetDragData);
                         PRUnichar* convertedText = nsnull;
                         PRInt32 convertedTextLen = 0;
 
@@ -529,7 +531,7 @@ nsDragService::GetData(nsITransferable * aTransferable,
                             PR_LOG(sDragLm, PR_LOG_DEBUG,
                                    ("Got _NETSCAPE_URL data\n"));
                             const char* castedText =
-                                  reinterpret_cast<char*>(mTargetDragData);
+                                  NS_REINTERPRET_CAST(char*, mTargetDragData);
                             PRUnichar* convertedText = nsnull;
                             PRInt32 convertedTextLen = 0;
                             nsPrimitiveHelpers::ConvertPlatformPlainTextToUnicode(castedText, mTargetDragDataLen, &convertedText, &convertedTextLen);
@@ -560,7 +562,7 @@ nsDragService::GetData(nsITransferable * aTransferable,
                 nsLinebreakHelpers::ConvertPlatformToDOMLinebreaks(
                              flavorStr,
                              &mTargetDragData,
-                             reinterpret_cast<int*>(&mTargetDragDataLen));
+                             NS_REINTERPRET_CAST(int*, &mTargetDragDataLen));
         
                 // put it into the transferable.
                 nsCOMPtr<nsISupports> genericDataWrapper;
@@ -1067,8 +1069,8 @@ CreateUriList(nsISupportsArray *items, gchar **text, gint *length)
                                                             &tmpData,
                                                             tmpDataLen);
                 char* plainTextData = nsnull;
-                PRUnichar* castedUnicode = reinterpret_cast<PRUnichar*>
-                                                           (tmpData);
+                PRUnichar* castedUnicode = NS_REINTERPRET_CAST(PRUnichar*,
+                                                               tmpData);
                 PRInt32 plainTextLen = 0;
                 nsPrimitiveHelpers::ConvertUnicodeToPlatformPlainText(
                                     castedUnicode,
@@ -1173,8 +1175,8 @@ nsDragService::SourceDataGet(GtkWidget        *aWidget,
             // text and replace the output values with the plain text.
             if (needToDoConversionToPlainText) {
                 char* plainTextData = nsnull;
-                PRUnichar* castedUnicode = reinterpret_cast<PRUnichar*>
-                                                           (tmpData);
+                PRUnichar* castedUnicode = NS_REINTERPRET_CAST(PRUnichar*,
+                                                               tmpData);
                 PRInt32 plainTextLen = 0;
                 nsPrimitiveHelpers::ConvertUnicodeToPlatformPlainText(
                                     castedUnicode,

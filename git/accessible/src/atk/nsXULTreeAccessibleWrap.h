@@ -57,6 +57,10 @@ public:
 
   NS_IMETHOD GetChildCount(PRInt32 *_retval);
   NS_IMETHOD ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState);
+    
+private:
+  nsCOMPtr<nsIAccessible> mCaption;
+  nsString mSummary;
 };
 
 class nsXULTreeColumnsAccessibleWrap : public nsXULTreeColumnsAccessible,
@@ -68,6 +72,10 @@ public:
 
   nsXULTreeColumnsAccessibleWrap(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsXULTreeColumnsAccessibleWrap() {}
+
+private:
+  nsCOMPtr<nsIAccessible> mCaption;
+  nsString mSummary;
 };
 
 #endif

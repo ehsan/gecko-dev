@@ -97,7 +97,7 @@ void nsChildWindow::CalcWindowRegions()
   // clip the siblings out of the window region and visRegion 
   if (mClipSiblings && mParent && !mIsTopWidgetWindow) {
     // need to walk the siblings backwards, to get clipping right.
-    nsWindow* sibling = static_cast<nsWindow*>(mParent->GetLastChild());
+    nsWindow* sibling = NS_STATIC_CAST(nsWindow*, mParent->GetLastChild());
     if (!sibling)
       return;
 
@@ -106,7 +106,7 @@ void nsChildWindow::CalcWindowRegions()
       return;
 
     do {
-      if (sibling == static_cast<nsWindow*>(this))
+      if (sibling == NS_STATIC_CAST(nsWindow*, this))
         break;
 
       PRBool visible;
@@ -127,7 +127,7 @@ void nsChildWindow::CalcWindowRegions()
         ::DiffRgn(mWindowRegion, siblingRgn, mWindowRegion);
         ::DiffRgn(mVisRegion, siblingRgn, mVisRegion);
       }
-      sibling = static_cast<nsWindow*>(sibling->GetPrevSibling());
+      sibling = NS_STATIC_CAST(nsWindow*, sibling->GetPrevSibling());
     } while (sibling);
   }
 }

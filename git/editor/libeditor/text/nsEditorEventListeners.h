@@ -248,10 +248,15 @@ class nsTextEditorFocusListener : public nsIDOMFocusListener
 public:
   /** default constructor
    */
-  nsTextEditorFocusListener(nsIEditor *aEditor, nsIPresShell *aPresShell);
+  nsTextEditorFocusListener();
   /** default destructor
    */
   virtual ~nsTextEditorFocusListener();
+
+  /** SetEditor gives an address to the editor that will be accessed
+   *  @param aEditor the editor this listener calls for editing operations
+   */
+  void SetEditor(nsIEditor *aEditor){mEditor = aEditor;}
 
 /*interfaces for addref and release and queryinterface*/
   NS_DECL_ISUPPORTS
@@ -264,7 +269,6 @@ public:
 
 protected:
   nsIEditor*     mEditor;		// weak reference
-  nsWeakPtr mPresShell;
 };
 
 
@@ -292,9 +296,7 @@ extern nsresult NS_NewEditorCompositionListener(nsIDOMEventListener** aInstanceP
 
 /** factory for the editor composition listener 
  */
-extern nsresult
-NS_NewEditorFocusListener(nsIDOMEventListener** aInstancePtrResult,
-                          nsIEditor *aEditor, nsIPresShell *aPresShell);
+extern nsresult NS_NewEditorFocusListener(nsIDOMEventListener** aInstancePtrResult, nsIEditor *aEditor);
 
 #endif //editorInterfaces_h__
 

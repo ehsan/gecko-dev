@@ -61,9 +61,7 @@ static void CrashFunction() {
 }  // namespace
 
 int main(int argc, char **argv) {
-  google_breakpad::ExceptionHandler eh(
-      L".", NULL, callback, NULL,
-      google_breakpad::ExceptionHandler::HANDLER_ALL);
+  google_breakpad::ExceptionHandler eh(L".", NULL, callback, NULL, true);
   CrashFunction();
   printf("did not crash?\n");
   return 0;

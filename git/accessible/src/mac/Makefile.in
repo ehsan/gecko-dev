@@ -63,6 +63,7 @@ REQUIRES	= content \
   
   
 CMMSRCS = nsAccessNodeWrap.mm \
+          nsDocAccessibleWrap.mm \
           nsRootAccessibleWrap.mm \
           nsAccessibleWrap.mm \
           mozAccessible.mm \

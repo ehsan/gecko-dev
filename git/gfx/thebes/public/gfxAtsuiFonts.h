@@ -69,17 +69,12 @@ public:
     virtual nsString GetUniqueName();
 
     virtual PRUint32 GetSpaceGlyph() { return mSpaceGlyph; }
-    
-    PRBool HasMirroringInfo();
 
 protected:
     const gfxFontStyle *mFontStyle;
 
     ATSUFontID mATSUFontID;
     ATSUStyle mATSUStyle;
-    
-    PRBool mHasMirroring;
-    PRBool mHasMirroringLookedUp;
 
     nsString mUniqueName;
 
@@ -123,7 +118,7 @@ public:
     ATSUFontFallbacks *GetATSUFontFallbacksPtr() { return &mFallbacks; }
     
     gfxAtsuiFont* GetFontAt(PRInt32 i) {
-        return static_cast<gfxAtsuiFont*>(static_cast<gfxFont*>(mFonts[i]));
+        return NS_STATIC_CAST(gfxAtsuiFont*, NS_STATIC_CAST(gfxFont*, mFonts[i]));
     }
 
     gfxAtsuiFont* FindFontFor(ATSUFontID fid);

@@ -65,10 +65,12 @@ nsGfxRadioControlFrame::~nsGfxRadioControlFrame()
 NS_IMETHODIMP
 nsGfxRadioControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
-
+  NS_PRECONDITION(0 != aInstancePtr, "null ptr");
+  if (NULL == aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
   if (aIID.Equals(NS_GET_IID(nsIRadioControlFrame))) {
-    *aInstancePtr = static_cast<nsIRadioControlFrame*>(this);
+    *aInstancePtr = (void*) ((nsIRadioControlFrame*) this);
     return NS_OK;
   }
 
@@ -81,7 +83,7 @@ NS_IMETHODIMP nsGfxRadioControlFrame::GetAccessible(nsIAccessible** aAccessible)
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLRadioButtonAccessible(static_cast<nsIFrame*>(this), aAccessible);
+    return accService->CreateHTMLRadioButtonAccessible(NS_STATIC_CAST(nsIFrame*, this), aAccessible);
   }
 
   return NS_ERROR_FAILURE;
@@ -179,7 +181,7 @@ public:
 void
 nsDisplayRadioButtonFromStyle::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
-  static_cast<nsGfxRadioControlFrame*>(mFrame)->
+  NS_STATIC_CAST(nsGfxRadioControlFrame*, mFrame)->
     PaintRadioButtonFromStyle(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect);
 }
 

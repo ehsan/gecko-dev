@@ -365,9 +365,6 @@ nsSocketTransportService::Init()
     if (mInitialized)
         return NS_OK;
 
-    if (mShuttingDown)
-        return NS_ERROR_UNEXPECTED;
-
     if (!mThreadEvent) {
         mThreadEvent = PR_NewPollableEvent();
         //
@@ -403,9 +400,6 @@ nsSocketTransportService::Shutdown()
 
     if (!mInitialized)
         return NS_OK;
-
-    if (mShuttingDown)
-        return NS_ERROR_UNEXPECTED;
 
     {
         nsAutoLock lock(mLock);

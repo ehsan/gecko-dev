@@ -169,16 +169,6 @@ public:
 
   virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_modelChange(
       /* [retval][out] */ IA2TableModelChange *modelChange);
-
-private:
-  enum eItemsType {
-    ITEMSTYPE_CELLS,
-    ITEMSTYPE_COLUMNS,
-    ITEMSTYPE_ROWS
-  };
-
-  HRESULT GetSelectedItems(long aMaxItems, long **aItems, long *aItemsCount,
-                           eItemsType aType);
 };
 
 #endif

@@ -50,6 +50,7 @@
 #include "nsNetUtil.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsIContent.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
@@ -704,7 +705,6 @@ nsXMLContentSink::LoadXSLStyleSheet(nsIURI* aUrl)
     return NS_OK;
   }
 
-  mXSLTProcessor->Init(mDocument->NodePrincipal());
   mXSLTProcessor->SetTransformObserver(this);
 
   nsCOMPtr<nsILoadGroup> loadGroup = mDocument->GetDocumentLoadGroup();
@@ -713,7 +713,8 @@ nsXMLContentSink::LoadXSLStyleSheet(nsIURI* aUrl)
     return NS_ERROR_FAILURE;
   }
 
-  return mXSLTProcessor->LoadStyleSheet(aUrl, loadGroup);
+  return mXSLTProcessor->LoadStyleSheet(aUrl, loadGroup,
+                                        mDocument->NodePrincipal());
 }
 
 nsresult
@@ -836,22 +837,30 @@ nsXMLContentSink::GetTarget()
 }
 
 nsresult
-nsXMLContentSink::FlushText()
+nsXMLContentSink::FlushText(PRBool aCreateTextNode, PRBool* aDidFlush)
 {
-  if (mTextLength == 0) {
-    return NS_OK;
+  nsresult rv = NS_OK;
+  PRBool didFlush = PR_FALSE;
+  if (0 != mTextLength) {
+    if (aCreateTextNode) {
+      nsCOMPtr<nsIContent> textContent;
+      rv = NS_NewTextNode(getter_AddRefs(textContent), mNodeInfoManager);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      // Set the text in the text node
+      textContent->SetText(mText, mTextLength, PR_FALSE);
+
+      // Add text to its parent
+      AddContentAsLeaf(textContent);
+    }
+    mTextLength = 0;
+    didFlush = PR_TRUE;
   }
 
-  nsCOMPtr<nsIContent> textContent;
-  nsresult rv = NS_NewTextNode(getter_AddRefs(textContent), mNodeInfoManager);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Set the text in the text node
-  textContent->SetText(mText, mTextLength, PR_FALSE);
-  mTextLength = 0;
-
-  // Add text to its parent
-  return AddContentAsLeaf(textContent);
+  if (nsnull != aDidFlush) {
+    *aDidFlush = didFlush;
+  }
+  return rv;
 }
 
 nsIContent*
@@ -1065,24 +1074,17 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
 
   // Some HTML nodes need DoneCreatingElement() called to initialize
   // properly (eg form state restoration).
-  if (nodeInfo->NamespaceID() == kNameSpaceID_XHTML) {
-    if (nodeInfo->NameAtom() == nsGkAtoms::input ||
-        nodeInfo->NameAtom() == nsGkAtoms::button) {
-      content->DoneCreatingElement();
-    } else if (nodeInfo->NameAtom() == nsGkAtoms::head && !mCurrentHead) {
-      mCurrentHead = content;
-    }
+  if (nodeInfo->NamespaceID() == kNameSpaceID_XHTML &&
+      (nodeInfo->NameAtom() == nsGkAtoms::input ||
+       nodeInfo->NameAtom() == nsGkAtoms::button)) {
+    content->DoneCreatingElement();
   }
 
   if (IsMonolithicContainer(nodeInfo)) {
     mInMonolithicContainer++;
   }
 
-  if (content != mDocElement && !mCurrentHead) {
-    // This isn't the root and we're not inside an XHTML <head>.
-    // Might need to start layout
-    MaybeStartLayout(PR_FALSE);
-  }
+  MaybeStartLayout(PR_FALSE);
 
   return aInterruptable && NS_SUCCEEDED(result) ? DidProcessATokenImpl() :
                                                   result;
@@ -1128,17 +1130,10 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
 
   result = CloseElement(content);
 
-  if (mCurrentHead == content) {
-    mCurrentHead = nsnull;
-  }
-  
   if (mDocElement == content) {
     // XXXbz for roots that don't want to be appended on open, we
     // probably need to deal here.... (and stop appending them on open).
     mState = eXMLContentSinkState_InEpilog;
-
-    // We might have had no occasion to start layout yet.  Do so now.
-    MaybeStartLayout(PR_FALSE);
   }
 
   PRInt32 stackLen = mContentStack.Length();
@@ -1604,7 +1599,6 @@ nsXMLContentSink::FlushPendingNotifications(mozFlushType aType)
 nsresult
 nsXMLContentSink::FlushTags()
 {
-  mDeferredFlushTags = PR_FALSE;
   PRBool oldBeganUpdate = mBeganUpdate;
   PRUint32 oldUpdates = mUpdatesInNotification;
 

@@ -38,6 +38,7 @@
 #include "nsIDOMSVGGElement.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGAnimatedLength.h"
+#include "nsISVGSVGElement.h"
 #include "nsIDOMSVGAnimatedString.h"
 #include "nsSVGAnimatedString.h"
 #include "nsIDOMDocument.h"
@@ -74,7 +75,7 @@ NS_INTERFACE_MAP_BEGIN(nsSVGUseElement)
   NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGUseElement)
   if (aIID.Equals(NS_GET_IID(nsSVGUseElement)))
-    foundInterface = reinterpret_cast<nsISupports*>(this);
+    foundInterface = NS_REINTERPRET_CAST(nsISupports*, this);
   else
 NS_INTERFACE_MAP_END_INHERITING(nsSVGUseElementBase)
 
@@ -129,7 +130,7 @@ nsSVGUseElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   rv |= CopyInnerTo(it);
 
   // nsSVGUseElement specific portion - record who we cloned from
-  it->mOriginal = const_cast<nsSVGUseElement*>(this);
+  it->mOriginal = NS_CONST_CAST(nsSVGUseElement*, this);
 
   if (NS_SUCCEEDED(rv)) {
     kungFuDeathGrip.swap(*aResult);
@@ -213,8 +214,7 @@ nsSVGUseElement::AttributeChanged(nsIDocument *aDocument,
                                   nsIContent *aContent,
                                   PRInt32 aNameSpaceID,
                                   nsIAtom *aAttribute,
-                                  PRInt32 aModType,
-                                  PRUint32 aStateMask)
+                                  PRInt32 aModType)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContent)) {
     TriggerReclone();

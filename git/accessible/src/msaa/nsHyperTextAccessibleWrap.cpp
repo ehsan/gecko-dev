@@ -67,7 +67,7 @@ nsHyperTextAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
           NS_IF_RELEASE(gTextEvent);
 
           CallQueryInterface(aEvent, &gTextEvent);
-          (static_cast<IUnknown*>(instancePtr))->Release();
+          (NS_STATIC_CAST(IUnknown*, instancePtr))->Release();
         }
       }
     }

@@ -39,8 +39,6 @@
 #ifndef jsxml_h___
 #define jsxml_h___
 
-JS_BEGIN_EXTERN_C
-
 #include "jsstddef.h"
 #include "jspubtd.h"
 
@@ -154,18 +152,6 @@ typedef enum JSXMLClass {
 #include "jsclist.h"
 #endif
 
-typedef struct JSXMLListVar {
-    JSXMLArray          kids;           /* NB: must come first */
-    JSXML               *target;
-    JSXMLQName          *targetprop;
-} JSXMLListVar;
-
-typedef struct JSXMLElemVar {
-    JSXMLArray          kids;           /* NB: must come first */
-    JSXMLArray          namespaces;
-    JSXMLArray          attrs;
-} JSXMLElemVar;
-
 struct JSXML {
 #ifdef DEBUG_notme
     JSCList             links;
@@ -178,8 +164,16 @@ struct JSXML {
     uint16              xml_class;      /* discriminates u, below */
     uint16              xml_flags;      /* flags, see below */
     union {
-        JSXMLListVar    list;
-        JSXMLElemVar    elem;
+        struct JSXMLListVar {
+            JSXMLArray  kids;           /* NB: must come first */
+            JSXML       *target;
+            JSXMLQName  *targetprop;
+        } list;
+        struct JSXMLVar {
+            JSXMLArray  kids;           /* NB: must come first */
+            JSXMLArray  namespaces;
+            JSXMLArray  attrs;
+        } elem;
         JSString        *value;
     } u;
 
@@ -339,7 +333,5 @@ js_MakeXMLCommentString(JSContext *cx, JSString *str);
 
 extern JSString *
 js_MakeXMLPIString(JSContext *cx, JSString *name, JSString *str);
-
-JS_END_EXTERN_C
 
 #endif /* jsxml_h___ */

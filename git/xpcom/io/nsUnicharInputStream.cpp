@@ -301,7 +301,8 @@ UTF8InputStream::ReadString(PRUint32 aCount, nsAString& aString,
   if (readCount > aCount) {
     readCount = aCount;
   }
-  const PRUnichar* buf = reinterpret_cast<const PRUnichar*>(mUnicharData->GetBuffer() +
+  const PRUnichar* buf = NS_REINTERPRET_CAST(const PRUnichar*, 
+                                             mUnicharData->GetBuffer() +
                                              mUnicharDataOffset);
   aString.Assign(buf, readCount);
 
@@ -454,7 +455,7 @@ nsSimpleUnicharStreamFactory::CreateInstanceFromUTF8Stream(nsIInputStream* aStre
 nsSimpleUnicharStreamFactory*
 nsSimpleUnicharStreamFactory::GetInstance()
 {
-  return const_cast<nsSimpleUnicharStreamFactory*>(&kInstance);
+  return NS_CONST_CAST(nsSimpleUnicharStreamFactory*, &kInstance);
 }
 
 const nsSimpleUnicharStreamFactory

@@ -845,7 +845,7 @@ nsTreeSelection::FireOnSelectHandler()
 void
 nsTreeSelection::SelectCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsTreeSelection* self = static_cast<nsTreeSelection*>(aClosure);
+  nsTreeSelection* self = NS_STATIC_CAST(nsTreeSelection*, aClosure);
   if (self) {
     self->FireOnSelectHandler();
     aTimer->Cancel();

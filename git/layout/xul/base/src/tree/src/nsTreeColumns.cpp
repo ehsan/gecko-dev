@@ -80,7 +80,7 @@ NS_INTERFACE_MAP_BEGIN(nsTreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeColumn)
   if (aIID.Equals(kTreeColumnImplCID))
-    foundInterface = static_cast<nsITreeColumn*>(this);
+    foundInterface = NS_STATIC_CAST(nsITreeColumn*, this);
   else
 NS_INTERFACE_MAP_END
                                                                                 

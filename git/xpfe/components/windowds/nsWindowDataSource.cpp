@@ -315,18 +315,18 @@ struct findWindowClosure {
 PR_STATIC_CALLBACK(PRBool)
 findWindow(nsHashKey* aKey, void *aData, void* aClosure)
 {
-    nsVoidKey *thisKey = static_cast<nsVoidKey*>(aKey);
+    nsVoidKey *thisKey = NS_STATIC_CAST(nsVoidKey*, aKey);
 
     nsIRDFResource *resource =
-        static_cast<nsIRDFResource*>(aData);
+        NS_STATIC_CAST(nsIRDFResource*, aData);
     
     findWindowClosure* closure =
-        static_cast<findWindowClosure*>(aClosure);
+        NS_STATIC_CAST(findWindowClosure*, aClosure);
 
     if (resource == closure->targetResource) {
         closure->resultWindow =
-            static_cast<nsIXULWindow*>
-                       (thisKey->GetValue());
+            NS_STATIC_CAST(nsIXULWindow*,
+                           thisKey->GetValue());
         return PR_FALSE;         // stop enumerating
     }
     return PR_TRUE;

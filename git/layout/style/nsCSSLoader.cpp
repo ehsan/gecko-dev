@@ -214,8 +214,7 @@ SheetLoadData::SheetLoadData(CSSLoaderImpl* aLoader,
                              nsICSSStyleSheet* aSheet,
                              PRBool aSyncLoad,
                              PRBool aAllowUnsafeRules,
-                             nsICSSLoaderObserver* aObserver,
-                             nsIPrincipal* aLoaderPrincipal)
+                             nsICSSLoaderObserver* aObserver)
   : mLoader(aLoader),
     mURI(aURI),
     mLineNumber(1),
@@ -232,7 +231,7 @@ SheetLoadData::SheetLoadData(CSSLoaderImpl* aLoader,
     mAllowUnsafeRules(aAllowUnsafeRules),
     mOwningElement(nsnull),
     mObserver(aObserver),
-    mLoaderPrincipal(aLoaderPrincipal)
+    mLoaderPrincipal(nsnull)
 {
 
   NS_PRECONDITION(mLoader, "Must have a loader!");
@@ -347,7 +346,7 @@ CollectNonAlternates(nsURIAndPrincipalHashKey *aKey,
     return PL_DHASH_NEXT;
   }
 
-  static_cast<CSSLoaderImpl::LoadDataArray*>(aClosure)->AppendElement(aData);
+  NS_STATIC_CAST(CSSLoaderImpl::LoadDataArray*,aClosure)->AppendElement(aData);
   return PL_DHASH_REMOVE;
 }
 
@@ -934,42 +933,36 @@ CSSLoaderImpl::CheckLoadAllowed(nsIURI* aSourceURI,
                                 nsISupports* aContext)
 {
   LOG(("CSSLoaderImpl::CheckLoadAllowed"));
-
-  nsresult rv;
   
-  if (aSourcePrincipal) {
-    // Check with the security manager
-    nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
-    rv =
-      secMan->CheckLoadURIWithPrincipal(aSourcePrincipal, aTargetURI,
-                                        nsIScriptSecurityManager::ALLOW_CHROME);
-    if (NS_FAILED(rv)) { // failure is normal here; don't warn
-      return rv;
-    }
+  // Check with the security manager
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+  nsresult rv =
+    secMan->CheckLoadURIWithPrincipal(aSourcePrincipal, aTargetURI,
+                                      nsIScriptSecurityManager::ALLOW_CHROME);
+  if (NS_FAILED(rv)) { // failure is normal here; don't warn
+    return rv;
   }
 
   LOG(("  Passed security check"));
 
-  if (aSourceURI) {
-    // Check with content policy
+  // Check with content policy
 
-    PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
-    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_STYLESHEET,
-                                   aTargetURI,
-                                   aSourceURI,
-                                   aContext,
-                                   NS_LITERAL_CSTRING("text/css"),
-                                   nsnull,                     //extra param
-                                   &shouldLoad,
-                                   nsContentUtils::GetContentPolicy());
+  PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
+  rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_STYLESHEET,
+                                 aTargetURI,
+                                 aSourceURI,
+                                 aContext,
+                                 NS_LITERAL_CSTRING("text/css"),
+                                 nsnull,                        //extra param
+                                 &shouldLoad,
+                                 nsContentUtils::GetContentPolicy());
 
-    if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) {
-      LOG(("  Load blocked by content policy"));
-      return NS_ERROR_CONTENT_BLOCKED;
-    }
+  if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) {
+    LOG(("  Load blocked by content policy"));
+    return NS_ERROR_CONTENT_BLOCKED;
   }
 
-  return NS_OK;
+  return rv;
 }
 
 /**
@@ -1805,7 +1798,7 @@ CSSLoaderImpl::LoadStyleLink(nsIContent* aElement,
 
   if (state == eSheetComplete) {
     LOG(("  Sheet already complete: 0x%p",
-         static_cast<void*>(sheet.get())));
+         NS_STATIC_CAST(void*, sheet.get())));
     if (aObserver) {
       rv = PostLoadEvent(aURL, sheet, aObserver, *aIsAlternate);
       return rv;
@@ -1907,8 +1900,8 @@ CSSLoaderImpl::LoadChildSheet(nsICSSStyleSheet* aParentSheet,
   PRInt32 count = mParsingDatas.Count();
   if (count > 0) {
     LOG(("  Have a parent load"));
-    parentData = static_cast<SheetLoadData*>
-                            (mParsingDatas.ElementAt(count - 1));
+    parentData = NS_STATIC_CAST(SheetLoadData*,
+                                mParsingDatas.ElementAt(count - 1));
     // Check for cycles
     SheetLoadData* data = parentData;
     while (data && data->mURI) {
@@ -1983,39 +1976,28 @@ CSSLoaderImpl::LoadSheetSync(nsIURI* aURL, PRBool aAllowUnsafeRules,
                              nsICSSStyleSheet** aSheet)
 {
   LOG(("CSSLoaderImpl::LoadSheetSync"));
-  return InternalLoadNonDocumentSheet(aURL, aAllowUnsafeRules, nsnull,
-                                      nsnull, aSheet, nsnull);
+  return InternalLoadNonDocumentSheet(aURL, aAllowUnsafeRules, aSheet, nsnull);
 }
 
 NS_IMETHODIMP
-CSSLoaderImpl::LoadSheet(nsIURI* aURL,
-                         nsIURI* aOriginURI,
-                         nsIPrincipal* aOriginPrincipal,
-                         nsICSSLoaderObserver* aObserver,
+CSSLoaderImpl::LoadSheet(nsIURI* aURL, nsICSSLoaderObserver* aObserver,
                          nsICSSStyleSheet** aSheet)
 {
   LOG(("CSSLoaderImpl::LoadSheet(aURL, aObserver, aSheet) api call"));
   NS_PRECONDITION(aSheet, "aSheet is null");
-  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, aOriginURI,
-                                      aOriginPrincipal, aSheet, aObserver);
+  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, aSheet, aObserver);
 }
 
 NS_IMETHODIMP
-CSSLoaderImpl::LoadSheet(nsIURI* aURL,
-                         nsIURI* aOriginURI,
-                         nsIPrincipal* aOriginPrincipal,
-                         nsICSSLoaderObserver* aObserver)
+CSSLoaderImpl::LoadSheet(nsIURI* aURL, nsICSSLoaderObserver* aObserver)
 {
   LOG(("CSSLoaderImpl::LoadSheet(aURL, aObserver) api call"));
-  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, aOriginURI,
-                                      aOriginPrincipal, nsnull, aObserver);
+  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, nsnull, aObserver);
 }
 
 nsresult
 CSSLoaderImpl::InternalLoadNonDocumentSheet(nsIURI* aURL, 
                                             PRBool aAllowUnsafeRules,
-                                            nsIURI* aOriginURI,
-                                            nsIPrincipal* aOriginPrincipal,
                                             nsICSSStyleSheet** aSheet,
                                             nsICSSLoaderObserver* aObserver)
 {
@@ -2034,17 +2016,12 @@ CSSLoaderImpl::InternalLoadNonDocumentSheet(nsIURI* aURL,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsresult rv = CheckLoadAllowed(aOriginURI, aOriginPrincipal, aURL, mDocument);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
   StyleSheetState state;
   nsCOMPtr<nsICSSStyleSheet> sheet;
   PRBool syncLoad = (aObserver == nsnull);
   
-  rv = CreateSheet(aURL, nsnull, nsnull, syncLoad, state,
-                   getter_AddRefs(sheet));
+  nsresult rv = CreateSheet(aURL, nsnull, nsnull, syncLoad, state,
+                            getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
 
   const nsSubstring& empty = EmptyString();
@@ -2063,8 +2040,7 @@ CSSLoaderImpl::InternalLoadNonDocumentSheet(nsIURI* aURL,
   }
 
   SheetLoadData* data =
-    new SheetLoadData(this, aURL, sheet, syncLoad, aAllowUnsafeRules,
-                      aObserver, aOriginPrincipal);
+    new SheetLoadData(this, aURL, sheet, syncLoad, aAllowUnsafeRules, aObserver);
 
   if (!data) {
     sheet->SetComplete();
@@ -2177,7 +2153,7 @@ StopLoadingSheetCallback(nsURIAndPrincipalHashKey* aKey,
   aData->mIsLoading = PR_FALSE; // we will handle the removal right here
   aData->mIsCancelled = PR_TRUE;
   
-  static_cast<CSSLoaderImpl::LoadDataArray*>(aClosure)->AppendElement(aData);
+  NS_STATIC_CAST(CSSLoaderImpl::LoadDataArray*,aClosure)->AppendElement(aData);
 
   return PL_DHASH_REMOVE;
 }
@@ -2242,7 +2218,7 @@ StopLoadingSheetByURICallback(nsURIAndPrincipalHashKey* aKey,
   NS_PRECONDITION(aClosure, "Must have a loader");
 
   StopLoadingSheetsByURIClosure* closure =
-    static_cast<StopLoadingSheetsByURIClosure*>(aClosure);
+    NS_STATIC_CAST(StopLoadingSheetsByURIClosure*, aClosure);
 
   PRBool equal;
   if (NS_SUCCEEDED(aData->mURI->Equals(closure->uri, &equal)) &&
@@ -2356,7 +2332,7 @@ CollectLoadDatas(nsURIAndPrincipalHashKey *aKey,
                  SheetLoadData* &aData,
                  void* aClosure)
 {
-  static_cast<CSSLoaderImpl::LoadDataArray*>(aClosure)->AppendElement(aData);
+  NS_STATIC_CAST(CSSLoaderImpl::LoadDataArray*,aClosure)->AppendElement(aData);
   return PL_DHASH_REMOVE;
 }
 

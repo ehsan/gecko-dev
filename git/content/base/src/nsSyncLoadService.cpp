@@ -227,12 +227,13 @@ nsSyncLoader::LoadDocument(nsIChannel* aChannel,
     nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(document);
     NS_ENSURE_TRUE(target, NS_ERROR_FAILURE);
 
-    nsWeakPtr requestWeak = do_GetWeakReference(static_cast<nsIDOMLoadListener*>(this));
+    nsWeakPtr requestWeak = do_GetWeakReference(NS_STATIC_CAST(nsIDOMLoadListener*, this));
     nsLoadListenerProxy* proxy = new nsLoadListenerProxy(requestWeak);
     NS_ENSURE_TRUE(proxy, NS_ERROR_OUT_OF_MEMORY);
 
     // This will addref the proxy
-    rv = target->AddEventListenerByIID(static_cast<nsIDOMEventListener*>(proxy), 
+    rv = target->AddEventListenerByIID(NS_STATIC_CAST(nsIDOMEventListener*, 
+                                                      proxy), 
                                        NS_GET_IID(nsIDOMLoadListener));
     NS_ENSURE_SUCCESS(rv, rv);
     
@@ -254,7 +255,8 @@ nsSyncLoader::LoadDocument(nsIChannel* aChannel,
 
     // This will release the proxy. Don't use the errorvalue from this since
     // we're more interested in the errorvalue from the loading
-    target->RemoveEventListenerByIID(static_cast<nsIDOMEventListener*>(proxy), 
+    target->RemoveEventListenerByIID(NS_STATIC_CAST(nsIDOMEventListener*, 
+                                                    proxy), 
                                      NS_GET_IID(nsIDOMLoadListener));
 
     // check that the load succeeded

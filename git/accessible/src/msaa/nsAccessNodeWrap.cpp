@@ -117,12 +117,12 @@ STDMETHODIMP nsAccessNodeWrap::QueryInterface(REFIID iid, void** ppv)
   *ppv = nsnull;
 
   if (IID_IUnknown == iid || IID_ISimpleDOMNode == iid)
-    *ppv = static_cast<ISimpleDOMNode*>(this);
+    *ppv = NS_STATIC_CAST(ISimpleDOMNode*, this);
 
   if (nsnull == *ppv)
     return E_NOINTERFACE;      //iid not supported.
    
-  (reinterpret_cast<IUnknown*>(*ppv))->AddRef(); 
+  (NS_REINTERPRET_CAST(IUnknown*, *ppv))->AddRef(); 
   return S_OK;
 }
 
@@ -148,7 +148,7 @@ STDMETHODIMP nsAccessNodeWrap::get_nodeInfo(
 
   PRUint16 nodeType = 0;
   mDOMNode->GetNodeType(&nodeType);
-  *aNodeType=static_cast<unsigned short>(nodeType);
+  *aNodeType=NS_STATIC_CAST(unsigned short, nodeType);
 
   if (*aNodeType !=  NODETYPE_TEXT) {
     nsAutoString nodeName;
@@ -160,7 +160,7 @@ STDMETHODIMP nsAccessNodeWrap::get_nodeInfo(
 
   mDOMNode->GetNodeValue(nodeValue);
   *aNodeValue = ::SysAllocString(nodeValue.get());
-  *aNameSpaceID = content ? static_cast<short>(content->GetNameSpaceID()) : 0;
+  *aNameSpaceID = content ? NS_STATIC_CAST(short, content->GetNameSpaceID()) : 0;
 
   // This is a unique ID for every content node.  The 3rd party
   // accessibility application can compare this to the childID we
@@ -175,7 +175,7 @@ STDMETHODIMP nsAccessNodeWrap::get_nodeInfo(
   nsCOMPtr<nsIDOMNodeList> nodeList;
   mDOMNode->GetChildNodes(getter_AddRefs(nodeList));
   if (nodeList && NS_OK == nodeList->GetLength(&numChildren))
-    *aNumChildren = static_cast<unsigned int>(numChildren);
+    *aNumChildren = NS_STATIC_CAST(unsigned int, numChildren);
 
   return S_OK;
 }
@@ -199,7 +199,7 @@ STDMETHODIMP nsAccessNodeWrap::get_attributes(
 
   if (numAttribs > aMaxAttribs)
     numAttribs = aMaxAttribs;
-  *aNumAttribs = static_cast<unsigned short>(numAttribs);
+  *aNumAttribs = NS_STATIC_CAST(unsigned short, numAttribs);
 
   for (PRUint32 index = 0; index < numAttribs; index++) {
     aNameSpaceIDs[index] = 0; aAttribValues[index] = aAttribNames[index] = nsnull;
@@ -207,7 +207,7 @@ STDMETHODIMP nsAccessNodeWrap::get_attributes(
     const char *pszAttributeName; 
 
     const nsAttrName* name = content->GetAttrNameAt(index);
-    aNameSpaceIDs[index] = static_cast<short>(name->NamespaceID());
+    aNameSpaceIDs[index] = NS_STATIC_CAST(short, name->NamespaceID());
     name->LocalName()->GetUTF8String(&pszAttributeName);
     aAttribNames[index] = ::SysAllocString(NS_ConvertUTF8toUTF16(pszAttributeName).get());
     content->GetAttr(name->NamespaceID(), name->LocalName(), attributeValue);
@@ -242,7 +242,7 @@ STDMETHODIMP nsAccessNodeWrap::get_attributesForNames(
     aAttribValues[index] = nsnull;
     if (aAttribNames[index]) {
       nsAutoString attributeValue, nameSpaceURI;
-      nsAutoString attributeName(nsDependentString(static_cast<PRUnichar*>(aAttribNames[index])));
+      nsAutoString attributeName(nsDependentString(NS_STATIC_CAST(PRUnichar*,aAttribNames[index])));
       nsresult rv;
 
       if (aNameSpaceID[index]>0 && 
@@ -290,7 +290,7 @@ STDMETHODIMP nsAccessNodeWrap::get_computedStyle(
       ++realIndex;
     }
   }
-  *aNumStyleProperties = static_cast<unsigned short>(realIndex);
+  *aNumStyleProperties = NS_STATIC_CAST(unsigned short, realIndex);
 
   return S_OK;
 }
@@ -314,7 +314,7 @@ STDMETHODIMP nsAccessNodeWrap::get_computedStyleForProperties(
   for (index = 0; index < aNumStyleProperties; index ++) {
     nsAutoString value;
     if (aStyleProperties[index])
-      cssDecl->GetPropertyValue(nsDependentString(static_cast<PRUnichar*>(aStyleProperties[index])), value);  // Get property value
+      cssDecl->GetPropertyValue(nsDependentString(NS_STATIC_CAST(PRUnichar*,aStyleProperties[index])), value);  // Get property value
     aStyleValues[index] = ::SysAllocString(value.get());
   }
 
@@ -376,7 +376,7 @@ ISimpleDOMNode* nsAccessNodeWrap::MakeAccessNode(nsIDOMNode *node)
       return NULL;
 
     newNode->Init();
-    iNode = static_cast<ISimpleDOMNode*>(newNode);
+    iNode = NS_STATIC_CAST(ISimpleDOMNode*, newNode);
     iNode->AddRef();
   }
 
@@ -498,7 +498,7 @@ STDMETHODIMP
 nsAccessNodeWrap::get_localInterface( 
     /* [out] */ void __RPC_FAR *__RPC_FAR *localInterface)
 {
-  *localInterface = static_cast<nsIAccessNode*>(this);
+  *localInterface = NS_STATIC_CAST(nsIAccessNode*, this);
   NS_ADDREF_THIS();
   return S_OK;
 }

@@ -42,7 +42,6 @@
 #include "nsSVGAngle.h"
 #include "nsCOMPtr.h"
 #include "nsIPresShell.h"
-#include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsSVGAnimatedRect.h"
@@ -89,6 +88,7 @@ NS_INTERFACE_MAP_BEGIN(nsSVGSVGElement)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGFitToViewBox)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLocatable)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGZoomAndPan)
+  NS_INTERFACE_MAP_ENTRY(nsISVGSVGElement)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGSVGElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 
@@ -98,14 +98,8 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo)
   : nsSVGSVGElementBase(aNodeInfo),
     mCoordCtx(nsnull),
-    mViewportWidth(0),
-    mViewportHeight(0),
     mCoordCtxMmPerPx(0),
-    mPreviousTranslate_x(0),
-    mPreviousTranslate_y(0),
-    mPreviousScale(0),
-    mRedrawSuspendCount(0),
-    mDispatchEvent(PR_FALSE)
+    mRedrawSuspendCount(0)
 {
 }
 
@@ -272,11 +266,18 @@ nsSVGSVGElement::GetPixelUnitToMillimeterX(float *aPixelUnitToMillimeterX)
 {
   // to correctly determine this, the caller would need to pass in the
   // right PresContext...
-  nsPresContext *context = nsContentUtils::GetContextForContent(this);
-  if (!context) {
-    *aPixelUnitToMillimeterX = 0.28f; // 90dpi
-    return NS_OK;
-  }
+
+  *aPixelUnitToMillimeterX = 0.28f; // 90dpi
+
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc) return NS_OK;
+  // Get Presentation shell 0
+  nsIPresShell *presShell = doc->GetPrimaryShell();
+  if (!presShell) return NS_OK;
+  
+  // Get the Presentation Context from the Shell
+  nsPresContext *context = presShell->GetPresContext();
+  if (!context) return NS_OK;
 
   *aPixelUnitToMillimeterX = 25.4f / nsPresContext::AppUnitsToIntCSSPixels(context->AppUnitsPerInch());
   return NS_OK;
@@ -295,11 +296,18 @@ nsSVGSVGElement::GetScreenPixelToMillimeterX(float *aScreenPixelToMillimeterX)
 {
   // to correctly determine this, the caller would need to pass in the
   // right PresContext...
-  nsPresContext *context = nsContentUtils::GetContextForContent(this);
-  if (!context) {
-    *aScreenPixelToMillimeterX = 0.28f; // 90dpi
-    return NS_OK;
-  }
+
+  *aScreenPixelToMillimeterX = 0.28f; // 90dpi
+
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc) return NS_OK;
+    // Get Presentation shell 0
+  nsIPresShell *presShell = doc->GetPrimaryShell();
+  if (!presShell) return NS_OK;
+  
+  // Get the Presentation Context from the Shell
+  nsPresContext *context = presShell->GetPresContext();
+  if (!context) return NS_OK;
 
   *aScreenPixelToMillimeterX = 25.4f / context->AppUnitsToDevPixels(context->AppUnitsPerInch());
   return NS_OK;
@@ -564,7 +572,7 @@ nsSVGSVGElement::CreateSVGNumber(nsIDOMSVGNumber **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGLength(nsIDOMSVGLength **_retval)
 {
-  return NS_NewSVGLength(reinterpret_cast<nsISVGLength**>(_retval));
+  return NS_NewSVGLength(NS_REINTERPRET_CAST(nsISVGLength**, _retval));
 }
 
 /* nsIDOMSVGAngle createSVGAngle (); */
@@ -682,7 +690,7 @@ nsSVGSVGElement::GetBBox(nsIDOMSVGRect **_retval)
 
   if (frame) {
     nsISVGChildFrame* svgframe;
-    CallQueryInterface(frame, &svgframe);
+    frame->QueryInterface(NS_GET_IID(nsISVGChildFrame),(void**)&svgframe);
     if (svgframe) {
       svgframe->SetMatrixPropagation(PR_FALSE);
       svgframe->NotifyCanvasTMChanged(PR_TRUE);
@@ -737,7 +745,7 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix **_retval)
       break;
     }
 
-    nsSVGSVGElement *viewportElement = QI_AND_CAST_TO_NSSVGSVGELEMENT(ancestor);
+    nsSVGSVGElement *viewportElement = QI_TO_NSSVGSVGELEMENT(ancestor);
     if (viewportElement) {
       rv = viewportElement->GetViewboxToViewportTransform(getter_AddRefs(ancestorCTM));
       if (NS_FAILED(rv)) return rv;
@@ -762,7 +770,7 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix **_retval)
     // we didn't find an SVG ancestor
     float s=1, x=0, y=0;
     if (ownerDoc &&
-        ownerDoc->GetRootContent() == static_cast<nsIContent*>(this)) {
+        ownerDoc->GetRootContent() == NS_STATIC_CAST(nsIContent*, this)) {
       // we're the root element. get our currentScale and currentTranslate vals
       mCurrentScale->GetValue(&s);
       mCurrentTranslate->GetX(&x);
@@ -782,10 +790,10 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix **_retval)
     if (ancestorCount == 0) {
       // our immediate parent is an SVG element. get our 'x' and 'y' attribs.
       // cast to nsSVGElement so we get our ancestor coord context.
-      x = mLengthAttributes[X].GetAnimValue(static_cast<nsSVGElement*>
-                                                       (this));
-      y = mLengthAttributes[Y].GetAnimValue(static_cast<nsSVGElement*>
-                                                       (this));
+      x = mLengthAttributes[X].GetAnimValue(NS_STATIC_CAST(nsSVGElement*,
+                                                           this));
+      y = mLengthAttributes[Y].GetAnimValue(NS_STATIC_CAST(nsSVGElement*,
+                                                           this));
     }
     else {
       // We have an SVG ancestor, but with non-SVG content between us
@@ -872,7 +880,7 @@ nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
     // we didn't find an SVG ancestor
     float s=1, x=0, y=0;
     if (ownerDoc &&
-        ownerDoc->GetRootContent() == static_cast<nsIContent*>(this)) {
+        ownerDoc->GetRootContent() == NS_STATIC_CAST(nsIContent*, this)) {
       // we're the root element. get our currentScale and currentTranslate vals
       mCurrentScale->GetValue(&s);
       mCurrentTranslate->GetX(&x);
@@ -892,10 +900,10 @@ nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
     if (ancestorCount == 0) {
       // our immediate parent is an SVG element. get our 'x' and 'y' attribs
       // cast to nsSVGElement so we get our ancestor coord context.
-      x = mLengthAttributes[X].GetAnimValue(static_cast<nsSVGElement*>
-                                                       (this));
-      y = mLengthAttributes[Y].GetAnimValue(static_cast<nsSVGElement*>
-                                                       (this));
+      x = mLengthAttributes[X].GetAnimValue(NS_STATIC_CAST(nsSVGElement*,
+                                                           this));
+      y = mLengthAttributes[Y].GetAnimValue(NS_STATIC_CAST(nsSVGElement*,
+                                                           this));
     }
     else {
       // We have an SVG ancestor, but with non-SVG content between us
@@ -972,7 +980,7 @@ nsSVGSVGElement::SetZoomAndPan(PRUint16 aZoomAndPan)
 }
 
 //----------------------------------------------------------------------
-// helper methods for implementing SVGZoomEvent:
+// nsISVGSVGElement methods:
 
 NS_IMETHODIMP
 nsSVGSVGElement::GetCurrentScaleNumber(nsIDOMSVGNumber **aResult)
@@ -1006,7 +1014,7 @@ nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
     nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
     NS_ASSERTION(presShell, "no presShell");
     if (presShell &&
-        doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+        doc->GetRootContent() == NS_STATIC_CAST(nsIContent*, this)) {
       nsEventStatus status = nsEventStatus_eIgnore;
       nsGUIEvent event(PR_TRUE, NS_SVG_ZOOM, 0);
       event.eventStructType = NS_SVGZOOM_EVENT;
@@ -1031,7 +1039,7 @@ nsSVGSVGElement::SetCurrentTranslate(float x, float y)
     nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
     NS_ASSERTION(presShell, "no presShell");
     if (presShell &&
-        doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+        doc->GetRootContent() == NS_STATIC_CAST(nsIContent*, this)) {
       nsEventStatus status = nsEventStatus_eIgnore;
       nsEvent event(PR_TRUE, NS_SVG_SCROLL);
       event.eventStructType = NS_SVG_EVENT;
@@ -1169,7 +1177,7 @@ nsSVGSVGElement::DidModifySVGObservable (nsISVGValue* observable,
   nsCOMPtr<nsIDOMSVGNumber> n = do_QueryInterface(observable);
   if (n && n==mCurrentScale) {
     if (mDispatchEvent &&
-        doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+        doc->GetRootContent() == NS_STATIC_CAST(nsIContent*, this)) {
       nsEventStatus status = nsEventStatus_eIgnore;
       nsGUIEvent event(PR_TRUE, NS_SVG_ZOOM, 0);
       event.eventStructType = NS_SVGZOOM_EVENT;
@@ -1183,7 +1191,7 @@ nsSVGSVGElement::DidModifySVGObservable (nsISVGValue* observable,
     nsCOMPtr<nsIDOMSVGPoint> p = do_QueryInterface(observable);
     if (p && p==mCurrentTranslate) {
       if (mDispatchEvent &&
-          doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+          doc->GetRootContent() == NS_STATIC_CAST(nsIContent*, this)) {
         nsEventStatus status = nsEventStatus_eIgnore;
         nsEvent event(PR_TRUE, NS_SVG_SCROLL);
         event.eventStructType = NS_SVG_EVENT;
@@ -1362,8 +1370,7 @@ nsSVGSVGElement::SetCoordCtxRect(nsIDOMSVGRect* aCtxRect)
 }
 
 already_AddRefed<nsIDOMSVGRect>
-nsSVGSVGElement::GetCtxRect()
-{
+nsSVGSVGElement::GetCtxRect() {
   nsCOMPtr<nsIDOMSVGRect> vb;
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
     mViewBox->GetAnimVal(getter_AddRefs(vb));
@@ -1386,8 +1393,7 @@ nsSVGSVGElement::GetCtxRect()
 }
 
 float
-nsSVGSVGElement::GetLength(PRUint8 aCtxType)
-{
+nsSVGSVGElement::GetLength(PRUint8 aCtxType) {
   float h, w;
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {

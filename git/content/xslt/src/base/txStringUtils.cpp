@@ -88,7 +88,7 @@ public:
 
   PRUint32 write( const PRUnichar* aSource, PRUint32 aSourceLength)
   {
-    PRUnichar* cp = const_cast<PRUnichar*>(aSource);
+    PRUnichar* cp = NS_CONST_CAST(PRUnichar*, aSource);
     const PRUnichar* end = aSource + aSourceLength;
     while (cp != end) {
       PRUnichar ch = *cp;

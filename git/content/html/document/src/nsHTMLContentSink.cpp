@@ -1340,7 +1340,6 @@ SinkContext::AddText(const nsAString& aText)
 nsresult
 SinkContext::FlushTags()
 {
-  mSink->mDeferredFlushTags = PR_FALSE;
   PRBool oldBeganUpdate = mSink->mBeganUpdate;
   PRUint32 oldUpdates = mSink->mUpdatesInNotification;
 
@@ -1727,7 +1726,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
     // If the document already has a root we'll use it. This will
     // happen when we do document.open()/.write()/.close()...
 
-    NS_ADDREF(mRoot = static_cast<nsGenericHTMLElement*>(doc_root));
+    NS_ADDREF(mRoot = NS_STATIC_CAST(nsGenericHTMLElement*, doc_root));
   } else {
     mRoot = NS_NewHTMLHtmlElement(nodeInfo);
     if (!mRoot) {
@@ -2830,7 +2829,7 @@ HTMLContentSink::AddBaseTagInfo(nsIContent* aContent)
                                nsPropertyTable::SupportsDtorFunc, PR_TRUE);
     if (NS_SUCCEEDED(rv)) {
       // circumvent nsDerivedSafe
-      NS_ADDREF(static_cast<nsIURI*>(mBaseHref));
+      NS_ADDREF(NS_STATIC_CAST(nsIURI*, mBaseHref));
     }
   }
   if (mBaseTarget) {
@@ -2838,7 +2837,7 @@ HTMLContentSink::AddBaseTagInfo(nsIContent* aContent)
                                nsPropertyTable::SupportsDtorFunc, PR_TRUE);
     if (NS_SUCCEEDED(rv)) {
       // circumvent nsDerivedSafe
-      NS_ADDREF(static_cast<nsIAtom*>(mBaseTarget));
+      NS_ADDREF(NS_STATIC_CAST(nsIAtom*, mBaseTarget));
     }
   }
 }
@@ -3005,7 +3004,7 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
           nsAutoString hrefVal;
           element->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {
-            PrefetchHref(hrefVal, element, hasPrefetch, PR_FALSE);
+            PrefetchHref(hrefVal, hasPrefetch, PR_FALSE);
           }
         }
         if (linkTypes.IndexOf(NS_LITERAL_STRING("offline-resource")) != -1) {
@@ -3014,7 +3013,7 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
           if (!hrefVal.IsEmpty()) {
             AddOfflineResource(hrefVal);
             if (mSaveOfflineResources)
-              PrefetchHref(hrefVal, element, PR_TRUE, PR_TRUE);
+              PrefetchHref(hrefVal, PR_TRUE, PR_TRUE);
           }
         }
       }

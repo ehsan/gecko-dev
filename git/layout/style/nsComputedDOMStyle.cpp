@@ -133,7 +133,7 @@ nsComputedDOMStyle::Shutdown()
   // already did that manually in doDestroyComputedDOMStyle(),
   // so cast our cached object to something that doesn't know
   // about our dtor.
-  delete reinterpret_cast<char*>(sCachedComputedDOMStyle);
+  delete NS_REINTERPRET_CAST(char*, sCachedComputedDOMStyle);
   sCachedComputedDOMStyle = nsnull;
 }
 

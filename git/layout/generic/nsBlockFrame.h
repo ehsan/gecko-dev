@@ -480,7 +480,7 @@ protected:
   // but only if the available height is constrained.
   nsresult ReflowFloat(nsBlockReflowState& aState,
                        nsPlaceholderFrame* aPlaceholder,
-                       nsMargin&           aFloatMargin,
+                       nsFloatCache*       aFloatCache,
                        nsReflowStatus&     aReflowStatus);
 
   //----------------------------------------

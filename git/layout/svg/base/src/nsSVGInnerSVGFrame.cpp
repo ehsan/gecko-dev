@@ -169,13 +169,13 @@ nsSVGInnerSVGFrame::PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect)
     if (!mPropagateTransform) {
       NS_NewSVGMatrix(getter_AddRefs(clipTransform));
     } else {
-      nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>
-                                               (mParent);
+      nsSVGContainerFrame *parent = NS_STATIC_CAST(nsSVGContainerFrame*,
+                                                   mParent);
       clipTransform = parent->GetCanvasTM();
     }
 
     if (clipTransform) {
-      nsSVGSVGElement *svg = static_cast<nsSVGSVGElement*>(mContent);
+      nsSVGSVGElement *svg = NS_STATIC_CAST(nsSVGSVGElement*, mContent);
 
       float x, y, width, height;
       svg->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
@@ -221,11 +221,11 @@ nsSVGInnerSVGFrame::GetFrameForPointSVG(float x, float y, nsIFrame** hit)
     float clipX, clipY, clipWidth, clipHeight;
     nsCOMPtr<nsIDOMSVGMatrix> clipTransform;
 
-    nsSVGElement *svg = static_cast<nsSVGElement*>(mContent);
+    nsSVGElement *svg = NS_STATIC_CAST(nsSVGElement*, mContent);
     svg->GetAnimatedLengthValues(&clipX, &clipY, &clipWidth, &clipHeight, nsnull);
 
-    nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>
-                                             (mParent);
+    nsSVGContainerFrame *parent = NS_STATIC_CAST(nsSVGContainerFrame*,
+                                                 mParent);
     clipTransform = parent->GetCanvasTM();
 
     if (!nsSVGUtils::HitTestRect(clipTransform,
@@ -306,14 +306,14 @@ nsSVGInnerSVGFrame::GetCanvasTM()
   if (!mCanvasTM) {
     // get the transform from our parent's coordinate system to ours:
     NS_ASSERTION(mParent, "null parent");
-    nsSVGContainerFrame *containerFrame = static_cast<nsSVGContainerFrame*>
-                                                     (mParent);
+    nsSVGContainerFrame *containerFrame = NS_STATIC_CAST(nsSVGContainerFrame*,
+                                                         mParent);
     nsCOMPtr<nsIDOMSVGMatrix> parentTM = containerFrame->GetCanvasTM();
     NS_ASSERTION(parentTM, "null TM");
 
     // append the transform due to the 'x' and 'y' attributes:
     float x, y;
-    nsSVGSVGElement *svg = static_cast<nsSVGSVGElement*>(mContent);
+    nsSVGSVGElement *svg = NS_STATIC_CAST(nsSVGSVGElement*, mContent);
     svg->GetAnimatedLengthValues(&x, &y, nsnull);
 
     nsCOMPtr<nsIDOMSVGMatrix> xyTM;
@@ -321,7 +321,7 @@ nsSVGInnerSVGFrame::GetCanvasTM()
 
     // append the viewbox to viewport transform:
     nsCOMPtr<nsIDOMSVGMatrix> viewBoxToViewportTM;
-    nsSVGSVGElement *svgElement = static_cast<nsSVGSVGElement*>(mContent);
+    nsSVGSVGElement *svgElement = NS_STATIC_CAST(nsSVGSVGElement*, mContent);
     svgElement->GetViewboxToViewportTransform(getter_AddRefs(viewBoxToViewportTM));
     xyTM->Multiply(viewBoxToViewportTM, getter_AddRefs(mCanvasTM));
   }    

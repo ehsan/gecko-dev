@@ -144,7 +144,7 @@ XPCWrappedNativeProto::JSProtoObjectFinalized(JSContext *cx, JSObject *obj)
 }
 
 void
-XPCWrappedNativeProto::SystemIsBeingShutDown(JSContext* cx)
+XPCWrappedNativeProto::SystemIsBeingShutDown(XPCCallContext& ccx)
 {
     // Note that the instance might receive this call multiple times
     // as we walk to here from various places.
@@ -162,7 +162,7 @@ XPCWrappedNativeProto::SystemIsBeingShutDown(JSContext* cx)
     if(mJSProtoObject)
     {
         // short circuit future finalization
-        JS_SetPrivate(cx, mJSProtoObject, nsnull);
+        JS_SetPrivate(ccx, mJSProtoObject, nsnull);
         mJSProtoObject = nsnull;
     }
 }

@@ -130,10 +130,8 @@ static JSObject *
 split_setup(JSContext *cx);
 
 #ifdef EDITLINE
-JS_BEGIN_EXTERN_C
 extern char     *readline(const char *prompt);
 extern void     add_history(char *line);
-JS_END_EXTERN_C
 #endif
 
 static JSBool
@@ -636,7 +634,7 @@ ReadLine(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     from = stdin;
     buflength = 0;
     bufsize = BUFSIZE;
-    buf = (char *) JS_malloc(cx, bufsize);
+    buf = JS_malloc(cx, bufsize);
     if (!buf)
         return JS_FALSE;
 
@@ -653,7 +651,7 @@ ReadLine(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         /* Else, grow our buffer for another pass. */
         bufsize *= 2;
         if (bufsize > buflength) {
-            tmp = (char *) JS_realloc(cx, buf, bufsize);
+            tmp = JS_realloc(cx, buf, bufsize);
         } else {
             JS_ReportOutOfMemory(cx);
             tmp = NULL;
@@ -675,7 +673,7 @@ ReadLine(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     }
 
     /* Shrink the buffer to the real size. */
-    tmp = (char *) JS_realloc(cx, buf, buflength);
+    tmp = JS_realloc(cx, buf, buflength);
     if (!tmp) {
         JS_free(cx, buf);
         return JS_FALSE;
@@ -700,16 +698,18 @@ ReadLine(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 static JSBool
 Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
-    uintN i;
+    uintN i, n;
     JSString *str;
 
-    for (i = 0; i < argc; i++) {
+    for (i = n = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
             return JS_FALSE;
         fprintf(gOutFile, "%s%s", i ? " " : "", JS_GetStringBytes(str));
     }
-    fputc('\n', gOutFile);
+    n++;
+    if (n)
+        fputc('\n', gOutFile);
     return JS_TRUE;
 }
 
@@ -918,7 +918,7 @@ UpdateSwitchTableBounds(JSScript *script, uintN offset,
     jsint low, high, n;
 
     pc = script->code + offset;
-    op = (JSOp) *pc;
+    op = *pc;
     switch (op) {
       case JSOP_TABLESWITCHX:
         jmplen = JUMPX_OFFSET_LEN;
@@ -941,8 +941,8 @@ UpdateSwitchTableBounds(JSScript *script, uintN offset,
         jmplen = JUMP_OFFSET_LEN;
       lookup_table:
         pc += jmplen;
-        n = GET_INDEX(pc);
-        pc += INDEX_LEN;
+        n = GET_ATOM_INDEX(pc);
+        pc += ATOM_INDEX_LEN;
         jmplen += JUMP_OFFSET_LEN;
         break;
 
@@ -965,7 +965,6 @@ SrcNotes(JSContext *cx, JSScript *script)
     JSSrcNoteType type;
     const char *name;
     jsatomid atomIndex;
-    uint32 index;
     JSAtom *atom;
 
     fprintf(gOutFile, "\nSource notes:\n");
@@ -1013,27 +1012,23 @@ SrcNotes(JSContext *cx, JSScript *script)
           case SRC_LABEL:
           case SRC_LABELBRACE:
           case SRC_BREAK2LABEL:
-          case SRC_CONT2LABEL: {
-            const char *bytes;
-
-            atomIndex = (jsatomid) js_GetSrcNoteOffset(sn, 0);
-            atom = js_GetAtom(cx, &script->atomMap, atomIndex);
-            bytes = js_AtomToPrintableString(cx, atom);
-            fprintf(gOutFile, " atom %u (%s)", (uintN)atomIndex, bytes);
-            break;
-          }
+          case SRC_CONT2LABEL:
           case SRC_FUNCDEF: {
             const char *bytes;
-            JSObject *obj;
             JSFunction *fun;
             JSString *str;
 
-            index = js_GetSrcNoteOffset(sn, 0);
-            JS_GET_SCRIPT_OBJECT(script, index, obj);
-            fun = (JSFunction *)JS_GetPrivate(cx, obj);
-            str = JS_DecompileFunction(cx, fun, JS_DONT_PRETTY_PRINT);
-            bytes = str ? JS_GetStringBytes(str) : "N/A";
-            fprintf(gOutFile, " function %u (%s)", index, bytes);
+            atomIndex = (jsatomid) js_GetSrcNoteOffset(sn, 0);
+            atom = js_GetAtom(cx, &script->atomMap, atomIndex);
+            if (type != SRC_FUNCDEF) {
+                bytes = js_AtomToPrintableString(cx, atom);
+            } else {
+                fun = (JSFunction *)
+                    JS_GetPrivate(cx, ATOM_TO_OBJECT(atom));
+                str = JS_DecompileFunction(cx, fun, JS_DONT_PRETTY_PRINT);
+                bytes = str ? JS_GetStringBytes(str) : "N/A";
+            }
+            fprintf(gOutFile, " atom %u (%s)", (uintN)atomIndex, bytes);
             break;
           }
           case SRC_SWITCH:
@@ -1077,24 +1072,23 @@ Notes(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
 JS_STATIC_ASSERT(JSTN_CATCH == 0);
 JS_STATIC_ASSERT(JSTN_FINALLY == 1);
-JS_STATIC_ASSERT(JSTN_ITER == 2);
 
-static const char* const TryNoteNames[] = { "catch", "finally", "iter" };
+static const char* const TryNoteNames[] = { "catch", "finally" };
 
 static JSBool
 TryNotes(JSContext *cx, JSScript *script)
 {
     JSTryNote *tn, *tnlimit;
 
-    if (script->trynotesOffset == 0)
+    if (!script->trynotes)
         return JS_TRUE;
 
-    tn = JS_SCRIPT_TRYNOTES(script)->vector;
-    tnlimit = tn + JS_SCRIPT_TRYNOTES(script)->length;
+    tn = script->trynotes->notes;
+    tnlimit = tn + script->trynotes->length;
     fprintf(gOutFile, "\nException table:\n"
             "kind      stack    start      end\n");
     do {
-        JS_ASSERT(tn->kind < JS_ARRAY_LENGTH(TryNoteNames));
+        JS_ASSERT(tn->kind == JSTN_CATCH || tn->kind == JSTN_FINALLY);
         fprintf(gOutFile, " %-7s %6u %8u %8u\n",
                 TryNoteNames[tn->kind], tn->stackDepth,
                 tn->start, tn->start + tn->length);
@@ -1277,7 +1271,8 @@ DumpAtom(JSHashEntry *he, int i, void *arg)
     FILE *fp = args->fp;
     JSAtom *atom = (JSAtom *)he;
 
-    fprintf(fp, "%3d %08x ", i, (uintN)he->keyHash);
+    fprintf(fp, "%3d %08x %5lu ",
+            i, (uintN)he->keyHash, (unsigned long)atom->number);
     if (ATOM_IS_STRING(atom))
         fprintf(fp, "\"%s\"\n", js_AtomToPrintableString(args->cx, atom));
     else if (ATOM_IS_INT(atom))
@@ -1928,7 +1923,7 @@ split_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
 
     switch (enum_op) {
       case JSENUMERATE_INIT:
-        cpx = (ComplexObject *) JS_GetPrivate(cx, obj);
+        cpx = JS_GetPrivate(cx, obj);
 
         if (!cpx->isInner && cpx->inner)
             obj = cpx->inner;
@@ -2013,7 +2008,7 @@ split_mark(JSContext *cx, JSObject *obj, void *arg)
 {
     ComplexObject *cpx;
 
-    cpx = (ComplexObject *) JS_GetPrivate(cx, obj);
+    cpx = JS_GetPrivate(cx, obj);
 
     if (!cpx->isInner && cpx->inner) {
         /* Mark the inner object. */
@@ -2028,7 +2023,7 @@ split_outerObject(JSContext *cx, JSObject *obj)
 {
     ComplexObject *cpx;
 
-    cpx = (ComplexObject *) JS_GetPrivate(cx, obj);
+    cpx = JS_GetPrivate(cx, obj);
     return cpx->isInner ? cpx->outer : obj;
 }
 
@@ -2037,7 +2032,7 @@ split_innerObject(JSContext *cx, JSObject *obj)
 {
     ComplexObject *cpx;
 
-    cpx = (ComplexObject *) JS_GetPrivate(cx, obj);
+    cpx = JS_GetPrivate(cx, obj);
     return !cpx->isInner ? cpx->inner : obj;
 }
 
@@ -2061,7 +2056,7 @@ split_create_outer(JSContext *cx)
     ComplexObject *cpx;
     JSObject *obj;
 
-    cpx = (ComplexObject *) JS_malloc(cx, sizeof *obj);
+    cpx = JS_malloc(cx, sizeof *obj);
     if (!cpx)
         return NULL;
     cpx->outer = NULL;
@@ -2091,7 +2086,7 @@ split_create_inner(JSContext *cx, JSObject *outer)
 
     JS_ASSERT(JS_GET_CLASS(cx, outer) == &split_global_class.base);
 
-    cpx = (ComplexObject *) JS_malloc(cx, sizeof *cpx);
+    cpx = JS_malloc(cx, sizeof *cpx);
     if (!cpx)
         return NULL;
     cpx->outer = outer;
@@ -2104,7 +2099,7 @@ split_create_inner(JSContext *cx, JSObject *outer)
         return NULL;
     }
 
-    outercpx = (ComplexObject *) JS_GetPrivate(cx, outer);
+    outercpx = JS_GetPrivate(cx, outer);
     outercpx->inner = obj;
 
     return obj;
@@ -2115,7 +2110,7 @@ split_get_private(JSContext *cx, JSObject *obj)
 {
     do {
         if (JS_GET_CLASS(cx, obj) == &split_global_class.base)
-            return (ComplexObject *) JS_GetPrivate(cx, obj);
+            return JS_GetPrivate(cx, obj);
         obj = JS_GetParent(cx, obj);
     } while (obj);
 
@@ -3180,7 +3175,6 @@ main(int argc, char **argv, char **envp)
     if (!cx)
         return 1;
     JS_SetErrorReporter(cx, my_ErrorReporter);
-    JS_SetVersion(cx, JSVERSION_LATEST);
 
 #ifdef JS_THREADSAFE
     JS_BeginRequest(cx);

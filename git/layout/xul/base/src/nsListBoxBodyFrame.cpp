@@ -237,18 +237,23 @@ nsListBoxBodyFrame::Init(nsIContent*     aContent,
                          nsIFrame*       aPrevInFlow)
 {
   nsresult rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
-  NS_ENSURE_SUCCESS(rv, rv);
+
   nsIScrollableFrame* scrollFrame = nsLayoutUtils::GetScrollableFrameFor(this);
-  if (scrollFrame) {
-    nsIScrollableView* scrollableView = scrollFrame->GetScrollableView();
-    scrollableView->SetScrollProperties(NS_SCROLL_PROPERTY_ALWAYS_BLIT);
-    nsIBox* verticalScrollbar = scrollFrame->GetScrollbarBox(PR_TRUE);
-    if (verticalScrollbar) {
-      nsIScrollbarFrame* scrollbarFrame = nsnull;
-      CallQueryInterface(verticalScrollbar, &scrollbarFrame);
-      scrollbarFrame->SetScrollbarMediatorContent(GetContent());
-    }
+  if (!scrollFrame)
+    return rv;
+
+  nsIScrollableView* scrollableView = scrollFrame->GetScrollableView();
+  scrollableView->SetScrollProperties(NS_SCROLL_PROPERTY_ALWAYS_BLIT);
+
+  nsIBox* verticalScrollbar = scrollFrame->GetScrollbarBox(PR_TRUE);
+  if (!verticalScrollbar) {
+    NS_ERROR("Unable to install the scrollbar mediator on the listbox widget. You must be using GFX scrollbars.");
+    return NS_ERROR_FAILURE;
   }
+
+  nsCOMPtr<nsIScrollbarFrame> scrollbarFrame(do_QueryInterface(verticalScrollbar));
+  scrollbarFrame->SetScrollbarMediatorContent(GetContent());
+
   nsCOMPtr<nsIFontMetrics> fm;
   PresContext()->DeviceContext()->GetMetricsFor(
     GetStyleContext()->GetStyleFont()->mFont, *getter_AddRefs(fm)
@@ -1094,7 +1099,7 @@ nsListBoxBodyFrame::GetFirstItemBox(PRInt32 aOffset, PRBool* aCreated)
   mBottomFrame = mTopFrame;
 
   if (mTopFrame) {
-    return mTopFrame->IsBoxFrame() ? static_cast<nsIBox*>(mTopFrame) : nsnull;
+    return mTopFrame->IsBoxFrame() ? NS_STATIC_CAST(nsIBox*, mTopFrame) : nsnull;
   }
 
   // top frame was cleared out
@@ -1102,7 +1107,7 @@ nsListBoxBodyFrame::GetFirstItemBox(PRInt32 aOffset, PRBool* aCreated)
   mBottomFrame = mTopFrame;
 
   if (mTopFrame && mRowsToPrepend <= 0) {
-    return mTopFrame->IsBoxFrame() ? static_cast<nsIBox*>(mTopFrame) : nsnull;
+    return mTopFrame->IsBoxFrame() ? NS_STATIC_CAST(nsIBox*, mTopFrame) : nsnull;
   }
 
   // At this point, we either have no frames at all, 
@@ -1144,7 +1149,7 @@ nsListBoxBodyFrame::GetFirstItemBox(PRInt32 aOffset, PRBool* aCreated)
 
       mBottomFrame = mTopFrame;
 
-      return mTopFrame->IsBoxFrame() ? static_cast<nsIBox*>(mTopFrame) : nsnull;
+      return mTopFrame->IsBoxFrame() ? NS_STATIC_CAST(nsIBox*, mTopFrame) : nsnull;
     } else
       return GetFirstItemBox(++aOffset, 0);
   }

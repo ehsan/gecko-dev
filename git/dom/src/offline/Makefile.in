@@ -50,10 +50,8 @@ REQUIRES       = xpcom         \
 		 string        \
 		 content       \
 		 caps          \
-		 gfx           \
 		 js            \
 		 layout        \
-		 locale        \
 		 necko         \
 		 nkcache       \
 		 pref          \
@@ -62,9 +60,8 @@ REQUIRES       = xpcom         \
 		 xpconnect     \
 		 $(NULL)
 
-CPPSRCS =                              \
-	nsDOMOfflineResourceList.cpp   \
-	nsDOMOfflineLoadStatusList.cpp \
+CPPSRCS =                            \
+	nsDOMOfflineResourceList.cpp  \
 	$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.

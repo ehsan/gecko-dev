@@ -100,10 +100,12 @@ nsGfxCheckboxControlFrame::~nsGfxCheckboxControlFrame()
 NS_IMETHODIMP
 nsGfxCheckboxControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
+  NS_ASSERTION(aInstancePtr, "QueryInterface requires a non-NULL destination!");
+  if ( !aInstancePtr )
+    return NS_ERROR_NULL_POINTER;
 
   if (aIID.Equals(NS_GET_IID(nsICheckboxControlFrame))) {
-    *aInstancePtr = static_cast<nsICheckboxControlFrame*>(this);
+    *aInstancePtr = (void*) ((nsICheckboxControlFrame*) this);
     return NS_OK;
   }
 
@@ -116,7 +118,7 @@ NS_IMETHODIMP nsGfxCheckboxControlFrame::GetAccessible(nsIAccessible** aAccessib
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLCheckboxAccessible(static_cast<nsIFrame*>(this), aAccessible);
+    return accService->CreateHTMLCheckboxAccessible(NS_STATIC_CAST(nsIFrame*, this), aAccessible);
   }
 
   return NS_ERROR_FAILURE;
@@ -171,7 +173,7 @@ nsGfxCheckboxControlFrame::OnChecked(nsPresContext* aPresContext,
 
 static void PaintCheckMarkFromStyle(nsIFrame* aFrame,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect, nsPoint aPt) {
-  static_cast<nsGfxCheckboxControlFrame*>(aFrame)
+  NS_STATIC_CAST(nsGfxCheckboxControlFrame*, aFrame)
     ->PaintCheckBoxFromStyle(*aCtx, aPt, aDirtyRect);
 }
 
@@ -195,7 +197,7 @@ public:
 void
 nsDisplayCheckMark::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
-  static_cast<nsGfxCheckboxControlFrame*>(mFrame)->
+  NS_STATIC_CAST(nsGfxCheckboxControlFrame*, mFrame)->
     PaintCheckBox(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect);
 }
 

@@ -147,6 +147,9 @@ window.onerror = function (msg, page, line)
 
   reportFailure(msg);
 
+  gDelayTestDriverEnd = false;
+  jsTestDriverEnd();
+
   optionsReset();
 };
 

@@ -201,19 +201,19 @@ nsListControlFrame::Destroy()
 
   mEventListener->SetFrame(nsnull);
 
-  mContent->RemoveEventListenerByIID(static_cast<nsIDOMMouseListener*>
-                                                (mEventListener),
+  mContent->RemoveEventListenerByIID(NS_STATIC_CAST(nsIDOMMouseListener*,
+                                                    mEventListener),
                                      NS_GET_IID(nsIDOMMouseListener));
 
-  mContent->RemoveEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>
-                                                (mEventListener),
+  mContent->RemoveEventListenerByIID(NS_STATIC_CAST(nsIDOMMouseMotionListener*,
+                                                    mEventListener),
                                      NS_GET_IID(nsIDOMMouseMotionListener));
 
-  mContent->RemoveEventListenerByIID(static_cast<nsIDOMKeyListener*>
-                                                (mEventListener),
+  mContent->RemoveEventListenerByIID(NS_STATIC_CAST(nsIDOMKeyListener*,
+                                                    mEventListener),
                                      NS_GET_IID(nsIDOMKeyListener));
 
-  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
+  nsFormControlFrame::RegUnRegAccessKey(NS_STATIC_CAST(nsIFrame*, this), PR_FALSE);
   nsHTMLScrollFrame::Destroy();
 }
 
@@ -380,21 +380,21 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
 NS_IMETHODIMP
 nsListControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
-
+  if (NULL == aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
   if (aIID.Equals(NS_GET_IID(nsIFormControlFrame))) {
-    *aInstancePtr = static_cast<nsIFormControlFrame*>(this);
+    *aInstancePtr = (void*) ((nsIFormControlFrame*) this);
     return NS_OK;
   }
   if (aIID.Equals(NS_GET_IID(nsIListControlFrame))) {
-    *aInstancePtr = static_cast<nsIListControlFrame*>(this);
+    *aInstancePtr = (void *)((nsIListControlFrame*)this);
     return NS_OK;
   }
   if (aIID.Equals(NS_GET_IID(nsISelectControlFrame))) {
-    *aInstancePtr = static_cast<nsISelectControlFrame*>(this);
+    *aInstancePtr = (void *)((nsISelectControlFrame*)this);
     return NS_OK;
   }
-
   return nsHTMLScrollFrame::QueryInterface(aIID, aInstancePtr);
 }
 
@@ -1123,16 +1123,16 @@ nsListControlFrame::Init(nsIContent*     aContent,
   if (!mEventListener) 
     return NS_ERROR_OUT_OF_MEMORY;
 
-  mContent->AddEventListenerByIID(static_cast<nsIDOMMouseListener*>
-                                             (mEventListener),
+  mContent->AddEventListenerByIID(NS_STATIC_CAST(nsIDOMMouseListener*,
+                                                 mEventListener),
                                   NS_GET_IID(nsIDOMMouseListener));
 
-  mContent->AddEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>
-                                             (mEventListener),
+  mContent->AddEventListenerByIID(NS_STATIC_CAST(nsIDOMMouseMotionListener*,
+                                                 mEventListener),
                                   NS_GET_IID(nsIDOMMouseMotionListener));
 
-  mContent->AddEventListenerByIID(static_cast<nsIDOMKeyListener*>
-                                             (mEventListener),
+  mContent->AddEventListenerByIID(NS_STATIC_CAST(nsIDOMKeyListener*,
+                                                 mEventListener),
                                   NS_GET_IID(nsIDOMKeyListener));
 
   mStartSelectionIndex = kNothingSelected;
@@ -2643,7 +2643,7 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
       gLastKeyTime = keyTime;
 
       // Append this keystroke to the search string. 
-      PRUnichar uniChar = ToLowerCase(static_cast<PRUnichar>(charcode));
+      PRUnichar uniChar = ToLowerCase(NS_STATIC_CAST(PRUnichar, charcode));
       GetIncrementalString().Append(uniChar);
 
       // See bug 188199, if all letters in incremental string are same, just try to match the first one

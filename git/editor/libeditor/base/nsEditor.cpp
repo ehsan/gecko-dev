@@ -351,13 +351,8 @@ nsEditor::InstallEventListeners()
   rv |= piTarget->AddEventListenerByIID(mMouseListenerP,
                                         NS_GET_IID(nsIDOMMouseListener));
 
-  if (elmP) {
-    // Focus event doesn't bubble so adding the listener to capturing phase.
-    // Make sure this works after bug 235441 gets fixed.
-    rv |= elmP->AddEventListenerByIID(mFocusListenerP,
-                                      NS_GET_IID(nsIDOMFocusListener),
-                                      NS_EVENT_FLAG_CAPTURE);
-  }
+  rv |= piTarget->AddEventListenerByIID(mFocusListenerP,
+                                        NS_GET_IID(nsIDOMFocusListener));
 
   rv |= piTarget->AddEventListenerByIID(mTextListenerP,
                                         NS_GET_IID(nsIDOMTextListener));
@@ -390,13 +385,14 @@ nsEditor::RemoveEventListeners()
 
   if (piTarget)
   {
-    // unregister the event listeners with the DOM event target
-    nsCOMPtr<nsIEventListenerManager> elmP;
-    piTarget->GetListenerManager(PR_TRUE, getter_AddRefs(elmP));
+    // unregister the event listeners with the DOM event reveiver
+
     if (mKeyListenerP)
     {
       nsCOMPtr<nsIDOMEventGroup> sysGroup;
       piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
+      nsCOMPtr<nsIEventListenerManager> elmP;
+      piTarget->GetListenerManager(PR_TRUE, getter_AddRefs(elmP));
       if (sysGroup && elmP)
       {
         elmP->RemoveEventListenerByType(mKeyListenerP,
@@ -413,11 +409,10 @@ nsEditor::RemoveEventListeners()
                                          NS_GET_IID(nsIDOMMouseListener));
     }
 
-    if (mFocusListenerP && elmP)
+    if (mFocusListenerP)
     {
-      elmP->RemoveEventListenerByIID(mFocusListenerP,
-                                     NS_GET_IID(nsIDOMFocusListener),
-                                     NS_EVENT_FLAG_CAPTURE);
+      piTarget->RemoveEventListenerByIID(mFocusListenerP,
+                                         NS_GET_IID(nsIDOMFocusListener));
     }
 
     if (mTextListenerP)
@@ -650,9 +645,8 @@ nsEditor::DoTransaction(nsITransaction *aTxn)
     // this transaction goes through here.  I bet this is a record.
     
     // We start off with an EditTxn since that's what the factory returns.
-    nsRefPtr<EditTxn> editTxn;
-    result = TransactionFactory::GetNewTransaction(PlaceholderTxn::GetCID(),
-                                                   getter_AddRefs(editTxn));
+    EditTxn *editTxn;
+    result = TransactionFactory::GetNewTransaction(PlaceholderTxn::GetCID(), &editTxn);
     if (NS_FAILED(result)) { return result; }
     if (!editTxn) { return NS_ERROR_NULL_POINTER; }
 
@@ -689,6 +683,9 @@ nsEditor::DoTransaction(nsITransaction *aTxn)
         }
       }
     }
+    
+    // txn mgr will now own this if it's around, and if it isn't we don't care
+    NS_IF_RELEASE(editTxn);    
   }
 
   if (aTxn)
@@ -967,6 +964,8 @@ nsEditor::EndPlaceHolderTransaction()
   {
     nsCOMPtr<nsISelection>selection;
     nsresult rv = GetSelection(getter_AddRefs(selection));
+    if (NS_FAILED(rv))
+      return rv;
 
     nsCOMPtr<nsISelectionPrivate>selPrivate(do_QueryInterface(selection));
 
@@ -1270,12 +1269,13 @@ nsEditor::InsertFromDrop(nsIDOMEvent *aEvent)
 NS_IMETHODIMP 
 nsEditor::SetAttribute(nsIDOMElement *aElement, const nsAString & aAttribute, const nsAString & aValue)
 {
-  nsRefPtr<ChangeAttributeTxn> txn;
-  nsresult result = CreateTxnForSetAttribute(aElement, aAttribute, aValue,
-                                             getter_AddRefs(txn));
+  ChangeAttributeTxn *txn;
+  nsresult result = CreateTxnForSetAttribute(aElement, aAttribute, aValue, &txn);
   if (NS_SUCCEEDED(result))  {
     result = DoTransaction(txn);  
   }
+  // The transaction system (if any) has taken ownership of txn
+  NS_IF_RELEASE(txn);
   return result;
 }
 
@@ -1305,12 +1305,13 @@ nsEditor::GetAttributeValue(nsIDOMElement *aElement,
 NS_IMETHODIMP 
 nsEditor::RemoveAttribute(nsIDOMElement *aElement, const nsAString& aAttribute)
 {
-  nsRefPtr<ChangeAttributeTxn> txn;
-  nsresult result = CreateTxnForRemoveAttribute(aElement, aAttribute,
-                                                getter_AddRefs(txn));
+  ChangeAttributeTxn *txn;
+  nsresult result = CreateTxnForRemoveAttribute(aElement, aAttribute, &txn);
   if (NS_SUCCEEDED(result))  {
     result = DoTransaction(txn);  
   }
+  // The transaction system (if any) has taken ownership of txn
+  NS_IF_RELEASE(txn);
   return result;
 }
 
@@ -1392,9 +1393,8 @@ NS_IMETHODIMP nsEditor::CreateNode(const nsAString& aTag,
   for (i = 0; i < mActionListeners.Count(); i++)
     mActionListeners[i]->WillCreateNode(aTag, aParent, aPosition);
 
-  nsRefPtr<CreateElementTxn> txn;
-  nsresult result = CreateTxnForCreateElement(aTag, aParent, aPosition,
-                                              getter_AddRefs(txn));
+  CreateElementTxn *txn;
+  nsresult result = CreateTxnForCreateElement(aTag, aParent, aPosition, &txn);
   if (NS_SUCCEEDED(result)) 
   {
     result = DoTransaction(txn);  
@@ -1404,6 +1404,8 @@ NS_IMETHODIMP nsEditor::CreateNode(const nsAString& aTag,
       NS_ASSERTION((NS_SUCCEEDED(result)), "GetNewNode can't fail if txn::DoTransaction succeeded.");
     }
   }
+  // The transaction system (if any) has taken ownership of txn
+  NS_IF_RELEASE(txn);
   
   mRangeUpdater.SelAdjCreateNode(aParent, aPosition);
   
@@ -1424,12 +1426,13 @@ NS_IMETHODIMP nsEditor::InsertNode(nsIDOMNode * aNode,
   for (i = 0; i < mActionListeners.Count(); i++)
     mActionListeners[i]->WillInsertNode(aNode, aParent, aPosition);
 
-  nsRefPtr<InsertElementTxn> txn;
-  nsresult result = CreateTxnForInsertElement(aNode, aParent, aPosition,
-                                              getter_AddRefs(txn));
+  InsertElementTxn *txn;
+  nsresult result = CreateTxnForInsertElement(aNode, aParent, aPosition, &txn);
   if (NS_SUCCEEDED(result))  {
     result = DoTransaction(txn);  
   }
+  // The transaction system (if any) has taken ownership of txn
+  NS_IF_RELEASE(txn);
 
   mRangeUpdater.SelAdjInsertNode(aParent, aPosition);
 
@@ -1451,8 +1454,8 @@ nsEditor::SplitNode(nsIDOMNode * aNode,
   for (i = 0; i < mActionListeners.Count(); i++)
     mActionListeners[i]->WillSplitNode(aNode, aOffset);
 
-  nsRefPtr<SplitElementTxn> txn;
-  nsresult result = CreateTxnForSplitNode(aNode, aOffset, getter_AddRefs(txn));
+  SplitElementTxn *txn;
+  nsresult result = CreateTxnForSplitNode(aNode, aOffset, &txn);
   if (NS_SUCCEEDED(result))  
   {
     result = DoTransaction(txn);
@@ -1462,6 +1465,8 @@ nsEditor::SplitNode(nsIDOMNode * aNode,
       NS_ASSERTION((NS_SUCCEEDED(result)), "result must succeeded for GetNewNode");
     }
   }
+  // The transaction system (if any) has taken ownership of txn
+  NS_IF_RELEASE(txn);
 
   mRangeUpdater.SelAdjSplitNode(aNode, aOffset, *aNewLeftNode);
 
@@ -1496,11 +1501,14 @@ nsEditor::JoinNodes(nsIDOMNode * aLeftNode,
   for (i = 0; i < mActionListeners.Count(); i++)
     mActionListeners[i]->WillJoinNodes(aLeftNode, aRightNode, aParent);
 
-  nsRefPtr<JoinElementTxn> txn;
-  result = CreateTxnForJoinNode(aLeftNode, aRightNode, getter_AddRefs(txn));
+  JoinElementTxn *txn;
+  result = CreateTxnForJoinNode(aLeftNode, aRightNode, &txn);
   if (NS_SUCCEEDED(result))  {
     result = DoTransaction(txn);  
   }
+
+  // The transaction system (if any) has taken ownership of txn
+  NS_IF_RELEASE(txn);
 
   mRangeUpdater.SelAdjJoinNodes(aLeftNode, aRightNode, aParent, offset, (PRInt32)oldLeftNodeLen);
   
@@ -1524,11 +1532,14 @@ NS_IMETHODIMP nsEditor::DeleteNode(nsIDOMNode * aElement)
   for (i = 0; i < mActionListeners.Count(); i++)
     mActionListeners[i]->WillDeleteNode(aElement);
 
-  nsRefPtr<DeleteElementTxn> txn;
-  result = CreateTxnForDeleteElement(aElement, getter_AddRefs(txn));
+  DeleteElementTxn *txn;
+  result = CreateTxnForDeleteElement(aElement, &txn);
   if (NS_SUCCEEDED(result))  {
     result = DoTransaction(txn);  
   }
+
+  // The transaction system (if any) has taken ownership of txn
+  NS_IF_RELEASE(txn);
 
   for (i = 0; i < mActionListeners.Count(); i++)
     mActionListeners[i]->DidDeleteNode(aElement, result);
@@ -2512,6 +2523,22 @@ NS_IMETHODIMP nsEditor::ScrollSelectionIntoView(PRBool aScrollToAnchor)
   return NS_OK;
 }
 
+/** static helper method */
+nsresult nsEditor::GetTextNodeTag(nsAString& aOutString)
+{
+  aOutString.Truncate();
+  static nsString *gTextNodeTag=nsnull;
+  if (!gTextNodeTag)
+  {
+    if ( (gTextNodeTag = new nsString) == 0 )
+      return NS_ERROR_OUT_OF_MEMORY;
+    gTextNodeTag->AssignLiteral("special text node tag");
+  }
+  aOutString = *gTextNodeTag;
+  return NS_OK;
+}
+
+
 NS_IMETHODIMP nsEditor::InsertTextImpl(const nsAString& aStringToInsert, 
                                           nsCOMPtr<nsIDOMNode> *aInOutNode, 
                                           PRInt32 *aInOutOffset,
@@ -2575,7 +2602,7 @@ NS_IMETHODIMP nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToIns
                                                      nsIDOMCharacterData *aTextNode, 
                                                      PRInt32 aOffset, PRBool suppressIME)
 {
-  nsRefPtr<EditTxn> txn;
+  EditTxn *txn;
   nsresult result;
   // suppressIME s used when editor must insert text, yet this text is not
   // part of current ime operation.  example: adjusting whitespace around an ime insertion.
@@ -2624,18 +2651,13 @@ NS_IMETHODIMP nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToIns
       } // for
     } // if
 
-    nsRefPtr<IMETextTxn> imeTxn;
-    result = CreateTxnForIMEText(aStringToInsert, getter_AddRefs(imeTxn));
-    txn = imeTxn;
+    result = CreateTxnForIMEText(aStringToInsert, (IMETextTxn**)&txn);
   }
   else
   {
-    nsRefPtr<InsertTextTxn> insertTxn;
-    result = CreateTxnForInsertText(aStringToInsert, aTextNode, aOffset,
-                                    getter_AddRefs(insertTxn));
-    txn = insertTxn;
+    result = CreateTxnForInsertText(aStringToInsert, aTextNode, aOffset, (InsertTextTxn**)&txn);
   }
-  if (NS_FAILED(result)) return result;
+  if (NS_FAILED(result)) return result;  // we potentially leak txn here?
 
   // let listeners know what's up
   PRInt32 i;
@@ -2671,10 +2693,13 @@ NS_IMETHODIMP nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToIns
     {
       DeleteNode(mIMETextNode);
       mIMETextNode = nsnull;
-      static_cast<IMETextTxn*>(txn.get())->MarkFixed();  // mark the ime txn "fixed"
+      ((IMETextTxn*)txn)->MarkFixed();  // mark the ime txn "fixed"
     }
   }
   
+  // The transaction system (if any) has taken ownership of txns.
+  // aggTxn released at end of routine.
+  NS_IF_RELEASE(txn);
   return result;
 }
 
@@ -2811,9 +2836,8 @@ NS_IMETHODIMP nsEditor::DeleteText(nsIDOMCharacterData *aElement,
                               PRUint32             aOffset,
                               PRUint32             aLength)
 {
-  nsRefPtr<DeleteTextTxn> txn;
-  nsresult result = CreateTxnForDeleteText(aElement, aOffset, aLength,
-                                           getter_AddRefs(txn));
+  DeleteTextTxn *txn;
+  nsresult result = CreateTxnForDeleteText(aElement, aOffset, aLength, &txn);
   nsAutoRules beginRulesSniffing(this, kOpDeleteText, nsIEditor::ePrevious);
   if (NS_SUCCEEDED(result))  
   {
@@ -2828,6 +2852,8 @@ NS_IMETHODIMP nsEditor::DeleteText(nsIDOMCharacterData *aElement,
     for (i = 0; i < mActionListeners.Count(); i++)
       mActionListeners[i]->DidDeleteText(aElement, aOffset, aLength, result);
   }
+  // The transaction system (if any) has taken ownership of txn
+  NS_IF_RELEASE(txn);
   return result;
 }
 
@@ -3767,8 +3793,8 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
   GetPresShell(getter_AddRefs(shell));
   if (!shell)  return PR_FALSE;
 
-  if (IsMozEditorBogusNode(aNode) || !IsModifiableNode(aNode)) return PR_FALSE;
-
+  if (IsMozEditorBogusNode(aNode)) return PR_FALSE;
+  
   // see if it has a frame.  If so, we'll edit it.
   // special case for textnodes: frame must have width.
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
@@ -4396,12 +4422,10 @@ nsEditor::DeleteSelectionImpl(nsIEditor::EDirection aAction)
   nsCOMPtr<nsISelection>selection;
   nsresult res = GetSelection(getter_AddRefs(selection));
   if (NS_FAILED(res)) return res;
-  nsRefPtr<EditAggregateTxn> txn;
+  EditAggregateTxn *txn;
   nsCOMPtr<nsIDOMNode> deleteNode;
   PRInt32 deleteCharOffset = 0, deleteCharLength = 0;
-  res = CreateTxnForDeleteSelection(aAction, getter_AddRefs(txn),
-                                    getter_AddRefs(deleteNode),
-                                    &deleteCharOffset, &deleteCharLength);
+  res = CreateTxnForDeleteSelection(aAction, &txn, getter_AddRefs(deleteNode), &deleteCharOffset, &deleteCharLength);
   nsCOMPtr<nsIDOMCharacterData> deleteCharData(do_QueryInterface(deleteNode));
 
   if (NS_SUCCEEDED(res))  
@@ -4433,6 +4457,9 @@ nsEditor::DeleteSelectionImpl(nsIEditor::EDirection aAction)
       for (i = 0; i < mActionListeners.Count(); i++)
         mActionListeners[i]->DidDeleteNode(deleteNode, res);
   }
+
+  // The transaction system (if any) has taken ownership of txn
+  NS_IF_RELEASE(txn);
 
   return res;
 }
@@ -4723,7 +4750,7 @@ NS_IMETHODIMP nsEditor::CreateTxnForDeleteElement(nsIDOMNode * aElement,
   {
     result = TransactionFactory::GetNewTransaction(DeleteElementTxn::GetCID(), (EditTxn **)aTxn);
     if (NS_SUCCEEDED(result)) {
-      result = (*aTxn)->Init(this, aElement, &mRangeUpdater);
+      result = (*aTxn)->Init(aElement, &mRangeUpdater);
     }
   }
   return result;
@@ -5344,9 +5371,3 @@ nsEditor::DumpNode(nsIDOMNode *aNode, PRInt32 indent)
   }
 }
 #endif
-
-PRBool
-nsEditor::IsModifiableNode(nsIDOMNode *aNode)
-{
-  return PR_TRUE;
-}

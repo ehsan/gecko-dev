@@ -88,7 +88,7 @@ NS_StringContainerInit2(nsStringContainer &aContainer,
       if (aFlags & NS_STRING_CONTAINER_INIT_ADOPT)
         flags |= nsSubstring::F_OWNED;
 
-      new (&aContainer) nsSubstring(const_cast<PRUnichar *>(aData),
+      new (&aContainer) nsSubstring(NS_CONST_CAST(PRUnichar *, aData),
                                     aDataLength, flags);
     }
     else
@@ -104,7 +104,7 @@ XPCOM_API(void)
 NS_StringContainerFinish(nsStringContainer &aContainer)
 {
   // call the nsString dtor
-  reinterpret_cast<nsString *>(&aContainer)->~nsString();
+  NS_REINTERPRET_CAST(nsString *, &aContainer)->~nsString();
 }
 
 /* ------------------------------------------------------------------------- */
@@ -236,7 +236,7 @@ NS_CStringContainerInit2(nsCStringContainer &aContainer,
       if (aFlags & NS_CSTRING_CONTAINER_INIT_ADOPT)
         flags |= nsCSubstring::F_OWNED;
 
-      new (&aContainer) nsCSubstring(const_cast<char *>(aData),
+      new (&aContainer) nsCSubstring(NS_CONST_CAST(char *, aData),
                                      aDataLength, flags);
     }
     else
@@ -252,7 +252,7 @@ XPCOM_API(void)
 NS_CStringContainerFinish(nsCStringContainer &aContainer)
 {
   // call the nsCString dtor
-  reinterpret_cast<nsCString *>(&aContainer)->~nsCString();
+  NS_REINTERPRET_CAST(nsCString *, &aContainer)->~nsCString();
 }
 
 /* ------------------------------------------------------------------------- */

@@ -597,7 +597,7 @@ nsImageWin::Draw(nsIRenderingContext &aContext, nsIDrawingSurface* aSurface,
       aContext.GetDeviceContext(dx);
       
       nsIDrawingSurface*     ds;
-      static_cast<nsDeviceContextWin*>(dx)->GetDrawingSurface(aContext, ds);
+      NS_STATIC_CAST(nsDeviceContextWin*, dx)->GetDrawingSurface(aContext, ds);
 
       nsDrawingSurfaceWin *srcDS = (nsDrawingSurfaceWin *)ds;
       if (!srcDS) {
@@ -1823,7 +1823,7 @@ NS_IMETHODIMP nsImageWin::DrawToImage(nsIImage* aDstImage, nscoord aDX, nscoord 
   if (mAlphaDepth > 1)
     return NS_ERROR_UNEXPECTED;
 
-  nsImageWin *dest = static_cast<nsImageWin *>(aDstImage);
+  nsImageWin *dest = NS_STATIC_CAST(nsImageWin *, aDstImage);
 
   if (!dest)
     return NS_ERROR_FAILURE;
@@ -2076,7 +2076,7 @@ CompositeBitsInMemory(HDC aTheHDC, int aDX, int aDY, int aDWidth, int aDHeight,
 
 void nsImageWin::TimerCallBack(nsITimer *aTimer, void *aClosure)
 {
-  nsImageWin *entry = static_cast<nsImageWin*>(aClosure);
+  nsImageWin *entry = NS_STATIC_CAST(nsImageWin*, aClosure);
   if (!entry)
     return;
 

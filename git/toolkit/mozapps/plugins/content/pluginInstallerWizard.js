@@ -342,7 +342,6 @@ nsPluginInstallerWizard.prototype.startPluginInstallation = function (){
   // mimetype.  So store the pids.
 
   var pluginURLArray = new Array();
-  var pluginHashArray = new Array();
   var pluginPidArray = new Array();
 
   for (pluginInfoItem in this.mPluginInfoArray){
@@ -352,15 +351,12 @@ nsPluginInstallerWizard.prototype.startPluginInstallation = function (){
     // will complain.
     if (pluginItem.toBeInstalled && pluginItem.XPILocation && pluginItem.licenseAccepted) {
       pluginURLArray.push(pluginItem.XPILocation);
-      pluginHashArray.push(pluginItem.XPIHash);
       pluginPidArray.push(pluginItem.pid);
     }
   }
 
   if (pluginURLArray.length > 0)
-    PluginInstallService.startPluginInstallation(pluginURLArray,
-                                                 pluginHashArray,
-                                                 pluginPidArray);
+    PluginInstallService.startPluginInsallation(pluginURLArray, pluginPidArray);
   else
     this.advancePage(null, true, false, false);
 }
@@ -623,7 +619,6 @@ function PluginInfo(aResult) {
   this.version = aResult.version;
   this.IconUrl = aResult.IconUrl;
   this.XPILocation = aResult.XPILocation;
-  this.XPIHash = aResult.XPIHash;
   this.InstallerShowsUI = aResult.InstallerShowsUI;
   this.manualInstallationURL = aResult.manualInstallationURL;
   this.requestedMimetype = aResult.requestedMimetype;

@@ -117,7 +117,7 @@ DestroyValueListFunc(void*    aFrame,
                      void*    aPropertyValue,
                      void*    aDtorData)
 {
-  delete static_cast<nsValueList*>(aPropertyValue);
+  delete NS_STATIC_CAST(nsValueList*, aPropertyValue);
 }
 
 static PRUnichar*
@@ -125,8 +125,8 @@ GetValueAt(nsIFrame* aTableOrRowFrame,
            nsIAtom*  aAttribute,
            PRInt32   aRowOrColIndex)
 {
-  nsValueList* valueList = static_cast<nsValueList*>
-                                      (aTableOrRowFrame->GetProperty(aAttribute));
+  nsValueList* valueList = NS_STATIC_CAST(nsValueList*,
+    aTableOrRowFrame->GetProperty(aAttribute));
   if (!valueList) {
     // The property isn't there yet, so set it
     nsAutoString values;

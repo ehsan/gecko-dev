@@ -452,6 +452,8 @@ nsSprocketLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
       {
         childComputedBoxSize = childComputedBoxSize->next;
         childBoxSize = childBoxSize->next;
+        if (child)
+          child = child->GetNextBox();
         count++;
         x = nextX;
         y = nextY;
@@ -782,8 +784,6 @@ nsSprocketLayout::PopulateBoxSizes(nsIBox* aBox, nsBoxLayoutState& aState, nsBox
 
   while(child)
   {
-    while (currentBox && currentBox->bogus)
-      currentBox = currentBox->next;
     ++childCount;
     nsSize pref(0,0);
     nsSize min(0,0);

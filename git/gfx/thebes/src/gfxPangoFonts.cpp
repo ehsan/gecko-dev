@@ -123,7 +123,7 @@ gfxPangoFontGroup::FontCallback (const nsAString& fontName,
                                  const nsACString& genericName,
                                  void *closure)
 {
-    nsStringArray *sa = static_cast<nsStringArray*>(closure);
+    nsStringArray *sa = NS_STATIC_CAST(nsStringArray*, closure);
 
     if (FFRECountHyphens(fontName) < 3 && sa->IndexOf(fontName) < 0) {
         sa->AppendString(fontName);
@@ -332,7 +332,7 @@ ThebesStyleToPangoWeight (const gfxFontStyle *fs)
         baseWeight = 9;
 
     /* Map from weight value to fcWeights index */
-    static const int fcWeightLookup[10] = {
+    static int fcWeightLookup[10] = {
         0, 0, 0, 0, 1, 1, 2, 3, 3, 4,
     };
 
@@ -350,12 +350,12 @@ ThebesStyleToPangoWeight (const gfxFontStyle *fs)
         fcWeight = 4;
 
     /* Map to final PANGO_WEIGHT value */
-    static const int fcWeights[5] = {
+    static int fcWeights[5] = {
         349,
         499,
         649,
         749,
-        900
+        999
     };
 
     return (PangoWeight)fcWeights[fcWeight];
@@ -813,10 +813,10 @@ gfxPangoFontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
     if ((aFlags & TEXT_IS_ASCII) && !isRTL) {
         // We don't need to send an override character here, the characters must be all
         // LTR
-        const gchar *utf8Chars = reinterpret_cast<const gchar*>(aString);
-        InitTextRun(run, utf8Chars, aLength, 0, PR_TRUE);
+        const gchar *utf8Chars = NS_REINTERPRET_CAST(const gchar*, aString);
+        InitTextRun(run, utf8Chars, aLength, 0);
     } else {
-        const char *chars = reinterpret_cast<const char*>(aString);
+        const char *chars = NS_REINTERPRET_CAST(const char*, aString);
         // XXX this could be more efficient.
         // Although chars in not necessarily ASCII (as it may point to the low
         // bytes of any UCS-2 characters < 256), NS_ConvertASCIItoUTF16 seems
@@ -825,7 +825,7 @@ gfxPangoFontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
         nsCAutoString utf8;
         PRInt32 headerLen = AppendDirectionalIndicatorUTF8(isRTL, utf8);
         AppendUTF16toUTF8(unicodeString, utf8);
-        InitTextRun(run, utf8.get(), utf8.Length(), headerLen, PR_TRUE);
+        InitTextRun(run, utf8.get(), utf8.Length(), headerLen);
     }
     return run;
 }
@@ -843,29 +843,19 @@ gfxPangoFontGroup::MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
     nsCAutoString utf8;
     PRInt32 headerLen = AppendDirectionalIndicatorUTF8(run->IsRightToLeft(), utf8);
     AppendUTF16toUTF8(Substring(aString, aString + aLength), utf8);
-    PRUint32 allBits = 0;
-#if defined(ENABLE_XFT_FAST_PATH_8BIT)
-    PRUint32 i;
-    for (i = 0; i < aLength; ++i) {
-        allBits |= aString[i];
-    }
-#endif
-    PRBool is8Bit = (allBits & 0xFF00) == 0;
-    InitTextRun(run, utf8.get(), utf8.Length(), headerLen, is8Bit);
+    InitTextRun(run, utf8.get(), utf8.Length(), headerLen);
     return run;
 }
 
 void
 gfxPangoFontGroup::InitTextRun(gfxTextRun *aTextRun, const gchar *aUTF8Text,
-                               PRUint32 aUTF8Length, PRUint32 aUTF8HeaderLength,
-                               PRBool aTake8BitPath)
+                               PRUint32 aUTF8Length, PRUint32 aUTF8HeaderLength)
 {
 #if defined(ENABLE_XFT_FAST_PATH_ALWAYS)
     CreateGlyphRunsXft(aTextRun, aUTF8Text + aUTF8HeaderLength, aUTF8Length - aUTF8HeaderLength);
 #else
 #if defined(ENABLE_XFT_FAST_PATH_8BIT)
-    // We need to always use Pango for RTL text, in case glyph mirroring is required
-    if (aTake8BitPath && !aTextRun->IsRightToLeft()) {
+    if (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_8BIT) {
         CreateGlyphRunsXft(aTextRun, aUTF8Text + aUTF8HeaderLength, aUTF8Length - aUTF8HeaderLength);
         return;
     }
@@ -1044,8 +1034,7 @@ SetGlyphsForCharacterGroup(const PangoGlyphInfo *aGlyphs, PRUint32 aGlyphCount,
         PRUint32 i;
         for (i = 0; i < aGlyphCount; ++i) {
             gfxTextRun::DetailedGlyph *details = &detailedGlyphs[i];
-            PRUint32 j = (aTextRun->IsRightToLeft()) ? aGlyphCount - 1 - i : i; 
-            const PangoGlyphInfo &glyph = aGlyphs[j];
+            const PangoGlyphInfo &glyph = aGlyphs[i];
             details->mIsLastGlyph = i == aGlyphCount - 1;
             details->mGlyphID = glyph.glyph;
             NS_ASSERTION(details->mGlyphID == glyph.glyph,
@@ -1073,9 +1062,11 @@ SetGlyphsForCharacterGroup(const PangoGlyphInfo *aGlyphs, PRUint32 aGlyphCount,
         if (ch >= 0x10000) {
             // Skip surrogate
             ++utf16Offset;
+        } else {
+            if (gfxFontGroup::IsInvisibleChar(PRUnichar(ch))) {
+                aTextRun->SetCharacterGlyph(utf16Offset, g.SetMissing());
+            }
         }
-        NS_ASSERTION(!gfxFontGroup::IsInvalidChar(PRUnichar(ch)),
-                     "Invalid character detected");
         ++utf16Offset;
 
         // We produced this UTF8 so we don't need to worry about malformed stuff
@@ -1265,8 +1256,9 @@ gfxPangoFontGroup::CreateGlyphRunsXft(gfxTextRun *aTextRun,
             // treat this null byte as a missing glyph. Pango
             // doesn't create glyphs for these, not even missing-glyphs.
             aTextRun->SetMissingGlyph(utf16Offset, 0);
+        } else if (ch < 0x10000 && IsInvisibleChar(PRUnichar(ch))) {
+            aTextRun->SetCharacterGlyph(utf16Offset, g.SetMissing());
         } else {
-            NS_ASSERTION(!IsInvalidChar(ch), "Invalid char detected");
             FT_UInt glyph = XftCharIndex(dpy, xfont, ch);
             XGlyphInfo info;
             XftGlyphExtents(dpy, xfont, &glyph, 1, &info);
@@ -1347,7 +1339,7 @@ public:
         if (aName.IsEmpty())
             return PR_TRUE;
 
-        FontSelector *fs = static_cast<FontSelector*>(closure);
+        FontSelector *fs = NS_STATIC_CAST(FontSelector*, closure);
 
         // XXX do something better than this to remove dups
         if (ExistsFont(fs, aName))

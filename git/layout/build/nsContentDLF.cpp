@@ -308,10 +308,10 @@ nsContentDLF::CreateInstanceForDocument(nsISupports* aContainer,
     if (NS_FAILED(rv))
       break;
 
-    docv->SetUAStyleSheet(static_cast<nsIStyleSheet*>(gUAStyleSheet));
+    docv->SetUAStyleSheet(NS_STATIC_CAST(nsIStyleSheet*, gUAStyleSheet));
 
     // Bind the document to the Content Viewer
-    nsIContentViewer* cv = static_cast<nsIContentViewer*>(docv.get());
+    nsIContentViewer* cv = NS_STATIC_CAST(nsIContentViewer*, docv.get());
     rv = cv->LoadStart(aDocument);
     NS_ADDREF(*aDocViewerResult = cv);
   } while (PR_FALSE);

@@ -38,7 +38,6 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 // Globals
-const nsIExtensionManager    = Components.interfaces.nsIExtensionManager;
 const nsIUpdateItem          = Components.interfaces.nsIUpdateItem;
 const nsIFilePicker          = Components.interfaces.nsIFilePicker;
 const nsIIOService           = Components.interfaces.nsIIOService;
@@ -151,7 +150,8 @@ var AddonsViewBuilder = {
   updateView: function(aRulesList, aURI, aBindingList, aActionList)
   {
     this._bindingList = aBindingList;
-    this._actionList = aActionList ? aActionList : aBindingList;
+    if (!aActionList)
+      this._actionList = aBindingList;
 
     this.clearChildren(gExtensionsView);
     var template = document.createElementNS(kXULNSURI, "template");
@@ -273,7 +273,7 @@ function showView(aView) {
   catch (e) { }
   var showCheckUpdatesAll = true;
   var showInstallUpdatesAll = false;
-  var showRestartApp = true;
+  var showRestartApp = false;
   var showSkip = false;
   var showContinue = false;
   switch (aView) {
@@ -312,18 +312,17 @@ function showView(aView) {
                       ["updateURL", "?updateURL"],
                       ["version", "?version"],
                       ["typeName", "update"] ];
-      types = [ [ ["availableUpdateVersion", "?availableUpdateVersion", null],
-                  [ "updateable", "true", null ] ] ];
+      types = [ [ ["availableUpdateVersion", "?availableUpdateVersion", null] ] ];
       break;
     case "installs":
       document.getElementById("installs-view").hidden = false;
       showInstallFile = false;
       showCheckUpdatesAll = false;
       showInstallUpdatesAll = false;
-      if (gUpdatesOnly) {
+      if (gUpdatesOnly)
         showContinue = true;
-        showRestartApp = false;
-      }
+      else
+        showRestartApp = true;
       bindingList = [ ["aboutURL", "?aboutURL"],
                       ["addonID", "?addonID"],
                       ["availableUpdateURL", "?availableUpdateURL"],
@@ -349,7 +348,6 @@ function showView(aView) {
                       ["updateable", "?updateable"],
                       ["updateURL", "?updateURL"],
                       ["version", "?version"],
-                      ["newVersion", "?newVersion"],
                       ["typeName", "install"] ];
       types = [ [ ["state", "?state", null ] ] ];
       break;
@@ -546,7 +544,8 @@ function Startup()
   
   gExtensionsView = document.getElementById("extensionsView");
   gExtensionManager = Components.classes["@mozilla.org/extensions/manager;1"]
-                                .getService(nsIExtensionManager);
+                                .getService(Components.interfaces.nsIExtensionManager)
+                                .QueryInterface(Components.interfaces.nsIExtensionManager_MOZILLA_1_8_BRANCH);
   var appInfo = Components.classes["@mozilla.org/xre/app-info;1"]
                           .getService(Components.interfaces.nsIXULAppInfo)
                           .QueryInterface(Components.interfaces.nsIXULRuntime);
@@ -605,11 +604,6 @@ function Startup()
     catch (e) {
       if (window.arguments[0] == "updates-only") {
         gUpdatesOnly = true;
-#ifdef MOZ_PHOENIX
-        // If we are a browser when updating on startup don't display context
-        // menuitems that can open a browser window.
-        gUpdateContextMenus = gUpdateContextMenusNoBrowser;
-#endif
         document.getElementById("viewGroup").hidden = true;
         document.getElementById("extensionsView").setAttribute("norestart", "");
         showView("updates");
@@ -718,7 +712,6 @@ XPInstallDownloadManager.prototype = {
     }
     
     gExtensionManager.addDownloads(items, items.length, false);
-    updateGlobalCommands();
   },
   
   getElementForAddon: function(aAddon) 
@@ -1028,10 +1021,8 @@ var gAddonContextMenus = ["menuitem_useTheme", "menuitem_options", "menuitem_hom
                           "menuitem_cancelUninstall", "menuitem_checkUpdate",
                           "menuitem_enable", "menuitem_disable"];
 var gUpdateContextMenus = ["menuitem_homepage", "menuitem_about", "menuseparator_1",
-                           "menuitem_installUpdate", "menuitem_includeUpdate"];
-// For browsers don't display context menuitems that can open a browser window.
-var gUpdateContextMenusNoBrowser = ["menuitem_installUpdate", "menuitem_includeUpdate"];
-var gInstallContextMenus = ["menuitem_homepage", "menuitem_about"];
+                           "menuitem_installUpdate", "menuitem_includeUpdate"]
+var gInstallContextMenus = ["menuitem_homepage", "menuitem_about"]
 
 function buildContextMenu(aEvent)
 {
@@ -1353,11 +1344,8 @@ function updateOptionalViews() {
     if (!showUpdates) {
       var updateURLArc = rdfs.GetResource(PREFIX_NS_EM + "availableUpdateURL");
       var updateURL = ds.GetTarget(e, updateURLArc, true);
-      if (updateURL) {
-        var updateableArc = rdfs.GetResource(PREFIX_NS_EM + "updateable");
-        var updateable = ds.GetTarget(e, updateableArc, true);
-        updateable = updateable.QueryInterface(Components.interfaces.nsIRDFLiteral);
-        if (updateable.Value == "true")
+      if (updateURL && updateURL instanceof Components.interfaces.nsIRDFLiteral) {
+        if (updateURL.Value != "none")
           var showUpdates = true;
       }
     }
@@ -1380,7 +1368,7 @@ function updateGlobalCommands() {
   var disableInstallFile = false;
   var disableUpdateCheck = true;
   var disableInstallUpdate = true;
-  var disableAppRestart = false;
+  var disableAppRestart = true;
   if (gExtensionsView.hasAttribute("update-operation")) {
     disableInstallFile = true;
     disableAppRestart = true;
@@ -1391,10 +1379,12 @@ function updateGlobalCommands() {
       var child = children[i];
       if (disableUpdateCheck && child.getAttribute("updateable") == "true")
         disableUpdateCheck = false;
-      if (disableInstallUpdate && child.hasAttribute("availableUpdateURL"))
+      if (disableInstallUpdate && child.getAttribute("availableUpdateURL") != "none")
         disableInstallUpdate = false;
-      if (!disableAppRestart && child.hasAttribute("state") && child.getAttribute("state") != "success")
-        disableAppRestart = true;
+      if (disableAppRestart && child.hasAttribute("state")) {
+        if (child.getAttribute("state") == "success")
+          disableAppRestart = false;
+      }
     }
   }
   setElementDisabledByID("cmd_checkUpdatesAll", disableUpdateCheck);
@@ -1413,17 +1403,13 @@ function checkUpdatesAll() {
   // To support custom views we check the add-ons displayed in the list
   var items = [];
   var children = gExtensionsView.children;
-  for (var i = 0; i < children.length; ++i) {
-    if (children[i].getAttribute("updateable") != "false")
-      items.push(gExtensionManager.getItemForID(getIDFromResourceURI(children[i].id)));
-  }
+  for (var i = 0; i < children.length; ++i)
+    items.push(gExtensionManager.getItemForID(getIDFromResourceURI(children[i].id)));
 
   if (items.length > 0) {
     showProgressBar();
     var listener = new UpdateCheckListener();
-    gExtensionManager.update(items, items.length,
-                             nsIExtensionManager.UPDATE_CHECK_NEWVERSION,
-                             listener);
+    gExtensionManager.update(items, items.length, false, listener);
   }
   if (gExtensionsView.selectedItem)
     gExtensionsView.selectedItem.focus();
@@ -1473,6 +1459,15 @@ function restartApp() {
   // Notify all windows that an application quit has been granted.
   os.notifyObservers(null, "quit-application-granted", null);
 
+  // Enumerate all windows and call shutdown handlers
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  var windows = wm.getEnumerator(null);
+  while (windows.hasMoreElements()) {
+    var win = windows.getNext();
+    if (("tryToClose" in win) && !win.tryToClose())
+      return;
+  }
   Components.classes["@mozilla.org/toolkit/app-startup;1"].getService(nsIAppStartup)
             .quit(nsIAppStartup.eRestart | nsIAppStartup.eAttemptQuit);
 }
@@ -1540,10 +1535,10 @@ var gExtensionsViewController = {
       return selectedItem.getAttribute("updateable") != "false" &&
              !gExtensionsView.hasAttribute("update-operation");
     case "cmd_installUpdate":
-      return selectedItem.hasAttribute("availableUpdateURL") &&
+      return selectedItem.getAttribute("availableUpdateURL") != "none" &&
              !gExtensionsView.hasAttribute("update-operation");
     case "cmd_includeUpdate":
-      return selectedItem.hasAttribute("availableUpdateURL") &&
+      return selectedItem.getAttribute("availableUpdateURL") != "none" &&
              !gExtensionsView.hasAttribute("update-operation");
     case "cmd_reallyEnable":
     // controls whether to show Enable or Disable in extensions' context menu
@@ -1686,9 +1681,7 @@ var gExtensionsViewController = {
       var id = getIDFromResourceURI(aSelectedItem.id);
       var items = [gExtensionManager.getItemForID(id)];
       var listener = new UpdateCheckListener();
-      gExtensionManager.update(items, items.length,
-                               nsIExtensionManager.UPDATE_CHECK_NEWVERSION,
-                               listener);
+      gExtensionManager.update(items, items.length, false, listener);
     },
 
     cmd_installUpdate: function (aSelectedItem)
@@ -1702,7 +1695,6 @@ var gExtensionsViewController = {
       showView("installs");
       var item = gExtensionManager.getItemForID(getIDFromResourceURI(aSelectedItem.id));
       gExtensionManager.addDownloads([item], 1, true);
-      updateGlobalCommands();
       // Remove the updates view if there are no add-ons left to update
       updateOptionalViews();
     },
@@ -1763,7 +1755,6 @@ var gExtensionsViewController = {
       gExtensionsViewController.onCommandUpdate();
       updateGlobalCommands();
       gExtensionsView.selectedItem.focus();
-      updateOptionalViews();
     },
 
     cmd_disable: function (aSelectedItem)
@@ -1796,7 +1787,6 @@ var gExtensionsViewController = {
       gExtensionManager.disableItem(id);
       gExtensionsViewController.onCommandUpdate();
       gExtensionsView.selectedItem.focus();
-      updateOptionalViews();
     },
     
     cmd_enable: function (aSelectedItem)
@@ -1804,7 +1794,6 @@ var gExtensionsViewController = {
       gExtensionManager.enableItem(getIDFromResourceURI(aSelectedItem.id));
       gExtensionsViewController.onCommandUpdate();
       gExtensionsView.selectedItem.focus();
-      updateOptionalViews();
     }
   }
 };

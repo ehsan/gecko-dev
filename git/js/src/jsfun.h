@@ -59,7 +59,7 @@ struct JSFunction {
         } n;
         struct {
             uint16   nvars;     /* number of local variables */
-            uint16   spare;     /* reserved for future use */
+            uint16   nregexps;  /* number of regular expressions literals */
             JSScript *script;   /* interpreted bytecode descriptor or null */
         } i;
     } u;

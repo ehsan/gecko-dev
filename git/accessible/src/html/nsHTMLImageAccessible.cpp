@@ -38,11 +38,9 @@
 
 #include "imgIContainer.h"
 #include "imgIRequest.h"
-
 #include "nsHTMLImageAccessible.h"
 #include "nsAccessibilityAtoms.h"
-#include "nsHTMLAreaAccessible.h"
-
+#include "nsIAccessibilityService.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
@@ -55,10 +53,8 @@
 
 // --- image -----
 
-const PRUint32 kDefaultImageCacheSize = 256;
-
 nsHTMLImageAccessible::nsHTMLImageAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell):
-nsLinkableAccessible(aDOMNode, aShell), mAccessNodeCache(nsnull)
+nsLinkableAccessible(aDOMNode, aShell)
 { 
   nsCOMPtr<nsIDOMElement> element(do_QueryInterface(aDOMNode));
   nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
@@ -76,11 +72,6 @@ nsLinkableAccessible(aDOMNode, aShell), mAccessNodeCache(nsnull)
         mapElementName.Cut(0,1);
       mMapElement = htmlDoc->GetImageMap(mapElementName);
     }
-  }
-
-  if (mMapElement) {
-    mAccessNodeCache = new nsAccessNodeHashtable();
-    mAccessNodeCache->Init(kDefaultImageCacheSize);
   }
 }
 
@@ -149,46 +140,37 @@ NS_IMETHODIMP nsHTMLImageAccessible::GetRole(PRUint32 *_retval)
 }
 
 
-already_AddRefed<nsIAccessible>
-nsHTMLImageAccessible::GetAreaAccessible(PRInt32 aAreaNum)
+already_AddRefed<nsIAccessible> nsHTMLImageAccessible::CreateAreaAccessible(PRInt32 areaNum)
 {
-  if (!mMapElement)
+  if (!mMapElement) 
     return nsnull;
 
   nsCOMPtr<nsIDOMHTMLCollection> mapAreas;
   mMapElement->GetAreas(getter_AddRefs(mapAreas));
-  if (!mapAreas)
+  if (!mapAreas) 
     return nsnull;
 
   nsCOMPtr<nsIDOMNode> domNode;
-  mapAreas->Item(aAreaNum,getter_AddRefs(domNode));
+  mapAreas->Item(areaNum,getter_AddRefs(domNode));
   if (!domNode)
     return nsnull;
 
-  nsCOMPtr<nsIAccessNode> accessNode;
-  GetCacheEntry(*mAccessNodeCache, (void*)(aAreaNum),
-                getter_AddRefs(accessNode));
-
-  if (!accessNode) {
-    accessNode = new nsHTMLAreaAccessible(domNode, this, mWeakShell);
-    if (!accessNode)
-      return nsnull;
-
-    nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(accessNode));
-    NS_ASSERTION(privateAccessNode,
-                 "Accessible doesn't implement nsPIAccessNode");
-
-    nsresult rv = privateAccessNode->Init();
-    if (NS_FAILED(rv))
-      return nsnull;
-
-    PutCacheEntry(*mAccessNodeCache, (void*)(aAreaNum), accessNode);
+  nsCOMPtr<nsIAccessibilityService> accService(do_GetService("@mozilla.org/accessibilityService;1"));
+  if (!accService)
+    return nsnull;
+  if (accService) {
+    nsIAccessible* acc = nsnull;
+    accService->GetCachedAccessible(domNode, mWeakShell, &acc);
+    if (!acc) {
+      accService->CreateHTMLAreaAccessible(mWeakShell, domNode, this, &acc);
+      nsCOMPtr<nsPIAccessNode> accessNode(do_QueryInterface(acc));
+      if (accessNode) {
+        accessNode->Init();
+      }
+    }
+    return acc;
   }
-
-  nsCOMPtr<nsIAccessible> accessible(do_QueryInterface(accessNode));
-  nsIAccessible *accPtr;
-  NS_IF_ADDREF(accPtr = accessible);
-  return accPtr;
+  return nsnull;
 }
 
 
@@ -220,7 +202,7 @@ void nsHTMLImageAccessible::CacheChildren()
   nsCOMPtr<nsIAccessible> areaAccessible;
   nsCOMPtr<nsPIAccessible> privatePrevAccessible;
   while (childCount < (PRInt32)numMapAreas && 
-         (areaAccessible = GetAreaAccessible(childCount)) != nsnull) {
+         (areaAccessible = CreateAreaAccessible(childCount)) != nsnull) {
     if (privatePrevAccessible) {
       privatePrevAccessible->SetNextSibling(areaAccessible);
     }
@@ -264,18 +246,3 @@ NS_IMETHODIMP nsHTMLImageAccessible::GetImageBounds(PRInt32 *x, PRInt32 *y, PRIn
 {
   return GetBounds(x, y, width, height);
 }
-
-NS_IMETHODIMP
-nsHTMLImageAccessible::Shutdown()
-{
-  nsLinkableAccessible::Shutdown();
-
-  if (mAccessNodeCache) {
-    ClearCache(*mAccessNodeCache);
-    delete mAccessNodeCache;
-    mAccessNodeCache = nsnull;
-  }
-
-  return NS_OK;
-}
-

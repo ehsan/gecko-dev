@@ -1799,13 +1799,13 @@ nsXULTreeBuilder::IsContainerOpen(nsIRDFResource* aResource, PRBool* aOpen)
 int
 nsXULTreeBuilder::Compare(const void* aLeft, const void* aRight, void* aClosure)
 {
-    nsXULTreeBuilder* self = static_cast<nsXULTreeBuilder*>(aClosure);
+    nsXULTreeBuilder* self = NS_STATIC_CAST(nsXULTreeBuilder*, aClosure);
 
-    nsTreeRows::Row* left = static_cast<nsTreeRows::Row*>
-                                       (const_cast<void*>(aLeft));
+    nsTreeRows::Row* left = NS_STATIC_CAST(nsTreeRows::Row*,
+                                               NS_CONST_CAST(void*, aLeft));
 
-    nsTreeRows::Row* right = static_cast<nsTreeRows::Row*>
-                                        (const_cast<void*>(aRight));
+    nsTreeRows::Row* right = NS_STATIC_CAST(nsTreeRows::Row*,
+                                                NS_CONST_CAST(void*, aRight));
 
     return self->CompareResults(left->mMatch->mResult, right->mMatch->mResult);
 }

@@ -54,7 +54,6 @@
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "gfxPlatform.h"
-#include "gfxTextRunCache.h"
 
 // XXX: This initial straightforward conversion from accessing cairo
 // directly to Thebes doesn't handle clusters.  Pretty much all code
@@ -111,7 +110,7 @@ nsSVGGlyphFrame::UpdateGraphic(PRBool suppressInvalidation)
     return NS_OK;
 
   nsSVGTextContainerFrame *containerFrame =
-    static_cast<nsSVGTextContainerFrame *>(mParent);
+    NS_STATIC_CAST(nsSVGTextContainerFrame *, mParent);
   if (containerFrame)
     containerFrame->UpdateGraphic();
 
@@ -216,9 +215,9 @@ nsSVGGlyphFrame::LoopCharacters(gfxContext *aCtx, const nsString &aText,
                                 const nsSVGCharacterPosition *aCP,
                                 FillOrStroke aFillOrStroke)
 {
-  gfxTextRunCache::AutoTextRun textRun = GetTextRun(aCtx, aText);
+  nsAutoPtr<gfxTextRun> textRun(GetTextRun(aCtx, aText));
 
-  if (!textRun.get())
+  if (!textRun)
     return;
 
   if (!aCP) {
@@ -543,8 +542,8 @@ nsSVGGlyphFrame::GetCanvasTM(nsIDOMSVGMatrix * *aCTM)
 {
   NS_ASSERTION(mParent, "null parent");
   
-  nsSVGContainerFrame *containerFrame = static_cast<nsSVGContainerFrame*>
-                                                   (mParent);
+  nsSVGContainerFrame *containerFrame = NS_STATIC_CAST(nsSVGContainerFrame*,
+                                                       mParent);
   nsCOMPtr<nsIDOMSVGMatrix> parentTM = containerFrame->GetCanvasTM();
 
   *aCTM = parentTM.get();
@@ -607,8 +606,8 @@ nsSVGGlyphFrame::GetCharacterPosition(gfxContext *aContext,
   gfxFloat length = data->GetLength();
   PRUint32 strLength = aText.Length();
 
-  gfxTextRunCache::AutoTextRun textRun = GetTextRun(aContext, aText);
-  if (!textRun.get())
+  nsAutoPtr<gfxTextRun> textRun(GetTextRun(aContext, aText));
+  if (!textRun)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsSVGCharacterPosition *cp = new nsSVGCharacterPosition[strLength];
@@ -1004,7 +1003,7 @@ nsSVGGlyphFrame::FindTextPathParent()
        frame = frame->GetParent()) {
     nsIAtom* type = frame->GetType();
     if (type == nsGkAtoms::svgTextPathFrame) {
-      return static_cast<nsSVGTextPathFrame*>(frame);
+      return NS_STATIC_CAST(nsSVGTextPathFrame*, frame);
     } else if (type == nsGkAtoms::svgTextFrame)
       return nsnull;
   }
@@ -1030,7 +1029,7 @@ NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
 nsSVGGlyphFrame::GetX()
 {
   nsSVGTextContainerFrame *containerFrame;
-  containerFrame = static_cast<nsSVGTextContainerFrame *>(mParent);
+  containerFrame = NS_STATIC_CAST(nsSVGTextContainerFrame *, mParent);
   if (containerFrame)
     return containerFrame->GetX();
   return nsnull;
@@ -1040,7 +1039,7 @@ NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
 nsSVGGlyphFrame::GetY()
 {
   nsSVGTextContainerFrame *containerFrame;
-  containerFrame = static_cast<nsSVGTextContainerFrame *>(mParent);
+  containerFrame = NS_STATIC_CAST(nsSVGTextContainerFrame *, mParent);
   if (containerFrame)
     return containerFrame->GetY();
   return nsnull;
@@ -1050,7 +1049,7 @@ NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
 nsSVGGlyphFrame::GetDx()
 {
   nsSVGTextContainerFrame *containerFrame;
-  containerFrame = static_cast<nsSVGTextContainerFrame *>(mParent);
+  containerFrame = NS_STATIC_CAST(nsSVGTextContainerFrame *, mParent);
   if (containerFrame)
     return containerFrame->GetDx();
   return nsnull;
@@ -1060,7 +1059,7 @@ NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
 nsSVGGlyphFrame::GetDy()
 {
   nsSVGTextContainerFrame *containerFrame;
-  containerFrame = static_cast<nsSVGTextContainerFrame *>(mParent);
+  containerFrame = NS_STATIC_CAST(nsSVGTextContainerFrame *, mParent);
   if (containerFrame)
     return containerFrame->GetDy();
   return nsnull;
@@ -1348,11 +1347,17 @@ nsSVGGlyphFrame::GetTextRun(gfxContext *aCtx, const nsString &aText)
   // References:
   //   https://bugzilla.mozilla.org/show_bug.cgi?id=375141
   //   http://weblogs.mozillazine.org/roc/archives/2007/03/text_text_text.html
+
+  gfxTextRunFactory::Parameters params =
+    { aCtx, nsnull, nsnull,
+      nsnull, nsnull,
+      1 // see note above
+      };
+
   if (!mFontGroup)
     return nsnull;
 
-  return gfxTextRunCache::MakeTextRun(aText.get(), aText.Length(),
-      mFontGroup, aCtx, 1, 0);
+  return mFontGroup->MakeTextRun(aText.get(), aText.Length(), &params, 0);
 }
 
 //----------------------------------------------------------------------

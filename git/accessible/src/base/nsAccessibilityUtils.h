@@ -40,13 +40,12 @@
 #define nsAccessibilityUtils_h_
 
 #include "nsAccessibilityAtoms.h"
-#include "nsIAccessible.h"
 
 #include "nsIDOMNode.h"
 #include "nsIPersistentProperties2.h"
 #include "nsIContent.h"
 
-class nsAccUtils
+class nsAccessibilityUtils
 {
 public:
   /**
@@ -102,16 +101,7 @@ public:
   static void SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
                                                  nsIPersistentProperties *aAttributes);
 
-  /**
-   * Return true if the given node has registered event listener of the given
-   * type.
-   */
   static PRBool HasListener(nsIContent *aContent, const nsAString& aEventType);
-
-  /**
-   * Fire accessible event of the given type for the given accessible.
-   */
-  static nsresult FireAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible);
 };
 
 #endif

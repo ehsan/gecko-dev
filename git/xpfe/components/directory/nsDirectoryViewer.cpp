@@ -133,7 +133,7 @@ nsHTTPIndex::GetInterface(const nsIID &anIID, void **aResult )
 
         if (!mRequestor)
           return NS_ERROR_NO_INTERFACE;
-        *aResult = static_cast<nsIFTPEventSink*>(this);
+        *aResult = NS_STATIC_CAST(nsIFTPEventSink*, this);
         NS_ADDREF(this);
         return NS_OK;
     }
@@ -194,8 +194,8 @@ nsHTTPIndex::OnFTPControlLog(PRBool server, const char *msg)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_OK);
 
-    JSContext* jscontext = reinterpret_cast<JSContext*>
-                                           (context->GetNativeContext());
+    JSContext* jscontext = NS_REINTERPRET_CAST(JSContext*,
+                                               context->GetNativeContext());
     NS_ENSURE_TRUE(jscontext, NS_OK);
 
     JSObject* global = JS_GetGlobalObject(jscontext);
@@ -271,8 +271,8 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
-    JSContext* jscontext = reinterpret_cast<JSContext*>
-                                           (context->GetNativeContext());
+    JSContext* jscontext = NS_REINTERPRET_CAST(JSContext*,
+                                               context->GetNativeContext());
     JSObject* global = JS_GetGlobalObject(jscontext);
 
     // Using XPConnect, wrap the HTTP index object...
@@ -283,7 +283,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
     rv = xpc->WrapNative(jscontext,
                          global,
-                         static_cast<nsIHTTPIndex*>(this),
+                         NS_STATIC_CAST(nsIHTTPIndex*, this),
                          NS_GET_IID(nsIHTTPIndex),
                          getter_AddRefs(wrapper));
 
@@ -1001,7 +1001,7 @@ nsHTTPIndex::AddElement(nsIRDFResource *parent, nsIRDFResource *prop, nsIRDFNode
 void
 nsHTTPIndex::FireTimer(nsITimer* aTimer, void* aClosure)
 {
-  nsHTTPIndex *httpIndex = static_cast<nsHTTPIndex *>(aClosure);
+  nsHTTPIndex *httpIndex = NS_STATIC_CAST(nsHTTPIndex *, aClosure);
   if (!httpIndex)	return;
   
   // don't return out of this loop as mTimer may need to be cancelled afterwards

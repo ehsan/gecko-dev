@@ -44,7 +44,6 @@
 #include "nsIFormControl.h"
 #include "nsIDOMNSHTMLFrameElement.h"
 #include "nsFrameLoader.h"
-#include "nsGkAtoms.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;
@@ -86,7 +85,7 @@ public:
   static nsGenericHTMLElement* FromContent(nsIContent *aContent)
   {
     if (aContent->IsNodeOfType(eHTML))
-      return static_cast<nsGenericHTMLElement*>(aContent);
+      return NS_STATIC_CAST(nsGenericHTMLElement*, aContent);
     return nsnull;
   }
 
@@ -166,8 +165,6 @@ public:
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
   NS_IMETHOD GetSpellcheck(PRBool* aSpellcheck);
   NS_IMETHOD SetSpellcheck(PRBool aSpellcheck);
-  nsresult GetContentEditable(nsAString &aContentEditable);
-  nsresult SetContentEditable(const nsAString &aContentEditable);
 
   /**
    * Get the frame's offset information for offsetTop/Left/Width/Height.
@@ -199,16 +196,6 @@ public:
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
-  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
-                              PRBool aNullParent = PR_TRUE);
-  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, PRBool aNotify)
-  {
-    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
-  }
-  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           PRBool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              PRBool aNotify);
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
@@ -237,8 +224,6 @@ public:
     return mAttrsAndChildren.GetAttr(aAttr);
   }
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
-
-  virtual void UpdateEditableState();
 
   virtual const nsAttrValue* GetClasses() const;
   virtual nsIAtom *GetIDAttributeName() const;
@@ -783,45 +768,6 @@ protected:
    * spellchecking.
    */
   static void SyncEditorsOnSubtree(nsIContent* content);
-
-  enum ContentEditableTristate {
-    eInherit = -1,
-    eFalse = 0,
-    eTrue = 1
-  };
-
-  /**
-   * Returns eTrue if the element has a contentEditable attribute and its value
-   * is "true" or an empty string. Returns eFalse if the element has a
-   * contentEditable attribute and its value is "false". Otherwise returns
-   * eInherit.
-   */
-  NS_HIDDEN_(ContentEditableTristate) GetContentEditableValue() const
-  {
-    static const nsIContent::AttrValuesArray values[] =
-      { &nsGkAtoms::_false, &nsGkAtoms::_true, &nsGkAtoms::_empty, nsnull };
-
-    PRInt32 value = FindAttrValueIn(kNameSpaceID_None,
-                                    nsGkAtoms::contenteditable, values,
-                                    eIgnoreCase);
-
-    return value > 0 ? eTrue : (value == 0 ? eFalse : eInherit);
-  }
-
-private:
-  /**
-   * Returns whether this element is an editable root. There are two types of
-   * editable roots:
-   *   1) the documentElement if the whole document is editable (for example for
-   *      desginMode=on)
-   *   2) an element that is marked editable with contentEditable=true and that
-   *      doesn't have a parent or whose parent is not editable.
-   * Note that this doesn't return input and textarea elements that haven't been
-   * made editable through contentEditable or designMode.
-   */
-  PRBool IsEditableRoot() const;
-
-  void ChangeEditableState(PRInt32 aChange);
 };
 
 
@@ -871,7 +817,6 @@ public:
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              PRBool aNotify);
   virtual PRUint32 GetDesiredIMEState();
-  virtual PRInt32 IntrinsicState() const;
 
 protected:
   /**
@@ -893,7 +838,7 @@ protected:
    */
   PRBool CanBeDisabled() const;
 
-  void UpdateEditableFormControlState();
+  virtual PRInt32 IntrinsicState() const;
 
   void SetFocusAndScrollIntoView(nsPresContext* aPresContext);
 
@@ -1089,7 +1034,9 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
 #define NS_HTML_CONTENT_INTERFACE_MAP_AMBIGOUS_BEGIN(_class, _base, _base_if) \
   NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)    \
   {                                                                           \
-    NS_PRECONDITION(aInstancePtr, "null out param");                          \
+    NS_ENSURE_ARG_POINTER(aInstancePtr);                                      \
+                                                                              \
+    *aInstancePtr = nsnull;                                                   \
                                                                               \
     nsresult rv;                                                              \
                                                                               \
@@ -1098,7 +1045,7 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
     if (NS_SUCCEEDED(rv))                                                     \
       return rv;                                                              \
                                                                               \
-    rv = DOMQueryInterface(static_cast<_base_if *>(this), aIID,               \
+    rv = DOMQueryInterface(NS_STATIC_CAST(_base_if *, this), aIID,            \
                            aInstancePtr);                                     \
                                                                               \
     if (NS_SUCCEEDED(rv))                                                     \
@@ -1115,12 +1062,14 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
                                                         _base_if)             \
   NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)    \
   {                                                                           \
-    NS_PRECONDITION(aInstancePtr, "null out param");                          \
+    NS_ENSURE_ARG_POINTER(aInstancePtr);                                      \
                                                                               \
     if ( aIID.Equals(NS_GET_IID(nsXPCOMCycleCollectionParticipant)) ) {       \
       *aInstancePtr = &NS_CYCLE_COLLECTION_NAME(_class);                      \
       return NS_OK;                                                           \
     }                                                                         \
+                                                                              \
+    *aInstancePtr = nsnull;                                                   \
                                                                               \
     nsresult rv;                                                              \
                                                                               \
@@ -1129,7 +1078,7 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
     if (NS_SUCCEEDED(rv))                                                     \
       return rv;                                                              \
                                                                               \
-    rv = DOMQueryInterface(static_cast<_base_if *>(this), aIID,               \
+    rv = DOMQueryInterface(NS_STATIC_CAST(_base_if *, this), aIID,            \
                            aInstancePtr);                                     \
                                                                               \
     if (NS_SUCCEEDED(rv))                                                     \

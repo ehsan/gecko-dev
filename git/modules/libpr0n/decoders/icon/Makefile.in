@@ -78,7 +78,6 @@ endif
 REQUIRES	= xpcom \
 		  string \
 		  gfx \
-		  thebes \
 		  imglib2 \
 		  necko \
 		  $(NULL)

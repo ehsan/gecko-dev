@@ -82,7 +82,9 @@
 #ifdef MOZ_CAIRO_GFX
 #  define GFX_MODULES MODULE(nsGfxModule)
 #else
-#  if defined(MOZ_WIDGET_PHOTON)
+#  if defined(MOZ_WIDGET_GTK2)
+#    define GFX_MODULES MODULE(nsGfxGTKModule)
+#  elif defined(MOZ_WIDGET_PHOTON)
 #    define GFX_MODULES MODULE(nsGfxPhModule)
 #  elif defined(XP_WIN)
 #    define GFX_MODULES MODULE(nsGfxModule)
@@ -160,12 +162,6 @@
 #define SYSTEMPREF_MODULES
 #endif
 
-#ifdef MOZ_ENABLE_EXTENSION_LAYOUT_DEBUG
-#define LAYOUT_DEBUG_MODULE MODULE(nsLayoutDebugModule)
-#else
-#define LAYOUT_DEBUG_MODULE
-#endif
-
 #ifdef MOZ_PLUGINS
 #define PLUGINS_MODULES \
     MODULE(nsPluginModule)
@@ -210,7 +206,7 @@
 #define JSDEBUGGER_MODULES
 #endif
 
-#if defined(MOZ_FILEVIEW) && defined(MOZ_XPFE_COMPONENTS) && defined(MOZ_XUL)
+#if defined(MOZ_FILEVIEW) && defined(MOZ_XPFE_COMPONENTS)
 #define FILEVIEW_MODULE MODULE(nsFileViewModule)
 #else
 #define FILEVIEW_MODULE
@@ -299,7 +295,6 @@
     MODULE(NSS)                              \
     SYSTEMPREF_MODULES                       \
     SPELLCHECK_MODULE                        \
-    LAYOUT_DEBUG_MODULE                      \
     /* end of list */
 
 #define MODULE(_name) \

@@ -159,26 +159,26 @@ protected:
     public:
         AutoTextRun(nsThebesFontMetrics* aMetrics, nsIRenderingContext* aRC,
                     const char* aString, PRInt32 aLength, PRBool aEnableSpacing) {
-            mTextRun = gfxTextRunCache::MakeTextRun(
-                reinterpret_cast<const PRUint8*>(aString), aLength,
+            mTextRun = gfxGlobalTextRunCache::GetTextRun(
+                NS_REINTERPRET_CAST(const PRUint8*, aString), aLength,
                 aMetrics->mFontGroup,
-                static_cast<gfxContext*>(aRC->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT)),
+                NS_STATIC_CAST(gfxContext*, aRC->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT)),
                 aMetrics->mP2A,
                 ComputeFlags(aMetrics, aEnableSpacing));
         }
         AutoTextRun(nsThebesFontMetrics* aMetrics, nsIRenderingContext* aRC,
                     const PRUnichar* aString, PRInt32 aLength, PRBool aEnableSpacing) {
-            mTextRun = gfxTextRunCache::MakeTextRun(
+            mTextRun = gfxGlobalTextRunCache::GetTextRun(
                 aString, aLength, aMetrics->mFontGroup,
-                static_cast<gfxContext*>(aRC->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT)),
+                NS_STATIC_CAST(gfxContext*, aRC->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT)),
                 aMetrics->mP2A,
                 ComputeFlags(aMetrics, aEnableSpacing));
         }
-        gfxTextRun* operator->() { return mTextRun.get(); }
-        gfxTextRun* get() { return mTextRun.get(); }
+        gfxTextRun* operator->() { return mTextRun; }
+        gfxTextRun* get() { return mTextRun; }
 
     private:
-        gfxTextRunCache::AutoTextRun mTextRun;
+        gfxTextRun* mTextRun;
         
         static PRUint32 ComputeFlags(nsThebesFontMetrics* aMetrics,
                                      PRBool aEnableSpacing) {

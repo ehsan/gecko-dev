@@ -158,9 +158,8 @@ class DynamicImage {
   // Makes local copy of file path to mach-o binary
   void InitializeFilePath(char *inFilePath) {
     if (inFilePath) {
-      size_t path_size = 1 + strlen(inFilePath);
-      file_path_ = reinterpret_cast<char*>(malloc(path_size));
-      strlcpy(file_path_, inFilePath, path_size);
+      file_path_ = reinterpret_cast<char*>(malloc(strlen(inFilePath)));
+      strcpy(file_path_, inFilePath);
     } else {
       file_path_ = NULL;
     }

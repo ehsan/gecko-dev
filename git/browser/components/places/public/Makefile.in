@@ -46,8 +46,6 @@ include $(DEPTH)/config/autoconf.mk
 MODULE = browserplaces
 XPIDL_MODULE = browserplaces
 
-XPIDLSRCS  = nsIPlacesImportExportService.idl \
-             nsIPlacesTransactionsService.idl \
-             $(NULL)
+XPIDLSRCS  = nsIPlacesImportExportService.idl
 
 include $(topsrcdir)/config/rules.mk

@@ -116,38 +116,37 @@ if [[ $OSID == "win32" ]]; then
 
 else
     
-    case "$OSID" in
-        linux)
-            if echo $filetype | grep -iq 'bzip2'; then
-                tar -jxvf $filename -C "$executablepath"
-            elif echo $filetype | grep -iq 'gzip'; then
-                tar -zxvf $filename -C "$executablepath" 
-            else
-                error "unknown file type $filetype"
-            fi
-            ;; 
+    if [[ $OSID == "linux" ]]; then
 
-        mac)
+	    if echo $filetype | grep -iq 'bzip2'; then
+	        tar -jxvf $filename -C "$executablepath"
+	    elif echo $filetype | grep -iq 'gzip'; then
+	        tar -zxvf $filename -C "$executablepath" 
+	    else
+	        error "unknown file type $filetype"
+	    fi
+
+    elif [[ $OSID == "mac" ]]; then
         # answer license prompt
-            result=`${TEST_BIN}/hdiutil-expect.ex $filename`
+        result=`${TEST_BIN}/hdiutil-expect.ex $filename`
         # now get the volume data
 	    #result=`hdiutil attach $filename`
-            disk=`echo $result | sed 's@.*\(/dev/[^ ]*\).*/dev.*/dev.*@\1@'`
+	    disk=`echo $result | sed 's@.*\(/dev/[^ ]*\).*/dev.*/dev.*@\1@'`
         # remove the carriage return inserted by expect
-            volume=`echo $result | sed "s|[^a-zA-Z0-9/]||g" | sed 's@.*\(/Volumes/.*\)@\1@'`
-            echo "disk=$disk"
-            echo "volume=$volume"
-            if [[ -z "$disk" || -z "$volume" ]]; then
-                error "mounting disk image: $result"
-            fi
+	    volume=`echo $result | sed "s|[^a-zA-Z0-9/]||g" | sed 's@.*\(/Volumes/.*\)@\1@'`
+	    echo "disk=$disk"
+	    echo "volume=$volume"
+	    if [[ -z "$disk" || -z "$volume" ]]; then
+	        error "mounting disk image: $result"
+	    fi
 
-            for app in $volume/*.app; do
-                cp -R $app $executablepath
-            done
+        for app in $volume/*.app; do
+            cp -R $app $executablepath
+        done
 
-            hdiutil detach $disk
-            ;;
-    esac
+	    hdiutil detach $disk
+
+    fi
 
     #
     # patch unix-like startup scripts to exec instead of 

@@ -27,8 +27,6 @@
 #  include "config.h"
 #endif
 
-#include "cairo-platform.h"
-
 #include "pixman.h"
 
 #include <stdlib.h>

@@ -40,8 +40,6 @@ import signal
 import os
 from select import select
 
-import config
-
 
 def GenerateFirefoxCommandLine(firefox_path, profile_dir, url):
   """Generates the command line for a process to run Firefox, wrapped
@@ -61,11 +59,9 @@ def GenerateFirefoxCommandLine(firefox_path, profile_dir, url):
   if url:
     url_arg = '-url %s' % url
 
-  cmd = '%s %s %s -width %d -height %d' % (firefox_path,
+  cmd = '%s %s %s' % (firefox_path,
                       profile_arg,
-                      url_arg,
-                      config.BROWSER_WIDTH,
-                      config.BROWSER_HEIGHT)
+                      url_arg)
   return cmd
 
 

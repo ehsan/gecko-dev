@@ -878,8 +878,8 @@ DOMCSSDeclarationImpl::~DOMCSSDeclarationImpl(void)
 
 inline DOMCSSStyleRuleImpl* DOMCSSDeclarationImpl::DomRule()
 {
-  return reinterpret_cast<DOMCSSStyleRuleImpl*>
-                         (reinterpret_cast<char*>(this) -
+  return NS_REINTERPRET_CAST(DOMCSSStyleRuleImpl*,
+           NS_REINTERPRET_CAST(char*, this) -
            offsetof(DOMCSSStyleRuleImpl, mDOMDeclaration));
 }
 

@@ -355,7 +355,7 @@ void nsCSSValue::SetSystemFontValue()
   mUnit = eCSSUnit_System_Font;
 }
 
-void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
+void nsCSSValue::StartImageLoad(nsIDocument* aDocument, PRBool aIsBGImage) const
 {
   NS_PRECONDITION(eCSSUnit_URL == mUnit, "Not a URL value!");
   nsCSSValue::Image* image =
@@ -363,9 +363,9 @@ void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
                           mValue.mURL->mString,
                           mValue.mURL->mReferrer,
                           mValue.mURL->mOriginPrincipal,
-                          aDocument);
+                          aDocument, aIsBGImage);
   if (image) {
-    nsCSSValue* writable = const_cast<nsCSSValue*>(this);
+    nsCSSValue* writable = NS_CONST_CAST(nsCSSValue*, this);
     writable->SetImageValue(image);
   }
 }
@@ -383,7 +383,7 @@ nsCSSValue::BufferFromString(const nsString& aValue)
   PRUnichar length = aValue.Length();
   buffer = nsStringBuffer::Alloc((length + 1) * sizeof(PRUnichar));
   if (NS_LIKELY(buffer != 0)) {
-    PRUnichar* data = static_cast<PRUnichar*>(buffer->Data());
+    PRUnichar* data = NS_STATIC_CAST(PRUnichar*, buffer->Data());
     nsCharTraits<PRUnichar>::copy(data, aValue.get(), length);
     // Null-terminate.
     data[length] = 0;
@@ -429,16 +429,28 @@ nsCSSValue::URL::operator==(const URL& aOther) const
 
 nsCSSValue::Image::Image(nsIURI* aURI, nsStringBuffer* aString,
                          nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal,
-                         nsIDocument* aDocument)
+                         nsIDocument* aDocument, PRBool aIsBGImage)
   : URL(aURI, aString, aReferrer, aOriginPrincipal)
 {
   MOZ_COUNT_CTOR(nsCSSValue::Image);
 
+  // If the pref is enabled, force all background image loads to
+  // complete before firing onload for the document.  Otherwise, background
+  // image loads are special and don't block onload.
+  PRInt32 loadFlag = (PRInt32)nsIRequest::LOAD_NORMAL;
+  if (aIsBGImage) {
+    static PRBool onloadAfterImageBackgroundLoads =
+      nsContentUtils::GetBoolPref
+        ("layout.fire_onload_after_image_background_loads");
+    if (!onloadAfterImageBackgroundLoads) {
+      loadFlag = (PRInt32)nsIRequest::LOAD_BACKGROUND;
+    }
+  }
+
   if (mURI &&
-      nsContentUtils::CanLoadImage(mURI, aDocument, aDocument,
-                                   aOriginPrincipal)) {
-    nsContentUtils::LoadImage(mURI, aDocument, aOriginPrincipal, aReferrer,
-                              nsnull, nsIRequest::LOAD_NORMAL,
+      nsContentUtils::CanLoadImage(mURI, aDocument, aDocument)) {
+    nsContentUtils::LoadImage(mURI, aDocument, aReferrer, nsnull,
+                              loadFlag,
                               getter_AddRefs(mRequest));
   }
 }

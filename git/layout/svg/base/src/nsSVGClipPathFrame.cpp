@@ -198,8 +198,8 @@ nsSVGClipPathFrame::GetCanvasTM()
 {
   NS_ASSERTION(mClipParentMatrix, "null parent matrix");
 
-  nsSVGClipPathElement *clipPath = static_cast<nsSVGClipPathElement*>
-                                              (mContent);
+  nsSVGClipPathElement *clipPath = NS_STATIC_CAST(nsSVGClipPathElement*,
+                                                  mContent);
 
   nsCOMPtr<nsIDOMSVGMatrix> localTM = clipPath->GetLocalTransformMatrix();
 

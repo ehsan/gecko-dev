@@ -47,8 +47,15 @@
 #include "nsISelectionController.h"
 #include "nsIPresShell.h"
 #include "nsRegion.h"
+#include "nsIViewManager.h"
+#include "nsIBlender.h"
+#include "nsTransform2D.h"
 #include "nsFrameManager.h"
+#include "nsPlaceholderFrame.h"
+
+#ifdef MOZ_CAIRO_GFX
 #include "gfxContext.h"
+#endif
 
 nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     PRBool aIsForEvents, PRBool aBuildCaret, nsIFrame* aMovingFrame)
@@ -86,7 +93,7 @@ DestroyRectFunc(void*    aFrame,
                 void*    aPropertyValue,
                 void*    aDtorData)
 {
-  delete static_cast<nsRect*>(aPropertyValue);
+  delete NS_STATIC_CAST(nsRect*, aPropertyValue);
 }
 
 static void MarkFrameForDisplay(nsIFrame* aFrame, nsIFrame* aStopAtFrame) {
@@ -268,9 +275,9 @@ nsDisplayList::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
   FlattenTo(&elements);
   
   for (PRInt32 i = elements.Count() - 1; i >= 0; --i) {
-    nsDisplayItem* item = static_cast<nsDisplayItem*>(elements.ElementAt(i));
+    nsDisplayItem* item = NS_STATIC_CAST(nsDisplayItem*, elements.ElementAt(i));
     nsDisplayItem* belowItem = i < 1 ? nsnull :
-      static_cast<nsDisplayItem*>(elements.ElementAt(i - 1));
+      NS_STATIC_CAST(nsDisplayItem*, elements.ElementAt(i - 1));
 
     if (belowItem && item->TryMerge(aBuilder, belowItem)) {
       belowItem->~nsDisplayItem();
@@ -336,7 +343,7 @@ nsIFrame* nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt) co
     elements.AppendElement(item);
   }
   for (PRInt32 i = elements.Count() - 1; i >= 0; --i) {
-    item = static_cast<nsDisplayItem*>(elements.ElementAt(i));
+    item = NS_STATIC_CAST(nsDisplayItem*, elements.ElementAt(i));
     if (item->GetBounds(aBuilder).Contains(aPt)) {
       nsIFrame* f = item->HitTest(aBuilder, aPt);
       // Handle the XUL 'mousethrough' feature.
@@ -395,7 +402,7 @@ static PRBool IsContentLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
   return nsLayoutUtils::CompareTreePosition(
       aItem1->GetUnderlyingFrame()->GetContent(),
       aItem2->GetUnderlyingFrame()->GetContent(),
-      static_cast<nsIContent*>(aClosure)) <= 0;
+      NS_STATIC_CAST(nsIContent*, aClosure)) <= 0;
 }
 
 static PRBool IsZOrderLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
@@ -432,7 +439,7 @@ void nsDisplayList::ExplodeAnonymousChildLists(nsDisplayListBuilder* aBuilder) {
       list->ExplodeAnonymousChildLists(aBuilder);
       nsDisplayItem* j;
       while ((j = list->RemoveBottom()) != nsnull) {
-        tmp.AppendToTop(static_cast<nsDisplayWrapList*>(i)->
+        tmp.AppendToTop(NS_STATIC_CAST(nsDisplayWrapList*, i)->
             WrapWithClone(aBuilder, j));
       }
       i->~nsDisplayItem();
@@ -772,6 +779,8 @@ void nsDisplayOpacity::Paint(nsDisplayListBuilder* aBuilder,
   nsRect bounds;
   bounds.IntersectRect(GetBounds(aBuilder), aDirtyRect);
 
+#ifdef MOZ_CAIRO_GFX
+
   nsCOMPtr<nsIDeviceContext> devCtx;
   aCtx->GetDeviceContext(*getter_AddRefs(devCtx));
   float a2p = 1.0f / devCtx->AppUnitsPerDevPixel();
@@ -800,6 +809,44 @@ void nsDisplayOpacity::Paint(nsDisplayListBuilder* aBuilder,
   ctx->Paint(opacity);
 
   ctx->Restore();
+
+#elif !defined(XP_MACOSX)
+
+  nsIViewManager* vm = mFrame->GetPresContext()->GetViewManager();
+  nsIViewManager::BlendingBuffers* buffers =
+      vm->CreateBlendingBuffers(aCtx, PR_FALSE, nsnull, mNeedAlpha, bounds);
+  if (!buffers) {
+    NS_WARNING("Could not create blending buffers for translucent painting; ignoring opacity");
+    nsDisplayWrapList::Paint(aBuilder, aCtx, aDirtyRect);
+    return;
+  }
+  
+  // Paint onto black, and also onto white if necessary
+  nsDisplayWrapList::Paint(aBuilder, buffers->mBlackCX, bounds);
+  if (buffers->mWhiteCX) {
+    nsDisplayWrapList::Paint(aBuilder, buffers->mWhiteCX, bounds);
+  }
+
+  nsTransform2D* transform;
+  nsresult rv = aCtx->GetCurrentTransform(transform);
+  if (NS_FAILED(rv))
+    return;
+
+  nsRect damageRectInPixels = bounds;
+  transform->TransformCoord(&damageRectInPixels.x, &damageRectInPixels.y,
+                            &damageRectInPixels.width, &damageRectInPixels.height);
+  // If blender creation failed then we would have not received a buffers object
+  nsIBlender* blender = vm->GetBlender();
+  blender->Blend(0, 0, damageRectInPixels.width, damageRectInPixels.height,
+                 buffers->mBlackCX, aCtx,
+                 damageRectInPixels.x, damageRectInPixels.y,
+                 opacity, buffers->mWhiteCX,
+                 NS_RGB(0, 0, 0), NS_RGB(255, 255, 255));
+  delete buffers;
+#else
+// bug 325296 workaround
+  nsDisplayWrapList::Paint(aBuilder, aCtx, aDirtyRect);
+#endif /* MOZ_CAIRO_GFX */
 }
 
 PRBool nsDisplayOpacity::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
@@ -827,7 +874,7 @@ PRBool nsDisplayOpacity::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem*
   // aItem->GetUnderlyingFrame() returns non-null because it's nsDisplayOpacity
   if (aItem->GetUnderlyingFrame()->GetContent() != mFrame->GetContent())
     return PR_FALSE;
-  mList.AppendToBottom(&static_cast<nsDisplayOpacity*>(aItem)->mList);
+  mList.AppendToBottom(&NS_STATIC_CAST(nsDisplayOpacity*, aItem)->mList);
   return PR_TRUE;
 }
 
@@ -881,7 +928,7 @@ PRBool nsDisplayClip::TryMerge(nsDisplayListBuilder* aBuilder,
                                nsDisplayItem* aItem) {
   if (aItem->GetType() != TYPE_CLIP)
     return PR_FALSE;
-  nsDisplayClip* other = static_cast<nsDisplayClip*>(aItem);
+  nsDisplayClip* other = NS_STATIC_CAST(nsDisplayClip*, aItem);
   if (other->mClip != mClip)
     return PR_FALSE;
   mList.AppendToBottom(&other->mList);

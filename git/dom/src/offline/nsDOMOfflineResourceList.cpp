@@ -73,9 +73,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF(nsDOMOfflineResourceList)
 NS_IMPL_RELEASE(nsDOMOfflineResourceList)
 
-nsDOMOfflineResourceList::nsDOMOfflineResourceList(nsIURI *aURI)
-  : mInitialized(PR_FALSE)
-  , mURI(aURI)
+nsDOMOfflineResourceList::nsDOMOfflineResourceList()
 {
 }
 
@@ -84,13 +82,11 @@ nsDOMOfflineResourceList::~nsDOMOfflineResourceList()
 }
 
 nsresult
-nsDOMOfflineResourceList::Init()
+nsDOMOfflineResourceList::Init(nsIURI *aURI)
 {
-  if (mInitialized) {
-    return NS_OK;
-  }
+  mURI = aURI;
 
-  nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(mURI);
+  nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(aURI);
   if (!innerURI)
     return NS_ERROR_FAILURE;
 
@@ -111,8 +107,6 @@ nsDOMOfflineResourceList::Init()
   mCacheSession = do_QueryInterface(session, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mInitialized = PR_TRUE;
-
   return NS_OK;
 }
 
@@ -123,10 +117,7 @@ nsDOMOfflineResourceList::Init()
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetLength(PRUint32 *aLength)
 {
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = CacheKeys();
+  nsresult rv = CacheKeys();
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aLength = gCachedKeysCount;
@@ -136,12 +127,9 @@ nsDOMOfflineResourceList::GetLength(PRUint32 *aLength)
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Item(PRUint32 aIndex, nsAString& aURI)
 {
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
   SetDOMStringToNull(aURI);
 
-  rv = CacheKeys();
+  nsresult rv = CacheKeys();
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aIndex >= gCachedKeysCount)
@@ -155,14 +143,11 @@ nsDOMOfflineResourceList::Item(PRUint32 aIndex, nsAString& aURI)
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Add(const nsAString& aURI)
 {
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
   if (aURI.Length() > MAX_URI_LENGTH) return NS_ERROR_DOM_BAD_URI;
 
   // this will fail if the URI is not absolute
   nsCOMPtr<nsIURI> requestedURI;
-  rv = NS_NewURI(getter_AddRefs(requestedURI), aURI);
+  nsresult rv = NS_NewURI(getter_AddRefs(requestedURI), aURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // only http/https urls will work offline
@@ -200,18 +185,14 @@ nsDOMOfflineResourceList::Add(const nsAString& aURI)
 
   return prefetchService->PrefetchURIForOfflineUse(requestedURI,
                                                    mURI,
-                                                   nsnull,
                                                    PR_TRUE);
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Remove(const nsAString& aURI)
 {
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCAutoString key;
-  rv = GetCacheKey(aURI, key);
+  nsresult rv = GetCacheKey(aURI, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
   ClearCachedKeys();
@@ -224,11 +205,8 @@ nsDOMOfflineResourceList::Remove(const nsAString& aURI)
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Has(const nsAString& aURI, PRBool *aExists)
 {
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCAutoString key;
-  rv = GetCacheKey(aURI, key);
+  nsresult rv = GetCacheKey(aURI, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return mCacheSession->KeyIsOwned(mHostPort, NS_LITERAL_CSTRING(""),
@@ -238,9 +216,6 @@ nsDOMOfflineResourceList::Has(const nsAString& aURI, PRBool *aExists)
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Clear()
 {
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
   ClearCachedKeys();
 
   return mCacheSession->SetOwnedKeys(mHostPort,
@@ -251,10 +226,7 @@ nsDOMOfflineResourceList::Clear()
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Refresh()
 {
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = CacheKeys();
+  nsresult rv = CacheKeys();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // try to start fetching it now, but it's not fatal if it fails
@@ -270,7 +242,6 @@ nsDOMOfflineResourceList::Refresh()
 
     rv = prefetchService->PrefetchURIForOfflineUse(requestedURI,
                                                    mURI,
-                                                   nsnull,
                                                    PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
   }

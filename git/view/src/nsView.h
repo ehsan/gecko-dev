@@ -44,13 +44,23 @@
 #include "nsRect.h"
 #include "nsCRT.h"
 #include "nsIFactory.h"
+#include "nsIViewObserver.h"
 #include "nsEvent.h"
 #include <stdio.h>
 
 //mmptemp
 
+class nsIRegion;
+class nsIRenderingContext;
 class nsIViewManager;
 class nsViewManager;
+class nsZPlaceholderView;
+
+// View flags private to the view module
+
+// Flag to determine whether the view will check if events can be handled
+// by its children or just handle the events itself
+#define NS_VIEW_FLAG_DONT_CHECK_CHILDREN  0x0200
 
 class nsView : public nsIView
 {
@@ -80,6 +90,12 @@ public:
   void GetDimensions(nsSize &aSize) const { aSize.width = mDimBounds.width; aSize.height = mDimBounds.height; }
 
   /**
+   * This checks whether the view is a placeholder for some view that has
+   * been reparented to a different geometric parent.
+   */
+  virtual PRBool IsZPlaceholderView() const { return PR_FALSE; }
+
+  /**
    * Called to indicate that the visibility of a view has been
    * changed.
    * @param visibility new visibility state
@@ -106,10 +122,20 @@ public:
    * @result PR_TRUE if the view floats, PR_FALSE otherwise.
    */
   NS_IMETHOD  SetFloating(PRBool aFloatingView);
+  /**
+   * Set the widget associated with this view.
+   * @param aWidget widget to associate with view. It is an error
+   *        to associate a widget with more than one view. To disassociate
+   *        a widget from a view, use nsnull. If there are no more references
+   *        to the widget that may have been associated with the view, it will
+   *        be destroyed.
+   * @return error status
+   */
+  NS_IMETHOD  SetWidget(nsIWidget *aWidget);
 
   // Helper function to get the view that's associated with a widget
   static nsView* GetViewFor(nsIWidget* aWidget) {
-    return static_cast<nsView*>(nsIView::GetViewFor(aWidget));
+    return NS_STATIC_CAST(nsView*, nsIView::GetViewFor(aWidget));
   }
 
   // Helper function to get mouse grabbing off this view (by moving it to the
@@ -118,6 +144,7 @@ public:
 
 public:
   // NOT in nsIView, so only available in view module
+  nsZPlaceholderView* GetZParent() const { return mZParent; }
   // These are also present in nsIView, but these versions return nsView and nsViewManager
   // instead of nsIView and nsIViewManager.
   nsView* GetFirstChild() const { return mFirstChild; }
@@ -147,6 +174,7 @@ public:
   void RemoveChild(nsView *aChild);
 
   void SetParent(nsView *aParent) { mParent = aParent; }
+  void SetZParent(nsZPlaceholderView *aZParent) { mZParent = aZParent; }
   void SetNextSibling(nsView *aSibling) { mNextSibling = aSibling; }
 
   PRUint32 GetViewFlags() const { return mVFlags; }
@@ -186,8 +214,13 @@ protected:
   // call this method if we have no widget.
   void DoResetWidgetBounds(PRBool aMoveOnly, PRBool aInvalidateChangedSize);
 
+  nsZPlaceholderView* mZParent;
+
+  // mClipRect is relative to the view's origin.
+  nsRect*      mClipRect;
   nsRegion*    mDirtyRegion;
   nsPoint      mViewToWidgetOffset;
+  PRPackedBool mChildRemoved;
 };
 
 #endif

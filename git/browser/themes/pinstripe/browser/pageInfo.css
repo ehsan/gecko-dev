@@ -134,16 +134,19 @@ textbox[disabled] {
 }
 
 /* General Tab */
-groupbox.collapsable caption .caption-icon {
+.caption-icon {
   width: 11px;
   height: 11px;
   background-repeat: no-repeat;
   background-position: center;
   -moz-margin-end: 2px;
+}
+
+groupbox caption .caption-icon { 
   background-image: url("chrome://global/skin/arrow/arrow-dn.gif");
 }
 
-groupbox.collapsable[closed="true"] caption .caption-icon {
+groupbox[closed="true"] caption .caption-icon { 
   background-image: url("chrome://global/skin/arrow/arrow-rit.gif");
 }
 
@@ -152,12 +155,16 @@ groupbox tree {
   border: none;
 }
 
-groupbox.treebox .groupbox-body { 
+#metaTags .groupbox-body { 
   padding: 0;
 }
 
 #securityBox description { 
   -moz-margin-start: 10px;
+}
+
+#securityBox .caption-icon {
+  background-image: none;
 }
 
 #general-security-identity {

@@ -146,11 +146,11 @@ mozJSLoaderErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
 
         PRUint32 column = rep->uctokenptr - rep->uclinebuf;
 
-        rv = errorObject->Init(reinterpret_cast<const PRUnichar*>
-                                               (rep->ucmessage),
+        rv = errorObject->Init(NS_REINTERPRET_CAST(const PRUnichar*,
+                                                   rep->ucmessage),
                                fileUni.get(),
-                               reinterpret_cast<const PRUnichar*>
-                                               (rep->uclinebuf),
+                               NS_REINTERPRET_CAST(const PRUnichar*,
+                                                   rep->uclinebuf),
                                rep->lineno, column, rep->flags,
                                "component javascript");
         if (NS_SUCCEEDED(rv)) {
@@ -369,36 +369,36 @@ ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
     xdr->userdata = stream;
     JS_XDRMemSetData(xdr, data, size);
 
-    if (!JS_XDRScript(xdr, script)) {
+    if (JS_XDRScript(xdr, script)) {
+        // Update data in case ::JS_XDRScript called back into C++ code to
+        // read an XPCOM object.
+        //
+        // In that case, the serialization process must have flushed a run
+        // of counted bytes containing JS data at the point where the XPCOM
+        // object starts, after which an encoding C++ callback from the JS
+        // XDR code must have written the XPCOM object directly into the
+        // nsIObjectOutputStream.
+        //
+        // The deserialization process will XDR-decode counted bytes up to
+        // but not including the XPCOM object, then call back into C++ to
+        // read the object, then read more counted bytes and hand them off
+        // to the JSXDRState, so more JS data can be decoded.
+        //
+        // This interleaving of JS XDR data and XPCOM object data may occur
+        // several times beneath the call to ::JS_XDRScript, above.  At the
+        // end of the day, we need to free (via nsMemory) the data owned by
+        // the JSXDRState.  So we steal it back, nulling xdr's buffer so it
+        // doesn't get passed to ::JS_free by ::JS_XDRDestroy.
+
+        uint32 length;
+        data = NS_STATIC_CAST(char*, JS_XDRMemGetData(xdr, &length));
+        if (data) {
+            JS_XDRMemSetData(xdr, nsnull, 0);
+        }
+        JS_XDRDestroy(xdr);
+    } else {
         rv = NS_ERROR_FAILURE;
     }
-
-    // Update data in case ::JS_XDRScript called back into C++ code to
-    // read an XPCOM object.
-    //
-    // In that case, the serialization process must have flushed a run
-    // of counted bytes containing JS data at the point where the XPCOM
-    // object starts, after which an encoding C++ callback from the JS
-    // XDR code must have written the XPCOM object directly into the
-    // nsIObjectOutputStream.
-    //
-    // The deserialization process will XDR-decode counted bytes up to
-    // but not including the XPCOM object, then call back into C++ to
-    // read the object, then read more counted bytes and hand them off
-    // to the JSXDRState, so more JS data can be decoded.
-    //
-    // This interleaving of JS XDR data and XPCOM object data may occur
-    // several times beneath the call to ::JS_XDRScript, above.  At the
-    // end of the day, we need to free (via nsMemory) the data owned by
-    // the JSXDRState.  So we steal it back, nulling xdr's buffer so it
-    // doesn't get passed to ::JS_free by ::JS_XDRDestroy.
-
-    uint32 length;
-    data = static_cast<char*>(JS_XDRMemGetData(xdr, &length));
-    if (data) {
-        JS_XDRMemSetData(xdr, nsnull, 0);
-    }
-    JS_XDRDestroy(xdr);
 
     // If data is null now, it must have been freed while deserializing an
     // XPCOM object (e.g., a principal) beneath ::JS_XDRScript.
@@ -435,8 +435,8 @@ WriteScriptToStream(JSContext *cx, JSScript *script,
         // one last buffer of data to write to aStream.
 
         uint32 size;
-        const char* data = reinterpret_cast<const char*>
-                                           (JS_XDRMemGetData(xdr, &size));
+        const char* data = NS_REINTERPRET_CAST(const char*,
+                                               JS_XDRMemGetData(xdr, &size));
         NS_ASSERTION(data, "no decoded JSXDRState data!");
 
         rv = stream->Write32(size);
@@ -529,8 +529,6 @@ mozJSComponentLoader::ReallyInit()
     if (!mModules.Init(32))
         return NS_ERROR_OUT_OF_MEMORY;
     if (!mImports.Init(32))
-        return NS_ERROR_OUT_OF_MEMORY;
-    if (!mInProgressImports.Init(32))
         return NS_ERROR_OUT_OF_MEMORY;
 
     // Set up our fastload file
@@ -797,7 +795,7 @@ FastLoadStateHolder::pop()
 void
 mozJSComponentLoader::CloseFastLoad(nsITimer *timer, void *closure)
 {
-    static_cast<mozJSComponentLoader*>(closure)->CloseFastLoad();
+    NS_STATIC_CAST(mozJSComponentLoader*, closure)->CloseFastLoad();
 }
 
 void
@@ -1181,7 +1179,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponent,
         PRUint32 fileSize32;
         LL_L2UI(fileSize32, fileSize);
 
-        char *buf = static_cast<char*>(PR_MemMap(map, 0, fileSize32));
+        char *buf = NS_STATIC_CAST(char*, PR_MemMap(map, 0, fileSize32));
         if (!buf) {
             NS_WARNING("Failed to map file");
             return NS_ERROR_FAILURE;
@@ -1253,16 +1251,11 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponent,
     // Restore the old state of the fastload service.
     flState.pop();
 
-    // Assign aGlobal here so that it's available to recursive imports.
-    // See bug 384168.
-    *aGlobal = global;
-
     jsval retval;
     if (!JS_ExecuteScript(cx, global, script, &retval)) {
 #ifdef DEBUG_shaver_off
         fprintf(stderr, "mJCL: failed to execute %s\n", nativePath.get());
 #endif
-        *aGlobal = nsnull;
         return NS_ERROR_FAILURE;
     }
 
@@ -1270,11 +1263,10 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponent,
     nsCAutoString path;
     aComponent->GetNativePath(path);
     *aLocation = ToNewCString(path);
-    if (!*aLocation) {
-        *aGlobal = nsnull;
+    if (!*aLocation)
         return NS_ERROR_OUT_OF_MEMORY;
-    }
 
+    *aGlobal = global;
     JS_AddNamedRoot(cx, aGlobal, *aLocation);
     return NS_OK;
 }
@@ -1284,15 +1276,15 @@ mozJSComponentLoader::UnloadModules()
 {
     mInitialized = PR_FALSE;
 
-    mInProgressImports.Clear();
-    mImports.Clear();
     mModules.Clear();
+    mImports.Clear();
 
     // Destroying our context will force a GC.
     JS_DestroyContext(mContext);
     mContext = nsnull;
 
     mRuntimeService = nsnull;
+
 #ifdef DEBUG_shaver_off
     fprintf(stderr, "mJCL: UnloadAll(%d)\n", aWhen);
 #endif
@@ -1348,11 +1340,11 @@ mozJSComponentLoader::Import(const nsACString & registryLocation)
         jsval *argv = nsnull;
         rv = cc->GetArgvPtr(&argv);
         NS_ENSURE_SUCCESS(rv, rv);
-        if (!JSVAL_IS_OBJECT(argv[1])) {
+        if (JSVAL_IS_PRIMITIVE(argv[1]) ||
+            !JS_ValueToObject(cx, argv[1], &targetObject)) {
             return ReportOnCaller(cc, ERROR_SCOPE_OBJ,
                                   PromiseFlatCString(registryLocation).get());
         }
-        targetObject = JSVAL_TO_OBJECT(argv[1]);
     } else {
         // Our targetObject is the caller's global object. Find it by
         // walking the calling object's parent chain.
@@ -1430,21 +1422,18 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
 
     ModuleEntry* mod;
     nsAutoPtr<ModuleEntry> newEntry;
-    if (!mImports.Get(lfhash, &mod) && !mInProgressImports.Get(lfhash, &mod)) {
+    if (!mImports.Get(lfhash, &mod)) {
         newEntry = new ModuleEntry;
-        if (!newEntry || !mInProgressImports.Put(lfhash, newEntry))
+        if (!newEntry)
             return NS_ERROR_OUT_OF_MEMORY;
-
+        
         rv = GlobalForLocation(componentFile, &newEntry->global,
                                &newEntry->location);
-
-        mInProgressImports.Remove(lfhash);
-
         if (NS_FAILED(rv)) {
             *_retval = nsnull;
             return NS_ERROR_FILE_NOT_FOUND;
         }
-
+        
         mod = newEntry;
     }
 
@@ -1474,11 +1463,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
             return ReportOnCaller(cc, ERROR_GETTING_ARRAY_LENGTH,
                                   PromiseFlatCString(aLocation).get());
         }
-
-#ifdef DEBUG
-        nsCAutoString logBuffer;
-#endif
-
+    
         for (jsuint i = 0; i < symbolCount; ++i) {
             jsval val;
             JSString *symbolName;
@@ -1505,13 +1490,11 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
             }
 #ifdef DEBUG
             if (i == 0) {
-                logBuffer.AssignLiteral("Installing symbols [ ");
+                printf("Installing symbols [ ");
             }
-            logBuffer.Append(JS_GetStringBytes(symbolName));
-            logBuffer.AppendLiteral(" ");
+            printf("%s ", JS_GetStringBytes(symbolName));
             if (i == symbolCount - 1) {
-                LOG(("%s] from %s\n", PromiseFlatCString(logBuffer).get(),
-                                      PromiseFlatCString(aLocation).get()));
+                printf("] from %s\n", PromiseFlatCString(aLocation).get());
             }
 #endif
         }

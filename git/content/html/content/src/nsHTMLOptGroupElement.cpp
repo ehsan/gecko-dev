@@ -84,6 +84,15 @@ public:
 
   virtual PRInt32 IntrinsicState() const;
  
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                             PRBool aNotify)
+  {
+    nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
+                                                  aNotify);
+      
+    AfterSetAttr(aNameSpaceID, aAttribute, nsnull, aNotify);
+    return rv;
+  }
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
@@ -93,6 +102,12 @@ protected:
    * @param aSelectElement the select element [OUT]
    */
   nsIContent* GetSelect();
+ 
+  /**
+   * Called when an attribute has just been changed
+   */
+  virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                const nsAString* aValue, PRBool aNotify);
 };
 
 
@@ -169,6 +184,24 @@ nsHTMLOptGroupElement::GetSelect()
   return nsnull;
 }
 
+nsresult
+nsHTMLOptGroupElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                    const nsAString* aValue, PRBool aNotify)
+{
+  if (aNotify && aNameSpaceID == kNameSpaceID_None &&
+      aName == nsGkAtoms::disabled) {
+    nsIDocument* document = GetCurrentDoc();
+    if (document) {
+      mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, PR_TRUE);
+      document->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_DISABLED |
+                                     NS_EVENT_STATE_ENABLED);
+    }
+  }
+
+  return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue,
+                                            aNotify); 
+}
+ 
 nsresult
 nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
                                      PRUint32 aIndex,

@@ -48,7 +48,6 @@
 #include "nsPresContext.h"
 #include "nsPoint.h"
 #include "nsGUIEvent.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsIContent;
 class nsIScrollableView;
@@ -141,8 +140,7 @@ public:
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);
   virtual ~nsDOMEvent();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMEvent, nsIDOMEvent)
+  NS_DECL_ISUPPORTS
 
   // nsIDOMEvent Interface
   NS_DECL_NSIDOMEVENT

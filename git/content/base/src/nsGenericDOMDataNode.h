@@ -298,12 +298,12 @@ protected:
 
   nsDataSlots *GetDataSlots()
   {
-    return static_cast<nsDataSlots*>(GetSlots());
+    return NS_STATIC_CAST(nsDataSlots*, GetSlots());
   }
 
   nsDataSlots *GetExistingDataSlots() const
   {
-    return static_cast<nsDataSlots*>(GetExistingSlots());
+    return NS_STATIC_CAST(nsDataSlots*, GetExistingSlots());
   }
 
   nsresult SplitText(PRUint32 aOffset, nsIDOMText** aReturn);

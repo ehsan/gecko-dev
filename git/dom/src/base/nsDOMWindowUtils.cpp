@@ -45,7 +45,6 @@
 #include "nsGlobalWindow.h"
 #include "nsIDocument.h"
 #include "nsIFocusController.h"
-#include "nsIEventStateManager.h"
 
 #include "nsContentUtils.h"
 
@@ -271,32 +270,3 @@ nsDOMWindowUtils::GetWidget()
 
   return nsnull;
 }
-
-NS_IMETHODIMP
-nsDOMWindowUtils::Focus(nsIDOMElement* aElement)
-{
-  if (mWindow) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-    if (content) {
-      nsCOMPtr<nsIDocument> doc(do_QueryInterface(mWindow->GetExtantDocument()));
-      if (!doc || content->GetCurrentDoc() != doc)
-        return NS_ERROR_FAILURE;
-    }
-
-    nsIDocShell *docShell = mWindow->GetDocShell();
-    if (docShell) {
-      nsCOMPtr<nsIPresShell> presShell;
-      docShell->GetPresShell(getter_AddRefs(presShell));
-      if (presShell) {
-        nsPresContext *pc = presShell->GetPresContext();
-        if (pc) {
-          pc->EventStateManager()->ChangeFocusWith(content,
-              nsIEventStateManager::eEventFocusedByApplication);
-        }
-      }
-    }
-  }
-
-  return NS_OK;
-}
-

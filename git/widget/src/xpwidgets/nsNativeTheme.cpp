@@ -50,35 +50,26 @@
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
 
-nsMargin                  nsNativeTheme::sButtonBorderSize(2, 2, 2, 2);
-nsMargin                  nsNativeTheme::sButtonDisabledBorderSize(1, 1, 1, 1);
-PRUint8                   nsNativeTheme::sButtonActiveBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
-PRUint8                   nsNativeTheme::sButtonInactiveBorderStyle = NS_STYLE_BORDER_STYLE_OUTSET;
+nsMargin nsNativeTheme::sButtonBorderSize(2, 2, 2, 2);
+nsMargin nsNativeTheme::sButtonDisabledBorderSize(1, 1, 1, 1);
+PRUint8  nsNativeTheme::sButtonActiveBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
+PRUint8  nsNativeTheme::sButtonInactiveBorderStyle = NS_STYLE_BORDER_STYLE_OUTSET;
 nsILookAndFeel::nsColorID nsNativeTheme::sButtonBorderColorID = nsILookAndFeel::eColor_buttonface;
 nsILookAndFeel::nsColorID nsNativeTheme::sButtonDisabledBorderColorID = nsILookAndFeel::eColor_buttonshadow;
 nsILookAndFeel::nsColorID nsNativeTheme::sButtonBGColorID = nsILookAndFeel::eColor_buttonface;
 nsILookAndFeel::nsColorID nsNativeTheme::sButtonDisabledBGColorID = nsILookAndFeel::eColor_buttonface;
-
-nsMargin                  nsNativeTheme::sTextfieldBorderSize(2, 2, 2, 2);
-PRUint8                   nsNativeTheme::sTextfieldBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
+nsMargin nsNativeTheme::sTextfieldBorderSize(2, 2, 2, 2);
+PRUint8  nsNativeTheme::sTextfieldBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
 nsILookAndFeel::nsColorID nsNativeTheme::sTextfieldBorderColorID = nsILookAndFeel::eColor_threedface;
-PRBool                    nsNativeTheme::sTextfieldBGTransparent = PR_FALSE;
+PRBool   nsNativeTheme::sTextfieldBGTransparent = PR_FALSE;
 nsILookAndFeel::nsColorID nsNativeTheme::sTextfieldBGColorID = nsILookAndFeel::eColor__moz_field;
 nsILookAndFeel::nsColorID nsNativeTheme::sTextfieldDisabledBGColorID = nsILookAndFeel::eColor_threedface;
-
-nsMargin                  nsNativeTheme::sListboxBorderSize(2, 2, 2, 2);
-PRUint8                   nsNativeTheme::sListboxBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
+nsMargin nsNativeTheme::sListboxBorderSize(2, 2, 2, 2);
+PRUint8  nsNativeTheme::sListboxBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
 nsILookAndFeel::nsColorID nsNativeTheme::sListboxBorderColorID = nsILookAndFeel::eColor_threedface;
-PRBool                    nsNativeTheme::sListboxBGTransparent = PR_FALSE;
+PRBool   nsNativeTheme::sListboxBGTransparent = PR_FALSE;
 nsILookAndFeel::nsColorID nsNativeTheme::sListboxBGColorID = nsILookAndFeel::eColor__moz_field;
 nsILookAndFeel::nsColorID nsNativeTheme::sListboxDisabledBGColorID = nsILookAndFeel::eColor_threedface;
-
-nsMargin                  nsNativeTheme::sComboboxBorderSize(2, 2, 2, 2);
-PRUint8                   nsNativeTheme::sComboboxBorderStyle = NS_STYLE_BORDER_STYLE_INSET;
-nsILookAndFeel::nsColorID nsNativeTheme::sComboboxBorderColorID = nsILookAndFeel::eColor_threedface;
-PRBool                    nsNativeTheme::sComboboxBGTransparent = PR_FALSE;
-nsILookAndFeel::nsColorID nsNativeTheme::sComboboxBGColorID = nsILookAndFeel::eColor__moz_field;
-nsILookAndFeel::nsColorID nsNativeTheme::sComboboxDisabledBGColorID = nsILookAndFeel::eColor_threedface;
 
 nsNativeTheme::nsNativeTheme()
 {
@@ -204,9 +195,9 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
                  aWidgetType == NS_THEME_TEXTFIELD_MULTILINE ||
                  aWidgetType == NS_THEME_LISTBOX ||
                  aWidgetType == NS_THEME_DROPDOWN)) {
+
     if (aFrame->GetContent()->IsNodeOfType(nsINode::eHTML)) {
-      nscolor defaultBGColor;
-      nscolor defaultBorderColor;
+      nscolor defaultBGColor, defaultBorderColor;
       PRUint8 defaultBorderStyle;
       nsMargin defaultBorderSize;
       PRBool defaultBGTransparent = PR_FALSE;
@@ -241,39 +232,31 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
       case NS_THEME_TEXTFIELD_MULTILINE:
         defaultBorderStyle = sTextfieldBorderStyle;
         ConvertMarginToAppUnits(sTextfieldBorderSize, defaultBorderSize);
-        lookAndFeel->GetColor(sTextfieldBorderColorID, defaultBorderColor);
-        defaultBGTransparent = sTextfieldBGTransparent;
-        if (!defaultBGTransparent) {
+        lookAndFeel->GetColor(sTextfieldBorderColorID,
+                              defaultBorderColor);
+        if (!(defaultBGTransparent = sTextfieldBGTransparent)) {
           if (IsDisabled(aFrame))
-            lookAndFeel->GetColor(sTextfieldDisabledBGColorID, defaultBGColor);
+            lookAndFeel->GetColor(sTextfieldDisabledBGColorID,
+                                  defaultBGColor);
           else
-            lookAndFeel->GetColor(sTextfieldBGColorID, defaultBGColor);
+            lookAndFeel->GetColor(sTextfieldBGColorID,
+                                  defaultBGColor);
         }
         break;
 
       case NS_THEME_LISTBOX:
+      case NS_THEME_DROPDOWN:
         defaultBorderStyle = sListboxBorderStyle;
         ConvertMarginToAppUnits(sListboxBorderSize, defaultBorderSize);
-        lookAndFeel->GetColor(sListboxBorderColorID, defaultBorderColor);
-        defaultBGTransparent = sListboxBGTransparent;
-        if (!defaultBGTransparent) {
+        lookAndFeel->GetColor(sListboxBorderColorID,
+                              defaultBorderColor);
+        if (!(defaultBGTransparent = sListboxBGTransparent)) {
           if (IsDisabled(aFrame))
-            lookAndFeel->GetColor(sListboxDisabledBGColorID, defaultBGColor);
+            lookAndFeel->GetColor(sListboxDisabledBGColorID,
+                                  defaultBGColor);
           else
-            lookAndFeel->GetColor(sListboxBGColorID, defaultBGColor);
-        }
-        break;
-
-      case NS_THEME_DROPDOWN:
-        defaultBorderStyle = sComboboxBorderStyle;
-        ConvertMarginToAppUnits(sComboboxBorderSize, defaultBorderSize);
-        lookAndFeel->GetColor(sComboboxBorderColorID, defaultBorderColor);
-        defaultBGTransparent = sComboboxBGTransparent;
-        if (!defaultBGTransparent) {
-          if (IsDisabled(aFrame))
-            lookAndFeel->GetColor(sComboboxDisabledBGColorID, defaultBGColor);
-          else
-            lookAndFeel->GetColor(sComboboxBGColorID, defaultBGColor);
+            lookAndFeel->GetColor(sListboxBGColorID,
+                                  defaultBGColor);
         }
         break;
 

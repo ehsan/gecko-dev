@@ -121,7 +121,7 @@ void
 nsDisplayXULGroupBackground::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
-  static_cast<nsGroupBoxFrame*>(mFrame)->
+  NS_STATIC_CAST(nsGroupBoxFrame*, mFrame)->
     PaintBorderBackground(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect);
 }
 

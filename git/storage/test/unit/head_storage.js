@@ -62,10 +62,9 @@ function getService()
   return Cc["@mozilla.org/storage/service;1"].getService(Ci.mozIStorageService);
 }
 
-var gDBConn = null;
 function getOpenedDatabase()
 {
-  return gDBConn ? gDBConn : gDBConn = getService().openDatabase(getTestDB());
+  return getService().openDatabase(getTestDB());
 }
 
 function createStatement(aSQL)

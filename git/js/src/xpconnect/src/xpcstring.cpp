@@ -97,7 +97,7 @@ XPCStringConvert::ReadableToJSString(JSContext *cx,
         }
 
         str = JS_NewExternalString(cx, 
-                                   reinterpret_cast<jschar *>(buf->Data()),
+                                   NS_REINTERPRET_CAST(jschar *, buf->Data()),
                                    length, sDOMStringFinalizerIndex);
 
         if (str)
@@ -107,14 +107,14 @@ XPCStringConvert::ReadableToJSString(JSContext *cx,
     {
         // blech, have to copy.
 
-        jschar *chars = reinterpret_cast<jschar *>
-                                        (JS_malloc(cx, (length + 1) *
+        jschar *chars = NS_REINTERPRET_CAST(jschar *,
+                                            JS_malloc(cx, (length + 1) *
                                                       sizeof(jschar)));
         if (!chars)
             return NULL;
 
         if (length && !CopyUnicodeTo(readable, 0,
-                                     reinterpret_cast<PRUnichar *>(chars),
+                                     NS_REINTERPRET_CAST(PRUnichar *, chars),
                                      length))
         {
             JS_free(cx, chars);
@@ -135,7 +135,7 @@ XPCReadableJSStringWrapper *
 XPCStringConvert::JSStringToReadable(JSString *str)
 {
     return new
-        XPCReadableJSStringWrapper(reinterpret_cast<PRUnichar *>
-                                                   (JS_GetStringChars(str)),
+        XPCReadableJSStringWrapper(NS_REINTERPRET_CAST(PRUnichar *,
+                                                       JS_GetStringChars(str)),
                                    JS_GetStringLength(str));
 }

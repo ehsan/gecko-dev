@@ -365,7 +365,7 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
             // processing a transaction pipeline until after the first HTTP/1.1
             // response.
             nsHttpTransaction *trans =
-                    static_cast<nsHttpTransaction *>(mTransaction);
+                    NS_STATIC_CAST(nsHttpTransaction *, mTransaction);
             trans->SetSSLConnectFailed();
         }
     }
@@ -693,7 +693,7 @@ nsHttpConnection::SetupSSLProxyConnect()
 
     // NOTE: this cast is valid since this connection cannot be processing a
     // transaction pipeline until after the first HTTP/1.1 response.
-    nsHttpTransaction *trans = static_cast<nsHttpTransaction *>(mTransaction);
+    nsHttpTransaction *trans = NS_STATIC_CAST(nsHttpTransaction *, mTransaction);
     
     val = trans->RequestHead()->PeekHeader(nsHttp::Host);
     if (val) {

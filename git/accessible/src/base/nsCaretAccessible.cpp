@@ -217,11 +217,8 @@ NS_IMETHODIMP nsCaretAccessible::NotifySelectionChanged(nsIDOMDocument *aDoc, ns
   mLastCaretOffset = caretOffset;
   mLastTextAccessible = textAcc;
 
-  nsCOMPtr<nsIAccessibleCaretMoveEvent> event =
-    new nsAccCaretMoveEvent(focusNode);
-  NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
-
-  return mRootAccessible->FireDelayedAccessibleEvent(event, PR_FALSE);
+  return mRootAccessible->FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED,
+                                                  focusNode, nsnull, PR_FALSE);
 }
 
 nsRect

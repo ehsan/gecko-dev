@@ -37,6 +37,7 @@
 
 #include "nsBrowserProfileMigratorUtils.h"
 #include "nsDirectoryServiceDefs.h"
+#include "nsICookieManager2.h"
 #include "nsIObserverService.h"
 #include "nsILoginInfo.h"
 #include "nsILoginManager.h"

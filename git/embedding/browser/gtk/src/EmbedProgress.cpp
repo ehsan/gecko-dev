@@ -257,9 +257,9 @@ EmbedProgress::OnStatusChange(nsIWebProgress  *aWebProgress,
 
   gtk_signal_emit(GTK_OBJECT(mOwner->mOwningWidget),
                   moz_embed_signals[STATUS_CHANGE],
-                  static_cast<void *>(aRequest),
-                  static_cast<gint>(aStatus),
-                  static_cast<void *>(tmpString));
+                  NS_STATIC_CAST(void *, aRequest),
+                  NS_STATIC_CAST(gint, aStatus),
+                  NS_STATIC_CAST(void *, tmpString));
 
   NS_Free(tmpString);
 
@@ -273,7 +273,7 @@ EmbedProgress::OnSecurityChange(nsIWebProgress *aWebProgress,
 {
   gtk_signal_emit(GTK_OBJECT(mOwner->mOwningWidget),
                   moz_embed_signals[SECURITY_CHANGE],
-                  static_cast<void *>(aRequest),
+                  NS_STATIC_CAST(void *, aRequest),
                   aState);
   return NS_OK;
 }

@@ -49,7 +49,6 @@
 __author__ = 'annie.sullivan@gmail.com (Annie Sullivan)'
 
 
-import platform
 import os
 import re
 import shutil
@@ -61,14 +60,14 @@ import ffprofile
 import ffinfo
 import config
 
-if platform.system() == "Linux":
+if config.OS == "linux":
     from tp_linux import *
-elif platform.system() == "Windows":
+elif config.OS == "win32":
     from tp_win32 import *
 
 
 # Regular expression to get stats for page load test (Tp)
-TP_REGEX = re.compile('__start_tp_report(.*)__end_tp_report',
+TP_REGEX = re.compile('__start_page_load_report(.*)__end_page_load_report',
                       re.DOTALL | re.MULTILINE)
 TP_REGEX_FAIL = re.compile('__FAIL(.*)__FAIL', re.DOTALL|re.MULTILINE)
 

@@ -130,7 +130,6 @@
 #include "nsIView.h"
 #include "nsIWidget.h"
 #include "nsIParserService.h"
-#include "nsIEventStateManager.h"
 
 // Some utilities to handle annoying overloading of "A" tag for link and named anchor
 static char hrefText[] = "href";
@@ -277,7 +276,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
   if (1)
   {
     // block to scope nsAutoEditInitRulesTrigger
-    nsAutoEditInitRulesTrigger rulesTrigger(static_cast<nsPlaintextEditor*>(this), rulesRes);
+    nsAutoEditInitRulesTrigger rulesTrigger(NS_STATIC_CAST(nsPlaintextEditor*,this), rulesRes);
 
     // Init the plaintext editor
     result = nsPlaintextEditor::Init(aDoc, aPresShell, aRoot, aSelCon, aFlags);
@@ -303,7 +302,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     // disable links
     nsPresContext *context = aPresShell->GetPresContext();
     if (!context) return NS_ERROR_NULL_POINTER;
-    if (!(mFlags & (eEditorPlaintextMask | eEditorAllowInteraction))) {
+    if (!(mFlags & eEditorPlaintextMask)) {
       mLinkHandler = context->GetLinkHandler();
 
       context->SetLinkHandler(nsnull);
@@ -318,10 +317,8 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     mSelectionListenerP = new ResizerSelectionListener(this);
     if (!mSelectionListenerP) {return NS_ERROR_NULL_POINTER;}
 
-    if (!(mFlags & eEditorAllowInteraction)) {
-      // ignore any errors from this in case the file is missing
-      AddOverrideStyleSheet(NS_LITERAL_STRING("resource:/res/EditorOverride.css"));
-    }
+    // ignore any errors from this in case the file is missing
+    AddOverrideStyleSheet(NS_LITERAL_STRING("resource:/res/EditorOverride.css"));
 
     nsCOMPtr<nsISelection>selection;
     result = GetSelection(getter_AddRefs(selection));
@@ -432,7 +429,7 @@ nsHTMLEditor::InitRules()
   nsresult res = NS_NewHTMLEditRules(getter_AddRefs(mRules));
   if (NS_FAILED(res)) return res;
   if (!mRules) return NS_ERROR_UNEXPECTED;
-  res = mRules->Init(static_cast<nsPlaintextEditor*>(this), mFlags);
+  res = mRules->Init(NS_STATIC_CAST(nsPlaintextEditor*,this), mFlags);
   
   return res;
 }
@@ -708,11 +705,11 @@ nsHTMLEditor::IsBlockNode(nsIDOMNode *aNode)
 NS_IMETHODIMP 
 nsHTMLEditor::SetDocumentTitle(const nsAString &aTitle)
 {
-  nsRefPtr<EditTxn> txn;
-  nsresult result = TransactionFactory::GetNewTransaction(SetDocTitleTxn::GetCID(), getter_AddRefs(txn));
+  SetDocTitleTxn *txn;
+  nsresult result = TransactionFactory::GetNewTransaction(SetDocTitleTxn::GetCID(), (EditTxn **)&txn);
   if (NS_SUCCEEDED(result))  
   {
-    result = static_cast<SetDocTitleTxn*>(txn.get())->Init(this, &aTitle);
+    result = txn->Init(this, &aTitle);
 
     if (NS_SUCCEEDED(result)) 
     {
@@ -721,6 +718,8 @@ nsHTMLEditor::SetDocumentTitle(const nsAString &aTitle)
 
       result = nsEditor::DoTransaction(txn);  
     }
+    // The transaction system (if any) has taken ownership of txn
+    NS_IF_RELEASE(txn);
   }
   return result;
 }
@@ -3552,7 +3551,7 @@ nsHTMLEditor::ReplaceStyleSheet(const nsAString& aURL)
   rv = NS_NewURI(getter_AddRefs(uaURI), aURL);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = cssLoader->LoadSheet(uaURI, nsnull, nsnull, this);
+  rv = cssLoader->LoadSheet(uaURI, this);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -3567,8 +3566,8 @@ nsHTMLEditor::RemoveStyleSheet(const nsAString &aURL)
   if (!sheet)
     return NS_ERROR_UNEXPECTED;
 
-  nsRefPtr<RemoveStyleSheetTxn> txn;
-  rv = CreateTxnForRemoveStyleSheet(sheet, getter_AddRefs(txn));
+  RemoveStyleSheetTxn* txn;
+  rv = CreateTxnForRemoveStyleSheet(sheet, &txn);
   if (!txn) rv = NS_ERROR_NULL_POINTER;
   if (NS_SUCCEEDED(rv))
   {
@@ -3579,6 +3578,8 @@ nsHTMLEditor::RemoveStyleSheet(const nsAString &aURL)
     // Remove it from our internal list
     rv = RemoveStyleSheetFromList(aURL);
   }
+  // The transaction system (if any) has taken ownership of txns
+  NS_IF_RELEASE(txn);
   
   return rv;
 }
@@ -3883,11 +3884,6 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
 
 NS_IMETHODIMP nsHTMLEditor::DeleteNode(nsIDOMNode * aNode)
 {
-  // do nothing if the node is read-only
-  if (!IsModifiableNode(aNode)) {
-    return NS_ERROR_FAILURE;
-  }
-
   nsCOMPtr<nsIDOMNode> selectAllNode = FindUserSelectAllNode(aNode);
   
   if (selectAllNode)
@@ -3901,11 +3897,6 @@ NS_IMETHODIMP nsHTMLEditor::DeleteText(nsIDOMCharacterData *aTextNode,
                                        PRUint32             aOffset,
                                        PRUint32             aLength)
 {
-  // do nothing if the node is read-only
-  if (!IsModifiableNode(aTextNode)) {
-    return NS_ERROR_FAILURE;
-  }
-
   nsCOMPtr<nsIDOMNode> selectAllNode = FindUserSelectAllNode(aTextNode);
   
   if (selectAllNode)
@@ -3915,18 +3906,6 @@ NS_IMETHODIMP nsHTMLEditor::DeleteText(nsIDOMCharacterData *aTextNode,
   return nsEditor::DeleteText(aTextNode, aOffset, aLength);
 }
 
-NS_IMETHODIMP nsHTMLEditor::InsertTextImpl(const nsAString& aStringToInsert, 
-                                           nsCOMPtr<nsIDOMNode> *aInOutNode, 
-                                           PRInt32 *aInOutOffset,
-                                           nsIDOMDocument *aDoc)
-{
-  // do nothing if the node is read-only
-  if (!IsModifiableNode(*aInOutNode)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return nsEditor::InsertTextImpl(aStringToInsert, aInOutNode, aInOutOffset, aDoc);
-}
 
 #ifdef XP_MAC
 #pragma mark -
@@ -3966,14 +3945,6 @@ nsCOMPtr<nsIDOMNode> nsHTMLEditor::FindUserSelectAllNode(nsIDOMNode *aNode)
   } 
 
   return resultNode;
-}
-
-NS_IMETHODIMP_(PRBool)
-nsHTMLEditor::IsModifiableNode(nsIDOMNode *aNode)
-{
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-
-  return !content || !(content->IntrinsicState() & NS_EVENT_STATE_MOZ_READONLY);
 }
 
 static nsresult SetSelectionAroundHeadChildren(nsCOMPtr<nsISelection> aSelection, nsWeakPtr aDocWeak)
@@ -4096,8 +4067,8 @@ nsHTMLEditor::StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate,
   if (!mLastStyleSheetURL.IsEmpty())
     RemoveStyleSheet(mLastStyleSheetURL);
 
-  nsRefPtr<AddStyleSheetTxn> txn;
-  rv = CreateTxnForAddStyleSheet(aSheet, getter_AddRefs(txn));
+  AddStyleSheetTxn* txn;
+  rv = CreateTxnForAddStyleSheet(aSheet, &txn);
   if (!txn) rv = NS_ERROR_NULL_POINTER;
   if (NS_SUCCEEDED(rv))
   {
@@ -4125,6 +4096,8 @@ nsHTMLEditor::StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate,
       }
     }
   }
+  // The transaction system (if any) has taken ownership of txns
+  NS_IF_RELEASE(txn);
 
   return NS_OK;
 }
@@ -4231,54 +4204,6 @@ nsHTMLEditor::SelectEntireDocument(nsISelection *aSelection)
   return nsEditor::SelectEntireDocument(aSelection);
 }
 
-static nsIContent*
-FindEditableRoot(nsIContent *aContent)
-{
-  nsIDocument *document = aContent->GetCurrentDoc();
-  if (!document || document->HasFlag(NODE_IS_EDITABLE) ||
-      !aContent->HasFlag(NODE_IS_EDITABLE)) {
-    return nsnull;
-  }
-
-  nsIContent *parent, *content = aContent;
-  while ((parent = content->GetParent()) && parent->HasFlag(NODE_IS_EDITABLE)) {
-    content = parent;
-  }
-
-  return content;
-}
-
-NS_IMETHODIMP
-nsHTMLEditor::SelectAll()
-{
-  ForceCompositionEnd();
-
-  nsresult rv;
-  nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsISelection> selection;
-  rv = selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
-                            getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIDOMNode> anchorNode;
-  rv = selection->GetAnchorNode(getter_AddRefs(anchorNode));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIContent> anchorContent = do_QueryInterface(anchorNode, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsIContent *rootContent = FindEditableRoot(anchorContent);
-  if (!rootContent) {
-    return SelectEntireDocument(selection);
-  }
-
-  nsCOMPtr<nsIDOMNode> rootElement = do_QueryInterface(rootContent, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return selection->SelectAllChildren(rootElement);
-}
 
 
 #ifdef XP_MAC

@@ -137,19 +137,6 @@ if [[ -n "$datafiles" ]]; then
     done
 fi
 
-TEST_PRODUCT=$product
-TEST_BRANCH=$branch
-TEST_BUILDCOMMANDS=$buildcommands
-TEST_BUILDTYPE=$buildtype
-TEST_EXECUTABLEPATH=$executablepath
-TEST_PROFILENAME=$profilename
-TEST_PROFILETEMPLATE=$profiletemplate
-TEST_USERPREFERENCES=$userpreferences
-TEST_EXTENSIONDIR=$extensiondir
-TEST_DATAFILES=$datafiles
-
-dumpenvironment
-
 if [[ -z "$product" || -z "$branch" ]]; then
     echo "product and branch are required"
     usage
@@ -203,21 +190,19 @@ if [[ -n "$buildcommands" ]]; then
         usage
     fi
 
-    case "$OSID" in
-        mac)
-            if [[ "$product" == "firefox" ]]; then
-                App=Firefox
-            elif [[ "$product" == "thunderbird" ]]; then
-                App=Thunderbird
-            fi
-            if [[ "$buildtype" == "debug" ]]; then
-                AppType=Debug
-            fi
-            executablepath="/work/mozilla/builds/$branch/mozilla/$product-$buildtype/dist/$App$AppType.app/Contents/MacOS"
-            ;;
-        *)
-            executablepath="/work/mozilla/builds/$branch/mozilla/$product/$buildtype/dist/bin"
-    esac
+    if [[ "$OSID" == "mac" ]]; then
+        if [[ "$product" == "firefox" ]]; then
+            App=Firefox
+        elif [[ "$product" == "thunderbird" ]]; then
+            App=Thunderbird
+        fi
+        if [[ "$buildtype" == "debug" ]]; then
+            AppType=Debug
+        fi
+        executablepath="/work/mozilla/builds/$branch/mozilla/$product-$buildtype/dist/$App$AppType.app/Contents/MacOS"
+    else
+        executablepath="/work/mozilla/builds/$branch/mozilla/$product/$buildtype/dist/bin"
+    fi
 
     if echo "$buildcommands" | grep -iq clean; then
         clean.sh -p $product -b $branch -t $buildtype

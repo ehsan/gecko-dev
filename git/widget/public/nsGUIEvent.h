@@ -976,12 +976,12 @@ enum nsDragDropEventStatus {
 #define NS_IS_MOUSE_LEFT_CLICK(evnt) \
        ((evnt)->eventStructType == NS_MOUSE_EVENT && \
         (evnt)->message == NS_MOUSE_CLICK && \
-        static_cast<nsMouseEvent*>((evnt))->button == nsMouseEvent::eLeftButton)
+        NS_STATIC_CAST(nsMouseEvent*, (evnt))->button == nsMouseEvent::eLeftButton)
 
 #define NS_IS_CONTEXT_MENU_KEY(evnt) \
        ((evnt)->eventStructType == NS_MOUSE_EVENT && \
         (evnt)->message == NS_CONTEXTMENU && \
-        static_cast<nsMouseEvent*>((evnt))->context == nsMouseEvent::eContextMenuKey)
+        NS_STATIC_CAST(nsMouseEvent*, (evnt))->context == nsMouseEvent::eContextMenuKey)
 
 #define NS_IS_DRAG_EVENT(evnt) \
        (((evnt)->message == NS_DRAGDROP_ENTER) || \

@@ -77,7 +77,7 @@ static PRUintn threadTPIndex;
 static JSBool  tpIndexInited = JS_FALSE;
 
 JSBool
-js_InitThreadPrivateIndex(void (JS_DLL_CALLBACK *ptr)(void *))
+js_InitThreadPrivateIndex(void *ptr)
 {
     PRStatus status;
 

@@ -45,6 +45,7 @@
 #include "nsIDOMSVGGradientElement.h"
 #include "nsSVGAnimatedString.h"
 #include "nsCOMPtr.h"
+#include "nsISVGSVGElement.h"
 #include "nsSVGStylableElement.h"
 #include "nsGkAtoms.h"
 #include "nsSVGGradientElement.h"

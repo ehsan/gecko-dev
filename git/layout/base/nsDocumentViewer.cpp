@@ -81,6 +81,7 @@
 #include "nsIDeviceContextSpec.h"
 #include "nsIViewManager.h"
 #include "nsIView.h"
+#include "nsView.h" // For nsView::GetViewFor
 
 #include "nsIPageSequenceFrame.h"
 #include "nsIURL.h"
@@ -110,7 +111,6 @@
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
 #endif
-#include "nsXULPopupManager.h"
 #include "nsPrintfCString.h"
 
 #include "nsIClipboardHelper.h"
@@ -845,9 +845,9 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
         // (this won't break anyone, since page layout mode was never really
         // usable)
 #endif
-        double pageWidth = 0, pageHeight = 0;
-        mPresContext->GetPrintSettings()->GetEffectivePageSize(&pageWidth,
-                                                               &pageHeight);
+        PRInt32 pageWidth = 0, pageHeight = 0;
+        mPresContext->GetPrintSettings()->GetPageSizeInTwips(&pageWidth,
+                                                             &pageHeight);
         mPresContext->SetPageSize(
           nsSize(mPresContext->TwipsToAppUnits(pageWidth),
                  mPresContext->TwipsToAppUnits(pageHeight)));
@@ -1153,9 +1153,10 @@ DocumentViewerImpl::PageHide(PRBool aIsUnload)
 
   // look for open menupopups and close them after the unload event, in case
   // the unload event listeners open any new popups
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm && mDocument)
-    pm->HidePopupsInDocument(mDocument);
+  if (mPresShell) {
+    nsCOMPtr<nsIPresShell> kungFuDeathGrip = mPresShell;
+    mPresShell->HidePopups();
+  }
 
   return NS_OK;
 }
@@ -2005,7 +2006,7 @@ DocumentViewerImpl::RequestWindowClose(PRBool* aCanClose)
 PR_STATIC_CALLBACK(PRBool)
 AppendAgentSheet(nsIStyleSheet *aSheet, void *aData)
 {
-  nsStyleSet *styleSet = static_cast<nsStyleSet*>(aData);
+  nsStyleSet *styleSet = NS_STATIC_CAST(nsStyleSet*, aData);
   styleSet->AppendStyleSheet(nsStyleSet::eAgentSheet, aSheet);
   return PR_TRUE;
 }
@@ -2013,7 +2014,7 @@ AppendAgentSheet(nsIStyleSheet *aSheet, void *aData)
 PR_STATIC_CALLBACK(PRBool)
 PrependUserSheet(nsIStyleSheet *aSheet, void *aData)
 {
-  nsStyleSet *styleSet = static_cast<nsStyleSet*>(aData);
+  nsStyleSet *styleSet = NS_STATIC_CAST(nsStyleSet*, aData);
   styleSet->PrependStyleSheet(nsStyleSet::eUserSheet, aSheet);
   return PR_TRUE;
 }
@@ -2165,7 +2166,7 @@ DocumentViewerImpl::MakeWindow(nsIWidget* aParentWidget,
 
   // Create a child window of the parent that is our "root view/window"
   // if aParentWidget has a view, we'll hook our view manager up to its view tree
-  nsIView* containerView = nsIView::GetViewFor(aParentWidget);
+  nsIView* containerView = nsView::GetViewFor(aParentWidget);
 
   if (containerView) {
     // see if the containerView has already been hooked into a foreign view manager hierarchy
@@ -2573,7 +2574,7 @@ DocumentViewerImpl::GetTextZoom(float* aTextZoom)
 static void
 SetChildAuthorStyleDisabled(nsIMarkupDocumentViewer* aChild, void* aClosure)
 {
-  PRBool styleDisabled  = *static_cast<PRBool*>(aClosure);
+  PRBool styleDisabled  = *NS_STATIC_CAST(PRBool*, aClosure);
   aChild->SetAuthorStyleDisabled(styleDisabled);
 }
 
@@ -2621,7 +2622,7 @@ DocumentViewerImpl::GetDefaultCharacterSet(nsACString& aDefaultCharacterSet)
 static void
 SetChildDefaultCharacterSet(nsIMarkupDocumentViewer* aChild, void* aClosure)
 {
-  const nsACString* charset = static_cast<nsACString*>(aClosure);
+  const nsACString* charset = NS_STATIC_CAST(nsACString*, aClosure);
   aChild->SetDefaultCharacterSet(*charset);
 }
 
@@ -2646,7 +2647,7 @@ NS_IMETHODIMP DocumentViewerImpl::GetForceCharacterSet(nsACString& aForceCharact
 static void
 SetChildForceCharacterSet(nsIMarkupDocumentViewer* aChild, void* aClosure)
 {
-  const nsACString* charset = static_cast<nsACString*>(aClosure);
+  const nsACString* charset = NS_STATIC_CAST(nsACString*, aClosure);
   aChild->SetForceCharacterSet(*charset);
 }
 
@@ -2694,7 +2695,7 @@ NS_IMETHODIMP DocumentViewerImpl::GetPrevDocCharacterSet(nsACString& aPrevDocCha
 static void
 SetChildPrevDocCharacterSet(nsIMarkupDocumentViewer* aChild, void* aClosure)
 {
-  const nsACString* charset = static_cast<nsACString*>(aClosure);
+  const nsACString* charset = NS_STATIC_CAST(nsACString*, aClosure);
   aChild->SetPrevDocCharacterSet(*charset);
 }
 
@@ -2727,7 +2728,7 @@ DocumentViewerImpl::SetHintCharacterSetSource(PRInt32 aHintCharacterSetSource)
 static void
 SetChildHintCharacterSet(nsIMarkupDocumentViewer* aChild, void* aClosure)
 {
-  const nsACString* charset = static_cast<nsACString*>(aClosure);
+  const nsACString* charset = NS_STATIC_CAST(nsACString*, aClosure);
   aChild->SetHintCharacterSet(*charset);
 }
 

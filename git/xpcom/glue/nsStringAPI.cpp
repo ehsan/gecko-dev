@@ -40,9 +40,20 @@
 #include "nscore.h"
 #include "nsCRTGlue.h"
 #include "prprf.h"
-#include "nsStringAPI.h"
+
+#ifdef MOZILLA_INTERNAL_API
+#undef nsAString
+#undef nsACString
+#endif
+
 #include "nsXPCOMStrings.h"
 #include "nsDebug.h"
+
+#ifdef MOZILLA_INTERNAL_API
+#undef MOZILLA_INTERNAL_API
+#endif
+
+#include "nsStringAPI.h"
 
 #include <stdio.h>
 

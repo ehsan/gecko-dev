@@ -250,10 +250,12 @@ nsHTMLFramesetFrame::~nsHTMLFramesetFrame()
                                          FrameResizePrefCallback, this);
 }
 
-NS_IMETHODIMP
-nsHTMLFramesetFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+nsresult nsHTMLFramesetFrame::QueryInterface(const nsIID& aIID, 
+                                             void**       aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
+  if (NULL == aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
 
   if (aIID.Equals(NS_GET_IID(nsHTMLFramesetFrame))) {
     *aInstancePtr = (void*)this;
@@ -268,7 +270,7 @@ int
 nsHTMLFramesetFrame::FrameResizePrefCallback(const char* aPref, void* aClosure)
 {
   nsHTMLFramesetFrame *frame =
-    reinterpret_cast<nsHTMLFramesetFrame *>(aClosure);
+    NS_REINTERPRET_CAST(nsHTMLFramesetFrame *, aClosure);
 
   nsIDocument* doc = frame->mContent->GetDocument();
   mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, PR_TRUE);
@@ -287,7 +289,7 @@ nsHTMLFramesetFrame::FrameResizePrefCallback(const char* aPref, void* aClosure)
     nsNodeUtils::AttributeChanged(frame->GetContent(),
                                   kNameSpaceID_None,
                                   nsGkAtoms::frameborder,
-                                  nsIDOMMutationEvent::MODIFICATION, 0);
+                                  nsIDOMMutationEvent::MODIFICATION);
   }
 
   return 0;
@@ -791,7 +793,7 @@ NS_METHOD nsHTMLFramesetFrame::HandleEvent(nsPresContext* aPresContext,
 	      break;
       case NS_MOUSE_BUTTON_UP:
         if (aEvent->eventStructType == NS_MOUSE_EVENT &&
-            static_cast<nsMouseEvent*>(aEvent)->button ==
+            NS_STATIC_CAST(nsMouseEvent*, aEvent)->button ==
               nsMouseEvent::eLeftButton) {
           EndMouseDrag(aPresContext);
         }
@@ -1275,9 +1277,6 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
   aStatus = NS_FRAME_COMPLETE;
   mDrag.UnSet();
 
-  aDesiredSize.mOverflowArea = nsRect(0, 0,
-                                      aDesiredSize.width, aDesiredSize.height);
-
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return NS_OK;
 }
@@ -1488,6 +1487,9 @@ nsHTMLFramesetFrame::StartMouseDrag(nsPresContext*            aPresContext,
       viewMan->GrabMouseEvents(view, ignore);
       mDragger = aBorder;
 
+      //XXX This should go away!  Border should have own view instead
+      viewMan->SetViewCheckChildEvents(view, PR_FALSE);
+
       mFirstDragPoint = aEvent->refPoint;
 
       // Store the original frame sizes
@@ -1589,6 +1591,8 @@ nsHTMLFramesetFrame::EndMouseDrag(nsPresContext* aPresContext)
       mDragger = nsnull;
       PRBool ignore;
       viewMan->GrabMouseEvents(nsnull, ignore);
+      //XXX This should go away!  Border should have own view instead
+      viewMan->SetViewCheckChildEvents(view, PR_TRUE);
     }
   }
   gDragInProgress = PR_FALSE;
@@ -1651,8 +1655,6 @@ nsHTMLFramesetBorderFrame::Reflow(nsPresContext*          aPresContext,
   // computed values are.
   SizeToAvailSize(aReflowState, aDesiredSize);
 
-  aDesiredSize.mOverflowArea = nsRect(0, 0,
-                                      aDesiredSize.width, aDesiredSize.height);
   aStatus = NS_FRAME_COMPLETE;
   return NS_OK;
 }
@@ -1680,7 +1682,7 @@ public:
 void nsDisplayFramesetBorder::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
-  static_cast<nsHTMLFramesetBorderFrame*>(mFrame)->
+  NS_STATIC_CAST(nsHTMLFramesetBorderFrame*, mFrame)->
     PaintBorder(*aCtx, aBuilder->ToReferenceFrame(mFrame));
 }
 
@@ -1726,8 +1728,8 @@ void nsHTMLFramesetBorderFrame::PaintBorder(nsIRenderingContext& aRenderingConte
 
   nscoord x0 = 0;
   nscoord y0 = 0;
-  nscoord x1 = (mVertical) ? 0 : mRect.width;
-  nscoord y1 = (mVertical) ? mRect.height : 0;
+  nscoord x1 = (mVertical) ? x0 : mRect.width;
+  nscoord y1 = (mVertical) ? mRect.height : x0;
 
   nscolor color = WHITE;
   if (mVisibility || mVisibilityOverride) {
@@ -1793,7 +1795,7 @@ nsHTMLFramesetBorderFrame::HandleEvent(nsPresContext* aPresContext,
 
   if (aEvent->eventStructType == NS_MOUSE_EVENT &&
       aEvent->message == NS_MOUSE_BUTTON_DOWN &&
-      static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) {
+      NS_STATIC_CAST(nsMouseEvent*, aEvent)->button == nsMouseEvent::eLeftButton) {
     nsHTMLFramesetFrame* parentFrame;
     nsIFrame* fptr = GetParent();
     parentFrame = (nsHTMLFramesetFrame*) fptr;
@@ -1849,8 +1851,6 @@ nsHTMLFramesetBlankFrame::Reflow(nsPresContext*          aPresContext,
   // computed values are.
   SizeToAvailSize(aReflowState, aDesiredSize);
 
-  aDesiredSize.mOverflowArea = nsRect(0, 0,
-                                      aDesiredSize.width, aDesiredSize.height);
   aStatus = NS_FRAME_COMPLETE;
   return NS_OK;
 }

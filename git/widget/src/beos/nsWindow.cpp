@@ -23,7 +23,6 @@
  *   Paul Ashford <arougthopher@lizardland.net>
  *   Sergei Dolgov <sergei_d@fi.tartu.ee>
  *   Fredrik Holmqvist <thesuckiestemail@yahoo.se>
- *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -1011,7 +1010,7 @@ void nsWindow::HideKids(PRBool state)
 {
 	for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) 
 	{
-		nsWindow *childWidget = static_cast<nsWindow*>(kid);
+		nsWindow *childWidget = NS_STATIC_CAST(nsWindow*, kid);
 		nsRect kidrect = ((nsWindow *)kid)->mBounds;
 		//Don't bother about invisible
 		if (mBounds.Intersects(kidrect))
@@ -1740,7 +1739,7 @@ NS_METHOD nsWindow::Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect)
 		// Time to silently move now invisible children
 		for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) 
 		{
-			nsWindow *childWidget = static_cast<nsWindow*>(kid);
+			nsWindow *childWidget = NS_STATIC_CAST(nsWindow*, kid);
 			// No need to Lock/UnlockLooper with GetBounds() and Move() methods
 			// using cached values and native MoveBy() instead
 			nsRect bounds = childWidget->mBounds;
@@ -1787,7 +1786,7 @@ bool nsWindow::CallMethod(MethodInfo *info)
 
 			for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) 
 			{
-				nsWindow *childWidget = static_cast<nsWindow*>(kid);
+				nsWindow *childWidget = NS_STATIC_CAST(nsWindow*, kid);
 				BWindow* kidwindow = (BWindow *)kid->GetNativeData(NS_NATIVE_WINDOW);
 				if (kidwindow)
 				{
@@ -2572,10 +2571,6 @@ nsresult nsWindow::OnPaint(BRegion *breg)
 	}	
 
 	nsIRenderingContext* rc = GetRenderingContext();
-	if (NS_UNLIKELY(!rc)) {
-		return NS_ERROR_FAILURE;
-	}
-
 	// Double buffering for cairo builds is done here
 #ifdef MOZ_CAIRO_GFX
 	nsRefPtr<gfxContext> ctx =
@@ -2804,6 +2799,7 @@ bool nsWindowBeOS::QuitRequested( void )
 			MethodInfo *info = nsnull;
 			if (nsnull != (info = new MethodInfo(w, w, nsSwitchToUIThread::CLOSEWINDOW)))
 				t->CallMethodAsync(info);
+			NS_RELEASE(t);
 		}
 	}
 	return true;
@@ -2848,6 +2844,7 @@ void nsWindowBeOS::DispatchMessage(BMessage *msg, BHandler *handler)
 			MethodInfo *info = nsnull;
 			if (nsnull != (info = new MethodInfo(w, w, nsSwitchToUIThread::CLOSEWINDOW)))
 				t->CallMethodAsync(info);
+			NS_RELEASE(t);
 		}		
 	}
 	else
@@ -2873,6 +2870,7 @@ void nsWindowBeOS::FrameMoved(BPoint origin)
 		MethodInfo *info = nsnull;
 		if (nsnull != (info = new MethodInfo(w, w, nsSwitchToUIThread::ONMOVE)))
 			t->CallMethodAsync(info);
+		NS_RELEASE(t);
 	}
 }
 
@@ -2889,6 +2887,7 @@ void nsWindowBeOS::WindowActivated(bool active)
 		MethodInfo *info = nsnull;
 		if (nsnull != (info = new MethodInfo(w, w, nsSwitchToUIThread::ONACTIVATE, 2, args)))
 			t->CallMethodAsync(info);
+		NS_RELEASE(t);
 	}
 }
 
@@ -2906,6 +2905,7 @@ void  nsWindowBeOS::WorkspacesChanged(uint32 oldworkspace, uint32 newworkspace)
 		MethodInfo *info = nsnull;
 		if (nsnull != (info = new MethodInfo(w, w, nsSwitchToUIThread::ONWORKSPACE, 2, args)))
 			t->CallMethodAsync(info);
+		NS_RELEASE(t);
 	}	
 }
 
@@ -2926,6 +2926,7 @@ void  nsWindowBeOS::FrameResized(float width, float height)
 			if (t->CallMethodAsync(info))
 				fJustGotBounds = false;
 		}
+		NS_RELEASE(t);
 	}	
 }
 
@@ -2986,6 +2987,7 @@ void nsViewBeOS::Draw(BRect updateRect)
 			if (t->CallMethodAsync(info))
 				fJustValidated = false;
 		}
+		NS_RELEASE(t);
 	}
 }
 
@@ -3057,6 +3059,7 @@ void nsViewBeOS::MouseDown(BPoint point)
 	MethodInfo *info = nsnull;
 	if (nsnull != (info = new MethodInfo(w, w, nsSwitchToUIThread::BTNCLICK, 6, args)))
 		t->CallMethodAsync(info);
+	NS_RELEASE(t);
 }
 
 void nsViewBeOS::MouseMoved(BPoint point, uint32 transit, const BMessage *msg)
@@ -3075,7 +3078,7 @@ void nsViewBeOS::MouseMoved(BPoint point, uint32 transit, const BMessage *msg)
 	nsWindow	*w = (nsWindow *)GetMozillaWidget();
 	if (w == NULL)
 		return;
-	nsToolkit	*t = w->GetToolkit();
+	nsToolkit	*t = t = w->GetToolkit();
 	if (t == NULL)
 		return;
 	uint32	args[4];
@@ -3118,6 +3121,7 @@ void nsViewBeOS::MouseMoved(BPoint point, uint32 transit, const BMessage *msg)
 	MethodInfo *moveInfo = nsnull;
 	if (nsnull != (moveInfo = new MethodInfo(w, w, nsSwitchToUIThread::ONMOUSE, 4, args)))
 		t->CallMethodAsync(moveInfo);
+	NS_RELEASE(t);
 }
 
 void nsViewBeOS::MouseUp(BPoint point)
@@ -3139,7 +3143,7 @@ void nsViewBeOS::MouseUp(BPoint point)
 	nsWindow	*w = (nsWindow *)GetMozillaWidget();
 	if (w == NULL)
 		return;
-	nsToolkit	*t = w->GetToolkit();
+	nsToolkit	*t = t = w->GetToolkit();
 	if (t == NULL)
 		return;
 
@@ -3154,6 +3158,7 @@ void nsViewBeOS::MouseUp(BPoint point)
 	MethodInfo *info = nsnull;
 	if (nsnull != (info = new MethodInfo(w, w, nsSwitchToUIThread::BTNCLICK, 6, args)))
 		t->CallMethodAsync(info);
+	NS_RELEASE(t);
 }
 
 void nsViewBeOS::MessageReceived(BMessage *msg)
@@ -3163,7 +3168,7 @@ void nsViewBeOS::MessageReceived(BMessage *msg)
 		nsWindow	*w = (nsWindow *)GetMozillaWidget();
 		if (w == NULL)
 			return;
-		nsToolkit	*t = w->GetToolkit();
+		nsToolkit	*t = t = w->GetToolkit();
 		if (t == NULL)
 			return;
 
@@ -3233,6 +3238,7 @@ void nsViewBeOS::MessageReceived(BMessage *msg)
 						fWheelDispatched = false;
 					
 				}
+				NS_RELEASE(t);
 			}
 		}
 		break;
@@ -3279,6 +3285,7 @@ void nsViewBeOS::KeyDown(const char *bytes, int32 numBytes)
 		MethodInfo *info = nsnull;
 		if (nsnull != (info = new MethodInfo(w, w, nsSwitchToUIThread::ONKEY, 6, args)))
 			t->CallMethodAsync(info);
+		NS_RELEASE(t);
 	}
 }
 
@@ -3312,6 +3319,7 @@ void nsViewBeOS::KeyUp(const char *bytes, int32 numBytes)
 		MethodInfo *info = nsnull;
 		if (nsnull != (info = new MethodInfo(w, w, nsSwitchToUIThread::ONKEY, 6, args)))
 			t->CallMethodAsync(info);
+		NS_RELEASE(t);
 	}
 }
 
@@ -3338,6 +3346,7 @@ void nsViewBeOS::MakeFocus(bool focused)
 				t->CallMethodAsync(info);
 		}
 #endif		
+		NS_RELEASE(t);
 	}
 }
 

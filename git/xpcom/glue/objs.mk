@@ -57,6 +57,7 @@ XPCOM_GLUE_SRC_LCPPSRCS =        \
   nsWeakReference.cpp            \
   nsGREGlue.cpp                  \
   nsVersionComparator.cpp        \
+  nsStringAPI.cpp                \
   nsTHashtable.cpp               \
   nsQuickSort.cpp                \
   nsVoidArray.cpp                \

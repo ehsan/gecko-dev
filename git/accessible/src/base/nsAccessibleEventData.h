@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Kyle Yuan (kyle.yuan@sun.com)
  *   John Sun (john.sun@sun.com)
- *   Alexander Surkov <surkov.alexander@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -114,28 +113,18 @@ private:
   PRBool mIsInserted;
 };
 
-class nsAccCaretMoveEvent: public nsAccEvent,
-                           public nsIAccessibleCaretMoveEvent
-{
-public:
-  nsAccCaretMoveEvent(nsIAccessible *aAccessible, PRInt32 aCaretOffset);
-  nsAccCaretMoveEvent(nsIDOMNode *aNode);
+// XXX todo: We might want to use XPCOM interfaces instead of structs
+//     e.g., nsAccessibleTextChangeEvent: public nsIAccessibleTextChangeEvent
 
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_FORWARD_NSIACCESSIBLEEVENT(nsAccEvent::)
-  NS_DECL_NSIACCESSIBLECARETMOVEEVENT
-
-private:
-  PRInt32 mCaretOffset;
+struct AtkChildrenChange {
+  PRInt32      index;  // index of child in parent 
+  nsIAccessible *child;   
+  PRBool        add;    // true for add, false for delete
 };
-
-// XXX todo: We might want to use XPCOM interfaces instead of struct
-//     e.g., nsAccessibleTableChangeEvent: public nsIAccessibleTableChangeEvent
 
 struct AtkTableChange {
   PRUint32 index;   // the start row/column after which the rows are inserted/deleted.
   PRUint32 count;   // the number of inserted/deleted rows/columns
 };
 
-#endif
-
+#endif  

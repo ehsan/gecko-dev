@@ -238,21 +238,22 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 NS_IMETHODIMP
 nsIsIndexFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  NS_PRECONDITION(aInstancePtr, "null out param");
-
+  NS_PRECONDITION(aInstancePtr, "null ptr");
+  if (NS_UNLIKELY(!aInstancePtr)) {
+    return NS_ERROR_NULL_POINTER;
+  }
   if (aIID.Equals(NS_GET_IID(nsIAnonymousContentCreator))) {
-    *aInstancePtr = static_cast<nsIAnonymousContentCreator*>(this);
+    *aInstancePtr = NS_STATIC_CAST(nsIAnonymousContentCreator*, this);
     return NS_OK;
   }
   if (aIID.Equals(NS_GET_IID(nsIStatefulFrame))) {
-    *aInstancePtr = static_cast<nsIStatefulFrame*>(this);
+    *aInstancePtr = NS_STATIC_CAST(nsIStatefulFrame*, this);
     return NS_OK;
   }
   if (aIID.Equals(NS_GET_IID(nsIDOMKeyListener))) {
-    *aInstancePtr = static_cast<nsIDOMKeyListener*>(this);
+    *aInstancePtr = NS_STATIC_CAST(nsIDOMKeyListener*, this);
     return NS_OK;
   }
-
   return nsAreaFrame::QueryInterface(aIID, aInstancePtr);
 }
 
@@ -323,10 +324,6 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
 {
   if (!mContent || !mInputContent) {
     return NS_ERROR_UNEXPECTED;
-  }
-
-  if (mContent->IsEditable()) {
-    return NS_OK;
   }
 
   nsresult result = NS_OK;

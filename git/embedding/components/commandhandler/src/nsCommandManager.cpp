@@ -75,7 +75,7 @@ TraverseCommandObservers(const char* aKey, nsCOMArray<nsIObserver>* aObservers,
                          void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb = 
-    static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
+    NS_STATIC_CAST(nsCycleCollectionTraversalCallback*, aClosure);
 
   PRInt32 i, numItems = aObservers->Count();
   for (i = 0; i < numItems; ++i) {

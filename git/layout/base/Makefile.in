@@ -42,10 +42,6 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef MOZ_MOCHITEST
-DIRS		+= tests
-endif
-
 MODULE		= layout
 XPIDL_MODULE	= layout_base
 GRE_MODULE	= 1
@@ -97,6 +93,7 @@ endif
 EXPORTS		= \
 		nsBidi.h \
 		nsBidiPresUtils.h \
+		nsBidiUtils.h \
 		nsCSSFrameConstructor.h \
 		nsChangeHint.h \
 		nsCompatibility.h \
@@ -122,6 +119,7 @@ EXPORTS		= \
 		$(NULL)
 
 CPPSRCS		= \
+		nsBidiUtils.cpp \
 		nsCSSColorUtils.cpp \
 		nsCSSFrameConstructor.cpp \
 		nsCSSRendering.cpp \

@@ -188,10 +188,6 @@ nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
   if (!canvas)
     return;
 
-  // anything to do?
-  if (inner.width == 0 || inner.height == 0)
-    return;
-
   nsSize canvasSize = GetCanvasSize();
   nsSize sizeAppUnits(PresContext()->DevPixelsToAppUnits(canvasSize.width),
                       PresContext()->DevPixelsToAppUnits(canvasSize.height));
@@ -225,7 +221,7 @@ nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
 static void PaintCanvas(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                         const nsRect& aDirtyRect, nsPoint aPt)
 {
-  static_cast<nsHTMLCanvasFrame*>(aFrame)->PaintCanvas(*aCtx, aDirtyRect, aPt);
+  NS_STATIC_CAST(nsHTMLCanvasFrame*, aFrame)->PaintCanvas(*aCtx, aDirtyRect, aPt);
 }
 
 NS_IMETHODIMP

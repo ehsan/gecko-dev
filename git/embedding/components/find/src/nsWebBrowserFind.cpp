@@ -73,8 +73,6 @@
 #include "nsIObserverService.h"
 #include "nsISupportsPrimitives.h"
 #include "nsITimelineService.h"
-#include "nsFind.h"
-#include "nsDOMError.h"
 
 #if DEBUG
 #include "nsIWebNavigation.h"
@@ -86,6 +84,8 @@
 #include <Scrap.h>
 #endif
 
+
+static NS_DEFINE_IID(kRangeCID, NS_RANGE_CID);
 
 //*****************************************************************************
 // nsWebBrowserFind
@@ -724,8 +724,9 @@ nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
     NS_ENSURE_SUCCESS(rv, rv);
     if (!domDoc) return NS_ERROR_FAILURE;
 
-    // Do security check, to ensure that the frame we're searching is
-    // acccessible from the frame where the Find is being run.
+    // Do security check, to ensure that the frame we're searching
+    // is from the same origin as the frame from which the Find is
+    // being run.
 
     // get a uri for the window
     nsCOMPtr<nsIDocument> theDoc = do_QueryInterface(domDoc);
@@ -735,24 +736,20 @@ nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
       do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
   
-    nsCOMPtr<nsIPrincipal> subject;
-    rv = secMan->GetSubjectPrincipal(getter_AddRefs(subject));
-    NS_ENSURE_SUCCESS(rv, rv);
+    PRBool hasCap = PR_FALSE;
+    secMan->IsCapabilityEnabled("UniversalBrowserWrite", &hasCap);
+    if (!hasCap)
+      secMan->IsCapabilityEnabled("UniversalXPConnect", &hasCap);
 
-    if (subject) {
-        PRBool subsumes;
-        rv = subject->Subsumes(theDoc->NodePrincipal(), &subsumes);
+    if (!hasCap) {
+      nsCOMPtr<nsIPrincipal> subject;
+      rv = secMan->GetSubjectPrincipal(getter_AddRefs(subject));
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (subject) {
+        rv = secMan->CheckSameOriginPrincipal(subject,
+                                              theDoc->NodePrincipal());
         NS_ENSURE_SUCCESS(rv, rv);
-        if (!subsumes) {
-            PRBool hasCap = PR_FALSE;
-            secMan->IsCapabilityEnabled("UniversalBrowserWrite", &hasCap);
-            if (!hasCap) {
-                secMan->IsCapabilityEnabled("UniversalXPConnect", &hasCap);
-            }
-            if (!hasCap) {
-                return NS_ERROR_DOM_PROP_ACCESS_DENIED;
-            }
-        }
+      }
     }
 
     if (!mFind) {
@@ -774,11 +771,11 @@ nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
     GetFrameSelection(aWindow, getter_AddRefs(sel));
     NS_ENSURE_ARG_POINTER(sel);
 
-    nsCOMPtr<nsIDOMRange> searchRange = nsFind::CreateRange();
+    nsCOMPtr<nsIDOMRange> searchRange (do_CreateInstance(kRangeCID));
     NS_ENSURE_ARG_POINTER(searchRange);
-    nsCOMPtr<nsIDOMRange> startPt  = nsFind::CreateRange();
+    nsCOMPtr<nsIDOMRange> startPt (do_CreateInstance(kRangeCID));
     NS_ENSURE_ARG_POINTER(startPt);
-    nsCOMPtr<nsIDOMRange> endPt  = nsFind::CreateRange();
+    nsCOMPtr<nsIDOMRange> endPt (do_CreateInstance(kRangeCID));
     NS_ENSURE_ARG_POINTER(endPt);
 
     nsCOMPtr<nsIDOMRange> foundRange;

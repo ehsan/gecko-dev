@@ -132,7 +132,7 @@ mAccessNodeCache(nsnull)
   if (mTree)
     mTree->GetView(getter_AddRefs(mTreeView));
   NS_ASSERTION(mTree && mTreeView, "Can't get mTree or mTreeView!\n");
-  mAccessNodeCache = new nsAccessNodeHashtable;
+  mAccessNodeCache = new nsInterfaceHashtable<nsVoidHashKey, nsIAccessNode>;
   mAccessNodeCache->Init(kDefaultTreeCacheSize);
 }
 
@@ -567,7 +567,7 @@ NS_IMETHODIMP nsXULTreeitemAccessible::GetName(nsAString& aName)
 NS_IMETHODIMP nsXULTreeitemAccessible::GetUniqueID(void **aUniqueID)
 {
   // Since mDOMNode is same for all tree item, use |this| pointer as the unique Id
-  *aUniqueID = static_cast<void*>(this);
+  *aUniqueID = NS_STATIC_CAST(void*, this);
   return NS_OK;
 }
 
@@ -603,9 +603,6 @@ nsXULTreeitemAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   if (isContainer) {
     mTreeView->IsContainerEmpty(mRow, &isContainerEmpty);
     if (!isContainerEmpty) {
-      if (aExtraState)
-        *aExtraState |= nsIAccessibleStates::EXT_STATE_EXPANDABLE;
-
       mTreeView->IsContainerOpen(mRow, &isContainerOpen);
       *aState |= isContainerOpen? PRUint32(nsIAccessibleStates::STATE_EXPANDED):
                                   PRUint32(nsIAccessibleStates::STATE_COLLAPSED);
@@ -737,14 +734,16 @@ nsXULTreeitemAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribu
   PRInt32 posInSet = mRow - startIndex + 1;
 
   // set the group attributes
-  nsAccUtils::SetAccGroupAttrs(aAttributes, level + 1, posInSet, setSize);
+  nsAccessibilityUtils::
+    SetAccGroupAttrs(aAttributes, level + 1, posInSet, setSize);
 
   // set the "cycles" attribute
   PRBool isCycler;
   mColumn->GetCycler(&isCycler);
   if (isCycler) {
-    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::cycles,
-                           NS_LITERAL_STRING("true"));
+    nsAccessibilityUtils::SetAccAttr(aAttributes, 
+          nsAccessibilityAtoms::cycles,
+          NS_LITERAL_STRING("true"));
   }
 
   return NS_OK;

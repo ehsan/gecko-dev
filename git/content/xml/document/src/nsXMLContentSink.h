@@ -136,7 +136,8 @@ protected:
   // being closed
   virtual nsresult CloseElement(nsIContent* aContent);
 
-  virtual nsresult FlushText();
+  virtual nsresult FlushText(PRBool aCreateTextNode=PR_TRUE,
+                             PRBool* aDidFlush=nsnull);
 
   nsresult AddContentAsLeaf(nsIContent *aContent);
 
@@ -183,7 +184,6 @@ protected:
                                PRBool aInterruptable);
 
   nsIContent*      mDocElement;
-  nsCOMPtr<nsIContent> mCurrentHead;  // When set, we're in an XHTML <haed>
   PRUnichar*       mText;
 
   XMLContentSinkState mState;

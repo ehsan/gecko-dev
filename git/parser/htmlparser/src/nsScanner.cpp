@@ -94,6 +94,7 @@ nsScanner::nsScanner(const nsAString& anHTMLString, const nsACString& aCharset,
 {
   MOZ_COUNT_CTOR(nsScanner);
 
+  mTotalRead = anHTMLString.Length();
   mSlidingBuffer = nsnull;
   mCountRemaining = 0;
   mFirstNonWhitespacePosition = -1;
@@ -120,7 +121,6 @@ nsScanner::nsScanner(nsString& aFilename,PRBool aCreateStream,
   : mFilename(aFilename), mParser(nsnull)
 {
   MOZ_COUNT_CTOR(nsScanner);
-  NS_ASSERTION(!aCreateStream, "This is always true.");
 
   mSlidingBuffer = nsnull;
 
@@ -136,11 +136,58 @@ nsScanner::nsScanner(nsString& aFilename,PRBool aCreateStream,
   mIncremental = PR_TRUE;
   mFirstNonWhitespacePosition = -1;
   mCountRemaining = 0;
+  mTotalRead=0;
 
+  if(aCreateStream) {
+    nsCOMPtr<nsILocalFile> file;
+    nsCOMPtr<nsIInputStream> fileStream;
+    
+    NS_NewLocalFile(aFilename, PR_TRUE, getter_AddRefs(file));
+    if (file)
+      NS_NewLocalFileInputStream(getter_AddRefs(mInputStream), file);
+
+  } //if
   mUnicodeDecoder = 0;
   mCharsetSource = kCharsetUninitialized;
   SetDocumentCharset(aCharset, aSource);
 }
+
+/**
+ *  Use this constructor if you want i/o to be stream based.
+ *
+ *  @update  gess 5/12/98
+ *  @param   aStream --
+ *  @param   assumeOwnership --
+ *  @param   aFilename --
+ *  @return  
+ */
+nsScanner::nsScanner(const nsAString& aFilename, nsIInputStream* aStream,
+                     const nsACString& aCharset, PRInt32 aSource)
+  : mFilename(aFilename), mParser(nsnull)
+{  
+  MOZ_COUNT_CTOR(nsScanner);
+
+  mSlidingBuffer = nsnull;
+
+  // XXX This is a big hack.  We need to initialize the iterators to something.
+  // What matters is that mCurrentPosition == mEndPosition, so that our methods
+  // believe that we are at EOF (see bug 182067).  We null out mCurrentPosition
+  // so that we have some hope of catching null pointer dereferences associated
+  // with this hack. --darin
+  memset(&mCurrentPosition, 0, sizeof(mCurrentPosition));
+  mMarkPosition = mCurrentPosition;
+  mEndPosition = mCurrentPosition;
+
+  mIncremental = PR_FALSE;
+  mFirstNonWhitespacePosition = -1;
+  mCountRemaining = 0;
+  mTotalRead=0;
+  mInputStream=aStream;
+  mUnicodeDecoder = 0;
+  mCharsetSource = kCharsetUninitialized;
+  SetDocumentCharset(aCharset, aSource);
+}
+
 
 nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , PRInt32 aSource) {
 
@@ -204,6 +251,11 @@ nsScanner::~nsScanner() {
 
   MOZ_COUNT_DTOR(nsScanner);
 
+  if(mInputStream) {
+    mInputStream->Close();
+    mInputStream = 0;
+  }
+
   NS_IF_RELEASE(mUnicodeDecoder);
 }
 
@@ -261,6 +313,7 @@ PRBool nsScanner::UngetReadable(const nsAString& aBuffer) {
  
   PRUint32 length = aBuffer.Length();
   mCountRemaining += length; // Ref. bug 117441
+  mTotalRead += length;
   return PR_TRUE;
 }
 
@@ -272,6 +325,7 @@ PRBool nsScanner::UngetReadable(const nsAString& aBuffer) {
  * @return  error code 
  */
 nsresult nsScanner::Append(const nsAString& aBuffer) {
+  mTotalRead += aBuffer.Length();
   AppendToBuffer(aBuffer);
   return NS_OK;
 }
@@ -288,7 +342,7 @@ nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
 {
   nsresult res=NS_OK;
   PRUnichar *unichars, *start;
-  if (mUnicodeDecoder) {
+  if(mUnicodeDecoder) {
     PRInt32 unicharBufLen = 0;
     mUnicodeDecoder->GetMaxLength(aBuffer, aLen, &unicharBufLen);
     nsScannerString::Buffer* buffer = nsScannerString::AllocBuffer(unicharBufLen + 1);
@@ -335,6 +389,7 @@ nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
 
     buffer->SetDataLength(totalChars);
     AppendToBuffer(buffer, aRequest);
+    mTotalRead += totalChars;
 
     // Don't propagate return code of unicode decoder
     // since it doesn't reflect on our success or failure
@@ -342,11 +397,45 @@ nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
     res = NS_OK; 
   }
   else {
-    NS_WARNING("No decoder found.");
-    res = NS_ERROR_FAILURE;
+    AppendASCIItoBuffer(aBuffer, aLen, aRequest);
+    mTotalRead+=aLen;
   }
 
   return res;
+}
+
+
+/** 
+ * Grab data from underlying stream.
+ *
+ * @update  gess4/3/98
+ * @return  error code
+ */
+nsresult nsScanner::FillBuffer(void) {
+  nsresult result=NS_OK;
+
+  if(!mInputStream) {
+    result=kEOF;
+  }
+  else {
+    PRUint32 numread=0;
+    char buf[kBufsize+1];
+    buf[kBufsize]=0;
+
+    // XXX use ReadSegments to avoid extra buffer copy? --darin
+
+    result = mInputStream->Read(buf, kBufsize, &numread);
+    if (0 == numread) {
+      return kEOF;
+    }
+
+    if((0<numread) && NS_SUCCEEDED(result)) {
+      AppendASCIItoBuffer(buf, numread, nsnull);
+    }
+    mTotalRead+=numread;
+  }
+
+  return result;
 }
 
 /**
@@ -357,15 +446,22 @@ nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
  *  @return  error code reflecting read status
  */
 nsresult nsScanner::GetChar(PRUnichar& aChar) {
-  if (!mSlidingBuffer || mCurrentPosition == mEndPosition) {
-    aChar = 0;
+  nsresult result=NS_OK;
+  aChar=0;  
+
+  if (!mSlidingBuffer) {
     return kEOF;
   }
 
-  aChar = *mCurrentPosition++;
-  --mCountRemaining;
+  if (mCurrentPosition == mEndPosition) {
+    result = FillBuffer();
+  }
 
-  return NS_OK;
+  if(NS_OK == result){
+    aChar = *mCurrentPosition++;
+    --mCountRemaining;
+  }
+  return result;
 }
 
 
@@ -378,33 +474,47 @@ nsresult nsScanner::GetChar(PRUnichar& aChar) {
  *  @return  
  */
 nsresult nsScanner::Peek(PRUnichar& aChar, PRUint32 aOffset) {
-  aChar = 0;
-
-  if (!mSlidingBuffer || mCurrentPosition == mEndPosition) {
+  nsresult result=NS_OK;
+  aChar=0;  
+  
+  if (!mSlidingBuffer) {
     return kEOF;
   }
 
-  if (aOffset > 0) {
-    if (mCountRemaining <= aOffset)
-      return kEOF;
-
-    nsScannerIterator pos = mCurrentPosition;
-    pos.advance(aOffset);
-    aChar=*pos;
-  }
-  else {
-    aChar=*mCurrentPosition;
+  if (mCurrentPosition == mEndPosition) {
+    result = FillBuffer();
   }
 
-  return NS_OK;
+  if(NS_OK == result){
+    if (aOffset) {
+      while ((NS_OK == result) && (mCountRemaining <= aOffset)) {
+        result = FillBuffer();
+      }
+
+      if (NS_OK == result) {
+        nsScannerIterator pos = mCurrentPosition;
+        pos.advance(aOffset);
+        aChar=*pos;
+      }
+    }
+    else {
+      aChar=*mCurrentPosition;
+    }
+  }
+
+  return result;
 }
 
 nsresult nsScanner::Peek(nsAString& aStr, PRInt32 aNumChars, PRInt32 aOffset)
 {
-  if (!mSlidingBuffer || mCurrentPosition == mEndPosition) {
+  if (!mSlidingBuffer) {
     return kEOF;
   }
 
+  if (mCurrentPosition == mEndPosition) {
+    return FillBuffer();
+  }    
+  
   nsScannerIterator start, end;
 
   start = mCurrentPosition;
@@ -481,7 +591,7 @@ nsresult nsScanner::SkipWhitespace(PRInt32& aNewlinesSkipped) {
   if (skipped) {
     SetPosition(current);
     if (current == mEndPosition) {
-      result = kEOF;
+      result = FillBuffer();
     }
   }
 
@@ -518,6 +628,68 @@ nsresult nsScanner::SkipOver(PRUnichar aSkipChar){
 
 }
 
+/**
+ *  Skip over chars as long as they're in aSkipSet
+ *  
+ *  @update  gess 3/25/98
+ *  @param   aSkipSet is an ordered string.
+ *  @return  error code
+ */
+nsresult nsScanner::SkipOver(nsString& aSkipSet){
+
+  if (!mSlidingBuffer) {
+    return kEOF;
+  }
+
+  PRUnichar theChar=0;
+  nsresult  result=NS_OK;
+
+  while(NS_OK==result) {
+    result=Peek(theChar);
+    if(NS_OK == result) {
+      PRInt32 pos=aSkipSet.FindChar(theChar);
+      if(kNotFound==pos) {
+        break;
+      }
+      GetChar(theChar);
+    } 
+    else break;
+  } //while
+  return result;
+
+}
+
+
+/**
+ *  Skip over chars until they're in aValidSet
+ *  
+ *  @update  gess 3/25/98
+ *  @param   aValid set is an ordered string that 
+ *           contains chars you're looking for
+ *  @return  error code
+ */
+nsresult nsScanner::SkipTo(nsString& aValidSet){
+  if (!mSlidingBuffer) {
+    return kEOF;
+  }
+
+  PRUnichar ch=0;
+  nsresult  result=NS_OK;
+
+  while(NS_OK==result) {
+    result=Peek(ch);
+    if(NS_OK == result) {
+      PRInt32 pos=aValidSet.FindChar(ch);
+      if(kNotFound!=pos) {
+        break;
+      }
+      GetChar(ch);
+    } 
+    else break;
+  } //while
+  return result;
+}
+
 #if 0
 void DoErrTest(nsString& aString) {
   PRInt32 pos=aString.FindChar(0);
@@ -535,6 +707,19 @@ void DoErrTest(nsCString& aString) {
   }
 }
 #endif
+
+/**
+ *  Skip over chars as long as they're in aValidSet
+ *  
+ *  @update  gess 3/25/98
+ *  @param   aValidSet is an ordered string containing the 
+ *           characters you want to skip
+ *  @return  error code
+ */
+nsresult nsScanner::SkipPast(nsString& aValidSet){
+  NS_NOTYETIMPLEMENTED("Error: SkipPast not yet implemented.");
+  return NS_OK;
+}
 
 /**
  *  Consume characters until you run into space, a '<', a '>', or a '/'.
@@ -595,7 +780,7 @@ nsresult nsScanner::ReadTagIdentifier(nsScannerSharedSubstring& aString) {
 
   SetPosition(current);  
   if (current == end) {
-    result = kEOF;
+    result = FillBuffer();
   }
 
   //DoErrTest(aString);
@@ -655,7 +840,7 @@ nsresult nsScanner::ReadEntityIdentifier(nsString& aString) {
   SetPosition(current);
   if (current == end) {
     AppendUnicodeTo(origin, current, aString);
-    return kEOF;
+    return FillBuffer();
   }
 
   //DoErrTest(aString);
@@ -704,7 +889,7 @@ nsresult nsScanner::ReadNumber(nsString& aString,PRInt32 aBase) {
   SetPosition(current);
   if (current == end) {
     AppendUnicodeTo(origin, current, aString);
-    return kEOF;
+    return FillBuffer();
   }
 
   //DoErrTest(aString);
@@ -782,7 +967,7 @@ nsresult nsScanner::ReadWhitespace(nsScannerSharedSubstring& aString,
   SetPosition(current);
   if (current == end) {
     AppendUnicodeTo(origin, current, aString);
-    result = kEOF;
+    result = FillBuffer();
   }
 
   aHaveCR = haveCR;
@@ -841,10 +1026,67 @@ nsresult nsScanner::ReadWhitespace(nsScannerIterator& aStart,
   if (current == end) {
     aStart = origin;
     aEnd = current;
-    result = kEOF;
+    result = FillBuffer();
   }
 
   return result;
+}
+
+/**
+ *  Consume chars as long as they are <i>in</i> the 
+ *  given validSet of input chars.
+ *  
+ *  @update  gess 3/25/98
+ *  @param   aString will contain the result of this method
+ *  @param   aValidSet is an ordered string that contains the
+ *           valid characters
+ *  @return  error code
+ */
+nsresult nsScanner::ReadWhile(nsString& aString,
+                             nsString& aValidSet,
+                             PRBool addTerminal){
+
+  if (!mSlidingBuffer) {
+    return kEOF;
+  }
+
+  PRUnichar         theChar=0;
+  nsresult          result=Peek(theChar);
+  nsScannerIterator origin, current, end;
+
+  origin = mCurrentPosition;
+  current = origin;
+  end = mEndPosition;
+
+  while(current != end) {
+ 
+    theChar=*current;
+    if (theChar == '\0') {
+      ReplaceCharacter(current, sInvalid);
+      theChar = sInvalid;
+    }
+    if(theChar) {
+      PRInt32 pos=aValidSet.FindChar(theChar);
+      if(kNotFound==pos) {
+        if(addTerminal)
+          ++current;
+        AppendUnicodeTo(origin, current, aString);
+        break;
+      }
+    }
+    ++current;
+  }
+
+  SetPosition(current);
+  if (current == end) {
+    AppendUnicodeTo(origin, current, aString);
+    return FillBuffer();
+  }
+
+  //DoErrTest(aString);
+
+  return result;
+
 }
 
 /**
@@ -914,7 +1156,7 @@ nsresult nsScanner::ReadUntil(nsAString& aString,
   // current = mEndPosition
   SetPosition(current);
   AppendUnicodeTo(origin, current, aString);
-  return kEOF;
+  return FillBuffer();
 }
 
 nsresult nsScanner::ReadUntil(nsScannerSharedSubstring& aString,
@@ -974,7 +1216,7 @@ nsresult nsScanner::ReadUntil(nsScannerSharedSubstring& aString,
   // current = mEndPosition
   SetPosition(current);
   AppendUnicodeTo(origin, current, aString);
-  return kEOF;
+  return FillBuffer();
 }
 
 nsresult nsScanner::ReadUntil(nsScannerIterator& aStart, 
@@ -1035,7 +1277,7 @@ nsresult nsScanner::ReadUntil(nsScannerIterator& aStart,
   SetPosition(current);
   aStart = origin;
   aEnd = current;
-  return kEOF;
+  return FillBuffer();
 }
 
 /**
@@ -1086,7 +1328,7 @@ nsresult nsScanner::ReadUntil(nsAString& aString,
   // current = mEndPosition
   AppendUnicodeTo(origin, current, aString);
   SetPosition(current);
-  return kEOF;
+  return FillBuffer();
 
 }
 
@@ -1180,6 +1422,19 @@ void nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
 
       ++iter;
     }
+  }
+}
+
+void nsScanner::AppendASCIItoBuffer(const char* aData, PRUint32 aLen,
+                                    nsIRequest *aRequest)
+{
+  nsScannerString::Buffer* buf = nsScannerString::AllocBuffer(aLen);
+  if (buf)
+  {
+    LossyConvertEncoding<char, PRUnichar> converter(buf->DataStart());
+    converter.write(aData, aLen);
+    converter.write_terminator();
+    AppendToBuffer(buf, aRequest);
   }
 }
 

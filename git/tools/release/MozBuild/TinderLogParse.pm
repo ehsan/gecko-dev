@@ -87,8 +87,6 @@ sub GetPushDir {
 
     close FILE or die("Cannot close file $log: $!");
 
-    chomp($pushDir);
-
     return $pushDir;
 }
 

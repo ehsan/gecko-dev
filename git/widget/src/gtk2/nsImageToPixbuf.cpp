@@ -37,11 +37,13 @@
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
+#ifdef MOZ_CAIRO_GFX
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
+#endif
 
-#include "nsIImage.h"
+#include "nsIGdkPixbufImage.h"
 
 #include "nsAutoPtr.h"
 
@@ -68,6 +70,7 @@ nsImageToPixbuf::ConvertImageToPixbuf(nsIImage* aImage)
 GdkPixbuf*
 nsImageToPixbuf::ImageToPixbuf(nsIImage* aImage)
 {
+#ifdef MOZ_CAIRO_GFX
     PRInt32 width = aImage->GetWidth(),
             height = aImage->GetHeight();
 
@@ -75,8 +78,15 @@ nsImageToPixbuf::ImageToPixbuf(nsIImage* aImage)
     aImage->GetSurface(getter_AddRefs(surface));
 
     return SurfaceToPixbuf(surface, width, height);
+#else
+    nsCOMPtr<nsIGdkPixbufImage> img(do_QueryInterface(aImage));
+    if (img)
+        return img->GetGdkPixbuf();
+    return NULL;
+#endif
 }
 
+#ifdef MOZ_CAIRO_GFX
 GdkPixbuf*
 nsImageToPixbuf::SurfaceToPixbuf(gfxASurface* aSurface, PRInt32 aWidth, PRInt32 aHeight)
 {
@@ -87,8 +97,8 @@ nsImageToPixbuf::SurfaceToPixbuf(gfxASurface* aSurface, PRInt32 aWidth, PRInt32 
 
     nsRefPtr<gfxImageSurface> imgSurface;
     if (aSurface->GetType() == gfxASurface::SurfaceTypeImage) {
-        imgSurface = static_cast<gfxImageSurface*>
-                                (static_cast<gfxASurface*>(aSurface));
+        imgSurface = NS_STATIC_CAST(gfxImageSurface*,
+                                    NS_STATIC_CAST(gfxASurface*, aSurface));
     } else {
         imgSurface = new gfxImageSurface(gfxIntSize(aWidth, aHeight),
 					 gfxImageSurface::ImageFormatARGB32);
@@ -122,8 +132,8 @@ nsImageToPixbuf::SurfaceToPixbuf(gfxASurface* aSurface, PRInt32 aWidth, PRInt32 
         for (PRInt32 col = 0; col < aWidth; ++col) {
             guchar* pixel = pixels + row * rowstride + 4 * col;
 
-            PRUint32* cairoPixel = reinterpret_cast<PRUint32*>
-                                                   ((cairoData + row * cairoStride + 4 * col));
+            PRUint32* cairoPixel = NS_REINTERPRET_CAST(PRUint32*,
+                                   (cairoData + row * cairoStride + 4 * col));
 
             if (format == gfxASurface::ImageFormatARGB32) {
                 const PRUint8 a = (*cairoPixel >> 24) & 0xFF;
@@ -152,3 +162,4 @@ nsImageToPixbuf::SurfaceToPixbuf(gfxASurface* aSurface, PRInt32 aWidth, PRInt32 
 
     return pixbuf;
 }
+#endif

@@ -52,6 +52,7 @@
 #include "nsFrameManager.h"
 #include "nsStyleContext.h"
 #include "nsGkAtoms.h"
+#include "nsIDrawingSurface.h"
 #include "nsTransform2D.h"
 #include "nsIDeviceContext.h"
 #include "nsIContent.h"
@@ -258,6 +259,13 @@ void nsCSSRendering::FillPolygon (nsIRenderingContext& aContext,
                                   PRInt32 aNumPoints,
                                   nsRect* aGap)
 {
+#ifdef DEBUG
+  nsPenMode penMode;
+  if (NS_SUCCEEDED(aContext.GetPenMode(penMode)) &&
+      penMode == nsPenMode_kInvert) {
+    NS_WARNING( "Invert mode ignored in FillPolygon" );
+  }
+#endif
 
   if (nsnull == aGap) {
     aContext.FillPolygon(aPoints, aNumPoints);
@@ -2174,64 +2182,6 @@ DrawBorderSides(gfxContext *ctx,           // The content to render to
 #endif
 }
 
-/*
- * Compute the float-pixel radii that should be used for drawing
- * this border/outline, given the various input bits.
- *
- * If a side is skipped via skipSides, its corners are forced to 0,
- * otherwise the resulting radius is the smaller of the specified
- * radius and half of each adjacent side's length.
- */
-static void
-ComputePixelRadii(const nscoord *aTwipsRadii,
-                  const nsRect& outerRect,
-                  const nsMargin& borderMargin,
-                  PRIntn skipSides,
-                  nscoord twipsPerPixel,
-                  gfxFloat *oBorderRadii)
-{
-  nscoord twipsRadii[4] = { aTwipsRadii[0], aTwipsRadii[1], aTwipsRadii[2], aTwipsRadii[3] };
-  nsMargin border(borderMargin);
-
-  if (skipSides & SIDE_BIT_TOP) {
-    border.top = 0;
-    twipsRadii[C_TL] = 0;
-    twipsRadii[C_TR] = 0;
-  }
-
-  if (skipSides & SIDE_BIT_RIGHT) {
-    border.right = 0;
-    twipsRadii[C_TR] = 0;
-    twipsRadii[C_BR] = 0;
-  }
-
-  if (skipSides & SIDE_BIT_BOTTOM) {
-    border.bottom = 0;
-    twipsRadii[C_BR] = 0;
-    twipsRadii[C_BL] = 0;
-  }
-
-  if (skipSides & SIDE_BIT_LEFT) {
-    border.left = 0;
-    twipsRadii[C_BL] = 0;
-    twipsRadii[C_TL] = 0;
-  }
-
-  nsRect innerRect(outerRect);
-  innerRect.Deflate(border);
-
-  // make sure the corner radii don't get too big
-  nsMargin maxRadiusSize(innerRect.width/2 + border.left,
-                         innerRect.height/2 + border.top,
-                         innerRect.width/2 + border.right,
-                         innerRect.height/2 + border.bottom);
-
-  oBorderRadii[C_TL] = gfxFloat(PR_MIN(twipsRadii[C_TL], PR_MIN(maxRadiusSize.top, maxRadiusSize.left))) / twipsPerPixel;
-  oBorderRadii[C_TR] = gfxFloat(PR_MIN(twipsRadii[C_TR], PR_MIN(maxRadiusSize.top, maxRadiusSize.right))) / twipsPerPixel;
-  oBorderRadii[C_BL] = gfxFloat(PR_MIN(twipsRadii[C_BL], PR_MIN(maxRadiusSize.bottom, maxRadiusSize.left))) / twipsPerPixel;
-  oBorderRadii[C_BR] = gfxFloat(PR_MIN(twipsRadii[C_BR], PR_MIN(maxRadiusSize.bottom, maxRadiusSize.right))) / twipsPerPixel;
-}
-
 static void
 DrawDashedSide(gfxContext *ctx,
                PRUint8 side,
@@ -2678,10 +2628,34 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
   }
 
   // Turn off rendering for all of the zero sized sides
-  if (aSkipSides & SIDE_BIT_TOP) border.top = 0;
-  if (aSkipSides & SIDE_BIT_RIGHT) border.right = 0;
-  if (aSkipSides & SIDE_BIT_BOTTOM) border.bottom = 0;
-  if (aSkipSides & SIDE_BIT_LEFT) border.left = 0;
+  if (border.top == 0) aSkipSides |= SIDE_BIT_TOP;
+  if (border.right == 0) aSkipSides |= SIDE_BIT_RIGHT;
+  if (border.bottom == 0) aSkipSides |= SIDE_BIT_BOTTOM;
+  if (border.left == 0) aSkipSides |= SIDE_BIT_LEFT;
+
+  if (aSkipSides & SIDE_BIT_TOP) {
+    border.top = 0;
+    twipsRadii[C_TL] = 0;
+    twipsRadii[C_TR] = 0;
+  }
+
+  if (aSkipSides & SIDE_BIT_RIGHT) {
+    border.right = 0;
+    twipsRadii[C_TR] = 0;
+    twipsRadii[C_BR] = 0;
+  }
+
+  if (aSkipSides & SIDE_BIT_BOTTOM) {
+    border.bottom = 0;
+    twipsRadii[C_BR] = 0;
+    twipsRadii[C_BL] = 0;
+  }
+
+  if (aSkipSides & SIDE_BIT_LEFT) {
+    border.left = 0;
+    twipsRadii[C_BL] = 0;
+    twipsRadii[C_TL] = 0;
+  }
 
   // get the inside and outside parts of the border
   nsRect outerRect(aBorderArea), innerRect(aBorderArea);
@@ -2712,6 +2686,19 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
     return;
   }
 
+  // make sure the corner radii don't get too big
+  nsMargin maxRadiusSize(innerRect.width/2 + border.left,
+                         innerRect.height/2 + border.top,
+                         innerRect.width/2 + border.right,
+                         innerRect.height/2 + border.bottom);
+  
+  twipsRadii[C_TL] = PR_MIN(twipsRadii[C_TL], PR_MIN(maxRadiusSize.top, maxRadiusSize.left));
+  twipsRadii[C_TR] = PR_MIN(twipsRadii[C_TR], PR_MIN(maxRadiusSize.top, maxRadiusSize.right));
+  twipsRadii[C_BL] = PR_MIN(twipsRadii[C_BL], PR_MIN(maxRadiusSize.bottom, maxRadiusSize.left));
+  twipsRadii[C_BR] = PR_MIN(twipsRadii[C_BR], PR_MIN(maxRadiusSize.bottom, maxRadiusSize.right));
+
+  SF(" borderRadii: %d %d %d %d\n", twipsRadii[0], twipsRadii[1], twipsRadii[2], twipsRadii[3]);
+
   // we can assume that we're already clipped to aDirtyRect -- I think? (!?)
 
   // Get our conversion values
@@ -2728,8 +2715,10 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
                                border.left / twipsPerPixel };
 
   // convert the radii
-  gfxFloat borderRadii[4];
-  ComputePixelRadii(twipsRadii, outerRect, border, aSkipSides, twipsPerPixel, borderRadii);
+  gfxFloat borderRadii[4] = { gfxFloat(twipsRadii[0]) / twipsPerPixel,
+                              gfxFloat(twipsRadii[1]) / twipsPerPixel,
+                              gfxFloat(twipsRadii[2]) / twipsPerPixel,
+                              gfxFloat(twipsRadii[3]) / twipsPerPixel };
 
   PRUint8 borderStyles[4];
   nscolor borderColors[4];
@@ -2842,6 +2831,9 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
       default:
         break;
     }
+
+    if (twipsRadii[i])
+      twipsRadii[i] = PR_MIN(twipsRadii[i], PR_MIN(aBorderArea.width / 2, aBorderArea.height / 2));
   }
 
   nsRect overflowArea = aForFrame->GetOverflowRect();
@@ -2881,9 +2873,10 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   gfxRect iRect(RectToGfxRect(innerRect, twipsPerPixel));
 
   // convert the radii
-  nsMargin outlineMargin(width, width, width, width);
-  gfxFloat outlineRadii[4];
-  ComputePixelRadii(twipsRadii, outerRect, outlineMargin, 0, twipsPerPixel, outlineRadii);
+  gfxFloat outlineRadii[4] = { gfxFloat(twipsRadii[0]) / twipsPerPixel,
+                               gfxFloat(twipsRadii[1]) / twipsPerPixel,
+                               gfxFloat(twipsRadii[2]) / twipsPerPixel,
+                               gfxFloat(twipsRadii[3]) / twipsPerPixel };
 
   PRUint8 outlineStyle = aOutlineStyle.GetOutlineStyle();
   PRUint8 outlineStyles[4] = { outlineStyle,
@@ -3041,6 +3034,35 @@ ComputeBackgroundAnchorPoint(const nsStyleBackground& aColor,
     NS_POSTCONDITION((y >= -(aTileHeight - 1)) && (y <= 0), "bad computed anchor value");
   }
   aResult.y = y;
+}
+
+// Returns the root scrollable frame, which is the first child of the root
+// frame.
+static nsIScrollableFrame*
+GetRootScrollableFrame(nsPresContext* aPresContext, nsIFrame* aRootFrame)
+{
+  nsIScrollableFrame* scrollableFrame = nsnull;
+
+  if (nsGkAtoms::viewportFrame == aRootFrame->GetType()) {
+    nsIFrame* childFrame = aRootFrame->GetFirstChild(nsnull);
+
+    if (childFrame) {
+      if (nsGkAtoms::scrollFrame == childFrame->GetType()) {
+        // Use this frame, even if we are using GFX frames for the
+        // viewport, which contains another scroll frame below this
+        // frame, since the GFX scrollport frame does not implement
+        // nsIScrollableFrame.
+        CallQueryInterface(childFrame, &scrollableFrame);
+      }
+    }
+  }
+#ifdef DEBUG
+  else {
+    NS_WARNING("aRootFrame is not a viewport frame");
+  }
+#endif // DEBUG
+
+  return scrollableFrame;
 }
 
 const nsStyleBackground*
@@ -3590,32 +3612,44 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // relative to the origin of aForFrame
   nsPoint anchor;
   if (NS_STYLE_BG_ATTACHMENT_FIXED == aColor.mBackgroundAttachment) {
-    // If it's a fixed background attachment, then the image is placed
-    // relative to the viewport, which is the area of the root frame
-    // in a screen context or the page content frame in a print context.
+    // If it's a fixed background attachment, then the image is placed 
+    // relative to the viewport
+    nsIView* viewportView = nsnull;
+    nsRect viewportArea;
 
     // Remember that we've drawn position-varying content in this prescontext
     aPresContext->SetRenderedPositionVaryingContent();
 
-    nsIFrame* topFrame =
+    nsIFrame* rootFrame =
       aPresContext->PresShell()->FrameManager()->GetRootFrame();
-    NS_ASSERTION(topFrame, "no root frame");
+    NS_ASSERTION(rootFrame, "no root frame");
+
     if (aPresContext->IsPaginated()) {
-      nsIFrame* pageContentFrame =
-        nsLayoutUtils::GetClosestFrameOfType(aForFrame, nsGkAtoms::pageContentFrame);
-      if (pageContentFrame) {
-        topFrame = pageContentFrame;
-      }
-      // else this is an embedded shell and its root frame is what we want
+      nsIFrame* page = nsLayoutUtils::GetPageFrame(aForFrame);
+      NS_ASSERTION(page, "no page");
+      rootFrame = page;
     }
 
-    // Get the anchor point, relative to the viewport.
-    nsRect viewportArea = topFrame->GetRect();
+    viewportView = rootFrame->GetView();
+    NS_ASSERTION(viewportView, "no viewport view");
+    viewportArea = viewportView->GetBounds();
+    viewportArea.x = 0;
+    viewportArea.y = 0;
+
+    nsIScrollableFrame* scrollableFrame =
+      GetRootScrollableFrame(aPresContext, rootFrame);
+
+    if (scrollableFrame) {
+      nsMargin scrollbars = scrollableFrame->GetActualScrollbarSizes();
+      viewportArea.Deflate(scrollbars);
+    }
+
+    // Get the anchor point, relative to rootFrame
     ComputeBackgroundAnchorPoint(aColor, viewportArea, viewportArea, tileWidth, tileHeight, anchor);
 
-    // Convert the anchor point from viewport coordinates to aForFrame
-    // coordinates.
-    anchor -= aForFrame->GetOffsetTo(topFrame);
+    // Convert the anchor point from viewport coordinates (relative to aRootFrame) to
+    // relative to aForFrame
+    anchor -= aForFrame->GetOffsetTo(rootFrame);
   } else {
     if (frameType == nsGkAtoms::canvasFrame) {
       // If the frame is the canvas, the image is placed relative to
@@ -3832,7 +3866,7 @@ nsCSSRendering::PaintBackgroundColor(nsPresContext* aPresContext,
   }
 
   nsStyleCoord bordStyleRadius[4];
-  nscoord borderRadii[4];
+  PRInt16 borderRadii[4];
   nsRect bgClipArea(aBgClipArea);
 
   // get the radius for our border
@@ -3902,14 +3936,14 @@ nsCSSRendering::PaintRoundedBackground(nsPresContext* aPresContext,
                                        const nsRect& aBgClipArea,
                                        const nsStyleBackground& aColor,
                                        const nsStyleBorder& aBorder,
-                                       nscoord aTheRadius[4],
+                                       PRInt16 aTheRadius[4],
                                        PRBool aCanPaintNonWhite)
 {
   nsRefPtr<gfxContext> ctx = (gfxContext*)
     aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
 
   // needed for our border thickness
-  nscoord appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
+  nscoord appUnitsPerPixel = nsPresContext::AppUnitsPerCSSPixel();
 
   nscolor color = aColor.mBackgroundColor;
   if (!aCanPaintNonWhite) {
@@ -3936,13 +3970,10 @@ nsCSSRendering::PaintRoundedBackground(nsPresContext* aPresContext,
   if (oRect.IsEmpty())
     return;
 
-  // convert the radii
-  gfxFloat radii[4];
-  nsMargin border = aBorder.GetBorder();
-
-  ComputePixelRadii(aTheRadius, aBgClipArea, border,
-                    aForFrame ? aForFrame->GetSkipSides() : 0,
-                    appUnitsPerPixel, radii);
+  gfxFloat radii[4] = { gfxFloat(aTheRadius[0]) / appUnitsPerPixel,
+                        gfxFloat(aTheRadius[1]) / appUnitsPerPixel,
+                        gfxFloat(aTheRadius[2]) / appUnitsPerPixel,
+                        gfxFloat(aTheRadius[3]) / appUnitsPerPixel };
 
   // Add 1.0 to any border radii; if we don't, the border and background
   // curves will combine to have fringing at the rounded corners.  Since

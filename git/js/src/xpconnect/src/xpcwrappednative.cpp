@@ -53,7 +53,7 @@ NS_IMETHODIMP
 NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
                                                           nsCycleCollectionTraversalCallback &cb)
 {
-    XPCWrappedNative *tmp = static_cast<XPCWrappedNative*>(p);
+    XPCWrappedNative *tmp = NS_STATIC_CAST(XPCWrappedNative*, p);
     if(!tmp->IsValid())
         return NS_OK;
 
@@ -346,8 +346,8 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     // we'll provide a default one
     if(isIDispatch && !info)
     {
-        info = dont_AddRef(static_cast<nsIClassInfo*>
-                                      (XPCIDispatchClassInfo::GetSingleton()));
+        info = dont_AddRef(NS_STATIC_CAST(nsIClassInfo*,
+                                          XPCIDispatchClassInfo::GetSingleton()));
     }
 #endif
 
@@ -1017,21 +1017,8 @@ XPCWrappedNative::FlatJSObjectFinalized(JSContext *cx, JSObject *obj)
 }
 
 void
-XPCWrappedNative::SystemIsBeingShutDown(JSContext* cx)
+XPCWrappedNative::SystemIsBeingShutDown(XPCCallContext& ccx)
 {
-#ifdef DEBUG_xpc_hacker
-    {
-        printf("Removing root for still-live XPCWrappedNative %p wrapping:\n",
-               static_cast<void*>(this));
-        for(PRUint16 i = 0, i_end = mSet->GetInterfaceCount(); i < i_end; ++i)
-        {
-            nsXPIDLCString name;
-            mSet->GetInterfaceAt(i)->GetInterfaceInfo()
-                ->GetName(getter_Copies(name));
-            printf("  %s\n", name.get());
-        }
-    }
-#endif
     DEBUG_TrackShutdownWrapper(this);
 
     if(!IsValid())
@@ -1044,13 +1031,13 @@ XPCWrappedNative::SystemIsBeingShutDown(JSContext* cx)
     // We leak mIdentity (see above).
 
     // short circuit future finalization
-    JS_SetPrivate(cx, mFlatJSObject, nsnull);
+    JS_SetPrivate(ccx, mFlatJSObject, nsnull);
     mFlatJSObject = nsnull; // This makes 'IsValid()' return false.
 
     XPCWrappedNativeProto* proto = GetProto();
 
     if(HasProto())
-        proto->SystemIsBeingShutDown(cx);
+        proto->SystemIsBeingShutDown(ccx);
 
     if(mScriptableInfo &&
        (!HasProto() ||
@@ -1069,7 +1056,7 @@ XPCWrappedNative::SystemIsBeingShutDown(JSContext* cx)
         {
             if(to->GetJSObject())
             {
-                JS_SetPrivate(cx, to->GetJSObject(), nsnull);
+                JS_SetPrivate(ccx, to->GetJSObject(), nsnull);
 #ifdef XPC_IDISPATCH_SUPPORT
                 if(to->IsIDispatch())
                     delete to->GetIDispatchInfo();
@@ -1855,7 +1842,6 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
     nsIInterfaceInfo* ifaceInfo = ccx.GetInterface()->GetInterfaceInfo();
     jsval name = ccx.GetMember()->GetName();
     jsval* argv = ccx.GetArgv();
-    PRUint32 argc = ccx.GetArgc();
 
 #ifdef DEBUG_stats_jband
     PRIntervalTime startTime = PR_IntervalNow();
@@ -1918,16 +1904,10 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
     requiredArgs = paramCount;
     if(paramCount && methodInfo->GetParam(paramCount-1).IsRetval())
         requiredArgs--;
-    if(argc < requiredArgs)
+    if(ccx.GetArgc() < requiredArgs)
     {
-        // skip over any optional arguments
-        while (requiredArgs && methodInfo->GetParam(requiredArgs-1).IsOptional())
-          requiredArgs--;
-
-        if(argc < requiredArgs) {
-            Throw(NS_ERROR_XPC_NOT_ENOUGH_ARGS, ccx);
-            goto done;
-        }
+        Throw(NS_ERROR_XPC_NOT_ENOUGH_ARGS, ccx);
+        goto done;
     }
 
     // setup variant array pointer
@@ -1980,16 +1960,14 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
         // prepare for out param
 
         if((paramInfo.IsOut() || paramInfo.IsDipper()) &&
-           !paramInfo.IsRetval()) {
-          jsval arg = paramInfo.IsOptional() && argc < i ? JSVAL_NULL : argv[i];
-          if(JSVAL_IS_PRIMITIVE(arg) ||
-             !OBJ_GET_PROPERTY(ccx, JSVAL_TO_OBJECT(arg),
-                               rt->GetStringID(XPCJSRuntime::IDX_VALUE),
-                               &src))
-          {
-              ThrowBadParam(NS_ERROR_XPC_NEED_OUT_OBJECT, i, ccx);
-              goto done;
-          }
+           !paramInfo.IsRetval() &&
+           (JSVAL_IS_PRIMITIVE(argv[i]) ||
+            !OBJ_GET_PROPERTY(ccx, JSVAL_TO_OBJECT(argv[i]),
+                              rt->GetStringID(XPCJSRuntime::IDX_VALUE),
+                              &src)))
+        {
+            ThrowBadParam(NS_ERROR_XPC_NEED_OUT_OBJECT, i, ccx);
+            goto done;
         }
 
         if(paramInfo.IsOut())
@@ -2079,9 +2057,9 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
             }
 
             // Do this *after* the above because in the case where we have a
-            // "T_DOMSTRING && IsDipper()" then arg might be null since this
+            // "T_DOMSTRING && IsDipper()" then argv might be null since this
             // is really an 'out' param masquerading as an 'in' param.
-            src = paramInfo.IsOptional() && argc < i ? JSVAL_NULL : argv[i];
+            src = argv[i];
         }
 
         if(type_tag == nsXPTType::T_INTERFACE &&
@@ -2152,15 +2130,13 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
                 dp->SetPtrIsData();
                 dp->ptr = &dp->val;
 
-                if (!paramInfo.IsRetval()) {
-                  jsval arg = paramInfo.IsOptional() && argc < i ? JSVAL_NULL : argv[i];
-                  if(JSVAL_IS_PRIMITIVE(arg) ||
-                     !OBJ_GET_PROPERTY(ccx, JSVAL_TO_OBJECT(arg),
-                         rt->GetStringID(XPCJSRuntime::IDX_VALUE), &src))
-                  {
-                      ThrowBadParam(NS_ERROR_XPC_NEED_OUT_OBJECT, i, ccx);
-                      goto done;
-                  }
+                if(!paramInfo.IsRetval() &&
+                   (JSVAL_IS_PRIMITIVE(argv[i]) ||
+                    !OBJ_GET_PROPERTY(ccx, JSVAL_TO_OBJECT(argv[i]),
+                        rt->GetStringID(XPCJSRuntime::IDX_VALUE), &src)))
+                {
+                    ThrowBadParam(NS_ERROR_XPC_NEED_OUT_OBJECT, i, ccx);
+                    goto done;
                 }
 
                 if(datum_type.IsPointer() &&
@@ -2176,7 +2152,7 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
             }
             else
             {
-                src = paramInfo.IsOptional() && argc < i ? JSVAL_NULL : argv[i];
+                src = argv[i];
 
                 if(datum_type.IsPointer() &&
                    datum_type.TagPart() == nsXPTType::T_IID)
@@ -2352,7 +2328,7 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
             if(!ccx.GetReturnValueWasSet())
                 ccx.SetRetVal(v);
         }
-        else if (!paramInfo.IsOptional() || argc > i)
+        else
         {
             // we actually assured this before doing the invoke
             NS_ASSERTION(JSVAL_IS_OBJECT(argv[i]), "out var is not object");
@@ -2616,7 +2592,6 @@ NS_IMETHODIMP XPCWrappedNative::DebugDump(PRInt16 depth)
             XPC_LOG_ALWAYS(("mSet @ %x", mSet));
 
         XPC_LOG_ALWAYS(("mFlatJSObject of %x", mFlatJSObject));
-        XPC_LOG_ALWAYS(("mIdentity of %x", mIdentity));
         XPC_LOG_ALWAYS(("mScriptableInfo @ %x", mScriptableInfo));
 
         if(depth && mScriptableInfo)

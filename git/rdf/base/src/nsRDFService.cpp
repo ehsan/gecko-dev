@@ -170,7 +170,7 @@ struct ResourceHashEntry : public PLDHashEntryHdr {
     static PLDHashNumber PR_CALLBACK
     HashKey(PLDHashTable *table, const void *key)
     {
-        return nsCRT::HashCode(static_cast<const char *>(key));
+        return nsCRT::HashCode(NS_STATIC_CAST(const char *, key));
     }
 
     static PRBool PR_CALLBACK
@@ -178,9 +178,9 @@ struct ResourceHashEntry : public PLDHashEntryHdr {
                const void *key)
     {
         const ResourceHashEntry *entry =
-            static_cast<const ResourceHashEntry *>(hdr);
+            NS_STATIC_CAST(const ResourceHashEntry *, hdr);
 
-        return 0 == nsCRT::strcmp(static_cast<const char *>(key),
+        return 0 == nsCRT::strcmp(NS_STATIC_CAST(const char *, key),
                                   entry->mKey);
     }
 };
@@ -208,7 +208,7 @@ struct LiteralHashEntry : public PLDHashEntryHdr {
     static PLDHashNumber PR_CALLBACK
     HashKey(PLDHashTable *table, const void *key)
     {
-        return nsCRT::HashCode(static_cast<const PRUnichar *>(key));
+        return nsCRT::HashCode(NS_STATIC_CAST(const PRUnichar *, key));
     }
 
     static PRBool PR_CALLBACK
@@ -216,9 +216,9 @@ struct LiteralHashEntry : public PLDHashEntryHdr {
                const void *key)
     {
         const LiteralHashEntry *entry =
-            static_cast<const LiteralHashEntry *>(hdr);
+            NS_STATIC_CAST(const LiteralHashEntry *, hdr);
 
-        return 0 == nsCRT::strcmp(static_cast<const PRUnichar *>(key),
+        return 0 == nsCRT::strcmp(NS_STATIC_CAST(const PRUnichar *, key),
                                   entry->mKey);
     }
 };
@@ -246,7 +246,7 @@ struct IntHashEntry : public PLDHashEntryHdr {
     static PLDHashNumber PR_CALLBACK
     HashKey(PLDHashTable *table, const void *key)
     {
-        return PLDHashNumber(*static_cast<const PRInt32 *>(key));
+        return PLDHashNumber(*NS_STATIC_CAST(const PRInt32 *, key));
     }
 
     static PRBool PR_CALLBACK
@@ -254,9 +254,9 @@ struct IntHashEntry : public PLDHashEntryHdr {
                const void *key)
     {
         const IntHashEntry *entry =
-            static_cast<const IntHashEntry *>(hdr);
+            NS_STATIC_CAST(const IntHashEntry *, hdr);
 
-        return *static_cast<const PRInt32 *>(key) == entry->mKey;
+        return *NS_STATIC_CAST(const PRInt32 *, key) == entry->mKey;
     }
 };
 
@@ -284,7 +284,7 @@ struct DateHashEntry : public PLDHashEntryHdr {
     HashKey(PLDHashTable *table, const void *key)
     {
         // xor the low 32 bits with the high 32 bits.
-        PRTime t = *static_cast<const PRTime *>(key);
+        PRTime t = *NS_STATIC_CAST(const PRTime *, key);
         PRInt64 h64, l64;
         LL_USHR(h64, t, 32);
         l64 = LL_INIT(0, 0xffffffff);
@@ -300,9 +300,9 @@ struct DateHashEntry : public PLDHashEntryHdr {
                const void *key)
     {
         const DateHashEntry *entry =
-            static_cast<const DateHashEntry *>(hdr);
+            NS_STATIC_CAST(const DateHashEntry *, hdr);
 
-        return LL_EQ(*static_cast<const PRTime *>(key), entry->mKey);
+        return LL_EQ(*NS_STATIC_CAST(const PRTime *, key), entry->mKey);
     }
 };
 
@@ -403,7 +403,7 @@ struct BlobHashEntry : public PLDHashEntryHdr {
     HashKey(PLDHashTable *table, const void *key)
     {
         const BlobImpl::Data *data =
-            static_cast<const BlobImpl::Data *>(key);
+            NS_STATIC_CAST(const BlobImpl::Data *, key);
 
         const PRUint8 *p = data->mBytes, *limit = p + data->mLength;
         PLDHashNumber h = 0;
@@ -417,12 +417,12 @@ struct BlobHashEntry : public PLDHashEntryHdr {
                const void *key)
     {
         const BlobHashEntry *entry =
-            static_cast<const BlobHashEntry *>(hdr);
+            NS_STATIC_CAST(const BlobHashEntry *, hdr);
 
         const BlobImpl::Data *left = &entry->mBlob->mData;
 
         const BlobImpl::Data *right =
-            static_cast<const BlobImpl::Data *>(key);
+            NS_STATIC_CAST(const BlobImpl::Data *, key);
 
         return (left->mLength == right->mLength)
             && 0 == memcmp(left->mBytes, right->mBytes, right->mLength);
@@ -467,7 +467,7 @@ protected:
 
     const PRUnichar* GetValue() const {
         size_t objectSize = ((sizeof(LiteralImpl) + sizeof(PRUnichar) - 1) / sizeof(PRUnichar)) * sizeof(PRUnichar);
-        return reinterpret_cast<const PRUnichar*>(reinterpret_cast<const unsigned char*>(this) + objectSize);
+        return NS_REINTERPRET_CAST(const PRUnichar*, NS_REINTERPRET_CAST(const unsigned char*, this) + objectSize);
     }
 };
 
@@ -484,7 +484,7 @@ LiteralImpl::Create(const PRUnichar* aValue, nsIRDFLiteral** aResult)
     if (! objectPtr)
         return NS_ERROR_NULL_POINTER;
 
-    PRUnichar* buf = reinterpret_cast<PRUnichar*>(static_cast<unsigned char*>(objectPtr) + objectSize);
+    PRUnichar* buf = NS_REINTERPRET_CAST(PRUnichar*, NS_STATIC_CAST(unsigned char*, objectPtr) + objectSize);
     nsCharTraits<PRUnichar>::copy(buf, aValue, stringLen + 1);
 
     NS_ADDREF(*aResult = new (objectPtr) LiteralImpl(buf));
@@ -522,7 +522,7 @@ LiteralImpl::QueryInterface(REFNSIID iid, void** result)
     if (iid.Equals(kIRDFLiteralIID) ||
         iid.Equals(kIRDFNodeIID) ||
         iid.Equals(kISupportsIID)) {
-        *result = static_cast<nsIRDFLiteral*>(this);
+        *result = NS_STATIC_CAST(nsIRDFLiteral*, this);
         AddRef();
         return NS_OK;
     }
@@ -536,7 +536,7 @@ LiteralImpl::EqualsNode(nsIRDFNode* aNode, PRBool* aResult)
     nsIRDFLiteral* literal;
     rv = aNode->QueryInterface(kIRDFLiteralIID, (void**) &literal);
     if (NS_SUCCEEDED(rv)) {
-        *aResult = (static_cast<nsIRDFLiteral*>(this) == literal);
+        *aResult = (NS_STATIC_CAST(nsIRDFLiteral*, this) == literal);
         NS_RELEASE(literal);
         return NS_OK;
     }
@@ -624,7 +624,7 @@ DateImpl::QueryInterface(REFNSIID iid, void** result)
     if (iid.Equals(kIRDFDateIID) ||
         iid.Equals(kIRDFNodeIID) ||
         iid.Equals(kISupportsIID)) {
-        *result = static_cast<nsIRDFDate*>(this);
+        *result = NS_STATIC_CAST(nsIRDFDate*, this);
         AddRef();
         return NS_OK;
     }
@@ -730,7 +730,7 @@ IntImpl::QueryInterface(REFNSIID iid, void** result)
     if (iid.Equals(kIRDFIntIID) ||
         iid.Equals(kIRDFNodeIID) ||
         iid.Equals(kISupportsIID)) {
-        *result = static_cast<nsIRDFInt*>(this);
+        *result = NS_STATIC_CAST(nsIRDFInt*, this);
         AddRef();
         return NS_OK;
     }
@@ -951,7 +951,7 @@ RDFServiceImpl::GetResource(const nsACString& aURI, nsIRDFResource** aResource)
         PL_DHashTableOperate(&mResources, flatURI.get(), PL_DHASH_LOOKUP);
 
     if (PL_DHASH_ENTRY_IS_BUSY(hdr)) {
-        ResourceHashEntry *entry = static_cast<ResourceHashEntry *>(hdr);
+        ResourceHashEntry *entry = NS_STATIC_CAST(ResourceHashEntry *, hdr);
         NS_ADDREF(*aResource = entry->mResource);
         return NS_OK;
     }
@@ -1121,7 +1121,7 @@ RDFServiceImpl::GetLiteral(const PRUnichar* aValue, nsIRDFLiteral** aLiteral)
         PL_DHashTableOperate(&mLiterals, aValue, PL_DHASH_LOOKUP);
 
     if (PL_DHASH_ENTRY_IS_BUSY(hdr)) {
-        LiteralHashEntry *entry = static_cast<LiteralHashEntry *>(hdr);
+        LiteralHashEntry *entry = NS_STATIC_CAST(LiteralHashEntry *, hdr);
         NS_ADDREF(*aLiteral = entry->mLiteral);
         return NS_OK;
     }
@@ -1138,7 +1138,7 @@ RDFServiceImpl::GetDateLiteral(PRTime aTime, nsIRDFDate** aResult)
         PL_DHashTableOperate(&mDates, &aTime, PL_DHASH_LOOKUP);
 
     if (PL_DHASH_ENTRY_IS_BUSY(hdr)) {
-        DateHashEntry *entry = static_cast<DateHashEntry *>(hdr);
+        DateHashEntry *entry = NS_STATIC_CAST(DateHashEntry *, hdr);
         NS_ADDREF(*aResult = entry->mDate);
         return NS_OK;
     }
@@ -1159,7 +1159,7 @@ RDFServiceImpl::GetIntLiteral(PRInt32 aInt, nsIRDFInt** aResult)
         PL_DHashTableOperate(&mInts, &aInt, PL_DHASH_LOOKUP);
 
     if (PL_DHASH_ENTRY_IS_BUSY(hdr)) {
-        IntHashEntry *entry = static_cast<IntHashEntry *>(hdr);
+        IntHashEntry *entry = NS_STATIC_CAST(IntHashEntry *, hdr);
         NS_ADDREF(*aResult = entry->mInt);
         return NS_OK;
     }
@@ -1176,13 +1176,13 @@ NS_IMETHODIMP
 RDFServiceImpl::GetBlobLiteral(const PRUint8 *aBytes, PRInt32 aLength,
                                nsIRDFBlob **aResult)
 {
-    BlobImpl::Data key = { aLength, const_cast<PRUint8 *>(aBytes) };
+    BlobImpl::Data key = { aLength, NS_CONST_CAST(PRUint8 *, aBytes) };
 
     PLDHashEntryHdr *hdr =
         PL_DHashTableOperate(&mBlobs, &key, PL_DHASH_LOOKUP);
 
     if (PL_DHASH_ENTRY_IS_BUSY(hdr)) {
-        BlobHashEntry *entry = static_cast<BlobHashEntry *>(hdr);
+        BlobHashEntry *entry = NS_STATIC_CAST(BlobHashEntry *, hdr);
         NS_ADDREF(*aResult = entry->mBlob);
         return NS_OK;
     }
@@ -1256,7 +1256,7 @@ RDFServiceImpl::RegisterResource(nsIRDFResource* aResource, PRBool aReplace)
 
         PR_LOG(gLog, PR_LOG_DEBUG,
                ("rdfserv   replace-resource [%p] <-- [%p] %s",
-                static_cast<ResourceHashEntry *>(hdr)->mResource,
+                NS_STATIC_CAST(ResourceHashEntry *, hdr)->mResource,
                 aResource, (const char*) uri));
     }
     else {
@@ -1273,7 +1273,7 @@ RDFServiceImpl::RegisterResource(nsIRDFResource* aResource, PRBool aReplace)
     // the resource can be destroyed when the last refcount goes
     // away. The single addref that the CreateResource() call made
     // will be owned by the callee.
-    ResourceHashEntry *entry = static_cast<ResourceHashEntry *>(hdr);
+    ResourceHashEntry *entry = NS_STATIC_CAST(ResourceHashEntry *, hdr);
     entry->mResource = aResource;
     entry->mKey = uri;
 
@@ -1434,7 +1434,7 @@ RDFServiceImpl::GetDataSource(const char* aURI, PRBool aBlock, nsIRDFDataSource*
     // datasource loaded and initialized.
     {
         nsIRDFDataSource* cached =
-            static_cast<nsIRDFDataSource*>(PL_HashTableLookup(mNamedDataSources, spec.get()));
+            NS_STATIC_CAST(nsIRDFDataSource*, PL_HashTableLookup(mNamedDataSources, spec.get()));
 
         if (cached) {
             NS_ADDREF(cached);
@@ -1505,7 +1505,7 @@ RDFServiceImpl::RegisterLiteral(nsIRDFLiteral* aLiteral)
     if (! hdr)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    LiteralHashEntry *entry = static_cast<LiteralHashEntry *>(hdr);
+    LiteralHashEntry *entry = NS_STATIC_CAST(LiteralHashEntry *, hdr);
 
     // N.B., we only hold a weak reference to the literal: that
     // way, the literal can be destroyed when the last refcount
@@ -1563,7 +1563,7 @@ RDFServiceImpl::RegisterInt(nsIRDFInt* aInt)
     if (! hdr)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    IntHashEntry *entry = static_cast<IntHashEntry *>(hdr);
+    IntHashEntry *entry = NS_STATIC_CAST(IntHashEntry *, hdr);
 
     // N.B., we only hold a weak reference to the literal: that
     // way, the literal can be destroyed when the last refcount
@@ -1621,7 +1621,7 @@ RDFServiceImpl::RegisterDate(nsIRDFDate* aDate)
     if (! hdr)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    DateHashEntry *entry = static_cast<DateHashEntry *>(hdr);
+    DateHashEntry *entry = NS_STATIC_CAST(DateHashEntry *, hdr);
 
     // N.B., we only hold a weak reference to the literal: that
     // way, the literal can be destroyed when the last refcount
@@ -1674,7 +1674,7 @@ RDFServiceImpl::RegisterBlob(BlobImpl *aBlob)
     if (! hdr)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    BlobHashEntry *entry = static_cast<BlobHashEntry *>(hdr);
+    BlobHashEntry *entry = NS_STATIC_CAST(BlobHashEntry *, hdr);
 
     // N.B., we only hold a weak reference to the literal: that
     // way, the literal can be destroyed when the last refcount

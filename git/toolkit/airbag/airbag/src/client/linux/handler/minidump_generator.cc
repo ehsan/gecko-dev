@@ -31,7 +31,7 @@
 
 #include <fcntl.h>
 #include <pthread.h>
-#include <signal.h>
+#include <asm/sigcontext.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>

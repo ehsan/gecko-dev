@@ -142,11 +142,6 @@ nsFocusController::GetFocusedWindow(nsIDOMWindowInternal** aWindow)
 NS_IMETHODIMP
 nsFocusController::SetFocusedElement(nsIDOMElement* aElement)
 {
-  if (mCurrentElement) 
-    mPreviousElement = mCurrentElement;
-  else if (aElement) 
-    mPreviousElement = aElement;
-
   mNeedUpdateCommands = mNeedUpdateCommands || mCurrentElement != aElement;
   mCurrentElement = aElement;
 
@@ -156,15 +151,6 @@ nsFocusController::SetFocusedElement(nsIDOMElement* aElement)
     // before updating.
     UpdateCommands();
   }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFocusController::RewindFocusState()
-{
-  mCurrentElement = mPreviousElement;
-  mCurrentWindow = mPreviousWindow;
-
   return NS_OK;
 }
 
@@ -184,12 +170,6 @@ nsFocusController::SetFocusedWindow(nsIDOMWindowInternal* aWindow)
     nsCOMPtr<nsIBaseWindow> basewin = do_QueryInterface(win->GetDocShell());
     if (basewin)
       basewin->SetFocus();
-  }
-
-  if (mCurrentWindow) {
-    mPreviousWindow = mCurrentWindow;
-  } else if (win) {
-    mPreviousWindow = win;
   }
 
   mNeedUpdateCommands = mNeedUpdateCommands || mCurrentWindow != win;
@@ -262,17 +242,6 @@ nsFocusController::GetControllers(nsIControllers** aResult)
       do_QueryInterface(mCurrentElement);
     if (htmlInputElement)
       return htmlInputElement->GetControllers(aResult);
-
-    nsCOMPtr<nsIContent> content = do_QueryInterface(mCurrentElement);
-    if (content && content->IsEditable()) {
-      // Move up to the window.
-      nsCOMPtr<nsIDOMDocument> domDoc;
-      mCurrentElement->GetOwnerDocument(getter_AddRefs(domDoc));
-      nsCOMPtr<nsIDOMWindowInternal> domWindow =
-        do_QueryInterface(GetWindowFromDocument(domDoc));
-      if (domWindow)
-        return domWindow->GetControllers(aResult);
-    }
   }
   else if (mCurrentWindow) {
     nsCOMPtr<nsIDOMWindowInternal> domWindow =
@@ -308,14 +277,15 @@ nsFocusController::MoveFocus(PRBool aForward, nsIDOMElement* aElt)
     }
   }
 
-  if (!doc) {
+  if (!doc)
     // No way to obtain an event state manager.  Give up.
-    return NS_ERROR_FAILURE;
-  }
+    return NS_OK;
 
+
+  // Obtain a presentation context
   nsIPresShell *shell = doc->GetPrimaryShell();
   if (!shell)
-    return NS_ERROR_FAILURE;
+    return NS_OK;
 
   // Make sure frames have been constructed before shifting focus, bug 273092.
   shell->FlushPendingNotifications(Flush_Frames);
@@ -324,7 +294,9 @@ nsFocusController::MoveFocus(PRBool aForward, nsIDOMElement* aElt)
   nsCOMPtr<nsPresContext> presContext = shell->GetPresContext();
 
   // Make this ESM shift the focus per our instructions.
-  return presContext->EventStateManager()->ShiftFocus(aForward, content);
+  presContext->EventStateManager()->ShiftFocus(aForward, content);
+
+  return NS_OK;
 }
 
 /////
@@ -373,10 +345,8 @@ nsFocusController::Focus(nsIDOMEvent* aEvent)
           nsCOMPtr<nsIDOMDocument> windowDoc;
           mCurrentWindow->GetDocument(getter_AddRefs(windowDoc));
           if (ownerDoc != windowDoc)
-            mCurrentElement = mPreviousElement = nsnull;
+            mCurrentElement = nsnull;
         }
-        else
-          mPreviousElement = nsnull;
 
         if (!mCurrentElement) {
           UpdateCommands();
@@ -455,8 +425,8 @@ nsFocusController::GetControllerForCommand(const char * aCommand,
   }
   else if (mCurrentWindow) {
     nsGlobalWindow *win =
-      static_cast<nsGlobalWindow *>
-                 (static_cast<nsIDOMWindowInternal *>(mCurrentWindow));
+      NS_STATIC_CAST(nsGlobalWindow *,
+                     NS_STATIC_CAST(nsIDOMWindowInternal *, mCurrentWindow));
     currentWindow = win->GetPrivateParent();
   }
   else return NS_OK;
@@ -476,8 +446,8 @@ nsFocusController::GetControllerForCommand(const char * aCommand,
     }
 
     nsGlobalWindow *win =
-      static_cast<nsGlobalWindow *>
-                 (static_cast<nsIDOMWindowInternal *>(currentWindow));
+      NS_STATIC_CAST(nsGlobalWindow *,
+                     NS_STATIC_CAST(nsIDOMWindowInternal *, currentWindow));
     currentWindow = win->GetPrivateParent();
   }
   
@@ -568,7 +538,7 @@ nsFocusController::SetActive(PRBool aActive)
 NS_IMETHODIMP
 nsFocusController::ResetElementFocus()
 {
-  mCurrentElement = mPreviousElement = nsnull;
+  mCurrentElement = nsnull;
   return NS_OK;
 }
 

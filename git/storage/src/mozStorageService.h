@@ -23,7 +23,6 @@
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir.vukicevic@oracle.com>
  *   Brett Wilson <brettw@gmail.com>
- *   Shawn Wilsher <me@shawnwilsher.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -57,10 +56,10 @@ class mozStorageService : public mozIStorageService,
     friend class mozStorageConnection;
 
 public:
+    mozStorageService();
+
     // two-phase init, must call before using service
     nsresult Init();
-
-    static mozStorageService *GetSingleton();
 
     // nsISupports
     NS_DECL_ISUPPORTS
@@ -71,11 +70,9 @@ public:
     NS_DECL_NSIOBSERVER
 
 private:
-    virtual ~mozStorageService();
+    ~mozStorageService();
 protected:
     nsCOMPtr<nsIFile> mProfileStorageFile;
-
-    static mozStorageService *gStorageService;
 
     nsresult InitStorageAsyncIO();
     nsresult FlushAsyncIO();

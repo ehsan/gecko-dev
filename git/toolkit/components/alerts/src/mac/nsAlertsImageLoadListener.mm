@@ -48,10 +48,12 @@ NS_IMPL_ISUPPORTS1(nsAlertsImageLoadListener, nsIStreamLoaderObserver)
 nsAlertsImageLoadListener::nsAlertsImageLoadListener(const nsAString &aName,
                                                      const nsAString& aAlertTitle,
                                                      const nsAString& aAlertText,
+                                                     PRBool aAlertClickable,
                                                      const nsAString& aAlertCookie,
                                                      PRUint32 aAlertListenerKey) :
   mName(aName), mAlertTitle(aAlertTitle), mAlertText(aAlertText),
-  mAlertCookie(aAlertCookie), mAlertListenerKey(aAlertListenerKey)
+  mAlertClickable(aAlertClickable), mAlertCookie(aAlertCookie),
+  mAlertListenerKey(aAlertListenerKey)
 {
 }
 

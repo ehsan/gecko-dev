@@ -154,15 +154,15 @@ EmbedPrivate::Init(PtWidget_t *aOwningWidget)
 	// initialize it.  It is assumed that this window will be destroyed
 	// when we go out of scope.
 	mWindow = new EmbedWindow();
-	mWindowGuard = static_cast<nsIWebBrowserChrome *>(mWindow);
+	mWindowGuard = NS_STATIC_CAST(nsIWebBrowserChrome *, mWindow);
 	mWindow->Init(this);
 
 	// Create our progress listener object, make an owning reference,
 	// and initialize it.  It is assumed that this progress listener
 	// will be destroyed when we go out of scope.
 	mProgress = new EmbedProgress();
-	mProgressGuard = static_cast<nsIWebProgressListener *>
-                             (mProgress);
+	mProgressGuard = NS_STATIC_CAST(nsIWebProgressListener *,
+					   mProgress);
 	mProgress->Init(this);
 
 	// Create our content listener object, initialize it and attach it.
@@ -176,15 +176,15 @@ EmbedPrivate::Init(PtWidget_t *aOwningWidget)
 	// that this will be destroyed before we go out of scope.
 	mEventListener = new EmbedEventListener();
 	mEventListenerGuard =
-	static_cast<nsISupports *>(static_cast<nsIDOMKeyListener *>
-                        (mEventListener));
+	NS_STATIC_CAST(nsISupports *, NS_STATIC_CAST(nsIDOMKeyListener *,
+						 mEventListener));
 	mEventListener->Init(this);
 
 	// Create our print listener object, make an owning reference,
 	// and initialize it.  It is assumed that this print listener
 	// will be destroyed when we go out of scope.
 	mPrint = new EmbedPrintListener();
-	mPrintGuard = static_cast<nsIWebProgressListener *>(mPrint);
+	mPrintGuard = NS_STATIC_CAST(nsIWebProgressListener *, mPrint);
 	mPrint->Init(this);
 
 	// has the window creator service been set up?
@@ -199,7 +199,7 @@ EmbedPrivate::Init(PtWidget_t *aOwningWidget)
 		// create our local object
 		EmbedWindowCreator *creator = new EmbedWindowCreator();
 		nsCOMPtr<nsIWindowCreator> windowCreator;
-		windowCreator = static_cast<nsIWindowCreator *>(creator);
+		windowCreator = NS_STATIC_CAST(nsIWindowCreator *, creator);
 
 		// Attach it via the watcher service
 		nsCOMPtr<nsIWindowWatcher> watcher = do_GetService(sWatcherContractID);
@@ -714,11 +714,11 @@ EmbedPrivate::FindPrivateForBrowser(nsIWebBrowserChrome *aBrowser)
 	// windows.
 	for (int i = 0; i < count; i++) 
 	{
-	  EmbedPrivate *tmpPrivate = static_cast<EmbedPrivate *>
-                                         (sWindowList->ElementAt(i));
+	  EmbedPrivate *tmpPrivate = NS_STATIC_CAST(EmbedPrivate *,
+							sWindowList->ElementAt(i));
 	  // get the browser object for that window
-	  nsIWebBrowserChrome *chrome = static_cast<nsIWebBrowserChrome *>
-                                            (tmpPrivate->mWindow);
+	  nsIWebBrowserChrome *chrome = NS_STATIC_CAST(nsIWebBrowserChrome *,
+						   tmpPrivate->mWindow);
 	  if (chrome == aBrowser)
 		return tmpPrivate;
 	}
@@ -874,8 +874,8 @@ EmbedPrivate::AttachListeners(void)
     return;
 
   nsIDOMEventListener *eventListener =
-    static_cast<nsIDOMEventListener *>
-               (static_cast<nsIDOMKeyListener *>(mEventListener));
+    NS_STATIC_CAST(nsIDOMEventListener *,
+		   NS_STATIC_CAST(nsIDOMKeyListener *, mEventListener));
 
   // add the key listener
   nsresult rv;
@@ -904,8 +904,8 @@ EmbedPrivate::DetachListeners(void)
     return;
 
   nsIDOMEventListener *eventListener =
-    static_cast<nsIDOMEventListener *>
-               (static_cast<nsIDOMKeyListener *>(mEventListener));
+    NS_STATIC_CAST(nsIDOMEventListener *,
+		   NS_STATIC_CAST(nsIDOMKeyListener *, mEventListener));
 
   nsresult rv;
   rv = mEventTarget->RemoveEventListenerByIID(eventListener,

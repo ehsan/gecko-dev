@@ -53,7 +53,6 @@
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "gfxTextRunCache.h"
-#include "gfxTextRunWordCache.h"
 
 #include "nsIPref.h"
 #include "nsServiceManagerUtils.h"
@@ -109,16 +108,9 @@ gfxPlatform::Init()
         return rv;
     }
 
-    rv = gfxTextRunWordCache::Init();
+    rv = gfxGlobalTextRunCache::Init();
     if (NS_FAILED(rv)) {
-        NS_ERROR("Could not initialize gfxTextRunWordCache");
-        Shutdown();
-        return rv;
-    }
-
-    rv = gfxTextRunCache::Init();
-    if (NS_FAILED(rv)) {
-        NS_ERROR("Could not initialize gfxTextRunCache");
+        NS_ERROR("Could not initialize gfxGlobalTextRunCache");
         Shutdown();
         return rv;
     }
@@ -131,8 +123,7 @@ gfxPlatform::Shutdown()
 {
     // These may be called before the corresponding subsystems have actually
     // started up. That's OK, they can handle it.
-    gfxTextRunCache::Shutdown();
-    gfxTextRunWordCache::Shutdown();
+    gfxGlobalTextRunCache::Shutdown();
     gfxFontCache::Shutdown();
 #if defined(XP_MACOSX)
     gfxQuartzFontCache::Shutdown();
@@ -287,12 +278,11 @@ AppendGenericFontFromPref(nsString& aFonts, const char *aLangGroup, const char *
 }
 
 void
-gfxPlatform::GetPrefFonts(const char *aLangGroup, nsString& aFonts, PRBool aAppendUnicode)
+gfxPlatform::GetPrefFonts(const char *aLangGroup, nsString& aFonts)
 {
     aFonts.Truncate();
 
     AppendGenericFontFromPref(aFonts, aLangGroup, nsnull);
-    if (aAppendUnicode)
-        AppendGenericFontFromPref(aFonts, "x-unicode", nsnull);
+    AppendGenericFontFromPref(aFonts, "x-unicode", nsnull);
 }
 

@@ -47,12 +47,6 @@
 #include "nsIFile.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsString.h"
-#include "nsIRollupListener.h"
-#include "nsIWidget.h"
-
-// defined in nsChildView.mm
-extern nsIRollupListener * gRollupListener;
-extern nsIWidget         * gRollupWidget;
 
 // AppShellDelegate
 //
@@ -72,7 +66,6 @@ extern nsIWidget         * gRollupWidget;
 - (void)runAppShell;
 - (nsresult)rvFromRun;
 - (void)applicationWillTerminate:(NSNotification*)aNotification;
-- (void)beginMenuTracking:(NSNotification*)aNotification;
 @end
 
 // nsAppShell implementation
@@ -259,7 +252,7 @@ nsAppShell::ScheduleNativeEventCallback()
 {
   NS_ADDREF(this);
 
-  void* self = static_cast<void*>(this);
+  void* self = NS_STATIC_CAST(void*, this);
   NSData* data = [[NSData alloc] initWithBytes:&self length:sizeof(this)];
   NSArray* components = [[NSArray alloc] initWithObjects:&data count:1];
 
@@ -394,8 +387,8 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
   NS_ASSERTION(mAutoreleasePools && count,
                "Processed an event, but there's no autorelease pool?");
 
-  NSAutoreleasePool* pool = static_cast<const NSAutoreleasePool*>
-                                       (::CFArrayGetValueAtIndex(mAutoreleasePools,
+  NSAutoreleasePool* pool = NS_STATIC_CAST(const NSAutoreleasePool*,
+                               ::CFArrayGetValueAtIndex(mAutoreleasePools,
                                                         count - 1));
   ::CFArrayRemoveValueAtIndex(mAutoreleasePools, count - 1);
   [pool release];
@@ -419,10 +412,6 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
                                              selector:@selector(applicationWillTerminate:)
                                                  name:NSApplicationWillTerminateNotification
                                                object:NSApp];
-    [[NSDistributedNotificationCenter defaultCenter] addObserver:self
-                                                        selector:@selector(beginMenuTracking:)
-                                                            name:@"com.apple.HIToolbox.beginMenuTrackingNotification"
-                                                          object:nil];
   }
 
   return self;
@@ -431,7 +420,6 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
-  [[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
   [super dealloc];
 }
 
@@ -444,7 +432,7 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 - (void)handlePortMessage:(NSPortMessage*)aPortMessage
 {
   NSData* data = [[aPortMessage components] objectAtIndex:0];
-  nsAppShell* appShell = *static_cast<nsAppShell* const*>([data bytes]);
+  nsAppShell* appShell = *NS_STATIC_CAST(nsAppShell* const*,[data bytes]);
   appShell->ProcessGeckoEvents();
 
   NS_RELEASE(appShell);
@@ -476,19 +464,4 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 {
   mAppShell->WillTerminate();
 }
-
-// beginMenuTracking
-//
-// Roll up our context menu (if any) when some other app (or the OS) opens
-// any sort of menu.  But make sure we don't do this for notifications we
-// send ourselves (whose 'sender' will be @"org.mozilla.gecko.PopupWindow").
-- (void)beginMenuTracking:(NSNotification*)aNotification
-{
-  NSString *sender = [aNotification object];
-  if (!sender || ![sender isEqualToString:@"org.mozilla.gecko.PopupWindow"]) {
-    if (gRollupListener && gRollupWidget)
-      gRollupListener->Rollup();
-  }
-}
-
 @end

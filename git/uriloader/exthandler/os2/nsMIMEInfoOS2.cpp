@@ -63,25 +63,16 @@ nsMIMEInfoOS2::~nsMIMEInfoOS2()
 {
 }
 
-NS_IMETHODIMP nsMIMEInfoOS2::LaunchWithURI(nsIFile* aURI)
+NS_IMETHODIMP nsMIMEInfoOS2::LaunchWithFile(nsIFile* aFile)
 {
   nsresult rv = NS_OK;
 
-  nsCOMPtr<nsILocalFile> docToLoad;
-  rv = GetLocalFileFromURI(aURI, getter_AddRefs(docToLoad));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCAutoString path;
-  docToLoad->GetNativePath(path);
-  
-  nsCOMPtr<nsIFile> application;
-  if (mPreferredAction == useHelperApp) {
-    nsCOMPtr<nsILocalHandlerApp> localHandlerApp =
-      do_QueryInterface(mPreferredApplication, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
+  aFile->GetNativePath(path);
 
-    rv = localHandlerApp->GetExecutable(getter_AddRefs(application));
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsIFile* application;
+  if (mPreferredAction == useHelperApp) {
+    application = mPreferredApplication;
   } else if (mPreferredAction == useSystemDefault) {
     application = mDefaultApplication;
   } else {
@@ -112,7 +103,7 @@ NS_IMETHODIMP nsMIMEInfoOS2::LaunchWithURI(nsIFile* aURI)
     if (helperAppService)
     {
       nsCAutoString leafName; 
-      docToLoad->GetNativeLeafName(leafName);
+      aFile->GetNativeLeafName(leafName);
       const char* lastDot = strrchr(leafName.get(), '.');
       char suffix[CCHMAXPATH + 1] = "";
       if (lastDot)
@@ -134,10 +125,10 @@ NS_IMETHODIMP nsMIMEInfoOS2::LaunchWithURI(nsIFile* aURI)
             saltedTempLeafName.Append(table[(rand()%TABLE_SIZE)]);
           }
           AppendASCIItoUTF16(suffix, saltedTempLeafName);
-          rv = docToLoad->MoveTo(nsnull, saltedTempLeafName);
+          nsresult rv = aFile->MoveTo(nsnull, saltedTempLeafName);
       } while (NS_FAILED(rv));
-      helperAppService->DeleteTemporaryFileOnExit(docToLoad);
-      docToLoad->GetNativePath(path);
+      helperAppService->DeleteTemporaryFileOnExit(aFile);
+      aFile->GetNativePath(path);
     }
   } else {
     path.Insert('\"', 0);

@@ -56,33 +56,15 @@ using std::ostream;
 using std::ofstream;
 using std::vector;
 
-namespace CrashReporter {
-
 StringTable  gStrings;
-string       gSettingsPath;
 int          gArgc;
-char**       gArgv;
+const char** gArgv;
 
 static string       gDumpFile;
 static string       gExtraFile;
+static string       gSettingsPath;
 
 static string kExtraDataExtension = ".extra";
-
-void UIError(const string& message)
-{
-  string errorMessage;
-  if (!gStrings[ST_CRASHREPORTERERROR].empty()) {
-    char buf[2048];
-    UI_SNPRINTF(buf, 2048,
-                gStrings[ST_CRASHREPORTERERROR].c_str(),
-                message.c_str());
-    errorMessage = buf;
-  } else {
-    errorMessage = message;
-  }
-
-  UIError_impl(errorMessage);
-}
 
 static string Unescape(const string& str)
 {
@@ -107,27 +89,7 @@ static string Unescape(const string& str)
   return ret;
 }
 
-static string Escape(const string& str)
-{
-  string ret;
-  for (string::const_iterator iter = str.begin();
-       iter != str.end();
-       iter++) {
-    if (*iter == '\\') {
-      ret += "\\\\";
-    } else if (*iter == '\n') {
-      ret += "\\n";
-    } else if (*iter == '\t') {
-      ret += "\\t";
-    } else {
-      ret.push_back(*iter);
-    }
-  }
-
-  return ret;
-}
-
-bool ReadStrings(istream& in, StringTable& strings, bool unescape)
+static bool ReadStrings(istream& in, StringTable& strings, bool unescape)
 {
   string currentSection;
   while (!in.eof()) {
@@ -147,56 +109,14 @@ bool ReadStrings(istream& in, StringTable& strings, bool unescape)
   return true;
 }
 
-bool ReadStringsFromFile(const string& path,
-                         StringTable& strings,
-                         bool unescape)
+static bool ReadStringsFromFile(const string& path,
+                                StringTable& strings,
+                                bool unescape)
 {
-  ifstream* f = UIOpenRead(path);
-  bool success = false;
-  if (f->is_open()) {
-    success = ReadStrings(*f, strings, unescape);
-    f->close();
-  }
+  ifstream f(path.c_str(), std::ios::in);
+  if (!f.is_open()) return false;
 
-  delete f;
-  return success;
-}
-
-bool WriteStrings(ostream& out,
-                  const string& header,
-                  StringTable& strings,
-                  bool escape)
-{
-  out << "[" << header << "]" << std::endl;
-  for (StringTable::iterator iter = strings.begin();
-       iter != strings.end();
-       iter++) {
-    out << iter->first << "=";
-    if (escape)
-      out << Escape(iter->second);
-    else
-      out << iter->second;
-
-    out << std::endl;
-  }
-
-  return true;
-}
-
-bool WriteStringsToFile(const string& path,
-                        const string& header,
-                        StringTable& strings,
-                        bool escape)
-{
-  ofstream* f = UIOpenWrite(path.c_str());
-  bool success = false;
-  if (f->is_open()) {
-    success = WriteStrings(*f, header, strings, escape);
-    f->close();
-  }
-
-  delete f;
-  return success;
+  return ReadStrings(f, strings, unescape);
 }
 
 static bool ReadConfig()
@@ -236,20 +156,14 @@ static bool MoveCrashData(const string& toDir,
                           string& extrafile)
 {
   if (!UIEnsurePathExists(toDir)) {
-    UIError(gStrings[ST_ERROR_CREATEDUMPDIR]);
     return false;
   }
 
   string newDump = toDir + UI_DIR_SEPARATOR + Basename(dumpfile);
   string newExtra = toDir + UI_DIR_SEPARATOR + Basename(extrafile);
 
-  if (!UIMoveFile(dumpfile, newDump)) {
-    UIError(gStrings[ST_ERROR_DUMPFILEMOVE]);
-    return false;
-  }
-
-  if (!UIMoveFile(extrafile, newExtra)) {
-    UIError(gStrings[ST_ERROR_EXTRAFILEMOVE]);
+  if (!UIMoveFile(dumpfile, newDump) ||
+      !UIMoveFile(extrafile, newExtra)) {
     return false;
   }
 
@@ -277,32 +191,31 @@ static bool AddSubmittedReport(const string& serverResponse)
   string path = submittedDir + UI_DIR_SEPARATOR +
     responseItems["CrashID"] + ".txt";
 
-  ofstream* file = UIOpenWrite(path);
-  if (!file->is_open()) {
-    delete file;
+  ofstream file(path.c_str());
+  if (!file.is_open())
     return false;
-  }
 
   char buf[1024];
   UI_SNPRINTF(buf, 1024,
               gStrings["CrashID"].c_str(),
               responseItems["CrashID"].c_str());
-  *file << buf << "\n";
+  file << buf << "\n";
 
   if (responseItems.find("ViewURL") != responseItems.end()) {
     UI_SNPRINTF(buf, 1024,
                 gStrings["CrashDetailsURL"].c_str(),
                 responseItems["ViewURL"].c_str());
-    *file << buf << "\n";
+    file << buf << "\n";
   }
 
-  file->close();
-  delete file;
+  file.close();
 
   return true;
+
 }
 
-bool SendCompleted(bool success, const string& serverResponse)
+bool CrashReporterSendCompleted(bool success,
+                                const string& serverResponse)
 {
   if (success) {
     const char* noDelete = getenv("MOZ_CRASHREPORTER_NO_DELETE_DUMP");
@@ -318,56 +231,13 @@ bool SendCompleted(bool success, const string& serverResponse)
   return true;
 }
 
-} // namespace CrashReporter
-
-using namespace CrashReporter;
-
-void RewriteStrings(StringTable& queryParameters)
-{
-  // rewrite some UI strings with the values from the query parameters
-  string product = queryParameters["ProductName"];
-  string vendor = queryParameters["Vendor"];
-  if (vendor.empty()) {
-    // Assume Mozilla if no vendor is specified
-    vendor = "Mozilla";
-  }
-
-  char buf[4096];
-  UI_SNPRINTF(buf, sizeof(buf),
-              gStrings[ST_CRASHREPORTERVENDORTITLE].c_str(),
-              vendor.c_str());
-  gStrings[ST_CRASHREPORTERTITLE] = buf;
-
-  // Leave a format specifier for UIError to fill in
-  UI_SNPRINTF(buf, sizeof(buf),
-              gStrings[ST_CRASHREPORTERPRODUCTERROR].c_str(),
-              product.c_str(),
-              "%s");
-  gStrings[ST_CRASHREPORTERERROR] = buf;
-
-  UI_SNPRINTF(buf, sizeof(buf),
-              gStrings[ST_CRASHREPORTERDESCRIPTION].c_str(),
-              product.c_str());
-  gStrings[ST_CRASHREPORTERDESCRIPTION] = buf;
-
-  UI_SNPRINTF(buf, sizeof(buf),
-              gStrings[ST_CHECKSUBMIT].c_str(),
-              vendor.c_str());
-  gStrings[ST_CHECKSUBMIT] = buf;
-
-  UI_SNPRINTF(buf, sizeof(buf),
-              gStrings[ST_RESTART].c_str(),
-              product.c_str());
-  gStrings[ST_RESTART] = buf;
-}
-
-int main(int argc, char** argv)
+int main(int argc, const char** argv)
 {
   gArgc = argc;
   gArgv = argv;
 
   if (!ReadConfig()) {
-    UIError("Couldn't read configuration.");
+    UIError("Couldn't read configuration");
     return 0;
   }
 
@@ -384,70 +254,42 @@ int main(int argc, char** argv)
   } else {
     gExtraFile = GetExtraDataFilename(gDumpFile);
     if (gExtraFile.empty()) {
-      UIError(gStrings[ST_ERROR_BADARGUMENTS]);
-      return 0;
-    }
-
-    if (!UIFileExists(gExtraFile)) {
-      UIError(gStrings[ST_ERROR_EXTRAFILEEXISTS]);
+      UIError("Couldn't get extra data filename");
       return 0;
     }
 
     StringTable queryParameters;
     if (!ReadStringsFromFile(gExtraFile, queryParameters, true)) {
-      UIError(gStrings[ST_ERROR_EXTRAFILEREAD]);
+      UIError("Couldn't read extra data");
       return 0;
     }
 
     if (queryParameters.find("ProductName") == queryParameters.end()) {
-      UIError(gStrings[ST_ERROR_NOPRODUCTNAME]);
+      UIError("No product name specified");
       return 0;
     }
 
-    // There is enough information in the extra file to rewrite strings
-    // to be product specific
-    RewriteStrings(queryParameters);
-
     if (queryParameters.find("ServerURL") == queryParameters.end()) {
-      UIError(gStrings[ST_ERROR_NOSERVERURL]);
+      UIError("No server URL specified");
       return 0;
     }
 
     string product = queryParameters["ProductName"];
     string vendor = queryParameters["Vendor"];
     if (!UIGetSettingsPath(vendor, product, gSettingsPath)) {
-      UIError(gStrings[ST_ERROR_NOSETTINGSPATH]);
-      return 0;
-    }
-
-    if (!UIFileExists(gDumpFile)) {
-      UIError(gStrings[ST_ERROR_DUMPFILEEXISTS]);
+      UIError("Couldn't get settings path");
       return 0;
     }
 
     string pendingDir = gSettingsPath + UI_DIR_SEPARATOR + "pending";
     if (!MoveCrashData(pendingDir, gDumpFile, gExtraFile)) {
+      UIError("Couldn't move crash data");
       return 0;
     }
 
     string sendURL = queryParameters["ServerURL"];
     // we don't need to actually send this
     queryParameters.erase("ServerURL");
-
-    // re-set XUL_APP_FILE for xulrunner wrapped apps
-    const char *appfile = getenv("MOZ_CRASHREPORTER_RESTART_XUL_APP_FILE");
-    if (appfile && *appfile) {
-      const char prefix[] = "XUL_APP_FILE=";
-      char *env = (char*) malloc(strlen(appfile)+strlen(prefix));
-      if (!env) {
-        UIError("Out of memory");
-        return 0;
-      }
-      strcpy(env, prefix);
-      strcat(env, appfile);
-      putenv(env);
-      free(env);
-    }
 
     vector<string> restartArgs;
 
@@ -471,6 +313,28 @@ int main(int argc, char** argv)
       sendURL = urlEnv;
     }
 
+    // rewrite some UI strings with the values from the query parameters
+    char buf[4096];
+    UI_SNPRINTF(buf, sizeof(buf),
+                gStrings[ST_RESTART].c_str(),
+                product.c_str());
+    gStrings[ST_RESTART] = buf;
+
+    UI_SNPRINTF(buf, sizeof(buf),
+                gStrings[ST_CRASHREPORTERDESCRIPTION].c_str(),
+                product.c_str());
+    gStrings[ST_CRASHREPORTERDESCRIPTION] = buf;
+
+    UI_SNPRINTF(buf, sizeof(buf),
+                gStrings[ST_CHECKSUBMIT].c_str(),
+                vendor.empty() ? "Mozilla" : vendor.c_str());
+    gStrings[ST_CHECKSUBMIT] = buf;
+
+    UI_SNPRINTF(buf, sizeof(buf),
+                gStrings[ST_CRASHREPORTERTITLE].c_str(),
+                vendor.empty() ? "Mozilla" : vendor.c_str());
+    gStrings[ST_CRASHREPORTERTITLE] = buf;
+
     UIShowCrashUI(gDumpFile, queryParameters, sendURL, restartArgs);
   }
 
@@ -482,14 +346,9 @@ int main(int argc, char** argv)
 #if defined(XP_WIN) && !defined(__GNUC__)
 // We need WinMain in order to not be a console app.  This function is unused
 // if we are a console application.
-int WINAPI wWinMain( HINSTANCE, HINSTANCE, LPWSTR args, int )
+int WINAPI WinMain( HINSTANCE, HINSTANCE, LPSTR args, int )
 {
-  char** argv = static_cast<char**>(malloc(__argc * sizeof(char*)));
-  for (int i = 0; i < __argc; i++) {
-    argv[i] = strdup(WideToUTF8(__wargv[i]).c_str());
-  }
-
   // Do the real work.
-  return main(__argc, argv);
+  return main(__argc, (const char**)__argv);
 }
 #endif

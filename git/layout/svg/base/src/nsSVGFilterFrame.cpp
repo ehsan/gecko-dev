@@ -136,12 +136,12 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
 
   nsCOMPtr<nsIDOMSVGMatrix> ctm = nsSVGUtils::GetCanvasTM(frame);
 
-  nsSVGElement *target = static_cast<nsSVGElement*>(frame->GetContent());
+  nsSVGElement *target = NS_STATIC_CAST(nsSVGElement*, frame->GetContent());
 
   aTarget->SetMatrixPropagation(PR_FALSE);
   aTarget->NotifyCanvasTMChanged(PR_TRUE);
 
-  nsSVGFilterElement *filter = static_cast<nsSVGFilterElement*>(mContent);
+  nsSVGFilterElement *filter = NS_STATIC_CAST(nsSVGFilterElement*, mContent);
 
   float x, y, width, height;
   nsCOMPtr<nsIDOMSVGRect> bbox;
@@ -185,24 +185,15 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
       nsSVGUtils::ConvertToSurfaceSize(gfxSize(filterResX, filterResY),
                                        &resultOverflows);
   } else {
-    float a, b, c, d;
-    ctm->GetA(&a);
-    ctm->GetB(&b);
-    ctm->GetC(&c);
-    ctm->GetD(&d);
-
-    // maximum expansion derivation from
-    // http://lists.cairographics.org/archives/cairo/2004-October/001980.html
-    float f = (a * a + b * b + c * c + d * d) / 2;
-    float g = (a * a - b * b + c * c - d * d) / 2;
-    float h = a * b + c * d;
-    float scale = sqrt(f + sqrt(g * g + h * h));
+    float s1, s2;
+    ctm->GetA(&s1);
+    ctm->GetD(&s2);
 #ifdef DEBUG_tor
-    fprintf(stderr, "scale: %f\n", scale);
+    fprintf(stderr, "scales: %f %f\n", s1, s2);
 #endif
 
     filterRes =
-      nsSVGUtils::ConvertToSurfaceSize(gfxSize(width, height) * scale,
+      nsSVGUtils::ConvertToSurfaceSize(gfxSize(s1 * width, s2 * height),
                                        &resultOverflows);
   }
 
@@ -227,7 +218,7 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
   // paint the target geometry
   nsRefPtr<gfxImageSurface> tmpSurface =
     new gfxImageSurface(filterRes, gfxASurface::ImageFormatARGB32);
-  if (!tmpSurface || tmpSurface->CairoStatus()) {
+  if (!tmpSurface || !tmpSurface->Data()) {
     FilterFailCleanup(aContext, aTarget);
     return NS_OK;
   }
@@ -255,7 +246,7 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
     nsRefPtr<gfxImageSurface> alpha =
       new gfxImageSurface(filterRes, gfxASurface::ImageFormatARGB32);
 
-    if (!alpha || alpha->CairoStatus()) {
+    if (!alpha || !alpha->Data()) {
       FilterFailCleanup(aContext, aTarget);
       return NS_OK;
     }
@@ -327,14 +318,14 @@ nsRect
 nsSVGFilterFrame::GetInvalidationRegion(nsIFrame *aTarget)
 {
   nsSVGElement *targetContent =
-    static_cast<nsSVGElement*>(aTarget->GetContent());
+    NS_STATIC_CAST(nsSVGElement*, aTarget->GetContent());
   nsISVGChildFrame *svg;
 
   nsCOMPtr<nsIDOMSVGMatrix> ctm = nsSVGUtils::GetCanvasTM(aTarget);
 
   CallQueryInterface(aTarget, &svg);
 
-  nsSVGFilterElement *filter = static_cast<nsSVGFilterElement*>(mContent);
+  nsSVGFilterElement *filter = NS_STATIC_CAST(nsSVGFilterElement*, mContent);
 
   nsCOMPtr<nsIDOMSVGAnimatedEnumeration> units;
   filter->GetFilterUnits(getter_AddRefs(units));
@@ -449,7 +440,7 @@ nsSVGFilterInstance::GetFilterSubregion(
   nsRect defaultRegion,
   nsRect *result)
 {
-  nsSVGFE *fE = static_cast<nsSVGFE*>(aFilter);
+  nsSVGFE *fE = NS_STATIC_CAST(nsSVGFE*, aFilter);
   nsSVGLength2 *tmpX, *tmpY, *tmpWidth, *tmpHeight;
 
   tmpX = &fE->mLengthAttributes[nsSVGFE::X];
@@ -518,7 +509,7 @@ nsSVGFilterInstance::GetImage()
     new gfxImageSurface(gfxIntSize(mFilterResX, mFilterResY),
                         gfxASurface::ImageFormatARGB32);
 
-  if (!surface || surface->CairoStatus()) {
+  if (!(surface && surface->Data())) {
     return nsnull;
   }
 

@@ -50,13 +50,14 @@
 #include "nsISupports.h"
 #include "nsIStreamListener.h"
 #include "nsIDTD.h"
+#include "nsIInputStream.h"
 #include "nsStringGlue.h"
 #include "nsVoidArray.h"
 
-// {d49b492c-1bdb-4b41-a138-9495a72fc11c}
+// {26C4ABBE-A462-4110-A0A6-244BF39AE7D4}
 #define NS_IPARSER_IID \
-{ 0xd49b492c, 0x1bdb, 0x4b41, \
-  { 0xa1, 0x38, 0x94, 0x95, 0xa7, 0x2f, 0xc1, 0x1c } }
+{ 0x26c4abbe, 0xa462, 0x4110, \
+  { 0xa0, 0xa6, 0x24, 0x4b, 0xf3, 0x9a, 0xe7, 0xd4 } }
 
 
 // {41421C60-310A-11d4-816F-000064657374}
@@ -225,6 +226,10 @@ class nsIParser : public nsISupports {
     
     NS_IMETHOD Parse(nsIURI* aURL,
                      nsIRequestObserver* aListener = nsnull,
+                     void* aKey = 0,
+                     nsDTDMode aMode = eDTDMode_autodetect) = 0;
+    NS_IMETHOD Parse(nsIInputStream* aStream,
+                     const nsACString& aMimeType,
                      void* aKey = 0,
                      nsDTDMode aMode = eDTDMode_autodetect) = 0;
     NS_IMETHOD Parse(const nsAString& aSourceBuffer,

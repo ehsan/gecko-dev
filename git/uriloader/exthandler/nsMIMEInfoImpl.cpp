@@ -41,11 +41,9 @@
 #include "nsReadableUtils.h"
 #include "nsStringEnumerator.h"
 #include "nsIProcess.h"
-#include "nsILocalFile.h"
-#include "nsIFileURL.h"
 
 // nsISupports methods
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsMIMEInfoBase, nsIMIMEInfo, nsIHandlerInfo)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsMIMEInfoBase, nsIMIMEInfo)
 
 // nsMIMEInfoImpl methods
 nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
@@ -228,6 +226,27 @@ nsMIMEInfoBase::SetFileExtensions(const nsACString& aExtensions)
 }
 
 NS_IMETHODIMP
+nsMIMEInfoBase::GetApplicationDescription(nsAString& aApplicationDescription)
+{
+  if (mPreferredAppDescription.IsEmpty() && mPreferredApplication) {
+    // Don't want to cache this, just in case someone resets the app
+    // without changing the description....
+    mPreferredApplication->GetLeafName(aApplicationDescription);
+  } else {
+    aApplicationDescription = mPreferredAppDescription;
+  }
+  
+  return NS_OK;
+}
+ 
+NS_IMETHODIMP
+nsMIMEInfoBase::SetApplicationDescription(const nsAString& aApplicationDescription)
+{
+  mPreferredAppDescription = aApplicationDescription;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsMIMEInfoBase::GetDefaultDescription(nsAString& aDefaultDescription)
 {
   aDefaultDescription = mDefaultAppDescription;
@@ -235,7 +254,7 @@ nsMIMEInfoBase::GetDefaultDescription(nsAString& aDefaultDescription)
 }
 
 NS_IMETHODIMP
-nsMIMEInfoBase::GetPreferredApplicationHandler(nsIHandlerApp ** aPreferredAppHandler)
+nsMIMEInfoBase::GetPreferredApplicationHandler(nsIFile ** aPreferredAppHandler)
 {
   *aPreferredAppHandler = mPreferredApplication;
   NS_IF_ADDREF(*aPreferredAppHandler);
@@ -243,21 +262,21 @@ nsMIMEInfoBase::GetPreferredApplicationHandler(nsIHandlerApp ** aPreferredAppHan
 }
  
 NS_IMETHODIMP
-nsMIMEInfoBase::SetPreferredApplicationHandler(nsIHandlerApp * aPreferredAppHandler)
+nsMIMEInfoBase::SetPreferredApplicationHandler(nsIFile * aPreferredAppHandler)
 {
   mPreferredApplication = aPreferredAppHandler;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsMIMEInfoBase::GetPreferredAction(nsHandlerInfoAction * aPreferredAction)
+nsMIMEInfoBase::GetPreferredAction(nsMIMEInfoHandleAction * aPreferredAction)
 {
   *aPreferredAction = mPreferredAction;
   return NS_OK;
 }
  
 NS_IMETHODIMP
-nsMIMEInfoBase::SetPreferredAction(nsHandlerInfoAction aPreferredAction)
+nsMIMEInfoBase::SetPreferredAction(nsMIMEInfoHandleAction aPreferredAction)
 {
   mPreferredAction = aPreferredAction;
   return NS_OK;
@@ -278,59 +297,17 @@ nsMIMEInfoBase::SetAlwaysAskBeforeHandling(PRBool aAlwaysAsk)
   return NS_OK;
 }
 
-/* static */
-nsresult 
-nsMIMEInfoBase::GetLocalFileFromURI(nsIURI *aURI, nsILocalFile **aFile)
-{
-  nsresult rv;
-
-  nsCOMPtr<nsIFileURL> fileUrl = do_QueryInterface(aURI, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  nsCOMPtr<nsIFile> file;
-  rv = fileUrl->GetFile(getter_AddRefs(file));
-  if (NS_FAILED(rv)) return rv;    
-
-  return CallQueryInterface(file, aFile);
-}
-
-
 NS_IMETHODIMP
-nsMIMEInfoBase::LaunchWithURI(nsIURI* aURI)
+nsMIMEInfoBase::LaunchWithFile(nsIFile* aFile)
 {
-  nsCOMPtr<nsILocalFile> docToLoad;
-  nsresult rv;
-  
   if (mPreferredAction == useHelperApp) {
     if (!mPreferredApplication)
       return NS_ERROR_FILE_NOT_FOUND;
 
-    // check for and possibly launch with web application
-    nsCOMPtr<nsIWebHandlerApp> webHandler = 
-      do_QueryInterface(mPreferredApplication, &rv);
-    if (NS_SUCCEEDED(rv)) {
-      return LaunchWithWebHandler(webHandler, aURI);         
-    }
-
-    // ok, we must have a local handler app
-    nsCOMPtr<nsILocalHandlerApp> localHandler = 
-      do_QueryInterface(mPreferredApplication, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsIFile> executable;
-    rv = localHandler->GetExecutable(getter_AddRefs(executable));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = GetLocalFileFromURI(aURI, getter_AddRefs(docToLoad));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return LaunchWithIProcess(executable, docToLoad);
+    return LaunchWithIProcess(mPreferredApplication, aFile);
   }
   else if (mPreferredAction == useSystemDefault) {
-    rv = GetLocalFileFromURI(aURI, getter_AddRefs(docToLoad));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return LaunchDefaultWithFile(docToLoad);
+    return LaunchDefaultWithFile(aFile);
   }
 
   return NS_ERROR_INVALID_ARG;
@@ -368,14 +345,6 @@ nsMIMEInfoBase::LaunchWithIProcess(nsIFile* aApp, nsIFile* aFile)
 
   PRUint32 pid;
   return process->Run(PR_FALSE, &strPath, 1, &pid);
-}
-
-/* static */
-nsresult
-nsMIMEInfoBase::LaunchWithWebHandler(nsIWebHandlerApp *aApp, nsIURI *aURI) 
-{
-  // we'll be implementing this Real Soon Now!
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 // nsMIMEInfoImpl implementation

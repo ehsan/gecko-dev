@@ -126,12 +126,11 @@ public:
     }
 
     nsrefcnt tmp = get();
-    PRBool purple = static_cast<PRBool>(NS_PURPLE_BIT_SET(mValue));
+    PRBool purple = NS_STATIC_CAST(PRBool, NS_PURPLE_BIT_SET(mValue));
 
     if (NS_UNLIKELY(purple)) {
       NS_ASSERTION(tmp != 0, "purple ISupports pointer with zero refcnt");
-      if (!nsCycleCollector_forget(owner))
-        tmp |= NS_PURPLE_BIT;
+      nsCycleCollector_forget(owner);
     }
 
     mValue = tmp + 1;
@@ -151,16 +150,13 @@ public:
     nsrefcnt tmp = get();
     NS_ASSERTION(tmp >= 1, "decr() called with zero refcnt");
 
-    PRBool purple = static_cast<PRBool>(NS_PURPLE_BIT_SET(mValue));
+    PRBool purple = NS_STATIC_CAST(PRBool, NS_PURPLE_BIT_SET(mValue));
     PRBool shouldBePurple = tmp > 1;
 
     if (NS_UNLIKELY(shouldBePurple && !purple)) {
-      if (!nsCycleCollector_suspect(owner))
-        shouldBePurple = PR_FALSE;
+      nsCycleCollector_suspect(owner);
     } else if (NS_UNLIKELY(tmp == 1 && purple)) {
-      if (!nsCycleCollector_forget(owner)) {
-        NS_NOTREACHED("forget should not fail when reference count hits 0");
-      }
+      nsCycleCollector_forget(owner);
     }
 
     --tmp;
@@ -438,23 +434,23 @@ NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)      \
 
 #define NS_INTERFACE_TABLE_ENTRY(_class, _interface)                          \
   { &_interface::COMTypeInfo<int>::kIID,                                      \
-    reinterpret_cast<char*>(                                                  \
-                        static_cast<_interface*>((_class*) 0x1000)) -         \
-    reinterpret_cast<char*>((_class*) 0x1000)                                 \
+    NS_REINTERPRET_CAST(char*,                                                \
+                        NS_STATIC_CAST(_interface*, (_class*) 0x1000)) -      \
+    NS_REINTERPRET_CAST(char*, (_class*) 0x1000)                              \
   },
 
 #define NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, _interface, _implClass)    \
   { &_interface::COMTypeInfo<int>::kIID,                                      \
-    reinterpret_cast<char*>(                                                  \
-                        static_cast<_interface*>(                             \
-                                       static_cast<_implClass*>(              \
+    NS_REINTERPRET_CAST(char*,                                                \
+                        NS_STATIC_CAST(_interface*,                           \
+                                       NS_STATIC_CAST(_implClass*,            \
                                                       (_class*) 0x1000))) -   \
-    reinterpret_cast<char*>((_class*) 0x1000)                                 \
+    NS_REINTERPRET_CAST(char*, (_class*) 0x1000)                              \
   },
 
 #define NS_INTERFACE_TABLE_END                                                \
   { nsnull, 0 } };                                                            \
-  rv = NS_TableDrivenQI(static_cast<void*>(this),                             \
+  rv = NS_TableDrivenQI(NS_STATIC_CAST(void*, this),                          \
                         table, aIID, aInstancePtr);
 
 #define NS_INTERFACE_TABLE_TAIL                                               \
@@ -494,23 +490,23 @@ NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)      \
 
 #define NS_IMPL_QUERY_BODY(_interface)                                        \
   if ( aIID.Equals(NS_GET_IID(_interface)) )                                  \
-    foundInterface = static_cast<_interface*>(this);                          \
+    foundInterface = NS_STATIC_CAST(_interface*, this);                       \
   else
 
 #define NS_IMPL_QUERY_BODY_CONDITIONAL(_interface, condition)                 \
   if ( (condition) && aIID.Equals(NS_GET_IID(_interface)))                    \
-    foundInterface = static_cast<_interface*>(this);                          \
+    foundInterface = NS_STATIC_CAST(_interface*, this);                       \
   else
 
 #define NS_IMPL_QUERY_BODY_AMBIGUOUS(_interface, _implClass)                  \
   if ( aIID.Equals(NS_GET_IID(_interface)) )                                  \
-    foundInterface = static_cast<_interface*>(                                \
-                                    static_cast<_implClass*>(this));          \
+    foundInterface = NS_STATIC_CAST(_interface*,                              \
+                                    NS_STATIC_CAST(_implClass*, this));       \
   else
 
 #define NS_IMPL_QUERY_BODY_AGGREGATED(_interface, _aggregate)                 \
   if ( aIID.Equals(NS_GET_IID(_interface)) )                                  \
-    foundInterface = static_cast<_interface*>(_aggregate);                    \
+    foundInterface = NS_STATIC_CAST(_interface*, _aggregate);                 \
   else
 
 #define NS_IMPL_QUERY_TAIL_GUTS                                               \
@@ -1127,7 +1123,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 #define NS_IMPL_QUERY_CLASSINFO(_class)                                       \
   if ( aIID.Equals(NS_GET_IID(nsIClassInfo)) ) {                              \
     extern nsIClassInfo *NS_CLASSINFO_NAME(_class);                           \
-    foundInterface = static_cast<nsIClassInfo*>(NS_CLASSINFO_NAME(_class));   \
+    foundInterface = NS_STATIC_CAST(nsIClassInfo*, NS_CLASSINFO_NAME(_class));\
   } else
 
 #define NS_CLASSINFO_HELPER_BEGIN(_class, _c)                                 \

@@ -100,7 +100,7 @@ public:
         printf("gfxOS2FontGroup[%#x]::GetFontAt(%d), %#x, %#x\n",
                (unsigned)this, i, (unsigned)&mFonts, (unsigned)&mFonts[i]);
 #endif
-        return static_cast<gfxOS2Font*>(static_cast<gfxFont*>(mFonts[i]));
+        return NS_STATIC_CAST(gfxOS2Font*, NS_STATIC_CAST(gfxFont*, mFonts[i]));
     }
 
     gfxOS2Font *GetCachedFont(const nsAString& aName) const {
@@ -115,8 +115,10 @@ public:
     }
 
 protected:
+    // If aUTF16Text is null, then the string contains no characters >= 0x100
     void InitTextRun(gfxTextRun *aTextRun, const PRUint8 *aUTF8Text,
-                     PRUint32 aUTF8Length, PRUint32 aUTF8HeaderLength);
+                     PRUint32 aUTF8Length, PRUint32 aUTF8HeaderLength,
+                     const PRUnichar *aUTF16Text, PRUint32 aUTF16Length);
     void CreateGlyphRunsFT(gfxTextRun *aTextRun, const PRUint8 *aUTF8,
                            PRUint32 aUTF8Length);
     static PRBool FontCallback(const nsAString& aFontName,

@@ -172,7 +172,7 @@ private:
      */
     PRBool CanPropagate(eHTMLTags aParent,
                         eHTMLTags aChild,
-                        PRInt32 aParentContains);
+                        PRBool aParentContains);
 
     /**
      *  This method gets called to determine whether a given 
@@ -186,7 +186,7 @@ private:
      */
     PRBool CanOmit(eHTMLTags aParent, 
                    eHTMLTags aChild,
-                   PRInt32& aParentContains);
+                   PRBool& aParentContains);
 
     /**
      * Looking at aParent, try to see if we can propagate from aChild to

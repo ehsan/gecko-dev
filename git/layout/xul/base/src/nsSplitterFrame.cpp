@@ -476,7 +476,7 @@ nsSplitterFrame::HandleEvent(nsPresContext* aPresContext,
   
     case NS_MOUSE_BUTTON_UP:
       if (aEvent->eventStructType == NS_MOUSE_EVENT &&
-          static_cast<nsMouseEvent*>(aEvent)->button ==
+          NS_STATIC_CAST(nsMouseEvent*, aEvent)->button ==
             nsMouseEvent::eLeftButton) {
         mInner->MouseUp(aPresContext, aEvent);
       }
@@ -630,10 +630,10 @@ void
 nsSplitterFrameInner::AddListener(nsPresContext* aPresContext)
 {
   mOuter->GetContent()->
-    AddEventListenerByIID(static_cast<nsIDOMMouseListener*>(this),
+    AddEventListenerByIID(NS_STATIC_CAST(nsIDOMMouseListener*,this),
                           NS_GET_IID(nsIDOMMouseListener));
   mOuter->GetContent()->
-    AddEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>(this),
+    AddEventListenerByIID(NS_STATIC_CAST(nsIDOMMouseMotionListener*,this),
                           NS_GET_IID(nsIDOMMouseMotionListener));
 }
 
@@ -642,10 +642,10 @@ nsSplitterFrameInner::RemoveListener()
 {
   ENSURE_TRUE(mOuter);
   mOuter->GetContent()->
-    RemoveEventListenerByIID(static_cast<nsIDOMMouseListener*>(this),
+    RemoveEventListenerByIID(NS_STATIC_CAST(nsIDOMMouseListener*,this),
                              NS_GET_IID(nsIDOMMouseListener));
   mOuter->GetContent()->
-    RemoveEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>(this),
+    RemoveEventListenerByIID(NS_STATIC_CAST(nsIDOMMouseMotionListener*,this),
                              NS_GET_IID(nsIDOMMouseMotionListener));
 }
 

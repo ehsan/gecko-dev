@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Peter Van der Beken <peterv@propagandism.org>
- *   Ryan Jones <sciguyryan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -437,9 +436,15 @@ CheckLoadURI(nsIURI *aUri, nsIURI *aReferrerUri,
         do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = securityManager->
-        CheckLoadURIWithPrincipal(aReferrerPrincipal, aUri,
-                                  nsIScriptSecurityManager::STANDARD);
+    if (aReferrerPrincipal) {
+        rv = securityManager->
+            CheckLoadURIWithPrincipal(aReferrerPrincipal, aUri,
+                                      nsIScriptSecurityManager::STANDARD);
+    }
+    else {
+        rv = securityManager->CheckLoadURI(aReferrerUri, aUri,
+                                           nsIScriptSecurityManager::STANDARD);
+    }
     NS_ENSURE_SUCCESS(rv, NS_ERROR_XSLT_LOAD_BLOCKED_ERROR);
 
     rv = securityManager->CheckSameOriginURI(aReferrerUri, aUri);
@@ -460,8 +465,7 @@ class txCompileObserver : public txACompileObserver
 {
 public:
     txCompileObserver(txMozillaXSLTProcessor* aProcessor,
-                      nsILoadGroup* aLoadGroup,
-                      nsIPrincipal* aCallerPrincipal);
+                      nsILoadGroup* aLoadGroup);
     virtual ~txCompileObserver();
 
     TX_DECL_ACOMPILEOBSERVER;
@@ -473,7 +477,6 @@ protected:
     nsAutoRefCnt mRefCnt;
 
 private:
-    nsCOMPtr<nsIPrincipal> mCallerPrincipal;
     nsRefPtr<txMozillaXSLTProcessor> mProcessor;
     nsCOMPtr<nsILoadGroup> mLoadGroup;
 
@@ -483,11 +486,9 @@ protected:
 };
 
 txCompileObserver::txCompileObserver(txMozillaXSLTProcessor* aProcessor,
-                                     nsILoadGroup* aLoadGroup,
-                                     nsIPrincipal* aCallerPrincipal)
+                                     nsILoadGroup* aLoadGroup)
     : mProcessor(aProcessor),
-      mLoadGroup(aLoadGroup),
-      mCallerPrincipal(aCallerPrincipal)
+      mLoadGroup(aLoadGroup)
 {
 }
 
@@ -530,7 +531,7 @@ txCompileObserver::loadURI(const nsAString& aUri,
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Do security check.
-    rv = CheckLoadURI(uri, referrerUri, mCallerPrincipal, nsnull);
+    rv = CheckLoadURI(uri, referrerUri, nsnull, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return startLoad(uri, aCompiler, referrerUri);
@@ -606,7 +607,7 @@ TX_LoadSheet(nsIURI* aUri, txMozillaXSLTProcessor* aProcessor,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsRefPtr<txCompileObserver> observer =
-        new txCompileObserver(aProcessor, aLoadGroup, aCallerPrincipal);
+        new txCompileObserver(aProcessor, aLoadGroup);
     NS_ENSURE_TRUE(observer, NS_ERROR_OUT_OF_MEMORY);
 
     nsRefPtr<txStylesheetCompiler> compiler =
@@ -705,22 +706,18 @@ handleNode(nsIDOMNode* aNode, txStylesheetCompiler* aCompiler)
 class txSyncCompileObserver : public txACompileObserver
 {
 public:
-    txSyncCompileObserver(txMozillaXSLTProcessor* aProcessor,
-                          nsIPrincipal* aCallerPrincipal);
+    txSyncCompileObserver(txMozillaXSLTProcessor* aProcessor);
     virtual ~txSyncCompileObserver();
 
     TX_DECL_ACOMPILEOBSERVER;
 
 protected:
     nsRefPtr<txMozillaXSLTProcessor> mProcessor;
-    nsCOMPtr<nsIPrincipal> mCallerPrincipal;
     nsAutoRefCnt mRefCnt;
 };
 
-txSyncCompileObserver::txSyncCompileObserver(txMozillaXSLTProcessor* aProcessor,
-                                            nsIPrincipal* aCallerPrincipal)
-  : mProcessor(aProcessor),
-    mCallerPrincipal(aCallerPrincipal)
+txSyncCompileObserver::txSyncCompileObserver(txMozillaXSLTProcessor* aProcessor)
+  : mProcessor(aProcessor)
 {
 }
 
@@ -762,7 +759,7 @@ txSyncCompileObserver::loadURI(const nsAString& aUri,
     rv = NS_NewURI(getter_AddRefs(referrerUri), aReferrerUri);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = CheckLoadURI(uri, referrerUri, mCallerPrincipal, nsnull);
+    rv = CheckLoadURI(uri, referrerUri, nsnull, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // This is probably called by js, a loadGroup for the channel doesn't
@@ -792,7 +789,6 @@ void txSyncCompileObserver::onDoneCompiling(txStylesheetCompiler* aCompiler,
 
 nsresult
 TX_CompileStylesheet(nsIDOMNode* aNode, txMozillaXSLTProcessor* aProcessor,
-                     nsIPrincipal* aCallerPrincipal,
                      txStylesheet** aStylesheet)
 {
     // If we move GetBaseURI to nsINode this can be simplified.
@@ -825,7 +821,7 @@ TX_CompileStylesheet(nsIDOMNode* aNode, txMozillaXSLTProcessor* aProcessor,
     NS_ConvertUTF8toUTF16 stylesheetURI(spec);
 
     nsRefPtr<txSyncCompileObserver> obs =
-        new txSyncCompileObserver(aProcessor, aCallerPrincipal);
+        new txSyncCompileObserver(aProcessor);
     NS_ENSURE_TRUE(obs, NS_ERROR_OUT_OF_MEMORY);
 
     nsRefPtr<txStylesheetCompiler> compiler =
