@@ -2,19 +2,57 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = "head.js";
+MARIONETTE_CONTEXT = "chrome";
 
 Cu.import("resource://gre/modules/Promise.jsm");
 
 const DATA_KEY = "ril.data.enabled";
 const APN_KEY  = "ril.data.apnSettings";
-const TOPIC_CONNECTION_STATE_CHANGED = "network-connection-state-changed";
 
 let ril = Cc["@mozilla.org/ril;1"].getService(Ci.nsIRadioInterfaceLayer);
 ok(ril, "ril.constructor is " + ril.constructor);
 
 let radioInterface = ril.getRadioInterface(0);
 ok(radioInterface, "radioInterface.constructor is " + radioInterface.constrctor);
+
+function setSetting(key, value) {
+  log("setSetting: '" + key + "'' -> " + JSON.stringify(value));
+
+  let deferred = Promise.defer();
+  let obj = {};
+  obj[key] = value;
+
+  let setRequest = window.navigator.mozSettings.createLock().set(obj);
+  setRequest.addEventListener("success", function() {
+    log("set '" + key + "' to " + JSON.stringify(value) + " success");
+    deferred.resolve();
+  });
+  setRequest.addEventListener("error", function() {
+    ok(false, "cannot set '" + key + "' to " + JSON.stringify(value));
+    deferred.reject();
+  });
+
+  return deferred.promise;
+}
+
+function getSetting(key) {
+  log("getSetting: '" + key + "'");
+
+  let deferred = Promise.defer();
+
+  let getRequest = window.navigator.mozSettings.createLock().get(key);
+  getRequest.addEventListener("success", function() {
+    let result = getRequest.result[key];
+	  log("setting '" + key + "': " + JSON.stringify(result));
+	  deferred.resolve(result);
+  });
+  getRequest.addEventListener("error", function() {
+    ok(false, "cannot get '" + key + "'");
+    deferred.reject();
+  });
+
+  return deferred.promise;
+}
 
 function setEmulatorAPN() {
   let apn = [
@@ -24,57 +62,54 @@ function setEmulatorAPN() {
       "types":["default","supl","mms","ims","dun"]}]
   ];
 
-  return setSettings(APN_KEY, apn);
+  return setSetting(APN_KEY, apn);
 }
 
-function setupDataCallAndWait(type, networkType) {
-  let promises = [];
-  promises.push(waitForObserverEvent(TOPIC_CONNECTION_STATE_CHANGED));
-  promises.push(radioInterface.setupDataCallByType(type));
+function waitNetworkConnected(networkType) {
+  log("wait network " + networkType + " connected");
 
-  return Promise.all(promises).then(function(results) {
-    let subject = results[0];
-    ok(subject instanceof Ci.nsIRilNetworkInterface,
-       "subject should be an instance of nsIRILNetworkInterface");
-    is(subject.type, networkType,
-       "subject.type should be " + networkType);
-    is(subject.state, Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED,
-       "subject.state should be CONNECTED");
-  });
+  let interfaceStateChangeTopic = "network-connection-state-changed";
+  let obs = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
+  let deferred = Promise.defer();
+
+  function observer(subject, topic, data) {
+    let network = subject.QueryInterface(Ci.nsINetworkInterface);
+    log("Network " + network.type + " state changes to " + network.state);
+    if (network.type == networkType &&
+        network.state == Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED) {
+      obs.removeObserver(observer, interfaceStateChangeTopic);
+      deferred.resolve();
+    }
+  }
+
+  obs.addObserver(observer, interfaceStateChangeTopic, false);
+
+  return deferred.promise;
 }
 
-function deactivateDataCallAndWait(type, networkType) {
-  let promises = [];
-  promises.push(waitForObserverEvent(TOPIC_CONNECTION_STATE_CHANGED));
-  promises.push(radioInterface.deactivateDataCallByType(type));
+function waitNetworkDisconnected(networkType) {
+  log("wait network " + networkType + " disconnected");
 
-  return Promise.all(promises).then(function(results) {
-    let subject = results[0];
-    ok(subject instanceof Ci.nsIRilNetworkInterface,
-       "subject should be an instance of nsIRILNetworkInterface");
-    is(subject.type, networkType,
-       "subject.type should be " + networkType);
-    is(subject.state, Ci.nsINetworkInterface.NETWORK_STATE_DISCONNECTED,
-       "subject.state should be DISCONNECTED");
-  });
-}
+  let interfaceStateChangeTopic = "network-connection-state-changed";
+  let obs = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
+  let deferred = Promise.defer();
 
-function setDataEnabledAndWait(enabled) {
-  let promises = [];
-  promises.push(waitForObserverEvent(TOPIC_CONNECTION_STATE_CHANGED));
-  promises.push(setSettings(DATA_KEY, enabled));
+  function observer(subject, topic, data) {
+    let network = subject.QueryInterface(Ci.nsINetworkInterface);
+    log("Network " + network.type + " state changes to " + network.state);
+    // We can not check network.type here cause network.type would return
+    // NETWORK_TYPE_MOBILE_SUPL (NETWORK_TYPE_MOBILE_OTHERS) when disconnecting
+    // and disconnected, see bug 939046.
+    if (network.state == Ci.nsINetworkInterface.NETWORK_STATE_DISCONNECTED ||
+        network.state == Ci.nsINetworkInterface.NETWORK_STATE_UNKNOWN) {
+      obs.removeObserver(observer, interfaceStateChangeTopic);
+      deferred.resolve();
+    }
+  }
 
-  return Promise.all(promises).then(function(results) {
-    let subject = results[0];
-    ok(subject instanceof Ci.nsIRilNetworkInterface,
-       "subject should be an instance of nsIRILNetworkInterface");
-    is(subject.type, Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE,
-       "subject.type should be " + Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE);
-    is(subject.state,
-       enabled ? Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED
-               : Ci.nsINetworkInterface.NETWORK_STATE_DISCONNECTED,
-       "subject.state should be " + enabled ? "CONNECTED" : "DISCONNECTED");
-  });
+  obs.addObserver(observer, interfaceStateChangeTopic, false);
+
+  return deferred.promise;
 }
 
 // Test initial State
@@ -82,20 +117,32 @@ function testInitialState() {
   log("= testInitialState =");
 
   // Data should be off before starting any test.
-  return getSettings(DATA_KEY)
+  return Promise.resolve()
+    .then(() => getSetting(DATA_KEY))
     .then(value => {
       is(value, false, "Data must be off");
-    });
+    })
+    .then(null, () => {
+      ok(false, "promise rejected during test");
+    })
+    .then(runNextTest);
 }
 
 // Test default data Connection
 function testDefaultDataConnection() {
   log("= testDefaultDataConnection =");
 
-  // Enable default data
-  return setDataEnabledAndWait(true)
-    // Disable default data
-    .then(() => setDataEnabledAndWait(false));
+  return Promise.resolve()
+    // Enable data
+    .then(() => setSetting(DATA_KEY, true))
+    .then(() => waitNetworkConnected(Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE))
+    // Disable data
+    .then(() => setSetting(DATA_KEY, false))
+    .then(() => waitNetworkDisconnected(Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE))
+    .then(null, () => {
+      ok(false, "promise rejected during test");
+    })
+    .then(runNextTest);
 }
 
 // Test non default data connection
@@ -113,12 +160,16 @@ function testNonDefaultDataConnection() {
     };
     let networkType = typeMapping[type];
 
-    return setupDataCallAndWait(type, networkType)
-      .then(() => deactivateDataCallAndWait(type, networkType));
+    return Promise.resolve()
+      .then(() => radioInterface.setupDataCallByType(type))
+      .then(() => waitNetworkConnected(networkType))
+      .then(() => radioInterface.deactivateDataCallByType(type))
+      .then(() => waitNetworkDisconnected(networkType));
   }
 
   let currentApn;
-  return getSettings(APN_KEY)
+  return Promise.resolve()
+    .then(() => getSetting(APN_KEY))
     .then(value => {
       currentApn = value;
     })
@@ -128,12 +179,28 @@ function testNonDefaultDataConnection() {
     .then(() => doTestNonDefaultDataConnection("ims"))
     .then(() => doTestNonDefaultDataConnection("dun"))
     // Restore APN settings
-    .then(() => setSettings(APN_KEY, currentApn));
+    .then(() => setSetting(APN_KEY, currentApn))
+    .then(null, () => {
+      ok(false, "promise rejected during test");
+    })
+    .then(runNextTest);
 }
 
-// Start test
-startTestBase(function() {
-  return testInitialState()
-    .then(() => testDefaultDataConnection())
-    .then(() => testNonDefaultDataConnection());
-});
+let tests = [
+  testInitialState,
+  testDefaultDataConnection,
+  testNonDefaultDataConnection
+];
+
+function runNextTest() {
+  let test = tests.shift();
+  if (!test) {
+    finish();
+    return;
+  }
+
+  test();
+}
+
+// Start Tests
+runNextTest();

@@ -70,7 +70,7 @@ class Linker
     }
 
   public:
-    explicit Linker(MacroAssembler &masm)
+    Linker(MacroAssembler &masm)
       : masm(masm)
     {
         masm.finish();

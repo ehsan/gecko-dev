@@ -811,7 +811,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
     message.AppendInt(mNetworkSelectionMode);
     message.AppendLiteral(",0,\"");
     message.Append(NS_ConvertUTF16toUTF8(mOperatorName));
-    message.Append('"');
+    message.AppendLiteral("\"");
     SendLine(message.get());
   } else if (msg.Find("AT+VTS=") != -1) {
     ParseAtCommand(msg, 7, atCommandValues);
@@ -1211,9 +1211,9 @@ BluetoothHfpManager::SendCLCC(const Call& aCall, int aIndex)
 
   nsAutoCString message(RESPONSE_CLCC);
   message.AppendInt(aIndex);
-  message.Append(',');
+  message.AppendLiteral(",");
   message.AppendInt(aCall.mDirection);
-  message.Append(',');
+  message.AppendLiteral(",");
 
   int status = 0;
   switch (aCall.mState) {
@@ -1290,7 +1290,7 @@ BluetoothHfpManager::SendCommand(const char* aCommand, uint32_t aValue)
     }
 
     message.AppendInt(aValue);
-    message.Append(',');
+    message.AppendLiteral(",");
     message.AppendInt(sCINDItems[aValue].value);
   } else if (!strcmp(aCommand, RESPONSE_CIND)) {
     if (!aValue) {
@@ -1300,9 +1300,9 @@ BluetoothHfpManager::SendCommand(const char* aCommand, uint32_t aValue)
         message.Append(sCINDItems[i].name);
         message.AppendLiteral("\",(");
         message.Append(sCINDItems[i].range);
-        message.Append(')');
+        message.AppendLiteral(")");
         if (i == (ArrayLength(sCINDItems) - 1)) {
-          message.Append(')');
+          message.AppendLiteral(")");
           break;
         }
         message.AppendLiteral("),");
@@ -1314,7 +1314,7 @@ BluetoothHfpManager::SendCommand(const char* aCommand, uint32_t aValue)
         if (i == (ArrayLength(sCINDItems) - 1)) {
           break;
         }
-        message.Append(',');
+        message.AppendLiteral(",");
       }
     }
 #ifdef MOZ_B2G_RIL
@@ -1529,7 +1529,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
 
         nsAutoString number(aNumber);
         if (!mCLIP) {
-          number.Truncate();
+          number.AssignLiteral("");
         }
 
         MessageLoop::current()->PostDelayedTask(

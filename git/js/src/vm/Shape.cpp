@@ -1724,7 +1724,7 @@ EmptyShape::getInitialShape(ExclusiveContext *cx, const Class *clasp, TaggedProt
     new (shape) EmptyShape(nbase, nfixed);
 
     Lookup lookup(clasp, protoRoot, parentRoot, metadataRoot, nfixed, objectFlags);
-    if (!p.add(cx, table, lookup, InitialShapeEntry(ReadBarrieredShape(shape), protoRoot)))
+    if (!p.add(cx, table, lookup, InitialShapeEntry(shape, protoRoot)))
         return nullptr;
 
 #ifdef JSGC_GENERATIONAL
@@ -1761,7 +1761,7 @@ NewObjectCache::invalidateEntriesForShape(JSContext *cx, HandleShape shape, Hand
         kind = GetBackgroundAllocKind(kind);
 
     Rooted<GlobalObject *> global(cx, &shape->getObjectParent()->global());
-    Rooted<types::TypeObject *> type(cx, cx->getNewType(clasp, TaggedProto(proto)));
+    Rooted<types::TypeObject *> type(cx, cx->getNewType(clasp, proto.get()));
 
     EntryIndex entry;
     if (lookupGlobal(clasp, global, kind, &entry))
@@ -1792,7 +1792,7 @@ EmptyShape::insertInitialShape(ExclusiveContext *cx, HandleShape shape, HandleOb
     JS_ASSERT(nshape == entry.shape);
 #endif
 
-    entry.shape = ReadBarrieredShape(shape);
+    entry.shape = shape.get();
 
     /*
      * This affects the shape that will be produced by the various NewObject
@@ -1830,8 +1830,7 @@ JSCompartment::sweepInitialShapeTable()
                 JS_ASSERT(parent == shape->getObjectParent());
 #endif
                 if (shape != entry.shape || proto != entry.proto.raw()) {
-                    ReadBarrieredShape readBarrieredShape(shape);
-                    InitialShapeEntry newKey(readBarrieredShape, TaggedProto(proto));
+                    InitialShapeEntry newKey(shape, proto);
                     e.rekeyFront(newKey.getLookup(), newKey);
                 }
             }

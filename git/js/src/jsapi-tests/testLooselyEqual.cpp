@@ -40,7 +40,7 @@ struct LooseEqualityData
     JS::RootedValue poszero;
     JS::RootedValue negzero;
 
-    explicit LooseEqualityData(JSContext *cx)
+    LooseEqualityData(JSContext *cx)
       : qNaN(cx),
         sNaN(cx),
         d42(cx),

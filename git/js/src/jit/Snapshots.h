@@ -149,7 +149,7 @@ class RValueAllocation
     {
     }
 
-    explicit RValueAllocation(Mode mode)
+    RValueAllocation(Mode mode)
       : mode_(mode)
     {
     }

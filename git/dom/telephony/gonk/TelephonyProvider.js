@@ -38,6 +38,9 @@ const CDMA_SECOND_CALL_INDEX = 2;
 const DIAL_ERROR_INVALID_STATE_ERROR = "InvalidStateError";
 const DIAL_ERROR_OTHER_CONNECTION_IN_USE = "OtherConnectionInUse";
 
+// Should match the value we set in dom/telephony/TelephonyCommon.h
+const OUTGOING_PLACEHOLDER_CALL_INDEX = 0xffffffff;
+
 let DEBUG;
 function debug(s) {
   dump("TelephonyProvider: " + s + "\n");
@@ -264,6 +267,11 @@ TelephonyProvider.prototype = {
   },
 
   _updateCallAudioState: function(aCall) {
+    // Ignore audio state setting if the call is a placeholder.
+    if (aCall && aCall.callIndex === OUTGOING_PLACEHOLDER_CALL_INDEX) {
+      return;
+    }
+
     let active = (this._activeCall !== null);
     let incoming = (aCall &&
                     aCall.state === nsITelephonyProvider.CALL_STATE_INCOMING);
@@ -530,7 +538,7 @@ TelephonyProvider.prototype = {
       if (response.isCdma) {
         onCdmaDialSuccess.call(this);
       } else {
-        aTelephonyCallback.notifyDialSuccess(response.callIndex);
+        aTelephonyCallback.notifyDialSuccess();
       }
       return false;
     }).bind(this));
@@ -839,6 +847,13 @@ TelephonyProvider.prototype = {
                           aCall.isSwitchable : true;
       call.isMergeable = aCall.isMergeable != null ?
                          aCall.isMergeable : true;
+
+      // Get the actual call for pending outgoing call. Remove the original one.
+      if (this._currentCalls[aClientId][OUTGOING_PLACEHOLDER_CALL_INDEX] &&
+          call.callIndex != OUTGOING_PLACEHOLDER_CALL_INDEX &&
+          call.isOutgoing) {
+        delete this._currentCalls[aClientId][OUTGOING_PLACEHOLDER_CALL_INDEX];
+      }
 
       this._currentCalls[aClientId][aCall.callIndex] = call;
     }

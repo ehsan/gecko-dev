@@ -20,7 +20,7 @@ class InlineForwardListNode
   public:
     InlineForwardListNode() : next(nullptr)
     { }
-    explicit InlineForwardListNode(InlineForwardListNode<T> *n) : next(n)
+    InlineForwardListNode(InlineForwardListNode<T> *n) : next(n)
     { }
 
   protected:
@@ -155,7 +155,7 @@ private:
 
     typedef InlineForwardListNode<T> Node;
 
-    explicit InlineForwardListIterator<T>(const InlineForwardList<T> *owner)
+    InlineForwardListIterator<T>(const InlineForwardList<T> *owner)
       : prev(const_cast<Node *>(static_cast<const Node *>(owner))),
         iter(owner ? owner->next : nullptr)
 #ifdef DEBUG
@@ -328,7 +328,7 @@ class InlineListIterator
 
     typedef InlineListNode<T> Node;
 
-    explicit InlineListIterator(const Node *iter)
+    InlineListIterator(const Node *iter)
       : iter(const_cast<Node *>(iter))
     { }
 
@@ -372,7 +372,7 @@ class InlineListReverseIterator
 
     typedef InlineListNode<T> Node;
 
-    explicit InlineListReverseIterator(const Node *iter)
+    InlineListReverseIterator(const Node *iter)
       : iter(const_cast<Node *>(iter))
     { }
 
@@ -458,7 +458,7 @@ class InlineConcatListIterator
 
     typedef InlineConcatList<T> Node;
 
-    explicit InlineConcatListIterator(const Node *iter)
+    InlineConcatListIterator(const Node *iter)
       : iter(const_cast<Node *>(iter))
     { }
 

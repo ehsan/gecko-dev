@@ -67,7 +67,7 @@ unsigned resolveExitCount;
 
 struct AutoIncrCounters {
 
-    explicit AutoIncrCounters(cls_testResolveRecursion *t) : t(t) {
+    AutoIncrCounters(cls_testResolveRecursion *t) : t(t) {
         t->resolveEntryCount++;
     }
 

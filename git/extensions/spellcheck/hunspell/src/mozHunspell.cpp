@@ -155,9 +155,9 @@ NS_IMETHODIMP mozHunspell::SetDictionary(const char16_t *aDictionary)
   if (nsDependentString(aDictionary).IsEmpty()) {
     delete mHunspell;
     mHunspell = nullptr;
-    mDictionary.Truncate();
-    mAffixFileName.Truncate();
-    mLanguage.Truncate();
+    mDictionary.AssignLiteral("");
+    mAffixFileName.AssignLiteral("");
+    mLanguage.AssignLiteral("");
     mDecoder = nullptr;
     mEncoder = nullptr;
 

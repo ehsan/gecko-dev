@@ -177,6 +177,10 @@ protected:
     MozQWidget* mWidget;
 
 private:
+    void InitButtonEvent(mozilla::WidgetMouseEvent& event,
+                         QMouseEvent* aEvent,
+                         int aClickCount = 1);
+
     // event handling code
     nsEventStatus DispatchEvent(mozilla::WidgetGUIEvent* aEvent);
     void DispatchActivateEvent(void);

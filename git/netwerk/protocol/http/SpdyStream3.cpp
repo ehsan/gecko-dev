@@ -492,7 +492,7 @@ SpdyStream3::ParseHttpRequestHeaders(const char *buf,
     }
     nsAutoCString route;
     route = ci->GetHost();
-    route.Append(':');
+    route.AppendLiteral(":");
     route.AppendInt(ci->Port());
     CompressToFrame(route);
   }

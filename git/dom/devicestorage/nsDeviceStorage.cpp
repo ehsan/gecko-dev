@@ -315,7 +315,7 @@ DeviceStorageTypeChecker::Check(const nsAString& aType, nsIFile* aFile)
   }
 
   nsAutoString extensionMatch;
-  extensionMatch.Assign('*');
+  extensionMatch.AssignLiteral("*");
   extensionMatch.Append(Substring(path, dotIdx));
   extensionMatch.Append(';');
 
@@ -358,7 +358,7 @@ DeviceStorageTypeChecker::GetTypeFromFileName(const nsAString& aFileName,
   }
 
   nsAutoString extensionMatch;
-  extensionMatch.Assign('*');
+  extensionMatch.AssignLiteral("*");
   extensionMatch.Append(Substring(aFileName, dotIdx));
   extensionMatch.Append(';');
 

@@ -3154,7 +3154,7 @@ class MemoryInitVisitor {
     const JSRuntime *rt_;
 
   public:
-    explicit MemoryInitVisitor(const JSRuntime *rt)
+    MemoryInitVisitor(const JSRuntime *rt)
       : rt_(rt)
     {}
 
@@ -3222,7 +3222,7 @@ class MemoryTracingVisitor {
 
   public:
 
-    explicit MemoryTracingVisitor(JSTracer *trace)
+    MemoryTracingVisitor(JSTracer *trace)
       : trace_(trace)
     {}
 

@@ -43,7 +43,7 @@ static const size_t kBitsPerByteLog2 = 3;
 class MOZ_STACK_CLASS RegExpStackCursor
 {
   public:
-    explicit RegExpStackCursor(JSContext *cx)
+    RegExpStackCursor(JSContext *cx)
       : cx(cx), cursor(base())
     {}
 
@@ -173,8 +173,6 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode,
             pc += BC_POP_CP_LENGTH;
             break;
           BYTECODE(POP_BT)
-            if (!CheckForInterrupt(cx))
-                return RegExpRunStatus_Error;
             pc = byteCode + stack.pop();
             break;
           BYTECODE(POP_REGISTER)

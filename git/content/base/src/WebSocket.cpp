@@ -992,7 +992,7 @@ WebSocket::ParseURL(const nsString& aURL)
   nsAutoCString filePath;
   rv = parsedURL->GetFilePath(filePath);
   if (filePath.IsEmpty()) {
-    filePath.Assign('/');
+    filePath.AssignLiteral("/");
   }
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_SYNTAX_ERR);
 

@@ -69,10 +69,6 @@ IonBailoutIterator::dump() const
     }
 }
 
-// This address is a magic number made to cause crashes while indicating that we
-// are making an attempt to mark the stack during a bailout.
-static uint8_t * const FAKE_JIT_TOP_FOR_BAILOUT = reinterpret_cast<uint8_t *>(0xba1);
-
 uint32_t
 jit::Bailout(BailoutStack *sp, BaselineBailoutInfo **bailoutInfo)
 {
@@ -80,10 +76,7 @@ jit::Bailout(BailoutStack *sp, BaselineBailoutInfo **bailoutInfo)
     JS_ASSERT(bailoutInfo);
 
     // We don't have an exit frame.
-    MOZ_ASSERT(size_t(FAKE_JIT_TOP_FOR_BAILOUT + sizeof(IonCommonFrameLayout)) < 0x1000 &&
-               size_t(FAKE_JIT_TOP_FOR_BAILOUT) >= 0,
-               "Fake jitTop pointer should be within the first page.");
-    cx->mainThread().jitTop = FAKE_JIT_TOP_FOR_BAILOUT;
+    cx->mainThread().jitTop = nullptr;
     gc::AutoSuppressGC suppress(cx);
 
     JitActivationIterator jitActivations(cx->runtime());
@@ -131,7 +124,7 @@ jit::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
     JSContext *cx = GetJSContextFromJitCode();
 
     // We don't have an exit frame.
-    cx->mainThread().jitTop = FAKE_JIT_TOP_FOR_BAILOUT;
+    cx->mainThread().jitTop = nullptr;
     gc::AutoSuppressGC suppress(cx);
 
     JitActivationIterator jitActivations(cx->runtime());
@@ -213,7 +206,7 @@ jit::ExceptionHandlerBailout(JSContext *cx, const InlineFrameIterator &frame,
     // operation callback like a timeout handler.
     MOZ_ASSERT_IF(!excInfo.propagatingIonExceptionForDebugMode(), cx->isExceptionPending());
 
-    cx->mainThread().jitTop = FAKE_JIT_TOP_FOR_BAILOUT;
+    cx->mainThread().jitTop = nullptr;
     gc::AutoSuppressGC suppress(cx);
 
     JitActivationIterator jitActivations(cx->runtime());

@@ -2313,7 +2313,6 @@ CanvasRenderingContext2D::SetFont(const nsAString& font,
                      fontStyle->mFont.sizeAdjust,
                      fontStyle->mFont.systemFont,
                      printerFont,
-                     fontStyle->mFont.variant == NS_STYLE_FONT_VARIANT_SMALL_CAPS,
                      fontStyle->mFont.languageOverride);
 
   fontStyle->mFont.AddFontFeaturesToStyle(&style);
@@ -3727,13 +3726,8 @@ CanvasRenderingContext2D::AsyncDrawXULElement(nsXULElement& elem,
 
   PBrowserParent *child = frameloader->GetRemoteBrowser();
   if (!child) {
-    nsIDocShell* docShell = frameLoader->GetExistingDocShell();
-    if (!docShell) {
-      error.Throw(NS_ERROR_FAILURE);
-      return;
-    }
-
-    nsCOMPtr<nsIDOMWindow> window = docShell->GetWindow();
+    nsCOMPtr<nsIDOMWindow> window =
+      do_GetInterface(frameloader->GetExistingDocShell());
     if (!window) {
       error.Throw(NS_ERROR_FAILURE);
       return;

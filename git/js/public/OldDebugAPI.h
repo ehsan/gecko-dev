@@ -444,7 +444,7 @@ class JS_PUBLIC_API(JSBrokenFrameIterator)
     void *data_;
 
   public:
-    explicit JSBrokenFrameIterator(JSContext *cx);
+    JSBrokenFrameIterator(JSContext *cx);
     ~JSBrokenFrameIterator();
 
     bool done() const;

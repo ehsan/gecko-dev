@@ -71,7 +71,7 @@ class StaticScopeIter
                      obj->is<JSFunction>());
     }
 
-    explicit StaticScopeIter(JSObject *obj)
+    StaticScopeIter(JSObject *obj)
       : obj((ExclusiveContext *) nullptr, obj), onNamedLambda(false)
     {
         JS_STATIC_ASSERT(allowGC == NoGC);
@@ -116,7 +116,7 @@ class ScopeCoordinate
     static_assert(SCOPECOORD_SLOT_BITS <= 32, "We have enough bits below");
 
   public:
-    explicit inline ScopeCoordinate(jsbytecode *pc)
+    inline ScopeCoordinate(jsbytecode *pc)
       : hops_(GET_SCOPECOORD_HOPS(pc)), slot_(GET_SCOPECOORD_SLOT(pc + SCOPECOORD_HOPS_LEN))
     {
         JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
@@ -691,7 +691,7 @@ class ScopeIterKey
     bool hasScopeObject_;
 
   public:
-    explicit ScopeIterKey(const ScopeIter &si)
+    ScopeIterKey(const ScopeIter &si)
       : frame_(si.frame()), cur_(si.cur_), staticScope_(si.staticScope_), type_(si.type_),
         hasScopeObject_(si.hasScopeObject_) {}
 
@@ -732,7 +732,7 @@ class ScopeIterVal
     static void staticAsserts();
 
   public:
-    explicit ScopeIterVal(const ScopeIter &si)
+    ScopeIterVal(const ScopeIter &si)
       : frame_(si.frame()), cur_(si.cur_), staticScope_(si.staticScope_), type_(si.type_),
         hasScopeObject_(si.hasScopeObject_) {}
 
@@ -843,7 +843,7 @@ class DebugScopes
                                                             ScopeObject *key);
 
   public:
-    explicit DebugScopes(JSContext *c);
+    DebugScopes(JSContext *c);
     ~DebugScopes();
 
   private:

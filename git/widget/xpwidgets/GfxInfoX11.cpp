@@ -193,7 +193,7 @@ GfxInfo::GetData()
     note.Append(mVersion);
     if (mHasTextureFromPixmap)
         note.AppendLiteral(" -- texture_from_pixmap");
-    note.Append('\n');
+    note.AppendLiteral("\n");
 #ifdef MOZ_CRASHREPORTER
     CrashReporter::AppendAppNotesToCrashReport(note);
 #endif
@@ -423,7 +423,7 @@ GfxInfo::GetAdapterDescription2(nsAString & aAdapterDescription)
 NS_IMETHODIMP
 GfxInfo::GetAdapterRAM(nsAString & aAdapterRAM)
 {
-  aAdapterRAM.Truncate();
+  aAdapterRAM.AssignLiteral("");
   return NS_OK;
 }
 
@@ -438,7 +438,7 @@ GfxInfo::GetAdapterRAM2(nsAString & aAdapterRAM)
 NS_IMETHODIMP
 GfxInfo::GetAdapterDriver(nsAString & aAdapterDriver)
 {
-  aAdapterDriver.Truncate();
+  aAdapterDriver.AssignLiteral("");
   return NS_OK;
 }
 
@@ -469,7 +469,7 @@ GfxInfo::GetAdapterDriverVersion2(nsAString & aAdapterDriverVersion)
 NS_IMETHODIMP
 GfxInfo::GetAdapterDriverDate(nsAString & aAdapterDriverDate)
 {
-  aAdapterDriverDate.Truncate();
+  aAdapterDriverDate.AssignLiteral("");
   return NS_OK;
 }
 

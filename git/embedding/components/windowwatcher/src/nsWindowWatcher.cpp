@@ -801,8 +801,10 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     // cases we do _not_ set the parent window principal as the owner of the
     // load--since we really don't know who the owner is, just leave it null.
     nsCOMPtr<nsPIDOMWindow> newWindow = do_QueryInterface(*_retval);
-    NS_ASSERTION(newWindow == newDocShell->GetWindow(), "Different windows??");
-
+#ifdef DEBUG
+    nsCOMPtr<nsPIDOMWindow> newDebugWindow = do_GetInterface(newDocShell);
+    NS_ASSERTION(newWindow == newDebugWindow, "Different windows??");
+#endif
     // The principal of the initial about:blank document gets set up in
     // nsWindowWatcher::AddWindow. Make sure to call it. In the common case
     // this call already happened when the window was created, but
@@ -1310,10 +1312,8 @@ nsWindowWatcher::GetWindowByName(const char16_t *aTargetName,
     FindItemWithName(aTargetName, nullptr, nullptr, getter_AddRefs(treeItem));
   }
 
-  if (treeItem) {
-    nsCOMPtr<nsIDOMWindow> domWindow = treeItem->GetWindow();
-    domWindow.forget(aResult);
-  }
+  nsCOMPtr<nsIDOMWindow> domWindow = do_GetInterface(treeItem);
+  domWindow.swap(*aResult);
 
   return NS_OK;
 }
@@ -1734,7 +1734,7 @@ nsWindowWatcher::GetCallerTreeItem(nsIDocShellTreeItem* aParentItem)
   return callerItem.forget();
 }
 
-nsPIDOMWindow*
+already_AddRefed<nsIDOMWindow>
 nsWindowWatcher::SafeGetWindowByName(const nsAString& aName,
                                      nsIDOMWindow* aCurrentWindow)
 {
@@ -1755,7 +1755,8 @@ nsWindowWatcher::SafeGetWindowByName(const nsAString& aName,
                      getter_AddRefs(foundItem));
   }
 
-  return foundItem ? foundItem->GetWindow() : nullptr;
+  nsCOMPtr<nsIDOMWindow> foundWin = do_GetInterface(foundItem);
+  return foundWin.forget();
 }
 
 /* Fetch the nsIDOMWindow corresponding to the given nsIDocShellTreeItem.
@@ -1771,10 +1772,8 @@ nsWindowWatcher::ReadyOpenedDocShellItem(nsIDocShellTreeItem *aOpenedItem,
 {
   nsresult rv = NS_ERROR_FAILURE;
 
-  NS_ENSURE_ARG(aOpenedWindow);
-
   *aOpenedWindow = 0;
-  nsCOMPtr<nsPIDOMWindow> piOpenedWindow = aOpenedItem->GetWindow();
+  nsCOMPtr<nsPIDOMWindow> piOpenedWindow(do_GetInterface(aOpenedItem));
   if (piOpenedWindow) {
     if (aParent) {
       piOpenedWindow->SetOpenerWindow(aParent, aWindowIsNew); // damnit

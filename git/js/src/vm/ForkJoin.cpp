@@ -435,14 +435,14 @@ class AutoEnterWarmup
     JSRuntime *runtime_;
 
   public:
-    explicit AutoEnterWarmup(JSRuntime *runtime) : runtime_(runtime) { runtime_->forkJoinWarmup++; }
+    AutoEnterWarmup(JSRuntime *runtime) : runtime_(runtime) { runtime_->forkJoinWarmup++; }
     ~AutoEnterWarmup() { runtime_->forkJoinWarmup--; }
 };
 
 class AutoSetForkJoinContext
 {
   public:
-    explicit AutoSetForkJoinContext(ForkJoinContext *threadCx) {
+    AutoSetForkJoinContext(ForkJoinContext *threadCx) {
         ForkJoinContext::tlsForkJoinContext.set(threadCx);
     }
 

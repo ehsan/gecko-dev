@@ -67,7 +67,7 @@ AsmJSFrameIterator::AsmJSFrameIterator(const AsmJSActivation *activation)
 struct GetCallSite
 {
     const AsmJSModule &module;
-    explicit GetCallSite(const AsmJSModule &module) : module(module) {}
+    GetCallSite(const AsmJSModule &module) : module(module) {}
     uint32_t operator[](size_t index) const {
         return module.callSite(index).returnAddressOffset();
     }

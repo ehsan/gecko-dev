@@ -15,6 +15,7 @@
 
 using namespace mozilla::dom;
 using mozilla::ErrorResult;
+using mozilla::dom::telephony::kOutgoingPlaceholderCallIndex;
 
 // static
 already_AddRefed<TelephonyCall>
@@ -46,6 +47,7 @@ TelephonyCall::Create(Telephony* aTelephony, uint32_t aServiceId,
 
 TelephonyCall::TelephonyCall(nsPIDOMWindow* aOwner)
   : DOMEventTargetHelper(aOwner),
+    mCallIndex(kOutgoingPlaceholderCallIndex),
     mCallState(nsITelephonyProvider::CALL_STATE_UNKNOWN),
     mLive(false)
 {

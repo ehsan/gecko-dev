@@ -32,7 +32,6 @@ EXPORTS += [
     'nsQueryFrame.h',
     'nsSplittableFrame.h',
     'nsSubDocumentFrame.h',
-    'nsTextRunTransformations.h',
     'ScrollbarActivity.h',
     'Selection.h',
     'WritingModes.h',

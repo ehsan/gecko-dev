@@ -545,7 +545,7 @@ class MIRGraph
     bool hasTryBlock_;
 
   public:
-    explicit MIRGraph(TempAllocator *alloc)
+    MIRGraph(TempAllocator *alloc)
       : alloc_(alloc),
         returnAccumulator_(nullptr),
         blockIdGen_(0),
@@ -698,7 +698,7 @@ class MDefinitionIterator
     }
 
   public:
-    explicit MDefinitionIterator(MBasicBlock *block)
+    MDefinitionIterator(MBasicBlock *block)
       : block_(block),
         phiIter_(block->phisBegin()),
         iter_(block->begin())

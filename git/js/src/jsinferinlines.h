@@ -231,7 +231,7 @@ struct AutoEnterAnalysis
     JSCompartment *compartment;
     bool oldActiveAnalysis;
 
-    explicit AutoEnterAnalysis(ExclusiveContext *cx)
+    AutoEnterAnalysis(ExclusiveContext *cx)
       : suppressGC(cx)
     {
         init(cx->defaultFreeOp(), cx->compartment());
@@ -325,7 +325,7 @@ GetTypeNewObject(JSContext *cx, JSProtoKey key)
     RootedObject proto(cx);
     if (!GetBuiltinPrototype(cx, key, &proto))
         return nullptr;
-    return cx->getNewType(GetClassForProtoKey(key), TaggedProto(proto.get()));
+    return cx->getNewType(GetClassForProtoKey(key), proto.get());
 }
 
 /* Get a type object for the immediate allocation site within a native. */

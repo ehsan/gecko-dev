@@ -166,7 +166,7 @@ class TypedOrValueRegister
         dataTyped() = reg;
     }
 
-    MOZ_IMPLICIT TypedOrValueRegister(ValueOperand value)
+    TypedOrValueRegister(ValueOperand value)
       : type_(MIRType_Value)
     {
         dataValue() = value;
@@ -225,13 +225,13 @@ class ConstantOrRegister
     ConstantOrRegister()
     {}
 
-    MOZ_IMPLICIT ConstantOrRegister(Value value)
+    ConstantOrRegister(Value value)
       : constant_(true)
     {
         dataValue() = value;
     }
 
-    MOZ_IMPLICIT ConstantOrRegister(TypedOrValueRegister reg)
+    ConstantOrRegister(TypedOrValueRegister reg)
       : constant_(false)
     {
         dataReg() = reg;
@@ -631,7 +631,7 @@ class TypedRegisterIterator
     TypedRegisterSet<T> regset_;
 
   public:
-    explicit TypedRegisterIterator(TypedRegisterSet<T> regset) : regset_(regset)
+    TypedRegisterIterator(TypedRegisterSet<T> regset) : regset_(regset)
     { }
     TypedRegisterIterator(const TypedRegisterIterator &other) : regset_(other.regset_)
     { }
@@ -660,7 +660,7 @@ class TypedRegisterBackwardIterator
     TypedRegisterSet<T> regset_;
 
   public:
-    explicit TypedRegisterBackwardIterator(TypedRegisterSet<T> regset) : regset_(regset)
+    TypedRegisterBackwardIterator(TypedRegisterSet<T> regset) : regset_(regset)
     { }
     TypedRegisterBackwardIterator(const TypedRegisterBackwardIterator &other)
       : regset_(other.regset_)
@@ -690,7 +690,7 @@ class TypedRegisterForwardIterator
     TypedRegisterSet<T> regset_;
 
   public:
-    explicit TypedRegisterForwardIterator(TypedRegisterSet<T> regset) : regset_(regset)
+    TypedRegisterForwardIterator(TypedRegisterSet<T> regset) : regset_(regset)
     { }
     TypedRegisterForwardIterator(const TypedRegisterForwardIterator &other) : regset_(other.regset_)
     { }
@@ -731,7 +731,7 @@ class AnyRegisterIterator
     AnyRegisterIterator(GeneralRegisterSet genset, FloatRegisterSet floatset)
       : geniter_(genset), floatiter_(floatset)
     { }
-    explicit AnyRegisterIterator(const RegisterSet &set)
+    AnyRegisterIterator(const RegisterSet &set)
       : geniter_(set.gpr_), floatiter_(set.fpu_)
     { }
     AnyRegisterIterator(const AnyRegisterIterator &other)
@@ -770,9 +770,9 @@ class ABIArg
 
   public:
     ABIArg() : kind_(Kind(-1)) { u.offset_ = -1; }
-    explicit ABIArg(Register gpr) : kind_(GPR) { u.gpr_ = gpr.code(); }
-    explicit ABIArg(FloatRegister fpu) : kind_(FPU) { u.fpu_ = fpu.code(); }
-    explicit ABIArg(uint32_t offset) : kind_(Stack) { u.offset_ = offset; }
+    ABIArg(Register gpr) : kind_(GPR) { u.gpr_ = gpr.code(); }
+    ABIArg(FloatRegister fpu) : kind_(FPU) { u.fpu_ = fpu.code(); }
+    ABIArg(uint32_t offset) : kind_(Stack) { u.offset_ = offset; }
 
     Kind kind() const { return kind_; }
     Register gpr() const { JS_ASSERT(kind() == GPR); return Register::FromCode(u.gpr_); }

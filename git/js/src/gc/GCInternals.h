@@ -31,7 +31,7 @@ class AutoCopyFreeListToArenas
 
 struct AutoFinishGC
 {
-    explicit AutoFinishGC(JSRuntime *rt);
+    AutoFinishGC(JSRuntime *rt);
 };
 
 /*
@@ -41,7 +41,7 @@ struct AutoFinishGC
 class AutoTraceSession
 {
   public:
-    explicit AutoTraceSession(JSRuntime *rt, HeapState state = Tracing);
+    AutoTraceSession(JSRuntime *rt, HeapState state = Tracing);
     ~AutoTraceSession();
 
   protected:
@@ -68,7 +68,7 @@ class IncrementalSafety
 {
     const char *reason_;
 
-    explicit IncrementalSafety(const char *reason) : reason_(reason) {}
+    IncrementalSafety(const char *reason) : reason_(reason) {}
 
   public:
     static IncrementalSafety Safe() { return IncrementalSafety(nullptr); }

@@ -367,7 +367,8 @@ template <>
 inline bool
 JSObject::is<js::ArrayBufferViewObject>() const
 {
-    return is<js::DataViewObject>() || is<js::TypedArrayObject>();
+    return is<js::DataViewObject>() || is<js::TypedArrayObject>() ||
+           IsTypedObjectClass(getClass());
 }
 
 #endif /* vm_TypedArrayObject_h */

@@ -117,19 +117,19 @@ class AbstractFramePtr
       : ptr_(0)
     {}
 
-    MOZ_IMPLICIT AbstractFramePtr(InterpreterFrame *fp)
+    AbstractFramePtr(InterpreterFrame *fp)
       : ptr_(fp ? uintptr_t(fp) | Tag_InterpreterFrame : 0)
     {
         MOZ_ASSERT_IF(fp, asInterpreterFrame() == fp);
     }
 
-    MOZ_IMPLICIT AbstractFramePtr(jit::BaselineFrame *fp)
+    AbstractFramePtr(jit::BaselineFrame *fp)
       : ptr_(fp ? uintptr_t(fp) | Tag_BaselineFrame : 0)
     {
         MOZ_ASSERT_IF(fp, asBaselineFrame() == fp);
     }
 
-    MOZ_IMPLICIT AbstractFramePtr(jit::RematerializedFrame *fp)
+    AbstractFramePtr(jit::RematerializedFrame *fp)
       : ptr_(fp ? uintptr_t(fp) | Tag_RematerializedFrame : 0)
     {
         MOZ_ASSERT_IF(fp, asRematerializedFrame() == fp);
@@ -1102,7 +1102,7 @@ class InvokeArgs : public JS::CallArgs
     AutoValueVector v_;
 
   public:
-    explicit InvokeArgs(JSContext *cx) : v_(cx) {}
+    InvokeArgs(JSContext *cx) : v_(cx) {}
 
     bool init(unsigned argc) {
         if (!v_.resize(2 + argc))
@@ -1356,7 +1356,7 @@ class JitActivation : public Activation
 
   public:
     JitActivation(JSContext *cx, bool firstFrameIsConstructing, bool active = true);
-    explicit JitActivation(ForkJoinContext *cx);
+    JitActivation(ForkJoinContext *cx);
     ~JitActivation();
 
     bool isActive() const {
@@ -1595,12 +1595,12 @@ class FrameIter
         Data(const Data &other);
     };
 
-    MOZ_IMPLICIT FrameIter(ThreadSafeContext *cx, SavedOption = STOP_AT_SAVED);
+    FrameIter(ThreadSafeContext *cx, SavedOption = STOP_AT_SAVED);
     FrameIter(ThreadSafeContext *cx, ContextOption, SavedOption);
     FrameIter(JSContext *cx, ContextOption, SavedOption, JSPrincipals *);
     FrameIter(const FrameIter &iter);
-    MOZ_IMPLICIT FrameIter(const Data &data);
-    MOZ_IMPLICIT FrameIter(AbstractFramePtr frame);
+    FrameIter(const Data &data);
+    FrameIter(AbstractFramePtr frame);
 
     bool done() const { return data_.state_ == DONE; }
 
@@ -1730,7 +1730,7 @@ class ScriptFrameIter : public FrameIter
     }
 
   public:
-    explicit ScriptFrameIter(ThreadSafeContext *cx, SavedOption savedOption = STOP_AT_SAVED)
+    ScriptFrameIter(ThreadSafeContext *cx, SavedOption savedOption = STOP_AT_SAVED)
       : FrameIter(cx, savedOption)
     {
         settle();
@@ -1754,8 +1754,8 @@ class ScriptFrameIter : public FrameIter
     }
 
     ScriptFrameIter(const ScriptFrameIter &iter) : FrameIter(iter) { settle(); }
-    explicit ScriptFrameIter(const FrameIter::Data &data) : FrameIter(data) { settle(); }
-    explicit ScriptFrameIter(AbstractFramePtr frame) : FrameIter(frame) { settle(); }
+    ScriptFrameIter(const FrameIter::Data &data) : FrameIter(data) { settle(); }
+    ScriptFrameIter(AbstractFramePtr frame) : FrameIter(frame) { settle(); }
 
     ScriptFrameIter &operator++() {
         FrameIter::operator++();
@@ -1780,8 +1780,8 @@ class NonBuiltinFrameIter : public FrameIter
     void settle();
 
   public:
-    explicit NonBuiltinFrameIter(ThreadSafeContext *cx,
-                                 FrameIter::SavedOption opt = FrameIter::STOP_AT_SAVED)
+    NonBuiltinFrameIter(ThreadSafeContext *cx,
+                        FrameIter::SavedOption opt = FrameIter::STOP_AT_SAVED)
       : FrameIter(cx, opt)
     {
         settle();
@@ -1804,7 +1804,7 @@ class NonBuiltinFrameIter : public FrameIter
         settle();
     }
 
-    explicit NonBuiltinFrameIter(const FrameIter::Data &data)
+    NonBuiltinFrameIter(const FrameIter::Data &data)
       : FrameIter(data)
     {}
 
@@ -1821,7 +1821,7 @@ class NonBuiltinScriptFrameIter : public ScriptFrameIter
     void settle();
 
   public:
-    explicit NonBuiltinScriptFrameIter(ThreadSafeContext *cx,
+    NonBuiltinScriptFrameIter(ThreadSafeContext *cx,
                               ScriptFrameIter::SavedOption opt = ScriptFrameIter::STOP_AT_SAVED)
       : ScriptFrameIter(cx, opt)
     {
@@ -1845,7 +1845,7 @@ class NonBuiltinScriptFrameIter : public ScriptFrameIter
         settle();
     }
 
-    explicit NonBuiltinScriptFrameIter(const ScriptFrameIter::Data &data)
+    NonBuiltinScriptFrameIter(const ScriptFrameIter::Data &data)
       : ScriptFrameIter(data)
     {}
 
@@ -1863,7 +1863,7 @@ class NonBuiltinScriptFrameIter : public ScriptFrameIter
 class AllFramesIter : public ScriptFrameIter
 {
   public:
-    explicit AllFramesIter(ThreadSafeContext *cx)
+    AllFramesIter(ThreadSafeContext *cx)
       : ScriptFrameIter(cx, ScriptFrameIter::ALL_CONTEXTS, ScriptFrameIter::GO_THROUGH_SAVED)
     {}
 };

@@ -100,7 +100,7 @@ class PowPolicy : public BoxInputsPolicy
     MIRType specialization_;
 
   public:
-    explicit PowPolicy(MIRType specialization)
+    PowPolicy(MIRType specialization)
       : specialization_(specialization)
     { }
 

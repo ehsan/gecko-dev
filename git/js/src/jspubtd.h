@@ -180,7 +180,7 @@ struct Runtime
 #endif
 
   public:
-    explicit Runtime(
+    Runtime(
 #ifdef JSGC_GENERATIONAL
         js::gc::StoreBuffer *storeBuffer
 #endif

@@ -249,7 +249,7 @@ enum GCProgress {
 struct JS_FRIEND_API(GCDescription) {
     bool isCompartment_;
 
-    explicit GCDescription(bool isCompartment)
+    GCDescription(bool isCompartment)
       : isCompartment_(isCompartment) {}
 
     jschar *formatMessage(JSRuntime *rt) const;
@@ -341,7 +341,7 @@ class JS_FRIEND_API(AutoDisableGenerationalGC)
 #endif
 
   public:
-    explicit AutoDisableGenerationalGC(JSRuntime *rt);
+    AutoDisableGenerationalGC(JSRuntime *rt);
     ~AutoDisableGenerationalGC();
 };
 
@@ -395,7 +395,7 @@ class JS_PUBLIC_API(AutoAssertNoGC)
   public:
     /* Prevent unreferenced local warnings in opt builds. */
     AutoAssertNoGC() {}
-    explicit AutoAssertNoGC(JSRuntime *) {}
+    AutoAssertNoGC(JSRuntime *) {}
 #endif
 };
 
@@ -406,7 +406,7 @@ class JS_PUBLIC_API(ObjectPtr)
   public:
     ObjectPtr() : value(nullptr) {}
 
-    explicit ObjectPtr(JSObject *obj) : value(obj) {}
+    ObjectPtr(JSObject *obj) : value(obj) {}
 
     /* Always call finalize before the destructor. */
     ~ObjectPtr() { MOZ_ASSERT(!value); }

@@ -931,14 +931,13 @@ RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
   BuildViewMap();
 }
 
-nsEventStatus
+void
 RenderFrameParent::NotifyInputEvent(WidgetInputEvent& aEvent,
                                     ScrollableLayerGuid* aOutTargetGuid)
 {
   if (GetApzcTreeManager()) {
-    return GetApzcTreeManager()->ReceiveInputEvent(aEvent, aOutTargetGuid);
+    GetApzcTreeManager()->ReceiveInputEvent(aEvent, aOutTargetGuid);
   }
-  return nsEventStatus_eIgnore;
 }
 
 void

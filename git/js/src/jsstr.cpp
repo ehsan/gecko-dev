@@ -1202,7 +1202,7 @@ class StringSegmentRange
     }
 
   public:
-    explicit StringSegmentRange(JSContext *cx)
+    StringSegmentRange(JSContext *cx)
       : stack(cx), cur(cx)
     {}
 
@@ -1707,7 +1707,7 @@ class FlatMatch
     friend class StringRegExpGuard;
 
   public:
-    explicit FlatMatch(JSContext *cx) : patstr(cx) {}
+    FlatMatch(JSContext *cx) : patstr(cx) {}
     JSLinearString *pattern() const { return patstr; }
     size_t patternLength() const { return patlen; }
 
@@ -1793,7 +1793,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
     }
 
   public:
-    explicit StringRegExpGuard(JSContext *cx)
+    StringRegExpGuard(JSContext *cx)
       : re_(cx), fm(cx), obj_(cx)
     { }
 
@@ -2221,7 +2221,7 @@ class RopeBuilder {
     void operator=(const RopeBuilder &other) MOZ_DELETE;
 
   public:
-    explicit RopeBuilder(JSContext *cx)
+    RopeBuilder(JSContext *cx)
       : cx(cx), res(cx, cx->runtime()->emptyString)
     {}
 
@@ -2239,7 +2239,7 @@ namespace {
 
 struct ReplaceData
 {
-    explicit ReplaceData(JSContext *cx)
+    ReplaceData(JSContext *cx)
       : str(cx), g(cx), lambda(cx), elembase(cx), repstr(cx),
         fig(cx, NullValue()), sb(cx)
     {}

@@ -225,7 +225,7 @@ class ForkJoinActivation : public Activation
     gc::AutoStopVerifyingBarriers av_;
 
   public:
-    explicit ForkJoinActivation(JSContext *cx);
+    ForkJoinActivation(JSContext *cx);
     ~ForkJoinActivation();
 };
 
@@ -446,7 +446,7 @@ class LockedJSContext
     JSContext *jscx_;
 
   public:
-    explicit LockedJSContext(ForkJoinContext *cx)
+    LockedJSContext(ForkJoinContext *cx)
 #if defined(JS_THREADSAFE) && defined(JS_ION)
       : cx_(cx),
         jscx_(cx->acquireJSContext())

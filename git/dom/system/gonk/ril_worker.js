@@ -75,6 +75,9 @@ const MMI_MAX_LENGTH_SHORT_CODE = 2;
 
 const MMI_END_OF_USSD = "#";
 
+// Should match the value we set in dom/telephony/TelephonyCommon.h
+const OUTGOING_PLACEHOLDER_CALL_INDEX = 0xffffffff;
+
 let RILQUIRKS_CALLSTATE_EXTRA_UINT32;
 // This may change at runtime since in RIL v6 and later, we get the version
 // number via the UNSOLICITED_RIL_CONNECTED parcel.
@@ -352,7 +355,7 @@ function RilObject(aContext) {
   this.v5Legacy = RILQUIRKS_V5_LEGACY;
   this.cellBroadcastDisabled = RIL_CELLBROADCAST_DISABLED;
 
-  this.pendingMO = null;
+  this._hasHangUpPendingOutgoingCall = false;
 }
 RilObject.prototype = {
   context: null,
@@ -538,10 +541,9 @@ RilObject.prototype = {
     this.mergedCellBroadcastConfig = null;
 
     /**
-     * A successful dialing request.
-     * { options: options of the corresponding dialing request }
+     * True if the pending outgoing call is hung up by user.
      */
-    this.pendingMO = null;
+    this._hasHangUpPendingOutgoingCall = false;
   },
 
   /**
@@ -1643,6 +1645,11 @@ RilObject.prototype = {
   },
 
   sendRilRequestDial: function(options) {
+    // Always succeed.
+    options.success = true;
+    this.sendChromeMessage(options);
+    this._createPendingOutgoingCall(options);
+
     let Buf = this.context.Buf;
     Buf.newParcel(options.request, options);
     Buf.writeString(options.number);
@@ -1684,11 +1691,20 @@ RilObject.prototype = {
       return;
     }
 
+    let callIndex = call.callIndex;
+    if (callIndex === OUTGOING_PLACEHOLDER_CALL_INDEX) {
+      if (DEBUG) this.context.debug("Hang up pending outgoing call.");
+      this._hasHangUpPendingOutgoingCall = true;
+      this._removeVoiceCall(call, GECKO_CALL_ERROR_NORMAL_CALL_CLEARING);
+      return;
+    }
+
     call.hangUpLocal = true;
+
     if (call.state === CALL_STATE_HOLDING) {
       this.sendHangUpBackgroundRequest();
     } else {
-      this.sendHangUpRequest(call.callIndex);
+      this.sendHangUpRequest(callIndex);
     }
   },
 
@@ -2263,6 +2279,9 @@ RilObject.prototype = {
     Buf.writeString(options.cid);
     Buf.writeString(options.reason || DATACALL_DEACTIVATE_NO_REASON);
     Buf.sendParcel();
+
+    datacall.state = GECKO_NETWORK_STATE_DISCONNECTING;
+    this.sendChromeMessage(datacall);
   },
 
   /**
@@ -3921,11 +3940,17 @@ RilObject.prototype = {
   _processCalls: function(newCalls) {
     let conferenceChanged = false;
     let clearConferenceRequest = false;
+    let pendingOutgoingCall = null;
 
     // Go through the calls we currently have on file and see if any of them
     // changed state. Remove them from the newCalls map as we deal with them
     // so that only new calls remain in the map after we're done.
     for each (let currentCall in this.currentCalls) {
+      if (currentCall.callIndex == OUTGOING_PLACEHOLDER_CALL_INDEX) {
+        pendingOutgoingCall = currentCall;
+        continue;
+      }
+
       let newCall;
       if (newCalls) {
         newCall = newCalls[currentCall.callIndex];
@@ -4029,30 +4054,14 @@ RilObject.prototype = {
       }
     }
 
-    // We have a successful dialing request. Check whether we could find a new
-    // call for it.
-    if (this.pendingMO) {
-      let options = this.pendingMO.options;
-      this.pendingMO = null;
-
-      // Find the callIndex of the new outgoing call.
-      let callIndex = -1;
-      for (let i in newCalls) {
-        if (newCalls[i].state !== CALL_STATE_INCOMING) {
-          callIndex = newCalls[i].callIndex;
-          break;
-        }
-      }
-
-      if (callIndex === -1) {
-        // The call doesn't exist.
-        options.success = false;
-        options.errorMsg = GECKO_CALL_ERROR_UNSPECIFIED;
-        this.sendChromeMessage(options);
+    if (pendingOutgoingCall) {
+      if (!newCalls || Object.keys(newCalls).length === 0) {
+        // We don't get a successful call for pendingOutgoingCall.
+        this._removePendingOutgoingCall(GECKO_CALL_ERROR_UNSPECIFIED);
       } else {
-        options.success = true;
-        options.callIndex = callIndex;
-        this.sendChromeMessage(options);
+        // Only remove it from currentCalls map. Will use the new call to
+        // replace the placeholder.
+        delete this.currentCalls[OUTGOING_PLACEHOLDER_CALL_INDEX];
       }
     }
 
@@ -4066,8 +4075,19 @@ RilObject.prototype = {
         conferenceChanged = true;
       }
 
-      this._addNewVoiceCall(newCall);
+      if (this._hasHangUpPendingOutgoingCall &&
+          (newCall.state === CALL_STATE_DIALING ||
+           newCall.state === CALL_STATE_ALERTING)) {
+        // Receive a new outgoing call which is already hung up by user.
+        if (DEBUG) this.context.debug("Pending outgoing call is hung up by user.");
+        this._hasHangUpPendingOutgoingCall = false;
+        this.sendHangUpRequest(newCall.callIndex);
+      } else {
+        this._addNewVoiceCall(newCall);
+      }
     }
+
+    this._hasHangUpPendingOutgoingCall = false;
 
     if (clearConferenceRequest) {
       this._hasConferenceRequest = false;
@@ -4126,6 +4146,25 @@ RilObject.prototype = {
         }).bind(this, removedCall));
       }
     }
+  },
+
+  _createPendingOutgoingCall: function(options) {
+    if (DEBUG) this.context.debug("Create a pending outgoing call.");
+    this._addNewVoiceCall({
+      number: options.number,
+      state: CALL_STATE_DIALING,
+      callIndex: OUTGOING_PLACEHOLDER_CALL_INDEX
+    });
+  },
+
+  _removePendingOutgoingCall: function(failCause) {
+    let call = this.currentCalls[OUTGOING_PLACEHOLDER_CALL_INDEX];
+    if (!call) {
+      return;
+    }
+
+    if (DEBUG) this.context.debug("Remove pending outgoing call.");
+    this._removeVoiceCall(call, failCause);
   },
 
   _ensureConference: function() {
@@ -4263,6 +4302,14 @@ RilObject.prototype = {
           currentDataCall.rilMessageType = "datacallstatechange";
           this.sendChromeMessage(currentDataCall);
         }
+        continue;
+      }
+
+      if (updatedDataCall && !updatedDataCall.ifname) {
+        delete this.currentDataCalls[currentDataCall.cid];
+        currentDataCall.state = GECKO_NETWORK_STATE_UNKNOWN;
+        currentDataCall.rilMessageType = "datacallstatechange";
+        this.sendChromeMessage(currentDataCall);
         continue;
       }
 
@@ -5520,14 +5567,12 @@ RilObject.prototype[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CA
   this._processCalls(calls);
 };
 RilObject.prototype[REQUEST_DIAL] = function REQUEST_DIAL(length, options) {
-  if (options.rilRequestError === 0) {
-    this.pendingMO = {options: options};
-  } else {
-    this.getFailCauseCode((function(options, failCause) {
-      options.success = false;
-      options.errorMsg = failCause;
-      this.sendChromeMessage(options);
-    }).bind(this, options));
+  // We already return a successful response before. Don't respond it again!
+  if (options.rilRequestError) {
+    this.getFailCauseCode((function(failCause) {
+      this._removePendingOutgoingCall(failCause);
+      this._hasHangUpPendingOutgoingCall = false;
+    }).bind(this));
   }
 };
 RilObject.prototype[REQUEST_DIAL_EMERGENCY_CALL] = function REQUEST_DIAL_EMERGENCY_CALL(length, options) {
@@ -6004,7 +6049,7 @@ RilObject.prototype[REQUEST_DEACTIVATE_DATA_CALL] = function REQUEST_DEACTIVATE_
 
   let datacall = this.currentDataCalls[options.cid];
   delete this.currentDataCalls[options.cid];
-  datacall.state = GECKO_NETWORK_STATE_DISCONNECTED;
+  datacall.state = GECKO_NETWORK_STATE_UNKNOWN;
   datacall.rilMessageType = "datacallstatechange";
   this.sendChromeMessage(datacall);
 };

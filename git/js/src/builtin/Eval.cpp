@@ -90,7 +90,7 @@ class EvalScriptGuard
     Rooted<JSLinearString*> lookupStr_;
 
   public:
-    explicit EvalScriptGuard(JSContext *cx)
+    EvalScriptGuard(JSContext *cx)
         : cx_(cx), script_(cx), lookup_(cx), lookupStr_(cx) {}
 
     ~EvalScriptGuard() {

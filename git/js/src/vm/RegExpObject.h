@@ -77,7 +77,7 @@ class RegExpObjectBuilder
     bool getOrCreateClone(HandleTypeObject type);
 
   public:
-    explicit RegExpObjectBuilder(ExclusiveContext *cx, RegExpObject *reobj = nullptr);
+    RegExpObjectBuilder(ExclusiveContext *cx, RegExpObject *reobj = nullptr);
 
     RegExpObject *reobj() { return reobj_; }
 
@@ -270,7 +270,7 @@ class RegExpGuard : public JS::CustomAutoRooter
     void operator=(const RegExpGuard &) MOZ_DELETE;
 
   public:
-    explicit RegExpGuard(ExclusiveContext *cx)
+    RegExpGuard(ExclusiveContext *cx)
       : CustomAutoRooter(cx), re_(nullptr)
     {}
 
@@ -345,7 +345,7 @@ class RegExpCompartment
     JSObject *createMatchResultTemplateObject(JSContext *cx);
 
   public:
-    explicit RegExpCompartment(JSRuntime *rt);
+    RegExpCompartment(JSRuntime *rt);
     ~RegExpCompartment();
 
     bool init(JSContext *cx);

@@ -29,7 +29,7 @@ class AsmJSFrameIterator
     void settle();
 
   public:
-    explicit AsmJSFrameIterator(const AsmJSActivation *activation);
+    AsmJSFrameIterator(const AsmJSActivation *activation);
     void operator++() { popFrame(); settle(); }
     bool done() const { return !callsite_; }
     JSAtom *functionDisplayAtom() const;

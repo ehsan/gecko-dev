@@ -48,9 +48,7 @@ function dial() {
 function checkCallList() {
   emulator.run("gsm list", function(result) {
     log("Call list is now: " + result);
-    if (((result[0] == "outbound to  " + number + " : unknown") ||
-         (result[0] == "outbound to  " + number + " : dialing")) &&
-        (result[1] == "OK")) {
+    if ((result[0] == "outbound to  " + number + " : unknown") && (result[1] == "OK")) {
       answer();
     } else {
       window.setTimeout(checkCallList, 100);

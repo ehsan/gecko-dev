@@ -395,7 +395,7 @@ public:
         {
         }
 
-        explicit JmpSrc(int offset)
+        JmpSrc(int offset)
             : m_offset(offset)
         {
         }
@@ -426,7 +426,7 @@ public:
         void used() { m_used = true; }
         bool isValid() const { return m_offset != -1; }
 
-        explicit JmpDst(int offset)
+        JmpDst(int offset)
             : m_offset(offset)
             , m_used(false)
         {

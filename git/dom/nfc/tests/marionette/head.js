@@ -36,7 +36,7 @@ let emulator = (function() {
   };
 }());
 
-function toggleNFC(enabled) {
+function toggleNFC(enabled, callback) {
   let deferred = Promise.defer();
 
   let req;
@@ -47,6 +47,10 @@ function toggleNFC(enabled) {
   }
 
   req.onsuccess = function() {
+    if(callback) {
+      callback();
+    }
+
     deferred.resolve();
   };
 

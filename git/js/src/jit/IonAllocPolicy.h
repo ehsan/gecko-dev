@@ -27,7 +27,7 @@ class TempAllocator
     CompilerRootNode *rootList_;
 
   public:
-    explicit TempAllocator(LifoAlloc *lifoAlloc)
+    TempAllocator(LifoAlloc *lifoAlloc)
       : lifoScope_(lifoAlloc),
         rootList_(nullptr)
     { }
@@ -97,7 +97,7 @@ class IonAllocPolicy
     TempAllocator &alloc_;
 
   public:
-    MOZ_IMPLICIT IonAllocPolicy(TempAllocator &alloc)
+    IonAllocPolicy(TempAllocator &alloc)
       : alloc_(alloc)
     {}
     void *malloc_(size_t bytes) {
