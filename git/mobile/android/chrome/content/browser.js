@@ -27,6 +27,11 @@ XPCOMUtils.defineLazyGetter(this, "DebuggerServer", function() {
   return DebuggerServer;
 });
 
+XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
+  Cu.import("resource://gre/modules/NetUtil.jsm");
+  return NetUtil;
+});
+
 // Lazily-loaded browser scripts:
 [
   ["HelperApps", "chrome://browser/content/HelperApps.js"],
@@ -1683,13 +1688,14 @@ var SelectionHandler = {
       selectionController.wordMove(!this._isRTL, true);
     } catch(e) {
       // If we couldn't select the word at the given point, bail
-      Cu.reportError("Error selecting word: " + e);
+      this._cleanUp();
       return;
     }
 
     // If there isn't an appropriate selection, bail
     if (!selection.rangeCount || !selection.getRangeAt(0) || !selection.toString().trim().length) {
       selection.collapseToStart();
+      this._cleanUp();
       return;
     }
 
@@ -1805,7 +1811,7 @@ var SelectionHandler = {
   // aX/aY are in top-level window browser coordinates
   endSelection: function sh_endSelection(aX, aY) {
     if (!this._active)
-      return;
+      return "";
 
     this._active = false;
     this.hideHandles();
@@ -1838,13 +1844,17 @@ var SelectionHandler = {
       }
     }
 
+    this._cleanUp();
+
+    return selectedText;
+  },
+
+  _cleanUp: function sh_cleanUp() {
     this._view.removeEventListener("pagehide", this, false);
     this._view = null;
     this._target = null;
     this._isRTL = false;
     this.cache = null;
-
-    return selectedText;
   },
 
   _getViewOffset: function sh_getViewOffset() {
@@ -3127,6 +3137,19 @@ Tab.prototype = {
     // on the layout at that width.
     let oldBrowserWidth = this.browserWidth;
     this.setBrowserSize(viewportW, viewportH);
+
+    // if this page has not been painted yet, then this must be getting run
+    // because a meta-viewport element was added (via the DOMMetaAdded handler).
+    // in this case, we should not do anything that forces a reflow (see bug 759678)
+    // such as requesting the page size or sending a viewport update. this code
+    // will get run again in the before-first-paint handler and that point we
+    // will run though all of it. the reason we even bother executing up to this
+    // point on the DOMMetaAdded handler is so that scripts that use window.innerWidth
+    // before they are painted have a correct value (bug 771575).
+    if (!this.contentDocumentIsDisplayed) {
+      return;
+    }
+
     let minScale = 1.0;
     if (this.browser.contentDocument) {
       // this may get run during a Viewport:Change message while the document
@@ -3202,6 +3225,9 @@ Tab.prototype = {
         // Is it on the top level?
         let contentDocument = aSubject;
         if (contentDocument == this.browser.contentDocument) {
+          BrowserApp.displayedDocumentChanged();
+          this.contentDocumentIsDisplayed = true;
+
           // reset CSS viewport and zoom to default on new page, and then calculate
           // them properly using the actual metadata from the page. note that the
           // updateMetadata call takes into account the existing CSS viewport size
@@ -3228,9 +3254,6 @@ Tab.prototype = {
             this.setResolution(fitZoom, false);
             this.sendViewportUpdate();
           }
-
-          BrowserApp.displayedDocumentChanged();
-          this.contentDocumentIsDisplayed = true;
         }
         break;
       case "nsPref:changed":
@@ -3375,7 +3398,7 @@ var BrowserEventHandler = {
 
           if (isClickable) {
             [data.x, data.y] = this._moveClickPoint(element, data.x, data.y);
-            element = ElementTouchHelper.anyElementFromPoint(element.ownerDocument.defaultView, data.x, data.y);
+            element = ElementTouchHelper.anyElementFromPoint(element.ownerDocument.defaultView.top, data.x, data.y);
             isClickable = ElementTouchHelper.isElementClickable(element);
           }
 
@@ -4462,7 +4485,7 @@ var ViewportHandler = {
         let document = target.ownerDocument;
         let browser = BrowserApp.getBrowserForDocument(document);
         let tab = BrowserApp.getTabForBrowser(browser);
-        if (tab && tab.contentDocumentIsDisplayed)
+        if (tab)
           this.updateMetadata(tab);
         break;
     }
@@ -4484,10 +4507,6 @@ var ViewportHandler = {
           tabs[i].updateViewportSize(oldScreenWidth);
         break;
     }
-  },
-
-  resetMetadata: function resetMetadata(tab) {
-    tab.updateViewportMetadata(null);
   },
 
   updateMetadata: function updateMetadata(tab) {
@@ -5894,6 +5913,7 @@ var WebappsUI = {
     Services.obs.addObserver(this, "webapps-launch", false);
     Services.obs.addObserver(this, "webapps-sync-install", false);
     Services.obs.addObserver(this, "webapps-sync-uninstall", false);
+    Services.obs.addObserver(this, "webapps-install-error", false);
   },
   
   uninit: function unint() {
@@ -5901,11 +5921,33 @@ var WebappsUI = {
     Services.obs.removeObserver(this, "webapps-launch");
     Services.obs.removeObserver(this, "webapps-sync-install");
     Services.obs.removeObserver(this, "webapps-sync-uninstall");
+    Services.obs.removeObserver(this, "webapps-install-error", false);
   },
-  
+
+  DEFAULT_PREFS_FILENAME: "default-prefs.js",
+
   observe: function observe(aSubject, aTopic, aData) {
-    let data = JSON.parse(aData);
+    let data = {};
+    try { data = JSON.parse(aData); }
+    catch(ex) { }
     switch (aTopic) {
+      case "webapps-install-error":
+        let msg = "";
+        switch (aData) {
+          case "INVALID_MANIFEST":
+          case "MANIFEST_PARSE_ERROR":
+            msg = Strings.browser.GetStringFromName("webapps.manifestInstallError");
+            break;
+          case "NETWORK_ERROR":
+          case "MANIFEST_URL_ERROR":
+            msg = Strings.browser.GetStringFromName("webapps.networkInstallError");
+            break;
+          default:
+            msg = Strings.browser.GetStringFromName("webapps.installError");
+        }
+        NativeWindow.toast.show(msg, "short");
+        console.log("Error installing app: " + aData);
+        break;
       case "webapps-ask-install":
         this.doInstall(data);
         break;
@@ -5994,8 +6036,8 @@ var WebappsUI = {
       // Add a homescreen shortcut -- we can't use createShortcut, since we need to pass
       // a unique ID for Android webapp allocation
       this.makeBase64Icon(this.getBiggestIcon(manifest.icons, Services.io.newURI(aData.app.origin, null, null)),
-        function(icon) {
-          var profilePath = sendMessageToJava({
+        (function(icon) {
+          let profilePath = sendMessageToJava({
             gecko: {
               type: "WebApps:Install",
               name: manifest.name,
@@ -6006,18 +6048,46 @@ var WebappsUI = {
           });
   
           // if java returned a profile path to us, try to use it to pre-populate the app cache
-          var file = null;
+          let file = null;
           if (profilePath) {
-            var file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
+            file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
             file.initWithPath(profilePath);
+
+            // build any app specific default prefs
+            let prefs = [];
+            if (manifest.orientation)
+              prefs.push({name:"app.orientation.default", value: manifest.orientation});
+
+            // write them into the app profile
+            let defaultPrefsFile = file.clone();
+            defaultPrefsFile.append(this.DEFAULT_PREFS_FILENAME);
+            this.writeDefaultPrefs(defaultPrefsFile, prefs);
           }
           DOMApplicationRegistry.confirmInstall(aData, false, file);
-        });
+        }).bind(this));
     } else {
       DOMApplicationRegistry.denyInstall(aData);
     }
   },
-  
+
+  writeDefaultPrefs: function webapps_writeDefaultPrefs(aFile, aPrefs) {
+    if (aPrefs.length > 0) {
+      let data = JSON.stringify(aPrefs);
+
+      var ostream = Cc["@mozilla.org/network/file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
+      ostream.init(aFile, -1, -1, 0);
+
+      let istream = Cc["@mozilla.org/io/string-input-stream;1"].createInstance(Ci.nsIStringInputStream);
+      istream.setData(data, data.length);
+
+      NetUtil.asyncCopy(istream, ostream, function(aResult) {
+        if (!Components.isSuccessCode(aResult)) {
+          console.log("Error writing default prefs: " + aResult);
+        }
+      });
+    }
+  },
+
   openURL: function openURL(aURI, aOrigin) {
     sendMessageToJava({
       gecko: {

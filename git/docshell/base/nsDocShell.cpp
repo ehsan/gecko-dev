@@ -6055,16 +6055,18 @@ nsDocShell::OnStateChange(nsIWebProgress * aProgress, nsIRequest * aRequest,
         channel->GetURI(getter_AddRefs(uri));
         nsCAutoString aURI;
         uri->GetAsciiSpec(aURI);
-        if (this == aProgress){
+
+        nsCOMPtr<nsIWyciwygChannel>  wcwgChannel(do_QueryInterface(aRequest));
+        nsCOMPtr<nsIWebProgress> webProgress =
+            do_QueryInterface(GetAsSupports(this));
+
+        // We don't update navigation timing for wyciwyg channels
+        if (this == aProgress && !wcwgChannel){
             rv = MaybeInitTiming();
             if (mTiming) {
                 mTiming->NotifyFetchStart(uri, ConvertLoadTypeToNavigationType(mLoadType));
             } 
         }
-
-        nsCOMPtr<nsIWyciwygChannel>  wcwgChannel(do_QueryInterface(aRequest));
-        nsCOMPtr<nsIWebProgress> webProgress =
-            do_QueryInterface(GetAsSupports(this));
 
         // Was the wyciwyg document loaded on this docshell?
         if (wcwgChannel && !mLSHE && (mItemType == typeContent) && aProgress == webProgress.get()) {
@@ -11394,20 +11396,6 @@ nsDocShell::GetIsContent(bool *aIsContent)
     *aIsContent = (mItemType == typeContent);
     return NS_OK;
 }
-
-NS_IMETHODIMP
-nsDocShell::GetExtendedOrigin(nsIURI *aUri, nsACString &aResult)
-{
-    bool isInBrowserElement;
-    GetIsInBrowserElement(&isInBrowserElement);
-
-    nsCOMPtr<nsIScriptSecurityManager> ssmgr =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-    NS_ENSURE_TRUE(ssmgr, NS_ERROR_FAILURE);
-
-    return ssmgr->GetExtendedOrigin(aUri, mAppId, isInBrowserElement, aResult);
-}
-
 
 bool
 nsDocShell::IsOKToLoadURI(nsIURI* aURI)

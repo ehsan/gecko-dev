@@ -30,7 +30,7 @@
 #define NS_FRAME_TRACE_CHILD_REFLOW 0x4
 #define NS_FRAME_TRACE_NEW_FRAMES   0x8
 
-#define NS_FRAME_LOG_TEST(_lm,_bit) (PRIntn((_lm)->level) & (_bit))
+#define NS_FRAME_LOG_TEST(_lm,_bit) (int((_lm)->level) & (_bit))
 
 #ifdef DEBUG
 #define NS_FRAME_LOG(_bit,_args)                                \
@@ -707,7 +707,8 @@ public:
 
   static void PrintDisplayList(nsDisplayListBuilder* aBuilder,
                                const nsDisplayList& aList,
-                               FILE* aFile = stdout);
+                               FILE* aFile = stdout,
+                               bool aDumpHtml = false);
 
 #endif
 };

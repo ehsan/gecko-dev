@@ -711,7 +711,6 @@ AssertParserServiceIsCorrect(nsIAtom* aTag, bool aIsBlock)
       aTag==nsEditProperty::table      ||
       aTag==nsEditProperty::fieldset   ||
       aTag==nsEditProperty::address    ||
-      aTag==nsEditProperty::caption    ||
       aTag==nsEditProperty::col        ||
       aTag==nsEditProperty::colgroup   ||
       aTag==nsEditProperty::li         ||
@@ -3523,9 +3522,6 @@ nsHTMLEditor::TagCanContainTag(nsIAtom* aParentTag, nsIAtom* aChildTag)
   }
 
   PRInt32 parentTagEnum = parserService->HTMLAtomTagToId(aParentTag);
-  NS_ASSERTION(parentTagEnum < NS_HTML_TAG_MAX,
-               "Fix the caller, this type of node can never contain children.");
-
   return nsHTMLEditUtils::CanContain(parentTagEnum, childTagEnum);
 }
 
@@ -3769,7 +3765,7 @@ nsHTMLEditor::CollapseAdjacentTextNodes(nsIDOMRange *aInRange)
 {
   NS_ENSURE_TRUE(aInRange, NS_ERROR_NULL_POINTER);
   nsAutoTxnsConserveSelection dontSpazMySelection(this);
-  nsTArray<nsIDOMNode*> textNodes;
+  nsTArray<nsCOMPtr<nsIDOMNode> > textNodes;
   // we can't actually do anything during iteration, so store the text nodes in an array
   // don't bother ref counting them because we know we can hold them for the 
   // lifetime of this method

@@ -196,9 +196,9 @@ nsDownloadManager::RemoveAllDownloads()
   for (PRInt32 i = mCurrentDownloads.Count() - 1; i >= 0; --i) {
     nsRefPtr<nsDownload> dl = mCurrentDownloads[0];
 
-    nsresult result;
+    nsresult result = NS_OK;
     if (dl->IsPaused() && GetQuitBehavior() != QUIT_AND_CANCEL)
-      result = mCurrentDownloads.RemoveObject(dl);
+      mCurrentDownloads.RemoveObject(dl);
     else
       result = CancelDownload(dl->mID);
 
@@ -2914,7 +2914,7 @@ nsDownload::SetProgressBytes(PRInt64 aCurrBytes, PRInt64 aMaxBytes)
   else if (maxBytes <= 0)
     mPercentComplete = -1;
   else
-    mPercentComplete = (PRInt32)((PRFloat64)currBytes / maxBytes * 100 + .5);
+    mPercentComplete = (PRInt32)((double)currBytes / maxBytes * 100 + .5);
 }
 
 nsresult
