@@ -40,7 +40,8 @@
   const BYTES = Ci.nsIMemoryReporter.UNITS_BYTES;
 
   let fakeReporters = [
-    { collectReports: function(aCbObj, aClosure) {
+    { name: "fake1",
+      collectReports: function(aCbObj, aClosure) {
         function f(aP, aK, aA, aD) {
           aCbObj.callback("", aP, aK, BYTES, aA, aD, aClosure);
         }

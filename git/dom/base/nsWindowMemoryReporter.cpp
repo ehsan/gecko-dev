@@ -449,6 +449,13 @@ ReportGhostWindowsEnumerator(nsUint64HashKey* aIDHashKey, void* aClosure)
 }
 
 NS_IMETHODIMP
+nsWindowMemoryReporter::GetName(nsACString &aName)
+{
+  aName.AssignLiteral("window-objects");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsWindowMemoryReporter::CollectReports(nsIMemoryReporterCallback* aCb,
                                        nsISupports* aClosure)
 {

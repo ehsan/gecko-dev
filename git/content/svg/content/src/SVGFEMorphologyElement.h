@@ -32,14 +32,20 @@ protected:
                              JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
 public:
-  virtual FilterPrimitiveDescription
-    GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
-                            const IntRect& aFilterSubregion,
-                            nsTArray<nsRefPtr<gfxASurface> >& aInputImages) MOZ_OVERRIDE;
+  virtual nsresult Filter(nsSVGFilterInstance* aInstance,
+                          const nsTArray<const Image*>& aSources,
+                          const Image* aTarget,
+                          const nsIntRect& aDataRect) MOZ_OVERRIDE;
   virtual bool AttributeAffectsRendering(
           int32_t aNameSpaceID, nsIAtom* aAttribute) const MOZ_OVERRIDE;
   virtual nsSVGString& GetResultImageName() MOZ_OVERRIDE { return mStringAttributes[RESULT]; }
   virtual void GetSourceImageNames(nsTArray<nsSVGStringInfo>& aSources) MOZ_OVERRIDE;
+  virtual nsIntRect ComputeTargetBBox(const nsTArray<nsIntRect>& aSourceBBoxes,
+          const nsSVGFilterInstance& aInstance) MOZ_OVERRIDE;
+  virtual void ComputeNeededSourceBBoxes(const nsIntRect& aTargetBBox,
+          nsTArray<nsIntRect>& aSourceBBoxes, const nsSVGFilterInstance& aInstance) MOZ_OVERRIDE;
+  virtual nsIntRect ComputeChangeBBox(const nsTArray<nsIntRect>& aSourceChangeBoxes,
+          const nsSVGFilterInstance& aInstance) MOZ_OVERRIDE;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
@@ -52,6 +58,7 @@ public:
 
 protected:
   void GetRXY(int32_t *aRX, int32_t *aRY, const nsSVGFilterInstance& aInstance);
+  nsIntRect InflateRect(const nsIntRect& aRect, const nsSVGFilterInstance& aInstance);
 
   virtual NumberPairAttributesInfo GetNumberPairInfo() MOZ_OVERRIDE;
   virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;

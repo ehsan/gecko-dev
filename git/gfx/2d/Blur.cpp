@@ -393,12 +393,11 @@ AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
 
 AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
                            int32_t aStride,
-                           float aSigmaX,
-                           float aSigmaY)
+                           float aSigma)
   : mRect(int32_t(aRect.x), int32_t(aRect.y),
           int32_t(aRect.width), int32_t(aRect.height)),
     mSpreadRadius(),
-    mBlurRadius(CalculateBlurRadius(Point(aSigmaX, aSigmaY))),
+    mBlurRadius(CalculateBlurRadius(Point(aSigma, aSigma))),
     mStride(aStride),
     mSurfaceAllocationSize(-1)
 {

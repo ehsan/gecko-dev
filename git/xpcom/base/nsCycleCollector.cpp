@@ -995,10 +995,8 @@ enum ccType {
 // Top level structure for the cycle collector.
 ////////////////////////////////////////////////////////////////////////
 
-class nsCycleCollector : public nsISupports
+class nsCycleCollector
 {
-    NS_DECL_ISUPPORTS
-
     bool mCollectionInProgress;
     // mScanInProgress should be false when we're collecting white objects.
     bool mScanInProgress;
@@ -1029,7 +1027,7 @@ class nsCycleCollector : public nsISupports
 
 public:
     nsCycleCollector();
-    virtual ~nsCycleCollector();
+    ~nsCycleCollector();
 
     void RegisterJSRuntime(CycleCollectedJSRuntime *aJSRuntime);
     void ForgetJSRuntime();
@@ -1081,8 +1079,6 @@ private:
     void CleanupAfterCollection();
 };
 
-NS_IMPL_ISUPPORTS1(nsCycleCollector, nsISupports)
-
 /**
  * GraphWalker is templatized over a Visitor class that must provide
  * the following two methods:
@@ -1120,7 +1116,7 @@ public:
 ////////////////////////////////////////////////////////////////////////
 
 struct CollectorData {
-  nsRefPtr<nsCycleCollector> mCollector;
+  nsCycleCollector* mCollector;
   CycleCollectedJSRuntime* mRuntime;
 };
 
@@ -3105,11 +3101,12 @@ nsCycleCollector_startup()
         MOZ_CRASH();
     }
 
-    CollectorData* data = new CollectorData;
-    data->mCollector = new nsCycleCollector();
+    nsAutoPtr<nsCycleCollector> collector(new nsCycleCollector());
+    nsAutoPtr<CollectorData> data(new CollectorData);
     data->mRuntime = nullptr;
+    data->mCollector = collector.forget();
 
-    sCollectorData.set(data);
+    sCollectorData.set(data.forget());
 }
 
 void
@@ -3213,6 +3210,7 @@ nsCycleCollector_shutdown()
         MOZ_ASSERT(data->mCollector);
         PROFILER_LABEL("CC", "nsCycleCollector_shutdown");
         data->mCollector->Shutdown();
+        delete data->mCollector;
         data->mCollector = nullptr;
         if (!data->mRuntime) {
           delete data;

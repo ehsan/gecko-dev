@@ -18,7 +18,6 @@
 #include "MediaResource.h"
 #include "nsError.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/StaticPtr.h"
 #include "nsIMemoryReporter.h"
 #include "nsComponentManagerUtils.h"
 #include "nsITimer.h"
@@ -54,13 +53,11 @@ PRLogModuleInfo* gMediaDecoderLog;
 #define DECODER_LOG(type, msg)
 #endif
 
-class MediaMemoryTracker : public nsISupports
+class MediaMemoryTracker
 {
-  NS_DECL_ISUPPORTS
-
   MediaMemoryTracker();
-  virtual ~MediaMemoryTracker();
-  static StaticRefPtr<MediaMemoryTracker> sUniqueInstance;
+  ~MediaMemoryTracker();
+  static MediaMemoryTracker* sUniqueInstance;
 
   static MediaMemoryTracker* UniqueInstance() {
     if (!sUniqueInstance) {
@@ -89,6 +86,7 @@ public:
     DecodersArray& decoders = Decoders();
     decoders.RemoveElement(aDecoder);
     if (decoders.IsEmpty()) {
+      delete sUniqueInstance;
       sUniqueInstance = nullptr;
     }
   }
@@ -105,9 +103,7 @@ public:
   }
 };
 
-StaticRefPtr<MediaMemoryTracker> MediaMemoryTracker::sUniqueInstance;
-
-NS_IMPL_ISUPPORTS1(MediaMemoryTracker, nsISupports)
+MediaMemoryTracker* MediaMemoryTracker::sUniqueInstance = nullptr;
 
 NS_IMPL_ISUPPORTS1(MediaDecoder, nsIObserver)
 

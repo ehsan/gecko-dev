@@ -126,7 +126,6 @@ namespace jit {
     _(GuardObjectIdentity)                                                  \
     _(GuardClass)                                                           \
     _(ArrayLength)                                                          \
-    _(SetArrayLength)                                                       \
     _(TypedArrayLength)                                                     \
     _(TypedArrayElements)                                                   \
     _(TypedObjectElements)                                                  \

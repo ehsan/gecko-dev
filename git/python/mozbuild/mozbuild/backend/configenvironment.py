@@ -18,7 +18,6 @@ from ..util import (
     ensureParentDir,
     FileAvoidWrite,
     ReadOnlyDict,
-    shell_quote,
 )
 
 
@@ -26,6 +25,14 @@ if sys.version_info.major == 2:
     text_type = unicode
 else:
     text_type = str
+
+
+RE_SHELL_ESCAPE = re.compile('''([ \t`#$^&*(){}\\|;'"<>?\[\]])''')
+
+
+def shell_escape(s):
+    """Escape some characters with a backslash, and double dollar signs."""
+    return RE_SHELL_ESCAPE.sub(r'\\\1', str(s)).replace('$', '$$')
 
 
 class BuildConfig(object):
@@ -115,7 +122,7 @@ class ConfigEnvironment(object):
         global_defines = [name for name, value in defines
             if not name in non_global_defines]
         self.substs['ACDEFINES'] = ' '.join(['-D%s=%s' % (name,
-            shell_quote(self.defines[name]).replace('$', '$$')) for name in global_defines])
+            shell_escape(self.defines[name])) for name in global_defines])
         def serialize(obj):
             if isinstance(obj, StringTypes):
                 return obj

@@ -1391,8 +1391,7 @@ GenerateLIR(MIRGenerator *mir)
     switch (js_IonOptions.registerAllocator) {
       case RegisterAllocator_LSRA: {
 #ifdef DEBUG
-        if (!integrity.record())
-            return nullptr;
+        integrity.record();
 #endif
 
         LinearScanAllocator regalloc(mir, &lirgen, *lir);
@@ -1400,8 +1399,7 @@ GenerateLIR(MIRGenerator *mir)
             return nullptr;
 
 #ifdef DEBUG
-        if (!integrity.check(false))
-            return nullptr;
+        integrity.check(false);
 #endif
 
         IonSpewPass("Allocate Registers [LSRA]", &regalloc);
@@ -1410,8 +1408,7 @@ GenerateLIR(MIRGenerator *mir)
 
       case RegisterAllocator_Backtracking: {
 #ifdef DEBUG
-        if (!integrity.record())
-            return nullptr;
+        integrity.record();
 #endif
 
         BacktrackingAllocator regalloc(mir, &lirgen, *lir);
@@ -1419,8 +1416,7 @@ GenerateLIR(MIRGenerator *mir)
             return nullptr;
 
 #ifdef DEBUG
-        if (!integrity.check(false))
-            return nullptr;
+        integrity.check(false);
 #endif
 
         IonSpewPass("Allocate Registers [Backtracking]");
@@ -1430,8 +1426,7 @@ GenerateLIR(MIRGenerator *mir)
       case RegisterAllocator_Stupid: {
         // Use the integrity checker to populate safepoint information, so
         // run it in all builds.
-        if (!integrity.record())
-            return nullptr;
+        integrity.record();
 
         StupidAllocator regalloc(mir, &lirgen, *lir);
         if (!regalloc.go())
@@ -1669,15 +1664,6 @@ IonCompile(JSContext *cx, JSScript *script,
     RootedScript builderScript(cx, builder->script());
     IonSpewNewFunction(graph, builderScript);
 
-    mozilla::Maybe<AutoProtectHeapForCompilation> protect;
-    if (js_IonOptions.checkThreadSafety &&
-        cx->runtime()->gcIncrementalState == gc::NO_INCREMENTAL &&
-        !cx->runtime()->profilingScripts &&
-        !cx->runtime()->spsProfiler.enabled())
-    {
-        protect.construct(cx->runtime());
-    }
-
     bool succeeded = builder->build();
     builder->clearForBackEnd();
 
@@ -1712,9 +1698,6 @@ IonCompile(JSContext *cx, JSScript *script,
         IonSpew(IonSpew_Abort, "Failed during back-end compilation.");
         return AbortReason_Disable;
     }
-
-    if (!protect.empty())
-        protect.destroy();
 
     bool success = codegen->link(cx, builder->constraints());
 

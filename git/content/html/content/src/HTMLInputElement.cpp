@@ -3320,9 +3320,8 @@ HTMLInputElement::StartRangeThumbDrag(WidgetGUIEvent* aEvent)
 {
   mIsDraggingRange = true;
   mRangeThumbDragStartValue = GetValueAsDecimal();
-  // Don't use CAPTURE_RETARGETTOELEMENT, as that breaks pseudo-class styling
-  // of the thumb.
-  nsIPresShell::SetCapturingContent(this, CAPTURE_IGNOREALLOWED);
+  nsIPresShell::SetCapturingContent(this, CAPTURE_IGNOREALLOWED |
+                                          CAPTURE_RETARGETTOELEMENT);
   nsRangeFrame* rangeFrame = do_QueryFrame(GetPrimaryFrame());
 
   // Before we change the value, record the current value so that we'll

@@ -24,7 +24,6 @@
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nscore.h"                     // for nsACString
-#include "Units.h"                      // for CSSToScreenScale
 
 class gfxImageSurface;
 struct nsIntPoint;
@@ -42,7 +41,7 @@ struct TiledLayerProperties
 {
   nsIntRegion mVisibleRegion;
   nsIntRegion mValidRegion;
-  CSSToScreenScale mEffectiveResolution;
+  gfxSize mEffectiveResolution;
 };
 
 class Layer;
