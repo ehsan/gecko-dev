@@ -24,13 +24,8 @@
 #include "StyleInfo.h"
 
 #include "nsContentUtils.h"
-#include "nsIDOMCSSValue.h"
-#include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMDocumentXBL.h"
-#include "nsIDOMHTMLDocument.h"
-#include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMNodeFilter.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMTreeWalker.h"
@@ -160,7 +155,7 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   return nsAccessNodeWrap::QueryInterface(aIID, aInstancePtr);
 }
 
-nsAccessible::nsAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
+nsAccessible::nsAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   nsAccessNodeWrap(aContent, aDoc),
   mParent(nsnull), mIndexInParent(-1), mFlags(eChildrenUninitialized),
   mIndexOfEmbeddedChild(-1), mRoleMapEntry(nsnull)
@@ -653,7 +648,7 @@ nsAccessible::NativeState()
 {
   PRUint64 state = 0;
 
-  nsDocAccessible* document = Document();
+  DocAccessible* document = Document();
   if (!document || !document->IsInDocument(this))
     state |= states::STALE;
 
@@ -763,7 +758,7 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
   // therefore accessible for containing block may be different from accessible
   // for DOM parent but GetFrameForPoint() should be called for containing block
   // to get an out of flow element.
-  nsDocAccessible* accDocument = Document();
+  DocAccessible* accDocument = Document();
   NS_ENSURE_TRUE(accDocument, nsnull);
 
   nsIFrame *frame = accDocument->GetFrame();
@@ -784,7 +779,7 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
 
   // Get accessible for the node with the point or the first accessible in
   // the DOM parent chain.
-  nsDocAccessible* contentDocAcc = GetAccService()->
+  DocAccessible* contentDocAcc = GetAccService()->
     GetDocAccessible(content->OwnerDoc());
 
   // contentDocAcc in some circumstances can be NULL. See bug 729861
@@ -1813,9 +1808,9 @@ nsAccessible::NativeRole()
   return nsCoreUtils::IsXLink(mContent) ? roles::LINK : roles::NOTHING;
 }
 
-// readonly attribute PRUint8 numActions
+// readonly attribute PRUint8 actionCount
 NS_IMETHODIMP
-nsAccessible::GetNumActions(PRUint8* aActionCount)
+nsAccessible::GetActionCount(PRUint8* aActionCount)
 {
   NS_ENSURE_ARG_POINTER(aActionCount);
   *aActionCount = 0;
@@ -2096,20 +2091,12 @@ nsAccessible::RelationByType(PRUint32 aType)
             }
           }
           if (!buttonEl) { // Check for anonymous accept button in <dialog>
-            nsCOMPtr<nsIDOMDocumentXBL> xblDoc(do_QueryInterface(xulDoc));
-            if (xblDoc) {
-              nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(xulDoc);
-              NS_ASSERTION(domDoc, "No DOM document");
-              nsCOMPtr<nsIDOMElement> rootEl;
-              domDoc->GetDocumentElement(getter_AddRefs(rootEl));
-              if (rootEl) {
-                nsCOMPtr<nsIDOMElement> possibleButtonEl;
-                xblDoc->GetAnonymousElementByAttribute(rootEl,
-                                                      NS_LITERAL_STRING("default"),
-                                                      NS_LITERAL_STRING("true"),
-                                                      getter_AddRefs(possibleButtonEl));
-                buttonEl = do_QueryInterface(possibleButtonEl);
-              }
+            dom::Element* rootElm = mContent->OwnerDoc()->GetRootElement();
+            if (rootElm) {
+              nsIContent* possibleButtonEl = rootElm->OwnerDoc()->
+                GetAnonymousElementByAttribute(rootElm, nsGkAtoms::_default,
+                                               NS_LITERAL_STRING("true"));
+              buttonEl = do_QueryInterface(possibleButtonEl);
             }
           }
           nsCOMPtr<nsIContent> relatedContent(do_QueryInterface(buttonEl));
@@ -2954,7 +2941,7 @@ nsAccessible::CurrentItem()
     nsIDocument* DOMDoc = mContent->OwnerDoc();
     dom::Element* activeDescendantElm = DOMDoc->GetElementById(id);
     if (activeDescendantElm) {
-      nsDocAccessible* document = Document();
+      DocAccessible* document = Document();
       if (document)
         return document->GetAccessible(activeDescendantElm);
     }
@@ -3000,7 +2987,7 @@ nsAccessible::ContainerWidget() const
 void
 nsAccessible::CacheChildren()
 {
-  nsDocAccessible* doc = Document();
+  DocAccessible* doc = Document();
   NS_ENSURE_TRUE(doc,);
 
   nsAccTreeWalker walker(doc, mContent, CanHaveAnonChildren());

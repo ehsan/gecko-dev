@@ -16,7 +16,7 @@
 class nsXULSliderAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULSliderAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULSliderAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -38,7 +38,10 @@ public:
   virtual PRUint8 ActionCount();
 
 protected:
-  already_AddRefed<nsIContent> GetSliderNode();
+  /**
+   * Return anonymous slider element.
+   */
+  nsIContent* GetSliderElement();
 
   nsresult GetSliderAttr(nsIAtom *aName, nsAString& aValue);
   nsresult SetSliderAttr(nsIAtom *aName, const nsAString& aValue);
@@ -47,7 +50,7 @@ protected:
   nsresult SetSliderAttr(nsIAtom *aName, double aValue);
 
 private:
-  nsCOMPtr<nsIDOMElement> mSliderNode;
+  nsCOMPtr<nsIContent> mSliderNode;
 };
 
 
@@ -57,7 +60,7 @@ private:
 class nsXULThumbAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULThumbAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULThumbAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsAccessible
   virtual mozilla::a11y::role NativeRole();
