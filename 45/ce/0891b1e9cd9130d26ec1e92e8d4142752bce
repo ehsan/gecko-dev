@@ -1,0 +1,3 @@
+changeset fffaf2a7de3d24dabdce43c082941e7013367b16
+manifest f81a2cd68b2f8243174c0d383ca644ab1d6cebe8
+files dom/xbl/test/test_bug1098628_throw_from_construct.xhtml
