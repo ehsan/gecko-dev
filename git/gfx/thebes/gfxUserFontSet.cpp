@@ -388,11 +388,10 @@ gfxUserFontSet::SanitizeOpenTypeData(gfxMixedFontFamily *aFamily,
     userData.mFamily = aFamily;
     userData.mProxy = aProxy;
 
-    ots::OTSContext otsContext;
-    otsContext.SetTableActionCallback(&OTSTableAction, nullptr);
-    otsContext.SetMessageCallback(&gfxUserFontSet::OTSMessage, &userData);
+    ots::SetTableActionCallback(&OTSTableAction, nullptr);
+    ots::SetMessageCallback(&gfxUserFontSet::OTSMessage, &userData);
 
-    if (otsContext.Process(&output, aData, aLength)) {
+    if (ots::Process(&output, aData, aLength)) {
         aSaneLength = output.Tell();
         return static_cast<uint8_t*>(output.forget());
     } else {

@@ -255,23 +255,26 @@ struct BasicTiledLayerPaintData {
 
   /*
    * The transform matrix to go from the display port layer's ParentLayer
-   * units to this layer's Layer units. The "display port layer" is
+   * units to this layer's LayoutDevice units. The "display port layer" is
    * the closest ancestor layer with a displayport.
    */
-  gfx3DMatrix mTransformDisplayPortToLayer;
+  gfx3DMatrix mTransformDisplayPortToLayoutDevice;
 
   /*
    * The critical displayport of the content from the nearest ancestor layer
    * that represents scrollable content with a display port set. Empty if a
    * critical displayport is not set.
+   *
+   * This is in LayoutDevice coordinates, but is stored as an nsIntRect for
+   * convenience when intersecting with the layer's mValidRegion.
    */
-  LayerIntRect mCriticalDisplayPort;
+  nsIntRect mCriticalDisplayPort;
 
   /*
    * The viewport of the content from the nearest ancestor layer that
    * represents scrollable content with a display port set.
    */
-  LayerRect mViewport;
+  LayoutDeviceRect mViewport;
 
   /*
    * The render resolution of the document that the content this layer
@@ -280,11 +283,11 @@ struct BasicTiledLayerPaintData {
   CSSToParentLayerScale mResolution;
 
   /*
-   * The composition bounds of the layer, in Layer coordinates. This is
+   * The composition bounds of the layer, in LayoutDevice coordinates. This is
    * used to make sure that tiled updates to regions that are visible to the
    * user are grouped coherently.
    */
-  LayerRect mCompositionBounds;
+  LayoutDeviceRect mCompositionBounds;
 
   /*
    * Low precision updates are always executed a tile at a time in repeated

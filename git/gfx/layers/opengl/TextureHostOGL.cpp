@@ -385,11 +385,8 @@ TextureImageTextureSourceOGL::GetSize() const
 gfx::SurfaceFormat
 TextureImageTextureSourceOGL::GetFormat() const
 {
-  if (mTexImage) {
-    return mTexImage->GetTextureFormat();
-  }
-  NS_WARNING("Trying to query the format of an empty TextureSource.");
-  return gfx::SurfaceFormat::UNKNOWN;
+  MOZ_ASSERT(mTexImage);
+  return mTexImage->GetTextureFormat();
 }
 
 nsIntRect TextureImageTextureSourceOGL::GetTileRect()

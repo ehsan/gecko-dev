@@ -290,5 +290,3 @@ void ots_os2_free(OpenTypeFile *file) {
 }
 
 }  // namespace ots
-
-#undef TABLE_NAME

@@ -73,8 +73,6 @@ using mozilla::PodCopy;
 using mozilla::PodEqual;
 using mozilla::SafeCast;
 
-using JS::AutoCheckCannotGC;
-
 typedef Handle<JSLinearString*> HandleLinearString;
 
 static JSLinearString *

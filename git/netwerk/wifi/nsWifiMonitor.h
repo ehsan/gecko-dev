@@ -28,8 +28,6 @@ extern PRLogModuleInfo *gWifiMonitorLog;
 
 class nsWifiAccessPoint;
 
-#define kDefaultWifiScanInterval 5 /* seconds */
-
 class nsWifiListener
 {
  public:

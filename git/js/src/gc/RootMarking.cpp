@@ -36,8 +36,6 @@ using namespace js::gc;
 
 using mozilla::ArrayEnd;
 
-using JS::AutoGCRooter;
-
 typedef RootedValueMap::Range RootRange;
 typedef RootedValueMap::Entry RootEntry;
 typedef RootedValueMap::Enum RootEnum;
@@ -584,7 +582,7 @@ AutoGCRooter::trace(JSTracer *trc)
 AutoGCRooter::traceAll(JSTracer *trc)
 {
     for (ContextIter cx(trc->runtime()); !cx.done(); cx.next()) {
-        for (AutoGCRooter *gcr = cx->autoGCRooters; gcr; gcr = gcr->down)
+        for (js::AutoGCRooter *gcr = cx->autoGCRooters; gcr; gcr = gcr->down)
             gcr->trace(trc);
     }
 }
@@ -593,7 +591,7 @@ AutoGCRooter::traceAll(JSTracer *trc)
 AutoGCRooter::traceAllWrappers(JSTracer *trc)
 {
     for (ContextIter cx(trc->runtime()); !cx.done(); cx.next()) {
-        for (AutoGCRooter *gcr = cx->autoGCRooters; gcr; gcr = gcr->down) {
+        for (js::AutoGCRooter *gcr = cx->autoGCRooters; gcr; gcr = gcr->down) {
             if (gcr->tag_ == WRAPVECTOR || gcr->tag_ == WRAPPER)
                 gcr->trace(trc);
         }

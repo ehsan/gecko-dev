@@ -8,7 +8,6 @@ const { Cc, Ci, Cu } = require("chrome");
 const gcli = require("gcli/index");
 const XMLHttpRequest = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"];
 
-loader.lazyImporter(this, "Preferences", "resource://gre/modules/Preferences.jsm");
 loader.lazyImporter(this, "js_beautify", "resource:///modules/devtools/Jsbeautify.jsm");
 
 exports.items = [
@@ -30,7 +29,7 @@ exports.items = [
             type: "number",
             description: gcli.lookup("jsbIndentSizeDesc"),
             manual: gcli.lookup("jsbIndentSizeManual"),
-            defaultValue: Preferences.get("devtools.editor.tabsize", 2),
+            defaultValue: 2
           },
           {
             name: "indentChar",

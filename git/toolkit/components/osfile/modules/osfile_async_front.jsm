@@ -192,19 +192,11 @@ let Scheduler = {
   shutdown: false,
 
   /**
-   * A promise resolved once all currently pending operations are complete.
+   * A promise resolved once all operations are complete.
    *
    * This promise is never rejected and the result is always undefined.
    */
   queue: Promise.resolve(),
-
-  /**
-   * A promise resolved once all currently pending `kill` operations
-   * are complete.
-   *
-   * This promise is never rejected and the result is always undefined.
-   */
-  _killQueue: Promise.resolve(),
 
   /**
    * Miscellaneous debugging information
@@ -294,14 +286,7 @@ let Scheduler = {
    *   through some other mean.
    */
   kill: function({shutdown, reset}) {
-    // Grab the kill queue to make sure that we
-    // cannot be interrupted by another call to `kill`.
-    let killQueue = this._killQueue;
-    return this._killQueue = Task.spawn(function*() {
-
-      yield killQueue;
-      // From this point, and until the end of the Task, we are the
-      // only call to `kill`, regardless of any `yield`.
+    return Task.spawn(function*() {
 
       yield this.queue;
 

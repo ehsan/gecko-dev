@@ -41,13 +41,13 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
   public:
-    class AutoRooter : public JS::AutoGCRooter
+    class AutoRooter : public AutoGCRooter
     {
         MacroAssembler *masm_;
 
       public:
         AutoRooter(JSContext *cx, MacroAssembler *masm)
-          : JS::AutoGCRooter(cx, IONMASM),
+          : AutoGCRooter(cx, IONMASM),
             masm_(masm)
         { }
 

@@ -149,5 +149,3 @@ void ots_head_free(OpenTypeFile *file) {
 }
 
 }  // namespace
-
-#undef TABLE_NAME

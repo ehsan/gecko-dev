@@ -98,5 +98,3 @@ void ots_loca_free(OpenTypeFile *file) {
 }
 
 }  // namespace ots
-
-#undef TABLE_NAME

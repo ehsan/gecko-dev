@@ -98,8 +98,6 @@ using mozilla::Maybe;
 using mozilla::PodCopy;
 using mozilla::PodZero;
 
-using JS::AutoGCRooter;
-
 using js::frontend::Parser;
 
 #ifdef HAVE_VA_LIST_AS_ARRAY
@@ -1090,7 +1088,6 @@ JS_TransplantObject(JSContext *cx, HandleObject origobj, HandleObject target)
     JS_ASSERT(!origobj->is<CrossCompartmentWrapperObject>());
     JS_ASSERT(!target->is<CrossCompartmentWrapperObject>());
 
-    AutoMaybeTouchDeadZones agc(cx);
     AutoDisableProxyCheck adpc(cx->runtime());
 
     JSCompartment *destination = target->compartment();

@@ -45,8 +45,6 @@
 using namespace js;
 using namespace js::gc;
 
-using JS::AutoCheckCannotGC;
-
 using js::frontend::IsIdentifier;
 
 /*

@@ -9,7 +9,6 @@
 
 #include "CrossProcessMutex.h"
 #include "mozilla/layers/GeckoContentController.h"
-#include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/Monitor.h"
@@ -39,6 +38,7 @@ class GestureEventListener;
 class ContainerLayer;
 class PCompositorParent;
 class ViewTransform;
+class APZCTreeManager;
 class AsyncPanZoomAnimation;
 class FlingAnimation;
 

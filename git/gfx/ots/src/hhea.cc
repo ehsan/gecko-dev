@@ -49,5 +49,3 @@ void ots_hhea_free(OpenTypeFile *file) {
 }
 
 }  // namespace ots
-
-#undef TABLE_NAME

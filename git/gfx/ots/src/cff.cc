@@ -1028,5 +1028,3 @@ void ots_cff_free(OpenTypeFile *file) {
 }
 
 }  // namespace ots
-
-#undef TABLE_NAME

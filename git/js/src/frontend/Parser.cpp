@@ -42,10 +42,7 @@
 
 using namespace js;
 using namespace js::gc;
-
 using mozilla::Maybe;
-
-using JS::AutoGCRooter;
 
 namespace js {
 namespace frontend {
