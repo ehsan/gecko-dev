@@ -1750,23 +1750,6 @@ var PlacesUtils = {
   },
 
   /**
-   * Creates a filename for bookmarks backup files.
-   *
-   * @param [optional] aDateObj Date object used to build the filename.
-   *                            Will use current date if empty.
-   * @return A bookmarks backup filename.
-   */
-  getBackupFilename:
-  function PU_getBackupFilename(aDateObj) {
-    if (!aDateObj)
-      aDateObj = new Date();
-    // Use YYYY-MM-DD (ISO 8601) as it doesn't contain illegal characters
-    // and makes the alphabetical order of multiple backup files more useful.
-    var date = aDateObj.toLocaleFormat("%Y-%m-%d");
-    return "bookmarks-" + date + ".json";
-  },
-
-  /**
    * ArchiveBookmarksFile()
    *
    * Creates a dated backup once a day in <profile>/bookmarkbackups.
@@ -1792,9 +1775,12 @@ var PlacesUtils = {
         return; // unable to create directory!
     }
 
-    // Construct the new leafname.
-    var date = new Date();
-    var backupFilename = this.getBackupFilename(date);
+    // construct the new leafname
+    // Use YYYY-MM-DD (ISO 8601) as it doesn't contain illegal characters
+    // and makes the alphabetical order of multiple backup files more useful.
+    var date = new Date().toLocaleFormat("%Y-%m-%d");
+    var backupFilename = "bookmarks-" + date + ".json";
+
     var backupFile = null;
     if (!aForceArchive) {
       var backupFileNames = [];
@@ -1804,7 +1790,7 @@ var PlacesUtils = {
       // old backups with a localized name (bug 445704).
       var localizedFilename = this.getFormattedString("bookmarksArchiveFilename", [date]);
       var localizedFilenamePrefix = localizedFilename.substr(0, localizedFilename.indexOf("-"));
-      var rx = new RegExp("^(bookmarks|" + localizedFilenamePrefix + ")-([0-9-]+)\.(json|html)");
+      var rx = new RegExp("^(bookmarks|" + localizedFilenamePrefix + ")-.+\.(json|html)");
 
       var entries = bookmarksBackupDir.directoryEntries;
       while (entries.hasMoreElements()) {
@@ -1812,11 +1798,10 @@ var PlacesUtils = {
         var backupName = entry.leafName;
         // A valid backup is any file that matches either the localized or
         // not-localized filename (bug 445704).
-        var matches = backupName.match(rx);
-        if (matches) {
+        if (backupName.match(rx)) {
           if (backupName == backupFilename)
             backupFile = entry;
-          backupFileNames.push({ filename: backupName, date: matches[2] });
+          backupFileNames.push(backupName);
         }
       }
 
@@ -1830,12 +1815,11 @@ var PlacesUtils = {
         // number specified in the pref.
         if (!backupFile)
           numberOfBackupsToDelete++;
-        backupFileNames.sort(function compare(a, b) {
-          return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
-        });
+
+        backupFileNames.sort();
         while (numberOfBackupsToDelete--) {
           let backupFile = bookmarksBackupDir.clone();
-          backupFile.append(backupFileNames[0].filename);
+          backupFile.append(backupFileNames[0]);
           backupFile.remove(false);
           backupFileNames.shift();
         }
