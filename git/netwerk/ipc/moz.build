@@ -34,7 +34,6 @@ IPDL_SOURCES = [
     'PChannelDiverter.ipdl',
     'PNecko.ipdl',
     'PRemoteOpenFile.ipdl',
-    'PRtspChannel.ipdl',
     'PRtspController.ipdl',
 ]
 

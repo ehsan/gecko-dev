@@ -22,7 +22,6 @@
 #include "nsDiskCacheDevice.h"
 #include "nsDiskCacheDeviceSQL.h"
 #include "nsCacheUtils.h"
-#include "../cache2/CacheObserver.h"
 
 #include "nsIObserverService.h"
 #include "nsIPrefService.h"
@@ -3108,10 +3107,6 @@ nsresult
 nsCacheService::SetDiskSmartSize_Locked()
 {
     nsresult rv;
-
-    if (mozilla::net::CacheObserver::UseNewCache()) {
-        return NS_ERROR_NOT_AVAILABLE;
-    }
 
     if (!mObserver->DiskCacheParentDirectory())
         return NS_ERROR_NOT_AVAILABLE;

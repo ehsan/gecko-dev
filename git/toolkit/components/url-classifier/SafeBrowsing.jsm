@@ -13,12 +13,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 // Skip all the ones containining "test", because we never need to ask for
 // updates for them.
 function getLists(prefName) {
-  let pref = Services.prefs.getCharPref(prefName);
-  // Splitting an empty string returns [''], we really want an empty array.
-  if (!pref) {
-    return [];
-  }
-  return pref.split(",")
+  return Services.prefs.getCharPref(prefName).split(",")
     .filter(function(value) { return value.indexOf("test-") == -1; })
     .map(function(value) { return value.trim(); });
 }

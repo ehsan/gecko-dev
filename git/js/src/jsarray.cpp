@@ -23,7 +23,6 @@
 #include "jsutil.h"
 
 #include "ds/Sort.h"
-#include "gc/Heap.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/ForkJoin.h"
 #include "vm/Interpreter.h"

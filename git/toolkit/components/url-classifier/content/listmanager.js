@@ -188,27 +188,13 @@ PROT_ListManager.prototype.maybeStartManagingUpdates = function() {
   this.maybeToggleUpdateChecking();
 }
 
-/**
- * Acts as a nsIUrlClassifierCallback for getTables.
- */
-PROT_ListManager.prototype.kickoffUpdate_ = function (onDiskTableData)
+PROT_ListManager.prototype.kickoffUpdate_ = function (tableData)
 {
   this.startingUpdate_ = false;
-  var initialUpdateDelay = 3000;
-
-  // Check if any table registered for updates has ever been downloaded.
-  var diskTablesAreUpdating = false;
-  for (var tableName in this.tablesData) {
-    if (this.tablesData[tableName].needsUpdate) {
-      if (onDiskTableData.indexOf(tableName) != -1) {
-        diskTablesAreUpdating = true;
-      }
-    }
-  }
-
   // If the user has never downloaded tables, do the check now.
   // If the user has tables, add a fuzz of a few minutes.
-  if (diskTablesAreUpdating) {
+  var initialUpdateDelay = 3000;
+  if (tableData != "") {
     // Add a fuzz of 0-5 minutes.
     initialUpdateDelay += Math.floor(Math.random() * (5 * 60 * 1000));
   }

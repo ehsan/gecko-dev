@@ -68,7 +68,6 @@ public:
     int32_t          mSuspendedWrite;
     nsCString        mPwd;
     uint32_t         mSessionId;
-    bool             mUseUTF8;
 
 private:
     nsCString mHost;

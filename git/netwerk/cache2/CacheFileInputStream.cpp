@@ -83,9 +83,6 @@ CacheFileInputStream::Available(uint64_t *_retval)
   }
 
   EnsureCorrectChunk(false);
-  if (NS_FAILED(mStatus))
-    return mStatus;
-
   *_retval = 0;
 
   if (mChunk) {
@@ -127,9 +124,6 @@ CacheFileInputStream::Read(char *aBuf, uint32_t aCount, uint32_t *_retval)
   }
 
   EnsureCorrectChunk(false);
-  if (NS_FAILED(mStatus))
-    return mStatus;
-
   if (!mChunk) {
     if (mListeningForChunk == -1) {
       LOG(("  no chunk, returning 0 read and NS_OK"));
@@ -200,9 +194,6 @@ CacheFileInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
   }
 
   EnsureCorrectChunk(false);
-  if (NS_FAILED(mStatus))
-    return mStatus;
-
   if (!mChunk) {
     if (mListeningForChunk == -1) {
       *_retval = 0;
@@ -444,17 +435,7 @@ CacheFileInputStream::OnChunkAvailable(nsresult aResult, uint32_t aChunkIdx,
     return NS_OK;
   }
 
-  if (NS_SUCCEEDED(aResult)) {
-    mChunk = aChunk;
-  } else if (aResult != NS_ERROR_NOT_AVAILABLE) {
-    // We store the error in mStatus, so we can propagate it later to consumer
-    // in Read(), Available() etc. We need to handle NS_ERROR_NOT_AVAILABLE
-    // differently since it is returned when the requested chunk is not
-    // available and there is no writer that could create it, i.e. it means that
-    // we've reached the end of the file.
-    mStatus = aResult;
-  }
-
+  mChunk = aChunk;
   MaybeNotifyListener();
 
   return NS_OK;
@@ -547,14 +528,7 @@ CacheFileInputStream::EnsureCorrectChunk(bool aReleaseOnly)
   if (NS_FAILED(rv)) {
     LOG(("CacheFileInputStream::EnsureCorrectChunk() - GetChunkLocked failed. "
          "[this=%p, idx=%d, rv=0x%08x]", this, chunkIdx, rv));
-    if (rv != NS_ERROR_NOT_AVAILABLE) {
-      // We store the error in mStatus, so we can propagate it later to consumer
-      // in Read(), Available() etc. We need to handle NS_ERROR_NOT_AVAILABLE
-      // differently since it is returned when the requested chunk is not
-      // available and there is no writer that could create it, i.e. it means
-      // that we've reached the end of the file.
-      mStatus = rv;
-    }
+
   }
   else if (!mChunk) {
     mListeningForChunk = static_cast<int64_t>(chunkIdx);
@@ -613,7 +587,7 @@ CacheFileInputStream::MaybeNotifyListener()
   if (!mCallback)
     return;
 
-  if (mClosed || NS_FAILED(mStatus)) {
+  if (mClosed) {
     NotifyListener();
     return;
   }

@@ -18,7 +18,6 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "gc/Barrier.h"
 #include "gc/Marking.h"
 #include "js/GCAPI.h"
 #include "vm/ObjectImpl.h"
