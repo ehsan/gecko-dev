@@ -10,8 +10,8 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
-#include "IonTypes.h"
-#include "AsmJS.h"
+#include "ion/IonTypes.h"
+#include "ion/AsmJS.h"
 #include "gc/Heap.h"
 
 // For RecompileInfo
@@ -136,7 +136,7 @@ class IonCode : public gc::Cell
     JS::Zone *zone() const { return tenuredZone(); }
     static void readBarrier(IonCode *code);
     static void writeBarrierPre(IonCode *code);
-    static void writeBarrierPost(IonCode *code, void *addr);
+    static void writeBarrierPost(IonCode *code, void *addr) {}
     static inline ThingRootKind rootKind() { return THING_ROOT_ION_CODE; }
 };
 

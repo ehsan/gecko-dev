@@ -380,8 +380,7 @@ FindBlockIndex(JSScript *script, StaticBlockObject &block)
             return i;
     }
 
-    JS_NOT_REACHED("Block not found");
-    return UINT32_MAX;
+    MOZ_ASSUME_UNREACHABLE("Block not found");
 }
 
 template<XDRMode mode>
@@ -773,11 +772,8 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
         }
     }
 
-    if (mode == XDR_DECODE) {
-        if (cx->hasOption(JSOPTION_PCCOUNT))
-            (void) script->initScriptCounts(cx);
+    if (mode == XDR_DECODE)
         scriptp.set(script);
-    }
 
     return true;
 }
@@ -1250,7 +1246,7 @@ ScriptSource::chars(JSContext *cx)
         JSStableString *cached = cx->runtime()->sourceDataCache.lookup(this);
         if (!cached) {
             const size_t nbytes = sizeof(jschar) * (length_ + 1);
-            jschar *decompressed = static_cast<jschar *>(cx->malloc_(nbytes));
+            jschar *decompressed = static_cast<jschar *>(js_malloc(nbytes));
             if (!decompressed)
                 return NULL;
             if (!DecompressString(data.compressed, compressedLength_,
@@ -1930,13 +1926,6 @@ JSScript::fullyInitFromEmitter(JSContext *cx, Handle<JSScript*> script, Bytecode
         script->setFunction(funbox->function());
     }
 
-    /*
-     * initScriptCounts updates scriptCountsMap if necessary. The other script
-     * maps in JSCompartment are populated lazily.
-     */
-    if (cx->hasOption(JSOPTION_PCCOUNT))
-        (void) script->initScriptCounts(cx);
-
     for (unsigned i = 0, n = script->bindings.numArgs(); i < n; ++i) {
         if (script->formalIsAliased(i)) {
             script->funHasAnyAliasedFormal = true;
@@ -2445,13 +2434,6 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
     /* Copy over hints. */
     dst->shouldCloneAtCallsite = src->shouldCloneAtCallsite;
     dst->isCallsiteClone = src->isCallsiteClone;
-
-    /*
-     * initScriptCounts updates scriptCountsMap if necessary. The other script
-     * maps in JSCompartment are populated lazily.
-     */
-    if (cx->hasOption(JSOPTION_PCCOUNT))
-        (void) dst->initScriptCounts(cx);
 
     if (nconsts != 0) {
         HeapValue *vector = Rebase<HeapValue>(dst, src, src->consts()->vector);

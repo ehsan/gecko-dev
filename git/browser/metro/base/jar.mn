@@ -8,7 +8,6 @@ chrome.jar:
 
   content/aboutCertError.xhtml                 (content/pages/aboutCertError.xhtml)
   content/aboutRights.xhtml                    (content/pages/aboutRights.xhtml)
-  content/aboutCrash.xhtml                     (content/pages/aboutCrash.xhtml)
   content/blockedSite.xhtml                    (content/pages/blockedSite.xhtml)
   content/netError.xhtml                       (content/pages/netError.xhtml)
 
@@ -35,6 +34,7 @@ chrome.jar:
   content/prompt/promptPassword.xul            (content/prompt/promptPassword.xul)
   content/prompt/select.xul                    (content/prompt/select.xul)
   content/prompt/prompt.js                     (content/prompt/prompt.js)
+  content/prompt/crash.xul                     (content/prompt/crash.xul)
 
   content/helperui/AlertsHelper.js             (content/helperui/AlertsHelper.js)
   content/helperui/IndexedDB.js                (content/helperui/IndexedDB.js)
@@ -88,11 +88,13 @@ chrome.jar:
   content/TopSites.js                          (content/TopSites.js)
   content/console.js                           (content/console.js)
   content/AnimatedZoom.js                      (content/AnimatedZoom.js)
+  content/dbg-metro-actors.js                  (content/dbg-metro-actors.js)
 #ifdef MOZ_SERVICES_SYNC
 * content/sync.js                              (content/sync.js)
   content/RemoteTabs.js                        (content/RemoteTabs.js)
 #endif
   content/NavButtonSlider.js                   (content/NavButtonSlider.js)
+  content/ContextUI.js                         (content/ContextUI.js)
 
 % override chrome://global/content/config.xul chrome://browser/content/config.xul
 % override chrome://global/content/netError.xhtml chrome://browser/content/netError.xhtml

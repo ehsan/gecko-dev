@@ -4,11 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "IonBuilder.h"
-#include "MIRGraph.h"
-#include "Ion.h"
-#include "IonAnalysis.h"
-#include "LIR.h"
+#include "jsanalyze.h"
+
+#include "ion/IonBuilder.h"
+#include "ion/MIRGraph.h"
+#include "ion/Ion.h"
+#include "ion/IonAnalysis.h"
+#include "ion/LIR.h"
 
 using namespace js;
 using namespace js::ion;
@@ -570,8 +572,7 @@ TypeAnalyzer::replaceRedundantPhi(MPhi *phi)
         v = MagicValue(JS_OPTIMIZED_ARGUMENTS);
         break;
       default:
-        JS_NOT_REACHED("unexpected type");
-        return;
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
     MConstant *c = MConstant::New(v);
     // The instruction pass will insert the box
@@ -1435,7 +1436,7 @@ ion::UnsplitEdges(LIRGraph *lir)
         // over-conservative, but we're attempting to keep everything in MIR
         // current as we modify the LIR, so only proceed if the MIR is simple.
         if (mirBlock->numPredecessors() == 0 || mirBlock->numSuccessors() != 1 ||
-            !mirBlock->resumePointsEmpty() || !mirBlock->begin()->isGoto())
+            !mirBlock->begin()->isGoto())
         {
             continue;
         }

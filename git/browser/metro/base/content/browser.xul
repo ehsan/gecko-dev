@@ -9,6 +9,7 @@
 <?xml-stylesheet href="chrome://browser/skin/forms.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/content/browser.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/cssthrobber.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/skin/tiles.css" type="text/css"?>
 
 <!DOCTYPE window [
 <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
@@ -51,7 +52,7 @@
   <broadcasterset id="broadcasterset">
     <broadcaster id="bcast_contentShowing" disabled="false"/>
     <broadcaster id="bcast_urlbarState" mode="view"/>
-    <broadcaster id="bcast_preciseInput" input="imprecise"/>
+    <broadcaster id="bcast_preciseInput" input="precise"/>
     <broadcaster id="bcast_windowState" viewstate=""/>
   </broadcasterset>
 
@@ -194,7 +195,7 @@
             <scrollbox id="start-scrollbox" orient="horizontal" observes="bcast_preciseInput" flex="1">
               <vbox id="start-topsites" class="meta-section">
                 <label class="meta-section-title" value="&startTopSitesHeader.label;"/>
-                <richgrid id="start-topsites-grid" rows="3" columns="3" seltype="multiple" flex="1"/>
+                <richgrid id="start-topsites-grid" rows="3" columns="3" tiletype="thumbnail" seltype="multiple" flex="1"/>
               </vbox>
               <vbox id="start-bookmarks" class="meta-section">
                 <label class="meta-section-title" value="&startBookmarksHeader.label;"/>
@@ -210,8 +211,9 @@
               </vbox>
             </scrollbox>
           </hbox>
+
           <!-- snapped view -->
-          <vbox id="snapped-start" class="start-page" observes="bcast_windowState">
+          <hbox id="snapped-start" class="start-page" flex="1" observes="bcast_windowState">
             <scrollbox id="snapped-scrollbox" orient="vertical" flex="1">
               <vbox id="snapped-topsites">
                 <label class="meta-section-title" value="&startTopSitesHeader.label;"/>
@@ -224,7 +226,7 @@
               <label id="snappedRemoteTabsLabel" class="meta-section-title" value="&snappedRemoteTabsHeader.label;"
                 onclick="PanelUI.show('remotetabs-container');" inputProcessing="true"/>
             </scrollbox>
-          </vbox>
+          </hbox>
           <!-- Autocompletion interface -->
           <box id="start-autocomplete" observes="bcast_windowState"/>
         </hbox>
@@ -254,6 +256,53 @@
       <button class="content-navigator-item next-button" command="cmd_findNext"/>
       <spacer flex="1"/>
       <button class="content-navigator-item close-button" command="cmd_findClose"/>
+    </appbar>
+
+    <!-- Navbar -->
+    <appbar id="navbar" mousethrough="never" observes="bcast_windowState">
+      <hbox id="progress-container" layer="true">
+        <hbox id="progress-control" />
+      </hbox>
+
+      <!-- Main Toolbar -->
+      <toolbar id="toolbar" observes="bcast_windowState" flex="1">
+        <observes element="bcast_windowState" attribute="*"/>
+        <observes element="bcast_urlbarState" attribute="*"/>
+
+        <toolbarbutton id="back-button" class="appbar-primary" command="cmd_back"/>
+        <toolbarbutton id="forward-button" class="appbar-primary" command="cmd_forward"/>
+
+        <hbox id="urlbar-container" flex="1" observes="bcast_urlbarState">
+          <hbox id="urlbar" flex="1">
+            <box id="identity-box" role="button">
+              <hbox id="identity-box-inner" align="center" mousethrough="always">
+                <image id="identity-icon"/>
+              </hbox>
+            </box>
+
+            <textbox id="urlbar-edit"
+                     type="url"
+                     class="uri-element"
+                     autocompletesearch="history"
+                     autocompletepopup="start-autocomplete"
+                     completeselectedindex="true"
+                     placeholder="&urlbar.emptytext;"
+                     flex="1"
+                     onpaste="this.focus();"
+                     ontextentered="BrowserUI.handleUrlbarEnter(param);"
+                     onkeydown="BrowserUI.navEditKeyPress();"
+                     onblur="BrowserUI._urlbarBlurred();"/>
+          </hbox>
+
+          <toolbarbutton id="reload-button" oncommand="CommandUpdater.doCommand(event.shiftKey ? 'cmd_forceReload' : 'cmd_reload');"/>
+          <toolbarbutton id="stop-button" command="cmd_stop"/>
+        </hbox>
+
+        <toolbarbutton id="download-button" oncommand="Appbar.onDownloadButton()"/>
+        <toolbarbutton id="star-button" class="appbar-primary" type="checkbox" oncommand="Appbar.onStarButton()"/>
+        <toolbarbutton id="pin-button" class="appbar-primary" type="checkbox" oncommand="Appbar.onPinButton()"/>
+        <toolbarbutton id="menu-button" class="appbar-primary" oncommand="Appbar.onMenuButton(event)"/>
+       </toolbar>
     </appbar>
 
     <vbox id="panel-container" hidden="true" class="window-width window-height meta" observes="bcast_windowState">
@@ -306,52 +355,6 @@
         </vbox>
       </deck>
     </vbox>
-
-    <!-- Navbar -->
-    <appbar id="navbar" mousethrough="never" observes="bcast_windowState">
-      <hbox id="progress-container" layer="true">
-        <hbox id="progress-control" />
-      </hbox>
-
-      <!-- Main Toolbar -->
-      <toolbar id="toolbar" observes="bcast_windowState" flex="1">
-        <observes element="bcast_windowState" attribute="*"/>
-        <observes element="bcast_urlbarState" attribute="*"/>
-
-        <toolbarbutton id="back-button" class="appbar-primary" command="cmd_back"/>
-        <toolbarbutton id="forward-button" class="appbar-primary" command="cmd_forward"/>
-
-        <hbox id="urlbar-container" flex="1" observes="bcast_urlbarState">
-          <hbox id="urlbar" flex="1">
-            <box id="identity-box" role="button">
-              <hbox id="identity-box-inner" align="center" mousethrough="always">
-                <image id="identity-icon"/>
-              </hbox>
-            </box>
-
-            <textbox id="urlbar-edit"
-                     type="url"
-                     class="uri-element"
-                     autocompletesearch="history"
-                     autocompletepopup="start-autocomplete"
-                     completeselectedindex="true"
-                     placeholder="&urlbar.emptytext;"
-                     flex="1"
-                     ontextentered="BrowserUI.handleUrlbarEnter(param);"
-                     onkeydown="BrowserUI.navEditKeyPress();"
-                     onblur="BrowserUI._urlbarBlurred();"/>
-          </hbox>
-
-          <toolbarbutton id="reload-button" oncommand="CommandUpdater.doCommand(event.shiftKey ? 'cmd_forceReload' : 'cmd_reload');"/>
-          <toolbarbutton id="stop-button" command="cmd_stop"/>
-        </hbox>
-
-        <toolbarbutton id="download-button" oncommand="Appbar.onDownloadButton()"/>
-        <toolbarbutton id="star-button" class="appbar-primary" type="checkbox" oncommand="Appbar.onStarButton()"/>
-        <toolbarbutton id="pin-button" class="appbar-primary" type="checkbox" oncommand="Appbar.onPinButton()"/>
-        <toolbarbutton id="menu-button" class="appbar-primary" oncommand="Appbar.onMenuButton(event)"/>
-       </toolbar>
-    </appbar>
 
     <!-- Context button bar -->
     <appbar id="contextappbar">
@@ -444,10 +447,10 @@
           <button label="&sync.setup.remove;" oncommand="Sync.disconnect();" />
         </hbox>
       </vbox>
-      <vbox id="sync-disconnectthrobber" collapsed="true">
+      <vbox id="sync-disconnectpanel">
         <hbox>
           <spacer flex="1" />
-          <cssthrobber id="syncdisconnectthrobber" />
+          <cssthrobber id="sync-disconnectthrobber"/>
           <label>&sync.removethrobber.label;</label>
           <spacer flex="1" />
         </hbox>
@@ -490,8 +493,7 @@
           <deck id="clear-notification" flex="2" selectedIndex="0" align="center">
             <spacer id="clear-notification-empty"/>
             <hbox id="clear-notification-clearing" align="center">
-              <!-- TODO: we need a more metro-y throbber. See bug 852622 -->
-              <image src="chrome://browser/skin/images/throbber.png" />
+              <cssthrobber id="clearprivacythrobber"/>
             </hbox>
             <description id="clear-notification-done">&clearPrivateData.done;</description>
           </deck>
@@ -499,7 +501,7 @@
       </settings>
       <setting pref="signon.rememberSignons" title="&optionsHeader.privacy.passwords.label;" type="bool"/>
       <settings id="prefs-reporting" label="&optionsHeader.reporting.title;">
-        <setting pref="app.reportCrashes" type="bool" title="&optionsHeader.reporting.crashes.label;" oncommand="BrowserUI.crashReportingPrefChanged(this.value);"/>
+        <setting pref="app.crashreporter.autosubmit" type="bool" title="&optionsHeader.reporting.crashes.label;" oncommand="BrowserUI.crashReportingPrefChanged(this.value);"/>
       </settings>
       <settings id="prefs-dnt" label="&doNotTrack.title;">
         <description>&doNotTrack.desc;</description>
@@ -523,7 +525,7 @@
           <vbox id="syncsetup-simple" class="syncsetup-page" flex="1">
             <scrollbox id="sync-message" class="prompt-message" orient="vertical" flex="1">
               <description class="syncsetup-desc" flex="1">&sync.setup.pair2;</description>
-              <description class="link" flex="1" onclick="Sync.openTutorial();">&sync.setup.tutorial;</description>
+              <description class="text-link" flex="1" onclick="Sync.openTutorial();">&sync.setup.tutorial;</description>
               <separator/>
               <vbox flex="1" pack="center" align="start">
                 <description id="syncsetup-code1" class="syncsetup-code">....</description>
@@ -531,7 +533,7 @@
                 <description id="syncsetup-code3" class="syncsetup-code">....</description>
               </vbox>
               <separator/>
-              <description class="link" flex="1" onclick="Sync.openManual();">&sync.fallback;</description>
+              <description class="text-link" flex="1" onclick="Sync.openManual();">&sync.fallback;</description>
               <separator flex="1"/>
             </scrollbox>
             <hbox class="prompt-buttons">
@@ -580,7 +582,7 @@
           <vbox id="syncpair-simple" class="syncsetup-page" flex="1">
             <vbox id="sync-message" class="prompt-message" orient="vertical" flex="1">
               <description class="syncsetup-desc" flex="1">&sync.pair.description;</description>
-              <description class="link" flex="1" onclick="SyncPairDevice.close(); Sync.openTutorial();">&sync.setup.tutorial;</description>
+              <description class="text-link" flex="1" onclick="SyncPairDevice.close(); Sync.openTutorial();">&sync.setup.tutorial;</description>
               <separator/>
               <vbox align="center" flex="1">
                 <textbox id="syncpair-code1" class="syncsetup-code" oninput="SyncPairDevice.onTextBoxInput(this);"/>

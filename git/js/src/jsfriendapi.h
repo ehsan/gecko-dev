@@ -133,6 +133,12 @@ js_GetterOnlyPropertyStub(JSContext *cx, JS::HandleObject obj, JS::HandleId id, 
 JS_FRIEND_API(void)
 js_ReportOverRecursed(JSContext *maybecx);
 
+JS_FRIEND_API(bool)
+js_ObjectClassIs(JSContext *cx, JS::HandleObject obj, js::ESClassValue classValue);
+
+JS_FRIEND_API(const char *)
+js_ObjectClassName(JSContext *cx, JS::HandleObject obj);
+
 #ifdef DEBUG
 
 /*
@@ -1761,5 +1767,13 @@ js_DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
 
 extern JS_FRIEND_API(JSBool)
 js_ReportIsNotFunction(JSContext *cx, const JS::Value& v);
+
+#ifdef JSGC_GENERATIONAL
+extern JS_FRIEND_API(void)
+JS_StorePostBarrierCallback(JSContext* cx, void (*callback)(JSTracer *trc, void *key), void *key);
+#else
+inline void
+JS_StorePostBarrierCallback(JSContext* cx, void (*callback)(JSTracer *trc, void *key), void *key) {}
+#endif /* JSGC_GENERATIONAL */
 
 #endif /* jsfriendapi_h */

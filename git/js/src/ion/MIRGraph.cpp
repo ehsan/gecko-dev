@@ -4,11 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "Ion.h"
-#include "IonSpewer.h"
-#include "MIR.h"
-#include "MIRGraph.h"
-#include "IonBuilder.h"
+#include "jsanalyze.h"
+
+#include "ion/Ion.h"
+#include "ion/IonSpewer.h"
+#include "ion/MIR.h"
+#include "ion/MIRGraph.h"
+#include "ion/IonBuilder.h"
+#include "jsinferinlines.h"
 #include "jsscriptinlines.h"
 
 using namespace js;
@@ -101,7 +104,13 @@ MIRGraph::removeBlock(MBasicBlock *block)
     }
 
     block->discardAllInstructions();
-    block->discardAllPhis();
+
+    // Note: phis are disconnected from the rest of the graph, but are not
+    // removed entirely. If the block being removed is a loop header then
+    // IonBuilder may need to access these phis to more quickly converge on the
+    // possible types in the graph. See IonBuilder::analyzeNewLoopTypes.
+    block->discardAllPhiOperands();
+
     block->markAsDead();
     blocks_.remove(block);
     numBlocks_--;
@@ -245,6 +254,10 @@ MBasicBlock::MBasicBlock(MIRGraph &graph, CompileInfo &info, jsbytecode *pc, Kin
     numDominated_(0),
     loopHeader_(NULL),
     trackedPc_(pc)
+#if defined (JS_ION_PERF)
+    , lineno_(0u),
+    columnIndex_(0u)
+#endif
 {
 }
 
@@ -599,7 +612,7 @@ AssertSafelyDiscardable(MDefinition *def)
 #ifdef DEBUG
     // Instructions captured by resume points cannot be safely discarded, since
     // they are necessary for interpreter frame reconstruction in case of bailout.
-    JS_ASSERT(def->useCount() == 0);
+    JS_ASSERT(!def->hasUses());
 #endif
 }
 
@@ -658,17 +671,23 @@ MBasicBlock::discardAllInstructions()
 }
 
 void
-MBasicBlock::discardAllPhis()
+MBasicBlock::discardAllPhiOperands()
 {
-    for (MPhiIterator iter = phisBegin(); iter != phisEnd(); ) {
+    for (MPhiIterator iter = phisBegin(); iter != phisEnd(); iter++) {
         MPhi *phi = *iter;
         for (size_t i = 0; i < phi->numOperands(); i++)
             phi->discardOperand(i);
-        iter = phis_.removeAt(iter);
     }
 
     for (MBasicBlock **pred = predecessors_.begin(); pred != predecessors_.end(); pred++)
         (*pred)->setSuccessorWithPhis(NULL, 0);
+}
+
+void
+MBasicBlock::discardAllPhis()
+{
+    discardAllPhiOperands();
+    phis_.clear();
 }
 
 void
@@ -921,7 +940,7 @@ MBasicBlock::getSuccessorIndex(MBasicBlock *block) const
         if (getSuccessor(i) == block)
             return i;
     }
-    JS_NOT_REACHED("Invalid successor");
+    MOZ_ASSUME_UNREACHABLE("Invalid successor");
 }
 
 void
@@ -953,7 +972,7 @@ MBasicBlock::replacePredecessor(MBasicBlock *old, MBasicBlock *split)
         }
     }
 
-    JS_NOT_REACHED("predecessor was not found");
+    MOZ_ASSUME_UNREACHABLE("predecessor was not found");
 }
 
 void
@@ -990,7 +1009,7 @@ MBasicBlock::removePredecessor(MBasicBlock *pred)
         return;
     }
 
-    JS_NOT_REACHED("predecessor was not found");
+    MOZ_ASSUME_UNREACHABLE("predecessor was not found");
 }
 
 void

@@ -93,7 +93,6 @@
 #include "nsTextNode.h"
 #include "nsUnicharUtils.h"
 #include "nsXBLBinding.h"
-#include "nsXBLInsertionPoint.h"
 #include "nsXBLPrototypeBinding.h"
 #include "prprf.h"
 #include "xpcpublic.h"
@@ -1194,8 +1193,7 @@ nsINode::UnoptimizableCCNode() const
   const uintptr_t problematicFlags = (NODE_IS_ANONYMOUS |
                                       NODE_IS_IN_ANONYMOUS_SUBTREE |
                                       NODE_IS_NATIVE_ANONYMOUS_ROOT |
-                                      NODE_MAY_BE_IN_BINDING_MNGR |
-                                      NODE_IS_INSERTION_PARENT);
+                                      NODE_MAY_BE_IN_BINDING_MNGR);
   return HasFlag(problematicFlags) ||
          NodeType() == nsIDOMNode::ATTRIBUTE_NODE ||
          // For strange cases like xbl:content/xbl:children
@@ -2194,33 +2192,6 @@ nsINode::Length() const
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_1(nsNodeSelectorTearoff, mNode)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsNodeSelectorTearoff)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNodeSelector)
-NS_INTERFACE_MAP_END_AGGREGATED(mNode)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsNodeSelectorTearoff)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsNodeSelectorTearoff)
-
-NS_IMETHODIMP
-nsNodeSelectorTearoff::QuerySelector(const nsAString& aSelector,
-                                     nsIDOMElement **aReturn)
-{
-  ErrorResult rv;
-  nsIContent* result = mNode->QuerySelector(aSelector, rv);
-  return result ? CallQueryInterface(result, aReturn) : rv.ErrorCode();
-}
-
-NS_IMETHODIMP
-nsNodeSelectorTearoff::QuerySelectorAll(const nsAString& aSelector,
-                                        nsIDOMNodeList **aReturn)
-{
-  ErrorResult rv;
-  *aReturn = mNode->QuerySelectorAll(aSelector, rv).get();
-  return rv.ErrorCode();
-}
-
 // NOTE: The aPresContext pointer is NOT addrefed.
 // *aSelectorList might be null even if NS_OK is returned; this
 // happens when all the selectors were pseudo-element selectors.
@@ -2387,6 +2358,27 @@ nsINode::QuerySelectorAll(const nsAString& aSelector, ErrorResult& aResult)
   aResult = FindMatchingElements<false>(this, aSelector, *contentList);
 
   return contentList.forget();
+}
+
+nsresult
+nsINode::QuerySelector(const nsAString& aSelector, nsIDOMElement **aReturn)
+{
+  ErrorResult rv;
+  Element* result = nsINode::QuerySelector(aSelector, rv);
+  if (rv.Failed()) {
+    return rv.ErrorCode();
+  }
+  nsCOMPtr<nsIDOMElement> elt = do_QueryInterface(result);
+  elt.forget(aReturn);
+  return NS_OK;
+}
+
+nsresult
+nsINode::QuerySelectorAll(const nsAString& aSelector, nsIDOMNodeList **aReturn)
+{
+  ErrorResult rv;
+  *aReturn = nsINode::QuerySelectorAll(aSelector, rv).get();
+  return rv.ErrorCode();
 }
 
 JSObject*

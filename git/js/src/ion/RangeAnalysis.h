@@ -10,10 +10,9 @@
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MathAlgorithms.h"
 
-#include "wtf/Platform.h"
-#include "MIR.h"
-#include "CompileInfo.h"
-#include "IonAnalysis.h"
+#include "ion/MIR.h"
+#include "ion/CompileInfo.h"
+#include "ion/IonAnalysis.h"
 
 namespace js {
 namespace ion {
@@ -216,8 +215,18 @@ class Range : public TempObject {
     static Range * sub(const Range *lhs, const Range *rhs);
     static Range * mul(const Range *lhs, const Range *rhs);
     static Range * and_(const Range *lhs, const Range *rhs);
-    static Range * shl(const Range *lhs, int32_t c);
-    static Range * shr(const Range *lhs, int32_t c);
+    static Range * or_(const Range *lhs, const Range *rhs);
+    static Range * xor_(const Range *lhs, const Range *rhs);
+    static Range * not_(const Range *op);
+    static Range * lsh(const Range *lhs, int32_t c);
+    static Range * rsh(const Range *lhs, int32_t c);
+    static Range * ursh(const Range *lhs, int32_t c);
+    static Range * lsh(const Range *lhs, const Range *rhs);
+    static Range * rsh(const Range *lhs, const Range *rhs);
+    static Range * ursh(const Range *lhs, const Range *rhs);
+    static Range * abs(const Range *op);
+    static Range * min(const Range *lhs, const Range *rhs);
+    static Range * max(const Range *lhs, const Range *rhs);
 
     static bool negativeZeroMul(const Range *lhs, const Range *rhs);
 

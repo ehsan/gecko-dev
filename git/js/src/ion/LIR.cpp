@@ -4,12 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "MIR.h"
-#include "MIRGraph.h"
-#include "LIR.h"
-#include "IonSpewer.h"
-#include "LIR-inl.h"
-#include "shared/CodeGenerator-shared.h"
+#include "jsprf.h"
+
+#include "ion/MIR.h"
+#include "ion/MIRGraph.h"
+#include "ion/LIR.h"
+#include "ion/IonSpewer.h"
+#include "ion/shared/CodeGenerator-shared.h"
+
 using namespace js;
 using namespace js::ion;
 
@@ -269,8 +271,7 @@ LAllocation::toString() const
         PrintUse(buf, sizeof(buf), toUse());
         return buf;
       default:
-        JS_NOT_REACHED("what?");
-        return "???";
+        MOZ_ASSUME_UNREACHABLE("what?");
     }
 }
 #endif // DEBUG

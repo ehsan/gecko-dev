@@ -10,9 +10,9 @@
 // This file declares the data structures used to build a control-flow graph
 // containing MIR.
 
-#include "IonAllocPolicy.h"
-#include "MIRGenerator.h"
-#include "FixedList.h"
+#include "ion/IonAllocPolicy.h"
+#include "ion/MIRGenerator.h"
+#include "ion/FixedList.h"
 
 namespace js {
 namespace ion {
@@ -222,6 +222,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MInstructionReverseIterator discardAt(MInstructionReverseIterator &iter);
     MDefinitionIterator discardDefAt(MDefinitionIterator &iter);
     void discardAllInstructions();
+    void discardAllPhiOperands();
     void discardAllPhis();
     void discardAllResumePoints(bool discardEntry = true);
 
@@ -510,6 +511,17 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MBasicBlock *loopHeader_;
 
     jsbytecode *trackedPc_;
+
+#if defined (JS_ION_PERF)
+    unsigned lineno_;
+    unsigned columnIndex_;
+
+  public:
+    void setLineno(unsigned l) { lineno_ = l; }
+    unsigned lineno() const { return lineno_; }
+    void setColumnIndex(unsigned c) { columnIndex_ = c; }
+    unsigned columnIndex() const { return columnIndex_; }
+#endif
 };
 
 typedef InlineListIterator<MBasicBlock> MBasicBlockIterator;
@@ -597,6 +609,9 @@ class MIRGraph
     }
     ReversePostorderIterator rpoBegin() {
         return blocks_.begin();
+    }
+    ReversePostorderIterator rpoBegin(MBasicBlock *at) {
+        return blocks_.begin(at);
     }
     ReversePostorderIterator rpoEnd() {
         return blocks_.end();

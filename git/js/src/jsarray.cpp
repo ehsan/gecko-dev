@@ -37,6 +37,7 @@
 #include "vm/ArgumentsObject-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/ObjectImpl-inl.h"
+#include "vm/Runtime-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -1676,7 +1677,7 @@ SortNumerically(JSContext *cx, AutoValueVector *vec, size_t len, ComparatorMatch
             return false;
 
         double dv;
-        if (!ToNumber(cx, (*vec)[i], &dv))
+        if (!ToNumber(cx, vec->handleAt(i), &dv))
             return false;
 
         NumericElement el = { dv, i };
@@ -2221,7 +2222,7 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 5. */
     double relativeStart;
-    if (!ToInteger(cx, argc >= 1 ? args[0] : UndefinedValue(), &relativeStart))
+    if (!ToInteger(cx, args.handleOrUndefinedAt(0), &relativeStart))
         return false;
 
     /* Step 6. */
@@ -2235,7 +2236,8 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
     uint32_t actualDeleteCount;
     if (argc != 1) {
         double deleteCountDouble;
-        if (!ToInteger(cx, argc >= 2 ? args[1] : Int32Value(0), &deleteCountDouble))
+        RootedValue cnt(cx, argc >= 2 ? args[1] : Int32Value(0));
+        if (!ToInteger(cx, cnt, &deleteCountDouble))
             return false;
         actualDeleteCount = Min(Max(deleteCountDouble, 0.0), double(len - actualStart));
     } else {
@@ -2540,7 +2542,7 @@ array_slice(JSContext *cx, unsigned argc, Value *vp)
 
     if (args.length() > 0) {
         double d;
-        if (!ToInteger(cx, args[0], &d))
+        if (!ToInteger(cx, args.handleAt(0), &d))
             return false;
         if (d < 0) {
             d += length;
@@ -2552,7 +2554,7 @@ array_slice(JSContext *cx, unsigned argc, Value *vp)
         begin = (uint32_t)d;
 
         if (args.hasDefined(1)) {
-            if (!ToInteger(cx, args[1], &d))
+            if (!ToInteger(cx, args.handleAt(1), &d))
                 return false;
             if (d < 0) {
                 d += length;
@@ -2727,7 +2729,10 @@ static const JSFunctionSpec array_methods[] = {
          {"some",               {NULL, NULL},       1,0, "ArraySome"},
          {"every",              {NULL, NULL},       1,0, "ArrayEvery"},
 
-    JS_FN("iterator",           JS_ArrayIterator,   0,0),
+    /* ES6 additions */
+         {"find",               {NULL, NULL},       1,0, "ArrayFind"},
+         {"findIndex",          {NULL, NULL},       1,0, "ArrayFindIndex"},
+
     JS_FS_END
 };
 
@@ -2783,7 +2788,16 @@ js_Array(JSContext *cx, unsigned argc, Value *vp)
         }
     }
 
-    RootedObject obj(cx, NewDenseUnallocatedArray(cx, length));
+    /*
+     * Allocate dense elements eagerly for small arrays, to avoid reallocating
+     * elements when filling the array.
+     */
+    static const uint32_t ArrayEagerAllocationMaxLength = 2048;
+
+    RootedObject obj(cx);
+    obj = (length <= ArrayEagerAllocationMaxLength)
+          ? NewDenseAllocatedArray(cx, length)
+          : NewDenseUnallocatedArray(cx, length);
     if (!obj)
         return false;
     Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
@@ -2849,6 +2863,14 @@ js_InitArrayClass(JSContext *cx, HandleObject obj)
     }
 
     if (!DefineConstructorAndPrototype(cx, global, JSProto_Array, ctor, arrayProto))
+        return NULL;
+
+    JSFunction *fun = JS_DefineFunction(cx, arrayProto, "values", JS_ArrayIterator, 0, 0);
+    if (!fun)
+        return NULL;
+
+    RootedValue funval(cx, ObjectValue(*fun));
+    if (!JS_DefineProperty(cx, arrayProto, "iterator", funval, NULL, NULL, 0))
         return NULL;
 
     return arrayProto;

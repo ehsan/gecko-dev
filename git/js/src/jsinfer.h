@@ -626,7 +626,7 @@ class StackTypeSet : public TypeSet
     /* Get the prototype shared by all objects in this set, or NULL. */
     JSObject *getCommonPrototype();
 
-    /* Get the typed array type of all objects in this set, or TypedArray::TYPE_MAX. */
+    /* Get the typed array type of all objects in this set, or TypedArrayObject::TYPE_MAX. */
     int getTypedArrayType();
 
     /* Whether all objects have JSCLASS_IS_DOMJSCLASS set. */
@@ -914,7 +914,7 @@ struct TypeNewScript
     Initializer *initializerList;
 
     static inline void writeBarrierPre(TypeNewScript *newScript);
-    static inline void writeBarrierPost(TypeNewScript *newScript, void *addr);
+    static void writeBarrierPost(TypeNewScript *newScript, void *addr) {}
 };
 
 /*
@@ -1100,7 +1100,7 @@ struct TypeObject : gc::Cell
     JS::Zone *zone() const { return tenuredZone(); }
 
     static inline void writeBarrierPre(TypeObject *type);
-    static inline void writeBarrierPost(TypeObject *type, void *addr);
+    static void writeBarrierPost(TypeObject *type, void *addr) {}
     static inline void readBarrier(TypeObject *type);
 
     static inline ThingRootKind rootKind() { return THING_ROOT_TYPE_OBJECT; }
@@ -1135,6 +1135,9 @@ typedef HashSet<ReadBarriered<TypeObject>, TypeObjectEntry, SystemAllocPolicy> T
 /* Whether to use a new type object when calling 'new' at script/pc. */
 bool
 UseNewType(JSContext *cx, JSScript *script, jsbytecode *pc);
+
+bool
+UseNewTypeForClone(JSFunction *fun);
 
 /*
  * Whether Array.prototype, or an object on its proto chain, has an

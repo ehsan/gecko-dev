@@ -2319,8 +2319,8 @@ RasterImage::StartDecoding()
 {
   // Here we are explicitly trading off flashing for responsiveness in the case
   // that we're redecoding an image (see bug 845147).
-  return RequestDecodeCore(//mHasBeenDecoded ?
-    SYNCHRONOUS_NOTIFY /*: SYNCHRONOUS_NOTIFY_AND_SOME_DECODE*/);
+  return RequestDecodeCore(mHasBeenDecoded ?
+    SYNCHRONOUS_NOTIFY : SYNCHRONOUS_NOTIFY_AND_SOME_DECODE);
 }
 
 bool
@@ -2693,6 +2693,8 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
                       mSize.width - framerect.XMost(),
                       mSize.height - framerect.YMost(),
                       framerect.x);
+
+  frame->ApplyDirtToSurfaces();
 
   frame->Draw(aContext, aFilter, userSpaceToImageSpace, aFill, padding, subimage,
               aFlags);

@@ -9,7 +9,6 @@
 
 #ifdef JS_ION
 
-#include "jstypedarray.h"
 #include "jscompartment.h"
 
 #if defined(JS_CPU_X86)
@@ -26,6 +25,7 @@
 #include "ion/VMFunctions.h"
 #include "vm/ForkJoin.h"
 #include "vm/Shape.h"
+#include "vm/TypedArrayObject.h"
 
 namespace js {
 namespace ion {
@@ -189,7 +189,7 @@ class MacroAssembler : public MacroAssemblerSpecific
           case MIRType_Object:      return testObject(cond, val);
           case MIRType_Double:      return testDouble(cond, val);
           default:
-            JS_NOT_REACHED("Bad MIRType");
+            MOZ_ASSUME_UNREACHABLE("Bad MIRType");
         }
     }
 
@@ -359,6 +359,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     using MacroAssemblerSpecific::Push;
+    using MacroAssemblerSpecific::Pop;
 
     void Push(jsid id, Register scratchReg) {
         if (JSID_IS_GCTHING(id)) {
@@ -531,38 +532,36 @@ class MacroAssembler : public MacroAssemblerSpecific
     template<typename S, typename T>
     void storeToTypedIntArray(int arrayType, const S &value, const T &dest) {
         switch (arrayType) {
-          case TypedArray::TYPE_INT8:
-          case TypedArray::TYPE_UINT8:
-          case TypedArray::TYPE_UINT8_CLAMPED:
+          case TypedArrayObject::TYPE_INT8:
+          case TypedArrayObject::TYPE_UINT8:
+          case TypedArrayObject::TYPE_UINT8_CLAMPED:
             store8(value, dest);
             break;
-          case TypedArray::TYPE_INT16:
-          case TypedArray::TYPE_UINT16:
+          case TypedArrayObject::TYPE_INT16:
+          case TypedArrayObject::TYPE_UINT16:
             store16(value, dest);
             break;
-          case TypedArray::TYPE_INT32:
-          case TypedArray::TYPE_UINT32:
+          case TypedArrayObject::TYPE_INT32:
+          case TypedArrayObject::TYPE_UINT32:
             store32(value, dest);
             break;
           default:
-            JS_NOT_REACHED("Invalid typed array type");
-            break;
+            MOZ_ASSUME_UNREACHABLE("Invalid typed array type");
         }
     }
 
     template<typename S, typename T>
     void storeToTypedFloatArray(int arrayType, const S &value, const T &dest) {
         switch (arrayType) {
-          case TypedArray::TYPE_FLOAT32:
+          case TypedArrayObject::TYPE_FLOAT32:
             convertDoubleToFloat(value, ScratchFloatReg);
             storeFloat(ScratchFloatReg, dest);
             break;
-          case TypedArray::TYPE_FLOAT64:
+          case TypedArrayObject::TYPE_FLOAT64:
             storeDouble(value, dest);
             break;
           default:
-            JS_NOT_REACHED("Invalid typed array type");
-            break;
+            MOZ_ASSUME_UNREACHABLE("Invalid typed array type");
         }
     }
 
@@ -603,8 +602,24 @@ class MacroAssembler : public MacroAssemblerSpecific
                        const Register &threadContextReg,
                        const Register &tempReg1,
                        const Register &tempReg2,
+                       gc::AllocKind allocKind,
+                       Label *fail);
+    void parNewGCThing(const Register &result,
+                       const Register &threadContextReg,
+                       const Register &tempReg1,
+                       const Register &tempReg2,
                        JSObject *templateObject,
                        Label *fail);
+    void parNewGCString(const Register &result,
+                        const Register &threadContextReg,
+                        const Register &tempReg1,
+                        const Register &tempReg2,
+                        Label *fail);
+    void parNewGCShortString(const Register &result,
+                             const Register &threadContextReg,
+                             const Register &tempReg1,
+                             const Register &tempReg2,
+                             Label *fail);
     void initGCThing(const Register &obj, JSObject *templateObject);
 
     // Compares two strings for equality based on the JSOP.
@@ -736,6 +751,8 @@ class MacroAssembler : public MacroAssemblerSpecific
         return truthy ? Assembler::Zero : Assembler::NonZero;
     }
 
+    void pushCalleeToken(Register callee, ExecutionMode mode);
+    void PushCalleeToken(Register callee, ExecutionMode mode);
     void tagCallee(Register callee, ExecutionMode mode);
     void clearCalleeTag(Register callee, ExecutionMode mode);
 
@@ -929,8 +946,7 @@ JSOpToDoubleCondition(JSOp op)
       case JSOP_GE:
         return Assembler::DoubleGreaterThanOrEqual;
       default:
-        JS_NOT_REACHED("Unexpected comparison operation");
-        return Assembler::DoubleEqual;
+        MOZ_ASSUME_UNREACHABLE("Unexpected comparison operation");
     }
 }
 
@@ -957,8 +973,7 @@ JSOpToCondition(JSOp op, bool isSigned)
           case JSOP_GE:
             return Assembler::GreaterThanOrEqual;
           default:
-            JS_NOT_REACHED("Unrecognized comparison operation");
-            return Assembler::Equal;
+            MOZ_ASSUME_UNREACHABLE("Unrecognized comparison operation");
         }
     } else {
         switch (op) {
@@ -977,8 +992,7 @@ JSOpToCondition(JSOp op, bool isSigned)
           case JSOP_GE:
             return Assembler::AboveOrEqual;
           default:
-            JS_NOT_REACHED("Unrecognized comparison operation");
-            return Assembler::Equal;
+            MOZ_ASSUME_UNREACHABLE("Unrecognized comparison operation");
         }
     }
 }

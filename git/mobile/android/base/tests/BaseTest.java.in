@@ -401,6 +401,9 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         return rc;
     }
 
+    /**
+     * Wait for <text> to be visible and also be enabled/clickable.
+     */
     public boolean waitForEnabledText(String text) {
         final String testText = text;
         boolean rc = waitForTest(new BooleanTest() {
@@ -431,22 +434,30 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
 
 
     /** 
-     * Select <item> from Menu > "Settings" > <section>
+     * Select <item> from Menu > "Settings" > <section>.
      */
     public void selectSettingsItem(String section, String item) {
-        String itemName = "^" + item + "$";
-        selectMenuItem("Settings");
-        // On tablets, settings are arranged in a hierarchy; if the item is not 
-        // in the first ("General") section, the section must be selected first.
-        if (mDevice.type.equals("tablet") && 
-            section != null &&
-            !section.equals("General")) {
-            String sectionName = "^" + section + "$";
-            waitForEnabledText(sectionName);
-            mSolo.clickOnText(sectionName);
+        String[] itemPath = { "Settings", section, item };
+        selectMenuItemByPath(itemPath);
+    }
+
+    /**
+     * Traverses the items in listItems in order in the menu.
+     */
+    public void selectMenuItemByPath(String[] listItems) {
+        int listLength = listItems.length;
+        if (listLength > 0) {
+            selectMenuItem(listItems[0]);
         }
-        waitForEnabledText(itemName);
-        mSolo.clickOnText(itemName);
+        if (listLength > 1) {
+            for (int i = 1; i < listLength; i++) {
+                String itemName = "^" + listItems[i] + "$";
+                if (!waitForEnabledText(itemName)) {
+                    mSolo.scrollDown();
+                }
+                mSolo.clickOnText(itemName);
+            }
+        }
     }
 
     public final void selectMenuItem(String menuItemName) {
@@ -456,6 +467,8 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         if (waitForText(itemName)) {
             mSolo.clickOnText(itemName);
         } else {
+            // Older versions of Android have additional settings under "More",
+            // including settings that newer versions have under "Tools."
             if (mSolo.searchText("(^More$|^Tools$)")) {
                 mSolo.clickOnText("(^More$|^Tools$)");
             }

@@ -1,4 +1,4 @@
-load 459439-1.html
+skip-if(B2G) load 459439-1.html # bug 888557
 load 466607-1.html
 load 466945-1.html
 load 468763-1.html
@@ -49,3 +49,4 @@ load 881775.html
 load 882956.html
 test-pref(media.webvtt.enabled,true) load 882549.html
 load 884459.html
+load 889042.html

@@ -6,15 +6,16 @@
 
 #include <stdio.h>
 
-#include "Ion.h"
-#include "MIR.h"
-#include "MIRGraph.h"
-#include "ParallelSafetyAnalysis.h"
-#include "IonSpewer.h"
-#include "UnreachableCodeElimination.h"
-#include "IonAnalysis.h"
-
+#include "ion/Ion.h"
+#include "ion/MIR.h"
+#include "ion/MIRGraph.h"
+#include "ion/ParallelSafetyAnalysis.h"
+#include "ion/IonSpewer.h"
+#include "ion/UnreachableCodeElimination.h"
+#include "ion/IonAnalysis.h"
 #include "vm/Stack.h"
+
+#include "jsinferinlines.h"
 
 using namespace js;
 using namespace ion;
@@ -38,6 +39,7 @@ using parallel::SpewCompile;
 
 #define PERMIT(T) (1 << T)
 
+#define PERMIT_INT32 (PERMIT(MIRType_Int32))
 #define PERMIT_NUMERIC (PERMIT(MIRType_Int32) | PERMIT(MIRType_Double))
 
 #define SPECIALIZED_OP(op, flags)                                               \
@@ -45,15 +47,15 @@ using parallel::SpewCompile;
         return visitSpecializedInstruction(ins, ins->specialization(), flags);  \
     }
 
-#define UNSAFE_OP(op)                                               \
-    virtual bool visit##op(M##op *ins) {                            \
-        SpewMIR(ins, "Unsafe");                                     \
-        return markUnsafe();                                        \
+#define UNSAFE_OP(op)                                                         \
+    virtual bool visit##op(M##op *ins) {                                      \
+        SpewMIR(ins, "Unsafe");                                               \
+        return markUnsafe();                                                  \
     }
 
-#define WRITE_GUARDED_OP(op, obj)                   \
-    virtual bool visit##op(M##op *prop) {           \
-        return insertWriteGuard(prop, prop->obj()); \
+#define WRITE_GUARDED_OP(op, obj)                                             \
+    virtual bool visit##op(M##op *prop) {                                     \
+        return insertWriteGuard(prop, prop->obj());                           \
     }
 
 #define MAYBE_WRITE_GUARDED_OP(op, obj)                                       \
@@ -137,14 +139,14 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     UNSAFE_OP(GetDynamicName)
     UNSAFE_OP(FilterArguments)
     UNSAFE_OP(CallDirectEval)
-    SAFE_OP(BitNot)
+    SPECIALIZED_OP(BitNot, PERMIT_INT32)
     UNSAFE_OP(TypeOf)
     SAFE_OP(ToId)
-    SAFE_OP(BitAnd)
-    SAFE_OP(BitOr)
-    SAFE_OP(BitXor)
-    SAFE_OP(Lsh)
-    SAFE_OP(Rsh)
+    SPECIALIZED_OP(BitAnd, PERMIT_INT32)
+    SPECIALIZED_OP(BitOr, PERMIT_INT32)
+    SPECIALIZED_OP(BitXor, PERMIT_INT32)
+    SPECIALIZED_OP(Lsh, PERMIT_INT32)
+    SPECIALIZED_OP(Rsh, PERMIT_INT32)
     SPECIALIZED_OP(Ursh, PERMIT_NUMERIC)
     SPECIALIZED_OP(MinMax, PERMIT_NUMERIC)
     SAFE_OP(Abs)
@@ -156,7 +158,8 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     SPECIALIZED_OP(Mul, PERMIT_NUMERIC)
     SPECIALIZED_OP(Div, PERMIT_NUMERIC)
     SPECIALIZED_OP(Mod, PERMIT_NUMERIC)
-    UNSAFE_OP(Concat)
+    CUSTOM_OP(Concat)
+    SAFE_OP(ParConcat)
     UNSAFE_OP(CharCodeAt)
     UNSAFE_OP(FromCharCode)
     SAFE_OP(Return)
@@ -167,7 +170,8 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     SAFE_OP(ToDouble)
     SAFE_OP(ToInt32)
     SAFE_OP(TruncateToInt32)
-    UNSAFE_OP(ToString)
+    SAFE_OP(MaybeToDoubleElement)
+    CUSTOM_OP(ToString)
     SAFE_OP(NewSlots)
     CUSTOM_OP(NewArray)
     CUSTOM_OP(NewObject)
@@ -193,7 +197,7 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     SAFE_OP(GetPropertyCache)
     SAFE_OP(GetPropertyPolymorphic)
     UNSAFE_OP(SetPropertyPolymorphic)
-    UNSAFE_OP(GetElementCache)
+    SAFE_OP(GetElementCache)
     UNSAFE_OP(SetElementCache)
     UNSAFE_OP(BindNameCache)
     SAFE_OP(GuardShape)
@@ -553,6 +557,21 @@ bool
 ParallelSafetyVisitor::visitRest(MRest *ins)
 {
     return replace(ins, MParRest::New(parSlice(), ins));
+}
+
+bool
+ParallelSafetyVisitor::visitConcat(MConcat *ins)
+{
+    return replace(ins, MParConcat::New(parSlice(), ins));
+}
+
+bool
+ParallelSafetyVisitor::visitToString(MToString *ins)
+{
+    MIRType inputType = ins->input()->type();
+    if (inputType != MIRType_Int32 && inputType != MIRType_Double)
+        return markUnsafe();
+    return true;
 }
 
 bool

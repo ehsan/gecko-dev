@@ -21,6 +21,7 @@
 #include "jsobjinlines.h"
 
 #include "vm/Shape-inl.h"
+#include "vm/Runtime-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -446,7 +447,10 @@ JSObject::addProperty(JSContext *cx, HandleObject obj, HandleId id,
 {
     JS_ASSERT(!JSID_IS_VOID(id));
 
-    if (!obj->isExtensible()) {
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return NULL;
+    if (!extensible) {
         obj->reportNotExtensible(cx);
         return NULL;
     }
@@ -610,7 +614,10 @@ JSObject::putProperty(JSContext *cx, HandleObject obj, HandleId id,
          * You can't add properties to a non-extensible object, but you can change
          * attributes of properties in such objects.
          */
-        if (!obj->isExtensible()) {
+        bool extensible;
+        if (!JSObject::isExtensible(cx, obj, &extensible))
+            return NULL;
+        if (!extensible) {
             obj->reportNotExtensible(cx);
             return NULL;
         }
@@ -1077,9 +1084,14 @@ Shape::setObjectMetadata(JSContext *cx, JSObject *metadata, TaggedProto proto, S
 /* static */ bool
 js::ObjectImpl::preventExtensions(JSContext *cx, Handle<ObjectImpl*> obj)
 {
-    MOZ_ASSERT(obj->isExtensible(),
+#ifdef DEBUG
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return false;
+    MOZ_ASSERT(extensible,
                "Callers must ensure |obj| is extensible before calling "
                "preventExtensions");
+#endif
 
     if (obj->isProxy()) {
         RootedObject object(cx, obj->asObjectPtr());

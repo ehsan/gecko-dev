@@ -14,6 +14,7 @@
 
 #include "jsdbgapi.h"
 #include "jsinfer.h"
+#include "jsobj.h"
 #include "jsopcode.h"
 
 #include "gc/Barrier.h"
@@ -950,7 +951,15 @@ class JSScript : public js::gc::Cell
      * result (not return value, result AKA normal completion value) other than
      * JSVAL_VOID, or any other effects.
      */
-    inline bool isEmpty() const;
+    bool isEmpty() const {
+        if (length > 3)
+            return false;
+
+        jsbytecode *pc = code;
+        if (noScriptRval && JSOp(*pc) == JSOP_FALSE)
+            ++pc;
+        return JSOp(*pc) == JSOP_STOP;
+    }
 
     bool varIsAliased(unsigned varSlot);
     bool formalIsAliased(unsigned argSlot);
@@ -1017,7 +1026,7 @@ class JSScript : public js::gc::Cell
     JS::Zone *zone() const { return tenuredZone(); }
 
     static inline void writeBarrierPre(JSScript *script);
-    static inline void writeBarrierPost(JSScript *script, void *addr);
+    static void writeBarrierPost(JSScript *script, void *addr) {}
 
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_SCRIPT; }
 

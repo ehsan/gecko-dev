@@ -52,7 +52,9 @@ enum BufferCapabilities {
 };
 
 class SurfaceDescriptor;
+class MemoryImage;
 
+unsigned char *GetMemoryImageData(const MemoryImage &);
 
 ipc::SharedMemory::SharedMemoryType OptimalShmemType();
 bool IsSurfaceDescriptorValid(const SurfaceDescriptor& aSurface);
@@ -111,7 +113,7 @@ ISurfaceAllocator() {}
 
 protected:
   // this method is needed for a temporary fix, will be removed after
-  // TextureClient/Host rework.
+  // DeprecatedTextureClient/Host rework.
   virtual bool IsOnCompositorSide() const = 0;
   static bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
   virtual bool PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,

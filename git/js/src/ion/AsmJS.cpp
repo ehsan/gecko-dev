@@ -11,17 +11,14 @@
 #include "frontend/ParseNode.h"
 #include "ion/AsmJS.h"
 #include "ion/AsmJSModule.h"
-
-#include "frontend/ParseNode-inl.h"
-
 #include "ion/PerfSpewer.h"
 #include "ion/CodeGenerator.h"
 #include "ion/MIR.h"
 #include "ion/MIRGraph.h"
 
-#ifdef MOZ_VTUNE
-# include "jitprofiling.h"
-#endif
+#include "jsfuninlines.h"
+
+#include "frontend/ParseNode-inl.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -415,8 +412,7 @@ class Type
           case Unknown:
             return MIRType_None;
         }
-        JS_NOT_REACHED("Invalid Type");
-        return MIRType_None;
+        MOZ_ASSUME_UNREACHABLE("Invalid Type");
     }
 
     const char *toChars() const {
@@ -431,8 +427,7 @@ class Type
           case Void:      return "void";
           case Unknown:   return "unknown";
         }
-        JS_NOT_REACHED("Invalid Type");
-        return "";
+        MOZ_ASSUME_UNREACHABLE("Invalid Type");
     }
 };
 
@@ -471,8 +466,7 @@ class RetType
           case Signed: return AsmJSModule::Return_Int32;
           case Double: return AsmJSModule::Return_Double;
         }
-        JS_NOT_REACHED("Unexpected return type");
-        return AsmJSModule::Return_Void;
+        MOZ_ASSUME_UNREACHABLE("Unexpected return type");
     }
     MIRType toMIRType() const {
         switch (which_) {
@@ -480,8 +474,7 @@ class RetType
           case Signed: return MIRType_Int32;
           case Double: return MIRType_Double;
         }
-        JS_NOT_REACHED("Unexpected return type");
-        return MIRType_None;
+        MOZ_ASSUME_UNREACHABLE("Unexpected return type");
     }
     bool operator==(RetType rhs) const { return which_ == rhs.which_; }
     bool operator!=(RetType rhs) const { return which_ != rhs.which_; }
@@ -496,8 +489,7 @@ operator<=(Type lhs, RetType rhs)
       case RetType::Double: return lhs == Type::Double;
       case RetType::Void:   return lhs == Type::Void;
     }
-    JS_NOT_REACHED("Unexpected rhs type");
-    return false;
+    MOZ_ASSUME_UNREACHABLE("Unexpected rhs type");
 }
 
 // Represents the subset of Type that can be used as a variable or
@@ -570,8 +562,7 @@ operator<=(Type lhs, VarType rhs)
       case VarType::Int:    return lhs.isInt();
       case VarType::Double: return lhs.isDouble();
     }
-    JS_NOT_REACHED("Unexpected rhs type");
-    return false;
+    MOZ_ASSUME_UNREACHABLE("Unexpected rhs type");
 }
 
 // Passed from parent expressions to child expressions to indicate if and how
@@ -732,7 +723,7 @@ IsLiteralUint32(ParseNode *pn, uint32_t *u32)
         return false;
     }
 
-    JS_NOT_REACHED("Bad literal type");
+    MOZ_ASSUME_UNREACHABLE("Bad literal type");
 }
 
 static inline bool
@@ -752,7 +743,7 @@ IsBits32(ParseNode *pn, int32_t i)
         return false;
     }
 
-    JS_NOT_REACHED("Bad literal type");
+    MOZ_ASSUME_UNREACHABLE("Bad literal type");
 }
 
 /*****************************************************************************/
@@ -774,8 +765,7 @@ TypedArrayLoadType(ArrayBufferView::ViewType viewType)
         return Type::Doublish;
       default:;
     }
-    JS_NOT_REACHED("Unexpected array type");
-    return Type();
+    MOZ_ASSUME_UNREACHABLE("Unexpected array type");
 }
 
 enum ArrayStoreEnum {
@@ -799,8 +789,7 @@ TypedArrayStoreType(ArrayBufferView::ViewType viewType)
         return ArrayStore_Doublish;
       default:;
     }
-    JS_NOT_REACHED("Unexpected array type");
-    return ArrayStore_Doublish;
+    MOZ_ASSUME_UNREACHABLE("Unexpected array type");
 }
 
 /*****************************************************************************/
@@ -1215,6 +1204,7 @@ class MOZ_STACK_CLASS ModuleCompiler
 
     JSContext *cx() const { return cx_; }
     MacroAssembler &masm() { return masm_; }
+    TokenStream &tokenStream() { return tokenStream_; }
     Label &stackOverflowLabel() { return stackOverflowLabel_; }
     Label &operationCallbackLabel() { return operationCallbackLabel_; }
     bool hasError() const { return errorString_ != NULL; }
@@ -1371,6 +1361,25 @@ class MOZ_STACK_CLASS ModuleCompiler
         JSAtom *name = FunctionName(func.fn());
         unsigned startCodeOffset = func.codeLabel()->offset();
         return module_->trackProfiledFunction(name, startCodeOffset, endCodeOffset);
+    }
+#endif
+
+#ifdef JS_ION_PERF
+    bool trackPerfProfiledFunction(const Func &func, unsigned endCodeOffset) {
+        JSAtom *name = FunctionName(func.fn());
+
+        unsigned lineno = 0U, columnIndex = 0U;
+        tokenStream_.srcCoords.lineNumAndColumnIndex(func.fn()->pn_pos.begin, &lineno, &columnIndex);
+
+        unsigned startCodeOffset = func.codeLabel()->offset();
+        return module_->trackPerfProfiledFunction(name, startCodeOffset, endCodeOffset, lineno, columnIndex);
+    }
+
+    bool trackPerfProfiledBlocks(AsmJSPerfSpewer &perfSpewer, const Func &func, unsigned endCodeOffset) {
+        JSAtom *name = FunctionName(func.fn());
+        unsigned startCodeOffset = func.codeLabel()->offset();
+        perfSpewer.noteBlocksOffsets(masm_);
+        return module_->trackPerfProfiledBlocks(name, startCodeOffset, endCodeOffset, perfSpewer.basicBlocks());
     }
 #endif
 
@@ -1609,7 +1618,7 @@ class FunctionCompiler
         labeledContinues_(m.cx())
     {}
 
-    bool init()
+    bool init(ParseNode *pn)
     {
         if (!unlabeledBreaks_.init() ||
             !unlabeledContinues_.init() ||
@@ -1619,7 +1628,7 @@ class FunctionCompiler
             return false;
         }
 
-        if (!newBlock(/* pred = */ NULL, &curBlock_))
+        if (!newBlock(/* pred = */ NULL, &curBlock_, pn))
             return false;
 
         curBlock_->add(MAsmJSCheckOverRecursed::New(&m_.stackOverflowLabel()));
@@ -2031,14 +2040,14 @@ class FunctionCompiler
         curBlock_ = NULL;
     }
 
-    bool branchAndStartThen(MDefinition *cond, MBasicBlock **thenBlock, MBasicBlock **elseBlock)
+    bool branchAndStartThen(MDefinition *cond, MBasicBlock **thenBlock, MBasicBlock **elseBlock, ParseNode *thenPn, ParseNode* elsePn)
     {
         if (!curBlock_) {
             *thenBlock = NULL;
             *elseBlock = NULL;
             return true;
         }
-        if (!newBlock(curBlock_, thenBlock) || !newBlock(curBlock_, elseBlock))
+        if (!newBlock(curBlock_, thenBlock, thenPn) || !newBlock(curBlock_, elseBlock, elsePn))
             return false;
         curBlock_->end(MTest::New(cond, *thenBlock, *elseBlock));
         curBlock_ = *thenBlock;
@@ -2072,13 +2081,13 @@ class FunctionCompiler
         mirGraph().moveBlockToEnd(curBlock_);
     }
 
-    bool joinIfElse(const BlockVector &thenBlocks)
+    bool joinIfElse(const BlockVector &thenBlocks, ParseNode *pn)
     {
         if (!curBlock_ && thenBlocks.empty())
             return true;
         MBasicBlock *pred = curBlock_ ? curBlock_ : thenBlocks[0];
         MBasicBlock *join;
-        if (!newBlock(pred, &join))
+        if (!newBlock(pred, &join, pn))
             return false;
         if (curBlock_)
             curBlock_->end(MGoto::New(join));
@@ -2107,7 +2116,7 @@ class FunctionCompiler
         return curBlock_->pop();
     }
 
-    bool startPendingLoop(ParseNode *pn, MBasicBlock **loopEntry)
+    bool startPendingLoop(ParseNode *pn, MBasicBlock **loopEntry, ParseNode *bodyStmt)
     {
         if (!loopStack_.append(pn) || !breakableStack_.append(pn))
             return false;
@@ -2120,13 +2129,14 @@ class FunctionCompiler
         if (!*loopEntry)
             return false;
         mirGraph().addBlock(*loopEntry);
+        noteBasicBlockPosition(*loopEntry, bodyStmt);
         (*loopEntry)->setLoopDepth(loopStack_.length());
         curBlock_->end(MGoto::New(*loopEntry));
         curBlock_ = *loopEntry;
         return true;
     }
 
-    bool branchAndStartLoopBody(MDefinition *cond, MBasicBlock **afterLoop)
+    bool branchAndStartLoopBody(MDefinition *cond, MBasicBlock **afterLoop, ParseNode *bodyPn, ParseNode *afterPn)
     {
         if (!curBlock_) {
             *afterLoop = NULL;
@@ -2134,13 +2144,13 @@ class FunctionCompiler
         }
         JS_ASSERT(curBlock_->loopDepth() > 0);
         MBasicBlock *body;
-        if (!newBlock(curBlock_, &body))
+        if (!newBlock(curBlock_, &body, bodyPn))
             return false;
         if (cond->isConstant() && ToBoolean(cond->toConstant()->value())) {
             *afterLoop = NULL;
             curBlock_->end(MGoto::New(body));
         } else {
-            if (!newBlockWithDepth(curBlock_, curBlock_->loopDepth() - 1, afterLoop))
+            if (!newBlockWithDepth(curBlock_, curBlock_->loopDepth() - 1, afterLoop, afterPn))
                 return false;
             curBlock_->end(MTest::New(cond, body, *afterLoop));
         }
@@ -2181,7 +2191,7 @@ class FunctionCompiler
         return bindUnlabeledBreaks(pn);
     }
 
-    bool branchAndCloseDoWhileLoop(MDefinition *cond, MBasicBlock *loopEntry)
+    bool branchAndCloseDoWhileLoop(MDefinition *cond, MBasicBlock *loopEntry, ParseNode *afterLoopStmt)
     {
         ParseNode *pn = popLoop();
         if (!loopEntry) {
@@ -2199,14 +2209,14 @@ class FunctionCompiler
                     curBlock_ = NULL;
                 } else {
                     MBasicBlock *afterLoop;
-                    if (!newBlock(curBlock_, &afterLoop))
+                    if (!newBlock(curBlock_, &afterLoop, afterLoopStmt))
                         return false;
                     curBlock_->end(MGoto::New(afterLoop));
                     curBlock_ = afterLoop;
                 }
             } else {
                 MBasicBlock *afterLoop;
-                if (!newBlock(curBlock_, &afterLoop))
+                if (!newBlock(curBlock_, &afterLoop, afterLoopStmt))
                     return false;
                 curBlock_->end(MTest::New(cond, loopEntry, afterLoop));
                 loopEntry->setBackedge(curBlock_);
@@ -2220,17 +2230,17 @@ class FunctionCompiler
     {
         bool createdJoinBlock = false;
         if (UnlabeledBlockMap::Ptr p = unlabeledContinues_.lookup(pn)) {
-            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock))
+            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock, pn))
                 return false;
             unlabeledContinues_.remove(p);
         }
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledContinues_, &createdJoinBlock);
+        return bindLabeledBreaksOrContinues(maybeLabels, &labeledContinues_, &createdJoinBlock, pn);
     }
 
-    bool bindLabeledBreaks(const LabelVector *maybeLabels)
+    bool bindLabeledBreaks(const LabelVector *maybeLabels, ParseNode *pn)
     {
         bool createdJoinBlock = false;
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledBreaks_, &createdJoinBlock);
+        return bindLabeledBreaksOrContinues(maybeLabels, &labeledBreaks_, &createdJoinBlock, pn);
     }
 
     bool addBreak(PropertyName *maybeLabel) {
@@ -2260,13 +2270,13 @@ class FunctionCompiler
         return true;
     }
 
-    bool startSwitchCase(MBasicBlock *switchBlock, MBasicBlock **next)
+    bool startSwitchCase(MBasicBlock *switchBlock, MBasicBlock **next, ParseNode *pn)
     {
         if (!switchBlock) {
             *next = NULL;
             return true;
         }
-        if (!newBlock(switchBlock, next))
+        if (!newBlock(switchBlock, next, pn))
             return false;
         if (curBlock_) {
             curBlock_->end(MGoto::New(*next));
@@ -2276,16 +2286,16 @@ class FunctionCompiler
         return true;
     }
 
-    bool startSwitchDefault(MBasicBlock *switchBlock, BlockVector *cases, MBasicBlock **defaultBlock)
+    bool startSwitchDefault(MBasicBlock *switchBlock, BlockVector *cases, MBasicBlock **defaultBlock, ParseNode *pn)
     {
-        if (!startSwitchCase(switchBlock, defaultBlock))
+        if (!startSwitchCase(switchBlock, defaultBlock, pn))
             return false;
         if (!*defaultBlock)
             return true;
         for (unsigned i = 0; i < cases->length(); i++) {
             if (!(*cases)[i]) {
                 MBasicBlock *bb;
-                if (!newBlock(switchBlock, &bb))
+                if (!newBlock(switchBlock, &bb, NULL))
                     return false;
                 bb->end(MGoto::New(*defaultBlock));
                 (*defaultBlock)->addPredecessor(bb);
@@ -2307,7 +2317,7 @@ class FunctionCompiler
             mir->addCase(cases[i]);
         if (curBlock_) {
             MBasicBlock *next;
-            if (!newBlock(curBlock_, &next))
+            if (!newBlock(curBlock_, &next, pn))
                 return false;
             curBlock_->end(MGoto::New(next));
             curBlock_ = next;
@@ -2317,22 +2327,35 @@ class FunctionCompiler
 
     /*************************************************************************/
   private:
-    bool newBlockWithDepth(MBasicBlock *pred, unsigned loopDepth, MBasicBlock **block)
+    void noteBasicBlockPosition(MBasicBlock *blk, ParseNode *pn)
+    {
+#if defined(JS_ION_PERF)
+        if (pn) {
+            unsigned line = 0U, column = 0U;
+            m().tokenStream().srcCoords.lineNumAndColumnIndex(pn->pn_pos.begin, &line, &column);
+            blk->setLineno(line);
+            blk->setColumnIndex(column);
+        }
+#endif
+    }
+
+    bool newBlockWithDepth(MBasicBlock *pred, unsigned loopDepth, MBasicBlock **block, ParseNode *pn)
     {
         *block = MBasicBlock::New(mirGraph(), info(), pred, /* pc = */ NULL, MBasicBlock::NORMAL);
         if (!*block)
             return false;
+        noteBasicBlockPosition(*block, pn);
         mirGraph().addBlock(*block);
         (*block)->setLoopDepth(loopDepth);
         return true;
     }
 
-    bool newBlock(MBasicBlock *pred, MBasicBlock **block)
+    bool newBlock(MBasicBlock *pred, MBasicBlock **block, ParseNode *pn)
     {
-        return newBlockWithDepth(pred, loopStack_.length(), block);
+        return newBlockWithDepth(pred, loopStack_.length(), block, pn);
     }
 
-    bool bindBreaksOrContinues(BlockVector *preds, bool *createdJoinBlock)
+    bool bindBreaksOrContinues(BlockVector *preds, bool *createdJoinBlock, ParseNode *pn)
     {
         for (unsigned i = 0; i < preds->length(); i++) {
             MBasicBlock *pred = (*preds)[i];
@@ -2341,7 +2364,7 @@ class FunctionCompiler
                 curBlock_->addPredecessor(pred);
             } else {
                 MBasicBlock *next;
-                if (!newBlock(pred, &next))
+                if (!newBlock(pred, &next, pn))
                     return false;
                 pred->end(MGoto::New(next));
                 if (curBlock_) {
@@ -2358,14 +2381,14 @@ class FunctionCompiler
     }
 
     bool bindLabeledBreaksOrContinues(const LabelVector *maybeLabels, LabeledBlockMap *map,
-                                      bool *createdJoinBlock)
+                                      bool *createdJoinBlock, ParseNode *pn)
     {
         if (!maybeLabels)
             return true;
         const LabelVector &labels = *maybeLabels;
         for (unsigned i = 0; i < labels.length(); i++) {
             if (LabeledBlockMap::Ptr p = map->lookup(labels[i])) {
-                if (!bindBreaksOrContinues(&p->value, createdJoinBlock))
+                if (!bindBreaksOrContinues(&p->value, createdJoinBlock, pn))
                     return false;
                 map->remove(p);
             }
@@ -2394,7 +2417,7 @@ class FunctionCompiler
     {
         bool createdJoinBlock = false;
         if (UnlabeledBlockMap::Ptr p = unlabeledBreaks_.lookup(pn)) {
-            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock))
+            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock, pn))
                 return false;
             unlabeledBreaks_.remove(p);
         }
@@ -3810,7 +3833,7 @@ CheckConditional(FunctionCompiler &f, ParseNode *ternary, MDefinition **def, Typ
         return f.failf(cond, "%s is not a subtype of int", condType.toChars());
 
     MBasicBlock *thenBlock, *elseBlock;
-    if (!f.branchAndStartThen(condDef, &thenBlock, &elseBlock))
+    if (!f.branchAndStartThen(condDef, &thenBlock, &elseBlock, thenExpr, elseExpr))
         return false;
 
     MDefinition *thenDef;
@@ -3831,7 +3854,10 @@ CheckConditional(FunctionCompiler &f, ParseNode *ternary, MDefinition **def, Typ
         return false;
 
     f.pushPhiInput(elseDef);
-    if (!f.joinIfElse(thenBlocks))
+
+    // next statement is actually not the else expr, but this is the closest stmt to the next
+    // one that is directly reachable
+    if (!f.joinIfElse(thenBlocks, elseExpr))
         return false;
     *def = f.popPhiOutput();
 
@@ -3866,8 +3892,7 @@ IsValidIntMultiplyConstant(ParseNode *expr)
         return false;
     }
 
-    JS_NOT_REACHED("Bad literal");
-    return false;
+    MOZ_ASSUME_UNREACHABLE("Bad literal");
 }
 
 static bool
@@ -4045,7 +4070,7 @@ CheckBitwise(FunctionCompiler &f, ParseNode *bitwise, MDefinition **def, Type *t
       case PNK_LSH:    identityElement = 0;  onlyOnRight = true;  *type = Type::Signed;   break;
       case PNK_RSH:    identityElement = 0;  onlyOnRight = true;  *type = Type::Signed;   break;
       case PNK_URSH:   identityElement = 0;  onlyOnRight = true;  *type = Type::Unsigned; break;
-      default: JS_NOT_REACHED("not a bitwise op");
+      default: MOZ_ASSUME_UNREACHABLE("not a bitwise op");
     }
 
     if (!onlyOnRight && IsBits32(lhs, identityElement)) {
@@ -4091,7 +4116,7 @@ CheckBitwise(FunctionCompiler &f, ParseNode *bitwise, MDefinition **def, Type *t
       case PNK_LSH:    *def = f.bitwise<MLsh>(lhsDef, rhsDef); break;
       case PNK_RSH:    *def = f.bitwise<MRsh>(lhsDef, rhsDef); break;
       case PNK_URSH:   *def = f.bitwise<MUrsh>(lhsDef, rhsDef); break;
-      default: JS_NOT_REACHED("not a bitwise op");
+      default: MOZ_ASSUME_UNREACHABLE("not a bitwise op");
     }
 
     return true;
@@ -4177,7 +4202,7 @@ CheckWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybeLa
     ParseNode *body = BinaryRight(whileStmt);
 
     MBasicBlock *loopEntry;
-    if (!f.startPendingLoop(whileStmt, &loopEntry))
+    if (!f.startPendingLoop(whileStmt, &loopEntry, body))
         return false;
 
     MDefinition *condDef;
@@ -4189,7 +4214,7 @@ CheckWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybeLa
         return f.failf(cond, "%s is not a subtype of int", condType.toChars());
 
     MBasicBlock *afterLoop;
-    if (!f.branchAndStartLoopBody(condDef, &afterLoop))
+    if (!f.branchAndStartLoopBody(condDef, &afterLoop, body, NextNode(whileStmt)))
         return false;
 
     if (!CheckStatement(f, body))
@@ -4223,7 +4248,7 @@ CheckFor(FunctionCompiler &f, ParseNode *forStmt, const LabelVector *maybeLabels
     }
 
     MBasicBlock *loopEntry;
-    if (!f.startPendingLoop(forStmt, &loopEntry))
+    if (!f.startPendingLoop(forStmt, &loopEntry, body))
         return false;
 
     MDefinition *condDef;
@@ -4239,7 +4264,7 @@ CheckFor(FunctionCompiler &f, ParseNode *forStmt, const LabelVector *maybeLabels
     }
 
     MBasicBlock *afterLoop;
-    if (!f.branchAndStartLoopBody(condDef, &afterLoop))
+    if (!f.branchAndStartLoopBody(condDef, &afterLoop, body, NextNode(forStmt)))
         return false;
 
     if (!CheckStatement(f, body))
@@ -4266,7 +4291,7 @@ CheckDoWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybe
     ParseNode *cond = BinaryRight(whileStmt);
 
     MBasicBlock *loopEntry;
-    if (!f.startPendingLoop(whileStmt, &loopEntry))
+    if (!f.startPendingLoop(whileStmt, &loopEntry, body))
         return false;
 
     if (!CheckStatement(f, body))
@@ -4283,7 +4308,7 @@ CheckDoWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybe
     if (!condType.isInt())
         return f.failf(cond, "%s is not a subtype of int", condType.toChars());
 
-    return f.branchAndCloseDoWhileLoop(condDef, loopEntry);
+    return f.branchAndCloseDoWhileLoop(condDef, loopEntry, NextNode(whileStmt));
 }
 
 static bool
@@ -4308,7 +4333,7 @@ CheckLabel(FunctionCompiler &f, ParseNode *labeledStmt, LabelVector *maybeLabels
     if (!CheckStatement(f, stmt, &labels))
         return false;
 
-    return f.bindLabeledBreaks(&labels);
+    return f.bindLabeledBreaks(&labels, labeledStmt);
 }
 
 static bool
@@ -4320,6 +4345,7 @@ CheckIf(FunctionCompiler &f, ParseNode *ifStmt)
     // for the entire if/else-if chain).
     BlockVector thenBlocks(f.cx());
 
+    ParseNode *nextStmt = NextNode(ifStmt);
   recurse:
     JS_ASSERT(ifStmt->isKind(PNK_IF));
     ParseNode *cond = TernaryKid1(ifStmt);
@@ -4335,7 +4361,15 @@ CheckIf(FunctionCompiler &f, ParseNode *ifStmt)
         return f.failf(cond, "%s is not a subtype of int", condType.toChars());
 
     MBasicBlock *thenBlock, *elseBlock;
-    if (!f.branchAndStartThen(condDef, &thenBlock, &elseBlock))
+
+    ParseNode *elseBlockStmt = NULL;
+    // The second block given to branchAndStartThen contains either the else statement if
+    // there is one, or the join block; so we need to give the next statement accordingly.
+    elseBlockStmt = elseStmt;
+    if (elseBlockStmt == NULL)
+        elseBlockStmt = nextStmt;
+
+    if (!f.branchAndStartThen(condDef, &thenBlock, &elseBlock, thenStmt, elseBlockStmt))
         return false;
 
     if (!CheckStatement(f, thenStmt))
@@ -4357,7 +4391,7 @@ CheckIf(FunctionCompiler &f, ParseNode *ifStmt)
         if (!CheckStatement(f, elseStmt))
             return false;
 
-        if (!f.joinIfElse(thenBlocks))
+        if (!f.joinIfElse(thenBlocks, nextStmt))
             return false;
     }
 
@@ -4478,7 +4512,7 @@ CheckSwitch(FunctionCompiler &f, ParseNode *switchStmt)
         if (cases[caseIndex])
             return f.fail(stmt, "no duplicate case labels");
 
-        if (!f.startSwitchCase(switchBlock, &cases[caseIndex]))
+        if (!f.startSwitchCase(switchBlock, &cases[caseIndex], stmt))
             return false;
 
         if (!CheckStatement(f, CaseBody(stmt)))
@@ -4486,7 +4520,7 @@ CheckSwitch(FunctionCompiler &f, ParseNode *switchStmt)
     }
 
     MBasicBlock *defaultBlock;
-    if (!f.startSwitchDefault(switchBlock, &cases, &defaultBlock))
+    if (!f.startSwitchDefault(switchBlock, &cases, &defaultBlock, stmt))
         return false;
 
     if (stmt && stmt->isKind(PNK_DEFAULT)) {
@@ -4642,6 +4676,7 @@ CheckFunctionBody(ModuleCompiler &m, ModuleCompiler::Func &func, LifoAlloc &lifo
     // function head as well as argument type declarations. The ParseNode*
     // stored in f.body points to the first non-argument statement.
     ParseNode *stmtIter = func.body();
+    ParseNode *funcBody = stmtIter;
 
     FunctionCompiler::LocalMap locals(m.cx());
     if (!locals.init())
@@ -4671,7 +4706,7 @@ CheckFunctionBody(ModuleCompiler &m, ModuleCompiler::Func &func, LifoAlloc &lifo
     JS_ASSERT(tempAlloc && graph && info && mirGen);
 
     FunctionCompiler f(m, func, Move(locals), mirGen);
-    if (!f.init())
+    if (!f.init(funcBody))
         return NULL;
 
     if (!CheckStatements(f, stmtIter))
@@ -4709,6 +4744,16 @@ GenerateAsmJSCode(ModuleCompiler &m, ModuleCompiler::Func &func,
 #ifdef MOZ_VTUNE
     if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
         if (!m.trackProfiledFunction(func, m.masm().size()))
+            return false;
+    }
+#endif
+
+#ifdef JS_ION_PERF
+    if (PerfBlockEnabled()) {
+        if (!m.trackPerfProfiledBlocks(mirGen.perfSpewer(), func, m.masm().size()))
+            return false;
+    } else if (PerfFuncEnabled()) {
+        if (!m.trackPerfProfiledFunction(func, m.masm().size()))
             return false;
     }
 #endif
@@ -4754,7 +4799,7 @@ CheckFunctionBodiesSequential(ModuleCompiler &m)
 
         IonSpewNewFunction(&mirGen->graph(), NullPtr());
 
-        IonContext icx(m.cx()->compartment(), &mirGen->temp());
+        IonContext icx(m.cx(), &mirGen->temp());
 
         int64_t before = PRMJ_Now();
 
@@ -5305,7 +5350,7 @@ InvokeFromAsmJS_Ignore(JSContext *cx, AsmJSModule::ExitDatum *exitDatum, int32_t
 {
     RootedValue fval(cx, ObjectValue(*exitDatum->fun));
     RootedValue rval(cx);
-    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, rval.address()))
+    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, &rval))
         return false;
 
     if (!TryEnablingIon(cx, exitDatum, argc, argv))
@@ -5319,7 +5364,7 @@ InvokeFromAsmJS_ToInt32(JSContext *cx, AsmJSModule::ExitDatum *exitDatum, int32_
 {
     RootedValue fval(cx, ObjectValue(*exitDatum->fun));
     RootedValue rval(cx);
-    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, rval.address()))
+    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, &rval))
         return false;
 
     if (!TryEnablingIon(cx, exitDatum, argc, argv))
@@ -5338,7 +5383,7 @@ InvokeFromAsmJS_ToNumber(JSContext *cx, AsmJSModule::ExitDatum *exitDatum, int32
 {
     RootedValue fval(cx, ObjectValue(*exitDatum->fun));
     RootedValue rval(cx);
-    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, rval.address()))
+    if (!Invoke(cx, UndefinedValue(), fval, argc, argv, &rval))
         return false;
 
     if (!TryEnablingIon(cx, exitDatum, argc, argv))
@@ -5565,12 +5610,12 @@ ValueToInt32(JSContext *cx, Value *val)
 }
 
 static int32_t
-ValueToNumber(JSContext *cx, Value *val)
+ValueToNumber(JSContext *cx, MutableHandleValue val)
 {
     double dbl;
-    if (!ToNumber(cx, val[0], &dbl))
+    if (!ToNumber(cx, val, &dbl))
         return false;
-    val[0] = DoubleValue(dbl);
+    val.set(DoubleValue(dbl));
 
     return true;
 }
@@ -5639,7 +5684,7 @@ GenerateOOLConvert(ModuleCompiler &m, RetType retType, Label *throwLabel)
 #endif
           break;
       default:
-          JS_NOT_REACHED("Unsupported convert type");
+          MOZ_ASSUME_UNREACHABLE("Unsupported convert type");
     }
 
     masm.freeStack(stackDec);
@@ -5649,14 +5694,18 @@ static void
 EnableActivation(AsmJSActivation *activation)
 {
     JSContext *cx = activation->cx();
-    cx->mainThread().activation()->setActive();
+    Activation *act = cx->mainThread().activation();
+    JS_ASSERT(act->isJit());
+    act->asJit()->setActive(cx);
 }
 
 static void
 DisableActivation(AsmJSActivation *activation)
 {
     JSContext *cx = activation->cx();
-    cx->mainThread().activation()->setActive(false);
+    Activation *act = cx->mainThread().activation();
+    JS_ASSERT(act->isJit());
+    act->asJit()->setActive(cx, false);
 }
 
 static void
@@ -5683,14 +5732,14 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
     unsigned argBytes = 3 * sizeof(size_t) + (1 + exit.argTypes().length()) * sizeof(Value);
     unsigned extraBytes = 0;
 #if defined(JS_CPU_ARM)
-    extraBytes = sizeof(size_t);
+    extraBytes += sizeof(size_t);
 #endif
     unsigned stackDec = StackDecrementForCall(masm, emptyVector, argBytes + extraBytes);
     masm.reserveStack(stackDec - extraBytes);
 
     // 1. Descriptor
     uint32_t descriptor = MakeFrameDescriptor(masm.framePushed() + extraBytes, IonFrame_Entry);
-    masm.store32(Imm32(descriptor), Address(StackPointer, 0));
+    masm.storePtr(ImmWord(uintptr_t(descriptor)), Address(StackPointer, 0));
 
     // 2. Callee
     Register callee = ABIArgGenerator::NonArgReturnVolatileReg0;
@@ -5716,14 +5765,19 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
 
     // 3. Argc
     unsigned argc = exit.argTypes().length();
-    masm.store32(Imm32(argc), Address(StackPointer, 2 * sizeof(size_t)));
+    masm.storePtr(ImmWord(uintptr_t(argc)), Address(StackPointer, 2 * sizeof(size_t)));
 
     // 4. |this| value
     masm.storeValue(UndefinedValue(), Address(StackPointer, 3 * sizeof(size_t)));
 
     // 5. Fill the arguments
     unsigned offsetToArgs = 3 * sizeof(size_t) + sizeof(Value);
-    unsigned offsetToCallerStackArgs = NativeFrameSize + masm.framePushed();
+    unsigned offsetToCallerStackArgs = masm.framePushed();
+#if defined(JS_CPU_X86) || defined(JS_CPU_X64)
+    offsetToCallerStackArgs += NativeFrameSize;
+#else
+    offsetToCallerStackArgs += ShadowStackSpace;
+#endif
     FillArgumentArray(m, exit.argTypes(), offsetToArgs, offsetToCallerStackArgs, scratch);
 
     // Get the pointer to the ion code

@@ -15,12 +15,15 @@
 #include "vm/DateObject.h"
 #include "vm/NumberObject.h"
 #include "vm/Probes.h"
+#include "vm/ScopeObject.h"
 #include "vm/StringObject.h"
 
 #include "jsatominlines.h"
-#include "jsfuninlines.h"
+#include "jscompartmentinlines.h"
+#include "jsinferinlines.h"
 
 #include "vm/ObjectImpl-inl.h"
+#include "vm/Shape-inl.h"
 
 /* static */ inline JSBool
 JSObject::setGenericAttributes(JSContext *cx, js::HandleObject obj,
@@ -113,18 +116,6 @@ JSObject::finalize(js::FreeOp *fop)
         clasp->finalize(fop, this);
 
     finish(fop);
-}
-
-inline JSObject *
-JSObject::getParent() const
-{
-    return lastProperty()->getObjectParent();
-}
-
-inline JSObject *
-JSObject::getMetadata() const
-{
-    return lastProperty()->getObjectMetadata();
 }
 
 inline void
@@ -381,7 +372,7 @@ JSObject::extendDenseElements(js::ThreadSafeContext *tcx,
      * elements can be added/written with no extensible or watchpoint checks as
      * long as there is capacity for them.
      */
-    if (!isExtensible() || watched()) {
+    if (!nonProxyIsExtensible() || watched()) {
         JS_ASSERT(getDenseCapacity() == 0);
         return ED_SPARSE;
     }
@@ -552,69 +543,12 @@ JSObject::getProto(JSContext *cx, js::HandleObject obj, js::MutableHandleObject 
     }
 }
 
-inline bool JSObject::setIteratedSingleton(JSContext *cx)
-{
-    return setFlag(cx, js::BaseShape::ITERATED_SINGLETON);
-}
-
-inline bool JSObject::setDelegate(JSContext *cx)
-{
-    return setFlag(cx, js::BaseShape::DELEGATE, GENERATE_SHAPE);
-}
-
 inline bool JSObject::isVarObj()
 {
     if (is<js::DebugScopeObject>())
         return as<js::DebugScopeObject>().scope().isVarObj();
     return lastProperty()->hasObjectFlag(js::BaseShape::VAROBJ);
 }
-
-inline bool JSObject::setVarObj(JSContext *cx)
-{
-    return setFlag(cx, js::BaseShape::VAROBJ);
-}
-
-inline bool JSObject::setWatched(JSContext *cx)
-{
-    return setFlag(cx, js::BaseShape::WATCHED, GENERATE_SHAPE);
-}
-
-inline bool JSObject::hasUncacheableProto() const
-{
-    return lastProperty()->hasObjectFlag(js::BaseShape::UNCACHEABLE_PROTO);
-}
-
-inline bool JSObject::setUncacheableProto(JSContext *cx)
-{
-    return setFlag(cx, js::BaseShape::UNCACHEABLE_PROTO, GENERATE_SHAPE);
-}
-
-inline bool JSObject::hadElementsAccess() const
-{
-    return lastProperty()->hasObjectFlag(js::BaseShape::HAD_ELEMENTS_ACCESS);
-}
-
-inline bool JSObject::setHadElementsAccess(JSContext *cx)
-{
-    return setFlag(cx, js::BaseShape::HAD_ELEMENTS_ACCESS);
-}
-
-inline bool JSObject::isBoundFunction() const
-{
-    return lastProperty()->hasObjectFlag(js::BaseShape::BOUND_FUNCTION);
-}
-
-inline bool JSObject::isIndexed() const
-{
-    return lastProperty()->hasObjectFlag(js::BaseShape::INDEXED);
-}
-
-inline bool JSObject::watched() const
-{
-    return lastProperty()->hasObjectFlag(js::BaseShape::WATCHED);
-}
-
-inline bool JSObject::isTypedArray() const { return IsTypedArrayClass(getClass()); }
 
 /* static */ inline JSObject *
 JSObject::create(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap,
@@ -754,24 +688,6 @@ JSObject::nativeSetSlotWithType(JSContext *cx, js::HandleObject obj, js::Shape *
 {
     obj->nativeSetSlot(shape->slot(), value);
     js::types::AddTypePropertyId(cx, obj, shape->propid(), value);
-}
-
-inline bool
-JSObject::nativeEmpty() const
-{
-    return lastProperty()->isEmptyShape();
-}
-
-inline uint32_t
-JSObject::propertyCount() const
-{
-    return lastProperty()->entryCount();
-}
-
-inline bool
-JSObject::hasShapeTable() const
-{
-    return lastProperty()->hasTable();
 }
 
 /* static */ inline JSBool
@@ -1032,11 +948,9 @@ class AutoPropertyDescriptorRooter : private AutoGCRooter, public PropertyDescri
 {
     SkipRoot skip;
 
-    AutoPropertyDescriptorRooter *thisDuringConstruction() { return this; }
-
   public:
     AutoPropertyDescriptorRooter(JSContext *cx)
-      : AutoGCRooter(cx, DESCRIPTOR), skip(cx, thisDuringConstruction())
+      : AutoGCRooter(cx, DESCRIPTOR), skip(cx, MOZ_THIS_IN_INITIALIZER_LIST())
     {
         obj = NULL;
         attrs = 0;
@@ -1046,7 +960,7 @@ class AutoPropertyDescriptorRooter : private AutoGCRooter, public PropertyDescri
     }
 
     AutoPropertyDescriptorRooter(JSContext *cx, PropertyDescriptor *desc)
-      : AutoGCRooter(cx, DESCRIPTOR), skip(cx, thisDuringConstruction())
+      : AutoGCRooter(cx, DESCRIPTOR), skip(cx, MOZ_THIS_IN_INITIALIZER_LIST())
     {
         obj = desc->obj;
         attrs = desc->attrs;
@@ -1157,18 +1071,6 @@ NewBuiltinClassInstance(JSContext *cx, Class *clasp, NewObjectKind newKind = Gen
     return NewBuiltinClassInstance(cx, clasp, allocKind, newKind);
 }
 
-bool
-FindClassPrototype(JSContext *cx, HandleObject scope, JSProtoKey protoKey,
-                   MutableHandleObject protop, Class *clasp);
-
-/*
- * Create a plain object with the specified type. This bypasses getNewType to
- * avoid losing creation site information for objects made by scripted 'new'.
- */
-JSObject *
-NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc::AllocKind allocKind,
-                  NewObjectKind newKind = GenericObject);
-
 // Used to optimize calls to (new Object())
 bool
 NewObjectScriptedCall(JSContext *cx, MutableHandleObject obj);
@@ -1265,8 +1167,7 @@ ObjectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx)
       case ESClass_ArrayBuffer: return obj->is<ArrayBufferObject>();
       case ESClass_Date: return obj->is<DateObject>();
     }
-    JS_NOT_REACHED("bad classValue");
-    return false;
+    MOZ_ASSUME_UNREACHABLE("bad classValue");
 }
 
 inline bool
@@ -1324,22 +1225,5 @@ js_InitClass(JSContext *cx, js::HandleObject obj, JSObject *parent_proto,
              const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs,
              JSObject **ctorp = NULL,
              js::gc::AllocKind ctorKind = JSFunction::FinalizeKind);
-
-/*
- * js_PurgeScopeChain does nothing if obj is not itself a prototype or parent
- * scope, else it reshapes the scope and prototype chains it links. It calls
- * js_PurgeScopeChainHelper, which asserts that obj is flagged as a delegate
- * (i.e., obj has ever been on a prototype or parent chain).
- */
-extern bool
-js_PurgeScopeChainHelper(JSContext *cx, JS::HandleObject obj, JS::HandleId id);
-
-inline bool
-js_PurgeScopeChain(JSContext *cx, JS::HandleObject obj, JS::HandleId id)
-{
-    if (obj->isDelegate())
-        return js_PurgeScopeChainHelper(cx, obj, id);
-    return true;
-}
 
 #endif /* jsobjinlines_h */
