@@ -316,9 +316,7 @@ var ContextUI = {
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
       case "URLChanged":
-        // "aEvent.detail" is a boolean value that indicates whether actual URL
-        // has changed ignoring URL fragment changes.
-        if (aEvent.target == Browser.selectedBrowser && aEvent.detail) {
+        if (aEvent.target == Browser.selectedBrowser) {
           this.displayNavbar();
         }
         break;

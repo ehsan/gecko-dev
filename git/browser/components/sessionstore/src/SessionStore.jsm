@@ -125,8 +125,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "GlobalState",
   "resource:///modules/sessionstore/GlobalState.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Messenger",
   "resource:///modules/sessionstore/Messenger.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PrivacyFilter",
-  "resource:///modules/sessionstore/PrivacyFilter.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
   "resource:///modules/RecentWindow.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ScratchpadManager",
@@ -1111,20 +1109,13 @@ let SessionStoreInternal = {
 
       // Save the window if it has multiple tabs or a single saveable tab and
       // it's not private.
-      if (!winData.isPrivate) {
-        // Remove any open private tabs the window may contain.
-        PrivacyFilter.filterPrivateTabs(winData);
+      if (!winData.isPrivate && (winData.tabs.length > 1 ||
+          (winData.tabs.length == 1 && this._shouldSaveTabState(winData.tabs[0])))) {
+        // we don't want to save the busy state
+        delete winData.busy;
 
-        let hasSingleTabToSave =
-          winData.tabs.length == 1 && this._shouldSaveTabState(winData.tabs[0]);
-
-        if (hasSingleTabToSave || winData.tabs.length > 1) {
-          // we don't want to save the busy state
-          delete winData.busy;
-
-          this._closedWindows.unshift(winData);
-          this._capClosedWindows();
-        }
+        this._closedWindows.unshift(winData);
+        this._capClosedWindows();
       }
 
       // clear this window from the list
@@ -1415,8 +1406,7 @@ let SessionStoreInternal = {
     let tabState = TabState.collectSync(aTab);
 
     // Don't save private tabs
-    let isPrivateWindow = PrivateBrowsingUtils.isWindowPrivate(aWindow);
-    if (!isPrivateWindow && tabState.isPrivate) {
+    if (tabState.isPrivate || false) {
       return;
     }
 

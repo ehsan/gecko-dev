@@ -504,10 +504,7 @@ WebConsole.prototype = {
 
     let showSource = ({ DebuggerView }) => {
       if (DebuggerView.Sources.containsValue(aSourceURL)) {
-        DebuggerView.setEditorLocation(aSourceURL, aSourceLine,
-                                       { noDebug: true }).then(() => {
-          this.ui.emit("source-in-debugger-opened");
-        });
+        DebuggerView.setEditorLocation(aSourceURL, aSourceLine, { noDebug: true });
         return;
       }
       toolbox.selectTool("webconsole");

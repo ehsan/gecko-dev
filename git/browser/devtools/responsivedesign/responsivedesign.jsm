@@ -238,10 +238,7 @@ ResponsiveUI.prototype = {
      }
    },
 
-   onPageUnload: function(evt) {
-     // Ignore sub frames unload events
-     if (evt.target != this.browser.contentDocument)
-       return;
+   onPageUnload: function() {
      if (this.closing)
        return;
      if (this.touchEventHandler) {

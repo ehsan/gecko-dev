@@ -109,11 +109,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
         public void onStopEditing();
     }
 
-    private enum UIMode {
-        EDIT,
-        DISPLAY
-    }
-
     enum ForwardButtonAnimation {
         SHOW,
         HIDE
@@ -146,7 +141,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
     final private BrowserApp mActivity;
     private boolean mHasSoftMenuButton;
 
-    private UIMode mUIMode;
+    private boolean mIsEditing;
     private boolean mAnimatingEntry;
 
     private int mUrlBarViewOffset;
@@ -225,7 +220,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
             mFocusOrder.addAll(Arrays.asList(mTabs, mMenu));
         }
 
-        setUIMode(UIMode.DISPLAY);
+        setIsEditing(false);
     }
 
     @Override
@@ -370,11 +365,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
     }
 
     public boolean onBackPressed() {
-        if (isEditing()) {
-            stopEditing();
-            return true;
-        }
-
         return mUrlDisplayLayout.dismissSiteIdentityPopup();
     }
 
@@ -547,7 +537,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
     }
 
     private void updateProgressVisibility(Tab selectedTab, int progress) {
-        if (!isEditing() && selectedTab.getState() == Tab.STATE_LOADING) {
+        if (!mIsEditing && selectedTab.getState() == Tab.STATE_LOADING) {
             mProgressBar.setProgress(progress);
             mProgressBar.setVisibility(View.VISIBLE);
         } else {
@@ -578,11 +568,11 @@ public class BrowserToolbar extends GeckoRelativeLayout
     }
 
     private boolean canDoBack(Tab tab) {
-        return (tab.canDoBack() && !isEditing());
+        return (tab.canDoBack() && !mIsEditing);
     }
 
     private boolean canDoForward(Tab tab) {
-        return (tab.canDoForward() && !isEditing());
+        return (tab.canDoForward() && !mIsEditing);
     }
 
     private void addTab() {
@@ -858,7 +848,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         }
 
         // Disable toolbar elemens while in editing mode
-        final boolean enabled = !isEditing();
+        final boolean enabled = !mIsEditing;
 
         // This alpha value has to be in sync with the one used
         // in setButtonEnabled().
@@ -884,16 +874,16 @@ public class BrowserToolbar extends GeckoRelativeLayout
             // forward button slides away if necessary. This is because we might
             // have only disabled it (without hiding it) when the toolbar entered
             // editing mode.
-            if (!isEditing()) {
+            if (!mIsEditing) {
                 animateForwardButton(canDoForward(tab) ?
                                      ForwardButtonAnimation.SHOW : ForwardButtonAnimation.HIDE);
             }
         }
     }
 
-    private void setUIMode(final UIMode uiMode) {
-        mUIMode = uiMode;
-        mUrlEditLayout.setEnabled(uiMode == UIMode.EDIT);
+    private void setIsEditing(boolean isEditing) {
+        mIsEditing = isEditing;
+        mUrlEditLayout.setEnabled(isEditing);
     }
 
     /**
@@ -901,7 +891,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
      * tab button). Note that selection state is independent of editing mode.
      */
     public boolean isEditing() {
-        return (mUIMode == UIMode.EDIT);
+        return mIsEditing;
     }
 
     public void startEditing(String url, PropertyAnimator animator) {
@@ -911,7 +901,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
 
         mUrlEditLayout.setText(url != null ? url : "");
 
-        setUIMode(UIMode.EDIT);
+        setIsEditing(true);
         updateChildrenForEditing();
 
         updateProgressVisibility();
@@ -1028,7 +1018,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         if (!isEditing()) {
             return url;
         }
-        setUIMode(UIMode.DISPLAY);
+        setIsEditing(false);
 
         updateChildrenForEditing();
 
