@@ -22,7 +22,6 @@ struct ALooper;
 struct AMessage;
 
 class MOZ_EXPORT MediaExtractor;
-class MOZ_EXPORT MediaBuffer;
 struct MOZ_EXPORT MediaSource;
 struct MediaCodec;
 } // namespace android
@@ -86,11 +85,6 @@ public:
   virtual bool IsMediaSeekable() MOZ_OVERRIDE;
 
 protected:
-  struct TrackInputCopier
-  {
-    virtual bool Copy(android::MediaBuffer* aSourceBuffer, android::sp<android::ABuffer> aCodecBuffer);
-  };
-
   struct Track
   {
     Track();
@@ -100,9 +94,6 @@ protected:
     android::sp<android::MediaCodecProxy> mCodec;
     android::Vector<android::sp<android::ABuffer> > mInputBuffers;
     android::Vector<android::sp<android::ABuffer> > mOutputBuffers;
-
-    // pipeline copier
-    nsAutoPtr<TrackInputCopier> mInputCopier;
 
     // media parameters
     int64_t mDurationUs;
@@ -164,11 +155,6 @@ private:
     MediaCodecReader *mReader;
   };
   friend class VideoResourceListener;
-
-  class VorbisInputCopier : public TrackInputCopier
-  {
-    virtual bool Copy(android::MediaBuffer* aSourceBuffer, android::sp<android::ABuffer> aCodecBuffer);
-  };
 
   struct AudioTrack : public Track
   {

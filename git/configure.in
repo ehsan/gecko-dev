@@ -5646,6 +5646,7 @@ fi
 dnl ========================================================
 dnl = ANGLE OpenGL->D3D translator for WebGL
 dnl = * only applies to win32
+dnl = * enabled by default (shipping build); requires explicit --disable to disable
 dnl ========================================================
 
 MOZ_ANGLE_RENDERER=
