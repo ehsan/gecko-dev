@@ -11,7 +11,6 @@ describe("loop.ConversationStore", function () {
   var sharedActions = loop.shared.actions;
   var sharedUtils = loop.shared.utils;
   var sandbox, dispatcher, client, store, fakeSessionData, sdkDriver;
-  var contact;
   var connectPromise, resolveConnectPromise, rejectConnectPromise;
   var wsCancelSpy, wsCloseSpy, wsMediaUpSpy, fakeWebsocket;
 
@@ -26,15 +25,6 @@ describe("loop.ConversationStore", function () {
 
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
-
-    contact = {
-      name: [ "Mr Smith" ],
-      email: [{
-        type: "home",
-        value: "fakeEmail",
-        pref: true
-      }]
-    };
 
     dispatcher = new loop.Dispatcher();
     client = {
@@ -209,26 +199,13 @@ describe("loop.ConversationStore", function () {
   describe("#gatherCallData", function() {
     beforeEach(function() {
       store.set({callState: CALL_STATES.INIT});
-
-      navigator.mozLoop = {
-        getCallData: function() {
-          return {
-            contact: contact,
-            callType: sharedUtils.CALL_TYPES.AUDIO_VIDEO
-          };
-        }
-      };
-    });
-
-    afterEach(function() {
-      delete navigator.mozLoop;
     });
 
     it("should set the state to 'gather'", function() {
       dispatcher.dispatch(
         new sharedActions.GatherCallData({
-          callId: "76543218",
-          outgoing: true
+          calleeId: "",
+          callId: "76543218"
         }));
 
       expect(store.get("callState")).eql(CALL_STATES.GATHER);
@@ -237,23 +214,13 @@ describe("loop.ConversationStore", function () {
     it("should save the basic call information", function() {
       dispatcher.dispatch(
         new sharedActions.GatherCallData({
-          callId: "123456",
-          outgoing: true
+          calleeId: "fake",
+          callId: "123456"
         }));
 
+      expect(store.get("calleeId")).eql("fake");
       expect(store.get("callId")).eql("123456");
       expect(store.get("outgoing")).eql(true);
-    });
-
-    it("should save the basic information from the mozLoop api", function() {
-      dispatcher.dispatch(
-        new sharedActions.GatherCallData({
-          callId: "123456",
-          outgoing: true
-        }));
-
-      expect(store.get("contact")).eql(contact);
-      expect(store.get("callType")).eql(sharedUtils.CALL_TYPES.AUDIO_VIDEO);
     });
 
     describe("outgoing calls", function() {
@@ -261,8 +228,8 @@ describe("loop.ConversationStore", function () {
 
       beforeEach(function() {
         outgoingCallData = {
-          callId: "123456",
-          outgoing: true
+          calleeId: "fake",
+          callId: "135246"
         };
       });
 
@@ -272,7 +239,7 @@ describe("loop.ConversationStore", function () {
 
         sinon.assert.calledOnce(client.setupOutgoingCall);
         sinon.assert.calledWith(client.setupOutgoingCall,
-          ["fakeEmail"], sharedUtils.CALL_TYPES.AUDIO_VIDEO);
+          ["fake"], sharedUtils.CALL_TYPES.AUDIO_VIDEO);
       });
 
       describe("server response handling", function() {
@@ -521,14 +488,14 @@ describe("loop.ConversationStore", function () {
         callState: CALL_STATES.TERMINATED,
         outgoing: true,
         callType: sharedUtils.CALL_TYPES.AUDIO_VIDEO,
-        contact: contact
+        calleeId: "fake"
       });
 
       dispatcher.dispatch(new sharedActions.RetryCall());
 
       sinon.assert.calledOnce(client.setupOutgoingCall);
       sinon.assert.calledWith(client.setupOutgoingCall,
-        ["fakeEmail"], sharedUtils.CALL_TYPES.AUDIO_VIDEO);
+        ["fake"], sharedUtils.CALL_TYPES.AUDIO_VIDEO);
     });
   });
 
@@ -551,7 +518,7 @@ describe("loop.ConversationStore", function () {
         enabled: true
       }));
 
-      expect(store.get("audioMuted")).eql(false);
+      expect(store.get("audioMuted")).eql(true);
     });
 
     it("should save the mute state for the video stream", function() {
@@ -562,7 +529,7 @@ describe("loop.ConversationStore", function () {
         enabled: false
       }));
 
-      expect(store.get("videoMuted")).eql(true);
+      expect(store.get("videoMuted")).eql(false);
     });
   });
 

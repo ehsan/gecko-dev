@@ -63,8 +63,8 @@ loop.store = (function() {
       error: undefined,
       // True if the call is outgoing, false if not, undefined if unknown
       outgoing: undefined,
-      // The contact being called for outgoing calls
-      contact: undefined,
+      // The id of the person being called for outgoing calls
+      calleeId: undefined,
       // The call type for the call.
       // XXX Don't hard-code, this comes from the data in bug 1072323
       callType: CALL_TYPES.AUDIO_VIDEO,
@@ -83,9 +83,9 @@ loop.store = (function() {
       // SDK session token
       sessionToken: undefined,
       // If the audio is muted
-      audioMuted: false,
+      audioMuted: true,
       // If the video is muted
-      videoMuted: false
+      videoMuted: true
     },
 
     /**
@@ -192,29 +192,14 @@ loop.store = (function() {
      * @param {sharedActions.GatherCallData} actionData The action data.
      */
     gatherCallData: function(actionData) {
-      if (!actionData.outgoing) {
-        // XXX Other types aren't supported yet, but set the state for the
-        // view selection.
-        this.set({outgoing: false});
-        return;
-      }
-
-      var callData = navigator.mozLoop.getCallData(actionData.callId);
-      if (!callData) {
-        console.error("Failed to get the call data");
-        this.set({callState: CALL_STATES.TERMINATED});
-        return;
-      }
-
       this.set({
-        contact: callData.contact,
-        outgoing: actionData.outgoing,
+        calleeId: actionData.calleeId,
+        outgoing: !!actionData.calleeId,
         callId: actionData.callId,
-        callType: callData.callType,
         callState: CALL_STATES.GATHER
       });
 
-      this.set({videoMuted: this.get("callType") === CALL_TYPES.AUDIO_ONLY});
+      this.videoMuted = this.get("callType") !== CALL_TYPES.AUDIO_VIDEO;
 
       if (this.get("outgoing")) {
         this._setupOutgoingCall();
@@ -300,7 +285,7 @@ loop.store = (function() {
      */
     setMute: function(actionData) {
       var muteType = actionData.type + "Muted";
-      this.set(muteType, !actionData.enabled);
+      this.set(muteType, actionData.enabled);
     },
 
     /**
@@ -308,13 +293,8 @@ loop.store = (function() {
      * result.
      */
     _setupOutgoingCall: function() {
-      var contactAddresses = [];
-
-      this.get("contact").email.forEach(function(address) {
-        contactAddresses.push(address.value);
-      });
-
-      this.client.setupOutgoingCall(contactAddresses,
+      // XXX For now, we only have one calleeId, so just wrap that in an array.
+      this.client.setupOutgoingCall([this.get("calleeId")],
         this.get("callType"),
         function(err, result) {
           if (err) {

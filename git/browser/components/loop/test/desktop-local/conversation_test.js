@@ -115,24 +115,10 @@ describe("loop.conversation", function() {
       sinon.assert.calledOnce(loop.Dispatcher.prototype.dispatch);
       sinon.assert.calledWithExactly(loop.Dispatcher.prototype.dispatch,
         new loop.shared.actions.GatherCallData({
-          callId: "42",
-          outgoing: false
+          calleeId: null,
+          callId: "42"
         }));
     });
-
-    it("should trigger an outgoing gatherCallData action for outgoing calls",
-      function() {
-        loop.shared.utils.Helper.prototype.locationHash.returns("#outgoing/24");
-
-        loop.conversation.init();
-
-        sinon.assert.calledOnce(loop.Dispatcher.prototype.dispatch);
-        sinon.assert.calledWithExactly(loop.Dispatcher.prototype.dispatch,
-          new loop.shared.actions.GatherCallData({
-            callId: "24",
-            outgoing: true
-          }));
-      });
   });
 
   describe("ConversationControllerView", function() {
@@ -155,16 +141,7 @@ describe("loop.conversation", function() {
         sdk: {}
       });
       dispatcher = new loop.Dispatcher();
-      store = new loop.store.ConversationStore({
-        contact: {
-          name: [ "Mr Smith" ],
-          email: [{
-            type: "home",
-            value: "fakeEmail",
-            pref: true
-          }]
-        }
-      }, {
+      store = new loop.store.ConversationStore({}, {
         client: client,
         dispatcher: dispatcher,
         sdkDriver: {}

@@ -46,7 +46,7 @@ describe("loop.Dispatcher", function () {
     beforeEach(function() {
       gatherAction = new sharedActions.GatherCallData({
         callId: "42",
-        outgoing: false
+        calleeId: null
       });
 
       cancelAction = new sharedActions.CancelCall();
