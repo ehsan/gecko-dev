@@ -387,12 +387,12 @@ public:
 
   // ISurfaceAllocator
   virtual bool AllocUnsafeShmem(size_t aSize,
-                                mozilla::ipc::SharedMemory::SharedMemoryType aType,
-                                mozilla::ipc::Shmem* aShmem) MOZ_OVERRIDE;
+                                ipc::SharedMemory::SharedMemoryType aType,
+                                ipc::Shmem* aShmem) MOZ_OVERRIDE;
   virtual bool AllocShmem(size_t aSize,
-                          mozilla::ipc::SharedMemory::SharedMemoryType aType,
-                          mozilla::ipc::Shmem* aShmem) MOZ_OVERRIDE;
-  virtual void DeallocShmem(mozilla::ipc::Shmem& aShmem) MOZ_OVERRIDE;
+                          ipc::SharedMemory::SharedMemoryType aType,
+                          ipc::Shmem* aShmem) MOZ_OVERRIDE;
+  virtual void DeallocShmem(ipc::Shmem& aShmem) MOZ_OVERRIDE;
 
   /**
    * Construct a shadow of |aLayer| on the "other side", at the

@@ -76,8 +76,6 @@ class RangeAnalysis
     MIRGenerator *mir;
     MIRGraph &graph_;
 
-    TempAllocator &alloc() const;
-
   public:
     MOZ_CONSTEXPR RangeAnalysis(MIRGenerator *mir, MIRGraph &graph) :
         mir(mir), graph_(graph) {}

@@ -708,7 +708,7 @@ js::NewReshapedObject(JSContext *cx, HandleTypeObject type, JSObject *parent,
         uint32_t index;
         bool indexed = js_IdIsIndex(id, &index);
 
-        Rooted<UnownedBaseShape*> nbase(cx, newShape->base()->unowned());
+        Rooted<UnownedBaseShape*> nbase(cx, newShape->base()->toUnowned());
         if (indexed) {
             StackBaseShape base(nbase);
             base.flags |= BaseShape::INDEXED;

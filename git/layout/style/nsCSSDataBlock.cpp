@@ -17,7 +17,7 @@
 #include "nsStyleContext.h"
 #include "nsIDocument.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
 
 /**
  * Does a fast move of aSource to aDest.  The previous value in

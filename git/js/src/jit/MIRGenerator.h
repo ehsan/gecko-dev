@@ -33,16 +33,16 @@ class MStart;
 class MIRGenerator
 {
   public:
-    MIRGenerator(JSCompartment *compartment, TempAllocator *alloc, MIRGraph *graph, CompileInfo *info);
+    MIRGenerator(JSCompartment *compartment, TempAllocator *temp, MIRGraph *graph, CompileInfo *info);
 
-    TempAllocator &alloc() {
-        return *alloc_;
+    TempAllocator &temp() {
+        return *temp_;
     }
     MIRGraph &graph() {
         return *graph_;
     }
     bool ensureBallast() {
-        return alloc().ensureBallast();
+        return temp().ensureBallast();
     }
     JitCompartment *jitCompartment() const {
         return compartment->jitCompartment();
@@ -56,7 +56,7 @@ class MIRGenerator
 
     template <typename T>
     T * allocate(size_t count = 1) {
-        return reinterpret_cast<T *>(alloc().allocate(sizeof(T) * count));
+        return reinterpret_cast<T *>(temp().allocate(sizeof(T) * count));
     }
 
     // Set an error state and prints a message. Returns false so errors can be
@@ -130,7 +130,7 @@ class MIRGenerator
 
   protected:
     CompileInfo *info_;
-    TempAllocator *alloc_;
+    TempAllocator *temp_;
     JSFunction *fun_;
     uint32_t nslots_;
     MIRGraph *graph_;

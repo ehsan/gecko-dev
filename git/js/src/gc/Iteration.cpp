@@ -22,6 +22,7 @@ js::TraceRuntime(JSTracer *trc)
 {
     JS_ASSERT(!IS_GC_MARKING_TRACER(trc));
 
+    AutoLockForExclusiveAccess lock(trc->runtime);
     AutoPrepareForTracing prep(trc->runtime, WithAtoms);
     MarkRuntime(trc);
 }
@@ -55,6 +56,7 @@ js::IterateZonesCompartmentsArenasCells(JSRuntime *rt, void *data,
                                         IterateArenaCallback arenaCallback,
                                         IterateCellCallback cellCallback)
 {
+    AutoLockForExclusiveAccess lock(rt);
     AutoPrepareForTracing prop(rt, WithAtoms);
 
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
@@ -71,6 +73,7 @@ js::IterateZoneCompartmentsArenasCells(JSRuntime *rt, Zone *zone, void *data,
                                        IterateArenaCallback arenaCallback,
                                        IterateCellCallback cellCallback)
 {
+    AutoLockForExclusiveAccess lock(rt);
     AutoPrepareForTracing prop(rt, WithAtoms);
 
     (*zoneCallback)(rt, data, zone);
@@ -127,6 +130,8 @@ JS_IterateCompartments(JSRuntime *rt, void *data,
 {
     JS_ASSERT(!rt->isHeapBusy());
 
+    AutoLockForExclusiveAccess lock(rt);
+    AutoPauseWorkersForTracing pause(rt);
     AutoTraceSession session(rt);
 
     for (CompartmentsIter c(rt, WithAtoms); !c.done(); c.next())

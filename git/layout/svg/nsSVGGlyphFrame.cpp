@@ -12,7 +12,6 @@
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "gfxPlatform.h"
-#include "mozilla/gfx/2D.h"
 #include "mozilla/LookAndFeel.h"
 #include "nsBidiPresUtils.h"
 #include "nsDisplayList.h"
@@ -29,7 +28,6 @@
 #include "SVGLengthList.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 struct CharacterPosition {
   gfxPoint pos;
@@ -741,16 +739,14 @@ nsSVGGlyphFrame::GetCharacterPositions(nsTArray<CharacterPosition>* aCharacterPo
   nsSVGTextPathFrame *textPath = FindTextPathParent();
 
   if (textPath) {
-    RefPtr<Path> path = textPath->GetPath();
+    nsRefPtr<gfxPath> data = textPath->GetPath();
 
     // textPath frame, but invalid target
-    if (!path)
+    if (!data)
       return false;
 
     if (!aCharacterPositions->SetLength(strLength))
       return false;
-
-    nsRefPtr<gfxPath> data = new gfxPath(path);
 
     gfxFloat pathScale = textPath->GetOffsetScale();
 

@@ -20,7 +20,7 @@
 #include "mozilla/layers/CompositorTypes.h"  // for TextureInfo, etc
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
-#include "mozilla/layers/LayersTypes.h"  // for etc
+#include "mozilla/layers/LayersTypes.h"  // for MOZ_LAYERS_HAVE_LOG, etc
 #include "mozilla/layers/TextureHost.h"  // for DeprecatedTextureHost
 #include "mozilla/mozalloc.h"           // for operator delete
 #include "nsAutoPtr.h"                  // for nsAutoPtr
@@ -183,7 +183,9 @@ public:
                     bool aDumpHtml=false) MOZ_OVERRIDE;
 #endif
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 protected:
   nsIntRegion mValidRegionForNextBackBuffer;
   // Texture host for the back buffer. We never read or write this buffer. We
@@ -218,7 +220,9 @@ public:
                                  const TextureInfo& aTextureInfo) MOZ_OVERRIDE;
   virtual void DestroyTextures() MOZ_OVERRIDE;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 };
 
 /**

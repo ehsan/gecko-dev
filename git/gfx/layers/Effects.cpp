@@ -11,6 +11,7 @@
 
 using namespace mozilla::layers;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
 void
 TexturedEffect::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
@@ -54,3 +55,4 @@ EffectSolidColor::PrintInfo(nsACString& aTo, const char* aPrefix)
   aTo += nsPrintfCString("EffectSolidColor (0x%p) [color=%x]", this, mColor.ToABGR());
 }
 
+#endif // MOZ_LAYERS_HAVE_LOG

@@ -1383,5 +1383,3 @@ nsRefreshDriver::RevokeFrameRequestCallbacks(nsIDocument* aDocument)
   // No need to worry about restarting our timer in slack mode if it's already
   // running; that will happen automatically when it fires.
 }
-
-#undef LOG

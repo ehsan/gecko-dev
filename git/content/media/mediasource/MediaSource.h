@@ -80,6 +80,8 @@ public:
   // Set mReadyState to aState and fire the required events at the MediaSource.
   void SetReadyState(MediaSourceReadyState aState);
 
+  void GetBuffered(TimeRanges* aRanges);
+
  // Used by SourceBuffer to call CreateSubDecoder.
   MediaSourceDecoder* GetDecoder()
   {

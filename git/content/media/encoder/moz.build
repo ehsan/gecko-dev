@@ -14,14 +14,14 @@ EXPORTS += [
     'TrackMetadataBase.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'MediaEncoder.cpp',
     'TrackEncoder.cpp',
 ]
 
 if CONFIG['MOZ_OPUS']:
     EXPORTS += ['OpusTrackEncoder.h']
-    UNIFIED_SOURCES += ['OpusTrackEncoder.cpp']
+    SOURCES += ['OpusTrackEncoder.cpp']
 
 LIBRARY_NAME = 'gkconencoder_s'
 

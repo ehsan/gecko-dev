@@ -20,7 +20,7 @@ EXPORTS.mozilla.dom += [
     'SourceBufferList.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'MediaSource.cpp',
     'MediaSourceDecoder.cpp',
     'SourceBuffer.cpp',

@@ -23,7 +23,7 @@ LIBRARY_NAME = 'widget_mac'
 
 LIBXUL_LIBRARY = True
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'GfxInfo.mm',
     'NativeKeyBindings.mm',
     'nsAppShell.mm',
@@ -65,7 +65,7 @@ UNIFIED_SOURCES += [
 ]
 
 if CONFIG['TARGET_CPU'] == 'x86_64':
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'ComplexTextInputPanel.mm',
     ]
 

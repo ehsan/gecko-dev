@@ -1499,6 +1499,11 @@ XMLHttpRequest::Constructor(const GlobalObject& aGlobal,
   WorkerPrivate* workerPrivate = GetWorkerPrivateFromContext(cx);
   MOZ_ASSERT(workerPrivate);
 
+  if (!aParams.mMozAnon && aParams.mMozSystem) {
+    aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
+    return nullptr;
+  }
+
   nsRefPtr<XMLHttpRequest> xhr = new XMLHttpRequest(workerPrivate);
 
   if (workerPrivate->XHRParamsAllowed()) {
@@ -1986,8 +1991,7 @@ XMLHttpRequest::Send(JSObject* aBody, ErrorResult& aRv)
     valToClone.setObject(*aBody);
   }
   else {
-    JS::Rooted<JS::Value> obj(cx, JS::ObjectValue(*aBody));
-    JSString* bodyStr = JS::ToString(cx, obj);
+    JSString* bodyStr = JS_ValueToString(cx, OBJECT_TO_JSVAL(aBody));
     if (!bodyStr) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;

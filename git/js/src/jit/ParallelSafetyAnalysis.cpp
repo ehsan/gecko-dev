@@ -87,10 +87,6 @@ class ParallelSafetyVisitor : public MInstructionVisitor
         return true;
     }
 
-    TempAllocator &alloc() const {
-        return graph_.alloc();
-    }
-
   public:
     ParallelSafetyVisitor(MIRGraph &graph)
       : graph_(graph),
@@ -431,7 +427,7 @@ ParallelSafetyAnalysis::removeResumePointOperands()
         for (MInstructionIterator ins(block->begin()); ins != block->end(); ins++) {
             if (ins->isStart()) {
                 JS_ASSERT(udef == nullptr);
-                udef = MConstant::New(graph_.alloc(), UndefinedValue());
+                udef = MConstant::New(UndefinedValue());
                 block->insertAfter(*ins, udef);
             } else if (udef) {
                 if (MResumePoint *resumePoint = ins->resumePoint())
@@ -526,7 +522,7 @@ ParallelSafetyVisitor::visitNewParallelArray(MNewParallelArray *ins)
 bool
 ParallelSafetyVisitor::visitNewCallObject(MNewCallObject *ins)
 {
-    replace(ins, MNewCallObjectPar::New(alloc(), forkJoinSlice(), ins));
+    replace(ins, MNewCallObjectPar::New(forkJoinSlice(), ins));
     return true;
 }
 
@@ -539,7 +535,7 @@ ParallelSafetyVisitor::visitLambda(MLambda *ins)
     }
 
     // fast path: replace with LambdaPar op
-    replace(ins, MLambdaPar::New(alloc(), forkJoinSlice(), ins));
+    replace(ins, MLambdaPar::New(forkJoinSlice(), ins));
     return true;
 }
 
@@ -568,19 +564,19 @@ ParallelSafetyVisitor::visitNewArray(MNewArray *newInstruction)
 bool
 ParallelSafetyVisitor::visitRest(MRest *ins)
 {
-    return replace(ins, MRestPar::New(alloc(), forkJoinSlice(), ins));
+    return replace(ins, MRestPar::New(forkJoinSlice(), ins));
 }
 
 bool
 ParallelSafetyVisitor::visitMathFunction(MMathFunction *ins)
 {
-    return replace(ins, MMathFunction::New(alloc(), ins->input(), ins->function(), nullptr));
+    return replace(ins, MMathFunction::New(ins->input(), ins->function(), nullptr));
 }
 
 bool
 ParallelSafetyVisitor::visitConcat(MConcat *ins)
 {
-    return replace(ins, MConcatPar::New(alloc(), forkJoinSlice(), ins));
+    return replace(ins, MConcatPar::New(forkJoinSlice(), ins));
 }
 
 bool
@@ -688,10 +684,9 @@ ParallelSafetyVisitor::insertWriteGuard(MInstruction *writeInstruction,
     }
 
     MBasicBlock *block = writeInstruction->block();
-    MGuardThreadLocalObject *writeGuard =
-        MGuardThreadLocalObject::New(alloc(), forkJoinSlice(), object);
+    MGuardThreadLocalObject *writeGuard = MGuardThreadLocalObject::New(forkJoinSlice(), object);
     block->insertBefore(writeInstruction, writeGuard);
-    writeGuard->adjustInputs(alloc(), writeGuard);
+    writeGuard->adjustInputs(writeGuard);
     return true;
 }
 
@@ -778,7 +773,7 @@ ParallelSafetyVisitor::visitThrow(MThrow *thr)
     MBasicBlock *block = thr->block();
     JS_ASSERT(block->lastIns() == thr);
     block->discardLastIns();
-    MAbortPar *bailout = MAbortPar::New(alloc());
+    MAbortPar *bailout = new MAbortPar();
     if (!bailout)
         return false;
     block->end(bailout);
