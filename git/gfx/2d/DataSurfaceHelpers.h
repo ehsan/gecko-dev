@@ -27,28 +27,33 @@ ConvertBGRXToBGRA(uint8_t* aData, const IntSize &aSize, int32_t aStride)
   }
 }
 
-/**
+/*
  * Convert aSurface to a packed buffer in BGRA format. The pixel data is
  * returned in a buffer allocated with new uint8_t[].
  */
 inline uint8_t *
-SurfaceToPackedBGRA(DataSourceSurface *aSurface)
+SurfaceToPackedBGRA(SourceSurface *aSurface)
 {
-  SurfaceFormat format = aSurface->GetFormat();
+  RefPtr<DataSourceSurface> data = aSurface->GetDataSurface();
+  if (!data) {
+    return nullptr;
+  }
+
+  SurfaceFormat format = data->GetFormat();
   if (format != SurfaceFormat::B8G8R8A8 && format != SurfaceFormat::B8G8R8X8) {
     return nullptr;
   }
 
-  IntSize size = aSurface->GetSize();
+  IntSize size = data->GetSize();
 
   uint8_t* imageBuffer = new (std::nothrow) uint8_t[size.width * size.height * sizeof(uint32_t)];
   if (!imageBuffer) {
     return nullptr;
   }
 
-  size_t stride = aSurface->Stride();
+  size_t stride = data->Stride();
 
-  uint32_t* src = reinterpret_cast<uint32_t*>(aSurface->GetData());
+  uint32_t* src = reinterpret_cast<uint32_t*>(data->GetData());
   uint32_t* dst = reinterpret_cast<uint32_t*>(imageBuffer);
 
   if (stride == size.width * sizeof(uint32_t)) {

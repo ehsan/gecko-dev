@@ -11,8 +11,6 @@ const Cc = Components.classes;
 //   Services.prefs.clearUserPref("devtools.debugger.log");
 // });
 
-//Services.prefs.setBoolPref("devtools.dump.emit", true);
-
 let tempScope = {};
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm", tempScope);
 let LayoutHelpers = tempScope.LayoutHelpers;
@@ -31,8 +29,6 @@ SimpleTest.registerCleanupFunction(() => {
   console.error("Here we are\n")
   let {DebuggerServer} = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
   console.error("DebuggerServer open connections: " + Object.getOwnPropertyNames(DebuggerServer._connections).length);
-
-  Services.prefs.clearUserPref("devtools.dump.emit");
 });
 
 function openInspector(callback)

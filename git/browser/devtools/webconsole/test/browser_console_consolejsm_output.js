@@ -71,7 +71,7 @@ function test()
         },
         {
           name: "console.error output",
-          text: /\bbug851231-error\b.+\{\s*bug851231prop:\s"bug851231value"\s*\}/,
+          text: /\bbug851231-error\b.+\{bug851231prop:\s"bug851231value"\}/,
           category: CATEGORY_WEBDEV,
           severity: SEVERITY_ERROR,
           objects: true,
@@ -91,7 +91,7 @@ function test()
         },
         {
           name: "console.dir output",
-          consoleDir: /XULDocument\s+.+\s+chrome:\/\/.+\/browser\.xul/,
+          consoleDir: /XULDocument .+ chrome:\/\/.+\/browser\.xul/,
         },
         {
           name: "console.time output",

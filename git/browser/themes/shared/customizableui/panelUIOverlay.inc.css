@@ -187,7 +187,8 @@ panelview:not([mainview]) .toolbarbutton-text,
   flex: auto;
 }
 
-.toolbaritem-combined-buttons@inAnyPanel@ > toolbarbutton > .toolbarbutton-icon {
+#edit-controls@inAnyPanel@ > toolbarbutton > .toolbarbutton-icon,
+#zoom-controls@inAnyPanel@ > toolbarbutton > .toolbarbutton-icon {
   min-width: 0;
   min-height: 0;
   margin: 0;
@@ -329,14 +330,6 @@ toolbaritem[cui-areatype="menu-panel"][sdkstylewidget="true"]:not(.panel-wide-it
 
 toolbarpaletteitem[place="palette"] > toolbaritem > toolbarbutton {
   -moz-box-flex: 1;
-}
-
-#personal-bookmarks[overflowedItem=true] > #bookmarks-toolbar-placeholder {
-  -moz-box-flex: 1;
-}
-
-#personal-bookmarks[cui-areatype="toolbar"][overflowedItem=true] > #bookmarks-toolbar-placeholder > .toolbarbutton-icon {
-  -moz-margin-end: 2px;
 }
 
 #edit-controls@inAnyPanel@ > #copy-button,
@@ -535,7 +528,8 @@ panelview .toolbarbutton-1,
 .subviewbutton,
 .widget-overflow-list .toolbarbutton-1,
 .panelUI-grid .toolbarbutton-1 > .toolbarbutton-menubutton-button,
-.toolbaritem-combined-buttons@inAnyPanel@ > toolbarbutton {
+#edit-controls@inAnyPanel@ > toolbarbutton,
+#zoom-controls@inAnyPanel@ > toolbarbutton {
   -moz-appearance: none;
   padding: 2px 6px;
   background-color: hsla(210,4%,10%,0);
@@ -549,7 +543,8 @@ panelview .toolbarbutton-1,
 panelview .toolbarbutton-1,
 .subviewbutton,
 .widget-overflow-list .toolbarbutton-1,
-.toolbaritem-combined-buttons@inAnyPanel@ > toolbarbutton {
+#edit-controls@inAnyPanel@ > toolbarbutton,
+#zoom-controls@inAnyPanel@ > toolbarbutton {
   border-width: 1px;
 }
 
@@ -591,12 +586,14 @@ toolbarbutton.subviewbutton@buttonStateHover@,
 menu.subviewbutton@menuStateHover@,
 menuitem.subviewbutton@menuStateHover@,
 .widget-overflow-list .toolbarbutton-1@buttonStateHover@,
-.toolbaritem-combined-buttons@inAnyPanel@ > toolbarbutton@buttonStateHover@ {
+#edit-controls@inAnyPanel@ > toolbarbutton@buttonStateHover@,
+#zoom-controls@inAnyPanel@ > toolbarbutton@buttonStateHover@ {
   background-color: hsla(210,4%,10%,.08);
   border-color: hsla(210,4%,10%,.11);
 }
 
-.toolbaritem-combined-buttons@inAnyPanel@@buttonStateHover@ {
+#edit-controls@inAnyPanel@@buttonStateHover@,
+#zoom-controls@inAnyPanel@@buttonStateHover@ {
   border-color: hsla(210,4%,10%,.11);
 }
 
@@ -605,7 +602,8 @@ toolbarbutton.subviewbutton@buttonStateActive@,
 menu.subviewbutton@menuStateActive@,
 menuitem.subviewbutton@menuStateActive@,
 .widget-overflow-list .toolbarbutton-1@buttonStateActive@,
-.toolbaritem-combined-buttons@inAnyPanel@ > toolbarbutton@buttonStateActive@ {
+#edit-controls@inAnyPanel@ > toolbarbutton@buttonStateActive@,
+#zoom-controls@inAnyPanel@ > toolbarbutton@buttonStateActive@ {
   background-color: hsla(210,4%,10%,.12);
   border-color: hsla(210,4%,10%,.14);
   box-shadow: 0 1px 0 hsla(210,4%,10%,.03) inset;
@@ -708,12 +706,6 @@ toolbarbutton[panel-multiview-anchor=true] {
   background-repeat: no-repeat;
 }
 
-toolbarbutton[panel-multiview-anchor=true]:-moz-locale-dir(rtl) {
-  background-image: url(chrome://browser/skin/customizableui/subView-arrow-back-inverted-rtl.png),
-                    linear-gradient(rgba(255,255,255,0), rgba(255,255,255,0.3));
-  background-position: left 5px center;
-}
-
 #PanelUI-footer > #PanelUI-footer-inner[panel-multiview-anchor=true],
 toolbarbutton[panel-multiview-anchor=true],
 toolbarbutton[panel-multiview-anchor=true] > .toolbarbutton-menubutton-button {
@@ -740,7 +732,8 @@ toolbarpaletteitem[place="palette"] > #search-container {
   width: 7em;
 }
 
-.toolbaritem-combined-buttons@inAnyPanel@ {
+#edit-controls@inAnyPanel@,
+#zoom-controls@inAnyPanel@ {
   background-color: hsla(210,4%,10%,0);
   border-radius: 2px;
   border: 1px solid;
@@ -752,7 +745,8 @@ toolbarpaletteitem[place="palette"] > #search-container {
   transition-duration: 150ms;
 }
 
-.toolbaritem-combined-buttons@inAnyPanel@ > toolbarbutton {
+#edit-controls@inAnyPanel@ > toolbarbutton,
+#zoom-controls@inAnyPanel@ > toolbarbutton {
   border: 0;
   padding: .5em;
   margin: 0;
@@ -774,7 +768,8 @@ toolbarpaletteitem[place="palette"] > #search-container {
   max-width: calc(@menuPanelButtonWidth@ - 2px);
 }
 
-#main-window:not([customizing]) .toolbaritem-combined-buttons@inAnyPanel@ > toolbarbutton[disabled] > .toolbarbutton-icon {
+#main-window:not([customizing]) #edit-controls@inAnyPanel@ > toolbarbutton[disabled] > .toolbarbutton-icon,
+#main-window:not([customizing]) #zoom-controls@inAnyPanel@ > toolbarbutton[disabled] > .toolbarbutton-icon {
   opacity: .25;
 }
 
@@ -856,7 +851,7 @@ toolbarpaletteitem[place="palette"] > #search-container {
 }
 
 toolbaritem[overflowedItem=true],
-.widget-overflow-list .toolbarbutton-1 {
+toolbarbutton[overflowedItem=true] {
   width: 100%;
   max-width: @menuPanelWidth@;
   min-height: 36px;
@@ -864,19 +859,20 @@ toolbaritem[overflowedItem=true],
   background-position: 0 center;
 }
 
-.widget-overflow-list .toolbarbutton-1,
-.widget-overflow-list .toolbarbutton-1 > .toolbarbutton-menubutton-button {
+#widget-overflow-list > toolbarbutton,
+#widget-overflow-list > toolbarbutton > toolbarbutton {
   -moz-box-align: center;
   -moz-box-orient: horizontal;
 }
 
-.widget-overflow-list .toolbarbutton-1 > .toolbarbutton-text,
-.widget-overflow-list .toolbarbutton-1 > .toolbarbutton-menubutton-button > .toolbarbutton-text {
+#widget-overflow-list > toolbarbutton > .toolbarbutton-text,
+#widget-overflow-list > #bookmarks-menu-button > toolbarbutton > .toolbarbutton-text {
   text-align: start;
   -moz-padding-start: .5em;
 }
 
-#widget-overflow-list > .toolbaritem-combined-buttons {
+#widget-overflow-list > #edit-controls,
+#widget-overflow-list > #zoom-controls {
   min-height: 28px;
 }
 

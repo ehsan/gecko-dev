@@ -36,8 +36,7 @@ function* getVariablesView(hud) {
   let [message] = yield waitForMessages({
     webconsole: hud,
     messages: [{
-      text: "Object",
-      category: CATEGORY_OUTPUT,
+      text: "object"
     }],
   })
 

@@ -65,7 +65,8 @@ BEGIN_TEST(testChromeBuffer)
             const char *bytes = "return x ? 1 + trusted(x-1) : 0";
             JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&trusted_glob);
             JS::CompileOptions options(cx);
-            options.setFileAndLine("", 0);
+            options.setFileAndLine("", 0)
+                   .setPrincipals(&system_principals);
             CHECK(fun = JS_CompileFunction(cx, global, "trusted", 1, &paramName,
                                            bytes, strlen(bytes), options));
             trusted_fun = JS_GetFunctionObject(fun);
@@ -111,7 +112,8 @@ BEGIN_TEST(testChromeBuffer)
                                 "}                                      ";
             JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&trusted_glob);
             JS::CompileOptions options(cx);
-            options.setFileAndLine("", 0);
+            options.setFileAndLine("", 0)
+                   .setPrincipals(&system_principals);
             CHECK(fun = JS_CompileFunction(cx, global, "trusted", 1, &paramName,
                                            bytes, strlen(bytes), options));
             trusted_fun = JS_GetFunctionObject(fun);
@@ -148,7 +150,8 @@ BEGIN_TEST(testChromeBuffer)
             const char *bytes = "return 42";
             JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&trusted_glob);
             JS::CompileOptions options(cx);
-            options.setFileAndLine("", 0);
+            options.setFileAndLine("", 0)
+                   .setPrincipals(&system_principals);
             CHECK(fun = JS_CompileFunction(cx, global, "trusted", 0, nullptr,
                                            bytes, strlen(bytes), options));
             trusted_fun = JS_GetFunctionObject(fun);

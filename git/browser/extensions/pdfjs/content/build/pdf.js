@@ -14,15 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/*jshint globalstrict: false */
 
 // Initializing PDFJS global object (if still undefined)
 if (typeof PDFJS === 'undefined') {
   (typeof window !== 'undefined' ? window : this).PDFJS = {};
 }
 
-PDFJS.version = '0.8.1114';
-PDFJS.build = 'ea9c8f8';
+PDFJS.version = '0.8.1041';
+PDFJS.build = '2188bcb';
 
 (function pdfjsWrapper() {
   // Use strict in our context only - users might not want it
@@ -66,12 +65,6 @@ var TextRenderingMode = {
   ADD_TO_PATH: 7,
   FILL_STROKE_MASK: 3,
   ADD_TO_PATH_FLAG: 4
-};
-
-var ImageKind = {
-  GRAYSCALE_1BPP: 1,
-  RGB_24BPP: 2,
-  RGBA_32BPP: 3
 };
 
 // The global PDFJS object exposes the API
@@ -264,11 +257,7 @@ function combineUrl(baseUrl, url) {
   if (url.charAt(0) == '/') {
     // absolute path
     var i = baseUrl.indexOf('://');
-    if (url.charAt(1) === '/') {
-      ++i;
-    } else {
-      i = baseUrl.indexOf('/', i + 3);
-    }
+    i = baseUrl.indexOf('/', i + 3);
     return baseUrl.substring(0, i) + url;
   } else {
     // relative path
@@ -416,12 +405,11 @@ var XRefParseException = (function XRefParseExceptionClosure() {
 
 
 function bytesToString(bytes) {
-  var strBuf = [];
+  var str = '';
   var length = bytes.length;
-  for (var n = 0; n < length; ++n) {
-    strBuf.push(String.fromCharCode(bytes[n]));
-  }
-  return strBuf.join('');
+  for (var n = 0; n < length; ++n)
+    str += String.fromCharCode(bytes[n]);
+  return str;
 }
 
 function stringToBytes(str) {
@@ -746,20 +734,19 @@ var PDFStringTranslateTable = [
 ];
 
 function stringToPDFString(str) {
-  var i, n = str.length, strBuf = [];
+  var i, n = str.length, str2 = '';
   if (str[0] === '\xFE' && str[1] === '\xFF') {
     // UTF16BE BOM
-    for (i = 2; i < n; i += 2) {
-      strBuf.push(String.fromCharCode(
-        (str.charCodeAt(i) << 8) | str.charCodeAt(i + 1)));
-    }
+    for (i = 2; i < n; i += 2)
+      str2 += String.fromCharCode(
+        (str.charCodeAt(i) << 8) | str.charCodeAt(i + 1));
   } else {
     for (i = 0; i < n; ++i) {
       var code = PDFStringTranslateTable[str.charCodeAt(i)];
-      strBuf.push(code ? String.fromCharCode(code) : str.charAt(i));
+      str2 += code ? String.fromCharCode(code) : str.charAt(i);
     }
   }
-  return strBuf.join('');
+  return str2;
 }
 
 function stringToUTF8String(str) {
@@ -1104,16 +1091,13 @@ var ColorSpace = (function ColorSpaceClosure() {
      * of the rgb components, each value ranging from [0,255].
      */
     getRgb: function ColorSpace_getRgb(src, srcOffset) {
-      var rgb = new Uint8Array(3);
-      this.getRgbItem(src, srcOffset, rgb, 0);
-      return rgb;
+      error('Should not call ColorSpace.getRgb');
     },
     /**
      * Converts the color value to the RGB color, similar to the getRgb method.
      * The result placed into the dest array starting from the destOffset.
      */
-    getRgbItem: function ColorSpace_getRgbItem(src, srcOffset,
-                                               dest, destOffset) {
+    getRgbItem: function ColorSpace_getRgb(src, srcOffset, dest, destOffset) {
       error('Should not call ColorSpace.getRgbItem');
     },
     /**
@@ -1146,13 +1130,11 @@ var ColorSpace = (function ColorSpaceClosure() {
       return false;
     },
     /**
-     * Fills in the RGB colors in the destination buffer.  alpha01 indicates
-     * how many alpha components there are in the dest array; it will be either
-     * 0 (RGB array) or 1 (RGBA array).
+     * Fills in the RGB colors in an RGBA buffer.
      */
-    fillRgb: function ColorSpace_fillRgb(dest, originalWidth,
+    fillRgb: function ColorSpace_fillRgb(rgbaBuf, originalWidth,
                                          originalHeight, width, height,
-                                         actualHeight, bpc, comps, alpha01) {
+                                         actualHeight, bpc, comps) {
       var count = originalWidth * originalHeight;
       var rgbBuf = null;
       var numComponentColors = 1 << bpc;
@@ -1182,14 +1164,14 @@ var ColorSpace = (function ColorSpaceClosure() {
                           /* alpha01 = */ 0);
 
         if (!needsResizing) {
-          // Fill in the RGB values directly into |dest|.
-          var destPos = 0;
+          // Fill in the RGB values directly into |rgbaBuf|.
+          var rgbaPos = 0;
           for (var i = 0; i < count; ++i) {
             var key = comps[i] * 3;
-            dest[destPos++] = colorMap[key];
-            dest[destPos++] = colorMap[key + 1];
-            dest[destPos++] = colorMap[key + 2];
-            destPos += alpha01;
+            rgbaBuf[rgbaPos++] = colorMap[key];
+            rgbaBuf[rgbaPos++] = colorMap[key + 1];
+            rgbaBuf[rgbaPos++] = colorMap[key + 2];
+            rgbaPos++;
           }
         } else {
           rgbBuf = new Uint8Array(count * 3);
@@ -1203,9 +1185,9 @@ var ColorSpace = (function ColorSpaceClosure() {
         }
       } else {
         if (!needsResizing) {
-          // Fill in the RGB values directly into |dest|.
-          this.getRgbBuffer(comps, 0, width * actualHeight, dest, 0, bpc,
-                            alpha01);
+          // Fill in the RGB values directly into |rgbaBuf|.
+          this.getRgbBuffer(comps, 0, width * actualHeight, rgbaBuf, 0, bpc,
+                            /* alpha01 = */ 1);
         } else {
           rgbBuf = new Uint8Array(count * 3);
           this.getRgbBuffer(comps, 0, count, rgbBuf, 0, bpc,
@@ -1219,12 +1201,11 @@ var ColorSpace = (function ColorSpaceClosure() {
                                    originalHeight, width, height);
         }
         var rgbPos = 0;
-        var destPos = 0;
-        for (var i = 0, ii = width * actualHeight; i < ii; i++) {
-          dest[destPos++] = rgbBuf[rgbPos++];
-          dest[destPos++] = rgbBuf[rgbPos++];
-          dest[destPos++] = rgbBuf[rgbPos++];
-          destPos += alpha01;
+        var actualLength = width * actualHeight * 4;
+        for (var i = 0; i < actualLength; i += 4) {
+          rgbaBuf[i] = rgbBuf[rgbPos++];
+          rgbaBuf[i + 1] = rgbBuf[rgbPos++];
+          rgbaBuf[i + 2] = rgbBuf[rgbPos++];
         }
       }
     },
@@ -1443,7 +1424,11 @@ var AlternateCS = (function AlternateCSClosure() {
   }
 
   AlternateCS.prototype = {
-    getRgb: ColorSpace.prototype.getRgb,
+    getRgb: function AlternateCS_getRgb(src, srcOffset) {
+      var rgb = new Uint8Array(3);
+      this.getRgbItem(src, srcOffset, rgb, 0);
+      return rgb;
+    },
     getRgbItem: function AlternateCS_getRgbItem(src, srcOffset,
                                                 dest, destOffset) {
       var baseNumComps = this.base.numComps;
@@ -1542,7 +1527,11 @@ var IndexedCS = (function IndexedCSClosure() {
   }
 
   IndexedCS.prototype = {
-    getRgb: ColorSpace.prototype.getRgb,
+    getRgb: function IndexedCS_getRgb(src, srcOffset) {
+      var numComps = this.base.numComps;
+      var start = src[srcOffset] * numComps;
+      return this.base.getRgb(this.lookup, start);
+    },
     getRgbItem: function IndexedCS_getRgbItem(src, srcOffset,
                                               dest, destOffset) {
       var numComps = this.base.numComps;
@@ -1586,7 +1575,11 @@ var DeviceGrayCS = (function DeviceGrayCSClosure() {
   }
 
   DeviceGrayCS.prototype = {
-    getRgb: ColorSpace.prototype.getRgb,
+    getRgb: function DeviceGrayCS_getRgb(src, srcOffset) {
+      var rgb = new Uint8Array(3);
+      this.getRgbItem(src, srcOffset, rgb, 0);
+      return rgb;
+    },
     getRgbItem: function DeviceGrayCS_getRgbItem(src, srcOffset,
                                                  dest, destOffset) {
       var c = (src[srcOffset] * 255) | 0;
@@ -1627,7 +1620,11 @@ var DeviceRgbCS = (function DeviceRgbCSClosure() {
     this.defaultColor = new Float32Array([0, 0, 0]);
   }
   DeviceRgbCS.prototype = {
-    getRgb: ColorSpace.prototype.getRgb,
+    getRgb: function DeviceRgbCS_getRgb(src, srcOffset) {
+      var rgb = new Uint8Array(3);
+      this.getRgbItem(src, srcOffset, rgb, 0);
+      return rgb;
+    },
     getRgbItem: function DeviceRgbCS_getRgbItem(src, srcOffset,
                                                 dest, destOffset) {
       var r = (src[srcOffset] * 255) | 0;
@@ -1720,7 +1717,11 @@ var DeviceCmykCS = (function DeviceCmykCSClosure() {
     this.defaultColor = new Float32Array([0, 0, 0, 1]);
   }
   DeviceCmykCS.prototype = {
-    getRgb: ColorSpace.prototype.getRgb,
+    getRgb: function DeviceCmykCS_getRgb(src, srcOffset) {
+      var rgb = new Uint8Array(3);
+      convertToRgb(src, srcOffset, 1, rgb, 0);
+      return rgb;
+    },
     getRgbItem: function DeviceCmykCS_getRgbItem(src, srcOffset,
                                                  dest, destOffset) {
       convertToRgb(src, srcOffset, 1, dest, destOffset);
@@ -1827,7 +1828,11 @@ var CalGrayCS = (function CalGrayCSClosure() {
   }
 
   CalGrayCS.prototype = {
-    getRgb: ColorSpace.prototype.getRgb,
+    getRgb: function CalGrayCS_getRgb(src, srcOffset) {
+      var rgb = new Uint8Array(3);
+      this.getRgbItem(src, srcOffset, rgb, 0);
+      return rgb;
+    },
     getRgbItem: function CalGrayCS_getRgbItem(src, srcOffset,
                                               dest, destOffset) {
       convertToRgb(this, src, srcOffset, dest, destOffset, 1);
@@ -1960,13 +1965,17 @@ var LabCS = (function LabCSClosure() {
       b = X * 0.0557 + Y * -0.2040 + Z * 1.0570;
     }
     // clamp color values to [0,1] range then convert to [0,255] range.
-    dest[destOffset] = r <= 0 ? 0 : r >= 1 ? 255 : Math.sqrt(r) * 255 | 0;
-    dest[destOffset + 1] = g <= 0 ? 0 : g >= 1 ? 255 : Math.sqrt(g) * 255 | 0;
-    dest[destOffset + 2] = b <= 0 ? 0 : b >= 1 ? 255 : Math.sqrt(b) * 255 | 0;
+    dest[destOffset] = Math.sqrt(r < 0 ? 0 : r > 1 ? 1 : r) * 255;
+    dest[destOffset + 1] = Math.sqrt(g < 0 ? 0 : g > 1 ? 1 : g) * 255;
+    dest[destOffset + 2] = Math.sqrt(b < 0 ? 0 : b > 1 ? 1 : b) * 255;
   }
 
   LabCS.prototype = {
-    getRgb: ColorSpace.prototype.getRgb,
+    getRgb: function LabCS_getRgb(src, srcOffset) {
+      var rgb = new Uint8Array(3);
+      convertToRgb(this, src, srcOffset, false, rgb, 0);
+      return rgb;
+    },
     getRgbItem: function LabCS_getRgbItem(src, srcOffset, dest, destOffset) {
       convertToRgb(this, src, srcOffset, false, dest, destOffset);
     },
@@ -2872,8 +2881,6 @@ var Annotation = (function AnnotationClosure() {
         evaluator.getOperatorList(this.appearance, resources, opList);
         opList.addOp(OPS.endAnnotation, []);
         promise.resolve(opList);
-
-        this.appearance.reset();
       }.bind(this));
 
       return promise;
@@ -3577,6 +3584,13 @@ var PDFDocumentProxy = (function PDFDocumentProxyClosure() {
       return this.pdfInfo.fingerprint;
     },
     /**
+     * @return {boolean} true if embedded document fonts are in use. Will be
+     * set during rendering of the pages.
+     */
+    get embeddedFontsUsed() {
+      return this.transport.embeddedFontsUsed;
+    },
+    /**
      * @param {number} pageNumber The page number to get. The first page is 1.
      * @return {Promise} A promise that is resolved with a {@link PDFPageProxy}
      * object.
@@ -3883,7 +3897,6 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
 
       delete this.operatorList;
       delete this.displayReadyPromise;
-      delete this.annotationsPromise;
       this.objs.clear();
       this.pendingDestroy = false;
     },
@@ -3935,6 +3948,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
 
     this.pageCache = [];
     this.pagePromises = [];
+    this.embeddedFontsUsed = false;
     this.downloadInfoPromise = new PDFJS.LegacyPromise();
     this.passwordCallback = null;
 
@@ -5088,17 +5102,19 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
     var chunkImgData = ctx.createImageData(width, fullChunkHeight);
     var srcPos = 0;
     var src = imgData.data;
-    var dest = chunkImgData.data;
+    var dst = chunkImgData.data;
 
     // There are multiple forms in which the pixel data can be passed, and
     // imgData.kind tells us which one this is.
 
-    if (imgData.kind === ImageKind.GRAYSCALE_1BPP) {
+    if (imgData.kind === 'grayscale_1bpp') {
       // Grayscale, 1 bit per pixel (i.e. black-and-white).
-      var destDataLength = dest.length;
-      var srcLength = src.byteLength;
+      var srcData = imgData.data;
+      var destData = chunkImgData.data;
+      var destDataLength = destData.length;
+      var origLength = imgData.origLength;
       for (var i = 3; i < destDataLength; i += 4) {
-        dest[i] = 255;
+        destData[i] = 255;
       }
       for (var i = 0; i < totalChunks; i++) {
         var thisChunkHeight =
@@ -5109,21 +5125,21 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
           var srcByte = 0;
           for (var k = 0; k < width; k++, destPos += 4) {
             if (mask === 0) {
-              if (srcPos >= srcLength) {
+              if (srcPos >= origLength) {
                 break;
               }
-              srcByte = src[srcPos++];
+              srcByte = srcData[srcPos++];
               mask = 128;
             }
 
             if ((srcByte & mask)) {
-              dest[destPos] = 255;
-              dest[destPos + 1] = 255;
-              dest[destPos + 2] = 255;
+              destData[destPos] = 255;
+              destData[destPos + 1] = 255;
+              destData[destPos + 2] = 255;
             } else {
-              dest[destPos] = 0;
-              dest[destPos + 1] = 0;
-              dest[destPos + 2] = 0;
+              destData[destPos] = 0;
+              destData[destPos + 1] = 0;
+              destData[destPos + 2] = 0;
             }
 
             mask >>= 1;
@@ -5133,7 +5149,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
           // We ran out of input. Make all remaining pixels transparent.
           destPos += 3;
           do {
-            dest[destPos] = 0;
+            destData[destPos] = 0;
             destPos += 4;
           } while (destPos < destDataLength);
         }
@@ -5141,37 +5157,21 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
         ctx.putImageData(chunkImgData, 0, i * fullChunkHeight);
       }
 
-    } else if (imgData.kind === ImageKind.RGBA_32BPP) {
+    } else if (imgData.kind === 'rgba_32bpp') {
       // RGBA, 32-bits per pixel.
-      var haveSetAndSubarray = 'set' in dest && 'subarray' in src;
+      var haveSetAndSubarray = 'set' in dst && 'subarray' in src;
 
       for (var i = 0; i < totalChunks; i++) {
         var thisChunkHeight =
           (i < fullChunks) ? fullChunkHeight : partialChunkHeight;
         var elemsInThisChunk = imgData.width * thisChunkHeight * 4;
         if (haveSetAndSubarray) {
-          dest.set(src.subarray(srcPos, srcPos + elemsInThisChunk));
+          dst.set(src.subarray(srcPos, srcPos + elemsInThisChunk));
           srcPos += elemsInThisChunk;
         } else {
           for (var j = 0; j < elemsInThisChunk; j++) {
-            dest[j] = src[srcPos++];
+            chunkImgData.data[j] = imgData.data[srcPos++];
           }
-        }
-        ctx.putImageData(chunkImgData, 0, i * fullChunkHeight);
-      }
-
-    } else if (imgData.kind === ImageKind.RGB_24BPP) {
-      // RGB, 24-bits per pixel.
-      for (var i = 0; i < totalChunks; i++) {
-        var thisChunkHeight =
-          (i < fullChunks) ? fullChunkHeight : partialChunkHeight;
-        var elemsInThisChunk = imgData.width * thisChunkHeight * 3;
-        var destPos = 0;
-        for (var j = 0; j < elemsInThisChunk; j += 3) {
-          dest[destPos++] = src[srcPos++];
-          dest[destPos++] = src[srcPos++];
-          dest[destPos++] = src[srcPos++];
-          dest[destPos++] = 255;
         }
         ctx.putImageData(chunkImgData, 0, i * fullChunkHeight);
       }
@@ -5182,39 +5182,31 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
   }
 
   function putBinaryImageMask(ctx, imgData) {
-    var height = imgData.height, width = imgData.width;
-    var fullChunkHeight = 16;
-    var fracChunks = height / fullChunkHeight;
-    var fullChunks = Math.floor(fracChunks);
-    var totalChunks = Math.ceil(fracChunks);
-    var partialChunkHeight = height - fullChunks * fullChunkHeight;
+    var width = imgData.width, height = imgData.height;
+    var tmpImgData = ctx.createImageData(width, height);
+    var data = imgData.data;
+    var tmpImgDataPixels = tmpImgData.data;
+    var dataPos = 0;
 
-    var chunkImgData = ctx.createImageData(width, fullChunkHeight);
-    var srcPos = 0;
-    var src = imgData.data;
-    var dest = chunkImgData.data;
-
-    for (var i = 0; i < totalChunks; i++) {
-      var thisChunkHeight =
-        (i < fullChunks) ? fullChunkHeight : partialChunkHeight;
-
-      // Expand the mask so it can be used by the canvas.  Any required
-      // inversion has already been handled.
-      var destPos = 3; // alpha component offset
-      for (var j = 0; j < thisChunkHeight; j++) {
-        var mask = 0;
-        for (var k = 0; k < width; k++) {
-          if (!mask) {
-            var elem = src[srcPos++];
-            mask = 128;
-          }
-          dest[destPos] = (elem & mask) ? 0 : 255;
-          destPos += 4;
-          mask >>= 1;
+    // Expand the mask so it can be used by the canvas.  Any required inversion
+    // has already been handled.
+    var tmpPos = 3; // alpha component offset
+    for (var i = 0; i < height; i++) {
+      var mask = 0;
+      for (var j = 0; j < width; j++) {
+        if (!mask) {
+          var elem = data[dataPos++];
+          mask = 128;
         }
+        if (!(elem & mask)) {
+          tmpImgDataPixels[tmpPos] = 255;
+        }
+        tmpPos += 4;
+        mask >>= 1;
       }
-      ctx.putImageData(chunkImgData, 0, i * fullChunkHeight);
     }
+
+    ctx.putImageData(tmpImgData, 0, 0);
   }
 
   function copyCtxState(sourceCtx, destCtx) {
