@@ -606,14 +606,11 @@ SyncStorageRequest.prototype = {
       this._log.debug("Couldn't set Authentication header: WeaveID not found.");
     }
 
-    return RESTRequest.prototype.dispatch.apply(this, arguments);
+    RESTRequest.prototype.dispatch.apply(this, arguments);
   },
 
   onStartRequest: function onStartRequest(channel) {
     RESTRequest.prototype.onStartRequest.call(this, channel);
-    if (this.status == this.ABORTED) {
-      return;
-    }
 
     let headers = this.response.headers;
     // Save the latest server timestamp when possible.

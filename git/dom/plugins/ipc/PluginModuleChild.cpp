@@ -1922,7 +1922,6 @@ PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
         mQuirks |= QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT;
 #ifdef OS_WIN
         mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
-        mQuirks |= QUIRK_SILVERLIGHT_FOCUS_CHECK_PARENT;
 #endif
     }
 
