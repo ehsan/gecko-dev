@@ -6,9 +6,8 @@
 
 "use strict";
 
-const Services = require("Services");
-const { ActorPool, appendExtraActors, createExtraActors } = require("devtools/server/actors/common");
-const { DebuggerServer } = require("devtools/server/main");
+let devtools_ = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
+let { createExtraActors, appendExtraActors } = devtools_.require("devtools/server/actors/common");
 
 /* Root actor for the remote debugging protocol. */
 
@@ -339,5 +338,3 @@ RootActor.prototype.requestTypes = {
   "echo": RootActor.prototype.onEcho,
   "protocolDescription": RootActor.prototype.onProtocolDescription
 };
-
-exports.RootActor = RootActor;
