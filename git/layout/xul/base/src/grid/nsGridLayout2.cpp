@@ -50,7 +50,7 @@
 #include "nsSprocketLayout.h"
 
 nsresult
-NS_NewGridLayout2( nsIPresShell* aPresShell, nsBoxLayout** aNewLayout)
+NS_NewGridLayout2( nsIPresShell* aPresShell, nsIBoxLayout** aNewLayout)
 {
   *aNewLayout = new nsGridLayout2(aPresShell);
   NS_IF_ADDREF(*aNewLayout);

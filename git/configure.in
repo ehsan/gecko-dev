@@ -2053,6 +2053,7 @@ case "$target" in
     else
         MOZ_OPTIMIZE_FLAGS="-O3 -fno-omit-frame-pointer"
     fi
+    MOZ_MEMORY=1
     _PEDANTIC=
     CFLAGS="$CFLAGS -fno-common"
     CXXFLAGS="$CXXFLAGS -fno-common"
@@ -5681,23 +5682,6 @@ fi
 AC_SUBST(MOZ_IPDL_TESTS)
 
 dnl ========================================================
-dnl = Turns off code necessary for e10s compatibility
-dnl ========================================================
-dnl This is a temporary flag to be removed in bug 662601 when
-dnl it's no longer needed
-
-MOZ_E10S_COMPAT=
-
-MOZ_ARG_ENABLE_BOOL(e10s-compat,
-[  --enable-e10s-compat     Turns off code for e10s compat],
-    MOZ_E10S_COMPAT=1,
-    MOZ_E10S_COMPAT=)
-
-if test -n "$MOZ_E10S_COMPAT"; then
-    AC_DEFINE(MOZ_E10S_COMPAT)
-fi
-
-dnl ========================================================
 dnl = Disable building dbm
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(dbm,
@@ -7698,7 +7682,7 @@ MOZ_ARG_ENABLE_BOOL(stdcxx-compat,
 AC_SUBST(STDCXX_COMPAT)
 
 if test -n "$STDCXX_COMPAT"; then
-   eval $(CXX="$CXX" $PYTHON $_topsrcdir/build/autoconf/libstdcxx.py)
+   eval $($PYTHON $_topsrcdir/build/autoconf/libstdcxx.py)
    AC_SUBST(MOZ_LIBSTDCXX_TARGET_VERSION)
    AC_SUBST(MOZ_LIBSTDCXX_HOST_VERSION)
 fi

@@ -51,8 +51,10 @@ function testInputFocus() {
   browser.removeEventListener("DOMContentLoaded", testInputFocus, false);
 
   openConsole();
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
 
-  let inputNode = HUDService.getHudByWindow(content).jsterm.inputNode;
+  let inputNode = hudBox.querySelector(".jsterm-input-node");
   ok(inputNode.getAttribute("focused"), "input node is focused");
 
   finishTest();

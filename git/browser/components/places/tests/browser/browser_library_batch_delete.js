@@ -96,7 +96,10 @@ function test() {
                .removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
   });
 
-  gLibrary = openLibrary(nextTest);
+  openLibrary(function (library) {
+    gLibrary = library;
+    executeSoon(nextTest);
+  });
 }
 
 function nextTest() {
@@ -108,6 +111,6 @@ function nextTest() {
   else {
     // Close Library window.
     gLibrary.close();
-    finish();
+    executeSoon(finish);
   }
 }

@@ -60,7 +60,7 @@
 #include "nsDataHashtable.h"
 #include "imgIRequest.h"
 #include "imgIDecoderObserver.h"
-#include "nsScrollbarFrame.h"
+#include "nsIScrollbarFrame.h"
 #include "nsThreadUtils.h"
 
 class nsOverflowChecker;
@@ -146,8 +146,8 @@ public:
   virtual PRBool PseudoMatches(nsCSSSelector* aSelector);
 
   // nsIScrollbarMediator
-  NS_IMETHOD PositionChanged(nsScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex);
-  NS_IMETHOD ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex);
+  NS_IMETHOD PositionChanged(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex);
+  NS_IMETHOD ScrollbarButtonPressed(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex);
   NS_IMETHOD VisibilityChanged(PRBool aVisible) { Invalidate(); return NS_OK; }
 
   // Overridden from nsIFrame to cache our pres context.
@@ -173,9 +173,9 @@ public:
   friend class nsTreeColumn;
 
   struct ScrollParts {
-    nsScrollbarFrame*    mVScrollbar;
+    nsIScrollbarFrame*   mVScrollbar;
     nsCOMPtr<nsIContent> mVScrollbarContent;
-    nsScrollbarFrame*    mHScrollbar;
+    nsIScrollbarFrame*   mHScrollbar;
     nsCOMPtr<nsIContent> mHScrollbarContent;
     nsIFrame*            mColumnsFrame;
     nsIScrollableFrame*  mColumnsScrollFrame;
