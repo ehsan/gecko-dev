@@ -261,7 +261,7 @@ nsUserActivityObserver::Observe(nsISupports* aSubject, const char* aTopic,
     if (sUserIsActive) {
       sUserIsActive = PR_FALSE;
       if (!sGCTimer) {
-        nsJSContext::MaybeCC(PR_FALSE);
+        nsJSContext::MaybeCC(PR_FALSE, PR_TRUE);
         return NS_OK;
       }
     }
@@ -3185,7 +3185,18 @@ nsJSContext::ClearScope(void *aGlobalObj, PRBool aClearFromProtoChain)
       JS_ClearPendingException(mContext);
     }
 
-    JS_ClearScope(mContext, obj);
+    // Hack fix for bug 611653. Originally, this always called JS_ClearScope,
+    // which was required to avoid leaks. But for native objects, the JS
+    // engine has an optimization that requires that permanent properties of
+    // the global object are never deleted. So instead, we call a new special
+    // API that clears the values of the global, thus avoiding leaks without
+    // deleting any properties.
+    if (obj->isNative()) {
+      js_UnbrandAndClearSlots(mContext, obj);
+    } else {
+      JS_ClearScope(mContext, obj);
+    }
+
     if (xpc::WrapperFactory::IsXrayWrapper(obj)) {
       JS_ClearScope(mContext, &obj->getProxyExtra().toObject());
     }
@@ -3419,7 +3430,7 @@ nsJSContext::CC(nsICycleCollectorListener *aListener, PRBool aForceGC)
 
 //static
 PRBool
-nsJSContext::MaybeCC(PRBool aHigherProbability)
+nsJSContext::MaybeCC(PRBool aHigherProbability, PRBool aForceGC)
 {
   ++sDelayedCCollectCount;
 
@@ -3462,7 +3473,7 @@ nsJSContext::MaybeCC(PRBool aHigherProbability)
       ((sCCSuspectChanges > NS_MIN_SUSPECT_CHANGES &&
         GetGCRunsSinceLastCC() > NS_MAX_GC_COUNT) ||
        (sCCSuspectChanges > NS_MAX_SUSPECT_CHANGES))) {
-    return IntervalCC();
+    return IntervalCC(aForceGC);
   }
   return PR_FALSE;
 }
@@ -3472,7 +3483,7 @@ void
 nsJSContext::CCIfUserInactive()
 {
   if (sUserIsActive) {
-    MaybeCC(PR_TRUE);
+    MaybeCC(PR_TRUE, PR_TRUE);
   } else {
     IntervalCC(PR_TRUE);
   }

@@ -86,10 +86,8 @@ DOMSVGPathSegList::GetDOMWrapperIfExists(void *aList)
 
 DOMSVGPathSegList::~DOMSVGPathSegList()
 {
-  // We no longer have any list items, and there are no script references to
-  // us.
-  //
-  // Do NOT use InternalList() here! That's different!
+  // There are now no longer any references to us held by script or list items.
+  // Note we must use GetAnimValKey/GetBaseValKey here, NOT InternalList()!
   void *key = mIsAnimValList ?
     InternalAList().GetAnimValKey() :
     InternalAList().GetBaseValKey();
@@ -177,6 +175,12 @@ DOMSVGPathSegList::InternalListWillChangeTo(const SVGPathData& aNewValue)
 
     // Sync mItems:
     while (dataIndex < dataLength) {
+      if (mItems.Length() &&
+          mItems.Length() - 1 > DOMSVGPathSeg::MaxListIndex()) {
+        // It's safe to get out of sync with our internal list as long as we
+        // have FEWER items than it does.
+        return;
+      }
       if (!mItems.AppendElement(ItemProxy(nsnull, dataIndex))) {
         // OOM
         Clear();
@@ -316,13 +320,6 @@ DOMSVGPathSegList::InsertItemBefore(nsIDOMSVGPathSeg *aNewItem,
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  nsCOMPtr<DOMSVGPathSeg> domItem = do_QueryInterface(aNewItem);
-  if (!domItem) {
-    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
-  }
-  if (domItem->HasOwner()) {
-    domItem = domItem->Clone(); // must do this before changing anything!
-  }
   PRUint32 internalIndex;
   if (aIndex < Length()) {
     internalIndex = mItems[aIndex].mInternalDataIndex;
@@ -330,6 +327,18 @@ DOMSVGPathSegList::InsertItemBefore(nsIDOMSVGPathSeg *aNewItem,
     aIndex = Length();
     internalIndex = InternalList().mData.Length();
   }
+  if (aIndex >= DOMSVGPathSeg::MaxListIndex()) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+  }
+
+  nsCOMPtr<DOMSVGPathSeg> domItem = do_QueryInterface(aNewItem);
+  if (!domItem) {
+    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
+  }
+  if (domItem->HasOwner()) {
+    domItem = domItem->Clone(); // must do this before changing anything!
+  }
+
   PRUint32 argCount = SVGPathSegUtils::ArgCountForType(domItem->Type());
 
   // Ensure we have enough memory so we can avoid complex error handling below:
@@ -345,8 +354,8 @@ DOMSVGPathSegList::InsertItemBefore(nsIDOMSVGPathSeg *aNewItem,
   mItems.InsertElementAt(aIndex, ItemProxy(domItem.get(), internalIndex));
 
   // This MUST come after the insertion into InternalList(), or else under the
-  // insertion into InternalList() the data read from domItem would be bad data
-  // from InternalList() itself!:
+  // insertion into InternalList() the values read from domItem would be bad
+  // data from InternalList() itself!:
   domItem->InsertingIntoList(this, aIndex, IsAnimValList());
 
   for (PRUint32 i = aIndex + 1; i < Length(); ++i) {
@@ -411,7 +420,7 @@ DOMSVGPathSegList::ReplaceItem(nsIDOMSVGPathSeg *aNewItem,
   }
   ItemAt(aIndex) = domItem;
 
-  // This MUST come after the ToSVGPathSegEncodedData call otherwise that call
+  // This MUST come after the ToSVGPathSegEncodedData call, otherwise that call
   // would end up reading bad data from InternalList()!
   domItem->InsertingIntoList(this, aIndex, IsAnimValList());
 

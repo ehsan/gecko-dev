@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -554,8 +554,9 @@ BasicThebesLayer::Paint(gfxContext* aContext,
   }
 
   {
-    float paintXRes = BasicManager()->XResolution();
-    float paintYRes = BasicManager()->YResolution();
+    gfxSize scale = aContext->CurrentMatrix().ScaleFactors(PR_TRUE);
+    float paintXRes = gfxUtils::ClampToScaleFactor(BasicManager()->XResolution() * scale.width);
+    float paintYRes = gfxUtils::ClampToScaleFactor(BasicManager()->YResolution() * scale.height);
     Buffer::PaintState state =
       mBuffer.BeginPaint(this, contentType, paintXRes, paintYRes);
     mValidRegion.Sub(mValidRegion, state.mRegionToInvalidate);
@@ -566,6 +567,7 @@ BasicThebesLayer::Paint(gfxContext* aContext,
       // from RGB to RGBA, because we might need to repaint with
       // subpixel AA)
       state.mRegionToInvalidate.And(state.mRegionToInvalidate, mVisibleRegion);
+      state.mRegionToDraw.ExtendForScaling(paintXRes, paintYRes);
       mXResolution = paintXRes;
       mYResolution = paintYRes;
       SetAntialiasingFlags(this, state.mContext);
@@ -2777,6 +2779,14 @@ BasicShadowLayerManager::Hold(Layer* aLayer)
 
   mKeepAlive.AppendElement(aLayer);
   return shadowable;
+}
+
+PRBool
+BasicShadowLayerManager::IsCompositingCheap()
+{
+  // Whether compositing is cheap depends on the parent backend.
+  return mShadowManager &&
+         LayerManager::IsCompositingCheap(GetParentBackendType());
 }
 #endif  // MOZ_IPC
 

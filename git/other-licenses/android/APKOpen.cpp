@@ -236,7 +236,6 @@ SHELL_WRAPPER1(notifyGeckoOfEvent, jobject)
 SHELL_WRAPPER1(setSurfaceView, jobject)
 SHELL_WRAPPER0(onResume)
 SHELL_WRAPPER0(onLowMemory)
-SHELL_WRAPPER0(onCriticalOOM)
 SHELL_WRAPPER3(callObserver, jstring, jstring, jstring)
 SHELL_WRAPPER1(removeObserver, jstring)
 SHELL_WRAPPER1(onChangeNetworkLinkStatus, jstring)
@@ -505,7 +504,7 @@ static void * mozload(const char * path, void *zip,
       __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Loading %s from cache", path + 4);
 #endif
     if (fd < 0) {
-      __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Couldn't get an ashmem buffer");
+      __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Couldn't open " ASHMEM_NAME_DEF ", Error %d, %s", errno, strerror(errno));
       return NULL;
     }
     buf = mmap(NULL, lib_size,
@@ -600,7 +599,7 @@ extern "C" void simple_linker_init(void);
 static void
 loadLibs(const char *apkName)
 {
-  chdir("/data/data/" ANDROID_PACKAGE_NAME);
+  chdir(getenv("GRE_HOME"));
 
   simple_linker_init();
 
@@ -667,7 +666,6 @@ loadLibs(const char *apkName)
   GETFUNC(setSurfaceView);
   GETFUNC(onResume);
   GETFUNC(onLowMemory);
-  GETFUNC(onCriticalOOM);
   GETFUNC(callObserver);
   GETFUNC(removeObserver);
   GETFUNC(onChangeNetworkLinkStatus);

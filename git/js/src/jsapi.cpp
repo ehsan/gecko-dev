@@ -648,10 +648,6 @@ JSRuntime::init(uint32 maxbytes)
     }
     propTreeStatFilename = getenv("JS_PROPTREE_STATFILE");
     propTreeDumpFilename = getenv("JS_PROPTREE_DUMPFILE");
-    if (meterEmptyShapes()) {
-        if (!emptyShapes.init())
-            return false;
-    }
 #endif
 
     if (!(atomsCompartment = js_new<JSCompartment>(this)) ||
@@ -682,7 +678,7 @@ JSRuntime::init(uint32 maxbytes)
 
     debugMode = JS_FALSE;
 
-    return propertyTree.init() && js_InitThreads(this);
+    return js_InitThreads(this);
 }
 
 JSRuntime::~JSRuntime()
@@ -723,7 +719,6 @@ JSRuntime::~JSRuntime()
     if (debuggerLock)
         JS_DESTROY_LOCK(debuggerLock);
 #endif
-    propertyTree.finish();
 }
 
 JS_PUBLIC_API(JSRuntime *)
@@ -2674,7 +2669,7 @@ JS_PUBLIC_API(void)
 JS_FlushCaches(JSContext *cx)
 {
 #ifdef JS_TRACER
-    FlushJITCache(cx);
+    FlushJITCache(cx, &cx->compartment->traceMonitor);
 #endif
 }
 
@@ -5158,8 +5153,7 @@ JS_IsRunning(JSContext *cx)
     VOUCH_DOES_NOT_REQUIRE_STACK();
 
 #ifdef JS_TRACER
-    JS_ASSERT_IF(cx->compartment &&
-                 JS_TRACE_MONITOR(cx).tracecx == cx, cx->hasfp());
+    JS_ASSERT_IF(JS_ON_TRACE(cx) && JS_TRACE_MONITOR_ON_TRACE(cx)->tracecx == cx, cx->hasfp());
 #endif
     JSStackFrame *fp = cx->maybefp();
     while (fp && fp->isDummyFrame())
