@@ -8,6 +8,7 @@
 
 #include "GLContextTypes.h"             // for GLContext
 #include "GLDefs.h"                     // for GLenum, LOCAL_GL_FRAMEBUFFER, etc
+#include "gfxMatrix.h"                  // for gfxMatrix
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef
@@ -84,7 +85,7 @@ public:
   static TemporaryRef<CompositingRenderTargetOGL>
   RenderTargetForWindow(CompositorOGL* aCompositor,
                         const gfx::IntSize& aSize,
-                        const gfx::Matrix& aTransform)
+                        const gfxMatrix& aTransform)
   {
     RefPtr<CompositingRenderTargetOGL> result
       = new CompositingRenderTargetOGL(aCompositor, gfx::IntPoint(0, 0), 0, 0);
@@ -149,7 +150,7 @@ public:
     return gfx::SurfaceFormat::UNKNOWN;
   }
 
-  const gfx::Matrix& GetTransform() {
+  const gfxMatrix& GetTransform() {
     return mTransform;
   }
 
@@ -165,7 +166,7 @@ private:
   void InitializeImpl();
 
   InitParams mInitParams;
-  gfx::Matrix mTransform;
+  gfxMatrix mTransform;
   CompositorOGL* mCompositor;
   GLContext* mGL;
   GLuint mTextureHandle;

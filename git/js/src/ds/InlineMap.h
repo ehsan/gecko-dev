@@ -72,7 +72,7 @@ class InlineMap
         return true;
     }
 
-    MOZ_NEVER_INLINE
+    JS_NEVER_INLINE
     bool switchAndAdd(const K &key, const V &value) {
         if (!switchToMap())
             return false;
@@ -214,7 +214,7 @@ class InlineMap
         return inl + inlNext;
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     Ptr lookup(const K &key) {
         if (usingMap())
             return Ptr(map.lookup(key));
@@ -227,7 +227,7 @@ class InlineMap
         return Ptr(nullptr);
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     AddPtr lookupForAdd(const K &key) {
         if (usingMap())
             return AddPtr(map.lookupForAdd(key));
@@ -245,7 +245,7 @@ class InlineMap
         return AddPtr(inl + inlNext, false);
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool add(AddPtr &p, const K &key, const V &value) {
         JS_ASSERT(!p);
 
@@ -269,7 +269,7 @@ class InlineMap
         return map.add(p.mapAddPtr, key, value);
     }
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool put(const K &key, const V &value) {
         AddPtr p = lookupForAdd(key);
         if (p) {

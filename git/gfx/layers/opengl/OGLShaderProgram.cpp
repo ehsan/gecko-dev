@@ -4,6 +4,7 @@
 
 #include "OGLShaderProgram.h"
 #include <stdint.h>                     // for uint32_t
+#include "gfxMatrix.h"                  // for gfxMatrix
 #include "gfxRect.h"                    // for gfxRect
 #include "mozilla/DebugOnly.h"          // for DebugOnly
 #include "nsAString.h"

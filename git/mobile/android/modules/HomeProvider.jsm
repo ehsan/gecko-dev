@@ -27,15 +27,13 @@ const SQL = {
       "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
       "dataset_id TEXT NOT NULL, " +
       "url TEXT," +
-      "title TEXT," +
-      "description TEXT," +
-      "image_url TEXT," +
-      "created INTEGER" +
+      "primary_text TEXT," +
+      "secondary_text TEXT" +
     ")",
 
   insertItem:
-    "INSERT INTO items (dataset_id, url, title, description, image_url, created) " +
-      "VALUES (:dataset_id, :url, :title, :description, :image_url, :created)",
+    "INSERT INTO items (dataset_id, url) " +
+      "VALUES (:dataset_id, :url)",
 
   deleteFromDataset:
     "DELETE FROM items WHERE dataset_id = :dataset_id"
@@ -84,11 +82,7 @@ HomeStorage.prototype = {
           // XXX: Directly pass item as params? More validation for item? Batch insert?
           let params = {
             dataset_id: this.datasetId,
-            url: item.url,
-            title: item.title,
-            description: item.description,
-            image_url: item.image_url,
-            created: Date.now()
+            url: item.url
           };
           yield db.executeCached(SQL.insertItem, params);
         }

@@ -27,7 +27,7 @@ namespace js {
 
 JS_STATIC_ASSERT(sizeof(HashNumber) == 4);
 
-static MOZ_ALWAYS_INLINE js::HashNumber
+static JS_ALWAYS_INLINE js::HashNumber
 HashId(jsid id)
 {
     return mozilla::HashGeneric(JSID_BITS(id));

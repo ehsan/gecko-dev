@@ -10,6 +10,7 @@
 #include "gfx2DGlue.h"                  // for ToMatrix4x4
 #include "gfx3DMatrix.h"                // for gfx3DMatrix
 #include "gfxImageSurface.h"            // for gfxImageSurface
+#include "gfxMatrix.h"                  // for gfxMatrix
 #include "gfxPlatform.h"                // for gfxPlatform
 #include "gfxUtils.h"                   // for gfxUtils, etc
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
@@ -241,17 +242,18 @@ ContainerRender(ContainerT* aContainer,
       aContainer->mSupportsComponentAlphaChildren = true;
       mode = INIT_MODE_NONE;
     } else {
-      const gfx::Matrix4x4& transform3D = aContainer->GetEffectiveTransform();
-      gfx::Matrix transform;
+      gfx3DMatrix transform3D;
+      gfx::To3DMatrix(aContainer->GetEffectiveTransform(), transform3D);
+      gfxMatrix transform;
       // If we have an opaque ancestor layer, then we can be sure that
       // all the pixels we draw into are either opaque already or will be
       // covered by something opaque. Otherwise copying up the background is
       // not safe.
       if (HasOpaqueAncestorLayer(aContainer) &&
-          transform3D.Is2D(&transform) && !ThebesMatrix(transform).HasNonIntegerTranslation()) {
+          transform3D.Is2D(&transform) && !transform.HasNonIntegerTranslation()) {
         surfaceCopyNeeded = gfxPlatform::ComponentAlphaEnabled();
-        sourcePoint.x += transform._31;
-        sourcePoint.y += transform._32;
+        sourcePoint.x += transform.x0;
+        sourcePoint.y += transform.y0;
         aContainer->mSupportsComponentAlphaChildren
           = gfxPlatform::ComponentAlphaEnabled();
       }

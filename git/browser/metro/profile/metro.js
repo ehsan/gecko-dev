@@ -33,11 +33,9 @@ pref("metro.debug.selection.displayRanges", false);
 pref("metro.debug.selection.dumpRanges", false);
 pref("metro.debug.selection.dumpEvents", false);
 
-// Private browsing is disabled by default until implementation and testing are complete
-pref("metro.private_browsing.enabled", false);
-
 // Enable tab-modal prompts
 pref("prompts.tab_modal.enabled", true);
+
 
 // Enable off main thread compositing
 pref("layers.offmainthreadcomposition.enabled", true);

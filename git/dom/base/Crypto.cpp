@@ -150,7 +150,7 @@ Crypto::GetVersion(nsString& aVersion)
 {
 }
 
-mozilla::dom::CRMFObject*
+already_AddRefed<nsIDOMCRMFObject>
 Crypto::GenerateCRMFRequest(JSContext* aContext,
                             const nsCString& aReqDN,
                             const nsCString& aRegToken,

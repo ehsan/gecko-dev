@@ -421,55 +421,28 @@
 }
 
 #command-button-paintflashing > image {
-  background-image: url("chrome://browser/skin/devtools/command-paintflashing.png");
+  background-image: url("chrome://browser/skin/devtools/command-paintflashing@2x.png");
 }
 
 #command-button-responsive > image {
-  background-image: url("chrome://browser/skin/devtools/command-responsivemode.png");
+  background-image: url("chrome://browser/skin/devtools/command-responsivemode@2x.png");
 }
 
 #command-button-tilt > image {
-  background-image: url("chrome://browser/skin/devtools/command-tilt.png");
+  background-image: url("chrome://browser/skin/devtools/command-tilt@2x.png");
 }
 
 #command-button-scratchpad > image {
-  background-image: url("chrome://browser/skin/devtools/command-scratchpad.png");
+  background-image: url("chrome://browser/skin/devtools/command-scratchpad@2x.png");
   background-size: 48px 16px;
 }
 
 #command-button-pick > image {
-  background-image: url("chrome://browser/skin/devtools/command-pick.png");
+  background-image: url("chrome://browser/skin/devtools/command-pick@2x.png");
 }
 
 #command-button-splitconsole > image {
-  background-image: url("chrome://browser/skin/devtools/command-console.png");
-}
-
-
-@media (min-resolution: 2dppx) {
-  #command-button-paintflashing > image {
-    background-image: url("chrome://browser/skin/devtools/command-paintflashing@2x.png");
-  }
-
-  #command-button-responsive > image {
-    background-image: url("chrome://browser/skin/devtools/command-responsivemode@2x.png");
-  }
-
-  #command-button-tilt > image {
-    background-image: url("chrome://browser/skin/devtools/command-tilt@2x.png");
-  }
-
-  #command-button-scratchpad > image {
-    background-image: url("chrome://browser/skin/devtools/command-scratchpad@2x.png");
-  }
-
-  #command-button-pick > image {
-    background-image: url("chrome://browser/skin/devtools/command-pick@2x.png");
-  }
-
-  #command-button-splitconsole > image {
-    background-image: url("chrome://browser/skin/devtools/command-console@2x.png");
-  }
+  background-image: url("chrome://browser/skin/devtools/command-console@2x.png");
 }
 
 /* Tabs */
@@ -477,7 +450,6 @@
 .devtools-tabbar {
   -moz-appearance: none;
   background: #252c33;
-  min-height: 28px;
   border: 0px solid #000;
   border-bottom-width: 1px;
   box-shadow: 0 -2px 0 rgba(0,0,0,.1) inset;
@@ -496,7 +468,7 @@
 .devtools-tab {
   -moz-appearance: none;
   min-width: 32px;
-  min-height: 28px;
+  min-height: 26px;
   max-width: 127px;
   color: #b6babf;
   margin: 0;

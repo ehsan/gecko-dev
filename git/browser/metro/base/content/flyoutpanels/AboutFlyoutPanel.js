@@ -506,7 +506,7 @@ appUpdater.prototype =
    */
   setupDownloadingUI: function() {
     this.downloadStatus = document.getElementById("downloadStatus");
-    this.downloadStatus.textContent =
+    this.downloadStatus.value =
       DownloadUtils.getTransferTotal(0, this.update.selectedPatch.size);
     this.selectPanel("downloading");
     this.aus.addDownloadListener(this);
@@ -598,7 +598,7 @@ appUpdater.prototype =
    * See nsIProgressEventSink.idl
    */
   onProgress: function(aRequest, aContext, aProgress, aProgressMax) {
-    this.downloadStatus.textContent =
+    this.downloadStatus.value =
       DownloadUtils.getTransferTotal(aProgress, aProgressMax);
   },
 

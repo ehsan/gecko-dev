@@ -213,22 +213,11 @@ function hideContextUI()
 
 function showNavBar()
 {
+  let promise = waitForEvent(Elements.navbar, "transitionend");
   if (!ContextUI.navbarVisible) {
-    let promise = waitForEvent(Elements.navbar, "transitionend");
     ContextUI.displayNavbar();
     return promise;
   }
-  return Promise.resolve(null);
-}
-
-function hideNavBar()
-{
-  if (ContextUI.navbarVisible) {
-    let promise = waitForEvent(Elements.navbar, "transitionend");
-    ContextUI.dismissNavbar();
-    return promise;
-  }
-  return Promise.resolve(null);
 }
 
 function fireAppBarDisplayEvent()
@@ -836,14 +825,6 @@ TouchDragAndHold.prototype = {
 
   set useNativeEvents(aValue) {
     this._native = aValue;
-  },
-
-  set stepTimeout(aValue) {
-    this._timeoutStep = aValue;
-  },
-
-  set numSteps(aValue) {
-    this._numSteps = aValue;
   },
 
   set nativePointerId(aValue) {

@@ -448,7 +448,8 @@ var SelectionHandler = {
       icon: "drawable://ab_paste",
       action: function(aElement) {
         ClipboardHelper.paste(aElement);
-        SelectionHandler._closeSelection();
+        SelectionHandler._positionHandles();
+        SelectionHandler._updateMenu();
       },
       order: 2,
       selector: ClipboardHelper.pasteContext,

@@ -55,7 +55,7 @@ public:
     ContainerLayer::RepositionChild(aChild, aAfter);
   }
 
-  virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface);
+  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface);
 
   /**
    * Returns true when:

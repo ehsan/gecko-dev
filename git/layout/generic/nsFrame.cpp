@@ -4834,8 +4834,7 @@ nsIFrame::TryUpdateTransformOnly()
     // the transform and will need to schedule an invalidating paint.
     return false;
   }
-  gfxMatrix transform;
-  gfx::Matrix previousTransform;
+  gfxMatrix transform, previousTransform;
   // FIXME/bug 796690 and 796705: in general, changes to 3D
   // transforms, or transform changes to properties other than
   // translation, may lead us to choose a different rendering
@@ -4846,15 +4845,13 @@ nsIFrame::TryUpdateTransformOnly()
  static const gfx::Float kError = 0.0001f;
   if (!transform3d.Is2D(&transform) ||
       !layer->GetBaseTransform().Is2D(&previousTransform) ||
-      !gfx::FuzzyEqual(transform.xx, previousTransform._11, kError) ||
-      !gfx::FuzzyEqual(transform.yy, previousTransform._22, kError) ||
-      !gfx::FuzzyEqual(transform.xy, previousTransform._21, kError) ||
-      !gfx::FuzzyEqual(transform.yx, previousTransform._12, kError)) {
+      !gfx::FuzzyEqual(transform.xx, previousTransform.xx, kError) ||
+      !gfx::FuzzyEqual(transform.yy, previousTransform.yy, kError) ||
+      !gfx::FuzzyEqual(transform.xy, previousTransform.xy, kError) ||
+      !gfx::FuzzyEqual(transform.yx, previousTransform.yx, kError)) {
     return false;
   }
-  gfx::Matrix4x4 matrix;
-  gfx::ToMatrix4x4(transform3d, matrix);
-  layer->SetBaseTransformForNextTransaction(matrix);
+  layer->SetBaseTransformForNextTransaction(transform3d);
   return true;
 }
 

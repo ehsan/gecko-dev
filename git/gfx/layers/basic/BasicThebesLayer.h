@@ -10,6 +10,7 @@
 #include "RotatedBuffer.h"              // for RotatedContentBuffer, etc
 #include "BasicImplData.h"              // for BasicImplData
 #include "BasicLayers.h"                // for BasicLayerManager
+#include "gfx3DMatrix.h"                // for gfx3DMatrix
 #include "gfxPoint.h"                   // for gfxPoint
 #include "mozilla/RefPtr.h"             // for RefPtr
 #include "mozilla/gfx/BasePoint.h"      // for BasePoint
@@ -73,13 +74,13 @@ public:
     }
     mValidRegion.SetEmpty();
   }
-
-  virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface)
+  
+  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
   {
     if (!BasicManager()->IsRetained()) {
       // Don't do any snapping of our transform, since we're just going to
       // draw straight through without intermediate buffers.
-      mEffectiveTransform = GetLocalTransform() * aTransformToSurface;
+      gfx::ToMatrix4x4(GetLocalTransform() * aTransformToSurface, mEffectiveTransform);
       if (gfxPoint(0,0) != mResidualTranslation) {
         mResidualTranslation = gfxPoint(0,0);
         mValidRegion.SetEmpty();

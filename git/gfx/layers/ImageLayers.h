@@ -14,6 +14,8 @@
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nscore.h"                     // for nsACString
 
+class gfx3DMatrix;
+
 namespace mozilla {
 namespace layers {
 
@@ -65,7 +67,7 @@ public:
 
   MOZ_LAYER_DECL_NAME("ImageLayer", TYPE_IMAGE)
 
-  virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface);
+  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface);
 
   /**
    * if true, the image will only be backed by a single tile texture
