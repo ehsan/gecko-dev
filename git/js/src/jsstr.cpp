@@ -3859,14 +3859,20 @@ js_ValueToString(JSContext *cx, const Value &arg)
 
 /* This function implements E-262-3 section 9.8, toString. */
 bool
-js::ValueToStringBufferSlow(JSContext *cx, const Value &arg, StringBuffer &sb)
+js::ValueToStringBuffer(JSContext *cx, const Value &arg, StringBuffer &sb)
 {
     Value v = arg;
     if (v.isObject() && !DefaultValue(cx, &v.toObject(), JSTYPE_STRING, &v))
         return false;
 
-    if (v.isString())
-        return sb.append(v.toString());
+    if (v.isString()) {
+        JSString *str = v.toString();
+        size_t length = str->length();
+        const jschar *chars = str->getChars(cx);
+        if (!chars)
+            return false;
+        return sb.append(chars, length);
+    }
     if (v.isNumber())
         return NumberValueToStringBuffer(cx, v, sb);
     if (v.isBoolean())
