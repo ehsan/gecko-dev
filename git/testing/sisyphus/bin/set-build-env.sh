@@ -135,11 +135,7 @@ for step in step1; do # dummy loop for handling exits
     fi
 
     if [[ -n "$MOZ_CO_DATE" ]]; then
-        if [[ $branch == "1.8.0" || $branch == "1.8.1" || $branch == "1.9.0" ]]; then
-            export DATE_CO_FLAGS="-D \"$MOZ_CO_DATE\""
-        else
-            export DATE_CO_FLAGS="--date \"<$MOZ_CO_DATE\""
-        fi
+        export DATE_CO_FLAGS="-D \"$MOZ_CO_DATE\""
     fi
 
     case $OSID in 
@@ -228,10 +224,13 @@ for step in step1; do # dummy loop for handling exits
     export CONFIGURE_ENV_ARGS=$buildbash
 
 
+    export TEST_MOZILLA_HG=${TEST_MOZILLA_HG:-http://hg.mozilla.org/mozilla-central/}
+    export TEST_MOZILLA_HG_REV=${TEST_MOZILLA_HG_REV:-tip}
+
     if [[ -z $extra ]]; then
-        export BUILDTREE="${BUILDTREE:-$BUILDDIR/$branch}"
+        export BUILDTREE="$BUILDDIR/$branch"
     else
-        export BUILDTREE="${BUILDTREE:-$BUILDDIR/$branch$extra}"
+        export BUILDTREE="$BUILDDIR/$branch$extra"
 
         #
         # extras can't be placed in mozconfigs since not all parts
@@ -257,8 +256,7 @@ for step in step1; do # dummy loop for handling exits
                 export XCFLAGS="--coverage"
                 export OS_CFLAGS="--coverage"
                 export LDFLAGS="--coverage"
-                export XLDFLAGS="--coverage"
-                export XLDOPTS="--coverage"
+                export XLDOPTS="--coverage"	
                 ;;
             -jprof)
                 ;;
@@ -274,20 +272,15 @@ for step in step1; do # dummy loop for handling exits
     # and is used to find mozilla/(browser|mail)/config/mozconfig
     if [[ $product == "firefox" ]]; then
         project=browser
-        export TEST_MOZILLA_HG=${TEST_MOZILLA_HG:-http://hg.mozilla.org/mozilla-central/}
         export MOZCONFIG=${MOZCONFIG:-"$BUILDTREE/mozconfig-firefox-$OSID-$TEST_PROCESSORTYPE-$buildtype"}
     elif [[ $product == "thunderbird" ]]; then
         project=mail
-        export TEST_MOZILLA_HG=${TEST_MOZILLA_HG:-http://hg.mozilla.org/comm-central/}
         export MOZCONFIG=${MOZCONFIG:-"$BUILDTREE/mozconfig-thunderbird-$OSID-$TEST_PROCESSORTYPE-$buildtype"}
     else
         echo "Assuming project=browser for product: $product"
         project=browser
-        export TEST_MOZILLA_HG=${TEST_MOZILLA_HG:-http://hg.mozilla.org/mozilla-central/}
         export MOZCONFIG=${MOZCONFIG:-"$BUILDTREE/mozconfig-firefox-$OSID-$TEST_PROCESSORTYPE-$buildtype"}
     fi
-
-    export TEST_MOZILLA_HG_REV=${TEST_MOZILLA_HG_REV:-tip}
 
     # js shell builds
     if [[ $buildtype == "debug" ]]; then

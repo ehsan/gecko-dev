@@ -163,11 +163,11 @@ nsAsyncInstantiateEvent::Run()
 class nsPluginErrorEvent : public nsRunnable {
 public:
   nsCOMPtr<nsIContent> mContent;
-  PluginSupportState mState;
+  PRBool mBlocklisted;
 
-  nsPluginErrorEvent(nsIContent* aContent, PluginSupportState aState)
+  nsPluginErrorEvent(nsIContent* aContent, PRBool aBlocklisted)
     : mContent(aContent),
-      mState(aState)
+      mBlocklisted(aBlocklisted)
   {}
 
   ~nsPluginErrorEvent() {}
@@ -180,22 +180,14 @@ nsPluginErrorEvent::Run()
 {
   LOG(("OBJLC []: Firing plugin not found event for content %p\n",
        mContent.get()));
-  nsString type;
-  switch (mState) {
-    case ePluginUnsupported:
-      type = NS_LITERAL_STRING("PluginNotFound");
-      break;
-    case ePluginDisabled:
-      type = NS_LITERAL_STRING("PluginDisabled");
-      break;
-    case ePluginBlocklisted:
-      type = NS_LITERAL_STRING("PluginBlocklisted");
-      break;
-    default:
-      return NS_OK;
-  }
-  nsContentUtils::DispatchTrustedEvent(mContent->GetDocument(), mContent,
-                                       type, PR_TRUE, PR_TRUE);
+  if (mBlocklisted)
+    nsContentUtils::DispatchTrustedEvent(mContent->GetDocument(), mContent,
+                                         NS_LITERAL_STRING("PluginBlocklisted"),
+                                         PR_TRUE, PR_TRUE);
+  else
+    nsContentUtils::DispatchTrustedEvent(mContent->GetDocument(), mContent,
+                                         NS_LITERAL_STRING("PluginNotFound"),
+                                         PR_TRUE, PR_TRUE);
 
   return NS_OK;
 }
@@ -240,29 +232,28 @@ class AutoNotifier {
 class AutoFallback {
   public:
     AutoFallback(nsObjectLoadingContent* aContent, const nsresult* rv)
-      : mContent(aContent), mResult(rv), mPluginState(ePluginOtherState) {}
+      : mContent(aContent), mResult(rv), mTypeUnsupported(PR_FALSE) {}
     ~AutoFallback() {
       if (NS_FAILED(*mResult)) {
         LOG(("OBJLC [%p]: rv=%08x, falling back\n", mContent, *mResult));
         mContent->Fallback(PR_FALSE);
-        if (mPluginState != ePluginOtherState) {
-          mContent->mPluginState = mPluginState;
+        if (mTypeUnsupported) {
+          mContent->mTypeUnsupported = PR_TRUE;
         }
       }
     }
 
     /**
-     * This should be set to something other than ePluginOtherState to indicate
-     * a specific failure that should be passed on.
+     * This function can be called to indicate that, after falling back,
+     * mTypeUnsupported should be set to true.
      */
-     void SetPluginState(PluginSupportState aState) {
-       NS_ASSERTION(aState != ePluginOtherState, "Should not be setting ePluginOtherState");
-       mPluginState = aState;
-     }
+    void TypeUnsupported() {
+      mTypeUnsupported = PR_TRUE;
+    }
   private:
     nsObjectLoadingContent* mContent;
     const nsresult* mResult;
-    PluginSupportState mPluginState;
+    PRBool mTypeUnsupported;
 };
 
 /**
@@ -349,7 +340,7 @@ nsObjectLoadingContent::nsObjectLoadingContent()
   , mInstantiating(PR_FALSE)
   , mUserDisabled(PR_FALSE)
   , mSuppressed(PR_FALSE)
-  , mPluginState(ePluginOtherState)
+  , mTypeUnsupported(PR_FALSE)
 {
 }
 
@@ -582,16 +573,20 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     case eType_Null:
       LOG(("OBJLC [%p]: Unsupported type, falling back\n", this));
       // Need to fallback here (instead of using the case below), so that we can
-      // set mPluginState without it being overwritten. This is also why we
+      // set mTypeUnsupported without it being overwritten. This is also why we
       // return early.
       Fallback(PR_FALSE);
 
       PluginSupportState pluginState = GetPluginSupportState(thisContent,
                                                              mContentType);
       // Do nothing, but fire the plugin not found event if needed
-      if (pluginState != ePluginOtherState) {
-        FirePluginError(thisContent, pluginState);
-        mPluginState = pluginState;
+      if (pluginState == ePluginUnsupported ||
+          pluginState == ePluginBlocklisted) {
+        FirePluginError(thisContent, pluginState == ePluginBlocklisted);
+      }
+      if (pluginState != ePluginDisabled &&
+          pluginState != ePluginBlocklisted) {
+        mTypeUnsupported = PR_TRUE;
       }
       return NS_BINDING_ABORTED;
   }
@@ -897,16 +892,8 @@ nsObjectLoadingContent::ObjectState() const
 
       // Otherwise, broken
       PRInt32 state = NS_EVENT_STATE_BROKEN;
-      switch (mPluginState) {
-        case ePluginDisabled:
-          state |= NS_EVENT_STATE_HANDLER_DISABLED;
-          break;
-        case ePluginBlocklisted:
-          state |= NS_EVENT_STATE_HANDLER_BLOCKED;
-          break;
-        case ePluginUnsupported:
-          state |= NS_EVENT_STATE_TYPE_UNSUPPORTED;
-          break;
+      if (mTypeUnsupported) {
+        state |= NS_EVENT_STATE_TYPE_UNSUPPORTED;
       }
       return state;
   };
@@ -974,11 +961,16 @@ nsObjectLoadingContent::UpdateFallbackState(nsIContent* aContent,
                                             AutoFallback& fallback,
                                             const nsCString& aTypeHint)
 {
-  // Notify the UI and update the fallback state
-  PluginSupportState state = GetPluginSupportState(aContent, aTypeHint);
-  if (state != ePluginOtherState) {
-    fallback.SetPluginState(state);
-    FirePluginError(aContent, state);
+  PluginSupportState pluginState = GetPluginDisabledState(aTypeHint);
+  if (pluginState == ePluginUnsupported) {
+    // For unknown plugins notify the UI and allow the unknown plugin binding
+    // to attach.
+    FirePluginError(aContent, PR_FALSE);
+    fallback.TypeUnsupported();
+  }
+  else if (pluginState == ePluginBlocklisted) {
+    // For blocklisted plugins just send a notification to the UI.
+    FirePluginError(aContent, PR_TRUE);
   }
 }
 
@@ -1456,8 +1448,7 @@ nsObjectLoadingContent::UnloadContent()
     mFrameLoader = nsnull;
   }
   mType = eType_Null;
-  mUserDisabled = mSuppressed = PR_FALSE;
-  mPluginState = ePluginOtherState;
+  mUserDisabled = mSuppressed = mTypeUnsupported = PR_FALSE;
 }
 
 void
@@ -1507,12 +1498,12 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
 
 /* static */ void
 nsObjectLoadingContent::FirePluginError(nsIContent* thisContent,
-                                        PluginSupportState state)
+                                        PRBool blocklisted)
 {
   LOG(("OBJLC []: Dispatching nsPluginErrorEvent for content %p\n",
        thisContent));
 
-  nsCOMPtr<nsIRunnable> ev = new nsPluginErrorEvent(thisContent, state);
+  nsCOMPtr<nsIRunnable> ev = new nsPluginErrorEvent(thisContent, blocklisted);
   nsresult rv = NS_DispatchToCurrentThread(ev);
   if (NS_FAILED(rv)) {
     NS_WARNING("failed to dispatch nsPluginErrorEvent");
@@ -1775,7 +1766,7 @@ nsObjectLoadingContent::ShouldShowDefaultPlugin(nsIContent* aContent,
   return GetPluginSupportState(aContent, aContentType) == ePluginUnsupported;
 }
 
-/* static */ PluginSupportState
+/* static */ nsObjectLoadingContent::PluginSupportState
 nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
                                               const nsCString& aContentType)
 {
@@ -1812,7 +1803,7 @@ nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
     GetPluginDisabledState(aContentType);
 }
 
-/* static */ PluginSupportState
+/* static */ nsObjectLoadingContent::PluginSupportState
 nsObjectLoadingContent::GetPluginDisabledState(const nsCString& aContentType)
 {
   nsCOMPtr<nsIPluginHost> host(do_GetService("@mozilla.org/plugin/host;1"));

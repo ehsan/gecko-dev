@@ -62,7 +62,7 @@
 #include "prmjtime.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jscntxt.h"
 #include "jsdate.h"
 #include "jsinterp.h"

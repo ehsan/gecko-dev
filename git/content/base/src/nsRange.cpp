@@ -1157,10 +1157,6 @@ static nsresult SplitDataNode(nsIDOMCharacterData* aStartNode,
 
 nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
 { 
-  if (aFragment) {
-    *aFragment = nsnull;
-  }
-
   if (IsDetached())
     return NS_ERROR_DOM_INVALID_STATE_ERR;
 
@@ -1200,11 +1196,7 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
   if (iter.IsDone())
   {
     // There's nothing for us to delete.
-    rv = CollapseRangeAfterDelete(this);
-    if (NS_SUCCEEDED(rv) && aFragment) {
-      NS_ADDREF(*aFragment = retval);
-    }
-    return rv;
+    return CollapseRangeAfterDelete(this);
   }
 
   // We delete backwards to avoid iterator problems!
@@ -1363,11 +1355,11 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
   // XXX_kin: desired behavior. For now we don't merge anything!
   // XXX ajvincent Filed as https://bugzilla.mozilla.org/show_bug.cgi?id=401276
 
-  rv = CollapseRangeAfterDelete(this);
-  if (NS_SUCCEEDED(rv) && aFragment) {
+  if (aFragment) {
     NS_ADDREF(*aFragment = retval);
   }
-  return rv;
+
+  return CollapseRangeAfterDelete(this);
 }
 
 nsresult nsRange::DeleteContents()

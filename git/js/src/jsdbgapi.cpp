@@ -48,7 +48,7 @@
 #include "jsclist.h"
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsdbgapi.h"
 #include "jsemit.h"
 #include "jsfun.h"
@@ -530,7 +530,7 @@ js_GetWatchedSetter(JSRuntime *rt, JSScope *scope,
     return setter;
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
     JSRuntime *rt;
@@ -674,7 +674,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_TRUE;
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                      jsval *rval)
 {
@@ -1007,13 +1007,12 @@ JS_GetScriptedCaller(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSPrincipals *)
 JS_StackFramePrincipals(JSContext *cx, JSStackFrame *fp)
 {
-    JSSecurityCallbacks *callbacks;
-
     if (fp->fun) {
-        callbacks = JS_GetSecurityCallbacks(cx);
-        if (callbacks && callbacks->findObjectPrincipals) {
+        JSRuntime *rt = cx->runtime;
+
+        if (rt->findObjectPrincipals) {
             if (FUN_OBJECT(fp->fun) != fp->callee)
-                return callbacks->findObjectPrincipals(cx, fp->callee);
+                return rt->findObjectPrincipals(cx, fp->callee);
             /* FALL THROUGH */
         }
     }
@@ -1025,12 +1024,12 @@ JS_StackFramePrincipals(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSPrincipals *)
 JS_EvalFramePrincipals(JSContext *cx, JSStackFrame *fp, JSStackFrame *caller)
 {
+    JSRuntime *rt;
     JSPrincipals *principals, *callerPrincipals;
-    JSSecurityCallbacks *callbacks;
 
-    callbacks = JS_GetSecurityCallbacks(cx);
-    if (callbacks && callbacks->findObjectPrincipals) {
-        principals = callbacks->findObjectPrincipals(cx, fp->callee);
+    rt = cx->runtime;
+    if (rt->findObjectPrincipals) {
+        principals = rt->findObjectPrincipals(cx, fp->callee);
     } else {
         principals = NULL;
     }
@@ -1156,12 +1155,19 @@ JS_GetFrameFunction(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameFunctionObject(JSContext *cx, JSStackFrame *fp)
 {
-    if (!fp->fun)
-        return NULL;
+    /*
+     * Test both fp->fun and fp->argv to defend against any control flow from
+     * the compiler reaching this API entry point, where fp is a frame pushed
+     * by the compiler that has non-null fun but null argv.
+     */
+    if (fp->fun && fp->argv) {
+        JSObject *obj = fp->callee;
 
-    JS_ASSERT(OBJ_GET_CLASS(cx, fp->callee) == &js_FunctionClass);
-    JS_ASSERT(OBJ_GET_PRIVATE(cx, fp->callee) == fp->fun);
-    return fp->callee;
+        JS_ASSERT(OBJ_GET_CLASS(cx, obj) == &js_FunctionClass);
+        JS_ASSERT(OBJ_GET_PRIVATE(cx, obj) == fp->fun);
+        return obj;
+    }
+    return NULL;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -1246,6 +1252,7 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
                           jsval *rval)
 {
     JSObject *scobj;
+    uint32 flags;
     JSScript *script;
     JSBool ok;
 
@@ -1253,11 +1260,18 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
     if (!scobj)
         return JS_FALSE;
 
-    script = js_CompileScript(cx, scobj, fp, JS_StackFramePrincipals(cx, fp),
+    /*
+     * XXX Hack around ancient compiler API to propagate the JSFRAME_SPECIAL
+     * flags to the code generator.
+     */
+    flags = fp->flags;
+    fp->flags |= JSFRAME_DEBUGGER | JSFRAME_EVAL;
+    script = js_CompileScript(cx, scobj, JS_StackFramePrincipals(cx, fp),
                               TCF_COMPILE_N_GO |
                               TCF_PUT_STATIC_DEPTH(fp->script->staticDepth + 1),
                               chars, length, NULL,
                               filename, lineno);
+    fp->flags = flags;
     if (!script)
         return JS_FALSE;
 

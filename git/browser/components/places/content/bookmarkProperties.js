@@ -1087,7 +1087,7 @@ var BookmarkPropertiesPanel = {
   },
 
   onMenuListFolderSelect: function BPP_onMenuListFolderSelect(aEvent) {
-    if (this._folderTree.collapsed)
+    if (this._folderTree.hidden)
       return;
 
     this._folderTree.selectItems([this._getFolderIdFromMenuList()]);

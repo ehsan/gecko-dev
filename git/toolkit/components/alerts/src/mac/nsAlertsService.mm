@@ -48,7 +48,6 @@
 #include "nsAutoPtr.h"
 #include "nsNotificationsList.h"
 #include "nsObjCExceptions.h"
-#include "nsPIDOMWindow.h"
 
 #import "mozGrowlDelegate.h"
 #import "GrowlApplicationBridge.h"
@@ -154,13 +153,7 @@ nsAlertsService::Init()
     do_GetService("@mozilla.org/observer-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = os->AddObserver(this, "final-ui-startup", PR_FALSE);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  (void)os->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC, PR_FALSE);
-  (void)os->AddObserver(this, "profile-before-change", PR_FALSE);
-
-  return NS_OK;
+  return os->AddObserver(this, "final-ui-startup", PR_FALSE);
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -169,7 +162,8 @@ nsAlertsService::nsAlertsService() : mDelegate(nsnull) {}
 
 nsAlertsService::~nsAlertsService()
 {
-  delete mDelegate;
+  if (mDelegate)
+    delete mDelegate;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -246,14 +240,6 @@ nsAlertsService::Observe(nsISupports* aSubject, const char* aTopic,
 
     // registers with Growl
     [GrowlApplicationBridge setGrowlDelegate: mDelegate->delegate];
-  }
-  else if (strcmp(aTopic, DOM_WINDOW_DESTROYED_TOPIC) == 0 && mDelegate) {
-    nsCOMPtr<nsIDOMWindow> window(do_QueryInterface(aSubject));
-    if (window)
-      [mDelegate->delegate forgetObserversForWindow:window];
-  }
-  else if (strcmp(aTopic, "profile-before-change") == 0 && mDelegate) {
-    [mDelegate->delegate forgetObservers];
   }
 
   return NS_OK;

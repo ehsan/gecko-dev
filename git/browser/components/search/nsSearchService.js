@@ -1554,6 +1554,13 @@ Engine.prototype = {
    */
   _parseAsSherlock: function SRCH_ENG_parseAsSherlock() {
     /**
+     * Trims leading and trailing whitespace from aStr.
+     */
+    function sTrim(aStr) {
+      return aStr.replace(/^\s+/g, "").replace(/\s+$/g, "");
+    }
+
+    /**
      * Extracts one Sherlock "section" from aSource. A section is essentially
      * an HTML element with attributes, but each attribute must be on a new
      * line, by definition.
@@ -1609,11 +1616,11 @@ Engine.prototype = {
 
       var section = {};
       for (var i = 0; i < lines.length; i++) {
-        var line = lines[i].trim();
+        var line = sTrim(lines[i]);
 
         var els = line.split("=");
-        var name = els.shift().trim().toLowerCase();
-        var value = els.join("=").trim();
+        var name = sTrim(els.shift().toLowerCase());
+        var value = sTrim(els.join("="));
 
         if (!name || !value)
           continue;
@@ -1622,7 +1629,7 @@ Engine.prototype = {
         // value, and remove any trailing slashes or ">" characters
         value = value.replace(/^["']/, "")
                      .replace(/["']\s*[\\\/]?>?\s*$/, "") || "";
-        value = value.trim();
+        value = sTrim(value);
 
         // Don't clobber existing attributes
         if (!(name in section))
@@ -1740,7 +1747,7 @@ Engine.prototype = {
       lines.forEach(function (line) {
         // Strip leading/trailing whitespace and remove the surrounding markup
         // ("<input" and ">")
-        line = line.trim().replace(/^<input/i, "").replace(/>$/, "");
+        line = sTrim(line).replace(/^<input/i, "").replace(/>$/, "");
 
         // If this is one of the "directional" inputs (<inputnext>/<inputprev>)
         const directionalInput = /^(prev|next)/i;

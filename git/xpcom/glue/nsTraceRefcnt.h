@@ -64,6 +64,8 @@
 #define NS_LOG_RELEASE(_p, _rc, _type) \
   NS_LogRelease((_p), (_rc), (_type))
 
+#define MOZ_DECL_CTOR_COUNTER(_type)
+
 #define MOZ_COUNT_CTOR(_type)                                 \
 PR_BEGIN_MACRO                                                \
   NS_LogCtor((void*)this, #_type, sizeof(*this));             \
@@ -89,6 +91,7 @@ PR_END_MACRO
 
 #define NS_LOG_ADDREF(_p, _rc, _type, _size)
 #define NS_LOG_RELEASE(_p, _rc, _type)
+#define MOZ_DECL_CTOR_COUNTER(_type)
 #define MOZ_COUNT_CTOR(_type)
 #define MOZ_COUNT_DTOR(_type)
 

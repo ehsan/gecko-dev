@@ -145,7 +145,7 @@ ElementTraverser(const void *aKey, nsIAccessNode *aAccessNode,
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(aUserArg);
 
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mAccessNodeCache entry");
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, aAccessNode);
   cb->NoteXPCOMChild(aAccessNode);
   return PL_DHASH_NEXT;
 }

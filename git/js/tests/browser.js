@@ -568,13 +568,6 @@ function gczeal(z)
   javascriptoptions.setIntPref('gczeal', Number(z));
 }
 
-function jit()
-{
-  var javascriptoptions = new Preferences('javascript.options.jit.');
-  javascriptoptions.setBoolPref('content', true);
-  javascriptoptions.setBoolPref('chrome', true);
-}
-
 var gVersion = 150;
 
 function jsTestDriverBrowserInit()
@@ -614,13 +607,6 @@ function jsTestDriverBrowserInit()
   {
     var zeal = Number(gczealmatches[1]);
     gczeal(zeal);
-  }
-
-  var jitmatches = /;jit/.exec(document.location.search);
-
-  if (jitmatches)
-  {
-    jit();
   }
 
   var versionmatches = /version=([.0-9]*)/.exec(value);

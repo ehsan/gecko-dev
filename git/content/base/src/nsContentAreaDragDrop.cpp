@@ -894,10 +894,7 @@ nsTransferableFactory::Produce(nsDOMDataTransfer* aDataTransfer,
   nsIContent* findFormParent = findFormNode->GetParent();
   while (findFormParent) {
     nsCOMPtr<nsIFormControl> form(do_QueryInterface(findFormParent));
-    if (form && form->GetType() != NS_FORM_OBJECT &&
-                form->GetType() != NS_FORM_FIELDSET &&
-                form->GetType() != NS_FORM_LEGEND &&
-                form->GetType() != NS_FORM_LABEL)
+    if (form && form->GetType() != NS_FORM_OBJECT)
       return NS_OK;
     findFormParent = findFormParent->GetParent();
   }

@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsWindowUtils.h"
+#include <MacWindows.h>
 
 #include "nsCommandLineServiceMac.h"
 #include "nsCOMPtr.h"
@@ -61,6 +61,7 @@
 #include "nsIXULWindow.h"
 #include "nsString.h"
 #include "nsNetUtil.h"
+#include "nsWindowUtils.h"
 #include "nsMacUtils.h"
 #include "nsXPIDLString.h"
 #include "nsIXULWindow.h"
@@ -406,8 +407,6 @@ TAEListIndex nsWindowUtils::GetWindowIndex(TWindowKind windowKind, WindowPtr the
 //---------------------------------------------------------
 void nsWindowUtils::GetCleanedWindowName(WindowPtr wind, char* outName, long maxLen)
 {
-  outName[0] = '\0';
-
   nsCOMPtr<nsIXULWindow> xulWindow;
   GetXULWindowFromWindowPtr(wind, getter_AddRefs(xulWindow));
   ThrowErrIfNil(xulWindow, paramErr);
@@ -426,13 +425,9 @@ void nsWindowUtils::GetCleanedWindowName(WindowPtr wind, char* outName, long max
   baseWindow->GetTitle(getter_Copies(title));
   ThrowErrIfNil(title, paramErr);
 
-  // convert to MacRoman, which is what AppleEvents expects
-  CFStringRef windowTitleCFString = ::CFStringCreateWithCharacters(kCFAllocatorDefault, title.get(), kCFStringEncodingUTF16);
-  if (windowTitleCFString) {
-    ::CFStringGetCString(windowTitleCFString, outName, maxLen, kCFStringEncodingMacRoman);
-    outName[maxLen - 1] = '\0'; // in case it didn't get null terminated
-    ::CFRelease(windowTitleCFString);
-  }
+  const char* cTitle = NS_ConvertUTF16toUTF8(title).get();
+  strncpy(outName, cTitle, maxLen);
+  outName[maxLen - 1] = '\0';
 }
 
 //---------------------------------------------------------

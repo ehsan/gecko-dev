@@ -206,6 +206,8 @@ protected:
 
     nsresult GetViewportSize(PRInt32* aWidth, PRInt32* aHeight);
 
+    void SetIsPopup(PRBool isPopup) { mIsPopup = isPopup; }
+
     nsresult PrepareToLoad(nsISupports* aContainer,
                            const char* aCommand,
                            nsIChannel* aChannel,
@@ -276,6 +278,7 @@ protected:
     // the element's namespace has no registered ID attribute name.
     nsTHashtable<nsRefMapEntry> mRefMap;
     nsCOMPtr<nsIRDFDataSource> mLocalStore;
+    PRPackedBool               mIsPopup;
     PRPackedBool               mApplyingPersistedAttrs;
     PRPackedBool               mIsWritingFastLoad;
     PRPackedBool               mDocumentLoaded;

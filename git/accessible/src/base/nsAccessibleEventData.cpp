@@ -38,7 +38,6 @@
 
 #include "nsAccessibleEventData.h"
 #include "nsAccessibilityAtoms.h"
-#include "nsAccessibilityUtils.h"
 #include "nsIAccessibilityService.h"
 #include "nsIAccessNode.h"
 #include "nsIDocument.h"

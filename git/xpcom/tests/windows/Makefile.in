@@ -68,7 +68,8 @@ CPP_UNIT_TESTS	= \
 
 include $(topsrcdir)/config/rules.mk
 
-OS_LIBS	= $(call EXPAND_LIBNAME,rpcrt4 uuid advapi32)
+OS_LIBS	= $(call EXPAND_LIBNAME,rpcrt4 uuid)
+OS_LIBS	+= advapi32.lib
 
 LIBS = \
 	$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \

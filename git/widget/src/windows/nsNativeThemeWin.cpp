@@ -1807,8 +1807,9 @@ nsNativeThemeWin::ClassicGetWidgetBorder(nsIDeviceContext* aContext,
         }
       }
       else {
-        (*aResult).top = 0;
-        (*aResult).bottom = (*aResult).left = (*aResult).right = 2;
+        (*aResult).top = 1;
+        (*aResult).bottom = 3;
+        (*aResult).left = (*aResult).right = 2;
       }
       break;
     }

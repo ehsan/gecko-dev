@@ -336,7 +336,7 @@ nsMediaFeatures::features[] = {
     {
         &nsGkAtoms::grid,
         nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
+        nsMediaFeature::eInteger,
         nsnull,
         GetGrid
     },

@@ -451,7 +451,7 @@ NS_IMPL_ISUPPORTS5(nsScriptSecurityManager,
 ///////////////////////////////////////////////////
 
 ///////////////// Security Checks /////////////////
-JSBool
+JSBool JS_DLL_CALLBACK
 nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSObject *obj,
                                            jsval id, JSAccessMode mode,
                                            jsval *vp)
@@ -2050,7 +2050,7 @@ nsScriptSecurityManager::GetScriptPrincipal(JSContext *cx,
     JSPrincipals *jsp = JS_GetScriptPrincipals(cx, script);
     if (!jsp) {
         *rv = NS_ERROR_FAILURE;
-        NS_ERROR("Script compiled without principals!");
+        // Script didn't have principals -- shouldn't happen.
         return nsnull;
     }
     nsJSPrincipals *nsJSPrin = static_cast<nsJSPrincipals *>(jsp);
@@ -3225,21 +3225,17 @@ nsresult nsScriptSecurityManager::Init()
     rv = runtimeService->GetRuntime(&sRuntime);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    static JSSecurityCallbacks securityCallbacks = {
-      CheckObjectAccess,
-      NULL,
-      NULL
-    };
-
 #ifdef DEBUG
-    JSSecurityCallbacks *oldcallbacks =
+    JSCheckAccessOp oldCallback =
 #endif
-    JS_SetRuntimeSecurityCallbacks(sRuntime, &securityCallbacks);
-    NS_ASSERTION(!oldcallbacks, "Someone else set security callbacks!");
+        JS_SetCheckObjectAccessCallback(sRuntime, CheckObjectAccess);
 
     sXPConnect->GetXPCWrappedNativeJSClassInfo(&sXPCWrappedNativeJSClass,
                                                &sXPCWrappedNativeGetObjOps1,
                                                &sXPCWrappedNativeGetObjOps2);
+
+    // For now, assert that no callback was set previously
+    NS_ASSERTION(!oldCallback, "Someone already set a JS CheckObjectAccess callback");
     return NS_OK;
 }
 
@@ -3260,7 +3256,11 @@ void
 nsScriptSecurityManager::Shutdown()
 {
     if (sRuntime) {
-        JS_SetRuntimeSecurityCallbacks(sRuntime, NULL);
+#ifdef DEBUG
+        JSCheckAccessOp oldCallback =
+#endif
+            JS_SetCheckObjectAccessCallback(sRuntime, nsnull);
+        NS_ASSERTION(oldCallback == CheckObjectAccess, "Oops, we just clobbered someone else, oh well.");
         sRuntime = nsnull;
     }
     sEnabledID = JSVAL_VOID;

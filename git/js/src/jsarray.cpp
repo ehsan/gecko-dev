@@ -86,7 +86,7 @@
 #include "jsbit.h"
 #include "jsbool.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsdbgapi.h" /* for js_TraceWatchPoints */
 #include "jsdtoa.h"
 #include "jsfun.h"
@@ -97,7 +97,6 @@
 #include "jsobj.h"
 #include "jsscope.h"
 #include "jsstr.h"
-#include "jsstaticcheck.h"
 
 /* 2^32 - 1 as a number and a string */
 #define MAXINDEX 4294967295u
@@ -1171,9 +1170,9 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
                                       ? INT_TO_JSVAL(length)
                                       : JSVAL_VOID;
 
-    /* Make sure we preserve any flags borrowing bits in classword. */
-    obj->classword ^= (jsuword) &js_ArrayClass;
-    obj->classword |= (jsuword) &js_SlowArrayClass;
+    /* Make sure we preserve any flags borrowing bits in JSSLOT_CLASS. */
+    obj->fslots[JSSLOT_CLASS] ^= (jsval) &js_ArrayClass;
+    obj->fslots[JSSLOT_CLASS] |= (jsval) &js_SlowArrayClass;
 
     /* Swap in our new map. */
     oldmap = obj->map;
@@ -1782,8 +1781,7 @@ array_sort(JSContext *cx, uintN argc, jsval *vp)
     CompareArgs ca;
     jsuint len, newlen, i, undefs;
     JSTempValueRooter tvr;
-    JSBool hole;
-    bool ok;
+    JSBool hole, ok;
     size_t elemsize;
     JSString *str;
 
@@ -2280,7 +2278,7 @@ array_splice(JSContext *cx, uintN argc, jsval *vp)
         argv++;
     }
 
-    MUST_FLOW_THROUGH("out");
+    /* After this, control must flow through label out: to exit. */
     JS_PUSH_SINGLE_TEMP_ROOT(cx, JSVAL_NULL, &tvr);
 
     /* If there are elements to remove, put them into the return value. */
@@ -2393,7 +2391,7 @@ array_concat(JSContext *cx, uintN argc, jsval *vp)
         length = 0;
     }
 
-    MUST_FLOW_THROUGH("out");
+    /* After this, control must flow through label out: to exit. */
     JS_PUSH_SINGLE_TEMP_ROOT(cx, JSVAL_NULL, &tvr);
 
     /* Loop over [0, argc] to concat args into nobj, expanding all Arrays. */
@@ -2521,7 +2519,7 @@ array_slice(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
     *vp = OBJECT_TO_JSVAL(nobj);
 
-    MUST_FLOW_THROUGH("out");
+    /* After this, control must flow through label out: to exit. */
     JS_PUSH_SINGLE_TEMP_ROOT(cx, JSVAL_NULL, &tvr);
 
     for (slot = begin; slot < end; slot++) {
@@ -2741,7 +2739,7 @@ array_extra(JSContext *cx, ArrayExtraMode mode, uintN argc, jsval *vp)
     if (!elemroot)
         return JS_FALSE;
 
-    MUST_FLOW_THROUGH("out");
+    /* From this point the control must flow through out:. */
     ok = JS_TRUE;
     invokevp = elemroot + 1;
 

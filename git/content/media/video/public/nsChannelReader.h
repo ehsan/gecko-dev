@@ -44,7 +44,6 @@
 #include "nsIOutputStream.h"
 #include "nsIRequestObserver.h"
 #include "nsIStreamListener.h"
-#include "nsIPrincipal.h"
 
 #include "oggplay/oggplay.h"
 
@@ -73,12 +72,9 @@ class nsChannelToPipeListener : public nsIStreamListener
   void Stop();
   double BytesPerSecond() const;
 
-  nsIPrincipal* GetCurrentPrincipal();
-
 private:
   nsCOMPtr<nsIInputStream> mInput;
   nsCOMPtr<nsIOutputStream> mOutput;
-  nsCOMPtr<nsIPrincipal> mPrincipal;
   nsOggDecoder* mDecoder;
 
   // Interval when download started. Used in
@@ -108,10 +104,7 @@ public:
   // Return average number of bytes per second that the 
   // download of the media resource is achieving.
   double BytesPerSecond() const;
-
-  // return the principal that we saved in GetRequest
-  nsIPrincipal* GetCurrentPrincipal();
-
+  
 public:
   nsCOMPtr<nsIChannel>  mChannel;
   nsCOMPtr<nsIInputStream>  mInput;

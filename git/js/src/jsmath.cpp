@@ -49,7 +49,7 @@
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jslock.h"
 #include "jsmath.h"
 #include "jsnum.h"

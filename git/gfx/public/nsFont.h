@@ -68,18 +68,18 @@ struct NS_GFX nsFont {
   nsString name;
 
   // The style of font (normal, italic, oblique)
-  PRUint8 style;
+  unsigned int style : 7;
 
   // Force this font to not be considered a 'generic' font, even if
   // the name is the same as a CSS generic font family.
-  PRUint8 systemFont;
+  unsigned int systemFont : 1;
 
   // The variant of the font (normal, small-caps)
-  PRUint8 variant;
+  PRUint8 variant : 7;
 
   // True if the character set quirks (for treatment of "Symbol",
   // "Wingdings", etc.) should be applied.
-  PRUint8 familyNameQuirks;
+  PRUint8 familyNameQuirks : 1;
 
   // The weight of the font (0-999)
   PRUint16 weight;

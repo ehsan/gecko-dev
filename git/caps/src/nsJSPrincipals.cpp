@@ -49,19 +49,19 @@
 #include "nsMemory.h"
 #include "nsStringBuffer.h"
 
-static void *
+JS_STATIC_DLL_CALLBACK(void *)
 nsGetPrincipalArray(JSContext *cx, JSPrincipals *prin)
 {
     return nsnull;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 nsGlobalPrivilegesEnabled(JSContext *cx, JSPrincipals *jsprin)
 {
     return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 nsJSPrincipalsSubsume(JSPrincipals *jsprin, JSPrincipals *other)
 {
     nsJSPrincipals *nsjsprin = static_cast<nsJSPrincipals *>(jsprin);
@@ -73,7 +73,7 @@ nsJSPrincipalsSubsume(JSPrincipals *jsprin, JSPrincipals *other)
     return NS_SUCCEEDED(rv) && result;
 }
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 nsDestroyJSPrincipals(JSContext *cx, struct JSPrincipals *jsprin)
 {
     nsJSPrincipals *nsjsprin = static_cast<nsJSPrincipals *>(jsprin);
@@ -99,7 +99,7 @@ nsDestroyJSPrincipals(JSContext *cx, struct JSPrincipals *jsprin)
     // so we don't need to worry about "codebase"
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 nsTranscodeJSPrincipals(JSXDRState *xdr, JSPrincipals **jsprinp)
 {
     nsresult rv;
@@ -179,13 +179,10 @@ nsJSPrincipals::Startup()
     rtsvc->GetRuntime(&rt);
     NS_ASSERTION(rt != nsnull, "no JSRuntime?!");
 
-    JSSecurityCallbacks *callbacks = JS_GetRuntimeSecurityCallbacks(rt);
-    NS_ASSERTION(callbacks, "Need a callbacks struct by now!");
+    JSPrincipalsTranscoder oldpx;
+    oldpx = ::JS_SetPrincipalsTranscoder(rt, nsTranscodeJSPrincipals);
+    NS_ASSERTION(oldpx == nsnull, "oops, JS_SetPrincipalsTranscoder wars!");
 
-    NS_ASSERTION(!callbacks->principalsTranscoder,
-                 "oops, JS_SetPrincipalsTranscoder wars!");
-
-    callbacks->principalsTranscoder = nsTranscodeJSPrincipals;
     return NS_OK;
 }
 

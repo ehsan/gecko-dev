@@ -425,7 +425,7 @@ static PRBool gInCollection;
 // Whether cycle collection collected anything.
 static PRBool gCollected;
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPCCycleCollectGCCallback(JSContext *cx, JSGCStatus status)
 {
     // Launch the cycle collector.
@@ -554,7 +554,7 @@ struct NoteJSRootTracer : public JSTracer
     nsCycleCollectionTraversalCallback& mCb;
 };
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 NoteJSRoot(JSTracer *trc, void *thing, uint32 kind)
 {
     if(ADD_TO_CC(kind))
@@ -719,7 +719,7 @@ struct TraversalTracer : public JSTracer
     nsCycleCollectionTraversalCallback &cb;
 };
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 NoteJSChild(JSTracer *trc, void *thing, uint32 kind)
 {
     if(ADD_TO_CC(kind))
@@ -942,7 +942,6 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
         // will be held alive through the parent of the JSObject of the tearoff.
         XPCWrappedNativeTearOff *to =
             (XPCWrappedNativeTearOff*) xpc_GetJSPrivate(obj);
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "xpc_GetJSPrivate(obj)->mNative");
         cb.NoteXPCOMChild(to->GetNative());
     }
     // XXX XPCNativeWrapper seems to be the only class that doesn't hold a
@@ -953,7 +952,6 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
             clazz->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS &&
             !XPCNativeWrapper::IsNativeWrapperClass(clazz))
     {
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "xpc_GetJSPrivate(obj)");
         cb.NoteXPCOMChild(static_cast<nsISupports*>(xpc_GetJSPrivate(obj)));
     }
 
@@ -962,7 +960,6 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     {
         nsISupports *principal = nsnull;
         mScopes.Get(obj, &principal);
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "scope prinicpal");
         cb.NoteXPCOMChild(principal);
     }
 #endif
@@ -1116,7 +1113,7 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     return NS_OK;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 TempGlobalResolve(JSContext *aJSContext, JSObject *obj, jsval id)
 {
     JSBool resolved;
@@ -1409,7 +1406,7 @@ nsXPConnect::ReparentWrappedNativeIfFound(JSContext * aJSContext,
                                (XPCWrappedNative**) _retval);
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 MoveableWrapperFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
                       uint32 number, void *arg)
 {

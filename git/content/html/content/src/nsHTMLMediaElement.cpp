@@ -773,12 +773,3 @@ PRBool nsHTMLMediaElement::IsDoneAddingChildren()
 {
   return mIsDoneAddingChildren;
 }
-
-nsIPrincipal*
-nsHTMLMediaElement::GetCurrentPrincipal()
-{
-  if (!mDecoder)
-    return nsnull;
-
-  return mDecoder->GetCurrentPrincipal();
-}

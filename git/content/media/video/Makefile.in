@@ -46,7 +46,7 @@ DIRS		= \
 		src \
 		$(NULL)
 
-ifdef ENABLE_TESTS
+ifdef MOZ_MOCHITEST
 DIRS            += test
 endif
 
