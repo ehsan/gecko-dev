@@ -648,16 +648,21 @@ nsHtml5TreeOpExecutor::IsScriptEnabled()
 {
   if (!mDocument || !mDocShell)
     return true;
-  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(mDocument->GetInnerWindow());
+  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(mDocument->GetWindow());
   // Getting context is tricky if the document hasn't had its
   // GlobalObject set yet
   if (!globalObject) {
     globalObject = mDocShell->GetScriptGlobalObject();
     NS_ENSURE_TRUE(globalObject, true);
   }
-  NS_ENSURE_TRUE(globalObject && globalObject->GetGlobalJSObject(), true);
-  return nsContentUtils::GetSecurityManager()->
-           ScriptAllowed(globalObject->GetGlobalJSObject());
+  nsIScriptContext *scriptContext = globalObject->GetContext();
+  NS_ENSURE_TRUE(scriptContext, true);
+  JSContext* cx = scriptContext->GetNativeContext();
+  NS_ENSURE_TRUE(cx, true);
+  bool enabled = true;
+  nsContentUtils::GetSecurityManager()->
+    CanExecuteScripts(cx, mDocument->NodePrincipal(), &enabled);
+  return enabled;
 }
 
 void

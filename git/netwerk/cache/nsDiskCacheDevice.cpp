@@ -24,6 +24,7 @@
 #endif
 
 #include "prthread.h"
+#include "prbit.h"
 
 #include "private/pprio.h"
 

@@ -1080,12 +1080,24 @@ nsXBLBinding::AllowScripts()
     return false;
   }
 
-  nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(doc->GetInnerWindow());
-  if (!global || !global->GetGlobalJSObject()) {
+  nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(doc->GetWindow());
+  if (!global) {
     return false;
   }
 
-  return mgr->ScriptAllowed(global->GetGlobalJSObject());
+  nsCOMPtr<nsIScriptContext> context = global->GetContext();
+  if (!context) {
+    return false;
+  }
+  
+  AutoPushJSContext cx(context->GetNativeContext());
+
+  nsCOMPtr<nsIDocument> ourDocument =
+    mPrototypeBinding->XBLDocumentInfo()->GetDocument();
+  bool canExecute;
+  nsresult rv =
+    mgr->CanExecuteScripts(cx, ourDocument->NodePrincipal(), &canExecute);
+  return NS_SUCCEEDED(rv) && canExecute;
 }
 
 nsXBLBinding*

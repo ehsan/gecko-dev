@@ -404,8 +404,7 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
 
     DebuggerController.SourceScripts.togglePrettyPrint(source)
       .then(resetEditor, printError)
-      .then(DebuggerView.showEditor)
-      .then(this.updateToolbarButtonsState);
+      .then(DebuggerView.showEditor);
   },
 
   /**

@@ -458,6 +458,11 @@ EvalInWindow(JSContext *cx, const nsAString &source, HandleObject scope, Mutable
         return false;
     }
 
+    if (!context->GetScriptsEnabled()) {
+        JS_ReportError(cx, "Scripts are disabled in this window");
+        return false;
+    }
+
     nsCString filename;
     unsigned lineNo;
     if (!GetFilenameAndLineNumber(cx, filename, lineNo)) {

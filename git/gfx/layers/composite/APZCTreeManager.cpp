@@ -604,15 +604,7 @@ APZCTreeManager::ClearTree()
 void
 APZCTreeManager::HandleOverscroll(AsyncPanZoomController* aChild, ScreenPoint aStartPoint, ScreenPoint aEndPoint)
 {
-  nsRefPtr<AsyncPanZoomController> parent;
-  {
-    // The tree lock needs to be held while navigating from an apzc to its
-    // parent. We don't hold it any longer though because GetInputTransforms()
-    // does its own locking, and AttemptScroll() can call HandleOverscroll()
-    // recursively.
-    MonitorAutoLock lock(mTreeLock);
-    parent = aChild->GetParent();
-  }
+  AsyncPanZoomController* parent = aChild->GetParent();
   if (parent == nullptr)
     return;
 
@@ -625,7 +617,7 @@ APZCTreeManager::HandleOverscroll(AsyncPanZoomController* aChild, ScreenPoint aS
   ApplyTransform(&aEndPoint, transformToApzc.Inverse());
 
   // Convert start and end points to parent's transformed screen coordinates.
-  GetInputTransforms(parent.get(), transformToApzc, transformToGecko);
+  GetInputTransforms(parent, transformToApzc, transformToGecko);
   ApplyTransform(&aStartPoint, transformToApzc);
   ApplyTransform(&aEndPoint, transformToApzc);
 

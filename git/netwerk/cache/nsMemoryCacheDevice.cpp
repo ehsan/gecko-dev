@@ -13,7 +13,6 @@
 #include "nsIMemoryReporter.h"
 #include "nsCRT.h"
 #include "nsReadableUtils.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/Telemetry.h"
 #include <algorithm>
 
@@ -430,7 +429,7 @@ nsMemoryCacheDevice::EvictionList(nsCacheEntry * entry, int32_t  deltaSize)
     int32_t  size       = deltaSize + (int32_t)entry->DataSize();
     int32_t  fetchCount = std::max(1, entry->FetchCount());
 
-    return std::min((int)mozilla::FloorLog2(size / fetchCount), kQueueCount - 1);
+    return std::min(PR_FloorLog2(size / fetchCount), kQueueCount - 1);
 }
 
 

@@ -7,7 +7,6 @@
 MODULE = 'caps'
 
 SOURCES += [
-    'DomainPolicy.cpp',
     'nsJSPrincipals.cpp',
     'nsNullPrincipal.cpp',
     'nsNullPrincipalURI.cpp',
