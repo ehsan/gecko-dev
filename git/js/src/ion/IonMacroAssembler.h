@@ -498,10 +498,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         Push(PreBarrierReg);
         computeEffectiveAddress(address, PreBarrierReg);
 
-        JSRuntime *runtime = GetIonContext()->runtime;
+        JSCompartment *compartment = GetIonContext()->compartment;
         IonCode *preBarrier = (type == MIRType_Shape)
-                              ? runtime->ionRuntime()->shapePreBarrier()
-                              : runtime->ionRuntime()->valuePreBarrier();
+                              ? compartment->ionCompartment()->shapePreBarrier()
+                              : compartment->ionCompartment()->valuePreBarrier();
 
         call(preBarrier);
         Pop(PreBarrierReg);

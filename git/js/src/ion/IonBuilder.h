@@ -499,6 +499,7 @@ class IonBuilder : public MIRGenerator
     InliningStatus inlineUnsafeGetReservedSlot(CallInfo &callInfo);
 
     // Parallel intrinsics.
+    InliningStatus inlineForceSequentialOrInParallelSection(CallInfo &callInfo);
     InliningStatus inlineNewParallelArray(CallInfo &callInfo);
     InliningStatus inlineParallelArray(CallInfo &callInfo);
     InliningStatus inlineParallelArrayTail(CallInfo &callInfo,
@@ -513,10 +514,6 @@ class IonBuilder : public MIRGenerator
     InliningStatus inlineHaveSameClass(CallInfo &callInfo);
     InliningStatus inlineToObject(CallInfo &callInfo);
     InliningStatus inlineDump(CallInfo &callInfo);
-
-    // Testing functions.
-    InliningStatus inlineForceSequentialOrInParallelSection(CallInfo &callInfo);
-    InliningStatus inlineBailout(CallInfo &callInfo);
 
     // Main inlining functions
     InliningStatus inlineNativeCall(CallInfo &callInfo, JSNative native);

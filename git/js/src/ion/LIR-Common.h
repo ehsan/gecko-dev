@@ -1062,12 +1062,6 @@ class LCallDOMNative : public LJSCallInstructionHelper<BOX_PIECES, 0, 4>
     }
 };
 
-class LBail : public LInstructionHelper<0, 0, 0>
-{
-  public:
-    LIR_HEADER(Bail)
-};
-
 template <size_t defs, size_t ops>
 class LDOMPropertyInstructionHelper : public LCallInstructionHelper<defs, 1 + ops, 3>
 {

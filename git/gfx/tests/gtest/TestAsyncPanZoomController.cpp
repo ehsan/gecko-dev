@@ -48,7 +48,7 @@ public:
   {}
 
   void SetFrameMetrics(const FrameMetrics& metrics) {
-    ReentrantMonitorAutoEnter lock(mMonitor);
+    MonitorAutoLock lock(mMonitor);
     mFrameMetrics = metrics;
   }
 };
