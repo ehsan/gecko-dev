@@ -198,7 +198,7 @@ Bindings::callObjectShape(JSContext *cx) const
     Vector<const Shape *> shapes(cx);
     HashSet<jsid> seen(cx);
     if (!seen.init())
-        return NULL;
+        return false;
 
     for (Shape::Range r = lastShape()->all(); !r.empty(); r.popFront()) {
         const Shape &s = r.front();
