@@ -747,7 +747,7 @@ var Browser = {
     Services.metro.pinTileAsync(this._currentPageTileID,
                                 Browser.selectedBrowser.contentTitle, // short name
                                 Browser.selectedBrowser.contentTitle, // display name
-                                "-url " + Browser.selectedBrowser.currentURI.spec,
+                                "metrobrowser -url " + Browser.selectedBrowser.currentURI.spec,
                             uriSpec, uriSpec);
   },
 

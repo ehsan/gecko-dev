@@ -1037,7 +1037,7 @@ DataTextureSourceD3D9::DataTextureSourceD3D9(gfx::SurfaceFormat aFormat,
 {
   mSize = aSize;
   mTexture = aTexture;
-  mStereoMode = StereoMode::MONO;
+  mStereoMode = STEREO_MODE_MONO;
   MOZ_COUNT_CTOR(DataTextureSourceD3D9);
 }
 

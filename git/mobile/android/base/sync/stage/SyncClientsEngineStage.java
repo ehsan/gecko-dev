@@ -364,7 +364,6 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
   protected JSONArray getLocalClientProtocols() {
     final JSONArray protocols = new JSONArray();
     protocols.add(ClientRecord.PROTOCOL_LEGACY_SYNC);
-    protocols.add(ClientRecord.PROTOCOL_FXA_SYNC);
     return protocols;
   }
 

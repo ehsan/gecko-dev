@@ -482,8 +482,8 @@ class IID2ThisTranslatorMap
 public:
     struct Entry : public PLDHashEntryHdr
     {
-        nsIID                                  key;
-        nsCOMPtr<nsIXPCFunctionThisTranslator> value;
+        nsIID                         key;
+        nsIXPCFunctionThisTranslator* value;
 
         static bool
         Match(PLDHashTable *table,
@@ -515,6 +515,8 @@ public:
             PL_DHashTableOperate(mTable, &iid, PL_DHASH_ADD);
         if (!entry)
             return nullptr;
+        NS_IF_ADDREF(obj);
+        NS_IF_RELEASE(entry->value);
         entry->value = obj;
         entry->key = iid;
         return obj;

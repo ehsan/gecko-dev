@@ -30,8 +30,4 @@ else
   echo "Remember to update README_MOZILLA with the version details."
 fi
 
-# Apply any patches against upstream here.
-patch -p1 < source_fix.patch
-patch -p1 < gecko_fix.patch
-patch -p1 < const_fix.patch
-patch -p3 < bock_fix.patch
+echo "please apply source_fix.patch and gecko_fix.patch"

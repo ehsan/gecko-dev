@@ -19,8 +19,6 @@ public:
 
   nsWinMetroUtils();
   virtual ~nsWinMetroUtils();
-
-  static bool sUpdatePending;
 };
 
 } // widget

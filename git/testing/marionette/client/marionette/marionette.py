@@ -517,14 +517,7 @@ class Marionette(object):
 
     def cleanup(self):
         if self.session:
-            try:
-                self.delete_session()
-            except (MarionetteException, socket.error):
-                # These exceptions get thrown if the Marionette server
-                # hit an exception/died or the connection died. We can
-                # do no further server-side cleanup in this case.
-                pass
-            self.session = None
+            self.delete_session()
         if self.emulator:
             self.emulator.close()
         if self.instance:

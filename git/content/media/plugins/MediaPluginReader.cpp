@@ -373,7 +373,9 @@ uint8_t *
 MediaPluginReader::ImageBufferCallback::CreateI420Image(size_t aWidth,
                                                         size_t aHeight)
 {
-  mImage = mImageContainer->CreateImage(ImageFormat::PLANAR_YCBCR);
+  ImageFormat format = PLANAR_YCBCR;
+
+  mImage = mImageContainer->CreateImage(&format, 1 /* numFormats */);
   PlanarYCbCrImage *yuvImage = static_cast<PlanarYCbCrImage *>(mImage.get());
 
   if (!yuvImage) {

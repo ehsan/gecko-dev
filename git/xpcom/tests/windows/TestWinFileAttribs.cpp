@@ -14,8 +14,25 @@
 
 #define BUFFSIZE 512
 
+BOOL IsXPOrGreater()
+{
+  OSVERSIONINFO osvi;
+
+  ZeroMemory(&osvi, sizeof(OSVERSIONINFO));
+  osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+
+  GetVersionEx(&osvi);
+
+  return ( (osvi.dwMajorVersion > 5) ||
+     ( (osvi.dwMajorVersion == 5) && (osvi.dwMinorVersion >= 1) ));
+}
+
 nsresult TestWinAttribs()
 {
+    if (!IsXPOrGreater())
+      return NS_OK;
+  
+    printf("Is XP or greater, running tests...\n");
 
     nsresult rv;
 

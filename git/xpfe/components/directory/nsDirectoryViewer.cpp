@@ -164,22 +164,22 @@ nsHTTPIndex::OnFTPControlLog(bool server, const char *msg)
     JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
     NS_ENSURE_TRUE(global, NS_OK);
 
+    JS::Value params[2];
+
     nsString unicodeMsg;
     unicodeMsg.AssignWithConversion(msg);
     JSString* jsMsgStr = JS_NewUCStringCopyZ(cx, unicodeMsg.get());
     NS_ENSURE_TRUE(jsMsgStr, NS_ERROR_OUT_OF_MEMORY);
 
-    JS::AutoValueVector params(cx);
-    MOZ_ALWAYS_TRUE(params.resize(2));
-    params[0].setBoolean(server);
-    params[1].setString(jsMsgStr);
+    params[0] = BOOLEAN_TO_JSVAL(server);
+    params[1] = STRING_TO_JSVAL(jsMsgStr);
 
     JS::Rooted<JS::Value> val(cx);
     JS_CallFunctionName(cx,
                         global,
                         "OnFTPControlLog",
                         2,
-                        params.begin(),
+                        params,
                         val.address());
     return NS_OK;
 }

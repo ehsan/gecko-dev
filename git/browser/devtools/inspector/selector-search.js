@@ -53,7 +53,6 @@ function SelectorSearch(aInspector, aContentDocument, aInputNode) {
     autoSelect: true,
     position: "before_start",
     direction: "ltr",
-    theme: "auto",
     onClick: this._onListBoxKeypress,
     onKeypress: this._onListBoxKeypress,
   };

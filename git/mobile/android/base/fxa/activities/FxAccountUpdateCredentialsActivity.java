@@ -4,27 +4,28 @@
 
 package org.mozilla.gecko.fxa.activities;
 
+import java.io.UnsupportedEncodingException;
+import java.security.GeneralSecurityException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.FxAccountClient;
 import org.mozilla.gecko.background.fxa.FxAccountClient10.RequestDelegate;
 import org.mozilla.gecko.background.fxa.FxAccountClient20;
 import org.mozilla.gecko.background.fxa.FxAccountClient20.LoginResponse;
 import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
 import org.mozilla.gecko.background.fxa.FxAccountUtils;
-import org.mozilla.gecko.background.fxa.PasswordStretcher;
-import org.mozilla.gecko.background.fxa.QuickPasswordStretcher;
 import org.mozilla.gecko.fxa.FxAccountConstants;
 import org.mozilla.gecko.fxa.activities.FxAccountSetupTask.FxAccountSignInTask;
 import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.gecko.fxa.authenticator.FxAccountAuthenticator;
 import org.mozilla.gecko.fxa.login.Engaged;
+import org.mozilla.gecko.fxa.login.Separated;
 import org.mozilla.gecko.fxa.login.State;
 import org.mozilla.gecko.fxa.login.State.StateLabel;
-import org.mozilla.gecko.sync.setup.activities.ActivityUtils;
 
+import android.accounts.Account;
 import android.os.Bundle;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -40,6 +41,7 @@ public class FxAccountUpdateCredentialsActivity extends FxAccountAbstractSetupAc
   protected static final String LOG_TAG = FxAccountUpdateCredentialsActivity.class.getSimpleName();
 
   protected AndroidFxAccount fxAccount;
+  protected Separated accountState;
 
   public FxAccountUpdateCredentialsActivity() {
     // We want to share code with the other setup activities, but this activity
@@ -74,39 +76,50 @@ public class FxAccountUpdateCredentialsActivity extends FxAccountAbstractSetupAc
 
     emailEdit.setEnabled(false);
 
-    TextView view = (TextView) findViewById(R.id.forgot_password_link);
-    ActivityUtils.linkTextView(view, R.string.fxaccount_sign_in_forgot_password, R.string.fxaccount_link_forgot_password);
+    // Not yet implemented.
+    // this.launchActivityOnClick(ensureFindViewById(null, R.id.forgot_password_link, "forgot password link"), null);
   }
 
   @Override
   public void onResume() {
     super.onResume();
-    this.fxAccount = getAndroidFxAccount();
+    Account accounts[] = FxAccountAuthenticator.getFirefoxAccounts(this);
+    if (accounts.length < 1 || accounts[0] == null) {
+      Logger.warn(LOG_TAG, "No Android accounts.");
+      setResult(RESULT_CANCELED);
+      finish();
+      return;
+    }
+    this.fxAccount = new AndroidFxAccount(this, accounts[0]);
     if (fxAccount == null) {
-      Logger.warn(LOG_TAG, "Could not get Firefox Account.");
+      Logger.warn(LOG_TAG, "Could not get Firefox Account from Android account.");
       setResult(RESULT_CANCELED);
       finish();
       return;
     }
     State state = fxAccount.getState();
     if (state.getStateLabel() != StateLabel.Separated) {
-      Logger.warn(LOG_TAG, "Cannot update credentials from Firefox Account in state: " + state.getStateLabel());
+      Logger.warn(LOG_TAG, "Could not get state from Firefox Account.");
       setResult(RESULT_CANCELED);
       finish();
       return;
     }
-    emailEdit.setText(fxAccount.getEmail());
+    this.accountState = (Separated) state;
+    emailEdit.setText(fxAccount.getAndroidAccount().name);
   }
 
   protected class UpdateCredentialsDelegate implements RequestDelegate<LoginResponse> {
     public final String email;
+    public final String password;
     public final String serverURI;
-    public final PasswordStretcher passwordStretcher;
+    public final byte[] quickStretchedPW;
 
-    public UpdateCredentialsDelegate(String email, PasswordStretcher passwordStretcher, String serverURI) {
+    public UpdateCredentialsDelegate(String email, String password, String serverURI) throws UnsupportedEncodingException, GeneralSecurityException {
       this.email = email;
+      this.password = password;
       this.serverURI = serverURI;
-      this.passwordStretcher = passwordStretcher;
+      // XXX This needs to be calculated lazily.
+      this.quickStretchedPW = FxAccountUtils.generateQuickStretchedPW(email.getBytes("UTF-8"), password.getBytes("UTF-8"));
     }
 
     @Override
@@ -131,12 +144,6 @@ public class FxAccountUpdateCredentialsActivity extends FxAccountAbstractSetupAc
 
       byte[] unwrapkB;
       try {
-        // It is crucial that we use the email address provided by the server
-        // (rather than whatever the user entered), because the user's keys are
-        // wrapped and salted with the initial email they provided to
-        // /create/account. Of course, we want to pass through what the user
-        // entered locally as much as possible.
-        byte[] quickStretchedPW = passwordStretcher.getQuickStretchedPW(result.remoteEmail.getBytes("UTF-8"));
         unwrapkB = FxAccountUtils.generateUnwrapBKey(quickStretchedPW);
       } catch (Exception e) {
         this.handleError(e);
@@ -154,14 +161,13 @@ public class FxAccountUpdateCredentialsActivity extends FxAccountAbstractSetupAc
   }
 
   public void updateCredentials(String email, String password) {
-    String serverURI = fxAccount.getAccountServerURI();
+    String serverURI = FxAccountConstants.DEFAULT_IDP_ENDPOINT;
     Executor executor = Executors.newSingleThreadExecutor();
-    FxAccountClient client = new FxAccountClient20(serverURI, executor);
-    PasswordStretcher passwordStretcher = new QuickPasswordStretcher(password);
+    FxAccountClient20 client = new FxAccountClient20(serverURI, executor);
     try {
       hideRemoteError();
-      RequestDelegate<LoginResponse> delegate = new UpdateCredentialsDelegate(email, passwordStretcher, serverURI);
-      new FxAccountSignInTask(this, this, email, passwordStretcher, client, delegate).execute();
+      RequestDelegate<LoginResponse> delegate = new UpdateCredentialsDelegate(email, password, serverURI);
+      new FxAccountSignInTask(this, this, email, password, client, delegate).execute();
     } catch (Exception e) {
       Logger.warn(LOG_TAG, "Got exception updating credentials for account.", e);
       showRemoteError(e, R.string.fxaccount_update_credentials_unknown_error);

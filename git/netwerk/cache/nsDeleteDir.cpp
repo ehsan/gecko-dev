@@ -102,7 +102,7 @@ nsDeleteDir::Shutdown(bool finishDeleting)
       }
 
       rv = gInstance->mCondVar.Wait();
-      nsShutdownThread::BlockingShutdown(thread);
+      thread->Shutdown();
     }
   }
 

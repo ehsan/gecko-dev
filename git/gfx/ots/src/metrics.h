@@ -6,7 +6,7 @@
 #define OTS_METRICS_H_
 
 #include <new>
-#include <utility>
+#include <utility>  // std::pair
 #include <vector>
 
 #include "ots.h"
@@ -35,17 +35,14 @@ struct OpenTypeMetricsTable {
 
 bool ParseMetricsHeader(OpenTypeFile *file, Buffer *table,
                         OpenTypeMetricsHeader *header);
-bool SerialiseMetricsHeader(const ots::OpenTypeFile *file,
-                            OTSStream *out,
+bool SerialiseMetricsHeader(OTSStream *out,
                             const OpenTypeMetricsHeader *header);
 
-bool ParseMetricsTable(const ots::OpenTypeFile *file,
-                       Buffer *table,
+bool ParseMetricsTable(Buffer *table,
                        const uint16_t num_glyphs,
                        const OpenTypeMetricsHeader *header,
                        OpenTypeMetricsTable *metrics);
-bool SerialiseMetricsTable(const ots::OpenTypeFile *file,
-                           OTSStream *out,
+bool SerialiseMetricsTable(OTSStream *out,
                            const OpenTypeMetricsTable *metrics);
 
 }  // namespace ots

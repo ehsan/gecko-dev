@@ -59,7 +59,8 @@ public:
    */
   virtual void UpdatePictureRect(nsIntRect aPictureRect);
 
-  virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat) = 0;
+  virtual already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
+                                              uint32_t aNumFormats) = 0;
 
   /**
    * Synchronously remove all the textures used by the image client.
@@ -96,7 +97,8 @@ public:
 
   virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE;
 
-  virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat) MOZ_OVERRIDE;
+  virtual already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
+                                              uint32_t aNumFormats) MOZ_OVERRIDE;
 
   virtual void FlushAllImages(bool aExceptFront) MOZ_OVERRIDE;
 
@@ -164,7 +166,8 @@ public:
     return mTextureInfo;
   }
 
-  virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat) MOZ_OVERRIDE;
+  virtual already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
+                                              uint32_t aNumFormats) MOZ_OVERRIDE;
 
 private:
   RefPtr<DeprecatedTextureClient> mDeprecatedTextureClient;
@@ -200,7 +203,8 @@ public:
     MOZ_ASSERT(!aChild, "ImageClientBridge should not have IPDL actor");
   }
 
-  virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat) MOZ_OVERRIDE
+  virtual already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
+                                              uint32_t aNumFormats) MOZ_OVERRIDE
   {
     NS_WARNING("Should not create an image through an ImageClientBridge");
     return nullptr;

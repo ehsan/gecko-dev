@@ -136,6 +136,7 @@ nsXPCWrappedJSClass::nsXPCWrappedJSClass(JSContext* cx, REFNSIID aIID,
       mIID(aIID),
       mDescriptors(nullptr)
 {
+    NS_ADDREF(mInfo);
     NS_ADDREF_THIS();
 
     mRuntime->GetWrappedJSClassMap()->Add(this);
@@ -176,6 +177,7 @@ nsXPCWrappedJSClass::~nsXPCWrappedJSClass()
 
     if (mName)
         nsMemory::Free(mName);
+    NS_IF_RELEASE(mInfo);
 }
 
 JSObject*
@@ -238,11 +240,8 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(JSContext* cx,
         {
             AutoSaveContextOptions asco(cx);
             ContextOptionsRef(cx).setDontReportUncaught(true);
-            JS::AutoValueVector argv(cx);
-            MOZ_ALWAYS_TRUE(argv.resize(1));
-            argv[0].setObject(*id);
-            success = JS_CallFunctionValue(cx, jsobj, fun, 1, argv.begin(),
-                                           retval.address());
+            jsval args[1] = {OBJECT_TO_JSVAL(id)};
+            success = JS_CallFunctionValue(cx, jsobj, fun, 1, args, retval.address());
         }
 
         if (!success && JS_IsExceptionPending(cx)) {
@@ -1557,7 +1556,7 @@ nsXPCWrappedJSClass::DebugDump(int16_t depth)
         XPC_LOG_ALWAYS(("IID number is %s", iid ? iid : "invalid"));
         if (iid)
             NS_Free(iid);
-        XPC_LOG_ALWAYS(("InterfaceInfo @ %x", mInfo.get()));
+        XPC_LOG_ALWAYS(("InterfaceInfo @ %x", mInfo));
         uint16_t methodCount = 0;
         if (depth) {
             uint16_t i;

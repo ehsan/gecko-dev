@@ -33,7 +33,7 @@ class VideoInfo {
 public:
   VideoInfo()
     : mDisplay(0,0),
-      mStereoMode(StereoMode::MONO),
+      mStereoMode(STEREO_MODE_MONO),
       mHasVideo(false)
   {}
 

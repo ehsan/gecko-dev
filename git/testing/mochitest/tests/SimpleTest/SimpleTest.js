@@ -892,8 +892,7 @@ SimpleTest.monitorConsole = function (continuation, msgs, forbidUnexpectedMsgs) 
       info("monitorConsole | [" + counter + "] " +
            (matches ? "matched " : "did not match ") + JSON.stringify(msg));
     }
-    if (matches)
-      counter++;
+    counter++;
   }
   SpecialPowers.registerConsoleListener(listener);
 };

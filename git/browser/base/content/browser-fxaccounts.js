@@ -6,11 +6,10 @@ XPCOMUtils.defineLazyGetter(this, "FxAccountsCommon", function () {
   return Cu.import("resource://gre/modules/FxAccountsCommon.js", {});
 });
 
-const PREF_SYNC_START_DOORHANGER = "services.sync.ui.showSyncStartDoorhanger";
-
 let gFxAccounts = {
 
   _initialized: false,
+  _originalLabel: null,
   _inCustomizationMode: false,
 
   get weave() {
@@ -21,25 +20,12 @@ let gFxAccounts = {
   },
 
   get topics() {
-    // Do all this dance to lazy-load FxAccountsCommon.
     delete this.topics;
     return this.topics = [
-      "weave:service:sync:start",
-      "weave:service:login:error",
       FxAccountsCommon.ONLOGIN_NOTIFICATION,
       FxAccountsCommon.ONVERIFIED_NOTIFICATION,
       FxAccountsCommon.ONLOGOUT_NOTIFICATION
     ];
-  },
-
-  // The set of topics that only the active window should handle.
-  get activeWindowTopics() {
-    // Do all this dance to lazy-load FxAccountsCommon.
-    delete this.activeWindowTopics;
-    return this.activeWindowTopics = new Set([
-      "weave:service:sync:start",
-      FxAccountsCommon.ONVERIFIED_NOTIFICATION
-    ]);
   },
 
   get button() {
@@ -47,20 +33,16 @@ let gFxAccounts = {
     return this.button = document.getElementById("PanelUI-fxa-status");
   },
 
-  get loginFailed() {
-    return Weave.Service.identity.readyToAuthenticate &&
-           Weave.Status.login != Weave.LOGIN_SUCCEEDED;
-  },
-
-  get isActiveWindow() {
-    let mostRecentNonPopupWindow =
-      RecentWindow.getMostRecentBrowserWindow({allowPopups: false});
-    return window == mostRecentNonPopupWindow;
+  get syncNeedsCustomization() {
+    try {
+      return Services.prefs.getBoolPref("services.sync.needsCustomization");
+    } catch (e) {
+      return false;
+    }
   },
 
   init: function () {
-    // Bail out if we're already initialized and for pop-up windows.
-    if (this._initialized || !window.toolbar.visible) {
+    if (this._initialized) {
       return;
     }
 
@@ -71,6 +53,9 @@ let gFxAccounts = {
     gNavToolbox.addEventListener("customizationstarting", this);
     gNavToolbox.addEventListener("customizationending", this);
 
+    // Save the button's original label so that
+    // we can restore it if overridden later.
+    this._originalLabel = this.button.getAttribute("label");
     this._initialized = true;
 
     this.updateUI();
@@ -89,33 +74,9 @@ let gFxAccounts = {
   },
 
   observe: function (subject, topic) {
-    // Ignore certain topics if we're not the active window.
-    if (this.activeWindowTopics.has(topic) && !this.isActiveWindow) {
-      return;
-    }
-
-    switch (topic) {
-      case FxAccountsCommon.ONVERIFIED_NOTIFICATION:
-        Services.prefs.setBoolPref(PREF_SYNC_START_DOORHANGER, true);
-        break;
-      case "weave:service:sync:start":
-        this.onSyncStart();
-        break;
-      default:
-        this.updateUI();
-        break;
-    }
-  },
-
-  onSyncStart: function () {
-    let showDoorhanger = false;
-
-    try {
-      showDoorhanger = Services.prefs.getBoolPref(PREF_SYNC_START_DOORHANGER);
-    } catch (e) { /* The pref might not exist. */ }
-
-    if (showDoorhanger) {
-      Services.prefs.clearUserPref(PREF_SYNC_START_DOORHANGER);
+    if (topic != FxAccountsCommon.ONVERIFIED_NOTIFICATION) {
+      this.updateUI();
+    } else if (!this.syncNeedsCustomization) {
       this.showSyncStartedDoorhanger();
     }
   },
@@ -161,27 +122,17 @@ let gFxAccounts = {
       this.button.removeAttribute("disabled");
     }
 
-    let defaultLabel = this.button.getAttribute("defaultlabel");
-    let errorLabel = this.button.getAttribute("errorlabel");
-
     // If the user is signed into their Firefox account and we are not
     // currently in customization mode, show their email address.
     fxAccounts.getSignedInUser().then(userData => {
-      // Reset the button to its original state.
-      this.button.setAttribute("label", defaultLabel);
-      this.button.removeAttribute("tooltiptext");
-      this.button.removeAttribute("signedin");
-      this.button.removeAttribute("failed");
-
-      if (!this._inCustomizationMode) {
-        if (this.loginFailed) {
-          this.button.setAttribute("failed", "true");
-          this.button.setAttribute("label", errorLabel);
-        } else if (userData) {
-          this.button.setAttribute("signedin", "true");
-          this.button.setAttribute("label", userData.email);
-          this.button.setAttribute("tooltiptext", userData.email);
-        }
+      if (userData && !this._inCustomizationMode) {
+        this.button.setAttribute("signedin", "true");
+        this.button.setAttribute("label", userData.email);
+        this.button.setAttribute("tooltiptext", userData.email);
+      } else {
+        this.button.removeAttribute("signedin");
+        this.button.setAttribute("label", this._originalLabel);
+        this.button.removeAttribute("tooltiptext");
       }
     });
   },

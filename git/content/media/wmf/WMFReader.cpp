@@ -9,7 +9,6 @@
 #include "WMFUtils.h"
 #include "WMFByteStream.h"
 #include "WMFSourceReaderCallback.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/dom/TimeRanges.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/Preferences.h"
@@ -360,7 +359,7 @@ WMFReader::ConfigureVideoDecoder()
                                            MF_SOURCE_READER_FIRST_VIDEO_STREAM,
                                            mUseHwAccel ? MFVideoFormat_NV12 : MFVideoFormat_YV12,
                                            MP4VideoTypes,
-                                           ArrayLength(MP4VideoTypes));
+                                           NS_ARRAY_LENGTH(MP4VideoTypes));
   if (FAILED(hr)) {
     DECODER_LOG("Failed to configured video output");
     return hr;
@@ -401,13 +400,13 @@ WMFReader::GetSupportedAudioCodecs(const GUID** aCodecs, uint32_t* aNumCodecs)
       aacOrMp3
     };
     *aCodecs = codecs;
-    *aNumCodecs = ArrayLength(codecs);
+    *aNumCodecs = NS_ARRAY_LENGTH(codecs);
   } else {
     static const GUID codecs[] = {
       MFAudioFormat_AAC
     };
     *aCodecs = codecs;
-    *aNumCodecs = ArrayLength(codecs);
+    *aNumCodecs = NS_ARRAY_LENGTH(codecs);
   }
 }
 

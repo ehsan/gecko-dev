@@ -13,8 +13,6 @@
 HANDLE sCon;
 LPCWSTR metroDX10Available = L"MetroD3DAvailable";
 LPCWSTR metroLastAHE = L"MetroLastAHE";
-LPCWSTR cehDumpDebugStrings = L"CEHDump";
-extern const WCHAR* kFirefoxExe;
 
 typedef HRESULT (WINAPI*D3D10CreateDevice1Func)
   (IDXGIAdapter *, D3D10_DRIVER_TYPE, HMODULE, UINT,
@@ -25,10 +23,7 @@ void
 Log(const wchar_t *fmt, ...)
 {
 #if !defined(SHOW_CONSOLE)
-  DWORD dwRes = 0;
-  if (!GetDWORDRegKey(cehDumpDebugStrings, dwRes) || !dwRes) {
-    return;
-  }
+  return;
 #endif
   va_list a = nullptr;
   wchar_t szDebugString[1024];
@@ -44,8 +39,10 @@ Log(const wchar_t *fmt, ...)
   WriteConsoleW(sCon, szDebugString, lstrlenW(szDebugString), &len, nullptr);
   WriteConsoleW(sCon, L"\n", 1, &len, nullptr);
 
-  OutputDebugStringW(szDebugString);
-  OutputDebugStringW(L"\n");
+  if (IsDebuggerPresent()) {  
+    OutputDebugStringW(szDebugString);
+    OutputDebugStringW(L"\n");
+  }
 }
 
 #if defined(SHOW_CONSOLE)
@@ -109,18 +106,6 @@ IsProcessRunning(const wchar_t *processName, bool bCheckIfMetro)
 
   CloseHandle(snapshot);
   return exists;
-}
-
-bool
-IsMetroProcessRunning()
-{
-  return IsProcessRunning(kFirefoxExe, true);
-}
-
-bool
-IsDesktopProcessRunning()
-{
-  return IsProcessRunning(kFirefoxExe, false);
 }
 
 /*
