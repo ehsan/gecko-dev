@@ -91,12 +91,8 @@ DisableFontActivation()
                                                  kAutoActivationDisabled);
     }
 
-    if (mainBundleID) {
-        ::CFRelease(mainBundleID);
-    }
-    if (mainBundle) {
-        ::CFRelease(mainBundle);
-    }
+    ::CFRelease(mainBundleID);
+    ::CFRelease(mainBundle);
 }
 
 gfxPlatformMac::gfxPlatformMac()

@@ -1356,7 +1356,8 @@ var gCSSProperties = {
 		domProp: "backgroundPosition",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "top left", "left top", "0% 0%", "0% top", "left 0%" ],
+		/* is "0px 0px" an initial value or not? */
+		initial_values: [ "top left", "left top", "0% 0%", "0% top", "left 0%", "0px 0px" ],
 		other_values: [ "top", "left", "right", "bottom", "center", "center bottom", "bottom center", "center right", "right center", "center top", "top center", "center left", "left center", "right bottom", "bottom right", "50%", "top left, top left", "top left, top right", "top right, top left", "left top, 0% 0%", "10% 20%, 30%, 40%", "top left, bottom right", "right bottom, left top", "0%", "0px", "30px", "0%, 10%, 20%, 30%", "top, top, top, top, top",
 			"-moz-calc(20px)",
 			"-moz-calc(20px) 10px",
@@ -1367,8 +1368,7 @@ var gCSSProperties = {
 			"-moz-calc(20px + 1em) -moz-calc(20px / 2)",
 			"-moz-calc(20px + 50%) -moz-calc(50% - 10px)",
 			"-moz-calc(-20px) -moz-calc(-50%)",
-			"-moz-calc(-20%) -moz-calc(-50%)",
-			"0px 0px"
+			"-moz-calc(-20%) -moz-calc(-50%)"
 		],
 		invalid_values: [ "50% left", "top 50%" ]
 	},
