@@ -268,9 +268,6 @@ PlacesViewBase.prototype = {
       aPopup._emptyMenuitem = document.createElement("menuitem");
       aPopup._emptyMenuitem.setAttribute("label", label);
       aPopup._emptyMenuitem.setAttribute("disabled", true);
-      aPopup._emptyMenuitem.className = "bookmark-item";
-      if (typeof this.options.extraClasses.entry == "string")
-        aPopup._emptyMenuitem.classList.add(this.options.extraClasses.entry);
     }
 
     if (aEmpty) {
@@ -342,9 +339,6 @@ PlacesViewBase.prototype = {
 
         element.appendChild(popup);
         element.className = "menu-iconic bookmark-item";
-        if (typeof this.options.extraClasses.entry == "string") {
-          element.classList.add(this.options.extraClasses.entry);
-        }
 
         this._domNodes.set(aPlacesNode, popup);
       }
@@ -371,8 +365,11 @@ PlacesViewBase.prototype = {
     let before = aBefore || aPopup._endMarker;
 
     if (element.localName == "menuitem" || element.localName == "menu") {
-      if (typeof this.options.extraClasses.entry == "string")
-        element.classList.add(this.options.extraClasses.entry);
+      let extraClasses = this.options.extraClasses;
+      if (aPopup == this._rootElt && typeof extraClasses.mainLevel == "string") {
+        element.classList.add(extraClasses.mainLevel);
+      } else if (typeof extraClasses.secondaryLevel == "string")
+        element.classList.add(extraClasses.secondaryLevel);
     }
 
     aPopup.insertBefore(element, before);
@@ -785,12 +782,6 @@ PlacesViewBase.prototype = {
       // Add the "Open All in Tabs" menuitem.
       aPopup._endOptOpenAllInTabs = document.createElement("menuitem");
       aPopup._endOptOpenAllInTabs.className = "openintabs-menuitem";
-
-      if (typeof this.options.extraClasses.entry == "string")
-        aPopup._endOptOpenAllInTabs.classList.add(this.options.extraClasses.entry);
-      if (typeof this.options.extraClasses.footer == "string")
-        aPopup._endOptOpenAllInTabs.classList.add(this.options.extraClasses.footer);
-
       aPopup._endOptOpenAllInTabs.setAttribute("oncommand",
         "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._placesNode, event, " +
                                                "PlacesUIUtils.getViewForNode(this));");
@@ -1811,9 +1802,10 @@ PlacesPanelMenuView.prototype = {
     }
     else {
       button = document.createElement("toolbarbutton");
-      button.className = "bookmark-item";
-      if (typeof this.options.extraClasses.entry == "string")
-        button.classList.add(this.options.extraClasses.entry);
+      let className = "bookmark-item";
+      if (typeof this.options.extraClasses.mainLevel == "string")
+        className += " " + this.options.extraClasses.mainLevel;
+      button.className = className;
       button.setAttribute("label", aChild.title);
       let icon = aChild.icon;
       if (icon)
