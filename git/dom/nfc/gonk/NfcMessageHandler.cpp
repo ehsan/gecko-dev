@@ -16,14 +16,14 @@ using namespace android;
 using namespace mozilla;
 using namespace mozilla::dom;
 
-static const char* kChangeRFStateRequest = "changeRFState";
+static const char* kPowerRequest = "power";
 static const char* kReadNDEFRequest = "readNDEF";
 static const char* kWriteNDEFRequest = "writeNDEF";
 static const char* kMakeReadOnlyRequest = "makeReadOnly";
 static const char* kConnectRequest = "connect";
 static const char* kCloseRequest = "close";
 
-static const char* kChangeRFStateResponse = "ChangeRFStateResponse";
+static const char* kPowerResponse = "PowerResponse";
 static const char* kReadNDEFResponse = "ReadNDEFResponse";
 static const char* kWriteNDEFResponse = "WriteNDEFResponse";
 static const char* kMakeReadOnlyResponse = "MakeReadOnlyResponse";
@@ -42,8 +42,8 @@ NfcMessageHandler::Marshall(Parcel& aParcel, const CommandOptions& aOptions)
   bool result;
   const char* type = NS_ConvertUTF16toUTF8(aOptions.mType).get();
 
-  if (!strcmp(type, kChangeRFStateRequest)) {
-    result = ChangeRFStateRequest(aParcel, aOptions);
+  if (!strcmp(type, kPowerRequest)) {
+    result = PowerRequest(aParcel, aOptions);
   } else if (!strcmp(type, kReadNDEFRequest)) {
     result = ReadNDEFRequest(aParcel, aOptions);
   } else if (!strcmp(type, kWriteNDEFRequest)) {
@@ -76,8 +76,8 @@ NfcMessageHandler::Unmarshall(const Parcel& aParcel, EventOptions& aOptions)
     case NfcResponse::GeneralRsp:
       result = GeneralResponse(aParcel, aOptions);
       break;
-    case NfcResponse::ChangeRFStateRsp:
-      result = ChangeRFStateResponse(aParcel, aOptions);
+    case NfcResponse::PowerRsp:
+      result = PowerResponse(aParcel, aOptions);
       break;
     case NfcResponse::ReadNDEFRsp:
       result = ReadNDEFResponse(aParcel, aOptions);
@@ -139,24 +139,27 @@ NfcMessageHandler::GeneralResponse(const Parcel& aParcel, EventOptions& aOptions
 }
 
 bool
-NfcMessageHandler::ChangeRFStateRequest(Parcel& aParcel, const CommandOptions& aOptions)
+NfcMessageHandler::PowerRequest(Parcel& aParcel, const CommandOptions& aOptions)
 {
-  aParcel.writeInt32(NfcRequest::ChangeRFStateReq);
-  aParcel.writeInt32(aOptions.mRfState);
+  aParcel.writeInt32(NfcRequest::PowerReq);
+  aParcel.writeInt32(aOptions.mPowerLevel);
   mRequestIdQueue.AppendElement(aOptions.mRequestId);
+  mPowerLevelQueue.AppendElement(aOptions.mPowerLevel);
   return true;
 }
 
 bool
-NfcMessageHandler::ChangeRFStateResponse(const Parcel& aParcel, EventOptions& aOptions)
+NfcMessageHandler::PowerResponse(const Parcel& aParcel, EventOptions& aOptions)
 {
-  aOptions.mType = NS_ConvertUTF8toUTF16(kChangeRFStateResponse);
+  aOptions.mType = NS_ConvertUTF8toUTF16(kPowerResponse);
   aOptions.mErrorCode = aParcel.readInt32();
   NS_ENSURE_TRUE(!mRequestIdQueue.IsEmpty(), false);
   aOptions.mRequestId = mRequestIdQueue[0];
   mRequestIdQueue.RemoveElementAt(0);
 
-  aOptions.mRfState = aParcel.readInt32();
+  NS_ENSURE_TRUE(!mPowerLevelQueue.IsEmpty(), false);
+  aOptions.mPowerLevel = mPowerLevelQueue[0];
+  mPowerLevelQueue.RemoveElementAt(0);
   return true;
 }
 

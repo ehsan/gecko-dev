@@ -52,33 +52,36 @@ loop.contacts = (function(_, mozL10n) {
    *  for the contact. Both fields are optional.
    * @param   {object} contact
    *          The contact object to get the field from.
-   * @param   {string} field
-   *          The field within the contact to set.
-   * @param   {string} value
-   *          The value that the field should be set to.
+   * @param   {object} data
+   *          An object that has a 'field' property. If the 'optional' field
+   *          is defined and true, then the field will only be set if the
+   *          'value' is not empty or if the previous value was defined.
    */
-  let setPreferred = function(contact, field, value) {
-    // Don't clear the field if it doesn't exist.
-    if (!value && (!contact[field] || !contact[field].length)) {
-      return;
-    }
-
-    if (!contact[field]) {
-      contact[field] = [];
-    }
-
-    if (!contact[field].length) {
-      contact[field][0] = {"value": value};
-      return;
-    }
-    // Set the value in the preferred tuple and return.
-    for (let i in contact[field]) {
-      if (contact[field][i].pref) {
-        contact[field][i].value = value;
+  let setPreferred = function(contact, data) {
+    if (data.optional) {
+      // Don't clear the field if it doesn't exist.
+      if (!data.value &&
+          (!contact[data.field] || !contact[data.field].length)) {
         return;
       }
     }
-    contact[field][0].value = value;
+
+    if (!contact[data.field]) {
+      contact[data.field] = [];
+    }
+
+    if (!contact[data.field].length) {
+      contact[data.field][0] = {"value": data.value};
+      return;
+    }
+    // Set the value in the preferred tuple and return.
+    for (let i in contact[data.field]) {
+      if (contact[data.field][i].pref) {
+        contact[data.field][i].value = data.value;
+        return;
+      }
+    }
+    contact[data.field][0].value = data.value;
   };
 
   const ContactDropdown = React.createClass({
@@ -560,11 +563,8 @@ loop.contacts = (function(_, mozL10n) {
         pristine: false,
       });
 
-      let emailInput = this.refs.email.getDOMNode();
-      let telInput = this.refs.tel.getDOMNode();
       if (!this.refs.name.getDOMNode().checkValidity() ||
-          ((emailInput.required || emailInput.value) && !emailInput.checkValidity()) ||
-          ((telInput.required || telInput.value) && !telInput.checkValidity())) {
+          !this.refs.email.getDOMNode().checkValidity()) {
         return;
       }
 
@@ -575,8 +575,10 @@ loop.contacts = (function(_, mozL10n) {
       switch (this.props.mode) {
         case "edit":
           this.state.contact.name[0] = this.state.name.trim();
-          setPreferred(this.state.contact, "email", this.state.email.trim());
-          setPreferred(this.state.contact, "tel", this.state.tel.trim());
+          setPreferred(this.state.contact,
+                       {field: "email", value: this.state.email.trim()});
+          setPreferred(this.state.contact,
+                       {field: "tel", value: this.state.tel.trim(), optional: true});
           contactsAPI.update(this.state.contact, err => {
             if (err) {
               throw err;
@@ -620,8 +622,7 @@ loop.contacts = (function(_, mozL10n) {
 
     render: function() {
       let cx = React.addons.classSet;
-      let phoneOrEmailRequired = !this.state.email && !this.state.tel;
-
+      // XXX do we need the ref="" attributes below?
       return (
         <div className="content-area contact-form">
           <header>{this.props.mode == "add"
@@ -632,11 +633,11 @@ loop.contacts = (function(_, mozL10n) {
                  className={cx({pristine: this.state.pristine})}
                  valueLink={this.linkState("name")} />
           <label>{mozL10n.get("edit_contact_email_label")}</label>
-          <input ref="email" type="email" required={phoneOrEmailRequired}
+          <input ref="email" required type="email"
                  className={cx({pristine: this.state.pristine})}
                  valueLink={this.linkState("email")} />
           <label>{mozL10n.get("new_contact_phone_placeholder")}</label>
-          <input ref="tel" type="tel" required={phoneOrEmailRequired}
+          <input ref="tel" type="tel"
                  className={cx({pristine: this.state.pristine})}
                  valueLink={this.linkState("tel")} />
           <ButtonGroup>
