@@ -106,7 +106,6 @@ let UI = {
     // if a modification happened, it happened when the window was
     // not focused.
     if (AppManager.selectedProject &&
-        AppManager.selectedProject.type != "mainProcess" &&
         AppManager.selectedProject.type != "runtimeApp") {
       AppManager.validateProject(AppManager.selectedProject);
     }
@@ -558,9 +557,6 @@ let UI = {
         } else {
           playCmd.removeAttribute("disabled");
         }
-      } else if (AppManager.selectedProject.type == "mainProcess") {
-        playCmd.setAttribute("disabled", "true");
-        stopCmd.setAttribute("disabled", "true");
       } else {
         if (AppManager.selectedProject.errorsCount == 0) {
           playCmd.removeAttribute("disabled");
@@ -825,22 +821,6 @@ let Cmds = {
     let runtimeAppsNode = document.querySelector("#project-panel-runtimeapps");
     while (runtimeAppsNode.hasChildNodes()) {
       runtimeAppsNode.firstChild.remove();
-    }
-
-    if (AppManager.isMainProcessDebuggable()) {
-      let panelItemNode = document.createElement("toolbarbutton");
-      panelItemNode.className = "panel-item";
-      panelItemNode.setAttribute("label", Strings.GetStringFromName("mainProcess_label"));
-      panelItemNode.setAttribute("image", AppManager.DEFAULT_PROJECT_ICON);
-      runtimeAppsNode.appendChild(panelItemNode);
-      panelItemNode.addEventListener("click", () => {
-        UI.hidePanels();
-        AppManager.selectedProject = {
-          type: "mainProcess",
-          name: Strings.GetStringFromName("mainProcess_label"),
-          icon: AppManager.DEFAULT_PROJECT_ICON
-        };
-      }, true);
     }
 
     let sortedApps = AppManager.webAppsStore.object.all;

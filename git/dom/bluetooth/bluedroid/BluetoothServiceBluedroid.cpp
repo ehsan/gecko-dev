@@ -1383,18 +1383,19 @@ BluetoothServiceBluedroid::UpdateSdpRecords(
 class CreateBondResultHandler MOZ_FINAL : public BluetoothResultHandler
 {
 public:
-  CreateBondResultHandler(BluetoothReplyRunnable* aRunnable)
-  : mRunnable(aRunnable)
+  CreateBondResultHandler(size_t aRunnableIndex)
+  : mRunnableIndex(aRunnableIndex)
   { }
 
   void OnError(int aStatus) MOZ_OVERRIDE
   {
-    sBondingRunnableArray.RemoveElement(mRunnable);
-    ReplyStatusError(mRunnable, aStatus, NS_LITERAL_STRING("CreatedPairedDevice"));
+    BluetoothReplyRunnable* runnable = sBondingRunnableArray[mRunnableIndex];
+    sBondingRunnableArray[mRunnableIndex] = nullptr;
+    ReplyStatusError(runnable, aStatus, NS_LITERAL_STRING("CreatedPairedDevice"));
   }
 
 private:
-  BluetoothReplyRunnable* mRunnable;
+  PRUint32 mRunnableIndex;
 };
 
 nsresult
@@ -1409,10 +1410,10 @@ BluetoothServiceBluedroid::CreatePairedDeviceInternal(
   bt_bdaddr_t remoteAddress;
   StringToBdAddressType(aDeviceAddress, &remoteAddress);
 
+  PRUint32 i = sBondingRunnableArray.Length();
   sBondingRunnableArray.AppendElement(aRunnable);
 
-  sBtInterface->CreateBond(&remoteAddress,
-                           new CreateBondResultHandler(aRunnable));
+  sBtInterface->CreateBond(&remoteAddress, new CreateBondResultHandler(i));
 
   return NS_OK;
 }
@@ -1420,18 +1421,19 @@ BluetoothServiceBluedroid::CreatePairedDeviceInternal(
 class RemoveBondResultHandler MOZ_FINAL : public BluetoothResultHandler
 {
 public:
-  RemoveBondResultHandler(BluetoothReplyRunnable* aRunnable)
-  : mRunnable(aRunnable)
+  RemoveBondResultHandler(size_t aRunnableIndex)
+  : mRunnableIndex(aRunnableIndex)
   { }
 
   void OnError(int aStatus) MOZ_OVERRIDE
   {
-    sUnbondingRunnableArray.RemoveElement(mRunnable);
-    ReplyStatusError(mRunnable, aStatus, NS_LITERAL_STRING("RemoveDevice"));
+    BluetoothReplyRunnable* runnable = sUnbondingRunnableArray[mRunnableIndex];
+    sUnbondingRunnableArray[mRunnableIndex] = nullptr;
+    ReplyStatusError(runnable, aStatus, NS_LITERAL_STRING("RemoveDevice"));
   }
 
 private:
-  BluetoothReplyRunnable* mRunnable;
+  PRUint32 mRunnableIndex;
 };
 
 nsresult
@@ -1448,8 +1450,7 @@ BluetoothServiceBluedroid::RemoveDeviceInternal(
   PRUint32 i = sUnbondingRunnableArray.Length();
   sUnbondingRunnableArray.AppendElement(aRunnable);
 
-  sBtInterface->RemoveBond(&remoteAddress,
-                           new RemoveBondResultHandler(aRunnable));
+  sBtInterface->RemoveBond(&remoteAddress, new RemoveBondResultHandler(i));
 
   return NS_OK;
 }

@@ -17,8 +17,6 @@ let (commonFile = do_get_file("../head_common.js", false)) {
 
 // Put any other stuff relative to this test folder below.
 
-const TITLE_SEARCH_ENGINE_SEPARATOR = " \u00B7\u2013\u00B7 ";
-
 function run_test() {
   run_next_test();
 }
@@ -149,11 +147,9 @@ function* check_autocomplete(test) {
         if (matches[j] == undefined)
           continue;
 
-        let { uri, title, tags, searchEngine } = matches[j];
+        let { uri, title, tags } = matches[j];
         if (tags)
           title += " \u2013 " + tags.sort().join(", ");
-        if (searchEngine)
-          title += TITLE_SEARCH_ENGINE_SEPARATOR + searchEngine;
 
         do_log_info("Checking against expected '" + uri.spec + "', '" + title + "'...");
         // Got a match on both uri and title?

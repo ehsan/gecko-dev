@@ -18,9 +18,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-
 public class PostSearchFragment extends Fragment {
 
     private static final String LOGTAG = "PostSearchFragment";
@@ -96,8 +93,6 @@ public class PostSearchFragment extends Fragment {
             if (isSearchResultsPage(url)) {
                 super.onPageStarted(view, url, favicon);
             } else {
-                Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
-                        TelemetryContract.Method.CONTENT, "search-result");
                 view.stopLoading();
                 Intent i = new Intent(Intent.ACTION_VIEW);
                 i.setData(Uri.parse(url));
