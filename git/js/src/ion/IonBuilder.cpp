@@ -36,9 +36,9 @@ using mozilla::DebugOnly;
 IonBuilder::IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
                        BaselineInspector *inspector, CompileInfo *info, AbstractFramePtr fp,
                        size_t inliningDepth, uint32_t loopDepth)
-  : MIRGenerator(cx->compartment, temp, graph, info),
+  : MIRGenerator(cx->compartment(), temp, graph, info),
     backgroundCodegen_(NULL),
-    recompileInfo(cx->compartment->types.compiledInfo),
+    recompileInfo(cx->compartment()->types.compiledInfo),
     cx(cx),
     fp(fp),
     abortReason_(AbortReason_Disable),
@@ -3409,6 +3409,16 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     RootedScript calleeScript(cx, target->nonLazyScript());
     BaselineInspector inspector(cx, target->nonLazyScript());
 
+    // Improve type information of |this| when not set.
+    if (callInfo.constructing() && !callInfo.thisArg()->resultTypeSet()) {
+        types::StackTypeSet *types = types::TypeScript::ThisTypes(calleeScript);
+        MTypeBarrier *barrier = MTypeBarrier::New(callInfo.thisArg(), cloneTypeSet(types), Bailout_Normal);
+        current->add(barrier);
+        MUnbox *unbox = MUnbox::New(barrier, MIRType_Object, MUnbox::Infallible);
+        current->add(unbox);
+        callInfo.setThis(unbox);
+    }
+
     // Start inlining.
     LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
     CompileInfo *info = alloc->new_<CompileInfo>(calleeScript.get(), target,
@@ -4742,7 +4752,7 @@ TestShouldDOMCall(JSContext *cx, types::TypeSet *inTypes, HandleFunction func,
     // property, we can bake in a call to the bottom half of the DOM
     // accessor
     DOMInstanceClassMatchesProto instanceChecker =
-        GetDOMCallbacks(cx->runtime)->instanceClassMatchesProto;
+        GetDOMCallbacks(cx->runtime())->instanceClassMatchesProto;
 
     const JSJitInfo *jinfo = func->jitInfo();
     if (jinfo->type != opType)
@@ -5933,9 +5943,9 @@ IonBuilder::getStaticName(HandleObject staticObject, HandlePropertyName name, bo
         if (name == cx->names().undefined)
             return pushConstant(UndefinedValue());
         if (name == cx->names().NaN)
-            return pushConstant(cx->runtime->NaNValue);
+            return pushConstant(cx->runtime()->NaNValue);
         if (name == cx->names().Infinity)
-            return pushConstant(cx->runtime->positiveInfinityValue);
+            return pushConstant(cx->runtime()->positiveInfinityValue);
     }
 
     RootedId id(cx, NameToId(name));
@@ -6091,8 +6101,15 @@ IonBuilder::setStaticName(HandleObject staticObject, HandlePropertyName name)
     // storing the type tag. This only works if the property does not have its initial
     // |undefined| value; if |undefined| is assigned at a later point, it will be added
     // to the type set.
+    //
+    // We also need to make sure the typeset reflects the inherited types from
+    // the prototype by calling getFromPrototype. Otherwise we may specialize
+    // on a typeset that changes before compilation ends, which would mean the
+    // current script wouldn't be recompiled even when our assumption here is
+    // made false.
     MIRType slotType = MIRType_None;
     if (propertyTypes && !staticObject->getSlot(shape->slot()).isUndefined()) {
+        staticType->getFromPrototypes(cx, id, propertyTypes);
         JSValueType knownType = propertyTypes->getKnownTypeTag(cx);
         if (knownType != JSVAL_TYPE_UNKNOWN)
             slotType = MIRTypeFromValueType(knownType);

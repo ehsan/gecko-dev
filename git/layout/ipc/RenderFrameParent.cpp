@@ -22,6 +22,7 @@
 #include "nsFrameLoader.h"
 #include "nsIObserver.h"
 #include "nsSubDocumentFrame.h"
+#include "nsView.h"
 #include "nsViewportFrame.h"
 #include "RenderFrameParent.h"
 #include "mozilla/layers/LayerManagerComposite.h"
@@ -415,8 +416,8 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
       NSIntPixelsToAppUnits(viewport.width, auPerDevPixel) * aXScale,
       NSIntPixelsToAppUnits(viewport.height, auPerDevPixel) * aYScale);
     view->mContentSize = nsSize(
-      NSIntPixelsToAppUnits(metrics.mContentRect.width, auPerDevPixel) * aXScale,
-      NSIntPixelsToAppUnits(metrics.mContentRect.height, auPerDevPixel) * aYScale);
+      NSFloatPixelsToAppUnits(metrics.mScrollableRect.width, auPerCSSPixel) * aXScale,
+      NSFloatPixelsToAppUnits(metrics.mScrollableRect.height, auPerCSSPixel) * aYScale);
 
     newContentViews[scrollId] = view;
   }
