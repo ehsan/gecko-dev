@@ -353,7 +353,7 @@ input[type=button] {
 }
 
 @media not all and (max-resolution: 1dppx) {
-  #newtab-search-logo.magnifier {
+  #newtab-search-icon.magnifier {
     background-image: url("chrome://browser/skin/magnifier@2x.png");
   }
 }
