@@ -319,9 +319,6 @@ var BrowserApp = {
       loadParams.showProgress = (url != "about:home");
       loadParams.pinned = pinned;
       this.addTab(url, loadParams);
-
-      // show telemetry door hanger if we aren't restoring a session
-      this._showTelemetryPrompt();
     }
 
     if (this.isAppUpdated())
@@ -341,6 +338,11 @@ var BrowserApp = {
         "value": Services.prefs.getBoolPref("gfx.show_checkerboard_pattern")
       }
     });
+
+    // disable telemetry for beta
+    Services.prefs.clearUserPref("toolkit.telemetry.enabled");
+    Services.prefs.clearUserPref("toolkit.telemetry.prompted");
+    Services.prefs.clearUserPref("toolkit.telemetry.rejected");
   },
 
   isAppUpdated: function() {
@@ -3383,6 +3385,12 @@ var FormAssistant = {
     if (!this._isAutoComplete(aElement))
       return false;
 
+    // Don't display the form auto-complete popup after the user starts typing
+    // to avoid confusing the IME. See bug 758820 and bug 632744.
+    if (aElement.value.length > 0) {
+        return false;
+    }
+
     let autoCompleteSuggestions = this._getAutoCompleteSuggestions(aElement.value, aElement);
     let listSuggestions = this._getListSuggestions(aElement);
 
@@ -3705,7 +3713,7 @@ var ViewportHandler = {
     let allowZoom = !/^(0|no|false)$/.test(allowZoomStr); // WebKit allows 0, "no", or "false"
 
 
-    if (scale == NaN && minScale == NaN && maxScale == NaN && allowZoomStr == "" && widthStr == "" && heightStr == "") {
+    if (isNaN(scale) && isNaN(minScale) && isNaN(maxScale) && allowZoomStr == "" && widthStr == "" && heightStr == "") {
 	// Only check for HandheldFriendly if we don't have a viewport meta tag
 	let handheldFriendly = windowUtils.getDocumentMetadata("HandheldFriendly");
 
