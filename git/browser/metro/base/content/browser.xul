@@ -482,7 +482,8 @@ Desktop browser's sync prefs.
                      autocompletepopup="urlbar-autocomplete"
                      completeselectedindex="true"
                      placeholder="&urlbar.emptytext;"
-                     tabscrolling="true" />
+                     tabscrolling="true"
+                     onclick="SelectionHelperUI.urlbarTextboxClick(this);"/>
 
             <toolbarbutton id="go-button"
                            class="urlbar-button"

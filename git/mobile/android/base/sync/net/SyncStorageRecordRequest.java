@@ -25,7 +25,6 @@ import org.mozilla.gecko.sync.ThreadPool;
  * * Headers:
  *   * Retry-After
  *   * X-Weave-Backoff
- *   * X-Backoff
  *   * X-Weave-Records?
  *   * ...
  * * Timeouts

@@ -854,7 +854,6 @@ CustomizeMode.prototype = {
       this.persistCurrentSets(true);
 
       this._updateResetButton();
-      this._updateEmptyPaletteNotice();
       this._showPanelCustomizationPlaceholders();
       this.resetting = false;
     }.bind(this)).then(null, ERROR);
@@ -956,10 +955,8 @@ CustomizeMode.prototype = {
 
   _onUIChange: function() {
     this._changed = true;
-    if (!this.resetting) {
-      this._updateResetButton();
-      this._updateEmptyPaletteNotice();
-    }
+    this._updateResetButton();
+    this._updateEmptyPaletteNotice();
     this.dispatchToolboxEvent("customizationchange");
   },
 

@@ -3139,7 +3139,7 @@ function WidgetSingleWrapper(aWidget, aNode) {
   this.__defineGetter__("anchor", function() {
     let anchorId;
     // First check for an anchor for the area:
-    let placement = CustomizableUIInternal.getPlacementOfWidget(aWidget.id);
+    let placement = CustomizableUIInternal.getPlacementOfWidget(aWidgetId);
     if (placement) {
       anchorId = gAreas.get(placement.area).get("anchor");
     }

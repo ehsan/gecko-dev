@@ -203,40 +203,17 @@ App.prototype = {
 
 
 /**
- * The Console Watcher tracks the following metrics in apps: reflows, warnings,
- * and errors.
+ * The Console Watcher tracks the following metrics in apps: errors, warnings,
+ * and reflows.
  */
 let consoleWatcher = {
 
   _apps: new Map(),
-  _watching: {
-    reflows: false,
-    warnings: false,
-    errors: false
-  },
   _client: null,
 
   init: function cw_init(client) {
     this._client = client;
     this.consoleListener = this.consoleListener.bind(this);
-
-    let watching = this._watching;
-
-    for (let key in watching) {
-      let metric = key;
-      SettingsListener.observe('devtools.hud.' + metric, false, value => {
-        // Watch or unwatch the metric.
-        if (watching[metric] = value) {
-          return;
-        }
-
-        // If unwatched, remove any existing widgets for that metric.
-        for (let app of this._apps.values()) {
-          app.metrics.set(metric, 0);
-          app.display();
-        }
-      });
-    }
 
     client.addListener('logMessage', this.consoleListener);
     client.addListener('pageError', this.consoleListener);
@@ -269,13 +246,8 @@ let consoleWatcher = {
   },
 
   bump: function cw_bump(app, metric) {
-    if (!this._watching[metric]) {
-      return false;
-    }
-
     let metrics = app.metrics;
     metrics.set(metric, metrics.get(metric) + 1);
-    return true;
   },
 
   consoleListener: function cw_consoleListener(type, packet) {
@@ -286,19 +258,13 @@ let consoleWatcher = {
 
       case 'pageError':
         let pageError = packet.pageError;
-
         if (pageError.warning || pageError.strict) {
-          if (!this.bump(app, 'warnings')) {
-            return;
-          }
+          this.bump(app, 'warnings');
           output = 'warning (';
         } else {
-          if (!this.bump(app, 'errors')) {
-            return;
-          }
+          this.bump(app, 'errors');
           output += 'error (';
         }
-
         let {errorMessage, sourceName, category, lineNumber, columnNumber} = pageError;
         output += category + '): "' + (errorMessage.initial || errorMessage) +
           '" in ' + sourceName + ':' + lineNumber + ':' + columnNumber;
@@ -306,31 +272,21 @@ let consoleWatcher = {
 
       case 'consoleAPICall':
         switch (packet.message.level) {
-
           case 'error':
-            if (!this.bump(app, 'errors')) {
-              return;
-            }
+            this.bump(app, 'errors');
             output = 'error (console)';
             break;
-
           case 'warn':
-            if (!this.bump(app, 'warnings')) {
-              return;
-            }
+            this.bump(app, 'warnings');
             output = 'warning (console)';
             break;
-
           default:
             return;
         }
         break;
 
       case 'reflowActivity':
-        if (!this.bump(app, 'reflows')) {
-          return;
-        }
-
+        this.bump(app, 'reflows');
         let {start, end, sourceURL} = packet;
         let duration = Math.round((end - start) * 100) / 100;
         output = 'reflow: ' + duration + 'ms';

@@ -107,8 +107,7 @@ gTests.push({
     let autocompletePopup = document.getElementById("urlbar-autocomplete-scroll");
     yield waitForEvent(autocompletePopup, "transitionend");
 
-    SelectionHelperUI.attachEditSession(ChromeSelectionHandler, editCoords.x,
-        editCoords.y, edit);
+    SelectionHelperUI.attachEditSession(ChromeSelectionHandler, editCoords.x, editCoords.y);
     ok(SelectionHelperUI.isSelectionUIVisible, "selection enabled");
 
     let selection = edit.QueryInterface(Components.interfaces.nsIDOMXULTextBoxElement)
@@ -137,8 +136,7 @@ gTests.push({
     edit.value = "wikipedia.org";
     edit.select();
     let editCoords = logicalCoordsForElement(edit);
-    SelectionHelperUI.attachEditSession(ChromeSelectionHandler, editCoords.x,
-        editCoords.y, edit);
+    SelectionHelperUI.attachEditSession(ChromeSelectionHandler, editCoords.x, editCoords.y);
     edit.blur();
     ok(!SelectionHelperUI.isSelectionUIVisible, "selection no longer enabled");
     clearSelection(edit);
@@ -226,26 +224,6 @@ gTests.push({
 
     yield waitForCondition(function () {
       return !SelectionHelperUI.isSelectionUIVisible;
-    });
-  }
-});
-
-gTests.push({
-  desc: "Bug 957646 - Selection monocles sometimes don't display when tapping" +
-        " text ion the nav bar.",
-  run: function() {
-    yield showNavBar();
-
-    let edit = document.getElementById("urlbar-edit");
-    edit.value = "about:mozilla";
-
-    let editRectangle = edit.getBoundingClientRect();
-
-    // Tap outside the input but close enough for fluffing to take effect.
-    sendTap(window, editRectangle.left + 50, editRectangle.top - 2);
-
-    yield waitForCondition(function () {
-      return SelectionHelperUI.isSelectionUIVisible;
     });
   }
 });
