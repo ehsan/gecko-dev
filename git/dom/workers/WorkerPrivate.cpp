@@ -1759,14 +1759,11 @@ WorkerRunnable::Run()
   JSObject* targetCompartmentObject;
   nsIThreadJSContextStack* contextStack = nsnull;
 
-  nsRefPtr<WorkerPrivate> kungFuDeathGrip;
-
   if (mTarget == WorkerThread) {
     mWorkerPrivate->AssertIsOnWorkerThread();
     cx = mWorkerPrivate->GetJSContext();
     targetCompartmentObject = JS_GetGlobalObject(cx);
   } else {
-    kungFuDeathGrip = mWorkerPrivate;
     mWorkerPrivate->AssertIsOnParentThread();
     cx = mWorkerPrivate->ParentJSContext();
     targetCompartmentObject = mWorkerPrivate->GetJSObject();
