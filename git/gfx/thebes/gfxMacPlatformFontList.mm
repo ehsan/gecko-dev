@@ -384,7 +384,7 @@ ATSFontEntry::HasFontTable(PRUint32 aTableTag)
         (::ATSFontGetTable(fontRef, aTableTag, 0, 0, 0, &size) == noErr);
 }
 
-/* CGFontEntry - used on Mac OS X 10.7+ */
+/* CGFontEntry - used on Mac OS X 10.6+ */
 #pragma mark-
 
 CGFontEntry::CGFontEntry(const nsAString& aPostscriptName,

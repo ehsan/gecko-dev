@@ -92,7 +92,7 @@ protected:
     PRPackedBool mIsCFFInitialized;
 };
 
-// concrete subclasses of MacOSFontEntry: ATSFontEntry for 10.5/10.6, CGFontEntry for 10.7+
+// concrete subclasses of MacOSFontEntry: ATSFontEntry for 10.5, CGFontEntry for 10.6+
 class ATSFontEntry : public MacOSFontEntry
 {
 public:
@@ -138,12 +138,6 @@ protected:
     virtual PRBool HasFontTable(PRUint32 aTableTag);
 };
 
-// this will not be defined if building with a pre-Lion SDK,
-// so provide it here in that case
-#ifndef MAC_OS_X_VERSION_10_7_HEX
-#define MAC_OS_X_VERSION_10_7_HEX 0x00001070
-#endif
-
 class gfxMacPlatformFontList : public gfxPlatformFontList {
 public:
     static gfxMacPlatformFontList* PlatformFontList() {
@@ -165,7 +159,7 @@ public:
     void ClearPrefFonts() { mPrefFonts.Clear(); }
 
     static PRBool UseATSFontEntry() {
-        return gfxPlatformMac::GetPlatform()->OSXVersion() < MAC_OS_X_VERSION_10_7_HEX;
+        return gfxPlatformMac::GetPlatform()->OSXVersion() < MAC_OS_X_VERSION_10_6_HEX;
     }
 
 private:
