@@ -732,6 +732,10 @@ EOF
     fi
 
     AC_DEFINE_UNQUOTED(MOZ_WINSDK_TARGETVER,0x$MOZ_WINSDK_TARGETVER)
+    # Definitions matching sdkddkver.h
+    AC_DEFINE_UNQUOTED(MOZ_NTDDI_WS03, 0x05020000)
+    AC_DEFINE_UNQUOTED(MOZ_NTDDI_LONGHORN, 0x06000000)
+    AC_DEFINE_UNQUOTED(MOZ_NTDDI_WIN7, 0x06010000)
     ;;
 esac
 
@@ -5278,13 +5282,15 @@ dnl ========================================================
 dnl = libnotify support
 dnl ========================================================
 
-MOZ_ARG_ENABLE_BOOL(libnotify,
-[  --enable-libnotify       Enable libnotify support ],
-    MOZ_ENABLE_LIBNOTIFY=1,
-    MOZ_ENABLE_LIBNOTIFY=)
-
 if test "$MOZ_ENABLE_GTK2"
 then
+    MOZ_ENABLE_LIBNOTIFY=1
+
+    MOZ_ARG_DISABLE_BOOL(libnotify,
+    [  --disable-libnotify       Disable libnotify support ],
+    MOZ_ENABLE_LIBNOTIFY=,
+    MOZ_ENABLE_LIBNOTIFY=1)
+
     if test "$MOZ_ENABLE_LIBNOTIFY"
     then
         AC_DEFINE(MOZ_ENABLE_LIBNOTIFY)
@@ -6852,10 +6858,9 @@ MOZ_ARG_ENABLE_BOOL(reflow-perf,
 [  --enable-reflow-perf    Enable reflow performance tracing],
     MOZ_REFLOW_PERF=1,
     MOZ_REFLOW_PERF= )
-if test -n "$MOZ_REFLOW_PREF"; then
-    AC_DEFINE(MOZ_REFLOW_PREF)
+if test -n "$MOZ_REFLOW_PERF"; then
+    AC_DEFINE(MOZ_REFLOW_PERF)
 fi
-AC_SUBST(MOZ_REFLOW_PERF)
 
 dnl ========================================================
 dnl Enable performance metrics.

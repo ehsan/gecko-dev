@@ -56,6 +56,8 @@ REQUIRES = \
 	imglib2 \
 	intl \
 	widget \
+	thebes \
+	cairo \
 	$(NULL)
 
 CPPSRCS = \
