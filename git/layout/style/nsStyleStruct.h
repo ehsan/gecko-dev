@@ -101,8 +101,6 @@ public:
 
   // MathML scriptlevel support
   int8_t  mScriptLevel;          // [inherited]
-  // MathML  mathvariant support
-  uint8_t mMathVariant;          // [inherited]
 
   // was mLanguage set based on a lang attribute in the document?
   bool mExplicitLanguage;        // [inherited]

@@ -69,7 +69,7 @@ public:
     if (rv.Failed()) {
       return;
     }
-    UpdateStyleSheetInternal(nullptr, nullptr, true);
+    UpdateStyleSheetInternal(nullptr, true);
   }
   using ProcessingInstruction::SetData; // Prevent hiding overloaded virtual function.
 

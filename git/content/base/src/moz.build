@@ -63,7 +63,6 @@ EXPORTS.mozilla.dom += [
     'EventSource.h',
     'Link.h',
     'NodeIterator.h',
-    'ShadowRoot.h',
     'Text.h',
     'TreeWalker.h',
 ]
@@ -150,7 +149,6 @@ UNIFIED_SOURCES += [
     'nsXMLContentSerializer.cpp',
     'nsXMLHttpRequest.cpp',
     'nsXMLNameSpaceMap.cpp',
-    'ShadowRoot.cpp',
     'Text.cpp',
     'ThirdPartyUtil.cpp',
     'TreeWalker.cpp',

@@ -6029,21 +6029,20 @@ class CGMemberJITInfo(CGThing):
     def declare(self):
         return ""
 
-    def defineJitInfo(self, infoName, opName, opType, infallible, movable,
-                      aliasSet, hasSlot, slotIndex, returnTypes, args):
+    def defineJitInfo(self, infoName, opName, opType, infallible, constant,
+                      pure, hasSlot, slotIndex, returnTypes, args):
         """
-        aliasSet is a JSJitInfo::AliasSet value, without the "JSJitInfo::" bit.
-
         args is None if we don't want to output argTypes for some
         reason (e.g. we have overloads or we're not a method) and
         otherwise an iterable of the arguments for this method.
         """
-        assert(not movable or aliasSet != "AliasEverything") # Can't move write-aliasing things
-        assert(not hasSlot or movable) # Things with slots had better be movable
+        assert(not constant or pure) # constants are always pure
+        assert(not hasSlot or pure) # Things with slots had better be pure
         protoID = "prototypes::id::%s" % self.descriptor.name
         depth = "PrototypeTraits<%s>::Depth" % protoID
         failstr = toStringBool(infallible)
-        movablestr = toStringBool(movable)
+        conststr = toStringBool(constant)
+        purestr = toStringBool(pure)
         slotStr = toStringBool(hasSlot)
         returnType = reduce(CGMemberJITInfo.getSingleReturnType, returnTypes,
                             "")
@@ -6065,15 +6064,15 @@ class CGMemberJITInfo(CGThing):
                 "  %s,\n"
                 "  JSJitInfo::%s,\n"
                 "  %s,  /* isInfallible. False in setters. */\n"
-                "  %s,  /* isMovable.  Not relevant for setters. */\n"
-                "  JSJitInfo::%s,  /* aliasSet.  Not relevant for setters. */\n"
+                "  %s,  /* isConstant. Only relevant for getters. */\n"
+                "  %s,  /* isPure.  Not relevant for setters. */\n"
                 "  %s,  /* hasSlot.  Only relevant for getters. */\n"
                 "  %d,  /* Reserved slot index, if we're stored in a slot, else 0. */\n"
                 "  %s,  /* returnType.  Not relevant for setters. */\n"
                 "  %s,  /* argTypes.  Only relevant for methods */\n"
                 "  nullptr /* parallelNative */\n"
                 "};\n" % (argTypesDecl, infoName, opName, protoID, depth,
-                          opType, failstr, movablestr, aliasSet, slotStr,
+                          opType, failstr, conststr, purestr, slotStr,
                           slotIndex, returnType, argTypes))
 
     def define(self):
@@ -6086,13 +6085,7 @@ class CGMemberJITInfo(CGThing):
             getterconst = (self.member.getExtendedAttribute("SameObject") or
                            self.member.getExtendedAttribute("Constant"))
             getterpure = getterconst or self.member.getExtendedAttribute("Pure")
-            if getterconst:
-                aliasSet = "AliasNone"
-            elif getterpure:
-                aliasSet = "AliasDOMSets"
-            else:
-                aliasSet = "AliasEverything"
-            movable = getterpure and getterinfal
+            assert (getterinfal or (not getterconst and not getterpure))
 
             getterinfal = getterinfal and infallibleForMember(self.member, self.member.type, self.descriptor)
             isInSlot = self.member.getExtendedAttribute("StoreInSlot")
@@ -6105,7 +6098,7 @@ class CGMemberJITInfo(CGThing):
                 slotIndex = 0
 
             result = self.defineJitInfo(getterinfo, getter, "Getter",
-                                        getterinfal, movable, aliasSet,
+                                        getterinfal, getterconst, getterpure,
                                         isInSlot, slotIndex,
                                         [self.member.type], None)
             if (not self.member.readonly or
@@ -6117,8 +6110,7 @@ class CGMemberJITInfo(CGThing):
                 setter = ("(JSJitGetterOp)set_%s" % self.member.identifier.name)
                 # Setters are always fallible, since they have to do a typed unwrap.
                 result += self.defineJitInfo(setterinfo, setter, "Setter",
-                                             False, False, "AliasEverything",
-                                             False, 0,
+                                             False, False, False, False, 0,
                                              [BuiltinTypes[IDLBuiltinType.Types.void]],
                                              None)
             return result
@@ -6154,12 +6146,8 @@ class CGMemberJITInfo(CGThing):
                 else:
                     args = None
 
-            if args:
-                aliasSet = "AliasDOMSets"
-            else:
-                aliasSet = "AliasEverything"
             result = self.defineJitInfo(methodinfo, method, "Method",
-                                        methodInfal, False, aliasSet, False, 0,
+                                        methodInfal, False, methodPure, False, 0,
                                         [s[0] for s in sigs], args)
             return result
         raise TypeError("Illegal member type to CGPropertyJITInfo")

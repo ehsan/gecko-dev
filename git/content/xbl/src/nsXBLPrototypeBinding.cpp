@@ -597,16 +597,6 @@ nsXBLPrototypeBinding::GetRuleProcessor()
 }
 
 nsXBLPrototypeResources::sheet_array_type*
-nsXBLPrototypeBinding::GetOrCreateStyleSheets()
-{
-  if (!mResources) {
-    mResources = new nsXBLPrototypeResources(this);
-  }
-
-  return &mResources->mStyleSheetList;
-}
-
-nsXBLPrototypeResources::sheet_array_type*
 nsXBLPrototypeBinding::GetStyleSheets()
 {
   if (mResources) {

@@ -82,7 +82,6 @@ private:
     //to render the current frame
     std::list<RectVector>   mVisibleRegions;
     nsTArray<int>           mPrevReleaseFds;
-    int                     mPrevRetireFence;
     nsTArray<layers::LayerComposite*> mHwcLayerMap;
 };
 

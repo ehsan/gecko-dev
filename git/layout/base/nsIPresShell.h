@@ -98,7 +98,6 @@ class Selection;
 namespace dom {
 class Element;
 class Touch;
-class ShadowRoot;
 } // namespace dom
 
 namespace layers{
@@ -527,11 +526,6 @@ public:
   void PostRecreateFramesFor(mozilla::dom::Element* aElement);
   void RestyleForAnimation(mozilla::dom::Element* aElement,
                            nsRestyleHint aHint);
-
-  // ShadowRoot has APIs that can change styles so we only
-  // want to restyle elements in the ShadowRoot and not the whole
-  // document.
-  virtual void RestyleShadowRoot(mozilla::dom::ShadowRoot* aShadowRoot) = 0;
 
   /**
    * Determine if it is safe to flush all pending notifications

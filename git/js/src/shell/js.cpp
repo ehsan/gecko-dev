@@ -4798,8 +4798,8 @@ static const JSJitInfo dom_x_getterinfo = {
     0,        /* depth */
     JSJitInfo::Getter,
     true,     /* isInfallible. False in setters. */
-    true,     /* isMovable */
-    JSJitInfo::AliasNone, /* aliasSet */
+    true,     /* isConstant. Only relevant for getters. */
+    true,     /* isPure */
     false,    /* isInSlot */
     0,        /* slotIndex */
     JSVAL_TYPE_UNKNOWN, /* returnType */
@@ -4813,8 +4813,8 @@ static const JSJitInfo dom_x_setterinfo = {
     0,        /* depth */
     JSJitInfo::Setter,
     false,    /* isInfallible. False in setters. */
-    false,    /* isMovable. */
-    JSJitInfo::AliasEverything, /* aliasSet */
+    false,    /* isConstant. Only relevant for getters. */
+    false,    /* isPure */
     false,    /* isInSlot */
     0,        /* slotIndex */
     JSVAL_TYPE_UNKNOWN, /* returnType */
@@ -4828,8 +4828,8 @@ static const JSJitInfo doFoo_methodinfo = {
     0,        /* depth */
     JSJitInfo::Method,
     false,    /* isInfallible. False in setters. */
-    false,    /* isMovable */
-    JSJitInfo::AliasEverything, /* aliasSet */
+    false,    /* isConstant. Only relevant for getters. */
+    false,    /* isPure */
     false,    /* isInSlot */
     0,        /* slotIndex */
     JSVAL_TYPE_UNKNOWN, /* returnType */

@@ -32,7 +32,6 @@
 #include "nsDOMMutationObserver.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/HTMLTemplateElement.h"
-#include "mozilla/dom/ShadowRoot.h"
 
 using namespace mozilla::dom;
 using mozilla::AutoJSContext;
@@ -59,12 +58,7 @@ using mozilla::AutoJSContext;
         slots->mMutationObservers, nsIMutationObserver,           \
         func_, params_);                                          \
     }                                                             \
-    ShadowRoot* shadow = ShadowRoot::FromNode(node);              \
-    if (shadow) {                                                 \
-      node = shadow->GetHost();                                   \
-    } else {                                                      \
-      node = node->GetParentNode();                               \
-    }                                                             \
+    node = node->GetParentNode();                                 \
   } while (node);                                                 \
   if (needsEnterLeave) {                                          \
     nsDOMMutationObserver::LeaveMutationHandling();               \

@@ -7,7 +7,7 @@
 #if !defined(MFTDecoder_h_)
 #define MFTDecoder_h_
 
-#include "WMF.h"
+#include "wmf.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "nsIThread.h"
