@@ -20,11 +20,11 @@
     return p;
   }
 
-  function nextRegister(reg) {
+  function nextRegister() {
     var p = navigator.serviceWorker.register("install_event_worker.js", { scope: "./*" });
 
     return new Promise(function(resolve, reject) {
-      reg.onupdatefound = function(e) {
+      navigator.serviceWorker.onupdatefound = function(e) {
         ok(true, "Received onupdatefound");
         resolve();
       };

@@ -65,7 +65,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 /****************************************************************
  ******************** nsWatcherWindowEntry **********************
@@ -887,7 +886,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     }
 
     nsCOMPtr<nsPIDOMWindow> referrerWindow =
-      do_QueryInterface(GetEntryGlobal());
+      do_QueryInterface(dom::BrokenGetEntryGlobal());
     if (!referrerWindow) {
       referrerWindow = do_QueryInterface(aParent);
     }
@@ -1346,8 +1345,18 @@ nsWindowWatcher::URIfromURL(const char *aURL,
                             nsIDOMWindow *aParent,
                             nsIURI **aURI)
 {
-  // Build the URI relative to the entry global.
-  nsCOMPtr<nsIDOMWindow> baseWindow = do_QueryInterface(GetEntryGlobal());
+  nsCOMPtr<nsIDOMWindow> baseWindow;
+
+  /* build the URI relative to the calling JS Context, if any.
+     (note this is the same context used to make the security check
+     in nsGlobalWindow.cpp.) */
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  if (cx) {
+    nsIScriptContext *scriptcx = nsJSUtils::GetDynamicScriptContext(cx);
+    if (scriptcx) {
+      baseWindow = do_QueryInterface(scriptcx->GetGlobalObject());
+    }
+  }
 
   // failing that, build it relative to the parent window, if possible
   if (!baseWindow)
@@ -1717,8 +1726,16 @@ nsWindowWatcher::FindItemWithName(const char16_t* aName,
 already_AddRefed<nsIDocShellTreeItem>
 nsWindowWatcher::GetCallerTreeItem(nsIDocShellTreeItem* aParentItem)
 {
-  nsCOMPtr<nsIWebNavigation> callerWebNav = do_GetInterface(GetEntryGlobal());
-  nsCOMPtr<nsIDocShellTreeItem> callerItem = do_QueryInterface(callerWebNav);
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  nsCOMPtr<nsIDocShellTreeItem> callerItem;
+
+  if (cx) {
+    nsCOMPtr<nsIWebNavigation> callerWebNav =
+      do_GetInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
+
+    callerItem = do_QueryInterface(callerWebNav);
+  }
+
   if (!callerItem) {
     callerItem = aParentItem;
   }

@@ -43,7 +43,7 @@ class ClientLayerManager : public LayerManager
   typedef nsTArray<nsRefPtr<Layer> > LayerRefArray;
 
 public:
-  explicit ClientLayerManager(nsIWidget* aWidget);
+  ClientLayerManager(nsIWidget* aWidget);
 
 protected:
   virtual ~ClientLayerManager();

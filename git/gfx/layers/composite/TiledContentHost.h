@@ -189,7 +189,7 @@ class TiledContentHost : public ContentHost,
                          public TiledLayerComposer
 {
 public:
-  explicit TiledContentHost(const TextureInfo& aTextureInfo);
+  TiledContentHost(const TextureInfo& aTextureInfo);
 
 protected:
   ~TiledContentHost();

@@ -849,7 +849,7 @@ ForkJoinNursery::copySlotsToTospace(JSObject *dst, JSObject *src, AllocKind dstK
 size_t
 ForkJoinNursery::copyElementsToTospace(JSObject *dst, JSObject *src, AllocKind dstKind)
 {
-    if (src->hasEmptyElements() || src->denseElementsAreCopyOnWrite())
+    if (src->hasEmptyElements())
         return 0;
 
     ObjectElements *srcHeader = src->getElementsHeader();

@@ -255,6 +255,15 @@ this.Utils = { // jshint ignore:line
     }
   },
 
+  getViewport: function getViewport(aWindow) {
+    switch (this.MozBuildApp) {
+      case 'mobile/android':
+        return aWindow.BrowserApp.selectedTab.getViewport();
+      default:
+        return null;
+    }
+  },
+
   getState: function getState(aAccessibleOrEvent) {
     if (aAccessibleOrEvent instanceof Ci.nsIAccessibleStateChangeEvent) {
       return new State(
@@ -293,37 +302,18 @@ this.Utils = { // jshint ignore:line
     return doc.QueryInterface(Ci.nsIAccessibleDocument).virtualCursor;
   },
 
-  getContentResolution: function _getContentResolution(aAccessible) {
-    let resX = { value: 1 }, resY = { value: 1 };
-    aAccessible.document.window.QueryInterface(
-      Ci.nsIInterfaceRequestor).getInterface(
-      Ci.nsIDOMWindowUtils).getResolution(resX, resY);
-    return [resX.value, resY.value];
+  getBounds: function getBounds(aAccessible) {
+      let objX = {}, objY = {}, objW = {}, objH = {};
+      aAccessible.getBounds(objX, objY, objW, objH);
+      return new Rect(objX.value, objY.value, objW.value, objH.value);
   },
 
-  getBounds: function getBounds(aAccessible, aPreserveContentScale) {
-    let objX = {}, objY = {}, objW = {}, objH = {};
-    aAccessible.getBounds(objX, objY, objW, objH);
-
-    let [scaleX, scaleY] = aPreserveContentScale ? [1, 1] :
-      this.getContentResolution(aAccessible);
-
-    return new Rect(objX.value, objY.value, objW.value, objH.value).scale(
-      scaleX, scaleY);
-  },
-
-  getTextBounds: function getTextBounds(aAccessible, aStart, aEnd,
-                                        aPreserveContentScale) {
-    let accText = aAccessible.QueryInterface(Ci.nsIAccessibleText);
-    let objX = {}, objY = {}, objW = {}, objH = {};
-    accText.getRangeExtents(aStart, aEnd, objX, objY, objW, objH,
-      Ci.nsIAccessibleCoordinateType.COORDTYPE_SCREEN_RELATIVE);
-
-    let [scaleX, scaleY] = aPreserveContentScale ? [1, 1] :
-      this.getContentResolution(aAccessible);
-
-    return new Rect(objX.value, objY.value, objW.value, objH.value).scale(
-      scaleX, scaleY);
+  getTextBounds: function getTextBounds(aAccessible, aStart, aEnd) {
+      let accText = aAccessible.QueryInterface(Ci.nsIAccessibleText);
+      let objX = {}, objY = {}, objW = {}, objH = {};
+      accText.getRangeExtents(aStart, aEnd, objX, objY, objW, objH,
+        Ci.nsIAccessibleCoordinateType.COORDTYPE_SCREEN_RELATIVE);
+      return new Rect(objX.value, objY.value, objW.value, objH.value);
   },
 
   /**

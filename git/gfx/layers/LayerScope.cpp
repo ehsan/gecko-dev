@@ -366,7 +366,7 @@ StaticAutoPtr<LayerScopeWebSocketManager> WebSocketHelper::sWebSocketManager;
  */
 class DebugGLData: public LinkedListElement<DebugGLData> {
 public:
-    explicit DebugGLData(Packet::DataType aDataType)
+    DebugGLData(Packet::DataType aDataType)
         : mDataType(aDataType)
     { }
 
@@ -399,7 +399,7 @@ public:
           mFrameStamp(aValue)
     { }
 
-    explicit DebugGLFrameStatusData(Packet::DataType aDataType)
+    DebugGLFrameStatusData(Packet::DataType aDataType)
         : DebugGLData(aDataType),
           mFrameStamp(0)
     { }
@@ -547,7 +547,7 @@ protected:
 
 class DebugGLLayersData : public DebugGLData {
 public:
-    explicit DebugGLLayersData(UniquePtr<Packet> aPacket)
+    DebugGLLayersData(UniquePtr<Packet> aPacket)
         : DebugGLData(Packet::LAYERS),
           mPacket(Move(aPacket))
     { }

@@ -38,7 +38,7 @@ bool IsGeometricProperty(nsCSSProperty aProperty);
 class CommonAnimationManager : public nsIStyleRuleProcessor,
                                public nsARefreshObserver {
 public:
-  explicit CommonAnimationManager(nsPresContext *aPresContext);
+  CommonAnimationManager(nsPresContext *aPresContext);
 
   // nsISupports
   NS_DECL_ISUPPORTS
