@@ -11,6 +11,10 @@
   cursor: pointer;
 }
 
+.selected {
+  background-color: hsl(0,0%,90%);
+}
+
 /* Give some padding to focusable elements to match the editor input
  * that will replace them. */
 span[tabindex] {

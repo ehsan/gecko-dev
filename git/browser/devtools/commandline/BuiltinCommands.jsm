@@ -600,11 +600,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     return prefService.getBranch(null).QueryInterface(Ci.nsIPrefBranch2);
   });
 
-  XPCOMUtils.defineLazyGetter(this, 'supportsString', function() {
-    return Cc["@mozilla.org/supports-string;1"]
-             .createInstance(Ci.nsISupportsString);
-  });
-
   XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                     "resource://gre/modules/NetUtil.jsm");
   XPCOMUtils.defineLazyModuleGetter(this, "console",
@@ -724,6 +719,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
           gcli.addCommand(commandSpec);
           commands.push(commandSpec.name);
         });
+
       },
       function onError(reason) {
         console.error("OS.File.read(" + aFileEntry.path + ") failed.");
@@ -737,9 +733,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
    */
   gcli.addCommand({
     name: "cmd",
-    get hidden() {
-      return !prefBranch.prefHasUserValue(PREF_DIR);
-    },
+    get hidden() { return !prefBranch.prefHasUserValue(PREF_DIR); },
     description: gcli.lookup("cmdDesc")
   });
 
@@ -749,49 +743,10 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
   gcli.addCommand({
     name: "cmd refresh",
     description: gcli.lookup("cmdRefreshDesc"),
-    get hidden() {
-      return !prefBranch.prefHasUserValue(PREF_DIR);
-    },
-    exec: function(args, context) {
+    get hidden() { return !prefBranch.prefHasUserValue(PREF_DIR); },
+    exec: function Command_cmdRefresh(args, context) {
       let chromeWindow = context.environment.chromeDocument.defaultView;
       CmdCommands.refreshAutoCommands(chromeWindow);
-
-      let dirName = prefBranch.getComplexValue(PREF_DIR,
-                                              Ci.nsISupportsString).data.trim();
-      return gcli.lookupFormat("cmdStatus", [ commands.length, dirName ]);
-    }
-  });
-
-  /**
-   * 'cmd setdir' command
-   */
-  gcli.addCommand({
-    name: "cmd setdir",
-    description: gcli.lookup("cmdSetdirDesc"),
-    params: [
-      {
-        name: "directory",
-        description: gcli.lookup("cmdSetdirDirectoryDesc"),
-        type: {
-          name: "file",
-          filetype: "directory",
-          existing: "yes"
-        },
-        defaultValue: null
-      }
-    ],
-    returnType: "string",
-    get hidden() {
-      return true; // !prefBranch.prefHasUserValue(PREF_DIR);
-    },
-    exec: function(args, context) {
-      supportsString.data = args.directory;
-      prefBranch.setComplexValue(PREF_DIR, Ci.nsISupportsString, supportsString);
-
-      let chromeWindow = context.environment.chromeDocument.defaultView;
-      CmdCommands.refreshAutoCommands(chromeWindow);
-
-      return gcli.lookupFormat("cmdStatus", [ commands.length, args.directory ]);
     }
   });
 }(this));
@@ -1538,11 +1493,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     params: [
       {
         name: "srcdir",
-        type: "string" /* {
-          name: "file",
-          filetype: "directory",
-          existing: "yes"
-        } */,
+        type: "string",
         description: gcli.lookup("toolsSrcdirDir")
       }
     ],

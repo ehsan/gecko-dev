@@ -137,8 +137,7 @@ function test() {
       info("XXX BUG 851296: 'on' received.");
       executeSoon(onUIOpen2);
     });
-    //XXX BUG 851296: synthesizeKeyFromKeyTag("key_responsiveUI");
-    mgr.toggle(window, gBrowser.selectedTab);
+    synthesizeKeyFromKeyTag("key_responsiveUI");
     info("XXX BUG 851296: restart() finished.");
   }
 
