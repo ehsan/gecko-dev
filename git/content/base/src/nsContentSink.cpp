@@ -641,7 +641,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
     while (*end != kNullCh && *end != kSemicolon && *end != kComma) {
       PRUnichar ch = *end;
 
-      if (ch == kQuote || ch == kLessThan) {
+      if (ch == kApostrophe || ch == kQuote || ch == kLessThan) {
         // quoted string
 
         PRUnichar quote = ch;
@@ -723,7 +723,8 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
             value++;
           }
 
-          if ((*value == kQuote) && (*value == *last)) {
+          if (((*value == kApostrophe) || (*value == kQuote)) &&
+              (*value == *last)) {
             *last = kNullCh;
             value++;
           }
