@@ -1904,7 +1904,7 @@ TraceRecorder::checkType(jsval& v, uint8 t, bool& unstable)
         if (!isNumber(v))
             return false; /* not a number? type mismatch */
         LIns* i = get(&v);
-        if (!isPromoteInt(i)) {
+        if (!isi2f(i)) {
             debug_only_v(printf("int slot is !isInt32, slot #%d, triggering re-compilation\n",
                                 !isGlobal(&v)
                                 ? nativeStackOffset(&v)
@@ -1913,10 +1913,12 @@ TraceRecorder::checkType(jsval& v, uint8 t, bool& unstable)
             unstable = true;
             return true; /* keep checking types, but request re-compilation */
         }
-        /* Looks good, slot is an int32, the last instruction should be promotable. */
-        JS_ASSERT(isInt32(v) && isPromoteInt(i));
-        /* Overwrite the value in this slot with the argument promoted back to an integer. */
-        set(&v, f2i(i));
+        /* Looks good, slot is an int32, the last instruction should be i2f. */
+        JS_ASSERT(isInt32(v) && (i->isop(LIR_i2f) || i->isop(LIR_qjoin)));
+        /* We got the final LIR_i2f as we expected. Overwrite the value in that
+           slot with the argument of i2f since we want the integer store to flow along
+           the loop edge, not the casted value. */
+        set(&v, iu2fArg(i));
         return true;
     }
     if (t == JSVAL_DOUBLE) {
@@ -4065,17 +4067,16 @@ TraceRecorder::getThis(LIns*& this_ins)
 bool
 TraceRecorder::guardClass(JSObject* obj, LIns* obj_ins, JSClass* clasp)
 {
-    if (STOBJ_GET_CLASS(obj) != clasp)
-        return false;
+    bool cond = STOBJ_GET_CLASS(obj) == clasp;
 
     LIns* class_ins = lir->insLoad(LIR_ldp, obj_ins, offsetof(JSObject, classword));
     class_ins = lir->ins2(LIR_piand, class_ins, lir->insImm(~3));
 
     char namebuf[32];
     JS_snprintf(namebuf, sizeof namebuf, "guard(class is %s)", clasp->name);
-    guard(true, addName(lir->ins2(LIR_eq, class_ins, INS_CONSTPTR(clasp)), namebuf),
+    guard(cond, addName(lir->ins2(LIR_eq, class_ins, INS_CONSTPTR(clasp)), namebuf),
           MISMATCH_EXIT);
-    return true;
+    return cond;
 }
 
 bool
@@ -4089,22 +4090,19 @@ TraceRecorder::guardDenseArrayIndex(JSObject* obj, jsint idx, LIns* obj_ins,
                                     LIns* dslots_ins, LIns* idx_ins, ExitType exitType)
 {
     jsuint length = ARRAY_DENSE_LENGTH(obj);
-    if (!((jsuint)idx < length && idx < obj->fslots[JSSLOT_ARRAY_LENGTH]))
-        return false;
+    bool cond = ((jsuint)idx < length && idx < obj->fslots[JSSLOT_ARRAY_LENGTH]);
 
     LIns* length_ins = stobj_get_fslot(obj_ins, JSSLOT_ARRAY_LENGTH);
+    LIns* capacity_ins = lir->insLoad(LIR_ldp, dslots_ins, 0 - (int)sizeof(jsval));
 
-    // guard(0 <= index && index < length)
-    guard(true, lir->ins2(LIR_ult, idx_ins, length_ins), exitType);
+    LIns* min_ins = lir->ins_choose(lir->ins2(LIR_ult, length_ins, capacity_ins),
+                                    length_ins,
+                                    capacity_ins);
+    
+    // guard(0 <= index && index < min(length, capacity))
+    guard(cond, lir->ins2(LIR_ult, idx_ins, min_ins), exitType);
 
-    // At this point, the guard above => 0 < length <=> obj->dslots != null.
-    JS_ASSERT(obj->dslots);
-
-    // guard(index < capacity)
-    guard(true,
-          lir->ins2(LIR_lt, idx_ins, lir->insLoad(LIR_ldp, dslots_ins, 0 - (int)sizeof(jsval))),
-          MISMATCH_EXIT);
-    return true;
+    return cond;
 }
 
 /*
