@@ -62,20 +62,21 @@ LayerManager::GetPrimaryScrollableLayer()
   nsTArray<Layer*> queue;
   queue.AppendElement(mRoot);
   while (queue.Length()) {
-    Layer* layer = queue[0];
+    ContainerLayer* containerLayer = queue[0]->AsContainerLayer();
     queue.RemoveElementAt(0);
-
-    const FrameMetrics& frameMetrics = layer->GetFrameMetrics();
-    if (frameMetrics.IsScrollable()) {
-      return layer;
+    if (!containerLayer) {
+      continue;
     }
 
-    if (ContainerLayer* containerLayer = layer->AsContainerLayer()) {
-      Layer* child = containerLayer->GetFirstChild();
-      while (child) {
-        queue.AppendElement(child);
-        child = child->GetNextSibling();
-      }
+    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
+      return containerLayer;
+    }
+
+    Layer* child = containerLayer->GetFirstChild();
+    while (child) {
+      queue.AppendElement(child);
+      child = child->GetNextSibling();
     }
   }
 
@@ -92,21 +93,22 @@ LayerManager::GetScrollableLayers(nsTArray<Layer*>& aArray)
   nsTArray<Layer*> queue;
   queue.AppendElement(mRoot);
   while (!queue.IsEmpty()) {
-    Layer* layer = queue.LastElement();
+    ContainerLayer* containerLayer = queue.LastElement()->AsContainerLayer();
     queue.RemoveElementAt(queue.Length() - 1);
-
-    const FrameMetrics& frameMetrics = layer->GetFrameMetrics();
-    if (frameMetrics.IsScrollable()) {
-      aArray.AppendElement(layer);
+    if (!containerLayer) {
       continue;
     }
 
-    if (ContainerLayer* containerLayer = layer->AsContainerLayer()) {
-      Layer* child = containerLayer->GetFirstChild();
-      while (child) {
-        queue.AppendElement(child);
-        child = child->GetNextSibling();
-      }
+    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
+      aArray.AppendElement(containerLayer);
+      continue;
+    }
+
+    Layer* child = containerLayer->GetFirstChild();
+    while (child) {
+      queue.AppendElement(child);
+      child = child->GetNextSibling();
     }
   }
 }

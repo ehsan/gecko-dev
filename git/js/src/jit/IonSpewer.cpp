@@ -9,8 +9,6 @@
 #include "jit/IonSpewer.h"
 
 #include "jit/Ion.h"
-#include "jit/MIR.h"
-
 #include "vm/HelperThreads.h"
 
 #ifndef ION_SPEW_DIR
@@ -236,7 +234,6 @@ jit::CheckLogging()
             "  aborts     Compilation abort messages\n"
             "  scripts    Compiled scripts\n"
             "  mir        MIR information\n"
-            "  escape     Escape analysis\n"
             "  alias      Alias analysis\n"
             "  gvn        Global Value Numbering\n"
             "  licm       Loop invariant code motion\n"
@@ -272,8 +269,6 @@ jit::CheckLogging()
     }
     if (ContainsFlag(env, "aborts"))
         EnableChannel(IonSpew_Abort);
-    if (ContainsFlag(env, "escape"))
-        EnableChannel(IonSpew_Escape);
     if (ContainsFlag(env, "alias"))
         EnableChannel(IonSpew_Alias);
     if (ContainsFlag(env, "scripts"))
@@ -387,18 +382,6 @@ jit::IonSpew(IonSpewChannel channel, const char *fmt, ...)
     va_start(ap, fmt);
     IonSpewVA(channel, fmt, ap);
     va_end(ap);
-}
-
-void
-jit::IonSpewDef(IonSpewChannel channel, const char *str, MDefinition *def)
-{
-    if (!IonSpewEnabled(channel))
-        return;
-
-    IonSpewHeader(channel);
-    fprintf(IonSpewFile, str);
-    def->dump(IonSpewFile);
-    def->dumpLocation(IonSpewFile);
 }
 
 void

@@ -15,7 +15,11 @@ function handleRequest(request, response)
 
   // CSP header value
   if (query["csp"] == 1) {
-    response.setHeader("Content-Security-Policy", "default-src 'self' ; style-src 'self' 'unsafe-inline'", false);
+    if (query["spec"] == 1) {
+      response.setHeader("Content-Security-Policy", "default-src 'self' ; style-src 'self' 'unsafe-inline'", false);
+    } else {
+      response.setHeader("X-Content-Security-Policy", "allow 'self'", false);
+    }
   }
 
   // downloadable font that redirects to another site

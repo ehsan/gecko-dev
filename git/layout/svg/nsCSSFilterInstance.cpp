@@ -16,18 +16,6 @@
 using namespace mozilla;
 using namespace mozilla::gfx;
 
-static float ClampFactor(float aFactor)
-{
-  if (aFactor > 1) {
-    return 1;
-  } else if (aFactor < 0) {
-    NS_NOTREACHED("A negative value should not have been parsed.");
-    return 0;
-  }
-
-  return aFactor;
-}
-
 nsCSSFilterInstance::nsCSSFilterInstance(const nsStyleFilter& aFilter,
                                          nsIFrame *aTargetFrame,
                                          const nsIntRect& aTargetBBoxInFilterSpace,
@@ -59,9 +47,7 @@ nsCSSFilterInstance::BuildPrimitives(nsTArray<FilterPrimitiveDescription>& aPrim
       result = SetAttributesForDropShadow(descr);
       break;
     case NS_STYLE_FILTER_GRAYSCALE:
-      descr = CreatePrimitiveDescription(PrimitiveType::ColorMatrix, aPrimitiveDescrs);
-      result = SetAttributesForGrayscale(descr);
-      break;
+      return NS_ERROR_NOT_IMPLEMENTED;
     case NS_STYLE_FILTER_HUE_ROTATE:
       descr = CreatePrimitiveDescription(PrimitiveType::ColorMatrix, aPrimitiveDescrs);
       result = SetAttributesForHueRotate(descr);
@@ -75,9 +61,7 @@ nsCSSFilterInstance::BuildPrimitives(nsTArray<FilterPrimitiveDescription>& aPrim
       result = SetAttributesForSaturate(descr);
       break;
     case NS_STYLE_FILTER_SEPIA:
-      descr = CreatePrimitiveDescription(PrimitiveType::ColorMatrix, aPrimitiveDescrs);
-      result = SetAttributesForSepia(descr);
-      break;
+      return NS_ERROR_NOT_IMPLEMENTED;
     default:
       NS_NOTREACHED("not a valid CSS filter type");
       return NS_ERROR_FAILURE;
@@ -150,20 +134,6 @@ nsCSSFilterInstance::SetAttributesForDropShadow(FilterPrimitiveDescription& aDes
 }
 
 nsresult
-nsCSSFilterInstance::SetAttributesForGrayscale(FilterPrimitiveDescription& aDescr)
-{
-  // Set color matrix type.
-  aDescr.Attributes().Set(eColorMatrixType, (uint32_t)SVG_FECOLORMATRIX_TYPE_SATURATE);
-
-  // Set color matrix values.
-  const nsStyleCoord& styleValue = mFilter.GetFilterParameter();
-  float value = 1 - ClampFactor(styleValue.GetFactorOrPercentValue());
-  aDescr.Attributes().Set(eColorMatrixValues, &value, 1);
-
-  return NS_OK;
-}
-
-nsresult
 nsCSSFilterInstance::SetAttributesForHueRotate(FilterPrimitiveDescription& aDescr)
 {
   // Set color matrix type.
@@ -186,20 +156,6 @@ nsCSSFilterInstance::SetAttributesForSaturate(FilterPrimitiveDescription& aDescr
   // Set color matrix values.
   const nsStyleCoord& styleValue = mFilter.GetFilterParameter();
   float value = styleValue.GetFactorOrPercentValue();
-  aDescr.Attributes().Set(eColorMatrixValues, &value, 1);
-
-  return NS_OK;
-}
-
-nsresult
-nsCSSFilterInstance::SetAttributesForSepia(FilterPrimitiveDescription& aDescr)
-{
-  // Set color matrix type.
-  aDescr.Attributes().Set(eColorMatrixType, (uint32_t)SVG_FECOLORMATRIX_TYPE_SEPIA);
-
-  // Set color matrix values.
-  const nsStyleCoord& styleValue = mFilter.GetFilterParameter();
-  float value = ClampFactor(styleValue.GetFactorOrPercentValue());
   aDescr.Attributes().Set(eColorMatrixValues, &value, 1);
 
   return NS_OK;

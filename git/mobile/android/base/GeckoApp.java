@@ -450,29 +450,11 @@ public abstract class GeckoApp
                     try {
                         clearObj.put(clear, true);
                     } catch(JSONException ex) {
-                        Log.e(LOGTAG, "Error adding clear object " + clear, ex);
+                        Log.i(LOGTAG, "Error adding clear object " + clear);
                     }
                 }
 
-                final JSONObject res = new JSONObject();
-                try {
-                    res.put("sanitize", clearObj);
-                } catch(JSONException ex) {
-                    Log.e(LOGTAG, "Error adding sanitize object", ex);
-                }
-
-                // If the user has opted out of session restore, and does want to clear history
-                // we also want to prevent the current session info from being saved.
-                if (clearObj.has("private.data.history")) {
-                    final String sessionRestore = getSessionRestorePreference();
-                    try {
-                        res.put("dontSaveSession", "quit".equals(sessionRestore));
-                    } catch(JSONException ex) {
-                        Log.e(LOGTAG, "Error adding session restore data", ex);
-                    }
-                }
-
-                GeckoAppShell.notifyGeckoOfEvent(GeckoEvent.createBroadcastEvent("Browser:Quit", res.toString()));
+                GeckoAppShell.notifyGeckoOfEvent(GeckoEvent.createBroadcastEvent("Browser:Quit", clearObj.toString()));
             } else {
                 GeckoAppShell.systemExit();
             }

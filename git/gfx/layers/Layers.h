@@ -343,8 +343,7 @@ public:
 
   /**
    * Returns a list of all descendant layers for which
-   * GetFrameMetrics().IsScrollable() is true and that
-   * do not already have an ancestor in the return list.
+   * GetFrameMetrics().IsScrollable() is true.
    */
   void GetScrollableLayers(nsTArray<Layer*>& aArray);
 

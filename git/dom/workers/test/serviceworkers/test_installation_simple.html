@@ -108,6 +108,7 @@
 
   // FIXME(nsm): test for parse error when Update step doesn't happen (directly from register).
 
+  /* FIXME bug 1002571 - re-enable this test when GetRegistration is implemented.
   function updatefound() {
     var frame = document.createElement("iframe");
     frame.setAttribute("id", "simpleregister-frame");
@@ -124,9 +125,9 @@
     }
 
     window.onmessage = function(e) {
-      if (e.data.type == "ready") {
+      if (e.data == "ready") {
         continueTest();
-      } else if (e.data.type == "finish") {
+      } else if (e.data == "updatefound") {
         window.onmessage = null;
         // We have to make frame navigate away, otherwise it will call
         // MaybeStopControlling() when this document is unloaded. At that point
@@ -134,12 +135,11 @@
         // return since it is currently gated.
         frame.setAttribute("src", new URL("about:blank").href);
         resolve();
-      } else if (e.data.type == "check") {
-        ok(e.data.status, e.data.msg);
       }
     }
     return p;
   }
+  */
 
   function runTest() {
     simpleRegister()
@@ -150,7 +150,6 @@
       .then(abortPrevious)
       .then(networkError404)
       .then(parseError)
-      .then(updatefound)
       // put more tests here.
       .then(function() {
         SimpleTest.finish();

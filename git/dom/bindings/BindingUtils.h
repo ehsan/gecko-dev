@@ -2937,10 +2937,6 @@ AssertReturnTypeMatchesJitinfo(const JSJitInfo* aJitinfo,
 bool
 CheckPermissions(JSContext* aCx, JSObject* aObj, const char* const aPermissions[]);
 
-//Returns true if page is being prerendered.
-bool
-CheckSafetyInPrerendering(JSContext* aCx, JSObject* aObj);
-
 bool
 CallerSubsumes(JSObject* aObject);
 

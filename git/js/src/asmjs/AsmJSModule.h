@@ -827,7 +827,6 @@ class AsmJSModule
 
     void requireHeapLengthToBeAtLeast(uint32_t len) {
         JS_ASSERT(isFinishedWithModulePrologue() && !isFinishedWithFunctionBodies());
-        len = RoundUpToNextValidAsmJSHeapLength(len);
         if (len > pod.minHeapLength_)
             pod.minHeapLength_ = len;
     }

@@ -55,6 +55,7 @@ class Promise MOZ_FINAL : public nsISupports,
                           public SupportsWeakPtr<Promise>
 {
   friend class NativePromiseCallback;
+  friend class PromiseResolverMixin;
   friend class PromiseResolverTask;
   friend class PromiseTask;
   friend class PromiseReportRejectFeature;
@@ -62,7 +63,9 @@ class Promise MOZ_FINAL : public nsISupports,
   friend class PromiseWorkerProxyRunnable;
   friend class RejectPromiseCallback;
   friend class ResolvePromiseCallback;
-  friend class ThenableResolverTask;
+  friend class ThenableResolverMixin;
+  friend class WorkerPromiseResolverTask;
+  friend class WorkerPromiseTask;
   friend class WrapperPromiseCallback;
 
   ~Promise();
@@ -188,10 +191,6 @@ private:
   {
     mResult = aValue;
   }
-
-  // Queue an async task to current main or worker thread.
-  static void
-  DispatchToMainOrWorkerThread(nsIRunnable* aRunnable);
 
   // This method processes promise's resolve/reject callbacks with promise's
   // result. It's executed when the resolver.resolve() or resolver.reject() is
