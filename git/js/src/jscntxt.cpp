@@ -1132,6 +1132,7 @@ JSContext::JSContext(JSRuntime *rt)
     savedFrameChains_(),
     defaultCompartmentObject_(NULL),
     stack(thisDuringConstruction()),
+    parseMapPool_(NULL),
     cycleDetectorSet(thisDuringConstruction()),
     errorReporter(NULL),
     operationCallback(NULL),
@@ -1146,12 +1147,12 @@ JSContext::JSContext(JSRuntime *rt)
 #ifdef MOZ_TRACE_JSCALLS
     functionCallback(NULL),
 #endif
-    innermostGenerator_(NULL)
-{
+    innermostGenerator_(NULL),
 #ifdef DEBUG
-    stackIterAssertionEnabled = true;
+    stackIterAssertionEnabled(true),
 #endif
-
+    activeCompilations(0)
+{
     JS_ASSERT(static_cast<ContextFriendFields*>(this) ==
               ContextFriendFields::get(this));
 
@@ -1166,6 +1167,9 @@ JSContext::JSContext(JSRuntime *rt)
 JSContext::~JSContext()
 {
     /* Free the stuff hanging off of cx. */
+    if (parseMapPool_)
+        js_delete(parseMapPool_);
+
     JS_ASSERT(!resolvingList);
 }
 
@@ -1352,6 +1356,15 @@ JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
     if (cx)
         js_ReportOutOfMemory(cx);
     return NULL;
+}
+
+void
+JSContext::purge()
+{
+    if (!activeCompilations) {
+        js_delete(parseMapPool_);
+        parseMapPool_ = NULL;
+    }
 }
 
 static bool

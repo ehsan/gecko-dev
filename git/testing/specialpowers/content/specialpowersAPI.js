@@ -58,10 +58,6 @@ function unwrapIfWrapped(x) {
   return isWrapper(x) ? unwrapPrivileged(x) : x;
 };
 
-function wrapIfUnwrapped(x) {
-  return isWrapper(x) ? x : wrapPrivileged(x);
-}
-
 function isXrayWrapper(x) {
   return Cu.isXrayWrapper(x);
 }
@@ -399,24 +395,6 @@ SPConsoleListener.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIConsoleListener])
 };
 
-function wrapCallback(cb) {
-  return function SpecialPowersCallbackWrapper() {
-    args = Array.prototype.map.call(arguments, wrapIfUnwrapped);
-    return cb.apply(this, args);
-  }
-}
-
-function wrapCallbackObject(obj) {
-  wrapper = { __exposedProps__: ExposedPropsWaiver };
-  for (var i in obj) {
-    if (typeof obj[i] == 'function')
-      wrapper[i] = wrapCallback(obj[i]);
-    else
-      wrapper[i] = obj[i];
-  }
-  return wrapper;
-}
-
 SpecialPowersAPI.prototype = {
 
   /*
@@ -447,39 +425,9 @@ SpecialPowersAPI.prototype = {
    *    properties. This is explained in a comment in the wrapper code above,
    *    and shouldn't be a problem.
    */
-  wrap: wrapIfUnwrapped,
+  wrap: function(obj) { return isWrapper(obj) ? obj : wrapPrivileged(obj); },
   unwrap: unwrapIfWrapped,
   isWrapper: isWrapper,
-
-  /*
-   * When content needs to pass a callback or a callback object to an API
-   * accessed over SpecialPowers, that API may sometimes receive arguments for
-   * whom it is forbidden to create a wrapper in content scopes. As such, we
-   * need a layer to wrap the values in SpecialPowers wrappers before they ever
-   * reach content.
-   */
-  wrapCallback: wrapCallback,
-  wrapCallbackObject: wrapCallbackObject,
-
-  /*
-   * Create blank privileged objects to use as out-params for privileged functions.
-   */
-  createBlankObject: function () {
-    var obj = new Object;
-    obj.__exposedProps__ = ExposedPropsWaiver;
-    return obj;
-  },
-
-  /*
-   * Because SpecialPowers wrappers don't preserve identity, comparing with ==
-   * can be hazardous. Sometimes we can just unwrap to compare, but sometimes
-   * wrapping the underlying object into a content scope is forbidden. This
-   * function strips any wrappers if they exist and compare the underlying
-   * values.
-   */
-  compare: function(a, b) {
-    return unwrapIfWrapped(a) === unwrapIfWrapped(b);
-  },
 
   get MockFilePicker() {
     return MockFilePicker
@@ -905,8 +853,6 @@ SpecialPowersAPI.prototype = {
   },
 
   addObserver: function(obs, notification, weak) {
-    if (typeof obs == 'object' && obs.observe.name != 'SpecialPowersCallbackWrapper')
-      obs.observe = wrapCallback(obs.observe);
     var obsvc = Cc['@mozilla.org/observer-service;1']
                    .getService(Ci.nsIObserverService);
     obsvc.addObserver(obs, notification, weak);
@@ -1267,6 +1213,18 @@ SpecialPowersAPI.prototype = {
     Components.classes["@mozilla.org/categorymanager;1"].
       getService(Components.interfaces.nsICategoryManager).
       addCategoryEntry(category, entry, value, persists, replace);
+  },
+
+  getNodePrincipal: function(aNode) {
+      return aNode.nodePrincipal;
+  },
+
+  getNodeBaseURIObject: function(aNode) {
+      return aNode.baseURIObject;
+  },
+
+  getDocumentURIObject: function(aDocument) {
+      return aDocument.documentURIObject;
   },
 
   copyString: function(str, doc) {

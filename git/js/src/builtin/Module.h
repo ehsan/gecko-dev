@@ -13,25 +13,31 @@ namespace js {
 
 class Module : public JSObject {
   public:
-    static Module *create(JSContext *cx, js::HandleAtom atom);
-
     JSAtom *atom() {
         return &getReservedSlot(ATOM_SLOT).toString()->asAtom();
+    };
+
+    void setAtom(JSAtom *atom) {
+        setReservedSlot(ATOM_SLOT, StringValue(atom));
     };
 
     JSScript *script() {
         return (JSScript *) getReservedSlot(SCRIPT_SLOT).toPrivate();
     }
 
-  private:
-    inline void setAtom(JSAtom *atom);
-    inline void setScript(JSScript *script);
+    void setScript(JSScript *script) {
+        setReservedSlot(SCRIPT_SLOT, PrivateValue(script));
+    }
 
+  private:
     static const uint32_t ATOM_SLOT = 0;
     static const uint32_t SCRIPT_SLOT = 1;
 };
 
 } // namespace js
+
+js::Module *
+js_NewModule(JSContext *cx, js::HandleAtom atom);
 
 inline js::Module &
 JSObject::asModule()

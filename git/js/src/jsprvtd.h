@@ -56,7 +56,13 @@ typedef struct JSStackHeader        JSStackHeader;
 typedef struct JSSubString          JSSubString;
 typedef struct JSSpecializedNative  JSSpecializedNative;
 
-/* String typedefs. */
+/*
+ * Template declarations.
+ *
+ * jsprvtd.h can be included in both C and C++ translation units. For C++, it
+ * may possibly be wrapped in an extern "C" block which does not agree with
+ * templates.
+ */
 class JSDependentString;
 class JSExtensibleString;
 class JSExternalString;
@@ -70,7 +76,6 @@ namespace js {
 struct ArgumentsData;
 struct Class;
 
-class AutoNameVector;
 class RegExpGuard;
 class RegExpObject;
 class RegExpObjectBuilder;
@@ -104,7 +109,6 @@ class ContextStack;
 class ScriptFrameIter;
 
 class Proxy;
-class JS_FRIEND_API(AutoEnterPolicy);
 class JS_FRIEND_API(BaseProxyHandler);
 class JS_FRIEND_API(Wrapper);
 class JS_FRIEND_API(CrossCompartmentWrapper);
@@ -140,8 +144,6 @@ typedef JSNative             Native;
 typedef JSPropertyOp         PropertyOp;
 typedef JSStrictPropertyOp   StrictPropertyOp;
 typedef JSPropertyDescriptor PropertyDescriptor;
-
-struct SourceCompressionToken;
 
 namespace frontend {
 
