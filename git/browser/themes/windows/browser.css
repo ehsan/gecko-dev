@@ -122,13 +122,19 @@
  * text and icons to not appear fuzzy.
  */
 @media (-moz-windows-classic) {
-  /**
-   * We need to bump up the z-index of the tabbrowser-tabs so that they appear
-   * over top of the fog we're applying for classic themes, as well as the nav-bar.
-   */
-  #main-window[tabsintitlebar]:not([sizemode=fullscreen]) #tabbrowser-tabs {
+  #main-window[tabsintitlebar]:not([sizemode=fullscreen]) .tabbrowser-tab[selected=true] {
+    position: relative;
+    z-index: 3;
+  }
+
+  #main-window[tabsintitlebar]:not([sizemode=fullscreen]) .tabbrowser-tab:not([selected=true]) {
     position: relative;
     z-index: 2;
+  }
+
+  #main-window[tabsintitlebar]:not([sizemode=fullscreen]) .tabs-newtab-button {
+    position: relative;
+    z-index: 1;
   }
 
   #main-window[tabsintitlebar] #TabsToolbar:not(:-moz-lwtheme) {
@@ -152,6 +158,7 @@
     pointer-events: none;
     top: 100%;
     width: -moz-available;
+    z-index: 0;
   }
 
   #main-window[tabsintitlebar]:not([sizemode=fullscreen]) #TabsToolbar:not(:-moz-lwtheme):-moz-window-inactive::after {
@@ -168,29 +175,15 @@
     overflow: -moz-hidden-unscrollable;
   }
 
-  /**
-   * When the tabstrip is overflowed, pinned tab separators get position: absolute,
-   * which makes the pinned tab separators leak over the nav-bar highlight. Forcing
-   * the element to snap to the bottom of the client rect works around the issue.
-   */
-  #main-window[tabsintitlebar] #tabbrowser-tabs[positionpinnedtabs] > .tabbrowser-tab[pinned]::before {
-    bottom: 0px;
-  }
-
-  #main-window[tabsintitlebar]:not([sizemode=fullscreen]) #TabsToolbar .toolbarbutton-1 {
+  #main-window[tabsintitlebar][sizemode=normal] .tabbrowser-arrowscrollbox > .arrowscrollbox-scrollbox > .scrollbox-innerbox:not(:-moz-lwtheme) {
     position: relative;
-    z-index: 1;
   }
 
-  /**
-   * With the tabbrowser-tabs element z-index'd above the nav-bar, we now get the
-   * scrollbox button borders leaking over the nav-bar highlight. This transparent bottom
-   * border forces the scrollbox button borders to terminate a pixel early, working
-   * around the issue.
-   */
+  #main-window[tabsintitlebar]:not([sizemode=fullscreen]) #TabsToolbar .toolbarbutton-1,
   #main-window[tabsintitlebar]:not([sizemode=fullscreen]) .tabbrowser-arrowscrollbox > .scrollbutton-up,
   #main-window[tabsintitlebar]:not([sizemode=fullscreen]) .tabbrowser-arrowscrollbox > .scrollbutton-down {
-    border-bottom: 1px solid transparent;
+    position: relative;
+    z-index: 1;
   }
 
   #main-window[tabsintitlebar]:not([inFullscreen]) .tab-close-button:not(:-moz-any(:hover,:-moz-lwtheme,[selected="true"])) {
