@@ -8,7 +8,7 @@
 
 #include "vm/RegExpStaticsObject.h"
 
-#include "vm/ObjectImpl-inl.h"
+#include "jsobjinlines.h"
 
 using namespace js;
 
@@ -22,14 +22,14 @@ using namespace js;
 static void
 resc_finalize(FreeOp *fop, JSObject *obj)
 {
-    RegExpStatics *res = static_cast<RegExpStatics *>(obj->as<NativeObject>().getPrivate());
+    RegExpStatics *res = static_cast<RegExpStatics *>(obj->getPrivate());
     fop->delete_(res);
 }
 
 static void
 resc_trace(JSTracer *trc, JSObject *obj)
 {
-    void *pdata = obj->as<NativeObject>().getPrivate();
+    void *pdata = obj->getPrivate();
     MOZ_ASSERT(pdata);
     RegExpStatics *res = static_cast<RegExpStatics *>(pdata);
     res->mark(trc);
@@ -52,17 +52,17 @@ const Class RegExpStaticsObject::class_ = {
     resc_trace
 };
 
-RegExpStaticsObject *
+JSObject *
 RegExpStatics::create(ExclusiveContext *cx, GlobalObject *parent)
 {
-    NativeObject *obj = NewNativeObjectWithGivenProto(cx, &RegExpStaticsObject::class_, nullptr, parent);
+    JSObject *obj = NewObjectWithGivenProto(cx, &RegExpStaticsObject::class_, nullptr, parent);
     if (!obj)
         return nullptr;
     RegExpStatics *res = cx->new_<RegExpStatics>();
     if (!res)
         return nullptr;
     obj->setPrivate(static_cast<void *>(res));
-    return &obj->as<RegExpStaticsObject>();
+    return obj;
 }
 
 void

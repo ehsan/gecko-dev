@@ -15,12 +15,11 @@
 #include "mozilla/TypeTraits.h"
 
 #include "jslock.h"
+#include "jsobj.h"
 
 #include "js/GCAPI.h"
 #include "js/SliceBudget.h"
 #include "js/Vector.h"
-
-#include "vm/ObjectImpl.h"
 
 namespace js {
 
@@ -216,7 +215,7 @@ GetGCArrayKind(size_t numSlots)
      * unused.
      */
     JS_STATIC_ASSERT(ObjectElements::VALUES_PER_HEADER == 2);
-    if (numSlots > NativeObject::NELEMENTS_LIMIT || numSlots + 2 >= SLOTS_TO_THING_KIND_LIMIT)
+    if (numSlots > JSObject::NELEMENTS_LIMIT || numSlots + 2 >= SLOTS_TO_THING_KIND_LIMIT)
         return FINALIZE_OBJECT2;
     return slotsToThingKind[numSlots + 2];
 }
@@ -1188,7 +1187,7 @@ class RelocationOverlay
     static const uintptr_t Relocated = uintptr_t(0xbad0bad1);
 
     // Putting the magic value after the forwarding pointer is a terrible hack
-    // to make JSObject::zone() work on forwarded objects.
+    // to make ObjectImpl::zone() work on forwarded objects.
 
     /* The location |this| was moved to. */
     Cell *newLocation_;
@@ -1215,7 +1214,7 @@ class RelocationOverlay
 
     void forwardTo(Cell *cell) {
         MOZ_ASSERT(!isForwarded());
-        MOZ_ASSERT(JSObject::offsetOfShape() == offsetof(RelocationOverlay, newLocation_));
+        MOZ_ASSERT(ObjectImpl::offsetOfShape() == offsetof(RelocationOverlay, newLocation_));
         newLocation_ = cell;
         magic_ = Relocated;
         next_ = nullptr;

@@ -23,7 +23,6 @@
 #include "vm/SavedStacks.h"
 
 #include "vm/Debugger-inl.h"
-#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 
@@ -39,8 +38,8 @@ DebuggerMemory::create(JSContext *cx, Debugger *dbg)
 {
 
     Value memoryProto = dbg->object->getReservedSlot(Debugger::JSSLOT_DEBUG_MEMORY_PROTO);
-    RootedNativeObject memory(cx, NewNativeObjectWithGivenProto(cx, &class_,
-                                                                &memoryProto.toObject(), nullptr));
+    RootedObject memory(cx, NewObjectWithGivenProto(cx, &class_,
+                                                    &memoryProto.toObject(), nullptr));
     if (!memory)
         return nullptr;
 
@@ -100,7 +99,7 @@ DebuggerMemory::checkThis(JSContext *cx, CallArgs &args, const char *fnName)
     // Debugger.Memory instances, however doesn't actually represent an instance
     // of Debugger.Memory. It is the only object that is<DebuggerMemory>() but
     // doesn't have a Debugger instance.
-    if (thisObject.as<DebuggerMemory>().getReservedSlot(JSSLOT_DEBUGGER).isUndefined()) {
+    if (thisObject.getReservedSlot(JSSLOT_DEBUGGER).isUndefined()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              class_.name, fnName, "prototype object");
         return nullptr;
@@ -193,7 +192,7 @@ DebuggerMemory::drainAllocationsLog(JSContext *cx, unsigned argc, Value *vp)
 
     size_t length = dbg->allocationsLogLength;
 
-    RootedArrayObject result(cx, NewDenseFullyAllocatedArray(cx, length));
+    RootedObject result(cx, NewDenseFullyAllocatedArray(cx, length));
     if (!result)
         return false;
     result->ensureDenseInitializedLength(cx, 0, length);

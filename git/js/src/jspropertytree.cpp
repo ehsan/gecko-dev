@@ -278,10 +278,10 @@ Shape::fixupDictionaryShapeAfterMovingGC()
         return;
 
     // It's possible that this shape is unreachable and that listp points to the
-    // location of a dead object in the nursery, in which case we should never
-    // touch it again.
+    // location of a dead object in the nursery. In this case we should never
+    // touch it again, so poison it for good measure.
     if (IsInsideNursery(reinterpret_cast<Cell *>(listp))) {
-        listp = nullptr;
+        JS_POISON(reinterpret_cast<void *>(this), JS_SWEPT_TENURED_PATTERN, sizeof(Shape));
         return;
     }
 

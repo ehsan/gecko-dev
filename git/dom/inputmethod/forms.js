@@ -1180,6 +1180,7 @@ function replaceSurroundingText(element, text, selectionStart, selectionEnd,
 
 let CompositionManager =  {
   _isStarted: false,
+  _text: '',
   _clauseAttrMap: {
     'raw-input':
       Ci.nsICompositionStringSynthesizer.ATTR_RAWINPUT,
@@ -1232,9 +1233,14 @@ let CompositionManager =  {
     if (!this._isStarted) {
       this._isStarted = true;
       domWindowUtils.sendCompositionEvent('compositionstart', '', '');
+      this._text = '';
     }
 
     // Update the composing text.
+    if (this._text !== text) {
+      this._text = text;
+      domWindowUtils.sendCompositionEvent('compositionupdate', text, '');
+    }
     let compositionString = domWindowUtils.createCompositionStringSynthesizer();
     compositionString.setString(text);
     for (var i = 0; i < clauseLens.length; i++) {
@@ -1251,6 +1257,9 @@ let CompositionManager =  {
       return;
     }
     // Update the composing text.
+    if (this._text !== text) {
+      domWindowUtils.sendCompositionEvent('compositionupdate', text, '');
+    }
     let compositionString = domWindowUtils.createCompositionStringSynthesizer();
     compositionString.setString(text);
     // Set the cursor position to |text.length| so that the text will be
@@ -1258,6 +1267,7 @@ let CompositionManager =  {
     compositionString.setCaret(text.length, 0);
     compositionString.dispatchEvent();
     domWindowUtils.sendCompositionEvent('compositionend', text, '');
+    this._text = '';
     this._isStarted = false;
   },
 
@@ -1267,6 +1277,7 @@ let CompositionManager =  {
       return;
     }
 
+    this._text = '';
     this._isStarted = false;
   }
 };

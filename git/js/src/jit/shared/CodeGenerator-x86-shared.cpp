@@ -1903,13 +1903,18 @@ CodeGeneratorX86Shared::visitRound(LRound *lir)
     FloatRegister scratch = ScratchDoubleReg;
     Register output = ToRegister(lir->output());
 
-    Label negativeOrZero, negative, end, bailout;
+    Label negative, end, bailout;
 
-    // Branch to a slow path for non-positive inputs. Doesn't catch NaN.
+    // Branch to a slow path for negative inputs. Doesn't catch NaN or -0.
     masm.xorpd(scratch, scratch);
-    masm.branchDouble(Assembler::DoubleLessThanOrEqual, input, scratch, &negativeOrZero);
+    masm.branchDouble(Assembler::DoubleLessThan, input, scratch, &negative);
 
-    // Input is positive. Add the biggest double less than 0.5 and
+    // Bail on negative-zero.
+    masm.branchNegativeZero(input, output, &bailout);
+    if (!bailoutFrom(&bailout, lir->snapshot()))
+        return false;
+
+    // Input is non-negative. Add the biggest double less than 0.5 and
     // truncate, rounding down (because if the input is the biggest double less
     // than 0.5, adding 0.5 would undesirably round up to 1). Note that we have
     // to add the input to the temp register because we're not allowed to
@@ -1921,21 +1926,7 @@ CodeGeneratorX86Shared::visitRound(LRound *lir)
 
     masm.jump(&end);
 
-    // Input is negative, +0 or -0.
-    masm.bind(&negativeOrZero);
-    // Branch on negative input.
-    masm.j(Assembler::NotEqual, &negative);
-
-    // Bail on negative-zero.
-    masm.branchNegativeZero(input, output, &bailout, /* maybeNonZero = */ false);
-    if (!bailoutFrom(&bailout, lir->snapshot()))
-        return false;
-
-    // Input is +0
-    masm.xor32(output, output);
-    masm.jump(&end);
-
-    // Input is negative.
+    // Input is negative, but isn't -0.
     masm.bind(&negative);
     masm.loadConstantDouble(0.5, temp);
 
@@ -1993,11 +1984,16 @@ CodeGeneratorX86Shared::visitRoundF(LRoundF *lir)
     FloatRegister scratch = ScratchFloat32Reg;
     Register output = ToRegister(lir->output());
 
-    Label negativeOrZero, negative, end, bailout;
+    Label negative, end, bailout;
 
-    // Branch to a slow path for non-positive inputs. Doesn't catch NaN.
+    // Branch to a slow path for negative inputs. Doesn't catch NaN or -0.
     masm.xorps(scratch, scratch);
-    masm.branchFloat(Assembler::DoubleLessThanOrEqual, input, scratch, &negativeOrZero);
+    masm.branchFloat(Assembler::DoubleLessThan, input, scratch, &negative);
+
+    // Bail on negative-zero.
+    masm.branchNegativeZeroFloat32(input, output, &bailout);
+    if (!bailoutFrom(&bailout, lir->snapshot()))
+        return false;
 
     // Input is non-negative. Add the biggest float less than 0.5 and truncate,
     // rounding down (because if the input is the biggest float less than 0.5,
@@ -2012,21 +2008,7 @@ CodeGeneratorX86Shared::visitRoundF(LRoundF *lir)
 
     masm.jump(&end);
 
-    // Input is negative, +0 or -0.
-    masm.bind(&negativeOrZero);
-    // Branch on negative input.
-    masm.j(Assembler::NotEqual, &negative);
-
-    // Bail on negative-zero.
-    masm.branchNegativeZeroFloat32(input, output, &bailout);
-    if (!bailoutFrom(&bailout, lir->snapshot()))
-        return false;
-
-    // Input is +0.
-    masm.xor32(output, output);
-    masm.jump(&end);
-
-    // Input is negative.
+    // Input is negative, but isn't -0.
     masm.bind(&negative);
     masm.loadConstantFloat32(0.5f, temp);
 
@@ -2413,7 +2395,7 @@ CodeGeneratorX86Shared::visitSimdBinaryCompIx4(LSimdBinaryCompIx4 *ins)
         // scr := scr > lhs (i.e. lhs < rhs)
         // Improve by doing custom lowering (rhs is tied to the output register)
         masm.packedGreaterThanInt32x4(ToOperand(ins->lhs()), ScratchSimdReg);
-        masm.moveAlignedInt32x4(ScratchSimdReg, lhs);
+        masm.moveAlignedInt32x4(ScratchFloat32Reg, lhs);
         return true;
       case MSimdBinaryComp::notEqual:
       case MSimdBinaryComp::greaterThanOrEqual:
@@ -2446,10 +2428,11 @@ CodeGeneratorX86Shared::visitSimdBinaryCompFx4(LSimdBinaryCompFx4 *ins)
         masm.cmpps(rhs, lhs, 0x4);
         return true;
       case MSimdBinaryComp::greaterThanOrEqual:
+        masm.cmpps(rhs, lhs, 0x5);
+        return true;
       case MSimdBinaryComp::greaterThan:
-        // We reverse these before register allocation so that we don't have to
-        // copy into and out of temporaries after codegen.
-        MOZ_CRASH("lowering should have reversed this");
+        masm.cmpps(rhs, lhs, 0x6);
+        return true;
     }
     MOZ_CRASH("unexpected SIMD op");
 }

@@ -11,12 +11,11 @@
 class mozSpellChecker;
 
 namespace mozilla {
-
 class RemoteSpellcheckEngineChild : public mozilla::PRemoteSpellcheckEngineChild
 {
 public:
   explicit RemoteSpellcheckEngineChild(mozSpellChecker *aOwner);
-  virtual ~RemoteSpellcheckEngineChild();
+  ~RemoteSpellcheckEngineChild();
 
 private:
   mozSpellChecker *mOwner;

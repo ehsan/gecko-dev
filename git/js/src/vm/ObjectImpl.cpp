@@ -76,9 +76,10 @@ HeapSlot *const js::emptyObjectElements =
 #ifdef DEBUG
 
 bool
-NativeObject::canHaveNonEmptyElements()
+ObjectImpl::canHaveNonEmptyElements()
 {
-    return !IsAnyTypedArray(this);
+    JSObject *obj = static_cast<JSObject *>(this);
+    return isNative() && !IsAnyTypedArray(obj);
 }
 
 #endif // DEBUG
@@ -110,7 +111,7 @@ ObjectElements::ConvertElementsToDoubles(JSContext *cx, uintptr_t elementsPtr)
 }
 
 /* static */ bool
-ObjectElements::MakeElementsCopyOnWrite(ExclusiveContext *cx, NativeObject *obj)
+ObjectElements::MakeElementsCopyOnWrite(ExclusiveContext *cx, JSObject *obj)
 {
     // Make sure there is enough room for the owner object pointer at the end
     // of the elements.
@@ -131,7 +132,7 @@ ObjectElements::MakeElementsCopyOnWrite(ExclusiveContext *cx, NativeObject *obj)
 
 #ifdef DEBUG
 void
-js::NativeObject::checkShapeConsistency()
+js::ObjectImpl::checkShapeConsistency()
 {
     static int throttle = -1;
     if (throttle < 0) {
@@ -196,7 +197,7 @@ js::NativeObject::checkShapeConsistency()
 #endif
 
 void
-js::NativeObject::initializeSlotRange(uint32_t start, uint32_t length)
+js::ObjectImpl::initializeSlotRange(uint32_t start, uint32_t length)
 {
     /*
      * No bounds check, as this is used when the object's shape does not
@@ -207,37 +208,43 @@ js::NativeObject::initializeSlotRange(uint32_t start, uint32_t length)
 
     uint32_t offset = start;
     for (HeapSlot *sp = fixedStart; sp < fixedEnd; sp++)
-        sp->init(this, HeapSlot::Slot, offset++, UndefinedValue());
+        sp->init(this->asObjectPtr(), HeapSlot::Slot, offset++, UndefinedValue());
     for (HeapSlot *sp = slotsStart; sp < slotsEnd; sp++)
-        sp->init(this, HeapSlot::Slot, offset++, UndefinedValue());
+        sp->init(this->asObjectPtr(), HeapSlot::Slot, offset++, UndefinedValue());
 }
 
 void
-js::NativeObject::initSlotRange(uint32_t start, const Value *vector, uint32_t length)
+js::ObjectImpl::initSlotRange(uint32_t start, const Value *vector, uint32_t length)
 {
     HeapSlot *fixedStart, *fixedEnd, *slotsStart, *slotsEnd;
     getSlotRange(start, length, &fixedStart, &fixedEnd, &slotsStart, &slotsEnd);
     for (HeapSlot *sp = fixedStart; sp < fixedEnd; sp++)
-        sp->init(this, HeapSlot::Slot, start++, *vector++);
+        sp->init(this->asObjectPtr(), HeapSlot::Slot, start++, *vector++);
     for (HeapSlot *sp = slotsStart; sp < slotsEnd; sp++)
-        sp->init(this, HeapSlot::Slot, start++, *vector++);
+        sp->init(this->asObjectPtr(), HeapSlot::Slot, start++, *vector++);
 }
 
 void
-js::NativeObject::copySlotRange(uint32_t start, const Value *vector, uint32_t length)
+js::ObjectImpl::copySlotRange(uint32_t start, const Value *vector, uint32_t length)
 {
     JS::Zone *zone = this->zone();
     HeapSlot *fixedStart, *fixedEnd, *slotsStart, *slotsEnd;
     getSlotRange(start, length, &fixedStart, &fixedEnd, &slotsStart, &slotsEnd);
     for (HeapSlot *sp = fixedStart; sp < fixedEnd; sp++)
-        sp->set(zone, this, HeapSlot::Slot, start++, *vector++);
+        sp->set(zone, this->asObjectPtr(), HeapSlot::Slot, start++, *vector++);
     for (HeapSlot *sp = slotsStart; sp < slotsEnd; sp++)
-        sp->set(zone, this, HeapSlot::Slot, start++, *vector++);
+        sp->set(zone, this->asObjectPtr(), HeapSlot::Slot, start++, *vector++);
 }
 
 #ifdef DEBUG
 bool
-js::NativeObject::slotInRange(uint32_t slot, SentinelAllowed sentinel) const
+js::ObjectImpl::isProxy() const
+{
+    return asObjectPtr()->is<ProxyObject>();
+}
+
+bool
+js::ObjectImpl::slotInRange(uint32_t slot, SentinelAllowed sentinel) const
 {
     uint32_t capacity = numFixedSlots() + numDynamicSlots();
     if (sentinel == SENTINEL_ALLOWED)
@@ -255,7 +262,7 @@ js::NativeObject::slotInRange(uint32_t slot, SentinelAllowed sentinel) const
 MOZ_NEVER_INLINE
 #endif
 Shape *
-js::NativeObject::lookup(ExclusiveContext *cx, jsid id)
+js::ObjectImpl::nativeLookup(ExclusiveContext *cx, jsid id)
 {
     MOZ_ASSERT(isNative());
     Shape **spp;
@@ -263,14 +270,14 @@ js::NativeObject::lookup(ExclusiveContext *cx, jsid id)
 }
 
 Shape *
-js::NativeObject::lookupPure(jsid id)
+js::ObjectImpl::nativeLookupPure(jsid id)
 {
     MOZ_ASSERT(isNative());
     return Shape::searchNoHashify(lastProperty(), id);
 }
 
 uint32_t
-js::NativeObject::dynamicSlotsCount(uint32_t nfixed, uint32_t span, const Class *clasp)
+js::ObjectImpl::dynamicSlotsCount(uint32_t nfixed, uint32_t span, const Class *clasp)
 {
     if (span <= nfixed)
         return 0;
@@ -288,32 +295,32 @@ js::NativeObject::dynamicSlotsCount(uint32_t nfixed, uint32_t span, const Class 
 }
 
 void
-JSObject::markChildren(JSTracer *trc)
+js::ObjectImpl::markChildren(JSTracer *trc)
 {
     MarkTypeObject(trc, &type_, "type");
 
     MarkShape(trc, &shape_, "shape");
 
     const Class *clasp = type_->clasp();
+    JSObject *obj = asObjectPtr();
     if (clasp->trace)
-        clasp->trace(trc, this);
+        clasp->trace(trc, obj);
 
     if (shape_->isNative()) {
-        NativeObject *nobj = &as<NativeObject>();
-        MarkObjectSlots(trc, nobj, 0, nobj->slotSpan());
+        MarkObjectSlots(trc, obj, 0, obj->slotSpan());
 
         do {
-            if (nobj->denseElementsAreCopyOnWrite()) {
-                HeapPtrNativeObject &owner = nobj->getElementsHeader()->ownerObject();
-                if (owner != nobj) {
+            if (obj->denseElementsAreCopyOnWrite()) {
+                HeapPtrObject &owner = getElementsHeader()->ownerObject();
+                if (owner != this) {
                     MarkObject(trc, &owner, "objectElementsOwner");
                     break;
                 }
             }
 
             gc::MarkArraySlots(trc,
-                               nobj->getDenseInitializedLength(),
-                               nobj->getDenseElementsAllowCopyOnWrite(),
+                               obj->getDenseInitializedLength(),
+                               obj->getDenseElementsAllowCopyOnWrite(),
                                "objectElements");
         } while (false);
     }

@@ -389,7 +389,7 @@ class SnapshotIteratorForBailout : public SnapshotIterator
 
     SnapshotIteratorForBailout(const IonBailoutIterator &iter)
       : SnapshotIterator(iter),
-        results_(iter.jsFrame())
+        results_()
     {
     }
 

@@ -46,7 +46,7 @@ class BaseRunner(object):
         self.process_args = process_args or {}
         self.symbols_path = symbols_path
 
-        self.crashed = 0
+        self.crashed = False
 
     def __del__(self):
         self.cleanup()
@@ -100,7 +100,6 @@ class BaseRunner(object):
             self.process_handler = self.process_class(cmd, env=self.env, **self.process_args)
             self.process_handler.run(self.timeout, self.output_timeout)
 
-        self.crashed = 0
         return self.process_handler.pid
 
     def wait(self, timeout=None):
@@ -181,26 +180,24 @@ class BaseRunner(object):
         if not dump_directory:
             dump_directory = os.path.join(self.profile.profile, 'minidumps')
 
+        self.crashed = False
         try:
             logger = get_default_logger()
             if logger is not None:
                 if test_name is None:
                     test_name = "runner.py"
-                self.crashed += mozcrash.log_crashes(
-                    logger,
-                    dump_directory,
-                    self.symbols_path,
-                    dump_save_path=dump_save_path,
-                    test=test_name)
+                self.crashed = mozcrash.log_crashes(logger,
+                                                    dump_directory,
+                                                    self.symbols_path,
+                                                    dump_save_path=dump_save_path,
+                                                    test=test_name)
             else:
-                crashed = mozcrash.check_for_crashes(
+                self.crashed = mozcrash.check_for_crashes(
                     dump_directory,
                     self.symbols_path,
                     dump_save_path=dump_save_path,
                     test_name=test_name,
                     quiet=quiet)
-                if crashed:
-                    self.crashed += 1
         except:
             traceback.print_exc()
 

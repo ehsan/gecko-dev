@@ -226,8 +226,7 @@ nsIStyleRule*
 nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
                                        mozilla::dom::Element* aElement)
 {
-  // FIXME (bug 960465): This test should go away.
-  if (!mPresContext->RestyleManager()->IsProcessingAnimationStyleChange()) {
+  if (!mPresContext->IsProcessingAnimationStyleChange()) {
     if (!mPresContext->IsDynamic()) {
       // For print or print preview, ignore animations.
       return nullptr;
@@ -668,12 +667,12 @@ nsAnimationManager::GetAnimationRule(mozilla::dom::Element* aElement,
     return nullptr;
   }
 
-  RestyleManager* restyleManager = mPresContext->RestyleManager();
-  if (restyleManager->SkipAnimationRules()) {
+  if (mPresContext->IsProcessingRestyles() &&
+      !mPresContext->IsProcessingAnimationStyleChange()) {
     // During the non-animation part of processing restyles, we don't
     // add the animation rule.
 
-    if (collection->mStyleRule && restyleManager->PostAnimationRestyles()) {
+    if (collection->mStyleRule) {
       collection->PostRestyleForAnimation(mPresContext);
     }
 

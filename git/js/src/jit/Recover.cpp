@@ -21,10 +21,9 @@
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 #include "jit/VMFunctions.h"
-#include "vm/Interpreter.h"
 
+#include "vm/Interpreter.h"
 #include "vm/Interpreter-inl.h"
-#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -1004,7 +1003,7 @@ RNewObject::RNewObject(CompactBufferReader &reader)
 bool
 RNewObject::recover(JSContext *cx, SnapshotIterator &iter) const
 {
-    RootedNativeObject templateObject(cx, &iter.read().toObject().as<NativeObject>());
+    RootedObject templateObject(cx, &iter.read().toObject());
     RootedValue result(cx);
     JSObject *resultObject = nullptr;
 
@@ -1114,7 +1113,7 @@ RCreateThisWithTemplate::RCreateThisWithTemplate(CompactBufferReader &reader)
 bool
 RCreateThisWithTemplate::recover(JSContext *cx, SnapshotIterator &iter) const
 {
-    RootedNativeObject templateObject(cx, &iter.read().toObject().as<NativeObject>());
+    RootedObject templateObject(cx, &iter.read().toObject());
 
     // Use AutoEnterAnalysis to avoid invoking the object metadata callback
     // while bailing out, which could try to walk the stack.
@@ -1123,7 +1122,7 @@ RCreateThisWithTemplate::recover(JSContext *cx, SnapshotIterator &iter) const
     // See CodeGenerator::visitCreateThisWithTemplate
     gc::AllocKind allocKind = templateObject->asTenured().getAllocKind();
     gc::InitialHeap initialHeap = tenuredHeap_ ? gc::TenuredHeap : gc::DefaultHeap;
-    JSObject *resultObject = NativeObject::copy(cx, allocKind, initialHeap, templateObject);
+    JSObject *resultObject = JSObject::copy(cx, allocKind, initialHeap, templateObject);
     if (!resultObject)
         return false;
 
@@ -1150,13 +1149,13 @@ RObjectState::RObjectState(CompactBufferReader &reader)
 bool
 RObjectState::recover(JSContext *cx, SnapshotIterator &iter) const
 {
-    RootedNativeObject object(cx, &iter.read().toObject().as<NativeObject>());
+    RootedObject object(cx, &iter.read().toObject());
     MOZ_ASSERT(object->slotSpan() == numSlots());
 
     RootedValue val(cx);
     for (size_t i = 0; i < numSlots(); i++) {
         val = iter.read();
-        object->setSlot(i, val);
+        object->nativeSetSlot(i, val);
     }
 
     val.setObject(*object);
@@ -1182,7 +1181,7 @@ bool
 RArrayState::recover(JSContext *cx, SnapshotIterator &iter) const
 {
     RootedValue result(cx);
-    ArrayObject *object = &iter.read().toObject().as<ArrayObject>();
+    JSObject *object = &iter.read().toObject();
     uint32_t initLength = iter.read().toInt32();
 
     object->setDenseInitializedLength(initLength);

@@ -24,7 +24,7 @@ namespace js {
 // same as the representation of a TypedArrayObject, see comments in
 // TypedArrayObject.h.
 
-class SharedTypedArrayObject : public NativeObject
+class SharedTypedArrayObject : public JSObject
 {
   protected:
     static const size_t BUFFER_SLOT      = TypedArrayLayout::BUFFER_SLOT;

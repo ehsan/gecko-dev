@@ -15,8 +15,6 @@
 
 #include "jsobjinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
-
 using namespace js;
 using namespace JS;
 
@@ -50,7 +48,7 @@ WeakSetObject::initClass(JSContext *cx, JSObject *obj)
 {
     Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
     // Todo: WeakSet.prototype should not be a WeakSet!
-    RootedNativeObject proto(cx, global->createBlankPrototype(cx, &class_));
+    Rooted<JSObject*> proto(cx, global->createBlankPrototype(cx, &class_));
     if (!proto)
         return nullptr;
     proto->setReservedSlot(WEAKSET_MAP_SLOT, UndefinedValue());
@@ -69,7 +67,7 @@ WeakSetObject::initClass(JSContext *cx, JSObject *obj)
 WeakSetObject*
 WeakSetObject::create(JSContext *cx)
 {
-    RootedNativeObject obj(cx, NewNativeBuiltinClassInstance(cx, &class_));
+    RootedObject obj(cx, NewBuiltinClassInstance(cx, &class_));
     if (!obj)
         return nullptr;
 

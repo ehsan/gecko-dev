@@ -5,4 +5,6 @@
 
 <resources>
     <item type="layout" name="tabs_layout_item_view">@layout/tabs_item_row</item>
+    <item type="layout" name="new_tablet_browser_toolbar">@null</item>
+    <item type="layout" name="new_tablet_tab_strip">@null</item>
 </resources>

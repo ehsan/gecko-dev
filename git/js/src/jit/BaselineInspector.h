@@ -109,8 +109,8 @@ class BaselineInspector
     bool hasSeenDoubleResult(jsbytecode *pc);
     bool hasSeenNonStringIterMore(jsbytecode *pc);
 
-    NativeObject *getTemplateObject(jsbytecode *pc);
-    NativeObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
+    JSObject *getTemplateObject(jsbytecode *pc);
+    JSObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
 
     DeclEnvObject *templateDeclEnvObject();
     CallObject *templateCallObject();

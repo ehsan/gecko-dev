@@ -128,15 +128,10 @@ public:
     Float mSmallArray[16];
   };
 
-  enum StrokeOptionFlags {
-    eAllStrokeOptions,
-    eIgnoreStrokeDashing
-  };
   static void GetStrokeOptions(AutoStrokeOptions* aStrokeOptions,
                                nsSVGElement* aElement,
                                nsStyleContext* aStyleContext,
-                               gfxTextContextPaint *aContextPaint,
-                               StrokeOptionFlags aFlags = eAllStrokeOptions);
+                               gfxTextContextPaint *aContextPaint);
 
   /**
    * Returns the current computed value of the CSS property 'stroke-width' for

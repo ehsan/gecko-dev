@@ -161,8 +161,6 @@ class Symbol;
 
 namespace js {
 
-class NativeObject;
-class ArrayObject;
 class ArgumentsObject;
 class ArrayBufferObjectMaybeShared;
 class ArrayBufferObject;
@@ -175,6 +173,7 @@ class GlobalObject;
 class LazyScript;
 class NestedScopeObject;
 class Nursery;
+class ObjectImpl;
 class PropertyName;
 class SavedFrame;
 class ScopeObject;
@@ -203,8 +202,6 @@ StringIsPermanentAtom(JSString *str);
 namespace gc {
 
 template <typename T> struct MapTypeToTraceKind {};
-template <> struct MapTypeToTraceKind<NativeObject>     { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<ArrayObject>      { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ArgumentsObject>  { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ArrayBufferObject>{ static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ArrayBufferObjectMaybeShared>{ static const JSGCTraceKind kind = JSTRACE_OBJECT; };
@@ -222,6 +219,7 @@ template <> struct MapTypeToTraceKind<JSScript>         { static const JSGCTrace
 template <> struct MapTypeToTraceKind<JSString>         { static const JSGCTraceKind kind = JSTRACE_STRING; };
 template <> struct MapTypeToTraceKind<LazyScript>       { static const JSGCTraceKind kind = JSTRACE_LAZY_SCRIPT; };
 template <> struct MapTypeToTraceKind<NestedScopeObject>{ static const JSGCTraceKind kind = JSTRACE_OBJECT; };
+template <> struct MapTypeToTraceKind<ObjectImpl>       { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<PropertyName>     { static const JSGCTraceKind kind = JSTRACE_STRING; };
 template <> struct MapTypeToTraceKind<SavedFrame>       { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ScopeObject>      { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
@@ -780,7 +778,6 @@ class ReadBarriered
     void set(T v) { value = v; }
 };
 
-class ArrayObject;
 class ArrayBufferObject;
 class NestedScopeObject;
 class DebugScopeObject;
@@ -804,11 +801,8 @@ typedef PreBarriered<JSAtom*> PreBarrieredAtom;
 
 typedef RelocatablePtr<JSObject*> RelocatablePtrObject;
 typedef RelocatablePtr<JSScript*> RelocatablePtrScript;
-typedef RelocatablePtr<NativeObject*> RelocatablePtrNativeObject;
 typedef RelocatablePtr<NestedScopeObject*> RelocatablePtrNestedScopeObject;
 
-typedef HeapPtr<NativeObject*> HeapPtrNativeObject;
-typedef HeapPtr<ArrayObject*> HeapPtrArrayObject;
 typedef HeapPtr<ArrayBufferObjectMaybeShared*> HeapPtrArrayBufferObjectMaybeShared;
 typedef HeapPtr<ArrayBufferObject*> HeapPtrArrayBufferObject;
 typedef HeapPtr<BaseShape*> HeapPtrBaseShape;

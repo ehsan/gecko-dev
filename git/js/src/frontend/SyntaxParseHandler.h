@@ -95,7 +95,7 @@ class SyntaxParseHandler
     Node newNullLiteral(const TokenPos &pos) { return NodeGeneric; }
 
     template <class Boxer>
-    Node newRegExp(RegExpObject *reobj, const TokenPos &pos, Boxer &boxer) { return NodeGeneric; }
+    Node newRegExp(JSObject *reobj, const TokenPos &pos, Boxer &boxer) { return NodeGeneric; }
 
     Node newConditional(Node cond, Node thenExpr, Node elseExpr) { return NodeGeneric; }
 

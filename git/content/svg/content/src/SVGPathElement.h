@@ -16,6 +16,8 @@
 nsresult NS_NewSVGPathElement(nsIContent **aResult,
                               already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
 
+class gfxContext;
+
 typedef nsSVGPathGeometryElement SVGPathElementBase;
 
 namespace mozilla {
@@ -50,6 +52,7 @@ public:
   virtual bool AttributeDefinesGeometry(const nsIAtom *aName) MOZ_OVERRIDE;
   virtual bool IsMarkable() MOZ_OVERRIDE;
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks) MOZ_OVERRIDE;
+  virtual void ConstructPath(gfxContext *aCtx) MOZ_OVERRIDE;
   virtual TemporaryRef<Path> BuildPath(PathBuilder* aBuilder = nullptr) MOZ_OVERRIDE;
 
   /**
