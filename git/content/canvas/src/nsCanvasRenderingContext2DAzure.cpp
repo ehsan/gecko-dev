@@ -100,7 +100,6 @@
 
 #include "nsFrameManager.h"
 #include "nsFrameLoader.h"
-#include "nsBidi.h"
 #include "nsBidiPresUtils.h"
 #include "Layers.h"
 #include "CanvasUtils.h"
@@ -1227,8 +1226,6 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
     mZero = PR_TRUE;
     height = 1;
     width = 1;
-  } else {
-    mZero = PR_FALSE;
   }
 
   // Check that the dimensions are sane
@@ -3197,6 +3194,11 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
 
   nsIDocument* document = presShell->GetDocument();
 
+  nsBidiPresUtils* bidiUtils = presShell->GetPresContext()->GetBidiUtils();
+  if (!bidiUtils) {
+    return NS_ERROR_FAILURE;
+  }
+
   // replace all the whitespace characters with U+0020 SPACE
   nsAutoString textToDraw(aRawText);
   TextReplaceWhitespaceCharacters(textToDraw);
@@ -3247,17 +3249,15 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
 
   // calls bidi algo twice since it needs the full text width and the
   // bounding boxes before rendering anything
-  nsBidi bidiEngine;
-  rv = nsBidiPresUtils::ProcessText(textToDraw.get(),
-                                textToDraw.Length(),
-                                isRTL ? NSBIDI_RTL : NSBIDI_LTR,
-                                presShell->GetPresContext(),
-                                processor,
-                                nsBidiPresUtils::MODE_MEASURE,
-                                nsnull,
-                                0,
-                                &totalWidthCoord,
-                                &bidiEngine);
+  rv = bidiUtils->ProcessText(textToDraw.get(),
+                              textToDraw.Length(),
+                              isRTL ? NSBIDI_RTL : NSBIDI_LTR,
+                              presShell->GetPresContext(),
+                              processor,
+                              nsBidiPresUtils::MODE_MEASURE,
+                              nsnull,
+                              0,
+                              &totalWidthCoord);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -3348,16 +3348,15 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   // don't ever need to measure the bounding box twice
   processor.mDoMeasureBoundingBox = PR_FALSE;
 
-  rv = nsBidiPresUtils::ProcessText(textToDraw.get(),
-                                    textToDraw.Length(),
-                                    isRTL ? NSBIDI_RTL : NSBIDI_LTR,
-                                    presShell->GetPresContext(),
-                                    processor,
-                                    nsBidiPresUtils::MODE_DRAW,
-                                    nsnull,
-                                    0,
-                                    nsnull,
-                                    &bidiEngine);
+  rv = bidiUtils->ProcessText(textToDraw.get(),
+                              textToDraw.Length(),
+                              isRTL ? NSBIDI_RTL : NSBIDI_LTR,
+                              presShell->GetPresContext(),
+                              processor,
+                              nsBidiPresUtils::MODE_DRAW,
+                              nsnull,
+                              0,
+                              nsnull);
 
 
   mTarget->SetTransform(oldTransform);
