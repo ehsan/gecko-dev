@@ -11,16 +11,14 @@
 
 // Interface headers
 #include "imgLoader.h"
-#include "nsEventDispatcher.h"
 #include "nsIContent.h"
 #include "nsIDocShell.h"
 #include "nsIDocument.h"
-#include "nsIDOMDataContainerEvent.h"
+#include "nsIDOMCustomEvent.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLObjectElement.h"
 #include "nsIDOMHTMLAppletElement.h"
 #include "nsIExternalProtocolHandler.h"
-#include "nsEventStates.h"
 #include "nsIObjectFrame.h"
 #include "nsIPermissionManager.h"
 #include "nsPluginHost.h"
@@ -82,6 +80,8 @@
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/Event.h"
+#include "mozilla/EventDispatcher.h"
+#include "mozilla/EventStates.h"
 #include "mozilla/Telemetry.h"
 
 #ifdef XP_WIN
@@ -319,65 +319,54 @@ nsPluginCrashedEvent::Run()
 
   ErrorResult rv;
   nsRefPtr<Event> event =
-    doc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"), rv);
-  nsCOMPtr<nsIDOMDataContainerEvent> containerEvent(do_QueryObject(event));
-  if (!containerEvent) {
+    doc->CreateEvent(NS_LITERAL_STRING("customevent"), rv);
+  nsCOMPtr<nsIDOMCustomEvent> customEvent(do_QueryObject(event));
+  if (!customEvent) {
     NS_WARNING("Couldn't QI event for PluginCrashed event!");
     return NS_OK;
   }
 
-  event->InitEvent(NS_LITERAL_STRING("PluginCrashed"), true, true);
+  nsCOMPtr<nsIWritableVariant> variant;
+  variant = do_CreateInstance("@mozilla.org/variant;1");
+  if (!variant) {
+    NS_WARNING("Couldn't create detail variant for PluginCrashed event!");
+    return NS_OK;
+  }
+  customEvent->InitCustomEvent(NS_LITERAL_STRING("PluginCrashed"),
+                               true, true, variant);
   event->SetTrusted(true);
   event->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
 
-  nsCOMPtr<nsIWritableVariant> variant;
+  nsCOMPtr<nsIWritablePropertyBag2> propBag;
+  propBag = do_CreateInstance("@mozilla.org/hash-property-bag;1");
+  if (!propBag) {
+    NS_WARNING("Couldn't create a property bag for PluginCrashed event!");
+    return NS_OK;
+  }
 
   // add a "pluginDumpID" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create pluginDumpID variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mPluginDumpID);
-  containerEvent->SetData(NS_LITERAL_STRING("pluginDumpID"), variant);
+  propBag->SetPropertyAsAString(NS_LITERAL_STRING("pluginDumpID"),
+                                mPluginDumpID);
 
   // add a "browserDumpID" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create browserDumpID variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mBrowserDumpID);
-  containerEvent->SetData(NS_LITERAL_STRING("browserDumpID"), variant);
+  propBag->SetPropertyAsAString(NS_LITERAL_STRING("browserDumpID"),
+                                mBrowserDumpID);
 
   // add a "pluginName" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create pluginName variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mPluginName);
-  containerEvent->SetData(NS_LITERAL_STRING("pluginName"), variant);
+  propBag->SetPropertyAsAString(NS_LITERAL_STRING("pluginName"),
+                                mPluginName);
 
   // add a "pluginFilename" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create pluginFilename variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mPluginFilename);
-  containerEvent->SetData(NS_LITERAL_STRING("pluginFilename"), variant);
+  propBag->SetPropertyAsAString(NS_LITERAL_STRING("pluginFilename"),
+                                mPluginFilename);
 
   // add a "submittedCrashReport" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create crashSubmit variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsBool(mSubmittedCrashReport);
-  containerEvent->SetData(NS_LITERAL_STRING("submittedCrashReport"), variant);
+  propBag->SetPropertyAsBool(NS_LITERAL_STRING("submittedCrashReport"),
+                             mSubmittedCrashReport);
 
-  nsEventDispatcher::DispatchDOMEvent(mContent, nullptr, event, nullptr, nullptr);
+  variant->SetAsISupports(propBag);
+
+  EventDispatcher::DispatchDOMEvent(mContent, nullptr, event, nullptr, nullptr);
   return NS_OK;
 }
 
@@ -407,7 +396,7 @@ private:
   nsCOMPtr<nsIObjectLoadingContent> mContent;
 };
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsStopPluginRunnable, nsRunnable, nsITimerCallback)
+NS_IMPL_ISUPPORTS_INHERITED(nsStopPluginRunnable, nsRunnable, nsITimerCallback)
 
 NS_IMETHODIMP
 nsStopPluginRunnable::Notify(nsITimer *aTimer)
@@ -1169,7 +1158,7 @@ protected:
   nsCOMPtr<nsIObjectLoadingContent> mContent;
 };
 
-NS_IMPL_CYCLE_COLLECTION_1(ObjectInterfaceRequestorShim, mContent)
+NS_IMPL_CYCLE_COLLECTION(ObjectInterfaceRequestorShim, mContent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(ObjectInterfaceRequestorShim)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
@@ -1213,7 +1202,7 @@ nsObjectLoadingContent::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
 }
 
 // <public>
-nsEventStates
+EventStates
 nsObjectLoadingContent::ObjectState() const
 {
   switch (mType) {
@@ -1226,7 +1215,7 @@ nsObjectLoadingContent::ObjectState() const
       // These are OK. If documents start to load successfully, they display
       // something, and are thus not broken in this sense. The same goes for
       // plugins.
-      return nsEventStates();
+      return EventStates();
     case eType_Null:
       switch (mFallbackType) {
         case eFallbackSuppressed:
@@ -1916,7 +1905,7 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
   }
 
   // Save these for NotifyStateChanged();
-  nsEventStates oldState = ObjectState();
+  EventStates oldState = ObjectState();
   ObjectType oldType = mType;
 
   ParameterUpdateFlags stateChange = UpdateObjectParameters();
@@ -2360,6 +2349,12 @@ nsObjectLoadingContent::OpenChannel()
   nsCOMPtr<nsIHttpChannel> httpChan(do_QueryInterface(chan));
   if (httpChan) {
     httpChan->SetReferrer(doc->GetDocumentURI());
+
+    // Set the initiator type
+    nsCOMPtr<nsITimedChannel> timedChannel(do_QueryInterface(httpChan));
+    if (timedChannel) {
+      timedChannel->SetInitiatorType(thisContent->LocalName());
+    }
   }
 
   // Set up the channel's principal and such, like nsDocShell::DoURILoad does.
@@ -2464,7 +2459,7 @@ nsObjectLoadingContent::UnloadObject(bool aResetState)
 
 void
 nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
-                                           nsEventStates aOldState,
+                                           EventStates aOldState,
                                            bool aSync,
                                            bool aNotify)
 {
@@ -2495,12 +2490,12 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
     return; // Nothing to do
   }
 
-  nsEventStates newState = ObjectState();
+  EventStates newState = ObjectState();
 
   if (newState != aOldState) {
     // This will trigger frame construction
     NS_ASSERTION(InActiveDocument(thisContent), "Something is confused");
-    nsEventStates changedBits = aOldState ^ newState;
+    EventStates changedBits = aOldState ^ newState;
 
     {
       nsAutoScriptBlocker scriptBlocker;
@@ -2768,7 +2763,7 @@ DoDelayedStop(nsPluginInstanceOwner* aInstanceOwner,
 
 void
 nsObjectLoadingContent::LoadFallback(FallbackType aType, bool aNotify) {
-  nsEventStates oldState = ObjectState();
+  EventStates oldState = ObjectState();
   ObjectType oldType = mType;
 
   NS_ASSERTION(!mInstanceOwner && !mFrameLoader && !mChannel,
@@ -3545,5 +3540,5 @@ nsObjectLoadingContent::SetupProtoChainRunner::Run()
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsObjectLoadingContent::SetupProtoChainRunner, nsIRunnable)
+NS_IMPL_ISUPPORTS(nsObjectLoadingContent::SetupProtoChainRunner, nsIRunnable)
 

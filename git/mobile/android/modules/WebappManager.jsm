@@ -20,10 +20,10 @@ Cu.import("resource://gre/modules/Webapps.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
-Cu.import("resource://gre/modules/PluralForm.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Notifications", "resource://gre/modules/Notifications.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava", "resource://gre/modules/Messaging.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PluralForm", "resource://gre/modules/PluralForm.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "Strings", function() {
   return Services.strings.createBundle("chrome://browser/locale/webapp.properties");
@@ -338,7 +338,7 @@ this.WebappManager = {
     sendMessageToJava({
       type: "Webapps:GetApkVersions",
       packageNames: packageNames 
-    }, data => deferred.resolve(JSON.parse(data).versions));
+    }, data => deferred.resolve(data.versions));
 
     return deferred.promise;
   },

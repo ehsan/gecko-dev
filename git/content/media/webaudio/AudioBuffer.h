@@ -48,8 +48,7 @@ public:
     return mContext;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   float SampleRate() const
   {
@@ -97,8 +96,6 @@ public:
   void SetRawChannelContents(JSContext* aJSContext,
                              uint32_t aChannel,
                              float* aContents);
-
-  void MixToMono(JSContext* aJSContext);
 
 protected:
   AudioBuffer(AudioContext* aContext, uint32_t aNumberOfChannels,
