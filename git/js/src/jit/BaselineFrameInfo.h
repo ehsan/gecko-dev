@@ -176,7 +176,7 @@ class FrameInfo
         spIndex(0)
     { }
 
-    bool init(TempAllocator &alloc);
+    bool init();
 
     uint32_t nlocals() const {
         return script->nfixed;

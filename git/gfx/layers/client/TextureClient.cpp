@@ -213,12 +213,7 @@ bool
 MemoryTextureClient::Allocate(uint32_t aSize)
 {
   MOZ_ASSERT(!mBuffer);
-  static const fallible_t fallible = fallible_t();
-  mBuffer = new(fallible) uint8_t[aSize];
-  if (!mBuffer) {
-    NS_WARNING("Failed to allocate buffer");
-    return false;
-  }
+  mBuffer = new uint8_t[aSize];
   GfxMemoryImageReporter::DidAlloc(mBuffer);
   mBufSize = aSize;
   return true;
@@ -310,7 +305,7 @@ BufferTextureClient::GetAsSurface()
 }
 
 bool
-BufferTextureClient::AllocateForSurface(gfx::IntSize aSize, TextureAllocationFlags aFlags)
+BufferTextureClient::AllocateForSurface(gfx::IntSize aSize)
 {
   MOZ_ASSERT(IsValid());
   MOZ_ASSERT(mFormat != gfx::FORMAT_YUV, "This textureClient cannot use YCbCr data");
@@ -320,28 +315,10 @@ BufferTextureClient::AllocateForSurface(gfx::IntSize aSize, TextureAllocationFla
   if (!Allocate(bufSize)) {
     return false;
   }
-
-  if (aFlags & ALLOC_CLEAR_BUFFER) {
-    memset(GetBuffer(), 0, bufSize);
-  }
-
   ImageDataSerializer serializer(GetBuffer());
   serializer.InitializeBufferInfo(aSize, mFormat);
   mSize = aSize;
   return true;
-}
-
-TemporaryRef<gfx::DrawTarget>
-BufferTextureClient::GetAsDrawTarget()
-{
-  MOZ_ASSERT(IsValid());
-
-  ImageDataSerializer serializer(GetBuffer());
-  if (!serializer.IsValid()) {
-    return nullptr;
-  }
-
-  return serializer.GetAsDrawTarget();
 }
 
 bool

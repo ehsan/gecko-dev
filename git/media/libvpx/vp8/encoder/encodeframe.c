@@ -10,7 +10,6 @@
 
 
 #include "vpx_config.h"
-#include "vp8_rtcd.h"
 #include "encodemb.h"
 #include "encodemv.h"
 #include "vp8/common/common.h"
@@ -853,10 +852,11 @@ void vp8_encode_frame(VP8_COMP *cpi)
 
             if (xd->segmentation_enabled)
             {
-                int j;
+                int i, j;
 
                 if (xd->segmentation_enabled)
                 {
+
                     for (i = 0; i < cpi->encoding_thread_count; i++)
                     {
                         for (j = 0; j < 4; j++)
@@ -1299,9 +1299,8 @@ int vp8cx_encode_inter_macroblock
     }
 
     {
-        /* Experimental code.
-         * Special case for gf and arf zeromv modes, for 1 temporal layer.
-         * Increase zbin size to supress noise.
+        /* Experimental code. Special case for gf and arf zeromv modes.
+         * Increase zbin size to supress noise
          */
         x->zbin_mode_boost = 0;
         if (x->zbin_mode_boost_enabled)
@@ -1310,8 +1309,7 @@ int vp8cx_encode_inter_macroblock
             {
                 if (xd->mode_info_context->mbmi.mode == ZEROMV)
                 {
-                    if (xd->mode_info_context->mbmi.ref_frame != LAST_FRAME &&
-                        cpi->oxcf.number_of_layers == 1)
+                    if (xd->mode_info_context->mbmi.ref_frame != LAST_FRAME)
                         x->zbin_mode_boost = GF_ZEROMV_ZBIN_BOOST;
                     else
                         x->zbin_mode_boost = LF_ZEROMV_ZBIN_BOOST;

@@ -210,7 +210,6 @@
 #include "mozilla/dom/WindowBinding.h"
 #include "nsITabChild.h"
 #include "nsIDOMMediaQueryList.h"
-#include "mozilla/dom/DOMJSClass.h"
 
 #ifdef MOZ_WEBSPEECH
 #include "mozilla/dom/SpeechSynthesis.h"
@@ -12700,13 +12699,6 @@ nsGlobalWindow::AddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
     const_cast<nsTHashtable<nsPtrHashKey<nsDOMEventTargetHelper> >*>
       (&mEventTargetObjects)->EnumerateEntries(CollectSizeAndListenerCount,
                                                aWindowSizes);
-
-  JSObject* global = FastGetGlobalJSObject();
-  if (IsInnerWindow() && global) {
-    ProtoAndIfaceArray* cache = GetProtoAndIfaceArray(global);
-    aWindowSizes->mProtoIfaceCacheSize +=
-      cache->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf);
-  }
 }
 
 

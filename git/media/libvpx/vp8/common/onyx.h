@@ -41,8 +41,7 @@ extern "C"
     {
         USAGE_STREAM_FROM_SERVER    = 0x0,
         USAGE_LOCAL_FILE_PLAYBACK   = 0x1,
-        USAGE_CONSTRAINED_QUALITY   = 0x2,
-        USAGE_CONSTANT_QUALITY      = 0x3
+        USAGE_CONSTRAINED_QUALITY   = 0x2
     } END_USAGE;
 
 

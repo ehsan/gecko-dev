@@ -9,9 +9,8 @@
  */
 
 
-#ifndef ONYXD_INT_H_
-#define ONYXD_INT_H_
-
+#ifndef __INC_VP8D_INT_H
+#define __INC_VP8D_INT_H
 #include "vpx_config.h"
 #include "vp8/common/onyxd.h"
 #include "treereader.h"
@@ -34,31 +33,6 @@ typedef struct
     MACROBLOCKD  mbd;
 } MB_ROW_DEC;
 
-
-typedef struct
-{
-    int enabled;
-    unsigned int count;
-    const unsigned char *ptrs[MAX_PARTITIONS];
-    unsigned int sizes[MAX_PARTITIONS];
-} FRAGMENT_DATA;
-
-#define MAX_FB_MT_DEC 32
-
-struct frame_buffers
-{
-    /*
-     * this struct will be populated with frame buffer management
-     * info in future commits. */
-
-    /* enable/disable frame-based threading */
-    int     use_frame_threads;
-
-    /* decoder instances */
-    struct VP8D_COMP *pbi[MAX_FB_MT_DEC];
-
-};
-
 typedef struct VP8D_COMP
 {
     DECLARE_ALIGNED(16, MACROBLOCKD, mb);
@@ -72,7 +46,10 @@ typedef struct VP8D_COMP
 
     VP8D_CONFIG oxcf;
 
-    FRAGMENT_DATA fragments;
+
+    const unsigned char *fragments[MAX_PARTITIONS];
+    unsigned int   fragment_sizes[MAX_PARTITIONS];
+    unsigned int   num_fragments;
 
 #if CONFIG_MULTITHREAD
     /* variable for threading */
@@ -118,18 +95,14 @@ typedef struct VP8D_COMP
 #endif
     int ec_enabled;
     int ec_active;
+    int input_fragments;
     int decoded_key_frame;
     int independent_partitions;
     int frame_corrupt_residual;
 
-    vp8_decrypt_cb *decrypt_cb;
-    void *decrypt_state;
 } VP8D_COMP;
 
 int vp8_decode_frame(VP8D_COMP *cpi);
-
-int vp8_create_decoder_instances(struct frame_buffers *fb, VP8D_CONFIG *oxcf);
-int vp8_remove_decoder_instances(struct frame_buffers *fb);
 
 #if CONFIG_DEBUG
 #define CHECK_MEM_ERROR(lval,expr) do {\
@@ -148,4 +121,4 @@ int vp8_remove_decoder_instances(struct frame_buffers *fb);
     } while(0)
 #endif
 
-#endif  // ONYXD_INT_H_
+#endif

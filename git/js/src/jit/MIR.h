@@ -1791,8 +1791,8 @@ class MVariadicInstruction : public MInstruction
     FixedList<MUse> operands_;
 
   protected:
-    bool init(TempAllocator &alloc, size_t length) {
-        return operands_.init(alloc, length);
+    bool init(size_t length) {
+        return operands_.init(length);
     }
 
   public:
@@ -2087,7 +2087,7 @@ class MGetDynamicName
 // Bailout if the input string contains 'arguments' or 'eval'.
 class MFilterArgumentsOrEval
   : public MAryInstruction<1>,
-    public BoxExceptPolicy<0, MIRType_String>
+    public StringPolicy<0>
 {
   protected:
     MFilterArgumentsOrEval(MDefinition *string)
@@ -2118,8 +2118,7 @@ class MFilterArgumentsOrEval
 
 class MCallDirectEval
   : public MAryInstruction<3>,
-    public MixPolicy<ObjectPolicy<0>,
-                     MixPolicy<BoxExceptPolicy<1, MIRType_String>, BoxPolicy<2> > >
+    public MixPolicy<ObjectPolicy<0>, MixPolicy<StringPolicy<1>, BoxPolicy<2> > >
 {
   protected:
     MCallDirectEval(MDefinition *scopeChain, MDefinition *string, MDefinition *thisValue,
@@ -2320,7 +2319,7 @@ class MCompare
 // Takes a typed value and returns an untyped value.
 class MBox : public MUnaryInstruction
 {
-    MBox(TempAllocator &alloc, MDefinition *ins)
+    MBox(MDefinition *ins)
       : MUnaryInstruction(ins)
     {
         setResultType(MIRType_Value);
@@ -2330,7 +2329,7 @@ class MBox : public MUnaryInstruction
             types::Type ntype = ins->type() == MIRType_Object
                                 ? types::Type::AnyObjectType()
                                 : types::Type::PrimitiveType(ValueTypeFromMIRType(ins->type()));
-            setResultTypeSet(alloc.lifoAlloc()->new_<types::TemporaryTypeSet>(ntype));
+            setResultTypeSet(GetIonContext()->temp->lifoAlloc()->new_<types::TemporaryTypeSet>(ntype));
         }
         setMovable();
     }
@@ -2342,7 +2341,7 @@ class MBox : public MUnaryInstruction
         // Cannot box a box.
         JS_ASSERT(ins->type() != MIRType_Value);
 
-        return new(alloc) MBox(alloc, ins);
+        return new(alloc) MBox(ins);
     }
 
     bool congruentTo(MDefinition *ins) const {
@@ -9024,8 +9023,8 @@ class MResumePoint MOZ_FINAL : public MNode, public InlineForwardListNode<MResum
   protected:
     // Initializes operands_ to an empty array of a fixed length.
     // The array may then be filled in by inherit().
-    bool init(TempAllocator &alloc) {
-        return operands_.init(alloc, stackDepth_);
+    bool init() {
+        return operands_.init(stackDepth_);
     }
 
     // Overwrites an operand without updating its Uses.

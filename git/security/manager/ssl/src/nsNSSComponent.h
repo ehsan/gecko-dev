@@ -178,7 +178,7 @@ public:
                   mozilla::RefPtr<mozilla::psm::CertVerifier> &out);
 private:
 
-  nsresult InitializeNSS();
+  nsresult InitializeNSS(bool showWarningBox);
   void ShutdownNSS();
 
   void InstallLoadableRoots();

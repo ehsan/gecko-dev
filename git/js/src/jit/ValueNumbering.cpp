@@ -30,18 +30,19 @@ ValueNumberer::alloc() const
 uint32_t
 ValueNumberer::lookupValue(MDefinition *ins)
 {
+
     ValueMap::AddPtr p = values.lookupForAdd(ins);
+
     if (p) {
         // make sure this is in the correct group
         setClass(ins, p->key());
-        return p->value();
+    } else {
+        if (!values.add(p, ins, ins->id()))
+            return 0;
+        breakClass(ins);
     }
 
-    if (!values.add(p, ins, ins->id()))
-        return 0;
-    breakClass(ins);
-
-    return ins->id();
+    return p->value();
 }
 
 MDefinition *

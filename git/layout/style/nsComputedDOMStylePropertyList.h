@@ -39,7 +39,6 @@
  * Implementations of CSS styles *
 \* ***************************** */
 
-COMPUTED_STYLE_PROP(align_content,                   AlignContent)
 COMPUTED_STYLE_PROP(align_items,                   AlignItems)
 COMPUTED_STYLE_PROP(align_self,                    AlignSelf)
 //// COMPUTED_STYLE_PROP(animation,                Animation)
@@ -111,7 +110,6 @@ COMPUTED_STYLE_PROP(flex_basis,                    FlexBasis)
 COMPUTED_STYLE_PROP(flex_direction,                FlexDirection)
 COMPUTED_STYLE_PROP(flex_grow,                     FlexGrow)
 COMPUTED_STYLE_PROP(flex_shrink,                   FlexShrink)
-COMPUTED_STYLE_PROP(flex_wrap,                     FlexWrap)
 COMPUTED_STYLE_PROP(float,                         Float)
 //// COMPUTED_STYLE_PROP(font,                     Font)
 COMPUTED_STYLE_PROP(font_family,                   FontFamily)

@@ -600,6 +600,8 @@ const ContentPanning = {
   }
 };
 
+ContentPanning.init();
+
 // Min/max velocity of kinetic panning. This is in pixels/millisecond.
 const kMinVelocity = 0.2;
 const kMaxVelocity = 6;
