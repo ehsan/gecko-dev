@@ -27,10 +27,8 @@ using mozilla::dom::CrashReporterChild;
 #if defined(XP_WIN)
 #define TARGET_SANDBOX_EXPORTS
 #include "mozilla/sandboxTarget.h"
-#elif defined (MOZ_GMP_SANDBOX)
-#if defined(XP_LINUX) || defined(XP_MACOSX)
+#elif defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
 #include "mozilla/Sandbox.h"
-#endif
 #endif
 
 namespace mozilla {
@@ -47,9 +45,34 @@ GMPChild::~GMPChild()
 {
 }
 
-static bool
-GetPluginBinaryPath(const std::string& aPluginPath,
-                    nsCString &aPluginBinaryPath)
+void
+GMPChild::CheckThread()
+{
+  MOZ_ASSERT(mGMPMessageLoop == MessageLoop::current());
+}
+
+bool
+GMPChild::Init(const std::string& aPluginPath,
+               base::ProcessHandle aParentProcessHandle,
+               MessageLoop* aIOLoop,
+               IPC::Channel* aChannel)
+{
+  if (!Open(aChannel, aParentProcessHandle, aIOLoop)) {
+    return false;
+  }
+
+#ifdef MOZ_CRASHREPORTER
+  SendPCrashReporterConstructor(CrashReporter::CurrentThreadId());
+#endif
+#if defined(XP_WIN)
+  mozilla::SandboxTarget::Instance()->StartSandbox();
+#endif
+
+  return LoadPluginLibrary(aPluginPath);
+}
+
+bool
+GMPChild::LoadPluginLibrary(const std::string& aPluginPath)
 {
   nsDependentCString pluginPath(aPluginPath.c_str());
 
@@ -76,83 +99,8 @@ GetPluginBinaryPath(const std::string& aPluginPath,
 #endif
   libFile->AppendRelativePath(binaryName);
 
-  libFile->GetNativePath(aPluginBinaryPath);
-  return true;
-}
-
-#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
-void
-GMPChild::OnChannelConnected(int32_t aPid)
-{
-  MacSandboxInfo info;
-  info.type = MacSandboxType_Plugin;
-  info.pluginInfo.type = MacSandboxPluginType_GMPlugin_Default;
-  info.pluginInfo.pluginPath.Assign(mPluginPath.c_str());
-
-  nsAutoCString pluginBinaryPath;
-  if (!GetPluginBinaryPath(mPluginPath, pluginBinaryPath)) {
-    MOZ_CRASH("Error scanning plugin path");
-  }
-  mPluginBinaryPath.Assign(pluginBinaryPath);
-  info.pluginInfo.pluginBinaryPath.Assign(pluginBinaryPath);
-
-  nsAutoCString err;
-  if (!mozilla::StartMacSandbox(info, err)) {
-    NS_WARNING(err.get());
-    MOZ_CRASH("sandbox_init() failed");
-  }
-
-  if (!LoadPluginLibrary(mPluginPath)) {
-    err.AppendPrintf("Failed to load GMP plugin \"%s\"",
-                     mPluginPath.c_str());
-    NS_WARNING(err.get());
-    MOZ_CRASH("Failed to load GMP plugin");
-  }
-}
-#endif // XP_MACOSX && MOZ_GMP_SANDBOX
-
-void
-GMPChild::CheckThread()
-{
-  MOZ_ASSERT(mGMPMessageLoop == MessageLoop::current());
-}
-
-bool
-GMPChild::Init(const std::string& aPluginPath,
-               base::ProcessHandle aParentProcessHandle,
-               MessageLoop* aIOLoop,
-               IPC::Channel* aChannel)
-{
-  if (!Open(aChannel, aParentProcessHandle, aIOLoop)) {
-    return false;
-  }
-
-#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
-  mPluginPath = aPluginPath;
-  return true;
-#endif
-
-#ifdef MOZ_CRASHREPORTER
-  SendPCrashReporterConstructor(CrashReporter::CurrentThreadId());
-#endif
-#if defined(XP_WIN)
-  mozilla::SandboxTarget::Instance()->StartSandbox();
-#endif
-
-  return LoadPluginLibrary(aPluginPath);
-}
-
-bool
-GMPChild::LoadPluginLibrary(const std::string& aPluginPath)
-{
   nsAutoCString nativePath;
-#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
-  nativePath.Assign(mPluginBinaryPath);
-#else
-  if (!GetPluginBinaryPath(aPluginPath, nativePath)) {
-    return false;
-  }
-#endif
+  libFile->GetNativePath(nativePath);
 
 #if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
   // Enable sandboxing here -- we know the plugin file's path, but
