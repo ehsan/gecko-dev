@@ -999,6 +999,10 @@ pref("network.http.rendering-critical-requests-prioritization", true);
 // IPv6 connectivity.
 pref("network.http.fast-fallback-to-IPv4", true);
 
+// The maximum amount of time the cache session lock can be held
+// before a new transaction bypasses the cache. In milliseconds.
+pref("network.http.bypass-cachelock-threshold", 250);
+
 // Try and use SPDY when using SSL
 pref("network.http.spdy.enabled", true);
 pref("network.http.spdy.enabled.v2", true);
@@ -1734,6 +1738,19 @@ pref("layout.css.supports-rule.enabled", true);
 
 // Is support for CSS Flexbox enabled?
 pref("layout.css.flexbox.enabled", true);
+
+// Is support for CSS3 Fonts features enabled?
+// (includes font-variant-*, font-kerning, font-synthesis
+// and the @font-feature-values rule)
+// Note: with this enabled, font-feature-settings is aliased
+// to -moz-font-feature-settings.  When unprefixing, this should
+// be reversed, -moz-font-feature-settings should alias to
+// font-feature-settings.
+#ifdef RELEASE_BUILD
+pref("layout.css.font-features.enabled", false);
+#else
+pref("layout.css.font-features.enabled", true);
+#endif
 
 // Are sets of prefixed properties supported?
 pref("layout.css.prefixes.border-image", true);
@@ -4062,6 +4079,8 @@ pref("dom.sms.requestStatusReport", true);
 
 // WebContacts
 pref("dom.mozContacts.enabled", false);
+pref("dom.navigator-property.disable.mozContacts", true);
+pref("dom.global-constructor.disable.mozContact", true);
 
 // WebAlarms
 pref("dom.mozAlarms.enabled", false);
@@ -4074,6 +4093,7 @@ pref("dom.mozNetworkStats.enabled", false);
 
 // WebSettings
 pref("dom.mozSettings.enabled", false);
+pref("dom.navigator-property.disable.mozSettings", true);
 pref("dom.mozPermissionSettings.enabled", false);
 
 // W3C touch events

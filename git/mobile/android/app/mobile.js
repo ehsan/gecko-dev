@@ -665,8 +665,9 @@ pref("reader.font_size", 4);
 // The default of margin size in reader (5%-25%)
 pref("reader.margin_size", 5);
 
-// The default color scheme in reader (light, dark, sepia)
-pref("reader.color_scheme", "light");
+// The default color scheme in reader (light, dark, sepia, auto)
+// auto = color automatically adjusts according to ambient light level
+pref("reader.color_scheme", "auto");
 
 // The font type in reader (sans-serif, serif)
 pref("reader.font_type", "sans-serif");
@@ -698,6 +699,11 @@ pref("layout.imagevisibility.enabled", false);
 
 // Enable the dynamic toolbar
 pref("browser.chrome.dynamictoolbar", true);
+
+// The mode of browser titlebar
+// 0: Show a current page title.
+// 1: Show a current page url.
+pref("browser.chrome.titlebarMode", 0);
 
 #ifdef MOZ_PKG_SPECIAL
 // Disable webgl on ARMv6 because running the reftests takes
