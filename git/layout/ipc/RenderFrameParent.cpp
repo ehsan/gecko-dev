@@ -246,10 +246,11 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
   ShadowLayer* shadow = aLayer->AsShadowLayer();
   shadow->SetShadowClipRect(aLayer->GetClipRect());
   shadow->SetShadowVisibleRegion(aLayer->GetVisibleRegion());
+  shadow->SetShadowOpacity(aLayer->GetOpacity());
 
   const FrameMetrics* metrics = GetFrameMetrics(aLayer);
 
-  gfx3DMatrix shadowTransform = aLayer->GetTransform();
+  gfx3DMatrix shadowTransform = aLayer->GetBaseTransform();
   ViewTransform layerTransform = aTransform;
 
   if (metrics && metrics->IsScrollable()) {
@@ -604,7 +605,7 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
     layer->SetReferentId(id);
     layer->SetVisibleRegion(aVisibleRect);
     nsIntPoint rootFrameOffset = GetRootFrameOffset(aFrame, aBuilder);
-    layer->SetTransform(
+    layer->SetBaseTransform(
       gfx3DMatrix::Translation(rootFrameOffset.x, rootFrameOffset.y, 0.0));
 
     return layer.forget();

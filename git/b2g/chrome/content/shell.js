@@ -74,6 +74,22 @@ function addPermissions(urls) {
 }
 
 var shell = {
+
+  get CrashSubmit() {
+    delete this.CrashSubmit;
+    Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
+    return this.CrashSubmit;
+  },
+
+  reportCrash: function shell_reportCrash() {
+    let crashID = Cc["@mozilla.org/xre/app-info;1"]
+      .getService(Ci.nsIXULRuntime).lastRunCrashID;
+    if (Services.prefs.getBoolPref('app.reportCrashes') &&
+        crashID) {
+      this.CrashSubmit().submit(crashID)
+    }
+  },
+
   get contentBrowser() {
     delete this.contentBrowser;
     return this.contentBrowser = document.getElementById('homescreen');
@@ -270,6 +286,8 @@ var shell = {
 
         this.contentBrowser.removeEventListener('mozbrowserloadstart', this, true);
 
+        this.reportCrash();
+
         let chromeWindow = window.QueryInterface(Ci.nsIDOMChromeWindow);
         chromeWindow.browserDOMWindow = new nsBrowserAccess();
 
@@ -400,6 +418,11 @@ Services.obs.addObserver(function onSystemMessage(subject, topic, data) {
       output = clientSocket.openOutputStream(Ci.nsITransport.OPEN_BLOCKING, 0, 0);
       output.write(prompt, prompt.length);
       input.asyncWait(reader, 0, 0, Services.tm.mainThread);
+    },
+    onStopListening: function repl_onStopListening() {
+      if (output) {
+        output.close();
+      }
     }
   }
   let serverPort = Services.prefs.getIntPref('b2g.remote-js.port');

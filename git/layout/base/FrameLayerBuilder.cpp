@@ -21,6 +21,9 @@
 #include "mozilla/Preferences.h"
 #include "sampler.h"
 
+#include "nsAnimationManager.h"
+#include "nsTransitionManager.h"
+
 #ifdef DEBUG
 #include <stdio.h>
 #endif
@@ -628,7 +631,7 @@ FrameLayerBuilder::FlashPaint(gfxContext *aContext)
 
   if (!sPaintFlashingPrefCached) {
     sPaintFlashingPrefCached = true;
-    mozilla::Preferences::AddBoolVarCache(&sPaintFlashingEnabled, 
+    mozilla::Preferences::AddBoolVarCache(&sPaintFlashingEnabled,
                                           "nglayout.debug.paint_flashing");
   }
 
@@ -944,6 +947,7 @@ ContainerState::CreateOrRecycleColorLayer()
     // We will reapply any necessary clipping.
     layer->SetClipRect(nsnull);
     layer->SetMaskLayer(nsnull);
+    layer->SetScale(1.0f, 1.0f);
   } else {
     // Create a new layer
     layer = mManager->CreateColorLayer();
@@ -967,6 +971,7 @@ ContainerState::CreateOrRecycleImageLayer()
     // We will reapply any necessary clipping.
     layer->SetClipRect(nsnull);
     layer->SetMaskLayer(nsnull);
+    layer->SetScale(1.0f, 1.0f);
   } else {
     // Create a new layer
     layer = mManager->CreateImageLayer();
@@ -984,6 +989,7 @@ ContainerState::CreateOrRecycleMaskImageLayerFor(Layer* aLayer)
   nsRefPtr<ImageLayer> result = mRecycledMaskImageLayers.Get(aLayer);
   if (result) {
     mRecycledMaskImageLayers.Remove(aLayer);
+    result->SetScale(1.0f, 1.0f);
     // XXX if we use clip on mask layers, null it out here
   } else {
     // Create a new layer
@@ -993,7 +999,7 @@ ContainerState::CreateOrRecycleMaskImageLayerFor(Layer* aLayer)
     result->SetUserData(&gMaskLayerUserData, new MaskLayerUserData());
     result->SetForceSingleTile(true);
   }
-  
+
   return result.forget();
 }
 
@@ -1058,6 +1064,7 @@ ContainerState::CreateOrRecycleThebesLayer(nsIFrame* aActiveScrolledRoot)
     // We will reapply any necessary clipping.
     layer->SetClipRect(nsnull);
     layer->SetMaskLayer(nsnull);
+    layer->SetScale(1.0f, 1.0f);
 
     data = static_cast<ThebesDisplayItemLayerUserData*>
         (layer->GetUserData(&gThebesDisplayItemLayerUserData));
@@ -1111,7 +1118,8 @@ ContainerState::CreateOrRecycleThebesLayer(nsIFrame* aActiveScrolledRoot)
                        RoundToMatchResidual(scaledOffset.y, data->mActiveScrolledRootPosition.y));
   gfxMatrix matrix;
   matrix.Translate(gfxPoint(pixOffset.x, pixOffset.y));
-  layer->SetTransform(gfx3DMatrix::From2D(matrix));
+  layer->SetBaseTransform(gfx3DMatrix::From2D(matrix));
+  layer->SetScale(1.0f, 1.0f);
 
   // FIXME: Temporary workaround for bug 681192 and bug 724786.
 #ifndef MOZ_JAVA_COMPOSITOR
@@ -1231,7 +1239,7 @@ ContainerState::ThebesLayerData::UpdateCommonClipCount(
   } else {
     // first item in the layer
     mCommonClipCount = aCurrentClip.mRoundedClipRects.Length();
-  } 
+  }
 }
 
 already_AddRefed<ImageContainer>
@@ -1253,7 +1261,7 @@ ContainerState::PopThebesLayerData()
   ThebesLayerData* data = mThebesLayerDataStack[lastIndex];
 
   nsRefPtr<Layer> layer;
-  nsRefPtr<ImageContainer> imageContainer = data->CanOptimizeImageLayer(); 
+  nsRefPtr<ImageContainer> imageContainer = data->CanOptimizeImageLayer();
 
   if ((data->mIsSolidColorInVisibleRegion || imageContainer) &&
       data->mLayer->GetValidRegion().IsEmpty()) {
@@ -1266,7 +1274,7 @@ ContainerState::PopThebesLayerData()
       // The layer's current transform is applied first, then the result is scaled.
       gfx3DMatrix transform = imageLayer->GetTransform()*
         gfx3DMatrix::ScalingMatrix(mParameters.mXScale, mParameters.mYScale, 1.0f);
-      imageLayer->SetTransform(transform);
+      imageLayer->SetBaseTransform(transform);
       if (data->mItemClip.mHaveClipRect) {
         nsIntRect clip = ScaleToNearestPixels(data->mItemClip.mClipRect);
         imageLayer->IntersectClipRect(clip);
@@ -1277,9 +1285,10 @@ ContainerState::PopThebesLayerData()
       colorLayer->SetIsFixedPosition(data->mLayer->GetIsFixedPosition());
       colorLayer->SetColor(data->mSolidColor);
 
-      // Copy transform
-      colorLayer->SetTransform(data->mLayer->GetTransform());
-      
+      // Copy transform and scale
+      colorLayer->SetBaseTransform(data->mLayer->GetBaseTransform());
+      colorLayer->SetScale(data->mLayer->GetXScale(), data->mLayer->GetYScale());
+
       // Clip colorLayer to its visible region, since ColorLayers are
       // allowed to paint outside the visible region. Here we rely on the
       // fact that uniform display items fill rectangles; obviously the
@@ -1310,7 +1319,7 @@ ContainerState::PopThebesLayerData()
   if (!layer->GetTransform().Is2D(&transform)) {
     NS_ERROR("Only 2D transformations currently supported");
   }
-  
+
   // ImageLayers are already configured with a visible region
   if (!imageContainer) {
     NS_ASSERTION(!transform.HasNonIntegerTranslation(),
@@ -1640,9 +1649,9 @@ PaintInactiveLayer(nsDisplayListBuilder* aBuilder,
 
   nsRefPtr<gfxContext> context = aContext;
 #ifdef MOZ_DUMP_PAINTING
-  nsRefPtr<gfxASurface> surf; 
+  nsRefPtr<gfxASurface> surf;
   if (gfxUtils::sDumpPainting) {
-    surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(itemVisibleRect.Size(), 
+    surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(itemVisibleRect.Size(),
                                                               gfxASurface::CONTENT_COLOR_ALPHA);
     surf->SetDeviceOffset(-itemVisibleRect.TopLeft());
     context = new gfxContext(surf);
@@ -1675,7 +1684,7 @@ PaintInactiveLayer(nsDisplayListBuilder* aBuilder,
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
     DumpPaintedImage(aItem, surf);
-  
+
     surf->SetDeviceOffset(gfxPoint(0, 0));
     aContext->SetSource(surf, itemVisibleRect.TopLeft());
     aContext->Rectangle(itemVisibleRect);
@@ -1777,7 +1786,7 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
         // The layer's current transform is applied first, then the result is scaled.
         gfx3DMatrix transform = ownLayer->GetTransform()*
             gfx3DMatrix::ScalingMatrix(mParameters.mXScale, mParameters.mYScale, 1.0f);
-        ownLayer->SetTransform(transform);
+        ownLayer->SetBaseTransform(transform);
       }
 
       ownLayer->SetIsFixedPosition(
@@ -2121,9 +2130,9 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
     scale = gfxSize(1.0, 1.0);
   }
 
-  // Apply the inverse of our resolution-scale before the rest of our transform
-  transform = gfx3DMatrix::ScalingMatrix(1.0/scale.width, 1.0/scale.height, 1.0)*transform;
-  aLayer->SetTransform(transform);
+  aLayer->SetBaseTransform(transform);
+  // Store the inverse of our resolution-scale on the layer
+  aLayer->SetScale(1.0f/float(scale.width), 1.0f/float(scale.height));
 
   FrameLayerBuilder::ContainerParameters
     result(scale.width, scale.height, aIncomingScale);
@@ -2552,8 +2561,8 @@ static void DebugPaintItem(nsRenderingContext* aDest, nsDisplayItem *aItem, nsDi
   gfxRect bounds(appUnitBounds.x, appUnitBounds.y, appUnitBounds.width, appUnitBounds.height);
   bounds.ScaleInverse(aDest->AppUnitsPerDevPixel());
 
-  nsRefPtr<gfxASurface> surf = 
-    gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height), 
+  nsRefPtr<gfxASurface> surf =
+    gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height),
                                                        gfxASurface::CONTENT_COLOR_ALPHA);
   surf->SetDeviceOffset(-bounds.TopLeft());
   nsRefPtr<gfxContext> context = new gfxContext(surf);
@@ -2563,7 +2572,7 @@ static void DebugPaintItem(nsRenderingContext* aDest, nsDisplayItem *aItem, nsDi
   aItem->Paint(aBuilder, ctx);
   DumpPaintedImage(aItem, surf);
   aItem->SetPainted();
-    
+
   surf->SetDeviceOffset(gfxPoint(0, 0));
   aDest->ThebesContext()->SetSource(surf, bounds.TopLeft());
   aDest->ThebesContext()->Rectangle(bounds);
@@ -3025,7 +3034,7 @@ CalculateBounds(nsTArray<FrameLayerBuilder::Clip::RoundedRect> aRects, PRInt32 A
  
 void
 ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aClip,
-                               PRUint32 aRoundedRectClipCount) 
+                               PRUint32 aRoundedRectClipCount)
 {
   // don't build an unnecessary mask
   nsIntRect layerBounds = aLayer->GetVisibleRegion().GetBounds();
@@ -3051,7 +3060,7 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aCl
     aLayer->SetMaskLayer(maskLayer);
     return;
   }
- 
+
   // calculate a more precise bounding rect
   const PRInt32 A2D = mContainerFrame->PresContext()->AppUnitsPerDevPixel();
   gfxRect boundingRect = CalculateBounds(newData.mRoundedClipRects, A2D);
@@ -3123,13 +3132,13 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aCl
     data.mSurface = surface;
     data.mSize = surfaceSize;
     static_cast<CairoImage*>(image.get())->SetData(data);
-    container->SetCurrentImage(image);
+    container->SetCurrentImageInTransaction(image);
 
     GetMaskLayerImageCache()->PutImage(key, container);
   }
 
   maskLayer->SetContainer(container);
-  maskLayer->SetTransform(gfx3DMatrix::From2D(maskTransform.Invert()));
+  maskLayer->SetBaseTransform(gfx3DMatrix::From2D(maskTransform.Invert()));
 
   // save the details of the clip in user data
   userData->mScaleX = newData.mScaleX;
