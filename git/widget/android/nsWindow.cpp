@@ -162,6 +162,7 @@ nsWindow::nsWindow() :
     mIMEMaskSelectionUpdate(false),
     mIMEMaskTextUpdate(false),
     mIMEMaskEventsCount(1), // Mask IME events since there's no focus yet
+    mIMEUpdatingContext(false),
     mIMESelectionChanged(false)
 {
 }
@@ -1511,10 +1512,10 @@ nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key,
         event.pluginEvent = pluginEvent;
     }
 
-    event.InitBasicModifiers(gMenu,
+    event.InitBasicModifiers(gMenu || key.IsCtrlPressed(),
                              key.IsAltPressed(),
                              key.IsShiftPressed(),
-                             false);
+                             key.IsMetaPressed());
     event.location = key.DomKeyLocation();
     event.time = key.Time();
 
@@ -1608,6 +1609,8 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
     case AndroidKeyEvent::KEYCODE_SHIFT_RIGHT:
     case AndroidKeyEvent::KEYCODE_ALT_LEFT:
     case AndroidKeyEvent::KEYCODE_ALT_RIGHT:
+    case AndroidKeyEvent::KEYCODE_CTRL_LEFT:
+    case AndroidKeyEvent::KEYCODE_CTRL_RIGHT:
         firePress = false;
         break;
     case AndroidKeyEvent::KEYCODE_BACK:
@@ -1715,14 +1718,21 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             // on Gecko. Now we can notify Java of the newly focused content
             mIMETextChanges.Clear();
             mIMESelectionChanged = false;
-            // OnIMETextChange also notifies selection
+            // NotifyIMEOfTextChange also notifies selection
             // Use 'INT32_MAX / 2' here because subsequent text changes might
             // combine with this text change, and overflow might occur if
             // we just use INT32_MAX
-            OnIMETextChange(0, INT32_MAX / 2, INT32_MAX / 2);
+            NotifyIMEOfTextChange(0, INT32_MAX / 2, INT32_MAX / 2);
             FlushIMEChanges();
         }
         AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_REPLY_EVENT, 0);
+        return;
+    } else if (ae->Action() == AndroidGeckoEvent::IME_UPDATE_CONTEXT) {
+        AndroidBridge::NotifyIMEEnabled(mInputContext.mIMEState.mEnabled,
+                                        mInputContext.mHTMLInputType,
+                                        mInputContext.mHTMLInputInputmode,
+                                        mInputContext.mActionHint);
+        mIMEUpdatingContext = false;
         return;
     }
     if (mIMEMaskEventsCount > 0) {
@@ -1956,12 +1966,63 @@ nsWindow::UserActivity()
 }
 
 NS_IMETHODIMP
-nsWindow::ResetInputState()
+nsWindow::NotifyIME(NotificationToIME aNotification)
 {
-    //ALOGIME("IME: ResetInputState: s=%d", aState);
-    RemoveIMEComposition();
-    AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_RESETINPUTSTATE, 0);
-    return NS_OK;
+    switch (aNotification) {
+        case REQUEST_TO_COMMIT_COMPOSITION:
+            //ALOGIME("IME: REQUEST_TO_COMMIT_COMPOSITION: s=%d", aState);
+            RemoveIMEComposition();
+            AndroidBridge::NotifyIME(
+                AndroidBridge::NOTIFY_IME_RESETINPUTSTATE, 0);
+            return NS_OK;
+        case REQUEST_TO_CANCEL_COMPOSITION:
+            ALOGIME("IME: REQUEST_TO_CANCEL_COMPOSITION");
+
+            // Cancel composition on Gecko side
+            if (mIMEComposing) {
+                nsRefPtr<nsWindow> kungFuDeathGrip(this);
+
+                nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
+                InitEvent(textEvent, nullptr);
+                DispatchEvent(&textEvent);
+
+                nsCompositionEvent compEvent(true, NS_COMPOSITION_END, this);
+                InitEvent(compEvent, nullptr);
+                DispatchEvent(&compEvent);
+            }
+
+            AndroidBridge::NotifyIME(
+                AndroidBridge::NOTIFY_IME_CANCELCOMPOSITION, 0);
+            return NS_OK;
+        case NOTIFY_IME_OF_FOCUS:
+            ALOGIME("IME: NOTIFY_IME_OF_FOCUS");
+            AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_FOCUSCHANGE, 1);
+            return NS_OK;
+        case NOTIFY_IME_OF_BLUR:
+            ALOGIME("IME: NOTIFY_IME_OF_BLUR");
+
+            // Mask events because we lost focus. On the next focus event,
+            // Gecko will notify Java, and Java will send an acknowledge focus
+            // event back to Gecko. That is where we unmask event handling
+            mIMEMaskEventsCount++;
+            mIMEComposing = false;
+            mIMEComposingText.Truncate();
+
+            AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_FOCUSCHANGE, 0);
+            return NS_OK;
+        case NOTIFY_IME_OF_SELECTION_CHANGE:
+            if (mIMEMaskSelectionUpdate) {
+                return NS_OK;
+            }
+
+            ALOGIME("IME: NOTIFY_IME_OF_SELECTION_CHANGE");
+
+            PostFlushIMEChanges();
+            mIMESelectionChanged = true;
+            return NS_OK;
+        default:
+            return NS_ERROR_NOT_IMPLEMENTED;
+    }
 }
 
 NS_IMETHODIMP_(void)
@@ -1984,19 +2045,25 @@ nsWindow::SetInputContext(const InputContext& aContext,
         return;
     }
 
-    int enabled = int(aContext.mIMEState.mEnabled);
+    IMEState::Enabled enabled = aContext.mIMEState.mEnabled;
 
     // Only show the virtual keyboard for plugins if mOpen is set appropriately.
     // This avoids showing it whenever a plugin is focused. Bug 747492
     if (aContext.mIMEState.mEnabled == IMEState::PLUGIN &&
         aContext.mIMEState.mOpen != IMEState::OPEN) {
-        enabled = int(IMEState::DISABLED);
+        enabled = IMEState::DISABLED;
     }
 
-    AndroidBridge::NotifyIMEEnabled(enabled,
-                                    aContext.mHTMLInputType,
-                                    aContext.mHTMLInputInputmode,
-                                    aContext.mActionHint);
+    mInputContext.mIMEState.mEnabled = enabled;
+
+    if (mIMEUpdatingContext) {
+        return;
+    }
+    AndroidGeckoEvent *event = new AndroidGeckoEvent(
+            AndroidGeckoEvent::IME_EVENT,
+            AndroidGeckoEvent::IME_UPDATE_CONTEXT);
+    nsAppShell::gAppShell->PostEvent(event);
+    mIMEUpdatingContext = true;
 }
 
 NS_IMETHODIMP_(InputContext)
@@ -2006,48 +2073,6 @@ nsWindow::GetInputContext()
     // We assume that there is only one context per process on Android
     mInputContext.mNativeIMEContext = nullptr;
     return mInputContext;
-}
-
-NS_IMETHODIMP
-nsWindow::CancelIMEComposition()
-{
-    ALOGIME("IME: CancelIMEComposition");
-
-    // Cancel composition on Gecko side
-    if (mIMEComposing) {
-        nsRefPtr<nsWindow> kungFuDeathGrip(this);
-
-        nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
-        InitEvent(textEvent, nullptr);
-        DispatchEvent(&textEvent);
-
-        nsCompositionEvent compEvent(true, NS_COMPOSITION_END, this);
-        InitEvent(compEvent, nullptr);
-        DispatchEvent(&compEvent);
-    }
-
-    AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_CANCELCOMPOSITION, 0);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWindow::OnIMEFocusChange(bool aFocus)
-{
-    ALOGIME("IME: OnIMEFocusChange: f=%d", aFocus);
-
-    if (!aFocus) {
-        // Mask events because we lost focus. On the next focus event, Gecko will notify
-        // Java, and Java will send an acknowledge focus event back to Gecko. That is
-        // where we unmask event handling
-        mIMEMaskEventsCount++;
-        mIMEComposing = false;
-        mIMEComposingText.Truncate();
-    }
-
-    AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_FOCUSCHANGE,
-                             int(aFocus));
-
-    return NS_OK;
 }
 
 void
@@ -2101,17 +2126,19 @@ nsWindow::FlushIMEChanges()
 }
 
 NS_IMETHODIMP
-nsWindow::OnIMETextChange(uint32_t aStart, uint32_t aOldEnd, uint32_t aNewEnd)
+nsWindow::NotifyIMEOfTextChange(uint32_t aStart,
+                                uint32_t aOldEnd,
+                                uint32_t aNewEnd)
 {
     if (mIMEMaskTextUpdate)
         return NS_OK;
 
-    ALOGIME("IME: OnIMETextChange: s=%d, oe=%d, ne=%d",
+    ALOGIME("IME: NotifyIMEOfTextChange: s=%d, oe=%d, ne=%d",
             aStart, aOldEnd, aNewEnd);
 
     /* Make sure Java's selection is up-to-date */
     mIMESelectionChanged = false;
-    OnIMESelectionChange();
+    NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE);
     PostFlushIMEChanges();
 
     mIMETextChanges.AppendElement(IMEChange(aStart, aOldEnd, aNewEnd));
@@ -2170,19 +2197,6 @@ nsWindow::OnIMETextChange(uint32_t aStart, uint32_t aOldEnd, uint32_t aNewEnd)
         // so we can safely continue the merge starting at dst
         srcIndex = dstIndex;
     }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWindow::OnIMESelectionChange(void)
-{
-    if (mIMEMaskSelectionUpdate)
-        return NS_OK;
-
-    ALOGIME("IME: OnIMESelectionChange");
-
-    PostFlushIMEChanges();
-    mIMESelectionChanged = true;
     return NS_OK;
 }
 
