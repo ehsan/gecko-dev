@@ -128,27 +128,21 @@ nsXBLProtoImplProperty::InstallMember(JSContext *aCx,
                   "Should not be installing an uncompiled property");
   MOZ_ASSERT(mGetter.IsCompiled() && mSetter.IsCompiled());
   MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
-
-#ifdef DEBUG
-  {
-    JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
-    MOZ_ASSERT(xpc::IsInContentXBLScope(globalObject) ||
-               xpc::IsInAddonScope(globalObject) ||
-               globalObject == xpc::GetXBLScope(aCx, globalObject));
-    MOZ_ASSERT(JS::CurrentGlobalOrNull(aCx) == globalObject);
-  }
-#endif
+  JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
+  MOZ_ASSERT(xpc::IsInContentXBLScope(globalObject) ||
+             xpc::IsInAddonScope(globalObject) ||
+             globalObject == xpc::GetXBLScope(aCx, globalObject));
 
   JS::Rooted<JSObject*> getter(aCx, mGetter.GetJSFunction());
   JS::Rooted<JSObject*> setter(aCx, mSetter.GetJSFunction());
   if (getter || setter) {
     if (getter) {
-      if (!(getter = JS::CloneFunctionObject(aCx, getter)))
+      if (!(getter = ::JS_CloneFunctionObject(aCx, getter, globalObject)))
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
     if (setter) {
-      if (!(setter = JS::CloneFunctionObject(aCx, setter)))
+      if (!(setter = ::JS_CloneFunctionObject(aCx, setter, globalObject)))
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
@@ -198,7 +192,8 @@ nsXBLProtoImplProperty::CompileMember(AutoJSAPI& jsapi, const nsCString& aClassS
       JSAutoCompartment ac(cx, aClassObject);
       JS::CompileOptions options(cx);
       options.setFileAndLine(functionUri.get(), getterText->GetLineNumber())
-             .setVersion(JSVERSION_LATEST);
+             .setVersion(JSVERSION_LATEST)
+             .setDefineOnScope(false);
       nsCString name = NS_LITERAL_CSTRING("get_") + NS_ConvertUTF16toUTF8(mName);
       JS::Rooted<JSObject*> getterObject(cx);
       JS::AutoObjectVector emptyVector(cx);
@@ -244,7 +239,8 @@ nsXBLProtoImplProperty::CompileMember(AutoJSAPI& jsapi, const nsCString& aClassS
       JSAutoCompartment ac(cx, aClassObject);
       JS::CompileOptions options(cx);
       options.setFileAndLine(functionUri.get(), setterText->GetLineNumber())
-             .setVersion(JSVERSION_LATEST);
+             .setVersion(JSVERSION_LATEST)
+             .setDefineOnScope(false);
       nsCString name = NS_LITERAL_CSTRING("set_") + NS_ConvertUTF16toUTF8(mName);
       JS::Rooted<JSObject*> setterObject(cx);
       JS::AutoObjectVector emptyVector(cx);

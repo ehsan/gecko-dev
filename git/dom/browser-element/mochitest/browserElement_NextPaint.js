@@ -10,7 +10,7 @@ browserElementTestHelpers.addPermission();
 
 function runTest() {
   var iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
   document.body.appendChild(iframe);
 
   // Add a first listener that we'll remove shortly after.

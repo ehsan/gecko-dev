@@ -13,18 +13,24 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=1061469
   <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=1061469">Mozilla Bug 1061469</a>
   <script type="text/javascript">
     SimpleTest.waitForExplicitFinish();
-    var success = false;
+    var counter = 0;
+    var fcounter = 0;
+    var order = [];
     function loaded() {
-      success = true;
+      counter++;
     }
     function failed() {
-      ok(false, "Import loading failed");
+      fcounter++;
     }
   </script>
-  <link rel="import" href="file_simple_import.html" id="import" onload="loaded()" onerror="failed()"></link>
+  <link rel="import" href="file_cycle_5_A.html" onload="loaded()" onerror="failed()"></link>
+  <link rel="import" href="file_cycle_5_C.html" onload="loaded()" onerror="failed()"></link>
   <script type="text/javascript">
-    document.defaultView;
-    is(document.getElementById("import").import.defaultView, null, "defaultView is always null for imports");
+    is(counter, 14, "Imports are loaded");
+    is(fcounter, 0, "No error in imports");
+    var expected = ["D","C","B","A"];
+    for (i in expected)
+      is(order[i], expected[i], "import " + i + " should be " + expected[i]);
     SimpleTest.finish();
   </script>
 </body>

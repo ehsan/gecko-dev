@@ -48,7 +48,7 @@ protected:
   friend class MediaDocumentStreamListener;
   nsresult StartLayout();
 
-  void GetFileName(nsAString& aResult, nsIChannel* aChannel);
+  void GetFileName(nsAString& aResult);
 
   nsresult LinkStylesheet(const nsAString& aStylesheet);
 
@@ -64,7 +64,6 @@ protected:
   // but could be in other units for other 'media', in which case you have to 
   // define format names accordingly. 
   void UpdateTitleAndCharset(const nsACString&  aTypeStr,
-                             nsIChannel* aChannel,
                              const char* const* aFormatNames = sFormatNames,
                              int32_t            aWidth = 0,
                              int32_t            aHeight = 0,

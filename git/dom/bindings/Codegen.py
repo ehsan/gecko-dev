@@ -2014,7 +2014,7 @@ class PropertyDefiner:
                                getAvailableInTestFunc(interfaceMember),
                                descriptor.checkPermissionsIndicesForMembers.get(interfaceMember.identifier.name))
 
-    def generatePrefableArray(self, array, name, specFormatter, specTerminator,
+    def generatePrefableArray(self, array, name, specTemplate, specTerminator,
                               specType, getCondition, getDataTuple, doIdArrays):
         """
         This method generates our various arrays.
@@ -2023,8 +2023,7 @@ class PropertyDefiner:
 
         name is the name as passed to generateArray
 
-        specFormatter is a function that takes a single argument, a tuple,
-          and returns a string, a spec array entry
+        specTemplate is a template for each entry of the spec array
 
         specTerminator is a terminator for the spec array (inserted every time
           our controlling pref changes and at the end of the array)
@@ -2035,7 +2034,7 @@ class PropertyDefiner:
           returns the corresponding MemberCondition.
 
         getDataTuple is a callback function that takes an array entry and
-          returns a tuple suitable to be passed to specFormatter.
+          returns a tuple suitable for substitution into specTemplate.
         """
 
         # We want to generate a single list of specs, but with specTerminator
@@ -2078,7 +2077,7 @@ class PropertyDefiner:
                 switchToCondition(self, curCondition)
                 lastCondition = curCondition
             # And the actual spec
-            specs.append(specFormatter(getDataTuple(member)))
+            specs.append(specTemplate % getDataTuple(member))
         specs.append(specTerminator)
         prefableSpecs.append("  { false, nullptr }")
 
@@ -2355,15 +2354,9 @@ class MethodDefiner(PropertyDefiner):
 
             return (m["name"], accessor, jitinfo, m["length"], flags(m), selfHostedName)
 
-        def formatSpec(fields):
-            if fields[0].startswith("@@"):
-                fields = (fields[0][2:],) + fields[1:]
-                return '  JS_SYM_FNSPEC(%s, %s, %s, %s, %s, %s)' % fields
-            return '  JS_FNSPEC("%s", %s, %s, %s, %s, %s)' % fields
-
         return self.generatePrefableArray(
             array, name,
-            formatSpec,
+            '  JS_FNSPEC("%s", %s, %s, %s, %s, %s)',
             '  JS_FS_END',
             'JSFunctionSpec',
             condition, specData, doIdArrays)
@@ -2467,7 +2460,7 @@ class AttrDefiner(PropertyDefiner):
 
         return self.generatePrefableArray(
             array, name,
-            lambda fields: '  { "%s", %s, %s, %s}' % fields,
+            '  { "%s", %s, %s, %s}',
             '  JS_PS_END',
             'JSPropertySpec',
             PropertyDefiner.getControllingCondition, specData, doIdArrays)
@@ -2495,7 +2488,7 @@ class ConstDefiner(PropertyDefiner):
 
         return self.generatePrefableArray(
             array, name,
-            lambda fields: '  { "%s", %s }' % fields,
+            '  { "%s", %s }',
             '  { 0, JS::UndefinedValue() }',
             'ConstantSpec',
             PropertyDefiner.getControllingCondition, specData, doIdArrays)
@@ -3069,23 +3062,24 @@ class CGConstructorEnabled(CGAbstractMethod):
         return body.define()
 
 
-def CreateBindingJSObject(descriptor, properties):
+def CreateBindingJSObject(descriptor, properties, parent):
     # We don't always need to root obj, but there are a variety
     # of cases where we do, so for simplicity, just always root it.
     objDecl = "JS::Rooted<JSObject*> obj(aCx);\n"
     if descriptor.proxy:
-        create = dedent(
+        create = fill(
             """
             JS::Rooted<JS::Value> proxyPrivateVal(aCx, JS::PrivateValue(aObject));
             js::ProxyOptions options;
             options.setClass(&Class.mBase);
             obj = NewProxyObject(aCx, DOMProxyHandler::getInstance(),
-                                 proxyPrivateVal, proto, global, options);
+                                 proxyPrivateVal, proto, ${parent}, options);
             if (!obj) {
               return nullptr;
             }
 
-            """)
+            """,
+            parent=parent)
         if descriptor.interface.getExtendedAttribute('OverrideBuiltins'):
             create += dedent("""
                 js::SetProxyExtra(obj, JSPROXYSLOT_EXPANDO,
@@ -3093,15 +3087,16 @@ def CreateBindingJSObject(descriptor, properties):
 
                 """)
     else:
-        create = dedent(
+        create = fill(
             """
-            obj = JS_NewObject(aCx, Class.ToJSClass(), proto, global);
+            obj = JS_NewObject(aCx, Class.ToJSClass(), proto, ${parent});
             if (!obj) {
               return nullptr;
             }
 
             js::SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aObject));
-            """)
+            """,
+            parent=parent)
     create = objDecl + create
 
     if descriptor.nativeOwnership == 'refcounted':
@@ -3252,7 +3247,9 @@ class CGWrapWithCacheMethod(CGAbstractMethod):
             MOZ_ASSERT(ToSupportsIsOnPrimaryInheritanceChain(aObject, aCache),
                        "nsISupports must be on our primary inheritance chain");
 
-            JS::Rooted<JSObject*> parent(aCx, WrapNativeParent(aCx, aObject->GetParentObject()));
+            JS::Rooted<JSObject*> parent(aCx,
+              GetRealParentObject(aObject,
+                                  WrapNativeParent(aCx, aObject->GetParentObject())));
             if (!parent) {
               return nullptr;
             }
@@ -3268,13 +3265,13 @@ class CGWrapWithCacheMethod(CGAbstractMethod):
             }
 
             JSAutoCompartment ac(aCx, parent);
-            JS::Rooted<JSObject*> global(aCx, js::GetGlobalForObjectCrossCompartment(parent));
+            JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForObject(aCx, parent));
             JS::Handle<JSObject*> proto = GetProtoObjectHandle(aCx, global);
             if (!proto) {
               return nullptr;
             }
 
-            $*{createObject}
+            $*{parent}
 
             $*{unforgeable}
 
@@ -3283,7 +3280,8 @@ class CGWrapWithCacheMethod(CGAbstractMethod):
             return obj;
             """,
             assertion=AssertInheritanceChain(self.descriptor),
-            createObject=CreateBindingJSObject(self.descriptor, self.properties),
+            parent=CreateBindingJSObject(self.descriptor, self.properties,
+                                         "parent"),
             unforgeable=InitUnforgeableProperties(self.descriptor, self.properties),
             slots=InitMemberSlots(self.descriptor, True))
 
@@ -3329,7 +3327,7 @@ class CGWrapNonWrapperCacheMethod(CGAbstractMethod):
               return nullptr;
             }
 
-            $*{createObject}
+            $*{global_}
 
             $*{unforgeable}
 
@@ -3337,7 +3335,8 @@ class CGWrapNonWrapperCacheMethod(CGAbstractMethod):
             return obj;
             """,
             assertions=AssertInheritanceChain(self.descriptor),
-            createObject=CreateBindingJSObject(self.descriptor, self.properties),
+            global_=CreateBindingJSObject(self.descriptor, self.properties,
+                                          "global"),
             unforgeable=InitUnforgeableProperties(self.descriptor, self.properties),
             slots=InitMemberSlots(self.descriptor, False))
 

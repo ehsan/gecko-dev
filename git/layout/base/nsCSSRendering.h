@@ -24,7 +24,6 @@ namespace mozilla {
 
 namespace gfx {
 class DrawTarget;
-struct RectCornerRadii;
 }
 
 namespace layers {
@@ -320,7 +319,6 @@ struct nsCSSRendering {
   typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::gfx::Float Float;
   typedef mozilla::gfx::Rect Rect;
-  typedef mozilla::gfx::RectCornerRadii RectCornerRadii;
   typedef nsIFrame::Sides Sides;
 
   /**
@@ -345,10 +343,6 @@ struct nsCSSRendering {
                                   const nsRect& aFrameArea,
                                   const nsRect& aDirtyRect,
                                   float aOpacity = 1.0);
-
-  static void ComputePixelRadii(const nscoord *aAppUnitsRadii,
-                                nscoord aAppUnitsPerPixel,
-                                RectCornerRadii *oBorderRadii);
 
   static void ComputePixelRadii(const nscoord *aAppUnitsRadii,
                                 nscoord aAppUnitsPerPixel,

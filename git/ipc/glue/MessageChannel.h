@@ -45,6 +45,7 @@ class MessageChannel : HasResultCodes
 {
     friend class ProcessLink;
     friend class ThreadLink;
+    friend class AutoEnterRPCTransaction;
 
     class CxxStackFrame;
     class InterruptFrame;
@@ -227,7 +228,7 @@ class MessageChannel : HasResultCodes
 
     bool InterruptEventOccurred();
 
-    bool ProcessPendingRequest(const Message &aUrgent);
+    bool ProcessPendingRequest(Message aUrgent);
 
     void MaybeUndeferIncall();
     void EnqueuePendingMessages();
@@ -509,18 +510,18 @@ class MessageChannel : HasResultCodes
            if (mChan->mCurrentTransaction == 0)
                mChan->mCurrentTransaction = mChan->NextSeqno();
        }
-       explicit AutoEnterTransaction(MessageChannel *aChan, const Message &aMessage)
+       explicit AutoEnterTransaction(MessageChannel *aChan, Message *message)
         : mChan(aChan),
           mOldTransaction(mChan->mCurrentTransaction)
        {
            mChan->mMonitor->AssertCurrentThreadOwns();
 
-           if (!aMessage.is_sync())
+           if (!message->is_sync())
                return;
 
-           MOZ_ASSERT_IF(mChan->mSide == ParentSide && mOldTransaction != aMessage.transaction_id(),
-                         !mOldTransaction || aMessage.priority() > mChan->AwaitingSyncReplyPriority());
-           mChan->mCurrentTransaction = aMessage.transaction_id();
+           MOZ_ASSERT_IF(mChan->mSide == ParentSide && mOldTransaction != message->transaction_id(),
+                         !mOldTransaction || message->priority() > mChan->AwaitingSyncReplyPriority());
+           mChan->mCurrentTransaction = message->transaction_id();
        }
        ~AutoEnterTransaction() {
            mChan->mMonitor->AssertCurrentThreadOwns();

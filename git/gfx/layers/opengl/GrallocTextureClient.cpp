@@ -20,6 +20,19 @@ namespace layers {
 using namespace mozilla::gfx;
 using namespace android;
 
+GrallocTextureClientOGL::GrallocTextureClientOGL(MaybeMagicGrallocBufferHandle buffer,
+                                                 gfx::IntSize aSize,
+                                                 gfx::BackendType aMoz2dBackend,
+                                                 TextureFlags aFlags)
+: BufferTextureClient(nullptr, gfx::SurfaceFormat::UNKNOWN, aMoz2dBackend, aFlags)
+, mGrallocHandle(buffer)
+, mMappedBuffer(nullptr)
+, mMediaBuffer(nullptr)
+{
+  InitWith(buffer, aSize);
+  MOZ_COUNT_CTOR(GrallocTextureClientOGL);
+}
+
 GrallocTextureClientOGL::GrallocTextureClientOGL(ISurfaceAllocator* aAllocator,
                                                  gfx::SurfaceFormat aFormat,
                                                  gfx::BackendType aMoz2dBackend,
@@ -28,7 +41,6 @@ GrallocTextureClientOGL::GrallocTextureClientOGL(ISurfaceAllocator* aAllocator,
 , mGrallocHandle(null_t())
 , mMappedBuffer(nullptr)
 , mMediaBuffer(nullptr)
-, mIsOpaque(gfx::IsOpaque(aFormat))
 {
   MOZ_COUNT_CTOR(GrallocTextureClientOGL);
 }
@@ -77,7 +89,7 @@ GrallocTextureClientOGL::ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor)
     return false;
   }
 
-  aOutDescriptor = NewSurfaceDescriptorGralloc(mGrallocHandle, mSize, mIsOpaque);
+  aOutDescriptor = NewSurfaceDescriptorGralloc(mGrallocHandle, mSize);
   return true;
 }
 

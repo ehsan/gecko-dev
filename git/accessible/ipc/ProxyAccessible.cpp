@@ -59,11 +59,5 @@ ProxyAccessible::Description(nsString& aDesc) const
 {
   unused << mDoc->SendDescription(mID, &aDesc);
 }
-
-void
-ProxyAccessible::Attributes(nsTArray<Attribute> *aAttrs) const
-{
-  unused << mDoc->SendAttributes(mID, aAttrs);
-}
 }
 }

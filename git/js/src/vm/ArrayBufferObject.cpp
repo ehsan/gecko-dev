@@ -975,7 +975,7 @@ ArrayBufferObject::trace(JSTracer *trc, JSObject *obj)
     if (!buf.forInlineTypedObject())
         return;
 
-    JSObject *view = MaybeForwarded(buf.firstView());
+    JSObject *view = buf.firstView();
     MOZ_ASSERT(view && view->is<InlineTransparentTypedObject>());
 
     gc::MarkObjectUnbarriered(trc, &view, "array buffer inline typed object owner");

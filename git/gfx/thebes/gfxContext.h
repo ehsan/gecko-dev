@@ -505,7 +505,6 @@ public:
      */
     void Clip(const Rect& rect);
     void Clip(const gfxRect& rect); // will clip to a rect
-    void Clip(Path* aPath);
 
     /**
      * This will ensure that the surface actually has its clip set.

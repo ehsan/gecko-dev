@@ -2272,9 +2272,6 @@ JS_GetExternalStringFinalizer(JSString *str);
  * The stack quotas for each kind of code should be monotonically descending,
  * and may be specified with this function. If 0 is passed for a given kind
  * of code, it defaults to the value of the next-highest-priority kind.
- *
- * This function may only be called immediately after the runtime is initialized
- * and before any code is executed and/or interrupts requested.
  */
 extern JS_PUBLIC_API(void)
 JS_SetNativeStackQuota(JSRuntime *cx, size_t systemCodeStackSize,
@@ -2564,8 +2561,7 @@ struct JSFunctionSpec {
  *
  * The _SYM variants allow defining a function with a symbol key rather than a
  * string key. For example, use JS_SYM_FN(iterator, ...) to define an
- * @@iterator method. (In builds without ES6 symbols, it defines a method with
- * the string id "@@iterator".)
+ * @@iterator method.
  */
 #define JS_FS(name,call,nargs,flags)                                          \
     JS_FNSPEC(name, call, nullptr, nargs, flags, nullptr)
@@ -2579,17 +2575,10 @@ struct JSFunctionSpec {
     JS_FNSPEC(name, nullptr, nullptr, nargs, flags, selfHostedName)
 #define JS_SELF_HOSTED_SYM_FN(symbol, selfHostedName, nargs, flags)           \
     JS_SYM_FNSPEC(symbol, nullptr, nullptr, nargs, flags, selfHostedName)
-
-#ifdef JS_HAS_SYMBOLS
 #define JS_SYM_FNSPEC(symbol, call, info, nargs, flags, selfHostedName)       \
     JS_FNSPEC(reinterpret_cast<const char *>(                                 \
                   uint32_t(::JS::SymbolCode::symbol) + 1),                    \
               call, info, nargs, flags, selfHostedName)
-#else
-#define JS_SYM_FNSPEC(symbol, call, info, nargs, flags, selfHostedName)       \
-    JS_FNSPEC("@@" #symbol, call, info, nargs, flags, selfHostedName)
-#endif
-
 #define JS_FNSPEC(name,call,info,nargs,flags,selfHostedName)                  \
     {name, {call, info}, nargs, flags, selfHostedName}
 
@@ -3530,24 +3519,12 @@ extern JS_PUBLIC_API(JSFunction *)
 JS_DefineFunctionById(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSNative call,
                       unsigned nargs, unsigned attrs);
 
-namespace JS {
-
 /*
- * Clone a top-level function into cx's global. This function will dynamically
+ * Clone a top-level function into a new scope. This function will dynamically
  * fail if funobj was lexically nested inside some other function.
  */
 extern JS_PUBLIC_API(JSObject *)
-CloneFunctionObject(JSContext *cx, HandleObject funobj);
-
-/*
- * As above, but providing an explicit scope chain.  scopeChain must not include
- * the global object on it; that's implicit.  It needs to contain the other
- * objects that should end up on the clone's scope chain.
- */
-extern JS_PUBLIC_API(JSObject *)
-CloneFunctionObject(JSContext *cx, HandleObject funobj, AutoObjectVector &scopeChain);
-
-} // namespace JS
+JS_CloneFunctionObject(JSContext *cx, JS::Handle<JSObject*> funobj, JS::Handle<JSObject*> parent);
 
 /*
  * Given a buffer, return false if the buffer might become a valid
@@ -3589,6 +3566,26 @@ JS_GetScriptBaseLineNumber(JSContext *cx, JSScript *script);
 
 extern JS_PUBLIC_API(JSScript *)
 JS_GetFunctionScript(JSContext *cx, JS::HandleFunction fun);
+
+/*
+ * |fun| will always be set. On failure, it will be set to nullptr.
+ */
+extern JS_PUBLIC_API(bool)
+JS_CompileFunction(JSContext *cx, JS::HandleObject obj, const char *name,
+                   unsigned nargs, const char *const *argnames,
+                   const char *bytes, size_t length,
+                   const JS::CompileOptions &options,
+                   JS::MutableHandleFunction fun);
+
+/*
+ * |fun| will always be set. On failure, it will be set to nullptr.
+ */
+extern JS_PUBLIC_API(bool)
+JS_CompileUCFunction(JSContext *cx, JS::HandleObject obj, const char *name,
+                     unsigned nargs, const char *const *argnames,
+                     const char16_t *chars, size_t length,
+                     const JS::CompileOptions &options,
+                     JS::MutableHandleFunction fun);
 
 namespace JS {
 
@@ -3673,6 +3670,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
         column(0),
         compileAndGo(false),
         forEval(false),
+        defineOnScope(true),
         noScriptRval(false),
         selfHostingMode(false),
         canLazilyParse(true),
@@ -3712,6 +3710,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     unsigned column;
     bool compileAndGo;
     bool forEval;
+    bool defineOnScope;
     bool noScriptRval;
     bool selfHostingMode;
     bool canLazilyParse;
@@ -3803,6 +3802,7 @@ class JS_FRIEND_API(OwningCompileOptions) : public ReadOnlyCompileOptions
     OwningCompileOptions &setColumn(unsigned c) { column = c; return *this; }
     OwningCompileOptions &setCompileAndGo(bool cng) { compileAndGo = cng; return *this; }
     OwningCompileOptions &setForEval(bool eval) { forEval = eval; return *this; }
+    OwningCompileOptions &setDefineOnScope(bool define) { defineOnScope = define; return *this; }
     OwningCompileOptions &setNoScriptRval(bool nsr) { noScriptRval = nsr; return *this; }
     OwningCompileOptions &setSelfHostingMode(bool shm) { selfHostingMode = shm; return *this; }
     OwningCompileOptions &setCanLazilyParse(bool clp) { canLazilyParse = clp; return *this; }
@@ -3886,6 +3886,7 @@ class MOZ_STACK_CLASS JS_FRIEND_API(CompileOptions) : public ReadOnlyCompileOpti
     CompileOptions &setColumn(unsigned c) { column = c; return *this; }
     CompileOptions &setCompileAndGo(bool cng) { compileAndGo = cng; return *this; }
     CompileOptions &setForEval(bool eval) { forEval = eval; return *this; }
+    CompileOptions &setDefineOnScope(bool define) { defineOnScope = define; return *this; }
     CompileOptions &setNoScriptRval(bool nsr) { noScriptRval = nsr; return *this; }
     CompileOptions &setSelfHostingMode(bool shm) { selfHostingMode = shm; return *this; }
     CompileOptions &setCanLazilyParse(bool clp) { canLazilyParse = clp; return *this; }
@@ -3957,6 +3958,28 @@ CompileOffThread(JSContext *cx, const ReadOnlyCompileOptions &options,
 extern JS_PUBLIC_API(JSScript *)
 FinishOffThreadScript(JSContext *maybecx, JSRuntime *rt, void *token);
 
+/*
+ * enclosingStaticScope is a static enclosing scope, if any (e.g. a
+ * StaticWithObject).  If the enclosing scope is the global scope, this must be
+ * null.
+ */
+extern JS_PUBLIC_API(bool)
+CompileFunction(JSContext *cx, JS::HandleObject obj, const ReadOnlyCompileOptions &options,
+                const char *name, unsigned nargs, const char *const *argnames,
+                SourceBufferHolder &srcBuf, JS::MutableHandleFunction fun,
+                HandleObject enclosingStaticScope = NullPtr());
+
+extern JS_PUBLIC_API(bool)
+CompileFunction(JSContext *cx, JS::HandleObject obj, const ReadOnlyCompileOptions &options,
+                const char *name, unsigned nargs, const char *const *argnames,
+                const char *bytes, size_t length, JS::MutableHandleFunction fun);
+
+extern JS_PUBLIC_API(bool)
+CompileFunction(JSContext *cx, JS::HandleObject obj, const ReadOnlyCompileOptions &options,
+                const char *name, unsigned nargs, const char *const *argnames,
+                const char16_t *chars, size_t length, JS::MutableHandleFunction fun,
+                HandleObject enclosingStaticScope = NullPtr());
+
 /**
  * Compile a function with scopeChain plus the global as its scope chain.
  * scopeChain must contain objects in the current compartment of cx.  The actual
@@ -3969,24 +3992,6 @@ CompileFunction(JSContext *cx, AutoObjectVector &scopeChain,
                 const ReadOnlyCompileOptions &options,
                 const char *name, unsigned nargs, const char *const *argnames,
                 const char16_t *chars, size_t length, JS::MutableHandleFunction fun);
-
-/**
- * Same as above, but taking a SourceBufferHolder for the function body.
- */
-extern JS_PUBLIC_API(bool)
-CompileFunction(JSContext *cx, AutoObjectVector &scopeChain,
-                const ReadOnlyCompileOptions &options,
-                const char *name, unsigned nargs, const char *const *argnames,
-                SourceBufferHolder &srcBuf, JS::MutableHandleFunction fun);
-
-/**
- * Same as above, but taking a const char * for the function body.
- */
-extern JS_PUBLIC_API(bool)
-CompileFunction(JSContext *cx, AutoObjectVector &scopeChain,
-                const ReadOnlyCompileOptions &options,
-                const char *name, unsigned nargs, const char *const *argnames,
-                const char *bytes, size_t length, JS::MutableHandleFunction fun);
 
 } /* namespace JS */
 

@@ -23,7 +23,7 @@ function runTest() {
                                                  isInBrowserElement: true });
 
   iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   // Our test involves three <iframe mozbrowser>'s, parent, child1, and child2.
   // child1 and child2 are contained inside parent.  child1 is visibile, and
