@@ -130,18 +130,12 @@ this.BrowserUITelemetry = {
   init: function() {
     UITelemetry.addSimpleMeasureFunction("toolbars",
                                          this.getToolbarMeasures.bind(this));
-    Services.obs.addObserver(this, "sessionstore-windows-restored", false);
     Services.obs.addObserver(this, "browser-delayed-startup-finished", false);
   },
 
   observe: function(aSubject, aTopic, aData) {
-    switch(aTopic) {
-      case "sessionstore-windows-restored":
-        this._gatherFirstWindowMeasurements();
-        break;
-      case "browser-delayed-startup-finished":
-        this._registerWindow(aSubject);
-        break;
+    if (aTopic == "browser-delayed-startup-finished") {
+      this._registerWindow(aSubject);
     }
   },
 
@@ -206,23 +200,16 @@ this.BrowserUITelemetry = {
   },
 
   _firstWindowMeasurements: null,
-  _gatherFirstWindowMeasurements: function() {
-    // We'll gather measurements as soon as the session has restored.
-    // We do this here instead of waiting for UITelemetry to ask for
-    // our measurements because at that point all browser windows have
-    // probably been closed, since the vast majority of saved-session
-    // pings are gathered during shutdown.
-    let win = RecentWindow.getMostRecentBrowserWindow({
-      private: false,
-      allowPopups: false,
-    });
-
-    // If there are no such windows, we're out of luck. :(
-    this._firstWindowMeasurements = win ? this._getWindowMeasurements(win)
-                                        : {};
-  },
-
   _registerWindow: function(aWindow) {
+    // We'll gather measurements on the first non-popup window that opens
+    // after it has painted. We do this here instead of waiting for
+    // UITelemetry to ask for our measurements because at that point
+    // all browser windows have probably been closed, since the vast
+    // majority of saved-session pings are gathered during shutdown.
+    if (!this._firstWindowMeasurements && aWindow.toolbar.visible) {
+      this._firstWindowMeasurements = this._getWindowMeasurements(aWindow);
+    }
+
     aWindow.addEventListener("unload", this);
     let document = aWindow.document;
 

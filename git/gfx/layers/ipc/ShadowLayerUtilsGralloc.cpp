@@ -189,14 +189,18 @@ ContentTypeFromPixelFormat(android::PixelFormat aFormat)
   return gfxASurface::ContentFromFormat(ImageFormatForPixelFormat(aFormat));
 }
 
-class GrallocReporter MOZ_FINAL : public nsIMemoryReporter
+class GrallocReporter MOZ_FINAL : public MemoryUniReporter
 {
   friend class GrallocBufferActor;
 
 public:
-  NS_DECL_ISUPPORTS
-
   GrallocReporter()
+    : MemoryUniReporter("gralloc", KIND_OTHER, UNITS_BYTES,
+"Special RAM that can be shared between processes and directly accessed by "
+"both the CPU and GPU.  Gralloc memory is usually a relatively precious "
+"resource, with much less available than generic RAM.  When it's exhausted, "
+"graphics performance can suffer. This value can be incorrect because of race "
+"conditions.")
   {
 #ifdef DEBUG
     // There must be only one instance of this class, due to |sAmount|
@@ -207,23 +211,11 @@ public:
 #endif
   }
 
-  NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                            nsISupports* aData)
-  {
-    return MOZ_COLLECT_REPORT(
-      "gralloc", KIND_OTHER, UNITS_BYTES, sAmount,
-"Special RAM that can be shared between processes and directly accessed by "
-"both the CPU and GPU. Gralloc memory is usually a relatively precious "
-"resource, with much less available than generic RAM. When it's exhausted, "
-"graphics performance can suffer. This value can be incorrect because of race "
-"conditions.");
-  }
-
 private:
+  int64_t Amount() MOZ_OVERRIDE { return sAmount; }
+
   static int64_t sAmount;
 };
-
-NS_IMPL_ISUPPORTS1(GrallocReporter, nsIMemoryReporter)
 
 int64_t GrallocReporter::sAmount = 0;
 

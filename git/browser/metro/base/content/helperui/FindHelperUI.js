@@ -109,16 +109,8 @@ var FindHelperUI = {
   },
 
   show: function findHelperShow() {
-    if (BrowserUI.isStartTabVisible) {
+    if (BrowserUI.isStartTabVisible || this._open)
       return;
-    }
-    if (this._open) {
-      setTimeout(() => {
-        this._textbox.select();
-        this._textbox.focus();
-      }, 0);
-      return;
-    }
 
     // Hide any menus
     ContextUI.dismiss();

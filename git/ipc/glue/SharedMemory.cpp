@@ -17,32 +17,28 @@ namespace ipc {
 static Atomic<size_t> gShmemAllocated;
 static Atomic<size_t> gShmemMapped;
 
-class ShmemReporter MOZ_FINAL : public nsIMemoryReporter
+class ShmemAllocatedReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
-
-  NS_IMETHOD
-  CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData)
-  {
-    nsresult rv;
-    rv = MOZ_COLLECT_REPORT(
-      "shmem-allocated", KIND_OTHER, UNITS_BYTES, gShmemAllocated,
-      "Memory shared with other processes that is accessible (but not "
-      "necessarily mapped).");
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = MOZ_COLLECT_REPORT(
-      "shmem-mapped", KIND_OTHER, UNITS_BYTES, gShmemMapped,
-      "Memory shared with other processes that is mapped into the address "
-      "space.");
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
-  }
+  ShmemAllocatedReporter()
+    : MemoryUniReporter("shmem-allocated", KIND_OTHER, UNITS_BYTES,
+"Memory shared with other processes that is accessible (but not necessarily "
+"mapped).")
+  {}
+private:
+  int64_t Amount() MOZ_OVERRIDE { return gShmemAllocated; }
 };
 
-NS_IMPL_ISUPPORTS1(ShmemReporter, nsIMemoryReporter)
+class ShmemMappedReporter MOZ_FINAL : public MemoryUniReporter
+{
+public:
+  ShmemMappedReporter()
+    : MemoryUniReporter("shmem-mapped", KIND_OTHER, UNITS_BYTES,
+"Memory shared with other processes that is mapped into the address space.")
+  {}
+private:
+  int64_t Amount() MOZ_OVERRIDE { return gShmemMapped; }
+};
 
 SharedMemory::SharedMemory()
   : mAllocSize(0)
@@ -50,7 +46,8 @@ SharedMemory::SharedMemory()
 {
   static Atomic<uint32_t> registered;
   if (registered.compareExchange(0, 1)) {
-    RegisterStrongMemoryReporter(new ShmemReporter());
+    RegisterStrongMemoryReporter(new ShmemAllocatedReporter());
+    RegisterStrongMemoryReporter(new ShmemMappedReporter());
   }
 }
 

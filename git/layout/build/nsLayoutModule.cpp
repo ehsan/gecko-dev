@@ -433,10 +433,6 @@ Initialize()
     NS_WARNING("Could not get an observer service.  We will leak on shutdown.");
   }
 
-#ifdef DEBUG
-  nsStyleContext::AssertStyleStructMaxDifferenceValid();
-#endif
-
   return NS_OK;
 }
 

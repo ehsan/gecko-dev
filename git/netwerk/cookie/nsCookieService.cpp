@@ -717,16 +717,17 @@ nsCookieService::AppClearDataObserverInit()
  * public methods
  ******************************************************************************/
 
-NS_IMPL_ISUPPORTS6(nsCookieService,
-                   nsICookieService,
-                   nsICookieManager,
-                   nsICookieManager2,
-                   nsIObserver,
-                   nsISupportsWeakReference,
-                   nsIMemoryReporter)
+NS_IMPL_ISUPPORTS_INHERITED5(nsCookieService, MemoryUniReporter,
+                             nsICookieService,
+                             nsICookieManager,
+                             nsICookieManager2,
+                             nsIObserver,
+                             nsISupportsWeakReference)
 
 nsCookieService::nsCookieService()
- : mDBState(nullptr)
+ : MemoryUniReporter("explicit/cookie-service", KIND_HEAP, UNITS_BYTES,
+                     "Memory used by the cookie service.")
+ , mDBState(nullptr)
  , mCookieBehavior(BEHAVIOR_ACCEPT)
  , mThirdPartySession(false)
  , mMaxNumberOfCookies(kMaxNumberOfCookies)
@@ -4353,14 +4354,8 @@ nsCookieService::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   return n;
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(CookieServiceMallocSizeOf)
-
-NS_IMETHODIMP
-nsCookieService::CollectReports(nsIHandleReportCallback* aHandleReport,
-                                nsISupports* aData)
+int64_t
+nsCookieService::Amount()
 {
-  return MOZ_COLLECT_REPORT(
-    "explicit/cookie-service", KIND_HEAP, UNITS_BYTES,
-    SizeOfIncludingThis(CookieServiceMallocSizeOf),
-    "Memory used by the cookie service.");
+  return SizeOfIncludingThis(MallocSizeOf);
 }

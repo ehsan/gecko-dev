@@ -83,10 +83,10 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(mozHunspell)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(mozHunspell)
 
 NS_INTERFACE_MAP_BEGIN(mozHunspell)
+  NS_INTERFACE_MAP_ENTRY(nsIMemoryReporter)
   NS_INTERFACE_MAP_ENTRY(mozISpellCheckingEngine)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-  NS_INTERFACE_MAP_ENTRY(nsIMemoryReporter)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, mozISpellCheckingEngine)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(mozHunspell)
 NS_INTERFACE_MAP_END
@@ -107,7 +107,9 @@ void HunspellReportMemoryDeallocation(void* ptr) {
 }
 
 mozHunspell::mozHunspell()
-  : mHunspell(nullptr)
+  : MemoryUniReporter("explicit/spell-check", KIND_HEAP, UNITS_BYTES,
+"Memory used by the spell-checking engine's internal data structures."),
+    mHunspell(nullptr)
 {
 #ifdef DEBUG
   // There must be only one instance of this class, due to |sAmount|
@@ -129,14 +131,14 @@ mozHunspell::Init()
     obs->AddObserver(this, "profile-after-change", true);
   }
 
-  mozilla::RegisterWeakMemoryReporter(this);
+  RegisterWeakMemoryReporter(this);
 
   return NS_OK;
 }
 
 mozHunspell::~mozHunspell()
 {
-  mozilla::UnregisterWeakMemoryReporter(this);
+  UnregisterWeakMemoryReporter(this);
 
   mPersonalDictionary = nullptr;
   delete mHunspell;

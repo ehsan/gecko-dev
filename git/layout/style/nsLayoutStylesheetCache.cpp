@@ -16,8 +16,8 @@
 #include "nsIXULRuntime.h"
 #include "nsCSSStyleSheet.h"
 
-NS_IMPL_ISUPPORTS2(
-  nsLayoutStylesheetCache, nsIObserver, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS_INHERITED1(
+  nsLayoutStylesheetCache, MemoryUniReporter, nsIObserver)
 
 nsresult
 nsLayoutStylesheetCache::Observe(nsISupports* aSubject,
@@ -142,18 +142,11 @@ nsLayoutStylesheetCache::Shutdown()
   NS_IF_RELEASE(gStyleCache);
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(LayoutStylesheetCacheMallocSizeOf)
-
-NS_IMETHODIMP
-nsLayoutStylesheetCache::CollectReports(nsIHandleReportCallback* aHandleReport,
-                                        nsISupports* aData)
+int64_t
+nsLayoutStylesheetCache::Amount()
 {
-  return MOZ_COLLECT_REPORT(
-    "explicit/layout/style-sheet-cache", KIND_HEAP, UNITS_BYTES,
-    SizeOfIncludingThis(LayoutStylesheetCacheMallocSizeOf),
-    "Memory used for some built-in style sheets.");
+  return SizeOfIncludingThis(MallocSizeOf);
 }
-
 
 size_t
 nsLayoutStylesheetCache::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
@@ -178,6 +171,9 @@ nsLayoutStylesheetCache::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf
 }
 
 nsLayoutStylesheetCache::nsLayoutStylesheetCache()
+  : MemoryUniReporter("explicit/layout/style-sheet-cache",
+                      KIND_HEAP, UNITS_BYTES,
+                      "Memory used for some built-in style sheets.")
 {
   nsCOMPtr<nsIObserverService> obsSvc =
     mozilla::services::GetObserverService();
@@ -216,14 +212,14 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
 
 nsLayoutStylesheetCache::~nsLayoutStylesheetCache()
 {
-  mozilla::UnregisterWeakMemoryReporter(this);
+  UnregisterWeakMemoryReporter(this);
   gStyleCache = nullptr;
 }
 
 void
 nsLayoutStylesheetCache::InitMemoryReporter()
 {
-  mozilla::RegisterWeakMemoryReporter(this);
+  RegisterWeakMemoryReporter(this);
 }
 
 void

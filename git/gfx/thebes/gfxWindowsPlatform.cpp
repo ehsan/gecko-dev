@@ -77,35 +77,19 @@ static const int kSupportedFeatureLevels[] =
   { D3D10_FEATURE_LEVEL_10_1, D3D10_FEATURE_LEVEL_10_0,
     D3D10_FEATURE_LEVEL_9_3 };
 
-class GfxD2DSurfaceReporter MOZ_FINAL : public nsIMemoryReporter
+class GfxD2DSurfaceCacheReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
-    NS_DECL_ISUPPORTS
-
-    NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                              nsISupports* aData)
+    GfxD2DSurfaceCacheReporter()
+      : MemoryUniReporter("gfx-d2d-surface-cache", KIND_OTHER, UNITS_BYTES,
+"Memory used by the Direct2D internal surface cache.")
+    {}
+private:
+    int64_t Amount() MOZ_OVERRIDE
     {
-        nsresult rv;
-
-        int64_t amount = cairo_d2d_get_image_surface_cache_usage();
-        rv = MOZ_COLLECT_REPORT(
-            "gfx-d2d-surface-cache", KIND_OTHER, UNITS_BYTES, amount,
-            "Memory used by the Direct2D internal surface cache.");
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        cairo_device_t *device =
-            gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
-        amount = device ? cairo_d2d_get_surface_vram_usage(device) : 0;
-        rv = MOZ_COLLECT_REPORT(
-            "gfx-d2d-surface-vram", KIND_OTHER, UNITS_BYTES, amount,
-            "Video memory used by D2D surfaces.");
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        return NS_OK;
+        return cairo_d2d_get_image_surface_cache_usage();
     }
 };
-
-NS_IMPL_ISUPPORTS1(GfxD2DSurfaceReporter, nsIMemoryReporter)
 
 namespace
 {
@@ -130,35 +114,51 @@ bool OncePreferenceDirect2DForceEnabled()
 
 } // anonymous namespace
 
-#endif
-
-class GfxD2DVramReporter MOZ_FINAL : public nsIMemoryReporter
+class GfxD2DSurfaceVramReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
-    NS_DECL_ISUPPORTS
-
-    NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                              nsISupports* aData)
-    {
-        nsresult rv;
-
-        rv = MOZ_COLLECT_REPORT(
-            "gfx-d2d-vram-draw-target", KIND_OTHER, UNITS_BYTES,
-            Factory::GetD2DVRAMUsageDrawTarget(),
-            "Video memory used by D2D DrawTargets.");
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        rv = MOZ_COLLECT_REPORT(
-            "gfx-d2d-vram-source-surface", KIND_OTHER, UNITS_BYTES,
-            Factory::GetD2DVRAMUsageSourceSurface(),
-            "Video memory used by D2D SourceSurfaces.");
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        return NS_OK;
+    GfxD2DSurfaceVramReporter()
+      : MemoryUniReporter("gfx-d2d-surface-vram", KIND_OTHER, UNITS_BYTES,
+                           "Video memory used by D2D surfaces.")
+    {}
+private:
+    int64_t Amount() MOZ_OVERRIDE {
+      cairo_device_t *device =
+          gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
+      return device ? cairo_d2d_get_surface_vram_usage(device) : 0;
     }
 };
 
-NS_IMPL_ISUPPORTS1(GfxD2DVramReporter, nsIMemoryReporter)
+#endif
+
+class GfxD2DVramDrawTargetReporter MOZ_FINAL : public MemoryUniReporter
+{
+public:
+    GfxD2DVramDrawTargetReporter()
+      : MemoryUniReporter("gfx-d2d-vram-draw-target", KIND_OTHER, UNITS_BYTES,
+                           "Video memory used by D2D DrawTargets.")
+    {}
+private:
+    int64_t Amount() MOZ_OVERRIDE
+    {
+        return Factory::GetD2DVRAMUsageDrawTarget();
+    }
+};
+
+class GfxD2DVramSourceSurfaceReporter MOZ_FINAL : public MemoryUniReporter
+{
+public:
+    GfxD2DVramSourceSurfaceReporter()
+      : MemoryUniReporter("gfx-d2d-vram-source-surface",
+                           KIND_OTHER, UNITS_BYTES,
+                           "Video memory used by D2D SourceSurfaces.")
+    {}
+private:
+    int64_t Amount() MOZ_OVERRIDE
+    {
+        return Factory::GetD2DVRAMUsageSourceSurface();
+    }
+};
 
 #define GFX_USE_CLEARTYPE_ALWAYS "gfx.font_rendering.cleartype.always_use_for_content"
 #define GFX_DOWNLOADABLE_FONTS_USE_CLEARTYPE "gfx.font_rendering.cleartype.use_for_downloadable_fonts"
@@ -318,7 +318,8 @@ public:
     do {                                                                      \
       nsresult rv;                                                            \
       rv = aCb->Callback(EmptyCString(), NS_LITERAL_CSTRING(_path),           \
-                         KIND_OTHER, UNITS_BYTES, _amount,                    \
+                         nsIMemoryReporter::KIND_OTHER,                       \
+                         nsIMemoryReporter::UNITS_BYTES, _amount,             \
                          NS_LITERAL_CSTRING(_desc), aClosure);                \
       NS_ENSURE_SUCCESS(rv, rv);                                              \
     } while (0)
@@ -364,10 +365,12 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     CoInitialize(nullptr); 
 
 #ifdef CAIRO_HAS_D2D_SURFACE
-    RegisterStrongMemoryReporter(new GfxD2DSurfaceReporter());
+    RegisterStrongMemoryReporter(new GfxD2DSurfaceCacheReporter());
+    RegisterStrongMemoryReporter(new GfxD2DSurfaceVramReporter());
     mD2DDevice = nullptr;
 #endif
-    RegisterStrongMemoryReporter(new GfxD2DVramReporter());
+    RegisterStrongMemoryReporter(new GfxD2DVramDrawTargetReporter());
+    RegisterStrongMemoryReporter(new GfxD2DVramSourceSurfaceReporter());
 
     UpdateRenderMode();
 

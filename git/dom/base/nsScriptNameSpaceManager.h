@@ -88,14 +88,13 @@ class nsICategoryManager;
 class GlobalNameMapEntry;
 
 
-class nsScriptNameSpaceManager : public nsIObserver,
-                                 public nsSupportsWeakReference,
-                                 public nsIMemoryReporter
+class nsScriptNameSpaceManager : public mozilla::MemoryUniReporter,
+                                 public nsIObserver,
+                                 public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
-  NS_DECL_NSIMEMORYREPORTER
 
   nsScriptNameSpaceManager();
   virtual ~nsScriptNameSpaceManager();
@@ -164,6 +163,7 @@ public:
   void EnumerateNavigatorNames(NameEnumerator aEnumerator,
                                void* aClosure);
 
+  int64_t Amount() MOZ_OVERRIDE;
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
 private:

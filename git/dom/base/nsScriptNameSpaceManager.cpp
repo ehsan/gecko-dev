@@ -116,14 +116,17 @@ GlobalNameHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
   return true;
 }
 
-NS_IMPL_ISUPPORTS3(
+NS_IMPL_ISUPPORTS_INHERITED2(
   nsScriptNameSpaceManager,
+  MemoryUniReporter,
   nsIObserver,
-  nsISupportsWeakReference,
-  nsIMemoryReporter)
+  nsISupportsWeakReference)
 
 nsScriptNameSpaceManager::nsScriptNameSpaceManager()
-  : mIsInitialized(false)
+  : MemoryUniReporter("explicit/script-namespace-manager",
+                      KIND_HEAP, UNITS_BYTES,
+                      "Memory used for the script namespace manager.")
+  , mIsInitialized(false)
 {
   MOZ_COUNT_CTOR(nsScriptNameSpaceManager);
 }
@@ -860,20 +863,14 @@ static size_t
 SizeOfEntryExcludingThis(PLDHashEntryHdr *aHdr, MallocSizeOf aMallocSizeOf,
                          void *aArg)
 {
-  GlobalNameMapEntry* entry = static_cast<GlobalNameMapEntry*>(aHdr);
-  return entry->SizeOfExcludingThis(aMallocSizeOf);
+    GlobalNameMapEntry* entry = static_cast<GlobalNameMapEntry*>(aHdr);
+    return entry->SizeOfExcludingThis(aMallocSizeOf);
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(ScriptNameSpaceManagerMallocSizeOf)
-
-NS_IMETHODIMP
-nsScriptNameSpaceManager::CollectReports(
-  nsIHandleReportCallback* aHandleReport, nsISupports* aData)
+int64_t
+nsScriptNameSpaceManager::Amount()
 {
-  return MOZ_COLLECT_REPORT(
-    "explicit/script-namespace-manager", KIND_HEAP, UNITS_BYTES,
-    SizeOfIncludingThis(ScriptNameSpaceManagerMallocSizeOf),
-    "Memory used for the script namespace manager.");
+  return SizeOfIncludingThis(MallocSizeOf);
 }
 
 size_t

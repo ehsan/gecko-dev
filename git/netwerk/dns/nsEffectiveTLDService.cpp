@@ -18,8 +18,8 @@
 
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS2(nsEffectiveTLDService, nsIEffectiveTLDService,
-                   nsIMemoryReporter)
+NS_IMPL_ISUPPORTS_INHERITED1(nsEffectiveTLDService, MemoryUniReporter,
+                             nsIEffectiveTLDService)
 
 // ----------------------------------------------------------------------
 
@@ -66,7 +66,10 @@ nsEffectiveTLDService::nsEffectiveTLDService()
   // use a perfect hash, but at least we'll save a few rehashes along the way.
   // Next optimization here is to precompute the hash using something like
   // gperf, but one step at a time.  :-)
-  : mHash(ArrayLength(nsDomainEntry::entries))
+  : MemoryUniReporter("explicit/xpcom/effective-TLD-service",
+                       KIND_HEAP, UNITS_BYTES,
+                       "Memory used by the effective TLD service.")
+  , mHash(ArrayLength(nsDomainEntry::entries))
 {
 }
 
@@ -107,16 +110,10 @@ nsEffectiveTLDService::~nsEffectiveTLDService()
   gService = nullptr;
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(EffectiveTLDServiceMallocSizeOf)
-
-NS_IMETHODIMP
-nsEffectiveTLDService::CollectReports(nsIHandleReportCallback* aHandleReport,
-                                      nsISupports* aData)
+int64_t
+nsEffectiveTLDService::Amount()
 {
-  return MOZ_COLLECT_REPORT(
-    "explicit/xpcom/effective-TLD-service", KIND_HEAP, UNITS_BYTES,
-    SizeOfIncludingThis(EffectiveTLDServiceMallocSizeOf),
-    "Memory used by the effective TLD service.");
+  return SizeOfIncludingThis(MallocSizeOf);
 }
 
 size_t

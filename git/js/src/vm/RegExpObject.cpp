@@ -646,7 +646,7 @@ RegExpCompartment::~RegExpCompartment()
     JS_ASSERT(inUse_.empty());
 }
 
-JSObject *
+HeapPtrObject &
 RegExpCompartment::getOrCreateMatchResultTemplateObject(JSContext *cx)
 {
     if (matchResultTemplateObject_)
@@ -712,11 +712,7 @@ RegExpCompartment::sweep(JSRuntime *rt)
         }
     }
 
-    if (matchResultTemplateObject_ &&
-        IsObjectAboutToBeFinalized(matchResultTemplateObject_.unsafeGet()))
-    {
-        matchResultTemplateObject_ = nullptr;
-    }
+    matchResultTemplateObject_ = nullptr;
 }
 
 void

@@ -10,8 +10,6 @@
 using namespace mozilla;
 using namespace mozilla::gl;
 
-NS_IMPL_ISUPPORTS1(GfxTexturesReporter, nsIMemoryReporter)
-
 int64_t GfxTexturesReporter::sAmount = 0;
 
 static uint32_t GetBitsPerTexel(GLenum format, GLenum type)
