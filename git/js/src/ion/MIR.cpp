@@ -4,17 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "MIR.h"
+#include "ion/MIR.h"
 
 #include "mozilla/Casting.h"
 
-#include "BaselineInspector.h"
-#include "IonBuilder.h"
-#include "LICM.h" // For LinearSum
-#include "MIRGraph.h"
-#include "EdgeCaseAnalysis.h"
-#include "RangeAnalysis.h"
-#include "IonSpewer.h"
+#include "ion/BaselineInspector.h"
+#include "ion/IonBuilder.h"
+#include "ion/LICM.h" // For LinearSum
+#include "ion/MIRGraph.h"
+#include "ion/EdgeCaseAnalysis.h"
+#include "ion/RangeAnalysis.h"
+#include "ion/IonSpewer.h"
 #include "jsnum.h"
 #include "jsstr.h"
 #include "jsatominlines.h"
@@ -1275,6 +1275,9 @@ MMul::updateForReplacement(MDefinition *ins_)
     MMul *ins = ins_->toMul();
     bool negativeZero = canBeNegativeZero() || ins->canBeNegativeZero();
     setCanBeNegativeZero(negativeZero);
+    // Remove the imul annotation when merging imul and normal multiplication.
+    if (mode_ == Integer && ins->mode() != Integer)
+        mode_ = Normal;
     return true;
 }
 

@@ -3630,16 +3630,16 @@ js_InitStringClass(JSContext *cx, HandleObject obj)
 
 template <AllowGC allowGC>
 JSStableString *
-js_NewString(JSContext *cx, jschar *chars, size_t length)
+js_NewString(ThreadSafeContext *tcx, jschar *chars, size_t length)
 {
-    return JSStableString::new_<allowGC>(cx, chars, length);
+    return JSStableString::new_<allowGC>(tcx, chars, length);
 }
 
 template JSStableString *
-js_NewString<CanGC>(JSContext *cx, jschar *chars, size_t length);
+js_NewString<CanGC>(ThreadSafeContext *tcx, jschar *chars, size_t length);
 
 template JSStableString *
-js_NewString<NoGC>(JSContext *cx, jschar *chars, size_t length);
+js_NewString<NoGC>(ThreadSafeContext *tcx, jschar *chars, size_t length);
 
 JSLinearString *
 js_NewDependentString(JSContext *cx, JSString *baseArg, size_t start, size_t length)
@@ -3688,25 +3688,25 @@ js_NewStringCopyN<NoGC>(JSContext *cx, const jschar *s, size_t n);
 
 template <AllowGC allowGC>
 JSFlatString *
-js_NewStringCopyN(JSContext *cx, const char *s, size_t n)
+js_NewStringCopyN(ThreadSafeContext *tcx, const char *s, size_t n)
 {
     if (JSShortString::lengthFits(n))
-        return NewShortString<allowGC>(cx, JS::Latin1Chars(s, n));
+        return NewShortString<allowGC>(tcx, JS::Latin1Chars(s, n));
 
-    jschar *chars = InflateString(cx, s, &n);
+    jschar *chars = InflateString(tcx, s, &n);
     if (!chars)
         return NULL;
-    JSFlatString *str = js_NewString<allowGC>(cx, chars, n);
+    JSFlatString *str = js_NewString<allowGC>(tcx, chars, n);
     if (!str)
         js_free(chars);
     return str;
 }
 
 template JSFlatString *
-js_NewStringCopyN<CanGC>(JSContext *cx, const char *s, size_t n);
+js_NewStringCopyN<CanGC>(ThreadSafeContext *tcx, const char *s, size_t n);
 
 template JSFlatString *
-js_NewStringCopyN<NoGC>(JSContext *cx, const char *s, size_t n);
+js_NewStringCopyN<NoGC>(ThreadSafeContext *tcx, const char *s, size_t n);
 
 template <AllowGC allowGC>
 JSFlatString *
@@ -3735,16 +3735,16 @@ js_NewStringCopyZ<NoGC>(JSContext *cx, const jschar *s);
 
 template <AllowGC allowGC>
 JSFlatString *
-js_NewStringCopyZ(JSContext *cx, const char *s)
+js_NewStringCopyZ(ThreadSafeContext *tcx, const char *s)
 {
-    return js_NewStringCopyN<allowGC>(cx, s, strlen(s));
+    return js_NewStringCopyN<allowGC>(tcx, s, strlen(s));
 }
 
 template JSFlatString *
-js_NewStringCopyZ<CanGC>(JSContext *cx, const char *s);
+js_NewStringCopyZ<CanGC>(ThreadSafeContext *tcx, const char *s);
 
 template JSFlatString *
-js_NewStringCopyZ<NoGC>(JSContext *cx, const char *s);
+js_NewStringCopyZ<NoGC>(ThreadSafeContext *tcx, const char *s);
 
 const char *
 js_ValueToPrintable(JSContext *cx, const Value &vArg, JSAutoByteString *bytes, bool asSource)
@@ -3967,14 +3967,14 @@ js_strchr_limit(const jschar *s, jschar c, const jschar *limit)
 }
 
 jschar *
-js::InflateString(JSContext *cx, const char *bytes, size_t *lengthp)
+js::InflateString(ThreadSafeContext *tcx, const char *bytes, size_t *lengthp)
 {
     size_t nchars;
     jschar *chars;
     size_t nbytes = *lengthp;
 
     nchars = nbytes;
-    chars = cx->pod_malloc<jschar>(nchars + 1);
+    chars = tcx->pod_malloc<jschar>(nchars + 1);
     if (!chars)
         goto bad;
     for (size_t i = 0; i < nchars; i++)
@@ -4241,16 +4241,6 @@ bufferTooSmall:
     return JS_FALSE;
 }
 
-const jschar js_uriReservedPlusPound_ucstr[] =
-    {';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#', 0};
-const jschar js_uriUnescaped_ucstr[] =
-    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-     'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-     'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-     '-', '_', '.', '!', '~', '*', '\'', '(', ')', 0};
-
 #define ____ false
 
 /*
@@ -4320,6 +4310,69 @@ const bool js_isspace[] = {
 /* 12 */ ____, ____, ____, ____, ____, ____, ____, ____
 };
 
+/*
+ * Uri reserved chars + #:
+ * - 35: #
+ * - 36: $
+ * - 38: &
+ * - 43: +
+ * - 44: ,
+ * - 47: /
+ * - 58: :
+ * - 59: ;
+ * - 61: =
+ * - 63: ?
+ * - 64: @
+ */
+static const bool js_isUriReservedPlusPound[] = {
+/*       0     1     2     3     4     5     6     7     8     9  */
+/*  0 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  1 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  2 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  3 */ ____, ____, ____, ____, ____, true, true, ____, true, ____,
+/*  4 */ ____, ____, ____, true, true, ____, ____, true, ____, ____,
+/*  5 */ ____, ____, ____, ____, ____, ____, ____, ____, true, true,
+/*  6 */ ____, true, ____, true, true, ____, ____, ____, ____, ____,
+/*  7 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  8 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  9 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/* 10 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/* 11 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/* 12 */ ____, ____, ____, ____, ____, ____, ____, ____
+};
+
+/*
+ * Uri unescaped chars:
+ * -      33: !
+ * -      39: '
+ * -      40: (
+ * -      41: )
+ * -      42: *
+ * -      45: -
+ * -      46: .
+ * -  48..57: 0-9
+ * -  65..90: A-Z
+ * -      95: _
+ * - 97..122: a-z
+ * -     126: ~
+ */
+static const bool js_isUriUnescaped[] = {
+/*       0     1     2     3     4     5     6     7     8     9  */
+/*  0 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  1 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  2 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  3 */ ____, ____, ____, true, ____, ____, ____, ____, ____, true,
+/*  4 */ true, true, true, ____, ____, true, true, ____, true, true,
+/*  5 */ true, true, true, true, true, true, true, true, ____, ____,
+/*  6 */ ____, ____, ____, ____, ____, true, true, true, true, true,
+/*  7 */ true, true, true, true, true, true, true, true, true, true,
+/*  8 */ true, true, true, true, true, true, true, true, true, true,
+/*  9 */ true, ____, ____, ____, ____, true, ____, true, true, true,
+/* 10 */ true, true, true, true, true, true, true, true, true, true,
+/* 11 */ true, true, true, true, true, true, true, true, true, true,
+/* 12 */ true, true, true, ____, ____, ____, true, ____
+};
+
 #undef ____
 
 #define URI_CHUNK 64U
@@ -4342,8 +4395,8 @@ TransferBufferToString(StringBuffer &sb, MutableHandleValue rval)
  * 'Encode' and 'Decode'.
  */
 static bool
-Encode(JSContext *cx, Handle<JSLinearString*> str, const jschar *unescapedSet,
-       const jschar *unescapedSet2, MutableHandleValue rval)
+Encode(JSContext *cx, Handle<JSLinearString*> str, const bool *unescapedSet,
+       const bool *unescapedSet2, MutableHandleValue rval)
 {
     static const char HexDigits[] = "0123456789ABCDEF"; /* NB: uppercase */
 
@@ -4355,19 +4408,19 @@ Encode(JSContext *cx, Handle<JSLinearString*> str, const jschar *unescapedSet,
 
     const jschar *chars = str->chars();
     StringBuffer sb(cx);
+    if (!sb.reserve(length))
+        return false;
     jschar hexBuf[4];
     hexBuf[0] = '%';
     hexBuf[3] = 0;
     for (size_t k = 0; k < length; k++) {
         jschar c = chars[k];
-        if (js_strchr(unescapedSet, c) ||
-            (unescapedSet2 && js_strchr(unescapedSet2, c))) {
+        if (c < 128 && (unescapedSet[c] || (unescapedSet2 && unescapedSet2[c]))) {
             if (!sb.append(c))
                 return false;
         } else {
             if ((c >= 0xDC00) && (c <= 0xDFFF)) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                 JSMSG_BAD_URI, NULL);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_URI, NULL);
                 return false;
             }
             uint32_t v;
@@ -4403,7 +4456,7 @@ Encode(JSContext *cx, Handle<JSLinearString*> str, const jschar *unescapedSet,
 }
 
 static bool
-Decode(JSContext *cx, Handle<JSLinearString*> str, const jschar *reservedSet, MutableHandleValue rval)
+Decode(JSContext *cx, Handle<JSLinearString*> str, const bool *reservedSet, MutableHandleValue rval)
 {
     size_t length = str->length();
     if (length == 0) {
@@ -4460,7 +4513,7 @@ Decode(JSContext *cx, Handle<JSLinearString*> str, const jschar *reservedSet, Mu
                     c = (jschar)v;
                 }
             }
-            if (js_strchr(reservedSet, c)) {
+            if (c < 128 && reservedSet && reservedSet[c]) {
                 if (!sb.append(chars + start, k - start + 1))
                     return JS_FALSE;
             } else {
@@ -4490,7 +4543,7 @@ str_decodeURI(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    return Decode(cx, str, js_uriReservedPlusPound_ucstr, args.rval());
+    return Decode(cx, str, js_isUriReservedPlusPound, args.rval());
 }
 
 static JSBool
@@ -4501,7 +4554,7 @@ str_decodeURI_Component(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    return Decode(cx, str, js_empty_ucstr, args.rval());
+    return Decode(cx, str, NULL, args.rval());
 }
 
 static JSBool
@@ -4512,7 +4565,7 @@ str_encodeURI(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    return Encode(cx, str, js_uriReservedPlusPound_ucstr, js_uriUnescaped_ucstr, args.rval());
+    return Encode(cx, str, js_isUriUnescaped, js_isUriReservedPlusPound, args.rval());
 }
 
 static JSBool
@@ -4523,7 +4576,7 @@ str_encodeURI_Component(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    return Encode(cx, str, js_uriUnescaped_ucstr, NULL, args.rval());
+    return Encode(cx, str, js_isUriUnescaped, NULL, args.rval());
 }
 
 /*
