@@ -6914,7 +6914,7 @@ Parser<ParseHandler>::newRegExp()
     if (!res)
         return null();
 
-    reobj = RegExpObject::create(context, res, chars, length, flags, &tokenStream, alloc);
+    reobj = RegExpObject::create(context, res, chars, length, flags, &tokenStream);
     if (!reobj)
         return null();
 

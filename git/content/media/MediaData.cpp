@@ -38,16 +38,6 @@ AudioData::EnsureAudioBuffer()
   }
 }
 
-size_t
-AudioData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  size_t size = aMallocSizeOf(this) + aMallocSizeOf(mAudioData);
-  if (mAudioBuffer) {
-    size += mAudioBuffer->SizeOfIncludingThis(aMallocSizeOf);
-  }
-  return size;
-}
-
 static bool
 ValidatePlane(const VideoData::YCbCrBuffer::Plane& aPlane)
 {

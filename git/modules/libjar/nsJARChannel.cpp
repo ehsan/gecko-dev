@@ -825,13 +825,6 @@ nsJARChannel::SetAppURI(nsIURI *aURI) {
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsJARChannel::GetJarFile(nsIFile **aFile)
-{
-    NS_IF_ADDREF(*aFile = mJarFile);
-    return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 // nsIDownloadObserver
 //-----------------------------------------------------------------------------

@@ -137,11 +137,10 @@ public:
     JSAutoCompartment ac(cx, global);
 
     // Create the input buffer
-    ErrorResult rv;
-    nsRefPtr<AudioBuffer> renderedBuffer =
-      AudioBuffer::Create(context, mInputChannels.Length(),
-                          mLength, mSampleRate, cx, rv);
-    if (rv.Failed()) {
+    nsRefPtr<AudioBuffer> renderedBuffer = new AudioBuffer(context,
+                                                           mLength,
+                                                           mSampleRate);
+    if (!renderedBuffer->InitializeBuffers(mInputChannels.Length(), cx)) {
       return;
     }
     for (uint32_t i = 0; i < mInputChannels.Length(); ++i) {

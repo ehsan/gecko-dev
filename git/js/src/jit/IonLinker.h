@@ -30,6 +30,9 @@ class Linker
 
     template <AllowGC allowGC>
     JitCode *newCode(JSContext *cx, JSC::ExecutableAllocator *execAlloc, JSC::CodeKind kind) {
+        JS_ASSERT(kind == JSC::ION_CODE ||
+                  kind == JSC::BASELINE_CODE ||
+                  kind == JSC::OTHER_CODE);
         JS_ASSERT(masm.numAsmJSAbsoluteLinks() == 0);
 
         gc::AutoSuppressGC suppressGC(cx);

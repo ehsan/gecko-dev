@@ -1564,7 +1564,7 @@ add_task(function* test_foreignUninstallAndRestart() {
   Assert.ok(!experimentList[0].active, "Experiment 1 should not be active anymore.");
 
   // Fake restart behaviour.
-  yield experiments.uninit();
+  experiments.uninit();
   restartManager();
   experiments = new Experiments.Experiments(gPolicy);
   yield experiments.updateManifest();

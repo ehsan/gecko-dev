@@ -25,18 +25,6 @@
 #ifndef mozilla_pkix__pkixder_h
 #define mozilla_pkix__pkixder_h
 
-// Expect* functions advance the input mark and return Success if the input
-// matches the given criteria; they return Failure with the input mark in an
-// undefined state if the input does not match the criteria.
-//
-// Match* functions advance the input mark and return true if the input matches
-// the given criteria; they return false without changing the input mark if the
-// input does not match the criteria.
-//
-// Skip* functions unconditionally advance the input mark and return Success if
-// they are able to do so; otherwise they return Failure with the input mark in
-// an undefined state.
-
 #include "pkix/enumclass.h"
 #include "pkix/nullptr.h"
 
@@ -150,44 +138,6 @@ public:
     return Success;
   }
 
-  template <uint16_t N>
-  bool MatchBytes(const uint8_t (&toMatch)[N])
-  {
-    if (EnsureLength(N) != Success) {
-      return false;
-    }
-    if (memcmp(input, toMatch, N)) {
-      return false;
-    }
-    input += N;
-    return true;
-  }
-
-  template <uint16_t N>
-  bool MatchTLV(uint8_t tag, uint16_t len, const uint8_t (&value)[N])
-  {
-    static_assert(N <= 127, "buffer larger than largest length supported");
-    if (len > N) {
-      PR_NOT_REACHED("overflow prevented dynamically instead of statically");
-      return false;
-    }
-    uint16_t totalLen = 2u + len;
-    if (EnsureLength(totalLen) != Success) {
-      return false;
-    }
-    if (*input != tag) {
-      return false;
-    }
-    if (*(input + 1) != len) {
-      return false;
-    }
-    if (memcmp(input + 2, value, len)) {
-      return false;
-    }
-    input += totalLen;
-    return true;
-  }
-
   Result Skip(uint16_t len)
   {
     if (EnsureLength(len) != Success) {
@@ -289,48 +239,14 @@ ExpectTagAndLength(Input& input, uint8_t expectedTag, uint8_t expectedLength)
   return Success;
 }
 
-namespace internal {
-
 Result
 ExpectTagAndGetLength(Input& input, uint8_t expectedTag, uint16_t& length);
 
-} // namespace internal
-
 inline Result
-ExpectTagAndSkipLength(Input& input, uint8_t expectedTag)
+ExpectTagAndIgnoreLength(Input& input, uint8_t expectedTag)
 {
   uint16_t ignored;
-  return internal::ExpectTagAndGetLength(input, expectedTag, ignored);
-}
-
-inline Result
-ExpectTagAndSkipValue(Input& input, uint8_t tag)
-{
-  uint16_t length;
-  if (internal::ExpectTagAndGetLength(input, tag, length) != Success) {
-    return Failure;
-  }
-  return input.Skip(length);
-}
-
-inline Result
-ExpectTagAndGetValue(Input& input, uint8_t tag, /*out*/ SECItem& value)
-{
-  uint16_t length;
-  if (internal::ExpectTagAndGetLength(input, tag, length) != Success) {
-    return Failure;
-  }
-  return input.Skip(length, value);
-}
-
-inline Result
-ExpectTagAndGetValue(Input& input, uint8_t tag, /*out*/ Input& value)
-{
-  uint16_t length;
-  if (internal::ExpectTagAndGetLength(input, tag, length) != Success) {
-    return Failure;
-  }
-  return input.Skip(length, value);
+  return ExpectTagAndGetLength(input, expectedTag, ignored);
 }
 
 inline Result
@@ -347,13 +263,20 @@ template <typename Decoder>
 inline Result
 Nested(Input& input, uint8_t tag, Decoder decoder)
 {
-  Input nested;
-  if (ExpectTagAndGetValue(input, tag, nested) != Success) {
+  uint16_t length;
+  if (ExpectTagAndGetLength(input, tag, length) != Success) {
     return Failure;
   }
+
+  Input nested;
+  if (input.Skip(length, nested) != Success) {
+    return Failure;
+  }
+
   if (decoder(nested) != Success) {
     return Failure;
   }
+
   return End(nested);
 }
 
@@ -364,13 +287,18 @@ Nested(Input& input, uint8_t outerTag, uint8_t innerTag, Decoder decoder)
   // XXX: This doesn't work (in VS2010):
   // return Nested(input, outerTag, bind(Nested, _1, innerTag, decoder));
 
+  uint16_t length;
+  if (ExpectTagAndGetLength(input, outerTag, length) != Success) {
+    return Failure;
+  }
   Input nestedInput;
-  if (ExpectTagAndGetValue(input, outerTag, nestedInput) != Success) {
+  if (input.Skip(length, nestedInput) != Success) {
     return Failure;
   }
   if (Nested(nestedInput, innerTag, decoder) != Success) {
     return Failure;
   }
+
   return End(nestedInput);
 }
 
@@ -396,8 +324,13 @@ inline Result
 NestedOf(Input& input, uint8_t outerTag, uint8_t innerTag,
          EmptyAllowed mayBeEmpty, Decoder decoder)
 {
+  uint16_t responsesLength;
+  if (ExpectTagAndGetLength(input, outerTag, responsesLength) != Success) {
+    return Failure;
+  }
+
   Input inner;
-  if (ExpectTagAndGetValue(input, outerTag, inner) != Success) {
+  if (input.Skip(responsesLength, inner) != Success) {
     return Failure;
   }
 
@@ -417,33 +350,27 @@ NestedOf(Input& input, uint8_t outerTag, uint8_t innerTag,
   return Success;
 }
 
-// Universal types
-
-namespace internal {
-
-// This parser will only parse values between 0..127. If this range is
-// increased then callers will need to be changed.
-template <typename T> inline Result
-IntegralValue(Input& input, uint8_t tag, T& value)
+inline Result
+Skip(Input& input, uint8_t tag)
 {
-  // Conveniently, all the Integers that we actually have to be able to parse
-  // are positive and very small. Consequently, this parser is *much* simpler
-  // than a general Integer parser would need to be.
-  if (ExpectTagAndLength(input, tag, 1) != Success) {
+  uint16_t length;
+  if (ExpectTagAndGetLength(input, tag, length) != Success) {
     return Failure;
   }
-  uint8_t valueByte;
-  if (input.Read(valueByte) != Success) {
-    return Failure;
-  }
-  if (valueByte & 0x80) { // negative
-    return Fail(SEC_ERROR_BAD_DER);
-  }
-  value = valueByte;
-  return Success;
+  return input.Skip(length);
 }
 
-} // namespace internal
+inline Result
+Skip(Input& input, uint8_t tag, /*out*/ SECItem& value)
+{
+  uint16_t length;
+  if (ExpectTagAndGetLength(input, tag, length) != Success) {
+    return Failure;
+  }
+  return input.Skip(length, value);
+}
+
+// Universal types
 
 inline Result
 Boolean(Input& input, /*out*/ bool& value)
@@ -484,61 +411,61 @@ OptionalBoolean(Input& input, bool allowInvalidExplicitEncoding,
   return Success;
 }
 
-// This parser will only parse values between 0..127. If this range is
-// increased then callers will need to be changed.
 inline Result
 Enumerated(Input& input, uint8_t& value)
 {
-  return internal::IntegralValue(input, ENUMERATED | 0, value);
+  if (ExpectTagAndLength(input, ENUMERATED | 0, 1) != Success) {
+    return Failure;
+  }
+  return input.Read(value);
 }
 
 inline Result
 GeneralizedTime(Input& input, PRTime& time)
 {
+  uint16_t length;
   SECItem encoded;
-  if (ExpectTagAndGetValue(input, GENERALIZED_TIME, encoded) != Success) {
+  if (ExpectTagAndGetLength(input, GENERALIZED_TIME, length) != Success) {
+    return Failure;
+  }
+  if (input.Skip(length, encoded) != Success) {
     return Failure;
   }
   if (DER_GeneralizedTimeToTime(&time, &encoded) != SECSuccess) {
     return Failure;
   }
+
   return Success;
 }
 
-// This parser will only parse values between 0..127. If this range is
-// increased then callers will need to be changed.
 inline Result
-Integer(Input& input, /*out*/ uint8_t& value)
+Integer(Input& input, /*out*/ SECItem& value)
 {
-  if (internal::IntegralValue(input, INTEGER, value) != Success) {
+  uint16_t length;
+  if (ExpectTagAndGetLength(input, INTEGER, length) != Success) {
     return Failure;
   }
-  return Success;
-}
 
-// This parser will only parse values between 0..127. If this range is
-// increased then callers will need to be changed. The default value must be
-// -1; defaultValue is only a parameter to make it clear in the calling code
-// what the default value is.
-inline Result
-OptionalInteger(Input& input, long defaultValue, /*out*/ long& value)
-{
-  // If we need to support a different default value in the future, we need to
-  // test that parsedValue != defaultValue.
-  if (defaultValue != -1) {
-    return Fail(SEC_ERROR_INVALID_ARGS);
-  }
-
-  if (!input.Peek(INTEGER)) {
-    value = defaultValue;
-    return Success;
-  }
-
-  uint8_t parsedValue;
-  if (Integer(input, parsedValue) != Success) {
+  if (input.Skip(length, value) != Success) {
     return Failure;
   }
-  value = parsedValue;
+
+  if (value.len == 0) {
+    return Fail(SEC_ERROR_BAD_DER);
+  }
+
+  // Check for overly-long encodings. If the first byte is 0x00 then the high
+  // bit on the second byte must be 1; otherwise the same *positive* value
+  // could be encoded without the leading 0x00 byte. If the first byte is 0xFF
+  // then the second byte must NOT have its high bit set; otherwise the same
+  // *negative* value could be encoded without the leading 0xFF byte.
+  if (value.len > 1) {
+    if ((value.data[0] == 0x00 && (value.data[1] & 0x80) == 0) ||
+        (value.data[0] == 0xff && (value.data[1] & 0x80) != 0)) {
+      return Fail(SEC_ERROR_BAD_DER);
+    }
+  }
+
   return Success;
 }
 
@@ -567,7 +494,7 @@ OID(Input& input, const uint8_t (&expectedOid)[Len])
 inline Result
 AlgorithmIdentifier(Input& input, SECAlgorithmID& algorithmID)
 {
-  if (ExpectTagAndGetValue(input, OIDTag, algorithmID.algorithm) != Success) {
+  if (Skip(input, OIDTag, algorithmID.algorithm) != Success) {
     return Failure;
   }
   algorithmID.parameters.data = nullptr;
@@ -579,7 +506,7 @@ AlgorithmIdentifier(Input& input, SECAlgorithmID& algorithmID)
 }
 
 inline Result
-CertificateSerialNumber(Input& input, /*out*/ SECItem& value)
+CertificateSerialNumber(Input& input, /*out*/ SECItem& serialNumber)
 {
   // http://tools.ietf.org/html/rfc5280#section-4.1.2.2:
   //
@@ -592,27 +519,7 @@ CertificateSerialNumber(Input& input, /*out*/ SECItem& value)
   //   that are negative or zero.  Certificate users SHOULD be prepared to
   //   gracefully handle such certificates."
 
-  if (ExpectTagAndGetValue(input, INTEGER, value) != Success) {
-    return Failure;
-  }
-
-  if (value.len == 0) {
-    return Fail(SEC_ERROR_BAD_DER);
-  }
-
-  // Check for overly-long encodings. If the first byte is 0x00 then the high
-  // bit on the second byte must be 1; otherwise the same *positive* value
-  // could be encoded without the leading 0x00 byte. If the first byte is 0xFF
-  // then the second byte must NOT have its high bit set; otherwise the same
-  // *negative* value could be encoded without the leading 0xFF byte.
-  if (value.len > 1) {
-    if ((value.data[0] == 0x00 && (value.data[1] & 0x80) == 0) ||
-        (value.data[0] == 0xff && (value.data[1] & 0x80) != 0)) {
-      return Fail(SEC_ERROR_BAD_DER);
-    }
-  }
-
-  return Success;
+  return Integer(input, serialNumber);
 }
 
 // x.509 and OCSP both use this same version numbering scheme, though OCSP

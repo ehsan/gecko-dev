@@ -72,7 +72,6 @@ UNIFIED_SOURCES += [
     'testTypedArrays.cpp',
     'testUncaughtError.cpp',
     'testUTF8.cpp',
-    'testWeakMap.cpp',
     'testXDR.cpp',
 ]
 

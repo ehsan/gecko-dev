@@ -24,8 +24,6 @@
 
 #include "OCSPCache.h"
 
-#include <limits>
-
 #include "NSSCertDBTrustDomain.h"
 #include "pk11pub.h"
 #include "secerr.h"
@@ -115,34 +113,30 @@ OCSPCache::~OCSPCache()
   Clear();
 }
 
-// Returns false with index in an undefined state if no matching entry was
-// found.
-bool
+// Returns -1 if no entry is found for the given (cert, issuer) pair.
+int32_t
 OCSPCache::FindInternal(const CERTCertificate* aCert,
                         const CERTCertificate* aIssuerCert,
-                        /*out*/ size_t& index,
                         const MutexAutoLock& /* aProofOfLock */)
 {
   if (mEntries.length() == 0) {
-    return false;
+    return -1;
   }
 
   SHA384Buffer idHash;
   SECStatus rv = CertIDHash(idHash, aCert, aIssuerCert);
   if (rv != SECSuccess) {
-    return false;
+    return -1;
   }
 
   // mEntries is sorted with the most-recently-used entry at the end.
   // Thus, searching from the end will often be fastest.
-  index = mEntries.length();
-  while (index > 0) {
-    --index;
-    if (memcmp(mEntries[index]->mIDHash, idHash, SHA384_LENGTH) == 0) {
-      return true;
+  for (int32_t i = mEntries.length() - 1; i >= 0; i--) {
+    if (memcmp(mEntries[i]->mIDHash, idHash, SHA384_LENGTH) == 0) {
+      return i;
     }
   }
-  return false;
+  return -1;
 }
 
 void
@@ -182,8 +176,8 @@ OCSPCache::Get(const CERTCertificate* aCert,
 
   MutexAutoLock lock(mMutex);
 
-  size_t index;
-  if (!FindInternal(aCert, aIssuerCert, index, lock)) {
+  int32_t index = FindInternal(aCert, aIssuerCert, lock);
+  if (index < 0) {
     LogWithCerts("OCSPCache::Get(%s, %s) not in cache", aCert, aIssuerCert);
     return false;
   }
@@ -206,8 +200,9 @@ OCSPCache::Put(const CERTCertificate* aCert,
 
   MutexAutoLock lock(mMutex);
 
-  size_t index;
-  if (FindInternal(aCert, aIssuerCert, index, lock)) {
+  int32_t index = FindInternal(aCert, aIssuerCert, lock);
+
+  if (index >= 0) {
     // Never replace an entry indicating a revoked certificate.
     if (mEntries[index]->mErrorCode == SEC_ERROR_REVOKED_CERTIFICATE) {
       LogWithCerts("OCSPCache::Put(%s, %s) already in cache as revoked - "
