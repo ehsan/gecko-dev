@@ -94,7 +94,7 @@ public:
 
   // XPCOM SetCustomValidity is OK for us
 
-  virtual EventStates IntrinsicState() const;
+  virtual nsEventStates IntrinsicState() const;
 
 
   /*

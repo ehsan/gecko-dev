@@ -1,3 +1,0 @@
-#filter substitution
-#define VIEWTYPE ImageView
-#include ThemedView.java.frag

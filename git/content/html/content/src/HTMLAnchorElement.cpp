@@ -8,7 +8,6 @@
 
 #include "mozilla/dom/HTMLAnchorElementBinding.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/MemoryReporting.h"
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
@@ -430,7 +429,7 @@ HTMLAnchorElement::ParseAttribute(int32_t aNamespaceID,
                                               aResult);
 }
 
-EventStates
+nsEventStates
 HTMLAnchorElement::IntrinsicState() const
 {
   return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();

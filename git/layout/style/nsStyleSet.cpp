@@ -10,7 +10,6 @@
  */
 
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/MemoryReporting.h"
 
 #include "nsStyleSet.h"
@@ -28,6 +27,7 @@
 #include "nsRuleProcessorData.h"
 #include "nsTransitionManager.h"
 #include "nsAnimationManager.h"
+#include "nsEventStates.h"
 #include "nsStyleSheetService.h"
 #include "mozilla/dom/Element.h"
 #include "GeckoProfiler.h"
@@ -1870,7 +1870,7 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
 
 struct MOZ_STACK_CLASS StatefulData : public StateRuleProcessorData {
   StatefulData(nsPresContext* aPresContext, Element* aElement,
-               EventStates aStateMask, TreeMatchContext& aTreeMatchContext)
+               nsEventStates aStateMask, TreeMatchContext& aTreeMatchContext)
     : StateRuleProcessorData(aPresContext, aElement, aStateMask,
                              aTreeMatchContext),
       mHint(nsRestyleHint(0))
@@ -1880,7 +1880,7 @@ struct MOZ_STACK_CLASS StatefulData : public StateRuleProcessorData {
 
 struct MOZ_STACK_CLASS StatefulPseudoElementData : public PseudoElementStateRuleProcessorData {
   StatefulPseudoElementData(nsPresContext* aPresContext, Element* aElement,
-               EventStates aStateMask, nsCSSPseudoElements::Type aPseudoType,
+               nsEventStates aStateMask, nsCSSPseudoElements::Type aPseudoType,
                TreeMatchContext& aTreeMatchContext, Element* aPseudoElement)
     : PseudoElementStateRuleProcessorData(aPresContext, aElement, aStateMask,
                                           aPseudoType, aTreeMatchContext,
@@ -1905,7 +1905,7 @@ static bool SheetHasDocumentStateStyle(nsIStyleRuleProcessor* aProcessor,
 bool
 nsStyleSet::HasDocumentStateDependentStyle(nsPresContext* aPresContext,
                                            nsIContent*    aContent,
-                                           EventStates    aStateMask)
+                                           nsEventStates  aStateMask)
 {
   if (!aContent || !aContent->IsElement())
     return false;
@@ -1941,7 +1941,7 @@ static bool SheetHasStatefulPseudoElementStyle(nsIStyleRuleProcessor* aProcessor
 nsRestyleHint
 nsStyleSet::HasStateDependentStyle(nsPresContext*       aPresContext,
                                    Element*             aElement,
-                                   EventStates          aStateMask)
+                                   nsEventStates        aStateMask)
 {
   TreeMatchContext treeContext(false, nsRuleWalker::eLinksVisitedOrUnvisited,
                                aElement->OwnerDoc());
@@ -1956,7 +1956,7 @@ nsStyleSet::HasStateDependentStyle(nsPresContext* aPresContext,
                                    Element* aElement,
                                    nsCSSPseudoElements::Type aPseudoType,
                                    Element* aPseudoElement,
-                                   EventStates aStateMask)
+                                   nsEventStates aStateMask)
 {
   TreeMatchContext treeContext(false, nsRuleWalker::eLinksVisitedOrUnvisited,
                                aElement->OwnerDoc());

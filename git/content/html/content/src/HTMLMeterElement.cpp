@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "HTMLMeterElement.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/dom/HTMLMeterElementBinding.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Meter)
@@ -28,10 +27,10 @@ HTMLMeterElement::~HTMLMeterElement()
 
 NS_IMPL_ELEMENT_CLONE(HTMLMeterElement)
 
-EventStates
+nsEventStates
 HTMLMeterElement::IntrinsicState() const
 {
-  EventStates state = nsGenericHTMLElement::IntrinsicState();
+  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
 
   state |= GetOptimumState();
 
@@ -212,7 +211,7 @@ HTMLMeterElement::Optimum() const
   return std::min(optimum, max);
 }
 
-EventStates
+nsEventStates
 HTMLMeterElement::GetOptimumState() const
 {
   /*

@@ -1,3 +1,0 @@
-#filter substitution
-#define VIEWTYPE TextView
-#include ThemedView.java.frag

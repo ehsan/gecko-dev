@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/EventStates.h"
 
 #include "inDOMUtils.h"
 #include "inLayoutUtils.h"
@@ -689,8 +688,7 @@ inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
 }
 
 NS_IMETHODIMP
-inDOMUtils::SetContentState(nsIDOMElement* aElement,
-                            EventStates::InternalType aState)
+inDOMUtils::SetContentState(nsIDOMElement *aElement, nsEventStates::InternalType aState)
 {
   NS_ENSURE_ARG_POINTER(aElement);
 
@@ -701,22 +699,21 @@ inDOMUtils::SetContentState(nsIDOMElement* aElement,
     content = do_QueryInterface(aElement);
 
     // XXX Invalid cast of bool to nsresult (bug 778108)
-    return (nsresult)esm->SetContentState(content, EventStates(aState));
+    return (nsresult)esm->SetContentState(content, nsEventStates(aState));
   }
 
   return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
-inDOMUtils::GetContentState(nsIDOMElement* aElement,
-                            EventStates::InternalType* aState)
+inDOMUtils::GetContentState(nsIDOMElement *aElement, nsEventStates::InternalType* aState)
 {
   *aState = 0;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
   NS_ENSURE_ARG_POINTER(content);
 
   // NOTE: if this method is removed,
-  // please remove GetInternalValue from EventStates
+  // please remove GetInternalValue from nsEventStates
   *aState = content->AsElement()->State().GetInternalValue();
   return NS_OK;
 }
@@ -759,14 +756,14 @@ inDOMUtils::GetUsedFontFaces(nsIDOMRange* aRange,
   return static_cast<nsRange*>(aRange)->GetUsedFontFaces(aFontFaceList);
 }
 
-static EventStates
+static nsEventStates
 GetStatesForPseudoClass(const nsAString& aStatePseudo)
 {
   // An array of the states that are relevant for various pseudoclasses.
   // XXXbz this duplicates code in nsCSSRuleProcessor
-  static const EventStates sPseudoClassStates[] = {
+  static const nsEventStates sPseudoClassStates[] = {
 #define CSS_PSEUDO_CLASS(_name, _value, _pref)	\
-    EventStates(),
+    nsEventStates(),
 #define CSS_STATE_PSEUDO_CLASS(_name, _value, _pref, _states)	\
     _states,
 #include "nsCSSPseudoClassList.h"
@@ -775,8 +772,8 @@ GetStatesForPseudoClass(const nsAString& aStatePseudo)
 
     // Add more entries for our fake values to make sure we can't
     // index out of bounds into this array no matter what.
-    EventStates(),
-    EventStates()
+    nsEventStates(),
+    nsEventStates()
   };
   static_assert(MOZ_ARRAY_LENGTH(sPseudoClassStates) ==
                 nsCSSPseudoClasses::ePseudoClass_NotPseudoClass + 1,
@@ -788,7 +785,7 @@ GetStatesForPseudoClass(const nsAString& aStatePseudo)
   // visited and unvisited style state
   if (nsCSSPseudoClasses::GetPseudoType(atom) ==
       nsCSSPseudoClasses::ePseudoClass_mozAnyLink) {
-    return EventStates();
+    return nsEventStates();
   }
   // Our array above is long enough that indexing into it with
   // NotPseudoClass is ok.
@@ -799,7 +796,7 @@ NS_IMETHODIMP
 inDOMUtils::AddPseudoClassLock(nsIDOMElement *aElement,
                                const nsAString &aPseudoClass)
 {
-  EventStates state = GetStatesForPseudoClass(aPseudoClass);
+  nsEventStates state = GetStatesForPseudoClass(aPseudoClass);
   if (state.IsEmpty()) {
     return NS_OK;
   }
@@ -816,7 +813,7 @@ NS_IMETHODIMP
 inDOMUtils::RemovePseudoClassLock(nsIDOMElement *aElement,
                                   const nsAString &aPseudoClass)
 {
-  EventStates state = GetStatesForPseudoClass(aPseudoClass);
+  nsEventStates state = GetStatesForPseudoClass(aPseudoClass);
   if (state.IsEmpty()) {
     return NS_OK;
   }
@@ -834,7 +831,7 @@ inDOMUtils::HasPseudoClassLock(nsIDOMElement *aElement,
                                const nsAString &aPseudoClass,
                                bool *_retval)
 {
-  EventStates state = GetStatesForPseudoClass(aPseudoClass);
+  nsEventStates state = GetStatesForPseudoClass(aPseudoClass);
   if (state.IsEmpty()) {
     *_retval = false;
     return NS_OK;
@@ -843,7 +840,7 @@ inDOMUtils::HasPseudoClassLock(nsIDOMElement *aElement,
   nsCOMPtr<mozilla::dom::Element> element = do_QueryInterface(aElement);
   NS_ENSURE_ARG_POINTER(element);
 
-  EventStates locks = element->LockedStyleStates();
+  nsEventStates locks = element->LockedStyleStates();
 
   *_retval = locks.HasAllStates(state);
   return NS_OK;

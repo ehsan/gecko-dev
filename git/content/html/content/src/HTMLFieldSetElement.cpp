@@ -5,7 +5,6 @@
 
 #include "mozilla/BasicEvents.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/dom/HTMLFieldSetElement.h"
 #include "mozilla/dom/HTMLFieldSetElementBinding.h"
 #include "nsContentList.h"
@@ -355,10 +354,10 @@ HTMLFieldSetElement::UpdateValidity(bool aElementValidity)
   return;
 }
 
-EventStates
+nsEventStates
 HTMLFieldSetElement::IntrinsicState() const
 {
-  EventStates state = nsGenericHTMLFormElement::IntrinsicState();
+  nsEventStates state = nsGenericHTMLFormElement::IntrinsicState();
 
   if (mInvalidElementsCount) {
     state |= NS_EVENT_STATE_INVALID;

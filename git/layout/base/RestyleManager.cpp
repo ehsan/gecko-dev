@@ -9,7 +9,6 @@
  */
 
 #include "RestyleManager.h"
-#include "mozilla/EventStates.h"
 #include "nsLayoutUtils.h"
 #include "GeckoProfiler.h"
 #include "nsStyleChangeList.h"
@@ -853,7 +852,7 @@ ElementForStyleContext(nsIContent* aParentContent,
 // passing the notification to the frame).
 nsresult
 RestyleManager::ContentStateChanged(nsIContent* aContent,
-                                    EventStates aStateMask)
+                                    nsEventStates aStateMask)
 {
   // XXXbz it would be good if this function only took Elements, but
   // we'd have to make ESM guarantee that usefully.

@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/EventStates.h"
 #include "mozilla/dom/HTMLSharedObjectElement.h"
 #include "mozilla/dom/HTMLEmbedElementBinding.h"
 #include "mozilla/dom/HTMLAppletElementBinding.h"
@@ -305,7 +304,7 @@ HTMLSharedObjectElement::StartObjectLoad(bool aNotify)
   SetIsNetworkCreated(false);
 }
 
-EventStates
+nsEventStates
 HTMLSharedObjectElement::IntrinsicState() const
 {
   return nsGenericHTMLElement::IntrinsicState() | ObjectState();

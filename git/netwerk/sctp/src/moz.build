@@ -49,6 +49,7 @@ FINAL_LIBRARY = 'necko'
 LOCAL_INCLUDES += [
     '../../base/src',
     '/content/base/src',
+    '/dom/events',
 ]
 
 for var in ('SCTP_SIMPLE_ALLOCATOR',

@@ -53,6 +53,13 @@ class gfxIgnoreCaseCStringComparator
     }
 };
 
+class gfxFontNameList : public nsTArray<nsString>
+{
+public:
+    NS_INLINE_DECL_REFCOUNTING(gfxFontNameList)
+    bool Exists(nsAString& aName);
+};
+
 class gfxFontconfigUtils {
 public:
     gfxFontconfigUtils();

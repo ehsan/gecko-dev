@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/TextEvents.h"
 
 #include "nsCRT.h"

@@ -727,6 +727,7 @@ class O2RegImmShift : public Op2Reg
         datastore::Reg r(*this);
         datastore::RIS ris(r);
         return ris.ShiftAmount;
+        
     }
 };
 

@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/EventStates.h"
 #include "mozilla/dom/HTMLObjectElement.h"
 #include "mozilla/dom/HTMLObjectElementBinding.h"
 #include "mozilla/dom/ElementInlines.h"
@@ -409,7 +408,7 @@ HTMLObjectElement::StartObjectLoad(bool aNotify)
   SetIsNetworkCreated(false);
 }
 
-EventStates
+nsEventStates
 HTMLObjectElement::IntrinsicState() const
 {
   return nsGenericHTMLFormElement::IntrinsicState() | ObjectState();

@@ -14,9 +14,9 @@
 #include "nsXMLElement.h"
 #include "nsImageLoadingContent.h"
 #include "imgIRequest.h"
+#include "nsEventStates.h"
 #include "mozilla/BasicEvents.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/EventStates.h"
 
 using namespace mozilla;
 
@@ -43,7 +43,7 @@ public:
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep, bool aNullParent);
-  virtual EventStates IntrinsicState() const;
+  virtual nsEventStates IntrinsicState() const;
 
   virtual nsresult PreHandleEvent(EventChainPreVisitor& aVisitor)
   {
@@ -111,12 +111,12 @@ nsGenConImageContent::UnbindFromTree(bool aDeep, bool aNullParent)
   nsXMLElement::UnbindFromTree(aDeep, aNullParent);
 }
 
-EventStates
+nsEventStates
 nsGenConImageContent::IntrinsicState() const
 {
-  EventStates state = nsXMLElement::IntrinsicState();
+  nsEventStates state = nsXMLElement::IntrinsicState();
 
-  EventStates imageState = nsImageLoadingContent::ImageState();
+  nsEventStates imageState = nsImageLoadingContent::ImageState();
   if (imageState.HasAtLeastOneOfStates(NS_EVENT_STATE_BROKEN | NS_EVENT_STATE_USERDISABLED)) {
     // We should never be in an error state; if the image fails to load, we
     // just go to the suppressed state.

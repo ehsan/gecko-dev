@@ -11,7 +11,6 @@
 #include "mozilla/Selection.h"
 
 #include "mozilla/Attributes.h"
-#include "mozilla/EventStates.h"
 
 #include "nsCOMPtr.h"
 #include "nsString.h"

@@ -24,14 +24,12 @@ let chromeGlobal = this;
   // time we load child.js
   DebuggerServer.addChildActors();
 
-  let conn;
-
   let onConnect = DevToolsUtils.makeInfallible(function (msg) {
     removeMessageListener("debug:connect", onConnect);
 
     let mm = msg.target;
 
-    conn = DebuggerServer.connectToParent(msg.data.prefix, mm);
+    let conn = DebuggerServer.connectToParent(msg.data.prefix, mm);
 
     let actor = new DebuggerServer.ContentActor(conn, chromeGlobal);
     let actorPool = new ActorPool(conn);
@@ -42,15 +40,4 @@ let chromeGlobal = this;
   });
 
   addMessageListener("debug:connect", onConnect);
-
-  let onDisconnect = DevToolsUtils.makeInfallible(function (msg) {
-    removeMessageListener("debug:disconnect", onDisconnect);
-
-    // Call DebuggerServerConnection.close to destroy all child actors
-    // (It should end up calling DebuggerServerConnection.onClosed
-    // that would actually cleanup all actor pools)
-    conn.close();
-    conn = null;
-  });
-  addMessageListener("debug:disconnect", onDisconnect);
 })();

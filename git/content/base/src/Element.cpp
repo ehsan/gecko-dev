@@ -52,7 +52,6 @@
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/EventStateManager.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/InternalMutationEvent.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TextEvents.h"
@@ -149,7 +148,7 @@ Element::QueryInterface(REFNSIID aIID, void** aInstancePtr)
                                                                 aInstancePtr);
 }
 
-EventStates
+nsEventStates
 Element::IntrinsicState() const
 {
   return IsEditable() ? NS_EVENT_STATE_MOZ_READWRITE :
@@ -157,7 +156,7 @@ Element::IntrinsicState() const
 }
 
 void
-Element::NotifyStateChange(EventStates aStates)
+Element::NotifyStateChange(nsEventStates aStates)
 {
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
@@ -167,7 +166,7 @@ Element::NotifyStateChange(EventStates aStates)
 }
 
 void
-Element::UpdateLinkState(EventStates aState)
+Element::UpdateLinkState(nsEventStates aState)
 {
   NS_ABORT_IF_FALSE(!aState.HasAtLeastOneOfStates(~(NS_EVENT_STATE_VISITED |
                                                     NS_EVENT_STATE_UNVISITED)),
@@ -180,10 +179,10 @@ Element::UpdateLinkState(EventStates aState)
 void
 Element::UpdateState(bool aNotify)
 {
-  EventStates oldState = mState;
+  nsEventStates oldState = mState;
   mState = IntrinsicState() | (oldState & ESM_MANAGED_STATES);
   if (aNotify) {
-    EventStates changedStates = oldState ^ mState;
+    nsEventStates changedStates = oldState ^ mState;
     if (!changedStates.IsEmpty()) {
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
@@ -227,11 +226,11 @@ Element::UpdateEditableState(bool aNotify)
   }
 }
 
-EventStates
+nsEventStates
 Element::StyleStateFromLocks() const
 {
-  EventStates locks = LockedStyleStates();
-  EventStates state = mState | locks;
+  nsEventStates locks = LockedStyleStates();
+  nsEventStates state = mState | locks;
 
   if (locks.HasState(NS_EVENT_STATE_VISITED)) {
     return state & ~NS_EVENT_STATE_UNVISITED;
@@ -242,19 +241,19 @@ Element::StyleStateFromLocks() const
   return state;
 }
 
-EventStates
+nsEventStates
 Element::LockedStyleStates() const
 {
-  EventStates* locks =
-    static_cast<EventStates*>(GetProperty(nsGkAtoms::lockedStyleStates));
+  nsEventStates *locks =
+    static_cast<nsEventStates*> (GetProperty(nsGkAtoms::lockedStyleStates));
   if (locks) {
     return *locks;
   }
-  return EventStates();
+  return nsEventStates();
 }
 
 void
-Element::NotifyStyleStateChange(EventStates aStates)
+Element::NotifyStyleStateChange(nsEventStates aStates)
 {
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
@@ -267,9 +266,9 @@ Element::NotifyStyleStateChange(EventStates aStates)
 }
 
 void
-Element::LockStyleStates(EventStates aStates)
+Element::LockStyleStates(nsEventStates aStates)
 {
-  EventStates* locks = new EventStates(LockedStyleStates());
+  nsEventStates *locks = new nsEventStates(LockedStyleStates());
 
   *locks |= aStates;
 
@@ -281,16 +280,16 @@ Element::LockStyleStates(EventStates aStates)
   }
 
   SetProperty(nsGkAtoms::lockedStyleStates, locks,
-              nsINode::DeleteProperty<EventStates>);
+              nsINode::DeleteProperty<nsEventStates>);
   SetHasLockedStyleStates();
 
   NotifyStyleStateChange(aStates);
 }
 
 void
-Element::UnlockStyleStates(EventStates aStates)
+Element::UnlockStyleStates(nsEventStates aStates)
 {
-  EventStates* locks = new EventStates(LockedStyleStates());
+  nsEventStates *locks = new nsEventStates(LockedStyleStates());
 
   *locks &= ~aStates;
 
@@ -301,7 +300,7 @@ Element::UnlockStyleStates(EventStates aStates)
   }
   else {
     SetProperty(nsGkAtoms::lockedStyleStates, locks,
-                nsINode::DeleteProperty<EventStates>);
+                nsINode::DeleteProperty<nsEventStates>);
   }
 
   NotifyStyleStateChange(aStates);
@@ -310,7 +309,7 @@ Element::UnlockStyleStates(EventStates aStates)
 void
 Element::ClearStyleStateLocks()
 {
-  EventStates locks = LockedStyleStates();
+  nsEventStates locks = LockedStyleStates();
 
   DeleteProperty(nsGkAtoms::lockedStyleStates);
   ClearHasLockedStyleStates();

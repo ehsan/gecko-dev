@@ -5,7 +5,6 @@
 
 #include "mozilla/dom/SVGFEImageElement.h"
 
-#include "mozilla/EventStates.h"
 #include "mozilla/dom/SVGFEImageElementBinding.h"
 #include "mozilla/dom/SVGFilterElement.h"
 #include "nsContentUtils.h"
@@ -170,7 +169,7 @@ SVGFEImageElement::UnbindFromTree(bool aDeep, bool aNullParent)
   SVGFEImageElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
-EventStates
+nsEventStates
 SVGFEImageElement::IntrinsicState() const
 {
   return SVGFEImageElementBase::IntrinsicState() |

@@ -195,6 +195,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mMinimizePreroll(false),
   mDecodeThreadWaiting(false),
   mRealTime(aRealTime),
+  mEventManager(aDecoder),
   mLastFrameStatus(MediaDecoderOwner::NEXT_FRAME_UNINITIALIZED)
 {
   MOZ_COUNT_CTOR(MediaDecoderStateMachine);
@@ -942,6 +943,8 @@ void MediaDecoderStateMachine::AudioLoop()
           ReentrantMonitorAutoExit exit(mDecoder->GetReentrantMonitor());
           mAudioStream->Drain();
         }
+        // Fire one last event for any extra frames that didn't fill a framebuffer.
+        mEventManager.Drain(mAudioEndTime);
       }
     }
   }
@@ -952,6 +955,7 @@ void MediaDecoderStateMachine::AudioLoop()
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mAudioStream->Shutdown();
     mAudioStream = nullptr;
+    mEventManager.Clear();
     if (!mAudioCaptured) {
       mAudioCompleted = true;
       UpdateReadyState();
@@ -973,6 +977,9 @@ uint32_t MediaDecoderStateMachine::PlaySilence(uint32_t aFrames,
   uint32_t maxFrames = SILENCE_BYTES_CHUNK / aChannels / sizeof(AudioDataValue);
   uint32_t frames = std::min(aFrames, maxFrames);
   WriteSilence(mAudioStream, frames);
+  // Dispatch events to the DOM for the audio just written.
+  mEventManager.QueueWrittenAudioData(nullptr, frames * aChannels,
+                                      (aFrameOffset + frames) * aChannels);
   return frames;
 }
 
@@ -1005,6 +1012,10 @@ uint32_t MediaDecoderStateMachine::PlayFromAudioQueue(uint64_t aFrameOffset,
   offset = audio->mOffset;
   frames = audio->mFrames;
 
+  // Dispatch events to the DOM for the audio just written.
+  mEventManager.QueueWrittenAudioData(audio->mAudioData.get(),
+                                      audio->mFrames * aChannels,
+                                      (aFrameOffset + frames) * aChannels);
   if (offset != -1) {
     mDecoder->UpdatePlaybackOffset(offset);
   }
@@ -1134,6 +1145,9 @@ void MediaDecoderStateMachine::UpdatePlaybackPosition(int64_t aTime)
       NS_NewRunnableMethod(mDecoder, &MediaDecoder::PlaybackPositionChanged);
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   }
+
+  // Notify DOM of any queued up audioavailable events
+  mEventManager.DispatchPendingEvents(GetMediaTime());
 
   mMetadataManager.DispatchMetadataIfNeeded(mDecoder, aTime);
 
@@ -1766,6 +1780,14 @@ bool MediaDecoderStateMachine::HasLowUndecodedData(double aUsecs) const
   return stream->GetCachedDataEnd(currentPos) < requiredPos;
 }
 
+void MediaDecoderStateMachine::SetFrameBufferLength(uint32_t aLength)
+{
+  NS_ASSERTION(aLength >= 512 && aLength <= 16384,
+               "The length must be between 512 and 16384");
+  AssertCurrentThreadInMonitor();
+  mEventManager.SetSignalBufferLength(aLength);
+}
+
 void
 MediaDecoderStateMachine::DecodeError()
 {
@@ -1869,7 +1891,19 @@ nsresult MediaDecoderStateMachine::DecodeMetadata()
     mLowAudioThresholdUsecs /= NO_VIDEO_AMPLE_AUDIO_DIVISOR;
   }
 
-  // Inform the element that we've loaded the metadata and the first frame.
+  // Inform the element that we've loaded the metadata and the first frame,
+  // setting the default framebuffer size for audioavailable events.  Also,
+  // if there is audio, let the MozAudioAvailable event manager know about
+  // the metadata.
+  if (HasAudio()) {
+    mEventManager.Init(mInfo.mAudio.mChannels, mInfo.mAudio.mRate);
+    // Set the buffer length at the decoder level to be able, to be able
+    // to retrive the value via media element method. The RequestFrameBufferLength
+    // will call the MediaDecoderStateMachine::SetFrameBufferLength().
+    uint32_t frameBufferLength = mInfo.mAudio.mChannels * FRAMEBUFFER_LENGTH_PER_CHANNEL;
+    mDecoder->RequestFrameBufferLength(frameBufferLength);
+  }
+
   nsCOMPtr<nsIRunnable> metadataLoadedEvent =
     new AudioMetadataEventRunner(mDecoder,
                                  mInfo.mAudio.mChannels,
@@ -2755,6 +2789,12 @@ bool MediaDecoderStateMachine::OnStateMachineThread() const
 nsIEventTarget* MediaDecoderStateMachine::GetStateMachineThread()
 {
   return mStateMachineThreadPool->GetEventTarget();
+}
+
+void MediaDecoderStateMachine::NotifyAudioAvailableListener()
+{
+  AssertCurrentThreadInMonitor();
+  mEventManager.NotifyAudioAvailableListener();
 }
 
 void MediaDecoderStateMachine::SetPlaybackRate(double aPlaybackRate)
