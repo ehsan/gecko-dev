@@ -241,9 +241,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
         }
 
         /* If getting a value via a stub getter, we can cache the slot. */
-        if (!(cs->format & JOF_SET) &&
-            !((cs->format & (JOF_INCDEC | JOF_FOR)) &&
-              (sprop->attrs & JSPROP_READONLY)) &&
+        if (!(cs->format & (JOF_SET | JOF_INCDEC | JOF_FOR)) &&
             SPROP_HAS_STUB_GETTER(sprop) &&
             SPROP_HAS_VALID_SLOT(sprop, scope)) {
             /* Great, let's cache sprop's slot and use it on cache hit. */
@@ -2647,9 +2645,7 @@ js_Interpret(JSContext *cx)
             }                                                                 \
             fp = cx->fp;                                                      \
             script = fp->script;                                              \
-            atoms = fp->imacpc                                                \
-                    ? COMMON_ATOMS_START(&rt->atomState)                      \
-                    : script->atomMap.vector;                                 \
+            atoms = FrameAtomBase(cx, fp);                                    \
             currentVersion = (JSVersion) script->version;                     \
             JS_ASSERT(fp->regs == &regs);                                     \
             if (cx->throwing)                                                 \
@@ -3056,9 +3052,7 @@ js_Interpret(JSContext *cx)
 
                 /* Restore the calling script's interpreter registers. */
                 script = fp->script;
-                atoms = fp->imacpc
-                        ? COMMON_ATOMS_START(&rt->atomState)
-                        : script->atomMap.vector;
+                atoms = FrameAtomBase(cx, fp);
 
                 /* Resume execution in the calling frame. */
                 inlineCallCount--;
