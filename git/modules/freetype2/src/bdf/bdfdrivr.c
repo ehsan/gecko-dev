@@ -30,7 +30,6 @@ THE SOFTWARE.
 #include FT_INTERNAL_STREAM_H
 #include FT_INTERNAL_OBJECTS_H
 #include FT_BDF_H
-#include FT_TRUETYPE_IDS_H 
 
 #include FT_SERVICE_BDF_H
 #include FT_SERVICE_XFREE86_NAME_H
@@ -541,15 +540,14 @@ THE SOFTWARE.
 
               charmap.face        = FT_FACE( face );
               charmap.encoding    = FT_ENCODING_NONE;
-              /* initial platform/encoding should indicate unset status? */
-              charmap.platform_id = TT_PLATFORM_APPLE_UNICODE;
-              charmap.encoding_id = TT_APPLE_ID_DEFAULT;
+              charmap.platform_id = 0;
+              charmap.encoding_id = 0;
 
               if ( unicode_charmap )
               {
                 charmap.encoding    = FT_ENCODING_UNICODE;
-                charmap.platform_id = TT_PLATFORM_MICROSOFT;
-                charmap.encoding_id = TT_MS_ID_UNICODE_CS;
+                charmap.platform_id = 3;
+                charmap.encoding_id = 1;
               }
 
               error = FT_CMap_New( &bdf_cmap_class, NULL, &charmap, NULL );
@@ -573,8 +571,8 @@ THE SOFTWARE.
 
           charmap.face        = FT_FACE( face );
           charmap.encoding    = FT_ENCODING_ADOBE_STANDARD;
-          charmap.platform_id = TT_PLATFORM_ADOBE;
-          charmap.encoding_id = TT_ADOBE_ID_STANDARD;
+          charmap.platform_id = 7;
+          charmap.encoding_id = 0;
 
           error = FT_CMap_New( &bdf_cmap_class, NULL, &charmap, NULL );
 

@@ -43,8 +43,6 @@
 #include "mozilla/net/HttpChannelParent.h"
 #include "mozilla/net/CookieServiceParent.h"
 
-#include "nsHTMLDNSPrefetch.h"
-
 namespace mozilla {
 namespace net {
 
@@ -83,15 +81,6 @@ bool
 NeckoParent::DeallocPCookieService(PCookieServiceParent* cs)
 {
   delete cs;
-  return true;
-}
-
-bool
-NeckoParent::RecvHTMLDNSPrefetch(const nsString& hostname,
-                                 const PRUint16& flags)
-{
-  nsAutoString h(hostname);
-  nsHTMLDNSPrefetch::Prefetch(h, flags);
   return true;
 }
 

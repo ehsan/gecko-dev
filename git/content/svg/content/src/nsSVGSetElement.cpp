@@ -47,8 +47,8 @@ class nsSVGSetElement : public nsSVGSetElementBase,
 {
 protected:
   friend nsresult NS_NewSVGSetElement(nsIContent **aResult,
-                                      already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGSetElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                      nsINodeInfo *aNodeInfo);
+  nsSVGSetElement(nsINodeInfo* aNodeInfo);
 
   nsSMILSetAnimationFunction mAnimationFunction;
 
@@ -67,8 +67,6 @@ public:
 
   // nsISMILAnimationElement
   virtual nsSMILAnimationFunction& AnimationFunction();
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Set)
@@ -79,7 +77,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Set)
 NS_IMPL_ADDREF_INHERITED(nsSVGSetElement,nsSVGSetElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGSetElement,nsSVGSetElementBase)
 
-DOMCI_NODE_DATA(SVGSetElement, nsSVGSetElement)
+DOMCI_DATA(SVGSetElement, nsSVGSetElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGSetElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGSetElement, nsIDOMNode, nsIDOMElement,
@@ -91,7 +89,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGSetElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGSetElement::nsSVGSetElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGSetElement::nsSVGSetElement(nsINodeInfo *aNodeInfo)
   : nsSVGSetElementBase(aNodeInfo)
 {
 }

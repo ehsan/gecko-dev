@@ -178,7 +178,7 @@
 
 #if !defined(WINCE)
 #include "nsUXThemeConstants.h"
-#include "KeyboardLayout.h"
+#include "nsKeyboardLayout.h"
 #include "nsNativeDragTarget.h"
 #include <mmsystem.h> // needed for WIN32_LEAN_AND_MEAN
 #include <zmouse.h>
@@ -189,7 +189,6 @@
 #if defined(ACCESSIBILITY)
 #include "oleidl.h"
 #include <winuser.h>
-#include "nsIAccessibleDocument.h"
 #if !defined(WINABLEAPI)
 #include <winable.h>
 #endif // !defined(WINABLEAPI)
@@ -219,8 +218,6 @@
 #endif
 
 #include "mozilla/FunctionTimer.h"
-
-using namespace mozilla::widget;
 
 /**************************************************************
  **************************************************************
@@ -5496,27 +5493,11 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
       testResult = HTRIGHT;
   }
 
-  PRBool contentOverlap = PR_TRUE;
-
-  if (mSizeMode == nsSizeMode_Maximized) {
-    // There's no HTTOP in maximized state (bug 575493)
-    if (testResult == HTTOP) {
-      testResult = HTCAPTION;
-    }
-  } else {
-    PRInt32 leftMargin   = mNonClientMargins.left   == -1 ? mHorResizeMargin  : mNonClientMargins.left;
-    PRInt32 rightMargin  = mNonClientMargins.right  == -1 ? mHorResizeMargin  : mNonClientMargins.right;
-    PRInt32 topMargin    = mNonClientMargins.top    == -1 ? mVertResizeMargin : mNonClientMargins.top;
-    PRInt32 bottomMargin = mNonClientMargins.bottom == -1 ? mVertResizeMargin : mNonClientMargins.bottom;
-
-    contentOverlap = mx >= winRect.left + leftMargin &&
-                     mx <= winRect.right - rightMargin &&
-                     my >= winRect.top + topMargin &&
-                     my <= winRect.bottom - bottomMargin;
-  }
+  // There's no HTTOP in maximized state (bug 575493)
+  if (mSizeMode == nsSizeMode_Maximized && testResult == HTTOP)
+    testResult = HTCAPTION;
 
   if (!mIsInMouseCapture && 
-      contentOverlap &&
       (testResult == HTCLIENT ||
        testResult == HTTOP ||
        testResult == HTTOPLEFT ||
@@ -7374,44 +7355,6 @@ nsWindow::OnIMESelectionChange(void)
 #endif //NS_ENABLE_TSF
 
 #ifdef ACCESSIBILITY
-
-#ifdef DEBUG_WMGETOBJECT
-#define NS_LOG_WMGETOBJECT_WNDACC(aWnd)                                        \
-  nsAccessible* acc = aWnd ?                                                   \
-    aWnd->DispatchAccessibleEvent(NS_GETACCESSIBLE) : nsnull;                  \
-  printf("     acc: %p", acc);                                                 \
-  if (acc) {                                                                   \
-    nsAutoString name;                                                         \
-    acc->GetName(name);                                                        \
-    printf(", accname: %s", NS_ConvertUTF16toUTF8(name).get());                \
-    nsCOMPtr<nsIAccessibleDocument> doc = do_QueryObject(acc);                 \
-    void *hwnd = nsnull;                                                       \
-    doc->GetWindowHandle(&hwnd);                                               \
-    printf(", acc hwnd: %d", hwnd);                                            \
-  }
-
-#define NS_LOG_WMGETOBJECT_THISWND                                             \
-{                                                                              \
-  printf("\n*******Get Doc Accessible*******\nOrig Window: ");                 \
-  printf("\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p, content type: %d,\n",\
-         mWnd, ::GetParent(mWnd), this, mContentType);                         \
-  NS_LOG_WMGETOBJECT_WNDACC(this)                                              \
-  printf("\n  }\n");                                                           \
-}
-
-#define NS_LOG_WMGETOBJECT_WND(aMsg, aHwnd)                                    \
-{                                                                              \
-  nsWindow* wnd = GetNSWindowPtr(aHwnd);                                       \
-  printf("Get " aMsg ":\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",  \
-         aHwnd, ::GetParent(aHwnd), wnd);                                      \
-  NS_LOG_WMGETOBJECT_WNDACC(wnd);                                              \
-  printf("\n }\n");                                                            \
-}
-#else
-#define NS_LOG_WMGETOBJECT_THISWND
-#define NS_LOG_WMGETOBJECT_WND(aMsg, aHwnd)
-#endif // DEBUG_WMGETOBJECT
-
 nsAccessible*
 nsWindow::GetRootAccessible()
 {
@@ -7445,21 +7388,15 @@ nsWindow::GetRootAccessible()
     return nsnull;
   }
 
-  NS_LOG_WMGETOBJECT_THISWND
-
+  // If accessibility is turned on, we create this even before it is requested
+  // when the window gets focused. We need it to be created early so it can 
+  // generate accessibility events right away
+  nsWindow* accessibleWindow = nsnull;
   if (mContentType != eContentTypeInherit) {
     // We're on a MozillaContentWindowClass or MozillaUIWindowClass window.
     // Search for the correct visible child window to get an accessible 
-    // document from. Make sure to use an active child window. If this window
-    // doesn't have child windows then return an accessible for it.
+    // document from. Make sure to use an active child window
     HWND accessibleWnd = ::GetTopWindow(mWnd);
-    NS_LOG_WMGETOBJECT_WND("Top Window", accessibleWnd);
-    if (!accessibleWnd) {
-      NS_LOG_WMGETOBJECT_WND("This Window", mWnd);
-      return DispatchAccessibleEvent(NS_GETACCESSIBLE);
-    }
-
-    nsWindow* accessibleWindow = nsnull;
     while (accessibleWnd) {
       // Loop through windows and find the first one with accessibility info
       accessibleWindow = GetNSWindowPtr(accessibleWnd);
@@ -7472,12 +7409,10 @@ nsWindow::GetRootAccessible()
         }
       }
       accessibleWnd = ::GetNextWindow(accessibleWnd, GW_HWNDNEXT);
-      NS_LOG_WMGETOBJECT_WND("Next Window", accessibleWnd);
     }
     return nsnull;
   }
 
-  NS_LOG_WMGETOBJECT_WND("This Window", mWnd);
   return DispatchAccessibleEvent(NS_GETACCESSIBLE);
 }
 

@@ -76,13 +76,15 @@ class SVGAnimatedLengthList;
 class SVGUserUnitList;
 }
 
+using namespace mozilla;
+
 typedef nsStyledElement nsSVGElementBase;
 
 class nsSVGElement : public nsSVGElementBase,    // nsIContent
                      public nsISVGValueObserver  // :nsISupportsWeakReference
 {
 protected:
-  nsSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsSVGElement(nsINodeInfo *aNodeInfo);
   nsresult Init();
   virtual ~nsSVGElement();
 
@@ -180,8 +182,8 @@ public:
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
   void GetAnimatedIntegerValues(PRInt32 *aFirst, ...);
-  void GetAnimatedLengthListValues(mozilla::SVGUserUnitList *aFirst, ...);
-  mozilla::SVGAnimatedLengthList* GetAnimatedLengthList(PRUint8 aAttrEnum);
+  void GetAnimatedLengthListValues(SVGUserUnitList *aFirst, ...);
+  SVGAnimatedLengthList* GetAnimatedLengthList(PRUint8 aAttrEnum);
 
 #ifdef MOZ_SMIL
   virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName);
@@ -353,11 +355,11 @@ protected:
   };
 
   struct LengthListAttributesInfo {
-    mozilla::SVGAnimatedLengthList* mLengthLists;
+    SVGAnimatedLengthList* mLengthLists;
     LengthListInfo*        mLengthListInfo;
     PRUint32               mLengthListCount;
 
-    LengthListAttributesInfo(mozilla::SVGAnimatedLengthList *aLengthLists,
+    LengthListAttributesInfo(SVGAnimatedLengthList *aLengthLists,
                              LengthListInfo *aLengthListInfo,
                              PRUint32 aLengthListCount)
       : mLengthLists(aLengthLists)
@@ -441,7 +443,7 @@ private:
 #define NS_IMPL_NS_NEW_SVG_ELEMENT(_elementName)                             \
 nsresult                                                                     \
 NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
-                                 already_AddRefed<nsINodeInfo> aNodeInfo)    \
+                                 nsINodeInfo *aNodeInfo)                     \
 {                                                                            \
   nsRefPtr<nsSVG##_elementName##Element> it =                                \
     new nsSVG##_elementName##Element(aNodeInfo);                             \
@@ -462,7 +464,7 @@ NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
 #define NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(_elementName)                \
 nsresult                                                                     \
 NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
-                                 already_AddRefed<nsINodeInfo> aNodeInfo,    \
+                                 nsINodeInfo *aNodeInfo,                     \
                                  PRUint32 aFromParser)                       \
 {                                                                            \
   nsRefPtr<nsSVG##_elementName##Element> it =                                \

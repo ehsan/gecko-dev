@@ -58,7 +58,7 @@ class nsHTMLAreaElement : public nsGenericHTMLElement,
                           public Link
 {
 public:
-  nsHTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLAreaElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLAreaElement();
 
   // nsISupports
@@ -113,14 +113,14 @@ public:
 
   virtual PRInt32 IntrinsicState() const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
+protected:
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
 
 
-nsHTMLAreaElement::nsHTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLAreaElement::nsHTMLAreaElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -132,7 +132,8 @@ nsHTMLAreaElement::~nsHTMLAreaElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLAreaElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLAreaElement, nsGenericElement) 
 
-DOMCI_NODE_DATA(HTMLAreaElement, nsHTMLAreaElement)
+
+DOMCI_DATA(HTMLAreaElement, nsHTMLAreaElement)
 
 // QueryInterface implementation for nsHTMLAreaElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLAreaElement)

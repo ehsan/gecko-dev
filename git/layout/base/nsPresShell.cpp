@@ -5045,8 +5045,7 @@ void
 PresShell::ContentRemoved(nsIDocument *aDocument,
                           nsIContent* aContainer,
                           nsIContent* aChild,
-                          PRInt32     aIndexInContainer,
-                          nsIContent* aPreviousSibling)
+                          PRInt32     aIndexInContainer)
 {
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected ContentRemoved");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
@@ -5299,10 +5298,8 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
   devCtx->CreateRenderingContextInstance(*getter_AddRefs(rc));
   rc->Init(devCtx, aThebesContext);
 
-  PRUint32 flags = nsLayoutUtils::PAINT_IGNORE_SUPPRESSION;
-  if (!(aFlags & RENDER_ASYNC_DECODE_IMAGES)) {
-    flags |= nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES;
-  }
+  PRUint32 flags = nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES |
+    nsLayoutUtils::PAINT_IGNORE_SUPPRESSION;
   if (aFlags & RENDER_USE_WIDGET_LAYERS) {
     flags |= nsLayoutUtils::PAINT_WIDGET_LAYERS;
   }

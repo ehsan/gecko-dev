@@ -58,7 +58,7 @@ class nsSVGGradientElement : public nsSVGGradientElementBase,
   friend class nsSVGGradientFrame;
 
 protected:
-  nsSVGGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsSVGGradientElement(nsINodeInfo* aNodeInfo);
 
 public:
   // interfaces:
@@ -109,8 +109,8 @@ class nsSVGLinearGradientElement : public nsSVGLinearGradientElementBase,
 
 protected:
   friend nsresult NS_NewSVGLinearGradientElement(nsIContent **aResult,
-                                                 already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGLinearGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                                 nsINodeInfo *aNodeInfo);
+  nsSVGLinearGradientElement(nsINodeInfo* aNodeInfo);
 
 public:
   // interfaces:
@@ -130,7 +130,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   virtual LengthAttributesInfo GetLengthInfo();
@@ -152,8 +151,8 @@ class nsSVGRadialGradientElement : public nsSVGRadialGradientElementBase,
 
 protected:
   friend nsresult NS_NewSVGRadialGradientElement(nsIContent **aResult,
-                                                 already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGRadialGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                                 nsINodeInfo *aNodeInfo);
+  nsSVGRadialGradientElement(nsINodeInfo* aNodeInfo);
 
 public:
   // interfaces:
@@ -173,7 +172,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   virtual LengthAttributesInfo GetLengthInfo();

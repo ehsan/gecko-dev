@@ -78,16 +78,12 @@ function isBuiltinToken(tokenName) {
  * security dialogs from being shown to the user.  It is better to simply fail
  * if the certificate is bad. See bug 304286.
  */
-function BadCertHandler(aAllowNonBuiltInCerts) {
-  this.allowNonBuiltInCerts = aAllowNonBuiltInCerts;
+function BadCertHandler() {
 }
 BadCertHandler.prototype = {
 
   // nsIChannelEventSink
   onChannelRedirect: function(oldChannel, newChannel, flags) {
-    if (this.allowNonBuiltInCerts)
-      return;
-
     // make sure the certificate of the old channel checks out before we follow
     // a redirect from it.  See bug 340198.
     // Don't call checkCert for internal redirects. See bug 569648.

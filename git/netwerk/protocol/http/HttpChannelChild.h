@@ -112,13 +112,8 @@ public:
   // nsISupportsPriority
   NS_IMETHOD SetPriority(PRInt32 value);
 
-  // IPDL holds a reference while the PHttpChannel protocol is live (starting at
-  // AsyncOpen, and ending at either OnStopRequest or any IPDL error, either of
-  // which call NeckoChild::DeallocPHttpChannel()).
-  void AddIPDLReference();
-  void ReleaseIPDLReference();
-
 protected:
+  void RefcountHitZero();
   bool RecvOnStartRequest(const nsHttpResponseHead& responseHead,
                           const PRBool& useResponseHead,
                           const PRBool& isFromCache,
@@ -142,7 +137,6 @@ private:
 
   // FIXME: replace with IPDL states (bug 536319) 
   enum HttpChannelChildState mState;
-  bool mIPCOpen;
 };
 
 } // namespace net

@@ -269,10 +269,8 @@ public:
   virtual PRInt32 IndexOf(nsIContent* aContent);
 
   // nsIHTMLCollection
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
-  virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache** aCache,
-                                    nsresult* aResult);
+  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
+  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult);
 
   // nsContentList public methods
   NS_HIDDEN_(nsINode*) GetParentObject() { return mRootNode; }

@@ -19,8 +19,7 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#  Joel Maher <joel.maher@gmail.com> (Original Developer)
-#  Clint Talbert <cmtalbert@gmail.com>
+# Joel Maher <joel.maher@gmail.com> (Original Developer)
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -85,7 +84,7 @@ class RemoteOptions(ReftestOptions):
         self.add_option("--remote-webserver", action="store",
                     type = "string", dest = "remoteWebServer",
                     help = "IP Address of the webserver hosting the reftest content")
-        defaults["remoteWebServer"] = automation.getLanIp() 
+        defaults["remoteWebServer"] = None
 
         self.add_option("--http-port", action = "store",
                     type = "string", dest = "httpPort",
@@ -100,8 +99,7 @@ class RemoteOptions(ReftestOptions):
         self.add_option("--remote-logfile", action="store",
                     type = "string", dest = "remoteLogFile",
                     help = "Name of log file on the device relative to device root.  PLEASE USE ONLY A FILENAME.")
-        defaults["remoteLogFile"] = None
-        defaults["localLogName"] = None
+        defaults["remoteLogFile"] = "reftest.log"
 
         self.set_defaults(**defaults)
 
@@ -109,13 +107,6 @@ class RemoteOptions(ReftestOptions):
         # Ensure our defaults are set properly for everything we can infer
         options.remoteTestRoot = self._automation._devicemanager.getDeviceRoot() + '/reftest'
         options.remoteProfile = options.remoteTestRoot + "/profile"
-
-        # Verify that our remotewebserver is set properly
-        if (options.remoteWebServer == None or
-            options.remoteWebServer == '127.0.0.1'):
-            print "ERROR: Either you specified the loopback for the remote webserver or ",
-            print "your local IP cannot be detected.  Please provide the local ip in --remote-webserver"
-            return None
 
         # One of remoteAppPath (relative path to application) or the app (executable) must be
         # set, but not both.  If both are set, we destroy the user's selection for app
@@ -133,25 +124,6 @@ class RemoteOptions(ReftestOptions):
         if (options.xrePath == None):
             print "ERROR: You must specify the path to the controller xre directory"
             return None
-        else:
-            # Ensure xrepath is a full path
-            options.xrePath = os.path.abspath(options.xrePath)
-        
-        # Default to <deviceroot>/reftest/reftest.log
-        if (options.remoteLogFile == None):
-            options.remoteLogFile = 'reftest.log'
-
-        options.localLogName = options.remoteLogFile
-        options.remoteLogFile = options.remoteTestRoot + '/' + options.remoteLogFile
-         
-        # Ensure that the options.logfile (which the base class uses) is set to
-        # the remote setting when running remote. Also, if the user set the 
-        # log file name there, use that instead of reusing the remotelogfile as above.
-        if (options.logFile):
-            # If the user specified a local logfile name use that
-            options.localLogName = options.logFile
-
-        options.logFile = options.remoteLogFile
 
         # TODO: Copied from main, but I think these are no longer used in a post xulrunner world
         #options.xrePath = options.remoteTestRoot + self._automation._product + '/xulrunner'
@@ -162,7 +134,7 @@ class ReftestServer:
     """ Web server used to serve Reftests, for closer fidelity to the real web.
         It is virtually identical to the server used in mochitest and will only
         be used for running reftests remotely.
-        Bug 581257 has been filed to refactor this wrapper around httpd.js into
+        Bug xxx has been filed to refactor this wrapper around httpd.js into
         it's own class and use it in both remote and non-remote testing. """
 
     def __init__(self, automation, options):
@@ -184,7 +156,7 @@ class ReftestServer:
 
         args = ["-g", self._xrePath,
                 "-v", "170",
-                "-f", "./" + "reftest/components/httpd.js",
+                "-f", "./" + "httpd.js",
                 "-e", "const _PROFILE_PATH = '%(profile)s';const _SERVER_PORT = '%(port)s'; const _SERVER_ADDR ='%(server)s';" % 
                        {"profile" : self._profileDir.replace('\\', '\\\\'), "port" : self.httpPort, "server" : self.webServer },
                 "-f", "./" + "server.js"]
@@ -235,8 +207,6 @@ class RemoteReftest(RefTest):
         self.remoteApp = options.app
         self.remoteProfile = options.remoteProfile
         self.remoteTestRoot = options.remoteTestRoot
-        self.remoteLogFile = options.remoteLogFile
-        self.localLogName = options.localLogName
         if self.automation.IS_DEBUG_BUILD:
             self.SERVER_STARTUP_TIMEOUT = 180
         else:
@@ -316,9 +286,6 @@ class RemoteReftest(RefTest):
         return path
 
     def cleanup(self, profileDir):
-        # Pull results back from device
-        if (self.remoteLogFile):
-            self._devicemanager.getFile(self.remoteLogFile, self.localLogName)
         self._devicemanager.removeDir(self.remoteProfile)
         self._devicemanager.removeDir(self.remoteTestRoot)
         RefTest.cleanup(self, profileDir)
@@ -349,6 +316,10 @@ def main():
     automation.setRemoteProfile(options.remoteProfile)
     reftest = RemoteReftest(automation, dm, options, SCRIPT_DIRECTORY)
 
+    if (options.remoteWebServer == "127.0.0.1"):
+        print "Error: remoteWebServer must be non localhost"
+        sys.exit(1)
+    
     # Start the webserver
     reftest.startWebServer(options)
 #an example manifest name to use on the cli

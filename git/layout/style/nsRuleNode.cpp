@@ -277,15 +277,12 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
         const nsStyleFont *rootStyleFont = styleFont;
         Element* docElement = aPresContext->Document()->GetRootElement();
 
-        if (docElement) {
-          rootStyle = aPresContext->StyleSet()->ResolveStyleFor(docElement,
-                                                                nsnull);
-          if (rootStyle) {
-            rootStyleFont = rootStyle->GetStyleFont();
-          }
+        rootStyle = aPresContext->StyleSet()->ResolveStyleFor(docElement,
+                                                              nsnull);
+        if (rootStyle) {
+          rootStyleFont = rootStyle->GetStyleFont();
+          rootFontSize = rootStyleFont->mFont.size;
         }
-
-        rootFontSize = rootStyleFont->mFont.size;
       }
 
       return ScaleCoord(aValue, float(rootFontSize));

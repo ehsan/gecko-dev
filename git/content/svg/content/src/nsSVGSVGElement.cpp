@@ -68,8 +68,6 @@
 #include "nsSMILTypes.h"
 #include "nsIContentIterator.h"
 
-using namespace mozilla;
-
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 #endif // MOZ_SMIL
 
@@ -178,7 +176,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 
-DOMCI_NODE_DATA(SVGSVGElement, nsSVGSVGElement)
+DOMCI_DATA(SVGSVGElement, nsSVGSVGElement)
 
 #ifdef MOZ_SMIL
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGSVGElement)
@@ -195,8 +193,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                 PRUint32 aFromParser)
+nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo, PRUint32 aFromParser)
   : nsSVGSVGElementBase(aNodeInfo),
     mCoordCtx(nsnull),
     mViewportWidth(0),
@@ -221,8 +218,8 @@ nsresult
 nsSVGSVGElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsSVGSVGElement *it = new nsSVGSVGElement(ni.forget(), PR_FALSE);
+
+  nsSVGSVGElement *it = new nsSVGSVGElement(aNodeInfo, PR_FALSE);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -955,10 +952,6 @@ nsSVGSVGElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   if (aVisitor.mEvent->message == NS_SVG_LOAD) {
     if (mTimedDocumentRoot) {
       mTimedDocumentRoot->Begin();
-      // Set 'resample needed' flag, so that if any script calls a DOM method
-      // that requires up-to-date animations before our first sample callback,
-      // we'll force a synchronous sample.
-      AnimationNeedsResample();
     }
   }
   return nsSVGSVGElementBase::PreHandleEvent(aVisitor);

@@ -166,9 +166,9 @@ JetpackParent::RecvSendMessage(const nsString& messageName,
 }
 
 bool
-JetpackParent::AnswerCallMessage(const nsString& messageName,
-                                 const nsTArray<Variant>& data,
-                                 nsTArray<Variant>* results)
+JetpackParent::RecvCallMessage(const nsString& messageName,
+                               const nsTArray<Variant>& data,
+                               nsTArray<Variant>* results)
 {
   AutoCXPusher cxp(mContext);
   JSAutoRequest request(mContext);

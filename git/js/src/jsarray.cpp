@@ -321,7 +321,7 @@ JSObject::growDenseArrayElements(JSContext *cx, uint32 oldcap, uint32 newcap)
         return JS_FALSE;
     }
 
-    /* dslots can be NULL during array creation. */
+    /* dslots can be briefly NULL during array creation */
     Value *slots = dslots ? dslots - 1 : NULL;
     Value *newslots = (Value *) cx->realloc(slots, (size_t(newcap) + 1) * sizeof(Value));
     if (!newslots)
@@ -355,7 +355,8 @@ JSObject::ensureDenseArrayElements(JSContext *cx, uint32 newcap)
      */
     static const size_t CAPACITY_CHUNK = 1024 * 1024 / sizeof(Value);
 
-    uint32 oldcap = getDenseArrayCapacity();
+    /* While creating arrays, dslots can be NULL. */
+    uint32 oldcap = dslots ? getDenseArrayCapacity() : 0;
 
     if (newcap > oldcap) {
         /*
@@ -811,8 +812,7 @@ array_setProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     if (!obj->isDenseArray())
         return js_SetProperty(cx, obj, id, vp);
 
-    if (!js_IdIsIndex(id, &i) || js_PrototypeHasIndexedProperties(cx, obj) ||
-        INDEX_TOO_SPARSE(obj, i)) {
+    if (!js_IdIsIndex(id, &i) || INDEX_TOO_SPARSE(obj, i)) {
         if (!obj->makeDenseArraySlow(cx))
             return JS_FALSE;
         return js_SetProperty(cx, obj, id, vp);
@@ -894,16 +894,16 @@ js_Array_dense_setelem(JSContext* cx, JSObject* obj, jsint i, ValueArgType v)
 {
     return dense_grow(cx, obj, i, ValueArgToConstRef(v));
 }
-JS_DEFINE_CALLINFO_4(extern, BOOL, js_Array_dense_setelem, CONTEXT, OBJECT, INT32, VALUE,
-                     0, nanojit::ACCSET_STORE_ANY)
+JS_DEFINE_CALLINFO_4(extern, BOOL, js_Array_dense_setelem, CONTEXT, OBJECT, INT32, VALUE, 0,
+                     nanojit::ACC_STORE_ANY)
 
 JSBool FASTCALL
 js_Array_dense_setelem_int(JSContext* cx, JSObject* obj, jsint i, int32 j)
 {
     return dense_grow(cx, obj, i, Int32Value(j));
 }
-JS_DEFINE_CALLINFO_4(extern, BOOL, js_Array_dense_setelem_int, CONTEXT, OBJECT, INT32, INT32,
-                     0, nanojit::ACCSET_STORE_ANY)
+JS_DEFINE_CALLINFO_4(extern, BOOL, js_Array_dense_setelem_int, CONTEXT, OBJECT, INT32, INT32, 0,
+                     nanojit::ACC_STORE_ANY)
 
 JSBool FASTCALL
 js_Array_dense_setelem_double(JSContext* cx, JSObject* obj, jsint i, jsdouble d)
@@ -911,7 +911,7 @@ js_Array_dense_setelem_double(JSContext* cx, JSObject* obj, jsint i, jsdouble d)
     return dense_grow(cx, obj, i, NumberValue(d));
 }
 JS_DEFINE_CALLINFO_4(extern, BOOL, js_Array_dense_setelem_double, CONTEXT, OBJECT, INT32, DOUBLE,
-                     0, nanojit::ACCSET_STORE_ANY)
+                     0, nanojit::ACC_STORE_ANY)
 #endif
 
 static JSBool
@@ -1077,12 +1077,16 @@ JSObject::makeDenseArraySlow(JSContext *cx)
     if (!scope)
         return JS_FALSE;
 
-    uint32 capacity = obj->getDenseArrayCapacity();
-
     /* For a brief moment the object has NULL dslots until we slowify it during construction. */
-    if (obj->dslots)
-        obj->dslots[-1].setPrivateUint32(JS_INITIAL_NSLOTS + capacity);
-    scope->freeslot = obj->numSlots();
+    uint32 capacity = dslots ? obj->getDenseArrayCapacity() : 0;
+    if (capacity) {
+        scope->freeslot = obj->numSlots() + JS_INITIAL_NSLOTS;
+        // XXX: changing the capacity like this is awful.  Bug 558263 will remove
+        // the need for this.
+        obj->setDenseArrayCapacity(JS_INITIAL_NSLOTS + capacity);
+    } else {
+        scope->freeslot = obj->numSlots();
+    }
 
     /* Begin with the length property to share more of the property tree. */
     if (!scope->addProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.lengthAtom),
@@ -1455,9 +1459,8 @@ InitArrayObject(JSContext *cx, JSObject *obj, jsuint length, const Value *vector
 
     JS_ASSERT(obj->isDenseArray());
     obj->setArrayLength(length);
-    obj->setDenseArrayCapacity(0);
     if (!vector || !length)
-        return true;
+        return obj->ensureDenseArrayElements(cx, ARRAY_CAPACITY_MIN);
     if (!obj->ensureDenseArrayElements(cx, length))
         return false;
     memcpy(obj->getDenseArrayElements(), vector, length * sizeof(Value));
@@ -2081,8 +2084,8 @@ js_ArrayCompPush_tn(JSContext *cx, JSObject *obj, ValueArgType v)
 {
     return ArrayCompPushImpl(cx, obj, ValueArgToConstRef(v));
 }
-JS_DEFINE_CALLINFO_3(extern, BOOL, js_ArrayCompPush_tn, CONTEXT, OBJECT, VALUE,
-                     0, nanojit::ACCSET_STORE_ANY)
+JS_DEFINE_CALLINFO_3(extern, BOOL, js_ArrayCompPush_tn, CONTEXT, OBJECT, VALUE, 0,
+                     nanojit::ACC_STORE_ANY)
 
 static JSBool
 array_push(JSContext *cx, uintN argc, Value *vp)
@@ -2980,11 +2983,8 @@ js_Array(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value *rval)
 }
 
 JSObject* JS_FASTCALL
-js_NewEmptyArray(JSContext* cx, JSObject* proto, int32 len)
+js_NewArrayWithSlots(JSContext* cx, JSObject* proto, uint32 len)
 {
-    if (len < 0)
-        return NULL;
-
     JS_ASSERT(proto->isArray());
 
     JSObject* obj = js_NewGCObject(cx);
@@ -2995,33 +2995,28 @@ js_NewEmptyArray(JSContext* cx, JSObject* proto, int32 len)
     obj->map = const_cast<JSObjectMap *>(&SharedArrayMap);
     obj->init(&js_ArrayClass, proto, proto->getParent(), NullValue());
     obj->setArrayLength(len);
-    obj->setDenseArrayCapacity(0);
-    return obj;
-}
-#ifdef JS_TRACER
-JS_DEFINE_CALLINFO_3(extern, OBJECT, js_NewEmptyArray, CONTEXT, OBJECT, INT32, 0,
-                     nanojit::ACCSET_STORE_ANY)
-#endif
-
-JSObject* JS_FASTCALL
-js_NewPreallocatedArray(JSContext* cx, JSObject* proto, int32 len)
-{
-    JSObject *obj = js_NewEmptyArray(cx, proto, len);
-    if (!obj)
-        return NULL;
     if (!obj->growDenseArrayElements(cx, 0, JS_MAX(len, ARRAY_CAPACITY_MIN)))
         return NULL;
     return obj;
 }
 #ifdef JS_TRACER
-JS_DEFINE_CALLINFO_3(extern, OBJECT, js_NewPreallocatedArray, CONTEXT, OBJECT, INT32,
-                     0, nanojit::ACCSET_STORE_ANY)
+JS_DEFINE_CALLINFO_3(extern, OBJECT, js_NewArrayWithSlots, CONTEXT, OBJECT, UINT32, 0,
+                     nanojit::ACC_STORE_ANY)
+#endif
+
+JSObject* JS_FASTCALL
+js_NewEmptyArray(JSContext* cx, JSObject* proto)
+{
+    return js_NewArrayWithSlots(cx, proto, 0);
+}
+#ifdef JS_TRACER
+JS_DEFINE_CALLINFO_2(extern, OBJECT, js_NewEmptyArray, CONTEXT, OBJECT, 0, nanojit::ACC_STORE_ANY)
 #endif
 
 JSObject *
 js_InitArrayClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *proto = js_InitClass(cx, obj, NULL, &js_SlowArrayClass, js_Array, 1,
+    JSObject *proto = js_InitClass(cx, obj, NULL, &js_ArrayClass, js_Array, 1,
                                    NULL, array_methods, NULL, array_static_methods);
     if (!proto)
         return NULL;
@@ -3043,8 +3038,11 @@ js_NewArrayObject(JSContext *cx, jsuint length, const Value *vector)
      */
     JS_ASSERT(obj->getProto());
 
-    if (!InitArrayObject(cx, obj, length, vector))
-        obj = NULL;
+    {
+        AutoObjectRooter tvr(cx, obj);
+        if (!InitArrayObject(cx, obj, length, vector))
+            obj = NULL;
+    }
 
     /* Set/clear newborn root, in case we lost it.  */
     cx->weakRoots.finalizableNewborns[FINALIZE_OBJECT] = obj;
@@ -3157,8 +3155,8 @@ js_IsDensePrimitiveArray(JSObject *obj)
     if (!obj || !obj->isDenseArray())
         return JS_FALSE;
 
-    jsuint capacity = obj->getDenseArrayCapacity();
-    for (jsuint i = 0; i < capacity; i++) {
+    jsuint length = obj->getArrayLength();
+    for (jsuint i = 0; i < length; i++) {
         if (obj->dslots[i].isObject())
             return JS_FALSE;
     }

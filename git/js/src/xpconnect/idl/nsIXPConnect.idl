@@ -55,7 +55,6 @@
 #include "jspubtd.h"
 #include "xptinfo.h"
 #include "nsAXPCNativeCallContext.h"
-#include "nsWrapperCache.h"
 %}
 
 /***************************************************************************/
@@ -73,7 +72,6 @@
 [ptr] native nsScriptObjectTracerPtr(nsScriptObjectTracer);
 [ref] native nsCCTraversalCallbackRef(nsCycleCollectionTraversalCallback);
 [ptr] native nsAXPCNativeCallContextPtr(nsAXPCNativeCallContext);
-[ptr] native nsWrapperCachePtr(nsWrapperCache);
 
 /***************************************************************************/
 
@@ -399,7 +397,7 @@ interface nsIXPCFunctionThisTranslator : nsISupports
     { 0xbd, 0xd6, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74 } }
 %}
 
-[uuid(4abf8614-2b0c-495f-8c67-97115470b53c)]
+[uuid(68090BF7-EA5A-4C9E-BAF9-DB7AF857AC09)]
 interface nsIXPConnect : nsISupports
 {
 %{ C++
@@ -515,7 +513,6 @@ interface nsIXPConnect : nsISupports
     wrapNativeToJSVal(in JSContextPtr aJSContext,
                       in JSObjectPtr  aScope,
                       in nsISupports  aCOMObj,
-                      in nsWrapperCachePtr aCache,
                       in nsIIDPtr     aIID,
                       in boolean      aAllowWrapper,
                       out jsval       aVal,

@@ -93,7 +93,7 @@ class nsHTMLFormElement : public nsGenericHTMLElement,
                           public nsIRadioGroupContainer
 {
 public:
-  nsHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLFormElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLFormElement();
 
   nsresult Init();
@@ -244,7 +244,6 @@ public:
   void OnSubmitClickBegin();
   void OnSubmitClickEnd();
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   class RemoveElementRunnable;
   friend class RemoveElementRunnable;

@@ -111,7 +111,7 @@ mjit::Compiler::Compile()
     JS_ASSERT(!script->ncode);
 
     JaegerSpew(JSpew_Scripts, "compiling script (file \"%s\") (line \"%d\") (length \"%d\")\n",
-               script->filename, script->lineno, script->length);
+                           script->filename, script->lineno, script->length);
 
     /* Perform bytecode analysis. */
     if (!analysis.analyze()) {
@@ -621,11 +621,8 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_GE)
 
           BEGIN_CASE(JSOP_LSH)
-            jsop_bitop(op);
-          END_CASE(JSOP_LSH)
-
           BEGIN_CASE(JSOP_RSH)
-            jsop_rsh();
+            jsop_bitop(op);
           END_CASE(JSOP_RSH)
 
           BEGIN_CASE(JSOP_URSH)
@@ -1327,8 +1324,25 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_TRACE)
           {
-            if (analysis[PC].nincoming > 0)
-                interruptCheckHelper();
+            if (analysis[PC].nincoming > 0) {
+                RegisterID cxreg = frame.allocReg();
+                masm.loadPtr(FrameAddress(offsetof(VMFrame, cx)), cxreg);
+#ifdef JS_THREADSAFE
+                masm.loadPtr(Address(cxreg, offsetof(JSContext, thread)), cxreg);
+                Address flag(cxreg, offsetof(JSThread, data.interruptFlags));
+#else
+                masm.loadPtr(Address(cxreg, offsetof(JSContext, runtime)), cxreg);
+                Address flag(cxreg, offsetof(JSRuntime, threadData.interruptFlags));
+#endif
+                Jump jump = masm.branchTest32(Assembler::NonZero, flag);
+                frame.freeReg(cxreg);
+                stubcc.linkExit(jump, Uses(0));
+                stubcc.leave();
+                stubcc.masm.move(ImmPtr(PC), Registers::ArgReg1);
+                stubcc.call(stubs::Interrupt);
+                ADD_CALLSITE(true);
+                stubcc.rejoin(Changes(0));
+            }
           }
           END_CASE(JSOP_TRACE)
 
@@ -1618,33 +1632,8 @@ mjit::Compiler::stubCall(void *ptr)
 }
 
 void
-mjit::Compiler::interruptCheckHelper()
-{
-    RegisterID cxreg = frame.allocReg();
-    masm.loadPtr(FrameAddress(offsetof(VMFrame, cx)), cxreg);
-#ifdef JS_THREADSAFE
-    masm.loadPtr(Address(cxreg, offsetof(JSContext, thread)), cxreg);
-    Address flag(cxreg, offsetof(JSThread, data.interruptFlags));
-#else
-    masm.loadPtr(Address(cxreg, offsetof(JSContext, runtime)), cxreg);
-    Address flag(cxreg, offsetof(JSRuntime, threadData.interruptFlags));
-#endif
-    Jump jump = masm.branchTest32(Assembler::NonZero, flag);
-    frame.freeReg(cxreg);
-    stubcc.linkExit(jump, Uses(0));
-    stubcc.leave();
-    stubcc.masm.move(ImmPtr(PC), Registers::ArgReg1);
-    stubcc.call(stubs::Interrupt);
-    ADD_CALLSITE(true);
-    stubcc.rejoin(Changes(0));
-}
-
-void
 mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
 {
-    /* Check for interrupts on function call */
-    interruptCheckHelper();
-
     FrameEntry *fe = frame.peek(-int(argc + 2));
     bool typeKnown = fe->isTypeKnown();
 
@@ -1683,13 +1672,14 @@ mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
     frame.syncAndKill(Registers(Registers::AvailRegs), Uses(argc + 2));
     frame.resetRegState();
 
-    Label invoke = stubcc.masm.label();
+    Label invoke;
     Jump j;
     if (!typeKnown) {
         if (!hasTypeReg)
             j = masm.testObject(Assembler::NotEqual, frame.addressOf(fe));
         else
             j = masm.testObject(Assembler::NotEqual, type);
+        invoke = stubcc.masm.label();
         stubcc.linkExit(j, Uses(argc + 2));
     }
     j = masm.testFunction(Assembler::NotEqual, data);
@@ -1712,7 +1702,19 @@ mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
         masm.move(t0, t1);
         masm.and32(Imm32(JSFUN_KINDMASK), t1);
         Jump notInterp = masm.branch32(Assembler::Below, t1, Imm32(JSFUN_INTERPRETED));
-        stubcc.linkExitDirect(notInterp, invoke);
+
+        if (!typeKnown) {
+            /* Re-use the existing stub, if possible. */
+            stubcc.linkExitDirect(notInterp, invoke);
+        } else {
+            /* Create a new slow path. */
+            invoke = stubcc.masm.label();
+            stubcc.linkExit(notInterp, Uses(argc + 2));
+            stubcc.leave();
+            stubcc.masm.move(Imm32(argc), Registers::ArgReg1);
+            stubcc.call(callingNew ? stubs::SlowNew : stubs::SlowCall);
+            ADD_CALLSITE(true);
+        }
     }
 
     /* Test if it's not got compiled code. */
@@ -2492,9 +2494,9 @@ mjit::Compiler::jsop_bindname(uint32 index)
     masm.loadPtr(Address(JSFrameReg, offsetof(JSStackFrame, scopeChain)), pic.objReg);
 
     pic.shapeGuard = masm.label();
-#if defined JS_NUNBOX32
+#if defined JS_32BIT
     Jump j = masm.branchPtr(Assembler::NotEqual, masm.payloadOf(parent), ImmPtr(0));
-#elif defined JS_PUNBOX64
+#elif defined JS_64BIT
     masm.loadPayload(parent, Registers::ValueReg);
     Jump j = masm.branchPtr(Assembler::NotEqual, Registers::ValueReg, ImmPtr(0));
 #endif
@@ -2552,9 +2554,9 @@ mjit::Compiler::jsop_bindname(uint32 index)
 
     Address address(reg, offsetof(JSObject, fslots) + JSSLOT_PARENT * sizeof(jsval));
 
-#if defined JS_NUNBOX32
+#if defined JS_32BIT
     Jump j = masm.branchPtr(Assembler::NotEqual, masm.payloadOf(address), ImmPtr(0));
-#elif defined JS_PUNBOX64
+#elif defined JS_64BIT
     masm.loadPayload(address, Registers::ValueReg);
     Jump j = masm.branchPtr(Assembler::NotEqual, Registers::ValueReg, ImmPtr(0));
 #endif

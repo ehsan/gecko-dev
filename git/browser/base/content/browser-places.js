@@ -44,6 +44,15 @@ var StarUI = {
   uri: null,
   _batching: false,
 
+  // nsISupports
+  QueryInterface: function SU_QueryInterface(aIID) {
+    if (aIID.equals(Ci.nsIDOMEventListener) ||
+        aIID.equals(Ci.nsISupports))
+      return this;
+
+    throw Cr.NS_NOINTERFACE;
+  },
+
   _element: function(aID) {
     return document.getElementById(aID);
   },
@@ -60,33 +69,30 @@ var StarUI = {
     return this.panel = element;
   },
 
-  // Array of command elements to disable when the panel is opened.
-  get _blockedCommands() {
-    delete this._blockedCommands;
-    return this._blockedCommands =
-      ["cmd_close", "cmd_closeWindow"].map(function (id) this._element(id), this);
-  },
-
+  // list of command elements (by id) to disable when the panel is opened
+  _blockedCommands: ["cmd_close", "cmd_closeWindow"],
   _blockCommands: function SU__blockCommands() {
-    this._blockedCommands.forEach(function (elt) {
+    for each(var key in this._blockedCommands) {
+      var elt = this._element(key);
       // make sure not to permanently disable this item (see bug 409155)
       if (elt.hasAttribute("wasDisabled"))
-        return;
-      if (elt.getAttribute("disabled") == "true") {
+        continue;
+      if (elt.getAttribute("disabled") == "true")
         elt.setAttribute("wasDisabled", "true");
-      } else {
+      else {
         elt.setAttribute("wasDisabled", "false");
         elt.setAttribute("disabled", "true");
       }
-    });
+    }
   },
 
   _restoreCommandsState: function SU__restoreCommandsState() {
-    this._blockedCommands.forEach(function (elt) {
+    for each(var key in this._blockedCommands) {
+      var elt = this._element(key);
       if (elt.getAttribute("wasDisabled") != "true")
         elt.removeAttribute("disabled");
       elt.removeAttribute("wasDisabled");
-    });
+    }
   },
 
   // nsIDOMEventListener

@@ -1542,11 +1542,15 @@ nsDocShell::ValidateOrigin(nsIDocShellTreeItem* aOriginTreeItem,
     }
 
     // Get origin document principal
-    nsCOMPtr<nsIDocument> originDocument(do_GetInterface(aOriginTreeItem));
+    nsCOMPtr<nsIDOMDocument> originDOMDocument =
+        do_GetInterface(aOriginTreeItem);
+    nsCOMPtr<nsIDocument> originDocument(do_QueryInterface(originDOMDocument));
     NS_ENSURE_TRUE(originDocument, PR_FALSE);
-
+    
     // Get target principal
-    nsCOMPtr<nsIDocument> targetDocument(do_GetInterface(aTargetTreeItem));
+    nsCOMPtr<nsIDOMDocument> targetDOMDocument =
+        do_GetInterface(aTargetTreeItem);
+    nsCOMPtr<nsIDocument> targetDocument(do_QueryInterface(targetDOMDocument));
     NS_ENSURE_TRUE(targetDocument, PR_FALSE);
 
     PRBool equal;
@@ -3008,7 +3012,9 @@ nsDocShell::AddChild(nsIDocShellTreeItem * aChild)
             // If there are frameloaders in the finalization list, reduce
             // the offset so that the SH hierarchy is more likely to match the
             // docshell hierarchy
-            nsCOMPtr<nsIDocument> doc = do_GetInterface(GetAsSupports(this));
+            nsCOMPtr<nsIDOMDocument> domDoc =
+              do_GetInterface(GetAsSupports(this));
+            nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
             PRUint32 offset = mChildList.Count() - 1;
             if (doc) {
                PRUint32 oldChildCount = offset; // Current child count - 1
@@ -3988,7 +3994,8 @@ nsDocShell::Reload(PRUint32 aReloadFlags)
         rv = LoadHistoryEntry(mLSHE, loadType);
     }
     else {
-        nsCOMPtr<nsIDocument> doc(do_GetInterface(GetAsSupports(this)));
+        nsCOMPtr<nsIDOMDocument> domDoc(do_GetInterface(GetAsSupports(this)));
+        nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
 
         nsIPrincipal* principal = nsnull;
         nsAutoString contentTypeHint;
@@ -4448,7 +4455,8 @@ nsDocShell::GetPositionAndSize(PRInt32 * x, PRInt32 * y, PRInt32 * cx,
     if (cx || cy) {
         // Caller wants to know our size; make sure to give them up to
         // date information.
-        nsCOMPtr<nsIDocument> doc(do_GetInterface(GetAsSupports(mParent)));
+        nsCOMPtr<nsIDOMDocument> document(do_GetInterface(GetAsSupports(mParent)));
+        nsCOMPtr<nsIDocument> doc(do_QueryInterface(document));
         if (doc) {
             doc->FlushPendingNotifications(Flush_Layout);
         }
@@ -6150,7 +6158,9 @@ nsDocShell::EnsureContentViewer()
     nsresult rv = CreateAboutBlankContentViewer(principal, baseURI);
 
     if (NS_SUCCEEDED(rv)) {
-        nsCOMPtr<nsIDocument> doc(do_GetInterface(GetAsSupports(this)));
+        nsCOMPtr<nsIDOMDocument> domDoc;
+        mContentViewer->GetDOMDocument(getter_AddRefs(domDoc));
+        nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
         NS_ASSERTION(doc,
                      "Should have doc if CreateAboutBlankContentViewer "
                      "succeeded!");
@@ -6465,7 +6475,7 @@ nsDocShell::BeginRestore(nsIContentViewer *aContentViewer, PRBool aTop)
         // this point to ensure that unload/pagehide events for this document
         // will fire when it's unloaded again.
         mFiredUnloadEvent = PR_FALSE;
-
+        
         // For non-top frames, there is no notion of making sure that the
         // previous document is in the domwindow when STATE_START notifications
         // happen.  We can just call BeginRestore for all of the child shells
@@ -6509,17 +6519,22 @@ nsDocShell::FinishRestore()
       ReattachEditorToWindow(mOSHE);
     }
 
-    nsCOMPtr<nsIDocument> doc = do_GetInterface(GetAsSupports(this));
-    if (doc) {
-        // Finally, we remove the request from the loadgroup.  This will
-        // cause onStateChange(STATE_STOP) to fire, which will fire the
-        // pageshow event to the chrome.
+    if (mContentViewer) {
+        nsCOMPtr<nsIDOMDocument> domDoc;
+        mContentViewer->GetDOMDocument(getter_AddRefs(domDoc));
 
-        nsIChannel *channel = doc->GetChannel();
-        if (channel) {
-            mIsRestoringDocument = PR_TRUE;
-            mLoadGroup->RemoveRequest(channel, nsnull, NS_OK);
-            mIsRestoringDocument = PR_FALSE;
+        nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+        if (doc) {
+            // Finally, we remove the request from the loadgroup.  This will
+            // cause onStateChange(STATE_STOP) to fire, which will fire the
+            // pageshow event to the chrome.
+
+            nsIChannel *channel = doc->GetChannel();
+            if (channel) {
+                mIsRestoringDocument = PR_TRUE;
+                mLoadGroup->RemoveRequest(channel, nsnull, NS_OK);
+                mIsRestoringDocument = PR_FALSE;
+            }
         }
     }
 
@@ -6845,7 +6860,8 @@ nsDocShell::RestoreFromHistory()
     if (document) {
         nsCOMPtr<nsIDocShellTreeItem> parent;
         GetParent(getter_AddRefs(parent));
-        nsCOMPtr<nsIDocument> d = do_GetInterface(parent);
+        nsCOMPtr<nsIDOMDocument> parentDoc = do_GetInterface(parent);
+        nsCOMPtr<nsIDocument> d = do_QueryInterface(parentDoc);
         if (d) {
             if (d->EventHandlingSuppressed()) {
                 document->SuppressEventHandling(d->EventHandlingSuppressed());
@@ -7830,7 +7846,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     nsCOMPtr<nsIDocShellTreeItem> parent;
     GetParent(getter_AddRefs(parent));
     if (parent) {
-      nsCOMPtr<nsIDocument> doc = do_GetInterface(parent);
+      nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(parent);
+      nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
       if (doc) {
         doc->TryCancelFrameLoaderInitialization(this);
       }
@@ -8222,7 +8239,8 @@ nsDocShell::GetInheritedPrincipal(PRBool aConsiderCurrentDocument)
         nsCOMPtr<nsIDocShellTreeItem> parentItem;
         GetSameTypeParent(getter_AddRefs(parentItem));
         if (parentItem) {
-            document = do_GetInterface(parentItem);
+            nsCOMPtr<nsIDOMDocument> parentDomDoc(do_GetInterface(parentItem));
+            document = do_QueryInterface(parentDomDoc);
         }
     }
 
@@ -8305,7 +8323,8 @@ nsDocShell::DoURILoad(nsIURI * aURI,
         nsCOMPtr<nsIContentSecurityPolicy> csp;
         nsCOMPtr<nsIDocShellTreeItem> parentItem;
         GetSameTypeParent(getter_AddRefs(parentItem));
-        nsCOMPtr<nsIDocument> doc = do_GetInterface(parentItem);
+        nsCOMPtr<nsIDOMDocument> domDoc(do_GetInterface(parentItem));
+        nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
         if (doc) {
             rv = doc->NodePrincipal()->GetCsp(getter_AddRefs(csp));
             NS_ENSURE_SUCCESS(rv, rv);
@@ -8997,10 +9016,6 @@ nsDocShell::OnNewURI(nsIURI * aURI, nsIChannel * aChannel, nsISupports* aOwner,
     PR_LOG(gDocShellLog, PR_LOG_DEBUG,
            ("  shAvailable=%i updateHistory=%i equalURI=%i\n",
             shAvailable, updateHistory, equalUri));
-
-    if (mCurrentURI && !mOSHE && aLoadType != LOAD_ERROR_PAGE) {
-        NS_ASSERTION(IsAboutBlank(mCurrentURI), "no SHEntry for a non-transient viewer?");
-    }
 #endif
 
     /* If the url to be loaded is the same as the one already there,
@@ -9010,18 +9025,12 @@ nsDocShell::OnNewURI(nsIURI * aURI, nsIChannel * aChannel, nsISupports* aOwner,
      * if this page has any frame children, it also will be handled
      * properly. see bug 83684
      *
-     * NB: If mOSHE is null but we have a current URI, then it means
-     * that we must be at the transient about:blank content viewer
-     * (asserted above) and we should let the normal load continue,
-     * since there's nothing to replace.
-     *
      * XXX Hopefully changing the loadType at this time will not hurt  
      *  anywhere. The other way to take care of sequentially repeating
      *  frameset pages is to add new methods to nsIDocShellTreeItem.
      * Hopefully I don't have to do that. 
      */
     if (equalUri &&
-        mOSHE &&
         (mLoadType == LOAD_NORMAL ||
          mLoadType == LOAD_LINK ||
          mLoadType == LOAD_STOP_CONTENT) &&
@@ -9210,7 +9219,8 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     //    after the current entry with the following properties, or modify the
     //    current session history entry to set
     //      a. cloned data as the state object,
-    //      b. if the third argument was present, the absolute URL found in
+    //      b. the given title as the title, and,
+    //      c. if the third argument was present, the absolute URL found in
     //         step 2
     // 5. If aReplace is false (i.e. we're doing a pushState instead of a
     //    replaceState), notify bfcache that we've navigated to a new page.
@@ -9223,8 +9233,6 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     // active content viewer.  Since EvictContentViewers at the end of step 5
     // might run script, we can't just put a script blocker around the critical
     // section.
-    //
-    // Note that we completely ignore the aTitle parameter.
 
     nsresult rv;
 
@@ -9412,6 +9420,10 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     else {
         FireOnLocationChange(this, nsnull, mCurrentURI);
     }
+
+    // Try to set the title of the current history element
+    if (mOSHE)
+        mOSHE->SetTitle(aTitle);
 
     return NS_OK;
 }
@@ -11097,10 +11109,6 @@ nsDocShell::OnLinkClickSync(nsIContent *aContent,
   nsCOMPtr<nsIDOMHTMLAnchorElement> anchor(do_QueryInterface(aContent));
   if (anchor) {
     anchor->GetType(typeHint);
-    NS_ConvertUTF16toUTF8 utf8Hint(typeHint);
-    nsCAutoString type, dummy;
-    NS_ParseContentType(utf8Hint, type, dummy);
-    CopyUTF8toUTF16(type, typeHint);
   }
   
   nsresult rv = InternalLoad(aURI,                      // New URI
@@ -11339,7 +11347,6 @@ nsDocShell::GetCanExecuteScripts(PRBool *aResult)
               // The parent docshell was not explicitly set to design
               // mode, so js on the child docshell was disabled for
               // another reason.  Therefore, we need to disable js.
-              *aResult = PR_FALSE;
               return NS_OK;
           }
           firstPass = PR_FALSE;

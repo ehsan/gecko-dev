@@ -84,9 +84,8 @@ function UpdateServiceStub() {
   }
 }
 UpdateServiceStub.prototype = {
-  observe: function(){},
   classID: Components.ID("{e43b0010-04ba-4da6-b523-1f92580bc150}"),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver])
+  QueryInterface: XPCOMUtils.generateQI([])
 };
 
 var NSGetFactory = XPCOMUtils.generateNSGetFactory([UpdateServiceStub]);

@@ -87,10 +87,8 @@ public:
   // nsIDOMHTMLCollection interface, all its methods are defined in
   // nsIDOMHTMLOptionsCollection
 
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
-  virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache** aCache,
-                                    nsresult* aResult);
+  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
+  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHTMLOptionCollection,
                                            nsIHTMLCollection)
@@ -122,7 +120,7 @@ public:
    */
   nsHTMLOptionElement *ItemAsOption(PRUint32 aIndex)
   {
-    return mElements.SafeElementAt(aIndex, nsnull);
+    return mElements.SafeElementAt(aIndex, nsRefPtr<nsHTMLOptionElement>());
   }
 
   /**
@@ -241,8 +239,7 @@ class nsHTMLSelectElement : public nsGenericHTMLFormElement,
                             public nsISelectElement
 {
 public:
-  nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      PRUint32 aFromParser = 0);
+  nsHTMLSelectElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
   virtual ~nsHTMLSelectElement();
 
   // nsISupports
@@ -317,7 +314,6 @@ public:
     return static_cast<nsHTMLSelectElement*>(static_cast<nsINode*>(aSupports));
   }
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   friend class nsSafeOptionListMutation;
 

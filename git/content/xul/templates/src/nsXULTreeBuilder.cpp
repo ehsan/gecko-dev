@@ -1086,7 +1086,6 @@ nsXULTreeBuilder::PerformActionOnCell(const PRUnichar* aAction, PRInt32 aRow, ns
 void
 nsXULTreeBuilder::NodeWillBeDestroyed(const nsINode* aNode)
 {
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     if (mObservers)
         mObservers->Clear();
 

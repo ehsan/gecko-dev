@@ -619,14 +619,11 @@ TestPilotExperiment.prototype = {
       if (uuid.indexOf("{") == 0) {
         uuid = uuid.substring(1, (uuid.length - 1));
       }
-      Application.prefs.setValue(GUID_PREF_PREFIX + this._id, uuid);
       // clear the data before starting.
-      let self = this;
-      this._dataStore.wipeAllData(function() {
-        // Experiment is now in progress.
-        self.changeStatus(TaskConstants.STATUS_IN_PROGRESS, true);
-        self.onExperimentStartup();
-      });
+      this._dataStore.wipeAllData();
+      this.changeStatus(TaskConstants.STATUS_STARTING, true);
+      Application.prefs.setValue(GUID_PREF_PREFIX + this._id, uuid);
+      this.onExperimentStartup();
     }
 
     // What happens when a test finishes:

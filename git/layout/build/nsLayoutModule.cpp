@@ -155,7 +155,6 @@
 #include "nsSystemPrincipal.h"
 #include "nsNullPrincipal.h"
 #include "nsNetCID.h"
-#include "nsINodeInfo.h"
 
 #define NS_EDITORCOMMANDTABLE_CID \
 { 0x4f5e62b8, 0xd659, 0x4156, { 0x84, 0xfc, 0x2f, 0x60, 0x99, 0x40, 0x03, 0x69 }}
@@ -617,8 +616,7 @@ CreateHTMLImgElement(nsISupports* aOuter, REFNSIID aIID, void** aResult)
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
   // Note! NS_NewHTMLImageElement is special cased to handle a null nodeinfo
-  nsCOMPtr<nsINodeInfo> ni;
-  nsIContent* inst = NS_NewHTMLImageElement(ni.forget());
+  nsIContent* inst = NS_NewHTMLImageElement(nsnull);
   nsresult rv = NS_ERROR_OUT_OF_MEMORY;
   if (inst) {
     NS_ADDREF(inst);
@@ -635,8 +633,7 @@ CreateHTMLOptionElement(nsISupports* aOuter, REFNSIID aIID, void** aResult)
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
   // Note! NS_NewHTMLOptionElement is special cased to handle a null nodeinfo
-  nsCOMPtr<nsINodeInfo> ni;
-  nsIContent* inst = NS_NewHTMLOptionElement(ni.forget());
+  nsIContent* inst = NS_NewHTMLOptionElement(nsnull);
   nsresult rv = NS_ERROR_OUT_OF_MEMORY;
   if (inst) {
     NS_ADDREF(inst);
@@ -654,8 +651,7 @@ CreateHTMLAudioElement(nsISupports* aOuter, REFNSIID aIID, void** aResult)
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
   // Note! NS_NewHTMLAudioElement is special cased to handle a null nodeinfo
-  nsCOMPtr<nsINodeInfo> ni;
-  nsCOMPtr<nsIContent> inst(NS_NewHTMLAudioElement(ni.forget()));
+  nsCOMPtr<nsIContent> inst(NS_NewHTMLAudioElement(nsnull));
   return inst ? inst->QueryInterface(aIID, aResult) : NS_ERROR_OUT_OF_MEMORY;
 }
 #endif

@@ -480,11 +480,7 @@ function runTest() {
 
   popup.history.replaceState({n:1, ok:true}, "state 1", "good1.html");
   locationEndsWith(popup, "good1.html");
-
-  // Even though we replaceState with title "state 1", the title should remain
-  // "test 1" because we ignore the title argument in push/replaceState.  
-  // See bug 544535.
-  is(getSHTitle(shistory), "test 1", "SHEntry title 'state 1'");
+  is(getSHTitle(shistory), "state 1", "SHEntry title 'state 1'");
 
   // Flush the event loop so our next load creates a new session history entry.
   shortWait();

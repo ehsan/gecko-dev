@@ -65,7 +65,7 @@
 #include "mozAutoDocUpdate.h"
 #include "nsFocusManager.h"
 
-nsXTFElementWrapper::nsXTFElementWrapper(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsXTFElementWrapper::nsXTFElementWrapper(nsINodeInfo* aNodeInfo,
                                          nsIXTFElement* aXTFElement)
     : nsXTFElementWrapperBase(aNodeInfo),
       mXTFElement(aXTFElement),
@@ -990,7 +990,7 @@ nsXTFElementWrapper::RegUnregAccessKey(PRBool aDoReg)
 
 nsresult
 NS_NewXTFElementWrapper(nsIXTFElement* aXTFElement,
-                        already_AddRefed<nsINodeInfo> aNodeInfo,
+                        nsINodeInfo* aNodeInfo,
                         nsIContent** aResult)
 {
   *aResult = nsnull;

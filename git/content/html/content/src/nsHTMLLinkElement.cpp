@@ -69,7 +69,7 @@ class nsHTMLLinkElement : public nsGenericHTMLElement,
                           public Link
 {
 public:
-  nsHTMLLinkElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLLinkElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLLinkElement();
 
   // nsISupports
@@ -119,7 +119,6 @@ public:
 
   virtual PRInt32 IntrinsicState() const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
   virtual void GetStyleSheetInfo(nsAString& aTitle,
@@ -132,7 +131,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Link)
 
 
-nsHTMLLinkElement::nsHTMLLinkElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLLinkElement::nsHTMLLinkElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -146,7 +145,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLLinkElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLLinkElement, nsHTMLLinkElement)
+DOMCI_DATA(HTMLLinkElement, nsHTMLLinkElement)
 
 // QueryInterface implementation for nsHTMLLinkElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLinkElement)

@@ -277,7 +277,6 @@ CPPSRCS += \
 	gfxFT2Fonts.cpp \
 	gfxFT2FontBase.cpp \
 	gfxFT2Utils.cpp \
-	gfxFT2FontList.cpp \
 	nsUnicodeRange.cpp \
 	$(NULL)
 endif
@@ -396,11 +395,7 @@ endif
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-ifdef MOZ_PLATFORM_MAEMO
 GL_PROVIDER = EGL
-else
-GL_PROVIDER = GLX
-endif
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)

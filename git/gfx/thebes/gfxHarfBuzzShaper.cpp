@@ -215,15 +215,14 @@ gfxHarfBuzzShaper::GetGlyphMetrics(gfxContext *aContext,
         glyph = mNumLongMetrics - 1;
     }
 
-    // glyph must be valid now, because we checked during initialization
-    // that mNumLongMetrics is > 0, and that the hmtx table is large enough
-    // to contain mNumLongMetrics records
-    const HMetrics* hmtx =
-        reinterpret_cast<const HMetrics*>(hb_blob_lock(mHmtxTable));
-    metrics->x_advance =
-        FloatToFixed(mFont->FUnitsToDevUnitsFactor() *
-                     PRUint16(hmtx->metrics[glyph].advanceWidth));
-    hb_blob_unlock(mHmtxTable);
+    if ((glyph + 1) * sizeof(HLongMetric) <= hb_blob_get_length(mHmtxTable)) {
+        const HMetrics* hmtx =
+            reinterpret_cast<const HMetrics*>(hb_blob_lock(mHmtxTable));
+        metrics->x_advance =
+            FloatToFixed(mFont->FUnitsToDevUnitsFactor() *
+                         PRUint16(hmtx->metrics[glyph].advanceWidth));
+        hb_blob_unlock(mHmtxTable);
+    }
 
     // TODO: set additional metrics if/when harfbuzz needs them
 }
@@ -366,21 +365,8 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
                 mNumLongMetrics = hhea->numberOfHMetrics;
                 hb_blob_unlock(hheaTable);
 
-                if (mNumLongMetrics > 0 &&
-                    PRInt16(hhea->metricDataFormat) == 0) {
-                    // no point reading hmtx if number of entries is zero!
-                    // in that case, we won't be able to use this font
-                    // (this method will return FALSE below if mHmtx is null)
-                    mHmtxTable =
-                        mFont->GetFontTable(TRUETYPE_TAG('h','m','t','x'));
-                    if (hb_blob_get_length(mHmtxTable) <
-                        mNumLongMetrics * sizeof(HLongMetric)) {
-                        // hmtx table is not large enough for the claimed
-                        // number of entries: invalid, do not use.
-                        hb_blob_destroy(mHmtxTable);
-                        mHmtxTable = nsnull;
-                    }
-                }
+                mHmtxTable =
+                    mFont->GetFontTable(TRUETYPE_TAG('h','m','t','x'));
             }
             hb_blob_destroy(hheaTable);
         }

@@ -58,7 +58,6 @@ HttpChannelChild::HttpChannelChild()
   , mCacheEntryAvailable(PR_FALSE)
   , mCacheExpirationTime(nsICache::NO_EXPIRATION_TIME)
   , mState(HCC_NEW)
-  , mIPCOpen(false)
 {
   LOG(("Creating HttpChannelChild @%x\n", this));
 }
@@ -74,7 +73,18 @@ HttpChannelChild::~HttpChannelChild()
 
 // Override nsHashPropertyBag's AddRef: we don't need thread-safe refcnt
 NS_IMPL_ADDREF(HttpChannelChild)
-NS_IMPL_RELEASE(HttpChannelChild)
+NS_IMPL_RELEASE_WITH_DESTROY(HttpChannelChild, RefcountHitZero())
+
+void
+HttpChannelChild::RefcountHitZero()
+{
+  if (mWasOpened) {
+    // NeckoChild::DeallocPHttpChannel will delete this
+    PHttpChannelChild::Send__delete__(this);
+  } else {
+    delete this;    // we never opened IPDL channel
+  }
+}
 
 NS_INTERFACE_MAP_BEGIN(HttpChannelChild)
   NS_INTERFACE_MAP_ENTRY(nsIRequest)
@@ -94,22 +104,6 @@ NS_INTERFACE_MAP_END_INHERITING(HttpBaseChannel)
 //-----------------------------------------------------------------------------
 // HttpChannelChild::PHttpChannelChild
 //-----------------------------------------------------------------------------
-
-void
-HttpChannelChild::AddIPDLReference()
-{
-  NS_ABORT_IF_FALSE(!mIPCOpen, "Attempt to retain more than one IPDL reference");
-  mIPCOpen = true;
-  AddRef();
-}
-
-void
-HttpChannelChild::ReleaseIPDLReference()
-{
-  NS_ABORT_IF_FALSE(mIPCOpen, "Attempt to release nonexistent IPDL reference");
-  mIPCOpen = false;
-  Release();
-}
 
 bool 
 HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
@@ -192,7 +186,7 @@ HttpChannelChild::RecvOnStopRequest(const nsresult& statusCode)
 
   mIsPending = PR_FALSE;
   mStatus = statusCode;
-  mListener->OnStopRequest(this, mListenerContext, statusCode);
+  nsresult rv = mListener->OnStopRequest(this, mListenerContext, statusCode);
   mListener = 0;
   mListenerContext = 0;
   mCacheEntryAvailable = PR_FALSE;
@@ -200,9 +194,15 @@ HttpChannelChild::RecvOnStopRequest(const nsresult& statusCode)
   if (mLoadGroup)
     mLoadGroup->RemoveRequest(this, nsnull, statusCode);
 
-  // This calls NeckoChild::DeallocPHttpChannel(), which deletes |this| if IPDL
-  // holds the last reference.  Don't rely on |this| existing after here.
-  PHttpChannelChild::Send__delete__(this);
+  SendOnStopRequestCompleted();
+
+  // Corresponding AddRef in AsyncOpen().
+  this->Release();
+  
+  if (NS_FAILED(rv)) {
+    // TODO: Cancel request: see OnStartRequest (bug 536317)
+    return false;  
+  }
   return true;
 }
 
@@ -377,10 +377,6 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
     tabChild = static_cast<mozilla::dom::TabChild*>(iTabChild.get());
   }
 
-  // The socket transport layer in the chrome process now has a logical ref to
-  // us, until either OnStopRequest or OnRedirect is called.
-  AddIPDLReference();
-
   gNeckoChild->SendPHttpChannelConstructor(this, tabChild);
 
   SendAsyncOpen(IPC::URI(mURI), IPC::URI(mOriginalURI), IPC::URI(mDocumentURI),
@@ -388,6 +384,10 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
                 mRequestHead.Method(), uploadStreamData, 
                 uploadStreamInfo, mPriority, mRedirectionLimit, 
                 mAllowPipelining, mForceAllowThirdPartyCookie);
+
+  // The socket transport layer in the chrome process now has a logical ref to
+  // us, until either OnStopRequest or OnRedirect is called.
+  this->AddRef();
 
   mState = HCC_OPENED;
   return NS_OK;
@@ -453,7 +453,7 @@ HttpChannelChild::GetCacheTokenCachedCharset(nsACString &_retval)
 NS_IMETHODIMP
 HttpChannelChild::SetCacheTokenCachedCharset(const nsACString &aCharset)
 {
-  if (!mCacheEntryAvailable || !mIPCOpen)
+  if (!mCacheEntryAvailable)
     return NS_ERROR_NOT_AVAILABLE;
 
   mCachedCharset = aCharset;
@@ -523,7 +523,7 @@ HttpChannelChild::SetPriority(PRInt32 aPriority)
   if (mPriority == newValue)
     return NS_OK;
   mPriority = newValue;
-  if (mIPCOpen) 
+  if (mWasOpened) 
     SendSetPriority(mPriority);
   return NS_OK;
 }

@@ -84,8 +84,9 @@ public:
         if (dest == X86Registers::eax)
             m_assembler.movl_mEAX(address);
         else {
-            move(ImmPtr(address), scratchRegister);
-            load32(ImplicitAddress(scratchRegister), dest);
+            move(X86Registers::eax, dest);
+            m_assembler.movl_mEAX(address);
+            swap(X86Registers::eax, dest);
         }
     }
 
@@ -283,8 +284,9 @@ public:
         if (dest == X86Registers::eax)
             m_assembler.movq_mEAX(address);
         else {
-            move(ImmPtr(address), scratchRegister);
-            loadPtr(ImplicitAddress(scratchRegister), dest);
+            move(X86Registers::eax, dest);
+            m_assembler.movq_mEAX(address);
+            swap(X86Registers::eax, dest);
         }
     }
 
@@ -324,8 +326,9 @@ public:
         if (src == X86Registers::eax)
             m_assembler.movq_EAXm(address);
         else {
-            move(ImmPtr(address), scratchRegister);
-            storePtr(src, ImplicitAddress(scratchRegister));
+            swap(X86Registers::eax, src);
+            m_assembler.movq_EAXm(address);
+            swap(X86Registers::eax, src);
         }
     }
 

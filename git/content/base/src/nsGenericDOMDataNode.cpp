@@ -67,7 +67,7 @@
 #include "pldhash.h"
 #include "prprf.h"
 
-nsGenericDOMDataNode::nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsGenericDOMDataNode::nsGenericDOMDataNode(nsINodeInfo *aNodeInfo)
   : nsIContent(aNodeInfo)
 {
 }

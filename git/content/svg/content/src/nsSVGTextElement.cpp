@@ -71,8 +71,8 @@ class nsSVGTextElement : public nsSVGTextElementBase,
 {
 protected:
   friend nsresult NS_NewSVGTextElement(nsIContent **aResult,
-                                       already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGTextElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                       nsINodeInfo *aNodeInfo);
+  nsSVGTextElement(nsINodeInfo* aNodeInfo);
   nsresult Init();
   
 public:
@@ -94,7 +94,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsSVGTextContainerFrame* GetTextContainerFrame() {
     return do_QueryFrame(GetPrimaryFrame(Flush_Layout));
@@ -121,7 +120,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Text)
 NS_IMPL_ADDREF_INHERITED(nsSVGTextElement,nsSVGTextElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGTextElement,nsSVGTextElementBase)
 
-DOMCI_NODE_DATA(SVGTextElement, nsSVGTextElement)
+DOMCI_DATA(SVGTextElement, nsSVGTextElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGTextElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGTextElement, nsIDOMNode, nsIDOMElement,
@@ -134,7 +133,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGTextElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGTextElement::nsSVGTextElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGTextElement::nsSVGTextElement(nsINodeInfo* aNodeInfo)
   : nsSVGTextElementBase(aNodeInfo)
 {
 

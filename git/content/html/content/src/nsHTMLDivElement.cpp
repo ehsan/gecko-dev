@@ -45,7 +45,7 @@ class nsHTMLDivElement : public nsGenericHTMLElement,
                          public nsIDOMHTMLDivElement
 {
 public:
-  nsHTMLDivElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLDivElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLDivElement();
 
   // nsISupports
@@ -70,15 +70,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Div)
 
 
-nsHTMLDivElement::nsHTMLDivElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLDivElement::nsHTMLDivElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -91,7 +89,9 @@ nsHTMLDivElement::~nsHTMLDivElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLDivElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLDivElement, nsGenericElement) 
 
-DOMCI_NODE_DATA(HTMLDivElement, nsHTMLDivElement)
+
+
+DOMCI_DATA(HTMLDivElement, nsHTMLDivElement)
 
 // QueryInterface implementation for nsHTMLDivElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLDivElement)
@@ -186,4 +186,3 @@ nsHTMLDivElement::GetAttributeMappingFunction() const
   }  
   return nsGenericHTMLElement::GetAttributeMappingFunction();
 }
-

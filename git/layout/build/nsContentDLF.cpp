@@ -375,18 +375,15 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
 
     // generate an html html element
     htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::html, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> htmlElement =
-      NS_NewHTMLHtmlElement(htmlNodeInfo.forget());
+    nsCOMPtr<nsIContent> htmlElement = NS_NewHTMLHtmlElement(htmlNodeInfo);
 
     // generate an html head element
     htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::head, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> headElement =
-      NS_NewHTMLHeadElement(htmlNodeInfo.forget());
+    nsCOMPtr<nsIContent> headElement = NS_NewHTMLHeadElement(htmlNodeInfo);
 
-    // generate an html body elemment
+    // generate an html body element
     htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::body, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> bodyElement =
-      NS_NewHTMLBodyElement(htmlNodeInfo.forget());
+    nsCOMPtr<nsIContent> bodyElement = NS_NewHTMLBodyElement(htmlNodeInfo);
 
     // blat in the structure
     if (htmlElement && headElement && bodyElement) {

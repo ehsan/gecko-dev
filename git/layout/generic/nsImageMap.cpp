@@ -960,8 +960,7 @@ void
 nsImageMap::ContentRemoved(nsIDocument *aDocument,
                            nsIContent* aContainer,
                            nsIContent* aChild,
-                           PRInt32 aIndexInContainer,
-                           nsIContent* aPreviousSibling)
+                           PRInt32 aIndexInContainer)
 {
   MaybeUpdateAreas(aContainer);
 }

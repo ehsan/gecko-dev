@@ -325,7 +325,7 @@ class nsNSElementTearoff;
 class nsGenericElement : public mozilla::dom::Element
 {
 public:
-  nsGenericElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsGenericElement(nsINodeInfo *aNodeInfo);
   virtual ~nsGenericElement();
 
   friend class nsNSElementTearoff;
@@ -1084,8 +1084,8 @@ nsresult                                                                    \
 _elementName::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const        \
 {                                                                           \
   *aResult = nsnull;                                                        \
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;                                     \
-  _elementName *it = new _elementName(ni.forget());                         \
+                                                                            \
+  _elementName *it = new _elementName(aNodeInfo);                           \
   if (!it) {                                                                \
     return NS_ERROR_OUT_OF_MEMORY;                                          \
   }                                                                         \
@@ -1104,8 +1104,8 @@ nsresult                                                                    \
 _elementName::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const        \
 {                                                                           \
   *aResult = nsnull;                                                        \
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;                                     \
-  _elementName *it = new _elementName(ni.forget());                         \
+                                                                            \
+  _elementName *it = new _elementName(aNodeInfo);                           \
   if (!it) {                                                                \
     return NS_ERROR_OUT_OF_MEMORY;                                          \
   }                                                                         \
@@ -1119,14 +1119,6 @@ _elementName::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const        \
                                                                             \
   return rv;                                                                \
 }
-
-#define DOMCI_NODE_DATA(_interface, _class)                             \
-  DOMCI_DATA(_interface, _class)                                        \
-  nsXPCClassInfo* _class::GetClassInfo()                                \
-  {                                                                     \
-    return static_cast<nsXPCClassInfo*>(                                \
-      NS_GetDOMClassInfoInstance(eDOMClassInfo_##_interface##_id));     \
-  }
 
 /**
  * Yet another tearoff class for nsGenericElement

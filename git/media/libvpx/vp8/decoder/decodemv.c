@@ -227,14 +227,13 @@ void vp8_decode_mode_mvs(VP8D_COMP *pbi)
                         int mv_contz;
 
                         while (j != L[++k])
-                        {
-#if CONFIG_DEBUG
                             if (k >= 16)
-                            {
+#if CONFIG_DEBUG
                                 assert(0);
-                            }
+
+#else
+                                ;
 #endif
-                        }
 
                         mv_contz = vp8_mv_cont(&(vp8_left_bmi(mi, k)->mv.as_mv), &(vp8_above_bmi(mi, k, mis)->mv.as_mv));
 

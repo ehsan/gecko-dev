@@ -51,8 +51,8 @@ class nsSVGEllipseElement : public nsSVGEllipseElementBase,
 {
 protected:
   friend nsresult NS_NewSVGEllipseElement(nsIContent **aResult,
-                                          already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGEllipseElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                         nsINodeInfo *aNodeInfo);
+  nsSVGEllipseElement(nsINodeInfo *aNodeInfo);
 
 public:
   // interfaces:
@@ -69,7 +69,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   virtual LengthAttributesInfo GetLengthInfo();
@@ -95,7 +94,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Ellipse)
 NS_IMPL_ADDREF_INHERITED(nsSVGEllipseElement,nsSVGEllipseElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGEllipseElement,nsSVGEllipseElementBase)
 
-DOMCI_NODE_DATA(SVGEllipseElement, nsSVGEllipseElement)
+DOMCI_DATA(SVGEllipseElement, nsSVGEllipseElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGEllipseElement)
   NS_NODE_INTERFACE_TABLE4(nsSVGEllipseElement, nsIDOMNode, nsIDOMElement,
@@ -106,7 +105,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGEllipseElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGEllipseElement::nsSVGEllipseElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGEllipseElement::nsSVGEllipseElement(nsINodeInfo *aNodeInfo)
   : nsSVGEllipseElementBase(aNodeInfo)
 {
 }

@@ -1453,8 +1453,7 @@ nsTextEditorState::CreateRootNode()
                                                  kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = NS_NewHTMLElement(getter_AddRefs(mRootNode), nodeInfo.forget(),
-                                  PR_FALSE);
+  nsresult rv = NS_NewHTMLElement(getter_AddRefs(mRootNode), nodeInfo, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set the necessary classes on the text control. We use class values
@@ -1516,8 +1515,7 @@ nsTextEditorState::CreatePlaceholderNode()
                                            kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = NS_NewHTMLElement(getter_AddRefs(mPlaceholderDiv), nodeInfo.forget(),
-                         PR_FALSE);
+  rv = NS_NewHTMLElement(getter_AddRefs(mPlaceholderDiv), nodeInfo, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Create the text node for the placeholder text before doing anything else
@@ -1611,6 +1609,15 @@ nsTextEditorState::GetValue(nsAString& aValue, PRBool aIgnoreWrap) const
       mTextCtrlElement->GetDefaultValueFromContent(aValue);
     } else {
       aValue = NS_ConvertUTF8toUTF16(*mValue);
+    }
+
+    if (IsSingleLineTextControl()) {
+      // If the value is not owned by the frame, then we should handle any
+      // existing newline characters inside it, instead of relying on the
+      // editor to do it for us.
+      nsString value(aValue);
+      nsTextEditRules::HandleNewLines(value, -1);
+      aValue.Assign(value);
     }
   }
 }
@@ -1892,8 +1899,7 @@ void
 nsAnonDivObserver::ContentRemoved(nsIDocument* aDocument,
                                   nsIContent*  aContainer,
                                   nsIContent*  aChild,
-                                  PRInt32      aIndexInContainer,
-                                  nsIContent*  aPreviousSibling)
+                                  PRInt32      aIndexInContainer)
 {
   mTextEditorState->ClearValueCache();
 }

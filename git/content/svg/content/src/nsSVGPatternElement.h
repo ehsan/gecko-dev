@@ -64,8 +64,8 @@ class nsSVGPatternElement : public nsSVGPatternElementBase,
 
 protected:
   friend nsresult NS_NewSVGPatternElement(nsIContent **aResult,
-                                          already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGPatternElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                          nsINodeInfo *aNodeInfo);
+  nsSVGPatternElement(nsINodeInfo* aNodeInfo);
 
 public:
   // interfaces:
@@ -89,7 +89,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,

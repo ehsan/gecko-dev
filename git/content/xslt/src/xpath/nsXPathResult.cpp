@@ -231,7 +231,6 @@ nsXPathResult::SnapshotItem(PRUint32 aIndex, nsIDOMNode **aResult)
 void
 nsXPathResult::NodeWillBeDestroyed(const nsINode* aNode)
 {
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     // Set to null to avoid unregistring unnecessarily
     mDocument = nsnull;
     Invalidate(aNode->IsNodeOfType(nsINode::eCONTENT) ?
@@ -278,8 +277,7 @@ void
 nsXPathResult::ContentRemoved(nsIDocument* aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer,
-                              nsIContent* aPreviousSibling)
+                              PRInt32 aIndexInContainer)
 {
     Invalidate(aContainer);
 }
@@ -382,12 +380,11 @@ nsXPathResult::Invalidate(const nsIContent* aChangeRoot)
         }
     }
 
-    mInvalidIteratorState = PR_TRUE;
-    // Make sure nulling out mDocument is the last thing we do.
     if (mDocument) {
         mDocument->RemoveMutationObserver(this);
         mDocument = nsnull;
     }
+    mInvalidIteratorState = PR_TRUE;
 }
 
 nsresult

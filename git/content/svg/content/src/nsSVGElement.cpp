@@ -97,8 +97,6 @@
 #include "nsIDOMSVGTransformable.h"
 #endif // MOZ_SMIL
 
-using namespace mozilla;
-
 // This is needed to ensure correct handling of calls to the
 // vararg-list methods in this file:
 //   nsSVGElement::GetAnimated{Length,Number,Integer}Values
@@ -112,7 +110,7 @@ nsSVGEnumMapping nsSVGElement::sSVGUnitTypesMap[] = {
   {nsnull, 0}
 };
 
-nsSVGElement::nsSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGElement::nsSVGElement(nsINodeInfo *aNodeInfo)
   : nsSVGElementBase(aNodeInfo), mSuppressNotification(PR_FALSE)
 {
 }
@@ -2090,7 +2088,7 @@ nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
 
   // Motion (fake 'attribute' for animateMotion)
   if (aName == nsGkAtoms::mozAnimateMotionDummyAttr) {
-    return new SVGMotionSMILAttr(this);
+    return new mozilla::SVGMotionSMILAttr(this);
   }
 
   // Lengths:

@@ -185,8 +185,8 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 
 + (NSEvent*)makeNewCocoaEventWithType:(NSEventType)type fromEvent:(NSEvent*)theEvent;
 
-- (float)beginMaybeResetUnifiedToolbar;
-- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight;
+- (BOOL)beginMaybeResetUnifiedToolbar:(nsIntRegion*)aRegion context:(CGContextRef)aContext;
+- (void)endMaybeResetUnifiedToolbar:(BOOL)aReset;
 
 #if USE_CLICK_HOLD_CONTEXTMENU
  // called on a timer two seconds after a mouse down to see if we should display
@@ -2574,25 +2574,40 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-// Whenever we paint a toplevel window, we will be notified of any
-// unified toolbar in the window via
-// nsNativeThemeCocoa::RegisterWidgetGeometry. 
-- (float)beginMaybeResetUnifiedToolbar
+// Unified toolbar height resetting
+// This fixes the following problem:
+// The window gets notified about the height of its unified toolbar when the
+// toolbar is drawn. But when the toolbar suddenly vanishes, it's not drawn,
+// and the window is never notified about its absence.
+// So we bracket drawing operations to the pixel strip under the title bar
+// with notifications to the window.
+static BOOL DrawingAtWindowTop(CGContextRef aContext)
 {
-  if (![[self window] isKindOfClass:[ToolbarWindow class]] ||
-      [self superview] != [[self window] contentView])
-    return 0.0;
+  // Ignore all non-trivial transforms.
+  CGAffineTransform ctm = CGContextGetCTM(aContext);
+  if (ctm.a != 1.0f || ctm.b != 0.0f || ctm.c != 0.0f || ctm.d != -1.0f)
+    return NO;
 
-  return [(ToolbarWindow*)[self window] beginMaybeResetUnifiedToolbar];
+  // ctm.ty contains the vertical offset from the window's bottom edge.
+  return ctm.ty >= [[[[NSView focusView] window] contentView] bounds].size.height;
 }
 
-- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight
+- (BOOL)beginMaybeResetUnifiedToolbar:(nsIntRegion*)aRegion context:(CGContextRef)aContext
 {
   if (![[self window] isKindOfClass:[ToolbarWindow class]] ||
-      [self superview] != [[self window] contentView])
-    return;
+      !DrawingAtWindowTop(aContext) ||
+      !aRegion->Contains(nsIntRect(0, 0, (int)[self bounds].size.width, 1)))
+    return NO;
 
-  [(ToolbarWindow*)[self window] endMaybeResetUnifiedToolbar:aOldHeight];
+  [(ToolbarWindow*)[self window] beginMaybeResetUnifiedToolbar];
+  return YES;
+}
+
+- (void)endMaybeResetUnifiedToolbar:(BOOL)aReset
+{
+  if (aReset) {
+    [(ToolbarWindow*)[self window] endMaybeResetUnifiedToolbar];
+  }
 }
 
 -(void)update
@@ -2700,7 +2715,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
   targetContext->Clip();
 
-  float oldHeight = [self beginMaybeResetUnifiedToolbar];
+  BOOL resetUnifiedToolbar =
+    [self beginMaybeResetUnifiedToolbar:&paintEvent.region context:aContext];
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   PRBool painted;
@@ -2718,7 +2734,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
                                            aRect.size.width, aRect.size.height));
   }
 
-  [self endMaybeResetUnifiedToolbar:oldHeight];
+  [self endMaybeResetUnifiedToolbar:resetUnifiedToolbar];
 
   // note that the cairo surface *MUST* be destroyed at this point,
   // or bad things will happen (since we can't keep the cgContext around

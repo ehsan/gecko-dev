@@ -58,10 +58,9 @@ class nsSVGScriptElement : public nsSVGScriptElementBase,
 {
 protected:
   friend nsresult NS_NewSVGScriptElement(nsIContent **aResult,
-                                         already_AddRefed<nsINodeInfo> aNodeInfo,
+                                         nsINodeInfo *aNodeInfo,
                                          PRUint32 aFromParser);
-  nsSVGScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     PRUint32 aFromParser);
+  nsSVGScriptElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser);
   
 public:
   // interfaces:
@@ -96,8 +95,7 @@ public:
                               PRBool aCompileEventHandlers);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
+    
 protected:
   virtual StringAttributesInfo GetStringInfo();
 
@@ -119,7 +117,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(Script)
 NS_IMPL_ADDREF_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 
-DOMCI_NODE_DATA(SVGScriptElement, nsSVGScriptElement)
+DOMCI_DATA(SVGScriptElement, nsSVGScriptElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGScriptElement)
   NS_NODE_INTERFACE_TABLE8(nsSVGScriptElement, nsIDOMNode, nsIDOMElement,
@@ -132,7 +130,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGScriptElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGScriptElement::nsSVGScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo,
                                        PRUint32 aFromParser)
   : nsSVGScriptElementBase(aNodeInfo)
 {
@@ -148,8 +146,7 @@ nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
 
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsSVGScriptElement* it = new nsSVGScriptElement(ni.forget(), PR_FALSE);
+  nsSVGScriptElement* it = new nsSVGScriptElement(aNodeInfo, PR_FALSE);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

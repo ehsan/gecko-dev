@@ -951,8 +951,6 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsGenericHTMLElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  RemoveFromNameTable();
-
   if (GetContentEditableValue() == eTrue) {
     nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(GetCurrentDoc());
     if (htmlDocument) {
@@ -2312,7 +2310,7 @@ nsGenericHTMLElement::GetIsContentEditable(PRBool* aContentEditable)
 
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLFrameElement, TabIndex, tabindex, 0)
 
-nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsGenericHTMLFormElement::nsGenericHTMLFormElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mForm(nsnull)
 {
@@ -2529,6 +2527,8 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   // Save state before doing anything
   SaveState();
   
+  RemoveFromNameTable();
+
   if (mForm) {
     // Might need to unset mForm
     if (aNullParent) {
