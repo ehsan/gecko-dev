@@ -47,10 +47,6 @@ function debug(s) {
 let RILQUIRKS_DATA_REGISTRATION_ON_DEMAND =
   libcutils.property_get("ro.moz.ril.data_reg_on_demand", "false") == "true";
 
-// Ril quirk to control the uicc/data subscription.
-let RILQUIRKS_SUBSCRIPTION_CONTROL =
-  libcutils.property_get("ro.moz.ril.subscription_control", "false") == "true";
-
 // Ril quirk to always turn the radio off for the client without SIM card
 // except hw default client.
 let RILQUIRKS_RADIO_OFF_WO_CARD =
@@ -791,8 +787,7 @@ XPCOMUtils.defineLazyGetter(this, "gDataConnectionManager", function () {
         this._currentDataClientId = this._dataDefaultClientId;
         let connHandler = this._connectionHandlers[this._currentDataClientId];
         let radioInterface = connHandler.radioInterface;
-        if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND ||
-            RILQUIRKS_SUBSCRIPTION_CONTROL) {
+        if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND) {
           radioInterface.setDataRegistration(true);
         }
         if (this._dataEnabled) {
@@ -812,8 +807,7 @@ XPCOMUtils.defineLazyGetter(this, "gDataConnectionManager", function () {
       let newSettings = newConnHandler.dataCallSettings;
 
       if (!this._dataEnabled) {
-        if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND ||
-            RILQUIRKS_SUBSCRIPTION_CONTROL) {
+        if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND) {
           oldIface.setDataRegistration(false);
           newIface.setDataRegistration(true);
         }
@@ -829,8 +823,7 @@ XPCOMUtils.defineLazyGetter(this, "gDataConnectionManager", function () {
           if (DEBUG) {
             this.debug("Executing pending data call request.");
           }
-          if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND ||
-              RILQUIRKS_SUBSCRIPTION_CONTROL) {
+          if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND) {
             newIface.setDataRegistration(true);
           }
           newSettings.oldEnabled = newSettings.enabled;
@@ -852,8 +845,7 @@ XPCOMUtils.defineLazyGetter(this, "gDataConnectionManager", function () {
       newSettings.enabled = true;
 
       this._currentDataClientId = this._dataDefaultClientId;
-      if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND ||
-          RILQUIRKS_SUBSCRIPTION_CONTROL) {
+      if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND) {
         oldIface.setDataRegistration(false);
         newIface.setDataRegistration(true);
       }
@@ -1639,8 +1631,10 @@ WorkerMessenger.prototype = {
           libcutils.property_get("ro.moz.ril.query_icc_count", "false") == "true",
         sendStkProfileDownload:
           libcutils.property_get("ro.moz.ril.send_stk_profile_dl", "false") == "true",
-        dataRegistrationOnDemand: RILQUIRKS_DATA_REGISTRATION_ON_DEMAND,
-        subscriptionControl: RILQUIRKS_SUBSCRIPTION_CONTROL
+        dataRegistrationOnDemand:
+          libcutils.property_get("ro.moz.ril.data_reg_on_demand", "false") == "true",
+        subscriptionControl:
+          libcutils.property_get("ro.moz.ril.subscription_control", "false") == "true"
       },
       rilEmergencyNumbers: libcutils.property_get("ril.ecclist") ||
                            libcutils.property_get("ro.ril.ecclist")

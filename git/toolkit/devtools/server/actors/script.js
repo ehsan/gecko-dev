@@ -14,7 +14,7 @@ const { DebuggerServer } = require("devtools/server/main");
 const DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
 const { dbg_assert, dumpn, update } = DevToolsUtils;
 const { SourceMapConsumer, SourceMapGenerator } = require("source-map");
-const { defer, resolve, reject, all } = require("devtools/toolkit/deprecated-sync-thenables");
+const { all, defer, resolve } = promise;
 
 Cu.import("resource://gre/modules/NetUtil.jsm");
 
@@ -37,7 +37,7 @@ let addonManager = null;
  * about them.
  */
 function mapURIToAddonID(uri, id) {
-  if ((Services.appinfo.ID || undefined) == B2G_ID) {
+  if (Services.appinfo.ID == B2G_ID) {
     return false;
   }
 
@@ -3041,7 +3041,6 @@ let stringifiers = {
  */
 function ObjectActor(aObj, aThreadActor)
 {
-  dbg_assert(!aObj.optimizedOut, "Should not create object actors for optimized out values!");
   this.obj = aObj;
   this.threadActor = aThreadActor;
 }
@@ -4553,16 +4552,10 @@ EnvironmentActor.prototype = {
     }
     for each (let name in parameterNames) {
       let arg = {};
-
-      let value = this.obj.getVariable(name);
-      if (value && value.optimizedOut) {
-        continue;
-      }
-
       // TODO: this part should be removed in favor of the commented-out part
       // below when getVariableDescriptor lands (bug 725815).
       let desc = {
-        value: value,
+        value: this.obj.getVariable(name),
         configurable: false,
         writable: true,
         enumerable: true
@@ -4591,12 +4584,15 @@ EnvironmentActor.prototype = {
         continue;
       }
 
-      let value;
+      // TODO: this part should be removed in favor of the commented-out part
+      // below when getVariableDescriptor lands.
+      let desc = {
+        configurable: false,
+        writable: true,
+        enumerable: true
+      };
       try {
-        value = this.obj.getVariable(name);
-        if (value && value.optimizedOut) {
-          continue;
-        }
+        desc.value = this.obj.getVariable(name);
       } catch (e) {
         // Avoid "Debugger scope is not live" errors for |arguments|, introduced
         // in bug 746601.
@@ -4604,16 +4600,6 @@ EnvironmentActor.prototype = {
           throw e;
         }
       }
-
-      // TODO: this part should be removed in favor of the commented-out part
-      // below when getVariableDescriptor lands.
-      let desc = {
-        value: value,
-        configurable: false,
-        writable: true,
-        enumerable: true
-      };
-
       //let desc = this.obj.getVariableDescriptor(name);
       let descForm = {
         enumerable: true,

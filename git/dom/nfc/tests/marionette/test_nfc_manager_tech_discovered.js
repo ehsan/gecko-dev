@@ -18,7 +18,7 @@ function handleTechnologyDiscoveredRE0(msg) {
 
 function activateRE(re) {
   let deferred = Promise.defer();
-  let cmd = 'nfc nci rf_intf_activated_ntf ' + re;
+  let cmd = 'nfc ntf rf_intf_activated ' + re;
 
   emulator.run(cmd, function(result) {
     is(result.pop(), 'OK', 'check activation of RE' + re);
@@ -30,7 +30,7 @@ function activateRE(re) {
 
 function notifyDiscoverRE(re, type) {
   let deferred = Promise.defer();
-  let cmd = 'nfc nci rf_discover_ntf ' + re + ' ' + type;
+  let cmd = 'nfc ntf rf_discover ' + re + ' ' + type;
 
   emulator.run(cmd, function(result) {
     is(result.pop(), 'OK', 'check discover of RE' + re);

@@ -2725,8 +2725,8 @@ nsDOMWindowUtils::AdvanceTimeAndRefresh(int64_t aMilliseconds)
   nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
   driver->AdvanceTimeAndRefresh(aMilliseconds);
 
-  RefPtr<LayerTransactionChild> transaction = GetLayerTransaction();
-  if (transaction && transaction->IPCOpen()) {
+  LayerTransactionChild* transaction = GetLayerTransaction();
+  if (transaction) {
     transaction->SendSetTestSampleTime(driver->MostRecentRefresh());
   }
 
@@ -2743,8 +2743,8 @@ nsDOMWindowUtils::RestoreNormalRefresh()
   // Kick the compositor out of test mode before the refresh driver, so that
   // the refresh driver doesn't send an update that gets ignored by the
   // compositor.
-  RefPtr<LayerTransactionChild> transaction = GetLayerTransaction();
-  if (transaction && transaction->IPCOpen()) {
+  LayerTransactionChild* transaction = GetLayerTransaction();
+  if (transaction) {
     transaction->SendLeaveTestMode();
   }
 
