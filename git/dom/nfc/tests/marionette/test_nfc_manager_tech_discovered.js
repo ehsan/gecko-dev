@@ -13,7 +13,8 @@ function handleTechnologyDiscoveredRE0(msg) {
 
 function testActivateRE0() {
   log('Running \'testActivateRE0\'');
-  sysMsgHelper.waitForTechDiscovered(handleTechnologyDiscoveredRE0);
+  window.navigator.mozSetMessageHandler(
+    'nfc-manager-tech-discovered', handleTechnologyDiscoveredRE0);
 
   toggleNFC(true).then(() => NCI.activateRE(emulator.P2P_RE_INDEX_0));
 }
@@ -22,7 +23,8 @@ function testActivateRE0() {
 // DISCOVERY -> W4_ALL_DISCOVERIES -> W4_HOST_SELECT -> POLL_ACTIVE
 function testRfDiscover() {
   log('Running \'testRfDiscover\'');
-  sysMsgHelper.waitForTechDiscovered(handleTechnologyDiscoveredRE0);
+  window.navigator.mozSetMessageHandler(
+    'nfc-manager-tech-discovered', handleTechnologyDiscoveredRE0);
 
   toggleNFC(true)
   .then(() => NCI.notifyDiscoverRE(emulator.P2P_RE_INDEX_0, NCI.MORE_NOTIFICATIONS))

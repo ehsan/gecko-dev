@@ -21,8 +21,10 @@ function handleTechnologyDiscoveredRE0(msg) {
 
 function testTechLost() {
   log('Running \'testTechLost\'');
-  sysMsgHelper.waitForTechDiscovered(handleTechnologyDiscoveredRE0);
-  sysMsgHelper.waitForTechLost(handleTechnologyLost);
+  window.navigator.mozSetMessageHandler(
+    'nfc-manager-tech-discovered', handleTechnologyDiscoveredRE0);
+  window.navigator.mozSetMessageHandler(
+    'nfc-manager-tech-lost', handleTechnologyLost);
 
   toggleNFC(true).then(() => NCI.activateRE(emulator.P2P_RE_INDEX_0));
 }
