@@ -20,12 +20,10 @@ const PROGRAM_HIGHLIGHT_TRAIT = 2;
 
 exports.register = function(handle) {
   handle.addTabActor(WebGLActor, "webglActor");
-  handle.addGlobalActor(WebGLActor, "webglActor");
 }
 
 exports.unregister = function(handle) {
   handle.removeTabActor(WebGLActor);
-  handle.removeGlobalActor(WebGLActor);
 }
 
 /**

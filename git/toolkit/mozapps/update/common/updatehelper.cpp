@@ -10,6 +10,7 @@
 #define _WIN32_WINNT 0x602
 #include <objbase.h>
 #include <shobjidl.h>
+#pragma comment(lib, "ole32.lib")
 #endif
 
 #include <windows.h>
@@ -27,6 +28,7 @@
 
 // Needed for PathAppendW
 #include <shlwapi.h>
+#pragma comment(lib, "shlwapi.lib")
 
 WCHAR* MakeCommandLine(int argc, WCHAR **argv);
 BOOL PathAppendSafe(LPWSTR base, LPCWSTR extra);

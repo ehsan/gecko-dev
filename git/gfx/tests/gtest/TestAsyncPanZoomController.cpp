@@ -36,6 +36,9 @@ protected:
     gfxPrefs::GetSingleton();
     AsyncPanZoomController::SetThreadAssertionsEnabled(false);
   }
+  virtual void TearDown() {
+    gfxPrefs::DestroySingleton();
+  }
 };
 
 class APZCTreeManagerTester : public ::testing::Test {
@@ -43,6 +46,9 @@ protected:
   virtual void SetUp() {
     gfxPrefs::GetSingleton();
     AsyncPanZoomController::SetThreadAssertionsEnabled(false);
+  }
+  virtual void TearDown() {
+    gfxPrefs::DestroySingleton();
   }
 };
 

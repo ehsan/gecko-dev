@@ -16,11 +16,15 @@
 // result through this API.
 
 TEST(GfxPrefs, Singleton) {
+  ASSERT_FALSE(gfxPrefs::SingletonExists());
   gfxPrefs::GetSingleton();
   ASSERT_TRUE(gfxPrefs::SingletonExists());
+  gfxPrefs::DestroySingleton();
+  ASSERT_FALSE(gfxPrefs::SingletonExists());
 }
 
 TEST(GfxPrefs, LiveValues) {
+  ASSERT_FALSE(gfxPrefs::SingletonExists());
   gfxPrefs::GetSingleton();
   ASSERT_TRUE(gfxPrefs::SingletonExists());
 
@@ -32,9 +36,13 @@ TEST(GfxPrefs, LiveValues) {
 
   // Live uint32_t, default 2
   ASSERT_TRUE(gfxPrefs::MSAALevel() == 2);
+
+  gfxPrefs::DestroySingleton();
+  ASSERT_FALSE(gfxPrefs::SingletonExists());
 }
 
 TEST(GfxPrefs, OnceValues) {
+  ASSERT_FALSE(gfxPrefs::SingletonExists());
   gfxPrefs::GetSingleton();
   ASSERT_TRUE(gfxPrefs::SingletonExists());
 
@@ -52,5 +60,8 @@ TEST(GfxPrefs, OnceValues) {
 
   // Once float, default -1 (should be OK with ==)
   ASSERT_TRUE(gfxPrefs::APZMaxVelocity() == -1.0f);
+
+  gfxPrefs::DestroySingleton();
+  ASSERT_FALSE(gfxPrefs::SingletonExists());
 }
 

@@ -115,13 +115,6 @@ class IonSpewer
     void endFunction();
 };
 
-class IonSpewFunction
-{
-  public:
-    IonSpewFunction(MIRGraph *graph, JS::HandleScript function);
-    ~IonSpewFunction();
-};
-
 void IonSpewNewFunction(MIRGraph *graph, JS::HandleScript function);
 void IonSpewPass(const char *pass);
 void IonSpewPass(const char *pass, LinearScanAllocator *ra);

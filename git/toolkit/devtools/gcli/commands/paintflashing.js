@@ -17,13 +17,11 @@ const gcli = require("gcli/index");
 
 function onPaintFlashingChanged(context) {
   let tab = context.environment.chromeWindow.gBrowser.selectedTab;
-  let target = TargetFactory.forTab(tab);
-
-  eventEmitter.emit("changed", { target: target });
+  eventEmitter.emit("changed", tab);
   function fireChange() {
-    eventEmitter.emit("changed", { target: target });
+    eventEmitter.emit("changed", tab);
   }
-
+  let target = TargetFactory.forTab(tab);
   target.off("navigate", fireChange);
   target.once("navigate", fireChange);
 

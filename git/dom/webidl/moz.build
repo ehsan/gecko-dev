@@ -178,7 +178,6 @@ WEBIDL_FILES = [
     'HTMLOutputElement.webidl',
     'HTMLParagraphElement.webidl',
     'HTMLParamElement.webidl',
-    'HTMLPictureElement.webidl',
     'HTMLPreElement.webidl',
     'HTMLProgressElement.webidl',
     'HTMLPropertiesCollection.webidl',

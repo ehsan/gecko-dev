@@ -45,7 +45,6 @@ XPIDL_SOURCES += [
     'nsIDOMHTMLOptionElement.idl',
     'nsIDOMHTMLOptionsCollection.idl',
     'nsIDOMHTMLParagraphElement.idl',
-    'nsIDOMHTMLPictureElement.idl',
     'nsIDOMHTMLPreElement.idl',
     'nsIDOMHTMLQuoteElement.idl',
     'nsIDOMHTMLScriptElement.idl',

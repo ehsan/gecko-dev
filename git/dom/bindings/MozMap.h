@@ -69,13 +69,6 @@ public:
     return ent->mData;
   }
 
-  DataType& Get(const nsAString& aKey)
-  {
-    EntryType* ent = this->GetEntry(aKey);
-    MOZ_ASSERT(ent, "Why are you using a key we didn't claim to have?");
-    return ent->mData;
-  }
-
   // The return value is only safe to use until an AddEntry call.
   const DataType* GetIfExists(const nsAString& aKey) const
   {

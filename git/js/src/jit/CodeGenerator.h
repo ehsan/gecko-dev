@@ -369,8 +369,7 @@ class CodeGenerator : public CodeGeneratorSpecific
                              PropertyName *name, ConstantOrRegister value, bool strict,
                              bool needsTypeBarrier, jsbytecode *profilerLeavePc);
     bool addSetElementCache(LInstruction *ins, Register obj, Register unboxIndex, Register temp,
-                            FloatRegister tempDouble, FloatRegister tempFloat32,
-                            ValueOperand index, ConstantOrRegister value,
+                            FloatRegister tempFloat, ValueOperand index, ConstantOrRegister value,
                             bool strict, bool guardHoles, jsbytecode *profilerLeavePc);
 
     bool generateBranchV(const ValueOperand &value, Label *ifTrue, Label *ifFalse, FloatRegister fr);

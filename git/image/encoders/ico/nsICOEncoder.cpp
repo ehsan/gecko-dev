@@ -157,9 +157,7 @@ nsICOEncoder::AddImageFrame(const uint8_t* aData,
     }
     mImageBufferCurr = mImageBufferStart;
 
-    // Icon files that wrap a BMP file must not include the BITMAPFILEHEADER
-    // section at the beginning of the encoded BMP data, so we must skip over
-    // BFH_LENGTH bytes when adding the BMP content to the icon file.
+    // The icon buffer does not include the BFH at all.
     mICODirEntry.mBytesInRes = BMPImageBufferSize - BFH_LENGTH + andMaskSize;
 
     // Encode the icon headers

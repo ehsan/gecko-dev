@@ -17,7 +17,6 @@
 #include "mozilla/Maybe.h"
 
 class nsPIDOMWindow;
-class nsGlobalWindow;
 
 namespace mozilla {
 namespace dom {
@@ -155,16 +154,11 @@ public:
   // false and use of cx() will cause an assertion.
   bool InitWithLegacyErrorReporting(nsIGlobalObject* aGlobalObject);
 
-  // Convenience functions to take an nsPIDOMWindow* or nsGlobalWindow*,
-  // when it is more easily available than an nsIGlobalObject.
-  bool Init(nsPIDOMWindow* aWindow);
-  bool Init(nsPIDOMWindow* aWindow, JSContext* aCx);
-
-  bool Init(nsGlobalWindow* aWindow);
-  bool Init(nsGlobalWindow* aWindow, JSContext* aCx);
-
-  bool InitWithLegacyErrorReporting(nsPIDOMWindow* aWindow);
-  bool InitWithLegacyErrorReporting(nsGlobalWindow* aWindow);
+  // Convenience functions to take an nsPIDOMWindow*, when it is more easily
+  // available than an nsIGlobalObject.
+  bool InitUsingWin(nsPIDOMWindow* aWindow);
+  bool InitUsingWin(nsPIDOMWindow* aWindow, JSContext* aCx);
+  bool InitWithLegacyErrorReportingUsingWin(nsPIDOMWindow* aWindow);
 
   JSContext* cx() const {
     MOZ_ASSERT(mCx, "Must call Init before using an AutoJSAPI");

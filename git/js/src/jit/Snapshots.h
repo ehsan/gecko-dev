@@ -91,25 +91,11 @@ class RValueAllocation
     Mode mode_;
 
     // Additional information to recover the content of the allocation.
-    struct FloatRegisterBits {
-        uint32_t data;
-        bool operator == (const FloatRegisterBits &other) const {
-            return data == other.data;
-        }
-        uint32_t code() const {
-            return data;
-        }
-        const char *name() const {
-            FloatRegister tmp = FloatRegister::FromCode(data);
-            return tmp.name();
-        }
-    };
-
     union Payload {
         uint32_t index;
         int32_t stackOffset;
         Register gpr;
-        FloatRegisterBits fpu;
+        FloatRegister fpu;
         JSValueType type;
     };
 
@@ -133,9 +119,7 @@ class RValueAllocation
     }
     static Payload payloadOfFloatRegister(FloatRegister reg) {
         Payload p;
-        FloatRegisterBits b;
-        b.data = reg.code();
-        p.fpu = b;
+        p.fpu = reg;
         return p;
     }
     static Payload payloadOfValueType(JSValueType type) {
@@ -285,8 +269,7 @@ class RValueAllocation
     }
     FloatRegister fpuReg() const {
         JS_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_FPU);
-        FloatRegisterBits b = arg1_.fpu;
-        return FloatRegister::FromCode(b.data);
+        return arg1_.fpu;
     }
     JSValueType knownType() const {
         JS_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_PACKED_TAG);

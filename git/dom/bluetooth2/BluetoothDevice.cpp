@@ -126,7 +126,7 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     mUuids = value.get_ArrayOfnsString();
 
     AutoJSAPI jsapi;
-    if (!jsapi.Init(GetOwner())) {
+    if (!jsapi.InitUsingWin(GetOwner())) {
       BT_WARNING("Failed to initialise AutoJSAPI!");
       return;
     }
@@ -142,7 +142,7 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     mServices = value.get_ArrayOfnsString();
 
     AutoJSAPI jsapi;
-    if (!jsapi.Init(GetOwner())) {
+    if (!jsapi.InitUsingWin(GetOwner())) {
       BT_WARNING("Failed to initialise AutoJSAPI!");
       return;
     }

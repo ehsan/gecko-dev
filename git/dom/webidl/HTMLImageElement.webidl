@@ -59,8 +59,6 @@ partial interface HTMLImageElement {
 // [Update me: not in whatwg spec yet]
 // http://picture.responsiveimages.org/#the-img-element
 partial interface HTMLImageElement {
-           [SetterThrows, Pref="dom.image.picture.enabled"]
-           attribute DOMString sizes;
            [Pref="dom.image.srcset.enabled"]
   readonly attribute DOMString? currentSrc;
 };
