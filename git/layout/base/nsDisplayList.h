@@ -119,6 +119,8 @@ class nsDisplayItem;
  */
 class NS_STACK_CLASS nsDisplayListBuilder {
 public:
+  typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
+
   /**
    * @param aReferenceFrame the frame at the root of the subtree; its origin
    * is the origin of the reference coordinate system for this display list
@@ -383,6 +385,8 @@ public:
   // Helpers for tables
   nsDisplayTableItem* GetCurrentTableItem() { return mCurrentTableItem; }
   void SetCurrentTableItem(nsDisplayTableItem* aTableItem) { mCurrentTableItem = aTableItem; }
+
+  NS_DECLARE_FRAME_PROPERTY(OutOfFlowDirtyRectProperty, nsIFrame::DestroyRect)
 
 private:
   // This class is only used on stack, so we don't have to worry about leaking
@@ -1301,7 +1305,7 @@ private:
 class nsDisplayBackground : public nsDisplayItem {
 public:
   nsDisplayBackground(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
-    mIsThemed = mFrame->IsThemed();
+    mIsThemed = mFrame->IsThemed(&mThemeTransparency);
     MOZ_COUNT_CTOR(nsDisplayBackground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1321,6 +1325,7 @@ public:
 private:
     /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
     PRPackedBool mIsThemed;
+    nsITheme::Transparency mThemeTransparency;
 };
 
 /**
