@@ -12,7 +12,7 @@ var gPane = null;
 var gTab = null;
 var gDebuggee = null;
 var gDebugger = null;
-var gSources = null;
+var gScripts = null;
 
 function test()
 {
@@ -57,16 +57,15 @@ function test()
 }
 
 function testScriptsDisplay() {
-  gSources = gDebugger.DebuggerView.Sources;
+  gScripts = gDebugger.DebuggerView.Sources._container;
 
   is(gDebugger.DebuggerController.activeThread.state, "paused",
     "Should only be getting stack frames while paused.");
 
-  is(gSources.itemCount, 2,
-    "Found the expected number of scripts.");
+  is(gScripts.itemCount, 2, "Found the expected number of scripts.");
 
-  for (let i = 0; i < gSources.itemCount; i++) {
-    info("label: " + i + " " + gSources.getItemAtIndex(i).target.getAttribute("label"));
+  for (let i = 0; i < gScripts.itemCount; i++) {
+    info("label: " + i + " " + gScripts.getItemAtIndex(i).getAttribute("label"));
   }
 
   let label1 = "test-script-switching-01.js";
@@ -146,5 +145,4 @@ registerCleanupFunction(function() {
   gTab = null;
   gDebuggee = null;
   gDebugger = null;
-  gSources = null;
 });

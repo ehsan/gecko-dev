@@ -8,6 +8,8 @@ var gPane = null;
 var gTab = null;
 var gDebugger = null;
 var gView = null;
+var gLH = null;
+var gL10N = null;
 var gToolbox = null;
 var gTarget = null;
 
@@ -17,6 +19,8 @@ function test() {
     gPane = aPane;
     gDebugger = gPane.panelWin;
     gView = gDebugger.DebuggerView;
+    gLH = gDebugger.LayoutHelpers;
+    gL10N = gDebugger.L10N;
 
     gTarget = TargetFactory.forTab(gBrowser.selectedTab);
     gToolbox = gDevTools.getToolbox(gTarget);
@@ -92,6 +96,8 @@ registerCleanupFunction(function() {
   gTab = null;
   gDebugger = null;
   gView = null;
+  gLH = null;
+  gL10N = null;
   gToolbox = null;
   gTarget = null;
 });

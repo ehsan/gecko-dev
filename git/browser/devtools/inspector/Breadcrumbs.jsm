@@ -9,7 +9,6 @@ const Cu = Components.utils;
 const Ci = Components.interfaces;
 
 const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
-const ENSURE_SELECTION_VISIBLE_DELAY = 50; // ms
 
 this.EXPORTED_SYMBOLS = ["HTMLBreadcrumbs"];
 
@@ -35,8 +34,6 @@ const LOW_PRIORITY_ELEMENTS = {
 /**
  * Display the ancestors of the current node and its children.
  * Only one "branch" of children are displayed (only one line).
- *
- * FIXME: Bug 822388 - Use the BreadcrumbsWidget in the Inspector.
  *
  * Mechanism:
  * . If no nodes displayed yet:
@@ -119,9 +116,9 @@ HTMLBreadcrumbs.prototype = {
 
   /**
    * Build <label>s that represent the node:
-   *   <label class="breadcrumbs-widget-item-tag">tagName</label>
-   *   <label class="breadcrumbs-widget-item-id">#id</label>
-   *   <label class="breadcrumbs-widget-item-classes">.class1.class2</label>
+   *   <label class="inspector-breadcrumbs-tag">tagName</label>
+   *   <label class="inspector-breadcrumbs-id">#id</label>
+   *   <label class="inspector-breadcrumbs-classes">.class1.class2</label>
    *
    * @param aNode The node to pretty-print
    * @returns a document fragment.
@@ -131,16 +128,16 @@ HTMLBreadcrumbs.prototype = {
     let fragment = this.chromeDoc.createDocumentFragment();
 
     let tagLabel = this.chromeDoc.createElement("label");
-    tagLabel.className = "breadcrumbs-widget-item-tag plain";
+    tagLabel.className = "inspector-breadcrumbs-tag plain";
 
     let idLabel = this.chromeDoc.createElement("label");
-    idLabel.className = "breadcrumbs-widget-item-id plain";
+    idLabel.className = "inspector-breadcrumbs-id plain";
 
     let classesLabel = this.chromeDoc.createElement("label");
-    classesLabel.className = "breadcrumbs-widget-item-classes plain";
+    classesLabel.className = "inspector-breadcrumbs-classes plain";
 
     let pseudosLabel = this.chromeDoc.createElement("label");
-    pseudosLabel.className = "breadcrumbs-widget-item-pseudo-classes plain";
+    pseudosLabel.className = "inspector-breadcrumbs-pseudo-classes plain";
 
     tagLabel.textContent = aNode.tagName.toLowerCase();
     idLabel.textContent = aNode.id ? ("#" + aNode.id) : "";
@@ -392,7 +389,7 @@ HTMLBreadcrumbs.prototype = {
   {
     let button = this.chromeDoc.createElement("button");
     button.appendChild(this.prettyPrintNodeAsXUL(aNode));
-    button.className = "breadcrumbs-widget-item";
+    button.className = "inspector-breadcrumbs-button";
 
     button.setAttribute("tooltiptext", this.prettyPrintNodeAsText(aNode));
 
@@ -518,13 +515,7 @@ HTMLBreadcrumbs.prototype = {
 
     let scrollbox = this.container;
     let element = this.nodeHierarchy[this.currentIndex].button;
-
-    // Repeated calls to ensureElementIsVisible would interfere with each other
-    // and may sometimes result in incorrect scroll positions.
-    this.chromeWin.clearTimeout(this._ensureVisibleTimeout);
-    this._ensureVisibleTimeout = this.chromeWin.setTimeout(function() {
-      scrollbox.ensureElementIsVisible(element);
-    }, ENSURE_SELECTION_VISIBLE_DELAY);
+    scrollbox.ensureElementIsVisible(element);
   },
 
   updateSelectors: function BC_updateSelectors()
@@ -587,10 +578,11 @@ HTMLBreadcrumbs.prototype = {
     }
     // Add the first child of the very last node of the breadcrumbs if possible.
     this.ensureFirstChild();
-    this.updateSelectors();
 
     // Make sure the selected node and its neighbours are visible.
     this.scroll();
+
+    this.updateSelectors();
   },
 }
 

@@ -11,14 +11,19 @@ let gPane = null;
 let gTab = null;
 let gDebuggee = null;
 let gDebugger = null;
+let gScripts = null;
 let gEditor = null;
-let gSources = null;
 let gBreakpoints = null;
+let gBreakpointsPane = null;
 
 requestLongerTimeout(2);
 
 function test()
 {
+  let tempScope = {};
+  Cu.import("resource:///modules/source-editor.jsm", tempScope);
+  let SourceEditor = tempScope.SourceEditor;
+
   let scriptShown = false;
   let framesAdded = false;
   let resumed = false;
@@ -29,10 +34,12 @@ function test()
     gDebuggee = aDebuggee;
     gPane = aPane;
     gDebugger = gPane.panelWin;
+    gBreakpoints = gDebugger.DebuggerController.Breakpoints;
+    gBreakpointsPane = gDebugger.DebuggerView.Breakpoints;
 
     gDebugger.addEventListener("Debugger:SourceShown", onScriptShown);
 
-    gDebugger.DebuggerView.toggleInstrumentsPane({ visible: true, animated: false });
+    gDebugger.DebuggerView.togglePanes({ visible: true, animated: false });
     resumed = true;
 
     gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
@@ -62,24 +69,24 @@ function test()
 
   function performTest()
   {
-    gEditor = gDebugger.editor;
-    gSources = gDebugger.DebuggerView.Sources;
-    gBreakpoints = gPane.getAllBreakpoints();
+    gScripts = gDebugger.DebuggerView.Sources;
 
     is(gDebugger.DebuggerController.activeThread.state, "paused",
       "Should only be getting stack frames while paused.");
 
-    is(gSources.itemCount, 1,
-      "Found the expected number of scripts.");
+    is(gScripts._container.itemCount, 1, "Found the expected number of scripts.");
+
+    gEditor = gDebugger.editor;
 
     isnot(gEditor.getText().indexOf("ermahgerd"), -1,
-      "The correct script was loaded initially.");
+          "The correct script was loaded initially.");
+    is(gScripts.selectedValue, gScripts.values[0],
+          "The correct script is selected");
 
-    is(gSources.selectedValue, gSources.values[0],
-      "The correct script is selected");
-
+    gBreakpoints = gPane.getAllBreakpoints();
     is(Object.keys(gBreakpoints), 0, "no breakpoints");
     ok(!gPane.getBreakpoint("foo", 3), "getBreakpoint('foo', 3) returns falsey");
+
     is(gEditor.getBreakpoints().length, 0, "no breakpoints in the editor");
 
     executeSoon(addBreakpoint1);
@@ -87,14 +94,14 @@ function test()
 
   function addBreakpoint1()
   {
-    gPane.addBreakpoint({ url: gSources.selectedValue, line: 12 });
+    gPane.addBreakpoint({ url: gScripts.selectedValue, line: 12 });
 
     waitForBreakpoint(12, function() {
       waitForCaretPos(10, function() {
         waitForPopup(false, function() {
-          testBreakpoint(gSources.selectedBreakpoint,
-                         gSources.selectedClient,
-                         gSources.selectedValue, 12, false, false, false);
+          testBreakpoint(gBreakpointsPane.selectedItem,
+                         gBreakpointsPane.selectedClient,
+                         gScripts.selectedValue, 12, false, false, false);
 
           executeSoon(addBreakpoint2);
         });
@@ -104,15 +111,15 @@ function test()
 
   function addBreakpoint2()
   {
-    gSources._editorContextMenuLineNumber = 12;
-    gSources._onCmdAddBreakpoint();
+    gBreakpointsPane._editorContextMenuLineNumber = 12;
+    gBreakpointsPane._onCmdAddBreakpoint();
 
     waitForBreakpoint(13, function() {
       waitForCaretPos(12, function() {
         waitForPopup(false, function() {
-          testBreakpoint(gSources.selectedBreakpoint,
-                         gSources.selectedClient,
-                         gSources.selectedValue, 13, false, false, true);
+          testBreakpoint(gBreakpointsPane.selectedItem,
+                         gBreakpointsPane.selectedClient,
+                         gScripts.selectedValue, 13, false, false, true);
 
           executeSoon(modBreakpoint2);
         });
@@ -122,15 +129,15 @@ function test()
 
   function modBreakpoint2()
   {
-    gSources._editorContextMenuLineNumber = 12;
-    gSources._onCmdAddConditionalBreakpoint();
+    gBreakpointsPane._editorContextMenuLineNumber = 12;
+    gBreakpointsPane._onCmdAddConditionalBreakpoint();
 
     waitForBreakpoint(13, function() {
       waitForCaretPos(12, function() {
         waitForPopup(true, function() {
-          testBreakpoint(gSources.selectedBreakpoint,
-                         gSources.selectedClient,
-                         gSources.selectedValue, 13, true, true, true);
+          testBreakpoint(gBreakpointsPane.selectedItem,
+                         gBreakpointsPane.selectedClient,
+                         gScripts.selectedValue, 13, true, true, true);
 
           executeSoon(addBreakpoint3);
         });
@@ -140,15 +147,15 @@ function test()
 
   function addBreakpoint3()
   {
-    gSources._editorContextMenuLineNumber = 13;
-    gSources._onCmdAddConditionalBreakpoint();
+    gBreakpointsPane._editorContextMenuLineNumber = 13;
+    gBreakpointsPane._onCmdAddConditionalBreakpoint();
 
     waitForBreakpoint(14, function() {
       waitForCaretPos(13, function() {
         waitForPopup(true, function() {
-          testBreakpoint(gSources.selectedBreakpoint,
-                         gSources.selectedClient,
-                         gSources.selectedValue, 14, true, true, true);
+          testBreakpoint(gBreakpointsPane.selectedItem,
+                         gBreakpointsPane.selectedClient,
+                         gScripts.selectedValue, 14, true, true, true);
 
           executeSoon(modBreakpoint3);
         });
@@ -164,7 +171,7 @@ function test()
     waitForBreakpoint(14, function() {
       waitForCaretPos(13, function() {
         waitForPopup(false, function() {
-          is(gSources.selectedClient.conditionalExpression, "bamboocha",
+          is(gBreakpointsPane.selectedClient.conditionalExpression, "bamboocha",
             "The bamboocha expression wasn't fonud on the conditional breakpoint");
 
           executeSoon(setContextMenu);
@@ -176,43 +183,35 @@ function test()
   function setContextMenu()
   {
     let contextMenu = gDebugger.document.getElementById("sourceEditorContextMenu");
-    info("Testing source editor popup...");
 
     contextMenu.addEventListener("popupshown", function onPopupShown() {
       contextMenu.removeEventListener("popupshown", onPopupShown, false);
-      info("Source editor popup shown...");
 
       contextMenu.addEventListener("popuphidden", function onPopupHidden() {
         contextMenu.removeEventListener("popuphidden", onPopupHidden, false);
-        info("Source editor popup hidden...");
 
-        is(gSources._editorContextMenuLineNumber, 14,
-          "The context menu line number is incorrect after the popup was hidden.");
         executeSoon(addBreakpoint4);
       }, false);
 
-      is(gSources._editorContextMenuLineNumber, 14,
-        "The context menu line number is incorrect after the popup was shown.");
+      gBreakpointsPane._editorContextMenuLineNumber = 0;
       contextMenu.hidePopup();
     }, false);
 
-    is(gSources._editorContextMenuLineNumber, -1,
-      "The context menu line number was incorrect before the popup was shown.");
-    gSources._editorContextMenuLineNumber = 14;
+    gBreakpointsPane._editorContextMenuLineNumber = 14;
     contextMenu.openPopup(gEditor.editorElement, "overlap", 0, 0, true, false);
   }
 
   function addBreakpoint4()
   {
     gEditor.setCaretPosition(14);
-    gSources._onCmdAddBreakpoint();
+    gBreakpointsPane._onCmdAddBreakpoint();
 
     waitForBreakpoint(15, function() {
       waitForCaretPos(14, function() {
         waitForPopup(false, function() {
-          testBreakpoint(gSources.selectedBreakpoint,
-                         gSources.selectedClient,
-                         gSources.selectedValue, 15, false, false, true);
+          testBreakpoint(gBreakpointsPane.selectedItem,
+                         gBreakpointsPane.selectedClient,
+                         gScripts.selectedValue, 15, false, false, true);
 
           executeSoon(delBreakpoint4);
         });
@@ -223,14 +222,14 @@ function test()
   function delBreakpoint4()
   {
     gEditor.setCaretPosition(14);
-    gSources._onCmdAddBreakpoint();
+    gBreakpointsPane._onCmdAddBreakpoint();
 
     waitForBreakpoint(null, function() {
       waitForCaretPos(14, function() {
         waitForPopup(false, function() {
-          is(gSources.selectedBreakpoint, null,
+          is(gBreakpointsPane.selectedItem, null,
             "There should be no selected breakpoint in the breakpoints pane.")
-          is(gSources._conditionalPopupVisible, false,
+          is(gBreakpointsPane._popupShown, false,
             "The breakpoint conditional expression popup should not be shown.");
 
           executeSoon(moveHighlight1);
@@ -246,9 +245,9 @@ function test()
     waitForBreakpoint(14, function() {
       waitForCaretPos(13, function() {
         waitForPopup(false, function() {
-          testBreakpoint(gSources.selectedBreakpoint,
-                         gSources.selectedClient,
-                         gSources.selectedValue, 14, false, true, true);
+          testBreakpoint(gBreakpointsPane.selectedItem,
+                         gBreakpointsPane.selectedClient,
+                         gScripts.selectedValue, 14, true, false, true);
 
           executeSoon(testHighlights1);
         });
@@ -258,13 +257,13 @@ function test()
 
   function testHighlights1()
   {
-    isnot(gSources.selectedBreakpoint, null,
+    isnot(gBreakpointsPane.selectedItem, null,
       "There should be a selected breakpoint in the breakpoints pane.");
-    is(gSources.selectedBreakpoint.attachment.sourceLocation, gSources.selectedValue,
+    is(gBreakpointsPane.selectedItem.attachment.sourceLocation, gScripts.selectedValue,
       "The selected breakpoint should have the correct location.");
-    is(gSources.selectedBreakpoint.attachment.lineNumber, 14,
+    is(gBreakpointsPane.selectedItem.attachment.lineNumber, 14,
       "The selected breakpoint should have the correct line number.");
-    is(gSources._conditionalPopupVisible, false,
+    is(gBreakpointsPane._popupShown, false,
       "The breakpoint conditional expression popup should not be shown.");
     is(gEditor.getCaretPosition().line, 13,
       "The source editor caret position should be at line 13");
@@ -275,13 +274,13 @@ function test()
 
     waitForCaretPos(12, function() {
       waitForPopup(false, function() {
-        isnot(gSources.selectedBreakpoint, null,
+        isnot(gBreakpointsPane.selectedItem, null,
           "There should be a selected breakpoint in the breakpoints pane.");
-        is(gSources.selectedBreakpoint.attachment.sourceLocation, gSources.selectedValue,
+        is(gBreakpointsPane.selectedItem.attachment.sourceLocation, gScripts.selectedValue,
           "The selected breakpoint should have the correct location.");
-        is(gSources.selectedBreakpoint.attachment.lineNumber, 13,
+        is(gBreakpointsPane.selectedItem.attachment.lineNumber, 13,
           "The selected breakpoint should have the correct line number.");
-        is(gSources._conditionalPopupVisible, false,
+        is(gBreakpointsPane._popupShown, false,
           "The breakpoint conditional expression popup should not be shown.");
         is(gEditor.getCaretPosition().line, 12,
           "The source editor caret position should be at line 12");
@@ -292,13 +291,13 @@ function test()
 
         waitForCaretPos(11, function() {
           waitForPopup(false, function() {
-            isnot(gSources.selectedBreakpoint, null,
+            isnot(gBreakpointsPane.selectedItem, null,
               "There should be a selected breakpoint in the breakpoints pane.");
-            is(gSources.selectedBreakpoint.attachment.sourceLocation, gSources.selectedValue,
+            is(gBreakpointsPane.selectedItem.attachment.sourceLocation, gScripts.selectedValue,
               "The selected breakpoint should have the correct location.");
-            is(gSources.selectedBreakpoint.attachment.lineNumber, 12,
+            is(gBreakpointsPane.selectedItem.attachment.lineNumber, 12,
               "The selected breakpoint should have the correct line number.");
-            is(gSources._conditionalPopupVisible, false,
+            is(gBreakpointsPane._popupShown, false,
               "The breakpoint conditional expression popup should not be shown.");
             is(gEditor.getCaretPosition().line, 11,
               "The source editor caret position should be at line 11");
@@ -309,9 +308,9 @@ function test()
 
             waitForCaretPos(10, function() {
               waitForPopup(false, function() {
-                is(gSources.selectedBreakpoint, null,
+                is(gBreakpointsPane.selectedItem, null,
                   "There should not be a selected breakpoint in the breakpoints pane.");
-                is(gSources._conditionalPopupVisible, false,
+                is(gBreakpointsPane._popupShown, false,
                   "The breakpoint conditional expression popup should not be shown.");
                 is(gEditor.getCaretPosition().line, 10,
                   "The source editor caret position should be at line 10");
@@ -322,9 +321,9 @@ function test()
 
                 waitForCaretPos(14, function() {
                   waitForPopup(false, function() {
-                    is(gSources.selectedBreakpoint, null,
+                    is(gBreakpointsPane.selectedItem, null,
                       "There should not be a selected breakpoint in the breakpoints pane.");
-                    is(gSources._conditionalPopupVisible, false,
+                    is(gBreakpointsPane._popupShown, false,
                       "The breakpoint conditional expression popup should not be shown.");
                     is(gEditor.getCaretPosition().line, 14,
                       "The source editor caret position should be at line 14");
@@ -345,18 +344,18 @@ function test()
   function testHighlights2()
   {
     EventUtils.sendMouseEvent({ type: "click" },
-      gSources._container._list.querySelectorAll(".dbg-breakpoint")[2],
+      gBreakpointsPane._container.getItemAtIndex(2),
       gDebugger);
 
     waitForCaretPos(13, function() {
       waitForPopup(true, function() {
-        isnot(gSources.selectedBreakpoint, null,
+        isnot(gBreakpointsPane.selectedItem, null,
           "There should be a selected breakpoint in the breakpoints pane.");
-        is(gSources.selectedBreakpoint.attachment.sourceLocation, gSources.selectedValue,
+        is(gBreakpointsPane.selectedItem.attachment.sourceLocation, gScripts.selectedValue,
           "The selected breakpoint should have the correct location.");
-        is(gSources.selectedBreakpoint.attachment.lineNumber, 14,
+        is(gBreakpointsPane.selectedItem.attachment.lineNumber, 14,
           "The selected breakpoint should have the correct line number.");
-        is(gSources._conditionalPopupVisible, true,
+        is(gBreakpointsPane._popupShown, true,
           "The breakpoint conditional expression popup should be shown.");
         is(gEditor.getCaretPosition().line, 13,
           "The source editor caret position should be at line 13");
@@ -364,18 +363,18 @@ function test()
           "The source editor caret position should be at column 0");
 
         EventUtils.sendMouseEvent({ type: "click" },
-          gSources._container._list.querySelectorAll(".dbg-breakpoint")[1],
+          gBreakpointsPane._container.getItemAtIndex(1),
           gDebugger);
 
         waitForCaretPos(12, function() {
           waitForPopup(true, function() {
-            isnot(gSources.selectedBreakpoint, null,
+            isnot(gBreakpointsPane.selectedItem, null,
               "There should be a selected breakpoint in the breakpoints pane.");
-            is(gSources.selectedBreakpoint.attachment.sourceLocation, gSources.selectedValue,
+            is(gBreakpointsPane.selectedItem.attachment.sourceLocation, gScripts.selectedValue,
               "The selected breakpoint should have the correct location.");
-            is(gSources.selectedBreakpoint.attachment.lineNumber, 13,
+            is(gBreakpointsPane.selectedItem.attachment.lineNumber, 13,
               "The selected breakpoint should have the correct line number.");
-            is(gSources._conditionalPopupVisible, true,
+            is(gBreakpointsPane._popupShown, true,
               "The breakpoint conditional expression popup should be shown.");
             is(gEditor.getCaretPosition().line, 12,
               "The source editor caret position should be at line 12");
@@ -383,18 +382,18 @@ function test()
               "The source editor caret position should be at column 0");
 
             EventUtils.sendMouseEvent({ type: "click" },
-              gSources._container._list.querySelectorAll(".dbg-breakpoint")[0],
+              gBreakpointsPane._container.getItemAtIndex(0),
               gDebugger);
 
             waitForCaretPos(11, function() {
               waitForPopup(false, function() {
-                isnot(gSources.selectedBreakpoint, null,
+                isnot(gBreakpointsPane.selectedItem, null,
                   "There should be a selected breakpoint in the breakpoints pane.");
-                is(gSources.selectedBreakpoint.attachment.sourceLocation, gSources.selectedValue,
+                is(gBreakpointsPane.selectedItem.attachment.sourceLocation, gScripts.selectedValue,
                   "The selected breakpoint should have the correct location.");
-                is(gSources.selectedBreakpoint.attachment.lineNumber, 12,
+                is(gBreakpointsPane.selectedItem.attachment.lineNumber, 12,
                   "The selected breakpoint should have the correct line number.");
-                is(gSources._conditionalPopupVisible, false,
+                is(gBreakpointsPane._popupShown, false,
                   "The breakpoint conditional expression popup should be shown.");
                 is(gEditor.getCaretPosition().line, 11,
                   "The source editor caret position should be at line 11");
@@ -412,14 +411,14 @@ function test()
 
   function delBreakpoint2()
   {
-    gSources._editorContextMenuLineNumber = 12;
-    gSources._onCmdAddBreakpoint();
+    gBreakpointsPane._editorContextMenuLineNumber = 12;
+    gBreakpointsPane._onCmdAddBreakpoint();
 
     waitForBreakpoint(null, function() {
       waitForPopup(false, function() {
-        is(gSources.selectedBreakpoint, null,
+        is(gBreakpointsPane.selectedItem, null,
           "There should be no selected breakpoint in the breakpoints pane.")
-        is(gSources._conditionalPopupVisible, false,
+        is(gBreakpointsPane._popupShown, false,
           "The breakpoint conditional expression popup should not be shown.");
 
         executeSoon(delBreakpoint3);
@@ -429,14 +428,14 @@ function test()
 
   function delBreakpoint3()
   {
-    gSources._editorContextMenuLineNumber = 13;
-    gSources._onCmdAddBreakpoint();
+    gBreakpointsPane._editorContextMenuLineNumber = 13;
+    gBreakpointsPane._onCmdAddBreakpoint();
 
     waitForBreakpoint(null, function() {
       waitForPopup(false, function() {
-        is(gSources.selectedBreakpoint, null,
+        is(gBreakpointsPane.selectedItem, null,
           "There should be no selected breakpoint in the breakpoints pane.")
-        is(gSources._conditionalPopupVisible, false,
+        is(gBreakpointsPane._popupShown, false,
           "The breakpoint conditional expression popup should not be shown.");
 
         executeSoon(testBreakpoints);
@@ -448,21 +447,24 @@ function test()
   {
     is(Object.keys(gBreakpoints).length, 1, "one breakpoint");
     ok(!gPane.getBreakpoint("foo", 3), "getBreakpoint('foo', 3) returns falsey");
+
     is(gEditor.getBreakpoints().length, 1, "one breakpoint in the editor");
 
     closeDebuggerAndFinish();
   }
 
-  function testBreakpoint(aBreakpointItem, aBreakpointClient, url, line, popup, conditional, editor)
+  function testBreakpoint(aBreakpointItem, aBreakpointClient, url, line, conditional, popup, editor)
   {
-    is(aBreakpointItem.attachment.sourceLocation, gSources.selectedValue,
+    is(aBreakpointItem.attachment.sourceLocation, gScripts.selectedValue,
       "The breakpoint on line " + line + " wasn't added on the correct source.");
     is(aBreakpointItem.attachment.lineNumber, line,
       "The breakpoint on line " + line + " wasn't found.");
-    is(!aBreakpointItem.attachment.disabled, true,
+    is(aBreakpointItem.attachment.enabled, true,
       "The breakpoint on line " + line + " should be enabled.");
-    is(gSources._conditionalPopupVisible, popup,
-      "The breakpoint conditional expression popup should " + (popup ? "" : "not ") + "be shown.");
+    is(aBreakpointItem.attachment.isConditional, conditional,
+      "The breakpoint on line " + line + " should " + (conditional ? "" : "not ") + "be conditional.");
+    is(gBreakpointsPane._popupShown, popup,
+      "The breakpoint conditional expression popup should" + (popup ? "" : "not ") + "be shown.");
 
     is(aBreakpointClient.location.url, url,
        "The breakpoint's client url is correct");
@@ -502,8 +504,8 @@ function test()
         window.clearInterval(intervalID);
         return closeDebuggerAndFinish();
       }
-      if ((gSources.selectedClient !== expected) &&
-          (gSources.selectedClient || bogusClient).location.line !== expected) {
+      if ((gBreakpointsPane.selectedClient !== expected) &&
+          (gBreakpointsPane.selectedClient || bogusClient).location.line !== expected) {
         return;
       }
       // We arrived at the expected line, it's safe to callback.
@@ -543,7 +545,7 @@ function test()
         window.clearInterval(intervalID);
         return closeDebuggerAndFinish();
       }
-      if (gSources._conditionalPopupVisible != state) {
+      if (gBreakpointsPane._popupShown != state) {
         return;
       }
       // We got the expression popup at the expected state, it's safe to callback.
@@ -553,8 +555,8 @@ function test()
   }
 
   function clear() {
-    gSources._cbTextbox.focus();
-    gSources._cbTextbox.value = "";
+    gBreakpointsPane._cbTextbox.focus();
+    gBreakpointsPane._cbTextbox.value = "";
   }
 
   function write(text) {
@@ -563,7 +565,7 @@ function test()
   }
 
   function append(text) {
-    gSources._cbTextbox.focus();
+    gBreakpointsPane._cbTextbox.focus();
 
     for (let i = 0; i < text.length; i++) {
       EventUtils.sendChar(text[i], gDebugger);
@@ -576,8 +578,9 @@ function test()
     gTab = null;
     gDebuggee = null;
     gDebugger = null;
+    gScripts = null;
     gEditor = null;
-    gSources = null;
     gBreakpoints = null;
+    gBreakpointsPane = null;
   });
 }

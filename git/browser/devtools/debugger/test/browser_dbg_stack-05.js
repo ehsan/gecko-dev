@@ -60,38 +60,36 @@ function testRecurse()
   is(childNodes.length, frames.querySelectorAll(".dbg-stackframe").length,
     "All children should be frames.");
 
-  ok(frames.querySelector("#stackframe-0").parentNode.hasAttribute("checked"),
+  ok(frames.querySelector("#stackframe-0").classList.contains("selected"),
     "First frame should be selected by default.");
 
-  ok(!frames.querySelector("#stackframe-2").parentNode.hasAttribute("checked"),
+  ok(!frames.querySelector("#stackframe-2").classList.contains("selected"),
     "Third frame should not be selected.");
 
   is(gDebugger.editor.getDebugLocation(), 5,
      "editor debugger location is correct.");
 
-
-  EventUtils.sendMouseEvent({ type: "mousedown" },
+  EventUtils.sendMouseEvent({ type: "click" },
     frames.querySelector("#stackframe-2"),
     gDebugger);
 
-  ok(!frames.querySelector("#stackframe-0").parentNode.hasAttribute("checked"),
+  ok(!frames.querySelector("#stackframe-0").classList.contains("selected"),
      "First frame should not be selected after click.");
 
-  ok(frames.querySelector("#stackframe-2").parentNode.hasAttribute("checked"),
+  ok(frames.querySelector("#stackframe-2").classList.contains("selected"),
      "Third frame should be selected after click.");
 
   is(gDebugger.editor.getDebugLocation(), 4,
      "editor debugger location is correct after click.");
 
-
-  EventUtils.sendMouseEvent({ type: "mousedown" },
-    frames.querySelector("#stackframe-0 .dbg-stackframe-title"),
+  EventUtils.sendMouseEvent({ type: "click" },
+    frames.querySelector("#stackframe-0 .dbg-stackframe-name"),
     gDebugger);
 
-  ok(frames.querySelector("#stackframe-0").parentNode.hasAttribute("checked"),
+  ok(frames.querySelector("#stackframe-0").classList.contains("selected"),
      "First frame should be selected after click inside the first frame.");
 
-  ok(!frames.querySelector("#stackframe-2").parentNode.hasAttribute("checked"),
+  ok(!frames.querySelector("#stackframe-2").classList.contains("selected"),
      "Third frame should not be selected after click inside the first frame.");
 
   is(gDebugger.editor.getDebugLocation(), 5,
@@ -100,7 +98,6 @@ function testRecurse()
   gDebugger.DebuggerController.activeThread.resume(function() {
     is(gDebugger.editor.getDebugLocation(), -1,
        "editor debugger location is correct after resume.");
-
     closeDebuggerAndFinish();
   });
 }

@@ -13,7 +13,6 @@ var gThreadClient = null;
 var gNewGlobal = false;
 var gAttached = false;
 var gChromeScript = false;
-
 const DEBUGGER_TAB_URL = EXAMPLE_URL + "browser_dbg_debuggerstatement.html";
 
 function test()

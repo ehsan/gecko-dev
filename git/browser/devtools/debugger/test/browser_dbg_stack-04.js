@@ -46,6 +46,9 @@ function testEvalCallResume() {
         is(childNodes.length, 0,
           "Should only have no children.");
 
+        is(frames.parentNode.querySelectorAll(".empty").length, 1,
+           "Should have the empty list explanation.");
+
         closeDebuggerAndFinish();
       }, true);
 

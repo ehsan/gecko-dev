@@ -30,8 +30,9 @@ function testFrameParameters()
     Services.tm.currentThread.dispatch({ run: function() {
 
       var frames = gDebugger.DebuggerView.StackFrames._container._list,
-          localScope = gDebugger.DebuggerView.Variables._list.querySelector(".variables-view-scope"),
-          localNodes = localScope.querySelector(".variables-view-element-details").childNodes;
+          childNodes = frames.childNodes,
+          localScope = gDebugger.DebuggerView.Variables._list.querySelector(".scope"),
+          localNodes = localScope.querySelector(".details").childNodes;
 
       is(gDebugger.DebuggerController.activeThread.state, "paused",
         "Should only be getting stack frames while paused.");

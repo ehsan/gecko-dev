@@ -2,20 +2,24 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-/**
- * Tests basic functionality of scripts filtering (token search and line jump).
- */
-
 var gPane = null;
 var gTab = null;
 var gDebuggee = null;
 var gDebugger = null;
 var gEditor = null;
-var gSources = null;
+var gScripts = null;
 var gSearchBox = null;
+var gMenulist = null;
+
+/**
+ * Tests basic functionality of scripts filtering (token search and line jump).
+ */
 
 function test()
 {
+  let scriptShown = false;
+  let framesAdded = false;
+
   requestLongerTimeout(2);
 
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
@@ -26,19 +30,35 @@ function test()
 
     gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
       gDebugger.removeEventListener(aEvent.type, _onEvent);
-      testScriptSearching();
+      scriptShown = true;
+      runTest();
     });
+
+    gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+      framesAdded = true;
+      runTest();
+    });
+
+    gDebuggee.simpleCall();
   });
+
+  function runTest()
+  {
+    if (scriptShown && framesAdded) {
+      Services.tm.currentThread.dispatch({ run: testScriptSearching }, 0);
+    }
+  }
 }
 
 function testScriptSearching() {
-  let noMatchingSources = gDebugger.L10N.getStr("noMatchingSourcesText");
-  let token = "";
+  let noMatchingScripts = gDebugger.L10N.getStr("noMatchingScriptsText");
+  var token;
 
-  Services.tm.currentThread.dispatch({ run: function() {
+  gDebugger.DebuggerController.activeThread.resume(function() {
     gEditor = gDebugger.DebuggerView.editor;
-    gSources = gDebugger.DebuggerView.Sources;
+    gScripts = gDebugger.DebuggerView.Sources;
     gSearchBox = gDebugger.DebuggerView.Filtering._searchbox;
+    gMenulist = gScripts._container;
 
     write(":12");
     ok(gEditor.getCaretPosition().line == 11 &&
@@ -117,87 +137,87 @@ function testScriptSearching() {
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (6)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     write(":13#" + token);
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (7)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     write(":#" + token);
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (8)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     write("::#" + token);
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (9)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     write(":::#" + token);
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (10)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
 
     write("#" + token + ":bogus");
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (6)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     write("#" + token + ":13");
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (7)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     write("#" + token + ":");
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (8)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     write("#" + token + "::");
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (9)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     write("#" + token + ":::");
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (10)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
 
     write(":i am not a number");
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't remain at the correct token. (11)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     write("#__i do not exist__");
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't remain at the correct token. (12)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
 
     token = "debugger";
@@ -205,23 +225,23 @@ function testScriptSearching() {
     ok(gEditor.getCaretPosition().line == 2 &&
        gEditor.getCaretPosition().col == 44 + token.length,
       "The editor didn't jump to the correct token. (12.1)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     clear();
     EventUtils.sendKey("RETURN", gDebugger);
     ok(gEditor.getCaretPosition().line == 2 &&
        gEditor.getCaretPosition().col == 44 + token.length,
       "The editor shouldn't jump to another token. (12.2)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     EventUtils.sendKey("ENTER", gDebugger);
     ok(gEditor.getCaretPosition().line == 2 &&
        gEditor.getCaretPosition().col == 44 + token.length,
       "The editor shouldn't jump to another token. (12.3)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
 
     write(":1:2:3:a:b:c:::12");
@@ -264,13 +284,13 @@ function testScriptSearching() {
     ok(gEditor.getCaretPosition().line == 19 &&
        gEditor.getCaretPosition().col == 4 + token.length,
       "The editor didn't remain at the correct token. (19)");
-    is(gSources.visibleItems.length, 1,
+    is(gScripts.visibleItems.length, 1,
       "Not all the scripts are shown after the search. (20)");
-    isnot(gSources._container.getAttribute("label"), noMatchingSources,
-      "The scripts container should not display a notice that matches are found.");
+    isnot(gMenulist.getAttribute("label"), noMatchingScripts,
+      "The menulist should not display a notice that matches are found.");
 
     closeDebuggerAndFinish();
-  }}, 0);
+  });
 }
 
 function clear() {
@@ -299,6 +319,7 @@ registerCleanupFunction(function() {
   gDebuggee = null;
   gDebugger = null;
   gEditor = null;
-  gSources = null;
+  gScripts = null;
   gSearchBox = null;
+  gMenulist = null;
 });

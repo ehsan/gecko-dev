@@ -14,7 +14,7 @@ var gTab = null;
 var gDebuggee = null;
 var gDebugger = null;
 var gEditor = null;
-var gSources = null;
+var gScripts = null;
 var gSearchView = null;
 var gSearchBox = null;
 
@@ -58,7 +58,7 @@ function test()
 function testScriptSearching() {
   gDebugger.DebuggerController.activeThread.resume(function() {
     gEditor = gDebugger.DebuggerView.editor;
-    gSources = gDebugger.DebuggerView.Sources;
+    gScripts = gDebugger.DebuggerView.Sources;
     gSearchView = gDebugger.DebuggerView.GlobalSearch;
     gSearchBox = gDebugger.DebuggerView.Filtering._searchbox;
 
@@ -76,17 +76,17 @@ function doSearch() {
 
   gDebugger.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
     gDebugger.removeEventListener(aEvent.type, _onEvent);
-    info("Current script url:\n" + gSources.selectedValue + "\n");
+    info("Current script url:\n" + gScripts.selectedValue + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
-    let url = gSources.selectedValue;
+    let url = gScripts.selectedValue;
     if (url.indexOf("-02.js") != -1) {
       executeSoon(function() {
         info("Editor caret position: " + gEditor.getCaretPosition().toSource() + "\n");
         ok(gEditor.getCaretPosition().line == 5 &&
            gEditor.getCaretPosition().col == 0,
           "The editor shouldn't have jumped to a matching line yet.");
-        is(gSources.visibleItems.length, 2,
+        is(gScripts.visibleItems.length, 2,
           "Not all the scripts are shown after the global search.");
 
         isnot(gSearchView._container._list.childNodes.length, 0,
@@ -171,7 +171,7 @@ registerCleanupFunction(function() {
   gDebuggee = null;
   gDebugger = null;
   gEditor = null;
-  gSources = null;
+  gScripts = null;
   gSearchView = null;
   gSearchBox = null;
 });

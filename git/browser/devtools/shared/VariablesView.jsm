@@ -14,16 +14,17 @@ const LAZY_APPEND_DELAY = 100; // ms
 const LAZY_APPEND_BATCH = 100; // nodes
 const PAGE_SIZE_SCROLL_HEIGHT_RATIO = 100;
 const PAGE_SIZE_MAX_JUMPS = 30;
-const SEARCH_ACTION_MAX_DELAY = 300; // ms
+const SEARCH_ACTION_MAX_DELAY = 1000; // ms
+const ELEMENT_INPUT_DEFAULT_WIDTH = 100; // px
+const ELEMENT_INPUT_EXTRA_SPACE = 4; // px
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this,
   "WebConsoleUtils", "resource://gre/modules/devtools/WebConsoleUtils.jsm");
 
-this.EXPORTED_SYMBOLS = ["VariablesView"];
+this.EXPORTED_SYMBOLS = ["VariablesView", "create"];
 
 /**
  * Debugger localization strings.
@@ -50,19 +51,17 @@ this.VariablesView = function VariablesView(aParentNode) {
   this._currHierarchy = new Map();
 
   this._parent = aParentNode;
-  this._parent.classList.add("variables-view-container");
   this._appendEmptyNotice();
 
   this._onSearchboxInput = this._onSearchboxInput.bind(this);
   this._onSearchboxKeyPress = this._onSearchboxKeyPress.bind(this);
   this._onViewKeyPress = this._onViewKeyPress.bind(this);
 
-  // Create an internal scrollbox container.
+  // Create an internal list container.
   this._list = this.document.createElement("scrollbox");
   this._list.setAttribute("orient", "vertical");
   this._list.addEventListener("keypress", this._onViewKeyPress, false);
   this._parent.appendChild(this._list);
-  this._boxObject = this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
 };
 
 VariablesView.prototype = {
@@ -161,7 +160,6 @@ VariablesView.prototype = {
 
       this._parent.removeChild(prevList);
       this._parent.appendChild(currList);
-      this._boxObject = currList.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
 
       if (!this._store.size) {
         this._appendEmptyNotice();
@@ -366,7 +364,7 @@ VariablesView.prototype = {
     container.hidden = !this._store.size;
 
     let searchbox = this._searchboxNode = document.createElement("textbox");
-    searchbox.className = "variables-view-searchinput devtools-searchinput";
+    searchbox.className = "variables-searchinput devtools-searchinput";
     searchbox.setAttribute("placeholder", this._searchboxPlaceholder);
     searchbox.setAttribute("type", "search");
     searchbox.setAttribute("flex", "1");
@@ -637,7 +635,7 @@ VariablesView.prototype = {
    *         True if the focus went out of bounds and the first or last element
    *         in this view was focused instead.
    */
-  _focusChange: function VV__focusChange(aDirection, aMaintainViewFocusedFlag) {
+  _focusChange: function VV__changeFocus(aDirection, aMaintainViewFocusedFlag) {
     let commandDispatcher = this.document.commandDispatcher;
     let item;
 
@@ -686,7 +684,10 @@ VariablesView.prototype = {
       aItem.collapse();
     }
     aItem._target.focus();
-    this._boxObject.ensureElementIsVisible(aItem._arrow);
+
+    let boxObject = this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
+    boxObject.ensureElementIsVisible(aItem._title);
+    boxObject.scrollBy(-this._list.clientWidth, 0);
     return true;
   },
 
@@ -831,19 +832,18 @@ VariablesView.prototype = {
       this._emptyTextNode.setAttribute("value", aValue);
     }
     this._emptyTextValue = aValue;
-    this._appendEmptyNotice();
   },
 
   /**
    * Creates and appends a label signaling that this container is empty.
    */
   _appendEmptyNotice: function VV__appendEmptyNotice() {
-    if (this._emptyTextNode || !this._emptyTextValue) {
+    if (this._emptyTextNode) {
       return;
     }
 
     let label = this.document.createElement("label");
-    label.className = "variables-view-empty-notice";
+    label.className = "empty list-item";
     label.setAttribute("value", this._emptyTextValue);
 
     this._parent.appendChild(label);
@@ -893,7 +893,6 @@ VariablesView.prototype = {
   _searchFunction: null,
   _parent: null,
   _list: null,
-  _boxObject: null,
   _searchboxNode: null,
   _searchboxContainer: null,
   _searchboxPlaceholder: "",
@@ -1442,10 +1441,12 @@ Scope.prototype = {
    *        The scope's name.
    * @param object aFlags [optional]
    *        Additional options or flags for this scope.
+   * @param string aClassName [optional]
+   *        A custom class name for this scope.
    */
-  _init: function S__init(aName, aFlags) {
+  _init: function S__init(aName, aFlags = {}, aClassName = "scope") {
     this._idString = generateId(this._nameString = aName);
-    this._displayScope(aName, "variables-view-scope", "devtools-toolbar");
+    this._displayScope(aName, aClassName);
     this._addEventListeners();
     this.parentNode.appendChild(this._target);
   },
@@ -1457,10 +1458,8 @@ Scope.prototype = {
    *        The scope's name.
    * @param string aClassName
    *        A custom class name for this scope.
-   * @param string aTitleClassName [optional]
-   *        A custom class name for this scope's title.
    */
-  _displayScope: function S__createScope(aName, aClassName, aTitleClassName) {
+  _displayScope: function S__createScope(aName, aClassName) {
     let document = this.document;
 
     let element = this._target = document.createElement("vbox");
@@ -1475,13 +1474,13 @@ Scope.prototype = {
     name.setAttribute("value", aName);
 
     let title = this._title = document.createElement("hbox");
-    title.className = "title " + (aTitleClassName || "");
+    title.className = "title" + (aClassName == "scope" ? " devtools-toolbar" : "");
     title.setAttribute("align", "center");
 
     let enumerable = this._enum = document.createElement("vbox");
     let nonenum = this._nonenum = document.createElement("vbox");
-    enumerable.className = "variables-view-element-details enum";
-    nonenum.className = "variables-view-element-details nonenum";
+    enumerable.className = "details";
+    nonenum.className = "details nonenum";
 
     title.appendChild(arrow);
     title.appendChild(name);
@@ -1580,7 +1579,7 @@ Scope.prototype = {
       return;
     }
     let throbber = this._throbber = this.document.createElement("hbox");
-    throbber.className = "variables-view-throbber";
+    throbber.className = "dbg-variable-throbber";
     this._title.appendChild(throbber);
   },
 
@@ -1820,7 +1819,7 @@ Scope.prototype = {
  * Iterable via "for (let [name, property] in instance) { }".
  *
  * @param Scope aScope
- *        The scope to contain this variable.
+ *        The scope to contain this varialbe.
  * @param string aName
  *        The variable's name.
  * @param object aDescriptor
@@ -1837,7 +1836,7 @@ function Variable(aScope, aName, aDescriptor) {
   this._absoluteName = aScope.name + "[\"" + aName + "\"]";
 }
 
-ViewHelpers.create({ constructor: Variable, proto: Scope.prototype }, {
+create({ constructor: Variable, proto: Scope.prototype }, {
   /**
    * Adds a property for this variable.
    *
@@ -2086,7 +2085,7 @@ ViewHelpers.create({ constructor: Variable, proto: Scope.prototype }, {
    */
   _init: function V__init(aName, aDescriptor) {
     this._idString = generateId(this._nameString = aName);
-    this._displayScope(aName, "variables-view-variable variable-or-property");
+    this._displayScope(aName, "variable variable-or-property");
 
     // Don't allow displaying variable information there's no name available.
     if (this._nameString) {
@@ -2125,13 +2124,12 @@ ViewHelpers.create({ constructor: Variable, proto: Scope.prototype }, {
     let descriptor = this._initialDescriptor;
 
     let separatorLabel = this._separatorLabel = document.createElement("label");
-    separatorLabel.className = "plain separator";
+    separatorLabel.className = "plain";
     separatorLabel.setAttribute("value", this.ownerView.separatorStr);
 
     let valueLabel = this._valueLabel = document.createElement("label");
     valueLabel.className = "plain value";
     valueLabel.setAttribute("crop", "center");
-    valueLabel.setAttribute('flex', "1");
 
     this._title.appendChild(separatorLabel);
     this._title.appendChild(valueLabel);
@@ -2179,7 +2177,7 @@ ViewHelpers.create({ constructor: Variable, proto: Scope.prototype }, {
     if (this.ownerView.eval) {
       if (!this._isUndefined && (this.getter || this.setter)) {
         let editNode = this._editNode = this.document.createElement("toolbarbutton");
-        editNode.className = "plain variables-view-edit";
+        editNode.className = "plain dbg-variable-edit";
         editNode.addEventListener("mousedown", this._onEdit.bind(this), false);
         this._title.appendChild(editNode);
       }
@@ -2187,7 +2185,7 @@ ViewHelpers.create({ constructor: Variable, proto: Scope.prototype }, {
     if (this.ownerView.delete) {
       if (!this._isUndefined || !(this.ownerView.getter && this.ownerView.setter)) {
         let deleteNode = this._deleteNode = this.document.createElement("toolbarbutton");
-        deleteNode.className = "plain variables-view-delete";
+        deleteNode.className = "plain dbg-variable-delete devtools-closebutton";
         deleteNode.addEventListener("click", this._onDelete.bind(this), false);
         this._title.appendChild(deleteNode);
       }
@@ -2262,7 +2260,7 @@ ViewHelpers.create({ constructor: Variable, proto: Scope.prototype }, {
     if (!descriptor.enumerable) {
       this._target.setAttribute("non-enumerable", "");
     }
-    if (!descriptor.writable && !this.ownerView.getter && !this.ownerView.setter) {
+    if (!descriptor.writable && !this.ownerView.get && !this.ownerView.set) {
       this._target.setAttribute("non-writable", "");
     }
     if (name == "this") {
@@ -2301,19 +2299,23 @@ ViewHelpers.create({ constructor: Variable, proto: Scope.prototype }, {
     // Create a texbox input element which will be shown in the current
     // element's specified label location.
     let input = this.document.createElement("textbox");
-    input.className = "plain " + aClassName;
     input.setAttribute("value", initialString);
-    input.setAttribute("flex", "1");
+    input.className = "plain " + aClassName;
+
+    // Can't use clientWidth because labels may have extra unnecessary padding.
+    let style = this.window.getComputedStyle(aLabel);
+    input.width = (parseInt(style.getPropertyValue("width")) ||
+      ELEMENT_INPUT_DEFAULT_WIDTH) + // If no content was previously available.
+      ELEMENT_INPUT_EXTRA_SPACE; // Extra space added for editing.
 
     // Replace the specified label with a textbox input element.
     aLabel.parentNode.replaceChild(input, aLabel);
-    this._variablesView._boxObject.ensureElementIsVisible(input);
     input.select();
 
     // When the value is a string (displayed as "value"), then we probably want
     // to change it to another string in the textbox, so to avoid typing the ""
     // again, tackle with the selection bounds just a bit.
-    if (aLabel.getAttribute("value").match(/^".+"$/)) {
+    if (aLabel.getAttribute("value").match(/^"[^"]*"$/)) {
       input.selectionEnd--;
       input.selectionStart++;
     }
@@ -2577,7 +2579,7 @@ function Property(aVar, aName, aDescriptor) {
   this._absoluteName = aVar._absoluteName + "[\"" + aName + "\"]";
 }
 
-ViewHelpers.create({ constructor: Property, proto: Variable.prototype }, {
+create({ constructor: Property, proto: Variable.prototype }, {
   /**
    * Initializes this property's id, view and binds event listeners.
    *
@@ -2588,7 +2590,7 @@ ViewHelpers.create({ constructor: Property, proto: Variable.prototype }, {
    */
   _init: function P__init(aName, aDescriptor) {
     this._idString = generateId(this._nameString = aName);
-    this._displayScope(aName, "variables-view-property variable-or-property");
+    this._displayScope(aName, "property variable-or-property");
 
     // Don't allow displaying property information there's no name available.
     if (this._nameString) {
@@ -2677,12 +2679,7 @@ VariablesView.prototype.commitHierarchy = function VV_commitHierarchy() {
     // it was previously expanded.
     if (prevVariable) {
       expanded = prevVariable._isExpanded;
-
-      // Only analyze variables and properties for displayed value changes.
-      if (currVariable instanceof Variable ||
-          currVariable instanceof Property) {
-        changed = prevVariable._valueString != currVariable._valueString;
-      }
+      changed = prevVariable._valueString != currVariable._valueString;
     }
 
     // Make sure this variable is not handled in ulteror commits for the
@@ -2715,7 +2712,8 @@ VariablesView.prototype.commitHierarchy = function VV_commitHierarchy() {
 // Some variables are likely to contain a very large number of properties.
 // It would be a bad idea to re-expand them or perform expensive operations.
 VariablesView.prototype.commitHierarchyIgnoredItems = Object.create(null, {
-  "window": { value: true }
+  "window": { value: true },
+  "this": { value: true }
 });
 
 /**
@@ -2904,3 +2902,20 @@ let generateId = (function() {
     return aName.toLowerCase().trim().replace(/\s+/g, "-") + (++count);
   };
 })();
+
+/**
+ * Sugar for prototypal inheritance using Object.create.
+ * Creates a new object with the specified prototype object and properties.
+ *
+ * @param object target
+ * @param object properties
+ */
+function create({ constructor, proto }, properties = {}) {
+  let propertiesObject = {
+    constructor: { value: constructor }
+  };
+  for (let name in properties) {
+    propertiesObject[name] = Object.getOwnPropertyDescriptor(properties, name);
+  }
+  constructor.prototype = Object.create(proto, propertiesObject);
+}
