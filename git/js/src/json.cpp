@@ -278,9 +278,7 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
                 return false;
             vp.set(StringValue(str));
         } else if (ObjectClassIs(obj, ESClass_Boolean, cx)) {
-            if (!BooleanGetPrimitiveValue(cx, obj, vp.address()))
-                return false;
-            JS_ASSERT(vp.get().isBoolean());
+            vp.setBoolean(BooleanGetPrimitiveValue(obj, cx));
         }
     }
 
@@ -892,7 +890,7 @@ static const JSFunctionSpec json_static_methods[] = {
 JSObject *
 js_InitJSONClass(JSContext *cx, HandleObject obj)
 {
-    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
+    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 
     /*
      * JSON requires that Boolean.prototype.valueOf be created and stashed in a

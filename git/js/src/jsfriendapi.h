@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsfriendapi_h___
-#define jsfriendapi_h___
+#ifndef jsfriendapi_h
+#define jsfriendapi_h
 
 #include "jsclass.h"
 #include "jspubtd.h"
@@ -125,7 +125,7 @@ extern JS_FRIEND_API(JSString *)
 JS_BasicObjectToString(JSContext *cx, JSHandleObject obj);
 
 extern JS_FRIEND_API(JSBool)
-js_GetterOnlyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
+js_GetterOnlyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JS::MutableHandleValue vp);
 
 JS_FRIEND_API(void)
 js_ReportOverRecursed(JSContext *maybecx);
@@ -378,7 +378,10 @@ struct Atom {
 
 } /* namespace shadow */
 
-extern JS_FRIEND_DATA(js::Class) FunctionClass;
+// This is equal to JSFunction::class_.  Use it in places where you don't want
+// to #include jsfun.h.
+extern JS_FRIEND_DATA(js::Class*) FunctionClassPtr;
+
 extern JS_FRIEND_DATA(js::Class) FunctionProxyClass;
 extern JS_FRIEND_DATA(js::Class) OuterWindowProxyClass;
 extern JS_FRIEND_DATA(js::Class) ObjectProxyClass;
@@ -405,6 +408,9 @@ inline bool
 IsOuterObject(JSObject *obj) {
     return !!GetObjectClass(obj)->ext.innerObject;
 }
+
+JS_FRIEND_API(bool)
+IsFunctionObject(JSObject *obj);
 
 JS_FRIEND_API(bool)
 IsScopeObject(JSObject *obj);
@@ -891,6 +897,12 @@ struct ExpandoAndGeneration {
     : expando(UndefinedValue()),
       generation(0)
   {}
+
+  void Unlink()
+  {
+      ++generation;
+      expando.setUndefined();
+  }
 
   JS::Heap<JS::Value> expando;
   uint32_t generation;
@@ -1565,7 +1577,7 @@ struct JSJitInfo {
 static JS_ALWAYS_INLINE const JSJitInfo *
 FUNCTION_VALUE_TO_JITINFO(const JS::Value& v)
 {
-    JS_ASSERT(js::GetObjectClass(&v.toObject()) == &js::FunctionClass);
+    JS_ASSERT(js::GetObjectClass(&v.toObject()) == js::FunctionClassPtr);
     return reinterpret_cast<js::shadow::Function *>(&v.toObject())->jitinfo;
 }
 
@@ -1751,4 +1763,4 @@ js_DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
 extern JS_FRIEND_API(JSBool)
 js_ReportIsNotFunction(JSContext *cx, const JS::Value& v);
 
-#endif /* jsfriendapi_h___ */
+#endif /* jsfriendapi_h */

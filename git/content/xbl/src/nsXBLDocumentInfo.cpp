@@ -119,7 +119,7 @@ nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JS::Handle<JSObject*> obj,
 
 static JSBool
 nsXBLDocGlobalObject_getProperty(JSContext *cx, JSHandleObject obj,
-                                 JSHandleId id, JSMutableHandleValue vp)
+                                 JSHandleId id, JS::MutableHandle<JS::Value> vp)
 {
   return nsXBLDocGlobalObject::
     doCheckAccess(cx, obj, id, nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
@@ -127,7 +127,7 @@ nsXBLDocGlobalObject_getProperty(JSContext *cx, JSHandleObject obj,
 
 static JSBool
 nsXBLDocGlobalObject_setProperty(JSContext *cx, JSHandleObject obj,
-                                 JSHandleId id, JSBool strict, JSMutableHandleValue vp)
+                                 JSHandleId id, JSBool strict, JS::MutableHandle<JS::Value> vp)
 {
   return nsXBLDocGlobalObject::
     doCheckAccess(cx, obj, id, nsIXPCSecurityManager::ACCESS_SET_PROPERTY);
@@ -135,7 +135,7 @@ nsXBLDocGlobalObject_setProperty(JSContext *cx, JSHandleObject obj,
 
 static JSBool
 nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSHandleObject obj, JSHandleId id,
-                                 JSAccessMode mode, JSMutableHandleValue vp)
+                                 JSAccessMode mode, JS::MutableHandle<JS::Value> vp)
 {
   uint32_t translated;
   if (mode & JSACC_WRITE) {
@@ -163,7 +163,7 @@ nsXBLDocGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
 }
 
 static JSBool
-nsXBLDocGlobalObject_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
+nsXBLDocGlobalObject_resolve(JSContext *cx, JS::HandleObject obj, JS::HandleId id)
 {
   JSBool did_resolve = JS_FALSE;
   return JS_ResolveStandardClass(cx, obj, id, &did_resolve);

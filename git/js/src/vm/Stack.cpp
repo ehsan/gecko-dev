@@ -17,6 +17,7 @@
 #endif
 
 #include "vm/Interpreter-inl.h"
+#include "vm/ScopeObject-inl.h"
 #include "vm/Stack-inl.h"
 #include "vm/Probes-inl.h"
 
@@ -245,13 +246,13 @@ AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *
              * 'with' does not participate in the static scope of the script,
              * but it does in the dynamic scope, so skip them here.
              */
-            while (scope->isWith())
-                scope = &scope->asWith().enclosingScope();
+            while (scope->is<WithObject>())
+                scope = &scope->as<WithObject>().enclosingScope();
 
             switch (i.type()) {
               case StaticScopeIter::BLOCK:
-                JS_ASSERT(i.block() == scope->asClonedBlock().staticBlock());
-                scope = &scope->asClonedBlock().enclosingScope();
+                JS_ASSERT(i.block() == scope->as<ClonedBlockObject>().staticBlock());
+                scope = &scope->as<ClonedBlockObject>().enclosingScope();
                 break;
               case StaticScopeIter::FUNCTION:
                 JS_ASSERT(scope->as<CallObject>().callee().nonLazyScript() == i.funScript());
@@ -265,8 +266,9 @@ AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *
     }
 
     /*
-     * Ideally, we'd JS_ASSERT(!scope->isScope()) but the enclosing lexical
-     * scope chain stops at eval() boundaries. See StaticScopeIter comment.
+     * Ideally, we'd JS_ASSERT(!scope->is<ScopeObject>()) but the enclosing
+     * lexical scope chain stops at eval() boundaries. See StaticScopeIter
+     * comment.
      */
 #endif
 }
@@ -288,7 +290,7 @@ StackFrame::prologue(JSContext *cx)
     RootedScript script(cx, this->script());
 
     JS_ASSERT(!isGeneratorFrame());
-    JS_ASSERT(cx->regs().pc == script->code);
+    JS_ASSERT(cx->interpreterRegs().pc == script->code);
 
     if (isEvalFrame()) {
         if (script->strict) {
@@ -341,7 +343,7 @@ StackFrame::epilogue(JSContext *cx)
                 DebugScopes::onPopStrictEvalScope(this);
         } else if (isDirectEvalFrame()) {
             if (isDebuggerFrame())
-                JS_ASSERT(!scopeChain()->isScope());
+                JS_ASSERT(!scopeChain()->is<ScopeObject>());
         } else {
             /*
              * Debugger.Object.prototype.evalInGlobal creates indirect eval
@@ -350,16 +352,18 @@ StackFrame::epilogue(JSContext *cx)
              * indirect eval frames scoped to an object carrying the introduced
              * bindings.
              */
-            if (isDebuggerFrame())
-                JS_ASSERT(scopeChain()->isGlobal() || scopeChain()->enclosingScope()->isGlobal());
-            else
-                JS_ASSERT(scopeChain()->isGlobal());
+            if (isDebuggerFrame()) {
+                JS_ASSERT(scopeChain()->is<GlobalObject>() ||
+                          scopeChain()->enclosingScope()->is<GlobalObject>());
+            } else {
+                JS_ASSERT(scopeChain()->is<GlobalObject>());
+            }
         }
         return;
     }
 
     if (isGlobalFrame()) {
-        JS_ASSERT(!scopeChain()->isScope());
+        JS_ASSERT(!scopeChain()->is<ScopeObject>());
         return;
     }
 
@@ -409,7 +413,7 @@ StackFrame::popBlock(JSContext *cx)
         DebugScopes::onPopBlock(cx, this);
 
     if (blockChain_->needsClone()) {
-        JS_ASSERT(scopeChain_->asClonedBlock().staticBlock() == *blockChain_);
+        JS_ASSERT(scopeChain_->as<ClonedBlockObject>().staticBlock() == *blockChain_);
         popOffScopeChain();
     }
 
@@ -422,7 +426,7 @@ StackFrame::popWith(JSContext *cx)
     if (cx->compartment()->debugMode())
         DebugScopes::onPopWith(this);
 
-    JS_ASSERT(scopeChain()->isWith());
+    JS_ASSERT(scopeChain()->is<WithObject>());
     popOffScopeChain();
 }
 
@@ -805,7 +809,7 @@ ContextStack::ensureOnTop(JSContext *cx, MaybeReportError report, unsigned nvars
                           MaybeExtend extend, bool *pushedSeg)
 {
     Value *firstUnused = space().firstUnused();
-    FrameRegs *regs = cx->maybeRegs();
+    FrameRegs *regs = cx->stack.maybeRegs();
 
     if (onTop() && extend) {
         if (!space().ensureSpace(cx, report, firstUnused, nvars))
@@ -903,7 +907,7 @@ ContextStack::pushInvokeFrame(JSContext *cx, const CallArgs &args,
                               InitialFrameFlags initial, InvokeFrameGuard *ifg)
 {
     JSObject &callee = args.callee();
-    JSFunction *fun = callee.toFunction();
+    JSFunction *fun = &callee.as<JSFunction>();
     if (!pushInvokeFrame(cx, REPORT_ERROR, args, fun, initial, ifg))
         return false;
     return true;
@@ -938,10 +942,9 @@ ContextStack::pushExecuteFrame(JSContext *cx, HandleScript script, const Value &
     } else {
         prevLink = maybefp();
         extend = CAN_EXTEND;
-        if (maybefp()) {
-            ScriptFrameIter iter(cx);
+        ScriptFrameIter iter(cx);
+        if (!iter.done())
             prev = iter.isIon() ? maybefp() : iter.abstractFramePtr();
-        }
     }
 
     unsigned nvars = 2 /* callee, this */ + VALUES_PER_STACK_FRAME + script->nslots;
@@ -1772,8 +1775,8 @@ ScriptFrameIter::numFrameSlots() const
       }
       case SCRIPTED:
         JS_ASSERT(data_.cx_);
-        JS_ASSERT(data_.cx_->regs().spForStackDepth(0) == interpFrame()->base());
-        return data_.cx_->regs().sp - interpFrame()->base();
+        JS_ASSERT(data_.cx_->stack.regs().spForStackDepth(0) == interpFrame()->base());
+        return data_.cx_->stack.regs().sp - interpFrame()->base();
     }
     JS_NOT_REACHED("Unexpected state");
     return 0;

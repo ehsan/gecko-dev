@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscntxtinlines_h___
-#define jscntxtinlines_h___
+#ifndef jscntxtinlines_h
+#define jscntxtinlines_h
 
 #include "jscntxt.h"
 
@@ -48,7 +48,7 @@ NewObjectCache::lookup(Class *clasp, gc::Cell *key, gc::AllocKind kind, EntryInd
 inline bool
 NewObjectCache::lookupProto(Class *clasp, JSObject *proto, gc::AllocKind kind, EntryIndex *pentry)
 {
-    JS_ASSERT(!proto->isGlobal());
+    JS_ASSERT(!proto->is<GlobalObject>());
     return lookup(clasp, proto, kind, pentry);
 }
 
@@ -126,11 +126,11 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_, js::gc::Initi
 struct PreserveRegsGuard
 {
     PreserveRegsGuard(JSContext *cx, FrameRegs &regs)
-      : prevContextRegs(cx->maybeRegs()), cx(cx), regs_(regs) {
+      : prevContextRegs(cx->stack.maybeRegs()), cx(cx), regs_(regs) {
         cx->stack.repointRegs(&regs_);
     }
     ~PreserveRegsGuard() {
-        JS_ASSERT(cx->maybeRegs() == &regs_);
+        JS_ASSERT(cx->stack.maybeRegs() == &regs_);
         *prevContextRegs = regs_;
         cx->stack.repointRegs(prevContextRegs);
     }
@@ -395,7 +395,7 @@ CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
     JS_ASSERT_IF(native != FunctionProxyClass.construct &&
                  native != js::CallOrConstructBoundFunction &&
                  native != js::IteratorConstructor &&
-                 (!callee->isFunction() || callee->toFunction()->native() != obj_construct),
+                 (!callee->is<JSFunction>() || callee->as<JSFunction>().native() != obj_construct),
                  !args.rval().isPrimitive() && callee != &args.rval().toObject());
 
     return true;
@@ -458,7 +458,7 @@ CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, un
 inline bool
 JSContext::canSetDefaultVersion() const
 {
-    return !stack.hasfp() && !hasVersionOverride;
+    return !currentlyRunning() && !hasVersionOverride;
 }
 
 inline void
@@ -518,7 +518,7 @@ JSContext::setDefaultCompartmentObject(JSObject *obj)
          * final leaveCompartment call to set the context's compartment back to
          * defaultCompartmentObject->compartment()).
          */
-        JS_ASSERT(!hasfp());
+        JS_ASSERT(!currentlyRunning());
         setCompartment(obj ? obj->compartment() : NULL);
         if (throwing)
             wrapPendingException();
@@ -572,6 +572,29 @@ JSContext::setCompartment(JSCompartment *comp)
 {
     compartment_ = comp;
     zone_ = comp ? comp->zone() : NULL;
+    allocator_ = zone_ ? &zone_->allocator : NULL;
 }
 
-#endif /* jscntxtinlines_h___ */
+template <typename T>
+inline bool
+js::ThreadSafeContext::isInsideCurrentZone(T thing) const
+{
+    return thing->isInsideZone(zone_);
+}
+
+inline js::AllowGC
+js::ThreadSafeContext::allowGC() const
+{
+    switch (contextKind_) {
+      case Context_JS:
+        return CanGC;
+      case Context_ForkJoin:
+        return NoGC;
+      default:
+        /* Silence warnings. */
+        JS_NOT_REACHED("Bad context kind");
+        return NoGC;
+    }
+}
+
+#endif /* jscntxtinlines_h */

@@ -2113,7 +2113,7 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
 }
 
 #historySwipeAnimationContainer {
-  background: url("chrome://browser/skin/linen-pattern.png") #B3B9C1;
+  background: url("chrome://browser/skin/subtle-pattern.png") #B3B9C1;
 }
 
 /* ----- SIDEBAR ELEMENTS ----- */

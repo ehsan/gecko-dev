@@ -348,6 +348,11 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
         MOZ_CRASH();
 #endif
 
+#if (defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)) && defined(DEBUG)
+    for (int i = 0; i < THING_ROOT_LIMIT; ++i)
+        JS_ASSERT(cx->thingGCRooters[i] == NULL);
+#endif
+
     if (mode != DCM_NEW_FAILED) {
         if (JSContextCallback cxCallback = rt->cxCallback) {
             /*
@@ -385,10 +390,14 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
         /* Clear the statics table to remove GC roots. */
         rt->staticStrings.finish();
 
-        rt->finishSelfHosting();
-
         JS::PrepareForFullGC(rt);
         GC(rt, GC_NORMAL, JS::gcreason::LAST_CONTEXT);
+
+        /*
+         * Clear the self-hosted global and delete self-hosted classes *after*
+         * GC, as finalizers for objects check for clasp->finalize during GC.
+         */
+        rt->finishSelfHosting();
     } else if (mode == DCM_FORCE_GC) {
         JS_ASSERT(!rt->isHeapBusy());
         JS::PrepareForFullGC(rt);
@@ -1026,7 +1035,7 @@ js_ReportMissingArg(JSContext *cx, HandleValue v, unsigned arg)
     JS_snprintf(argbuf, sizeof argbuf, "%u", arg);
     bytes = NULL;
     if (IsFunctionObject(v)) {
-        atom = v.toObject().toFunction()->atom();
+        atom = v.toObject().as<JSFunction>().atom();
         bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK,
                                         v, atom);
         if (!bytes)
@@ -1125,8 +1134,40 @@ js_HandleExecutionInterrupt(JSContext *cx)
     return result;
 }
 
-JSContext::JSContext(JSRuntime *rt)
+js::ThreadSafeContext::ThreadSafeContext(JSRuntime *rt, PerThreadData *pt, ContextKind kind)
   : ContextFriendFields(rt),
+    contextKind_(kind),
+    perThreadData(pt)
+{ }
+
+bool
+ThreadSafeContext::isJSContext() const
+{
+    return contextKind_ == Context_JS;
+}
+
+JSContext *
+ThreadSafeContext::asJSContext()
+{
+    JS_ASSERT(isJSContext());
+    return reinterpret_cast<JSContext *>(this);
+}
+
+bool
+ThreadSafeContext::isForkJoinSlice() const
+{
+    return contextKind_ == Context_ForkJoin;
+}
+
+ForkJoinSlice *
+ThreadSafeContext::asForkJoinSlice()
+{
+    JS_ASSERT(isForkJoinSlice());
+    return reinterpret_cast<ForkJoinSlice *>(this);
+}
+
+JSContext::JSContext(JSRuntime *rt)
+  : ThreadSafeContext(rt, &rt->mainThread, Context_JS),
     defaultVersion(JSVERSION_DEFAULT),
     hasVersionOverride(false),
     throwing(false),
@@ -1297,6 +1338,20 @@ JSContext::restoreFrameChain()
 
     if (isExceptionPending())
         wrapPendingException();
+}
+
+bool
+JSContext::currentlyRunning() const
+{
+    for (ActivationIterator iter(runtime()); !iter.done(); ++iter) {
+        if (iter.activation()->cx() == this) {
+            if (iter.activation()->hasSavedFrameChain())
+                return false;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void

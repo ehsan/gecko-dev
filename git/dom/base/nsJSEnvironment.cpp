@@ -1364,6 +1364,7 @@ nsresult
 nsJSContext::ExecuteScript(JSScript* aScriptObject_,
                            JSObject* aScopeObject_)
 {
+  JSAutoRequest ar(mContext);
   JS::Rooted<JSObject*> aScopeObject(mContext, aScopeObject_);
   JS::Rooted<JSScript*> aScriptObject(mContext, aScriptObject_);
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
@@ -3429,6 +3430,11 @@ nsJSRuntime::Init()
   Preferences::RegisterCallbackAndCall(SetMemoryGCPrefChangedCallback,
                                        "javascript.options.mem.gc_allocation_threshold_mb",
                                        (void *)JSGC_ALLOCATION_THRESHOLD);
+
+  Preferences::RegisterCallbackAndCall(SetMemoryGCPrefChangedCallback,
+                                       "javascript.options.mem.gc_decommit_threshold_mb",
+                                       (void *)JSGC_DECOMMIT_THRESHOLD);
+
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
     return NS_ERROR_FAILURE;

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef Stack_h__
-#define Stack_h__
+#ifndef vm_Stack_h
+#define vm_Stack_h
 
 #include "jsautooplen.h"
 #include "jsfun.h"
@@ -183,6 +183,8 @@ class AbstractFramePtr
     inline JSObject *scopeChain() const;
     inline CallObject &callObj() const;
     inline bool initFunctionScopeObjects(JSContext *cx);
+    inline void pushOnScopeChain(ScopeObject &scope);
+
     inline JSCompartment *compartment() const;
 
     inline StaticBlockObject *maybeBlockChain() const;
@@ -281,33 +283,32 @@ class StackFrame
 
         /* Temporary frame states */
         YIELDING           =       0x40,  /* Interpret dispatched JSOP_YIELD */
-        FINISHED_IN_INTERP =       0x80,  /* set if frame finished in Interpret() */
 
         /* Function prologue state */
-        HAS_CALL_OBJ       =      0x100,  /* CallObject created for heavyweight fun */
-        HAS_ARGS_OBJ       =      0x200,  /* ArgumentsObject created for needsArgsObj script */
+        HAS_CALL_OBJ       =       0x80,  /* CallObject created for heavyweight fun */
+        HAS_ARGS_OBJ       =      0x100,  /* ArgumentsObject created for needsArgsObj script */
 
         /* Lazy frame initialization */
-        HAS_HOOK_DATA      =      0x400,  /* frame has hookData_ set */
-        HAS_RVAL           =      0x800,  /* frame has rval_ set */
-        HAS_SCOPECHAIN     =     0x1000,  /* frame has scopeChain_ set */
-        HAS_PREVPC         =     0x2000,  /* frame has prevpc_ and prevInline_ set */
-        HAS_BLOCKCHAIN     =     0x4000,  /* frame has blockChain_ set */
+        HAS_HOOK_DATA      =      0x200,  /* frame has hookData_ set */
+        HAS_RVAL           =      0x400,  /* frame has rval_ set */
+        HAS_SCOPECHAIN     =      0x800,  /* frame has scopeChain_ set */
+        HAS_PREVPC         =     0x1000,  /* frame has prevpc_ and prevInline_ set */
+        HAS_BLOCKCHAIN     =     0x2000,  /* frame has blockChain_ set */
 
         /* Debugger state */
-        PREV_UP_TO_DATE    =     0x8000,  /* see DebugScopes::updateLiveScopes */
+        PREV_UP_TO_DATE    =     0x4000,  /* see DebugScopes::updateLiveScopes */
 
         /* Used in tracking calls and profiling (see vm/SPSProfiler.cpp) */
-        HAS_PUSHED_SPS_FRAME =  0x10000,  /* SPS was notified of enty */
+        HAS_PUSHED_SPS_FRAME =   0x8000,  /* SPS was notified of enty */
 
         /*
          * If set, we entered one of the JITs and ScriptFrameIter should skip
          * this frame.
          */
-        RUNNING_IN_JIT     =    0x20000,
+        RUNNING_IN_JIT     =    0x10000,
 
         /* Miscellaneous state. */
-        USE_NEW_TYPE       =    0x40000   /* Use new type for constructed |this| object. */
+        USE_NEW_TYPE       =    0x20000   /* Use new type for constructed |this| object. */
     };
 
   private:
@@ -705,7 +706,7 @@ class StackFrame
 
     JSFunction &callee() const {
         JS_ASSERT(isFunctionFrame());
-        return *calleev().toObject().toFunction();
+        return calleev().toObject().as<JSFunction>();
     }
 
     const Value &calleev() const {
@@ -931,14 +932,6 @@ class StackFrame
 
     void clearYielding() {
         flags_ &= ~YIELDING;
-    }
-
-    void setFinishedInInterpreter() {
-        flags_ |= FINISHED_IN_INTERP;
-    }
-
-    bool finishedInInterpreter() const {
-        return !!(flags_ & FINISHED_IN_INTERP);
     }
 
   public:
@@ -1605,6 +1598,9 @@ class InterpreterActivation : public Activation
         JS_ASSERT(current_);
         return current_;
     }
+    FrameRegs &regs() const {
+        return regs_;
+    }
 };
 
 // Iterates over a runtime's activation list.
@@ -1925,4 +1921,4 @@ class AllFramesIter : public ScriptFrameIter
 };
 
 }  /* namespace js */
-#endif /* Stack_h__ */
+#endif /* vm_Stack_h */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef Stack_inl_h__
-#define Stack_inl_h__
+#ifndef vm_Stack_inl_h
+#define vm_Stack_inl_h
 
 #include "mozilla/PodOperations.h"
 
@@ -74,7 +74,7 @@ inline void
 StackFrame::initPrev(JSContext *cx)
 {
     JS_ASSERT(flags_ & HAS_PREVPC);
-    if (FrameRegs *regs = cx->maybeRegs()) {
+    if (FrameRegs *regs = cx->stack.maybeRegs()) {
         prev_ = regs->fp();
         prevpc_ = regs->pc;
         JS_ASSERT(uint32_t(prevpc_ - prev_->script()->code) < prev_->script()->length);
@@ -199,10 +199,10 @@ StackFrame::initArgsObj(ArgumentsObject &argsobj)
 inline ScopeObject &
 StackFrame::aliasedVarScope(ScopeCoordinate sc) const
 {
-    JSObject *scope = &scopeChain()->asScope();
+    JSObject *scope = &scopeChain()->as<ScopeObject>();
     for (unsigned i = sc.hops; i; i--)
-        scope = &scope->asScope().enclosingScope();
-    return scope->asScope();
+        scope = &scope->as<ScopeObject>().enclosingScope();
+    return scope->as<ScopeObject>();
 }
 
 inline void
@@ -218,7 +218,7 @@ inline void
 StackFrame::popOffScopeChain()
 {
     JS_ASSERT(flags_ & HAS_SCOPECHAIN);
-    scopeChain_ = &scopeChain_->asScope().enclosingScope();
+    scopeChain_ = &scopeChain_->as<ScopeObject>().enclosingScope();
 }
 
 inline CallObject &
@@ -448,6 +448,20 @@ AbstractFramePtr::scopeChain() const
         return asStackFrame()->scopeChain();
 #ifdef JS_ION
     return asBaselineFrame()->scopeChain();
+#else
+    JS_NOT_REACHED("Invalid frame");
+#endif
+}
+
+inline void
+AbstractFramePtr::pushOnScopeChain(ScopeObject &scope)
+{
+    if (isStackFrame()) {
+        asStackFrame()->pushOnScopeChain(scope);
+        return;
+    }
+#ifdef JS_ION
+    asBaselineFrame()->pushOnScopeChain(scope);
 #else
     JS_NOT_REACHED("Invalid frame");
 #endif
@@ -893,4 +907,4 @@ InterpreterActivation::~InterpreterActivation()
 
 } /* namespace js */
 
-#endif /* Stack_inl_h__ */
+#endif /* vm_Stack_inl_h */

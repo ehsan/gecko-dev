@@ -296,31 +296,6 @@ public:
   }
 };
 
-// Makes sure that the wrapper is preserved if new properties are added.
-class nsEventSH : public nsDOMGenericSH
-{
-protected:
-  nsEventSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
-  {
-  }
-
-  virtual ~nsEventSH()
-  {
-  }
-public:
-  NS_IMETHOD PreCreate(nsISupports* aNativeObj, JSContext* aCx,
-                       JSObject* aGlobalObj, JSObject** aParentObj) MOZ_OVERRIDE;
-  NS_IMETHOD AddProperty(nsIXPConnectWrappedNative* aWrapper, JSContext* aCx,
-                         JSObject* aObj, jsid Id, jsval* aVp, bool* aRetval) MOZ_OVERRIDE;
-
-  virtual void PreserveWrapper(nsISupports *aNative) MOZ_OVERRIDE;
-
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsEventSH(aData);
-  }
-};
-
 // Window scriptable helper
 
 class nsWindowSH : public nsDOMGenericSH
@@ -372,7 +347,7 @@ public:
                                               JSHandleId id, unsigned flags,
                                               JS::MutableHandle<JSObject*> objp);
   static JSBool GlobalScopePolluterGetProperty(JSContext *cx, JSHandleObject obj,
-                                               JSHandleId id, JSMutableHandleValue vp);
+                                               JSHandleId id, JS::MutableHandle<JS::Value> vp);
   static JSBool InvalidateGlobalScopePolluter(JSContext *cx,
                                               JS::Handle<JSObject*> obj);
   static nsresult InstallGlobalScopePolluter(JSContext *cx,
@@ -602,7 +577,7 @@ protected:
                                        nsContentList **nodeList);
 public:
   static JSBool DocumentAllGetProperty(JSContext *cx, JSHandleObject obj, JSHandleId id,
-                                       JSMutableHandleValue vp);
+                                       JS::MutableHandle<JS::Value> vp);
   static JSBool DocumentAllNewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
                                       unsigned flags, JS::MutableHandle<JSObject*> objp);
   static void ReleaseDocument(JSFreeOp *fop, JSObject *obj);
@@ -612,14 +587,14 @@ public:
 
 // HTMLFormElement helper
 
-class nsHTMLFormElementSH : public nsElementSH
+class HTMLFormElementSH : public nsElementSH
 {
 protected:
-  nsHTMLFormElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
+  HTMLFormElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
   {
   }
 
-  virtual ~nsHTMLFormElementSH()
+  virtual ~HTMLFormElementSH()
   {
   }
 
@@ -638,7 +613,7 @@ public:
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
-    return new nsHTMLFormElementSH(aData);
+    return new HTMLFormElementSH(aData);
   }
 };
 

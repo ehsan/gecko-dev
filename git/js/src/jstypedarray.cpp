@@ -471,20 +471,18 @@ class WeakObjectSlotRef : public js::gc::BufferableRef
     const char *desc;
 
   public:
-    WeakObjectSlotRef(JSObject *owner, size_t slot, const char desc[])
+    explicit WeakObjectSlotRef(JSObject *owner, size_t slot, const char desc[])
       : owner(owner), slot(slot), desc(desc)
     {
-    }
-
-    virtual bool match(void *location) {
-        return location == owner->getFixedSlot(slot).toPrivate();
     }
 
     virtual void mark(JSTracer *trc) {
         MarkObjectUnbarriered(trc, &owner, "weak TypeArrayView ref");
         JSObject *obj = static_cast<JSObject*>(owner->getFixedSlot(slot).toPrivate());
-        if (obj && obj != UNSET_BUFFER_LINK)
+        if (obj && obj != UNSET_BUFFER_LINK) {
+            JS_SET_TRACING_LOCATION(trc, (void*)&owner->getFixedSlotRef(slot));
             MarkObjectUnbarriered(trc, &obj, desc);
+        }
         owner->setFixedSlot(slot, PrivateValue(obj));
     }
 };
@@ -3816,7 +3814,7 @@ JSObject *
 js_InitTypedArrayClasses(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
-    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
+    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 
     /* Idempotency required: we initialize several things, possibly lazily. */
     RootedObject stop(cx);
