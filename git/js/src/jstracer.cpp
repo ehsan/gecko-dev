@@ -1743,11 +1743,9 @@ skip:
         }
         for (; n != 0; fp = fp->down) {
             --n;
-            if (fp->callee) {
+            if (fp->callee) { // might not have it if the entry frame is global
                 JS_ASSERT(JSVAL_IS_OBJECT(fp->argv[-1]));
                 fp->thisp = JSVAL_TO_OBJECT(fp->argv[-1]);
-                if (fp->flags & JSFRAME_CONSTRUCTING) // constructors always compute 'this'
-                    fp->flags |= JSFRAME_COMPUTED_THIS;
             }
         }
     }
@@ -3176,7 +3174,7 @@ js_DeleteRecorder(JSContext* cx)
 /**
  * Checks whether the shape of the global object has changed.
  */
-static inline JS_REQUIRES_STACK bool
+static inline bool
 js_CheckGlobalObjectShape(JSContext* cx, JSTraceMonitor* tm, JSObject* globalObj,
                           uint32 *shape=NULL, SlotList** slots=NULL)
 {
@@ -3392,7 +3390,7 @@ js_SynthesizeFrame(JSContext* cx, const FrameInfo& fi)
     newifp->frame.xmlNamespace = NULL;
     newifp->frame.blockChain = NULL;
     newifp->mark = newmark;
-    newifp->frame.thisp = NULL; // will be updated in FlushNativeStackFrame
+    newifp->frame.thisp = NULL; // will be set by js_ExecuteTree -> FlushNativeStackFrame
 
     newifp->frame.regs = fp->regs;
     newifp->frame.regs->pc = script->code;
@@ -3654,7 +3652,8 @@ js_AttemptToStabilizeTree(JSContext* cx, VMSideExit* exit, jsbytecode* outer)
 static JS_REQUIRES_STACK bool
 js_AttemptToExtendTree(JSContext* cx, VMSideExit* anchor, VMSideExit* exitedFrom, jsbytecode* outer)
 {
-    JS_ASSERT(!JS_TRACE_MONITOR(cx).needFlush);
+    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
+    JS_ASSERT(!tm->needFlush);
     Fragment* f = anchor->from->root;
     JS_ASSERT(f->vmprivate);
     TreeInfo* ti = (TreeInfo*)f->vmprivate;
@@ -4349,6 +4348,8 @@ LeaveTree(InterpState& state, VMSideExit* lr)
     // Verify that our state restoration worked.
     for (JSStackFrame* fp = cx->fp; fp; fp = fp->down) {
         JS_ASSERT_IF(fp->callee, JSVAL_IS_OBJECT(fp->argv[-1]));
+        JS_ASSERT_IF(fp->callee && fp->thisp != JSVAL_TO_OBJECT(fp->argv[-1]),
+                     !(fp->flags & JSFRAME_COMPUTED_THIS) && !fp->thisp);
     }
 #endif
 #ifdef JS_JIT_SPEW
@@ -5965,8 +5966,8 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
                     ABORT_TRACE("property found on non-native object");
                 }
 
-                js_FillPropertyCache(cx, aobj, 0, protoIndex, obj2,
-                                     (JSScopeProperty*) prop, false, &entry);
+                js_FillPropertyCache(cx, aobj, OBJ_SHAPE(aobj), 0, protoIndex, obj2,
+                                     (JSScopeProperty*) prop, &entry);
             }
         }
 
@@ -6238,30 +6239,13 @@ TraceRecorder::unbox_jsval(jsval v, LIns*& v_ins, LIns* exit)
 JS_REQUIRES_STACK bool
 TraceRecorder::getThis(LIns*& this_ins)
 {
-    JSObject* thisObj = js_ComputeThisForFrame(cx, cx->fp);
-    if (!thisObj)
-        ABORT_TRACE("js_ComputeThis failed");
-    if (!cx->fp->callee || JSVAL_IS_NULL(cx->fp->argv[-1])) {
-        JS_ASSERT(callDepth == 0);
-        /*
-         * In global code, or if 'this' is NULL (which mean calculate the global object and use
-         * it as 'this' object), bake the global object as 'this' object directly into the trace.
-         */
-        this_ins = INS_CONSTPTR(thisObj);
-        return true;
-    }
-    this_ins = get(&cx->fp->argv[-1]);
-    /*
-     * When we inline through scripted functions, we have already previously touched the 'this'
-     * object and hence it is already guaranteed to be wrapped. Otherwise we have to explicitly
-     * check that the object has been wrapped. If not, we side exit and let the interpreter
-     * wrap it.
-     */
-    if (callDepth == 0) {
-        LIns* map_ins = lir->insLoad(LIR_ldp, this_ins, (int)offsetof(JSObject, map));
-        LIns* ops_ins = lir->insLoad(LIR_ldp, map_ins, (int)offsetof(JSObjectMap, ops));
-        LIns* op_ins = lir->insLoad(LIR_ldp, ops_ins, (int)offsetof(JSObjectOps, thisObject));
-        guard(true, lir->ins_eq0(op_ins), MISMATCH_EXIT);
+    if (cx->fp->callee) { /* in a function */
+        if (JSVAL_IS_NULL(cx->fp->argv[-1]))
+            return false;
+        this_ins = get(&cx->fp->argv[-1]);
+        guard(false, lir->ins_eq0(this_ins), MISMATCH_EXIT);
+    } else { /* in global code */
+        this_ins = scopeChain();
     }
     return true;
 }

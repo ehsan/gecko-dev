@@ -53,7 +53,8 @@
  *    dslots is non-NULL.
  *
  * In dense mode, holes in the array are represented by JSVAL_HOLE.  The final
- * slot in fslots is unused.
+ * slot in fslots (JSSLOT_ARRAY_LOOKUP_HOLDER) is used to store the single jsid
+ * "in use" by a lookupProperty caller.
  *
  * Arrays are converted to use js_SlowArrayClass when any of these conditions
  * are met:
@@ -686,65 +687,72 @@ array_length_setter(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_TRUE;
 }
 
-/*
- * We have only indexed properties up to capacity (excepting holes), plus the
- * length property. For all else, we delegate to the prototype.
- */
-static inline bool
-IsDenseArrayId(JSContext *cx, JSObject *obj, jsid id)
-{
-    JS_ASSERT(OBJ_IS_DENSE_ARRAY(cx, obj));
-
-    uint32 i;
-    return id == ATOM_TO_JSID(cx->runtime->atomState.lengthAtom) ||
-           (js_IdIsIndex(id, &i) &&
-            obj->fslots[JSSLOT_ARRAY_LENGTH] != 0 &&
-            i < js_DenseArrayCapacity(obj) &&
-            obj->dslots[i] != JSVAL_HOLE);
-}
-
 static JSBool
 array_lookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
                      JSProperty **propp)
 {
+    uint32 i;
+    union { JSProperty *p; jsval *v; } u;
+
     if (!OBJ_IS_DENSE_ARRAY(cx, obj))
         return js_LookupProperty(cx, obj, id, objp, propp);
 
-    if (IsDenseArrayId(cx, obj, id)) {
-        *propp = (JSProperty *) id;
-        *objp = obj;
-        return JS_TRUE;
+    /*
+     * We have only indexed properties up to capacity (excepting holes), plus
+     * the length property. For all else, we delegate to the prototype.
+     */
+    if (id != ATOM_TO_JSID(cx->runtime->atomState.lengthAtom) &&
+        (!js_IdIsIndex(id, &i) ||
+         obj->fslots[JSSLOT_ARRAY_LENGTH] == 0 ||
+         i >= js_DenseArrayCapacity(obj) ||
+         obj->dslots[i] == JSVAL_HOLE))
+    {
+        JSObject *proto = STOBJ_GET_PROTO(obj);
+
+        if (!proto) {
+            *objp = NULL;
+            *propp = NULL;
+            return JS_TRUE;
+        }
+
+        return OBJ_LOOKUP_PROPERTY(cx, proto, id, objp, propp);
     }
 
-    JSObject *proto = STOBJ_GET_PROTO(obj);
-    if (!proto) {
-        *objp = NULL;
-        *propp = NULL;
-        return JS_TRUE;
-    }
-    return OBJ_LOOKUP_PROPERTY(cx, proto, id, objp, propp);
+    /* FIXME 417501: threadsafety: could race with a lookup on another thread.
+     * If we can only have a single lookup active per context, we could
+     * pigeonhole this on the context instead. */
+    JS_ASSERT(JSVAL_IS_VOID(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]));
+    obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER] = (jsval) id;
+    u.v = &(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]);
+    *propp = u.p;
+    *objp = obj;
+    return JS_TRUE;
 }
 
 static void
 array_dropProperty(JSContext *cx, JSObject *obj, JSProperty *prop)
 {
-    JS_ASSERT(IsDenseArrayId(cx, obj, (jsid) prop));
+    JS_ASSERT_IF(OBJ_IS_DENSE_ARRAY(cx, obj),
+                 !JSVAL_IS_VOID(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]));
+#ifdef DEBUG
+    obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER] = JSVAL_VOID;
+#endif
 }
 
-JSBool
-js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, JSProperty *prop,
-                             jsval *vp)
+jsval
+js_GetDenseArrayElementValue(JSObject *obj, JSProperty *prop)
 {
-    jsid id = (jsid) prop;
-    JS_ASSERT(IsDenseArrayId(cx, obj, id));
+    /* OBJ_IS_DENSE_ARRAY does not use the cx argument. */
+    JS_ASSERT(OBJ_IS_DENSE_ARRAY(cx, obj));
+    JS_ASSERT((void *) prop ==
+              (void *) &(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]));
+    JS_ASSERT(JSVAL_IS_INT(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]));
 
-    uint32 i;
-    if (!js_IdIsIndex(id, &i)) {
-        JS_ASSERT(id == ATOM_TO_JSID(cx->runtime->atomState.lengthAtom));
-        return IndexToValue(cx, obj->fslots[JSSLOT_ARRAY_LENGTH], vp);
-    }
-    *vp = obj->dslots[i];
-    return JS_TRUE;
+    jsint i = JSVAL_TO_INT(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]);
+    JS_ASSERT(i >= 0);
+    jsval v = obj->dslots[i];
+    JS_ASSERT(v != JSVAL_HOLE);
+    return v;
 }
 
 static JSBool
@@ -785,9 +793,8 @@ array_getProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
                 sprop = (JSScopeProperty *) prop;
                 if (!js_NativeGet(cx, obj, obj2, sprop, vp))
                     return JS_FALSE;
-            } else {
-                OBJ_DROP_PROPERTY(cx, obj2, prop);
             }
+            OBJ_DROP_PROPERTY(cx, obj2, prop);
         }
         return JS_TRUE;
     }
@@ -1284,7 +1291,7 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
 
         sprop = js_AddScopeProperty(cx, (JSScope *)map, id, NULL, NULL,
                                     i + JS_INITIAL_NSLOTS, JSPROP_ENUMERATE,
-                                    0, 0, NULL);
+                                    0, 0);
         if (!sprop)
             goto out_bad;
     }

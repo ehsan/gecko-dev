@@ -273,6 +273,7 @@ typedef struct JSPropertyCache {
     uint32              nofills;        /* couldn't fill (e.g. default get) */
     uint32              rofills;        /* set on read-only prop can't fill */
     uint32              disfills;       /* fill attempts on disabled cache */
+    uint32              oddfills;       /* fill attempt after setter deleted */
     uint32              modfills;       /* fill that rehashed to a new entry */
     uint32              brandfills;     /* scope brandings to type structural
                                            method fills */
@@ -343,10 +344,10 @@ typedef struct JSPropertyCache {
  * 4-bit scopeIndex, and 4-bit protoIndex.
  */
 extern JS_REQUIRES_STACK void
-js_FillPropertyCache(JSContext *cx, JSObject *obj,
+js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
                      uintN scopeIndex, uintN protoIndex,
                      JSObject *pobj, JSScopeProperty *sprop,
-                     JSBool cacheByPrevShape, JSPropCacheEntry **entryp);
+                     JSPropCacheEntry **entryp);
 
 /*
  * Property cache lookup macros. PROPERTY_CACHE_TEST is designed to inline the
@@ -464,19 +465,6 @@ extern const uint16 js_PrimitiveTestFlags[];
     (JS_ASSERT(!JSVAL_IS_VOID(thisv)),                                        \
      JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
                       js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
-
-static inline JSObject *
-js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
-{
-    if (fp->flags & JSFRAME_COMPUTED_THIS)
-        return fp->thisp;
-    JSObject* obj = js_ComputeThis(cx, JS_TRUE, fp->argv);
-    if (!obj)
-        return NULL;
-    fp->thisp = obj;
-    fp->flags |= JSFRAME_COMPUTED_THIS;
-    return obj;
-}
 
 /*
  * NB: js_Invoke requires that cx is currently running JS (i.e., that cx->fp

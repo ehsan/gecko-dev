@@ -947,19 +947,50 @@ JS_EndRequest(JSContext *cx)
 {
 #ifdef JS_THREADSAFE
     JSRuntime *rt;
+    JSTitle *title, **todop;
+    JSBool shared;
 
     CHECK_REQUEST(cx);
     JS_ASSERT(CURRENT_THREAD_IS_ME(cx->thread));
     JS_ASSERT(cx->requestDepth > 0);
     JS_ASSERT(cx->outstandingRequests > 0);
     if (cx->requestDepth == 1) {
+        js_LeaveTrace(cx);  /* for GC safety */
+
         /* Lock before clearing to interlock with ClaimScope, in jslock.c. */
         rt = cx->runtime;
         JS_LOCK_GC(rt);
         cx->requestDepth = 0;
         cx->outstandingRequests--;
 
-        js_ShareWaitingTitles(cx);
+        /* See whether cx has any single-threaded titles to start sharing. */
+        todop = &rt->titleSharingTodo;
+        shared = JS_FALSE;
+        while ((title = *todop) != NO_TITLE_SHARING_TODO) {
+            if (title->ownercx != cx) {
+                todop = &title->u.link;
+                continue;
+            }
+            *todop = title->u.link;
+            title->u.link = NULL;       /* null u.link for sanity ASAP */
+
+            /*
+             * If js_DropObjectMap returns null, we held the last ref to scope.
+             * The waiting thread(s) must have been killed, after which the GC
+             * collected the object that held this scope.  Unlikely, because it
+             * requires that the GC ran (e.g., from an operation callback)
+             * during this request, but possible.
+             */
+            if (js_DropObjectMap(cx, TITLE_TO_MAP(title), NULL)) {
+                js_InitLock(&title->lock);
+                title->u.count = 0;   /* NULL may not pun as 0 */
+                js_FinishSharingTitle(cx, title); /* set ownercx = NULL */
+                shared = JS_TRUE;
+            }
+        }
+        if (shared)
+            JS_NOTIFY_ALL_CONDVAR(rt->titleSharingDone);
+
         js_RevokeGCLocalFreeLists(cx);
 
         /* Give the GC a chance to run if this was the last request running. */
@@ -3195,32 +3226,30 @@ JS_AliasProperty(JSContext *cx, JSObject *obj, const char *name,
     return ok;
 }
 
-static JSBool
-LookupResult(JSContext *cx, JSObject *obj, JSObject *obj2, JSProperty *prop,
-             jsval *vp)
+static jsval
+LookupResult(JSContext *cx, JSObject *obj, JSObject *obj2, JSProperty *prop)
 {
+    JSScopeProperty *sprop;
+    jsval rval;
+
     if (!prop) {
         /* XXX bad API: no way to tell "not defined" from "void value" */
-        *vp = JSVAL_VOID;
-        return JS_TRUE;
+        return JSVAL_VOID;
     }
-
-    JSBool ok = JS_TRUE;
     if (OBJ_IS_NATIVE(obj2)) {
-        JSScopeProperty *sprop = (JSScopeProperty *) prop;
-
         /* Peek at the native property's slot value, without doing a Get. */
-        *vp = SPROP_HAS_VALID_SLOT(sprop, OBJ_SCOPE(obj2))
+        sprop = (JSScopeProperty *)prop;
+        rval = SPROP_HAS_VALID_SLOT(sprop, OBJ_SCOPE(obj2))
                ? LOCKED_OBJ_GET_SLOT(obj2, sprop->slot)
                : JSVAL_TRUE;
     } else if (OBJ_IS_DENSE_ARRAY(cx, obj2)) {
-        ok = js_GetDenseArrayElementValue(cx, obj2, prop, vp);
+        rval = js_GetDenseArrayElementValue(obj2, prop);
     } else {
         /* XXX bad API: no way to return "defined but value unknown" */
-        *vp = JSVAL_TRUE;
+        rval = JSVAL_TRUE;
     }
     OBJ_DROP_PROPERTY(cx, obj2, prop);
-    return ok;
+    return rval;
 }
 
 static JSBool
@@ -3463,23 +3492,29 @@ JS_HasPropertyById(JSContext *cx, JSObject *obj, jsid id, JSBool *foundp)
 JS_PUBLIC_API(JSBool)
 JS_LookupProperty(JSContext *cx, JSObject *obj, const char *name, jsval *vp)
 {
+    JSBool ok;
     JSObject *obj2;
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    return LookupProperty(cx, obj, name, JSRESOLVE_QUALIFIED, &obj2, &prop) &&
-           LookupResult(cx, obj, obj2, prop, vp);
+    ok = LookupProperty(cx, obj, name, JSRESOLVE_QUALIFIED, &obj2, &prop);
+    if (ok)
+        *vp = LookupResult(cx, obj, obj2, prop);
+    return ok;
 }
 
 JS_PUBLIC_API(JSBool)
 JS_LookupPropertyById(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
+    JSBool ok;
     JSObject *obj2;
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    return LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop) &&
-           LookupResult(cx, obj, obj2, prop, vp);
+    ok = LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop);
+    if (ok)
+        *vp = LookupResult(cx, obj, obj2, prop);
+    return ok;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3507,7 +3542,7 @@ JS_LookupPropertyWithFlagsById(JSContext *cx, JSObject *obj, jsid id,
          ? js_LookupPropertyWithFlags(cx, obj, id, flags, objp, &prop) >= 0
          : OBJ_LOOKUP_PROPERTY(cx, obj, id, objp, &prop);
     if (ok)
-        ok = LookupResult(cx, obj, *objp, prop, vp);
+        *vp = LookupResult(cx, obj, *objp, prop);
     return ok;
 }
 
@@ -3727,13 +3762,16 @@ JS_LookupUCProperty(JSContext *cx, JSObject *obj,
                     const jschar *name, size_t namelen,
                     jsval *vp)
 {
+    JSBool ok;
     JSObject *obj2;
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    return LookupUCProperty(cx, obj, name, namelen, JSRESOLVE_QUALIFIED,
-                            &obj2, &prop) &&
-           LookupResult(cx, obj, obj2, prop, vp);
+    ok = LookupUCProperty(cx, obj, name, namelen, JSRESOLVE_QUALIFIED,
+                          &obj2, &prop);
+    if (ok)
+        *vp = LookupResult(cx, obj, obj2, prop);
+    return ok;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3892,13 +3930,16 @@ JS_HasElement(JSContext *cx, JSObject *obj, jsint index, JSBool *foundp)
 JS_PUBLIC_API(JSBool)
 JS_LookupElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
 {
+    JSBool ok;
     JSObject *obj2;
     JSProperty *prop;
 
     CHECK_REQUEST(cx);
-    return LookupPropertyById(cx, obj, INT_TO_JSID(index), JSRESOLVE_QUALIFIED,
-                              &obj2, &prop) &&
-           LookupResult(cx, obj, obj2, prop, vp);
+    ok = LookupPropertyById(cx, obj, INT_TO_JSID(index), JSRESOLVE_QUALIFIED,
+                            &obj2, &prop);
+    if (ok)
+        *vp = LookupResult(cx, obj, obj2, prop);
+    return ok;
 }
 
 JS_PUBLIC_API(JSBool)
