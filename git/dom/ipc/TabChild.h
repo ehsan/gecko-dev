@@ -255,7 +255,6 @@ public:
 
     nsIPrincipal* GetPrincipal() { return mPrincipal; }
 
-    void SetBackgroundColor(const nscolor& aColor);
 protected:
     NS_OVERRIDE
     virtual PRenderFrameChild* AllocPRenderFrame();
@@ -279,7 +278,6 @@ private:
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
     PRUint32 mChromeFlags;
     nsIntRect mOuterRect;
-    nscolor mLastBackgroundColor;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

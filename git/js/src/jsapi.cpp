@@ -1278,33 +1278,30 @@ JS_EnterCrossCompartmentCall(JSContext *cx, JSObject *target)
     return reinterpret_cast<JSCrossCompartmentCall *>(call);
 }
 
-namespace js {
-
 // Declared in jscompartment.h
-Class dummy_class = {
+JSClass js_dummy_class = {
     "jdummy",
     JSCLASS_GLOBAL_FLAGS,
     JS_PropertyStub,  JS_PropertyStub,
     JS_PropertyStub,  JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub,
-    JS_ConvertStub
+    JS_ConvertStub,   NULL,
+    JSCLASS_NO_OPTIONAL_MEMBERS
 };
-
-} /*namespace js */
 
 JS_PUBLIC_API(JSCrossCompartmentCall *)
 JS_EnterCrossCompartmentCallScript(JSContext *cx, JSScript *target)
 {
     CHECK_REQUEST(cx);
-    JS_ASSERT(!target->isCachedEval);
-    GlobalObject *global = target->u.globalObject;
-    if (!global) {
+
+    JSObject *scriptObject = target->u.object;
+    if (!scriptObject) {
         SwitchToCompartment sc(cx, target->compartment());
-        global = GlobalObject::create(cx, &dummy_class);
-        if (!global)
+        scriptObject = JS_NewGlobalObject(cx, &js_dummy_class);
+        if (!scriptObject)
             return NULL;
     }
-    return JS_EnterCrossCompartmentCall(cx, global);
+    return JS_EnterCrossCompartmentCall(cx, scriptObject);
 }
 
 JS_PUBLIC_API(JSCrossCompartmentCall *)
@@ -4585,7 +4582,7 @@ CompileUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj, JSPrincipals *p
     assertSameCompartment(cx, obj, principals);
     AutoLastFrameCheck lfc(cx);
 
-    uint32 tcflags = JS_OPTIONS_TO_TCFLAGS(cx) | TCF_NEED_MUTABLE_SCRIPT | TCF_NEED_SCRIPT_GLOBAL;
+    uint32 tcflags = JS_OPTIONS_TO_TCFLAGS(cx) | TCF_NEED_MUTABLE_SCRIPT | TCF_NEED_SCRIPT_OBJECT;
     return BytecodeCompiler::compileScript(cx, obj, NULL, principals, tcflags, chars, length,
                                            filename, lineno, version);
 }
@@ -4762,7 +4759,7 @@ CompileFileHelper(JSContext *cx, JSObject *obj, JSPrincipals *principals,
 
     JS_ASSERT(i <= len);
     len = i;
-    uint32 tcflags = JS_OPTIONS_TO_TCFLAGS(cx) | TCF_NEED_MUTABLE_SCRIPT | TCF_NEED_SCRIPT_GLOBAL;
+    uint32 tcflags = JS_OPTIONS_TO_TCFLAGS(cx) | TCF_NEED_MUTABLE_SCRIPT | TCF_NEED_SCRIPT_OBJECT;
     script = BytecodeCompiler::compileScript(cx, obj, NULL, principals, tcflags, buf, len,
                                              filename, 1, cx->findVersion());
     cx->free_(buf);
@@ -4823,12 +4820,11 @@ JS_CompileFileHandle(JSContext *cx, JSObject *obj, const char *filename, FILE *f
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_GetGlobalFromScript(JSScript *script)
+JS_GetObjectFromScript(JSScript *script)
 {
-    JS_ASSERT(!script->isCachedEval);
-    JS_ASSERT(script->u.globalObject);
+    JS_ASSERT(script->u.object);
 
-    return script->u.globalObject;
+    return script->u.object;
 }
 
 static JSFunction *
@@ -5022,7 +5018,7 @@ EvaluateUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj,
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
 
-    uint32 flags = TCF_COMPILE_N_GO | TCF_NEED_SCRIPT_GLOBAL;
+    uint32 flags = TCF_COMPILE_N_GO | TCF_NEED_SCRIPT_OBJECT;
     if (!rval)
         flags |= TCF_NO_SCRIPT_RVAL;
 

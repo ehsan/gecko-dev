@@ -1351,7 +1351,6 @@ nsStyleGradient::operator==(const nsStyleGradient& aOther) const
   if (mShape != aOther.mShape ||
       mSize != aOther.mSize ||
       mRepeating != aOther.mRepeating ||
-      mToCorner != aOther.mToCorner ||
       mBgPosX != aOther.mBgPosX ||
       mBgPosY != aOther.mBgPosY ||
       mAngle != aOther.mAngle)
@@ -1373,7 +1372,6 @@ nsStyleGradient::nsStyleGradient(void)
   : mShape(NS_STYLE_GRADIENT_SHAPE_LINEAR)
   , mSize(NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER)
   , mRepeating(false)
-  , mToCorner(false)
 {
 }
 

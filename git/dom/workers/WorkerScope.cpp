@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "WorkerScope.h"
 
 #include "jsapi.h"
@@ -70,7 +68,6 @@
 #define FUNCTION_FLAGS \
   JSPROP_ENUMERATE
 
-using namespace mozilla;
 USING_WORKERS_NAMESPACE
 
 namespace {
@@ -290,7 +287,7 @@ private:
 
     jsval rval = JSVAL_VOID;
     if (!JS_CallFunctionValue(aCx, JSVAL_TO_OBJECT(scope), listener,
-                              ArrayLength(argv), argv, &rval)) {
+                              JS_ARRAY_LENGTH(argv), argv, &rval)) {
       JS_ReportPendingException(aCx);
       return false;
     }

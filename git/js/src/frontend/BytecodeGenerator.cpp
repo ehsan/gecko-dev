@@ -93,6 +93,9 @@ using namespace js::frontend;
 extern uint8 js_opcode2extra[];
 #endif
 
+namespace js {
+namespace frontend {
+
 static JSBool
 NewTryNote(JSContext *cx, CodeGenerator *cg, JSTryNoteKind kind, uintN stackDepth,
            size_t start, size_t end);
@@ -103,8 +106,7 @@ EmitIndexOp(JSContext *cx, JSOp op, uintN index, CodeGenerator *cg, JSOp *psuffi
 static JSBool
 EmitLeaveBlock(JSContext *cx, CodeGenerator *cg, JSOp op, ObjectBox *box);
 
-static JSBool
-SetSrcNoteOffset(JSContext *cx, CodeGenerator *cg, uintN index, uintN which, ptrdiff_t offset);
+} /* namespace frontend */
 
 void
 TreeContext::trace(JSTracer *trc)
@@ -159,6 +161,8 @@ CodeGenerator::~CodeGenerator()
     if (spanDeps)
         cx->free_(spanDeps);
 }
+
+namespace frontend {
 
 static ptrdiff_t
 EmitCheck(JSContext *cx, CodeGenerator *cg, ptrdiff_t delta)
@@ -265,7 +269,7 @@ UpdateDecomposeLength(CodeGenerator *cg, uintN start)
 }
 
 ptrdiff_t
-frontend::Emit1(JSContext *cx, CodeGenerator *cg, JSOp op)
+Emit1(JSContext *cx, CodeGenerator *cg, JSOp op)
 {
     ptrdiff_t offset = EmitCheck(cx, cg, 1);
 
@@ -277,7 +281,7 @@ frontend::Emit1(JSContext *cx, CodeGenerator *cg, JSOp op)
 }
 
 ptrdiff_t
-frontend::Emit2(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1)
+Emit2(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1)
 {
     ptrdiff_t offset = EmitCheck(cx, cg, 2);
 
@@ -292,8 +296,8 @@ frontend::Emit2(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1)
 }
 
 ptrdiff_t
-frontend::Emit3(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1,
-                    jsbytecode op2)
+Emit3(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1,
+         jsbytecode op2)
 {
     ptrdiff_t offset = EmitCheck(cx, cg, 3);
 
@@ -309,7 +313,7 @@ frontend::Emit3(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1,
 }
 
 ptrdiff_t
-frontend::Emit5(JSContext *cx, CodeGenerator *cg, JSOp op, uint16 op1, uint16 op2)
+Emit5(JSContext *cx, CodeGenerator *cg, JSOp op, uint16 op1, uint16 op2)
 {
     ptrdiff_t offset = EmitCheck(cx, cg, 5);
 
@@ -327,7 +331,7 @@ frontend::Emit5(JSContext *cx, CodeGenerator *cg, JSOp op, uint16 op1, uint16 op
 }
 
 ptrdiff_t
-frontend::EmitN(JSContext *cx, CodeGenerator *cg, JSOp op, size_t extra)
+EmitN(JSContext *cx, CodeGenerator *cg, JSOp op, size_t extra)
 {
     ptrdiff_t length = 1 + (ptrdiff_t)extra;
     ptrdiff_t offset = EmitCheck(cx, cg, length);
@@ -554,8 +558,7 @@ AddJumpTarget(AddJumpTargetArgs *args, JumpTarget **jtp)
 }
 
 #ifdef DEBUG_brendan
-static int
-AVLCheck(JumpTarget *jt)
+static int AVLCheck(JumpTarget *jt)
 {
     int lh, rh;
 
@@ -1264,7 +1267,7 @@ GetJumpOffset(CodeGenerator *cg, jsbytecode *pc)
 }
 
 JSBool
-frontend::SetJumpOffset(JSContext *cx, CodeGenerator *cg, jsbytecode *pc, ptrdiff_t off)
+SetJumpOffset(JSContext *cx, CodeGenerator *cg, jsbytecode *pc, ptrdiff_t off)
 {
     if (!cg->spanDeps) {
         if (JUMP_OFFSET_MIN <= off && off <= JUMP_OFFSET_MAX) {
@@ -1278,6 +1281,8 @@ frontend::SetJumpOffset(JSContext *cx, CodeGenerator *cg, jsbytecode *pc, ptrdif
 
     return SetSpanDepTarget(cx, cg, GetSpanDep(cg, pc), off);
 }
+
+} /* namespace frontend */
 
 bool
 TreeContext::inStatement(StmtType type)
@@ -1339,8 +1344,10 @@ TreeContext::skipSpansGenerator(unsigned skip)
     return false;
 }
 
+namespace frontend {
+
 bool
-frontend::SetStaticLevel(TreeContext *tc, uintN staticLevel)
+SetStaticLevel(TreeContext *tc, uintN staticLevel)
 {
     /*
      * This is a lot simpler than error-checking every UpvarCookie::set, and
@@ -1356,7 +1363,7 @@ frontend::SetStaticLevel(TreeContext *tc, uintN staticLevel)
 }
 
 bool
-frontend::GenerateBlockId(TreeContext *tc, uint32& blockid)
+GenerateBlockId(TreeContext *tc, uint32& blockid)
 {
     if (tc->blockidGen == JS_BIT(20)) {
         JS_ReportErrorNumber(tc->parser->context, js_GetErrorMessage, NULL,
@@ -1368,7 +1375,7 @@ frontend::GenerateBlockId(TreeContext *tc, uint32& blockid)
 }
 
 void
-frontend::PushStatement(TreeContext *tc, StmtInfo *stmt, StmtType type, ptrdiff_t top)
+PushStatement(TreeContext *tc, StmtInfo *stmt, StmtType type, ptrdiff_t top)
 {
     stmt->type = type;
     stmt->flags = 0;
@@ -1387,7 +1394,7 @@ frontend::PushStatement(TreeContext *tc, StmtInfo *stmt, StmtType type, ptrdiff_
 }
 
 void
-frontend::PushBlockScope(TreeContext *tc, StmtInfo *stmt, ObjectBox *blockBox, ptrdiff_t top)
+PushBlockScope(TreeContext *tc, StmtInfo *stmt, ObjectBox *blockBox, ptrdiff_t top)
 {
     PushStatement(tc, stmt, STMT_BLOCK, top);
     stmt->flags |= SIF_SCOPE;
@@ -1673,7 +1680,7 @@ BackPatch(JSContext *cx, CodeGenerator *cg, ptrdiff_t last, jsbytecode *target, 
 }
 
 void
-frontend::PopStatementTC(TreeContext *tc)
+PopStatementTC(TreeContext *tc)
 {
     StmtInfo *stmt = tc->topStmt;
     tc->topStmt = stmt->down;
@@ -1686,7 +1693,7 @@ frontend::PopStatementTC(TreeContext *tc)
 }
 
 JSBool
-frontend::PopStatementCG(JSContext *cx, CodeGenerator *cg)
+PopStatementCG(JSContext *cx, CodeGenerator *cg)
 {
     StmtInfo *stmt = cg->topStmt;
     if (!STMT_IS_TRYING(stmt) &&
@@ -1700,7 +1707,7 @@ frontend::PopStatementCG(JSContext *cx, CodeGenerator *cg)
 }
 
 JSBool
-frontend::DefineCompileTimeConstant(JSContext *cx, CodeGenerator *cg, JSAtom *atom, ParseNode *pn)
+DefineCompileTimeConstant(JSContext *cx, CodeGenerator *cg, JSAtom *atom, ParseNode *pn)
 {
     /* XXX just do numbers for now */
     if (pn->isKind(TOK_NUMBER)) {
@@ -1711,7 +1718,7 @@ frontend::DefineCompileTimeConstant(JSContext *cx, CodeGenerator *cg, JSAtom *at
 }
 
 StmtInfo *
-frontend::LexicalLookup(TreeContext *tc, JSAtom *atom, jsint *slotp, StmtInfo *stmt)
+LexicalLookup(TreeContext *tc, JSAtom *atom, jsint *slotp, StmtInfo *stmt)
 {
     if (!stmt)
         stmt = tc->topScopeStmt;
@@ -1953,11 +1960,15 @@ EmitSlotIndexOp(JSContext *cx, JSOp op, uintN slot, uintN index, CodeGenerator *
     return bigSuffix == JSOP_NOP || Emit1(cx, cg, bigSuffix) >= 0;
 }
 
+} /* namespace frontend */
+
 bool
 CodeGenerator::shouldNoteClosedName(ParseNode *pn)
 {
     return !callsEval() && pn->isDefn() && pn->isClosed();
 }
+
+namespace frontend {
 
 /*
  * Adjust the slot for a block local to account for the number of variables
@@ -2041,7 +2052,7 @@ EmitLeaveBlock(JSContext *cx, CodeGenerator *cg, JSOp op, ObjectBox *box)
 {
     JSOp bigSuffix;
     uintN count = OBJ_BLOCK_COUNT(cx, box->object);
-
+    
     bigSuffix = EmitBigIndexPrefix(cx, cg, box->index);
     if (bigSuffix == JSOP_FALSE)
         return JS_FALSE;
@@ -2074,12 +2085,11 @@ EmitLeaveBlock(JSContext *cx, CodeGenerator *cg, JSOp op, ObjectBox *box)
 static bool
 TryConvertToGname(CodeGenerator *cg, ParseNode *pn, JSOp *op)
 {
-    if (cg->compileAndGo() &&
+    if (cg->compileAndGo() && 
         cg->compiler()->globalScope->globalObj &&
         !cg->mightAliasLocals() &&
         !pn->isDeoptimized() &&
-        !(cg->flags & TCF_STRICT_MODE_CODE))
-    {
+        !(cg->flags & TCF_STRICT_MODE_CODE)) { 
         switch (*op) {
           case JSOP_NAME:     *op = JSOP_GETGNAME; break;
           case JSOP_SETNAME:  *op = JSOP_SETGNAME; break;
@@ -2513,6 +2523,8 @@ BindNameToSlot(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
     return JS_TRUE;
 }
 
+} /* namespace frontend */
+
 bool
 CodeGenerator::addGlobalUse(JSAtom *atom, uint32 slot, UpvarCookie *cookie)
 {
@@ -2546,6 +2558,8 @@ CodeGenerator::addGlobalUse(JSAtom *atom, uint32 slot, UpvarCookie *cookie)
 
     return globalMap->add(p, atom, globalUseIndex);
 }
+
+namespace frontend {
 
 /*
  * If pn contains a useful expression, return true with *answer set to true.
@@ -2674,9 +2688,6 @@ CheckSideEffects(JSContext *cx, CodeGenerator *cg, ParseNode *pn, JSBool *answer
               case TOK_DOT:
 #if JS_HAS_XML_SUPPORT
               case TOK_DBLDOT:
-                JS_ASSERT_IF(pn2->getKind() == TOK_DBLDOT, !cg->inStrictMode());
-                /* FALL THROUGH */
-
 #endif
               case TOK_LP:
               case TOK_LB:
@@ -2809,7 +2820,6 @@ EmitNameOp(JSContext *cx, CodeGenerator *cg, ParseNode *pn, JSBool callContext)
 static bool
 EmitXMLName(JSContext *cx, ParseNode *pn, JSOp op, CodeGenerator *cg)
 {
-    JS_ASSERT(!cg->inStrictMode());
     JS_ASSERT(pn->isKind(TOK_UNARYOP));
     JS_ASSERT(pn->isOp(JSOP_XMLNAME));
     JS_ASSERT(op == JSOP_XMLNAME || op == JSOP_CALLXMLNAME);
@@ -3909,7 +3919,7 @@ bad:
 }
 
 JSBool
-frontend::EmitFunctionScript(JSContext *cx, CodeGenerator *cg, ParseNode *body)
+EmitFunctionScript(JSContext *cx, CodeGenerator *cg, ParseNode *body)
 {
     /*
      * The decompiler has assumptions about what may occur immediately after
@@ -4612,9 +4622,7 @@ EmitAssignment(JSContext *cx, CodeGenerator *cg, ParseNode *lhs, JSOp op, ParseN
         break;
 #if JS_HAS_XML_SUPPORT
       case TOK_UNARYOP:
-        JS_ASSERT(!cg->inStrictMode());
         JS_ASSERT(lhs->isOp(JSOP_SETXMLNAME));
-
         if (!EmitTree(cx, cg, lhs->pn_kid))
             return false;
         if (Emit1(cx, cg, JSOP_BINDXMLNAME) < 0)
@@ -4741,7 +4749,6 @@ EmitAssignment(JSContext *cx, CodeGenerator *cg, ParseNode *lhs, JSOp op, ParseN
 #endif
 #if JS_HAS_XML_SUPPORT
       case TOK_UNARYOP:
-        JS_ASSERT(!cg->inStrictMode());
         if (Emit1(cx, cg, JSOP_SETXMLNAME) < 0)
             return false;
         break;
@@ -4808,6 +4815,8 @@ EmitEndInit(JSContext *cx, CodeGenerator *cg, uint32 count)
     return Emit1(cx, cg, JSOP_ENDINIT) >= 0;
 }
 
+} /* namespace frontend */
+
 bool
 ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
 {
@@ -4835,7 +4844,7 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
         }
       case TOK_RB: {
         JS_ASSERT(isOp(JSOP_NEWINIT) && !(pn_xflags & PNX_NONCONST));
-
+ 
         JSObject *obj = NewDenseAllocatedArray(cx, pn_count);
         if (!obj)
             return false;
@@ -4898,6 +4907,8 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
     }
     return false;
 }
+
+namespace frontend {
 
 static bool
 EmitSingletonInitialiser(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
@@ -5065,7 +5076,7 @@ EmitTry(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
     ParseNode *lastCatch = NULL;
     if (ParseNode *pn2 = pn->pn_kid2) {
         uintN count = 0;    /* previous catch block's population */
-
+        
         /*
          * The emitted code for a catch block looks like:
          *
@@ -5097,7 +5108,7 @@ EmitTry(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
             if (guardJump != -1) {
                 if (EmitKnownBlockChain(cx, cg, prevBox) < 0)
                     return false;
-
+            
                 /* Fix up and clean up previous catch block. */
                 CHECK_AND_SET_JUMP_OFFSET_AT(cx, cg, guardJump);
 
@@ -5181,7 +5192,7 @@ EmitTry(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
     if (lastCatch && lastCatch->pn_kid2) {
         if (EmitKnownBlockChain(cx, cg, prevBox) < 0)
             return false;
-
+        
         CHECK_AND_SET_JUMP_OFFSET_AT(cx, cg, GUARDJUMP(stmtInfo));
 
         /* Sync the stack to take into account pushed exception. */
@@ -5401,17 +5412,14 @@ EmitLet(JSContext *cx, CodeGenerator *cg, ParseNode *&pn)
 static bool
 EmitXMLTag(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 {
-    JS_ASSERT(!cg->inStrictMode());
-
     if (Emit1(cx, cg, JSOP_STARTXML) < 0)
         return false;
 
     {
         jsatomid index;
-        JSAtom *tagAtom = (pn->isKind(TOK_XMLETAGO))
-                          ? cx->runtime->atomState.etagoAtom
-                          : cx->runtime->atomState.stagoAtom;
-        if (!cg->makeAtomIndex(tagAtom, &index))
+        JSAtom *tmp = (pn->isKind(TOK_XMLETAGO)) ? cx->runtime->atomState.etagoAtom
+                                                 : cx->runtime->atomState.stagoAtom;
+        if (!cg->makeAtomIndex(tmp, &index))
             return false;
         EMIT_INDEX_OP(JSOP_STRING, index);
     }
@@ -5459,8 +5467,6 @@ EmitXMLTag(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 static bool
 EmitXMLProcessingInstruction(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 {
-    JS_ASSERT(!cg->inStrictMode());
-
     jsatomid index;
     if (!cg->makeAtomIndex(pn->pn_pidata, &index))
         return false;
@@ -5550,301 +5556,13 @@ EmitWith(JSContext *cx, CodeGenerator *cg, ParseNode *pn, JSBool &ok)
     return true;
 }
 
-static bool
-EmitForIn(JSContext *cx, CodeGenerator *cg, ParseNode *pn, ptrdiff_t top)
-{
-    StmtInfo stmtInfo;
-    PushStatement(cg, &stmtInfo, STMT_FOR_IN_LOOP, top);
-
-    ParseNode *forHead = pn->pn_left;
-    ParseNode *forBody = pn->pn_right;
-
-    /*
-     * If the left part is 'var x', emit code to define x if necessary
-     * using a prolog opcode, but do not emit a pop. If the left part
-     * was originally 'var x = i', the parser will have rewritten it;
-     * see Parser::forStatement. 'for (let x = i in o)' is mercifully
-     * banned.
-     */
-    bool forLet = false;
-    if (ParseNode *decl = forHead->pn_kid1) {
-        JS_ASSERT(TokenKindIsDecl(decl->getKind()));
-        forLet = decl->isKind(TOK_LET);
-        cg->flags |= TCF_IN_FOR_INIT;
-        if (!EmitTree(cx, cg, decl))
-            return false;
-        cg->flags &= ~TCF_IN_FOR_INIT;
-    }
-
-    /* Compile the object expression to the right of 'in'. */
-    {
-        TempPopScope tps;
-        if (forLet && !tps.popBlock(cx, cg))
-            return false;
-        if (!EmitTree(cx, cg, forHead->pn_kid3))
-            return false;
-        if (forLet && !tps.repushBlock(cx, cg))
-            return false;
-    }
-
-    /*
-     * Emit a bytecode to convert top of stack value to the iterator
-     * object depending on the loop variant (for-in, for-each-in, or
-     * destructuring for-in).
-     */
-    JS_ASSERT(pn->isOp(JSOP_ITER));
-    if (Emit2(cx, cg, JSOP_ITER, (uint8) pn->pn_iflags) < 0)
-        return false;
-
-    /* Annotate so the decompiler can find the loop-closing jump. */
-    intN noteIndex = NewSrcNote(cx, cg, SRC_FOR_IN);
-    if (noteIndex < 0)
-        return false;
-
-    /*
-     * Jump down to the loop condition to minimize overhead assuming at
-     * least one iteration, as the other loop forms do.
-     */
-    ptrdiff_t jmp = EmitJump(cx, cg, JSOP_GOTO, 0);
-    if (jmp < 0)
-        return false;
-
-    intN noteIndex2 = NewSrcNote(cx, cg, SRC_TRACE);
-    if (noteIndex2 < 0)
-        return false;
-
-    top = CG_OFFSET(cg);
-    SET_STATEMENT_TOP(&stmtInfo, top);
-    if (EmitTraceOp(cx, cg, NULL) < 0)
-        return false;
-
-#ifdef DEBUG
-    intN loopDepth = cg->stackDepth;
-#endif
-
-    /*
-     * Emit code to get the next enumeration value and assign it to the
-     * left hand side. The JSOP_POP after this assignment is annotated
-     * so that the decompiler can distinguish 'for (x in y)' from
-     * 'for (var x in y)'.
-     */
-    if (!EmitAssignment(cx, cg, forHead->pn_kid2, JSOP_NOP, NULL))
-        return false;
-    ptrdiff_t tmp2 = CG_OFFSET(cg);
-    if (forHead->pn_kid1 && NewSrcNote2(cx, cg, SRC_DECL,
-                                        (forHead->pn_kid1->isOp(JSOP_DEFVAR))
-                                        ? SRC_DECL_VAR
-                                        : SRC_DECL_LET) < 0) {
-        return false;
-    }
-    if (Emit1(cx, cg, JSOP_POP) < 0)
-        return false;
-
-    /* The stack should be balanced around the assignment opcode sequence. */
-    JS_ASSERT(cg->stackDepth == loopDepth);
-
-    /* Emit code for the loop body. */
-    if (!EmitTree(cx, cg, forBody))
-        return false;
-
-    /* Set loop and enclosing "update" offsets, for continue. */
-    StmtInfo *stmt = &stmtInfo;
-    do {
-        stmt->update = CG_OFFSET(cg);
-    } while ((stmt = stmt->down) != NULL && stmt->type == STMT_LABEL);
-
-    /*
-     * Fixup the goto that starts the loop to jump down to JSOP_MOREITER.
-     */
-    CHECK_AND_SET_JUMP_OFFSET_AT(cx, cg, jmp);
-    if (Emit1(cx, cg, JSOP_MOREITER) < 0)
-        return false;
-    ptrdiff_t beq = EmitJump(cx, cg, JSOP_IFNE, top - CG_OFFSET(cg));
-    if (beq < 0)
-        return false;
-
-    /*
-     * Be careful: We must set noteIndex2 before noteIndex in case the noteIndex
-     * note gets bigger.
-     */
-    if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex2, 0, beq - top))
-        return false;
-    /* Set the first srcnote offset so we can find the start of the loop body. */
-    if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 0, tmp2 - jmp))
-        return false;
-    /* Set the second srcnote offset so we can find the closing jump. */
-    if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 1, beq - jmp))
-        return false;
-
-    /* Now fixup all breaks and continues (before the JSOP_ENDITER). */
-    if (!PopStatementCG(cx, cg))
-        return false;
-
-    if (!NewTryNote(cx, cg, JSTRY_ITER, cg->stackDepth, top, CG_OFFSET(cg)))
-        return false;
-
-    return Emit1(cx, cg, JSOP_ENDITER) >= 0;
-}
-
-static bool
-EmitNormalFor(JSContext *cx, CodeGenerator *cg, ParseNode *pn, ptrdiff_t top)
-{
-    StmtInfo stmtInfo;
-    PushStatement(cg, &stmtInfo, STMT_FOR_LOOP, top);
-
-    ParseNode *forHead = pn->pn_left;
-    ParseNode *forBody = pn->pn_right;
-
-    /* C-style for (init; cond; update) ... loop. */
-    JSOp op = JSOP_POP;
-    ParseNode *pn3 = forHead->pn_kid1;
-    if (!pn3) {
-        /* No initializer: emit an annotated nop for the decompiler. */
-        op = JSOP_NOP;
-    } else {
-        cg->flags |= TCF_IN_FOR_INIT;
-#if JS_HAS_DESTRUCTURING
-        if (pn3->isKind(TOK_ASSIGN) &&
-            !MaybeEmitGroupAssignment(cx, cg, op, pn3, &op)) {
-            return false;
-        }
-#endif
-        if (op == JSOP_POP) {
-            if (!EmitTree(cx, cg, pn3))
-                return false;
-            if (TokenKindIsDecl(pn3->getKind())) {
-                /*
-                 * Check whether a destructuring-initialized var decl
-                 * was optimized to a group assignment.  If so, we do
-                 * not need to emit a pop below, so switch to a nop,
-                 * just for the decompiler.
-                 */
-                JS_ASSERT(pn3->isArity(PN_LIST));
-                if (pn3->pn_xflags & PNX_GROUPINIT)
-                    op = JSOP_NOP;
-            }
-        }
-        cg->flags &= ~TCF_IN_FOR_INIT;
-    }
-
-    /*
-     * NB: the SRC_FOR note has offsetBias 1 (JSOP_{NOP,POP}_LENGTH).
-     * Use tmp to hold the biased srcnote "top" offset, which differs
-     * from the top local variable by the length of the JSOP_GOTO{,X}
-     * emitted in between tmp and top if this loop has a condition.
-     */
-    intN noteIndex = NewSrcNote(cx, cg, SRC_FOR);
-    if (noteIndex < 0 || Emit1(cx, cg, op) < 0)
-        return false;
-    ptrdiff_t tmp = CG_OFFSET(cg);
-
-    ptrdiff_t jmp = -1;
-    if (forHead->pn_kid2) {
-        /* Goto the loop condition, which branches back to iterate. */
-        jmp = EmitJump(cx, cg, JSOP_GOTO, 0);
-        if (jmp < 0)
-            return false;
-    }
-
-    top = CG_OFFSET(cg);
-    SET_STATEMENT_TOP(&stmtInfo, top);
-
-    intN noteIndex2 = NewSrcNote(cx, cg, SRC_TRACE);
-    if (noteIndex2 < 0)
-        return false;
-
-    /* Emit code for the loop body. */
-    if (EmitTraceOp(cx, cg, forBody) < 0)
-        return false;
-    if (!EmitTree(cx, cg, forBody))
-        return false;
-
-    /* Set the second note offset so we can find the update part. */
-    JS_ASSERT(noteIndex != -1);
-    ptrdiff_t tmp2 = CG_OFFSET(cg);
-
-    /* Set loop and enclosing "update" offsets, for continue. */
-    StmtInfo *stmt = &stmtInfo;
-    do {
-        stmt->update = CG_OFFSET(cg);
-    } while ((stmt = stmt->down) != NULL && stmt->type == STMT_LABEL);
-
-    /* Check for update code to do before the condition (if any). */
-    pn3 = forHead->pn_kid3;
-    if (pn3) {
-        op = JSOP_POP;
-#if JS_HAS_DESTRUCTURING
-        if (pn3->isKind(TOK_ASSIGN) &&
-            !MaybeEmitGroupAssignment(cx, cg, op, pn3, &op)) {
-            return false;
-        }
-#endif
-        if (op == JSOP_POP && !EmitTree(cx, cg, pn3))
-            return false;
-
-        /* Always emit the POP or NOP, to help the decompiler. */
-        if (Emit1(cx, cg, op) < 0)
-            return false;
-
-        /* Restore the absolute line number for source note readers. */
-        ptrdiff_t lineno = pn->pn_pos.end.lineno;
-        if (CG_CURRENT_LINE(cg) != (uintN) lineno) {
-            if (NewSrcNote2(cx, cg, SRC_SETLINE, lineno) < 0)
-                return false;
-            CG_CURRENT_LINE(cg) = (uintN) lineno;
-        }
-    }
-
-    ptrdiff_t tmp3 = CG_OFFSET(cg);
-
-    if (forHead->pn_kid2) {
-        /* Fix up the goto from top to target the loop condition. */
-        JS_ASSERT(jmp >= 0);
-        CHECK_AND_SET_JUMP_OFFSET_AT(cx, cg, jmp);
-
-        if (!EmitTree(cx, cg, forHead->pn_kid2))
-            return false;
-    }
-
-    /*
-     * Be careful: We must set noteIndex2 before noteIndex in case the noteIndex
-     * note gets bigger.
-     */
-    if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex2, 0, CG_OFFSET(cg) - top))
-        return false;
-    /* Set the first note offset so we can find the loop condition. */
-    if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 0, tmp3 - tmp))
-        return false;
-    if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 1, tmp2 - tmp))
-        return false;
-    /* The third note offset helps us find the loop-closing jump. */
-    if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 2, CG_OFFSET(cg) - tmp))
-        return false;
-
-    /* If no loop condition, just emit a loop-closing jump. */
-    op = forHead->pn_kid2 ? JSOP_IFNE : JSOP_GOTO;
-    if (EmitJump(cx, cg, op, top - CG_OFFSET(cg)) < 0)
-        return false;
-
-    /* Now fixup all breaks and continues. */
-    return PopStatementCG(cx, cg);
-}
-
-static inline bool
-EmitFor(JSContext *cx, CodeGenerator *cg, ParseNode *pn, ptrdiff_t top)
-{
-    return pn->pn_left->isKind(TOK_IN)
-           ? EmitForIn(cx, cg, pn, top)
-           : EmitNormalFor(cx, cg, pn, top);
-}
-
 JSBool
-frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
+EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 {
     JSBool useful, wantval;
     StmtInfo stmtInfo;
     StmtInfo *stmt;
-    ptrdiff_t top, off, tmp, beq, jmp;
+    ptrdiff_t top, off, tmp, beq, jmp, tmp2, tmp3;
     ParseNode *pn2, *pn3;
     JSAtom *atom;
     jsatomid atomIndex;
@@ -6142,7 +5860,280 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
         break;
 
       case TOK_FOR:
-        ok = EmitFor(cx, cg, pn, top);
+        beq = 0;                /* suppress gcc warnings */
+        jmp = -1;
+        pn2 = pn->pn_left;
+        PushStatement(cg, &stmtInfo, STMT_FOR_LOOP, top);
+
+        if (pn2->isKind(TOK_IN)) {
+            /* Set stmtInfo type for later testing. */
+            stmtInfo.type = STMT_FOR_IN_LOOP;
+
+            /*
+             * If the left part is 'var x', emit code to define x if necessary
+             * using a prolog opcode, but do not emit a pop. If the left part
+             * was originally 'var x = i', the parser will have rewritten it;
+             * see Parser::forStatement. 'for (let x = i in o)' is mercifully
+             * banned.
+             */
+            bool forLet = false;
+            if (ParseNode *decl = pn2->pn_kid1) {
+                JS_ASSERT(TokenKindIsDecl(decl->getKind()));
+                forLet = decl->isKind(TOK_LET);
+                cg->flags |= TCF_IN_FOR_INIT;
+                if (!EmitTree(cx, cg, decl))
+                    return JS_FALSE;
+                cg->flags &= ~TCF_IN_FOR_INIT;
+            }
+
+            /* Compile the object expression to the right of 'in'. */
+            {
+                TempPopScope tps;
+                if (forLet && !tps.popBlock(cx, cg))
+                    return JS_FALSE;
+                if (!EmitTree(cx, cg, pn2->pn_kid3))
+                    return JS_FALSE;
+                if (forLet && !tps.repushBlock(cx, cg))
+                    return JS_FALSE;
+            }
+
+            /*
+             * Emit a bytecode to convert top of stack value to the iterator
+             * object depending on the loop variant (for-in, for-each-in, or
+             * destructuring for-in).
+             */
+            JS_ASSERT(pn->isOp(JSOP_ITER));
+            if (Emit2(cx, cg, JSOP_ITER, (uint8) pn->pn_iflags) < 0)
+                return JS_FALSE;
+
+            /* Annotate so the decompiler can find the loop-closing jump. */
+            noteIndex = NewSrcNote(cx, cg, SRC_FOR_IN);
+            if (noteIndex < 0)
+                return JS_FALSE;
+
+            /*
+             * Jump down to the loop condition to minimize overhead assuming at
+             * least one iteration, as the other loop forms do.
+             */
+            jmp = EmitJump(cx, cg, JSOP_GOTO, 0);
+            if (jmp < 0)
+                return JS_FALSE;
+
+            noteIndex2 = NewSrcNote(cx, cg, SRC_TRACE);
+            if (noteIndex2 < 0)
+                return JS_FALSE;
+            
+            top = CG_OFFSET(cg);
+            SET_STATEMENT_TOP(&stmtInfo, top);
+            if (EmitTraceOp(cx, cg, NULL) < 0)
+                return JS_FALSE;
+
+#ifdef DEBUG
+            intN loopDepth = cg->stackDepth;
+#endif
+
+            /*
+             * Emit code to get the next enumeration value and assign it to the
+             * left hand side. The JSOP_POP after this assignment is annotated
+             * so that the decompiler can distinguish 'for (x in y)' from
+             * 'for (var x in y)'.
+             */
+            if (!EmitAssignment(cx, cg, pn2->pn_kid2, JSOP_NOP, NULL))
+                return false;
+            tmp2 = CG_OFFSET(cg);
+            if (pn2->pn_kid1 && NewSrcNote2(cx, cg, SRC_DECL, (pn2->pn_kid1->isOp(JSOP_DEFVAR))
+                                                              ? SRC_DECL_VAR
+                                                              : SRC_DECL_LET) < 0)
+            {
+                return false;
+            }
+            if (Emit1(cx, cg, JSOP_POP) < 0)
+                return false;
+
+            /* The stack should be balanced around the assignment opcode sequence. */
+            JS_ASSERT(cg->stackDepth == loopDepth);
+
+            /* Emit code for the loop body. */
+            if (!EmitTree(cx, cg, pn->pn_right))
+                return JS_FALSE;
+
+            /* Set loop and enclosing "update" offsets, for continue. */
+            stmt = &stmtInfo;
+            do {
+                stmt->update = CG_OFFSET(cg);
+            } while ((stmt = stmt->down) != NULL && stmt->type == STMT_LABEL);
+
+            /*
+             * Fixup the goto that starts the loop to jump down to JSOP_MOREITER.
+             */
+            CHECK_AND_SET_JUMP_OFFSET_AT(cx, cg, jmp);
+            if (Emit1(cx, cg, JSOP_MOREITER) < 0)
+                return JS_FALSE;
+            beq = EmitJump(cx, cg, JSOP_IFNE, top - CG_OFFSET(cg));
+            if (beq < 0)
+                return JS_FALSE;
+
+            /*
+             * Be careful: We must set noteIndex2 before noteIndex in case the noteIndex
+             * note gets bigger.
+             */
+            if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex2, 0, beq - top))
+                return JS_FALSE;
+            /* Set the first srcnote offset so we can find the start of the loop body. */
+            if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 0, tmp2 - jmp))
+                return JS_FALSE;
+            /* Set the second srcnote offset so we can find the closing jump. */
+            if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 1, beq - jmp))
+                return JS_FALSE;
+        } else {
+            /* C-style for (init; cond; update) ... loop. */
+            op = JSOP_POP;
+            pn3 = pn2->pn_kid1;
+            if (!pn3) {
+                /* No initializer: emit an annotated nop for the decompiler. */
+                op = JSOP_NOP;
+            } else {
+                cg->flags |= TCF_IN_FOR_INIT;
+#if JS_HAS_DESTRUCTURING
+                if (pn3->isKind(TOK_ASSIGN) &&
+                    !MaybeEmitGroupAssignment(cx, cg, op, pn3, &op)) {
+                    return JS_FALSE;
+                }
+#endif
+                if (op == JSOP_POP) {
+                    if (!EmitTree(cx, cg, pn3))
+                        return JS_FALSE;
+                    if (TokenKindIsDecl(pn3->getKind())) {
+                        /*
+                         * Check whether a destructuring-initialized var decl
+                         * was optimized to a group assignment.  If so, we do
+                         * not need to emit a pop below, so switch to a nop,
+                         * just for the decompiler.
+                         */
+                        JS_ASSERT(pn3->isArity(PN_LIST));
+                        if (pn3->pn_xflags & PNX_GROUPINIT)
+                            op = JSOP_NOP;
+                    }
+                }
+                cg->flags &= ~TCF_IN_FOR_INIT;
+            }
+
+            /*
+             * NB: the SRC_FOR note has offsetBias 1 (JSOP_{NOP,POP}_LENGTH).
+             * Use tmp to hold the biased srcnote "top" offset, which differs
+             * from the top local variable by the length of the JSOP_GOTO{,X}
+             * emitted in between tmp and top if this loop has a condition.
+             */
+            noteIndex = NewSrcNote(cx, cg, SRC_FOR);
+            if (noteIndex < 0 || Emit1(cx, cg, op) < 0)
+                return JS_FALSE;
+            tmp = CG_OFFSET(cg);
+
+            if (pn2->pn_kid2) {
+                /* Goto the loop condition, which branches back to iterate. */
+                jmp = EmitJump(cx, cg, JSOP_GOTO, 0);
+                if (jmp < 0)
+                    return JS_FALSE;
+            }
+
+            top = CG_OFFSET(cg);
+            SET_STATEMENT_TOP(&stmtInfo, top);
+
+            noteIndex2 = NewSrcNote(cx, cg, SRC_TRACE);
+            if (noteIndex2 < 0)
+                return JS_FALSE;
+            
+            /* Emit code for the loop body. */
+            if (EmitTraceOp(cx, cg, pn->pn_right) < 0)
+                return JS_FALSE;
+            if (!EmitTree(cx, cg, pn->pn_right))
+                return JS_FALSE;
+
+            /* Set the second note offset so we can find the update part. */
+            JS_ASSERT(noteIndex != -1);
+            tmp2 = CG_OFFSET(cg);
+
+            /* Set loop and enclosing "update" offsets, for continue. */
+            stmt = &stmtInfo;
+            do {
+                stmt->update = CG_OFFSET(cg);
+            } while ((stmt = stmt->down) != NULL && stmt->type == STMT_LABEL);
+
+            /* Check for update code to do before the condition (if any). */
+            pn3 = pn2->pn_kid3;
+            if (pn3) {
+                op = JSOP_POP;
+#if JS_HAS_DESTRUCTURING
+                if (pn3->isKind(TOK_ASSIGN) &&
+                    !MaybeEmitGroupAssignment(cx, cg, op, pn3, &op)) {
+                    return JS_FALSE;
+                }
+#endif
+                if (op == JSOP_POP && !EmitTree(cx, cg, pn3))
+                    return JS_FALSE;
+
+                /* Always emit the POP or NOP, to help the decompiler. */
+                if (Emit1(cx, cg, op) < 0)
+                    return JS_FALSE;
+
+                /* Restore the absolute line number for source note readers. */
+                off = (ptrdiff_t) pn->pn_pos.end.lineno;
+                if (CG_CURRENT_LINE(cg) != (uintN) off) {
+                    if (NewSrcNote2(cx, cg, SRC_SETLINE, off) < 0)
+                        return JS_FALSE;
+                    CG_CURRENT_LINE(cg) = (uintN) off;
+                }
+            }
+
+            tmp3 = CG_OFFSET(cg);
+
+            if (pn2->pn_kid2) {
+                /* Fix up the goto from top to target the loop condition. */
+                JS_ASSERT(jmp >= 0);
+                CHECK_AND_SET_JUMP_OFFSET_AT(cx, cg, jmp);
+
+                if (!EmitTree(cx, cg, pn2->pn_kid2))
+                    return JS_FALSE;
+            }
+
+            /*
+             * Be careful: We must set noteIndex2 before noteIndex in case the noteIndex
+             * note gets bigger.
+             */
+            if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex2, 0, CG_OFFSET(cg) - top))
+                return JS_FALSE;
+            /* Set the first note offset so we can find the loop condition. */
+            if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 0, tmp3 - tmp))
+                return JS_FALSE;
+            if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 1, tmp2 - tmp))
+                return JS_FALSE;
+            /* The third note offset helps us find the loop-closing jump. */
+            if (!SetSrcNoteOffset(cx, cg, (uintN)noteIndex, 2, CG_OFFSET(cg) - tmp))
+                return JS_FALSE;
+
+            if (pn2->pn_kid2) {
+                beq = EmitJump(cx, cg, JSOP_IFNE, top - CG_OFFSET(cg));
+                if (beq < 0)
+                    return JS_FALSE;
+            } else {
+                /* No loop condition -- emit the loop-closing jump. */
+                jmp = EmitJump(cx, cg, JSOP_GOTO, top - CG_OFFSET(cg));
+                if (jmp < 0)
+                    return JS_FALSE;
+            }
+        }
+
+        /* Now fixup all breaks and continues (before for/in's JSOP_ENDITER). */
+        if (!PopStatementCG(cx, cg))
+            return JS_FALSE;
+
+        if (pn2->isKind(TOK_IN)) {
+            if (!NewTryNote(cx, cg, JSTRY_ITER, cg->stackDepth, top, CG_OFFSET(cg)) ||
+                Emit1(cx, cg, JSOP_ENDITER) < 0)
+            {
+                return JS_FALSE;
+            }
+        }
         break;
 
       case TOK_BREAK: {
@@ -6771,7 +6762,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
             break;
 #if JS_HAS_XML_SUPPORT
           case TOK_UNARYOP:
-            JS_ASSERT(!cg->inStrictMode());
             JS_ASSERT(pn2->isOp(JSOP_SETXMLNAME));
             if (!EmitTree(cx, cg, pn2->pn_kid))
                 return JS_FALSE;
@@ -6809,7 +6799,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
             break;
 #if JS_HAS_XML_SUPPORT
           case TOK_DBLDOT:
-            JS_ASSERT(!cg->inStrictMode());
             if (!EmitElemOp(cx, pn2, JSOP_DELDESC, cg))
                 return JS_FALSE;
             break;
@@ -6849,8 +6838,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 
 #if JS_HAS_XML_SUPPORT
       case TOK_FILTER:
-        JS_ASSERT(!cg->inStrictMode());
-
         if (!EmitTree(cx, cg, pn->pn_left))
             return JS_FALSE;
         jmp = EmitJump(cx, cg, JSOP_FILTER, 0);
@@ -6880,12 +6867,10 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
         ok = EmitPropOp(cx, pn, pn->getOp(), cg, JS_FALSE);
         break;
 
+      case TOK_LB:
 #if JS_HAS_XML_SUPPORT
       case TOK_DBLDOT:
-        JS_ASSERT(!cg->inStrictMode());
-        /* FALL THROUGH */
 #endif
-      case TOK_LB:
         /*
          * Pop two operands, convert the left one to object and the right one
          * to property name (atom or tagged int), get the named property, and
@@ -6989,7 +6974,7 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
         break;
 
 #if JS_HAS_BLOCK_SCOPE
-      case TOK_LET:
+      case TOK_LET: 
         if (!EmitLet(cx, cg, pn))
             return false;
         break;
@@ -7286,8 +7271,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
       case TOK_XMLTEXT:
       case TOK_XMLCDATA:
       case TOK_XMLCOMMENT:
-        JS_ASSERT(!cg->inStrictMode());
-        /* FALL THROUGH */
 #endif
       case TOK_STRING:
         ok = EmitAtomOp(cx, pn, pn->getOp(), cg);
@@ -7318,9 +7301,7 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 #if JS_HAS_XML_SUPPORT
       case TOK_XMLELEM:
       case TOK_XMLLIST:
-        JS_ASSERT(!cg->inStrictMode());
         JS_ASSERT(pn->isKind(TOK_XMLLIST) || pn->pn_count != 0);
-
         switch (pn->pn_head ? pn->pn_head->getKind() : TOK_XMLLIST) {
           case TOK_XMLETAGO:
             JS_ASSERT(0);
@@ -7370,8 +7351,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
         break;
 
       case TOK_XMLNAME:
-        JS_ASSERT(!cg->inStrictMode());
-
         if (pn->isArity(PN_LIST)) {
             JS_ASSERT(pn->pn_count != 0);
             for (pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
@@ -7445,7 +7424,7 @@ AllocSrcNote(JSContext *cx, CodeGenerator *cg)
 }
 
 intN
-frontend::NewSrcNote(JSContext *cx, CodeGenerator *cg, SrcNoteType type)
+NewSrcNote(JSContext *cx, CodeGenerator *cg, SrcNoteType type)
 {
     intN index, n;
     jssrcnote *sn;
@@ -7493,7 +7472,7 @@ frontend::NewSrcNote(JSContext *cx, CodeGenerator *cg, SrcNoteType type)
 }
 
 intN
-frontend::NewSrcNote2(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdiff_t offset)
+NewSrcNote2(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdiff_t offset)
 {
     intN index;
 
@@ -7506,7 +7485,7 @@ frontend::NewSrcNote2(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdif
 }
 
 intN
-frontend::NewSrcNote3(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdiff_t offset1,
+NewSrcNote3(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdiff_t offset1,
             ptrdiff_t offset2)
 {
     intN index;
@@ -7536,7 +7515,7 @@ GrowSrcNotes(JSContext *cx, CodeGenerator *cg)
 }
 
 jssrcnote *
-frontend::AddToSrcNoteDelta(JSContext *cx, CodeGenerator *cg, jssrcnote *sn, ptrdiff_t delta)
+AddToSrcNoteDelta(JSContext *cx, CodeGenerator *cg, jssrcnote *sn, ptrdiff_t delta)
 {
     ptrdiff_t base, limit, newdelta, diff;
     intN index;
@@ -7569,7 +7548,7 @@ frontend::AddToSrcNoteDelta(JSContext *cx, CodeGenerator *cg, jssrcnote *sn, ptr
     return sn;
 }
 
-static JSBool
+JSBool
 SetSrcNoteOffset(JSContext *cx, CodeGenerator *cg, uintN index, uintN which, ptrdiff_t offset)
 {
     jssrcnote *sn;
@@ -7628,8 +7607,7 @@ SetSrcNoteOffset(JSContext *cx, CodeGenerator *cg, uintN index, uintN which, ptr
 #define NBINS 10
 static uint32 hist[NBINS];
 
-static void
-DumpSrcNoteSizeHist()
+static void DumpSrcNoteSizeHist()
 {
     static FILE *fp;
     int i, n;
@@ -7659,7 +7637,7 @@ DumpSrcNoteSizeHist()
  * CORRESPONDING CHANGES!
  */
 JSBool
-frontend::FinishTakingSrcNotes(JSContext *cx, CodeGenerator *cg, jssrcnote *notes)
+FinishTakingSrcNotes(JSContext *cx, CodeGenerator *cg, jssrcnote *notes)
 {
     uintN prologCount, mainCount, totalCount;
     ptrdiff_t offset, delta;
@@ -7740,7 +7718,7 @@ NewTryNote(JSContext *cx, CodeGenerator *cg, JSTryNoteKind kind, uintN stackDept
 }
 
 void
-frontend::FinishTakingTryNotes(CodeGenerator *cg, JSTryNoteArray *array)
+FinishTakingTryNotes(CodeGenerator *cg, JSTryNoteArray *array)
 {
     TryNode *tryNode;
     JSTryNote *tn;
@@ -7753,6 +7731,8 @@ frontend::FinishTakingTryNotes(CodeGenerator *cg, JSTryNoteArray *array)
     } while ((tryNode = tryNode->prev) != NULL);
     JS_ASSERT(tn == array->vector);
 }
+
+} /* namespace frontend */
 
 /*
  * Find the index of the given object for code generator.
@@ -7831,6 +7811,8 @@ GCConstList::finish(JSConstArray *array)
     for (; src != srcend; ++src, ++dst)
         *dst = *src;
 }
+
+} /* namespace js */
 
 /*
  * We should try to get rid of offsetBias (always 0 or 1, where 1 is

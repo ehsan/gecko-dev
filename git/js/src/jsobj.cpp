@@ -1126,6 +1126,7 @@ class EvalScriptGuard
     void setNewScript(JSScript *script) {
         /* NewScriptFromCG has already called js_CallNewScriptHook. */
         JS_ASSERT(!script_ && script);
+        script->setOwnerObject(JS_CACHED_SCRIPT);
         script_ = script;
         script_->isActiveEval = true;
     }
@@ -6750,20 +6751,24 @@ js_GetClassPrototype(JSContext *cx, JSObject *scopeobj, JSProtoKey protoKey,
     JS_ASSERT(protoKey < JSProto_LIMIT);
 
     if (protoKey != JSProto_Null) {
-        GlobalObject *global;
-        if (scopeobj) {
-            global = scopeobj->getGlobal();
-        } else {
-            global = GetCurrentGlobal(cx);
-            if (!global) {
-                *protop = NULL;
-                return true;
+        if (!scopeobj) {
+            if (cx->hasfp())
+                scopeobj = &cx->fp()->scopeChain();
+            if (!scopeobj) {
+                scopeobj = cx->globalObject;
+                if (!scopeobj) {
+                    *protop = NULL;
+                    return true;
+                }
             }
         }
-        const Value &v = global->getReservedSlot(JSProto_LIMIT + protoKey);
-        if (v.isObject()) {
-            *protop = &v.toObject();
-            return true;
+        scopeobj = scopeobj->getGlobal();
+        if (scopeobj->isGlobal()) {
+            const Value &v = scopeobj->getReservedSlot(JSProto_LIMIT + protoKey);
+            if (v.isObject()) {
+                *protop = &v.toObject();
+                return true;
+            }
         }
     }
 

@@ -56,6 +56,8 @@ JS_STATIC_ASSERT(pn_offsetof(pn_link) == pn_offsetof(dn_uses));
 
 #undef pn_offsetof
 
+namespace js {
+
 void
 ParseNode::become(ParseNode *pn2)
 {
@@ -463,9 +465,13 @@ NameNode::create(JSAtom *atom, TreeContext *tc)
     return (NameNode *)pn;
 }
 
+} /* namespace js */
+
 const char js_argument_str[] = "argument";
 const char js_variable_str[] = "variable";
 const char js_unknown_str[]  = "unknown";
+
+namespace js {
 
 const char *
 Definition::kindString(Kind kind)
@@ -596,7 +602,7 @@ CloneParseTree(ParseNode *opn, TreeContext *tc)
  * the original tree.
  */
 ParseNode *
-js::CloneLeftHandSide(ParseNode *opn, TreeContext *tc)
+CloneLeftHandSide(ParseNode *opn, TreeContext *tc)
 {
     ParseNode *pn = tc->parser->new_<ParseNode>(opn->getKind(), opn->getOp(), opn->getArity(),
                                                 opn->pn_pos);
@@ -664,3 +670,5 @@ js::CloneLeftHandSide(ParseNode *opn, TreeContext *tc)
     }
     return pn;
 }
+
+} /* namespace js */

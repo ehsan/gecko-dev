@@ -1562,7 +1562,9 @@ ValueToScript(JSContext *cx, jsval v, JSFunction **funp = NULL)
         JSObject *obj = JSVAL_TO_OBJECT(v);
         JSClass *clasp = JS_GET_CLASS(cx, obj);
 
-        if (clasp == Jsvalify(&GeneratorClass)) {
+        if (clasp == Jsvalify(&ScriptClass)) {
+            script = (JSScript *) JS_GetPrivate(cx, obj);
+        } else if (clasp == Jsvalify(&GeneratorClass)) {
             JSGenerator *gen = (JSGenerator *) JS_GetPrivate(cx, obj);
             fun = gen->floatingFrame()->fun();
             script = fun->script();
@@ -1622,7 +1624,8 @@ GetTrapArgs(JSContext *cx, uintN argc, jsval *argv, JSScript **scriptp,
         v = argv[0];
         intarg = 0;
         if (!JSVAL_IS_PRIMITIVE(v) &&
-            JS_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == Jsvalify(&FunctionClass)) {
+            (JS_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == Jsvalify(&FunctionClass) ||
+             JS_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == Jsvalify(&ScriptClass))) {
             script = ValueToScript(cx, v);
             if (!script)
                 return JS_FALSE;

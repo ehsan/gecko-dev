@@ -75,8 +75,6 @@ protected:
     : mRequest(aRequest)
   { }
 
-  virtual ~HelperBase();
-
   /**
    * Helper to wrap a native into a jsval. Uses the global object of the request
    * to parent the native.
@@ -84,13 +82,6 @@ protected:
   nsresult WrapNative(JSContext* aCx,
                       nsISupports* aNative,
                       jsval* aResult);
-
-  /**
-   * Gives the subclass a chance to release any objects that must be released
-   * on the main thread, regardless of success or failure. Subclasses that
-   * implement this method *MUST* call the base class implementation as well.
-   */
-  virtual void ReleaseMainThreadObjects();
 
   nsRefPtr<IDBRequest> mRequest;
 };
@@ -124,11 +115,6 @@ public:
   }
 
   static IDBTransaction* GetCurrentTransaction();
-
-  bool HasTransaction()
-  {
-    return mTransaction;
-  }
 
   nsISupports* GetSource()
   {

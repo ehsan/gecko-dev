@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "Events.h"
 
 #include "jsapi.h"
@@ -59,7 +57,6 @@
 #define CONSTANT_FLAGS \
   JSPROP_ENUMERATE | JSPROP_SHARED | JSPROP_PERMANENT | JSPROP_READONLY
 
-using namespace mozilla;
 USING_WORKERS_NAMESPACE
 
 namespace {
@@ -1129,7 +1126,7 @@ DispatchEventToTarget(JSContext* aCx, JSObject* aTarget, JSObject* aEvent,
   if (hasProperty) {
     jsval argv[] = { OBJECT_TO_JSVAL(aEvent) };
     jsval rval = JSVAL_VOID;
-    if (!JS_CallFunctionName(aCx, aTarget, kFunctionName, ArrayLength(argv),
+    if (!JS_CallFunctionName(aCx, aTarget, kFunctionName, JS_ARRAY_LENGTH(argv),
                              argv, &rval) ||
         !JS_ValueToBoolean(aCx, rval, &preventDefaultCalled)) {
       return false;

@@ -306,6 +306,14 @@ CheckScript(JSScript *script, JSScript *prev)
     }
 }
 
+void
+CheckScriptOwner(JSScript *script, JSObject *owner)
+{
+    JS_OPT_ASSERT(script->ownerObject == owner);
+    if (owner != JS_NEW_SCRIPT && owner != JS_CACHED_SCRIPT)
+        JS_OPT_ASSERT(script->compartment() == owner->compartment());
+}
+
 #endif /* JS_CRASH_DIAGNOSTICS */
 
 } /* namespace js */
@@ -748,6 +756,37 @@ JSPCCounters::destroy(JSContext *cx)
     }
 }
 
+static void
+script_trace(JSTracer *trc, JSObject *obj)
+{
+    JSScript *script = (JSScript *) obj->getPrivate();
+    if (script) {
+        CheckScriptOwner(script, obj);
+        MarkScript(trc, script, "script");
+    }
+}
+
+JS_FRIEND_DATA(Class) js::ScriptClass = {
+    "Script",
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
+    JS_PropertyStub,         /* addProperty */
+    JS_PropertyStub,         /* delProperty */
+    JS_PropertyStub,         /* getProperty */
+    JS_StrictPropertyStub,   /* setProperty */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
+    NULL,                    /* finalize */
+    NULL,                    /* reserved0   */
+    NULL,                    /* checkAccess */
+    NULL,                    /* call        */
+    NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
+    NULL,                    /* hasInstance */
+    script_trace
+};
+
 /*
  * Shared script filename management.
  */
@@ -926,6 +965,7 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
     PodZero(script);
 #ifdef JS_CRASH_DIAGNOSTICS
     script->cookie1[0] = script->cookie2[0] = JS_SCRIPT_COOKIE;
+    script->ownerObject = JS_NEW_SCRIPT;
 #endif
 #if JS_SCRIPT_INLINE_DATA_LIMIT
     if (!data)
@@ -1201,26 +1241,23 @@ JSScript::NewScriptFromCG(JSContext *cx, CodeGenerator *cg)
             return NULL;
 
         fun->setScript(script);
-        script->u.globalObject = fun->getParent() ? fun->getParent()->getGlobal() : NULL;
     } else {
         /*
          * Initialize script->object, if necessary, so that the debugger has a
          * valid holder object.
          */
-        if (cg->flags & TCF_NEED_SCRIPT_GLOBAL)
-            script->u.globalObject = GetCurrentGlobal(cx);
+        if ((cg->flags & TCF_NEED_SCRIPT_OBJECT) && !js_NewScriptObject(cx, script))
+            return NULL;
     }
 
     /* Tell the debugger about this compiled script. */
     js_CallNewScriptHook(cx, script, fun);
     if (!cg->parent) {
+        JSObject *owner = fun ? fun : script->u.object;
         GlobalObject *compileAndGoGlobal = NULL;
-        if (script->compileAndGo) {
-            compileAndGoGlobal = script->u.globalObject;
-            if (!compileAndGoGlobal)
-                compileAndGoGlobal = cg->scopeChain()->getGlobal();
-        }
-        Debugger::onNewScript(cx, script, compileAndGoGlobal);
+        if (script->compileAndGo)
+            compileAndGoGlobal = (owner ? owner : cg->scopeChain())->getGlobal();
+        Debugger::onNewScript(cx, script, owner, compileAndGoGlobal);
     }
 
     return script;
@@ -1249,6 +1286,15 @@ JSScript::dataSize(JSUsableSizeFun usf)
 
     size_t usable = usf(data);
     return usable ? usable : dataSize();
+}
+
+void
+JSScript::setOwnerObject(JSObject *owner)
+{
+#ifdef JS_CRASH_DIAGNOSTICS
+    CheckScriptOwner(this, JS_NEW_SCRIPT);
+    ownerObject = owner;
+#endif
 }
 
 /*
@@ -1323,6 +1369,27 @@ JSScript::finalize(JSContext *cx)
         JS_POISON(data, 0xdb, dataSize());
         cx->free_(data);
     }
+}
+
+JSObject *
+js_NewScriptObject(JSContext *cx, JSScript *script)
+{
+    JS_ASSERT(!script->u.object);
+
+    JSObject *obj = NewNonFunction<WithProto::Class>(cx, &ScriptClass, NULL, NULL);
+    if (!obj)
+        return NULL;
+    obj->setPrivate(script);
+    script->u.object = obj;
+    script->setOwnerObject(obj);
+
+    /*
+     * Clear the object's type/proto, to avoid entraining stuff. Once we no longer use the parent
+     * for security checks, then we can clear the parent, too.
+     */
+    obj->clearType();
+
+    return obj;
 }
 
 namespace js {

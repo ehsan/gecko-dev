@@ -1,4 +1,7 @@
-/* ***** BEGIN LICENSE BLOCK *****
+/*
+ * This file contains prototypes for the public SSL functions.
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -14,8 +17,8 @@
  * The Original Code is the Netscape security libraries.
  *
  * The Initial Developer of the Original Code is
- * Red Hat, Inc
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -33,34 +36,18 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#include "prerror.h"
-#include "sslerr.h"
-#include "prinit.h"
-#include "nssutil.h"
-#include "ssl.h"
-#include "sslerrstrs.h"
+/* $Id: sslerrstrs.h,v 1.1 2011/08/17 14:41:02 emaldona%redhat.com Exp $ */
 
-#define ER3(name, value, str) {#name, str},
+#ifndef __sslerrstrs_h_
+#define __sslerrstrs_h_
 
-static const struct PRErrorMessage ssltext[] = {
-#include "SSLerrs.h"
-    {0,0}
-};
+#include "prtypes.h"
 
-static const struct PRErrorTable ssl_et = {
-    ssltext, "sslerr", SSL_ERROR_BASE,
-        (sizeof ssltext)/(sizeof ssltext[0])
-};
+SEC_BEGIN_PROTOS
 
-static PRStatus
-ssl_InitializePRErrorTableOnce(void) {
-    return PR_ErrorInstallTable(&ssl_et);
-}
+extern PRStatus 
+ssl_InitializePRErrorTable(void);
 
-static PRCallOnceType once;
+SEC_END_PROTOS
 
-PRStatus
-ssl_InitializePRErrorTable(void)
-{
-    return PR_CallOnce(&once, ssl_InitializePRErrorTableOnce);
-}
+#endif /* __sslerrstrs_h_ */

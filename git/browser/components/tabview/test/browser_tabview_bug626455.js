@@ -22,7 +22,8 @@ function test() {
     contentWindow = TabView.getContentWindow();
     activeGroup = contentWindow.GroupItems.getActiveGroupItem();
 
-    gBrowser.browsers[0].loadURI("data:text/html,<p>test for bug 626455, tab1");
+    gBrowser.browsers[0].contentWindow.location =
+      "data:text/html,<p>test for bug 626455, tab1";
     gBrowser.addTab(TEST_URL);
 
     afterAllTabsLoaded(testStayOnPage);
@@ -39,7 +40,7 @@ function testStayOnPage() {
         is(gBrowser.tabs.length, 1,
            "The total number of tab is 1 when staying on the page");
 
-        let location = gBrowser.browsers[0].currentURI.spec;
+        let location = gBrowser.browsers[0].contentWindow.location.toString();
         isnot(location.indexOf("onbeforeunload"), -1,
               "The open tab is the expected one");
 
@@ -79,7 +80,7 @@ function finishTest() {
   is(contentWindow.TabItems.getItems().length, 1,
      "The total number of tab items is 1 after leaving the page");
 
-  let location = gBrowser.browsers[0].currentURI.spec;
+  let location = gBrowser.browsers[0].contentWindow.location.toString();
   is(location, "about:blank", "The open tab is the expected one");
 
   isnot(contentWindow.GroupItems.getActiveGroupItem(), activeGroup,
