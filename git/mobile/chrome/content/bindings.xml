@@ -163,7 +163,7 @@
       </handler>
     </handlers>
     <content orient="vertical">
-      <xul:hbox class="autocomplete-item-container" xbl:inherits="favorite,remote,search" mousethrough="always">
+      <xul:hbox class="autocomplete-item-container" align="top" xbl:inherits="favorite,remote,search" mousethrough="always">
         <xul:image xbl:inherits="src"/>
         <xul:vbox flex="1">
           <xul:label class="autocomplete-item-label" crop="center" xbl:inherits="value"/>
@@ -707,6 +707,7 @@
       </property>
 
       <method name="startEditing">
+        <parameter name="autoSelect"/>
         <body>
           <![CDATA[
             if (!this.itemId || this.isReadOnly)
@@ -726,7 +727,8 @@
             this.updateFields();
 
             this._nameField.focus();
-            this._nameField.select();
+            if (autoSelect)
+              this._nameField.select();
           ]]>
         </body>
       </method>
@@ -1851,41 +1853,5 @@
         ]]></body>
       </method>
     </implementation>
-  </binding>
-  
-  <binding id="setting-fulltoggle-bool" extends="chrome://mozapps/content/extensions/setting.xml#setting-bool">
-    <handlers>
-      <handler event="click" button="0" phase="capturing">
-        <![CDATA[
-        this.input.setChecked(!this.value);
-        this.inputChanged();
-        event.stopPropagation();
-        ]]>
-      </handler>
-    </handlers>
-  </binding>
-
-  <binding id="setting-fulltoggle-boolint" extends="chrome://mozapps/content/extensions/setting.xml#setting-boolint">
-    <handlers>
-      <handler event="click" button="0" phase="capturing">
-        <![CDATA[
-        this.input.setChecked(!this.value);
-        this.inputChanged();
-        event.stopPropagation();
-        ]]>
-      </handler>
-    </handlers>
-  </binding>
-
-  <binding id="setting-fulltoggle-localized-bool" extends="chrome://mozapps/content/extensions/setting.xml#setting-localized-bool">
-    <handlers>
-      <handler event="click" button="0" phase="capturing">
-        <![CDATA[
-        this.input.setChecked(!this.value);
-        this.inputChanged();
-        event.stopPropagation();
-        ]]>
-      </handler>
-    </handlers>
   </binding>
 </bindings>

@@ -182,7 +182,6 @@ var Browser = {
     /* handles web progress management for open browsers */
     Elements.browsers.webProgress = new Browser.WebProgress();
 
-    this.keySender = new ContentCustomKeySender(Elements.browsers);
     let mouseModule = new MouseModule();
     let gestureModule = new GestureModule(Elements.browsers);
     let scrollWheelModule = new ScrollwheelModule(Elements.browsers);
@@ -1018,7 +1017,11 @@ var Browser = {
 
     let snappedX = 0;
 
-    let dirVal = Util.localeDir;
+    // determine browser dir first to know which direction to snap to
+    let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                      getService(Ci.nsIXULChromeRegistry);
+    let dirVal = chromeReg.isLocaleRTL("global") ? -1 : 1;
+
     if (leftvis != 0 && leftvis != 1) {
       if (leftvis >= 0.6666) {
         snappedX = -((1 - leftvis) * leftw) * dirVal;
@@ -1466,7 +1469,7 @@ Browser.MainDragger.prototype = {
         let [tabsSidebar, controlsSidebar] = [Elements.tabs.getBoundingClientRect(), Elements.controls.getBoundingClientRect()];
 
         // Check if the sidebars are inverted (rtl)
-        let direction = -1 * Util.localeDir;
+        let direction = (tabsSidebar.left > controlsSidebar.left) ? 1 : -1;
         x = Math.round(tabsW * tabsVis) * direction
       }
 
@@ -1796,7 +1799,7 @@ const ContentTouchHandler = {
           case "TapUp":
             if (aEvent.isClick) {
               if (!Browser.selectedTab.allowZoom) {
-                this.tapSingle(aEvent.clientX, aEvent.clientY, Util.modifierMaskFromEvent(aEvent));
+                this.tapSingle(aEvent.clientX, aEvent.clientY, aEvent.modifiers);
                 aEvent.preventDefault();
               }
             }
@@ -1972,52 +1975,6 @@ const ContentTouchHandler = {
     return "[ContentTouchHandler] { }";
   }
 };
-
-
-/** Watches for mouse events in chrome and sends them to content. */
-function ContentCustomKeySender(container) {
-  container.addEventListener("keypress", this, false);
-  container.addEventListener("keyup", this, false);
-  container.addEventListener("keydown", this, false);
-}
-
-ContentCustomKeySender.prototype = {
-  handleEvent: function handleEvent(aEvent) {
-    if (Elements.contentShowing.getAttribute("disabled") == "true")
-      return;
-
-    let browser = getBrowser();
-    if (browser && browser.active && browser.getAttribute("remote") == "true") {
-      aEvent.stopPropagation();
-      aEvent.preventDefault();
-
-      let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
-      fl.sendCrossProcessKeyEvent(aEvent.type,
-                                  aEvent.keyCode,
-                                  (aEvent.type != "keydown") ? aEvent.charCode : null,
-                                  this._parseModifiers(aEvent));
-    }
-  },
-
-  _parseModifiers: function _parseModifiers(aEvent) {
-    const masks = Ci.nsIDOMNSEvent;
-    let mval = 0;
-    if (aEvent.shiftKey)
-      mval |= masks.SHIFT_MASK;
-    if (aEvent.ctrlKey)
-      mval |= masks.CONTROL_MASK;
-    if (aEvent.altKey)
-      mval |= masks.ALT_MASK;
-    if (aEvent.metaKey)
-      mval |= masks.META_MASK;
-    return mval;
-  },
-
-  toString: function toString() {
-    return "[ContentCustomKeySender] { }";
-  }
-};
-
 
 /**
  * Utility class to handle manipulations of the identity indicators in the UI
@@ -2227,7 +2184,7 @@ IdentityHandler.prototype = {
     Elements.contentShowing.setAttribute("disabled", "true");
 
     // dismiss any dialog which hide the identity popup
-    AwesomeScreen.activePanel = null;
+    BrowserUI.activePanel = null;
     while (BrowserUI.activeDialog)
       BrowserUI.activeDialog.close();
 
@@ -2852,10 +2809,8 @@ Tab.prototype = {
 
     try {
       let flags = aParams.flags || Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-      let postData = "postData" in aParams ? aParams.postData.value : null;
-      let referrerURI = "referrerURI" in aParams ? aParams.referrerURI : null;
-      let charset = "charset" in aParams ? aParams.charset : null;
-      browser.loadURIWithFlags(aURI, flags, referrerURI, charset, postData);
+      let postData = aParams.postData ? aParams.postData.value : null;
+      browser.loadURIWithFlags(aURI, flags, aParams.referrerURI, aParams.charset, postData);
     } catch(e) {
       dump("Error: " + e + "\n");
     }
@@ -2919,7 +2874,6 @@ Tab.prototype = {
 
     let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
     fl.renderMode = Ci.nsIFrameLoader.RENDER_MODE_ASYNC_SCROLL;
-    fl.eventMode = Ci.nsIFrameLoader.EVENT_MODE_DONT_FORWARD_TO_CHILD;
 
     return browser;
   },
@@ -3050,8 +3004,6 @@ Tab.prototype = {
   get allowZoom() {
     return this.metadata.allowZoom && !Util.isURLEmpty(this.browser.currentURI.spec);
   },
-
-  _thumbnailWindowId: null,
 
   updateThumbnail: function updateThumbnail(options) {
     let options = options || {};

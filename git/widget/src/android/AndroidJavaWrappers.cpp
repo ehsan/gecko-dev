@@ -439,7 +439,7 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
     }
 
-#ifndef DEBUG_ANDROID_EVENTS
+#ifndef ANDROID_DEBUG_EVENTS
     ALOG("AndroidGeckoEvent: %p : %d", (void*)jobj, mType);
 #endif
 }

@@ -82,6 +82,7 @@ _BROWSER_FILES = \
                  browser_tabview_bug600812.js \
                  browser_tabview_bug602432.js \
                  browser_tabview_bug604098.js \
+                 browser_tabview_bug604699.js \
                  browser_tabview_bug606657.js \
                  browser_tabview_bug606905.js \
                  browser_tabview_bug607108.js \
@@ -113,6 +114,7 @@ _BROWSER_FILES = \
                  browser_tabview_bug626455.js \
                  browser_tabview_bug626525.js \
                  browser_tabview_bug626791.js \
+                 browser_tabview_bug627239.js \
                  browser_tabview_bug627288.js \
                  browser_tabview_bug627736.js \
                  browser_tabview_bug628061.js \
@@ -130,7 +132,6 @@ _BROWSER_FILES = \
                  browser_tabview_bug634085.js \
                  browser_tabview_bug634672.js \
                  browser_tabview_bug635696.js \
-                 browser_tabview_bug637840.js \
                  browser_tabview_bug640765.js \
                  browser_tabview_bug641802.js \
                  browser_tabview_bug642793.js \
@@ -154,7 +155,6 @@ _BROWSER_FILES = \
                  browser_tabview_bug669694.js \
                  browser_tabview_bug673196.js \
                  browser_tabview_bug673729.js \
-                 browser_tabview_bug677310.js \
                  browser_tabview_bug679853.js \
                  browser_tabview_bug681599.js \
                  browser_tabview_click_group.js \
@@ -170,8 +170,6 @@ _BROWSER_FILES = \
                  browser_tabview_search.js \
                  browser_tabview_snapping.js \
                  browser_tabview_startup_transitions.js \
-                 browser_tabview_storage_policy.js \
-                 browser_tabview_thumbnail_storage.js \
                  browser_tabview_undo_group.js \
                  dummy_page.html \
                  head.js \

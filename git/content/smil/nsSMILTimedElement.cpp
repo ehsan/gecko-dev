@@ -758,10 +758,10 @@ nsSMILTimedElement::Rewind()
                     mSeekState == SEEK_BACKWARD_FROM_ACTIVE,
                     "Rewind in the middle of a forwards seek?");
 
-  // Putting us in the startup state will ensure we skip doing any interval
-  // updates
-  mElementState = STATE_STARTUP;
   ClearIntervals();
+  // ClearIntervals puts us in to the POSTACTIVE state but we're doing a full
+  // rewind so go back to the startup state
+  mElementState = STATE_STARTUP;
 
   UnsetBeginSpec(RemoveNonDynamic);
   UnsetEndSpec(RemoveNonDynamic);
@@ -784,8 +784,6 @@ nsSMILTimedElement::Rewind()
 
   mPrevRegisteredMilestone = sMaxMilestone;
   RegisterMilestone();
-  NS_ABORT_IF_FALSE(!mCurrentInterval,
-                    "Current interval is set at end of rewind");
 }
 
 namespace
@@ -918,7 +916,7 @@ nsSMILTimedElement::SetSimpleDuration(const nsAString& aDurSpec)
     return NS_ERROR_FAILURE;
   }
 
-  if (duration.IsDefinite() && duration.GetMillis() == 0L) {
+  if (duration.IsResolved() && duration.GetMillis() == 0L) {
     mSimpleDur.SetIndefinite();
     return NS_ERROR_FAILURE;
   }
@@ -932,7 +930,7 @@ nsSMILTimedElement::SetSimpleDuration(const nsAString& aDurSpec)
 
   // mSimpleDur should never be unresolved. ParseClockValue will either set
   // duration to resolved/indefinite/media or will return a failure code.
-  NS_ABORT_IF_FALSE(duration.IsResolved(),
+  NS_ASSERTION(duration.IsResolved() || duration.IsIndefinite(),
     "Setting unresolved simple duration");
 
   mSimpleDur = duration;
@@ -961,7 +959,7 @@ nsSMILTimedElement::SetMin(const nsAString& aMinSpec)
     duration.SetMillis(0L);
   }
 
-  if (NS_FAILED(rv) || !duration.IsDefinite()) {
+  if (NS_FAILED(rv) || !duration.IsResolved()) {
     mMin.SetMillis(0L);
     return NS_ERROR_FAILURE;
   }
@@ -997,12 +995,12 @@ nsSMILTimedElement::SetMax(const nsAString& aMaxSpec)
   if (isMedia)
     duration.SetIndefinite();
 
-  if (NS_FAILED(rv) || !duration.IsResolved()) {
+  if (NS_FAILED(rv) || (!duration.IsResolved() && !duration.IsIndefinite())) {
     mMax.SetIndefinite();
     return NS_ERROR_FAILURE;
   }
 
-  if (duration.IsDefinite() && duration.GetMillis() <= 0L) {
+  if (duration.IsResolved() && duration.GetMillis() <= 0L) {
     mMax.SetIndefinite();
     return NS_ERROR_FAILURE;
   }
@@ -1074,7 +1072,7 @@ nsSMILTimedElement::SetRepeatDur(const nsAString& aRepeatDurSpec)
   rv = nsSMILParserUtils::ParseClockValue(aRepeatDurSpec, &duration,
           nsSMILParserUtils::kClockValueAllowIndefinite);
 
-  if (NS_FAILED(rv) || !duration.IsResolved()) {
+  if (NS_FAILED(rv) || (!duration.IsResolved() && !duration.IsIndefinite())) {
     mRepeatDur.SetUnresolved();
     return NS_ERROR_FAILURE;
   }
@@ -1334,9 +1332,7 @@ nsSMILTimedElement::ClearSpecs(TimeValueSpecList& aSpecs,
 void
 nsSMILTimedElement::ClearIntervals()
 {
-  if (mElementState != STATE_STARTUP) {
-    mElementState = STATE_POSTACTIVE;
-  }
+  mElementState = STATE_POSTACTIVE;
   mCurrentRepeatIteration = 0;
   ResetCurrentInterval();
 
@@ -1608,8 +1604,8 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
                                     const nsSMILInstanceTime* aFixedBeginTime,
                                     nsSMILInterval& aResult) const
 {
-  NS_ABORT_IF_FALSE(!aFixedBeginTime || aFixedBeginTime->Time().IsDefinite(),
-      "Unresolved or indefinite begin time specified for interval start");
+  NS_ABORT_IF_FALSE(!aFixedBeginTime || aFixedBeginTime->Time().IsResolved(),
+      "Unresolved begin time specified for interval start");
   static const nsSMILTimeValue zeroTime(0L);
 
   if (mRestartMode == RESTART_NEVER && aPrevInterval)
@@ -1655,13 +1651,13 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
       do {
         tempBegin =
           GetNextGreaterOrEqual(mBeginInstances, beginAfter, beginPos);
-        if (!tempBegin || !tempBegin->Time().IsDefinite()) {
+        if (!tempBegin || !tempBegin->Time().IsResolved()) {
           return PR_FALSE;
         }
       } while (aReplacedInterval &&
                tempBegin->GetBaseTime() == aReplacedInterval->Begin());
     }
-    NS_ABORT_IF_FALSE(tempBegin && tempBegin->Time().IsDefinite() &&
+    NS_ABORT_IF_FALSE(tempBegin && tempBegin->Time().IsResolved() &&
         tempBegin->Time() >= beginAfter,
         "Got a bad begin time while fetching next interval");
 
@@ -1688,14 +1684,14 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
       // a) We never had any end attribute to begin with (and hence we should
       //    just use the active duration after allowing for the possibility of
       //    an end instance provided by a DOM call), OR
-      // b) We have no definite end instances (SMIL only says "if the instance
-      //    list is empty"--but if we have indefinite/unresolved instance times
-      //    then there must be a good reason we haven't used them (since they
-      //    will be >= tempBegin) such as avoiding creating a self-referential
-      //    loop. In any case, the interval should be allowed to be open.), OR
+      // b) We have an end attribute but no end instances--this is a special
+      //    case that is needed for syncbase timing so that animations of the
+      //    following sort: <animate id="a" end="a.begin+1s" ... /> can be
+      //    resolved (see SVGT 1.2 Test Suite animate-elem-221-t.svg) by first
+      //    establishing an interval of unresolved duration, OR
       // c) We have end events which leave the interval open-ended.
       PRBool openEndedIntervalOk = mEndSpecs.IsEmpty() ||
-                                   !HaveDefiniteEndTimes() ||
+                                   mEndInstances.IsEmpty() ||
                                    EndHasEventConditions();
       if (!tempEnd && !openEndedIntervalOk)
         return PR_FALSE; // Bad interval
@@ -1713,7 +1709,7 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
     // If we get two zero-length intervals in a row we will potentially have an
     // infinite loop so we break it here by searching for the next begin time
     // greater than tempEnd on the next time around.
-    if (tempEnd->Time().IsDefinite() && tempBegin->Time() == tempEnd->Time()) {
+    if (tempEnd->Time().IsResolved() && tempBegin->Time() == tempEnd->Time()) {
       if (prevIntervalWasZeroDur) {
         beginAfter.SetMillis(tempEnd->Time().GetMillis() + 1);
         prevIntervalWasZeroDur = PR_FALSE;
@@ -1780,10 +1776,10 @@ nsSMILTimedElement::CalcActiveEnd(const nsSMILTimeValue& aBegin,
 {
   nsSMILTimeValue result;
 
-  NS_ABORT_IF_FALSE(mSimpleDur.IsResolved(),
+  NS_ABORT_IF_FALSE(mSimpleDur.IsResolved() || mSimpleDur.IsIndefinite(),
     "Unresolved simple duration in CalcActiveEnd");
-  NS_ABORT_IF_FALSE(aBegin.IsDefinite(),
-    "Indefinite or unresolved begin time in CalcActiveEnd");
+  NS_ABORT_IF_FALSE(aBegin.IsResolved(),
+    "Unresolved begin time in CalcActiveEnd");
 
   if (mRepeatDur.IsIndefinite()) {
     result.SetIndefinite();
@@ -1791,10 +1787,10 @@ nsSMILTimedElement::CalcActiveEnd(const nsSMILTimeValue& aBegin,
     result = GetRepeatDuration();
   }
 
-  if (aEnd.IsDefinite()) {
+  if (aEnd.IsResolved()) {
     nsSMILTime activeDur = aEnd.GetMillis() - aBegin.GetMillis();
 
-    if (result.IsDefinite()) {
+    if (result.IsResolved()) {
       result.SetMillis(NS_MIN(result.GetMillis(), activeDur));
     } else {
       result.SetMillis(activeDur);
@@ -1803,7 +1799,7 @@ nsSMILTimedElement::CalcActiveEnd(const nsSMILTimeValue& aBegin,
 
   result = ApplyMinAndMax(result);
 
-  if (result.IsDefinite()) {
+  if (result.IsResolved()) {
     nsSMILTime activeEnd = result.GetMillis() + aBegin.GetMillis();
     result.SetMillis(activeEnd);
   }
@@ -1816,19 +1812,19 @@ nsSMILTimedElement::GetRepeatDuration() const
 {
   nsSMILTimeValue result;
 
-  if (mRepeatCount.IsDefinite() && mRepeatDur.IsDefinite()) {
-    if (mSimpleDur.IsDefinite()) {
+  if (mRepeatCount.IsDefinite() && mRepeatDur.IsResolved()) {
+    if (mSimpleDur.IsResolved()) {
       nsSMILTime activeDur =
         nsSMILTime(mRepeatCount * double(mSimpleDur.GetMillis()));
       result.SetMillis(NS_MIN(activeDur, mRepeatDur.GetMillis()));
     } else {
       result = mRepeatDur;
     }
-  } else if (mRepeatCount.IsDefinite() && mSimpleDur.IsDefinite()) {
+  } else if (mRepeatCount.IsDefinite() && mSimpleDur.IsResolved()) {
     nsSMILTime activeDur =
       nsSMILTime(mRepeatCount * double(mSimpleDur.GetMillis()));
     result.SetMillis(activeDur);
-  } else if (mRepeatDur.IsDefinite()) {
+  } else if (mRepeatDur.IsResolved()) {
     result = mRepeatDur;
   } else if (mRepeatCount.IsIndefinite()) {
     result.SetIndefinite();
@@ -1842,7 +1838,7 @@ nsSMILTimedElement::GetRepeatDuration() const
 nsSMILTimeValue
 nsSMILTimedElement::ApplyMinAndMax(const nsSMILTimeValue& aDuration) const
 {
-  if (!aDuration.IsResolved()) {
+  if (!aDuration.IsResolved() && !aDuration.IsIndefinite()) {
     return aDuration;
   }
 
@@ -1870,7 +1866,7 @@ nsSMILTimedElement::ActiveTimeToSimpleTime(nsSMILTime aActiveTime,
 {
   nsSMILTime result;
 
-  NS_ASSERTION(mSimpleDur.IsResolved(),
+  NS_ASSERTION(mSimpleDur.IsResolved() || mSimpleDur.IsIndefinite(),
       "Unresolved simple duration in ActiveTimeToSimpleTime");
   NS_ASSERTION(aActiveTime >= 0, "Expecting non-negative active time");
   // Note that a negative aActiveTime will give us a negative value for
@@ -2034,7 +2030,7 @@ nsSMILTimedElement::SampleFillValue()
   const nsSMILInterval* prevInterval = GetPreviousInterval();
   NS_ABORT_IF_FALSE(prevInterval,
       "Attempting to sample fill value but there is no previous interval");
-  NS_ABORT_IF_FALSE(prevInterval->End()->Time().IsDefinite() &&
+  NS_ABORT_IF_FALSE(prevInterval->End()->Time().IsResolved() &&
       prevInterval->End()->IsFixedTime(),
       "Attempting to sample fill value but the endpoint of the previous "
       "interval is not resolved and fixed");
@@ -2135,7 +2131,7 @@ nsSMILTimedElement::GetNextMilestone(nsSMILMilestone& aNextMilestone) const
     {
       // Work out what comes next: the interval end or the next repeat iteration
       nsSMILTimeValue nextRepeat;
-      if (mSeekState == SEEK_NOT_SEEKING && mSimpleDur.IsDefinite()) {
+      if (mSeekState == SEEK_NOT_SEEKING && mSimpleDur.IsResolved()) {
         nextRepeat.SetMillis(mCurrentInterval->Begin()->Time().GetMillis() +
             (mCurrentRepeatIteration + 1) * mSimpleDur.GetMillis());
       }
@@ -2151,7 +2147,7 @@ nsSMILTimedElement::GetNextMilestone(nsSMILMilestone& aNextMilestone) const
       }
 
       // Apply the previously calculated milestone
-      if (nextMilestone.IsDefinite()) {
+      if (nextMilestone.IsResolved()) {
         aNextMilestone.mIsEnd = nextMilestone != nextRepeat;
         aNextMilestone.mTime = nextMilestone.GetMillis();
         return PR_TRUE;
@@ -2250,17 +2246,6 @@ nsSMILTimedElement::GetPreviousInterval() const
   return mOldIntervals.IsEmpty()
     ? nsnull
     : mOldIntervals[mOldIntervals.Length()-1].get();
-}
-
-PRBool
-nsSMILTimedElement::HaveDefiniteEndTimes() const
-{
-  if (mEndInstances.IsEmpty())
-    return PR_FALSE;
-
-  // mEndInstances is sorted so if the first time is not definite then none of
-  // them are
-  return mEndInstances[0]->Time().IsDefinite();
 }
 
 PRBool

@@ -135,7 +135,6 @@ public:
 #endif
 
 #include "gfxUtils.h"
-#include "gfxFailure.h"
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
 #include "gfxPlatform.h"
@@ -709,13 +708,7 @@ public:
             return PR_FALSE;
         }
 
-        PRBool current = MakeCurrent();
-        if (!current) {
-            gfx::LogFailure(NS_LITERAL_CSTRING(
-                "Couldn't get device attachments for device."));
-            return PR_FALSE;
-        }
-
+        MakeCurrent();
         PRBool ok = InitWithPrefix("gl", PR_TRUE);
 #if 0
         if (ok) {

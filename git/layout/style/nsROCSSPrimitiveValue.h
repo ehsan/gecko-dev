@@ -47,10 +47,6 @@
 class nsIURI;
 class nsDOMCSSRGBColor;
 
-/**
- * Read-only CSS primitive value - a DOM object representing values in DOM
- * computed style.
- */
 class nsROCSSPrimitiveValue : public nsIDOMCSSPrimitiveValue
 {
 public:

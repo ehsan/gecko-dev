@@ -320,7 +320,7 @@ bool
 JSFunctionBox::inAnyDynamicScope() const
 {
     for (const JSFunctionBox *funbox = this; funbox; funbox = funbox->parent) {
-        if (funbox->tcflags & (TCF_IN_WITH | TCF_FUN_EXTENSIBLE_SCOPE))
+        if (funbox->tcflags & (TCF_IN_WITH | TCF_FUN_CALLS_EVAL))
             return true;
     }
     return false;
@@ -903,6 +903,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
                         JSString *source /* = NULL */,
                         uintN staticLevel /* = 0 */)
 {
+    JSArenaPool codePool, notePool;
     TokenKind tt;
     JSParseNode *pn;
     JSScript *script;
@@ -922,10 +923,13 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     if (!compiler.init(chars, length, filename, lineno, version))
         return NULL;
 
+    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode));
+    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote));
+
     Parser &parser = compiler.parser;
     TokenStream &tokenStream = parser.tokenStream;
 
-    JSCodeGenerator cg(&parser, tokenStream.getLineno());
+    JSCodeGenerator cg(&parser, &codePool, &notePool, tokenStream.getLineno());
     if (!cg.init(cx, JSTreeContext::USED_AS_TREE_CONTEXT))
         return NULL;
 
@@ -967,7 +971,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     if (tcflags & TCF_COMPILE_N_GO) {
         if (source) {
             /*
-             * Save eval program source in script->atoms[0] for the
+             * Save eval program source in script->atomMap.vector[0] for the
              * eval cache (see EvalCacheLookup in jsobj.cpp).
              */
             JSAtom *atom = js_AtomizeString(cx, source);
@@ -1110,15 +1114,25 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
 
     JS_ASSERT(script->savedCallerFun == savedCallerFun);
 
-    if (!defineGlobals(cx, globalScope, script))
-        script = NULL;
+    {
+        AutoScriptRooter root(cx, script);
+        if (!defineGlobals(cx, globalScope, script))
+            goto late_error;
+    }
 
   out:
+    JS_FinishArenaPool(&codePool);
+    JS_FinishArenaPool(&notePool);
     Probes::compileScriptEnd(cx, script, filename, lineno);
     return script;
 
   too_many_slots:
     parser.reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_TOO_MANY_LOCALS);
+    /* Fall through. */
+
+  late_error:
+    if (script && !script->u.object)
+        js_DestroyScript(cx, script, 7);
     script = NULL;
     goto out;
 }
@@ -1126,6 +1140,9 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
 bool
 Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
 {
+    if (!globalScope.defs.length())
+        return true;
+
     JSObject *globalObj = globalScope.globalObj;
 
     /* Define and update global properties. */
@@ -1178,29 +1195,18 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
      * object.
      */
     while (worklist.length()) {
-        JSScript *outer = worklist.back();
+        JSScript *inner = worklist.back();
         worklist.popBack();
 
-        if (JSScript::isValidOffset(outer->objectsOffset)) {
-            JSObjectArray *arr = outer->objects();
-
-            /*
-             * If this is an eval script, don't treat the saved caller function
-             * stored in the first object slot as an inner function.
-             */
-            size_t start = outer->savedCallerFun ? 1 : 0;
-
-            for (size_t i = start; i < arr->length; i++) {
+        if (JSScript::isValidOffset(inner->objectsOffset)) {
+            JSObjectArray *arr = inner->objects();
+            for (size_t i = 0; i < arr->length; i++) {
                 JSObject *obj = arr->vector[i];
                 if (!obj->isFunction())
                     continue;
                 JSFunction *fun = obj->getFunctionPrivate();
                 JS_ASSERT(fun->isInterpreted());
                 JSScript *inner = fun->script();
-                if (outer->isHeavyweightFunction) {
-                    outer->isOuterFunction = true;
-                    inner->isInnerFunction = true;
-                }
                 if (!JSScript::isValidOffset(inner->globalsOffset) &&
                     !JSScript::isValidOffset(inner->objectsOffset)) {
                     continue;
@@ -1210,10 +1216,10 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
             }
         }
 
-        if (!JSScript::isValidOffset(outer->globalsOffset))
+        if (!JSScript::isValidOffset(inner->globalsOffset))
             continue;
 
-        GlobalSlotArray *globalUses = outer->globals();
+        GlobalSlotArray *globalUses = inner->globals();
         uint32 nGlobalUses = globalUses->length;
         for (uint32 i = 0; i < nGlobalUses; i++) {
             uint32 index = globalUses->vector[i].slot;
@@ -1776,10 +1782,15 @@ Compiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *prin
     if (!compiler.init(chars, length, filename, lineno, version))
         return false;
 
+    /* No early return from after here until the js_FinishArenaPool calls. */
+    JSArenaPool codePool, notePool;
+    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode));
+    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote));
+
     Parser &parser = compiler.parser;
     TokenStream &tokenStream = parser.tokenStream;
 
-    JSCodeGenerator funcg(&parser, tokenStream.getLineno());
+    JSCodeGenerator funcg(&parser, &codePool, &notePool, tokenStream.getLineno());
     if (!funcg.init(cx, JSTreeContext::USED_AS_TREE_CONTEXT))
         return false;
 
@@ -1849,6 +1860,9 @@ Compiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *prin
         }
     }
 
+    /* Restore saved state and release code generation arenas. */
+    JS_FinishArenaPool(&codePool);
+    JS_FinishArenaPool(&notePool);
     return pn != NULL;
 }
 
@@ -2462,7 +2476,7 @@ Parser::setFunctionKinds(JSFunctionBox *funbox, uint32 *tcflags)
         } else if (funbox->inAnyDynamicScope()) {
             JS_ASSERT(!fun->isNullClosure());
         } else {
-            bool hasUpvars = false;
+            uintN hasUpvars = false;
             bool canFlatten = true;
 
             if (pn->pn_type == TOK_UPVARS) {
@@ -6734,7 +6748,7 @@ class GenexpGuard {
 
     void endBody();
     bool checkValidBody(JSParseNode *pn);
-    bool maybeNoteGenerator(JSParseNode *pn);
+    bool maybeNoteGenerator();
 };
 
 void
@@ -6780,20 +6794,13 @@ GenexpGuard::checkValidBody(JSParseNode *pn)
  * generator expression.
  */
 bool
-GenexpGuard::maybeNoteGenerator(JSParseNode *pn)
+GenexpGuard::maybeNoteGenerator()
 {
     if (tc->yieldCount > 0) {
         tc->flags |= TCF_FUN_IS_GENERATOR;
         if (!tc->inFunction()) {
             tc->parser->reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_BAD_RETURN_OR_YIELD,
                                           js_yield_str);
-            return false;
-        }
-        if (tc->flags & TCF_RETURN_EXPR) {
-            /* At the time we saw the yield, we might not have set TCF_FUN_IS_GENERATOR yet. */
-            ReportBadReturn(tc->parser->context, tc, pn, JSREPORT_ERROR,
-                            JSMSG_BAD_GENERATOR_RETURN,
-                            JSMSG_BAD_ANON_GENERATOR_RETURN);
             return false;
         }
     }
@@ -7136,7 +7143,7 @@ Parser::comprehensionTail(JSParseNode *kid, uintN blockid, bool isGenexp,
             if (!guard.checkValidBody(pn2))
                 return NULL;
         } else {
-            if (!guard.maybeNoteGenerator(pn2))
+            if (!guard.maybeNoteGenerator())
                 return NULL;
         }
 
@@ -7366,7 +7373,7 @@ Parser::argumentList(JSParseNode *listNode)
             }
         } else
 #endif
-        if (arg0 && !guard.maybeNoteGenerator(argNode))
+        if (arg0 && !guard.maybeNoteGenerator())
             return JS_FALSE;
 
         arg0 = false;
@@ -8461,6 +8468,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
 
       case TOK_LC:
       {
+        JSBool afterComma;
         JSParseNode *pnval;
 
         /*
@@ -8482,6 +8490,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
         pn->pn_op = JSOP_NEWINIT;
         pn->makeEmpty();
 
+        afterComma = JS_FALSE;
         for (;;) {
             JSAtom *atom;
             tt = tokenStream.getToken(TSF_KEYWORD_IS_NAME);
@@ -8640,6 +8649,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                 reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_CURLY_AFTER_LIST);
                 return NULL;
             }
+            afterComma = JS_TRUE;
         }
 
       end_obj_init:
@@ -8984,7 +8994,7 @@ Parser::parenExpr(JSBool *genexp)
     } else
 #endif /* JS_HAS_GENERATOR_EXPRS */
 
-    if (!guard.maybeNoteGenerator(pn))
+    if (!guard.maybeNoteGenerator())
         return NULL;
 
     return pn;

@@ -629,7 +629,7 @@ let ContentScroll =  {
         sendAsyncMessage("MozScrolledAreaChanged", {
           width: aEvent.width,
           height: aEvent.height,
-          left: aEvent.x + content.scrollX
+          left: aEvent.x
         });
 
         // Send event only after painting to make sure content views in the parent process have

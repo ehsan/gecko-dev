@@ -49,7 +49,8 @@
 #if defined(__linux)
 // Didn't find gettdtablehi() or gettdtablesize() on linux. Using FD_SETSIZE
 #define getdtablehi() FD_SETSIZE
-#else
+#elif !defined(__irix)
+// looks like Irix is the only one that has getdtablehi()?
 #define getdtablehi() getdtablesize()
 
 //  If you find a system doesn't have getdtablesize try #define getdtablesize

@@ -132,7 +132,7 @@ static uint32 StubCallsForOp[STUB_CALLS_FOR_OP_COUNT];
 extern "C" void JS_FASTCALL
 PushActiveVMFrame(VMFrame &f)
 {
-    f.entryfp->script()->compartment()->jaegerCompartment()->pushActiveFrame(&f);
+    f.entryfp->script()->compartment->jaegerCompartment()->pushActiveFrame(&f);
     f.entryfp->setNativeReturnAddress(JS_FUNC_TO_DATA_PTR(void*, JaegerTrampolineReturn));
     f.regs.clearInlined();
 }
@@ -140,7 +140,7 @@ PushActiveVMFrame(VMFrame &f)
 extern "C" void JS_FASTCALL
 PopActiveVMFrame(VMFrame &f)
 {
-    f.entryfp->script()->compartment()->jaegerCompartment()->popActiveFrame();
+    f.entryfp->script()->compartment->jaegerCompartment()->popActiveFrame();
 }
 
 extern "C" void JS_FASTCALL
@@ -925,8 +925,7 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
     }
 
     /* See comment in mjit::Compiler::emitReturn. */
-    if (fp->isFunctionFrame())
-        fp->markFunctionEpilogueDone();
+    fp->markActivationObjectsAsPut();
 
     return ok ? Jaeger_Returned : Jaeger_Throwing;
 }
@@ -1138,23 +1137,21 @@ mjit::JITScript::~JITScript()
 }
 
 size_t
-JSScript::jitDataSize(JSUsableSizeFun usf)
+JSScript::jitDataSize()
 {
     size_t n = 0;
     if (jitNormal)
-        n += jitNormal->scriptDataSize(usf); 
+        n += jitNormal->scriptDataSize(); 
     if (jitCtor)
-        n += jitCtor->scriptDataSize(usf); 
+        n += jitCtor->scriptDataSize(); 
     return n;
 }
 
 /* Please keep in sync with Compiler::finishThisUp! */
 size_t
-mjit::JITScript::scriptDataSize(JSUsableSizeFun usf)
+mjit::JITScript::scriptDataSize()
 {
-    size_t usable = usf ? usf(this) : 0;
-    return usable ? usable :
-        sizeof(JITScript) +
+    return sizeof(JITScript) +
         sizeof(NativeMapEntry) * nNmapPairs +
         sizeof(InlineFrame) * nInlineFrames +
         sizeof(CallSite) * nCallSites +

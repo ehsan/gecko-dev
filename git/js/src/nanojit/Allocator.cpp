@@ -100,13 +100,12 @@ namespace nanojit
         }
     }
 
-    size_t Allocator::getBytesAllocated(size_t(*my_malloc_usable_size)(void *))
+    size_t Allocator::getBytesAllocated()
     {
         size_t n = 0;
         Chunk *c = current_chunk;
         while (c) {
-            size_t usable = my_malloc_usable_size(c);
-            n += usable ? usable : c->size;
+            n += c->size;
             c = c->prev;
         }
         return n;

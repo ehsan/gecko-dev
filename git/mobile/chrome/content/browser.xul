@@ -248,7 +248,7 @@
                              autocompletepopup="popup_autocomplete"
                              completeselectedindex="true"
                              minresultsforpopup="0"
-                             onsearchbegin="AwesomeScreen.updateHeader(this.controller.searchString);"
+                             onsearchbegin="BrowserUI.updateAwesomeHeader(this.controller.searchString);"
                              placeholder="&urlbar.emptytext;"
                              collapsed="true"
                              flex="1"
@@ -316,7 +316,7 @@
     </arrowbox>
 
     <!-- popup for site identity information -->
-    <arrowbox id="identity-container" hidden="true" mode="unknownIdentity" offset="18" flex="1" type="dialog">
+    <arrowbox id="identity-container" hidden="true" mode="unknownIdentity" offset="18" flex="1">
       <hbox id="identity-popup-container" flex="1" align="top">
         <image id="identity-popup-icon"/>
         <vbox id="identity-popup-content-box" flex="1">
@@ -359,7 +359,7 @@
       </hbox>
     </arrowbox>
 
-    <arrowbox id="bookmark-popup" hidden="true" align="stretch" offset="12" type="dialog">
+    <arrowbox id="bookmark-popup" hidden="true" align="stretch" offset="12">
       <hbox id="bookmark-popup-title">
         <label value="&bookmarkPopup.label;"/>
       </hbox>
@@ -391,9 +391,8 @@
       </dialog>
     </box>
 
-    <arrowbox id="appmenu-popup" hidden="true" type="dialog">
-      <box id="appmenu-popup-sitecommands"/>
-      <richlistbox id="appmenu-popup-appcommands"/>
+    <arrowbox id="appmenu-popup" hidden="true">
+      <richlistbox id="appmenu-popup-commands"/>
     </arrowbox>
 
     <box id="panel-container" hidden="true" class="window-width window-height panel-dark"
@@ -540,11 +539,11 @@
       </hbox>
 
       <!-- titlebar autocomplete results -->
-      <vbox id="popup_autocomplete" class="panel-dark place-list" flex="1" onshow="BrowserUI._edit.showHistoryPopup();" hidden="true"/>
-      <placelist id="bookmarks-items" class="place-list" type="bookmarks" onopen="BookmarkList.openLink(event);" onhide="BrowserUI.updateStar();" flex="1" hidden="true"/>
-      <historylist id="history-items" class="place-list" onopen="HistoryList.openLink(event);" flex="1" hidden="true"/>
+      <vbox id="popup_autocomplete" class="panel-dark" flex="1" onshow="BrowserUI._edit.showHistoryPopup();" hidden="true"/>
+      <placelist id="bookmarks-items" type="bookmarks" onopen="BookmarkList.openLink(event);" onhide="BrowserUI.updateStar();" flex="1" hidden="true"/>
+      <historylist id="history-items" onopen="HistoryList.openLink(event);" flex="1" hidden="true"/>
 #ifdef MOZ_SERVICES_SYNC
-      <remotetabslist id="remotetabs-items" class="place-list" onopen="RemoteTabsList.openLink(event)" flex="1" hidden="true"/>
+      <remotetabslist id="remotetabs-items" onopen="RemoteTabsList.openLink(event)" flex="1" hidden="true"/>
 #endif
     </vbox>
 
@@ -715,7 +714,7 @@
     </hbox>
 
     <hbox id="appmenu" bottom="0" hidden="true" align="stretch" oncommand="AppMenu.hide();">
-      <toolbarbutton class="appmenu-site-button appmenu-button appmenu-pageaction"
+      <toolbarbutton class="appmenu-site-button appmenu-button"
         label="&appMenu.siteOptions;"
         oncommand="getIdentityHandler().show(); event.stopPropagation();"/>
       <toolbarbutton class="appmenu-preferences-button appmenu-button"
@@ -724,17 +723,17 @@
       <toolbarbutton class="appmenu-addons-button appmenu-button"
         label="&addonsHeader.label;"
         oncommand="BrowserUI.showPanel('addons-container');"/>
-      <toolbarbutton class="appmenu-share-button appmenu-button appmenu-pageaction"
+      <toolbarbutton class="appmenu-share-button appmenu-button"
         label="&pageactions.share.page;"
         oncommand="SharingUI.show(getBrowser().currentURI.spec, getBrowser().contentTitle);"/>
-      <toolbarbutton class="appmenu-findinpage-button appmenu-button appmenu-pageaction"
+      <toolbarbutton class="appmenu-findinpage-button appmenu-button"
         label="&pageactions.findInPage;"
         oncommand="FindHelperUI.show();"/>
       <toolbarbutton class="appmenu-downloads-button appmenu-button"
         label="&downloadsHeader.label;"
         oncommand="BrowserUI.showPanel('downloads-container');"/>
 #ifdef NS_PRINTING
-      <toolbarbutton class="appmenu-saveas-button appmenu-button appmenu-pageaction"
+      <toolbarbutton class="appmenu-saveas-button appmenu-button"
         label="&pageactions.saveas.pdf;"
         oncommand="PageActions.savePageAsPDF();"/>
 #endif

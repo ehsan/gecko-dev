@@ -115,6 +115,7 @@ nsBaseWidget::nsBaseWidget()
 , mZIndex(0)
 , mSizeMode(nsSizeMode_Normal)
 , mPopupLevel(ePopupLevelTop)
+, mDrawFPS(PR_FALSE)
 {
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets++;
@@ -815,9 +816,11 @@ nsBaseWidget::GetShouldAccelerate()
     Preferences::GetBool("layers.acceleration.disabled", PR_FALSE);
   PRBool forceAcceleration =
     Preferences::GetBool("layers.acceleration.force-enabled", PR_FALSE);
+  mDrawFPS =
+    Preferences::GetBool("layers.acceleration.draw-fps", PR_FALSE);
 
   const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
-  accelerateByDefault = accelerateByDefault ||
+  accelerateByDefault = accelerateByDefault || 
                         (acceleratedEnv && (*acceleratedEnv != '0'));
 
   nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
@@ -876,6 +879,7 @@ LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
        * deal with it though!
        */
       if (layerManager->Initialize()) {
+        layerManager->SetRenderFPS(mDrawFPS);
         mLayerManager = layerManager;
       }
     }

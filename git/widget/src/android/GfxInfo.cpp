@@ -271,16 +271,13 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aS
   }
 
   if (aFeature == FEATURE_OPENGL_LAYERS) {
-    /* XXX: Use this code when we're ready to whitelist devices. */
-    // nsAutoString str;
-    // /* Whitelist Galaxy S phones */
-    // if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
-    //   if (str != NS_LITERAL_STRING("smdkc110")) {
-    //     status = FEATURE_BLOCKED_DEVICE;
-    //   }
-    // }
-
-    status = FEATURE_BLOCKED_DEVICE;
+      nsAutoString str;
+      /* Whitelist Galaxy S phones */
+      if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
+          if (str != NS_LITERAL_STRING("smdkc110")) {
+            status = FEATURE_BLOCKED_DEVICE;
+          }
+      }
   }
 
   *aStatus = status;

@@ -1434,9 +1434,6 @@ public:
 protected:
   void QueryIsActive();
   nsresult UpdateImageLockingState();
-
-private:
-  nscolor GetDefaultBackgroundColorToDraw();
 };
 
 NS_IMPL_ISUPPORTS1(PresShell::MemoryReporter, nsIMemoryMultiReporter)
@@ -4047,19 +4044,13 @@ PresShell::ScrollToAnchor()
  * we should include the top of the line in the added rectangle
  * @param aRect [inout] rect into which its bounds should be unioned
  * @param aHaveRect [inout] whether aRect contains data yet
- * @param aPrevBlock [inout] the block aLines is a line iterator for
- * @param aLines [inout] the line iterator we're using
- * @param aCurLine [inout] the line to start looking from in this iterator
  */
 static void
 AccumulateFrameBounds(nsIFrame* aContainerFrame,
                       nsIFrame* aFrame,
                       PRBool aUseWholeLineHeightForInlines,
                       nsRect& aRect,
-                      PRBool& aHaveRect,
-                      nsIFrame*& aPrevBlock,
-                      nsAutoLineIterator& aLines,
-                      PRInt32& aCurLine)
+                      PRBool& aHaveRect)
 {
   nsRect frameBounds = aFrame->GetRect() +
     aFrame->GetParent()->GetOffsetTo(aContainerFrame);
@@ -4082,22 +4073,17 @@ AccumulateFrameBounds(nsIFrame* aContainerFrame,
         f &&
         frameType == nsGkAtoms::blockFrame) {
       // find the line containing aFrame and increase the top of |offset|.
-      if (f != aPrevBlock) {
-        aLines = f->GetLineIterator();
-        aPrevBlock = f;
-        aCurLine = 0;
-      }
-      if (aLines) {
-        PRInt32 index = aLines->FindLineContaining(prevFrame, aCurLine);
+      nsAutoLineIterator lines = f->GetLineIterator();
+      if (lines) {
+        PRInt32 index = lines->FindLineContaining(prevFrame);
         if (index >= 0) {
-          aCurLine = index;
           nsIFrame *trash1;
           PRInt32 trash2;
           nsRect lineBounds;
           PRUint32 trash3;
 
-          if (NS_SUCCEEDED(aLines->GetLine(index, &trash1, &trash2,
-                                           lineBounds, &trash3))) {
+          if (NS_SUCCEEDED(lines->GetLine(index, &trash1, &trash2,
+                                          lineBounds, &trash3))) {
             lineBounds += f->GetOffsetTo(aContainerFrame);
             if (lineBounds.y < frameBounds.y) {
               frameBounds.height = frameBounds.YMost() - lineBounds.y;
@@ -4300,16 +4286,9 @@ PresShell::DoScrollContentIntoView(nsIContent* aContent,
   nsRect frameBounds;
   PRBool haveRect = PR_FALSE;
   PRBool useWholeLineHeightForInlines = aVPercent != NS_PRESSHELL_SCROLL_ANYWHERE;
-  // Reuse the same line iterator across calls to AccumulateFrameBounds.  We set
-  // it every time we detect a new block (stored in prevBlock).
-  nsIFrame* prevBlock = nsnull;
-  nsAutoLineIterator lines;
-  // The last line we found a continuation on in |lines|.  We assume that later
-  // continuations cannot come on earlier lines.
-  PRInt32 curLine = 0;
   do {
     AccumulateFrameBounds(container, frame, useWholeLineHeightForInlines,
-                          frameBounds, haveRect, prevBlock, lines, curLine);
+                          frameBounds, haveRect);
   } while ((frame = frame->GetNextContinuation()));
 
   ScrollFrameRectIntoView(container, frameBounds, aVPercent, aHPercent,
@@ -5854,14 +5833,6 @@ static PRBool IsTransparentContainerElement(nsPresContext* aPresContext)
          containerElement->HasAttr(kNameSpaceID_None, nsGkAtoms::transparent);
 }
 
-nscolor PresShell::GetDefaultBackgroundColorToDraw()
-{
-  if (!mPresContext || !mPresContext->GetBackgroundColorDraw()) {
-    return NS_RGB(255,255,255);
-  }
-  return mPresContext->DefaultBackgroundColor();
-}
-
 void PresShell::UpdateCanvasBackground()
 {
   // If we have a frame tree and it has style information that
@@ -5881,7 +5852,7 @@ void PresShell::UpdateCanvasBackground()
     if (GetPresContext()->IsRootContentDocument() &&
         !IsTransparentContainerElement(mPresContext)) {
       mCanvasBackgroundColor =
-        NS_ComposeColors(GetDefaultBackgroundColorToDraw(), mCanvasBackgroundColor);
+        NS_ComposeColors(mPresContext->DefaultBackgroundColor(), mCanvasBackgroundColor);
     }
   }
 
@@ -5889,7 +5860,7 @@ void PresShell::UpdateCanvasBackground()
   // then the document's background color does not get drawn; cache the
   // color we actually draw.
   if (!FrameConstructor()->GetRootElementFrame()) {
-    mCanvasBackgroundColor = GetDefaultBackgroundColorToDraw();
+    mCanvasBackgroundColor = mPresContext->DefaultBackgroundColor();
   }
 }
 
@@ -5904,7 +5875,7 @@ nscolor PresShell::ComputeBackstopColor(nsIView* aDisplayRoot)
   // Within an opaque widget (or no widget at all), so the backstop
   // color must be totally opaque. The user's default background
   // as reported by the prescontext is guaranteed to be opaque.
-  return GetDefaultBackgroundColorToDraw();
+  return GetPresContext()->DefaultBackgroundColor();
 }
 
 struct PaintParams {
@@ -7017,43 +6988,6 @@ static PRBool CanHandleContextMenuEvent(nsMouseEvent* aMouseEvent,
   return PR_TRUE;
 }
 
-static PRBool
-IsFullScreenAndRestrictedKeyEvent(nsIContent* aTarget, const nsEvent* aEvent)
-{
-  NS_ABORT_IF_FALSE(aEvent, "Must have an event to check.");
-
-  // Bail out if the event is not a key event, or the target's document is
-  // not in DOM full screen mode, or full-screen key input is not restricted.
-  nsIDocument *doc;
-  if (!aTarget ||
-      (aEvent->message != NS_KEY_DOWN &&
-      aEvent->message != NS_KEY_UP &&
-      aEvent->message != NS_KEY_PRESS) ||
-      !(doc = aTarget->GetOwnerDoc()) ||
-      !doc->IsFullScreenDoc() ||
-      !nsContentUtils::IsFullScreenKeyInputRestricted()) {
-    return PR_FALSE;
-  }
-
-  // Key input is restricted. Determine if the key event has a restricted
-  // key code. Non-restricted codes are:
-  //   DOM_VK_CANCEL to DOM_VK_CAPS_LOCK, inclusive
-  //   DOM_VK_SPACE to DOM_VK_DELETE, inclusive
-  //   DOM_VK_SEMICOLON to DOM_VK_EQUALS, inclusive
-  //   DOM_VK_MULTIPLY to DOM_VK_META, inclusive
-  int key = static_cast<const nsKeyEvent*>(aEvent)->keyCode;
-  if ((key >= NS_VK_CANCEL && key <= NS_VK_CAPS_LOCK) ||
-      (key >= NS_VK_SPACE && key <= NS_VK_DELETE) ||
-      (key >= NS_VK_SEMICOLON && key <= NS_VK_EQUALS) ||
-      (key >= NS_VK_MULTIPLY && key <= NS_VK_META)) {
-    return PR_FALSE;
-  }
-
-  // Otherwise, fullscreen is enabled, key input is restricted, and the key
-  // code is not an allowed key code.
-  return PR_TRUE;
-}
-
 nsresult
 PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
                                nsEventStatus* aStatus)
@@ -7095,21 +7029,11 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
     // XXX How about IME events and input events for plugins?
     if (NS_IS_TRUSTED_EVENT(aEvent)) {
       switch (aEvent->message) {
+      case NS_MOUSE_BUTTON_DOWN:
+      case NS_MOUSE_BUTTON_UP:
       case NS_KEY_PRESS:
       case NS_KEY_DOWN:
       case NS_KEY_UP:
-        if (IsFullScreenAndRestrictedKeyEvent(mCurrentEventContent, aEvent) &&
-            aEvent->message == NS_KEY_DOWN) {
-          // We're in DOM full-screen mode, and a key with a restricted key
-          // code has been pressed. Exit full-screen mode.
-          NS_DispatchToCurrentThread(
-            NS_NewRunnableMethod(mCurrentEventContent->GetOwnerDoc(),
-                                 &nsIDocument::CancelFullScreen));
-        }
-        // Else not full-screen mode or key code is unrestricted, fall
-        // through to normal handling.
-      case NS_MOUSE_BUTTON_DOWN:
-      case NS_MOUSE_BUTTON_UP:
         isHandlingUserInput = PR_TRUE;
         break;
       case NS_DRAGDROP_DROP:

@@ -506,11 +506,18 @@ MouseModule.prototype = {
   },
 
   _dispatchTap: function _dispatchTap(aType, aMouseEvent) {
+    // borrowed from nsIDOMNSEvent.idl
+    let modifiers =
+      (aMouseEvent.altKey   ? Ci.nsIDOMNSEvent.ALT_MASK     : 0) |
+      (aMouseEvent.ctrlKey  ? Ci.nsIDOMNSEvent.CONTROL_MASK : 0) |
+      (aMouseEvent.shiftKey ? Ci.nsIDOMNSEvent.SHIFT_MASK   : 0) |
+      (aMouseEvent.metaKey  ? Ci.nsIDOMNSEvent.META_MASK    : 0);
+
     let event = document.createEvent("Events");
     event.initEvent(aType, true, false);
     event.clientX = aMouseEvent.clientX;
     event.clientY = aMouseEvent.clientY;
-    event.modifiers = Util.modifierMaskFromEvent(aMouseEvent);
+    event.modifiers = modifiers;
     aMouseEvent.originalTarget.dispatchEvent(event);
   },
 

@@ -576,7 +576,7 @@ static JSBool
 DumpHeap(JSContext *cx, uintN argc, jsval *vp)
 {
     void* startThing = NULL;
-    JSGCTraceKind startTraceKind = JSTRACE_OBJECT;
+    uint32 startTraceKind = 0;
     void *thingToFind = NULL;
     size_t maxDepth = (size_t)-1;
     void *thingToIgnore = NULL;
@@ -879,7 +879,8 @@ env_setProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
     JSAutoByteString value(cx, valstr);
     if (!value)
         return JS_FALSE;
-#if defined XP_WIN || defined HPUX || defined OSF1 || defined SCO
+#if defined XP_WIN || defined HPUX || defined OSF1 || defined IRIX \
+    || defined SCO
     {
         char *waste = JS_smprintf("%s=%s", name.ptr(), value.ptr());
         if (!waste) {

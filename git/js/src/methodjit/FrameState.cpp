@@ -1949,6 +1949,9 @@ FrameState::pushCopyOf(FrameEntry *backing)
 FrameEntry *
 FrameState::walkTrackerForUncopy(FrameEntry *original)
 {
+    /* Temporary entries are immutable and should never be uncopied. */
+    JS_ASSERT(!isTemporary(original));
+
     uint32 firstCopy = InvalidIndex;
     FrameEntry *bestFe = NULL;
     uint32 ncopies = 0;
@@ -1975,7 +1978,7 @@ FrameState::walkTrackerForUncopy(FrameEntry *original)
 
     JS_ASSERT(firstCopy != InvalidIndex);
     JS_ASSERT(bestFe);
-    JS_ASSERT_IF(!isTemporary(original), bestFe > original);
+    JS_ASSERT(bestFe > original);
 
     /* Mark all extra copies as copies of the new backing index. */
     bestFe->setCopyOf(NULL);
@@ -2870,8 +2873,6 @@ FrameState::clearTemporaries()
     for (FrameEntry *fe = temporaries; fe < temporariesTop; fe++) {
         if (!fe->isTracked())
             continue;
-        if (fe->isCopied())
-            uncopy(fe);
         forgetAllRegs(fe);
         fe->resetSynced();
     }

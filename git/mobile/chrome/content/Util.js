@@ -182,13 +182,6 @@ let Util = {
 #endif
   },
 
-  modifierMaskFromEvent: function modifierMaskFromEvent(aEvent) {
-    return (aEvent.altKey   ? Ci.nsIDOMNSEvent.ALT_MASK     : 0) |
-           (aEvent.ctrlKey  ? Ci.nsIDOMNSEvent.CONTROL_MASK : 0) |
-           (aEvent.shiftKey ? Ci.nsIDOMNSEvent.SHIFT_MASK   : 0) |
-           (aEvent.metaKey  ? Ci.nsIDOMNSEvent.META_MASK    : 0);
-  },
-
   get isKeyboardOpened() {
     // This might get called from the child process, or from a frame script in the
     // parent process (which does not have access to the main "window" global).
@@ -202,14 +195,6 @@ let Util = {
   get displayDPI() {
     delete this.displayDPI;
     return this.displayDPI = this.getWindowUtils(window).displayDPI;
-  },
-
-  LOCALE_DIR_RTL: -1,
-  LOCALE_DIR_LTR: 1,
-  get localeDir() {
-    // determine browser dir first to know which direction to snap to
-    let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].getService(Ci.nsIXULChromeRegistry);
-    return chromeReg.isLocaleRTL("global") ? this.LOCALE_DIR_RTL : this.LOCALE_DIR_LTR;
   }
 };
 

@@ -622,10 +622,7 @@ public:
    * This is called after we've constructed a display list for event handling.
    * When this is called, we've already ensured that aRect intersects the
    * item's bounds.
-   *
-   * @param aRect the point or rect being tested, relative to the reference
-   * frame. If the width and height are both 1 app unit, it indicates we're
-   * hit testing a point, not a rect.
+   * 
    * @param aState must point to a HitTestState. If you don't have one,
    * just create one with the default constructor and pass it in.
    * @param aOutFrames each item appends the frame(s) in this display item that
@@ -2067,7 +2064,7 @@ private:
  * The reason that a "bounds" rect is involved in transform calculations is
  * because CSS-transforms allow percentage values for the x and y components
  * of <translation-value>s, where percentages are percentages of the element's
- * border box.
+ * content box.
  *
  * INVARIANT: The wrapped frame is transformed.
  * INVARIANT: The wrapped frame is non-null.
@@ -2083,7 +2080,6 @@ public:
     nsDisplayItem(aBuilder, aFrame), mStoredList(aBuilder, aFrame, aList)
   {
     MOZ_COUNT_CTOR(nsDisplayTransform);
-    NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
   }
 
   nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
@@ -2091,7 +2087,6 @@ public:
   nsDisplayItem(aBuilder, aFrame), mStoredList(aBuilder, aFrame, aItem)
   {
     MOZ_COUNT_CTOR(nsDisplayTransform);
-    NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
   }
 
 #ifdef NS_BUILD_REFCNT_LOGGING

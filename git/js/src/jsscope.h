@@ -251,13 +251,8 @@ struct PropertyTable {
     /* Computes the size of the entries array for a given capacity. */
     static size_t sizeOfEntries(size_t cap) { return cap * sizeof(Shape *); }
 
-    /*
-     * This counts the PropertyTable object itself (which must be
-     * heap-allocated) and its |entries| array.
-     */
-    size_t sizeOf(JSUsableSizeFun usf) const {
-        size_t usable = usf((void*)this) + usf(entries);
-        return usable ? usable : sizeOfEntries(capacity()) + sizeof(PropertyTable);
+    size_t sizeOf() const {
+        return sizeOfEntries(capacity()) + sizeof(PropertyTable);
     }
 
     /* Whether we need to grow.  We want to do this if the load factor is >= 0.75 */
@@ -357,7 +352,6 @@ struct Shape : public js::gc::Cell
 
   protected:
     mutable js::Shape   *parent;        /* parent node, reverse for..in order */
-    /* kids is valid when !inDictionary(), listp is valid when inDictionary(). */
     union {
         mutable js::KidsPointer kids;   /* null, single child, or a tagged ptr
                                            to many-kids data structure */
@@ -444,17 +438,6 @@ struct Shape : public js::gc::Cell
     js::PropertyTable *getTable() const {
         JS_ASSERT(hasTable());
         return table;
-    }
-
-    size_t sizeOfPropertyTable(JSUsableSizeFun usf) const {
-        return hasTable() ? getTable()->sizeOf(usf) : 0;
-    }
-
-    size_t sizeOfKids(JSUsableSizeFun usf) const {
-        /* Nb: |countMe| is true because the kids HashTable is on the heap. */
-        return (!inDictionary() && kids.isHash())
-             ? kids.toHash()->sizeOf(usf, /* countMe */true)
-             : 0;
     }
 
     bool isNative() const { return this != &sharedNonNative; }

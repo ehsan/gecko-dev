@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=4 sw=4 et tw=79 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -49,7 +49,7 @@ using namespace js;
 bool
 JSString::isShort() const
 {
-    bool is_short = (getAllocKind() == gc::FINALIZE_SHORT_STRING);
+    bool is_short = arenaHeader()->getThingKind() == gc::FINALIZE_SHORT_STRING;
     JS_ASSERT_IF(is_short, isFlat());
     return is_short;
 }
@@ -69,7 +69,7 @@ JSString::isInline() const
 bool
 JSString::isExternal() const
 {
-    bool is_external = (getAllocKind() == gc::FINALIZE_EXTERNAL_STRING);
+    bool is_external = arenaHeader()->getThingKind() == gc::FINALIZE_EXTERNAL_STRING;
     JS_ASSERT_IF(is_external, isFixed());
     return is_external;
 }
@@ -83,7 +83,7 @@ JSLinearString::mark(JSTracer *)
 }
 
 size_t
-JSString::charsHeapSize(JSUsableSizeFun usf)
+JSString::charsHeapSize()
 {
     /* JSRope: do nothing, we'll count all children chars when we hit the leaf strings. */
     if (isRope())
@@ -98,11 +98,8 @@ JSString::charsHeapSize(JSUsableSizeFun usf)
     JS_ASSERT(isFlat());
 
     /* JSExtensibleString: count the full capacity, not just the used space. */
-    if (isExtensible()) {
-        JSExtensibleString &extensible = asExtensible();
-        size_t usable = usf((void *)extensible.chars());
-        return usable ? usable : asExtensible().capacity() * sizeof(jschar);
-    }
+    if (isExtensible())
+        return asExtensible().capacity() * sizeof(jschar);
 
     JS_ASSERT(isFixed());
 
@@ -119,9 +116,7 @@ JSString::charsHeapSize(JSUsableSizeFun usf)
         return 0;
 
     /* JSAtom, JSFixedString: count the chars. */
-    JSFixedString &fixed = asFixed();
-    size_t usable = usf((void *)fixed.chars());
-    return usable ? usable : length() * sizeof(jschar);
+    return length() * sizeof(jschar);
 }
 
 static JS_ALWAYS_INLINE bool

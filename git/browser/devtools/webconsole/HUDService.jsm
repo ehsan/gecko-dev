@@ -1786,6 +1786,7 @@ HUD_SERVICE.prototype =
     panels = popupset.querySelectorAll("panel[hudToolId=" + aHUDId + "]");
     for (let i = 0; i < panels.length; i++) {
       panels[i].hidePopup();
+      popupset.removeChild(panels[i]);
     }
 
     let id = ConsoleUtils.supString(aHUDId);
@@ -3615,9 +3616,7 @@ HeadsUpDisplay.prototype = {
     toolbar.setAttribute("class", "hud-console-filter-toolbar");
     toolbar.setAttribute("mode", "full");
 
-#ifdef XP_MAC
     this.makeCloseButton(toolbar);
-#endif
 
     for (let i = 0; i < BUTTONS.length; i++) {
       this.makeFilterButton(toolbar, BUTTONS[i]);
@@ -3630,10 +3629,6 @@ HeadsUpDisplay.prototype = {
 
     toolbar.appendChild(this.filterBox);
     this.makeClearConsoleButton(toolbar);
-
-#ifndef XP_MAC
-    this.makeCloseButton(toolbar);
-#endif
 
     return toolbar;
   },
