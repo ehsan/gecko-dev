@@ -136,19 +136,13 @@ ThreadNode.prototype = {
  *        so it may very well (not?) include the function name, url, etc.
  * @param number line
  *        The line number inside the source containing this function call.
- * @param number column
- *        The column number inside the source containing this function call.
  * @param number category
  *        The category type of this function call ("js", "graphics" etc.).
- * @param number allocations
- *        The number of memory allocations performed in this frame.
  */
-function FrameNode({ location, line, column, category, allocations }) {
+function FrameNode({ location, line, category }) {
   this.location = location;
   this.line = line;
-  this.column = column;
   this.category = category;
-  this.allocations = allocations || 0;
   this.sampleTimes = [];
   this.samples = 0;
   this.duration = 0;
@@ -206,28 +200,24 @@ FrameNode.prototype = {
     // default to an "unknown" category otherwise.
     let categoryData = CATEGORY_MAPPINGS[this.category] || {};
 
-    // Parse the `location` for the function name, source url, line, column etc.
-    let lineAndColumn = this.location.match(/((:\d+)*)\)?$/)[1];
-    let [, line, column] = lineAndColumn.split(":");
-    line = line || this.line;
-    column = column || this.column;
-
-    let firstParenIndex = this.location.indexOf("(");
-    let lineAndColumnIndex = this.location.indexOf(lineAndColumn);
-    let resource = this.location.substring(firstParenIndex + 1, lineAndColumnIndex);
-
+    // Parse the `location` for the function name, source url and line.
+    let firstParen = this.location.indexOf("(");
+    let lastColon = this.location.lastIndexOf(":");
+    let resource = this.location.substring(firstParen + 1, lastColon);
+    let line = this.location.substring(lastColon + 1).replace(")", "");
     let url = resource.split(" -> ").pop();
     let uri = nsIURL(url);
     let functionName, fileName, hostName;
 
     // If the URI digged out from the `location` is valid, this is a JS frame.
     if (uri) {
-      functionName = this.location.substring(0, firstParenIndex - 1);
+      functionName = this.location.substring(0, firstParen - 1);
       fileName = (uri.fileName + (uri.ref ? "#" + uri.ref : "")) || "/";
       hostName = uri.host;
     } else {
       functionName = this.location;
       url = null;
+      line = null;
     }
 
     return {
@@ -236,8 +226,7 @@ FrameNode.prototype = {
       fileName: fileName,
       hostName: hostName,
       url: url,
-      line: line,
-      column: column,
+      line: line || this.line,
       categoryData: categoryData,
       isContent: !!isContent(this)
     };

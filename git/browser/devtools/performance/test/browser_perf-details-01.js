@@ -13,17 +13,10 @@ function spawnTest () {
 
   // Select calltree view
   let viewChanged = onceSpread(DetailsView, EVENTS.DETAILS_VIEW_SELECTED);
-  command($("toolbarbutton[data-view='js-calltree']"));
+  command($("toolbarbutton[data-view='calltree']"));
   let [_, viewName] = yield viewChanged;
-  is(viewName, "js-calltree", "DETAILS_VIEW_SELECTED fired with view name");
-  checkViews(DetailsView, doc, "js-calltree");
-
-  // Select flamegraph view
-  viewChanged = onceSpread(DetailsView, EVENTS.DETAILS_VIEW_SELECTED);
-  command($("toolbarbutton[data-view='js-flamegraph']"));
-  [_, viewName] = yield viewChanged;
-  is(viewName, "js-flamegraph", "DETAILS_VIEW_SELECTED fired with view name");
-  checkViews(DetailsView, doc, "js-flamegraph");
+  is(viewName, "calltree", "DETAILS_VIEW_SELECTED fired with view name");
+  checkViews(DetailsView, doc, "calltree");
 
   // Select waterfall view
   viewChanged = onceSpread(DetailsView, EVENTS.DETAILS_VIEW_SELECTED);
@@ -31,6 +24,13 @@ function spawnTest () {
   [_, viewName] = yield viewChanged;
   is(viewName, "waterfall", "DETAILS_VIEW_SELECTED fired with view name");
   checkViews(DetailsView, doc, "waterfall");
+
+  // Select flamegraph view
+  viewChanged = onceSpread(DetailsView, EVENTS.DETAILS_VIEW_SELECTED);
+  command($("toolbarbutton[data-view='flamegraph']"));
+  [_, viewName] = yield viewChanged;
+  is(viewName, "flamegraph", "DETAILS_VIEW_SELECTED fired with view name");
+  checkViews(DetailsView, doc, "flamegraph");
 
   yield teardown(panel);
   finish();

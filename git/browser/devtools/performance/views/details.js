@@ -14,11 +14,9 @@ let DetailsView = {
    * Name to node+object mapping of subviews.
    */
   components: {
-    "waterfall": { id: "waterfall-view", view: WaterfallView },
-    "js-calltree": { id: "js-calltree-view", view: JsCallTreeView },
-    "js-flamegraph": { id: "js-flamegraph-view", view: JsFlameGraphView },
-    "memory-calltree": { id: "memory-calltree-view", view: MemoryCallTreeView },
-    "memory-flamegraph": { id: "memory-flamegraph-view", view: MemoryFlameGraphView }
+    waterfall: { id: "waterfall-view", view: WaterfallView },
+    calltree: { id: "calltree-view", view: CallTreeView },
+    flamegraph: { id: "flamegraph-view", view: FlameGraphView }
   },
 
   /**

@@ -567,7 +567,6 @@
                 <DesktopRoomConversationView
                   roomStore={roomStore}
                   dispatcher={dispatcher}
-                  mozLoop={navigator.mozLoop}
                   roomState={ROOM_STATES.INIT} />
               </div>
             </Example>
@@ -578,7 +577,6 @@
                 <DesktopRoomConversationView
                   roomStore={roomStore}
                   dispatcher={dispatcher}
-                  mozLoop={navigator.mozLoop}
                   roomState={ROOM_STATES.HAS_PARTICIPANTS} />
               </div>
             </Example>

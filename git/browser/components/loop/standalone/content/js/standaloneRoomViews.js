@@ -251,8 +251,7 @@ loop.standaloneRoomViews = (function(mozL10n) {
         this.props.dispatcher.dispatch(new sharedActions.SetupStreamElements({
           publisherConfig: this.getDefaultPublisherConfig({publishVideo: true}),
           getLocalElementFunc: this._getElement.bind(this, ".local"),
-          getRemoteElementFunc: this._getElement.bind(this, ".remote"),
-          getScreenShareElementFunc: this._getElement.bind(this, ".screen")
+          getRemoteElementFunc: this._getElement.bind(this, ".remote")
         }));
       }
 
@@ -340,19 +339,6 @@ loop.standaloneRoomViews = (function(mozL10n) {
         "local-stream-audio": this.state.videoMuted
       });
 
-      var remoteStreamClasses = React.addons.classSet({
-        "video_inner": true,
-        "remote": true,
-        "remote-stream": true,
-        hide: this.state.receivingScreenShare
-      });
-
-      var screenShareStreamClasses = React.addons.classSet({
-        "screen": true,
-        "remote-stream": true,
-        hide: !this.state.receivingScreenShare
-      });
-
       return (
         React.createElement("div", {className: "room-conversation-wrapper"}, 
           React.createElement("div", {className: "beta-logo"}), 
@@ -371,13 +357,11 @@ loop.standaloneRoomViews = (function(mozL10n) {
                   mozL10n.get("self_view_hidden_message")
                 ), 
                 React.createElement("div", {className: "video_wrapper remote_wrapper"}, 
-                  React.createElement("div", {className: remoteStreamClasses}), 
-                  React.createElement("div", {className: screenShareStreamClasses})
+                  React.createElement("div", {className: "video_inner remote"})
                 ), 
                 React.createElement("div", {className: localStreamClasses})
               ), 
               React.createElement(sharedViews.ConversationToolbar, {
-                dispatcher: this.props.dispatcher, 
                 video: {enabled: !this.state.videoMuted,
                         visible: this._roomIsActive()}, 
                 audio: {enabled: !this.state.audioMuted,
