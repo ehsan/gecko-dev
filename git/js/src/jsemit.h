@@ -171,8 +171,14 @@ struct JSTreeContext {              /* tree context for semantic checks */
                                        XXX combine with blockChain? */
     JSAtomList      decls;          /* function, const, and var declarations */
     JSParseContext  *parseContext;
-    JSFunction      *fun;           /* function to store argument and variable
+
+    union {
+
+        JSFunction  *fun;           /* function to store argument and variable
                                        names when flags & TCF_IN_FUNCTION */
+        JSObject    *scopeChain;    /* scope chain object for the script */
+    } u;
+
 #ifdef JS_SCOPE_DEPTH_METER
     uint16          scopeDepth;     /* current lexical scope chain depth */
     uint16          maxScopeDepth;  /* maximum lexical scope chain depth */
@@ -195,7 +201,6 @@ struct JSTreeContext {              /* tree context for semantic checks */
                                        chain */
 #define TCF_NO_SCRIPT_RVAL   0x1000 /* API caller does not want result value
                                        from global script */
-
 /*
  * Flags to propagate out of the blocks.
  */
@@ -230,7 +235,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
      ATOM_LIST_INIT(&(tc)->decls),                                            \
      (tc)->blockNode = NULL,                                                  \
      (tc)->parseContext = (pc),                                               \
-     (tc)->fun = NULL,                                                        \
+     (tc)->u.scopeChain = NULL,                                               \
      JS_SCOPE_DEPTH_METERING((tc)->scopeDepth = (tc)->maxScopeDepth = 0))
 
 /*
@@ -442,14 +447,22 @@ js_EmitN(JSContext *cx, JSCodeGenerator *cg, JSOp op, size_t extra);
 /*
  * Unsafe macro to call js_SetJumpOffset and return false if it does.
  */
-#define CHECK_AND_SET_JUMP_OFFSET(cx,cg,pc,off)                               \
+#define CHECK_AND_SET_JUMP_OFFSET_CUSTOM(cx,cg,pc,off,BAD_EXIT)               \
     JS_BEGIN_MACRO                                                            \
-        if (!js_SetJumpOffset(cx, cg, pc, off))                               \
-            return JS_FALSE;                                                  \
+        if (!js_SetJumpOffset(cx, cg, pc, off)) {                             \
+            BAD_EXIT;                                                         \
+        }                                                                     \
     JS_END_MACRO
 
+#define CHECK_AND_SET_JUMP_OFFSET(cx,cg,pc,off)                               \
+    CHECK_AND_SET_JUMP_OFFSET_CUSTOM(cx,cg,pc,off,return JS_FALSE)
+
+#define CHECK_AND_SET_JUMP_OFFSET_AT_CUSTOM(cx,cg,off,BAD_EXIT)               \
+    CHECK_AND_SET_JUMP_OFFSET_CUSTOM(cx, cg, CG_CODE(cg,off),                 \
+                                     CG_OFFSET(cg) - (off), BAD_EXIT)
+
 #define CHECK_AND_SET_JUMP_OFFSET_AT(cx,cg,off)                               \
-    CHECK_AND_SET_JUMP_OFFSET(cx, cg, CG_CODE(cg,off), CG_OFFSET(cg) - (off))
+    CHECK_AND_SET_JUMP_OFFSET_AT_CUSTOM(cx, cg, off, return JS_FALSE)
 
 extern JSBool
 js_SetJumpOffset(JSContext *cx, JSCodeGenerator *cg, jsbytecode *pc,

@@ -57,7 +57,7 @@
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
-#include "jsconfig.h"
+#include "jsversion.h"
 #include "jsdate.h"
 #include "jsdtoa.h"
 #include "jsemit.h"
@@ -78,6 +78,7 @@
 #include "jsscript.h"
 #include "jsstr.h"
 #include "prmjtime.h"
+#include "jsstaticcheck.h"
 
 #if !defined JS_THREADSAFE && defined JS_TRACER
 #include "jstracer.h"
@@ -4133,16 +4134,6 @@ JS_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
     return OBJ_CHECK_ACCESS(cx, obj, id, mode, vp, attrsp);
 }
 
-JS_PUBLIC_API(JSCheckAccessOp)
-JS_SetCheckObjectAccessCallback(JSRuntime *rt, JSCheckAccessOp acb)
-{
-    JSCheckAccessOp oldacb;
-
-    oldacb = rt->checkObjectAccess;
-    rt->checkObjectAccess = acb;
-    return oldacb;
-}
-
 static JSBool
 ReservedSlotIndexOK(JSContext *cx, JSObject *obj, JSClass *clasp,
                     uint32 index, uint32 limit)
@@ -4206,24 +4197,38 @@ JS_DropPrincipals(JSContext *cx, JSPrincipals *principals)
 }
 #endif
 
-JS_PUBLIC_API(JSPrincipalsTranscoder)
-JS_SetPrincipalsTranscoder(JSRuntime *rt, JSPrincipalsTranscoder px)
+JS_PUBLIC_API(JSSecurityCallbacks *)
+JS_SetRuntimeSecurityCallbacks(JSRuntime *rt, JSSecurityCallbacks *callbacks)
 {
-    JSPrincipalsTranscoder oldpx;
+    JSSecurityCallbacks *oldcallbacks;
 
-    oldpx = rt->principalsTranscoder;
-    rt->principalsTranscoder = px;
-    return oldpx;
+    oldcallbacks = rt->securityCallbacks;
+    rt->securityCallbacks = callbacks;
+    return oldcallbacks;
 }
 
-JS_PUBLIC_API(JSObjectPrincipalsFinder)
-JS_SetObjectPrincipalsFinder(JSRuntime *rt, JSObjectPrincipalsFinder fop)
+JS_PUBLIC_API(JSSecurityCallbacks *)
+JS_GetRuntimeSecurityCallbacks(JSRuntime *rt)
 {
-    JSObjectPrincipalsFinder oldfop;
+  return rt->securityCallbacks;
+}
 
-    oldfop = rt->findObjectPrincipals;
-    rt->findObjectPrincipals = fop;
-    return oldfop;
+JS_PUBLIC_API(JSSecurityCallbacks *)
+JS_SetContextSecurityCallbacks(JSContext *cx, JSSecurityCallbacks *callbacks)
+{
+    JSSecurityCallbacks *oldcallbacks;
+
+    oldcallbacks = cx->securityCallbacks;
+    cx->securityCallbacks = callbacks;
+    return oldcallbacks;
+}
+
+JS_PUBLIC_API(JSSecurityCallbacks *)
+JS_GetSecurityCallbacks(JSContext *cx)
+{
+  return cx->securityCallbacks
+         ? cx->securityCallbacks
+         : cx->runtime->securityCallbacks;
 }
 
 JS_PUBLIC_API(JSFunction *)
@@ -4304,7 +4309,7 @@ JS_ObjectIsFunction(JSContext *cx, JSObject *obj)
 }
 
 JS_BEGIN_EXTERN_C
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 js_generic_fast_native_method_dispatcher(JSContext *cx, uintN argc, jsval *vp)
 {
     jsval fsv;
@@ -4357,7 +4362,7 @@ js_generic_fast_native_method_dispatcher(JSContext *cx, uintN argc, jsval *vp)
     return ((JSFastNative) fs->call)(cx, argc, vp);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 js_generic_native_method_dispatcher(JSContext *cx, JSObject *obj,
                                     uintN argc, jsval *argv, jsval *rval)
 {
@@ -4569,7 +4574,7 @@ JS_CompileUCScriptForPrincipals(JSContext *cx, JSObject *obj,
 
     CHECK_REQUEST(cx);
     tcflags = JS_OPTIONS_TO_TCFLAGS(cx);
-    script = js_CompileScript(cx, obj, principals, tcflags,
+    script = js_CompileScript(cx, obj, NULL, principals, tcflags,
                               chars, length, NULL, filename, lineno);
     LAST_FRAME_CHECKS(cx, script);
     return script;
@@ -4596,7 +4601,8 @@ JS_BufferIsCompilableUnit(JSContext *cx, JSObject *obj,
      */
     result = JS_TRUE;
     exnState = JS_SaveExceptionState(cx);
-    if (js_InitParseContext(cx, &pc, NULL, chars, length, NULL, NULL, 1)) {
+    if (js_InitParseContext(cx, &pc, NULL, NULL, chars, length, NULL, NULL,
+                            1)) {
         older = JS_SetErrorReporter(cx, NULL);
         if (!js_ParseScript(cx, obj, &pc) &&
             (pc.tokenStream.flags & TSF_UNEXPECTED_EOF)) {
@@ -4635,7 +4641,7 @@ JS_CompileFile(JSContext *cx, JSObject *obj, const char *filename)
     }
 
     tcflags = JS_OPTIONS_TO_TCFLAGS(cx);
-    script = js_CompileScript(cx, obj, NULL, tcflags,
+    script = js_CompileScript(cx, obj, NULL, NULL, tcflags,
                               NULL, 0, fp, filename, 1);
     if (fp != stdin)
         fclose(fp);
@@ -4660,7 +4666,7 @@ JS_CompileFileHandleForPrincipals(JSContext *cx, JSObject *obj,
 
     CHECK_REQUEST(cx);
     tcflags = JS_OPTIONS_TO_TCFLAGS(cx);
-    script = js_CompileScript(cx, obj, principals, tcflags,
+    script = js_CompileScript(cx, obj, NULL, principals, tcflags,
                               NULL, 0, file, filename, 1);
     LAST_FRAME_CHECKS(cx, script);
     return script;
@@ -4783,7 +4789,7 @@ JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
     if (!fun)
         goto out2;
 
-    /* From this point the control must flow through the label out. */
+    MUST_FLOW_THROUGH("out");
     JS_PUSH_TEMP_ROOT_OBJECT(cx, FUN_OBJECT(fun), &tvr);
     for (i = 0; i < nargs; i++) {
         argAtom = js_Atomize(cx, argnames[i], strlen(argnames[i]), 0);
@@ -4998,7 +5004,7 @@ JS_EvaluateUCScriptForPrincipals(JSContext *cx, JSObject *obj,
     JSBool ok;
 
     CHECK_REQUEST(cx);
-    script = js_CompileScript(cx, obj, principals,
+    script = js_CompileScript(cx, obj, NULL, principals,
                               !rval
                               ? TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL
                               : TCF_COMPILE_N_GO,
@@ -5770,7 +5776,7 @@ JS_PUBLIC_API(JSBool)
 JS_ThrowReportedError(JSContext *cx, const char *message,
                       JSErrorReport *reportp)
 {
-    return js_ErrorToException(cx, message, reportp);
+    return cx->fp && js_ErrorToException(cx, message, reportp);
 }
 
 JS_PUBLIC_API(JSBool)

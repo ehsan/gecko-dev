@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=78:
+ * vim: set ts=8 sw=4 et tw=99:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -50,7 +50,7 @@
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsconfig.h"
+#include "jsversion.h"
 #include "jsdbgapi.h"
 #include "jsfun.h"
 #include "jsgc.h"
@@ -65,6 +65,7 @@
 #include "jsscript.h"
 #include "jsstr.h"
 #include "jsexn.h"
+#include "jsstaticcheck.h"
 
 #if JS_HAS_GENERATORS
 # include "jsiter.h"
@@ -717,7 +718,7 @@ call_enumerate(JSContext *cx, JSObject *obj)
 
     mark = JS_ARENA_MARK(&cx->tempPool);
 
-    /* From this point the control must flow through the label out. */
+    MUST_FLOW_THROUGH("out");
     names = js_GetLocalNameArray(cx, fun, &cx->tempPool);
     if (!names) {
         ok = JS_FALSE;
@@ -791,7 +792,7 @@ CallPropertyOp(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
             }
         }
         return JS_TRUE;
-  }
+    }
 
     JS_ASSERT((int16) JSVAL_TO_INT(id) == JSVAL_TO_INT(id));
     i = (uint16) JSVAL_TO_INT(id);
@@ -960,47 +961,13 @@ JS_FRIEND_DATA(JSClass) js_CallClass = {
     JS_CLASS_TRACE(args_or_call_trace), call_reserveSlots
 };
 
-/*
- * ECMA-262 specifies that length is a property of function object instances,
- * but we can avoid that space cost by delegating to a prototype property that
- * is JSPROP_PERMANENT and JSPROP_SHARED.  Each fun_getProperty call computes
- * a fresh length value based on the arity of the individual function object's
- * private data.
- *
- * The extensions below other than length, i.e., the ones not in ECMA-262,
- * are neither JSPROP_READONLY nor JSPROP_SHARED, because for compatibility
- * with ECMA we must allow a delegating object to override them. Therefore to
- * avoid entraining garbage in Function.prototype slots, they must be resolved
- * in non-prototype function objects, wherefore the lazy_function_props table
- * and fun_resolve's use of it.
- */
-#define LENGTH_PROP_ATTRS (JSPROP_READONLY|JSPROP_PERMANENT|JSPROP_SHARED)
-
-static JSPropertySpec function_props[] = {
-    {js_length_str,    ARGS_LENGTH,    LENGTH_PROP_ATTRS, 0,0},
-    {0,0,0,0,0}
-};
-
-typedef struct LazyFunctionProp {
-    uint16      atomOffset;
-    int8        tinyid;
-    uint8       attrs;
-} LazyFunctionProp;
-
-/* NB: no sentinel at the end -- use JS_ARRAY_LENGTH to bound loops. */
-static LazyFunctionProp lazy_function_props[] = {
-    {ATOM_OFFSET(arguments), CALL_ARGUMENTS, JSPROP_PERMANENT},
-    {ATOM_OFFSET(arity),     FUN_ARITY,      JSPROP_PERMANENT},
-    {ATOM_OFFSET(caller),    FUN_CALLER,     JSPROP_PERMANENT},
-    {ATOM_OFFSET(name),      FUN_NAME,       JSPROP_PERMANENT},
-};
-
 static JSBool
 fun_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
     jsint slot;
     JSFunction *fun;
     JSStackFrame *fp;
+    JSSecurityCallbacks *callbacks;
 
     if (!JSVAL_IS_INT(id))
         return JS_TRUE;
@@ -1075,10 +1042,13 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
             *vp = OBJECT_TO_JSVAL(fp->down->callee);
         else
             *vp = JSVAL_NULL;
-        if (!JSVAL_IS_PRIMITIVE(*vp) && cx->runtime->checkObjectAccess) {
-            id = ATOM_KEY(cx->runtime->atomState.callerAtom);
-            if (!cx->runtime->checkObjectAccess(cx, obj, id, JSACC_READ, vp))
-                return JS_FALSE;
+        if (!JSVAL_IS_PRIMITIVE(*vp)) {
+            callbacks = JS_GetSecurityCallbacks(cx);
+            if (callbacks && callbacks->checkObjectAccess) {
+                id = ATOM_KEY(cx->runtime->atomState.callerAtom);
+                if (!callbacks->checkObjectAccess(cx, obj, id, JSACC_READ, vp))
+                    return JS_FALSE;
+            }
         }
         break;
 
@@ -1091,6 +1061,41 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
     return JS_TRUE;
 }
+
+/*
+ * ECMA-262 specifies that length is a property of function object instances,
+ * but we can avoid that space cost by delegating to a prototype property that
+ * is JSPROP_PERMANENT and JSPROP_SHARED.  Each fun_getProperty call computes
+ * a fresh length value based on the arity of the individual function object's
+ * private data.
+ *
+ * The extensions below other than length, i.e., the ones not in ECMA-262,
+ * are neither JSPROP_READONLY nor JSPROP_SHARED, because for compatibility
+ * with ECMA we must allow a delegating object to override them. Therefore to
+ * avoid entraining garbage in Function.prototype slots, they must be resolved
+ * in non-prototype function objects, wherefore the lazy_function_props table
+ * and fun_resolve's use of it.
+ */
+#define LENGTH_PROP_ATTRS (JSPROP_READONLY|JSPROP_PERMANENT|JSPROP_SHARED)
+
+static JSPropertySpec function_props[] = {
+    {js_length_str,    ARGS_LENGTH,    LENGTH_PROP_ATTRS, fun_getProperty, JS_PropertyStub},
+    {0,0,0,0,0}
+};
+
+typedef struct LazyFunctionProp {
+    uint16      atomOffset;
+    int8        tinyid;
+    uint8       attrs;
+} LazyFunctionProp;
+
+/* NB: no sentinel at the end -- use JS_ARRAY_LENGTH to bound loops. */
+static LazyFunctionProp lazy_function_props[] = {
+    {ATOM_OFFSET(arguments), CALL_ARGUMENTS, JSPROP_PERMANENT},
+    {ATOM_OFFSET(arity),     FUN_ARITY,      JSPROP_PERMANENT},
+    {ATOM_OFFSET(caller),    FUN_CALLER,     JSPROP_PERMANENT},
+    {ATOM_OFFSET(name),      FUN_NAME,       JSPROP_PERMANENT},
+};
 
 static JSBool
 fun_enumerate(JSContext *cx, JSObject *obj)
@@ -1182,9 +1187,9 @@ fun_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
         if (id == ATOM_KEY(atom)) {
             if (!js_DefineNativeProperty(cx, obj,
                                          ATOM_TO_JSID(atom), JSVAL_VOID,
-                                         NULL, NULL, lfp->attrs,
-                                         SPROP_HAS_SHORTID, lfp->tinyid,
-                                         NULL)) {
+                                         fun_getProperty, JS_PropertyStub,
+                                         lfp->attrs, SPROP_HAS_SHORTID,
+                                         lfp->tinyid, NULL)) {
                 return JS_FALSE;
             }
             *objp = obj;
@@ -1504,7 +1509,7 @@ JS_FRIEND_DATA(JSClass) js_FunctionClass = {
     JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE | JSCLASS_HAS_RESERVED_SLOTS(2) |
     JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Function),
     JS_PropertyStub,  JS_PropertyStub,
-    fun_getProperty,  JS_PropertyStub,
+    JS_PropertyStub,  JS_PropertyStub,
     fun_enumerate,    (JSResolveOp)fun_resolve,
     fun_convert,      fun_finalize,
     NULL,             NULL,
@@ -2525,7 +2530,7 @@ typedef struct JSLocalNameEnumeratorArgs {
 #endif
 } JSLocalNameEnumeratorArgs;
 
-JS_STATIC_DLL_CALLBACK(JSDHashOperator)
+static JSDHashOperator
 get_local_names_enumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                            uint32 number, void *arg)
 {
@@ -2605,7 +2610,7 @@ js_GetLocalNameArray(JSContext *cx, JSFunction *fun, JSArenaPool *pool)
     return names;
 }
 
-JS_STATIC_DLL_CALLBACK(JSDHashOperator)
+static JSDHashOperator
 trace_local_names_enumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                              uint32 number, void *arg)
 {

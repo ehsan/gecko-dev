@@ -84,6 +84,10 @@ MAKEFILES_editor="
   editor/txtsvc/Makefile
   editor/txtsvc/public/Makefile
   editor/txtsvc/src/Makefile
+  editor/composer/Makefile
+  editor/composer/public/Makefile
+  editor/composer/src/Makefile
+  editor/composer/test/Makefile
 "
 
 MAKEFILES_expat="
@@ -97,7 +101,6 @@ MAKEFILES_gfx="
   gfx/public/Makefile
   gfx/src/Makefile
   gfx/src/psshared/Makefile
-  gfx/src/photon/Makefile
   gfx/src/thebes/Makefile
   gfx/tests/Makefile
 "
@@ -585,7 +588,6 @@ MAKEFILES_xpfe="
   xpfe/components/autocomplete/Makefile
   xpfe/components/autocomplete/public/Makefile
   xpfe/components/autocomplete/src/Makefile
-  xpfe/components/winhooks/Makefile
   xpfe/components/windowds/Makefile
   xpfe/components/build/Makefile
   xpfe/appshell/Makefile
@@ -814,14 +816,6 @@ add_makefiles "
 #
 # Conditional makefiles
 #
-
-if [ "$MOZ_COMPOSER" ]; then
-  add_makefiles "
-    editor/composer/Makefile
-    editor/ui/Makefile
-    editor/ui/locales/Makefile
-  "
-fi
 
 if [ "$MOZ_ZIPWRITER" ]; then
   add_makefiles "

@@ -47,7 +47,7 @@
 #include "jsclist.h"
 #include "jslong.h"
 #include "jsatom.h"
-#include "jsconfig.h"
+#include "jsversion.h"
 #include "jsdhash.h"
 #include "jsgc.h"
 #include "jsinterp.h"
@@ -126,6 +126,13 @@ typedef struct JSFragmentCacheEntry {
  * frequencies for all JavaScript code loaded into that runtime.
  */
 typedef struct JSTraceMonitor {
+    /*
+     * Flag set when running (or recording) JIT-compiled code. This prevents
+     * both interpreter activation and last-ditch garbage collection when up
+     * against our runtime's memory limits. This flag also suppresses calls to
+     * JS_ReportOutOfMemory when failing due to runtime limits.
+     */
+    JSBool                  onTrace;
     CLS(nanojit::Fragmento) fragmento;
     CLS(TraceRecorder)      recorder;
     uint32                  globalShape;
@@ -133,6 +140,12 @@ typedef struct JSTraceMonitor {
     CLS(TypeMap)            globalTypeMap;
     JSFragmentCacheEntry    fcache[JS_FRAGMENT_CACHE_SIZE];
 } JSTraceMonitor;
+
+#ifdef JS_TRACER
+# define JS_ON_TRACE(cx)   (JS_TRACE_MONITOR(cx).onTrace)
+#else
+# define JS_ON_TRACE(cx)   JS_FALSE
+#endif
 
 #ifdef JS_THREADSAFE
 
@@ -180,7 +193,7 @@ struct JSThread {
 #define JS_TRACE_MONITOR(cx)    ((cx)->thread->traceMonitor)
 #define JS_SCRIPTS_TO_GC(cx)    ((cx)->thread->scriptsToGC)
 
-extern void JS_DLL_CALLBACK
+extern void
 js_ThreadDestructorCB(void *ptr);
 
 extern JSBool
@@ -378,16 +391,10 @@ struct JSRuntime {
     uint32              debuggerMutations;
 
     /*
-     * Check property accessibility for objects of arbitrary class.  Used at
-     * present to check f.caller accessibility for any function object f.
+     * Security callbacks set on the runtime are used by each context unless
+     * an override is set on the context.
      */
-    JSCheckAccessOp     checkObjectAccess;
-
-    /* Security principals serialization support. */
-    JSPrincipalsTranscoder principalsTranscoder;
-
-    /* Optional hook to find principals for an object in this runtime. */
-    JSObjectPrincipalsFinder findObjectPrincipals;
+    JSSecurityCallbacks *securityCallbacks;
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -735,17 +742,10 @@ struct JSContext {
      * property values associated with this context's global object.
      */
     uint8               xmlSettingFlags;
-#else
     uint8               padding;
+#else
+    uint16              padding;
 #endif
-
-    /*
-     * Flag set when running (or recording) JIT-compiled code. This prevents
-     * both interpreter activation and last-ditch garbage collection when up
-     * against our runtime's memory limits. This flag also suppresses calls to
-     * JS_ReportOutOfMemory when failing due to runtime limits.
-     */
-    JSPackedBool        executingTrace;
 
     /*
      * Classic Algol "display" static link optimization.
@@ -881,6 +881,9 @@ struct JSContext {
 
     /* Debug hooks associated with the current context. */
     JSDebugHooks        *debugHooks;
+
+    /* Security callbacks that override any defined on the runtime. */
+    JSSecurityCallbacks *securityCallbacks;
 };
 
 #ifdef JS_THREADSAFE
@@ -963,7 +966,7 @@ class JSAutoTempValueRooter
  * success.
  */
 extern JSBool
-js_InitThreadPrivateIndex(void (JS_DLL_CALLBACK *ptr)(void *));
+js_InitThreadPrivateIndex(void (*ptr)(void *));
 
 /*
  * Common subroutine of JS_SetVersion and js_SetVersion, to update per-context
