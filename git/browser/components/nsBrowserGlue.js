@@ -320,8 +320,9 @@ BrowserGlue.prototype = {
 
         reporter.onInit().then(function record() {
           try {
-            let engine = subject.QueryInterface(Ci.nsISearchEngine);
-            reporter.getProvider("org.mozilla.searches").recordSearch(engine, "urlbar");
+            let name = subject.QueryInterface(Ci.nsISearchEngine).name;
+            reporter.getProvider("org.mozilla.searches").recordSearch(name,
+                                                                      "urlbar");
           } catch (ex) {
             Cu.reportError(ex);
           }

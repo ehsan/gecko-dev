@@ -183,7 +183,6 @@ private:
                                 uint32_t aMagEventType,
                                 uint32_t aRotEventType);
   uint16_t ProcessInputTypeForGesture(IEdgeGestureEventArgs* aArgs);
-  bool ShouldDeliverInputToRecognizer();
 
   // The W3C spec states that "whether preventDefault has been called" should
   // be tracked on a per-touchpoint basis, but it also states that touchstart
@@ -208,11 +207,11 @@ private:
   //   events will be generated based on the touchstart and touchend events.
   //   For example, a set of mousemove, mousedown, and mouseup events might
   //   be sent if a tap is detected.
-  bool mContentConsumingTouch;
+  bool mTouchStartDefaultPrevented;
+  bool mTouchMoveDefaultPrevented;
   bool mIsFirstTouchMove;
   bool mCancelable;
-  bool mRecognizerWantsEvents;
-  nsTArray<uint32_t> mCanceledIds;
+  bool mTouchCancelSent;
 
   // In the old Win32 way of doing things, we would receive a WM_TOUCH event
   // that told us the state of every touchpoint on the touch surface.  If
@@ -274,15 +273,21 @@ private:
 
   // Async event dispatching
   void DispatchAsyncEventIgnoreStatus(WidgetInputEvent* aEvent);
-  void DispatchAsyncTouchEvent(WidgetTouchEvent* aEvent);
+  void DispatchAsyncTouchEventIgnoreStatus(WidgetTouchEvent* aEvent);
+  void DispatchAsyncTouchEventWithCallback(WidgetTouchEvent* aEvent,
+                                           void (MetroInput::*Callback)());
 
   // Async event callbacks
   void DeliverNextQueuedEventIgnoreStatus();
-  void DeliverNextQueuedTouchEvent();
+  nsEventStatus DeliverNextQueuedTouchEvent();
+
+  // Misc. specialty async callbacks
+  void OnPointerPressedCallback();
+  void OnFirstPointerMoveCallback();
 
   // Sync event dispatching
   void DispatchEventIgnoreStatus(WidgetGUIEvent* aEvent);
-  void DispatchTouchCancel(WidgetTouchEvent* aEvent);
+  void DispatchTouchCancel();
 
   nsDeque mInputEventQueue;
   static nsEventStatus sThrowawayStatus;
