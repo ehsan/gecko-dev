@@ -26,7 +26,7 @@ public:
     , mBrowserStream(NULL)
   { }
 
-  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+  NS_OVERRIDE virtual void ActorDestroy(ActorDestroyReason why);
 
   void SetValid(void* aClosure) {
     mClosure = aClosure;
@@ -35,7 +35,7 @@ public:
   void NPP_URLNotify(NPReason reason);
 
 private:
-  virtual bool Recv__delete__(const NPReason& reason) MOZ_OVERRIDE;
+  NS_OVERRIDE virtual bool Recv__delete__(const NPReason& reason);
 
   bool RecvRedirectNotify(const nsCString& url, const int32_t& status);
 

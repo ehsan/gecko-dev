@@ -1999,7 +1999,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
     nsCOMPtr<nsIPluginInstanceOwner> owner;
     inst->GetOwner(getter_AddRefs(owner));
-    NS_ENSURE_TRUE(owner, NPERR_NO_ERROR);
+    NS_ENSURE_TRUE(owner, nsnull);
 
     if (NS_SUCCEEDED(owner->GetNetscapeWindow(result))) {
       return NPERR_NO_ERROR;

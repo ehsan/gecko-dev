@@ -94,17 +94,6 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
 }
 
 NS_IMETHODIMP
-nsSVGDisplayContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                             const nsRect&           aDirtyRect,
-                                             const nsDisplayListSet& aLists)
-{
-  if (!static_cast<const nsSVGElement*>(mContent)->HasValidDimensions()) {
-    return NS_OK;
-  }
-  return BuildDisplayListForNonBlockChildren(aBuilder, aDirtyRect, aLists);
-}
-
-NS_IMETHODIMP
 nsSVGDisplayContainerFrame::InsertFrames(ChildListID aListID,
                                          nsIFrame* aPrevFrame,
                                          nsFrameList& aFrameList)
@@ -130,17 +119,12 @@ nsSVGDisplayContainerFrame::InsertFrames(ChildListID aListID,
       if (SVGFrame) {
         NS_ABORT_IF_FALSE(!(kid->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                           "Check for this explicitly in the |if|, then");
-        bool isFirstReflow = (kid->GetStateBits() & NS_FRAME_FIRST_REFLOW);
         // Remove bits so that ScheduleBoundsUpdate will work:
         kid->RemoveStateBits(NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |
                              NS_FRAME_HAS_DIRTY_CHILDREN);
         // No need to invalidate the new kid's old bounds, so we just use
         // nsSVGUtils::ScheduleBoundsUpdate.
-        nsSVGUtils::ScheduleReflowSVG(kid);
-        if (isFirstReflow) {
-          // Add back the NS_FRAME_FIRST_REFLOW bit:
-          kid->AddStateBits(NS_FRAME_FIRST_REFLOW);
-        }
+        nsSVGUtils::ScheduleBoundsUpdate(kid);
       }
     }
   }
@@ -178,7 +162,8 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
   }
 
   nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
-  if (content->GetAnimatedTransformList() ||
+  const SVGAnimatedTransformList *list = content->GetAnimatedTransformList();
+  if ((list && !list->GetAnimValue().IsEmpty()) ||
       content->GetAnimateMotionTransform()) {
     if (aOwnTransform) {
       *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
@@ -196,11 +181,6 @@ NS_IMETHODIMP
 nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
                                      const nsIntRect *aDirtyRect)
 {
-  NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
-               "If display lists are enabled, only painting of non-display "
-               "SVG should take this code path");
-
   const nsStyleDisplay *display = mStyleContext->GetStyleDisplay();
   if (display->mOpacity == 0.0)
     return NS_OK;
@@ -216,10 +196,6 @@ nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGDisplayContainerFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
-  NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
-               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
-               "If display lists are enabled, only hit-testing of a "
-               "clipPath's contents should take this code path");
   return nsSVGUtils::HitTestChildren(this, aPoint);
 }
 
@@ -230,18 +206,18 @@ nsSVGDisplayContainerFrame::GetCoveredRegion()
 }
 
 void
-nsSVGDisplayContainerFrame::ReflowSVG()
+nsSVGDisplayContainerFrame::UpdateBounds()
 {
-  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
-               "This call is probably a wasteful mistake");
+  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingUpdateBounds(this),
+               "This call is probaby a wasteful mistake");
 
   NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "ReflowSVG mechanism not designed for this");
+                    "UpdateBounds mechanism not designed for this");
 
   NS_ABORT_IF_FALSE(GetType() != nsGkAtoms::svgOuterSVGFrame,
                     "Do not call on outer-<svg>");
 
-  if (!nsSVGUtils::NeedsReflowSVG(this)) {
+  if (!nsSVGUtils::NeedsUpdatedBounds(this)) {
     return;
   }
 
@@ -267,7 +243,7 @@ nsSVGDisplayContainerFrame::ReflowSVG()
     if (SVGFrame) {
       NS_ABORT_IF_FALSE(!(kid->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                         "Check for this explicitly in the |if|, then");
-      SVGFrame->ReflowSVG();
+      SVGFrame->UpdateBounds();
 
       // We build up our child frame overflows here instead of using
       // nsLayoutUtils::UnionChildOverflow since SVG frame's all use the same
@@ -321,6 +297,10 @@ nsSVGDisplayContainerFrame::ReflowSVG()
 void
 nsSVGDisplayContainerFrame::NotifySVGChanged(PRUint32 aFlags)
 {
+  NS_ABORT_IF_FALSE(!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS) ||
+                    (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
+                    "Must be NS_STATE_SVG_NONDISPLAY_CHILD!");
+
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 

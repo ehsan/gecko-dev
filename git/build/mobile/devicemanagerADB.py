@@ -176,6 +176,24 @@ class DeviceManagerADB(DeviceManager):
     except:
       return None
 
+  # make directory structure on the device
+  # external function
+  # returns:
+  #  success: directory structure that we created
+  #  failure: None
+  def mkDirs(self, filename):
+    parts = filename.split('/')
+    name = ""
+    for part in parts:
+      if (part == parts[-1]): break
+      if (part != ""):
+        name += '/' + part
+        if (not self.dirExists(name)):
+          if (self.mkDir(name) == None):
+            print "failed making directory: " + str(name)
+            return None
+    return name
+
   # push localDir from host to remoteDir on the device
   # external function
   # returns:
@@ -786,12 +804,9 @@ class DeviceManagerADB(DeviceManager):
 
   def verifyRoot(self):
     # a test to see if we have root privs
-    p = self.runCmd(["shell", "id"])
-    response = p.stdout.readline()
-    response = response.rstrip()
-    response = response.split(' ')
-    if (response[0].find('uid=0') < 0 or response[1].find('gid=0') < 0):
-      print "NOT running as root ", response[0].find('uid=0')
+    files = self.listFiles("/data/data")
+    if (len(files) == 0):
+      print "NOT running as root"
       raise DMError("not running as root")
 
     self.haveRoot = True

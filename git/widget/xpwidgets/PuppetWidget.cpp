@@ -5,17 +5,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
+#include "mozilla/dom/PBrowserChild.h"
 #include "BasicLayers.h"
-#include "gfxPlatform.h"
 #if defined(MOZ_ENABLE_D3D10_LAYER)
 # include "LayerManagerD3D10.h"
 #endif
-#include "mozilla/dom/TabChild.h"
+
+#include "gfxPlatform.h"
 #include "mozilla/Hal.h"
-#include "mozilla/layers/CompositorChild.h"
-#include "mozilla/layers/PLayersChild.h"
 #include "PuppetWidget.h"
 
 using namespace mozilla::dom;
@@ -33,7 +30,7 @@ InvalidateRegion(nsIWidget* aWidget, const nsIntRegion& aRegion)
 }
 
 /*static*/ already_AddRefed<nsIWidget>
-nsIWidget::CreatePuppetWidget(TabChild* aTabChild)
+nsIWidget::CreatePuppetWidget(PBrowserChild *aTabChild)
 {
   NS_ABORT_IF_FALSE(nsIWidget::UsePuppetWidgets(),
                     "PuppetWidgets not allowed in this configuration");
@@ -66,7 +63,7 @@ const size_t PuppetWidget::kMaxDimension = 4000;
 NS_IMPL_ISUPPORTS_INHERITED1(PuppetWidget, nsBaseWidget,
                              nsISupportsWeakReference)
 
-PuppetWidget::PuppetWidget(TabChild* aTabChild)
+PuppetWidget::PuppetWidget(PBrowserChild *aTabChild)
   : mTabChild(aTabChild)
   , mDPI(-1)
 {
@@ -204,7 +201,7 @@ PuppetWidget::Invalidate(const nsIntRect& aRect)
 {
 #ifdef DEBUG
   debug_DumpInvalidate(stderr, this, &aRect,
-                       nsCAutoString("PuppetWidget"), 0);
+                       nsCAutoString("PuppetWidget"), nsnull);
 #endif
 
   if (mChild) {
@@ -241,7 +238,7 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 {
 #ifdef DEBUG
   debug_DumpEvent(stdout, event->widget, event,
-                  nsCAutoString("PuppetWidget"), 0);
+                  nsCAutoString("PuppetWidget"), nsnull);
 #endif
 
   NS_ABORT_IF_FALSE(!mChild || mChild->mWindowType == eWindowType_popup,
@@ -290,7 +287,7 @@ PuppetWidget::GetLayerManager(PLayersChild* aShadowManager,
     // The backend hint is a temporary placeholder until Azure, when
     // all content-process layer managers will be BasicLayerManagers.
 #if defined(MOZ_ENABLE_D3D10_LAYER)
-    if (mozilla::layers::LAYERS_D3D10 == aBackendHint) {
+    if (LayerManager::LAYERS_D3D10 == aBackendHint) {
       nsRefPtr<LayerManagerD3D10> m = new LayerManagerD3D10(this);
       m->AsShadowForwarder()->SetShadowManager(aShadowManager);
       if (m->Initialize()) {
@@ -495,10 +492,10 @@ PuppetWidget::DispatchPaintEvent()
   {
 #ifdef DEBUG
     debug_DumpPaintEvent(stderr, this, &event,
-                         nsCAutoString("PuppetWidget"), 0);
+                         nsCAutoString("PuppetWidget"), nsnull);
 #endif
 
-    if (mozilla::layers::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
+    if (LayerManager::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
       DispatchEvent(&event, status);
     } else {
       nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
@@ -506,8 +503,7 @@ PuppetWidget::DispatchPaintEvent()
       ctx->Clip();
       AutoLayerManagerSetup setupLayerManager(this, ctx,
                                               BasicLayerManager::BUFFER_NONE);
-      DispatchEvent(&event, status);
-      mTabChild->NotifyPainted();
+      DispatchEvent(&event, status);  
     }
   }
 
@@ -569,7 +565,7 @@ PuppetWidget::GetNativeData(PRUint32 aDataType)
   switch (aDataType) {
   case NS_NATIVE_SHAREABLE_WINDOW: {
     NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the nativeWindow from!");
-    mozilla::WindowsHandle nativeData = 0;
+    mozilla::WindowsHandle nativeData = nsnull;
     mTabChild->SendGetWidgetNativeData(&nativeData);
     return (void*)nativeData;
   }

@@ -1,19 +1,8 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* Copyright 2012 Mozilla Foundation and Mozilla contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SystemWorkerManager.h"
 
@@ -30,18 +19,35 @@
 #include "AutoMounter.h"
 #endif
 #include "mozilla/ipc/Ril.h"
+#ifdef MOZ_B2G_BT
+#include "mozilla/ipc/DBusThread.h"
+#include "BluetoothFirmware.h"
+#include "BluetoothUtils.h"
+#endif
 #include "nsContentUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsRadioInterfaceLayer.h"
 #include "WifiWorker.h"
 
-USING_WORKERS_NAMESPACE
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkBluetooth", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if(BTDEBUG) printf(args);
+#endif
 
+
+USING_WORKERS_NAMESPACE
 using namespace mozilla::dom::gonk;
 using namespace mozilla::ipc;
 #ifdef MOZ_WIDGET_GONK
 using namespace mozilla::system;
+#endif
+#ifdef MOZ_B2G_BT
+using namespace mozilla::dom::bluetooth;
 #endif
 
 namespace {
@@ -223,6 +229,15 @@ SystemWorkerManager::Init()
     return rv;
   }
 
+#ifdef MOZ_B2G_BT
+  rv = InitBluetooth(cx);
+  if (NS_FAILED(rv)) {
+    NS_WARNING("Failed to initialize Bluetooth!");
+    return rv;
+  }
+
+#endif
+
 #ifdef MOZ_WIDGET_GONK
   InitAutoMounter();
 #endif
@@ -255,7 +270,9 @@ SystemWorkerManager::Shutdown()
 #endif
 
   StopRil();
-
+#ifdef MOZ_B2G_BT
+  StopDBus();
+#endif
   mRILWorker = nsnull;
   nsCOMPtr<nsIWifi> wifi(do_QueryInterface(mWifiWorker));
   if (wifi) {
@@ -365,6 +382,29 @@ SystemWorkerManager::InitWifi(JSContext *cx)
   NS_ENSURE_TRUE(worker, NS_ERROR_FAILURE);
 
   mWifiWorker = worker;
+  return NS_OK;
+}
+
+nsresult
+SystemWorkerManager::InitBluetooth(JSContext *cx)
+{
+#ifdef MOZ_B2G_BT
+#ifdef MOZ_WIDGET_GONK
+  // We need a platform specific check here to make sure of when we're
+  // running on an emulator. Therefore, if we're compiled with gonk,
+  // see if we can load functions out of bluedroid. If not, assume
+  // it's an emulator and don't start the bluetooth thread.
+  if(EnsureBluetoothInit()) {
+#endif
+    StartDBus();
+    StartBluetoothConnection();
+#ifdef MOZ_WIDGET_GONK
+  }
+  else {
+    LOG("Bluedroid functions not available, assuming running on simulator. Not starting DBus thread.");
+  }
+#endif
+#endif
   return NS_OK;
 }
 

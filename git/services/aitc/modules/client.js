@@ -15,10 +15,6 @@ Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://services-crypto/utils.js");
 
-const DEFAULT_INITIAL_BACKOFF = 600000; // 10min
-const DEFAULT_MAX_BACKOFF = 21600000;   // 6h
-const DEFAULT_REQUEST_FAILURE_THRESHOLD = 3;
-
 /**
  * First argument is a token as returned by CommonUtils.TokenServerClient.
  * This is a convenience, so you don't have to call updateToken immediately
@@ -42,10 +38,6 @@ function AitcClient(token, state) {
 
   this._state = state;
   this._backoff = !!state.get("backoff", false);
-  this._backoffTime = 0;
-  this._consecutiveFailures = 0;
-  this._maxFailures = state.get("requestFailureThreshold",
-    DEFAULT_REQUEST_FAILURE_THRESHOLD);
 
   this._timeout = state.get("timeout", 120);
   this._appsLastModified = parseInt(state.get("lastModified", "0"), 10);
@@ -86,9 +78,7 @@ AitcClient.prototype = {
     // Fetch the name of the app because it's not in the event app object.
     let self = this;
     DOMApplicationRegistry.getManifestFor(app.origin, function gotManifest(m) {
-      if (m) {
-        app.name = m.name;
-      }
+      app.name = m.name;
       self._putApp(self._makeRemoteApp(app), cb);
     });
   },
@@ -191,7 +181,7 @@ AitcClient.prototype = {
     try {
       cb(null, apps);
       // Don't update lastModified until we know cb succeeded.
-      this._appsLastModified = parseInt(req.response.headers["x-timestamp"], 10);
+      this._appsLastModified = parseInt(req.response.headers["X-Timestamp"], 10);
       this._state.set("lastModified", ""  + this._appsLastModified);
     } catch (e) {
       this._log.error("Exception in getApps callback " + e);
@@ -262,7 +252,7 @@ AitcClient.prototype = {
       // better to keep server load low, even if it means user's apps won't
       // reach their other devices during the early days of AITC. We should
       // revisit this when we have a better of idea of server load curves.
-      let err = new Error("Backoff in effect, aborting PUT");
+      err = new Error("Backoff in effect, aborting PUT");
       err.processed = false;
       cb(err, null);
       return;
@@ -305,7 +295,7 @@ AitcClient.prototype = {
         break;
 
       case 401:
-        // Bubble auth failure back up so new token can be acquired.
+        // Bubble auth failure back up so new token can be acquired
         err = new Error("_putApp failed due to 401 authentication failure");
         this._log.warn(err);
         err.authfailure = true;
@@ -313,7 +303,7 @@ AitcClient.prototype = {
         break;
 
       case 409:
-        // Retry on server conflict.
+        // Retry on server conflict
         err = new Error("_putApp failed due to 409 conflict");
         this._log.warn(err);
         cb(err,null);
@@ -343,8 +333,7 @@ AitcClient.prototype = {
    */
   _error: function _error(req) {
     this._log.error("Catch-all error for request: " +
-      req.uri.asciiSpec + " " + req.response.status + " with: " +
-      req.response.body);
+      req.uri.asciiSpec + req.response.status + " with: " + req.response.body);
   },
 
   _makeAppURI: function _makeAppURI(origin) {
@@ -373,10 +362,9 @@ AitcClient.prototype = {
     return true;
   },
 
-  // Set values from X-Backoff and Retry-After headers, if present.
+  // Set values from X-Backoff and Retry-After headers, if present
   _setBackoff: function _setBackoff(req) {
     let backoff = 0;
-    let statusCodesWithoutBackoff = [200, 201, 204, 304, 401];
 
     let val;
     if (req.response.headers["Retry-After"]) {
@@ -387,31 +375,13 @@ AitcClient.prototype = {
       val = req.response.headers["X-Backoff"];
       backoff = parseInt(val, 10);
       this._log.warn("X-Backoff header was seen: " + val);
-    } else if (statusCodesWithoutBackoff.indexOf(req.response.status) === -1) {
-      // Bad status code.
-      this._consecutiveFailures++;
-      if (this._consecutiveFailures === this._maxFailures) {
-        // Initialize the backoff.
-        backoff = this._state.get("backoff.initial", DEFAULT_INITIAL_BACKOFF);
-      } else if (this._consecutiveFailures > this._maxFailures) {
-        // Set the backoff to the smallest of either:
-        backoff = Math.min(
-          // double the current backoff
-          this._backoffTime * 2,
-          // or the max backoff.
-          this._state.get("backoff.max", DEFAULT_MAX_BACKOFF)
-        );
-      }
-    } else {
-      // Good Status Code.
-      this._consecutiveFailures = 0;
     }
     if (backoff) {
       this._backoff = true;
       let time = Date.now();
+      // Fuzz backoff time so all client don't retry at the same time
+      backoff = Math.floor((Math.random() * backoff + backoff) * 1000);
       this._state.set("backoff", "" + (time + backoff));
-      this._backoffTime = backoff;
-      this._log.info("Client setting backoff to: " + backoff + "ms");
     }
   },
 };

@@ -504,11 +504,7 @@ mjit::Compiler::performCompilation()
     JS_ASSERT(cx->compartment->activeInference);
 
     {
-        types::AutoEnterCompilation enter(cx);
-        if (!enter.init(outerScript, isConstructing, chunkIndex)) {
-            js_ReportOutOfMemory(cx);
-            return Compile_Error;
-        }
+        types::AutoEnterCompilation enter(cx, outerScript, isConstructing, chunkIndex);
 
         CHECK_STATUS(checkAnalysis(outerScript));
         if (inlining())
@@ -921,13 +917,7 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *script, jsbytecode *pc,
     if (!cx->methodJitEnabled)
         return Compile_Abort;
 
-    /*
-     * If an SPS frame has already been pushed and profiling has since been
-     * turned off, then we can't enter the jit because the epilogue of a pop
-     * will not be emitted. Otherwise, we're safe with respect to balancing the
-     * push/pops to the SPS sampling stack.
-     */
-    if (frame->hasPushedSPSFrame() && !cx->runtime->spsProfiler.enabled())
+    if (frame->hasPushedSPSFrame())
         return Compile_Skipped;
 
     if (script->hasJITInfo()) {
@@ -3822,9 +3812,7 @@ void
 mjit::Compiler::interruptCheckHelper()
 {
     Jump jump;
-    if (cx->runtime->gcZeal() == js::gc::ZealVerifierPreValue ||
-        cx->runtime->gcZeal() == js::gc::ZealVerifierPostValue)
-    {
+    if (cx->runtime->gcZeal() == js::gc::ZealVerifierValue) {
         /* For barrier verification, always take the interrupt so we can verify. */
         jump = masm.jump();
     } else {
@@ -4245,8 +4233,8 @@ mjit::Compiler::inlineCallHelper(uint32_t argc, bool callingNew, FrameSize &call
 
         /* Test if the function is scripted. */
         stubcc.masm.load16(Address(icCalleeData, offsetof(JSFunction, flags)), tmp);
-        Jump isNative = stubcc.masm.branchTest32(Assembler::Zero, tmp,
-                                                 Imm32(JSFUN_INTERPRETED));
+        stubcc.masm.and32(Imm32(JSFUN_KINDMASK), tmp);
+        Jump isNative = stubcc.masm.branch32(Assembler::Below, tmp, Imm32(JSFUN_INTERPRETED));
         tempRegs.putReg(tmp);
 
         /*
@@ -6031,8 +6019,7 @@ mjit::Compiler::iterNext(ptrdiff_t offset)
     frame.unpinReg(reg);
 
     /* Test clasp */
-    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, T1,
-                                     &PropertyIteratorObject::class_);
+    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, T1, &IteratorClass);
     stubcc.linkExit(notFast, Uses(1));
 
     /* Get private from iter obj. */
@@ -6083,8 +6070,7 @@ mjit::Compiler::iterMore(jsbytecode *target)
     RegisterID tempreg = frame.allocReg();
 
     /* Test clasp */
-    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, tempreg,
-                                     &PropertyIteratorObject::class_);
+    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, tempreg, &IteratorClass);
     stubcc.linkExitForBranch(notFast);
 
     /* Get private from iter obj. */
@@ -6123,8 +6109,7 @@ mjit::Compiler::iterEnd()
     frame.unpinReg(reg);
 
     /* Test clasp */
-    Jump notIterator = masm.testObjClass(Assembler::NotEqual, reg, T1,
-                                         &PropertyIteratorObject::class_);
+    Jump notIterator = masm.testObjClass(Assembler::NotEqual, reg, T1, &IteratorClass);
     stubcc.linkExit(notIterator, Uses(1));
 
     /* Get private from iter obj. */

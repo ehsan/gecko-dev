@@ -13,7 +13,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
 const BROWSER_FRAMES_ENABLED_PREF = "dom.mozBrowserFramesEnabled";
-const TOUCH_EVENTS_ENABLED_PREF = "dom.w3c_touch_events.enabled";
 
 function debug(msg) {
   //dump("BrowserElementParent - " + msg + "\n");
@@ -137,12 +136,7 @@ function BrowserElementParent(frameLoader) {
 
   let self = this;
   function addMessageListener(msg, handler) {
-    function checkedHandler() {
-      if (self._isAlive()) {
-        return handler.apply(self, arguments);
-      }
-    }
-    self._mm.addMessageListener('browser-element-api:' + msg, checkedHandler);
+    self._mm.addMessageListener('browser-element-api:' + msg, handler.bind(self));
   }
 
   addMessageListener("hello", this._recvHello);
@@ -155,7 +149,6 @@ function BrowserElementParent(frameLoader) {
   addMessageListener("close", this._fireEventFromMsg);
   addMessageListener("securitychange", this._fireEventFromMsg);
   addMessageListener("error", this._fireEventFromMsg);
-  addMessageListener("scroll", this._fireEventFromMsg);
   addMessageListener("get-mozapp-manifest-url", this._sendMozAppManifestURL);
   addMessageListener("keyevent", this._fireKeyEvent);
   addMessageListener("showmodalprompt", this._handleShowModalPrompt);
@@ -164,54 +157,23 @@ function BrowserElementParent(frameLoader) {
   addMessageListener('got-can-go-forward', this._gotDOMRequestResult);
 
   function defineMethod(name, fn) {
-    XPCNativeWrapper.unwrap(self._frameElement)[name] = function() {
-      if (self._isAlive()) {
-        return fn.apply(self, arguments);
-      }
-    };
+    XPCNativeWrapper.unwrap(self._frameElement)[name] = fn.bind(self);
   }
 
   function defineDOMRequestMethod(domName, msgName) {
-    XPCNativeWrapper.unwrap(self._frameElement)[domName] = function() {
-      if (self._isAlive()) {
-        return self._sendDOMRequest(msgName);
-      }
-    };
+    XPCNativeWrapper.unwrap(self._frameElement)[domName] = self._sendDOMRequest.bind(self, msgName);
   }
 
   // Define methods on the frame element.
   defineMethod('setVisible', this._setVisible);
-  defineMethod('sendMouseEvent', this._sendMouseEvent);
-  if (Services.prefs.getBoolPref(TOUCH_EVENTS_ENABLED_PREF)) {
-    defineMethod('sendTouchEvent', this._sendTouchEvent);
-  }
   defineMethod('goBack', this._goBack);
   defineMethod('goForward', this._goForward);
-  defineMethod('reload', this._reload);
-  defineMethod('stop', this._stop);
   defineDOMRequestMethod('getScreenshot', 'get-screenshot');
   defineDOMRequestMethod('getCanGoBack', 'get-can-go-back');
   defineDOMRequestMethod('getCanGoForward', 'get-can-go-forward');
-
-  // Listen to mozvisibilitychange on the iframe's owner window, and forward it
-  // down to the child.
-  this._window.addEventListener('mozvisibilitychange',
-                                this._ownerVisibilityChange.bind(this),
-                                /* useCapture = */ false,
-                                /* wantsUntrusted = */ false);
 }
 
 BrowserElementParent.prototype = {
-  /**
-   * You shouldn't touch this._frameElement or this._window if _isAlive is
-   * false.  (You'll likely get an exception if you do.)
-   */
-  _isAlive: function() {
-    return !Cu.isDeadWrapper(this._frameElement) &&
-           !Cu.isDeadWrapper(this._frameElement.ownerDocument) &&
-           !Cu.isDeadWrapper(this._frameElement.ownerDocument.defaultView);
-  },
-
   get _window() {
     return this._frameElement.ownerDocument.defaultView;
   },
@@ -225,14 +187,6 @@ BrowserElementParent.prototype = {
 
   _recvHello: function(data) {
     debug("recvHello");
-
-    // Inform our child if our owner element's document is invisible.  Note
-    // that we must do so here, rather than in the BrowserElementParent
-    // constructor, because the BrowserElementChild may not be initialized when
-    // we run our constructor.
-    if (this._window.document.mozHidden) {
-      this._ownerVisibilityChange();
-    }
   },
 
   _fireCtxMenuEvent: function(data) {
@@ -374,48 +328,12 @@ BrowserElementParent.prototype = {
     this._sendAsyncMsg('set-visible', {visible: visible});
   },
 
-  _sendMouseEvent: function(type, x, y, button, clickCount, modifiers) {
-    this._sendAsyncMsg("send-mouse-event", {
-      "type": type,
-      "x": x,
-      "y": y,
-      "button": button,
-      "clickCount": clickCount,
-      "modifiers": modifiers
-    });
-  },
-
-  _sendTouchEvent: function(type, identifiers, touchesX, touchesY,
-                            radiisX, radiisY, rotationAngles, forces,
-                            count, modifiers) {
-    this._sendAsyncMsg("send-touch-event", {
-      "type": type,
-      "identifiers": identifiers,
-      "touchesX": touchesX,
-      "touchesY": touchesY,
-      "radiisX": radiisX,
-      "radiisY": radiisY,
-      "rotationAngles": rotationAngles,
-      "forces": forces,
-      "count": count,
-      "modifiers": modifiers
-    });
-  },
-
   _goBack: function() {
     this._sendAsyncMsg('go-back');
   },
 
   _goForward: function() {
     this._sendAsyncMsg('go-forward');
-  },
-
-  _reload: function(hardReload) {
-    this._sendAsyncMsg('reload', {hardReload: hardReload});
-  },
-
-  _stop: function() {
-    this._sendAsyncMsg('stop');
   },
 
   _fireKeyEvent: function(data) {
@@ -426,14 +344,6 @@ BrowserElementParent.prototype = {
                      data.json.charCode);
 
     this._frameElement.dispatchEvent(evt);
-  },
-
-  /**
-   * Called when the visibility of the window which owns this iframe changes.
-   */
-  _ownerVisibilityChange: function() {
-    this._sendAsyncMsg('owner-visibility-change',
-                       {visible: !this._window.document.mozHidden});
   },
 };
 

@@ -2369,7 +2369,7 @@ var XPIProvider = {
       if (aOldAddon.visible) {
         visibleAddons[aOldAddon.id] = aOldAddon;
 
-        if (aOldAddon.bootstrap && aOldAddon.active) {
+        if (aOldAddon.bootstrap) {
           let bootstrap = oldBootstrappedAddons[aOldAddon.id];
           bootstrap.descriptor = aAddonState.descriptor;
           XPIProvider.bootstrappedAddons[aOldAddon.id] = bootstrap;
@@ -3841,9 +3841,6 @@ var XPIProvider = {
 
     if (aAddon._installLocation.locked)
       throw new Error("Cannot uninstall addons from locked install locations");
-
-    if ("_hasResourceCache" in aAddon)
-      aAddon._hasResourceCache = new Map();
 
     // Inactive add-ons don't require a restart to uninstall
     let requiresRestart = this.uninstallRequiresRestart(aAddon);
@@ -5713,10 +5710,8 @@ XPIProvider.DBAddonInternal = DBAddonInternal;
 function createWrapper(aAddon) {
   if (!aAddon)
     return null;
-  if (!aAddon._wrapper) {
-    aAddon._hasResourceCache = new Map();
+  if (!aAddon._wrapper)
     aAddon._wrapper = new AddonWrapper(aAddon);
-  }
   return aAddon._wrapper;
 }
 
@@ -5773,14 +5768,30 @@ function AddonWrapper(aAddon) {
     });
   }, this);
 
-  this.__defineGetter__("optionsURL", function() {
-    if (this.isActive && aAddon.optionsURL)
-      return aAddon.optionsURL;
+  // Maps iconURL, icon64URL and optionsURL to the properties of the same name
+  // or icon.png, icon64.png and options.xul in the add-on's files.
+  ["icon", "icon64", "options"].forEach(function(aProp) {
+    this.__defineGetter__(aProp + "URL", function() {
+      if (this.isActive && aAddon[aProp + "URL"])
+        return aAddon[aProp + "URL"];
 
-    if (this.isActive && this.hasResource("options.xul"))
-      return this.getResourceURI("options.xul").spec;
+      switch (aProp) {
+        case "icon":
+        case "icon64":
+          if (this.hasResource(aProp + ".png"))
+            return this.getResourceURI(aProp + ".png").spec;
+          break;
+        case "options":
+          if (this.isActive && this.hasResource(aProp + ".xul"))
+            return this.getResourceURI(aProp + ".xul").spec;
+          break;
+      }
 
-    return null;
+      if (aAddon._repositoryAddon)
+        return aAddon._repositoryAddon[aProp + "URL"];
+
+      return null;
+    }, this);
   }, this);
 
   this.__defineGetter__("optionsType", function() {
@@ -5797,35 +5808,6 @@ function AddonWrapper(aAddon) {
       return AddonManager.OPTIONS_TYPE_DIALOG;
 
     return null;
-  }, this);
-
-  this.__defineGetter__("iconURL", function() {
-    return this.icons[32];
-  }, this);
-
-  this.__defineGetter__("icon64URL", function() {
-    return this.icons[64];
-  }, this);
-
-  this.__defineGetter__("icons", function() {
-    let icons = {};
-    if (aAddon._repositoryAddon) {
-      for (let size in aAddon._repositoryAddon.icons) {
-        icons[size] = aAddon._repositoryAddon.icons[size];
-      }
-    }
-    if (this.isActive && aAddon.iconURL) {
-      icons[32] = aAddon.iconURL;
-    } else if (this.hasResource("icon.png")) {
-      icons[32] = this.getResourceURI("icon.png").spec;
-    }
-    if (this.isActive && aAddon.icon64URL) {
-      icons[64] = aAddon.icon64URL;
-    } else if (this.hasResource("icon64.png")) {
-      icons[64] = this.getResourceURI("icon64.png").spec;
-    }
-    Object.freeze(icons);
-    return icons;
   }, this);
 
   PROP_LOCALE_SINGLE.forEach(function(aProp) {
@@ -6111,9 +6093,6 @@ function AddonWrapper(aAddon) {
   };
 
   this.hasResource = function(aPath) {
-    if (aAddon._hasResourceCache.has(aPath))
-      return aAddon._hasResourceCache.get(aPath);
-
     let bundle = aAddon._sourceBundle.clone();
 
     // Bundle may not exist any more if the addon has just been uninstalled,
@@ -6121,7 +6100,6 @@ function AddonWrapper(aAddon) {
     try {
       var isDir = bundle.isDirectory();
     } catch (e) {
-      aAddon._hasResourceCache.set(aPath, false);
       return false;
     }
 
@@ -6131,21 +6109,16 @@ function AddonWrapper(aAddon) {
           bundle.append(aPart);
         });
       }
-      let result = bundle.exists();
-      aAddon._hasResourceCache.set(aPath, result);
-      return result;
+      return bundle.exists();
     }
 
     let zipReader = Cc["@mozilla.org/libjar/zip-reader;1"].
                     createInstance(Ci.nsIZipReader);
     try {
       zipReader.open(bundle);
-      let result = zipReader.hasEntry(aPath);
-      aAddon._hasResourceCache.set(aPath, result);
-      return result;
+      return zipReader.hasEntry(aPath);
     }
     catch (e) {
-      aAddon._hasResourceCache.set(aPath, false);
       return false;
     }
     finally {

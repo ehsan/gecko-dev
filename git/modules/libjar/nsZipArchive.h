@@ -375,9 +375,9 @@ class nsZipHandle {
 friend class nsZipArchive;
 friend class mozilla::FileLocation;
 public:
-  static nsresult Init(nsIFile *file, nsZipHandle **ret);
+  static nsresult Init(nsIFile *file, nsZipHandle **ret NS_OUTPARAM);
   static nsresult Init(nsZipArchive *zip, const char *entry,
-                       nsZipHandle **ret);
+                       nsZipHandle **ret NS_OUTPARAM);
 
   NS_METHOD_(nsrefcnt) AddRef(void);
   NS_METHOD_(nsrefcnt) Release(void);

@@ -8,7 +8,7 @@
 #include "XrayWrapper.h"
 #include "AccessCheck.h"
 #include "FilteringWrapper.h"
-#include "WaiveXrayWrapper.h"
+#include "CrossOriginWrapper.h"
 #include "WrapperFactory.h"
 
 #include "nsINode.h"
@@ -215,7 +215,7 @@ EnsureExpandoObject(JSContext *cx, JSObject *wrapper, JSObject *target)
     // Expando objects live in the target compartment.
     JSAutoEnterCompartment ac;
     if (!ac.enter(cx, target))
-        return nsnull;
+        return false;
 
     JSObject *expandoObject = LookupExpandoObject(cx, target, wrapper);
     if (!expandoObject) {
@@ -1614,23 +1614,6 @@ template class XRAY;
 #undef XRAY
 
 #define XRAY XrayWrapper<CrossCompartmentWrapper, DOMXrayTraits >
-template <> XRAY XRAY::singleton(0);
-template class XRAY;
-#undef XRAY
-
-/* Same-compartment non-filtering versions. */
-
-#define XRAY XrayWrapper<DirectWrapper, XPCWrappedNativeXrayTraits >
-template <> XRAY XRAY::singleton(0);
-template class XRAY;
-#undef XRAY
-
-#define XRAY XrayWrapper<DirectWrapper, ProxyXrayTraits >
-template <> XRAY XRAY::singleton(0);
-template class XRAY;
-#undef XRAY
-
-#define XRAY XrayWrapper<DirectWrapper, DOMXrayTraits >
 template <> XRAY XRAY::singleton(0);
 template class XRAY;
 #undef XRAY

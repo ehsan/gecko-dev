@@ -29,15 +29,6 @@ class nsIDOMElement;
 class nsIURI;
 
 namespace mozilla {
-
-namespace layers {
-struct FrameMetrics;
-}
-
-namespace layout {
-class RenderFrameParent;
-}
-
 namespace dom {
 
 class ContentDialogParent : public PContentDialogParent {};
@@ -114,7 +105,6 @@ public:
     // eating the return values
     void Show(const nsIntSize& size);
     void UpdateDimensions(const nsRect& rect, const nsIntSize& size);
-    void UpdateFrame(const layers::FrameMetrics& aFrameMetrics);
     void Activate();
     void Deactivate();
 
@@ -133,7 +123,6 @@ public:
     bool SendRealMouseEvent(nsMouseEvent& event);
     bool SendMouseScrollEvent(nsMouseScrollEvent& event);
     bool SendRealKeyEvent(nsKeyEvent& event);
-    bool SendRealTouchEvent(nsTouchEvent& event);
 
     virtual PDocumentRendererParent*
     AllocPDocumentRenderer(const nsRect& documentRect, const gfxMatrix& transform,
@@ -175,9 +164,7 @@ protected:
                         const nsString& aJSON,
                         InfallibleTArray<nsString>* aJSONRetVal = nsnull);
 
-    virtual bool Recv__delete__() MOZ_OVERRIDE;
-
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+    void ActorDestroy(ActorDestroyReason why);
 
     virtual PIndexedDBParent* AllocPIndexedDB(const nsCString& aASCIIOrigin,
                                               bool* /* aAllowed */);
@@ -212,11 +199,10 @@ protected:
     bool ShouldDelayDialogs();
     bool AllowContentIME();
 
-    virtual PRenderFrameParent* AllocPRenderFrame(ScrollingBehavior* aScrolling,
-                                                  LayersBackend* aBackend,
-                                                  int32_t* aMaxTextureSize,
-                                                  uint64_t* aLayersId) MOZ_OVERRIDE;
-    virtual bool DeallocPRenderFrame(PRenderFrameParent* aFrame) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual PRenderFrameParent* AllocPRenderFrame();
+    NS_OVERRIDE
+    virtual bool DeallocPRenderFrame(PRenderFrameParent* aFrame);
 
     // IME
     static TabParent *mIMETabParent;
@@ -238,20 +224,7 @@ protected:
 private:
     already_AddRefed<nsFrameLoader> GetFrameLoader() const;
     already_AddRefed<nsIWidget> GetWidget() const;
-    layout::RenderFrameParent* GetRenderFrame();
     void TryCacheDPI();
-    // Return true iff this TabParent was created for a mozbrowser
-    // frame.
-    bool IsForMozBrowser();
-    // When true, we create a pan/zoom controller for our frame and
-    // notify it of input events targeting us.
-    bool UseAsyncPanZoom();
-    // If we have a render frame currently, notify it that we're about
-    // to dispatch |aEvent| to our child.  If there's a relevant
-    // transform in place, |aOutEvent| is the transformed |aEvent| to
-    // dispatch to content.
-    void MaybeForwardEventToRenderFrame(const nsInputEvent& aEvent,
-                                        nsInputEvent* aOutEvent);
 };
 
 } // namespace dom

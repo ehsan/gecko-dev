@@ -1190,9 +1190,10 @@ NS_METHOD nsWindow::Show(bool bState)
  **************************************************************/
 
 // Return true if the whether the component is visible, false otherwise
-bool nsWindow::IsVisible() const
+NS_METHOD nsWindow::IsVisible(bool & bState)
 {
-  return mIsVisible;
+  bState = mIsVisible;
+  return NS_OK;
 }
 
 /**************************************************************
@@ -1338,7 +1339,7 @@ NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
     // region, some drivers or OSes may incorrectly copy into the clipped-out
     // area.
     if (mWindowType == eWindowType_plugin &&
-        (!mLayerManager || mLayerManager->GetBackendType() == LAYERS_D3D9) &&
+        (!mLayerManager || mLayerManager->GetBackendType() == LayerManager::LAYERS_D3D9) &&
         mClipRects &&
         (mClipRectCount != 1 || !mClipRects[0].IsEqualInterior(nsIntRect(0, 0, mBounds.width, mBounds.height)))) {
       flags |= SWP_NOCOPYBITS;
@@ -1685,11 +1686,11 @@ NS_METHOD nsWindow::Enable(bool bState)
 }
 
 // Return the current enable state
-bool nsWindow::IsEnabled() const
+NS_METHOD nsWindow::IsEnabled(bool *aState)
 {
-  return !mWnd ||
-         (::IsWindowEnabled(mWnd) &&
-          ::IsWindowEnabled(::GetAncestor(mWnd, GA_ROOT)));
+  NS_ENSURE_ARG_POINTER(aState);
+  *aState = !mWnd || (::IsWindowEnabled(mWnd) && ::IsWindowEnabled(::GetAncestor(mWnd, GA_ROOT)));
+  return NS_OK;
 }
 
 
@@ -3139,10 +3140,11 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
 
 #ifdef MOZ_ENABLE_D3D10_LAYER
   if (mLayerManager) {
-    if (mLayerManager->GetBackendType() == LAYERS_D3D10)
+    if (mLayerManager->GetBackendType() ==
+        mozilla::layers::LayerManager::LAYERS_D3D10)
     {
-      LayerManagerD3D10 *layerManagerD3D10 =
-        static_cast<LayerManagerD3D10*>(mLayerManager.get());
+      mozilla::layers::LayerManagerD3D10 *layerManagerD3D10 =
+        static_cast<mozilla::layers::LayerManagerD3D10*>(mLayerManager.get());
       if (layerManagerD3D10->device() !=
           gfxWindowsPlatform::GetPlatform()->GetD3D10Device())
       {
@@ -3158,7 +3160,8 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
 
   if (!mLayerManager ||
       (!sAllowD3D9 && aPersistence == LAYER_MANAGER_PERSISTENT &&
-        mLayerManager->GetBackendType() == LAYERS_BASIC)) {
+        mLayerManager->GetBackendType() == 
+        mozilla::layers::LayerManager::LAYERS_BASIC)) {
     // If D3D9 is not currently allowed but the permanent manager is required,
     // -and- we're currently using basic layers, run through this check.
     LayerManagerPrefs prefs;
@@ -3184,8 +3187,8 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
 
 #ifdef MOZ_ENABLE_D3D10_LAYER
       if (!prefs.mPreferD3D9 && !prefs.mPreferOpenGL) {
-        nsRefPtr<LayerManagerD3D10> layerManager =
-          new LayerManagerD3D10(this);
+        nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
+          new mozilla::layers::LayerManagerD3D10(this);
         if (layerManager->Initialize(prefs.mForceAcceleration)) {
           mLayerManager = layerManager;
         }
@@ -3193,8 +3196,8 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
 #endif
 #ifdef MOZ_ENABLE_D3D9_LAYER
       if (!prefs.mPreferOpenGL && !mLayerManager && sAllowD3D9) {
-        nsRefPtr<LayerManagerD3D9> layerManager =
-          new LayerManagerD3D9(this);
+        nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
+          new mozilla::layers::LayerManagerD3D9(this);
         if (layerManager->Initialize(prefs.mForceAcceleration)) {
           mLayerManager = layerManager;
         }
@@ -3209,8 +3212,8 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
         }
 
         if (status == nsIGfxInfo::FEATURE_NO_INFO) {
-          nsRefPtr<LayerManagerOGL> layerManager =
-            new LayerManagerOGL(this);
+          nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
+            new mozilla::layers::LayerManagerOGL(this);
           if (layerManager->Initialize()) {
             mLayerManager = layerManager;
           }
@@ -5699,65 +5702,11 @@ nsWindow::SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
   HKL oldLayout = gKbdLayout.GetLayout();
   gKbdLayout.LoadLayout(loadedLayout);
 
-  PRUint8 argumentKeySpecific = 0;
-  switch (aNativeKeyCode) {
-    case VK_SHIFT:
-      aModifierFlags &= ~(nsIWidget::SHIFT_L | nsIWidget::SHIFT_R);
-      argumentKeySpecific = VK_LSHIFT;
-      break;
-    case VK_LSHIFT:
-      aModifierFlags &= ~nsIWidget::SHIFT_L;
-      argumentKeySpecific = aNativeKeyCode;
-      aNativeKeyCode = VK_SHIFT;
-      break;
-    case VK_RSHIFT:
-      aModifierFlags &= ~nsIWidget::SHIFT_R;
-      argumentKeySpecific = aNativeKeyCode;
-      aNativeKeyCode = VK_SHIFT;
-      break;
-    case VK_CONTROL:
-      aModifierFlags &= ~(nsIWidget::CTRL_L | nsIWidget::CTRL_R);
-      argumentKeySpecific = VK_LCONTROL;
-      break;
-    case VK_LCONTROL:
-      aModifierFlags &= ~nsIWidget::CTRL_L;
-      argumentKeySpecific = aNativeKeyCode;
-      aNativeKeyCode = VK_CONTROL;
-      break;
-    case VK_RCONTROL:
-      aModifierFlags &= ~nsIWidget::CTRL_R;
-      argumentKeySpecific = aNativeKeyCode;
-      aNativeKeyCode = VK_CONTROL;
-      break;
-    case VK_MENU:
-      aModifierFlags &= ~(nsIWidget::ALT_L | nsIWidget::ALT_R);
-      argumentKeySpecific = VK_LMENU;
-      break;
-    case VK_LMENU:
-      aModifierFlags &= ~nsIWidget::ALT_L;
-      argumentKeySpecific = aNativeKeyCode;
-      aNativeKeyCode = VK_MENU;
-      break;
-    case VK_RMENU:
-      aModifierFlags &= ~nsIWidget::ALT_R;
-      argumentKeySpecific = aNativeKeyCode;
-      aNativeKeyCode = VK_MENU;
-      break;
-    case VK_CAPITAL:
-      aModifierFlags &= ~nsIWidget::CAPS_LOCK;
-      argumentKeySpecific = VK_CAPITAL;
-      break;
-    case VK_NUMLOCK:
-      aModifierFlags &= ~nsIWidget::NUM_LOCK;
-      argumentKeySpecific = VK_NUMLOCK;
-      break;
-  }
-
   nsAutoTArray<KeyPair,10> keySequence;
   SetupKeyModifiersSequence(&keySequence, aModifierFlags);
   NS_ASSERTION(aNativeKeyCode >= 0 && aNativeKeyCode < 256,
                "Native VK key code out of range");
-  keySequence.AppendElement(KeyPair(aNativeKeyCode, argumentKeySpecific));
+  keySequence.AppendElement(KeyPair(aNativeKeyCode, 0));
 
   // Simulate the pressing of each modifier key and then the real key
   for (PRUint32 i = 0; i < keySequence.Length(); ++i) {
@@ -5769,9 +5718,8 @@ nsWindow::SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
     }
     ::SetKeyboardState(kbdState);
     ModifierKeyState modKeyState;
-    UINT scanCode = ::MapVirtualKeyEx(argumentKeySpecific ?
-                                        argumentKeySpecific : aNativeKeyCode,
-                                      MAPVK_VK_TO_VSC, gKbdLayout.GetLayout());
+    UINT scanCode = ::MapVirtualKeyEx(aNativeKeyCode, MAPVK_VK_TO_VSC,
+                                      gKbdLayout.GetLayout());
     LPARAM lParam = static_cast<LPARAM>(scanCode << 16);
     // Add extended key flag to the lParam for right control key and right alt
     // key.
@@ -5816,9 +5764,8 @@ nsWindow::SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
     }
     ::SetKeyboardState(kbdState);
     ModifierKeyState modKeyState;
-    UINT scanCode = ::MapVirtualKeyEx(argumentKeySpecific ?
-                                        argumentKeySpecific : aNativeKeyCode,
-                                      MAPVK_VK_TO_VSC, gKbdLayout.GetLayout());
+    UINT scanCode = ::MapVirtualKeyEx(aNativeKeyCode, MAPVK_VK_TO_VSC,
+                                      gKbdLayout.GetLayout());
     LPARAM lParam = static_cast<LPARAM>(scanCode << 16);
     // Add extended key flag to the lParam for right control key and right alt
     // key.
@@ -6438,7 +6385,7 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
   // Enter and backspace are always handled here to avoid for example the
   // confusion between ctrl-enter and ctrl-J.
   if (DOMKeyCode == NS_VK_RETURN || DOMKeyCode == NS_VK_BACK ||
-      ((aModKeyState.IsControl() || aModKeyState.IsAlt() || aModKeyState.IsWin())
+      ((aModKeyState.IsControl() || aModKeyState.IsAlt())
        && !isDeadKey && KeyboardLayout::IsPrintableCharKey(virtualKeyCode)))
   {
     // Remove a possible WM_CHAR or WM_SYSCHAR messages from the message queue.
@@ -6527,8 +6474,7 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
     return result;
   }
   else if (!aModKeyState.IsControl() && !aModKeyState.IsAlt() &&
-            !aModKeyState.IsWin() &&
-            KeyboardLayout::IsPrintableCharKey(virtualKeyCode)) {
+           KeyboardLayout::IsPrintableCharKey(virtualKeyCode)) {
     // If this is simple KeyDown event but next message is not WM_CHAR,
     // this event may not input text, so we should ignore this event.
     // See bug 314130.
@@ -6807,54 +6753,6 @@ nsWindow::SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray, PRUint32 aModifie
   }
 }
 
-static BOOL WINAPI EnumFirstChild(HWND hwnd, LPARAM lParam)
-{
-  *((HWND*)lParam) = hwnd;
-  return FALSE;
-}
-
-static void InvalidatePluginAsWorkaround(nsWindow *aWindow, const nsIntRect &aRect)
-{
-  aWindow->Invalidate(aRect);
-
-  // XXX - Even more evil workaround!! See bug 762948, flash's bottom
-  // level sandboxed window doesn't seem to get our invalidate. We send
-  // an invalidate to it manually. This is totally specialized for this
-  // bug, for other child window structures this will just be a more or
-  // less bogus invalidate but since that should not have any bad
-  // side-effects this will have to do for now.
-  HWND current = (HWND)aWindow->GetNativeData(NS_NATIVE_WINDOW);
-
-  RECT windowRect;
-  RECT parentRect;
-
-  ::GetWindowRect(current, &parentRect);
-        
-  HWND next = current;
-
-  do {
-    current = next;
-
-    ::EnumChildWindows(current, &EnumFirstChild, (LPARAM)&next);
-
-    ::GetWindowRect(next, &windowRect);
-    // This is relative to the screen, adjust it to be relative to the
-    // window we're reconfiguring.
-    windowRect.left -= parentRect.left;
-    windowRect.top -= parentRect.top;
-  } while (next != current && windowRect.top == 0 && windowRect.left == 0);
-
-  if (windowRect.top == 0 && windowRect.left == 0) {
-    RECT rect;
-    rect.left   = aRect.x;
-    rect.top    = aRect.y;
-    rect.right  = aRect.XMost();
-    rect.bottom = aRect.YMost();
-
-    ::InvalidateRect(next, &rect, FALSE);
-  }
-}
-
 nsresult
 nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 {
@@ -6880,7 +6778,7 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 
       if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
           gfxWindowsPlatform::RENDER_DIRECT2D ||
-          GetLayerManager()->GetBackendType() != LAYERS_BASIC) {
+          GetLayerManager()->GetBackendType() != LayerManager::LAYERS_BASIC) {
         // XXX - Workaround for Bug 587508. This will invalidate the part of the
         // plugin window that might be touched by moving content somehow. The
         // underlying problem should be found and fixed!
@@ -6888,9 +6786,7 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
         r.Sub(bounds, configuration.mBounds);
         r.MoveBy(-bounds.x,
                  -bounds.y);
-        nsIntRect toInvalidate = r.GetBounds();
-
-        InvalidatePluginAsWorkaround(w, toInvalidate);
+        w->Invalidate(r.GetBounds());
       }
     }
     rv = w->SetWindowClipRegion(configuration.mClipRegion, false);
@@ -7855,7 +7751,7 @@ nsWindow::ClearCachedResources()
     mD2DWindowSurface = nsnull;
 #endif
     if (mLayerManager &&
-        mLayerManager->GetBackendType() == LAYERS_BASIC) {
+        mLayerManager->GetBackendType() == LayerManager::LAYERS_BASIC) {
       static_cast<BasicLayerManager*>(mLayerManager.get())->
         ClearCachedResources();
     }

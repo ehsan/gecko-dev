@@ -876,12 +876,11 @@ let StorageServerCallback = {
  * StorageServerCallback) as input.
  */
 function StorageServer(callback) {
-  this.callback     = callback || {__proto__: StorageServerCallback};
-  this.server       = new HttpServer();
-  this.started      = false;
-  this.users        = {};
-  this.requestCount = 0;
-  this._log         = Log4Moz.repository.getLogger(STORAGE_HTTP_LOGGER);
+  this.callback = callback || {__proto__: StorageServerCallback};
+  this.server   = new HttpServer();
+  this.started  = false;
+  this.users    = {};
+  this._log     = Log4Moz.repository.getLogger(STORAGE_HTTP_LOGGER);
 
   // Install our own default handler. This allows us to mess around with the
   // whole URL space.
@@ -1267,7 +1266,6 @@ StorageServer.prototype = {
    * TODO: need to use the correct Storage API response codes and errors here.
    */
   handleDefault: function handleDefault(handler, req, resp) {
-    this.requestCount++;
     let timestamp = new_timestamp();
     try {
       this._handleDefault(handler, req, resp, timestamp);

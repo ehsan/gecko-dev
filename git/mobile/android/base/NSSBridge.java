@@ -4,7 +4,10 @@
 
 package org.mozilla.gecko;
 
+import android.app.Activity;
+import android.util.Log;
 import android.content.Context;
+import java.lang.String;
 
 public class NSSBridge {
     private static final String LOGTAG = "NSSBridge";

@@ -41,7 +41,8 @@ public:
     SyncChannel(SyncListener* aListener);
     virtual ~SyncChannel();
 
-    virtual bool Send(Message* msg) MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual bool Send(Message* msg) {
         return AsyncChannel::Send(msg);
     }
 
@@ -105,8 +106,8 @@ protected:
 protected:
     // Executed on the link thread
     // Override the AsyncChannel handler so we can dispatch sync messages
-    virtual void OnMessageReceivedFromLink(const Message& msg) MOZ_OVERRIDE;
-    virtual void OnChannelErrorFromLink() MOZ_OVERRIDE;
+    NS_OVERRIDE virtual void OnMessageReceivedFromLink(const Message& msg);
+    NS_OVERRIDE virtual void OnChannelErrorFromLink();
 
     // Executed on the worker thread
     bool ProcessingSyncMessage() const {

@@ -20,7 +20,8 @@ function ensureSocialEnabled() {
 // test = {
 //   foo: function(cbnext) {... cbnext();}
 // }
-function runTests(tests, cbPreTest, cbPostTest, cbFinish) {
+function runTests(tests, cbPreTest, cbPostTest) {
+  waitForExplicitFinish();
   let testIter = Iterator(tests);
 
   if (cbPreTest === undefined) {
@@ -30,18 +31,18 @@ function runTests(tests, cbPreTest, cbPostTest, cbFinish) {
     cbPostTest = function(cb) {cb()};
   }
 
-  function runNextTest() {
+  let runNextTest = function() {
     let name, func;
     try {
       [name, func] = testIter.next();
     } catch (err if err instanceof StopIteration) {
       // out of items:
-      (cbFinish || finish)();
+      finish();
       return;
     }
     // We run on a timeout as the frameworker also makes use of timeouts, so
     // this helps keep the debug messages sane.
-    executeSoon(function() {
+    window.setTimeout(function() {
       function cleanupAndRunNextTest() {
         info("sub-test " + name + " complete");
         cbPostTest(runNextTest);
@@ -55,7 +56,7 @@ function runTests(tests, cbPreTest, cbPostTest, cbFinish) {
           cleanupAndRunNextTest();
         }
       })
-    });
+    }, 0)
   }
   runNextTest();
 }

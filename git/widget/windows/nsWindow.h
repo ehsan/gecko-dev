@@ -92,7 +92,7 @@ public:
   virtual nsIWidget*      GetParent(void);
   virtual float           GetDPI();
   NS_IMETHOD              Show(bool bState);
-  virtual bool            IsVisible() const;
+  NS_IMETHOD              IsVisible(bool & aState);
   NS_IMETHOD              ConstrainPosition(bool aAllowSlop, PRInt32 *aX, PRInt32 *aY);
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
   NS_IMETHOD              Resize(PRInt32 aWidth, PRInt32 aHeight, bool aRepaint);
@@ -101,7 +101,7 @@ public:
   NS_IMETHOD              PlaceBehind(nsTopLevelWidgetZPlacement aPlacement, nsIWidget *aWidget, bool aActivate);
   NS_IMETHOD              SetSizeMode(PRInt32 aMode);
   NS_IMETHOD              Enable(bool aState);
-  virtual bool            IsEnabled() const;
+  NS_IMETHOD              IsEnabled(bool *aState);
   NS_IMETHOD              SetFocus(bool aRaise);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
@@ -132,7 +132,7 @@ public:
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual bool            HasPendingInputEvent();
   virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nsnull,
-                                          LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
+                                          LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nsnull);
   gfxASurface             *GetThebesSurface();

@@ -442,8 +442,11 @@ nsViewManager::InvalidateWidgetArea(nsView *aWidgetView,
 #endif
 
   // If the widget is hidden, it don't cover nothing
-  if (widget && !widget->IsVisible()) {
-    return;
+  if (widget) {
+    bool visible;
+    widget->IsVisible(visible);
+    if (!visible)
+      return;
   }
 
   if (!widget) {
@@ -463,9 +466,11 @@ nsViewManager::InvalidateWidgetArea(nsView *aWidgetView,
          childWidget = childWidget->GetNextSibling()) {
       nsView* view = nsView::GetViewFor(childWidget);
       NS_ASSERTION(view != aWidgetView, "will recur infinitely");
+      bool visible;
+      childWidget->IsVisible(visible);
       nsWindowType type;
       childWidget->GetWindowType(type);
-      if (view && childWidget->IsVisible() && type != eWindowType_popup) {
+      if (view && visible && type != eWindowType_popup) {
         NS_ASSERTION(type == eWindowType_plugin,
                      "Only plugin or popup widgets can be children!");
 

@@ -6,7 +6,7 @@
 import os
 from setuptools import setup, find_packages
 
-PACKAGE_VERSION = '0.3.3'
+version = '0.3.3'
 
 # get documentation from the README
 try:
@@ -23,7 +23,7 @@ except ImportError:
     deps = ['simplejson']
 
 setup(name='mozinfo',
-      version=PACKAGE_VERSION,
+      version=version,
       description="file for interface to transform introspected system information to a format pallatable to Mozilla",
       long_description=description,
       classifiers=[], # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers

@@ -5,7 +5,6 @@
 
 #include "nsGeoPosition.h"
 #include "nsDOMClassInfoID.h"
-#include "nsIClassInfo.h"
 
 ////////////////////////////////////////////////////
 // nsGeoPositionCoords

@@ -14,9 +14,6 @@ xpcTestObjectReadOnly :: xpcTestObjectReadOnly() {
     longProperty =  2147483647;
     floatProperty = 5.5f;
     charProperty = 'X';
-    // timeProperty is PRTime and signed type.
-    // So it has to allow negative value.
-    timeProperty = -1;
 }
 
 NS_IMETHODIMP xpcTestObjectReadOnly :: GetStrReadOnly(char * *aStrReadOnly){
@@ -49,10 +46,6 @@ NS_IMETHODIMP xpcTestObjectReadOnly :: GetCharReadOnly(char *aCharReadOnly){
     *aCharReadOnly = charProperty;
     return NS_OK;
 }
-NS_IMETHODIMP xpcTestObjectReadOnly :: GetTimeReadOnly(PRTime *aTimeReadOnly){
-    *aTimeReadOnly = timeProperty;
-    return NS_OK;
-}
 
 NS_IMPL_ISUPPORTS1(xpcTestObjectReadWrite, nsIXPCTestObjectReadWrite)
 
@@ -64,9 +57,6 @@ xpcTestObjectReadWrite :: xpcTestObjectReadWrite() {
     longProperty =  2147483647;
     floatProperty = 5.5f;
     charProperty = 'X';
-    // timeProperty is PRTime and signed type.
-    // So it has to allow negative value.
-    timeProperty = -1;
 }
 
 xpcTestObjectReadWrite :: ~xpcTestObjectReadWrite()
@@ -127,13 +117,5 @@ NS_IMETHODIMP xpcTestObjectReadWrite :: GetCharProperty(char *aCharProperty) {
 }
 NS_IMETHODIMP xpcTestObjectReadWrite :: SetCharProperty(char aCharProperty) {
     charProperty = aCharProperty;
-    return NS_OK;
-}
-NS_IMETHODIMP xpcTestObjectReadWrite :: GetTimeProperty(PRTime *aTimeProperty) {
-    *aTimeProperty = timeProperty;
-    return NS_OK;
-}
-NS_IMETHODIMP xpcTestObjectReadWrite :: SetTimeProperty(PRTime aTimeProperty) {
-    timeProperty = aTimeProperty;
     return NS_OK;
 }

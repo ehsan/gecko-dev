@@ -55,9 +55,6 @@
 using namespace mozilla;
 using namespace js;
 using namespace js::gc;
-using js::frontend::IsIdentifier;
-using js::frontend::LetDataToGroupAssign;
-using js::frontend::LetDataToOffset;
 
 /*
  * Index limit must stay within 32 bits.
@@ -1062,7 +1059,7 @@ struct JSPrinter
     jsbytecode      *dvgfence;      /* DecompileExpression fencepost */
     jsbytecode      **pcstack;      /* DecompileExpression modeled stack */
     JSFunction      *fun;           /* interpreted function */
-    BindingVector   *localNames;    /* argument and variable names */
+    BindingNames    *localNames;    /* argument and variable names */
     Vector<DecompiledOpcode> *decompiledOpcodes; /* optional state for decompiled ops */
 
     DecompiledOpcode &decompiled(jsbytecode *pc) {
@@ -1093,8 +1090,8 @@ js_NewPrinter(JSContext *cx, const char *name, JSFunction *fun,
     jp->localNames = NULL;
     jp->decompiledOpcodes = NULL;
     if (fun && fun->isInterpreted() && fun->script()->bindings.count() > 0) {
-        jp->localNames = cx->new_<BindingVector>(cx);
-        if (!jp->localNames || !GetOrderedBindings(cx, fun->script()->bindings, jp->localNames)) {
+        jp->localNames = cx->new_<BindingNames>(cx);
+        if (!jp->localNames || !fun->script()->bindings.getLocalNameArray(cx, jp->localNames)) {
             js_DestroyPrinter(jp);
             return NULL;
         }
@@ -1752,7 +1749,7 @@ GetArgOrVarAtom(JSPrinter *jp, unsigned slot)
 {
     LOCAL_ASSERT_RV(jp->fun, NULL);
     LOCAL_ASSERT_RV(slot < jp->fun->script()->bindings.count(), NULL);
-    JSAtom *name = (*jp->localNames)[slot].maybeName;
+    JSAtom *name = (*jp->localNames)[slot].maybeAtom;
 #if !JS_HAS_DESTRUCTURING
     LOCAL_ASSERT_RV(name, NULL);
 #endif
@@ -4653,8 +4650,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
 #if JS_HAS_GENERATOR_EXPRS
                 sn = js_GetSrcNote(jp->script, pc);
                 if (sn && SN_TYPE(sn) == SRC_GENEXP) {
-                    BindingVector *innerLocalNames;
-                    BindingVector *outerLocalNames;
+                    BindingNames *innerLocalNames;
+                    BindingNames *outerLocalNames;
                     JSScript *inner, *outer;
                     Vector<DecompiledOpcode> *decompiledOpcodes;
                     SprintStack ss2(cx);
@@ -4670,9 +4667,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                      */
                     LifoAllocScope las(&cx->tempLifoAlloc());
                     if (fun->script()->bindings.count() > 0) {
-                        innerLocalNames = cx->new_<BindingVector>(cx);
+                        innerLocalNames = cx->new_<BindingNames>(cx);
                         if (!innerLocalNames ||
-                            !GetOrderedBindings(cx, fun->script()->bindings, innerLocalNames))
+                            !fun->script()->bindings.getLocalNameArray(cx, innerLocalNames))
                         {
                             return NULL;
                         }
@@ -5097,7 +5094,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 sn = js_GetSrcNote(jp->script, pc);
 
                 /* Skip any #n= prefix to find the opening bracket. */
-                for (xval = rval; *xval != '[' && *xval != '{' && *xval; xval++)
+                for (xval = rval; *xval != '[' && *xval != '{'; xval++)
                     continue;
                 inArray = (*xval == '[');
                 if (inArray)

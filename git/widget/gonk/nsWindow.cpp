@@ -1,17 +1,6 @@
-/* Copyright 2012 Mozilla Foundation and Mozilla contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -144,6 +133,13 @@ nsWindow::nsWindow()
             NS_RUNTIMEABORT("Failed to create framebufferWatcherThread, aborting...");
         }
 
+        sUsingOMTC = UseOffMainThreadCompositing();
+
+        if (sUsingOMTC) {
+          sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
+                                             gfxASurface::ImageFormatRGB24);
+        }
+
         // We (apparently) don't have a way to tell if allocating the
         // fbs succeeded or failed.
         gNativeWindow = new android::FramebufferNativeWindow();
@@ -176,20 +172,6 @@ nsWindow::nsWindow()
         sScreenInitialized = true;
 
         nsAppShell::NotifyScreenInitialized();
-
-        // This is a hack to force initialization of the compositor
-        // resources, if we're going to use omtc.
-        //
-        // NB: GetPlatform() will create the gfxPlatform, which wants
-        // to know the color depth, which asks our native window.
-        // This has to happen after other init has finished.
-        gfxPlatform::GetPlatform();
-        sUsingOMTC = UseOffMainThreadCompositing();
-
-        if (sUsingOMTC) {
-          sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
-                                             gfxASurface::ImageFormatRGB24);
-        }
     }
 }
 
@@ -215,12 +197,12 @@ nsWindow::DoDraw(void)
     gWindowToRedraw->mDirtyRegion.SetEmpty();
 
     LayerManager* lm = gWindowToRedraw->GetLayerManager();
-    if (mozilla::layers::LAYERS_OPENGL == lm->GetBackendType()) {
+    if (LayerManager::LAYERS_OPENGL == lm->GetBackendType()) {
         LayerManagerOGL* oglm = static_cast<LayerManagerOGL*>(lm);
         oglm->SetClippingRegion(event.region);
         oglm->SetWorldTransform(sRotationMatrix);
         gWindowToRedraw->mEventCallback(&event);
-    } else if (mozilla::layers::LAYERS_BASIC == lm->GetBackendType()) {
+    } else if (LayerManager::LAYERS_BASIC == lm->GetBackendType()) {
         MOZ_ASSERT(sFramebufferOpen || sUsingOMTC);
         nsRefPtr<gfxASurface> targetSurface;
 
@@ -330,10 +312,11 @@ nsWindow::Show(bool aState)
     return NS_OK;
 }
 
-bool
-nsWindow::IsVisible() const
+NS_IMETHODIMP
+nsWindow::IsVisible(bool & aState)
 {
-    return mVisible;
+    aState = mVisible;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -389,10 +372,11 @@ nsWindow::Enable(bool aState)
     return NS_OK;
 }
 
-bool
-nsWindow::IsEnabled() const
+NS_IMETHODIMP
+nsWindow::IsEnabled(bool *aState)
 {
-    return true;
+    *aState = true;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -594,7 +578,7 @@ PRUint32
 nsWindow::GetGLFrameBufferFormat()
 {
     if (mLayerManager &&
-        mLayerManager->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
+        mLayerManager->GetBackendType() == LayerManager::LAYERS_OPENGL) {
         // We directly map the hardware fb on Gonk.  The hardware fb
         // has RGB format.
         return LOCAL_GL_RGB;

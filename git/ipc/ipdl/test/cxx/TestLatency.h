@@ -31,10 +31,13 @@ public:
     void Main();
 
 protected:
-    virtual bool RecvPong() MOZ_OVERRIDE;
-    virtual bool RecvPong5() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvPong();
+    NS_OVERRIDE
+    virtual bool RecvPong5();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");  
@@ -79,13 +82,19 @@ public:
     virtual ~TestLatencyChild();
 
 protected:
-    virtual bool RecvPing() MOZ_OVERRIDE;
-    virtual bool RecvPing5() MOZ_OVERRIDE;
-    virtual bool AnswerRpc() MOZ_OVERRIDE;
-    virtual bool RecvSpam() MOZ_OVERRIDE;
-    virtual bool AnswerSynchro() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvPing();
+    NS_OVERRIDE
+    virtual bool RecvPing5();
+    NS_OVERRIDE
+    virtual bool AnswerRpc();
+    NS_OVERRIDE
+    virtual bool RecvSpam();
+    NS_OVERRIDE
+    virtual bool AnswerSynchro();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");

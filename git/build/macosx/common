@@ -1,12 +1,4 @@
-if [ -d "$topsrcdir/clang" ]; then
-    # mozilla-central based build
-    export CC=$topsrcdir/clang/bin/clang
-    export CXX=$topsrcdir/clang/bin/clang++
-elif [ -d "$topsrcdir/../clang" ]; then
-    # comm-central based build
-    export CC=$topsrcdir/../clang/bin/clang
-    export CXX=$topsrcdir/../clang/bin/clang++
-fi
+CC=/usr/bin/gcc-4.2
+CXX=/usr/bin/g++-4.2
 
 ac_add_options --enable-stdcxx-compat
-ac_add_options --with-ccache

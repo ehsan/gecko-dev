@@ -22,7 +22,6 @@
 #include "RenderTrace.h"
 #include "sampler.h"
 #include "nsXULAppAPI.h"
-#include "LayersBackend.h"
 
 using namespace mozilla::ipc;
 
@@ -110,7 +109,7 @@ struct AutoTxnEnd {
 ShadowLayerForwarder::ShadowLayerForwarder()
  : mShadowManager(NULL)
  , mMaxTextureSize(0)
- , mParentBackend(mozilla::layers::LAYERS_NONE)
+ , mParentBackend(LayerManager::LAYERS_NONE)
  , mIsFirstPaint(false)
 {
   mTxn = new Transaction();
@@ -167,11 +166,6 @@ void
 ShadowLayerForwarder::CreatedCanvasLayer(ShadowableLayer* aCanvas)
 {
   CreatedLayer<OpCreateCanvasLayer>(mTxn, aCanvas);
-}
-void
-ShadowLayerForwarder::CreatedRefLayer(ShadowableLayer* aRef)
-{
-  CreatedLayer<OpCreateRefLayer>(mTxn, aRef);
 }
 
 void
@@ -373,7 +367,7 @@ ShadowLayerForwarder::ShadowDrawToTarget(gfxContext* aTarget) {
 }
 
 
-SharedMemory::SharedMemoryType
+static SharedMemory::SharedMemoryType
 OptimalShmemType()
 {
 #if defined(MOZ_PLATFORM_MAEMO) && defined(MOZ_HAVE_SHAREDMEMORYSYSV)

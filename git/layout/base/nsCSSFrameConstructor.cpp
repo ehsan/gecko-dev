@@ -7709,7 +7709,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
           !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
         if (aChange & nsChangeHint_UpdateEffects) {
           // Invalidate and update our area:
-          nsSVGUtils::InvalidateAndScheduleReflowSVG(aFrame);
+          nsSVGUtils::InvalidateAndScheduleBoundsUpdate(aFrame);
         } else {
           // Just invalidate our area:
           nsSVGUtils::InvalidateBounds(aFrame);
@@ -7729,21 +7729,6 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
       // Invalidate the old transformed area. The new transformed area
       // will be invalidated by nsFrame::FinishAndStoreOverflowArea.
       aFrame->InvalidateTransformLayer();
-    }
-    if (aChange & nsChangeHint_ChildrenOnlyTransform) {
-      // The long comment in ProcessRestyledFrames that precedes the
-      // |frame->GetContent()->GetPrimaryFrame()| and abort applies here too.
-      nsIFrame *f = aFrame->GetContent()->GetPrimaryFrame();
-      NS_ABORT_IF_FALSE(f->IsFrameOfType(nsIFrame::eSVG |
-                                         nsIFrame::eSVGContainer),
-                        "Children-only transforms only expected on SVG frames");
-      nsIFrame* childFrame = f->GetFirstPrincipalChild();
-      for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
-        childFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
-        // Invalidate the old transformed area. The new transformed area
-        // will be invalidated by nsFrame::FinishAndStoreOverflowArea.
-        childFrame->InvalidateTransformLayer();
-      }
     }
   }
 }
@@ -8031,8 +8016,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
         didReflowThisFrame = true;
       }
       if (hint & (nsChangeHint_RepaintFrame | nsChangeHint_SyncFrameView |
-                  nsChangeHint_UpdateOpacityLayer | nsChangeHint_UpdateTransformLayer |
-                  nsChangeHint_ChildrenOnlyTransform)) {
+                  nsChangeHint_UpdateOpacityLayer | nsChangeHint_UpdateTransformLayer)) {
         ApplyRenderingChangeToTree(presContext, frame, hint);
         didInvalidate = true;
       }

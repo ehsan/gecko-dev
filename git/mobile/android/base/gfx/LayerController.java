@@ -5,6 +5,7 @@
 
 package org.mozilla.gecko.gfx;
 
+import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.ui.PanZoomController;
 import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
 import android.content.Context;
@@ -14,7 +15,9 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.PointF;
 import android.graphics.RectF;
+import android.util.Log;
 import android.view.GestureDetector;
+import android.view.View.OnTouchListener;
 
 /**
  * The layer controller manages a tile that represents the visible page. It does panning and
@@ -298,28 +301,6 @@ public class LayerController {
                 ((viewPoint.y + origin.y) / zoom) - (geckoOrigin.y / geckoZoom));
 
         return layerPoint;
-    }
-
-    /**
-     * Does the opposite of convertViewPointToLayerPoint.
-     */
-    public PointF convertLayerPointToViewPoint(PointF layerPoint) {
-        if (mLayerClient == null) {
-            return null;
-        }
-
-        ImmutableViewportMetrics viewportMetrics = mViewportMetrics;
-        PointF origin = viewportMetrics.getOrigin();
-        float zoom = viewportMetrics.zoomFactor;
-        ViewportMetrics geckoViewport = mLayerClient.getGeckoViewportMetrics();
-        PointF geckoOrigin = geckoViewport.getOrigin();
-        float geckoZoom = geckoViewport.getZoomFactor();
-
-        PointF viewPoint = new PointF(
-                ((layerPoint.x + (geckoOrigin.x / geckoZoom)) * zoom - origin.x),
-                ((layerPoint.y + (geckoOrigin.y / geckoZoom)) * zoom - origin.y));
-
-        return viewPoint;
     }
 
     /** Retrieves whether we should show checkerboard checks or not. */

@@ -902,28 +902,20 @@ static JSFunctionSpec json_static_methods[] = {
 JSObject *
 js_InitJSONClass(JSContext *cx, JSObject *obj_)
 {
-    Rooted<GlobalObject*> global(cx, &obj_->asGlobal());
+    RootedObject obj(cx, obj_);
 
-    /*
-     * JSON requires that Boolean.prototype.valueOf be created and stashed in a
-     * reserved slot on the global object; see js::BooleanGetPrimitiveValueSlow
-     * called from PreprocessValue above.
-     */
-    if (!global->getOrCreateBooleanPrototype(cx))
-        return NULL;
-
-    RootedObject JSON(cx, NewObjectWithClassProto(cx, &JSONClass, NULL, global));
+    RootedObject JSON(cx, NewObjectWithClassProto(cx, &JSONClass, NULL, obj));
     if (!JSON || !JSON->setSingletonType(cx))
         return NULL;
 
-    if (!JS_DefineProperty(cx, global, js_JSON_str, OBJECT_TO_JSVAL(JSON),
+    if (!JS_DefineProperty(cx, obj, js_JSON_str, OBJECT_TO_JSVAL(JSON),
                            JS_PropertyStub, JS_StrictPropertyStub, 0))
         return NULL;
 
     if (!JS_DefineFunctions(cx, JSON, json_static_methods))
         return NULL;
 
-    MarkStandardClassInitializedNoProto(global, &JSONClass);
+    MarkStandardClassInitializedNoProto(obj, &JSONClass);
 
     return JSON;
 }

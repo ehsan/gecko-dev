@@ -134,11 +134,6 @@ function AITCServer10Server() {
   this.port = null;
   this.users = {};
   this.autoCreateUsers = false;
-  this.mockStatus = {
-    code: null,
-    method: null
-  };
-  this.onRequest = null;
 
   this._appsAppHandlers = {
     GET:    this._appsAppGetHandler,
@@ -211,32 +206,12 @@ AITCServer10Server.prototype = {
 
     return this.users[username];
   },
-  
-  /**
-   * Returns a specific status code for testing.
-   */
-  _respondWithMockStatus: function _respondWithMockStatus(request, response) {
-    response.setStatusLine(request.httpVersion, this.mockStatus.code,
-      this.mockStatus.method);
-    this._onRequest();
-  },
-
-  _onRequest: function _onRequest() {
-    if (typeof this.onRequest === 'function') {
-      this.onRequest();
-    }
-  },
 
   /**
    * HTTP handler for requests to /1.0/ which don't have a specific user
    * registered.
    */
   _generalHandler: function _generalHandler(request, response) {
-    if (this.mockStatus.code && this.mockStatus.method) {
-      this._respondWithMockStatus(request, response);
-      return;
-    }
-    this._onRequest();
     let path = request.path;
     this._log.info("Request: " + request.method + " " + path);
 
@@ -271,11 +246,6 @@ AITCServer10Server.prototype = {
    * This handles request routing to the appropriate handler.
    */
   _userHandler: function _userHandler(username, request, response) {
-    if (this.mockStatus.code && this.mockStatus.method) {
-      this._respondWithMockStatus(request, response);
-      return;
-    }
-    this._onRequest();
     this._log.info("Request: " + request.method + " " + request.path);
     let path = request.path;
     let prefix = this.VERSION_PATH + username + "/";

@@ -544,7 +544,7 @@ nsHttpChannel::SpeculativeConnect()
         return;
 
     mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
-    mConnectionInfo->SetPrivate(mPrivateBrowsing);
+    mConnectionInfo->SetPrivate(UsingPrivateBrowsing());
     gHttpHandler->SpeculativeConnect(mConnectionInfo,
                                      callbacks, NS_GetCurrentThread());
 }
@@ -839,7 +839,7 @@ nsHttpChannel::SetupTransaction()
         mCaps |= NS_HTTP_TIMING_ENABLED;
 
     mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
-    mConnectionInfo->SetPrivate(mPrivateBrowsing);
+    mConnectionInfo->SetPrivate(UsingPrivateBrowsing());
 
     if (mUpgradeProtocolCallback) {
         mRequestHead.SetHeader(nsHttp::Upgrade, mUpgradeProtocol, false);
@@ -2447,7 +2447,7 @@ nsHttpChannel::OpenCacheEntry(bool usingSSL)
             // us from writing to the offline cache as a normal cache entry.
             mCacheQuery = new HttpCacheQuery(
                                 this, appCacheClientID,
-                                nsICache::STORE_OFFLINE, mPrivateBrowsing,
+                                nsICache::STORE_OFFLINE, UsingPrivateBrowsing(),
                                 cacheKey, nsICache::ACCESS_READ,
                                 mLoadFlags & LOAD_BYPASS_LOCAL_CACHE_IF_BUSY,
                                 usingSSL, true);
@@ -2548,9 +2548,10 @@ nsHttpChannel::OpenNormalCacheEntry(bool usingSSL)
 
     nsresult rv;
 
-    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
+    bool isPrivate = UsingPrivateBrowsing();
+    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy(isPrivate);
     nsDependentCString clientID(
-        GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing));
+        GetCacheSessionNameForStoragePolicy(storagePolicy, isPrivate));
 
     nsCAutoString cacheKey;
     GenerateCacheKey(mPostID, cacheKey);
@@ -2562,7 +2563,8 @@ nsHttpChannel::OpenNormalCacheEntry(bool usingSSL)
  
     mCacheQuery = new HttpCacheQuery(
                                 this, clientID, storagePolicy,
-                                mPrivateBrowsing, cacheKey, accessRequested,
+                                UsingPrivateBrowsing(), cacheKey,
+                                accessRequested,
                                 mLoadFlags & LOAD_BYPASS_LOCAL_CACHE_IF_BUSY,
                                 usingSSL, false);
 
@@ -5253,11 +5255,11 @@ class nsHttpChannelCacheKey MOZ_FINAL : public nsISupportsPRUint32,
     
     // Both interfaces declares toString method with the same signature.
     // Thus we have to delegate only to nsISupportsPRUint32 implementation.
-    NS_IMETHOD GetData(nsACString & aData) 
+    NS_SCRIPTABLE NS_IMETHOD GetData(nsACString & aData) 
     { 
         return mSupportsCString->GetData(aData);
     }
-    NS_IMETHOD SetData(const nsACString & aData)
+    NS_SCRIPTABLE NS_IMETHOD SetData(const nsACString & aData)
     { 
         return mSupportsCString->SetData(aData);
     }
@@ -5871,9 +5873,10 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
     // one point by using only READ_ONLY access-policy. I think this is safe.
 
     // First, find session holding the cache-entry - use current storage-policy
-    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
-    const char * clientID =
-        GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing);
+    bool isPrivate = UsingPrivateBrowsing();
+    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy(isPrivate);
+    const char * clientID = GetCacheSessionNameForStoragePolicy(storagePolicy,
+                                                                isPrivate);
 
     LOG(("DoInvalidateCacheEntry [channel=%p session=%s policy=%d key=%s]",
          this, clientID, PRIntn(storagePolicy), key.get()));
@@ -5888,7 +5891,7 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
                                  getter_AddRefs(session));
     }
     if (NS_SUCCEEDED(rv)) {
-        rv = session->SetIsPrivate(mPrivateBrowsing);
+        rv = session->SetIsPrivate(UsingPrivateBrowsing());
     }
     if (NS_SUCCEEDED(rv)) {
         rv = session->DoomEntry(key, nsnull);
@@ -5899,10 +5902,10 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
 }
 
 nsCacheStoragePolicy
-nsHttpChannel::DetermineStoragePolicy()
+nsHttpChannel::DetermineStoragePolicy(bool isPrivate)
 {
     nsCacheStoragePolicy policy = nsICache::STORE_ANYWHERE;
-    if (mPrivateBrowsing)
+    if (isPrivate)
         policy = nsICache::STORE_IN_MEMORY;
     else if (mLoadFlags & INHIBIT_PERSISTENT_CACHING)
         policy = nsICache::STORE_IN_MEMORY;

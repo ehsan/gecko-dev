@@ -241,7 +241,6 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY devToolbarMenu.accesskey          "v">
 <!ENTITY devToolbar.keycode                "VK_F2">
 <!ENTITY devToolbar.keytext                "F2">
-<!ENTITY devToolbarOtherToolsButton.label  "More Tools">
 
 <!ENTITY webConsoleButton.label "Web Console">
 <!ENTITY inspectorButton.label "Inspector">
@@ -654,14 +653,7 @@ doesn't display any label, but exposes a label to screen-readers with "aria-labe
 toolbar button -->
 <!ENTITY markupButton.accesskey          "M">
 
-<!ENTITY socialToolbar.title        "Social Toolbar Button">
-<!ENTITY social.notLoggedIn.label   "Not logged in">
-
 <!ENTITY social.sharePopup.undo.label     "Unshare">
 <!ENTITY social.sharePopup.undo.accesskey "U">
 <!ENTITY social.sharePopup.ok.label       "OK">
 <!ENTITY social.sharePopup.ok.accesskey   "O">
-<!ENTITY social.sharePopup.shared.label   "You shared this page.">
-<!ENTITY social.sharePopup.portrait.arialabel "User profile picture">
-<!ENTITY social.toggleSidebar.label "Show sidebar">
-<!ENTITY social.toggleSidebar.accesskey "s">

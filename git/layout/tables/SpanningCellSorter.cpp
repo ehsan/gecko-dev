@@ -14,8 +14,9 @@
 
 //#define DEBUG_SPANNING_CELL_SORTER
 
-SpanningCellSorter::SpanningCellSorter()
-  : mState(ADDING)
+SpanningCellSorter::SpanningCellSorter(nsIPresShell *aPresShell)
+  : mPresShell(aPresShell)
+  , mState(ADDING)
   , mSortedHashTable(nsnull)
 {
     memset(mArray, 0, sizeof(mArray));

@@ -16,10 +16,6 @@
 /* Forward declarations.... */
 class nsIURI;
 
-namespace mozilla {
-class WebShellWindowTimerCallback;
-} // namespace mozilla
-
 class nsWebShellWindow : public nsXULWindow,
                          public nsIWebProgressListener
 {
@@ -45,7 +41,6 @@ public:
   NS_IMETHOD Destroy();
 
 protected:
-  friend class mozilla::WebShellWindowTimerCallback;
   
   virtual ~nsWebShellWindow();
 
@@ -59,7 +54,7 @@ protected:
   mozilla::Mutex          mSPTimerLock;
 
   void        SetPersistenceTimer(PRUint32 aDirtyFlags);
-  void        FirePersistenceTimer();
+  static void FirePersistenceTimer(nsITimer *aTimer, void *aClosure);
 };
 
 

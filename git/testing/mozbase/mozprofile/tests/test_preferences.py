@@ -85,7 +85,7 @@ browser.startup.homepage = http://github.com/
 
         # cleanup
         os.remove(name)
-
+    
     def test_reset_should_remove_added_prefs(self):
         """Check that when we call reset the items we expect are updated"""
 
@@ -103,10 +103,8 @@ browser.startup.homepage = http://github.com/
         profile.set_preferences(prefs1)
         self.assertEqual(prefs1, Preferences.read_prefs(prefs_file))
         lines = file(prefs_file).read().strip().splitlines()
-        self.assertTrue(bool([line for line in lines
-                              if line.startswith('#MozRunner Prefs Start')]))
-        self.assertTrue(bool([line for line in lines
-                              if line.startswith('#MozRunner Prefs End')]))
+        self.assertTrue('#MozRunner Prefs Start' in lines)
+        self.assertTrue('#MozRunner Prefs End' in lines)
 
         profile.reset()
         self.assertNotEqual(prefs1, \
@@ -131,10 +129,8 @@ browser.startup.homepage = http://github.com/
         profile.set_preferences(prefs1)
         self.assertEqual(prefs1, Preferences.read_prefs(prefs_file))
         lines = file(prefs_file).read().strip().splitlines()
-        self.assertTrue(bool([line for line in lines
-                              if line.startswith('#MozRunner Prefs Start')]))
-        self.assertTrue(bool([line for line in lines
-                              if line.startswith('#MozRunner Prefs End')]))
+        self.assertTrue('#MozRunner Prefs Start' in lines)
+        self.assertTrue('#MozRunner Prefs End' in lines)
 
         # add some more preferences
         prefs2 = [("zoom.maxPercent", 300),
@@ -142,10 +138,8 @@ browser.startup.homepage = http://github.com/
         profile.set_preferences(prefs2)
         self.assertEqual(prefs1 + prefs2, Preferences.read_prefs(prefs_file))
         lines = file(prefs_file).read().strip().splitlines()
-        self.assertTrue(len([line for line in lines
-                             if line.startswith('#MozRunner Prefs Start')]) == 2)
-        self.assertTrue(len([line for line in lines
-                             if line.startswith('#MozRunner Prefs End')]) == 2)
+        self.assertTrue(lines.count('#MozRunner Prefs Start') == 2)
+        self.assertTrue(lines.count('#MozRunner Prefs End') == 2)
 
         # now clean it up
         profile.clean_preferences()

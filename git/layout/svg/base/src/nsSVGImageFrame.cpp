@@ -62,7 +62,7 @@ public:
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsRenderingContext *aContext, const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
-  virtual void ReflowSVG();
+  virtual void UpdateBounds();
 
   // nsSVGPathGeometryFrame methods:
   virtual PRUint16 GetHitTestFlags();
@@ -193,7 +193,7 @@ nsSVGImageFrame::AttributeChanged(PRInt32         aNameSpaceID,
         aAttribute == nsGkAtoms::y ||
         aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
+      nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
       return NS_OK;
     }
     else if (aAttribute == nsGkAtoms::preserveAspectRatio) {
@@ -341,9 +341,6 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
     nscoord appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
     nsRect dirtyRect; // only used if aDirtyRect is non-null
     if (aDirtyRect) {
-      NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-                   (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
-                   "Display lists handle dirty rect intersection test");
       dirtyRect = aDirtyRect->ToAppUnits(appUnitsPerDevPx);
       // Adjust dirtyRect to match our local coordinate system.
       nsRect rootRect =
@@ -462,15 +459,15 @@ nsSVGImageFrame::GetType() const
 // Lie about our fill/stroke so that covered region and hit detection work properly
 
 void
-nsSVGImageFrame::ReflowSVG()
+nsSVGImageFrame::UpdateBounds()
 {
-  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
-               "This call is probably a wasteful mistake");
+  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingUpdateBounds(this),
+               "This call is probaby a wasteful mistake");
 
   NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "ReflowSVG mechanism not designed for this");
+                    "UpdateBounds mechanism not designed for this");
 
-  if (!nsSVGUtils::NeedsReflowSVG(this)) {
+  if (!nsSVGUtils::NeedsUpdatedBounds(this)) {
     return;
   }
 
@@ -487,6 +484,10 @@ nsSVGImageFrame::ReflowSVG()
   } else {
     mRect.SetEmpty();
   }
+
+  // See bug 614732 comment 32.
+  mCoveredRegion = nsSVGUtils::TransformFrameRectToOuterSVG(
+    mRect, GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
 
   if (mState & NS_FRAME_FIRST_REFLOW) {
     // Make sure we have our filter property (if any) before calling
@@ -574,7 +575,7 @@ NS_IMETHODIMP nsSVGImageListener::OnStopDecode(imgIRequest *aRequest,
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  nsSVGUtils::InvalidateAndScheduleReflowSVG(mFrame);
+  nsSVGUtils::InvalidateAndScheduleBoundsUpdate(mFrame);
   return NS_OK;
 }
 
@@ -601,7 +602,7 @@ NS_IMETHODIMP nsSVGImageListener::OnStartContainer(imgIRequest *aRequest,
     return NS_ERROR_FAILURE;
 
   mFrame->mImageContainer = aContainer;
-  nsSVGUtils::InvalidateAndScheduleReflowSVG(mFrame);
+  nsSVGUtils::InvalidateAndScheduleBoundsUpdate(mFrame);
 
   return NS_OK;
 }

@@ -6,7 +6,6 @@
 #include "nsDOMWifiEvent.h"
 #include "nsContentUtils.h"
 #include "DictionaryHelpers.h"
-#include "nsDOMClassInfoID.h"
 
 // nsDOMMozWifiStatusChangeEvent
 

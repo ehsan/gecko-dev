@@ -929,10 +929,7 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
 nsRect
 nsTextBoxFrame::GetComponentAlphaBounds()
 {
-  if (GetStyleText()->mTextShadow) {
-    return GetVisualOverflowRectRelativeToSelf();
-  }
-  return mTextDrawRect;
+  return GetVisualOverflowRectRelativeToSelf();
 }
 
 bool

@@ -56,14 +56,14 @@ nsSVGTextFrame::AttributeChanged(PRInt32         aNameSpaceID,
     return NS_OK;
 
   if (aAttribute == nsGkAtoms::transform) {
-    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
+    nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
     NotifySVGChanged(TRANSFORM_CHANGED);
   } else if (aAttribute == nsGkAtoms::x ||
              aAttribute == nsGkAtoms::y ||
              aAttribute == nsGkAtoms::dx ||
              aAttribute == nsGkAtoms::dy ||
              aAttribute == nsGkAtoms::rotate) {
-    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
+    nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
     NotifyGlyphMetricsChange();
   }
 
@@ -74,15 +74,6 @@ nsIAtom *
 nsSVGTextFrame::GetType() const
 {
   return nsGkAtoms::svgTextFrame;
-}
-
-NS_IMETHODIMP
-nsSVGTextFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                 const nsRect&           aDirtyRect,
-                                 const nsDisplayListSet& aLists)
-{
-  UpdateGlyphPositioning(true);
-  return nsSVGTextFrameBase::BuildDisplayList(aBuilder, aDirtyRect, aLists);
 }
 
 //----------------------------------------------------------------------
@@ -157,6 +148,10 @@ nsSVGTextFrame::GetRotationOfChar(PRUint32 charnum, float *_retval)
 void
 nsSVGTextFrame::NotifySVGChanged(PRUint32 aFlags)
 {
+  NS_ABORT_IF_FALSE(!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS) ||
+                    (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
+                    "Must be NS_STATE_SVG_NONDISPLAY_CHILD!");
+
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 
@@ -182,7 +177,7 @@ nsSVGTextFrame::NotifySVGChanged(PRUint32 aFlags)
     // changed ancestor will have invalidated its entire area, which includes
     // our area.
     // For perf reasons we call this before calling NotifySVGChanged() below.
-    nsSVGUtils::ScheduleReflowSVG(this);
+    nsSVGUtils::ScheduleBoundsUpdate(this);
   }
 
   nsSVGTextFrameBase::NotifySVGChanged(aFlags);
@@ -202,11 +197,6 @@ NS_IMETHODIMP
 nsSVGTextFrame::PaintSVG(nsRenderingContext* aContext,
                          const nsIntRect *aDirtyRect)
 {
-  NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
-               "If display lists are enabled, only painting of non-display "
-               "SVG should take this code path");
-
   UpdateGlyphPositioning(true);
   
   return nsSVGTextFrameBase::PaintSVG(aContext, aDirtyRect);
@@ -215,26 +205,21 @@ nsSVGTextFrame::PaintSVG(nsRenderingContext* aContext,
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGTextFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
-  NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
-               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
-               "If display lists are enabled, only hit-testing of non-display "
-               "SVG should take this code path");
-
   UpdateGlyphPositioning(true);
   
   return nsSVGTextFrameBase::GetFrameForPoint(aPoint);
 }
 
 void
-nsSVGTextFrame::ReflowSVG()
+nsSVGTextFrame::UpdateBounds()
 {
-  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
-               "This call is probably a wasteful mistake");
+  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingUpdateBounds(this),
+               "This call is probaby a wasteful mistake");
 
   NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "ReflowSVG mechanism not designed for this");
+                    "UpdateBounds mechanism not designed for this");
 
-  if (!nsSVGUtils::NeedsReflowSVG(this)) {
+  if (!nsSVGUtils::NeedsUpdatedBounds(this)) {
     NS_ASSERTION(!mPositioningDirty, "How did this happen?");
     return;
   }
@@ -257,7 +242,7 @@ nsSVGTextFrame::ReflowSVG()
 
   // With glyph positions updated, our descendants can invalidate their new
   // areas correctly:
-  nsSVGTextFrameBase::ReflowSVG();
+  nsSVGTextFrameBase::UpdateBounds();
 
   if (invalidate) {
     // XXXSDL Let FinishAndStoreOverflow do this.
@@ -330,10 +315,10 @@ void
 nsSVGTextFrame::NotifyGlyphMetricsChange()
 {
   // NotifySVGChanged isn't appropriate here, so we just mark our descendants
-  // as fully dirty to get ReflowSVG() called on them:
+  // as fully dirty to get UpdateBounds() called on them:
   MarkDirtyBitsOnDescendants(this);
 
-  nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
+  nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
 
   mPositioningDirty = true;
 }

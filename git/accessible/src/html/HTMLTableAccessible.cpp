@@ -36,7 +36,6 @@
 #include "nsArrayUtils.h"
 #include "nsComponentManagerUtils.h"
 
-using namespace mozilla;
 using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -767,11 +766,10 @@ HTMLTableAccessible::ColExtentAt(PRUint32 aRowIdx, PRUint32 aColIdx)
   bool isSelected;
   PRInt32 columnExtent = 0;
 
-  DebugOnly<nsresult> rv = tableLayout->
+  nsresult rv = tableLayout->
     GetCellDataAt(aRowIdx, aColIdx, *getter_AddRefs(domElement),
                   startRowIndex, startColIndex, rowSpan, colSpan,
                   actualRowSpan, columnExtent, isSelected);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "Could not get cell data");
 
   return columnExtent;
 }
@@ -788,11 +786,10 @@ HTMLTableAccessible::RowExtentAt(PRUint32 aRowIdx, PRUint32 aColIdx)
   bool isSelected;
   PRInt32 rowExtent = 0;
 
-  DebugOnly<nsresult> rv = tableLayout->
+  nsresult rv = tableLayout->
     GetCellDataAt(aRowIdx, aColIdx, *getter_AddRefs(domElement),
                   startRowIndex, startColIndex, rowSpan, colSpan,
                   rowExtent, actualColSpan, isSelected);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "Could not get cell data");
 
   return rowExtent;
 }

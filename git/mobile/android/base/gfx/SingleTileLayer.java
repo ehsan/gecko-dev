@@ -5,13 +5,19 @@
 
 package org.mozilla.gecko.gfx;
 
+import org.mozilla.gecko.gfx.CairoImage;
+import org.mozilla.gecko.gfx.CairoUtils;
+import org.mozilla.gecko.gfx.IntSize;
+import org.mozilla.gecko.gfx.LayerController;
+import org.mozilla.gecko.gfx.TileLayer;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
 import android.graphics.RegionIterator;
 import android.opengl.GLES20;
-
+import android.util.Log;
 import java.nio.FloatBuffer;
+import javax.microedition.khronos.opengles.GL10;
 
 /**
  * Encapsulates the logic needed to draw a single textured tile.
@@ -140,3 +146,4 @@ public class SingleTileLayer extends TileLayer {
         }
     }
 }
+

@@ -1176,13 +1176,12 @@ let ConsoleAPIObserver = {
         aRemoteMessage.objectsCacheId = Manager.sequenceId;
         aRemoteMessage.argumentsToString = [];
         let mapFunction = function(aItem) {
-          let formattedObject = this._formatObject(aItem);
-          aRemoteMessage.argumentsToString.push(formattedObject);
+          aRemoteMessage.argumentsToString.push(this._formatObject(aItem));
           if (WebConsoleUtils.isObjectInspectable(aItem)) {
             return JSTerm.prepareObjectForRemote(aItem,
                                                  aRemoteMessage.objectsCacheId);
           }
-          return formattedObject;
+          return aItem;
         }.bind(this);
 
         aRemoteMessage.apiMessage.arguments =

@@ -104,13 +104,9 @@ static const uint32_t XBLPROTO_SLOT = 0;
 static const uint32_t FIELD_SLOT = 1;
 
 static bool
-ValueHasISupportsPrivate(const JS::Value &v)
+ObjectHasISupportsPrivate(JS::Handle<JSObject*> obj)
 {
-  if (!v.isObject()) {
-    return false;
-  }
-
-  JSClass* clasp = ::JS_GetClass(&v.toObject());
+  JSClass* clasp = ::JS_GetClass(obj);
   const uint32_t HAS_PRIVATE_NSISUPPORTS =
     JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS;
   return (clasp->flags & HAS_PRIVATE_NSISUPPORTS) == HAS_PRIVATE_NSISUPPORTS;
@@ -131,7 +127,7 @@ InstallXBLField(JSContext* cx,
   //
   // FieldAccessorGuard already determined whether |thisObj| was acceptable as
   // |this| in terms of not throwing a TypeError.  Assert this for good measure.
-  MOZ_ASSERT(ValueHasISupportsPrivate(JS::ObjectValue(*thisObj)));
+  MOZ_ASSERT(ObjectHasISupportsPrivate(thisObj));
 
   // But there are some cases where we must accept |thisObj| but not install a
   // property on it, or otherwise touch it.  Hence this split of |this|-vetting
@@ -214,23 +210,91 @@ InstallXBLField(JSContext* cx,
   return false;
 }
 
-static bool
-FieldGetterImpl(JSContext *cx, JS::CallArgs args)
+// Determine whether the |this| passed to this method is valid for an XBL field
+// access (which is to say, an object with an nsISupports private), taking into
+// account proxies and/or wrappers around |this|.  There are three possible
+// outcomes from calling this method:
+//
+//   1. An error was hit, and this method returned false.  In this case, the
+//      caller should propagate it.
+//   2. The |this| passed in was directly acceptable for XBL field access.  This
+//      method returned true and set *thisObj to a |this| that can be used for
+//      field definition (i.e. that passes ObjectHasISupportsPrivate).  In this
+//      case, the caller should install the field on *thisObj.
+//   3. The |this| passed in was a proxy/wrapper around an object usable for
+//      XBL field access.  The method recursively (and successfully) invoked the
+//      native on the unwrapped |this|, then it returned true and set *thisObj
+//      to null.  In this case, the caller should itself return true.
+//
+// Thus this method implements the JS_CallNonGenericMethodOnProxy idiom in
+// jsapi.h.
+//
+// Note that a |this| valid for field access is *not* necessarily one on which
+// the field value will be installed.  It's just one where calling the specified
+// method on it won't unconditionally throw a TypeError.  Confusing?  Perhaps,
+// but it's compatible with what we did before we implemented XBL fields using
+// this technique.
+inline bool
+FieldAccessorGuard(JSContext *cx, unsigned argc, JS::Value *vp, JSNative native, JSObject **thisObj)
 {
-  const JS::Value &thisv = args.thisv();
-  MOZ_ASSERT(ValueHasISupportsPrivate(thisv));
+  JS::Rooted<JSObject*> obj(cx, JS_THIS_OBJECT(cx, vp));
+  if (!obj) {
+    xpc::Throw(cx, NS_ERROR_UNEXPECTED);
+    return false;
+  }
 
-  JS::Rooted<JSObject*> thisObj(cx, &thisv.toObject());
+  if (ObjectHasISupportsPrivate(obj)) {
+    *thisObj = obj;
+    return true;
+  }
+
+  // |this| wasn't an unwrapped object passing the has-private-nsISupports test.
+  // So try to unwrap |this| and recursively call the native on it.
+  //
+  // This |protoClass| gunk is needed for the JS engine to report an error if an
+  // object of the wrong class was passed as |this|, so that it can complain
+  // that it expected an object of type |protoClass|.  It would be better if the
+  // error didn't try to specify the expected class of objects -- particularly
+  // because there's no one class of objects -- but it's what the API wants, so
+  // pass a class that's marginally correct as an answer.
+  JSClass* protoClass;
+  {
+    JS::Rooted<JSObject*> callee(cx, &JS_CALLEE(cx, vp).toObject());
+    JS::Rooted<JSObject*> xblProto(cx);
+    xblProto = &js::GetFunctionNativeReserved(callee, XBLPROTO_SLOT).toObject();
+
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, xblProto)) {
+      return false;
+    }
+
+    protoClass = ::JS_GetClass(xblProto);
+  }
+
+  *thisObj = NULL;
+  return JS_CallNonGenericMethodOnProxy(cx, argc, vp, native, protoClass);
+}
+
+static JSBool
+FieldGetter(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+  JS::Rooted<JSObject*> thisObj(cx);
+  if (!FieldAccessorGuard(cx, argc, vp, FieldGetter, thisObj.address())) {
+    return false;
+  }
+  if (!thisObj) {
+    return true; // FieldGetter was recursively invoked on an unwrapped |this|
+  }
 
   bool installed = false;
-  JS::Rooted<JSObject*> callee(cx, &args.calleev().toObject());
+  JS::Rooted<JSObject*> callee(cx, &JS_CALLEE(cx, vp).toObject());
   JS::Rooted<jsid> id(cx);
   if (!InstallXBLField(cx, callee, thisObj, id.address(), &installed)) {
     return false;
   }
 
   if (!installed) {
-    args.rval() = JS::UndefinedValue();
+    JS_SET_RVAL(cx, vp, JS::UndefinedValue());
     return true;
   }
 
@@ -238,44 +302,31 @@ FieldGetterImpl(JSContext *cx, JS::CallArgs args)
   if (!JS_GetPropertyById(cx, thisObj, id, v.address())) {
     return false;
   }
-  args.rval() = v;
+  JS_SET_RVAL(cx, vp, v);
   return true;
 }
 
 static JSBool
-FieldGetter(JSContext *cx, unsigned argc, JS::Value *vp)
+FieldSetter(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-  return JS::CallNonGenericMethod(cx, ValueHasISupportsPrivate, FieldGetterImpl,
-                                  args);
-}
-
-static bool
-FieldSetterImpl(JSContext *cx, JS::CallArgs args)
-{
-  const JS::Value &thisv = args.thisv();
-  MOZ_ASSERT(ValueHasISupportsPrivate(thisv));
-
-  JS::Rooted<JSObject*> thisObj(cx, &thisv.toObject());
+  JS::Rooted<JSObject*> thisObj(cx);
+  if (!FieldAccessorGuard(cx, argc, vp, FieldSetter, thisObj.address())) {
+    return false;
+  }
+  if (!thisObj) {
+    return true; // FieldSetter was recursively invoked on an unwrapped |this|
+  }
 
   bool installed = false;
-  JS::Rooted<JSObject*> callee(cx, &args.calleev().toObject());
+  JS::Rooted<JSObject*> callee(cx, &JS_CALLEE(cx, vp).toObject());
   JS::Rooted<jsid> id(cx);
   if (!InstallXBLField(cx, callee, thisObj, id.address(), &installed)) {
     return false;
   }
 
   JS::Rooted<JS::Value> v(cx,
-                          args.length() > 0 ? args[0] : JS::UndefinedValue());
+                          argc > 0 ? JS_ARGV(cx, vp)[0] : JS::UndefinedValue());
   return JS_SetPropertyById(cx, thisObj, id, v.address());
-}
-
-static JSBool
-FieldSetter(JSContext *cx, unsigned argc, JS::Value *vp)
-{
-  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-  return JS::CallNonGenericMethod(cx, ValueHasISupportsPrivate, FieldSetterImpl,
-                                  args);
 }
 
 static JSBool

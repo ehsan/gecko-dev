@@ -24,12 +24,7 @@ public:
     { }
     virtual ~TestDataStructuresSub()
     { }
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
-    {
-      if (Deletion != why)
-        fail("unexpected destruction!");
-    }
-  uint32 mI;
+    uint32 mI;
 };
 
 //-----------------------------------------------------------------------------
@@ -48,61 +43,72 @@ public:
     void Main();
 
 protected:
-    virtual PTestDataStructuresSubParent* AllocPTestDataStructuresSub(const int& i) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual PTestDataStructuresSubParent* AllocPTestDataStructuresSub(const int& i)
     {
         PTestDataStructuresSubParent* actor = new TestDataStructuresSub(i);
         mKids.AppendElement(actor);
         return actor;
     }
 
-    virtual bool DeallocPTestDataStructuresSub(PTestDataStructuresSubParent* actor) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool DeallocPTestDataStructuresSub(PTestDataStructuresSubParent* actor);
 
+    NS_OVERRIDE
     virtual bool RecvTest1(
             const InfallibleTArray<int>& i1,
-            InfallibleTArray<int>* o1) MOZ_OVERRIDE;
+            InfallibleTArray<int>* o1);
 
+    NS_OVERRIDE
     virtual bool RecvTest2(
             const InfallibleTArray<PTestDataStructuresSubParent*>& i1,
-            InfallibleTArray<PTestDataStructuresSubParent*>* o1) MOZ_OVERRIDE;
+            InfallibleTArray<PTestDataStructuresSubParent*>* o1);
 
+    NS_OVERRIDE
     virtual bool RecvTest3(
             const IntDouble& i1,
             const IntDouble& i2,
             IntDouble* o1,
-            IntDouble* o2) MOZ_OVERRIDE;
+            IntDouble* o2);
 
+    NS_OVERRIDE
     virtual bool RecvTest4(
             const InfallibleTArray<IntDouble>& i1,
-            InfallibleTArray<IntDouble>* o1) MOZ_OVERRIDE;
+            InfallibleTArray<IntDouble>* o1);
 
+    NS_OVERRIDE
     virtual bool RecvTest5(
             const IntDoubleArrays& i1,
             const IntDoubleArrays& i2,
             const IntDoubleArrays& i3,
             IntDoubleArrays* o1,
             IntDoubleArrays* o2,
-            IntDoubleArrays* o3) MOZ_OVERRIDE;
+            IntDoubleArrays* o3);
 
+    NS_OVERRIDE
     virtual bool RecvTest6(
             const InfallibleTArray<IntDoubleArrays>& i1,
-            InfallibleTArray<IntDoubleArrays>* o1) MOZ_OVERRIDE;
+            InfallibleTArray<IntDoubleArrays>* o1);
 
-
+    NS_OVERRIDE
     virtual bool RecvTest7_0(const ActorWrapper& i1,
-                             ActorWrapper* o1) MOZ_OVERRIDE;
+                             ActorWrapper* o1);
 
+    NS_OVERRIDE
     virtual bool RecvTest7(
             const Actors& i1,
             const Actors& i2,
             const Actors& i3,
             Actors* o1,
             Actors* o2,
-            Actors* o3) MOZ_OVERRIDE;
+            Actors* o3);
 
+    NS_OVERRIDE
     virtual bool RecvTest8(
             const InfallibleTArray<Actors>& i1,
-            InfallibleTArray<Actors>* o1) MOZ_OVERRIDE;
+            InfallibleTArray<Actors>* o1);
 
+    NS_OVERRIDE
     virtual bool RecvTest9(
             const Unions& i1,
             const Unions& i2,
@@ -111,28 +117,34 @@ protected:
             Unions* o1,
             Unions* o2,
             Unions* o3,
-            Unions* o4) MOZ_OVERRIDE;
+            Unions* o4);
 
+    NS_OVERRIDE
     virtual bool RecvTest10(
             const InfallibleTArray<Unions>& i1,
-            InfallibleTArray<Unions>* o1) MOZ_OVERRIDE;
+            InfallibleTArray<Unions>* o1);
 
+    NS_OVERRIDE
     virtual bool RecvTest11(
             const SIntDouble& i,
-            SIntDouble* o) MOZ_OVERRIDE;
+            SIntDouble* o);
 
+    NS_OVERRIDE
     virtual bool RecvTest12(
             const SIntDoubleArrays& i,
-            SIntDoubleArrays* o) MOZ_OVERRIDE;
+            SIntDoubleArrays* o);
 
+    NS_OVERRIDE
     virtual bool RecvTest13(
             const SActors& i,
-            SActors* o) MOZ_OVERRIDE;
+            SActors* o);
 
+    NS_OVERRIDE
     virtual bool RecvTest14(
             const Structs& i,
-            Structs* o) MOZ_OVERRIDE;
+            Structs* o);
 
+    NS_OVERRIDE
     virtual bool RecvTest15(
             const WithStructs& i1,
             const WithStructs& i2,
@@ -143,23 +155,28 @@ protected:
             WithStructs* o2,
             WithStructs* o3,
             WithStructs* o4,
-            WithStructs* o5) MOZ_OVERRIDE;
+            WithStructs* o5);
 
+    NS_OVERRIDE
     virtual bool RecvTest16(
             const WithUnions& i,
-            WithUnions* o) MOZ_OVERRIDE;
+            WithUnions* o);
 
-    virtual bool RecvTest17(const InfallibleTArray<Op>& sa) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvTest17(const InfallibleTArray<Op>& sa);
 
-    virtual bool RecvTest18(const InfallibleTArray<nsIntRegion>& ra) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvTest18(const InfallibleTArray<nsIntRegion>& ra);
 
-    virtual bool RecvDummy(const ShmemUnion& su, ShmemUnion* rsu) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual bool RecvDummy(const ShmemUnion& su, ShmemUnion* rsu)
     {
         *rsu = su;
         return true;
     }
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");  
@@ -180,22 +197,26 @@ public:
     virtual ~TestDataStructuresChild();
 
 protected:
-    virtual PTestDataStructuresSubChild* AllocPTestDataStructuresSub(const int& i) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual PTestDataStructuresSubChild* AllocPTestDataStructuresSub(const int& i)
     {
         PTestDataStructuresSubChild* actor = new TestDataStructuresSub(i);
         mKids.AppendElement(actor);
         return actor;
     }
 
-    virtual bool DeallocPTestDataStructuresSub(PTestDataStructuresSubChild* actor) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual bool DeallocPTestDataStructuresSub(PTestDataStructuresSubChild* actor)
     {
         delete actor;
         return true;
     }
 
-    virtual bool RecvStart() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvStart();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");

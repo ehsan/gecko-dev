@@ -75,8 +75,6 @@ RegisterBluetoothEventHandler(const nsCString& aNodeName,
 {
   MOZ_ASSERT(NS_IsMainThread());
   BluetoothEventObserverList *ol;
-
-  NS_ENSURE_TRUE(sBluetoothEventObserverTable, NS_ERROR_FAILURE);
   if (!sBluetoothEventObserverTable->Get(aNodeName, &ol)) {
     sBluetoothEventObserverTable->Put(aNodeName,
                                       new BluetoothEventObserverList());
@@ -92,8 +90,6 @@ UnregisterBluetoothEventHandler(const nsCString& aNodeName,
 {
   MOZ_ASSERT(NS_IsMainThread());
   BluetoothEventObserverList *ol;
-
-  NS_ENSURE_TRUE(sBluetoothEventObserverTable, NS_ERROR_FAILURE);
   if (!sBluetoothEventObserverTable->Get(aNodeName, &ol)) {
     NS_WARNING("Node does not exist to remove BluetoothEventListener from!");
     return NS_ERROR_FAILURE;

@@ -22,74 +22,6 @@ using namespace js;
 using namespace JS;
 
 static JSBool
-GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
-{
-    RootedObject info(cx, JS_NewObject(cx, NULL, NULL, NULL));
-    if (!info)
-        return false;
-    Value value;
-
-#ifdef JSGC_ROOT_ANALYSIS
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "rooting-analysis", &value))
-        return false;
-
-#ifdef JSGC_USE_EXACT_ROOTING
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "exact-rooting", &value))
-        return false;
-
-#ifdef JSGC_ROOT_ANALYSIS
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "rooting-analysis", &value))
-        return false;
-
-#ifdef DEBUG
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "debug", &value))
-        return false;
-
-#ifdef JS_HAS_CTYPES
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "has-ctypes", &value))
-        return false;
-
-#ifdef JS_GC_ZEAL
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "has-gczeal", &value))
-        return false;
-
-#ifdef JS_THREADSAFE
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "has-gczeal", &value))
-        return false;
-
-    *vp = ObjectValue(*info);
-    return true;
-}
-
-static JSBool
 GC(JSContext *cx, unsigned argc, jsval *vp)
 {
     /*
@@ -315,25 +247,13 @@ SelectForGC(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-VerifyPreBarriers(JSContext *cx, unsigned argc, jsval *vp)
+VerifyBarriers(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (argc) {
         ReportUsageError(cx, &JS_CALLEE(cx, vp).toObject(), "Too many arguments");
         return JS_FALSE;
     }
-    gc::VerifyBarriers(cx->runtime, gc::PreBarrierVerifier);
-    *vp = JSVAL_VOID;
-    return JS_TRUE;
-}
-
-static JSBool
-VerifyPostBarriers(JSContext *cx, unsigned argc, jsval *vp)
-{
-    if (argc) {
-        ReportUsageError(cx, &JS_CALLEE(cx, vp).toObject(), "Too many arguments");
-        return JS_FALSE;
-    }
-    gc::VerifyBarriers(cx->runtime, gc::PostBarrierVerifier);
+    gc::VerifyBarriers(cx->runtime);
     *vp = JSVAL_VOID;
     return JS_TRUE;
 }
@@ -617,29 +537,6 @@ Terminate(JSContext *cx, unsigned arg, jsval *vp)
     return JS_FALSE;
 }
 
-static JSBool
-EnableSPSProfilingAssertions(JSContext *cx, unsigned argc, jsval *vp)
-{
-    jsval arg = JS_ARGV(cx, vp)[0];
-    if (argc == 0 || !JSVAL_IS_BOOLEAN(arg)) {
-        ReportUsageError(cx, &JS_CALLEE(cx, vp).toObject(),
-                         "Must have one boolean argument");
-        return false;
-    }
-
-    static ProfileEntry stack[1000];
-    static uint32_t stack_size = 0;
-
-    if (JSVAL_TO_BOOLEAN(arg))
-        SetRuntimeProfilingStack(cx->runtime, stack, &stack_size, 1000);
-    else
-        SetRuntimeProfilingStack(cx->runtime, NULL, NULL, 0);
-    cx->runtime->spsProfiler.enableSlowAssertions(JSVAL_TO_BOOLEAN(arg));
-
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
-}
-
 static JSFunctionSpecWithHelp TestingFunctions[] = {
     JS_FN_HELP("gc", ::GC, 0, 0,
 "gc([obj] | 'compartment')",
@@ -651,11 +548,6 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "gcparam(name [, value])",
 "  Wrapper for JS_[GS]etGCParameter. The name is either maxBytes,\n"
 "  maxMallocBytes, gcBytes, gcNumber, or sliceTimeBudget."),
-
-    JS_FN_HELP("getBuildConfiguration", GetBuildConfiguration, 0, 0,
-"getBuildConfiguration()",
-"  Return an object describing some of the configuration options SpiderMonkey\n"
-"  was built with."),
 
     JS_FN_HELP("countHeap", CountHeap, 0, 0,
 "countHeap([start[, kind]])",
@@ -682,15 +574,10 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "    1: Collect when roots are added or removed\n"
 "    2: Collect when memory is allocated\n"
 "    3: Collect when the window paints (browser only)\n"
-"    4: Verify pre write barriers between instructions\n"
-"    5: Verify pre write barriers between paints\n"
+"    4: Verify write barriers between instructions\n"
+"    5: Verify write barriers between paints\n"
 "    6: Verify stack rooting (ignoring XML and Reflect)\n"
 "    7: Verify stack rooting (all roots)\n"
-"    8: Incremental GC in two slices: 1) mark roots 2) finish collection\n"
-"    9: Incremental GC in two slices: 1) mark all 2) new marking and finish\n"
-"   10: Incremental GC in multiple slices\n"
-"   11: Verify post write barriers between instructions\n"
-"   12: Verify post write barriers between paints\n"
 "  Period specifies that collection happens every n allocations.\n"),
 
     JS_FN_HELP("schedulegc", ScheduleGC, 1, 0,
@@ -702,13 +589,9 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "selectforgc(obj1, obj2, ...)",
 "  Schedule the given objects to be marked in the next GC slice."),
 
-    JS_FN_HELP("verifyprebarriers", VerifyPreBarriers, 0, 0,
-"verifyprebarriers()",
-"  Start or end a run of the pre-write barrier verifier."),
-
-    JS_FN_HELP("verifypostbarriers", VerifyPostBarriers, 0, 0,
-"verifypostbarriers()",
-"  Start or end a run of the post-write barrier verifier."),
+    JS_FN_HELP("verifybarriers", VerifyBarriers, 0, 0,
+"verifybarriers()",
+"  Start or end a run of the write barrier verifier."),
 
     JS_FN_HELP("gcslice", GCSlice, 1, 0,
 "gcslice(n)",
@@ -740,11 +623,6 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "terminate()",
 "  Terminate JavaScript execution, as if we had run out of\n"
 "  memory or been terminated by the slow script dialog."),
-
-    JS_FN_HELP("enableSPSProfilingAssertions", EnableSPSProfilingAssertions, 1, 0,
-"enableSPSProfilingAssertions(enabled)",
-"  Enables or disables the assertions related to SPS profiling. This is fairly\n"
-"  expensive, so it shouldn't be enabled normally."),
 
     JS_FS_END
 };

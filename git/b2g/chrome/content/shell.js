@@ -15,7 +15,6 @@ Cu.import('resource://gre/modules/ContactService.jsm');
 Cu.import('resource://gre/modules/SettingsChangeNotifier.jsm');
 Cu.import('resource://gre/modules/Webapps.jsm');
 Cu.import('resource://gre/modules/AlarmService.jsm');
-Cu.import('resource://gre/modules/ActivitiesService.jsm');
 
 XPCOMUtils.defineLazyServiceGetter(Services, 'env',
                                    '@mozilla.org/process/environment;1',
@@ -59,17 +58,14 @@ function addPermissions(urls) {
     'content-camera', 'webcontacts-manage', 'wifi-manage', 'desktop-notification',
     'geolocation', 'device-storage', 'alarms'
   ];
-
   urls.forEach(function(url) {
     url = url.trim();
-    if (url) {
-      let uri = Services.io.newURI(url, null, null);
-      let allow = Ci.nsIPermissionManager.ALLOW_ACTION;
+    let uri = Services.io.newURI(url, null, null);
+    let allow = Ci.nsIPermissionManager.ALLOW_ACTION;
 
-      permissions.forEach(function(permission) {
-        Services.perms.add(uri, permission, allow);
-      });
-    }
+    permissions.forEach(function(permission) {
+      Services.perms.add(uri, permission, allow);
+    });
   });
 }
 
@@ -246,8 +242,8 @@ var shell = {
           if (!manifest)
             return;
 
-          let principal = contentWindow.document.nodePrincipal;
-          if (Services.perms.testPermissionFromPrincipal(principal, 'offline-app') == Ci.nsIPermissionManager.UNKNOWN_ACTION) {
+          let documentURI = contentWindow.document.documentURIObject;
+          if (!Services.perms.testPermission(documentURI, 'offline-app')) {
             if (Services.prefs.getBoolPref('browser.offline-apps.notify')) {
               // FIXME Bug 710729 - Add a UI for offline cache notifications
               return;
@@ -255,8 +251,8 @@ var shell = {
             return;
           }
 
-          Services.perms.addFromPrincipal(principal, 'offline-app',
-                                          Ci.nsIPermissionManager.ALLOW_ACTION);
+          Services.perms.add(documentURI, 'offline-app',
+                             Ci.nsIPermissionManager.ALLOW_ACTION);
 
           let manifestURI = Services.io.newURI(manifest, null, documentURI);
           let updateService = Cc['@mozilla.org/offlinecacheupdate-service;1']
@@ -307,16 +303,15 @@ nsBrowserAccess.prototype = {
 };
 
 // Listen for system messages and relay them to Gaia.
-Services.obs.addObserver(function onSystemMessage(subject, topic, data) {
-  let msg = JSON.parse(data);
+Services.obs.addObserver(function(aSubject, aTopic, aData) {
+  let msg = JSON.parse(aData);
   let origin = Services.io.newURI(msg.manifest, null, null).prePath;
-  shell.sendEvent(shell.contentBrowser.contentWindow, 'mozChromeEvent', {
-    type: 'open-app',
-    url: msg.uri,
-    origin: origin,
-    manifest: msg.manifest
-  });
-}, 'system-messages-open-app', false);
+  shell.sendEvent(shell.contentBrowser.contentWindow,
+                  "mozChromeEvent", { type: "open-app",
+                                      url: msg.uri,
+                                      origin: origin,
+                                      manifest: msg.manifest } );
+}, "system-messages-open-app", false);
 
 (function Repl() {
   if (!Services.prefs.getBoolPref('b2g.remote-js.enabled')) {

@@ -14,7 +14,6 @@ let EXPORTED_SYMBOLS = ["DOMApplicationRegistry", "DOMApplicationManifest"];
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import('resource://gre/modules/ActivitiesService.jsm');
 
 const WEBAPP_RUNTIME = Services.appinfo.ID == "webapprt@mozilla.org";
 
@@ -27,10 +26,6 @@ XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
   return Cc["@mozilla.org/parentprocessmessagemanager;1"]
          .getService(Ci.nsIFrameMessageManager);
 });
-
-XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
-                                   "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsIFrameMessageManager");
 
 XPCOMUtils.defineLazyGetter(this, "msgmgr", function() {
   return Cc["@mozilla.org/system-message-internal;1"]
@@ -72,7 +67,7 @@ let DOMApplicationRegistry = {
         this.webapps = aData;
         for (let id in this.webapps) {
 #ifdef MOZ_SYS_MSG
-          this._processManifestForId(id);
+          this._registerSystemMessagesForId(id);
 #endif
           if (!this.webapps[id].localId) {
             this.webapps[id].localId = this._nextLocalId();
@@ -104,51 +99,10 @@ let DOMApplicationRegistry = {
     }
   },
 
-  _registerActivities: function(aManifest, aApp) {
-    if (!aManifest.activities) {
-      return;
-    }
-
-    let manifest = new DOMApplicationManifest(aManifest, aApp.origin);
-    for (let activity in aManifest.activities) {
-      let description = aManifest.activities[activity];
-      let json = {
-        "manifest": aApp.manifestURL,
-        "name": activity,
-        "title": manifest.name,
-        "icon": manifest.iconURLForSize(128),
-        "description": description
-      }
-      cpmm.sendAsyncMessage("Activities:Register", json);
-
-      let launchPath =
-        Services.io.newURI(manifest.fullLaunchPath(description.href), null, null);
-      let manifestURL = Services.io.newURI(aApp.manifestURL, null, null);
-      msgmgr.registerPage("activity", launchPath, manifestURL);
-    }
-  },
-
-  _unregisterActivities: function(aManifest, aApp) {
-    if (!aManifest.activities) {
-      return;
-    }
-
-    for (let activity in aManifest.activities) {
-      let description = aManifest.activities[activity];
-      let json = {
-        "manifest": aApp.manifestURL,
-        "name": activity
-      }
-      cpmm.sendAsyncMessage("Activities:Unregister", json);
-    }
-  },
-
-  _processManifestForId: function(aId) {
+  _registerSystemMessagesForId: function(aId) {
     let app = this.webapps[aId];
     this._readManifests([{ id: aId }], (function registerManifest(aResult) {
-      let manifest = aResult[0].manifest;
-      this._registerSystemMessages(manifest, app);
-      this._registerActivities(manifest, app);
+      this._registerSystemMessages(aResult[0].manifest, app);
     }).bind(this));
   },
 #endif
@@ -363,8 +317,7 @@ let DOMApplicationRegistry = {
   },
 
   _nextLocalId: function() {
-    let maxLocalId = Ci.nsIScriptSecurityManager.NO_APP_ID;
-
+    let maxLocalId = 0;
     for (let id in this.webapps) {
       if (this.webapps[id].localId > maxLocalId) {
         maxLocalId = this.webapps[id].localId;
@@ -535,36 +488,26 @@ let DOMApplicationRegistry = {
     let found = false;
     for (let id in this.webapps) {
       let app = this.webapps[id];
-      if (app.origin != aData.origin) {
-        continue;
+      if (app.origin == aData.origin) {
+        found = true;
+        let appNote = JSON.stringify(this._cloneAppObject(app));
+        appNote.id = id;
+
+        delete this.webapps[id];
+        let dir = FileUtils.getDir(DIRECTORY_NAME, ["webapps", id], true, true);
+        try {
+          dir.remove(true);
+        } catch (e) {
+        }
+
+        this._saveApps((function() {
+          ppmm.sendAsyncMessage("Webapps:Uninstall:Return:OK", aData);
+          Services.obs.notifyObservers(this, "webapps-sync-uninstall", appNote);
+        }).bind(this));
       }
-
-      found = true;
-      let appNote = JSON.stringify(this._cloneAppObject(app));
-      appNote.id = id;
-
-      this._readManifests([{ id: id }], (function unregisterManifest(aResult) {
-#ifdef MOZ_SYS_MSG
-        this._unregisterActivities(aResult[0].manifest, app);
-#endif
-      }).bind(this));
-
-      let dir = FileUtils.getDir(DIRECTORY_NAME, ["webapps", id], true, true);
-      try {
-        dir.remove(true);
-      } catch (e) {}
-
-      delete this.webapps[id];
-
-      this._saveApps((function() {
-        ppmm.sendAsyncMessage("Webapps:Uninstall:Return:OK", aData);
-        Services.obs.notifyObservers(this, "webapps-sync-uninstall", appNote);
-      }).bind(this));
     }
-
-    if (!found) {
+    if (!found)
       ppmm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
-    }
   },
 
   getSelf: function(aData) {
@@ -666,7 +609,7 @@ let DOMApplicationRegistry = {
   getAppById: function(aId) {
     if (!this.webapps[aId])
       return null;
-
+    
     let app = this._cloneAppObject(this.webapps[aId]);
     return app;
   },
@@ -692,7 +635,7 @@ let DOMApplicationRegistry = {
       }
     }
 
-    return Ci.nsIScriptSecurityManager.NO_APP_ID;
+    return 0;
   },
 
   getAllWithoutManifests: function(aCallback) {

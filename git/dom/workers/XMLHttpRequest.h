@@ -72,7 +72,7 @@ public:
 
   static XMLHttpRequest*
   Constructor(JSContext* aCx, JSObject* aGlobal,
-              const MozXMLHttpRequestParametersWorkers& aParams,
+              const Nullable<MozXMLHttpRequestParametersWorkers>& aParams,
               ErrorResult& aRv);
   void
   Unpin();
@@ -96,6 +96,18 @@ public:
   IMPL_GETTER_AND_SETTER(readystatechange)
 
 #undef IMPL_GETTER_AND_SETTER
+
+  JSObject*
+  GetOnuploadprogress(JSContext* /* unused */, ErrorResult& aRv)
+  {
+    aRv = NS_ERROR_NOT_IMPLEMENTED;
+    return NULL;
+  }
+  void
+  SetOnuploadprogress(JSContext* /* unused */, JSObject* aListener, ErrorResult& aRv)
+  {
+    aRv = NS_ERROR_NOT_IMPLEMENTED;
+  }
 
   uint16_t
   GetReadyState() const

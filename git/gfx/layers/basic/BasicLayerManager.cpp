@@ -21,7 +21,6 @@
 #include "BasicLayersImpl.h"
 #include "BasicThebesLayer.h"
 #include "BasicContainerLayer.h"
-#include "mozilla/Preferences.h"
 
 using namespace mozilla::gfx;
 
@@ -384,16 +383,6 @@ BasicLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
   EndTransactionInternal(aCallback, aCallbackData, aFlags);
 }
 
-void
-BasicLayerManager::AbortTransaction()
-{
-  NS_ASSERTION(InConstruction(), "Should be in construction phase");
-#ifdef DEBUG
-  mPhase = PHASE_NONE;
-#endif
-  mUsingDefaultTarget = false;
-}
-
 bool
 BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
                                           void* aCallbackData,
@@ -445,9 +434,6 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
     }
 
     PaintLayer(mTarget, mRoot, aCallback, aCallbackData, nsnull);
-    if (mWidget) {
-      FlashWidgetUpdateArea(mTarget);
-    }
 
     if (!mTransactionIncomplete) {
       // Clear out target if we have a complete transaction.
@@ -478,27 +464,6 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
   // out target is the default target.
 
   return !mTransactionIncomplete;
-}
-
-void
-BasicLayerManager::FlashWidgetUpdateArea(gfxContext *aContext)
-{
-  static bool sWidgetFlashingEnabled;
-  static bool sWidgetFlashingPrefCached = false;
-
-  if (!sWidgetFlashingPrefCached) {
-    sWidgetFlashingPrefCached = true;
-    mozilla::Preferences::AddBoolVarCache(&sWidgetFlashingEnabled,
-                                          "nglayout.debug.widget_update_flashing");
-  }
-
-  if (sWidgetFlashingEnabled) {
-    float r = float(rand()) / RAND_MAX;
-    float g = float(rand()) / RAND_MAX;
-    float b = float(rand()) / RAND_MAX;
-    aContext->SetColor(gfxRGBA(r, g, b, 0.2));
-    aContext->Paint();
-  }
 }
 
 bool
@@ -627,7 +592,8 @@ Transform3D(gfxASurface* aSource, gfxContext* aDest,
 
   // Create a surface the size of the transformed object.
   nsRefPtr<gfxASurface> dest = aDest->CurrentSurface();
-  nsRefPtr<gfxImageSurface> destImage;
+  nsRefPtr<gfxImageSurface> destImage = dest->GetAsImageSurface();
+  destImage = nsnull;
   gfxPoint offset;
   bool blitComplete;
   if (!destImage || aDontBlit || !aDest->ClipContainsRect(destRect)) {
@@ -1143,7 +1109,7 @@ BasicShadowLayerManager::CreateThebesLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
 #ifdef FORCE_BASICTILEDTHEBESLAYER
-  if (HasShadowManager() && GetParentBackendType() == LAYERS_OPENGL) {
+  if (HasShadowManager() && GetParentBackendType() == LayerManager::LAYERS_OPENGL) {
     // BasicTiledThebesLayer doesn't support main
     // thread compositing so only return this layer
     // type if we have a shadow manager.

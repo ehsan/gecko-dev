@@ -4,6 +4,9 @@
 
 package org.mozilla.gecko;
 
+import android.text.TextUtils;
+import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;

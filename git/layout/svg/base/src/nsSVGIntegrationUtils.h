@@ -10,7 +10,6 @@
 #include "gfxPattern.h"
 #include "gfxRect.h"
 #include "nsRect.h"
-#include "Layers.h"
 
 class nsDisplayList;
 class nsDisplayListBuilder;
@@ -28,7 +27,7 @@ class nsSVGIntegrationUtils MOZ_FINAL
 {
 public:
   /**
-   * Returns true if SVG effects are currently applied to this frame.
+   * Returns true if a non-SVG frame has SVG effects.
    */
   static bool
   UsingEffectsForFrame(const nsIFrame* aFrame);
@@ -135,7 +134,7 @@ public:
   PaintFramesWithEffects(nsRenderingContext* aCtx,
                          nsIFrame* aFrame, const nsRect& aDirtyRect,
                          nsDisplayListBuilder* aBuilder,
-                         mozilla::layers::LayerManager* aManager);
+                         nsDisplayList* aInnerList);
 
   /**
    * SVG frames expect to paint in SVG user units, which are equal to CSS px

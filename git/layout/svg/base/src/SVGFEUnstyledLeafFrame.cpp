@@ -16,20 +16,10 @@ class SVGFEUnstyledLeafFrame : public SVGFEUnstyledLeafFrameBase
   friend nsIFrame*
   NS_NewSVGFEUnstyledLeafFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  SVGFEUnstyledLeafFrame(nsStyleContext* aContext)
-    : SVGFEUnstyledLeafFrameBase(aContext)
-  {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  SVGFEUnstyledLeafFrame(nsStyleContext* aContext) : SVGFEUnstyledLeafFrameBase(aContext) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
-
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) {
-    return NS_OK;
-  }
 
   virtual bool IsFrameOfType(PRUint32 aFlags) const
   {

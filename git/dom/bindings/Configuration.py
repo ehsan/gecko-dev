@@ -134,13 +134,8 @@ class Descriptor(DescriptorProvider):
         headerDefault = headerDefault.replace("::", "/") + ".h"
         self.headerFile = desc.get('headerFile', headerDefault)
 
-        if self.interface.isCallback() or self.interface.isExternal():
-            if 'castable' in desc:
-                raise TypeError("%s is external or callback but has a castable "
-                                "setting" % self.interface.identifier.name)
-            self.castable = False
-        else:
-            self.castable = desc.get('castable', True)
+        castableDefault = not self.interface.isCallback()
+        self.castable = desc.get('castable', castableDefault)
 
         self.notflattened = desc.get('notflattened', False)
         self.register = desc.get('register', True)
@@ -154,9 +149,6 @@ class Descriptor(DescriptorProvider):
                 iface.setUserData('hasConcreteDescendant', True)
                 iface = iface.parent
 
-        if self.interface.isExternal() and 'prefable' in desc:
-            raise TypeError("%s is external but has a prefable setting" %
-                            self.interface.identifier.name)
         self.prefable = desc.get('prefable', False)
 
         self.nativeIsISupports = not self.workers
@@ -216,38 +208,11 @@ class Descriptor(DescriptorProvider):
         return self.interface.hasInterfaceObject() or self.interface.hasInterfacePrototypeObject()
 
     def getExtendedAttributes(self, member, getter=False, setter=False):
-        def ensureValidInfallibleExtendedAttribute(attr):
-            assert(attr is None or attr is True or len(attr) == 1)
-            if (attr is not None and attr is not True and
-                'Workers' not in attr and 'MainThread' not in attr):
-                raise TypeError("Unknown value for 'infallible': " + attr[0])
-
         name = member.identifier.name
         if member.isMethod():
-            attrs = self.extendedAttributes['all'].get(name, [])
-            infallible = member.getExtendedAttribute("Infallible")
-            ensureValidInfallibleExtendedAttribute(infallible)
-            if (infallible is not None and
-                (infallible is True or
-                 ('Workers' in infallible and self.workers) or
-                 ('MainThread' in infallible and not self.workers))):
-                attrs.append("infallible")
-            return attrs
+            return self.extendedAttributes['all'].get(name, [])
 
         assert member.isAttr()
         assert bool(getter) != bool(setter)
         key = 'getterOnly' if getter else 'setterOnly'
-        attrs = self.extendedAttributes['all'].get(name, []) + self.extendedAttributes[key].get(name, [])
-        infallible = member.getExtendedAttribute("Infallible")
-        if infallible is None:
-            infallibleAttr = "GetterInfallible" if getter else "SetterInfallible"
-            infallible = member.getExtendedAttribute(infallibleAttr)
-
-        ensureValidInfallibleExtendedAttribute(infallible)
-        if (infallible is not None and
-            (infallible is True or
-             ('Workers' in infallible and self.workers) or
-             ('MainThread' in infallible and not self.workers))):
-            attrs.append("infallible")
-
-        return attrs
+        return self.extendedAttributes['all'].get(name, []) + self.extendedAttributes[key].get(name, [])

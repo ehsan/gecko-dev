@@ -3634,8 +3634,8 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
     canStoreInRuleTree = false;
     // Use |mFont.size| to pick up minimum font size.
     text->mLineHeight.SetCoordValue(
-        NSToCoordRound(float(aContext->GetStyleFont()->mFont.size) *
-                       lineHeightValue->GetPercentValue()));
+        nscoord(float(aContext->GetStyleFont()->mFont.size) *
+                lineHeightValue->GetPercentValue()));
   }
   else if (eCSSUnit_Initial == lineHeightValue->GetUnit() ||
            eCSSUnit_System_Font == lineHeightValue->GetUnit()) {
@@ -4347,8 +4347,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
 
       nsDependentString
         propertyStr(property.list->mValue.GetStringBufferValue());
-      nsCSSProperty prop = nsCSSProps::LookupProperty(propertyStr,
-                                                      nsCSSProps::eEnabled);
+      nsCSSProperty prop = nsCSSProps::LookupProperty(propertyStr);
       if (prop == eCSSProperty_UNKNOWN) {
         transition->SetUnknownProperty(propertyStr);
       } else {

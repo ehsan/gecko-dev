@@ -575,7 +575,8 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
 #ifdef MOZ_XUL
   if (aClone && !aParent && aNode->IsElement() &&
       aNode->AsElement()->IsXUL()) {
-    if (!aNode->OwnerDoc()->IsLoadedAsInteractiveData()) {
+    nsXULElement *xulElem = static_cast<nsXULElement*>(elem);
+    if (!xulElem->mPrototype || xulElem->IsInDoc()) {
       clone->SetFlags(NODE_FORCE_XBL_BINDINGS);
     }
   }

@@ -112,7 +112,7 @@ public:
     virtual float      GetDPI();
     NS_IMETHOD         Show(bool aState);
     NS_IMETHOD         SetModal(bool aModal);
-    virtual bool       IsVisible() const;
+    NS_IMETHOD         IsVisible(bool & aState);
     NS_IMETHOD         ConstrainPosition(bool aAllowSlop,
                                          PRInt32 *aX,
                                          PRInt32 *aY);
@@ -188,7 +188,7 @@ public:
     }
 
     // Some of the nsIWidget methods
-    virtual bool IsEnabled() const;
+    NS_IMETHOD         IsEnabled        (bool *aState);
 
     // called when we are destroyed
     void OnDestroy(void);

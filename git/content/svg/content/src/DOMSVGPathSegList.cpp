@@ -384,7 +384,7 @@ DOMSVGPathSegList::InsertItemBefore(nsIDOMSVGPathSeg *aNewItem,
   if (AttrIsAnimating()) {
     Element()->AnimationNeedsResample();
   }
-  domItem.forget(_retval);
+  *_retval = domItem.forget().get();
   return NS_OK;
 }
 

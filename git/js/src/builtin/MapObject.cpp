@@ -15,6 +15,7 @@
 
 #include "gc/Marking.h"
 #include "vm/GlobalObject.h"
+#include "vm/MethodGuard.h"
 #include "vm/Stack.h"
 
 #include "jsobjinlines.h"
@@ -226,49 +227,42 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
-MapObject::is(const Value &v)
-{
-    return v.isObject() && v.toObject().hasClass(&class_) && v.toObject().getPrivate();
-}
+#define UNPACK_THIS(T, native, cx, argc, vp, args, data)                      \
+    CallArgs args = CallArgsFromVp(argc, vp);                                 \
+    if (!args.thisv().isObject() ||                                           \
+        !args.thisv().toObject().hasClass(&T::class_))                        \
+    {                                                                         \
+        return js::HandleNonGenericMethodClassMismatch(cx, args, native,      \
+                                                       &T::class_);           \
+    }                                                                         \
+    if (!args.thisv().toObject().getPrivate()) {                              \
+        ReportIncompatibleMethod(cx, args, &T::class_);                       \
+        return false;                                                         \
+    }                                                                         \
+    T::Data &data = *static_cast<T &>(args.thisv().toObject()).getData();     \
+    (void) data
+
+#define THIS_MAP(native, cx, argc, vp, args, map)                             \
+    UNPACK_THIS(MapObject, native, cx, argc, vp, args, map)
 
 #define ARG0_KEY(cx, args, key)                                               \
     HashableValue key;                                                        \
     if (args.length() > 0 && !key.setValue(cx, args[0]))                      \
         return false
 
-ValueMap &
-MapObject::extract(CallReceiver call)
+JSBool
+MapObject::size(JSContext *cx, unsigned argc, Value *vp)
 {
-    JS_ASSERT(call.thisv().isObject());
-    JS_ASSERT(call.thisv().toObject().hasClass(&MapObject::class_));
-    return *static_cast<MapObject&>(call.thisv().toObject()).getData();
-}
-
-bool
-MapObject::size_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(MapObject::is(args.thisv()));
-
-    ValueMap &map = extract(args);
+    THIS_MAP(size, cx, argc, vp, args, map);
     JS_STATIC_ASSERT(sizeof map.count() <= sizeof(uint32_t));
     args.rval().setNumber(map.count());
     return true;
 }
 
 JSBool
-MapObject::size(JSContext *cx, unsigned argc, Value *vp)
+MapObject::get(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, size_impl, args);
-}
-
-bool
-MapObject::get_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(MapObject::is(args.thisv()));
-
-    ValueMap &map = extract(args);
+    THIS_MAP(get, cx, argc, vp, args, map);
     ARG0_KEY(cx, args, key);
 
     if (ValueMap::Ptr p = map.lookup(key))
@@ -279,36 +273,18 @@ MapObject::get_impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-MapObject::get(JSContext *cx, unsigned argc, Value *vp)
+MapObject::has(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, get_impl, args);
-}
-
-bool
-MapObject::has_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(MapObject::is(args.thisv()));
-
-    ValueMap &map = extract(args);
+    THIS_MAP(has, cx, argc, vp, args, map);
     ARG0_KEY(cx, args, key);
     args.rval().setBoolean(map.lookup(key));
     return true;
 }
 
 JSBool
-MapObject::has(JSContext *cx, unsigned argc, Value *vp)
+MapObject::set(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, has_impl, args);
-}
-
-bool
-MapObject::set_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(MapObject::is(args.thisv()));
-
-    ValueMap &map = extract(args);
+    THIS_MAP(set, cx, argc, vp, args, map);
     ARG0_KEY(cx, args, key);
     if (!map.put(key, args.length() > 1 ? args[1] : UndefinedValue())) {
         js_ReportOutOfMemory(cx);
@@ -319,18 +295,9 @@ MapObject::set_impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-MapObject::set(JSContext *cx, unsigned argc, Value *vp)
+MapObject::delete_(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, set_impl, args);
-}
-
-bool
-MapObject::delete_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(MapObject::is(args.thisv()));
-
-    ValueMap &map = extract(args);
+    THIS_MAP(delete_, cx, argc, vp, args, map);
     ARG0_KEY(cx, args, key);
     ValueMap::Ptr p = map.lookup(key);
     bool found = p.found();
@@ -338,13 +305,6 @@ MapObject::delete_impl(JSContext *cx, CallArgs args)
         map.remove(p);
     args.rval().setBoolean(found);
     return true;
-}
-
-JSBool
-MapObject::delete_(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, delete_impl, args);
 }
 
 JSObject *
@@ -444,62 +404,31 @@ SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
-SetObject::is(const Value &v)
-{
-    return v.isObject() && v.toObject().hasClass(&class_) && v.toObject().getPrivate();
-}
+#define THIS_SET(native, cx, argc, vp, args, set)                             \
+    UNPACK_THIS(SetObject, native, cx, argc, vp, args, set)
 
-ValueSet &
-SetObject::extract(CallReceiver call)
+JSBool
+SetObject::size(JSContext *cx, unsigned argc, Value *vp)
 {
-    JS_ASSERT(call.thisv().isObject());
-    JS_ASSERT(call.thisv().toObject().hasClass(&SetObject::class_));
-    return *static_cast<SetObject&>(call.thisv().toObject()).getData();
-}
-
-bool
-SetObject::size_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
-
-    ValueSet &set = extract(args);
+    THIS_SET(size, cx, argc, vp, args, set);
     JS_STATIC_ASSERT(sizeof set.count() <= sizeof(uint32_t));
     args.rval().setNumber(set.count());
     return true;
 }
 
 JSBool
-SetObject::size(JSContext *cx, unsigned argc, Value *vp)
+SetObject::has(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, size_impl, args);
-}
-
-bool
-SetObject::has_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
-
-    ValueSet &set = extract(args);
+    THIS_SET(has, cx, argc, vp, args, set);
     ARG0_KEY(cx, args, key);
     args.rval().setBoolean(set.has(key));
     return true;
 }
 
 JSBool
-SetObject::has(JSContext *cx, unsigned argc, Value *vp)
+SetObject::add(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, has_impl, args);
-}
-
-bool
-SetObject::add_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
-
-    ValueSet &set = extract(args);
+    THIS_SET(add, cx, argc, vp, args, set);
     ARG0_KEY(cx, args, key);
     if (!set.put(key)) {
         js_ReportOutOfMemory(cx);
@@ -510,18 +439,9 @@ SetObject::add_impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-SetObject::add(JSContext *cx, unsigned argc, Value *vp)
+SetObject::delete_(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, add_impl, args);
-}
-
-bool
-SetObject::delete_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
-
-    ValueSet &set = extract(args);
+    THIS_SET(delete_, cx, argc, vp, args, set);
     ARG0_KEY(cx, args, key);
     ValueSet::Ptr p = set.lookup(key);
     bool found = p.found();
@@ -529,13 +449,6 @@ SetObject::delete_impl(JSContext *cx, CallArgs args)
         set.remove(p);
     args.rval().setBoolean(found);
     return true;
-}
-
-JSBool
-SetObject::delete_(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, delete_impl, args);
 }
 
 JSObject *

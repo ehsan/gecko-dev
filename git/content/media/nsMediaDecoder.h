@@ -6,6 +6,7 @@
 #if !defined(nsMediaDecoder_h_)
 #define nsMediaDecoder_h_
 
+#include "ImageLayers.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "VideoFrameContainer.h"
 #include "MediaStreamGraph.h"
@@ -37,6 +38,8 @@ static const PRUint32 FRAMEBUFFER_LENGTH_MAX = 16384;
 class nsMediaDecoder : public nsIObserver
 {
 public:
+  typedef mozilla::layers::Image Image;
+  typedef mozilla::layers::ImageContainer ImageContainer;
   typedef mozilla::MediaResource MediaResource;
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
   typedef mozilla::SourceMediaStream SourceMediaStream;
@@ -338,7 +341,7 @@ public:
 
   // Returns the current size of the framebuffer used in
   // MozAudioAvailable events.
-  PRUint32 GetFrameBufferLength() { return mFrameBufferLength; }
+  PRUint32 GetFrameBufferLength() { return mFrameBufferLength; };
 
   // Sets the length of the framebuffer used in MozAudioAvailable events.
   // The new size must be between 512 and 16384.
@@ -365,7 +368,7 @@ public:
   virtual PRInt64 AudioQueueMemoryInUse() = 0;
 
   VideoFrameContainer* GetVideoFrameContainer() { return mVideoFrameContainer; }
-  mozilla::layers::ImageContainer* GetImageContainer()
+  ImageContainer* GetImageContainer()
   {
     return mVideoFrameContainer ? mVideoFrameContainer->GetImageContainer() : nsnull;
   }

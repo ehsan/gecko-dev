@@ -21,7 +21,6 @@ function test()
   let tempScope = {};
   Cu.import("resource:///modules/source-editor.jsm", tempScope);
   let SourceEditor = tempScope.SourceEditor;
-
   let scriptShown = false;
   let framesAdded = false;
   let resumed = false;
@@ -275,21 +274,15 @@ function test()
     is(gEditor.getBreakpoints().length, 0, "editor.getBreakpoints().length is correct");
 
     executeSoon(function() {
-      gDebugger.gClient.addOneTimeListener("resumed", function() {
-        finalCheck();
-        closeDebuggerAndFinish();
-      });
-      gDebugger.DebuggerController.activeThread.resume();
+      gDebugger.DebuggerController.activeThread.resume(finish);
     });
   }
 
-  function finalCheck() {
+  registerCleanupFunction(function() {
     is(Object.keys(gBreakpoints).length, 0, "no breakpoint in the debugger");
     ok(!gPane.getBreakpoint(gScripts.scriptLocations[0], 5),
        "getBreakpoint(scriptLocations[0], 5) returns no breakpoint");
-  }
 
-  registerCleanupFunction(function() {
     removeTab(gTab);
     is(breakpointsAdded, 2, "correct number of breakpoints have been added");
     is(breakpointsRemoved, 1, "correct number of breakpoints have been removed");

@@ -15,6 +15,7 @@
 #include "nsStringGlue.h"
 
 #include "prthread.h"
+#include "Layers.h"
 #include "nsEvent.h"
 #include "nsCOMPtr.h"
 #include "nsITheme.h"
@@ -22,7 +23,6 @@
 #include "nsWidgetInitData.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
-#include "LayersBackend.h"
 
 // forward declarations
 class   nsFontMetrics;
@@ -38,10 +38,9 @@ class   ViewWrapper;
 
 namespace mozilla {
 namespace dom {
-class TabChild;
+class PBrowserChild;
 }
 namespace layers {
-class LayerManager;
 class PLayersChild;
 }
 }
@@ -87,8 +86,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0x97afe930, 0x72d7, 0x4d95, \
-    { 0x88, 0x5f, 0x37, 0x09, 0x14, 0x2a, 0xf4, 0xe2 } }
+  { 0x7c7ff2ff, 0x61f9, 0x4240, \
+    { 0xaa, 0x58, 0x74, 0xb0, 0xcd, 0xa9, 0xe3, 0x05 } }
 
 /*
  * Window shadow styles
@@ -360,11 +359,11 @@ struct InputContextAction {
  */
 class nsIWidget : public nsISupports {
   protected:
-    typedef mozilla::dom::TabChild TabChild;
+    typedef mozilla::dom::PBrowserChild PBrowserChild;
 
   public:
     typedef mozilla::layers::LayerManager LayerManager;
-    typedef mozilla::layers::LayersBackend LayersBackend;
+    typedef LayerManager::LayersBackend LayersBackend;
     typedef mozilla::layers::PLayersChild PLayersChild;
     typedef mozilla::widget::IMEState IMEState;
     typedef mozilla::widget::InputContext InputContext;
@@ -609,7 +608,7 @@ class nsIWidget : public nsISupports {
      * Returns whether the window is visible
      *
      */
-    virtual bool IsVisible() const = 0;
+    NS_IMETHOD IsVisible(bool & aState) = 0;
 
     /**
      * Perform platform-dependent sanity check on a potential window position.
@@ -766,8 +765,9 @@ class nsIWidget : public nsISupports {
 
     /**
      * Ask whether the widget is enabled
+     * @param aState returns true if the widget is enabled
      */
-    virtual bool IsEnabled() const = 0;
+    NS_IMETHOD IsEnabled(bool *aState) = 0;
 
     /**
      * Request activation of this window or give focus to this widget.
@@ -1040,14 +1040,14 @@ class nsIWidget : public nsISupports {
      */
     inline LayerManager* GetLayerManager(bool* aAllowRetaining = nsnull)
     {
-        return GetLayerManager(nsnull, mozilla::layers::LAYERS_NONE,
+        return GetLayerManager(nsnull, LayerManager::LAYERS_NONE,
                                LAYER_MANAGER_CURRENT, aAllowRetaining);
     }
 
     inline LayerManager* GetLayerManager(LayerManagerPersistence aPersistence,
                                          bool* aAllowRetaining = nsnull)
     {
-        return GetLayerManager(nsnull, mozilla::layers::LAYERS_NONE,
+        return GetLayerManager(nsnull, LayerManager::LAYERS_NONE,
                                aPersistence, aAllowRetaining);
     }
 
@@ -1096,7 +1096,7 @@ class nsIWidget : public nsISupports {
      *
      * @param aOpaqueRegion the region of the window that is opaque.
      */
-    virtual void UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion) {}
+    virtual void UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion) {};
 
     /** 
      * Internal methods
@@ -1543,7 +1543,7 @@ class nsIWidget : public nsISupports {
      * The returned widget must still be nsIWidget::Create()d.
      */
     static already_AddRefed<nsIWidget>
-    CreatePuppetWidget(TabChild* aTabChild);
+    CreatePuppetWidget(PBrowserChild *aTabChild);
 
     /**
      * Reparent this widget's native widget.

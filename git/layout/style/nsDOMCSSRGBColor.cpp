@@ -10,7 +10,6 @@
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsDOMCSSRGBColor.h"
 #include "nsContentUtils.h"
-#include "nsDOMClassInfoID.h"
 
 nsDOMCSSRGBColor::nsDOMCSSRGBColor(nsIDOMCSSPrimitiveValue* aRed,
                                    nsIDOMCSSPrimitiveValue* aGreen,

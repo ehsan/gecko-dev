@@ -1,17 +1,6 @@
-/* Copyright 2012 Mozilla Foundation and Mozilla contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
 
@@ -357,7 +346,7 @@ RadioInterfaceLayer.prototype = {
         this.handleSmsSendFailed(message);
         return;
       case "datacallstatechange":
-        this.handleDataCallState(message);
+        this.handleDataCallState(message.datacall);
         break;
       case "datacalllist":
         this.handleDataCallList(message);
@@ -396,9 +385,6 @@ RadioInterfaceLayer.prototype = {
           delete this._contactsCallbacks[message.requestId];
           callback.receiveContactsList(message.contactType, message.contacts);
         }
-        break;
-      case "iccmbdn":
-        ppmm.sendAsyncMessage("RIL:VoicemailNumberChanged", message);
         break;
       case "celllocationchanged":
         this.rilContext.cell = message;
@@ -484,7 +470,7 @@ RadioInterfaceLayer.prototype = {
       voiceInfo.signalStrength = null;
       voiceInfo.relSignalStrength = null;
       ppmm.sendAsyncMessage("RIL:VoiceInfoChanged", voiceInfo);
-      return false;
+      return;
     }
 
     let isRoaming = regState == RIL.NETWORK_CREG_STATE_REGISTERED_ROAMING;
@@ -539,7 +525,7 @@ RadioInterfaceLayer.prototype = {
       data.signalStrength = null;
       data.relSignalStrength = null;
       ppmm.sendAsyncMessage("RIL:DataInfoChanged", data);
-      return false;
+      return;
     }
     data.roaming =
       (state.regState == RIL.NETWORK_CREG_STATE_REGISTERED_ROAMING);
@@ -794,19 +780,6 @@ RadioInterfaceLayer.prototype = {
       return;
     }
 
-    // TODO: Bug #768441
-    // For now we don't store indicators persistently. When the mwi.discard
-    // flag is false, we'll need to persist the indicator to EFmwis.
-    // See TS 23.040 9.2.3.24.2
-
-    let mwi = message.mwi;
-    if (mwi) {
-      mwi.returnNumber = message.sender || null;
-      mwi.returnMessage = message.fullBody || null;
-      ppmm.sendAsyncMessage("RIL:VoicemailNotification", mwi);
-      return;
-    }
-
     let id = gSmsDatabaseService.saveReceivedMessage(message.sender || null,
                                                      message.fullBody || null,
                                                      message.timestamp);
@@ -817,7 +790,6 @@ RadioInterfaceLayer.prototype = {
                                            message.fullBody || null,
                                            message.timestamp,
                                            false);
-
     Services.obs.notifyObservers(sms, kSmsReceivedObserverTopic, null);
   },
 

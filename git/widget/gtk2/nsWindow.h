@@ -107,7 +107,7 @@ public:
     virtual float      GetDPI();
     virtual nsresult   SetParent(nsIWidget* aNewParent);
     NS_IMETHOD         SetModal(bool aModal);
-    virtual bool       IsVisible() const;
+    NS_IMETHOD         IsVisible(bool & aState);
     NS_IMETHOD         ConstrainPosition(bool aAllowSlop,
                                          PRInt32 *aX,
                                          PRInt32 *aY);
@@ -122,7 +122,7 @@ public:
                                          PRInt32 aWidth,
                                          PRInt32 aHeight,
                                          bool     aRepaint);
-    virtual bool       IsEnabled() const;
+    NS_IMETHOD         IsEnabled        (bool *aState);
 
 
     NS_IMETHOD         PlaceBehind(nsTopLevelWidgetZPlacement  aPlacement,

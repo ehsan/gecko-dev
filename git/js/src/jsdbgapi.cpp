@@ -223,9 +223,7 @@ JS_SetInterrupt(JSRuntime *rt, JSInterruptHook hook, void *closure)
 {
     rt->debugHooks.interruptHook = hook;
     rt->debugHooks.interruptHookData = closure;
-    for (InterpreterFrames *f = rt->interpreterFrames; f; f = f->older)
-        f->enableInterruptsUnconditionally();
-    return true;
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -416,21 +414,21 @@ JS_FunctionHasLocalNames(JSContext *cx, JSFunction *fun)
 extern JS_PUBLIC_API(uintptr_t *)
 JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
 {
-    BindingVector bindings(cx);
-    if (!GetOrderedBindings(cx, fun->script()->bindings, &bindings))
+    BindingNames localNames(cx);
+    if (!fun->script()->bindings.getLocalNameArray(cx, &localNames))
         return NULL;
 
     /* Munge data into the API this method implements.  Avert your eyes! */
     *markp = cx->tempLifoAlloc().mark();
 
-    uintptr_t *names = cx->tempLifoAlloc().newArray<uintptr_t>(bindings.length());
+    uintptr_t *names = cx->tempLifoAlloc().newArray<uintptr_t>(localNames.length());
     if (!names) {
         js_ReportOutOfMemory(cx);
         return NULL;
     }
 
-    for (size_t i = 0; i < bindings.length(); i++)
-        names[i] = reinterpret_cast<uintptr_t>(bindings[i].maybeName);
+    for (size_t i = 0; i < localNames.length(); i++)
+        names[i] = reinterpret_cast<uintptr_t>(localNames[i].maybeAtom);
 
     return names;
 }
@@ -1780,10 +1778,8 @@ JS_DumpCompartmentBytecode(JSContext *cx)
     ScriptsToDump scripts;
     IterateCells(cx->runtime, cx->compartment, gc::FINALIZE_SCRIPT, &scripts, DumpBytecodeScriptCallback);
 
-    for (size_t i = 0; i < scripts.length(); i++) {
-        if (scripts[i]->enclosingScriptsCompiledSuccessfully())
-            JS_DumpBytecode(cx, scripts[i]);
-    }
+    for (size_t i = 0; i < scripts.length(); i++)
+        JS_DumpBytecode(cx, scripts[i]);
 }
 
 JS_PUBLIC_API(void)
@@ -1791,7 +1787,7 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
 {
     for (CellIter i(cx->compartment, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        if (script->hasScriptCounts && script->enclosingScriptsCompiledSuccessfully())
+        if (script->hasScriptCounts)
             JS_DumpPCCounts(cx, script);
     }
 }

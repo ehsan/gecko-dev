@@ -24,8 +24,8 @@ public:
   ChildAsyncCall(PluginInstanceChild* instance,
                  PluginThreadCallback aFunc, void* aUserData);
 
-  void Run() MOZ_OVERRIDE;
-  void Cancel() MOZ_OVERRIDE;
+  NS_OVERRIDE void Run();
+  NS_OVERRIDE void Cancel();
   
 protected:
   PluginInstanceChild* mInstance;

@@ -5,6 +5,7 @@
 
 package org.mozilla.gecko;
 
+import android.content.res.Resources;
 import android.widget.AdapterView;
 import android.os.AsyncTask;
 import android.content.Context;
@@ -18,11 +19,17 @@ import android.util.Log;
 import android.widget.SimpleCursorAdapter;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+import android.content.Intent;
+import android.widget.LinearLayout;
+import android.os.SystemClock;
 import android.util.Pair;
 import android.widget.TabHost.TabContentFactory;
 import android.view.MenuInflater;
+import android.widget.TabHost;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
+
+import org.json.JSONArray;
 
 import java.util.LinkedList;
 
@@ -37,6 +44,7 @@ public class BookmarksTab extends AwesomeBarTab {
     private boolean mInReadingList = false;
     private int mFolderId;
     private String mFolderTitle;
+    private ListView mView = null;
     private BookmarksListAdapter mCursorAdapter = null;
     private BookmarksQueryTask mQueryTask = null;
 
@@ -74,14 +82,13 @@ public class BookmarksTab extends AwesomeBarTab {
             mView.setOnTouchListener(mListListener);
 
             // We need to add the header before we set the adapter, hence make it null
-            ListView list = (ListView)mView;
-            list.setAdapter(null);
-            list.setAdapter(getCursorAdapter());
+            mView.setAdapter(null);
+            mView.setAdapter(getCursorAdapter());
 
             BookmarksQueryTask task = getQueryTask();
             task.execute();
         }
-        return (ListView)mView;
+        return mView;
     }
 
     public void destroy() {
@@ -128,14 +135,13 @@ public class BookmarksTab extends AwesomeBarTab {
 
         // Add/Remove header based on the root folder
         if (mView != null) {
-            ListView list = (ListView)mView;
             if (mFolderId == Bookmarks.FIXED_ROOT_ID) {
-                if (list.getHeaderViewsCount() == 1) {
-                    list.removeHeaderView(headerView);
+                if (mView.getHeaderViewsCount() == 1) {
+                    mView.removeHeaderView(headerView);
                 }
             } else {
-                if (list.getHeaderViewsCount() == 0) {
-                    list.addHeaderView(headerView, null, true);
+                if (mView.getHeaderViewsCount() == 0) {
+                    mView.addHeaderView(headerView, null, true);
                 }
                 headerView.setText(mFolderTitle);
             }
@@ -361,9 +367,8 @@ public class BookmarksTab extends AwesomeBarTab {
                 public void run() {
                     // this will update the cursorAdapter to use the new one if it already exists
                     // We need to add the header before we set the adapter, hence make it null
-                    ListView list = (ListView)mView;
-                    list.setAdapter(null);
-                    list.setAdapter(getCursorAdapter(cursor));
+                    mView.setAdapter(null);
+                    mView.setAdapter(getCursorAdapter(cursor));
                 }
             });
             mQueryTask = null;

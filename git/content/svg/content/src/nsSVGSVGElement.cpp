@@ -942,21 +942,19 @@ nsSVGSVGElement::ChildrenOnlyTransformChanged()
                       NS_STATE_SVG_NONDISPLAY_CHILD),
                     "Non-display SVG frames don't maintain overflow rects");
 
-  nsChangeHint changeHint;
-
   bool hasChildrenOnlyTransform = HasViewBoxOrSyntheticViewBox() ||
     (IsRoot() && (mCurrentTranslate != nsSVGTranslatePoint(0.0f, 0.0f) ||
                   mCurrentScale != 1.0f));
 
-  if (hasChildrenOnlyTransform != mHasChildrenOnlyTransform) {
-    // Reconstruct the frame tree to handle stacking context changes:
-    changeHint = nsChangeHint_ReconstructFrame;
-  } else {
-    // We just assume the old and new transforms are different.
-    changeHint = nsChangeHint(nsChangeHint_RepaintFrame |
-                   nsChangeHint_UpdateOverflow |
-                   nsChangeHint_ChildrenOnlyTransform);
-  }
+  // XXXSDL Currently we don't destroy frames if
+  // hasChildrenOnlyTransform != mHasChildrenOnlyTransform
+  // but we should once we start using GFX layers for SVG transforms
+  // (see the comment in nsSVGGraphicElement::GetAttributeChangeHint).
+
+  nsChangeHint changeHint =
+    nsChangeHint(nsChangeHint_RepaintFrame |
+                 nsChangeHint_UpdateOverflow |
+                 nsChangeHint_ChildrenOnlyTransform);
 
   nsLayoutUtils::PostRestyleEvent(this, nsRestyleHint(0), changeHint);
 

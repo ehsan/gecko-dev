@@ -22,13 +22,7 @@ parent:
   Init(URI uri);
   AsyncOpen(URI      originalURI,
             PRUint32 loadFlags,
-            // Fields for imitating a nsILoadContext
-            bool     haveLoadContext,
-            bool     isContent,
-            bool     usePrivateBrowsing,
-            bool     isInBrowserElement,
-            PRUint32 appID,
-            nsCString extendedOrigin);
+            bool     usingPrivateBrowsing);
 
   // methods corresponding to those of nsIWyciwygChannel
   WriteToCacheEntry(nsString data);

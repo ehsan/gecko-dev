@@ -35,7 +35,7 @@ l = <><a>text</a></>;
 actual = l.charAt(0);
 TEST(4, expect, actual);
 
-expect = "TypeError";
+expect = 'TypeError: String.prototype.toString called on incompatible XML';
 
 delete XML.prototype.function::toString;
 var xml = <a>TEXT</a>;
@@ -44,13 +44,13 @@ delete Object.prototype.toString;
 try {
     actual = xml.toString();
 } catch(ex) {
-    actual = ex.name;
+    actual = ex + '';
 } finally {
     Object.prototype.toString = saveToString;
 }
 TEST(7, expect, actual);
 
-expect = "TypeError";
+expect = 'TypeError: String.prototype.toString called on incompatible XML';
 try
 {
     var x = <a><name/></a>;
@@ -59,7 +59,7 @@ try
 }
 catch(ex)
 {
-    actual = ex.name;
+    actual = ex + '';
 }
 TEST(8, expect, actual);
 
@@ -71,7 +71,7 @@ try
 }
 catch(ex)
 {
-    actual = ex.name;
+    actual = ex + '';
 }
 TEST(9, expect, actual);
 

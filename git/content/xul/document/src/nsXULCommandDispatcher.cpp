@@ -33,7 +33,6 @@
 #include "nsCRT.h"
 #include "nsDOMError.h"
 #include "nsEventDispatcher.h"
-#include "nsDOMClassInfoID.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gLog;

@@ -48,8 +48,6 @@ public final class GeckoViewsFactory implements LayoutInflater.Factory {
                 return new FindInPageBar(context, attrs);
             else if (TextUtils.equals(viewName, "TabsPanel"))
                 return new TabsPanel(context, attrs);
-            else if (TextUtils.equals(viewName, "TextSelectionHandle"))
-                return new TextSelectionHandle(context, attrs);
         }
 
         return null;

@@ -11,12 +11,12 @@ try:
 except IOError:
     description = None
 
-PACKAGE_VERSION = '1.2'
+version = '1.1'
 
 deps = ['mozinfo==0.3.3']
 
 setup(name='mozInstall',
-      version=PACKAGE_VERSION,
+      version=version,
       description="This is a utility package for installing and uninstalling "
                   "Mozilla applications on various platforms.",
       long_description=description,

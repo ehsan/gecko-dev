@@ -9,7 +9,6 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsPrintfCString.h"
-#include "prenv.h"
 
 namespace mozilla {
 namespace gl {
@@ -281,21 +280,23 @@ GLLibraryEGL::InitExtensions()
         return;
     }
 
-    bool debugMode = false;
 #ifdef DEBUG
-    if (PR_GetEnv("MOZ_GL_DEBUG"))
-        debugMode = true;
-
-    static bool firstRun = true;
+    // If DEBUG, then be verbose the first time we're run.
+    static bool firstVerboseRun = true;
 #else
     // Non-DEBUG, so never spew.
-    const bool firstRun = false;
+    const bool firstVerboseRun = false;
 #endif
 
-    mAvailableExtensions.Load(extensions, sExtensionNames, firstRun && debugMode);
+    if (firstVerboseRun) {
+        printf_stderr("Extensions: %s 0x%02x\n", extensions, extensions[0]);
+        printf_stderr("Extensions length: %d\n", strlen(extensions));
+    }
+
+    mAvailableExtensions.Load(extensions, sExtensionNames, firstVerboseRun);
 
 #ifdef DEBUG
-    firstRun = false;
+    firstVerboseRun = false;
 #endif
 }
 
@@ -309,6 +310,7 @@ GLLibraryEGL::LoadConfigSensitiveSymbols()
         GLLibraryLoader::SymLoadStruct imageSymbols[] = {
             { (PRFuncPtr*) &mSymbols.fCreateImage,  { "eglCreateImageKHR",  nsnull } },
             { (PRFuncPtr*) &mSymbols.fDestroyImage, { "eglDestroyImageKHR", nsnull } },
+            { (PRFuncPtr*) &mSymbols.fImageTargetTexture2DOES, { "glEGLImageTargetTexture2DOES", NULL } },
             { nsnull, { nsnull } }
         };
 
@@ -324,6 +326,7 @@ GLLibraryEGL::LoadConfigSensitiveSymbols()
 
             mSymbols.fCreateImage = nsnull;
             mSymbols.fDestroyImage = nsnull;
+            mSymbols.fImageTargetTexture2DOES = nsnull;
         }
     } else {
         MarkExtensionUnsupported(KHR_image_pixmap);

@@ -13,7 +13,6 @@
 #include "nsNetUtil.h"
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
-#include "nsILoadContext.h"
 
 namespace mozilla {
 namespace net {
@@ -25,7 +24,8 @@ NS_IMPL_ISUPPORTS3(WyciwygChannelChild,
 
 
 WyciwygChannelChild::WyciwygChannelChild()
-  : mStatus(NS_OK)
+  : PrivateBrowsingConsumer(this)
+  , mStatus(NS_OK)
   , mIsPending(false)
   , mCanceled(false)
   , mLoadFlags(LOAD_NORMAL)
@@ -562,28 +562,7 @@ WyciwygChannelChild::AsyncOpen(nsIStreamListener *aListener, nsISupports *aConte
   if (mLoadGroup)
     mLoadGroup->AddRequest(this, nsnull);
 
-  // Get info from nsILoadContext, if any
-  bool haveLoadContext = false;
-  bool isContent = false;
-  bool usePrivateBrowsing = false;
-  bool isInBrowserElement = false;
-  PRUint32 appId = 0;
-  nsCAutoString extendedOrigin;
-  nsCOMPtr<nsILoadContext> loadContext;
-  NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
-                                NS_GET_IID(nsILoadContext),
-                                getter_AddRefs(loadContext));
-  if (loadContext) {
-    haveLoadContext = true;
-    loadContext->GetIsContent(&isContent);
-    loadContext->GetUsePrivateBrowsing(&usePrivateBrowsing);
-    loadContext->GetIsInBrowserElement(&isInBrowserElement);
-    loadContext->GetAppId(&appId);
-    loadContext->GetExtendedOrigin(mURI, extendedOrigin);
-  }
-
-  SendAsyncOpen(IPC::URI(mOriginalURI), mLoadFlags, haveLoadContext, isContent,
-                usePrivateBrowsing, isInBrowserElement, appId, extendedOrigin);
+  SendAsyncOpen(IPC::URI(mOriginalURI), mLoadFlags, UsePrivateBrowsing());
 
   mState = WCC_OPENED;
 
@@ -662,7 +641,7 @@ WyciwygChannelChild::SetCharsetAndSource(PRInt32 aSource, const nsACString & aCh
 
 /* ACString getCharsetAndSource (out long aSource); */
 NS_IMETHODIMP
-WyciwygChannelChild::GetCharsetAndSource(PRInt32 *aSource, nsACString & _retval)
+WyciwygChannelChild::GetCharsetAndSource(PRInt32 *aSource NS_OUTPARAM, nsACString & _retval)
 {
   NS_ENSURE_TRUE((mState == WCC_ONSTART) ||
                  (mState == WCC_ONDATA) ||

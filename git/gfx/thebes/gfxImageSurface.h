@@ -89,8 +89,9 @@ public:
     virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
 
     /** See gfxASurface.h. */
+    NS_OVERRIDE
     virtual void MovePixels(const nsIntRect& aSourceRect,
-                            const nsIntPoint& aDestTopLeft) MOZ_OVERRIDE;
+                            const nsIntPoint& aDestTopLeft);
 
 protected:
     gfxImageSurface();

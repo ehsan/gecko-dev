@@ -24,7 +24,6 @@
 #include "nsTextFormatter.h"
 #include "nsXPCOMCID.h"
 #include "plstr.h"
-#include "mozilla/Attributes.h"
 
 #ifdef MOZ_WIDGET_COCOA
 #include <CoreFoundation/CoreFoundation.h>
@@ -45,7 +44,7 @@
 #define NS_COMMANDLINE_CID \
   { 0x23bcc750, 0xdc20, 0x460b, { 0xb2, 0xd4, 0x74, 0xd8, 0xf5, 0x8d, 0x36, 0x15 } }
 
-class nsCommandLine MOZ_FINAL : public nsICommandLineRunner
+class nsCommandLine : public nsICommandLineRunner
 {
 public:
   NS_DECL_ISUPPORTS

@@ -111,13 +111,6 @@ LoggingEnabled()
 #endif
 }
 
-inline void
-ProtocolErrorBreakpoint(const char* aMsg)
-{
-#if defined(DEBUG)
-    printf("Protocol error: %s\n", aMsg);
-#endif
-}
 
 typedef IPCMessageStart ProtocolId;
 

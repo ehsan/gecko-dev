@@ -459,6 +459,11 @@ members = [
     'nsIIndexedDatabaseUsageCallback.*',
     'nsIIndexedDatabaseManager.*',
 
+    # Performance
+    'nsIDOMPerformance.*',
+    'nsIDOMPerformanceTiming.*',
+    'nsIDOMPerformanceNavigation.*',
+
     'nsIDOMDOMError.*',
 
     # dom/file

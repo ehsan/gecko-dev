@@ -10,7 +10,6 @@
 #include "FileCommon.h"
 
 #include "nsIRequestObserver.h"
-#include "nsThreadUtils.h"
 
 class nsIFileStorage;
 

@@ -234,7 +234,7 @@ class InterpreterFrames {
   public:
     class InterruptEnablerBase {
       public:
-        virtual void enable() const = 0;
+        virtual void enableInterrupts() const = 0;
     };
 
     InterpreterFrames(JSContext *cx, FrameRegs *regs, const InterruptEnablerBase &enabler);
@@ -242,7 +242,6 @@ class InterpreterFrames {
 
     /* If this js::Interpret frame is running |script|, enable interrupts. */
     inline void enableInterruptsIfRunning(JSScript *script);
-    inline void enableInterruptsUnconditionally() { enabler.enable(); }
 
     InterpreterFrames *older;
 

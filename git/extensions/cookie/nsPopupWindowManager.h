@@ -13,6 +13,8 @@
 #include "nsIPopupWindowManager.h"
 #include "nsWeakReference.h"
 
+class nsIURI;
+
 class nsPopupWindowManager : public nsIPopupWindowManager,
                              public nsIObserver,
                              public nsSupportsWeakReference {

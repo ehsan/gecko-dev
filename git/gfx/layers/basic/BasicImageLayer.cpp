@@ -5,10 +5,8 @@
 
 #include "mozilla/layers/PLayersParent.h"
 #include "BasicLayersImpl.h"
-#include "SharedTextureImage.h"
 #include "gfxUtils.h"
 #include "gfxSharedImageSurface.h"
-#include "mozilla/layers/ImageContainerChild.h"
 
 using namespace mozilla::gfx;
 
@@ -257,13 +255,6 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
     return;
   }
 
-  if (mContainer->IsAsync()) {
-    PRUint32 containerID = mContainer->GetAsyncContainerID();
-    BasicManager()->PaintedImage(BasicManager()->Hold(this), 
-                                 SharedImageID(containerID));
-    return;
-  }
-
   nsRefPtr<gfxASurface> surface;
   AutoLockImage autoLock(mContainer, getter_AddRefs(surface));
 
@@ -276,17 +267,6 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
   if (aMaskLayer) {
     static_cast<BasicImplData*>(aMaskLayer->ImplData())
       ->Paint(aContext, nsnull);
-  }
-
-  if (image->GetFormat() == Image::SHARED_TEXTURE &&
-      BasicManager()->GetParentBackendType() == mozilla::layers::LAYERS_OPENGL) {
-    SharedTextureImage *sharedImage = static_cast<SharedTextureImage*>(image);
-    const SharedTextureImage::Data *data = sharedImage->GetData();
-
-    SharedTextureDescriptor texture(data->mShareType, data->mHandle, data->mSize, data->mInverted);
-    SurfaceDescriptor descriptor(texture);
-    BasicManager()->PaintedImage(BasicManager()->Hold(this), descriptor);
-    return;
   }
 
   if (image->GetFormat() == Image::PLANAR_YCBCR && BasicManager()->IsCompositingCheap()) {

@@ -335,7 +335,6 @@ body {
   }
 
   .toolbar {
-    background-size: 48px;
     background-image: url('chrome://browser/skin/images/reader-toolbar-bg-port-mdpi.png');
   }
 
@@ -356,7 +355,6 @@ body {
   }
 
   .toolbar {
-    background-size: 40px;
     background-image: url('chrome://browser/skin/images/reader-toolbar-bg-land-mdpi.png');
   }
 
@@ -377,7 +375,6 @@ body {
   }
 
   .toolbar {
-    background-size: 56px;
     background-image: url('chrome://browser/skin/images/reader-toolbar-bg-xlarge-mdpi.png');
   }
 

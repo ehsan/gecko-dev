@@ -6,7 +6,6 @@
 #define _NS_DATASIGNATUREVERIFIER_H_
 
 #include "nsIDataSignatureVerifier.h"
-#include "mozilla/Attributes.h"
 
 #include "keythi.h"
 
@@ -17,7 +16,7 @@
 #define NS_DATASIGNATUREVERIFIER_CONTRACTID \
     "@mozilla.org/security/datasignatureverifier;1"
 
-class nsDataSignatureVerifier MOZ_FINAL : public nsIDataSignatureVerifier
+class nsDataSignatureVerifier : public nsIDataSignatureVerifier
 {
 public:
   NS_DECL_ISUPPORTS

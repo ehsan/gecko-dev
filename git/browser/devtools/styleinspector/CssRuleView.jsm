@@ -373,24 +373,17 @@ Rule.prototype = {
       this._title += ":" + this.ruleLine;
     }
 
-    return this._title + (this.mediaText ? " @media " + this.mediaText : "");
-  },
-
-  get inheritedSource()
-  {
-    if (this._inheritedSource) {
-      return this._inheritedSource;
-    }
-    this._inheritedSource = "";
     if (this.inherited) {
       let eltText = this.inherited.tagName.toLowerCase();
       if (this.inherited.id) {
         eltText += "#" + this.inherited.id;
       }
-      this._inheritedSource =
-        CssLogic._strings.formatStringFromName("rule.inheritedFrom", [eltText], 1);
+      let args = [eltText, this._title];
+      this._title = CssLogic._strings.formatStringFromName("rule.inheritedSource",
+                                                           args, args.length);
     }
-    return this._inheritedSource;
+
+    return this._title + (this.mediaText ? " @media " + this.mediaText : "");
   },
 
   /**
@@ -965,8 +958,6 @@ CssRuleView.prototype = {
       return;
     }
 
-    this._clearRules();
-
     // Repopulate the element style.
     this._elementStyle.populate();
 
@@ -1032,23 +1023,23 @@ CssRuleView.prototype = {
   {
     // Run through the current list of rules, attaching
     // their editors in order.  Create editors if needed.
-    let lastInheritedSource = "";
+    let last = null;
     for each (let rule in this._elementStyle.rules) {
-
-      let inheritedSource = rule.inheritedSource;
-      if (inheritedSource != lastInheritedSource) {
-        let h2 = this.doc.createElementNS(HTML_NS, "div");
-        h2.className = "ruleview-rule-inheritance";
-        h2.textContent = inheritedSource;
-        lastInheritedSource = inheritedSource;
-        this.element.appendChild(h2);
-      }
-
       if (!rule.editor) {
         new RuleEditor(this, rule);
       }
 
-      this.element.appendChild(rule.editor.element);
+      let target = last ? last.nextSibling : this.element.firstChild;
+      this.element.insertBefore(rule.editor.element, target);
+      last = rule.editor.element;
+    }
+
+    // ... and now editors for rules that don't exist anymore
+    // have been pushed to the end of the list, go ahead and
+    // delete their nodes.  The rules they edit have already been
+    // forgotten.
+    while (last && last.nextSibling) {
+      this.element.removeChild(last.nextSibling);
     }
   },
 
@@ -1163,6 +1154,16 @@ CssRuleView.prototype = {
     let rx = new RegExp("^" + inline + "\\r?\\n?", "g");
     text = text.replace(rx, "");
 
+    // Remove file:line
+    text = text.replace(/[\w\.]+:\d+(\r?\n)/g, "$1");
+
+    // Remove inherited from: line
+    let inheritedFrom = _strings.
+      GetStringFromName("rule.inheritedSource");
+    inheritedFrom = inheritedFrom.replace(/\s%S\s\(%S\)/g, "");
+    rx = new RegExp("(\r?\n)" + inheritedFrom + ".*", "g");
+    text = text.replace(rx, "$1");
+
     clipboardHelper.copyString(text, this.doc);
 
     if (aEvent) {
@@ -1183,9 +1184,9 @@ CssRuleView.prototype = {
       return;
     }
 
-    if (node.className != "ruleview-rule") {
+    if (node.className != "rule-view-row") {
       while (node = node.parentElement) {
-        if (node.className == "ruleview-rule") {
+        if (node.className == "rule-view-row") {
           break;
         }
       }
@@ -1331,7 +1332,7 @@ RuleEditor.prototype = {
   _create: function RuleEditor_create()
   {
     this.element = this.doc.createElementNS(HTML_NS, "div");
-    this.element.className = "ruleview-rule";
+    this.element.className = "rule-view-row";
     this.element._ruleEditor = this;
 
     // Give a relative position for the inplace editor's measurement
@@ -1704,7 +1705,6 @@ TextPropertyEditor.prototype = {
         textContent: computed.name
       });
       appendText(li, ": ");
-
       createChild(li, "span", {
         class: "ruleview-propertyvalue",
         textContent: computed.value

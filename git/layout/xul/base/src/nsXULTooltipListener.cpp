@@ -496,9 +496,9 @@ nsXULTooltipListener::LaunchTooltip()
       // Because of mutation events, currentTooltip can be null.
       return;
     }
-    currentTooltip->SetAttr(kNameSpaceID_None, nsGkAtoms::titletip, NS_LITERAL_STRING("true"), true);
+    currentTooltip->SetAttr(nsnull, nsGkAtoms::titletip, NS_LITERAL_STRING("true"), true);
   } else {
-    currentTooltip->UnsetAttr(kNameSpaceID_None, nsGkAtoms::titletip, true);
+    currentTooltip->UnsetAttr(nsnull, nsGkAtoms::titletip, true);
   }
   if (!(currentTooltip = do_QueryReferent(mCurrentTooltip))) {
     // Because of mutation events, currentTooltip can be null.

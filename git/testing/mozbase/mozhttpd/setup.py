@@ -11,12 +11,12 @@ try:
 except IOError:
     description = None
 
-PACKAGE_VERSION = '0.3'
+version = '0.3'
 
 deps = []
 
 setup(name='mozhttpd',
-      version=PACKAGE_VERSION,
+      version=version,
       description="basic python webserver, tested with talos",
       long_description=description,
       classifiers=[], # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers

@@ -14,7 +14,6 @@
 #include "frontend/ParseMaps-inl.h"
 
 namespace js {
-namespace frontend {
 
 inline
 SharedContext::SharedContext(JSContext *cx, JSObject *scopeChain, JSFunction *fun,
@@ -39,12 +38,6 @@ SharedContext::inStrictMode()
     return strictModeState == StrictMode::STRICT;
 }
 
-inline bool
-SharedContext::needStrictChecks()
-{
-    return context->hasStrictOption() || strictModeState != StrictMode::NOTSTRICT;
-}
-
 inline unsigned
 TreeContext::blockid()
 {
@@ -55,6 +48,12 @@ inline bool
 TreeContext::atBodyLevel()
 {
     return !topStmt || topStmt->isFunctionBodyBlock;
+}
+
+inline bool
+SharedContext::needStrictChecks()
+{
+    return context->hasStrictOption() || strictModeState != StrictMode::NOTSTRICT;
 }
 
 inline
@@ -121,8 +120,6 @@ TreeContext::~TreeContext()
     }
 }
 
-} /* namespace frontend */
-
 template <class ContextT>
 void
 frontend::PushStatement(ContextT *ct, typename ContextT::StmtInfo *stmt, StmtType type)
@@ -167,14 +164,6 @@ frontend::FinishPopStatement(ContextT *ct)
     }
 }
 
-/*
- * The function LexicalLookup searches a static binding for the given name in
- * the stack of statements enclosing the statement currently being parsed. Each
- * statement that introduces a new scope has a corresponding scope object, on
- * which the bindings for that scope are stored. LexicalLookup either returns
- * the innermost statement which has a scope object containing a binding with
- * the given name, or NULL.
- */
 template <class ContextT>
 typename ContextT::StmtInfo *
 frontend::LexicalLookup(ContextT *ct, HandleAtom atom, int *slotp, typename ContextT::StmtInfo *stmt)
@@ -182,15 +171,10 @@ frontend::LexicalLookup(ContextT *ct, HandleAtom atom, int *slotp, typename Cont
     if (!stmt)
         stmt = ct->topScopeStmt;
     for (; stmt; stmt = stmt->downScope) {
-        /*
-         * With-statements introduce dynamic bindings. Since dynamic bindings
-         * can potentially override any static bindings introduced by statements
-         * further up the stack, we have to abort the search.
-         */
         if (stmt->type == STMT_WITH)
             break;
 
-        // Skip statements that do not introduce a new scope
+        // Skip "maybe scope" statements that don't contain let bindings.
         if (!stmt->isBlockScope)
             continue;
 

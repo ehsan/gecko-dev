@@ -44,8 +44,8 @@ nsExternalSharingAppService::ShareWithDefault(const nsAString & aData,
 
 NS_IMETHODIMP
 nsExternalSharingAppService::GetSharingApps(const nsAString & aMIMEType,
-                                            PRUint32 *aLen,
-                                            nsISharingHandlerApp ***aHandlers)
+                                            PRUint32 *aLen NS_OUTPARAM,
+                                            nsISharingHandlerApp ***aHandlers NS_OUTPARAM)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

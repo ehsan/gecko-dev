@@ -224,8 +224,7 @@ NS_IMETHODIMP
 inCSSValueSearch::AddPropertyCriteria(const PRUnichar *aPropName)
 {
   nsCSSProperty prop =
-    nsCSSProps::LookupProperty(nsDependentString(aPropName),
-                               nsCSSProps::eAny);
+    nsCSSProps::LookupProperty(nsDependentString(aPropName));
   mProperties[mPropertyCount] = prop;
   mPropertyCount++;
   return NS_OK;

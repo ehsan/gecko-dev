@@ -6,9 +6,10 @@
 package org.mozilla.gecko;
 
 import android.content.Context;
-import android.content.res.TypedArray;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -48,7 +49,6 @@ public class TabsPanel extends LinearLayout {
     private TextView mTitle;
 
     private Panel mCurrentPanel;
-    private boolean mIsSideBar;
     private boolean mVisible;
 
     private static final int REMOTE_TABS_HIDDEN = 1;
@@ -63,10 +63,6 @@ public class TabsPanel extends LinearLayout {
 
         mCurrentPanel = Panel.LOCAL_TABS;
         mVisible = false;
-
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsPanel);
-        mIsSideBar = a.getBoolean(R.styleable.TabsPanel_sidebar, false);
-        a.recycle();
 
         mToolbar = (TabsPanelToolbar) findViewById(R.id.toolbar);
         mListContainer = (TabsListContainer) findViewById(R.id.list_container);
@@ -103,7 +99,7 @@ public class TabsPanel extends LinearLayout {
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            if (!GeckoApp.mAppContext.hasTabsSideBar()) {
+            if (!GeckoApp.mAppContext.isTablet()) {
                 DisplayMetrics metrics = new DisplayMetrics();
                 GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
 
@@ -126,7 +122,7 @@ public class TabsPanel extends LinearLayout {
 
             int panelToolbarRes;
 
-            if (!GeckoApp.mAppContext.hasPermanentMenuKey())
+            if (GeckoApp.mAppContext.hasPermanentMenuKey())
                 panelToolbarRes = R.layout.tabs_panel_toolbar_menu;
             else
                 panelToolbarRes = R.layout.tabs_panel_toolbar;
@@ -159,7 +155,7 @@ public class TabsPanel extends LinearLayout {
         mPanel.show();
         mListContainer.addView(mPanel.getLayout());
 
-        if (GeckoApp.mAppContext.hasTabsSideBar()) {
+        if (GeckoApp.mAppContext.isTablet()) {
             dispatchLayoutChange(getWidth(), getHeight());
         } else {
             int actionBarHeight = (int) (mContext.getResources().getDimension(R.dimen.browser_toolbar_height));
@@ -217,10 +213,6 @@ public class TabsPanel extends LinearLayout {
     @Override
     public boolean isShown() {
         return mVisible;
-    }
-
-    public boolean isSideBar() {
-        return mIsSideBar;
     }
 
     public void setTabsLayoutChangeListener(TabsLayoutChangeListener listener) {

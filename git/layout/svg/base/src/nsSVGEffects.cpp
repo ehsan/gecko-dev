@@ -252,9 +252,10 @@ nsSVGFilterProperty::DoUpdate()
   nsChangeHint changeHint =
     nsChangeHint(nsChangeHint_RepaintFrame | nsChangeHint_UpdateEffects);
 
-  // Don't need to request UpdateOverflow if we're being reflowed.
-  if (!(mFrame->GetStateBits() & NS_FRAME_IN_REFLOW)) {
-    NS_UpdateHint(changeHint, nsChangeHint_UpdateOverflow);
+  // Don't need to request a reflow if the frame is already being reflowed.
+  if (!mFrame->IsFrameOfType(nsIFrame::eSVG) &&
+      !(mFrame->GetStateBits() & NS_FRAME_IN_REFLOW)) {
+    NS_UpdateHint(changeHint, nsChangeHint_ReflowFrame);
   }
   mFramePresShell->FrameConstructor()->PostRestyleEvent(
     mFrame->GetContent()->AsElement(), nsRestyleHint(0), changeHint);
@@ -269,16 +270,10 @@ nsSVGMarkerProperty::DoUpdate()
 
   NS_ASSERTION(mFrame->IsFrameOfType(nsIFrame::eSVG), "SVG frame expected");
 
-  // Repaint asynchronously in case the filter frame is being torn down
+  // Repaint asynchronously
   nsChangeHint changeHint =
     nsChangeHint(nsChangeHint_RepaintFrame | nsChangeHint_UpdateEffects);
-  
-  // Don't need to request ReflowFrame if we're being reflowed.
-  if (!(mFrame->GetStateBits() & NS_FRAME_IN_REFLOW)) {
-    // XXXjwatt: We need to unify SVG into standard reflow so we can just use
-    // nsChangeHint_ReflowFrame here.
-    nsSVGUtils::InvalidateAndScheduleReflowSVG(mFrame);
-  }
+
   mFramePresShell->FrameConstructor()->PostRestyleEvent(
     mFrame->GetContent()->AsElement(), nsRestyleHint(0), changeHint);
 }
@@ -477,6 +472,14 @@ nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
                       CreateMarkerProperty);
     GetEffectProperty(style->mMarkerEnd, aFrame, MarkerEndProperty(),
                       CreateMarkerProperty);
+  }
+
+  nsIFrame *kid = aFrame->GetFirstPrincipalChild();
+  while (kid) {
+    if (kid->GetContent()->IsElement()) {
+      UpdateEffects(kid);
+    }
+    kid = kid->GetNextSibling();
   }
 }
 

@@ -80,7 +80,6 @@
 #include "mozilla/unused.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/layout/RenderFrameParent.h"
-#include "nsIAppsService.h"
 
 #include "jsapi.h"
 
@@ -1110,27 +1109,12 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  bool ourContentBoundary, otherContentBoundary;
-  ourDocshell->GetIsContentBoundary(&ourContentBoundary);
-  otherDocshell->GetIsContentBoundary(&otherContentBoundary);
-  if (ourContentBoundary != otherContentBoundary) {
+  bool weAreBrowserFrame = false;
+  bool otherIsBrowserFrame = false;
+  ourDocshell->GetIsBrowserFrame(&weAreBrowserFrame);
+  otherDocshell->GetIsBrowserFrame(&otherIsBrowserFrame);
+  if (weAreBrowserFrame != otherIsBrowserFrame) {
     return NS_ERROR_NOT_IMPLEMENTED;
-  }
-
-  if (ourContentBoundary) {
-    bool ourIsBrowser, otherIsBrowser;
-    ourDocshell->GetIsBrowserElement(&ourIsBrowser);
-    otherDocshell->GetIsBrowserElement(&otherIsBrowser);
-    if (ourIsBrowser != otherIsBrowser) {
-      return NS_ERROR_NOT_IMPLEMENTED;
-    }
-
-    bool ourIsApp, otherIsApp;
-    ourDocshell->GetIsApp(&ourIsApp);
-    otherDocshell->GetIsApp(&otherIsApp);
-    if (ourIsApp != otherIsApp) {
-      return NS_ERROR_NOT_IMPLEMENTED;
-    }
   }
 
   if (mInSwap || aOther->mInSwap) {
@@ -1386,27 +1370,6 @@ nsFrameLoader::OwnerIsBrowserFrame()
 }
 
 bool
-nsFrameLoader::OwnerIsAppFrame()
-{
-  nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(mOwnerContent);
-  bool isApp = false;
-  if (browserFrame) {
-    browserFrame->GetReallyIsApp(&isApp);
-  }
-  return isApp;
-}
-
-void
-nsFrameLoader::GetOwnerAppManifestURL(nsAString& aOut)
-{
-  aOut.Truncate();
-  nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(mOwnerContent);
-  if (browserFrame) {
-    browserFrame->GetAppManifestURL(aOut);
-  }
-}
-
-bool
 nsFrameLoader::ShouldUseRemoteProcess()
 {
   if (PR_GetEnv("MOZ_DISABLE_OOP_TABS") ||
@@ -1476,24 +1439,6 @@ nsFrameLoader::MaybeCreateDocShell()
   // Create the docshell...
   mDocShell = do_CreateInstance("@mozilla.org/docshell;1");
   NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
-
-  if (OwnerIsBrowserFrame() &&
-      mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozapp)) {
-    nsCOMPtr<nsIAppsService> appsService =
-      do_GetService(APPS_SERVICE_CONTRACTID);
-    if (!appsService) {
-      NS_ERROR("Apps Service is not available!");
-      return NS_ERROR_FAILURE;
-    }
-
-    nsAutoString manifest;
-    mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::mozapp, manifest);
-
-    PRUint32 appId;
-    appsService->GetAppLocalIdByManifestURL(manifest, &appId);
-
-    mDocShell->SetAppId(appId);
-  }
 
   if (!mNetworkCreated) {
     nsCOMPtr<nsIDocShellHistory> history = do_QueryInterface(mDocShell);
@@ -1597,7 +1542,7 @@ nsFrameLoader::MaybeCreateDocShell()
   EnsureMessageManager();
 
   if (OwnerIsBrowserFrame()) {
-    mDocShell->SetIsBrowserElement();
+    mDocShell->SetIsBrowserFrame(true);
 
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
     if (os) {
@@ -1971,39 +1916,10 @@ nsFrameLoader::TryRemoteBrowser()
     return false;
   }
 
-  PRUint32 appId = 0;
-  bool isBrowserElement = false;
-
-  if (OwnerIsBrowserFrame()) {
-    isBrowserElement = true;
-
-    if (mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozapp)) {
-      nsAutoString manifest;
-      mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::mozapp, manifest);
-
-      nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
-      if (!appsService) {
-        NS_ERROR("Apps Service is not available!");
-        return NS_ERROR_FAILURE;
-      }
-
-      appsService->GetAppLocalIdByManifestURL(manifest, &appId);
-
-      // If the frame is actually an app, we should not mark it as a browser.
-      if (appId != nsIScriptSecurityManager::NO_APP_ID) {
-        isBrowserElement = false;
-      }
-    }
-  }
-
-  // If our owner has no app manifest URL, then this is equivalent to
-  // ContentParent::GetNewOrUsed().
-  nsAutoString appManifest;
-  GetOwnerAppManifestURL(appManifest);
-  ContentParent* parent = ContentParent::GetForApp(appManifest);
-
+  ContentParent* parent = ContentParent::GetNewOrUsed();
   NS_ASSERTION(parent->IsAlive(), "Process parent should be alive; something is very wrong!");
-  mRemoteBrowser = parent->CreateTab(chromeFlags, isBrowserElement, appId);
+  mRemoteBrowser = parent->CreateTab(chromeFlags,
+                                     /* aIsBrowserFrame = */ OwnerIsBrowserFrame());
   if (mRemoteBrowser) {
     nsCOMPtr<nsIDOMElement> element = do_QueryInterface(mOwnerContent);
     mRemoteBrowser->SetOwnerElement(element);

@@ -35,7 +35,8 @@ namespace {
 
 inline
 PRUint32
-GetQuotaPermissions(nsIDOMWindow* aWindow)
+GetQuotaPermissions(const nsACString& aASCIIOrigin,
+                    nsIDOMWindow* aWindow)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -46,15 +47,17 @@ GetQuotaPermissions(nsIDOMWindow* aWindow)
     return nsIPermissionManager::ALLOW_ACTION;
   }
 
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aASCIIOrigin);
+  NS_ENSURE_SUCCESS(rv, nsIPermissionManager::DENY_ACTION);
+
   nsCOMPtr<nsIPermissionManager> permissionManager =
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permissionManager, nsIPermissionManager::DENY_ACTION);
 
   PRUint32 permission;
-  nsresult rv =
-    permissionManager->TestPermissionFromPrincipal(sop->GetPrincipal(),
-                                                   PERMISSION_INDEXEDDB_UNLIMITED,
-                                                   &permission);
+  rv = permissionManager->TestPermission(uri, PERMISSION_INDEXEDDB_UNLIMITED,
+                                         &permission);
   NS_ENSURE_SUCCESS(rv, nsIPermissionManager::DENY_ACTION);
 
   return permission;
@@ -139,9 +142,14 @@ CheckQuotaHelper::Run()
 
   nsresult rv = NS_OK;
 
+  if (mASCIIOrigin.IsEmpty()) {
+    rv = IndexedDatabaseManager::GetASCIIOriginFromWindow(mWindow,
+                                                          mASCIIOrigin);
+  }
+
   if (NS_SUCCEEDED(rv)) {
     if (!mHasPrompted) {
-      mPromptResult = GetQuotaPermissions(mWindow);
+      mPromptResult = GetQuotaPermissions(mASCIIOrigin, mWindow);
     }
 
     if (mHasPrompted) {
@@ -151,17 +159,17 @@ CheckQuotaHelper::Run()
       // we cannot set the permission from the child).
       if (mPromptResult != nsIPermissionManager::UNKNOWN_ACTION &&
           XRE_GetProcessType() == GeckoProcessType_Default) {
-        nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(mWindow);
-        NS_ENSURE_TRUE(sop, NS_ERROR_FAILURE);
-
+        nsCOMPtr<nsIURI> uri;
+        rv = NS_NewURI(getter_AddRefs(uri), mASCIIOrigin);
+        NS_ENSURE_SUCCESS(rv, rv);
+    
         nsCOMPtr<nsIPermissionManager> permissionManager =
           do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
         NS_ENSURE_STATE(permissionManager);
-
-        rv = permissionManager->AddFromPrincipal(sop->GetPrincipal(),
-                                                 PERMISSION_INDEXEDDB_UNLIMITED,
-                                                 mPromptResult,
-                                                 nsIPermissionManager::EXPIRE_NEVER, 0);
+    
+        rv = permissionManager->Add(uri, PERMISSION_INDEXEDDB_UNLIMITED,
+                                    mPromptResult,
+                                    nsIPermissionManager::EXPIRE_NEVER, 0);
         NS_ENSURE_SUCCESS(rv, rv);
       }
     }

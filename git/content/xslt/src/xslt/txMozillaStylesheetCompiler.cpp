@@ -412,8 +412,7 @@ txCompileObserver::loadURI(const nsAString& aUri,
 
     nsCOMPtr<nsIPrincipal> referrerPrincipal;
     rv = nsContentUtils::GetSecurityManager()->
-      GetSimpleCodebasePrincipal(referrerUri,
-                                 getter_AddRefs(referrerPrincipal));
+      GetCodebasePrincipal(referrerUri, getter_AddRefs(referrerPrincipal));
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Content Policy
@@ -634,8 +633,7 @@ txSyncCompileObserver::loadURI(const nsAString& aUri,
 
     nsCOMPtr<nsIPrincipal> referrerPrincipal;
     rv = nsContentUtils::GetSecurityManager()->
-      GetSimpleCodebasePrincipal(referrerUri,
-                                 getter_AddRefs(referrerPrincipal));
+      GetCodebasePrincipal(referrerUri, getter_AddRefs(referrerPrincipal));
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Content Policy

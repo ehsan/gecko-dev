@@ -2,7 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import select
 import socket
 import SocketServer
 import time, datetime
@@ -15,7 +14,6 @@ import traceback
 import sys
 import StringIO
 from devicemanager import DeviceManager, DMError, FileError, NetworkTools, _pop_last_line
-import errno
 
 class AgentError(Exception):
   "SUTAgent-specific exception."
@@ -213,17 +211,12 @@ class DeviceManagerSUT(DeviceManager):
 
           # Get our response
           try:
-             # Wait up to a second for socket to become ready for reading...
-            if select.select([self._sock], [], [], 1)[0]:
-                temp = self._sock.recv(1024)
+            temp = self._sock.recv(1024)
             if (self.debug >= 4): print "response: " + str(temp)
-          except socket.error, err:
+          except socket.error, msg:
             self._sock.close()
             self._sock = None
-            # This error shows up with we have our tegra rebooted.
-            if err[0] == errno.ECONNRESET:
-              raise AgentError("Automation error: Error receiving data from socket (possible reboot). cmd=%s; err=%s" % (cmd, err))
-            raise AgentError("Error receiving data from socket. cmd=%s; err=%s" % (cmd, err))
+            raise AgentError("Error receiving data from socket. cmd="+str(cmd['cmd'])+"; err="+str(msg))
 
           data += temp
 
@@ -361,6 +354,23 @@ class DeviceManagerSUT(DeviceManager):
       except AgentError:
         retVal = None
       return retVal
+
+  # make directory structure on the device
+  # external function
+  # returns:
+  #  success: directory structure that we created
+  #  failure: None
+  def mkDirs(self, filename):
+    parts = filename.split('/')
+    name = ""
+    for part in parts:
+      if (part == parts[-1]): break
+      if (part != ""):
+        name += '/' + part
+        if (self.mkDir(name) == None):
+          print "failed making directory: " + str(name)
+          return None
+    return name
 
   # push localDir from host to remoteDir on the device
   # external function

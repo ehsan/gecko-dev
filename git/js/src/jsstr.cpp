@@ -52,6 +52,7 @@
 #include "jsstrinlines.h"
 #include "jsautooplen.h"        // generated headers last
 
+#include "vm/MethodGuard-inl.h"
 #include "vm/RegExpObject-inl.h"
 #include "vm/RegExpStatics-inl.h"
 #include "vm/StringObject-inl.h"
@@ -449,12 +450,6 @@ ThisToStringForStringProto(JSContext *cx, CallReceiver call)
     return str;
 }
 
-static bool
-IsString(const Value &v)
-{
-    return v.isString() || (v.isObject() && v.toObject().hasClass(&StringClass));
-}
-
 #if JS_HAS_TOSOURCE
 
 /*
@@ -475,14 +470,15 @@ str_quote(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
-str_toSource_impl(JSContext *cx, CallArgs args)
+static JSBool
+str_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
-    JS_ASSERT(IsString(args.thisv()));
+    CallArgs args = CallArgsFromVp(argc, vp);
 
-    Rooted<JSString*> str(cx, ToString(cx, args.thisv()));
-    if (!str)
-        return false;
+    JSString *str;
+    bool ok;
+    if (!BoxedPrimitiveMethodGuard(cx, args, str_toSource, &str, &ok))
+        return ok;
 
     str = js_QuoteString(cx, str, '"');
     if (!str)
@@ -499,31 +495,20 @@ str_toSource_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static JSBool
-str_toSource(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, IsString, str_toSource_impl, args);
-}
-
 #endif /* JS_HAS_TOSOURCE */
-
-static bool
-str_toString_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(IsString(args.thisv()));
-
-    args.rval() = StringValue(args.thisv().isString()
-                              ? args.thisv().toString()
-                              : args.thisv().toObject().asString().unbox());
-    return true;
-}
 
 JSBool
 js_str_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, IsString, str_toString_impl, args);
+
+    JSString *str;
+    bool ok;
+    if (!BoxedPrimitiveMethodGuard(cx, args, js_str_toString, &str, &ok))
+        return ok;
+
+    args.rval() = StringValue(str);
+    return true;
 }
 
 /*
@@ -2213,19 +2198,26 @@ LambdaIsGetElem(JSObject &lambda, JSContext *cx)
     JSScript *script = fun->script();
     jsbytecode *pc = script->code;
 
-    /*
-     * JSOP_GETALIASEDVAR tells us exactly where to find the base object 'b'.
-     * Rule out the (unlikely) possibility of a heavyweight function since it
-     * would make our scope walk off by 1.
-     */
-    if (JSOp(*pc) != JSOP_GETALIASEDVAR || fun->isHeavyweight())
+    /* Look for an access to 'b' in the enclosing scope. */
+    if (JSOp(*pc) != JSOP_NAME)
         return NULL;
-    ScopeCoordinate sc(pc);
-    ScopeObject *scope = &fun->environment()->asScope();
-    for (unsigned i = 0; i < sc.hops; ++i)
-        scope = &scope->enclosingScope().asScope();
-    Value b = scope->aliasedVar(sc);
-    pc += JSOP_GETALIASEDVAR_LENGTH;
+    PropertyName *bname;
+    GET_NAME_FROM_BYTECODE(script, pc, 0, bname);
+    pc += JSOP_NAME_LENGTH;
+
+    /*
+     * Do a conservative search for 'b' in the enclosing scope. Avoid using a
+     * real name lookup since this can trigger observable effects.
+     */
+    Value b;
+    RootedObject scope(cx, cx->stack.currentScriptedScopeChain());
+    while (true) {
+        if (!scope->isCall() && !scope->isBlock())
+            return NULL;
+        if (HasDataProperty(cx, scope, bname, &b))
+            break;
+        scope = &scope->asScope().enclosingScope();
+    }
 
     /* Look for 'a' to be the lambda's first argument. */
     if (JSOp(*pc) != JSOP_GETARG || GET_SLOTNO(pc) != 0)
@@ -2979,7 +2971,6 @@ static JSFunctionSpec string_methods[] = {
     JS_FN("sub",               str_sub,               0,0),
 #endif
 
-    JS_FN("iterator",          JS_ArrayIterator,      0,0),
     JS_FS_END
 };
 

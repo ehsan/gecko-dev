@@ -28,8 +28,6 @@ const char kAPP_RT[] = "webapprt-stub";
 
 int* pargc;
 char*** pargv;
-char profile[MAXPATHLEN];
-bool isProfileOverridden = false;
 
 XRE_GetFileFromPathType XRE_GetFileFromPath;
 XRE_CreateAppDataType XRE_CreateAppData;
@@ -122,7 +120,7 @@ bool CopyFile(const char* inputFile, const char* outputFile)
   return (bytesRead >= 0);
 }
 
-bool GRELoadAndLaunch(const char* firefoxDir)
+bool GRELoadAndLaunch(const char* firefoxDir, const char* profile)
 {
   char xpcomDllPath[MAXPATHLEN];
   snprintf(xpcomDllPath, MAXPATHLEN, "%s/%s", firefoxDir, XPCOM_DLL);
@@ -137,13 +135,11 @@ bool GRELoadAndLaunch(const char* firefoxDir)
     return false;
   }
 
-  if (!isProfileOverridden) {
-    // Override the class name part of the WM_CLASS property, so that the
-    // DE can match our window to the correct launcher
-    char programClass[MAXPATHLEN];
-    snprintf(programClass, MAXPATHLEN, "owa-%s", profile);
-    g_set_prgname(programClass);
-  }
+  // Override the class name part of the WM_CLASS property, so that the
+  // DE can match our window to the correct launcher
+  char programClass[MAXPATHLEN];
+  snprintf(programClass, MAXPATHLEN, "owa-%s", profile);
+  g_set_prgname(programClass);
 
   // NOTE: The GRE has successfully loaded, so we can use XPCOM now
   { // Scope for any XPCOM stuff we create
@@ -177,10 +173,8 @@ bool GRELoadAndLaunch(const char* firefoxDir)
       return false;
     }
 
-    if (!isProfileOverridden) {
-      SetAllocatedString(webShellAppData->profile, profile);
-      SetAllocatedString(webShellAppData->name, profile);
-    }
+    SetAllocatedString(webShellAppData->profile, profile);
+    SetAllocatedString(webShellAppData->name, profile);
 
     nsCOMPtr<nsIFile> directory;
     if (NS_FAILED(XRE_GetFileFromPath(rtPath, getter_AddRefs(directory)))) {
@@ -237,29 +231,10 @@ int main(int argc, char *argv[])
     ErrorDialog("Couldn't read current executable path");
     return 255;
   }
-  char curExeDir[MAXPATHLEN];
-  GetDirFromPath(curExeDir, curExePath);
-
-  for (int i = 1; i < argc; i++) {
-    if (!strcmp(argv[i], "-profile")) {
-      isProfileOverridden = true;
-      break;
-    }
-  }
-
-  char firefoxDir[MAXPATHLEN];
-
-  // Check if Firefox is in the ../../dist/bin directory (relative to the webapp runtime)
-  // This is the case for webapprt chrome and content tests.
-  snprintf(firefoxDir, MAXPATHLEN, "%s/../../dist/bin", curExeDir);
-  if (access(firefoxDir, F_OK) != -1) {
-    if (GRELoadAndLaunch(firefoxDir))
-      return 0;
-
-    return 255;
-  }
 
   // Set up webAppIniPath with path to webapp.ini
+  char curExeDir[MAXPATHLEN];
+  GetDirFromPath(curExeDir, curExePath);
   char webAppIniPath[MAXPATHLEN];
   snprintf(webAppIniPath, MAXPATHLEN, "%s/%s", curExeDir, kWEBAPP_INI);
 
@@ -277,12 +252,14 @@ int main(int argc, char *argv[])
   }
 
   // Get profile dir from webapp.ini
+  char profile[MAXPATHLEN];
   if (NS_FAILED(parser.GetString("Webapp", "Profile", profile, MAXPATHLEN))) {
     ErrorDialog("Couldn't retrieve profile from web app INI file");
     return 255;
   }
 
   // Get the location of Firefox from our webapp.ini
+  char firefoxDir[MAXPATHLEN];
   if (NS_FAILED(parser.GetString("WebappRT", "InstallDir", firefoxDir, MAXPATHLEN))) {
     ErrorDialog("Couldn't find your Firefox install directory.");
     return 255;
@@ -294,8 +271,8 @@ int main(int argc, char *argv[])
   snprintf(appIniPath, MAXPATHLEN, "%s/%s", firefoxDir, kAPP_INI);
 
   if (NS_FAILED(parser.Init(appIniPath))) {
-    ErrorDialog("This app requires that Firefox version 16 or above is installed."
-                " Firefox 16+ has not been detected.");
+    ErrorDialog("This app requires that Firefox version 15 or above is installed."
+                " Firefox 15+ has not been detected.");
     return 255;
   }
 
@@ -308,7 +285,7 @@ int main(int argc, char *argv[])
 
   // If WebAppRT version == Firefox version, load XUL and execute the application
   if (!strcmp(buildid, NS_STRINGIFY(GRE_BUILDID))) {
-    if (GRELoadAndLaunch(firefoxDir))
+    if (GRELoadAndLaunch(firefoxDir, profile))
       return 0;
   }
   // Else, copy WebAppRT from Firefox installation and re-execute the process

@@ -99,7 +99,7 @@ BrowserRootActor.prototype = {
         }
         let actor = this._tabActors.get(browser);
         if (!actor) {
-          actor = new BrowserTabActor(this.conn, browser, win.gBrowser);
+          actor = new BrowserTabActor(this.conn, browser);
           actor.parentID = this.actorID;
           this._tabActors.set(browser, actor);
         }
@@ -188,14 +188,11 @@ BrowserRootActor.prototype.requestTypes = {
  *        The conection to the client.
  * @param aBrowser browser
  *        The browser instance that contains this tab.
- * @param aTabBrowser tabbrowser
- *        The tabbrowser that can receive nsIWebProgressListener events.
  */
-function BrowserTabActor(aConnection, aBrowser, aTabBrowser)
+function BrowserTabActor(aConnection, aBrowser)
 {
   this.conn = aConnection;
   this._browser = aBrowser;
-  this._tabbrowser = aTabBrowser;
 
   this._onWindowCreated = this.onWindowCreated.bind(this);
 }
@@ -214,8 +211,6 @@ BrowserTabActor.prototype = {
 
   _contextPool: null,
   get contextActorPool() { return this._contextPool; },
-
-  _pendingNavigation: null,
 
   /**
    * Add the specified breakpoint to the default actor pool connection, in order
@@ -255,10 +250,6 @@ BrowserTabActor.prototype = {
    */
   disconnect: function BTA_disconnect() {
     this._detach();
-
-    if (this._progressListener) {
-      this._progressListener.destroy();
-    }
   },
 
   /**
@@ -275,11 +266,7 @@ BrowserTabActor.prototype = {
                        type: "tabDetached" });
     }
 
-    if (this._progressListener) {
-      this._progressListener.destroy();
-    }
     this._browser = null;
-    this._tabbrowser = null;
   },
 
   /**
@@ -301,7 +288,6 @@ BrowserTabActor.prototype = {
     // Watch for globals being created in this tab.
     this.browser.addEventListener("DOMWindowCreated", this._onWindowCreated, true);
     this.browser.addEventListener("pageshow", this._onWindowCreated, true);
-    this._progressListener = new DebuggerProgressListener(this);
 
     this._attached = true;
   },
@@ -384,10 +370,6 @@ BrowserTabActor.prototype = {
 
     this._detach();
 
-    if (this._progressListener) {
-      this._progressListener.destroy();
-    }
-
     return { type: "detached" };
   },
 
@@ -419,10 +401,6 @@ BrowserTabActor.prototype = {
                           .getInterface(Ci.nsIDOMWindowUtils);
     windowUtils.resumeTimeouts();
     windowUtils.suppressEventHandling(false);
-    if (this._pendingNavigation) {
-      this._pendingNavigation.resume();
-      this._pendingNavigation = null;
-    }
   },
 
   /**
@@ -450,68 +428,6 @@ BrowserTabActor.prototype = {
 BrowserTabActor.prototype.requestTypes = {
   "attach": BrowserTabActor.prototype.onAttach,
   "detach": BrowserTabActor.prototype.onDetach
-};
-
-/**
- * The DebuggerProgressListener object is an nsIWebProgressListener which
- * handles onStateChange events for the inspected browser. If the user tries to
- * navigate away from a paused page, the listener makes sure that the debuggee
- * is resumed before the navigation begins.
- *
- * @param BrowserTabActor aBrowserTabActor
- *        The tab actor associated with this listener.
- */
-function DebuggerProgressListener(aBrowserTabActor) {
-  this._tabActor = aBrowserTabActor;
-  this._tabActor._tabbrowser.addProgressListener(this);
-}
-
-DebuggerProgressListener.prototype = {
-  onStateChange:
-  function DPL_onStateChange(aProgress, aRequest, aFlag, aStatus) {
-    let isStart = aFlag & Ci.nsIWebProgressListener.STATE_START;
-    let isStop = aFlag & Ci.nsIWebProgressListener.STATE_STOP;
-    let isDocument = aFlag & Ci.nsIWebProgressListener.STATE_IS_DOCUMENT;
-    let isNetwork = aFlag & Ci.nsIWebProgressListener.STATE_IS_NETWORK;
-    let isRequest = aFlag & Ci.nsIWebProgressListener.STATE_IS_REQUEST;
-    let isWindow = aFlag & Ci.nsIWebProgressListener.STATE_IS_WINDOW;
-
-    // Skip non-interesting states.
-    if (isStart && isDocument && isRequest && isNetwork) {
-      // If the request is about to happen in a new window, we are not concerned
-      // about the request.
-      if (aProgress.DOMWindow != this._tabActor.browser.contentWindow) {
-        return;
-      }
-
-      // If the debuggee is not paused, then proceed normally.
-      if (this._tabActor.threadActor.state != "paused") {
-        return;
-      }
-
-      aRequest.suspend();
-      this._tabActor._pendingNavigation = aRequest;
-      this._tabActor._detach();
-      this._needsTabNavigated = true;
-    } else if (isStop && isWindow && isNetwork && this._needsTabNavigated) {
-      this._tabActor.conn.send({
-        from: this._tabActor.actorID,
-        type: "tabNavigated",
-        url: this._tabActor.browser.contentDocument.URL
-      });
-
-      this.destroy();
-    }
-  },
-
-  /**
-   * Destroy the progress listener instance.
-   */
-  destroy: function DPL_destroy() {
-    this._tabActor._tabbrowser.removeProgressListener(this);
-    this._tabActor._progressListener = null;
-    this._tabActor = null;
-  }
 };
 
 /**

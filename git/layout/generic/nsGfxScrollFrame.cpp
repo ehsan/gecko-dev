@@ -298,8 +298,7 @@ static nsSize ComputeInsideBorderSize(ScrollReflowState* aState,
       aState->mReflowState.mComputedPadding.TopBottom();
   }
 
-  contentWidth  = aState->mReflowState.ApplyMinMaxWidth(contentWidth);
-  contentHeight = aState->mReflowState.ApplyMinMaxHeight(contentHeight);
+  aState->mReflowState.ApplyMinMaxConstraints(&contentWidth, &contentHeight);
   return nsSize(contentWidth + aState->mReflowState.mComputedPadding.LeftRight(),
                 contentHeight + aState->mReflowState.mComputedPadding.TopBottom());
 }
@@ -1797,8 +1796,7 @@ CanScrollWithBlitting(nsIFrame* aFrame)
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
     if (nsSVGIntegrationUtils::UsingEffectsForFrame(f) ||
-        f->IsFrameOfType(nsIFrame::eSVG) ||
-        f->GetStateBits() & NS_FRAME_NO_COMPONENT_ALPHA) {
+        f->IsFrameOfType(nsIFrame::eSVG)) {
       return false;
     }
     if (nsLayoutUtils::IsPopup(f))

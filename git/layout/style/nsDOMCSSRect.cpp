@@ -10,7 +10,6 @@
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsDOMCSSRect.h"
 #include "nsContentUtils.h"
-#include "nsDOMClassInfoID.h"
 
 nsDOMCSSRect::nsDOMCSSRect(nsIDOMCSSPrimitiveValue* aTop,
                            nsIDOMCSSPrimitiveValue* aRight,

@@ -4,12 +4,7 @@ var F, o;
 F = function () {};
 F.prototype = new ArrayBuffer(1);
 o = new F();
-try {
-    o.byteLength;
-} catch (ex) {
-    // o is not a platform object
-    assertEq(ex instanceof TypeError, true);
-}
+assertEq(o.byteLength, 1); // should be no assertion here
 
 o = {};
 o.__proto__ = new Int32Array(1);

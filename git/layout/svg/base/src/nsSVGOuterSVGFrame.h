@@ -10,8 +10,6 @@
 #include "nsISVGSVGFrame.h"
 #include "nsSVGContainerFrame.h"
 
-class nsSVGForeignObjectFrame;
-
 ////////////////////////////////////////////////////////////////////////
 // nsSVGOuterSVGFrame class
 
@@ -28,13 +26,6 @@ protected:
 public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
-
-#ifdef DEBUG
-  ~nsSVGOuterSVGFrame() {
-    NS_ASSERTION(mForeignObjectHash.Count() == 0,
-                 "foreignObject(s) still registered!");
-  }
-#endif
 
   // nsIFrame:
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
@@ -114,18 +105,6 @@ public:
   // nsSVGContainerFrame methods:
   virtual gfxMatrix GetCanvasTM(PRUint32 aFor);
 
-  /* Methods to allow descendant nsSVGForeignObjectFrame frames to register and
-   * unregister themselves with their nearest nsSVGOuterSVGFrame ancestor. This
-   * is temporary until display list based invalidation is impleented for SVG.
-   * Maintaining a list of our foreignObject descendants allows us to search
-   * them for areas that need to be invalidated, without having to also search
-   * the SVG frame tree for foreignObjects. This is important so that bug 539356
-   * does not slow down SVG in general (only foreignObjects, until bug 614732 is
-   * fixed).
-   */
-  void RegisterForeignObject(nsSVGForeignObjectFrame* aFrame);
-  void UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame);
-
   virtual bool HasChildrenOnlyTransform(gfxMatrix *aTransform) const {
     // Our anonymous wrapper child must claim our children-only transforms as
     // its own so that our real children (the frames it wraps) are transformed
@@ -140,13 +119,13 @@ public:
    */
   bool VerticalScrollbarNotNeeded() const;
 
-  bool IsCallingReflowSVG() const {
-    return mCallingReflowSVG;
+  bool IsCallingUpdateBounds() const {
+    return mCallingUpdateBounds;
   }
 
 protected:
 
-  bool mCallingReflowSVG;
+  bool mCallingUpdateBounds;
 
   /* Returns true if our content is the document element and our document is
    * embedded in an HTML 'object', 'embed' or 'applet' element. Set
@@ -158,13 +137,6 @@ protected:
    * being used as an image.
    */
   bool IsRootOfImage();
-
-  // This is temporary until display list based invalidation is implemented for
-  // SVG.
-  // A hash-set containing our nsSVGForeignObjectFrame descendants. Note we use
-  // a hash-set to avoid the O(N^2) behavior we'd get tearing down an SVG frame
-  // subtree if we were to use a list (see bug 381285 comment 20).
-  nsTHashtable<nsVoidPtrHashKey> mForeignObjectHash;
 
   nsAutoPtr<gfxMatrix> mCanvasTM;
 

@@ -565,10 +565,12 @@ NS_METHOD nsWindow::Enable(bool aState)
 
 //-----------------------------------------------------------------------------
 
-bool nsWindow::IsEnabled() const
+NS_METHOD nsWindow::IsEnabled(bool* aState)
 {
+  NS_ENSURE_ARG_POINTER(aState);
   HWND hMain = GetMainWindow();
-  return !hMain || WinIsWindowEnabled(hMain);
+  *aState = !hMain || WinIsWindowEnabled(hMain);
+  return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
@@ -583,7 +585,9 @@ NS_METHOD nsWindow::Show(bool aState)
       // don't try to show new windows (e.g. the Bookmark menu)
       // during a native dragover because they'll remain invisible;
       if (CheckDragStatus(ACTION_SHOW, 0)) {
-        if (!IsVisible()) {
+        bool isVisible;
+        IsVisible(isVisible);
+        if (!isVisible) {
           PlaceBehind(eZPlacementTop, 0, false);
         }
         WinShowWindow(mWnd, true);
@@ -598,9 +602,10 @@ NS_METHOD nsWindow::Show(bool aState)
 
 //-----------------------------------------------------------------------------
 
-bool nsWindow::IsVisible() const
+NS_METHOD nsWindow::IsVisible(bool& aState)
 {
-  return WinIsWindowVisible(GetMainWindow());
+  aState = WinIsWindowVisible(GetMainWindow()) ? true : false;
+  return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
@@ -2484,8 +2489,6 @@ bool nsWindow::ImeResultString(HIMI himi)
   }
 
   if (!mIsComposing) {
-    mLastDispatchedCompositionString.Truncate();
-
     nsCompositionEvent start(true, NS_COMPOSITION_START, this);
     InitEvent(start);
     DispatchWindowEvent(&start);
@@ -2499,27 +2502,16 @@ bool nsWindow::ImeResultString(HIMI himi)
 
   delete pBuf;
 
-  nsAutoString compositionString(outBuf.Elements());
-
-  if (mLastDispatchedCompositionString != compositionString) {
-    nsCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
-    InitEvent(update);
-    update.data = compositionString;
-    mLastDispatchedCompositionString = compositionString;
-    DispatchWindowEvent(&update);
-  }
-
   nsTextEvent text(true, NS_TEXT_TEXT, this);
   InitEvent(text);
-  text.theText = compositionString;
+  text.theText = outBuf.Elements();
   DispatchWindowEvent(&text);
 
   nsCompositionEvent end(true, NS_COMPOSITION_END, this);
   InitEvent(end);
-  end.data = compositionString;
+  end.data = text.theText;
   DispatchWindowEvent(&end);
   mIsComposing = false;
-  mLastDispatchedCompositionString.Truncate();
 
   return true;
 }
@@ -2547,8 +2539,6 @@ bool nsWindow::ImeConversionString(HIMI himi)
   }
 
   if (!mIsComposing) {
-    mLastDispatchedCompositionString.Truncate();
-
     nsCompositionEvent start(true, NS_COMPOSITION_START, this);
     InitEvent(start);
     DispatchWindowEvent(&start);
@@ -2562,27 +2552,17 @@ bool nsWindow::ImeConversionString(HIMI himi)
 
   delete pBuf;
 
-  nsAutoString compositionString(outBuf.Elements());
-
-  // Is a conversion string changed ?
-  if (mLastDispatchedCompositionString != compositionString) {
-    nsCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
-    InitEvent(update);
-    update.data = compositionString;
-    mLastDispatchedCompositionString = compositionString;
-    DispatchWindowEvent(&update);
-  }
-
   nsAutoTArray<nsTextRange, 4> textRanges;
 
-  if (!compositionString.IsEmpty()) {
+  // Is there a conversion string ?
+  if (outBufLen) {
     nsTextRange newRange;
     newRange.mStartOffset = 0;
-    newRange.mEndOffset = compositionString.Length();
+    newRange.mEndOffset = outBufLen;
     newRange.mRangeType = NS_TEXTRANGE_SELECTEDRAWTEXT;
     textRanges.AppendElement(newRange);
 
-    newRange.mStartOffset = compositionString.Length();
+    newRange.mStartOffset = outBufLen;
     newRange.mEndOffset = newRange.mStartOffset;
     newRange.mRangeType = NS_TEXTRANGE_CARETPOSITION;
     textRanges.AppendElement(newRange);
@@ -2590,19 +2570,23 @@ bool nsWindow::ImeConversionString(HIMI himi)
 
   nsTextEvent text(true, NS_TEXT_TEXT, this);
   InitEvent(text);
-  text.theText = compositionString;
+  text.theText = outBuf.Elements();
   text.rangeArray = textRanges.Elements();
   text.rangeCount = textRanges.Length();
   DispatchWindowEvent(&text);
 
-  if (compositionString.IsEmpty()) { // IME conversion was canceled ?
+  if (outBufLen) {
+    nsCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
+    InitEvent(update);
+    update.data = text.theText;
+    DispatchWindowEvent(&update);
+  } else {  // IME conversion was canceled ?
     nsCompositionEvent end(true, NS_COMPOSITION_END, this);
     InitEvent(end);
-    end.data = compositionString;
+    end.data = text.theText;
     DispatchWindowEvent(&end);
 
     mIsComposing = false;
-    mLastDispatchedCompositionString.Truncate();
   }
 
   return true;

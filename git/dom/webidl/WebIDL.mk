@@ -9,9 +9,6 @@ webidl_files = \
   Function.webidl \
   EventListener.webidl \
   EventTarget.webidl \
-  Performance.webidl \
-  PerformanceNavigation.webidl \
-  PerformanceTiming.webidl \
   XMLHttpRequest.webidl \
   XMLHttpRequestEventTarget.webidl \
   XMLHttpRequestUpload.webidl \

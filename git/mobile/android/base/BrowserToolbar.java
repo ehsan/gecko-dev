@@ -8,33 +8,44 @@ package org.mozilla.gecko;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 
+import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.drawable.AnimationDrawable;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.text.TextUtils;
+import android.util.AttributeSet;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.animation.TranslateAnimation;
 import android.view.inputmethod.InputMethodManager;
 import android.view.ContextMenu;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MenuInflater;
 import android.view.View;
+import android.view.View.MeasureSpec;
 import android.view.ViewGroup;
+import android.view.ViewConfiguration;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.TextSwitcher;
+import android.widget.Toast;
 import android.widget.ViewSwitcher;
 
 public class BrowserToolbar implements ViewSwitcher.ViewFactory,
@@ -214,13 +225,13 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mMenu = (ImageButton) mLayout.findViewById(R.id.menu);
         mActionItemBar = (LinearLayout) mLayout.findViewById(R.id.menu_items);
-        mHasSoftMenuButton = !GeckoApp.mAppContext.hasPermanentMenuKey();
+        mHasSoftMenuButton = GeckoApp.mAppContext.hasPermanentMenuKey();
 
         if (mHasSoftMenuButton) {
             mMenu.setVisibility(View.VISIBLE);
             mMenu.setOnClickListener(new Button.OnClickListener() {
                 public void onClick(View view) {
-                    if (!GeckoApp.mAppContext.hasTabsSideBar() && GeckoApp.mAppContext.areTabsShown())
+                    if (!GeckoApp.mAppContext.isTablet() && GeckoApp.mAppContext.areTabsShown())
                         return;
 
                     GeckoApp.mAppContext.openOptionsMenu();
@@ -316,7 +327,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
     private void toggleTabs() {
         if (GeckoApp.mAppContext.areTabsShown()) {
-            if (GeckoApp.mAppContext.hasTabsSideBar())
+            if (GeckoApp.mAppContext.isTablet())
                 GeckoApp.mAppContext.hideTabs();
         } else {
             // hide the virtual keyboard
@@ -369,7 +380,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         if (areTabsShown) {
             mTabs.getBackground().setLevel(TABS_EXPANDED);
 
-            if (!GeckoApp.mAppContext.hasTabsSideBar()) {
+            if (!GeckoApp.mAppContext.isTablet()) {
                 mTabs.setImageLevel(0);
                 mTabsCount.setVisibility(View.GONE);
                 mMenu.setImageLevel(TABS_EXPANDED);
@@ -381,7 +392,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             mTabs.setImageLevel(TABS_CONTRACTED);
             mTabs.getBackground().setLevel(TABS_CONTRACTED);
 
-            if (!GeckoApp.mAppContext.hasTabsSideBar()) {
+            if (!GeckoApp.mAppContext.isTablet()) {
                 mTabsCount.setVisibility(View.VISIBLE);
                 mMenu.setImageLevel(TABS_CONTRACTED);
                 mMenu.getBackground().setLevel(TABS_CONTRACTED);

@@ -2576,7 +2576,6 @@ void nsHTMLMediaElement::EndMediaStreamPlayback()
   if (mPaused) {
     GetMediaStream()->ChangeExplicitBlockerCount(-1);
   }
-  mVideoFrameContainer->GetImageContainer()->SetCurrentImage(nsnull);
   if (mPausedForInactiveDocument) {
     GetMediaStream()->ChangeExplicitBlockerCount(-1);
   }
@@ -2993,8 +2992,7 @@ VideoFrameContainer* nsHTMLMediaElement::GetVideoFrameContainer()
     return nsnull;
 
   mVideoFrameContainer =
-    new VideoFrameContainer(this, LayerManager::CreateAsynchronousImageContainer());
-
+    new VideoFrameContainer(this, LayerManager::CreateImageContainer());
   return mVideoFrameContainer;
 }
 

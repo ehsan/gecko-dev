@@ -14,7 +14,6 @@
 #include "nsThreadUtils.h"
 #include "nsILayoutHistoryState.h"
 #include "prprf.h"
-#include "mozilla/Attributes.h"
 
 namespace dom = mozilla::dom;
 
@@ -29,7 +28,7 @@ PRUint64 gSHEntrySharedID = 0;
 #define CONTENT_VIEWER_TIMEOUT_SECONDS (30*60)
 
 typedef nsExpirationTracker<nsSHEntryShared, 3> HistoryTrackerBase;
-class HistoryTracker MOZ_FINAL : public HistoryTrackerBase {
+class HistoryTracker : public HistoryTrackerBase {
 public:
   // Expire cached contentviewers after 20-30 minutes in the cache.
   HistoryTracker() 

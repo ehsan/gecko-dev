@@ -27,7 +27,7 @@
 
 #back-button:-moz-locale-dir(rtl) > .toolbarbutton-icon,
 #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
-  transform: scaleX(-1);
+  -moz-transform: scaleX(-1);
 }
 
 /* Menu */

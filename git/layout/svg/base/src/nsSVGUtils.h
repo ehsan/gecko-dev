@@ -347,8 +347,8 @@ public:
    * the new area that the frame should paint to).
    *
    * This does nothing when passed an NS_STATE_SVG_NONDISPLAY_CHILD frame.
-   * In future we may want to allow ReflowSVG to be called on such frames,
-   * but that would be better implemented as a ForceReflowSVG function to
+   * In future we may want to allow UpdateBounds to be called on such frames,
+   * but that would be better implemented as a ForceUpdateBounds function to
    * be called synchronously while painting them without marking or paying
    * attention to dirty bits like this function.
    *
@@ -370,20 +370,20 @@ public:
    * handle nsSVGForeignObjectFrame specially. It would also do unnecessary work
    * descending into NS_STATE_SVG_NONDISPLAY_CHILD frames.
    */
-  static void ScheduleReflowSVG(nsIFrame *aFrame);
+  static void ScheduleBoundsUpdate(nsIFrame *aFrame);
 
   /**
    * Invalidates the area that the frame last painted to, then schedules an
    * update of the frame's bounds (which will in turn invalidate the new area
    * that the frame should paint to).
    */
-  static void InvalidateAndScheduleReflowSVG(nsIFrame *aFrame);
+  static void InvalidateAndScheduleBoundsUpdate(nsIFrame *aFrame);
 
   /**
-   * Returns true if the frame or any of its children need ReflowSVG
+   * Returns true if the frame or any of its children need UpdateBounds
    * to be called on them.
    */
-  static bool NeedsReflowSVG(nsIFrame *aFrame);
+  static bool NeedsUpdatedBounds(nsIFrame *aFrame);
 
   /*
    * Update the filter invalidation region for ancestor frames, if relevant.
@@ -630,7 +630,7 @@ public:
   WritePPM(const char *fname, gfxImageSurface *aSurface);
 #endif
 
-  static bool OuterSVGIsCallingReflowSVG(nsIFrame *aFrame);
+  static bool OuterSVGIsCallingUpdateBounds(nsIFrame *aFrame);
 
   /*
    * Get any additional transforms that apply only to stroking

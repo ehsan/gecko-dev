@@ -1084,8 +1084,7 @@ StorageCollectionGetRequest.prototype = {
 function StorageCollectionSetRequest() {
   StorageServiceRequest.call(this);
 
-  this._lines = [];
-  this._size  = 0;
+  this._inputBSOs = [];
 
   this.successfulIDs = new Set();
   this.failures      = new Map();
@@ -1093,16 +1092,6 @@ function StorageCollectionSetRequest() {
 StorageCollectionSetRequest.prototype = {
   __proto__: StorageServiceRequest.prototype,
 
-  /**
-   * Add a BasicStorageObject to this request.
-   *
-   * Please note that the BSO content is retrieved when the BSO is added to
-   * the request. If the BSO changes after it is added to a request, those
-   * changes will not be reflected in the request.
-   *
-   * @param bso
-   *        (BasicStorageObject) BSO to add to the request.
-   */
   addBSO: function addBSO(bso) {
     if (!bso instanceof BasicStorageObject) {
       throw new Error("argument must be a BasicStorageObject instance.");
@@ -1112,15 +1101,11 @@ StorageCollectionSetRequest.prototype = {
       throw new Error("Passed BSO must have id defined.");
     }
 
-    let line = JSON.stringify(bso).replace("\n", "\u000a");
-
-    // This is off by 1 in the larger direction. We don't care.
-    this._size += line.length + "\n".length;
-    this._lines.push(line);
+    this._inputBSOs.push(bso);
   },
 
   _onDispatch: function _onDispatch() {
-    this._data = this._lines.join("\n");
+    this._data = JSON.stringify(this._inputBSOs);
   },
 
   _completeParser: function _completeParser(response) {
@@ -1627,7 +1612,7 @@ StorageServiceClient.prototype = {
     let uri = this._baseURI + "storage/" + collection;
     let request = this._getRequest(uri, "POST", {
       requestType:       StorageCollectionSetRequest,
-      contentType:       "application/newlines",
+      contentType:       "application/json",
       accept:            "application/json",
       allowIfUnmodified: true,
     });

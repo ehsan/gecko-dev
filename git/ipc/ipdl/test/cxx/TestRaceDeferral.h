@@ -24,12 +24,15 @@ public:
 protected:
     void Test1();
 
-    virtual bool AnswerLose() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerLose();
 
+    NS_OVERRIDE
     virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
-    MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE;
+    MediateRPCRace(const Message& parent, const Message& child);
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");  
@@ -49,16 +52,21 @@ public:
     virtual ~TestRaceDeferralChild();
 
 protected:
-    virtual bool RecvStartRace() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvStartRace();
 
-    virtual bool AnswerWin() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerWin();
 
-    virtual bool AnswerRpc() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerRpc();
 
+    NS_OVERRIDE
     virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
-    MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE;
+    MediateRPCRace(const Message& parent, const Message& child);
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");

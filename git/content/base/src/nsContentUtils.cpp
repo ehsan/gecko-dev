@@ -216,7 +216,6 @@ bool nsContentUtils::sAllowXULXBL_for_file = false;
 nsString* nsContentUtils::sShiftText = nsnull;
 nsString* nsContentUtils::sControlText = nsnull;
 nsString* nsContentUtils::sMetaText = nsnull;
-nsString* nsContentUtils::sOSText = nsnull;
 nsString* nsContentUtils::sAltText = nsnull;
 nsString* nsContentUtils::sModifierSeparator = nsnull;
 
@@ -437,15 +436,6 @@ nsContentUtils::GetMetaText(nsAString& text)
 }
 
 void
-nsContentUtils::GetOSText(nsAString& text)
-{
-  if (!sOSText) {
-    InitializeModifierStrings();
-  }
-  text.Assign(*sOSText);
-}
-
-void
 nsContentUtils::GetAltText(nsAString& text)
 {
   if (!sAltText)
@@ -477,7 +467,6 @@ nsContentUtils::InitializeModifierStrings()
   NS_ASSERTION(NS_SUCCEEDED(rv) && bundle, "chrome://global/locale/platformKeys.properties could not be loaded");
   nsXPIDLString shiftModifier;
   nsXPIDLString metaModifier;
-  nsXPIDLString osModifier;
   nsXPIDLString altModifier;
   nsXPIDLString controlModifier;
   nsXPIDLString modifierSeparator;
@@ -485,7 +474,6 @@ nsContentUtils::InitializeModifierStrings()
     //macs use symbols for each modifier key, so fetch each from the bundle, which also covers i18n
     bundle->GetStringFromName(NS_LITERAL_STRING("VK_SHIFT").get(), getter_Copies(shiftModifier));
     bundle->GetStringFromName(NS_LITERAL_STRING("VK_META").get(), getter_Copies(metaModifier));
-    bundle->GetStringFromName(NS_LITERAL_STRING("VK_WIN").get(), getter_Copies(osModifier));
     bundle->GetStringFromName(NS_LITERAL_STRING("VK_ALT").get(), getter_Copies(altModifier));
     bundle->GetStringFromName(NS_LITERAL_STRING("VK_CONTROL").get(), getter_Copies(controlModifier));
     bundle->GetStringFromName(NS_LITERAL_STRING("MODIFIER_SEPARATOR").get(), getter_Copies(modifierSeparator));
@@ -493,7 +481,6 @@ nsContentUtils::InitializeModifierStrings()
   //if any of these don't exist, we get  an empty string
   sShiftText = new nsString(shiftModifier);
   sMetaText = new nsString(metaModifier);
-  sOSText = new nsString(osModifier);
   sAltText = new nsString(altModifier);
   sControlText = new nsString(controlModifier);
   sModifierSeparator = new nsString(modifierSeparator);  
@@ -1466,8 +1453,6 @@ nsContentUtils::Shutdown()
   sControlText = nsnull;
   delete sMetaText;  
   sMetaText = nsnull;
-  delete sOSText;
-  sOSText = nsnull;
   delete sAltText;  
   sAltText = nsnull;
   delete sModifierSeparator;
@@ -2789,9 +2774,17 @@ nsContentUtils::IsDraggableLink(const nsIContent* aContent) {
 static bool
 TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, PRUint32 aPerm)
 {
-  if (!aPrincipal) {
-    // We always deny (i.e. don't allow) the permission if we don't have a
-    // principal.
+  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
+    // System principal is always allowed and never denied permission.
+    return aPerm == nsIPermissionManager::ALLOW_ACTION;
+  }
+
+  nsCOMPtr<nsIURI> uri;
+  if (NS_FAILED(!aPrincipal ||
+      aPrincipal->GetURI(getter_AddRefs(uri))) ||
+      !uri) {
+    // We always deny (i.e. don't allow) the permission if we don't
+    // have a principal or we don't know the URI.
     return aPerm != nsIPermissionManager::ALLOW_ACTION;
   }
 
@@ -2800,9 +2793,9 @@ TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, PRUint32 aPerm)
   NS_ENSURE_TRUE(permMgr, false);
 
   PRUint32 perm;
-  nsresult rv = permMgr->TestPermissionFromPrincipal(aPrincipal, aType, &perm);
+  nsresult rv = permMgr->TestPermission(uri, aType, &perm);
   NS_ENSURE_SUCCESS(rv, false);
-
+  
   return perm == aPerm;
 }
 
@@ -5640,23 +5633,6 @@ nsContentUtils::EqualsLiteralIgnoreASCIICase(const nsAString& aStr1,
   }
   
   return true;
-}
-
-/* static */
-bool
-nsContentUtils::StringContainsASCIIUpper(const nsAString& aStr)
-{
-  const PRUnichar* iter = aStr.BeginReading();
-  const PRUnichar* end = aStr.EndReading();
-  while (iter != end) {
-    PRUnichar c = *iter;
-    if (c >= 'A' && c <= 'Z') {
-      return true;
-    }
-    ++iter;
-  }
-
-  return false;
 }
 
 /* static */

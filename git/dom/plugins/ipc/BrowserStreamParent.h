@@ -24,7 +24,7 @@ public:
                       NPStream* stream);
   virtual ~BrowserStreamParent();
 
-  virtual bool IsBrowserStream() MOZ_OVERRIDE { return true; }
+  NS_OVERRIDE virtual bool IsBrowserStream() { return true; }
 
   virtual bool AnswerNPN_RequestRead(const IPCByteRanges& ranges,
                                      NPError* result);

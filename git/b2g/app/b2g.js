@@ -45,6 +45,7 @@ pref("network.http.proxy.pipelining", true);
 pref("network.http.pipelining.maxrequests" , 6);
 pref("network.http.keep-alive.timeout", 600);
 pref("network.http.max-connections", 6);
+pref("network.http.max-connections-per-server", 4);
 pref("network.http.max-persistent-connections-per-server", 4);
 pref("network.http.max-persistent-connections-per-proxy", 4);
 
@@ -244,9 +245,7 @@ pref("ui.dragThresholdY", 25);
 
 // Layers Acceleration
 pref("layers.acceleration.disabled", false);
-pref("layers.offmainthreadcomposition.enabled", true);
-pref("layers.async-video.enabled", true);
-pref("layers.async-pan-zoom.enabled", true);
+pref("layers.offmainthreadcomposition.enabled", false);
 
 // Web Notifications
 pref("notification.feature.enabled", true);
@@ -471,9 +470,3 @@ pref("dom.disable_window_showModalDialog", true);
 
 // Turns on gralloc-based direct texturing for Gonk
 pref("gfx.gralloc.enabled", false);
-
-// XXXX REMOVE FOR PRODUCTION. Turns on GC and CC logging 
-pref("javascript.options.mem.log", true);
-
-// Increase mark slice time from 10ms to 30ms
-pref("javascript.options.mem.gc_incremental_slice_ms", 30);

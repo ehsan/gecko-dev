@@ -171,7 +171,7 @@ nsWindow::~nsWindow()
         top->mFocus = nsnull;
     ALOG("nsWindow %p destructor", (void*)this);
 #ifdef MOZ_JAVA_COMPOSITOR
-    SetCompositor(NULL, NULL);
+    SetCompositor(NULL, NULL, NULL);
 #endif
 }
 
@@ -384,10 +384,11 @@ nsWindow::SetModal(bool aState)
     return NS_OK;
 }
 
-bool
-nsWindow::IsVisible() const
+NS_IMETHODIMP
+nsWindow::IsVisible(bool& aState)
 {
-    return mIsVisible;
+    aState = mIsVisible;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -495,10 +496,11 @@ nsWindow::Enable(bool aState)
     return NS_OK;
 }
 
-bool
-nsWindow::IsEnabled() const
+NS_IMETHODIMP
+nsWindow::IsEnabled(bool *aState)
 {
-    return true;
+    *aState = true;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -695,7 +697,7 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
     if (useCompositor) {
         CreateCompositor();
         if (mLayerManager) {
-            SetCompositor(mCompositorParent, mCompositorChild);
+            SetCompositor(mCompositorParent, mCompositorChild, mCompositorThread);
             return mLayerManager;
         }
 
@@ -987,7 +989,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
         event.region = invalidRect;
 
         switch (GetLayerManager(nsnull)->GetBackendType()) {
-            case mozilla::layers::LAYERS_BASIC: {
+            case LayerManager::LAYERS_BASIC: {
 
                 nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
 
@@ -1011,7 +1013,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
                 break;
             }
 
-            case mozilla::layers::LAYERS_OPENGL: {
+            case LayerManager::LAYERS_OPENGL: {
 
                 static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
                     SetClippingRegion(nsIntRegion(boundsRect));
@@ -1112,7 +1114,7 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
     AndroidBridge::Bridge()->HideProgressDialogOnce();
 
-    if (GetLayerManager(nsnull)->GetBackendType() == mozilla::layers::LAYERS_BASIC) {
+    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_BASIC) {
         if (sNativeWindow) {
             unsigned char *bits;
             int width, height, format, stride;
@@ -2236,7 +2238,7 @@ nsWindow::GetIMEUpdatePreference()
 void
 nsWindow::DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect)
 {
-    JNIEnv *env = GetJNIForThread();
+    JNIEnv *env = AndroidBridge::GetJNIForCompositorThread();
     NS_ABORT_IF_FALSE(env, "No JNI environment at DrawWindowUnderlay()!");
     if (!env)
         return;
@@ -2254,7 +2256,7 @@ nsWindow::DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect)
 void
 nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 {
-    JNIEnv *env = GetJNIForThread();
+    JNIEnv *env = AndroidBridge::GetJNIForCompositorThread();
     NS_ABORT_IF_FALSE(env, "No JNI environment at DrawWindowOverlay()!");
     if (!env)
         return;
@@ -2277,14 +2279,17 @@ nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 
 nsRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent = 0;
 nsRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild = 0;
+base::Thread * nsWindow::sCompositorThread = 0;
 bool nsWindow::sCompositorPaused = false;
 
 void
 nsWindow::SetCompositor(mozilla::layers::CompositorParent* aCompositorParent,
-                        mozilla::layers::CompositorChild* aCompositorChild)
+                        mozilla::layers::CompositorChild* aCompositorChild,
+                        ::base::Thread* aCompositorThread)
 {
     sCompositorParent = aCompositorParent;
     sCompositorChild = aCompositorChild;
+    sCompositorThread = aCompositorThread;
 }
 
 void

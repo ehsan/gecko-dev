@@ -42,6 +42,7 @@ public:
 private:
   nsPIDOMWindow* mWindow;
 
+  nsCString mASCIIOrigin;
   mozilla::Mutex& mMutex;
   mozilla::CondVar mCondVar;
   PRUint32 mPromptResult;

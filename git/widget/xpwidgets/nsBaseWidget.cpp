@@ -40,6 +40,9 @@ static bool debug_InSecureKeyboardInputMode = false;
 static PRInt32 gNumWidgets;
 #endif
 
+static void InitOnlyOnce();
+static bool sUseOffMainThreadCompositing = false;
+
 using namespace mozilla::layers;
 using namespace mozilla;
 using base::Thread;
@@ -81,6 +84,7 @@ nsBaseWidget::nsBaseWidget()
 , mEventCallback(nsnull)
 , mViewCallback(nsnull)
 , mContext(nsnull)
+, mCompositorThread(nsnull)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
@@ -104,13 +108,16 @@ nsBaseWidget::nsBaseWidget()
 #ifdef DEBUG
   debug_RegisterPrefCallbacks();
 #endif
+  InitOnlyOnce();
 }
 
 
 static void DeferredDestroyCompositor(CompositorParent* aCompositorParent,
-                              CompositorChild* aCompositorChild)
+                              CompositorChild* aCompositorChild,
+                              Thread* aCompositorThread)
 {
     aCompositorChild->Destroy();
+    delete aCompositorThread;
     aCompositorParent->Release();
     aCompositorChild->Release();
 }
@@ -129,7 +136,7 @@ void nsBaseWidget::DestroyCompositor()
     // handle compositor desctruction.
     MessageLoop::current()->PostTask(FROM_HERE,
                NewRunnableFunction(DeferredDestroyCompositor, mCompositorParent,
-                                   mCompositorChild));
+                                   mCompositorChild, mCompositorThread));
     // The DestroyCompositor task we just added to the MessageLoop will handle
     // releasing mCompositorParent and mCompositorChild.
     mCompositorParent.forget();
@@ -145,7 +152,7 @@ void nsBaseWidget::DestroyCompositor()
 nsBaseWidget::~nsBaseWidget()
 {
   if (mLayerManager &&
-      mLayerManager->GetBackendType() == LAYERS_BASIC) {
+      mLayerManager->GetBackendType() == LayerManager::LAYERS_BASIC) {
     static_cast<BasicLayerManager*>(mLayerManager.get())->ClearRetainerWidget();
   }
 
@@ -179,9 +186,9 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
 {
   static bool gDisableNativeThemeCached = false;
   if (!gDisableNativeThemeCached) {
-    Preferences::AddBoolVarCache(&gDisableNativeTheme,
-                                 "mozilla.widget.disable-native-theme",
-                                 gDisableNativeTheme);
+    mozilla::Preferences::AddBoolVarCache(&gDisableNativeTheme,
+                                          "mozilla.widget.disable-native-theme",
+                                          gDisableNativeTheme);
     gDisableNativeThemeCached = true;
   }
 
@@ -737,7 +744,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
   BasicLayerManager* manager =
     static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
   if (manager) {
-    NS_ASSERTION(manager->GetBackendType() == LAYERS_BASIC,
+    NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
     manager->SetDefaultTarget(aTarget, aDoubleBuffering);
   }
@@ -748,7 +755,7 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
   BasicLayerManager* manager =
     static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
   if (manager) {
-    NS_ASSERTION(manager->GetBackendType() == LAYERS_BASIC,
+    NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
     manager->SetDefaultTarget(nsnull, BasicLayerManager::BUFFER_NONE);
   }
@@ -862,45 +869,52 @@ nsBaseWidget::GetShouldAccelerate()
 
 void nsBaseWidget::CreateCompositor()
 {
-  bool renderToEGLSurface = false;
+  mCompositorThread = new Thread("CompositorThread");
+  if (mCompositorThread->Start()) {
+    bool renderToEGLSurface = false;
 #ifdef MOZ_JAVA_COMPOSITOR
-  renderToEGLSurface = true;
+    renderToEGLSurface = true;
 #endif
-  nsIntRect rect;
-  GetBounds(rect);
-  mCompositorParent =
-    new CompositorParent(this, renderToEGLSurface, rect.width, rect.height);
-  LayerManager* lm = CreateBasicLayerManager();
-  MessageLoop *childMessageLoop = CompositorParent::CompositorLoop();
-  mCompositorChild = new CompositorChild(lm);
-  AsyncChannel *parentChannel = mCompositorParent->GetIPCChannel();
-  AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
-  mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
-  PRInt32 maxTextureSize;
-  PLayersChild* shadowManager;
-  mozilla::layers::LayersBackend backendHint =
-    mUseAcceleratedRendering ? mozilla::layers::LAYERS_OPENGL : mozilla::layers::LAYERS_BASIC;
-  mozilla::layers::LayersBackend parentBackend;
-  shadowManager = mCompositorChild->SendPLayersConstructor(
-    backendHint, 0, &parentBackend, &maxTextureSize);
+    nsIntRect rect;
+    GetBounds(rect);
+    mCompositorParent =
+      new CompositorParent(this, mCompositorThread->message_loop(), mCompositorThread->thread_id(),
+                           renderToEGLSurface, rect.width, rect.height);
+    LayerManager* lm = CreateBasicLayerManager();
+    MessageLoop *childMessageLoop = mCompositorThread->message_loop();
+    mCompositorChild = new CompositorChild(lm);
+    AsyncChannel *parentChannel = mCompositorParent->GetIPCChannel();
+    AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
+    mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
+    PRInt32 maxTextureSize;
+    PLayersChild* shadowManager;
+    if (mUseAcceleratedRendering) {
+      shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL, &maxTextureSize);
+    } else {
+      shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_BASIC, &maxTextureSize);
+    }
 
-  if (shadowManager) {
-    ShadowLayerForwarder* lf = lm->AsShadowForwarder();
-    if (!lf) {
+    if (shadowManager) {
+      ShadowLayerForwarder* lf = lm->AsShadowForwarder();
+      if (!lf) {
+        delete lm;
+        mCompositorChild = nsnull;
+        return;
+      }
+      lf->SetShadowManager(shadowManager);
+      if (mUseAcceleratedRendering)
+        lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
+      else
+        lf->SetParentBackendType(LayerManager::LAYERS_BASIC);
+      lf->SetMaxTextureSize(maxTextureSize);
+
+      mLayerManager = lm;
+    } else {
+      // We don't currently want to support not having a LayersChild
+      NS_RUNTIMEABORT("failed to construct LayersChild");
       delete lm;
       mCompositorChild = nsnull;
-      return;
     }
-    lf->SetShadowManager(shadowManager);
-    lf->SetParentBackendType(parentBackend);
-    lf->SetMaxTextureSize(maxTextureSize);
-
-    mLayerManager = lm;
-  } else {
-    // We don't currently want to support not having a LayersChild
-    NS_RUNTIMEABORT("failed to construct LayersChild");
-    delete lm;
-    mCompositorChild = nsnull;
   }
 }
 
@@ -908,7 +922,7 @@ bool nsBaseWidget::UseOffMainThreadCompositing()
 {
   bool isSmallPopup = ((mWindowType == eWindowType_popup) && 
                       (mPopupType != ePopupTypePanel));
-  return CompositorParent::CompositorLoop() && !isSmallPopup;
+  return sUseOffMainThreadCompositing && !isSmallPopup;
 }
 
 LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
@@ -1314,12 +1328,40 @@ PRUint32
 nsBaseWidget::GetGLFrameBufferFormat()
 {
   if (mLayerManager &&
-      mLayerManager->GetBackendType() == LAYERS_OPENGL) {
+      mLayerManager->GetBackendType() == LayerManager::LAYERS_OPENGL) {
     // Assume that the default framebuffer has RGBA format.  Specific
     // backends that know differently will override this method.
     return LOCAL_GL_RGBA;
   }
   return LOCAL_GL_NONE;
+}
+
+static void InitOnlyOnce()
+{
+  static bool once = true;
+  if (!once) {
+    return;
+  }
+  once = false;
+
+#ifdef MOZ_X11
+  // On X11 platforms only use OMTC if firefox was initalized with thread-safe 
+  // X11 (else it would crash).
+  sUseOffMainThreadCompositing = (PR_GetEnv("MOZ_USE_OMTC") != NULL);
+#else
+  sUseOffMainThreadCompositing = Preferences::GetBool(
+        "layers.offmainthreadcomposition.enabled", 
+        false);
+  // Until https://bugzilla.mozilla.org/show_bug.cgi?id=745148 lands,
+  // we use either omtc or content processes, but not both.  Prefer
+  // OOP content to omtc.  (Currently, this only affects b2g.)
+  //
+  // See https://bugzilla.mozilla.org/show_bug.cgi?id=761962 .
+  if (!Preferences::GetBool("dom.ipc.tabs.disabled", true)) {
+    // Disable omtc if OOP content isn't force-disabled.
+    sUseOffMainThreadCompositing = false;
+  }
+#endif
 }
 
 #ifdef DEBUG

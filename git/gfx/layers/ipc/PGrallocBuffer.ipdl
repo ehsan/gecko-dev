@@ -5,7 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-include protocol PImageContainer;
 include protocol PLayers;
 
 namespace mozilla {
@@ -18,7 +17,7 @@ namespace layers {
  * the PGrallocBuffer constructor).
  */
 async protocol PGrallocBuffer {
-  manager PImageContainer or PLayers;
+  manager PLayers;
 
   /** Gralloc buffers can be "owned" by either parent or child. */
 both:

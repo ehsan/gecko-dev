@@ -56,7 +56,7 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  virtual void ReflowSVG();
+  virtual void UpdateBounds();
   virtual void NotifySVGChanged(PRUint32 aFlags);
 
   // nsIAnonymousContentCreator
@@ -123,7 +123,7 @@ nsSVGUseFrame::AttributeChanged(PRInt32         aNameSpaceID,
         aAttribute == nsGkAtoms::y) {
       // make sure our cached transform matrix gets (lazily) updated
       mCanvasTM = nsnull;
-      nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
+      nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
       nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
     } else if (aAttribute == nsGkAtoms::width ||
                aAttribute == nsGkAtoms::height) {
@@ -137,13 +137,13 @@ nsSVGUseFrame::AttributeChanged(PRInt32         aNameSpaceID,
         useElement->SyncWidthOrHeight(aAttribute);
       }
       if (invalidate) {
-        nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
+        nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
       }
     }
   } else if (aNameSpaceID == kNameSpaceID_XLink &&
              aAttribute == nsGkAtoms::href) {
     // we're changing our nature, clear out the clone information
-    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
+    nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
     useElement->mOriginal = nsnull;
     useElement->UnlinkSource();
     useElement->TriggerReclone();
@@ -172,7 +172,7 @@ nsSVGUseFrame::IsLeaf() const
 // nsISVGChildFrame methods
 
 void
-nsSVGUseFrame::ReflowSVG()
+nsSVGUseFrame::UpdateBounds()
 {
   // We only handle x/y offset here, since any width/height that is in force is
   // handled by the nsSVGOuterSVGFrame for the anonymous <svg> that will be
@@ -183,7 +183,7 @@ nsSVGUseFrame::ReflowSVG()
   mRect.MoveTo(nsLayoutUtils::RoundGfxRectToAppRect(
                  gfxRect(x, y, 0.0, 0.0),
                  PresContext()->AppUnitsPerCSSPixel()).TopLeft());
-  nsSVGUseFrameBase::ReflowSVG();
+  nsSVGUseFrameBase::UpdateBounds();
 }
 
 void
@@ -203,7 +203,7 @@ nsSVGUseFrame::NotifySVGChanged(PRUint32 aFlags)
       // changed ancestor will have invalidated its entire area, which includes
       // our area.
       // For perf reasons we call this before calling NotifySVGChanged() below.
-      nsSVGUtils::ScheduleReflowSVG(this);
+      nsSVGUtils::ScheduleBoundsUpdate(this);
     }
   }
 

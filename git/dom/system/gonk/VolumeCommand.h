@@ -5,7 +5,6 @@
 #ifndef mozilla_system_volumecommand_h__
 #define mozilla_system_volumecommand_h__
 
-#include "nsString.h"
 #include "mozilla/RefPtr.h"
 #include <algorithm>
 #include <vold/ResponseCode.h>

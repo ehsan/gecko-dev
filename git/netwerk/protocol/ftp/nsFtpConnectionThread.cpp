@@ -2217,7 +2217,7 @@ nsFtpState::CheckCache()
     if (!cache)
         return false;
 
-    bool isPrivate = NS_UsePrivateBrowsing(mChannel);
+    bool isPrivate = mChannel->UsePrivateBrowsing();
     const char* sessionName = isPrivate ? "FTP-private" : "FTP";
     nsCacheStoragePolicy policy =
         isPrivate ? nsICache::STORE_IN_MEMORY : nsICache::STORE_ANYWHERE;

@@ -197,7 +197,7 @@ NS_IMETHODIMP
 nsNSSSocketInfo::JoinConnection(const nsACString & npnProtocol,
                                 const nsACString & hostname,
                                 PRInt32 port,
-                                bool *_retval)
+                                bool *_retval NS_OUTPARAM)
 {
   *_retval = false;
 

@@ -10,7 +10,6 @@
  */
 #include <string.h>
 
-#include "mozilla/RangedPtr.h"
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
@@ -40,8 +39,8 @@
 #include "frontend/TokenStream.h"
 #include "gc/Marking.h"
 #include "vm/Debugger.h"
+#include "vm/MethodGuard.h"
 #include "vm/ScopeObject.h"
-#include "vm/StringBuffer.h"
 #include "vm/Xdr.h"
 
 #ifdef JS_METHODJIT
@@ -62,7 +61,6 @@ using namespace mozilla;
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
-using namespace js::frontend;
 
 static JSBool
 fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, Value *vp)
@@ -390,6 +388,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
 
     if (mode == XDR_DECODE) {
         fun->nargs = flagsword >> 16;
+        JS_ASSERT((flagsword & JSFUN_KINDMASK) >= JSFUN_INTERPRETED);
         fun->flags = uint16_t(flagsword);
         fun->atom.init(atom);
         fun->initScript(script);
@@ -523,187 +522,34 @@ JS_FRIEND_DATA(Class) js::FunctionClass = {
     fun_trace
 };
 
-
-/* Find the body of a function (not including braces). */
-static bool
-FindBody(JSContext *cx, JSFunction *fun, const jschar *chars, size_t length,
-         size_t *bodyStart, size_t *bodyEnd)
+JSString *
+ToSourceCache::lookup(JSFunction *fun)
 {
-    // We don't need principals, since those are only used for error reporting.
-    TokenStream ts(cx, NULL, NULL, chars, length, "internal-FindBody", 0,
-                   fun->script()->getVersion(), NULL);
-    JS_ASSERT(chars[0] == '(');
-    int nest = 0;
-    bool onward = true;
-    // Skip arguments list.
-    do {
-        switch (ts.getToken()) {
-          case TOK_LP:
-            nest++;
-            break;
-          case TOK_RP:
-            if (--nest == 0)
-                onward = false;
-            break;
-          case TOK_ERROR:
-            // Must be memory.
-            return false;
-          default:
-            break;
-        }
-    } while (onward);
-    DebugOnly<bool> braced = ts.matchToken(TOK_LC);
-    if (ts.getToken() == TOK_ERROR)
-        return false;
-    JS_ASSERT(!!(fun->flags & JSFUN_EXPR_CLOSURE) ^ braced);
-    *bodyStart = ts.offsetOfToken(ts.currentToken());
-    RangedPtr<const jschar> p(chars, length);
-    p = chars + length;
-    for (; unicode::IsSpaceOrBOM2(p[-1]); p--)
-        ;
-    if (p[-1] == '}') {
-        p--;
-        for (; unicode::IsSpaceOrBOM2(p[-1]); p--)
-            ;
-    } else {
-        JS_ASSERT(!braced);
-    }
-    *bodyEnd = p.get() - chars;
-    return true;
+    if (!map_)
+        return NULL;
+    if (Map::Ptr p = map_->lookup(fun))
+        return p->value;
+    return NULL;
 }
 
-JSString *
-JSFunction::toString(JSContext *cx, bool bodyOnly, bool lambdaParen)
+void
+ToSourceCache::put(JSFunction *fun, JSString *str)
 {
-    StringBuffer out(cx);
-
-    if (!bodyOnly) {
-        // If we're not in pretty mode, put parentheses around lambda functions.
-        if (isInterpreted() && !lambdaParen && (flags & JSFUN_LAMBDA)) {
-            if (!out.append("("))
-                return NULL;
-        }
-        if (!out.append("function "))
-            return NULL;
-        if (atom) {
-            if (!out.append(atom))
-                return NULL;
-        }
+    if (!map_) {
+        map_ = OffTheBooks::new_<Map>();
+        if (!map_)
+            return;
+        map_->init();
     }
-    bool haveSource = isInterpreted();
-    if (haveSource && !script()->source && !script()->loadSource(cx, &haveSource))
-            return NULL;
-    if (haveSource) {
-        RootedString src(cx, script()->sourceData(cx));
-        if (!src)
-            return NULL;
-        const jschar *chars = src->getChars(cx);
-        if (!chars)
-            return NULL;
-        bool exprBody = flags & JSFUN_EXPR_CLOSURE;
 
-        // The source data for functions created by calling the Function
-        // constructor is only the function's body.
-        bool funCon = script()->sourceStart == 0 && script()->source->argumentsNotIncluded();
+    (void) map_->put(fun, str);
+}
 
-        // Functions created with the constructor should not be using the
-        // expression body extension.
-        JS_ASSERT_IF(funCon, !exprBody);
-        JS_ASSERT_IF(!funCon, src->length() > 0 && chars[0] == '(');
-
-        // If a function inherits strict mode by having scopes above it that
-        // have "use strict", we insert "use strict" into the body of the
-        // function. This ensures that if the result of toString is evaled, the
-        // resulting function will have the same semantics.
-        bool addUseStrict = script()->strictModeCode && !script()->explicitUseStrict;
-
-        // Functions created with the constructor can't have inherited strict
-        // mode.
-        JS_ASSERT(!funCon || !addUseStrict);
-        bool buildBody = funCon && !bodyOnly;
-        if (buildBody) {
-            // This function was created with the Function constructor. We don't
-            // have source for the arguments, so we have to generate that. Part
-            // of bug 755821 should be cobbling the arguments passed into the
-            // Function constructor into the source string.
-            if (!out.append("("))
-                return NULL;
-
-            // Fish out the argument names.
-            BindingVector *localNames = cx->new_<BindingVector>(cx);
-            js::ScopedDeletePtr<BindingVector> freeNames(localNames);
-            if (!GetOrderedBindings(cx, script()->bindings, localNames))
-                return NULL;
-            for (unsigned i = 0; i < nargs; i++) {
-                if ((i && !out.append(", ")) ||
-                    (i == unsigned(nargs - 1) && hasRest() && !out.append("...")) ||
-                    !out.append((*localNames)[i].maybeName)) {
-                    return NULL;
-                }
-            }
-            if (!out.append(") { "))
-                return NULL;
-        }
-        if ((bodyOnly && !funCon) || addUseStrict) {
-            // We need to get at the body either because we're only supposed to
-            // return the body or we need to insert "use strict" into the body.
-            JS_ASSERT(!buildBody);
-            size_t bodyStart = 0, bodyEnd = 0;
-            if (!FindBody(cx, this, chars, src->length(), &bodyStart, &bodyEnd))
-                return NULL;
-
-            if (addUseStrict) {
-                // Output source up to beginning of body.
-                if (!out.append(chars, bodyStart))
-                    return NULL;
-                if (exprBody) {
-                    // We can't insert a statement into a function with an
-                    // expression body. Do what the decompiler did, and insert a
-                    // comment.
-                    if (!out.append("/* use strict */ "))
-                        return NULL;
-                } else {
-                    if (!out.append("\"use strict\";\n"))
-                        return NULL;
-                }
-            }
-
-            // Output just the body (for bodyOnly) or the body and possibly
-            // closing braces (for addUseStrict).
-            size_t dependentEnd = (bodyOnly) ? bodyEnd : src->length();
-            if (!out.append(chars + bodyStart, dependentEnd - bodyStart))
-                return NULL;
-        } else {
-            if (!out.append(src))
-                return NULL;
-        }
-        if (buildBody) {
-            if (!out.append(" }"))
-                return NULL;
-        }
-        if (bodyOnly) {
-            // Slap a semicolon on the end of functions with an expression body.
-            if (exprBody && !out.append(";"))
-                return NULL;
-        } else if (!lambdaParen && (flags & JSFUN_LAMBDA)) {
-            if (!out.append(")"))
-                return NULL;
-        }
-    } else if (isInterpreted()) {
-        if ((!bodyOnly && !out.append("() {\n    ")) ||
-            !out.append("[sourceless code]") ||
-            (!bodyOnly && !out.append("\n}")))
-            return NULL;
-        if (!lambdaParen && (flags & JSFUN_LAMBDA) && (!out.append(")")))
-            return NULL;
-    } else {
-        JS_ASSERT(!(flags & JSFUN_EXPR_CLOSURE));
-        if ((!bodyOnly && !out.append("() {\n    ")) ||
-            !out.append("[native code]") ||
-            (!bodyOnly && !out.append("\n}")))
-            return NULL;
-    }
-    return out.finishString();
+void
+ToSourceCache::purge()
+{
+    Foreground::delete_(map_);
+    map_ = NULL;
 }
 
 JSString *
@@ -723,7 +569,19 @@ fun_toStringHelper(JSContext *cx, JSObject *obj, unsigned indent)
     if (!fun)
         return NULL;
 
-    return fun->toString(cx, false, indent != JS_DONT_PRETTY_PRINT);
+    if (!indent) {
+        if (JSString *str = cx->runtime->toSourceCache.lookup(fun))
+            return str;
+    }
+
+    JSString *str = JS_DecompileFunction(cx, fun, indent);
+    if (!str)
+        return NULL;
+
+    if (!indent)
+        cx->runtime->toSourceCache.put(fun, str);
+
+    return str;
 }
 
 static JSBool
@@ -1362,8 +1220,8 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
 
     /* Initialize all function members. */
     fun->nargs = uint16_t(nargs);
-    fun->flags = flags & (JSFUN_FLAGS_MASK | JSFUN_INTERPRETED);
-    if (flags & JSFUN_INTERPRETED) {
+    fun->flags = flags & (JSFUN_FLAGS_MASK | JSFUN_KINDMASK);
+    if ((flags & JSFUN_KINDMASK) >= JSFUN_INTERPRETED) {
         JS_ASSERT(!native);
         fun->mutableScript().init(NULL);
         fun->initEnvironment(parent);
@@ -1411,7 +1269,7 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
         clone->initializeExtended();
     }
 
-    if (cx->compartment == fun->compartment() && !types::UseNewTypeForClone(fun)) {
+    if (cx->compartment == fun->compartment()) {
         /*
          * We can use the same type as the original function provided that (a)
          * its prototype is correct, and (b) its type is not a singleton. The
@@ -1422,9 +1280,6 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
         if (fun->getProto() == proto && !fun->hasSingletonType())
             clone->setType(fun->type());
     } else {
-        if (!clone->setSingletonType(cx))
-            return NULL;
-
         /*
          * Across compartments we have to clone the script for interpreted
          * functions. Cross-compartment cloning only happens via JSAPI
@@ -1435,24 +1290,22 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
             RootedScript script(cx, clone->script());
             JS_ASSERT(script);
             JS_ASSERT(script->compartment() == fun->compartment());
-            JS_ASSERT_IF(script->compartment() != cx->compartment,
-                         !script->enclosingStaticScope() && !script->compileAndGo);
-
-            RootedObject scope(cx, script->enclosingStaticScope());
+            JS_ASSERT(script->compartment() != cx->compartment);
+            JS_ASSERT(!script->enclosingStaticScope());
 
             clone->mutableScript().init(NULL);
 
-            JSScript *cscript = CloneScript(cx, scope, clone, script);
+            JSScript *cscript = CloneScript(cx, NullPtr(), clone, script);
             if (!cscript)
                 return NULL;
 
             clone->setScript(cscript);
             cscript->setFunction(clone);
-
-            GlobalObject *global = script->compileAndGo ? &script->global() : NULL;
+            if (!clone->setTypeForScriptedFunction(cx))
+                return NULL;
 
             js_CallNewScriptHook(cx, clone->script(), clone);
-            Debugger::onNewScript(cx, clone->script(), global);
+            Debugger::onNewScript(cx, clone->script(), NULL);
         }
     }
     return clone;
@@ -1494,46 +1347,4 @@ js_DefineFunction(JSContext *cx, HandleObject obj, HandleId id, Native native,
         return NULL;
 
     return fun;
-}
-
-void
-js::ReportIncompatibleMethod(JSContext *cx, CallReceiver call, Class *clasp)
-{
-    Value &thisv = call.thisv();
-
-#ifdef DEBUG
-    if (thisv.isObject()) {
-        JS_ASSERT(thisv.toObject().getClass() != clasp ||
-                  !thisv.toObject().getProto() ||
-                  thisv.toObject().getProto()->getClass() != clasp);
-    } else if (thisv.isString()) {
-        JS_ASSERT(clasp != &StringClass);
-    } else if (thisv.isNumber()) {
-        JS_ASSERT(clasp != &NumberClass);
-    } else if (thisv.isBoolean()) {
-        JS_ASSERT(clasp != &BooleanClass);
-    } else {
-        JS_ASSERT(thisv.isUndefined() || thisv.isNull());
-    }
-#endif
-
-    if (JSFunction *fun = ReportIfNotFunction(cx, call.calleev())) {
-        JSAutoByteString funNameBytes;
-        if (const char *funName = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
-                                 clasp->name, funName, InformalValueTypeName(thisv));
-        }
-    }
-}
-
-void
-js::ReportIncompatible(JSContext *cx, CallReceiver call)
-{
-    if (JSFunction *fun = ReportIfNotFunction(cx, call.calleev())) {
-        JSAutoByteString funNameBytes;
-        if (const char *funName = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_METHOD,
-                                 funName, "method", InformalValueTypeName(call.thisv()));
-        }
-    }
 }

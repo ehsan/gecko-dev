@@ -80,9 +80,6 @@ struct NullPtr
 };
 
 template <typename T>
-class MutableHandle;
-
-template <typename T>
 class HandleBase {};
 
 /*
@@ -109,11 +106,6 @@ class Handle : public HandleBase<T>
     Handle(NullPtr) {
         typedef typename js::tl::StaticAssert<js::tl::IsPointerType<T>::result>::result _;
         ptr = reinterpret_cast<const T *>(&NullPtr::constNullValue);
-    }
-
-    friend class MutableHandle<T>;
-    Handle(MutableHandle<T> handle) {
-        ptr = handle.address();
     }
 
     /*
@@ -193,19 +185,6 @@ class MutableHandle : public MutableHandleBase<T>
         *ptr = v;
     }
 
-    /*
-     * This may be called only if the location of the T is guaranteed
-     * to be marked (for some reason other than being a Rooted),
-     * e.g., if it is guaranteed to be reachable from an implicit root.
-     *
-     * Create a MutableHandle from a raw location of a T.
-     */
-    static MutableHandle fromMarkedLocation(T *p) {
-        MutableHandle h;
-        h.ptr = p;
-        return h;
-    }
-
     T *address() const { return ptr; }
     T get() const { return *ptr; }
 
@@ -221,19 +200,11 @@ class MutableHandle : public MutableHandleBase<T>
 typedef MutableHandle<JSObject*>    MutableHandleObject;
 typedef MutableHandle<Value>        MutableHandleValue;
 
-/*
- * By default, pointers should use the inheritance hierarchy to find their
- * ThingRootKind. Some pointer types are explicitly set in jspubtd.h so that
- * Rooted<T> may be used without the class definition being available.
- */
-template <typename T>
-struct RootKind<T *> { static ThingRootKind rootKind() { return T::rootKind(); }; };
-
 template <typename T>
 struct RootMethods<T *>
 {
     static T *initial() { return NULL; }
-    static ThingRootKind kind() { return RootKind<T *>::rootKind(); }
+    static ThingRootKind kind() { return T::rootKind(); }
     static bool poisoned(T *v) { return IsPoisonedPtr(v); }
 };
 
@@ -361,7 +332,15 @@ class SkipRoot
 
   public:
     template <typename T>
-    SkipRoot(JSContext *cx, const T *ptr, size_t count = 1
+    SkipRoot(JSContext *cx, const T *ptr
+             JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    {
+        init(ContextFriendFields::get(cx), ptr, 1);
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    template <typename T>
+    SkipRoot(JSContext *cx, const T *ptr, size_t count
              JS_GUARD_OBJECT_NOTIFIER_PARAM)
     {
         init(ContextFriendFields::get(cx), ptr, count);
@@ -384,7 +363,14 @@ class SkipRoot
 
   public:
     template <typename T>
-    SkipRoot(JSContext *cx, const T *ptr, size_t count = 1
+    SkipRoot(JSContext *cx, const T *ptr
+              JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    template <typename T>
+    SkipRoot(JSContext *cx, const T *ptr, size_t count
               JS_GUARD_OBJECT_NOTIFIER_PARAM)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
@@ -403,16 +389,14 @@ JS_FRIEND_API(bool) RelaxRootChecksForContext(JSContext *cx);
 
 class AssertRootingUnnecessary {
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-#ifdef DEBUG
     JSContext *cx;
     bool prev;
-#endif
 public:
     AssertRootingUnnecessary(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : cx(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
 #ifdef DEBUG
-        this->cx = cx;
         prev = IsRootingUnnecessaryForContext(cx);
         SetRootingUnnecessaryForContext(cx, true);
 #endif

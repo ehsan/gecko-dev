@@ -10,6 +10,7 @@
 #include "jsinterp.h"
 
 #include "vm/GlobalObject.h"
+#include "vm/MethodGuard.h"
 #include "vm/Stack.h"
 #include "vm/Xdr.h"
 
@@ -417,7 +418,8 @@ Class js::NormalArgumentsObjectClass = {
     "Arguments",
     JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(NormalArgumentsObject::RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
+    JSCLASS_FOR_OF_ITERATION,
     JS_PropertyStub,         /* addProperty */
     args_delProperty,
     JS_PropertyStub,         /* getProperty */
@@ -435,7 +437,7 @@ Class js::NormalArgumentsObjectClass = {
         NULL,       /* equality    */
         NULL,       /* outerObject */
         NULL,       /* innerObject */
-        NULL,       /* iteratorObject  */
+        JS_ElementIteratorStub,
         NULL,       /* unused      */
         false,      /* isWrappedNative */
     }
@@ -450,7 +452,8 @@ Class js::StrictArgumentsObjectClass = {
     "Arguments",
     JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(StrictArgumentsObject::RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
+    JSCLASS_FOR_OF_ITERATION,
     JS_PropertyStub,         /* addProperty */
     args_delProperty,
     JS_PropertyStub,         /* getProperty */
@@ -468,7 +471,7 @@ Class js::StrictArgumentsObjectClass = {
         NULL,       /* equality    */
         NULL,       /* outerObject */
         NULL,       /* innerObject */
-        NULL,       /* iteratorObject  */
+        JS_ElementIteratorStub,
         NULL,       /* unused      */
         false,      /* isWrappedNative */
     }

@@ -41,9 +41,6 @@ JSCompartment::JSCompartment(JSRuntime *rt)
   : rt(rt),
     principals(NULL),
     global_(NULL),
-#ifdef JSGC_GENERATIONAL
-    gcStoreBuffer(&gcNursery),
-#endif
     needsBarrier_(false),
     gcState(NoGCScheduled),
     gcPreserveCode(false),
@@ -91,20 +88,6 @@ JSCompartment::init(JSContext *cx)
 
     if (!regExps.init(cx))
         return false;
-
-#ifdef JSGC_GENERATIONAL
-    /*
-     * If we are in the middle of post-barrier verification, we need to
-     * immediately begin collecting verification data on new compartments.
-     */
-    if (rt->gcVerifyPostData) {
-        if (!gcNursery.enable())
-            return false;
-
-        if (!gcStoreBuffer.enable())
-            return false;
-    }
-#endif
 
     return debuggees.init();
 }
@@ -293,6 +276,8 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (!crossCompartmentWrappers.put(key, *vp))
         return false;
 
+    if (!JSObject::setParent(cx, wrapper, global))
+        return false;
     return true;
 }
 
@@ -571,10 +556,6 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
         {
             gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_FREE_TI_ARENA);
             oldAlloc.freeAll();
-            if (types.constrainedOutputs) {
-                fop->delete_(types.constrainedOutputs);
-                types.constrainedOutputs = NULL;
-            }
         }
     }
 

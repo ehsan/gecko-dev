@@ -13,7 +13,6 @@
 #ifdef MOZ_WIDGET_QT
 #include <QtCore/QCoreApplication>
 #include <QtCore/QEventLoop>
-#include "NestedLoopTimer.h"
 #endif
 
 #include "base/process_util.h"

@@ -610,7 +610,7 @@ nsWindow::Destroy(void)
     /** Need to clean our LayerManager up while still alive */
     if (mLayerManager) {
         nsRefPtr<GLContext> gl = nsnull;
-        if (mLayerManager->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
+        if (mLayerManager->GetBackendType() == LayerManager::LAYERS_OPENGL) {
             LayerManagerOGL *ogllm = static_cast<LayerManagerOGL*>(mLayerManager.get());
             gl = ogllm->gl();
         }
@@ -908,10 +908,11 @@ nsWindow::SetModal(bool aModal)
 }
 
 // nsIWidget method, which means IsShown.
-bool
-nsWindow::IsVisible() const
+NS_IMETHODIMP
+nsWindow::IsVisible(bool& aState)
 {
-    return mIsShown;
+    aState = mIsShown;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1148,10 +1149,12 @@ nsWindow::Enable(bool aState)
     return NS_OK;
 }
 
-bool
-nsWindow::IsEnabled() const
+NS_IMETHODIMP
+nsWindow::IsEnabled(bool *aState)
 {
-    return mEnabled;
+    *aState = mEnabled;
+
+    return NS_OK;
 }
 
 
@@ -2137,7 +2140,7 @@ nsWindow::OnExposeEvent(cairo_t *cr)
 
         return TRUE;
     
-    } else if (GetLayerManager()->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
+    } else if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
         LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
         manager->SetClippingRegion(event.region);
 
@@ -6201,7 +6204,7 @@ void
 nsWindow::ClearCachedResources()
 {
     if (mLayerManager &&
-        mLayerManager->GetBackendType() == mozilla::layers::LAYERS_BASIC) {
+        mLayerManager->GetBackendType() == LayerManager::LAYERS_BASIC) {
         static_cast<BasicLayerManager*> (mLayerManager.get())->
             ClearCachedResources();
     }

@@ -63,7 +63,7 @@ StaticScopeIter::scopeShape() const
 {
     JS_ASSERT(hasDynamicScopeObject());
     JS_ASSERT(type() != NAMED_LAMBDA);
-    return type() == BLOCK ? block().lastProperty() : funScript()->bindings.lastBinding;
+    return type() == BLOCK ? block().lastProperty() : funScript()->bindings.lastShape();
 }
 
 StaticScopeIter::Type
@@ -255,6 +255,26 @@ CallObject::createForStrictEval(JSContext *cx, StackFrame *fp)
 
     Rooted<JSFunction*> callee(cx, NULL);
     return create(cx, fp->script(), fp->scopeChain(), callee);
+}
+
+JSBool
+CallObject::setArgOp(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Value *vp)
+{
+    /* TODO: this can totally be a data property now. */
+    JS_ASSERT((int16_t) JSID_TO_INT(id) == JSID_TO_INT(id));
+    unsigned i = (uint16_t) JSID_TO_INT(id);
+    obj->asCall().setFormal(i, *vp);
+    return true;
+}
+
+JSBool
+CallObject::setVarOp(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Value *vp)
+{
+    /* TODO: this can totally be a data property now. */
+    JS_ASSERT((int16_t) JSID_TO_INT(id) == JSID_TO_INT(id));
+    unsigned i = (uint16_t) JSID_TO_INT(id);
+    obj->asCall().setVar(i, *vp);
+    return true;
 }
 
 JS_PUBLIC_DATA(Class) js::CallClass = {
@@ -1103,12 +1123,7 @@ class DebugScopeProxy : public BaseProxyHandler
             if (!script->ensureHasTypes(cx))
                 return false;
 
-            Bindings &bindings = script->bindings;
-            unsigned i = shape->slot() - CallObject::RESERVED_SLOTS;
-            bool isArg = i < bindings.numArgs();
-            bool isVar = !isArg && (i - bindings.numArgs()) < bindings.numVars();
-
-            if (isVar) {
+            if (shape->setterOp() == CallObject::setVarOp) {
                 unsigned i = shape->shortid();
                 if (script->varIsAliased(i))
                     return false;
@@ -1131,7 +1146,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 return true;
             }
 
-            if (isArg) {
+            if (shape->setterOp() == CallObject::setArgOp) {
                 unsigned i = shape->shortid();
                 if (script->formalLivesInCallObject(i))
                     return false;

@@ -18,7 +18,7 @@
 #include "gfxPattern.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
-#include "LayersBackend.h"
+
 #include "mozilla/gfx/2D.h"
 #include "mozilla/TimeStamp.h"
 
@@ -54,7 +54,6 @@ class ImageContainer;
 class CanvasLayer;
 class ReadbackLayer;
 class ReadbackProcessor;
-class RefLayer;
 class ShadowLayer;
 class ShadowableLayer;
 class ShadowLayerForwarder;
@@ -168,10 +167,60 @@ public:
  * BasicLayerManager for such an implementation.
  */
 
-static void LayerManagerUserDataDestroy(void *data)
-{
-  delete static_cast<LayerUserData*>(data);
-}
+/**
+ * Helper class to manage user data for layers and LayerManagers.
+ */
+class THEBES_API LayerUserDataSet {
+public:
+  LayerUserDataSet() : mKey(nsnull) {}
+
+  void Set(void* aKey, LayerUserData* aValue)
+  {
+    NS_ASSERTION(!mKey || mKey == aKey,
+                 "Multiple LayerUserData objects not supported");
+    mKey = aKey;
+    mValue = aValue;
+  }
+  /**
+   * This can be used anytime. Ownership passes to the caller!
+   */
+  LayerUserData* Remove(void* aKey)
+  {
+    if (mKey == aKey) {
+      mKey = nsnull;
+      LayerUserData* d = mValue.forget();
+      return d;
+    }
+    return nsnull;
+  }
+  /**
+   * This getter can be used anytime.
+   */
+  bool Has(void* aKey)
+  {
+    return mKey == aKey;
+  }
+  /**
+   * This getter can be used anytime. Ownership is retained by this object.
+   */
+  LayerUserData* Get(void* aKey)
+  {
+    return mKey == aKey ? mValue.get() : nsnull;
+  }
+
+  /**
+   * Clear out current user data.
+   */
+  void Clear()
+  {
+    mKey = nsnull;
+    mValue = nsnull;
+  }
+
+private:
+  void* mKey;
+  nsAutoPtr<LayerUserData> mValue;
+};
 
 /**
  * A LayerManager controls a tree of layers. All layers in the tree
@@ -200,7 +249,16 @@ class THEBES_API LayerManager {
   NS_INLINE_DECL_REFCOUNTING(LayerManager)
 
 public:
-  LayerManager() : mDestroyed(false), mSnapEffectiveTransforms(true), mId(0)
+  enum LayersBackend {
+    LAYERS_NONE = 0,
+    LAYERS_BASIC,
+    LAYERS_OPENGL,
+    LAYERS_D3D9,
+    LAYERS_D3D10,
+    LAYERS_LAST
+  };
+
+  LayerManager() : mDestroyed(false), mSnapEffectiveTransforms(true)
   {
     InitLog();
   }
@@ -212,7 +270,7 @@ public:
    * for its widget going away.  After this call, only user data calls
    * are valid on the layer manager.
    */
-  virtual void Destroy() { mDestroyed = true; mUserData.Destroy(); }
+  virtual void Destroy() { mDestroyed = true; mUserData.Clear(); }
   bool IsDestroyed() { return mDestroyed; }
 
   virtual ShadowLayerForwarder* AsShadowForwarder()
@@ -220,12 +278,6 @@ public:
 
   virtual ShadowLayerManager* AsShadowManager()
   { return nsnull; }
-
-  /**
-   * Returns true if this LayerManager is owned by an nsIWidget,
-   * and is used for drawing into the widget.
-   */
-  virtual bool IsWidgetLayerManager() { return true; }
 
   /**
    * Start a new transaction. Nested transactions are not allowed so
@@ -302,13 +354,6 @@ public:
 
   bool IsSnappingEffectiveTransforms() { return mSnapEffectiveTransforms; } 
 
-  /** 
-   * Returns true if this LayerManager can properly support layers with
-   * SURFACE_COMPONENT_ALPHA. This can include disabling component
-   * alpha if required.
-   */
-  virtual bool AreComponentAlphaLayersEnabled() { return true; }
-
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the root layer. The root layer is initially null. If there is
@@ -363,30 +408,11 @@ public:
    * Create a ReadbackLayer for this manager's layer tree.
    */
   virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer() { return nsnull; }
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Create a RefLayer for this manager's layer tree.
-   */
-  virtual already_AddRefed<RefLayer> CreateRefLayer() { return nsnull; }
-
 
   /**
    * Can be called anytime, from any thread.
-   *
-   * Creates an Image container which forwards its images to the compositor within
-   * layer transactions on the main thread.
    */
   static already_AddRefed<ImageContainer> CreateImageContainer();
-  
-  /**
-   * Can be called anytime, from any thread.
-   *
-   * Tries to create an Image container which forwards its images to the compositor 
-   * asynchronously using the ImageBridge IPDL protocol. If the protocol is not
-   * available, the returned ImageContainer will forward images within layer 
-   * transactions, just like if it was created with CreateImageContainer().
-   */
-  static already_AddRefed<ImageContainer> CreateAsynchronousImageContainer();
 
   /**
    * Type of layer manager his is. This is to be used sparsely in order to
@@ -438,32 +464,23 @@ public:
    * initially null. Ownership pases to the layer manager.
    */
   void SetUserData(void* aKey, LayerUserData* aData)
-  {
-    mUserData.Add(static_cast<gfx::UserDataKey*>(aKey), aData, LayerManagerUserDataDestroy);
-  }
+  { mUserData.Set(aKey, aData); }
   /**
    * This can be used anytime. Ownership passes to the caller!
    */
   nsAutoPtr<LayerUserData> RemoveUserData(void* aKey)
-  { 
-    nsAutoPtr<LayerUserData> d(static_cast<LayerUserData*>(mUserData.Remove(static_cast<gfx::UserDataKey*>(aKey)))); 
-    return d;
-  }
+  { nsAutoPtr<LayerUserData> d(mUserData.Remove(aKey)); return d; }
   /**
    * This getter can be used anytime.
    */
   bool HasUserData(void* aKey)
-  {
-    return GetUserData(aKey);
-  }
+  { return mUserData.Has(aKey); }
   /**
    * This getter can be used anytime. Ownership is retained by the layer
    * manager.
    */
   LayerUserData* GetUserData(void* aKey)
-  { 
-    return static_cast<LayerUserData*>(mUserData.Get(static_cast<gfx::UserDataKey*>(aKey)));
-  }
+  { return mUserData.Get(aKey); }
 
   /**
    * Flag the next paint as the first for a document.
@@ -506,14 +523,14 @@ public:
   static bool IsLogEnabled();
   static PRLogModuleInfo* GetLog() { return sLog; }
 
-  bool IsCompositingCheap(LayersBackend aBackend)
+  bool IsCompositingCheap(LayerManager::LayersBackend aBackend)
   { return LAYERS_BASIC != aBackend; }
 
   virtual bool IsCompositingCheap() { return true; }
 
 protected:
   nsRefPtr<Layer> mRoot;
-  gfx::UserData mUserData;
+  LayerUserDataSet mUserData;
   bool mDestroyed;
   bool mSnapEffectiveTransforms;
 
@@ -523,7 +540,6 @@ protected:
 
   static void InitLog();
   static PRLogModuleInfo* sLog;
-  uint64_t mId;
 private:
   TimeStamp mLastFrameTime;
   nsTArray<float> mFrameTimes;
@@ -546,7 +562,6 @@ public:
     TYPE_CONTAINER,
     TYPE_IMAGE,
     TYPE_READBACK,
-    TYPE_REF,
     TYPE_SHADOW,
     TYPE_THEBES
   };
@@ -774,32 +789,23 @@ public:
    * initially null. Ownership pases to the layer manager.
    */
   void SetUserData(void* aKey, LayerUserData* aData)
-  { 
-    mUserData.Add(static_cast<gfx::UserDataKey*>(aKey), aData, LayerManagerUserDataDestroy);
-  }
+  { mUserData.Set(aKey, aData); }
   /**
    * This can be used anytime. Ownership passes to the caller!
    */
   nsAutoPtr<LayerUserData> RemoveUserData(void* aKey)
-  { 
-    nsAutoPtr<LayerUserData> d(static_cast<LayerUserData*>(mUserData.Remove(static_cast<gfx::UserDataKey*>(aKey)))); 
-    return d;
-  }
+  { nsAutoPtr<LayerUserData> d(mUserData.Remove(aKey)); return d; }
   /**
    * This getter can be used anytime.
    */
   bool HasUserData(void* aKey)
-  {
-    return GetUserData(aKey);
-  }
+  { return mUserData.Has(aKey); }
   /**
    * This getter can be used anytime. Ownership is retained by the layer
    * manager.
    */
   LayerUserData* GetUserData(void* aKey)
-  { 
-    return static_cast<LayerUserData*>(mUserData.Get(static_cast<gfx::UserDataKey*>(aKey)));
-  }
+  { return mUserData.Get(aKey); }
 
   /**
    * |Disconnect()| is used by layers hooked up over IPC.  It may be
@@ -823,12 +829,6 @@ public:
    * a ContainerLayer.
    */
   virtual ContainerLayer* AsContainerLayer() { return nsnull; }
-
-   /**
-    * Dynamic cast to a RefLayer. Returns null if this is not a
-    * RefLayer.
-    */
-  virtual RefLayer* AsRefLayer() { return nsnull; }
 
   /**
    * Dynamic cast to a ShadowLayer.  Return null if this is not a
@@ -991,7 +991,7 @@ protected:
   Layer* mPrevSibling;
   void* mImplData;
   nsRefPtr<Layer> mMaskLayer;
-  gfx::UserData mUserData;
+  LayerUserDataSet mUserData;
   nsIntRegion mVisibleRegion;
   gfx3DMatrix mTransform;
   gfx3DMatrix mEffectiveTransform;
@@ -1380,96 +1380,6 @@ protected:
    * Set to true in Updated(), cleared during a transaction.
    */
   bool mDirty;
-};
-
-/**
- * ContainerLayer that refers to a "foreign" layer tree, through an
- * ID.  Usage of RefLayer looks like
- *
- * Construction phase:
- *   allocate ID for layer subtree
- *   create RefLayer, SetReferentId(ID)
- *
- * Composition:
- *   look up subtree for GetReferentId()
- *   ConnectReferentLayer(subtree)
- *   compose
- *   ClearReferentLayer()
- *
- * Clients will usually want to Connect/Clear() on each transaction to
- * avoid difficulties managing memory across multiple layer subtrees.
- */
-class THEBES_API RefLayer : public ContainerLayer {
-  friend class LayerManager;
-
-private:
-  virtual void InsertAfter(Layer* aChild, Layer* aAfter)
-  { MOZ_NOT_REACHED("no"); }
-
-  virtual void RemoveChild(Layer* aChild)
-  { MOZ_NOT_REACHED("no"); }
-
-  using ContainerLayer::SetFrameMetrics;
-
-public:
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Set the ID of the layer's referent.
-   */
-  void SetReferentId(uint64_t aId)
-  {
-    MOZ_ASSERT(aId != 0);
-    mId = aId;
-  }
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Connect this ref layer to its referent, temporarily.
-   * ClearReferentLayer() must be called after composition.
-   */
-  void ConnectReferentLayer(Layer* aLayer)
-  {
-    MOZ_ASSERT(!mFirstChild && !mLastChild);
-    MOZ_ASSERT(!aLayer->GetParent());
-
-    mFirstChild = mLastChild = aLayer;
-    aLayer->SetParent(this);
-  }
-
-  /**
-   * DRAWING PHASE ONLY
-   * |aLayer| is the same as the argument to ConnectReferentLayer().
-   */
-  void DetachReferentLayer(Layer* aLayer)
-  {
-    MOZ_ASSERT(aLayer == mFirstChild && mFirstChild == mLastChild);
-    MOZ_ASSERT(aLayer->GetParent() == this);
-
-    mFirstChild = mLastChild = nsnull;
-    aLayer->SetParent(nsnull);
-  }
-
-  // These getters can be used anytime.
-  virtual RefLayer* AsRefLayer() { return this; }
-
-  virtual int64_t GetReferentId() { return mId; }
-
-  /**
-   * DRAWING PHASE ONLY
-   */
-  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs);
-
-  MOZ_LAYER_DECL_NAME("RefLayer", TYPE_REF)
-
-protected:
-  RefLayer(LayerManager* aManager, void* aImplData)
-    : ContainerLayer(aManager, aImplData) , mId(0)
-  {}
-
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
-
-  Layer* mTempReferent;
-  // 0 is a special value that means "no ID".
-  uint64_t mId;
 };
 
 #ifdef MOZ_DUMP_PAINTING

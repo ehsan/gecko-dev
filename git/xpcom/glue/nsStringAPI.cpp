@@ -268,7 +268,7 @@ nsAString::EqualsLiteral(const char *aASCIIString) const
     }
   }
 
-  return *aASCIIString == '\0';
+  return *aASCIIString == nsnull;
 }
 
 bool
@@ -284,7 +284,7 @@ nsAString::LowerCaseEqualsLiteral(const char *aASCIIString) const
     }
   }
 
-  return *aASCIIString == '\0';
+  return *aASCIIString == nsnull;
 }
 
 PRInt32

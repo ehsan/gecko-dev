@@ -841,7 +841,7 @@ let AboutHomeUtils = {
     let aboutHomeURI = Services.io.newURI("moz-safe-about:home", null, null);
     let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"].
                     getService(Components.interfaces.nsIScriptSecurityManager).
-                    getNoAppCodebasePrincipal(aboutHomeURI);
+                    getCodebasePrincipal(aboutHomeURI);
     let dsm = Components.classes["@mozilla.org/dom/storagemanager;1"].
               getService(Components.interfaces.nsIDOMStorageManager);
     return dsm.getLocalStorageForPrincipal(principal, "");

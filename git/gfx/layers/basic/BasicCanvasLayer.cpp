@@ -9,8 +9,6 @@
 #include "gfxUtils.h"
 
 #include "BasicLayersImpl.h"
-#include "nsXULAppAPI.h"
-#include "LayersBackend.h"
 
 using namespace mozilla::gfx;
 
@@ -182,12 +180,9 @@ BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
     if (currentFramebuffer != mCanvasFramebuffer)
       mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mCanvasFramebuffer);
 
-    // We need to Flush() the surface before modifying it outside of cairo.
-    isurf->Flush();
     mGLContext->ReadPixelsIntoImageSurface(0, 0,
                                            mBounds.width, mBounds.height,
                                            isurf);
-    isurf->MarkDirty();
 
     // Put back the previous framebuffer binding.
     if (currentFramebuffer != mCanvasFramebuffer)
@@ -317,28 +312,13 @@ public:
 
   void DestroyBackBuffer()
   {
-    if (mBackBuffer.type() == SurfaceDescriptor::TSharedTextureDescriptor) {
-      SharedTextureDescriptor handle = mBackBuffer.get_SharedTextureDescriptor();
-      if (mGLContext && handle.handle()) {
-        mGLContext->ReleaseSharedHandle(handle.shareType(), handle.handle());
-        mBackBuffer = SurfaceDescriptor();
-      }
-    } else if (IsSurfaceDescriptorValid(mBackBuffer)) {
+    if (IsSurfaceDescriptorValid(mBackBuffer)) {
       BasicManager()->ShadowLayerForwarder::DestroySharedSurface(&mBackBuffer);
       mBackBuffer = SurfaceDescriptor();
     }
   }
 
 private:
-  typedef mozilla::gl::SharedTextureHandle SharedTextureHandle;
-  typedef mozilla::gl::TextureImage TextureImage;
-  SharedTextureHandle GetSharedBackBufferHandle()
-  {
-    if (mBackBuffer.type() == SurfaceDescriptor::TSharedTextureDescriptor)
-      return mBackBuffer.get_SharedTextureDescriptor().handle();
-    return 0;
-  }
-
   BasicShadowLayerManager* BasicManager()
   {
     return static_cast<BasicShadowLayerManager*>(mManager);
@@ -374,35 +354,6 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
     return;
   }
 
-  if (mGLContext &&
-      BasicManager()->GetParentBackendType() == mozilla::layers::LAYERS_OPENGL) {
-    TextureImage::TextureShareType flags;
-    // if process type is default, then it is single-process (non-e10s)
-    if (XRE_GetProcessType() == GeckoProcessType_Default)
-      flags = TextureImage::ThreadShared;
-    else
-      flags = TextureImage::ProcessShared;
-
-    SharedTextureHandle handle = GetSharedBackBufferHandle();
-    if (!handle) {
-      handle = mGLContext->CreateSharedHandle(flags);
-      if (handle) {
-        mBackBuffer = SharedTextureDescriptor(flags, handle, mBounds.Size(), false);
-      }
-    }
-    if (handle) {
-      mGLContext->MakeCurrent();
-      mGLContext->UpdateSharedHandle(flags, handle);
-      FireDidTransactionCallback();
-      BasicManager()->PaintedCanvas(BasicManager()->Hold(this),
-                                    mNeedsYFlip,
-                                    mBackBuffer);
-      // Move SharedTextureHandle ownership to ShadowLayer
-      mBackBuffer = SurfaceDescriptor();
-      return;
-    }
-  }
-
   bool isOpaque = (GetContentFlags() & CONTENT_OPAQUE);
   if (!IsSurfaceDescriptorValid(mBackBuffer) ||
       isOpaque != mBufferIsOpaque) {
@@ -426,7 +377,8 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
   FireDidTransactionCallback();
 
   BasicManager()->PaintedCanvas(BasicManager()->Hold(this),
-                                mNeedsYFlip, mBackBuffer);
+                                mNeedsYFlip ? true : false,
+                                mBackBuffer);
 }
 
 class BasicShadowCanvasLayer : public ShadowCanvasLayer,

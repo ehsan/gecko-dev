@@ -19,11 +19,6 @@ struct ResourceMapping;
 struct OverrideMapping;
 
 namespace mozilla {
-
-namespace layers {
-class PCompositorChild;
-}
-
 namespace dom {
 
 class AlertObserver;
@@ -33,8 +28,6 @@ class PStorageChild;
 
 class ContentChild : public PContentChild
 {
-    typedef layers::PCompositorChild PCompositorChild;
-
 public:
     ContentChild();
     virtual ~ContentChild();
@@ -59,16 +52,12 @@ public:
         return mAppInfo;
     }
 
-    PCompositorChild* AllocPCompositor(ipc::Transport* aTransport,
-                                       base::ProcessId aOtherProcess) MOZ_OVERRIDE;
+    /* if you remove this, please talk to cjones or dougt */
+    virtual bool RecvDummy(Shmem& foo) { return true; }
 
     virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags,
-                                         const bool& aIsBrowserElement,
-                                         const PRUint32& aAppId);
+                                         const bool& aIsBrowserFrame);
     virtual bool DeallocPBrowser(PBrowserChild*);
-
-    virtual PDeviceStorageRequestChild* AllocPDeviceStorageRequest(const DeviceStorageParams&);
-    virtual bool DeallocPDeviceStorageRequest(PDeviceStorageRequestChild*);
 
     virtual PCrashReporterChild*
     AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
@@ -76,11 +65,8 @@ public:
     virtual bool
     DeallocPCrashReporter(PCrashReporterChild*);
 
-    virtual PHalChild* AllocPHal() MOZ_OVERRIDE;
-    virtual bool DeallocPHal(PHalChild*) MOZ_OVERRIDE;
-
-    virtual PIndexedDBChild* AllocPIndexedDB();
-    virtual bool DeallocPIndexedDB(PIndexedDBChild* aActor);
+    NS_OVERRIDE virtual PHalChild* AllocPHal();
+    NS_OVERRIDE virtual bool DeallocPHal(PHalChild*);
 
     virtual PMemoryReportRequestChild*
     AllocPMemoryReportRequest();
@@ -165,9 +151,11 @@ public:
     PRUint64 GetID() { return mID; }
 
 private:
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why);
 
-    virtual void ProcessingError(Result what) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual void ProcessingError(Result what);
 
     /**
      * Exit *now*.  Do not shut down XPCOM, do not pass Go, do not run

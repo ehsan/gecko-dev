@@ -15,7 +15,6 @@
 #include "nsAutoPtr.h"
 #include "BasicLayers.h"
 #include "nsIRollupListener.h"
-#include "LayersBackend.h"
 
 class nsIContent;
 class nsAutoRollup;
@@ -99,7 +98,7 @@ public:
   NS_IMETHOD              MakeFullScreen(bool aFullScreen);
   virtual nsDeviceContext* GetDeviceContext();
   virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nsnull,
-                                          LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
+                                          LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nsnull);
 
@@ -297,6 +296,7 @@ protected:
   nsRefPtr<LayerManager> mBasicLayerManager;
   nsRefPtr<CompositorChild> mCompositorChild;
   nsRefPtr<CompositorParent> mCompositorParent;
+  Thread*           mCompositorThread;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;

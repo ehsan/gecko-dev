@@ -30,7 +30,7 @@ public:
                      uint16_t* stype);
   virtual ~BrowserStreamChild();
 
-  virtual bool IsBrowserStream() MOZ_OVERRIDE { return true; }
+  NS_OVERRIDE virtual bool IsBrowserStream() { return true; }
 
   NPError StreamConstructed(
             const nsCString& mimeType,

@@ -8,20 +8,20 @@
 #include <string.h>
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jsfun.h"
 #include "jsgc.h"
 #include "jsprvtd.h"
 #include "jsnum.h"
+#include "jsobjinlines.h"
 #include "jsproxy.h"
 #include "jsscope.h"
 
 #include "gc/Marking.h"
+#include "vm/MethodGuard.h"
+#include "vm/RegExpObject-inl.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
-
-#include "vm/RegExpObject-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -318,10 +318,10 @@ BaseProxyHandler::iteratorNext(JSContext *cx, JSObject *proxy, Value *vp)
 }
 
 bool
-BaseProxyHandler::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args)
+BaseProxyHandler::nativeCall(JSContext *cx, JSObject *proxy, Class *clasp, Native native, CallArgs args)
 {
-    JS_ASSERT(OperationInProgress(cx, &args.thisv().toObject()));
-    ReportIncompatible(cx, args);
+    JS_ASSERT(OperationInProgress(cx, proxy));
+    ReportIncompatibleMethod(cx, args, clasp);
     return false;
 }
 
@@ -457,16 +457,11 @@ IndirectProxyHandler::construct(JSContext *cx, JSObject *proxy, unsigned argc,
 }
 
 bool
-IndirectProxyHandler::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
-                                    CallArgs args)
+IndirectProxyHandler::nativeCall(JSContext *cx, JSObject *proxy, Class *clasp,
+                                 Native native, CallArgs args)
 {
-    args.thisv() = ObjectValue(*GetProxyTargetObject(&args.thisv().toObject()));
-    if (!test(args.thisv())) {
-        ReportIncompatible(cx, args);
-        return false;
-    }
-
-    return CallNativeImpl(cx, impl, args);
+    args.thisv() = ObjectValue(*GetProxyTargetObject(proxy));
+    return CallJSNative(cx, native, args);
 }
 
 bool
@@ -557,7 +552,7 @@ bool
 DirectProxyHandler::hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 {
     JSObject *target = GetProxyTargetObject(proxy);
-    AutoPropertyDescriptorRooter desc(cx);
+    PropertyDescriptor desc;
     if (!JS_GetPropertyDescriptorById(cx, target, id, JSRESOLVE_QUALIFIED,
                                       &desc))
         return false;
@@ -751,8 +746,6 @@ class ScriptedProxyHandler : public IndirectProxyHandler {
     virtual bool keys(JSContext *cx, JSObject *proxy, AutoIdVector &props);
     virtual bool iterate(JSContext *cx, JSObject *proxy, unsigned flags, Value *vp);
 
-    /* Spidermonkey extensions. */
-    virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args) MOZ_OVERRIDE;
     virtual JSType typeOf(JSContext *cx, JSObject *proxy);
     virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
 
@@ -962,14 +955,6 @@ ScriptedProxyHandler::iterate(JSContext *cx, JSObject *proxy_, unsigned flags, V
            ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(iterate), *vp);
 }
 
-bool
-ScriptedProxyHandler::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
-                                 CallArgs args)
-{
-    return BaseProxyHandler::nativeCall(cx, test, impl, args);
-}
-
-
 JSType
 ScriptedProxyHandler::typeOf(JSContext *cx, JSObject *proxy)
 {
@@ -1167,12 +1152,11 @@ Proxy::construct(JSContext *cx, JSObject *proxy, unsigned argc, Value *argv, Val
 }
 
 bool
-Proxy::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args)
+Proxy::nativeCall(JSContext *cx, JSObject *proxy, Class *clasp, Native native, CallArgs args)
 {
     JS_CHECK_RECURSION(cx, return false);
-    Rooted<JSObject*> proxy(cx, &args.thisv().toObject());
     AutoPendingProxyOperation pending(cx, proxy);
-    return GetProxyHandler(proxy)->nativeCall(cx, test, impl, args);
+    return GetProxyHandler(proxy)->nativeCall(cx, proxy, clasp, native, args);
 }
 
 bool

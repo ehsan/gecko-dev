@@ -249,11 +249,7 @@ function add_permission(aURI)
   check_permission_exists(aURI, false);
   let pm = Cc["@mozilla.org/permissionmanager;1"].
            getService(Ci.nsIPermissionManager);
-  let principal = Cc["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(aURI);
-
-  pm.addFromPrincipal(principal, PERMISSION_TYPE, PERMISSION_VALUE);
+  pm.add(aURI, PERMISSION_TYPE, PERMISSION_VALUE);
   check_permission_exists(aURI, true);
 }
 
@@ -269,11 +265,7 @@ function check_permission_exists(aURI, aExists)
 {
   let pm = Cc["@mozilla.org/permissionmanager;1"].
            getService(Ci.nsIPermissionManager);
-  let principal = Cc["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(aURI);
-
-  let perm = pm.testExactPermissionFromPrincipal(principal, PERMISSION_TYPE);
+  let perm = pm.testExactPermission(aURI, PERMISSION_TYPE);
   let checker = aExists ? do_check_eq : do_check_neq;
   checker(perm, PERMISSION_VALUE);
 }
@@ -551,7 +543,7 @@ function test_storage_cleared()
   {
     let principal = Cc["@mozilla.org/scriptsecuritymanager;1"].
                     getService(Ci.nsIScriptSecurityManager).
-                    getNoAppCodebasePrincipal(aURI);
+                    getCodebasePrincipal(aURI);
     let dsm = Cc["@mozilla.org/dom/storagemanager;1"].
               getService(Ci.nsIDOMStorageManager);
     return dsm.getLocalStorageForPrincipal(principal, "");

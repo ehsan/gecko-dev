@@ -29,17 +29,6 @@ class nsGlobalWindow;
 namespace mozilla {
 namespace dom {
 
-enum ErrNum {
-#define MSG_DEF(_name, _argc, _str) \
-  _name,
-#include "mozilla/dom/Errors.msg"
-#undef MSG_DEF
-  Err_Limit
-};
-
-bool
-ThrowErrorMessage(JSContext* aCx, const ErrNum aErrorNumber, ...);
-
 template<bool mainThread>
 inline bool
 Throw(JSContext* cx, nsresult rv)
@@ -425,38 +414,8 @@ struct EnumEntry {
   size_t length;
 };
 
-template<bool Fatal>
-inline bool
-EnumValueNotFound(JSContext* cx, const jschar* chars, size_t length,
-                  const char* type)
-{
-  return false;
-}
-
-template<>
-inline bool
-EnumValueNotFound<false>(JSContext* cx, const jschar* chars, size_t length,
-                         const char* type)
-{
-  // TODO: Log a warning to the console.
-  return true;
-}
-
-template<>
-inline bool
-EnumValueNotFound<true>(JSContext* cx, const jschar* chars, size_t length,
-                        const char* type)
-{
-  NS_LossyConvertUTF16toASCII deflated(static_cast<const PRUnichar*>(chars),
-                                       length);
-  return ThrowErrorMessage(cx, MSG_INVALID_ENUM_VALUE, deflated.get(), type);
-}
-
-
-template<bool InvalidValueFatal>
 inline int
-FindEnumStringIndex(JSContext* cx, JS::Value v, const EnumEntry* values,
-                    const char* type, bool* ok)
+FindEnumStringIndex(JSContext* cx, JS::Value v, const EnumEntry* values, bool* ok)
 {
   // JS_StringEqualsAscii is slow as molasses, so don't use it here.
   JSString* str = JS_ValueToString(cx, v);
@@ -492,7 +451,7 @@ FindEnumStringIndex(JSContext* cx, JS::Value v, const EnumEntry* values,
     }
   }
 
-  *ok = EnumValueNotFound<InvalidValueFatal>(cx, chars, length, type);
+  *ok = true;
   return -1;
 }
 
@@ -723,15 +682,6 @@ public:
 #endif
   }
 
-  template<typename U>
-  void operator=(U* t) {
-    ptr = t->ToAStringPtr();
-    MOZ_ASSERT(ptr);
-#ifdef DEBUG
-    inited = true;
-#endif
-  }
-
   T** Slot() {
 #ifdef DEBUG
     inited = true;
@@ -786,71 +736,6 @@ protected:
 #endif
 };
 
-// A struct that has the same layout as an nsDependentString but much
-// faster constructor and destructor behavior
-struct FakeDependentString {
-  FakeDependentString() :
-    mFlags(nsDependentString::F_TERMINATED)
-  {
-  }
-
-  void SetData(const nsDependentString::char_type* aData,
-               nsDependentString::size_type aLength) {
-    MOZ_ASSERT(mFlags == nsDependentString::F_TERMINATED);
-    mData = aData;
-    mLength = aLength;
-  }
-
-  void Truncate() {
-    mData = nsDependentString::char_traits::sEmptyBuffer;
-    mLength = 0;
-  }
-
-  void SetNull() {
-    Truncate();
-    mFlags |= nsDependentString::F_VOIDED;
-  }
-
-  const nsAString* ToAStringPtr() const {
-    return reinterpret_cast<const nsDependentString*>(this);
-  }
-
-  nsAString* ToAStringPtr() {
-    return reinterpret_cast<nsDependentString*>(this);
-  }
-
-  operator const nsAString& () const {
-    return *reinterpret_cast<const nsDependentString*>(this);
-  }
-
-private:
-  const nsDependentString::char_type* mData;
-  nsDependentString::size_type mLength;
-  PRUint32 mFlags;
-
-  // A class to use for our static asserts to ensure our object layout
-  // matches that of nsDependentString.
-  class DependentStringAsserter;
-  friend class DependentStringAsserter;
-
-  class DepedentStringAsserter : public nsDependentString {
-  public:
-    static void StaticAsserts() {
-      MOZ_STATIC_ASSERT(sizeof(FakeDependentString) == sizeof(nsDependentString),
-                        "Must have right object size");
-      MOZ_STATIC_ASSERT(offsetof(FakeDependentString, mData) ==
-                          offsetof(DepedentStringAsserter, mData),
-                        "Offset of mData should match");
-      MOZ_STATIC_ASSERT(offsetof(FakeDependentString, mLength) ==
-                          offsetof(DepedentStringAsserter, mLength),
-                        "Offset of mLength should match");
-      MOZ_STATIC_ASSERT(offsetof(FakeDependentString, mFlags) ==
-                          offsetof(DepedentStringAsserter, mFlags),
-                        "Offset of mFlags should match");
-    }
-  };
-};
-
 enum StringificationBehavior {
   eStringify,
   eEmpty,
@@ -861,7 +746,7 @@ static inline bool
 ConvertJSValueToString(JSContext* cx, const JS::Value& v, JS::Value* pval,
                        StringificationBehavior nullBehavior,
                        StringificationBehavior undefinedBehavior,
-                       FakeDependentString& result)
+                       nsDependentString& result)
 {
   JSString *s;
   if (v.isString()) {
@@ -882,11 +767,7 @@ ConvertJSValueToString(JSContext* cx, const JS::Value& v, JS::Value* pval,
     if (behavior != eStringify || !pval) {
       // Here behavior == eStringify implies !pval, so both eNull and
       // eStringify should end up with void strings.
-      if (behavior == eEmpty) {
-        result.Truncate();
-      } else {
-        result.SetNull();
-      }
+      result.SetIsVoid(behavior != eEmpty);
       return true;
     }
 
@@ -903,7 +784,7 @@ ConvertJSValueToString(JSContext* cx, const JS::Value& v, JS::Value* pval,
     return false;
   }
 
-  result.SetData(chars, len);
+  result.Rebind(chars, len);
   return true;
 }
 
@@ -958,12 +839,6 @@ public:
     mPassed = true;
   }
 
-  void operator=(const FakeDependentString* str) {
-    MOZ_ASSERT(str);
-    mStr = str->ToAStringPtr();
-    mPassed = true;
-  }
-
   const nsAString& Value() const {
     MOZ_ASSERT(WasPassed());
     return *mStr;
@@ -1007,39 +882,6 @@ public:
       storage.addr()->~T();
     }
 };
-
-// Implementation of the bits that XrayWrapper needs
-bool
-XrayResolveProperty(JSContext* cx, JSObject* wrapper, jsid id,
-                    JSPropertyDescriptor* desc,
-                    // And the things we need to determine the descriptor
-                    Prefable<JSFunctionSpec>* methods,
-                    jsid* methodIds,
-                    JSFunctionSpec* methodSpecs,
-                    size_t methodCount,
-                    Prefable<JSPropertySpec>* attributes,
-                    jsid* attributeIds,
-                    JSPropertySpec* attributeSpecs,
-                    size_t attributeCount,
-                    Prefable<ConstantSpec>* constants,
-                    jsid* constantIds,
-                    ConstantSpec* constantSpecs,
-                    size_t constantCount);
-
-bool
-XrayEnumerateProperties(JS::AutoIdVector& props,
-                        Prefable<JSFunctionSpec>* methods,
-                        jsid* methodIds,
-                        JSFunctionSpec* methodSpecs,
-                        size_t methodCount,
-                        Prefable<JSPropertySpec>* attributes,
-                        jsid* attributeIds,
-                        JSPropertySpec* attributeSpecs,
-                        size_t attributeCount,
-                        Prefable<ConstantSpec>* constants,
-                        jsid* constantIds,
-                        ConstantSpec* constantSpecs,
-                        size_t constantCount);
 
 } // namespace dom
 } // namespace mozilla

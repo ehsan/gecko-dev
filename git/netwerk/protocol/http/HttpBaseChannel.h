@@ -27,8 +27,8 @@
 #include "nsIApplicationCache.h"
 #include "nsIResumableChannel.h"
 #include "nsITraceableChannel.h"
-#include "nsILoadContext.h"
 #include "mozilla/net/NeckoCommon.h"
+#include "PrivateBrowsingConsumer.h"
 #include "nsThreadUtils.h"
 
 namespace mozilla {
@@ -50,6 +50,7 @@ class HttpBaseChannel : public nsHashPropertyBag
                       , public nsISupportsPriority
                       , public nsIResumableChannel
                       , public nsITraceableChannel
+                      , public PrivateBrowsingConsumer
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -185,7 +186,7 @@ public: /* Necko internal use only... */
 
   bool ShouldRewriteRedirectToGET(PRUint32 httpStatus, nsHttpAtom method);
   bool IsSafeMethod(nsHttpAtom method);
-
+  
 protected:
 
   // Handle notifying listener, removing from loadgroup if request failed.
@@ -264,7 +265,6 @@ protected:
   // True if timing collection is enabled
   PRUint32                          mTimingEnabled              : 1;
   PRUint32                          mAllowSpdy                  : 1;
-  PRUint32                          mPrivateBrowsing            : 1;
 
   // Current suspension depth for this channel object
   PRUint32                          mSuspendCount;

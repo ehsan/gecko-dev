@@ -116,7 +116,7 @@ class SubstitutionRef(Function):
 
     def __repr__(self):
         return "SubstitutionRef<%s>(%r:%r=%r)" % (
-            self.loc, self.vname, self.substfrom, self.substto,)
+            self.loc, self.vname, self.substfrom, selfsubstto,)
 
 class SubstFunction(Function):
     name = 'subst'

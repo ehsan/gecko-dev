@@ -859,7 +859,6 @@ class ValueOperations
     bool isMagic(JSWhyMagic why) const { return value()->isMagic(why); }
     bool isMarkable() const { return value()->isMarkable(); }
     bool isPrimitive() const { return value()->isPrimitive(); }
-    bool isGCThing() const { return value()->isGCThing(); }
 
     bool toBoolean() const { return value()->toBoolean(); }
     double toNumber() const { return value()->toNumber(); }
@@ -921,12 +920,12 @@ class HandleBase<Value> : public ValueOperations<Handle<Value> >
 template <>
 class MutableHandleBase<Value> : public MutableValueOperations<MutableHandle<Value> >
 {
-    friend class ValueOperations<MutableHandle<Value> >;
+    friend class ValueOperations<Handle<Value> >;
     const Value * extract() const {
         return static_cast<const MutableHandle<Value>*>(this)->address();
     }
 
-    friend class MutableValueOperations<MutableHandle<Value> >;
+    friend class MutableValueOperations<Handle<Value> >;
     Value * extractMutable() {
         return static_cast<MutableHandle<Value>*>(this)->address();
     }
@@ -1033,7 +1032,7 @@ class JS_PUBLIC_API(AutoGCRooter) {
     enum {
         JSVAL =        -1, /* js::AutoValueRooter */
         VALARRAY =     -2, /* js::AutoValueArrayRooter */
-        PARSER =       -3, /* js::frontend::Parser */
+        PARSER =       -3, /* js::Parser */
         SHAPEVECTOR =  -4, /* js::AutoShapeVector */
         ENUMERATOR =   -5, /* js::AutoEnumStateRooter */
         IDARRAY =      -6, /* js::AutoIdArray */
@@ -1287,7 +1286,6 @@ class AutoVectorRooter : protected AutoGCRooter
     T &operator[](size_t i) { return vector[i]; }
     const T &operator[](size_t i) const { return vector[i]; }
 
-    JS::MutableHandle<T> handleAt(size_t i) { return JS::MutableHandle<T>::fromMarkedLocation(&vector[i]); }
     JS::Handle<T> handleAt(size_t i) const { return JS::Handle<T>::fromMarkedLocation(&vector[i]); }
 
     const T *begin() const { return vector.begin(); }
@@ -1445,93 +1443,6 @@ CallArgsFromSp(unsigned argc, Value *sp)
     return CallArgsFromArgv(argc, sp - argc);
 }
 
-/* Returns true if |v| is considered an acceptable this-value. */
-typedef bool (*IsAcceptableThis)(const Value &v);
-
-/*
- * Implements the guts of a method; guaranteed to be provided an acceptable
- * this-value, as determined by a corresponding IsAcceptableThis method.
- */
-typedef bool (*NativeImpl)(JSContext *cx, CallArgs args);
-
-namespace detail {
-
-/* DON'T CALL THIS DIRECTLY.  It's for use only by CallNonGenericMethod! */
-extern JS_PUBLIC_API(bool)
-CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args);
-
-} /* namespace detail */
-
-/*
- * Methods usually act upon |this| objects only from a single global object and
- * compartment.  Sometimes, however, a method must act upon |this| values from
- * multiple global objects or compartments.  In such cases the |this| value a
- * method might see will be wrapped, such that various access to the object --
- * to its class, its private data, its reserved slots, and so on -- will not
- * work properly without entering that object's compartment.  This method
- * implements a solution to this problem.
- *
- * To implement a method that accepts |this| values from multiple compartments,
- * define two functions.  The first function matches the IsAcceptableThis type
- * and indicates whether the provided value is an acceptable |this| for the
- * method; it must be a pure function only of its argument.
- *
- *   static JSClass AnswerClass = { ... };
- *
- *   static bool
- *   IsAnswerObject(const Value &v)
- *   {
- *       if (!v.isObject())
- *           return false;
- *       return JS_GetClass(&v.toObject()) == &AnswerClass;
- *   }
- *
- * The second function implements the NativeImpl signature and defines the
- * behavior of the method when it is provided an acceptable |this| value.
- * Aside from some typing niceties -- see the CallArgs interface for details --
- * its interface is the same as that of JSNative.
- *
- *   static bool
- *   answer_getAnswer_impl(JSContext *cx, JS::CallArgs args)
- *   {
- *       args.rval().setInt32(42);
- *       return true;
- *   }
- *
- * The implementation function is guaranteed to be called *only* with a |this|
- * value which is considered acceptable.
- *
- * Now to implement the actual method, write a JSNative that calls the method
- * declared below, passing the appropriate arguments.
- *
- *   static JSBool
- *   answer_getAnswer(JSContext *cx, unsigned argc, JS::Value *vp)
- *   {
- *       JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
- *       return JS::CallNonGenericMethod(cx, IsAnswerObject,
-                                         answer_getAnswer_impl, args);
- *   }
- *
- * JS::CallNonGenericMethod will test whether |args.thisv()| is acceptable.  If
- * it is, it will call the provided implementation function, which will return
- * a value and indicate success.  If it is not, it will attempt to unwrap
- * |this| and call the implementation function on the unwrapped |this|.  If
- * that succeeds, all well and good.  If it doesn't succeed, a TypeError will
- * be thrown.
- *
- * Note: JS::CallNonGenericMethod will only work correctly if it's called in
- *       tail position in a JSNative.  Do not call it from any other place.
- */
-JS_ALWAYS_INLINE bool
-CallNonGenericMethod(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args)
-{
-    const Value &thisv = args.thisv();
-    if (test(thisv))
-        return impl(cx, args);
-
-    return detail::CallMethodIfWrapped(cx, test, impl, args);
-}
-
 }  /* namespace JS */
 
 /************************************************************************/
@@ -1598,10 +1509,8 @@ JS_STATIC_ASSERT(sizeof(jsval_layout) == sizeof(jsval));
 #ifdef __cplusplus
 
 typedef JS::Handle<JSObject*> JSHandleObject;
-typedef JS::Handle<JSString*> JSHandleString;
 typedef JS::Handle<jsid> JSHandleId;
 typedef JS::MutableHandle<JSObject*> JSMutableHandleObject;
-typedef JS::MutableHandle<JS::Value> JSMutableHandleValue;
 
 #else
 
@@ -1611,10 +1520,8 @@ typedef JS::MutableHandle<JS::Value> JSMutableHandleValue;
  */
 
 typedef struct { JSObject **_; } JSHandleObject;
-typedef struct { JSString **_; } JSHandleString;
 typedef struct { JSObject **_; } JSMutableHandleObject;
 typedef struct { jsid *_; } JSHandleId;
-typedef struct { jsval *_; } JSMutableHandleValue;
 
 JSBool JS_CreateHandleObject(JSContext *cx, JSObject *obj, JSHandleObject *phandle);
 void JS_DestroyHandleObject(JSContext *cx, JSHandleObject handle);
@@ -3067,12 +2974,11 @@ JS_StringToVersion(const char *string);
                                                    strict mode for all code
                                                    without requiring
                                                    "use strict" annotations. */
-/* JS_BIT(20) is taken in jsfriendapi.h! */
 
 /* Options which reflect compile-time properties of scripts. */
 #define JSCOMPILEOPTION_MASK    (JSOPTION_ALLOW_XML | JSOPTION_MOAR_XML)
 
-#define JSRUNOPTION_MASK        (JS_BITMASK(21) & ~JSCOMPILEOPTION_MASK)
+#define JSRUNOPTION_MASK        (JS_BITMASK(20) & ~JSCOMPILEOPTION_MASK)
 #define JSALLOPTION_MASK        (JSCOMPILEOPTION_MASK | JSRUNOPTION_MASK)
 
 extern JS_PUBLIC_API(uint32_t)
@@ -3669,7 +3575,7 @@ struct JSTracer {
     const void          *debugPrintArg;
     size_t              debugPrintIndex;
     JSBool              eagerlyTraceWeakMaps;
-#ifdef JS_GC_ZEAL
+#ifdef DEBUG
     void                *realLocation;
 #endif
 };
@@ -3709,16 +3615,11 @@ JS_CallTracer(JSTracer *trc, void *thing, JSGCTraceKind kind);
 /*
  * Sets the real location for a marked reference, when passing the address
  * directly is not feasable.
- *
- * FIXME: This is currently overcomplicated by our need to nest calls for Values
- * stored as keys in hash tables, but will get simplified once we can rekey
- * in-place.
  */
-#ifdef JS_GC_ZEAL
+#ifdef DEBUG
 # define JS_SET_TRACING_LOCATION(trc, location)                               \
     JS_BEGIN_MACRO                                                            \
-        if ((trc)->realLocation == NULL || (location) == NULL)                \
-            (trc)->realLocation = (location);                                 \
+        (trc)->realLocation = (location);                                     \
     JS_END_MACRO
 #else
 # define JS_SET_TRACING_LOCATION(trc, location)                               \
@@ -4014,20 +3915,26 @@ struct JSClass {
 #define JSCLASS_HIGH_FLAGS_SHIFT        (JSCLASS_RESERVED_SLOTS_SHIFT +       \
                                          JSCLASS_RESERVED_SLOTS_WIDTH)
 
-#define JSCLASS_IS_ANONYMOUS            (1<<(JSCLASS_HIGH_FLAGS_SHIFT+0))
-#define JSCLASS_IS_GLOBAL               (1<<(JSCLASS_HIGH_FLAGS_SHIFT+1))
-#define JSCLASS_INTERNAL_FLAG2          (1<<(JSCLASS_HIGH_FLAGS_SHIFT+2))
-#define JSCLASS_INTERNAL_FLAG3          (1<<(JSCLASS_HIGH_FLAGS_SHIFT+3))
+/*
+ * Call the iteratorObject hook only to iterate over contents (for-of), not to
+ * enumerate properties (for-in, for-each, Object.keys, etc.)
+ */
+#define JSCLASS_FOR_OF_ITERATION        (1<<(JSCLASS_HIGH_FLAGS_SHIFT+0))
+
+#define JSCLASS_IS_ANONYMOUS            (1<<(JSCLASS_HIGH_FLAGS_SHIFT+1))
+#define JSCLASS_IS_GLOBAL               (1<<(JSCLASS_HIGH_FLAGS_SHIFT+2))
+#define JSCLASS_INTERNAL_FLAG2          (1<<(JSCLASS_HIGH_FLAGS_SHIFT+3))
+#define JSCLASS_INTERNAL_FLAG3          (1<<(JSCLASS_HIGH_FLAGS_SHIFT+4))
 
 /* Indicate whether the proto or ctor should be frozen. */
-#define JSCLASS_FREEZE_PROTO            (1<<(JSCLASS_HIGH_FLAGS_SHIFT+4))
-#define JSCLASS_FREEZE_CTOR             (1<<(JSCLASS_HIGH_FLAGS_SHIFT+5))
+#define JSCLASS_FREEZE_PROTO            (1<<(JSCLASS_HIGH_FLAGS_SHIFT+5))
+#define JSCLASS_FREEZE_CTOR             (1<<(JSCLASS_HIGH_FLAGS_SHIFT+6))
 
-#define JSCLASS_XPCONNECT_GLOBAL        (1<<(JSCLASS_HIGH_FLAGS_SHIFT+6))
+#define JSCLASS_XPCONNECT_GLOBAL        (1<<(JSCLASS_HIGH_FLAGS_SHIFT+7))
 
 /* Reserved for embeddings. */
-#define JSCLASS_USERBIT2                (1<<(JSCLASS_HIGH_FLAGS_SHIFT+7))
-#define JSCLASS_USERBIT3                (1<<(JSCLASS_HIGH_FLAGS_SHIFT+8))
+#define JSCLASS_USERBIT2                (1<<(JSCLASS_HIGH_FLAGS_SHIFT+8))
+#define JSCLASS_USERBIT3                (1<<(JSCLASS_HIGH_FLAGS_SHIFT+9))
 
 /*
  * Bits 26 through 31 are reserved for the CACHED_PROTO_KEY mechanism, see
@@ -4048,7 +3955,7 @@ struct JSClass {
  * with the following flags. Failure to use JSCLASS_GLOBAL_FLAGS was
  * prevously allowed, but is now an ES5 violation and thus unsupported.
  */
-#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 21)
+#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 8)
 #define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
     (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \
@@ -4615,13 +4522,19 @@ extern JS_PUBLIC_API(JSBool)
 JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp);
 
 /*
- * A JSNative that creates and returns a new iterator that iterates over the
- * elements of |this|, up to |this.length|, in index order. This can be used to
- * make any array-like object iterable. Just give the object an obj.iterator()
- * method using this JSNative as the implementation.
+ * Create an object to iterate over the elements of obj in for-of order. This
+ * can be used to implement the iteratorObject hook for an array-like Class.
  */
-extern JS_PUBLIC_API(JSBool)
-JS_ArrayIterator(JSContext *cx, unsigned argc, jsval *vp);
+extern JS_PUBLIC_API(JSObject *)
+JS_NewElementIterator(JSContext *cx, JSObject *obj);
+
+/*
+ * To make your array-like class iterable using the for-of loop, set the
+ * JSCLASS_FOR_OF_ITERATION bit in the class's flags field and set its
+ * .ext.iteratorObject hook to this function.
+ */
+extern JS_PUBLIC_API(JSObject *)
+JS_ElementIteratorStub(JSContext *cx, JSHandleObject obj, JSBool keysonly);
 
 extern JS_PUBLIC_API(JSBool)
 JS_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
@@ -4790,6 +4703,66 @@ JS_DefineFunctionById(JSContext *cx, JSObject *obj, jsid id, JSNative call,
  */
 extern JS_PUBLIC_API(JSObject *)
 JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent);
+
+/*
+ * Methods usually act upon |this| objects only from a single global object and
+ * compartment.  Sometimes, however, a method must act upon |this| values from
+ * multiple global objects or compartments.  In such cases the |this| value a
+ * method might see will be wrapped, such that various access to the object --
+ * to its class, its private data, its reserved slots, and so on -- will not
+ * work properly without entering that object's compartment.  This method
+ * implements a solution to this problem.
+ *
+ * When called, this method attempts to unwrap |this| and call |native| on the
+ * underlying object with the provided arguments, entering |this|'s compartment
+ * in the process.  It is critical that |this|-checking occur right at the
+ * start of |native| so that reentrant invocation is idempotent!  If the call
+ * fails because |this| isn't a proxy to another object, a TypeError is thrown.
+ *
+ * The following example demonstrates the most common way this method might be
+ * used, to accept objects having only a particular class but which might be
+ * found in another compartment/global object or might be a proxy of some sort:
+ *
+ *     static JSClass MyClass = { "MyClass", JSCLASS_HAS_PRIVATE, ... };
+ *
+ *     inline bool
+ *     RequireMyClassThis(JSContext *cx, unsigned argc, JSObject **thisObj)
+ *     {
+ *         const Value &thisv = JS_THIS_VALUE(cx, vp);
+ *         if (!thisv.isObject()) {
+ *             JS_ReportError(cx, "this must be an object");
+ *             return false;
+ *         }
+ *
+ *         JSObject *obj = &thisv.toObject();
+ *         if (JS_GetClass(obj) == &MyClass) {
+ *             *thisObj = obj;
+ *             return true;
+ *         }
+ *
+ *         *thisObj = NULL; // prevent infinite recursion into calling method
+ *         return JS_CallNonGenericMethodOnProxy(cx, argc, vp, method, &MyClass);
+ *     }
+ *
+ *     static JSBool
+ *     Method(JSContext *cx, unsigned argc, jsval *vp)
+ *     {
+ *         if (!RequireMyClassThis(cx, argc, vp, &thisObj))
+ *             return false;
+ *         if (!thisObj)
+ *             return true; // method invocation was performed by nested call
+ *
+ *         // thisObj definitely has MyClass: implement the guts of the method.
+ *         void *priv = JS_GetPrivate(thisObj);
+ *         ...
+ *     }
+ *
+ * This method doesn't do any checking of its own, except to throw a TypeError
+ * if the |this| in the arguments isn't a proxy that can be unwrapped for the
+ * recursive call.  The client is responsible for performing all type-checks!
+ */
+extern JS_PUBLIC_API(JSBool)
+JS_CallNonGenericMethodOnProxy(JSContext *cx, unsigned argc, jsval *vp, JSNative native, JSClass *clasp);
 
 /*
  * Given a buffer, return JS_FALSE if the buffer might become a valid
@@ -5650,12 +5623,6 @@ extern JS_PUBLIC_API(void)
 JS_ReportErrorNumber(JSContext *cx, JSErrorCallback errorCallback,
                      void *userRef, const unsigned errorNumber, ...);
 
-#ifdef va_start
-extern JS_PUBLIC_API(void)
-JS_ReportErrorNumberVA(JSContext *cx, JSErrorCallback errorCallback,
-                       void *userRef, const unsigned errorNumber, va_list ap);
-#endif
-
 /*
  * Use an errorNumber to retrieve the format string, args are jschar *
  */
@@ -5706,7 +5673,6 @@ struct JSErrorReport {
     unsigned           errorNumber;    /* the error number, e.g. see js.msg */
     const jschar    *ucmessage;     /* the (default) error message */
     const jschar    **messageArgs;  /* arguments for the error message */
-    int16_t         exnType;        /* One of the JSExnType constants */
 };
 
 /*
@@ -5761,13 +5727,6 @@ JS_NewDateObjectMsec(JSContext *cx, double msec);
  */
 extern JS_PUBLIC_API(JSBool)
 JS_ObjectIsDate(JSContext *cx, JSObject *obj);
-
-/*
- * Clears the cache of calculated local time from each Date object.
- * Call to propagate a system timezone change.
- */
-extern JS_PUBLIC_API(void)
-JS_ClearDateCaches(JSContext *cx);
 
 /************************************************************************/
 
