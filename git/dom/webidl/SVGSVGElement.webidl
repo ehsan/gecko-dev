@@ -28,13 +28,10 @@ interface SVGSVGElement : SVGGraphicsElement {
            attribute float currentScale;
   readonly attribute SVGPoint currentTranslate;
 
-  [DependsOn=Nothing, Affects=Nothing]
   unsigned long suspendRedraw(unsigned long maxWaitMilliseconds);
-  [DependsOn=Nothing, Affects=Nothing]
   void unsuspendRedraw(unsigned long suspendHandleID);
-  [DependsOn=Nothing, Affects=Nothing]
   void unsuspendRedrawAll();
-  [DependsOn=Nothing, Affects=Nothing]
+  [Throws]
   void forceRedraw();
   void pauseAnimations();
   void unpauseAnimations();

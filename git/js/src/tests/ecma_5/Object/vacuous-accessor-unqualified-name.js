@@ -16,7 +16,7 @@ print(BUGNUMBER + ": " + summary);
  * BEGIN TEST *
  **************/
 
-Object.defineProperty(this, "x", { set: undefined, configurable: true });
+Object.defineProperty(this, "x", { set: undefined });
 x;
 
 /******************************************************************************/

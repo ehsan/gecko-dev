@@ -190,27 +190,35 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
     bool comma = false;
     for (size_t i = 0; i < idv.length(); ++i) {
         RootedId id(cx, idv[i]);
-        Rooted<PropertyDescriptor> desc(cx);
-        if (!GetOwnPropertyDescriptor(cx, obj, id, &desc))
+        RootedObject obj2(cx);
+        RootedShape shape(cx);
+        if (!LookupProperty(cx, obj, id, &obj2, &shape))
             return nullptr;
 
+        /*  Decide early whether we prefer get/set or old getter/setter syntax. */
         int valcnt = 0;
-        if (desc.object()) {
-            if (desc.hasGetterOrSetterObject()) {
-                if (desc.hasGetterObject() && desc.getterObject()) {
-                    val[valcnt].setObject(*desc.getterObject());
+        if (shape) {
+            bool doGet = true;
+            if (obj2->isNative() && !IsImplicitDenseOrTypedArrayElement(shape)) {
+                unsigned attrs = shape->attributes();
+                if (attrs & JSPROP_GETTER) {
+                    doGet = false;
+                    val[valcnt].set(shape->getterValue());
                     gsop[valcnt].set(cx->names().get);
                     valcnt++;
                 }
-                if (desc.hasSetterObject() && desc.setterObject()) {
-                    val[valcnt].setObject(*desc.setterObject());
+                if (attrs & JSPROP_SETTER) {
+                    doGet = false;
+                    val[valcnt].set(shape->setterValue());
                     gsop[valcnt].set(cx->names().set);
                     valcnt++;
                 }
-            } else {
+            }
+            if (doGet) {
                 valcnt = 1;
-                val[0].set(desc.value());
                 gsop[0].set(nullptr);
+                if (!GetProperty(cx, obj, obj, id, val[0]))
+                    return nullptr;
             }
         }
 
@@ -242,6 +250,13 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
         }
 
         for (int j = 0; j < valcnt; j++) {
+            /*
+             * Censor an accessor descriptor getter or setter part if it's
+             * undefined.
+             */
+            if (gsop[j] && val[j].isUndefined())
+                continue;
+
             /* Convert val[j] to its canonical source form. */
             JSString *valsource = ValueToSource(cx, val[j]);
             if (!valsource)

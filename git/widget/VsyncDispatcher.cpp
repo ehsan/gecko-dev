@@ -7,7 +7,6 @@
 #include "VsyncDispatcher.h"
 #include "VsyncSource.h"
 #include "gfxPlatform.h"
-#include "mozilla/layers/Compositor.h"
 #include "mozilla/layers/CompositorParent.h"
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
@@ -16,14 +15,6 @@
 #endif
 
 namespace mozilla {
-static bool sThreadAssertionsEnabled = true;
-
-void CompositorVsyncDispatcher::SetThreadAssertionsEnabled(bool aEnable)
-{
-  // Should only be used in test environments
-  MOZ_ASSERT(NS_IsMainThread());
-  sThreadAssertionsEnabled = aEnable;
-}
 
 CompositorVsyncDispatcher::CompositorVsyncDispatcher()
   : mCompositorObserverLock("CompositorObserverLock")
@@ -57,16 +48,6 @@ CompositorVsyncDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
 }
 
 void
-CompositorVsyncDispatcher::AssertOnCompositorThread()
-{
-  if (!sThreadAssertionsEnabled) {
-    return;
-  }
-
-  Compositor::AssertOnCompositorThread();
-}
-
-void
 CompositorVsyncDispatcher::ObserveVsync(bool aEnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -85,11 +66,9 @@ CompositorVsyncDispatcher::ObserveVsync(bool aEnable)
 void
 CompositorVsyncDispatcher::SetCompositorVsyncObserver(VsyncObserver* aVsyncObserver)
 {
-  AssertOnCompositorThread();
-  { // scope lock
-    MutexAutoLock lock(mCompositorObserverLock);
-    mCompositorVsyncObserver = aVsyncObserver;
-  }
+  MOZ_ASSERT(layers::CompositorParent::IsInCompositorThread());
+  MutexAutoLock lock(mCompositorObserverLock);
+  mCompositorVsyncObserver = aVsyncObserver;
 
   bool observeVsync = aVsyncObserver != nullptr;
   nsCOMPtr<nsIRunnable> vsyncControl = NS_NewRunnableMethodWithArg<bool>(this,

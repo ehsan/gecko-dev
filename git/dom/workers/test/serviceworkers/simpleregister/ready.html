@@ -5,9 +5,7 @@
 
        window.addEventListener('message', function(evt) {
          navigator.serviceWorker.ready.then(function() {
-           navigator.serviceWorker.oncontrollerchange = function(e) {
-             evt.ports[0].postMessage("WOW!");
-           }
+           evt.ports[0].postMessage("WOW!");
          });
        }, false);
 

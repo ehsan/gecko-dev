@@ -340,7 +340,7 @@ function testSteps()
     let objectStore = db.createObjectStore(objectStoreName, objectStoreOptions);
     let index = objectStore.createIndex(indexName, indexName, indexOptions);
 
-    for (let data of dbData) {
+    for each (let data in dbData) {
       objectStore.add(data);
     }
 

@@ -305,9 +305,15 @@ SVGSVGElement::UnsuspendRedrawAll()
 }
 
 void
-SVGSVGElement::ForceRedraw()
+SVGSVGElement::ForceRedraw(ErrorResult& rv)
 {
-  // no-op
+  nsIDocument* doc = GetComposedDoc();
+  if (!doc) {
+    rv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
+
+  doc->FlushPendingNotifications(Flush_Display);
 }
 
 void
