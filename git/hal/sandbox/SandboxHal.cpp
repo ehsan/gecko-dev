@@ -344,9 +344,7 @@ GetCurrentSwitchState(SwitchDevice aDevice)
 void
 NotifySwitchStateFromInputDevice(SwitchDevice aDevice, SwitchState aState)
 {
-  unused << aDevice;
-  unused << aState;
-  NS_RUNTIMEABORT("Only the main process may notify switch state change.");
+  Hal()->SendNotifySwitchStateFromInputDevice(aDevice, aState);
 }
 
 bool
@@ -861,6 +859,14 @@ public:
   {
     // Content has no reason to listen to switch events currently.
     *aState = hal::GetCurrentSwitchState(aDevice);
+    return true;
+  }
+
+  virtual bool
+  RecvNotifySwitchStateFromInputDevice(const SwitchDevice& aDevice,
+                                       const SwitchState& aState) MOZ_OVERRIDE
+  {
+    hal::NotifySwitchStateFromInputDevice(aDevice, aState);
     return true;
   }
 

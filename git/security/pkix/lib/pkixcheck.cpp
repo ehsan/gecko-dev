@@ -558,8 +558,10 @@ CheckIssuerIndependentProperties(TrustDomain& trustDomain,
   Result rv;
 
   TrustLevel trustLevel;
-  rv = MapSECStatus(trustDomain.GetCertTrust(endEntityOrCA, requiredPolicy,
-                                             cert.GetDER(), &trustLevel));
+  rv = MapSECStatus(trustDomain.GetCertTrust(endEntityOrCA,
+                                             requiredPolicy,
+                                             cert.GetNSSCert(),
+                                             &trustLevel));
   if (rv != Success) {
     return rv;
   }

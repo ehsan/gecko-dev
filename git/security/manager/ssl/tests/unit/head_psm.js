@@ -432,12 +432,6 @@ function getFailingHttpServer(serverPort, serverIdentities) {
 // Starts an http OCSP responder that serves good OCSP responses and
 // returns an object with a method stop that should be called to stop
 // the http server.
-// NB: Because generating OCSP responses inside the HTTP request
-// handler can cause timeouts, the expected responses are pre-generated
-// all at once before starting the server. This means that their producedAt
-// times will all be the same. If a test depends on this not being the case,
-// perhaps calling startOCSPResponder twice (at different times) will be
-// necessary.
 //
 // serverPort is the port of the http OCSP responder
 // identity is the http hostname that will answer the OCSP requests
@@ -452,17 +446,6 @@ function startOCSPResponder(serverPort, identity, invalidIdentities,
                             nssDBLocation, expectedCertNames,
                             expectedBasePaths, expectedMethods,
                             expectedResponseTypes) {
-  let ocspResponseGenerationArgs = expectedCertNames.map(
-    function(expectedNick) {
-      let responseType = "good";
-      if (expectedResponseTypes && expectedResponseTypes.length >= 1) {
-        responseType = expectedResponseTypes.shift();
-      }
-      return [responseType, expectedNick, "unused"];
-    }
-  );
-  let ocspResponses = generateOCSPResponses(ocspResponseGenerationArgs,
-                                            nssDBLocation);
   let httpServer = new HttpServer();
   httpServer.registerPrefixHandler("/",
     function handleServerCallback(aRequest, aResponse) {
@@ -478,9 +461,19 @@ function startOCSPResponder(serverPort, identity, invalidIdentities,
       if (expectedMethods && expectedMethods.length >= 1) {
         do_check_eq(aRequest.method, expectedMethods.shift());
       }
+      let responseType = "good";
+      if (expectedResponseTypes && expectedResponseTypes.length >= 1) {
+        responseType = expectedResponseTypes.shift();
+      }
+      let expectedNick = expectedCertNames.shift();
+      do_print("Generating ocsp response(" + responseType + ") for '" +
+               expectedNick + "(" + basePath + ")'");
       aResponse.setStatusLine(aRequest.httpVersion, 200, "OK");
       aResponse.setHeader("Content-Type", "application/ocsp-response");
-      aResponse.write(ocspResponses.shift());
+      let args = [ [responseType, expectedNick, "unused" ] ];
+      let retArray = generateOCSPResponses(args, nssDBLocation);
+      let responseBody = retArray[0];
+      aResponse.bodyOutputStream.write(responseBody, responseBody.length);
     });
   httpServer.identity.setPrimary("http", identity, serverPort);
   invalidIdentities.forEach(function(identity) {
@@ -489,8 +482,7 @@ function startOCSPResponder(serverPort, identity, invalidIdentities,
   httpServer.start(serverPort);
   return {
     stop: function(callback) {
-      // make sure we consumed each expected response
-      do_check_eq(ocspResponses.length, 0);
+      do_check_eq(expectedCertNames.length, 0);
       if (expectedMethods) {
         do_check_eq(expectedMethods.length, 0);
       }
