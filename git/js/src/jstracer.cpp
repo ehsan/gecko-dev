@@ -609,6 +609,13 @@ public:
                 return out->insCall(F_Any_setelem_int, args2);
             }
             break;
+          case F_dmod: 
+            JS_ASSERT(s0->isQuad() && args[1]->isQuad());
+            if (s0->isconstq() && s0->constvalq() && isPromote(args[1])) {
+                LIns* args2[] = { demote(out, s0), demote(out, args[1]) };
+                return out->ins1(LIR_i2f, out->insCall(F_imod, args2));
+            }
+            break;
         }
         return out->insCall(fid, args);
     }
@@ -3483,15 +3490,15 @@ TraceRecorder::test_property_cache_direct_slot(JSObject* obj, LIns* obj_ins, uin
         return true;
     }
 
-    /* Insist on obj being the directly addressed object. */
-    if (obj2 != obj)
-        ABORT_TRACE("test_property_cache_direct_slot hit prototype chain");
+    /* If modifying the slot, insist on obj being the directly addressed object. */
+    uint32 setflags = (js_CodeSpec[*cx->fp->regs->pc].format & (JOF_SET | JOF_INCDEC));
+    if (setflags && obj2 != obj)
+        ABORT_TRACE("JOF_SET opcode hit prototype chain");
 
     /* Don't trace getter or setter calls, our caller wants a direct slot. */
     if (PCVAL_IS_SPROP(pcval)) {
         JSScopeProperty* sprop = PCVAL_TO_SPROP(pcval);
 
-        uint32 setflags = (js_CodeSpec[*cx->fp->regs->pc].format & (JOF_SET | JOF_INCDEC));
         if (setflags && !SPROP_HAS_STUB_SETTER(sprop))
             ABORT_TRACE("non-stub setter");
         if (setflags != JOF_SET && !SPROP_HAS_STUB_GETTER(sprop))
@@ -4010,13 +4017,12 @@ TraceRecorder::record_JSOP_NOT()
     if (JSVAL_TAG(v) == JSVAL_BOOLEAN) {
         set(&v, lir->ins_eq0(lir->ins2i(LIR_eq, get(&v), 1)));
         return true;
-    } 
-    if (isNumber(v)) {
-        set(&v, lir->ins2(LIR_feq, get(&v), lir->insImmq(0)));
-        return true;
-    } 
-    if (JSVAL_IS_OBJECT(v)) {
-        set(&v, lir->ins_eq0(get(&v)));
+    }
+    if (JSVAL_IS_INT(v) || JSVAL_IS_OBJECT(v)) {
+        LIns* a = get(&v);
+        if (JSVAL_IS_INT(v) && isPromoteInt(a))
+            a = ::demote(lir, a);
+        set(&v, lir->ins_eq0(a));
         return true;
     }
     return false;
