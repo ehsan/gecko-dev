@@ -1,3 +1,4 @@
+#
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -11,19 +12,19 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is Style Editor code.
+# The Original Code is Mozilla libxul
 #
-# The Initial Developer of the Original Code is Mozilla Foundation.
+# The Initial Developer of the Original Code is
+# Benjamin Smedberg <benjamin@smedbergs.us>
 #
-# Portions created by the Initial Developer are Copyright (C) 2010
+# Portions created by the Initial Developer are Copyright (C) 2005
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#    Cedric Vivier <cedricv@neonux.com>  (Original author)
 #
 # Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# either of the GNU General Public License Version 2 or later (the "GPL"),
+# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
 # in which case the provisions of the GPL or the LGPL are applicable instead
 # of those above. If you wish to allow use of your version of this file only
 # under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,20 +36,24 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
+# need widget/src/windows for resource.h (included from widget.rc)
+LOCAL_INCLUDES += \
+	-I$(topsrcdir)/config \
+	-I$(topsrcdir)/widget/src/windows \
+	-I$(topsrcdir)/widget/src/build \
+	$(NULL)
 
-include $(DEPTH)/config/autoconf.mk
+OS_LIBS += $(LIBICONV)
 
-ifdef ENABLE_TESTS
-  ifneq (mobile,$(MOZ_BUILD_APP))
-  	  DIRS += test
-  endif
+DEFINES += \
+	-D_IMPL_NS_COM \
+	-D_IMPL_NS_STRINGAPI \
+	-DEXPORT_XPT_API \
+	-DEXPORT_XPTC_API \
+	-D_IMPL_NS_GFX \
+	-D_IMPL_NS_WIDGET \
+	$(NULL)
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+OS_LIBS += $(call EXPAND_LIBNAME,usp10 oleaut32)
 endif
-
-include $(topsrcdir)/config/rules.mk
-
-libs::
-	$(NSINSTALL) $(srcdir)/*.jsm $(FINAL_TARGET)/modules/devtools

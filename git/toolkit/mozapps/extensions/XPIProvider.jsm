@@ -814,6 +814,8 @@ function loadManifestFromRDF(aUri, aStream) {
     addon.softDisabled = addon.blocklistState == Ci.nsIBlocklistService.STATE_SOFTBLOCKED;
   }
 
+  addon.appDisabled = !isUsableAddon(addon);
+
   addon.applyBackgroundUpdates = AddonManager.AUTOUPDATE_DEFAULT;
 
   return addon;
@@ -868,7 +870,6 @@ function loadManifestFromDir(aDir) {
     addon.hasBinaryComponents = ChromeManifestParser.hasType(chromeManifest,
                                                              "binary-component");
 
-    addon.appDisabled = !isUsableAddon(addon);
     return addon;
   }
   finally {
@@ -911,7 +912,6 @@ function loadManifestFromZipReader(aZipReader) {
       addon.hasBinaryComponents = false;
     }
 
-    addon.appDisabled = !isUsableAddon(addon);
     return addon;
   }
   finally {
