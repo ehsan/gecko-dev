@@ -35,7 +35,7 @@ interface nsIMobileConnectionListener : nsISupports
  * XPCOM component (in the content process) that provides the mobile
  * network information.
  */
-[scriptable, uuid(0abc25f7-372e-4398-8b49-ae8fcdb575d3)]
+[scriptable, uuid(3b02afb4-2fc5-471a-b529-816125bf90ae)]
 interface nsIMobileConnectionProvider : nsISupports
 {
   /**
@@ -68,11 +68,6 @@ interface nsIMobileConnectionProvider : nsISupports
                                            in unsigned short reason);
   nsIDOMDOMRequest setCallForwardingOption(in nsIDOMWindow          window,
                                            in nsIDOMMozMobileCFInfo CFInfo);
-
-  nsIDOMDOMRequest getCallBarringOption(in nsIDOMWindow window,
-                                        in jsval        option);
-  nsIDOMDOMRequest setCallBarringOption(in nsIDOMWindow window,
-                                        in jsval        option);
 
   nsIDOMDOMRequest setCallWaitingOption(in nsIDOMWindow   window,
                                         in bool enabled);
