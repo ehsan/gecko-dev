@@ -45,9 +45,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "permissionPromptService",
                                    "@mozilla.org/permission-prompt-service;1",
                                    "nsIPermissionPromptService");
 
-let permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
-let secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
-let appsService = Cc["@mozilla.org/AppsService;1"].getService(Ci.nsIAppsService);
+var permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
+var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
+var appsService = Cc["@mozilla.org/AppsService;1"].getService(Ci.nsIAppsService);
 
 this.PermissionPromptHelper = {
   init: function init() {
@@ -64,14 +64,15 @@ this.PermissionPromptHelper = {
       access = "readwrite"; // XXXddahl: Not sure if this should be set to READWRITE
     }
     // Expand permission names.
-    let expandedPermNames = expandPermissions(msg.type, access);
+    var expandedPermNames = expandPermissions(msg.type, access);
     let installedPermValues = [];
-    let uri = Services.io.newURI(msg.origin, null, null);
-    let principal =
-      secMan.getAppCodebasePrincipal(uri, msg.appID, msg.browserFlag);
+    let principal;
 
     for (let idx in expandedPermNames) {
-      let access = msg.access ? expandedPermNames[idx] : msg.type;
+      let uri = Services.io.newURI(msg.origin, null, null);
+      principal =
+        secMan.getAppCodebasePrincipal(uri, msg.appID, msg.browserFlag);
+      let access = msg.access ? msg.type + "-" + msg.access : msg.type;
       let permValue =
         permissionManager.testExactPermissionFromPrincipal(principal, access);
       installedPermValues.push(permValue);

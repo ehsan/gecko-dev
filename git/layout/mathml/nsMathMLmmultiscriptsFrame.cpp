@@ -12,7 +12,6 @@
 #include "nsRenderingContext.h"
 
 #include "nsMathMLmmultiscriptsFrame.h"
-#include <algorithm>
 
 //
 // <mmultiscripts> -- attach prescripts and tensor indices to a base - implementation
@@ -154,7 +153,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
   // scriptspace from TeX for extra spacing after sup/subscript (0.5pt in plain TeX)
   // forced to be at least 1 pixel here
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
-  nscoord scriptSpace = std::max(nsPresContext::CSSPointsToAppUnits(0.5f), onePixel);
+  nscoord scriptSpace = NS_MAX(nsPresContext::CSSPointsToAppUnits(0.5f), onePixel);
 
   /////////////////////////////////////
   // first the shift for the subscript
@@ -170,11 +169,11 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
   if (0 < mSubScriptShift) {
     // the user has set the subscriptshift attribute
     float scaler = ((float) subScriptShift2) / subScriptShift1;
-    subScriptShift1 = std::max(subScriptShift1, mSubScriptShift);
+    subScriptShift1 = NS_MAX(subScriptShift1, mSubScriptShift);
     subScriptShift2 = NSToCoordRound(scaler * subScriptShift1);
   }
   // the font dependent shift
-  nscoord subScriptShift = std::max(subScriptShift1,subScriptShift2);
+  nscoord subScriptShift = NS_MAX(subScriptShift1,subScriptShift2);
 
   /////////////////////////////////////
   // next the shift for the superscript
@@ -192,7 +191,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
     // the user has set the superscriptshift attribute
     float scaler2 = ((float) supScriptShift2) / supScriptShift1;
     float scaler3 = ((float) supScriptShift3) / supScriptShift1;
-    supScriptShift1 = std::max(supScriptShift1, mSupScriptShift);
+    supScriptShift1 = NS_MAX(supScriptShift1, mSupScriptShift);
     supScriptShift2 = NSToCoordRound(scaler2 * supScriptShift1);
     supScriptShift3 = NSToCoordRound(scaler3 * supScriptShift1);
   }
@@ -284,10 +283,10 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
           GetSubDropFromChild (subScriptFrame, subDrop);
           // parameter v, Rule 18a, App. G, TeXbook
           minSubScriptShift = bmBase.descent + subDrop;
-          trySubScriptShift = std::max(minSubScriptShift,subScriptShift);
+          trySubScriptShift = NS_MAX(minSubScriptShift,subScriptShift);
           mBoundingMetrics.descent =
-            std::max(mBoundingMetrics.descent,bmSubScript.descent);
-          descent = std::max(descent,subScriptSize.height - subScriptSize.ascent);
+            NS_MAX(mBoundingMetrics.descent,bmSubScript.descent);
+          descent = NS_MAX(descent,subScriptSize.height - subScriptSize.ascent);
           width = bmSubScript.width + scriptSpace;
           rightBearing = bmSubScript.rightBearing;
         }
@@ -304,12 +303,12 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
           minShiftFromXHeight = NSToCoordRound
             ((bmSupScript.descent + (1.0f/4.0f) * xHeight));
           trySupScriptShift =
-            std::max(minSupScriptShift,std::max(minShiftFromXHeight,supScriptShift));
+            NS_MAX(minSupScriptShift,NS_MAX(minShiftFromXHeight,supScriptShift));
           mBoundingMetrics.ascent =
-            std::max(mBoundingMetrics.ascent,bmSupScript.ascent);
-          ascent = std::max(ascent,supScriptSize.ascent);
-          width = std::max(width, bmSupScript.width + scriptSpace);
-          rightBearing = std::max(rightBearing, bmSupScript.rightBearing);
+            NS_MAX(mBoundingMetrics.ascent,bmSupScript.ascent);
+          ascent = NS_MAX(ascent,supScriptSize.ascent);
+          width = NS_MAX(width, bmSupScript.width + scriptSpace);
+          rightBearing = NS_MAX(rightBearing, bmSupScript.rightBearing);
 
           if (!mprescriptsFrame) { // we are still looping over base & postscripts
             mBoundingMetrics.rightBearing = mBoundingMetrics.width + rightBearing;
@@ -320,7 +319,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
             if (firstPrescriptsPair) {
               firstPrescriptsPair = false;
               mBoundingMetrics.leftBearing =
-                std::min(bmSubScript.leftBearing, bmSupScript.leftBearing);
+                NS_MIN(bmSubScript.leftBearing, bmSupScript.leftBearing);
             }
           }
           width = rightBearing = 0;
@@ -345,8 +344,8 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
             trySubScriptShift -= gap;
           }
           
-          maxSubScriptShift = std::max(maxSubScriptShift, trySubScriptShift);
-          maxSupScriptShift = std::max(maxSupScriptShift, trySupScriptShift);
+          maxSubScriptShift = NS_MAX(maxSubScriptShift, trySubScriptShift);
+          maxSupScriptShift = NS_MAX(maxSupScriptShift, trySupScriptShift);
 
           trySubScriptShift = subScriptShift;
           trySupScriptShift = supScriptShift;
@@ -377,15 +376,15 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
 
   // we left out the base during our bounding box updates, so ...
   mBoundingMetrics.ascent =
-    std::max(mBoundingMetrics.ascent+maxSupScriptShift,bmBase.ascent);
+    NS_MAX(mBoundingMetrics.ascent+maxSupScriptShift,bmBase.ascent);
   mBoundingMetrics.descent =
-    std::max(mBoundingMetrics.descent+maxSubScriptShift,bmBase.descent);
+    NS_MAX(mBoundingMetrics.descent+maxSubScriptShift,bmBase.descent);
 
   // get the reflow metrics ...
   aDesiredSize.ascent =
-    std::max(ascent+maxSupScriptShift,baseSize.ascent);
+    NS_MAX(ascent+maxSupScriptShift,baseSize.ascent);
   aDesiredSize.height = aDesiredSize.ascent +
-    std::max(descent+maxSubScriptShift,baseSize.height - baseSize.ascent);
+    NS_MAX(descent+maxSubScriptShift,baseSize.height - baseSize.ascent);
   aDesiredSize.width = mBoundingMetrics.width;
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
 
@@ -432,7 +431,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
           GetReflowAndBoundingMetricsFor(supScriptFrame, supScriptSize, bmSupScript);
 
           // center w.r.t. largest width
-          width = std::max(subScriptSize.width, supScriptSize.width);
+          width = NS_MAX(subScriptSize.width, supScriptSize.width);
 
           dy = aDesiredSize.ascent - subScriptSize.ascent +
             maxSubScriptShift;

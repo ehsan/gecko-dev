@@ -11,7 +11,6 @@
 #include "nsStyleConsts.h"
 
 #include "nsMathMLmsubFrame.h"
-#include <algorithm>
 
 //
 // <msub> -- attach a subscript to a base - implementation
@@ -95,7 +94,7 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
                                    nscoord              aScriptSpace)
 {
   // force the scriptSpace to be atleast 1 pixel 
-  aScriptSpace = std::max(nsPresContext::CSSPixelsToAppUnits(1), aScriptSpace);
+  aScriptSpace = NS_MAX(nsPresContext::CSSPixelsToAppUnits(1), aScriptSpace);
 
   ////////////////////////////////////
   // Get the children's desired sizes
@@ -145,31 +144,31 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
   GetSubScriptShifts (fm, subScriptShift, dummy);
 
   subScriptShift = 
-    std::max(subScriptShift, aUserSubScriptShift);
+    NS_MAX(subScriptShift, aUserSubScriptShift);
 
   // get actual subscriptshift to be used
   // Rule 18b, App. G, TeXbook
   nscoord actualSubScriptShift = 
-    std::max(minSubScriptShift,std::max(subScriptShift,minShiftFromXHeight));
+    NS_MAX(minSubScriptShift,NS_MAX(subScriptShift,minShiftFromXHeight));
   // get bounding box for base + subscript
   nsBoundingMetrics boundingMetrics;
   boundingMetrics.ascent = 
-    std::max(bmBase.ascent, bmSubScript.ascent - actualSubScriptShift);
+    NS_MAX(bmBase.ascent, bmSubScript.ascent - actualSubScriptShift);
   boundingMetrics.descent = 
-    std::max(bmBase.descent, bmSubScript.descent + actualSubScriptShift);
+    NS_MAX(bmBase.descent, bmSubScript.descent + actualSubScriptShift);
 
   // add aScriptSpace to the subscript's width
   boundingMetrics.width = bmBase.width + bmSubScript.width + aScriptSpace;
   boundingMetrics.leftBearing = bmBase.leftBearing;
-  boundingMetrics.rightBearing = std::max(bmBase.rightBearing, bmBase.width +
-    std::max(bmSubScript.width + aScriptSpace, bmSubScript.rightBearing));
+  boundingMetrics.rightBearing = NS_MAX(bmBase.rightBearing, bmBase.width +
+    NS_MAX(bmSubScript.width + aScriptSpace, bmSubScript.rightBearing));
   aFrame->SetBoundingMetrics (boundingMetrics);
 
   // reflow metrics
   aDesiredSize.ascent = 
-    std::max(baseSize.ascent, subScriptSize.ascent - actualSubScriptShift);
+    NS_MAX(baseSize.ascent, subScriptSize.ascent - actualSubScriptShift);
   aDesiredSize.height = aDesiredSize.ascent +
-    std::max(baseSize.height - baseSize.ascent,
+    NS_MAX(baseSize.height - baseSize.ascent,
            subScriptSize.height - subScriptSize.ascent + actualSubScriptShift);
   aDesiredSize.width = boundingMetrics.width;
   aDesiredSize.mBoundingMetrics = boundingMetrics;

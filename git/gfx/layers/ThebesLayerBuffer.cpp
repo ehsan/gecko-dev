@@ -13,7 +13,6 @@
 #include "ipc/AutoOpenSurface.h"
 #include "nsDeviceContext.h"
 #include "sampler.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace layers {
@@ -179,7 +178,7 @@ ComputeBufferRect(const nsIntRect& aRequestedRect)
   // dimensions).  64 is the magic number needed to work around the
   // rendering glitch, and guarantees image rows can be SIMD'd for
   // even r5g6b5 surfaces pretty much everywhere.
-  rect.width = std::max(aRequestedRect.width, 64);
+  rect.width = NS_MAX(aRequestedRect.width, 64);
   return rect;
 }
 

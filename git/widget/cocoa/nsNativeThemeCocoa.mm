@@ -30,7 +30,6 @@
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
 #include "gfxQuartzNativeDrawing.h"
-#include <algorithm>
 
 #define DRAW_IN_FRAME_DEBUG 0
 #define SCROLLBARS_VISUAL_DEBUG 0
@@ -466,7 +465,7 @@ GetBackingScaleFactorForRendering(CGContextRef cgContext)
 {
   CGAffineTransform ctm = CGContextGetUserSpaceToDeviceSpaceTransform(cgContext);
   CGRect transformedUserSpacePixel = CGRectApplyAffineTransform(CGRectMake(0, 0, 1, 1), ctm);
-  float maxScale = std::max(fabs(transformedUserSpacePixel.size.width),
+  float maxScale = NS_MAX(fabs(transformedUserSpacePixel.size.width),
                           fabs(transformedUserSpacePixel.size.height));
   return maxScale > 1.0 ? 2 : 1;  
 }
@@ -837,7 +836,7 @@ nsNativeThemeCocoa::DrawCheckboxOrRadio(CGContextRef cgContext, bool inCheckbox,
   [cell setControlTint:(FrameIsInActiveWindow(aFrame) ? [NSColor currentControlTint] : NSClearControlTint)];
 
   // Ensure that the control is square.
-  float length = std::min(inBoxRect.size.width, inBoxRect.size.height);
+  float length = NS_MIN(inBoxRect.size.width, inBoxRect.size.height);
   HIRect drawRect = CGRectMake(inBoxRect.origin.x + (int)((inBoxRect.size.width - length) / 2.0f),
                                inBoxRect.origin.y + (int)((inBoxRect.size.height - length) / 2.0f),
                                length, length);
@@ -3028,5 +3027,5 @@ nsNativeThemeCocoa::GetProgressMaxValue(nsIFrame* aFrame)
     }
   }
 
-  return (double)std::max(CheckIntAttr(aFrame, nsGkAtoms::max, 100), 1);
+  return (double)NS_MAX(CheckIntAttr(aFrame, nsGkAtoms::max, 100), 1);
 }

@@ -10,8 +10,8 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-const [phishingList, malwareList] =
-  Services.prefs.getCharPref("urlclassifier.gethashtables").split(",").map(function(value) value.trim());
+const phishingList = "goog-phish-shavar";
+const malwareList  = "goog-malware-shavar";
 
 var debug = false;
 function log(...stuff) {

@@ -24,7 +24,6 @@
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 #include "mozilla/Likely.h"
-#include <algorithm>
 
 using namespace xpc;
 using namespace mozilla;
@@ -2754,7 +2753,7 @@ CallMethodHelper::InitializeDispatchParams()
     if (wantsOptArgc) {
         nsXPTCVariant* dp = &mDispatchParams[mOptArgcIndex];
         dp->type = nsXPTType::T_U8;
-        dp->val.u8 = std::min<uint32_t>(mArgc, paramCount) - requiredArgs;
+        dp->val.u8 = NS_MIN<uint32_t>(mArgc, paramCount) - requiredArgs;
     }
 
     return true;

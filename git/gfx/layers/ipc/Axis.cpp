@@ -7,7 +7,6 @@
 #include "Axis.h"
 #include "AsyncPanZoomController.h"
 #include "mozilla/Preferences.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace layers {
@@ -25,7 +24,7 @@ static float gMaxEventAcceleration = 999.0f;
 /**
  * Amount of friction applied during flings.
  */
-static float gFlingFriction = 0.006f;
+static float gFlingFriction = 0.007f;
 
 /**
  * Threshold for velocity beneath which we turn off any acceleration we had
@@ -111,7 +110,7 @@ void Axis::UpdateWithTouchAtDevicePoint(int32_t aPos, const TimeDuration& aTimeD
     mVelocity = newVelocity;
   } else {
     float maxChange = fabsf(mVelocity * aTimeDelta.ToMilliseconds() * gMaxEventAcceleration);
-    mVelocity = std::min(mVelocity + maxChange, std::max(mVelocity - maxChange, newVelocity));
+    mVelocity = NS_MIN(mVelocity + maxChange, NS_MAX(mVelocity - maxChange, newVelocity));
   }
 
   mVelocity = newVelocity;
@@ -163,7 +162,7 @@ bool Axis::FlingApplyFrictionOrCancel(const TimeDuration& aDelta) {
     mVelocity = 0.0f;
     return false;
   } else {
-    mVelocity *= pow(1.0f - gFlingFriction, float(aDelta.ToMilliseconds()));
+    mVelocity *= NS_MAX(1.0f - gFlingFriction * aDelta.ToMilliseconds(), 0.0);
   }
   return true;
 }
@@ -261,7 +260,7 @@ float Axis::GetVelocity() {
 }
 
 float Axis::GetAccelerationFactor() {
-  return powf(gAccelerationMultiplier, std::max(0, (mAcceleration - 4) * 3));
+  return powf(gAccelerationMultiplier, NS_MAX(0, (mAcceleration - 4) * 3));
 }
 
 float Axis::GetCompositionEnd() {

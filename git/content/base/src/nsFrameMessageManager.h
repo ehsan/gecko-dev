@@ -71,11 +71,6 @@ public:
   {
     return false;
   }
-
-  virtual bool CheckAppHasPermission(const nsAString& aPermission)
-  {
-    return false;
-  }
 };
 
 } // namespace ipc
@@ -239,8 +234,7 @@ public:
 private:
   enum ProcessCheckerType {
     PROCESS_CHECKER_PERMISSION,
-    PROCESS_CHECKER_MANIFEST_URL,
-    ASSERT_APP_HAS_PERMISSION
+    PROCESS_CHECKER_MANIFEST_URL
   };
   nsresult AssertProcessInternal(ProcessCheckerType aType,
                                  const nsAString& aCapability,

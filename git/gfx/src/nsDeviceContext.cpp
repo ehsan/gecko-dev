@@ -18,7 +18,6 @@
 #include "nsIObserverService.h"
 
 #include "gfxImageSurface.h"
-#include <algorithm>
 
 #if !XP_MACOSX
 #include "gfxPDFSurface.h"
@@ -332,7 +331,7 @@ nsDeviceContext::SetDPI()
             dpi = mWidget->GetDPI();
 
             if (prefDPI < 0) {
-                dpi = std::max(96.0f, dpi);
+                dpi = NS_MAX(96.0f, dpi);
             }
         } else {
             dpi = 96.0f;
@@ -341,7 +340,7 @@ nsDeviceContext::SetDPI()
         double devPixelsPerCSSPixel = mWidget ? mWidget->GetDefaultScale() : 1.0;
 
         mAppUnitsPerDevNotScaledPixel =
-            std::max(1, NS_lround(AppUnitsPerCSSPixel() / devPixelsPerCSSPixel));
+            NS_MAX(1, NS_lround(AppUnitsPerCSSPixel() / devPixelsPerCSSPixel));
     }
 
     NS_ASSERTION(dpi != -1.0, "no dpi set");
@@ -719,7 +718,7 @@ void
 nsDeviceContext::UpdateScaledAppUnits()
 {
     mAppUnitsPerDevPixel =
-        std::max(1, NSToIntRound(float(mAppUnitsPerDevNotScaledPixel) / mPixelScale));
+        NS_MAX(1, NSToIntRound(float(mAppUnitsPerDevNotScaledPixel) / mPixelScale));
     // adjust mPixelScale to reflect appunit rounding
     mPixelScale = float(mAppUnitsPerDevNotScaledPixel) / mAppUnitsPerDevPixel;
 }

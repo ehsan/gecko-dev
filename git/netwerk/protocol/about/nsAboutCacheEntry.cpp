@@ -13,7 +13,6 @@
 #include "nsAutoPtr.h"
 #include "prprf.h"
 #include "nsEscape.h"
-#include <algorithm>
 
 #define HEXDUMP_MAX_ROWS 16
 
@@ -30,7 +29,7 @@ HexDump(uint32_t *state, const char *buf, int32_t n, nsCString &result)
 
     p = (const unsigned char *) buf;
 
-    int32_t i, row_max = std::min(HEXDUMP_MAX_ROWS, n);
+    int32_t i, row_max = NS_MIN(HEXDUMP_MAX_ROWS, n);
 
     // print hex codes:
     for (i = 0; i < row_max; ++i) {

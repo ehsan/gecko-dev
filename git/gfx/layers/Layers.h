@@ -1248,8 +1248,6 @@ public:
    */
   gfxPoint GetResidualTranslation() const { return mResidualTranslation; }
 
-  static bool UseTiledThebes();
-
 protected:
   ThebesLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData)

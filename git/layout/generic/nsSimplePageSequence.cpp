@@ -22,7 +22,6 @@
 #include "nsHTMLCanvasFrame.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsICanvasRenderingContextInternal.h"
-#include <algorithm>
 
 // DateTime Includes
 #include "nsDateTimeFormatCID.h"
@@ -139,9 +138,9 @@ nsSimplePageSequenceFrame::SetDesiredSize(nsHTMLReflowMetrics& aDesiredSize,
     // can act as a background in print preview but also handle overflow
     // in child page frames correctly.
     // Use availableWidth so we don't cause a needless horizontal scrollbar.
-    aDesiredSize.width = std::max(aReflowState.availableWidth,
+    aDesiredSize.width = NS_MAX(aReflowState.availableWidth,
                                 nscoord(aWidth * PresContext()->GetPrintPreviewScale()));
-    aDesiredSize.height = std::max(aReflowState.ComputedHeight(),
+    aDesiredSize.height = NS_MAX(aReflowState.ComputedHeight(),
                                  nscoord(aHeight * PresContext()->GetPrintPreviewScale()));
 }
 
@@ -255,7 +254,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     y += kidSize.height;
     y += pageCSSMargin.bottom;
 
-    maxXMost = std::max(maxXMost, x + kidSize.width + pageCSSMargin.right);
+    maxXMost = NS_MAX(maxXMost, x + kidSize.width + pageCSSMargin.right);
 
     // Is the page complete?
     nsIFrame* kidNextInFlow = kidFrame->GetNextInFlow();
@@ -633,10 +632,6 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
              gfxASurface::CONTENT_COLOR_ALPHA,
              size
            );
-
-        if (!printSurface) {
-          continue;
-        }
 
         nsICanvasRenderingContextInternal* ctx = canvas->GetContextAtIndex(0);
 

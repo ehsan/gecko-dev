@@ -31,7 +31,7 @@ class MessagePumpQt : public QObject {
   virtual bool event (QEvent *e);
   void scheduleDelayedIfNeeded(const Time& delayed_work_time);
 
- public Q_SLOTS:
+ public slots:
   void dispatchDelayed();
 
  private:

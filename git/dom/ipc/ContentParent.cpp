@@ -71,6 +71,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIWindowWatcher.h"
+#include "nsMemoryReporterManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsSystemInfo.h"
 #include "nsThreadUtils.h"
@@ -129,35 +130,13 @@ namespace dom {
 
 #define NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC "ipc:network:set-offline"
 
-// This represents a single measurement taken by a memory reporter in a child
-// process and passed to this one.  Its process is non-empty, and its amount is
-// fixed.
-class ChildMemoryReporter MOZ_FINAL : public MemoryReporterBase
-{
-public:
-    ChildMemoryReporter(const char* aProcess, const char* aPath, int32_t aKind,
-                        int32_t aUnits, int64_t aAmount,
-                        const char* aDescription)
-      : MemoryReporterBase(aPath, aKind, aUnits, aDescription)
-      , mProcess(aProcess)
-      , mAmount(aAmount)
-    {
-    }
-
-private:
-    int64_t Amount() { return mAmount; }
-
-    nsCString mProcess;
-    int64_t   mAmount;
-};
-
 class MemoryReportRequestParent : public PMemoryReportRequestParent
 {
 public:
     MemoryReportRequestParent();
     virtual ~MemoryReportRequestParent();
 
-    virtual bool Recv__delete__(const InfallibleTArray<MemoryReport>& report);
+    virtual bool    Recv__delete__(const InfallibleTArray<MemoryReport>& report);
 private:
     ContentParent* Owner()
     {
@@ -1717,10 +1696,9 @@ ContentParent::SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& rep
         int32_t   units    = report[i].units();
         int64_t   amount   = report[i].amount();
         nsCString desc     = report[i].desc();
-
-        nsRefPtr<ChildMemoryReporter> r =
-            new ChildMemoryReporter(process.get(), path.get(), kind, units,
-                                    amount, desc.get());
+        
+        nsRefPtr<nsMemoryReporter> r =
+            new nsMemoryReporter(process, path, kind, units, amount, desc);
 
         mMemoryReporters.AppendObject(r);
         mgr->RegisterReporter(r);
@@ -2354,12 +2332,6 @@ bool
 ContentParent::CheckManifestURL(const nsAString& aManifestURL)
 {
   return AssertAppProcessManifestURL(this, NS_ConvertUTF16toUTF8(aManifestURL).get());
-}
-
-bool
-ContentParent::CheckAppHasPermission(const nsAString& aPermission)
-{
-  return AssertAppHasPermission(this, NS_ConvertUTF16toUTF8(aPermission).get());
 }
 
 } // namespace dom

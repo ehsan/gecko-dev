@@ -8,7 +8,6 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIServiceManager.h"
 #include "nsReadLine.h"
-#include <algorithm>
 
 #define CONVERTER_BUFFER_SIZE 8192
 
@@ -222,7 +221,7 @@ nsConverterInputStream::Fill(nsresult * aErrorCode)
       ++srcConsumed;
       // XXX this is needed to make sure we don't underrun our buffer;
       // bug 160784 again
-      srcConsumed = std::max<uint32_t>(srcConsumed, 0);
+      srcConsumed = NS_MAX<uint32_t>(srcConsumed, 0);
       mConverter->Reset();
     }
     NS_ASSERTION(srcConsumed <= mByteData->GetLength(),

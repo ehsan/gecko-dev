@@ -22,7 +22,15 @@ DataNotificationInfoBar.prototype = {
     "datareporting:notify-data-policy:close",
   ],
 
-  _DATA_REPORTING_NOTIFICATION: "data-reporting",
+#ifdef MOZ_TELEMETRY_REPORTING
+#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
+  _PREF_TELEMETRY_DISPLAYED: "toolkit.telemetry.notifiedOptOut",
+#else
+  _PREF_TELEMETRY_DISPLAYED: "toolkit.telemetry.prompted",
+#endif
+
+  _TELEMETRY_DISPLAY_REV: 2,
+#endif
 
   init: function() {
     window.addEventListener("unload", function onUnload() {
@@ -56,17 +64,10 @@ DataNotificationInfoBar.prototype = {
     this._notificationBox = nb;
   },
 
-  _getDataReportingNotification: function (name=this._DATA_REPORTING_NOTIFICATION) {
-    if (!this._notificationBox) {
-      return undefined;
-    }
-    return this._notificationBox.getNotificationWithValue(name);
-  },
-
   _displayDataPolicyInfoBar: function (request) {
     this._ensureNotificationBox();
 
-    if (this._getDataReportingNotification()) {
+    if (this._notificationBox.getNotificationWithValue("data-reporting")) {
       return;
     }
 
@@ -87,7 +88,7 @@ DataNotificationInfoBar.prototype = {
 
     let buttons = [{
       label: gNavigatorBundle.getString("dataReportingNotification.button.label"),
-      accessKey: gNavigatorBundle.getString("dataReportingNotification.button.accessKey"),
+      accesskey: gNavigatorBundle.getString("dataReportingNotification.button.accessKey"),
       popup: null,
       callback: function () {
         // Clicking the button to go to the preferences tab constitutes
@@ -103,7 +104,7 @@ DataNotificationInfoBar.prototype = {
     this._log.info("Creating data reporting policy notification.");
     let notification = this._notificationBox.appendNotification(
       message,
-      this._DATA_REPORTING_NOTIFICATION,
+      "data-reporting",
       null,
       this._notificationBox.PRIORITY_INFO_HIGH,
       buttons,
@@ -121,15 +122,23 @@ DataNotificationInfoBar.prototype = {
     // Keep open until user closes it.
     notification.persistence = -1;
 
+    // This likely isn't needed in a world where Telemetry and FHR share a
+    // notification and data reporting policy. It is preserved until traces
+    // of this pref are wiped from the code base.
+    Services.prefs.setIntPref(this._PREF_TELEMETRY_DISPLAYED,
+                              this._TELEMETRY_DISPLAY_REV);
+
     // Tell the notification request we have displayed the notification.
     request.onUserNotifyComplete();
   },
 
   _clearPolicyNotification: function () {
-    let notification = this._getDataReportingNotification();
-    if (notification) {
-      notification.close();
+    if (!this._notificationBox ||
+        !this._notificationBox.getNotificationWithValue("data-reporting")) {
+      return;
     }
+
+    this._notificationBox.getNotificationWithValue("date-reporting").close();
   },
 
   onNotifyDataPolicy: function (request) {

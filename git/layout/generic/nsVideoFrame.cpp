@@ -31,7 +31,6 @@
 #include "ImageContainer.h"
 #include "ImageLayers.h"
 #include "nsContentList.h"
-#include <algorithm>
 
 using namespace mozilla;
 using namespace mozilla::layers;
@@ -146,7 +145,7 @@ CorrectForAspectRatio(const gfxRect& aRect, const nsIntSize& aRatio)
                "Nothing to draw");
   // Choose scale factor that scales aRatio to just fit into aRect
   gfxFloat scale =
-    std::min(aRect.Width()/aRatio.width, aRect.Height()/aRatio.height);
+    NS_MIN(aRect.Width()/aRatio.width, aRect.Height()/aRatio.height);
   gfxSize scaledRatio(scale*aRatio.width, scale*aRatio.height);
   gfxPoint topLeft((aRect.Width() - scaledRatio.width)/2,
                    (aRect.Height() - scaledRatio.height)/2);
@@ -271,7 +270,7 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
 
       if (ShouldDisplayPoster() && posterHeight && posterWidth) {
         gfxFloat scale =
-          std::min(static_cast<float>(computedArea.width)/nsPresContext::CSSPixelsToAppUnits(static_cast<float>(posterWidth)),
+          NS_MIN(static_cast<float>(computedArea.width)/nsPresContext::CSSPixelsToAppUnits(static_cast<float>(posterWidth)),
                  static_cast<float>(computedArea.height)/nsPresContext::CSSPixelsToAppUnits(static_cast<float>(posterHeight)));
         gfxSize scaledRatio = gfxSize(scale*posterWidth, scale*posterHeight);
         scaledPosterSize.width = nsPresContext::CSSPixelsToAppUnits(static_cast<float>(scaledRatio.width));

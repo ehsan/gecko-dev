@@ -27,7 +27,6 @@
 #include "gfxFontFeatures.h"
 #include "mozilla/gfx/Types.h"
 #include "mozilla/Attributes.h"
-#include <algorithm>
 
 typedef struct _cairo_scaled_font cairo_scaled_font_t;
 
@@ -117,8 +116,8 @@ struct THEBES_API gfxFontStyle {
     // Not meant to be called when sizeAdjust = 0.
     gfxFloat GetAdjustedSize(gfxFloat aspect) const {
         NS_ASSERTION(sizeAdjust != 0.0, "Not meant to be called when sizeAdjust = 0");
-        gfxFloat adjustedSize = std::max(NS_round(size*(sizeAdjust/aspect)), 1.0);
-        return std::min(adjustedSize, FONT_MAX_SIZE);
+        gfxFloat adjustedSize = NS_MAX(NS_round(size*(sizeAdjust/aspect)), 1.0);
+        return NS_MIN(adjustedSize, FONT_MAX_SIZE);
     }
 
     PLDHashNumber Hash() const {
@@ -1195,10 +1194,7 @@ public:
         GLYPH_STROKE = 2,
         // Appends glyphs to the current path. Can NOT be used with
         //  GLYPH_FILL or GLYPH_STROKE.
-        GLYPH_PATH = 4,
-        // When GLYPH_FILL and GLYPH_STROKE are both set, draws the
-        //  stroke underneath the fill.
-        GLYPH_STROKE_UNDERNEATH = 8
+        GLYPH_PATH = 4
     } DrawMode;
 
 protected:

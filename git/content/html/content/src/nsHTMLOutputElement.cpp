@@ -269,7 +269,7 @@ nsHTMLOutputElement::SetDefaultValue(const nsAString& aDefaultValue)
 }
 
 NS_IMETHODIMP
-nsHTMLOutputElement::GetHtmlFor(nsISupports** aResult)
+nsHTMLOutputElement::GetHtmlFor(nsIDOMDOMSettableTokenList** aResult)
 {
   if (!mTokenList) {
     mTokenList = new nsDOMSettableTokenList(this, nsGkAtoms::_for);

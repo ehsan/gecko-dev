@@ -12,7 +12,6 @@
 #include "nsStyleStruct.h"
 #include "nsTHashtable.h"
 #include "mozilla/Likely.h"
-#include <algorithm>
 class nsIScrollableFrame;
 
 namespace mozilla {
@@ -62,8 +61,8 @@ class TextOverflow {
     AlignmentEdges() : mAssigned(false) {}
     void Accumulate(const nsRect& aRect) {
       if (MOZ_LIKELY(mAssigned)) {
-        x = std::min(x, aRect.X());
-        xmost = std::max(xmost, aRect.XMost());
+        x = NS_MIN(x, aRect.X());
+        xmost = NS_MAX(xmost, aRect.XMost());
       } else {
         x = aRect.X();
         xmost = aRect.XMost();
@@ -80,7 +79,7 @@ class TextOverflow {
     InnerClipEdges() : mAssignedLeft(false), mAssignedRight(false) {}
     void AccumulateLeft(const nsRect& aRect) {
       if (MOZ_LIKELY(mAssignedLeft)) {
-        mLeft = std::max(mLeft, aRect.X());
+        mLeft = NS_MAX(mLeft, aRect.X());
       } else {
         mLeft = aRect.X();
         mAssignedLeft = true;
@@ -88,7 +87,7 @@ class TextOverflow {
     }
     void AccumulateRight(const nsRect& aRect) {
       if (MOZ_LIKELY(mAssignedRight)) {
-        mRight = std::min(mRight, aRect.XMost());
+        mRight = NS_MIN(mRight, aRect.XMost());
       } else {
         mRight = aRect.XMost();
         mAssignedRight = true;

@@ -36,7 +36,7 @@ class LayerManager;
 
 // Represents (affine) transforms that are calculated from a content view.
 struct ViewTransform {
-  ViewTransform(gfxPoint aTranslation = gfxPoint(),
+  ViewTransform(nsIntPoint aTranslation = nsIntPoint(0, 0),
                 gfxSize aScale = gfxSize(1, 1))
     : mTranslation(aTranslation)
     , mScale(aScale)
@@ -49,7 +49,7 @@ struct ViewTransform {
       gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0);
   }
 
-  gfxPoint mTranslation;
+  nsIntPoint mTranslation;
   gfxSize mScale;
 };
 

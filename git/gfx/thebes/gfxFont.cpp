@@ -1456,8 +1456,8 @@ gfxFontShaper::MergeFontFeatures(
 void
 gfxFont::RunMetrics::CombineWith(const RunMetrics& aOther, bool aOtherIsOnLeft)
 {
-    mAscent = std::max(mAscent, aOther.mAscent);
-    mDescent = std::max(mDescent, aOther.mDescent);
+    mAscent = NS_MAX(mAscent, aOther.mAscent);
+    mDescent = NS_MAX(mDescent, aOther.mDescent);
     if (aOtherIsOnLeft) {
         mBoundingBox =
             (mBoundingBox + gfxPoint(aOther.mAdvanceWidth, 0)).Union(aOther.mBoundingBox);
@@ -1560,10 +1560,6 @@ struct GlyphBuffer {
         if (aDrawMode == gfxFont::GLYPH_PATH) {
             cairo_glyph_path(aCR, mGlyphBuffer, mNumGlyphs);
         } else {
-            if ((aDrawMode & (gfxFont::GLYPH_STROKE | gfxFont::GLYPH_STROKE_UNDERNEATH)) ==
-                             (gfxFont::GLYPH_STROKE | gfxFont::GLYPH_STROKE_UNDERNEATH)) {
-                FlushStroke(aCR, aObjectPaint, aGlobalMatrix);
-            }
             if (aDrawMode & gfxFont::GLYPH_FILL) {
                 SAMPLE_LABEL("GlyphBuffer", "cairo_show_glyphs");
                 nsRefPtr<gfxPattern> pattern;
@@ -1579,34 +1575,27 @@ struct GlyphBuffer {
                     cairo_restore(aCR);
                 }
             }
-            if ((aDrawMode & (gfxFont::GLYPH_STROKE | gfxFont::GLYPH_STROKE_UNDERNEATH)) ==
-                              gfxFont::GLYPH_STROKE) {
-                FlushStroke(aCR, aObjectPaint, aGlobalMatrix);
+
+            if (aDrawMode & gfxFont::GLYPH_STROKE) {
+                nsRefPtr<gfxPattern> pattern;
+                if (aObjectPaint &&
+                    !!(pattern = aObjectPaint->GetStrokePattern(aGlobalMatrix))) {
+                    cairo_save(aCR);
+                    cairo_set_source(aCR, pattern->CairoPattern());
+                }
+
+                cairo_new_path(aCR);
+                cairo_glyph_path(aCR, mGlyphBuffer, mNumGlyphs);
+                cairo_stroke(aCR);
+
+                if (pattern) {
+                    cairo_restore(aCR);
+                }
             }
         }
 
         mNumGlyphs = 0;
     }
-
-private:
-    void FlushStroke(cairo_t *aCR, gfxTextObjectPaint *aObjectPaint,
-                     const gfxMatrix& aGlobalMatrix) {
-        nsRefPtr<gfxPattern> pattern;
-        if (aObjectPaint &&
-            !!(pattern = aObjectPaint->GetStrokePattern(aGlobalMatrix))) {
-            cairo_save(aCR);
-            cairo_set_source(aCR, pattern->CairoPattern());
-        }
-
-        cairo_new_path(aCR);
-        cairo_glyph_path(aCR, mGlyphBuffer, mNumGlyphs);
-        cairo_stroke(aCR);
-
-        if (pattern) {
-            cairo_restore(aCR);
-        }
-    }
-
 #undef GLYPH_BUFFER_SIZE
 };
 
@@ -1656,10 +1645,6 @@ struct GlyphBufferAzure {
         buf.mNumGlyphs = mNumGlyphs;
 
         gfxContext::AzureState state = aThebesContext->CurrentState();
-        if ((aDrawMode & (gfxFont::GLYPH_STROKE | gfxFont::GLYPH_STROKE_UNDERNEATH)) ==
-                         (gfxFont::GLYPH_STROKE | gfxFont::GLYPH_STROKE_UNDERNEATH)) {
-            FlushStroke(aDT, aObjectPaint, aFont, aThebesContext, buf, state);
-        }
         if (aDrawMode & gfxFont::GLYPH_FILL) {
             if (state.pattern || aObjectPaint) {
                 Pattern *pat;
@@ -1715,29 +1700,19 @@ struct GlyphBufferAzure {
             aThebesContext->EnsurePathBuilder();
             aFont->CopyGlyphsToBuilder(buf, aThebesContext->mPathBuilder);
         }
-        if ((aDrawMode & (gfxFont::GLYPH_STROKE | gfxFont::GLYPH_STROKE_UNDERNEATH)) ==
-                          gfxFont::GLYPH_STROKE) {
-            FlushStroke(aDT, aObjectPaint, aFont, aThebesContext, buf, state);
+        if (aDrawMode & gfxFont::GLYPH_STROKE) {
+            RefPtr<Path> path = aFont->GetPathForGlyphs(buf, aDT);
+            if (aObjectPaint) {
+                nsRefPtr<gfxPattern> strokePattern =
+                  aObjectPaint->GetStrokePattern(aThebesContext->CurrentMatrix());
+                if (strokePattern) {
+                    aDT->Stroke(path, *strokePattern->GetPattern(aDT), state.strokeOptions);
+                }
+            }
         }
 
         mNumGlyphs = 0;
     }
-
-private:
-    void FlushStroke(DrawTarget *aDT, gfxTextObjectPaint *aObjectPaint,
-                     ScaledFont *aFont, gfxContext *aThebesContext,
-                     gfx::GlyphBuffer& aBuf, gfxContext::AzureState& aState)
-    {
-        RefPtr<Path> path = aFont->GetPathForGlyphs(aBuf, aDT);
-        if (aObjectPaint) {
-            nsRefPtr<gfxPattern> strokePattern =
-              aObjectPaint->GetStrokePattern(aThebesContext->CurrentMatrix());
-            if (strokePattern) {
-                aDT->Stroke(path, *strokePattern->GetPattern(aDT), aState.strokeOptions);
-            }
-        }
-    }
-
 #undef GLYPH_BUFFER_SIZE
 };
 
@@ -1773,8 +1748,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
               gfxContext *aContext, DrawMode aDrawMode, gfxPoint *aPt,
               Spacing *aSpacing, gfxTextObjectPaint *aObjectPaint)
 {
-    NS_ASSERTION(aDrawMode == gfxFont::GLYPH_PATH || !(aDrawMode & gfxFont::GLYPH_PATH),
-                 "GLYPH_PATH cannot be used with GLYPH_FILL, GLYPH_STROKE or GLYPH_STROKE_UNDERNEATH");
+    NS_ASSERTION(aDrawMode <= gfxFont::GLYPH_PATH, "GLYPH_PATH cannot be used with GLYPH_FILL or GLYPH_STROKE");
 
     if (aStart >= aEnd)
         return;
@@ -2197,8 +2171,8 @@ gfxFont::RenderSVGGlyph(gfxContext *aContext, gfxPoint aPoint, DrawMode aDrawMod
 static void
 UnionRange(gfxFloat aX, gfxFloat* aDestMin, gfxFloat* aDestMax)
 {
-    *aDestMin = std::min(*aDestMin, aX);
-    *aDestMax = std::max(*aDestMax, aX);
+    *aDestMin = NS_MIN(*aDestMin, aX);
+    *aDestMax = NS_MAX(*aDestMax, aX);
 }
 
 // We get precise glyph extents if the textrun creator requested them, or
@@ -3009,10 +2983,10 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, bool aIsBadUnderlineFont)
         aMetrics->subscriptOffset = aMetrics->xHeight;
     }
 
-    aMetrics->underlineSize = std::max(1.0, aMetrics->underlineSize);
-    aMetrics->strikeoutSize = std::max(1.0, aMetrics->strikeoutSize);
+    aMetrics->underlineSize = NS_MAX(1.0, aMetrics->underlineSize);
+    aMetrics->strikeoutSize = NS_MAX(1.0, aMetrics->strikeoutSize);
 
-    aMetrics->underlineOffset = std::min(aMetrics->underlineOffset, -1.0);
+    aMetrics->underlineOffset = NS_MIN(aMetrics->underlineOffset, -1.0);
 
     if (aMetrics->maxAscent < 1.0) {
         // We cannot draw strikeout line and overline in the ascent...
@@ -3034,13 +3008,13 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, bool aIsBadUnderlineFont)
     if (!mStyle.systemFont && aIsBadUnderlineFont) {
         // First, we need 2 pixels between baseline and underline at least. Because many CJK characters
         // put their glyphs on the baseline, so, 1 pixel is too close for CJK characters.
-        aMetrics->underlineOffset = std::min(aMetrics->underlineOffset, -2.0);
+        aMetrics->underlineOffset = NS_MIN(aMetrics->underlineOffset, -2.0);
 
         // Next, we put the underline to bottom of below of the descent space.
         if (aMetrics->internalLeading + aMetrics->externalLeading > aMetrics->underlineSize) {
-            aMetrics->underlineOffset = std::min(aMetrics->underlineOffset, -aMetrics->emDescent);
+            aMetrics->underlineOffset = NS_MIN(aMetrics->underlineOffset, -aMetrics->emDescent);
         } else {
-            aMetrics->underlineOffset = std::min(aMetrics->underlineOffset,
+            aMetrics->underlineOffset = NS_MIN(aMetrics->underlineOffset,
                                                aMetrics->underlineSize - aMetrics->emDescent);
         }
     }
@@ -3048,7 +3022,7 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, bool aIsBadUnderlineFont)
     // will stay within the boundary.
     else if (aMetrics->underlineSize - aMetrics->underlineOffset > aMetrics->maxDescent) {
         if (aMetrics->underlineSize > aMetrics->maxDescent)
-            aMetrics->underlineSize = std::max(aMetrics->maxDescent, 1.0);
+            aMetrics->underlineSize = NS_MAX(aMetrics->maxDescent, 1.0);
         // The max underlineOffset is 1px (the min underlineSize is 1px, and min maxDescent is 0px.)
         aMetrics->underlineOffset = aMetrics->underlineSize - aMetrics->maxDescent;
     }
@@ -3059,11 +3033,11 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, bool aIsBadUnderlineFont)
     gfxFloat halfOfStrikeoutSize = floor(aMetrics->strikeoutSize / 2.0 + 0.5);
     if (halfOfStrikeoutSize + aMetrics->strikeoutOffset > aMetrics->maxAscent) {
         if (aMetrics->strikeoutSize > aMetrics->maxAscent) {
-            aMetrics->strikeoutSize = std::max(aMetrics->maxAscent, 1.0);
+            aMetrics->strikeoutSize = NS_MAX(aMetrics->maxAscent, 1.0);
             halfOfStrikeoutSize = floor(aMetrics->strikeoutSize / 2.0 + 0.5);
         }
         gfxFloat ascent = floor(aMetrics->maxAscent + 0.5);
-        aMetrics->strikeoutOffset = std::max(halfOfStrikeoutSize, ascent / 2.0);
+        aMetrics->strikeoutOffset = NS_MAX(halfOfStrikeoutSize, ascent / 2.0);
     }
 
     // If overline is larger than the ascent, the line should be resized.
@@ -3329,7 +3303,7 @@ gfxFontGroup::BuildFontList()
             if (font->GetFontEntry()->mIsBadUnderlineFont) {
                 gfxFloat first = mFonts[0].Font()->GetMetrics().underlineOffset;
                 gfxFloat bad = font->GetMetrics().underlineOffset;
-                mUnderlineOffset = std::min(first, bad);
+                mUnderlineOffset = NS_MIN(first, bad);
                 break;
             }
         }
@@ -4565,7 +4539,7 @@ gfxShapedText::SetMissingGlyph(uint32_t aIndex, uint32_t aChar, gfxFont *aFont)
         // Setting advance width to zero will prevent drawing the hexbox
         details->mAdvance = 0;
     } else {
-        gfxFloat width = std::max(aFont->GetMetrics().aveCharWidth,
+        gfxFloat width = NS_MAX(aFont->GetMetrics().aveCharWidth,
                                 gfxFontMissingGlyphs::GetDesiredMinWidth(aChar));
         details->mAdvance = uint32_t(width * mAppUnitsPerDevUnit);
     }
@@ -4638,10 +4612,10 @@ gfxTextRun::GlyphRunIterator::NextRun()  {
     if (mGlyphRun->mCharacterOffset >= mEndOffset)
         return false;
 
-    mStringStart = std::max(mStartOffset, mGlyphRun->mCharacterOffset);
+    mStringStart = NS_MAX(mStartOffset, mGlyphRun->mCharacterOffset);
     uint32_t last = mNextIndex + 1 < mTextRun->mGlyphRuns.Length()
         ? mTextRun->mGlyphRuns[mNextIndex + 1].mCharacterOffset : mTextRun->GetLength();
-    mStringEnd = std::min(mEndOffset, last);
+    mStringEnd = NS_MIN(mEndOffset, last);
 
     ++mNextIndex;
     return true;
@@ -4661,7 +4635,7 @@ AccountStorageForTextRun(gfxTextRun *aTextRun, int32_t aSign)
     int32_t bytes = length * sizeof(gfxTextRun::CompressedGlyph);
     bytes += sizeof(gfxTextRun);
     gTextRunStorage += bytes*aSign;
-    gTextRunStorageHighWaterMark = std::max(gTextRunStorageHighWaterMark, gTextRunStorage);
+    gTextRunStorageHighWaterMark = NS_MAX(gTextRunStorageHighWaterMark, gTextRunStorage);
 }
 #endif
 
@@ -4956,17 +4930,17 @@ ClipPartialLigature(gfxTextRun *aTextRun, gfxFloat *aLeft, gfxFloat *aRight,
 {
     if (aLigature->mClipBeforePart) {
         if (aTextRun->IsRightToLeft()) {
-            *aRight = std::min(*aRight, aXOrigin);
+            *aRight = NS_MIN(*aRight, aXOrigin);
         } else {
-            *aLeft = std::max(*aLeft, aXOrigin);
+            *aLeft = NS_MAX(*aLeft, aXOrigin);
         }
     }
     if (aLigature->mClipAfterPart) {
         gfxFloat endEdge = aXOrigin + aTextRun->GetDirection()*aLigature->mPartWidth;
         if (aTextRun->IsRightToLeft()) {
-            *aLeft = std::max(*aLeft, endEdge);
+            *aLeft = NS_MAX(*aLeft, endEdge);
         } else {
-            *aRight = std::min(*aRight, endEdge);
+            *aRight = NS_MIN(*aRight, endEdge);
         }
     }    
 }
@@ -5094,8 +5068,7 @@ gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt, gfxFont::DrawMode aDrawMode
                  gfxTextRun::DrawCallbacks *aCallbacks)
 {
     NS_ASSERTION(aStart + aLength <= GetLength(), "Substring out of range");
-    NS_ASSERTION(aDrawMode == gfxFont::GLYPH_PATH || !(aDrawMode & gfxFont::GLYPH_PATH),
-                 "GLYPH_PATH cannot be used with GLYPH_FILL, GLYPH_STROKE or GLYPH_STROKE_UNDERNEATH");
+    NS_ASSERTION(aDrawMode <= gfxFont::GLYPH_PATH, "GLYPH_PATH cannot be used with GLYPH_FILL or GLYPH_STROKE");
     NS_ASSERTION(aDrawMode == gfxFont::GLYPH_PATH || !aCallbacks, "callback must not be specified unless using GLYPH_PATH");
 
     gfxFloat direction = GetDirection();
@@ -5280,12 +5253,12 @@ gfxTextRun::BreakAndMeasureText(uint32_t aStart, uint32_t aMaxLength,
                                 bool aCanWordWrap,
                                 gfxBreakPriority *aBreakPriority)
 {
-    aMaxLength = std::min(aMaxLength, GetLength() - aStart);
+    aMaxLength = NS_MIN(aMaxLength, GetLength() - aStart);
 
     NS_ASSERTION(aStart + aMaxLength <= GetLength(), "Substring out of range");
 
     uint32_t bufferStart = aStart;
-    uint32_t bufferLength = std::min<uint32_t>(aMaxLength, MEASUREMENT_BUFFER_SIZE);
+    uint32_t bufferLength = NS_MIN<uint32_t>(aMaxLength, MEASUREMENT_BUFFER_SIZE);
     PropertyProvider::Spacing spacingBuffer[MEASUREMENT_BUFFER_SIZE];
     bool haveSpacing = aProvider && (mFlags & gfxTextRunFactory::TEXT_ENABLE_SPACING) != 0;
     if (haveSpacing) {
@@ -5324,7 +5297,7 @@ gfxTextRun::BreakAndMeasureText(uint32_t aStart, uint32_t aMaxLength,
         if (i >= bufferStart + bufferLength) {
             // Fetch more spacing and hyphenation data
             bufferStart = i;
-            bufferLength = std::min(aStart + aMaxLength, i + MEASUREMENT_BUFFER_SIZE) - i;
+            bufferLength = NS_MIN(aStart + aMaxLength, i + MEASUREMENT_BUFFER_SIZE) - i;
             if (haveSpacing) {
                 GetAdjustedSpacing(this, bufferStart, bufferStart + bufferLength, aProvider,
                                    spacingBuffer);

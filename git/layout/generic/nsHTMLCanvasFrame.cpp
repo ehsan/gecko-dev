@@ -19,7 +19,6 @@
 #include "nsTransform2D.h"
 
 #include "gfxContext.h"
-#include <algorithm>
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -200,7 +199,7 @@ nsHTMLCanvasFrame::Reflow(nsPresContext*           aPresContext,
   if (GetPrevInFlow()) {
     nscoord y = GetContinuationOffset(&aMetrics.width);
     aMetrics.height -= y + mBorderPadding.top;
-    aMetrics.height = std::max(0, aMetrics.height);
+    aMetrics.height = NS_MAX(0, aMetrics.height);
   }
 
   aMetrics.SetOverflowAreasToDesiredBounds();
@@ -329,7 +328,7 @@ nsHTMLCanvasFrame::GetContinuationOffset(nscoord* aWidth) const
       offset += rect.height;
     }
     offset -= mBorderPadding.top;
-    offset = std::max(0, offset);
+    offset = NS_MAX(0, offset);
   }
   return offset;
 }

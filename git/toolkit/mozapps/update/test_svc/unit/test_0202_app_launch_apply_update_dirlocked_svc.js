@@ -30,6 +30,10 @@ const CHECK_TIMEOUT_MILLI = 1000;
 // How many of CHECK_TIMEOUT_MILLI to wait before we abort the test.
 const MAX_TIMEOUT_RUNS = 300;
 
+// Maximum number of milliseconds the process that is launched can run before
+// the test will try to kill it.
+const APP_TIMER_TIMEOUT = 15000;
+
 let gActiveUpdate;
 let gTimeoutRuns = 0;
 

@@ -21,7 +21,6 @@
 #include "png.h"
 
 #include "gfxPlatform.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace image {
@@ -300,7 +299,7 @@ nsPNGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
       return;
 
     // Read data into our header buffer
-    uint32_t bytesToRead = std::min(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
+    uint32_t bytesToRead = NS_MIN(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
                                   mHeaderBytesRead);
     memcpy(mHeaderBuf + mHeaderBytesRead, aBuffer, bytesToRead);
     mHeaderBytesRead += bytesToRead;

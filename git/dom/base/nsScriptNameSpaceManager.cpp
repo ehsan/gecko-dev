@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -112,24 +111,6 @@ GlobalNameHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
   return true;
 }
 
-class ScriptNameSpaceManagerReporter MOZ_FINAL : public MemoryReporterBase
-{
-public:
-  ScriptNameSpaceManagerReporter(nsScriptNameSpaceManager* aManager)
-    : MemoryReporterBase(
-        "explicit/script-namespace-manager",
-        KIND_HEAP,
-        nsIMemoryReporter::UNITS_BYTES,
-        "Memory used for the script namespace manager.")
-    , mManager(aManager)
-  {}
-
-private:
-  int64_t Amount() { return mManager->SizeOfIncludingThis(MallocSizeOf); }
-
-  nsScriptNameSpaceManager* mManager;
-};
-
 NS_IMPL_ISUPPORTS2(nsScriptNameSpaceManager,
                    nsIObserver,
                    nsISupportsWeakReference)
@@ -143,7 +124,6 @@ nsScriptNameSpaceManager::nsScriptNameSpaceManager()
 nsScriptNameSpaceManager::~nsScriptNameSpaceManager()
 {
   if (mIsInitialized) {
-    NS_UnregisterMemoryReporter(mReporter);
     // Destroy the hash
     PL_DHashTableFinish(&mGlobalNames);
     PL_DHashTableFinish(&mNavigatorNames);
@@ -417,9 +397,6 @@ nsScriptNameSpaceManager::Init()
 
     return NS_ERROR_OUT_OF_MEMORY;
   }
-
-  mReporter = new ScriptNameSpaceManagerReporter(this);
-  NS_RegisterMemoryReporter(mReporter);
 
   nsresult rv = NS_OK;
 

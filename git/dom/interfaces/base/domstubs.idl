@@ -18,6 +18,7 @@ interface nsIDOMAttr;
 interface nsIDOMCDATASection;
 interface nsIDOMCharacterData;
 interface nsIDOMComment;
+interface nsIDOMDOMImplementation;
 interface nsIDOMDocument;
 interface nsIDOMDocumentFragment;
 interface nsIDOMDocumentType;
@@ -28,6 +29,7 @@ interface nsIDOMNodeList;
 interface nsIDOMProcessingInstruction;
 interface nsIDOMText;
 interface nsIDOMDOMStringList;
+interface nsIDOMDOMTokenList;
 interface nsIDOMClientRect;
 interface nsIDOMClientRectList;
 

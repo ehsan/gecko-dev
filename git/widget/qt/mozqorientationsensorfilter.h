@@ -31,7 +31,7 @@ public:
     static int GetWindowRotationAngle();
     static QTransform& GetRotationTransform();
 
-Q_SIGNALS:
+signals:
     void orientationChanged();
 
 private:

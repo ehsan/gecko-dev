@@ -592,12 +592,7 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
     return WrapObject(cx, origObj, ci, &NS_GET_IID(nsIClassInfo), vp);
   }
 
-  nsCOMPtr<nsISupports> unused;
-  nsresult rv = native->QueryInterface(*iid->GetID(), getter_AddRefs(unused));
-  if (NS_FAILED(rv)) {
-    return Throw<true>(cx, rv);
-  }
-
+  // Lie, otherwise we need to check classinfo or QI
   *vp = thisv;
   return true;
 }

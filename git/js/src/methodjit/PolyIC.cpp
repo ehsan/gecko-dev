@@ -20,8 +20,6 @@
 #include "jsinterpinlines.h"
 #include "jsautooplen.h"
 
-#include "js/CharacterEncoding.h"
-
 #include "vm/ScopeObject-inl.h"
 #include "vm/StringObject-inl.h"
 
@@ -2411,12 +2409,12 @@ GetElementIC::attachGetProp(VMFrame &f, HandleObject obj, HandleValue v, HandleP
 
     CodeLocationLabel cs = buffer.finalize(f);
 #if DEBUG
-    Latin1CharsZ latin1 = LossyTwoByteCharsToNewLatin1CharsZ(cx, v.toString()->ensureLinear(cx)->range());
+    char *chars = DeflateString(cx, v.toString()->getChars(cx), v.toString()->length());
     JaegerSpew(JSpew_PICs, "generated %s stub at %p for atom %p (\"%s\") shape %p (%s: %d)\n",
-               js_CodeName[JSOp(*f.pc())], cs.executableAddress(), (void*)name, latin1.get(),
+               js_CodeName[JSOp(*f.pc())], cs.executableAddress(), (void*)name, chars,
                (void*)holder->lastProperty(), cx->fp()->script()->filename,
                CurrentLine(cx));
-    JS_free(latin1);
+    js_free(chars);
 #endif
 
     // Update the inline guards, if needed.

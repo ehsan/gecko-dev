@@ -9,7 +9,6 @@
 #include "nsUCSupport.h"
 #include "nsUnicodeDecodeHelper.h"
 #include "nsUnicodeEncodeHelper.h"
-#include <algorithm>
 
 #define DEFAULT_BUFFER_CAPACITY 16
 
@@ -75,7 +74,7 @@ nsBufferDecoderSupport::~nsBufferDecoderSupport()
 
 void nsBufferDecoderSupport::FillBuffer(const char ** aSrc, int32_t aSrcLength)
 {
-  int32_t bcr = std::min(mBufferCapacity - mBufferLength, aSrcLength);
+  int32_t bcr = NS_MIN(mBufferCapacity - mBufferLength, aSrcLength);
   memcpy(mBuffer + mBufferLength, *aSrc, bcr);
   mBufferLength += bcr;
   (*aSrc) += bcr;

@@ -30,7 +30,6 @@
 #include "nsContentUtils.h"
 #include "nsEmbedCID.h"
 #include "nsEventListenerManager.h"
-#include <algorithm>
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
 #endif
@@ -38,7 +37,6 @@
 #include "nsIAppsService.h"
 #include "nsIBaseWindow.h"
 #include "nsIComponentManager.h"
-#include "nsIDocumentInlines.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEvent.h"
@@ -429,7 +427,7 @@ TabChild::HandlePossibleViewportChange()
   float minScale = 1.0f;
 
   nsCOMPtr<nsIDOMElement> htmlDOMElement = do_QueryInterface(document->GetHtmlElement());
-  HTMLBodyElement* bodyDOMElement = document->GetBodyElement();
+  nsCOMPtr<nsIDOMElement> bodyDOMElement = do_QueryInterface(document->GetBodyElement());
 
   int32_t htmlWidth = 0, htmlHeight = 0;
   if (htmlDOMElement) {
@@ -438,14 +436,14 @@ TabChild::HandlePossibleViewportChange()
   }
   int32_t bodyWidth = 0, bodyHeight = 0;
   if (bodyDOMElement) {
-    bodyWidth = bodyDOMElement->ScrollWidth();
-    bodyHeight = bodyDOMElement->ScrollHeight();
+    bodyDOMElement->GetScrollWidth(&bodyWidth);
+    bodyDOMElement->GetScrollHeight(&bodyHeight);
   }
 
   float pageWidth, pageHeight;
   if (htmlDOMElement || bodyDOMElement) {
-    pageWidth = std::max(htmlWidth, bodyWidth);
-    pageHeight = std::max(htmlHeight, bodyHeight);
+    pageWidth = NS_MAX(htmlWidth, bodyWidth);
+    pageHeight = NS_MAX(htmlHeight, bodyHeight);
   } else {
     // For non-HTML content (e.g. SVG), just assume page size == viewport size.
     pageWidth = viewportW;
@@ -458,7 +456,7 @@ TabChild::HandlePossibleViewportChange()
                      viewportInfo.GetMaxZoom());
   NS_ENSURE_TRUE_VOID(minScale); // (return early rather than divide by 0)
 
-  viewportH = std::max(viewportH, screenH / minScale);
+  viewportH = NS_MAX(viewportH, screenH / minScale);
   SetCSSViewport(viewportW, viewportH);
 
   // This change to the zoom accounts for all types of changes I can conceive:

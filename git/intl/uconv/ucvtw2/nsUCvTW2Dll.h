@@ -3,8 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsUCvTW2Dll_h_
-#define nsUCvTW2Dll_h_
+#ifndef nsUCvTW2Dll_h___
+#define nsUCvTW2Dll_h___
+
+#include "prtypes.h"
 
 extern const uint16_t g_ASCIIMappingTable[] ;
 extern const uint16_t g_ufCNS1MappingTable[];
@@ -22,4 +24,4 @@ extern const uint16_t g_utCNS5MappingTable[];
 extern const uint16_t g_utCNS6MappingTable[];
 extern const uint16_t g_utCNS7MappingTable[];
 
-#endif /* nsUCvTW2Dll_h_ */
+#endif /* nsUCvTW2Dll_h___ */

@@ -12,7 +12,6 @@
 #include "nsBidiUtils.h"
 #include "nsIContent.h"
 #include "nsStyleStruct.h"
-#include <algorithm>
 
 // XXX TODO implement transform of backslash to yen that nsTextTransform does
 // when requested by PresContext->LanguageSpecificTransformType(). Do it with
@@ -275,7 +274,7 @@ bool nsSkipCharsRunIterator::NextRun() {
       return false;
     int32_t length;
     mSkipped = mIterator.IsOriginalCharSkipped(&length);
-    mRunLength = std::min(length, mRemainingLength);
+    mRunLength = NS_MIN(length, mRemainingLength);
   } while (!mVisitSkipped && mSkipped);
 
   return true;

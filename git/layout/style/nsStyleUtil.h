@@ -45,8 +45,6 @@ public:
                                     int32_t aLastMask,
                                     nsAString& aResult);
 
-  static void AppendPaintOrderValue(uint8_t aValue, nsAString& aResult);
-
   static void AppendFontFeatureSettings(const nsTArray<gfxFontFeature>& aFeatures,
                                         nsAString& aResult);
 

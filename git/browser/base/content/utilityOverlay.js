@@ -529,7 +529,6 @@ function openTroubleshootingPage()
   openUILinkIn("about:support", "tab");
 }
 
-#ifdef MOZ_SERVICES_HEALTHREPORT
 /**
  * Opens the troubleshooting information (about:support) page for this version
  * of the application.
@@ -538,7 +537,7 @@ function openHealthReport()
 {
   openUILinkIn("about:healthreport", "tab");
 }
-#endif
+
 
 /**
  * Opens the feedback page for this version of the application.

@@ -35,7 +35,6 @@
 #include "nsContentUtils.h"
 #include "nsChildIterator.h"
 #include "nsRenderingContext.h"
-#include <algorithm>
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -267,7 +266,7 @@ nsListBoxBodyFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
     nsSize prefSize = mLayoutManager->GetPrefSize(this, aBoxLayoutState);
     NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
       nsRect& o = overflow.Overflow(otype);
-      o.height = std::max(o.height, prefSize.height);
+      o.height = NS_MAX(o.height, prefSize.height);
     }
   }
   FinishAndStoreOverflow(overflow, GetSize());

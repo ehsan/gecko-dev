@@ -6,7 +6,6 @@
 
 // Local includes
 #include "nsXULWindow.h"
-#include <algorithm>
 
 // Helper classes
 #include "nsPrintfCString.h"
@@ -1138,7 +1137,7 @@ bool nsXULWindow::LoadSizeFromXUL()
   if (NS_SUCCEEDED(rv)) {
     temp = sizeString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode) && temp > 0) {
-      specWidth = std::max(temp, 100);
+      specWidth = NS_MAX(temp, 100);
       gotSize = true;
     }
   }
@@ -1146,7 +1145,7 @@ bool nsXULWindow::LoadSizeFromXUL()
   if (NS_SUCCEEDED(rv)) {
     temp = sizeString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode) && temp > 0) {
-      specHeight = std::max(temp, 100);
+      specHeight = NS_MAX(temp, 100);
       gotSize = true;
     }
   }
@@ -1721,8 +1720,8 @@ NS_IMETHODIMP nsXULWindow::SizeShellTo(nsIDocShellTreeItem* aShellItem,
     // desired docshell size --- that's not likely to work. This whole
     // function assumes that the outer docshell is adding some constant
     // "border" chrome to aShellItem.
-    winCX = std::max(winCX + widthDelta, aCX);
-    winCY = std::max(winCY + heightDelta, aCY);
+    winCX = NS_MAX(winCX + widthDelta, aCX);
+    winCY = NS_MAX(winCY + heightDelta, aCY);
     SetSize(winCX, winCY, true);
   }
 

@@ -469,10 +469,7 @@ GCState(JSContext *cx, unsigned argc, jsval *vp)
     else
         JS_NOT_REACHED("Unobserveable global GC state");
 
-    JSString *str = JS_NewStringCopyZ(cx, state);
-    if (!str)
-        return false;
-    *vp = StringValue(str);
+    *vp = StringValue(js_NewStringCopyZ(cx, state));
     return true;
 }
 

@@ -9,7 +9,6 @@
 #include "nsIImageDocument.h"
 #include "nsIImageLoadingContent.h"
 #include "nsGenericHTMLElement.h"
-#include "nsIDocumentInlines.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMKeyEvent.h"
@@ -42,7 +41,6 @@
 #include "nsContentUtils.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Preferences.h"
-#include <algorithm>
 
 #define AUTOMATIC_IMAGE_RESIZING_PREF "browser.enable_automatic_image_resizing"
 #define CLICK_IMAGE_RESIZING_PREF "browser.enable_click_image_resizing"
@@ -113,7 +111,7 @@ protected:
   nsresult ScrollImageTo(int32_t aX, int32_t aY, bool restoreImage);
 
   float GetRatio() {
-    return std::min((float)mVisibleWidth / mImageWidth,
+    return NS_MIN((float)mVisibleWidth / mImageWidth,
                   (float)mVisibleHeight / mImageHeight);
   }
 
@@ -416,8 +414,8 @@ ImageDocument::ShrinkToFit()
   // Keep image content alive while changing the attributes.
   nsCOMPtr<nsIContent> imageContent = mImageContent;
   nsCOMPtr<nsIDOMHTMLImageElement> image = do_QueryInterface(mImageContent);
-  image->SetWidth(std::max(1, NSToCoordFloor(GetRatio() * mImageWidth)));
-  image->SetHeight(std::max(1, NSToCoordFloor(GetRatio() * mImageHeight)));
+  image->SetWidth(NS_MAX(1, NSToCoordFloor(GetRatio() * mImageWidth)));
+  image->SetHeight(NS_MAX(1, NSToCoordFloor(GetRatio() * mImageHeight)));
   
   // The view might have been scrolled when zooming in, scroll back to the
   // origin now that we're showing a shrunk-to-window version.

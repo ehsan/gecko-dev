@@ -38,9 +38,9 @@
 #include "jsstr.h"
 
 #include "ds/Sort.h"
+
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/TokenStream.h"
-#include "js/CharacterEncoding.h"
 #include "vm/Debugger.h"
 #include "vm/StringBuffer.h"
 
@@ -6262,11 +6262,10 @@ js::DecompileValueGenerator(JSContext *cx, int spindex, HandleValue v,
             return NULL;
     }
 
-    Rooted<JSLinearString *> linear(cx, fallback->ensureLinear(cx));
-    if (!linear)
+    Rooted<JSStableString *> stable(cx, fallback->ensureStable(cx));
+    if (!stable)
         return NULL;
-    TwoByteChars tbchars(linear->chars(), linear->length());
-    return LossyTwoByteCharsToNewLatin1CharsZ(cx, tbchars).c_str();
+    return DeflateString(cx, stable->chars().get(), stable->length());
 }
 
 static bool
@@ -6353,10 +6352,10 @@ js::DecompileArgument(JSContext *cx, int formalIndex, HandleValue v)
     if (!fallback)
         return NULL;
 
-    Rooted<JSLinearString *> linear(cx, fallback->ensureLinear(cx));
-    if (!linear)
+    Rooted<JSStableString *> stable(cx, fallback->ensureStable(cx));
+    if (!stable)
         return NULL;
-    return LossyTwoByteCharsToNewLatin1CharsZ(cx, linear->range()).c_str();
+    return DeflateString(cx, stable->chars().get(), stable->length());
 }
 
 static char *

@@ -14,7 +14,6 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "prlog.h"
-#include <algorithm>
 
 using namespace mozilla::css;
 
@@ -630,14 +629,14 @@ nsFlexContainerFrame::AppendFlexItemForChild(
       // the effective computed value of the "height" property.
       nscoord childDesiredHeight = childDesiredSize.height -
         childRS.mComputedBorderPadding.TopBottom();
-      childDesiredHeight = std::max(0, childDesiredHeight);
+      childDesiredHeight = NS_MAX(0, childDesiredHeight);
 
       if (isMainSizeAuto) {
         flexBaseSize = childDesiredHeight;
       }
       if (isMainMinSizeAuto) {
         mainMinSize = childDesiredHeight;
-        mainMaxSize = std::max(mainMaxSize, mainMinSize);
+        mainMaxSize = NS_MAX(mainMaxSize, mainMinSize);
       }
     }
   }
@@ -689,11 +688,11 @@ nsFlexContainerFrame::AppendFlexItemForChild(
     } else {
       // Variable-size widget: ensure our min/max sizes are at least as large
       // as the widget's mandated minimum size, so we don't flex below that.
-      mainMinSize = std::max(mainMinSize, widgetMainMinSize);
-      mainMaxSize = std::max(mainMaxSize, widgetMainMinSize);
+      mainMinSize = NS_MAX(mainMinSize, widgetMainMinSize);
+      mainMaxSize = NS_MAX(mainMaxSize, widgetMainMinSize);
 
-      crossMinSize = std::max(crossMinSize, widgetCrossMinSize);
-      crossMaxSize = std::max(crossMaxSize, widgetCrossMinSize);
+      crossMinSize = NS_MAX(crossMinSize, widgetCrossMinSize);
+      crossMaxSize = NS_MAX(crossMaxSize, widgetCrossMinSize);
     }
   }
 
@@ -1604,12 +1603,12 @@ SingleLineCrossAxisPositionTracker::
       // Now, update our "largest" values for these (across all the flex items
       // in this flex line), so we can use them in computing mLineCrossSize
       // below:
-      mCrossStartToFurthestBaseline = std::max(mCrossStartToFurthestBaseline,
+      mCrossStartToFurthestBaseline = NS_MAX(mCrossStartToFurthestBaseline,
                                              crossStartToBaseline);
-      crossEndToFurthestBaseline = std::max(crossEndToFurthestBaseline,
+      crossEndToFurthestBaseline = NS_MAX(crossEndToFurthestBaseline,
                                           crossEndToBaseline);
     } else {
-      largestOuterCrossSize = std::max(largestOuterCrossSize, curOuterCrossSize);
+      largestOuterCrossSize = NS_MAX(largestOuterCrossSize, curOuterCrossSize);
     }
   }
 
@@ -1618,7 +1617,7 @@ SingleLineCrossAxisPositionTracker::
   //      all baseline-aligned items with no cross-axis auto margins...
   // and
   //  (b) largest cross-size of all other children.
-  mLineCrossSize = std::max(mCrossStartToFurthestBaseline +
+  mLineCrossSize = NS_MAX(mCrossStartToFurthestBaseline +
                           crossEndToFurthestBaseline,
                           largestOuterCrossSize);
 }
@@ -2295,7 +2294,7 @@ nsFlexContainerFrame::GetMinWidth(nsRenderingContext* aRenderingContext)
     if (IsAxisHorizontal(axisTracker.GetMainAxis())) {
       minWidth += childMinWidth;
     } else {
-      minWidth = std::max(minWidth, childMinWidth);
+      minWidth = NS_MAX(minWidth, childMinWidth);
     }
   }
   return minWidth;
@@ -2319,7 +2318,7 @@ nsFlexContainerFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
     if (IsAxisHorizontal(axisTracker.GetMainAxis())) {
       prefWidth += childPrefWidth;
     } else {
-      prefWidth = std::max(prefWidth, childPrefWidth);
+      prefWidth = NS_MAX(prefWidth, childPrefWidth);
     }
   }
   return prefWidth;

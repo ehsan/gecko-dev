@@ -6,6 +6,8 @@
 
 #include "nsSampleWordBreaker.h"
 
+#include "pratom.h"
+#include "nsLWBRKDll.h"
 nsSampleWordBreaker::nsSampleWordBreaker()
 {
 }

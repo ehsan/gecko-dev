@@ -22,7 +22,6 @@
 #include "nsStreamListenerWrapper.h"
 
 #include "prnetdb.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace net {
@@ -1105,7 +1104,7 @@ HttpBaseChannel::SetRedirectionLimit(uint32_t value)
 {
   ENSURE_CALLED_BEFORE_CONNECT();
 
-  mRedirectionLimit = std::min<uint32_t>(value, 0xff);
+  mRedirectionLimit = NS_MIN<uint32_t>(value, 0xff);
   return NS_OK;
 }
 

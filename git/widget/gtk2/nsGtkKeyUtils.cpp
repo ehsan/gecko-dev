@@ -10,7 +10,6 @@
 #include "nsGtkKeyUtils.h"
 
 #include <gdk/gdkkeysyms.h>
-#include <algorithm>
 #ifndef GDK_Sleep
 #define GDK_Sleep 0x1008ff2f
 #endif
@@ -454,7 +453,7 @@ KeymapWrapper::InitBySystemSettings()
                     // If new modifier is more important than stored value,
                     // we should overwrite it with new modifier.
                     if (j == foundLevel[modIndex]) {
-                        mod[modIndex] = std::min(modifier, mod[modIndex]);
+                        mod[modIndex] = NS_MIN(modifier, mod[modIndex]);
                         break;
                     }
                     foundLevel[modIndex] = j;

@@ -292,8 +292,8 @@
  * Downloads pane
  */
 
-#clearDownloadsButton {
-  list-style-image: none !important;
+#placesToolbar > #clearDownloadsButton {
+  list-style-image: none;
 }
 
 #clearDownloadsButton > .toolbarbutton-icon {
@@ -301,5 +301,5 @@
 }
 
 #clearDownloadsButton > .toolbarbutton-text {
-  display: inline !important;
+  display: inline;
 }

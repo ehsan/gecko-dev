@@ -1708,16 +1708,16 @@ class GeneratorFrameGuard : public FrameGuard
 };
 
 /* Pointer to either a StackFrame or a baseline JIT frame. */
-class AbstractFramePtr
+class TaggedFramePtr
 {
     uintptr_t ptr_;
 
   public:
-    AbstractFramePtr()
+    TaggedFramePtr()
       : ptr_(0)
     {}
 
-    AbstractFramePtr(StackFrame *fp)
+    TaggedFramePtr(StackFrame *fp)
       : ptr_(uintptr_t(fp) | 0x1)
     {
         JS_ASSERT(fp);
@@ -1736,8 +1736,8 @@ class AbstractFramePtr
 
     void *raw() const { return reinterpret_cast<void *>(ptr_); }
 
-    bool operator ==(const AbstractFramePtr &other) const { return ptr_ == other.ptr_; }
-    bool operator !=(const AbstractFramePtr &other) const { return ptr_ != other.ptr_; }
+    bool operator ==(const TaggedFramePtr &other) const { return ptr_ == other.ptr_; }
+    bool operator !=(const TaggedFramePtr &other) const { return ptr_ != other.ptr_; }
 
     operator bool() const { return !!ptr_; }
 
@@ -1746,11 +1746,14 @@ class AbstractFramePtr
             return asStackFrame()->maybeSuspendedGenerator(rt);
         return NULL;
     }
-
-    inline UnrootedObject scopeChain() const;
-    inline CallObject &callObj() const;
-    inline JSCompartment *compartment() const;
-
+    JSObject *scopeChain() const {
+        if (isStackFrame())
+            return asStackFrame()->scopeChain();
+        return NULL;
+    }
+    JSCompartment *compartment() const {
+        return scopeChain()->compartment();
+    }
     StaticBlockObject *maybeBlockChain() const {
         if (isStackFrame())
             return asStackFrame()->maybeBlockChain();
@@ -1761,6 +1764,12 @@ class AbstractFramePtr
             return asStackFrame()->hasCallObj();
         JS_NOT_REACHED("Invalid frame");
         return false;
+    }
+    CallObject &callObj() const {
+        if (isStackFrame())
+            return asStackFrame()->callObj();
+        JS_NOT_REACHED("Invalid frame");
+        return asStackFrame()->callObj();
     }
     bool isGeneratorFrame() const {
         if (isStackFrame())
@@ -1789,9 +1798,6 @@ class AbstractFramePtr
             return asStackFrame()->isEvalFrame();
         JS_NOT_REACHED("Invalid frame");
         return false;
-    }
-    bool isFramePushedByExecute() const {
-        return isGlobalFrame() || isEvalFrame();
     }
     bool isDebuggerFrame() const {
         if (isStackFrame())
@@ -1835,10 +1841,18 @@ class AbstractFramePtr
         JS_NOT_REACHED("Invalid frame");
         return false;
     }
-
-    inline unsigned numActualArgs() const;
-    inline unsigned numFormalArgs() const;
-
+    unsigned numActualArgs() const {
+        if (isStackFrame())
+            return asStackFrame()->numActualArgs();
+        JS_NOT_REACHED("Invalid frame");
+        return 0;
+    }
+    unsigned numFormalArgs() const {
+        if (isStackFrame())
+            return asStackFrame()->numFormalArgs();
+        JS_NOT_REACHED("Invalid frame");
+        return 0;
+    }
     Value *formals() const {
         if (isStackFrame())
             return asStackFrame()->formals();
@@ -1876,11 +1890,24 @@ class AbstractFramePtr
         JS_NOT_REACHED("Invalid frame");
         return false;
     }
-
-    inline Value &unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING);
-    inline Value &unaliasedLocal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING);
-    inline Value &unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING);
-
+    Value &unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) {
+        if (isStackFrame())
+            return asStackFrame()->unaliasedVar(i, checkAliasing);
+        JS_NOT_REACHED("Invalid frame");
+        return asStackFrame()->unaliasedVar(i);
+    }
+    Value &unaliasedLocal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) {
+        if (isStackFrame())
+            return asStackFrame()->unaliasedLocal(i, checkAliasing);
+        JS_NOT_REACHED("Invalid frame");
+        return asStackFrame()->unaliasedLocal(i);
+    }
+    Value &unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) {
+        if (isStackFrame())
+            return asStackFrame()->unaliasedFormal(i, checkAliasing);
+        JS_NOT_REACHED("Invalid frame");
+        return asStackFrame()->unaliasedFormal(i);
+    }
     bool prevUpToDate() const {
         if (isStackFrame())
             return asStackFrame()->prevUpToDate();
@@ -1894,28 +1921,24 @@ class AbstractFramePtr
         }
         JS_NOT_REACHED("Invalid frame");
     }
-    AbstractFramePtr evalPrev() const {
+    TaggedFramePtr evalPrev() const {
         JS_ASSERT(isEvalFrame());
         if (isStackFrame())
-            return AbstractFramePtr(asStackFrame()->prev());
+            return TaggedFramePtr(asStackFrame()->prev());
         JS_NOT_REACHED("Invalid frame");
-        return AbstractFramePtr();
+        return TaggedFramePtr();
     }
-
-    inline void *maybeHookData() const;
-    inline void setHookData(void *data) const;
-    inline void setReturnValue(const Value &rval) const;
 };
 
 template <>
-struct DefaultHasher<AbstractFramePtr> {
-    typedef AbstractFramePtr Lookup;
+struct DefaultHasher<TaggedFramePtr> {
+    typedef TaggedFramePtr Lookup;
 
     static js::HashNumber hash(const Lookup &key) {
         return size_t(key.raw());
     }
 
-    static bool match(const AbstractFramePtr &k, const Lookup &l) {
+    static bool match(const TaggedFramePtr &k, const Lookup &l) {
         return k == l;
     }
 };
@@ -2053,7 +2076,7 @@ class StackIter
 
     bool hasArgs() const { return isNonEvalFunctionFrame(); }
 
-    AbstractFramePtr abstractFramePtr() const;
+    TaggedFramePtr taggedFramePtr() const;
 
     /*
      * When entering IonMonkey, the top interpreter frame (pushed by the caller)
@@ -2151,7 +2174,7 @@ class AllFramesIter
     StackFrame *interpFrame() const { JS_ASSERT(state_ == SCRIPTED); return fp_; }
     StackSegment *seg() const { return seg_; }
 
-    AbstractFramePtr abstractFramePtr() const;
+    TaggedFramePtr taggedFramePtr() const;
 
   private:
     enum State { DONE, SCRIPTED, ION };

@@ -44,7 +44,6 @@
 #include "prnetdb.h"
 #include "prbit.h"
 #include "zlib.h"
-#include <algorithm>
 
 // rather than slurp up all of nsIWebSocket.idl, which lives outside necko, just
 // dupe one constant we need from it
@@ -125,7 +124,7 @@ public:
     mLastFailure = TimeStamp::Now();
     // We use a truncated exponential backoff as suggested by RFC 6455,
     // but multiply by 1.5 instead of 2 to be more gradual.
-    mNextDelay = std::min<double>(kWSReconnectMaxDelay, mNextDelay * 1.5);
+    mNextDelay = NS_MIN<double>(kWSReconnectMaxDelay, mNextDelay * 1.5);
     LOG(("WebSocket: FailedAgain: host=%s, port=%d: incremented delay to %lu",
          mAddress.get(), mPort, mNextDelay));
   }
@@ -3172,7 +3171,7 @@ WebSocketChannel::OnDataAvailable(nsIRequest *aRequest,
       if (mStopped)
         return NS_BASE_STREAM_CLOSED;
 
-      maxRead = std::min(2048U, aCount);
+      maxRead = NS_MIN(2048U, aCount);
       rv = aInputStream->Read((char *)buffer, maxRead, &count);
       LOG(("WebSocketChannel::OnDataAvailable: InflateRead read %u rv %x\n",
            count, rv));
@@ -3202,7 +3201,7 @@ WebSocketChannel::OnDataAvailable(nsIRequest *aRequest,
       if (mStopped)
         return NS_BASE_STREAM_CLOSED;
 
-      maxRead = std::min(2048U, aCount);
+      maxRead = NS_MIN(2048U, aCount);
       EnsureHdrOut(mHdrOutToSend + aCount);
       rv = aInputStream->Read((char *)mHdrOut + mHdrOutToSend, maxRead, &count);
       LOG(("WebSocketChannel::OnDataAvailable: DeflateWrite read %u rv %x\n", 

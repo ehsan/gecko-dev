@@ -8,7 +8,6 @@
 #include "mozilla/Likely.h"
 #include FT_TRUETYPE_TAGS_H
 #include FT_TRUETYPE_TABLES_H
-#include <algorithm>
 
 #ifdef HAVE_FONTCONFIG_FCFREETYPE_H
 #include <fontconfig/fcfreetype.h>
@@ -35,7 +34,7 @@ ScaleRoundDesignUnits(FT_Short aDesignMetric, FT_Fixed aScale)
 static void
 SnapLineToPixels(gfxFloat& aOffset, gfxFloat& aSize)
 {
-    gfxFloat snappedSize = std::max(floor(aSize + 0.5), 1.0);
+    gfxFloat snappedSize = NS_MAX(floor(aSize + 0.5), 1.0);
     // Correct offset for change in size
     gfxFloat offset = aOffset - 0.5 * (aSize - snappedSize);
     // Snap offset
@@ -166,10 +165,10 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
         gfxFloat avgCharWidth =
             ScaleRoundDesignUnits(os2->xAvgCharWidth, ftMetrics.x_scale);
         aMetrics->aveCharWidth =
-            std::max(aMetrics->aveCharWidth, avgCharWidth);
+            NS_MAX(aMetrics->aveCharWidth, avgCharWidth);
     }
     aMetrics->aveCharWidth =
-        std::max(aMetrics->aveCharWidth, aMetrics->zeroOrAveCharWidth);
+        NS_MAX(aMetrics->aveCharWidth, aMetrics->zeroOrAveCharWidth);
     if (aMetrics->aveCharWidth == 0.0) {
         aMetrics->aveCharWidth = aMetrics->spaceWidth;
     }
@@ -178,7 +177,7 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
     }
     // Apparently hinting can mean that max_advance is not always accurate.
     aMetrics->maxAdvance =
-        std::max(aMetrics->maxAdvance, aMetrics->aveCharWidth);
+        NS_MAX(aMetrics->maxAdvance, aMetrics->aveCharWidth);
 
     // gfxFont::Metrics::underlineOffset is the position of the top of the
     // underline.
@@ -223,7 +222,7 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
     if (os2 && os2->ySuperscriptYOffset) {
         gfxFloat val = ScaleRoundDesignUnits(os2->ySuperscriptYOffset,
                                              ftMetrics.y_scale);
-        aMetrics->superscriptOffset = std::max(1.0, val);
+        aMetrics->superscriptOffset = NS_MAX(1.0, val);
     } else {
         aMetrics->superscriptOffset = aMetrics->xHeight;
     }
@@ -233,7 +232,7 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
                                              ftMetrics.y_scale);
         // some fonts have the incorrect sign. 
         val = fabs(val);
-        aMetrics->subscriptOffset = std::max(1.0, val);
+        aMetrics->subscriptOffset = NS_MAX(1.0, val);
     } else {
         aMetrics->subscriptOffset = aMetrics->xHeight;
     }
@@ -255,7 +254,7 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
 
     // Text input boxes currently don't work well with lineHeight
     // significantly less than maxHeight (with Verdana, for example).
-    lineHeight = floor(std::max(lineHeight, aMetrics->maxHeight) + 0.5);
+    lineHeight = floor(NS_MAX(lineHeight, aMetrics->maxHeight) + 0.5);
     aMetrics->externalLeading =
         lineHeight - aMetrics->internalLeading - aMetrics->emHeight;
 

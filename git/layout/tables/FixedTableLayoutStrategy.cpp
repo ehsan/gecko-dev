@@ -13,7 +13,6 @@
 #include "nsTableFrame.h"
 #include "nsTableColFrame.h"
 #include "nsTableCellFrame.h"
-#include <algorithm>
 
 FixedTableLayoutStrategy::FixedTableLayoutStrategy(nsTableFrame *aTableFrame)
   : nsITableLayoutStrategy(nsITableLayoutStrategy::Fixed)
@@ -295,7 +294,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
             // had percentage widths.  The spec doesn't say to do this,
             // but we've always done it in the past, and so does WinIE6.
             nscoord pctUsed = NSToCoordFloor(pctTotal * float(tableWidth));
-            nscoord reduce = std::min(pctUsed, -unassignedSpace);
+            nscoord reduce = NS_MIN(pctUsed, -unassignedSpace);
             float reduceRatio = float(reduce) / pctTotal;
             for (int32_t col = 0; col < colCount; ++col) {
                 nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);

@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <algorithm>
 
 namespace mozilla {
 
@@ -334,7 +333,7 @@ struct TreeForType<uint16_t>
 template<typename T>
 void WebGLElementArrayCacheTree<T>::Invalidate(size_t firstByte, size_t lastByte)
 {
-  lastByte = std::min(lastByte, mNumLeaves * sElementsPerLeaf * sizeof(T) - 1);
+  lastByte = NS_MIN(lastByte, mNumLeaves * sElementsPerLeaf * sizeof(T) - 1);
   if (firstByte > lastByte) {
     return;
   }
@@ -343,8 +342,8 @@ void WebGLElementArrayCacheTree<T>::Invalidate(size_t firstByte, size_t lastByte
   size_t lastLeaf = LeafForByte(lastByte);
 
   if (mInvalidated) {
-    mFirstInvalidatedLeaf = std::min(firstLeaf, mFirstInvalidatedLeaf);
-    mLastInvalidatedLeaf = std::max(lastLeaf, mLastInvalidatedLeaf);
+    mFirstInvalidatedLeaf = NS_MIN(firstLeaf, mFirstInvalidatedLeaf);
+    mLastInvalidatedLeaf = NS_MAX(lastLeaf, mLastInvalidatedLeaf);
   } else {
     mInvalidated = true;
     mFirstInvalidatedLeaf = firstLeaf;
@@ -381,9 +380,9 @@ void WebGLElementArrayCacheTree<T>::Update()
     while (treeIndex <= lastTreeIndex) {
       T m = 0;
       size_t a = srcIndex;
-      size_t srcIndexNextLeaf = std::min(a + sElementsPerLeaf, numberOfElements);
+      size_t srcIndexNextLeaf = NS_MIN(a + sElementsPerLeaf, numberOfElements);
       for (; srcIndex < srcIndexNextLeaf; srcIndex++) {
-        m = std::max(m, mParent.Element<T>(srcIndex));
+        m = NS_MAX(m, mParent.Element<T>(srcIndex));
       }
       mTreeData[treeIndex] = m;
       treeIndex++;
@@ -400,7 +399,7 @@ void WebGLElementArrayCacheTree<T>::Update()
 
     // fast-exit case where only one node is invalidated at the current level
     if (firstTreeIndex == lastTreeIndex) {
-      mTreeData[firstTreeIndex] = std::max(mTreeData[LeftChildNode(firstTreeIndex)], mTreeData[RightChildNode(firstTreeIndex)]);
+      mTreeData[firstTreeIndex] = NS_MAX(mTreeData[LeftChildNode(firstTreeIndex)], mTreeData[RightChildNode(firstTreeIndex)]);
       continue;
     }
 
@@ -419,7 +418,7 @@ void WebGLElementArrayCacheTree<T>::Update()
         child = RightNeighborNode(child);
         T b = mTreeData[child];
         child = RightNeighborNode(child);
-        mTreeData[parent] = std::max(a, b);
+        mTreeData[parent] = NS_MAX(a, b);
         parent = RightNeighborNode(parent);
       }
     }
@@ -430,7 +429,7 @@ void WebGLElementArrayCacheTree<T>::Update()
       child = RightNeighborNode(child);
       T b = mTreeData[child];
       child = RightNeighborNode(child);
-      mTreeData[parent] = std::max(a, b);
+      mTreeData[parent] = NS_MAX(a, b);
       parent = RightNeighborNode(parent);
     }
   }
@@ -511,14 +510,14 @@ bool WebGLElementArrayCache::Validate(uint32_t maxAllowed, size_t firstElement, 
 
   // before calling tree->Validate, we have to validate ourselves the boundaries of the elements span,
   // to round them to the nearest multiple of sElementsPerLeaf.
-  size_t firstElementAdjustmentEnd = std::min(lastElement,
+  size_t firstElementAdjustmentEnd = NS_MIN(lastElement,
                                             tree->LastElementUnderSameLeaf(firstElement));
   while (firstElement <= firstElementAdjustmentEnd) {
     if (elements[firstElement] > maxAllowedT)
       return false;
     firstElement++;
   }
-  size_t lastElementAdjustmentEnd = std::max(firstElement,
+  size_t lastElementAdjustmentEnd = NS_MAX(firstElement,
                                            tree->FirstElementUnderSameLeaf(lastElement));
   while (lastElement >= lastElementAdjustmentEnd) {
     if (elements[lastElement] > maxAllowedT)

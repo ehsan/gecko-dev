@@ -31,7 +31,6 @@
 #include "xpcpublic.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
-#include <algorithm>
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -447,9 +446,6 @@ nsFrameMessageManager::AssertProcessInternal(ProcessCheckerType aType,
     case PROCESS_CHECKER_MANIFEST_URL:
       *aValid = mCallback->CheckManifestURL(aCapability);
       break;
-    case ASSERT_APP_HAS_PERMISSION:
-      *aValid = mCallback->CheckAppHasPermission(aCapability);
-      break;
     default:
       break;
   }
@@ -472,15 +468,6 @@ nsFrameMessageManager::AssertContainApp(const nsAString& aManifestURL,
   return AssertProcessInternal(PROCESS_CHECKER_MANIFEST_URL,
                                aManifestURL,
                                aHasManifestURL);
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::AssertAppHasPermission(const nsAString& aPermission,
-                                              bool* aHasPermission)
-{
-  return AssertProcessInternal(ASSERT_APP_HAS_PERMISSION,
-                               aPermission,
-                               aHasPermission);
 }
 
 class MMListenerRemover
@@ -950,7 +937,7 @@ nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
       return;
     }
     nsCString buffer;
-    uint32_t avail = (uint32_t)std::min(avail64, (uint64_t)UINT32_MAX);
+    uint32_t avail = (uint32_t)NS_MIN(avail64, (uint64_t)UINT32_MAX);
     if (NS_FAILED(NS_ReadInputStreamToString(input, buffer, avail))) {
       return;
     }
@@ -1143,12 +1130,6 @@ public:
   }
 
   bool CheckManifestURL(const nsAString& aManifestURL)
-  {
-    // In a single-process scenario, the child always has all capabilities.
-    return true;
-  }
-
-  bool CheckAppHasPermission(const nsAString& aPermission)
   {
     // In a single-process scenario, the child always has all capabilities.
     return true;

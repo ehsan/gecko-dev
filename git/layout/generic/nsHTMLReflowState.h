@@ -13,7 +13,6 @@
 #include "nsStyleStructInlines.h"
 #include "nsIFrame.h"
 #include "mozilla/AutoRestore.h"
-#include <algorithm>
 
 class nsPresContext;
 class nsRenderingContext;
@@ -435,9 +434,9 @@ public:
    */
   nscoord ApplyMinMaxWidth(nscoord aWidth) const {
     if (NS_UNCONSTRAINEDSIZE != mComputedMaxWidth) {
-      aWidth = std::min(aWidth, mComputedMaxWidth);
+      aWidth = NS_MIN(aWidth, mComputedMaxWidth);
     }
-    return std::max(aWidth, mComputedMinWidth);
+    return NS_MAX(aWidth, mComputedMinWidth);
   }
   /**
    * Apply the mComputed(Min/Max)Height constraints to the content
@@ -445,9 +444,9 @@ public:
    */
   nscoord ApplyMinMaxHeight(nscoord aHeight) const {
     if (NS_UNCONSTRAINEDSIZE != mComputedMaxHeight) {
-      aHeight = std::min(aHeight, mComputedMaxHeight);
+      aHeight = NS_MIN(aHeight, mComputedMaxHeight);
     }
-    return std::max(aHeight, mComputedMinHeight);
+    return NS_MAX(aHeight, mComputedMinHeight);
   }
 
   bool ShouldReflowAllKids() const {

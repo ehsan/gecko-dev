@@ -27,7 +27,7 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsTransform2D.h"
 #include "nsIContent.h"
-#include "nsIDocumentInlines.h"
+#include "nsIDocument.h"
 #include "nsIScrollableFrame.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
@@ -57,7 +57,6 @@
 #include "ImageContainer.h"
 #include "mozilla/Telemetry.h"
 #include "gfxUtils.h"
-#include <algorithm>
 
 using namespace mozilla;
 using namespace mozilla::css;
@@ -1232,8 +1231,8 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     skipGfxRect = nsLayoutUtils::RectToGfxRect(paddingRect, twipsPerPixel);
   } else if (hasBorderRadius) {
     skipGfxRect.Deflate(gfxMargin(
-        0, std::max(borderRadii[C_TL].height, borderRadii[C_TR].height),
-        0, std::max(borderRadii[C_BL].height, borderRadii[C_BR].height)));
+        0, NS_MAX(borderRadii[C_TL].height, borderRadii[C_TR].height),
+        0, NS_MAX(borderRadii[C_BL].height, borderRadii[C_BR].height)));
   }
 
   for (uint32_t i = shadows->Length(); i > 0; --i) {
@@ -1458,8 +1457,8 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
     gfxRect skipGfxRect = nsLayoutUtils::RectToGfxRect(skipRect, twipsPerPixel);
     if (hasBorderRadius) {
       skipGfxRect.Deflate(
-          gfxMargin(0, std::max(clipRectRadii[C_TL].height, clipRectRadii[C_TR].height),
-                    0, std::max(clipRectRadii[C_BL].height, clipRectRadii[C_BR].height)));
+          gfxMargin(0, NS_MAX(clipRectRadii[C_TL].height, clipRectRadii[C_TR].height),
+                    0, NS_MAX(clipRectRadii[C_BL].height, clipRectRadii[C_BR].height)));
     }
 
     // When there's a blur radius, gfxAlphaBoxBlur leaves the skiprect area
@@ -1694,10 +1693,10 @@ GetBackgroundClip(gfxContext *aCtx, uint8_t aBackgroundClip,
       // Reduce |border| by 1px (device pixels) on all sides, if
       // possible, so that we don't get antialiasing seams between the
       // background and border.
-      border.top = std::max(0, border.top - aAppUnitsPerPixel);
-      border.right = std::max(0, border.right - aAppUnitsPerPixel);
-      border.bottom = std::max(0, border.bottom - aAppUnitsPerPixel);
-      border.left = std::max(0, border.left - aAppUnitsPerPixel);
+      border.top = NS_MAX(0, border.top - aAppUnitsPerPixel);
+      border.right = NS_MAX(0, border.right - aAppUnitsPerPixel);
+      border.bottom = NS_MAX(0, border.bottom - aAppUnitsPerPixel);
+      border.left = NS_MAX(0, border.left - aAppUnitsPerPixel);
     } else if (aBackgroundClip != NS_STYLE_BG_CLIP_PADDING) {
       NS_ASSERTION(aBackgroundClip == NS_STYLE_BG_CLIP_CONTENT,
                    "unexpected background-clip");
@@ -1982,16 +1981,16 @@ ComputeRadialGradientLine(nsPresContext* aPresContext,
   double bottomDistance = std::abs(aBoxSize.height - aLineStart->y);
   switch (aGradient->mSize) {
   case NS_STYLE_GRADIENT_SIZE_CLOSEST_SIDE:
-    radiusX = std::min(leftDistance, rightDistance);
-    radiusY = std::min(topDistance, bottomDistance);
+    radiusX = NS_MIN(leftDistance, rightDistance);
+    radiusY = NS_MIN(topDistance, bottomDistance);
     if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_CIRCULAR) {
-      radiusX = radiusY = std::min(radiusX, radiusY);
+      radiusX = radiusY = NS_MIN(radiusX, radiusY);
     }
     break;
   case NS_STYLE_GRADIENT_SIZE_CLOSEST_CORNER: {
     // Compute x and y distances to nearest corner
-    double offsetX = std::min(leftDistance, rightDistance);
-    double offsetY = std::min(topDistance, bottomDistance);
+    double offsetX = NS_MIN(leftDistance, rightDistance);
+    double offsetY = NS_MIN(topDistance, bottomDistance);
     if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_CIRCULAR) {
       radiusX = radiusY = NS_hypot(offsetX, offsetY);
     } else {
@@ -2002,16 +2001,16 @@ ComputeRadialGradientLine(nsPresContext* aPresContext,
     break;
   }
   case NS_STYLE_GRADIENT_SIZE_FARTHEST_SIDE:
-    radiusX = std::max(leftDistance, rightDistance);
-    radiusY = std::max(topDistance, bottomDistance);
+    radiusX = NS_MAX(leftDistance, rightDistance);
+    radiusY = NS_MAX(topDistance, bottomDistance);
     if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_CIRCULAR) {
-      radiusX = radiusY = std::max(radiusX, radiusY);
+      radiusX = radiusY = NS_MAX(radiusX, radiusY);
     }
     break;
   case NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER: {
     // Compute x and y distances to nearest corner
-    double offsetX = std::max(leftDistance, rightDistance);
-    double offsetY = std::max(topDistance, bottomDistance);
+    double offsetX = NS_MAX(leftDistance, rightDistance);
+    double offsetY = NS_MAX(topDistance, bottomDistance);
     if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_CIRCULAR) {
       radiusX = radiusY = NS_hypot(offsetX, offsetY);
     } else {
@@ -2181,7 +2180,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
       if (i > 0) {
         // Prevent decreasing stop positions by advancing this position
         // to the previous stop position, if necessary
-        position = std::max(position, stops[i - 1].mPosition);
+        position = NS_MAX(position, stops[i - 1].mPosition);
       }
       stops.AppendElement(ColorStop(position, stop.mColor));
       if (firstUnsetPosition > 0) {
@@ -3114,7 +3113,7 @@ DrawBorderImage(nsPresContext*       aPresContext,
   double scaleY = border.top + border.bottom > borderImgArea.height
                   ? borderImgArea.height / double(border.top + border.bottom)
                   : 1.0;
-  double scale = std::min(scaleX, scaleY);
+  double scale = NS_MIN(scaleX, scaleY);
   if (scale < 1.0) {
     border.left *= scale;
     border.right *= scale;
@@ -3165,12 +3164,12 @@ DrawBorderImage(nsPresContext*       aPresContext,
   };
   const int32_t sliceWidth[3] = {
     slice.left,
-    std::max(imageSize.width - slice.left - slice.right, 0),
+    NS_MAX(imageSize.width - slice.left - slice.right, 0),
     slice.right,
   };
   const int32_t sliceHeight[3] = {
     slice.top,
-    std::max(imageSize.height - slice.top - slice.bottom, 0),
+    NS_MAX(imageSize.height - slice.top - slice.bottom, 0),
     slice.bottom,
   };
 
@@ -3535,7 +3534,7 @@ nsCSSRendering::DrawTableBorderSegment(nsRenderingContext&     aContext,
       // make the min dash length for the ends 1/2 the dash length
       nscoord minDashLength = (NS_STYLE_BORDER_STYLE_DASHED == aBorderStyle)
                               ? RoundFloatToPixel(((float)dashLength) / 2.0f, twipsPerPixel) : dashLength;
-      minDashLength = std::max(minDashLength, twipsPerPixel);
+      minDashLength = NS_MAX(minDashLength, twipsPerPixel);
       nscoord numDashSpaces = 0;
       nscoord startDashLength = minDashLength;
       nscoord endDashLength   = minDashLength;
@@ -3801,7 +3800,7 @@ nsCSSRendering::PaintDecorationLine(nsIFrame* aFrame,
     return;
   }
 
-  gfxFloat lineHeight = std::max(NS_round(aLineSize.height), 1.0);
+  gfxFloat lineHeight = NS_MAX(NS_round(aLineSize.height), 1.0);
   bool contextIsSaved = false;
 
   gfxFloat oldLineWidth;
@@ -3939,7 +3938,7 @@ nsCSSRendering::PaintDecorationLine(nsIFrame* aFrame,
        */
 
       gfxFloat adv = rect.Height() - lineHeight;
-      gfxFloat flatLengthAtVertex = std::max((lineHeight - 1.0) * 2.0, 1.0);
+      gfxFloat flatLengthAtVertex = NS_MAX((lineHeight - 1.0) * 2.0, 1.0);
 
       // Align the start of wavy lines to the nearest ancestor block.
       gfxFloat cycleLength = 2 * (adv + flatLengthAtVertex);
@@ -4045,7 +4044,7 @@ nsCSSRendering::DecorationLineToPath(nsIFrame* aFrame,
     return;
   }
 
-  gfxFloat lineHeight = std::max(NS_round(aLineSize.height), 1.0);
+  gfxFloat lineHeight = NS_MAX(NS_round(aLineSize.height), 1.0);
 
   // The y position should be set to the middle of the line.
   rect.y += lineHeight / 2;
@@ -4101,12 +4100,12 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
   gfxRect r(left, 0, right - left, 0);
 
   gfxFloat lineHeight = NS_round(aLineSize.height);
-  lineHeight = std::max(lineHeight, 1.0);
+  lineHeight = NS_MAX(lineHeight, 1.0);
 
   gfxFloat ascent = NS_round(aAscent);
   gfxFloat descentLimit = floor(aDescentLimit);
 
-  gfxFloat suggestedMaxRectHeight = std::max(std::min(ascent, descentLimit), 1.0);
+  gfxFloat suggestedMaxRectHeight = NS_MAX(NS_MIN(ascent, descentLimit), 1.0);
   r.height = lineHeight;
   if (aStyle == NS_STYLE_TEXT_DECORATION_STYLE_DOUBLE) {
     /**
@@ -4125,13 +4124,13 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
      * +-------------------------------------------+
      */
     gfxFloat gap = NS_round(lineHeight / 2.0);
-    gap = std::max(gap, 1.0);
+    gap = NS_MAX(gap, 1.0);
     r.height = lineHeight * 2.0 + gap;
     if (canLiftUnderline) {
       if (r.Height() > suggestedMaxRectHeight) {
         // Don't shrink the line height, because the thickness has some meaning.
         // We can just shrink the gap at this time.
-        r.height = std::max(suggestedMaxRectHeight, lineHeight * 2.0 + 1.0);
+        r.height = NS_MAX(suggestedMaxRectHeight, lineHeight * 2.0 + 1.0);
       }
     }
   } else if (aStyle == NS_STYLE_TEXT_DECORATION_STYLE_WAVY) {
@@ -4155,7 +4154,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
         // because the thickness has some meaning.  E.g., the 1px wavy line and
         // 2px wavy line can be used for different meaning in IME selections
         // at same time.
-        r.height = std::max(suggestedMaxRectHeight, lineHeight * 2.0);
+        r.height = NS_MAX(suggestedMaxRectHeight, lineHeight * 2.0);
       }
     }
   }
@@ -4173,7 +4172,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
           // far as possible.
           gfxFloat offsetBottomAligned = -descentLimit + r.Height();
           gfxFloat offsetTopAligned = 0.0;
-          offset = std::min(offsetBottomAligned, offsetTopAligned);
+          offset = NS_MIN(offsetBottomAligned, offsetTopAligned);
         }
       }
       break;
@@ -4182,7 +4181,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
       break;
     case NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH: {
       gfxFloat extra = floor(r.Height() / 2.0 + 0.5);
-      extra = std::max(extra, lineHeight);
+      extra = NS_MAX(extra, lineHeight);
       offset = aOffset - lineHeight + extra;
       break;
     }
@@ -4692,9 +4691,9 @@ ComputeBlurRadius(nscoord aBlurRadius, int32_t aAppUnitsPerDevPixel, gfxFloat aS
   // standard deviation of the blur should be half the given blur value.
   gfxFloat blurStdDev = gfxFloat(aBlurRadius) / gfxFloat(aAppUnitsPerDevPixel);
 
-  gfxPoint scaledBlurStdDev = gfxPoint(std::min((blurStdDev * aScaleX),
+  gfxPoint scaledBlurStdDev = gfxPoint(NS_MIN((blurStdDev * aScaleX),
                                               gfxFloat(MAX_BLUR_RADIUS)) / 2.0,
-                                       std::min((blurStdDev * aScaleY),
+                                       NS_MIN((blurStdDev * aScaleY),
                                               gfxFloat(MAX_BLUR_RADIUS)) / 2.0);
   return
     gfxAlphaBoxBlur::CalculateBlurRadius(scaledBlurStdDev);
@@ -4734,9 +4733,9 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
 
   // compute a large or smaller blur radius
   gfxIntSize blurRadius = ComputeBlurRadius(aBlurRadius, aAppUnitsPerDevPixel, scaleX, scaleY);
-  gfxIntSize spreadRadius = gfxIntSize(std::min(int32_t(aSpreadRadius * scaleX / aAppUnitsPerDevPixel),
+  gfxIntSize spreadRadius = gfxIntSize(NS_MIN(int32_t(aSpreadRadius * scaleX / aAppUnitsPerDevPixel),
                                               int32_t(MAX_SPREAD_RADIUS)),
-                                       std::min(int32_t(aSpreadRadius * scaleY / aAppUnitsPerDevPixel),
+                                       NS_MIN(int32_t(aSpreadRadius * scaleY / aAppUnitsPerDevPixel),
                                               int32_t(MAX_SPREAD_RADIUS)));
   mDestinationCtx = aDestinationCtx;
 

@@ -38,7 +38,6 @@ class nsIImageLoadingContent;
 #include "FrameMetrics.h"
 
 #include <limits>
-#include <algorithm>
 
 class nsBlockFrame;
 class gfxDrawable;
@@ -968,7 +967,7 @@ public:
     nscoord result =
       nsRuleNode::ComputeCoordPercentCalc(aCoord, aContainingBlockHeight);
     // Clamp calc(), and the subtraction for box-sizing.
-    return std::max(0, result - aContentEdgeToBoxSizingBoxEdge);
+    return NS_MAX(0, result - aContentEdgeToBoxSizingBoxEdge);
   }
 
   static bool IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
@@ -1963,7 +1962,7 @@ nsLayoutUtils::PointIsCloserToRect(PointType aPoint, const RectType& aRect,
   if (fromLeft >= 0 && fromRight <= 0) {
     xDistance = 0;
   } else {
-    xDistance = std::min(abs(fromLeft), abs(fromRight));
+    xDistance = NS_MIN(abs(fromLeft), abs(fromRight));
   }
 
   if (xDistance <= aClosestXDistance) {
@@ -1978,7 +1977,7 @@ nsLayoutUtils::PointIsCloserToRect(PointType aPoint, const RectType& aRect,
     if (fromTop >= 0 && fromBottom <= 0) {
       yDistance = 0;
     } else {
-      yDistance = std::min(abs(fromTop), abs(fromBottom));
+      yDistance = NS_MIN(abs(fromTop), abs(fromBottom));
     }
 
     if (yDistance < aClosestYDistance) {

@@ -47,7 +47,7 @@
                ondblclick="return this._placesView.onDoubleClick(event);"
                oncontextmenu="return this._placesView.onContextMenu(event);"
                onfocus="goUpdateDownloadCommands();"
-               onselect="this._placesView.onSelect();"
+               onselect="goUpdateDownloadCommands();"
                onblur="goUpdateDownloadCommands();"/>
 
   <commandset id="downloadCommands"

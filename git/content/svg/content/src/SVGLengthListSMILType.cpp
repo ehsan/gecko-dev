@@ -8,7 +8,6 @@
 #include "SVGLengthList.h"
 #include "nsMathUtils.h"
 #include <math.h>
-#include <algorithm>
 
 namespace mozilla {
 
@@ -268,7 +267,7 @@ SVGLengthListSMILType::Interpolate(const nsSMILValue& aStartVal,
     return NS_ERROR_FAILURE;
   }
 
-  if (!result.SetLength(std::max(start.Length(), end.Length()))) {
+  if (!result.SetLength(NS_MAX(start.Length(), end.Length()))) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

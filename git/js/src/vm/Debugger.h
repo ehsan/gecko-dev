@@ -204,9 +204,9 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      * that way, but since stack frames are not gc-things, the implementation
      * has to be different.
      */
-    typedef HashMap<AbstractFramePtr,
+    typedef HashMap<TaggedFramePtr,
                     RelocatablePtrObject,
-                    DefaultHasher<AbstractFramePtr>,
+                    DefaultHasher<TaggedFramePtr>,
                     RuntimeAllocPolicy> FrameMap;
     FrameMap frames;
 
@@ -403,7 +403,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     inline bool observesNewScript() const;
     inline bool observesNewGlobalObject() const;
     inline bool observesGlobal(GlobalObject *global) const;
-    inline bool observesFrame(AbstractFramePtr frame) const;
+    inline bool observesFrame(TaggedFramePtr frame) const;
     bool observesScript(JSScript *script) const;
 
     /*
@@ -633,7 +633,7 @@ Debugger::observesGlobal(GlobalObject *global) const
 }
 
 bool
-Debugger::observesFrame(AbstractFramePtr frame) const
+Debugger::observesFrame(TaggedFramePtr frame) const
 {
     return observesGlobal(&frame.script()->global());
 }

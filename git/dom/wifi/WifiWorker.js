@@ -740,7 +740,7 @@ var WifiManager = (function() {
     }
 
     retryTimer = null;
-    notify("supplicantlost", { success: false });
+    notify("supplicantfailed");
   }
 
   manager.connectionDropped = function(callback) {
@@ -891,7 +891,7 @@ var WifiManager = (function() {
       // simply exit here (we don't have to notify about having lost
       // the connection).
       if (eventData.indexOf("connection closed") !== -1) {
-        notify("supplicantlost", { success: true });
+        notify("supplicantlost");
         return false;
       }
 
@@ -901,7 +901,7 @@ var WifiManager = (function() {
         return true;
 
       notifyStateChange({ state: "DISCONNECTED", BSSID: null, id: -1 });
-      notify("supplicantlost", { success: true });
+      notify("supplicantlost");
       return false;
     }
     if (eventData.indexOf("CTRL-EVENT-DISCONNECTED") === 0) {
@@ -1767,6 +1767,7 @@ function WifiWorker() {
   WifiManager.onsupplicantconnection = function() {
     debug("Connected to supplicant");
     WifiManager.enabled = true;
+    self._updateWifiSetting(true);
     WifiManager.getMacAddress(function (mac) {
       self.macAddress = mac;
       debug("Got mac: " + mac);
@@ -1802,14 +1803,25 @@ function WifiWorker() {
 
   WifiManager.onsupplicantlost = function() {
     WifiManager.enabled = WifiManager.supplicantStarted = false;
+    self._updateWifiSetting(false);
     WifiManager.state = "UNINITIALIZED";
     debug("Supplicant died!");
 
     // Check if we need to dequeue requests first.
-    self._notifyAfterStateChange(this.success, false);
+    self._notifyAfterStateChange(true, false);
 
     // Notify everybody, even if they didn't ask us to come up.
     self._fireEvent("wifiDown", {});
+  };
+
+  WifiManager.onsupplicantfailed = function() {
+    WifiManager.enabled = WifiManager.supplicantStarted = false;
+    self._updateWifiSetting(false);
+    WifiManager.state = "UNINITIALIZED";
+    debug("Couldn't connect to supplicant");
+
+    // Check if we need to dequeue requests first.
+    self._notifyAfterStateChange(false, false);
   };
 
   WifiManager.onpasswordmaybeincorrect = function() {
@@ -2829,11 +2841,6 @@ WifiWorker.prototype = {
       this.setWifiEnabledInternal(false, function(data) {
         this.setWifiApEnabled(data, this.nextRequest.bind(this));
       }.bind(this));
-      // It's really sad that we don't have an API to notify the wifi
-      // hotspot status. Toggle settings to let gaia know that wifi hotspot
-      // is disalbed.
-      gSettingsService.createLock().set(
-        "tethering.wifi.enabled", false, null, "fromInternalSetting");
     }
     this.setWifiEnabled({enabled: enabled});
   },
@@ -2859,6 +2866,18 @@ WifiWorker.prototype = {
         this.setWifiApEnabled(data, this.nextRequest.bind(this));
       }).bind(this));
     }
+  },
+
+  _updateWifiSetting: function(enabled) {
+    // This is used to update the setting value, whenever the
+    // WifiManager.enabled is re-assigned based on supplicant
+    // connection/lost/failed.
+    //
+    // To avoid WifiWorker setting the wifi again, we mark the
+    // "fromInternalSetting" so WifiWorker won't deal with such
+    // an internal "mozsettings-changed" event when receiving it.
+    gSettingsService.createLock().set(
+      "wifi.enabled", enabled, null, "fromInternalSetting");
   },
 
   // nsIObserver implementation

@@ -14,7 +14,6 @@
 #include "nsISocketTransport.h"
 #include "nsISupportsPriority.h"
 #include "nsHttpHandler.h"
-#include <algorithm>
 
 #ifdef DEBUG
 // defined by the socket transport service while active
@@ -809,7 +808,7 @@ SpdyStream2::OnReadSegment(const char *buf,
     break;
 
   case GENERATING_REQUEST_BODY:
-    dataLength = std::min(count, mChunkSize);
+    dataLength = NS_MIN(count, mChunkSize);
     LOG3(("SpdyStream2 %p id %x request len remaining %d, "
           "count avail %d, chunk used %d",
           this, mStreamID, mRequestBodyLenRemaining, count, dataLength));

@@ -13,7 +13,6 @@
 
 #include "nsCSSRuleProcessor.h"
 #include "nsRuleProcessorData.h"
-#include <algorithm>
 
 #define PL_ARENA_CONST_ALIGN_MASK 7
 // We want page-sized arenas so there's no fragmentation involved.
@@ -705,7 +704,7 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
 
   if (mEnumListSize < testCount) {
     delete [] mEnumList;
-    mEnumListSize = std::max(testCount, MIN_ENUM_LIST_SIZE);
+    mEnumListSize = NS_MAX(testCount, MIN_ENUM_LIST_SIZE);
     mEnumList = new EnumData[mEnumListSize];
   }
 

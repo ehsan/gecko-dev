@@ -25,7 +25,6 @@
 #include "mozilla/Likely.h"
 
 #include "zlib.h"
-#include <algorithm>
 
 /* Bug 341128 - w32api defines min/max which causes problems with <bitset> */
 #ifdef __MINGW32__
@@ -120,7 +119,7 @@ public:
         // first block, check bits
         if ((block = mBlocks[startBlock])) {
             start = aStart;
-            end = std::min(aEnd, ((startBlock+1) << BLOCK_INDEX_SHIFT) - 1);
+            end = NS_MIN(aEnd, ((startBlock+1) << BLOCK_INDEX_SHIFT) - 1);
             for (i = start; i <= end; i++) {
                 if ((block->mBits[(i>>3) & (BLOCK_SIZE - 1)]) & (1 << (i & 0x7)))
                     return true;
@@ -203,7 +202,7 @@ public:
             }
 
             const uint32_t start = aStart > blockFirstBit ? aStart - blockFirstBit : 0;
-            const uint32_t end = std::min<uint32_t>(aEnd - blockFirstBit, BLOCK_SIZE_BITS - 1);
+            const uint32_t end = NS_MIN<uint32_t>(aEnd - blockFirstBit, BLOCK_SIZE_BITS - 1);
 
             for (uint32_t bit = start; bit <= end; ++bit) {
                 block->mBits[bit>>3] |= 1 << (bit & 0x7);
@@ -247,7 +246,7 @@ public:
             }
 
             const uint32_t start = aStart > blockFirstBit ? aStart - blockFirstBit : 0;
-            const uint32_t end = std::min<uint32_t>(aEnd - blockFirstBit, BLOCK_SIZE_BITS - 1);
+            const uint32_t end = NS_MIN<uint32_t>(aEnd - blockFirstBit, BLOCK_SIZE_BITS - 1);
 
             for (uint32_t bit = start; bit <= end; ++bit) {
                 block->mBits[bit>>3] &= ~(1 << (bit & 0x7));

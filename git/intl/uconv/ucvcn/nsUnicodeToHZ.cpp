@@ -14,6 +14,7 @@
  *              Used table UnicodeToGBK[] to speed up the mapping.
  */
 #include "nsUnicodeToHZ.h"
+#include "nsUCvCnDll.h"
 #include "gbku.h"
 //----------------------------------------------------------------------
 // Class nsUnicodeToGBK [implementation]

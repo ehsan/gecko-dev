@@ -52,7 +52,6 @@
 #include "nsThreadUtils.h"
 #include "StructuredCloneUtils.h"
 #include "TabChild.h"
-#include <algorithm>
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -661,7 +660,7 @@ TabParent::HandleQueryContentEvent(nsQueryContentEvent& aEvent)
   {
   case NS_QUERY_SELECTED_TEXT:
     {
-      aEvent.mReply.mOffset = std::min(mIMESelectionAnchor, mIMESelectionFocus);
+      aEvent.mReply.mOffset = NS_MIN(mIMESelectionAnchor, mIMESelectionFocus);
       if (mIMESelectionAnchor == mIMESelectionFocus) {
         aEvent.mReply.mString.Truncate(0);
       } else {
@@ -710,7 +709,7 @@ TabParent::SendCompositionEvent(nsCompositionEvent& event)
     return false;
   }
   mIMEComposing = event.message != NS_COMPOSITION_END;
-  mIMECompositionStart = std::min(mIMESelectionAnchor, mIMESelectionFocus);
+  mIMECompositionStart = NS_MIN(mIMESelectionAnchor, mIMESelectionFocus);
   if (mIMECompositionEnding)
     return true;
   event.seqno = ++mIMESeqno;
@@ -738,7 +737,7 @@ TabParent::SendTextEvent(nsTextEvent& event)
   // We must be able to simulate the selection because
   // we might not receive selection updates in time
   if (!mIMEComposing) {
-    mIMECompositionStart = std::min(mIMESelectionAnchor, mIMESelectionFocus);
+    mIMECompositionStart = NS_MIN(mIMESelectionAnchor, mIMESelectionFocus);
   }
   mIMESelectionAnchor = mIMESelectionFocus =
       mIMECompositionStart + event.theText.Length();

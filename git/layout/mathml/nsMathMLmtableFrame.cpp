@@ -21,7 +21,6 @@
 #include "celldata.h"
 
 #include "nsMathMLmtableFrame.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -780,7 +779,7 @@ nsMathMLmtdFrame::GetRowSpan()
       rowspan = value.ToInteger(&error);
       if (NS_FAILED(error) || rowspan < 0)
         rowspan = 1;
-      rowspan = std::min(rowspan, MAX_ROWSPAN);
+      rowspan = NS_MIN(rowspan, MAX_ROWSPAN);
     }
   }
   return rowspan;

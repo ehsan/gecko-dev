@@ -11,7 +11,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 #include "mozilla/Likely.h"
-#include <algorithm>
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -42,6 +41,7 @@
 #include "nsIDOMStyleSheet.h"
 #include "nsDOMAttribute.h"
 #include "nsIDOMDOMStringList.h"
+#include "nsIDOMDOMImplementation.h"
 #include "nsIDOMDocumentXBL.h"
 #include "mozilla/dom/Element.h"
 #include "nsGenericHTMLElement.h"
@@ -183,9 +183,8 @@
 #include "nsIAppsService.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DocumentFragment.h"
-#include "mozilla/dom/HTMLBodyElement.h"
 #include "mozilla/dom/UndoManager.h"
-#include "nsFrame.h"
+#include "nsFrame.h" 
 #include "nsDOMCaretPosition.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsViewportInfo.h"
@@ -4491,7 +4490,7 @@ nsDocument::GetDoctype(nsIDOMDocumentType** aDoctype)
 }
 
 NS_IMETHODIMP
-nsDocument::GetImplementation(nsISupports** aImplementation)
+nsDocument::GetImplementation(nsIDOMDOMImplementation** aImplementation)
 {
   ErrorResult rv;
   *aImplementation = GetImplementation(rv);
@@ -6524,8 +6523,8 @@ nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
       mScaleMinFloat = kViewportMinScale;
     }
 
-    mScaleMinFloat = std::min((double)mScaleMinFloat, kViewportMaxScale);
-    mScaleMinFloat = std::max((double)mScaleMinFloat, kViewportMinScale);
+    mScaleMinFloat = NS_MIN((double)mScaleMinFloat, kViewportMaxScale);
+    mScaleMinFloat = NS_MAX((double)mScaleMinFloat, kViewportMinScale);
 
     nsAutoString maxScaleStr;
     GetHeaderData(nsGkAtoms::viewport_maximum_scale, maxScaleStr);
@@ -6539,8 +6538,8 @@ nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
       mScaleMaxFloat = kViewportMaxScale;
     }
 
-    mScaleMaxFloat = std::min((double)mScaleMaxFloat, kViewportMaxScale);
-    mScaleMaxFloat = std::max((double)mScaleMaxFloat, kViewportMinScale);
+    mScaleMaxFloat = NS_MIN((double)mScaleMaxFloat, kViewportMaxScale);
+    mScaleMaxFloat = NS_MAX((double)mScaleMaxFloat, kViewportMinScale);
 
     nsAutoString scaleStr;
     GetHeaderData(nsGkAtoms::viewport_initial_scale, scaleStr);
@@ -6627,26 +6626,26 @@ nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
       height = aDisplayHeight / pixelRatio;
     }
 
-    width = std::min(width, kViewportMaxWidth);
-    width = std::max(width, kViewportMinWidth);
+    width = NS_MIN(width, kViewportMaxWidth);
+    width = NS_MAX(width, kViewportMinWidth);
 
     // Also recalculate the default zoom, if it wasn't specified in the metadata,
     // and the width is specified.
     if (mScaleStrEmpty && !mWidthStrEmpty) {
-      scaleFloat = std::max(scaleFloat, float(aDisplayWidth) / float(width));
+      scaleFloat = NS_MAX(scaleFloat, float(aDisplayWidth) / float(width));
     }
 
-    height = std::min(height, kViewportMaxHeight);
-    height = std::max(height, kViewportMinHeight);
+    height = NS_MIN(height, kViewportMaxHeight);
+    height = NS_MAX(height, kViewportMinHeight);
 
     // We need to perform a conversion, but only if the initial or maximum
     // scale were set explicitly by the user.
     if (mValidScaleFloat) {
-      width = std::max(width, (uint32_t)(aDisplayWidth / scaleFloat));
-      height = std::max(height, (uint32_t)(aDisplayHeight / scaleFloat));
+      width = NS_MAX(width, (uint32_t)(aDisplayWidth / scaleFloat));
+      height = NS_MAX(height, (uint32_t)(aDisplayHeight / scaleFloat));
     } else if (mValidMaxScale) {
-      width = std::max(width, (uint32_t)(aDisplayWidth / scaleMaxFloat));
-      height = std::max(height, (uint32_t)(aDisplayHeight / scaleMaxFloat));
+      width = NS_MAX(width, (uint32_t)(aDisplayWidth / scaleMaxFloat));
+      height = NS_MAX(height, (uint32_t)(aDisplayHeight / scaleMaxFloat));
     }
 
     nsViewportInfo ret(scaleFloat, scaleMinFloat, scaleMaxFloat, width, height,
@@ -6760,7 +6759,7 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
   if (mParentDocument && IsSafeToFlush()) {
     mozFlushType parentType = aType;
     if (aType >= Flush_Style)
-      parentType = std::max(Flush_Layout, aType);
+      parentType = NS_MAX(Flush_Layout, aType);
     mParentDocument->FlushPendingNotifications(parentType);
   }
 

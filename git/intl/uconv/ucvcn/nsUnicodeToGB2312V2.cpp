@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsUnicodeToGB2312V2.h"
+#include "nsUCvCnDll.h"
 #include "gbku.h"
 
 //----------------------------------------------------------------------

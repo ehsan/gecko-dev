@@ -60,7 +60,6 @@
 #include "nsIDOMEvent.h"
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
-#include <algorithm>
 
 // Needed for Print Preview
 #include "nsIURI.h"
@@ -591,7 +590,7 @@ nsBoxFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = minSize.width - bp.LeftRight();
-  result = std::max(result, 0);
+  result = NS_MAX(result, 0);
 
   return result;
 }
@@ -613,7 +612,7 @@ nsBoxFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = prefSize.width - bp.LeftRight();
-  result = std::max(result, 0);
+  result = NS_MAX(result, 0);
 
   return result;
 }

@@ -17,8 +17,6 @@
 #include "jspubtd.h"
 #include "jsstr.h"
 
-#include "js/CharacterEncoding.h"
-
 using namespace js;
 
 /*
@@ -362,8 +360,8 @@ static int cvt_s(SprintfState *ss, const char *s, int width, int prec,
     return fill2(ss, s ? s : "(null)", slen, width, flags);
 }
 
-static int
-cvt_ws(SprintfState *ss, const jschar *ws, int width, int prec, int flags)
+static int cvt_ws(SprintfState *ss, const jschar *ws, int width, int prec,
+                  int flags)
 {
     int result;
     /*
@@ -371,15 +369,12 @@ cvt_ws(SprintfState *ss, const jschar *ws, int width, int prec, int flags)
      * and malloc() is used to allocate the buffer buffer.
      */
     if (ws) {
-        size_t wslen = js_strlen(ws);
-        char *latin1 = js_pod_malloc<char>(wslen + 1);
-        if (!latin1)
+        int slen = js_strlen(ws);
+        char *s = DeflateString(NULL, ws, slen);
+        if (!s)
             return -1; /* JSStuffFunc error indicator. */
-        for (size_t i = 0; i < wslen; ++i)
-            latin1[i] = (char)ws[i];
-        latin1[wslen] = '\0';
-        result = cvt_s(ss, latin1, width, prec, flags);
-        js_free(latin1);
+        result = cvt_s(ss, s, width, prec, flags);
+        js_free(s);
     } else {
         result = cvt_s(ss, NULL, width, prec, flags);
     }

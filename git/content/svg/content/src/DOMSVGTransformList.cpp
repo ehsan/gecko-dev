@@ -11,7 +11,6 @@
 #include "nsContentUtils.h"
 #include "mozilla/dom/SVGTransformListBinding.h"
 #include "nsError.h"
-#include <algorithm>
 
 // local helper functions
 namespace {
@@ -198,7 +197,7 @@ DOMSVGTransformList::InsertItemBefore(DOMSVGTransform& newItem,
     return nullptr;
   }
 
-  index = std::min(index, LengthNoFlush());
+  index = NS_MIN(index, LengthNoFlush());
   if (index >= DOMSVGTransform::MaxListIndex()) {
     error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;

@@ -823,8 +823,7 @@ nsIOService::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
     if (!pref || strcmp(pref, MANAGE_OFFLINE_STATUS_PREF) == 0) {
         bool manage;
-        if (mNetworkLinkServiceInitialized &&
-            NS_SUCCEEDED(prefs->GetBoolPref(MANAGE_OFFLINE_STATUS_PREF,
+        if (NS_SUCCEEDED(prefs->GetBoolPref(MANAGE_OFFLINE_STATUS_PREF,
                                             &manage)))
             SetManageOfflineStatus(manage);
     }
@@ -934,10 +933,6 @@ nsIOService::Observe(nsISupports *subject,
             // Set up the initilization flag regardless the actuall result.
             // If we fail here, we will fail always on.
             mNetworkLinkServiceInitialized = true;
-            // And now reflect the preference setting
-            nsCOMPtr<nsIPrefBranch> prefBranch;
-            GetPrefBranch(getter_AddRefs(prefBranch));
-            PrefsChanged(prefBranch, MANAGE_OFFLINE_STATUS_PREF);
         }
     }
     else if (!strcmp(topic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {

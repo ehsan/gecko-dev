@@ -6,6 +6,7 @@
 #ifndef NS_UNICODEPROPERTIES_H
 #define NS_UNICODEPROPERTIES_H
 
+#include "prtypes.h"
 #include "nsBidiUtils.h"
 #include "nsIUGenCategory.h"
 #include "nsUnicodeScriptCodes.h"

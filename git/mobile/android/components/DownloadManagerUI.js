@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const Ci = Components.interfaces;
-const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
@@ -21,28 +20,24 @@ DownloadManagerUI.prototype = {
     if (!aReason)
       aReason = Ci.nsIDownloadManagerUI.REASON_USER_INTERACTED;
 
-    this._getBrowserApp().selectOrOpenTab("about:downloads");
+    let browser = Services.wm.getMostRecentWindow("navigator:browser");
+    if (browser)
+      browser.showDownloadManager(aWindowContext, aID, aReason);
   },
 
   get visible() {
-    let browserApp = this._getBrowserApp();
-    let downloadsTab = browserApp.getTabWithURL("about:downloads");
-    return (downloadsTab && downloadsTab == browserApp.selectedTab) ? true : false;
+    let browser = Services.wm.getMostRecentWindow("navigator:browser");
+    if (browser) {
+      return browser.DownloadsView.visible;
+    }
+    return false;
   },
 
   getAttention: function getAttention() {
-    if (this._getBrowserApp().getTabWithURL("about:downloads"))
-      return;
-
-    throw Cr.NS_ERROR_UNEXPECTED;
-  },
-
-  _getBrowserApp: function getBrowserApp() {
-    try {
-      return Services.wm.getMostRecentWindow("navigator:browser").BrowserApp;
-    } catch (e) {
-      throw Cr.NS_ERROR_FAILURE;
-    }
+    if (this.visible)
+      this.show(null, null, null);
+    else
+      throw Cr.NS_ERROR_UNEXPECTED;
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDownloadManagerUI])

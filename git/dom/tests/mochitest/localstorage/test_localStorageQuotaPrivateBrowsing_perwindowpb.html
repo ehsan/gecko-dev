@@ -171,7 +171,6 @@ function testOnWindow(aIsPrivate, aCallback) {
         return;
       }
       win.removeEventListener("DOMContentLoaded", onInnerLoad, true);
-      win.gBrowser.selectedBrowser.focus();
       SimpleTest.executeSoon(function() { aCallback(win); });
     }, true);
     win.gBrowser.loadURI(CONTENT_PAGE);

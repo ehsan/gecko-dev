@@ -27,7 +27,6 @@
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
 #include "nsCSSRendering.h"
-#include <algorithm>
 
 #ifdef DEBUG
 #undef  NOISY_HORIZONTAL_ALIGN
@@ -2126,11 +2125,11 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
       // then to descent (maxY - baselineY) by adjusting minY or maxY,
       // but not to exceed goodMinY and goodMaxY.
       nscoord distribute = maxTopBoxHeight - (maxY - minY);
-      nscoord ascentSpace = std::max(minY - goodMinY, 0);
+      nscoord ascentSpace = NS_MAX(minY - goodMinY, 0);
       if (distribute > ascentSpace) {
         distribute -= ascentSpace;
         minY -= ascentSpace;
-        nscoord descentSpace = std::max(goodMaxY - maxY, 0);
+        nscoord descentSpace = NS_MAX(goodMaxY - maxY, 0);
         if (distribute > descentSpace) {
           maxY += descentSpace;
         } else {
@@ -2143,11 +2142,11 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
     if (maxBottomBoxHeight > maxY - minY) {
       // Likewise, but preferring descent to ascent.
       nscoord distribute = maxBottomBoxHeight - (maxY - minY);
-      nscoord descentSpace = std::max(goodMaxY - maxY, 0);
+      nscoord descentSpace = NS_MAX(goodMaxY - maxY, 0);
       if (distribute > descentSpace) {
         distribute -= descentSpace;
         maxY += descentSpace;
-        nscoord ascentSpace = std::max(minY - goodMinY, 0);
+        nscoord ascentSpace = NS_MAX(minY - goodMinY, 0);
         if (distribute > ascentSpace) {
           minY -= ascentSpace;
         } else {

@@ -6,7 +6,6 @@
 
 // Local Includes 
 #include "nsSHistory.h"
-#include <algorithm>
 
 // Helper Classes
 #include "nsXPIDLString.h"
@@ -665,7 +664,7 @@ nsSHistory::PurgeHistory(int32_t aEntries)
   if (mLength <= 0 || aEntries <= 0)
     return NS_ERROR_FAILURE;
 
-  aEntries = std::min(aEntries, mLength);
+  aEntries = NS_MIN(aEntries, mLength);
   
   bool purgeHistory = true;
   NOTIFY_LISTENERS_CANCELABLE(OnHistoryPurge, purgeHistory,
@@ -956,8 +955,8 @@ nsSHistory::EvictOutOfRangeWindowContentViewers(int32_t aIndex)
   }
 
   // Calculate the range that's safe from eviction.
-  int32_t startSafeIndex = std::max(0, aIndex - gHistoryMaxViewers);
-  int32_t endSafeIndex = std::min(mLength, aIndex + gHistoryMaxViewers);
+  int32_t startSafeIndex = NS_MAX(0, aIndex - gHistoryMaxViewers);
+  int32_t endSafeIndex = NS_MIN(mLength, aIndex + gHistoryMaxViewers);
 
   LOG(("EvictOutOfRangeWindowContentViewers(index=%d), "
        "mLength=%d. Safe range [%d, %d]",
@@ -1071,8 +1070,8 @@ nsSHistory::GloballyEvictContentViewers()
     //     SHistory object in question, we'll do a full search of its history
     //     and evict the out-of-range content viewers, so we don't bother here.
     //
-    int32_t startIndex = std::max(0, shist->mIndex - gHistoryMaxViewers);
-    int32_t endIndex = std::min(shist->mLength - 1,
+    int32_t startIndex = NS_MAX(0, shist->mIndex - gHistoryMaxViewers);
+    int32_t endIndex = NS_MIN(shist->mLength - 1,
                               shist->mIndex + gHistoryMaxViewers);
     nsCOMPtr<nsISHTransaction> trans;
     shist->GetTransactionAtIndex(startIndex, getter_AddRefs(trans));
@@ -1089,7 +1088,7 @@ nsSHistory::GloballyEvictContentViewers()
         for (uint32_t j = 0; j < shTransactions.Length(); j++) {
           TransactionAndDistance &container = shTransactions[j];
           if (container.mViewer == contentViewer) {
-            container.mDistance = std::min(container.mDistance,
+            container.mDistance = NS_MIN(container.mDistance,
                                          std::abs(i - shist->mIndex));
             found = true;
             break;
@@ -1137,8 +1136,8 @@ nsSHistory::GloballyEvictContentViewers()
 nsresult
 nsSHistory::EvictExpiredContentViewerForEntry(nsIBFCacheEntry *aEntry)
 {
-  int32_t startIndex = std::max(0, mIndex - gHistoryMaxViewers);
-  int32_t endIndex = std::min(mLength - 1,
+  int32_t startIndex = NS_MAX(0, mIndex - gHistoryMaxViewers);
+  int32_t endIndex = NS_MIN(mLength - 1,
                             mIndex + gHistoryMaxViewers);
   nsCOMPtr<nsISHTransaction> trans;
   GetTransactionAtIndex(startIndex, getter_AddRefs(trans));
@@ -1276,7 +1275,7 @@ bool IsSameTree(nsISHEntry* aEntry1, nsISHEntry* aEntry2)
   container1->GetChildCount(&count1);
   container2->GetChildCount(&count2);
   // We allow null entries in the end of the child list.
-  int32_t count = std::max(count1, count2);
+  int32_t count = NS_MAX(count1, count2);
   for (int32_t i = 0; i < count; ++i) {
     nsCOMPtr<nsISHEntry> child1, child2;
     container1->GetChildAt(i, getter_AddRefs(child1));

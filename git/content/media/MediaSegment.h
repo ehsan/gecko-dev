@@ -7,7 +7,6 @@
 #define MOZILLA_MEDIASEGMENT_H_
 
 #include "nsTArray.h"
-#include <algorithm>
 
 namespace mozilla {
 
@@ -157,7 +156,7 @@ public:
       return;
     }
     if (mChunks[0].IsNull()) {
-      TrackTicks extraToForget = std::min(aDuration, mDuration) - mChunks[0].GetDuration();
+      TrackTicks extraToForget = NS_MIN(aDuration, mDuration) - mChunks[0].GetDuration();
       if (extraToForget > 0) {
         RemoveLeading(extraToForget, 1);
         mChunks[0].mDuration += extraToForget;
@@ -238,9 +237,9 @@ protected:
     TrackTicks offset = 0;
     for (uint32_t i = 0; i < aSource.mChunks.Length() && offset < aEnd; ++i) {
       const Chunk& c = aSource.mChunks[i];
-      TrackTicks start = std::max(aStart, offset);
+      TrackTicks start = NS_MAX(aStart, offset);
       TrackTicks nextOffset = offset + c.GetDuration();
-      TrackTicks end = std::min(aEnd, nextOffset);
+      TrackTicks end = NS_MIN(aEnd, nextOffset);
       if (start < end) {
         mChunks.AppendElement(c)->SliceTo(start - offset, end - offset);
       }
