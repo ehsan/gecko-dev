@@ -2574,8 +2574,9 @@ abstract public class GeckoApp
                 String url = data.getStringExtra(AwesomeBar.URL_KEY);
                 AwesomeBar.Type type = AwesomeBar.Type.valueOf(data.getStringExtra(AwesomeBar.TYPE_KEY));
                 String searchEngine = data.getStringExtra(AwesomeBar.SEARCH_KEY);
+                boolean userEntered = data.getBooleanExtra(AwesomeBar.USER_ENTERED_KEY, false);
                 if (url != null && url.length() > 0)
-                    loadRequest(url, type, searchEngine);
+                    loadRequest(url, type, searchEngine, userEntered);
             }
             break;
         case CAMERA_CAPTURE_REQUEST:
@@ -2601,13 +2602,14 @@ abstract public class GeckoApp
 
     // If searchEngine is provided, url will be used as the search query.
     // Otherwise, the url is loaded.
-    private void loadRequest(String url, AwesomeBar.Type type, String searchEngine) {
+    private void loadRequest(String url, AwesomeBar.Type type, String searchEngine, boolean userEntered) {
         mBrowserToolbar.setTitle(url);
         Log.d(LOGTAG, type.name());
         JSONObject args = new JSONObject();
         try {
             args.put("url", url);
             args.put("engine", searchEngine);
+            args.put("userEntered", userEntered);
         } catch (Exception e) {
             Log.e(LOGTAG, "error building JSON arguments");
         }
@@ -2620,7 +2622,7 @@ abstract public class GeckoApp
     }
 
     public void loadUrl(String url, AwesomeBar.Type type) {
-        loadRequest(url, type, null);
+        loadRequest(url, type, null, false);
     }
 
     /**

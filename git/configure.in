@@ -979,8 +979,6 @@ EOF
 
     AC_DEFINE_UNQUOTED(MOZ_WINSDK_TARGETVER,0x$MOZ_WINSDK_TARGETVER)
     # Definitions matching sdkddkver.h
-    AC_DEFINE_UNQUOTED(MOZ_NTDDI_WS03, 0x05020000)
-    AC_DEFINE_UNQUOTED(MOZ_NTDDI_LONGHORN, 0x06000000)
     AC_DEFINE_UNQUOTED(MOZ_NTDDI_WIN7, 0x06010000)
     ;;
 esac
@@ -1050,6 +1048,16 @@ MOZ_PATH_PROGS(PYTHON, $PYTHON python2.7 python2.6 python2.5 python)
 if test -z "$PYTHON"; then
     AC_MSG_ERROR([python was not found in \$PATH])
 fi
+
+MOZ_ARG_WITH_BOOL(system-ply,
+[  --with-system-ply       Use system installed python ply library],
+    [if $PYTHON -c 'import ply' 2>&5; then
+         MOZ_SYSTEM_PLY=1
+     else
+         AC_MSG_ERROR([python ply library is not found but --with-system-ply was requested])
+     fi])
+
+AC_SUBST(MOZ_SYSTEM_PLY)
 
 if test -z "$COMPILE_ENVIRONMENT"; then
     NSINSTALL_BIN='$(PYTHON) $(topsrcdir)/config/nsinstall.py'
