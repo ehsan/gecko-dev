@@ -270,8 +270,6 @@ nsHttpHandler::Init()
         do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo)
         appInfo->GetPlatformBuildID(mProductSub);
-    if (mProductSub.Length() > 8)
-        mProductSub.SetLength(8);
 
     // Startup the http category
     // Bring alive the objects in the http-protocol-startup category
