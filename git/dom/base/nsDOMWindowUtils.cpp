@@ -729,7 +729,7 @@ nsDOMWindowUtils::SuppressEventHandling(PRBool aSuppress)
   if (aSuppress) {
     doc->SuppressEventHandling();
   } else {
-    doc->UnsuppressEventHandlingAndFireEvents(PR_TRUE);
+    doc->UnsuppressEventHandling();
   }
   return NS_OK;
 }

@@ -41,13 +41,13 @@
 static void*
 CloneCString(nsHashKey *aKey, void *aData, void* closure)
 {
-  return NS_strdup((const char*)aData);
+  return nsCRT::strdup((const char*)aData);
 }
 
 static PRBool
 DeleteCString(nsHashKey *aKey, void *aData, void* closure)
 {
-  NS_Free(aData);
+  nsCRT::free((char*)aData);
   return PR_TRUE;
 }
 
@@ -59,7 +59,7 @@ nsInt2StrHashtable::nsInt2StrHashtable()
 nsresult
 nsInt2StrHashtable::Put(PRUint32 key, const char* aData)
 {
-  char* value = NS_strdup(aData);
+  char* value = nsCRT::strdup(aData);
   if (value == nsnull)
     return NS_ERROR_OUT_OF_MEMORY;
   nsPRUint32Key k(key);
@@ -76,7 +76,7 @@ nsInt2StrHashtable::Get(PRUint32 key)
   const char* value = (const char*)mHashtable.Get(&k);
   if (value == nsnull)
     return nsnull;
-  return NS_strdup(value);
+  return nsCRT::strdup(value);
 }
 
 nsresult

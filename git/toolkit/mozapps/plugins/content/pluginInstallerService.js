@@ -85,13 +85,9 @@ InstallerObserver.prototype = {
       var uri = ios.newURI(this._plugin.InstallerLocation, null, null);
       uri.QueryInterface(Components.interfaces.nsIURL);
 
-      // Use a local filename appropriate for the OS
       var leafName = uri.fileName;
-      var os = Components.classes["@mozilla.org/xre/app-info;1"]
-                         .getService(Components.interfaces.nsIXULRuntime)
-                         .OS;
-      if (os == "WINNT" && leafName.indexOf(".") < 0)
-        leafName += ".exe";
+      if (leafName.indexOf('.') == -1)
+        throw "Filename needs to contain a dot for platform-native launching to work correctly.";
 
       var dirs = Components.classes["@mozilla.org/file/directory_service;1"].
         getService(Components.interfaces.nsIProperties);
@@ -99,7 +95,7 @@ InstallerObserver.prototype = {
       var resultFile = dirs.get("TmpD", Components.interfaces.nsIFile);
       resultFile.append(leafName);
       resultFile.createUnique(Components.interfaces.nsIFile.NORMAL_FILE_TYPE,
-                              0770);
+                              0x770);
 
       var channel = ios.newChannelFromURI(uri);
       this._downloader =
@@ -178,8 +174,6 @@ InstallerObserver.prototype = {
 
     result.QueryInterface(Components.interfaces.nsILocalFile);
     try {
-      // Make sure the file is executable
-      result.permissions = 0770;
       result.launch();
       this._fireNotification(nsIXPIProgressDialog.INSTALL_DONE, null);
       // It would be nice to remove the tempfile, but we don't have

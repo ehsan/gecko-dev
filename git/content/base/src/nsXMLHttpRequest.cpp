@@ -2829,7 +2829,9 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
     }
 
     if (suspendedDoc) {
-      suspendedDoc->UnsuppressEventHandlingAndFireEvents(PR_TRUE);
+      NS_DispatchToCurrentThread(
+        NS_NEW_RUNNABLE_METHOD(nsIDocument, suspendedDoc.get(),
+                               UnsuppressEventHandling));
     }
 
     if (resumeTimeoutRunnable) {

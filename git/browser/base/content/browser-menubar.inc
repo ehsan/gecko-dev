@@ -235,7 +235,7 @@
                     <menuitem id="menu_bookmarksSidebar"
                               key="viewBookmarksSidebarKb"
                               observes="viewBookmarksSidebar"
-                              accesskey="&bookmarksButton.accesskey;"/>
+                              accesskey="&bookmarksSidebarCmd.accesskey;"/>
                     <menuitem id="menu_historySidebar"
                               key="key_gotoHistory"
                               observes="viewHistorySidebar"

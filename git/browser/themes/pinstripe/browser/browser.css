@@ -1039,6 +1039,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 #editBookmarkPanelTitle {
   font-size: 130%;
   font-weight: bold;
+  margin: 2px 12px 0px 9px;
 }
 
 #editBookmarkPanel > hbox,
@@ -1048,8 +1049,8 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 
 /**** HUD style buttons ****/
 
-#editBookmarkPanelHeader > vbox > hbox > button,
-#editBookmarkPanelBottomButtons > button {
+#editBookmarkPanel > hbox > vbox > hbox > button,
+#editBookmarkPanel > #editBookmarkPanelBottomButtons > button {
   -moz-appearance: none;
   background: url("chrome://browser/skin/hud-style-button-middle-background.png") repeat-x #464646 center center;
   border-width: 3px;
@@ -1066,32 +1067,27 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   color: #ffffff;
 }
 
-#editBookmarkPanelHeader > vbox > hbox > button:hover:active,
-#editBookmarkPanelBottomButtons > button:hover:active {
+#editBookmarkPanel > hbox > vbox > hbox > button:hover:active,
+#editBookmarkPanel > #editBookmarkPanelBottomButtons > button:hover:active {
   background-color: #86888B;
 }
 
-#editBookmarkPanelHeader > vbox > hbox > button:focus,
-#editBookmarkPanelBottomButtons > button:focus {
+#editBookmarkPanel > hbox > vbox > hbox > button:focus,
+#editBookmarkPanel > #editBookmarkPanelBottomButtons > button:focus {
   outline: 2px solid -moz-mac-focusring;
   outline-offset: -2px;
   -moz-outline-radius: 100%;
 }
 
-#editBookmarkPanelBottomButtons > button[default="true"] {
+#editBookmarkPanel > #editBookmarkPanelBottomButtons > button[default="true"] {
   background-color: #666;
 }
 
-#editBookmarkPanelHeader {
-  margin-bottom: 6px;
+#editBookmarkPanel > #editBookmarkPanelContent {
+  margin-top: 6px;
 }
 
-/* The following elements come from editBookmarkOverlay.xul. Styling that's
-   specific to the editBookmarkPanel should be in browser.css. Styling that
-   should be shared by all editBookmarkOverlay.xul consumers should be in
-   editBookmarkOverlay.css. */
-
-#editBMPanel_newFolderBox {
+#editBookmarkPanel #editBMPanel_newFolderBox {
   background-image: url("chrome://browser/skin/hud-style-new-folder-bar-background.png");
   background-repeat: repeat-x;
   border: 0;
@@ -1106,7 +1102,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   height:  20px;
 }
 
-#editBMPanel_newFolderButton {
+#editBookmarkPanel #editBMPanel_newFolderButton {
   -moz-appearance: none;
   background-color: transparent !important;
   border: 0;
@@ -1123,21 +1119,21 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   list-style-image: url("chrome://browser/skin/hud-style-new-folder-plus-sign.png") !important;
 }
 
-#editBMPanel_newFolderButton:hover:active {
+#editBookmarkPanel #editBMPanel_newFolderButton:hover:active {
   background-color: #86888B;
 }
 
-#editBMPanel_newFolderButton:focus {
+#editBookmarkPanel #editBMPanel_newFolderButton:focus {
   outline: 2px solid -moz-mac-focusring;
   outline-offset: -2px;
   -moz-outline-radius: 1px;
 }
 
-#editBMPanel_newFolderButton .button-text {
+#editBookmarkPanel #editBMPanel_newFolderButton .button-text {
   display: none !important;
 }
 
-#editBMPanel_folderMenuList {
+#editBookmarkPanel #editBMPanel_folderMenuList {
   -moz-appearance: none;
   background: url("chrome://browser/skin/hud-style-button-middle-background.png") repeat-x #464646 center center;
   border: 3px solid;
@@ -1152,18 +1148,18 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   color: #ffffff !important;
 }
 
-#editBMPanel_folderMenuList:focus {
+#editBookmarkPanel #editBMPanel_folderMenuList:focus {
   outline: 2px solid -moz-mac-focusring;
   outline-offset: -2px;
   -moz-outline-radius: 5px;
 }
 
-#editBMPanel_folderMenuList[open="true"],
-#editBMPanel_folderMenuList:hover:active {
+#editBookmarkPanel #editBMPanel_folderMenuList[open="true"],
+#editBookmarkPanel #editBMPanel_folderMenuList:hover:active {
   background-image: url("chrome://browser/skin/hud-style-button-middle-background-active.png");
 }
 
-#editBMPanel_folderMenuList > .menulist-dropmarker {
+#editBookmarkPanel #editBMPanel_folderMenuList > .menulist-dropmarker {
   -moz-appearance: none;
   display: -moz-box;
   background-color: transparent;
@@ -1172,13 +1168,13 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   padding: 0;
 }
 
-#editBMPanel_folderMenuList > .menulist-dropmarker > .dropmarker-icon {
+#editBookmarkPanel #editBMPanel_folderMenuList > .menulist-dropmarker > .dropmarker-icon {
   list-style-image: url("chrome://browser/skin/hud-style-dropmarker-double-arrows.png");
 }
 
 /**** folder tree ****/
 
-#editBMPanel_folderTree {
+#editBookmarkPanel #editBMPanel_folderTree {
   background-color: #333333;
   border-top: 2px solid !important;
   border-right: 0 !important;
@@ -1190,7 +1186,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   min-width: 27em;
 }
 
-#editBMPanel_folderTree:focus {
+#editBookmarkPanel #editBMPanel_folderTree:focus {
   outline: 2px solid -moz-mac-focusring;
   outline-offset: -1px;
   -moz-outline-radius: 1px;
@@ -1219,7 +1215,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   -moz-image-region: rect(0px, 40px, 10px, 30px);
 }
 
-#editBMPanel_tagsSelector {
+#editBookmarkPanel #editBMPanel_tagsSelector {
   -moz-appearance: none;
   background-color: #333333;
   border-top: 2px solid !important;
@@ -1231,13 +1227,13 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   color: #ffffff !important;
 }
 
-#editBMPanel_tagsSelector:focus {
+#editBookmarkPanel #editBMPanel_tagsSelector:focus {
   outline: 2px solid -moz-mac-focusring;
   outline-offset: -2px;
   -moz-outline-radius: 1px;
 }
 
-#editBMPanel_tagsSelector .listcell-check {
+#editBookmarkPanel #editBMPanel_tagsSelector .listcell-check {
   -moz-appearance: none !important;
   background-color: transparent;
   border: 0;
@@ -1246,7 +1242,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   min-width: 14px;
 }
 
-#editBMPanel_tagsSelector .listcell-check[checked="true"] {
+#editBookmarkPanel #editBMPanel_tagsSelector .listcell-check[checked="true"] {
   list-style-image: url("chrome://browser/skin/hud-style-check-box-checked.png");
 }
 
@@ -1269,7 +1265,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   background-color: #b3b3b3 !important;
 }
 
-#editBMPanel_tagsSelector > listitem[selected="true"] {
+#editBookmarkPanel #editBMPanel_tagsSelector > listitem[selected="true"] {
   color: #222222;
   background-color: #b3b3b3;
 }
@@ -1325,20 +1321,20 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 
 /**** name picker ****/
 
-#editBMPanel_namePicker[droppable="false"] {
+#editBookmarkPanel #editBMPanel_namePicker[droppable="false"] {
   color: #ffffff;
 }
 
-#editBMPanel_namePicker[droppable="false"] > .menulist-dropmarker {
+#editBookmarkPanel #editBMPanel_namePicker[droppable="false"] > .menulist-dropmarker {
   display: none;
 }
 
-#editBMPanel_tagsField[focused="true"] {
+#editBookmarkPanel #editBMPanel_tagsField[focused="true"] {
   background-color: #eeeeee;
   color: #000000;
 }
 
-#editBMPanel_namePicker[droppable="false"] > .menulist-editable-box {
+#editBookmarkPanel #editBMPanel_namePicker[droppable="false"] > .menulist-editable-box {
   -moz-appearance: none !important;
   cursor: text;
   margin: 2px 4px;
@@ -1353,11 +1349,11 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   color: #ffffff;
 }
 
-#editBMPanel_tagsField[empty="true"] {
+#editBookmarkPanel #editBMPanel_tagsField[empty="true"] {
   color: #bbbbbb;
 }
 
-#editBMPanel_namePicker[droppable="false"][focused="true"] > .menulist-editable-box {
+#editBookmarkPanel #editBMPanel_namePicker[droppable="false"][focused="true"] > .menulist-editable-box {
   outline: 2px solid -moz-mac-focusring;
   outline-offset: -1px;
   -moz-outline-radius: 1px;
@@ -1365,11 +1361,11 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   color: #000000;
 }
 
-#editBMPanel_namePicker[droppable="false"][disabled="true"] > .menulist-editable-box {
+#editBookmarkPanel #editBMPanel_namePicker[droppable="false"][disabled="true"] > .menulist-editable-box {
   color: #ffffff;
 }
 
-#editBMPanel_namePicker[droppable="false"] > .menulist-editable-box > html|*.menulist-editable-input {
+#editBookmarkPanel #editBMPanel_namePicker[droppable="false"] > .menulist-editable-box > html|*.menulist-editable-input {
   margin: 0px !important;
   border: none !important;
   padding: 0px !important;
@@ -1378,11 +1374,11 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   font: inherit;
 }
 
-#editBMPanel_namePicker[droppable="false"][focused="true"] > .menulist-editable-box > html|*.menulist-editable-input {
+#editBookmarkPanel #editBMPanel_namePicker[droppable="false"][focused="true"] > .menulist-editable-box > html|*.menulist-editable-input {
   color: #000000;
 }
 
-#editBookmarkPanelGrid > rows > row > label {
+#editBookmarkPanel > #editBookmarkPanelContent > #editBookmarkPanelGrid > rows > row > label {
   text-align: right;
 }
 
