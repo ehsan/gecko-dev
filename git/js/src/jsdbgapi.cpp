@@ -93,7 +93,6 @@ JS_GetDebugMode(JSContext *cx)
     return cx->compartment->debugMode;
 }
 
-#ifdef JS_METHODJIT
 static bool
 IsScriptLive(JSContext *cx, JSScript *script)
 {
@@ -103,7 +102,6 @@ IsScriptLive(JSContext *cx, JSScript *script)
     }
     return false;
 }
-#endif
 
 JS_FRIEND_API(JSBool)
 js_SetDebugMode(JSContext *cx, JSBool debug)
@@ -139,7 +137,7 @@ JS_SetDebugMode(JSContext *cx, JSBool debug)
 {
 #ifdef DEBUG
     for (AllFramesIter i(cx); !i.done(); ++i)
-        JS_ASSERT(!JS_IsScriptFrame(cx, i.fp()));
+        JS_ASSERT(JS_IsNativeFrame(cx, i.fp()));
 #endif
 
     return js_SetDebugMode(cx, debug);
@@ -700,9 +698,9 @@ js_watch_set(JSContext *cx, JSObject *obj, jsid id, Value *vp)
              */
             JSBool ok = !wp->setter ||
                         (shape->hasSetterValue()
-                         ? ExternalInvoke(cx, obj,
-                                          ObjectValue(*CastAsObject(wp->setter)),
-                                          1, vp, vp)
+                         ? InternalCall(cx, obj,
+                                        ObjectValue(*CastAsObject(wp->setter)),
+                                        1, vp, vp)
                          : CallJSPropertyOpSetter(cx, wp->setter, obj, userid, vp));
 
             DBG_LOCK(rt);
@@ -714,18 +712,18 @@ js_watch_set(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 JSBool
-js_watch_set_wrapper(JSContext *cx, uintN argc, Value *vp)
+js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, Value *argv,
+                     Value *rval)
 {
-    JSObject *obj = ComputeThisFromVp(cx, vp);
-    if (!obj)
-        return false;
+    JSObject *funobj;
+    JSFunction *wrapper;
+    jsid userid;
 
-    JSObject &funobj = JS_CALLEE(cx, vp).toObject();
-    JSFunction *wrapper = funobj.getFunctionPrivate();
-    jsid userid = ATOM_TO_JSID(wrapper->atom);
-
-    JS_SET_RVAL(cx, vp, argc ? JS_ARGV(cx, vp)[0] : UndefinedValue());
-    return js_watch_set(cx, obj, userid, vp);
+    funobj = &argv[-2].toObject();
+    wrapper = GET_FUNCTION_PRIVATE(cx, funobj);
+    userid = ATOM_TO_JSID(wrapper->atom);
+    *rval = argv[0];
+    return js_watch_set(cx, obj, userid, rval);
 }
 
 static bool
@@ -737,7 +735,7 @@ IsWatchedProperty(JSContext *cx, const Shape &shape)
             return false;
 
         JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
-        return fun->maybeNative() == js_watch_set_wrapper;
+        return FUN_NATIVE(fun) == js_watch_set_wrapper;
     }
     return shape.setterOp() == js_watch_set;
 }
@@ -1060,7 +1058,13 @@ JS_GetFunctionScript(JSContext *cx, JSFunction *fun)
 JS_PUBLIC_API(JSNative)
 JS_GetFunctionNative(JSContext *cx, JSFunction *fun)
 {
-    return Jsvalify(fun->maybeNative());
+    return Jsvalify(FUN_NATIVE(fun));
+}
+
+JS_PUBLIC_API(JSFastNative)
+JS_GetFunctionFastNative(JSContext *cx, JSFunction *fun)
+{
+    return Jsvalify(FUN_FAST_NATIVE(fun));
 }
 
 JS_PUBLIC_API(JSPrincipals *)
@@ -1099,8 +1103,8 @@ JS_GetScriptedCaller(JSContext *cx, JSStackFrame *fp)
     return js_GetScriptedCaller(cx, fp);
 }
 
-JSPrincipals *
-js_StackFramePrincipals(JSContext *cx, JSStackFrame *fp)
+JS_PUBLIC_API(JSPrincipals *)
+JS_StackFramePrincipals(JSContext *cx, JSStackFrame *fp)
 {
     JSSecurityCallbacks *callbacks;
 
@@ -1130,18 +1134,24 @@ js_EvalFramePrincipals(JSContext *cx, JSObject *callee, JSStackFrame *caller)
         principals = NULL;
     if (!caller)
         return principals;
-    callerPrincipals = js_StackFramePrincipals(cx, caller);
+    callerPrincipals = JS_StackFramePrincipals(cx, caller);
     return (callerPrincipals && principals &&
             callerPrincipals->subsume(callerPrincipals, principals))
            ? principals
            : callerPrincipals;
 }
 
+JS_PUBLIC_API(JSPrincipals *)
+JS_EvalFramePrincipals(JSContext *cx, JSStackFrame *fp, JSStackFrame *caller)
+{
+    return js_EvalFramePrincipals(cx, fp->callee(), caller);
+}
+
 JS_PUBLIC_API(void *)
 JS_GetFrameAnnotation(JSContext *cx, JSStackFrame *fp)
 {
     if (fp->hasAnnotation() && fp->hasScript()) {
-        JSPrincipals *principals = js_StackFramePrincipals(cx, fp);
+        JSPrincipals *principals = JS_StackFramePrincipals(cx, fp);
 
         if (principals && principals->globalPrivilegesEnabled(cx, principals)) {
             /*
@@ -1166,16 +1176,16 @@ JS_GetFramePrincipalArray(JSContext *cx, JSStackFrame *fp)
 {
     JSPrincipals *principals;
 
-    principals = js_StackFramePrincipals(cx, fp);
+    principals = JS_StackFramePrincipals(cx, fp);
     if (!principals)
         return NULL;
     return principals->getPrincipalArray(cx, principals);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_IsScriptFrame(JSContext *cx, JSStackFrame *fp)
+JS_IsNativeFrame(JSContext *cx, JSStackFrame *fp)
 {
-    return !fp->isDummyFrame();
+    return !fp->hasScript();
 }
 
 /* this is deprecated, use JS_GetFrameScopeChain instead */
@@ -1346,7 +1356,7 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
      * we use a static level that will cause us not to attempt to optimize
      * variable references made by this frame.
      */
-    JSScript *script = Compiler::compileScript(cx, scobj, fp, js_StackFramePrincipals(cx, fp),
+    JSScript *script = Compiler::compileScript(cx, scobj, fp, JS_StackFramePrincipals(cx, fp),
                                                TCF_COMPILE_N_GO, chars, length, NULL,
                                                filename, lineno, NULL,
                                                UpvarCookie::UPVAR_LEVEL_LIMIT);
@@ -1866,50 +1876,50 @@ JS_DisconnectShark()
 }
 
 JS_FRIEND_API(JSBool)
-js_StartShark(JSContext *cx, uintN argc, jsval *vp)
+js_StartShark(JSContext *cx, JSObject *obj,
+              uintN argc, jsval *argv, jsval *rval)
 {
     if (!JS_StartChudRemote()) {
         JS_ReportError(cx, "Error starting CHUD.");
         return JS_FALSE;
     }
 
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 JS_FRIEND_API(JSBool)
-js_StopShark(JSContext *cx, uintN argc, jsval *vp)
+js_StopShark(JSContext *cx, JSObject *obj,
+             uintN argc, jsval *argv, jsval *rval)
 {
     if (!JS_StopChudRemote()) {
         JS_ReportError(cx, "Error stopping CHUD.");
         return JS_FALSE;
     }
 
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 JS_FRIEND_API(JSBool)
-js_ConnectShark(JSContext *cx, uintN argc, jsval *vp)
+js_ConnectShark(JSContext *cx, JSObject *obj,
+                uintN argc, jsval *argv, jsval *rval)
 {
     if (!JS_ConnectShark()) {
         JS_ReportError(cx, "Error connecting to Shark.");
         return JS_FALSE;
     }
 
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 JS_FRIEND_API(JSBool)
-js_DisconnectShark(JSContext *cx, uintN argc, jsval *vp)
+js_DisconnectShark(JSContext *cx, JSObject *obj,
+                   uintN argc, jsval *argv, jsval *rval)
 {
     if (!JS_DisconnectShark()) {
         JS_ReportError(cx, "Error disconnecting from Shark.");
         return JS_FALSE;
     }
 
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
@@ -1920,29 +1930,29 @@ js_DisconnectShark(JSContext *cx, uintN argc, jsval *vp)
 #include <valgrind/callgrind.h>
 
 JS_FRIEND_API(JSBool)
-js_StartCallgrind(JSContext *cx, uintN argc, jsval *vp)
+js_StartCallgrind(JSContext *cx, JSObject *obj,
+                  uintN argc, jsval *argv, jsval *rval)
 {
     CALLGRIND_START_INSTRUMENTATION;
     CALLGRIND_ZERO_STATS;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 JS_FRIEND_API(JSBool)
-js_StopCallgrind(JSContext *cx, uintN argc, jsval *vp)
+js_StopCallgrind(JSContext *cx, JSObject *obj,
+                 uintN argc, jsval *argv, jsval *rval)
 {
     CALLGRIND_STOP_INSTRUMENTATION;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 JS_FRIEND_API(JSBool)
-js_DumpCallgrind(JSContext *cx, uintN argc, jsval *vp)
+js_DumpCallgrind(JSContext *cx, JSObject *obj,
+                 uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
     char *cstr;
 
-    jsval *argv = JS_ARGV(cx, vp);
     if (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
         cstr = js_DeflateString(cx, str->chars(), str->length());
@@ -1954,7 +1964,6 @@ js_DumpCallgrind(JSContext *cx, uintN argc, jsval *vp)
     }
     CALLGRIND_DUMP_STATS;
 
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 

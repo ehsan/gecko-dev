@@ -163,19 +163,23 @@ nsHTMLLinkAccessible::DoAction(PRUint8 aIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HyperLinkAccessible
+// nsIAccessibleHyperLink
 
-bool
-nsHTMLLinkAccessible::IsHyperLink()
+NS_IMETHODIMP
+nsHTMLLinkAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
 {
-  // Expose HyperLinkAccessible unconditionally.
-  return true;
-}
+  NS_ENSURE_ARG_POINTER(aURI);
+  *aURI = nsnull;
 
-already_AddRefed<nsIURI>
-nsHTMLLinkAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
-{
-  return aAnchorIndex == 0 ? mContent->GetHrefURI() : nsnull;
+  if (aIndex != 0)
+    return NS_ERROR_INVALID_ARG;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIURI> uri = mContent->GetHrefURI();
+  uri.forget(aURI);
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

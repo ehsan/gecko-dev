@@ -57,7 +57,8 @@ JetpackChild::~JetpackChild()
 {
 }
 
-#define IMPL_METHOD_FLAGS (JSPROP_ENUMERATE | \
+#define IMPL_METHOD_FLAGS (JSFUN_FAST_NATIVE |  \
+                           JSPROP_ENUMERATE | \
                            JSPROP_READONLY | \
                            JSPROP_PERMANENT)
 const JSFunctionSpec

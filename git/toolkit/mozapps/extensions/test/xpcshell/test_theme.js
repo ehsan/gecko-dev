@@ -110,8 +110,6 @@ function run_test() {
     do_check_true(isThemeInAddonsList(profileDir, t1.id));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(t1.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_UNINSTALL |
-                                               AddonManager.OP_NEEDS_RESTART_DISABLE);
 
     do_check_neq(t2, null);
     do_check_true(t2.userDisabled);
@@ -122,7 +120,6 @@ function run_test() {
     do_check_false(isThemeInAddonsList(profileDir, t2.id));
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(t2.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_ENABLE);
 
     run_test_1();
   });
@@ -171,7 +168,6 @@ function check_test_1() {
     do_check_false(isThemeInAddonsList(profileDir, t1.id));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t1.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(t1.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_ENABLE);
 
     do_check_neq(t2, null);
     do_check_false(t2.userDisabled);
@@ -180,8 +176,6 @@ function check_test_1() {
     do_check_true(isThemeInAddonsList(profileDir, t2.id));
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
-    do_check_eq(t2.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_UNINSTALL |
-                                               AddonManager.OP_NEEDS_RESTART_DISABLE);
     do_check_false(gLWThemeChanged);
 
     run_test_2();
@@ -679,7 +673,6 @@ function run_test_11() {
     do_check_eq(install.name, "Test Theme 1");
     do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
     do_check_true(install.addon.skinnable, true);
-    do_check_false(hasFlag(install.addon.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_INSTALL));
 
     prepare_test({
       "theme1@tests.mozilla.org": [
@@ -723,7 +716,6 @@ function run_test_12() {
     do_check_eq(install.version, "1.0");
     do_check_eq(install.name, "Test Theme 1");
     do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
-    do_check_false(hasFlag(install.addon.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_INSTALL));
 
     prepare_test({
       "theme1@tests.mozilla.org": [
@@ -775,7 +767,6 @@ function run_test_13() {
       do_check_eq(install.version, "1.0");
       do_check_eq(install.name, "Test Theme 1");
       do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
-      do_check_true(hasFlag(install.addon.operationsRequiringRestart, AddonManager.OP_NEEDS_RESTART_INSTALL));
 
       prepare_test({
         "theme1@tests.mozilla.org": [

@@ -49,7 +49,7 @@ namespace XPCWrapper {
 const PRUint32 sWrappedObjSlot = 1;
 const PRUint32 sFlagsSlot = 0;
 const PRUint32 sNumSlots = 2;
-JSNative sEvalNative = nsnull;
+JSFastNative sEvalNative = nsnull;
 
 const PRUint32 FLAG_RESOLVING = 0x1;
 const PRUint32 FLAG_SOW = 0x2;
@@ -342,7 +342,8 @@ FinishCreatingIterator(JSContext *cx, JSObject *iterObj, JSBool keysonly)
   }
 
   // Initialize iterObj.
-  if (!JS_DefineFunction(cx, iterObj, "next", IteratorNext, 0, 0)) {
+  if (!JS_DefineFunction(cx, iterObj, "next", (JSNative)IteratorNext, 0,
+                         JSFUN_FAST_NATIVE)) {
     return nsnull;
   }
 
@@ -448,7 +449,8 @@ CreateSimpleIterator(JSContext *cx, JSObject *scope, JSBool keysonly,
       return nsnull;
     }
 
-    if (!JS_DefineFunction(cx, iterObj, "next", IteratorNext, 0, 0)) {
+    if (!JS_DefineFunction(cx, iterObj, "next", (JSNative)IteratorNext, 0,
+                           JSFUN_FAST_NATIVE)) {
       return nsnull;
     }
 

@@ -57,7 +57,7 @@
 
 nsXULTreeAccessible::
   nsXULTreeAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
+  nsXULSelectableAccessible(aContent, aShell)
 {
   mTree = nsCoreUtils::GetTreeBoxObject(aContent);
   if (mTree)
@@ -85,10 +85,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXULTreeAccessible)
 NS_INTERFACE_MAP_STATIC_AMBIGUOUS(nsXULTreeAccessible)
-NS_INTERFACE_MAP_END_INHERITING(nsAccessible)
+NS_INTERFACE_MAP_END_INHERITING(nsXULSelectableAccessible)
 
-NS_IMPL_ADDREF_INHERITED(nsXULTreeAccessible, nsAccessible)
-NS_IMPL_RELEASE_INHERITED(nsXULTreeAccessible, nsAccessible)
+NS_IMPL_ADDREF_INHERITED(nsXULTreeAccessible, nsXULSelectableAccessible)
+NS_IMPL_RELEASE_INHERITED(nsXULTreeAccessible, nsXULSelectableAccessible)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsAccessible implementation
@@ -160,7 +160,7 @@ nsXULTreeAccessible::GetValue(nsAString& aValue)
 PRBool
 nsXULTreeAccessible::IsDefunct()
 {
-  return nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView;
+  return nsXULSelectableAccessible::IsDefunct() || !mTree || !mTreeView;
 }
 
 void
@@ -175,7 +175,7 @@ nsXULTreeAccessible::Shutdown()
   mTree = nsnull;
   mTreeView = nsnull;
 
-  nsAccessibleWrap::Shutdown();
+  nsXULSelectableAccessible::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,7 +262,8 @@ nsXULTreeAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
   // If we failed to find tree cell for the given point then it might be
   // tree columns.
   if (row == -1 || !column)
-    return nsAccessibleWrap::GetChildAtPoint(aX, aY, aDeepestChild, aChild);
+    return nsXULSelectableAccessible::
+      GetChildAtPoint(aX, aY, aDeepestChild, aChild);
 
   nsAccessible *child = GetTreeItemAccessible(row);
   if (aDeepestChild && child) {
@@ -279,26 +280,23 @@ nsXULTreeAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULTreeAccessible: SelectAccessible
+// nsXULTreeAccessible: nsAccessibleSelectable implementation
 
-bool
-nsXULTreeAccessible::IsSelect()
+NS_IMETHODIMP nsXULTreeAccessible::GetSelectedChildren(nsIArray **_retval)
 {
-  return true;
-}
+  // Ask tree selection to get all selected children
+  *_retval = nsnull;
 
-already_AddRefed<nsIArray>
-nsXULTreeAccessible::SelectedItems()
-{
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (!selection)
-    return nsnull;
-
-  nsCOMPtr<nsIMutableArray> selectedItems =
+    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIMutableArray> selectedAccessibles =
     do_CreateInstance(NS_ARRAY_CONTRACTID);
-  if (!selectedItems)
-    return nsnull;
+  NS_ENSURE_STATE(selectedAccessibles);
 
   PRInt32 rowIndex, rowCount;
   PRBool isSelected;
@@ -306,95 +304,98 @@ nsXULTreeAccessible::SelectedItems()
   for (rowIndex = 0; rowIndex < rowCount; rowIndex++) {
     selection->IsSelected(rowIndex, &isSelected);
     if (isSelected) {
-      nsIAccessible* item = GetTreeItemAccessible(rowIndex);
-      if (item)
-        selectedItems->AppendElement(item, PR_FALSE);
+      nsIAccessible *tempAccessible = GetTreeItemAccessible(rowIndex);
+      NS_ENSURE_STATE(tempAccessible);
+
+      selectedAccessibles->AppendElement(tempAccessible, PR_FALSE);
     }
   }
 
-  nsIMutableArray* items = nsnull;
-  selectedItems.forget(&items);
-  return items;
+  PRUint32 length;
+  selectedAccessibles->GetLength(&length);
+  if (length != 0) {
+    *_retval = selectedAccessibles;
+    NS_IF_ADDREF(*_retval);
+  }
+
+  return NS_OK;
 }
 
-PRUint32
-nsXULTreeAccessible::SelectedItemCount()
+NS_IMETHODIMP nsXULTreeAccessible::GetSelectionCount(PRInt32 *aSelectionCount)
 {
+  *aSelectionCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsITreeSelection> selection;
+  mTreeView->GetSelection(getter_AddRefs(selection));
+  if (selection)
+    selection->GetCount(aSelectionCount);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsXULTreeAccessible::ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState)
+{
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (selection) {
-    PRInt32 count = 0;
-    selection->GetCount(&count);
-    return count;
+    selection->IsSelected(aIndex, aSelState);
+    if ((!(*aSelState) && eSelection_Add == aMethod) || 
+        ((*aSelState) && eSelection_Remove == aMethod))
+      return selection->ToggleSelect(aIndex);
   }
 
-  return 0;
+  return NS_OK;
 }
 
-bool
-nsXULTreeAccessible::AddItemToSelection(PRUint32 aIndex)
+NS_IMETHODIMP nsXULTreeAccessible::AddChildToSelection(PRInt32 aIndex)
 {
+  PRBool isSelected;
+  return ChangeSelection(aIndex, eSelection_Add, &isSelected);
+}
+
+NS_IMETHODIMP nsXULTreeAccessible::RemoveChildFromSelection(PRInt32 aIndex)
+{
+  PRBool isSelected;
+  return ChangeSelection(aIndex, eSelection_Remove, &isSelected);
+}
+
+NS_IMETHODIMP nsXULTreeAccessible::IsChildSelected(PRInt32 aIndex, PRBool *_retval)
+{
+  return ChangeSelection(aIndex, eSelection_GetState, _retval);
+}
+
+NS_IMETHODIMP nsXULTreeAccessible::ClearSelection()
+{
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
-  if (selection) {
-    PRBool isSelected = PR_FALSE;
-    selection->IsSelected(aIndex, &isSelected);
-    if (!isSelected)
-      selection->ToggleSelect(aIndex);
+  if (selection)
+    selection->ClearSelection();
 
-    return true;
-  }
-  return false;
+  return NS_OK;
 }
 
-bool
-nsXULTreeAccessible::RemoveItemFromSelection(PRUint32 aIndex)
+NS_IMETHODIMP
+nsXULTreeAccessible::RefSelection(PRInt32 aIndex, nsIAccessible **aAccessible)
 {
-  nsCOMPtr<nsITreeSelection> selection;
-  mTreeView->GetSelection(getter_AddRefs(selection));
-  if (selection) {
-    PRBool isSelected = PR_FALSE;
-    selection->IsSelected(aIndex, &isSelected);
-    if (isSelected)
-      selection->ToggleSelect(aIndex);
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
 
-    return true;
-  }
-  return false;
-}
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
-bool
-nsXULTreeAccessible::IsItemSelected(PRUint32 aIndex)
-{
-  nsCOMPtr<nsITreeSelection> selection;
-  mTreeView->GetSelection(getter_AddRefs(selection));
-  if (selection) {
-    PRBool isSelected = PR_FALSE;
-    selection->IsSelected(aIndex, &isSelected);
-    return isSelected;
-  }
-  return false;
-}
-
-bool
-nsXULTreeAccessible::UnselectAll()
-{
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (!selection)
-    return false;
-
-  selection->ClearSelection();
-  return true;
-}
-
-nsAccessible*
-nsXULTreeAccessible::GetSelectedItem(PRUint32 aIndex)
-{
-  nsCOMPtr<nsITreeSelection> selection;
-  mTreeView->GetSelection(getter_AddRefs(selection));
-  if (!selection)
-    return nsnull;
+    return NS_ERROR_FAILURE;
 
   PRInt32 rowIndex, rowCount;
   PRInt32 selCount = 0;
@@ -403,19 +404,26 @@ nsXULTreeAccessible::GetSelectedItem(PRUint32 aIndex)
   for (rowIndex = 0; rowIndex < rowCount; rowIndex++) {
     selection->IsSelected(rowIndex, &isSelected);
     if (isSelected) {
-      if (selCount == aIndex)
-        return GetTreeItemAccessible(rowIndex);
-
+      if (selCount == aIndex) {
+        NS_IF_ADDREF(*aAccessible = GetTreeItemAccessible(rowIndex));
+        return NS_OK;
+      }
       selCount++;
     }
   }
 
-  return nsnull;
+  return NS_OK;
 }
 
-bool
-nsXULTreeAccessible::SelectAll()
+NS_IMETHODIMP
+nsXULTreeAccessible::SelectAllSelection(PRBool *aIsMultiSelectable)
 {
+  NS_ENSURE_ARG_POINTER(aIsMultiSelectable);
+  *aIsMultiSelectable = PR_FALSE;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // see if we are multiple select if so set ourselves as such
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
@@ -423,12 +431,12 @@ nsXULTreeAccessible::SelectAll()
     PRBool single = PR_FALSE;
     selection->GetSingle(&single);
     if (!single) {
+      *aIsMultiSelectable = PR_TRUE;
       selection->SelectAll();
-      return true;
     }
   }
 
-  return false;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

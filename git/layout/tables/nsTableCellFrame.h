@@ -157,16 +157,7 @@ public:
 
   void VerticallyAlignChild(nscoord aMaxAscent);
 
-  /*
-   * Get the value of vertical-align adjusted for CSS 2's rules for a
-   * table cell, which means the result is always
-   * NS_STYLE_VERTICAL_ALIGN_{TOP,MIDDLE,BOTTOM,BASELINE}.
-   */
-  PRUint8 GetVerticalAlign() const;
-
-  PRBool HasVerticalAlignBaseline() const {
-    return GetVerticalAlign() == NS_STYLE_VERTICAL_ALIGN_BASELINE;
-  }
+  PRBool HasVerticalAlignBaseline();
 
   PRBool CellHasVisibleContent(nscoord       height,
                                nsTableFrame* tableFrame,
