@@ -236,7 +236,7 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
   mHasChanged = PR_FALSE;
 
   // Skip animations that are inactive or in error
-  if (!IsActiveOrFrozen() || mErrorFlags != 0)
+  if (!IsActive() || mErrorFlags != 0)
     return;
 
   // Get the animation values
@@ -309,10 +309,10 @@ nsSMILAnimationFunction::CompareTo(const nsSMILAnimationFunction* aOther) const
   NS_ASSERTION(aOther != this, "Trying to compare to self.");
 
   // Inactive animations sort first
-  if (!IsActiveOrFrozen() && aOther->IsActiveOrFrozen())
+  if (!IsActive() && aOther->IsActive())
     return -1;
 
-  if (IsActiveOrFrozen() && !aOther->IsActiveOrFrozen())
+  if (IsActive() && !aOther->IsActive())
     return 1;
 
   // Sort based on begin time
