@@ -730,6 +730,8 @@ GLContextProviderWGL::GetGlobalContext(const ContextFlags flags)
             gGlobalContext[libToUse] = nullptr;
             return nullptr;
         }
+
+        gGlobalContext[libToUse]->SetIsGlobalSharedContext(true);
     }
 
     return static_cast<GLContext*>(gGlobalContext[libToUse]);

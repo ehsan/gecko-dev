@@ -12,16 +12,12 @@ using namespace mozilla::gfx;
 namespace mozilla {
 namespace gl {
 
-class GLContextEGL;
-void SetEGLSurfaceOverride(GLContextEGL* context, EGLSurface surf);
-GLContextEGL* DowncastGLContextEGL(GLContext* context);
-
 SurfaceFactory_ANGLEShareHandle*
 SurfaceFactory_ANGLEShareHandle::Create(GLContext* gl,
                                         ID3D10Device1* d3d,
                                         const SurfaceCaps& caps)
 {
-    GLLibraryEGL* egl = &sEGLLibrary;
+    GLLibraryEGL* egl = gl->GetLibraryEGL();
     if (!egl)
         return nullptr;
 
@@ -49,7 +45,7 @@ SharedSurface_ANGLEShareHandle::~SharedSurface_ANGLEShareHandle()
 void
 SharedSurface_ANGLEShareHandle::LockProdImpl()
 {
-    SetEGLSurfaceOverride(DowncastGLContextEGL(mGL), mPBuffer);
+    mGL->SetEGLSurfaceOverride(mPBuffer);
 }
 
 void
@@ -198,7 +194,7 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl, ID3D10Device1* d3d,
                                        EGLContext context, EGLConfig config,
                                        const gfx::IntSize& size, bool hasAlpha)
 {
-    GLLibraryEGL* egl = &sEGLLibrary;
+    GLLibraryEGL* egl = gl->GetLibraryEGL();
     MOZ_ASSERT(egl);
     MOZ_ASSERT(egl->IsExtensionSupported(
                GLLibraryEGL::ANGLE_surface_d3d_texture_2d_share_handle));
@@ -275,7 +271,7 @@ SurfaceFactory_ANGLEShareHandle::SurfaceFactory_ANGLEShareHandle(GLContext* gl,
     , mConsD3D(d3d)
 {
     mConfig = ChooseConfig(mProdGL, mEGL, mReadCaps);
-    mContext = mProdGL->GetNativeData(GLContext::NativeGLContext);
+    mContext = mProdGL->GetEGLContext();
     MOZ_ASSERT(mConfig && mContext);
 }
 
