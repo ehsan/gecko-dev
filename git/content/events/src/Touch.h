@@ -8,7 +8,6 @@
 
 #include "mozilla/Attributes.h"
 #include "nsWrapperCache.h"
-#include "nsAutoPtr.h"
 #include "Units.h"
 
 class nsPresContext;

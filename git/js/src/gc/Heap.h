@@ -99,7 +99,6 @@ struct Cell
     MOZ_ALWAYS_INLINE void unmark(uint32_t color) const;
 
     inline JSRuntime *runtimeFromMainThread() const;
-    inline JS::shadow::Runtime *shadowRuntimeFromMainThread() const;
     inline JS::Zone *tenuredZone() const;
     inline bool tenuredIsInsideZone(JS::Zone *zone) const;
 
@@ -962,12 +961,6 @@ Cell::runtimeFromMainThread() const
     JSRuntime *rt = chunk()->info.runtime;
     JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
     return rt;
-}
-
-inline JS::shadow::Runtime *
-Cell::shadowRuntimeFromMainThread() const
-{
-    return reinterpret_cast<JS::shadow::Runtime*>(runtimeFromMainThread());
 }
 
 inline JSRuntime *

@@ -122,9 +122,7 @@ class PropertyIteratorObject : public JSObject
     NativeIterator *getNativeIterator() const {
         return static_cast<js::NativeIterator *>(getPrivate());
     }
-    void setNativeIterator(js::NativeIterator *ni) {
-        setPrivate(ni);
-    }
+    inline void setNativeIterator(js::NativeIterator *ni);
 
     size_t sizeOfMisc(mozilla::MallocSizeOf mallocSizeOf) const;
 

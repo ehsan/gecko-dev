@@ -35,6 +35,7 @@
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
+#include "builtin/Iterator-inl.h"
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
 

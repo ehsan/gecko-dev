@@ -1272,14 +1272,10 @@ void MediaDecoder::SetMediaDuration(int64_t aDuration)
   GetStateMachine()->SetDuration(aDuration);
 }
 
-void MediaDecoder::UpdateEstimatedMediaDuration(int64_t aDuration)
+void MediaDecoder::UpdateMediaDuration(int64_t aDuration)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  if (mPlayState <= PLAY_STATE_LOADING) {
-    return;
-  }
   NS_ENSURE_TRUE_VOID(GetStateMachine());
-  GetStateMachine()->UpdateEstimatedDuration(aDuration);
+  GetStateMachine()->UpdateDuration(aDuration);
 }
 
 void MediaDecoder::SetMediaSeekable(bool aMediaSeekable) {
