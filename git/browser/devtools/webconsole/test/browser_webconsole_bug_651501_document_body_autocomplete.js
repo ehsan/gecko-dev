@@ -34,11 +34,13 @@ function consoleOpened(aHud) {
 
     ok(popup.isOpen, "popup is open");
 
-    // expected properties:
+    // |props| values, and the following properties:
     // __defineGetter__  __defineSetter__ __lookupGetter__ __lookupSetter__
     // constructor hasOwnProperty isPrototypeOf propertyIsEnumerable
     // toLocaleString toSource toString unwatch valueOf watch.
-    ok(popup.itemCount >= 14, "popup.itemCount is correct");
+    let props = WCU.inspectObject(content.wrappedJSObject.document.body,
+                                  function() { });
+    is(popup.itemCount, 14 + props.length, "popup.itemCount is correct");
 
     popup._panel.addEventListener("popuphidden", autocompletePopupHidden, false);
 
@@ -100,7 +102,7 @@ function testPropertyPanel()
 function onVariablesViewReady(aEvent, aView)
 {
   findVariableViewProperties(aView, [
-    { name: "body", value: "[object HTMLBodyElement]" },
+    { name: "__proto__.body", value: "[object HTMLBodyElement]" },
   ], { webconsole: gHUD }).then(finishTest);
 }
 

@@ -241,10 +241,6 @@ AppCacheUtils.prototype = {
   },
 
   listEntries: function ACU_show(searchTerm) {
-    if (!Services.prefs.getBoolPref("browser.cache.disk.enable")) {
-      throw new Error(l10n.GetStringFromName("cacheDisabled"));
-    }
-
     let entries = [];
 
     Services.cache.visitEntries({
@@ -279,9 +275,6 @@ AppCacheUtils.prototype = {
       }
     });
 
-    if (entries.length == 0) {
-      throw new Error(l10n.GetStringFromName("noResults"));
-    }
     return entries;
   },
 
@@ -343,7 +336,7 @@ AppCacheUtils.prototype = {
         } else {
           this.errors.push({
             line: 0,
-            msg: l10n.GetStringFromName("invalidURI")
+            msg: "The URI passed to AppCacheUtils is invalid."
           });
         }
       });

@@ -23,7 +23,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Promise",
  * the target's document. It wraps remote debugging protocol comunications.
  *
  * It emits these events:
- *   'document-load': debuggee's document is loaded, style sheets are argument
+ *   'stylesheet-added': A stylesheet has been added to the debuggee's document
  *   'stylesheets-cleared': The debuggee's stylesheets have been reset (e.g. the
  *                          page navigated)
  *
@@ -37,12 +37,12 @@ let StyleEditorDebuggee = function(target) {
 
   this.clear = this.clear.bind(this);
   this._onNewDocument = this._onNewDocument.bind(this);
-  this._onDocumentLoad = this._onDocumentLoad.bind(this);
+  this._onStyleSheetsAdded = this._onStyleSheetsAdded.bind(this);
 
   this._target = target;
   this._actor = this.target.form.styleEditorActor;
 
-  this.client.addListener("documentLoad", this._onDocumentLoad);
+  this.client.addListener("styleSheetsAdded", this._onStyleSheetsAdded);
   this._target.on("navigate", this._onNewDocument);
 
   this._onNewDocument();
@@ -128,21 +128,18 @@ StyleEditorDebuggee.prototype = {
   },
 
   /**
-   * Handler for document load, forward event with
-   * all the stylesheets available on load.
+   * Handle stylesheet-added event from the target
    *
-   * @param  {string} type
-   *         Event type
-   * @param  {object} request
-   *         Object with 'styleSheets' array of actor forms
+   * @param {string} type
+   *        Type of event
+   * @param {object} request
+   *        Event details
    */
-  _onDocumentLoad: function(type, request) {
-    let sheets = [];
+  _onStyleSheetsAdded: function(type, request) {
     for (let form of request.styleSheets) {
       let sheet = this._addStyleSheet(form);
-      sheets.push(sheet);
+      this.emit("stylesheet-added", sheet);
     }
-    this.emit("document-load", sheets);
   },
 
   /**
@@ -194,6 +191,7 @@ StyleEditorDebuggee.prototype = {
   destroy: function() {
     this.clear();
 
+    this._target.off("will-navigate", this.clear);
     this._target.off("navigate", this._onNewDocument);
   }
 }

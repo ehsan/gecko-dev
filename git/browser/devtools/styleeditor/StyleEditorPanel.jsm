@@ -110,6 +110,7 @@ StyleEditorPanel.prototype = {
     if (!this._destroyed) {
       this._destroyed = true;
 
+      this._target.off("will-navigate", this.beforeNavigate);
       this._target.off("close", this.destroy);
       this._target = null;
       this._toolbox = null;
