@@ -782,14 +782,14 @@ Parser<ParseHandler>::checkFinalReturn(Node pn)
 }
 
 /*
- * Check that assigning to lhs is permitted.  Assigning to 'eval' or
- * 'arguments' is banned in strict mode and in destructuring assignment.
+ * Check that it is permitted to assign to lhs.  Strict mode code may not
+ * assign to 'eval' or 'arguments'.
  */
 template <typename ParseHandler>
 bool
-Parser<ParseHandler>::checkStrictAssignment(Node lhs, AssignmentFlavor flavor)
+Parser<ParseHandler>::checkStrictAssignment(Node lhs)
 {
-    if (!pc->sc->needStrictChecks() && flavor != KeyedDestructuringAssignment)
+    if (!pc->sc->needStrictChecks())
         return true;
 
     JSAtom *atom = handler.isName(lhs);
@@ -798,20 +798,12 @@ Parser<ParseHandler>::checkStrictAssignment(Node lhs, AssignmentFlavor flavor)
 
     if (atom == context->names().eval || atom == context->names().arguments) {
         JSAutoByteString name;
-        if (!AtomToPrintableString(context, atom, &name))
+        if (!AtomToPrintableString(context, atom, &name) ||
+            !report(ParseStrictError, pc->sc->strict, lhs,
+                    JSMSG_DEPRECATED_ASSIGN, name.ptr()))
+        {
             return false;
-
-        ParseReportKind kind;
-        unsigned errnum;
-        if (pc->sc->strict || flavor != KeyedDestructuringAssignment) {
-            kind = ParseStrictError;
-            errnum = JSMSG_BAD_STRICT_ASSIGN;
-        } else {
-            kind = ParseError;
-            errnum = JSMSG_BAD_DESTRUCT_ASSIGN;
         }
-        if (!report(kind, pc->sc->strict, lhs, errnum, name.ptr()))
-            return false;
     }
     return true;
 }
@@ -824,7 +816,7 @@ Parser<ParseHandler>::checkStrictAssignment(Node lhs, AssignmentFlavor flavor)
  */
 template <typename ParseHandler>
 bool
-Parser<ParseHandler>::checkStrictBinding(PropertyName *name, Node pn)
+Parser<ParseHandler>::checkStrictBinding(HandlePropertyName name, Node pn)
 {
     if (!pc->sc->needStrictChecks())
         return true;
@@ -1262,7 +1254,7 @@ Parser<ParseHandler>::getOrCreateLexicalDependency(ParseContext<ParseHandler> *p
     if (p)
         return p.value().get<ParseHandler>();
 
-    DefinitionNode dn = handler.newPlaceholder(atom, pc->blockid(), pos());
+    DefinitionNode dn = handler.newPlaceholder(atom, pc->inBlock(), pc->blockid(), pos());
     if (!dn)
         return ParseHandler::nullDefinition();
     DefinitionSingle def = DefinitionSingle::new_<ParseHandler>(dn);
@@ -1305,13 +1297,17 @@ ConvertDefinitionToNamedLambdaUse(TokenStream &ts, ParseContext<FullParseHandler
  */
 template <>
 bool
-Parser<FullParseHandler>::leaveFunction(ParseNode *fn, ParseContext<FullParseHandler> *outerpc,
+Parser<FullParseHandler>::leaveFunction(ParseNode *fn, HandlePropertyName funName,
+                                        ParseContext<FullParseHandler> *outerpc,
                                         FunctionSyntaxKind kind)
 {
     outerpc->blockidGen = pc->blockidGen;
 
     FunctionBox *funbox = fn->pn_funbox;
     JS_ASSERT(funbox == pc->sc->asFunctionBox());
+
+    if (!outerpc->topStmt || outerpc->topStmt->type == STMT_BLOCK)
+        fn->pn_dflags |= PND_BLOCKCHILD;
 
     /* Propagate unresolved lexical names up to outerpc->lexdeps. */
     if (pc->lexdeps->count()) {
@@ -1320,7 +1316,7 @@ Parser<FullParseHandler>::leaveFunction(ParseNode *fn, ParseContext<FullParseHan
             Definition *dn = r.front().value().get<FullParseHandler>();
             JS_ASSERT(dn->isPlaceholder());
 
-            if (atom == funbox->function()->name() && kind == Expression) {
+            if (atom == funName && kind == Expression) {
                 if (!ConvertDefinitionToNamedLambdaUse(tokenStream, pc, funbox, dn))
                     return false;
                 continue;
@@ -1404,7 +1400,8 @@ Parser<FullParseHandler>::leaveFunction(ParseNode *fn, ParseContext<FullParseHan
 
 template <>
 bool
-Parser<SyntaxParseHandler>::leaveFunction(Node fn, ParseContext<SyntaxParseHandler> *outerpc,
+Parser<SyntaxParseHandler>::leaveFunction(Node fn, HandlePropertyName funName,
+                                          ParseContext<SyntaxParseHandler> *outerpc,
                                           FunctionSyntaxKind kind)
 {
     outerpc->blockidGen = pc->blockidGen;
@@ -1913,7 +1910,7 @@ Parser<SyntaxParseHandler>::checkFunctionDefinition(HandlePropertyName funName,
 template <typename ParseHandler>
 typename ParseHandler::Node
 Parser<ParseHandler>::functionDef(HandlePropertyName funName, const TokenStream::Position &start,
-                                  FunctionType type, FunctionSyntaxKind kind)
+                                  size_t startOffset, FunctionType type, FunctionSyntaxKind kind)
 {
     JS_ASSERT_IF(kind == Statement, funName);
 
@@ -1938,7 +1935,7 @@ Parser<ParseHandler>::functionDef(HandlePropertyName funName, const TokenStream:
     // directive, we backup and reparse it as strict.
     bool initiallyStrict = pc->sc->strict;
     bool becameStrict;
-    if (!functionArgsAndBody(pn, fun, type, kind, initiallyStrict,
+    if (!functionArgsAndBody(pn, fun, funName, startOffset, type, kind, initiallyStrict,
                              &becameStrict))
     {
         if (initiallyStrict || !becameStrict || tokenStream.hadError())
@@ -1948,11 +1945,8 @@ Parser<ParseHandler>::functionDef(HandlePropertyName funName, const TokenStream:
         tokenStream.seek(start);
         if (funName && tokenStream.getToken() == TOK_ERROR)
             return null();
-
-        // functionArgsAndBody may have already set pn->pn_body before failing.
         handler.setFunctionBody(pn, null());
-
-        if (!functionArgsAndBody(pn, fun, type, kind, true))
+        if (!functionArgsAndBody(pn, fun, funName, startOffset, type, kind, true))
             return null();
     }
 
@@ -2023,8 +2017,7 @@ Parser<SyntaxParseHandler>::finishFunctionDefinition(Node pn, FunctionBox *funbo
     size_t numFreeVariables = pc->lexdeps->count();
     size_t numInnerFunctions = pc->innerFunctions.length();
 
-    RootedFunction fun(context, funbox->function());
-    LazyScript *lazy = LazyScript::Create(context, fun, numFreeVariables, numInnerFunctions, versionNumber(),
+    LazyScript *lazy = LazyScript::Create(context, numFreeVariables, numInnerFunctions, versionNumber(),
                                           funbox->bufStart, funbox->bufEnd,
                                           funbox->startLine, funbox->startColumn);
     if (!lazy)
@@ -2046,14 +2039,16 @@ Parser<SyntaxParseHandler>::finishFunctionDefinition(Node pn, FunctionBox *funbo
         lazy->setUsesArgumentsAndApply();
     PropagateTransitiveParseFlags(funbox, lazy);
 
-    fun->initLazyScript(lazy);
+    funbox->object->as<JSFunction>().initLazyScript(lazy);
     return true;
 }
 
 template <>
 bool
 Parser<FullParseHandler>::functionArgsAndBody(ParseNode *pn, HandleFunction fun,
-                                              FunctionType type, FunctionSyntaxKind kind,
+                                              HandlePropertyName funName,
+                                              size_t startOffset, FunctionType type,
+                                              FunctionSyntaxKind kind,
                                               bool strict, bool *becameStrict)
 {
     if (becameStrict)
@@ -2083,7 +2078,7 @@ Parser<FullParseHandler>::functionArgsAndBody(ParseNode *pn, HandleFunction fun,
                 return false;
 
             if (!parser->functionArgsAndBodyGeneric(SyntaxParseHandler::NodeGeneric,
-                                                    fun, type, kind, becameStrict))
+                                                    fun, funName, type, kind, strict, becameStrict))
             {
                 if (parser->hadAbortedSyntaxParse()) {
                     // Try again with a full parse.
@@ -2116,10 +2111,10 @@ Parser<FullParseHandler>::functionArgsAndBody(ParseNode *pn, HandleFunction fun,
     if (!funpc.init())
         return false;
 
-    if (!functionArgsAndBodyGeneric(pn, fun, type, kind, becameStrict))
+    if (!functionArgsAndBodyGeneric(pn, fun, funName, type, kind, strict, becameStrict))
         return false;
 
-    if (!leaveFunction(pn, outerpc, kind))
+    if (!leaveFunction(pn, funName, outerpc, kind))
         return false;
 
     pn->pn_blockid = outerpc->blockid();
@@ -2137,7 +2132,9 @@ Parser<FullParseHandler>::functionArgsAndBody(ParseNode *pn, HandleFunction fun,
 template <>
 bool
 Parser<SyntaxParseHandler>::functionArgsAndBody(Node pn, HandleFunction fun,
-                                                FunctionType type, FunctionSyntaxKind kind,
+                                                HandlePropertyName funName,
+                                                size_t startOffset, FunctionType type,
+                                                FunctionSyntaxKind kind,
                                                 bool strict, bool *becameStrict)
 {
     if (becameStrict)
@@ -2155,10 +2152,10 @@ Parser<SyntaxParseHandler>::functionArgsAndBody(Node pn, HandleFunction fun,
     if (!funpc.init())
         return false;
 
-    if (!functionArgsAndBodyGeneric(pn, fun, type, kind, becameStrict))
+    if (!functionArgsAndBodyGeneric(pn, fun, funName, type, kind, strict, becameStrict))
         return false;
 
-    if (!leaveFunction(pn, outerpc, kind))
+    if (!leaveFunction(pn, funName, outerpc, kind))
         return false;
 
     // This is a lazy function inner to another lazy function. Remember the
@@ -2186,11 +2183,13 @@ Parser<FullParseHandler>::standaloneLazyFunction(HandleFunction fun, unsigned st
     if (!funpc.init())
         return null();
 
-    if (!functionArgsAndBodyGeneric(pn, fun, Normal, Statement, NULL))
+    RootedPropertyName funName(context, fun->atom() ? fun->atom()->asPropertyName() : NULL);
+
+    if (!functionArgsAndBodyGeneric(pn, fun, funName, Normal, Statement, strict, NULL))
         return null();
 
     if (fun->isNamedLambda()) {
-        if (AtomDefnPtr p = pc->lexdeps->lookup(fun->name())) {
+        if (AtomDefnPtr p = pc->lexdeps->lookup(funName)) {
             Definition *dn = p.value().get<FullParseHandler>();
             if (!ConvertDefinitionToNamedLambdaUse(tokenStream, pc, funbox, dn))
                 return NULL;
@@ -2207,8 +2206,10 @@ Parser<FullParseHandler>::standaloneLazyFunction(HandleFunction fun, unsigned st
 
 template <typename ParseHandler>
 bool
-Parser<ParseHandler>::functionArgsAndBodyGeneric(Node pn, HandleFunction fun, FunctionType type,
-                                                 FunctionSyntaxKind kind, bool *becameStrict)
+Parser<ParseHandler>::functionArgsAndBodyGeneric(Node pn, HandleFunction fun,
+                                                 HandlePropertyName funName, FunctionType type,
+                                                 FunctionSyntaxKind kind,
+                                                 bool strict, bool *becameStrict)
 {
     // Given a properly initialized parse context, try to parse an actual
     // function without concern for conversion to strict mode, use of lazy
@@ -2264,7 +2265,7 @@ Parser<ParseHandler>::functionArgsAndBodyGeneric(Node pn, HandleFunction fun, Fu
     if (!yieldGuard.empty() && !yieldGuard.ref().checkValidBody(body, JSMSG_YIELD_IN_ARROW))
         return false;
 
-    if (fun->name() && !checkStrictBinding(fun->name(), pn))
+    if (funName && !checkStrictBinding(funName, pn))
         return false;
 
 #if JS_HAS_EXPR_CLOSURES
@@ -2355,7 +2356,7 @@ Parser<ParseHandler>::functionStmt()
         !report(ParseStrictError, pc->sc->strict, null(), JSMSG_STRICT_FUNCTION_STATEMENT))
         return null();
 
-    return functionDef(name, start, Normal, Statement);
+    return functionDef(name, start, tokenStream.positionToOffset(start), Normal, Statement);
 }
 
 template <typename ParseHandler>
@@ -2370,7 +2371,7 @@ Parser<ParseHandler>::functionExpr()
         name = tokenStream.currentToken().name();
     else
         tokenStream.ungetToken();
-    return functionDef(name, start, Normal, Expression);
+    return functionDef(name, start, tokenStream.positionToOffset(start), Normal, Expression);
 }
 
 /*
@@ -2919,6 +2920,57 @@ Parser<FullParseHandler>::bindDestructuringVar(BindData<FullParseHandler> *data,
 }
 
 /*
+ * Here, we are destructuring {... P: Q, ...} = R, where P is any id, Q is any
+ * LHS expression except a destructuring initialiser, and R is on the stack.
+ * Because R is already evaluated, the usual LHS-specialized bytecodes won't
+ * work.  After pushing R[P] we need to evaluate Q's "reference base" QB and
+ * then push its property name QN.  At this point the stack looks like
+ *
+ *   [... R, R[P], QB, QN]
+ *
+ * We need to set QB[QN] = R[P].  This is a job for JSOP_ENUMELEM, which takes
+ * its operands with left-hand side above right-hand side:
+ *
+ *   [rval, lval, xval]
+ *
+ * and pops all three values, setting lval[xval] = rval.  But we cannot select
+ * JSOP_ENUMELEM yet, because the LHS may turn out to be an arg or local var,
+ * which can be optimized further.  So we select JSOP_SETNAME.
+ */
+template <>
+bool
+Parser<FullParseHandler>::bindDestructuringLHS(ParseNode *pn)
+{
+    switch (pn->getKind()) {
+      case PNK_NAME:
+        pn->markAsAssigned();
+        /* FALL THROUGH */
+
+      case PNK_DOT:
+      case PNK_ELEM:
+        /*
+         * We may be called on a name node that has already been specialized,
+         * in the very weird and ECMA-262-required "for (var [x] = i in o) ..."
+         * case. See bug 558633.
+         */
+        if (!(js_CodeSpec[pn->getOp()].format & JOF_SET))
+            pn->setOp(JSOP_SETNAME);
+        break;
+
+      case PNK_CALL:
+        if (!makeSetCall(pn, JSMSG_BAD_LEFTSIDE_OF_ASS))
+            return false;
+        break;
+
+      default:
+        report(ParseError, false, pn, JSMSG_BAD_LEFTSIDE_OF_ASS);
+        return false;
+    }
+
+    return true;
+}
+
+/*
  * Destructuring patterns can appear in two kinds of contexts:
  *
  * - assignment-like: assignment expressions and |for| loop heads.  In
@@ -2986,7 +3038,7 @@ Parser<FullParseHandler>::checkDestructuring(BindData<FullParseHandler> *data,
                         }
                         ok = bindDestructuringVar(data, pn);
                     } else {
-                        ok = checkAndMarkAsAssignmentLhs(pn, KeyedDestructuringAssignment);
+                        ok = bindDestructuringLHS(pn);
                     }
                 }
                 if (!ok)
@@ -3020,7 +3072,7 @@ Parser<FullParseHandler>::checkDestructuring(BindData<FullParseHandler> *data,
                     if (!noteNameUse(name, pn))
                         return false;
                 }
-                ok = checkAndMarkAsAssignmentLhs(pn, KeyedDestructuringAssignment);
+                ok = bindDestructuringLHS(pn);
             }
             if (!ok)
                 return false;
@@ -3902,7 +3954,7 @@ Parser<FullParseHandler>::forStatement()
             pn2 = pn1;
             pn1 = NULL;
 
-            if (!checkAndMarkAsAssignmentLhs(pn2, PlainAssignment))
+            if (!setAssignmentLhsOps(pn2, true))
                 return null();
         }
 
@@ -4127,7 +4179,7 @@ Parser<SyntaxParseHandler>::forStatement()
             return null();
         }
 
-        if (!isForDecl && !checkAndMarkAsAssignmentLhs(lhsNode, PlainAssignment))
+        if (!isForDecl && !setAssignmentLhsOps(lhsNode, true))
             return null();
 
         if (!expr())
@@ -5034,34 +5086,25 @@ Parser<ParseHandler>::condExpr1()
 
 template <>
 bool
-Parser<FullParseHandler>::checkAndMarkAsAssignmentLhs(ParseNode *pn, AssignmentFlavor flavor)
+Parser<FullParseHandler>::setAssignmentLhsOps(ParseNode *pn, bool isPlainAssignment)
 {
     switch (pn->getKind()) {
       case PNK_NAME:
-        if (!checkStrictAssignment(pn, flavor))
+        if (!checkStrictAssignment(pn))
             return false;
-        if (flavor == KeyedDestructuringAssignment) {
-            /*
-             * We may be called on a name node that has already been
-             * specialized, in the very weird "for (var [x] = i in o) ..."
-             * case. See bug 558633.
-             */
-            if (!(js_CodeSpec[pn->getOp()].format & JOF_SET))
-                pn->setOp(JSOP_SETNAME);
-        } else {
-            pn->setOp(pn->isOp(JSOP_GETLOCAL) ? JSOP_SETLOCAL : JSOP_SETNAME);
-        }
+        pn->setOp(pn->isOp(JSOP_GETLOCAL) ? JSOP_SETLOCAL : JSOP_SETNAME);
         pn->markAsAssigned();
         break;
-
       case PNK_DOT:
-      case PNK_ELEM:
+        pn->setOp(JSOP_SETPROP);
         break;
-
+      case PNK_ELEM:
+        pn->setOp(JSOP_SETELEM);
+        break;
 #if JS_HAS_DESTRUCTURING
       case PNK_ARRAY:
       case PNK_OBJECT:
-        if (flavor == CompoundAssignment) {
+        if (!isPlainAssignment) {
             report(ParseError, false, null(), JSMSG_BAD_DESTRUCT_ASS);
             return false;
         }
@@ -5069,14 +5112,12 @@ Parser<FullParseHandler>::checkAndMarkAsAssignmentLhs(ParseNode *pn, AssignmentF
             return false;
         break;
 #endif
-
       case PNK_CALL:
         if (!makeSetCall(pn, JSMSG_BAD_LEFTSIDE_OF_ASS))
             return false;
         break;
-
       default:
-        report(ParseError, false, pn, JSMSG_BAD_LEFTSIDE_OF_ASS);
+        report(ParseError, false, null(), JSMSG_BAD_LEFTSIDE_OF_ASS);
         return false;
     }
     return true;
@@ -5084,7 +5125,7 @@ Parser<FullParseHandler>::checkAndMarkAsAssignmentLhs(ParseNode *pn, AssignmentF
 
 template <>
 bool
-Parser<SyntaxParseHandler>::checkAndMarkAsAssignmentLhs(Node pn, AssignmentFlavor flavor)
+Parser<SyntaxParseHandler>::setAssignmentLhsOps(Node pn, bool isPlainAssignment)
 {
     /* Full syntax checking of valid assignment LHS terms requires a parse tree. */
     if (pn != SyntaxParseHandler::NodeName &&
@@ -5093,7 +5134,7 @@ Parser<SyntaxParseHandler>::checkAndMarkAsAssignmentLhs(Node pn, AssignmentFlavo
     {
         return abortIfSyntaxParser();
     }
-    return checkStrictAssignment(pn, flavor);
+    return checkStrictAssignment(pn);
 }
 
 template <typename ParseHandler>
@@ -5161,9 +5202,10 @@ Parser<ParseHandler>::assignExpr()
 
         if (tokenStream.getToken() == TOK_ERROR)
             return null();
+        size_t offset = pos().begin;
         tokenStream.ungetToken();
 
-        return functionDef(NullPtr(), start, Normal, Arrow);
+        return functionDef(NullPtr(), start, offset, Normal, Arrow);
       }
 
       default:
@@ -5172,8 +5214,7 @@ Parser<ParseHandler>::assignExpr()
         return lhs;
     }
 
-    AssignmentFlavor flavor = kind == PNK_ASSIGN ? PlainAssignment : CompoundAssignment;
-    if (!checkAndMarkAsAssignmentLhs(lhs, flavor))
+    if (!setAssignmentLhsOps(lhs, kind == PNK_ASSIGN))
         return null();
 
     Node rhs = assignExpr();
@@ -5183,48 +5224,59 @@ Parser<ParseHandler>::assignExpr()
     return handler.newBinaryOrAppend(kind, lhs, rhs, pc, op);
 }
 
+template <> bool
+Parser<FullParseHandler>::setLvalKid(ParseNode *pn, ParseNode *kid, const char *name)
+{
+    if (!kid->isKind(PNK_NAME) &&
+        !kid->isKind(PNK_DOT) &&
+        (!kid->isKind(PNK_CALL) ||
+         (!kid->isOp(JSOP_CALL) && !kid->isOp(JSOP_EVAL) &&
+          !kid->isOp(JSOP_FUNCALL) && !kid->isOp(JSOP_FUNAPPLY))) &&
+        !kid->isKind(PNK_ELEM))
+    {
+        report(ParseError, false, null(), JSMSG_BAD_OPERAND, name);
+        return false;
+    }
+    if (!checkStrictAssignment(kid))
+        return false;
+    pn->pn_kid = kid;
+    return true;
+}
+
 static const char incop_name_str[][10] = {"increment", "decrement"};
 
 template <>
 bool
-Parser<FullParseHandler>::checkAndMarkAsIncOperand(ParseNode *kid, TokenKind tt, bool preorder)
+Parser<FullParseHandler>::setIncOpKid(ParseNode *pn, ParseNode *kid, TokenKind tt, bool preorder)
 {
-    // Check.
-    if (!kid->isKind(PNK_NAME) &&
-        !kid->isKind(PNK_DOT) &&
-        !kid->isKind(PNK_ELEM) &&
-        !(kid->isKind(PNK_CALL) &&
-          (kid->isOp(JSOP_CALL) ||
-           kid->isOp(JSOP_EVAL) ||
-           kid->isOp(JSOP_FUNCALL) ||
-           kid->isOp(JSOP_FUNAPPLY))))
-    {
-        report(ParseError, false, null(), JSMSG_BAD_OPERAND, incop_name_str[tt == TOK_DEC]);
-        return false;
-    }
-
-    if (!checkStrictAssignment(kid, IncDecAssignment))
+    if (!setLvalKid(pn, kid, incop_name_str[tt == TOK_DEC]))
         return false;
 
-    // Mark.
-    if (kid->isKind(PNK_NAME)) {
+    switch (kid->getKind()) {
+      case PNK_NAME:
         kid->markAsAssigned();
-    } else if (kid->isKind(PNK_CALL)) {
+        break;
+
+      case PNK_CALL:
         if (!makeSetCall(kid, JSMSG_BAD_INCOP_OPERAND))
             return false;
+        break;
+
+      case PNK_DOT:
+      case PNK_ELEM:
+        break;
+
+      default:
+        JS_ASSERT(0);
     }
     return true;
 }
 
 template <>
 bool
-Parser<SyntaxParseHandler>::checkAndMarkAsIncOperand(Node kid, TokenKind tt, bool preorder)
+Parser<SyntaxParseHandler>::setIncOpKid(Node pn, Node kid, TokenKind tt, bool preorder)
 {
-    // To the extent of what we support in syntax-parse mode, the rules for
-    // inc/dec operands are the same as for assignment. There are differences,
-    // such as destructuring; but if we hit any of those cases, we'll abort and
-    // reparse in full mode.
-    return checkAndMarkAsAssignmentLhs(kid, IncDecAssignment);
+    return setAssignmentLhsOps(kid, false);
 }
 
 template <typename ParseHandler>
@@ -5268,12 +5320,15 @@ Parser<ParseHandler>::unaryExpr()
         pn2 = memberExpr(tt2, true);
         if (!pn2)
             return null();
-        if (!checkAndMarkAsIncOperand(pn2, tt, true))
+        pn = handler.newUnary((tt == TOK_INC) ? PNK_PREINCREMENT : PNK_PREDECREMENT,
+                              JSOP_NOP,
+                              begin,
+                              pn2);
+        if (!pn)
             return null();
-        return handler.newUnary((tt == TOK_INC) ? PNK_PREINCREMENT : PNK_PREDECREMENT,
-                                JSOP_NOP,
-                                begin,
-                                pn2);
+        if (!setIncOpKid(pn, pn2, tt, true))
+            return null();
+        break;
       }
 
       case TOK_DELETE: {
@@ -5304,16 +5359,19 @@ Parser<ParseHandler>::unaryExpr()
         tt = tokenStream.peekTokenSameLine(TSF_OPERAND);
         if (tt == TOK_INC || tt == TOK_DEC) {
             tokenStream.consumeKnownToken(tt);
-            if (!checkAndMarkAsIncOperand(pn, tt, false))
+            pn2 = handler.newUnary((tt == TOK_INC) ? PNK_POSTINCREMENT : PNK_POSTDECREMENT,
+                                   JSOP_NOP,
+                                   begin,
+                                   pn);
+            if (!pn2)
                 return null();
-            return handler.newUnary((tt == TOK_INC) ? PNK_POSTINCREMENT : PNK_POSTDECREMENT,
-                                    JSOP_NOP,
-                                    begin,
-                                    pn);
+            if (!setIncOpKid(pn2, pn, tt, false))
+                return null();
+            pn = pn2;
         }
-        return pn;
+        break;
     }
-    MOZ_ASSUME_UNREACHABLE("unaryExpr");
+    return pn;
 }
 
 /*
@@ -5587,8 +5645,8 @@ CompExprTransplanter::transplant(ParseNode *pn)
                      * generator) a use of a new placeholder in the generator's
                      * lexdeps.
                      */
-                    Definition *dn2 = parser->handler.newPlaceholder(atom, parser->pc->blockid(),
-                                                                     parser->pos());
+                    Definition *dn2 = parser->handler.newPlaceholder(
+                        atom, parser->pc->inBlock(), parser->pc->blockid(), parser->pos());
                     if (!dn2)
                         return false;
                     dn2->pn_pos = root->pn_pos;
@@ -6016,7 +6074,8 @@ Parser<FullParseHandler>::generatorExpr(ParseNode *kid)
         genfn->pn_pos.begin = body->pn_pos.begin = kid->pn_pos.begin;
         genfn->pn_pos.end = body->pn_pos.end = pos().end;
 
-        if (!leaveFunction(genfn, outerpc))
+        RootedPropertyName funName(context);
+        if (!leaveFunction(genfn, funName, outerpc))
             return null();
     }
 
@@ -6213,9 +6272,25 @@ Parser<ParseHandler>::memberExpr(TokenKind tt, bool allowCallSyntax)
 
 template <typename ParseHandler>
 typename ParseHandler::Node
+Parser<ParseHandler>::bracketedExpr()
+{
+    /*
+     * Always accept the 'in' operator in a parenthesized expression,
+     * where it's unambiguous, even if we might be parsing the init of a
+     * for statement.
+     */
+    bool oldParsingForInit = pc->parsingForInit;
+    pc->parsingForInit = false;
+    Node pn = expr();
+    pc->parsingForInit = oldParsingForInit;
+    return pn;
+}
+
+template <typename ParseHandler>
+typename ParseHandler::Node
 Parser<ParseHandler>::newName(PropertyName *name)
 {
-    return handler.newName(name, pc->blockid(), pos());
+    return handler.newName(name, pc->inBlock(), pc->blockid(), pos());
 }
 
 template <typename ParseHandler>
@@ -6498,7 +6573,8 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
                     Rooted<PropertyName*> funName(context, NULL);
                     TokenStream::Position start(keepAtoms);
                     tokenStream.tell(&start);
-                    pn2 = functionDef(funName, start, op == JSOP_INITPROP_GETTER ? Getter : Setter,
+                    pn2 = functionDef(funName, start, tokenStream.positionToOffset(start),
+                                      op == JSOP_INITPROP_GETTER ? Getter : Setter,
                                       Expression);
                     if (!pn2)
                         return null();
@@ -6724,16 +6800,7 @@ Parser<ParseHandler>::parenExpr(bool *genexp)
 
     GenexpGuard<ParseHandler> guard(this);
 
-    /*
-     * Always accept the 'in' operator in a parenthesized expression,
-     * where it's unambiguous, even if we might be parsing the init of a
-     * for statement.
-     */
-    bool oldParsingForInit = pc->parsingForInit;
-    pc->parsingForInit = false;
-    Node pn = expr();
-    pc->parsingForInit = oldParsingForInit;
-
+    Node pn = bracketedExpr();
     if (!pn)
         return null();
     guard.endBody();

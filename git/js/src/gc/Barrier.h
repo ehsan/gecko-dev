@@ -132,11 +132,6 @@ class EncapsulatedPtr
 
     ~EncapsulatedPtr() { pre(); }
 
-    void init(T *v) {
-        JS_ASSERT(!IsPoisonedPtr<T>(v));
-        this->value = v;
-    }
-
     /* Use to set the pointer to NULL. */
     void clear() {
         pre();

@@ -17,7 +17,6 @@ import android.accounts.AccountManager;
 import android.accounts.OnAccountsUpdateListener;
 import android.app.Activity;
 import android.content.ContentResolver;
-import android.content.Context;
 import android.database.ContentObserver;
 import android.graphics.Color;
 import android.net.Uri;
@@ -45,6 +44,9 @@ public class Tabs implements GeckoEventListener {
     // All accesses to mTabs must be synchronized on the Tabs instance.
     private final HashMap<Integer, Tab> mTabs = new HashMap<Integer, Tab>();
 
+    // Keeps track of how much has happened since we last updated our persistent tab store.
+    private volatile int mScore = 0;
+
     private AccountManager mAccountManager;
     private OnAccountsUpdateListener mAccountListener = null;
 
@@ -62,13 +64,13 @@ public class Tabs implements GeckoEventListener {
     private static AtomicInteger sTabId = new AtomicInteger(0);
     private volatile boolean mInitialTabsAdded;
 
-    private Context mAppContext;
+    private Activity mActivity;
     private ContentObserver mContentObserver;
 
     private final Runnable mPersistTabsRunnable = new Runnable() {
         @Override
         public void run() {
-            boolean syncIsSetup = SyncAccounts.syncAccountsExist(getAppContext());
+            boolean syncIsSetup = SyncAccounts.syncAccountsExist(getActivity());
             if (syncIsSetup) {
                 TabsAccessor.persistLocalTabs(getContentResolver(), getTabsInOrder());
             }
@@ -98,19 +100,17 @@ public class Tabs implements GeckoEventListener {
         registerEventListener("DesktopMode:Changed");
     }
 
-    public synchronized void attachToContext(Context context) {
-        final Context appContext = context.getApplicationContext();
-        if (mAppContext == appContext) {
+    public synchronized void attachToActivity(Activity activity) {
+        if (mActivity == activity) {
             return;
         }
 
-        if (mAppContext != null) {
-            // This should never happen.
-            Log.w(LOGTAG, "The application context has changed!");
+        if (mActivity != null) {
+            detachFromActivity(mActivity);
         }
 
-        mAppContext = appContext;
-        mAccountManager = AccountManager.get(appContext);
+        mActivity = activity;
+        mAccountManager = AccountManager.get(mActivity);
 
         mAccountListener = new OnAccountsUpdateListener() {
             @Override
@@ -124,6 +124,23 @@ public class Tabs implements GeckoEventListener {
 
         if (mContentObserver != null) {
             BrowserDB.registerBookmarkObserver(getContentResolver(), mContentObserver);
+        }
+    }
+
+    // Ideally, this would remove the reference to the activity once it's
+    // detached; however, we have lifecycle issues with GeckoApp and Tabs that
+    // requires us to keep it around (see
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=844407).
+    public synchronized void detachFromActivity(Activity activity) {
+        ThreadUtils.getBackgroundHandler().removeCallbacks(mPersistTabsRunnable);
+
+        if (mContentObserver != null) {
+            BrowserDB.unregisterContentObserver(getContentResolver(), mContentObserver);
+        }
+
+        if (mAccountListener != null) {
+            mAccountManager.removeOnAccountsUpdatedListener(mAccountListener);
+            mAccountListener = null;
         }
     }
 
@@ -175,8 +192,8 @@ public class Tabs implements GeckoEventListener {
     }
 
     private Tab addTab(int id, String url, boolean external, int parentId, String title, boolean isPrivate) {
-        final Tab tab = isPrivate ? new PrivateTab(mAppContext, id, url, external, parentId, title) :
-                                    new Tab(mAppContext, id, url, external, parentId, title);
+        final Tab tab = isPrivate ? new PrivateTab(mActivity, id, url, external, parentId, title) :
+                                    new Tab(mActivity, id, url, external, parentId, title);
         synchronized (this) {
             lazyRegisterBookmarkObserver();
             mTabs.put(id, tab);
@@ -241,6 +258,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     private Tab getPreviousTabFrom(Tab tab, boolean getPrivate) {
+        int numTabs = mOrder.size();
         int index = getIndexOf(tab);
         for (int i = index - 1; i >= 0; i--) {
             Tab prev = mOrder.get(i);
@@ -340,15 +358,15 @@ public class Tabs implements GeckoEventListener {
      * @return the current GeckoApp instance, or throws if
      *         we aren't correctly initialized.
      */
-    private synchronized Context getAppContext() {
-        if (mAppContext == null) {
+    private synchronized android.app.Activity getActivity() {
+        if (mActivity == null) {
             throw new IllegalStateException("Tabs not initialized with a GeckoApp instance.");
         }
-        return mAppContext;
+        return mActivity;
     }
 
     public ContentResolver getContentResolver() {
-        return getAppContext().getContentResolver();
+        return getActivity().getContentResolver();
     }
 
     // Make Tabs a singleton class.
@@ -517,7 +535,7 @@ public class Tabs implements GeckoEventListener {
 
     // Throws if not initialized.
     public void notifyListeners(final Tab tab, final TabEvents msg, final Object data) {
-        ThreadUtils.postToUiThread(new Runnable() {
+        getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 onTabChanged(tab, msg, data);
