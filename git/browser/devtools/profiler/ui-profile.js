@@ -382,7 +382,6 @@ let ProfileView = {
     if (oldGraph) {
       oldGraph.destroy();
     }
-
     // Don't create a graph if there's not enough data to show.
     if (!framerateData || framerateData.length < 2) {
       return null;
@@ -621,28 +620,15 @@ let RecordingUtils = {
       if (!time || time < beginAt || time > endAt) continue;
       let blocks = [];
 
-      for (let { category: bitmask } of frames) {
-        if (!bitmask) continue;
-        let category = CATEGORY_MAPPINGS[bitmask];
+      for (let { category } of frames) {
+        if (!category) continue;
+        let ordinal = CATEGORY_MAPPINGS[category].ordinal;
 
-        // Guard against categories that aren't found in the frontend mappings.
-        // This usually means that a new category was added in the platform,
-        // but browser/devtools/profiler/utils/global.js wasn't updated yet.
-        if (!category) {
-          category = CATEGORY_MAPPINGS[CATEGORY_OTHER];
-        }
-
-        if (!blocks[category.ordinal]) {
-          blocks[category.ordinal] = 1;
+        if (!blocks[ordinal]) {
+          blocks[ordinal] = 1;
         } else {
-          blocks[category.ordinal]++;
+          blocks[ordinal]++;
         }
-      }
-
-      // If no categories were found in the frames, default to using a
-      // single block using the stack depth as height.
-      if (blocks.length == 0) {
-        blocks[CATEGORY_MAPPINGS[CATEGORY_OTHER].ordinal] = frames.length;
       }
 
       categoriesData.push({
@@ -668,12 +654,6 @@ let RecordingUtils = {
    *         A data source useful for a LineGraphWidget.
    */
   plotFramerateFor: function(ticksData, beginAt, endAt) {
-    // Older Gecko versions don't have a framerate actor implementation,
-    // in which case the returned ticks data is null.
-    if (ticksData == null) {
-      return [];
-    }
-
     let framerateData = this._frameratePlotsCache.get(ticksData);
     if (framerateData == null) {
       framerateData = FramerateFront.plotFPS(ticksData, FRAMERATE_CALC_INTERVAL);

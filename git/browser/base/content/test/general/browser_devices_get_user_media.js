@@ -127,12 +127,6 @@ function promiseNoPopupNotification(aName) {
   return deferred.promise;
 }
 
-function enableDevice(aType, aEnabled) {
-  let menulist = document.getElementById("webRTC-select" + aType + "-menulist");
-  let menupopup = document.getElementById("webRTC-select" + aType + "-menupopup");
-  menulist.value = aEnabled ? menupopup.firstChild.getAttribute("value") : "-1";
-}
-
 const kActionAlways = 1;
 const kActionDeny = 2;
 const kActionNever = 3;
@@ -318,14 +312,14 @@ let gTests = [
     checkDeviceSelectors(true, true);
 
     // disable the camera
-    enableDevice("Camera", false);
+    document.getElementById("webRTC-selectCamera-menulist").value = -1;
 
     yield promiseMessage("ok", () => {
       PopupNotifications.panel.firstChild.button.click();
     });
 
     // reset the menuitem to have no impact on the following tests.
-    enableDevice("Camera", true);
+    document.getElementById("webRTC-selectCamera-menulist").value = 0;
 
     expectObserverCalled("getUserMedia:response:allow");
     expectObserverCalled("recording-device-events");
@@ -348,14 +342,14 @@ let gTests = [
     checkDeviceSelectors(true, true);
 
     // disable the microphone
-    enableDevice("Microphone", false);
+    document.getElementById("webRTC-selectMicrophone-menulist").value = -1;
 
     yield promiseMessage("ok", () => {
       PopupNotifications.panel.firstChild.button.click();
     });
 
     // reset the menuitem to have no impact on the following tests.
-    enableDevice("Microphone", true);
+    document.getElementById("webRTC-selectMicrophone-menulist").value = 0;
 
     expectObserverCalled("getUserMedia:response:allow");
     expectObserverCalled("recording-device-events");
@@ -378,16 +372,16 @@ let gTests = [
     checkDeviceSelectors(true, true);
 
     // disable the camera and microphone
-    enableDevice("Camera", false);
-    enableDevice("Microphone", false);
+    document.getElementById("webRTC-selectCamera-menulist").value = -1;
+    document.getElementById("webRTC-selectMicrophone-menulist").value = -1;
 
     yield promiseMessage("error: PERMISSION_DENIED", () => {
       PopupNotifications.panel.firstChild.button.click();
     });
 
     // reset the menuitems to have no impact on the following tests.
-    enableDevice("Camera", true);
-    enableDevice("Microphone", true);
+    document.getElementById("webRTC-selectCamera-menulist").value = 0;
+    document.getElementById("webRTC-selectMicrophone-menulist").value = 0;
 
     expectObserverCalled("getUserMedia:response:deny");
     expectObserverCalled("recording-window-ended");
@@ -473,13 +467,13 @@ let gTests = [
       is(elt("webRTC-selectMicrophone").hidden, noAudio,
          "microphone selector expected to be " + (noAudio ? "hidden" : "visible"));
       if (!noAudio)
-        enableDevice("Microphone", aAllowAudio || aNever);
+        elt("webRTC-selectMicrophone-menulist").value = (aAllowAudio || aNever) ? 0 : -1;
 
       let noVideo = aAllowVideo === undefined;
       is(elt("webRTC-selectCamera").hidden, noVideo,
          "camera selector expected to be " + (noVideo ? "hidden" : "visible"));
       if (!noVideo)
-        enableDevice("Camera", aAllowVideo || aNever);
+        elt("webRTC-selectCamera-menulist").value = (aAllowVideo || aNever) ? 0 : -1;
 
       let expectedMessage =
         (aAllowVideo || aAllowAudio) ? "ok" : "error: PERMISSION_DENIED";
@@ -556,8 +550,8 @@ let gTests = [
     yield checkPerm(true, true, false, true, false, true);
 
     // reset the menuitems to have no impact on the following tests.
-    enableDevice("Microphone", true);
-    enableDevice("Camera", true);
+    elt("webRTC-selectMicrophone-menulist").value = 0;
+    elt("webRTC-selectCamera-menulist").value = 0;
   }
 },
 

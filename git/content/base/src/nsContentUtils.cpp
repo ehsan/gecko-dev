@@ -2923,13 +2923,11 @@ nsContentUtils::CanLoadImage(nsIURI* aURI, nsISupports* aContext,
   return NS_FAILED(rv) ? false : NS_CP_ACCEPTED(decision);
 }
 
-// static
-bool
-nsContentUtils::IsInPrivateBrowsing(nsIDocument* aDoc)
+imgLoader*
+nsContentUtils::GetImgLoaderForDocument(nsIDocument* aDoc)
 {
-  if (!aDoc) {
-    return false;
-  }
+  if (!aDoc)
+    return imgLoader::Singleton();
   bool isPrivate = false;
   nsCOMPtr<nsILoadGroup> loadGroup = aDoc->GetDocumentLoadGroup();
   nsCOMPtr<nsIInterfaceRequestor> callbacks;
@@ -2943,16 +2941,6 @@ nsContentUtils::IsInPrivateBrowsing(nsIDocument* aDoc)
     nsCOMPtr<nsIChannel> channel = aDoc->GetChannel();
     isPrivate = channel && NS_UsePrivateBrowsing(channel);
   }
-  return isPrivate;
-}
-
-imgLoader*
-nsContentUtils::GetImgLoaderForDocument(nsIDocument* aDoc)
-{
-  if (!aDoc) {
-    return imgLoader::Singleton();
-  }
-  bool isPrivate = IsInPrivateBrowsing(aDoc);
   return isPrivate ? imgLoader::PBSingleton() : imgLoader::Singleton();
 }
 

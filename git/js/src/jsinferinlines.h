@@ -461,16 +461,13 @@ HasTypePropertyId(JSObject *obj, jsid id, const Value &value)
     return HasTypePropertyId(obj, id, GetValueType(value));
 }
 
-void AddTypePropertyId(ExclusiveContext *cx, TypeObject *obj, jsid id, Type type);
-void AddTypePropertyId(ExclusiveContext *cx, TypeObject *obj, jsid id, const Value &value);
-
 /* Add a possible type for a property of obj. */
 inline void
 AddTypePropertyId(ExclusiveContext *cx, JSObject *obj, jsid id, Type type)
 {
     id = IdToTypeId(id);
     if (TrackPropertyTypes(cx, obj, id))
-        AddTypePropertyId(cx, obj->type(), id, type);
+        obj->type()->addPropertyType(cx, id, type);
 }
 
 inline void
@@ -478,7 +475,21 @@ AddTypePropertyId(ExclusiveContext *cx, JSObject *obj, jsid id, const Value &val
 {
     id = IdToTypeId(id);
     if (TrackPropertyTypes(cx, obj, id))
-        AddTypePropertyId(cx, obj->type(), id, value);
+        obj->type()->addPropertyType(cx, id, value);
+}
+
+inline void
+AddTypePropertyId(ExclusiveContext *cx, TypeObject *obj, jsid id, Type type)
+{
+    if (!obj->unknownProperties())
+        obj->addPropertyType(cx, id, type);
+}
+
+inline void
+AddTypePropertyId(ExclusiveContext *cx, TypeObject *obj, jsid id, const Value &value)
+{
+    if (!obj->unknownProperties())
+        obj->addPropertyType(cx, id, value);
 }
 
 /* Set one or more dynamic flags on a type object. */
