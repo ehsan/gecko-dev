@@ -102,13 +102,8 @@ protected:
   virtual bool RecvSetCacheTokenCachedCharset(const nsCString& charset);
   virtual bool RecvSuspend();
   virtual bool RecvResume();
-  virtual bool RecvCancel(const nsresult& status);
   virtual bool RecvRedirect2Result(const nsresult& result,
                                    const RequestHeaderTuples& changedHeaders);
-  virtual bool RecvUpdateAssociatedContentSecurity(const PRInt32& high,
-                                                   const PRInt32& low,
-                                                   const PRInt32& broken,
-                                                   const PRInt32& no);
 
   virtual void ActorDestroy(ActorDestroyReason why);
 

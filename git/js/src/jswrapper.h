@@ -154,7 +154,7 @@ class AutoCompartment
   private:
     LazilyConstructed<ExecuteFrameGuard> frame;
     JSFrameRegs regs;
-    RegExpStatics statics;
+    JSRegExpStatics statics;
     AutoStringRooter input;
     bool entered;
 

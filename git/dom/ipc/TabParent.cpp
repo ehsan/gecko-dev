@@ -52,7 +52,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
-#include "nsIIdentityInfo.h"
 #include "nsPIDOMWindow.h"
 #include "TabChild.h"
 #include "nsIDOMEvent.h"
@@ -66,9 +65,9 @@
 #include "nsIDOMNSHTMLFrameElement.h"
 #include "nsIDialogCreator.h"
 #include "nsThreadUtils.h"
-#include "nsSerializationHelper.h"
 #include "nsIPromptFactory.h"
 #include "nsIContent.h"
+
 #include "mozilla/unused.h"
 
 using mozilla::ipc::DocumentRendererParent;
@@ -83,10 +82,9 @@ using mozilla::dom::ContentParent;
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS5(TabParent, nsITabParent, nsIWebProgress, nsIAuthPromptProvider, nsISSLStatusProvider, nsISecureBrowserUI)
+NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIWebProgress, nsIAuthPromptProvider)
 
 TabParent::TabParent()
-  : mSecurityState(nsIWebProgressListener::STATE_IS_INSECURE)
 {
 }
 
@@ -285,10 +283,7 @@ TabParent::RecvNotifyStatusChange(const nsresult& status,
 }
 
 bool
-TabParent::RecvNotifySecurityChange(const PRUint32& aState,
-                                    const PRBool& aUseSSLStatusObject,
-                                    const nsString& aTooltip,
-                                    const nsCString& aSecInfoAsString)
+TabParent::RecvNotifySecurityChange(const PRUint32& aState)
 {
   /*                                                                           
    * First notify any listeners of the new state info...
@@ -296,32 +291,6 @@ TabParent::RecvNotifySecurityChange(const PRUint32& aState,
    * Operate the elements from back to front so that if items get
    * get removed from the list it won't affect our iteration
    */
-
-  mSecurityState = aState;
-  mSecurityTooltipText = aTooltip;
-
-  if (!aSecInfoAsString.IsEmpty()) {
-    nsCOMPtr<nsISupports> secInfoSupports;
-    nsresult rv = NS_DeserializeObject(aSecInfoAsString, getter_AddRefs(secInfoSupports));
-
-    if (NS_SUCCEEDED(rv)) {
-      nsCOMPtr<nsIIdentityInfo> idInfo = do_QueryInterface(secInfoSupports);
-      if (idInfo) {
-        PRBool isEV;
-        if (NS_SUCCEEDED(idInfo->GetIsExtendedValidation(&isEV)) && isEV)
-          mSecurityState |= nsIWebProgressListener::STATE_IDENTITY_EV_TOPLEVEL;
-      }
-    }
-
-    mSecurityStatusObject = nsnull;
-    if (aUseSSLStatusObject)
-    {
-      nsCOMPtr<nsISSLStatusProvider> sslStatusProvider =
-        do_QueryInterface(secInfoSupports);
-      if (sslStatusProvider)
-        sslStatusProvider->GetSSLStatus(getter_AddRefs(mSecurityStatusObject));
-    }
-  }
 
   nsCOMPtr<nsIWebProgressListener> listener;
   PRUint32 count = mListenerInfoList.Length();
@@ -339,7 +308,7 @@ TabParent::RecvNotifySecurityChange(const PRUint32& aState,
       continue;
     }
 
-    listener->OnSecurityChange(this, nsnull, mSecurityState);
+    listener->OnSecurityChange(this, nsnull, aState);
   }
 
   return true;
@@ -441,35 +410,6 @@ TabParent::Activate()
 {
     unused << SendActivate();
 }
-
-NS_IMETHODIMP
-TabParent::Init(nsIDOMWindow *window)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TabParent::GetState(PRUint32 *aState)
-{
-  NS_ENSURE_ARG(aState);
-  *aState = mSecurityState;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TabParent::GetTooltipText(nsAString & aTooltipText)
-{
-  aTooltipText = mSecurityTooltipText;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TabParent::GetSSLStatus(nsISupports ** aStatus)
-{
-  NS_IF_ADDREF(*aStatus = mSecurityStatusObject);
-  return NS_OK;
-}
-
 
 mozilla::ipc::PDocumentRendererParent*
 TabParent::AllocPDocumentRenderer(const PRInt32& x,

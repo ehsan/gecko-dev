@@ -8098,11 +8098,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             /* Set the title for the Global History entry for this anchor url.
              */
-            nsCOMPtr<IHistory> history = services::GetHistoryService();
-            if (history) {
-                history->SetURITitle(aURI, mTitle);
-            }
-            else if (mGlobalHistory) {
+            if (mGlobalHistory) {
                 mGlobalHistory->SetPageTitle(aURI, mTitle);
             }
 

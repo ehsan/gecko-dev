@@ -91,10 +91,7 @@ parent:
     NotifyStatusChange(nsresult status,
                        nsString message);
 
-    NotifySecurityChange(PRUint32 aState,
-                         PRBool aUseSSLStatusObject,
-                         nsString aTooltip,
-                         nsCString aSecInfoAsString);
+    NotifySecurityChange(PRUint32 aState);
 
     sync RefreshAttempted(nsCString uri, PRInt32 millis,
                           bool sameURI) returns (bool retval);

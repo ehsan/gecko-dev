@@ -926,7 +926,7 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
   if (mCleanedUp)
     return;
   mCleanedUp = PR_TRUE;
-
+    
   mNavigator = nsnull;
   mScreen = nsnull;
   mHistory = nsnull;
@@ -1076,8 +1076,6 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
     mListenerManager->Disconnect();
     mListenerManager = nsnull;
   }
-
-  mLocation = nsnull;
 
   if (mDocument) {
     NS_ASSERTION(mDoc, "Why is mDoc null?");
@@ -1512,6 +1510,7 @@ public:
   WindowStateHolder(nsGlobalWindow *aWindow,
                     nsIXPConnectJSObjectHolder *aHolder,
                     nsNavigator *aNavigator,
+                    nsLocation *aLocation,
                     nsIXPConnectJSObjectHolder *aOuterProto);
 
   nsGlobalWindow* GetInnerWindow() { return mInnerWindow; }
@@ -1519,6 +1518,7 @@ public:
   { return mInnerWindowHolder; }
 
   nsNavigator* GetNavigator() { return mNavigator; }
+  nsLocation* GetLocation() { return mLocation; }
   nsIXPConnectJSObjectHolder* GetOuterProto() { return mOuterProto; }
 
   void DidRestoreWindow()
@@ -1527,6 +1527,7 @@ public:
 
     mInnerWindowHolder = nsnull;
     mNavigator = nsnull;
+    mLocation = nsnull;
     mOuterProto = nsnull;
   }
 
@@ -1538,6 +1539,7 @@ protected:
   // window ends up recalculating it anyway.
   nsCOMPtr<nsIXPConnectJSObjectHolder> mInnerWindowHolder;
   nsRefPtr<nsNavigator> mNavigator;
+  nsRefPtr<nsLocation> mLocation;
   nsCOMPtr<nsIXPConnectJSObjectHolder> mOuterProto;
 };
 
@@ -1546,9 +1548,11 @@ NS_DEFINE_STATIC_IID_ACCESSOR(WindowStateHolder, WINDOWSTATEHOLDER_IID)
 WindowStateHolder::WindowStateHolder(nsGlobalWindow *aWindow,
                                      nsIXPConnectJSObjectHolder *aHolder,
                                      nsNavigator *aNavigator,
+                                     nsLocation *aLocation,
                                      nsIXPConnectJSObjectHolder *aOuterProto)
   : mInnerWindow(aWindow),
     mNavigator(aNavigator),
+    mLocation(aLocation),
     mOuterProto(aOuterProto)
 {
   NS_PRECONDITION(aWindow, "null window");
@@ -1750,6 +1754,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
       // These assignments addref.
       mNavigator = wsh->GetNavigator();
+      mLocation = wsh->GetLocation();
 
       if (mNavigator) {
         // Update mNavigator's docshell pointer now.
@@ -1768,6 +1773,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
           newInnerWindow = new nsGlobalWindow(this);
         }
       }
+
+      mLocation = nsnull;
     }
 
     if (!newInnerWindow) {
@@ -2184,6 +2191,8 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
 
   if (mNavigator)
     mNavigator->SetDocShell(aDocShell);
+  if (mLocation)
+    mLocation->SetDocShell(aDocShell);
   if (mHistory)
     mHistory->SetDocShell(aDocShell);
   if (mFrames)
@@ -6834,13 +6843,12 @@ nsGlobalWindow::GetPrivateRoot()
 NS_IMETHODIMP
 nsGlobalWindow::GetLocation(nsIDOMLocation ** aLocation)
 {
-  FORWARD_TO_INNER(GetLocation, (aLocation), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_OUTER(GetLocation, (aLocation), NS_ERROR_NOT_INITIALIZED);
 
   *aLocation = nsnull;
 
-  nsIDocShell *docShell = GetDocShell();
-  if (!mLocation && docShell) {
-    mLocation = new nsLocation(docShell);
+  if (!mLocation && mDocShell) {
+    mLocation = new nsLocation(mDocShell);
     if (!mLocation) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -9117,6 +9125,7 @@ nsGlobalWindow::SaveWindowState(nsISupports **aState)
   nsCOMPtr<nsISupports> state = new WindowStateHolder(inner,
                                                       mInnerWindowHolder,
                                                       mNavigator,
+                                                      mLocation,
                                                       proto);
   NS_ENSURE_TRUE(state, NS_ERROR_OUT_OF_MEMORY);
 

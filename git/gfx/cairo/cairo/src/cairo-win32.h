@@ -142,9 +142,6 @@ typedef struct _cairo_device cairo_device_t;
 cairo_device_t *
 cairo_d2d_create_device();
 
-cairo_device_t *
-cairo_d2d_create_device_from_d3d10device(struct ID3D10Device1 *device);
-
 /**
  * Releases a D2D device.
  *
