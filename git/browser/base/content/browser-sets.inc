@@ -145,8 +145,12 @@
   <commandset id="inspectorCommands">
     <command id="Inspector:Inspect"
              oncommand="InspectorUI.toggleInspection();"/>
-    <command id="Inspector:Sidebar"
-             oncommand="InspectorUI.toggleSidebar();"/>
+    <command id="Inspector:Previous"
+             oncommand="InspectorUI.inspectPrevious();"
+             disabled="true"/>
+    <command id="Inspector:Next"
+             oncommand="InspectorUI.inspectNext();"
+             disabled="true"/>
   </commandset>
 
   <broadcasterset id="mainBroadcasterSet">

@@ -174,8 +174,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         return true;
     }
 
-    mHasRobustness = IsExtensionSupported(ARB_robustness);
-
     SymLoadStruct symbols[] = {
         { (PRFuncPtr*) &mSymbols.fActiveTexture, { "ActiveTexture", "ActiveTextureARB", NULL } },
         { (PRFuncPtr*) &mSymbols.fAttachShader, { "AttachShader", "AttachShaderARB", NULL } },
@@ -327,9 +325,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         { mIsGLES2 ? (PRFuncPtr*) NULL : (PRFuncPtr*) &mSymbols.fUnmapBuffer,
           { mIsGLES2 ? NULL : "UnmapBuffer", NULL } },
 
-        { mHasRobustness ? (PRFuncPtr*) &mSymbols.fGetGraphicsResetStatus : (PRFuncPtr*) NULL,
-          { mHasRobustness ? "GetGraphicsResetStatusARB" : NULL, NULL } },
-
         { NULL, { NULL } },
 
     };
@@ -419,7 +414,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
         fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
         fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
-        mMaxTextureImageSize = mMaxTextureSize;
 
         UpdateActualFormat();
     }
@@ -476,7 +470,6 @@ static const char *sExtensionNames[] = {
     "GL_EXT_framebuffer_multisample",
     "GL_ANGLE_framebuffer_multisample",
     "GL_OES_rgb8_rgba8",
-    "GL_ARB_robustness",
     NULL
 };
 
@@ -1037,11 +1030,8 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
     const int stencil = mCreationFormat.stencil;
     int samples = mCreationFormat.samples;
 
-    GLint maxSamples = 0;
-    if (SupportsFramebufferMultisample() && !aDisableAA)
-        fGetIntegerv(LOCAL_GL_MAX_SAMPLES, &maxSamples);
-
-    samples = NS_MIN(samples, maxSamples);
+    if (!SupportsFramebufferMultisample() || aDisableAA)
+        samples = 0;
 
     const bool useDrawMSFBO = (samples > 0);
 
@@ -2433,14 +2423,14 @@ GLContext::SetBlitFramebufferForDestTexture(GLuint aTexture)
                           aTexture,
                           0);
 
-    if (aTexture && (fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) !=
-                     LOCAL_GL_FRAMEBUFFER_COMPLETE)) {
+    if (aTexture) {
+        DebugOnly<GLenum> status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
 
-        // Note: if you are hitting this, it is likely that
+        // Note: if you are hitting this assertion, it is likely that
         // your texture is not texture complete -- that is, you
         // allocated a texture name, but didn't actually define its
         // size via a call to TexImage2D.
-        NS_RUNTIMEABORT("Error setting up framebuffer --- framebuffer not complete!");
+        NS_ASSERTION(status == LOCAL_GL_FRAMEBUFFER_COMPLETE, "Framebuffer not complete!");
     }
 }
 

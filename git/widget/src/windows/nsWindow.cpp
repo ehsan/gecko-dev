@@ -161,7 +161,6 @@
 #include "nsPrintfCString.h"
 #include "mozilla/Preferences.h"
 #include "nsISound.h"
-#include "WinTaskbar.h"
 
 #ifdef MOZ_ENABLE_D3D9_LAYER
 #include "LayerManagerD3D9.h"
@@ -423,12 +422,6 @@ nsWindow::nsWindow() : nsBaseWidget()
 
   // Global initialization
   if (!sInstanceCount) {
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
-    // Global app registration id for Win7 and up. See
-    // WinTaskbar.cpp for details.
-    mozilla::widget::WinTaskbar::RegisterAppUserModelID();
-#endif
-
     gKbdLayout.LoadLayout(::GetKeyboardLayout(0));
 
     // Init IME handler
@@ -512,6 +505,7 @@ nsWindow::Create(nsIWidget *aParent,
                  const nsIntRect &aRect,
                  EVENT_CALLBACK aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIToolkit *aToolkit,
                  nsWidgetInitData *aInitData)
 {
   nsWidgetInitData defaultInitData;
@@ -528,10 +522,7 @@ nsWindow::Create(nsIWidget *aParent,
   mIsTopWidgetWindow = (nsnull == baseParent);
   mBounds = aRect;
 
-  // Ensure that the toolkit is created.
-  nsToolkit::GetToolkit();
-
-  BaseCreate(baseParent, aRect, aHandleEventFunction, aContext, aInitData);
+  BaseCreate(baseParent, aRect, aHandleEventFunction, aContext, aToolkit, aInitData);
 
   HWND parent;
   if (aParent) { // has a nsIWidget parent
@@ -3288,7 +3279,7 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
       }
 
 #ifdef MOZ_ENABLE_D3D10_LAYER
-      if (!prefs.mPreferD3D9 && !prefs.mPreferOpenGL) {
+      if (!prefs.mPreferD3D9) {
         nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
           new mozilla::layers::LayerManagerD3D10(this);
         if (layerManager->Initialize()) {
@@ -4670,17 +4661,12 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_SYSCOLORCHANGE:
-      if (mWindowType == eWindowType_invisible) {
-        ::EnumThreadWindows(GetCurrentThreadId(), nsWindow::BroadcastMsg, msg);
-      }
-      else {
-        // Note: This is sent for child windows as well as top-level windows.
-        // The Win32 toolkit normally only sends these events to top-level windows.
-        // But we cycle through all of the childwindows and send it to them as well
-        // so all presentations get notified properly.
-        // See nsWindow::GlobalMsgWindowProc.
-        DispatchStandardEvent(NS_SYSCOLORCHANGED);
-      }
+      // Note: This is sent for child windows as well as top-level windows.
+      // The Win32 toolkit normally only sends these events to top-level windows.
+      // But we cycle through all of the childwindows and send it to them as well
+      // so all presentations get notified properly.
+      // See nsWindow::GlobalMsgWindowProc.
+      DispatchStandardEvent(NS_SYSCOLORCHANGED);
       break;
 
     case WM_NOTIFY:
@@ -5271,11 +5257,7 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_KILLFOCUS:
-      if (sJustGotDeactivate || !wParam) {
-        // Note: wParam is FALSE when the window has lost focus. Sometimes
-        // We can receive WM_KILLFOCUS with !wParam while changing to
-        // full-screen mode and we won't receive an WM_ACTIVATE/WA_INACTIVE
-        // message, so inform the focus manager that we've lost focus now.
+      if (sJustGotDeactivate) {
         result = DispatchFocusToTopLevelWindow(NS_DEACTIVATE);
       }
       break;
@@ -5615,6 +5597,26 @@ BOOL CALLBACK nsWindow::BroadcastMsg(HWND aTopWindow, LPARAM aMsg)
   // to each of them.
   ::EnumChildWindows(aTopWindow, nsWindow::BroadcastMsgToChildren, aMsg);
   return TRUE;
+}
+
+// This method is called from nsToolkit::WindowProc to forward global
+// messages which need to be dispatched to all child windows.
+void nsWindow::GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+  switch (msg) {
+    case WM_SYSCOLORCHANGE:
+      // Code to dispatch WM_SYSCOLORCHANGE message to all child windows.
+      // WM_SYSCOLORCHANGE is only sent to top-level windows, but the
+      // cross platform API requires that NS_SYSCOLORCHANGE message be sent to
+      // all child windows as well. When running in an embedded application
+      // we may not receive a WM_SYSCOLORCHANGE message because the top
+      // level window is owned by the embeddor.
+      // System color changes are posted to top-level windows only.
+      // The NS_SYSCOLORCHANGE must be dispatched to all child
+      // windows as well.
+     ::EnumThreadWindows(GetCurrentThreadId(), nsWindow::BroadcastMsg, msg);
+    break;
+  }
 }
 
 /**************************************************************
@@ -9026,15 +9028,12 @@ HasRegistryKey(HKEY aRoot, PRUnichar* aName)
  * @param aBufferLength The size of aBuffer, in bytes.
  * @return Whether the value exists and is a string.
  */
-bool
-nsWindow::GetRegistryKey(HKEY aRoot,
-                         const PRUnichar* aKeyName,
-                         const PRUnichar* aValueName,
-                         PRUnichar* aBuffer,
-                         DWORD aBufferLength)
+static bool
+GetRegistryKey(HKEY aRoot, PRUnichar* aKeyName, PRUnichar* aValueName, PRUnichar* aBuffer, DWORD aBufferLength)
 {
-  if (!aKeyName)
+  if (!aKeyName) {
     return false;
+  }
 
   HKEY key;
   LONG result = ::RegOpenKeyExW(aRoot, aKeyName, NULL, KEY_READ | KEY_WOW64_32KEY, &key);
@@ -9057,11 +9056,11 @@ static bool
 IsObsoleteSynapticsDriver()
 {
   PRUnichar buf[40];
-  bool foundKey = nsWindow::GetRegistryKey(HKEY_LOCAL_MACHINE,
-                                           L"Software\\Synaptics\\SynTP\\Install",
-                                           L"DriverVersion",
-                                           buf,
-                                           sizeof buf);
+  bool foundKey = GetRegistryKey(HKEY_LOCAL_MACHINE,
+                                   L"Software\\Synaptics\\SynTP\\Install",
+                                   L"DriverVersion",
+                                   buf,
+                                   sizeof buf);
   if (!foundKey)
     return false;
 
@@ -9079,17 +9078,17 @@ GetElantechDriverMajorVersion()
 {
   PRUnichar buf[40];
   // The driver version is found in one of these two registry keys.
-  bool foundKey = nsWindow::GetRegistryKey(HKEY_CURRENT_USER,
-                                           L"Software\\Elantech\\MainOption",
-                                           L"DriverVersion",
-                                           buf,
-                                           sizeof buf);
+  bool foundKey = GetRegistryKey(HKEY_CURRENT_USER,
+                                   L"Software\\Elantech\\MainOption",
+                                   L"DriverVersion",
+                                   buf,
+                                   sizeof buf);
   if (!foundKey)
-    foundKey = nsWindow::GetRegistryKey(HKEY_CURRENT_USER,
-                                        L"Software\\Elantech",
-                                        L"DriverVersion",
-                                        buf,
-                                        sizeof buf);
+    foundKey = GetRegistryKey(HKEY_CURRENT_USER,
+                              L"Software\\Elantech",
+                              L"DriverVersion",
+                              buf,
+                              sizeof buf);
 
   if (!foundKey)
     return false;

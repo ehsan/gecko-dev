@@ -59,7 +59,6 @@
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
 #include "nsITimer.h"
-#include "nsString.h"
 
 #include "mozStorageHelper.h"
 #include "nsAutoPtr.h"

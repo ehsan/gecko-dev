@@ -99,6 +99,9 @@ static inline void
 PushMarkStack(GCMarker *gcmarker, const Shape *thing);
 
 static inline void
+PushMarkStack(GCMarker *gcmarker, JSShortString *thing);
+
+static inline void
 PushMarkStack(GCMarker *gcmarker, JSString *thing);
 
 static inline void
@@ -282,6 +285,15 @@ PushMarkStack(GCMarker *gcmarker, types::TypeObject *thing)
 
     if (thing->markIfUnmarked(gcmarker->getMarkColor()))
         gcmarker->pushType(thing);
+}
+
+void
+PushMarkStack(GCMarker *gcmarker, JSShortString *thing)
+{
+    JS_OPT_ASSERT_IF(gcmarker->context->runtime->gcCurrentCompartment,
+                     thing->compartment() == gcmarker->context->runtime->gcCurrentCompartment);
+
+    (void) thing->markIfUnmarked(gcmarker->getMarkColor());
 }
 
 void
@@ -830,6 +842,13 @@ MarkChildren(JSTracer *trc, JSScript *script)
 
     if (script->types)
         script->types->trace(trc);
+
+#ifdef JS_METHODJIT
+    if (script->jitNormal)
+        script->jitNormal->trace(trc);
+    if (script->jitCtor)
+        script->jitCtor->trace(trc);
+#endif
 }
 
 void

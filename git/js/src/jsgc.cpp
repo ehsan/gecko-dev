@@ -525,26 +525,10 @@ ChunkPool::expire(JSRuntime *rt, bool releaseAll)
     JS_ASSERT_IF(releaseAll, !emptyCount);
 }
 
-JS_FRIEND_API(int64)
-ChunkPool::countDecommittedArenas(JSRuntime *rt)
-{
-    JS_ASSERT(this == &rt->gcChunkPool);
-
-    int64 numDecommitted = 0;
-    Chunk *chunk = emptyChunkListHead;
-    while (chunk) {
-        for (uint32 i = 0; i < ArenasPerChunk; ++i)
-            if (chunk->decommittedArenas.get(i))
-                ++numDecommitted;
-        chunk = chunk->info.next;
-    }
-    return numDecommitted;
-}
-
 /* static */ Chunk *
 Chunk::allocate(JSRuntime *rt)
 {
-    Chunk *chunk = static_cast<Chunk *>(AllocChunk());
+    Chunk *chunk = static_cast<Chunk *>(AllocGCChunk());
     if (!chunk)
         return NULL;
     chunk->init();
@@ -557,37 +541,30 @@ Chunk::release(JSRuntime *rt, Chunk *chunk)
 {
     JS_ASSERT(chunk);
     rt->gcStats.count(gcstats::STAT_DESTROY_CHUNK);
-    FreeChunk(chunk);
+    FreeGCChunk(chunk);
 }
 
 void
 Chunk::init()
 {
-    JS_POISON(this, JS_FREE_PATTERN, ChunkSize);
+    JS_POISON(this, JS_FREE_PATTERN, GC_CHUNK_SIZE);
 
-    /*
-     * We clear the bitmap to guard against xpc_IsGrayGCThing being called on
-     * uninitialized data, which would happen before the first GC cycle.
-     */
+    /* Assemble all arenas into a linked list and mark them as not allocated. */
+    ArenaHeader **prevp = &info.emptyArenaListHead;
+    Arena *end = &arenas[ArrayLength(arenas)];
+    for (Arena *a = &arenas[0]; a != end; ++a) {
+        *prevp = &a->aheader;
+        a->aheader.setAsNotAllocated();
+        prevp = &a->aheader.next;
+    }
+    *prevp = NULL;
+
+    /* We clear the bitmap to guard against xpc_IsGrayGCThing being called on
+       uninitialized data, which would happen before the first GC cycle. */
     bitmap.clear();
 
-    /* Initialize the arena tracking bitmap. */ 
-    decommittedArenas.clear(false);
-
-    /* Initialize the chunk info. */
-    info.freeArenasHead = &arenas[0].aheader;
-    info.lastDecommittedArenaOffset = 0;
-    info.numArenasFree = ArenasPerChunk;
-    info.numArenasFreeCommitted = ArenasPerChunk;
     info.age = 0;
-
-    /* Initialize the arena header state. */
-    for (jsuint i = 0; i < ArenasPerChunk; i++) {
-        arenas[i].aheader.setAsNotAllocated();
-        arenas[i].aheader.next = (i + 1 < ArenasPerChunk)
-                                 ? &arenas[i + 1].aheader
-                                 : NULL;
-    }
+    info.numFree = ArenasPerChunk;
 
     /* The rest of info fields are initialized in PickChunk. */
 }
@@ -630,66 +607,16 @@ Chunk::removeFromAvailableList()
     info.next = NULL;
 }
 
-/*
- * Search for and return the next decommitted Arena. Our goal is to keep 
- * lastDecommittedArenaOffset "close" to a free arena. We do this by setting
- * it to the most recently freed arena when we free, and forcing it to
- * the last alloc + 1 when we allocate.
- */
-jsuint
-Chunk::findDecommittedArenaOffset()
-{
-    /* Note: lastFreeArenaOffset can be past the end of the list. */
-    for (jsuint i = info.lastDecommittedArenaOffset; i < ArenasPerChunk; i++)
-        if (decommittedArenas.get(i))
-            return i;
-    for (jsuint i = 0; i < info.lastDecommittedArenaOffset; i++)
-        if (decommittedArenas.get(i))
-            return i;
-    JS_NOT_REACHED("No decommitted arenas found.");
-    return -1;
-}
-
-ArenaHeader *
-Chunk::fetchNextDecommittedArena()
-{
-    JS_ASSERT(info.numArenasFreeCommitted < info.numArenasFree);
-
-    jsuint offset = findDecommittedArenaOffset();
-    info.lastDecommittedArenaOffset = offset + 1;
-    --info.numArenasFree;
-    decommittedArenas.unset(offset);
-
-    Arena *arena = &arenas[offset];
-    CommitMemory(arena, ArenaSize);
-    arena->aheader.setAsNotAllocated();
-
-    return &arena->aheader;
-}
-
-inline ArenaHeader *
-Chunk::fetchNextFreeArena()
-{
-    JS_ASSERT(info.numArenasFreeCommitted > 0);
-
-    ArenaHeader *aheader = info.freeArenasHead;
-    info.freeArenasHead = aheader->next;
-    --info.numArenasFreeCommitted;
-    --info.numArenasFree;
-
-    return aheader;
-}
-
 ArenaHeader *
 Chunk::allocateArena(JSCompartment *comp, AllocKind thingKind)
 {
-    JS_ASSERT(!noAvailableArenas());
-
-    ArenaHeader *aheader = JS_LIKELY(info.numArenasFreeCommitted > 0)
-                           ? fetchNextFreeArena()
-                           : fetchNextDecommittedArena();
+    JS_ASSERT(hasAvailableArenas());
+    ArenaHeader *aheader = info.emptyArenaListHead;
+    info.emptyArenaListHead = aheader->next;
     aheader->init(comp, thingKind);
-    if (JS_UNLIKELY(noAvailableArenas()))
+    --info.numFree;
+
+    if (!hasAvailableArenas())
         removeFromAvailableList();
 
     JSRuntime *rt = comp->rt;
@@ -728,15 +655,13 @@ Chunk::releaseArena(ArenaHeader *aheader)
     JS_ATOMIC_ADD(&comp->gcBytes, -int32(ArenaSize));
 
     aheader->setAsNotAllocated();
-    aheader->next = info.freeArenasHead;
-    info.freeArenasHead = aheader;
-    ++info.numArenasFreeCommitted;
-    ++info.numArenasFree;
-
-    if (info.numArenasFree == 1) {
+    aheader->next = info.emptyArenaListHead;
+    info.emptyArenaListHead = aheader;
+    ++info.numFree;
+    if (info.numFree == 1) {
         JS_ASSERT(!info.prevp);
         JS_ASSERT(!info.next);
-        addToAvailableList(comp);
+        addToAvailableList(aheader->compartment);
     } else if (!unused()) {
         JS_ASSERT(info.prevp);
     } else {
@@ -805,8 +730,12 @@ js_GCThingIsMarked(void *thing, uintN color = BLACK)
     return reinterpret_cast<Cell *>(thing)->isMarked(color);
 }
 
-/* Lifetime for type sets attached to scripts containing observed types. */
-static const int64 JIT_SCRIPT_RELEASE_TYPES_INTERVAL = 60 * 1000 * 1000;
+/*
+ * 1/8 life for JIT code. After this number of microseconds have passed, 1/8 of all
+ * JIT code is discarded in inactive compartments, regardless of how often that
+ * code runs.
+ */
+static const int64 JIT_SCRIPT_EIGHTH_LIFETIME = 60 * 1000 * 1000;
 
 JSBool
 js_InitGC(JSRuntime *rt, uint32 maxbytes)
@@ -848,7 +777,7 @@ js_InitGC(JSRuntime *rt, uint32 maxbytes)
      */
     rt->setGCLastBytes(8192, GC_NORMAL);
 
-    rt->gcJitReleaseTime = PRMJ_Now() + JIT_SCRIPT_RELEASE_TYPES_INTERVAL;
+    rt->gcJitReleaseTime = PRMJ_Now() + JIT_SCRIPT_EIGHTH_LIFETIME;
     return true;
 }
 
@@ -925,12 +854,7 @@ MarkIfGCThingWord(JSTracer *trc, jsuword w)
     if (!Chunk::withinArenasRange(addr))
         return CGCT_NOTARENA;
 
-    /* If the arena is not currently allocated, don't access the header. */
-    size_t arenaOffset = Chunk::arenaIndex(addr);
-    if (chunk->decommittedArenas.get(arenaOffset))
-        return CGCT_FREEARENA;
-
-    ArenaHeader *aheader = &chunk->arenas[arenaOffset].aheader;
+    ArenaHeader *aheader = &chunk->arenas[Chunk::arenaIndex(addr)].aheader;
 
     if (!aheader->allocated())
         return CGCT_FREEARENA;
@@ -2113,7 +2037,6 @@ void
 MaybeGC(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
-    JS_ASSERT(rt->onOwnerThread());
 
     if (rt->gcZeal()) {
         js_GC(cx, NULL, GC_NORMAL, gcstats::MAYBEGC);
@@ -2358,59 +2281,27 @@ GCHelperThread::doSweep()
 
 #endif /* JS_THREADSAFE */
 
-static bool
-ReleaseObservedTypes(JSContext *cx)
+static uint32
+ComputeJitReleaseInterval(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
-
-    bool releaseTypes = false;
+    /*
+     * Figure out how much JIT code should be released from inactive compartments.
+     * If multiple eighth-lives have passed, compound the release interval linearly;
+     * if enough time has passed, all inactive JIT code will be released.
+     */
+    uint32 releaseInterval = 0;
     int64 now = PRMJ_Now();
     if (now >= rt->gcJitReleaseTime) {
-        releaseTypes = true;
-        rt->gcJitReleaseTime = now + JIT_SCRIPT_RELEASE_TYPES_INTERVAL;
-    }
-
-    return releaseTypes;
-}
-
-static void
-DecommitFreePages(JSContext *cx)
-{
-    JSRuntime *rt = cx->runtime;
-
-    for (GCChunkSet::Range r(rt->gcChunkSet.all()); !r.empty(); r.popFront()) {
-        Chunk *chunk = r.front();
-        while (chunk) {
-            ArenaHeader *aheader = static_cast<ArenaHeader*>(chunk->info.freeArenasHead);
-
-            /*
-             * In the non-failure case, the list will be gone at the end of
-             * the loop. In the case where we fail, we relink all failed
-             * decommits into a new list on freeArenasHead.
-             */
-            chunk->info.freeArenasHead = NULL;
-
-            while (aheader) {
-                /* Store aside everything we will need after decommit. */
-                ArenaHeader *next = aheader->next;
-
-                bool success = DecommitMemory(aheader, ArenaSize);
-                if (!success) {
-                    aheader->next = chunk->info.freeArenasHead;
-                    chunk->info.freeArenasHead = aheader;
-                    continue;
-                }
-
-                size_t arenaOffset = Chunk::arenaIndex(reinterpret_cast<uintptr_t>(aheader));
-                chunk->decommittedArenas.set(arenaOffset);
-                --chunk->info.numArenasFreeCommitted;
-
-                aheader = next;
-            }
-
-            chunk = chunk->info.next;
+        releaseInterval = 8;
+        while (now >= rt->gcJitReleaseTime) {
+            if (--releaseInterval == 1)
+                rt->gcJitReleaseTime = now;
+            rt->gcJitReleaseTime += JIT_SCRIPT_EIGHTH_LIFETIME;
         }
     }
+
+    return releaseInterval;
 }
 
 static void
@@ -2561,9 +2452,9 @@ SweepPhase(JSContext *cx, GCMarker *gcmarker, JSGCInvocationKind gckind)
     if (!rt->gcCurrentCompartment)
         Debugger::sweepAll(cx);
 
-    bool releaseTypes = !rt->gcCurrentCompartment && ReleaseObservedTypes(cx);
+    uint32 releaseInterval = rt->gcCurrentCompartment ? 0 : ComputeJitReleaseInterval(cx);
     for (GCCompartmentsIter c(rt); !c.done(); c.next())
-        c->sweep(cx, releaseTypes);
+        c->sweep(cx, releaseInterval);
 
     {
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_OBJECT);
@@ -2625,9 +2516,6 @@ SweepPhase(JSContext *cx, GCMarker *gcmarker, JSGCInvocationKind gckind)
          */
         rt->gcChunkPool.expire(rt, gckind == GC_SHRINK);
 #endif
-
-        if (gckind == GC_SHRINK)
-            DecommitFreePages(cx);
     }
 
     if (rt->gcCallback)
@@ -2910,9 +2798,6 @@ GCCycle(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind)
 
     MarkAndSweep(cx, gckind);
 
-    if (!comp)
-        js_PurgeThreads_PostGlobalSweep(cx);
-
 #ifdef JS_THREADSAFE
     if (gckind != GC_LAST_CONTEXT && rt->state != JSRTS_LANDING) {
         JS_ASSERT(cx->gcBackgroundFree == &rt->gcHelperThread);
@@ -2937,7 +2822,6 @@ void
 js_GC(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind, gcstats::Reason reason)
 {
     JSRuntime *rt = cx->runtime;
-    JS_AbortIfWrongThread(rt);
 
     /*
      * Don't collect garbage if the runtime isn't up, and cx is not the last
@@ -3107,27 +2991,6 @@ IterateCompartmentsArenasCells(JSContext *cx, void *data,
 }
 
 void
-IterateChunks(JSContext *cx, void *data, IterateChunkCallback chunkCallback)
-{
-    /* :XXX: Any way to common this preamble with IterateCompartmentsArenasCells? */
-    CHECK_REQUEST(cx);
-    LeaveTrace(cx);
-
-    JSRuntime *rt = cx->runtime;
-    JS_ASSERT(!rt->gcRunning);
-
-    AutoLockGC lock(rt);
-    AutoGCSession gcsession(cx);
-#ifdef JS_THREADSAFE
-    rt->gcHelperThread.waitBackgroundSweepEnd();
-#endif
-    AutoUnlockGC unlock(rt);
-
-    for (js::GCChunkSet::Range r = rt->gcChunkSet.all(); !r.empty(); r.popFront())
-        chunkCallback(cx, data, r.front());
-}
-
-void
 IterateCells(JSContext *cx, JSCompartment *compartment, AllocKind thingKind,
              void *data, IterateCellCallback cellCallback)
 {
@@ -3168,8 +3031,6 @@ JSCompartment *
 NewCompartment(JSContext *cx, JSPrincipals *principals)
 {
     JSRuntime *rt = cx->runtime;
-    JS_AbortIfWrongThread(rt);
-
     JSCompartment *compartment = cx->new_<JSCompartment>(rt);
     if (compartment && compartment->init(cx)) {
         // Any compartment with the trusted principals -- and there can be

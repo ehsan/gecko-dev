@@ -51,6 +51,7 @@
 #include "nsTextEditRules.h"
 
 #include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMEventTarget.h"
 
 #include "nsIDOMCSSValue.h"
@@ -453,15 +454,14 @@ nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
   }
   else {
     mResizedObjectIsAbsolutelyPositioned = false;
-    nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(aElement);
-    if (!htmlElement) {
-      return NS_ERROR_NULL_POINTER;
-    }
+    nsCOMPtr<nsIDOMNSHTMLElement> nsElement = do_QueryInterface(aElement);
+    if (!nsElement) {return NS_ERROR_NULL_POINTER; }
+
     GetElementOrigin(aElement, aX, aY);
 
-    res = htmlElement->GetOffsetWidth(&aW);
+    res = nsElement->GetOffsetWidth(&aW);
     NS_ENSURE_SUCCESS(res, res);
-    res = htmlElement->GetOffsetHeight(&aH);
+    res = nsElement->GetOffsetHeight(&aH);
 
     aBorderLeft = 0;
     aBorderTop  = 0;

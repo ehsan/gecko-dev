@@ -210,11 +210,11 @@ struct TokenPos {
     TokenPtr          begin;          /* first character and line of token */
     TokenPtr          end;            /* index 1 past last char, last line */
 
-    static TokenPos make(const TokenPtr &begin, const TokenPtr &end) {
-        // Assertions temporarily disabled by jorendorff. See bug 695922.
+    TokenPos() {}
+
+    TokenPos(const TokenPtr &begin, const TokenPtr &end) : begin(begin), end(end) {
+        // Assertion temporarily disabled by jorendorff. See bug 695922.
         //JS_ASSERT(begin <= end);
-        TokenPos pos = {begin, end};
-        return pos;
     }
 
     /* Return a TokenPos that covers left, right, and anything in between. */
@@ -223,8 +223,7 @@ struct TokenPos {
         //JS_ASSERT(left.begin <= left.end);
         //JS_ASSERT(left.end <= right.begin);
         //JS_ASSERT(right.begin <= right.end);
-        TokenPos pos = {left.begin, right.end};
-        return pos;
+        return TokenPos(left.begin, right.end);
     }
 
     bool operator==(const TokenPos& bpos) const {
@@ -266,25 +265,17 @@ struct Token {
                 JSAtom       *atom;     /* potentially-numeric atom */
             } n;
         } s;
-
-      private:
-        friend struct Token;
-        struct {                        /* pair for <?target data?> XML PI */
+        uintN           reflags;        /* regexp flags, use tokenbuf to access
+                                           regexp chars */
+        class {                         /* pair for <?target data?> XML PI */
+            friend struct Token;
             JSAtom       *data;         /* auxiliary atom table entry */
             PropertyName *target;       /* main atom table entry */
         } xmlpi;
-        uint16          sharpNumber;    /* sharp variable number: #1# or #1= */
-        jsdouble        number;         /* floating point number */
-        RegExpFlag      reflags;        /* regexp flags, use tokenbuf to access
-                                           regexp chars */
+        jsdouble        dval;           /* floating point number */
     } u;
 
     /* Mutators */
-
-    /*
-     * FIXME: Init type early enough such that all mutators can assert
-     *        type-safety.  See bug 697000.
-     */
 
     void setName(JSOp op, PropertyName *name) {
         JS_ASSERT(op == JSOP_NAME);
@@ -301,19 +292,6 @@ struct Token {
     void setProcessingInstruction(PropertyName *target, JSAtom *data) {
         u.xmlpi.target = target;
         u.xmlpi.data = data;
-    }
-
-    void setRegExpFlags(js::RegExpFlag flags) {
-        JS_ASSERT((flags & AllFlags) == flags);
-        u.reflags = flags;
-    }
-
-    void setSharpNumber(uint16 sharpNum) {
-        u.sharpNumber = sharpNum;
-    }
-
-    void setNumber(jsdouble n) {
-        u.number = n;
     }
 
     /* Type-safe accessors */
@@ -342,25 +320,11 @@ struct Token {
         JS_ASSERT(type == TOK_XMLPI);
         return u.xmlpi.data;
     }
-
-    js::RegExpFlag regExpFlags() const {
-        JS_ASSERT(type == TOK_REGEXP);
-        JS_ASSERT((u.reflags & AllFlags) == u.reflags);
-        return u.reflags;
-    }
-
-    uint16 sharpNumber() const {
-        JS_ASSERT(type == TOK_DEFSHARP || type == TOK_USESHARP);
-        return u.sharpNumber;
-    }
-
-    jsdouble number() const {
-        JS_ASSERT(type == TOK_NUMBER);
-        return u.number;
-    }
 };
 
 #define t_op            u.s.op
+#define t_reflags       u.reflags
+#define t_dval          u.dval
 
 enum TokenStreamFlags
 {
@@ -599,22 +563,6 @@ class TokenStream
         sourceMap = NULL;
         return sm;
     }
-
-    /*
-     * If the name at s[0:length] is not a keyword in this version, return
-     * true with *ttp and *topp unchanged.
-     *
-     * If it is a reserved word in this version and strictness mode, and thus
-     * can't be present in correct code, report a SyntaxError and return false.
-     *
-     * If it is a keyword, like "if", the behavior depends on ttp/topp. If ttp
-     * and topp are null, report a SyntaxError ("if is a reserved identifier")
-     * and return false. If ttp and topp are non-null, return true with the
-     * keyword's TokenKind in *ttp and its JSOp in *topp.
-     *
-     * ttp and topp must be either both null or both non-null.
-     */
-    bool checkForKeyword(const jschar *s, size_t length, TokenKind *ttp, JSOp *topp);
 
   private:
     /*

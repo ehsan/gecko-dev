@@ -57,6 +57,7 @@
 #include "nsXULAppAPI.h"
 
 // forward declarations
+class   nsIToolkit;
 class   nsFontMetrics;
 class   nsRenderingContext;
 class   nsDeviceContext;
@@ -119,8 +120,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0x712b07a4, 0x4344, 0x4404, \
-    { 0xaf, 0x85, 0x63, 0x3d, 0x68, 0x0b, 0x21, 0xb0 } }
+  { 0x64e1ee3d, 0xe0f2, 0x4ace, \
+    { 0x91, 0xb7, 0xdc, 0xd1, 0xbe, 0x69, 0xb6, 0xe6 } }
 
 /*
  * Window shadow styles
@@ -324,6 +325,7 @@ class nsIWidget : public nsISupports {
      * @param     aRect         the widget dimension
      * @param     aHandleEventFunction the event handler callback function
      * @param     aContext
+     * @param     aToolkit
      * @param     aInitData     data that is used for widget initialization
      *
      */
@@ -332,6 +334,7 @@ class nsIWidget : public nsISupports {
                       const nsIntRect  &aRect,
                       EVENT_CALLBACK   aHandleEventFunction,
                       nsDeviceContext *aContext,
+                      nsIToolkit       *aToolkit = nsnull,
                       nsWidgetInitData *aInitData = nsnull) = 0;
 
     /**
@@ -353,7 +356,8 @@ class nsIWidget : public nsISupports {
     virtual already_AddRefed<nsIWidget>
     CreateChild(const nsIntRect  &aRect,
                 EVENT_CALLBACK   aHandleEventFunction,
-                nsDeviceContext  *aContext,
+                nsDeviceContext *aContext,
+                nsIToolkit       *aToolkit = nsnull,
                 nsWidgetInitData *aInitData = nsnull,
                 bool             aForceUseIWidgetParent = false) = 0;
 
@@ -880,6 +884,16 @@ class nsIWidget : public nsISupports {
      */
 
      NS_IMETHOD Update() = 0;
+
+    /**
+     * Return the widget's toolkit
+     *
+     * An AddRef has NOT been done for the caller.
+     *
+     * @return the toolkit this widget was created in. See nsToolkit.
+     */
+
+    virtual nsIToolkit* GetToolkit() = 0;    
 
     enum LayerManagerPersistence
     {

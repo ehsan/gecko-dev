@@ -45,7 +45,6 @@
 #include "nsIMutationObserver.h"
 #include "nsExpirationTracker.h"
 #include "nsRect.h"
-#include "nsString.h"
 
 class nsSHEntry;
 class nsISHEntry;
@@ -99,6 +98,7 @@ class nsSHEntryShared : public nsIBFCacheEntry,
     PRUint64                        mDocShellID;
     nsCOMArray<nsIDocShellTreeItem> mChildShells;
     nsCOMPtr<nsISupports>           mOwner;
+    nsISHEntry*                     mParent;
     nsCString                       mContentType;
     bool                            mIsFrameNavigation;
     bool                            mSaveLayoutState;

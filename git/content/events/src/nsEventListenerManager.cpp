@@ -392,7 +392,7 @@ nsEventListenerManager::FindJSEventListener(PRUint32 aEventType,
 
 nsresult
 nsEventListenerManager::SetJSEventListener(nsIScriptContext *aContext,
-                                           JSObject* aScopeObject,
+                                           void *aScopeObject,
                                            nsIAtom* aName,
                                            JSObject *aHandler,
                                            bool aPermitUntrustedEvents,
@@ -442,6 +442,7 @@ nsEventListenerManager::AddScriptEventListener(nsIAtom *aName,
 {
   NS_PRECONDITION(aLanguage != nsIProgrammingLanguage::UNKNOWN,
                   "Must know the language for the script event listener");
+  nsIScriptContext *context = nsnull;
 
   // |aPermitUntrustedEvents| is set to False for chrome - events
   // *generated* from an unknown source are not allowed.
@@ -531,10 +532,10 @@ nsEventListenerManager::AddScriptEventListener(nsIAtom *aName,
     // but fall through and let the inevitable failure below handle it.
   }
 
-  nsIScriptContext* context = global->GetScriptContext(aLanguage);
+  context = global->GetScriptContext(aLanguage);
   NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
-  JSObject* scope = global->GetGlobalJSObject();
+  void *scope = global->GetScriptGlobal(aLanguage);
 
   nsListenerStruct *ls;
   rv = SetJSEventListener(context, scope, aName, nsnull,
@@ -624,12 +625,14 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
         attrName = nsGkAtoms::onscroll;
       else if (aListenerStruct->mTypeAtom == nsGkAtoms::onSVGZoom)
         attrName = nsGkAtoms::onzoom;
+#ifdef MOZ_SMIL
       else if (aListenerStruct->mTypeAtom == nsGkAtoms::onbeginEvent)
         attrName = nsGkAtoms::onbegin;
       else if (aListenerStruct->mTypeAtom == nsGkAtoms::onrepeatEvent)
         attrName = nsGkAtoms::onrepeat;
       else if (aListenerStruct->mTypeAtom == nsGkAtoms::onendEvent)
         attrName = nsGkAtoms::onend;
+#endif // MOZ_SMIL
 
       content->GetAttr(kNameSpaceID_None, attrName, handlerBody);
       body = &handlerBody;
@@ -702,10 +705,8 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
     nsScriptObjectHolder boundHandler(context);
     context->BindCompiledEventHandler(mTarget, listener->GetEventScope(),
                                       handler, boundHandler);
-    listener->SetHandler(
-      static_cast<JSObject*>(
-        static_cast<void*>(boundHandler)));
-  }
+    listener->SetHandler(boundHandler);
+  }    
 
   return result;
 }
@@ -762,9 +763,6 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
   nsAutoPopupStatePusher popupStatePusher(nsDOMEvent::GetEventPopupControlState(aEvent));
   bool hasListener = false;
   while (iter.HasMore()) {
-    if (aEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY) {
-      break;
-    }
     nsListenerStruct* ls = &iter.GetNext();
     // Check that the phase is same in event and event listener.
     // Handle only trusted events, except when listener permits untrusted events.
@@ -995,7 +993,7 @@ nsEventListenerManager::GetJSEventListener(nsIAtom *aEventName, jsval *vp)
     CompileEventHandlerInternal(ls, true, nsnull);
   }
 
-  *vp = OBJECT_TO_JSVAL(listener->GetHandler());
+  *vp = OBJECT_TO_JSVAL(static_cast<JSObject*>(listener->GetHandler()));
 }
 
 PRInt64

@@ -214,7 +214,7 @@ IDBFactory::GetDirectoryForOrigin(const nsACString& aASCIIOrigin,
 // static
 nsresult
 IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
-                                    nsIAtom* aDatabaseId,
+                                    PRUint32 aDatabaseId,
                                     PRUint64* aVersion,
                                     ObjectStoreInfoArray& aObjectStores)
 {
@@ -381,12 +381,11 @@ NS_IMETHODIMP
 IDBFactory::Open(const nsAString& aName,
                  PRInt64 aVersion,
                  JSContext* aCx,
-                 PRUint8 aOptionalArgCount,
                  nsIIDBOpenDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (aVersion < 1 && aOptionalArgCount) {
+  if (aVersion < 1) {
     return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
   }
 
@@ -437,16 +436,13 @@ IDBFactory::Open(const nsAString& aName,
   nsRefPtr<OpenDatabaseHelper> openHelper =
     new OpenDatabaseHelper(request, aName, origin, aVersion);
 
-  rv = openHelper->Init();
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
   nsRefPtr<CheckPermissionsHelper> permissionHelper =
-    new CheckPermissionsHelper(openHelper, window, origin);
+    new CheckPermissionsHelper(openHelper, window, aName, origin);
 
   nsRefPtr<IndexedDatabaseManager> mgr = IndexedDatabaseManager::GetOrCreate();
   NS_ENSURE_TRUE(mgr, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  rv = mgr->WaitForOpenAllowed(origin, openHelper->Id(), permissionHelper);
+  rv = mgr->WaitForOpenAllowed(aName, origin, permissionHelper);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   request.forget(_retval);

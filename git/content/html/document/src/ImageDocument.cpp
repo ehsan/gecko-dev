@@ -64,7 +64,7 @@
 #include "nsContentPolicyUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsContentErrors.h"
 #include "nsURILoader.h"
 #include "nsIDocShell.h"
@@ -595,10 +595,9 @@ ImageDocument::HandleEvent(nsIDOMEvent* aEvent)
         event->GetClientX(&x);
         event->GetClientY(&y);
         PRInt32 left = 0, top = 0;
-        nsCOMPtr<nsIDOMHTMLElement> htmlElement =
-          do_QueryInterface(mImageContent);
-        htmlElement->GetOffsetLeft(&left);
-        htmlElement->GetOffsetTop(&top);
+        nsCOMPtr<nsIDOMNSHTMLElement> nsElement(do_QueryInterface(mImageContent));
+        nsElement->GetOffsetLeft(&left);
+        nsElement->GetOffsetTop(&top);
         x -= left;
         y -= top;
       }

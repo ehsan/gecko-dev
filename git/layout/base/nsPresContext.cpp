@@ -97,7 +97,10 @@
 #include "nsIFrameMessageManager.h"
 #include "FrameLayerBuilder.h"
 #include "nsDOMMediaQueryList.h"
+
+#ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
+#endif // MOZ_SMIL
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -1205,6 +1208,7 @@ void nsPresContext::SetImgAnimations(nsIContent *aParent, PRUint16 aMode)
   }
 }
 
+#ifdef MOZ_SMIL
 void
 nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
                                  PRUint16 aOldMode)
@@ -1226,6 +1230,7 @@ nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
     }
   }
 }
+#endif // MOZ_SMIL
 
 void
 nsPresContext::SetImageAnimationModeInternal(PRUint16 aMode)
@@ -1251,7 +1256,10 @@ nsPresContext::SetImageAnimationModeInternal(PRUint16 aMode)
       if (rootElement) {
         SetImgAnimations(rootElement, aMode);
       }
+
+#ifdef MOZ_SMIL
       SetSMILAnimations(doc, aMode, mImageAnimationMode);
+#endif // MOZ_SMIL
     }
   }
 
@@ -2691,28 +2699,4 @@ nsRootPresContext::EnsureEventualDidPaintEvent()
     return;
   mNotifyDidPaintTimer->InitWithFuncCallback(NotifyDidPaintForSubtreeCallback,
                                              (void*)this, 100, nsITimer::TYPE_ONE_SHOT);
-}
-
-void
-nsRootPresContext::AddWillPaintObserver(nsIRunnable* aRunnable)
-{
-  if (!mWillPaintFallbackEvent.IsPending()) {
-    mWillPaintFallbackEvent = new RunWillPaintObservers(this);
-    NS_DispatchToMainThread(mWillPaintFallbackEvent.get());
-  }
-  mWillPaintObservers.AppendElement(aRunnable);
-}
-
-/**
- * Run all runnables that need to get called before the next paint.
- */
-void
-nsRootPresContext::FlushWillPaintObservers()
-{
-  mWillPaintFallbackEvent = nsnull;
-  nsTArray<nsCOMPtr<nsIRunnable> > observers;
-  observers.SwapElements(mWillPaintObservers);
-  for (PRUint32 i = 0; i < observers.Length(); ++i) {
-    observers[i]->Run();
-  }
 }

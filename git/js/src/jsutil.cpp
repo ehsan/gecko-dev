@@ -82,14 +82,14 @@ CrashInJS()
      * We used to call DebugBreak() on Windows, but amazingly, it causes
      * the MSVS 2010 debugger not to be able to recover a call stack.
      */
-    *((volatile int *) NULL) = 123;
+    *((int *) NULL) = 123;
     exit(3);
 #elif defined(__APPLE__)
     /*
      * On Mac OS X, Breakpad ignores signals. Only real Mach exceptions are
      * trapped.
      */
-    *((volatile int *) NULL) = 123;  /* To continue from here in GDB: "return" then "continue". */
+    *((int *) NULL) = 123;  /* To continue from here in GDB: "return" then "continue". */
     raise(SIGABRT);  /* In case above statement gets nixed by the optimizer. */
 #else
     raise(SIGABRT);  /* To continue from here in GDB: "signal 0". */

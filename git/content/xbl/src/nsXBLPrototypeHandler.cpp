@@ -79,7 +79,6 @@
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
 #include "nsXBLEventHandler.h"
-#include "nsXBLSerialize.h"
 #include "nsEventDispatcher.h"
 #include "mozilla/Preferences.h"
 
@@ -124,7 +123,10 @@ nsXBLPrototypeHandler::nsXBLPrototypeHandler(const PRUnichar* aEvent,
     mNextHandler(nsnull),
     mPrototypeBinding(aBinding)
 {
-  Init();
+  ++gRefCnt;
+  if (gRefCnt == 1)
+    // Get the primary accelerator key.
+    InitAccessKeys();
 
   ConstructPrototype(nsnull, aEvent, aPhase, aAction, aCommand, aKeyCode,
                      aCharCode, aModifiers, aButton, aClickCount,
@@ -137,19 +139,13 @@ nsXBLPrototypeHandler::nsXBLPrototypeHandler(nsIContent* aHandlerElement)
     mNextHandler(nsnull),
     mPrototypeBinding(nsnull)
 {
-  Init();
+  ++gRefCnt;
+  if (gRefCnt == 1)
+    // Get the primary accelerator key.
+    InitAccessKeys();
 
   // Make sure our prototype is initialized.
   ConstructPrototype(aHandlerElement);
-}
-
-nsXBLPrototypeHandler::nsXBLPrototypeHandler(nsXBLPrototypeBinding* aBinding)
-  : mHandlerText(nsnull),
-    mLineNumber(nsnull),
-    mNextHandler(nsnull),
-    mPrototypeBinding(aBinding)
-{
-  Init();
 }
 
 nsXBLPrototypeHandler::~nsXBLPrototypeHandler()
@@ -269,6 +265,9 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   nsCOMPtr<nsIAtom> onEventAtom = do_GetAtom(NS_LITERAL_STRING("onxbl") +
                                              nsDependentAtomString(mEventName));
 
+  // Compile the event handler.
+  PRUint32 stID = nsIProgrammingLanguage::JAVASCRIPT;
+
   // Compile the handler and bind it to the element.
   nsCOMPtr<nsIScriptGlobalObject> boundGlobal;
   nsCOMPtr<nsPIWindowRoot> winRoot(do_QueryInterface(aTarget));
@@ -302,8 +301,7 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   if (!boundGlobal)
     return NS_OK;
 
-  nsIScriptContext *boundContext =
-    boundGlobal->GetScriptContext(nsIProgrammingLanguage::JAVASCRIPT);
+  nsIScriptContext *boundContext = boundGlobal->GetScriptContext(stID);
   if (!boundContext)
     return NS_OK;
 
@@ -320,7 +318,7 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Bind it to the bound element
-  JSObject* scope = boundGlobal->GetGlobalJSObject();
+  void *scope = boundGlobal->GetScriptGlobal(stID);
   nsScriptObjectHolder boundHandler(boundContext);
   rv = boundContext->BindCompiledEventHandler(scriptTarget, scope,
                                               handler, boundHandler);
@@ -330,9 +328,7 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   nsCOMPtr<nsIDOMEventListener> eventListener;
   rv = NS_NewJSEventListener(boundContext, scope,
                              scriptTarget, onEventAtom,
-                             static_cast<JSObject*>(
-                               static_cast<void*>(boundHandler)),
-                             getter_AddRefs(eventListener));
+                             boundHandler, getter_AddRefs(eventListener));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Handle the event.
@@ -1033,68 +1029,4 @@ nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
   }
 
   return true;
-}
-
-nsresult
-nsXBLPrototypeHandler::Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream)
-{
-  nsresult rv = aStream->Read8(&mPhase);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Read8(&mKeyMask);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Read8(&mType);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Read8(&mMisc);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint32 detail; 
-  rv = aStream->Read32(&detail);
-  NS_ENSURE_SUCCESS(rv, rv);
-  mDetail = detail;
-
-  nsAutoString name;
-  rv = aStream->ReadString(name);
-  NS_ENSURE_SUCCESS(rv, rv);
-  mEventName = do_GetAtom(name);
-
-  rv = aStream->Read32(&mLineNumber);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString handlerText;
-  rv = aStream->ReadString(handlerText);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!handlerText.IsEmpty())
-    mHandlerText = ToNewUnicode(handlerText);
-
-  return NS_OK;
-}
-
-nsresult
-nsXBLPrototypeHandler::Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream)
-{
-  // Make sure we don't write out NS_HANDLER_TYPE_XUL types, as they are used
-  // for <keyset> elements.
-  if (mType & NS_HANDLER_TYPE_XUL)
-    return NS_OK;
-
-  XBLBindingSerializeDetails type = XBLBinding_Serialize_Handler;
-
-  nsresult rv = aStream->Write8(type);
-  rv = aStream->Write8(mPhase);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Write8(mKeyMask);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Write8(mType);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Write8(mMisc);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Write32(mDetail);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = aStream->WriteWStringZ(nsDependentAtomString(mEventName).get());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = aStream->Write32(mLineNumber);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return aStream->WriteWStringZ(mHandlerText ? mHandlerText : EmptyString().get());
 }

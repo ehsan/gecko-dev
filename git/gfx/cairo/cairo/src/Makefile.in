@@ -72,6 +72,7 @@ CSRCS   = \
         cairo-color.c \
 	cairo-composite-rectangles.c \
         cairo-debug.c \
+        cairo-deflate-stream.c \
 	cairo-device.c \
         cairo-fixed.c \
 	cairo-font-face.c \
@@ -127,10 +128,6 @@ CSRCS   = \
 	cairo-version.c \
         cairo-wideint.c \
         $(NULL)
-
-ifneq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-CSRCS += cairo-deflate-stream.c
-endif
 
 EXPORTS_NAMESPACES = cairo
 

@@ -114,8 +114,9 @@ int
 main(int aArgc,
      char** aArgv)
 {
-  ProfileScopedXPCOM xpcom(TEST_NAME);
-  nsCOMPtr<nsIFile> profile = xpcom.GetProfileDirectory();
+  ScopedXPCOM xpcom(TEST_NAME);
+  nsRefPtr<ShutdownObserver> shutdownObserver = new ShutdownObserver();
+
 
   // Tinderboxes are constantly on idle.  Since idle tasks can interact with
   // tests, causing random failures, disable the idle service.

@@ -94,7 +94,9 @@ MarkContentViewer(nsIContentViewer* aViewer)
     return;
   }
 
-  nsIDocument *doc = aViewer->GetDocument();
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  aViewer->GetDOMDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   if (doc) {
     doc->MarkUncollectableForCCGeneration(nsCCUncollectableMarker::sGeneration);
   }

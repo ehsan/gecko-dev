@@ -108,7 +108,6 @@ public:
     PRUint8        GetQoSBits()              { return mQoSBits; }
     PRUint16       GetIdleSynTimeout()       { return mIdleSynTimeout; }
     bool           FastFallbackToIPv4()      { return mFastFallbackToIPv4; }
-    PRUint32       MaxSocketCount();
 
     bool           IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
 
@@ -313,8 +312,6 @@ private:
     nsXPIDLCString mProductSub;
     nsXPIDLCString mAppName;
     nsXPIDLCString mAppVersion;
-    nsXPIDLCString mDeviceType;
-    nsXPIDLCString mDeviceName;
     nsCString      mCompatFirefox;
 
     nsCString      mUserAgent;

@@ -223,7 +223,7 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
   // AddRef here because removing from the hash will call Release.
   nsRefPtr<IDBTransaction> transaction(aTransaction);
 
-  nsIAtom* databaseId = aTransaction->mDatabase->Id();
+  const PRUint32 databaseId = aTransaction->mDatabase->Id();
 
   DatabaseTransactionInfo* dbTransactionInfo;
   if (!mTransactionsInProgress.Get(databaseId, &dbTransactionInfo)) {
@@ -238,6 +238,7 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
 
 #ifdef DEBUG
   if (aTransaction->mMode == IDBTransaction::VERSION_CHANGE) {
+    NS_ASSERTION(dbTransactionInfo->locked, "Should be locked!");
     NS_ASSERTION(transactionCount == 1,
                  "More transactions running than should be!");
   }
@@ -324,7 +325,7 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
   NS_ASSERTION(aCanRun, "Null pointer!");
   NS_ASSERTION(aExistingQueue, "Null pointer!");
 
-  nsIAtom* databaseId = aTransaction->mDatabase->Id();
+  const PRUint32 databaseId = aTransaction->mDatabase->Id();
   const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;
   const PRUint16 mode = aTransaction->mMode;
 
@@ -343,6 +344,10 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
   PRUint32 transactionCount = transactionsInProgress.Length();
   NS_ASSERTION(transactionCount, "Should never be 0!");
 
+  if (mode == IDBTransaction::VERSION_CHANGE) {
+    dbTransactionInfo->lockPending = true;
+  }
+
   for (PRUint32 index = 0; index < transactionCount; index++) {
     // See if this transaction is in out list of current transactions.
     const TransactionInfo& info = transactionsInProgress[index];
@@ -353,7 +358,11 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
     }
   }
 
-  NS_ASSERTION(mode != IDBTransaction::VERSION_CHANGE, "How did we get here?");
+  if (dbTransactionInfo->locked || dbTransactionInfo->lockPending) {
+    *aCanRun = false;
+    *aExistingQueue = nsnull;
+    return NS_OK;
+  }
 
   bool writeOverlap;
   nsresult rv =
@@ -421,7 +430,7 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
     return NS_OK;
   }
 
-  nsIAtom* databaseId = aTransaction->mDatabase->Id();
+  const PRUint32 databaseId = aTransaction->mDatabase->Id();
 
 #ifdef DEBUG
   if (aTransaction->mMode == IDBTransaction::VERSION_CHANGE) {
@@ -437,6 +446,11 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
     // Make a new struct for this transaction.
     autoDBTransactionInfo = new DatabaseTransactionInfo();
     dbTransactionInfo = autoDBTransactionInfo;
+  }
+
+  if (aTransaction->mMode == IDBTransaction::VERSION_CHANGE) {
+    NS_ASSERTION(!dbTransactionInfo->locked, "Already locked?!");
+    dbTransactionInfo->locked = true;
   }
 
   const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;

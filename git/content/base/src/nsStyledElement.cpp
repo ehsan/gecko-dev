@@ -271,7 +271,11 @@ nsStyledElementNotElementCSSInlineStyle::GetStyle(nsresult* retval)
     // Just in case...
     ReparseStyleAttribute(true);
 
-    slots->mStyle = new nsDOMCSSAttributeDeclaration(this, false);
+    slots->mStyle = new nsDOMCSSAttributeDeclaration(this
+#ifdef MOZ_SMIL
+                                                     , false
+#endif // MOZ_SMIL
+                                                     );
     SetMayHaveStyle();
   }
 

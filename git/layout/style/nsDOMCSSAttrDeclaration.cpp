@@ -53,10 +53,15 @@
 namespace css = mozilla::css;
 namespace dom = mozilla::dom;
 
-nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(dom::Element* aElement,
-                                                           bool aIsSMILOverride)
+nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(dom::Element* aElement
+#ifdef MOZ_SMIL
+                                                           , bool aIsSMILOverride
+#endif // MOZ_SMIL
+                                                           )
   : mElement(aElement)
+#ifdef MOZ_SMIL
   , mIsSMILOverride(aIsSMILOverride)
+#endif // MOZ_SMIL
 {
   MOZ_COUNT_CTOR(nsDOMCSSAttributeDeclaration);
 
@@ -83,7 +88,9 @@ nsDOMCSSAttributeDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
 {
   NS_ASSERTION(mElement, "Must have Element to set the declaration!");
   css::StyleRule* oldRule =
+#ifdef MOZ_SMIL
     mIsSMILOverride ? mElement->GetSMILOverrideStyleRule() :
+#endif // MOZ_SMIL
     mElement->GetInlineStyleRule();
   NS_ASSERTION(oldRule, "Element must have rule");
 
@@ -94,7 +101,9 @@ nsDOMCSSAttributeDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
   }
 
   return
+#ifdef MOZ_SMIL
     mIsSMILOverride ? mElement->SetSMILOverrideStyleRule(newRule, true) :
+#endif // MOZ_SMIL
     mElement->SetInlineStyleRule(newRule, true);
 }
 
@@ -105,7 +114,10 @@ nsDOMCSSAttributeDeclaration::DocToUpdate()
   // BeginUpdate(), but this is a good chokepoint where we know we
   // plan to modify the CSSDeclaration, so need to notify
   // AttributeWillChange if this is inline style.
-  if (!mIsSMILOverride) {
+#ifdef MOZ_SMIL
+  if (!mIsSMILOverride)
+#endif
+  {
     nsNodeUtils::AttributeWillChange(mElement, kNameSpaceID_None,
                                      nsGkAtoms::style,
                                      nsIDOMMutationEvent::MODIFICATION);
@@ -123,9 +135,11 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(bool aAllocate)
     return nsnull;
 
   css::StyleRule* cssRule;
+#ifdef MOZ_SMIL
   if (mIsSMILOverride)
     cssRule = mElement->GetSMILOverrideStyleRule();
   else
+#endif // MOZ_SMIL
     cssRule = mElement->GetInlineStyleRule();
 
   if (cssRule) {
@@ -142,9 +156,11 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(bool aAllocate)
 
   // this *can* fail (inside SetAttrAndNotify, at least).
   nsresult rv;
+#ifdef MOZ_SMIL
   if (mIsSMILOverride)
     rv = mElement->SetSMILOverrideStyleRule(newRule, false);
   else
+#endif // MOZ_SMIL
     rv = mElement->SetInlineStyleRule(newRule, false);
 
   if (NS_FAILED(rv)) {

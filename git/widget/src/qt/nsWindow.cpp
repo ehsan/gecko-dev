@@ -95,6 +95,7 @@ using namespace QtMobility;
 #include "mozqorientationsensorfilter.h"
 #endif
 
+#include "nsToolkit.h"
 #include "nsIdleService.h"
 #include "nsRenderingContext.h"
 #include "nsIRollupListener.h"
@@ -143,7 +144,6 @@ static Atom sPluginIMEAtom = nsnull;
 #define GLdouble_defined 1
 #include "Layers.h"
 #include "LayerManagerOGL.h"
-#include "nsFastStartupQt.h"
 
 // If embedding clients want to create widget without real parent window
 // then nsIBaseWindow->Init() should have parent argument equal to PARENTLESS_WIDGET
@@ -824,7 +824,8 @@ nsWindow::GetNativeData(PRUint32 aDataType)
         break;
 
     case NS_NATIVE_GRAPHIC: {
-        return nsnull;
+        NS_ASSERTION(nsnull != mToolkit, "NULL toolkit, unable to get a GC");
+        return (void *)static_cast<nsToolkit *>(mToolkit)->GetSharedGC();
         break;
     }
 
@@ -1075,11 +1076,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
 
     nsEventStatus status;
     nsIntRect rect(r.x(), r.y(), r.width(), r.height());
-
-    nsFastStartup* startup = nsFastStartup::GetSingleton();
-    if (startup) {
-        startup->RemoveFakeLayout();
-    }
 
     if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
         nsPaintEvent event(true, NS_PAINT, this);
@@ -2259,6 +2255,7 @@ nsWindow::Create(nsIWidget        *aParent,
                  const nsIntRect  &aRect,
                  EVENT_CALLBACK    aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIToolkit       *aToolkit,
                  nsWidgetInitData *aInitData)
 {
     // only set the base parent if we're not going to be a dialog or a
@@ -2276,7 +2273,8 @@ nsWindow::Create(nsIWidget        *aParent,
     }
 
     // initialize all the common bits of this class
-    BaseCreate(baseParent, aRect, aHandleEventFunction, aContext, aInitData);
+    BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
+               aToolkit, aInitData);
 
     // and do our common creation
     mParent = aParent;
@@ -2312,6 +2310,7 @@ already_AddRefed<nsIWidget>
 nsWindow::CreateChild(const nsIntRect&  aRect,
                       EVENT_CALLBACK    aHandleEventFunction,
                       nsDeviceContext* aContext,
+                      nsIToolkit*       aToolkit,
                       nsWidgetInitData* aInitData,
                       bool              /*aForceUseIWidgetParent*/)
 {
@@ -2319,6 +2318,7 @@ nsWindow::CreateChild(const nsIntRect&  aRect,
     return nsBaseWidget::CreateChild(aRect,
                                      aHandleEventFunction,
                                      aContext,
+                                     aToolkit,
                                      aInitData,
                                      true); // Force parent
 }
@@ -2690,20 +2690,21 @@ nsWindow::createQWidget(MozQWidget *parent,
     // create a QGraphicsView if this is a new toplevel window
 
     if (mIsTopLevel) {
-        QGraphicsView* newView =
-            nsFastStartup::GetStartupGraphicsView(parentWidget, widget);
+#if defined MOZ_ENABLE_MEEGOTOUCH
+        MozMGraphicsView* newView = new MozMGraphicsView(parentWidget);
+#else
+        MozQGraphicsView* newView = new MozQGraphicsView(parentWidget);
+#endif
 
+        newView->SetTopLevel(widget, parentWidget);
+        newView->setWindowFlags(flags);
         if (mWindowType == eWindowType_dialog) {
             newView->setWindowModality(Qt::WindowModal);
         }
 
 #ifdef MOZ_PLATFORM_MAEMO
         if (GetShouldAccelerate()) {
-            // Only create new OGL widget if it is not yet installed
-            QGLWidget *glWidget = qobject_cast<QGLWidget*>(newView->viewport());
-            if (!glWidget) {
-                newView->setViewport(new QGLWidget());
-            }
+            newView->setViewport(new QGLWidget());
         }
 #endif
 
@@ -3123,7 +3124,7 @@ nsWindow::OnDestroy(void)
 
     mOnDestroyCalled = true;
 
-    // release references to children and device context
+    // release references to children, device context, toolkit + app shell
     nsBaseWidget::OnDestroy();
 
     // let go of our parent

@@ -866,7 +866,6 @@ function test() {
   waitForExplicitFinish();
 
   Services.prefs.setBoolPref("extensions.logging.enabled", true);
-  Services.prefs.setBoolPref("extensions.strictCompatibility", true);
 
   Services.obs.addObserver(XPInstallObserver, "addon-install-started", false);
   Services.obs.addObserver(XPInstallObserver, "addon-install-blocked", false);
@@ -885,7 +884,6 @@ function test() {
     });
 
     Services.prefs.clearUserPref("extensions.logging.enabled");
-    Services.prefs.clearUserPref("extensions.strictCompatibility");
 
     Services.obs.removeObserver(XPInstallObserver, "addon-install-started");
     Services.obs.removeObserver(XPInstallObserver, "addon-install-blocked");

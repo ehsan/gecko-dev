@@ -223,6 +223,7 @@ nsresult
 NS_NewSVGFEDisplacementMapElement(nsIContent **aResult,
                                   already_AddRefed<nsINodeInfo> aNodeInfo);
 
+#ifdef MOZ_SMIL
 nsresult
 NS_NewSVGAnimateElement(nsIContent **aResult,
                         already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -238,6 +239,7 @@ NS_NewSVGMpathElement(nsIContent **aResult,
 nsresult
 NS_NewSVGSetElement(nsIContent **aResult,
                     already_AddRefed<nsINodeInfo> aNodeInfo);
+#endif // MOZ_SMIL
 
 nsresult
 NS_NewSVGElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -366,6 +368,7 @@ NS_NewSVGElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
     return NS_NewSVGMaskElement(aResult, aNodeInfo);
   if (name == nsGkAtoms::svgSwitch)
     return NS_NewSVGSwitchElement(aResult, aNodeInfo);
+#ifdef MOZ_SMIL
   if (NS_SMILEnabled()) {
     if (name == nsGkAtoms::animate)
       return NS_NewSVGAnimateElement(aResult, aNodeInfo);
@@ -378,6 +381,7 @@ NS_NewSVGElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
     if (name == nsGkAtoms::set)
       return NS_NewSVGSetElement(aResult, aNodeInfo);
   }
+#endif // MOZ_SMIL
 
   // if we don't know what to create, just create a standard xml element:
   return NS_NewXMLElement(aResult, aNodeInfo);

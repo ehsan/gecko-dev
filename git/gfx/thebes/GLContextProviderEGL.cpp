@@ -726,9 +726,6 @@ public:
         }
 
         bool ok = InitWithPrefix("gl", true);
-
-        PR_STATIC_ASSERT(sizeof(GLint) >= sizeof(int32_t));
-        mMaxTextureImageSize = PR_INT32_MAX;
 #if 0
         if (ok) {
             EGLint v;
@@ -2254,32 +2251,38 @@ GLContextProviderEGL::CreateOffscreen(const gfxIntSize& aSize,
     if (!sEGLLibrary.EnsureInitialized()) {
         return nsnull;
     }
+    
+    ContextFormat actualFormat(aFormat);
+    // actualFormat.samples = 0;
 
 #if defined(ANDROID) || defined(XP_WIN)
     nsRefPtr<GLContextEGL> glContext =
-        GLContextEGL::CreateEGLPBufferOffscreenContext(aSize, aFormat);
+        GLContextEGL::CreateEGLPBufferOffscreenContext(aSize, actualFormat);
 
     if (!glContext)
         return nsnull;
 
     if (!glContext->ResizeOffscreenFBO(glContext->OffscreenActualSize(), false))
         return nsnull;
+ 
+     printf("GL Offscreen: EGL+PBuffer\n");
+     return glContext.forget();
 
-    return glContext.forget();
 #elif defined(MOZ_X11) && defined(MOZ_EGL_XRENDER_COMPOSITE)
     nsRefPtr<GLContextEGL> glContext =
-        GLContextEGL::CreateBasicEGLPixmapOffscreenContext(aSize, aFormat);
+        GLContextEGL::CreateBasicEGLPixmapOffscreenContext(aSize, actualFormat);
 
     if (!glContext)
         return nsnull;
 
     if (!glContext->ResizeOffscreenFBO(glContext->OffscreenActualSize(), true))
         return nsnull;
-
+    
+    printf("GL Offscreen: EGL+Pixmap\n");
     return glContext.forget();
 #elif defined(MOZ_X11)
     nsRefPtr<GLContextEGL> glContext =
-        GLContextEGL::CreateEGLPixmapOffscreenContext(aSize, aFormat, true);
+        GLContextEGL::CreateEGLPixmapOffscreenContext(aSize, actualFormat, true);
 
     if (!glContext) {
         return nsnull;

@@ -76,7 +76,6 @@
 #include "nsIOService.h"
 #include "nsAsyncRedirectVerifyHelper.h"
 #include "nsSocketTransportService2.h"
-#include "nsAlgorithm.h"
 
 #include "nsIXULAppInfo.h"
 
@@ -100,7 +99,6 @@
 #endif
 
 //-----------------------------------------------------------------------------
-using namespace mozilla;
 using namespace mozilla::net;
 #include "mozilla/net/HttpChannelChild.h"
 
@@ -615,8 +613,6 @@ nsHttpHandler::BuildUserAgent()
                            mAppName.Length() +
                            mAppVersion.Length() +
                            mCompatFirefox.Length() +
-                           mDeviceType.Length() +
-                           mDeviceName.Length() +
                            13);
 
     // Application portion
@@ -634,10 +630,6 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent += mOscpu;
     mUserAgent.AppendLiteral("; ");
     mUserAgent += mMisc;
-    if (!mDeviceName.IsEmpty()) {
-        mUserAgent.AppendLiteral("; ");
-        mUserAgent += mDeviceName;
-    }
     mUserAgent += ')';
 
     // Product portion
@@ -650,11 +642,6 @@ nsHttpHandler::BuildUserAgent()
     if (!mCompatFirefox.IsEmpty()) {
         mUserAgent += ' ';
         mUserAgent += mCompatFirefox;
-    }
-
-    if (!mDeviceType.IsEmpty()) {
-        mUserAgent += ' ';
-        mUserAgent += mDeviceType;
     }
 
     // App portion
@@ -693,32 +680,6 @@ nsHttpHandler::InitUserAgentComponents()
     "?"
 #endif
     );
-
-#if defined(ANDROID)
-    nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
-    NS_ASSERTION(infoService, "Could not find a system info service");
-
-    bool isTablet;
-    infoService->GetPropertyAsBool(NS_LITERAL_STRING("isTablet"), &isTablet);
-    if (!isTablet) {
-        mDeviceType.AssignLiteral("Mobile");
-    }
-    infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"),
-                                       mDeviceName);
-    nsXPIDLCString buildid;
-    infoService->GetPropertyAsACString(NS_LITERAL_STRING("buildid"),
-                                       buildid);
-    if (!buildid.IsEmpty()) {
-        mDeviceName += " Build/";
-        mDeviceName += buildid;
-    }
-
-    nsXPIDLCString shellVersion;
-    infoService->GetPropertyAsACString(NS_LITERAL_STRING("shellVersion"),
-                                       shellVersion);
-    mPlatform += " ";
-    mPlatform += shellVersion;
-#endif
 
     // Gather OS/CPU.
 #if defined(XP_OS2)
@@ -812,24 +773,6 @@ nsHttpHandler::InitUserAgentComponents()
     mUserAgentIsDirty = true;
 }
 
-PRUint32
-nsHttpHandler::MaxSocketCount()
-{
-    PR_CallOnce(&nsSocketTransportService::gMaxCountInitOnce,
-                nsSocketTransportService::DiscoverMaxCount);
-    // Don't use the full max count because sockets can be held in
-    // the persistent connection pool for a long time and that could
-    // starve other users.
-
-    PRUint32 maxCount = nsSocketTransportService::gMaxCount;
-    if (maxCount <= 8)
-        maxCount = 1;
-    else
-        maxCount -= 8;
-
-    return maxCount;
-}
-
 void
 nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 {
@@ -872,19 +815,19 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("keep-alive.timeout"))) {
         rv = prefs->GetIntPref(HTTP_PREF("keep-alive.timeout"), &val);
         if (NS_SUCCEEDED(rv))
-            mIdleTimeout = (PRUint16) clamped(val, 1, 0xffff);
+            mIdleTimeout = (PRUint16) NS_CLAMP(val, 1, 0xffff);
     }
 
     if (PREF_CHANGED(HTTP_PREF("request.max-attempts"))) {
         rv = prefs->GetIntPref(HTTP_PREF("request.max-attempts"), &val);
         if (NS_SUCCEEDED(rv))
-            mMaxRequestAttempts = (PRUint16) clamped(val, 1, 0xffff);
+            mMaxRequestAttempts = (PRUint16) NS_CLAMP(val, 1, 0xffff);
     }
 
     if (PREF_CHANGED(HTTP_PREF("request.max-start-delay"))) {
         rv = prefs->GetIntPref(HTTP_PREF("request.max-start-delay"), &val);
         if (NS_SUCCEEDED(rv)) {
-            mMaxRequestDelay = (PRUint16) clamped(val, 0, 0xffff);
+            mMaxRequestDelay = (PRUint16) NS_CLAMP(val, 0, 0xffff);
             if (mConnMgr)
                 mConnMgr->UpdateParam(nsHttpConnectionMgr::MAX_REQUEST_DELAY,
                                       mMaxRequestDelay);
@@ -894,10 +837,11 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("max-connections"))) {
         rv = prefs->GetIntPref(HTTP_PREF("max-connections"), &val);
         if (NS_SUCCEEDED(rv)) {
-
-            mMaxConnections = (PRUint16) clamped((PRUint32)val,
-                                                 (PRUint32)1, MaxSocketCount());
-
+            PR_CallOnce(&nsSocketTransportService::gMaxCountInitOnce,
+                        nsSocketTransportService::DiscoverMaxCount);
+            mMaxConnections =
+                (PRUint16) NS_CLAMP((PRUint32)val, 1,
+                                    nsSocketTransportService::gMaxCount);
             if (mConnMgr)
                 mConnMgr->UpdateParam(nsHttpConnectionMgr::MAX_CONNECTIONS,
                                       mMaxConnections);
@@ -907,7 +851,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("max-connections-per-server"))) {
         rv = prefs->GetIntPref(HTTP_PREF("max-connections-per-server"), &val);
         if (NS_SUCCEEDED(rv)) {
-            mMaxConnectionsPerServer = (PRUint8) clamped(val, 1, 0xff);
+            mMaxConnectionsPerServer = (PRUint8) NS_CLAMP(val, 1, 0xff);
             if (mConnMgr) {
                 mConnMgr->UpdateParam(nsHttpConnectionMgr::MAX_CONNECTIONS_PER_HOST,
                                       mMaxConnectionsPerServer);
@@ -920,7 +864,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("max-persistent-connections-per-server"))) {
         rv = prefs->GetIntPref(HTTP_PREF("max-persistent-connections-per-server"), &val);
         if (NS_SUCCEEDED(rv)) {
-            mMaxPersistentConnectionsPerServer = (PRUint8) clamped(val, 1, 0xff);
+            mMaxPersistentConnectionsPerServer = (PRUint8) NS_CLAMP(val, 1, 0xff);
             if (mConnMgr)
                 mConnMgr->UpdateParam(nsHttpConnectionMgr::MAX_PERSISTENT_CONNECTIONS_PER_HOST,
                                       mMaxPersistentConnectionsPerServer);
@@ -930,7 +874,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("max-persistent-connections-per-proxy"))) {
         rv = prefs->GetIntPref(HTTP_PREF("max-persistent-connections-per-proxy"), &val);
         if (NS_SUCCEEDED(rv)) {
-            mMaxPersistentConnectionsPerProxy = (PRUint8) clamped(val, 1, 0xff);
+            mMaxPersistentConnectionsPerProxy = (PRUint8) NS_CLAMP(val, 1, 0xff);
             if (mConnMgr)
                 mConnMgr->UpdateParam(nsHttpConnectionMgr::MAX_PERSISTENT_CONNECTIONS_PER_PROXY,
                                       mMaxPersistentConnectionsPerProxy);
@@ -940,19 +884,19 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("sendRefererHeader"))) {
         rv = prefs->GetIntPref(HTTP_PREF("sendRefererHeader"), &val);
         if (NS_SUCCEEDED(rv))
-            mReferrerLevel = (PRUint8) clamped(val, 0, 0xff);
+            mReferrerLevel = (PRUint8) NS_CLAMP(val, 0, 0xff);
     }
 
     if (PREF_CHANGED(HTTP_PREF("redirection-limit"))) {
         rv = prefs->GetIntPref(HTTP_PREF("redirection-limit"), &val);
         if (NS_SUCCEEDED(rv))
-            mRedirectionLimit = (PRUint8) clamped(val, 0, 0xff);
+            mRedirectionLimit = (PRUint8) NS_CLAMP(val, 0, 0xff);
     }
 
     if (PREF_CHANGED(HTTP_PREF("connection-retry-timeout"))) {
         rv = prefs->GetIntPref(HTTP_PREF("connection-retry-timeout"), &val);
         if (NS_SUCCEEDED(rv))
-            mIdleSynTimeout = (PRUint16) clamped(val, 0, 3000);
+            mIdleSynTimeout = (PRUint16) NS_CLAMP(val, 0, 3000);
     }
 
     if (PREF_CHANGED(HTTP_PREF("fast-fallback-to-IPv4"))) {
@@ -1019,7 +963,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("pipelining.maxrequests"))) {
         rv = prefs->GetIntPref(HTTP_PREF("pipelining.maxrequests"), &val);
         if (NS_SUCCEEDED(rv)) {
-            mMaxPipelinedRequests = clamped(val, 1, NS_HTTP_MAX_PIPELINED_REQUESTS);
+            mMaxPipelinedRequests = NS_CLAMP(val, 1, NS_HTTP_MAX_PIPELINED_REQUESTS);
             if (mConnMgr)
                 mConnMgr->UpdateParam(nsHttpConnectionMgr::MAX_PIPELINED_REQUESTS,
                                       mMaxPipelinedRequests);
@@ -1045,7 +989,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("qos"))) {
         rv = prefs->GetIntPref(HTTP_PREF("qos"), &val);
         if (NS_SUCCEEDED(rv))
-            mQoSBits = (PRUint8) clamped(val, 0, 0xff);
+            mQoSBits = (PRUint8) NS_CLAMP(val, 0, 0xff);
     }
 
     if (PREF_CHANGED(HTTP_PREF("sendSecureXSiteReferrer"))) {
@@ -1118,7 +1062,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("phishy-userpass-length"))) {
         rv = prefs->GetIntPref(HTTP_PREF("phishy-userpass-length"), &val);
         if (NS_SUCCEEDED(rv))
-            mPhishyUserPassLength = (PRUint8) clamped(val, 0, 0xff);
+            mPhishyUserPassLength = (PRUint8) NS_CLAMP(val, 0, 0xff);
     }
 
     //

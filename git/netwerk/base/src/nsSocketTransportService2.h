@@ -205,12 +205,6 @@ private:
     // Preference Monitor for SendBufferSize
     nsresult    UpdatePrefs();
     PRInt32     mSendBufferSize;
-
-    // Socket thread only for dynamically adjusting max socket size
-#if defined(XP_WIN)
-    void ProbeMaxCount();
-#endif
-    bool mProbedMaxCount;
 };
 
 extern nsSocketTransportService *gSocketTransportService;

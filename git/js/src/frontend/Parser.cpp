@@ -47,7 +47,7 @@
  * induced by the recursive parsing (not precise syntax trees, see Parser.h).
  * After tree construction, it rewrites trees to fold constants and evaluate
  * compile-time expressions.  Finally, it calls js::frontend::EmitTree (see
- * BytecodeEmitter.h) to generate bytecode.
+ * CodeGenerator.h) to generate bytecode.
  *
  * This parser attempts no error recovery.
  */
@@ -78,7 +78,7 @@
 #include "jsstr.h"
 
 #include "frontend/BytecodeCompiler.h"
-#include "frontend/BytecodeEmitter.h"
+#include "frontend/BytecodeGenerator.h"
 #include "frontend/FoldConstants.h"
 #include "frontend/ParseMaps.h"
 #include "frontend/TokenStream.h"
@@ -254,6 +254,81 @@ Parser::trace(JSTracer *trc)
 
     for (TreeContext *tc = this->tc; tc; tc = tc->parent)
         tc->trace(trc);
+}
+
+/*
+ * Walk the function box list at |*funboxHead|, removing boxes for deleted
+ * functions and cleaning up method lists. We do this once, before
+ * performing function analysis, to avoid traversing possibly long function
+ * lists repeatedly when recycling nodes.
+ *
+ * There are actually three possible states for function boxes and their
+ * nodes:
+ *
+ * - Live: funbox->node points to the node, and funbox->node->pn_funbox
+ *   points back to the funbox.
+ *
+ * - Recycled: funbox->node points to the node, but funbox->node->pn_funbox
+ *   is NULL. When a function node is part of a tree that gets recycled, we
+ *   must avoid corrupting any method list the node is on, so we leave the
+ *   function node unrecycled until we call cleanFunctionList. At recycle
+ *   time, we clear such nodes' pn_funbox pointers to indicate that they
+ *   are deleted and should be recycled once we get here.
+ *
+ * - Mutated: funbox->node is NULL; the contents of the node itself could
+ *   be anything. When we mutate a function node into some other kind of
+ *   node, we lose all indication that the node was ever part of the
+ *   function box tree; it could later be recycled, reallocated, and turned
+ *   into anything at all. (Fortunately, method list members never get
+ *   mutated, so we don't have to worry about that case.)
+ *   ParseNodeAllocator::prepareNodeForMutation clears the node's function
+ *   box's node pointer, disconnecting it entirely from the function box tree,
+ *   and marking the function box to be trimmed out.
+ */
+void
+Parser::cleanFunctionList(FunctionBox **funboxHead)
+{
+    FunctionBox **link = funboxHead;
+    while (FunctionBox *box = *link) {
+        if (!box->node) {
+            /*
+             * This funbox's parse node was mutated into something else. Drop the box,
+             * and stay at the same link.
+             */
+            *link = box->siblings;
+        } else if (!box->node->pn_funbox) {
+            /*
+             * This funbox's parse node is ready to be recycled. Drop the box, recycle
+             * the node, and stay at the same link.
+             */
+            *link = box->siblings;
+            allocator.freeNode(box->node);
+        } else {
+            /* The function is still live. */
+
+            /* First, remove nodes for deleted functions from our methods list. */
+            {
+                ParseNode **methodLink = &box->methods;
+                while (ParseNode *method = *methodLink) {
+                    /* Method nodes are never rewritten in place to be other kinds of nodes. */
+                    JS_ASSERT(method->isArity(PN_FUNC));
+                    if (!method->pn_funbox) {
+                        /* Deleted: drop the node, and stay on this link. */
+                        *methodLink = method->pn_link;
+                    } else {
+                        /* Live: keep the node, and move to the next link. */
+                        methodLink = &method->pn_link;
+                    }
+                }
+            }
+
+            /* Second, remove boxes for deleted functions from our kids list. */
+            cleanFunctionList(&box->kids);
+
+            /* Keep the box on the list, and move to the next link. */
+            link = &box->siblings;
+        }
+    }
 }
 
 static bool
@@ -961,6 +1036,595 @@ MatchOrInsertSemicolon(JSContext *cx, TokenStream *ts)
     return JS_TRUE;
 }
 
+bool
+Parser::analyzeFunctions(TreeContext *tc)
+{
+    cleanFunctionList(&tc->functionList);
+    if (!tc->functionList)
+        return true;
+    if (!markFunArgs(tc->functionList))
+        return false;
+    markExtensibleScopeDescendants(tc->functionList, false);
+    setFunctionKinds(tc->functionList, &tc->flags);
+    return true;
+}
+
+/*
+ * Mark as funargs any functions that reach up to one or more upvars across an
+ * already-known funarg. The parser will flag the o_m lambda as a funarg in:
+ *
+ *   function f(o, p) {
+ *       o.m = function o_m(a) {
+ *           function g() { return p; }
+ *           function h() { return a; }
+ *           return g() + h();
+ *       }
+ *   }
+ *
+ * but without this extra marking phase, function g will not be marked as a
+ * funarg since it is called from within its parent scope. But g reaches up to
+ * f's parameter p, so if o_m escapes f's activation scope, g does too and
+ * cannot assume that p's stack slot is still alive. In contast function h
+ * neither escapes nor uses an upvar "above" o_m's level.
+ *
+ * If function g itself contained lambdas that contained non-lambdas that reach
+ * up above its level, then those non-lambdas would have to be marked too. This
+ * process is potentially exponential in the number of functions, but generally
+ * not so complex. But it can't be done during a single recursive traversal of
+ * the funbox tree, so we must use a work queue.
+ *
+ * Return the minimal "skipmin" for funbox and its siblings. This is the delta
+ * between the static level of the bodies of funbox and its peers (which must
+ * be funbox->level + 1), and the static level of the nearest upvar among all
+ * the upvars contained by funbox and its peers. If there are no upvars, return
+ * FREE_STATIC_LEVEL. Thus this function never returns 0.
+ */
+static uintN
+FindFunArgs(FunctionBox *funbox, int level, FunctionBoxQueue *queue)
+{
+    uintN allskipmin = UpvarCookie::FREE_LEVEL;
+
+    do {
+        ParseNode *fn = funbox->node;
+        JS_ASSERT(fn->isArity(PN_FUNC));
+        JSFunction *fun = funbox->function();
+        int fnlevel = level;
+
+        /*
+         * An eval can leak funbox, functions along its ancestor line, and its
+         * immediate kids. Since FindFunArgs uses DFS and the parser propagates
+         * TCF_FUN_HEAVYWEIGHT bottom up, funbox's ancestor function nodes have
+         * already been marked as funargs by this point. Therefore we have to
+         * flag only funbox->node and funbox->kids' nodes here.
+         *
+         * Generators need to be treated in the same way. Even if the value
+         * of a generator function doesn't escape, anything defined or referred
+         * to inside the generator can escape through a call to the generator.
+         * We could imagine doing static analysis to track the calls and see
+         * if any iterators or values returned by iterators escape, but that
+         * would be hard, so instead we just assume everything might escape.
+         */
+        if (funbox->tcflags & (TCF_FUN_HEAVYWEIGHT | TCF_FUN_IS_GENERATOR)) {
+            fn->setFunArg();
+            for (FunctionBox *kid = funbox->kids; kid; kid = kid->siblings)
+                kid->node->setFunArg();
+        }
+
+        /*
+         * Compute in skipmin the least distance from fun's static level up to
+         * an upvar, whether used directly by fun, or indirectly by a function
+         * nested in fun.
+         */
+        uintN skipmin = UpvarCookie::FREE_LEVEL;
+        ParseNode *pn = fn->pn_body;
+
+        if (pn->isKind(TOK_UPVARS)) {
+            AtomDefnMapPtr &upvars = pn->pn_names;
+            JS_ASSERT(upvars->count() != 0);
+
+            for (AtomDefnRange r = upvars->all(); !r.empty(); r.popFront()) {
+                Definition *defn = r.front().value();
+                Definition *lexdep = defn->resolve();
+
+                if (!lexdep->isFreeVar()) {
+                    uintN upvarLevel = lexdep->frameLevel();
+
+                    if (int(upvarLevel) <= fnlevel)
+                        fn->setFunArg();
+
+                    uintN skip = (funbox->level + 1) - upvarLevel;
+                    if (skip < skipmin)
+                        skipmin = skip;
+                }
+            }
+        }
+
+        /*
+         * If this function escapes, whether directly (the parser detects such
+         * escapes) or indirectly (because this non-escaping function uses an
+         * upvar that reaches across an outer function boundary where the outer
+         * function escapes), enqueue it for further analysis, and bump fnlevel
+         * to trap any non-escaping children.
+         */
+        if (fn->isFunArg()) {
+            queue->push(funbox);
+            fnlevel = int(funbox->level);
+        }
+
+        /*
+         * Now process the current function's children, and recalibrate their
+         * cumulative skipmin to be relative to the current static level.
+         */
+        if (funbox->kids) {
+            uintN kidskipmin = FindFunArgs(funbox->kids, fnlevel, queue);
+
+            JS_ASSERT(kidskipmin != 0);
+            if (kidskipmin != UpvarCookie::FREE_LEVEL) {
+                --kidskipmin;
+                if (kidskipmin != 0 && kidskipmin < skipmin)
+                    skipmin = kidskipmin;
+            }
+        }
+
+        /*
+         * Finally, after we've traversed all of the current function's kids,
+         * minimize fun's skipmin against our accumulated skipmin. Do likewise
+         * with allskipmin, but minimize across funbox and all of its siblings,
+         * to compute our return value.
+         */
+        if (skipmin != UpvarCookie::FREE_LEVEL) {
+            fun->u.i.skipmin = skipmin;
+            if (skipmin < allskipmin)
+                allskipmin = skipmin;
+        }
+    } while ((funbox = funbox->siblings) != NULL);
+
+    return allskipmin;
+}
+
+bool
+Parser::markFunArgs(FunctionBox *funbox)
+{
+    FunctionBoxQueue queue;
+    if (!queue.init(functionCount)) {
+        js_ReportOutOfMemory(context);
+        return false;
+    }
+
+    FindFunArgs(funbox, -1, &queue);
+    while ((funbox = queue.pull()) != NULL) {
+        ParseNode *fn = funbox->node;
+        JS_ASSERT(fn->isFunArg());
+
+        ParseNode *pn = fn->pn_body;
+        if (pn->isKind(TOK_UPVARS)) {
+            AtomDefnMapPtr upvars = pn->pn_names;
+            JS_ASSERT(!upvars->empty());
+
+            for (AtomDefnRange r = upvars->all(); !r.empty(); r.popFront()) {
+                Definition *defn = r.front().value();
+                Definition *lexdep = defn->resolve();
+
+                if (!lexdep->isFreeVar() &&
+                    !lexdep->isFunArg() &&
+                    (lexdep->kind() == Definition::FUNCTION ||
+                     lexdep->isOp(JSOP_CALLEE))) {
+                    /*
+                     * Mark this formerly-Algol-like function as an escaping
+                     * function (i.e., as a funarg), because it is used from
+                     * another funarg.
+                     *
+                     * Progress is guaranteed because we set the funarg flag
+                     * here, which suppresses revisiting this function (thanks
+                     * to the !lexdep->isFunArg() test just above).
+                     */
+                    lexdep->setFunArg();
+
+                    FunctionBox *afunbox;
+                    if (lexdep->isOp(JSOP_CALLEE)) {
+                        /*
+                         * A named function expression will not appear to be a
+                         * funarg if it is immediately applied. However, if its
+                         * name is used in an escaping function nested within
+                         * it, then it must become flagged as a funarg again.
+                         * See bug 545980.
+                         */
+                        afunbox = funbox;
+                        uintN calleeLevel = lexdep->pn_cookie.level();
+                        uintN staticLevel = afunbox->level + 1U;
+                        while (staticLevel != calleeLevel) {
+                            afunbox = afunbox->parent;
+                            --staticLevel;
+                        }
+                        JS_ASSERT(afunbox->level + 1U == calleeLevel);
+                        afunbox->node->setFunArg();
+                    } else {
+                       afunbox = lexdep->pn_funbox;
+                    }
+                    queue.push(afunbox);
+
+                    /*
+                     * Walk over nested functions again, now that we have
+                     * changed the level across which it is unsafe to access
+                     * upvars using the runtime dynamic link (frame chain).
+                     */
+                    if (afunbox->kids)
+                        FindFunArgs(afunbox->kids, afunbox->level, &queue);
+                }
+            }
+        }
+    }
+    return true;
+}
+
+static uint32
+MinBlockId(ParseNode *fn, uint32 id)
+{
+    if (fn->pn_blockid < id)
+        return false;
+    if (fn->isDefn()) {
+        for (ParseNode *pn = fn->dn_uses; pn; pn = pn->pn_link) {
+            if (pn->pn_blockid < id)
+                return false;
+        }
+    }
+    return true;
+}
+
+static inline bool
+CanFlattenUpvar(Definition *dn, FunctionBox *funbox, uint32 tcflags)
+{
+    /*
+     * Consider the current function (the lambda, innermost below) using a var
+     * x defined two static levels up:
+     *
+     *  function f() {
+     *      // z = g();
+     *      var x = 42;
+     *      function g() {
+     *          return function () { return x; };
+     *      }
+     *      return g();
+     *  }
+     *
+     * So long as (1) the initialization in 'var x = 42' dominates all uses of
+     * g and (2) x is not reassigned, it is safe to optimize the lambda to a
+     * flat closure. Uncommenting the early call to g makes this optimization
+     * unsafe (z could name a global setter that calls its argument).
+     */
+    FunctionBox *afunbox = funbox;
+    uintN dnLevel = dn->frameLevel();
+
+    JS_ASSERT(dnLevel <= funbox->level);
+    while (afunbox->level != dnLevel) {
+        afunbox = afunbox->parent;
+
+        /*
+         * NB: afunbox can't be null because we are sure to find a function box
+         * whose level == dnLevel before we would try to walk above the root of
+         * the funbox tree. See bug 493260 comments 16-18.
+         *
+         * Assert but check anyway, to protect future changes that bind eval
+         * upvars in the parser.
+         */
+        JS_ASSERT(afunbox);
+
+        /*
+         * If this function is reaching up across an enclosing funarg, then we
+         * cannot copy dn's value into a flat closure slot. The flat closure
+         * code assumes the upvars to be copied are in frames still on the
+         * stack.
+         */
+        if (!afunbox || afunbox->node->isFunArg())
+            return false;
+
+        /*
+         * Reaching up for dn across a generator also means we can't flatten,
+         * since the generator iterator does not run until later, in general.
+         * See bug 563034.
+         */
+        if (afunbox->tcflags & TCF_FUN_IS_GENERATOR)
+            return false;
+    }
+
+    /*
+     * If afunbox's function (which is at the same level as dn) is in a loop,
+     * pessimistically assume the variable initializer may be in the same loop.
+     * A flat closure would then be unsafe, as the captured variable could be
+     * assigned after the closure is created. See bug 493232.
+     */
+    if (afunbox->inLoop)
+        return false;
+
+    /*
+     * |with| and eval used as an operator defeat lexical scoping: they can be
+     * used to assign to any in-scope variable. Therefore they must disable
+     * flat closures that use such upvars.  The parser detects these as special
+     * forms and marks the function heavyweight.
+     */
+    if ((afunbox->parent ? afunbox->parent->tcflags : tcflags) & TCF_FUN_HEAVYWEIGHT)
+        return false;
+
+    /*
+     * If afunbox's function is not a lambda, it will be hoisted, so it could
+     * capture the undefined value that by default initializes var, let, and
+     * const bindings. And if dn is a function that comes at (meaning a
+     * function refers to its own name) or strictly after afunbox, we also
+     * defeat the flat closure optimization for this dn.
+     */
+    JSFunction *afun = afunbox->function();
+    if (!(afun->flags & JSFUN_LAMBDA)) {
+        if (dn->isBindingForm() || dn->pn_pos >= afunbox->node->pn_pos)
+            return false;
+    }
+
+    if (!dn->isInitialized())
+        return false;
+
+    Definition::Kind dnKind = dn->kind();
+    if (dnKind != Definition::CONST) {
+        if (dn->isAssigned())
+            return false;
+
+        /*
+         * Any formal could be mutated behind our back via the arguments
+         * object, so deoptimize if the outer function uses arguments.
+         *
+         * In a Function constructor call where the final argument -- the body
+         * source for the function to create -- contains a nested function
+         * definition or expression, afunbox->parent will be null. The body
+         * source might use |arguments| outside of any nested functions it may
+         * contain, so we have to check the tcflags parameter that was passed
+         * in from BytecodeCompiler::compileFunctionBody.
+         */
+        if (dnKind == Definition::ARG &&
+            ((afunbox->parent ? afunbox->parent->tcflags : tcflags) & TCF_FUN_USES_ARGUMENTS)) {
+            return false;
+        }
+    }
+
+    /*
+     * Check quick-and-dirty dominance relation. Function definitions dominate
+     * their uses thanks to hoisting.  Other binding forms hoist as undefined,
+     * of course, so check forward-reference and blockid relations.
+     */
+    if (dnKind != Definition::FUNCTION) {
+        /*
+         * Watch out for code such as
+         *
+         *   (function () {
+         *   ...
+         *   var jQuery = ... = function (...) {
+         *       return new jQuery.foo.bar(baz);
+         *   }
+         *   ...
+         *   })();
+         *
+         * where the jQuery variable is not reassigned, but of course is not
+         * initialized at the time that the would-be-flat closure containing
+         * the jQuery upvar is formed.
+         */
+        if (dn->pn_pos.end >= afunbox->node->pn_pos.end)
+            return false;
+        if (!MinBlockId(afunbox->node, dn->pn_blockid))
+            return false;
+    }
+    return true;
+}
+
+static void
+FlagHeavyweights(Definition *dn, FunctionBox *funbox, uint32 *tcflags)
+{
+    uintN dnLevel = dn->frameLevel();
+
+    while ((funbox = funbox->parent) != NULL) {
+        /*
+         * Notice that funbox->level is the static level of the definition or
+         * expression of the function parsed into funbox, not the static level
+         * of its body. Therefore we must add 1 to match dn's level to find the
+         * funbox whose body contains the dn definition.
+         */
+        if (funbox->level + 1U == dnLevel || (dnLevel == 0 && dn->isLet())) {
+            funbox->tcflags |= TCF_FUN_HEAVYWEIGHT;
+            break;
+        }
+        funbox->tcflags |= TCF_FUN_ENTRAINS_SCOPES;
+    }
+
+    if (!funbox && (*tcflags & TCF_IN_FUNCTION))
+        *tcflags |= TCF_FUN_HEAVYWEIGHT;
+}
+
+static bool
+DeoptimizeUsesWithin(Definition *dn, const TokenPos &pos)
+{
+    uintN ndeoptimized = 0;
+
+    for (ParseNode *pnu = dn->dn_uses; pnu; pnu = pnu->pn_link) {
+        JS_ASSERT(pnu->isUsed());
+        JS_ASSERT(!pnu->isDefn());
+        if (pnu->pn_pos.begin >= pos.begin && pnu->pn_pos.end <= pos.end) {
+            pnu->pn_dflags |= PND_DEOPTIMIZED;
+            ++ndeoptimized;
+        }
+    }
+
+    return ndeoptimized != 0;
+}
+
+static void
+ConsiderUnbranding(FunctionBox *funbox)
+{
+    /*
+     * We've already recursively set our kids' kinds, which also classifies
+     * enclosing functions holding upvars referenced in those descendants'
+     * bodies. So now we can check our "methods".
+     *
+     * Despecialize from branded method-identity-based shape to shape- or
+     * slot-based shape if this function smells like a constructor and too many
+     * of its methods are *not* joinable null closures (i.e., they have one or
+     * more upvars fetched via the display).
+     */
+    bool returnsExpr = !!(funbox->tcflags & TCF_RETURN_EXPR);
+#if JS_HAS_EXPR_CLOSURES
+    {
+        ParseNode *pn2 = funbox->node->pn_body;
+        if (pn2->isKind(TOK_UPVARS))
+            pn2 = pn2->pn_tree;
+        if (pn2->isKind(TOK_ARGSBODY))
+            pn2 = pn2->last();
+        if (!pn2->isKind(TOK_LC))
+            returnsExpr = true;
+    }
+#endif
+    if (!returnsExpr) {
+        uintN methodSets = 0, slowMethodSets = 0;
+
+        for (ParseNode *method = funbox->methods; method; method = method->pn_link) {
+            JS_ASSERT(method->isOp(JSOP_LAMBDA) || method->isOp(JSOP_LAMBDA_FC));
+            ++methodSets;
+            if (!method->pn_funbox->joinable())
+                ++slowMethodSets;
+        }
+
+        if (funbox->shouldUnbrand(methodSets, slowMethodSets))
+            funbox->tcflags |= TCF_FUN_UNBRAND_THIS;
+    }
+}
+
+void
+Parser::setFunctionKinds(FunctionBox *funbox, uint32 *tcflags)
+{
+    for (; funbox; funbox = funbox->siblings) {
+        ParseNode *fn = funbox->node;
+        ParseNode *pn = fn->pn_body;
+
+        if (funbox->kids) {
+            setFunctionKinds(funbox->kids, tcflags);
+            ConsiderUnbranding(funbox);
+        }
+
+        JSFunction *fun = funbox->function();
+
+        JS_ASSERT(fun->kind() == JSFUN_INTERPRETED);
+
+        if (funbox->tcflags & TCF_FUN_HEAVYWEIGHT) {
+            /* nothing to do */
+        } else if (funbox->inAnyDynamicScope()) {
+            JS_ASSERT(!fun->isNullClosure());
+        } else {
+            bool hasUpvars = false;
+            bool canFlatten = true;
+
+            if (pn->isKind(TOK_UPVARS)) {
+                AtomDefnMapPtr upvars = pn->pn_names;
+                JS_ASSERT(!upvars->empty());
+
+                /*
+                 * For each lexical dependency from this closure to an outer
+                 * binding, analyze whether it is safe to copy the binding's
+                 * value into a flat closure slot when the closure is formed.
+                 */
+                for (AtomDefnRange r = upvars->all(); !r.empty(); r.popFront()) {
+                    Definition *defn = r.front().value();
+                    Definition *lexdep = defn->resolve();
+
+                    if (!lexdep->isFreeVar()) {
+                        hasUpvars = true;
+                        if (!CanFlattenUpvar(lexdep, funbox, *tcflags)) {
+                            /*
+                             * Can't flatten. Enclosing functions holding
+                             * variables used by this function will be flagged
+                             * heavyweight below. FIXME bug 545759: re-enable
+                             * partial flat closures.
+                             */
+                            canFlatten = false;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!hasUpvars) {
+                /* No lexical dependencies => null closure, for best performance. */
+                fun->setKind(JSFUN_NULL_CLOSURE);
+            } else if (canFlatten) {
+                fun->setKind(JSFUN_FLAT_CLOSURE);
+                switch (fn->getOp()) {
+                  case JSOP_DEFFUN:
+                    fn->setOp(JSOP_DEFFUN_FC);
+                    break;
+                  case JSOP_DEFLOCALFUN:
+                    fn->setOp(JSOP_DEFLOCALFUN_FC);
+                    break;
+                  case JSOP_LAMBDA:
+                    fn->setOp(JSOP_LAMBDA_FC);
+                    break;
+                  default:
+                    /* js_EmitTree's case TOK_FUNCTION: will select op. */
+                    JS_ASSERT(fn->isOp(JSOP_NOP));
+                }
+            }
+        }
+
+        if (fun->kind() == JSFUN_INTERPRETED && pn->isKind(TOK_UPVARS)) {
+            /*
+             * One or more upvars cannot be safely snapshot into a flat
+             * closure's non-reserved slot (see JSOP_GETFCSLOT), so we loop
+             * again over all upvars, and for each non-free upvar, ensure that
+             * its containing function has been flagged as heavyweight.
+             *
+             * The emitter must see TCF_FUN_HEAVYWEIGHT accurately before
+             * generating any code for a tree of nested functions.
+             */
+            AtomDefnMapPtr upvars = pn->pn_names;
+            JS_ASSERT(!upvars->empty());
+
+            for (AtomDefnRange r = upvars->all(); !r.empty(); r.popFront()) {
+                Definition *defn = r.front().value();
+                Definition *lexdep = defn->resolve();
+                if (!lexdep->isFreeVar())
+                    FlagHeavyweights(lexdep, funbox, tcflags);
+            }
+        }
+
+        if (funbox->joinable())
+            fun->setJoinable();
+    }
+}
+
+/*
+ * Walk the FunctionBox tree looking for functions whose call objects may
+ * acquire new bindings as they execute: non-strict functions that call eval,
+ * and functions that contain function statements (definitions not appearing
+ * within the top statement list, which don't take effect unless they are
+ * evaluated). Such call objects may acquire bindings that shadow variables
+ * defined in enclosing scopes, so any enclosed functions must have their
+ * bindings' extensibleParents flags set, and enclosed compiler-created blocks
+ * must have their OWN_SHAPE flags set; the comments for
+ * js::Bindings::extensibleParents explain why.
+ */
+void
+Parser::markExtensibleScopeDescendants(FunctionBox *funbox, bool hasExtensibleParent) 
+{
+    for (; funbox; funbox = funbox->siblings) {
+        /*
+         * It would be nice to use fun->kind() here to recognize functions
+         * that will never consult their parent chains, and thus don't need
+         * their 'extensible parents' flag set. Filed as bug 619750. 
+         */
+
+        JS_ASSERT(!funbox->bindings.extensibleParents());
+        if (hasExtensibleParent)
+            funbox->bindings.setExtensibleParents();
+
+        if (funbox->kids) {
+            markExtensibleScopeDescendants(funbox->kids,
+                                           hasExtensibleParent || funbox->scopeIsExtensible());
+        }
+    }
+}
+
 static FunctionBox *
 EnterFunction(ParseNode *fn, TreeContext *funtc, JSAtom *funAtom = NULL,
               FunctionSyntaxKind kind = Expression)
@@ -986,23 +1650,6 @@ EnterFunction(ParseNode *fn, TreeContext *funtc, JSAtom *funAtom = NULL,
         return NULL;
 
     return funbox;
-}
-
-static bool
-DeoptimizeUsesWithin(Definition *dn, const TokenPos &pos)
-{
-    uintN ndeoptimized = 0;
-
-    for (ParseNode *pnu = dn->dn_uses; pnu; pnu = pnu->pn_link) {
-        JS_ASSERT(pnu->isUsed());
-        JS_ASSERT(!pnu->isDefn());
-        if (pnu->pn_pos.begin >= pos.begin && pnu->pn_pos.end <= pos.end) {
-            pnu->pn_dflags |= PND_DEOPTIMIZED;
-            ++ndeoptimized;
-        }
-    }
-
-    return ndeoptimized != 0;
 }
 
 static bool
@@ -1195,7 +1842,7 @@ LeaveFunction(ParseNode *fn, TreeContext *funtc, PropertyName *funName = NULL,
 }
 
 static bool
-DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, PropertyName *name);
+DefineGlobal(ParseNode *pn, CodeGenerator *cg, PropertyName *name);
 
 /*
  * FIXME? this Parser method was factored from Parser::functionDef with minimal
@@ -1435,7 +2082,7 @@ Parser::functionDef(PropertyName *funName, FunctionType type, FunctionSyntaxKind
          * variable to bind its name to its value, and not an activation object
          * property (it might also need the activation property, if the outer
          * function contains with statements, e.g., but the stack slot wins
-         * when BytecodeEmitter.cpp's BindNameToSlot can optimize a JSOP_NAME
+         * when BytecodeGenerator.cpp's BindNameToSlot can optimize a JSOP_NAME
          * into a JSOP_GETLOCAL bytecode).
          */
         if (bodyLevel && tc->inFunction()) {
@@ -1554,11 +2201,11 @@ Parser::functionDef(PropertyName *funName, FunctionType type, FunctionSyntaxKind
      * parent to call eval. We need this for two reasons: (1) the Jaegermonkey
      * optimizations really need to know if eval is called transitively, and
      * (2) in strict mode, eval called transitively requires eager argument
-     * creation in strict mode parent functions.
+     * creation in strict mode parent functions. 
      *
-     * For the latter, we really only need to propagate callsEval if both
-     * functions are strict mode, but we don't lose much by always propagating.
-     * The only optimization we lose this way is in the case where a function
+     * For the latter, we really only need to propagate callsEval if both 
+     * functions are strict mode, but we don't lose much by always propagating. 
+     * The only optimization we lose this way is in the case where a function 
      * is strict, does not mutate arguments, does not call eval directly, but
      * calls eval transitively.
      */
@@ -1652,7 +2299,7 @@ Parser::functionDef(PropertyName *funName, FunctionType type, FunctionSyntaxKind
 
     if (!outertc->inFunction() && bodyLevel && kind == Statement && outertc->compiling()) {
         JS_ASSERT(pn->pn_cookie.isFree());
-        if (!DefineGlobal(pn, outertc->asBytecodeEmitter(), funName))
+        if (!DefineGlobal(pn, outertc->asCodeGenerator(), funName))
             return NULL;
     }
 
@@ -1943,7 +2590,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, TreeContext *tc)
      * Assign block-local index to pn->pn_cookie right away, encoding it as an
      * upvar cookie whose skip tells the current static level. The emitter will
      * adjust the node's slot based on its stack depth model -- and, for global
-     * and eval code, js::frontend::CompileScript will adjust the slot
+     * and eval code, BytecodeCompiler::compileScript will adjust the slot
      * again to include script->nfixed.
      */
     pn->setOp(JSOP_GETLOCAL);
@@ -1962,7 +2609,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, TreeContext *tc)
      * Store pn temporarily in what would be shape-mapped slots in a cloned
      * block object (once the prototype's final population is known, after all
      * 'let' bindings for this block have been parsed). We free these slots in
-     * BytecodeEmitter.cpp:EmitEnterBlock so they don't tie up unused space
+     * BytecodeGenerator.cpp:EmitEnterBlock so they don't tie up unused space
      * in the so-called "static" prototype Block.
      */
     blockObj->setSlot(shape->slot, PrivateValue(pn));
@@ -2019,17 +2666,17 @@ OuterLet(TreeContext *tc, StmtInfo *stmt, JSAtom *atom)
  * stack frame slots.
  */
 static bool
-DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, PropertyName *name)
+DefineGlobal(ParseNode *pn, CodeGenerator *cg, PropertyName *name)
 {
-    GlobalScope *globalScope = bce->globalScope;
+    GlobalScope *globalScope = cg->compiler()->globalScope;
     JSObject *globalObj = globalScope->globalObj;
 
-    if (!bce->compileAndGo() || !globalObj || bce->compilingForEval())
+    if (!cg->compileAndGo() || !globalObj || cg->compilingForEval())
         return true;
 
     AtomIndexAddPtr p = globalScope->names.lookupForAdd(name);
     if (!p) {
-        JSContext *cx = bce->parser->context;
+        JSContext *cx = cg->parser->context;
 
         JSObject *holder;
         JSProperty *prop;
@@ -2055,7 +2702,7 @@ DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, PropertyName *name)
                 !shape->hasDefaultSetter()) {
                 return true;
             }
-
+            
             def = GlobalScope::GlobalDef(shape->slot);
         } else {
             def = GlobalScope::GlobalDef(name, funbox);
@@ -2145,7 +2792,7 @@ BindTopLevelVar(JSContext *cx, BindData *data, ParseNode *pn, TreeContext *tc)
      * is present, try to bake in either an already available slot or a
      * predicted slot that will be defined after compiling is completed.
      */
-    return DefineGlobal(pn, tc->asBytecodeEmitter(), pn->pn_atom->asPropertyName());
+    return DefineGlobal(pn, tc->asCodeGenerator(), pn->pn_atom->asPropertyName());
 }
 
 static bool
@@ -3076,70 +3723,60 @@ Parser::forStatement()
     }
 
     MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_AFTER_FOR);
+    TokenKind tt = tokenStream.peekToken(TSF_OPERAND);
 
-#ifdef JS_HAS_BLOCK_SCOPE
+#if JS_HAS_BLOCK_SCOPE
     bool let = false;
 #endif
 
-    /*
-     * True if we have 'for (var/let/const ...)', except in the oddball case
-     * where 'let' begins a let-expression in 'for (let (...) ...)'.
-     */
-    bool forDecl = false;
-
-    /* Set to 'x' in 'for (x ;... ;...)' or 'for (x in ...)'. */
     ParseNode *pn1;
-
-    {
-        TokenKind tt = tokenStream.peekToken(TSF_OPERAND);
-        if (tt == TOK_SEMI) {
-            if (pn->pn_iflags & JSITER_FOREACH) {
-                reportErrorNumber(pn, JSREPORT_ERROR, JSMSG_BAD_FOR_EACH_LOOP);
-                return NULL;
-            }
-
-            pn1 = NULL;
-        } else {
-            /*
-             * Set pn1 to a var list or an initializing expression.
-             *
-             * Set the TCF_IN_FOR_INIT flag during parsing of the first clause
-             * of the for statement.  This flag will be used by the RelExpr
-             * production; if it is set, then the 'in' keyword will not be
-             * recognized as an operator, leaving it available to be parsed as
-             * part of a for/in loop.
-             *
-             * A side effect of this restriction is that (unparenthesized)
-             * expressions involving an 'in' operator are illegal in the init
-             * clause of an ordinary for loop.
-             */
-            tc->flags |= TCF_IN_FOR_INIT;
-            if (tt == TOK_VAR) {
-                forDecl = true;
-                (void) tokenStream.getToken();
-                pn1 = variables(false);
-#if JS_HAS_BLOCK_SCOPE
-            } else if (tt == TOK_LET) {
-                let = true;
-                (void) tokenStream.getToken();
-                if (tokenStream.peekToken() == TOK_LP) {
-                    pn1 = letBlock(JS_FALSE);
-                } else {
-                    forDecl = true;
-                    pnlet = PushLexicalScope(context, &tokenStream, tc, &blockInfo);
-                    if (!pnlet)
-                        return NULL;
-                    blockInfo.flags |= SIF_FOR_BLOCK;
-                    pn1 = variables(false);
-                }
-#endif
-            } else {
-                pn1 = expr();
-            }
-            tc->flags &= ~TCF_IN_FOR_INIT;
-            if (!pn1)
-                return NULL;
+    if (tt == TOK_SEMI) {
+        if (pn->pn_iflags & JSITER_FOREACH) {
+            reportErrorNumber(pn, JSREPORT_ERROR, JSMSG_BAD_FOR_EACH_LOOP);
+            return NULL;
         }
+
+        /* No initializer -- set first kid of left sub-node to null. */
+        pn1 = NULL;
+    } else {
+        /*
+         * Set pn1 to a var list or an initializing expression.
+         *
+         * Set the TCF_IN_FOR_INIT flag during parsing of the first clause
+         * of the for statement.  This flag will be used by the RelExpr
+         * production; if it is set, then the 'in' keyword will not be
+         * recognized as an operator, leaving it available to be parsed as
+         * part of a for/in loop.
+         *
+         * A side effect of this restriction is that (unparenthesized)
+         * expressions involving an 'in' operator are illegal in the init
+         * clause of an ordinary for loop.
+         */
+        tc->flags |= TCF_IN_FOR_INIT;
+        if (tt == TOK_VAR) {
+            (void) tokenStream.getToken();
+            pn1 = variables(false);
+#if JS_HAS_BLOCK_SCOPE
+        } else if (tt == TOK_LET) {
+            let = true;
+            (void) tokenStream.getToken();
+            if (tokenStream.peekToken() == TOK_LP) {
+                pn1 = letBlock(JS_FALSE);
+                tt = TOK_LEXICALSCOPE;
+            } else {
+                pnlet = PushLexicalScope(context, &tokenStream, tc, &blockInfo);
+                if (!pnlet)
+                    return NULL;
+                blockInfo.flags |= SIF_FOR_BLOCK;
+                pn1 = variables(false);
+            }
+#endif
+        } else {
+            pn1 = expr();
+        }
+        tc->flags &= ~TCF_IN_FOR_INIT;
+        if (!pn1)
+            return NULL;
     }
 
     /*
@@ -3164,7 +3801,8 @@ Parser::forStatement()
         stmtInfo.type = STMT_FOR_IN_LOOP;
 
         /* Check that the left side of the 'in' is valid. */
-        if (forDecl
+        JS_ASSERT(!TokenKindIsDecl(tt) || pn1->isKind(tt));
+        if (TokenKindIsDecl(tt)
             ? (pn1->pn_count > 1 || pn1->isOp(JSOP_DEFCONST)
 #if JS_HAS_DESTRUCTURING
                || (versionNumber() == JSVERSION_1_7 &&
@@ -3205,7 +3843,7 @@ Parser::forStatement()
          */
         pn2 = NULL;
         uintN dflag = PND_ASSIGNED;
-        if (forDecl) {
+        if (TokenKindIsDecl(tt)) {
             /* Tell EmitVariables that pn1 is part of a for/in. */
             pn1->pn_xflags |= PNX_FORINVAR;
 
@@ -3220,10 +3858,10 @@ Parser::forStatement()
                  *
                  * Rewrite 'for (<decl> x = i in o)' where <decl> is 'var' or
                  * 'const' to hoist the initializer or the entire decl out of
-                 * the loop head.
+                 * the loop head. TOK_VAR is the type for both 'var' and 'const'.
                  */
 #if JS_HAS_BLOCK_SCOPE
-                if (let) {
+                if (tt == TOK_LET) {
                     reportErrorNumber(pn2, JSREPORT_ERROR, JSMSG_INVALID_FOR_IN_INIT);
                     return NULL;
                 }
@@ -3331,7 +3969,7 @@ Parser::forStatement()
 
         /* Parse the loop condition or null into pn2. */
         MUST_MATCH_TOKEN(TOK_SEMI, JSMSG_SEMI_AFTER_FOR_INIT);
-        TokenKind tt = tokenStream.peekToken(TSF_OPERAND);
+        tt = tokenStream.peekToken(TSF_OPERAND);
         if (tt == TOK_SEMI) {
             pn2 = NULL;
         } else {
@@ -3825,11 +4463,9 @@ Parser::statement()
       case TOK_FUNCTION:
       {
 #if JS_HAS_XML_SUPPORT
-        if (!tc->inStrictMode()) {
-            TokenKind tt = tokenStream.peekToken(TSF_KEYWORD_IS_NAME);
-            if (tt == TOK_DBLCOLON)
-                return expressionStatement();
-        }
+        TokenKind tt = tokenStream.peekToken(TSF_KEYWORD_IS_NAME);
+        if (tt == TOK_DBLCOLON)
+            goto expression;
 #endif
         return functionStmt();
       }
@@ -4102,9 +4738,6 @@ Parser::statement()
 #if JS_HAS_XML_SUPPORT
       case TOK_DEFAULT:
       {
-        if (tc->inStrictMode())
-            return expressionStatement();
-
         pn = UnaryNode::create(tc);
         if (!pn)
             return NULL;
@@ -4134,6 +4767,9 @@ Parser::statement()
         return NULL;
 
       default:
+#if JS_HAS_XML_SUPPORT
+      expression:
+#endif
         return expressionStatement();
     }
 
@@ -4847,7 +5483,7 @@ class CompExprTransplanter {
  * Use in any context which may turn out to be inside a generator expression. This
  * includes parenthesized expressions and argument lists, and it includes the tail
  * of generator expressions.
- *
+ * 
  * The guard will keep track of any |yield| or |arguments| tokens that occur while
  * parsing the body. As soon as the parser reaches the end of the body expression,
  * call endBody() to reset the context's state, and then immediately call:
@@ -5096,7 +5732,7 @@ CompExprTransplanter::transplant(ParseNode *pn)
                         return false;
                     dn2->pn_pos = root->pn_pos;
 
-                    /*
+                    /* 
                      * Change all uses of |dn| that lie within the generator's
                      * |yield| expression into uses of dn2.
                      */
@@ -5586,7 +6222,6 @@ Parser::memberExpr(JSBool allowCallSyntax)
             pn2 = NameNode::create(NULL, tc);
             if (!pn2)
                 return NULL;
-
 #if JS_HAS_XML_SUPPORT
             tt = tokenStream.getToken(TSF_OPERAND | TSF_KEYWORD_IS_NAME);
 
@@ -5594,11 +6229,6 @@ Parser::memberExpr(JSBool allowCallSyntax)
             ParseNode *oldWith = tc->innermostWith;
             StmtInfo stmtInfo;
             if (tt == TOK_LP) {
-                if (tc->inStrictMode()) {
-                    reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_NAME_AFTER_DOT);
-                    return NULL;
-                }
-
                 tc->innermostWith = pn;
                 PushStatement(tc, &stmtInfo, STMT_WITH, -1);
             }
@@ -5626,7 +6256,6 @@ Parser::memberExpr(JSBool allowCallSyntax)
                     /* A filtering predicate is like a with statement. */
                     tc->flags |= TCF_FUN_HEAVYWEIGHT;
                 } else if (TokenKindIsXML(pn3->getKind())) {
-                    JS_ASSERT(!tc->inStrictMode());
                     pn2->setKind(TOK_LB);
                     pn2->setOp(JSOP_GETELEM);
                 } else {
@@ -5647,11 +6276,6 @@ Parser::memberExpr(JSBool allowCallSyntax)
             pn2->pn_pos.end = tokenStream.currentToken().pos.end;
 #if JS_HAS_XML_SUPPORT
         } else if (tt == TOK_DBLDOT) {
-            if (tc->inStrictMode()) {
-                reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_NAME_AFTER_DOT);
-                return NULL;
-            }
-
             pn2 = BinaryNode::create(tc);
             if (!pn2)
                 return NULL;
@@ -5787,8 +6411,6 @@ Parser::bracketedExpr()
 ParseNode *
 Parser::endBracketedExpr()
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     ParseNode *pn = bracketedExpr();
     if (!pn)
         return NULL;
@@ -5851,8 +6473,6 @@ Parser::endBracketedExpr()
 ParseNode *
 Parser::propertySelector()
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     DebugOnly<const Token *> tp = &tokenStream.currentToken();
     JS_ASSERT(tp->type == TOK_STAR || tp->type == TOK_NAME);
 
@@ -5876,8 +6496,6 @@ Parser::propertySelector()
 ParseNode *
 Parser::qualifiedSuffix(ParseNode *pn)
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     ParseNode *pn2, *pn3;
     TokenKind tt;
 
@@ -5923,8 +6541,6 @@ Parser::qualifiedSuffix(ParseNode *pn)
 ParseNode *
 Parser::qualifiedIdentifier()
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     DebugOnly<const Token *> tp = &tokenStream.currentToken();
     JS_ASSERT(tp->type == TOK_STAR || tp->type == TOK_NAME);
 
@@ -5942,8 +6558,6 @@ Parser::qualifiedIdentifier()
 ParseNode *
 Parser::attributeIdentifier()
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     ParseNode *pn, *pn2;
     TokenKind tt;
 
@@ -5973,8 +6587,6 @@ Parser::attributeIdentifier()
 ParseNode *
 Parser::xmlExpr(JSBool inTag)
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     ParseNode *pn, *pn2;
 
     JS_ASSERT(tokenStream.currentToken().type == TOK_LC);
@@ -6010,8 +6622,6 @@ Parser::xmlExpr(JSBool inTag)
 ParseNode *
 Parser::xmlAtomNode()
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     ParseNode *pn = NullaryNode::create(tc);
     if (!pn)
         return NULL;
@@ -6041,8 +6651,6 @@ Parser::xmlAtomNode()
 ParseNode *
 Parser::xmlNameExpr()
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     ParseNode *pn, *pn2, *list;
     TokenKind tt;
 
@@ -6110,8 +6718,6 @@ Parser::xmlNameExpr()
 ParseNode *
 Parser::xmlTagContent(TokenKind tagtype, JSAtom **namep)
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     ParseNode *pn, *pn2, *list;
     TokenKind tt;
 
@@ -6184,8 +6790,6 @@ Parser::xmlTagContent(TokenKind tagtype, JSAtom **namep)
 JSBool
 Parser::xmlElementContent(ParseNode *pn)
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     tokenStream.setXMLTagMode(false);
     for (;;) {
         TokenKind tt = tokenStream.getToken(TSF_XMLTEXTMODE);
@@ -6239,8 +6843,6 @@ Parser::xmlElementContent(ParseNode *pn)
 ParseNode *
 Parser::xmlElementOrList(JSBool allowList)
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     ParseNode *pn, *pn2, *list;
     TokenKind tt;
     JSAtom *startAtom, *endAtom;
@@ -6378,8 +6980,6 @@ Parser::xmlElementOrList(JSBool allowList)
 ParseNode *
 Parser::xmlElementOrListRoot(JSBool allowList)
 {
-    JS_ASSERT(!tc->inStrictMode());
-
     /*
      * Force XML support to be enabled so that comments and CDATA literals
      * are recognized, instead of <! followed by -- starting an HTML comment
@@ -6404,7 +7004,6 @@ Parser::parseXMLText(JSObject *chain, bool allowList)
     TreeContext xmltc(this);
     if (!xmltc.init(context))
         return NULL;
-    JS_ASSERT(!xmltc.inStrictMode());
     xmltc.setScopeChain(chain);
 
     /* Set XML-only mode to turn off special treatment of {expr} in XML. */
@@ -6470,7 +7069,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
     switch (tt) {
       case TOK_FUNCTION:
 #if JS_HAS_XML_SUPPORT
-        if (!tc->inStrictMode() && tokenStream.matchToken(TOK_DBLCOLON, TSF_KEYWORD_IS_NAME)) {
+        if (tokenStream.matchToken(TOK_DBLCOLON, TSF_KEYWORD_IS_NAME)) {
             pn2 = NullaryNode::create(tc);
             if (!pn2)
                 return NULL;
@@ -6641,7 +7240,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                 pn3 = NullaryNode::create(tc);
                 if (!pn3)
                     return NULL;
-                pn3->pn_dval = tokenStream.currentToken().number();
+                pn3->pn_dval = tokenStream.currentToken().t_dval;
                 if (!js_ValueToAtom(context, DoubleValue(pn3->pn_dval), &atom))
                     return NULL;
                 break;
@@ -6667,7 +7266,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                         pn3 = NullaryNode::create(tc);
                         if (!pn3)
                             return NULL;
-                        pn3->pn_dval = tokenStream.currentToken().number();
+                        pn3->pn_dval = tokenStream.currentToken().t_dval;
                         if (!js_ValueToAtom(context, DoubleValue(pn3->pn_dval), &atom))
                             return NULL;
                     } else {
@@ -6725,8 +7324,6 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                  * for |var {x: x, y: y} = o|, per proposed JS2/ES4 for JS1.8.
                  */
                 tokenStream.ungetToken();
-                if (!tokenStream.checkForKeyword(atom->charsZ(), atom->length(), NULL, NULL))
-                    return NULL;
                 pn->pn_xflags |= PNX_DESTRUCT | PNX_NONCONST;
                 pnval = pn3;
                 if (pnval->isKind(TOK_NAME)) {
@@ -6815,7 +7412,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
         pn = UnaryNode::create(tc);
         if (!pn)
             return NULL;
-        pn->pn_num = tokenStream.currentToken().sharpNumber();
+        pn->pn_num = (jsint) tokenStream.currentToken().t_dval;
         tt = tokenStream.getToken(TSF_OPERAND);
         pn->pn_kid = primaryExpr(tt, JS_FALSE);
         if (!pn->pn_kid)
@@ -6839,7 +7436,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
             return NULL;
         if (!tc->ensureSharpSlots())
             return NULL;
-        pn->pn_num = tokenStream.currentToken().sharpNumber();
+        pn->pn_num = (jsint) tokenStream.currentToken().t_dval;
         break;
 #endif /* JS_HAS_SHARP_VARS */
 
@@ -6876,13 +7473,11 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
         break;
 #endif /* JS_HAS_XML_SUPPORT */
 
+      case TOK_STRING:
 #if JS_HAS_XML_SUPPORT
       case TOK_XMLCDATA:
       case TOK_XMLCOMMENT:
-        JS_ASSERT(!tc->inStrictMode());
-        /* FALL THROUGH */
 #endif
-      case TOK_STRING:
         pn = NullaryNode::create(tc);
         if (!pn)
             return NULL;
@@ -6892,7 +7487,6 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
 
 #if JS_HAS_XML_SUPPORT
       case TOK_XMLPI:
-        JS_ASSERT(!tc->inStrictMode());
         pn = NullaryNode::create(tc);
         if (!pn)
             return NULL;
@@ -6930,7 +7524,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
             }
         } else if ((!afterDot
 #if JS_HAS_XML_SUPPORT
-                    || (!tc->inStrictMode() && tokenStream.peekToken() == TOK_DBLCOLON)
+                    || tokenStream.peekToken() == TOK_DBLCOLON
 #endif
                    ) && !(tc->flags & TCF_DECL_DESTRUCTURING)) {
             /* In case this is a generator expression outside of any function. */
@@ -7010,7 +7604,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
         }
 
 #if JS_HAS_XML_SUPPORT
-        if (!tc->inStrictMode() && tokenStream.matchToken(TOK_DBLCOLON)) {
+        if (tokenStream.matchToken(TOK_DBLCOLON)) {
             if (afterDot) {
                 /*
                  * Here primaryExpr is called after . or .. followed by a name
@@ -7043,7 +7637,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
 
         const jschar *chars = tokenStream.getTokenbuf().begin();
         size_t length = tokenStream.getTokenbuf().length();
-        RegExpFlag flags = tokenStream.currentToken().regExpFlags();
+        RegExpFlag flags = RegExpFlag(tokenStream.currentToken().t_reflags);
         RegExpStatics *res = context->regExpStatics();
 
         RegExpObject *reobj;
@@ -7073,7 +7667,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
         if (!pn)
             return NULL;
         pn->setOp(JSOP_DOUBLE);
-        pn->pn_dval = tokenStream.currentToken().number();
+        pn->pn_dval = tokenStream.currentToken().t_dval;
         break;
 
       case TOK_PRIMARY:

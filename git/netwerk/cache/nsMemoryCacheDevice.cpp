@@ -48,7 +48,6 @@
 #include "nsCRT.h"
 #include "nsCache.h"
 #include "nsReadableUtils.h"
-#include "mozilla/Telemetry.h"
 
 // The memory cache implements the "LRU-SP" caching algorithm
 // described in "LRU-SP: A Size-Adjusted and Popularity-Aware LRU Replacement
@@ -147,7 +146,6 @@ nsMemoryCacheDevice::GetDeviceID()
 nsCacheEntry *
 nsMemoryCacheDevice::FindEntry(nsCString * key, bool *collision)
 {
-    mozilla::Telemetry::AutoTimer<mozilla::Telemetry::CACHE_MEMORY_SEARCH> timer;
     nsCacheEntry * entry = mMemCacheEntries.GetEntry(key);
     if (!entry)  return nsnull;
 

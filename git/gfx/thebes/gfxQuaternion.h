@@ -40,7 +40,6 @@
 
 #include "mozilla/gfx/BasePoint4D.h"
 #include "gfx3DMatrix.h"
-#include "nsAlgorithm.h"
 
 struct THEBES_API gfxQuaternion : public mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion> {
     typedef mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion> Super;
@@ -63,7 +62,7 @@ struct THEBES_API gfxQuaternion : public mozilla::gfx::BasePoint4D<gfxFloat, gfx
     }
 
     gfxQuaternion Slerp(const gfxQuaternion &aOther, gfxFloat aCoeff) {
-        gfxFloat dot = mozilla::clamped(DotProduct(aOther), -1.0, 1.0);
+        gfxFloat dot = NS_CLAMP(DotProduct(aOther), -1.0, 1.0);
         if (dot == 1.0) {
             return *this;
         }

@@ -42,8 +42,10 @@
 #include "nsTextFormatter.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsMathUtils.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGViewBoxSMILType.h"
+#endif // MOZ_SMIL
 
 #define NUM_VIEWBOX_COMPONENTS 4
 using namespace mozilla;
@@ -131,9 +133,11 @@ nsSVGViewBox::SetBaseValue(float aX, float aY, float aWidth, float aHeight,
   mHasBaseVal = true;
 
   aSVGElement->DidChangeViewBox(true);
+#ifdef MOZ_SMIL
   if (mAnimVal) {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
 }
 
 static nsresult
@@ -182,9 +186,11 @@ nsSVGViewBox::SetBaseValueString(const nsAString& aValue,
     mBaseVal = nsSVGViewBoxRect(viewBox.x, viewBox.y, viewBox.width, viewBox.height);
     mHasBaseVal = true;
 
+#ifdef MOZ_SMIL
     if (mAnimVal) {
       aSVGElement->AnimationNeedsResample();
     }
+#endif
     // We don't need to call DidChange* here - we're only called by
     // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
     // which takes care of notifying.
@@ -274,6 +280,7 @@ nsSVGViewBox::DOMBaseVal::SetHeight(float aHeight)
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 nsSVGViewBox::ToSMILAttr(nsSVGElement *aSVGElement)
 {
@@ -328,3 +335,4 @@ nsSVGViewBox::SMILViewBox::SetAnimValue(const nsSMILValue& aValue)
   }
   return NS_OK;
 }
+#endif // MOZ_SMIL

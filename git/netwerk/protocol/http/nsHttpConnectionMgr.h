@@ -220,7 +220,6 @@ private:
         nsresult SetupPrimaryStreams();
         nsresult SetupBackupStreams();
         void     SetupBackupTimer();
-        void     CancelBackupTimer();
         void     Abandon();
         
         nsHttpTransaction *Transaction() { return mTransaction; }

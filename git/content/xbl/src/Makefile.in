@@ -64,7 +64,6 @@ CPPSRCS		= \
     nsXBLService.cpp \
     nsBindingManager.cpp \
     nsXBLInsertionPoint.cpp \
-    nsXBLSerialize.cpp \
 		$(NULL)
 
 EXPORTS   = \

@@ -76,7 +76,6 @@ EXPORTS_NAMESPACES = mozilla/places
 
 EXPORTS_mozilla/places = \
   History.h \
-  Database.h \
   $(NULL)
 
 CPPSRCS = \
@@ -96,7 +95,6 @@ CPPSRCS = \
   AsyncFaviconHelpers.cpp \
   PlaceInfo.cpp \
   VisitInfo.cpp \
-  Database.cpp \
   $(NULL)
 
 LOCAL_INCLUDES += -I$(srcdir)/../build
@@ -118,6 +116,7 @@ endif
 
 EXTRA_JS_MODULES = \
   PlacesDBUtils.jsm \
+  utils.js \
   $(NULL)
 
 EXTRA_PP_JS_MODULES = \

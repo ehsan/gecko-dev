@@ -55,7 +55,6 @@
 # include <mach/mach_init.h>
 # include <mach/vm_map.h>
 # include <malloc/malloc.h>
-# include <sys/mman.h>
 
 #elif defined(XP_UNIX)
 
@@ -272,23 +271,22 @@ UnmapPages(void *addr, size_t size)
 #endif
 
 namespace js {
-namespace gc {
 
-static inline void *
+inline void *
 FindChunkStart(void *p)
 {
     jsuword addr = reinterpret_cast<jsuword>(p);
-    addr = (addr + ChunkMask) & ~ChunkMask;
+    addr = (addr + GC_CHUNK_MASK) & ~GC_CHUNK_MASK;
     return reinterpret_cast<void *>(addr);
 }
 
 void *
-AllocChunk()
+AllocGCChunk()
 {
     void *p;
 
 #ifdef JS_GC_HAS_MAP_ALIGN
-    p = MapAlignedPages(ChunkSize, ChunkSize);
+    p = MapAlignedPages(GC_CHUNK_SIZE, GC_CHUNK_SIZE);
     if (!p)
         return NULL;
 #else
@@ -298,24 +296,24 @@ AllocChunk()
      * final result via one mapping operation.  This means unmapping any
      * preliminary result that is not correctly aligned.
      */
-    p = MapPages(NULL, ChunkSize);
+    p = MapPages(NULL, GC_CHUNK_SIZE);
     if (!p)
         return NULL;
 
-    if (reinterpret_cast<jsuword>(p) & ChunkMask) {
-        UnmapPages(p, ChunkSize);
-        p = MapPages(FindChunkStart(p), ChunkSize);
+    if (reinterpret_cast<jsuword>(p) & GC_CHUNK_MASK) {
+        UnmapPages(p, GC_CHUNK_SIZE);
+        p = MapPages(FindChunkStart(p), GC_CHUNK_SIZE);
         while (!p) {
             /*
              * Over-allocate in order to map a memory region that is
              * definitely large enough then deallocate and allocate again the
              * correct size, within the over-sized mapping.
              */
-            p = MapPages(NULL, ChunkSize * 2);
+            p = MapPages(NULL, GC_CHUNK_SIZE * 2);
             if (!p)
                 return 0;
-            UnmapPages(p, ChunkSize * 2);
-            p = MapPages(FindChunkStart(p), ChunkSize);
+            UnmapPages(p, GC_CHUNK_SIZE * 2);
+            p = MapPages(FindChunkStart(p), GC_CHUNK_SIZE);
 
             /*
              * Failure here indicates a race with another thread, so
@@ -325,55 +323,17 @@ AllocChunk()
     }
 #endif /* !JS_GC_HAS_MAP_ALIGN */
 
-    JS_ASSERT(!(reinterpret_cast<jsuword>(p) & ChunkMask));
+    JS_ASSERT(!(reinterpret_cast<jsuword>(p) & GC_CHUNK_MASK));
     return p;
 }
 
 void
-FreeChunk(void *p)
+FreeGCChunk(void *p)
 {
     JS_ASSERT(p);
-    JS_ASSERT(!(reinterpret_cast<jsuword>(p) & ChunkMask));
-    UnmapPages(p, ChunkSize);
+    JS_ASSERT(!(reinterpret_cast<jsuword>(p) & GC_CHUNK_MASK));
+    UnmapPages(p, GC_CHUNK_SIZE);
 }
 
-#ifdef XP_WIN
-bool
-CommitMemory(void *addr, size_t size)
-{
-    JS_ASSERT(uintptr_t(addr) % 4096UL == 0);
-    return true;
-}
-
-bool
-DecommitMemory(void *addr, size_t size)
-{
-    JS_ASSERT(uintptr_t(addr) % 4096UL == 0);
-    LPVOID p = VirtualAlloc(addr, size, MEM_RESET, PAGE_READWRITE);
-    return p == addr;
-}
-#elif defined XP_OSX || defined XP_UNIX
-#  ifndef MADV_DONTNEED
-#    define MADV_DONTNEED MADV_FREE
-#  endif
-bool
-CommitMemory(void *addr, size_t size)
-{
-    JS_ASSERT(uintptr_t(addr) % 4096UL == 0);
-    return true;
-}
-
-bool
-DecommitMemory(void *addr, size_t size)
-{
-    JS_ASSERT(uintptr_t(addr) % 4096UL == 0);
-    int result = madvise(addr, size, MADV_DONTNEED);
-    return result != -1;
-}
-#else
-# error "No CommitMemory defined on this platform."
-#endif
-
-} /* namespace gc */
 } /* namespace js */
 

@@ -82,7 +82,6 @@ protected:
   nsRefPtr<gfxASurface> mCanvasSurface;
   nsRefPtr<GLContext> mCanvasGLContext;
   gl::ShaderProgramType mLayerProgram;
-  RefPtr<gfx::DrawTarget> mDrawTarget;
 
   void MakeTexture();
   GLuint mTexture;
