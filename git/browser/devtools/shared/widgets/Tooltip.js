@@ -414,14 +414,7 @@ Tooltip.prototype = {
    * @param {boolean} isAlertTooltip [optional]
    *        Pass true to add an alert image for your tooltip.
    */
-  setTextContent: function(
-    {
-      messages,
-      messagesClass,
-      containerClass,
-      isAlertTooltip
-    },
-    extraButtons = []) {
+  setTextContent: function({ messages, messagesClass, containerClass, isAlertTooltip }) {
     messagesClass = messagesClass || "default-tooltip-simple-text-colors";
     containerClass = containerClass || "default-tooltip-simple-text-colors";
 
@@ -435,14 +428,6 @@ Tooltip.prototype = {
       description.className = "devtools-tooltip-simple-text " + messagesClass;
       description.textContent = text;
       vbox.appendChild(description);
-    }
-
-    for (let { label, className, command } of extraButtons) {
-      let button = this.doc.createElement("button");
-      button.className = className;
-      button.setAttribute("label", label);
-      button.addEventListener("command", command);
-      vbox.appendChild(button);
     }
 
     if (isAlertTooltip) {
@@ -482,32 +467,30 @@ Tooltip.prototype = {
     viewOptions = {},
     controllerOptions = {},
     relayEvents = {},
-    extraButtons = []) {
+    reuseCachedWidget = true) {
 
-    let vbox = this.doc.createElement("vbox");
-    vbox.className = "devtools-tooltip-variables-view-box";
-    vbox.setAttribute("flex", "1");
+    if (reuseCachedWidget && this._cachedVariablesView) {
+      var [vbox, widget] = this._cachedVariablesView;
+    } else {
+      var vbox = this.doc.createElement("vbox");
+      vbox.className = "devtools-tooltip-variables-view-box";
+      vbox.setAttribute("flex", "1");
 
-    let innerbox = this.doc.createElement("vbox");
-    innerbox.className = "devtools-tooltip-variables-view-innerbox";
-    innerbox.setAttribute("flex", "1");
-    vbox.appendChild(innerbox);
+      let innerbox = this.doc.createElement("vbox");
+      innerbox.className = "devtools-tooltip-variables-view-innerbox";
+      innerbox.setAttribute("flex", "1");
+      vbox.appendChild(innerbox);
 
-    for (let { label, className, command } of extraButtons) {
-      let button = this.doc.createElement("button");
-      button.className = className;
-      button.setAttribute("label", label);
-      button.addEventListener("command", command);
-      vbox.appendChild(button);
+      var widget = new VariablesView(innerbox, viewOptions);
+
+      // Analyzing state history isn't useful with transient object inspectors.
+      widget.commitHierarchy = () => {};
+
+      for (let e in relayEvents) widget.on(e, relayEvents[e]);
+      VariablesViewController.attach(widget, controllerOptions);
+
+      this._cachedVariablesView = [vbox, widget];
     }
-
-    let widget = new VariablesView(innerbox, viewOptions);
-
-    // Analyzing state history isn't useful with transient object inspectors.
-    widget.commitHierarchy = () => {};
-
-    for (let e in relayEvents) widget.on(e, relayEvents[e]);
-    VariablesViewController.attach(widget, controllerOptions);
 
     // Some of the view options are allowed to change between uses.
     widget.searchPlaceholder = viewOptions.searchPlaceholder;

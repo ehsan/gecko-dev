@@ -519,7 +519,7 @@ function waitForImageLoad(aWindow, aImageId) {
  * @param aTimeoutMs the number of miliseconds to wait before giving up
  * @returns a Promise that resolves to true, or to an Error
  */
-function waitForObserver(aObsEvent, aTimeoutMs, aObsData) {
+function waitForObserver(aObsEvent, aTimeoutMs) {
   try {
 
   let deferred = Promise.defer();
@@ -540,8 +540,7 @@ function waitForObserver(aObsEvent, aTimeoutMs, aObsData) {
     },
 
     observe: function (aSubject, aTopic, aData) {
-      if (aTopic == aObsEvent &&
-        (!aObsData || (aObsData == aData))) {
+      if (aTopic == aObsEvent) {
         this.onEvent();
       }
     },

@@ -890,13 +890,15 @@ nsTextStore::RequestLock(DWORD dwLockFlags,
   if (!mLock) {
     // put on lock
     mLock = dwLockFlags & (~TS_LF_SYNC);
-    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+    PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
       ("TSF: 0x%p   Locking (%s) >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+       ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
        ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>",
        this, GetLockFlagNameStr(mLock).get()));
     *phrSession = mSink->OnLockGranted(mLock);
     PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
       ("TSF: 0x%p   Unlocked (%s) <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+       "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
        "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
        this, GetLockFlagNameStr(mLock).get()));
     DidLockGranted();
@@ -905,17 +907,19 @@ nsTextStore::RequestLock(DWORD dwLockFlags,
       mLockQueued = 0;
       PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
         ("TSF: 0x%p   Locking for the request in the queue (%s) >>>>>>>>>>>>>>"
+         ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
          ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>",
          this, GetLockFlagNameStr(mLock).get()));
       mSink->OnLockGranted(mLock);
       PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
         ("TSF: 0x%p   Unlocked (%s) <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+         "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
          "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
          this, GetLockFlagNameStr(mLock).get()));
       DidLockGranted();
     }
     mLock = 0;
-    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+    PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
       ("TSF: 0x%p   nsTextStore::RequestLock() succeeded: *phrSession=%s",
        this, GetTextStoreReturnValueName(*phrSession)));
     return S_OK;
@@ -1174,7 +1178,7 @@ nsTextStore::FlushPendingActions()
 
   if (notifyTSFOfLayoutChange && mWidget && !mWidget->Destroyed()) {
     if (mSink) {
-      PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+      PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
              ("TSF: 0x%p   nsTextStore::FlushPendingActions(), "
               "calling ITextStoreACPSink::OnLayoutChange()...", this));
       mSink->OnLayoutChange(TS_LC_CHANGE, TEXTSTORE_DEFAULT_VIEW);
@@ -1187,7 +1191,7 @@ nsTextStore::FlushPendingActions()
       mContext->QueryInterface(IID_ITfContextOwnerServices,
                                getter_AddRefs(service));
       if (service) {
-        PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+        PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
                ("TSF: 0x%p   nsTextStore::FlushPendingActions(), "
                 "calling ITfContextOwnerServices::OnLayoutChange()...", this));
         service->OnLayoutChange();
@@ -1196,9 +1200,6 @@ nsTextStore::FlushPendingActions()
   }
 
   if (mNotifySelectionChange && mSink && mWidget && !mWidget->Destroyed()) {
-    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-           ("TSF: 0x%p   nsTextStore::FlushPendingActions(), "
-            "calling ITextStoreACPSink::OnSelectionChange()...", this));
     mSink->OnSelectionChange();
   }
   mNotifySelectionChange = false;
@@ -1748,12 +1749,9 @@ nsTextStore::SetSelectionInternal(const TS_SELECTION_ACP* pSelection,
                                   bool aDispatchTextEvent)
 {
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
-         ("TSF: 0x%p   nsTextStore::SetSelectionInternal(pSelection={ "
-          "acpStart=%ld, acpEnd=%ld, style={ ase=%s, fInterimChar=%s} }, "
-          "aDispatchTextEvent=%s), mComposition.IsComposing()=%s",
+         ("TSF: 0x%p   nsTextStore::SetSelectionInternal(pSelection=%ld-%ld, "
+          "aDispatchTextEvent=%s), IsComposing()=%s",
           this, pSelection->acpStart, pSelection->acpEnd,
-          GetActiveSelEndName(pSelection->style.ase),
-          GetBoolName(pSelection->style.fInterimChar),
           GetBoolName(aDispatchTextEvent),
           GetBoolName(mComposition.IsComposing())));
 
@@ -1814,15 +1812,8 @@ nsTextStore::SetSelection(ULONG ulCount,
                           const TS_SELECTION_ACP *pSelection)
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-         ("TSF: 0x%p nsTextStore::SetSelection(ulCount=%lu, pSelection=%p { "
-          "acpStart=%ld, acpEnd=%ld, style={ ase=%s, fInterimChar=%s } }), "
-          "mComposition.IsComposing()=%s",
-          this, ulCount, pSelection,
-          pSelection ? pSelection->acpStart : 0,
-          pSelection ? pSelection->acpEnd : 0,
-          pSelection ? GetActiveSelEndName(pSelection->style.ase) : "",
-          pSelection ? GetBoolName(pSelection->style.fInterimChar) : "",
-          GetBoolName(mComposition.IsComposing())));
+         ("TSF: 0x%p nsTextStore::SetSelection(ulCount=%lu)",
+          this, ulCount));
 
   if (!IsReadWriteLocked()) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
@@ -1870,7 +1861,7 @@ nsTextStore::GetText(LONG acpStart,
     ("TSF: 0x%p nsTextStore::GetText(acpStart=%ld, acpEnd=%ld, pchPlain=0x%p, "
      "cchPlainReq=%lu, pcchPlainOut=0x%p, prgRunInfo=0x%p, ulRunInfoReq=%lu, "
      "pulRunInfoOut=0x%p, pacpNext=0x%p), mComposition={ mStart=%ld, "
-     "mString.Length()=%lu, IsComposing()=%s }",
+     "mString.Length()=%lu IsComposing()=%s }",
      this, acpStart, acpEnd, pchPlain, cchPlainReq, pcchPlainOut,
      prgRunInfo, ulRunInfoReq, pulRunInfoOut, pacpNext,
      mComposition.mStart, mComposition.mString.Length(),
@@ -1969,9 +1960,8 @@ nsTextStore::SetText(DWORD dwFlags,
                      TS_TEXTCHANGE *pChange)
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-         ("TSF: 0x%p nsTextStore::SetText(dwFlags=%s, acpStart=%ld, "
-          "acpEnd=%ld, pchText=0x%p \"%s\", cch=%lu, pChange=0x%p), "
-          "mComposition.IsComposing()=%s",
+         ("TSF: 0x%p nsTextStore::SetText(dwFlags=%s, acpStart=%ld, acpEnd=%ld, "
+          "pchText=0x%p \"%s\", cch=%lu, pChange=0x%p), IsComposing()=%s",
           this, dwFlags == TS_ST_CORRECTION ? "TS_ST_CORRECTION" :
                                               "not-specified",
           acpStart, acpEnd, pchText,
@@ -2116,9 +2106,9 @@ nsTextStore::ProcessScopeRequest(DWORD dwFlags,
                                  const TS_ATTRID *paFilterAttrs)
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-         ("TSF: 0x%p nsTextStore::ProcessScopeRequest(dwFlags=%s, "
-          "cFilterAttrs=%ld",
-          this, GetFindFlagName(dwFlags).get(), cFilterAttrs));
+         ("TSF: 0x%p nsTextStore::ProcessScopeRequest() called "
+          "cFilterAttrs=%d dwFlags=%s", this, cFilterAttrs,
+          GetFindFlagName(dwFlags).get()));
 
   // This is a little weird! RequestSupportedAttrs gives us advanced notice
   // of a support query via RetrieveRequestedAttrs for a specific attribute.
@@ -2132,8 +2122,7 @@ nsTextStore::ProcessScopeRequest(DWORD dwFlags,
   for (uint32_t idx = 0; idx < cFilterAttrs; ++idx) {
     PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
            ("TSF: 0x%p   nsTextStore::ProcessScopeRequest() "
-            "requested attr=%s",
-            this, GetCLSIDNameStr(paFilterAttrs[idx]).get()));
+            "requested attr=%s", this, GetCLSIDNameStr(paFilterAttrs[idx]).get()));
     if (IsEqualGUID(paFilterAttrs[idx], GUID_PROP_INPUTSCOPE)) {
       PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
              ("TSF: 0x%p   nsTextStore::ProcessScopeRequest() "
@@ -2157,9 +2146,9 @@ nsTextStore::RequestSupportedAttrs(DWORD dwFlags,
                                    const TS_ATTRID *paFilterAttrs)
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-         ("TSF: 0x%p nsTextStore::RequestSupportedAttrs(dwFlags=%s, "
-          "cFilterAttrs=%lu)",
-          this, GetFindFlagName(dwFlags).get(), cFilterAttrs));
+         ("TSF: 0x%p nsTextStore::RequestSupportedAttrs() called "
+          "cFilterAttrs=%d dwFlags=%s", this, cFilterAttrs,
+          GetFindFlagName(dwFlags).get()));
 
   return ProcessScopeRequest(dwFlags, cFilterAttrs, paFilterAttrs);
 }
@@ -2171,9 +2160,9 @@ nsTextStore::RequestAttrsAtPosition(LONG acpPos,
                                     DWORD dwFlags)
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-         ("TSF: 0x%p nsTextStore::RequestAttrsAtPosition(acpPos=%ld, "
-          "cFilterAttrs=%lu, dwFlags=%s)",
-          this, acpPos, cFilterAttrs, GetFindFlagName(dwFlags).get()));
+         ("TSF: 0x%p nsTextStore::RequestAttrsAtPosition() called "
+          "acpPos=%d cFilterAttrs=%d dwFlags=%s", this, acpPos, cFilterAttrs,
+          GetFindFlagName(dwFlags).get()));
 
   return ProcessScopeRequest(dwFlags | TS_ATTR_FIND_WANT_VALUE,
                              cFilterAttrs, paFilterAttrs);
@@ -2186,10 +2175,8 @@ nsTextStore::RequestAttrsTransitioningAtPosition(LONG acpPos,
                                                  DWORD dwFlags)
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-         ("TSF: 0x%p nsTextStore::RequestAttrsTransitioningAtPosition("
-          "acpPos=%ld, cFilterAttrs=%lu, dwFlags=%s) called but not supported "
-          "(S_OK)",
-          this, acpPos, cFilterAttrs, GetFindFlagName(dwFlags).get()));
+         ("TSF: 0x%p nsTextStore::RequestAttrsTransitioningAtPosition() called "
+          "but not supported (S_OK)", this));
 
   // no per character attributes defined
   return S_OK;
@@ -2207,7 +2194,7 @@ nsTextStore::FindNextAttrTransition(LONG acpStart,
 {
   if (!pacpNext || !pfFound || !plFoundOffset) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
-           ("TSF:   0x%p nsTextStore::FindNextAttrTransition() FAILED due to "
+           ("TSF: 0x%p nsTextStore::FindNextAttrTransition() FAILED due to "
             "null argument", this));
     return E_INVALIDARG;
   }
@@ -2829,7 +2816,7 @@ nsTextStore::RecordCompositionStartAction(ITfCompositionView* pComposition,
 
   currentContent.StartComposition(pComposition, *action, aPreserveSelection);
 
-  PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+  PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
          ("TSF: 0x%p   nsTextStore::RecordCompositionStartAction() succeeded: "
           "mComposition={ mStart=%ld, mString.Length()=%ld, "
           "mSelection={ acpStart=%ld, acpEnd=%ld, style.ase=%s, "
@@ -3107,7 +3094,7 @@ nsTextStore::OnFocusChange(bool aGotFocus,
                            IMEState::Enabled aIMEEnabled)
 {
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
-         ("TSF:   nsTextStore::OnFocusChange(aGotFocus=%s, "
+         ("TSF: nsTextStore::OnFocusChange(aGotFocus=%s, "
           "aFocusedWidget=0x%p, aIMEEnabled=%s), sTsfThreadMgr=0x%p, "
           "sTsfTextStore=0x%p",
           GetBoolName(aGotFocus), aFocusedWidget,
@@ -3178,7 +3165,7 @@ nsTextStore::OnTextChangeInternal(uint32_t aStart,
                                   uint32_t aNewEnd)
 {
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
-         ("TSF: 0x%p   nsTextStore::OnTextChangeInternal(aStart=%lu, "
+         ("TSF: 0x%p nsTextStore::OnTextChangeInternal(aStart=%lu, "
           "aOldEnd=%lu, aNewEnd=%lu), mSink=0x%p, mSinkMask=%s, "
           "mComposition.IsComposing()=%s",
           this, aStart, aOldEnd, aNewEnd, mSink.get(),
@@ -3234,7 +3221,7 @@ nsresult
 nsTextStore::OnSelectionChangeInternal(void)
 {
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
-         ("TSF: 0x%p   nsTextStore::OnSelectionChangeInternal(), "
+         ("TSF: 0x%p nsTextStore::OnSelectionChangeInternal(), "
           "mSink=0x%p, mSinkMask=%s, mIsRecordingActionsWithoutLock=%s, "
           "mComposition.IsComposing()=%s",
           this, mSink.get(), GetSinkMaskNameStr(mSinkMask).get(),
@@ -3305,7 +3292,7 @@ nsTextStore::CreateNativeCaret()
   }
 
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
-         ("TSF: 0x%p   nsTextStore::CreateNativeCaret(), "
+         ("TSF: 0x%p nsTextStore::CreateNativeCaret(), "
           "mComposition.IsComposing()=%s",
           this, GetBoolName(mComposition.IsComposing())));
 
@@ -3456,7 +3443,7 @@ void
 nsTextStore::CommitCompositionInternal(bool aDiscard)
 {
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
-         ("TSF: 0x%p   nsTextStore::CommitCompositionInternal(aDiscard=%s), "
+         ("TSF: 0x%p nsTextStore::CommitCompositionInternal(aDiscard=%s), "
           "mSink=0x%p, mContext=0x%p, mComposition.mView=0x%p, "
           "mComposition.mString=\"%s\"",
           this, GetBoolName(aDiscard), mSink.get(), mContext.get(),
@@ -3697,7 +3684,7 @@ nsTextStore::GetTIPDescription(REFCLSID aTextService, LANGID aLangID,
                                                            &description);
   if (FAILED(hr)) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
-           ("TSF:   nsTextStore::InitActiveTIPDescription() FAILED due to "
+           ("TSF: nsTextStore::InitActiveTIPDescription() FAILED due to "
             "GetLanguageProfileDescription() failure, hr=0x%08X", hr));
     return;
   }
@@ -4135,7 +4122,7 @@ nsTextStore::CurrentKeyboardLayoutHasIME()
     // keyboard layout has IME.
     if (IsVistaOrLater()) {
       PR_LOG(sTextStoreLog, PR_LOG_ERROR,
-        ("TSF:   nsTextStore::CurrentKeyboardLayoutHasIME() FAILED to query "
+        ("TSF: nsTextStore::CurrentKeyboardLayoutHasIME() FAILED to query "
          "ITfInputProcessorProfileMgr"));
       return false;
     }
@@ -4152,7 +4139,7 @@ nsTextStore::CurrentKeyboardLayoutHasIME()
   }
   if (FAILED(hr)) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
-      ("TSF:   nsTextStore::CurrentKeyboardLayoutHasIME() FAILED to retreive "
+      ("TSF: nsTextStore::CurrentKeyboardLayoutHasIME() FAILED to retreive "
        "active profile"));
     return false;
   }

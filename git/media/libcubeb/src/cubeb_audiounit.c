@@ -420,9 +420,6 @@ audiounit_stream_init(cubeb * context, cubeb_stream ** stream, char const * stre
     return CUBEB_ERROR;
   }
 
-  // Setting the latency doesn't work well for USB headsets (eg. plantronics).
-  // Keep the default latency for now.
-#if 0
   if (buffer_size < default_buffer_size) {
     /* Set the maximum number of frame that the render callback will ask for,
      * effectively setting the latency of the stream. This is process-wide. */
@@ -433,7 +430,6 @@ audiounit_stream_init(cubeb * context, cubeb_stream ** stream, char const * stre
       return CUBEB_ERROR;
     }
   }
-#endif
 
   r = AudioUnitSetProperty(stm->unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input,
                            0, &ss, sizeof(ss));

@@ -2155,13 +2155,9 @@ nsXPCConstructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,JSContext *
         return ThrowAndFail(NS_ERROR_XPC_CANT_CREATE_WN, cx, _retval);
     }
 
-    JS::AutoValueVector argv(cx);
-    MOZ_ALWAYS_TRUE(argv.resize(1));
-    argv[0].setObject(*iidObj);
-
+    Value argv[1] = {ObjectValue(*iidObj)};
     RootedValue rval(cx);
-    if (!JS_CallFunctionName(cx, cidObj, "createInstance", 1, argv.begin(),
-                             rval.address()) ||
+    if (!JS_CallFunctionName(cx, cidObj, "createInstance", 1, argv, rval.address()) ||
         rval.isPrimitive()) {
         // createInstance will have thrown an exception
         *_retval = false;

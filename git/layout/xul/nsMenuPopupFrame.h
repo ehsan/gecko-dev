@@ -230,7 +230,7 @@ public:
   bool IsMenu() MOZ_OVERRIDE { return mPopupType == ePopupTypeMenu; }
   bool IsOpen() MOZ_OVERRIDE { return mPopupState == ePopupOpen || mPopupState == ePopupOpenAndVisible; }
 
-  bool IsMouseTransparent() { return mMouseTransparent; }
+  bool IsDragPopup() { return mIsDragPopup; }
 
   static nsIContent* GetTriggerContent(nsMenuPopupFrame* aMenuPopupFrame);
   void ClearTriggerContent() { mTriggerContent = nullptr; }
@@ -333,6 +333,10 @@ public:
   // Return the screen coordinates of the popup, or (-1, -1) if anchored.
   // This position is in CSS pixels.
   nsIntPoint ScreenPosition() const { return nsIntPoint(mScreenXPos, mScreenYPos); }
+
+  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   nsIntPoint GetLastClientOffset() const { return mLastClientOffset; }
 
@@ -476,7 +480,7 @@ protected:
   bool mShouldAutoPosition; // Should SetPopupPosition be allowed to auto position popup?
   bool mInContentShell; // True if the popup is in a content shell
   bool mIsMenuLocked; // Should events inside this menu be ignored?
-  bool mMouseTransparent; // True if this is a popup is transparent to mouse events
+  bool mIsDragPopup; // True if this is a popup used for drag feedback
 
   // the flip modes that were used when the popup was opened
   bool mHFlip;

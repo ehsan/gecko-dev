@@ -5,16 +5,14 @@ Cu.import("resource://gre/modules/FxAccountsClient.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://services-common/utils.js");
 
-const FAKE_SESSION_TOKEN = "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf";
-
 function run_test() {
   run_next_test();
 }
 
 function deferredStop(server) {
-  let deferred = Promise.defer();
-  server.stop(deferred.resolve);
-  return deferred.promise;
+    let deferred = Promise.defer();
+    server.stop(deferred.resolve);
+    return deferred.promise;
 }
 
 add_test(function test_hawk_credentials() {
@@ -30,6 +28,7 @@ add_test(function test_hawk_credentials() {
 });
 
 add_task(function test_authenticated_get_request() {
+
   let message = "{\"msg\": \"Great Success!\"}";
   let credentials = {
     id: "eyJleHBpcmVzIjogMTM2NTAxMDg5OC4x",
@@ -80,6 +79,7 @@ add_task(function test_authenticated_post_request() {
 });
 
 add_task(function test_500_error() {
+
   let message = "<h1>Ooops!</h1>";
   let method = "GET";
 
@@ -181,7 +181,7 @@ add_task(function test_api_endpoints() {
   result = yield client.signIn('mé@example.com', 'bigsecret');
   do_check_eq("NotARealToken", result.sessionToken);
 
-  result = yield client.signOut(FAKE_SESSION_TOKEN);
+  result = yield client.signOut('NotARealToken');
   do_check_eq(typeof result, "object");
 
   result = yield client.recoveryEmailStatus('NotARealToken');

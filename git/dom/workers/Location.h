@@ -22,7 +22,6 @@ class WorkerLocation MOZ_FINAL : public nsWrapperCache
   nsString mPathname;
   nsString mSearch;
   nsString mHash;
-  nsString mOrigin;
 
   WorkerLocation(const nsAString& aHref,
                  const nsAString& aProtocol,
@@ -31,8 +30,7 @@ class WorkerLocation MOZ_FINAL : public nsWrapperCache
                  const nsAString& aPort,
                  const nsAString& aPathname,
                  const nsAString& aSearch,
-                 const nsAString& aHash,
-                 const nsAString& aOrigin)
+                 const nsAString& aHash)
     : mHref(aHref)
     , mProtocol(aProtocol)
     , mHost(aHost)
@@ -41,7 +39,6 @@ class WorkerLocation MOZ_FINAL : public nsWrapperCache
     , mPathname(aPathname)
     , mSearch(aSearch)
     , mHash(aHash)
-    , mOrigin(aOrigin)
   {
     MOZ_COUNT_CTOR(WorkerLocation);
     SetIsDOMBinding();
@@ -102,10 +99,6 @@ public:
   void GetHash(nsString& aHash) const
   {
     aHash = mHash;
-  }
-  void GetOrigin(nsString& aOrigin) const
-  {
-    aOrigin = mOrigin;
   }
 };
 

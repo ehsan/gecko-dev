@@ -20,7 +20,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://services-sync/stages/cluster.js");
-Cu.import("resource://gre/modules/FxAccounts.jsm");
 
 // Lazy imports to prevent unnecessary load on startup.
 XPCOMUtils.defineLazyModuleGetter(this, "BulkKeyBundle",
@@ -150,7 +149,7 @@ this.BrowserIDManager.prototype = {
       });
       // and we are done - the fetch continues on in the background...
     }).then(null, err => {
-      this._log.error("Processing logged in account: " + err.message);
+      dump("err in processing logged in account "+err.message);
     });
   },
 
@@ -194,11 +193,7 @@ this.BrowserIDManager.prototype = {
    * Provide override point for testing token expiration.
    */
   _now: function() {
-    return this._fxaService.internal.now()
-  },
-
-  get _localtimeOffsetMsec() {
-    return this._fxaService.internal.localtimeOffsetMsec;
+    return Date.now();
   },
 
   get account() {
@@ -469,16 +464,8 @@ this.BrowserIDManager.prototype = {
                        key: this._token.key,
                       };
     method = method || httpObject.method;
-
-    // Get the local clock offset from the Firefox Accounts server.  This should
-    // be close to the offset from the storage server.
-    let options = {
-      now: this._now(),
-      localtimeOffsetMsec: this._localtimeOffsetMsec,
-      credentials: credentials,
-    };
-
-    let headerValue = CryptoUtils.computeHAWK(httpObject.uri, method, options);
+    let headerValue = CryptoUtils.computeHAWK(httpObject.uri, method,
+                                              {credentials: credentials});
     return {headers: {authorization: headerValue.field}};
   },
 

@@ -21,14 +21,7 @@
     getUsage(grabFileUsageAndContinueHandler);
     let startUsage = yield undefined;
 
-    const fileData1 = {
-      key: 1,
-      obj: { id: 1, file: getRandomFile("random.bin", 100000) }
-    };
-    const fileData2 = {
-      key: 2,
-      obj: { id: 1, file: getRandomFile("random.bin", 100000) }
-    };
+    const fileData = { key: 1, file: getRandomFile("random.bin", 100000) };
 
     {
       let request = indexedDB.open(name, 1);
@@ -44,14 +37,7 @@
 
       let objectStore = db.createObjectStore(objectStoreName, { });
 
-      objectStore.createIndex("index", "id", { unique: true });
-
-      objectStore.add(fileData1.obj, fileData1.key);
-
-      request = objectStore.add(fileData2.obj, fileData2.key);
-      request.addEventListener("error", new ExpectError("ConstraintError", true));
-      request.onsuccess = unexpectedSuccessHandler;
-      yield undefined;
+      objectStore.add(fileData.file, fileData.key);
 
       event = yield undefined;
 
@@ -60,11 +46,10 @@
       getUsage(grabFileUsageAndContinueHandler);
       let usage = yield undefined;
 
-      is(usage, startUsage + fileData1.obj.file.size + fileData2.obj.file.size,
-         "Correct file usage");
+      is(usage, startUsage + fileData.file.size, "Correct file usage");
 
       let trans = db.transaction([objectStoreName], READ_WRITE);
-      trans.objectStore(objectStoreName).delete(fileData1.key);
+      trans.objectStore(objectStoreName).delete(fileData.key);
       trans.oncomplete = grabEventAndContinueHandler;
       event = yield undefined;
 
@@ -73,11 +58,9 @@
       getUsage(grabFileUsageAndContinueHandler);
       usage = yield undefined;
 
-      is(usage, startUsage + fileData1.obj.file.size + fileData2.obj.file.size,
-         "OS files exists");
+      is(usage, startUsage + fileData.file.size, "OS file exists");
 
-      fileData1.obj.file = null;
-      fileData2.obj.file = null;
+      fileData.file = null;
     }
 
     scheduleGC();
@@ -86,7 +69,7 @@
     getUsage(grabFileUsageAndContinueHandler);
     let endUsage = yield undefined;
 
-    is(endUsage, startUsage, "OS files deleted");
+    is(endUsage, startUsage, "OS file deleted");
 
     finishTest();
     yield undefined;

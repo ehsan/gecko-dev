@@ -30,17 +30,6 @@
       <property name="items" readonly="true" onget="return this.querySelectorAll('richgriditem[value]');"/>
       <property name="itemCount" readonly="true" onget="return this.items.length;"/>
 
-      <method name="isItem">
-        <parameter name="anItem"/>
-        <body>
-          <![CDATA[
-            // only non-empty child nodes are considered items
-            return anItem && anItem.hasAttribute("value") &&
-                   anItem.parentNode == this;
-          ]]>
-        </body>
-      </method>
-
       <!-- nsIDOMXULMultiSelectControlElement (not fully implemented) -->
 
       <method name="clearSelection">
@@ -65,9 +54,6 @@
         <parameter name="anItem"/>
         <body>
           <![CDATA[
-            if (!this.isItem(anItem))
-              return;
-
             let wasSelected = anItem.selected;
             if ("single" == this.getAttribute("seltype")) {
               this.clearSelection();
@@ -86,8 +72,6 @@
         <parameter name="anItem"/>
         <body>
           <![CDATA[
-            if (!this.isItem(anItem))
-              return;
             let wasSelected = anItem.selected,
                 isSingleMode = ("single" == this.getAttribute("seltype"));
             if (isSingleMode) {
@@ -124,7 +108,7 @@
         <parameter name="aEvent"/>
         <body>
           <![CDATA[
-            if (!(this.isBound && this.isItem(aItem)))
+            if (!this.isBound)
               return;
 
             if ("single" == this.getAttribute("seltype")) {
@@ -144,7 +128,7 @@
         <parameter name="aEvent"/>
         <body>
           <![CDATA[
-            if (!this.isBound || this.noContext || !this.isItem(aItem))
+            if (!this.isBound || this.noContext)
               return;
             // we'll republish this as a selectionchange event on the grid
             aEvent.stopPropagation();
@@ -380,7 +364,7 @@
         <parameter name="aSkipArrange"/>
         <body>
           <![CDATA[
-            if (!this.isItem(aItem))
+            if (!aItem || Array.indexOf(this.items, aItem) < 0)
               return null;
 
             let removal = this.removeChild(aItem);
@@ -403,7 +387,7 @@
         <parameter name="anItem"/>
         <body>
           <![CDATA[
-            if (!this.isItem(anItem))
+            if (!anItem)
               return -1;
 
             return Array.indexOf(this.items, anItem);
@@ -807,8 +791,8 @@
         <parameter name="aEvent"/>
         <body><![CDATA[
           // apply the transform to the contentBox element of the item
-          let bendNode = this.isItem(aItem) ? aItem._contentBox : null;
-          if (!bendNode || aItem.hasAttribute("bending"))
+          let bendNode = 'richgriditem' == aItem.nodeName && aItem._contentBox;
+          if (!bendNode)
             return;
 
           let event = aEvent;
@@ -872,7 +856,6 @@
       <handler event="mouseup" button="0" action="this.unbendItem(event.target)"/>
       <handler event="mouseout" button="0" action="this.unbendItem(event.target)"/>
       <handler event="touchend" action="this.unbendItem(event.target)"/>
-      <handler event="touchcancel" action="this.unbendItem(event.target)"/>
       <!--  /item bend effect handler -->
 
       <handler event="context-action">

@@ -233,5 +233,5 @@ let SessionWorker = (function () {
 AsyncShutdown.profileBeforeChange.addBlocker(
   "SessionFile: Finish writing the latest sessionstore.js",
   function() {
-    return SessionFileInternal._latestWrite;
+    return SessionFile._latestWrite;
   });

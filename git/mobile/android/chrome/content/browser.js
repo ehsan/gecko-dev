@@ -95,6 +95,17 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebappManager",
   });
 });
 
+// Lazily-loaded browser scripts that use observer notifcations:
+var LazyNotificationGetter = {
+  observers: [],
+  shutdown: function lng_shutdown() {
+    this.observers.forEach(function(o) {
+      Services.obs.removeObserver(o, o.notification);
+    });
+    this.observers = [];
+  }
+};
+
 [
 #ifdef MOZ_WEBRTC
   ["WebrtcUI", ["getUserMedia:request", "recording-device-events"], "chrome://browser/content/WebrtcUI.js"],
@@ -114,9 +125,14 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebappManager",
     return sandbox[name];
   });
   notifications.forEach(function (aNotification) {
-    Services.obs.addObserver(function(s, t, d) {
-        window[name].observe(s, t, d)
-    }, aNotification, false);
+    let o = {
+      notification: aNotification,
+      observe: function(s, t, d) {
+        window[name].observe(s, t, d);
+      }
+    };
+    Services.obs.addObserver(o, aNotification, false);
+    LazyNotificationGetter.observers.push(o);
   });
 });
 
@@ -127,9 +143,12 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebappManager",
   let [name, notifications, resource] = module;
   XPCOMUtils.defineLazyModuleGetter(this, name, resource);
   notifications.forEach(notification => {
-    Services.obs.addObserver((s,t,d) => {
-      this[name].observe(s,t,d)
-    }, notification, false);
+    let o = {
+      notification: notification,
+      observe: (s, t, d) => this[name].observe(s, t, d)
+    };
+    Services.obs.addObserver(o, notification, false);
+    LazyNotificationGetter.observers.push(o);
   });
 });
 
