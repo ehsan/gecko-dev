@@ -526,7 +526,7 @@ BluetoothAdapter::GetPairedDevices(ErrorResult& aRv)
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::PairUnpair(bool aPair, const nsAString& aDeviceAddress,
+BluetoothAdapter::PairUnpair(bool aPair, BluetoothDevice& aDevice,
                              ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
@@ -539,6 +539,9 @@ BluetoothAdapter::PairUnpair(bool aPair, const nsAString& aDeviceAddress,
   nsRefPtr<BluetoothVoidReplyRunnable> results =
     new BluetoothVoidReplyRunnable(request);
 
+  nsAutoString addr;
+  aDevice.GetAddress(addr);
+
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -546,11 +549,11 @@ BluetoothAdapter::PairUnpair(bool aPair, const nsAString& aDeviceAddress,
   }
   nsresult rv;
   if (aPair) {
-    rv = bs->CreatePairedDeviceInternal(aDeviceAddress,
+    rv = bs->CreatePairedDeviceInternal(addr,
                                         kCreatePairedDeviceTimeout,
                                         results);
   } else {
-    rv = bs->RemoveDeviceInternal(aDeviceAddress, results);
+    rv = bs->RemoveDeviceInternal(addr, results);
   }
   if (NS_FAILED(rv)) {
     BT_WARNING("Pair/Unpair failed!");
@@ -562,15 +565,15 @@ BluetoothAdapter::PairUnpair(bool aPair, const nsAString& aDeviceAddress,
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::Pair(const nsAString& aDeviceAddress, ErrorResult& aRv)
+BluetoothAdapter::Pair(BluetoothDevice& aDevice, ErrorResult& aRv)
 {
-  return PairUnpair(true, aDeviceAddress, aRv);
+  return PairUnpair(true, aDevice, aRv);
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::Unpair(const nsAString& aDeviceAddress, ErrorResult& aRv)
+BluetoothAdapter::Unpair(BluetoothDevice& aDevice, ErrorResult& aRv)
 {
-  return PairUnpair(false, aDeviceAddress, aRv);
+  return PairUnpair(false, aDevice, aRv);
 }
 
 already_AddRefed<DOMRequest>

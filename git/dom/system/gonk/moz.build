@@ -18,7 +18,6 @@ XPIDL_SOURCES += [
     'nsIAudioManager.idl',
     'nsINetworkInterfaceListService.idl',
     'nsINetworkManager.idl',
-    'nsINetworkService.idl',
     'nsISystemWorkerManager.idl',
     'nsIVolume.idl',
     'nsIVolumeMountLock.idl',
@@ -63,11 +62,9 @@ EXTRA_COMPONENTS += [
     'NetworkInterfaceListService.js',
     'NetworkInterfaceListService.manifest',
     'NetworkManager.manifest',
-    'NetworkService.manifest',
 ]
 EXTRA_PP_COMPONENTS += [
     'NetworkManager.js',
-    'NetworkService.js',
 ]
 EXTRA_JS_MODULES += [
     'net_worker.js',

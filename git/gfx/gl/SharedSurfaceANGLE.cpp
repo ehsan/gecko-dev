@@ -45,7 +45,7 @@ SharedSurface_ANGLEShareHandle::~SharedSurface_ANGLEShareHandle()
 void
 SharedSurface_ANGLEShareHandle::LockProdImpl()
 {
-    mGL->SetEGLSurfaceOverride(mPBuffer);
+    mGL->MakeCurrent_EGLSurface(mPBuffer);
 }
 
 void

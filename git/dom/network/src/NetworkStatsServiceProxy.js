@@ -31,13 +31,6 @@ NetworkStatsServiceProxy.prototype = {
    */
   saveAppStats: function saveAppStats(aAppId, aNetwork, aTimeStamp,
                                       aRxBytes, aTxBytes, aCallback) {
-    if (!aNetwork) {
-      if (DEBUG) {
-        debug("|aNetwork| is not specified. Failed to save stats. Returning.");
-      }
-      return;
-    }
-
     if (DEBUG) {
       debug("saveAppStats: " + aAppId + " connectionType " + aNetwork.type +
             " " + aTimeStamp + " " + aRxBytes + " " + aTxBytes);

@@ -96,9 +96,9 @@ public:
   already_AddRefed<DOMRequest> StopDiscovery(ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
-    Pair(const nsAString& aDeviceAddress, ErrorResult& aRv);
+    Pair(BluetoothDevice& aDevice, ErrorResult& aRv);
   already_AddRefed<DOMRequest>
-    Unpair(const nsAString& aDeviceAddress, ErrorResult& aRv);
+    Unpair(BluetoothDevice& aDevice, ErrorResult& aRv);
   already_AddRefed<DOMRequest>
     GetPairedDevices(ErrorResult& aRv);
   already_AddRefed<DOMRequest>
@@ -170,7 +170,7 @@ private:
   already_AddRefed<mozilla::dom::DOMRequest>
     StartStopDiscovery(bool aStart, ErrorResult& aRv);
   already_AddRefed<mozilla::dom::DOMRequest>
-    PairUnpair(bool aPair, const nsAString& aDeviceAddress, ErrorResult& aRv);
+    PairUnpair(bool aPair, BluetoothDevice& aDevice, ErrorResult& aRv);
 
   JS::Heap<JSObject*> mJsUuids;
   JS::Heap<JSObject*> mJsDeviceAddresses;

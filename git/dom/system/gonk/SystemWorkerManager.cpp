@@ -17,7 +17,7 @@
 
 #include "SystemWorkerManager.h"
 
-#include "nsINetworkService.h"
+#include "nsINetworkManager.h"
 #include "nsIWifi.h"
 #include "nsIWorkerHolder.h"
 #include "nsIXPConnect.h"
@@ -49,10 +49,14 @@ using namespace mozilla::dom::gonk;
 using namespace mozilla::ipc;
 using namespace mozilla::system;
 
+#define NS_NETWORKMANAGER_CID \
+  { 0x33901e46, 0x33b8, 0x11e1, \
+  { 0x98, 0x69, 0xf4, 0x6d, 0x04, 0xd2, 0x5b, 0xcc } }
+
 namespace {
 
 NS_DEFINE_CID(kWifiWorkerCID, NS_WIFIWORKER_CID);
-NS_DEFINE_CID(kNetworkServiceCID, NS_INETWORKSERVICE_IID);
+NS_DEFINE_CID(kNetworkManagerCID, NS_NETWORKMANAGER_CID);
 
 // Doesn't carry a reference, we're owned by services.
 SystemWorkerManager *gInstance = nullptr;
@@ -332,9 +336,9 @@ SystemWorkerManager::GetInterface(const nsIID &aIID, void **aResult)
                               reinterpret_cast<nsIWifi**>(aResult));
   }
 
-  if (aIID.Equals(NS_GET_IID(nsINetworkService))) {
+  if (aIID.Equals(NS_GET_IID(nsINetworkManager))) {
     return CallQueryInterface(mNetdWorker,
-                              reinterpret_cast<nsINetworkService**>(aResult));
+                              reinterpret_cast<nsINetworkManager**>(aResult));
   }
 
   NS_WARNING("Got nothing for the requested IID!");
@@ -389,7 +393,7 @@ SystemWorkerManager::RegisterNfcWorker(const JS::Value& aWorker,
 nsresult
 SystemWorkerManager::InitNetd(JSContext *cx)
 {
-  nsCOMPtr<nsIWorkerHolder> worker = do_GetService(kNetworkServiceCID);
+  nsCOMPtr<nsIWorkerHolder> worker = do_GetService(kNetworkManagerCID);
   NS_ENSURE_TRUE(worker, NS_ERROR_FAILURE);
 
   JS::Value workerval;

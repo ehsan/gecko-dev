@@ -76,9 +76,9 @@ interface BluetoothAdapter : EventTarget {
   [NewObject, Throws]
   DOMRequest stopDiscovery();
   [NewObject, Throws]
-  DOMRequest pair(DOMString deviceAddress);
+  DOMRequest pair(BluetoothDevice device);
   [NewObject, Throws]
-  DOMRequest unpair(DOMString deviceAddress);
+  DOMRequest unpair(BluetoothDevice device);
   [NewObject, Throws]
   DOMRequest getPairedDevices();
   [NewObject, Throws]

@@ -134,6 +134,9 @@ parent:
    */
   PMobileMessageCursor(IPCMobileMessageCursor request);
 
+  sync HasSupport()
+      returns (bool aHasSupport);
+
   AddSilentNumber(nsString aNumber);
   RemoveSilentNumber(nsString aNumber);
 };

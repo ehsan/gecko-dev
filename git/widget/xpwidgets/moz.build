@@ -8,8 +8,6 @@ MODULE = 'widget'
 
 EXPORTS += [
     'APZCCallbackHelper.h',
-    'GfxDriverInfo.h',
-    'GfxInfoBase.h',
     'GfxInfoCollector.h',
 ]
 

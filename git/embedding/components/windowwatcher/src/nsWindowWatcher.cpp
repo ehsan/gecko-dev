@@ -1078,13 +1078,6 @@ nsWindowWatcher::SetWindowCreator(nsIWindowCreator *creator)
 }
 
 NS_IMETHODIMP
-nsWindowWatcher::HasWindowCreator(bool *result)
-{
-  *result = mWindowCreator;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsWindowWatcher::GetActiveWindow(nsIDOMWindow **aActiveWindow)
 {
   *aActiveWindow = nullptr;

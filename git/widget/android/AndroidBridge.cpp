@@ -723,19 +723,19 @@ AndroidBridge::RegisterCompositor(JNIEnv *env)
 }
 
 EGLSurface
-AndroidBridge::CreateEGLSurfaceForCompositor()
+AndroidBridge::ProvideEGLSurface()
 {
     if (!jEGLSurfacePointerField) {
         return nullptr;
     }
-    MOZ_ASSERT(mGLControllerObj, "AndroidBridge::CreateEGLSurfaceForCompositor called with a null GL controller ref");
+    MOZ_ASSERT(mGLControllerObj, "AndroidBridge::ProvideEGLSurface called with a null GL controller ref");
 
     JNIEnv* env = GetJNIForThread(); // called on the compositor thread
     if (!env) {
         return nullptr;
     }
 
-    jobject eglSurface = CreateEGLSurfaceForCompositorWrapper(mGLControllerObj);
+    jobject eglSurface = ProvideEGLSurfaceWrapper(mGLControllerObj);
     if (!eglSurface)
         return nullptr;
 
@@ -1649,6 +1649,25 @@ void
 AndroidBridge::ScheduleComposite()
 {
     nsWindow::ScheduleComposite();
+}
+
+void
+AndroidBridge::GetGfxInfoData(nsACString& aRet)
+{
+    ALOG_BRIDGE("AndroidBridge::GetGfxInfoData");
+
+    JNIEnv* env = GetJNIEnv();
+    if (!env)
+        return;
+
+    AutoLocalJNIFrame jniFrame(env);
+    jstring jstrRet = GetGfxInfoDataWrapper();
+
+    if (!jstrRet)
+        return;
+
+    nsJNIString jniStr(jstrRet, env);
+    CopyUTF16toUTF8(jniStr, aRet);
 }
 
 nsresult
