@@ -735,7 +735,7 @@ nsHTMLFramesetFrame* nsHTMLFramesetFrame::GetFramesetParent(nsIFrame* aChild)
 // only valid for non border children
 void nsHTMLFramesetFrame::GetSizeOfChildAt(PRInt32  aIndexInParent, 
                                            nsSize&  aSize, 
-                                           nsIntPoint& aCellIndex)
+                                           nsPoint& aCellIndex)
 {
   PRInt32 row = aIndexInParent / mNumCols;
   PRInt32 col = aIndexInParent - (row * mNumCols); // remainder from dividing index by mNumCols
@@ -745,8 +745,7 @@ void nsHTMLFramesetFrame::GetSizeOfChildAt(PRInt32  aIndexInParent,
     aCellIndex.x = col;
     aCellIndex.y = row;
   } else {
-    aSize.width = aSize.height = 0;
-    aCellIndex.x = aCellIndex.y = 0;
+    aSize.width = aSize.height = aCellIndex.x = aCellIndex.y = 0;
   }
 }
 
@@ -760,7 +759,7 @@ void nsHTMLFramesetFrame::GetSizeOfChild(nsIFrame* aChild,
   for (nsIFrame* child = mFrames.FirstChild(); child;
        child = child->GetNextSibling()) {
     if (aChild == child) {
-      nsIntPoint ignore;
+      nsPoint ignore;
       GetSizeOfChildAt(i, aSize, ignore);
       return;
     }
@@ -855,7 +854,7 @@ nsHTMLFramesetFrame::ReflowPlaceChild(nsIFrame*                aChild,
                                       const nsHTMLReflowState& aReflowState,
                                       nsPoint&                 aOffset,
                                       nsSize&                  aSize,
-                                      nsIntPoint*              aCellIndex)
+                                      nsPoint*                 aCellIndex)
 {
   // reflow the child
   nsHTMLReflowState  reflowState(aPresContext, aReflowState, aChild, aSize);
@@ -1060,7 +1059,7 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
   nsIFrame* lastChild = mFrames.LastChild();
 
   for (PRInt32 childX = 0; childX < mNonBorderChildCount; childX++) {
-    nsIntPoint cellIndex;
+    nsPoint cellIndex;
     GetSizeOfChildAt(childX, size, cellIndex);
 
     if (lastRow != cellIndex.y) {  // changed to next row

@@ -122,7 +122,7 @@ public:
 
   void GetSizeOfChildAt(PRInt32  aIndexInParent, 
                         nsSize&  aSize, 
-                        nsIntPoint& aCellIndex);
+                        nsPoint& aCellIndex);
 
   static nsHTMLFramesetFrame* GetFramesetParent(nsIFrame* aChild);
 
@@ -220,7 +220,7 @@ protected:
                         const nsHTMLReflowState& aReflowState,
                         nsPoint&                 aOffset,
                         nsSize&                  aSize,
-                        nsIntPoint*              aCellIndex = 0);
+                        nsPoint*                 aCellIndex = 0);
   
   PRBool CanResize(PRBool aVertical, 
                    PRBool aLeft); 
@@ -251,7 +251,7 @@ protected:
 
   nsHTMLFramesetBorderFrame* mDragger;
   nsFramesetDrag   mDrag;
-  nsIntPoint       mFirstDragPoint;
+  nsPoint          mFirstDragPoint;
   PRInt32          mPrevNeighborOrigSize; // used during resize
   PRInt32          mNextNeighborOrigSize;
   PRInt32          mMinDrag;

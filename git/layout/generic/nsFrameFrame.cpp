@@ -188,7 +188,7 @@ public:
   virtual void ReflowCallbackCanceled();
 
 protected:
-  nsIntSize GetMargin();
+  nsSize GetMargin();
   PRBool IsInline() { return mIsInline; }
   nsresult ShowDocShell();
   nsresult CreateViewAndWidget(nsContentType aContentType);
@@ -772,9 +772,9 @@ nsSubDocumentFrame::HideViewer()
   }
 }
 
-nsIntSize nsSubDocumentFrame::GetMargin()
+nsSize nsSubDocumentFrame::GetMargin()
 {
-  nsIntSize result(-1, -1);
+  nsSize result(-1, -1);
   nsGenericHTMLElement *content = nsGenericHTMLElement::FromContent(mContent);
   if (content) {
     const nsAttrValue* attr = content->GetParsedAttr(nsGkAtoms::marginwidth);
@@ -888,7 +888,7 @@ nsSubDocumentFrame::ShowDocShell()
 
   // pass along marginwidth, marginheight, scrolling so sub document
   // can use it
-  nsIntSize margin = GetMargin();
+  nsSize margin = GetMargin();
   docShell->SetMarginWidth(margin.width);
   docShell->SetMarginHeight(margin.height);
 

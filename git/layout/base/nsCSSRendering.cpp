@@ -1457,13 +1457,12 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   nsCOMPtr<imgIContainer> image;
   req->GetImage(getter_AddRefs(image));
 
-  nsIntSize imageIntSize;
-  image->GetWidth(&imageIntSize.width);
-  image->GetHeight(&imageIntSize.height);
-
   nsSize imageSize;
-  imageSize.width = nsPresContext::CSSPixelsToAppUnits(imageIntSize.width);
-  imageSize.height = nsPresContext::CSSPixelsToAppUnits(imageIntSize.height);
+  image->GetWidth(&imageSize.width);
+  image->GetHeight(&imageSize.height);
+
+  imageSize.width = nsPresContext::CSSPixelsToAppUnits(imageSize.width);
+  imageSize.height = nsPresContext::CSSPixelsToAppUnits(imageSize.height);
 
   req = nsnull;
 
@@ -1532,10 +1531,10 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
             // If the current frame is smaller than its container, we
             // need to paint the background color even if the frame
             // itself is opaque.
-            nsIntSize iSize;
+            nsSize iSize;
             image->GetWidth(&iSize.width);
             image->GetHeight(&iSize.height);
-            nsIntRect iframeRect;
+            nsRect iframeRect;
             gfxImgFrame->GetRect(iframeRect);
             if (iSize.width != iframeRect.width ||
                 iSize.height != iframeRect.height) {
