@@ -22,7 +22,6 @@
 #include "jit/JitCompartment.h"
 #endif
 #include "js/RootingAPI.h"
-#include "vm/SelfHosting.h"
 #include "vm/StopIterationObject.h"
 #include "vm/WrapperObject.h"
 
@@ -183,13 +182,14 @@ JSCompartment::ensureJitCompartmentExists(JSContext *cx)
 #endif
 
 static bool
-WrapForSameCompartment(JSContext *cx, MutableHandleObject obj, const JSWrapObjectCallbacks *cb)
+WrapForSameCompartment(JSContext *cx, MutableHandleObject obj)
 {
     JS_ASSERT(cx->compartment() == obj->compartment());
-    if (!cb->sameCompartmentWrap)
+    if (!cx->runtime()->sameCompartmentWrapObjectCallback)
         return true;
 
-    RootedObject wrapped(cx, cb->sameCompartmentWrap(cx, obj));
+    RootedObject wrapped(cx);
+    wrapped = cx->runtime()->sameCompartmentWrapObjectCallback(cx, obj);
     if (!wrapped)
         return false;
     obj.set(wrapped);
@@ -289,26 +289,17 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
      * This loses us some transparency, and is generally very cheesy.
      */
     HandleObject global = cx->global();
-    RootedObject objGlobal(cx, &obj->global());
     JS_ASSERT(global);
-    JS_ASSERT(objGlobal);
-
-    const JSWrapObjectCallbacks *cb;
-
-    if (cx->runtime()->isSelfHostingGlobal(global) || cx->runtime()->isSelfHostingGlobal(objGlobal))
-        cb = &SelfHostingWrapObjectCallbacks;
-    else
-        cb = cx->runtime()->wrapObjectCallbacks;
 
     if (obj->compartment() == this)
-        return WrapForSameCompartment(cx, obj, cb);
+        return WrapForSameCompartment(cx, obj);
 
     /* Unwrap the object, but don't unwrap outer windows. */
     unsigned flags = 0;
     obj.set(UncheckedUnwrap(obj, /* stopAtOuter = */ true, &flags));
 
     if (obj->compartment() == this)
-        return WrapForSameCompartment(cx, obj, cb);
+        return WrapForSameCompartment(cx, obj);
 
     /* Translate StopIteration singleton. */
     if (obj->is<StopIterationObject>()) {
@@ -322,14 +313,14 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
     /* Invoke the prewrap callback. We're a bit worried about infinite
      * recursion here, so we do a check - see bug 809295. */
     JS_CHECK_CHROME_RECURSION(cx, return false);
-    if (cb->preWrap) {
-        obj.set(cb->preWrap(cx, global, obj, flags));
+    if (cx->runtime()->preWrapObjectCallback) {
+        obj.set(cx->runtime()->preWrapObjectCallback(cx, global, obj, flags));
         if (!obj)
             return false;
     }
 
     if (obj->compartment() == this)
-        return WrapForSameCompartment(cx, obj, cb);
+        return WrapForSameCompartment(cx, obj);
 
 #ifdef DEBUG
     {
@@ -361,7 +352,12 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
         }
     }
 
-    obj.set(cb->wrap(cx, existing, obj, proto, global, flags));
+    /*
+     * We hand in the original wrapped object into the wrap hook to allow
+     * the wrap hook to reason over what wrappers are currently applied
+     * to the object.
+     */
+    obj.set(cx->runtime()->wrapObjectCallback(cx, existing, obj, proto, global, flags));
     if (!obj)
         return false;
 

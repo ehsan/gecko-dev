@@ -1803,9 +1803,6 @@ TypedDatum::obj_trace(JSTracer *trace, JSObject *object)
     TypeRepresentation *repr = typeRepresentation(*GetType(*object));
     if (repr->opaque()) {
         uint8_t *mem = TypedMem(*object);
-        if (!mem)
-            return; // unattached handle or partially constructed
-
         switch (repr->kind()) {
           case TypeRepresentation::Scalar:
           case TypeRepresentation::Reference:

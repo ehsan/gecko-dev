@@ -13,6 +13,7 @@ import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.db.BrowserContract.Clients;
 import org.mozilla.gecko.db.BrowserContract.Tabs;
 import org.mozilla.gecko.db.PerProfileDatabases.DatabaseHelperFactory;
+import org.mozilla.gecko.mozglue.RobocopTarget;
 
 import android.content.ContentProvider;
 import android.content.ContentUris;
@@ -205,6 +206,11 @@ public class TabsProvider extends ContentProvider {
                 }
             }
         }
+    }
+
+    @RobocopTarget
+    private String getDatabasePath(String profile) {
+        return mDatabases.getDatabasePathForProfile(profile);
     }
 
     private SQLiteDatabase getReadableDatabase(Uri uri) {

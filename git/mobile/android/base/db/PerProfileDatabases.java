@@ -35,6 +35,14 @@ public class PerProfileDatabases<T extends SQLiteOpenHelper> {
     }
 
     public String getDatabasePathForProfile(String profile) {
+        return getDatabasePathForProfile(profile, false);
+    }
+
+    public String getDatabasePathForProfile(String profile, boolean isTest) {
+        if (isTest) {
+            return mDatabaseName;
+        }
+
         final File profileDir = GeckoProfile.get(mContext, profile).getDir();
         if (profileDir == null) {
             return null;
@@ -58,7 +66,7 @@ public class PerProfileDatabases<T extends SQLiteOpenHelper> {
                 return mStorages.get(profile);
             }
 
-            final String databasePath = isTest ? mDatabaseName : getDatabasePathForProfile(profile);
+            final String databasePath = getDatabasePathForProfile(profile, isTest);
             if (databasePath == null) {
                 throw new IllegalStateException("Database path is null for profile: " + profile);
             }

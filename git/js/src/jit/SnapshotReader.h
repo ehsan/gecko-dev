@@ -69,20 +69,16 @@ class SnapshotReader
     {
         friend class SnapshotReader;
 
-        // An offset that is illegal for a local variable's stack allocation.
-        static const int32_t InvalidStackSlot = -1;
-
         Register::Code reg_;
         int32_t stackSlot_;
 
         static Location From(const Register &reg) {
             Location loc;
             loc.reg_ = reg.code();
-            loc.stackSlot_ = InvalidStackSlot;
+            loc.stackSlot_ = INVALID_STACK_SLOT;
             return loc;
         }
         static Location From(int32_t stackSlot) {
-            JS_ASSERT(stackSlot != InvalidStackSlot);
             Location loc;
             loc.reg_ = Register::Code(0);      // Quell compiler warnings.
             loc.stackSlot_ = stackSlot;
@@ -99,7 +95,7 @@ class SnapshotReader
             return stackSlot_;
         }
         bool isStackSlot() const {
-            return stackSlot_ != InvalidStackSlot;
+            return stackSlot_ != INVALID_STACK_SLOT;
         }
     };
 
