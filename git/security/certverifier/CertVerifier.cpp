@@ -8,16 +8,15 @@
 
 #include <stdint.h>
 
+#include "pkix/pkix.h"
 #include "ExtendedValidation.h"
 #include "NSSCertDBTrustDomain.h"
-#include "NSSErrorsService.h"
 #include "PublicKeyPinningService.h"
 #include "cert.h"
 #include "ocsp.h"
-#include "pk11pub.h"
-#include "pkix/pkix.h"
-#include "prerror.h"
 #include "secerr.h"
+#include "pk11pub.h"
+#include "prerror.h"
 #include "sslerr.h"
 
 // ScopedXXX in this file are mozilla::pkix::ScopedXXX, not
@@ -270,10 +269,10 @@ ClassicVerifyCert(CERTCertificate* cert,
       if (chainOK != PR_TRUE) {
         if (verifyLog) {
           insertErrorIntoVerifyLog(cert,
-                                   PSM_ERROR_KEY_PINNING_FAILURE,
+                                   SEC_ERROR_APPLICATION_CALLBACK_ERROR,
                                    verifyLog);
         }
-        PR_SetError(PSM_ERROR_KEY_PINNING_FAILURE, 0);
+        PR_SetError(SEC_ERROR_APPLICATION_CALLBACK_ERROR, 0); // same as libpkix
         return SECFailure;
       }
     }

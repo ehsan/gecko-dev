@@ -321,10 +321,4 @@ interface MozWifiManager : EventTarget {
    */
   attribute EventHandler onenabled;
   attribute EventHandler ondisabled;
-
-  /**
-   * An event listener that is called with information about the number
-   * of wifi stations connected to wifi hotspot every 5 seconds.
-   */
-  attribute EventHandler onstationInfoUpdate;
 };

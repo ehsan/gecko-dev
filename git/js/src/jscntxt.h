@@ -285,6 +285,7 @@ struct ThreadSafeContext : ContextFriendFields,
     const JS::AsmJSCacheOps &asmJSCacheOps() { return runtime_->asmJSCacheOps; }
     PropertyName *emptyString() { return runtime_->emptyString; }
     FreeOp *defaultFreeOp() { return runtime_->defaultFreeOp(); }
+    bool useHelperThreads() { return runtime_->useHelperThreads(); }
     void *runtimeAddressForJit() { return runtime_; }
     void *stackLimitAddress(StackKind kind) { return &runtime_->mainThread.nativeStackLimit[kind]; }
     void *stackLimitAddressForJitCode(StackKind kind);

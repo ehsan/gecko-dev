@@ -601,7 +601,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         if (svc) {
             if (curEvent->Action() == AndroidGeckoEvent::ACTION_GAMEPAD_ADDED) {
                 int svc_id = svc->AddGamepad("android",
-                                             mozilla::dom::GamepadMappingType::Standard,
+                                             mozilla::dom::StandardMapping,
                                              mozilla::dom::kStandardGamepadButtons,
                                              mozilla::dom::kStandardGamepadAxes);
                 mozilla::widget::android::GeckoAppShell::GamepadAdded(curEvent->ID(),

@@ -314,7 +314,6 @@ WEBIDL_FILES = [
     'SimpleGestureEvent.webidl',
     'SourceBuffer.webidl',
     'SourceBufferList.webidl',
-    'StorageEvent.webidl',
     'StorageType.webidl',
     'StyleSheet.webidl',
     'StyleSheetList.webidl',
@@ -596,7 +595,6 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
         'MozWifiManager.webidl',
         'MozWifiP2pManager.webidl',
         'MozWifiP2pStatusChangeEvent.webidl',
-        'MozWifiStationInfoEvent.webidl',
         'MozWifiStatusChangeEvent.webidl',
     ]
 else:
@@ -642,6 +640,7 @@ GENERATED_EVENTS_WEBIDL_FILES = [
     'RTCPeerConnectionIceEvent.webidl',
     'RTCPeerConnectionIdentityErrorEvent.webidl',
     'RTCPeerConnectionIdentityEvent.webidl',
+    'StorageEvent.webidl',
     'TrackEvent.webidl',
     'UserProximityEvent.webidl',
     'USSDReceivedEvent.webidl',

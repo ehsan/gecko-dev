@@ -63,8 +63,8 @@ private:
   uint64_t mLayersId;
 };
 
-class CompositorParent : public PCompositorParent,
-                         public ShadowLayersManager
+class CompositorParent MOZ_FINAL : public PCompositorParent,
+                                   public ShadowLayersManager
 {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CompositorParent)
 
@@ -96,6 +96,7 @@ public:
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
   virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
+                                   const uint64_t& aTransactionId,
                                    const TargetConfig& aTargetConfig,
                                    bool aIsFirstPaint,
                                    bool aScheduleComposite,
@@ -226,6 +227,7 @@ public:
     PCompositorParent* mCrossProcessParent;
     TargetConfig mTargetConfig;
     APZTestData mApzTestData;
+    LayerTransactionParent* mLayerTree;
   };
 
   /**
@@ -242,8 +244,8 @@ public:
    */
   static bool IsInCompositorThread();
 
-protected:
-  // Protected destructor, to discourage deletion outside of Release():
+private:
+  // Private destructor, to discourage deletion outside of Release():
   virtual ~CompositorParent();
 
   virtual PLayerTransactionParent*
@@ -253,7 +255,7 @@ protected:
                                  bool* aSuccess) MOZ_OVERRIDE;
   virtual bool DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers) MOZ_OVERRIDE;
   virtual void ScheduleTask(CancelableTask*, int);
-  void Composite();
+  void CompositeCallback();
   void CompositeToTarget(gfx::DrawTarget* aTarget, const nsIntRect* aRect = nullptr);
   void ForceComposeToTarget(gfx::DrawTarget* aTarget, const nsIntRect* aRect = nullptr);
 
@@ -327,6 +329,8 @@ protected:
   TimeStamp mExpectedComposeStartTime;
 #endif
 
+  uint64_t mPendingTransaction;
+
   bool mPaused;
 
   bool mUseExternalSurfaceSize;
@@ -342,8 +346,6 @@ protected:
   CancelableTask* mForceCompositionTask;
 
   nsRefPtr<APZCTreeManager> mApzcTreeManager;
-
-  bool mWantDidCompositeEvent;
 
   DISALLOW_EVIL_CONSTRUCTORS(CompositorParent);
 };

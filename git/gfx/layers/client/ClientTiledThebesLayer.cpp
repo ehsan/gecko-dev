@@ -58,19 +58,6 @@ ApplyParentLayerToLayoutTransform(const gfx3DMatrix& aTransform, const ParentLay
   return TransformTo<LayoutDevicePixel>(aTransform, aParentLayerRect);
 }
 
-static gfx3DMatrix
-GetTransformToAncestorsParentLayer(Layer* aStart, Layer* aAncestor)
-{
-  gfx::Matrix4x4 transform;
-  Layer* ancestorParent = aAncestor->GetParent();
-  for (Layer* iter = aStart; iter != ancestorParent; iter = iter->GetParent()) {
-    transform = transform * iter->GetTransform();
-  }
-  gfx3DMatrix ret;
-  gfx::To3DMatrix(transform, ret);
-  return ret;
-}
-
 void
 ClientTiledThebesLayer::BeginPaint()
 {
@@ -127,71 +114,82 @@ ClientTiledThebesLayer::BeginPaint()
 
   // Get the metrics of the nearest scrollable layer and the nearest layer
   // with a displayport.
-  ContainerLayer* scrollAncestor = nullptr;
-  ContainerLayer* displayPortAncestor = nullptr;
-  for (ContainerLayer* ancestor = GetParent(); ancestor; ancestor = ancestor->GetParent()) {
-    const FrameMetrics& metrics = ancestor->GetFrameMetrics();
-    if (!scrollAncestor && metrics.GetScrollId() != FrameMetrics::NULL_SCROLL_ID) {
-      scrollAncestor = ancestor;
+  ContainerLayer* displayPortParent = nullptr;
+  ContainerLayer* scrollParent = nullptr;
+  for (ContainerLayer* parent = GetParent(); parent; parent = parent->GetParent()) {
+    const FrameMetrics& metrics = parent->GetFrameMetrics();
+    if (!scrollParent && metrics.GetScrollId() != FrameMetrics::NULL_SCROLL_ID) {
+      scrollParent = parent;
     }
     if (!metrics.mDisplayPort.IsEmpty()) {
-      displayPortAncestor = ancestor;
+      displayPortParent = parent;
       // Any layer that has a displayport must be scrollable, so we can break
       // here.
       break;
     }
   }
 
-  if (!displayPortAncestor || !scrollAncestor) {
-    // No displayport or scroll ancestor, so we can't do progressive rendering.
+  if (!displayPortParent || !scrollParent) {
+    // No displayport or scroll parent, so we can't do progressive rendering.
+    // Just set the composition bounds to empty and return.
 #if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_B2G)
     // Both Android and b2g are guaranteed to have a displayport set, so this
     // should never happen.
-    NS_WARNING("Tiled Thebes layer with no scrollable container ancestor");
+    NS_WARNING("Tiled Thebes layer with no scrollable container parent");
 #endif
     return;
   }
 
-  const FrameMetrics& scrollMetrics = scrollAncestor->GetFrameMetrics();
-  const FrameMetrics& displayportMetrics = displayPortAncestor->GetFrameMetrics();
+  // Note, not handling transformed layers lets us assume that LayoutDevice
+  // space of the scroll parent layer is the same as LayoutDevice space of
+  // this layer.
+  const FrameMetrics& scrollMetrics = scrollParent->GetFrameMetrics();
+  const FrameMetrics& displayportMetrics = displayPortParent->GetFrameMetrics();
 
   // Calculate the transform required to convert ParentLayer space of our
-  // display port ancestor to the LayoutDevice space of this layer.
-  gfx3DMatrix layoutDeviceToDisplayPort =
-    GetTransformToAncestorsParentLayer(this, displayPortAncestor);
-  layoutDeviceToDisplayPort.ScalePost(scrollMetrics.mCumulativeResolution.scale,
-                                      scrollMetrics.mCumulativeResolution.scale,
-                                      1.f);
+  // display port parent to LayoutDevice space of this layer.
+  gfx::Matrix4x4 transform = scrollParent->GetTransform();
+  ContainerLayer* displayPortParentParent = displayPortParent->GetParent() ?
+    displayPortParent->GetParent()->GetParent() : nullptr;
+  for (ContainerLayer* parent = scrollParent->GetParent();
+       parent != displayPortParentParent;
+       parent = parent->GetParent()) {
+    transform = transform * parent->GetTransform();
+  }
+  gfx3DMatrix layoutDeviceToScrollParentLayer;
+  gfx::To3DMatrix(transform, layoutDeviceToScrollParentLayer);
+  layoutDeviceToScrollParentLayer.ScalePost(scrollMetrics.mCumulativeResolution.scale,
+                                            scrollMetrics.mCumulativeResolution.scale,
+                                            1.f);
 
-  mPaintData.mTransformDisplayPortToLayoutDevice = layoutDeviceToDisplayPort.Inverse();
+  mPaintData.mTransformParentLayerToLayoutDevice = layoutDeviceToScrollParentLayer.Inverse();
 
-  // Compute the critical display port that applies to this layer in the
+  // Compute the critical display port of the display port layer in
   // LayoutDevice space of this layer.
   ParentLayerRect criticalDisplayPort =
-    (displayportMetrics.mCriticalDisplayPort * displayportMetrics.GetZoomToParent())
-    + displayportMetrics.mCompositionBounds.TopLeft();
+    (displayportMetrics.mCriticalDisplayPort + displayportMetrics.GetScrollOffset()) *
+    displayportMetrics.GetZoomToParent();
   mPaintData.mCriticalDisplayPort = LayoutDeviceIntRect::ToUntyped(RoundedOut(
-    ApplyParentLayerToLayoutTransform(mPaintData.mTransformDisplayPortToLayoutDevice,
+    ApplyParentLayerToLayoutTransform(mPaintData.mTransformParentLayerToLayoutDevice,
                                       criticalDisplayPort)));
 
-  // Compute the viewport that applies to this layer in the LayoutDevice
-  // space of this layer.
+  // Compute the viewport of the display port layer in LayoutDevice space of
+  // this layer.
   ParentLayerRect viewport =
-    (displayportMetrics.mViewport * displayportMetrics.GetZoomToParent())
-    + displayportMetrics.mCompositionBounds.TopLeft();
+    (displayportMetrics.mViewport + displayportMetrics.GetScrollOffset()) *
+    displayportMetrics.GetZoomToParent();
   mPaintData.mViewport = ApplyParentLayerToLayoutTransform(
-    mPaintData.mTransformDisplayPortToLayoutDevice, viewport);
+    mPaintData.mTransformParentLayerToLayoutDevice, viewport);
 
-  // Store the resolution from the displayport ancestor layer. Because this is Gecko-side,
-  // before any async transforms have occurred, we can use the zoom for this.
+  // Store the scroll parent resolution. Because this is Gecko-side, before any
+  // async transforms have occurred, we can use the zoom for this.
   mPaintData.mResolution = displayportMetrics.GetZoomToParent();
 
-  // Store the applicable composition bounds in this layer's LayoutDevice units.
-  gfx3DMatrix layoutDeviceToCompBounds =
-    GetTransformToAncestorsParentLayer(this, scrollAncestor);
-  mPaintData.mCompositionBounds = TransformTo<LayoutDevicePixel>(
-    layoutDeviceToCompBounds.Inverse(),
-    scrollMetrics.mCompositionBounds / scrollMetrics.GetParentResolution());
+  // Store the parent composition bounds in LayoutDevice units.
+  // This is actually in LayoutDevice units of the scrollParent's parent layer,
+  // but because there is no transform, we can assume that these are the same.
+  mPaintData.mCompositionBounds =
+    scrollMetrics.mCompositionBounds / scrollMetrics.GetParentResolution();
 
   // Calculate the scroll offset since the last transaction
   mPaintData.mScrollOffset = displayportMetrics.GetScrollOffset() * displayportMetrics.GetZoomToParent();

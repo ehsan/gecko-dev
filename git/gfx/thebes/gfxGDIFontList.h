@@ -341,10 +341,6 @@ private:
 
     virtual already_AddRefed<FontInfoData> CreateFontInfoData();
 
-#ifdef MOZ_BUNDLED_FONTS
-    void ActivateBundledFonts();
-#endif
-
     typedef nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> FontTable;
 
     FontTable mFontSubstitutes;

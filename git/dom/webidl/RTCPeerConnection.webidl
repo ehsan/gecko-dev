@@ -139,6 +139,8 @@ interface mozRTCPeerConnection : EventTarget  {
   RTCDataChannel createDataChannel (DOMString label,
                                     optional RTCDataChannelInit dataChannelDict);
   attribute EventHandler ondatachannel;
+  attribute EventHandler onconnection;
+  attribute EventHandler onclosedconnection;
   [Pref="media.peerconnection.identity.enabled"]
   attribute EventHandler onidentityresult;
   [Pref="media.peerconnection.identity.enabled"]

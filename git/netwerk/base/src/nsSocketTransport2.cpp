@@ -23,12 +23,12 @@
 #include "plstr.h"
 #include "prerr.h"
 #include "NetworkActivityMonitor.h"
-#include "NSSErrorsService.h"
 #include "mozilla/VisualEventTracer.h"
 #include "nsThreadUtils.h"
 #include "nsISocketProviderService.h"
 #include "nsISocketProvider.h"
 #include "nsISSLSocketControl.h"
+#include "nsINSSErrorsService.h"
 #include "nsIPipe.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIClassInfoImpl.h"
@@ -131,6 +131,28 @@ static PRErrorCode RandomizeConnectError(PRErrorCode code)
 
 //-----------------------------------------------------------------------------
 
+static bool
+IsNSSErrorCode(PRErrorCode code)
+{
+  return 
+    ((code >= nsINSSErrorsService::NSS_SEC_ERROR_BASE) && 
+      (code < nsINSSErrorsService::NSS_SEC_ERROR_LIMIT))
+    ||
+    ((code >= nsINSSErrorsService::NSS_SSL_ERROR_BASE) && 
+      (code < nsINSSErrorsService::NSS_SSL_ERROR_LIMIT));
+}
+
+// this logic is duplicated from the implementation of
+// nsINSSErrorsService::getXPCOMFromNSSError
+// It might have been better to implement that interface here...
+static nsresult
+GetXPCOMFromNSSError(PRErrorCode code)
+{
+    // XXX Don't make up nsresults, it's supposed to be an enum (bug 778113)
+    return (nsresult)NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_SECURITY,
+                                               -1 * code);
+}
+
 nsresult
 ErrorAccordingToNSPR(PRErrorCode errorCode)
 {
@@ -202,9 +224,8 @@ ErrorAccordingToNSPR(PRErrorCode errorCode)
         rv = NS_ERROR_FILE_READ_ONLY;
         break;
     default:
-        if (mozilla::psm::IsNSSErrorCode(errorCode)) {
-            rv = mozilla::psm::GetXPCOMFromNSSError(errorCode);
-        }
+        if (IsNSSErrorCode(errorCode))
+            rv = GetXPCOMFromNSSError(errorCode);
         break;
 
     // NSPR's socket code can return these, but they're not worth breaking out
