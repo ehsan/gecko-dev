@@ -1835,9 +1835,6 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
       rv = ParseVariant(expr->mValue, VARIANT_KEYWORD,
                         feature->mData.mKeywordTable);
       break;
-    case nsMediaFeature::eIdent:
-      rv = ParseVariant(expr->mValue, VARIANT_IDENTIFIER, nsnull);
-      break;
   }
   if (!rv || !ExpectSymbol(')', PR_TRUE)) {
     REPORT_UNEXPECTED(PEMQExpectedFeatureValue);

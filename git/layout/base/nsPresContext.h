@@ -862,6 +862,8 @@ public:
   PRBool EnsureSafeToHandOutCSSRules();
 
   void NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags);
+  void NotifyInvalidateForScrolling(const nsRegion& aBlitRegion,
+                                    const nsRegion& aInvalidateRegion);
   void FireDOMPaintEvent();
   PRBool IsDOMPaintEventPending() {
     return !mInvalidateRequests.mRequests.IsEmpty();
@@ -1007,6 +1009,8 @@ protected:
   NS_HIDDEN_(void) UpdateCharSet(const nsAFlatCString& aCharSet);
 
   PRBool MayHavePaintEventListener();
+  void NotifyInvalidateRegion(const nsRegion& aRegion, nsPoint aOffset,
+                              PRUint32 aFlags);
 
   void HandleRebuildUserFontSet() {
     mPostedFlushUserFontSet = PR_FALSE;
@@ -1248,7 +1252,7 @@ public:
    * during paint is best for keeping plugins in sync with content.
    * But we also force geometry updates in case painting doesn't work.
    */
-  void SynchronousPluginGeometryUpdate();
+  void ForcePluginGeometryUpdate();
 
   /**
    * Call this after reflow and scrolling to ensure that the geometry

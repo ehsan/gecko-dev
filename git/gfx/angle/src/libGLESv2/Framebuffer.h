@@ -44,7 +44,6 @@ class Framebuffer
 
     unsigned int getRenderTargetSerial();
     unsigned int getDepthbufferSerial();
-    unsigned int getStencilbufferSerial();
 
     Colorbuffer *getColorbuffer();
     DepthStencilbuffer *getDepthbuffer();
@@ -57,10 +56,6 @@ class Framebuffer
     GLuint getColorbufferHandle();
     GLuint getDepthbufferHandle();
     GLuint getStencilbufferHandle();
-
-    bool hasStencil();
-    bool isMultisample();
-    int getSamples();
 
     virtual GLenum completeness();
 

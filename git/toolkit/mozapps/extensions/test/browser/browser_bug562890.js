@@ -62,7 +62,7 @@ function test() {
       }
     });
 
-    EventUtils.synthesizeMouseAtCenter(prefsBtn, { }, aWindow);
+    EventUtils.synthesizeMouse(prefsBtn, 2, 2, { }, aWindow);
   });
 
 }

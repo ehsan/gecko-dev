@@ -151,22 +151,18 @@ nsSVGAnimationElement::GetTargetElementContent()
   return nsSVGUtils::GetParentElement(this);
 }
 
-PRBool
-nsSVGAnimationElement::GetTargetAttributeName(PRInt32 *aNamespaceID,
-                                              nsIAtom **aLocalName) const
+nsIAtom*
+nsSVGAnimationElement::GetTargetAttributeName() const
 {
   const nsAttrValue* nameAttr
     = mAttrsAndChildren.GetAttr(nsGkAtoms::attributeName);
 
   if (!nameAttr)
-    return PR_FALSE;
+    return nsnull;
 
   NS_ASSERTION(nameAttr->Type() == nsAttrValue::eAtom,
     "attributeName should have been parsed as an atom");
-
-  return NS_SUCCEEDED(nsContentUtils::SplitQName(
-                        this, nsDependentAtomString(nameAttr->GetAtomValue()),
-                        aNamespaceID, aLocalName));
+  return nameAttr->GetAtomValue();
 }
 
 nsSMILTargetAttrType

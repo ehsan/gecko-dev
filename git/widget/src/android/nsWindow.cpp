@@ -270,14 +270,6 @@ nsWindow::GetParent()
     return mParent;
 }
 
-float
-nsWindow::GetDPI()
-{
-    if (AndroidBridge::Bridge())
-        return AndroidBridge::Bridge()->GetDPI();
-    return 160.0f;
-}
-
 NS_IMETHODIMP
 nsWindow::Show(PRBool aState)
 {

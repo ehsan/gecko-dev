@@ -519,9 +519,7 @@ public:
         // any EGL contexts will always be GLESv2
         SetIsGLES2(PR_TRUE);
 
-#ifdef DEBUG
         printf_stderr("Initializing context %p surface %p on display %p\n", mContext, mSurface, EGL_DISPLAY());
-#endif
     }
 
     ~GLContextEGL()
@@ -534,9 +532,7 @@ public:
         if (mGLWidget)
             return;
 
-#ifdef DEBUG
         printf_stderr("Destroying context %p surface %p on display %p\n", mContext, mSurface, EGL_DISPLAY());
-#endif
 
         sEGLLibrary.fDestroyContext(EGL_DISPLAY(), mContext);
         sEGLLibrary.fDestroySurface(EGL_DISPLAY(), mSurface);

@@ -115,7 +115,7 @@ private:
 
 nsRect
 nsDisplayButtonBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
+  return mFrame->GetOverflowRect() + ToReferenceFrame();
 }
 
 void

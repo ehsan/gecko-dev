@@ -515,12 +515,14 @@ void
 nsContainerFrame::SyncFrameViewAfterReflow(nsPresContext* aPresContext,
                                            nsIFrame*       aFrame,
                                            nsIView*        aView,
-                                           const nsRect&   aVisualOverflowArea,
+                                           const nsRect*   aCombinedArea,
                                            PRUint32        aFlags)
 {
   if (!aView) {
     return;
   }
+
+  NS_ASSERTION(aCombinedArea, "Combined area must be passed in now");
 
   // Make sure the view is sized and positioned correctly
   if (0 == (aFlags & NS_FRAME_NO_MOVE_VIEW)) {
@@ -530,7 +532,7 @@ nsContainerFrame::SyncFrameViewAfterReflow(nsPresContext* aPresContext,
   if (0 == (aFlags & NS_FRAME_NO_SIZE_VIEW)) {
     nsIViewManager* vm = aView->GetViewManager();
 
-    vm->ResizeView(aView, aVisualOverflowArea, PR_TRUE);
+    vm->ResizeView(aView, *aCombinedArea, PR_TRUE);
   }
 }
 
@@ -830,7 +832,8 @@ nsContainerFrame::FinishReflowChild(nsIFrame*                  aKidFrame,
     // Make sure the frame's view is properly sized and positioned and has
     // things like opacity correct
     SyncFrameViewAfterReflow(aPresContext, aKidFrame, view,
-                             aDesiredSize.VisualOverflow(), aFlags);
+                             &aDesiredSize.mOverflowArea,
+                             aFlags);
   }
 
   if (!(aFlags & NS_FRAME_NO_MOVE_VIEW) &&
@@ -846,7 +849,7 @@ nsContainerFrame::FinishReflowChild(nsIFrame*                  aKidFrame,
     // will be at the wrong offset ... note that this includes
     // invalidates issued against the frame's children, so we need to
     // invalidate the overflow area too.
-    aKidFrame->Invalidate(aDesiredSize.VisualOverflow());
+    aKidFrame->Invalidate(aDesiredSize.mOverflowArea);
   }
 
   return aKidFrame->DidReflow(aPresContext, aReflowState, NS_FRAME_REFLOW_FINISHED);
@@ -855,7 +858,7 @@ nsContainerFrame::FinishReflowChild(nsIFrame*                  aKidFrame,
 nsresult
 nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPresContext,
                                                   const nsHTMLReflowState& aReflowState,
-                                                  nsOverflowAreas&         aOverflowRects,
+                                                  nsRect&                  aOverflowRect,
                                                   PRUint32                 aFlags,
                                                   nsReflowStatus&          aStatus)
 {
@@ -928,7 +931,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
 
       // Cache old bounds
       nsRect oldRect = frame->GetRect();
-      nsRect oldOverflow = frame->GetVisualOverflowRect();
+      nsRect oldOverflow = frame->GetOverflowRect();
 
       // Reflow
       rv = ReflowChild(frame, aPresContext, desiredSize, frameState,
@@ -947,7 +950,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
         dirtyRect.MoveBy(oldRect.x, oldRect.y);
         Invalidate(dirtyRect);
 
-        dirtyRect = frame->GetVisualOverflowRect();
+        dirtyRect = frame->GetOverflowRect();
         dirtyRect.MoveBy(rect.x, rect.y);
         Invalidate(dirtyRect);
       }
@@ -992,7 +995,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
       if (aReflowState.mFloatManager)
         nsBlockFrame::RecoverFloatsFor(frame, *aReflowState.mFloatManager);
     }
-    ConsiderChildOverflow(aOverflowRects, frame);
+    ConsiderChildOverflow(aOverflowRect, frame);
   }
 
   return NS_OK;
@@ -1549,12 +1552,9 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   nsContainerFrame* f = const_cast<nsContainerFrame*>(this);
-  if (f->HasOverflowAreas()) {
-    nsRect overflowArea = f->GetVisualOverflowRect();
-    fprintf(out, " [vis-overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
-            overflowArea.width, overflowArea.height);
-    overflowArea = f->GetScrollableOverflowRect();
-    fprintf(out, " [scr-overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
+  if (f->HasOverflowRect()) {
+    nsRect overflowArea = f->GetOverflowRect();
+    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
             overflowArea.width, overflowArea.height);
   }
   fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));

@@ -113,8 +113,6 @@ using namespace mozilla::layers;
 using namespace mozilla::dom;
 namespace css = mozilla::css;
 
-typedef gfxPattern::GraphicsFilter GraphicsFilter;
-
 /**
  * A namespace class for static layout utilities.
  */
@@ -851,7 +849,7 @@ nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
   for (i = 0; i < popups.Length(); i++) {
     nsIFrame* popup = popups[i];
     if (popup->PresContext()->GetRootPresContext() == aPresContext &&
-        popup->GetScrollableOverflowRect().Contains(
+        popup->GetOverflowRect().Contains(
           GetEventCoordinatesRelativeTo(aEvent, popup))) {
       return popup;
     }
@@ -1244,7 +1242,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     // document-rendering state.  We rely on PresShell to flush
     // retained layers as needed when that persistent state changes.
     if (!presShell->UsingDisplayPort()) {
-      visibleRegion = aFrame->GetVisualOverflowRectRelativeToSelf();
+      visibleRegion = aFrame->GetOverflowRectRelativeToSelf();
     } else {
       visibleRegion = presShell->GetDisplayPort();
     }
@@ -2789,9 +2787,7 @@ nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
 
   nscoord contentBottom = aFrame->GetRect().height;
 
-  // We want scrollable overflow rather than visual because this
-  // calculation is intended to affect layout.
-  if (aFrame->GetScrollableOverflowRect().height > contentBottom) {
+  if (aFrame->GetOverflowRect().height > contentBottom) {
     nsBlockFrame* blockFrame = GetAsBlock(aFrame);
     nsIAtom* childList = nsnull;
     PRIntn nextListID = 0;
@@ -2835,13 +2831,13 @@ nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame)
   return aFrame->PresContext()->PresShell()->FrameManager()->GetRootFrame();
 }
 
-GraphicsFilter
+gfxPattern::GraphicsFilter
 nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
 {
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
+  gfxPattern::GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
 #else
-  GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
+  gfxPattern::GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
 #endif
 #ifdef MOZ_SVG
   nsIFrame *frame = nsCSSRendering::IsCanvasFrame(aForFrame) ?
@@ -3040,7 +3036,7 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
 static nsresult
 DrawImageInternal(nsIRenderingContext* aRenderingContext,
                   imgIContainer*       aImage,
-                  GraphicsFilter       aGraphicsFilter,
+                  gfxPattern::GraphicsFilter aGraphicsFilter,
                   const nsRect&        aDest,
                   const nsRect&        aFill,
                   const nsPoint&       aAnchor,
@@ -3074,7 +3070,7 @@ DrawImageInternal(nsIRenderingContext* aRenderingContext,
 /* static */ void
 nsLayoutUtils::DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
                                 gfxDrawable*         aDrawable,
-                                GraphicsFilter       aFilter,
+                                gfxPattern::GraphicsFilter aFilter,
                                 const nsRect&        aDest,
                                 const nsRect&        aFill,
                                 const nsPoint&       aAnchor,
@@ -3117,9 +3113,8 @@ nsLayoutUtils::DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
 /* static */ nsresult
 nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
                                        imgIContainer*       aImage,
-                                       GraphicsFilter       aGraphicsFilter,
                                        const nsPoint&       aDest,
-                                       const nsRect*        aDirty,
+                                       const nsRect&        aDirty,
                                        PRUint32             aImageFlags,
                                        const nsRect*        aSourceArea)
 {
@@ -3145,15 +3140,14 @@ nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
   // outside the image bounds, we want to honor the aSourceArea-to-aDest
   // translation but we don't want to actually tile the image.
   fill.IntersectRect(fill, dest);
-  return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
-                           dest, fill, aDest, aDirty ? *aDirty : dest,
-                           imageSize, aImageFlags);
+  return DrawImageInternal(aRenderingContext, aImage, gfxPattern::FILTER_NEAREST,
+                           dest, fill, aDest, aDirty, imageSize, aImageFlags);
 }
 
 /* static */ nsresult
 nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                imgIContainer*       aImage,
-                               GraphicsFilter       aGraphicsFilter,
+                               gfxPattern::GraphicsFilter aGraphicsFilter,
                                const nsRect&        aDest,
                                const nsRect&        aDirty,
                                PRUint32             aImageFlags,
@@ -3235,7 +3229,7 @@ nsLayoutUtils::ComputeSizeForDrawing(imgIContainer *aImage,
 /* static */ nsresult
 nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          imgIContainer*       aImage,
-                         GraphicsFilter       aGraphicsFilter,
+                         gfxPattern::GraphicsFilter aGraphicsFilter,
                          const nsRect&        aDest,
                          const nsRect&        aFill,
                          const nsPoint&       aAnchor,
