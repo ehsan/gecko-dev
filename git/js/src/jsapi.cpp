@@ -536,11 +536,6 @@ JSRuntime::init(uint32 maxbytes)
     if (!js_InitGC(this, maxbytes) || !js_InitAtomState(this))
         return false;
 
-#ifdef JS_64BIT
-    if (!JSString::initStringTables())
-        return false;
-#endif
-
     deflatedStringCache = new js::DeflatedStringCache();
     if (!deflatedStringCache || !deflatedStringCache->init())
         return false;
@@ -4633,13 +4628,12 @@ JS_PUBLIC_API(void)
 JS_TriggerOperationCallback(JSContext *cx)
 {
     /*
-     * Use JS_ATOMIC_SET_MASK in the hope that it will make sure the write
+     * Use JS_ATOMIC_SET in the hope that it will make sure the write
      * will become immediately visible to other processors polling
-     * cx->interruptFlag. Note that we only care about visibility here,
-     * not read/write ordering.
+     * cx->operationCallbackFlag. Note that we only care about
+     * visibility here, not read/write ordering.
      */
-    JS_ATOMIC_SET_MASK(const_cast<jsword*>(&cx->interruptFlags),
-                       JSContext::INTERRUPT_OPERATION_CALLBACK);
+    JS_ATOMIC_SET(&cx->operationCallbackFlag, 1);
 }
 
 JS_PUBLIC_API(void)
@@ -5391,7 +5385,7 @@ JS_SetGCZeal(JSContext *cx, uint8 zeal)
 
 #if !defined(STATIC_JS_API) && defined(XP_WIN) && !defined (WINCE)
 
-#include "jswin.h"
+#include <windows.h>
 
 /*
  * Initialization routine for the JS DLL.

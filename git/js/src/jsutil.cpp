@@ -49,7 +49,7 @@
 #include "jstl.h"
 
 #ifdef WIN32
-#    include "jswin.h"
+#    include <windows.h>
 #else
 #    include <signal.h>
 #endif
