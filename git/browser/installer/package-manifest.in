@@ -373,7 +373,7 @@
 @BINPATH@/components/BrowserProfileMigrators.manifest
 @BINPATH@/components/ChromeProfileMigrator.js
 #ifdef XP_MACOSX
-@BINPATH@/components/libalerts.dylib
+@BINPATH@/components/libalerts_s.dylib
 #endif
 #ifdef MOZ_ENABLE_DBUS
 @BINPATH@/components/@DLL_PREFIX@dbusservice@DLL_SUFFIX@

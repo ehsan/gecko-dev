@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=80:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -52,6 +52,14 @@ using namespace mozilla;
 
 /***************************************************************************/
 
+XPCJSContextStack::XPCJSContextStack()
+    : mStack(),
+      mSafeJSContext(nsnull),
+      mOwnSafeJSContext(nsnull)
+{
+    // empty...
+}
+
 XPCJSContextStack::~XPCJSContextStack()
 {
     if (mOwnSafeJSContext) {
@@ -61,37 +69,54 @@ XPCJSContextStack::~XPCJSContextStack()
     }
 }
 
-JSContext*
-XPCJSContextStack::Pop()
+/* readonly attribute PRInt32 count; */
+NS_IMETHODIMP
+XPCJSContextStack::GetCount(PRInt32 *aCount)
 {
-    MOZ_ASSERT(!mStack.IsEmpty());
+    *aCount = mStack.Length();
+    return NS_OK;
+}
 
-    uint32_t idx = mStack.Length() - 1; // The thing we're popping
+/* JSContext peek (); */
+NS_IMETHODIMP
+XPCJSContextStack::Peek(JSContext * *_retval)
+{
+    *_retval = mStack.IsEmpty() ? nsnull : mStack[mStack.Length() - 1].cx;
+    return NS_OK;
+}
 
-    JSContext *cx = mStack[idx].cx;
+/* JSContext pop (); */
+NS_IMETHODIMP
+XPCJSContextStack::Pop(JSContext * *_retval)
+{
+    NS_ASSERTION(!mStack.IsEmpty(), "ThreadJSContextStack underflow");
+
+    PRUint32 idx = mStack.Length() - 1; // The thing we're popping
+
+    if (_retval)
+        *_retval = mStack[idx].cx;
 
     mStack.RemoveElementAt(idx);
-    if (idx == 0)
-        return cx;
+    if (idx > 0) {
+        --idx; // Advance to new top of the stack
 
-    --idx; // Advance to new top of the stack
+        XPCJSContextInfo & e = mStack[idx];
+        NS_ASSERTION(!e.suspendDepth || e.cx, "Shouldn't have suspendDepth without a cx!");
+        if (e.cx) {
+            if (e.suspendDepth) {
+                JS_ResumeRequest(e.cx, e.suspendDepth);
+                e.suspendDepth = 0;
+            }
 
-    XPCJSContextInfo &e = mStack[idx];
-    NS_ASSERTION(!e.suspendDepth || e.cx, "Shouldn't have suspendDepth without a cx!");
-    if (e.cx) {
-        if (e.suspendDepth) {
-            JS_ResumeRequest(e.cx, e.suspendDepth);
-            e.suspendDepth = 0;
-        }
-
-        if (e.savedFrameChain) {
-            // Pop() can be called outside any request for e.cx.
-            JSAutoRequest ar(e.cx);
-            JS_RestoreFrameChain(e.cx);
-            e.savedFrameChain = false;
+            if (e.savedFrameChain) {
+                // Pop() can be called outside any request for e.cx.
+                JSAutoRequest ar(e.cx);
+                JS_RestoreFrameChain(e.cx);
+                e.savedFrameChain = false;
+            }
         }
     }
-    return cx;
+    return NS_OK;
 }
 
 static nsIPrincipal*
@@ -106,54 +131,53 @@ GetPrincipalFromCx(JSContext *cx)
     return nsnull;
 }
 
-bool
-XPCJSContextStack::Push(JSContext *cx)
+/* void push (in JSContext cx); */
+NS_IMETHODIMP
+XPCJSContextStack::Push(JSContext * cx)
 {
-    MOZ_ASSERT_IF(cx, JS_GetContextThread(cx));
-    if (mStack.Length() == 0) {
-        mStack.AppendElement(cx);
-        return true;
-    }
-
-    XPCJSContextInfo &e = mStack[mStack.Length() - 1];
-    if (e.cx) {
-        if (e.cx == cx) {
-            nsIScriptSecurityManager* ssm = XPCWrapper::GetSecurityManager();
-            if (ssm) {
-                if (nsIPrincipal* globalObjectPrincipal = GetPrincipalFromCx(cx)) {
-                    nsIPrincipal* subjectPrincipal = ssm->GetCxSubjectPrincipal(cx);
-                    bool equals = false;
-                    globalObjectPrincipal->Equals(subjectPrincipal, &equals);
-                    if (equals) {
-                        mStack.AppendElement(cx);
-                        return true;
+    JS_ASSERT_IF(cx, JS_GetContextThread(cx));
+    if (mStack.Length() > 0) {
+        XPCJSContextInfo & e = mStack[mStack.Length() - 1];
+        if (e.cx) {
+            if (e.cx == cx) {
+                nsIScriptSecurityManager* ssm = XPCWrapper::GetSecurityManager();
+                if (ssm) {
+                    if (nsIPrincipal* globalObjectPrincipal = GetPrincipalFromCx(cx)) {
+                        nsIPrincipal* subjectPrincipal = ssm->GetCxSubjectPrincipal(cx);
+                        bool equals = false;
+                        globalObjectPrincipal->Equals(subjectPrincipal, &equals);
+                        if (equals) {
+                            goto append;
+                        }
                     }
                 }
             }
-        }
 
-        {
-            // Push() can be called outside any request for e.cx.
-            JSAutoRequest ar(e.cx);
-            if (!JS_SaveFrameChain(e.cx))
-                return false;
-            e.savedFrameChain = true;
-        }
+            {
+                // Push() can be called outside any request for e.cx.
+                JSAutoRequest ar(e.cx);
+                if (!JS_SaveFrameChain(e.cx))
+                    return NS_ERROR_OUT_OF_MEMORY;
+                e.savedFrameChain = true;
+            }
 
-        if (!cx)
-            e.suspendDepth = JS_SuspendRequest(e.cx);
+            if (!cx)
+                e.suspendDepth = JS_SuspendRequest(e.cx);
+        }
     }
 
-    mStack.AppendElement(cx);
-    return true;
+  append:
+    if (!mStack.AppendElement(cx))
+        return NS_ERROR_OUT_OF_MEMORY;
+    return NS_OK;
 }
 
 #ifdef DEBUG
-bool
-XPCJSContextStack::DEBUG_StackHasJSContext(JSContext *cx)
+JSBool
+XPCJSContextStack::DEBUG_StackHasJSContext(JSContext*  aJSContext)
 {
     for (PRUint32 i = 0; i < mStack.Length(); i++)
-        if (cx == mStack[i].cx)
+        if (aJSContext == mStack[i].cx)
             return true;
     return false;
 }
@@ -187,89 +211,88 @@ static JSClass global_class = {
 extern void
 mozJSLoaderErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep);
 
-JSContext*
-XPCJSContextStack::GetSafeJSContext()
+/* attribute JSContext safeJSContext; */
+NS_IMETHODIMP
+XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
 {
-    if (mSafeJSContext)
-        return mSafeJSContext;
+    if (!mSafeJSContext) {
+        // Start by getting the principal holder and principal for this
+        // context.  If we can't manage that, don't bother with the rest.
+        nsRefPtr<nsNullPrincipal> principal = new nsNullPrincipal();
+        nsCOMPtr<nsIScriptObjectPrincipal> sop;
+        if (principal) {
+            nsresult rv = principal->Init();
+            if (NS_SUCCEEDED(rv))
+              sop = new PrincipalHolder(principal);
+        }
+        if (!sop) {
+            *aSafeJSContext = nsnull;
+            return NS_ERROR_FAILURE;
+        }
 
-    // Start by getting the principal holder and principal for this
-    // context.  If we can't manage that, don't bother with the rest.
-    nsRefPtr<nsNullPrincipal> principal = new nsNullPrincipal();
-    nsresult rv = principal->Init();
-    if (NS_FAILED(rv))
-        return NULL;
+        JSRuntime *rt;
+        XPCJSRuntime* xpcrt;
 
-    nsCOMPtr<nsIScriptObjectPrincipal> sop = new PrincipalHolder(principal);
+        nsXPConnect* xpc = nsXPConnect::GetXPConnect();
+        nsCOMPtr<nsIXPConnect> xpcholder(static_cast<nsIXPConnect*>(xpc));
 
-    nsRefPtr<nsXPConnect> xpc = nsXPConnect::GetXPConnect();
-    if (!xpc)
-        return NULL;
+        if (xpc && (xpcrt = xpc->GetRuntime()) && (rt = xpcrt->GetJSRuntime())) {
+            JSObject *glob;
+            mSafeJSContext = JS_NewContext(rt, 8192);
+            if (mSafeJSContext) {
+                // scoped JS Request
+                JSAutoRequest req(mSafeJSContext);
 
-    XPCJSRuntime* xpcrt = xpc->GetRuntime();
-    if (!xpcrt)
-        return NULL;
+                JS_SetErrorReporter(mSafeJSContext, mozJSLoaderErrorReporter);
 
-    JSRuntime *rt = xpcrt->GetJSRuntime();
-    if (!rt)
-        return NULL;
+                // Because we can run off the main thread, we create an MT
+                // global object. Our principal is the unique key.
+                JSCompartment *compartment;
+                nsresult rv = xpc_CreateMTGlobalObject(mSafeJSContext,
+                                                       &global_class,
+                                                       principal, &glob,
+                                                       &compartment);
+                if (NS_FAILED(rv))
+                    glob = nsnull;
 
-    mSafeJSContext = JS_NewContext(rt, 8192);
-    if (!mSafeJSContext)
-        return NULL;
+                if (glob) {
+                    // Make sure the context is associated with a proper compartment
+                    // and not the default compartment.
+                    JS_SetGlobalObject(mSafeJSContext, glob);
 
-    JSObject *glob;
-    {
-        // scoped JS Request
-        JSAutoRequest req(mSafeJSContext);
+                    // Note: make sure to set the private before calling
+                    // InitClasses
+                    nsIScriptObjectPrincipal* priv = nsnull;
+                    sop.swap(priv);
+                    if (!JS_SetPrivate(mSafeJSContext, glob, priv)) {
+                        // Drop the whole thing
+                        NS_RELEASE(priv);
+                        glob = nsnull;
+                    }
+                }
 
-        JS_SetErrorReporter(mSafeJSContext, mozJSLoaderErrorReporter);
+                // After this point either glob is null and the
+                // nsIScriptObjectPrincipal ownership is either handled by the
+                // nsCOMPtr or dealt with, or we'll release in the finalize
+                // hook.
+                if (glob && NS_FAILED(xpc->InitClasses(mSafeJSContext, glob))) {
+                    glob = nsnull;
+                }
 
-        // Because we can run off the main thread, we create an MT
-        // global object. Our principal is the unique key.
-        JSCompartment *compartment;
-        nsresult rv = xpc_CreateMTGlobalObject(mSafeJSContext,
-                                               &global_class,
-                                               principal, &glob,
-                                               &compartment);
-        if (NS_FAILED(rv))
-            glob = nsnull;
-
-        if (glob) {
-            // Make sure the context is associated with a proper compartment
-            // and not the default compartment.
-            JS_SetGlobalObject(mSafeJSContext, glob);
-
-            // Note: make sure to set the private before calling
-            // InitClasses
-            nsIScriptObjectPrincipal* priv = nsnull;
-            sop.swap(priv);
-            if (!JS_SetPrivate(mSafeJSContext, glob, priv)) {
-                // Drop the whole thing
-                NS_RELEASE(priv);
-                glob = nsnull;
             }
-        }
-
-        // After this point either glob is null and the
-        // nsIScriptObjectPrincipal ownership is either handled by the
-        // nsCOMPtr or dealt with, or we'll release in the finalize
-        // hook.
-        if (glob && NS_FAILED(xpc->InitClasses(mSafeJSContext, glob))) {
-            glob = nsnull;
+            if (mSafeJSContext && !glob) {
+                // Destroy the context outside the scope of JSAutoRequest that
+                // uses the context in its destructor.
+                JS_DestroyContext(mSafeJSContext);
+                mSafeJSContext = nsnull;
+            }
+            // Save it off so we can destroy it later.
+            mOwnSafeJSContext = mSafeJSContext;
         }
     }
-    if (mSafeJSContext && !glob) {
-        // Destroy the context outside the scope of JSAutoRequest that
-        // uses the context in its destructor.
-        JS_DestroyContext(mSafeJSContext);
-        mSafeJSContext = nsnull;
-    }
 
-    // Save it off so we can destroy it later.
-    mOwnSafeJSContext = mSafeJSContext;
-
-    return mSafeJSContext;
+    *aSafeJSContext = mSafeJSContext;
+    return mSafeJSContext ? NS_OK : NS_ERROR_UNEXPECTED;
 }
 
 /***************************************************************************/
@@ -423,7 +446,7 @@ XPCPerThreadData::GetDataImpl(JSContext *cx)
     }
 
     if (cx && !sMainJSThread && NS_IsMainThread()) {
-        sMainJSThread = js::GetContextThread(cx);
+        sMainJSThread = cx->thread();
 
         sMainThreadData = data;
 

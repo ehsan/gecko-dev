@@ -60,7 +60,6 @@ class EmbeddedObjCollector;
 class KeyBinding;
 class nsAccessible;
 class nsHyperTextAccessible;
-class nsHTMLImageAccessible;
 class nsHTMLLIAccessible;
 struct nsRoleMapEntry;
 class Relation;
@@ -429,9 +428,6 @@ public:
 
   inline bool IsHTMLListItem() const { return mFlags & eHTMLListItemAccessible; }
   nsHTMLLIAccessible* AsHTMLListItem();
-  
-  inline bool IsImageAccessible() const { return mFlags & eImageAccessible; }
-  nsHTMLImageAccessible* AsImage();
 
   inline bool IsListControl() const { return mFlags & eListControlAccessible; }
 
@@ -658,12 +654,11 @@ protected:
     eHyperTextAccessible = 1 << 7,
     eHTMLFileInputAccessible = 1 << 8,
     eHTMLListItemAccessible = 1 << 9,
-    eImageAccessible = 1 << 10,
-    eListControlAccessible = 1 << 11,
-    eMenuButtonAccessible = 1 << 12,
-    eMenuPopupAccessible = 1 << 13,
-    eRootAccessible = 1 << 14,
-    eTextLeafAccessible = 1 << 15
+    eListControlAccessible = 1 << 10,
+    eMenuButtonAccessible = 1 << 11,
+    eMenuPopupAccessible = 1 << 12,
+    eRootAccessible = 1 << 13,
+    eTextLeafAccessible = 1 << 14
   };
 
   //////////////////////////////////////////////////////////////////////////////
@@ -676,8 +671,7 @@ protected:
 
   virtual nsIFrame* GetBoundsFrame();
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
-
-  PRUint64 VisibilityState(); 
+  bool IsVisible(bool *aIsOffscreen); 
 
   //////////////////////////////////////////////////////////////////////////////
   // Name helpers

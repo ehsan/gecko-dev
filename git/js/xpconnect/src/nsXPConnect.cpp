@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -68,9 +68,6 @@
 #include "mozilla/Base64.h"
 
 #include "nsWrapperCacheInlines.h"
-
-#include "jscntxt.h" // js::ThreadData, JS_TRACER_INIT, context->stackLimit, cx->outstandingRequests,
-// cx->globalObject, sizeof(JSContext), js::CompartmentVector, cx->stack.empty()
 
 NS_IMPL_THREADSAFE_ISUPPORTS7(nsXPConnect,
                               nsIXPConnect,
@@ -2466,7 +2463,8 @@ nsXPConnect::UnregisterGCCallback(JSGCCallback func)
 NS_IMETHODIMP
 nsXPConnect::GetCount(PRInt32 *aCount)
 {
-    MOZ_ASSERT(aCount);
+    if (!aCount)
+        return NS_ERROR_NULL_POINTER;
 
     XPCPerThreadData* data = XPCPerThreadData::GetData(nsnull);
 
@@ -2475,15 +2473,15 @@ nsXPConnect::GetCount(PRInt32 *aCount)
         return NS_ERROR_FAILURE;
     }
 
-    *aCount = data->GetJSContextStack()->Count();
-    return NS_OK;
+    return data->GetJSContextStack()->GetCount(aCount);
 }
 
 /* JSContext Peek (); */
 NS_IMETHODIMP
 nsXPConnect::Peek(JSContext * *_retval)
 {
-    MOZ_ASSERT(_retval);
+    if (!_retval)
+        return NS_ERROR_NULL_POINTER;
 
     XPCPerThreadData* data = XPCPerThreadData::GetData(nsnull);
 
@@ -2492,8 +2490,7 @@ nsXPConnect::Peek(JSContext * *_retval)
         return NS_ERROR_FAILURE;
     }
 
-    *_retval = data->GetJSContextStack()->Peek();
-    return NS_OK;
+    return data->GetJSContextStack()->Peek(_retval);
 }
 
 void
@@ -2584,14 +2581,11 @@ nsXPConnect::Pop(JSContext * *_retval)
 
     if (!data) {
         if (_retval)
-            *_retval = NULL;
+            *_retval = nsnull;
         return NS_ERROR_FAILURE;
     }
 
-    JSContext *cx = data->GetJSContextStack()->Pop();
-    if (_retval)
-        *_retval = cx;
-    return NS_OK;
+    return data->GetJSContextStack()->Pop(_retval);
 }
 
 /* void Push (in JSContext cx); */
@@ -2604,7 +2598,7 @@ nsXPConnect::Push(JSContext * cx)
         return NS_ERROR_FAILURE;
 
      if (gDebugMode != gDesiredDebugMode && NS_IsMainThread()) {
-         const InfallibleTArray<XPCJSContextInfo>* stack = data->GetJSContextStack()->GetStack();
+         const nsTArray<XPCJSContextInfo>* stack = data->GetJSContextStack()->GetStack();
          if (!gDesiredDebugMode) {
              /* Turn off debug mode immediately, even if JS code is currently running */
              CheckForDebugMode(mRuntime->GetJSRuntime());
@@ -2622,7 +2616,7 @@ nsXPConnect::Push(JSContext * cx)
          }
      }
 
-     return data->GetJSContextStack()->Push(cx) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+     return data->GetJSContextStack()->Push(cx);
 }
 
 /* attribute JSContext SafeJSContext; */
@@ -2638,8 +2632,7 @@ nsXPConnect::GetSafeJSContext(JSContext * *aSafeJSContext)
         return NS_ERROR_FAILURE;
     }
 
-    *aSafeJSContext = data->GetJSContextStack()->GetSafeJSContext();
-    return *aSafeJSContext ? NS_OK : NS_ERROR_FAILURE;
+    return data->GetJSContextStack()->GetSafeJSContext(aSafeJSContext);
 }
 
 nsIPrincipal*

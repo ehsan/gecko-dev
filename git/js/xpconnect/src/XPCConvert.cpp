@@ -58,10 +58,7 @@
 #include "dombindings.h"
 #include "nsWrapperCacheInlines.h"
 
-#include "jsapi.h"
 #include "jstypedarray.h"
-
-#include "jscntxt.h" // cx->compartment
 
 using namespace mozilla;
 
@@ -1343,7 +1340,7 @@ public:
 
 private:
     JSContext * const mContext;
-    JS::AutoValueRooter tvr;
+    js::AutoValueRooter tvr;
 };
 
 // static

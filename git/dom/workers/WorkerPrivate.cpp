@@ -59,8 +59,6 @@
 #include "jscntxt.h"
 #include "jsdbgapi.h"
 #include "jsprf.h"
-#include "js/MemoryMetrics.h"
-
 #include "nsAlgorithm.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
@@ -95,7 +93,7 @@ using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 using mozilla::dom::workers::exceptions::ThrowDOMExceptionForCode;
-using mozilla::xpconnect::memory::ReportJSRuntimeStats;
+using mozilla::xpconnect::memory::IterateData;
 
 USING_WORKERS_NAMESPACE
 
@@ -225,8 +223,7 @@ public:
   {
     AssertIsOnMainThread();
 
-    JS::IterateData data(xpc::JsMallocSizeOf, xpc::GetCompartmentName,
-                         xpc::DestroyCompartmentName);
+    IterateData data;
     nsresult rv = CollectForRuntime(/* isQuick = */false, &data);
     if (NS_FAILED(rv)) {
       return rv;
@@ -1478,9 +1475,9 @@ public:
   {
     JSAutoSuspendRequest asr(aCx);
 
-    *mSucceeded = mIsQuick
-      ? JS::GetExplicitNonHeapForRuntime(JS_GetRuntime(aCx), static_cast<int64_t*>(mData), xpc::JsMallocSizeOf)
-      : JS::CollectCompartmentStatsForRuntime(JS_GetRuntime(aCx), static_cast<JS::IterateData*>(mData));
+    *mSucceeded = mIsQuick ?
+      mozilla::xpconnect::memory::GetExplicitNonHeapForRuntime(JS_GetRuntime(aCx), mData) :
+      mozilla::xpconnect::memory::CollectCompartmentStatsForRuntime(JS_GetRuntime(aCx), mData);
 
     {
       MutexAutoLock lock(mMutex);

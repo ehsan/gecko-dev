@@ -432,7 +432,7 @@ JS_FunctionHasLocalNames(JSContext *cx, JSFunction *fun)
     return fun->script()->bindings.hasLocalNames();
 }
 
-extern JS_PUBLIC_API(uintptr_t *)
+extern JS_PUBLIC_API(jsuword *)
 JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
 {
     Vector<JSAtom *> localNames(cx);
@@ -442,18 +442,18 @@ JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
     /* Munge data into the API this method implements.  Avert your eyes! */
     *markp = cx->tempLifoAlloc().mark();
 
-    uintptr_t *names = cx->tempLifoAlloc().newArray<uintptr_t>(localNames.length());
+    jsuword *names = cx->tempLifoAlloc().newArray<jsuword>(localNames.length());
     if (!names) {
         js_ReportOutOfMemory(cx);
         return NULL;
     }
 
-    memcpy(names, localNames.begin(), localNames.length() * sizeof(uintptr_t));
+    memcpy(names, localNames.begin(), localNames.length() * sizeof(jsuword));
     return names;
 }
 
 extern JS_PUBLIC_API(JSAtom *)
-JS_LocalNameToAtom(uintptr_t w)
+JS_LocalNameToAtom(jsuword w)
 {
     return JS_LOCAL_NAME_TO_ATOM(w);
 }

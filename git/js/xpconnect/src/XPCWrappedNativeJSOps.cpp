@@ -1311,7 +1311,7 @@ public:
   ~AutoPopJSContext()
   {
       if (mCx)
-          mStack->Pop();
+          mStack->Pop(nsnull);
   }
 
   void PushIfNotTop(JSContext *cx)
@@ -1319,9 +1319,10 @@ public:
       NS_ASSERTION(cx, "Null context!");
       NS_ASSERTION(!mCx, "This class is only meant to be used once!");
 
-      JSContext *cxTop = mStack->Peek();
+      JSContext *cxTop = nsnull;
+      mStack->Peek(&cxTop);
 
-      if (cxTop != cx && mStack->Push(cx))
+      if (cxTop != cx && NS_SUCCEEDED(mStack->Push(cx)))
           mCx = cx;
   }
 

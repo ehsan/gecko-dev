@@ -78,6 +78,9 @@
 #include "nsThreadManager.h"
 #include "nsThreadPool.h"
 
+#include "nsIProxyObjectManager.h"
+#include "nsProxyEventPrivate.h"  // access to the impl of nsProxyObjectManager for the generic factory registration.
+
 #include "xptinfo.h"
 #include "nsIInterfaceInfoManager.h"
 #include "xptiprivate.h"
@@ -270,6 +273,7 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsChromeRegistry,
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsChromeProtocolHandler)
 
 #define NS_PERSISTENTPROPERTIES_CID NS_IPERSISTENTPROPERTIES_CID /* sigh */
+#define NS_XPCOMPROXY_CID NS_PROXYEVENT_MANAGER_CID
 
 static already_AddRefed<nsIFactory>
 CreateINIParserFactory(const mozilla::Module& module,
@@ -660,6 +664,8 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     if (nsComponentManagerImpl::gComponentManager) {
         nsComponentManagerImpl::gComponentManager->FreeServices();
     }
+
+    nsProxyObjectManager::Shutdown();
 
     // Release the directory service
     NS_IF_RELEASE(nsDirectoryService::gService);

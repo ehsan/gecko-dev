@@ -50,6 +50,7 @@
 #include "prenv.h"
 #include "prclist.h"
 
+#include "jscntxt.h"
 #include "jsfriendapi.h"
 
 #include "nsPluginHost.h"
@@ -1651,7 +1652,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
-  JS::AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
+  js::AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
   jsval *rval = &vec[1];
 
   if (result) {

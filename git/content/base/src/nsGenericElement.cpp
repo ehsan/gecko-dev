@@ -155,7 +155,6 @@
 #include "nsWrapperCacheInlines.h"
 
 #include "xpcpublic.h"
-#include "xpcprivate.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

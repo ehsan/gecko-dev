@@ -56,6 +56,7 @@ DIRS		= \
 		components \
 		threads \
 		reflect \
+		proxy \
                 system \
 		../chrome \
 		build \
@@ -72,7 +73,7 @@ TOOL_DIRS += \
 	tests \
 	sample \
 	typelib/xpt/tests \
-	$(NULL)
+	proxy/tests
 
 #  Can't build internal xptcall tests that use symbols which are not exported.
 #TOOL_DIRS += \

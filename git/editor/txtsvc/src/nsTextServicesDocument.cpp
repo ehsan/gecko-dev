@@ -3263,11 +3263,11 @@ nsTextServicesDocument::ComparePoints(nsIDOMNode* aParent1, PRInt32 aOffset1,
                                       nsIDOMNode* aParent2, PRInt32 aOffset2,
                                       PRInt32 *aResult)
 {
-  *aResult = 0;
-
+  nsresult result;
+  
   if (!sRangeHelper) {
-    nsresult result = CallGetService("@mozilla.org/content/range-utils;1",
-                                     &sRangeHelper);
+    result = CallGetService("@mozilla.org/content/range-utils;1",
+                            &sRangeHelper);
     NS_ENSURE_TRUE(sRangeHelper, result);
   }
 

@@ -9277,10 +9277,8 @@ nsHTMLEditRules::DocumentModifiedWorker()
 
   nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(mHTMLEditor);
   nsCOMPtr<nsISelection> selection;
-  nsresult rv = mHTMLEditor->GetSelection(getter_AddRefs(selection));
-  if (NS_FAILED(rv)) {
-    return;
-  }
+  nsresult res = mHTMLEditor->GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(res, );
 
   // Delete our bogus node, if we have one, since the document might not be
   // empty any more.

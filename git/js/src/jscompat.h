@@ -48,4 +48,6 @@
 
 typedef JSIntn intN;
 typedef JSUintn uintN;
+typedef JSUword jsuword;
+typedef JSWord jsword;
 #endif /* jscompat_h___ */

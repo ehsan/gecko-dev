@@ -114,6 +114,7 @@ endif
 #                  TestExpirationTracker.cpp \
 #                  TestPipes.cpp \
 #                  TestPriorityQueue.cpp \
+#                  TestProxies.cpp \
 #                  TestStorageStream.cpp \
 #                  TestStrings.cpp \
 #                  TestSynchronization.cpp \

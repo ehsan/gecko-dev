@@ -87,7 +87,6 @@
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
 #include "js/MemoryMetrics.h"
-#include "mozilla/Util.h" // DebugOnly
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -1193,18 +1192,6 @@ JS_PUBLIC_API(void)
 JS_SetContextPrivate(JSContext *cx, void *data)
 {
     cx->data = data;
-}
-
-JS_PUBLIC_API(void *)
-JS_GetSecondContextPrivate(JSContext *cx)
-{
-    return cx->data2;
-}
-
-JS_PUBLIC_API(void)
-JS_SetSecondContextPrivate(JSContext *cx, void *data)
-{
-    cx->data2 = data;
 }
 
 JS_PUBLIC_API(JSRuntime *)
@@ -3014,11 +3001,11 @@ JS_GetExternalStringClosure(JSContext *cx, JSString *str)
 }
 
 JS_PUBLIC_API(void)
-JS_SetThreadStackLimit(JSContext *cx, uintptr_t limitAddr)
+JS_SetThreadStackLimit(JSContext *cx, jsuword limitAddr)
 {
 #if JS_STACK_GROWTH_DIRECTION > 0
     if (limitAddr == 0)
-        limitAddr = UINTPTR_MAX;
+        limitAddr = jsuword(-1);
 #endif
     cx->stackLimit = limitAddr;
 }
@@ -3032,9 +3019,9 @@ JS_SetNativeStackQuota(JSContext *cx, size_t stackSize)
 
 #if JS_STACK_GROWTH_DIRECTION > 0
     if (stackSize == 0) {
-        cx->stackLimit = UINTPTR_MAX;
+        cx->stackLimit = jsuword(-1);
     } else {
-        uintptr_t stackBase = reinterpret_cast<uintptr_t>(JS_THREAD_DATA(cx)->nativeStackBase);
+        jsuword stackBase = reinterpret_cast<jsuword>(JS_THREAD_DATA(cx)->nativeStackBase);
         JS_ASSERT(stackBase <= size_t(-1) - stackSize);
         cx->stackLimit = stackBase + stackSize - 1;
     }
@@ -3042,7 +3029,7 @@ JS_SetNativeStackQuota(JSContext *cx, size_t stackSize)
     if (stackSize == 0) {
         cx->stackLimit = 0;
     } else {
-        uintptr_t stackBase = reinterpret_cast<uintptr_t>(JS_THREAD_DATA(cx)->nativeStackBase);
+        jsuword stackBase = reinterpret_cast<jsuword>(JS_THREAD_DATA(cx)->nativeStackBase);
         JS_ASSERT(stackBase >= stackSize);
         cx->stackLimit = stackBase - (stackSize - 1);
     }
@@ -6588,21 +6575,15 @@ JS_ThrowStopIteration(JSContext *cx)
     return js_ThrowStopIteration(cx);
 }
 
-JS_PUBLIC_API(intptr_t)
-JS_GetCurrentThread()
-{
-    return reinterpret_cast<intptr_t>(js_CurrentThreadId());
-}
-
 /*
  * Get the owning thread id of a context. Returns 0 if the context is not
  * owned by any thread.
  */
-JS_PUBLIC_API(intptr_t)
+JS_PUBLIC_API(jsword)
 JS_GetContextThread(JSContext *cx)
 {
 #ifdef JS_THREADSAFE
-    return cx->thread() ? reinterpret_cast<intptr_t>(cx->thread()->id) : 0;
+    return reinterpret_cast<jsword>(JS_THREAD_ID(cx));
 #else
     return 0;
 #endif
@@ -6612,7 +6593,7 @@ JS_GetContextThread(JSContext *cx)
  * Set the current thread as the owning thread of a context. Returns the
  * old owning thread id, or -1 if the operation failed.
  */
-JS_PUBLIC_API(intptr_t)
+JS_PUBLIC_API(jsword)
 JS_SetContextThread(JSContext *cx)
 {
     /* This function can be called by a finalizer. */
@@ -6622,7 +6603,7 @@ JS_SetContextThread(JSContext *cx)
     JS_ASSERT(!cx->outstandingRequests);
     if (cx->thread()) {
         JS_ASSERT(CURRENT_THREAD_IS_ME(cx->thread()));
-        return reinterpret_cast<intptr_t>(cx->thread()->id);
+        return reinterpret_cast<jsword>(cx->thread()->id);
     }
 
     if (!js_InitContextThreadAndLockGC(cx)) {
@@ -6662,7 +6643,7 @@ JS_AbortIfWrongThread(JSRuntime *rt)
 #endif
 }
 
-JS_PUBLIC_API(intptr_t)
+JS_PUBLIC_API(jsword)
 JS_ClearContextThread(JSContext *cx)
 {
     JS_AbortIfWrongThread(cx->runtime);
@@ -6694,7 +6675,7 @@ JS_ClearContextThread(JSContext *cx)
      * We can access t->id as long as the GC lock is held and we cannot race
      * with the GC that may delete t.
      */
-    return reinterpret_cast<intptr_t>(t->id);
+    return reinterpret_cast<jsword>(t->id);
 #else
     return 0;
 #endif
@@ -6856,31 +6837,3 @@ JS_CallOnce(JSCallOnceType *once, JSInitCallback func)
     }
 #endif
 }
-
-namespace JS {
-
-AutoGCRooter::AutoGCRooter(JSContext *cx, ptrdiff_t tag)
-  : down(cx->autoGCRooters), tag(tag), context(cx)
-{
-    JS_ASSERT(this != cx->autoGCRooters);
-    CHECK_REQUEST(cx);
-    cx->autoGCRooters = this;
-}
-
-AutoGCRooter::~AutoGCRooter()
-{
-    JS_ASSERT(this == context->autoGCRooters);
-    CHECK_REQUEST(context);
-    context->autoGCRooters = down;
-}
-
-AutoEnumStateRooter::~AutoEnumStateRooter()
-{
-    if (!stateValue.isNull()) {
-        DebugOnly<JSBool> ok =
-            obj->enumerate(context, JSENUMERATE_DESTROY, &stateValue, 0);
-        JS_ASSERT(ok);
-    }
-}
-
-} // namespace JS
