@@ -984,7 +984,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         if (dest.isFloat()) {
             Label notInt32, end;
             branchTestInt32(Assembler::NotEqual, src, &notInt32);
-            convertInt32ToDouble(src.valueReg(), dest.fpu());
+            cvtsi2sd(src.valueReg(), dest.fpu());
             jump(&end);
             bind(&notInt32);
             unboxDouble(src, dest.fpu());
@@ -996,17 +996,17 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
 
     // These two functions use the low 32-bits of the full value register.
     void boolValueToDouble(const ValueOperand &operand, const FloatRegister &dest) {
-        convertInt32ToDouble(operand.valueReg(), dest);
+        cvtsi2sd(operand.valueReg(), dest);
     }
     void int32ValueToDouble(const ValueOperand &operand, const FloatRegister &dest) {
-        convertInt32ToDouble(operand.valueReg(), dest);
+        cvtsi2sd(operand.valueReg(), dest);
     }
 
     void boolValueToFloat32(const ValueOperand &operand, const FloatRegister &dest) {
-        convertInt32ToFloat32(operand.valueReg(), dest);
+        cvtsi2ss(operand.valueReg(), dest);
     }
     void int32ValueToFloat32(const ValueOperand &operand, const FloatRegister &dest) {
-        convertInt32ToFloat32(operand.valueReg(), dest);
+        cvtsi2ss(operand.valueReg(), dest);
     }
 
     void loadConstantDouble(double d, const FloatRegister &dest);
@@ -1018,6 +1018,12 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         pun.f = f;
         mov(ImmWord(pun.u), ScratchReg);
         movq(ScratchReg, dest);
+    }
+    void loadStaticDouble(const double *dp, const FloatRegister &dest) {
+        loadConstantDouble(*dp, dest);
+    }
+    void loadStaticFloat32(const float *fp, const FloatRegister &dest) {
+        loadConstantFloat32(*fp, dest);
     }
 
     void branchTruncateDouble(const FloatRegister &src, const Register &dest, Label *fail) {
@@ -1053,7 +1059,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void loadInt32OrDouble(const Operand &operand, const FloatRegister &dest) {
         Label notInt32, end;
         branchTestInt32(Assembler::NotEqual, operand, &notInt32);
-        convertInt32ToDouble(operand, dest);
+        cvtsi2sd(operand, dest);
         jump(&end);
         bind(&notInt32);
         movsd(operand, dest);

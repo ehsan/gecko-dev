@@ -48,16 +48,11 @@ XPCOMUtils.defineLazyGetter(this, "nsGzipConverter",
 let gMgr = Cc["@mozilla.org/memory-reporter-manager;1"]
              .getService(Ci.nsIMemoryReporterManager);
 
-// We need to know about "child-memory-reporter-update" events from child
-// processes.
-let gOs = Cc["@mozilla.org/observer-service;1"]
-            .getService(Ci.nsIObserverService);
-gOs.addObserver(updateAboutMemoryFromReporters,
-                "child-memory-reporter-update", false);
-
 let gUnnamedProcessStr = "Main Process";
 
 let gIsDiff = false;
+
+let gChildMemoryListener = undefined;
 
 //---------------------------------------------------------------------------
 
@@ -120,10 +115,28 @@ function debug(x)
 
 //---------------------------------------------------------------------------
 
+function addChildObserversAndUpdate(aUpdateFn)
+{
+  let os = Cc["@mozilla.org/observer-service;1"]
+             .getService(Ci.nsIObserverService);
+  os.notifyObservers(null, "child-memory-reporter-request", null);
+
+  gChildMemoryListener = aUpdateFn;
+  os.addObserver(gChildMemoryListener, "child-memory-reporter-update", false);
+
+  gChildMemoryListener();
+}
+
 function onUnload()
 {
-  gOs.removeObserver(updateAboutMemoryFromReporters,
-                     "child-memory-reporter-update");
+  // We need to check if the observer has been added before removing; in some
+  // circumstances (e.g. reloading the page quickly) it might not have because
+  // onLoad might not fire.
+  if (gChildMemoryListener) {
+    let os = Cc["@mozilla.org/observer-service;1"]
+               .getService(Ci.nsIObserverService);
+    os.removeObserver(gChildMemoryListener, "child-memory-reporter-update");
+  }
 }
 
 //---------------------------------------------------------------------------
@@ -454,12 +467,7 @@ function doMMU()
 
 function doMeasure()
 {
-  // Notify any children that they should measure memory consumption, then
-  // update the page.  If any reports come back from children,
-  // updateAboutMemoryFromReporters() will be called again and the page will
-  // regenerate.
-  gOs.notifyObservers(null, "child-memory-reporter-request", null);
-  updateAboutMemoryFromReporters();
+  addChildObserversAndUpdate(updateAboutMemoryFromReporters);
 }
 
 /**

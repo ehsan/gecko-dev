@@ -1,4 +1,4 @@
-// |jit-test|
+// |jit-test| mjitalways;
 gczeal(4);
 var optionNames = options().split(',');
   for (var i = 0; i < optionNames.length; i++)

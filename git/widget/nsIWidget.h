@@ -18,7 +18,6 @@
 #include "nsXULAppAPI.h"
 #include "mozilla/layers/LayersTypes.h"
 #include "mozilla/RefPtr.h"
-#include "Units.h"
 
 // forward declarations
 class   nsFontMetrics;
@@ -652,7 +651,7 @@ class nsIWidget : public nsISupports {
      * or Windows' "font DPI". This will take into account Gecko preferences
      * overriding the system setting.
      */
-    mozilla::CSSToLayoutDeviceScale GetDefaultScale();
+    double GetDefaultScale();
 
     /**
      * Return the Gecko override of the system default scale, if any;

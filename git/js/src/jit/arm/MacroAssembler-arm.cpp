@@ -2904,6 +2904,12 @@ MacroAssemblerARMCompat::loadConstantFloat32(float f, const FloatRegister &dest)
 }
 
 void
+MacroAssemblerARMCompat::loadStaticFloat32(const float *fp, const FloatRegister &dest)
+{
+    loadConstantFloat32(*fp, dest);
+}
+
+void
 MacroAssemblerARMCompat::loadInt32OrDouble(const Operand &src, const FloatRegister &dest)
 {
     Label notInt32, end;
@@ -2954,6 +2960,11 @@ MacroAssemblerARMCompat::loadConstantDouble(double dp, const FloatRegister &dest
     as_FImm64Pool(dest, dp);
 }
 
+void
+MacroAssemblerARMCompat::loadStaticDouble(const double *dp, const FloatRegister &dest)
+{
+    loadConstantDouble(*dp, dest);
+}
     // treat the value as a boolean, and set condition codes accordingly
 
 Assembler::Condition

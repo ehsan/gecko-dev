@@ -10,7 +10,6 @@ import org.mozilla.gecko.ThumbnailHelper;
 import org.mozilla.gecko.db.BrowserDB.TopSitesCursorWrapper;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.util.StringUtils;
 
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -218,6 +217,9 @@ public class TopBookmarksView extends GridView {
      */
     public static class TopBookmarksContextMenuInfo extends AdapterContextMenuInfo {
 
+        // URL to Title replacement regex.
+        private static final String REGEX_URL_TO_TITLE = "^([a-z]+://)?(www\\.)?";
+
         public String url;
         public String title;
         public boolean isPinned;
@@ -235,8 +237,7 @@ public class TopBookmarksView extends GridView {
         }
 
         public String getDisplayTitle() {
-            return TextUtils.isEmpty(title) ?
-                StringUtils.stripCommonSubdomains(StringUtils.stripScheme(url, StringUtils.UrlFlags.STRIP_HTTPS)) : title;
+            return TextUtils.isEmpty(title) ? url.replaceAll(REGEX_URL_TO_TITLE, "") : title;
         }
     }
 }

@@ -233,13 +233,13 @@ CodeGenerator::visitValueToDouble(LValueToDouble *lir)
 
     if (hasNull) {
         masm.bind(&isNull);
-        masm.loadConstantDouble(DoubleZero, output);
+        masm.loadStaticDouble(&DoubleZero, output);
         masm.jump(&done);
     }
 
     if (hasUndefined) {
         masm.bind(&isUndefined);
-        masm.loadConstantDouble(js_NaN, output);
+        masm.loadStaticDouble(&js_NaN, output);
         masm.jump(&done);
     }
 
@@ -290,14 +290,16 @@ CodeGenerator::visitValueToFloat32(LValueToFloat32 *lir)
         return false;
 
     if (hasNull) {
+        static float DoubleZeroFloat = DoubleZero;
         masm.bind(&isNull);
-        masm.loadConstantFloat32((float)DoubleZero, output);
+        masm.loadStaticFloat32(&DoubleZeroFloat, output);
         masm.jump(&done);
     }
 
     if (hasUndefined) {
+        static float js_NaN_float = js_NaN;
         masm.bind(&isUndefined);
-        masm.loadConstantFloat32((float)js_NaN, output);
+        masm.loadStaticFloat32(&js_NaN_float, output);
         masm.jump(&done);
     }
 

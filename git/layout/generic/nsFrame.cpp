@@ -511,8 +511,7 @@ nsFrame::Init(nsIContent*      aContent,
     // property, so we can set this bit here and then ignore it.
     mState |= NS_FRAME_MAY_BE_TRANSFORMED;
   }
-  if (disp->mPosition == NS_STYLE_POSITION_STICKY &&
-      !(mState & NS_FRAME_IS_NONDISPLAY)) {
+  if (disp->mPosition == NS_STYLE_POSITION_STICKY) {
     StickyScrollContainer* ssc =
       StickyScrollContainer::GetStickyScrollContainerForFrame(this);
     if (ssc) {

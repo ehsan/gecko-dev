@@ -528,7 +528,8 @@ MacroAssembler::clampDoubleToUint8(FloatRegister input, Register output)
     bind(&positive);
 
     // Add 0.5 and truncate.
-    loadConstantDouble(0.5, ScratchFloatReg);
+    static const double DoubleHalf = 0.5;
+    loadStaticDouble(&DoubleHalf, ScratchFloatReg);
     addDouble(ScratchFloatReg, input);
 
     Label outOfRange;
@@ -1399,11 +1400,11 @@ MacroAssembler::convertValueToFloatingPoint(ValueOperand value, FloatRegister ou
     branchTestUndefined(Assembler::NotEqual, tag, fail);
 
     // fall-through: undefined
-    loadConstantFloatingPoint(js_NaN, FloatNaN, output, outputType);
+    loadStaticFloatingPoint(&js_NaN, &FloatNaN, output, outputType);
     jump(&done);
 
     bind(&isNull);
-    loadConstantFloatingPoint(DoubleZero, FloatZero, output, outputType);
+    loadStaticFloatingPoint(&DoubleZero, &FloatZero, output, outputType);
     jump(&done);
 
     bind(&isBool);
@@ -1432,25 +1433,29 @@ MacroAssembler::convertValueToFloatingPoint(JSContext *cx, const Value &v, Float
         else if (!StringToNumber(cx, v.toString(), &d))
             return false;
 
-        loadConstantFloatingPoint(d, (float)d, output, outputType);
+        if (d == js_NaN)
+            loadStaticFloatingPoint(&js_NaN, &FloatNaN, output, outputType);
+        else
+            loadConstantFloatingPoint(d, static_cast<float>(d), output, outputType);
+
         return true;
     }
 
     if (v.isBoolean()) {
         if (v.toBoolean())
-            loadConstantFloatingPoint(DoubleOne, FloatOne, output, outputType);
+            loadStaticFloatingPoint(&DoubleOne, &FloatOne, output, outputType);
         else
-            loadConstantFloatingPoint(DoubleZero, FloatZero, output, outputType);
+            loadStaticFloatingPoint(&DoubleZero, &FloatZero, output, outputType);
         return true;
     }
 
     if (v.isNull()) {
-        loadConstantFloatingPoint(DoubleZero, FloatZero, output, outputType);
+        loadStaticFloatingPoint(&DoubleZero, &FloatZero, output, outputType);
         return true;
     }
 
     if (v.isUndefined()) {
-        loadConstantFloatingPoint(js_NaN, FloatNaN, output, outputType);
+        loadStaticFloatingPoint(&js_NaN, &FloatNaN, output, outputType);
         return true;
     }
 
@@ -1524,7 +1529,7 @@ MacroAssembler::convertTypedOrValueToFloatingPoint(TypedOrValueRegister src, Flo
     bool outputIsDouble = outputType == MIRType_Double;
     switch (src.type()) {
       case MIRType_Null:
-        loadConstantFloatingPoint(DoubleZero, FloatZero, output, outputType);
+        loadStaticFloatingPoint(&DoubleZero, &FloatZero, output, outputType);
         break;
       case MIRType_Boolean:
       case MIRType_Int32:
@@ -1551,7 +1556,7 @@ MacroAssembler::convertTypedOrValueToFloatingPoint(TypedOrValueRegister src, Flo
         jump(fail);
         break;
       case MIRType_Undefined:
-        loadConstantFloatingPoint(js_NaN, FloatNaN, output, outputType);
+        loadStaticFloatingPoint(&js_NaN, &FloatNaN, output, outputType);
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("Bad MIRType");
