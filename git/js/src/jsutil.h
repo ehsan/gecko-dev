@@ -74,17 +74,6 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
 
 #endif /* defined(DEBUG) */
 
-#ifdef HAVE_SSE2
-#ifdef MUST_DETECT_SSE2
-extern bool js_use_SSE2;
-
-bool
-js_DetectSSE2();
-#else
-static const bool js_use_SSE2 = true;
-#endif
-#endif
-
 /*
  * Compile-time assert. "cond" must be a constant expression.
  * The macro can be used only in places where an "extern" declaration is
@@ -119,7 +108,7 @@ static const bool js_use_SSE2 = true;
  */
 extern JS_PUBLIC_API(void) JS_Abort(void);
 
-#ifdef DEBUG
+#if 0
 # define JS_BASIC_STATS 1
 # define JS_SCOPE_DEPTH_METER 1
 #endif
