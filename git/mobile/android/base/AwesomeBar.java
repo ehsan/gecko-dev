@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
@@ -167,7 +166,15 @@ public class AwesomeBar extends GeckoActivity {
                 InputMethodManager imm =
                         (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                 if (keyCode == KeyEvent.KEYCODE_BACK && !imm.isFullscreenMode()) {
-                    return handleBackKey();
+                    // Let mAwesomeTabs try to handle the back press, since we may be in a
+                    // bookmarks sub-folder.
+                    if (mAwesomeTabs.onBackPressed())
+                        return true;
+
+                    // If mAwesomeTabs.onBackPressed() returned false, we didn't move up
+                    // a folder level, so just exit the activity.
+                    cancelAndFinish();
+                    return true;
                 }
 
                 return false;
@@ -207,14 +214,12 @@ public class AwesomeBar extends GeckoActivity {
         mText.setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
-                if (keyCode == KeyEvent.KEYCODE_ENTER || GamepadUtils.isActionKey(event)) {
+                if (keyCode == KeyEvent.KEYCODE_ENTER) {
                     if (event.getAction() != KeyEvent.ACTION_DOWN)
                         return true;
 
                     openUserEnteredAndFinish(mText.getText().toString());
                     return true;
-                } else if (GamepadUtils.isBackKey(event)) {
-                    return handleBackKey();
                 } else {
                     return false;
                 }
@@ -270,18 +275,6 @@ public class AwesomeBar extends GeckoActivity {
             bookmarksTab.setShowReadingList(true);
             mAwesomeTabs.setCurrentItemByTag(bookmarksTab.getTag());
         }
-    }
-
-    private boolean handleBackKey() {
-        // Let mAwesomeTabs try to handle the back press, since we may be in a
-        // bookmarks sub-folder.
-        if (mAwesomeTabs.onBackPressed())
-            return true;
-
-        // If mAwesomeTabs.onBackPressed() returned false, we didn't move up
-        // a folder level, so just exit the activity.
-        cancelAndFinish();
-        return true;
     }
 
     @Override

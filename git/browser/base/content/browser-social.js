@@ -2,17 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// the "exported" symbols
-let SocialUI,
-    SocialChatBar,
-    SocialFlyout,
-    SocialShareButton,
-    SocialMenu,
-    SocialToolbar,
-    SocialSidebar;
-
-(function() {
-
 // The minimum sizes for the auto-resize panel code.
 const PANEL_MIN_HEIGHT = 100;
 const PANEL_MIN_WIDTH = 330;
@@ -20,7 +9,7 @@ const PANEL_MIN_WIDTH = 330;
 XPCOMUtils.defineLazyModuleGetter(this, "SharedFrame",
   "resource:///modules/SharedFrame.jsm");
 
-SocialUI = {
+let SocialUI = {
   // Called on delayed startup to initialize the UI
   init: function SocialUI_init() {
     Services.obs.addObserver(this, "social:ambient-notification-changed", false);
@@ -351,7 +340,7 @@ SocialUI = {
 
 }
 
-SocialChatBar = {
+let SocialChatBar = {
   init: function() {
   },
   get chatbar() {
@@ -448,7 +437,7 @@ DynamicResizeWatcher.prototype = {
   }
 }
 
-SocialFlyout = {
+let SocialFlyout = {
   get panel() {
     return document.getElementById("social-flyout-panel");
   },
@@ -580,7 +569,7 @@ SocialFlyout = {
   }
 }
 
-SocialShareButton = {
+let SocialShareButton = {
   // Called once, after window load, when the Social.provider object is initialized
   init: function SSB_init() {
   },
@@ -723,7 +712,7 @@ SocialShareButton = {
   }
 };
 
-SocialMenu = {
+var SocialMenu = {
   init: function SocialMenu_init() {
   },
 
@@ -757,7 +746,7 @@ SocialMenu = {
 };
 
 // XXX Need to audit that this is being initialized correctly
-SocialToolbar = {
+var SocialToolbar = {
   // Called once, after window load, when the Social.provider object is
   // initialized.
   init: function SocialToolbar_init() {
@@ -1098,7 +1087,7 @@ SocialToolbar = {
   }
 }
 
-SocialSidebar = {
+var SocialSidebar = {
   // Called once, after window load, when the Social.provider object is initialized
   init: function SocialSidebar_init() {
     let sbrowser = document.getElementById("social-sidebar-browser");
@@ -1205,5 +1194,3 @@ SocialSidebar = {
     }
   }
 }
-
-})();

@@ -13,7 +13,6 @@
 #include "js/Value.h"
 #include "vm/Stack.h"
 #include "IonFrames.h"
-#include "CompileInfo.h"
 
 namespace js {
 namespace ion {
@@ -45,11 +44,8 @@ class IonRuntime
     IonCode *bailoutHandler_;
 
     // Argument-rectifying thunk, in the case of insufficient arguments passed
-    // to a function call site.
+    // to a function call site. Pads with |undefined|.
     IonCode *argumentsRectifier_;
-
-    // Arguments-rectifying thunk which loads |parallelIon| instead of |ion|.
-    IonCode *parallelArgumentsRectifier_;
 
     // Thunk that invalides an (Ion compiled) caller on the Ion stack.
     IonCode *invalidator_;
@@ -67,7 +63,7 @@ class IonRuntime
 
   private:
     IonCode *generateEnterJIT(JSContext *cx);
-    IonCode *generateArgumentsRectifier(JSContext *cx, ExecutionMode mode);
+    IonCode *generateArgumentsRectifier(JSContext *cx);
     IonCode *generateBailoutTable(JSContext *cx, uint32_t frameClass);
     IonCode *generateBailoutHandler(JSContext *cx);
     IonCode *generateInvalidator(JSContext *cx);
@@ -128,12 +124,8 @@ class IonCompartment
 
     IonCode *getBailoutTable(const FrameSizeClass &frameClass);
 
-    IonCode *getArgumentsRectifier(ExecutionMode mode) {
-        switch (mode) {
-          case SequentialExecution: return rt->argumentsRectifier_;
-          case ParallelExecution:   return rt->parallelArgumentsRectifier_;
-          default:                  JS_NOT_REACHED("No such execution mode");
-        }
+    IonCode *getArgumentsRectifier() {
+        return rt->argumentsRectifier_;
     }
 
     IonCode *getInvalidationThunk() {

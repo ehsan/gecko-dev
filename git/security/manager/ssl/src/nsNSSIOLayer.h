@@ -51,7 +51,6 @@ public:
   void SetHandshakeInProgress(bool aIsIn);
   bool GetHandshakeInProgress() { return mHandshakeInProgress; }
   void SetFirstServerHelloReceived() { mFirstServerHelloReceived = true; }
-  bool GetFirstServerHelloReceived() { return mFirstServerHelloReceived; }
   bool HandshakeTimeout();
 
   void SetAllowTLSIntoleranceTimeout(bool aAllow);
@@ -60,7 +59,7 @@ public:
                 const nsNSSShutDownPreventionLock & proofOfLock);
   
   void SetNegotiatedNPN(const char *value, uint32_t length);
-  void SetHandshakeCompleted(bool aResumedSession);
+  void SetHandshakeCompleted();
 
   bool GetJoined() { return mJoined; }
   void SetSentClientCert() { mSentClientCert = true; }
@@ -91,8 +90,6 @@ public:
   void SetSSL3Enabled(bool enabled) { mSSL3Enabled = enabled; }
   bool IsTLSEnabled() const { return mTLSEnabled; }
   void SetTLSEnabled(bool enabled) { mTLSEnabled = enabled; }
-
-  void AddPlaintextBytesRead(uint64_t val) { mPlaintextBytesRead += val; }
 private:
   PRFileDesc* mFd;
 
@@ -120,7 +117,6 @@ private:
 
   uint32_t mProviderFlags;
   mozilla::TimeStamp mSocketCreationTimestamp;
-  uint64_t mPlaintextBytesRead;
 };
 
 class nsSSLIOLayerHelpers
@@ -134,9 +130,7 @@ public:
 
   static bool nsSSLIOLayerInitialized;
   static PRDescIdentity nsSSLIOLayerIdentity;
-  static PRDescIdentity nsSSLPlaintextLayerIdentity;
   static PRIOMethods nsSSLIOLayerMethods;
-  static PRIOMethods nsSSLPlaintextLayerMethods;
 
   mozilla::Mutex *mutex;
   nsTHashtable<nsCStringHashKey> *mTLSIntolerantSites;

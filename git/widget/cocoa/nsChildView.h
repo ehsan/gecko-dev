@@ -558,9 +558,6 @@ protected:
     return widget.forget();
   }
 
-  void MaybeDrawResizeIndicator(mozilla::layers::LayerManagerOGL* aManager, nsIntRect aRect);
-  void MaybeDrawRoundedBottomCorners(mozilla::layers::LayerManagerOGL* aManager, nsIntRect aRect);
-
   nsIWidget* GetWidgetForListenerEvents();
 
 protected:
@@ -580,7 +577,6 @@ protected:
 
   nsRefPtr<gfxASurface> mTempThebesSurface;
   nsRefPtr<mozilla::gl::TextureImage> mResizerImage;
-  nsRefPtr<mozilla::gl::TextureImage> mCornerMaskImage;
 
   nsRefPtr<gfxQuartzSurface> mTitlebarSurf;
   gfxSize mTitlebarSize;
@@ -591,8 +587,6 @@ protected:
   // ** We'll need to reinitialize this if the backing resolution changes. **
   CGFloat               mBackingScaleFactor;
 
-  bool                  mFailedResizerImage;
-  bool                  mFailedCornerMaskImage;
   bool                  mVisible;
   bool                  mDrawing;
   bool                  mPluginDrawing;

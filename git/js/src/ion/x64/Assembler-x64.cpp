@@ -49,7 +49,7 @@ ABIArgGenerator::next(MIRType type)
         JS_NOT_REACHED("Unexpected argument type");
     }
     return current_;
-#else
+#elif defined(XP_MACOSX) || defined(__linux__)
     switch (type) {
       case MIRType_Int32:
       case MIRType_Pointer:
@@ -72,6 +72,8 @@ ABIArgGenerator::next(MIRType type)
         JS_NOT_REACHED("Unexpected argument type");
     }
     return current_;
+#else
+# error "Missing ABI"
 #endif
 }
 

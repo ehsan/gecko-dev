@@ -102,7 +102,6 @@ BookmarkImporter.prototype = {
             deferred.resolve();
           } catch (ex) {
             notifyObservers(PlacesUtils.TOPIC_BOOKMARKS_RESTORE_FAILED);
-            Cu.reportError("Failed to import from URL: " + ex);
             deferred.reject(ex);
           }
         }.bind(this));
@@ -118,7 +117,6 @@ BookmarkImporter.prototype = {
       channel.asyncOpen(streamLoader, channel);
     } catch (ex) {
       notifyObservers(PlacesUtils.TOPIC_BOOKMARKS_RESTORE_FAILED);
-      Cu.reportError("Failed to import from URL: " + ex);
       deferred.reject(ex);
     }
 

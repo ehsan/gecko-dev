@@ -92,7 +92,6 @@ public: /*ITfContextOwnerCompositionSink*/
 protected:
   typedef mozilla::widget::IMEState IMEState;
   typedef mozilla::widget::InputContext InputContext;
-  typedef mozilla::widget::InputContextAction InputContextAction;
 
 public:
   static void     Initialize(void);
@@ -109,9 +108,12 @@ public:
     sTsfTextStore->CommitCompositionInternal(aDiscard);
   }
 
-  static void SetInputContext(nsWindowBase* aWidget,
-                              const InputContext& aContext,
-                              const InputContextAction& aAction);
+  static void     SetInputContext(const InputContext& aContext)
+  {
+    NS_ENSURE_TRUE_VOID(sTsfTextStore);
+    sTsfTextStore->SetInputScope(aContext.mHTMLInputType);
+    sTsfTextStore->SetInputContextInternal(aContext.mIMEState.mEnabled);
+  }
 
   static nsresult OnFocusChange(bool aGotFocus,
                                 nsWindowBase* aFocusedWidget,
@@ -196,10 +198,8 @@ protected:
   nsTextStore();
   ~nsTextStore();
 
-  static void MarkContextAsKeyboardDisabled(ITfContext* aContext);
-  static void MarkContextAsEmpty(ITfContext* aContext);
-
-  bool     Create(nsWindowBase* aWidget);
+  bool     Create(nsWindowBase* aWidget,
+                  IMEState::Enabled aIMEEnabled);
   bool     Destroy(void);
 
   bool     IsReadLock(DWORD aLock) const
@@ -223,6 +223,7 @@ protected:
   bool     InsertTextAtSelectionInternal(const nsAString &aInsertStr,
                                          TS_TEXTCHANGE* aTextChange);
   void     CommitCompositionInternal(bool);
+  void     SetInputContextInternal(IMEState::Enabled aState);
   nsresult OnTextChangeInternal(uint32_t, uint32_t, uint32_t);
   void     OnTextChangeMsgInternal(void);
   nsresult OnSelectionChangeInternal(void);
@@ -646,10 +647,6 @@ protected:
   // although Create is called when an editor is focused and Destroy called
   // when the focused editor is blurred.
   static nsTextStore*   sTsfTextStore;
-
-  // For IME (keyboard) disabled state:
-  static ITfDocumentMgr* sTsfDisabledDocumentMgr;
-  static ITfContext* sTsfDisabledContext;
 
   // Message the Tablet Input Panel uses to flush text during blurring.
   // See comments in Destroy

@@ -3032,15 +3032,6 @@ static JSFunctionSpec date_methods[] = {
     JS_FN("setUTCMilliseconds",  date_setUTCMilliseconds, 1,0),
     JS_FN("toUTCString",         date_toGMTString,        0,0),
     JS_FN("toLocaleFormat",      date_toLocaleFormat,     0,0),
-#if ENABLE_INTL_API
-         {js_toLocaleString_str, {NULL, NULL},            0,0, "Date_toLocaleString"},
-         {"toLocaleDateString",  {NULL, NULL},            0,0, "Date_toLocaleDateString"},
-         {"toLocaleTimeString",  {NULL, NULL},            0,0, "Date_toLocaleTimeString"},
-#else
-    JS_FN(js_toLocaleString_str, date_toLocaleString,     0,0),
-    JS_FN("toLocaleDateString",  date_toLocaleDateString, 0,0),
-    JS_FN("toLocaleTimeString",  date_toLocaleTimeString, 0,0),
-#endif
     JS_FN("toDateString",        date_toDateString,       0,0),
     JS_FN("toTimeString",        date_toTimeString,       0,0),
     JS_FN("toISOString",         date_toISOString,        0,0),
@@ -3050,6 +3041,19 @@ static JSFunctionSpec date_methods[] = {
 #endif
     JS_FN(js_toString_str,       date_toString,           0,0),
     JS_FN(js_valueOf_str,        date_valueOf,            0,0),
+
+    // This must be at the end because of bug 853075: functions listed after
+    // self-hosted methods aren't available in self-hosted code.
+#if ENABLE_INTL_API
+         {js_toLocaleString_str, {NULL, NULL},            0,0, "Date_toLocaleString"},
+         {"toLocaleDateString",  {NULL, NULL},            0,0, "Date_toLocaleDateString"},
+         {"toLocaleTimeString",  {NULL, NULL},            0,0, "Date_toLocaleTimeString"},
+#else
+    JS_FN(js_toLocaleString_str, date_toLocaleString,     0,0),
+    JS_FN("toLocaleDateString",  date_toLocaleDateString, 0,0),
+    JS_FN("toLocaleTimeString",  date_toLocaleTimeString, 0,0),
+#endif
+
     JS_FS_END
 };
 

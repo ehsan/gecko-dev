@@ -271,7 +271,6 @@ PeerConnectionImpl::~PeerConnectionImpl()
     CSFLogError(logTag, "PeerConnectionCtx is already gone. Ignoring...");
   }
 
-  CSFLogInfo(logTag, "%s: PeerConnectionImpl destructor invoked", __FUNCTION__);
   CloseInt(false);
 
 #ifdef MOZILLA_INTERNAL_API
@@ -961,8 +960,6 @@ PeerConnectionImpl::CloseStreams() {
     ChangeReadyState(PeerConnectionImpl::kClosing);
   }
 
-  CSFLogInfo(logTag, "%s: Ending associated call", __FUNCTION__);
-
   mCall->endCall();
   return NS_OK;
 }
@@ -1168,11 +1165,8 @@ PeerConnectionImpl::CloseInt(bool aIsSynchronous)
 {
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
 
-  if (mCall) {
-    CSFLogInfo(logTag, "%s: Closing PeerConnectionImpl; "
-                       "ending call", __FUNCTION__);
+  if (mCall != nullptr)
     mCall->endCall();
-  }
 #ifdef MOZILLA_INTERNAL_API
   if (mDataConnection) {
     mDataConnection->Destroy();

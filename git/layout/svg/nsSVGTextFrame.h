@@ -14,12 +14,6 @@ class nsRenderingContext;
 
 typedef nsSVGTextContainerFrame nsSVGTextFrameBase;
 
-namespace mozilla {
-namespace dom {
-class SVGIRect;
-}
-}
-
 class nsSVGTextFrame : public nsSVGTextFrameBase
 {
   friend nsIFrame*
@@ -83,7 +77,7 @@ public:
 
   NS_IMETHOD GetStartPositionOfChar(uint32_t charnum, nsISupports **_retval);
   NS_IMETHOD GetEndPositionOfChar(uint32_t charnum, nsISupports **_retval);
-  NS_IMETHOD GetExtentOfChar(uint32_t charnum, mozilla::dom::SVGIRect **_retval);
+  NS_IMETHOD GetExtentOfChar(uint32_t charnum, nsIDOMSVGRect **_retval);
   NS_IMETHOD GetRotationOfChar(uint32_t charnum, float *_retval);
 
   // nsSVGTextFrame

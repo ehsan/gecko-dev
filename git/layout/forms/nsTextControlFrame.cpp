@@ -742,6 +742,16 @@ nsresult nsTextControlFrame::SetFormProperty(nsIAtom* aName, const nsAString& aV
   return NS_OK;
 }
 
+nsresult
+nsTextControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
+{
+  NS_ASSERTION(nsGkAtoms::value != aName,
+               "Should get the value from the content node instead");
+  return NS_OK;
+}
+
+
+
 NS_IMETHODIMP
 nsTextControlFrame::GetEditor(nsIEditor **aEditor)
 {

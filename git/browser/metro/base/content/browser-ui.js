@@ -278,19 +278,17 @@ var BrowserUI = {
     content.focus();
     this._setURI(aURI);
 
-    Task.spawn(function() {
-      let postData = {};
-      aURI = yield Browser.getShortcutOrURI(aURI, postData);
-      Browser.loadURI(aURI, { flags: Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP, postData: postData });
+    let postData = {};
+    aURI = Browser.getShortcutOrURI(aURI, postData);
+    Browser.loadURI(aURI, { flags: Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP, postData: postData });
 
-      // Delay doing the fixup so the raw URI is passed to loadURIWithFlags
-      // and the proper third-party fixup can be done
-      let fixupFlags = Ci.nsIURIFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP;
-      let uri = gURIFixup.createFixupURI(aURI, fixupFlags);
-      gHistSvc.markPageAsTyped(uri);
+    // Delay doing the fixup so the raw URI is passed to loadURIWithFlags
+    // and the proper third-party fixup can be done
+    let fixupFlags = Ci.nsIURIFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP;
+    let uri = gURIFixup.createFixupURI(aURI, fixupFlags);
+    gHistSvc.markPageAsTyped(uri);
 
-      BrowserUI._titleChanged(Browser.selectedBrowser);
-    });
+    this._titleChanged(Browser.selectedBrowser);
   },
 
   handleUrlbarEnter: function handleUrlbarEnter(aEvent) {
@@ -1024,8 +1022,20 @@ var BrowserUI = {
         this.undoCloseTab();
         break;
       case "cmd_sanitize":
-        SanitizeUI.onSanitize();
+      {
+        let title = Strings.browser.GetStringFromName("clearPrivateData.title");
+        let message = Strings.browser.GetStringFromName("clearPrivateData.message");
+        let clear = Services.prompt.confirm(window, title, message);
+        if (clear) {
+          // disable the button temporarily to indicate something happened
+          let button = document.getElementById("prefs-clear-data");
+          button.disabled = true;
+          setTimeout(function() { button.disabled = false; }, 5000);
+
+          Sanitizer.sanitize();
+        }
         break;
+      }
       case "cmd_flyout_back":
         FlyoutPanelsUI.hide();
         MetroUtils.showSettingsFlyout();
@@ -1432,7 +1442,7 @@ var SyncPanelUI = {
   init: function() {
     // Run some setup code the first time the panel is shown.
     Elements.syncFlyout.addEventListener("PopupChanged", function onShow(aEvent) {
-      if (aEvent.detail && aEvent.target === Elements.syncFlyout) {
+      if (aEvent.detail && aEvent.popup === Elements.syncFlyout) {
         Elements.syncFlyout.removeEventListener("PopupChanged", onShow, false);
         WeaveGlue.init();
       }
@@ -1665,14 +1675,14 @@ var DialogUI = {
     this._hidePopup();
     this._popup =  { "panel": aPanel,
                      "elements": (aElements instanceof Array) ? aElements : [aElements] };
-    this._dispatchPopupChanged(true, aPanel);
+    this._dispatchPopupChanged(true);
   },
 
   popPopup: function popPopup(aPanel) {
     if (!this._popup || aPanel != this._popup.panel)
       return;
     this._popup = null;
-    this._dispatchPopupChanged(false, aPanel);
+    this._dispatchPopupChanged(false);
   },
 
   _hidePopup: function _hidePopup() {
@@ -1698,10 +1708,11 @@ var DialogUI = {
     }
   },
 
-  _dispatchPopupChanged: function _dispatchPopupChanged(aVisible, aElement) {
+  _dispatchPopupChanged: function _dispatchPopupChanged(aVisible) {
     let event = document.createEvent("UIEvents");
     event.initUIEvent("PopupChanged", true, true, window, aVisible);
-    aElement.dispatchEvent(event);
+    event.popup = this._popup;
+    Elements.stack.dispatchEvent(event);
   },
 
   _isEventInsidePopup: function _isEventInsidePopup(aEvent) {

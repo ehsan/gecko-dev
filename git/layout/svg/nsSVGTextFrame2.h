@@ -28,10 +28,6 @@ class TextNodeCorrespondenceRecorder;
 struct TextRenderedRun;
 class TextRenderedRunIterator;
 
-namespace dom {
-class SVGIRect;
-}
-
 /**
  * Information about the positioning for a single character in an SVG <text>
  * element.
@@ -266,7 +262,7 @@ public:
   nsresult GetEndPositionOfChar(nsIContent* aContent, uint32_t aCharNum,
                                 mozilla::nsISVGPoint** aResult);
   nsresult GetExtentOfChar(nsIContent* aContent, uint32_t aCharNum,
-                           mozilla::dom::SVGIRect** aResult);
+                           nsIDOMSVGRect** aResult);
   nsresult GetRotationOfChar(nsIContent* aContent, uint32_t aCharNum,
                              float* aResult);
 

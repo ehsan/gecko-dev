@@ -16,11 +16,12 @@
 #include "nsBidiPresUtils.h"
 #include "nsDisplayList.h"
 #include "nsError.h"
+#include "nsIDOMSVGRect.h"
 #include "nsRenderingContext.h"
 #include "nsSVGEffects.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGPaintServerFrame.h"
-#include "mozilla/dom/SVGRect.h"
+#include "nsSVGRect.h"
 #include "nsSVGTextPathFrame.h"
 #include "nsSVGUtils.h"
 #include "nsTextFragment.h"
@@ -1255,7 +1256,7 @@ nsSVGGlyphFrame::GetEndPositionOfChar(uint32_t charnum,
 }
 
 nsresult
-nsSVGGlyphFrame::GetExtentOfChar(uint32_t charnum, dom::SVGIRect **_retval)
+nsSVGGlyphFrame::GetExtentOfChar(uint32_t charnum, nsIDOMSVGRect **_retval)
 {
   *_retval = nullptr;
 
@@ -1284,13 +1285,7 @@ nsSVGGlyphFrame::GetExtentOfChar(uint32_t charnum, dom::SVGIRect **_retval)
                             metrics.mAdvanceWidth,
                             metrics.mAscent + metrics.mDescent));
   tmpCtx->IdentityMatrix();
-
-  nsRefPtr<dom::SVGRect> rect;
-  nsresult rv = NS_NewSVGRect(getter_AddRefs(rect), tmpCtx->GetUserPathExtent());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rect.forget(_retval);
-  return NS_OK;
+  return NS_NewSVGRect(_retval, tmpCtx->GetUserPathExtent());
 }
 
 nsresult

@@ -189,7 +189,7 @@ nsTreeColFrame::InvalidateColumns(bool aCanWalkFrameTree)
     } else {
       nsTreeBodyFrame* body = static_cast<nsTreeBoxObject*>(treeBoxObject)->GetCachedTreeBody();
       if (body) {
-        columns = body->Columns();
+        body->GetColumns(getter_AddRefs(columns));
       }
     }
 

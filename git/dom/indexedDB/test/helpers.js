@@ -40,18 +40,18 @@ function clearAllDatabases(callback) {
 
   let comp = SpecialPowers.wrap(Components);
 
-  let quotaManager =
-    comp.classes["@mozilla.org/dom/quota/manager;1"]
-        .getService(comp.interfaces.nsIQuotaManager);
+  let idbManager =
+    comp.classes["@mozilla.org/dom/indexeddb/manager;1"]
+        .getService(comp.interfaces.nsIIndexedDatabaseManager);
 
   let uri = SpecialPowers.getDocumentURIObject(document);
 
-  quotaManager.clearStoragesForURI(uri);
-  quotaManager.getUsageForURI(uri, function(uri, usage, fileUsage) {
+  idbManager.clearDatabasesForURI(uri);
+  idbManager.getUsageForURI(uri, function(uri, usage, fileUsage) {
     if (usage) {
       ok(false,
          "getUsageForURI returned non-zero usage after clearing all " +
-         "storages!");
+         "databases!");
     }
     runCallback();
   });

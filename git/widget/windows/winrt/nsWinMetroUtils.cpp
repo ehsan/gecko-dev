@@ -28,7 +28,6 @@ namespace widget {
 namespace winrt {
 extern ComPtr<MetroApp> sMetroApp;
 extern nsTArray<nsString>* sSettingsArray;
-extern ComPtr<FrameworkView> sFrameworkView;
 } } }
 
 namespace mozilla {
@@ -413,11 +412,12 @@ nsWinMetroUtils::GetHandPreference(int32_t *aHandPreference)
 NS_IMETHODIMP
 nsWinMetroUtils::GetActivationURI(nsAString &aActivationURI)
 {
-  if (!sFrameworkView) {
+  FrameworkView *view = MetroApp::GetView();
+  if (!view) {
     NS_WARNING("GetActivationURI used before view is created!");
     return NS_OK;
   }
-  sFrameworkView->GetActivationURI(aActivationURI);
+  view->GetActivationURI(aActivationURI);
   return NS_OK;
 }
 

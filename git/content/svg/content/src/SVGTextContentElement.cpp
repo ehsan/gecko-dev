@@ -8,7 +8,7 @@
 #include "nsSVGTextContainerFrame.h"
 #include "nsSVGTextFrame2.h"
 #include "nsIDOMSVGAnimatedLength.h"
-#include "mozilla/dom/SVGIRect.h"
+#include "nsIDOMSVGRect.h"
 #include "nsIDOMSVGAnimatedEnum.h"
 
 namespace mozilla {
@@ -153,10 +153,10 @@ SVGTextContentElement::GetEndPositionOfChar(uint32_t charnum, ErrorResult& rv)
   return point.forget();
 }
 
-already_AddRefed<SVGIRect>
+already_AddRefed<nsIDOMSVGRect>
 SVGTextContentElement::GetExtentOfChar(uint32_t charnum, ErrorResult& rv)
 {
-  nsRefPtr<SVGIRect> rect;
+  nsCOMPtr<nsIDOMSVGRect> rect;
   if (FrameIsSVGText()) {
     nsSVGTextFrame2* textFrame = GetSVGTextFrame();
 

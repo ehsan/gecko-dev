@@ -834,12 +834,10 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
 
   nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;
 
-  // certificate validation sets FirstServerHelloReceived, so if that flag
-  // is absent at handshake time we have a resumed session.
-  bool isResumedSession = !(infoObject->GetFirstServerHelloReceived());
-
-  // This is the first callback on resumption handshakes
-  infoObject->SetFirstServerHelloReceived();
+  if (infoObject) {
+    // This is the first callback on resumption handshakes
+    infoObject->SetFirstServerHelloReceived();
+  }
 
   // If the handshake completed, then we know the site is TLS tolerant (if this
   // was a TLS connection).
@@ -987,7 +985,7 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
       }
       
     }
-    infoObject->SetHandshakeCompleted(isResumedSession);
+    infoObject->SetHandshakeCompleted();
   }
 
   PORT_Free(cipherName);

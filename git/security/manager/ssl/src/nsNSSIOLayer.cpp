@@ -84,8 +84,7 @@ nsNSSSocketInfo::nsNSSSocketInfo(SharedSSLState& aState, uint32_t providerFlags)
     mJoined(false),
     mSentClientCert(false),
     mProviderFlags(providerFlags),
-    mSocketCreationTimestamp(TimeStamp::Now()),
-    mPlaintextBytesRead(0)
+    mSocketCreationTimestamp(TimeStamp::Now())
 {
 }
 
@@ -190,27 +189,12 @@ getSecureBrowserUI(nsIInterfaceRequestor * callbacks,
 }
 
 void
-nsNSSSocketInfo::SetHandshakeCompleted(bool aResumedSession)
+nsNSSSocketInfo::SetHandshakeCompleted()
 {
   if (!mHandshakeCompleted) {
     // This will include TCP and proxy tunnel wait time
     Telemetry::AccumulateTimeDelta(Telemetry::SSL_TIME_UNTIL_READY,
                                    mSocketCreationTimestamp, TimeStamp::Now());
-
-    // If the handshake is completed for the first time from just 1 callback
-    // that means that TLS session resumption must have been used.
-    Telemetry::Accumulate(Telemetry::SSL_RESUMED_SESSION, aResumedSession);
-
-    // Remove the plain text layer as it is not needed anymore.
-    // The plain text layer is not always present - so its not a fatal error
-    // if it cannot be removed
-    PRFileDesc* poppedPlaintext =
-      PR_GetIdentitiesLayer(mFd, nsSSLIOLayerHelpers::nsSSLPlaintextLayerIdentity);
-    if (poppedPlaintext) {
-      PR_PopIOLayer(mFd, nsSSLIOLayerHelpers::nsSSLPlaintextLayerIdentity);
-      poppedPlaintext->dtor(poppedPlaintext);
-    }
-
     mHandshakeCompleted = true;
   }
 }
@@ -456,10 +440,6 @@ nsNSSSocketInfo::SetCertVerificationResult(PRErrorCode errorCode,
 
   if (errorCode) {
     SetCanceled(errorCode, errorMessageType);
-  }
-
-  if (mPlaintextBytesRead && !errorCode) {
-    Telemetry::Accumulate(Telemetry::SSL_BYTES_BEFORE_CERT_CALLBACK, mPlaintextBytesRead);
   }
 
   mCertVerificationState = after_cert_verification;
@@ -716,12 +696,6 @@ nsSSLIOLayerHelpers::rememberTolerantSite(nsNSSSocketInfo *socketInfo)
   nsSSLIOLayerHelpers::mTLSTolerantSites->PutEntry(key);
 }
 
-bool nsSSLIOLayerHelpers::nsSSLIOLayerInitialized = false;
-PRDescIdentity nsSSLIOLayerHelpers::nsSSLIOLayerIdentity;
-PRDescIdentity nsSSLIOLayerHelpers::nsSSLPlaintextLayerIdentity;
-PRIOMethods nsSSLIOLayerHelpers::nsSSLIOLayerMethods;
-PRIOMethods nsSSLIOLayerHelpers::nsSSLPlaintextLayerMethods;
-
 static PRStatus
 nsSSLIOLayerClose(PRFileDesc *fd)
 {
@@ -743,18 +717,6 @@ PRStatus nsNSSSocketInfo::CloseSocketAndDestroy(
   nsNSSShutDownList::trackSSLSocketClose();
 
   PRFileDesc* popped = PR_PopIOLayer(mFd, PR_TOP_IO_LAYER);
-  NS_ASSERTION(popped &&
-               popped->identity == nsSSLIOLayerHelpers::nsSSLIOLayerIdentity,
-               "SSL Layer not on top of stack");
-
-  // The plain text layer is not always present - so its not a fatal error
-  // if it cannot be removed
-  PRFileDesc* poppedPlaintext =
-    PR_GetIdentitiesLayer(mFd, nsSSLIOLayerHelpers::nsSSLPlaintextLayerIdentity);
-  if (poppedPlaintext) {
-    PR_PopIOLayer(mFd, nsSSLIOLayerHelpers::nsSSLPlaintextLayerIdentity);
-    poppedPlaintext->dtor(poppedPlaintext);
-  }
 
   PRStatus status = mFd->methods->close(mFd);
   
@@ -1075,6 +1037,10 @@ nsSSLIOLayerPoll(PRFileDesc * fd, int16_t in_flags, int16_t *out_flags)
   return result;
 }
 
+bool nsSSLIOLayerHelpers::nsSSLIOLayerInitialized = false;
+PRDescIdentity nsSSLIOLayerHelpers::nsSSLIOLayerIdentity;
+PRIOMethods nsSSLIOLayerHelpers::nsSSLIOLayerMethods;
+
 nsSSLIOLayerHelpers::nsSSLIOLayerHelpers()
 : mutex(nullptr)
 , mTLSIntolerantSites(nullptr)
@@ -1277,23 +1243,6 @@ PrefObserver::Observe(nsISupports *aSubject, const char *aTopic,
   return NS_OK;
 }
 
-static int32_t PlaintextRecv(PRFileDesc *fd, void *buf, int32_t amount,
-                             int flags, PRIntervalTime timeout)
-{
-  // The shutdownlocker is not needed here because it will already be
-  // held higher in the stack
-  nsNSSSocketInfo *socketInfo = nullptr;
-
-  int32_t bytesRead = fd->lower->methods->recv(fd->lower, buf, amount, flags,
-                                               timeout);
-  if (fd->identity == nsSSLIOLayerHelpers::nsSSLPlaintextLayerIdentity)
-    socketInfo = (nsNSSSocketInfo*)fd->secret;
-
-  if ((bytesRead > 0) && socketInfo)
-    socketInfo->AddPlaintextBytesRead(bytesRead);
-  return bytesRead;
-}
-
 nsSSLIOLayerHelpers::~nsSSLIOLayerHelpers()
 {
   Preferences::RemoveObserver(mPrefObserver, "security.ssl.renego_unrestricted_hosts");
@@ -1339,10 +1288,6 @@ nsresult nsSSLIOLayerHelpers::Init()
     nsSSLIOLayerMethods.write = nsSSLIOLayerWrite;
     nsSSLIOLayerMethods.read = nsSSLIOLayerRead;
     nsSSLIOLayerMethods.poll = nsSSLIOLayerPoll;
-
-    nsSSLPlaintextLayerIdentity = PR_GetUniqueIdentity("Plaintxext PSM layer");
-    nsSSLPlaintextLayerMethods  = *PR_GetDefaultIOMethods();
-    nsSSLPlaintextLayerMethods.recv = PlaintextRecv;
   }
 
   mutex = new Mutex("nsSSLIOLayerHelpers.mutex");
@@ -2589,7 +2534,6 @@ nsSSLIOLayerAddToSocket(int32_t family,
 {
   nsNSSShutDownPreventionLock locker;
   PRFileDesc* layer = nullptr;
-  PRFileDesc* plaintextLayer = nullptr;
   nsresult rv;
   PRStatus stat;
 
@@ -2602,19 +2546,6 @@ nsSSLIOLayerAddToSocket(int32_t family,
   infoObject->SetForSTARTTLS(forSTARTTLS);
   infoObject->SetHostName(host);
   infoObject->SetPort(port);
-
-  // A plaintext observer shim is inserted so we can observe some protocol
-  // details without modifying nss
-  plaintextLayer = PR_CreateIOLayerStub(nsSSLIOLayerHelpers::nsSSLPlaintextLayerIdentity,
-                                        &nsSSLIOLayerHelpers::nsSSLPlaintextLayerMethods);
-  if (plaintextLayer) {
-    plaintextLayer->secret = (PRFilePrivate*) infoObject;
-    stat = PR_PushIOLayer(fd, PR_TOP_IO_LAYER, plaintextLayer);
-    if (stat == PR_FAILURE) {
-      plaintextLayer->dtor(plaintextLayer);
-      plaintextLayer = nullptr;
-    }
-  }
 
   PRFileDesc *sslSock = nsSSLIOLayerImportFD(fd, infoObject, host);
   if (!sslSock) {
@@ -2660,10 +2591,6 @@ nsSSLIOLayerAddToSocket(int32_t family,
   NS_IF_RELEASE(infoObject);
   if (layer) {
     layer->dtor(layer);
-  }
-  if (plaintextLayer) {
-    PR_PopIOLayer(fd, nsSSLIOLayerHelpers::nsSSLPlaintextLayerIdentity);
-    plaintextLayer->dtor(plaintextLayer);
   }
   return NS_ERROR_FAILURE;
 }

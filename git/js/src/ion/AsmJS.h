@@ -17,7 +17,8 @@
 // Don't panic, mobile support is coming soon.
 #if defined(JS_ION) && \
     !defined(ANDROID) && \
-    (defined(JS_CPU_X86) || defined(JS_CPU_X64))
+    (defined(JS_CPU_X86) || defined(JS_CPU_X64)) &&  \
+    (defined(__linux__) || defined(XP_WIN) || defined(XP_MACOSX))
 # define JS_ASMJS
 #endif
 

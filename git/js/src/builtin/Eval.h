@@ -31,7 +31,7 @@ extern bool
 DirectEvalFromIon(JSContext *cx,
                   HandleObject scopeObj, HandleScript callerScript,
                   HandleValue thisValue, HandleString str,
-                  jsbytecode * pc, MutableHandleValue vp);
+                  MutableHandleValue vp);
 
 // True iff 'v' is the built-in eval function for the global object that
 // corresponds to 'scopeChain'.

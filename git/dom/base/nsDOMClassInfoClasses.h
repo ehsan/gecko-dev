@@ -122,6 +122,8 @@ DOMCI_CLASS(SVGDocument)
 
 // SVG element classes
 DOMCI_CLASS(TimeEvent)
+DOMCI_CLASS(SVGFEMorphologyElement)
+DOMCI_CLASS(SVGFETurbulenceElement)
 DOMCI_CLASS(SVGUnknownElement)
 
 // other SVG classes

@@ -19,9 +19,8 @@
 #include "nsDOMStorage.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
-#include "mozilla/dom/quota/QuotaManager.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
+#include "mozilla/Preferences.h"
 
 #include "IndexedDatabaseManager.h"
 
@@ -141,10 +140,10 @@ CheckPermissionsHelper::Run()
   window.swap(mWindow);
 
   if (permission == PERMISSION_ALLOWED) {
-    quota::QuotaManager* quotaManager = quota::QuotaManager::Get();
-    NS_ASSERTION(quotaManager, "This should never be null!");
+    IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
+    NS_ASSERTION(mgr, "This should never be null!");
 
-    return helper->Dispatch(quotaManager->IOThread());
+    return helper->Dispatch(mgr->IOThread());
   }
 
   NS_ASSERTION(permission == PERMISSION_PROMPT ||

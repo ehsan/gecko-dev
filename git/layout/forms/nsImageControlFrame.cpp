@@ -74,6 +74,7 @@ public:
   // nsIFormContromFrame
   virtual void SetFocus(bool aOn, bool aRepaint);
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
+  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const; 
 };
 
 
@@ -221,5 +222,13 @@ nsresult
 nsImageControlFrame::SetFormProperty(nsIAtom* aName,
                                      const nsAString& aValue)
 {
+  return NS_OK;
+}
+
+nsresult
+nsImageControlFrame::GetFormProperty(nsIAtom* aName,
+                                     nsAString& aValue) const
+{
+  aValue.Truncate();
   return NS_OK;
 }

@@ -60,16 +60,7 @@ public:
   nsresult OnImageIsAnimated(imgIRequest* aRequest);
 
   // non-virtual signatures like nsITreeBodyFrame
-  already_AddRefed<nsTreeColumns> Columns() const
-  {
-    nsRefPtr<nsTreeColumns> cols = mColumns;
-    return cols.forget();
-  }
-  already_AddRefed<nsITreeView> GetExistingView() const
-  {
-    nsCOMPtr<nsITreeView> view = mView;
-    return view.forget();
-  }
+  nsresult GetColumns(nsITreeColumns **aColumns);
   nsresult GetView(nsITreeView **aView);
   nsresult SetView(nsITreeView *aView);
   nsresult GetFocused(bool *aFocused);
@@ -79,9 +70,9 @@ public:
   nsresult GetRowWidth(int32_t *aValue);
   nsresult GetHorizontalPosition(int32_t *aValue);
   nsresult GetSelectionRegion(nsIScriptableRegion **aRegion);
-  int32_t FirstVisibleRow() const { return mTopRowIndex; }
-  int32_t LastVisibleRow() const { return mTopRowIndex + mPageLength; }
-  int32_t PageLength() const { return mPageLength; }
+  nsresult GetFirstVisibleRow(int32_t *aValue);
+  nsresult GetLastVisibleRow(int32_t *aValue);
+  nsresult GetPageLength(int32_t *aValue);
   nsresult EnsureRowIsVisible(int32_t aRow);
   nsresult EnsureCellIsVisible(int32_t aRow, nsITreeColumn *aCol);
   nsresult ScrollToRow(int32_t aRow);
@@ -161,9 +152,6 @@ public:
                      const nsRect& aDirtyRect, nsPoint aPt);
 
   nsITreeBoxObject* GetTreeBoxObject() const { return mTreeBoxObject; }
-
-  // Get the base element, <tree> or <select>
-  nsIContent* GetBaseElement();
 
   bool GetVerticalOverflow() const { return mVerticalOverflow; }
   bool GetHorizontalOverflow() const {return mHorizontalOverflow; }
@@ -265,6 +253,10 @@ protected:
                             const nsRect&        aDirtyRect);
 
 
+  int32_t GetLastVisibleRow() {
+    return mTopRowIndex + mPageLength;
+  }
+
   // An internal hit test.  aX and aY are expected to be in twips in the
   // coordinate system of this frame.
   int32_t GetRowAt(nscoord aX, nscoord aY);
@@ -365,6 +357,9 @@ protected:
   void EnsureBoxObject();
 
   void EnsureView();
+
+  // Get the base element, <tree> or <select>
+  nsIContent* GetBaseElement();
 
   nsresult GetCellWidth(int32_t aRow, nsTreeColumn* aCol,
                         nsRenderingContext* aRenderingContext,

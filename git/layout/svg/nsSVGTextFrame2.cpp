@@ -19,6 +19,7 @@
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGAnimatedNumber.h"
 #include "nsIDOMSVGLength.h"
+#include "nsIDOMSVGRect.h"
 #include "nsISVGGlyphFragmentNode.h"
 #include "nsISelection.h"
 #include "nsQuickSort.h"
@@ -27,7 +28,7 @@
 #include "nsSVGGlyphFrame.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsSVGPaintServerFrame.h"
-#include "mozilla/dom/SVGRect.h"
+#include "nsSVGRect.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGTextFrame.h"
 #include "nsSVGTextPathFrame.h"
@@ -3803,7 +3804,7 @@ nsSVGTextFrame2::GetEndPositionOfChar(nsIContent* aContent,
 nsresult
 nsSVGTextFrame2::GetExtentOfChar(nsIContent* aContent,
                                  uint32_t aCharNum,
-                                 dom::SVGIRect** aResult)
+                                 nsIDOMSVGRect** aResult)
 {
   UpdateGlyphPositioning(false);
 
@@ -3844,7 +3845,7 @@ nsSVGTextFrame2::GetExtentOfChar(nsIContent* aContent,
   // Transform the glyph's rect into user space.
   gfxRect r = m.TransformBounds(glyphRect);
 
-  NS_ADDREF(*aResult = new dom::SVGRect(r.x, r.y, r.width, r.height));
+  NS_ADDREF(*aResult = new nsSVGRect(r.x, r.y, r.width, r.height));
   return NS_OK;
 }
 
@@ -4079,16 +4080,16 @@ nsSVGTextFrame2::ResolvePositions(nsTArray<gfxPoint>& aDeltas)
 
   // Fill in unspecified positions for all remaining characters, noting
   // them as unaddressable if they are.
-  uint32_t index = 0;
+  uint32_t index = it.TextElementCharIndex();
+  for (uint32_t i = 0; i < index; i++) {
+    mPositions.AppendElement(CharPosition::Unspecified(false));
+  }
   while (it.Next()) {
     while (++index < it.TextElementCharIndex()) {
       mPositions.AppendElement(CharPosition::Unspecified(false));
     }
     mPositions.AppendElement(CharPosition::Unspecified(
                                              it.IsOriginalCharUnaddressable()));
-  }
-  while (++index < it.TextElementCharIndex()) {
-    mPositions.AppendElement(CharPosition::Unspecified(false));
   }
 
   // Recurse over the content and fill in character positions as we go.

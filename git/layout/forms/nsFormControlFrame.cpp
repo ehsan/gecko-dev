@@ -160,6 +160,13 @@ nsFormControlFrame::SetFormProperty(nsIAtom* aName, const nsAString& aValue)
   return NS_OK;
 }
 
+nsresult
+nsFormControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
+{
+  aValue.Truncate();
+  return NS_OK;
+}
+
 // static
 nsRect
 nsFormControlFrame::GetUsableScreenRect(nsPresContext* aPresContext)

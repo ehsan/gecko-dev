@@ -27,16 +27,18 @@ this.ActivitiesServiceFilter = {
         }
       }
 
-      // Pattern.
-      if (('pattern' in aFilterObj)) {
-        var pattern = String(aFilterObj.pattern);
+      // Regexp.
+      if (('regexp' in aFilterObj)) {
+        var regexp = String(aFilterObj.regexp);
 
-        var patternFlags = '';
-        if (('patternFlags' in aFilterObj)) {
-          patternFlags = String(aFilterObj.patternFlags);
-        }
+        if (regexp[0] != "/")
+          return false;
 
-        var re = new RegExp('^(?:' + pattern + ')$', patternFlags);
+        var pos = regexp.lastIndexOf("/");
+        if (pos == 0)
+          return false;
+
+        var re = new RegExp(regexp.substring(1, pos), regexp.substr(pos + 1));
         return re.test(aValue);
       }
 

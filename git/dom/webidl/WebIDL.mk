@@ -21,7 +21,6 @@ webidl_files = \
   AudioParam.webidl \
   AudioSourceNode.webidl \
   BatteryManager.webidl \
-  BeforeUnloadEvent.webidl \
   BiquadFilterNode.webidl \
   Blob.webidl \
   CanvasRenderingContext2D.webidl \
@@ -33,7 +32,6 @@ webidl_files = \
   ClientRectList.webidl \
   CommandEvent.webidl \
   Comment.webidl \
-  CompositionEvent.webidl \
   CSS.webidl \
   CSSPrimitiveValue.webidl \
   CSSStyleDeclaration.webidl \
@@ -206,13 +204,11 @@ webidl_files = \
   SVGFEImageElement.webidl \
   SVGFEMergeElement.webidl \
   SVGFEMergeNodeElement.webidl \
-  SVGFEMorphologyElement.webidl \
   SVGFEOffsetElement.webidl \
   SVGFEPointLightElement.webidl \
   SVGFESpecularLightingElement.webidl \
   SVGFESpotLightElement.webidl \
   SVGFETileElement.webidl \
-  SVGFETurbulenceElement.webidl \
   SVGFitToViewBox.webidl \
   SVGForeignObjectElement.webidl \
   SVGGElement.webidl \
@@ -238,7 +234,6 @@ webidl_files = \
   SVGPolylineElement.webidl \
   SVGPreserveAspectRatio.webidl \
   SVGRadialGradientElement.webidl \
-  SVGRect.webidl \
   SVGRectElement.webidl \
   SVGScriptElement.webidl \
   SVGSetElement.webidl \
@@ -275,14 +270,12 @@ webidl_files = \
   UndoManager.webidl \
   URLUtils.webidl \
   USSDReceivedEvent.webidl \
-  XMLDocument.webidl \
   XMLHttpRequest.webidl \
   XMLHttpRequestEventTarget.webidl \
   XMLHttpRequestUpload.webidl \
   XMLSerializer.webidl \
   XMLStylesheetProcessingInstruction.webidl \
   XPathEvaluator.webidl \
-  XULDocument.webidl \
   XULElement.webidl \
   $(NULL)
 
@@ -309,17 +302,6 @@ ifdef MOZ_WEBRTC
 webidl_files += \
   MediaStreamList.webidl \
   $(NULL)
-endif
-
-ifdef MOZ_WEBSPEECH
-webidl_files += \
-    SpeechGrammar.webidl \
-    SpeechGrammarList.webidl \
-    SpeechRecognitionAlternative.webidl \
-    SpeechRecognitionResultList.webidl \
-    SpeechRecognitionResult.webidl \
-    SpeechRecognition.webidl \
-    $(NULL)
 endif
 
 ifdef ENABLE_TESTS

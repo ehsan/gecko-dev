@@ -8,8 +8,6 @@
 
 #include "nsIFile.h"
 
-#include "mozilla/dom/quota/AcquireListener.h"
-#include "mozilla/dom/quota/OriginOrPatternString.h"
 #include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/storage.h"
 #include "nsEscape.h"
@@ -17,7 +15,6 @@
 #include "nsThreadUtils.h"
 #include "snappy/snappy.h"
 
-#include "Client.h"
 #include "nsIBFCacheEntry.h"
 #include "IDBEvents.h"
 #include "IDBFactory.h"
@@ -1326,8 +1323,7 @@ UpgradeSchemaFrom11_0To12_0(mozIStorageConnection* aConnection)
 class VersionChangeEventsRunnable;
 
 class SetVersionHelper : public AsyncConnectionHelper,
-                         public IDBTransactionListener,
-                         public AcquireListener
+                         public IDBTransactionListener
 {
   friend class VersionChangeEventsRunnable;
 
@@ -1349,9 +1345,6 @@ public:
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
                                     jsval* aVal) MOZ_OVERRIDE;
-
-  virtual nsresult
-  OnExclusiveAccessAcquired() MOZ_OVERRIDE;
 
 protected:
   virtual nsresult Init() MOZ_OVERRIDE;
@@ -1400,8 +1393,7 @@ private:
   uint64_t mCurrentVersion;
 };
 
-class DeleteDatabaseHelper : public AsyncConnectionHelper,
-                             public AcquireListener
+class DeleteDatabaseHelper : public AsyncConnectionHelper
 {
   friend class VersionChangeEventsRunnable;
 public:
@@ -1416,8 +1408,6 @@ public:
     mASCIIOrigin(aASCIIOrigin)
   { }
 
-  NS_DECL_ISUPPORTS_INHERITED
-
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
 
@@ -1428,9 +1418,6 @@ public:
 
     AsyncConnectionHelper::ReleaseMainThreadObjects();
   }
-
-  virtual nsresult
-  OnExclusiveAccessAcquired() MOZ_OVERRIDE;
 
 protected:
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
@@ -1483,11 +1470,11 @@ class VersionChangeEventsRunnable : public nsRunnable
 {
 public:
   VersionChangeEventsRunnable(
-                      IDBDatabase* aRequestingDatabase,
-                      IDBOpenDBRequest* aRequest,
-                      nsTArray<nsCOMPtr<nsIOfflineStorage> >& aWaitingDatabases,
-                      int64_t aOldVersion,
-                      int64_t aNewVersion)
+                            IDBDatabase* aRequestingDatabase,
+                            IDBOpenDBRequest* aRequest,
+                            nsTArray<nsRefPtr<IDBDatabase> >& aWaitingDatabases,
+                            int64_t aOldVersion,
+                            int64_t aNewVersion)
   : mRequestingDatabase(aRequestingDatabase),
     mRequest(aRequest),
     mOldVersion(aOldVersion),
@@ -1510,9 +1497,7 @@ public:
     // closed. Also kick bfcached documents out of bfcache.
     uint32_t count = mWaitingDatabases.Length();
     for (uint32_t index = 0; index < count; index++) {
-      IDBDatabase* database =
-        IDBDatabase::FromStorage(mWaitingDatabases[index]);
-      NS_ASSERTION(database, "This shouldn't be null!");
+      nsRefPtr<IDBDatabase>& database = mWaitingDatabases[index];
 
       if (database->IsClosed()) {
         continue;
@@ -1534,12 +1519,12 @@ public:
         // We can't kick the document out of the bfcache because it's not yet
         // fully in the bfcache.  Instead we'll abort everything for the window
         // and mark it as not-bfcacheable.
-        QuotaManager* quotaManager = QuotaManager::Get();
-        NS_ASSERTION(quotaManager, "Huh?");
-        quotaManager->AbortCloseStoragesForWindow(owner);
+        IndexedDatabaseManager* manager = IndexedDatabaseManager::Get();
+        NS_ASSERTION(manager, "Huh?");
+        manager->AbortCloseDatabasesForWindow(owner);
 
         NS_ASSERTION(database->IsClosed(),
-                   "AbortCloseStoragesForWindow should have closed database");
+                   "AbortCloseDatabasesForWindow should have closed database");
         ownerDoc->DisallowBFCaching();
         continue;
       }
@@ -1574,12 +1559,12 @@ public:
 
   template <class T>
   static
-  void QueueVersionChange(nsTArray<nsCOMPtr<nsIOfflineStorage> >& aDatabases,
+  void QueueVersionChange(nsTArray<nsRefPtr<IDBDatabase> >& aDatabases,
                           void* aClosure);
 private:
   nsRefPtr<IDBDatabase> mRequestingDatabase;
   nsRefPtr<IDBOpenDBRequest> mRequest;
-  nsTArray<nsCOMPtr<nsIOfflineStorage> > mWaitingDatabases;
+  nsTArray<nsRefPtr<IDBDatabase> > mWaitingDatabases;
   int64_t mOldVersion;
   int64_t mNewVersion;
 };
@@ -1591,7 +1576,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(OpenDatabaseHelper, nsIRunnable)
 nsresult
 OpenDatabaseHelper::Init()
 {
-  mDatabaseId = QuotaManager::GetStorageId(mASCIIOrigin, mName);
+  mDatabaseId = IndexedDatabaseManager::GetDatabaseId(mASCIIOrigin, mName);
   NS_ENSURE_TRUE(mDatabaseId, NS_ERROR_FAILURE);
 
   return NS_OK;
@@ -1624,7 +1609,7 @@ OpenDatabaseHelper::DoDatabaseWork()
 #ifdef DEBUG
   {
     bool correctThread;
-    NS_ASSERTION(NS_SUCCEEDED(QuotaManager::Get()->IOThread()->
+    NS_ASSERTION(NS_SUCCEEDED(IndexedDatabaseManager::Get()->IOThread()->
                               IsOnCurrentThread(&correctThread)) &&
                  correctThread,
                  "Running on the wrong thread!");
@@ -1633,7 +1618,7 @@ OpenDatabaseHelper::DoDatabaseWork()
 
   mState = eFiringEvents; // In case we fail somewhere along the line.
 
-  if (QuotaManager::IsShuttingDown()) {
+  if (IndexedDatabaseManager::IsShuttingDown()) {
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
@@ -1646,33 +1631,13 @@ OpenDatabaseHelper::DoDatabaseWork()
 
   nsCOMPtr<nsIFile> dbDirectory;
 
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "This should never be null!");
+  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
+  NS_ASSERTION(mgr, "This should never be null!");
 
-  nsresult rv =
-    quotaManager->EnsureOriginIsInitialized(mASCIIOrigin,
-                                            mPrivilege,
-                                            getter_AddRefs(dbDirectory));
+  nsresult rv = mgr->EnsureOriginIsInitialized(mASCIIOrigin,
+                                               mPrivilege,
+                                               getter_AddRefs(dbDirectory));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  rv = dbDirectory->Append(NS_LITERAL_STRING(IDB_DIRECTORY_NAME));
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  bool exists;
-  rv = dbDirectory->Exists(&exists);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  if (!exists) {
-    rv = dbDirectory->Create(nsIFile::DIRECTORY_TYPE, 0755);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-  }
-#ifdef DEBUG
-  else {
-    bool isDirectory;
-    NS_ASSERTION(NS_SUCCEEDED(dbDirectory->IsDirectory(&isDirectory)) &&
-                isDirectory, "Should have caught this earlier!");
-  }
-#endif
 
   nsAutoString filename;
   rv = GetDatabaseFilename(mName, filename);
@@ -1744,9 +1709,6 @@ OpenDatabaseHelper::DoDatabaseWork()
   if (mCurrentVersion != mRequestedVersion) {
     mState = eSetVersionPending;
   }
-
-  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
-  NS_ASSERTION(mgr, "This should never be null!");
 
   nsRefPtr<FileManager> fileManager = mgr->GetFileManager(mASCIIOrigin, mName);
   if (!fileManager) {
@@ -1955,13 +1917,12 @@ OpenDatabaseHelper::StartSetVersion()
     new SetVersionHelper(transaction, mOpenDBRequest, this, mRequestedVersion,
                          mCurrentVersion);
 
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "This should never be null!");
+  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
+  NS_ASSERTION(mgr, "This should never be null!");
 
-  rv = quotaManager->AcquireExclusiveAccess(
-             mDatabase, mDatabase->Origin(), helper,
+  rv = mgr->AcquireExclusiveAccess(mDatabase, mDatabase->Origin(), helper,
              &VersionChangeEventsRunnable::QueueVersionChange<SetVersionHelper>,
-             helper);
+                                   helper);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   // The SetVersionHelper is responsible for dispatching us back to the
@@ -1985,13 +1946,12 @@ OpenDatabaseHelper::StartDelete()
     new DeleteDatabaseHelper(mOpenDBRequest, this, mCurrentVersion, mName,
                              mASCIIOrigin);
 
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "This should never be null!");
+  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
+  NS_ASSERTION(mgr, "This should never be null!");
 
-  rv = quotaManager->AcquireExclusiveAccess(
-         mDatabase, mDatabase->Origin(), helper,
+  rv = mgr->AcquireExclusiveAccess(mDatabase, mDatabase->Origin(), helper,
          &VersionChangeEventsRunnable::QueueVersionChange<DeleteDatabaseHelper>,
-         helper);
+                                   helper);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   // The DeleteDatabaseHelper is responsible for dispatching us back to the
@@ -2080,10 +2040,10 @@ OpenDatabaseHelper::Run()
       DispatchSuccessEvent();
     }
 
-    QuotaManager* quotaManager = QuotaManager::Get();
-    NS_ASSERTION(quotaManager, "This should never be null!");
+    IndexedDatabaseManager* manager = IndexedDatabaseManager::Get();
+    NS_ASSERTION(manager, "This should never be null!");
 
-    quotaManager->AllowNextSynchronizedOp(
+    manager->AllowNextSynchronizedOp(
                                 OriginOrPatternString::FromOrigin(mASCIIOrigin),
                                 mDatabaseId);
 
@@ -2338,21 +2298,12 @@ SetVersionHelper::GetSuccessResult(JSContext* aCx,
                     aVal);
 }
 
-nsresult
-SetVersionHelper::OnExclusiveAccessAcquired()
-{
-  nsresult rv = DispatchToTransactionPool();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
 // static
 template <class T>
 void
 VersionChangeEventsRunnable::QueueVersionChange(
-                             nsTArray<nsCOMPtr<nsIOfflineStorage> >& aDatabases,
-                             void* aClosure)
+                                  nsTArray<nsRefPtr<IDBDatabase> >& aDatabases,
+                                  void* aClosure)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!aDatabases.IsEmpty(), "Why are we here?");
@@ -2415,27 +2366,22 @@ SetVersionHelper::NotifyTransactionPostComplete(IDBTransaction* aTransaction)
   return rv;
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(DeleteDatabaseHelper, AsyncConnectionHelper);
-
 nsresult
 DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
   NS_ASSERTION(!aConnection, "How did we get a connection here?");
 
-  const StoragePrivilege& privilege = mOpenHelper->Privilege();
+  const FactoryPrivilege& privilege = mOpenHelper->Privilege();
 
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "This should never fail!");
+  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
+  NS_ASSERTION(mgr, "This should never fail!");
 
   nsCOMPtr<nsIFile> directory;
-  nsresult rv = quotaManager->GetDirectoryForOrigin(mASCIIOrigin,
-                                                    getter_AddRefs(directory));
+  nsresult rv = mgr->GetDirectoryForOrigin(mASCIIOrigin,
+                                           getter_AddRefs(directory));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   NS_ASSERTION(directory, "What?");
-
-  rv = directory->Append(NS_LITERAL_STRING(IDB_DIRECTORY_NAME));
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsAutoString filename;
   rv = GetDatabaseFilename(mName, filename);
@@ -2511,18 +2457,6 @@ DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 nsresult
 DeleteDatabaseHelper::GetSuccessResult(JSContext* aCx, jsval* aVal)
 {
-  return NS_OK;
-}
-
-nsresult
-DeleteDatabaseHelper::OnExclusiveAccessAcquired()
-{
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "We should definitely have a manager here");
-
-  nsresult rv = Dispatch(quotaManager->IOThread());
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 

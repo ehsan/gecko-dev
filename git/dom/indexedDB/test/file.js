@@ -173,8 +173,8 @@ function grabFileUsageAndContinueHandler(usage, fileUsage)
 function getUsage(usageHandler)
 {
   let comp = SpecialPowers.wrap(Components);
-  let quotaManager = comp.classes["@mozilla.org/dom/quota/manager;1"]
-                         .getService(comp.interfaces.nsIQuotaManager);
+  let idbManager = comp.classes["@mozilla.org/dom/indexeddb/manager;1"]
+                       .getService(comp.interfaces.nsIIndexedDatabaseManager);
 
   let uri = SpecialPowers.getDocumentURIObject(window.document);
   let callback = {
@@ -183,7 +183,7 @@ function getUsage(usageHandler)
     }
   };
 
-  quotaManager.getUsageForURI(uri, callback);
+  idbManager.getUsageForURI(uri, callback);
 }
 
 function scheduleGC()

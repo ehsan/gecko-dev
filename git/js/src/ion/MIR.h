@@ -1495,9 +1495,7 @@ class MCallDirectEval
     public MixPolicy<ObjectPolicy<0>, MixPolicy<StringPolicy<1>, BoxPolicy<2> > >
 {
   protected:
-    MCallDirectEval(MDefinition *scopeChain, MDefinition *string, MDefinition *thisValue,
-                    jsbytecode *pc)
-        : pc_(pc)
+    MCallDirectEval(MDefinition *scopeChain, MDefinition *string, MDefinition *thisValue)
     {
         setOperand(0, scopeChain);
         setOperand(1, string);
@@ -1509,9 +1507,8 @@ class MCallDirectEval
     INSTRUCTION_HEADER(CallDirectEval)
 
     static MCallDirectEval *
-    New(MDefinition *scopeChain, MDefinition *string, MDefinition *thisValue,
-        jsbytecode *pc) {
-        return new MCallDirectEval(scopeChain, string, thisValue, pc);
+    New(MDefinition *scopeChain, MDefinition *string, MDefinition *thisValue) {
+        return new MCallDirectEval(scopeChain, string, thisValue);
     }
 
     MDefinition *getScopeChain() const {
@@ -1524,16 +1521,9 @@ class MCallDirectEval
         return getOperand(2);
     }
 
-    jsbytecode  *pc() const {
-        return pc_;
-    }
-
     TypePolicy *typePolicy() {
         return this;
     }
-
-  private:
-    jsbytecode *pc_;
 };
 
 class MBinaryInstruction : public MAryInstruction<2>
@@ -1862,7 +1852,7 @@ class MUnbox : public MUnaryInstruction
         JS_ASSERT(ins->type() == MIRType_Value);
         JS_ASSERT(type == MIRType_Boolean ||
                   type == MIRType_Int32   ||
-                  type == MIRType_Double  ||
+                  type == MIRType_Double  || 
                   type == MIRType_String  ||
                   type == MIRType_Object);
 
