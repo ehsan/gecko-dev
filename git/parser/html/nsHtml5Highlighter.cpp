@@ -17,32 +17,32 @@ using namespace mozilla;
 // the size of 16 tokens on cnn.com.
 #define NS_HTML5_HIGHLIGHTER_PRE_BREAK_THRESHOLD 1300
 
-char16_t nsHtml5Highlighter::sComment[] =
+PRUnichar nsHtml5Highlighter::sComment[] =
   { 'c', 'o', 'm', 'm', 'e', 'n', 't', 0 };
 
-char16_t nsHtml5Highlighter::sCdata[] =
+PRUnichar nsHtml5Highlighter::sCdata[] =
   { 'c', 'd', 'a', 't', 'a', 0 };
 
-char16_t nsHtml5Highlighter::sEntity[] =
+PRUnichar nsHtml5Highlighter::sEntity[] =
   { 'e', 'n', 't', 'i', 't', 'y', 0 };
 
-char16_t nsHtml5Highlighter::sEndTag[] =
+PRUnichar nsHtml5Highlighter::sEndTag[] =
   { 'e', 'n', 'd', '-', 't', 'a', 'g', 0 };
 
-char16_t nsHtml5Highlighter::sStartTag[] =
+PRUnichar nsHtml5Highlighter::sStartTag[] =
   { 's', 't', 'a', 'r', 't', '-', 't', 'a', 'g', 0 };
 
-char16_t nsHtml5Highlighter::sAttributeName[] =
+PRUnichar nsHtml5Highlighter::sAttributeName[] =
   { 'a', 't', 't', 'r', 'i', 'b', 'u', 't', 'e', '-', 'n', 'a', 'm', 'e', 0 };
 
-char16_t nsHtml5Highlighter::sAttributeValue[] =
+PRUnichar nsHtml5Highlighter::sAttributeValue[] =
   { 'a', 't', 't', 'r', 'i', 'b', 'u', 't', 'e', '-',
     'v', 'a', 'l', 'u', 'e', 0 };
 
-char16_t nsHtml5Highlighter::sDoctype[] =
+PRUnichar nsHtml5Highlighter::sDoctype[] =
   { 'd', 'o', 'c', 't', 'y', 'p', 'e', 0 };
 
-char16_t nsHtml5Highlighter::sPi[] =
+PRUnichar nsHtml5Highlighter::sPi[] =
   { 'p', 'i', 0 };
 
 nsHtml5Highlighter::nsHtml5Highlighter(nsAHtml5TreeOpSink* aOpSink)
@@ -496,7 +496,7 @@ nsHtml5Highlighter::StartSpan()
 }
 
 void
-nsHtml5Highlighter::StartSpan(const char16_t* aClass)
+nsHtml5Highlighter::StartSpan(const PRUnichar* aClass)
 {
   StartSpan();
   AddClass(aClass);
@@ -557,10 +557,10 @@ void
 nsHtml5Highlighter::FlushChars()
 {
   if (mCStart < mPos) {
-    char16_t* buf = mBuffer->getBuffer();
+    PRUnichar* buf = mBuffer->getBuffer();
     int32_t i = mCStart;
     while (i < mPos) {
-      char16_t c = buf[i];
+      PRUnichar c = buf[i];
       switch (c) {
         case '\r':
           // The input this code sees has been normalized so that there are
@@ -691,14 +691,14 @@ nsHtml5Highlighter::Pop()
 }
 
 void
-nsHtml5Highlighter::AppendCharacters(const char16_t* aBuffer,
+nsHtml5Highlighter::AppendCharacters(const PRUnichar* aBuffer,
                                      int32_t aStart,
                                      int32_t aLength)
 {
   NS_PRECONDITION(aBuffer, "Null buffer");
 
-  char16_t* bufferCopy = new char16_t[aLength];
-  memcpy(bufferCopy, aBuffer + aStart, aLength * sizeof(char16_t));
+  PRUnichar* bufferCopy = new PRUnichar[aLength];
+  memcpy(bufferCopy, aBuffer + aStart, aLength * sizeof(PRUnichar));
 
   mOpQueue.AppendElement()->Init(eTreeOpAppendText,
                                  bufferCopy,
@@ -708,7 +708,7 @@ nsHtml5Highlighter::AppendCharacters(const char16_t* aBuffer,
 
 
 void
-nsHtml5Highlighter::AddClass(const char16_t* aClass)
+nsHtml5Highlighter::AddClass(const PRUnichar* aClass)
 {
   if (!mSyntaxHighlight) {
     return;
@@ -719,8 +719,8 @@ nsHtml5Highlighter::AddClass(const char16_t* aClass)
 void
 nsHtml5Highlighter::AddViewSourceHref(const nsString& aValue)
 {
-  char16_t* bufferCopy = new char16_t[aValue.Length() + 1];
-  memcpy(bufferCopy, aValue.get(), aValue.Length() * sizeof(char16_t));
+  PRUnichar* bufferCopy = new PRUnichar[aValue.Length() + 1];
+  memcpy(bufferCopy, aValue.get(), aValue.Length() * sizeof(PRUnichar));
   bufferCopy[aValue.Length()] = 0;
 
   mOpQueue.AppendElement()->Init(eTreeOpAddViewSourceHref,

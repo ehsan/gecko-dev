@@ -230,7 +230,7 @@ NS_IMETHODIMP
 nsMacShellService::OnStatusChange(nsIWebProgress* aWebProgress,
                                   nsIRequest* aRequest,
                                   nsresult aStatus,
-                                  const char16_t* aMessage)
+                                  const PRUnichar* aMessage)
 {
   return NS_OK;
 }

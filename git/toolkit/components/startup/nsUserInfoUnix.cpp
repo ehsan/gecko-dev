@@ -34,7 +34,7 @@ nsUserInfo::~nsUserInfo()
 NS_IMPL_ISUPPORTS1(nsUserInfo,nsIUserInfo)
 
 NS_IMETHODIMP
-nsUserInfo::GetFullname(char16_t **aFullname)
+nsUserInfo::GetFullname(PRUnichar **aFullname)
 {
     struct passwd *pw = nullptr;
 

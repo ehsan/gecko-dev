@@ -1739,7 +1739,7 @@ GetExternalClassInfo(nsScriptNameSpaceManager *aNameSpaceManager,
 
 static nsresult
 ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
-                 JS::Handle<JSObject*> obj, const char16_t *name,
+                 JS::Handle<JSObject*> obj, const PRUnichar *name,
                  const nsDOMClassInfoData *ci_data,
                  const nsGlobalNameStruct *name_struct,
                  nsScriptNameSpaceManager *nameSpaceManager,
@@ -2265,7 +2265,7 @@ DefineInterfaceConstants(JSContext *cx, JS::Handle<JSObject*> obj, const nsIID *
 class nsDOMConstructor MOZ_FINAL : public nsIDOMDOMConstructor
 {
 protected:
-  nsDOMConstructor(const char16_t* aName,
+  nsDOMConstructor(const PRUnichar* aName,
                    bool aIsConstructable,
                    nsPIDOMWindow* aOwner)
     : mClassName(aName),
@@ -2276,7 +2276,7 @@ protected:
 
 public:
 
-  static nsresult Create(const char16_t* aName,
+  static nsresult Create(const PRUnichar* aName,
                          const nsDOMClassInfoData* aData,
                          const nsGlobalNameStruct* aNameStruct,
                          nsPIDOMWindow* aOwner,
@@ -2368,14 +2368,14 @@ private:
       aNameStruct->mType == nsGlobalNameStruct::eTypeExternalConstructorAlias;
   }
 
-  const char16_t*   mClassName;
+  const PRUnichar*   mClassName;
   const bool mConstructable;
   nsWeakPtr          mWeakOwner;
 };
 
 //static
 nsresult
-nsDOMConstructor::Create(const char16_t* aName,
+nsDOMConstructor::Create(const PRUnichar* aName,
                          const nsDOMClassInfoData* aData,
                          const nsGlobalNameStruct* aNameStruct,
                          nsPIDOMWindow* aOwner,
@@ -2661,7 +2661,7 @@ nsDOMConstructor::ToString(nsAString &aResult)
 {
   aResult.AssignLiteral("[object ");
   aResult.Append(mClassName);
-  aResult.Append(char16_t(']'));
+  aResult.Append(PRUnichar(']'));
 
   return NS_OK;
 }
@@ -2726,7 +2726,7 @@ GetXPCProto(nsIXPConnect *aXPConnect, JSContext *cx, nsGlobalWindow *aWin,
 // eTypeClassProto.
 static nsresult
 ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
-                 JS::Handle<JSObject*> obj, const char16_t *name,
+                 JS::Handle<JSObject*> obj, const PRUnichar *name,
                  const nsDOMClassInfoData *ci_data,
                  const nsGlobalNameStruct *name_struct,
                  nsScriptNameSpaceManager *nameSpaceManager,
@@ -2928,7 +2928,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
 
   nsDependentJSString name(id);
 
-  const char16_t *class_name = nullptr;
+  const PRUnichar *class_name = nullptr;
   const nsGlobalNameStruct *name_struct =
     nameSpaceManager->LookupName(name, &class_name);
 

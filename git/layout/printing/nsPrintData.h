@@ -82,7 +82,7 @@ public:
   nsCOMPtr<nsIPrintSettings>  mPrintSettings;
   nsPrintPreviewListener*     mPPEventListeners;
 
-  char16_t*            mBrandName; //  needed as a substitute name for a document
+  PRUnichar*            mBrandName; //  needed as a substitute name for a document
 
 private:
   nsPrintData() MOZ_DELETE;

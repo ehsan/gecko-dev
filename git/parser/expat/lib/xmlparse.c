@@ -49,7 +49,7 @@ typedef char ICHAR;
 
 #endif
 
-/* BEGIN MOZILLA CHANGE (typedef XML_Char to char16_t) */
+/* BEGIN MOZILLA CHANGE (typedef XML_Char to PRUnichar) */
 #if 0
 
 #ifdef XML_UNICODE

@@ -1072,7 +1072,7 @@ nsXULTemplateBuilder::RemoveListener(nsIXULBuilderListener* aListener)
 NS_IMETHODIMP
 nsXULTemplateBuilder::Observe(nsISupports* aSubject,
                               const char* aTopic,
-                              const char16_t* aData)
+                              const PRUnichar* aData)
 {
     // Uuuuber hack to clean up circular references that the cycle collector
     // doesn't know about. See bug 394514.
@@ -1476,13 +1476,13 @@ nsXULTemplateBuilder::ParseAttribute(const nsAString& aAttributeValue,
         // A variable is either prefixed with '?' (in the extended
         // syntax) or "rdf:" (in the simple syntax).
         bool isvar;
-        if (*iter == char16_t('?') && (++iter != done_parsing)) {
+        if (*iter == PRUnichar('?') && (++iter != done_parsing)) {
             isvar = true;
         }
-        else if ((*iter == char16_t('r') && (++iter != done_parsing)) &&
-                 (*iter == char16_t('d') && (++iter != done_parsing)) &&
-                 (*iter == char16_t('f') && (++iter != done_parsing)) &&
-                 (*iter == char16_t(':') && (++iter != done_parsing))) {
+        else if ((*iter == PRUnichar('r') && (++iter != done_parsing)) &&
+                 (*iter == PRUnichar('d') && (++iter != done_parsing)) &&
+                 (*iter == PRUnichar('f') && (++iter != done_parsing)) &&
+                 (*iter == PRUnichar(':') && (++iter != done_parsing))) {
             isvar = true;
         }
         else {
@@ -1503,7 +1503,7 @@ nsXULTemplateBuilder::ParseAttribute(const nsAString& aAttributeValue,
             (*aTextCallback)(this, Substring(mark, backup), aClosure);
         }
 
-        if (*iter == char16_t('?')) {
+        if (*iter == PRUnichar('?')) {
             // Well, it was not really a variable, but "??". We use one
             // question mark (the second one, actually) literally.
             mark = iter;
@@ -1516,10 +1516,10 @@ nsXULTemplateBuilder::ParseAttribute(const nsAString& aAttributeValue,
         // whichever comes first.
         nsAString::const_iterator first(backup);
 
-        char16_t c = 0;
+        PRUnichar c = 0;
         while (iter != done_parsing) {
             c = *iter;
-            if ((c == char16_t(' ')) || (c == char16_t('^')))
+            if ((c == PRUnichar(' ')) || (c == PRUnichar('^')))
                 break;
 
             ++iter;
@@ -1530,7 +1530,7 @@ nsXULTemplateBuilder::ParseAttribute(const nsAString& aAttributeValue,
         // Back up so we don't consume the terminating character
         // *unless* the terminating character was a caret: the caret
         // means "concatenate with no space in between".
-        if (c != char16_t('^'))
+        if (c != PRUnichar('^'))
             --iter;
 
         (*aVariableCallback)(this, Substring(first, last), aClosure);
@@ -2079,7 +2079,7 @@ nsXULTemplateBuilder::DetermineMemberVariable(nsIContent* aElement)
          child = child->GetNextSibling()) {
         nsAutoString uri;
         child->GetAttr(kNameSpaceID_None, nsGkAtoms::uri, uri);
-        if (!uri.IsEmpty() && uri[0] == char16_t('?')) {
+        if (!uri.IsEmpty() && uri[0] == PRUnichar('?')) {
             return NS_NewAtom(uri);
         }
 
@@ -2229,7 +2229,7 @@ nsXULTemplateBuilder::CompileWhereCondition(nsTemplateRule* aRule,
     }
 
     nsCOMPtr<nsIAtom> svar;
-    if (subject[0] == char16_t('?'))
+    if (subject[0] == PRUnichar('?'))
         svar = do_GetAtom(subject);
 
     nsAutoString relstring;
@@ -2253,7 +2253,7 @@ nsXULTemplateBuilder::CompileWhereCondition(nsTemplateRule* aRule,
                               nsGkAtoms::_true, eCaseMatters);
 
     nsCOMPtr<nsIAtom> vvar;
-    if (!shouldMultiple && (value[0] == char16_t('?'))) {
+    if (!shouldMultiple && (value[0] == PRUnichar('?'))) {
         vvar = do_GetAtom(value);
     }
 
@@ -2347,7 +2347,7 @@ nsXULTemplateBuilder::CompileBinding(nsTemplateRule* aRule,
     }
 
     nsCOMPtr<nsIAtom> svar;
-    if (subject[0] == char16_t('?')) {
+    if (subject[0] == PRUnichar('?')) {
         svar = do_GetAtom(subject);
     }
     else {
@@ -2373,7 +2373,7 @@ nsXULTemplateBuilder::CompileBinding(nsTemplateRule* aRule,
     }
 
     nsCOMPtr<nsIAtom> ovar;
-    if (object[0] == char16_t('?')) {
+    if (object[0] == PRUnichar('?')) {
         ovar = do_GetAtom(object);
     }
     else {

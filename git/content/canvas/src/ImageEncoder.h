@@ -61,7 +61,7 @@ public:
                                  uint8_t* aImageBuffer,
                                  int32_t aFormat,
                                  imgIEncoder* aEncoder,
-                                 const char16_t* aEncoderOptions,
+                                 const PRUnichar* aEncoderOptions,
                                  nsIInputStream** aStream);
 
 private:

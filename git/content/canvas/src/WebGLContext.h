@@ -171,7 +171,7 @@ public:
                       uint32_t aFlags = RenderFlagPremultAlpha) MOZ_OVERRIDE;
     virtual void GetImageBuffer(uint8_t** aImageBuffer, int32_t* aFormat);
     NS_IMETHOD GetInputStream(const char* aMimeType,
-                              const char16_t* aEncoderOptions,
+                              const PRUnichar* aEncoderOptions,
                               nsIInputStream **aStream) MOZ_OVERRIDE;
     NS_IMETHOD GetThebesSurface(gfxASurface **surface) MOZ_OVERRIDE;
     mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot() MOZ_OVERRIDE;
@@ -954,7 +954,7 @@ protected:
     bool ValidateStencilParamsForDrawCall();
     
     bool ValidateGLSLVariableName(const nsAString& name, const char *info);
-    bool ValidateGLSLCharacter(char16_t c);
+    bool ValidateGLSLCharacter(PRUnichar c);
     bool ValidateGLSLString(const nsAString& string, const char *info);
     bool ValidateTexImage2DFormat(GLenum format, const char* info);
     bool ValidateTexImage2DTarget(GLenum target, GLsizei width, GLsizei height, const char* info);

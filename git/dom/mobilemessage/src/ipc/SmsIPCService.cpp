@@ -120,7 +120,7 @@ SmsIPCService::SmsIPCService()
 NS_IMETHODIMP
 SmsIPCService::Observe(nsISupports* aSubject,
                        const char* aTopic,
-                       const char16_t* aData)
+                       const PRUnichar* aData)
 {
   if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
     nsDependentString data(aData);

@@ -232,9 +232,9 @@ HRESULT nsDataObjCollection::GetFile(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
   HGLOBAL hGlobalMemory;
   HRESULT hr;
   // Make enough space for the header and the trailing null
-  uint32_t buffersize = sizeof(DROPFILES) + sizeof(char16_t);
+  uint32_t buffersize = sizeof(DROPFILES) + sizeof(PRUnichar);
   uint32_t alloclen = 0;
-  char16_t* realbuffer;
+  PRUnichar* realbuffer;
   nsAutoString filename;
   
   hGlobalMemory = GlobalAlloc(GHND, buffersize);
@@ -251,19 +251,19 @@ HRESULT nsDataObjCollection::GetFile(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
       }
     }
     // Now we need to pull out the filename
-    char16_t* buffer = (char16_t*)GlobalLock(workingmedium.hGlobal);
+    PRUnichar* buffer = (PRUnichar*)GlobalLock(workingmedium.hGlobal);
     if (buffer == nullptr)
       return E_FAIL;
-    buffer += sizeof(DROPFILES)/sizeof(char16_t);
+    buffer += sizeof(DROPFILES)/sizeof(PRUnichar);
     filename = buffer;
     GlobalUnlock(workingmedium.hGlobal);
     ReleaseStgMedium(&workingmedium);
     // Now put the filename into our buffer
-    alloclen = (filename.Length() + 1) * sizeof(char16_t);
+    alloclen = (filename.Length() + 1) * sizeof(PRUnichar);
     hGlobalMemory = ::GlobalReAlloc(hGlobalMemory, buffersize + alloclen, GHND);
     if (hGlobalMemory == nullptr)
       return E_FAIL;
-    realbuffer = (char16_t*)((char*)GlobalLock(hGlobalMemory) + buffersize);
+    realbuffer = (PRUnichar*)((char*)GlobalLock(hGlobalMemory) + buffersize);
     if (!realbuffer)
       return E_FAIL;
     realbuffer--; // Overwrite the preceding null
@@ -341,7 +341,7 @@ HRESULT nsDataObjCollection::GetText(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
     return S_OK;
   }
   if (pFE->cfFormat == CF_UNICODETEXT) {
-    buffersize = sizeof(char16_t);
+    buffersize = sizeof(PRUnichar);
     nsAutoString text;
     for (uint32_t i = 0; i < mDataObjects.Length(); ++i) {
       nsDataObj* dataObj = mDataObjects.ElementAt(i);
@@ -355,19 +355,19 @@ HRESULT nsDataObjCollection::GetText(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
         }
       }
       // Now we need to pull out the text
-      char16_t* buffer = (char16_t*)GlobalLock(workingmedium.hGlobal);
+      PRUnichar* buffer = (PRUnichar*)GlobalLock(workingmedium.hGlobal);
       if (buffer == nullptr)
         return E_FAIL;
       text = buffer;
       GlobalUnlock(workingmedium.hGlobal);
       ReleaseStgMedium(&workingmedium);
       // Now put the text into our buffer
-      alloclen = text.Length() * sizeof(char16_t);
+      alloclen = text.Length() * sizeof(PRUnichar);
       hGlobalMemory = ::GlobalReAlloc(hGlobalMemory, buffersize + alloclen,
                                       GHND);
       if (hGlobalMemory == nullptr)
         return E_FAIL;
-      buffer = (char16_t*)((char*)GlobalLock(hGlobalMemory) + buffersize);
+      buffer = (PRUnichar*)((char*)GlobalLock(hGlobalMemory) + buffersize);
       if (!buffer)
         return E_FAIL;
       buffer--; // Overwrite the preceding null

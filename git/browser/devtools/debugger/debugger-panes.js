@@ -24,6 +24,7 @@ function SourcesView() {
   this._onEditorUnload = this._onEditorUnload.bind(this);
   this._onEditorCursorActivity = this._onEditorCursorActivity.bind(this);
   this._onSourceSelect = this._onSourceSelect.bind(this);
+  this._onSourceClick = this._onSourceClick.bind(this);
   this._onStopBlackBoxing = this._onStopBlackBoxing.bind(this);
   this._onBreakpointRemoved = this._onBreakpointRemoved.bind(this);
   this._onBreakpointClick = this._onBreakpointClick.bind(this);
@@ -68,6 +69,7 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     window.on(EVENTS.EDITOR_LOADED, this._onEditorLoad, false);
     window.on(EVENTS.EDITOR_UNLOADED, this._onEditorUnload, false);
     this.widget.addEventListener("select", this._onSourceSelect, false);
+    this.widget.addEventListener("click", this._onSourceClick, false);
     this._stopBlackBoxButton.addEventListener("click", this._onStopBlackBoxing, false);
     this._cbPanel.addEventListener("popupshowing", this._onConditionalPopupShowing, false);
     this._cbPanel.addEventListener("popupshown", this._onConditionalPopupShown, false);
@@ -77,11 +79,8 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
 
     this.autoFocusOnSelection = false;
 
-    // Sort the contents by the displayed label.
-    this.sortContents((aFirst, aSecond) => {
-      return +(aFirst.attachment.label.toLowerCase() >
-               aSecond.attachment.label.toLowerCase());
-    });
+    // Show an empty label by default.
+    this.empty();
   },
 
   /**
@@ -93,6 +92,7 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     window.off(EVENTS.EDITOR_LOADED, this._onEditorLoad, false);
     window.off(EVENTS.EDITOR_UNLOADED, this._onEditorUnload, false);
     this.widget.removeEventListener("select", this._onSourceSelect, false);
+    this.widget.removeEventListener("click", this._onSourceClick, false);
     this._stopBlackBoxButton.removeEventListener("click", this._onStopBlackBoxing, false);
     this._cbPanel.removeEventListener("popupshowing", this._onConditionalPopupShowing, false);
     this._cbPanel.removeEventListener("popupshowing", this._onConditionalPopupShown, false);
@@ -129,17 +129,10 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     let label = SourceUtils.getSourceLabel(url.split(" -> ").pop());
     let group = SourceUtils.getSourceGroup(url.split(" -> ").pop());
 
-    let contents = document.createElement("label");
-    contents.setAttribute("value", label);
-    contents.setAttribute("crop", "start");
-    contents.setAttribute("flex", "1");
-
     // Append a source item to this container.
-    this.push([contents, url], {
+    this.push([label, url, group], {
       staged: aOptions.staged, /* stage the item to be appended later? */
       attachment: {
-        label: label,
-        group: group,
         checkboxState: !aSource.isBlackBoxed,
         checkboxTooltip: this._blackBoxCheckboxTooltip,
         source: aSource
@@ -804,6 +797,14 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
   },
 
   /**
+   * The click listener for the sources container.
+   */
+  _onSourceClick: function() {
+    // Use this container as a filtering target.
+    DebuggerView.Filtering.target = this;
+  },
+
+  /**
    * The click listener for the "stop black boxing" button.
    */
   _onStopBlackBoxing: function() {
@@ -1114,6 +1115,8 @@ TracerView.prototype = Heritage.extend(WidgetMethods, {
       this._traceButton = null;
       this._tracerTab.remove();
       this._tracerTab = null;
+      document.getElementById("tracer-tabpanel").remove();
+      this.widget = null;
       return;
     }
 
@@ -1211,8 +1214,8 @@ TracerView.prototype = Heritage.extend(WidgetMethods, {
   _populateVariable: function(aName, aParent, aValue) {
     let item = aParent.addItem(aName, { value: aValue });
     if (aValue) {
-      let wrappedValue = new DebuggerController.Tracer.WrappedObject(aValue);
-      DebuggerView.Variables.controller.populate(item, wrappedValue);
+      DebuggerView.Variables.controller.populate(
+        item, new DebuggerController.Tracer.WrappedObject(aValue));
       item.expand();
       item.twisty = false;
     }
@@ -1248,7 +1251,9 @@ TracerView.prototype = Heritage.extend(WidgetMethods, {
         }
       }
     } else {
-      const varName = "<" + (data.type == "throw" ? "exception" : data.type) + ">";
+      const varName = "<" +
+        (data.type == "throw" ? "exception" : data.type) +
+        ">";
       this._populateVariable(varName, scope, data.returnVal);
     }
 
@@ -1260,11 +1265,8 @@ TracerView.prototype = Heritage.extend(WidgetMethods, {
    * Add the hover frame enter/exit highlighting to a given item.
    */
   _highlightItem: function(aItem) {
-    if (!aItem || !aItem.target) {
-      return;
-    }
-    const trace = aItem.target.querySelector(".trace-item");
-    trace.classList.add("selected-matching");
+    aItem.target.querySelector(".trace-item")
+      .classList.add("selected-matching");
   },
 
   /**
@@ -1301,11 +1303,8 @@ TracerView.prototype = Heritage.extend(WidgetMethods, {
    * Highlight the frame enter/exit pair of items for the given item.
    */
   _highlightMatchingItems: function(aItem) {
-    const frameId = aItem.attachment.trace.frameId;
-    const predicate = e => e.attachment.trace.frameId == frameId;
-
     this._unhighlightMatchingItems();
-    this._matchingItems = this.items.filter(predicate);
+    this._matchingItems = this.items.filter(t => t.value == aItem.value);
     this._matchingItems
       .filter(this._isNotSelectedItem)
       .forEach(this._highlightItem);
@@ -1326,8 +1325,8 @@ TracerView.prototype = Heritage.extend(WidgetMethods, {
    */
   _onSearch: function() {
     const query = this._search.value.trim().toLowerCase();
-    const predicate = name => name.toLowerCase().contains(query);
-    this.filterContents(item => predicate(item.attachment.trace.name));
+    this.filterContents(item =>
+      item.attachment.trace.name.toLowerCase().contains(query));
   },
 
   /**
@@ -1357,11 +1356,13 @@ TracerView.prototype = Heritage.extend(WidgetMethods, {
    *        The trace record coming from the tracer actor.
    */
   addTrace: function(aTrace) {
+    const { type, frameId } = aTrace;
+
     // Create the element node for the trace item.
     let view = this._createView(aTrace);
 
     // Append a source item to this container.
-    this.push([view], {
+    this.push([view, aTrace.frameId, ""], {
       staged: true,
       attachment: {
         trace: aTrace
@@ -1375,9 +1376,8 @@ TracerView.prototype = Heritage.extend(WidgetMethods, {
    * @return nsIDOMNode
    *         The network request view.
    */
-  _createView: function(aTrace) {
-    let { type, name, location, depth, frameId } = aTrace;
-    let { parameterNames, returnVal, arguments: args } = aTrace;
+  _createView: function({ type, name, frameId, parameterNames, returnVal,
+                          location, depth, arguments: args }) {
     let fragment = document.createDocumentFragment();
 
     this._templateItem.setAttribute("tooltiptext", SourceUtils.trimUrl(location.url));
@@ -1659,7 +1659,7 @@ let SourceUtils = {
     if (aLabel && aLabel.indexOf("?") != 0) {
       // A page may contain multiple requests to the same url but with different
       // queries. It is *not* redundant to show each one.
-      if (!DebuggerView.Sources.getItemForAttachment(e => e.label == aLabel)) {
+      if (!DebuggerView.Sources.containsLabel(aLabel)) {
         return aLabel;
       }
     }
@@ -1984,11 +1984,11 @@ WatchExpressionsView.prototype = Heritage.extend(WidgetMethods, {
   initialize: function() {
     dumpn("Initializing the WatchExpressionsView");
 
-    this.widget = new SimpleListWidget(document.getElementById("expressions"));
+    this.widget = new ListWidget(document.getElementById("expressions"));
+    this.widget.permaText = L10N.getStr("addWatchExpressionText");
+    this.widget.itemFactory = this._createItemView;
     this.widget.setAttribute("context", "debuggerWatchExpressionsContextMenu");
     this.widget.addEventListener("click", this._onClick, false);
-
-    this.headerText = L10N.getStr("addWatchExpressionText");
   },
 
   /**
@@ -2010,22 +2010,19 @@ WatchExpressionsView.prototype = Heritage.extend(WidgetMethods, {
     // Watch expressions are UI elements which benefit from visible panes.
     DebuggerView.showInstrumentsPane();
 
-    // Create the element node for the watch expression item.
-    let itemView = this._createItemView(aExpression);
-
     // Append a watch expression item to this container.
-    let expressionItem = this.push([itemView.container], {
+    let expressionItem = this.push([, aExpression], {
       index: 0, /* specifies on which position should the item be appended */
+      relaxed: true, /* this container should allow dupes & degenerates */
       attachment: {
-        view: itemView,
         initialExpression: aExpression,
-        currentExpression: "",
+        currentExpression: ""
       }
     });
 
     // Automatically focus the new watch expression input.
-    expressionItem.attachment.view.inputNode.select();
-    expressionItem.attachment.view.inputNode.focus();
+    expressionItem.attachment.inputNode.select();
+    expressionItem.attachment.inputNode.focus();
     DebuggerView.Variables.parentNode.scrollTop = 0;
   },
 
@@ -2051,7 +2048,7 @@ WatchExpressionsView.prototype = Heritage.extend(WidgetMethods, {
 
     // Save the watch expression code string.
     expressionItem.attachment.currentExpression = aExpression;
-    expressionItem.attachment.view.inputNode.value = aExpression;
+    expressionItem.attachment.inputNode.value = aExpression;
 
     // Synchronize with the controller's watch expressions store.
     DebuggerController.StackFrames.syncWatchExpressions();
@@ -2101,19 +2098,18 @@ WatchExpressionsView.prototype = Heritage.extend(WidgetMethods, {
   /**
    * Customization function for creating an item's UI.
    *
-   * @param string aExpression
-   *        The watch expression string.
+   * @param nsIDOMNode aElementNode
+   *        The element associated with the displayed item.
+   * @param any aAttachment
+   *        Some attached primitive/object.
    */
-  _createItemView: function(aExpression) {
-    let container = document.createElement("hbox");
-    container.className = "list-widget-item dbg-expression";
-
-    let arrowNode = document.createElement("hbox");
+  _createItemView: function(aElementNode, aAttachment) {
+    let arrowNode = document.createElement("box");
     arrowNode.className = "dbg-expression-arrow";
 
     let inputNode = document.createElement("textbox");
     inputNode.className = "plain dbg-expression-input devtools-monospace";
-    inputNode.setAttribute("value", aExpression);
+    inputNode.setAttribute("value", aAttachment.initialExpression);
     inputNode.setAttribute("flex", "1");
 
     let closeNode = document.createElement("toolbarbutton");
@@ -2123,16 +2119,14 @@ WatchExpressionsView.prototype = Heritage.extend(WidgetMethods, {
     inputNode.addEventListener("blur", this._onBlur, false);
     inputNode.addEventListener("keypress", this._onKeyPress, false);
 
-    container.appendChild(arrowNode);
-    container.appendChild(inputNode);
-    container.appendChild(closeNode);
+    aElementNode.className = "dbg-expression";
+    aElementNode.appendChild(arrowNode);
+    aElementNode.appendChild(inputNode);
+    aElementNode.appendChild(closeNode);
 
-    return {
-      container: container,
-      arrowNode: arrowNode,
-      inputNode: inputNode,
-      closeNode: closeNode
-    };
+    aAttachment.arrowNode = arrowNode;
+    aAttachment.inputNode = inputNode;
+    aAttachment.closeNode = closeNode;
   },
 
   /**
@@ -2257,6 +2251,9 @@ EventListenersView.prototype = Heritage.extend(WidgetMethods, {
 
     this.widget.addEventListener("check", this._onCheck, false);
     this.widget.addEventListener("click", this._onClick, false);
+
+    // Show an empty label by default.
+    this.empty();
   },
 
   /**
@@ -2371,14 +2368,13 @@ EventListenersView.prototype = Heritage.extend(WidgetMethods, {
       DebuggerController.Breakpoints.DOM.activeEventNames.indexOf(type) != -1;
 
     // Append an event listener item to this container.
-    this.push([itemView.container], {
+    this.push([itemView.container, url, group], {
       staged: aOptions.staged, /* stage the item to be appended later? */
       attachment: {
         url: url,
         type: type,
         view: itemView,
         selectors: [selector],
-        group: group,
         checkboxState: checkboxState,
         checkboxTooltip: this._eventCheckboxTooltip
       }
@@ -2498,6 +2494,7 @@ EventListenersView.prototype = Heritage.extend(WidgetMethods, {
 function GlobalSearchView() {
   dumpn("GlobalSearchView was instantiated");
 
+  this._createItemView = this._createItemView.bind(this);
   this._onHeaderClick = this._onHeaderClick.bind(this);
   this._onLineClick = this._onLineClick.bind(this);
   this._onMatchClick = this._onMatchClick.bind(this);
@@ -2510,10 +2507,11 @@ GlobalSearchView.prototype = Heritage.extend(WidgetMethods, {
   initialize: function() {
     dumpn("Initializing the GlobalSearchView");
 
-    this.widget = new SimpleListWidget(document.getElementById("globalsearch"));
+    this.widget = new ListWidget(document.getElementById("globalsearch"));
     this._splitter = document.querySelector("#globalsearch + .devtools-horizontal-splitter");
 
-    this.emptyText = L10N.getStr("noMatchingStringsText");
+    this.widget.emptyText = L10N.getStr("noMatchingStringsText");
+    this.widget.itemFactory = this._createItemView;
   },
 
   /**
@@ -2720,20 +2718,29 @@ GlobalSearchView.prototype = Heritage.extend(WidgetMethods, {
    *        An object containing all the matched lines for a specific source.
    */
   _createSourceResultsUI: function(aSourceResults) {
-    // Create the element node for the source results item.
-    let container = document.createElement("hbox");
-    aSourceResults.createView(container, {
-      onHeaderClick: this._onHeaderClick,
-      onLineClick: this._onLineClick,
-      onMatchClick: this._onMatchClick
-    });
-
     // Append a source results item to this container.
-    let item = this.push([container], {
+    this.push([], {
       index: -1, /* specifies on which position should the item be appended */
+      relaxed: true, /* this container should allow dupes & degenerates */
       attachment: {
         sourceResults: aSourceResults
       }
+    });
+  },
+
+  /**
+   * Customization function for creating an item's UI.
+   *
+   * @param nsIDOMNode aElementNode
+   *        The element associated with the displayed item.
+   * @param any aAttachment
+   *        Some attached primitive/object.
+   */
+  _createItemView: function(aElementNode, aAttachment) {
+    aAttachment.sourceResults.createView(aElementNode, {
+      onHeaderClick: this._onHeaderClick,
+      onLineClick: this._onLineClick,
+      onMatchClick: this._onMatchClick
     });
   },
 
@@ -2785,7 +2792,10 @@ GlobalSearchView.prototype = Heritage.extend(WidgetMethods, {
    *        The match to scroll into view.
    */
   _scrollMatchIntoViewIfNeeded: function(aMatch) {
-    this.widget.ensureElementIsVisible(aMatch);
+    // TODO: Accessing private widget properties. Figure out what's the best
+    // way to expose such things. Bug 876271.
+    let boxObject = this.widget._parent.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
+    boxObject.ensureElementIsVisible(aMatch);
   },
 
   /**

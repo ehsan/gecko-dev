@@ -291,8 +291,6 @@ registerCleanupFunction(function() {
   gDebuggee = null;
   gPanel = null;
   gDebugger = null;
-  gL10N = null;
-  gEditor = null;
   gVars = null;
   gWatch = null;
 });

@@ -65,7 +65,7 @@ nsHtml5UTF16Buffer::setStart(int32_t start)
   this->start = start;
 }
 
-char16_t* 
+PRUnichar* 
 nsHtml5UTF16Buffer::getBuffer()
 {
   return buffer;

@@ -1532,7 +1532,7 @@ nsMathMLContainerFrame::TransmitAutomaticDataForMrowLikeElement()
 
 nsresult
 nsMathMLContainerFrame::ReportErrorToConsole(const char*       errorMsgId,
-                                             const char16_t** aParams,
+                                             const PRUnichar** aParams,
                                              uint32_t          aParamCount)
 {
   return nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
@@ -1542,10 +1542,10 @@ nsMathMLContainerFrame::ReportErrorToConsole(const char*       errorMsgId,
 }
 
 nsresult
-nsMathMLContainerFrame::ReportParseError(const char16_t* aAttribute,
-                                         const char16_t* aValue)
+nsMathMLContainerFrame::ReportParseError(const PRUnichar* aAttribute,
+                                         const PRUnichar* aValue)
 {
-  const char16_t* argv[] = 
+  const PRUnichar* argv[] = 
     { aValue, aAttribute, mContent->Tag()->GetUTF16String() };
   return ReportErrorToConsole("AttributeParsingError", argv, 3);
 }
@@ -1553,14 +1553,14 @@ nsMathMLContainerFrame::ReportParseError(const char16_t* aAttribute,
 nsresult
 nsMathMLContainerFrame::ReportChildCountError()
 {
-  const char16_t* arg = mContent->Tag()->GetUTF16String();
+  const PRUnichar* arg = mContent->Tag()->GetUTF16String();
   return ReportErrorToConsole("ChildCountIncorrect", &arg, 1);
 }
 
 nsresult
 nsMathMLContainerFrame::ReportInvalidChildError(nsIAtom* aChildTag)
 {
-  const char16_t* argv[] =
+  const PRUnichar* argv[] =
     { aChildTag->GetUTF16String(), mContent->Tag()->GetUTF16String() };
   return ReportErrorToConsole("InvalidChild", argv, 2);
 }

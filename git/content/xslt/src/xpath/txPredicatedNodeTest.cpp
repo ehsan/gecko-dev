@@ -50,8 +50,8 @@ void
 txPredicatedNodeTest::toString(nsAString& aDest)
 {
     mNodeTest->toString(aDest);
-    aDest.Append(char16_t('['));
+    aDest.Append(PRUnichar('['));
     mPredicate->toString(aDest);
-    aDest.Append(char16_t(']'));
+    aDest.Append(PRUnichar(']'));
 }
 #endif

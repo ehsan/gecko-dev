@@ -199,7 +199,7 @@ class nsHtml5TreeOperation {
     }
 
     inline void Init(eHtml5TreeOperation aOpCode, 
-                     char16_t* aBuffer, 
+                     PRUnichar* aBuffer, 
                      int32_t aLength, 
                      nsIContent** aStackParent,
                      nsIContent** aTable) {
@@ -214,7 +214,7 @@ class nsHtml5TreeOperation {
     }
 
     inline void Init(eHtml5TreeOperation aOpCode, 
-                     char16_t* aBuffer, 
+                     PRUnichar* aBuffer, 
                      int32_t aLength, 
                      nsIContent** aParent) {
       NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
@@ -227,7 +227,7 @@ class nsHtml5TreeOperation {
     }
 
     inline void Init(eHtml5TreeOperation aOpCode, 
-                     char16_t* aBuffer, 
+                     PRUnichar* aBuffer, 
                      int32_t aLength) {
       NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
         "Op code must be uninitialized when initializing.");
@@ -296,7 +296,7 @@ class nsHtml5TreeOperation {
       NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
         "Op code must be uninitialized when initializing.");
 
-      char16_t* str = NS_StringCloneData(aString);
+      PRUnichar* str = NS_StringCloneData(aString);
       mOpCode = aOpCode;
       mOne.unicharPtr = str;
     }
@@ -312,7 +312,7 @@ class nsHtml5TreeOperation {
       mFour.integer = aInt;
     }
 
-    inline void InitAddClass(nsIContent** aNode, const char16_t* aClass) {
+    inline void InitAddClass(nsIContent** aNode, const PRUnichar* aClass) {
       NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
         "Op code must be uninitialized when initializing.");
       NS_PRECONDITION(aNode, "Initialized tree op with null node.");
@@ -320,7 +320,7 @@ class nsHtml5TreeOperation {
       // aClass must be a literal string that does not need freeing
       mOpCode = eTreeOpAddClass;
       mOne.node = aNode;
-      mTwo.unicharPtr = (char16_t*)aClass;
+      mTwo.unicharPtr = (PRUnichar*)aClass;
     }
 
     inline void InitAddLineNumberId(nsIContent** aNode,
@@ -360,12 +360,12 @@ class nsHtml5TreeOperation {
 
   private:
 
-    nsresult AppendTextToTextNode(const char16_t* aBuffer,
+    nsresult AppendTextToTextNode(const PRUnichar* aBuffer,
                                   uint32_t aLength,
                                   nsIContent* aTextNode,
                                   nsHtml5TreeOpExecutor* aBuilder);
 
-    nsresult AppendText(const char16_t* aBuffer,
+    nsresult AppendText(const PRUnichar* aBuffer,
                         uint32_t aLength,
                         nsIContent* aParent,
                         nsHtml5TreeOpExecutor* aBuilder);
@@ -386,7 +386,7 @@ class nsHtml5TreeOperation {
       nsIAtom*                        atom;
       nsHtml5HtmlAttributes*          attributes;
       nsHtml5DocumentMode             mode;
-      char16_t*                      unicharPtr;
+      PRUnichar*                      unicharPtr;
       char*                           charPtr;
       nsHtml5TreeOperationStringPair* stringPair;
       nsAHtml5TreeBuilderState*       state;

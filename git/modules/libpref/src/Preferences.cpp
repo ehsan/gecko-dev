@@ -155,7 +155,7 @@ NS_IMPL_ISUPPORTS1(ValueObserver, nsIObserver)
 NS_IMETHODIMP
 ValueObserver::Observe(nsISupports     *aSubject,
                        const char      *aTopic,
-                       const char16_t *aData)
+                       const PRUnichar *aData)
 {
   NS_ASSERTION(!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID),
                "invalid topic");
@@ -538,7 +538,7 @@ Preferences::ResetAndReadUserPrefs()
 
 NS_IMETHODIMP
 Preferences::Observe(nsISupports *aSubject, const char *aTopic,
-                     const char16_t *someData)
+                     const PRUnichar *someData)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content)
     return NS_ERROR_NOT_AVAILABLE;
@@ -1464,7 +1464,7 @@ Preferences::SetCString(const char* aPref, const nsACString &aValue)
 
 // static
 nsresult
-Preferences::SetString(const char* aPref, const char16_t* aValue)
+Preferences::SetString(const char* aPref, const PRUnichar* aValue)
 {
   ENSURE_MAIN_PROCESS("Cannot SetString from content process:", aPref);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);

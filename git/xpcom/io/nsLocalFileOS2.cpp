@@ -916,7 +916,7 @@ nsLocalFile::Normalize()
 
     // assign the root
     nsAutoString normal;
-    const char16_t * pathBuffer = path.get();  // simplify access to the buffer
+    const PRUnichar * pathBuffer = path.get();  // simplify access to the buffer
     normal.SetCapacity(path.Length()); // it won't ever grow longer
     normal.Assign(pathBuffer, rootIdx);
 

@@ -4962,7 +4962,7 @@ bool IsLowercaseASCII(const nsAString& aValue)
 {
   int32_t len = aValue.Length();
   for (int32_t i = 0; i < len; ++i) {
-    char16_t c = aValue[i];
+    PRUnichar c = aValue[i];
     if (!(0x0061 <= (c) && ((c) <= 0x007a))) {
       return false;
     }
@@ -7229,8 +7229,8 @@ nsDocument::FlushExternalResources(mozFlushType aType)
 }
 
 void
-nsDocument::SetXMLDeclaration(const char16_t *aVersion,
-                              const char16_t *aEncoding,
+nsDocument::SetXMLDeclaration(const PRUnichar *aVersion,
+                              const PRUnichar *aEncoding,
                               const int32_t aStandalone)
 {
   if (!aVersion || *aVersion == '\0') {
@@ -10870,7 +10870,7 @@ nsDocument::SetApprovedForFullscreen(bool aIsApproved)
 nsresult
 nsDocument::Observe(nsISupports *aSubject,
                     const char *aTopic,
-                    const char16_t *aData)
+                    const PRUnichar *aData)
 {
   if (strcmp("fullscreen-approved", aTopic) == 0) {
     nsCOMPtr<nsIDocument> subject(do_QueryInterface(aSubject));

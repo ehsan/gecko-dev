@@ -191,12 +191,12 @@ XMLHttpRequestAuthPrompt::~XMLHttpRequestAuthPrompt()
 }
 
 NS_IMETHODIMP
-XMLHttpRequestAuthPrompt::Prompt(const char16_t* aDialogTitle,
-                                 const char16_t* aText,
-                                 const char16_t* aPasswordRealm,
+XMLHttpRequestAuthPrompt::Prompt(const PRUnichar* aDialogTitle,
+                                 const PRUnichar* aText,
+                                 const PRUnichar* aPasswordRealm,
                                  uint32_t aSavePassword,
-                                 const char16_t* aDefaultText,
-                                 char16_t** aResult,
+                                 const PRUnichar* aDefaultText,
+                                 PRUnichar** aResult,
                                  bool* aRetval)
 {
   *aRetval = false;
@@ -204,12 +204,12 @@ XMLHttpRequestAuthPrompt::Prompt(const char16_t* aDialogTitle,
 }
 
 NS_IMETHODIMP
-XMLHttpRequestAuthPrompt::PromptUsernameAndPassword(const char16_t* aDialogTitle,
-                                                    const char16_t* aDialogText,
-                                                    const char16_t* aPasswordRealm,
+XMLHttpRequestAuthPrompt::PromptUsernameAndPassword(const PRUnichar* aDialogTitle,
+                                                    const PRUnichar* aDialogText,
+                                                    const PRUnichar* aPasswordRealm,
                                                     uint32_t aSavePassword,
-                                                    char16_t** aUser,
-                                                    char16_t** aPwd,
+                                                    PRUnichar** aUser,
+                                                    PRUnichar** aPwd,
                                                     bool* aRetval)
 {
   *aRetval = false;
@@ -217,11 +217,11 @@ XMLHttpRequestAuthPrompt::PromptUsernameAndPassword(const char16_t* aDialogTitle
 }
 
 NS_IMETHODIMP
-XMLHttpRequestAuthPrompt::PromptPassword(const char16_t* aDialogTitle,
-                                         const char16_t* aText,
-                                         const char16_t* aPasswordRealm,
+XMLHttpRequestAuthPrompt::PromptPassword(const PRUnichar* aDialogTitle,
+                                         const PRUnichar* aText,
+                                         const PRUnichar* aPasswordRealm,
                                          uint32_t aSavePassword,
-                                         char16_t** aPwd,
+                                         PRUnichar** aPwd,
                                          bool* aRetval)
 {
   *aRetval = false;
@@ -653,7 +653,7 @@ nsXMLHttpRequest::AppendToResponseText(const char * aSrcBuffer,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  char16_t* destBuffer = mResponseText.BeginWriting() + mResponseText.Length();
+  PRUnichar* destBuffer = mResponseText.BeginWriting() + mResponseText.Length();
 
   int32_t totalChars = mResponseText.Length();
 
@@ -2423,7 +2423,7 @@ GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult, uint64_t* aContentLe
     return NS_OK;
   }
 
-  char16_t* data = nullptr;
+  PRUnichar* data = nullptr;
   uint32_t len = 0;
   rv = aBody->GetAsWStringWithSize(&len, &data);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3475,7 +3475,7 @@ nsXMLHttpRequest::OnProgress(nsIRequest *aRequest, nsISupports *aContext, uint64
 }
 
 NS_IMETHODIMP
-nsXMLHttpRequest::OnStatus(nsIRequest *aRequest, nsISupports *aContext, nsresult aStatus, const char16_t *aStatusArg)
+nsXMLHttpRequest::OnStatus(nsIRequest *aRequest, nsISupports *aContext, nsresult aStatus, const PRUnichar *aStatusArg)
 {
   if (mProgressEventSink) {
     mProgressEventSink->OnStatus(aRequest, aContext, aStatus, aStatusArg);

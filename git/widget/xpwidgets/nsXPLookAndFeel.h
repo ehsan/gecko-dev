@@ -64,9 +64,9 @@ public:
 
   virtual void RefreshImpl();
 
-  virtual char16_t GetPasswordCharacterImpl()
+  virtual PRUnichar GetPasswordCharacterImpl()
   {
-    return char16_t('*');
+    return PRUnichar('*');
   }
 
   virtual bool GetEchoPasswordImpl()

@@ -1951,7 +1951,7 @@ Database::Shutdown()
 NS_IMETHODIMP
 Database::Observe(nsISupports *aSubject,
                   const char *aTopic,
-                  const char16_t *aData)
+                  const PRUnichar *aData)
 {
   MOZ_ASSERT(NS_IsMainThread());
  

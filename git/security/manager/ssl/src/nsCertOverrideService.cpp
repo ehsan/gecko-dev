@@ -136,7 +136,7 @@ nsCertOverrideService::Init()
 NS_IMETHODIMP
 nsCertOverrideService::Observe(nsISupports     *,
                                const char      *aTopic,
-                               const char16_t *aData)
+                               const PRUnichar *aData)
 {
   // check the topic
   if (!nsCRT::strcmp(aTopic, "profile-before-change")) {
@@ -659,7 +659,7 @@ nsCertOverrideService::ClearValidityOverride(const nsACString & aHostName, int32
 
 NS_IMETHODIMP
 nsCertOverrideService::GetAllOverrideHostsWithPorts(uint32_t *aCount, 
-                                                        char16_t ***aHostsWithPortsArray)
+                                                        PRUnichar ***aHostsWithPortsArray)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

@@ -409,7 +409,7 @@ nsBaseAppShell::AfterProcessNextEvent(nsIThreadInternal *thr,
 
 NS_IMETHODIMP
 nsBaseAppShell::Observe(nsISupports *subject, const char *topic,
-                        const char16_t *data)
+                        const PRUnichar *data)
 {
   NS_ASSERTION(!strcmp(topic, NS_XPCOM_SHUTDOWN_OBSERVER_ID), "oops");
   Exit();

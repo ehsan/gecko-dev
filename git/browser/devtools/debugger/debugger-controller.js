@@ -88,7 +88,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
-Cu.import("resource:///modules/devtools/SimpleListWidget.jsm");
 Cu.import("resource:///modules/devtools/BreadcrumbsWidget.jsm");
 Cu.import("resource:///modules/devtools/SideMenuWidget.jsm");
 Cu.import("resource:///modules/devtools/VariablesView.jsm");
@@ -888,8 +887,11 @@ StackFrames.prototype = {
       }
     } while ((environment = environment.parent));
 
-    // Signal that scope environments have been shown.
+    // Signal that scope environments have been shown and commit the current
+    // variables view hierarchy to briefly flash items that changed between the
+    // previous and current scope/variables/properties.
     window.emit(EVENTS.FETCHED_SCOPES);
+    DebuggerView.Variables.commitHierarchy();
   },
 
   /**
@@ -1003,8 +1005,11 @@ StackFrames.prototype = {
         expRef.separatorStr = L10N.getStr("variablesSeparatorLabel");
       }
 
-      // Signal that watch expressions have been fetched.
+      // Signal that watch expressions have been fetched and commit the
+      // current variables view hierarchy to briefly flash items that changed
+      // between the previous and current scope/variables/properties.
       window.emit(EVENTS.FETCHED_WATCH_EXPRESSIONS);
+      DebuggerView.Variables.commitHierarchy();
     });
   },
 

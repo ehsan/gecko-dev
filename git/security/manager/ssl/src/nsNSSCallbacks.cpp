@@ -793,7 +793,7 @@ void PK11PasswordPromptRunnable::RunOnTargetThread()
 
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
-  char16_t *password = nullptr;
+  PRUnichar *password = nullptr;
   bool value = false;
   nsCOMPtr<nsIPrompt> prompt;
 
@@ -827,13 +827,13 @@ void PK11PasswordPromptRunnable::RunOnTargetThread()
   if (NS_FAILED(rv))
     return; 
 
-  const char16_t* formatStrings[1] = { 
+  const PRUnichar* formatStrings[1] = { 
     ToNewUnicode(NS_ConvertUTF8toUTF16(PK11_GetTokenName(mSlot)))
   };
   rv = nssComponent->PIPBundleFormatStringFromName("CertPassPrompt",
                                       formatStrings, 1,
                                       promptString);
-  nsMemory::Free(const_cast<char16_t*>(formatStrings[0]));
+  nsMemory::Free(const_cast<PRUnichar*>(formatStrings[0]));
 
   if (NS_FAILED(rv))
     return;

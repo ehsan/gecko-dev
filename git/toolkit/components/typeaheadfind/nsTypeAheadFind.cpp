@@ -220,7 +220,7 @@ nsTypeAheadFind::CollapseSelection()
 
 NS_IMETHODIMP
 nsTypeAheadFind::Observe(nsISupports *aSubject, const char *aTopic,
-                         const char16_t *aData)
+                         const PRUnichar *aData)
 {
   if (!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID))
     return PrefsReset();

@@ -70,11 +70,11 @@ class nsScannerBufferList
 
             bool IsInUse() const { return mUsageCount != 0; }
 
-            const char16_t* DataStart() const { return (const char16_t*) (this+1); }
-                  char16_t* DataStart()       { return (      char16_t*) (this+1); }
+            const PRUnichar* DataStart() const { return (const PRUnichar*) (this+1); }
+                  PRUnichar* DataStart()       { return (      PRUnichar*) (this+1); }
 
-            const char16_t* DataEnd() const { return mDataEnd; }
-                  char16_t* DataEnd()       { return mDataEnd; }
+            const PRUnichar* DataEnd() const { return mDataEnd; }
+                  PRUnichar* DataEnd()       { return mDataEnd; }
 
             const Buffer* Next() const { return getNext(); }
                   Buffer* Next()       { return getNext(); }
@@ -90,7 +90,7 @@ class nsScannerBufferList
             friend class nsScannerBufferList;
 
             int32_t    mUsageCount;
-            char16_t* mDataEnd;
+            PRUnichar* mDataEnd;
         };
 
         /**
@@ -104,7 +104,7 @@ class nsScannerBufferList
 
             Position() {}
             
-            Position( Buffer* buffer, char16_t* position )
+            Position( Buffer* buffer, PRUnichar* position )
               : mBuffer(buffer)
               , mPosition(position)
               {}
@@ -118,7 +118,7 @@ class nsScannerBufferList
             static size_t Distance( const Position& p1, const Position& p2 );
 
             Buffer*    mBuffer;
-            char16_t* mPosition;
+            PRUnichar* mPosition;
         };
 
       static Buffer* AllocBufferFromString( const nsAString& );
@@ -164,8 +164,8 @@ struct nsScannerFragment
     typedef nsScannerBufferList::Buffer Buffer;
 
     const Buffer*    mBuffer;
-    const char16_t* mFragmentStart;
-    const char16_t* mFragmentEnd;
+    const PRUnichar* mFragmentStart;
+    const PRUnichar* mFragmentEnd;
   };
 
 
@@ -193,7 +193,7 @@ class nsScannerSubstring
 
       size_type Length() const { return mLength; }
 
-      int32_t CountChar( char16_t ) const;
+      int32_t CountChar( PRUnichar ) const;
 
       void Rebind( const nsScannerSubstring&, const nsScannerIterator&, const nsScannerIterator& );
       void Rebind( const nsAString& );
@@ -267,7 +267,7 @@ class nsScannerString : public nsScannerSubstring
         // any other way you want to do this?
 
       void UngetReadable(const nsAString& aReadable, const nsScannerIterator& aCurrentPosition);
-      void ReplaceCharacter(nsScannerIterator& aPosition, char16_t aChar);
+      void ReplaceCharacter(nsScannerIterator& aPosition, PRUnichar aChar);
   };
 
 
@@ -326,15 +326,15 @@ class nsScannerIterator
     public:
       typedef nsScannerIterator             self_type;
       typedef ptrdiff_t                     difference_type;
-      typedef char16_t                     value_type;
-      typedef const char16_t*              pointer;
-      typedef const char16_t&              reference;
+      typedef PRUnichar                     value_type;
+      typedef const PRUnichar*              pointer;
+      typedef const PRUnichar&              reference;
       typedef nsScannerSubstring::Buffer    Buffer;
 
     protected:
 
       nsScannerFragment         mFragment;
-      const char16_t*          mPosition;
+      const PRUnichar*          mPosition;
       const nsScannerSubstring* mOwner;
 
       friend class nsScannerSubstring;
@@ -353,7 +353,7 @@ class nsScannerIterator
           return mPosition;
         }
       
-      char16_t operator*() const
+      PRUnichar operator*() const
         {
           return *get();
         }
@@ -516,7 +516,7 @@ operator!=( const nsScannerIterator& lhs, const nsScannerIterator& rhs )
 inline
 nsScannerBufferList::Position::Position(const nsScannerIterator& aIter)
   : mBuffer(const_cast<Buffer*>(aIter.buffer()))
-  , mPosition(const_cast<char16_t*>(aIter.get()))
+  , mPosition(const_cast<PRUnichar*>(aIter.get()))
   {}
 
 inline
@@ -524,7 +524,7 @@ nsScannerBufferList::Position&
 nsScannerBufferList::Position::operator=(const nsScannerIterator& aIter)
   {
     mBuffer   = const_cast<Buffer*>(aIter.buffer());
-    mPosition = const_cast<char16_t*>(aIter.get());
+    mPosition = const_cast<PRUnichar*>(aIter.get());
     return *this;
   }
 
@@ -576,7 +576,7 @@ AppendUnicodeTo( const nsScannerIterator& aSrcStart,
                  nsScannerSharedSubstring& aDest );
 
 bool
-FindCharInReadable( char16_t aChar,
+FindCharInReadable( PRUnichar aChar,
                     nsScannerIterator& aStart,
                     const nsScannerIterator& aEnd );
 

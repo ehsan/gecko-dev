@@ -89,7 +89,7 @@ private:
                                   nsACString& aCharset);
   nsresult EnsureBaseURI();
   nsresult InitParser(nsIRequestObserver *aListener, nsIChannel *aChannel);
-  nsresult SplitExpatName(const char16_t *aExpatName,
+  nsresult SplitExpatName(const PRUnichar *aExpatName,
                           nsString &aURI,
                           nsString &aLocalName,
                           nsString &aQName);

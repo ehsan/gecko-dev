@@ -92,7 +92,7 @@ private:
 struct UniCharsAndModifiers
 {
   // Dead-key + up to 4 characters
-  char16_t mChars[5];
+  PRUnichar mChars[5];
   Modifiers mModifiers[5];
   uint32_t  mLength;
 
@@ -103,7 +103,7 @@ struct UniCharsAndModifiers
   /**
    * Append a pair of unicode character and the final modifier.
    */
-  void Append(char16_t aUniChar, Modifiers aModifiers);
+  void Append(PRUnichar aUniChar, Modifiers aModifiers);
   void Clear() { mLength = 0; }
   bool IsEmpty() const { return !mLength; }
 
@@ -157,12 +157,12 @@ private:
   {
     struct
     {
-      char16_t Chars[4];
+      PRUnichar Chars[4];
     } Normal;
     struct
     {
       const DeadKeyTable* Table;
-      char16_t DeadChar;
+      PRUnichar DeadChar;
     } DeadKey;
   };
 
@@ -192,13 +192,13 @@ public:
     mShiftStates[aShiftState].DeadKey.Table = aDeadKeyTable;
   }
 
-  void SetNormalChars(ShiftState aShiftState, const char16_t* aChars,
+  void SetNormalChars(ShiftState aShiftState, const PRUnichar* aChars,
                       uint32_t aNumOfChars);
-  void SetDeadChar(ShiftState aShiftState, char16_t aDeadChar);
+  void SetDeadChar(ShiftState aShiftState, PRUnichar aDeadChar);
   const DeadKeyTable* MatchingDeadKeyTable(const DeadKeyEntry* aDeadKeyArray,
                                            uint32_t aEntries) const;
-  inline char16_t GetCompositeChar(ShiftState aShiftState,
-                                    char16_t aBaseChar) const;
+  inline PRUnichar GetCompositeChar(ShiftState aShiftState,
+                                    PRUnichar aBaseChar) const;
   UniCharsAndModifiers GetNativeUniChars(ShiftState aShiftState) const;
   UniCharsAndModifiers GetUniChars(ShiftState aShiftState) const;
 };
@@ -355,7 +355,7 @@ private:
   /**
    * Wraps MapVirtualKeyEx() with MAPVK_VSC_TO_VK and MAPVK_VK_TO_CHAR.
    */
-  char16_t ComputeUnicharFromScanCode() const;
+  PRUnichar ComputeUnicharFromScanCode() const;
 
   /**
    * Initializes the aKeyEvent with the information stored in the instance.
@@ -432,7 +432,7 @@ private:
   static inline int32_t GetKeyIndex(uint8_t aVirtualKey);
   static int CompareDeadKeyEntries(const void* aArg1, const void* aArg2,
                                    void* aData);
-  static bool AddDeadKeyEntry(char16_t aBaseChar, char16_t aCompositeChar,
+  static bool AddDeadKeyEntry(PRUnichar aBaseChar, PRUnichar aCompositeChar,
                                 DeadKeyEntry* aDeadKeyArray, uint32_t aEntries);
   bool EnsureDeadKeyActive(bool aIsActive, uint8_t aDeadKey,
                              const PBYTE aDeadKeyKbdState);

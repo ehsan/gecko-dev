@@ -248,7 +248,7 @@ nsConsoleService::EnumerateListeners(ListenerHash::EnumReadFunction aFunction,
 }
 
 NS_IMETHODIMP
-nsConsoleService::LogStringMessage(const char16_t *message)
+nsConsoleService::LogStringMessage(const PRUnichar *message)
 {
     if (!sLoggingEnabled) {
         return NS_OK;

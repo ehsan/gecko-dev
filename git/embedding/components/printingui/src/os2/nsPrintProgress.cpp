@@ -189,7 +189,7 @@ NS_IMETHODIMP nsPrintProgress::OnLocationChange(nsIWebProgress *aWebProgress, ns
 }
 
 /* void onStatusChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in nsresult aStatus, in wstring aMessage); */
-NS_IMETHODIMP nsPrintProgress::OnStatusChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsresult aStatus, const char16_t *aMessage)
+NS_IMETHODIMP nsPrintProgress::OnStatusChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsresult aStatus, const PRUnichar *aMessage)
 {
   if (aMessage && *aMessage)
   m_pendingStatus = aMessage;
@@ -217,7 +217,7 @@ nsresult nsPrintProgress::ReleaseListeners()
   return NS_OK;
 }
 
-NS_IMETHODIMP nsPrintProgress::ShowStatusString(const char16_t *status)
+NS_IMETHODIMP nsPrintProgress::ShowStatusString(const PRUnichar *status)
 {
   return OnStatusChange(nullptr, nullptr, NS_OK, status);
 }

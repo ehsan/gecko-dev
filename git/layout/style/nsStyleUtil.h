@@ -32,7 +32,7 @@ public:
   // to aResult.  'quoteChar' must be ' or ".
   static void AppendEscapedCSSString(const nsAString& aString,
                                      nsAString& aResult,
-                                     char16_t quoteChar = '"');
+                                     PRUnichar quoteChar = '"');
 
   // Append the identifier given by |aIdent| to |aResult|, with
   // appropriate escaping so that it can be reparsed to the same

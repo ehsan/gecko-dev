@@ -3000,7 +3000,7 @@ nsresult nsPluginHost::NewPluginStreamListener(nsIURI* aURI,
 
 NS_IMETHODIMP nsPluginHost::Observe(nsISupports *aSubject,
                                     const char *aTopic,
-                                    const char16_t *someData)
+                                    const PRUnichar *someData)
 {
   if (!strcmp(NS_XPCOM_SHUTDOWN_OBSERVER_ID, aTopic)) {
     OnShutdown();

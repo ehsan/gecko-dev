@@ -561,7 +561,7 @@ SpeechRecognition::StopRecording()
 
 NS_IMETHODIMP
 SpeechRecognition::Observe(nsISupports* aSubject, const char* aTopic,
-                           const char16_t* aData)
+                           const PRUnichar* aData)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Observer invoked off the main thread");
 

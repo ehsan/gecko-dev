@@ -514,7 +514,7 @@ MobileMessageManager::DispatchTrustedSmsEventToSelf(const char* aTopic,
 
 NS_IMETHODIMP
 MobileMessageManager::Observe(nsISupports* aSubject, const char* aTopic,
-                              const char16_t* aData)
+                              const PRUnichar* aData)
 {
   if (!strcmp(aTopic, kSmsReceivedObserverTopic)) {
     return DispatchTrustedSmsEventToSelf(aTopic, RECEIVED_EVENT_NAME, aSubject);

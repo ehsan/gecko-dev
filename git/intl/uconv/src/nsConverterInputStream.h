@@ -50,16 +50,16 @@ class nsConverterInputStream : public nsIConverterInputStream,
     
     nsCOMPtr<nsIUnicodeDecoder> mConverter;
     FallibleTArray<char> mByteData;
-    FallibleTArray<char16_t> mUnicharData;
+    FallibleTArray<PRUnichar> mUnicharData;
     nsCOMPtr<nsIInputStream> mInput;
 
     nsresult  mLastErrorCode;
     uint32_t  mLeftOverBytes;
     uint32_t  mUnicharDataOffset;
     uint32_t  mUnicharDataLength;
-    char16_t mReplacementChar;
+    PRUnichar mReplacementChar;
 
-    nsAutoPtr<nsLineBuffer<char16_t> > mLineBuffer;
+    nsAutoPtr<nsLineBuffer<PRUnichar> > mLineBuffer;
 };
 
 #endif

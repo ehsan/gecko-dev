@@ -1240,7 +1240,7 @@ nsPresContext::UpdateCharSet(const nsCString& aCharSet)
 NS_IMETHODIMP
 nsPresContext::Observe(nsISupports* aSubject, 
                         const char* aTopic,
-                        const char16_t* aData)
+                        const PRUnichar* aData)
 {
   if (!nsCRT::strcmp(aTopic, "charset")) {
     nsRefPtr<CharSetChangingRunnable> runnable =

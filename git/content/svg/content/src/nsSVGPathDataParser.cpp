@@ -14,7 +14,7 @@
 using namespace mozilla;
 using namespace mozilla::gfx;
 
-static inline char16_t ToUpper(char16_t aCh)
+static inline PRUnichar ToUpper(PRUnichar aCh)
 {
   return aCh >= 'a' && aCh <= 'z' ? aCh - 'a' + 'A' : aCh;
 }
@@ -74,7 +74,7 @@ bool
 nsSVGPathDataParser::ParseSubPathElements()
 {
   while (SkipWsp() && !IsStartOfSubPath()) {
-    char16_t commandType = ToUpper(*mIter);
+    PRUnichar commandType = ToUpper(*mIter);
 
     // Upper case commands have absolute co-ordinates,
     // lower case commands have relative co-ordinates.
@@ -91,7 +91,7 @@ nsSVGPathDataParser::ParseSubPathElements()
 }
 
 bool
-nsSVGPathDataParser::ParseSubPathElement(char16_t aCommandType,
+nsSVGPathDataParser::ParseSubPathElement(PRUnichar aCommandType,
                                          bool aAbsCoords)
 {
   switch (aCommandType) {

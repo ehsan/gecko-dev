@@ -50,7 +50,7 @@ nsWifiMonitor::~nsWifiMonitor()
 
 NS_IMETHODIMP
 nsWifiMonitor::Observe(nsISupports *subject, const char *topic,
-                     const char16_t *data)
+                     const PRUnichar *data)
 {
   if (!strcmp(topic, "xpcom-shutdown")) {
     LOG(("Shutting down\n"));

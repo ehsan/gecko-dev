@@ -258,7 +258,7 @@ nsGenericDOMDataNode::ReplaceData(uint32_t aOffset, uint32_t aCount,
 
 nsresult
 nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
-                                      const char16_t* aBuffer,
+                                      const PRUnichar* aBuffer,
                                       uint32_t aLength, bool aNotify,
                                       CharacterDataChangeInfo::Details* aDetails)
 {
@@ -326,7 +326,7 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
 
     // Allocate new buffer
     int32_t newLength = textLength - aCount + aLength;
-    char16_t* to = new char16_t[newLength];
+    PRUnichar* to = new PRUnichar[newLength];
     NS_ENSURE_TRUE(to, NS_ERROR_OUT_OF_MEMORY);
 
     // Copy over appropriate data
@@ -334,7 +334,7 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
       mText.CopyTo(to, 0, aOffset);
     }
     if (aLength) {
-      memcpy(to + aOffset, aBuffer, aLength * sizeof(char16_t));
+      memcpy(to + aOffset, aBuffer, aLength * sizeof(PRUnichar));
     }
     if (endOffset != textLength) {
       mText.CopyTo(to + aOffset + aLength, endOffset, textLength - endOffset);
@@ -394,11 +394,11 @@ nsGenericDOMDataNode::ToCString(nsAString& aBuf, int32_t aOffset,
                                 int32_t aLen) const
 {
   if (mText.Is2b()) {
-    const char16_t* cp = mText.Get2b() + aOffset;
-    const char16_t* end = cp + aLen;
+    const PRUnichar* cp = mText.Get2b() + aOffset;
+    const PRUnichar* end = cp + aLen;
 
     while (cp < end) {
-      char16_t ch = *cp++;
+      PRUnichar ch = *cp++;
       if (ch == '&') {
         aBuf.AppendLiteral("&amp;");
       } else if (ch == '<') {
@@ -418,7 +418,7 @@ nsGenericDOMDataNode::ToCString(nsAString& aBuf, int32_t aOffset,
     const unsigned char* end = cp + aLen;
 
     while (cp < end) {
-      char16_t ch = *cp++;
+      PRUnichar ch = *cp++;
       if (ch == '&') {
         aBuf.AppendLiteral("&amp;");
       } else if (ch == '<') {
@@ -922,7 +922,7 @@ nsGenericDOMDataNode::TextLength() const
 }
 
 nsresult
-nsGenericDOMDataNode::SetText(const char16_t* aBuffer,
+nsGenericDOMDataNode::SetText(const PRUnichar* aBuffer,
                               uint32_t aLength,
                               bool aNotify)
 {
@@ -930,7 +930,7 @@ nsGenericDOMDataNode::SetText(const char16_t* aBuffer,
 }
 
 nsresult
-nsGenericDOMDataNode::AppendText(const char16_t* aBuffer,
+nsGenericDOMDataNode::AppendText(const PRUnichar* aBuffer,
                                  uint32_t aLength,
                                  bool aNotify)
 {

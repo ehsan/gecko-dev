@@ -1762,7 +1762,7 @@ NS_IMPL_ISUPPORTS2(PluginProfilerObserver, nsIObserver, nsISupportsWeakReference
 NS_IMETHODIMP
 PluginProfilerObserver::Observe(nsISupports *aSubject,
                                 const char *aTopic,
-                                const char16_t *aData)
+                                const PRUnichar *aData)
 {
     nsCOMPtr<nsIProfileSaveEvent> pse = do_QueryInterface(aSubject);
     if (pse) {

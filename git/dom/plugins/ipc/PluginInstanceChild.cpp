@@ -1480,7 +1480,7 @@ PluginInstanceChild::PluginWindowProcInternal(HWND hWnd,
       wchar_t szClass[26];
       HWND hwnd = GetForegroundWindow();
       if (hwnd && GetClassNameW(hwnd, szClass,
-                                sizeof(szClass)/sizeof(char16_t)) &&
+                                sizeof(szClass)/sizeof(PRUnichar)) &&
           !wcscmp(szClass, kFlashFullscreenClass)) {
         ReleaseCapture();
         SetFocus(hwnd);
@@ -2063,7 +2063,7 @@ PluginInstanceChild::EnumThreadWindowsCallback(HWND hWnd,
     }
 
     wchar_t className[64];
-    if (!GetClassNameW(hWnd, className, sizeof(className)/sizeof(char16_t)))
+    if (!GetClassNameW(hWnd, className, sizeof(className)/sizeof(PRUnichar)))
       return TRUE;
     
     if (!wcscmp(className, L"SWFlash_PlaceholderX")) {

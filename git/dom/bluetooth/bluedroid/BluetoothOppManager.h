@@ -95,7 +95,7 @@ private:
   void AfterFirstPut();
   void AfterOppDisconnected();
   void ValidateFileName();
-  bool IsReservedChar(char16_t c);
+  bool IsReservedChar(PRUnichar c);
   void ClearQueue();
   void RetrieveSentFileName();
   void NotifyAboutFileChange();

@@ -395,7 +395,7 @@ public:
                     GraphicsFilter aFilter,
                     uint32_t aFlags = RenderFlagPremultAlpha) MOZ_OVERRIDE;
   NS_IMETHOD GetInputStream(const char* aMimeType,
-                            const char16_t* aEncoderOptions,
+                            const PRUnichar* aEncoderOptions,
                             nsIInputStream **aStream) MOZ_OVERRIDE;
   NS_IMETHOD GetThebesSurface(gfxASurface **surface) MOZ_OVERRIDE;
 

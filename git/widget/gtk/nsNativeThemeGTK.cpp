@@ -57,7 +57,7 @@ nsNativeThemeGTK::~nsNativeThemeGTK() {
 
 NS_IMETHODIMP
 nsNativeThemeGTK::Observe(nsISupports *aSubject, const char *aTopic,
-                          const char16_t *aData)
+                          const PRUnichar *aData)
 {
   if (!nsCRT::strcmp(aTopic, "xpcom-shutdown")) {
     moz_gtk_shutdown();

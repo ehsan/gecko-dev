@@ -67,7 +67,7 @@ public:
     TX_DECL_FUNCTION
 
 private:
-    static const char16_t FORMAT_QUOTE;
+    static const PRUnichar FORMAT_QUOTE;
 
     enum FormatParseState {
         Prefix,
@@ -97,16 +97,16 @@ public:
     txDecimalFormat();
     bool isEqual(txDecimalFormat* other);
     
-    char16_t       mDecimalSeparator;
-    char16_t       mGroupingSeparator;
+    PRUnichar       mDecimalSeparator;
+    PRUnichar       mGroupingSeparator;
     nsString        mInfinity;
-    char16_t       mMinusSign;
+    PRUnichar       mMinusSign;
     nsString        mNaN;
-    char16_t       mPercent;
-    char16_t       mPerMille;
-    char16_t       mZeroDigit;
-    char16_t       mDigit;
-    char16_t       mPatternSeparator;
+    PRUnichar       mPercent;
+    PRUnichar       mPerMille;
+    PRUnichar       mZeroDigit;
+    PRUnichar       mDigit;
+    PRUnichar       mPatternSeparator;
 };
 
 /**

@@ -285,7 +285,7 @@ LocationStep::toString(nsAString& str)
             str.AppendLiteral("ancestor-or-self::");
             break;
         case ATTRIBUTE_AXIS:
-            str.Append(char16_t('@'));
+            str.Append(PRUnichar('@'));
             break;
         case DESCENDANT_AXIS:
             str.AppendLiteral("descendant::");

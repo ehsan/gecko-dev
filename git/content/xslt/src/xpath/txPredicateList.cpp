@@ -77,9 +77,9 @@ PredicateList::isSensitiveTo(Expr::ContextSensitivity aContext)
 void PredicateList::toString(nsAString& dest)
 {
     for (uint32_t i = 0; i < mPredicates.Length(); ++i) {
-        dest.Append(char16_t('['));
+        dest.Append(PRUnichar('['));
         mPredicates[i]->toString(dest);
-        dest.Append(char16_t(']'));
+        dest.Append(PRUnichar(']'));
     }
 }
 #endif

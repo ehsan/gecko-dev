@@ -54,8 +54,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "UITelemetry",
-                                  "resource://gre/modules/UITelemetry.jsm");
 /*
  * Services
  */

@@ -113,7 +113,7 @@ public:
      * @param aDirection The direction of the text. The string will never have
      *  mixed direction.
      */
-    virtual void SetText(const char16_t*   aText,
+    virtual void SetText(const PRUnichar*   aText,
                          int32_t            aLength,
                          nsBidiDirection    aDirection) = 0;
 
@@ -169,7 +169,7 @@ public:
    * @lina 06/18/2000 
    */
   static nsresult FormatUnicodeText(nsPresContext* aPresContext,
-                                    char16_t*      aText,
+                                    PRUnichar*      aText,
                                     int32_t&        aTextLength,
                                     nsCharType      aCharType,
                                     bool            aIsOddLevel);
@@ -198,7 +198,7 @@ public:
    * @param[in,out] aPosResolve array of logical positions to resolve into visual positions; can be nullptr if this functionality is not required
    * @param aPosResolveCount number of items in the aPosResolve array
    */
-  static nsresult RenderText(const char16_t*       aText,
+  static nsresult RenderText(const PRUnichar*       aText,
                              int32_t                aLength,
                              nsBidiLevel            aBaseLevel,
                              nsPresContext*         aPresContext,
@@ -213,7 +213,7 @@ public:
                                           aTextRunConstructionContext, MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nullptr);
   }
   
-  static nscoord MeasureTextWidth(const char16_t*     aText,
+  static nscoord MeasureTextWidth(const PRUnichar*     aText,
                                   int32_t              aLength,
                                   nsBidiLevel          aBaseLevel,
                                   nsPresContext*       aPresContext,
@@ -307,7 +307,7 @@ public:
    * @param aPosResolveCount number of items in the aPosResolve array
    * @param[out] aWidth Pointer to where the width will be stored (may be null)
    */
-  static nsresult ProcessText(const char16_t*       aText,
+  static nsresult ProcessText(const PRUnichar*       aText,
                               int32_t                aLength,
                               nsBidiLevel            aBaseLevel,
                               nsPresContext*         aPresContext,
@@ -352,7 +352,7 @@ public:
 
 private:
   static nsresult
-  ProcessTextForRenderingContext(const char16_t*       aText,
+  ProcessTextForRenderingContext(const PRUnichar*       aText,
                                  int32_t                aLength,
                                  nsBidiLevel            aBaseLevel,
                                  nsPresContext*         aPresContext,
@@ -481,7 +481,7 @@ private:
                                      int32_t            aLastIndex,
                                      int32_t&           aOffset);
   static void CalculateCharType(nsBidi*          aBidiEngine,
-                                const char16_t* aText,
+                                const PRUnichar* aText,
                                 int32_t&         aOffset,
                                 int32_t          aCharTypeLimit,
                                 int32_t&         aRunLimit,
@@ -490,18 +490,18 @@ private:
                                 uint8_t&         aCharType,
                                 uint8_t&         aPrevCharType);
   
-  static void StripBidiControlCharacters(char16_t* aText,
+  static void StripBidiControlCharacters(PRUnichar* aText,
                                          int32_t&   aTextLength);
 
-  static bool WriteLogicalToVisual(const char16_t* aSrc,
+  static bool WriteLogicalToVisual(const PRUnichar* aSrc,
                                      uint32_t aSrcLength,
-                                     char16_t* aDest,
+                                     PRUnichar* aDest,
                                      nsBidiLevel aBaseDirection,
                                      nsBidi* aBidiEngine);
 
-  static void WriteReverse(const char16_t* aSrc,
+  static void WriteReverse(const PRUnichar* aSrc,
                            uint32_t aSrcLength,
-                           char16_t* aDest);
+                           PRUnichar* aDest);
 };
 
 #endif // IBMBIDI

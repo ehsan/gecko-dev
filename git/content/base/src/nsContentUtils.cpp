@@ -179,7 +179,7 @@
 #endif
 
 extern "C" int MOZ_XMLTranslateEntity(const char* ptr, const char* end,
-                                      const char** next, char16_t* result);
+                                      const char** next, PRUnichar* result);
 extern "C" int MOZ_XMLCheckQName(const char* ptr, const char* end,
                                  int ns_aware, const char** colon);
 
@@ -626,7 +626,7 @@ nsContentUtils::InitializeTouchEventTable()
 static bool
 Is8bit(const nsAString& aString)
 {
-  static const char16_t EIGHT_BIT = char16_t(~0x00FF);
+  static const PRUnichar EIGHT_BIT = PRUnichar(~0x00FF);
 
   nsAString::const_iterator done_reading;
   aString.EndReading(done_reading);
@@ -637,8 +637,8 @@ Is8bit(const nsAString& aString)
   for (aString.BeginReading(iter); iter != done_reading;
        iter.advance(int32_t(fragmentLength))) {
     fragmentLength = uint32_t(iter.size_forward());
-    const char16_t* c = iter.get();
-    const char16_t* fragmentEnd = c + fragmentLength;
+    const PRUnichar* c = iter.get();
+    const PRUnichar* fragmentEnd = c + fragmentLength;
 
     // for each character in this chunk...
     while (c < fragmentEnd) {
@@ -672,8 +672,8 @@ nsContentUtils::Atob(const nsAString& aAsciiBase64String,
     return NS_ERROR_DOM_INVALID_CHARACTER_ERR;
   }
 
-  const char16_t* start = aAsciiBase64String.BeginReading();
-  const char16_t* end = aAsciiBase64String.EndReading();
+  const PRUnichar* start = aAsciiBase64String.BeginReading();
+  const PRUnichar* end = aAsciiBase64String.EndReading();
   nsString trimmedString;
   if (!trimmedString.SetCapacity(aAsciiBase64String.Length(), fallible_t())) {
     return NS_ERROR_DOM_INVALID_CHARACTER_ERR;
@@ -732,9 +732,9 @@ nsContentUtils::GetPseudoAttributeValue(const nsString& aSource, nsIAtom *aName,
 {
   aValue.Truncate();
 
-  const char16_t *start = aSource.get();
-  const char16_t *end = start + aSource.Length();
-  const char16_t *iter;
+  const PRUnichar *start = aSource.get();
+  const PRUnichar *end = start + aSource.Length();
+  const PRUnichar *iter;
 
   while (start != end) {
     SKIP_WHITESPACE(start, end, false)
@@ -760,7 +760,7 @@ nsContentUtils::GetPseudoAttributeValue(const nsString& aSource, nsIAtom *aName,
     // Have to skip the value.
     ++start;
     SKIP_WHITESPACE(start, end, false)
-    char16_t q = *start;
+    PRUnichar q = *start;
     if (q != kQuote && q != kApostrophe) {
       // Not a valid quoted value, so bail.
       return false;
@@ -785,7 +785,7 @@ nsContentUtils::GetPseudoAttributeValue(const nsString& aSource, nsIAtom *aName,
       // We'll accumulate as many characters as possible (until we hit either
       // the end of the string or the beginning of an entity). Chunks will be
       // delimited by start and chunkEnd.
-      const char16_t *chunkEnd = start;
+      const PRUnichar *chunkEnd = start;
       while (chunkEnd != iter) {
         if (*chunkEnd == kLessThan) {
           aValue.Truncate();
@@ -799,8 +799,8 @@ nsContentUtils::GetPseudoAttributeValue(const nsString& aSource, nsIAtom *aName,
           // Point to first character after the ampersand.
           ++chunkEnd;
 
-          const char16_t *afterEntity = nullptr;
-          char16_t result[2];
+          const PRUnichar *afterEntity = nullptr;
+          PRUnichar result[2];
           uint32_t count =
             MOZ_XMLTranslateEntity(reinterpret_cast<const char*>(chunkEnd),
                                   reinterpret_cast<const char*>(iter),
@@ -878,7 +878,7 @@ nsContentUtils::SplitMimeType(const nsAString& aValue, nsString& aType,
 {
   aType.Truncate();
   aParams.Truncate();
-  int32_t semiIndex = aValue.FindChar(char16_t(';'));
+  int32_t semiIndex = aValue.FindChar(PRUnichar(';'));
   if (-1 != semiIndex) {
     aType = Substring(aValue, 0, semiIndex);
     aParams = Substring(aValue, semiIndex + 1,
@@ -1082,15 +1082,15 @@ class CopyNormalizeNewlines
 uint32_t
 nsContentUtils::CopyNewlineNormalizedUnicodeTo(const nsAString& aSource,
                                                uint32_t aSrcOffset,
-                                               char16_t* aDest,
+                                               PRUnichar* aDest,
                                                uint32_t aLength,
                                                bool& aLastCharCR)
 {
-  typedef NormalizeNewlinesCharTraits<char16_t*> sink_traits;
+  typedef NormalizeNewlinesCharTraits<PRUnichar*> sink_traits;
 
   sink_traits dest_traits(aDest);
   CopyNormalizeNewlines<sink_traits> normalizer(&dest_traits,aLastCharCR);
-  nsReadingIterator<char16_t> fromBegin, fromEnd;
+  nsReadingIterator<PRUnichar> fromBegin, fromEnd;
   copy_string(aSource.BeginReading(fromBegin).advance( int32_t(aSrcOffset) ),
               aSource.BeginReading(fromEnd).advance( int32_t(aSrcOffset+aLength) ),
               normalizer);
@@ -1100,9 +1100,9 @@ nsContentUtils::CopyNewlineNormalizedUnicodeTo(const nsAString& aSource,
 
 // static
 uint32_t
-nsContentUtils::CopyNewlineNormalizedUnicodeTo(nsReadingIterator<char16_t>& aSrcStart, const nsReadingIterator<char16_t>& aSrcEnd, nsAString& aDest)
+nsContentUtils::CopyNewlineNormalizedUnicodeTo(nsReadingIterator<PRUnichar>& aSrcStart, const nsReadingIterator<PRUnichar>& aSrcEnd, nsAString& aDest)
 {
-  typedef nsWritingIterator<char16_t> WritingIterator;
+  typedef nsWritingIterator<PRUnichar> WritingIterator;
   typedef NormalizeNewlinesCharTraits<WritingIterator> sink_traits;
 
   WritingIterator iter;
@@ -1137,12 +1137,12 @@ nsContentUtils::IsFirstLetterPunctuation(uint32_t aChar)
 bool
 nsContentUtils::IsFirstLetterPunctuationAt(const nsTextFragment* aFrag, uint32_t aOffset)
 {
-  char16_t h = aFrag->CharAt(aOffset);
+  PRUnichar h = aFrag->CharAt(aOffset);
   if (!IS_SURROGATE(h)) {
     return IsFirstLetterPunctuation(h);
   }
   if (NS_IS_HIGH_SURROGATE(h) && aOffset + 1 < aFrag->GetLength()) {
-    char16_t l = aFrag->CharAt(aOffset + 1);
+    PRUnichar l = aFrag->CharAt(aOffset + 1);
     if (NS_IS_LOW_SURROGATE(l)) {
       return IsFirstLetterPunctuation(SURROGATE_TO_UCS4(h, l));
     }
@@ -1161,12 +1161,12 @@ bool nsContentUtils::IsAlphanumeric(uint32_t aChar)
 // static
 bool nsContentUtils::IsAlphanumericAt(const nsTextFragment* aFrag, uint32_t aOffset)
 {
-  char16_t h = aFrag->CharAt(aOffset);
+  PRUnichar h = aFrag->CharAt(aOffset);
   if (!IS_SURROGATE(h)) {
     return IsAlphanumeric(h);
   }
   if (NS_IS_HIGH_SURROGATE(h) && aOffset + 1 < aFrag->GetLength()) {
-    char16_t l = aFrag->CharAt(aOffset + 1);
+    PRUnichar l = aFrag->CharAt(aOffset + 1);
     if (NS_IS_LOW_SURROGATE(l)) {
       return IsAlphanumeric(SURROGATE_TO_UCS4(h, l));
     }
@@ -1176,20 +1176,20 @@ bool nsContentUtils::IsAlphanumericAt(const nsTextFragment* aFrag, uint32_t aOff
 
 /* static */
 bool
-nsContentUtils::IsHTMLWhitespace(char16_t aChar)
+nsContentUtils::IsHTMLWhitespace(PRUnichar aChar)
 {
-  return aChar == char16_t(0x0009) ||
-         aChar == char16_t(0x000A) ||
-         aChar == char16_t(0x000C) ||
-         aChar == char16_t(0x000D) ||
-         aChar == char16_t(0x0020);
+  return aChar == PRUnichar(0x0009) ||
+         aChar == PRUnichar(0x000A) ||
+         aChar == PRUnichar(0x000C) ||
+         aChar == PRUnichar(0x000D) ||
+         aChar == PRUnichar(0x0020);
 }
 
 /* static */
 bool
-nsContentUtils::IsHTMLWhitespaceOrNBSP(char16_t aChar)
+nsContentUtils::IsHTMLWhitespaceOrNBSP(PRUnichar aChar)
 {
-  return IsHTMLWhitespace(aChar) || aChar == char16_t(0xA0);
+  return IsHTMLWhitespace(aChar) || aChar == PRUnichar(0xA0);
 }
 
 /* static */
@@ -1324,24 +1324,24 @@ nsContentUtils::ParseLegacyFontSize(const nsAString& aValue)
 
   bool relative = false;
   bool negate = false;
-  if (*iter == char16_t('-')) {
+  if (*iter == PRUnichar('-')) {
     relative = true;
     negate = true;
     ++iter;
-  } else if (*iter == char16_t('+')) {
+  } else if (*iter == PRUnichar('+')) {
     relative = true;
     ++iter;
   }
 
-  if (*iter < char16_t('0') || *iter > char16_t('9')) {
+  if (*iter < PRUnichar('0') || *iter > PRUnichar('9')) {
     return 0;
   }
 
   // We don't have to worry about overflow, since we can bail out as soon as
   // we're bigger than 7.
   int32_t value = 0;
-  while (iter != end && *iter >= char16_t('0') && *iter <= char16_t('9')) {
-    value = 10*value + (*iter - char16_t('0'));
+  while (iter != end && *iter >= PRUnichar('0') && *iter <= PRUnichar('9')) {
+    value = 10*value + (*iter - PRUnichar('0'));
     if (value >= 7) {
       break;
     }
@@ -2092,11 +2092,11 @@ nsContentUtils::ComparePoints(nsIDOMNode* aParent1, int32_t aOffset1,
 
 inline bool
 IsCharInSet(const char* aSet,
-            const char16_t aChar)
+            const PRUnichar aChar)
 {
-  char16_t ch;
+  PRUnichar ch;
   while ((ch = *aSet)) {
-    if (aChar == char16_t(ch)) {
+    if (aChar == PRUnichar(ch)) {
       return true;
     }
     ++aSet;
@@ -2145,7 +2145,7 @@ nsContentUtils::TrimCharsInSet(const char* aSet,
  */
 
 // static
-template<bool IsWhitespace(char16_t)>
+template<bool IsWhitespace(PRUnichar)>
 const nsDependentSubstring
 nsContentUtils::TrimWhitespace(const nsAString& aStr, bool aTrimTrailing)
 {
@@ -2426,11 +2426,11 @@ nsContentUtils::NewURIWithDocumentCharset(nsIURI** aResult,
 nsresult
 nsContentUtils::CheckQName(const nsAString& aQualifiedName,
                            bool aNamespaceAware,
-                           const char16_t** aColon)
+                           const PRUnichar** aColon)
 {
   const char* colon = nullptr;
-  const char16_t* begin = aQualifiedName.BeginReading();
-  const char16_t* end = aQualifiedName.EndReading();
+  const PRUnichar* begin = aQualifiedName.BeginReading();
+  const PRUnichar* end = aQualifiedName.EndReading();
   
   int result = MOZ_XMLCheckQName(reinterpret_cast<const char*>(begin),
                                  reinterpret_cast<const char*>(end),
@@ -2438,7 +2438,7 @@ nsContentUtils::CheckQName(const nsAString& aQualifiedName,
 
   if (!result) {
     if (aColon) {
-      *aColon = reinterpret_cast<const char16_t*>(colon);
+      *aColon = reinterpret_cast<const PRUnichar*>(colon);
     }
 
     return NS_OK;
@@ -2458,12 +2458,12 @@ nsContentUtils::SplitQName(const nsIContent* aNamespaceResolver,
                            const nsAFlatString& aQName,
                            int32_t *aNamespace, nsIAtom **aLocalName)
 {
-  const char16_t* colon;
+  const PRUnichar* colon;
   nsresult rv = nsContentUtils::CheckQName(aQName, true, &colon);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (colon) {
-    const char16_t* end;
+    const PRUnichar* end;
     aQName.EndReading(end);
     nsAutoString nameSpace;
     rv = aNamespaceResolver->LookupNamespaceURIInternal(Substring(aQName.get(),
@@ -2494,14 +2494,14 @@ nsContentUtils::GetNodeInfoFromQName(const nsAString& aNamespaceURI,
                                      nsINodeInfo** aNodeInfo)
 {
   const nsAFlatString& qName = PromiseFlatString(aQualifiedName);
-  const char16_t* colon;
+  const PRUnichar* colon;
   nsresult rv = nsContentUtils::CheckQName(qName, true, &colon);
   NS_ENSURE_SUCCESS(rv, rv);
 
   int32_t nsID;
   sNameSpaceManager->RegisterNameSpace(aNamespaceURI, nsID);
   if (colon) {
-    const char16_t* end;
+    const PRUnichar* end;
     qName.EndReading(end);
 
     nsCOMPtr<nsIAtom> prefix = do_GetAtom(Substring(qName.get(), colon));
@@ -2523,7 +2523,7 @@ nsContentUtils::GetNodeInfoFromQName(const nsAString& aNamespaceURI,
 
 // static
 void
-nsContentUtils::SplitExpatName(const char16_t *aExpatName, nsIAtom **aPrefix,
+nsContentUtils::SplitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
                                nsIAtom **aLocalName, int32_t* aNameSpaceID)
 {
   /**
@@ -2536,9 +2536,9 @@ nsContentUtils::SplitExpatName(const char16_t *aExpatName, nsIAtom **aPrefix,
    *
    */
 
-  const char16_t *uriEnd = nullptr;
-  const char16_t *nameEnd = nullptr;
-  const char16_t *pos;
+  const PRUnichar *uriEnd = nullptr;
+  const PRUnichar *nameEnd = nullptr;
+  const PRUnichar *pos;
   for (pos = aExpatName; *pos; ++pos) {
     if (*pos == 0xFFFF) {
       if (uriEnd) {
@@ -2550,7 +2550,7 @@ nsContentUtils::SplitExpatName(const char16_t *aExpatName, nsIAtom **aPrefix,
     }
   }
 
-  const char16_t *nameStart;
+  const PRUnichar *nameStart;
   if (uriEnd) {
     if (sNameSpaceManager) {
       sNameSpaceManager->RegisterNameSpace(nsDependentSubstring(aExpatName,
@@ -2563,7 +2563,7 @@ nsContentUtils::SplitExpatName(const char16_t *aExpatName, nsIAtom **aPrefix,
 
     nameStart = (uriEnd + 1);
     if (nameEnd)  {
-      const char16_t *prefixStart = nameEnd + 1;
+      const PRUnichar *prefixStart = nameEnd + 1;
       *aPrefix = NS_NewAtom(Substring(prefixStart, pos)).get();
     }
     else {
@@ -3003,7 +3003,7 @@ nsresult nsContentUtils::GetLocalizedString(PropertiesFile aFile,
 /* static */
 nsresult nsContentUtils::FormatLocalizedString(PropertiesFile aFile,
                                                const char* aKey,
-                                               const char16_t **aParams,
+                                               const PRUnichar **aParams,
                                                uint32_t aParamsLength,
                                                nsXPIDLString& aResult)
 {
@@ -3040,7 +3040,7 @@ nsContentUtils::ReportToConsole(uint32_t aErrorFlags,
                                 nsIDocument* aDocument,
                                 PropertiesFile aFile,
                                 const char *aMessageName,
-                                const char16_t **aParams,
+                                const PRUnichar **aParams,
                                 uint32_t aParamsLength,
                                 nsIURI* aURI,
                                 const nsAFlatString& aSourceLine,
@@ -3245,7 +3245,7 @@ nsContentUtils::GetContentPolicy()
 bool
 nsContentUtils::IsEventAttributeName(nsIAtom* aName, int32_t aType)
 {
-  const char16_t* name = aName->GetUTF16String();
+  const PRUnichar* name = aName->GetUTF16String();
   if (name[0] != 'o' || name[1] != 'n')
     return false;
 
@@ -3889,7 +3889,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
           // really want something like nsXMLContentSerializer::SerializeAttr
           tagName.Append(NS_LITERAL_STRING(" xmlns")); // space important
           if (name->GetPrefix()) {
-            tagName.Append(char16_t(':'));
+            tagName.Append(PRUnichar(':'));
             name->LocalName()->ToString(nameStr);
             tagName.Append(nameStr);
           } else {
@@ -4495,14 +4495,14 @@ nsContentUtils::GetTopLevelWidget(nsIWidget* aWidget)
 const nsDependentString
 nsContentUtils::GetLocalizedEllipsis()
 {
-  static char16_t sBuf[4] = { 0, 0, 0, 0 };
+  static PRUnichar sBuf[4] = { 0, 0, 0, 0 };
   if (!sBuf[0]) {
     nsAdoptingString tmp = Preferences::GetLocalizedString("intl.ellipsis");
     uint32_t len = std::min(uint32_t(tmp.Length()),
                           uint32_t(ArrayLength(sBuf) - 1));
     CopyUnicodeTo(tmp, 0, sBuf, len);
     if (!sBuf[0])
-      sBuf[0] = char16_t(0x2026);
+      sBuf[0] = PRUnichar(0x2026);
   }
   return nsDependentString(sBuf);
 }
@@ -4523,14 +4523,14 @@ CharsCaseInsensitiveEqual(uint32_t aChar1, uint32_t aChar2)
 {
   return aChar1 == aChar2 ||
          (IS_IN_BMP(aChar1) && IS_IN_BMP(aChar2) &&
-          ToLowerCase(char16_t(aChar1)) == ToLowerCase(char16_t(aChar2)));
+          ToLowerCase(PRUnichar(aChar1)) == ToLowerCase(PRUnichar(aChar2)));
 }
 
 static bool
 IsCaseChangeableChar(uint32_t aChar)
 {
   return IS_IN_BMP(aChar) &&
-         ToLowerCase(char16_t(aChar)) != ToUpperCase(char16_t(aChar));
+         ToLowerCase(PRUnichar(aChar)) != ToUpperCase(PRUnichar(aChar));
 }
 
 /* static */
@@ -4650,7 +4650,7 @@ nsContentUtils::GetAccessKeyCandidates(WidgetKeyboardEvent* aNativeKeyEvent,
   if (aNativeKeyEvent->charCode) {
     uint32_t ch = aNativeKeyEvent->charCode;
     if (IS_IN_BMP(ch))
-      ch = ToLowerCase(char16_t(ch));
+      ch = ToLowerCase(PRUnichar(ch));
     aCandidates.AppendElement(ch);
   }
   for (uint32_t i = 0;
@@ -4662,7 +4662,7 @@ nsContentUtils::GetAccessKeyCandidates(WidgetKeyboardEvent* aNativeKeyEvent,
       if (!ch[j])
         continue;
       if (IS_IN_BMP(ch[j]))
-        ch[j] = ToLowerCase(char16_t(ch[j]));
+        ch[j] = ToLowerCase(PRUnichar(ch[j]));
       // Don't append the charCode that was already appended.
       if (aCandidates.IndexOf(ch[j]) == aCandidates.NoIndex)
         aCandidates.AppendElement(ch[j]);
@@ -5183,13 +5183,13 @@ nsContentUtils::GetCurrentJSContextForThread()
 nsresult
 nsContentUtils::ASCIIToLower(nsAString& aStr)
 {
-  char16_t* iter = aStr.BeginWriting();
-  char16_t* end = aStr.EndWriting();
+  PRUnichar* iter = aStr.BeginWriting();
+  PRUnichar* end = aStr.EndWriting();
   if (MOZ_UNLIKELY(!iter || !end)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   while (iter != end) {
-    char16_t c = *iter;
+    PRUnichar c = *iter;
     if (c >= 'A' && c <= 'Z') {
       *iter = c + ('a' - 'A');
     }
@@ -5205,14 +5205,14 @@ nsContentUtils::ASCIIToLower(const nsAString& aSource, nsAString& aDest)
   uint32_t len = aSource.Length();
   aDest.SetLength(len);
   if (aDest.Length() == len) {
-    char16_t* dest = aDest.BeginWriting();
+    PRUnichar* dest = aDest.BeginWriting();
     if (MOZ_UNLIKELY(!dest)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    const char16_t* iter = aSource.BeginReading();
-    const char16_t* end = aSource.EndReading();
+    const PRUnichar* iter = aSource.BeginReading();
+    const PRUnichar* end = aSource.EndReading();
     while (iter != end) {
-      char16_t c = *iter;
+      PRUnichar c = *iter;
       *dest = (c >= 'A' && c <= 'Z') ?
          c + ('a' - 'A') : c;
       ++iter;
@@ -5227,13 +5227,13 @@ nsContentUtils::ASCIIToLower(const nsAString& aSource, nsAString& aDest)
 nsresult
 nsContentUtils::ASCIIToUpper(nsAString& aStr)
 {
-  char16_t* iter = aStr.BeginWriting();
-  char16_t* end = aStr.EndWriting();
+  PRUnichar* iter = aStr.BeginWriting();
+  PRUnichar* end = aStr.EndWriting();
   if (MOZ_UNLIKELY(!iter || !end)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   while (iter != end) {
-    char16_t c = *iter;
+    PRUnichar c = *iter;
     if (c >= 'a' && c <= 'z') {
       *iter = c + ('A' - 'a');
     }
@@ -5249,14 +5249,14 @@ nsContentUtils::ASCIIToUpper(const nsAString& aSource, nsAString& aDest)
   uint32_t len = aSource.Length();
   aDest.SetLength(len);
   if (aDest.Length() == len) {
-    char16_t* dest = aDest.BeginWriting();
+    PRUnichar* dest = aDest.BeginWriting();
     if (MOZ_UNLIKELY(!dest)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    const char16_t* iter = aSource.BeginReading();
-    const char16_t* end = aSource.EndReading();
+    const PRUnichar* iter = aSource.BeginReading();
+    const PRUnichar* end = aSource.EndReading();
     while (iter != end) {
-      char16_t c = *iter;
+      PRUnichar c = *iter;
       *dest = (c >= 'a' && c <= 'z') ?
          c + ('A' - 'a') : c;
       ++iter;
@@ -5277,13 +5277,13 @@ nsContentUtils::EqualsIgnoreASCIICase(const nsAString& aStr1,
     return false;
   }
 
-  const char16_t* str1 = aStr1.BeginReading();
-  const char16_t* str2 = aStr2.BeginReading();
-  const char16_t* end = str1 + len;
+  const PRUnichar* str1 = aStr1.BeginReading();
+  const PRUnichar* str2 = aStr2.BeginReading();
+  const PRUnichar* end = str1 + len;
 
   while (str1 < end) {
-    char16_t c1 = *str1++;
-    char16_t c2 = *str2++;
+    PRUnichar c1 = *str1++;
+    PRUnichar c2 = *str2++;
 
     // First check if any bits other than the 0x0020 differs
     if ((c1 ^ c2) & 0xffdf) {
@@ -5295,7 +5295,7 @@ nsContentUtils::EqualsIgnoreASCIICase(const nsAString& aStr1,
     if (c1 != c2) {
       // They do differ, but since it's only in the 0x0020 bit, check if it's
       // the same ascii char, but just differing in case
-      char16_t c1Upper = c1 & 0xffdf;
+      PRUnichar c1Upper = c1 & 0xffdf;
       if (!('A' <= c1Upper && c1Upper <= 'Z')) {
         return false;
       }
@@ -5309,10 +5309,10 @@ nsContentUtils::EqualsIgnoreASCIICase(const nsAString& aStr1,
 bool
 nsContentUtils::StringContainsASCIIUpper(const nsAString& aStr)
 {
-  const char16_t* iter = aStr.BeginReading();
-  const char16_t* end = aStr.EndReading();
+  const PRUnichar* iter = aStr.BeginReading();
+  const PRUnichar* end = aStr.EndReading();
   while (iter != end) {
-    char16_t c = *iter;
+    PRUnichar c = *iter;
     if (c >= 'A' && c <= 'Z') {
       return true;
     }
@@ -5910,7 +5910,7 @@ void nsContentUtils::RemoveNewlines(nsString &aString)
 void
 nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
 {
-  if (aString.FindChar(char16_t('\r')) != -1) {
+  if (aString.FindChar(PRUnichar('\r')) != -1) {
     // Windows linebreaks: Map CRLF to LF:
     aString.ReplaceSubstring(MOZ_UTF16("\r\n"),
                              MOZ_UTF16("\n"));
@@ -5927,14 +5927,14 @@ nsContentUtils::PopulateStringFromStringBuffer(nsStringBuffer* aBuf,
 {
   MOZ_ASSERT(aBuf, "Expecting a non-null string buffer");
 
-  uint32_t stringLen = NS_strlen(static_cast<char16_t*>(aBuf->Data()));
+  uint32_t stringLen = NS_strlen(static_cast<PRUnichar*>(aBuf->Data()));
 
   // SANITY CHECK: In case the nsStringBuffer isn't correctly
   // null-terminated, let's clamp its length using the allocated size, to be
   // sure the resulting string doesn't sample past the end of the the buffer.
   // (Note that StorageSize() is in units of bytes, so we have to convert that
   // to units of PRUnichars, and subtract 1 for the null-terminator.)
-  uint32_t allocStringLen = (aBuf->StorageSize() / sizeof(char16_t)) - 1;
+  uint32_t allocStringLen = (aBuf->StorageSize() / sizeof(PRUnichar)) - 1;
   MOZ_ASSERT(stringLen <= allocStringLen,
              "string buffer lacks null terminator!");
   stringLen = std::min(stringLen, allocStringLen);

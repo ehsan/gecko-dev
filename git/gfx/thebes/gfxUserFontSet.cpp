@@ -829,7 +829,7 @@ gfxUserFontSet::UserFontCache::Entry::DisconnectSVG(Entry* aEntry,
 NS_IMETHODIMP
 gfxUserFontSet::UserFontCache::Flusher::Observe(nsISupports* aSubject,
                                                 const char* aTopic,
-                                                const char16_t* aData)
+                                                const PRUnichar* aData)
 {
     if (!sUserFonts) {
         return NS_OK;

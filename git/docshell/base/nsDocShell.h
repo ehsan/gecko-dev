@@ -184,14 +184,14 @@ public:
     // nsILinkHandler
     NS_IMETHOD OnLinkClick(nsIContent* aContent,
         nsIURI* aURI,
-        const char16_t* aTargetSpec,
+        const PRUnichar* aTargetSpec,
         const nsAString& aFileName,
         nsIInputStream* aPostDataStream,
         nsIInputStream* aHeadersDataStream,
         bool aIsTrusted);
     NS_IMETHOD OnLinkClickSync(nsIContent* aContent,
         nsIURI* aURI,
-        const char16_t* aTargetSpec,
+        const PRUnichar* aTargetSpec,
         const nsAString& aFileName,
         nsIInputStream* aPostDataStream = 0,
         nsIInputStream* aHeadersDataStream = 0,
@@ -199,7 +199,7 @@ public:
         nsIRequest** aRequest = 0);
     NS_IMETHOD OnOverLink(nsIContent* aContent,
         nsIURI* aURI,
-        const char16_t* aTargetSpec);
+        const PRUnichar* aTargetSpec);
     NS_IMETHOD OnLeaveLink();
 
     nsDocShellInfoLoadType ConvertLoadTypeToDocShellLoadInfo(uint32_t aLoadType);
@@ -503,10 +503,10 @@ protected:
     nsresult   EnsureTransferableHookData();
     NS_IMETHOD EnsureFind();
     nsresult   RefreshURIFromQueue();
-    NS_IMETHOD LoadErrorPage(nsIURI *aURI, const char16_t *aURL,
+    NS_IMETHOD LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
                              const char *aErrorPage,
-                             const char16_t *aErrorType,
-                             const char16_t *aDescription,
+                             const PRUnichar *aErrorType,
+                             const PRUnichar *aDescription,
                              const char *aCSSClass,
                              nsIChannel* aFailedChannel);
     bool IsNavigationAllowed(bool aDisplayPrintErrorDialog = true);
@@ -883,7 +883,7 @@ private:
 
     // Separate function to do the actual name (i.e. not _top, _self etc.)
     // searching for FindItemWithName.
-    nsresult DoFindItemWithName(const char16_t* aName,
+    nsresult DoFindItemWithName(const PRUnichar* aName,
                                 nsISupports* aRequestor,
                                 nsIDocShellTreeItem* aOriginalRequestor,
                                 nsIDocShellTreeItem** _retval);

@@ -87,7 +87,7 @@ namespace {
 
 inline
 bool
-IgnoreNothing(char16_t c)
+IgnoreNothing(PRUnichar c)
 {
   return false;
 }

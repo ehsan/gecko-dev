@@ -128,7 +128,7 @@ xpcAccessibleHyperText::GetTextAfterOffset(int32_t aOffset,
 
 NS_IMETHODIMP
 xpcAccessibleHyperText::GetCharacterAtOffset(int32_t aOffset,
-                                             char16_t* aCharacter)
+                                             PRUnichar* aCharacter)
 {
   NS_ENSURE_ARG_POINTER(aCharacter);
   *aCharacter = L'\0';

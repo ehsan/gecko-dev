@@ -47,7 +47,7 @@ function testInitialSource() {
     "The third source is not displayed.");
 
   let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.SOURCE_SHOWN);
-  gSources.selectedItem = e => e.attachment.label == "code_script-switching-01.js";
+  gSources.selectedLabel = "code_script-switching-01.js";
   return finished;
 }
 
@@ -65,7 +65,7 @@ function testSwitch1() {
     "The third source is not displayed.");
 
   let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.SOURCE_SHOWN);
-  gSources.selectedItem = e => e.attachment.label == "doc_editor-mode.html";
+  gSources.selectedLabel = "doc_editor-mode.html";
   return finished;
 }
 

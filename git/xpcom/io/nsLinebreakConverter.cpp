@@ -362,7 +362,7 @@ nsresult nsLinebreakConverter::ConvertLineBreaksInSitu(char **ioBuffer, ELinebre
 	ConvertUnicharLineBreaks 
 	
 ----------------------------------------------------------------------------*/
-char16_t* nsLinebreakConverter::ConvertUnicharLineBreaks(const char16_t* aSrc,
+PRUnichar* nsLinebreakConverter::ConvertUnicharLineBreaks(const PRUnichar* aSrc,
             ELinebreakType aSrcBreaks, ELinebreakType aDestBreaks, int32_t aSrcLen, int32_t* outLen)
 {
   NS_ASSERTION(aDestBreaks != eLinebreakAny &&
@@ -371,7 +371,7 @@ char16_t* nsLinebreakConverter::ConvertUnicharLineBreaks(const char16_t* aSrc,
   
   int32_t bufLen = (aSrcLen == kIgnoreLen) ? NS_strlen(aSrc) + 1 : aSrcLen;
 
-  char16_t* resultString;
+  PRUnichar* resultString;
   if (aSrcBreaks == eLinebreakAny)
     resultString = ConvertUnknownBreaks(aSrc, bufLen, GetLinebreakString(aDestBreaks));
   else
@@ -387,7 +387,7 @@ char16_t* nsLinebreakConverter::ConvertUnicharLineBreaks(const char16_t* aSrc,
 	ConvertStringLineBreaks 
 	
 ----------------------------------------------------------------------------*/
-nsresult nsLinebreakConverter::ConvertUnicharLineBreaksInSitu(char16_t **ioBuffer,
+nsresult nsLinebreakConverter::ConvertUnicharLineBreaksInSitu(PRUnichar **ioBuffer,
             ELinebreakType aSrcBreaks, ELinebreakType aDestBreaks, int32_t aSrcLen, int32_t* outLen)
 {
   NS_ASSERTION(ioBuffer && *ioBuffer, "Null pointer passed");
@@ -411,7 +411,7 @@ nsresult nsLinebreakConverter::ConvertUnicharLineBreaksInSitu(char16_t **ioBuffe
   }
   else
   {
-    char16_t* destBuffer;
+    PRUnichar* destBuffer;
     
     if (aSrcBreaks == eLinebreakAny)
       destBuffer = ConvertUnknownBreaks(*ioBuffer, sourceLen, dstBreaks);

@@ -217,7 +217,7 @@ AutoMounterSetting::SetStatus(int32_t aStatus)
 NS_IMETHODIMP
 AutoMounterSetting::Observe(nsISupports* aSubject,
                             const char* aTopic,
-                            const char16_t* aData)
+                            const PRUnichar* aData)
 {
   if (strcmp(aTopic, MOZSETTINGS_CHANGED) != 0) {
     return NS_OK;

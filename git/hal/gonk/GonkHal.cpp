@@ -190,7 +190,7 @@ VibratorRunnable::Run()
 
 NS_IMETHODIMP
 VibratorRunnable::Observe(nsISupports *subject, const char *topic,
-                          const char16_t *data)
+                          const PRUnichar *data)
 {
   MOZ_ASSERT(strcmp(topic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0);
   MonitorAutoLock lock(mMonitor);

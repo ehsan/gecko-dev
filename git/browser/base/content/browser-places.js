@@ -569,12 +569,18 @@ HistoryMenu.prototype = {
     if (!menuitem)
       return;
 
-    if (!PlacesUIUtils.shouldShowTabsFromOtherComputersMenuitem()) {
+    // If Sync isn't configured yet, then don't show the menuitem.
+    if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED ||
+        Weave.Svc.Prefs.get("firstSync", "") == "notReady") {
       menuitem.setAttribute("hidden", true);
       return;
     }
 
-    let enabled = PlacesUIUtils.shouldEnableTabsFromOtherComputersMenuitem();
+    // The tabs engine might never be inited (if services.sync.registerEngines
+    // is modified), so make sure we avoid undefined errors.
+    let enabled = Weave.Service.isLoggedIn &&
+                  Weave.Service.engineManager.get("tabs") &&
+                  Weave.Service.engineManager.get("tabs").enabled;
     menuitem.setAttribute("disabled", !enabled);
     menuitem.setAttribute("hidden", false);
 #endif

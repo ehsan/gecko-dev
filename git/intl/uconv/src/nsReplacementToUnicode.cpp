@@ -12,7 +12,7 @@ nsReplacementToUnicode::nsReplacementToUnicode()
 NS_IMETHODIMP
 nsReplacementToUnicode::Convert(const char* aSrc,
                                 int32_t* aSrcLength,
-                                char16_t* aDest,
+                                PRUnichar* aDest,
                                 int32_t* aDestLength)
 {
   if (mSeenByte || !(*aSrcLength)) {

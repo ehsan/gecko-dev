@@ -36,6 +36,7 @@ ToolbarView.prototype = {
     this._stepOverButton = document.getElementById("step-over");
     this._stepInButton = document.getElementById("step-in");
     this._stepOutButton = document.getElementById("step-out");
+    this._chromeGlobals = document.getElementById("chrome-globals");
 
     let resumeKey = ShortcutUtils.prettifyShortcut(document.getElementById("resumeKey"));
     let stepOverKey = ShortcutUtils.prettifyShortcut(document.getElementById("stepOverKey"));
@@ -56,6 +57,9 @@ ToolbarView.prototype = {
     this._stepOverButton.setAttribute("tooltiptext", this._stepOverTooltip);
     this._stepInButton.setAttribute("tooltiptext", this._stepInTooltip);
     this._stepOutButton.setAttribute("tooltiptext", this._stepOutTooltip);
+
+    // TODO: bug 806775 - group scripts by globals using hostAnnotations.
+    // this.toggleChromeGlobalsContainer(window._isChromeDebugger);
   },
 
   /**
@@ -103,6 +107,16 @@ ToolbarView.prototype = {
       this._resumeButton.removeAttribute("checked");
       this._resumeButton.setAttribute("tooltiptext", this._pauseTooltip);
     }
+  },
+
+  /**
+   * Sets the chrome globals container hidden or visible. It's hidden by default.
+   *
+   * @param boolean aVisibleFlag
+   *        Specifies the intended visibility.
+   */
+  toggleChromeGlobalsContainer: function(aVisibleFlag) {
+    this._chromeGlobals.setAttribute("hidden", !aVisibleFlag);
   },
 
   /**
@@ -168,6 +182,7 @@ ToolbarView.prototype = {
   _stepOverButton: null,
   _stepInButton: null,
   _stepOutButton: null,
+  _chromeGlobals: null,
   _resumeTooltip: "",
   _pauseTooltip: "",
   _stepOverTooltip: "",
@@ -327,6 +342,59 @@ OptionsView.prototype = {
 };
 
 /**
+ * Functions handling the chrome globals UI.
+ */
+function ChromeGlobalsView() {
+  dumpn("ChromeGlobalsView was instantiated");
+
+  this._onSelect = this._onSelect.bind(this);
+  this._onClick = this._onClick.bind(this);
+}
+
+ChromeGlobalsView.prototype = Heritage.extend(WidgetMethods, {
+  /**
+   * Initialization function, called when the debugger is started.
+   */
+  initialize: function() {
+    dumpn("Initializing the ChromeGlobalsView");
+
+    this.widget = document.getElementById("chrome-globals");
+    this.emptyText = L10N.getStr("noGlobalsText");
+
+    this.widget.addEventListener("select", this._onSelect, false);
+    this.widget.addEventListener("click", this._onClick, false);
+
+    // Show an empty label by default.
+    this.empty();
+  },
+
+  /**
+   * Destruction function, called when the debugger is closed.
+   */
+  destroy: function() {
+    dumpn("Destroying the ChromeGlobalsView");
+
+    this.widget.removeEventListener("select", this._onSelect, false);
+    this.widget.removeEventListener("click", this._onClick, false);
+  },
+
+  /**
+   * The select listener for the chrome globals container.
+   */
+  _onSelect: function() {
+    // TODO: bug 806775, do something useful for chrome debugging.
+  },
+
+  /**
+   * The click listener for the chrome globals container.
+   */
+  _onClick: function() {
+    // Use this container as a filtering target.
+    DebuggerView.Filtering.target = this;
+  }
+});
+
+/**
  * Functions handling the stackframes UI.
  */
 function StackFramesView() {
@@ -398,12 +466,9 @@ StackFramesView.prototype = Heritage.extend(WidgetMethods, {
     let frameView = this._createFrameView.apply(this, arguments);
 
     // Append a stack frame item to this container.
-    this.push([frameView], {
+    this.push([frameView, aTitle, aUrl], {
       index: 0, /* specifies on which position should the item be appended */
       attachment: {
-        title: aTitle,
-        url: aUrl,
-        line: aLine,
         depth: aDepth
       },
       // Make sure that when the stack frame item is removed, the corresponding
@@ -534,13 +599,16 @@ StackFramesView.prototype = Heritage.extend(WidgetMethods, {
    * Requests the addition of more frames from the controller.
    */
   _afterScroll: function() {
-    let scrollPosition = this.widget.getAttribute("scrollPosition");
-    let scrollWidth = this.widget.getAttribute("scrollWidth");
+    // TODO: Accessing private widget properties. Figure out what's the best
+    // way to expose such things. Bug 876271.
+    let list = this.widget._list;
+    let scrollPosition = list.scrollPosition;
+    let scrollWidth = list.scrollWidth;
 
     // If the stackframes container scrolled almost to the end, with only
     // 1/10 of a breadcrumb remaining, load more content.
     if (scrollPosition - scrollWidth / 10 < 1) {
-      this.ensureIndexIsVisible(CALL_STACK_PAGE_SIZE - 1);
+      list.ensureElementIsVisible(this.getItemAtIndex(CALL_STACK_PAGE_SIZE - 1).target);
       this.dirty = false;
 
       // Loads more stack frames from the debugger server cache.
@@ -580,6 +648,9 @@ StackFramesClassicListView.prototype = Heritage.extend(WidgetMethods, {
 
     // This view's contents are also mirrored in a different container.
     this._mirror = DebuggerView.StackFrames;
+
+    // Show an empty label by default.
+    this.empty();
   },
 
   /**
@@ -608,7 +679,7 @@ StackFramesClassicListView.prototype = Heritage.extend(WidgetMethods, {
     let frameView = this._createFrameView.apply(this, arguments);
 
     // Append a stack frame item to this container.
-    this.push([frameView], {
+    this.push([frameView, aUrl], {
       attachment: {
         depth: aDepth
       }
@@ -727,9 +798,6 @@ FilterView.prototype = {
     this._searchbox.addEventListener("keypress", this._onKeyPress, false);
     this._searchbox.addEventListener("blur", this._onBlur, false);
 
-    let placeholder = L10N.getFormatStr("emptySearchText", this._fileSearchKey);
-    this._searchbox.setAttribute("placeholder", placeholder);
-
     this._globalOperatorButton.setAttribute("label", SEARCH_GLOBAL_FLAG);
     this._functionOperatorButton.setAttribute("label", SEARCH_FUNCTION_FLAG);
     this._tokenOperatorButton.setAttribute("label", SEARCH_TOKEN_FLAG);
@@ -748,6 +816,13 @@ FilterView.prototype = {
       L10N.getFormatStr("searchPanelGoToLine", this._lineSearchKey));
     this._variableOperatorLabel.setAttribute("value",
       L10N.getFormatStr("searchPanelVariable", this._variableSearchKey));
+
+    // TODO: bug 806775 - group scripts by globals using hostAnnotations.
+    // if (window._isChromeDebugger) {
+    //   this.target = DebuggerView.ChromeGlobals;
+    // } else {
+    this.target = DebuggerView.Sources;
+    // }
   },
 
   /**
@@ -762,6 +837,30 @@ FilterView.prototype = {
     this._searchbox.removeEventListener("keypress", this._onKeyPress, false);
     this._searchbox.removeEventListener("blur", this._onBlur, false);
   },
+
+  /**
+   * Sets the target container to be currently filtered.
+   * @param object aView
+   */
+  set target(aView) {
+    let placeholder = "";
+    switch (aView) {
+      case DebuggerView.ChromeGlobals:
+        placeholder = L10N.getFormatStr("emptyChromeGlobalsFilterText", this._fileSearchKey);
+        break;
+      case DebuggerView.Sources:
+        placeholder = L10N.getFormatStr("emptySearchText", this._fileSearchKey);
+        break;
+    }
+    this._searchbox.setAttribute("placeholder", placeholder);
+    this._target = aView;
+  },
+
+  /**
+   * Gets the target container to be currently filtered.
+   * @return object
+   */
+  get target() this._target,
 
   /**
    * Gets the entered operator and arguments in the searchbox.
@@ -1142,6 +1241,7 @@ FilterView.prototype = {
   _tokenSearchKey: "",
   _lineSearchKey: "",
   _variableSearchKey: "",
+  _target: null
 };
 
 /**
@@ -1209,7 +1309,7 @@ FilteredSourcesView.prototype = Heritage.extend(ResultsPanelContainer.prototype,
     }
 
     for (let item of DebuggerView.Sources.items) {
-      let lowerCaseLabel = item.attachment.label.toLowerCase();
+      let lowerCaseLabel = item.label.toLowerCase();
       let lowerCaseToken = aToken.toLowerCase();
       if (lowerCaseLabel.match(lowerCaseToken)) {
         aStore.push(item);
@@ -1243,15 +1343,13 @@ FilteredSourcesView.prototype = Heritage.extend(ResultsPanelContainer.prototype,
     }
 
     for (let item of aSearchResults) {
-      // Create the element node for the location item.
-      let itemView = this._createItemView(
-        SourceUtils.trimUrlLength(item.attachment.label),
-        SourceUtils.trimUrlLength(item.value, 0, "start")
-      );
-
       // Append a location item to this container for each match.
-      this.push([itemView], {
+      let trimmedLabel = SourceUtils.trimUrlLength(item.label);
+      let trimmedValue = SourceUtils.trimUrlLength(item.value, 0, "start");
+
+      this.push([trimmedLabel, trimmedValue], {
         index: -1, /* specifies on which position should the item be appended */
+        relaxed: true, /* this container should allow dupes & degenerates */
         attachment: {
           url: item.value
         }
@@ -1445,16 +1543,14 @@ FilteredFunctionsView.prototype = Heritage.extend(ResultsPanelContainer.prototyp
         item.actualLocation = item.functionLocation;
       }
 
-      // Create the element node for the function item.
-      let itemView = this._createItemView(
-        SourceUtils.trimUrlLength(item.displayedName + "()"),
-        SourceUtils.trimUrlLength(item.sourceUrl, 0, "start"),
-        (item.inferredChain || []).join(".")
-      );
-
       // Append a function item to this container for each match.
-      this.push([itemView], {
+      let trimmedLabel = SourceUtils.trimUrlLength(item.displayedName + "()");
+      let trimmedValue = SourceUtils.trimUrlLength(item.sourceUrl, 0, "start");
+      let description = (item.inferredChain || []).join(".");
+
+      this.push([trimmedLabel, trimmedValue, description], {
         index: -1, /* specifies on which position should the item be appended */
+        relaxed: true, /* this container should allow dupes & degenerates */
         attachment: item
       });
     }
@@ -1509,5 +1605,6 @@ DebuggerView.Options = new OptionsView();
 DebuggerView.Filtering = new FilterView();
 DebuggerView.FilteredSources = new FilteredSourcesView();
 DebuggerView.FilteredFunctions = new FilteredFunctionsView();
+DebuggerView.ChromeGlobals = new ChromeGlobalsView();
 DebuggerView.StackFrames = new StackFramesView();
 DebuggerView.StackFramesClassicList = new StackFramesClassicListView();
