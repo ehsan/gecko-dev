@@ -219,7 +219,7 @@ public:
   void Mute() const;
   void Unmute() const;
 
-  JSObject* GetGlobalJSObject() const;
+  JSContext* GetJSContext() const;
 
   AudioChannel MozAudioChannelType() const;
   void SetMozAudioChannelType(AudioChannel aValue, ErrorResult& aRv);
