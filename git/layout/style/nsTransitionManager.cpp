@@ -429,10 +429,10 @@ nsTransitionManager::UpdateAllThrottledStyles()
     }
   }
 
+  OverflowChangedTracker tracker;
   mPresContext->PresShell()->FrameConstructor()->
-    ProcessRestyledFrames(changeList);
-  mPresContext->PresShell()->FrameConstructor()->
-    FlushOverflowChangedTracker();
+    ProcessRestyledFrames(changeList, tracker);
+  tracker.Flush();
 }
 
 already_AddRefed<nsIStyleRule>

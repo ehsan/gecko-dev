@@ -18,13 +18,10 @@ class CompositorParent;
  */
 class ImageBridgeParent : public PImageBridgeParent
 {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ImageBridgeParent)
-
 public:
-  ImageBridgeParent(MessageLoop* aLoop, Transport* aTransport);
-  ~ImageBridgeParent();
 
-  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  ImageBridgeParent(MessageLoop* aLoop);
+  ~ImageBridgeParent();
 
   static PImageBridgeParent*
   Create(Transport* aTransport, ProcessId aOtherProcess);
@@ -46,13 +43,7 @@ public:
   MessageLoop * GetMessageLoop();
 
 private:
-  void DeferredDestroy();
-
-  MessageLoop* mMessageLoop;
-  Transport* mTransport;
-  // This keeps us alive until ActorDestroy(), at which point we do a
-  // deferred destruction of ourselves.
-  nsRefPtr<ImageBridgeParent> mSelfRef;
+  MessageLoop * mMessageLoop;
 };
 
 } // layers

@@ -16,7 +16,7 @@ namespace dom {
 
 class TextDecoderBase
 {
-public:
+protected:
   TextDecoderBase()
     : mFatal(false)
   {}
@@ -37,6 +37,7 @@ public:
    */
   void Init(const nsAString& aEncoding, const bool aFatal, ErrorResult& aRv);
 
+public:
   /**
    * Return the encoding name.
    *

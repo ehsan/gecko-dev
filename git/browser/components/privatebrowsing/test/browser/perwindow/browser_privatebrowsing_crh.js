@@ -42,17 +42,17 @@ function test() {
   };
 
   registerCleanupFunction(function() {
-    windowsToClose.forEach(function(aWin) {
-      aWin.close();
+    windowsToClose.forEach(function(win) {
+      win.close();
     });
   });
 
-  testOnWindow(true, function(aWin) {
+  testOnWindow(true, function(win) {
     info("Test on private window");
-    checkDisableOption(true, aWin, function() {
-      testOnWindow(false, function(aPrivWin) {
+    checkDisableOption(true, win, function() {
+      testOnWindow(false, function(win) {
         info("Test on public window");
-        checkDisableOption(false, aPrivWin, finish);
+        checkDisableOption(false, win, finish);
       });
     });
   });

@@ -100,7 +100,8 @@ NS_IMPL_ELEMENT_CLONE(HTMLOptionElement)
 NS_IMETHODIMP
 HTMLOptionElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
-  NS_IF_ADDREF(*aForm = GetForm());
+  NS_ENSURE_ARG_POINTER(aForm);
+  *aForm = GetForm();
   return NS_OK;
 }
 

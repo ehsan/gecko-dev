@@ -15,7 +15,6 @@ public abstract class GeckoAsyncTask<Params, Progress, Result> {
     public enum Priority { NORMAL, HIGH };
 
     private final Activity mActivity;
-    private volatile boolean mCancelled = false;
     private final Handler mBackgroundThreadHandler;
     private Priority mPriority = Priority.NORMAL;
 
@@ -33,30 +32,20 @@ public abstract class GeckoAsyncTask<Params, Progress, Result> {
 
         public void run() {
             final Result result = doInBackground(mParams);
-
             mActivity.runOnUiThread(new Runnable() {
                 public void run() {
-                    if (mCancelled)
-                        onCancelled();
-                    else
-                        onPostExecute(result);
+                    onPostExecute(result);
                 }
             });
         }
     }
 
     public final void execute(final Params... params) {
-        mActivity.runOnUiThread(new Runnable() {
-            public void run() {
-                onPreExecute();
-
-                BackgroundTaskRunnable runnable = new BackgroundTaskRunnable(params);
-                if (mPriority == Priority.HIGH)
-                    mBackgroundThreadHandler.postAtFrontOfQueue(runnable);
-                else
-                    mBackgroundThreadHandler.post(runnable);
-            }
-        });
+        BackgroundTaskRunnable runnable = new BackgroundTaskRunnable(params);
+        if (mPriority == Priority.HIGH)
+            mBackgroundThreadHandler.postAtFrontOfQueue(runnable);
+        else
+            mBackgroundThreadHandler.post(runnable);
     }
 
     public final GeckoAsyncTask<Params, Progress, Result> setPriority(Priority priority) {
@@ -64,18 +53,8 @@ public abstract class GeckoAsyncTask<Params, Progress, Result> {
         return this;
     }
 
-    @SuppressWarnings({"UnusedParameters"})
-    public final boolean cancel(boolean mayInterruptIfRunning) {
-        mCancelled = true;
-        return mCancelled;
-    }
-
-    public final boolean isCancelled() {
-        return mCancelled;
-    }
-
-    protected void onPreExecute() { }
+    /* Empty stub method. Implementors can optionally override this if they need it */
     protected void onPostExecute(Result result) { }
-    protected void onCancelled() { }
+
     protected abstract Result doInBackground(Params... params);
 }

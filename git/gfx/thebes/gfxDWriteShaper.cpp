@@ -54,7 +54,7 @@ gfxDWriteShaper::ShapeText(gfxContext      *aContext,
         return false;
     }
 
-    int32_t appUnitsPerDevPixel = aShapedText->GetAppUnitsPerDevUnit();
+    uint32_t appUnitsPerDevPixel = aShapedText->GetAppUnitsPerDevUnit();
 
     UINT32 maxGlyphs = 0;
 trymoreglyphs:

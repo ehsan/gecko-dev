@@ -661,6 +661,8 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyReadingMessageListFailed(JNIEnv* je
 
 #endif  // MOZ_WEBSMS_BACKEND
 
+#ifdef MOZ_ANDROID_OMTC
+
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_scheduleComposite(JNIEnv*, jclass)
 {
@@ -869,4 +871,5 @@ Java_org_mozilla_gecko_GeckoAppShell_onSurfaceTextureFrameAvailable(JNIEnv* jenv
   st->NotifyFrameAvailable();
 }
 
+#endif
 }

@@ -104,6 +104,7 @@ private:
    * Set when OBEX session is established.
    */
   bool mConnected;
+  int mConnectionId;
   nsString mConnectedDeviceAddress;
 
   /**

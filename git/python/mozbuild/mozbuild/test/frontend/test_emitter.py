@@ -87,10 +87,11 @@ class TestEmitterBasic(unittest.TestCase):
         emitter = TreeMetadataEmitter(reader.config)
 
         objs = list(emitter.emit(reader.read_topsrcdir()))
-        self.assertEqual(len(objs), 4)
+        self.assertEqual(len(objs), 6)
 
         reldirs = [o.relativedir for o in objs]
-        self.assertEqual(reldirs, ['', 'foo', 'foo/biz', 'bar'])
+        self.assertEqual(reldirs, ['', 'foo', 'foo/biz', 'foo_static', 'bar',
+            'baz'])
 
     def test_config_file_substitution(self):
         reader = self.reader('config-file-substitution')

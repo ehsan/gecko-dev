@@ -19,6 +19,7 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
@@ -612,7 +613,7 @@ public class AwesomeBar extends GeckoActivity {
                 break;
             }
             case R.id.remove_bookmark: {
-                (new GeckoAsyncTask<Void, Void, Void>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
+                (new AsyncTask<Void, Void, Void>() {
                     private boolean mInReadingList;
 
                     @Override

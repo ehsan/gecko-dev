@@ -4763,7 +4763,7 @@ var TabsProgressListener = {
     if (aBrowser.contentWindow == aWebProgress.DOMWindow) {
       // Filter out any onLocationChanges triggered by anchor navigation
       // or history.push/pop/replaceState.
-      if (!(aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT)) {
+      if (aRequest) {
         // Initialize the click-to-play state.
         aBrowser._clickToPlayPluginsActivated = new Map();
         aBrowser._clickToPlayAllPluginsActivated = false;

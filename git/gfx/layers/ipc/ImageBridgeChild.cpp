@@ -202,7 +202,7 @@ bool ImageBridgeChild::StartUpOnThread(Thread* aThread)
     }
     sImageBridgeChildSingleton = new ImageBridgeChild();
     ImageBridgeParent* imageBridgeParent = new ImageBridgeParent(
-      CompositorParent::CompositorLoop(), nullptr);
+      CompositorParent::CompositorLoop());
     sImageBridgeChildSingleton->ConnectAsync(imageBridgeParent);
     return true;
   } else {

@@ -106,16 +106,13 @@ public:
 
   /**
    * Called from OnStopRequest when the image's underlying request completes.
-   *
-   * @param aRequest  The completed request.
-   * @param aContext  Context from Necko's OnStopRequest.
-   * @param aStatus   A success or failure code.
-   * @param aLastPart Whether this is the final part of the underlying request.
+   * The arguments are the same as OnStopRequest's, but by separating this
+   * functionality into a different method we don't interfere with subclasses
+   * which wish to implement nsIStreamListener.
    */
   virtual nsresult OnImageDataComplete(nsIRequest* aRequest,
                                        nsISupports* aContext,
-                                       nsresult aStatus,
-                                       bool aLastPart) = 0;
+                                       nsresult status) = 0;
 
   /**
    * Called for multipart images to allow for any necessary reinitialization

@@ -62,10 +62,6 @@ ThrowMethodFailedWithDetails(JSContext* cx, ErrorResult& rv,
     rv.ReportTypeError(cx);
     return false;
   }
-  if (rv.IsJSException()) {
-    rv.ReportJSException(cx);
-    return false;
-  }
   return Throw<mainThread>(cx, rv.ErrorCode());
 }
 

@@ -19,9 +19,6 @@
  * Represents the target of a download, for example a file in the global
  * downloads directory, or a file in the system temporary directory.
  *
- * DownloadError
- * Provides detailed information about a download failure.
- *
  * DownloadSaver
  * Template for an object that actually transfers the data for the download.
  *
@@ -35,7 +32,6 @@ this.EXPORTED_SYMBOLS = [
   "Download",
   "DownloadSource",
   "DownloadTarget",
-  "DownloadError",
   "DownloadSaver",
   "DownloadCopySaver",
 ];
@@ -71,7 +67,7 @@ const BackgroundFileSaverStreamListener = Components.Constructor(
  */
 function Download()
 {
-  this._deferStopped = Promise.defer();
+  this._deferDone = Promise.defer();
 }
 
 Download.prototype = {
@@ -93,22 +89,10 @@ Download.prototype = {
   /**
    * Becomes true when the download has been completed successfully, failed, or
    * has been canceled.  This property can become true, then it can be reset to
-   * false when a failed or canceled download is restarted.
+   * false when a failed or canceled download is resumed.  This property remains
+   * false while the download is paused.
    */
-  stopped: false,
-
-  /**
-   * Indicates that the download has been canceled.  This property can become
-   * true, then it can be reset to false when a canceled download is restarted.
-   */
-  canceled: false,
-
-  /**
-   * When the download fails, this is set to a DownloadError instance indicating
-   * the cause of the failure.  If the download has been completed successfully
-   * or has been canceled, this property is null.
-   */
-  error: null,
+  done: false,
 
   /**
    * Indicates whether this download's "progress" property is able to report
@@ -146,7 +130,7 @@ Download.prototype = {
   currentBytes: 0,
 
   /**
-   * This can be set to a function that is called after other properties change.
+   * This can be set to a function that is called when other properties change.
    */
   onchange: null,
 
@@ -167,7 +151,7 @@ Download.prototype = {
    * This deferred object is resolved when this download finishes successfully,
    * and rejected if this download fails.
    */
-  _deferStopped: null,
+  _deferDone: null,
 
   /**
    * Starts the download.
@@ -178,36 +162,28 @@ Download.prototype = {
    */
   start: function D_start()
   {
-    this._deferStopped.resolve(Task.spawn(function task_D_start() {
+    this._deferDone.resolve(Task.spawn(function task_D_start() {
       try {
         yield this.saver.execute();
         this.progress = 100;
-      } catch (ex) {
-        if (this.canceled) {
-          throw new DownloadError(Cr.NS_ERROR_FAILURE, "Download canceled.");
-        }
-        this.error = ex;
-        throw ex;
       } finally {
-        this.stopped = true;
+        this.done = true;
         this._notifyChange();
       }
     }.bind(this)));
 
-    return this._deferStopped.promise;
+    return this.whenDone();
   },
 
   /**
-   * Cancels the download.
+   * Waits for the download to finish.
+   *
+   * @return {Promise}
+   * @resolves When the download has finished successfully.
+   * @rejects JavaScript exception if the download failed.
    */
-  cancel: function D_cancel()
-  {
-    if (this.stopped || this.canceled) {
-      return;
-    }
-
-    this.canceled = true;
-    this.saver.cancel();
+  whenDone: function D_whenDone() {
+    return this._deferDone.promise;
   },
 
   /**
@@ -263,64 +239,6 @@ DownloadTarget.prototype = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-//// DownloadError
-
-/**
- * Provides detailed information about a download failure.
- *
- * @param aResult
- *        The result code associated with the error.
- * @param aMessage
- *        The message to be displayed, or null to use the message associated
- *        with the result code.
- * @param aInferCause
- *        If true, attempts to determine if the cause of the download is a
- *        network failure or a local file failure, based on a set of known
- *        values of the result code.  This is useful when the error is received
- *        by a component that handles both aspects of the download.
- */
-function DownloadError(aResult, aMessage, aInferCause)
-{
-  const NS_ERROR_MODULE_BASE_OFFSET = 0x45;
-  const NS_ERROR_MODULE_NETWORK = 6;
-  const NS_ERROR_MODULE_FILES = 13;
-
-  // Set the error name used by the Error object prototype first.
-  this.name = "DownloadError";
-  this.result = aResult || Cr.NS_ERROR_FAILURE;
-  if (aMessage) {
-    this.message = aMessage;
-  } else {
-    let exception = new Components.Exception(this.result);
-    this.message = exception.toString();
-  }
-  if (aInferCause) {
-    let module = ((aResult & 0x7FFF0000) >> 16) - NS_ERROR_MODULE_BASE_OFFSET;
-    this.becauseSourceFailed = (module == NS_ERROR_MODULE_NETWORK);
-    this.becauseTargetFailed = (module == NS_ERROR_MODULE_FILES);
-  }
-}
-
-DownloadError.prototype = {
-  __proto__: Error.prototype,
-
-  /**
-   * The result code associated with this error.
-   */
-  result: false,
-
-  /**
-   * Indicates an error occurred while reading from the remote location.
-   */
-  becauseSourceFailed: false,
-
-  /**
-   * Indicates an error occurred while writing to the local target.
-   */
-  becauseTargetFailed: false,
-};
-
-////////////////////////////////////////////////////////////////////////////////
 //// DownloadSaver
 
 /**
@@ -344,15 +262,7 @@ DownloadSaver.prototype = {
   execute: function DS_execute()
   {
     throw new Error("Not implemented.");
-  },
-
-  /**
-   * Cancels the download.
-   */
-  cancel: function DS_cancel()
-  {
-    throw new Error("Not implemented.");
-  },
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -364,12 +274,7 @@ DownloadSaver.prototype = {
 function DownloadCopySaver() { }
 
 DownloadCopySaver.prototype = {
-  __proto__: DownloadSaver.prototype,
-
-  /**
-   * BackgroundFileSaver object currently handling the download.
-   */
-  _backgroundFileSaver: null,
+  __proto__: DownloadSaver,
 
   /**
    * Implements "DownloadSaver.execute".
@@ -391,9 +296,8 @@ DownloadCopySaver.prototype = {
           if (Components.isSuccessCode(aStatus)) {
             deferred.resolve();
           } else {
-            // Infer the origin of the error from the failure code, because
-            // BackgroundFileSaver does not provide more specific data.
-            deferred.reject(new DownloadError(aStatus, null, true));
+            deferred.reject(new Components.Exception("Download failed.",
+                                                     aStatus));
           }
 
           // Free the reference cycle, in order to release resources earlier.
@@ -447,9 +351,6 @@ DownloadCopySaver.prototype = {
                                               aOffset, aCount);
         },
       }, null);
-
-      // If the operation succeeded, store the object to allow cancellation.
-      this._backgroundFileSaver = backgroundFileSaver;
     } catch (ex) {
       // In case an error occurs while setting up the chain of objects for the
       // download, ensure that we release the resources of the background saver.
@@ -457,16 +358,5 @@ DownloadCopySaver.prototype = {
       backgroundFileSaver.finish(Cr.NS_ERROR_FAILURE);
     }
     return deferred.promise;
-  },
-
-  /**
-   * Implements "DownloadSaver.cancel".
-   */
-  cancel: function DCS_cancel()
-  {
-    if (this._backgroundFileSaver) {
-      this._backgroundFileSaver.finish(Cr.NS_ERROR_FAILURE);
-      this._backgroundFileSaver = null;
-    }
   },
 };

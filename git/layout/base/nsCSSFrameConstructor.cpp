@@ -1437,6 +1437,7 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   , mInStyleRefresh(false)
   , mHoverGeneration(0)
   , mRebuildAllExtraHint(nsChangeHint(0))
+  , mOverflowChangedTracker(nullptr)
   , mAnimationGeneration(0)
   , mPendingRestyles(ELEMENT_HAS_PENDING_RESTYLE |
                      ELEMENT_IS_POTENTIAL_RESTYLE_ROOT, this)
@@ -1516,7 +1517,9 @@ nsCSSFrameConstructor::NotifyDestroyingFrame(nsIFrame* aFrame)
     CountersDirty();
   }
 
-  mOverflowChangedTracker.RemoveFrame(aFrame);
+  if (mOverflowChangedTracker) {
+    mOverflowChangedTracker->RemoveFrame(aFrame);
+  }
 
   nsFrameManager::NotifyDestroyingFrame(aFrame);
 }
@@ -8198,7 +8201,8 @@ NeedToReframeForAddingOrRemovingTransform(nsIFrame* aFrame)
 }
 
 nsresult
-nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
+nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList,
+                                             OverflowChangedTracker& aTracker)
 {
   NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                "Someone forgot a script blocker");
@@ -8207,6 +8211,10 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     return NS_OK;
 
   SAMPLE_LABEL("CSS", "ProcessRestyledFrames");
+
+  MOZ_ASSERT(!GetOverflowChangedTracker(), 
+             "Can't have multiple overflow changed trackers!");
+  SetOverflowChangedTracker(&aTracker);
 
   // Make sure to not rebuild quote or counter lists while we're
   // processing restyles
@@ -8338,7 +8346,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
             // updating overflows since that will happen when it's reflowed.
             if (!(childFrame->GetStateBits() &
                   (NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN))) {
-              mOverflowChangedTracker.AddFrame(childFrame);
+              aTracker.AddFrame(childFrame);
             }
             NS_ASSERTION(!nsLayoutUtils::GetNextContinuationOrSpecialSibling(childFrame),
                          "SVG frames should not have continuations or special siblings");
@@ -8351,7 +8359,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
         if (!(frame->GetStateBits() &
               (NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN))) {
           while (frame) {
-            mOverflowChangedTracker.AddFrame(frame);
+            aTracker.AddFrame(frame);
 
             frame =
               nsLayoutUtils::GetNextContinuationOrSpecialSibling(frame);
@@ -8393,6 +8401,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
 #endif
   }
 
+  SetOverflowChangedTracker(nullptr);
   aChangeList.Clear();
   return NS_OK;
 }
@@ -8402,7 +8411,8 @@ nsCSSFrameConstructor::RestyleElement(Element        *aElement,
                                       nsIFrame       *aPrimaryFrame,
                                       nsChangeHint   aMinHint,
                                       RestyleTracker& aRestyleTracker,
-                                      bool            aRestyleDescendants)
+                                      bool            aRestyleDescendants,
+                                      OverflowChangedTracker& aTracker)
 {
   NS_ASSERTION(aPrimaryFrame == aElement->GetPrimaryFrame(),
                "frame/content mismatch");
@@ -8440,7 +8450,7 @@ nsCSSFrameConstructor::RestyleElement(Element        *aElement,
     nsStyleChangeList changeList;
     ComputeStyleChangeFor(aPrimaryFrame, &changeList, aMinHint,
                           aRestyleTracker, aRestyleDescendants);
-    ProcessRestyledFrames(changeList);
+    ProcessRestyledFrames(changeList, aTracker);
   } else {
     // no frames, reconstruct for content
     MaybeRecreateFramesForElement(aElement);
@@ -10880,11 +10890,6 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
   // new primary frame.
   textContent->SetPrimaryFrame(newTextFrame);
 
-  // Wallpaper bug 822910.
-  if (prevSibling && prevSibling->GetType() == nsGkAtoms::textFrame) {
-    prevSibling->AddStateBits(NS_FRAME_IS_DIRTY);
-  }
-
   // Insert text frame in its place
   nsFrameList textList(newTextFrame, newTextFrame);
   InsertFrames(parentFrame, kPrincipalList, prevSibling, textList);
@@ -10933,11 +10938,6 @@ nsCSSFrameConstructor::RemoveFirstLetterFrames(nsPresContext* aPresContext,
       // Now that the old frames are gone, we can start pointing to our
       // new primary frame.
       textContent->SetPrimaryFrame(textFrame);
-
-      // Wallpaper bug 822910.
-      if (prevSibling && prevSibling->GetType() == nsGkAtoms::textFrame) {
-        prevSibling->AddStateBits(NS_FRAME_IS_DIRTY);
-      }
 
       // Insert text frame in its place
       nsFrameList textList(textFrame, textFrame);
@@ -12224,8 +12224,9 @@ nsCSSFrameConstructor::DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
                         &changeList, aExtraHint,
                         aRestyleTracker, true);
   // Process the required changes
-  ProcessRestyledFrames(changeList);
-  FlushOverflowChangedTracker();
+  OverflowChangedTracker tracker;
+  ProcessRestyledFrames(changeList, tracker);
+  tracker.Flush();
 
   // Tell the style set it's safe to destroy the old rule tree.  We
   // must do this after the ProcessRestyledFrames call in case the

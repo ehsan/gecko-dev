@@ -723,7 +723,7 @@ public:
 
   virtual bool IsLabelable() const;
 
-  static bool TouchEventsEnabled(JSContext* /* unused */, JSObject* /* unused */);
+  static bool PrefEnabled();
 
 protected:
   /**

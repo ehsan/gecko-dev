@@ -11,6 +11,8 @@ interface MozRDFCompositeDataSource;
 interface MozRDFResource;
 interface MozXULTemplateBuilder;
 
+// Hack to make sure that we initialize the touch prefs properly
+[PrefControlled]
 interface XULElement : Element {
   [SetterThrows]
   attribute DOMString className;

@@ -31,11 +31,6 @@ class OverflowChangedTracker
 {
 public:
 
-  ~OverflowChangedTracker()
-  {
-    NS_ASSERTION(mEntryList.empty(), "Need to flush before destroying!");
-  }
-
   /**
    * Add a frame that has had a style change, and needs its
    * overflow updated.
@@ -252,7 +247,8 @@ private:
    */
   inline void ProcessOneRestyle(Element* aElement,
                                 nsRestyleHint aRestyleHint,
-                                nsChangeHint aChangeHint);
+                                nsChangeHint aChangeHint,
+                                OverflowChangedTracker& aTracker);
 
   /**
    * The guts of our restyle processing.

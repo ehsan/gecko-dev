@@ -29,17 +29,12 @@ public class testTabHistory extends PixelTest {
         loadAndPaint(url3);
 
         // Get the device information and create the navigation for it
-        Device device = new Device();
-        Navigation nav = new Navigation(device);
-        mAsserter.dumpLog("device type: "+device.type);
-        mAsserter.dumpLog("device version: "+device.version);
-        mAsserter.dumpLog("device width: "+device.width);
-        mAsserter.dumpLog("device height: "+device.height);
+        Device mDevice = new Device();
+        Navigation nav = new Navigation(mDevice);
 
         // Go to the 2nd page
         nav.back();
         mSolo.waitForText("Browser Blank Page 02");
-        verifyPageTitle("Browser Blank Page 02");
 
         // Go to the first page
         nav.back();
@@ -53,7 +48,6 @@ public class testTabHistory extends PixelTest {
 
         // Reload page
         nav.reload();
-        mSolo.waitForText("Browser Blank Page 02");
         verifyPageTitle("Browser Blank Page 02");
     }
 }

@@ -1275,10 +1275,8 @@ class CrossProcessCompositorParent : public PCompositorParent,
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CrossProcessCompositorParent)
 public:
-  CrossProcessCompositorParent(Transport* aTransport)
-    : mTransport(aTransport)
-  {}
-  virtual ~CrossProcessCompositorParent();
+  CrossProcessCompositorParent() {}
+  virtual ~CrossProcessCompositorParent() {}
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
@@ -1318,7 +1316,6 @@ private:
   // reference to top-level actors.  So we hold a reference to
   // ourself.  This is released (deferred) in ActorDestroy().
   nsRefPtr<CrossProcessCompositorParent> mSelfRef;
-  Transport* mTransport;
 };
 
 static void
@@ -1334,7 +1331,7 @@ OpenCompositor(CrossProcessCompositorParent* aCompositor,
 CompositorParent::Create(Transport* aTransport, ProcessId aOtherProcess)
 {
   nsRefPtr<CrossProcessCompositorParent> cpcp =
-    new CrossProcessCompositorParent(aTransport);
+    new CrossProcessCompositorParent();
   ProcessHandle handle;
   if (!base::OpenProcessHandle(aOtherProcess, &handle)) {
     // XXX need to kill |aOtherProcess|, it's boned
@@ -1429,14 +1426,8 @@ CrossProcessCompositorParent::ShadowLayersUpdated(
 void
 CrossProcessCompositorParent::DeferredDestroy()
 {
-  mSelfRef = nullptr;
+  mSelfRef = NULL;
   // |this| was just destroyed, hands off
-}
-
-CrossProcessCompositorParent::~CrossProcessCompositorParent()
-{
-  XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-                                   new DeleteTask<Transport>(mTransport));
 }
 
 } // namespace layers

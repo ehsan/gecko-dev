@@ -6,6 +6,7 @@
 #ifndef mozilla_dom_HTMLFrameElement_h
 #define mozilla_dom_HTMLFrameElement_h
 
+#include "mozilla/Util.h"
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsGenericHTMLFrameElement.h"
 #include "nsGkAtoms.h"

@@ -44,11 +44,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=814907
 
 function runTest()
 {
-  // re-parse the style sheet with the pref turned on
-  var style = document.getElementById("style");
-  style.textContent += " ";
-
-  var sheet = style.sheet;
+  var sheet = document.getElementById("style").sheet;
 
   var conditions = [
     "url(\"http://www.example.com/\")",

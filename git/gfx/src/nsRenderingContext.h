@@ -41,7 +41,7 @@ public:
     // These accessors will never return null.
     gfxContext *ThebesContext() { return mThebes; }
     nsDeviceContext *DeviceContext() { return mDeviceContext; }
-    int32_t AppUnitsPerDevPixel() { return NSToIntRound(mP2A); }
+    uint32_t AppUnitsPerDevPixel() { return NSToIntRound(mP2A); }
 
     // Graphics state
 

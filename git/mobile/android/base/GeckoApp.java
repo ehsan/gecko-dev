@@ -2067,10 +2067,8 @@ abstract public class GeckoApp
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
 
-        if (!mInitialized && hasFocus) {
+        if (!mInitialized && hasFocus)
             initialize();
-            getWindow().setBackgroundDrawable(null);
-        }
     }
 
     @Override

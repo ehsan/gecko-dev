@@ -651,10 +651,7 @@ NS_IMETHODIMP imgRequestProxy::SetPriority(int32_t priority)
 
 NS_IMETHODIMP imgRequestProxy::AdjustPriority(int32_t priority)
 {
-  // We don't require |!mCanceled| here. This may be called even if we're
-  // cancelled, because it's invoked as part of the process of removing an image
-  // from the load group.
-  NS_ENSURE_STATE(GetOwner());
+  NS_ENSURE_STATE(GetOwner() && !mCanceled);
   GetOwner()->AdjustPriority(this, priority);
   return NS_OK;
 }

@@ -96,7 +96,7 @@ public class FennecNativeActions implements Actions {
             }
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.DEBUG, 
                 "Waking up on "+methodName);
-            mEventExpecter.notifyOfEvent(args);
+            mEventExpecter.notifyOfEvent();
             return null;
         }
     }
@@ -105,7 +105,6 @@ public class FennecNativeActions implements Actions {
         private final String mGeckoEvent;
         private final Object[] mRegistrationParams;
         private boolean mEventReceived;
-        private String mEventData;
         private static final int MAX_WAIT_MS = 90000;
 
         GeckoEventExpecter(String geckoEvent, Object[] registrationParams) {
@@ -191,21 +190,15 @@ public class FennecNativeActions implements Actions {
                 "unblocked on expecter for " + mGeckoEvent);
         }
 
-        public synchronized String blockForEventData() {
-            blockForEvent();
-            return mEventData;
-        }
-
         public synchronized boolean eventReceived() {
             return mEventReceived;
         }
 
-        void notifyOfEvent(Object[] args) {
+        void notifyOfEvent() {
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.DEBUG,
                 "received event " + mGeckoEvent);
             synchronized (this) {
                 mEventReceived = true;
-                mEventData = args[1].toString();
                 this.notifyAll();
             }
         }
@@ -254,7 +247,7 @@ public class FennecNativeActions implements Actions {
             if ("drawFinished".equals(methodName)) {
                 FennecNativeDriver.log(FennecNativeDriver.LogLevel.DEBUG,
                     "Received drawFinished notification");
-                mPaintExpecter.notifyOfEvent(args);
+                mPaintExpecter.notifyOfEvent();
             } else if ("toString".equals(methodName)) {
                 return "DrawListenerProxy";
             } else if ("equals".equals(methodName)) {
@@ -276,7 +269,7 @@ public class FennecNativeActions implements Actions {
             mSetDrawListener.invoke(mRobocopApi, proxy);
         }
 
-        void notifyOfEvent(Object[] args) {
+        void notifyOfEvent() {
             synchronized (this) {
                 mPaintDone = true;
                 this.notifyAll();
@@ -305,11 +298,6 @@ public class FennecNativeActions implements Actions {
             } catch (Exception e) {
                 FennecNativeDriver.log(LogLevel.ERROR, e);
             }
-        }
-
-        public synchronized String blockForEventData() {
-            blockForEvent();
-            return null;
         }
 
         public synchronized boolean eventReceived() {

@@ -251,8 +251,7 @@ public:
                                         uint32_t aCount) MOZ_OVERRIDE;
   virtual nsresult OnImageDataComplete(nsIRequest* aRequest,
                                        nsISupports* aContext,
-                                       nsresult aStatus,
-                                       bool aLastPart) MOZ_OVERRIDE;
+                                       nsresult aResult) MOZ_OVERRIDE;
   virtual nsresult OnNewSourceData() MOZ_OVERRIDE;
 
   /**
@@ -599,8 +598,6 @@ private:
                             gfxASurface::gfxImageFormat aFormat, uint8_t aPaletteDepth,
                             uint8_t **imageData, uint32_t *imageLength,
                             uint32_t **paletteData, uint32_t *paletteLength);
-
-  nsresult DoImageDataComplete();
 
   bool ApplyDecodeFlags(uint32_t aNewFlags);
 

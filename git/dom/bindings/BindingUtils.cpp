@@ -61,14 +61,6 @@ ErrorResult::ThrowTypeError(const dom::ErrNum errorNumber, ...)
 {
   va_list ap;
   va_start(ap, errorNumber);
-  if (IsJSException()) {
-    // We have rooted our mJSException, and we don't have the info
-    // needed to unroot here, so just bail.
-    va_end(ap);
-    MOZ_ASSERT(false,
-               "Ignoring ThrowTypeError call because we have a JS exception");
-    return;
-  }
   if (IsTypeError()) {
     delete mMessage;
   }
@@ -103,49 +95,8 @@ ErrorResult::ReportTypeError(JSContext* aCx)
                               static_cast<const unsigned>(message->mErrorNumber),
                               argCount > 0 ? args : nullptr);
 
-  ClearMessage();
-}
-
-void
-ErrorResult::ClearMessage()
-{
-  if (IsTypeError()) {
-    delete mMessage;
-    mMessage = nullptr;
-  }
-}
-
-void
-ErrorResult::ThrowJSException(JSContext* cx, JS::Value exn)
-{
-  MOZ_ASSERT(mMightHaveUnreportedJSException,
-             "Why didn't you tell us you planned to throw a JS exception?");
-
-  if (IsTypeError()) {
-    delete mMessage;
-  }
-
-  if (!JS_AddNamedValueRoot(cx, &mJSException, "ErrorResult::mJSException")) {
-    // Don't use NS_ERROR_DOM_JS_EXCEPTION, because that indicates we have
-    // in fact rooted mJSException.
-    mResult = NS_ERROR_OUT_OF_MEMORY;
-  } else {
-    mJSException = exn;
-    mResult = NS_ERROR_DOM_JS_EXCEPTION;
-  }
-}
-
-void
-ErrorResult::ReportJSException(JSContext* cx)
-{
-  MOZ_ASSERT(!mMightHaveUnreportedJSException,
-             "Why didn't you tell us you planned to handle JS exceptions?");
-  if (JS_WrapValue(cx, &mJSException)) {
-    JS_SetPendingException(cx, mJSException);
-  }
-  // If JS_WrapValue failed, not much we can do about it...  No matter
-  // what, go ahead and unroot mJSException.
-  JS_RemoveValueRoot(cx, &mJSException);
+  delete message;
+  mMessage = nullptr;
 }
 
 namespace dom {
@@ -185,7 +136,7 @@ DefinePrefable(JSContext* cx, JSObject* obj, Prefable<T>* props)
   MOZ_ASSERT(props->specs);
   do {
     // Define if enabled
-    if (props->isEnabled(cx, obj)) {
+    if (props->enabled) {
       if (!Define(cx, obj, props->specs)) {
         return false;
       }
@@ -698,12 +649,12 @@ XrayResolveOwnProperty(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
 }
 
 static bool
-XrayResolveAttribute(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
+XrayResolveAttribute(JSContext* cx, JSObject* wrapper, jsid id,
                      Prefable<JSPropertySpec>* attributes, jsid* attributeIds,
                      JSPropertySpec* attributeSpecs, JSPropertyDescriptor* desc)
 {
   for (; attributes->specs; ++attributes) {
-    if (attributes->isEnabled(cx, obj)) {
+    if (attributes->enabled) {
       // Set i to be the index into our full list of ids/specs that we're
       // looking at now.
       size_t i = attributes->specs - attributeSpecs;
@@ -747,7 +698,7 @@ XrayResolveAttribute(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
 }
 
 static bool
-XrayResolveProperty(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
+XrayResolveProperty(JSContext* cx, JSObject* wrapper, jsid id,
                     JSPropertyDescriptor* desc, DOMObjectType type,
                     const NativeProperties* nativeProperties)
 {
@@ -766,7 +717,7 @@ XrayResolveProperty(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
   if (methods) {
     Prefable<JSFunctionSpec>* method;
     for (method = methods; method->specs; ++method) {
-      if (method->isEnabled(cx, obj)) {
+      if (method->enabled) {
         // Set i to be the index into our full list of ids/specs that we're
         // looking at now.
         size_t i = method->specs - methodsSpecs;
@@ -795,7 +746,7 @@ XrayResolveProperty(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
 
   if (type == eInterface) {
     if (nativeProperties->staticAttributes) {
-      if (!XrayResolveAttribute(cx, wrapper, obj, id,
+      if (!XrayResolveAttribute(cx, wrapper, id,
                                 nativeProperties->staticAttributes,
                                 nativeProperties->staticAttributeIds,
                                 nativeProperties->staticAttributeSpecs, desc)) {
@@ -807,7 +758,7 @@ XrayResolveProperty(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
     }
   } else {
     if (nativeProperties->attributes) {
-      if (!XrayResolveAttribute(cx, wrapper, obj, id,
+      if (!XrayResolveAttribute(cx, wrapper, id,
                                 nativeProperties->attributes,
                                 nativeProperties->attributeIds,
                                 nativeProperties->attributeSpecs, desc)) {
@@ -818,7 +769,7 @@ XrayResolveProperty(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
       }
     }
     if (nativeProperties->unforgeableAttributes) {
-      if (!XrayResolveAttribute(cx, wrapper, obj, id,
+      if (!XrayResolveAttribute(cx, wrapper, id,
                                 nativeProperties->unforgeableAttributes,
                                 nativeProperties->unforgeableAttributeIds,
                                 nativeProperties->unforgeableAttributeSpecs,
@@ -834,7 +785,7 @@ XrayResolveProperty(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
   if (nativeProperties->constants) {
     Prefable<ConstantSpec>* constant;
     for (constant = nativeProperties->constants; constant->specs; ++constant) {
-      if (constant->isEnabled(cx, obj)) {
+      if (constant->enabled) {
         // Set i to be the index into our full list of ids/specs that we're
         // looking at now.
         size_t i = constant->specs - nativeProperties->constantSpecs;
@@ -901,7 +852,7 @@ XrayResolveNativeProperty(JSContext* cx, JSObject* wrapper,
     nativePropertyHooks->mNativeProperties;
 
   if (nativeProperties.regular &&
-      !XrayResolveProperty(cx, wrapper, obj, id, desc, type,
+      !XrayResolveProperty(cx, wrapper, id, desc, type,
                            nativeProperties.regular)) {
     return false;
   }
@@ -909,7 +860,7 @@ XrayResolveNativeProperty(JSContext* cx, JSObject* wrapper,
   if (!desc->obj &&
       nativeProperties.chromeOnly &&
       xpc::AccessCheck::isChrome(js::GetObjectCompartment(wrapper)) &&
-      !XrayResolveProperty(cx, wrapper, obj, id, desc, type,
+      !XrayResolveProperty(cx, wrapper, id, desc, type,
                            nativeProperties.chromeOnly)) {
     return false;
   }
@@ -951,13 +902,12 @@ XrayResolveNativeProperty(JSContext* cx, JSObject* wrapper, JSObject* obj,
 }
 
 bool
-XrayEnumerateAttributes(JSContext* cx, JSObject* wrapper, JSObject* obj,
-                        Prefable<JSPropertySpec>* attributes,
+XrayEnumerateAttributes(Prefable<JSPropertySpec>* attributes,
                         jsid* attributeIds, JSPropertySpec* attributeSpecs,
                         unsigned flags, JS::AutoIdVector& props)
 {
   for (; attributes->specs; ++attributes) {
-    if (attributes->isEnabled(cx, obj)) {
+    if (attributes->enabled) {
       // Set i to be the index into our full list of ids/specs that we're
       // looking at now.
       size_t i = attributes->specs - attributeSpecs;
@@ -974,8 +924,7 @@ XrayEnumerateAttributes(JSContext* cx, JSObject* wrapper, JSObject* obj,
 }
 
 bool
-XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
-                        unsigned flags, JS::AutoIdVector& props,
+XrayEnumerateProperties(unsigned flags, JS::AutoIdVector& props,
                         DOMObjectType type,
                         const NativeProperties* nativeProperties)
 {
@@ -994,7 +943,7 @@ XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
   if (methods) {
     Prefable<JSFunctionSpec>* method;
     for (method = methods; method->specs; ++method) {
-      if (method->isEnabled(cx, obj)) {
+      if (method->enabled) {
         // Set i to be the index into our full list of ids/specs that we're
         // looking at now.
         size_t i = method->specs - methodsSpecs;
@@ -1011,8 +960,7 @@ XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
 
   if (type == eInterface) {
     if (nativeProperties->staticAttributes &&
-        !XrayEnumerateAttributes(cx, wrapper, obj,
-                                 nativeProperties->staticAttributes,
+        !XrayEnumerateAttributes(nativeProperties->staticAttributes,
                                  nativeProperties->staticAttributeIds,
                                  nativeProperties->staticAttributeSpecs,
                                  flags, props)) {
@@ -1020,16 +968,14 @@ XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
     }
   } else {
     if (nativeProperties->attributes &&
-        !XrayEnumerateAttributes(cx, wrapper, obj,
-                                 nativeProperties->attributes,
+        !XrayEnumerateAttributes(nativeProperties->attributes,
                                  nativeProperties->attributeIds,
                                  nativeProperties->attributeSpecs,
                                  flags, props)) {
       return false;
     }
     if (nativeProperties->unforgeableAttributes &&
-        !XrayEnumerateAttributes(cx, wrapper, obj,
-                                 nativeProperties->unforgeableAttributes,
+        !XrayEnumerateAttributes(nativeProperties->unforgeableAttributes,
                                  nativeProperties->unforgeableAttributeIds,
                                  nativeProperties->unforgeableAttributeSpecs,
                                  flags, props)) {
@@ -1040,7 +986,7 @@ XrayEnumerateProperties(JSContext* cx, JSObject* wrapper, JSObject* obj,
   if (nativeProperties->constants) {
     Prefable<ConstantSpec>* constant;
     for (constant = nativeProperties->constants; constant->specs; ++constant) {
-      if (constant->isEnabled(cx, obj)) {
+      if (constant->enabled) {
         // Set i to be the index into our full list of ids/specs that we're
         // looking at now.
         size_t i = constant->specs - nativeProperties->constantSpecs;
@@ -1079,15 +1025,13 @@ XrayEnumerateNativeProperties(JSContext* cx, JSObject* wrapper,
     nativePropertyHooks->mNativeProperties;
 
   if (nativeProperties.regular &&
-      !XrayEnumerateProperties(cx, wrapper, obj, flags, props, type,
-                               nativeProperties.regular)) {
+      !XrayEnumerateProperties(flags, props, type, nativeProperties.regular)) {
     return false;
   }
 
   if (nativeProperties.chromeOnly &&
       xpc::AccessCheck::isChrome(js::GetObjectCompartment(wrapper)) &&
-      !XrayEnumerateProperties(cx, wrapper, obj, flags, props, type,
-                               nativeProperties.chromeOnly)) {
+      !XrayEnumerateProperties(flags, props, type, nativeProperties.chromeOnly)) {
     return false;
   }
 
