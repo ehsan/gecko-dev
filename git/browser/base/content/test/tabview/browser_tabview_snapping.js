@@ -58,14 +58,12 @@ function onTabViewWindowLoaded() {
   // Create a group
   // Note: 150 x 150 should be larger than the minimum size for a group item
   let firstBox = new contentWindow.Rect(80, 80, 160, 160);
-  let firstGroup = new contentWindow.GroupItem([], { bounds: firstBox,
-                                                     immediately: true });
+  let firstGroup = new contentWindow.GroupItem([], { bounds: firstBox });
   ok(firstGroup.getBounds().equals(firstBox), "This group got its bounds");
   
   // Create a second group
   let secondBox = new contentWindow.Rect(80, 280, 160, 160);
-  let secondGroup = new contentWindow.GroupItem([], { bounds: secondBox,
-                                                      immediately: true });
+  let secondGroup = new contentWindow.GroupItem([], { bounds: secondBox });
   ok(secondGroup.getBounds().equals(secondBox), "This second group got its bounds");
   
   // A third group is created later, but multiple functions need access to it.
@@ -75,6 +73,7 @@ function onTabViewWindowLoaded() {
     "There's currently 40 px between the first group and second group");
 
   let endGame = function() {
+    dump("END GAME!");
     firstGroup.container.parentNode.removeChild(firstGroup.container);
     firstGroup.close();
     thirdGroup.container.parentNode.removeChild(thirdGroup.container);
@@ -98,8 +97,7 @@ function onTabViewWindowLoaded() {
     
     // Create a third group
     let thirdBox = new contentWindow.Rect(80, 280, 200, 160);
-    thirdGroup = new contentWindow.GroupItem([], { bounds: thirdBox,
-                                                   immediately: true });
+    thirdGroup = new contentWindow.GroupItem([], { bounds: thirdBox });
     ok(thirdGroup.getBounds().equals(thirdBox), "This third group got its bounds");
   
     is(thirdGroup.getBounds().top - firstGroup.getBounds().bottom, 40,
@@ -116,6 +114,7 @@ function onTabViewWindowLoaded() {
         // Move the second group up 10 px. It now should snap.
         checkSnap(thirdGroup, 0, -10, contentWindow, function(snapped){
           ok(snapped,"Offset: Moving up 10 again should snap!");
+          contentWindow.Utils.log('endGame!');
           endGame();
         });
       });

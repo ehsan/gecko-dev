@@ -152,14 +152,14 @@ ShadowLayersParent::RecvUpdate(const nsTArray<Edit>& cset,
 
       nsRefPtr<ShadowThebesLayer> layer =
         layer_manager()->CreateShadowThebesLayer();
-      layer->SetAllocator(this);
+      layer->SetParent(this);
       AsShadowLayer(edit.get_OpCreateThebesLayer())->Bind(layer);
       break;
     }
     case Edit::TOpCreateContainerLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateContainerLayer"));
 
-      nsRefPtr<ContainerLayer> layer = layer_manager()->CreateShadowContainerLayer();
+      nsRefPtr<ContainerLayer> layer = layer_manager()->CreateContainerLayer();
       AsShadowLayer(edit.get_OpCreateContainerLayer())->Bind(layer);
       break;
     }
@@ -168,14 +168,14 @@ ShadowLayersParent::RecvUpdate(const nsTArray<Edit>& cset,
 
       nsRefPtr<ShadowImageLayer> layer =
         layer_manager()->CreateShadowImageLayer();
-      layer->SetAllocator(this);
+      layer->SetParent(this);
       AsShadowLayer(edit.get_OpCreateImageLayer())->Bind(layer);
       break;
     }
     case Edit::TOpCreateColorLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateColorLayer"));
 
-      nsRefPtr<ShadowColorLayer> layer = layer_manager()->CreateShadowColorLayer();
+      nsRefPtr<ColorLayer> layer = layer_manager()->CreateColorLayer();
       AsShadowLayer(edit.get_OpCreateColorLayer())->Bind(layer);
       break;
     }
@@ -184,7 +184,7 @@ ShadowLayersParent::RecvUpdate(const nsTArray<Edit>& cset,
 
       nsRefPtr<ShadowCanvasLayer> layer = 
         layer_manager()->CreateShadowCanvasLayer();
-      layer->SetAllocator(this);
+      layer->SetParent(this);
       AsShadowLayer(edit.get_OpCreateCanvasLayer())->Bind(layer);
       break;
     }

@@ -531,9 +531,10 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
   // right now, just fix up the overflow area if necessary. Note that we don't
   // check HasOverflowRect() because it could be set even though the
   // overflow area doesn't include the frame bounds.
-  aMetrics->UnionOverflowAreasWithDesiredBounds();
+  aMetrics->mOverflowArea.UnionRect(aMetrics->mOverflowArea,
+                                    nsRect(0, 0, aMetrics->width, aMetrics->height));
 
-  aState->mContentsOverflowArea = aMetrics->ScrollableOverflow();
+  aState->mContentsOverflowArea = aMetrics->mOverflowArea;
   aState->mReflowedContentsWithHScrollbar = aAssumeHScroll;
   aState->mReflowedContentsWithVScrollbar = aAssumeVScroll;
   
@@ -631,8 +632,7 @@ nsHTMLScrollFrame::ReflowContents(ScrollReflowState* aState,
       ComputeInsideBorderSize(aState,
                               nsSize(kidDesiredSize.width, kidDesiredSize.height));
     nsRect scrolledRect =
-      mInner.GetScrolledRectInternal(kidDesiredSize.ScrollableOverflow(),
-                                     insideBorderSize);
+      mInner.GetScrolledRectInternal(kidDesiredSize.mOverflowArea, insideBorderSize);
     if (nsRect(nsPoint(0, 0), insideBorderSize).Contains(scrolledRect)) {
       // Let's pretend we had no scrollbars coming in here
       rv = ReflowScrolledFrame(aState, PR_FALSE, PR_FALSE,
@@ -698,8 +698,7 @@ nsHTMLScrollFrame::PlaceScrollArea(const ScrollReflowState& aState,
   // 'overflow' either.
   // This needs to happen before SyncFrameViewAfterReflow so
   // HasOverflowRect() will return the correct value.
-  nsOverflowAreas overflow(scrolledArea, scrolledArea);
-  scrolledFrame->FinishAndStoreOverflow(overflow,
+  scrolledFrame->FinishAndStoreOverflow(&scrolledArea,
                                         scrolledFrame->GetSize());
 
   // Note that making the view *exactly* the size of the scrolled area
@@ -710,7 +709,7 @@ nsHTMLScrollFrame::PlaceScrollArea(const ScrollReflowState& aState,
   nsContainerFrame::SyncFrameViewAfterReflow(scrolledFrame->PresContext(),
                                              scrolledFrame,
                                              scrolledFrame->GetView(),
-                                             scrolledArea,
+                                             &scrolledArea,
                                              0);
 }
 
@@ -800,7 +799,7 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
 
   nsRect oldScrollAreaBounds = mInner.mScrollPort;
   nsRect oldScrolledAreaBounds =
-    mInner.mScrolledFrame->GetScrollableOverflowRectRelativeToParent();
+    mInner.mScrolledFrame->GetOverflowRectRelativeToParent();
   // Adjust to a multiple of device pixels to restore the invariant that
   // oldScrollPosition is a multiple of device pixels. This could have been
   // thrown out by a zoom change.
@@ -830,7 +829,7 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
   mInner.mHasVerticalScrollbar = state.mShowVScrollbar;
   nsRect newScrollAreaBounds = mInner.mScrollPort;
   nsRect newScrolledAreaBounds =
-    mInner.mScrolledFrame->GetScrollableOverflowRectRelativeToParent();
+    mInner.mScrolledFrame->GetOverflowRectRelativeToParent();
   if (mInner.mSkippedScrollbarLayout ||
       reflowHScrollbar || reflowVScrollbar || reflowScrollCorner ||
       (GetStateBits() & NS_FRAME_IS_DIRTY) ||
@@ -858,7 +857,7 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
   aDesiredSize.height = state.mInsideBorderSize.height +
     state.mComputedBorder.TopBottom();
 
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width, aDesiredSize.height);
 
   CheckInvalidateSizeChange(aDesiredSize);
 
@@ -2516,7 +2515,7 @@ nsXULScrollFrame::LayoutScrollArea(nsBoxLayoutState& aState,
   PRInt32 flags = NS_FRAME_NO_MOVE_VIEW;
 
   nsRect originalRect = mInner.mScrolledFrame->GetRect();
-  nsRect originalVisOverflow = mInner.mScrolledFrame->GetVisualOverflowRect();
+  nsRect originalOverflow = mInner.mScrolledFrame->GetOverflowRect();
 
   nsSize minSize = mInner.mScrolledFrame->GetMinSize(aState);
   
@@ -2538,32 +2537,32 @@ nsXULScrollFrame::LayoutScrollArea(nsBoxLayoutState& aState,
     childRect.width = NS_MAX(childRect.width, mInner.mScrollPort.width);
     childRect.height = NS_MAX(childRect.height, mInner.mScrollPort.height);
 
-    // remove overflow areas when we update the bounds,
+    // remove overflow area when we update the bounds,
     // because we've already accounted for it
-    // REVIEW: Have we accounted for both?
-    mInner.mScrolledFrame->SetBounds(aState, childRect, PR_TRUE);
+    mInner.mScrolledFrame->SetBounds(aState, childRect);
+    mInner.mScrolledFrame->ClearOverflowRect();
   }
 
   nsRect finalRect = mInner.mScrolledFrame->GetRect();
-  nsRect finalVisOverflow = mInner.mScrolledFrame->GetVisualOverflowRect();
+  nsRect finalOverflow = mInner.mScrolledFrame->GetOverflowRect();
   // The position of the scrolled frame shouldn't change, but if it does or
   // the position of the overflow rect changes just invalidate both the old
   // and new overflow rect.
   if (originalRect.TopLeft() != finalRect.TopLeft() ||
-      originalVisOverflow.TopLeft() != finalVisOverflow.TopLeft())
+      originalOverflow.TopLeft() != finalOverflow.TopLeft())
   {
     // The old overflow rect needs to be adjusted if the frame's position
     // changed.
     mInner.mScrolledFrame->Invalidate(
-      originalVisOverflow + originalRect.TopLeft() - finalRect.TopLeft());
-    mInner.mScrolledFrame->Invalidate(finalVisOverflow);
-  } else if (!originalVisOverflow.IsExactEqual(finalVisOverflow)) {
+      originalOverflow + originalRect.TopLeft() - finalRect.TopLeft());
+    mInner.mScrolledFrame->Invalidate(finalOverflow);
+  } else if (!originalOverflow.IsExactEqual(finalOverflow)) {
     // If the overflow rect changed then invalidate the difference between the
     // old and new overflow rects.
     mInner.mScrolledFrame->CheckInvalidateSizeChange(
-      originalRect, originalVisOverflow, finalRect.Size());
+      originalRect, originalOverflow, finalRect.Size());
     mInner.mScrolledFrame->InvalidateRectDifference(
-      originalVisOverflow, finalVisOverflow);
+      originalOverflow, finalOverflow);
   }
 
   aState.SetLayoutFlags(oldflags);
@@ -2971,8 +2970,7 @@ static void LayoutAndInvalidate(nsBoxLayoutState& aState,
   PRBool rectChanged = aBox->GetRect() != aRect;
   if (rectChanged) {
     if (aScrollbarIsBeingHidden) {
-      aBox->GetParent()->Invalidate(aBox->GetVisualOverflowRect() +
-                                    aBox->GetPosition());
+      aBox->GetParent()->Invalidate(aBox->GetOverflowRect() + aBox->GetPosition());
     } else {
       aBox->InvalidateFrameSubtree();
     }
@@ -2980,8 +2978,7 @@ static void LayoutAndInvalidate(nsBoxLayoutState& aState,
   nsBoxFrame::LayoutChildAt(aState, aBox, aRect);
   if (rectChanged) {
     if (aScrollbarIsBeingHidden) {
-      aBox->GetParent()->Invalidate(aBox->GetVisualOverflowRect() +
-                                    aBox->GetPosition());
+      aBox->GetParent()->Invalidate(aBox->GetOverflowRect() + aBox->GetPosition());
     } else {
       aBox->InvalidateFrameSubtree();
     }
@@ -3215,7 +3212,7 @@ nsRect
 nsGfxScrollFrameInner::GetScrolledRect() const
 {
   nsRect result =
-    GetScrolledRectInternal(mScrolledFrame->GetScrollableOverflowRect(),
+    GetScrolledRectInternal(mScrolledFrame->GetOverflowRect(),
                             mScrollPort.Size());
 
   NS_ASSERTION(result.width >= mScrollPort.width,
@@ -3372,7 +3369,7 @@ nsGfxScrollFrameInner::FireScrolledAreaEvent()
   nsPresContext *prescontext = mOuter->PresContext();
   nsIContent* content = mOuter->GetContent();
 
-  event.mArea = mScrolledFrame->GetScrollableOverflowRectRelativeToParent();
+  event.mArea = mScrolledFrame->GetOverflowRectRelativeToParent();
 
   nsIDocument *doc = content->GetCurrentDoc();
   if (doc) {

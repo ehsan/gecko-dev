@@ -72,8 +72,7 @@ public:
 
   already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                      nsIFrame* aFrame,
-                                     LayerManager* aManager,
-                                     const nsIntRect& aVisibleRect);
+                                     LayerManager* aManager);
 
 protected:
   NS_OVERRIDE void ActorDestroy(ActorDestroyReason why);

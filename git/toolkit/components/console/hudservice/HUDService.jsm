@@ -63,10 +63,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "sss",
                                    "@mozilla.org/content/style-sheet-service;1",
                                    "nsIStyleSheetService");
 
-XPCOMUtils.defineLazyServiceGetter(this, "mimeService",
-                                   "@mozilla.org/mime;1",
-                                   "nsIMIMEService");
-
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
   var obj = {};
   Cu.import("resource://gre/modules/NetUtil.jsm", obj);
@@ -119,9 +115,6 @@ const SEARCH_DELAY = 200;
 // The user can change this number by adjusting the hidden
 // "devtools.hud.loglimit" preference.
 const DEFAULT_LOG_LIMIT = 200;
-
-// The maximum number of bytes a Network ResponseListener can hold.
-const RESPONSE_BODY_LIMIT = 1048576; // 1 MB
 
 const ERRORS = { LOG_MESSAGE_MISSING_ARGS:
                  "Missing arguments: aMessage, aConsoleNode and aMessageNode are required.",
@@ -225,12 +218,7 @@ ResponseListener.prototype =
     binaryOutputStream = new BinaryOutputStream(storageStream.getOutputStream(0));
 
     let data = NetUtil.readInputStreamToString(aInputStream, aCount);
-
-    if (HUDService.saveRequestAndResponseBodies &&
-        this.receivedData.length < RESPONSE_BODY_LIMIT) {
     this.receivedData += data;
-    }
-
     binaryOutputStream.writeBytes(data, aCount);
 
     let newInputStream = storageStream.newInputStream(0);
@@ -301,9 +289,7 @@ ResponseListener.prototype =
       }
     });
     this.httpActivity.response.isDone = true;
-    this.httpActivity.response.listener = null;
     this.httpActivity = null;
-    this.receivedData = "";
   },
 
   QueryInterface: XPCOMUtils.generateQI([
@@ -552,76 +538,6 @@ var NetworkHelper =
       aCallback(NetworkHelper.readAndConvertFromStream(aInputStream,
                                                        contentCharset));
     });
-  },
-
-  // This is a list of all the mime category maps jviereck could find in the
-  // firebug code base.
-  mimeCategoryMap: {
-    "text/plain": "txt",
-    "text/html": "html",
-    "text/xml": "xml",
-    "text/xsl": "txt",
-    "text/xul": "txt",
-    "text/css": "css",
-    "text/sgml": "txt",
-    "text/rtf": "txt",
-    "text/x-setext": "txt",
-    "text/richtext": "txt",
-    "text/javascript": "js",
-    "text/jscript": "txt",
-    "text/tab-separated-values": "txt",
-    "text/rdf": "txt",
-    "text/xif": "txt",
-    "text/ecmascript": "js",
-    "text/vnd.curl": "txt",
-    "text/x-json": "json",
-    "text/x-js": "txt",
-    "text/js": "txt",
-    "text/vbscript": "txt",
-    "view-source": "txt",
-    "view-fragment": "txt",
-    "application/xml": "xml",
-    "application/xhtml+xml": "xml",
-    "application/atom+xml": "xml",
-    "application/rss+xml": "xml",
-    "application/vnd.mozilla.maybe.feed": "xml",
-    "application/vnd.mozilla.xul+xml": "xml",
-    "application/javascript": "js",
-    "application/x-javascript": "js",
-    "application/x-httpd-php": "txt",
-    "application/rdf+xml": "xml",
-    "application/ecmascript": "js",
-    "application/http-index-format": "txt",
-    "application/json": "json",
-    "application/x-js": "txt",
-    "multipart/mixed": "txt",
-    "multipart/x-mixed-replace": "txt",
-    "image/svg+xml": "svg",
-    "application/octet-stream": "bin",
-    "image/jpeg": "image",
-    "image/jpg": "image",
-    "image/gif": "image",
-    "image/png": "image",
-    "image/bmp": "image",
-    "application/x-shockwave-flash": "flash",
-    "video/x-flv": "flash",
-    "audio/mpeg3": "media",
-    "audio/x-mpeg-3": "media",
-    "video/mpeg": "media",
-    "video/x-mpeg": "media",
-    "audio/ogg": "media",
-    "application/ogg": "media",
-    "application/x-ogg": "media",
-    "application/x-midi": "media",
-    "audio/midi": "media",
-    "audio/x-mid": "media",
-    "audio/x-midi": "media",
-    "music/crescendo": "media",
-    "audio/wav": "media",
-    "audio/x-wav": "media",
-    "text/json": "json",
-    "application/x-json": "json",
-    "application/json-rpc": "json"
   }
 }
 
@@ -698,12 +614,10 @@ function NetworkPanel(aParent, aHttpActivity)
 
   // Create the browser that displays the NetworkPanel XHTML.
   this.browser = createAndAppendElement(this.panel, "browser", {
-    src: "chrome://browser/content/NetworkPanel.xhtml",
+    src: "chrome://global/content/NetworkPanel.xhtml",
     disablehistory: "true",
     flex: "1"
   });
-
-  let self = this;
 
   // Destroy the panel when it's closed.
   this.panel.addEventListener("popuphidden", function onPopupHide() {
@@ -713,14 +627,10 @@ function NetworkPanel(aParent, aHttpActivity)
     self.browser = null;
     self.document = null;
     self.httpActivity = null;
-
-    if (self.linkNode) {
-      self.linkNode._panelOpen = false;
-      self.linkNode = null;
-    }
   }, false);
 
   // Set the document object and update the content once the panel is loaded.
+  let self = this;
   this.panel.addEventListener("load", function onLoad() {
     self.panel.removeEventListener("load", onLoad, true)
     self.document = self.browser.contentWindow.document;
@@ -779,83 +689,24 @@ NetworkPanel.prototype =
   },
 
   /**
-   * Returns the content type of the response body. This is based on the
-   * response.header["Content-Type"] info. If this value is not available, then
-   * the content type is tried to be estimated by the url file ending.
-   *
-   * @returns string or null
-   *          Content type or null if no content type could be figured out.
-   */
-  get _contentType()
-  {
-    let response = this.httpActivity.response;
-    let contentTypeValue = null;
-
-    if (response.header && response.header["Content-Type"]) {
-      let types = response.header["Content-Type"].split(/,|;/);
-      for (let i = 0; i < types.length; i++) {
-        let type = NetworkHelper.mimeCategoryMap[types[i]];
-        if (type) {
-          return types[i];
-        }
-      }
-    }
-
-    // Try to get the content type from the request file extension.
-    let uri = NetUtil.newURI(this.httpActivity.url);
-    let mimeType = null;
-    if ((uri instanceof Ci.nsIURL) && uri.fileExtension) {
-      try {
-        mimeType = mimeService.getTypeFromExtension(uri.fileExtension);
-      } catch(e) {
-        // Added to prevent failures on OS X 64. No Flash?
-        Cu.reportError(e);
-        // Return empty string to pass unittests.
-        return "";
-      }
-    }
-    return mimeType;
-  },
-
-  /**
    *
    * @returns boolean
    *          True if the response is an image, false otherwise.
    */
   get _responseIsImage()
   {
-    return NetworkHelper.mimeCategoryMap[this._contentType] == "image";
-  },
-
-  /**
-   *
-   * @returns boolean
-   *          True if the response body contains text, false otherwise.
-   */
-  get _isResponseBodyTextData()
-  {
-    let contentType = this._contentType;
-
-    if (!contentType)
-      return false;
-
-    if (contentType.indexOf("text/") == 0) {
-      return true;
-    }
-
-    switch (NetworkHelper.mimeCategoryMap[contentType]) {
-      case "txt":
-      case "js":
-      case "json":
-      case "css":
-      case "html":
-      case "svg":
-      case "xml":
+    let response = this.httpActivity.response;
+    if (!response || !response.header || !response.header["Content-Type"]) {
+      let request = this.httpActivity.request;
+      if (request.header["Accept"] &&
+          request.header["Accept"].indexOf("image/") != -1) {
         return true;
-
-      default:
+      }
+      else {
         return false;
+      }
     }
+    return response.header["Content-Type"].indexOf("image/") != -1;
   },
 
   /**
@@ -1138,26 +989,6 @@ NetworkPanel.prototype =
   },
 
   /**
-   * Displays the `Unknown Content-Type hint` and sets the duration between the
-   * receiving of the response header on the NetworkPanel.
-   *
-   * @returns void
-   */
-  _displayResponseBodyUnknownType: function NP_displayResponseBodyUnknownType()
-  {
-    let timing = this.httpActivity.timing;
-
-    this._displayNode("responseBodyUnknownType");
-    let deltaDuration =
-      Math.round((timing.RESPONSE_COMPLETE - timing.RESPONSE_HEADER) / 1000);
-    this._appendTextNode("responseBodyUnknownTypeInfo",
-      this._format("durationMS", [deltaDuration]));
-
-    this._appendTextNode("responseBodyUnknownTypeContent",
-      this._format("responseBodyUnableToDisplay.content", [this._contentType]));
-  },
-
-  /**
    * Displays the `no response body` section and sets the the duration between
    * the receiving of the response header and the end of the request.
    *
@@ -1242,10 +1073,6 @@ NetworkPanel.prototype =
           }
           else if (this._responseIsImage) {
             this._displayResponseImage();
-            this._callIsDone();
-          }
-          else if (!this._isResponseBodyTextData) {
-            this._displayResponseBodyUnknownType();
             this._callIsDone();
           }
           else if (response.body) {
@@ -1515,9 +1342,9 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Activate a HeadsUpDisplay for the given tab context.
+   * Activate a HeadsUpDisplay for the current window
    *
-   * @param Element aContext the tab element.
+   * @param nsIDOMWindow aContext
    * @returns void
    */
   activateHUDForContext: function HS_activateHUDForContext(aContext)
@@ -1529,24 +1356,23 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Deactivate a HeadsUpDisplay for the given tab context.
+   * Deactivate a HeadsUpDisplay for the current window
    *
    * @param nsIDOMWindow aContext
    * @returns void
    */
   deactivateHUDForContext: function HS_deactivateHUDForContext(aContext)
   {
-    let window = aContext.linkedBrowser.contentWindow;
-    let nBox = aContext.ownerDocument.defaultView.
-      getNotificationBox(window);
-    let hudId = "hud_" + nBox.id;
-    let displayNode = nBox.querySelector("#" + hudId);
+    var gBrowser = HUDService.currentContext().gBrowser;
+    var window = aContext.linkedBrowser.contentWindow;
+    var browser = gBrowser.getBrowserForDocument(window.top.document);
+    var tabId = gBrowser.getNotificationBox(browser).getAttribute("id");
+    var hudId = "hud_" + tabId;
+    var displayNode = this.getHeadsUpDisplay(hudId);
 
-    if (hudId in this.displayRegistry && displayNode) {
     this.unregisterActiveContext(hudId);
-      this.unregisterDisplay(displayNode);
+    this.unregisterDisplay(hudId);
     window.focus();
-    }
   },
 
   /**
@@ -1948,7 +1774,6 @@ HUD_SERVICE.prototype =
     }
     delete displays[id];
     delete this.displayRegistry[id];
-    delete this.uriRegistry[uri];
   },
 
   /**
@@ -2316,7 +2141,6 @@ HUD_SERVICE.prototype =
     let doc = aNode.ownerDocument;
     let parent = doc.getElementById("mainPopupSet");
     let netPanel = new NetworkPanel(parent, aHttpActivity);
-    netPanel.linkNode = aNode;
 
     let panel = netPanel.panel;
     panel.openPopup(aNode, "after_pointer", 0, 0, false, false);
@@ -2415,23 +2239,9 @@ HUD_SERVICE.prototype =
             // Make the network span clickable.
             let linkNode = loggedNode.messageNode;
             linkNode.setAttribute("aria-haspopup", "true");
-            linkNode.addEventListener("mousedown", function(aEvent) {
-              this._startX = aEvent.clientX;
-              this._startY = aEvent.clientY;
-            }, false);
-
-            linkNode.addEventListener("click", function(aEvent) {
-              if (aEvent.detail != 1 || aEvent.button != 0 ||
-                  (this._startX != aEvent.clientX &&
-                   this._startY != aEvent.clientY)) {
-                return;
-              }
-
-              if (!this._panelOpen) {
-                self.openNetworkPanel(this, httpActivity);
-                this._panelOpen = true;
-              }
-            }, false);
+            linkNode.onclick = function() {
+              self.openNetworkPanel(linkNode, httpActivity);
+            }
           }
           else {
             // Iterate over all currently ongoing requests. If aChannel can't
@@ -4256,10 +4066,8 @@ JSTerm.prototype = {
     buttons.push({
       label: HUDService.getStr("close.button"),
       accesskey: HUDService.getStr("close.accesskey"),
-      class: "jsPropertyPanelCloseButton",
       oncommand: function () {
         propPanel.destroy();
-        aAnchor._panelOpen = false;
       }
     });
 
@@ -4296,24 +4104,9 @@ JSTerm.prototype = {
     node.setAttribute("class", "jsterm-output-line hud-clickable");
     node.setAttribute("aria-haspopup", "true");
     node.setAttribute("crop", "end");
-
-    node.addEventListener("mousedown", function(aEvent) {
-      this._startX = aEvent.clientX;
-      this._startY = aEvent.clientY;
-    }, false);
-
-    node.addEventListener("click", function(aEvent) {
-      if (aEvent.detail != 1 || aEvent.button != 0 ||
-          (this._startX != aEvent.clientX &&
-           this._startY != aEvent.clientY)) {
-        return;
-      }
-
-      if (!this._panelOpen) {
-        self.openPropertyPanel(aEvalString, aOutputObject, this);
-        this._panelOpen = true;
-      }
-    }, false);
+    node.onclick = function() {
+      self.openPropertyPanel(aEvalString, aOutputObject, node);
+    }
 
     // TODO: format the aOutputObject and don't just use the
     // aOuputObject.toString() function: [object object] -> Object {prop, ...}
@@ -4492,19 +4285,20 @@ JSTerm.prototype = {
             // If there are more than one possible completion, pressing tab
             // means taking the next completion, shift_tab means taking
             // the previous completion.
-            var completionResult;
             if (aEvent.shiftKey) {
-              completionResult = self.complete(self.COMPLETE_BACKWARD);
+              self.complete(self.COMPLETE_BACKWARD);
             }
             else {
-              completionResult = self.complete(self.COMPLETE_FORWARD);
+              self.complete(self.COMPLETE_FORWARD);
             }
-            if (completionResult) {
-              if (aEvent.cancelable) {
+            var bool = aEvent.cancelable;
+            if (bool) {
               aEvent.preventDefault();
             }
-            aEvent.target.focus();
+            else {
+              // noop
             }
+            aEvent.target.focus();
             break;
           case 8:
             // backspace key
@@ -4615,8 +4409,7 @@ JSTerm.prototype = {
    *          the inputNode.value is set to this value and the selection is set
    *          from the current cursor position to the end of the completed text.
    *
-   * @returns boolean true if there existed a completion for the current input,
-   *          or false otherwise.
+   * @returns void
    */
   complete: function JSTF_complete(type)
   {
@@ -4624,7 +4417,7 @@ JSTerm.prototype = {
     let inputValue = inputNode.value;
     // If the inputNode has no value, then don't try to complete on it.
     if (!inputValue) {
-      return false;
+      return;
     }
     let selStart = inputNode.selectionStart, selEnd = inputNode.selectionEnd;
 
@@ -4638,7 +4431,7 @@ JSTerm.prototype = {
     // Only complete if the selection is at the end of the input.
     if (selEnd != inputValue.length) {
       this.lastCompletion = null;
-      return false;
+      return;
     }
 
     // Remove the selected text from the inputValue.
@@ -4666,7 +4459,7 @@ JSTerm.prototype = {
       // Look up possible completion values.
       let completion = this.propertyProvider(this.sandbox.window, inputValue);
       if (!completion) {
-        return false;
+        return;
       }
       matches = completion.matches;
       matchIndexToUse = 0;
@@ -4706,11 +4499,7 @@ JSTerm.prototype = {
       else {
         inputNode.setSelectionRange(selEnd, selEnd);
       }
-
-      return completionStr ? true : false;
     }
-
-    return false;
   }
 };
 
@@ -4856,12 +4645,8 @@ LogMessage.prototype = {
 
     this.messageNode.appendChild(messageTxtNode);
 
-    this.messageNode.classList.add("hud-msg-node");
-    this.messageNode.classList.add("hud-" + this.level);
-
-    if (this.activityObject.category == "CSS Parser") {
-      this.messageNode.classList.add("hud-cssparser");
-    }
+    var klass = "hud-msg-node hud-" + this.level;
+    this.messageNode.setAttribute("class", klass);
 
     var self = this;
 

@@ -64,7 +64,6 @@
 #include "jsgcchunk.h"
 #include "jshashtable.h"
 #include "jsinterp.h"
-#include "jsmath.h"
 #include "jsobj.h"
 #include "jspropertycache.h"
 #include "jspropertytree.h"
@@ -542,8 +541,9 @@ class InvokeArgsGuard : public CallArgs
     JSStackFrame     *prevInvokeFrame;
 #endif
   public:
-    InvokeArgsGuard() : cx(NULL), seg(NULL) {}
-    ~InvokeArgsGuard();
+    inline InvokeArgsGuard() : cx(NULL), seg(NULL) {}
+    inline InvokeArgsGuard(JSContext *cx, Value *vp, uintN argc);
+    inline ~InvokeArgsGuard();
     bool pushed() const { return cx != NULL; }
 };
 
@@ -565,9 +565,8 @@ class InvokeFrameGuard
     JSFrameRegs      *prevRegs_;
   public:
     InvokeFrameGuard() : cx_(NULL) {}
-    ~InvokeFrameGuard() { if (pushed()) pop(); }
+    JS_REQUIRES_STACK ~InvokeFrameGuard();
     bool pushed() const { return cx_ != NULL; }
-    void pop();
     JSStackFrame *fp() const { return regs_.fp; }
 };
 
@@ -1125,7 +1124,8 @@ struct JSThreadData {
 
     /*
      * Flag indicating that we are waiving any soft limits on the GC heap
-     * because we want allocations to be infallible (except when we hit OOM).
+     * because we want allocations to be infallible (except when we hit
+     * a hard quota).
      */
     bool                waiveGCQuota;
 
@@ -1187,16 +1187,6 @@ struct JSThreadData {
     JSPendingProxyOperation *pendingProxyOperation;
 
     js::ConservativeGCThreadData conservativeGC;
-
-  private:
-    js::MathCache       *mathCache;
-
-    js::MathCache *allocMathCache(JSContext *cx);
-  public:
-
-    js::MathCache *getMathCache(JSContext *cx) {
-        return mathCache ? mathCache : allocMathCache(cx);
-    }
 
     bool init();
     void finish();
@@ -1294,12 +1284,6 @@ typedef struct JSPropertyTreeEntry {
 typedef void
 (* JSActivityCallback)(void *arg, JSBool active);
 
-namespace js {
-
-typedef js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> WrapperVector;
-
-}
-
 struct JSRuntime {
     /* Default compartment. */
     JSCompartment       *defaultCompartment;
@@ -1308,7 +1292,7 @@ struct JSRuntime {
 #endif
 
     /* List of compartments (protected by the GC lock). */
-    js::WrapperVector compartments;
+    js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> compartments;
 
     /* Runtime state, synchronized by the stateChange/gcLock condvar/lock. */
     JSRuntimeState      state;
@@ -1354,21 +1338,22 @@ struct JSRuntime {
     js::GCLocks         gcLocksHash;
     jsrefcount          gcKeepAtoms;
     size_t              gcBytes;
-    size_t              gcTriggerBytes;
     size_t              gcLastBytes;
     size_t              gcMaxBytes;
     size_t              gcMaxMallocBytes;
+    size_t              gcNewArenaTriggerBytes;
     uint32              gcEmptyArenaPoolLifespan;
     uint32              gcNumber;
     js::GCMarker        *gcMarkingTracer;
     uint32              gcTriggerFactor;
+    size_t              gcTriggerBytes;
     volatile JSBool     gcIsNeeded;
 
     /*
-     * We can pack these flags as only the GC thread writes to them. Atomic
-     * updates to packed bytes are not guaranteed, so stores issued by one
-     * thread may be lost due to unsynchronized read-modify-write cycles on
-     * other threads.
+     * NB: do not pack another flag here by claiming gcPadding unless the new
+     * flag is written only by the GC thread.  Atomic updates to packed bytes
+     * are not guaranteed, so stores issued by one thread may be lost due to
+     * unsynchronized read-modify-write cycles on other threads.
      */
     bool                gcPoke;
     bool                gcMarkAndSweep;
@@ -1523,6 +1508,16 @@ struct JSRuntime {
     const char          *thousandsSeparator;
     const char          *decimalSeparator;
     const char          *numGrouping;
+
+    /*
+     * Weak references to lazily-created, well-known XML singletons.
+     *
+     * NB: Singleton objects must be carefully disconnected from the rest of
+     * the object graph usually associated with a JSContext's global object,
+     * including the set of standard class objects.  See jsxml.c for details.
+     */
+    JSObject            *anynameObject;
+    JSObject            *functionNamespaceObject;
 
 #ifdef JS_THREADSAFE
     /* Number of threads with active requests and unhandled interrupts. */
@@ -1679,7 +1674,6 @@ struct JSRuntime {
 #endif
 
     JSWrapObjectCallback wrapObjectCallback;
-    JSPreWrapCallback    preWrapObjectCallback;
 
     JSC::ExecutableAllocator *regExpAllocator;
 
@@ -2008,16 +2002,11 @@ struct JSContext
 
   public:
     friend class js::StackSpace;
-    friend bool js::Interpret(JSContext *, JSStackFrame *, uintN, JSInterpMode);
-
-    void resetCompartment();
+    friend bool js::Interpret(JSContext *, JSStackFrame *, uintN, uintN);
 
     /* 'regs' must only be changed by calling this function. */
     void setCurrentRegs(JSFrameRegs *regs) {
-        JS_ASSERT_IF(regs, regs->fp);
         this->regs = regs;
-        if (!regs)
-            resetCompartment();
     }
 
     /* Temporary arena pool used while compiling and decompiling. */
@@ -2383,9 +2372,6 @@ private:
      * a boolean flag to minimize the amount of code in its inlined callers.
      */
     JS_FRIEND_API(void) checkMallocGCPressure(void *p);
-
-    /* To silence MSVC warning about using 'this' in a member initializer. */
-    JSContext *thisInInitializer() { return this; }
 };
 
 #ifdef JS_THREADSAFE

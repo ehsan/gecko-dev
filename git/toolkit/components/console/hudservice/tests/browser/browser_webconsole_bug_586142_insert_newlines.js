@@ -11,28 +11,40 @@
 // Tests that newlines are present in the output of the console, so that
 // copying works properly.
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
 const TEST_URI = "http://example.com/";
+
+XPCOMUtils.defineLazyGetter(this, "HUDService", function () {
+  Cu.import("resource://gre/modules/HUDService.jsm");
+  return HUDService;
+});
 
 function test()
 {
-  addTab(TEST_URI);
-  browser.addEventListener("DOMContentLoaded", onLoad, false);
+  waitForExplicitFinish();
+  gBrowser.selectedTab = gBrowser.addTab(TEST_URI);
+  gBrowser.selectedBrowser.addEventListener("DOMContentLoaded", onLoad, false);
 }
 
 function onLoad() {
-  browser.removeEventListener("DOMContentLoaded", onLoad,
+  gBrowser.selectedBrowser.removeEventListener("DOMContentLoaded", onLoad,
                                                false);
   executeSoon(testNewlines);
 }
 
 function testNewlines() {
-  openConsole();
-  hudId = HUDService.displaysIndex()[0];
+  HUDService.activateHUDForContext(gBrowser.selectedTab);
+  let hudId = HUDService.displaysIndex()[0];
   ok(hudId != null, "we have the HUD ID");
 
   HUDService.clearDisplay(hudId);
 
-  let contentWindow = browser.contentWindow;
+  let contentWindow = gBrowser.selectedTab.linkedBrowser.contentWindow;
   let console = contentWindow.wrappedJSObject.console;
   ok(console != null, "we have the console object");
 
@@ -53,6 +65,8 @@ function testNewlines() {
        "with a newline");
   }
 
-  finishTest();
+  HUDService.deactivateHUDForContext(gBrowser.selectedTab);
+  gBrowser.removeCurrentTab();
+  finish();
 }
 

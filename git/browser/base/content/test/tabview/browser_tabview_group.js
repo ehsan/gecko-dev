@@ -170,8 +170,7 @@ function createEmptyGroupItem(contentWindow, padding) {
   box.width = 300;
   box.height = 300;
 
-  let emptyGroupItem = new contentWindow.GroupItem([], { bounds: box,
-                                                         immediately: true });
+  let emptyGroupItem = new contentWindow.GroupItem([], { bounds: box });
 
   return emptyGroupItem;
 }

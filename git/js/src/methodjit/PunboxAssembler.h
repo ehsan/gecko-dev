@@ -93,13 +93,12 @@ class Assembler : public BaseAssembler
         return address;
     }
 
-    void loadSlot(RegisterID obj, RegisterID clobber, uint32 slot, bool inlineAccess,
-                  RegisterID type, RegisterID data) {
+    void loadSlot(RegisterID obj, RegisterID clobber, uint32 slot, RegisterID type, RegisterID data) {
         JS_ASSERT(type != data);
-        Address address(obj, JSObject::getFixedSlotOffset(slot));
-        if (!inlineAccess) {
-            loadPtr(Address(obj, offsetof(JSObject, slots)), clobber);
-            address = Address(clobber, slot * sizeof(Value));
+        Address address(obj, offsetof(JSObject, fslots) + slot * sizeof(Value));
+        if (slot >= JS_INITIAL_NSLOTS) {
+            loadPtr(Address(obj, offsetof(JSObject, dslots)), clobber);
+            address = Address(clobber, (slot - JS_INITIAL_NSLOTS) * sizeof(Value));
         }
         
         loadValueAsComponents(address, type, data);
@@ -132,8 +131,8 @@ class Assembler : public BaseAssembler
     }
 
     void loadValueAsComponents(const Value &val, RegisterID type, RegisterID payload) {
-        move(Imm64(val.asRawBits() & JSVAL_TAG_MASK), type);
-        move(Imm64(val.asRawBits() & JSVAL_PAYLOAD_MASK), payload);
+        move(Imm64(val.asRawBits() & 0xFFFF800000000000), type);
+        move(Imm64(val.asRawBits() & 0x00007FFFFFFFFFFF), payload);
     }
 
     template <typename T>
@@ -223,8 +222,9 @@ class Assembler : public BaseAssembler
     }
 
     void loadFunctionPrivate(RegisterID base, RegisterID to) {
-        Address priv(base, offsetof(JSObject, privateData));
-        loadPtr(priv, to);
+        Address privSlot(base, offsetof(JSObject, fslots) +
+                               JSSLOT_PRIVATE * sizeof(Value));
+        loadPtr(privSlot, to);
     }
 
     Jump testNull(Assembler::Condition cond, RegisterID reg) {
@@ -234,15 +234,6 @@ class Assembler : public BaseAssembler
     Jump testNull(Assembler::Condition cond, Address address) {
         loadValue(address, Registers::ValueReg);
         return branchPtr(cond, Registers::ValueReg, Imm64(JSVAL_BITS(JSVAL_NULL)));
-    }
-
-    Jump testUndefined(Assembler::Condition cond, RegisterID reg) {
-        return branchPtr(cond, reg, ImmTag(JSVAL_SHIFTED_TAG_UNDEFINED));
-    }
-
-    Jump testUndefined(Assembler::Condition cond, Address address) {
-        loadValue(address, Registers::ValueReg);
-        return branchPtr(cond, Registers::ValueReg, Imm64(JSVAL_BITS(JSVAL_VOID)));
     }
 
     Jump testInt32(Assembler::Condition cond, RegisterID reg) {

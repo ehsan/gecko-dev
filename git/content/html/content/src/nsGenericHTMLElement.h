@@ -774,6 +774,7 @@ protected:
   // Used by A, AREA, LINK, and STYLE.
   already_AddRefed<nsIURI> GetHrefURIForAnchors() const;
 
+private:
   /**
    * Returns whether this element is an editable root. There are two types of
    * editable roots:
@@ -786,7 +787,6 @@ protected:
    */
   PRBool IsEditableRoot() const;
 
-private:
   void ChangeEditableState(PRInt32 aChange);
 };
 
@@ -864,14 +864,14 @@ public:
    * @note Classes redefining this method should not call ContentStatesChanged
    * but they should pass aStates instead.
    */
-  virtual void FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates);
 
-  void FieldSetFirstLegendChanged(PRBool aNotify) {
+  void FieldSetFirstLegendChanged() {
     UpdateFieldSet();
 
     // The disabled state may have change because the element might not be in
     // the first legend anymore.
-    FieldSetDisabledChanged(0, aNotify);
+    FieldSetDisabledChanged(0);
   }
 
   /**

@@ -128,7 +128,6 @@ class AutoStringRooter;
 class ExecuteArgsGuard;
 class InvokeFrameGuard;
 class InvokeArgsGuard;
-class InvokeSessionGuard;
 class TraceRecorder;
 struct TraceMonitor;
 class StackSpace;

@@ -12,9 +12,17 @@ print(BUGNUMBER + ": " + summary);
  * BEGIN TEST *
  **************/
 
-var o = Object.freeze({});
-for (var i = 0; i < 10; i++)
-  print(o.u = "");
+if (typeof options === "function" &&
+    options().split(",").indexOf("methodjit") < 0)
+{
+  var o = Object.freeze({});
+  for (var i = 0; i < 10; i++)
+    print(o.u = "");
+}
+else
+{
+  print("non-extensible+loop adding property disabled, bug 602441");
+}
 
 Object.freeze(this);
 for (let j = 0; j < 10; j++)

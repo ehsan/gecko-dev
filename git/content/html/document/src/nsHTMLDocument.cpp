@@ -3231,9 +3231,8 @@ nsHTMLDocument::EditingStateChanged()
     mParentDocument->FlushPendingNotifications(Flush_Style);
   }
 
-  // get editing session, make sure this is a strong reference so the
-  // window can't get deleted during the rest of this call.
-  nsCOMPtr<nsPIDOMWindow> window = GetWindow();
+  // get editing session
+  nsPIDOMWindow *window = GetWindow();
   if (!window)
     return NS_ERROR_FAILURE;
 

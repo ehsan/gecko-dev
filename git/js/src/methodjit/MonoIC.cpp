@@ -108,6 +108,8 @@ ic::GetGlobalName(VMFrame &f, ic::MICInfo *ic)
     repatch.repatch(ic->shape, obj->shape());
 
     /* Patch loads. */
+    JS_ASSERT(slot >= JS_INITIAL_NSLOTS);
+    slot -= JS_INITIAL_NSLOTS;
     slot *= sizeof(Value);
     JSC::RepatchBuffer loads(ic->load.executableAddress(), 32, false);
 #if defined JS_CPU_X86
@@ -187,6 +189,8 @@ ic::SetGlobalName(VMFrame &f, ic::MICInfo *ic)
     repatch.repatch(ic->shape, obj->shape());
 
     /* Patch loads. */
+    JS_ASSERT(slot >= JS_INITIAL_NSLOTS);
+    slot -= JS_INITIAL_NSLOTS;
     slot *= sizeof(Value);
 
     JSC::RepatchBuffer stores(ic->load.executableAddress(), 32, false);

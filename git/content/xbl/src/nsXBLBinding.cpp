@@ -1114,11 +1114,6 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
             JSObject* base = scriptObject;
             JSObject* proto;
             JSAutoRequest ar(cx);
-            JSAutoEnterCompartment ac;
-            if (!ac.enter(cx, scriptObject)) {
-              return;
-            }
-
             for ( ; true; base = proto) { // Will break out on null proto
               proto = ::JS_GetPrototype(cx, base);
               if (!proto) {
@@ -1251,11 +1246,6 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
   nsCAutoString className(aClassName);
   JSObject* parent_proto = nsnull;  // If we have an "obj" we can set this
   JSAutoRequest ar(cx);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, global))
-      return NS_ERROR_FAILURE;
-
   if (obj) {
     // Retrieve the current prototype of obj.
     parent_proto = ::JS_GetPrototype(cx, obj);

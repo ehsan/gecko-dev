@@ -447,8 +447,6 @@ nsWindow::nsWindow() : nsBaseWidget()
 
     // Init titlebar button info for custom frames.
     nsUXThemeData::InitTitlebarInfo();
-    // Init theme data
-    nsUXThemeData::UpdateNativeThemeInfo();
   } // !sInstanceCount
 
   mIdleService = nsnull;
@@ -542,7 +540,8 @@ nsWindow::Create(nsIWidget *aParent,
                           nsnull : aParent;
 
   mIsTopWidgetWindow = (nsnull == baseParent);
-  mBounds = aRect;
+  mBounds.width = aRect.width;
+  mBounds.height = aRect.height;
 
   BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
              aAppShell, aToolkit, aInitData);
@@ -4543,7 +4542,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     {
       // Update non-client margin offsets 
       UpdateNonClientMargins();
-      nsUXThemeData::UpdateNativeThemeInfo();
 
       DispatchStandardEvent(NS_THEMECHANGED);
 
@@ -4908,56 +4906,21 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
                                   contextMenukey ?
                                     nsMouseEvent::eLeftButton :
                                     nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
-      if (lParam != -1 && !result && mCustomNonClient &&
-          DispatchMouseEvent(NS_MOUSE_MOZHITTEST, wParam, pos,
-                             PR_FALSE, nsMouseEvent::eLeftButton,
-                             MOUSE_INPUT_SOURCE())) {
-        // Blank area hit, throw up the system menu.
-        GetSystemMenu(mWnd, TRUE); // reset the system menu
-        HMENU hMenu = GetSystemMenu(mWnd, FALSE);
-        if (hMenu) {
-          // update the options
-          switch(mSizeMode) {
-            case nsSizeMode_Fullscreen:
-            case nsSizeMode_Maximized:
-              EnableMenuItem(hMenu, SC_SIZE, MF_BYCOMMAND | MF_GRAYED);
-              EnableMenuItem(hMenu, SC_MOVE, MF_BYCOMMAND | MF_GRAYED);
-              EnableMenuItem(hMenu, SC_MAXIMIZE, MF_BYCOMMAND | MF_GRAYED);
-              break;
-            case nsSizeMode_Minimized:
-              EnableMenuItem(hMenu, SC_MINIMIZE, MF_BYCOMMAND | MF_GRAYED);
-              break;
-            case nsSizeMode_Normal:
-              EnableMenuItem(hMenu, SC_RESTORE, MF_BYCOMMAND | MF_GRAYED);
-              break;
-          }
-          LPARAM cmd =
-            TrackPopupMenu(hMenu,
-                           (TPM_LEFTBUTTON|TPM_RIGHTBUTTON|
-                            TPM_RETURNCMD|TPM_TOPALIGN|
-                            (mIsRTL ? TPM_RIGHTALIGN : TPM_LEFTALIGN)),
-                           GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam),
-                           0, mWnd, NULL);
-          if (cmd) {
-            PostMessage(mWnd, WM_SYSCOMMAND, cmd, 0);
-          }
-          result = PR_TRUE;
-        }
-      }
     }
     break;
 
     case WM_LBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
       break;
 
     case WM_MBUTTONDOWN:
+    {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
       DispatchPendingEvents();
-      break;
+    }
+    break;
 
     case WM_MBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
@@ -4968,7 +4931,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_MBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
       break;
 
     case WM_NCMBUTTONDOWN:
@@ -4990,10 +4952,12 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_RBUTTONDOWN:
+    {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
       DispatchPendingEvents();
-      break;
+    }
+    break;
 
     case WM_RBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
@@ -5004,7 +4968,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_RBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
       break;
 
     case WM_NCRBUTTONDOWN:
@@ -5025,8 +4988,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, 0, lParamToClient(lParam),
                                   PR_FALSE, nsMouseEvent::eRightButton,
                                   MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
-      break;
 
     case WM_APPCOMMAND:
     {
@@ -5609,15 +5570,15 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
   PRBool left   = PR_FALSE;
   PRBool right  = PR_FALSE;
 
-  if (my >= winRect.top && my <
+  if (my >= winRect.top && my <=
       (winRect.top + mVertResizeMargin + (mCaptionHeight - mNonClientOffset.top)))
     top = PR_TRUE;
-  else if (my < winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
+  else if (my <= winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
     bottom = PR_TRUE;
 
-  if (mx >= winRect.left && mx < (winRect.left + mHorResizeMargin))
+  if (mx >= winRect.left && mx <= (winRect.left + mHorResizeMargin))
     left = PR_TRUE;
-  else if (mx < winRect.right && mx >= (winRect.right - mHorResizeMargin))
+  else if (mx <= winRect.right && mx >= (winRect.right - mHorResizeMargin))
     right = PR_TRUE;
 
   if (top) {
@@ -5687,6 +5648,7 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
 
   return testResult;
 }
+
 
 #ifndef WINCE
 void nsWindow::PostSleepWakeNotification(const char* aNotification)

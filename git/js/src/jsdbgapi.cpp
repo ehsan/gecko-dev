@@ -235,6 +235,10 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
         return JS_FALSE;
     }
 
+    // Do not trap BEGIN, it's a special prologue opcode.
+    if (JSOp(*pc) == JSOP_BEGIN)
+        pc += JSOP_BEGIN_LENGTH;
+
     JS_ASSERT((JSOp) *pc != JSOP_TRAP);
     junk = NULL;
     rt = cx->runtime;
@@ -1015,12 +1019,6 @@ JS_LineNumberToPC(JSContext *cx, JSScript *script, uintN lineno)
     return js_LineNumberToPC(script, lineno);
 }
 
-JS_PUBLIC_API(jsbytecode *)
-JS_EndPC(JSContext *cx, JSScript *script)
-{
-    return script->code + script->length;
-}
-
 JS_PUBLIC_API(uintN)
 JS_GetFunctionArgumentCount(JSContext *cx, JSFunction *fun)
 {
@@ -1220,15 +1218,12 @@ JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fp)
     return js_GetCallObject(cx, fp);
 }
 
-JS_PUBLIC_API(JSBool)
-JS_GetFrameThis(JSContext *cx, JSStackFrame *fp, jsval *thisv)
+JS_PUBLIC_API(JSObject *)
+JS_GetFrameThis(JSContext *cx, JSStackFrame *fp)
 {
     if (fp->isDummyFrame())
-        return false;
-    if (!fp->computeThis(cx))
-        return false;
-    *thisv = Jsvalify(fp->thisValue());
-    return true;
+        return NULL;
+    return fp->computeThisObject(cx);
 }
 
 JS_PUBLIC_API(JSFunction *)
@@ -1654,7 +1649,15 @@ JS_SetDebugErrorHook(JSRuntime *rt, JSDebugErrorHook hook, void *closure)
 JS_PUBLIC_API(size_t)
 JS_GetObjectTotalSize(JSContext *cx, JSObject *obj)
 {
-    return obj->slotsAndStructSize();
+    size_t nbytes = (obj->isFunction() && obj->getPrivate() == obj)
+                    ? sizeof(JSFunction)
+                    : sizeof *obj;
+
+    if (obj->dslots) {
+        nbytes += (obj->dslots[-1].toPrivateUint32() - JS_INITIAL_NSLOTS + 1)
+                  * sizeof obj->dslots[0];
+    }
+    return nbytes;
 }
 
 static size_t
@@ -2302,8 +2305,6 @@ ethogram_construct(JSContext *cx, uintN argc, jsval *vp)
     EthogramEventBuffer *p;
 
     p = (EthogramEventBuffer *) JS_malloc(cx, sizeof(EthogramEventBuffer));
-    if (!p)
-        return JS_FALSE;
 
     p->mReadPos = p->mWritePos = 0;
     p->mScripts = NULL;

@@ -85,11 +85,11 @@ nsFormData::AddNameValuePair(const nsAString& aName,
 
 nsresult
 nsFormData::AddNameFilePair(const nsAString& aName,
-                            nsIDOMBlob* aBlob)
+                            nsIDOMFile* aFile)
 {
   FormDataTuple* data = mFormData.AppendElement();
   data->name = aName;
-  data->fileValue = aBlob;
+  data->fileValue = aFile;
   data->valueIsFile = PR_TRUE;
 
   return NS_OK;
@@ -114,9 +114,9 @@ nsFormData::Append(const nsAString& aName, nsIVariant* aValue)
 
     nsMemory::Free(iid);
 
-    nsCOMPtr<nsIDOMBlob> domBlob = do_QueryInterface(supports);
-    if (domBlob) {
-      return AddNameFilePair(aName, domBlob);
+    nsCOMPtr<nsIDOMFile> domFile = do_QueryInterface(supports);
+    if (domFile) {
+      return AddNameFilePair(aName, domFile);
     }
   }
 

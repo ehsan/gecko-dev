@@ -3941,6 +3941,8 @@ var XULBrowserWindow = {
   statusText: "",
   isBusy: false,
 
+  _progressCollapseTimer: 0,
+
   QueryInterface: function (aIID) {
     if (aIID.equals(Ci.nsIWebProgressListener) ||
         aIID.equals(Ci.nsIWebProgressListener2) ||
@@ -3951,6 +3953,10 @@ var XULBrowserWindow = {
     throw Cr.NS_NOINTERFACE;
   },
 
+  get statusMeter () {
+    delete this.statusMeter;
+    return this.statusMeter = document.getElementById("urlbar-progress");
+  },
   get stopCommand () {
     delete this.stopCommand;
     return this.stopCommand = document.getElementById("Browser:Stop");
@@ -3982,6 +3988,7 @@ var XULBrowserWindow = {
   destroy: function () {
     // XXXjag to avoid leaks :-/, see bug 60729
     delete this.throbberElement;
+    delete this.statusMeter;
     delete this.stopCommand;
     delete this.reloadCommand;
     delete this.statusText;
@@ -4015,7 +4022,15 @@ var XULBrowserWindow = {
   onProgressChange: function (aWebProgress, aRequest,
                               aCurSelfProgress, aMaxSelfProgress,
                               aCurTotalProgress, aMaxTotalProgress) {
-    // Do nothing.
+    // Check this._busyUI to be safe, because we don't want to update
+    // the progress meter when restoring a page from bfcache.
+    if (aMaxTotalProgress > 0 && this._busyUI) {
+      // This is highly optimized.  Don't touch this code unless
+      // you are intimately familiar with the cost of setting
+      // attrs on XUL elements. -- hyatt
+      let percentage = (aCurTotalProgress * 100) / aMaxTotalProgress;
+      this.statusMeter.value = percentage;
+    }
   },
 
   onProgressChange64: function (aWebProgress, aRequest,
@@ -4044,6 +4059,15 @@ var XULBrowserWindow = {
         // Turn the throbber on.
         if (this.throbberElement)
           this.throbberElement.setAttribute("busy", "true");
+
+        // Turn the status meter on.
+        this.statusMeter.value = 0;  // be sure to clear the progress bar
+        if (this._progressCollapseTimer) {
+          clearTimeout(this._progressCollapseTimer);
+          this._progressCollapseTimer = 0;
+        }
+        else
+          this.statusMeter.collapsed = false;
 
         // XXX: This needs to be based on window activity...
         this.stopCommand.removeAttribute("disabled");
@@ -4105,7 +4129,12 @@ var XULBrowserWindow = {
       if (this._busyUI) {
         this._busyUI = false;
 
-        // Turn the throbber off.
+        // Turn the progress meter and throbber off.
+        this._progressCollapseTimer = setTimeout(function (self) {
+          self.statusMeter.collapsed = true;
+          self._progressCollapseTimer = 0;
+        }, 100, this);
+
         if (this.throbberElement)
           this.throbberElement.removeAttribute("busy");
 
@@ -4247,12 +4276,14 @@ var XULBrowserWindow = {
 
   // Properties used to cache security state used to update the UI
   _state: null,
+  _tooltipText: null,
   _hostChanged: false, // onLocationChange will flip this bit
 
   onSecurityChange: function (aWebProgress, aRequest, aState) {
     // Don't need to do anything if the data we use to update the UI hasn't
     // changed
     if (this._state == aState &&
+        this._tooltipText == gBrowser.securityUI.tooltipText &&
         !this._hostChanged) {
 #ifdef DEBUG
       try {
@@ -4278,6 +4309,7 @@ var XULBrowserWindow = {
 #endif
 
     this._hostChanged = false;
+    this._tooltipText = gBrowser.securityUI.tooltipText
 
     // aState is defined as a bitmask that may be extended in the future.
     // We filter out any unknown bits before testing for known values.
@@ -4349,6 +4381,7 @@ var XULBrowserWindow = {
     if (loadingDone)
       return;
     this.onStatusChange(gBrowser.webProgress, null, 0, aMessage);
+    this.onProgressChange(gBrowser.webProgress, 0, 0, aTotalProgress, 1);
   },
 
   startDocumentLoad: function XWB_startDocumentLoad(aRequest) {
@@ -4437,26 +4470,19 @@ var CombinedStopReload = {
     if (!this._initialized)
       return;
 
-    this.reload.removeAttribute("displaystop");
-
     if (!aDelay || this._stopClicked) {
       this._stopClicked = false;
       this._cancelTransition();
-      this.reload.disabled = XULBrowserWindow.reloadCommand
-                                             .getAttribute("disabled") == "true";
+      this.reload.removeAttribute("displaystop");
       return;
     }
 
     if (this._timer)
       return;
 
-    // Temporarily disable the reload button to prevent the user from
-    // accidentally reloading the page when intending to click the stop button
-    this.reload.disabled = true;
     this._timer = setTimeout(function (self) {
       self._timer = 0;
-      self.reload.disabled = XULBrowserWindow.reloadCommand
-                                             .getAttribute("disabled") == "true";
+      self.reload.removeAttribute("displaystop");
     }, 650, this);
   },
 
@@ -5875,11 +5901,6 @@ var IndexedDBPromptHelper = {
 
 function WindowIsClosing()
 {
-  if (TabView.isVisible()) {
-    TabView.hide();
-    return false;
-  }
-
   var reallyClose = closeWindow(false, warnAboutClosingWindow);
   if (!reallyClose)
     return false;
@@ -7912,14 +7933,11 @@ var TabContextMenu = {
     let unpinnedTabs = gBrowser.visibleTabs.length - gBrowser._numPinnedTabs;
     document.getElementById("context_closeOtherTabs").disabled = unpinnedTabs <= 1;
     document.getElementById("context_closeOtherTabs").hidden = this.contextTab.pinned;
-
-    // Disable "Move to Group" if it's a pinned tab.
-    document.getElementById("context_tabViewMenu").disabled = this.contextTab.pinned;
   }
 };
 
 XPCOMUtils.defineLazyGetter(this, "HUDConsoleUI", function () {
-  Cu.import("resource:///modules/HUDService.jsm");
+  Cu.import("resource://gre/modules/HUDService.jsm");
   try {
     return HUDService.consoleUI;
   }
