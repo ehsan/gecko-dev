@@ -144,11 +144,11 @@ ReadBarrier(Shape *shape)
 }
 
 Shape *
-PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const StackShape &child)
+PropertyTree::getChild(JSContext *cx, Shape *parent, uint32_t nfixed, const StackShape &child)
 {
     Shape *shape;
 
-    JS_ASSERT(parent_);
+    JS_ASSERT(parent);
 
     /*
      * The property tree has extremely low fan-out below its root in
@@ -158,7 +158,7 @@ PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const Sta
      * |this| can significantly increase fan-out below the property
      * tree root -- see bug 335700 for details.
      */
-    KidsPointer *kidp = &parent_->kids;
+    KidsPointer *kidp = &parent->kids;
     if (kidp->isShape()) {
         shape = kidp->toShape();
         if (shape->matches(child))
@@ -171,8 +171,8 @@ PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const Sta
         /* If kidp->isNull(), we always insert. */
     }
 
-    StackShape::AutoRooter childRoot(cx, &child);
-    RootedShape parent(cx, parent_);
+    RootStackShape childRoot(cx, &child);
+    RootShape parentRoot(cx, &parent);
 
     shape = newShape(cx);
     if (!shape)

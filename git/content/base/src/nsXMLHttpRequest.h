@@ -41,7 +41,6 @@
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 
 #include "mozilla/Assertions.h"
-#include "mozilla/dom/TypedArray.h"
 
 class nsILoadGroup;
 class AsyncVerifyRedirectCallbackForwarder;
@@ -279,7 +278,7 @@ private:
     RequestBody() : mType(Uninitialized)
     {
     }
-    RequestBody(mozilla::dom::ArrayBuffer* aArrayBuffer) : mType(ArrayBuffer)
+    RequestBody(JSObject* aArrayBuffer) : mType(ArrayBuffer)
     {
       mValue.mArrayBuffer = aArrayBuffer;
     }
@@ -314,7 +313,7 @@ private:
       InputStream
     };
     union Value {
-      mozilla::dom::ArrayBuffer* mArrayBuffer;
+      JSObject* mArrayBuffer;
       nsIDOMBlob* mBlob;
       nsIDocument* mDocument;
       const nsAString* mString;
@@ -360,9 +359,10 @@ public:
   {
     aRv = Send(aCx, Nullable<RequestBody>());
   }
-  void Send(JSContext *aCx, mozilla::dom::ArrayBuffer& aArrayBuffer, ErrorResult& aRv)
+  void Send(JSContext *aCx, JSObject* aArrayBuffer, ErrorResult& aRv)
   {
-    aRv = Send(aCx, RequestBody(&aArrayBuffer));
+    NS_ASSERTION(aArrayBuffer, "Null should go to string version");
+    aRv = Send(aCx, RequestBody(aArrayBuffer));
   }
   void Send(JSContext *aCx, nsIDOMBlob* aBlob, ErrorResult& aRv)
   {

@@ -1677,7 +1677,7 @@ TypeSet::isOwnProperty(JSContext *cx, TypeObject *object, bool configurable)
      */
     if (object->flags & OBJECT_FLAG_NEW_SCRIPT_REGENERATE) {
         if (object->newScript) {
-            CheckNewScriptProperties(cx, RootedTypeObject(cx, object),
+            CheckNewScriptProperties(cx, RootedVarTypeObject(cx, object),
                                      object->newScript->fun);
         } else {
             JS_ASSERT(object->flags & OBJECT_FLAG_NEW_SCRIPT_CLEARED);
@@ -1877,9 +1877,9 @@ TypeCompartment::init(JSContext *cx)
 
 TypeObject *
 TypeCompartment::newTypeObject(JSContext *cx, JSScript *script,
-                               JSProtoKey key, JSObject *proto_, bool unknown)
+                               JSProtoKey key, JSObject *proto, bool unknown)
 {
-    RootedObject proto(cx, proto_);
+    RootObject root(cx, &proto);
 
     TypeObject *object = gc::NewGCThing<TypeObject>(cx, gc::FINALIZE_TYPE_OBJECT, sizeof(TypeObject));
     if (!object)
@@ -2130,7 +2130,8 @@ TypeCompartment::nukeTypes(FreeOp *fop)
 
     for (gc::CellIter i(compartment, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        mjit::ReleaseScriptCode(fop, script);
+        if (script->hasJITCode())
+            mjit::ReleaseScriptCode(fop, script);
     }
 #endif /* JS_METHODJIT */
 
@@ -3641,21 +3642,6 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
             pushed[0].addType(cx, Type::MagicArgType());
         break;
 
-      case JSOP_REST: {
-        TypeSet *types = script->analysis()->bytecodeTypes(pc);
-        types->addSubset(cx, &pushed[0]);
-        if (script->hasGlobal()) {
-            TypeObject *rest = TypeScript::InitObject(cx, script, pc, JSProto_Array);
-            if (!rest)
-                return false;
-            types->addType(cx, Type::ObjectType(rest));
-        } else {
-            types->addType(cx, Type::UnknownType());
-        }
-        break;
-      }
-
-
       case JSOP_SETPROP: {
         jsid id = GetAtomId(cx, script, pc, 0);
         poppedTypes(pc, 1)->addSetProperty(cx, script, pc, poppedTypes(pc, 0), id);
@@ -4366,7 +4352,7 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
         pc = script->code + uses->offset;
         op = JSOp(*pc);
 
-        RootedObject obj(cx, *pbaseobj);
+        RootedVarObject obj(cx, *pbaseobj);
 
         if (op == JSOP_SETPROP && uses->u.which == 1) {
             /*
@@ -4374,7 +4360,7 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
              * integer properties and bail out. We can't mark the aggregate
              * JSID_VOID type property as being in a definite slot.
              */
-            RootedId id(cx, NameToId(script->getName(GET_UINT32_INDEX(pc))));
+            RootedVarId id(cx, NameToId(script->getName(GET_UINT32_INDEX(pc))));
             if (MakeTypeId(cx, id) != id)
                 return false;
             if (id_prototype(cx) == id || id___proto__(cx) == id || id_constructor(cx) == id)
@@ -4522,7 +4508,7 @@ CheckNewScriptProperties(JSContext *cx, HandleTypeObject type, JSFunction *fun)
         return;
 
     /* Strawman object to add properties to and watch for duplicates. */
-    RootedObject baseobj(cx);
+    RootedVarObject baseobj(cx);
     baseobj = NewBuiltinClassInstance(cx, &ObjectClass, gc::FINALIZE_OBJECT16);
     if (!baseobj) {
         if (type->newScript)
@@ -4821,10 +4807,7 @@ static inline bool
 IsAboutToBeFinalized(TypeObjectKey *key)
 {
     /* Mask out the low bit indicating whether this is a type or JS object. */
-    gc::Cell *tmp = reinterpret_cast<gc::Cell *>(uintptr_t(key) & ~1);
-    bool isMarked = IsCellMarked(&tmp);
-    JS_ASSERT(tmp == reinterpret_cast<gc::Cell *>(uintptr_t(key) & ~1));
-    return !isMarked;
+    return !reinterpret_cast<const gc::Cell *>(uintptr_t(key) & ~1)->isMarked();
 }
 
 void
@@ -4957,12 +4940,12 @@ TypeMonitorResult(JSContext *cx, JSScript *script, jsbytecode *pc, const js::Val
 }
 
 bool
-TypeScript::SetScope(JSContext *cx, JSScript *script_, JSObject *scope_)
+TypeScript::SetScope(JSContext *cx, JSScript *script, JSObject *scope)
 {
-    Rooted<JSScript*> script(cx, script_);
-    RootedObject scope(cx, scope_);
-
     JS_ASSERT(script->types && !script->types->hasScope());
+
+    Root<JSScript*> scriptRoot(cx, &script);
+    RootObject scopeRoot(cx, &scope);
 
     JSFunction *fun = script->function();
     bool nullClosure = fun && fun->isNullClosure();
@@ -5353,7 +5336,7 @@ JSScript::makeAnalysis(JSContext *cx)
     if (!types->analysis)
         return false;
 
-    Rooted<JSScript*> self(cx, this);
+    RootedVar<JSScript*> self(cx, this);
 
     types->analysis->analyzeBytecode(cx);
 
@@ -5637,14 +5620,14 @@ JSObject::getNewType(JSContext *cx, JSFunction *fun)
         return type;
     }
 
-    RootedObject self(cx, this);
+    RootedVarObject self(cx, this);
 
     if (!setDelegate(cx))
         return NULL;
 
     bool markUnknown = self->lastProperty()->hasObjectFlag(BaseShape::NEW_TYPE_UNKNOWN);
 
-    RootedTypeObject type(cx);
+    RootedVarTypeObject type(cx);
     type = cx->compartment->types.newTypeObject(cx, NULL, JSProto_Object, self, markUnknown);
     if (!type)
         return NULL;
@@ -5927,18 +5910,17 @@ TypeCompartment::sweep(FreeOp *fop)
     if (objectTypeTable) {
         for (ObjectTypeTable::Enum e(*objectTypeTable); !e.empty(); e.popFront()) {
             const ObjectTableKey &key = e.front().key;
-            ObjectTableEntry &entry = e.front().value;
+            const ObjectTableEntry &entry = e.front().value;
             JS_ASSERT(entry.object->proto == key.proto);
 
             bool remove = false;
-            if (!IsTypeObjectMarked(entry.object.unsafeGet()))
+            if (!entry.object->isMarked())
                 remove = true;
             for (unsigned i = 0; !remove && i < key.nslots; i++) {
                 if (JSID_IS_STRING(key.ids[i])) {
                     JSString *str = JSID_TO_STRING(key.ids[i]);
-                    if (!IsStringMarked(&str))
+                    if (!str->isMarked())
                         remove = true;
-                    JS_ASSERT(AtomToId((JSAtom *)str) == key.ids[i]);
                 }
                 JS_ASSERT(!entry.types[i].isSingleObject());
                 if (entry.types[i].isTypeObject() && !entry.types[i].typeObject()->isMarked())
@@ -5955,13 +5937,11 @@ TypeCompartment::sweep(FreeOp *fop)
 
     if (allocationSiteTable) {
         for (AllocationSiteTable::Enum e(*allocationSiteTable); !e.empty(); e.popFront()) {
-            AllocationSiteKey key = e.front().key;
-            bool keyMarked = IsScriptMarked(&key.script);
-            bool valMarked = IsTypeObjectMarked(e.front().value.unsafeGet());
-            if (!keyMarked || !valMarked)
+            const AllocationSiteKey &key = e.front().key;
+            TypeObject *object = e.front().value;
+
+            if (IsAboutToBeFinalized(key.script) || !object->isMarked())
                 e.removeFront();
-            else
-                e.rekeyFront(key);
         }
     }
 
@@ -6022,8 +6002,7 @@ TypeScript::Sweep(FreeOp *fop, JSScript *script)
         Type type = result->type;
 
         if (!type.isUnknown() && !type.isAnyObject() && type.isObject() &&
-            IsAboutToBeFinalized(type.objectKey()))
-        {
+            IsAboutToBeFinalized(type.objectKey())) {
             *presult = result->next;
             fop->delete_(result);
         } else {

@@ -37,6 +37,12 @@ nsPlatformCharset::GetDefaultCharsetForLocale(const nsAString& localeName, nsACS
 }
 
 nsresult
+nsPlatformCharset::ConvertLocaleToCharsetUsingDeprecatedConfig(nsACString& locale, nsACString& oResult)
+{
+  return NS_OK;
+}
+
+nsresult
 nsPlatformCharset::InitGetCharset(nsACString &oString)
 {
   return NS_OK;

@@ -86,8 +86,8 @@ public:
 
   virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
 
-#ifdef DEBUG
-  virtual nsresult HandleAccEvent(AccEvent* aEvent);
+#ifdef DEBUG_ACCDOCMGR
+  virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 #endif
 
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);

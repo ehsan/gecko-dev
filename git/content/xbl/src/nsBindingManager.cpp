@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
-#include "nsXBLService.h"
+#include "nsIXBLService.h"
 #include "nsIInputStream.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
@@ -845,9 +845,11 @@ nsBindingManager::AddLayeredBinding(nsIContent* aContent, nsIURI* aURL,
                                     nsIPrincipal* aOriginPrincipal)
 {
   // First we need to load our binding.
-  nsXBLService* xblService = nsXBLService::GetInstance();
+  nsresult rv;
+  nsCOMPtr<nsIXBLService> xblService = 
+           do_GetService("@mozilla.org/xbl;1", &rv);
   if (!xblService)
-    return NS_ERROR_FAILURE;
+    return rv;
 
   // Load the bindings.
   nsRefPtr<nsXBLBinding> binding;
@@ -918,9 +920,11 @@ nsBindingManager::LoadBindingDocument(nsIDocument* aBoundDoc,
   NS_PRECONDITION(aURL, "Must have a URI to load!");
   
   // First we need to load our binding.
-  nsXBLService* xblService = nsXBLService::GetInstance();
+  nsresult rv;
+  nsCOMPtr<nsIXBLService> xblService = 
+           do_GetService("@mozilla.org/xbl;1", &rv);
   if (!xblService)
-    return NS_ERROR_FAILURE;
+    return rv;
 
   // Load the binding doc.
   nsRefPtr<nsXBLDocumentInfo> info;

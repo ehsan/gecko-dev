@@ -148,8 +148,6 @@ public:
 
         if (mContext) {
             [mContext makeCurrentContext];
-            GLint swapInt = 1;
-            [mContext setValues:&swapInt forParameter:NSOpenGLCPSwapInterval];
         }
         return true;
     }

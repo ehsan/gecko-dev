@@ -500,17 +500,7 @@ public:
    *  by the selection during MouseDown processing. It can be NULL
    *  if the data is no longer valid.
    */
-  bool HasDelayedCaretData() { return mDelayedMouseEventValid; }
-  bool IsShiftDownInDelayedCaretData()
-  {
-    NS_ASSERTION(mDelayedMouseEventValid, "No valid delayed caret data");
-    return mDelayedMouseEventIsShift;
-  }
-  PRUint32 GetClickCountInDelayedCaretData()
-  {
-    NS_ASSERTION(mDelayedMouseEventValid, "No valid delayed caret data");
-    return mDelayedMouseEventClickCount;
-  }
+  nsMouseEvent* GetDelayedCaretData();
 
   /** Get the content node that limits the selection
    *  When searching up a nodes for parents, as in a text edit field
@@ -706,8 +696,9 @@ private:
 #endif
 
   PRInt32 mDesiredX;
-  PRUint32 mDelayedMouseEventClickCount;
-  bool mDelayedMouseEventIsShift;
+
+  nsMouseEvent mDelayedMouseEvent;
+
   bool mDelayedMouseEventValid;
 
   bool mChangesDuringBatching;

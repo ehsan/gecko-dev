@@ -187,7 +187,7 @@ __try {
   if (nsAccUtils::MustPrune(this))
     return S_OK;
 
-  *pcountChildren = ChildCount();
+  *pcountChildren = GetChildCount();
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -1048,10 +1048,10 @@ __try {
 
   mEnumVARIANTPosition += aNumElements;
 
-  PRUint32 childCount = ChildCount();
-  if (mEnumVARIANTPosition > static_cast<PRInt32>(childCount))
+  PRInt32 numChildren = GetChildCount();
+  if (mEnumVARIANTPosition > numChildren)
   {
-    mEnumVARIANTPosition = childCount;
+    mEnumVARIANTPosition = numChildren;
     return S_FALSE;
   }
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -1686,7 +1686,7 @@ nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
         bool isVisible = false;
         widget->IsVisible(isVisible);
         if (isVisible) {
-          nsIPresShell* shell = document->PresShell();
+          nsCOMPtr<nsIPresShell> shell(document->PresShell());
           nsIViewManager* vm = shell->GetViewManager();
           if (vm) {
             nsCOMPtr<nsIWidget> rootWidget;

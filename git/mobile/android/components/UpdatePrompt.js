@@ -7,7 +7,7 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 const UPDATE_NOTIFICATION_NAME = "update-app";
-const UPDATE_NOTIFICATION_ICON = "drawable://alert_download";
+const UPDATE_NOTIFICATION_ICON = "drawable://alert_download_progress";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");

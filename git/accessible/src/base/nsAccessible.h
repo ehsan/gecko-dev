@@ -37,7 +37,6 @@ namespace a11y {
 
 class HTMLLIAccessible;
 class TableAccessible;
-class TextLeafAccessible;
 
 /**
  * Name type flags.
@@ -55,7 +54,7 @@ enum ENameValueFlag {
 
 }
 }
-
+class nsTextAccessible;
 class nsXULTreeAccessible;
 
 struct nsRect;
@@ -328,7 +327,7 @@ public:
   /**
    * Return child accessible count.
    */
-  virtual PRUint32 ChildCount() const;
+  virtual PRInt32 GetChildCount();
 
   /**
    * Return index of the given child accessible.
@@ -353,10 +352,10 @@ public:
   inline nsAccessible* PrevSibling() const
     { return GetSiblingAtOffset(-1); }
   inline nsAccessible* FirstChild()
-    { return GetChildAt(0); }
+    { return GetChildCount() != 0 ? GetChildAt(0) : nsnull; }
   inline nsAccessible* LastChild()
   {
-    PRUint32 childCount = ChildCount();
+    PRUint32 childCount = GetChildCount();
     return childCount != 0 ? GetChildAt(childCount - 1) : nsnull;
   }
 
@@ -364,7 +363,7 @@ public:
   /**
    * Return embedded accessible children count.
    */
-  PRUint32 EmbeddedChildCount();
+  PRInt32 GetEmbeddedChildCount();
 
   /**
    * Return embedded accessible child at the given index.
@@ -483,7 +482,7 @@ public:
   virtual mozilla::a11y::TableAccessible* AsTable() { return nsnull; }
 
   inline bool IsTextLeaf() const { return mFlags & eTextLeafAccessible; }
-  mozilla::a11y::TextLeafAccessible* AsTextLeaf();
+  nsTextAccessible* AsTextLeaf();
 
   //////////////////////////////////////////////////////////////////////////////
   // ActionAccessible

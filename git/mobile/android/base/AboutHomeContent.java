@@ -44,6 +44,7 @@ import android.text.style.StyleSpan;
 import android.text.style.UnderlineSpan;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
@@ -647,7 +648,9 @@ public class AboutHomeContent extends ScrollView
 
         public TopSitesGridView(Context context, AttributeSet attrs) {
             super(context, attrs);
-            mDisplayDensity = GeckoApp.mAppContext.getDisplayMetrics().density;
+            DisplayMetrics dm = new DisplayMetrics();
+            GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(dm);
+            mDisplayDensity = dm.density;
         }
 
         @Override

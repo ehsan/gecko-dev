@@ -105,11 +105,6 @@ li:active .details {
   display: inline;
 }
 
-.displayState {
-  color:gray;
-  margin-bottom: -3px; /* Prevent overflow that hides bottom border */
-}
-
 .size:after {
   content: " - ";
   white-space: pre;

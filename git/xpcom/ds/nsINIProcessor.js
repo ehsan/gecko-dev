@@ -37,29 +37,18 @@ function INIProcessor(aFile) {
 INIProcessor.prototype = {
     QueryInterface : XPCOMUtils.generateQI([Ci.nsIINIParser, Ci.nsIINIParserWriter]),
 
-    __utf8Converter : null, // UCS2 <--> UTF8 string conversion
-    get _utf8Converter() {
-        if (!this.__utf8Converter) {
-            this.__utf8Converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+    __utfConverter : null, // UCS2 <--> UTF8 string conversion
+    get _utfConverter() {
+        if (!this.__utfConverter) {
+            this.__utfConverter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
                                   createInstance(Ci.nsIScriptableUnicodeConverter);
-            this.__utf8Converter.charset = "UTF-8";
+            this.__utfConverter.charset = "UTF-8";
         }
-        return this.__utf8Converter;
-    },
-
-    __utf16leConverter : null, // UCS2 <--> UTF16LE string conversion
-    get _utf16leConverter() {
-        if (!this.__utf16leConverter) {
-            this.__utf16leConverter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
-                                  createInstance(Ci.nsIScriptableUnicodeConverter);
-            this.__utf16leConverter.charset = "UTF-16LE";
-        }
-        return this.__utf16leConverter;
+        return this.__utfConverter;
     },
 
     _utfConverterReset : function() {
-        this.__utf8Converter = null;
-        this.__utf16leConverter = null;
+        this.__utfConverter = null;
     },
 
     _iniFile : null,
@@ -128,13 +117,13 @@ INIProcessor.prototype = {
         this._iniData[aSection][aKey] = aValue;
     },
 
-    writeFile : function(aFile, aFlags) {
+    writeFile : function(aFile) {
 
-        let converter;
+        let converter = this._utfConverter;
         function writeLine(data) {
-            data += "\n";
             data = converter.ConvertFromUnicode(data);
             data += converter.Finish();
+            data += "\n";
             outputStream.write(data, data.length);
         }
 
@@ -150,14 +139,6 @@ INIProcessor.prototype = {
                            createInstance(Ci.nsIBufferedOutputStream);
         outputStream.init(safeStream, 8192);
         outputStream.QueryInterface(Ci.nsISafeOutputStream); // for .finish()
-
-        if (Ci.nsIINIParserWriter.WRITE_UTF16 == aFlags
-         && 'nsIWindowsRegKey' in Ci) {
-            outputStream.write("\xFF\xFE", 2);
-            converter = this._utf16leConverter;
-        } else {
-            converter = this._utf8Converter;
-        }
 
         for (let section in this._iniData) {
             writeLine("[" + section + "]");

@@ -10,7 +10,6 @@
 #include "nsHttpAuthCache.h"
 #include "nsHttpConnection.h"
 #include "nsHttpConnectionMgr.h"
-#include "ASpdySession.h"
 
 #include "nsXPIDLString.h"
 #include "nsString.h"
@@ -22,6 +21,7 @@
 #include "nsIIOService.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "nsIPrivateBrowsingService.h"
 #include "nsIStreamConverterService.h"
 #include "nsICacheSession.h"
 #include "nsICookieService.h"
@@ -87,8 +87,6 @@ public:
     bool           AllowExperiments() { return mTelemetryEnabled && mAllowExperiments; }
 
     bool           IsSpdyEnabled() { return mEnableSpdy; }
-    bool           IsSpdyV2Enabled() { return mSpdyV2; }
-    bool           IsSpdyV3Enabled() { return mSpdyV3; }
     bool           CoalesceSpdy() { return mCoalesceSpdy; }
     bool           UseAlternateProtocol() { return mUseAlternateProtocol; }
     PRUint32       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
@@ -101,7 +99,7 @@ public:
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
 
     // cache support
-    nsresult GetCacheSession(nsCacheStoragePolicy, bool isPrivate, nsICacheSession **);
+    nsresult GetCacheSession(nsCacheStoragePolicy, nsICacheSession **);
     PRUint32 GenerateUniqueID() { return ++mLastUniqueID; }
     PRUint32 SessionStartTime() { return mSessionStartTime; }
 
@@ -160,6 +158,9 @@ public:
     {
         return mConnMgr->SpeculativeConnect(ci, callbacks, target);
     }
+
+    // for anything that wants to know if we're in private browsing mode.
+    bool InPrivateBrowsingMode();
 
     //
     // The HTTP handler caches pointers to specific XPCOM services, and
@@ -230,8 +231,6 @@ public:
     }
     
     PRIntervalTime GetPipelineTimeout()   { return mPipelineReadTimeout; }
-
-    mozilla::net::SpdyInformation *SpdyInfo() { return &mSpdyInfo; }
 
 private:
 
@@ -310,6 +309,13 @@ private:
     bool mPipeliningOverSSL;
     bool mEnforceAssocReq;
 
+    // cached value of whether or not the browser is in private browsing mode.
+    enum {
+        PRIVATE_BROWSING_OFF = false,
+        PRIVATE_BROWSING_ON = true,
+        PRIVATE_BROWSING_UNKNOWN = 2
+    } mInPrivateBrowsingMode;
+
     nsCString mAccept;
     nsCString mAcceptLanguages;
     nsCString mAcceptEncodings;
@@ -357,10 +363,7 @@ private:
     bool           mAllowExperiments;
 
     // Try to use SPDY features instead of HTTP/1.1 over SSL
-    mozilla::net::SpdyInformation mSpdyInfo;
     bool           mEnableSpdy;
-    bool           mSpdyV2;
-    bool           mSpdyV3;
     bool           mCoalesceSpdy;
     bool           mUseAlternateProtocol;
     PRUint32       mSpdySendingChunkSize;

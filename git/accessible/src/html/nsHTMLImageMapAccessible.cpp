@@ -51,7 +51,7 @@ nsHTMLImageMapAccessible::NativeRole()
 PRUint32
 nsHTMLImageMapAccessible::AnchorCount()
 {
-  return ChildCount();
+  return GetChildCount();
 }
 
 nsAccessible*

@@ -299,7 +299,7 @@ nsPluginStreamListenerPeer::~nsPluginStreamListenerPeer()
 #endif
 
   if (mPStreamListener) {
-    mPStreamListener->SetStreamListenerPeer(nsnull);
+    mPStreamListener->SetStreamListenerPeer(this);
   }
 
   // close FD of mFileCacheOutputStream if it's still open

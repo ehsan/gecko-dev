@@ -15,9 +15,6 @@
 
 #include "jsfriendapi.h"
 #include "mozilla/dom/workers/Workers.h"
-#ifdef MOZ_WIDGET_GONK
-#include "AutoMounter.h"
-#endif
 #include "mozilla/ipc/Ril.h"
 #ifdef MOZ_B2G_BT
 #include "mozilla/ipc/DBusThread.h"
@@ -42,9 +39,6 @@
 USING_WORKERS_NAMESPACE
 using namespace mozilla::dom::gonk;
 using namespace mozilla::ipc;
-#ifdef MOZ_WIDGET_GONK
-using namespace mozilla::system;
-#endif
 #ifdef MOZ_B2G_BT
 using namespace mozilla::dom::bluetooth;
 #endif
@@ -217,27 +211,14 @@ SystemWorkerManager::Init()
   }
 
   nsresult rv = InitRIL(cx);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to initialize RIL/Telephony!");
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = InitWifi(cx);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to initialize WiFi Networking!");
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef MOZ_B2G_BT
   rv = InitBluetooth(cx);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to initialize Bluetooth!");
-    return rv;
-  }
-#endif
-
-#ifdef MOZ_WIDGET_GONK
-  InitAutoMounter();
+  NS_ENSURE_SUCCESS(rv, rv);
 #endif
 
   nsCOMPtr<nsIObserverService> obs =
@@ -248,10 +229,7 @@ SystemWorkerManager::Init()
   }
 
   rv = obs->AddObserver(this, WORKERS_SHUTDOWN_TOPIC, false);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to initialize worker shutdown event!");
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }
@@ -262,10 +240,6 @@ SystemWorkerManager::Shutdown()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   mShutdown = true;
-
-#ifdef MOZ_WIDGET_GONK
-  ShutdownAutoMounter();
-#endif
 
   StopRil();
 #ifdef MOZ_B2G_BT

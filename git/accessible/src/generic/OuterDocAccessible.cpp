@@ -10,10 +10,6 @@
 #include "Role.h"
 #include "States.h"
 
-#ifdef DEBUG
-#include "Logging.h"
-#endif
-
 using namespace mozilla;
 using namespace mozilla::a11y;
 
@@ -123,21 +119,13 @@ OuterDocAccessible::Shutdown()
   // change however the presshell of underlying document isn't destroyed and
   // the document doesn't get pagehide events. Shutdown underlying document if
   // any to avoid hanging document accessible.
-#ifdef DEBUG
-  if (logging::IsEnabled(logging::eDocDestroy)) {
-    logging::Msg("A11y outerdoc shutdown");
-    logging::Address("outerdoc", this);
-  }
-#endif
+  NS_LOG_ACCDOCDESTROY_MSG("A11y outerdoc shutdown")
+  NS_LOG_ACCDOCDESTROY_ACCADDRESS("outerdoc", this)
 
   nsAccessible* childAcc = mChildren.SafeElementAt(0, nsnull);
   if (childAcc) {
-#ifdef DEBUG
-    if (logging::IsEnabled(logging::eDocDestroy)) {
-      logging::DocDestroy("outerdoc's child document shutdown",
-                      childAcc->GetDocumentNode());
-    }
-#endif
+    NS_LOG_ACCDOCDESTROY("outerdoc's child document shutdown",
+                         childAcc->GetDocumentNode())
     childAcc->Shutdown();
   }
 
@@ -176,13 +164,9 @@ OuterDocAccessible::AppendChild(nsAccessible* aAccessible)
   if (!nsAccessibleWrap::AppendChild(aAccessible))
     return false;
 
-#ifdef DEBUG
-  if (logging::IsEnabled(logging::eDocCreate)) {
-    logging::DocCreate("append document to outerdoc",
-                   aAccessible->GetDocumentNode());
-    logging::Address("outerdoc", this);
-  }
-#endif
+  NS_LOG_ACCDOCCREATE("append document to outerdoc",
+                      aAccessible->GetDocumentNode())
+  NS_LOG_ACCDOCCREATE_ACCADDRESS("outerdoc", this)
 
   return true;
 }
@@ -196,13 +180,9 @@ OuterDocAccessible::RemoveChild(nsAccessible* aAccessible)
     return false;
   }
 
-#ifdef DEBUG
-  if (logging::IsEnabled(logging::eDocDestroy)) {
-    logging::DocDestroy("remove document from outerdoc", child->GetDocumentNode(),
-                    child->AsDoc());
-    logging::Address("outerdoc", this);
-  }
-#endif
+  NS_LOG_ACCDOCDESTROY_FOR("remove document from outerdoc",
+                           child->GetDocumentNode(), child)
+  NS_LOG_ACCDOCDESTROY_ACCADDRESS("outerdoc", this)
 
   bool wasRemoved = nsAccessibleWrap::RemoveChild(child);
 

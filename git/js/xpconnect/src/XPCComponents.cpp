@@ -31,7 +31,6 @@
 
 using namespace mozilla;
 using namespace js;
-using namespace xpc;
 
 using mozilla::dom::DestroyProtoOrIfaceCache;
 
@@ -3074,8 +3073,8 @@ xpc::SandboxProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy,
                                                 jsid id_, bool set,
                                                 PropertyDescriptor *desc)
 {
-    JS::RootedObject obj(cx, wrappedObject(proxy));
-    JS::RootedId id(cx, id_);
+    JS::RootedVarObject obj(cx, wrappedObject(proxy));
+    JS::RootedVarId id(cx, id_);
 
     JS_ASSERT(js::GetObjectCompartment(obj) == js::GetObjectCompartment(proxy));
     // XXXbz Not sure about the JSRESOLVE_QUALIFIED here, but we have
@@ -3735,7 +3734,9 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                 v = STRING_TO_JSVAL(str);
             }
 
-            CompartmentPrivate *sandboxdata = GetCompartmentPrivate(sandbox);
+            xpc::CompartmentPrivate *sandboxdata =
+                static_cast<xpc::CompartmentPrivate *>
+                           (JS_GetCompartmentPrivate(js::GetObjectCompartment(sandbox)));
             if (!ac.enter(cx, callingScope) ||
                 !WrapForSandbox(cx, sandboxdata->wantXrays, &v)) {
                 rv = NS_ERROR_FAILURE;
@@ -3920,7 +3921,7 @@ nsXPCComponents_Utils::GetGlobalForObject(const JS::Value& object,
 
   // Outerize if necessary.
   if (JSObjectOp outerize = js::GetObjectClass(obj)->ext.outerObject)
-      *retval = OBJECT_TO_JSVAL(outerize(cx, JS::RootedObject(cx, obj)));
+      *retval = OBJECT_TO_JSVAL(outerize(cx, JS::RootedVarObject(cx, obj)));
 
   return NS_OK;
 }

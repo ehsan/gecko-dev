@@ -44,7 +44,6 @@
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/dom/Nullable.h"
 #include "mozilla/ErrorResult.h"
-#include "mozilla/dom/BindingUtils.h"
 
 /* 
  * Minimum value constants defined in 6.2 State Tables of OpenGL ES - 2.0.25
@@ -387,7 +386,7 @@ protected:
     T *mRawPtr;
 };
 
-typedef uint64_t WebGLMonotonicHandle;
+typedef PRUint64 WebGLMonotonicHandle;
 
 /* WebGLFastArray offers a fast array for the use case where all what one needs is to append
  * and remove elements. Removal is fast because the array is always kept sorted with respect
@@ -602,7 +601,7 @@ public:
     void ErrorInvalidOperation(const char *fmt = 0, ...);
     void ErrorInvalidValue(const char *fmt = 0, ...);
     void ErrorInvalidFramebufferOperation(const char *fmt = 0, ...);
-    void ErrorInvalidEnumInfo(const char *info, WebGLenum enumvalue) {
+    void ErrorInvalidEnumInfo(const char *info, PRUint32 enumvalue) {
         return ErrorInvalidEnum("%s: invalid enum value 0x%x", info, enumvalue);
     }
     void ErrorOutOfMemory(const char *fmt = 0, ...);
@@ -624,14 +623,14 @@ public:
 
     // a number that increments every time we have an event that causes
     // all context resources to be lost.
-    uint32_t Generation() { return mGeneration.value(); }
+    PRUint32 Generation() { return mGeneration.value(); }
 
     const WebGLRectangleObject *FramebufferRectangleObject() const;
 
     // this is similar to GLContext::ClearSafely, but is more comprehensive
     // (takes care of scissor, stencil write mask, dithering, viewport...)
     // WebGL has more complex needs than GLContext as content controls GL state.
-    void ForceClearFramebufferWithDefaultValues(uint32_t mask, const nsIntRect& viewportRect);
+    void ForceClearFramebufferWithDefaultValues(PRUint32 mask, const nsIntRect& viewportRect);
 
     // if the preserveDrawingBuffer context option is false, we need to clear the back buffer
     // after it's been presented to the compositor. This function does that if needed.
@@ -914,82 +913,74 @@ public:
     void Uniform1iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform1iv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform1iv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLint>& arr) {
+    void Uniform1iv(WebGLUniformLocation* location, nsTArray<WebGLint>& arr) {
         Uniform1iv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform1iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLint* data);
+                         WebGLint* data);
 
     void Uniform2iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform2iv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform2iv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLint>& arr) {
+    void Uniform2iv(WebGLUniformLocation* location, nsTArray<WebGLint>& arr) {
         Uniform2iv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform2iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLint* data);
+                         WebGLint* data);
 
     void Uniform3iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform3iv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform3iv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLint>& arr) {
+    void Uniform3iv(WebGLUniformLocation* location, nsTArray<WebGLint>& arr) {
         Uniform3iv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform3iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLint* data);
+                         WebGLint* data);
     
     void Uniform4iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform4iv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform4iv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLint>& arr) {
+    void Uniform4iv(WebGLUniformLocation* location, nsTArray<WebGLint>& arr) {
         Uniform4iv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform4iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLint* data);
+                         WebGLint* data);
 
     void Uniform1fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform1fv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform1fv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLfloat>& arr) {
+    void Uniform1fv(WebGLUniformLocation* location, nsTArray<WebGLfloat>& arr) {
         Uniform1fv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform1fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLfloat* data);
+                         WebGLfloat* data);
 
     void Uniform2fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform2fv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform2fv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLfloat>& arr) {
+    void Uniform2fv(WebGLUniformLocation* location, nsTArray<WebGLfloat>& arr) {
         Uniform2fv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform2fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLfloat* data);
+                         WebGLfloat* data);
 
     void Uniform3fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform3fv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform3fv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLfloat>& arr) {
+    void Uniform3fv(WebGLUniformLocation* location, nsTArray<WebGLfloat>& arr) {
         Uniform3fv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform3fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLfloat* data);
+                         WebGLfloat* data);
     
     void Uniform4fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform4fv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform4fv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLfloat>& arr) {
+    void Uniform4fv(WebGLUniformLocation* location, nsTArray<WebGLfloat>& arr) {
         Uniform4fv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform4fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLfloat* data);
+                         WebGLfloat* data);
 
     void UniformMatrix2fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
@@ -998,13 +989,13 @@ public:
     }
     void UniformMatrix2fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
-                          const dom::Sequence<float> &value) {
+                          nsTArray<float> &value) {
         UniformMatrix2fv_base(location, transpose, value.Length(),
                               value.Elements());
     }
     void UniformMatrix2fv_base(WebGLUniformLocation* location,
                                WebGLboolean transpose, uint32_t arrayLength,
-                               const float* data);
+                               float* data);
 
     void UniformMatrix3fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
@@ -1013,13 +1004,13 @@ public:
     }
     void UniformMatrix3fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
-                          const dom::Sequence<float> &value) {
+                          nsTArray<float> &value) {
         UniformMatrix3fv_base(location, transpose, value.Length(),
                               value.Elements());
     }
     void UniformMatrix3fv_base(WebGLUniformLocation* location,
                                WebGLboolean transpose, uint32_t arrayLength,
-                               const float* data);
+                               float* data);
 
     void UniformMatrix4fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
@@ -1028,13 +1019,13 @@ public:
     }
     void UniformMatrix4fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
-                          const dom::Sequence<float> &value) {
+                          nsTArray<float> &value) {
         UniformMatrix4fv_base(location, transpose, value.Length(),
                               value.Elements());
     }
     void UniformMatrix4fv_base(WebGLUniformLocation* location,
                                WebGLboolean transpose, uint32_t arrayLength,
-                               const float* data);
+                               float* data);
 
     void UseProgram(WebGLProgram *prog);
     void ValidateProgram(WebGLProgram *prog);
@@ -1049,38 +1040,38 @@ public:
     void VertexAttrib1fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib1fv_base(idx, arr.mLength, arr.mData);
     }
-    void VertexAttrib1fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
+    void VertexAttrib1fv(WebGLuint idx, nsTArray<WebGLfloat>& arr) {
         VertexAttrib1fv_base(idx, arr.Length(), arr.Elements());
     }
     void VertexAttrib1fv_base(WebGLuint idx, uint32_t arrayLength,
-                              const WebGLfloat* ptr);
+                              WebGLfloat* ptr);
 
     void VertexAttrib2fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib2fv_base(idx, arr.mLength, arr.mData);
     }
-    void VertexAttrib2fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
+    void VertexAttrib2fv(WebGLuint idx, nsTArray<WebGLfloat>& arr) {
         VertexAttrib2fv_base(idx, arr.Length(), arr.Elements());
     }
     void VertexAttrib2fv_base(WebGLuint idx, uint32_t arrayLength,
-                              const WebGLfloat* ptr);
+                              WebGLfloat* ptr);
 
     void VertexAttrib3fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib3fv_base(idx, arr.mLength, arr.mData);
     }
-    void VertexAttrib3fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
+    void VertexAttrib3fv(WebGLuint idx, nsTArray<WebGLfloat>& arr) {
         VertexAttrib3fv_base(idx, arr.Length(), arr.Elements());
     }
     void VertexAttrib3fv_base(WebGLuint idx, uint32_t arrayLength,
-                              const WebGLfloat* ptr);
+                              WebGLfloat* ptr);
 
     void VertexAttrib4fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib4fv_base(idx, arr.mLength, arr.mData);
     }
-    void VertexAttrib4fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
+    void VertexAttrib4fv(WebGLuint idx, nsTArray<WebGLfloat>& arr) {
         VertexAttrib4fv_base(idx, arr.Length(), arr.Elements());
     }
     void VertexAttrib4fv_base(WebGLuint idx, uint32_t arrayLength,
-                              const WebGLfloat* ptr);
+                              WebGLfloat* ptr);
     
     void VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type,
                              WebGLboolean normalized, WebGLsizei stride,
@@ -1103,8 +1094,8 @@ protected:
 
     static CheckedUint32 GetImageSize(WebGLsizei height, 
                                       WebGLsizei width, 
-                                      uint32_t pixelSize,
-                                      uint32_t alignment);
+                                      PRUint32 pixelSize,
+                                      PRUint32 alignment);
 
     // Returns x rounded to the next highest multiple of y.
     static CheckedUint32 RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y) {
@@ -1121,6 +1112,7 @@ protected:
 
     bool mInvalidated;
     bool mResetLayer;
+    bool mVerbose;
     bool mOptionsFrozen;
     bool mMinCapability;
     bool mDisableExtensions;
@@ -1136,15 +1128,15 @@ protected:
     bool mShaderValidation;
 
     // some GL constants
-    int32_t mGLMaxVertexAttribs;
-    int32_t mGLMaxTextureUnits;
-    int32_t mGLMaxTextureSize;
-    int32_t mGLMaxCubeMapTextureSize;
-    int32_t mGLMaxTextureImageUnits;
-    int32_t mGLMaxVertexTextureImageUnits;
-    int32_t mGLMaxVaryingVectors;
-    int32_t mGLMaxFragmentUniformVectors;
-    int32_t mGLMaxVertexUniformVectors;
+    PRInt32 mGLMaxVertexAttribs;
+    PRInt32 mGLMaxTextureUnits;
+    PRInt32 mGLMaxTextureSize;
+    PRInt32 mGLMaxCubeMapTextureSize;
+    PRInt32 mGLMaxTextureImageUnits;
+    PRInt32 mGLMaxVertexTextureImageUnits;
+    PRInt32 mGLMaxVaryingVectors;
+    PRInt32 mGLMaxFragmentUniformVectors;
+    PRInt32 mGLMaxVertexUniformVectors;
 
     // Represents current status, or state, of the context. That is, is it lost
     // or stable and what part of the context lost process are we currently at.
@@ -1184,7 +1176,7 @@ protected:
     nsTArray<WebGLenum> mCompressedTextureFormats;
 
     bool InitAndValidateGL();
-    bool ValidateBuffers(int32_t *maxAllowedCount, const char *info);
+    bool ValidateBuffers(PRInt32* maxAllowedCount, const char *info);
     bool ValidateCapabilityEnum(WebGLenum cap, const char *info);
     bool ValidateBlendEquationEnum(WebGLenum cap, const char *info);
     bool ValidateBlendFuncDstEnum(WebGLenum mode, const char *info);
@@ -1196,7 +1188,7 @@ protected:
     bool ValidateFaceEnum(WebGLenum face, const char *info);
     bool ValidateBufferUsageEnum(WebGLenum target, const char *info);
     bool ValidateTexFormatAndType(WebGLenum format, WebGLenum type, int jsArrayType,
-                                      uint32_t *texelSize, const char *info);
+                                      PRUint32 *texelSize, const char *info);
     bool ValidateDrawModeEnum(WebGLenum mode, const char *info);
     bool ValidateAttribIndex(WebGLuint index, const char *info);
     bool ValidateStencilParamsForDrawCall();
@@ -1209,7 +1201,7 @@ protected:
     bool ValidateCompressedTextureSize(WebGLint level, WebGLenum format, WebGLsizei width, WebGLsizei height, uint32_t byteLength, const char* info);
     bool ValidateLevelWidthHeightForTarget(WebGLenum target, WebGLint level, WebGLsizei width, WebGLsizei height, const char* info);
 
-    static uint32_t GetBitsPerTexel(WebGLenum format, WebGLenum type);
+    static PRUint32 GetBitsPerTexel(WebGLenum format, WebGLenum type);
 
     void Invalidate();
     void DestroyResourcesAndContext();
@@ -1220,21 +1212,21 @@ protected:
     void TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum internalformat,
                          WebGLsizei width, WebGLsizei height, WebGLsizei srcStrideOrZero, WebGLint border,
                          WebGLenum format, WebGLenum type,
-                         void *data, uint32_t byteLength,
+                         void *data, PRUint32 byteLength,
                          int jsArrayType,
                          WebGLTexelFormat srcFormat, bool srcPremultiplied);
     void TexSubImage2D_base(WebGLenum target, WebGLint level,
                             WebGLint xoffset, WebGLint yoffset,
                             WebGLsizei width, WebGLsizei height, WebGLsizei srcStrideOrZero,
                             WebGLenum format, WebGLenum type,
-                            void *pixels, uint32_t byteLength,
+                            void *pixels, PRUint32 byteLength,
                             int jsArrayType,
                             WebGLTexelFormat srcFormat, bool srcPremultiplied);
     void TexParameter_base(WebGLenum target, WebGLenum pname,
                            WebGLint *intParamPtr, WebGLfloat *floatParamPtr);
 
     void ConvertImage(size_t width, size_t height, size_t srcStride, size_t dstStride,
-                      const uint8_t* src, uint8_t *dst,
+                      const PRUint8*src, PRUint8 *dst,
                       WebGLTexelFormat srcFormat, bool srcPremultiplied,
                       WebGLTexelFormat dstFormat, bool dstPremultiplied,
                       size_t dstTexelSize);
@@ -1275,7 +1267,7 @@ private:
     bool ValidateObjectAssumeNonNull(const char* info, ObjectType *aObject);
 
 protected:
-    int32_t MaxTextureSizeForTarget(WebGLenum target) const {
+    PRInt32 MaxTextureSizeForTarget(WebGLenum target) const {
         return target == LOCAL_GL_TEXTURE_2D ? mGLMaxTextureSize : mGLMaxCubeMapTextureSize;
     }
     
@@ -1315,7 +1307,7 @@ protected:
 
     WebGLRefPtr<WebGLProgram> mCurrentProgram;
 
-    uint32_t mMaxFramebufferColorAttachments;
+    PRUint32 mMaxFramebufferColorAttachments;
 
     WebGLRefPtr<WebGLFramebuffer> mBoundFramebuffer;
     WebGLRefPtr<WebGLRenderbuffer> mBoundRenderbuffer;
@@ -1326,9 +1318,10 @@ protected:
     WebGLFastArray<WebGLShader*> mShaders;
     WebGLFastArray<WebGLRenderbuffer*> mRenderbuffers;
     WebGLFastArray<WebGLFramebuffer*> mFramebuffers;
+    WebGLFastArray<WebGLUniformLocation*> mUniformLocations;
 
     // PixelStore parameters
-    uint32_t mPixelStorePackAlignment, mPixelStoreUnpackAlignment, mPixelStoreColorspaceConversion;
+    PRUint32 mPixelStorePackAlignment, mPixelStoreUnpackAlignment, mPixelStoreColorspaceConversion;
     bool mPixelStoreFlipY, mPixelStorePremultiplyAlpha;
 
     FakeBlackStatus mFakeBlackStatus;
@@ -1362,8 +1355,6 @@ protected:
     ContextStatus mContextStatus;
     bool mContextLostErrorSet;
 
-    int mAlreadyReportedMessages;
-
 #ifdef XP_MACOSX
     // see bug 713305. This RAII helper guarantees that we're on the discrete GPU, during its lifetime
     // Debouncing note: we don't want to switch GPUs too frequently, so try to not create and destroy
@@ -1377,8 +1368,10 @@ protected:
 
 public:
     // console logging helpers
-    void GenerateWarning(const char *fmt, ...);
-    void GenerateWarning(const char *fmt, va_list ap);
+    static void LogMessage(const char *fmt, ...);
+    static void LogMessage(const char *fmt, va_list ap);
+    void LogMessageIfVerbose(const char *fmt, ...);
+    void LogMessageIfVerbose(const char *fmt, va_list ap);
 
     friend class WebGLTexture;
     friend class WebGLFramebuffer;
@@ -1409,7 +1402,7 @@ public:
 
 protected:
     WebGLContext *mContext;
-    uint32_t mContextGeneration;
+    PRUint32 mContextGeneration;
 };
 
 struct WebGLVertexAttribData {
@@ -1540,9 +1533,9 @@ public:
 
     // this method too is only for element array buffers. It returns the maximum value in the part of
     // the buffer starting at given offset, consisting of given count of elements. The type T is the type
-    // to interpret the array elements as, must be GLushort or GLubyte.
+    // to interprete the array elements as, must be GLushort or GLubyte.
     template<typename T>
-    T FindMaxElementInSubArray(GLuint count, GLuint byteOffset)
+    PRInt32 FindMaxElementInSubArray(GLuint count, GLuint byteOffset)
     {
         const T* start = reinterpret_cast<T*>(reinterpret_cast<size_t>(mData) + byteOffset);
         const T* stop = start + count;
@@ -1558,7 +1551,7 @@ public:
       mHasCachedMaxUshortElement = false;
     }
 
-    int32_t FindMaxUbyteElement() {
+    PRInt32 FindMaxUbyteElement() {
       if (mHasCachedMaxUbyteElement) {
         return mCachedMaxUbyteElement;
       } else {
@@ -1568,7 +1561,7 @@ public:
       }
     }
 
-    int32_t FindMaxUshortElement() {
+    PRInt32 FindMaxUshortElement() {
       if (mHasCachedMaxUshortElement) {
         return mCachedMaxUshortElement;
       } else {
@@ -1589,9 +1582,9 @@ protected:
     GLenum mTarget;
     WebGLMonotonicHandle mMonotonicHandle;
 
-    uint8_t mCachedMaxUbyteElement;
+    PRUint8 mCachedMaxUbyteElement;
     bool mHasCachedMaxUbyteElement;
-    uint16_t mCachedMaxUshortElement;
+    PRUint16 mCachedMaxUshortElement;
     bool mHasCachedMaxUshortElement;
 
     void* mData; // in the case of an Element Array Buffer, we keep a copy.
@@ -1691,11 +1684,11 @@ public:
             return is_pot_assuming_nonnegative(mWidth) &&
                    is_pot_assuming_nonnegative(mHeight); // negative sizes should never happen (caught in texImage2D...)
         }
-        int64_t MemoryUsage() const {
+        PRInt64 MemoryUsage() const {
             if (!mIsDefined)
                 return 0;
-            int64_t texelSizeInBits = WebGLContext::GetBitsPerTexel(mFormat, mType);
-            return int64_t(mWidth) * int64_t(mHeight) * texelSizeInBits / 8;
+            PRInt64 texelSizeInBits = WebGLContext::GetBitsPerTexel(mFormat, mType);
+            return PRInt64(mWidth) * PRInt64(mHeight) * texelSizeInBits / 8;
         }
         WebGLenum Format() const { return mFormat; }
         WebGLenum Type() const { return mType; }
@@ -1730,10 +1723,10 @@ public:
         return target == LOCAL_GL_TEXTURE_2D ? 0 : target - LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
     }
 
-    int64_t MemoryUsage() const {
+    PRInt64 MemoryUsage() const {
         if (IsDeleted())
             return 0;
-        int64_t result = 0;
+        PRInt64 result = 0;
         for(size_t face = 0; face < mFacesCount; face++) {
             if (mHaveGeneratedMipmap) {
                 // Each mipmap level is 1/4 the size of the previous level
@@ -1988,12 +1981,12 @@ public:
                 if (DoesMinFilterRequireMipmap())
                 {
                     if (!IsMipmapTexture2DComplete()) {
-                        mContext->GenerateWarning
+                        mContext->LogMessageIfVerbose
                             ("%s is a 2D texture, with a minification filter requiring a mipmap, "
                              "and is not mipmap complete (as defined in section 3.7.10).", msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     } else if (!ImageInfoAt(0).IsPowerOfTwo()) {
-                        mContext->GenerateWarning
+                        mContext->LogMessageIfVerbose
                             ("%s is a 2D texture, with a minification filter requiring a mipmap, "
                              "and either its width or height is not a power of two.", msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
@@ -2002,12 +1995,12 @@ public:
                 else // no mipmap required
                 {
                     if (!ImageInfoAt(0).IsPositive()) {
-                        mContext->GenerateWarning
+                        mContext->LogMessageIfVerbose
                             ("%s is a 2D texture and its width or height is equal to zero.",
                              msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     } else if (!AreBothWrapModesClampToEdge() && !ImageInfoAt(0).IsPowerOfTwo()) {
-                        mContext->GenerateWarning
+                        mContext->LogMessageIfVerbose
                             ("%s is a 2D texture, with a minification filter not requiring a mipmap, "
                              "with its width or height not a power of two, and with a wrap mode "
                              "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
@@ -2024,12 +2017,12 @@ public:
                 if (DoesMinFilterRequireMipmap())
                 {
                     if (!IsMipmapCubeComplete()) {
-                        mContext->GenerateWarning("%s is a cube map texture, with a minification filter requiring a mipmap, "
+                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter requiring a mipmap, "
                                    "and is not mipmap cube complete (as defined in section 3.7.10).",
                                    msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     } else if (!areAllLevel0ImagesPOT) {
-                        mContext->GenerateWarning("%s is a cube map texture, with a minification filter requiring a mipmap, "
+                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter requiring a mipmap, "
                                    "and either the width or the height of some level 0 image is not a power of two.",
                                    msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
@@ -2038,12 +2031,12 @@ public:
                 else // no mipmap required
                 {
                     if (!IsCubeComplete()) {
-                        mContext->GenerateWarning("%s is a cube map texture, with a minification filter not requiring a mipmap, "
+                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter not requiring a mipmap, "
                                    "and is not cube complete (as defined in section 3.7.10).",
                                    msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     } else if (!AreBothWrapModesClampToEdge() && !areAllLevel0ImagesPOT) {
-                        mContext->GenerateWarning("%s is a cube map texture, with a minification filter not requiring a mipmap, "
+                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter not requiring a mipmap, "
                                    "with some level 0 image having width or height not a power of two, and with a wrap mode "
                                    "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
@@ -2067,11 +2060,11 @@ struct WebGLMappedIdentifier {
 };
 
 struct WebGLUniformInfo {
-    uint32_t arraySize;
+    PRUint32 arraySize;
     bool isArray;
     ShDataType type;
 
-    WebGLUniformInfo(uint32_t s = 0, bool a = false, ShDataType t = SH_NONE)
+    WebGLUniformInfo(PRUint32 s = 0, bool a = false, ShDataType t = SH_NONE)
         : arraySize(s), isArray(a), type(t) {}
 
     int ElementSize() const {
@@ -2254,7 +2247,7 @@ public:
     WebGLuint GLName() { return mGLName; }
     const nsTArray<WebGLRefPtr<WebGLShader> >& AttachedShaders() const { return mAttachedShaders; }
     bool LinkStatus() { return mLinkStatus; }
-    uint32_t Generation() const { return mGeneration.value(); }
+    PRUint32 Generation() const { return mGeneration.value(); }
     void SetLinkStatus(bool val) { mLinkStatus = val; }
 
     bool ContainsShader(WebGLShader *shader) {
@@ -2285,7 +2278,7 @@ public:
     }
 
     bool HasAttachedShaderOfType(GLenum shaderType) {
-        for (uint32_t i = 0; i < mAttachedShaders.Length(); ++i) {
+        for (PRUint32 i = 0; i < mAttachedShaders.Length(); ++i) {
             if (mAttachedShaders[i] && mAttachedShaders[i]->ShaderType() == shaderType) {
                 return true;
             }
@@ -2511,8 +2504,8 @@ public:
     WebGLenum InternalFormatForGL() const { return mInternalFormatForGL; }
     void SetInternalFormatForGL(WebGLenum aInternalFormatForGL) { mInternalFormatForGL = aInternalFormatForGL; }
     
-    int64_t MemoryUsage() const {
-        int64_t pixels = int64_t(Width()) * int64_t(Height());
+    PRInt64 MemoryUsage() const {
+        PRInt64 pixels = PRInt64(Width()) * PRInt64(Height());
         switch (mInternalFormatForGL) {
             case LOCAL_GL_STENCIL_INDEX8:
                 return pixels;
@@ -2915,7 +2908,7 @@ public:
         if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE)
             return false;
 
-        uint32_t mask = 0;
+        PRUint32 mask = 0;
 
         if (mColorAttachment.HasUninitializedRenderbuffer())
             mask |= LOCAL_GL_COLOR_BUFFER_BIT;
@@ -2965,6 +2958,7 @@ public:
 class WebGLUniformLocation MOZ_FINAL
     : public nsIWebGLUniformLocation
     , public WebGLContextBoundObject
+    , public WebGLRefCountedObject<WebGLUniformLocation>
 {
 public:
     WebGLUniformLocation(WebGLContext *context, WebGLProgram *program, GLint location, const WebGLUniformInfo& info)
@@ -2975,20 +2969,23 @@ public:
         , mInfo(info)
     {
         mElementSize = info.ElementSize();
+        mMonotonicHandle = mContext->mUniformLocations.AppendElement(this);
     }
 
     ~WebGLUniformLocation() {
+        DeleteOnce();
     }
 
-    // needed for certain helper functions like ValidateObject.
-    // WebGLUniformLocation's can't be 'Deleted' in the WebGL sense.
-    bool IsDeleted() const { return false; }
+    void Delete() {
+        mProgram = nsnull;
+        mContext->mUniformLocations.RemoveElement(mMonotonicHandle);
+    }
 
     const WebGLUniformInfo &Info() const { return mInfo; }
 
     WebGLProgram *Program() const { return mProgram; }
     GLint Location() const { return mLocation; }
-    uint32_t ProgramGeneration() const { return mProgramGeneration; }
+    PRUint32 ProgramGeneration() const { return mProgramGeneration; }
     int ElementSize() const { return mElementSize; }
 
     NS_DECL_ISUPPORTS
@@ -2998,10 +2995,11 @@ protected:
     // we just want to avoid having a dangling pointer.
     nsRefPtr<WebGLProgram> mProgram;
 
-    uint32_t mProgramGeneration;
+    PRUint32 mProgramGeneration;
     GLint mLocation;
     WebGLUniformInfo mInfo;
     int mElementSize;
+    WebGLMonotonicHandle mMonotonicHandle;
     friend class WebGLProgram;
 };
 
@@ -3170,70 +3168,70 @@ class WebGLMemoryMultiReporterWrapper
         }
     }
 
-    static int64_t GetTextureMemoryUsed() {
+    static PRInt64 GetTextureMemoryUsed() {
         const ContextsArrayType & contexts = Contexts();
-        int64_t result = 0;
+        PRInt64 result = 0;
         for(size_t i = 0; i < contexts.Length(); ++i)
             for (size_t j = 0; j < contexts[i]->mTextures.Length(); ++j)
               result += contexts[i]->mTextures[j]->MemoryUsage();
         return result;
     }
 
-    static int64_t GetTextureCount() {
+    static PRInt64 GetTextureCount() {
         const ContextsArrayType & contexts = Contexts();
-        int64_t result = 0;
+        PRInt64 result = 0;
         for(size_t i = 0; i < contexts.Length(); ++i)
             result += contexts[i]->mTextures.Length();
         return result;
     }
 
-    static int64_t GetBufferMemoryUsed() {
+    static PRInt64 GetBufferMemoryUsed() {
         const ContextsArrayType & contexts = Contexts();
-        int64_t result = 0;
+        PRInt64 result = 0;
         for(size_t i = 0; i < contexts.Length(); ++i)
             for (size_t j = 0; j < contexts[i]->mBuffers.Length(); ++j)
                 result += contexts[i]->mBuffers[j]->ByteLength();
         return result;
     }
 
-    static int64_t GetBufferCacheMemoryUsed();
+    static PRInt64 GetBufferCacheMemoryUsed();
 
-    static int64_t GetBufferCount() {
+    static PRInt64 GetBufferCount() {
         const ContextsArrayType & contexts = Contexts();
-        int64_t result = 0;
+        PRInt64 result = 0;
         for(size_t i = 0; i < contexts.Length(); ++i)
             result += contexts[i]->mBuffers.Length();
         return result;
     }
 
-    static int64_t GetRenderbufferMemoryUsed() {
+    static PRInt64 GetRenderbufferMemoryUsed() {
         const ContextsArrayType & contexts = Contexts();
-        int64_t result = 0;
+        PRInt64 result = 0;
         for(size_t i = 0; i < contexts.Length(); ++i)
             for (size_t j = 0; j < contexts[i]->mRenderbuffers.Length(); ++j)
               result += contexts[i]->mRenderbuffers[j]->MemoryUsage();
         return result;
     }
 
-    static int64_t GetRenderbufferCount() {
+    static PRInt64 GetRenderbufferCount() {
         const ContextsArrayType & contexts = Contexts();
-        int64_t result = 0;
+        PRInt64 result = 0;
         for(size_t i = 0; i < contexts.Length(); ++i)
             result += contexts[i]->mRenderbuffers.Length();
         return result;
     }
 
-    static int64_t GetShaderSize();
+    static PRInt64 GetShaderSize();
 
-    static int64_t GetShaderCount() {
+    static PRInt64 GetShaderCount() {
         const ContextsArrayType & contexts = Contexts();
-        int64_t result = 0;
+        PRInt64 result = 0;
         for(size_t i = 0; i < contexts.Length(); ++i)
             result += contexts[i]->mShaders.Length();
         return result;
     }
 
-    static int64_t GetContextCount() {
+    static PRInt64 GetContextCount() {
         return Contexts().Length();
     }
 };

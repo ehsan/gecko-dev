@@ -14,6 +14,7 @@ class nsIDOMElement;
 class nsIDOMEventTarget;
 class nsIDOMKeyEvent;
 class nsIDOMEventTarget;
+class nsIXBLDocumentInfo;
 class nsXBLSpecialDocInfo;
 class nsXBLPrototypeHandler;
 

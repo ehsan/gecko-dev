@@ -22,12 +22,12 @@ using namespace js;
 using namespace js::frontend;
 
 bool
-MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script_)
+MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script)
 {
-    Rooted<JSScript*> script(cx, script_);
+    Root<JSScript*> root(cx, &script);
 
     Vector<JSScript *, 16> worklist(cx);
-    if (!worklist.append(script.reference()))
+    if (!worklist.append(script))
         return false;
 
     while (worklist.length()) {
@@ -84,7 +84,7 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
             Probes::compileScriptBegin(filename, lineno);
         }
         ~ProbesManager() { Probes::compileScriptEnd(filename, lineno); }
-    };
+    }; 
     ProbesManager probesManager(filename, lineno);
 
     /*
@@ -94,9 +94,9 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     JS_ASSERT_IF(callerFrame, compileAndGo);
     JS_ASSERT_IF(staticLevel != 0, callerFrame);
 
-    Parser parser(cx, principals, originPrincipals, chars, length, filename, lineno, version,
-                  callerFrame, /* foldConstants = */ true, compileAndGo);
-    if (!parser.init())
+    bool foldConstants = true;
+    Parser parser(cx, principals, originPrincipals, callerFrame, foldConstants, compileAndGo);
+    if (!parser.init(chars, length, filename, lineno, version))
         return NULL;
 
     SharedContext sc(cx, /* inFunction = */ false);
@@ -231,9 +231,6 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     }
 #endif
 
-    if (!parser.checkForArgumentsAndRest())
-        return NULL;
-
     /*
      * Nowadays the threaded interpreter needs a stop instruction, so we
      * do have to emit that here.
@@ -243,7 +240,7 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
 
     JS_ASSERT(bce.version() == version);
 
-    Rooted<JSScript*> script(cx);
+    RootedVar<JSScript*> script(cx);
     script = JSScript::NewScriptFromEmitter(cx, &bce);
     if (!script)
         return NULL;
@@ -266,9 +263,8 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
                               Bindings *bindings, const jschar *chars, size_t length,
                               const char *filename, unsigned lineno, JSVersion version)
 {
-    Parser parser(cx, principals, originPrincipals, chars, length, filename, lineno, version,
-                  /* cfp = */ NULL, /* foldConstants = */ true, /* compileAndGo = */ false);
-    if (!parser.init())
+    Parser parser(cx, principals, originPrincipals);
+    if (!parser.init(chars, length, filename, lineno, version))
         return false;
 
     TokenStream &tokenStream = parser.tokenStream;

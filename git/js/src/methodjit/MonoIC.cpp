@@ -571,13 +571,10 @@ class CallCompiler : public BaseCompiler
         masm.loadPtr(scriptAddr, t0);
 
         // Test that:
-        // - script->jitInfo is not NULL
-        // - script->jitInfo->jitHandle{Ctor,Normal}->value is neither NULL nor UNJITTABLE, and
-        // - script->jitInfo->jitHandle{Ctor,Normal}->value->arityCheckEntry is not NULL.
-        masm.loadPtr(Address(t0, JSScript::offsetOfJITInfo()), t0);
-        Jump hasNoJitInfo = masm.branchPtr(Assembler::Equal, t0, ImmPtr(NULL));
-        size_t offset = JSScript::JITScriptSet::jitHandleOffset(callingNew,
-                                                                f.cx->compartment->needsBarrier());
+        // - script->jitHandle{Ctor,Normal}->value is neither NULL nor UNJITTABLE, and
+        // - script->jitHandle{Ctor,Normal}->value->arityCheckEntry is not NULL.
+        //
+        size_t offset = JSScript::jitHandleOffset(callingNew, f.cx->compartment->needsBarrier());
         masm.loadPtr(Address(t0, offset), t0);
         Jump hasNoJitCode = masm.branchPtr(Assembler::BelowOrEqual, t0,
                                            ImmPtr(JSScript::JITScriptHandle::UNJITTABLE));
@@ -586,7 +583,6 @@ class CallCompiler : public BaseCompiler
 
         Jump hasCode = masm.branchPtr(Assembler::NotEqual, t0, ImmPtr(0));
 
-        hasNoJitInfo.linkTo(masm.label(), &masm);
         hasNoJitCode.linkTo(masm.label(), &masm);
 
         /*
@@ -1080,7 +1076,7 @@ ic::SplatApplyArgs(VMFrame &f)
     }
 
     /* Steps 4-5. */
-    RootedObject aobj(cx, &args[1].toObject());
+    RootedVarObject aobj(cx, &args[1].toObject());
     uint32_t length;
     if (!js_GetLengthProperty(cx, aobj, &length))
         THROWV(false);

@@ -608,7 +608,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
     //   name of the property = callee reserved slot 1
 
     JSObject *callee = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
-    JS::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    JS::RootedVarObject obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
         return false;
 
@@ -620,7 +620,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
     v = js::GetFunctionNativeReserved(callee, 1);
 
     jsval argval = (argc > 0) ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
-    JS::RootedId id(cx);
+    JS::RootedVarId id(cx);
     if (!JS_ValueToId(cx, v, id.address()))
         return false;
     JS_SET_RVAL(cx, vp, argval);

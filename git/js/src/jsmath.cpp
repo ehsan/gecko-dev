@@ -659,9 +659,9 @@ static JSFunctionSpec math_static_methods[] = {
 JSObject *
 js_InitMathClass(JSContext *cx, JSObject *obj_)
 {
-    RootedObject obj(cx, obj_);
+    RootedVarObject obj(cx, obj_);
 
-    RootedObject Math(cx, NewObjectWithClassProto(cx, &MathClass, NULL, obj));
+    RootedVarObject Math(cx, NewObjectWithClassProto(cx, &MathClass, NULL, obj));
     if (!Math || !Math->setSingletonType(cx))
         return NULL;
 

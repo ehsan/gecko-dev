@@ -23,7 +23,6 @@
 #include "States.h"
 #include "StyleInfo.h"
 
-#include "nsContentUtils.h"
 #include "nsIDOMCSSValue.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMElement.h"
@@ -486,7 +485,12 @@ nsAccessible::GetFirstChild(nsIAccessible **aFirstChild)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  NS_IF_ADDREF(*aFirstChild = FirstChild());
+  PRInt32 childCount = GetChildCount();
+  NS_ENSURE_TRUE(childCount != -1, NS_ERROR_FAILURE);
+
+  if (childCount > 0)
+    NS_ADDREF(*aFirstChild = GetChildAt(0));
+
   return NS_OK;
 }
 
@@ -500,7 +504,10 @@ nsAccessible::GetLastChild(nsIAccessible **aLastChild)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  NS_IF_ADDREF(*aLastChild = LastChild());
+  PRInt32 childCount = GetChildCount();
+  NS_ENSURE_TRUE(childCount != -1, NS_ERROR_FAILURE);
+
+  NS_IF_ADDREF(*aLastChild = GetChildAt(childCount - 1));
   return NS_OK;
 }
 
@@ -513,10 +520,13 @@ nsAccessible::GetChildAt(PRInt32 aChildIndex, nsIAccessible **aChild)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
+  PRInt32 childCount = GetChildCount();
+  NS_ENSURE_TRUE(childCount != -1, NS_ERROR_FAILURE);
+
   // If child index is negative, then return last child.
   // XXX: do we really need this?
   if (aChildIndex < 0)
-    aChildIndex = ChildCount() - 1;
+    aChildIndex = childCount - 1;
 
   nsAccessible* child = GetChildAt(aChildIndex);
   if (!child)
@@ -536,13 +546,15 @@ nsAccessible::GetChildren(nsIArray **aOutChildren)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
+  PRInt32 childCount = GetChildCount();
+  NS_ENSURE_TRUE(childCount != -1, NS_ERROR_FAILURE);
+
   nsresult rv = NS_OK;
   nsCOMPtr<nsIMutableArray> children =
     do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRUint32 childCount = ChildCount();
-  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsIAccessible* child = GetChildAt(childIdx);
     children->AppendElement(child, false);
   }
@@ -566,8 +578,8 @@ nsAccessible::GetChildCount(PRInt32 *aChildCount)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  *aChildCount = ChildCount();
-  return NS_OK;
+  *aChildCount = GetChildCount();
+  return *aChildCount != -1 ? NS_OK : NS_ERROR_FAILURE;  
 }
 
 /* readonly attribute long indexInParent; */
@@ -775,7 +787,7 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
   nsPoint offset(presContext->DevPixelsToAppUnits(aX) - screenRect.x,
                  presContext->DevPixelsToAppUnits(aY) - screenRect.y);
 
-  nsIPresShell* presShell = presContext->PresShell();
+  nsCOMPtr<nsIPresShell> presShell = presContext->PresShell();
   nsIFrame *foundFrame = presShell->GetFrameForPoint(frame, offset);
 
   nsIContent* content = nsnull;
@@ -802,9 +814,9 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
     // where layout won't walk into things for us, such as image map areas and
     // sub documents (XXX: subdocuments should be handled by methods of
     // OuterDocAccessibles).
-    PRUint32 childCount = ChildCount();
-    for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
-      nsAccessible* child = GetChildAt(childIdx);
+    PRInt32 childCount = GetChildCount();
+    for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+      nsAccessible *child = GetChildAt(childIdx);
 
       PRInt32 childX, childY, childWidth, childHeight;
       child->GetBounds(&childX, &childY, &childWidth, &childHeight);
@@ -1667,8 +1679,13 @@ nsAccessible::Value(nsString& aValue)
     return;
 
   // Check if it's a simple xlink.
-  if (nsCoreUtils::IsXLink(mContent))
-    nsContentUtils::GetLinkLocation(mContent->AsElement(), aValue);
+  if (nsCoreUtils::IsXLink(mContent)) {
+    nsIPresShell* presShell = mDoc->PresShell();
+    if (presShell) {
+      nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
+      presShell->GetLinkLocation(DOMNode, aValue);
+    }
+  }
 }
 
 // nsIAccessibleValue
@@ -2657,8 +2674,8 @@ nsAccessible::GetChildAt(PRUint32 aIndex)
   return child;
 }
 
-PRUint32
-nsAccessible::ChildCount() const
+PRInt32
+nsAccessible::GetChildCount()
 {
   return mChildren.Length();
 }
@@ -2675,16 +2692,16 @@ nsAccessible::IndexInParent() const
   return mIndexInParent;
 }
 
-PRUint32
-nsAccessible::EmbeddedChildCount()
+PRInt32
+nsAccessible::GetEmbeddedChildCount()
 {
   if (IsChildrenFlag(eMixedChildren)) {
     if (!mEmbeddedObjCollector)
       mEmbeddedObjCollector = new EmbeddedObjCollector(this);
-    return mEmbeddedObjCollector->Count();
+    return mEmbeddedObjCollector ? mEmbeddedObjCollector->Count() : -1;
   }
 
-  return ChildCount();
+  return GetChildCount();
 }
 
 nsAccessible*
@@ -3061,8 +3078,7 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError) const
     return nsnull;
   }
 
-  if (aError &&
-      mIndexInParent + aOffset >= static_cast<PRInt32>(mParent->ChildCount())) {
+  if (aError && mIndexInParent + aOffset >= mParent->GetChildCount()) {
     *aError = NS_OK; // fail peacefully
     return nsnull;
   }
@@ -3237,8 +3253,8 @@ nsAccessible::GetLevelInternal()
       // If this listitem is on top of nested lists then expose 'level'
       // attribute.
       parent = Parent();
-      PRUint32 siblingCount = parent->ChildCount();
-      for (PRUint32 siblingIdx = 0; siblingIdx < siblingCount; siblingIdx++) {
+      PRInt32 siblingCount = parent->GetChildCount();
+      for (PRInt32 siblingIdx = 0; siblingIdx < siblingCount; siblingIdx++) {
         nsAccessible* sibling = parent->GetChildAt(siblingIdx);
 
         nsAccessible* siblingChild = sibling->LastChild();

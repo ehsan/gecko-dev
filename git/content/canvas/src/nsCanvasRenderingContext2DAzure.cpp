@@ -2516,7 +2516,6 @@ nsCanvasRenderingContext2DAzure::EnsureWritablePath()
         mPath->TransformedCopyToBuilder(mPathToDS, fillRule);
       mPath = nsnull;
       mPathBuilder = nsnull;
-      mPathTransformWillUpdate = false;
     }
     return;
   }

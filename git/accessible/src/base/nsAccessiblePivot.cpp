@@ -343,10 +343,10 @@ nsAccessiblePivot::MovePivotInternal(nsAccessible* aPosition)
 nsAccessible*
 nsAccessiblePivot::SearchBackward(nsAccessible* aAccessible,
                                   nsIAccessibleTraversalRule* aRule,
-                                  bool aSearchCurrent,
-                                  nsresult* aResult)
+                                  bool searchCurrent,
+                                  nsresult* rv)
 {
-  *aResult = NS_OK;
+  *rv = NS_OK;
 
   // Initial position could be unset, in that case return null.
   if (!aAccessible)
@@ -357,9 +357,9 @@ nsAccessiblePivot::SearchBackward(nsAccessible* aAccessible,
 
   PRUint16 filtered = nsIAccessibleTraversalRule::FILTER_IGNORE;
 
-  if (aSearchCurrent) {
-    *aResult = cache.ApplyFilter(accessible, &filtered);
-    NS_ENSURE_SUCCESS(*aResult, nsnull);
+  if (searchCurrent) {
+    *rv = cache.ApplyFilter(accessible, &filtered);
+    NS_ENSURE_SUCCESS(*rv, nsnull);
     if (filtered & nsIAccessibleTraversalRule::FILTER_MATCH)
       return accessible;
   }
@@ -371,17 +371,16 @@ nsAccessiblePivot::SearchBackward(nsAccessible* aAccessible,
       if (!(accessible = parent->GetChildAt(--idxInParent)))
         continue;
 
-      *aResult = cache.ApplyFilter(accessible, &filtered);
-      NS_ENSURE_SUCCESS(*aResult, nsnull);
+      *rv = cache.ApplyFilter(accessible, &filtered);
+      NS_ENSURE_SUCCESS(*rv, nsnull);
 
       nsAccessible* lastChild;
       while (!(filtered & nsIAccessibleTraversalRule::FILTER_IGNORE_SUBTREE) &&
              (lastChild = accessible->LastChild())) {
         parent = accessible;
         accessible = lastChild;
-        idxInParent = accessible->IndexInParent();
-        *aResult = cache.ApplyFilter(accessible, &filtered);
-        NS_ENSURE_SUCCESS(*aResult, nsnull);
+        *rv = cache.ApplyFilter(accessible, &filtered);
+        NS_ENSURE_SUCCESS(*rv, nsnull);
       }
 
       if (filtered & nsIAccessibleTraversalRule::FILTER_MATCH)
@@ -391,8 +390,8 @@ nsAccessiblePivot::SearchBackward(nsAccessible* aAccessible,
     if (!(accessible = parent))
       break;
 
-    *aResult = cache.ApplyFilter(accessible, &filtered);
-    NS_ENSURE_SUCCESS(*aResult, nsnull);
+    *rv = cache.ApplyFilter(accessible, &filtered);
+    NS_ENSURE_SUCCESS(*rv, nsnull);
 
     if (filtered & nsIAccessibleTraversalRule::FILTER_MATCH)
       return accessible;
@@ -404,10 +403,10 @@ nsAccessiblePivot::SearchBackward(nsAccessible* aAccessible,
 nsAccessible*
 nsAccessiblePivot::SearchForward(nsAccessible* aAccessible,
                                  nsIAccessibleTraversalRule* aRule,
-                                 bool aSearchCurrent,
-                                 nsresult* aResult)
+                                 bool searchCurrent,
+                                 nsresult* rv)
 {
-  *aResult = NS_OK;
+  *rv = NS_OK;
 
   // Initial position could be not set, in that case begin search from root.
   nsAccessible *accessible = (!aAccessible) ? mRoot.get() : aAccessible;
@@ -415,9 +414,9 @@ nsAccessiblePivot::SearchForward(nsAccessible* aAccessible,
   RuleCache cache(aRule);
 
   PRUint16 filtered = nsIAccessibleTraversalRule::FILTER_IGNORE;
-  *aResult = cache.ApplyFilter(accessible, &filtered);
-  NS_ENSURE_SUCCESS(*aResult, nsnull);
-  if (aSearchCurrent && (filtered & nsIAccessibleTraversalRule::FILTER_MATCH))
+  *rv = cache.ApplyFilter(accessible, &filtered);
+  NS_ENSURE_SUCCESS(*rv, nsnull);
+  if (searchCurrent && (filtered & nsIAccessibleTraversalRule::FILTER_MATCH))
     return accessible;
 
   while (true) {
@@ -425,8 +424,8 @@ nsAccessiblePivot::SearchForward(nsAccessible* aAccessible,
     while (!(filtered & nsIAccessibleTraversalRule::FILTER_IGNORE_SUBTREE) &&
            (firstChild = accessible->FirstChild())) {
       accessible = firstChild;
-      *aResult = cache.ApplyFilter(accessible, &filtered);
-      NS_ENSURE_SUCCESS(*aResult, nsnull);
+      *rv = cache.ApplyFilter(accessible, &filtered);
+      NS_ENSURE_SUCCESS(*rv, nsnull);
 
       if (filtered & nsIAccessibleTraversalRule::FILTER_MATCH)
         return accessible;
@@ -448,8 +447,8 @@ nsAccessiblePivot::SearchForward(nsAccessible* aAccessible,
       break;
 
     accessible = sibling;
-    *aResult = cache.ApplyFilter(accessible, &filtered);
-    NS_ENSURE_SUCCESS(*aResult, nsnull);
+    *rv = cache.ApplyFilter(accessible, &filtered);
+    NS_ENSURE_SUCCESS(*rv, nsnull);
 
     if (filtered & nsIAccessibleTraversalRule::FILTER_MATCH)
       return accessible;

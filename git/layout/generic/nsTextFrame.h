@@ -385,9 +385,7 @@ public:
 
   void ClearTextRuns() {
     ClearTextRun(nsnull, nsTextFrame::eInflated);
-    if (HasFontSizeInflation()) {
-      ClearTextRun(nsnull, nsTextFrame::eNotInflated);
-    }
+    ClearTextRun(nsnull, nsTextFrame::eNotInflated);
   }
 
   // Get the DOM content range mapped by this frame after excluding

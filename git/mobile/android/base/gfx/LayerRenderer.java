@@ -91,6 +91,9 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
     private int mSampleHandle;
     private int mTMatrixHandle;
 
+    private int mSurfaceWidth;
+    private int mSurfaceHeight;
+
     // column-major matrix applied to each vertex to shift the viewport from
     // one ranging from (-1, -1),(1,1) to (0,0),(1,1) and to scale all sizes by
     // a factor of 2 to fill up the screen
@@ -308,23 +311,26 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
 
     private RenderContext createScreenContext(ImmutableViewportMetrics metrics) {
         RectF viewport = new RectF(0.0f, 0.0f, metrics.getWidth(), metrics.getHeight());
-        RectF pageRect = new RectF(metrics.getPageRect());
-        return createContext(viewport, pageRect, 1.0f);
+        FloatSize pageSize = new FloatSize(metrics.getPageSize());
+        return createContext(viewport, pageSize, 1.0f);
     }
 
     private RenderContext createPageContext(ImmutableViewportMetrics metrics) {
         Rect viewport = RectUtils.round(metrics.getViewport());
-        RectF pageRect = metrics.getPageRect();
+        FloatSize pageSize = metrics.getPageSize();
         float zoomFactor = metrics.zoomFactor;
-        return createContext(new RectF(viewport), pageRect, zoomFactor);
+        return createContext(new RectF(viewport), pageSize, zoomFactor);
     }
 
-    private RenderContext createContext(RectF viewport, RectF pageRect, float zoomFactor) {
-        return new RenderContext(viewport, pageRect, zoomFactor, mPositionHandle, mTextureHandle,
+    private RenderContext createContext(RectF viewport, FloatSize pageSize, float zoomFactor) {
+        return new RenderContext(viewport, pageSize, new IntSize(mSurfaceWidth, mSurfaceHeight), zoomFactor, mPositionHandle, mTextureHandle,
                                  mCoordBuffer);
     }
 
     public void onSurfaceChanged(GL10 gl, final int width, final int height) {
+        mSurfaceWidth = width;
+        mSurfaceHeight = height;
+
         GLES20.glViewport(0, 0, width, height);
 
         if (mFrameRateLayer != null) {
@@ -484,9 +490,12 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
 
         private Rect getPageRect() {
             Point origin = PointUtils.round(mFrameMetrics.getOrigin());
-            Rect pageRect = RectUtils.round(mFrameMetrics.getPageRect());
-            pageRect.offset(-origin.x, -origin.y);
-            return pageRect;
+            IntSize pageSize = new IntSize(mFrameMetrics.getPageSize());
+
+            origin.negate();
+
+            return new Rect(origin.x, origin.y,
+                            origin.x + pageSize.width, origin.y + pageSize.height);
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */

@@ -1329,8 +1329,7 @@ TypeObject::setFlagsFromKey(JSContext *cx, JSProtoKey key)
                   key == JSProto_Uint32Array ||
                   key == JSProto_Float32Array ||
                   key == JSProto_Float64Array ||
-                  key == JSProto_Uint8ClampedArray ||
-                  key == JSProto_DataView);
+                  key == JSProto_Uint8ClampedArray);
         flags = OBJECT_FLAG_NON_DENSE_ARRAY
               | OBJECT_FLAG_NON_PACKED_ARRAY;
         break;
@@ -1433,10 +1432,9 @@ JSScript::ensureRanAnalysis(JSContext *cx, JSObject *scope)
     if (!self->ensureHasTypes(cx))
         return false;
     if (!self->types->hasScope()) {
-        js::RootedObject scopeRoot(cx, scope);
+        js::RootObject objRoot(cx, &scope);
         if (!js::types::TypeScript::SetScope(cx, self, scope))
             return false;
-        scope = scopeRoot;
     }
     if (!self->hasAnalysis() && !self->makeAnalysis(cx))
         return false;

@@ -63,9 +63,9 @@ gfxOS2Platform::CreateOffscreenSurface(const gfxIntSize& aSize,
     if (contentType == gfxASurface::CONTENT_COLOR_ALPHA ||
         contentType == gfxASurface::CONTENT_COLOR)
     {
-        newSurface = new gfxOS2Surface(aSize, OptimalFormatForContent(contentType));
+        newSurface = new gfxOS2Surface(aSize, gfxASurface::FormatFromContent(contentType));
     } else if (contentType == gfxASurface::CONTENT_ALPHA) {
-        newSurface = new gfxImageSurface(aSize, OptimalFormatForContent(contentType));
+        newSurface = new gfxImageSurface(aSize, gfxASurface::FormatFromContent(contentType));
     } else {
         return nsnull;
     }

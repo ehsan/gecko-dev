@@ -12,10 +12,6 @@
 #include "RootAccessibleWrap.h"
 #include "States.h"
 
-#ifdef DEBUG
-#include "Logging.h"
-#endif
-
 #include "nsCURILoader.h"
 #include "nsDocShellLoadTypes.h"
 #include "nsIChannel.h"
@@ -144,10 +140,7 @@ nsAccDocManager::OnStateChange(nsIWebProgress *aWebProgress,
 
   // Document was loaded.
   if (aStateFlags & STATE_STOP) {
-#ifdef DEBUG
-    if (logging::IsEnabled(logging::eDocLoad))
-      logging::DocLoad("document loaded", aWebProgress, aRequest, aStateFlags);
-#endif
+    NS_LOG_ACCDOCLOAD("document loaded", aWebProgress, aRequest, aStateFlags)
 
     // Figure out an event type to notify the document has been loaded.
     PRUint32 eventType = nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED;
@@ -173,10 +166,8 @@ nsAccDocManager::OnStateChange(nsIWebProgress *aWebProgress,
   }
 
   // Document loading was started.
-#ifdef DEBUG
-  if (logging::IsEnabled(logging::eDocLoad))
-    logging::DocLoad("start document loading", aWebProgress, aRequest, aStateFlags);
-#endif
+  NS_LOG_ACCDOCLOAD("start document loading", aWebProgress, aRequest,
+                    aStateFlags)
 
   nsDocAccessible* docAcc = mDocAccessibleCache.GetWeak(document);
   if (!docAcc)
@@ -262,10 +253,7 @@ nsAccDocManager::HandleEvent(nsIDOMEvent *aEvent)
     // accessible and all its sub document accessible are shutdown as result of
     // processing.
 
-#ifdef DEBUG
-    if (logging::IsEnabled(logging::eDocDestroy))
-      logging::DocDestroy("received 'pagehide' event", document);
-#endif
+    NS_LOG_ACCDOCDESTROY("received 'pagehide' event", document)
 
     // Ignore 'pagehide' on temporary documents since we ignore them entirely in
     // accessibility.
@@ -288,11 +276,7 @@ nsAccDocManager::HandleEvent(nsIDOMEvent *aEvent)
   // webprogress notifications nor 'pageshow' event.
   if (type.EqualsLiteral("DOMContentLoaded") &&
       nsCoreUtils::IsErrorPage(document)) {
-#ifdef DEBUG
-    if (logging::IsEnabled(logging::eDocLoad))
-      logging::DocLoad("handled 'DOMContentLoaded' event", document);
-#endif
-
+    NS_LOG_ACCDOCLOAD2("handled 'DOMContentLoaded' event", document)
     HandleDOMDocumentLoad(document,
                           nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE);
   }
@@ -329,18 +313,12 @@ nsAccDocManager::AddListeners(nsIDocument *aDocument,
   elm->AddEventListenerByType(this, NS_LITERAL_STRING("pagehide"),
                               NS_EVENT_FLAG_CAPTURE);
 
-#ifdef DEBUG
-  if (logging::IsEnabled(logging::eDocCreate))
-    logging::Text("added 'pagehide' listener");
-#endif
+  NS_LOG_ACCDOCCREATE_TEXT("  added 'pagehide' listener")
 
   if (aAddDOMContentLoadedListener) {
     elm->AddEventListenerByType(this, NS_LITERAL_STRING("DOMContentLoaded"),
                                 NS_EVENT_FLAG_CAPTURE);
-#ifdef DEBUG
-    if (logging::IsEnabled(logging::eDocCreate))
-      logging::Text("added 'DOMContentLoaded' listener");
-#endif
+    NS_LOG_ACCDOCCREATE_TEXT("  added 'DOMContentLoaded' listener")
   }
 }
 
@@ -414,12 +392,8 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
     parentDocAcc->BindChildDocument(docAcc);
   }
 
-#ifdef DEBUG
-  if (logging::IsEnabled(logging::eDocCreate)) {
-    logging::DocCreate("document creation finished", aDocument);
-    logging::Stack();
-  }
-#endif
+  NS_LOG_ACCDOCCREATE("document creation finished", aDocument)
+  NS_LOG_ACCDOCCREATE_STACK
 
   AddListeners(aDocument, isRootDoc);
   return docAcc;

@@ -419,12 +419,8 @@ public:
      */
     gfxASurface* ScreenReferenceSurface() { return mScreenReferenceSurface; }
 
-    virtual mozilla::gfx::SurfaceFormat Optimal2DFormatForContent(gfxASurface::gfxContentType aContent);
-
-    virtual gfxImageFormat OptimalFormatForContent(gfxASurface::gfxContentType aContent);
-
     virtual gfxImageFormat GetOffscreenFormat()
-    { return gfxASurface::ImageFormatRGB24; }
+    { return gfxASurface::FormatFromContent(gfxASurface::CONTENT_COLOR); }
 
     /**
      * Returns a logger if one is available and logging is enabled

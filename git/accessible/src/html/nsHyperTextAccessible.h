@@ -78,7 +78,7 @@ public:
    */
   inline PRUint32 GetLinkCount()
   {
-    return EmbeddedChildCount();
+    return GetEmbeddedChildCount();
   }
 
   /**
@@ -181,7 +181,7 @@ public:
    */
   inline PRUint32 CharacterCount()
   {
-    return GetChildOffset(ChildCount());
+    return GetChildOffset(GetChildCount());
   }
 
   /**

@@ -5,6 +5,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
+#filter substitution
+
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
@@ -309,28 +311,15 @@ XPCOMUtils.defineLazyGetter(this, "gOSVersion", function aus_gOSVersion() {
   return osVersion;
 });
 
-/**
- * Tests to make sure that we can write to a given directory.
- *
- * @param updateTestFile a test file in the directory that needs to be tested.
- * @param createDirectory whether a test directory should be created.
- * @throws if we don't have right access to the directory.
- */
-function testWriteAccess(updateTestFile, createDirectory) {
-  const NORMAL_FILE_TYPE = Ci.nsILocalFile.NORMAL_FILE_TYPE;
-  const DIRECTORY_TYPE = Ci.nsILocalFile.DIRECTORY_TYPE;
-  if (updateTestFile.exists())
-    updateTestFile.remove(false);
-  updateTestFile.create(createDirectory ? DIRECTORY_TYPE : NORMAL_FILE_TYPE,
-                        createDirectory ? FileUtils.PERMS_DIRECTORY : FileUtils.PERMS_FILE);
-  updateTestFile.remove(false);
-}
-
 XPCOMUtils.defineLazyGetter(this, "gCanApplyUpdates", function aus_gCanApplyUpdates() {
   try {
+    const NORMAL_FILE_TYPE = Ci.nsILocalFile.NORMAL_FILE_TYPE;
     var updateTestFile = getUpdateFile([FILE_PERMS_TEST]);
     LOG("gCanApplyUpdates - testing write access " + updateTestFile.path);
-    testWriteAccess(updateTestFile, false);
+    if (updateTestFile.exists())
+      updateTestFile.remove(false);
+    updateTestFile.create(NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+    updateTestFile.remove(false);
 #ifdef XP_WIN
     var sysInfo = Cc["@mozilla.org/system-info;1"].
                   getService(Ci.nsIPropertyBag2);
@@ -398,7 +387,7 @@ XPCOMUtils.defineLazyGetter(this, "gCanApplyUpdates", function aus_gCanApplyUpda
       LOG("gCanApplyUpdates - testing write access " + appDirTestFile.path);
       if (appDirTestFile.exists())
         appDirTestFile.remove(false)
-      appDirTestFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+      appDirTestFile.create(NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
       appDirTestFile.remove(false);
     }
 #endif //XP_WIN
@@ -410,47 +399,6 @@ XPCOMUtils.defineLazyGetter(this, "gCanApplyUpdates", function aus_gCanApplyUpda
   }
 
   LOG("gCanApplyUpdates - able to apply updates");
-  return true;
-});
-
-XPCOMUtils.defineLazyGetter(this, "gCanStageUpdates", function aus_gCanStageUpdates() {
-  // If background updates are disabled, then just bail out!
-  if (!getPref("getBoolPref", PREF_APP_UPDATE_BACKGROUND, false)) {
-    LOG("gCanStageUpdates - staging updates is disabled by preference " + PREF_APP_UPDATE_BACKGROUND);
-    return false;
-  }
-
-#ifdef XP_WIN
-  if (getPref("getBoolPref", PREF_APP_UPDATE_SERVICE_ENABLED, false)) {
-    // No need to perform directory write checks, the maintenance service will
-    // be able to write to all directories.
-    LOG("gCanStageUpdates - able to stage updates because we'll use the service");
-    return true;
-  }
-#endif
-
-  try {
-    var updateTestFile = getUpdateFile([FILE_PERMS_TEST]);
-    LOG("gCanStageUpdates - testing write access " + updateTestFile.path);
-    testWriteAccess(updateTestFile, true);
-#ifndef XP_MACOSX
-    // On all platforms except Mac, we need to test the parent directory as well,
-    // as we need to be able to move files in that directory during the replacing
-    // step.
-    updateTestFile = getUpdateFile(['..', FILE_PERMS_TEST]);
-    LOG("gCanStageUpdates - testing write access " + updateTestFile.path);
-    updateTestFile.createUnique(Ci.nsILocalFile.DIRECTORY_TYPE,
-                                FileUtils.PERMS_DIRECTORY);
-    updateTestFile.remove(false);
-#endif
-  }
-  catch (e) {
-     LOG("gCanStageUpdates - unable to stage updates. Exception: " + e);
-    // No write privileges
-    return false;
-  }
-
-  LOG("gCanStageUpdates - able to stage updates");
   return true;
 });
 
@@ -931,57 +879,6 @@ function readStringFromFile(file) {
             createInstance(Ci.nsIFileInputStream);
   fis.init(file, FileUtils.MODE_RDONLY, FileUtils.PERMS_FILE, 0);
   return readStringFromInputStream(fis);
-}
-
-function handleUpdateFailure(update, errorCode) {
-  update.errorCode = parseInt(errorCode);
-  if (update.errorCode == WRITE_ERROR) {
-    Cc["@mozilla.org/updates/update-prompt;1"].
-      createInstance(Ci.nsIUpdatePrompt).
-      showUpdateError(update);
-    writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
-    return true;
-  }
-
-  if (update.errorCode == ELEVATION_CANCELED) {
-    writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
-    return true;
-  }
-
-  if (update.errorCode == SERVICE_UPDATER_COULD_NOT_BE_STARTED ||
-      update.errorCode == SERVICE_NOT_ENOUGH_COMMAND_LINE_ARGS ||
-      update.errorCode == SERVICE_UPDATER_SIGN_ERROR ||
-      update.errorCode == SERVICE_UPDATER_COMPARE_ERROR ||
-      update.errorCode == SERVICE_UPDATER_IDENTITY_ERROR ||
-      update.errorCode == SERVICE_STILL_APPLYING_ON_SUCCESS ||
-      update.errorCode == SERVICE_STILL_APPLYING_ON_FAILURE ||
-      update.errorCode == SERVICE_UPDATER_NOT_FIXED_DRIVE ||
-      update.errorCode == SERVICE_COULD_NOT_LOCK_UPDATER ||
-      update.errorCode == SERVICE_INSTALLDIR_ERROR) {
-
-    var failCount = getPref("getIntPref", 
-                            PREF_APP_UPDATE_SERVICE_ERRORS, 0);
-    var maxFail = getPref("getIntPref", 
-                          PREF_APP_UPDATE_SERVICE_MAX_ERRORS, 
-                          DEFAULT_SERVICE_MAX_ERRORS);
-
-    // As a safety, when the service reaches maximum failures, it will
-    // disable itself and fallback to using the normal update mechanism
-    // without the service.
-    if (failCount >= maxFail) {
-      Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, false);
-      Services.prefs.clearUserPref(PREF_APP_UPDATE_SERVICE_ERRORS);
-    } else {
-      failCount++;
-      Services.prefs.setIntPref(PREF_APP_UPDATE_SERVICE_ERRORS, 
-                                failCount);
-    }
-
-    writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
-    return true;
-  }
-  
-  return false;
 }
 
 /**
@@ -1559,7 +1456,48 @@ UpdateService.prototype = {
       var ary = status.split(":");
       update.state = ary[0];
       if (update.state == STATE_FAILED && ary[1]) {
-        if (handleUpdateFailure(update, ary[1])) {
+        update.errorCode = parseInt(ary[1]);
+        if (update.errorCode == WRITE_ERROR) {
+          prompter.showUpdateError(update);
+          writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
+          return;
+        }
+
+        if (update.errorCode == ELEVATION_CANCELED) {
+          writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
+          return;
+        }
+
+        if (update.errorCode == SERVICE_UPDATER_COULD_NOT_BE_STARTED ||
+            update.errorCode == SERVICE_NOT_ENOUGH_COMMAND_LINE_ARGS ||
+            update.errorCode == SERVICE_UPDATER_SIGN_ERROR ||
+            update.errorCode == SERVICE_UPDATER_COMPARE_ERROR ||
+            update.errorCode == SERVICE_UPDATER_IDENTITY_ERROR ||
+            update.errorCode == SERVICE_STILL_APPLYING_ON_SUCCESS ||
+            update.errorCode == SERVICE_STILL_APPLYING_ON_FAILURE ||
+            update.errorCode == SERVICE_UPDATER_NOT_FIXED_DRIVE ||
+            update.errorCode == SERVICE_COULD_NOT_LOCK_UPDATER ||
+            update.errorCode == SERVICE_INSTALLDIR_ERROR) {
+
+          var failCount = getPref("getIntPref", 
+                                  PREF_APP_UPDATE_SERVICE_ERRORS, 0);
+          var maxFail = getPref("getIntPref", 
+                                PREF_APP_UPDATE_SERVICE_MAX_ERRORS, 
+                                DEFAULT_SERVICE_MAX_ERRORS);
+
+          // As a safety, when the service reaches maximum failures, it will
+          // disable itself and fallback to using the normal update mechanism
+          // without the service.
+          if (failCount >= maxFail) {
+            Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, false);
+            Services.prefs.clearUserPref(PREF_APP_UPDATE_SERVICE_ERRORS);
+          } else {
+            failCount++;
+            Services.prefs.setIntPref(PREF_APP_UPDATE_SERVICE_ERRORS, 
+                                      failCount);
+          }
+
+          writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
           return;
         }
       }
@@ -2076,8 +2014,8 @@ UpdateService.prototype = {
   },
 
   applyUpdateInBackground: function AUS_applyUpdateInBackground(update) {
-    // If we can't stage an update, then just bail out!
-    if (!gCanStageUpdates) {
+    // If background updates are disabled, then just bail out!
+    if (!getPref("getBoolPref", PREF_APP_UPDATE_BACKGROUND, false)) {
       return;
     }
 
@@ -2379,13 +2317,11 @@ UpdateManager.prototype = {
   },
 
   refreshUpdateStatus: function UM_refreshUpdateStatus(update) {
-    var updateSucceeded = true;
     var status = readStatusFile(getUpdatesDir());
     var ary = status.split(":");
     update.state = ary[0];
     if (update.state == STATE_FAILED && ary[1]) {
-      updateSucceeded = false;
-      handleUpdateFailure(update, ary[1]);
+      update.errorCode = parseInt(ary[1]);
     }
     if (update.state == STATE_APPLIED && shouldUseService()) {
       writeStatusFile(getUpdatesDir(), update.state = STATE_APPLIED_SVC);
@@ -2394,12 +2330,8 @@ UpdateManager.prototype = {
              getService(Ci.nsIUpdateManager);
     um.saveUpdates();
 
-    if (update.state != STATE_PENDING && update.state != STATE_PENDING_SVC) {
-      // Destroy the updates directory, since we're done with it.
-      // Make sure to not do this when the updater has fallen back to
-      // non-staged updates.
-      cleanUpUpdatesDir(updateSucceeded);
-    }
+    // Destroy the updates directory, since we're done with it.
+    cleanUpUpdatesDir(true);
 
     // Send an observer notification which the update wizard uses in
     // order to update its UI.
@@ -2989,10 +2921,9 @@ Downloader.prototype = {
              getService(Ci.nsIUpdateManager);
     um.saveUpdates();
 
-    var listeners = this._listeners.concat();
-    var listenerCount = listeners.length;
+    var listenerCount = this._listeners.length;
     for (var i = 0; i < listenerCount; ++i)
-      listeners[i].onStartRequest(request, context);
+      this._listeners[i].onStartRequest(request, context);
   },
 
   /**
@@ -3010,10 +2941,9 @@ Downloader.prototype = {
                                              maxProgress) {
     LOG("Downloader:onProgress - progress: " + progress + "/" + maxProgress);
 
-    var listeners = this._listeners.concat();
-    var listenerCount = listeners.length;
+    var listenerCount = this._listeners.length;
     for (var i = 0; i < listenerCount; ++i) {
-      var listener = listeners[i];
+      var listener = this._listeners[i];
       if (listener instanceof Ci.nsIProgressEventSink)
         listener.onProgress(request, context, progress, maxProgress);
     }
@@ -3034,10 +2964,9 @@ Downloader.prototype = {
     LOG("Downloader:onStatus - status: " + status + ", statusText: " +
         statusText);
 
-    var listeners = this._listeners.concat();
-    var listenerCount = listeners.length;
+    var listenerCount = this._listeners.length;
     for (var i = 0; i < listenerCount; ++i) {
-      var listener = listeners[i];
+      var listener = this._listeners[i];
       if (listener instanceof Ci.nsIProgressEventSink)
         listener.onStatus(request, context, status, statusText);
     }
@@ -3129,10 +3058,9 @@ Downloader.prototype = {
     }
     um.saveUpdates();
 
-    var listeners = this._listeners.concat();
-    var listenerCount = listeners.length;
+    var listenerCount = this._listeners.length;
     for (var i = 0; i < listenerCount; ++i)
-      listeners[i].onStopRequest(request, context, status);
+      this._listeners[i].onStopRequest(request, context, status);
 
     this._request = null;
 

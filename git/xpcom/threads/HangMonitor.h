@@ -9,23 +9,6 @@
 namespace mozilla { namespace HangMonitor {
 
 /**
- * Signifies the type of activity in question
-*/
-enum ActivityType {
-  /* There is activity and it is known to be UI related activity. */
-  kUIActivity,
-
-  /* There is non UI activity and no UI activity is pending */
-  kActivityNoUIAVail,
-
-  /* There is non UI activity and UI activity is known to be pending */
-  kActivityUIAVail,
-
-  /* There is non UI activity and UI activity pending is unknown */
-  kGeneralActivity
-};
-
-/**
  * Start monitoring hangs. Should be called by the XPCOM startup process only.
  */
 void Startup();
@@ -36,14 +19,12 @@ void Startup();
 void Shutdown();
 
 /**
- * Notify the hang monitor of activity which will reset its internal timer.
- * 
- * @param activityType The type of activity being reported.
- * @see ActivityType
+ * Notify the hang monitor of new activity which should reset its internal
+ * timer.
  */
-void NotifyActivity(ActivityType activityType = kGeneralActivity);
+void NotifyActivity();
 
-/*
+/**
  * Notify the hang monitor that the browser is now idle and no detection should
  * be done.
  */

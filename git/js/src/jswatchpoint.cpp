@@ -25,8 +25,8 @@ class AutoEntryHolder {
     Map &map;
     Map::Ptr p;
     uint32_t gen;
-    RootedObject obj;
-    RootedId id;
+    RootedVarObject obj;
+    RootedVarId id;
 
   public:
     AutoEntryHolder(JSContext *cx, Map &map, Map::Ptr p)
@@ -85,10 +85,10 @@ WatchpointMap::unwatch(JSObject *obj, jsid id,
 void
 WatchpointMap::unwatchObject(JSObject *obj)
 {
-    for (Map::Enum e(map); !e.empty(); e.popFront()) {
-        Map::Entry &entry = e.front();
-        if (entry.key.object == obj)
-            e.removeFront();
+    for (Map::Enum r(map); !r.empty(); r.popFront()) {
+        Map::Entry &e = r.front();
+        if (e.key.object == obj)
+            r.removeFront();
     }
 }
 
@@ -109,7 +109,7 @@ WatchpointMap::triggerWatchpoint(JSContext *cx, HandleObject obj, HandleId id, V
 
     /* Copy the entry, since GC would invalidate p. */
     JSWatchPointHandler handler = p->value.handler;
-    RootedObject closure(cx, p->value.closure);
+    RootedVarObject closure(cx, p->value.closure);
 
     /* Determine the property's old value. */
     Value old;
@@ -141,28 +141,27 @@ bool
 WatchpointMap::markIteratively(JSTracer *trc)
 {
     bool marked = false;
-    for (Map::Enum e(map); !e.empty(); e.popFront()) {
-        Map::Entry &entry = e.front();
-        JSObject *keyObj = entry.key.object;
-        jsid keyId(entry.key.id.get());
-        bool objectIsLive = IsObjectMarked(&keyObj);
-        if (objectIsLive || entry.value.held) {
+    for (Map::Range r = map.all(); !r.empty(); r.popFront()) {
+        Map::Entry &e = r.front();
+        bool objectIsLive = !IsAboutToBeFinalized(e.key.object);
+        if (objectIsLive || e.value.held) {
             if (!objectIsLive) {
-                MarkObjectUnbarriered(trc, &keyObj, "held Watchpoint object");
+                HeapPtrObject tmp(e.key.object);
+                MarkObject(trc, &tmp, "held Watchpoint object");
+                JS_ASSERT(tmp == e.key.object);
                 marked = true;
             }
 
-            JS_ASSERT(JSID_IS_STRING(keyId) || JSID_IS_INT(keyId));
-            MarkIdUnbarriered(trc, &keyId, "WatchKey::id");
+            const HeapId &id = e.key.id;
+            JS_ASSERT(JSID_IS_STRING(id) || JSID_IS_INT(id));
+            HeapId tmp(id.get());
+            MarkId(trc, &tmp, "WatchKey::id");
+            JS_ASSERT(tmp.get() == id.get());
 
-            if (entry.value.closure && !IsObjectMarked(&entry.value.closure)) {
-                MarkObject(trc, &entry.value.closure, "Watchpoint::closure");
+            if (e.value.closure && IsAboutToBeFinalized(e.value.closure)) {
+                MarkObject(trc, &e.value.closure, "Watchpoint::closure");
                 marked = true;
             }
-
-            /* We will sweep this entry if !objectIsLive. */
-            if (keyObj != entry.key.object || keyId != entry.key.id)
-                e.rekeyFront(WatchKey(keyObj, keyId));
         }
     }
     return marked;
@@ -171,18 +170,19 @@ WatchpointMap::markIteratively(JSTracer *trc)
 void
 WatchpointMap::markAll(JSTracer *trc)
 {
-    for (Map::Enum e(map); !e.empty(); e.popFront()) {
-        Map::Entry &entry = e.front();
-        JSObject *keyObj = entry.key.object;
-        jsid keyId = entry.key.id;
-        JS_ASSERT(JSID_IS_STRING(keyId) || JSID_IS_INT(keyId));
+    for (Map::Range r = map.all(); !r.empty(); r.popFront()) {
+        Map::Entry &e = r.front();
+        HeapPtrObject tmpObj(e.key.object);
+        MarkObject(trc, &tmpObj, "held Watchpoint object");
+        JS_ASSERT(tmpObj == e.key.object);
 
-        MarkObjectUnbarriered(trc, &keyObj, "held Watchpoint object");
-        MarkIdUnbarriered(trc, &keyId, "WatchKey::id");
-        MarkObject(trc, &entry.value.closure, "Watchpoint::closure");
+        const HeapId &id = e.key.id;
+        JS_ASSERT(JSID_IS_STRING(id) || JSID_IS_INT(id));
+        HeapId tmpId(id.get());
+        MarkId(trc, &tmpId, "WatchKey::id");
+        JS_ASSERT(tmpId.get() == id.get());
 
-        if (keyObj != entry.key.object || keyId != entry.key.id)
-            e.rekeyFront(WatchKey(keyObj, keyId));
+        MarkObject(trc, &e.value.closure, "Watchpoint::closure");
     }
 }
 
@@ -198,14 +198,11 @@ WatchpointMap::sweepAll(JSRuntime *rt)
 void
 WatchpointMap::sweep()
 {
-    for (Map::Enum e(map); !e.empty(); e.popFront()) {
-        Map::Entry &entry = e.front();
-        HeapPtrObject obj(entry.key.object);
-        if (!IsObjectMarked(&obj)) {
-            JS_ASSERT(!entry.value.held);
-            e.removeFront();
-        } else {
-            e.rekeyFront(WatchKey(obj, entry.key.id));
+    for (Map::Enum r(map); !r.empty(); r.popFront()) {
+        Map::Entry &e = r.front();
+        if (IsAboutToBeFinalized(e.key.object)) {
+            JS_ASSERT(!e.value.held);
+            r.removeFront();
         }
     }
 }
@@ -224,9 +221,9 @@ void
 WatchpointMap::trace(WeakMapTracer *trc)
 {
     for (Map::Range r = map.all(); !r.empty(); r.popFront()) {
-        Map::Entry &entry = r.front();
+        Map::Entry &e = r.front();
         trc->callback(trc, NULL,
-                      entry.key.object.get(), JSTRACE_OBJECT,
-                      entry.value.closure.get(), JSTRACE_OBJECT);
+                      e.key.object.get(), JSTRACE_OBJECT,
+                      e.value.closure.get(), JSTRACE_OBJECT);
     }
 }

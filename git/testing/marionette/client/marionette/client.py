@@ -5,8 +5,6 @@
 import json
 import socket
 
-from errors import MarionetteException
-
 class MarionetteClient(object):
     """ The Marionette socket client.  This speaks the same protocol
         as the remote debugger inside Gecko, in which messages are
@@ -44,12 +42,9 @@ class MarionetteClient(object):
         response = self.sock.recv(10)
         sep = response.find(':')
         length = response[0:sep]
-        if length != '':
-            response = response[sep + 1:]
-            response += self._recv_n_bytes(int(length) + 1 + len(length) - 10)
-            return json.loads(response)
-        else:
-            raise MarionetteException("Could not successfully complete transport of message to Gecko, socket closed?")
+        response = response[sep + 1:]
+        response += self._recv_n_bytes(int(length) + 1 + len(length) - 10)
+        return json.loads(response)
 
     def connect(self):
         """ Connect to the server and process the hello message we expect

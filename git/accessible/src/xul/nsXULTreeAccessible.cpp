@@ -187,7 +187,7 @@ nsXULTreeAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
     return nsnull;
 
   nsPresContext *presContext = frame->PresContext();
-  nsIPresShell* presShell = presContext->PresShell();
+  nsCOMPtr<nsIPresShell> presShell = presContext->PresShell();
 
   nsIFrame *rootFrame = presShell->GetRootFrame();
   NS_ENSURE_TRUE(rootFrame, nsnull);
@@ -428,19 +428,22 @@ nsXULTreeAccessible::SelectAll()
 nsAccessible*
 nsXULTreeAccessible::GetChildAt(PRUint32 aIndex)
 {
-  PRUint32 childCount = nsAccessible::ChildCount();
-  if (aIndex < childCount)
+  PRInt32 childCount = nsAccessible::GetChildCount();
+  if (childCount == -1)
+    return nsnull;
+
+  if (static_cast<PRInt32>(aIndex) < childCount)
     return nsAccessible::GetChildAt(aIndex);
 
   return GetTreeItemAccessible(aIndex - childCount);
 }
 
-PRUint32
-nsXULTreeAccessible::ChildCount() const
+PRInt32
+nsXULTreeAccessible::GetChildCount()
 {
-  // Tree's children count is row count + treecols count.
-  PRUint32 childCount = nsAccessible::ChildCount();
-  if (!mTreeView)
+  // tree's children count is row count + treecols count.
+  PRInt32 childCount = nsAccessible::GetChildCount();
+  if (childCount == -1 || !mTreeView)
     return childCount;
 
   PRInt32 rowCount = 0;

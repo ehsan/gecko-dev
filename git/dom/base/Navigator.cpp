@@ -42,8 +42,8 @@
 #include "TelephonyFactory.h"
 #endif
 #ifdef MOZ_B2G_BT
-#include "nsIDOMBluetoothManager.h"
-#include "BluetoothManager.h"
+#include "nsIDOMBluetoothAdapter.h"
+#include "BluetoothAdapter.h"
 #endif
 
 // This should not be in the namespace.
@@ -636,10 +636,10 @@ VibrateWindowListener::RemoveListener()
  */
 bool
 GetVibrationDurationFromJsval(const jsval& aJSVal, JSContext* cx,
-                              int32_t* aOut)
+                              PRInt32 *aOut)
 {
   return JS_ValueToInt32(cx, aJSVal, aOut) &&
-         *aOut >= 0 && static_cast<uint32_t>(*aOut) <= sMaxVibrateMS;
+         *aOut >= 0 && static_cast<PRUint32>(*aOut) <= sMaxVibrateMS;
 }
 
 } // anonymous namespace
@@ -660,7 +660,7 @@ Navigator::MozVibrate(const jsval& aPattern, JSContext* cx)
     return NS_OK;
   }
 
-  nsAutoTArray<uint32_t, 8> pattern;
+  nsAutoTArray<PRUint32, 8> pattern;
 
   // null or undefined pattern is an error.
   if (JSVAL_IS_NULL(aPattern) || JSVAL_IS_VOID(aPattern)) {
@@ -668,7 +668,7 @@ Navigator::MozVibrate(const jsval& aPattern, JSContext* cx)
   }
 
   if (JSVAL_IS_PRIMITIVE(aPattern)) {
-    int32_t p;
+    PRInt32 p;
     if (GetVibrationDurationFromJsval(aPattern, cx, &p)) {
       pattern.AppendElement(p);
     }
@@ -686,7 +686,7 @@ Navigator::MozVibrate(const jsval& aPattern, JSContext* cx)
 
     for (PRUint32 i = 0; i < length; ++i) {
       jsval v;
-      int32_t pv;
+      PRInt32 pv;
       if (JS_GetElement(cx, obj, i, &v) &&
           GetVibrationDurationFromJsval(v, cx, &pv)) {
         pattern[i] = pv;
@@ -1161,16 +1161,15 @@ Navigator::GetMozMobileConnection(nsIDOMMozMobileConnection** aMobileConnection)
 //*****************************************************************************
 
 NS_IMETHODIMP
-Navigator::GetMozBluetooth(nsIDOMBluetoothManager** aBluetooth)
+Navigator::GetMozBluetooth(nsIDOMBluetoothAdapter** aBluetooth)
 {
-  nsCOMPtr<nsIDOMBluetoothManager> bluetooth = mBluetooth;
+  nsCOMPtr<nsIDOMBluetoothAdapter> bluetooth = mBluetooth;
 
   if (!bluetooth) {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
     NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
-    nsresult rv = NS_NewBluetoothManager(window, getter_AddRefs(mBluetooth));
-    NS_ENSURE_SUCCESS(rv, rv);
+    mBluetooth = new bluetooth::BluetoothAdapter(window);
 
     bluetooth = mBluetooth;
   }

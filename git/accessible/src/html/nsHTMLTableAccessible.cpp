@@ -112,7 +112,7 @@ nsHTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttri
   // Pick up object attribute from abbr DOM element (a child of the cell) or
   // from abbr DOM attribute.
   nsAutoString abbrText;
-  if (ChildCount() == 1) {
+  if (GetChildCount() == 1) {
     nsAccessible* abbr = FirstChild();
     if (abbr->IsAbbreviation()) {
       nsTextEquivUtils::
@@ -1397,7 +1397,7 @@ nsHTMLTableAccessible::IsProbablyLayoutTable()
               }
 
               nsAccessible* cell = mDoc->GetAccessible(cellElm);
-              if (cell && cell->ChildCount() == 1 &&
+              if (cell && cell->GetChildCount() == 1 &&
                   cell->FirstChild()->IsAbbreviation()) {
                 RETURN_LAYOUT_ANSWER(false,
                                      "has abbr -- legitimate table structures");
@@ -1454,7 +1454,7 @@ nsHTMLTableAccessible::IsProbablyLayoutTable()
 
   // Check for styled background color across rows (alternating background
   // color is a common feature for data tables).
-  PRUint32 childCount = ChildCount();
+  PRUint32 childCount = GetChildCount();
   nscolor rowColor, prevRowColor;
   for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsAccessible* child = GetChildAt(childIdx);

@@ -53,7 +53,7 @@ AccCollector::GetIndexAt(nsAccessible *aAccessible)
 nsAccessible*
 AccCollector::EnsureNGetObject(PRUint32 aIndex)
 {
-  PRUint32 childCount = mRoot->ChildCount();
+  PRInt32 childCount = mRoot->GetChildCount();
   while (mRootChildIdx < childCount) {
     nsAccessible* child = mRoot->GetChildAt(mRootChildIdx++);
     if (!mFilterFunc(child))
@@ -70,7 +70,7 @@ AccCollector::EnsureNGetObject(PRUint32 aIndex)
 PRInt32
 AccCollector::EnsureNGetIndex(nsAccessible* aAccessible)
 {
-  PRUint32 childCount = mRoot->ChildCount();
+  PRInt32 childCount = mRoot->GetChildCount();
   while (mRootChildIdx < childCount) {
     nsAccessible* child = mRoot->GetChildAt(mRootChildIdx++);
     if (!mFilterFunc(child))

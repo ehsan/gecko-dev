@@ -20,7 +20,7 @@ namespace js {
 
 class RopeBuilder {
     JSContext *cx;
-    RootedString res;
+    RootedVarString res;
 
     RopeBuilder(const RopeBuilder &other) MOZ_DELETE;
     void operator=(const RopeBuilder &other) MOZ_DELETE;

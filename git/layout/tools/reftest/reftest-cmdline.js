@@ -86,8 +86,6 @@ RefTestCmdLineHandler.prototype =
     branch.setIntPref("hangmonitor.timeout", 0);
     // Ensure autoplay is enabled for all platforms.
     branch.setBoolPref("media.autoplay.enabled", true);
-    // Disable updates
-    branch.setBoolPref("app.update.enabled", false);
 
     var wwatch = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                            .getService(nsIWindowWatcher);

@@ -20,7 +20,6 @@ import android.util.Log;
 import android.view.animation.TranslateAnimation;
 import android.view.Gravity;
 import android.view.ContextThemeWrapper;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageButton;
@@ -29,26 +28,24 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout.LayoutParams;
 import android.widget.TextView;
 import android.widget.TextSwitcher;
-import android.widget.ViewSwitcher;
+import android.widget.ViewSwitcher.ViewFactory;
 
-public class BrowserToolbar implements ViewSwitcher.ViewFactory {
+public class BrowserToolbar {
     private static final String LOGTAG = "GeckoToolbar";
     private LinearLayout mLayout;
     private Button mAwesomeBar;
     private ImageButton mTabs;
-    private ImageView mBack;
-    private ImageView mForward;
     public ImageButton mFavicon;
     public ImageButton mStop;
     public ImageButton mSiteSecurity;
     private AnimationDrawable mProgressSpinner;
     private TextSwitcher mTabsCount;
     private ImageView mShadow;
-    private LayoutInflater mInflater;
 
     final private Context mContext;
     private Handler mHandler;
     private int mColor;
+    private int mCounterColor;
     private int[] mPadding;
     private boolean mTitleCanExpand;
 
@@ -62,7 +59,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory {
 
     public BrowserToolbar(Context context) {
         mContext = context;
-        mInflater = LayoutInflater.from(context);
     }
 
     public void from(LinearLayout layout) {
@@ -114,25 +110,31 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory {
         });
         mTabs.setImageLevel(0);
 
+        mCounterColor = 0xFFC7D1DB;
+
         mTabsCount = (TextSwitcher) mLayout.findViewById(R.id.tabs_count);
         mTabsCount.removeAllViews();
-        mTabsCount.setFactory(this);
+        mTabsCount.setFactory(new ViewFactory() {
+            public View makeView() {
+                TextView text = new TextView(mContext);
+                text.setGravity(Gravity.CENTER);
+
+                if (Build.VERSION.SDK_INT >= 11) {
+                    if (GeckoApp.mOrientation == Configuration.ORIENTATION_PORTRAIT)
+                        text.setTextSize(24);
+                    else
+                        text.setTextSize(20);
+                } else {
+                    text.setTextSize(22);
+                }
+
+                text.setTextColor(mCounterColor);
+                text.setShadowLayer(1.0f, 0f, 1.0f, Color.BLACK);
+                return text;
+            }
+        }); 
         mTabsCount.setText("0");
         mCount = 0;
-
-        mBack = (ImageButton) mLayout.findViewById(R.id.back);
-        mBack.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                Tabs.getInstance().getSelectedTab().doBack();
-            }
-        });
-
-        mForward = (ImageButton) mLayout.findViewById(R.id.forward);
-        mForward.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                Tabs.getInstance().getSelectedTab().doForward();
-            }
-        });
 
         mFavicon = (ImageButton) mLayout.findViewById(R.id.favicon);
         mSiteSecurity = (ImageButton) mLayout.findViewById(R.id.site_security);
@@ -172,12 +174,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory {
         mSlideUpOut.setDuration(mDuration);
         mSlideDownIn.setDuration(mDuration);
         mSlideDownOut.setDuration(mDuration);
-    }
-
-    @Override
-    public View makeView() {
-        // This returns a TextView for the TextSwitcher.
-        return mInflater.inflate(R.layout.tabs_counter, null);
     }
 
     private void onAwesomeBarSearch() {
@@ -235,7 +231,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory {
                     mTabsCount.setVisibility(View.GONE);
                     mTabs.setContentDescription(mContext.getString(R.string.new_tab));
                 }
-                ((TextView) mTabsCount.getCurrentView()).setTextColor(mContext.getResources().getColor(R.color.tabs_counter_color));
+                ((TextView) mTabsCount.getCurrentView()).setTextColor(mCounterColor);
             }
         }, 2 * mDuration);
     }
@@ -328,16 +324,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory {
         mLayout.requestFocusFromTouch();
     }
 
-    public void updateBackButton(boolean enabled) {
-         mBack.setColorFilter(enabled ? 0 : 0xFF999999);
-         mBack.setEnabled(enabled);
-    }
-
-    public void updateForwardButton(boolean enabled) {
-         mForward.setColorFilter(enabled ? 0 : 0xFF999999);
-         mForward.setEnabled(enabled);
-    }
-
     public void show() {
         if (Build.VERSION.SDK_INT >= 11)
             GeckoActionBar.show(GeckoApp.mAppContext);
@@ -362,8 +348,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory {
             setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
             setShadowVisibility((url == null) || !url.startsWith("about:"));
             updateTabCount(Tabs.getInstance().getCount());
-            updateBackButton(tab.canDoBack());
-            updateForwardButton(tab.canDoForward());
         }
     }
 }

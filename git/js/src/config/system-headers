@@ -594,7 +594,6 @@ proto/exec.h
 psap.h
 Pt.h
 pthread.h
-pthread_np.h
 pwd.h
 Python.h
 QDOffscreen.h

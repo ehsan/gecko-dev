@@ -46,13 +46,15 @@ nsHTMLEditor::AbsolutePositionSelection(bool aEnabled)
   
   // the line below does not match the code; should it be removed?
   // Find out if the selection is collapsed:
-  nsRefPtr<nsTypedSelection> selection = GetTypedSelection();
+  nsCOMPtr<nsISelection> selection;
+  nsresult res = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
   nsTextRulesInfo ruleInfo(aEnabled ? kOpSetAbsolutePosition :
                                       kOpRemoveAbsolutePosition);
   bool cancel, handled;
-  nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
+  res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (NS_FAILED(res) || cancel)
     return res;
   
@@ -159,12 +161,14 @@ nsHTMLEditor::RelativeChangeZIndex(PRInt32 aChange)
   
   // brade: can we get rid of this comment?
   // Find out if the selection is collapsed:
-  nsRefPtr<nsTypedSelection> selection = GetTypedSelection();
+  nsCOMPtr<nsISelection> selection;
+  nsresult res = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
   nsTextRulesInfo ruleInfo(aChange < 0 ? kOpDecreaseZIndex :
                                          kOpIncreaseZIndex);
   bool cancel, handled;
-  nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
+  res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (cancel || NS_FAILED(res))
     return res;
   

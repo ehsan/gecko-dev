@@ -216,7 +216,7 @@ JS_END_EXTERN_C
 namespace JS {
 
 template <typename T>
-class Rooted;
+class Root;
 
 class SkipRoot;
 
@@ -254,7 +254,7 @@ struct ContextFriendFields {
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.
      */
-    Rooted<void*> *thingGCRooters[THING_ROOT_LIMIT];
+    Root<void*> *thingGCRooters[THING_ROOT_LIMIT];
 
 #ifdef DEBUG
     /*

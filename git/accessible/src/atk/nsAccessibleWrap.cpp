@@ -792,7 +792,7 @@ getChildCountCB(AtkObject *aAtkObj)
         return 0;
     }
 
-    return static_cast<gint>(accWrap->EmbeddedChildCount());
+    return accWrap->GetEmbeddedChildCount();
 }
 
 AtkObject *

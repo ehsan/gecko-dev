@@ -20,6 +20,7 @@ CPPSRCS = \
   ARIAGridAccessibleWrap.cpp \
   nsAccessNodeWrap.cpp \
   nsAccessibleWrap.cpp \
+  nsTextAccessibleWrap.cpp \
   nsDocAccessibleWrap.cpp \
   nsHTMLWin32ObjectAccessible.cpp \
   nsXULMenuAccessibleWrap.cpp \
@@ -42,7 +43,6 @@ CPPSRCS = \
   CAccessibleValue.cpp \
   Compatibility.cpp \
   RootAccessibleWrap.cpp \
-  TextLeafAccessibleWrap.cpp \
   $(NULL)
 
 EXPORTS = \

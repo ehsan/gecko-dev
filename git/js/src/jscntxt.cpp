@@ -1032,7 +1032,7 @@ JSContext::~JSContext()
 void
 JSContext::resetCompartment()
 {
-    RootedObject scopeobj(this);
+    RootedVarObject scopeobj(this);
     if (stack.hasfp()) {
         scopeobj = fp()->scopeChain();
     } else {

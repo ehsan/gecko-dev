@@ -49,7 +49,8 @@ createHolder(JSContext *cx, JSObject *wrappedNative, JSObject *parent)
     if (!holder)
         return nsnull;
 
-    CompartmentPrivate *priv = GetCompartmentPrivate(holder);
+    CompartmentPrivate *priv =
+        (CompartmentPrivate *)JS_GetCompartmentPrivate(js::GetObjectCompartment(holder));
     JSObject *inner = JS_ObjectToInnerObject(cx, wrappedNative);
     XPCWrappedNative *wn = GetWrappedNative(inner);
     Value expando = ObjectOrNullValue(priv->LookupExpandoObject(wn));
@@ -257,7 +258,8 @@ EnsureExpandoObject(JSContext *cx, JSObject *holder)
     JSObject *expando = GetExpandoObject(holder);
     if (expando)
         return expando;
-    CompartmentPrivate *priv = GetCompartmentPrivate(holder);
+    CompartmentPrivate *priv =
+        (CompartmentPrivate *)JS_GetCompartmentPrivate(js::GetObjectCompartment(holder));
     XPCWrappedNative *wn = GetWrappedNativeFromHolder(holder);
     expando = priv->LookupExpandoObject(wn);
     if (!expando) {

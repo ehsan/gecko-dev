@@ -23,6 +23,7 @@ const PRUint32 kDefaultTreeCacheSize = 256;
 class nsXULTreeAccessible : public nsAccessibleWrap
 {
 public:
+  using nsAccessible::GetChildCount;
   using nsAccessible::GetChildAt;
 
   nsXULTreeAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
@@ -43,7 +44,7 @@ public:
                                      EWhichChildAtPoint aWhichChild);
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
-  virtual PRUint32 ChildCount() const;
+  virtual PRInt32 GetChildCount();
 
   // SelectAccessible
   virtual bool IsSelect();

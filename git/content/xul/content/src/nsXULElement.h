@@ -30,6 +30,7 @@
 #include "nsIURI.h"
 #include "nsIXULTemplateBuilder.h"
 #include "nsIBoxObject.h"
+#include "nsIXBLService.h"
 #include "nsLayoutCID.h"
 #include "nsAttrAndChildArray.h"
 #include "nsGkAtoms.h"
@@ -387,6 +388,20 @@ public:
             return static_cast<nsXULElement*>(aContent);
         return nsnull;
     }
+
+public:
+    static nsIXBLService* GetXBLService() {
+        if (!gXBLService)
+            CallGetService("@mozilla.org/xbl;1", &gXBLService);
+        return gXBLService;
+    }
+    static void ReleaseGlobals() {
+        NS_IF_RELEASE(gXBLService);
+    }
+
+protected:
+    // pseudo-constants
+    static nsIXBLService*       gXBLService;
 
 public:
     nsXULElement(already_AddRefed<nsINodeInfo> aNodeInfo);

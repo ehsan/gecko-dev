@@ -208,31 +208,39 @@ nsTextEditRules::AfterEdit(nsEditor::OperationID action,
 }
 
 
-NS_IMETHODIMP
-nsTextEditRules::WillDoAction(nsTypedSelection* aSelection,
-                              nsRulesInfo* aInfo,
-                              bool* aCancel,
-                              bool* aHandled)
+NS_IMETHODIMP 
+nsTextEditRules::WillDoAction(nsISelection *aSelection, 
+                              nsRulesInfo *aInfo, 
+                              bool *aCancel, 
+                              bool *aHandled)
 {
   // null selection is legal
-  MOZ_ASSERT(aInfo && aCancel && aHandled);
+  if (!aInfo || !aCancel || !aHandled) { return NS_ERROR_NULL_POINTER; }
+#if defined(DEBUG_ftang)
+  printf("nsTextEditRules::WillDoAction action= %d", aInfo->action);
+#endif
 
   *aCancel = false;
   *aHandled = false;
 
   // my kingdom for dynamic cast
   nsTextRulesInfo *info = static_cast<nsTextRulesInfo*>(aInfo);
-
-  switch (info->action) {
+    
+  switch (info->action)
+  {
     case nsEditor::kOpInsertBreak:
       return WillInsertBreak(aSelection, aCancel, aHandled, info->maxLength);
     case nsEditor::kOpInsertText:
     case nsEditor::kOpInsertIMEText:
-      return WillInsertText(info->action, aSelection, aCancel, aHandled,
-                            info->inString, info->outString, info->maxLength);
+      return WillInsertText(info->action,
+                            aSelection, 
+                            aCancel,
+                            aHandled, 
+                            info->inString,
+                            info->outString,
+                            info->maxLength);
     case nsEditor::kOpDeleteSelection:
-      return WillDeleteSelection(aSelection, info->collapsedAction,
-                                 aCancel, aHandled);
+      return WillDeleteSelection(aSelection, info->collapsedAction, aCancel, aHandled);
     case nsEditor::kOpUndo:
       return WillUndo(aSelection, aCancel, aHandled);
     case nsEditor::kOpRedo:
@@ -242,8 +250,11 @@ nsTextEditRules::WillDoAction(nsTypedSelection* aSelection,
     case nsEditor::kOpRemoveTextProperty:
       return WillRemoveTextProperty(aSelection, aCancel, aHandled);
     case nsEditor::kOpOutputText:
-      return WillOutputText(aSelection, info->outputFormat, info->outString,
-                            aCancel, aHandled);
+      return WillOutputText(aSelection, 
+                            info->outputFormat,
+                            info->outString,                            
+                            aCancel,
+                            aHandled);
     case nsEditor::kOpInsertElement:
       // i had thought this would be html rules only.  but we put pre elements
       // into plaintext mail when doing quoting for reply!  doh!
@@ -252,7 +263,7 @@ nsTextEditRules::WillDoAction(nsTypedSelection* aSelection,
       return NS_ERROR_FAILURE;
   }
 }
-
+  
 NS_IMETHODIMP 
 nsTextEditRules::DidDoAction(nsISelection *aSelection,
                              nsRulesInfo *aInfo, nsresult aResult)

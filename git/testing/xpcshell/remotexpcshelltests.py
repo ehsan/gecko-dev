@@ -218,7 +218,7 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
 
     def getReturnCode(self, proc):
         if self.shellReturnCode is not None:
-          return self.shellReturnCode
+          return int(self.shellReturnCode)
         else:
           return -1
 

@@ -630,7 +630,7 @@ nsXULTreeGridRowAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
     return nsnull;
 
   nsPresContext *presContext = frame->PresContext();
-  nsIPresShell* presShell = presContext->PresShell();
+  nsCOMPtr<nsIPresShell> presShell = presContext->PresShell();
 
   nsIFrame *rootFrame = presShell->GetRootFrame();
   NS_ENSURE_TRUE(rootFrame, nsnull);
@@ -667,9 +667,12 @@ nsXULTreeGridRowAccessible::GetChildAt(PRUint32 aIndex)
   return GetCellAccessible(column);
 }
 
-PRUint32
-nsXULTreeGridRowAccessible::ChildCount() const
+PRInt32
+nsXULTreeGridRowAccessible::GetChildCount()
 {
+  if (IsDefunct())
+    return -1;
+
   return nsCoreUtils::GetSensibleColumnCount(mTree);
 }
 

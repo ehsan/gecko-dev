@@ -165,7 +165,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
 
   private:
     bool markValue(JSTracer *trc, Value *x) {
-        if (gc::IsMarked(x))
+        if (gc::IsMarked(*x))
             return false;
         gc::Mark(trc, x, "WeakMap entry");
         return true;
@@ -178,16 +178,11 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
 
     bool markIteratively(JSTracer *trc) {
         bool markedAny = false;
-        for (Enum e(*this); !e.empty(); e.popFront()) {
+        for (Range r = Base::all(); !r.empty(); r.popFront()) {
             /* If the entry is live, ensure its key and value are marked. */
-            Key k(e.front().key);
-            bool keyIsMarked = gc::IsMarked(&k);
-            if (keyIsMarked) {
-                if (markValue(trc, &e.front().value))
-                    markedAny = true;
-                e.rekeyFront(k);
-            }
-            JS_ASSERT_IF(keyIsMarked, gc::IsMarked(&e.front().value));
+            if (gc::IsMarked(r.front().key) && markValue(trc, &r.front().value))
+                markedAny = true;
+            JS_ASSERT_IF(gc::IsMarked(r.front().key), gc::IsMarked(r.front().value));
         }
         return markedAny;
     }
@@ -195,8 +190,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
     void sweep(JSTracer *trc) {
         /* Remove all entries whose keys remain unmarked. */
         for (Enum e(*this); !e.empty(); e.popFront()) {
-            Key k(e.front().key);
-            if (!gc::IsMarked(&k))
+            if (!gc::IsMarked(e.front().key))
                 e.removeFront();
         }
 
@@ -206,12 +200,8 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
          * known-live part of the graph.
          */
         for (Range r = Base::all(); !r.empty(); r.popFront()) {
-            Key k(r.front().key);
-            Value v(r.front().value);
-            JS_ASSERT(gc::IsMarked(&k));
-            JS_ASSERT(gc::IsMarked(&v));
-            JS_ASSERT(k == r.front().key);
-            JS_ASSERT(v == r.front().value);
+            JS_ASSERT(gc::IsMarked(r.front().key));
+            JS_ASSERT(gc::IsMarked(r.front().value));
         }
 #endif
     }

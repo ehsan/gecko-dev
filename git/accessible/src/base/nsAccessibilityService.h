@@ -101,7 +101,7 @@ public:
   already_AddRefed<nsAccessible>
     CreateHTMLTableRowAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   already_AddRefed<nsAccessible>
-    CreateTextLeafAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+    CreateHTMLTextAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   already_AddRefed<nsAccessible>
     CreateHTMLTextFieldAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   already_AddRefed<nsAccessible>

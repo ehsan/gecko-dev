@@ -37,8 +37,7 @@ class Emulator(object):
 
     deviceRe = re.compile(r"^emulator-(\d+)(\s*)(.*)$")
 
-    def __init__(self, homedir=None, noWindow=False, logcat_dir=None, arch="x86",
-                 emulatorBinary=None, userdata=None):
+    def __init__(self, homedir=None, noWindow=False, logcat_dir=None, arch="x86", emulatorBinary=None):
         self.port = None
         self._emulator_launched = False
         self.proc = None
@@ -55,8 +54,6 @@ class Emulator(object):
         self.noWindow = noWindow
         if self.homedir is not None:
             self.homedir = os.path.expanduser(homedir)
-        self.dataImg = userdata
-        self.copy_userdata = self.dataImg is None
 
     def _check_for_b2g(self):
         if self.homedir is None:
@@ -105,8 +102,7 @@ class Emulator(object):
         self.sysDir = os.path.join(self.homedir, sysdir)
         self._check_file(self.sysDir)
 
-        if not self.dataImg:
-            self.dataImg = os.path.join(self.sysDir, 'userdata.img')
+        self.dataImg = os.path.join(self.sysDir, 'userdata.img')
         self._check_file(self.dataImg)
 
     def __del__(self):
@@ -250,13 +246,12 @@ class Emulator(object):
         self._check_for_b2g()
         self.start_adb()
 
+        # Make a copy of the userdata.img for this instance of the emulator
+        # to use.
+        self._tmp_userdata = tempfile.mktemp(prefix='marionette')
+        shutil.copyfile(self.dataImg, self._tmp_userdata)
         qemu_args = self.args[:]
-        if self.copy_userdata:
-            # Make a copy of the userdata.img for this instance of the emulator
-            # to use.
-            self._tmp_userdata = tempfile.mktemp(prefix='marionette')
-            shutil.copyfile(self.dataImg, self._tmp_userdata)
-            qemu_args[qemu_args.index('-data') + 1] = self._tmp_userdata
+        qemu_args[qemu_args.index('-data') + 1] = self._tmp_userdata
 
         original_online, original_offline = self._get_adb_devices()
 

@@ -12,6 +12,7 @@ import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Surface;
 import android.view.View;
@@ -138,7 +139,9 @@ public final class Tab {
 
     float getDensity() {
         if (sDensity == 0.0f) {
-            sDensity = GeckoApp.mAppContext.getDisplayMetrics().density;
+            DisplayMetrics metrics = new DisplayMetrics();
+            GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
+            sDensity = metrics.density;
         }
         return sDensity;
     }
@@ -359,10 +362,6 @@ public final class Tab {
         GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", "");
         GeckoAppShell.sendEventToGecko(e);
         return true;
-    }
-
-    public boolean canDoBack() {
-        return (mHistoryIndex < 1 ? false : true);
     }
 
     public boolean doBack() {

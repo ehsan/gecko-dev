@@ -26,7 +26,6 @@
 #endif
 
 #if defined(_WIN32)
-#include <stdlib.h>
 typedef signed char int8_t;
 typedef unsigned char uint8_t;
 typedef short int16_t;
@@ -35,10 +34,7 @@ typedef int int32_t;
 typedef unsigned int uint32_t;
 typedef __int64 int64_t;
 typedef unsigned __int64 uint64_t;
-#define ntohl(x) _byteswap_ulong (x)
-#define ntohs(x) _byteswap_ushort (x)
-#define htonl(x) _byteswap_ulong (x)
-#define htons(x) _byteswap_ushort (x)
+#include <winsock2.h>  // for htons/ntohs
 #else
 #include <arpa/inet.h>
 #include <stdint.h>

@@ -1102,8 +1102,7 @@ nsSVGSVGElement::GetViewBoxWithSynthesis(
 SVGPreserveAspectRatio
 nsSVGSVGElement::GetPreserveAspectRatioWithOverride() const
 {
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc && doc->IsBeingUsedAsImage()) {
+  if (GetCurrentDoc()->IsBeingUsedAsImage()) {
     const SVGPreserveAspectRatio *pAROverridePtr = GetPreserveAspectRatioProperty();
     if (pAROverridePtr) {
       return *pAROverridePtr;

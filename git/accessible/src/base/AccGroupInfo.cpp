@@ -18,9 +18,8 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, role aRole) :
     return;
 
   PRInt32 indexInParent = aItem->IndexInParent();
-  PRUint32 siblingCount = parent->ChildCount();
-  if (indexInParent == -1 ||
-      indexInParent >= static_cast<PRInt32>(siblingCount)) {
+  PRInt32 siblingCount = parent->GetChildCount();
+  if (siblingCount < indexInParent) {
     NS_ERROR("Wrong index in parent! Tree invalidation problem.");
     return;
   }
@@ -29,7 +28,7 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, role aRole) :
 
   // Compute position in set.
   mPosInSet = 1;
-  for (PRInt32 idx = indexInParent - 1; idx >= 0 ; idx--) {
+  for (PRInt32 idx = indexInParent - 1; idx >=0 ; idx--) {
     nsAccessible* sibling = parent->GetChildAt(idx);
     roles::Role siblingRole = sibling->Role();
 
@@ -70,7 +69,7 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, role aRole) :
   // Compute set size.
   mSetSize = mPosInSet;
 
-  for (PRUint32 idx = indexInParent + 1; idx < siblingCount; idx++) {
+  for (PRInt32 idx = indexInParent + 1; idx < siblingCount; idx++) {
     nsAccessible* sibling = parent->GetChildAt(idx);
 
     roles::Role siblingRole = sibling->Role();

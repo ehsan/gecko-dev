@@ -343,7 +343,7 @@ class ReferenceFinder {
     const HeapReverser &reverser;
 
     /* The results object we're currently building. */
-    RootedObject result;
+    RootedVarObject result;
 
     /* A list of edges we've traversed to get to a certain point. */
     class Path {
@@ -481,11 +481,9 @@ ReferenceFinder::Path::computeName(JSContext *cx)
 }
 
 bool
-ReferenceFinder::addReferrer(jsval referrer_, Path *path)
+ReferenceFinder::addReferrer(jsval referrer, Path *path)
 {
-    Rooted<jsval> referrer(context, referrer_);
-
-    if (!context->compartment->wrap(context, referrer.address()))
+    if (!context->compartment->wrap(context, &referrer))
         return NULL;
 
     char *pathName = path->computeName(context);
@@ -493,13 +491,15 @@ ReferenceFinder::addReferrer(jsval referrer_, Path *path)
         return false;
     AutoReleasePtr releasePathName(context, pathName);
 
+    Root<jsval> referrerRoot(context, &referrer);
+
     /* Find the property of the results object named |pathName|. */
     JS::Value v;
     if (!JS_GetProperty(context, result, pathName, &v))
         return false;
     if (v.isUndefined()) {
         /* Create an array to accumulate referents under this path. */
-        JSObject *array = JS_NewArrayObject(context, 1, referrer.address());
+        JSObject *array = JS_NewArrayObject(context, 1, &referrer);
         if (!array)
             return false;
         v.setObject(*array);
@@ -507,13 +507,13 @@ ReferenceFinder::addReferrer(jsval referrer_, Path *path)
     }
 
     /* The property's value had better be an array. */
-    RootedObject array(context, &v.toObject());
+    RootedVarObject array(context, &v.toObject());
     JS_ASSERT(JS_IsArrayObject(context, array));
 
     /* Append our referrer to this array. */
     uint32_t length;
     return JS_GetArrayLength(context, array, &length) &&
-           JS_SetElement(context, array, length, referrer.address());
+           JS_SetElement(context, array, length, &referrer);
 }
 
 JSObject *
@@ -552,7 +552,7 @@ FindReferences(JSContext *cx, unsigned argc, jsval *vp)
 
     /* Given the reversed map, find the referents of target. */
     ReferenceFinder finder(cx, reverser);
-    JSObject *references = finder.findReferences(RootedObject(cx, &target.toObject()));
+    JSObject *references = finder.findReferences(RootedVarObject(cx, &target.toObject()));
     if (!references)
         return false;
 

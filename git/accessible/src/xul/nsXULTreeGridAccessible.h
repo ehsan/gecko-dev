@@ -54,6 +54,7 @@ protected:
 class nsXULTreeGridRowAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
+  using nsAccessible::GetChildCount;
   using nsAccessible::GetChildAt;
 
   nsXULTreeGridRowAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
@@ -75,7 +76,7 @@ public:
                                      EWhichChildAtPoint aWhichChild);
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
-  virtual PRUint32 ChildCount() const;
+  virtual PRInt32 GetChildCount();
 
   // nsXULTreeItemAccessibleBase
   virtual nsAccessible* GetCellAccessible(nsITreeColumn *aColumn);

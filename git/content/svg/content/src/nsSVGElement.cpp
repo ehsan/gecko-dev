@@ -21,6 +21,7 @@
 #include "nsDOMError.h"
 #include "nsIPresShell.h"
 #include "nsIServiceManager.h"
+#include "nsIXBLService.h"
 #include "nsGkAtoms.h"
 #include "mozilla/css/StyleRule.h"
 #include "nsRuleWalker.h"
