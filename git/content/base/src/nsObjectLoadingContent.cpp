@@ -18,8 +18,6 @@
 #include "nsIDocument.h"
 #include "nsIDOMDataContainerEvent.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMHTMLObjectElement.h"
-#include "nsIDOMHTMLAppletElement.h"
 #include "nsIExternalProtocolHandler.h"
 #include "nsEventStates.h"
 #include "nsIObjectFrame.h"
@@ -28,7 +26,6 @@
 #include "nsJSNPRuntime.h"
 #include "nsIPresShell.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsScriptSecurityManager.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIStreamConverterService.h"
 #include "nsIURILoader.h"
@@ -1071,13 +1068,6 @@ nsObjectLoadingContent::GetContentTypeForMIMEType(const nsACString& aMIMEType,
   return NS_OK;
 }
 
-nsresult
-nsObjectLoadingContent::GetBaseURI(nsIURI **aResult)
-{
-  NS_IF_ADDREF(*aResult = mBaseURI);
-  return NS_OK;
-}
-
 // nsIInterfaceRequestor
 // We use a shim class to implement this so that JS consumers still
 // see an interface requestor even though WebIDL bindings don't expose
@@ -1194,46 +1184,6 @@ nsObjectLoadingContent::ObjectState() const
   return NS_EVENT_STATE_LOADING;
 }
 
-// Returns false if mBaseURI is not acceptable for java applets.
-bool
-nsObjectLoadingContent::CheckJavaCodebase()
-{
-  nsCOMPtr<nsIContent> thisContent =
-    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
-  nsCOMPtr<nsIScriptSecurityManager> secMan =
-    nsContentUtils::GetSecurityManager();
-  nsCOMPtr<nsINetUtil> netutil = do_GetNetUtil();
-  NS_ASSERTION(thisContent && secMan && netutil, "expected interfaces");
-
-
-  // Note that mBaseURI is this tag's requested base URI, not the codebase of
-  // the document for security purposes
-  nsresult rv = secMan->CheckLoadURIWithPrincipal(thisContent->NodePrincipal(),
-                                                  mBaseURI, 0);
-  if (NS_FAILED(rv)) {
-    LOG(("OBJLC [%p]: Java codebase check failed", this));
-    return false;
-  }
-
-  nsCOMPtr<nsIURI> principalBaseURI;
-  rv = thisContent->NodePrincipal()->GetURI(getter_AddRefs(principalBaseURI));
-  if (NS_FAILED(rv)) {
-    NS_NOTREACHED("Failed to URI from node principal?");
-    return false;
-  }
-  // We currently allow java's codebase to be non-same-origin, with
-  // the exception of URIs that represent local files
-  if (NS_URIIsLocalFile(mBaseURI) &&
-      nsScriptSecurityManager::GetStrictFileOriginPolicy() &&
-      !NS_RelaxStrictFileOriginPolicy(mBaseURI, principalBaseURI)) {
-    LOG(("OBJLC [%p]: Java failed RelaxStrictFileOriginPolicy for file URI",
-         this));
-    return false;
-  }
-
-  return true;
-}
-
 bool
 nsObjectLoadingContent::CheckLoadPolicy(int16_t *aContentPolicy)
 {
@@ -1324,7 +1274,7 @@ nsObjectLoadingContent::CheckProcessPolicy(int16_t *aContentPolicy)
 }
 
 nsObjectLoadingContent::ParameterUpdateFlags
-nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
+nsObjectLoadingContent::UpdateObjectParameters()
 {
   nsCOMPtr<nsIContent> thisContent =
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
@@ -1357,7 +1307,7 @@ nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
   ///
   /// Initial MIME Type
   ///
-  if (aJavaURI || thisContent->NodeInfo()->Equals(nsGkAtoms::applet)) {
+  if (thisContent->NodeInfo()->Equals(nsGkAtoms::applet)) {
     newMime.AssignLiteral("application/x-java-vm");
     isJava = true;
   } else {
@@ -1399,76 +1349,17 @@ nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
 
   nsAutoString codebaseStr;
   nsCOMPtr<nsIURI> docBaseURI = thisContent->GetBaseURI();
-  bool hasCodebase = thisContent->HasAttr(kNameSpaceID_None, nsGkAtoms::codebase);
-  if (hasCodebase)
-    thisContent->GetAttr(kNameSpaceID_None, nsGkAtoms::codebase, codebaseStr);
-
-
-  // Java wants the codebase attribute even if it occurs in <param> tags
-  // XXX(johns): This duplicates a chunk of code from nsInstanceOwner, see
-  //             bug 853995
-  if (isJava) {
-    // Find all <param> tags that are nested beneath us, but not beneath another
-    // object/applet tag.
-    nsCOMArray<nsIDOMElement> ourParams;
-    nsCOMPtr<nsIDOMElement> mydomElement = do_QueryInterface(thisContent);
-
-    nsCOMPtr<nsIDOMHTMLCollection> allParams;
-    NS_NAMED_LITERAL_STRING(xhtml_ns, "http://www.w3.org/1999/xhtml");
-    mydomElement->GetElementsByTagNameNS(xhtml_ns, NS_LITERAL_STRING("param"),
-                                         getter_AddRefs(allParams));
-    if (allParams) {
-      uint32_t numAllParams;
-      allParams->GetLength(&numAllParams);
-      for (uint32_t i = 0; i < numAllParams; i++) {
-        nsCOMPtr<nsIDOMNode> pnode;
-        allParams->Item(i, getter_AddRefs(pnode));
-        nsCOMPtr<nsIDOMElement> domelement = do_QueryInterface(pnode);
-        if (domelement) {
-          nsAutoString name;
-          domelement->GetAttribute(NS_LITERAL_STRING("name"), name);
-          name.Trim(" \n\r\t\b", true, true, false);
-          if (name.EqualsIgnoreCase("codebase")) {
-            // Find the first plugin element parent
-            nsCOMPtr<nsIDOMNode> parent;
-            nsCOMPtr<nsIDOMHTMLObjectElement> domobject;
-            nsCOMPtr<nsIDOMHTMLAppletElement> domapplet;
-            pnode->GetParentNode(getter_AddRefs(parent));
-            while (!(domobject || domapplet) && parent) {
-              domobject = do_QueryInterface(parent);
-              domapplet = do_QueryInterface(parent);
-              nsCOMPtr<nsIDOMNode> temp;
-              parent->GetParentNode(getter_AddRefs(temp));
-              parent = temp;
-            }
-            if (domapplet || domobject) {
-              if (domapplet) {
-                parent = domapplet;
-              }
-              else {
-                parent = domobject;
-              }
-              nsCOMPtr<nsIDOMNode> mydomNode = do_QueryInterface(mydomElement);
-              if (parent == mydomNode) {
-                hasCodebase = true;
-                domelement->GetAttribute(NS_LITERAL_STRING("value"),
-                                         codebaseStr);
-                codebaseStr.Trim(" \n\r\t\b", true, true, false);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  if (isJava && hasCodebase && codebaseStr.IsEmpty()) {
-    // Java treats an empty codebase as the document codebase, but codebase=""
-    // as "/"
-    codebaseStr.AssignLiteral("/");
-    // XXX(johns): This doesn't cover the case of "https:" which java would
-    //             interpret as "https:///" but we interpret as this document's
-    //             URI but with a changed scheme.
+  thisContent->GetAttr(kNameSpaceID_None, nsGkAtoms::codebase, codebaseStr);
+  if (codebaseStr.IsEmpty() && thisContent->NodeInfo()->Equals(nsGkAtoms::applet)) {
+    // bug 406541
+    // NOTE we send the full absolute URI resolved here to java in
+    //      pluginInstanceOwner to avoid disagreements between parsing of
+    //      relative URIs. We need to mimic java's quirks here to make that
+    //      not break things.
+    codebaseStr.AssignLiteral("/"); // Java resolves codebase="" as "/"
+    // XXX(johns) This doesn't catch the case of "file:" which java would
+    // interpret as "file:///" but we would interpret as this document's URI
+    // but with a changed scheme.
   }
 
   if (!codebaseStr.IsEmpty()) {
@@ -1485,7 +1376,7 @@ nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
     }
   }
 
-  // If we failed to build a valid URI, use the document's base URI
+  // Otherwise, use normal document baseURI
   if (!newBaseURI) {
     newBaseURI = docBaseURI;
   }
@@ -1497,11 +1388,9 @@ nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
   nsAutoString uriStr;
   // Different elements keep this in various locations
   if (isJava) {
-    // Applet tags and embed/object with explicit java MIMEs have src/data
-    // attributes that are not meant to be parsed as URIs or opened by the
-    // browser -- act as if they are null. (Setting these attributes triggers a
-    // force-load, so tracking the old value to determine if they have changed
-    // is not necessary.)
+    // Applet tags and embed/object with explicit java MIMEs have
+    // src/data attributes that are not parsed as URIs, so we will
+    // act as if URI is null
   } else if (thisContent->NodeInfo()->Equals(nsGkAtoms::object)) {
     thisContent->GetAttr(kNameSpaceID_None, nsGkAtoms::data, uriStr);
   } else if (thisContent->NodeInfo()->Equals(nsGkAtoms::embed)) {
@@ -1531,9 +1420,6 @@ nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
       (caps & eAllowPluginSkipChannel) &&
       IsPluginEnabledByExtension(newURI, newMime)) {
     LOG(("OBJLC [%p]: Using extension as type hint (%s)", this, newMime.get()));
-    if (!isJava && nsPluginHost::IsJavaMIMEType(newMime.get())) {
-      return UpdateObjectParameters(true);
-    }
   }
 
   ///
@@ -1922,13 +1808,10 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
   //
 
   if (mType != eType_Null) {
-    bool allowLoad = true;
-    if (nsPluginHost::IsJavaMIMEType(mContentType.get())) {
-      allowLoad = CheckJavaCodebase();
-    }
     int16_t contentPolicy = nsIContentPolicy::ACCEPT;
+    bool allowLoad = true;
     // If mChannelLoaded is set we presumably already passed load policy
-    if (allowLoad && mURI && !mChannelLoaded) {
+    if (mURI && !mChannelLoaded) {
       allowLoad = CheckLoadPolicy(&contentPolicy);
     }
     // If we're loading a type now, check ProcessPolicy. Note that we may check
