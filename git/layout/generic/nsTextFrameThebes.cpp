@@ -714,14 +714,6 @@ public:
                                             aCapitalize, mContext);
     }
 
-    void Finish() {
-      if (mTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_TRANSFORMED) {
-        nsTransformedTextRun* transformedTextRun =
-          static_cast<nsTransformedTextRun*>(mTextRun);
-        transformedTextRun->FinishSettingProperties(mContext);
-      }
-    }
-
     gfxTextRun*  mTextRun;
     gfxContext*  mContext;
     PRUint32     mOffsetIntoTextRun;
@@ -1162,7 +1154,6 @@ void BuildTextRunsScanner::FlushFrames(PRBool aFlushLineBreaks, PRBool aSuppress
         // TODO cause frames associated with the textrun to be reflowed, if they
         // aren't being reflowed already!
       }
-      mBreakSinks[i]->Finish();
     }
     mBreakSinks.Clear();
   }
