@@ -216,7 +216,7 @@ let FormAssistant = {
     'range'
   ]),
 
-  isHandlingFocus: false,
+  isKeyboardOpened: false,
   selectionStart: -1,
   selectionEnd: -1,
   textBeforeCursor: "",
@@ -304,7 +304,7 @@ let FormAssistant = {
           });
         });
         if (del && element === self.focusedElement) {
-          self.unhandleFocus();
+          self.hideKeyboard();
           self.selectionStart = -1;
           self.selectionEnd = -1;
         }
@@ -351,7 +351,7 @@ let FormAssistant = {
     if (this._editing) {
       return;
     }
-    this.sendInputState(this.focusedElement);
+    this.sendKeyboardState(this.focusedElement);
   },
 
   handleEvent: function fa_handleEvent(evt) {
@@ -379,13 +379,13 @@ let FormAssistant = {
         }
 
         if (isContentEditable(target)) {
-          this.handleFocus(this.getTopLevelEditable(target));
+          this.showKeyboard(this.getTopLevelEditable(target));
           this.updateSelection();
           break;
         }
 
         if (this.isFocusableElement(target)) {
-          this.handleFocus(target);
+          this.showKeyboard(target);
           this.updateSelection();
         }
         break;
@@ -406,14 +406,14 @@ let FormAssistant = {
 
       case "blur":
         if (this.focusedElement) {
-          this.unhandleFocus();
+          this.hideKeyboard();
           this.selectionStart = -1;
           this.selectionEnd = -1;
         }
         break;
 
       case "resize":
-        if (!this.isHandlingFocus)
+        if (!this.isKeyboardOpened)
           return;
 
         if (this.scrollIntoViewTimeout) {
@@ -672,7 +672,7 @@ let FormAssistant = {
 
   },
 
-  handleFocus: function fa_handleFocus(target) {
+  showKeyboard: function fa_showKeyboard(target) {
     if (this.focusedElement === target)
       return;
 
@@ -682,17 +682,18 @@ let FormAssistant = {
     this.setFocusedElement(target);
 
     let count = this._focusCounter;
-    this.waitForNextTick(function fa_handleFocusSync() {
+    this.waitForNextTick(function fa_showKeyboardSync() {
       if (count !== this._focusCounter) {
         return;
       }
 
-      let isHandlingFocus = this.sendInputState(target);
-      this.isHandlingFocus = isHandlingFocus;
+      let kbOpened = this.sendKeyboardState(target);
+      if (this.isTextInputElement(target))
+        this.isKeyboardOpened = kbOpened;
     }.bind(this));
   },
 
-  unhandleFocus: function fa_unhandleFocus() {
+  hideKeyboard: function fa_hideKeyboard() {
     this.setFocusedElement(null);
 
     let count = this._focusCounter;
@@ -700,13 +701,13 @@ let FormAssistant = {
     // Wait for the next tick before unset the focused element and etc.
     // If the user move from one input from another,
     // the remote process should get one Forms:Input message instead of two.
-    this.waitForNextTick(function fa_unhandleFocusSync() {
+    this.waitForNextTick(function fa_hideKeyboardSync() {
       if (count !== this._focusCounter ||
-          !this.isHandlingFocus) {
+          !this.isKeyboardOpened) {
         return;
       }
 
-      this.isHandlingFocus = false;
+      this.isKeyboardOpened = false;
       sendAsyncMessage("Forms:Input", { "type": "blur" });
     }.bind(this));
   },
@@ -724,6 +725,12 @@ let FormAssistant = {
             !this.ignoredInputTypes.has(element.type));
   },
 
+  isTextInputElement: function fa_isTextInputElement(element) {
+    return element instanceof HTMLInputElement ||
+           element instanceof HTMLTextAreaElement ||
+           isContentEditable(element);
+  },
+
   getTopLevelEditable: function fa_getTopLevelEditable(element) {
     function retrieveTopLevelEditable(element) {
       while (element && !isContentEditable(element))
@@ -735,7 +742,7 @@ let FormAssistant = {
     return retrieveTopLevelEditable(element) || element;
   },
 
-  sendInputState: function(element) {
+  sendKeyboardState: function(element) {
     // FIXME/bug 729623: work around apparent bug in the IME manager
     // in gecko.
     let readonly = element.getAttribute("readonly");
