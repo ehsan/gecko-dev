@@ -1816,9 +1816,6 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    if (!mRequest->GetOwner()) {
-      return NS_OK;
-    }
     mRequest->FireError(mError);
     mRequest = nullptr;
     return NS_OK;
@@ -1909,18 +1906,13 @@ ContinueCursorEvent::Continue()
 NS_IMETHODIMP
 ContinueCursorEvent::Run()
 {
-  nsCOMPtr<nsPIDOMWindow> window = mRequest->GetOwner();
-  if (!window) {
-    return NS_OK;
-  }
-
   nsRefPtr<DeviceStorageFile> file = GetNextFile();
 
   nsDOMDeviceStorageCursor* cursor
     = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
 
   AutoJSContext cx;
-  JS::Rooted<JS::Value> val(cx, nsIFileToJsval(window, file));
+  JS::Rooted<JS::Value> val(cx, nsIFileToJsval(cursor->GetOwner(), file));
 
   if (file) {
     cursor->mOkToCallContinue = true;
@@ -2143,10 +2135,6 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    nsCOMPtr<nsPIDOMWindow> window = mRequest->GetOwner();
-    if (!window) {
-      return NS_OK;
-    }
 
     nsString state = NS_LITERAL_STRING("unavailable");
     if (mFile) {
@@ -2155,7 +2143,7 @@ public:
 
     AutoJSContext cx;
     JS::Rooted<JS::Value> result(cx);
-    StringToJsval(window, state, &result);
+    StringToJsval(mRequest->GetOwner(), state, &result);
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2181,10 +2169,6 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    nsCOMPtr<nsPIDOMWindow> window = mRequest->GetOwner();
-    if (!window) {
-      return NS_OK;
-    }
 
     nsString state = NS_LITERAL_STRING("undefined");
     if (mFile) {
@@ -2193,7 +2177,7 @@ public:
 
     AutoJSContext cx;
     JS::Rooted<JS::Value> result(cx);
-    StringToJsval(window, state, &result);
+    StringToJsval(mRequest->GetOwner(), state, &result);
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2219,10 +2203,6 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    nsCOMPtr<nsPIDOMWindow> window = mRequest->GetOwner();
-    if (!window) {
-      return NS_OK;
-    }
 
     nsString state = NS_LITERAL_STRING("unavailable");
     if (mFile) {
@@ -2231,7 +2211,7 @@ public:
 
     AutoJSContext cx;
     JS::Rooted<JS::Value> result(cx);
-    StringToJsval(window, state, &result);
+    StringToJsval(mRequest->GetOwner(), state, &result);
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2257,10 +2237,6 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    nsCOMPtr<nsPIDOMWindow> window = mRequest->GetOwner();
-    if (!window) {
-      return NS_OK;
-    }
 
     nsString state = NS_LITERAL_STRING("unavailable");
     if (mFile) {
@@ -2269,7 +2245,7 @@ public:
 
     AutoJSContext cx;
     JS::Rooted<JS::Value> result(cx);
-    StringToJsval(window, state, &result);
+    StringToJsval(mRequest->GetOwner(), state, &result);
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2295,10 +2271,6 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    nsCOMPtr<nsPIDOMWindow> window = mRequest->GetOwner();
-    if (!window) {
-      return NS_OK;
-    }
 
     nsString state = NS_LITERAL_STRING("unavailable");
     if (mFile) {
@@ -2307,7 +2279,7 @@ public:
 
     AutoJSContext cx;
     JS::Rooted<JS::Value> result(cx);
-    StringToJsval(window, state, &result);
+    StringToJsval(mRequest->GetOwner(), state, &result);
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2350,13 +2322,10 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    nsCOMPtr<nsPIDOMWindow> window = mRequest->GetOwner();
-    if (!window) {
-      return NS_OK;
-    }
 
     AutoJSContext cx;
     JS::Rooted<JS::Value> result(cx, JSVAL_NULL);
+    nsPIDOMWindow* window = mRequest->GetOwner();
 
     if (mFile) {
       result = nsIFileToJsval(window, mFile);

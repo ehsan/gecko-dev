@@ -172,7 +172,6 @@ struct LayerPropertiesBase : public LayerProperties
 
     if (mUseClipRect && otherClip) {
       if (!mClipRect.IsEqualInterior(*otherClip)) {
-        aGeometryChanged = true;
         nsIntRegion tmp; 
         tmp.Xor(mClipRect, *otherClip); 
         AddRegion(result, tmp);
@@ -293,7 +292,6 @@ struct ContainerLayerProperties : public LayerPropertiesBase
         invalidateChildsCurrentArea = true;
       }
       if (invalidateChildsCurrentArea) {
-        aGeometryChanged = true;
         gfx3DMatrix transform;
         gfx::To3DMatrix(child->GetTransform(), transform);
         AddTransformedRegion(result, child->GetVisibleRegion(), transform);
@@ -340,7 +338,6 @@ struct ColorLayerProperties : public LayerPropertiesBase
     ColorLayer* color = static_cast<ColorLayer*>(mLayer.get());
 
     if (mColor != color->GetColor()) {
-      aGeometryChanged = true;
       return NewTransformedBounds();
     }
 
@@ -367,7 +364,6 @@ struct ImageLayerProperties : public LayerPropertiesBase
     ImageLayer* imageLayer = static_cast<ImageLayer*>(mLayer.get());
     
     if (!imageLayer->GetVisibleRegion().IsEqual(mVisibleRegion)) {
-      aGeometryChanged = true;
       nsIntRect result = NewTransformedBounds();
       result = result.Union(OldTransformedBounds());
       return result;
@@ -377,7 +373,6 @@ struct ImageLayerProperties : public LayerPropertiesBase
         mFilter != imageLayer->GetFilter() ||
         mScaleToSize != imageLayer->GetScaleToSize() ||
         mScaleMode != imageLayer->GetScaleMode()) {
-      aGeometryChanged = true;
       return NewTransformedBounds();
     }
 

@@ -4945,21 +4945,27 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
    * Thus we have to invert the matrix, which normally does
    * the reverse operation (e.g. regular->transformed)
    */
+  bool snap;
+  nsRect childBounds = mStoredList.GetBounds(aBuilder, &snap);
+  gfxRect childGfxBounds(NSAppUnitsToFloatPixels(childBounds.x, factor),
+                         NSAppUnitsToFloatPixels(childBounds.y, factor),
+                         NSAppUnitsToFloatPixels(childBounds.width, factor),
+                         NSAppUnitsToFloatPixels(childBounds.height, factor));
 
   /* Now, apply the transform and pass it down the channel. */
   nsRect resultingRect;
   if (aRect.width == 1 && aRect.height == 1) {
     // Magic width/height indicating we're hit testing a point, not a rect
-    gfxPointH3D point = matrix.Inverse().ProjectPoint(gfxPoint(NSAppUnitsToFloatPixels(aRect.x, factor),
-                                                               NSAppUnitsToFloatPixels(aRect.y, factor)));
-    if (!point.HasPositiveWCoord()) {
+    gfxPoint point;
+    if (!matrix.UntransformPoint(gfxPoint(NSAppUnitsToFloatPixels(aRect.x, factor),
+                                          NSAppUnitsToFloatPixels(aRect.y, factor)),
+                                 childGfxBounds,
+                                 &point)) {
       return;
     }
 
-    gfxPoint point2d = point.As2DPoint();
-
-    resultingRect = nsRect(NSFloatPixelsToAppUnits(float(point2d.x), factor),
-                           NSFloatPixelsToAppUnits(float(point2d.y), factor),
+    resultingRect = nsRect(NSFloatPixelsToAppUnits(float(point.x), factor),
+                           NSFloatPixelsToAppUnits(float(point.y), factor),
                            1, 1);
 
   } else {
@@ -4968,15 +4974,7 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
                          NSAppUnitsToFloatPixels(aRect.width, factor),
                          NSAppUnitsToFloatPixels(aRect.height, factor));
 
-    gfxRect rect = matrix.Inverse().ProjectRectBounds(originalRect);
-
-    bool snap;
-    nsRect childBounds = mStoredList.GetBounds(aBuilder, &snap);
-    gfxRect childGfxBounds(NSAppUnitsToFloatPixels(childBounds.x, factor),
-                           NSAppUnitsToFloatPixels(childBounds.y, factor),
-                           NSAppUnitsToFloatPixels(childBounds.width, factor),
-                           NSAppUnitsToFloatPixels(childBounds.height, factor));
-    rect = rect.Intersect(childGfxBounds);
+    gfxRect rect = matrix.UntransformBounds(originalRect, childGfxBounds);
 
     resultingRect = nsRect(NSFloatPixelsToAppUnits(float(rect.X()), factor),
                            NSFloatPixelsToAppUnits(float(rect.Y()), factor),
@@ -5015,13 +5013,21 @@ nsDisplayTransform::GetHitDepthAtPoint(nsDisplayListBuilder* aBuilder, const nsP
 
   NS_ASSERTION(IsFrameVisible(mFrame, matrix), "We can't have hit a frame that isn't visible!");
 
-  gfxPointH3D point = matrix.Inverse().ProjectPoint(gfxPoint(NSAppUnitsToFloatPixels(aPoint.x, factor),
-                                                             NSAppUnitsToFloatPixels(aPoint.y, factor)));
-  NS_ASSERTION(point.HasPositiveWCoord(), "Why are we trying to get the depth for a point we didn't hit?");
+  bool snap;
+  nsRect childBounds = mStoredList.GetBounds(aBuilder, &snap);
+  gfxRect childGfxBounds(NSAppUnitsToFloatPixels(childBounds.x, factor),
+                         NSAppUnitsToFloatPixels(childBounds.y, factor),
+                         NSAppUnitsToFloatPixels(childBounds.width, factor),
+                         NSAppUnitsToFloatPixels(childBounds.height, factor));
 
-  gfxPoint point2d = point.As2DPoint();
+  gfxPoint point;
+  DebugOnly<bool> result = matrix.UntransformPoint(gfxPoint(NSAppUnitsToFloatPixels(aPoint.x, factor),
+                                                            NSAppUnitsToFloatPixels(aPoint.y, factor)),
+                                                   childGfxBounds,
+                                                   &point);
+  NS_ASSERTION(result, "Why are we trying to get the depth for a point we didn't hit?");
 
-  gfxPoint3D transformed = matrix.Transform3D(gfxPoint3D(point2d.x, point2d.y, 0));
+  gfxPoint3D transformed = matrix.Transform3D(gfxPoint3D(point.x, point.y, 0));
   return transformed.z;
 }
 
@@ -5215,8 +5221,7 @@ bool nsDisplayTransform::UntransformRect(const nsRect &aTransformedBounds,
                          NSAppUnitsToFloatPixels(aChildBounds.width, factor),
                          NSAppUnitsToFloatPixels(aChildBounds.height, factor));
 
-  result = transform.Inverse().ProjectRectBounds(result);
-  result = result.Intersect(childGfxBounds);
+  result = transform.UntransformBounds(result, childGfxBounds);
   *aOutRect = nsLayoutUtils::RoundGfxRectToAppRect(result, factor);
   return true;
 }
@@ -5243,8 +5248,7 @@ bool nsDisplayTransform::UntransformVisibleRect(nsDisplayListBuilder* aBuilder,
                          NSAppUnitsToFloatPixels(childBounds.height, factor));
 
   /* We want to untransform the matrix, so invert the transformation first! */
-  result = matrix.Inverse().ProjectRectBounds(result);
-  result = result.Intersect(childGfxBounds);
+  result = matrix.UntransformBounds(result, childGfxBounds);
 
   *aOutRect = nsLayoutUtils::RoundGfxRectToAppRect(result, factor);
 

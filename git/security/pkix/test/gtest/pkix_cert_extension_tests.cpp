@@ -30,44 +30,43 @@ using namespace mozilla::pkix;
 using namespace mozilla::pkix::test;
 
 // Creates a self-signed certificate with the given extension.
-static const SECItem*
+static bool
 CreateCert(PLArenaPool* arena, const char* subjectStr,
-           SECItem const* const* extensions, // null-terminated array
-           /*out*/ ScopedSECKEYPrivateKey& subjectKey)
+           const SECItem* extension,
+           /*out*/ ScopedSECKEYPrivateKey& subjectKey,
+           /*out*/ ScopedCERTCertificate& subjectCert)
 {
   static long serialNumberValue = 0;
   ++serialNumberValue;
   const SECItem* serialNumber(CreateEncodedSerialNumber(arena,
                                                         serialNumberValue));
   if (!serialNumber) {
-    return nullptr;
+    return false;
   }
   const SECItem* issuerDER(ASCIIToDERName(arena, subjectStr));
   if (!issuerDER) {
-    return nullptr;
+    return false;
   }
   const SECItem* subjectDER(ASCIIToDERName(arena, subjectStr));
   if (!subjectDER) {
-    return nullptr;
+    return false;
   }
 
-  return CreateEncodedCertificate(arena, v3,
-                                  SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION,
-                                  serialNumber, issuerDER,
-                                  PR_Now() - ONE_DAY,
-                                  PR_Now() + ONE_DAY,
-                                  subjectDER, extensions,
-                                  nullptr, SEC_OID_SHA256, subjectKey);
-}
+  const SECItem* extensions[2] = { extension, nullptr };
 
-// Creates a self-signed certificate with the given extension.
-static const SECItem*
-CreateCert(PLArenaPool* arena, const char* subjectStr,
-           const SECItem* extension,
-           /*out*/ ScopedSECKEYPrivateKey& subjectKey)
-{
-  const SECItem * extensions[] = { extension, nullptr };
-  return CreateCert(arena, subjectStr, extensions, subjectKey);
+  SECItem* certDER(CreateEncodedCertificate(arena, v3, SEC_OID_SHA256,
+                                            serialNumber, issuerDER,
+                                            PR_Now() - ONE_DAY,
+                                            PR_Now() + ONE_DAY,
+                                            subjectDER, extensions,
+                                            nullptr, SEC_OID_SHA256,
+                                            subjectKey));
+  if (!certDER) {
+    return false;
+  }
+  subjectCert = CERT_NewTempCertificate(CERT_GetDefaultCertDB(), certDER,
+                                        nullptr, false, true);
+  return subjectCert.get() != nullptr;
 }
 
 class TrustEverythingTrustDomain : public TrustDomain
@@ -82,15 +81,14 @@ private:
     return SECSuccess;
   }
 
-  SECStatus FindIssuer(const SECItem& /*encodedIssuerName*/,
-                       IssuerChecker& /*checker*/, PRTime /*time*/)
+  SECStatus FindPotentialIssuers(const SECItem* encodedIssuerName,
+                                 PRTime time,
+                                 /*out*/ ScopedCERTCertList& results)
   {
-    PR_NOT_REACHED("FindIssuer should not be called");
-    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
-    return SECFailure;
+    return SECSuccess;
   }
 
-  SECStatus VerifySignedData(const CERTSignedData& signedData,
+  SECStatus VerifySignedData(const CERTSignedData* signedData,
                              const SECItem& subjectPublicKeyInfo)
   {
     return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
@@ -110,7 +108,7 @@ private:
   }
 };
 
-class pkixcert_extension: public NSSTest
+class pkix_cert_extensions: public NSSTest
 {
 public:
   static void SetUpTestCase()
@@ -122,12 +120,12 @@ protected:
   static TrustEverythingTrustDomain trustDomain;
 };
 
-/*static*/ TrustEverythingTrustDomain pkixcert_extension::trustDomain;
+/*static*/ TrustEverythingTrustDomain pkix_cert_extensions::trustDomain;
 
 // Tests that a critical extension not in the id-ce or id-pe arcs (which is
 // thus unknown to us) is detected and that verification fails with the
 // appropriate error.
-TEST_F(pkixcert_extension, UnknownCriticalExtension)
+TEST_F(pkix_cert_extensions, UnknownCriticalExtension)
 {
   static const uint8_t unknownCriticalExtensionBytes[] = {
     0x30, 0x19, // SEQUENCE (length = 25)
@@ -145,14 +143,13 @@ TEST_F(pkixcert_extension, UnknownCriticalExtension)
   };
   const char* certCN = "CN=Cert With Unknown Critical Extension";
   ScopedSECKEYPrivateKey key;
-  // cert is owned by the arena
-  const SECItem* cert(CreateCert(arena.get(), certCN,
-                                 &unknownCriticalExtension, key));
-  ASSERT_TRUE(cert);
+  ScopedCERTCertificate cert;
+  ASSERT_TRUE(CreateCert(arena.get(), certCN, &unknownCriticalExtension, key,
+                         cert));
   ScopedCERTCertList results;
   ASSERT_SECFailure(SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION,
-                    BuildCertChain(trustDomain, *cert, now,
-                                   EndEntityOrCA::MustBeEndEntity,
+                    BuildCertChain(trustDomain, cert.get(),
+                                   now, EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
@@ -162,7 +159,7 @@ TEST_F(pkixcert_extension, UnknownCriticalExtension)
 
 // Tests that a non-critical extension not in the id-ce or id-pe arcs (which is
 // thus unknown to us) verifies successfully.
-TEST_F(pkixcert_extension, UnknownNonCriticalExtension)
+TEST_F(pkix_cert_extensions, UnknownNonCriticalExtension)
 {
   static const uint8_t unknownNonCriticalExtensionBytes[] = {
     0x30, 0x16, // SEQUENCE (length = 22)
@@ -179,13 +176,12 @@ TEST_F(pkixcert_extension, UnknownNonCriticalExtension)
   };
   const char* certCN = "CN=Cert With Unknown NonCritical Extension";
   ScopedSECKEYPrivateKey key;
-  // cert is owned by the arena
-  const SECItem* cert(CreateCert(arena.get(), certCN,
-                                 &unknownNonCriticalExtension, key));
-  ASSERT_TRUE(cert);
+  ScopedCERTCertificate cert;
+  ASSERT_TRUE(CreateCert(arena.get(), certCN, &unknownNonCriticalExtension, key,
+                         cert));
   ScopedCERTCertList results;
-  ASSERT_SECSuccess(BuildCertChain(trustDomain, *cert, now,
-                                   EndEntityOrCA::MustBeEndEntity,
+  ASSERT_SECSuccess(BuildCertChain(trustDomain, cert.get(),
+                                   now, EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
@@ -196,7 +192,7 @@ TEST_F(pkixcert_extension, UnknownNonCriticalExtension)
 // Tests that an incorrect OID for id-pe-authorityInformationAccess
 // (when marked critical) is detected and that verification fails.
 // (Until bug 1020993 was fixed, the code checked for this OID.)
-TEST_F(pkixcert_extension, WrongOIDCriticalExtension)
+TEST_F(pkix_cert_extensions, WrongOIDCriticalExtension)
 {
   static const uint8_t wrongOIDCriticalExtensionBytes[] = {
     0x30, 0x10, // SEQUENCE (length = 16)
@@ -213,14 +209,13 @@ TEST_F(pkixcert_extension, WrongOIDCriticalExtension)
   };
   const char* certCN = "CN=Cert With Critical Wrong OID Extension";
   ScopedSECKEYPrivateKey key;
-  // cert is owned by the arena
-  const SECItem* cert(CreateCert(arena.get(), certCN,
-                                 &wrongOIDCriticalExtension, key));
-  ASSERT_TRUE(cert);
+  ScopedCERTCertificate cert;
+  ASSERT_TRUE(CreateCert(arena.get(), certCN, &wrongOIDCriticalExtension, key,
+                         cert));
   ScopedCERTCertList results;
   ASSERT_SECFailure(SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION,
-                    BuildCertChain(trustDomain, *cert, now,
-                                   EndEntityOrCA::MustBeEndEntity,
+                    BuildCertChain(trustDomain, cert.get(),
+                                   now, EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
@@ -230,7 +225,7 @@ TEST_F(pkixcert_extension, WrongOIDCriticalExtension)
 
 // Tests that a id-pe-authorityInformationAccess critical extension
 // is detected and that verification succeeds.
-TEST_F(pkixcert_extension, CriticalAIAExtension)
+TEST_F(pkix_cert_extensions, CriticalAIAExtension)
 {
   // XXX: According to RFC 5280 an AIA that consists of an empty sequence is
   // not legal, but  we accept it and that is not what we're testing here.
@@ -250,13 +245,12 @@ TEST_F(pkixcert_extension, CriticalAIAExtension)
   };
   const char* certCN = "CN=Cert With Critical AIA Extension";
   ScopedSECKEYPrivateKey key;
-  // cert is owned by the arena
-  const SECItem* cert(CreateCert(arena.get(), certCN, &criticalAIAExtension,
-                                 key));
-  ASSERT_TRUE(cert);
+  ScopedCERTCertificate cert;
+  ASSERT_TRUE(CreateCert(arena.get(), certCN, &criticalAIAExtension, key,
+                         cert));
   ScopedCERTCertList results;
-  ASSERT_SECSuccess(BuildCertChain(trustDomain, *cert, now,
-                                   EndEntityOrCA::MustBeEndEntity,
+  ASSERT_SECSuccess(BuildCertChain(trustDomain, cert.get(),
+                                   now, EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
@@ -267,7 +261,7 @@ TEST_F(pkixcert_extension, CriticalAIAExtension)
 // We know about some id-ce extensions (OID arc 2.5.29), but not all of them.
 // Tests that an unknown id-ce extension is detected and that verification
 // fails.
-TEST_F(pkixcert_extension, UnknownCriticalCEExtension)
+TEST_F(pkix_cert_extensions, UnknownCriticalCEExtension)
 {
   static const uint8_t unknownCriticalCEExtensionBytes[] = {
     0x30, 0x0a, // SEQUENCE (length = 10)
@@ -283,14 +277,13 @@ TEST_F(pkixcert_extension, UnknownCriticalCEExtension)
   };
   const char* certCN = "CN=Cert With Unknown Critical id-ce Extension";
   ScopedSECKEYPrivateKey key;
-  // cert is owned by the arena
-  const SECItem* cert(CreateCert(arena.get(), certCN,
-                                 &unknownCriticalCEExtension, key));
-  ASSERT_TRUE(cert);
+  ScopedCERTCertificate cert;
+  ASSERT_TRUE(CreateCert(arena.get(), certCN, &unknownCriticalCEExtension, key,
+                         cert));
   ScopedCERTCertList results;
   ASSERT_SECFailure(SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION,
-                    BuildCertChain(trustDomain, *cert, now,
-                                   EndEntityOrCA::MustBeEndEntity,
+                    BuildCertChain(trustDomain, cert.get(),
+                                   now, EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
@@ -300,7 +293,7 @@ TEST_F(pkixcert_extension, UnknownCriticalCEExtension)
 
 // Tests that a certificate with a known critical id-ce extension (in this case,
 // OID 2.5.29.54, which is id-ce-inhibitAnyPolicy), verifies successfully.
-TEST_F(pkixcert_extension, KnownCriticalCEExtension)
+TEST_F(pkix_cert_extensions, KnownCriticalCEExtension)
 {
   static const uint8_t criticalCEExtensionBytes[] = {
     0x30, 0x0d, // SEQUENCE (length = 13)
@@ -317,46 +310,10 @@ TEST_F(pkixcert_extension, KnownCriticalCEExtension)
   };
   const char* certCN = "CN=Cert With Known Critical id-ce Extension";
   ScopedSECKEYPrivateKey key;
-  // cert is owned by the arena
-  const SECItem* cert(CreateCert(arena.get(), certCN, &criticalCEExtension,
-                                 key));
-  ASSERT_TRUE(cert);
+  ScopedCERTCertificate cert;
+  ASSERT_TRUE(CreateCert(arena.get(), certCN, &criticalCEExtension, key, cert));
   ScopedCERTCertList results;
-  ASSERT_SECSuccess(BuildCertChain(trustDomain, *cert,
-                                   now, EndEntityOrCA::MustBeEndEntity,
-                                   KeyUsage::noParticularKeyUsageRequired,
-                                   KeyPurposeId::anyExtendedKeyUsage,
-                                   CertPolicyId::anyPolicy,
-                                   nullptr, // stapled OCSP response
-                                   results));
-}
-
-// Two subjectAltNames must result in an error.
-TEST_F(pkixcert_extension, DuplicateSubjectAltName)
-{
-  static const uint8_t DER_BYTES[] = {
-    0x30, 22, // SEQUENCE (length = 22)
-      0x06, 3, // OID (length = 3)
-        0x55, 0x1d, 0x11, // 2.5.29.17
-      0x04, 15, // OCTET STRING (length = 15)
-        0x30, 13, // GeneralNames (SEQUENCE) (length = 13)
-          0x82, 11, // [2] (dNSName) (length = 11)
-            'e', 'x', 'a', 'm', 'p', 'l', 'e', '.', 'c', 'o', 'm'
-  };
-  static const SECItem DER = {
-    siBuffer,
-    const_cast<unsigned char*>(DER_BYTES),
-    sizeof(DER_BYTES)
-  };
-  static SECItem const* const extensions[] = { &DER, &DER, nullptr };
-  static const char* certCN = "CN=Cert With Duplicate subjectAltName";
-  ScopedSECKEYPrivateKey key;
-  // cert is owned by the arena
-  const SECItem* cert(CreateCert(arena.get(), certCN, extensions, key));
-  ASSERT_TRUE(cert);
-  ScopedCERTCertList results;
-  ASSERT_SECFailure(SEC_ERROR_EXTENSION_VALUE_INVALID,
-                    BuildCertChain(trustDomain, *cert,
+  ASSERT_SECSuccess(BuildCertChain(trustDomain, cert.get(),
                                    now, EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,

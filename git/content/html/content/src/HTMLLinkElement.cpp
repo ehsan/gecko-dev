@@ -276,7 +276,7 @@ HTMLLinkElement::UpdateImport()
   // 2. rel type should be import.
   nsAutoString rel;
   GetAttr(kNameSpaceID_None, nsGkAtoms::rel, rel);
-  uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(rel, NodePrincipal());
+  uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(rel);
   if (!(linkTypes & eHTMLIMPORT)) {
     mImportLoader = nullptr;
     return;
@@ -288,7 +288,7 @@ HTMLLinkElement::UpdateImport()
     return;
   }
 
-  if (!nsStyleLinkElement::IsImportEnabled(NodePrincipal())) {
+  if (!nsStyleLinkElement::IsImportEnabled()) {
     // For now imports are hidden behind a pref...
     return;
   }
@@ -330,8 +330,7 @@ HTMLLinkElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
        aName == nsGkAtoms::type)) {
     bool dropSheet = false;
     if (aName == nsGkAtoms::rel) {
-      uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(aValue,
-                                                              NodePrincipal());
+      uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(aValue);
       if (GetSheet()) {
         dropSheet = !(linkTypes & nsStyleLinkElement::eSTYLESHEET);
       } else if (linkTypes & eHTMLIMPORT) {
@@ -457,7 +456,7 @@ HTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
 
   nsAutoString rel;
   GetAttr(kNameSpaceID_None, nsGkAtoms::rel, rel);
-  uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(rel, NodePrincipal());
+  uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(rel);
   // Is it a stylesheet link?
   if (!(linkTypes & nsStyleLinkElement::eSTYLESHEET)) {
     return;

@@ -105,6 +105,7 @@
 #include "nsICertOverrideService.h"
 #include "nsISiteSecurityService.h"
 #include "nsNSSComponent.h"
+#include "nsRecentBadCerts.h"
 #include "nsNSSIOLayer.h"
 #include "nsNSSShutDown.h"
 
@@ -498,6 +499,19 @@ CertErrorRunnable::CheckCertOverrides()
     }
   }
 
+  nsCOMPtr<nsIX509CertDB> certdb = do_GetService(NS_X509CERTDB_CONTRACTID);
+  nsCOMPtr<nsIRecentBadCerts> recentBadCertsService;
+  if (certdb) {
+    bool isPrivate = mProviderFlags & nsISocketProvider::NO_PERMANENT_STORAGE;
+    certdb->GetRecentBadCerts(isPrivate, getter_AddRefs(recentBadCertsService));
+  }
+
+  if (recentBadCertsService) {
+    NS_ConvertUTF8toUTF16 hostWithPortStringUTF16(hostWithPortString);
+    recentBadCertsService->AddBadCert(hostWithPortStringUTF16,
+                                      mInfoObject->SSLStatus());
+  }
+
   // pick the error code to report by priority
   PRErrorCode errorCodeToReport = mErrorCodeTrust    ? mErrorCodeTrust
                                 : mErrorCodeMismatch ? mErrorCodeMismatch
@@ -635,7 +649,7 @@ private:
   const RefPtr<SharedCertVerifier> mCertVerifier;
   const void* const mFdForLogging;
   const RefPtr<TransportSecurityInfo> mInfoObject;
-  const ScopedCERTCertificate mCert;
+  const mozilla::pkix::ScopedCERTCertificate mCert;
   const uint32_t mProviderFlags;
   const PRTime mTime;
   const TimeStamp mJobStartTime;

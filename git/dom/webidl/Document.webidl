@@ -229,7 +229,7 @@ partial interface Document {
 
 //http://dvcs.w3.org/hg/webcomponents/raw-file/tip/spec/custom/index.html#dfn-document-register
 partial interface Document {
-    [Throws, Func="nsDocument::IsWebComponentsEnabled"]
+    [Throws, Func="nsDocument::IsRegisterElementEnabled"]
     object registerElement(DOMString name, optional ElementRegistrationOptions options);
 };
 

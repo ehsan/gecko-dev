@@ -89,8 +89,10 @@ namespace mozilla { namespace pkix {
 //                            distrust.
 // TODO(bug 968451): Document more of these.
 
-SECStatus BuildCertChain(TrustDomain& trustDomain, const SECItem& cert,
-                         PRTime time, EndEntityOrCA endEntityOrCA,
+SECStatus BuildCertChain(TrustDomain& trustDomain,
+                         const CERTCertificate* cert,
+                         PRTime time,
+                         EndEntityOrCA endEntityOrCA,
                          KeyUsage requiredKeyUsageIfPresent,
                          KeyPurposeId requiredEKUIfPresent,
                          const CertPolicyId& requiredPolicy,
@@ -98,7 +100,7 @@ SECStatus BuildCertChain(TrustDomain& trustDomain, const SECItem& cert,
                  /*out*/ ScopedCERTCertList& results);
 
 // Verify the given signed data using the given public key.
-SECStatus VerifySignedData(const CERTSignedData& sd,
+SECStatus VerifySignedData(const CERTSignedData* sd,
                            const SECItem& subjectPublicKeyInfo,
                            void* pkcs11PinArg);
 

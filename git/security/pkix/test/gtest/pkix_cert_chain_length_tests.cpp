@@ -63,12 +63,13 @@ CreateCert(PLArenaPool* arena, const char* issuerStr,
     }
   }
 
-  SECItem* certDER(CreateEncodedCertificate(
-                     arena, v3, SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION,
-                     serialNumber, issuerDER,
-                     PR_Now() - ONE_DAY, PR_Now() + ONE_DAY,
-                     subjectDER, extensions, issuerKey, SEC_OID_SHA256,
-                     subjectKey));
+  SECItem* certDER(CreateEncodedCertificate(arena, v3, SEC_OID_SHA256,
+                                            serialNumber, issuerDER,
+                                            PR_Now() - ONE_DAY,
+                                            PR_Now() + ONE_DAY,
+                                            subjectDER, extensions,
+                                            issuerKey, SEC_OID_SHA256,
+                                            subjectKey));
   if (!certDER) {
     return false;
   }
@@ -125,30 +126,16 @@ private:
     return SECSuccess;
   }
 
-  SECStatus FindIssuer(const SECItem& encodedIssuerName,
-                       IssuerChecker& checker, PRTime time)
+  SECStatus FindPotentialIssuers(const SECItem* encodedIssuerName,
+                                 PRTime time,
+                                 /*out*/ ScopedCERTCertList& results)
   {
-    mozilla::pkix::ScopedCERTCertList
-      candidates(CERT_CreateSubjectCertList(nullptr, CERT_GetDefaultCertDB(),
-                                            &encodedIssuerName, time, true));
-    if (candidates) {
-      for (CERTCertListNode* n = CERT_LIST_HEAD(candidates);
-           !CERT_LIST_END(n, candidates); n = CERT_LIST_NEXT(n)) {
-        bool keepGoing;
-        SECStatus srv = checker.Check(n->cert->derCert, keepGoing);
-        if (srv != SECSuccess) {
-          return SECFailure;
-        }
-        if (!keepGoing) {
-          break;
-        }
-      }
-    }
-
+    results = CERT_CreateSubjectCertList(nullptr, CERT_GetDefaultCertDB(),
+                                         encodedIssuerName, time, true);
     return SECSuccess;
   }
 
-  SECStatus VerifySignedData(const CERTSignedData& signedData,
+  SECStatus VerifySignedData(const CERTSignedData* signedData,
                              const SECItem& subjectPublicKeyInfo)
   {
     return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
@@ -179,7 +166,7 @@ public:
   }
 };
 
-class pkixbuild : public NSSTest
+class pkix_cert_chain_length : public NSSTest
 {
 public:
   static void SetUpTestCase()
@@ -196,13 +183,12 @@ protected:
   static TestTrustDomain trustDomain;
 };
 
-/*static*/ TestTrustDomain pkixbuild::trustDomain;
+/*static*/ TestTrustDomain pkix_cert_chain_length::trustDomain;
 
-TEST_F(pkixbuild, MaxAcceptableCertChainLength)
+TEST_F(pkix_cert_chain_length, MaxAcceptableCertChainLength)
 {
   ScopedCERTCertList results;
-  ASSERT_SECSuccess(BuildCertChain(trustDomain,
-                                   trustDomain.GetLeafeCACert()->derCert,
+  ASSERT_SECSuccess(BuildCertChain(trustDomain, trustDomain.GetLeafeCACert(),
                                    now, EndEntityOrCA::MustBeCA,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::id_kp_serverAuth,
@@ -217,7 +203,7 @@ TEST_F(pkixbuild, MaxAcceptableCertChainLength)
                          "CN=Direct End-Entity",
                          EndEntityOrCA::MustBeEndEntity,
                          trustDomain.leafCAKey.get(), privateKey, cert));
-  ASSERT_SECSuccess(BuildCertChain(trustDomain, cert->derCert, now,
+  ASSERT_SECSuccess(BuildCertChain(trustDomain, cert.get(), now,
                                    EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::id_kp_serverAuth,
@@ -226,7 +212,7 @@ TEST_F(pkixbuild, MaxAcceptableCertChainLength)
                                    results));
 }
 
-TEST_F(pkixbuild, BeyondMaxAcceptableCertChainLength)
+TEST_F(pkix_cert_chain_length, BeyondMaxAcceptableCertChainLength)
 {
   ScopedCERTCertList results;
 
@@ -239,7 +225,7 @@ TEST_F(pkixbuild, BeyondMaxAcceptableCertChainLength)
                          caPrivateKey, caCert));
   PR_SetError(0, 0);
   ASSERT_SECFailure(SEC_ERROR_UNKNOWN_ISSUER,
-                    BuildCertChain(trustDomain, caCert->derCert, now,
+                    BuildCertChain(trustDomain, caCert.get(), now,
                                    EndEntityOrCA::MustBeCA,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::id_kp_serverAuth,
@@ -255,7 +241,7 @@ TEST_F(pkixbuild, BeyondMaxAcceptableCertChainLength)
                          caPrivateKey.get(), privateKey, cert));
   PR_SetError(0, 0);
   ASSERT_SECFailure(SEC_ERROR_UNKNOWN_ISSUER,
-                    BuildCertChain(trustDomain, cert->derCert, now,
+                    BuildCertChain(trustDomain, cert.get(), now,
                                    EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::id_kp_serverAuth,

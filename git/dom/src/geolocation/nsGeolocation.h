@@ -45,11 +45,6 @@ typedef CallbackObjectHolder<PositionErrorCallback, nsIDOMGeoPositionErrorCallba
 }
 }
 
-struct CachedPositionAndAccuracy {
-  nsCOMPtr<nsIDOMGeoPosition> position;
-  bool isHighAccuracy;
-};
-
 /**
  * Singleton that manages the geolocation provider
  */
@@ -78,7 +73,7 @@ public:
   void RemoveLocator(mozilla::dom::Geolocation* locator);
 
   void SetCachedPosition(nsIDOMGeoPosition* aPosition);
-  CachedPositionAndAccuracy GetCachedPosition();
+  nsIDOMGeoPosition* GetCachedPosition();
 
   // Find and startup a geolocation device (gps, nmea, etc.)
   nsresult StartDevice(nsIPrincipal* aPrincipal);
@@ -111,7 +106,7 @@ private:
   nsTArray<mozilla::dom::Geolocation*> mGeolocators;
 
   // This is the last geo position that we have seen.
-  CachedPositionAndAccuracy mLastPosition;
+  nsCOMPtr<nsIDOMGeoPosition> mLastPosition;
 
   // Current state of requests for higher accuracy
   bool mHigherAccuracy;

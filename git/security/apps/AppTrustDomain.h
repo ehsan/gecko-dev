@@ -10,7 +10,6 @@
 #include "pkix/pkixtypes.h"
 #include "nsDebug.h"
 #include "nsIX509CertDB.h"
-#include "ScopedNSSTypes.h"
 
 namespace mozilla { namespace psm {
 
@@ -25,9 +24,11 @@ public:
                          const mozilla::pkix::CertPolicyId& policy,
                          const SECItem& candidateCertDER,
                  /*out*/ mozilla::pkix::TrustLevel* trustLevel) MOZ_OVERRIDE;
-  SECStatus FindIssuer(const SECItem& encodedIssuerName,
-                       IssuerChecker& checker, PRTime time) MOZ_OVERRIDE;
-  SECStatus VerifySignedData(const CERTSignedData& signedData,
+  SECStatus FindPotentialIssuers(const SECItem* encodedIssuerName,
+                                 PRTime time,
+                         /*out*/ mozilla::pkix::ScopedCERTCertList& results)
+                                 MOZ_OVERRIDE;
+  SECStatus VerifySignedData(const CERTSignedData* signedData,
                              const SECItem& subjectPublicKeyInfo) MOZ_OVERRIDE;
   SECStatus CheckRevocation(mozilla::pkix::EndEntityOrCA endEntityOrCA,
                             const mozilla::pkix::CertID& certID, PRTime time,
@@ -37,7 +38,7 @@ public:
 
 private:
   void* mPinArg; // non-owning!
-  ScopedCERTCertificate mTrustedRoot;
+  mozilla::pkix::ScopedCERTCertificate mTrustedRoot;
 };
 
 } } // namespace mozilla::psm

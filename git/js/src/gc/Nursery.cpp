@@ -884,7 +884,7 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, TypeObjectList 
     // We ignore gcMaxBytes when allocating for minor collection. However, if we
     // overflowed, we disable the nursery. The next time we allocate, we'll fail
     // because gcBytes >= gcMaxBytes.
-    if (rt->gc.bytesAllocated() >= rt->gc.maxBytesAllocated())
+    if (rt->gc.bytes >= rt->gc.maxBytes)
         disable();
 
     TIME_END(total);

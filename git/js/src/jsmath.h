@@ -127,9 +127,6 @@ js_minmax_impl(JSContext *cx, bool max, js::HandleValue a, js::HandleValue b,
 namespace js {
 
 extern bool
-math_sqrt_handle(JSContext *cx, js::HandleValue number, js::MutableHandleValue result);
-
-extern bool
 math_imul(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern bool

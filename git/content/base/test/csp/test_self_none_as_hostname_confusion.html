@@ -47,8 +47,12 @@ SpecialPowers.registerConsoleListener(function ConsoleMsgListener(aMsg) {
 
 // set up and start testing
 SimpleTest.waitForExplicitFinish();
-document.getElementById('cspframe').src = 'file_self_none_as_hostname_confusion.html';
-startTest = true;
+SpecialPowers.pushPrefEnv(
+  {'set': [["security.csp.speccompliant", true]]},
+  function() {
+    document.getElementById('cspframe').src = 'file_self_none_as_hostname_confusion.html';
+    startTest = true;
+});
 </script>
 </pre>
 </body>
