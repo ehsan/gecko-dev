@@ -51,7 +51,6 @@ XPCSHELL_TESTS = \
   $(NULL)
 
 MOCHI_TESTS = \
-		test_form_submission.html \
 		test_privbrowsing.html \
 		$(NULL)
 

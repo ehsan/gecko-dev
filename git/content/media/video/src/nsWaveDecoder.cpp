@@ -113,11 +113,9 @@ enum State {
 class nsWaveStateMachine : public nsRunnable
 {
 public:
-  nsWaveStateMachine(nsWaveDecoder* aDecoder,
+  nsWaveStateMachine(nsWaveDecoder* aDecoder, nsMediaStream* aStream,
                      PRUint32 aBufferWaitTime, float aInitialVolume);
   ~nsWaveStateMachine();
-
-  void SetStream(nsMediaStream* aStream) { mStream = aStream; }
 
   // Set specified volume.  aVolume must be in range [0.0, 1.0].
   // Threadsafe.
@@ -357,10 +355,10 @@ private:
   PRPackedBool mPaused;
 };
 
-nsWaveStateMachine::nsWaveStateMachine(nsWaveDecoder* aDecoder,
+nsWaveStateMachine::nsWaveStateMachine(nsWaveDecoder* aDecoder, nsMediaStream* aStream,
                                        PRUint32 aBufferWaitTime, float aInitialVolume)
   : mDecoder(aDecoder),
-    mStream(nsnull),
+    mStream(aStream),
     mBufferingWait(aBufferWaitTime),
     mBufferingStart(0),
     mBufferingEndOffset(0),
@@ -986,7 +984,6 @@ nsWaveStateMachine::ReadAll(char* aBuf, PRInt64 aSize, PRInt64* aBytesRead = nsn
     if (IsShutdown() || read == 0) {
       return PR_FALSE;
     }
-    NotifyBytesConsumed(read);
     got += read;
     if (aBytesRead) {
       *aBytesRead = got;
@@ -1212,6 +1209,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsWaveDecoder, nsIObserver)
 
 nsWaveDecoder::nsWaveDecoder()
   : mInitialVolume(1.0),
+    mStream(nsnull),
     mTimeOffset(0.0),
     mCurrentTime(0.0),
     mEndedCurrentTime(0.0),
@@ -1379,17 +1377,18 @@ nsWaveDecoder::Load(nsIURI* aURI, nsIChannel* aChannel, nsIStreamListener** aStr
 
   RegisterShutdownObserver();
 
-  mPlaybackStateMachine = new nsWaveStateMachine(this,
+  mStream = new nsMediaStream();
+  NS_ENSURE_TRUE(mStream, NS_ERROR_OUT_OF_MEMORY);
+
+  mPlaybackStateMachine = new nsWaveStateMachine(this, mStream.get(),
                                                  BUFFERING_TIMEOUT * 1000,
                                                  mInitialVolume);
   NS_ENSURE_TRUE(mPlaybackStateMachine, NS_ERROR_OUT_OF_MEMORY);
 
   // Open the stream *after* setting mPlaybackStateMachine, to ensure
   // that callbacks (e.g. setting stream size) will actually work
-  nsresult rv = nsMediaStream::Open(this, mURI, aChannel, getter_Transfers(mStream),
-                                    aStreamListener);
+  nsresult rv = mStream->Open(this, mURI, aChannel, aStreamListener);
   NS_ENSURE_SUCCESS(rv, rv);
-  mPlaybackStateMachine->SetStream(mStream);
 
   rv = NS_NewThread(getter_AddRefs(mPlaybackThread));
   NS_ENSURE_SUCCESS(rv, rv);

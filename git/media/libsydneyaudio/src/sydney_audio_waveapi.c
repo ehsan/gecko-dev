@@ -449,42 +449,33 @@ int openAudio(sa_stream_t *s) {
  * \return - completion status
  */
 int closeAudio(sa_stream_t * s) {
-  int status, i, result;
+  int status, i;
   
-  result = SA_SUCCESS;
-
   // reseting audio device and flushing buffers
   status = waveOutReset(s->hWaveOut);    
-  if (status != MMSYSERR_NOERROR) {
-    result = getSAErrorCode(status);
-  }
+  HANDLE_WAVE_ERROR(status, "resetting audio device");
   
   /* wait for all blocks to complete */  
-  while(s->waveFreeBlockCount < BLOCK_COUNT) {
-    Sleep(10);
-  }
+  while(s->waveFreeBlockCount < BLOCK_COUNT)
+	  Sleep(10);
 
   /* unprepare any blocks that are still prepared */  
   for(i = 0; i < s->waveFreeBlockCount; i++) {
     if(s->waveBlocks[i].dwFlags & WHDR_PREPARED) {
-      status = waveOutUnprepareHeader(s->hWaveOut, &(s->waveBlocks[i]), sizeof(WAVEHDR));
-      if (status != MMSYSERR_NOERROR) {
-        result = getSAErrorCode(status);
-      }
+	    status = waveOutUnprepareHeader(s->hWaveOut, &(s->waveBlocks[i]), sizeof(WAVEHDR));
+      HANDLE_WAVE_ERROR(status, "closing audio device");
     }
   }    
 
   freeBlocks(s->waveBlocks);  
   status = waveOutClose(s->hWaveOut);    
-  if (status != MMSYSERR_NOERROR) {
-    result = getSAErrorCode(status);
-  }
+  HANDLE_WAVE_ERROR(status, "closing audio device");
 
   DeleteCriticalSection(&(s->waveCriticalSection));
   CloseHandle(s->callbackEvent);
   printf("[audio] audio resources cleanup completed\n");
   
-  return result;
+  return SA_SUCCESS;
 }
 /**
  * \brief - writes PCM audio samples to audio device

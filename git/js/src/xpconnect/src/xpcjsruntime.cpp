@@ -553,9 +553,8 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                         dyingWrappedJSArray->Compact();
                         break;
                     }
-                    nsXPCWrappedJS* wrapper = dyingWrappedJSArray->ElementAt(count-1);
+                    NS_RELEASE(dyingWrappedJSArray->ElementAt(count-1));
                     dyingWrappedJSArray->RemoveElementAt(count-1);
-                    NS_RELEASE(wrapper);
                 }
 
 
@@ -770,9 +769,8 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                         array.Compact();
                         break;
                     }
-                    nsISupports* obj = array[count-1];
+                    NS_RELEASE(array[count-1]);
                     array.RemoveElementAt(count-1);
-                    NS_RELEASE(obj);
                 }
 #ifdef XPC_TRACK_DEFERRED_RELEASES
                 printf("XPC - End deferred Releases\n");
