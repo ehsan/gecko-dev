@@ -911,8 +911,8 @@ js_CheckPrincipalsAccess(JSContext *cx, JSObject *scopeobj,
     return JS_TRUE;
 }
 
-static JSObject *
-CheckScopeChainValidity(JSContext *cx, JSObject *scopeobj, const char *caller)
+JSObject *
+js_CheckScopeChainValidity(JSContext *cx, JSObject *scopeobj, const char *caller)
 {
     JSObject *inner;
 
@@ -1110,7 +1110,7 @@ obj_eval(JSContext *cx, uintN argc, Value *vp)
 #endif
 
     /* Ensure we compile this eval with the right object in the scope chain. */
-    JSObject *result = CheckScopeChainValidity(cx, scopeobj, js_eval_str);
+    JSObject *result = js_CheckScopeChainValidity(cx, scopeobj, js_eval_str);
     JS_ASSERT_IF(result, result == scopeobj);
     if (!result)
         return JS_FALSE;
@@ -5928,6 +5928,8 @@ js_TraceObject(JSTracer *trc, JSObject *obj)
         JSCompartment *compartment = obj->getCompartment(cx);
         compartment->marked = true;
     }
+
+    obj->traceProtoAndParent(trc);
 
     /*
      * An unmutated object that shares a prototype object's scope. We can't
