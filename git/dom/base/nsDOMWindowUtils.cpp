@@ -275,13 +275,8 @@ NS_IMETHODIMP
 nsDOMWindowUtils::UpdateLayerTree()
 {
   if (nsIPresShell* presShell = GetPresShell()) {
-    presShell->FlushPendingNotifications(Flush_Display);
     nsRefPtr<nsViewManager> vm = presShell->GetViewManager();
-    nsView* view = vm->GetRootView();
-    if (view) {
-      presShell->Paint(view, view->GetBounds(),
-          nsIPresShell::PAINT_LAYERS | nsIPresShell::PAINT_SYNC_DECODE_IMAGES);
-    }
+    vm->ProcessPendingUpdates();
   }
   return NS_OK;
 }

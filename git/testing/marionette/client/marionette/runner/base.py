@@ -23,7 +23,6 @@ from mozhttpd import MozHttpd
 from mozlog.structured.structuredlog import get_default_logger
 from moztest.adapters.unit import StructuredTestRunner, StructuredTestResult
 from moztest.results import TestResultCollection, TestResult, relevant_line
-import mozversion
 
 class MarionetteTest(TestResult):
 
@@ -713,18 +712,7 @@ setReq.onerror = function() {
         for test in tests:
             self.add_test(test)
 
-        version_info = mozversion.get_version(binary=self.bin,
-                                              sources=self.sources,
-                                              dm_type=os.environ.get('DM_TRANS', 'adb'))
-
-        device_info = None
-        if self.capabilities['device'] != 'desktop' and self.capabilities['browserName'] == 'B2G':
-            dm = get_dm(self.marionette)
-            device_info = dm.getInfo()
-
-        self.logger.suite_start(self.tests,
-                                version_info=version_info,
-                                device_info=device_info)
+        self.logger.suite_start(self.tests)
 
         for test in self.manifest_skipped_tests:
             name = os.path.basename(test['path'])
