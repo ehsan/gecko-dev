@@ -4450,9 +4450,6 @@ TraceRecorder::record_SetPropHit(uint32 kshape, JSScopeProperty* sprop)
 bool
 TraceRecorder::record_SetPropMiss(JSPropCacheEntry* entry)
 {
-    if (!entry->kpc)
-        ABORT_TRACE("can't trace uncacheable property set");
-
     JS_ASSERT(PCVAL_IS_SPROP(entry->vword));
     return record_SetPropHit(entry->kshape, PCVAL_TO_SPROP(entry->vword));
 }
@@ -4614,9 +4611,6 @@ TraceRecorder::guardShapelessCallee(jsval& callee)
 bool
 TraceRecorder::interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc)
 {
-    if (JS_GetGlobalForObject(cx, JSVAL_TO_OBJECT(fval)) != globalObj)
-        ABORT_TRACE("JSOP_CALL or JSOP_NEW crosses global scopes");
-
     JSStackFrame* fp = cx->fp;
 
     // TODO: track the copying via the tracker...

@@ -945,10 +945,7 @@ nsresult imgContainer::DoComposite(gfxIImageFrame** aFrameToUse,
   nsIntRect r;
   mAnim->compositingFrame->GetRect(r);
   nsCOMPtr<nsIImage> img = do_GetInterface(mAnim->compositingFrame);
-  nsresult rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
 
   // We don't want to keep composite images for 8bit frames...
   if (isFullNextFrame && mAnimationMode == kNormalAnimMode && mLoopCount != 0 &&

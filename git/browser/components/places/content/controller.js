@@ -863,13 +863,11 @@ PlacesController.prototype = {
    *          An array of nodes to remove. Should all be adjacent. 
    * @param   [out] transactions
    *          An array of transactions.
-   * @param   [optional] removedFolders
-   *          An array of folder nodes that have already been removed.
    */
-  _removeRange: function PC__removeRange(range, transactions, removedFolders) {
+  _removeRange: function PC__removeRange(range, transactions) {
     NS_ASSERT(transactions instanceof Array, "Must pass a transactions array");
-    if (!removedFolders)
-      removedFolders = [];
+
+    var removedFolders = [];
 
     for (var i = 0; i < range.length; ++i) {
       var node = range[i];
@@ -908,11 +906,10 @@ PlacesController.prototype = {
   _removeRowsFromBookmarks: function PC__removeRowsFromBookmarks(txnName) {
     var ranges = this._view.getRemovableSelectionRanges();
     var transactions = [];
-    var removedFolders = [];
-
-    for (var i = 0; i < ranges.length; i++)
-      this._removeRange(ranges[i], transactions, removedFolders);
-
+    // Delete the selected rows. Do this by walking the selection backward, so
+    // that when undo is performed they are re-inserted in the correct order.
+    for (var i = ranges.length - 1; i >= 0 ; --i)
+      this._removeRange(ranges[i], transactions);
     if (transactions.length > 0) {
       var txn = PlacesUIUtils.ptm.aggregateTransactions(txnName, transactions);
       PlacesUIUtils.ptm.doTransaction(txn);

@@ -51,6 +51,7 @@ protected:
   nsSVGTextFrame(nsStyleContext* aContext)
     : nsSVGTextFrameBase(aContext),
       mMetricsState(unsuspended),
+      mPropagateTransform(PR_TRUE),
       mPositioningDirty(PR_TRUE) {}
 
 public:
@@ -74,6 +75,7 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
+  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
   NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
   virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
   virtual void NotifySVGChanged(PRUint32 aFlags);
@@ -117,6 +119,7 @@ private:
   enum UpdateState { unsuspended, suspended };
   UpdateState mMetricsState;
 
+  PRPackedBool mPropagateTransform;
   PRPackedBool mPositioningDirty;
 };
 

@@ -71,9 +71,11 @@ nsStyledElement::GetIDAttributeName() const
 }
 
 const nsAttrValue*
-nsStyledElement::DoGetClasses() const
+nsStyledElement::GetClasses() const
 {
-  NS_ASSERTION(HasFlag(NODE_MAY_HAVE_CLASS), "Unexpected call");
+  if (!HasFlag(NODE_MAY_HAVE_CLASS)) {
+    return nsnull;
+  }
   return mAttrsAndChildren.GetAttr(nsGkAtoms::_class);
 }
 

@@ -217,24 +217,20 @@ private:
 
   class RemoveFolderTransaction : public nsITransaction {
   public:
-    RemoveFolderTransaction(PRInt64 aID) : mID(aID) {}
-
+    RemoveFolderTransaction(PRInt64 aID, PRInt64 aParent, 
+                            const nsACString& aTitle, PRInt32 aIndex,
+                            const nsAString& aType) 
+                            : mID(aID),
+                              mParent(aParent),
+                              mIndex(aIndex){
+      mTitle = aTitle;
+      mType = aType;
+    }
+    
     NS_DECL_ISUPPORTS
 
     NS_IMETHOD DoTransaction() {
       nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-
-      nsresult rv = bookmarks->GetParentAndIndexOfFolder(mID, &mParent, &mIndex);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = bookmarks->GetItemTitle(mID, mTitle);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsCAutoString type;
-      rv = bookmarks->GetFolderType(mID, type);
-      NS_ENSURE_SUCCESS(rv, rv);
-      mType = NS_ConvertUTF8toUTF16(type);
-
       return bookmarks->RemoveFolder(mID);
     }
 

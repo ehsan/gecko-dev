@@ -266,8 +266,6 @@ private:
     FTP_ACTION          mAction;        // the higher level action (GET/PUT)
     PRPackedBool        mAnonymous;     // try connecting anonymous (default)
     PRPackedBool        mRetryPass;     // retrying the password
-    PRPackedBool        mStorReplyReceived; // FALSE if waiting for STOR
-                                            // completion status from server
     nsresult            mInternalError; // represents internal state errors
 
         // ****** URI vars

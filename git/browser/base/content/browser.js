@@ -986,6 +986,10 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 
   UpdateUrlbarSearchSplitterState();
   
+  try {
+    placesMigrationTasks();
+  } catch(ex) {}
+
   PlacesStarButton.init();
 
   // called when we go into full screen, even if it is

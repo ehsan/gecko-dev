@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,14 +13,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla.org code.
+ * The Original Code is Mozilla Communicator client code.
  *
- * The Initial Developer of the Original Code is Mozilla.com.
- * Portions created by the Initial Developer are Copyright (C) 2008
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *         Boris Zbarsky <bzbarsky@mit.edu> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,30 +36,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsINodeList_h___
-#define nsINodeList_h___
 
-class nsINode;
+#include "nsIWebProgressListener.h"
+#include "nsIBrowserHistory.h"
+#include "nsCOMPtr.h"
+#include "nsIComponentManager.h"
+#include "nsWeakReference.h"
+#include "nsIGenericFactory.h"
 
-// IID for the nsINodeList interface
-#define NS_INODELIST_IID \
-{ 0x06a6639a, 0x2d47, 0x4551, \
- { 0x94, 0xef, 0x93, 0xb8, 0xe1, 0x09, 0x3a, 0xb3 } }
+class nsHistoryLoadListener : public nsIWebProgressListener,
+                              public nsSupportsWeakReference
+{
+ public:
+    nsHistoryLoadListener(nsIBrowserHistory *);
+    virtual ~nsHistoryLoadListener();
 
+    nsresult Init();
 
-/**
- * An internal interface that allows QI-less getting of nodes from node lists
- */
-class nsINodeList : public nsISupports {
-public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODELIST_IID)
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIWEBPROGRESSLISTENER
+        
+ protected:
+    nsCOMPtr<nsIBrowserHistory> mHistory;
 
-  /**
-   * Get the node at the index.  Returns null if the index is out of bounds
-   */
-  virtual nsINode* GetNodeAt(PRUint32 aIndex) = 0;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(nsINodeList, NS_INODELIST_IID)
-
-#endif /* nsINodeList_h___ */

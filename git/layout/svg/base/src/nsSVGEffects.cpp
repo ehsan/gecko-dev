@@ -127,7 +127,7 @@ nsSVGFilterProperty::UpdateRect()
 {
   nsSVGFilterFrame *filter = GetFilterFrame(nsnull);
   if (filter) {
-    mFilterRect = filter->GetFilterBBox(mFrame, nsnull);
+    mFilterRect = filter->GetInvalidationRegion(mFrame, mFrame->GetRect());
   } else {
     mFilterRect = nsRect();
   }
