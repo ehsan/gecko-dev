@@ -270,8 +270,11 @@ public class PasswordsRepositorySession extends
         PasswordRecord existingRecord;
         try {
           existingRecord = retrieveByGUID(guid);
-        } catch (NullCursorException | RemoteException e) {
+        } catch (NullCursorException e) {
           // Indicates a serious problem.
+          delegate.onRecordStoreFailed(e, record.guid);
+          return;
+        } catch (RemoteException e) {
           delegate.onRecordStoreFailed(e, record.guid);
           return;
         }

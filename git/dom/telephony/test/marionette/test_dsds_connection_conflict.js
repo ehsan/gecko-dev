@@ -46,6 +46,8 @@ startDSDSTest(function() {
   testNewCallWhenOtherConnectionInUse(0, 1)
     .then(() => testNewCallWhenOtherConnectionInUse(1, 0))
     .then(() => muxModem(0))
-    .catch(error => ok(false, "Promise reject: " + error))
+    .then(null, () => {
+      ok(false, "promise rejects during test.");
+    })
     .then(finish);
 });

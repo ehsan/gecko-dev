@@ -84,18 +84,6 @@ nsGonkCameraControl::nsGonkCameraControl(uint32_t aCameraId)
 nsresult
 nsGonkCameraControl::StartImpl(const Configuration* aInitialConfig)
 {
-  MOZ_ASSERT(NS_GetCurrentThread() == mCameraThread);
-
-  nsresult rv = StartInternal(aInitialConfig);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    OnHardwareStateChange(CameraControlListener::kHardwareOpenFailed);
-  }
-  return rv;
-}
-
-nsresult
-nsGonkCameraControl::StartInternal(const Configuration* aInitialConfig)
-{
   /**
    * For initialization, we try to return the camera control to the upper
    * upper layer (i.e. the DOM) as quickly as possible. To do this, the
@@ -115,14 +103,11 @@ nsGonkCameraControl::StartInternal(const Configuration* aInitialConfig)
    * up-front as possible without waiting for blocking Camera Thread calls
    * to complete.
    */
+  MOZ_ASSERT(NS_GetCurrentThread() == mCameraThread);
+
   nsresult rv = Initialize();
-  switch (rv) {
-    case NS_ERROR_ALREADY_INITIALIZED:
-    case NS_OK:
-      break;
-    
-    default:
-      return rv;
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return NS_ERROR_NOT_INITIALIZED;
   }
 
   if (aInitialConfig) {

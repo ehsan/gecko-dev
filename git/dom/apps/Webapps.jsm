@@ -471,16 +471,13 @@ this.DOMApplicationRegistry = {
     this._readManifests([{ id: aId }]).then((aResult) => {
       let manifest =
         new ManifestHelper(aResult[0].manifest, app.origin, app.manifestURL);
-      let fullAppcachePath = manifest.fullAppcachePath();
-      if (fullAppcachePath) {
-        OfflineCacheInstaller.installCache({
-          cachePath: app.cachePath || app.basePath,
-          appId: aId,
-          origin: Services.io.newURI(app.origin, null, null),
-          localId: app.localId,
-          appcache_path: fullAppcachePath
-        });
-      }
+      OfflineCacheInstaller.installCache({
+        cachePath: app.cachePath,
+        appId: aId,
+        origin: Services.io.newURI(app.origin, null, null),
+        localId: app.localId,
+        appcache_path: manifest.fullAppcachePath()
+      });
     });
   },
 

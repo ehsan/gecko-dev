@@ -78,6 +78,8 @@ startTest(function() {
     .then(() => testEmergencyLabel("119", eccList))
     .then(() => testEmergencyLabel("112", eccList))
     .then(() => setEccListProperty(origEccList))
-    .catch(error => ok(false, "Promise reject: " + error))
+    .then(null, error => {
+      ok(false, 'promise rejects during test: ' + error);
+    })
     .then(finish);
 });

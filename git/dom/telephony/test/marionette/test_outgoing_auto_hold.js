@@ -45,6 +45,8 @@ function testAutoHoldConferenceCall() {
 startTest(function() {
   testAutoHoldCall()
     .then(() => testAutoHoldConferenceCall())
-    .catch(error => ok(false, "Promise reject: " + error))
+    .then(null, () => {
+      ok(false, 'promise rejects during test.');
+    })
     .then(finish);
 });
