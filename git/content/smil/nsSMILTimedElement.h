@@ -251,12 +251,9 @@ protected:
    *
    * @see SMILANIM 3.6.8
    */
-  nsresult          GetNextInterval(const nsSMILInterval* aPrevInterval,
+  nsresult          GetNextInterval(const nsSMILTimeValue& aBeginAfter,
+                                    PRBool aFirstInstance,
                                     nsSMILInterval& aResult);
-  PRBool            GetNextGreater(const nsTArray<nsSMILInstanceTime>& aList,
-                                   const nsSMILTimeValue& aBase,
-                                   PRInt32& aPosition,
-                                   nsSMILTimeValue& aResult);
   PRBool            GetNextGreaterOrEqual(
                                    const nsTArray<nsSMILInstanceTime>& aList,
                                    const nsSMILTimeValue& aBase,
