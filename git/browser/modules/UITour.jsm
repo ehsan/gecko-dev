@@ -25,6 +25,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "BrowserUITelemetry",
   "resource:///modules/BrowserUITelemetry.jsm");
 
 
+const UITOUR_PERMISSION   = "uitour";
+const PREF_TEST_WHITELIST = "browser.uitour.testingOrigins";
 const PREF_SEENPAGEIDS    = "browser.uitour.seenPageIDs";
 const MAX_BUTTONS         = 4;
 
@@ -220,13 +222,18 @@ this.UITour = {
                                JSON.stringify([...this.seenPageIDs]));
   },
 
-  onPageEvent: function(aMessage, aEvent) {
+  onPageEvent: function(aEvent) {
     let contentDocument = null;
+    if (aEvent.target instanceof Ci.nsIDOMHTMLDocument)
+      contentDocument = aEvent.target;
+    else if (aEvent.target instanceof Ci.nsIDOMHTMLElement)
+      contentDocument = aEvent.target.ownerDocument;
+    else
+      return false;
 
-    let browser = aMessage.target;
-    let window = browser.ownerDocument.defaultView;
-    let tab = window.gBrowser.getTabForBrowser(browser);
-    let messageManager = browser.messageManager;
+    // Ignore events if they're not from a trusted origin.
+    if (!this.ensureTrustedOrigin(contentDocument))
+      return false;
 
     if (typeof aEvent.detail != "object")
       return false;
@@ -239,22 +246,20 @@ this.UITour = {
     if (typeof data != "object")
       return false;
 
+    let window = this.getChromeWindow(contentDocument);
     // Do this before bailing if there's no tab, so later we can pick up the pieces:
     window.gBrowser.tabContainer.addEventListener("TabSelect", this);
-
-    if (!window.gMultiProcessBrowser) { // Non-e10s. See bug 1089000.
-      contentDocument = browser.contentWindow.document;
-      if (!tab) {
-        // This should only happen while detaching a tab:
-        if (this._detachingTab) {
-          this._queuedEvents.push(aEvent);
-          this._pendingDoc = Cu.getWeakReference(contentDocument);
-          return;
-        }
-        Cu.reportError("Discarding tabless UITour event (" + action + ") while not detaching a tab." +
-                       "This shouldn't happen!");
+    let tab = window.gBrowser._getTabForContentWindow(contentDocument.defaultView);
+    if (!tab) {
+      // This should only happen while detaching a tab:
+      if (this._detachingTab) {
+        this._queuedEvents.push(aEvent);
+        this._pendingDoc = Cu.getWeakReference(contentDocument);
         return;
       }
+      Cu.reportError("Discarding tabless UITour event (" + action + ") while not detaching a tab." +
+                     "This shouldn't happen!");
+      return;
     }
 
     switch (action) {
@@ -310,7 +315,7 @@ this.UITour = {
 
           let iconURL = null;
           if (typeof data.icon == "string")
-            iconURL = this.resolveURL(browser, data.icon);
+            iconURL = this.resolveURL(contentDocument, data.icon);
 
           let buttons = [];
           if (Array.isArray(data.buttons) && data.buttons.length > 0) {
@@ -324,7 +329,7 @@ this.UITour = {
                 };
 
                 if (typeof buttonData.icon == "string")
-                  button.iconURL = this.resolveURL(browser, buttonData.icon);
+                  button.iconURL = this.resolveURL(contentDocument, buttonData.icon);
 
                 if (typeof buttonData.style == "string")
                   button.style = buttonData.style;
@@ -344,7 +349,7 @@ this.UITour = {
           if (typeof data.targetCallbackID == "string")
             infoOptions.targetCallbackID = data.targetCallbackID;
 
-          this.showInfo(messageManager, target, data.title, data.text, iconURL, buttons, infoOptions);
+          this.showInfo(contentDocument, target, data.title, data.text, iconURL, buttons, infoOptions);
         }).then(null, Cu.reportError);
         break;
       }
@@ -377,7 +382,7 @@ this.UITour = {
       case "showMenu": {
         this.showMenu(window, data.name, () => {
           if (typeof data.showCallbackID == "string")
-            this.sendPageCallback(messageManager, data.showCallbackID);
+            this.sendPageCallback(contentDocument, data.showCallbackID);
         });
         break;
       }
@@ -423,7 +428,7 @@ this.UITour = {
           return false;
         }
 
-        this.getConfiguration(messageManager, window, data.configuration, data.callbackID);
+        this.getConfiguration(contentDocument, data.configuration, data.callbackID);
         break;
       }
 
@@ -445,22 +450,19 @@ this.UITour = {
         // Add a widget to the toolbar
         let targetPromise = this.getTarget(window, data.name);
         targetPromise.then(target => {
-          this.addNavBarWidget(target, messageManager, data.callbackID);
+          this.addNavBarWidget(target, contentDocument, data.callbackID);
         }).then(null, Cu.reportError);
         break;
       }
     }
 
-    if (!window.gMultiProcessBrowser) { // Non-e10s. See bug 1089000.
-      if (!this.originTabs.has(window)) {
-        this.originTabs.set(window, new Set());
-      }
+    if (!this.originTabs.has(window))
+      this.originTabs.set(window, new Set());
 
-      this.originTabs.get(window).add(tab);
-      tab.addEventListener("TabClose", this);
-      tab.addEventListener("TabBecomingWindow", this);
-      window.addEventListener("SSWindowClosing", this);
-    }
+    this.originTabs.get(window).add(tab);
+    tab.addEventListener("TabClose", this);
+    tab.addEventListener("TabBecomingWindow", this);
+    window.addEventListener("SSWindowClosing", this);
 
     return true;
   },
@@ -619,7 +621,44 @@ this.UITour = {
                            .wrappedJSObject;
   },
 
-  // This function is copied to UITourListener.
+  isTestingOrigin: function(aURI) {
+    if (Services.prefs.getPrefType(PREF_TEST_WHITELIST) != Services.prefs.PREF_STRING) {
+      return false;
+    }
+
+    // Add any testing origins (comma-seperated) to the whitelist for the session.
+    for (let origin of Services.prefs.getCharPref(PREF_TEST_WHITELIST).split(",")) {
+      try {
+        let testingURI = Services.io.newURI(origin, null, null);
+        if (aURI.prePath == testingURI.prePath) {
+          return true;
+        }
+      } catch (ex) {
+        Cu.reportError(ex);
+      }
+    }
+    return false;
+  },
+
+  ensureTrustedOrigin: function(aDocument) {
+    if (aDocument.defaultView.top != aDocument.defaultView)
+      return false;
+
+    let uri = aDocument.documentURIObject;
+
+    if (uri.schemeIs("chrome"))
+      return true;
+
+    if (!this.isSafeScheme(uri))
+      return false;
+
+    let permission = Services.perms.testPermission(uri, UITOUR_PERMISSION);
+    if (permission == Services.perms.ALLOW_ACTION)
+      return true;
+
+    return this.isTestingOrigin(uri);
+  },
+
   isSafeScheme: function(aURI) {
     let allowedSchemes = new Set(["https", "about"]);
     if (!Services.prefs.getBoolPref("browser.uitour.requireSecure"))
@@ -631,9 +670,9 @@ this.UITour = {
     return true;
   },
 
-  resolveURL: function(aBrowser, aURL) {
+  resolveURL: function(aDocument, aURL) {
     try {
-      let uri = Services.io.newURI(aURL, null, aBrowser.currentURI);
+      let uri = Services.io.newURI(aURL, null, aDocument.documentURIObject);
 
       if (!this.isSafeScheme(uri))
         return null;
@@ -644,9 +683,16 @@ this.UITour = {
     return null;
   },
 
-  sendPageCallback: function(aMessageManager, aCallbackID, aData = {}) {
+  sendPageCallback: function(aDocument, aCallbackID, aData = {}) {
+
     let detail = {data: aData, callbackID: aCallbackID};
-    aMessageManager.sendAsyncMessage("UITour:SendPageCallback", detail);
+    detail = Cu.cloneInto(detail, aDocument.defaultView);
+    let event = new aDocument.defaultView.CustomEvent("mozUITourResponse", {
+      bubbles: true,
+      detail: detail
+    });
+
+    aDocument.dispatchEvent(event);
   },
 
   isElementVisible: function(aElement) {
@@ -920,7 +966,7 @@ this.UITour = {
   /**
    * Show an info panel.
    *
-   * @param {nsIMessageSender} aMessageManager
+   * @param {Document} aContentDocument
    * @param {Node}     aAnchor
    * @param {String}   [aTitle=""]
    * @param {String}   [aDescription=""]
@@ -929,7 +975,7 @@ this.UITour = {
    * @param {Object}   [aOptions={}]
    * @param {String}   [aOptions.closeButtonCallbackID]
    */
-  showInfo: function(aMessageManager, aAnchor, aTitle = "", aDescription = "", aIconURL = "",
+  showInfo: function(aContentDocument, aAnchor, aTitle = "", aDescription = "", aIconURL = "",
                      aButtons = [], aOptions = {}) {
     function showInfoPanel(aAnchorEl) {
       aAnchorEl.focus();
@@ -968,7 +1014,7 @@ this.UITour = {
         let callbackID = button.callbackID;
         el.addEventListener("command", event => {
           tooltip.hidePopup();
-          this.sendPageCallback(aMessageManager, callbackID);
+          this.sendPageCallback(aContentDocument, callbackID);
         });
 
         tooltipButtons.appendChild(el);
@@ -980,7 +1026,7 @@ this.UITour = {
       let closeButtonCallback = (event) => {
         this.hideInfo(document.defaultView);
         if (aOptions && aOptions.closeButtonCallbackID)
-          this.sendPageCallback(aMessageManager, aOptions.closeButtonCallbackID);
+          this.sendPageCallback(aContentDocument, aOptions.closeButtonCallbackID);
       };
       tooltipClose.addEventListener("command", closeButtonCallback);
 
@@ -989,7 +1035,7 @@ this.UITour = {
           target: aAnchor.targetName,
           type: event.type,
         };
-        this.sendPageCallback(aMessageManager, aOptions.targetCallbackID, details);
+        this.sendPageCallback(aContentDocument, aOptions.targetCallbackID, details);
       };
       if (aOptions.targetCallbackID && aAnchor.addTargetListener) {
         aAnchor.addTargetListener(document, targetCallback);
@@ -1168,13 +1214,13 @@ this.UITour = {
     aWindow.gBrowser.selectedTab = tab;
   },
 
-  getConfiguration: function(aMessageManager, aWindow, aConfiguration, aCallbackID) {
+  getConfiguration: function(aContentDocument, aConfiguration, aCallbackID) {
     switch (aConfiguration) {
       case "availableTargets":
-        this.getAvailableTargets(aMessageManager, aWindow, aCallbackID);
+        this.getAvailableTargets(aContentDocument, aCallbackID);
         break;
       case "sync":
-        this.sendPageCallback(aMessageManager, aCallbackID, {
+        this.sendPageCallback(aContentDocument, aCallbackID, {
           setup: Services.prefs.prefHasUserValue("services.sync.username"),
         });
         break;
@@ -1182,7 +1228,7 @@ this.UITour = {
         let props = ["defaultUpdateChannel", "version"];
         let appinfo = {};
         props.forEach(property => appinfo[property] = Services.appinfo[property]);
-        this.sendPageCallback(aMessageManager, aCallbackID, appinfo);
+        this.sendPageCallback(aContentDocument, aCallbackID, appinfo);
         break;
       default:
         Cu.reportError("getConfiguration: Unknown configuration requested: " + aConfiguration);
@@ -1190,12 +1236,12 @@ this.UITour = {
     }
   },
 
-  getAvailableTargets: function(aMessageManager, aChromeWindow, aCallbackID) {
+  getAvailableTargets: function(aContentDocument, aCallbackID) {
     Task.spawn(function*() {
-      let window = aChromeWindow;
+      let window = this.getChromeWindow(aContentDocument);
       let data = this.availableTargetsCache.get(window);
       if (data) {
-        this.sendPageCallback(aMessageManager, aCallbackID, data);
+        this.sendPageCallback(aContentDocument, aCallbackID, data);
         return;
       }
 
@@ -1222,16 +1268,16 @@ this.UITour = {
         targets: targetNames,
       };
       this.availableTargetsCache.set(window, data);
-      this.sendPageCallback(aMessageManager, aCallbackID, data);
+      this.sendPageCallback(aContentDocument, aCallbackID, data);
     }.bind(this)).catch(err => {
       Cu.reportError(err);
-      this.sendPageCallback(aMessageManager, aCallbackID, {
+      this.sendPageCallback(aContentDocument, aCallbackID, {
         targets: [],
       });
     });
   },
 
-  addNavBarWidget: function (aTarget, aMessageManager, aCallbackID) {
+  addNavBarWidget: function (aTarget, aContentDocument, aCallbackID) {
     if (aTarget.node) {
       Cu.reportError("UITour: can't add a widget already present: " + data.target);
       return;
@@ -1246,7 +1292,7 @@ this.UITour = {
     }
 
     CustomizableUI.addWidgetToArea(aTarget.widgetName, CustomizableUI.AREA_NAVBAR);
-    this.sendPageCallback(aMessageManager, aCallbackID);
+    this.sendPageCallback(aContentDocument, aCallbackID);
   },
 
   _addAnnotationPanelMutationObserver: function(aPanelEl) {

@@ -602,8 +602,8 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
       GetListItemText(text);
       finalSize.BSize(wm) = fm->MaxHeight();
       finalSize.ISize(wm) =
-        nsLayoutUtils::AppUnitWidthOfStringBidi(text, this, *fm,
-                                                *aRenderingContext);
+        nsLayoutUtils::GetStringWidth(this, aRenderingContext, *fm,
+                                      text.get(), text.Length());
       aMetrics.SetBlockStartAscent(fm->MaxAscent());
       break;
   }

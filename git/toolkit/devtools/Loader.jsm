@@ -64,7 +64,6 @@ let loaderModules = {
   "toolkit/loader": loader,
   "xpcInspector": xpcInspector,
   "promise": promise,
-  "PromiseDebugging": PromiseDebugging
 };
 try {
   let { indexedDB } = Cu.Sandbox(this, {wantGlobalProperties:["indexedDB"]});

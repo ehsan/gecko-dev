@@ -119,18 +119,6 @@ function test_display_string()
     {
       input: "new Proxy({}, {})",
       output: "[object Object]"
-    },
-    {
-      input: "Promise.resolve(5)",
-      output: "Promise (fulfilled: 5)"
-    },
-    {
-      input: "Promise.reject(new Error())",
-      output: "Promise (rejected: Error)"
-    },
-    {
-      input: "new Promise(function () {})",
-      output: "Promise (pending)"
     }
   ];
 
