@@ -16,4 +16,4 @@ EXTRA_JS_MODULES += [
     'TiltWorkerPicker.js'
 ]
 
-BROWSER_CHROME_MANIFESTS += ['test/browser.ini']
+TEST_DIRS += ['test']

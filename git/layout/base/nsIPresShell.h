@@ -133,10 +133,10 @@ typedef struct CapturingContentInfo {
   nsIContent* mContent;
 } CapturingContentInfo;
 
-//61e60df7-128a-4cdd-a684-5f0bd2ceb61f
+//bccc1c01-5123-4f49-9572-c0bf506b6418
 #define NS_IPRESSHELL_IID \
-{ 0x61e60df7, 0x128a, 0x4cdd, \
-  {0xa6, 0x84, 0x5f, 0x0b, 0xd2, 0xce, 0xb6, 0x1f}}
+{ 0xbccc1c01, 0x5123, 0x4f49, \
+  {0x95, 0x72, 0xc0, 0xbf, 0x50, 0x6b, 0x64, 0x18}}
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -565,9 +565,9 @@ public:
   /**
    * Get a reference rendering context. This is a context that should not
    * be rendered to, but is suitable for measuring text and performing
-   * other non-rendering operations. Guaranteed to return non-null.
+   * other non-rendering operations.
    */
-  virtual already_AddRefed<nsRenderingContext> CreateReferenceRenderingContext() = 0;
+  virtual already_AddRefed<nsRenderingContext> GetReferenceRenderingContext() = 0;
 
   /**
    * Informs the pres shell that the document is now at the anchor with

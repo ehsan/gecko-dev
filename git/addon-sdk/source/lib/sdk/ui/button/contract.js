@@ -8,7 +8,6 @@ const { isLocalURL } = require('../../url');
 const { isNil, isObject, isString } = require('../../lang/type');
 const { required, either, string, boolean, object } = require('../../deprecated/api-utils');
 const { merge } = require('../../util/object');
-const { freeze } = Object;
 
 function isIconSet(icons) {
   return Object.keys(icons).
@@ -17,7 +16,6 @@ function isIconSet(icons) {
 
 let iconSet = {
   is: either(object, string),
-  map: v => isObject(v) ? freeze(merge({}, v)) : v,
   ok: v => (isString(v) && isLocalURL(v)) || (isObject(v) && isIconSet(v)),
   msg: 'The option "icon" must be a local URL or an object with ' +
     'numeric keys / local URL values pair.'

@@ -31,9 +31,7 @@ function test() {
         window = newTabBrowser.contentWindow;
 
     // Runs tests after all 'load' event handlers have fired off
-    window.addEventListener("documentload", function() {
-      runTests(document, window, finish);
-    }, false, true);
+    window.addEventListener("documentload", function() {runTests(document, window, finish);}, false, true);
   }, true);
 }
 

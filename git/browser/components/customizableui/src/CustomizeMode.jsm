@@ -236,7 +236,11 @@ CustomizeMode.prototype = {
       yield this._wrapToolbarItems();
       this.populatePalette();
 
-      this._addDragHandlers(this.visiblePalette);
+      this.visiblePalette.addEventListener("dragstart", this, true);
+      this.visiblePalette.addEventListener("dragover", this, true);
+      this.visiblePalette.addEventListener("dragexit", this, true);
+      this.visiblePalette.addEventListener("drop", this, true);
+      this.visiblePalette.addEventListener("dragend", this, true);
 
       window.gNavToolbox.addEventListener("toolbarvisibilitychange", this);
 
@@ -398,7 +402,11 @@ CustomizeMode.prototype = {
       window.gNavToolbox.removeEventListener("toolbarvisibilitychange", this);
 
       DragPositionManager.stop();
-      this._removeDragHandlers(this.visiblePalette);
+      this.visiblePalette.removeEventListener("dragstart", this, true);
+      this.visiblePalette.removeEventListener("dragover", this, true);
+      this.visiblePalette.removeEventListener("dragexit", this, true);
+      this.visiblePalette.removeEventListener("drop", this, true);
+      this.visiblePalette.removeEventListener("dragend", this, true);
 
       yield this._unwrapToolbarItems();
 
@@ -892,7 +900,11 @@ CustomizeMode.prototype = {
       this.areas = [];
       for (let area of CustomizableUI.areas) {
         let target = CustomizableUI.getCustomizeTargetForArea(area, window);
-        this._addDragHandlers(target);
+        target.addEventListener("dragstart", this, true);
+        target.addEventListener("dragover", this, true);
+        target.addEventListener("dragexit", this, true);
+        target.addEventListener("drop", this, true);
+        target.addEventListener("dragend", this, true);
         for (let child of target.children) {
           if (this.isCustomizableItem(child)) {
             yield this.deferredWrapToolbarItem(child, CustomizableUI.getPlaceForItem(child));
@@ -903,28 +915,12 @@ CustomizeMode.prototype = {
     }.bind(this)).then(null, ERROR);
   },
 
-  _addDragHandlers: function(aTarget) {
-    aTarget.addEventListener("dragstart", this, true);
-    aTarget.addEventListener("dragover", this, true);
-    aTarget.addEventListener("dragexit", this, true);
-    aTarget.addEventListener("drop", this, true);
-    aTarget.addEventListener("dragend", this, true);
-  },
-
   _wrapItemsInArea: function(target) {
     for (let child of target.children) {
       if (this.isCustomizableItem(child)) {
         this.wrapToolbarItem(child, CustomizableUI.getPlaceForItem(child));
       }
     }
-  },
-
-  _removeDragHandlers: function(aTarget) {
-    aTarget.removeEventListener("dragstart", this, true);
-    aTarget.removeEventListener("dragover", this, true);
-    aTarget.removeEventListener("dragexit", this, true);
-    aTarget.removeEventListener("drop", this, true);
-    aTarget.removeEventListener("dragend", this, true);
   },
 
   _unwrapItemsInArea: function(target) {
@@ -943,7 +939,11 @@ CustomizeMode.prototype = {
             yield this.deferredUnwrapToolbarItem(toolbarItem);
           }
         }
-        this._removeDragHandlers(target);
+        target.removeEventListener("dragstart", this, true);
+        target.removeEventListener("dragover", this, true);
+        target.removeEventListener("dragexit", this, true);
+        target.removeEventListener("drop", this, true);
+        target.removeEventListener("dragend", this, true);
       }
     }.bind(this)).then(null, ERROR);
   },
@@ -1115,25 +1115,6 @@ CustomizeMode.prototype = {
         let widget = CustomizableUI.getWidget(aWidgetId);
         this.visiblePalette.appendChild(this.makePaletteItem(widget, "palette"));
       }
-    }
-  },
-
-  onAreaNodeRegistered: function(aArea, aContainer) {
-    if (aContainer.ownerDocument == this.document) {
-      this._wrapItemsInArea(aContainer);
-      this._addDragHandlers(aContainer);
-      DragPositionManager.add(this.window, aArea, aContainer);
-      this.areas.push(aContainer);
-    }
-  },
-
-  onAreaNodeUnregistered: function(aArea, aContainer, aReason) {
-    if (aContainer.ownerDocument == this.document && aReason == CustomizableUI.REASON_AREA_UNREGISTERED) {
-      this._unwrapItemsInArea(aContainer);
-      this._removeDragHandlers(aContainer);
-      DragPositionManager.remove(this.window, aArea, aContainer);
-      let index = this.areas.indexOf(aContainer);
-      this.areas.splice(index, 1);
     }
   },
 

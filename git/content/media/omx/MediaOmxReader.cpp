@@ -26,7 +26,7 @@
 
 #define MAX_DROPPED_FRAMES 25
 // Try not to spend more than this much time in a single call to DecodeVideoFrame.
-#define MAX_VIDEO_DECODE_SECONDS 0.1
+#define MAX_VIDEO_DECODE_SECONDS 3.0
 
 using namespace mozilla::gfx;
 using namespace android;
@@ -40,16 +40,13 @@ extern PRLogModuleInfo* gMediaDecoderLog;
 #define DECODER_LOG(type, msg)
 #endif
 
-MediaOmxReader::MediaOmxReader(AbstractMediaDecoder *aDecoder)
-  : MediaDecoderReader(aDecoder)
-  , mHasVideo(false)
-  , mHasAudio(false)
-  , mVideoSeekTimeUs(-1)
-  , mAudioSeekTimeUs(-1)
-  , mSkipCount(0)
-#ifdef DEBUG
-  , mIsActive(true)
-#endif
+MediaOmxReader::MediaOmxReader(AbstractMediaDecoder *aDecoder) :
+  MediaDecoderReader(aDecoder),
+  mHasVideo(false),
+  mHasAudio(false),
+  mVideoSeekTimeUs(-1),
+  mAudioSeekTimeUs(-1),
+  mSkipCount(0)
 {
 #ifdef PR_LOGGING
   if (!gMediaDecoderLog) {
@@ -135,7 +132,6 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
                                       MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-  MOZ_ASSERT(mIsActive);
 
   *aTags = nullptr;
 
@@ -211,8 +207,6 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
 bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
                                       int64_t aTimeThreshold)
 {
-  MOZ_ASSERT(mIsActive);
-
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
   uint32_t parsed = 0, decoded = 0;
@@ -341,7 +335,6 @@ void MediaOmxReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength, in
 bool MediaOmxReader::DecodeAudioData()
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-  MOZ_ASSERT(mIsActive);
 
   // This is the approximate byte position in the stream.
   int64_t pos = mDecoder->GetResource()->Tell();
@@ -375,7 +368,6 @@ bool MediaOmxReader::DecodeAudioData()
 nsresult MediaOmxReader::Seek(int64_t aTarget, int64_t aStartTime, int64_t aEndTime, int64_t aCurrentTime)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-  MOZ_ASSERT(mIsActive);
 
   ResetDecode();
   VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
@@ -410,9 +402,6 @@ static uint64_t BytesToTime(int64_t offset, uint64_t length, uint64_t durationUs
 }
 
 void MediaOmxReader::SetIdle() {
-#ifdef DEBUG
-  mIsActive = false;
-#endif
   if (!mOmxDecoder.get()) {
     return;
   }
@@ -420,9 +409,6 @@ void MediaOmxReader::SetIdle() {
 }
 
 void MediaOmxReader::SetActive() {
-#ifdef DEBUG
-  mIsActive = true;
-#endif
   if (!mOmxDecoder.get()) {
     return;
   }

@@ -1753,8 +1753,7 @@ void
 PeerConnectionImpl::SetSignalingState_m(PCImplSignalingState aSignalingState)
 {
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
-  if (mSignalingState == aSignalingState ||
-      mSignalingState == PCImplSignalingState::SignalingClosed) {
+  if (mSignalingState == aSignalingState) {
     return;
   }
 

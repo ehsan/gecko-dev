@@ -12,7 +12,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.BrowserLocaleManager;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
@@ -240,8 +239,6 @@ public class CommandProcessor {
     }
   }
 
-  private static volatile boolean didUpdateLocale = false;
-
   @SuppressWarnings("deprecation")
   public static void displayURI(final List<String> args, final Context context) {
     // We trust the client sender that these exist.
@@ -255,17 +252,10 @@ public class CommandProcessor {
       title = args.get(2);
     }
 
-    // We don't care too much about races, but let's try to avoid
-    // unnecessary work.
-    if (!didUpdateLocale) {
-      BrowserLocaleManager.getInstance().getAndApplyPersistedLocale(context);
-      didUpdateLocale = true;
-    }
-
     final String ns = Context.NOTIFICATION_SERVICE;
     final NotificationManager notificationManager = (NotificationManager) context.getSystemService(ns);
 
-    // Create a Notification.
+    // Create a Notificiation.
     final int icon = R.drawable.icon;
     String notificationTitle = context.getString(R.string.sync_new_tab);
     if (title != null) {

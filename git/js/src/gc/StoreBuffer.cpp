@@ -53,10 +53,10 @@ StoreBuffer::SlotsEdge::mark(JSTracer *trc)
 void
 StoreBuffer::WholeCellEdges::mark(JSTracer *trc)
 {
-    JS_ASSERT(edge->isTenured());
-    JSGCTraceKind kind = GetGCThingTraceKind(edge);
+    JS_ASSERT(tenured->isTenured());
+    JSGCTraceKind kind = GetGCThingTraceKind(tenured);
     if (kind <= JSTRACE_OBJECT) {
-        JSObject *object = static_cast<JSObject *>(edge);
+        JSObject *object = static_cast<JSObject *>(tenured);
         if (object->is<ArgumentsObject>())
             ArgumentsObject::trace(trc, object);
         MarkChildren(trc, object);
@@ -64,7 +64,7 @@ StoreBuffer::WholeCellEdges::mark(JSTracer *trc)
     }
 #ifdef JS_ION
     JS_ASSERT(kind == JSTRACE_JITCODE);
-    static_cast<jit::JitCode *>(edge)->trace(trc);
+    static_cast<jit::JitCode *>(tenured)->trace(trc);
 #else
     MOZ_ASSUME_UNREACHABLE("Only objects can be in the wholeCellBuffer if IonMonkey is disabled.");
 #endif
@@ -117,21 +117,23 @@ template <typename T>
 void
 StoreBuffer::MonoTypeBuffer<T>::compactRemoveDuplicates(StoreBuffer *owner)
 {
-    typedef HashSet<T, typename T::Hasher, SystemAllocPolicy> DedupSet;
+    if (!T::supportsDeduplication())
+        return;
 
-    DedupSet duplicates;
+    EdgeSet duplicates;
     if (!duplicates.init())
         return; /* Failure to de-dup is acceptable. */
 
     LifoAlloc::Enum insert(*storage_);
     for (LifoAlloc::Enum e(*storage_); !e.empty(); e.popFront<T>()) {
         T *edge = e.get<T>();
-        if (!duplicates.has(*edge)) {
+        void *key = edge->deduplicationKey();
+        if (!duplicates.has(key)) {
             insert.updateFront<T>(*edge);
             insert.popFront<T>();
 
             /* Failure to insert will leave the set with duplicates. Oh well. */
-            duplicates.put(*edge);
+            duplicates.put(key);
         }
     }
     storage_->release(insert.mark());
@@ -188,10 +190,10 @@ StoreBuffer::RelocatableMonoTypeBuffer<T>::compactMoved(StoreBuffer *owner)
     for (LifoAlloc::Enum e(storage); !e.empty(); e.popFront<T>()) {
         T *edge = e.get<T>();
         if (edge->isTagged()) {
-            if (!invalidated.put(edge->untagged().edge))
+            if (!invalidated.put(edge->deduplicationKey()))
                 CrashAtUnhandlableOOM("RelocatableMonoTypeBuffer::compactMoved: Failed to put removal.");
         } else {
-            invalidated.remove(edge->untagged().edge);
+            invalidated.remove(edge->deduplicationKey());
         }
     }
 
@@ -199,7 +201,7 @@ StoreBuffer::RelocatableMonoTypeBuffer<T>::compactMoved(StoreBuffer *owner)
     LifoAlloc::Enum insert(storage);
     for (LifoAlloc::Enum e(storage); !e.empty(); e.popFront<T>()) {
         T *edge = e.get<T>();
-        if (!edge->isTagged() && !invalidated.has(edge->untagged().edge)) {
+        if (!edge->isTagged() && !invalidated.has(edge->deduplicationKey())) {
             insert.updateFront<T>(*edge);
             insert.popFront<T>();
         }

@@ -608,9 +608,7 @@ IndexedDatabaseManager::AsyncDeleteFile(FileManager* aFileManager,
 
   // See if we're currently clearing the storages for this origin. If so then
   // we pretend that we've already deleted everything.
-  if (quotaManager->IsClearOriginPending(
-                             aFileManager->Origin(),
-                             Nullable<PersistenceType>(aFileManager->Type()))) {
+  if (quotaManager->IsClearOriginPending(aFileManager->Origin())) {
     return NS_OK;
   }
 

@@ -633,7 +633,8 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
     return NS_OK;
 
   nsRefPtr<nsRenderingContext> rc =
-    outerPresContext->PresShell()->CreateReferenceRenderingContext();
+    outerPresContext->PresShell()->GetReferenceRenderingContext();
+  NS_ENSURE_TRUE(rc, NS_ERROR_FAILURE);
   nsBoxLayoutState state(outerPresContext, rc);
   mCurrentPos = 0;
   mPressed = true;

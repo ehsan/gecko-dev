@@ -722,7 +722,7 @@ nsRefreshDriver::AdvanceTimeAndRefresh(int64_t aMilliseconds)
   mMostRecentRefreshEpochTime += aMilliseconds * 1000;
   mMostRecentRefresh += TimeDuration::FromMilliseconds((double) aMilliseconds);
 
-  mozilla::dom::AutoNoJSAPI nojsapi;
+  mozilla::dom::AutoSystemCaller asc;
   DoTick();
 }
 

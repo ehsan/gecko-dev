@@ -315,7 +315,7 @@ struct Zone : public JS::shadow::Zone,
 
     js::types::TypeZone types;
 
-    void sweep(js::FreeOp *fop, bool releaseTypes, bool *oom);
+    void sweep(js::FreeOp *fop, bool releaseTypes);
 
     bool hasMarkedCompartments();
 

@@ -515,7 +515,7 @@ nsRangeFrame::GetValueAtEventPoint(WidgetGUIEvent* aEvent)
     // We need to get the size of the thumb from the theme.
     nsPresContext *presContext = PresContext();
     nsRefPtr<nsRenderingContext> tmpCtx =
-      presContext->PresShell()->CreateReferenceRenderingContext();
+      presContext->PresShell()->GetReferenceRenderingContext();
     bool notUsedCanOverride;
     nsIntSize size;
     presContext->GetTheme()->

@@ -24,7 +24,6 @@
 #include "mozilla/layers/SimpleTextureClientPool.h" // for SimpleTextureClientPool
 #include "nsAString.h"
 #include "nsIWidget.h"                  // for nsIWidget
-#include "nsIWidgetListener.h"
 #include "nsTArray.h"                   // for AutoInfallibleTArray
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
 #include "TiledLayerBuffer.h"
@@ -272,20 +271,6 @@ ClientLayerManager::Composite()
   }
 }
 
-void
-ClientLayerManager::DidComposite()
-{
-  MOZ_ASSERT(mWidget);
-  nsIWidgetListener *listener = mWidget->GetWidgetListener();
-  if (listener) {
-    listener->DidCompositeWindow();
-  }
-  listener = mWidget->GetAttachedWidgetListener();
-  if (listener) {
-    listener->DidCompositeWindow();
-  }
-}
-
 void 
 ClientLayerManager::MakeSnapshotIfRequired()
 {
@@ -296,9 +281,8 @@ ClientLayerManager::MakeSnapshotIfRequired()
     if (CompositorChild* remoteRenderer = GetRemoteRenderer()) {
       nsIntRect bounds;
       mWidget->GetBounds(bounds);
-      IntSize widgetSize = bounds.Size().ToIntSize();
       SurfaceDescriptor inSnapshot, snapshot;
-      if (mForwarder->AllocSurfaceDescriptor(widgetSize,
+      if (mForwarder->AllocSurfaceDescriptor(bounds.Size().ToIntSize(),
                                              gfxContentType::COLOR_ALPHA,
                                              &inSnapshot) &&
           // The compositor will usually reuse |snapshot| and return
@@ -306,11 +290,9 @@ ClientLayerManager::MakeSnapshotIfRequired()
           // responsible for freeing |snapshot|.
           remoteRenderer->SendMakeSnapshot(inSnapshot, &snapshot)) {
         RefPtr<DataSourceSurface> surf = GetSurfaceForDescriptor(snapshot);
-        DrawTarget* dt = mShadowTarget->GetDrawTarget();
-        Rect widgetRect(Point(0, 0), Size(widgetSize.width, widgetSize.height));
-        dt->DrawSurface(surf, widgetRect, widgetRect,
-                        DrawSurfaceOptions(),
-                        DrawOptions(1.0f, CompositionOp::OP_OVER));
+        mShadowTarget->GetDrawTarget()->CopySurface(surf,
+                                                    IntRect(0, 0, bounds.Size().width, bounds.Size().height),
+                                                    IntPoint(0, 0));
       }
       if (IsSurfaceDescriptorValid(snapshot)) {
         mForwarder->DestroySharedSurface(&snapshot);
