@@ -186,7 +186,6 @@
           if (!this._statusPanel) {
             this._statusPanel = document.createElementNS(this.namespaceURI, "statuspanel");
             this._statusPanel.setAttribute("inactive", "true");
-            this._statusPanel.setAttribute("layer", "true");
             this._appendStatusPanel();
           }
           return this._statusPanel;

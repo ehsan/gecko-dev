@@ -331,16 +331,16 @@ TiledContentHost::Dump(FILE* aFile,
   TiledLayerBufferComposite::Iterator it = mVideoMemoryTiledBuffer.TilesBegin();
   TiledLayerBufferComposite::Iterator stop = mVideoMemoryTiledBuffer.TilesEnd();
   if (aDumpHtml) {
-    fprintf_stderr(aFile, "<ul>");
+    fprintf(aFile, "<ul>");
   }
   for (;it != stop; ++it) {
-    fprintf_stderr(aFile, "%s", aPrefix);
-    fprintf_stderr(aFile, aDumpHtml ? "<li> <a href=" : "Tile ");
+    fprintf(aFile, "%s", aPrefix);
+    fprintf(aFile, aDumpHtml ? "<li> <a href=" : "Tile ");
     DumpDeprecatedTextureHost(aFile, it->mDeprecatedTextureHost);
-    fprintf_stderr(aFile, aDumpHtml ? " >Tile</a></li>" : " ");
+    fprintf(aFile, aDumpHtml ? " >Tile</a></li>" : " ");
   }
     if (aDumpHtml) {
-    fprintf_stderr(aFile, "</ul>");
+    fprintf(aFile, "</ul>");
   }
 }
 #endif

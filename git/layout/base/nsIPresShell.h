@@ -418,11 +418,6 @@ public:
   virtual bool IsLayoutFlushObserver() = 0;
 
   /**
-   * Called when document load completes.
-   */
-  virtual NS_HIDDEN_(void) LoadComplete() = 0;
-
-  /**
    * This calls through to the frame manager to get the root frame.
    */
   virtual NS_HIDDEN_(nsIFrame*) GetRootFrameExternal() const;

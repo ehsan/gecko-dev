@@ -66,7 +66,6 @@ public:
 
     nsresult GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
                            gfxUserFontSet* aUserFontSet,
-                           gfxTextPerfMetrics* aTextPerf,
                            nsFontMetrics*& aMetrics);
 
     void FontMetricsDeleted(const nsFontMetrics* aFontMetrics);
@@ -124,7 +123,6 @@ nsFontCache::Observe(nsISupports*, const char* aTopic, const PRUnichar*)
 nsresult
 nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
                            gfxUserFontSet* aUserFontSet,
-                           gfxTextPerfMetrics* aTextPerf,
                            nsFontMetrics*& aMetrics)
 {
     if (!aLanguage)
@@ -154,7 +152,7 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
 
     fm = new nsFontMetrics();
     NS_ADDREF(fm);
-    nsresult rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet, aTextPerf);
+    nsresult rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet);
     if (NS_SUCCEEDED(rv)) {
         // the mFontMetrics list has the "head" at the end, because append
         // is cheaper than insert
@@ -173,7 +171,7 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
     Compact();
     fm = new nsFontMetrics();
     NS_ADDREF(fm);
-    rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet, aTextPerf);
+    rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet);
     if (NS_SUCCEEDED(rv)) {
         mFontMetrics.AppendElement(fm);
         aMetrics = fm;
@@ -262,7 +260,6 @@ nsresult
 nsDeviceContext::GetMetricsFor(const nsFont& aFont,
                                nsIAtom* aLanguage,
                                gfxUserFontSet* aUserFontSet,
-                               gfxTextPerfMetrics* aTextPerf,
                                nsFontMetrics*& aMetrics)
 {
     if (!mFontCache) {
@@ -271,8 +268,7 @@ nsDeviceContext::GetMetricsFor(const nsFont& aFont,
         mFontCache->Init(this);
     }
 
-    return mFontCache->GetMetricsFor(aFont, aLanguage, aUserFontSet,
-                                     aTextPerf, aMetrics);
+    return mFontCache->GetMetricsFor(aFont, aLanguage, aUserFontSet, aMetrics);
 }
 
 nsresult

@@ -120,7 +120,6 @@ static PRLogModuleInfo *sFontInitLog = nullptr;
 static PRLogModuleInfo *sTextrunLog = nullptr;
 static PRLogModuleInfo *sTextrunuiLog = nullptr;
 static PRLogModuleInfo *sCmapDataLog = nullptr;
-static PRLogModuleInfo *sTextPerfLog = nullptr;
 #endif
 
 /* Class to listen for pref changes so that chrome code can dynamically
@@ -365,12 +364,11 @@ gfxPlatform::Init()
     gEverInitialized = true;
 
 #ifdef PR_LOGGING
-    sFontlistLog = PR_NewLogModule("fontlist");
-    sFontInitLog = PR_NewLogModule("fontinit");
-    sTextrunLog = PR_NewLogModule("textrun");
-    sTextrunuiLog = PR_NewLogModule("textrunui");
-    sCmapDataLog = PR_NewLogModule("cmapdata");
-    sTextPerfLog = PR_NewLogModule("textperf");
+    sFontlistLog = PR_NewLogModule("fontlist");;
+    sFontInitLog = PR_NewLogModule("fontinit");;
+    sTextrunLog = PR_NewLogModule("textrun");;
+    sTextrunuiLog = PR_NewLogModule("textrunui");;
+    sCmapDataLog = PR_NewLogModule("cmapdata");;
 #endif
 
     gGfxPlatformPrefsLock = new Mutex("gfxPlatform::gGfxPlatformPrefsLock");
@@ -1946,9 +1944,6 @@ gfxPlatform::GetLog(eGfxLog aWhichLog)
         break;
     case eGfxLog_cmapdata:
         return sCmapDataLog;
-        break;
-    case eGfxLog_textperf:
-        return sTextPerfLog;
         break;
     default:
         break;

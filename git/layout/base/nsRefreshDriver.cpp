@@ -1199,7 +1199,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
   if (mViewManagerFlushIsPending) {
 #ifdef MOZ_DUMP_PAINTING
     if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-      printf_stderr("Starting ProcessPendingUpdates\n");
+      printf("Starting ProcessPendingUpdates\n");
     }
 #endif
 #ifndef MOZ_WIDGET_GONK
@@ -1215,7 +1215,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     vm->ProcessPendingUpdates();
 #ifdef MOZ_DUMP_PAINTING
     if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-      printf_stderr("Ending ProcessPendingUpdates\n");
+      printf("Ending ProcessPendingUpdates\n");
     }
 #endif
   }

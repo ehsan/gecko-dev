@@ -481,9 +481,6 @@ function BrowserTabActor(aConnection, aBrowser, aTabBrowser)
   this._extraActors = {};
 
   this._onWindowCreated = this.onWindowCreated.bind(this);
-
-  // Number of event loops nested.
-  this._nestedEventLoopDepth = 0;
 }
 
 // XXX (bug 710213): BrowserTabActor attach/detach/exit/disconnect is a
@@ -637,9 +634,6 @@ BrowserTabActor.prototype = {
                        type: "tabDetached" });
     }
 
-    // Pop all nested event loops if we haven't already.
-    while (this._nestedEventLoopDepth > 0)
-      this.postNest();
     this._browser = null;
     this._tabbrowser = null;
   },
@@ -788,7 +782,6 @@ BrowserTabActor.prototype = {
                           .getInterface(Ci.nsIDOMWindowUtils);
     windowUtils.suppressEventHandling(true);
     windowUtils.suspendTimeouts();
-    this._nestedEventLoopDepth++;
   },
 
   /**
@@ -797,8 +790,6 @@ BrowserTabActor.prototype = {
   postNest: function BTA_postNest(aNestData) {
     if (!this.window) {
       // The tab is already closed.
-      dbg_assert(this._nestedEventLoopDepth === 0,
-                 "window shouldn't be closed before all nested event loops have been popped");
       return;
     }
     let windowUtils = this.window
@@ -810,7 +801,6 @@ BrowserTabActor.prototype = {
       this._pendingNavigation.resume();
       this._pendingNavigation = null;
     }
-    this._nestedEventLoopDepth--;
   },
 
   /**
