@@ -21,15 +21,6 @@ inline bool is_pot_assuming_nonnegative(GLsizei x)
     return x && (x & (x-1)) == 0;
 }
 
-inline bool FormatHasAlpha(GLenum format)
-{
-    return format == LOCAL_GL_RGBA ||
-           format == LOCAL_GL_LUMINANCE_ALPHA ||
-           format == LOCAL_GL_ALPHA ||
-           format == LOCAL_GL_RGBA4 ||
-           format == LOCAL_GL_RGB5_A1;
-}
-
 // NOTE: When this class is switched to new DOM bindings, update the (then-slow)
 // WrapObject calls in GetParameter and GetFramebufferAttachmentParameter.
 class WebGLTexture MOZ_FINAL
@@ -75,33 +66,28 @@ protected:
 
 public:
 
-    class ImageInfo
-        : public WebGLRectangleObject
-    {
+    class ImageInfo : public WebGLRectangleObject {
     public:
         ImageInfo()
             : mFormat(0)
             , mType(0)
-            , mImageDataStatus(WebGLImageDataStatus::NoImageData)
+            , mIsDefined(false)
         {}
 
         ImageInfo(GLsizei width, GLsizei height,
-                  GLenum format, GLenum type, WebGLImageDataStatus status)
+                  GLenum format, GLenum type)
             : WebGLRectangleObject(width, height)
             , mFormat(format)
             , mType(type)
-            , mImageDataStatus(status)
-        {
-            // shouldn't use this constructor to construct a null ImageInfo
-            MOZ_ASSERT(status != WebGLImageDataStatus::NoImageData);
-        }
+            , mIsDefined(true)
+        {}
 
         bool operator==(const ImageInfo& a) const {
-            return mImageDataStatus == a.mImageDataStatus &&
-                   mWidth  == a.mWidth &&
-                   mHeight == a.mHeight &&
-                   mFormat == a.mFormat &&
-                   mType   == a.mType;
+            return mIsDefined == a.mIsDefined &&
+                   mWidth     == a.mWidth &&
+                   mHeight    == a.mHeight &&
+                   mFormat    == a.mFormat &&
+                   mType      == a.mType;
         }
         bool operator!=(const ImageInfo& a) const {
             return !(*this == a);
@@ -116,15 +102,12 @@ public:
             return is_pot_assuming_nonnegative(mWidth) &&
                    is_pot_assuming_nonnegative(mHeight); // negative sizes should never happen (caught in texImage2D...)
         }
-        bool HasUninitializedImageData() const {
-            return mImageDataStatus == WebGLImageDataStatus::UninitializedImageData;
-        }
         int64_t MemoryUsage() const;
         GLenum Format() const { return mFormat; }
         GLenum Type() const { return mType; }
     protected:
         GLenum mFormat, mType;
-        WebGLImageDataStatus mImageDataStatus;
+        bool mIsDefined;
 
         friend class WebGLTexture;
     };
@@ -166,12 +149,12 @@ public:
 
     bool HasImageInfoAt(GLenum imageTarget, GLint level) const {
         MOZ_ASSERT(imageTarget);
-
+        
         size_t face = FaceForTarget(imageTarget);
         CheckedUint32 checked_index = CheckedUint32(level) * mFacesCount + face;
         return checked_index.isValid() &&
                checked_index.value() < mImageInfos.Length() &&
-               ImageInfoAt(imageTarget, level).mImageDataStatus != WebGLImageDataStatus::NoImageData;
+               ImageInfoAt(imageTarget, level).mIsDefined;
     }
 
     ImageInfo& ImageInfoBase() {
@@ -184,20 +167,6 @@ public:
 
     int64_t MemoryUsage() const;
 
-    void SetImageDataStatus(GLenum imageTarget, GLint level, WebGLImageDataStatus newStatus) {
-        MOZ_ASSERT(HasImageInfoAt(imageTarget, level));
-        ImageInfo& imageInfo = ImageInfoAt(imageTarget, level);
-        // there is no way to go from having image data to not having any
-        MOZ_ASSERT(newStatus != WebGLImageDataStatus::NoImageData ||
-                   imageInfo.mImageDataStatus == WebGLImageDataStatus::NoImageData);
-        if (imageInfo.mImageDataStatus != newStatus) {
-            SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
-        }
-        imageInfo.mImageDataStatus = newStatus;
-    }
-
-    void DoDeferredImageInitialization(GLenum imageTarget, GLint level);
-
 protected:
 
     GLenum mTarget;
@@ -207,7 +176,7 @@ protected:
     nsTArray<ImageInfo> mImageInfos;
 
     bool mHaveGeneratedMipmap;
-    WebGLTextureFakeBlackStatus mFakeBlackStatus;
+    FakeBlackStatus mFakeBlackStatus;
 
     void EnsureMaxLevelWithCustomImagesAtLeast(size_t aMaxLevelWithCustomImages) {
         mMaxLevelWithCustomImages = std::max(mMaxLevelWithCustomImages, aMaxLevelWithCustomImages);
@@ -228,27 +197,29 @@ protected:
 
 public:
 
+    void SetDontKnowIfNeedFakeBlack();
+
     void Bind(GLenum aTarget);
 
     void SetImageInfo(GLenum aTarget, GLint aLevel,
                       GLsizei aWidth, GLsizei aHeight,
-                      GLenum aFormat, GLenum aType, WebGLImageDataStatus aStatus);
+                      GLenum aFormat, GLenum aType);
 
     void SetMinFilter(GLenum aMinFilter) {
         mMinFilter = aMinFilter;
-        SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+        SetDontKnowIfNeedFakeBlack();
     }
     void SetMagFilter(GLenum aMagFilter) {
         mMagFilter = aMagFilter;
-        SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+        SetDontKnowIfNeedFakeBlack();
     }
     void SetWrapS(GLenum aWrapS) {
         mWrapS = aWrapS;
-        SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+        SetDontKnowIfNeedFakeBlack();
     }
     void SetWrapT(GLenum aWrapT) {
         mWrapT = aWrapT;
-        SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+        SetDontKnowIfNeedFakeBlack();
     }
     GLenum MinFilter() const { return mMinFilter; }
 
@@ -272,13 +243,7 @@ public:
 
     bool IsMipmapCubeComplete() const;
 
-    void SetFakeBlackStatus(WebGLTextureFakeBlackStatus x) {
-        mFakeBlackStatus = x;
-        mContext->SetFakeBlackStatus(WebGLContextFakeBlackStatus::Unknown);
-    }
-    // Returns the current fake-black-status, except if it was Unknown,
-    // in which case this function resolves it first, so it never returns Unknown.
-    WebGLTextureFakeBlackStatus ResolvedFakeBlackStatus();
+    bool NeedFakeBlack();
 };
 
 } // namespace mozilla

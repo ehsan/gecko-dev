@@ -4,7 +4,6 @@
 
 test_dirs := \
   mozbuild/mozbuild/test \
-  mozbuild/mozbuild/test/action \
   mozbuild/mozbuild/test/backend \
   mozbuild/mozbuild/test/controller \
   mozbuild/mozbuild/test/compilation \

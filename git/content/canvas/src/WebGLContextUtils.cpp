@@ -189,7 +189,7 @@ WebGLContext::ErrorName(GLenum error)
         case LOCAL_GL_NO_ERROR:
             return "NO_ERROR";
         default:
-            MOZ_ASSERT(false);
+            NS_ABORT();
             return "[unknown WebGL error!]";
     }
 }
@@ -221,7 +221,8 @@ WebGLContext::IsTextureFormatCompressed(GLenum format)
             return true;
     }
 
-    MOZ_ASSERT(false, "Invalid WebGL texture format?");
+    NS_NOTREACHED("Invalid WebGL texture format?");
+    NS_ABORT();
     return false;
 }
 
