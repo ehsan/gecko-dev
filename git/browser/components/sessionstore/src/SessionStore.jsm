@@ -254,18 +254,6 @@ this.SessionStore = {
     SessionStoreInternal.deleteTabValue(aTab, aKey);
   },
 
-  getGlobalValue: function ss_getGlobalValue(aKey) {
-    return SessionStoreInternal.getGlobalValue(aKey);
-  },
-
-  setGlobalValue: function ss_setGlobalValue(aKey, aStringValue) {
-    SessionStoreInternal.setGlobalValue(aKey, aStringValue);
-  },
-
-  deleteGlobalValue: function ss_deleteGlobalValue(aKey) {
-    SessionStoreInternal.deleteGlobalValue(aKey);
-  },
-
   persistTabAttribute: function ss_persistTabAttribute(aName) {
     SessionStoreInternal.persistTabAttribute(aName);
   },
@@ -648,7 +636,6 @@ let SessionStoreInternal = {
         browser = aEvent.currentTarget;
         let otherBrowser = aEvent.detail;
         TabState.onSwapDocShells(browser, otherBrowser);
-        TabStateCache.onSwapDocShells(browser, otherBrowser);
         break;
       case "TabOpen":
         this.onTabAdd(win, aEvent.originalTarget);
@@ -745,10 +732,6 @@ let SessionStoreInternal = {
           TelemetryTimestamps.add("sessionRestoreRestoring");
           this._restoreCount = aInitialState.windows ? aInitialState.windows.length : 0;
 
-          // global data must be restored before restoreWindow is called so that
-          // it happens before observers are notified
-          GlobalState.setFromState(aInitialState);
-
           let overwrite = this._isCmdLineEmpty(aWindow, aInitialState);
           let options = {firstWindow: true, overwriteTabs: overwrite};
           this.restoreWindow(aWindow, aInitialState, options);
@@ -778,10 +761,6 @@ let SessionStoreInternal = {
     // restore at startup.
     else if (this._deferredInitialState && !isPrivateWindow &&
              aWindow.toolbar.visible) {
-
-      // global data must be restored before restoreWindow is called so that
-      // it happens before observers are notified
-      GlobalState.setFromState(this._deferredInitialState);
 
       this._restoreCount = this._deferredInitialState.windows ?
         this._deferredInitialState.windows.length : 0;
@@ -1463,10 +1442,6 @@ let SessionStoreInternal = {
     // determine how many windows are meant to be restored
     this._restoreCount = state.windows ? state.windows.length : 0;
 
-    // global data must be restored before restoreWindow is called so that
-    // it happens before observers are notified
-    GlobalState.setFromState(state);
-
     // restore to the given state
     this.restoreWindow(window, state, {overwriteTabs: true});
   },
@@ -1786,20 +1761,6 @@ let SessionStoreInternal = {
     }
   },
 
-  getGlobalValue: function ssi_getGlobalValue(aKey) {
-    return GlobalState.get(aKey);
-  },
-
-  setGlobalValue: function ssi_setGlobalValue(aKey, aStringValue) {
-    GlobalState.set(aKey, aStringValue);
-    this.saveStateDelayed();
-  },
-
-  deleteGlobalValue: function ssi_deleteGlobalValue(aKey) {
-    GlobalState.delete(aKey);
-    this.saveStateDelayed();
-  },
-
   persistTabAttribute: function ssi_persistTabAttribute(aName) {
     if (TabAttributes.persist(aName)) {
       TabStateCache.clear();
@@ -1844,10 +1805,6 @@ let SessionStoreInternal = {
     let lastWindow = this._getMostRecentBrowserWindow();
     let canUseLastWindow = lastWindow &&
                            !lastWindow.__SS_lastSessionWindowID;
-
-    // global data must be restored before restoreWindow is called so that
-    // it happens before observers are notified
-    GlobalState.setFromState(lastSessionState);
 
     // Restore into windows or open new ones as needed.
     for (let i = 0; i < lastSessionState.windows.length; i++) {
@@ -2166,8 +2123,7 @@ let SessionStoreInternal = {
       selectedWindow: ix + 1,
       _closedWindows: lastClosedWindowsCopy,
       session: session,
-      scratchpads: scratchpads,
-      global: GlobalState.state
+      scratchpads: scratchpads
     };
 
     // Persist the last session if we deferred restoring it
@@ -2596,7 +2552,7 @@ let SessionStoreInternal = {
 
       // Any data that's in the process of being collected for this tab will be
       // out of date now that we're restoring it.
-      TabState.dropPendingCollections(browser);
+      TabState.dropPendingCollections(tab);
 
       if (!tabData.entries) {
         tabData.entries = [];
@@ -4055,62 +4011,3 @@ let LastSession = {
     }
   }
 };
-
-/**
- * Module that contains global session data.
- */
-let GlobalState = {
-
-  // Storage for global state.
-  state: {},
-
-  /**
-   * Clear all currently stored global state.
-   */
-  clear: function() {
-    this.state = {};
-  },
-
-  /**
-   * Retrieve a value from the global state.
-   *
-   * @param aKey
-   *        A key the value is stored under.
-   * @return The value stored at aKey, or an empty string if no value is set.
-   */
-  get: function(aKey) {
-    return this.state[aKey] || "";
-  },
-
-  /**
-   * Set a global value.
-   *
-   * @param aKey
-   *        A key to store the value under.
-   */
-  set: function(aKey, aStringValue) {
-    this.state[aKey] = aStringValue;
-  },
-
-  /**
-   * Delete a global value.
-   *
-   * @param aKey
-   *        A key to delete the value for.
-   */
-  delete: function(aKey) {
-    delete this.state[aKey];
-  },
-
-  /**
-   * Set the current global state from a state object. Any previous global
-   * state will be removed, even if the new state does not contain a matching
-   * key.
-   *
-   * @param aState
-   *        A state object to extract global state from to be set.
-   */
-  setFromState: function (aState) {
-    this.state = (aState && aState.global) || {};
-  }
-}

@@ -9,6 +9,7 @@ let gWindow = null;
 var gFrame = null;
 var gInput = null;
 
+const kMarkerOffsetY = 12;
 const kCommonWaitMs = 5000;
 const kCommonPollMs = 100;
 

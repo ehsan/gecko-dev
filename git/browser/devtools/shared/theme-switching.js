@@ -19,23 +19,20 @@
   }
 
   function switchTheme(newTheme, oldTheme) {
-    if (newTheme === oldTheme) {
-      return;
-    }
+    let winUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDOMWindowUtils);
 
     if (oldTheme && newTheme != oldTheme) {
-      StylesheetUtils.removeSheet(
-        window,
-        DEVTOOLS_SKIN_URL + oldTheme + "-theme.css",
-        "author"
-      );
+      let oldThemeUrl = Services.io.newURI(
+        DEVTOOLS_SKIN_URL + oldTheme + "-theme.css", null, null);
+      try {
+        winUtils.removeSheet(oldThemeUrl, winUtils.AUTHOR_SHEET);
+      } catch(ex) {}
     }
 
-    StylesheetUtils.loadSheet(
-      window,
-      DEVTOOLS_SKIN_URL + newTheme + "-theme.css",
-      "author"
-    );
+    let newThemeUrl = Services.io.newURI(
+      DEVTOOLS_SKIN_URL + newTheme + "-theme.css", null, null);
+    winUtils.loadSheet(newThemeUrl, winUtils.AUTHOR_SHEET);
 
     // Floating scrollbars à la osx
     let hiddenDOMWindow = Cc["@mozilla.org/appshell/appShellService;1"]
@@ -46,17 +43,11 @@
         DEVTOOLS_SKIN_URL + "floating-scrollbars-light.css", null, null);
 
       if (newTheme == "dark") {
-        StylesheetUtils.loadSheet(
-          window,
-          scrollbarsUrl,
-          "agent"
-        );
+        winUtils.loadSheet(scrollbarsUrl, winUtils.AGENT_SHEET);
       } else if (oldTheme == "dark") {
-        StylesheetUtils.removeSheet(
-          window,
-          scrollbarsUrl,
-          "agent"
-        );
+        try {
+          winUtils.removeSheet(scrollbarsUrl, winUtils.AGENT_SHEET);
+        } catch(ex) {}
       }
       forceStyle();
     }
@@ -75,8 +66,6 @@
 
   Cu.import("resource://gre/modules/Services.jsm");
   Cu.import("resource:///modules/devtools/gDevTools.jsm");
-  const {devtools} = Components.utils.import("resource://gre/modules/devtools/Loader.jsm", {});
-  const StylesheetUtils = devtools.require("sdk/stylesheet/utils");
 
   let theme = Services.prefs.getCharPref("devtools.theme");
   switchTheme(theme);

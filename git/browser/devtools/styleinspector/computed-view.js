@@ -572,7 +572,10 @@ CssHtmlTree.prototype = {
   _onContextMenu: function(event) {
     try {
       this.styleDocument.defaultView.focus();
-      this._contextmenu.openPopupAtScreen(event.screenX, event.screenY, true);
+
+      this._contextmenu.openPopup(
+          event.target.ownerDocument.documentElement,
+          "overlap", event.clientX, event.clientY, true, false, null);
     } catch(e) {
       console.error(e);
     }

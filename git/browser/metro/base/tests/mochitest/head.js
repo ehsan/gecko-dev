@@ -788,12 +788,6 @@ TouchDragAndHold.prototype = {
   callback: function callback() {
     if (this._win == null)
       return;
-
-    if (this._debug) {
-      SelectionHelperUI.debugDisplayDebugPoint(this._currentPoint.xPos,
-        this._currentPoint.yPos, 5, "#FF0000", true);
-    }
-
     if (++this._step.steps >= this._numSteps) {
       EventUtils.synthesizeTouchAtPoint(this._endPoint.xPos, this._endPoint.yPos,
                                         { type: "touchmove" }, this._win);
@@ -845,7 +839,6 @@ TouchDragAndHold.prototype = {
   end: function start() {
     if (this._debug) {
       info("[" + this._step.steps + "] touchend " + this._endPoint.xPos + " x " + this._endPoint.yPos);
-      SelectionHelperUI.debugClearDebugPoints();
     }
     EventUtils.synthesizeTouchAtPoint(this._endPoint.xPos, this._endPoint.yPos,
                                       { type: "touchend" }, this._win);

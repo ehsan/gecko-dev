@@ -97,6 +97,8 @@ a {
 }
 
 #output-wrapper {
+  background: #fff;
+  color: #000;
   direction: ltr;
   border-bottom: 1px solid ThreeDShadow;
   overflow: auto;

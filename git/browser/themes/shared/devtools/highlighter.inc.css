@@ -60,8 +60,7 @@ html|*.highlighter-nodeinfobar-pseudo-classes {
 }
 
 .highlighter-nodeinfobar-inspectbutton {
-  -moz-border-end: 1px solid #5a6169;
-  -moz-margin-end: 12px;
+  -moz-margin-end: 6px;
   list-style-image: url("chrome://browser/skin/devtools/inspect-button.png");
   -moz-image-region: rect(0px 16px 16px 0px);
 }
@@ -72,8 +71,7 @@ html|*.highlighter-nodeinfobar-pseudo-classes {
 }
 
 .highlighter-nodeinfobar-menu {
-  -moz-border-start: 1px solid #5a6169;
-  -moz-margin-start: 12px;
+  -moz-margin-start: 6px;
 }
 
 .highlighter-nodeinfobar-menu > .toolbarbutton-menu-dropmarker {
