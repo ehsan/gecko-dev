@@ -180,7 +180,6 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
                                      NS_ConvertUTF8toUTF16(asciiSpec),
                                      NS_ConvertUTF8toUTF16(mURL),
                                      0,
-                                     EmptyString(),
                                      EmptyString());
         }
 

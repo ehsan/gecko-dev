@@ -146,7 +146,6 @@ AppendToString(nsACString& s, const FrameMetrics& m,
   AppendToString(s, m.mViewport, "{ viewport=");
   AppendToString(s, m.mScrollOffset, " viewportScroll=");
   AppendToString(s, m.mDisplayPort, " displayport=");
-  AppendToString(s, m.mScrollableRect, " scrollableRect=");
   AppendToString(s, m.mScrollId, " scrollId=", " }");
   return s += sfx;
 }

@@ -9,23 +9,17 @@
   </head>
   <body>
     <!-- inline scripts -->
-    <ol>
-      <li id="inline-script-correct-nonce">(inline script with correct nonce) This text should be green.</li>
-      <li id="inline-script-incorrect-nonce">(inline script with incorrect nonce) This text should be black.</li>
-      <li id="inline-script-correct-style-nonce">(inline script with correct nonce for styles, but not for scripts) This text should be black.</li>
-      <li id="inline-script-no-nonce">(inline script with no nonce) This text should be black.</li>
-    </ol>
     <script nonce="correctscriptnonce">
-      document.getElementById("inline-script-correct-nonce").style.color = "rgb(0, 128, 0)";
+      window.parent.inlineScriptTestResult("allowed", "allowed", "This script has a correct nonce for scripts");
     </script>
     <script nonce="incorrectscriptnonce">
-      document.getElementById("inline-script-incorrect-nonce").style.color = "rgb(255, 0, 0)";
+      window.parent.inlineScriptTestResult("allowed", "blocked", "This script has an incorrect nonce for scripts");
     </script>
     <script nonce="correctstylenonce">
-      document.getElementById("inline-script-correct-style-nonce").style.color = "rgb(255, 0, 0)";
+      window.parent.inlineScriptTestResult("allowed", "blocked", "This script has a correct nonce for styles (but not for scripts)");
     </script>
     <script>
-      document.getElementById("inline-script-no-nonce").style.color = "rgb(255, 0, 0)";
+      window.parent.inlineScriptTestResult("allowed", "blocked", "This script has no nonce");
     </script>
 
     <!-- external scripts -->

@@ -1,13 +1,7 @@
 import lldb
 
-__all__ = ['content', 'general', 'layout', 'utils']
+__all__ = ['layout']
 
 def init():
     for name in __all__:
-        init = None
-        try:
-            init = __import__('lldbutils.' + name, globals(), locals(), ['init']).init
-        except AttributeError:
-            pass
-        if init:
-            init(lldb.debugger)
+        __import__('lldbutils.' + name, globals(), locals(), ['init']).init(lldb.debugger)

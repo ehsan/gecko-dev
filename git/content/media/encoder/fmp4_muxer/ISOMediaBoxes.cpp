@@ -456,7 +456,7 @@ MovieExtendsBox::~MovieExtendsBox()
 nsresult
 ChunkOffsetBox::Generate(uint32_t* aBoxSize)
 {
-  // We don't need time to sample table in fragmented mp4.
+  // fragmented, we don't need time to sample table
   entry_count = 0;
   size += sizeof(entry_count);
   *aBoxSize = size;
@@ -486,7 +486,7 @@ ChunkOffsetBox::~ChunkOffsetBox()
 nsresult
 SampleToChunkBox::Generate(uint32_t* aBoxSize)
 {
-  // We don't need time to sample table in fragmented mp4
+  // fragmented, we don't need time to sample table
   entry_count = 0;
   size += sizeof(entry_count);
   *aBoxSize = size;
@@ -516,7 +516,7 @@ SampleToChunkBox::~SampleToChunkBox()
 nsresult
 TimeToSampleBox::Generate(uint32_t* aBoxSize)
 {
-  // We don't need time to sample table in fragmented mp4.
+  // fragmented, we don't need time to sample table
   entry_count = 0;
   size += sizeof(entry_count);
   *aBoxSize = size;

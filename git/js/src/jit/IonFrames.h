@@ -268,10 +268,6 @@ void EnsureExitFrame(IonCommonFrameLayout *frame);
 void MarkJitActivations(JSRuntime *rt, JSTracer *trc);
 void MarkIonCompilerRoots(JSTracer *trc);
 
-#ifdef JSGC_GENERATIONAL
-void UpdateJitActivationsForMinorGC(JSRuntime *rt, JSTracer *trc);
-#endif
-
 static inline uint32_t
 MakeFrameDescriptor(uint32_t frameSize, FrameType type)
 {

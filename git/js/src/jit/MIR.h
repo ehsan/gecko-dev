@@ -8579,24 +8579,24 @@ class MRestPar
     }
 };
 
-// Guard on an object being safe for writes by current parallel slice.
-// Must be either thread-local or else a handle into the destination array.
-class MGuardThreadExclusive
+// Guard on an object being allocated in the current slice.
+class MGuardThreadLocalObject
   : public MBinaryInstruction,
     public ObjectPolicy<1>
 {
-    MGuardThreadExclusive(MDefinition *slice, MDefinition *obj)
+    MGuardThreadLocalObject(MDefinition *slice, MDefinition *obj)
       : MBinaryInstruction(slice, obj)
     {
         setResultType(MIRType_None);
         setGuard();
+        setMovable();
     }
 
   public:
-    INSTRUCTION_HEADER(GuardThreadExclusive);
+    INSTRUCTION_HEADER(GuardThreadLocalObject);
 
-    static MGuardThreadExclusive *New(TempAllocator &alloc, MDefinition *slice, MDefinition *obj) {
-        return new(alloc) MGuardThreadExclusive(slice, obj);
+    static MGuardThreadLocalObject *New(TempAllocator &alloc, MDefinition *slice, MDefinition *obj) {
+        return new(alloc) MGuardThreadLocalObject(slice, obj);
     }
     MDefinition *forkJoinSlice() const {
         return getOperand(0);

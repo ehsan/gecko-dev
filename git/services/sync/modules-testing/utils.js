@@ -76,7 +76,7 @@ this.makeIdentityConfig = function(overrides) {
         kB: 'kB',
         sessionToken: 'sessionToken',
         uid: 'user_uid',
-        verified: true,
+        isVerified: true,
       },
       token: {
         endpoint: Svc.Prefs.get("tokenServerURI"),

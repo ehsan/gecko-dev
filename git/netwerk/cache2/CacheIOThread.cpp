@@ -114,13 +114,11 @@ void CacheIOThread::ThreadFunc()
     MonitorAutoLock lock(mMonitor);
 
     // This creates nsThread for this PRThread
-    nsCOMPtr<nsIThread> xpcomThread = NS_GetCurrentThread();
+    mXPCOMThread = NS_GetCurrentThread();
 
-    threadInternal = do_QueryInterface(xpcomThread);
+    threadInternal = do_QueryInterface(mXPCOMThread);
     if (threadInternal)
       threadInternal->SetObserver(this);
-
-    mXPCOMThread.swap(xpcomThread);
 
     lock.NotifyAll();
 

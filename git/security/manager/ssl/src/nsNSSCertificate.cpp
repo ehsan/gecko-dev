@@ -172,9 +172,9 @@ nsNSSCertificate::nsNSSCertificate() :
 nsNSSCertificate::~nsNSSCertificate()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
+  if (isAlreadyShutDown())
     return;
-  }
+
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -186,6 +186,9 @@ void nsNSSCertificate::virtualDestroyNSSReference()
 
 void nsNSSCertificate::destructorSafeDestroyNSSReference()
 {
+  if (isAlreadyShutDown())
+    return;
+
   if (mPermDelete) {
     if (mCertType == nsNSSCertificate::USER_CERT) {
       nsCOMPtr<nsIInterfaceRequestor> cxt = new PipUIContext();
@@ -1509,9 +1512,6 @@ nsNSSCertList::nsNSSCertList(CERTCertList *certList,
 nsNSSCertList::~nsNSSCertList()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
-    return;
-  }
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -1523,6 +1523,9 @@ void nsNSSCertList::virtualDestroyNSSReference()
 
 void nsNSSCertList::destructorSafeDestroyNSSReference()
 {
+  if (isAlreadyShutDown()) {
+    return;
+  }
   if (mCertList) {
     mCertList = nullptr;
   }
@@ -1646,9 +1649,6 @@ nsNSSCertListEnumerator::nsNSSCertListEnumerator(CERTCertList *certList,
 nsNSSCertListEnumerator::~nsNSSCertListEnumerator()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
-    return;
-  }
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -1660,6 +1660,9 @@ void nsNSSCertListEnumerator::virtualDestroyNSSReference()
 
 void nsNSSCertListEnumerator::destructorSafeDestroyNSSReference()
 {
+  if (isAlreadyShutDown()) {
+    return;
+  }
   if (mCertList) {
     mCertList = nullptr;
   }

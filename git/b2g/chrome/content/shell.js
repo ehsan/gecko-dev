@@ -683,10 +683,6 @@ Services.obs.addObserver(function onBluetoothVolumeChange(subject, topic, data) 
   });
 }, 'bluetooth-volume-change', false);
 
-Services.obs.addObserver(function(subject, topic, data) {
-  shell.sendCustomEvent('mozmemorypressure');
-}, 'memory-pressure', false);
-
 var CustomEventManager = {
   init: function custevt_init() {
     window.addEventListener("ContentStart", (function(evt) {

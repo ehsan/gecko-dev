@@ -20,10 +20,6 @@
   Browser Hangs
 ">
 
-<!ENTITY aboutTelemetry.threadHangStatsSection "
-  Thread Hangs
-">
-
 <!ENTITY aboutTelemetry.histogramsSection "
   Histograms
 ">

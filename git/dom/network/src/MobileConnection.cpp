@@ -15,7 +15,6 @@
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMDOMRequest.h"
 #include "nsIPermissionManager.h"
-#include "nsIVariant.h"
 
 #include "nsJSUtils.h"
 #include "nsJSON.h"
@@ -219,18 +218,6 @@ MobileConnection::GetRadioState(nsAString& aRadioState)
      return NS_OK;
   }
   return mProvider->GetRadioState(mClientId, aRadioState);
-}
-
-NS_IMETHODIMP
-MobileConnection::GetSupportedNetworkTypes(nsIVariant** aSupportedNetworkTypes)
-{
-  *aSupportedNetworkTypes = nullptr;
-
-  if (!mProvider || !CheckPermission("mobileconnection")) {
-     return NS_OK;
-  }
-
-  return mProvider->GetSupportedNetworkTypes(mClientId, aSupportedNetworkTypes);
 }
 
 NS_IMETHODIMP
