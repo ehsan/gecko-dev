@@ -134,14 +134,11 @@ let gSyncPane = {
         // So we think we are logged in, so login problems are next.
         // (Although if the Sync identity manager is still initializing, we
         // ignore login errors and assume all will eventually be good.)
-        // LOGIN_FAILED_LOGIN_REJECTED explicitly means "you must log back in".
-        // All other login failures are assumed to be transient and should go
-        // away by themselves, so aren't reflected here.
-        } else if (Weave.Status.login == Weave.LOGIN_FAILED_LOGIN_REJECTED) {
+        } else if (Weave.Service.identity.readyToAuthenticate &&
+                   Weave.Status.login != Weave.LOGIN_SUCCEEDED) {
           fxaLoginStatus.selectedIndex = FXA_LOGIN_FAILED;
           enginesListDisabled = true;
-        // Else we must be golden (or in an error state we expect to magically
-        // resolve itself)
+        // Else we must be golden!
         } else {
           fxaLoginStatus.selectedIndex = FXA_LOGIN_VERIFIED;
           enginesListDisabled = false;

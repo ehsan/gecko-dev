@@ -49,7 +49,7 @@ public class AppMenuComponent extends BaseComponent {
     }
 
     private void assertMenuIsNotOpen() {
-        fAssertFalse("Menu is not open", isMenuOpen());
+        assertFalse("Menu is not open", isMenuOpen());
     }
 
     private View getOverflowMenuButtonView() {
@@ -90,8 +90,8 @@ public class AppMenuComponent extends BaseComponent {
         final View menuItemView = findAppMenuItemView(text);
 
         if (menuItemView != null) {
-            fAssertTrue("The menu item is enabled", menuItemView.isEnabled());
-            fAssertEquals("The menu item is visible", View.VISIBLE, menuItemView.getVisibility());
+            assertTrue("The menu item is enabled", menuItemView.isEnabled());
+            assertEquals("The menu item is visible", View.VISIBLE, menuItemView.getVisibility());
 
             mSolo.clickOnView(menuItemView);
         } else {
@@ -120,8 +120,8 @@ public class AppMenuComponent extends BaseComponent {
     private void pressOverflowMenuButton() {
         final View overflowMenuButton = getOverflowMenuButtonView();
 
-        fAssertTrue("The overflow menu button is enabled", overflowMenuButton.isEnabled());
-        fAssertEquals("The overflow menu button is visible", View.VISIBLE, overflowMenuButton.getVisibility());
+        assertTrue("The overflow menu button is enabled", overflowMenuButton.isEnabled());
+        assertEquals("The overflow menu button is visible", View.VISIBLE, overflowMenuButton.getVisibility());
 
         mSolo.clickOnView(overflowMenuButton, true);
     }

@@ -126,14 +126,13 @@ function sync_httpd_setup() {
 }
 
 function setUp(server) {
-  return configureIdentity({username: "johndoe"}).then(
-    () => {
-      Service.serverURL  = server.baseURI + "/";
-      Service.clusterURL = server.baseURI + "/";
-    }
-  ).then(
-    () => generateAndUploadKeys()
-  );
+  let deferred = Promise.defer();
+  configureIdentity({username: "johndoe"}).then(() => {
+    deferred.resolve(generateAndUploadKeys());
+  });
+  Service.serverURL  = server.baseURI + "/";
+  Service.clusterURL = server.baseURI + "/";
+  return deferred.promise;
 }
 
 function generateAndUploadKeys() {

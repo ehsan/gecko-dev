@@ -569,7 +569,6 @@ CustomizeMode.prototype = {
       });
     }
 
-    this.tipPanel.hidden = false;
     this.tipPanel.openPopup(anchorNode);
     Services.prefs.setBoolPref(kShownPref, true);
   },

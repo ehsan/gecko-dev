@@ -12,7 +12,6 @@
 #include "mozilla/layers/GrallocTextureClient.h"
 #include "gfx2DGlue.h"
 #include "gfxImageSurface.h"
-#include "YCbCrUtils.h"                 // for YCbCr conversions
 
 #include <OMX_IVCommon.h>
 #include <ColorConverter.h>
@@ -256,20 +255,14 @@ GrallocImage::DeprecatedGetAsSurface()
                             width, height);
 
     return imageSurface.forget();
-  } else if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
+  }
+  else if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
     uint32_t uvOffset = height * width;
     ConvertYVU420SPToRGB565(buffer, width,
                             buffer + uvOffset, width,
                             imageSurface->Data(),
                             width, height);
 
-    return imageSurface.forget();
-  } else if (format == HAL_PIXEL_FORMAT_YV12) {
-    gfx::ConvertYCbCrToRGB(mData,
-                           gfx::ImageFormatToSurfaceFormat(imageSurface->Format()),
-                           mSize,
-                           imageSurface->Data(),
-                           imageSurface->Stride());
     return imageSurface.forget();
   }
 
@@ -353,21 +346,14 @@ GrallocImage::GetAsSourceSurface()
 
     surface->Unmap();
     return surface;
-  } else if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
+  }
+  else if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
     uint32_t uvOffset = height * width;
     ConvertYVU420SPToRGB565(buffer, width,
                             buffer + uvOffset, width,
                             mappedSurface.mData,
                             width, height);
 
-    surface->Unmap();
-    return surface;
-  } else if (format == HAL_PIXEL_FORMAT_YV12) {
-    gfx::ConvertYCbCrToRGB(mData,
-                           surface->GetFormat(),
-                           mSize,
-                           surface->GetData(),
-                           surface->Stride());
     surface->Unmap();
     return surface;
   }

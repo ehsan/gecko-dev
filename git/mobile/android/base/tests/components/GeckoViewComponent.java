@@ -63,7 +63,7 @@ public class GeckoViewComponent extends BaseComponent {
         private InputMethodManager getInputMethodManager() {
             final InputMethodManager imm = (InputMethodManager)
                 mActivity.getSystemService(Context.INPUT_METHOD_SERVICE);
-            fAssertNotNull("Must have an InputMethodManager", imm);
+            assertNotNull("Must have an InputMethodManager", imm);
             return imm;
         }
 
@@ -75,7 +75,7 @@ public class GeckoViewComponent extends BaseComponent {
         }
 
         public TextInput assertActive() {
-            fAssertTrue("Current view should be the active input view", isActive());
+            assertTrue("Current view should be the active input view", isActive());
             return this;
         }
 
@@ -101,7 +101,7 @@ public class GeckoViewComponent extends BaseComponent {
         }
 
         public TextInput assertInputConnection() {
-            fAssertTrue("Current view should have an active InputConnection", hasInputConnection());
+            assertTrue("Current view should have an active InputConnection", hasInputConnection());
             return this;
         }
 
@@ -127,7 +127,7 @@ public class GeckoViewComponent extends BaseComponent {
          */
         public TextInput testInputConnection(final InputConnectionTest test) {
 
-            fAssertNotNull("Test must not be null", test);
+            assertNotNull("Test must not be null", test);
             assertInputConnection();
 
             // GeckoInputConnection can run on another thread than the main thread,
@@ -165,7 +165,7 @@ public class GeckoViewComponent extends BaseComponent {
                 // InputConnection thread. Therefore, the InputConnection thread must not be
                 // the same as the instrumentation thread to avoid a deadlock. This should
                 // always be the case and we perform a sanity check to make sure.
-                fAssertNotSame("InputConnection should not be running on instrumentation thread",
+                assertNotSame("InputConnection should not be running on instrumentation thread",
                     Looper.myLooper(), inputConnectionHandler.getLooper());
 
                 mDone = false;
@@ -183,7 +183,7 @@ public class GeckoViewComponent extends BaseComponent {
             public void run() {
                 final EditorInfo info = new EditorInfo();
                 final InputConnection ic = getView().onCreateInputConnection(info);
-                fAssertNotNull("Must have an InputConnection", ic);
+                assertNotNull("Must have an InputConnection", ic);
                 // Restore the IC to a clean state
                 ic.clearMetaKeyStates(-1);
                 ic.finishComposingText();

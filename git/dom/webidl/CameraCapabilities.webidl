@@ -30,6 +30,4 @@ interface CameraCapabilities
   [Constant, Cached] readonly attribute double exposureCompensationStep;
 
   [Constant, Cached] readonly attribute any recorderProfiles;
-
-  [Constant, Cached] readonly attribute sequence<DOMString> isoModes;
 };
