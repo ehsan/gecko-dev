@@ -1,7 +1,5 @@
-/*
- * NSS utility functions
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* vim: set shiftwidth=4 tabstop=8 autoindent cindent expandtab: */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -14,14 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Network Security Services.
+ * The Original Code is NS_WalkTheStack.
  *
- * The Initial Developer of the Original Code is
- * Red Hat Inc.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *  Mozilla Corporation (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,37 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef __nssutil_h_
-#define __nssutil_h_
-
-#ifndef RC_INVOKED
-#include "seccomon.h"
-#endif
-
-/*
- * NSS utilities's major version, minor version, patch level, build number,
- * and whether this is a beta release.
- *
- * The format of the version string should be
- *     "<major version>.<minor version>[.<patch level>[.<build number>]][ <Beta>]"
+/**
+ * Initialize the critical sections for this platform so that we can
+ * abort stack walks when needed.
  */
-#define NSSUTIL_VERSION  "3.13.1.0"
-#define NSSUTIL_VMAJOR   3
-#define NSSUTIL_VMINOR   13
-#define NSSUTIL_VPATCH   1
-#define NSSUTIL_VBUILD   0
-#define NSSUTIL_BETA     PR_FALSE
-
-SEC_BEGIN_PROTOS
-
-/*
- * Returns a const string of the UTIL library version.
- */
-extern const char *NSSUTIL_GetVersion(void);
-
-extern SECStatus
-NSS_InitializePRErrorTable(void);
-
-SEC_END_PROTOS
-
-#endif /* __nssutil_h_ */
+void
+StackWalkInitCriticalAddress(void);

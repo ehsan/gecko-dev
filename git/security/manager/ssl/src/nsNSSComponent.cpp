@@ -47,6 +47,7 @@
 #include "nsNSSComponent.h"
 #include "nsNSSCallbacks.h"
 #include "nsNSSIOLayer.h"
+#include "nsSSLThread.h"
 #include "nsCertVerificationThread.h"
 
 #include "nsNetUtil.h"
@@ -363,7 +364,7 @@ nsNSSComponent::nsNSSComponent()
    mNSSInitialized(false),
    mCrlTimerLock("nsNSSComponent.mCrlTimerLock"),
    mThreadList(nsnull),
-   mCertVerificationThread(NULL)
+   mSSLThread(NULL), mCertVerificationThread(NULL)
 {
 #ifdef PR_LOGGING
   if (!gPIPNSSLog)
@@ -390,6 +391,12 @@ nsNSSComponent::nsNSSComponent()
 void 
 nsNSSComponent::deleteBackgroundThreads()
 {
+  if (mSSLThread)
+  {
+    mSSLThread->requestExit();
+    delete mSSLThread;
+    mSSLThread = nsnull;
+  }
   if (mCertVerificationThread)
   {
     mCertVerificationThread->requestExit();
@@ -401,11 +408,20 @@ nsNSSComponent::deleteBackgroundThreads()
 void
 nsNSSComponent::createBackgroundThreads()
 {
+  NS_ASSERTION(mSSLThread == nsnull, "SSL thread already created.");
   NS_ASSERTION(mCertVerificationThread == nsnull,
                "Cert verification thread already created.");
 
+  mSSLThread = new nsSSLThread;
+  nsresult rv = mSSLThread->startThread();
+  if (NS_FAILED(rv)) {
+    delete mSSLThread;
+    mSSLThread = nsnull;
+    return;
+  }
+
   mCertVerificationThread = new nsCertVerificationThread;
-  nsresult rv = mCertVerificationThread->startThread();
+  rv = mCertVerificationThread->startThread();
   if (NS_FAILED(rv)) {
     delete mCertVerificationThread;
     mCertVerificationThread = nsnull;
@@ -1983,7 +1999,7 @@ nsNSSComponent::Init()
     mClientAuthRememberService->Init();
 
   createBackgroundThreads();
-  if (!mCertVerificationThread)
+  if (!mSSLThread || !mCertVerificationThread)
   {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS init, could not create threads\n"));
 
@@ -2533,6 +2549,8 @@ nsNSSComponent::DoProfileApproveChange(nsISupports* aSubject)
 void
 nsNSSComponent::DoProfileChangeNetTeardown()
 {
+  if (mSSLThread)
+    mSSLThread->requestExit();
   if (mCertVerificationThread)
     mCertVerificationThread->requestExit();
   mIsNetworkDown = true;
