@@ -7,6 +7,7 @@ package org.mozilla.gecko;
 
 import android.os.Build;
 import android.os.Handler;
+import android.util.Log;
 import android.view.Choreographer;
 import android.view.View;
 import android.view.ViewGroup;

@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 function test() {
-  requestLongerTimeout(2); // only debug builds seem to need more time...
   waitForExplicitFinish();
 
   let manifest = { // normal provider

@@ -26,8 +26,8 @@ nsSVGElement::StringListInfo SVGViewElement::sStringListInfo[1] =
 };
 
 nsSVGEnumMapping SVGViewElement::sZoomAndPanMap[] = {
-  {&nsGkAtoms::disable, SVG_ZOOMANDPAN_DISABLE},
-  {&nsGkAtoms::magnify, SVG_ZOOMANDPAN_MAGNIFY},
+  {&nsGkAtoms::disable, nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_DISABLE},
+  {&nsGkAtoms::magnify, nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_MAGNIFY},
   {nullptr, 0}
 };
 
@@ -35,7 +35,7 @@ nsSVGElement::EnumInfo SVGViewElement::sEnumInfo[1] =
 {
   { &nsGkAtoms::zoomAndPan,
     sZoomAndPanMap,
-    SVG_ZOOMANDPAN_MAGNIFY
+    nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_MAGNIFY
   }
 };
 
@@ -46,9 +46,10 @@ NS_IMPL_ADDREF_INHERITED(SVGViewElement,SVGViewElementBase)
 NS_IMPL_RELEASE_INHERITED(SVGViewElement,SVGViewElementBase)
 
 NS_INTERFACE_TABLE_HEAD(SVGViewElement)
-  NS_NODE_INTERFACE_TABLE5(SVGViewElement, nsIDOMNode, nsIDOMElement,
+  NS_NODE_INTERFACE_TABLE6(SVGViewElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGViewElement,
-                           nsIDOMSVGFitToViewBox)
+                           nsIDOMSVGFitToViewBox,
+                           nsIDOMSVGZoomAndPan)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGViewElement)
 NS_INTERFACE_MAP_END_INHERITING(SVGViewElementBase)
 
@@ -65,11 +66,30 @@ SVGViewElement::SVGViewElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGViewElement)
 
+//----------------------------------------------------------------------
+// nsIDOMSVGZoomAndPan methods
+
+/* attribute unsigned short zoomAndPan; */
+NS_IMETHODIMP
+SVGViewElement::GetZoomAndPan(uint16_t *aZoomAndPan)
+{
+  *aZoomAndPan = ZoomAndPan();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+SVGViewElement::SetZoomAndPan(uint16_t aZoomAndPan)
+{
+  ErrorResult rv;
+  SetZoomAndPan(aZoomAndPan, rv);
+  return rv.ErrorCode();
+}
+
 void
 SVGViewElement::SetZoomAndPan(uint16_t aZoomAndPan, ErrorResult& rv)
 {
-  if (aZoomAndPan == SVG_ZOOMANDPAN_DISABLE ||
-      aZoomAndPan == SVG_ZOOMANDPAN_MAGNIFY) {
+  if (aZoomAndPan == nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_DISABLE ||
+      aZoomAndPan == nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_MAGNIFY) {
     mEnumAttributes[ZOOMANDPAN].SetBaseValue(aZoomAndPan, this);
     return;
   }

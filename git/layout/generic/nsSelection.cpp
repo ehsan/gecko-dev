@@ -1109,12 +1109,14 @@ Selection::ToStringWithFormat(const char* aFormatType, uint32_t aFlags,
            do_CreateInstance(formatType.get(), &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIPresShell* shell = GetPresShell();
-  if (!shell) {
+  nsCOMPtr<nsIPresShell> shell;
+  rv = GetPresShell(getter_AddRefs(shell));
+  if (NS_FAILED(rv) || !shell) {
     return NS_ERROR_FAILURE;
   }
 
   nsIDocument *doc = shell->GetDocument();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
   NS_ASSERTION(domDoc, "Need a document");
@@ -3181,6 +3183,14 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Selection)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(Selection)
 
+NS_IMETHODIMP
+Selection::SetPresShell(nsIPresShell* aPresShell)
+{
+  mPresShellWeak = do_GetWeakReference(aPresShell);
+  return NS_OK;
+}
+
+
 
 NS_IMETHODIMP
 Selection::GetAnchorNode(nsIDOMNode** aAnchorNode)
@@ -4371,7 +4381,10 @@ Selection::RemoveAllRanges()
 {
   if (!mFrameSelection)
     return NS_OK;//nothing to do
-  nsRefPtr<nsPresContext>  presContext = GetPresContext();
+  nsRefPtr<nsPresContext>  presContext;
+  GetPresContext(getter_AddRefs(presContext));
+
+
   nsresult  result = Clear(presContext);
   if (NS_FAILED(result))
     return result;
@@ -4415,7 +4428,8 @@ Selection::AddRange(nsIDOMRange* aDOMRange)
   if (mType == nsISelectionController::SELECTION_NORMAL)
     SetInterlinePosition(true);
 
-  nsRefPtr<nsPresContext>  presContext = GetPresContext();
+  nsRefPtr<nsPresContext>  presContext;
+  GetPresContext(getter_AddRefs(presContext));
   selectFrames(presContext, range, true);
 
   if (!mFrameSelection)
@@ -4471,7 +4485,8 @@ Selection::RemoveRange(nsIDOMRange* aDOMRange)
   }
 
   // clear the selected bit from the removed range's frames
-  nsRefPtr<nsPresContext>  presContext = GetPresContext();
+  nsRefPtr<nsPresContext>  presContext;
+  GetPresContext(getter_AddRefs(presContext));
   selectFrames(presContext, range, false);
 
   // add back the selected bit for each range touching our nodes
@@ -4535,7 +4550,8 @@ Selection::Collapse(nsINode* aParentNode, int32_t aOffset)
     return NS_ERROR_FAILURE;
   nsresult result;
   // Delete all of the current ranges
-  nsRefPtr<nsPresContext>  presContext = GetPresContext();
+  nsRefPtr<nsPresContext>  presContext;
+  GetPresContext(getter_AddRefs(presContext));
   Clear(presContext);
 
   // Turn off signal for table selection
@@ -4695,7 +4711,8 @@ void
 Selection::ReplaceAnchorFocusRange(nsRange* aRange)
 {
   NS_ENSURE_TRUE_VOID(mAnchorFocusRange);
-  nsRefPtr<nsPresContext> presContext = GetPresContext();
+  nsRefPtr<nsPresContext> presContext;
+  GetPresContext(getter_AddRefs(presContext));
   if (presContext) {
     selectFrames(presContext, mAnchorFocusRange, false);
     SetAnchorFocusToRange(aRange);
@@ -4796,7 +4813,8 @@ Selection::Extend(nsINode* aParentNode, int32_t aOffset)
                                                   aParentNode, aOffset,
                                                   &disconnected);
 
-  nsRefPtr<nsPresContext>  presContext = GetPresContext();
+  nsRefPtr<nsPresContext>  presContext;
+  GetPresContext(getter_AddRefs(presContext));
   nsRefPtr<nsRange> difRange = new nsRange();
   if ((result1 == 0 && result3 < 0) || (result1 <= 0 && result2 < 0)){//a1,2  a,1,2
     //select from 1 to 2 unless they are collapsed
@@ -5055,24 +5073,40 @@ Selection::ContainsNode(nsIDOMNode* aNode, bool aAllowPartial, bool* aYes)
 }
 
 
-nsPresContext*
-Selection::GetPresContext() const
-{
-  nsIPresShell *shell = GetPresShell();
-  if (!shell) {
-    return nullptr;
-  }
-
-  return shell->GetPresContext();
-}
-
-nsIPresShell*
-Selection::GetPresShell() const
+nsresult
+Selection::GetPresContext(nsPresContext** aPresContext)
 {
   if (!mFrameSelection)
-    return nullptr;//nothing to do
+    return NS_ERROR_FAILURE;//nothing to do
+  nsIPresShell *shell = mFrameSelection->GetShell();
 
-  return mFrameSelection->GetShell();
+  if (!shell)
+    return NS_ERROR_NULL_POINTER;
+
+  NS_IF_ADDREF(*aPresContext = shell->GetPresContext());
+  return NS_OK;
+}
+
+nsresult
+Selection::GetPresShell(nsIPresShell** aPresShell)
+{
+  if (mPresShellWeak)
+  {
+    nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShellWeak);
+    if (presShell)
+      NS_ADDREF(*aPresShell = presShell);
+    return NS_OK;
+  }
+  nsresult rv = NS_OK;
+  if (!mFrameSelection)
+    return NS_ERROR_FAILURE;//nothing to do
+
+  nsIPresShell *shell = mFrameSelection->GetShell();
+
+  mPresShellWeak = do_GetWeakReference(shell);    // the presshell owns us, so no addref
+  if (mPresShellWeak)
+    NS_ADDREF(*aPresShell = shell);
+  return rv;
 }
 
 nsIFrame *
@@ -5350,13 +5384,11 @@ Selection::NotifySelectionListeners()
   if (cnt != mSelectionListeners.Count()) {
     return NS_ERROR_OUT_OF_MEMORY;  // nsCOMArray is fallible
   }
-
   nsCOMPtr<nsIDOMDocument> domdoc;
-  nsIPresShell* ps = GetPresShell();
-  if (ps) {
-    domdoc = do_QueryInterface(ps->GetDocument());
-  }
-
+  nsCOMPtr<nsIPresShell> shell;
+  nsresult rv = GetPresShell(getter_AddRefs(shell));
+  if (NS_SUCCEEDED(rv) && shell)
+    domdoc = do_QueryInterface(shell->GetDocument());
   short reason = mFrameSelection->PopReason();
   for (int32_t i = 0; i < cnt; i++) {
     selectionListeners[i]->NotifySelectionChanged(domdoc, this, reason);
@@ -5532,11 +5564,11 @@ Selection::SelectionLanguageChange(bool aLangRTL)
 
   int32_t frameStart, frameEnd;
   focusFrame->GetOffsets(frameStart, frameEnd);
-  nsRefPtr<nsPresContext> context = GetPresContext();
+  nsRefPtr<nsPresContext> context;
   uint8_t levelBefore, levelAfter;
-  if (!context) {
-    return NS_ERROR_FAILURE;
-  }
+  result = GetPresContext(getter_AddRefs(context));
+  if (NS_FAILED(result) || !context)
+    return NS_FAILED(result) ? result : NS_ERROR_FAILURE;
 
   uint8_t level = NS_GET_EMBEDDING_LEVEL(focusFrame);
   int32_t focusOffset = GetFocusOffset();

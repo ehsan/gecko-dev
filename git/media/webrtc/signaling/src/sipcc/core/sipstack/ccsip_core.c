@@ -12045,12 +12045,11 @@ getPreallocatedSipCallID (line_t dn_line)
 
     CPR_IP_ADDR_INIT(src_addr);
 
-    if ((dn_line > MAX_REG_LINES) || (dn_line < 1)) {
+    if ((dn_line > MAX_REG_LINES) && (dn_line < 1)){
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"dn_line=%d is greater than %d or less than 1",
                           fname, dn_line, MAX_REG_LINES);
         return NULL;
     }
-
     /*
      * if one is already created, use it.
      */
@@ -12175,7 +12174,7 @@ ccsip_find_preallocated_sip_call_id (line_t dn_line)
 {
     static const char *fname = "ccsip_find_preallocated_sip_call_id";
 
-    if ((dn_line > MAX_REG_LINES) || (dn_line < 1)) {
+    if ((dn_line > MAX_REG_LINES) && (dn_line < 1)) {
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"dn_line=%d is greater than %d or less than 1\n",
                           fname, dn_line, MAX_REG_LINES);
         return NULL;
@@ -12198,7 +12197,7 @@ ccsip_free_preallocated_sip_call_id (line_t dn_line)
 {
     static const char *fname = "ccsip_free_preallocated_sip_call_id";
 
-    if ((dn_line > MAX_REG_LINES) || (dn_line < 1)) {
+    if ((dn_line > MAX_REG_LINES) && (dn_line < 1)) {
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"dn_line=%d is greater than %d or less than 1\n",
                           fname, dn_line, MAX_REG_LINES);
         return;

@@ -129,14 +129,14 @@ inline bool
 ParallelArrayObject::DenseArrayToIndexVector(JSContext *cx, HandleObject obj,
                                              IndexVector &indices)
 {
-    uint32_t length = obj->getDenseInitializedLength();
+    uint32_t length = obj->getDenseArrayInitializedLength();
     if (!indices.resize(length))
         return false;
 
     // Read the index vector out of the dense array into an actual Vector for
     // ease of access. We're guaranteed that the elements of the dense array
     // are uint32s, so just cast.
-    const Value *src = obj->getDenseElements();
+    const Value *src = obj->getDenseArrayElements();
     const Value *end = src + length;
     for (uint32_t *dst = indices.begin(); src < end; dst++, src++)
         *dst = static_cast<uint32_t>(src->toInt32());
@@ -167,7 +167,7 @@ inline JSObject *
 ParallelArrayObject::dimensionArray()
 {
     JSObject &dimObj = getSlot(SLOT_DIMENSIONS).toObject();
-    JS_ASSERT(dimObj.isArray());
+    JS_ASSERT(dimObj.isDenseArray());
     return &dimObj;
 }
 
@@ -175,7 +175,7 @@ inline JSObject *
 ParallelArrayObject::buffer()
 {
     JSObject &buf = getSlot(SLOT_BUFFER).toObject();
-    JS_ASSERT(buf.isArray());
+    JS_ASSERT(buf.isDenseArray());
     return &buf;
 }
 
@@ -188,13 +188,13 @@ ParallelArrayObject::bufferOffset()
 inline uint32_t
 ParallelArrayObject::outermostDimension()
 {
-    return static_cast<uint32_t>(dimensionArray()->getDenseElement(0).toInt32());
+    return static_cast<uint32_t>(dimensionArray()->getDenseArrayElement(0).toInt32());
 }
 
 inline bool
 ParallelArrayObject::isOneDimensional()
 {
-    return dimensionArray()->getDenseInitializedLength() == 1;
+    return dimensionArray()->getDenseArrayInitializedLength() == 1;
 }
 
 inline bool

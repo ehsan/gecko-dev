@@ -427,15 +427,6 @@ AboutReader.prototype = {
     }
   },
 
-  _maybeSetTextDirection: function Read_maybeSetTextDirection(article){
-    if(!article.dir)
-      return;
-
-    //Set "dir" attribute on content
-    this._contentElement.setAttribute("dir", article.dir);
-    this._headerElement.setAttribute("dir", article.dir);
-  },
-
   _showError: function Reader_showError(error) {
     this._headerElement.style.display = "none";
     this._contentElement.style.display = "none";
@@ -469,7 +460,6 @@ AboutReader.prototype = {
     this._contentElement.innerHTML = "";
     this._contentElement.appendChild(contentFragment);
     this._updateImageMargins();
-    this._maybeSetTextDirection(article);
 
     this._contentElement.style.display = "block";
 

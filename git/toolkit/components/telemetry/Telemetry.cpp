@@ -140,7 +140,7 @@ CombinedStacks::AddStack(const Telemetry::ProcessedStack& aStack) {
   CombinedStacks::Stack& adjustedStack = mStacks.back();
 
   size_t stackSize = aStack.GetStackSize();
-  for (size_t i = 0; i < stackSize; ++i) {
+  for (int i = 0; i < stackSize; ++i) {
     const Telemetry::ProcessedStack::Frame& frame = aStack.GetFrame(i);
     uint16_t modIndex;
     if (frame.mModIndex == std::numeric_limits<uint16_t>::max()) {
@@ -1464,12 +1464,28 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
       return nullptr;
     }
 
-    // Module breakpad identifier
-    JSString *id = JS_NewStringCopyZ(cx, module.mBreakpadId.c_str());
-    if (!id) {
+    // "PDB Age" identifier
+    val = INT_TO_JSVAL(module.mPdbAge);
+    if (!JS_SetElement(cx, moduleInfoArray, index++, &val)) {
       return nullptr;
     }
-    val = STRING_TO_JSVAL(id);
+
+    // "PDB Signature" GUID
+    str = JS_NewStringCopyZ(cx, module.mPdbSignature.c_str());
+    if (!str) {
+      return nullptr;
+    }
+    val = STRING_TO_JSVAL(str);
+    if (!JS_SetElement(cx, moduleInfoArray, index++, &val)) {
+      return nullptr;
+    }
+
+    // Name of associated PDB file
+    str = JS_NewStringCopyZ(cx, module.mPdbName.c_str());
+    if (!str) {
+      return nullptr;
+    }
+    val = STRING_TO_JSVAL(str);
     if (!JS_SetElement(cx, moduleInfoArray, index++, &val)) {
       return nullptr;
     }
@@ -2121,7 +2137,9 @@ void ProcessedStack::Clear() {
 
 bool ProcessedStack::Module::operator==(const Module& aOther) const {
   return  mName == aOther.mName &&
-    mBreakpadId == aOther.mBreakpadId;
+    mPdbAge == aOther.mPdbAge &&
+    mPdbSignature == aOther.mPdbSignature &&
+    mPdbName == aOther.mPdbName;
 }
 
 struct StackFrame
@@ -2224,8 +2242,21 @@ GetStackAndModules(const std::vector<uintptr_t>& aPCs)
     const SharedLibrary &info = rawModules.GetEntry(i);
     ProcessedStack::Module module = {
       info.GetName(),
-      info.GetBreakpadId()
+#ifdef XP_WIN
+      info.GetPdbAge(),
+      "", // mPdbSignature
+      info.GetPdbName(),
+#else
+      0, // mPdbAge
+      "", // mPdbSignature
+      "" // mPdbName
+#endif
     };
+#ifdef XP_WIN
+    char guidString[NSID_LENGTH] = { 0 };
+    info.GetPdbSignature().ToProvidedString(guidString);
+    module.mPdbSignature = guidString;
+#endif
     Ret.AddModule(module);
   }
 #endif

@@ -63,7 +63,6 @@ private:
 
 #ifdef CSS_REPORT_PARSE_ERRORS
   nsAutoString mError;
-  nsString mErrorLine;
   nsString mFileName;
   const nsCSSScanner *mScanner;
   const nsCSSStyleSheet *mSheet;
@@ -71,7 +70,6 @@ private:
   nsIURI *mURI;
   uint64_t mInnerWindowID;
   uint32_t mErrorLineNumber;
-  uint32_t mPrevErrorLineNumber;
   uint32_t mErrorColNumber;
 #endif
 };

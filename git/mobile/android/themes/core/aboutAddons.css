@@ -55,11 +55,6 @@ body {
   -moz-margin-start: 82px;
 }
 
-.addon-item:active,
-.addon-item:active > .inner {
-  background-image: none;
-}
-
 .details {
   width: 100%;
 }

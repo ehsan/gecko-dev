@@ -56,11 +56,11 @@ namespace js {
  */
 class StaticScopeIter
 {
-    RootedObject obj;
+    JSObject *obj;
     bool onNamedLambda;
 
   public:
-    explicit StaticScopeIter(JSContext *cx, HandleObject obj);
+    explicit StaticScopeIter(JSObject *obj);
 
     bool done() const;
     void operator++(int);
@@ -97,15 +97,15 @@ struct ScopeCoordinate
 };
 
 /*
- * Return a shape representing the static scope containing the variable
+ * Return a scope iterator pointing at the static scope containing the variable
  * accessed by the ALIASEDVAR op at 'pc'.
  */
-extern UnrootedShape
-ScopeCoordinateToStaticScopeShape(JSContext *cx, JSScript *script, jsbytecode *pc);
+extern StaticScopeIter
+ScopeCoordinateToStaticScope(JSScript *script, jsbytecode *pc);
 
 /* Return the name being accessed by the given ALIASEDVAR op. */
 extern PropertyName *
-ScopeCoordinateName(JSContext *cx, JSScript *script, jsbytecode *pc);
+ScopeCoordinateName(JSRuntime *rt, JSScript *script, jsbytecode *pc);
 
 /*****************************************************************************/
 
@@ -197,7 +197,7 @@ class CallObject : public ScopeObject
 
     static CallObject *createForFunction(JSContext *cx, HandleObject enclosing, HandleFunction callee);
 
-    static CallObject *createForFunction(JSContext *cx, TaggedFramePtr frame);
+    static CallObject *createForFunction(JSContext *cx, StackFrame *fp);
     static CallObject *createForStrictEval(JSContext *cx, StackFrame *fp);
 
     /* True if this is for a strict mode eval frame. */
@@ -356,7 +356,7 @@ class ClonedBlockObject : public BlockObject
 {
   public:
     static ClonedBlockObject *create(JSContext *cx, Handle<StaticBlockObject *> block,
-                                     TaggedFramePtr frame);
+                                     StackFrame *fp);
 
     /* The static block from which this block was cloned. */
     StaticBlockObject &staticBlock() const;
@@ -366,7 +366,7 @@ class ClonedBlockObject : public BlockObject
     void setVar(unsigned i, const Value &v, MaybeCheckAliasing = CHECK_ALIASING);
 
     /* Copy in all the unaliased formals and locals. */
-    void copyUnaliasedValues(TaggedFramePtr frame);
+    void copyUnaliasedValues(StackFrame *fp);
 };
 
 template<XDRMode mode>
@@ -402,7 +402,7 @@ class ScopeIter
     enum Type { Call, Block, With, StrictEvalScope };
 
   private:
-    TaggedFramePtr frame_;
+    StackFrame *fp_;
     RootedObject cur_;
     Rooted<StaticBlockObject *> block_;
     Type type_;
@@ -423,7 +423,7 @@ class ScopeIter
                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
 
     /* Constructing from StackFrame places ScopeIter on the innermost scope. */
-    explicit ScopeIter(TaggedFramePtr frame, JSContext *cx
+    explicit ScopeIter(StackFrame *fp, JSContext *cx
                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
 
     /*
@@ -437,14 +437,14 @@ class ScopeIter
      * For the special case of generators, copy the given ScopeIter, with 'fp'
      * as the StackFrame instead of si.fp(). Not for general use.
      */
-    ScopeIter(const ScopeIter &si, TaggedFramePtr frame, JSContext *cx
+    ScopeIter(const ScopeIter &si, StackFrame *fp, JSContext *cx
               MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
 
     /* Like ScopeIter(StackFrame *) except start at 'scope'. */
-    ScopeIter(TaggedFramePtr frame, ScopeObject &scope, JSContext *cx
+    ScopeIter(StackFrame *fp, ScopeObject &scope, JSContext *cx
               MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
 
-    bool done() const { return !frame_; }
+    bool done() const { return !fp_; }
 
     /* If done(): */
 
@@ -454,7 +454,7 @@ class ScopeIter
 
     ScopeIter &operator++();
 
-    TaggedFramePtr frame() const { JS_ASSERT(!done()); return frame_; }
+    StackFrame *fp() const { JS_ASSERT(!done()); return fp_; }
     Type type() const { JS_ASSERT(!done()); return type_; }
     bool hasScopeObject() const { JS_ASSERT(!done()); return hasScopeObject_; }
     ScopeObject &scope() const;
@@ -466,18 +466,18 @@ class ScopeIter
 
 class ScopeIterKey
 {
-    TaggedFramePtr frame_;
+    StackFrame *fp_;
     JSObject *cur_;
     StaticBlockObject *block_;
     ScopeIter::Type type_;
 
   public:
-    ScopeIterKey() : frame_(), cur_(NULL), block_(NULL), type_() {}
+    ScopeIterKey() : fp_(NULL), cur_(NULL), block_(NULL), type_() {}
     ScopeIterKey(const ScopeIter &si)
-      : frame_(si.frame_), cur_(si.cur_), block_(si.block_), type_(si.type_)
+      : fp_(si.fp_), cur_(si.cur_), block_(si.block_), type_(si.type_)
     {}
 
-    TaggedFramePtr frame() const { return frame_; }
+    StackFrame *fp() const { return fp_; }
     ScopeIter::Type type() const { return type_; }
 
     /* For use as hash policy */
@@ -517,7 +517,7 @@ extern JSObject *
 GetDebugScopeForFunction(JSContext *cx, JSFunction *fun);
 
 extern JSObject *
-GetDebugScopeForFrame(JSContext *cx, TaggedFramePtr frame);
+GetDebugScopeForFrame(JSContext *cx, StackFrame *fp);
 
 /* Provides debugger access to a scope. */
 class DebugScopeObject : public JSObject
@@ -573,7 +573,7 @@ class DebugScopes
      * updates of liveScopes need only fill in the new scopes.
      */
     typedef HashMap<ScopeObject *,
-                    TaggedFramePtr,
+                    StackFrame *,
                     DefaultHasher<ScopeObject *>,
                     RuntimeAllocPolicy> LiveScopeMap;
     LiveScopeMap liveScopes;
@@ -598,17 +598,17 @@ class DebugScopes
     static bool addDebugScope(JSContext *cx, const ScopeIter &si, DebugScopeObject &debugScope);
 
     static bool updateLiveScopes(JSContext *cx);
-    static TaggedFramePtr hasLiveFrame(ScopeObject &scope);
+    static StackFrame *hasLiveFrame(ScopeObject &scope);
 
     /*
      * In debug-mode, these must be called whenever exiting a call/block or
      * when activating/yielding a generator.
      */
-    static void onPopCall(TaggedFramePtr frame, JSContext *cx);
-    static void onPopBlock(JSContext *cx, TaggedFramePtr frame);
-    static void onPopWith(TaggedFramePtr frame);
-    static void onPopStrictEvalScope(TaggedFramePtr frame);
-    static void onGeneratorFrameChange(TaggedFramePtr from, TaggedFramePtr to, JSContext *cx);
+    static void onPopCall(StackFrame *fp, JSContext *cx);
+    static void onPopBlock(JSContext *cx, StackFrame *fp);
+    static void onPopWith(StackFrame *fp);
+    static void onPopStrictEvalScope(StackFrame *fp);
+    static void onGeneratorFrameChange(StackFrame *from, StackFrame *to, JSContext *cx);
     static void onCompartmentLeaveDebugMode(JSCompartment *c);
 };
 

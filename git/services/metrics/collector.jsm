@@ -83,7 +83,7 @@ Collector.prototype = Object.freeze({
       return;
     }
 
-    let [provider, deferred] = this._providerInitQueue.shift();
+    let [provider, deferred] = this._providerInitQueue.pop();
     this._providerInitializing = true;
 
     this._log.info("Initializing provider with storage: " + provider.name);

@@ -10,7 +10,6 @@
 
 #include "mozilla/layers/ShadowLayers.h"
 #include "mozilla/TimeStamp.h"
-#include "nsPoint.h"
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -436,20 +435,12 @@ enum LayerRenderStateFlags {
 };
 
 struct LayerRenderState {
-  LayerRenderState() : mSurface(nullptr), mFlags(0), mHasOwnOffset(false)
+  LayerRenderState() : mSurface(nullptr), mFlags(0)
   {}
 
   LayerRenderState(SurfaceDescriptor* aSurface, uint32_t aFlags = 0)
     : mSurface(aSurface)
     , mFlags(aFlags)
-    , mHasOwnOffset(false)
-  {}
-
-  LayerRenderState(SurfaceDescriptor* aSurface, nsIntPoint aOffset, uint32_t aFlags = 0)
-    : mSurface(aSurface)
-    , mFlags(aFlags)
-    , mOffset(aOffset)
-    , mHasOwnOffset(true)
   {}
 
   bool YFlipped() const
@@ -460,8 +451,6 @@ struct LayerRenderState {
 
   SurfaceDescriptor* mSurface;
   uint32_t mFlags;
-  nsIntPoint mOffset;
-  bool mHasOwnOffset;
 };
 
 /**

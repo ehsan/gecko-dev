@@ -54,7 +54,7 @@ GetAlignForString(const nsAString &aAlignString)
 {
   for (uint32_t i = 0 ; i < ArrayLength(sAlignStrings) ; i++) {
     if (aAlignString.EqualsASCII(sAlignStrings[i])) {
-      return (i + SVG_ALIGN_MIN_VALID);
+      return (i + SVG_PRESERVEASPECTRATIO_NONE);
     }
   }
 
@@ -65,11 +65,12 @@ static void
 GetAlignString(nsAString& aAlignString, uint16_t aAlign)
 {
   NS_ASSERTION(
-    aAlign >= SVG_ALIGN_MIN_VALID && aAlign <= SVG_ALIGN_MAX_VALID,
+    aAlign >= SVG_PRESERVEASPECTRATIO_NONE &&
+    aAlign <= SVG_PRESERVEASPECTRATIO_XMAXYMAX,
     "Unknown align");
 
   aAlignString.AssignASCII(
-    sAlignStrings[aAlign - SVG_ALIGN_MIN_VALID]);
+    sAlignStrings[aAlign - SVG_PRESERVEASPECTRATIO_NONE]);
 }
 
 static uint16_t
@@ -77,7 +78,7 @@ GetMeetOrSliceForString(const nsAString &aMeetOrSlice)
 {
   for (uint32_t i = 0 ; i < ArrayLength(sMeetOrSliceStrings) ; i++) {
     if (aMeetOrSlice.EqualsASCII(sMeetOrSliceStrings[i])) {
-      return (i + SVG_MEETORSLICE_MIN_VALID);
+      return (i + SVG_MEETORSLICE_MEET);
     }
   }
 
@@ -88,12 +89,12 @@ static void
 GetMeetOrSliceString(nsAString& aMeetOrSliceString, uint16_t aMeetOrSlice)
 {
   NS_ASSERTION(
-    aMeetOrSlice >= SVG_MEETORSLICE_MIN_VALID &&
-    aMeetOrSlice <= SVG_MEETORSLICE_MAX_VALID,
+    aMeetOrSlice >= SVG_MEETORSLICE_MEET &&
+    aMeetOrSlice <= SVG_MEETORSLICE_SLICE,
     "Unknown meetOrSlice");
 
   aMeetOrSliceString.AssignASCII(
-    sMeetOrSliceStrings[aMeetOrSlice - SVG_MEETORSLICE_MIN_VALID]);
+    sMeetOrSliceStrings[aMeetOrSlice - SVG_MEETORSLICE_MEET]);
 }
 
 already_AddRefed<DOMSVGPreserveAspectRatio>
@@ -225,7 +226,7 @@ SVGAnimatedPreserveAspectRatio::GetBaseValueString(
   GetAlignString(tmpString, mBaseVal.mAlign);
   aValueAsString.Append(tmpString);
 
-  if (mBaseVal.mAlign != uint8_t(SVG_PRESERVEASPECTRATIO_NONE)) {
+  if (mBaseVal.mAlign != SVG_PRESERVEASPECTRATIO_NONE) {
 
     aValueAsString.AppendLiteral(" ");
     GetMeetOrSliceString(tmpString, mBaseVal.mMeetOrSlice);

@@ -123,13 +123,6 @@ public:
     return result;
   }
 
-  static float GetFloat(const char* aPref, float aDefault = 0)
-  {
-    float result = aDefault;
-    GetFloat(aPref, &result);
-    return result;
-  }
-
   /**
    * Gets char type pref value directly.  If failed, the get() of result
    * returns NULL.  Even if succeeded but the result was empty string, the
@@ -270,9 +263,6 @@ public:
   static nsresult AddUintVarCache(uint32_t* aVariable,
                                   const char* aPref,
                                   uint32_t aDefault = 0);
-  static nsresult AddFloatVarCache(float* aVariable,
-                                   const char* aPref,
-                                   float aDefault = 0.0f);
 
   /**
    * Gets the default bool, int or uint value of the pref.
@@ -344,7 +334,6 @@ public:
   static void SetPreference(const PrefSetting& aPref);
 
   static int64_t GetPreferencesMemoryUsed();
-  static nsresult SetFloat(const char* aPref, float aValue);
 
 protected:
   nsresult NotifyServiceObservers(const char *aSubject);

@@ -71,7 +71,7 @@ Notification.prototype = {
   },
 
   reshow: function() {
-    this.owner._reshowNotificationForAnchor(this.anchorElement);
+    this.owner.reshow(this.anchorElement);
   }
 };
 
@@ -629,10 +629,10 @@ PopupNotifications.prototype = {
     while (anchor && anchor.parentNode != this.iconBox)
       anchor = anchor.parentNode;
 
-    this._reshowNotificationForAnchor(anchor);
+    this.reshow(anchor);
   },
 
-  _reshowNotificationForAnchor: function PopupNotifications_reshowNotificationForAnchor(anchor) {
+  reshow: function PopupNotifications_reshow(anchor) {
     // Mark notifications anchored to this anchor as un-dismissed
     this._currentNotifications.forEach(function (n) {
       if (n.anchorElement == anchor)

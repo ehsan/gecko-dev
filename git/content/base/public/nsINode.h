@@ -767,7 +767,7 @@ public:
    * Get the parent nsINode for this node if it is an Element.
    * @return the parent node
    */
-  mozilla::dom::Element* GetParentElement() const
+  mozilla::dom::Element* GetElementParent() const
   {
     return mParent && mParent->IsElement() ? mParent->AsElement() : nullptr;
   }
@@ -1511,6 +1511,7 @@ public:
     aNodeName = NodeName();
   }
   void GetBaseURI(nsAString& aBaseURI) const;
+  mozilla::dom::Element* GetParentElement() const;
   bool HasChildNodes() const
   {
     return HasChildren();

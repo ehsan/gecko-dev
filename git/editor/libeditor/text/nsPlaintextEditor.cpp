@@ -640,6 +640,8 @@ nsPlaintextEditor::DeleteSelection(EDirection aAction,
 
   nsresult result;
 
+  HandlingTrustedAction trusted(this, aAction != eNone);
+
   // delete placeholder txns merge.
   nsAutoPlaceHolderBatch batch(this, nsGkAtoms::DeleteTxnName);
   nsAutoRules beginRulesSniffing(this, EditAction::deleteSelection, aAction);
@@ -1078,6 +1080,8 @@ nsPlaintextEditor::Undo(uint32_t aCount)
   // Protect the edit rules object from dying
   nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
 
+  HandlingTrustedAction trusted(this);
+
   nsAutoUpdateViewBatch beginViewBatching(this);
 
   ForceCompositionEnd();
@@ -1104,6 +1108,8 @@ nsPlaintextEditor::Redo(uint32_t aCount)
 {
   // Protect the edit rules object from dying
   nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
+
+  HandlingTrustedAction trusted(this);
 
   nsAutoUpdateViewBatch beginViewBatching(this);
 
@@ -1159,6 +1165,8 @@ nsPlaintextEditor::FireClipboardEvent(int32_t aType)
 
 NS_IMETHODIMP nsPlaintextEditor::Cut()
 {
+  HandlingTrustedAction trusted(this);
+
   if (FireClipboardEvent(NS_CUT))
     return DeleteSelection(eNone, eStrip);
   return NS_OK;

@@ -11,15 +11,16 @@ namespace mozilla {
 
 template <class SrcT, class DestT>
 static void
-InterleaveAndConvertBuffer(const SrcT** aSourceChannels,
-                           int32_t aLength, float aVolume,
+InterleaveAndConvertBuffer(const SrcT* aSource, int32_t aSourceLength,
+                           int32_t aLength,
+                           float aVolume,
                            int32_t aChannels,
                            DestT* aOutput)
 {
   DestT* output = aOutput;
   for (int32_t i = 0; i < aLength; ++i) {
     for (int32_t channel = 0; channel < aChannels; ++channel) {
-      float v = AudioSampleToFloat(aSourceChannels[channel][i])*aVolume;
+      float v = AudioSampleToFloat(aSource[channel*aSourceLength + i])*aVolume;
       *output = FloatToAudioSample<DestT>(v);
       ++output;
     }
@@ -27,8 +28,9 @@ InterleaveAndConvertBuffer(const SrcT** aSourceChannels,
 }
 
 static inline void
-InterleaveAndConvertBuffer(const int16_t** aSourceChannels,
-                           int32_t aLength, float aVolume,
+InterleaveAndConvertBuffer(const int16_t* aSource, int32_t aSourceLength,
+                           int32_t aLength,
+                           float aVolume,
                            int32_t aChannels,
                            int16_t* aOutput)
 {
@@ -37,7 +39,7 @@ InterleaveAndConvertBuffer(const int16_t** aSourceChannels,
     int32_t scale = int32_t((1 << 16) * aVolume);
     for (int32_t i = 0; i < aLength; ++i) {
       for (int32_t channel = 0; channel < aChannels; ++channel) {
-        int16_t s = aSourceChannels[channel][i];
+        int16_t s = aSource[channel*aSourceLength + i];
         *output = int16_t((int32_t(s) * scale) >> 16);
         ++output;
       }
@@ -47,7 +49,7 @@ InterleaveAndConvertBuffer(const int16_t** aSourceChannels,
 
   for (int32_t i = 0; i < aLength; ++i) {
     for (int32_t channel = 0; channel < aChannels; ++channel) {
-      float v = AudioSampleToFloat(aSourceChannels[channel][i])*aVolume;
+      float v = AudioSampleToFloat(aSource[channel*aSourceLength + i])*aVolume;
       *output = FloatToAudioSample<int16_t>(v);
       ++output;
     }
@@ -55,22 +57,25 @@ InterleaveAndConvertBuffer(const int16_t** aSourceChannels,
 }
 
 static void
-InterleaveAndConvertBuffer(const void** aSourceChannels,
-                           AudioSampleFormat aSourceFormat,
-                           int32_t aLength, float aVolume,
+InterleaveAndConvertBuffer(const void* aSource, AudioSampleFormat aSourceFormat,
+                           int32_t aSourceLength,
+                           int32_t aOffset, int32_t aLength,
+                           float aVolume,
                            int32_t aChannels,
                            AudioDataValue* aOutput)
 {
   switch (aSourceFormat) {
   case AUDIO_FORMAT_FLOAT32:
-    InterleaveAndConvertBuffer(reinterpret_cast<const float**>(aSourceChannels),
+    InterleaveAndConvertBuffer(static_cast<const float*>(aSource) + aOffset,
+                               aSourceLength,
                                aLength,
                                aVolume,
                                aChannels,
                                aOutput);
     break;
   case AUDIO_FORMAT_S16:
-    InterleaveAndConvertBuffer(reinterpret_cast<const int16_t**>(aSourceChannels),
+    InterleaveAndConvertBuffer(static_cast<const int16_t*>(aSource) + aOffset,
+                               aSourceLength,
                                aLength,
                                aVolume,
                                aChannels,
@@ -102,8 +107,9 @@ AudioSegment::WriteTo(AudioStream* aOutput)
     }
     buf.SetLength(int32_t(mChannels*c.mDuration));
     if (c.mBuffer) {
-      InterleaveAndConvertBuffer(c.mChannelData.Elements(), c.mBufferFormat,
-                                 int32_t(c.mDuration), c.mVolume,
+      InterleaveAndConvertBuffer(c.mBuffer->Data(), c.mBufferFormat, c.mBufferLength,
+                                 c.mOffset, int32_t(c.mDuration),
+                                 c.mVolume,
                                  aOutput->GetChannels(),
                                  buf.Elements());
     } else {

@@ -1637,7 +1637,6 @@ mjit::Compiler::finishThisUp()
     chunk->nCallICs = callICs.length();
     cursor += sizeof(ic::CallICInfo) * chunk->nCallICs;
     for (size_t i = 0; i < chunk->nCallICs; i++) {
-        jitCallICs[i].funGuardLabel = fullCode.locationOf(callICs[i].funGuardLabel);
         jitCallICs[i].funGuard = fullCode.locationOf(callICs[i].funGuard);
         jitCallICs[i].funJump = fullCode.locationOf(callICs[i].funJump);
         jitCallICs[i].slowPathStart = stubCode.locationOf(callICs[i].slowPathStart);
@@ -3241,7 +3240,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_INT32)
 
           BEGIN_CASE(JSOP_HOLE)
-            frame.push(MagicValue(JS_ELEMENTS_HOLE));
+            frame.push(MagicValue(JS_ARRAY_HOLE));
           END_CASE(JSOP_HOLE)
 
           BEGIN_CASE(JSOP_LOOPHEAD)
@@ -4431,7 +4430,6 @@ mjit::Compiler::inlineCallHelper(uint32_t argc, bool callingNew, FrameSize &call
      * callee is scripted, compiled/compilable, and argc == nargs, then this
      * guard is patched, and the compiled code address is baked in.
      */
-    callIC.funGuardLabel = masm.label();
     Jump j = masm.branchPtrWithPatch(Assembler::NotEqual, icCalleeData, callIC.funGuard);
     callIC.funJump = j;
 
@@ -4631,11 +4629,6 @@ mjit::Compiler::inlineScriptedFunction(uint32_t argc, bool callingNew)
     for (unsigned i = 0; i < ssa.numFrames(); i++) {
         if (ssa.iterFrame(i).parent == a->inlineIndex && ssa.iterFrame(i).parentpc == PC) {
             JSScript *script_ = ssa.iterFrame(i).script;
-
-            /* Don't inline if any of the callees should be cloned at callsite. */
-            if (script_->function()->isCloneAtCallsite())
-                return Compile_InlineAbort;
-
             inlineCallees.append(script_);
             if (script_->analysis()->numReturnSites() > 1)
                 calleeMultipleReturns = true;
@@ -6067,7 +6060,7 @@ mjit::Compiler::jsop_aliasedVar(ScopeCoordinate sc, bool get, bool poppedAfter)
     for (unsigned i = 0; i < sc.hops; i++)
         masm.loadPayload(Address(reg, ScopeObject::offsetOfEnclosingScope()), reg);
 
-    UnrootedShape shape = ScopeCoordinateToStaticScopeShape(cx, script_, PC);
+    UnrootedShape shape = ScopeCoordinateToStaticScope(script_, PC).scopeShape();
     Address addr;
     if (shape->numFixedSlots() <= sc.slot) {
         masm.loadPtr(Address(reg, JSObject::offsetOfSlots()), reg);
@@ -6231,12 +6224,6 @@ mjit::Compiler::iter(unsigned flags)
     masm.loadPtr(Address(T1, offsetof(types::TypeObject, proto)), T1);
     Jump overlongChain = masm.branchPtr(Assembler::NonZero, T1, T1);
     stubcc.linkExit(overlongChain, Uses(1));
-
-    /* Compare object's elements() with emptyObjectElements. */
-    Address elementsAddress(reg, JSObject::offsetOfElements());
-    Jump hasElements = masm.branchPtr(Assembler::NotEqual, elementsAddress,
-                                      ImmPtr(js::emptyObjectElements));
-    stubcc.linkExit(hasElements, Uses(1));
 
 #ifdef JSGC_INCREMENTAL_MJ
     /*

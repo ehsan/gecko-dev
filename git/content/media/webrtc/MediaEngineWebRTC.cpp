@@ -10,8 +10,7 @@
 #error "This file must be #included before any IPDL-generated files or other files that #include prlog.h"
 #endif
 
-#include "CSFLog.h"
-#include "prenv.h"
+#include "prlog.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo*
@@ -44,22 +43,6 @@ MediaEngineWebRTC::EnumerateVideoDevices(nsTArray<nsRefPtr<MediaEngineVideoSourc
     if (!(mVideoEngine = webrtc::VideoEngine::Create())) {
       return;
     }
-  }
-
-  PRLogModuleInfo *logs = GetWebRTCLogInfo();
-  if (!gWebrtcTraceLoggingOn && logs && logs->level > 0) {
-    // no need to a critical section or lock here
-    gWebrtcTraceLoggingOn = 1;
-
-    const char *file = PR_GetEnv("WEBRTC_TRACE_FILE");
-    if (!file) {
-      file = "WebRTC.log";
-    }
-
-    LOG(("Logging webrtc to %s level %d", __FUNCTION__, file, logs->level));
-
-    mVideoEngine->SetTraceFilter(logs->level);
-    mVideoEngine->SetTraceFile(file);
   }
 
   ptrViEBase = webrtc::ViEBase::GetInterface(mVideoEngine);

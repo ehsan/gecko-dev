@@ -30,11 +30,9 @@
 #include "mozilla/layers/PCompositorChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/unused.h"
 
 #include "nsIMemoryReporter.h"
 #include "nsIMemoryInfoDumper.h"
-#include "nsIMutable.h"
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
 #include "nsIObserver.h"
@@ -103,7 +101,6 @@
 #include "AudioChannelService.h"
 
 using namespace base;
-using namespace mozilla;
 using namespace mozilla::docshell;
 using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::devicestorage;
@@ -229,7 +226,8 @@ ConsoleListener::Observe(nsIConsoleMessage* aMessage)
 ContentChild* ContentChild::sSingleton;
 
 ContentChild::ContentChild()
- : mID(uint64_t(-1))
+ : TabContext()
+ , mID(uint64_t(-1))
 #ifdef ANDROID
    ,mScreenSize(0, 0)
 #endif
@@ -546,9 +544,7 @@ ContentChild::DeallocPBrowser(PBrowserChild* iframe)
 PBlobChild*
 ContentChild::AllocPBlob(const BlobConstructorParams& aParams)
 {
-  BlobChild* actor = BlobChild::Create(aParams);
-  actor->SetManager(this);
-  return actor;
+  return BlobChild::Create(aParams);
 }
 
 bool
@@ -558,42 +554,53 @@ ContentChild::DeallocPBlob(PBlobChild* aActor)
   return true;
 }
 
-bool
-ContentChild::GetParamsForBlob(nsDOMFileBase* aBlob,
-                               BlobConstructorParams* aOutParams)
+BlobChild*
+ContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
 {
-  BlobConstructorParams resultParams;
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(aBlob, "Null pointer!");
 
-  if (!(aBlob->IsMemoryBacked() || aBlob->GetSubBlobs()) &&
-      (aBlob->IsSizeUnknown() || aBlob->IsDateUnknown())) {
+  nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(aBlob);
+  if (remoteBlob) {
+    BlobChild* actor =
+      static_cast<BlobChild*>(static_cast<PBlobChild*>(remoteBlob->GetPBlob()));
+    NS_ASSERTION(actor, "Null actor?!");
+
+    return actor;
+  }
+
+  // XXX This is only safe so long as all blob implementations in our tree
+  //     inherit nsDOMFileBase. If that ever changes then this will need to grow
+  //     a real interface or something.
+  const nsDOMFileBase* blob = static_cast<nsDOMFileBase*>(aBlob);
+
+  BlobConstructorParams params;
+
+  if (blob->IsSizeUnknown() || blob->IsDateUnknown()) {
     // We don't want to call GetSize or GetLastModifiedDate
     // yet since that may stat a file on the main thread
     // here. Instead we'll learn the size lazily from the
     // other process.
-    resultParams = MysteryBlobConstructorParams();
+    params = MysteryBlobConstructorParams();
   }
   else {
-    BlobOrFileConstructorParams params;
-
     nsString contentType;
     nsresult rv = aBlob->GetType(contentType);
-    NS_ENSURE_SUCCESS(rv, false);
+    NS_ENSURE_SUCCESS(rv, nullptr);
 
     uint64_t length;
     rv = aBlob->GetSize(&length);
-    NS_ENSURE_SUCCESS(rv, false);
+    NS_ENSURE_SUCCESS(rv, nullptr);
 
-    nsCOMPtr<nsIDOMFile> file;
-    static_cast<nsIDOMBlob*>(aBlob)->QueryInterface(NS_GET_IID(nsIDOMFile),
-                                          (void**)getter_AddRefs(file));
+    nsCOMPtr<nsIDOMFile> file = do_QueryInterface(aBlob);
     if (file) {
       FileBlobConstructorParams fileParams;
 
       rv = file->GetName(fileParams.name());
-      NS_ENSURE_SUCCESS(rv, false);
+      NS_ENSURE_SUCCESS(rv, nullptr);
 
       rv = file->GetMozLastModifiedDate(&fileParams.modDate());
-      NS_ENSURE_SUCCESS(rv, false);
+      NS_ENSURE_SUCCESS(rv, nullptr);
 
       fileParams.contentType() = contentType;
       fileParams.length() = length;
@@ -605,88 +612,13 @@ ContentChild::GetParamsForBlob(nsDOMFileBase* aBlob,
       blobParams.length() = length;
       params = blobParams;
     }
-
-    MOZ_ASSERT(!(aBlob->IsMemoryBacked() &&
-                 aBlob->GetSubBlobs()), "Can't be both!");
-
-    if (aBlob->IsMemoryBacked()) {
-      const nsDOMMemoryFile* memoryBlob =
-        static_cast<const nsDOMMemoryFile*>(aBlob);
-
-      InfallibleTArray<uint8_t> data;
-      data.SetLength(memoryBlob->GetLength());
-      memcpy(data.Elements(), memoryBlob->GetData(), memoryBlob->GetLength());
-
-      MemoryBlobOrFileConstructorParams memoryParams(params, data);
-      resultParams = memoryParams;
-    }
-    else if (aBlob->GetSubBlobs()) {
-      MultipartBlobOrFileConstructorParams multipartParams(params);
-      resultParams = multipartParams;
-    }
-    else {
-      resultParams = BlobConstructorNoMultipartParams(params);
-    }
-  }
-
-  *aOutParams = resultParams;
-
-  return true;
-}
-
-BlobChild*
-ContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aBlob, "Null pointer!");
-
-  // XXX This is only safe so long as all blob implementations in our tree
-  //     inherit nsDOMFileBase. If that ever changes then this will need to grow
-  //     a real interface or something.
-  nsDOMFileBase* blob = static_cast<nsDOMFileBase*>(aBlob);
-
-  // All blobs shared between processes must be immutable.
-  nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(aBlob);
-  if (!mutableBlob || NS_FAILED(mutableBlob->SetMutable(false))) {
-    NS_WARNING("Failed to make blob immutable!");
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(aBlob);
-  if (remoteBlob) {
-    BlobChild* actor =
-      static_cast<BlobChild*>(static_cast<PBlobChild*>(remoteBlob->GetPBlob()));
-    NS_ASSERTION(actor, "Null actor?!");
-
-    return actor;
-  }
-
-  BlobConstructorParams params;
-  if (!GetParamsForBlob(blob, &params)) {
-    return nullptr;
   }
 
   BlobChild* actor = BlobChild::Create(aBlob);
   NS_ENSURE_TRUE(actor, nullptr);
 
-  SendPBlobConstructor(actor, params);
-
-  actor->SetManager(this);
-
-  if (const nsTArray<nsCOMPtr<nsIDOMBlob> >* subBlobs = blob->GetSubBlobs()) {
-    for (uint32_t i = 0; i < subBlobs->Length(); ++i) {
-      BlobConstructorParams subParams;
-      nsDOMFileBase* subBlob =
-        static_cast<nsDOMFileBase*>(subBlobs->ElementAt(i).get());
-      if (!GetParamsForBlob(subBlob, &subParams)) {
-        return nullptr;
-      }
-
-      BlobChild* subActor = BlobChild::Create(aBlob);
-      actor->SendPBlobConstructor(subActor, subParams);
-
-      subActor->SetManager(actor);
-    }
+  if (!SendPBlobConstructor(actor, params)) {
+    return nullptr;
   }
 
   return actor;
@@ -1154,24 +1086,14 @@ ContentChild::RecvFilePathUpdate(const nsString& type, const nsString& path, con
 }
 
 bool
-ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
-                                   const nsString& aName,
-                                   const int32_t& aState,
-                                   const int32_t& aMountGeneration)
+ContentChild::RecvFileSystemUpdate(const nsString& aFsName, const nsString& aName, const int32_t &aState)
 {
 #ifdef MOZ_WIDGET_GONK
-    nsRefPtr<nsVolume> volume = new nsVolume(aFsName, aName, aState,
-                                             aMountGeneration);
+    nsRefPtr<nsVolume> volume = new nsVolume(aFsName, aName, aState);
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     nsString stateStr(NS_ConvertUTF8toUTF16(volume->StateStr()));
     obs->NotifyObservers(volume, NS_VOLUME_STATE_CHANGED, stateStr.get());
-#else
-    // Remove warnings about unused arguments
-    unused << aFsName;
-    unused << aName;
-    unused << aState;
-    unused << aMountGeneration;
 #endif
     return true;
 }

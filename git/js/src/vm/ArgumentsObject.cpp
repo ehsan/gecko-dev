@@ -23,22 +23,22 @@ using namespace js;
 using namespace js::gc;
 
 static void
-CopyStackFrameArguments(const TaggedFramePtr frame, HeapValue *dst)
+CopyStackFrameArguments(const StackFrame *fp, HeapValue *dst)
 {
-    JS_ASSERT_IF(frame.isStackFrame(), !frame.asStackFrame()->runningInIon());
+    JS_ASSERT(!fp->runningInIon());
 
-    unsigned numActuals = frame.numActualArgs();
-    unsigned numFormals = frame.callee().nargs;
+    unsigned numActuals = fp->numActualArgs();
+    unsigned numFormals = fp->callee().nargs;
 
     /* Copy formal arguments. */
-    Value *src = frame.formals();
+    Value *src = fp->formals();
     Value *end = src + numFormals;
     while (src != end)
         (dst++)->init(*src++);
 
     /* Copy actual argument which are not contignous. */
     if (numFormals < numActuals) {
-        src = frame.actuals() + numFormals;
+        src = fp->actuals() + numFormals;
         end = src + (numActuals - numFormals);
         while (src != end)
             (dst++)->init(*src++);
@@ -46,26 +46,26 @@ CopyStackFrameArguments(const TaggedFramePtr frame, HeapValue *dst)
 }
 
 /* static */ void
-ArgumentsObject::MaybeForwardToCallObject(TaggedFramePtr frame, JSObject *obj, ArgumentsData *data)
+ArgumentsObject::MaybeForwardToCallObject(StackFrame *fp, JSObject *obj, ArgumentsData *data)
 {
-    UnrootedScript script = frame.script();
-    if (frame.fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
-        obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(frame.callObj()));
+    UnrootedScript script = fp->script();
+    if (fp->fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
+        obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(fp->callObj()));
         for (AliasedFormalIter fi(script); fi; fi++)
             data->args[fi.frameIndex()] = MagicValue(JS_FORWARD_TO_CALL_OBJECT);
     }
 }
 
-struct CopyFrameArgs
+struct CopyStackFrameArgs
 {
-    TaggedFramePtr frame_;
+    StackFrame *fp_;
 
-    CopyFrameArgs(TaggedFramePtr frame)
-      : frame_(frame)
+    CopyStackFrameArgs(StackFrame *fp)
+      : fp_(fp)
     { }
 
     void copyArgs(HeapValue *dst) const {
-        CopyStackFrameArguments(frame_, dst);
+        CopyStackFrameArguments(fp_, dst);
     }
 
     /*
@@ -73,7 +73,7 @@ struct CopyFrameArgs
      * call object is the canonical location for formals.
      */
     void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
-        ArgumentsObject::MaybeForwardToCallObject(frame_, obj, data);
+        ArgumentsObject::MaybeForwardToCallObject(fp_, obj, data);
     }
 };
 
@@ -87,7 +87,7 @@ struct CopyStackIterArgs
 
     void copyArgs(HeapValue *dstBase) const {
         if (!iter_.isIon()) {
-            CopyStackFrameArguments(iter_.taggedFramePtr(), dstBase);
+            CopyStackFrameArguments(iter_.interpFrame(), dstBase);
             return;
         }
 
@@ -110,7 +110,7 @@ struct CopyStackIterArgs
      */
     void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
         if (!iter_.isIon())
-            ArgumentsObject::MaybeForwardToCallObject(iter_.taggedFramePtr(), obj, data);
+            ArgumentsObject::MaybeForwardToCallObject(iter_.interpFrame(), obj, data);
     }
 };
 
@@ -176,17 +176,17 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
 }
 
 ArgumentsObject *
-ArgumentsObject::createExpected(JSContext *cx, TaggedFramePtr frame)
+ArgumentsObject::createExpected(JSContext *cx, StackFrame *fp)
 {
-    JS_ASSERT(frame.script()->needsArgsObj());
-    RootedScript script(cx, frame.script());
-    RootedFunction callee(cx, &frame.callee());
-    CopyFrameArgs copy(frame);
-    ArgumentsObject *argsobj = create(cx, script, callee, frame.numActualArgs(), copy);
+    JS_ASSERT(fp->script()->needsArgsObj());
+    RootedScript script(cx, fp->script());
+    RootedFunction callee(cx, &fp->callee());
+    CopyStackFrameArgs copy(fp);
+    ArgumentsObject *argsobj = create(cx, script, callee, fp->numActualArgs(), copy);
     if (!argsobj)
         return NULL;
 
-    frame.initArgsObj(*argsobj);
+    fp->initArgsObj(*argsobj);
     return argsobj;
 }
 
@@ -200,12 +200,12 @@ ArgumentsObject::createUnexpected(JSContext *cx, StackIter &iter)
 }
 
 ArgumentsObject *
-ArgumentsObject::createUnexpected(JSContext *cx, TaggedFramePtr frame)
+ArgumentsObject::createUnexpected(JSContext *cx, StackFrame *fp)
 {
-    RootedScript script(cx, frame.script());
-    RootedFunction callee(cx, &frame.callee());
-    CopyFrameArgs copy(frame);
-    return create(cx, script, callee, frame.numActualArgs(), copy);
+    RootedScript script(cx, fp->script());
+    RootedFunction callee(cx, &fp->callee());
+    CopyStackFrameArgs copy(fp);
+    return create(cx, script, callee, fp->numActualArgs(), copy);
 }
 
 static JSBool

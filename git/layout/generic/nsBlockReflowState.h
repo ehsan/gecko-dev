@@ -267,6 +267,7 @@ public:
   void SetFlag(uint32_t aFlag, bool aValue)
   {
     NS_ASSERTION(aFlag<=BRS_LASTFLAG, "bad flag");
+    NS_ASSERTION(aValue==false || aValue==true, "bad value");
     if (aValue) { // set flag
       mFlags |= aFlag;
     }

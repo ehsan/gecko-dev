@@ -63,7 +63,6 @@
 #include "nsIDOMWindow.h"
 #include "nsIFilePicker.h"
 #include "nsIMemoryReporter.h"
-#include "nsIMutable.h"
 #include "nsIObserverService.h"
 #include "nsIPresShell.h"
 #include "nsIRemoteBlob.h"
@@ -103,7 +102,6 @@
 #ifdef MOZ_WIDGET_GONK
 #include "nsIVolume.h"
 #include "nsIVolumeService.h"
-using namespace mozilla::system;
 #endif
 
 #ifdef MOZ_B2G_BT
@@ -237,9 +235,9 @@ ContentParent::MaybeTakePreallocatedAppProcess()
 /*static*/ void
 ContentParent::FirstIdle(void)
 {
-    // The parent has gone idle for the first time. This would be a good
-    // time to preallocate an app process.
-    ScheduleDelayedPreallocateAppProcess();
+  // The parent has gone idle for the first time. This would be a good
+  // time to preallocate an app process.
+  ScheduleDelayedPreallocateAppProcess();
 }
 
 /*static*/ void
@@ -648,11 +646,6 @@ struct DelayedDeleteContentParentTask : public nsRunnable
 void
 ContentParent::ActorDestroy(ActorDestroyReason why)
 {
-    if (mForceKillTask) {
-        mForceKillTask->Cancel();
-        mForceKillTask = nullptr;
-    }
-
     nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
     if (ppm) {
       ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
@@ -759,46 +752,15 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
 }
 
 void
-ContentParent::NotifyTabDestroying(PBrowserParent* aTab)
+ContentParent::NotifyTabDestroyed(PBrowserParent* aTab)
 {
-    // There can be more than one PBrowser for a given app process
-    // because of popup windows.  PBrowsers can also destroy
-    // concurrently.  When all the PBrowsers are destroying, kick off
-    // another task to ensure the child process *really* shuts down,
-    // even if the PBrowsers themselves never finish destroying.
-    int32_t numLiveTabs = ManagedPBrowserParent().Length();
-    ++mNumDestroyingTabs;
-    if (mNumDestroyingTabs != numLiveTabs) {
-        return;
-    }
-
-    // We're dying now, so prevent this content process from being
-    // recycled during its shutdown procedure.
-    MarkAsDead();
-
-    MOZ_ASSERT(!mForceKillTask);
-    int32_t timeoutSecs =
-        Preferences::GetInt("dom.ipc.tabs.shutdownTimeoutSecs", 5);
-    if (timeoutSecs > 0) {
-        MessageLoop::current()->PostDelayedTask(
-            FROM_HERE,
-            mForceKillTask = NewRunnableMethod(this, &ContentParent::KillHard),
-            timeoutSecs * 1000);
-    }
-}
-
-void
-ContentParent::NotifyTabDestroyed(PBrowserParent* aTab,
-                                  bool aNotifiedDestroying)
-{
-    if (aNotifiedDestroying) {
-        --mNumDestroyingTabs;
-    }
-
     // There can be more than one PBrowser for a given app process
     // because of popup windows.  When the last one closes, shut
     // us down.
     if (ManagedPBrowserParent().Length() == 1) {
+        // Prevent this content process from being recycled, since
+        // it's dying.
+        MarkAsDead();
         MessageLoop::current()->PostTask(
             FROM_HERE,
             NewRunnableMethod(this, &ContentParent::ShutDownProcess));
@@ -835,8 +797,6 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mAppManifestURL(aAppManifestURL)
-    , mForceKillTask(nullptr)
-    , mNumDestroyingTabs(0)
     , mIsAlive(true)
     , mIsDestroyed(false)
     , mSendPermissionUpdates(false)
@@ -895,10 +855,6 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
 
 ContentParent::~ContentParent()
 {
-    if (mForceKillTask) {
-        mForceKillTask->Cancel();
-    }
-
     if (OtherProcess())
         base::CloseProcessHandle(OtherProcess());
 
@@ -1194,22 +1150,6 @@ ContentParent::RecvAudioChannelChangedNotification()
     return true;
 }
 
-bool
-ContentParent::RecvBroadcastVolume(const nsString& aVolumeName)
-{
-#ifdef MOZ_WIDGET_GONK
-    nsresult rv;
-    nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID, &rv);
-    if (vs) {
-        vs->BroadcastVolume(aVolumeName);
-    }
-    return true;
-#else
-    NS_WARNING("ContentParent::RecvBroadcastVolume shouldn't be called when MOZ_WIDGET_GONK is not defined");
-    return false;
-#endif
-}
-
 NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
                               nsIObserver,
                               nsIThreadObserver,
@@ -1289,15 +1229,12 @@ ContentParent::Observe(nsISupports* aSubject,
         nsString volName;
         nsString mountPoint;
         int32_t  state;
-        int32_t  mountGeneration;
 
         vol->GetName(volName);
         vol->GetMountPoint(mountPoint);
         vol->GetState(&state);
-        vol->GetMountGeneration(&mountGeneration);
 
-        unused << SendFileSystemUpdate(volName, mountPoint, state,
-                                       mountGeneration);
+        unused << SendFileSystemUpdate(volName, mountPoint, state);
     }
 #endif
 #ifdef ACCESSIBILITY
@@ -1419,9 +1356,7 @@ ContentParent::DeallocPDeviceStorageRequest(PDeviceStorageRequestParent* doomed)
 PBlobParent*
 ContentParent::AllocPBlob(const BlobConstructorParams& aParams)
 {
-  BlobParent* actor = BlobParent::Create(aParams);
-  actor->SetManager(this);
-  return actor;
+  return BlobParent::Create(aParams);
 }
 
 bool
@@ -1431,42 +1366,56 @@ ContentParent::DeallocPBlob(PBlobParent* aActor)
   return true;
 }
 
-bool
-ContentParent::GetParamsForBlob(nsDOMFileBase* aBlob,
-                                BlobConstructorParams* aOutParams)
+BlobParent*
+ContentParent::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
 {
-  BlobConstructorParams resultParams;
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(aBlob, "Null pointer!");
 
-  if (!(aBlob->IsMemoryBacked() || aBlob->GetSubBlobs()) &&
-      (aBlob->IsSizeUnknown() || aBlob->IsDateUnknown())) {
+  nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(aBlob);
+  if (remoteBlob) {
+    BlobParent* actor =
+      static_cast<BlobParent*>(
+        static_cast<PBlobParent*>(remoteBlob->GetPBlob()));
+    NS_ASSERTION(actor, "Null actor?!");
+
+    if (static_cast<ContentParent*>(actor->Manager()) == this) {
+      return actor;
+    }
+  }
+
+  // XXX This is only safe so long as all blob implementations in our tree
+  //     inherit nsDOMFileBase. If that ever changes then this will need to grow
+  //     a real interface or something.
+  const nsDOMFileBase* blob = static_cast<nsDOMFileBase*>(aBlob);
+
+  BlobConstructorParams params;
+
+  if (blob->IsSizeUnknown() || blob->IsDateUnknown()) {
     // We don't want to call GetSize or GetLastModifiedDate
     // yet since that may stat a file on the main thread
     // here. Instead we'll learn the size lazily from the
     // other process.
-    resultParams = MysteryBlobConstructorParams();
+    params = MysteryBlobConstructorParams();
   }
   else {
-    BlobOrFileConstructorParams params;
-
     nsString contentType;
     nsresult rv = aBlob->GetType(contentType);
-    NS_ENSURE_SUCCESS(rv, false);
+    NS_ENSURE_SUCCESS(rv, nullptr);
 
     uint64_t length;
     rv = aBlob->GetSize(&length);
-    NS_ENSURE_SUCCESS(rv, false);
+    NS_ENSURE_SUCCESS(rv, nullptr);
 
-    nsCOMPtr<nsIDOMFile> file;
-    static_cast<nsIDOMBlob*>(aBlob)->QueryInterface(NS_GET_IID(nsIDOMFile),
-                                          (void**)getter_AddRefs(file));
+    nsCOMPtr<nsIDOMFile> file = do_QueryInterface(aBlob);
     if (file) {
       FileBlobConstructorParams fileParams;
 
-      rv = file->GetName(fileParams.name());
-      NS_ENSURE_SUCCESS(rv, false);
-
       rv = file->GetMozLastModifiedDate(&fileParams.modDate());
-      NS_ENSURE_SUCCESS(rv, false);
+      NS_ENSURE_SUCCESS(rv, nullptr);
+
+      rv = file->GetName(fileParams.name());
+      NS_ENSURE_SUCCESS(rv, nullptr);
 
       fileParams.contentType() = contentType;
       fileParams.length() = length;
@@ -1478,70 +1427,6 @@ ContentParent::GetParamsForBlob(nsDOMFileBase* aBlob,
       blobParams.length() = length;
       params = blobParams;
     }
-
-    MOZ_ASSERT(!(aBlob->IsMemoryBacked() &&
-                 aBlob->GetSubBlobs()), "Can't be both!");
-
-    if (aBlob->IsMemoryBacked()) {
-      const nsDOMMemoryFile* memoryBlob =
-        static_cast<const nsDOMMemoryFile*>(aBlob);
-
-      FallibleTArray<uint8_t> data;
-      if (!data.SetLength(memoryBlob->GetLength())) {
-        return false;
-      }
-      memcpy(data.Elements(), memoryBlob->GetData(), memoryBlob->GetLength());
-
-      MemoryBlobOrFileConstructorParams memoryParams(params, data);
-      resultParams = memoryParams;
-    }
-    else if (aBlob->GetSubBlobs()) {
-      MultipartBlobOrFileConstructorParams multipartParams(params);
-      resultParams = multipartParams;
-    }
-    else {
-      resultParams = BlobConstructorNoMultipartParams(params);
-    }
-  }
-
-  *aOutParams = resultParams;
-
-  return true;
-}
-
-BlobParent*
-ContentParent::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aBlob, "Null pointer!");
-
-  // XXX This is only safe so long as all blob implementations in our tree
-  //     inherit nsDOMFileBase. If that ever changes then this will need to grow
-  //     a real interface or something.
-  nsDOMFileBase* blob = static_cast<nsDOMFileBase*>(aBlob);
-
-  // All blobs shared between processes must be immutable.
-  nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(aBlob);
-  if (!mutableBlob || NS_FAILED(mutableBlob->SetMutable(false))) {
-    NS_WARNING("Failed to make blob immutable!");
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(aBlob);
-  if (remoteBlob) {
-    BlobParent* actor =
-      static_cast<BlobParent*>(
-        static_cast<PBlobParent*>(remoteBlob->GetPBlob()));
-    NS_ASSERTION(actor, "Null actor?!");
-
-    if (actor->ManagerIs(this)) {
-      return actor;
-    }
-  }
-
-  BlobConstructorParams params;
-  if (!GetParamsForBlob(blob, &params)) {
-    return nullptr;
   }
 
   BlobParent* actor = BlobParent::Create(aBlob);
@@ -1551,33 +1436,12 @@ ContentParent::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
     return nullptr;
   }
 
-  actor->SetManager(this);
-
-  if (const nsTArray<nsCOMPtr<nsIDOMBlob> >* subBlobs = blob->GetSubBlobs()) {
-    for (uint32_t i = 0; i < subBlobs->Length(); ++i) {
-      BlobConstructorParams subParams;
-      nsDOMFileBase* subBlob =
-        static_cast<nsDOMFileBase*>(subBlobs->ElementAt(i).get());
-      if (!GetParamsForBlob(subBlob, &subParams)) {
-        return nullptr;
-      }
-
-      BlobParent* subActor = BlobParent::Create(aBlob);
-      if (!actor->SendPBlobConstructor(subActor, subParams)) {
-        return nullptr;
-      }
-
-      subActor->SetManager(actor);
-    }
-  }
-
   return actor;
 }
 
 void
 ContentParent::KillHard()
 {
-    mForceKillTask = nullptr;
     // This ensures the process is eventually killed, but doesn't
     // immediately KILLITWITHFIRE because we want to get a minidump if
     // possible.  After a timeout though, the process is forceably

@@ -174,13 +174,13 @@ HwcComposer2D::GetRotation()
  * Sets hwc layer rectangles required for hwc composition
  *
  * @param aVisible Input. Layer's unclipped visible rectangle
- *        The origin is the top-left corner of the layer
+ *        The origin is the layer's buffer
  * @param aTransform Input. Layer's transformation matrix
  *        It transforms from layer space to screen space
  * @param aClip Input. A clipping rectangle.
  *        The origin is the top-left corner of the screen
  * @param aBufferRect Input. The layer's buffer bounds
- *        The origin is the top-left corner of the layer
+ *        The origin is the buffer itself and hence always (0,0)
  * @param aSurceCrop Output. Area of the source to consider,
  *        the origin is the top-left corner of the buffer
  * @param aVisibleRegionScreen Output. Visible region in screen space.
@@ -207,7 +207,9 @@ PrepareLayerRects(nsIntRect aVisible, const gfxMatrix& aTransform,
     gfxMatrix inverse(aTransform);
     inverse.Invert();
     gfxRect crop = inverse.TransformBounds(visibleRectScreen);
-
+    // Map to buffer space
+    crop -= visibleRect.TopLeft();
+    gfxRect bufferRect(aBufferRect);
     //clip to buffer size
     crop.IntersectRect(crop, aBufferRect);
     crop.RoundOut();
@@ -217,12 +219,10 @@ PrepareLayerRects(nsIntRect aVisible, const gfxMatrix& aTransform,
         return false;
     }
 
-    //propagate buffer clipping back to visible rect
-    visibleRectScreen = aTransform.TransformBounds(crop);
-    visibleRectScreen.RoundOut();
 
-    // Map from layer space to buffer space
-    crop -= aBufferRect.TopLeft();
+    //propagate buffer clipping back to visible rect
+    visibleRectScreen = aTransform.TransformBounds(crop + visibleRect.TopLeft());
+    visibleRectScreen.RoundOut();
 
     aSourceCrop->left = crop.x;
     aSourceCrop->top  = crop.y;
@@ -326,15 +326,11 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
 
     nsIntRect bufferRect;
     if (fillColor) {
-        bufferRect = nsIntRect(visibleRect);
+        bufferRect = nsIntRect(0, 0, visibleRect.width,
+            visibleRect.height);
     } else {
-        if(state.mHasOwnOffset) {
-            bufferRect = nsIntRect(state.mOffset.x, state.mOffset.y,
-                int(buffer->getWidth()), int(buffer->getHeight()));
-        } else {
-            bufferRect = nsIntRect(visibleRect.x, visibleRect.y,
-                int(buffer->getWidth()), int(buffer->getHeight()));
-        }
+        bufferRect = nsIntRect(0, 0, int(buffer->getWidth()),
+            int(buffer->getHeight()));
     }
 
     hwc_layer_t& hwcLayer = mList->hwLayers[current];

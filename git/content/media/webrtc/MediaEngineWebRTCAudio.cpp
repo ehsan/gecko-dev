@@ -89,10 +89,7 @@ MediaEngineWebRTCAudioSource::Start(SourceMediaStream* aStream, TrackID aID)
     return NS_ERROR_FAILURE;
   }
 
-  {
-    ReentrantMonitorAutoEnter enter(mMonitor);
-    mSources.AppendElement(aStream);
-  }
+  mSources.AppendElement(aStream);
 
   AudioSegment* segment = new AudioSegment();
   segment->Init(CHANNELS);
@@ -122,23 +119,22 @@ MediaEngineWebRTCAudioSource::Start(SourceMediaStream* aStream, TrackID aID)
 nsresult
 MediaEngineWebRTCAudioSource::Stop(SourceMediaStream *aSource, TrackID aID)
 {
+  if (!mSources.RemoveElement(aSource)) {
+    // Already stopped - this is allowed
+    return NS_OK;
+  }
+  if (!mSources.IsEmpty()) {
+    return NS_OK;
+  }
+  if (mState != kStarted) {
+    return NS_ERROR_FAILURE;
+  }
+  if (!mVoEBase) {
+    return NS_ERROR_FAILURE;
+  }
+
   {
     ReentrantMonitorAutoEnter enter(mMonitor);
-
-    if (!mSources.RemoveElement(aSource)) {
-      // Already stopped - this is allowed
-      return NS_OK;
-    }
-    if (!mSources.IsEmpty()) {
-      return NS_OK;
-    }
-    if (mState != kStarted) {
-      return NS_ERROR_FAILURE;
-    }
-    if (!mVoEBase) {
-      return NS_ERROR_FAILURE;
-    }
-
     mState = kStopped;
     aSource->EndTrack(aID);
   }
@@ -300,9 +296,7 @@ MediaEngineWebRTCAudioSource::Process(const int channel,
 
     AudioSegment segment;
     segment.Init(CHANNELS);
-    nsAutoTArray<const sample*,1> channels;
-    channels.AppendElement(dest);
-    segment.AppendFrames(buffer.forget(), channels, length);
+    segment.AppendFrames(buffer.forget(), length, 0, length, AUDIO_FORMAT_S16);
 
     SourceMediaStream *source = mSources[i];
     if (source) {

@@ -362,7 +362,7 @@ nsresult
 nsINode::GetParentElement(nsIDOMElement** aParentElement)
 {
   *aParentElement = nullptr;
-  nsINode* parent = GetParentElement();
+  nsINode* parent = GetElementParent();
   return parent ? CallQueryInterface(parent, aParentElement) : NS_OK;
 }
 
@@ -2373,6 +2373,12 @@ bool
 nsINode::IsSupported(const nsAString& aFeature, const nsAString& aVersion)
 {
   return nsContentUtils::InternalIsSupported(this, aFeature, aVersion);
+}
+
+Element*
+nsINode::GetParentElement() const
+{
+  return GetElementParent();
 }
 
 already_AddRefed<nsINode>

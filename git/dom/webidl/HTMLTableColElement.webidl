@@ -13,9 +13,11 @@
 
 interface HTMLTableColElement : HTMLElement {
            attribute unsigned long span;
+/*
 };
 
 partial interface HTMLTableColElement {
+*/
            attribute DOMString align;
            attribute DOMString ch;
            attribute DOMString chOff;

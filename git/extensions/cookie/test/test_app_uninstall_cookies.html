@@ -188,7 +188,7 @@ function checkCookie() {
     for (i in this.result) {
       var app = this.result[i];
       if (app.manifestURL == gManifestURL) {
-        navigator.mozApps.mgmt.uninstall(app).onsuccess = function() {
+        app.uninstall().onsuccess = function() {
           is(getCookiesCountForApp(gTestAppId), 0, "App should have no cookies");
 
           is(getCookiesCount(), gCurrentCookiesCount,

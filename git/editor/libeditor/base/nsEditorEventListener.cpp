@@ -431,6 +431,9 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
     return NS_OK;
   }
 
+  // Transfer the event's trusted-ness to our editor
+  nsEditor::HandlingTrustedAction operation(mEditor, aKeyEvent);
+
   // DOM event handling happens in two passes, the client pass and the system
   // pass.  We do all of our processing in the system pass, to allow client
   // handlers the opportunity to cancel events and prevent typing in the editor.
@@ -581,6 +584,9 @@ nsEditorEventListener::HandleText(nsIDOMEvent* aTextEvent)
   if (mEditor->IsReadonly() || mEditor->IsDisabled()) {
     return NS_OK;
   }
+
+  // Transfer the event's trusted-ness to our editor
+  nsEditor::HandlingTrustedAction operation(mEditor, aTextEvent);
 
   return mEditor->UpdateIMEComposition(composedText, textRangeList);
 }
@@ -819,6 +825,9 @@ nsEditorEventListener::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
   if (!mEditor->IsAcceptableInputEvent(aCompositionEvent)) {
     return;
   }
+
+  // Transfer the event's trusted-ness to our editor
+  nsEditor::HandlingTrustedAction operation(mEditor, aCompositionEvent);
 
   mEditor->EndIMEComposition();
 }

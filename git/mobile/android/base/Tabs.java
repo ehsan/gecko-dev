@@ -9,6 +9,7 @@ import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.accounts.Account;
@@ -17,6 +18,7 @@ import android.accounts.OnAccountsUpdateListener;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.SystemClock;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -131,6 +133,7 @@ public class Tabs implements GeckoEventListener {
         mSelectedTab = tab;
         mActivity.runOnUiThread(new Runnable() { 
             public void run() {
+                mActivity.hideFormAssistPopup();
                 if (isSelectedTab(tab)) {
                     notifyListeners(tab, TabEvents.SELECTED);
 

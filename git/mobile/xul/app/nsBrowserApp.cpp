@@ -260,5 +260,6 @@ int main(int argc, char* argv[])
     result = do_main(argc, argv);
   }
 
+  XPCOMGlueShutdown();
   return result;
 }

@@ -191,7 +191,7 @@ nsStyledElementNotElementCSSInlineStyle::GetInlineStyleRule()
 // Others and helpers
 
 nsICSSDeclaration*
-nsStyledElementNotElementCSSInlineStyle::Style()
+nsStyledElementNotElementCSSInlineStyle::GetStyle(nsresult* retval)
 {
   Element::nsDOMSlots *slots = DOMSlots();
 
@@ -203,6 +203,7 @@ nsStyledElementNotElementCSSInlineStyle::Style()
     SetMayHaveStyle();
   }
 
+  *retval = NS_OK;
   return slots->mStyle;
 }
 

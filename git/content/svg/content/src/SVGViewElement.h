@@ -8,18 +8,16 @@
 
 #include "nsIDOMSVGViewElement.h"
 #include "nsIDOMSVGFitToViewBox.h"
+#include "nsIDOMSVGZoomAndPan.h"
 #include "nsSVGElement.h"
 #include "nsSVGEnum.h"
 #include "nsSVGViewBox.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 #include "SVGStringList.h"
 
-static const unsigned short SVG_ZOOMANDPAN_UNKNOWN = 0;
-static const unsigned short SVG_ZOOMANDPAN_DISABLE = 1;
-static const unsigned short SVG_ZOOMANDPAN_MAGNIFY = 2;
-
 typedef nsSVGElement SVGViewElementBase;
 
+class nsSVGSVGElement;
 class nsSVGOuterSVGFrame;
 
 nsresult NS_NewSVGViewElement(nsIContent **aResult,
@@ -29,15 +27,15 @@ namespace mozilla {
 class SVGFragmentIdentifier;
 
 namespace dom {
-class SVGSVGElement;
 
 class SVGViewElement : public SVGViewElementBase,
                        public nsIDOMSVGViewElement,
-                       public nsIDOMSVGFitToViewBox
+                       public nsIDOMSVGFitToViewBox,
+                       public nsIDOMSVGZoomAndPan
 {
 protected:
   friend class mozilla::SVGFragmentIdentifier;
-  friend class SVGSVGElement;
+  friend class ::nsSVGSVGElement;
   friend class ::nsSVGOuterSVGFrame;
   SVGViewElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   friend nsresult (::NS_NewSVGViewElement(nsIContent **aResult,
@@ -50,6 +48,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMSVGVIEWELEMENT
   NS_DECL_NSIDOMSVGFITTOVIEWBOX
+  NS_DECL_NSIDOMSVGZOOMANDPAN
 
   // xxx If xpcom allowed virtual inheritance we wouldn't need to
   // forward here :-(

@@ -52,8 +52,8 @@ public:
   NS_DECL_NSISELECTIONPRIVATE
 
   // utility methods for scrolling the selection into view
-  nsPresContext* GetPresContext() const;
-  nsIPresShell* GetPresShell() const;
+  nsresult      GetPresContext(nsPresContext **aPresContext);
+  nsresult      GetPresShell(nsIPresShell **aPresShell);
   // Returns a rect containing the selection region, and frame that that
   // position is relative to. For SELECTION_ANCHOR_REGION or
   // SELECTION_FOCUS_REGION the rect is a zero-width rectangle. For
@@ -212,6 +212,7 @@ private:
 
   nsRefPtr<nsRange> mAnchorFocusRange;
   nsRefPtr<nsFrameSelection> mFrameSelection;
+  nsWeakPtr mPresShellWeak;
   nsRefPtr<nsAutoScrollTimer> mAutoScrollTimer;
   nsCOMArray<nsISelectionListener> mSelectionListeners;
   nsRevocableEventPtr<ScrollSelectionIntoViewEvent> mScrollEvent;

@@ -16,13 +16,13 @@
 #include "nsIScriptError.h"
 #include "nsLayoutUtils.h"
 #include "SVGAnimationElement.h"
-#include "mozilla/dom/SVGSVGElement.h"
+#include "nsSVGSVGElement.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 
-SVGSVGElement*
+nsSVGSVGElement*
 SVGContentUtils::GetOuterSVGElement(nsSVGElement *aSVGElement)
 {
   nsIContent *element = nullptr;
@@ -35,7 +35,7 @@ SVGContentUtils::GetOuterSVGElement(nsSVGElement *aSVGElement)
   }
 
   if (element && element->Tag() == nsGkAtoms::svg) {
-    return static_cast<SVGSVGElement*>(element);
+    return static_cast<nsSVGSVGElement*>(element);
   }
   return nullptr;
 }

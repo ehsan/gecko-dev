@@ -6,6 +6,7 @@
 // This defines a common base class for nsITheme implementations, to reduce
 // code duplication.
 
+#include "prtypes.h"
 #include "nsAlgorithm.h"
 #include "nsIAtom.h"
 #include "nsCOMPtr.h"

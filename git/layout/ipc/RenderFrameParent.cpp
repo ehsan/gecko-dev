@@ -600,11 +600,8 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
   *aId = 0;
 
   nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
-  // Perhaps the document containing this frame currently has no presentation?
-  if (lm) {
-    *aBackendType = lm->GetBackendType();
-    *aMaxTextureSize = lm->GetMaxTextureSize();
-  }
+  *aBackendType = lm->GetBackendType();
+  *aMaxTextureSize = lm->GetMaxTextureSize();
 
   if (CompositorParent::CompositorLoop()) {
     // Our remote frame will push layers updates to the compositor,

@@ -6,6 +6,8 @@
 #ifndef nsWidgetInitData_h__
 #define nsWidgetInitData_h__
 
+#include "prtypes.h"
+
 /**
  * Window types
  *

@@ -312,7 +312,7 @@ var gPluginHandler = {
 
   activatePlugins: function PH_activatePlugins(aContentWindow) {
     let browser = gBrowser.getBrowserForDocument(aContentWindow.document);
-    browser._clickToPlayAllPluginsActivated = true;
+    browser._clickToPlayPluginsActivated = true;
     let cwu = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                             .getInterface(Ci.nsIDOMWindowUtils);
     let plugins = cwu.plugins;
@@ -435,9 +435,7 @@ var gPluginHandler = {
       return;
     }
 
-    let pluginInfo = this._getPluginInfo(aPlugin);
-    if (browser._clickToPlayAllPluginsActivated ||
-        browser._clickToPlayPluginsActivated.get(pluginInfo.pluginName)) {
+    if (browser._clickToPlayPluginsActivated) {
       objLoadingContent.playPlugin();
       return;
     }
@@ -574,7 +572,6 @@ var gPluginHandler = {
           for (let objLoadingContent of plugins) {
             objLoadingContent.playPlugin();
           }
-          aBrowser._clickToPlayPluginsActivated.set(this.message, true);
 
           let notification = PopupNotifications.getNotification("click-to-play-plugins", aBrowser);
           if (notification &&

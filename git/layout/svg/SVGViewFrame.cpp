@@ -7,12 +7,10 @@
 #include "nsFrame.h"
 #include "nsGkAtoms.h"
 #include "nsSVGOuterSVGFrame.h"
-#include "mozilla/dom/SVGSVGElement.h"
+#include "nsSVGSVGElement.h"
 #include "mozilla/dom/SVGViewElement.h"
 
 typedef nsFrame SVGViewFrameBase;
-
-using namespace mozilla::dom;
 
 /**
  * While views are not directly rendered in SVG they can be linked to
@@ -112,8 +110,8 @@ SVGViewFrame::AttributeChanged(int32_t  aNameSpaceID,
     NS_ASSERTION(outerSVGFrame->GetContent()->IsSVG(nsGkAtoms::svg),
                  "Expecting an <svg> element");
 
-    SVGSVGElement* svgElement =
-      static_cast<SVGSVGElement*>(outerSVGFrame->GetContent());
+    nsSVGSVGElement* svgElement =
+      static_cast<nsSVGSVGElement*>(outerSVGFrame->GetContent());
 
     nsAutoString viewID;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::id, viewID);

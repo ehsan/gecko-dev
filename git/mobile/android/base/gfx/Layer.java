@@ -9,6 +9,7 @@ import org.mozilla.gecko.util.FloatUtils;
 
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Region;
 
 import java.nio.FloatBuffer;
 import java.util.concurrent.locks.ReentrantLock;

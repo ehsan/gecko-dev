@@ -183,7 +183,7 @@ protected:
 };
 
 // custom text renderer used to determine the fallback font for a given char
-class FontFallbackRenderer MOZ_FINAL : public IDWriteTextRenderer
+class FontFallbackRenderer : public IDWriteTextRenderer
 {
 public:
     FontFallbackRenderer(IDWriteFactory *aFactory)

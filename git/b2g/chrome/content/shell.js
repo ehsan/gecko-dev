@@ -121,16 +121,12 @@ var shell = {
       }
     } catch (e) { }
 
-    // We can get here if we're just submitting old pending crashes.
-    // Check that there's a valid crashID so that we only notify the
-    // user if a crash just happened and not when we OOM. Bug 829477
-    if (crashID) {
-      this.sendChromeEvent({
-        type: "handle-crash",
-        crashID: crashID,
-        chrome: isChrome
-      });
-    }
+    // Let Gaia notify the user of the crash.
+    this.sendChromeEvent({
+      type: "handle-crash",
+      crashID: crashID,
+      chrome: isChrome
+    });
   },
 
   // this function submit the pending crashes.
@@ -225,18 +221,8 @@ var shell = {
       let androidVersion = libcutils.property_get("ro.build.version.sdk") +
                            "(" + libcutils.property_get("ro.build.version.codename") + ")";
       cr.annotateCrashReport("Android_Version", androidVersion);
-
-      SettingsListener.observe("deviceinfo.os", "", function(value) {
-        try {
-          let cr = Cc["@mozilla.org/xre/app-info;1"]
-                     .getService(Ci.nsICrashReporter);
-          cr.annotateCrashReport("B2G_OS_Version", value);
-        } catch(e) { }
-      });
 #endif
-    } catch(e) {
-      dump("exception: " + e);
-    }
+    } catch(e) { }
 
     let homeURL = this.homeURL;
     if (!homeURL) {
@@ -913,7 +899,6 @@ let RemoteDebugger = {
       DebuggerServer.init(this.prompt.bind(this));
       DebuggerServer.addBrowserActors();
       DebuggerServer.addActors('chrome://browser/content/dbg-browser-actors.js');
-      DebuggerServer.addActors('chrome://browser/content/dbg-webapps-actors.js');
     }
 
     let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;

@@ -208,16 +208,6 @@ IDService.prototype = {
     rp.doReady();
   },
 
-  doCancel: function doCancel(aRpCallerId) {
-    let rp = this._rpFlows[aRpCallerId];
-    if (!rp) {
-      dump("WARNING: doCancel found no rp to go with callerId " + aRpCallerId + "\n");
-      return;
-    }
-
-    rp.doCancel();
-  },
-
 
   /*
    * XXX Bug 804229: Implement Identity Provider Functions

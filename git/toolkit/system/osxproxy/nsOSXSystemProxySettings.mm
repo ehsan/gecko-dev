@@ -63,7 +63,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsOSXSystemProxySettings, nsISystemProxySettings)
 NS_IMETHODIMP
 nsOSXSystemProxySettings::GetMainThreadOnly(bool *aMainThreadOnly)
 {
-  *aMainThreadOnly = true;
+  *aMainThreadOnly = false;
   return NS_OK;
 }
 

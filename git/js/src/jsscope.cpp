@@ -1048,14 +1048,8 @@ JSObject::preventExtensions(JSContext *cx)
     if (!js::GetPropertyNames(cx, self, JSITER_HIDDEN | JSITER_OWNONLY, &props))
         return false;
 
-    /*
-     * Convert all dense elements to sparse properties. This will shrink the
-     * initialized length and capacity of the object to zero and ensure that no
-     * new dense elements can be added without calling growElements(), which
-     * checks isExtensible().
-     */
-    if (isNative() && !JSObject::sparsifyDenseElements(cx, self))
-        return false;
+    if (self->isDenseArray())
+        self->makeDenseArraySlow(cx, self);
 
     return self->setFlag(cx, BaseShape::NOT_EXTENSIBLE, GENERATE_SHAPE);
 }
@@ -1338,5 +1332,17 @@ JSCompartment::sweepInitialShapeTable()
             }
         }
     }
+}
+
+/*
+ * Property lookup hooks on non-native objects are required to return a non-NULL
+ * shape to signify that the property has been found. The actual shape returned
+ * is arbitrary, and it should never be read from. We use the non-native
+ * object's shape_ field, since it is readily available.
+ */
+void
+js::MarkNonNativePropertyFound(HandleObject obj, MutableHandleShape propp)
+{
+    propp.set(obj->lastProperty());
 }
 

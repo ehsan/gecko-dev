@@ -395,11 +395,10 @@ MParameter::congruentTo(MDefinition * const &ins) const
 }
 
 MCall *
-MCall::New(JSFunction *target, size_t maxArgc, size_t numActualArgs, bool construct,
-           types::StackTypeSet *calleeTypes)
+MCall::New(JSFunction *target, size_t maxArgc, size_t numActualArgs, bool construct)
 {
     JS_ASSERT(maxArgc >= numActualArgs);
-    MCall *ins = new MCall(target, numActualArgs, construct, calleeTypes);
+    MCall *ins = new MCall(target, numActualArgs, construct);
     if (!ins->init(maxArgc + NumNonArgumentOperands))
         return NULL;
     return ins;
@@ -819,8 +818,8 @@ MDiv::analyzeEdgeCasesBackward()
 void
 MDiv::analyzeTruncateBackward()
 {
-    if (!isTruncated())
-        setTruncated(js::ion::EdgeCaseAnalysis::AllUsesTruncate(this));
+    if (!isTruncated() && js::ion::EdgeCaseAnalysis::AllUsesTruncate(this))
+        setTruncated(true);
 }
 
 bool
@@ -830,10 +829,7 @@ MDiv::updateForReplacement(MDefinition *ins_)
     MDiv *ins = ins_->toDiv();
     // Since EdgeCaseAnalysis is not being run before GVN, its information does
     // not need to be merged here.
-    if (isTruncated() && ins->isTruncated())
-        setTruncated(Max(isTruncated(), ins->isTruncated()));
-    else
-        setTruncated(0);
+    setTruncated(isTruncated() && ins->isTruncated());
     return true;
 }
 
@@ -860,8 +856,8 @@ MMod::foldsTo(bool useValueNumbers)
 void
 MAdd::analyzeTruncateBackward()
 {
-    if (!isTruncated())
-        setTruncated(js::ion::EdgeCaseAnalysis::AllUsesTruncate(this));
+    if (!isTruncated() && js::ion::EdgeCaseAnalysis::AllUsesTruncate(this))
+        setTruncated(true);
 }
 
 bool
@@ -869,31 +865,21 @@ MAdd::updateForReplacement(MDefinition *ins_)
 {
     JS_ASSERT(ins_->isAdd());
     MAdd *ins = ins_->toAdd();
-    if (isTruncated() && ins->isTruncated())
-        setTruncated(Max(isTruncated(), ins->isTruncated()));
-    else
-        setTruncated(0);
+    setTruncated(isTruncated() && ins->isTruncated());
     return true;
 }
 
 bool
 MAdd::fallible()
 {
-    // the add is fallible if range analysis does not say that it is finite, AND
-    // either the truncation analysis shows that there are non-truncated uses, or
-    // there are more than 20 operations before it gets truncated. 20 was chosen
-    // for two reasons. First, it is a nice sane number. Second, the largest int32
-    // can be (about) 2^31. The smallest integer that cannot be exactly represented
-    // as a double is 2^53 + 1  by doing something simple, like x = x + x, it takes
-    // 23 additions toget from 2^31 to 2^53 + 1. 20 is simply a conservative estimate of that.
-    return (!isTruncated() || isTruncated() > 20) && (!range() || !range()->isFinite());
+    return !isTruncated() && (!range() || !range()->isFinite());
 }
 
 void
 MSub::analyzeTruncateBackward()
 {
-    if (!isTruncated())
-        setTruncated(js::ion::EdgeCaseAnalysis::AllUsesTruncate(this));
+    if (!isTruncated() && js::ion::EdgeCaseAnalysis::AllUsesTruncate(this))
+        setTruncated(true);
 }
 
 bool
@@ -901,18 +887,14 @@ MSub::updateForReplacement(MDefinition *ins_)
 {
     JS_ASSERT(ins_->isSub());
     MSub *ins = ins_->toSub();
-    if (isTruncated() && ins->isTruncated())
-        setTruncated(Max(isTruncated(), ins->isTruncated()));
-    else
-        setTruncated(0);
+    setTruncated(isTruncated() && ins->isTruncated());
     return true;
 }
 
 bool
 MSub::fallible()
 {
-    // see comment in MAdd::fallible()
-    return (!isTruncated() || isTruncated() > 20) && (!range() || !range()->isFinite());
+    return !isTruncated() && (!range() || !range()->isFinite());
 }
 
 MDefinition *

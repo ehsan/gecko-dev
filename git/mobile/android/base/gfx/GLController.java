@@ -74,10 +74,6 @@ public class GLController {
         notifyAll();
     }
 
-    public boolean hasValidSurface() {
-        return mSurfaceValid;
-    }
-
     private void initEGL() {
         mEGL = (EGL10)EGLContext.getEGL();
 
@@ -131,12 +127,6 @@ public class GLController {
      * caller assumes ownership of the surface once it is returned.
      * This function is invoked by JNI */
     private EGLSurface provideEGLSurface() {
-        synchronized (this) {
-            if (!mSurfaceValid) {
-                return null;
-            }
-        }
-
         if (mEGL == null) {
             initEGL();
         }

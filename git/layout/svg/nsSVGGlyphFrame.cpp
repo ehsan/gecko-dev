@@ -966,11 +966,12 @@ nsSVGGlyphFrame::SetupCairoStroke(gfxContext *aContext,
                                   gfxTextObjectPaint *aOuterObjectPaint,
                                   SVGTextObjectPaint *aThisObjectPaint)
 {
-  if (!nsSVGUtils::HasStroke(this, aOuterObjectPaint)) {
+  const nsStyleSVG *style = GetStyleSVG();
+  if (style->mStroke.mType == eStyleSVGPaintType_None) {
+    aThisObjectPaint->SetStrokeOpacity(0.0f);
     return false;
   }
 
-  const nsStyleSVG *style = GetStyleSVG();
   nsSVGUtils::SetupCairoStrokeHitGeometry(this, aContext, aOuterObjectPaint);
   float opacity = nsSVGUtils::GetOpacity(style->mStrokeOpacitySource,
                                          style->mStrokeOpacity,

@@ -34,7 +34,11 @@ public:
   {
     // The file name, /foo/bar/libxul.so for example.
     std::string mName;
-    std::string mBreakpadId;
+
+    // Windows specific fields. On other platforms they are 0/empty.
+    int mPdbAge;
+    std::string mPdbSignature;
+    std::string mPdbName;
 
     bool operator==(const Module& other) const;
   };

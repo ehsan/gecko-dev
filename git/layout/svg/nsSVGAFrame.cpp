@@ -5,7 +5,7 @@
 
 // Keep in (case-insensitive) order:
 #include "gfxMatrix.h"
-#include "mozilla/dom/SVGAElement.h"
+#include "nsSVGAElement.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGTSpanFrame.h"
 #include "nsSVGUtils.h"
@@ -153,7 +153,7 @@ nsSVGAFrame::GetCanvasTM(uint32_t aFor)
     NS_ASSERTION(mParent, "null parent");
 
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-    dom::SVGAElement *content = static_cast<dom::SVGAElement*>(mContent);
+    nsSVGAElement *content = static_cast<nsSVGAElement*>(mContent);
 
     gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
 

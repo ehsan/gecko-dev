@@ -22,10 +22,6 @@ const PREF_APPLY_PROMPT_TIMEOUT = "b2g.update.apply-prompt-timeout";
 const PREF_APPLY_IDLE_TIMEOUT   = "b2g.update.apply-idle-timeout";
 
 const NETWORK_ERROR_OFFLINE = 111;
-const FILE_ERROR_TOO_BIG    = 112;
-const HTTP_ERROR_OFFSET     = 1000;
-
-const STATE_DOWNLOADING = 'downloading';
 
 XPCOMUtils.defineLazyServiceGetter(Services, "aus",
                                    "@mozilla.org/updates/update-service;1",
@@ -73,18 +69,8 @@ UpdateCheckListener.prototype = {
   },
 
   onError: function UCL_onError(request, update) {
-    // nsIUpdate uses a signed integer for errorCode while any platform errors
-    // require all 32 bits.
-    let errorCode = update.errorCode >>> 0;
-    let isNSError = (errorCode >>> 31) == 1;
-
-    if (errorCode == NETWORK_ERROR_OFFLINE) {
+    if (update.errorCode == NETWORK_ERROR_OFFLINE) {
       this._updatePrompt.setUpdateStatus("retry-when-online");
-    } else if (isNSError) {
-      this._updatePrompt.setUpdateStatus("check-error-" + errorCode);
-    } else if (errorCode > HTTP_ERROR_OFFSET) {
-      let httpErrorCode = errorCode - HTTP_ERROR_OFFSET;
-      this._updatePrompt.setUpdateStatus("check-error-http-" + httpErrorCode);
     }
 
     Services.aus.QueryInterface(Ci.nsIUpdateCheckListener);
@@ -286,17 +272,8 @@ UpdatePrompt.prototype = {
       }
     }
 
-    let status = Services.aus.downloadUpdate(aUpdate, true);
-    if (status == STATE_DOWNLOADING) {
-      Services.aus.addDownloadListener(this);
-      return;
-    }
-
-    log("Error downloading update " + aUpdate.name + ": " + aUpdate.errorCode);
-    if (aUpdate.errorCode == FILE_ERROR_TOO_BIG) {
-      aUpdate.statusText = "file-too-big";
-    }
-    this.showUpdateError(aUpdate);
+    Services.aus.downloadUpdate(aUpdate, true);
+    Services.aus.addDownloadListener(this);
   },
 
   handleDownloadCancel: function UP_handleDownloadCancel() {
@@ -407,7 +384,6 @@ UpdatePrompt.prototype = {
   // Trigger apps update check and wait for all to be done before
   // notifying gaia.
   onUpdateCheckStart: function UP_onUpdateCheckStart() {
-    log("onUpdateCheckStart (" + this._checkingApps + ")");
     // Don't start twice.
     if (this._checkingApps) {
       return;
@@ -427,11 +403,8 @@ UpdatePrompt.prototype = {
       this.result.forEach(function updateApp(aApp) {
         let update = aApp.checkForUpdate();
         update.onsuccess = function() {
-          if (aApp.downloadAvailable) {
-            appsToUpdate.push(aApp.manifestURL);
-          }
-
           appsChecked += 1;
+          appsToUpdate.push(aApp.manifestURL);
           if (appsChecked == appsCount) {
             self.appsUpdated(appsToUpdate);
           }

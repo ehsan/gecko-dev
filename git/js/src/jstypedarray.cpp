@@ -1015,7 +1015,7 @@ TypedArray::obj_lookupGeneric(JSContext *cx, HandleObject tarray, HandleId id,
     JS_ASSERT(tarray->isTypedArray());
 
     if (isArrayIndex(tarray, id)) {
-        MarkImplicitPropertyFound(propp);
+        MarkNonNativePropertyFound(tarray, propp);
         objp.set(tarray);
         return true;
     }
@@ -1045,7 +1045,7 @@ TypedArray::obj_lookupElement(JSContext *cx, HandleObject tarray, uint32_t index
     JS_ASSERT(tarray->isTypedArray());
 
     if (index < length(tarray)) {
-        MarkImplicitPropertyFound(propp);
+        MarkNonNativePropertyFound(tarray, propp);
         objp.set(tarray);
         return true;
     }
@@ -1283,7 +1283,7 @@ class TypedArrayTemplate
             return obj_getElement(cx, obj, receiver, index, vp);
 
         Rooted<SpecialId> sid(cx);
-        if (ValueIsSpecial(obj, &idval, &sid, cx))
+        if (ValueIsSpecial(obj, &idval, sid.address(), cx))
             return obj_getSpecial(cx, obj, receiver, sid, vp);
 
         JSAtom *atom = ToAtom(cx, idval);
@@ -2153,10 +2153,10 @@ class TypedArrayTemplate
         SkipRoot skipDest(cx, &dest);
         SkipRoot skipSrc(cx, &src);
 
-        if (ar->isArray() && !ar->isIndexed() && ar->getDenseInitializedLength() >= len) {
+        if (ar->isDenseArray() && ar->getDenseArrayInitializedLength() >= len) {
             JS_ASSERT(ar->getArrayLength() == len);
 
-            src = ar->getDenseElements();
+            src = ar->getDenseArrayElements();
             for (uint32_t i = 0; i < len; ++i) {
                 NativeType n;
                 if (!nativeFromValue(cx, src[i], &n))

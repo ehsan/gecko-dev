@@ -24,6 +24,7 @@
 #define NS_IPARSERNODE__
 
 #include "nsISupports.h"
+#include "prtypes.h"
 #include "nsStringGlue.h"
 #include "nsDebug.h"
 

@@ -36,7 +36,7 @@ struct ReadbackTask {
 
 // This class is created and dispatched from the Readback thread but it must be
 // destroyed by the main thread.
-class ReadbackResultWriter MOZ_FINAL : public nsIRunnable
+class ReadbackResultWriter : public nsIRunnable
 {
   NS_DECL_ISUPPORTS
 public:

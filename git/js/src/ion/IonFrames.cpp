@@ -1042,12 +1042,8 @@ InlineFrameIterator::scopeChain() const
 
     // scopeChain
     Value v = s.read();
-    if (v.isObject()) {
-        JS_ASSERT_IF(script()->hasAnalysis(), script()->analysis()->usesScopeChain());
-        return &v.toObject();
-    }
-
-    return callee()->environment();
+    JS_ASSERT(v.isObject());
+    return &v.toObject();
 }
 
 JSObject *

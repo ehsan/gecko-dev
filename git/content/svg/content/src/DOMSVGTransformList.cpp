@@ -5,7 +5,7 @@
 
 #include "DOMSVGTransformList.h"
 #include "DOMSVGTransform.h"
-#include "mozilla/dom/SVGMatrix.h"
+#include "DOMSVGMatrix.h"
 #include "SVGAnimatedTransformList.h"
 #include "nsSVGElement.h"
 #include "nsContentUtils.h"
@@ -316,7 +316,7 @@ DOMSVGTransformList::RemoveItem(uint32_t index, ErrorResult& error)
 }
 
 already_AddRefed<DOMSVGTransform>
-DOMSVGTransformList::CreateSVGTransformFromMatrix(dom::SVGMatrix& matrix)
+DOMSVGTransformList::CreateSVGTransformFromMatrix(DOMSVGMatrix& matrix)
 {
   nsCOMPtr<DOMSVGTransform> result = new DOMSVGTransform(matrix.Matrix());
   return result.forget();

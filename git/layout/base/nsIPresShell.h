@@ -89,8 +89,6 @@ typedef short SelectionType;
 typedef uint64_t nsFrameState;
 
 namespace mozilla {
-class Selection;
-
 namespace dom {
 class Element;
 } // namespace dom
@@ -122,8 +120,8 @@ typedef struct CapturingContentInfo {
 
 // a43e26cd-9573-44c7-8fe5-859549eff814
 #define NS_IPRESSHELL_IID \
-  {0xb0f585b5, 0x199b, 0x4cd7, \
-    {0x9c, 0xee, 0xea, 0xfd, 0x40, 0xc4, 0x88, 0x6f}}
+{ 0x13b031cb, 0x738a, 0x4e97, \
+  { 0xb0, 0xca, 0x8b, 0x4b, 0x6c, 0xbb, 0xea, 0xa9 } }
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -751,7 +749,7 @@ public:
     */
   int16_t GetSelectionFlags() const { return mSelectionFlags; }
 
-  virtual mozilla::Selection* GetCurrentSelection(SelectionType aType) = 0;
+  virtual nsISelection* GetCurrentSelection(SelectionType aType) = 0;
 
   /**
     * Interface to dispatch events via the presshell

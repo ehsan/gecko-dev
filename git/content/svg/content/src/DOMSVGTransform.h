@@ -34,9 +34,7 @@ struct gfxMatrix;
 
 namespace mozilla {
 
-namespace dom {
-class SVGMatrix;
-}
+class DOMSVGMatrix;
 
 /**
  * DOM wrapper for an SVG transform. See DOMSVGLength.h.
@@ -71,7 +69,19 @@ public:
    */
   explicit DOMSVGTransform(const SVGTransform &aMatrix);
 
-  ~DOMSVGTransform();
+  ~DOMSVGTransform() {
+    // Our matrix tear-off pointer should be cleared before we are destroyed
+    // (since matrix tear-offs keep an owning reference to their transform, and
+    // clear the tear-off pointer themselves if unlinked).
+    NS_ABORT_IF_FALSE(!mMatrixTearoff, "Matrix tear-off pointer not cleared."
+        " Transform being destroyed before matrix?");
+    // Our mList's weak ref to us must be nulled out when we die. If GC has
+    // unlinked us using the cycle collector code, then that has already
+    // happened, and mList is null.
+    if (mList) {
+      mList->mItems[mListIndex] = nullptr;
+    }
+  }
 
   /**
    * Create an unowned copy of an owned transform. The caller is responsible for
@@ -133,9 +143,9 @@ public:
   DOMSVGTransformList* GetParentObject() const { return mList; }
   virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap);
   uint16_t Type() const;
-  already_AddRefed<dom::SVGMatrix> Matrix();
+  already_AddRefed<DOMSVGMatrix> Matrix();
   float Angle() const;
-  void SetMatrix(dom::SVGMatrix& matrix, ErrorResult& rv);
+  void SetMatrix(mozilla::DOMSVGMatrix& matrix, ErrorResult& rv);
   void SetTranslate(float tx, float ty, ErrorResult& rv);
   void SetScale(float sx, float sy, ErrorResult& rv);
   void SetRotate(float angle, float cx, float cy, ErrorResult& rv);
@@ -143,8 +153,8 @@ public:
   void SetSkewY(float angle, ErrorResult& rv);
 
 protected:
-  // Interface for SVGMatrix's use
-  friend class dom::SVGMatrix;
+  // Interface for DOMSVGMatrix's use
+  friend class DOMSVGMatrix;
   const bool IsAnimVal() const {
     return mIsAnimValItem;
   }
@@ -152,6 +162,7 @@ protected:
     return Transform().Matrix();
   }
   void SetMatrix(const gfxMatrix& aMatrix);
+  void ClearMatrixTearoff(DOMSVGMatrix* aMatrix);
 
 private:
   nsSVGElement* Element() {
@@ -193,6 +204,14 @@ private:
   // with any particular list and thus, no internal SVGTransform object. In
   // that case we allocate an SVGTransform object on the heap to store the data.
   nsAutoPtr<SVGTransform> mTransform;
+
+  // Weak ref to DOMSVGMatrix tearoff. The DOMSVGMatrix object will take of
+  // clearing this pointer when it is destroyed (by calling ClearMatrixTearoff).
+  //
+  // If this extra pointer member proves undesirable, it can be replaced with
+  // a hashmap (nsSVGAttrTearoffTable) to map from DOMSVGTransform to
+  // DOMSVGMatrix.
+  DOMSVGMatrix* mMatrixTearoff;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(DOMSVGTransform, MOZILLA_DOMSVGTRANSFORM_IID)

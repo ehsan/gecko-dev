@@ -17,7 +17,6 @@
 
 #include "gc/Barrier.h"
 
-ForwardDeclareJS(Atom);
 ForwardDeclareJS(Script);
 
 namespace js { class FunctionExtended; }
@@ -43,13 +42,6 @@ class JSFunction : public JSObject
         HAS_REST         = 0x0400,  /* function has a rest (...) parameter */
         HAS_DEFAULTS     = 0x0800,  /* function has at least one default parameter */
         INTERPRETED_LAZY = 0x1000,  /* function is interpreted but doesn't have a script yet */
-
-        /*
-         * Function is cloned anew at each callsite. This is temporarily
-         * needed for ParallelArray selfhosted code until type information can
-         * be made context sensitive. See discussion in bug 826148.
-         */
-        CALLSITE_CLONE   = 0x2000,
 
         /* Derived Flags values for convenience: */
         NATIVE_FUN = 0,
@@ -107,11 +99,6 @@ class JSFunction : public JSObject
     bool hasRest()                  const { return flags & HAS_REST; }
     bool hasDefaults()              const { return flags & HAS_DEFAULTS; }
 
-    /* Original functions that should be cloned are not extended. */
-    bool isCloneAtCallsite()        const { return (flags & CALLSITE_CLONE) && !isExtended(); }
-    /* Cloned functions keep a backlink to the original in extended slot 0. */
-    bool isCallsiteClone()          const { return (flags & CALLSITE_CLONE) && isExtended(); }
-
     /* Compound attributes: */
     bool isBuiltin() const {
         return isNative() || isSelfHostedBuiltin();
@@ -153,10 +140,6 @@ class JSFunction : public JSObject
         flags |= SELF_HOSTED_CTOR;
     }
 
-    void setIsCloneAtCallsite() {
-        flags |= CALLSITE_CLONE;
-    }
-
     void setIsFunctionPrototype() {
         JS_ASSERT(!isFunctionPrototype());
         flags |= IS_FUN_PROTO;
@@ -182,7 +165,7 @@ class JSFunction : public JSObject
     inline void initAtom(JSAtom *atom);
     JSAtom *displayAtom() const { return atom_; }
 
-    inline void setGuessedAtom(js::UnrootedAtom atom);
+    inline void setGuessedAtom(JSAtom *atom);
 
     /* uint16_t representation bounds number of call object dynamic slots. */
     enum { MAX_ARGS_AND_VARS = 2 * ((1U << 16) - 1) };

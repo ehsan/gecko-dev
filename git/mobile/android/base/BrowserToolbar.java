@@ -27,6 +27,7 @@ import android.view.Window;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
+import android.view.animation.DecelerateInterpolator;
 import android.view.animation.TranslateAnimation;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -35,6 +36,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.RelativeLayout.LayoutParams;
+import android.widget.TextView;
 import android.widget.ViewSwitcher;
 
 import java.util.ArrayList;
@@ -927,9 +929,8 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         String url = tab.getURL();
 
-        // Only set shadow to visible when not on about screens except about:blank.
-        visible &= !(url == null || (url.startsWith("about:") && 
-                     !url.equals("about:blank")));
+        // Only set shadow to visible when not on about screens.
+        visible &= !(url == null || url.startsWith("about:"));
 
         if ((mShadow.getVisibility() == View.VISIBLE) != visible) {
             mShadow.setVisibility(visible ? View.VISIBLE : View.GONE);

@@ -4,7 +4,7 @@
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-this.EXPORTED_SYMBOLS = [ "CmdAddonFlags", "CmdCommands" ];
+this.EXPORTED_SYMBOLS = [ "CmdAddonFlags" ];
 
 Cu.import("resource:///modules/devtools/gcli.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");

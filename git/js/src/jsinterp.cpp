@@ -902,7 +902,7 @@ TryNoteIter::settle()
 #define PUSH_STRING(s)           do { regs.sp++->setString(s); assertSameCompartmentDebugOnly(cx, regs.sp[-1]); } while (0)
 #define PUSH_OBJECT(obj)         do { regs.sp++->setObject(obj); assertSameCompartmentDebugOnly(cx, regs.sp[-1]); } while (0)
 #define PUSH_OBJECT_OR_NULL(obj) do { regs.sp++->setObjectOrNull(obj); assertSameCompartmentDebugOnly(cx, regs.sp[-1]); } while (0)
-#define PUSH_HOLE()              regs.sp++->setMagic(JS_ELEMENTS_HOLE)
+#define PUSH_HOLE()              regs.sp++->setMagic(JS_ARRAY_HOLE)
 #define POP_COPY_TO(v)           v = *--regs.sp
 #define POP_RETURN_VALUE()       regs.fp()->setReturnValue(*--regs.sp)
 
@@ -1629,7 +1629,7 @@ END_CASE(JSOP_AND)
 #define FETCH_ELEMENT_ID(obj, n, id)                                          \
     JS_BEGIN_MACRO                                                            \
         const Value &idval_ = regs.sp[n];                                     \
-        if (!ValueToId(cx, obj, idval_, &id))                                 \
+        if (!ValueToId(cx, obj, idval_, id.address()))                        \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -2359,25 +2359,8 @@ BEGIN_CASE(JSOP_FUNCALL)
     bool construct = (*regs.pc == JSOP_NEW);
 
     RootedFunction &fun = rootFunction0;
-    bool isFunction = IsFunctionObject(args.calleev(), fun.address());
-
-    /*
-     * Some builtins are marked as clone-at-callsite to increase precision of
-     * TI and JITs.
-     */
-    if (isFunction) {
-        if (fun->isInterpretedLazy() && !JSFunction::getOrCreateScript(cx, fun))
-            goto error;
-        if (cx->typeInferenceEnabled() && fun->isCloneAtCallsite()) {
-            fun = CloneFunctionAtCallsite(cx, fun, script, regs.pc);
-            if (!fun)
-                goto error;
-            args.setCallee(ObjectValue(*fun));
-        }
-    }
-
     /* Don't bother trying to fast-path calls to scripted non-constructors. */
-    if (!isFunction || !fun->isInterpretedConstructor()) {
+    if (!IsFunctionObject(args.calleev(), fun.address()) || !fun->isInterpretedConstructor()) {
         if (construct) {
             if (!InvokeConstructorKernel(cx, args))
                 goto error;
@@ -2397,7 +2380,9 @@ BEGIN_CASE(JSOP_FUNCALL)
 
     InitialFrameFlags initial = construct ? INITIAL_CONSTRUCT : INITIAL_NONE;
     bool newType = cx->typeInferenceEnabled() && UseNewType(cx, script, regs.pc);
-    RootedScript funScript(cx, fun->nonLazyScript());
+    RootedScript funScript(cx, JSFunction::getOrCreateScript(cx, fun));
+    if (!funScript)
+        goto error;
     if (!cx->stack.pushInlineFrame(cx, regs, args, *fun, funScript, initial))
         goto error;
 
@@ -2973,7 +2958,7 @@ BEGIN_CASE(JSOP_INITELEM_ARRAY)
     RootedObject &obj = rootObject0;
     obj = &regs.sp[-2].toObject();
 
-    JS_ASSERT(obj->isArray());
+    JS_ASSERT(obj->isDenseArray());
 
     uint32_t index = GET_UINT24(regs.pc);
     if (!InitArrayElemOperation(cx, regs.pc, obj, index, val))
@@ -3941,7 +3926,7 @@ js::SetObjectElement(JSContext *cx, HandleObject obj, HandleValue index, HandleV
 {
     RootedId id(cx);
     RootedValue indexval(cx, index);
-    if (!FetchElementId(cx, obj, indexval, &id, &indexval))
+    if (!FetchElementId(cx, obj, indexval, id.address(), &indexval))
         return false;
     return SetObjectElementOperation(cx, obj, id, value, strict);
 }

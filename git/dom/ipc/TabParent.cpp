@@ -87,7 +87,6 @@ TabParent::TabParent(const TabContext& aContext)
   , mDimensions(0, 0)
   , mDPI(0)
   , mShown(false)
-  , mMarkedDestroying(false)
   , mIsDestroyed(false)
 {
 }
@@ -125,17 +124,13 @@ TabParent::Destroy()
     frame->Destroy();
   }
   mIsDestroyed = true;
-
-  ContentParent* cp = static_cast<ContentParent*>(Manager());
-  cp->NotifyTabDestroying(this);
-  mMarkedDestroying = true;
 }
 
 bool
 TabParent::Recv__delete__()
 {
   ContentParent* cp = static_cast<ContentParent*>(Manager());
-  cp->NotifyTabDestroyed(this, mMarkedDestroying);
+  cp->NotifyTabDestroyed(this);
   return true;
 }
 

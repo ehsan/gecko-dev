@@ -120,6 +120,7 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
              jsval* vp,
              bool* _retval)
 {
+  bool reusingGlobal = Preferences::GetBool("jsloader.reuseGlobal");
   JSObject* targetObj = nullptr;
 
   mozJSComponentLoader* loader = mozJSComponentLoader::Get();

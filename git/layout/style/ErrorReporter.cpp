@@ -136,8 +136,7 @@ ErrorReporter::ErrorReporter(const nsCSSScanner& aScanner,
                              const Loader* aLoader,
                              nsIURI* aURI)
   : mScanner(&aScanner), mSheet(aSheet), mLoader(aLoader), mURI(aURI),
-    mInnerWindowID(0), mErrorLineNumber(0), mPrevErrorLineNumber(0),
-    mErrorColNumber(0)
+    mInnerWindowID(0), mErrorLineNumber(0), mErrorColNumber(0)
 {
 }
 
@@ -202,7 +201,7 @@ ErrorReporter::OutputError()
   if (NS_SUCCEEDED(rv)) {
     rv = errorObject->InitWithWindowID(mError,
                                        mFileName,
-                                       mErrorLine,
+                                       EmptyString(),
                                        mErrorLineNumber,
                                        mErrorColNumber,
                                        nsIScriptError::warningFlag,
@@ -228,16 +227,9 @@ ErrorReporter::AddToError(const nsString &aErrorText)
   if (!ShouldReportErrors()) return;
 
   if (mError.IsEmpty()) {
-    mError = aErrorText;
     mErrorLineNumber = mScanner->GetLineNumber();
     mErrorColNumber = mScanner->GetColumnNumber();
-    // Retrieve the error line once per line, and reuse the same nsString
-    // for all errors on that line.  That causes the text of the line to
-    // be shared among all the nsIScriptError objects.
-    if (mErrorLine.IsEmpty() || mErrorLineNumber != mPrevErrorLineNumber) {
-      mErrorLine = mScanner->GetCurrentLine();
-      mPrevErrorLineNumber = mErrorLineNumber;
-    }
+    mError = aErrorText;
   } else {
     mError.AppendLiteral("  ");
     mError.Append(aErrorText);

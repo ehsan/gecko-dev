@@ -286,7 +286,7 @@ private:
 // the system has been woken up, happens mostly on XP.
 // ----------------------------------------------------------------------------
 
-class StandbyObserver MOZ_FINAL : public nsIObserver
+class StandbyObserver : public nsIObserver
 {
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER

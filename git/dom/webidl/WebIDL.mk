@@ -98,7 +98,6 @@ webidl_files = \
   Rect.webidl \
   RGBColor.webidl \
   Screen.webidl \
-  SVGAElement.webidl \
   SVGAltGlyphElement.webidl \
   SVGAngle.webidl \
   SVGAnimatedAngle.webidl \
@@ -120,11 +119,9 @@ webidl_files = \
   SVGFitToViewBox.webidl \
   SVGForeignObjectElement.webidl \
   SVGGElement.webidl \
-  SVGGradientElement.webidl \
   SVGGraphicsElement.webidl \
   SVGImageElement.webidl \
   SVGLengthList.webidl \
-  SVGLinearGradientElement.webidl \
   SVGLineElement.webidl \
   SVGLocatableElement.webidl \
   SVGMatrix.webidl \
@@ -138,13 +135,11 @@ webidl_files = \
   SVGPolygonElement.webidl \
   SVGPolylineElement.webidl \
   SVGPreserveAspectRatio.webidl \
-  SVGRadialGradientElement.webidl \
   SVGRectElement.webidl \
   SVGScriptElement.webidl \
   SVGSetElement.webidl \
   SVGStopElement.webidl \
   SVGStyleElement.webidl \
-  SVGSVGElement.webidl \
   SVGSwitchElement.webidl \
   SVGTests.webidl \
   SVGTextContentElement.webidl \
@@ -156,7 +151,6 @@ webidl_files = \
   SVGTransformableElement.webidl \
   SVGTransformList.webidl \
   SVGTSpanElement.webidl \
-  SVGUnitTypes.webidl \
   SVGURIReference.webidl \
   SVGViewElement.webidl \
   SVGZoomAndPan.webidl \
