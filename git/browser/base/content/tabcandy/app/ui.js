@@ -46,12 +46,8 @@
 window.Keys = {meta: false};
 
 // ##########
-// Class: Navbar
-// Singleton for helping with the browser's nav bar. 
 Navbar = {
   // ----------
-  // Variable: urlBar
-  // The URL bar for the window.
   get urlBar() {
     var win = Utils.getCurrentWindow();
     if (win)
@@ -65,8 +61,6 @@ Navbar = {
 // Singleton for managing the tabbar of the browser. 
 var Tabbar = {
   // ----------
-  // Variable: el
-  // The tab bar's element. 
   get el() {
     return window.Tabs[0].raw.parentNode; 
   },
@@ -160,28 +154,20 @@ window.Page = {
   closedSelectedTabInTabCandy: false,
   stopZoomPreparation: false,
     
-  // ----------
-  // Function: isTabCandyVisible
-  // Returns true if the TabCandy UI is currently shown. 
   isTabCandyVisible: function(){
     return (Utils.getCurrentWindow().document.getElementById("tab-candy-deck").
              selectedIndex == 1);
   },
   
-  // ----------
-  // Function: hideChrome
-  // Hides the nav bar, tab bar, etc.
   hideChrome: function(){
     var currentWin = Utils.getCurrentWindow();
     currentWin.document.getElementById("tab-candy-deck").selectedIndex = 1;
+    currentWin.document.getElementById("tab-candy").contentWindow.focus();
     
     currentWin.gBrowser.updateTitlebar();
     this._setActiveTitleColor(true);
   },
     
-  // ----------
-  // Function: showChrome
-  // Shows the nav bar, tab bar, etc.
   showChrome: function(){
     var currentWin = Utils.getCurrentWindow();
     var tabContainer = currentWin.gBrowser.tabContainer;
@@ -196,13 +182,6 @@ window.Page = {
     this._setActiveTitleColor(false);
   },
 
-  // ----------
-  // Function: _setActiveTitleColor
-  // Used on the Mac to make the title bar match the gradient in the rest of the 
-  // TabCandy UI. 
-  // 
-  // Parameters: 
-  //   set - true for the special TabCandy color, false for the normal color.
   _setActiveTitleColor: function(set) {
     // Mac Only
     if (Utils.isMac()) {
@@ -215,9 +194,6 @@ window.Page = {
     }
   },
 
-  // ----------
-  // Function: showTabCandy
-  // Zoom out of the current tab (if applicable) and show the TabCandy UI.
   showTabCandy: function() {
     var self = this;
     var currentTab = UI.currentTab;
@@ -247,70 +223,8 @@ window.Page = {
       });
     }
   },
-
-  // ----------
-  // Function: setupKeyHandlers
-  // Sets up the handlers for keyboard navigation. 
-  setupKeyHandlers: function(){
-    var self = this;
-    iQ(window).keyup(function(e){
-      if (!e.metaKey) window.Keys.meta = false;
-    });
-    
-    iQ(window).keydown(function(e){
-      if (e.metaKey) window.Keys.meta = true;
-      
-      if (!self.getActiveTab()) return;
-      
-      var centers = [[item.bounds.center(), item] for each(item in TabItems.getItems())];
-      myCenter = self.getActiveTab().bounds.center();
-
-      function getClosestTabBy(norm){
-        var matches = centers
-          .filter(function(item){return norm(item[0], myCenter)})
-          .sort(function(a,b){
-            return myCenter.distance(a[0]) - myCenter.distance(b[0]);
-          });
-        if ( matches.length > 0 )
-          return matches[0][1];
-        return null;
-      }
-
-      var norm = null;
-      switch (e.which){
-        case 39: // Right
-          norm = function(a, me){return a.x > me.x};
-          break;
-        case 37: // Left
-          norm = function(a, me){return a.x < me.x};
-          break;
-        case 40: // Down
-          norm = function(a, me){return a.y > me.y};
-          break;
-        case 38: // Up
-          norm = function(a, me){return a.y < me.y}
-          break;
-      }
-      
-      if ( norm != null && iQ(":focus").length == 0 ){
-        var nextTab = getClosestTabBy(norm);
-        if ( nextTab ){
-          if ( nextTab.inStack() && !nextTab.parent.expanded){
-            nextTab = nextTab.parent.getChild(0);
-          }
-          self.setActiveTab(nextTab);           
-        }
-        e.preventDefault();               
-      }
-      
-      if ((e.which == 27 || e.which == 13) && iQ(":focus").length == 0 )
-        if ( self.getActiveTab() ) self.getActiveTab().zoomIn();
-    });
-  },
-    
+  
   // ----------  
-  // Function: init
-  // Starts this object. 
   init: function() {
     var self = this;
         
@@ -321,10 +235,10 @@ window.Page = {
         contentDocument;
     iQ(tabCandyContentDoc).mousedown(function(e){
       if ( e.originalTarget.id == "content" )
-        Page.createGroupOnDrag(e)
+        self.createGroupOnDrag(e)
     });
 
-    this.setupKeyHandlers();
+    this._setupKeyHandlers();
 
     Tabs.onClose(function(){
       if (self.isTabCandyVisible()) {
@@ -370,8 +284,6 @@ window.Page = {
   },
   
   // ----------  
-  // Function: tabOnFocus
-  // Called when the user switches from one tab to another outside of the TabCandy UI.
   tabOnFocus: function(tab) {
     var focusTab = tab;
     var currentTab = UI.currentTab;
@@ -380,13 +292,15 @@ window.Page = {
     
     UI.currentTab = focusTab;
     // if the last visible tab has just been closed, don't show the chrome UI.
-    if (this.isTabCandyVisible() && (this.closedLastVisibleTab || this.closedSelectedTabInTabCandy)) {
+    if (this.isTabCandyVisible() &&
+        (this.closedLastVisibleTab || this.closedSelectedTabInTabCandy)) {
       this.closedLastVisibleTab = false;
       this.closedSelectedTabInTabCandy = false;
       return;      
     }
 
-    // if TabCandy is visible but we didn't just close the last tab or selected tab, show chrome.
+    // if TabCandy is visible but we didn't just close the last tab or
+    // selected tab, show chrome.
     if (this.isTabCandyVisible())
       this.showChrome();
 
@@ -396,17 +310,23 @@ window.Page = {
     
     iQ.timeout(function() { // Marshal event from chrome thread to DOM thread      
       // this value is true when tabcandy is open at browser startup.
-      if (Page.stopZoomPreparation) {
+      if (self.stopZoomPreparation) {
         self.stopZoomPreparation = false;
+        if (focusTab && focusTab.mirror) {
+          var item = TabItems.getItemByTabElement(focusTab.mirror.el);
+          if (item)
+            self.setActiveTab(item);
+        }
         return;
       }
-      var visibleTabCount = Tabbar.getVisibleTabCount();
- 
+      
       if (focusTab != UI.currentTab) {
         // things have changed while we were in timeout
         return;
       }
-       
+      
+      var visibleTabCount = Tabbar.getVisibleTabCount();
+
       var newItem = null;
       if (focusTab && focusTab.mirror)
         newItem = TabItems.getItemByTabElement(focusTab.mirror.el);
@@ -438,12 +358,104 @@ window.Page = {
     }, 1);
   },
 
+  // ---------- 
+  _setupKeyHandlers: function(){
+    var self = this;
+    iQ(window).keyup(function(e){
+      if (!e.metaKey) window.Keys.meta = false;
+    });
+    
+    iQ(window).keydown(function(event){
+      if (event.metaKey) window.Keys.meta = true;
+      
+      if (!self.getActiveTab() || iQ(":focus").length > 0) {
+        // prevent the default action when tab is pressed so it doesn't gives
+        // us problem with content focus.
+        if (event.which == 9) {
+          event.stopPropagation();
+          event.preventDefault();
+        }
+        return;
+      }  
+     
+      function getClosestTabBy(norm){
+        var centers =
+          [[item.bounds.center(), item] for each(item in TabItems.getItems())];
+        var myCenter = self.getActiveTab().bounds.center();
+        var matches = centers
+          .filter(function(item){return norm(item[0], myCenter)})
+          .sort(function(a,b){
+            return myCenter.distance(a[0]) - myCenter.distance(b[0]);
+          });
+        if ( matches.length > 0 )
+          return matches[0][1];
+        return null;
+      }
+
+      var norm = null;
+      switch (event.which) {
+        case 39: // Right
+          norm = function(a, me){return a.x > me.x};
+          break;
+        case 37: // Left
+          norm = function(a, me){return a.x < me.x};
+          break;
+        case 40: // Down
+          norm = function(a, me){return a.y > me.y};
+          break;
+        case 38: // Up
+          norm = function(a, me){return a.y < me.y}
+          break;
+      }        
+     
+      if (norm != null) {
+        var nextTab = getClosestTabBy(norm);
+        if (nextTab) {
+          if (nextTab.inStack() && !nextTab.parent.expanded)
+            nextTab = nextTab.parent.getChild(0);
+          self.setActiveTab(nextTab);        
+        }
+        event.stopPropagation();
+        event.preventDefault();
+      } else if (event.which == 27 || event.which == 13) { // esc or return
+        var activeTab = self.getActiveTab();
+        if (activeTab)
+          activeTab.zoomIn();
+        event.stopPropagation();
+        event.preventDefault();
+      } else if (event.which == 9) { // tab or shift+tab
+        var activeTab = self.getActiveTab();
+        if (activeTab) {
+          var tabItems = (activeTab.parent ? activeTab.parent.getChildren() :
+                          Groups.getOrphanedTabs());
+          var length = tabItems.length;
+          var currentIndex = tabItems.indexOf(activeTab);
+            
+          if (length > 1) {
+            if (event.shiftKey) {
+              if (currentIndex == 0) {
+                newIndex = (length - 1);
+              } else {
+                newIndex = (currentIndex - 1);
+              }
+            } else {
+              if (currentIndex == (length - 1)) {
+                newIndex = 0;
+              } else {
+                newIndex = (currentIndex + 1);
+              } 
+            }
+            self.setActiveTab(tabItems[newIndex]);        
+          }
+        }
+        event.stopPropagation();
+        event.preventDefault();
+      }
+    });
+  },
+
   // ----------  
-  // Function: createGroupOnDrag
-  // Called in response to a mousedown in empty space in the TabCandy UI;
-  // creates a new group based on the user's drag.
   createGroupOnDrag: function(e){
-/*     e.preventDefault(); */
     const minSize = 60;
     const minMinSize = 15;
     
@@ -656,7 +668,7 @@ UIClass.prototype = {
     try {   
       var self = this;
       
-      this.setBrowserKeyHandler();
+      this._setBrowserKeyHandler();
       
       // ___ Dev Menu
       this.addDevMenu();
@@ -817,12 +829,9 @@ UIClass.prototype = {
       Utils.log(e);
     }
   },
-  
+
   // ----------
-  // Function: setBrowserKeyHandler
-  // Overrides the browser's keys for navigating between tabs (outside of the TabCandy UI),
-  // so they do the right thing in respect to groups.
-  setBrowserKeyHandler : function() {
+  _setBrowserKeyHandler : function() {
     var self = this;
     var browser = Utils.getCurrentWindow().gBrowser;
     var tabbox = browser.mTabBox;
@@ -903,19 +912,12 @@ UIClass.prototype = {
             event.preventDefault();
           }
         }
-      }
+      }      
     }, false);
   },
   
   // ----------
-  // Function: advanceSelectedTab
-  // Moves you to the next tab in the current group's tab strip (outside the TabCandy UI). 
-  // 
-  // Parameters: 
-  //   reverse - true to go to previous instead of next 
-  //   index - go to a particular tab; numerical value from 1 to 9
   advanceSelectedTab : function(reverse, index) {
-    Utils.assert('reverse should be false when index exists', !index || !reverse);
     var tabbox = Utils.getCurrentWindow().gBrowser.mTabBox;
     var tabs = tabbox.tabs;
     var visibleTabs = [];
@@ -956,12 +958,6 @@ UIClass.prototype = {
   },
 
   // ----------
-  // Function: resize
-  // Update the TabCandy UI contents in response to a window size change. 
-  // Won't do anything if it doesn't deem the resize necessary. 
-  // 
-  // Parameters: 
-  //   force - true to update even when "unnecessary"; default false
   resize: function(force) {
     if ( typeof(force) == "undefined" ) force = false;
 
@@ -1049,8 +1045,6 @@ UIClass.prototype = {
   },
   
   // ----------
-  // Function: addDevMenu
-  // Fills out the "dev menu" in the TabCandy UI.
   addDevMenu: function() {
     try {
       var self = this;
@@ -1126,17 +1120,12 @@ UIClass.prototype = {
   },
 
   // -----------
-  // Function: reset
-  // Wipes all TabCandy storage and refreshes, giving you the "first-run" state.
   reset: function() {
     Storage.wipe();
     location.href = '';      
   },
     
   // ----------
-  // Function: saveAll
-  // Saves all data associated with TabCandy. 
-  // TODO: Save info items
   saveAll: function() {  
     this.save();
     Groups.saveAll();
@@ -1144,8 +1133,6 @@ UIClass.prototype = {
   },
 
   // ----------
-  // Function: save
-  // Saves the data for this object to persistent storage
   save: function() {  
     if (!this.initialized) 
       return;
@@ -1159,8 +1146,6 @@ UIClass.prototype = {
   },
 
   // ----------
-  // Function: storageSanity
-  // Given storage data for this object, returns true if it looks valid. 
   storageSanity: function(data) {
     if (iQ.isEmptyObject(data))
       return true;
@@ -1175,15 +1160,11 @@ UIClass.prototype = {
   },
 
   // ----------
-  // Function: saveVisibility
-  // Saves to storage whether the TabCandy UI is visible (as passed in).
   saveVisibility: function(isVisible) {
     Storage.saveVisibilityData(Utils.getCurrentWindow(), { visible: isVisible });
   },
 
   // ----------
-  // Function: arrangeBySite
-  // Blows away all existing groups and organizes the tabs into new groups based on domain.
   arrangeBySite: function() {
     function putInGroup(set, key) {
       var group = Groups.getGroupWithTitle(key);
@@ -1230,8 +1211,6 @@ UIClass.prototype = {
   }, 
   
   // ----------
-  // Function: newTab
-  // Opens a new tab with the given URL.
   newTab: function(url) {
     try {
       var group = Groups.getNewTabGroup();
