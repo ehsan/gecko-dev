@@ -59,7 +59,7 @@ function test_definition_site(func, obj) {
 
 function test_bad_definition_site(obj) {
   try {
-    obj._client.request("definitionSite", () => do_check_true(false));
+    obj.getDefinitionSite(() => do_check_true(false));
   } catch (e) {
     gThreadClient.resume(() => finishClient(gClient));
   }

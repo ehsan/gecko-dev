@@ -66,34 +66,10 @@ WeaveService.prototype = {
   },
 
   get fxAccountsEnabled() {
-    // first check if Firefox accounts is available at all.  This is so we can
-    // get this landed without forcing Fxa to be used (and require nightly
-    // testers to manually set this pref)
-    // Once we decide we want Fxa to be available, we just remove this block.
-    let fxAccountsAvailable;
+    let fxAccountsEnabled = false;
     try {
-      fxAccountsAvailable = Services.prefs.getBoolPref("identity.fxaccounts.enabled");
+      fxAccountsEnabled = Services.prefs.getBoolPref("identity.fxaccounts.enabled");
     } catch (_) {
-    }
-    if (!fxAccountsAvailable) {
-      // Currently we don't support toggling this pref after initialization, so
-      // inject the pref value as a regular boolean.
-      delete this.fxAccountsEnabled;
-      this.fxAccountsEnabled = false;
-      return false;
-    }
-    // work out what identity manager to use.  This is stored in a preference;
-    // if the preference exists, we trust it.
-    let fxAccountsEnabled;
-    try {
-      fxAccountsEnabled = Services.prefs.getBoolPref("services.sync.fxaccounts.enabled");
-    } catch (_) {
-      // That pref doesn't exist - so let's assume this is a first-run.
-      // If sync already appears configured, we assume it's for the legacy
-      // provider.
-      let prefs = Services.prefs.getBranch(SYNC_PREFS_BRANCH);
-      fxAccountsEnabled = !prefs.prefHasUserValue("username");
-      Services.prefs.setBoolPref("services.sync.fxaccounts.enabled", fxAccountsEnabled);
     }
     // Currently we don't support toggling this pref after initialization, so
     // inject the pref value as a regular boolean.

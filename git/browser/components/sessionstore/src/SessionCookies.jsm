@@ -60,9 +60,7 @@ let SessionCookiesInternal = {
       // Collect all hosts for the current window.
       let hosts = this.getHostsForWindow(window, true);
 
-      for (let host of Object.keys(hosts)) {
-        let isPinned = hosts[host];
-
+      for (let [host, isPinned] in Iterator(hosts)) {
         for (let cookie of CookieStore.getCookiesForHost(host)) {
           // _getCookiesForHost() will only return hosts with the right privacy
           // rules, so there is no need to do anything special with this call
@@ -304,7 +302,7 @@ let CookieStore = {
     let cookies = [];
 
     for (let pathToNamesMap of this._hosts.get(host).values()) {
-      cookies.push(...pathToNamesMap.values());
+      cookies = cookies.concat([cookie for (cookie of pathToNamesMap.values())]);
     }
 
     return cookies;

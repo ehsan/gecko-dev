@@ -221,12 +221,7 @@ public class TopSitesPanel extends HomeFragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-
-        // Discard any additional item clicks on the list
-        // as the panel is getting destroyed (see bug 930160).
-        mList.setOnItemClickListener(null);
         mList = null;
-
         mGrid = null;
         mListAdapter = null;
         mGridAdapter = null;

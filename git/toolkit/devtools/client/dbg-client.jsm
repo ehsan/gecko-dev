@@ -234,12 +234,9 @@ this.DebuggerClient = function (aTransport)
 {
   this._transport = aTransport;
   this._transport.hooks = this;
-
-  // Map actor ID to client instance for each actor type.
-  this._threadClients = new Map;
-  this._tabClients = new Map;
-  this._tracerClients = new Map;
-  this._consoleClients = new Map;
+  this._threadClients = {};
+  this._tabClients = {};
+  this._consoleClients = {};
 
   this._pendingRequests = [];
   this._activeRequests = new Map;
@@ -284,7 +281,7 @@ this.DebuggerClient = function (aTransport)
  */
 DebuggerClient.requester = function (aPacketSkeleton,
                                      { telemetry, before, after }) {
-  return DevToolsUtils.makeInfallible(function (...args) {
+  return function (...args) {
     let histogram, startTime;
     if (telemetry) {
       let transportType = this._transport.onOutputStreamReady === undefined
@@ -314,7 +311,7 @@ DebuggerClient.requester = function (aPacketSkeleton,
       outgoingPacket = before.call(this, outgoingPacket);
     }
 
-    this.request(outgoingPacket, DevToolsUtils.makeInfallible(function (aResponse) {
+    this.request(outgoingPacket, function (aResponse) {
       if (after) {
         let { from } = aResponse;
         aResponse = after.call(this, aResponse);
@@ -326,15 +323,19 @@ DebuggerClient.requester = function (aPacketSkeleton,
       // The callback is always the last parameter.
       let thisCallback = args[maxPosition + 1];
       if (thisCallback) {
-        thisCallback(aResponse);
+        try {
+          thisCallback(aResponse);
+        } catch (e) {
+          DevToolsUtils.reportException("DebuggerClient.requester callback", e);
+        }
       }
 
       if (histogram) {
         histogram.add(+new Date - startTime);
       }
-    }.bind(this), "DebuggerClient.requester request callback"));
+    }.bind(this));
 
-  }, "DebuggerClient.requester");
+  };
 };
 
 function args(aPos) {
@@ -389,35 +390,43 @@ DebuggerClient.prototype = {
       });
     }
 
-    const detachClients = (clientMap, next) => {
-      const clients = clientMap.values();
-      const total = clientMap.size;
-      let numFinished = 0;
+    // In this function, we're using the hoisting behavior of nested
+    // function definitions to write the code in the order it will actually
+    // execute. So converting to arrow functions to get rid of 'self' would
+    // be unhelpful here.
+    let self = this;
 
-      if (total == 0) {
-        next();
-        return;
+    let continuation = function () {
+      self._consoleClients = {};
+      detachThread();
+    }
+
+    for each (let client in this._consoleClients) {
+      continuation = client.close.bind(client, continuation);
+    }
+
+    continuation();
+
+    function detachThread() {
+      if (self.activeThread) {
+        self.activeThread.detach(detachTab);
+      } else {
+        detachTab();
       }
+    }
 
-      for (let client of clients) {
-        let method = client instanceof WebConsoleClient ? "close" : "detach";
-        client[method](() => {
-          if (++numFinished === total) {
-            clientMap.clear();
-            next();
-          }
-        });
+    function detachTab() {
+      if (self.activeTab) {
+        self.activeTab.detach(closeTransport);
+      } else {
+        closeTransport();
       }
-    };
+    }
 
-    detachClients(this._consoleClients, () => {
-      detachClients(this._threadClients, () => {
-        detachClients(this._tabClients, () => {
-          this._transport.close();
-          this._transport = null;
-        });
-      });
-    });
+    function closeTransport() {
+      self._transport.close();
+      self._transport = null;
+    }
   },
 
   /*
@@ -442,16 +451,6 @@ DebuggerClient.prototype = {
    *        (which will be undefined on error).
    */
   attachTab: function (aTabActor, aOnResponse) {
-    if (this._tabClients.has(aTabActor)) {
-      let cachedTab = this._tabClients.get(aTabActor);
-      let cachedResponse = {
-        cacheEnabled: cachedTab.cacheEnabled,
-        javascriptEnabled: cachedTab.javascriptEnabled
-      };
-      setTimeout(() => aOnResponse(cachedResponse, cachedTab), 0);
-      return;
-    }
-
     let packet = {
       to: aTabActor,
       type: "attach"
@@ -459,8 +458,9 @@ DebuggerClient.prototype = {
     this.request(packet, (aResponse) => {
       let tabClient;
       if (!aResponse.error) {
-        tabClient = new TabClient(this, aResponse);
-        this._tabClients.set(aTabActor, tabClient);
+        tabClient = new TabClient(this, aTabActor);
+        this._tabClients[aTabActor] = tabClient;
+        this.activeTab = tabClient;
       }
       aOnResponse(aResponse, tabClient);
     });
@@ -479,11 +479,6 @@ DebuggerClient.prototype = {
    */
   attachConsole:
   function (aConsoleActor, aListeners, aOnResponse) {
-    if (this._consoleClients.has(aConsoleActor)) {
-      setTimeout(() => aOnResponse({}, this._consoleClients.get(aConsoleActor)), 0);
-      return;
-    }
-
     let packet = {
       to: aConsoleActor,
       type: "startListeners",
@@ -494,14 +489,14 @@ DebuggerClient.prototype = {
       let consoleClient;
       if (!aResponse.error) {
         consoleClient = new WebConsoleClient(this, aConsoleActor);
-        this._consoleClients.set(aConsoleActor, consoleClient);
+        this._consoleClients[aConsoleActor] = consoleClient;
       }
       aOnResponse(aResponse, consoleClient);
     });
   },
 
   /**
-   * Attach to a global-scoped thread actor for chrome debugging.
+   * Attach to a thread actor.
    *
    * @param string aThreadActor
    *        The actor ID for the thread to attach.
@@ -513,12 +508,7 @@ DebuggerClient.prototype = {
    *        - useSourceMaps: whether to use source maps or not.
    */
   attachThread: function (aThreadActor, aOnResponse, aOptions={}) {
-    if (this._threadClients.has(aThreadActor)) {
-      setTimeout(() => aOnResponse({}, this._threadClients.get(aThreadActor)), 0);
-      return;
-    }
-
-   let packet = {
+    let packet = {
       to: aThreadActor,
       type: "attach",
       options: aOptions
@@ -526,7 +516,8 @@ DebuggerClient.prototype = {
     this.request(packet, (aResponse) => {
       if (!aResponse.error) {
         var threadClient = new ThreadClient(this, aThreadActor);
-        this._threadClients.set(aThreadActor, threadClient);
+        this._threadClients[aThreadActor] = threadClient;
+        this.activeThread = threadClient;
       }
       aOnResponse(aResponse, threadClient);
     });
@@ -542,22 +533,50 @@ DebuggerClient.prototype = {
    *        (which will be undefined on error).
    */
   attachTracer: function (aTraceActor, aOnResponse) {
-    if (this._tracerClients.has(aTraceActor)) {
-      setTimeout(() => aOnResponse({}, this._tracerClients.get(aTraceActor)), 0);
-      return;
-    }
-
     let packet = {
       to: aTraceActor,
       type: "attach"
     };
     this.request(packet, (aResponse) => {
       if (!aResponse.error) {
-        var traceClient = new TraceClient(this, aTraceActor);
-        this._tracerClients.set(aTraceActor, traceClient);
+        let traceClient = new TraceClient(this, aTraceActor);
+        aOnResponse(aResponse, traceClient);
       }
-      aOnResponse(aResponse, traceClient);
     });
+  },
+
+  /**
+   * Reconfigure a thread actor.
+   *
+   * @param object aOptions
+   *        A dictionary object of the new options to use in the thread actor.
+   * @param function aOnResponse
+   *        Called with the response packet.
+   */
+  reconfigureThread: function (aOptions, aOnResponse) {
+    let packet = {
+      to: this.activeThread._actor,
+      type: "reconfigure",
+      options: aOptions
+    };
+    this.request(packet, aOnResponse);
+  },
+
+  /**
+   * Reconfigure a tab actor.
+   *
+   * @param object aOptions
+   *        A dictionary object of the new options to use in the tab actor.
+   * @param function aOnResponse
+   *        Called with the response packet.
+   */
+  reconfigureTab: function (aOptions, aOnResponse) {
+    let packet = {
+      to: this.activeTab._actor,
+      type: "reconfigure",
+      options: aOptions
+    };
+    this.request(packet, aOnResponse);
   },
 
   /**
@@ -678,18 +697,17 @@ DebuggerClient.prototype = {
 
       // Packets that indicate thread state changes get special treatment.
       if (aPacket.type in ThreadStateTypes &&
-          this._threadClients.has(aPacket.from)) {
-        this._threadClients.get(aPacket.from)._onThreadState(aPacket);
+          aPacket.from in this._threadClients) {
+        this._threadClients[aPacket.from]._onThreadState(aPacket);
       }
       // On navigation the server resumes, so the client must resume as well.
       // We achieve that by generating a fake resumption packet that triggers
       // the client's thread state change listeners.
-      if (aPacket.type == UnsolicitedNotifications.tabNavigated &&
-          this._tabClients.has(aPacket.from) &&
-          this._tabClients.get(aPacket.from).thread) {
-        let thread = this._tabClients.get(aPacket.from).thread;
-        let resumption = { from: thread._actor, type: "resumed" };
-        thread._onThreadState(resumption);
+      if (this.activeThread &&
+          aPacket.type == UnsolicitedNotifications.tabNavigated &&
+          aPacket.from in this._tabClients) {
+        let resumption = { from: this.activeThread._actor, type: "resumed" };
+        this.activeThread._onThreadState(resumption);
       }
       // Only try to notify listeners on events, not responses to requests
       // that lack a packet type.
@@ -941,52 +959,18 @@ SSProto.translatePacket = function (aPacket, aReplacePacket, aExtraPacket,
  *
  * @param aClient DebuggerClient
  *        The debugger client parent.
- * @param aForm object
- *        The protocol form for this tab.
+ * @param aActor string
+ *        The actor ID for this tab.
  */
-function TabClient(aClient, aForm) {
-  this.client = aClient;
-  this._actor = aForm.from;
-  this._threadActor = aForm.threadActor;
-  this.javascriptEnabled = aForm.javascriptEnabled;
-  this.cacheEnabled = aForm.cacheEnabled;
-  this.thread = null;
-  this.request = this.client.request;
+function TabClient(aClient, aActor) {
+  this._client = aClient;
+  this._actor = aActor;
+  this.request = this._client.request;
 }
 
 TabClient.prototype = {
   get actor() { return this._actor },
-  get _transport() { return this.client._transport; },
-
-  /**
-   * Attach to a thread actor.
-   *
-   * @param object aOptions
-   *        Configuration options.
-   *        - useSourceMaps: whether to use source maps or not.
-   * @param function aOnResponse
-   *        Called with the response packet and a ThreadClient
-   *        (which will be undefined on error).
-   */
-  attachThread: function(aOptions={}, aOnResponse) {
-    if (this.thread) {
-      setTimeout(() => aOnResponse({}, this.thread), 0);
-      return;
-    }
-
-    let packet = {
-      to: this._threadActor,
-      type: "attach",
-      options: aOptions
-    };
-    this.request(packet, (aResponse) => {
-      if (!aResponse.error) {
-        this.thread = new ThreadClient(this, this._threadActor);
-        this.client._threadClients.set(this._threadActor, this.thread);
-      }
-      aOnResponse(aResponse, this.thread);
-    });
-  },
+  get _transport() { return this._client._transport; },
 
   /**
    * Detach the client from the tab actor.
@@ -997,14 +981,11 @@ TabClient.prototype = {
   detach: DebuggerClient.requester({
     type: "detach"
   }, {
-    before: function (aPacket) {
-      if (this.thread) {
-        this.thread.detach();
-      }
-      return aPacket;
-    },
     after: function (aResponse) {
-      this.client._tabClients.delete(this.actor);
+      if (this.activeTab === this._client._tabClients[this.actor]) {
+        this.activeTab = undefined;
+      }
+      delete this._client._tabClients[this.actor];
       return aResponse;
     },
     telemetry: "TABDETACH"
@@ -1030,21 +1011,6 @@ TabClient.prototype = {
     url: args(0)
   }, {
     telemetry: "NAVIGATETO"
-  }),
-
-  /**
-   * Reconfigure the tab actor.
-   *
-   * @param object aOptions
-   *        A dictionary object of the new options to use in the tab actor.
-   * @param function aOnResponse
-   *        Called with the response packet.
-   */
-  reconfigure: DebuggerClient.requester({
-    type: "reconfigure",
-    options: args(0)
-  }, {
-    telemetry: "RECONFIGURETAB"
   }),
 };
 
@@ -1111,21 +1077,19 @@ RootClient.prototype = {
  * is a front to the thread actor created in the server side, hiding the
  * protocol details in a traditional JavaScript API.
  *
- * @param aClient DebuggerClient|TabClient
- *        The parent of the thread (tab for tab-scoped debuggers, DebuggerClient
- *        for chrome debuggers).
+ * @param aClient DebuggerClient
+ *        The debugger client parent.
  * @param aActor string
  *        The actor ID for this thread.
  */
 function ThreadClient(aClient, aActor) {
-  this._parent = aClient;
-  this.client = aClient instanceof DebuggerClient ? aClient : aClient.client;
+  this._client = aClient;
   this._actor = aActor;
   this._frameCache = [];
   this._scriptCache = {};
   this._pauseGrips = {};
   this._threadGrips = {};
-  this.request = this.client.request;
+  this.request = this._client.request;
 }
 
 ThreadClient.prototype = {
@@ -1140,12 +1104,12 @@ ThreadClient.prototype = {
   _actor: null,
   get actor() { return this._actor; },
 
-  get compat() { return this.client.compat; },
-  get _transport() { return this.client._transport; },
+  get compat() { return this._client.compat; },
+  get _transport() { return this._client._transport; },
 
   _assertPaused: function (aCommand) {
     if (!this.paused) {
-      throw Error(aCommand + " command sent while not paused. Currently " + this._state);
+      throw Error(aCommand + " command sent while not paused.");
     }
   },
 
@@ -1190,21 +1154,6 @@ ThreadClient.prototype = {
       return aResponse;
     },
     telemetry: "RESUME"
-  }),
-
-  /**
-   * Reconfigure the thread actor.
-   *
-   * @param object aOptions
-   *        A dictionary object of the new options to use in the thread actor.
-   * @param function aOnResponse
-   *        Called with the response packet.
-   */
-  reconfigure: DebuggerClient.requester({
-    type: "reconfigure",
-    options: args(0)
-  }, {
-    telemetry: "RECONFIGURETHREAD"
   }),
 
   /**
@@ -1273,7 +1222,7 @@ ThreadClient.prototype = {
     // If the debuggee is paused, we have to send the flag via a reconfigure
     // request.
     if (this.paused) {
-      this.reconfigure({
+      this._client.reconfigureThread({
         pauseOnExceptions: aPauseOnExceptions,
         ignoreCaughtExceptions: aIgnoreCaughtExceptions
       }, aOnResponse);
@@ -1307,16 +1256,12 @@ ThreadClient.prototype = {
     // If the debuggee is paused, the value of the array will be communicated in
     // the next resumption. Otherwise we have to force a pause in order to send
     // the array.
-    if (this.paused) {
-      setTimeout(() => onResponse({}), 0);
-      return;
-    }
+    if (this.paused)
+      return void setTimeout(onResponse, 0);
     this.interrupt(response => {
       // Can't continue if pausing failed.
-      if (response.error) {
-        onResponse(response);
-        return;
-      }
+      if (response.error)
+        return void onResponse(response);
       this.resume(onResponse);
     });
   },
@@ -1365,8 +1310,10 @@ ThreadClient.prototype = {
     type: "detach"
   }, {
     after: function (aResponse) {
-      this.client._threadClients.delete(this.actor);
-      this._parent.thread = null;
+      if (this.activeThread === this._client._threadClients[this.actor]) {
+        this.activeThread = null;
+      }
+      delete this._client._threadClients[this.actor];
       return aResponse;
     },
     telemetry: "THREADDETACH"
@@ -1385,11 +1332,11 @@ ThreadClient.prototype = {
     let doSetBreakpoint = function (aCallback) {
       let packet = { to: this._actor, type: "setBreakpoint",
                      location: aLocation };
-      this.client.request(packet, function (aResponse) {
+      this._client.request(packet, function (aResponse) {
         // Ignoring errors, since the user may be setting a breakpoint in a
         // dead script that will reappear on a page reload.
         if (aOnResponse) {
-          let bpClient = new BreakpointClient(this.client, aResponse.actor,
+          let bpClient = new BreakpointClient(this._client, aResponse.actor,
                                               aLocation);
           if (aCallback) {
             aCallback(aOnResponse(aResponse, bpClient));
@@ -1623,7 +1570,7 @@ ThreadClient.prototype = {
       return this._pauseGrips[aGrip.actor];
     }
 
-    let client = new ObjectClient(this.client, aGrip);
+    let client = new ObjectClient(this._client, aGrip);
     this._pauseGrips[aGrip.actor] = client;
     return client;
   },
@@ -1643,7 +1590,7 @@ ThreadClient.prototype = {
       return this[aGripCacheName][aGrip.actor];
     }
 
-    let client = new LongStringClient(this.client, aGrip);
+    let client = new LongStringClient(this._client, aGrip);
     this[aGripCacheName][aGrip.actor] = client;
     return client;
   },
@@ -1708,14 +1655,14 @@ ThreadClient.prototype = {
     this._clearFrames();
     this._clearPauseGrips();
     aPacket.type === ThreadStateTypes.detached && this._clearThreadGrips();
-    this.client._eventsEnabled && this.notify(aPacket.type, aPacket);
+    this._client._eventsEnabled && this.notify(aPacket.type, aPacket);
   },
 
   /**
    * Return an EnvironmentClient instance for the given environment actor form.
    */
   environment: function (aForm) {
-    return new EnvironmentClient(this.client, aForm);
+    return new EnvironmentClient(this._client, aForm);
   },
 
   /**
@@ -1726,7 +1673,8 @@ ThreadClient.prototype = {
       return this._threadGrips[aForm.actor];
     }
 
-    return this._threadGrips[aForm.actor] = new SourceClient(this, aForm);
+    return this._threadGrips[aForm.actor] = new SourceClient(this._client,
+                                                             aForm);
   },
 
   /**
@@ -1776,15 +1724,8 @@ TraceClient.prototype = {
   /**
    * Detach from the trace actor.
    */
-  detach: DebuggerClient.requester({
-    type: "detach"
-  }, {
-    after: function (aResponse) {
-      this._client._tracerClients.delete(this.actor);
-      return aResponse;
-    },
-    telemetry: "TRACERDETACH"
-  }),
+  detach: DebuggerClient.requester({ type: "detach" },
+                                   { telemetry: "TRACERDETACH" }),
 
   /**
    * Start a new trace.
@@ -2023,8 +1964,8 @@ LongStringClient.prototype = {
 /**
  * A SourceClient provides a way to access the source text of a script.
  *
- * @param aClient ThreadClient
- *        The thread client parent.
+ * @param aClient DebuggerClient
+ *        The debugger client parent.
  * @param aForm Object
  *        The form sent across the remote debugging protocol.
  */
@@ -2032,12 +1973,12 @@ function SourceClient(aClient, aForm) {
   this._form = aForm;
   this._isBlackBoxed = aForm.isBlackBoxed;
   this._isPrettyPrinted = aForm.isPrettyPrinted;
-  this._activeThread = aClient;
-  this._client = aClient.client;
+  this._client = aClient;
 }
 
 SourceClient.prototype = {
   get _transport() this._client._transport,
+  get _activeThread() this._client.activeThread,
   get isBlackBoxed() this._isBlackBoxed,
   get isPrettyPrinted() this._isPrettyPrinted,
   get actor() this._form.actor,
@@ -2148,7 +2089,8 @@ SourceClient.prototype = {
     }
 
     let { contentType, source } = aResponse;
-    let longString = this._activeThread.threadLongString(source);
+    let longString = this._client.activeThread.threadLongString(
+      source);
     longString.substring(0, longString.length, function (aResponse) {
       if (aResponse.error) {
         aCallback(aResponse);
