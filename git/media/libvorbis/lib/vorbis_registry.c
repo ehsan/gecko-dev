@@ -11,7 +11,7 @@
  ********************************************************************
 
  function: registry for time, floor, res backends and channel mappings
- last mod: $Id$
+ last mod: $Id: registry.c 13293 2007-07-24 00:09:47Z xiphmont $
 
  ********************************************************************/
 
@@ -22,25 +22,25 @@
 /* seems like major overkill now; the backend numbers will grow into
    the infrastructure soon enough */
 
-extern const vorbis_func_floor     floor0_exportbundle;
-extern const vorbis_func_floor     floor1_exportbundle;
-extern const vorbis_func_residue   residue0_exportbundle;
-extern const vorbis_func_residue   residue1_exportbundle;
-extern const vorbis_func_residue   residue2_exportbundle;
-extern const vorbis_func_mapping   mapping0_exportbundle;
+extern vorbis_func_floor     floor0_exportbundle;
+extern vorbis_func_floor     floor1_exportbundle;
+extern vorbis_func_residue   residue0_exportbundle;
+extern vorbis_func_residue   residue1_exportbundle;
+extern vorbis_func_residue   residue2_exportbundle;
+extern vorbis_func_mapping   mapping0_exportbundle;
 
-const vorbis_func_floor     *const _floor_P[]={
+vorbis_func_floor     *_floor_P[]={
   &floor0_exportbundle,
   &floor1_exportbundle,
 };
 
-const vorbis_func_residue   *const _residue_P[]={
+vorbis_func_residue   *_residue_P[]={
   &residue0_exportbundle,
   &residue1_exportbundle,
   &residue2_exportbundle,
 };
 
-const vorbis_func_mapping   *const _mapping_P[]={
+vorbis_func_mapping   *_mapping_P[]={
   &mapping0_exportbundle,
 };
 

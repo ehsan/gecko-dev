@@ -52,6 +52,7 @@
 
 #include "nsGUIEvent.h"
 
+#include "nsIPluginInstanceInternal.h"
 #include "nsPluginSafety.h"
 #include "nsPluginNativeWindow.h"
 #include "nsThreadUtils.h"
@@ -190,14 +191,14 @@ static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, nsIPlug
 class nsDelayedPopupsEnabledEvent : public nsRunnable
 {
 public:
-  nsDelayedPopupsEnabledEvent(nsIPluginInstance *inst)
+  nsDelayedPopupsEnabledEvent(nsIPluginInstanceInternal *inst)
     : mInst(inst)
   {}
 
   NS_DECL_NSIRUNNABLE
 
 private:
-  nsCOMPtr<nsIPluginInstance> mInst;
+  nsCOMPtr<nsIPluginInstanceInternal> mInst;
 };
 
 NS_IMETHODIMP nsDelayedPopupsEnabledEvent::Run()
@@ -225,7 +226,7 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   // Flash will need special treatment later
   if (win->mPluginType == nsPluginType_Unknown) {
     if (inst) {
-      const char* mimetype = nsnull;
+      nsMIMEType mimetype = nsnull;
       inst->GetMIMEType(&mimetype);
       if (mimetype) { 
         if (!strcmp(mimetype, "application/x-shockwave-flash"))
@@ -342,24 +343,30 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
       return TRUE;
   }
 
-  if (enablePopups && inst) {
-    PRUint16 apiVersion;
-    if (NS_SUCCEEDED(inst->GetPluginAPIVersion(&apiVersion)) &&
-        !nsVersionOK(apiVersion, NP_POPUP_API_VERSION)) {
-      inst->PushPopupsEnabledState(PR_TRUE);
+  LRESULT res = TRUE;
+
+  nsCOMPtr<nsIPluginInstanceInternal> instInternal;
+
+  if (enablePopups) {
+    nsCOMPtr<nsIPluginInstanceInternal> tmp = do_QueryInterface(inst);
+
+    if (tmp && !nsVersionOK(tmp->GetPluginAPIVersion(),
+                            NP_POPUP_API_VERSION)) {
+      tmp.swap(instInternal);
+
+      instInternal->PushPopupsEnabledState(PR_TRUE);
     }
   }
 
   sInMessageDispatch = PR_TRUE;
 
-  LRESULT res = TRUE;
   NS_TRY_SAFE_CALL_RETURN(res, 
                           ::CallWindowProc((WNDPROC)win->GetWindowProc(), hWnd, msg, wParam, lParam),
                           nsnull, inst);
 
   sInMessageDispatch = PR_FALSE;
 
-  if (inst) {
+  if (instInternal) {
     // Popups are enabled (were enabled before the call to
     // CallWindowProc()). Some plugins (at least the flash player)
     // post messages from their key handlers etc that delay the actual
@@ -374,9 +381,11 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
     // code will pop any popup state pushed by this plugin on
     // destruction.
 
-    nsCOMPtr<nsIRunnable> event = new nsDelayedPopupsEnabledEvent(inst);
-    if (event)
+    nsCOMPtr<nsIRunnable> event =
+        new nsDelayedPopupsEnabledEvent(instInternal);
+    if (event) {
       NS_DispatchToCurrentThread(event);
+    }
   }
 
   return res;

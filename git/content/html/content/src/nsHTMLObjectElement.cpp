@@ -50,6 +50,7 @@
 #include "nsIFormSubmission.h"
 #include "nsIObjectFrame.h"
 #include "nsIPluginInstance.h"
+#include "nsIPluginInstanceInternal.h"
 
 class nsHTMLObjectElement : public nsGenericHTMLFormElement,
                             public nsObjectLoadingContent,
@@ -335,11 +336,17 @@ nsHTMLObjectElement::SubmitNamesValues(nsIFormSubmission *aFormSubmission,
 
   nsCOMPtr<nsIPluginInstance> pi;
   objFrame->GetPluginInstance(*getter_AddRefs(pi));
-  if (!pi)
+
+  nsCOMPtr<nsIPluginInstanceInternal> pi_internal(do_QueryInterface(pi));
+
+  if (!pi_internal) {
+    // No plugin, nothing to submit.
+
     return NS_OK;
+  }
 
   nsAutoString value;
-  nsresult rv = pi->GetFormValue(value);
+  nsresult rv = pi_internal->GetFormValue(value);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return aFormSubmission->AddNameValuePair(this, name, value);

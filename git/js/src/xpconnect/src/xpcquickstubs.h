@@ -289,16 +289,25 @@ struct xpc_qsSelfRef
     nsISupports* ptr;
 };
 
-template<size_t N>
-struct xpc_qsArgValArray
+struct xpc_qsTempRoot
 {
-    xpc_qsArgValArray(JSContext *cx) : tvr(cx, N, array)
-    {
-        memset(array, 0, N * sizeof(jsval));
+  public:
+    explicit xpc_qsTempRoot(JSContext *cx)
+        : mContext(cx) {
+        JS_PUSH_SINGLE_TEMP_ROOT(cx, JSVAL_NULL, &mTvr);
     }
 
-    JSAutoTempValueRooter tvr;
-    jsval array[N];
+    ~xpc_qsTempRoot() {
+        JS_POP_TEMP_ROOT(mContext, &mTvr);
+    }
+
+    jsval * addr() {
+        return &mTvr.u.value;
+    }
+
+  private:
+    JSContext *mContext;
+    JSTempValueRooter mTvr;
 };
 
 /**
@@ -390,17 +399,15 @@ xpc_qsUnwrapThisFromCcx(XPCCallContext &ccx,
 }
 
 nsresult
-xpc_qsUnwrapArgImpl(JSContext *cx, jsval v, const nsIID &iid, void **ppArg,
-                    nsISupports **ppArgRef, jsval *vp);
+xpc_qsUnwrapArgImpl(JSContext *cx, jsval v, const nsIID &iid, void **ppArg);
 
 /** Convert a jsval to an XPCOM pointer. */
 template <class T>
 inline nsresult
-xpc_qsUnwrapArg(JSContext *cx, jsval v, T **ppArg, nsISupports **ppArgRef,
-                jsval *vp)
+xpc_qsUnwrapArg(JSContext *cx, jsval v, T **ppArg)
 {
     return xpc_qsUnwrapArgImpl(cx, v, NS_GET_TEMPLATE_IID(T),
-                               reinterpret_cast<void **>(ppArg), ppArgRef, vp);
+                               reinterpret_cast<void **>(ppArg));
 }
 
 inline nsWrapperCache*
@@ -434,6 +441,16 @@ xpc_qsVariantToJsval(XPCCallContext &ccx,
                      nsIVariant *p,
                      uintN paramNum,
                      jsval *rval);
+
+/**
+ * Use this as the setter for readonly attributes. (The IDL readonly
+ * keyword does not map to JSPROP_READONLY. Semantic mismatch.)
+ *
+ * Always fails, with the same error as setting a property that has
+ * JSPROP_GETTER but not JSPROP_SETTER.
+ */
+JSBool
+xpc_qsReadOnlySetter(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 #ifdef DEBUG
 void

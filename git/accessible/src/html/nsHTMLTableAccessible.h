@@ -61,7 +61,6 @@ public:
   
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
 protected:
@@ -211,16 +210,7 @@ protected:
   virtual void CacheChildren();
   nsresult GetTableNode(nsIDOMNode **_retval);
   nsresult GetTableLayout(nsITableLayout **aLayoutObject);
-
-  /**
-   * Return true if table has an element with the given tag name.
-   *
-   * @param  aTagName     [in] tag name of searched element
-   * @param  aAllowEmpty  [in, optional] points if found element can be empty
-   *                       or contain whitespace text only.
-   */
-  PRBool HasDescendant(const nsAString& aTagName, PRBool aAllowEmpty = PR_TRUE);
-
+  PRBool HasDescendant(const char *aTagName, PRBool aAllowEmpty = PR_TRUE);
 #ifdef SHOW_LAYOUT_HEURISTIC
   nsAutoString mLayoutHeuristic;
 #endif

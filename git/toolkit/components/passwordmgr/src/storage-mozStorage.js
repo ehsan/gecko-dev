@@ -1015,13 +1015,8 @@ LoginManagerStorage_mozStorage.prototype = {
 
             // Wrap in a transaction for better performance.
             this._dbConnection.beginTransaction();
-            for each (let login in logins) {
-                try {
-                    this._addLogin(login, true);
-                } catch (e) {
-                    this.log("_importLegacySignons failed to add login: " + e);
-                }
-            }
+            for each (let login in logins)
+                this._addLogin(login, true);
             let disabledHosts = legacy.getAllDisabledHosts({});
             for each (let hostname in disabledHosts)
                 this.setLoginSavingEnabled(hostname, false);
@@ -1260,7 +1255,11 @@ LoginManagerStorage_mozStorage.prototype = {
         // Memoize the statements
         if (!wrappedStmt) {
             this.log("Creating new statement for query: " + query);
-            wrappedStmt = this._dbConnection.createStatement(query);
+            let stmt = this._dbConnection.createStatement(query);
+
+            wrappedStmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
+                          createInstance(Ci.mozIStorageStatementWrapper);
+            wrappedStmt.initialize(stmt);
             this._dbStmts[query] = wrappedStmt;
         }
         // Replace parameters, must be done 1 at a time
@@ -1567,8 +1566,8 @@ LoginManagerStorage_mozStorage.prototype = {
         }
 
         // Finalize all statements to free memory, avoid errors later
-        for each (let stmt in this._dbStmts)
-            stmt.finalize();
+        for (let i = 0; i < this._dbStmts.length; i++)
+            this._dbStmts[i].statement.finalize();
         this._dbStmts = [];
 
         // Close the connection, ignore 'already closed' error

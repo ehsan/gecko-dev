@@ -140,7 +140,6 @@ public:
   NS_IMETHOD              SetCursor(imgIContainer* aCursor,
                                     PRUint32 aHotspotX, PRUint32 aHotspotY);
   NS_IMETHOD              SetCursor(nsCursor aCursor);
-  NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
   NS_IMETHOD              Validate();
   NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
@@ -161,7 +160,6 @@ public:
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
   gfxASurface             *GetThebesSurface();
-  NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect);
   virtual nsresult        SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
                                                    PRInt32 aNativeKeyCode,
                                                    PRUint32 aModifierFlags,
@@ -322,12 +320,10 @@ protected:
 #if defined(CAIRO_HAS_DDRAW_SURFACE)
   PRBool                  OnPaintImageDDraw16();
 #endif // defined(CAIRO_HAS_DDRAW_SURFACE)
-#if !defined(WINCE_WINDOWS_MOBILE)
+#if !defined(WINCE)
   PRBool                  OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, 
                                        PRBool& result, PRBool& getWheelInfo,
                                        LRESULT *aRetValue);
-#endif // !defined(WINCE_WINDOWS_MOBILE)
-#if !defined(WINCE)
   void                    OnWindowPosChanging(LPWINDOWPOS& info);
 #endif // !defined(WINCE)
 
@@ -418,7 +414,7 @@ protected:
   HBRUSH                mBrush;
   PRPackedBool          mIsTopWidgetWindow;
   PRPackedBool          mHas3DBorder;
-  PRPackedBool          mInDtor;
+  PRPackedBool          mIsDestroying;
   PRPackedBool          mIsVisible;
   PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mInWheelProcessing;
@@ -479,7 +475,7 @@ protected:
 
   // Graphics
   HDC                   mPaintDC; // only set during painting
-
+  static WinRenderMode  sRenderMode;
   static nsAutoPtr<PRUint8> sSharedSurfaceData;
   static gfxIntSize     sSharedSurfaceSize;
 

@@ -55,7 +55,7 @@
 #include "mozAutoDocUpdate.h"
 #include "nsIScriptElement.h"
 
-#define NS_HTML5_TREE_BUILDER_MAX_QUEUE_TIME 3000UL // milliseconds
+#define NS_HTML5_TREE_BUILDER_MAX_QUEUE_TIME 3000000UL // microseconds
 #define NS_HTML5_TREE_BUILDER_DEFAULT_QUEUE_LENGTH 200
 #define NS_HTML5_TREE_BUILDER_MIN_QUEUE_LENGTH 100
 #define NS_HTML5_TREE_BUILDER_MAX_TIME_WITHOUT_FLUSH 5000 // milliseconds
@@ -92,6 +92,7 @@ nsHtml5TreeBuilder::~nsHtml5TreeBuilder()
 nsIContent*
 nsHtml5TreeBuilder::createElement(PRInt32 aNamespace, nsIAtom* aName, nsHtml5HtmlAttributes* aAttributes)
 {
+  // XXX recheck http://mxr.mozilla.org/mozilla-central/source/content/base/src/nsDocument.cpp#6660
   nsIContent* newContent;
   nsCOMPtr<nsINodeInfo> nodeInfo = parser->GetNodeInfoManager()->GetNodeInfo(aName, nsnull, aNamespace);
   NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
@@ -298,16 +299,12 @@ nsHtml5TreeBuilder::appendDoctypeToDocument(nsIAtom* aName, nsString* aPublicId,
   nsCOMPtr<nsIDOMDocumentType> docType;
   nsAutoString voidString;
   voidString.SetIsVoid(PR_TRUE);
-  NS_NewDOMDocumentType(getter_AddRefs(docType),
-                        parser->GetNodeInfoManager(),
-                        nsnull,
-                        aName,
-                        nsnull,
-                        nsnull,
-                        *aPublicId,
-                        *aSystemId,
-                        voidString);
-  NS_ASSERTION(docType, "Doctype creation failed.");
+  NS_NewDOMDocumentType(getter_AddRefs(docType), parser->GetNodeInfoManager(), nsnull,
+                             aName, nsnull, nsnull, *aPublicId, *aSystemId,
+                             voidString);
+//  if (NS_FAILED(rv) || !docType) {
+//    return rv;
+//  }
   nsCOMPtr<nsIContent> content = do_QueryInterface(docType);
   NS_ASSERTION(content, "doctype isn't content?");
   nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
@@ -404,7 +401,7 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
   }
   // we now have only HTML
   // Some HTML nodes need DoneAddingChildren() called to initialize
-  // properly (e.g. form state restoration).
+  // properly (eg form state restoration).
   // XXX expose ElementName group here and do switch
   if (aName == nsHtml5Atoms::select ||
         aName == nsHtml5Atoms::textarea ||
@@ -467,10 +464,10 @@ nsHtml5TreeBuilder::Flush()
 {
   mNeedsFlush = PR_FALSE;
   MOZ_AUTO_DOC_UPDATE(parser->GetDocument(), UPDATE_CONTENT_MODEL, PR_TRUE);
-  PRIntervalTime flushStart = 0;
+  PRTime flushStart = 0;
   PRUint32 opQueueLength = mOpQueue.Length();
   if (opQueueLength > NS_HTML5_TREE_BUILDER_MIN_QUEUE_LENGTH) { // avoid computing averages with too few ops
-    flushStart = PR_IntervalNow();
+    flushStart = PR_Now();
   }
   mElementsSeenInThisAppendBatch.SetCapacity(opQueueLength * 2);
   // XXX alloc failure
@@ -487,10 +484,7 @@ nsHtml5TreeBuilder::Flush()
 #endif
   mOpQueue.Clear();
   if (flushStart) {
-    PRUint32 delta = PR_IntervalToMilliseconds(PR_IntervalNow() - flushStart);
-    sTreeOpQueueMaxLength = delta ?
-      (PRUint32)((NS_HTML5_TREE_BUILDER_MAX_QUEUE_TIME * (PRUint64)opQueueLength) / delta) :
-      0;
+    sTreeOpQueueMaxLength = (PRUint32)((NS_HTML5_TREE_BUILDER_MAX_QUEUE_TIME * (PRUint64)opQueueLength) / (PR_Now() - flushStart));
     if (sTreeOpQueueMaxLength < NS_HTML5_TREE_BUILDER_MIN_QUEUE_LENGTH) {
       sTreeOpQueueMaxLength = NS_HTML5_TREE_BUILDER_MIN_QUEUE_LENGTH;
     }
@@ -505,9 +499,7 @@ void
 nsHtml5TreeBuilder::DoUnlink()
 {
   nsHtml5TreeBuilder* tmp = this;
-  if (mFlushTimer) {
-    mFlushTimer->Cancel();
-  }
+  mFlushTimer->Cancel();
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFlushTimer);
   NS_IF_RELEASE(contextNode);
   NS_IF_RELEASE(formPointer);

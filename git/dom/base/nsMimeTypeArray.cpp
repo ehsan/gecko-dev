@@ -253,9 +253,8 @@ nsresult nsMimeTypeArray::GetMimeTypes()
 
       PRUint32 k;
       for (k = 0; k < pluginCount; k++) {
-        nsCOMPtr<nsIDOMPlugin> plugin;
-        if (NS_SUCCEEDED(pluginArray->Item(k, getter_AddRefs(plugin))) &&
-            plugin) {
+        nsIDOMPlugin* plugin = nsnull;
+        if (pluginArray->Item(k, &plugin) == NS_OK) {
           PRUint32 mimeTypeCount = 0;
           if (plugin->GetLength(&mimeTypeCount) == NS_OK) {
             nsCOMPtr<nsIDOMMimeType> item;
@@ -264,6 +263,7 @@ nsresult nsMimeTypeArray::GetMimeTypes()
               mMimeTypeArray.AppendObject(item);
             }
           }
+          NS_RELEASE(plugin);
         }
       }
     }

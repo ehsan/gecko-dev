@@ -41,7 +41,7 @@
 #ifndef nsComputedDOMStyle_h__
 #define nsComputedDOMStyle_h__
 
-#include "nsICSSDeclaration.h"
+#include "nsIComputedDOMStyle.h"
 
 #include "nsROCSSPrimitiveValue.h"
 #include "nsDOMCSSDeclaration.h"
@@ -57,12 +57,11 @@
 #include "nsAutoPtr.h"
 #include "nsStyleStruct.h"
 
-class nsComputedDOMStyle : public nsICSSDeclaration,
-                           public nsWrapperCache
+class nsComputedDOMStyle : public nsIComputedDOMStyle
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsComputedDOMStyle)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsComputedDOMStyle)
 
   NS_IMETHOD Init(nsIDOMElement *aElement,
                   const nsAString& aPseudoElt,
@@ -76,11 +75,6 @@ public:
   virtual ~nsComputedDOMStyle();
 
   static void Shutdown();
-
-  virtual nsISupports *GetParentObject()
-  {
-    return mContent;
-  }
 
 private:
   void AssertFlushedPendingReflows() {
@@ -453,11 +447,6 @@ private:
   PRBool mFlushedPendingReflows;
 #endif
 };
-
-nsresult 
-NS_NewComputedDOMStyle(nsIDOMElement *aElement, const nsAString &aPseudoElt,
-                       nsIPresShell *aPresShell,
-                       nsComputedDOMStyle **aComputedStyle);
 
 #endif /* nsComputedDOMStyle_h__ */
 

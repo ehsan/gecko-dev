@@ -130,7 +130,7 @@ NS_NewSVGLength(nsISVGLength** result,
   }
   *result = pl;
   return NS_OK;
-}
+}  
 
 
 nsSVGLength::nsSVGLength(float value,
@@ -354,7 +354,7 @@ NS_IMETHODIMP
 nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
 {
   nsresult rv = NS_OK;
-
+  
   char *str = ToNewCString(aValueAsString);
 
   char* number = str;
@@ -363,13 +363,14 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
 
   if (*number) {
     char *rest;
-    float value = float(PR_strtod(number, &rest));
+    double value = PR_strtod(number, &rest);
     if (rest!=number) {
       const char* unitStr = nsCRT::strtok(rest, "\x20\x9\xD\xA", &rest);
       PRUint16 unitType = SVG_LENGTHTYPE_UNKNOWN;
       if (!unitStr || *unitStr=='\0') {
         unitType = SVG_LENGTHTYPE_NUMBER;
-      } else {
+      }
+      else {
         nsCOMPtr<nsIAtom> unitAtom = do_GetAtom(unitStr);
         if (unitAtom == nsGkAtoms::px)
           unitType = SVG_LENGTHTYPE_PX;
@@ -390,12 +391,13 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
         else if (unitAtom == nsGkAtoms::percentage)
           unitType = SVG_LENGTHTYPE_PERCENTAGE;
       }
-      if (IsValidUnitType(unitType) && NS_FloatIsFinite(value)) {
+      if (IsValidUnitType(unitType)){
         WillModify();
-        mValueInSpecifiedUnits = value;
+        mValueInSpecifiedUnits = (float)value;
         mSpecifiedUnitType     = unitType;
         DidModify();
-      } else { // parse error
+      }
+      else { // parse error
         // not a valid unit type
         rv = NS_ERROR_FAILURE;
       }
@@ -405,9 +407,9 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
       rv = NS_ERROR_FAILURE;
     }
   }
-
+  
   nsMemory::Free(str);
-
+    
   return rv;
 }
 
@@ -424,7 +426,7 @@ nsSVGLength::NewValueSpecifiedUnits(PRUint16 unitType, float valueInSpecifiedUni
   mValueInSpecifiedUnits = valueInSpecifiedUnits;
   mSpecifiedUnitType     = unitType;
   DidModify();
-
+  
   return NS_OK;
 }
 
@@ -441,7 +443,7 @@ nsSVGLength::ConvertToSpecifiedUnits(PRUint16 unitType)
   mSpecifiedUnitType = unitType;
   SetValue(valueInUserUnits);
   DidModify();
-
+  
   return NS_OK;
 }
 

@@ -41,6 +41,7 @@
 #include "nsCOMPtr.h"
 #include "nsGfxCIID.h"
 #include "nsWidgetsCID.h"
+#include "nsIFullScreen.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIScreenManager.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -441,11 +442,8 @@ NS_IMETHODIMP nsBaseWidget::PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
 //-------------------------------------------------------------------------
 NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode) {
 
-
-  if (aMode == nsSizeMode_Normal ||
-      aMode == nsSizeMode_Minimized ||
-      aMode == nsSizeMode_Maximized ||
-      aMode == nsSizeMode_Fullscreen) {
+  if (aMode == nsSizeMode_Normal || aMode == nsSizeMode_Minimized ||
+      aMode == nsSizeMode_Maximized) {
 
     mSizeMode = (nsSizeMode) aMode;
     return NS_OK;
@@ -590,6 +588,8 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
 {
   HideWindowChrome(aFullScreen);
 
+  nsCOMPtr<nsIFullScreen> fullScreen = do_GetService("@mozilla.org/browser/fullscreen;1");
+
   if (aFullScreen) {
     if (!mOriginalBounds)
       mOriginalBounds = new nsIntRect();
@@ -607,7 +607,12 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
       if (screen) {
         PRInt32 left, top, width, height;
         if (NS_SUCCEEDED(screen->GetRect(&left, &top, &width, &height))) {
+          SetSizeMode(nsSizeMode_Normal);
           Resize(left, top, width, height, PR_TRUE);
+    
+          // Hide all of the OS chrome
+          if (fullScreen)
+            fullScreen->HideAllOSChrome();
         }
       }
     }
@@ -615,6 +620,10 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
   } else if (mOriginalBounds) {
     Resize(mOriginalBounds->x, mOriginalBounds->y, mOriginalBounds->width,
            mOriginalBounds->height, PR_TRUE);
+
+    // Show all of the OS chrome
+    if (fullScreen)
+      fullScreen->ShowAllOSChrome();
   }
 
   return NS_OK;
@@ -956,7 +965,6 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_MOVE,"NS_MOVE");
     _ASSIGN_eventName(NS_LOAD,"NS_LOAD");
     _ASSIGN_eventName(NS_PAGE_UNLOAD,"NS_PAGE_UNLOAD");
-    _ASSIGN_eventName(NS_HASHCHANGE,"NS_HASHCHANGE");
     _ASSIGN_eventName(NS_PAINT,"NS_PAINT");
     _ASSIGN_eventName(NS_XUL_BROADCAST, "NS_XUL_BROADCAST");
     _ASSIGN_eventName(NS_XUL_COMMAND_UPDATE, "NS_XUL_COMMAND_UPDATE");

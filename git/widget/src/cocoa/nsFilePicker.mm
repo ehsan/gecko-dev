@@ -119,9 +119,11 @@ nsFilePicker::nsFilePicker()
 {
 }
 
+
 nsFilePicker::~nsFilePicker()
 {
 }
+
 
 void
 nsFilePicker::InitNative(nsIWidget *aParent, const nsAString& aTitle,
@@ -138,6 +140,7 @@ nsFilePicker::InitNative(nsIWidget *aParent, const nsAString& aTitle,
       mSelectedTypeIndex = prefIndex;
   }
 }
+
 
 NSView* nsFilePicker::GetAccessoryView()
 {
@@ -218,6 +221,7 @@ NSView* nsFilePicker::GetAccessoryView()
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+
 // Display the file dialog
 NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
 {
@@ -269,6 +273,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
   *retval = userClicksOK;
   return NS_OK;
 }
+
 
 // Use OpenPanel to do a GetFile. Returns |returnOK| if the user presses OK in the dialog. 
 PRInt16
@@ -338,6 +343,7 @@ nsFilePicker::GetLocalFiles(const nsString& inTitle, const nsString& inDefaultNa
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
 }
 
+
 // Use OpenPanel to do a GetFolder. Returns |returnOK| if the user presses OK in the dialog.
 PRInt16
 nsFilePicker::GetLocalFolder(const nsString& inTitle, nsILocalFile** outFile)
@@ -390,6 +396,7 @@ nsFilePicker::GetLocalFolder(const nsString& inTitle, nsILocalFile** outFile)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
 }
+
 
 // Returns |returnOK| if the user presses OK in the dialog.
 PRInt16
@@ -456,6 +463,7 @@ nsFilePicker::PutLocalFile(const nsString& inTitle, const nsString& inDefaultNam
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
 }
 
+
 // Take the list of file types (in a nice win32-specific format) and fills up
 // an NSArray of them for the Open Panel.  Note: Will return nil if we should allow
 // all file types.
@@ -514,6 +522,7 @@ nsFilePicker::GenerateFilterList()
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+
 // Sets the dialog title to whatever it should be.  If it fails, eh,
 // the OS will provide a sensible default.
 void
@@ -525,6 +534,7 @@ nsFilePicker::SetDialogTitle(const nsString& inTitle, id aPanel)
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 } 
+
 
 // Converts path from an nsILocalFile into a NSString path
 // If it fails, returns an empty string.
@@ -544,6 +554,7 @@ nsFilePicker::PanelDefaultDirectory()
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+
 NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
 {
   NS_ENSURE_ARG_POINTER(aFile);
@@ -558,6 +569,7 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
   return NS_OK;
 }
 
+
 NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
 {
   NS_ENSURE_ARG_POINTER(aFileURL);
@@ -569,10 +581,12 @@ NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
   return NS_NewFileURI(aFileURL, mFiles.ObjectAt(0));
 }
 
+
 NS_IMETHODIMP nsFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
 {
   return NS_NewArrayEnumerator(aFiles, mFiles);
 }
+
 
 NS_IMETHODIMP nsFilePicker::SetDefaultString(const nsAString& aString)
 {
@@ -585,6 +599,7 @@ NS_IMETHODIMP nsFilePicker::GetDefaultString(nsAString& aString)
   return NS_ERROR_FAILURE;
 }
 
+
 // The default extension to use for files
 NS_IMETHODIMP nsFilePicker::GetDefaultExtension(nsAString& aExtension)
 {
@@ -592,10 +607,12 @@ NS_IMETHODIMP nsFilePicker::GetDefaultExtension(nsAString& aExtension)
   return NS_OK;
 }
 
+
 NS_IMETHODIMP nsFilePicker::SetDefaultExtension(const nsAString& aExtension)
 {
   return NS_OK;
 }
+
 
 // Append an entry to the filters array
 NS_IMETHODIMP
@@ -607,12 +624,14 @@ nsFilePicker::AppendFilter(const nsAString& aTitle, const nsAString& aFilter)
   return NS_OK;
 }
 
+
 // Get the filter index - do we still need this?
 NS_IMETHODIMP nsFilePicker::GetFilterIndex(PRInt32 *aFilterIndex)
 {
   *aFilterIndex = mSelectedTypeIndex;
   return NS_OK;
 }
+
 
 // Set the filter index - do we still need this?
 NS_IMETHODIMP nsFilePicker::SetFilterIndex(PRInt32 aFilterIndex)

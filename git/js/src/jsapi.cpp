@@ -92,8 +92,6 @@
 #include "jsxml.h"
 #endif
 
-#include "jsatominlines.h"
-
 #ifdef HAVE_VA_LIST_AS_ARRAY
 #define JS_ADDRESSOF_VA_LIST(ap) ((va_list *)(ap))
 #else
@@ -835,10 +833,6 @@ JS_DestroyRuntime(JSRuntime *rt)
 {
 #ifdef DEBUG
     /* Don't hurt everyone in leaky ol' Mozilla with a fatal JS_ASSERT! */
-    if (rt->nativeEnumerators) {
-        fprintf(stderr,
-                "JS engine warning: leak of native enumerators is detected.\n");
-    }
     if (!JS_CLIST_IS_EMPTY(&rt->contextList)) {
         JSContext *cx, *iter = NULL;
         uintN cxcount = 0;
@@ -1616,7 +1610,7 @@ AlreadyHasOwnProperty(JSContext *cx, JSObject *obj, JSAtom *atom)
     JS_ASSERT(OBJ_IS_NATIVE(obj));
     JS_LOCK_OBJ(cx, obj);
     scope = OBJ_SCOPE(obj);
-    sprop = scope->lookup(ATOM_TO_JSID(atom));
+    sprop = SCOPE_GET_PROPERTY(scope, ATOM_TO_JSID(atom));
     JS_UNLOCK_SCOPE(cx, scope);
     return sprop != NULL;
 }
@@ -2940,7 +2934,7 @@ JS_SealObject(JSContext *cx, JSObject *obj, JSBool deep)
 #endif
 
     /* Nothing to do if obj's scope is already sealed. */
-    if (scope->sealed())
+    if (SCOPE_IS_SEALED(scope))
         return JS_TRUE;
 
     /* XXX Enumerate lazy properties now, as they can't be added later. */
@@ -2953,8 +2947,8 @@ JS_SealObject(JSContext *cx, JSObject *obj, JSBool deep)
     JS_LOCK_OBJ(cx, obj);
     scope = js_GetMutableScope(cx, obj);
     if (scope) {
-        scope->sealingShapeChange(cx);
-        scope->setSealed();
+        SCOPE_SET_SEALED(scope);
+        js_MakeScopeShapeUnique(cx, scope);
     }
     JS_UNLOCK_OBJ(cx, obj);
     if (!scope)
@@ -3145,7 +3139,7 @@ LookupPropertyById(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                    JSObject **objp, JSProperty **propp)
 {
     JSAutoResolveFlags rf(cx, flags);
-    id = js_CheckForStringIndex(id);
+    CHECK_FOR_STRING_INDEX(id);
     return OBJ_LOOKUP_PROPERTY(cx, obj, id, objp, propp);
 }
 
@@ -3413,7 +3407,7 @@ AlreadyHasOwnPropertyHelper(JSContext *cx, JSObject *obj, jsid id,
 
     JS_LOCK_OBJ(cx, obj);
     scope = OBJ_SCOPE(obj);
-    *foundp = (scope->object == obj && scope->lookup(id));
+    *foundp = (scope->object == obj && SCOPE_GET_PROPERTY(scope, id));
     JS_UNLOCK_SCOPE(cx, scope);
     return JS_TRUE;
 }
@@ -3563,6 +3557,8 @@ JS_PUBLIC_API(JSBool)
 JS_GetMethodById(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
                  jsval *vp)
 {
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
+
     CHECK_REQUEST(cx);
     if (!js_GetMethod(cx, obj, id, false, vp))
         return JS_FALSE;
@@ -4175,7 +4171,8 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
         while (sprop &&
                (!(sprop->attrs & JSPROP_ENUMERATE) ||
                 (sprop->flags & SPROP_IS_ALIAS) ||
-                (scope->hadMiddleDelete() && !scope->has(sprop)))) {
+                (SCOPE_HAD_MIDDLE_DELETE(scope) &&
+                 !SCOPE_HAS_PROPERTY(scope, sprop)))) {
             sprop = sprop->parent;
         }
 

@@ -38,10 +38,11 @@
 #ifndef nsNPAPIPlugin_h_
 #define nsNPAPIPlugin_h_
 
+#include "nsIFactory.h"
 #include "nsIPlugin.h"
 #include "prlink.h"
 #include "npfunctions.h"
-#include "nsPluginHost.h"
+#include "nsPluginHostImpl.h"
 
 #include "mozilla/SharedLibrary.h"
 
@@ -86,9 +87,10 @@ public:
                 SharedLibrary* aLibrary,
                 PRLibrary* aPRLibrary,
                 NP_PLUGINSHUTDOWN aShutdown);
-  virtual ~nsNPAPIPlugin();
+  virtual ~nsNPAPIPlugin(void);
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIFACTORY
   NS_DECL_NSIPLUGIN
 
   // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
@@ -115,7 +117,7 @@ protected:
 
   NP_PLUGINSHUTDOWN fShutdownEntry;
 
-  // Browser-side callbacks that the plugin calls.
+  // The browser-side callbacks that a 4.x-style plugin calls.
   static NPNetscapeFuncs CALLBACKS;
 };
 
@@ -220,12 +222,6 @@ _getauthenticationinfo(NPP instance, const char *protocol, const char *host,
                        int32_t port, const char *scheme, const char *realm,
                        char **username, uint32_t *ulen, char **password,
                        uint32_t *plen);
-
-uint32_t NP_CALLBACK
-_scheduletimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID));
-
-void NP_CALLBACK
-_unscheduletimer(NPP instance, uint32_t timerID);
 
 PR_END_EXTERN_C
 

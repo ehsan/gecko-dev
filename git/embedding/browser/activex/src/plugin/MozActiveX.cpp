@@ -51,9 +51,8 @@ CComModule _Module;
 BEGIN_OBJECT_MAP(ObjectMap)
 END_OBJECT_MAP()
 
-#if 0
-BOOL WINAPI
-DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)
+extern "C"
+BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID /*lpReserved*/)
 {
     if (dwReason == DLL_PROCESS_ATTACH)
 	{
@@ -66,4 +65,3 @@ DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)
 	}
 	return TRUE;    // ok
 }
-#endif

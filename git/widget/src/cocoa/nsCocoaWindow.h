@@ -58,6 +58,7 @@ typedef struct _nsCocoaWindowList {
   nsCocoaWindow *window; // Weak
 } nsCocoaWindowList;
 
+
 @interface NSWindow (Undocumented)
 
 // If a window has been explicitly removed from the "window cache" (to
@@ -74,6 +75,7 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
+
 @interface PopupWindow : NSWindow
 {
 @private
@@ -87,6 +89,7 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
+
 @interface BorderlessWindow : NSWindow
 {
 }
@@ -95,6 +98,7 @@ typedef struct _nsCocoaWindowList {
 - (BOOL)canBecomeMainWindow;
 
 @end
+
 
 @interface WindowDelegate : NSObject
 {
@@ -303,5 +307,6 @@ protected:
 
   PRInt32              mNumModalDescendents;
 };
+
 
 #endif // nsCocoaWindow_h_

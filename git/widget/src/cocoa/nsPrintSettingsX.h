@@ -41,6 +41,7 @@
 #include "nsPrintSettingsImpl.h"  
 #include "nsIPrintSettingsX.h"  
 
+
 class nsPrintSettingsX : public nsPrintSettings,
                          public nsIPrintSettingsX
 {

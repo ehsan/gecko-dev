@@ -382,9 +382,6 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
       case nsSpeculativeScriptThread::SCRIPT:
         doc->ScriptLoader()->PreloadURI(uri, pe.charset, pe.elementType);
         break;
-      case nsSpeculativeScriptThread::IMAGE:
-        doc->MaybePreLoadImage(uri);
-        break;
       case nsSpeculativeScriptThread::STYLESHEET: {
         nsCOMPtr<nsICSSLoaderObserver> obs = new nsDummyCSSLoaderObserver();
         doc->CSSLoader()->LoadSheet(uri, doc->NodePrincipal(),
@@ -392,6 +389,9 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
                                     obs);
         break;
       }
+      case nsSpeculativeScriptThread::IMAGE:
+        NS_NOTREACHED("We don't scan these yet");
+        break;
       case nsSpeculativeScriptThread::NONE:
         NS_NOTREACHED("Uninitialized preload entry?");
         break;
@@ -599,10 +599,6 @@ nsSpeculativeScriptThread::ProcessToken(CToken *aToken)
         switch (tag) {
           case eHTMLTag_link:
               ptype = STYLESHEET;
-              break;
-
-          case eHTMLTag_img:
-              ptype = IMAGE;
               break;
 
           case eHTMLTag_script:

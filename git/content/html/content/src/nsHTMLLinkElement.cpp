@@ -85,6 +85,9 @@ public:
   NS_DECL_NSIDOMHTMLLINKELEMENT
 
   // nsILink
+  NS_IMETHOD    GetLinkState(nsLinkState &aState);
+  NS_IMETHOD    SetLinkState(nsLinkState aState);
+  NS_IMETHOD    GetHrefURI(nsIURI** aURI);
   NS_IMETHOD    LinkAdded();
   NS_IMETHOD    LinkRemoved();
 
@@ -109,9 +112,6 @@ public:
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
-  virtual nsLinkState GetLinkState() const;
-  virtual void SetLinkState(nsLinkState aState);
-  virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -377,22 +377,24 @@ nsHTMLLinkElement::GetLinkTarget(nsAString& aTarget)
   }
 }
 
-nsLinkState
-nsHTMLLinkElement::GetLinkState() const
+NS_IMETHODIMP
+nsHTMLLinkElement::GetLinkState(nsLinkState &aState)
 {
-  return mLinkState;
+  aState = mLinkState;
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsHTMLLinkElement::SetLinkState(nsLinkState aState)
 {
   mLinkState = aState;
+  return NS_OK;
 }
 
-already_AddRefed<nsIURI>
-nsHTMLLinkElement::GetHrefURI() const
+NS_IMETHODIMP
+nsHTMLLinkElement::GetHrefURI(nsIURI** aURI)
 {
-  return GetHrefURIForAnchors();
+  return GetHrefURIForAnchors(aURI);
 }
 
 void
@@ -400,7 +402,7 @@ nsHTMLLinkElement::GetStyleSheetURL(PRBool* aIsInline,
                                     nsIURI** aURI)
 {
   *aIsInline = PR_FALSE;
-  *aURI = GetHrefURIForAnchors().get();
+  GetHrefURIForAnchors(aURI);
   return;
 }
 

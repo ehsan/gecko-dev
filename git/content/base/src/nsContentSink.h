@@ -64,7 +64,6 @@
 #include "nsIRequest.h"
 #include "nsTimer.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsThreadUtils.h"
 
 class nsIDocument;
 class nsIURI;
@@ -285,8 +284,6 @@ protected:
   // (e.g. stop waiting after some timeout or whatnot).
   PRBool WaitForPendingSheets() { return mPendingSheetCount > 0; }
 
-  void DoProcessLinkHeader();
-
 private:
   // People shouldn't be allocating this class directly.  All subclasses should
   // be allocated using a zeroing operator new.
@@ -396,9 +393,6 @@ protected:
   PRUint32 mUpdatesInNotification;
 
   PRUint32 mPendingSheetCount;
-
-  nsRevocableEventPtr<nsNonOwningRunnableMethod<nsContentSink> >
-    mProcessLinkHeaderEvent;
 
   // Measures content model creation time for current document
   MOZ_TIMER_DECLARE(mWatch)

@@ -655,8 +655,7 @@ ThemeRenderer::NativeDraw(GdkDrawable * drawable, short offsetX,
 }
 
 static PRBool
-GetExtraSizeForWidget(PRUint8 aWidgetType, PRBool aWidgetIsDefault,
-                      nsIntMargin* aExtra)
+GetExtraSizeForWidget(PRUint8 aWidgetType, nsIntMargin* aExtra)
 {
   *aExtra = nsIntMargin(0,0,0,0);
   // Allow an extra one pixel above and below the thumb for certain
@@ -690,17 +689,13 @@ GetExtraSizeForWidget(PRUint8 aWidgetType, PRBool aWidgetIsDefault,
     }
   case NS_THEME_BUTTON :
     {
-      if (aWidgetIsDefault) {
-        // Some themes draw a default indicator outside the widget,
-        // include that in overflow
-        gint top, left, bottom, right;
-        moz_gtk_button_get_default_overflow(&top, &left, &bottom, &right);
-        aExtra->top = top;
-        aExtra->right = right;
-        aExtra->bottom = bottom;
-        aExtra->left = left;
-        return PR_TRUE;
-      }
+      gint top, left, bottom, right;
+      moz_gtk_button_get_default_border(&top, &left, &bottom, &right);
+      aExtra->top = top;
+      aExtra->right = right;
+      aExtra->bottom = bottom;
+      aExtra->left = left;
+      return PR_TRUE;
     }
   default:
     return PR_FALSE;
@@ -760,13 +755,13 @@ nsNativeThemeGTK::DrawWidgetBackground(nsIRenderingContext* aContext,
   // The margin should be applied to the widget rect rather than the dirty
   // rect but nsCSSRendering::PaintBackgroundWithSC has already intersected
   // the dirty rect with the uninflated widget rect.
-  if (GetExtraSizeForWidget(aWidgetType, state.isDefault, &extraSize)) {
+  if (GetExtraSizeForWidget(aWidgetType, &extraSize)) {
     drawingRect.Inflate(extraSize);
   }
 
   // gdk rectangles are wrt the drawing rect.
 
-  // The gdk_clip is just advisory here, meaning "you don't
+  // The gdk_clip is just advisory here, meanining "you don't
   // need to draw outside this rect if you don't feel like it!"
   GdkRectangle gdk_clip = {0, 0, drawingRect.width, drawingRect.height};
 
@@ -925,7 +920,7 @@ nsNativeThemeGTK::GetWidgetOverflow(nsIDeviceContext* aContext,
     }
   } else {
     nsIntMargin extraSize;
-    if (!GetExtraSizeForWidget(aWidgetType, IsDefaultButton(aFrame), &extraSize))
+    if (!GetExtraSizeForWidget(aWidgetType, &extraSize))
       return PR_FALSE;
 
     p2a = aContext->AppUnitsPerDevPixel();

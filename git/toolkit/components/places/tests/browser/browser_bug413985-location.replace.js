@@ -48,7 +48,7 @@ function test()
     onEndUpdateBatch: function() {},
     onVisit: function(aURI, aVisitID, aTime, aSessionID, aReferringID,
                       aTransitionType) {
-      info("onVisit: " + aURI.spec);
+      dump("onVisit: " + aURI.spec + "\n");
       confirm_results();
 
       histsvc.removeObserver(observer, false);
@@ -82,7 +82,7 @@ function test()
     var uri = Cc["@mozilla.org/network/io-service;1"].
               getService(Ci.nsIIOService).
               newURI(TEST_URI, null, null);
-    info("query uri is " + uri.spec);
+    dump("query uri is " + uri.spec + "\n");
     query.uri = uri;
     var result = histsvc.executeQuery(query, options);
     var root = result.root;
@@ -98,9 +98,9 @@ function test()
   var win = wm.getMostRecentWindow("navigator:browser");
 
   function handleLoad(aEvent) {
-    info("location is " + aEvent.originalTarget.location.href);
+    dump("location is " + aEvent.originalTarget.location.href + "\n");
     loadCount++;
-    info("new load count is " + loadCount);
+    dump("new load count is " + loadCount + "\n");
 
     if (loadCount == 3)
       win.getBrowser().removeEventListener("DOMContentLoaded", handleLoad, true);

@@ -70,10 +70,6 @@
       background-color: orange;
     }
 
-    .info {
-      color: grey;
-    }
-
     .failed {
       color: red;
       font-weight: bold;
@@ -188,13 +184,13 @@
     }
     browserTest.prototype = {
       get passCount() {
-        return this.results.filter(function (t) !t.info && !t.todo && t.pass).length;
+        return this.results.filter(function (t) !t.todo && t.pass).length;
       },
       get todoCount() {
-        return this.results.filter(function (t) !t.info && t.todo && t.pass).length;
+        return this.results.filter(function (t) t.todo && t.pass).length;
       },
       get failCount() {
-        return this.results.filter(function (t) !t.info && !t.pass).length;
+        return this.results.filter(function (t) !t.pass).length;
       },
 
       addResult: function addResult(result) {
@@ -211,10 +207,12 @@
         }
         var path = _entityEncode(this.path);
         return this.results.map(function (t) {
-          var class = t.info ? "info" : "result " + (t.pass ? "passed" : "failed");
-          return "<p class=\"" + class + "\">" + t.result + " | " + path +
-                 " | " + _entityEncode(t.msg) + "</p>";
-        }).join("\n");
+                                  var result = "<p class=\"result ";
+                                  result += t.pass ? "passed" : "failed";
+                                  result += "\">" + t.result + " | " + path +
+                                    " | " + _entityEncode( t.msg ) + "</p>";
+                                  return result;
+                                }).join("\n");
       }
     };
 
@@ -322,7 +320,7 @@
       setStatus("Done.");
     }
   ]]></script>
-  <button id="runTestsButton" oncommand="runTests();" label="Run All Tests"/>
+  <button id="runTestsButton" onclick="runTests();" label="Run All Tests"/>
   <label id="status"/>
   <scrollbox flex="1" style="overflow: auto" align="stretch">
     <div id="results" xmlns="http://www.w3.org/1999/xhtml" flex="1"/>

@@ -149,27 +149,17 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
                                                             funobj,
                                                             &mCurrentJSObject,
                                                             &mTearOff);
-    if(mWrapper)
-    {
-        DEBUG_CheckWrapperThreadSafety(mWrapper);
+    if(!mWrapper)
+        return;
 
-        mFlattenedJSObject = mWrapper->GetFlatJSObject();
+    DEBUG_CheckWrapperThreadSafety(mWrapper);
 
-        if(mTearOff)
-            mScriptableInfo = nsnull;
-        else
-            mScriptableInfo = mWrapper->GetScriptableInfo();
-    }
+    mFlattenedJSObject = mWrapper->GetFlatJSObject();
+
+    if(mTearOff)
+        mScriptableInfo = nsnull;
     else
-    {
-        if(!mCurrentJSObject)
-            return;
-
-        NS_ASSERTION(IS_SLIM_WRAPPER(mCurrentJSObject),
-                     "What kind of wrapper is this?");
-
-        mFlattenedJSObject = mCurrentJSObject;
-    }
+        mScriptableInfo = mWrapper->GetScriptableInfo();
 
     if(name)
         SetName(name);

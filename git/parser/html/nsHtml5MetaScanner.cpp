@@ -691,11 +691,11 @@ nsHtml5MetaScanner::tryCharset()
   if (!candidateEncoding) {
     return PR_FALSE;
   }
-  PRBool success = tryCharset(candidateEncoding);
+  PRBool rv = tryCharset(candidateEncoding);
   nsHtml5Portability::releaseString(candidateEncoding);
   contentIndex = -1;
   charsetIndex = -1;
-  return success;
+  return rv;
 }
 
 void

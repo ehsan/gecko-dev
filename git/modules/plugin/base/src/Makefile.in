@@ -84,7 +84,7 @@ endif
 CPPSRCS		= \
 		nsNPAPIPlugin.cpp \
 		nsNPAPIPluginInstance.cpp \
-		nsPluginHost.cpp \
+		nsPluginHostImpl.cpp \
 		nsPluginModule.cpp \
 		nsJSNPRuntime.cpp \
 		$(NULL)

@@ -239,11 +239,13 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
+#ifndef DEBUG_CC
   rv = nsCCUncollectableMarker::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsCCUncollectableMarker");
     return rv;
   }
+#endif
 
   nsCSSRuleProcessor::Startup();
 

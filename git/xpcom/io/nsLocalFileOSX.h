@@ -100,6 +100,7 @@ protected:
 
   nsresult GetFSRefInternal(FSRef& aFSRef);
   nsresult GetPathInternal(nsACString& path); // Returns path WRT mFollowLinks
+  nsresult EqualsInternal(nsISupports* inFile, PRBool *_retval);
   nsresult CopyInternal(nsIFile* newParentDir,
                         const nsAString& newName,
                         PRBool followLinks);

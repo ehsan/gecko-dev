@@ -64,17 +64,16 @@ ClassIsListed(HKEY hkeyRoot, const TCHAR *szKey, const CLSID &clsid, PRBool &lis
     do {
         USES_CONVERSION;
         TCHAR szCLSID[64];
-        DWORD kBufLength = sizeof(szCLSID) / sizeof(szCLSID[0]);
-        DWORD len = kBufLength;
+        const DWORD kBufLength = sizeof(szCLSID) / sizeof(szCLSID[0]);
         memset(szCLSID, 0, sizeof(szCLSID));
-        if(::RegEnumKeyEx(keyList, i, szCLSID, &len, NULL, NULL, NULL, NULL) != ERROR_SUCCESS)
+        if(::RegEnumKey(keyList, i, szCLSID, kBufLength) != ERROR_SUCCESS)
         {
             // End of list
             break;
         }
         ++i;
         listIsEmpty = PR_FALSE;
-        szCLSID[len - 1] = TCHAR('\0');
+        szCLSID[kBufLength - 1] = TCHAR('\0');
         CLSID clsidToCompare = GUID_NULL;
         if(SUCCEEDED(::CLSIDFromString(T2OLE(szCLSID), &clsidToCompare)) &&
             ::IsEqualCLSID(clsid, clsidToCompare))
@@ -114,7 +113,6 @@ ClassExists(const CLSID &clsid)
 static PRBool
 ClassImplementsCategory(const CLSID &clsid, const CATID &catid, PRBool &bClassExists)
 {
-#ifndef WINCE
     bClassExists = ClassExists(clsid);
     // Non existent classes won't implement any category...
     if(!bClassExists)
@@ -141,7 +139,6 @@ ClassImplementsCategory(const CLSID &clsid, const CATID &catid, PRBool &bClassEx
         if(::IsEqualCATID(catid, catidNext))
             return PR_TRUE; // Match
     }
-#endif
     return PR_FALSE;
 }
 

@@ -95,10 +95,9 @@
 
 #include "nsWebShellWindow.h" // get rid of this one, too...
 
-#define SIZEMODE_NORMAL     NS_LITERAL_STRING("normal")
-#define SIZEMODE_MAXIMIZED  NS_LITERAL_STRING("maximized")
-#define SIZEMODE_MINIMIZED  NS_LITERAL_STRING("minimized")
-#define SIZEMODE_FULLSCREEN NS_LITERAL_STRING("fullscreen")
+#define SIZEMODE_NORMAL    NS_LITERAL_STRING("normal")
+#define SIZEMODE_MAXIMIZED NS_LITERAL_STRING("maximized")
+#define SIZEMODE_MINIMIZED NS_LITERAL_STRING("minimized")
 
 #define WINDOWTYPE_ATTRIBUTE NS_LITERAL_STRING("windowtype")
 
@@ -256,7 +255,7 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
     PRInt32 sizeMode;
     if (mWindow) {
       mWindow->GetSizeMode(&sizeMode);
-      if (sizeMode == nsSizeMode_Maximized || sizeMode == nsSizeMode_Fullscreen)
+      if (sizeMode == nsSizeMode_Maximized)
         return NS_ERROR_FAILURE;
     }
   }
@@ -275,6 +274,7 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
   PersistentAttributesDirty(PAD_MISC);
   SavePersistentAttributes();
 
+  // finally, send a notification DOM event
   nsCOMPtr<nsIContentViewer> cv;
   mDocShell->GetContentViewer(getter_AddRefs(cv));
   nsCOMPtr<nsIDocumentViewer> dv(do_QueryInterface(cv));
@@ -299,6 +299,7 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
       }
     }
   }
+  
   return NS_OK;
 }
 
@@ -1201,29 +1202,17 @@ PRBool nsXULWindow::LoadMiscPersistentAttributesFromXUL()
     if (stateString.Equals(SIZEMODE_MINIMIZED))
       sizeMode = nsSizeMode_Minimized;
     */
-    if (stateString.Equals(SIZEMODE_MAXIMIZED) || stateString.Equals(SIZEMODE_FULLSCREEN)) {
+    if (stateString.Equals(SIZEMODE_MAXIMIZED)) {
       /* Honor request to maximize only if the window is sizable.
          An unsizable, unmaximizable, yet maximized window confuses
          Windows OS and is something of a travesty, anyway. */
       if (mChromeFlags & nsIWebBrowserChrome::CHROME_WINDOW_RESIZE) {
         mIntrinsicallySized = PR_FALSE;
-        
-        if (stateString.Equals(SIZEMODE_MAXIMIZED))
-          sizeMode = nsSizeMode_Maximized;
-        else
-          sizeMode = nsSizeMode_Fullscreen;
+        sizeMode = nsSizeMode_Maximized;
       }
     }
-    
-    if (sizeMode == nsSizeMode_Fullscreen) {
-      nsCOMPtr<nsIDOMWindowInternal> ourWindow;
-      GetWindowDOMWindow(getter_AddRefs(ourWindow));
-      ourWindow->SetFullScreen(PR_TRUE);
-    }
-    else
-      mWindow->SetSizeMode(sizeMode);
-
-    
+    // the widget had better be able to deal with not becoming visible yet
+    mWindow->SetSizeMode(sizeMode);
     gotState = PR_TRUE;
   }
 
@@ -1533,8 +1522,6 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
         persistString.Find("sizemode") >= 0) {
       if (sizeMode == nsSizeMode_Maximized)
         sizeString.Assign(SIZEMODE_MAXIMIZED);
-      else if (sizeMode == nsSizeMode_Fullscreen)
-        sizeString.Assign(SIZEMODE_FULLSCREEN);
       else
         sizeString.Assign(SIZEMODE_NORMAL);
       docShellElement->SetAttribute(MODE_ATTRIBUTE, sizeString);

@@ -69,6 +69,7 @@ typedef unsigned int NSUInteger;
 
 #endif  /* NSINTEGER_DEFINED */
 
+
 // Used to retain a Cocoa object for the remainder of a method's execution.
 class nsAutoRetainCocoaObject {
 public:
@@ -83,6 +84,7 @@ nsAutoRetainCocoaObject(id anObject)
 private:
   id mObject;  // [STRONG]
 };
+
 
 @interface NSApplication (Undocumented)
 

@@ -1244,6 +1244,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     JSBool success;
     JSBool readyToDoTheCall = JS_FALSE;
     nsID  param_iid;
+    uint8 outConversionFailedIndex;
     JSObject* obj;
     const char* name = info->name;
     jsval fval;
@@ -1434,39 +1435,10 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
         *sp++ = OBJECT_TO_JSVAL(thisObj);
     }
 
-    // Figure out what our callee is
-    if(XPT_MD_IS_GETTER(info->flags) || XPT_MD_IS_SETTER(info->flags))
+    // make certain we leave no garbage in the stack
+    for(i = 0; i < argc; i++)
     {
-        // Pull the getter or setter off of |obj|
-        uintN attrs;
-        JSBool found;
-        JSPropertyOp getter;
-        JSPropertyOp setter;
-        if(!JS_GetPropertyAttrsGetterAndSetter(cx, obj, name,
-                                               &attrs, &found,
-                                               &getter, &setter))
-        {
-            // XXX Do we want to report this exception?
-            JS_ClearPendingException(cx);
-            goto pre_call_clean_up;
-        }
-
-        if(XPT_MD_IS_GETTER(info->flags) && (attrs & JSPROP_GETTER))
-        {
-            // JSPROP_GETTER means the getter is actually a
-            // function object.
-            ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, getter));
-        }
-        else if(XPT_MD_IS_SETTER(info->flags) && (attrs & JSPROP_SETTER))
-        {
-            // JSPROP_SETTER means the setter is actually a
-            // function object.
-            ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, setter));
-        }
-    }
-    else if(JSVAL_IS_OBJECT(fval))
-    {
-        ccx.SetCallee(JSVAL_TO_OBJECT(fval));
+        sp[i] = JSVAL_VOID;
     }
 
     // build the args
@@ -1522,6 +1494,39 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
                                           i, GET_LENGTH, nativeParams,
                                           &array_count))
                     goto pre_call_clean_up;
+            }
+
+            // Figure out what our callee is
+            if(XPT_MD_IS_GETTER(info->flags) || XPT_MD_IS_SETTER(info->flags))
+            {
+                // Pull the getter or setter off of |obj|
+                uintN attrs;
+                JSBool found;
+                JSPropertyOp getter;
+                JSPropertyOp setter;
+                JSBool ok =
+                    JS_GetPropertyAttrsGetterAndSetter(cx, obj, name,
+                                                       &attrs, &found,
+                                                       &getter, &setter);
+                if(ok)
+                {
+                    if(XPT_MD_IS_GETTER(info->flags) && (attrs & JSPROP_GETTER))
+                    {
+                        // JSPROP_GETTER means the getter is actually a
+                        // function object.
+                        ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, getter));
+                    }
+                    else if(XPT_MD_IS_SETTER(info->flags) && (attrs & JSPROP_SETTER))
+                    {
+                        // JSPROP_SETTER means the setter is actually a
+                        // function object.
+                        ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, setter));
+                    }
+                }
+            }
+            else if(JSVAL_IS_OBJECT(fval))
+            {
+                ccx.SetCallee(JSVAL_TO_OBJECT(fval));
             }
 
             if(isArray)
@@ -1687,6 +1692,9 @@ pre_call_clean_up:
 
     ccx.GetThreadData()->SetException(nsnull); // XXX necessary?
 
+#define HANDLE_OUT_CONVERSION_FAILURE       \
+        {outConversionFailedIndex = i; break;}
+
     // convert out args and result
     // NOTE: this is the total number of native params, not just the args
     // Convert independent params only.
@@ -1694,6 +1702,7 @@ pre_call_clean_up:
     // the params upon which they depend will have already been converted -
     // regardless of ordering.
 
+    outConversionFailedIndex = paramCount;
     foundDependentParam = JS_FALSE;
     for(i = 0; i < paramCount; i++)
     {
@@ -1724,7 +1733,7 @@ pre_call_clean_up:
                 !JS_GetPropertyById(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
                     mRuntime->GetStringID(XPCJSRuntime::IDX_VALUE),
                     &val))
-            break;
+            HANDLE_OUT_CONVERSION_FAILURE
 
         // setup allocator and/or iid
 
@@ -1733,18 +1742,18 @@ pre_call_clean_up:
             if(NS_FAILED(GetInterfaceInfo()->
                             GetIIDForParamNoAlloc(methodIndex, &param,
                                                   &param_iid)))
-                break;
+                HANDLE_OUT_CONVERSION_FAILURE
         }
         else if(type.IsPointer() && !param.IsShared() && !param.IsDipper())
             useAllocator = JS_TRUE;
 
         if(!XPCConvert::JSData2Native(ccx, &pv->val, val, type,
                                       useAllocator, &param_iid, nsnull))
-            break;
+            HANDLE_OUT_CONVERSION_FAILURE
     }
 
     // if any params were dependent, then we must iterate again to convert them.
-    if(foundDependentParam && i == paramCount)
+    if(foundDependentParam && outConversionFailedIndex == paramCount)
     {
         for(i = 0; i < paramCount; i++)
         {
@@ -1774,7 +1783,7 @@ pre_call_clean_up:
             else if(!JS_GetPropertyById(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
                         mRuntime->GetStringID(XPCJSRuntime::IDX_VALUE),
                         &val))
-                break;
+                HANDLE_OUT_CONVERSION_FAILURE
 
             // setup allocator and/or iid
 
@@ -1782,7 +1791,7 @@ pre_call_clean_up:
             {
                 if(NS_FAILED(mInfo->GetTypeForParam(methodIndex, &param, 1,
                                                     &datum_type)))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
             else
                 datum_type = type;
@@ -1792,7 +1801,7 @@ pre_call_clean_up:
                if(!GetInterfaceTypeFromParam(cx, info, param, methodIndex,
                                              datum_type, nativeParams,
                                              &param_iid))
-                   break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
             else if(type.IsPointer() && !param.IsShared())
                 useAllocator = JS_TRUE;
@@ -1802,7 +1811,7 @@ pre_call_clean_up:
                 if(!GetArraySizeFromParam(cx, info, param, methodIndex,
                                           i, GET_LENGTH, nativeParams,
                                           &array_count))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
 
             if(isArray)
@@ -1813,7 +1822,7 @@ pre_call_clean_up:
                                                datum_type,
                                                useAllocator, &param_iid,
                                                nsnull))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
             else if(isSizedString)
             {
@@ -1822,19 +1831,19 @@ pre_call_clean_up:
                                                    array_count, array_count,
                                                    datum_type, useAllocator,
                                                    nsnull))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
             else
             {
                 if(!XPCConvert::JSData2Native(ccx, &pv->val, val, type,
                                               useAllocator, &param_iid,
                                               nsnull))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
         }
     }
 
-    if(i != paramCount)
+    if(outConversionFailedIndex != paramCount)
     {
         // We didn't manage all the result conversions!
         // We have to cleanup any junk that *did* get converted.

@@ -2770,16 +2770,14 @@ nsEditor::NotifyDocumentListeners(TDocumentListenerNotification aNotificationTyp
   if (!numListeners)
     return NS_OK;    // maybe there just aren't any.
  
-  nsCOMArray<nsIDocumentStateListener> listeners(mDocStateListeners);
   nsresult rv = NS_OK;
   PRInt32 i;
-
   switch (aNotificationType)
   {
     case eDocumentCreated:
       for (i = 0; i < numListeners;i++)
       {
-        rv = listeners[i]->NotifyDocumentCreated();
+        rv = mDocStateListeners[i]->NotifyDocumentCreated();
         if (NS_FAILED(rv))
           break;
       }
@@ -2788,7 +2786,7 @@ nsEditor::NotifyDocumentListeners(TDocumentListenerNotification aNotificationTyp
     case eDocumentToBeDestroyed:
       for (i = 0; i < numListeners;i++)
       {
-        rv = listeners[i]->NotifyDocumentWillBeDestroyed();
+        rv = mDocStateListeners[i]->NotifyDocumentWillBeDestroyed();
         if (NS_FAILED(rv))
           break;
       }
@@ -2807,7 +2805,7 @@ nsEditor::NotifyDocumentListeners(TDocumentListenerNotification aNotificationTyp
         
         for (i = 0; i < numListeners;i++)
         {
-          rv = listeners[i]->NotifyDocumentStateChanged(mDocDirtyState);
+          rv = mDocStateListeners[i]->NotifyDocumentStateChanged(mDocDirtyState);
           if (NS_FAILED(rv))
             break;
         }

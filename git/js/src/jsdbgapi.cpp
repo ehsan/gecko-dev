@@ -63,8 +63,6 @@
 #include "jsstaticcheck.h"
 #include "jsstr.h"
 
-#include "jsatominlines.h"
-
 #include "jsautooplen.h"
 
 typedef struct JSTrap {
@@ -397,7 +395,8 @@ DropWatchPointAndUnlock(JSContext *cx, JSWatchPoint *wp, uintN flag)
     if (!setter) {
         JS_LOCK_OBJ(cx, wp->object);
         scope = OBJ_SCOPE(wp->object);
-        found = (scope->object == wp->object && scope->lookup(sprop->id));
+        found = (scope->object == wp->object &&
+                 SCOPE_GET_PROPERTY(scope, sprop->id));
         JS_UNLOCK_SCOPE(cx, scope);
 
         /*
@@ -406,8 +405,10 @@ DropWatchPointAndUnlock(JSContext *cx, JSWatchPoint *wp, uintN flag)
          * the property attributes.
          */
         if (found) {
-            sprop = scope->change(cx, sprop, 0, sprop->attrs,
-                                  sprop->getter, wp->setter);
+            sprop = js_ChangeScopePropertyAttrs(cx, scope, sprop,
+                                                0, sprop->attrs,
+                                                sprop->getter,
+                                                wp->setter);
             if (!sprop)
                 ok = JS_FALSE;
         }
@@ -582,7 +583,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
                 JSFunction *fun;
                 JSScript *script;
                 JSBool injectFrame;
-                uintN nslots, slotsStart;
+                uintN nslots;
                 jsval smallv[5];
                 jsval *argv;
                 JSStackFrame frame;
@@ -601,7 +602,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
                     script = NULL;
                 }
 
-                slotsStart = nslots = 2;
+                nslots = 2;
                 injectFrame = JS_TRUE;
                 if (fun) {
                     nslots += FUN_MINARGS(fun);
@@ -609,11 +610,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
                         nslots += fun->u.n.extra;
                         injectFrame = !(fun->flags & JSFUN_FAST_NATIVE);
                     }
-
-                    slotsStart = nslots;
                 }
-                if (script)
-                    nslots += script->nslots;
 
                 if (injectFrame) {
                     if (nslots <= JS_ARRAY_LENGTH(smallv)) {
@@ -634,29 +631,18 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
                     memset(&frame, 0, sizeof(frame));
                     frame.script = script;
                     frame.regs = NULL;
-                    frame.callee = closure;
-                    frame.fun = fun;
-                    frame.argv = argv + 2;
-                    frame.down = js_GetTopStackFrame(cx);
-                    frame.scopeChain = OBJ_GET_PARENT(cx, closure);
-                    if (script && script->nslots)
-                        frame.slots = argv + slotsStart;
                     if (script) {
                         JS_ASSERT(script->length >= JSOP_STOP_LENGTH);
                         regs.pc = script->code + script->length
                                   - JSOP_STOP_LENGTH;
                         regs.sp = NULL;
                         frame.regs = &regs;
-                        if (fun &&
-                            JSFUN_HEAVYWEIGHT_TEST(fun->flags) &&
-                            !js_GetCallObject(cx, &frame)) {
-                            if (argv != smallv)
-                                JS_free(cx, argv);
-                            DBG_LOCK(rt);
-                            DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
-                            return JS_FALSE;
-                        }
                     }
+                    frame.callee = closure;
+                    frame.fun = fun;
+                    frame.argv = argv + 2;
+                    frame.down = js_GetTopStackFrame(cx);
+                    frame.scopeChain = OBJ_GET_PARENT(cx, closure);
 
                     cx->fp = &frame;
                 }
@@ -690,7 +676,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_TRUE;
 }
 
-JSBool
+JS_REQUIRES_STACK JSBool
 js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                      jsval *rval)
 {
@@ -755,7 +741,7 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
     } else {
         if (!js_ValueToStringId(cx, idval, &propid))
             return JS_FALSE;
-        propid = js_CheckForStringIndex(propid);
+        CHECK_FOR_STRING_INDEX(propid);
     }
 
     if (!js_LookupProperty(cx, obj, propid, &pobj, &prop))
@@ -1366,9 +1352,9 @@ JS_PropertyIterator(JSObject *obj, JSScopeProperty **iteratorp)
         sprop = SCOPE_LAST_PROP(scope);
     } else {
         while ((sprop = sprop->parent) != NULL) {
-            if (!scope->hadMiddleDelete())
+            if (!SCOPE_HAD_MIDDLE_DELETE(scope))
                 break;
-            if (scope->has(sprop))
+            if (SCOPE_HAS_PROPERTY(scope, sprop))
                 break;
         }
     }
@@ -1474,7 +1460,7 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda)
         return JS_FALSE;
     i = 0;
     for (sprop = SCOPE_LAST_PROP(scope); sprop; sprop = sprop->parent) {
-        if (scope->hadMiddleDelete() && !scope->has(sprop))
+        if (SCOPE_HAD_MIDDLE_DELETE(scope) && !SCOPE_HAS_PROPERTY(scope, sprop))
             continue;
         if (!js_AddRoot(cx, &pd[i].id, NULL))
             goto bad;

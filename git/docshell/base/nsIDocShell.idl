@@ -464,7 +464,8 @@ interface nsIDocShell : nsISupports
 
   /**
    * Find out whether the docshell is currently in the middle of a page
-   * transition. This is set just before the pagehide/unload events fire.
+   * transition (after the onunload event has fired, but before the new
+   * document has been set up)
    */
   readonly attribute boolean isInUnload;
 

@@ -427,6 +427,8 @@ public:
     CanvasFrame* frame = static_cast<CanvasFrame*>(mFrame);
     nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
     nsRect bgClipRect = frame->CanvasArea() + offset;
+    // XXXzw This is the only use of the bgClipRect argument.  Does this
+    // path need the propagation-of-root-background-to-viewport logic?
     nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
                                     aDirtyRect,
                                     nsRect(offset, mFrame->GetSize()),

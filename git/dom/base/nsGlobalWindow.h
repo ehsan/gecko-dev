@@ -361,14 +361,10 @@ public:
   // Object Management
   nsGlobalWindow(nsGlobalWindow *aOuterWindow);
 
-  static nsGlobalWindow *FromSupports(nsISupports *supports)
-  {
-    // Make sure this matches the casts we do in QueryInterface().
-    return (nsGlobalWindow *)(nsIScriptGlobalObject *)supports;
-  }
   static nsGlobalWindow *FromWrapper(nsIXPConnectWrappedNative *wrapper)
   {
-    return FromSupports(wrapper->Native());
+    // Make sure this matches the casts we do in QueryInterface().
+    return (nsGlobalWindow *)(nsIScriptGlobalObject *)wrapper->Native();
   }
 
   nsIScriptContext *GetContextInternal()
@@ -443,7 +439,6 @@ public:
   virtual PRBool TakeFocus(PRBool aFocus, PRUint32 aFocusMethod);
   virtual void SetReadyForFocus();
   virtual void PageHidden();
-  virtual nsresult DispatchAsyncHashchange();
 
   static PRBool DOMWindowDumpEnabled();
 
@@ -572,7 +567,6 @@ protected:
                            const nsAString &aPopupWindowName,
                            const nsAString &aPopupWindowFeatures);
   void FireOfflineStatusEvent();
-  nsresult FireHashchange();
   
   void FlushPendingNotifications(mozFlushType aType);
   void EnsureReflowFlushAndPaint();
@@ -608,7 +602,6 @@ protected:
   PRBool WindowExists(const nsAString& aName, PRBool aLookForCallerOnJSStack);
 
   already_AddRefed<nsIWidget> GetMainWidget();
-  nsIWidget* GetNearestWidget();
 
   void Freeze()
   {
@@ -781,6 +774,7 @@ protected:
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
+  static nsIFactory *sComputedDOMStyleFactory;
   static nsIDOMStorageList* sGlobalStorageList;
 };
 

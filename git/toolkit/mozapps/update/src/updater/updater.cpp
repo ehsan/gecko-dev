@@ -66,6 +66,7 @@
 # define NS_tstrrchr wcsrchr
 # define NS_tchdir _wchdir
 # define NS_tremove _wremove
+# define NS_topen _wopen
 # define NS_tfopen _wfopen
 # define NS_tatoi _wtoi64
 #else
@@ -77,6 +78,7 @@
 # define NS_tstrrchr strrchr
 # define NS_tchdir chdir
 # define NS_tremove remove
+# define NS_topen open
 # define NS_tfopen fopen
 # define NS_tatoi atoi
 #endif
@@ -98,10 +100,6 @@
 #include <limits.h>
 #include <errno.h>
 
-#ifdef WINCE
-#include "updater_wince.h"
-#endif
-
 #if defined(XP_MACOSX)
 // This function is defined in launchchild_osx.mm
 void LaunchChild(int argc, char **argv);
@@ -122,7 +120,7 @@ void LaunchChild(int argc, char **argv);
 #ifndef MAXPATHLEN
 # ifdef PATH_MAX
 #  define MAXPATHLEN PATH_MAX
-# elif defined(MAX_PATH)
+# elif defined(_MAX_PATH)
 #  define MAXPATHLEN MAX_PATH
 # elif defined(_MAX_PATH)
 #  define MAXPATHLEN _MAX_PATH
@@ -166,33 +164,33 @@ crc32(const unsigned char *buf, unsigned int len)
 
 //-----------------------------------------------------------------------------
 
-// A simple stack based container for a FILE struct that closes the
+// A simple stack based container for a file descriptor (int) that closes the
 // file descriptor from its destructor.
-class AutoFile
+class AutoFD
 {
 public:
-  AutoFile(FILE* file = NULL)
-    : mFile(file) {
+  AutoFD(int fd = -1)
+    : mFD(fd) {
   }
 
-  ~AutoFile() {
-    if (mFile != NULL)
-      fclose(mFile);
+  ~AutoFD() {
+    if (mFD != -1)
+      close(mFD);
   }
 
-  AutoFile &operator=(FILE* file) {
-    if (mFile != 0)
-      fclose(mFile);
-    mFile = file;
+  AutoFD &operator=(int fd) {
+    if (mFD != -1)
+      close(mFD);
+    mFD = fd;
     return *this;
   }
 
-  operator FILE*() {
-    return mFile;
+  operator int() {
+    return mFD;
   }
 
 private:
-  FILE* mFile;
+  int mFD;
 };
 
 //-----------------------------------------------------------------------------
@@ -210,11 +208,7 @@ public:
     mThreadFunc = func;
     mThreadParam = param;
 
-#ifdef WINCE
-    DWORD threadID;
-#else
-    unsigned int threadID;
-#endif
+    unsigned threadID;
     mThread = (HANDLE) _beginthreadex(NULL, 0, ThreadMain, this, 0, &threadID);
     
     return mThread ? 0 : -1;
@@ -409,10 +403,10 @@ static int ensure_remove(const char *path)
   return rv;
 }
 
-static FILE* ensure_open(const char *path, char* flags)
+static int ensure_open(const char *path, int flags, int options)
 {
   ensure_write_permissions(path);
-  return fopen(path, flags);
+  return open(path, flags, options);
 }
 
 // Ensure that the directory containing this file exists.
@@ -447,24 +441,24 @@ static int copy_file(const char *spath, const char *dpath)
 
   struct stat ss;
 
-  AutoFile sfile = fopen(spath, "rb");
-  if (sfile == NULL || fstat(fileno(sfile), &ss)) {
-    LOG(("copy_file: failed to open or stat: %p,%s,%d\n", sfile, spath, errno));
+  AutoFD sfd = open(spath, O_RDONLY | _O_BINARY);
+  if (sfd < 0 || fstat(sfd, &ss)) {
+    LOG(("copy_file: failed to open or stat: %d,%s,%d\n", (int) sfd, spath, errno));
     return READ_ERROR;
   }
 
-  AutoFile dfile = ensure_open(dpath, "wb+"); 
-  if (dfile == NULL) {
+  AutoFD dfd = ensure_open(dpath, O_WRONLY | O_TRUNC | O_CREAT | _O_BINARY, ss.st_mode);
+  if (dfd < 0) {
     LOG(("copy_file: failed to open: %s,%d\n", dpath, errno));
     return WRITE_ERROR;
   }
 
   char buf[BUFSIZ];
   int sc;
-  while ((sc = fread(buf, 1, sizeof(buf), sfile)) > 0) {
+  while ((sc = read(sfd, buf, sizeof(buf))) > 0) {
     int dc;
     char *bp = buf;
-    while ((dc = fwrite(bp, 1, (unsigned int) sc, dfile)) > 0) {
+    while ((dc = write(dfd, bp, (unsigned int) sc)) > 0) {
       if ((sc -= dc) == 0)
         break;
       bp += dc;
@@ -744,7 +738,7 @@ AddFile::Finish(int status)
 class PatchFile : public Action
 {
 public:
-  PatchFile() : mPatchIndex(-1), pfile(NULL), buf(NULL) { }
+  PatchFile() : mPatchIndex(-1), pfd(-1), buf(NULL) { }
   virtual ~PatchFile();
 
   virtual int Parse(char *line);
@@ -753,7 +747,7 @@ public:
   virtual void Finish(int status);
 
 private:
-  int LoadSourceFile(FILE* ofile);
+  int LoadSourceFile(int ofd);
 
   static int sPatchIndex;
 
@@ -761,7 +755,7 @@ private:
   const char *mFile;
   int mPatchIndex;
   MBSPatchHeader header;
-  FILE* pfile;
+  int pfd;
   unsigned char *buf;
 };
 
@@ -769,8 +763,8 @@ int PatchFile::sPatchIndex = 0;
 
 PatchFile::~PatchFile()
 {
-  if (pfile)
-    fclose(pfile);
+  if (pfd >= 0)
+    close(pfd);
 
   // delete the temporary patch file
   NS_tchar spath[MAXPATHLEN];
@@ -783,10 +777,10 @@ PatchFile::~PatchFile()
 }
 
 int
-PatchFile::LoadSourceFile(FILE* ofile)
+PatchFile::LoadSourceFile(int ofd)
 {
   struct stat os;
-  int rv = fstat(fileno(ofile), &os);
+  int rv = fstat(ofd, &os);
   if (rv)
     return READ_ERROR;
 
@@ -800,7 +794,7 @@ PatchFile::LoadSourceFile(FILE* ofile)
   int r = header.slen;
   unsigned char *rb = buf;
   while (r) {
-    int c = fread(rb, 1, mmin(BUFSIZ,r), ofile);
+    int c = read(ofd, rb, mmin(BUFSIZ,r));
     if (c < 0)
       return READ_ERROR;
 
@@ -871,19 +865,19 @@ PatchFile::Prepare()
   //          no need to open all of the patch files and read all of 
   //          the source files before applying any patches.
 
-  pfile = NS_tfopen(spath, NS_T("rb"));
-  if (pfile == NULL)
+  pfd = NS_topen(spath, O_RDONLY | _O_BINARY);
+  if (pfd < 0)
     return READ_ERROR;
 
-  rv = MBS_ReadHeader(pfile, &header);
+  rv = MBS_ReadHeader(pfd, &header);
   if (rv)
     return rv;
 
-  AutoFile ofile = fopen(mFile, "rb");
-  if (ofile == NULL)
+  AutoFD ofd = open(mFile, O_RDONLY | _O_BINARY);
+  if (ofd < 0)
     return READ_ERROR;
 
-  rv = LoadSourceFile(ofile);
+  rv = LoadSourceFile(ofd);
   if (rv)
     LOG(("LoadSourceFile failed\n"));
   return rv;
@@ -908,11 +902,11 @@ PatchFile::Execute()
   if (rv)
     return WRITE_ERROR;
 
-  AutoFile ofile = ensure_open(mFile, "wb+");
-  if (ofile == NULL)
+  AutoFD ofd = ensure_open(mFile, O_WRONLY | O_TRUNC | O_CREAT | _O_BINARY, ss.st_mode);
+  if (ofd < 0)
     return WRITE_ERROR;
 
-  return MBS_ApplyPatch(&header, pfile, buf, ofile);
+  return MBS_ApplyPatch(&header, pfd, buf, ofd);
 }
 
 void
@@ -1077,9 +1071,7 @@ LaunchWinPostProcess(const WCHAR *appExe)
   WCHAR exearg[MAXPATHLEN];
   WCHAR exeasync[10];
   PRBool async = PR_TRUE;
-#ifdef WINCE
-  //XXX We will want this eventually, perhaps using nsINIParser
-#else
+
   if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeRelPath", NULL, exefile,
                                 MAXPATHLEN, inifile))
     return;
@@ -1091,7 +1083,6 @@ LaunchWinPostProcess(const WCHAR *appExe)
   if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeAsync", L"TRUE", exeasync,
                                 sizeof(exeasync)/sizeof(exeasync[0]), inifile))
     return;
-#endif
 
   WCHAR exefullpath[MAXPATHLEN];
   wcscpy(exefullpath, appExe);
@@ -1181,8 +1172,8 @@ WriteStatusFile(int status)
   NS_tchar filename[MAXPATHLEN];
   NS_tsnprintf(filename, MAXPATHLEN, NS_T("%s/update.status"), gSourcePath);
 
-  AutoFile file = NS_tfopen(filename, NS_T("wb+"));
-  if (file == NULL)
+  AutoFD fd = NS_topen(filename, O_WRONLY | O_TRUNC | O_CREAT | _O_BINARY, 0644);
+  if (fd < 0)
     return;
 
   const char *text;
@@ -1194,7 +1185,7 @@ WriteStatusFile(int status)
     snprintf(buf, sizeof(buf), "failed: %d\n", status);
     text = buf;
   }
-  fwrite(text, strlen(text), 1, file);
+  write(fd, text, strlen(text));
 }
 
 static void
@@ -1223,9 +1214,8 @@ UpdateThreadFunc(void *param)
 
 int NS_main(int argc, NS_tchar **argv)
 {
-#ifndef WINCE
   InitProgressUI(&argc, &argv);
-#endif
+
   // The updater command line consists of the directory path containing the
   // updater.mar file to process followed by the PID of the calling process.
   // The updater will wait on the parent process to exit if the PID is non-
@@ -1322,10 +1312,8 @@ int NS_main(int argc, NS_tchar **argv)
       SHELLEXECUTEINFO sinfo;
       memset(&sinfo, 0, sizeof(SHELLEXECUTEINFO));
       sinfo.cbSize       = sizeof(SHELLEXECUTEINFO);
-      sinfo.fMask        = SEE_MASK_FLAG_NO_UI |
-#ifndef WINCE
-                           SEE_MASK_FLAG_DDEWAIT |
-#endif
+      sinfo.fMask        = SEE_MASK_FLAG_DDEWAIT |
+                           SEE_MASK_FLAG_NO_UI |
                            SEE_MASK_NOCLOSEPROCESS;
       sinfo.hwnd         = NULL;
       sinfo.lpFile       = argv[0];
@@ -1506,12 +1494,12 @@ int DoUpdate()
   if (rv)
     return rv;
 
-  AutoFile mfile = NS_tfopen(manifest, NS_T("rb"));
-  if (mfile == NULL)
+  AutoFD mfd = NS_topen(manifest, O_RDONLY | _O_BINARY);
+  if (mfd < 0)
     return READ_ERROR;
 
   struct stat ms;
-  rv = fstat(fileno(mfile), &ms);
+  rv = fstat(mfd, &ms);
   if (rv)
     return READ_ERROR;
 
@@ -1522,7 +1510,7 @@ int DoUpdate()
   int r = ms.st_size;
   char *rb = mbuf;
   while (r) {
-    int c = fread(rb, 1, mmin(SSIZE_MAX,r), mfile);
+    int c = read(mfd, rb, mmin(SSIZE_MAX,r));
     if (c < 0)
       return READ_ERROR;
 

@@ -42,7 +42,6 @@
 
 #include "nsISound.h"
 #include "nsIStreamLoader.h"
-#include "nsThreadUtils.h"
 
 class nsSound : public nsISound,
                 public nsIStreamLoaderObserver
@@ -61,7 +60,6 @@ private:
 
 private:
   PRUint8* mLastSound;
-  nsCOMPtr<nsIThread> mPlayerThread;
 };
 
 #endif /* __nsSound_h__ */

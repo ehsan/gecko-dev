@@ -116,7 +116,6 @@
 #include "nsIProgressEventSink.h"
 #include "nsISecurityEventSink.h"
 #include "nsIChannelEventSink.h"
-#include "imgIRequest.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -769,7 +768,6 @@ public:
   virtual void EndLoad();
 
   virtual void SetReadyStateInternal(ReadyState rs);
-  virtual ReadyState GetReadyStateEnum();
 
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
@@ -982,8 +980,7 @@ public:
   
   void DecreaseEventSuppression() { --mEventsSuppressed; }
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsDocument,
-                                                         nsIDocument)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDocument, nsIDocument)
 
   /**
    * Utility method for getElementsByClassName.  aRootNode is the node (either
@@ -1007,8 +1004,6 @@ public:
   void MaybeInitializeFinalizeFrameLoaders();
 
   void MaybeEndOutermostXBLUpdate();
-
-  virtual void MaybePreLoadImage(nsIURI* uri);
 protected:
 
   void RegisterNamedItems(nsIContent *aContent);
@@ -1266,9 +1261,6 @@ private:
     mPendingTitleChangeEvent;
 
   nsExternalResourceMap mExternalResourceMap;
-
-  // All images in process of being preloaded
-  nsCOMArray<imgIRequest> mPreloadingImages;
 
 #ifdef MOZ_SMIL
   nsAutoPtr<nsSMILAnimationController> mAnimationController;

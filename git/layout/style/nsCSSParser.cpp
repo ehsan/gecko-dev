@@ -378,12 +378,6 @@ protected:
                           nsCSSProperty aPropID, PRBool aIsImportant,
                           PRBool aMustCallValueAppended,
                           PRBool* aChanged);
-  // Used to do a fast copy of a property value from source location to
-  // destination location.  It's the caller's responsibility to make sure that
-  // the source and destination locations point to the right kind of objects
-  // for the property id.  This can only be used for non-shorthand properties.
-  void CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
-                 PRBool* aChanged);
   PRBool ParseProperty(nsCSSProperty aPropID);
   PRBool ParseSingleValueProperty(nsCSSValue& aValue,
                                   nsCSSProperty aPropID);
@@ -1085,27 +1079,11 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
 
   mData.AssertInitialState();
   mTempData.AssertInitialState();
-
-  // We know that our new value is not !important, and that we don't need to
-  // force a ValueAppended call for it.  So if there's already a value for this
-  // property in the declaration, and it's not !important, and our prop is not
-  // a shorthand, we parse successfully, then we can just directly copy our
-  // parsed value into the declaration without going through the whole
-  // expand/compress thing.
-  void* valueSlot = aDeclaration->SlotForValue(aPropID);
-  if (!valueSlot) {
-    // Do it the slow way
-    aDeclaration->ExpandTo(&mData);
-  }
+  aDeclaration->ExpandTo(&mData);
   nsresult result = NS_OK;
   PRBool parsedOK = ParseProperty(aPropID);
   if (parsedOK && !GetToken(PR_TRUE)) {
-    if (valueSlot) {
-      CopyValue(mTempData.PropertyAt(aPropID), valueSlot, aPropID, aChanged);
-      mTempData.ClearPropertyBit(aPropID);
-    } else {
-      TransferTempData(aDeclaration, aPropID, PR_FALSE, PR_FALSE, aChanged);
-    }
+    TransferTempData(aDeclaration, aPropID, PR_FALSE, PR_FALSE, aChanged);
   } else {
     if (parsedOK) {
       // Junk at end of property value.
@@ -1123,9 +1101,7 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
   }
   CLEAR_ERROR();
 
-  if (!valueSlot) {
-    aDeclaration->CompressFrom(&mData);
-  }
+  aDeclaration->CompressFrom(&mData);
 
   ReleaseScanner();
   return result;
@@ -3865,9 +3841,7 @@ CSSParserImpl::ParseColorOpacity(PRUint8& aOpacity)
   }
 
   PRUint8 value = nsStyleUtil::FloatToColorComponent(mToken.mNumber);
-  // Need to compare to something slightly larger
-  // than 0.5 due to floating point inaccuracies.
-  NS_ASSERTION(fabs(255.0f*mToken.mNumber - value) <= 0.51f,
+  NS_ASSERTION(fabs(mToken.mNumber - value/255.0f) <= 0.5f,
                "FloatToColorComponent did something weird");
 
   if (!ExpectSymbol(')', PR_TRUE)) {
@@ -4110,17 +4084,10 @@ CSSParserImpl::DoTransferTempData(nsCSSDeclaration* aDeclaration,
    */
   void *v_source = mTempData.PropertyAt(aPropID);
   void *v_dest = mData.PropertyAt(aPropID);
-  CopyValue(v_source, v_dest, aPropID, aChanged);
-}
-
-void
-CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
-                         PRBool* aChanged)
-{
   switch (nsCSSProps::kTypeTable[aPropID]) {
     case eCSSType_Value: {
-      nsCSSValue *source = static_cast<nsCSSValue*>(aSource);
-      nsCSSValue *dest = static_cast<nsCSSValue*>(aDest);
+      nsCSSValue *source = static_cast<nsCSSValue*>(v_source);
+      nsCSSValue *dest = static_cast<nsCSSValue*>(v_dest);
       if (*source != *dest)
         *aChanged = PR_TRUE;
       dest->~nsCSSValue();
@@ -4129,8 +4096,8 @@ CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
     } break;
 
     case eCSSType_Rect: {
-      nsCSSRect *source = static_cast<nsCSSRect*>(aSource);
-      nsCSSRect *dest = static_cast<nsCSSRect*>(aDest);
+      nsCSSRect *source = static_cast<nsCSSRect*>(v_source);
+      nsCSSRect *dest = static_cast<nsCSSRect*>(v_dest);
       if (*source != *dest)
         *aChanged = PR_TRUE;
       dest->~nsCSSRect();
@@ -4139,8 +4106,8 @@ CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
     } break;
 
     case eCSSType_ValuePair: {
-      nsCSSValuePair *source = static_cast<nsCSSValuePair*>(aSource);
-      nsCSSValuePair *dest = static_cast<nsCSSValuePair*>(aDest);
+      nsCSSValuePair *source = static_cast<nsCSSValuePair*>(v_source);
+      nsCSSValuePair *dest = static_cast<nsCSSValuePair*>(v_dest);
       if (*source != *dest)
         *aChanged = PR_TRUE;
       dest->~nsCSSValuePair();
@@ -4149,8 +4116,8 @@ CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
     } break;
 
     case eCSSType_ValueList: {
-      nsCSSValueList **source = static_cast<nsCSSValueList**>(aSource);
-      nsCSSValueList **dest = static_cast<nsCSSValueList**>(aDest);
+      nsCSSValueList **source = static_cast<nsCSSValueList**>(v_source);
+      nsCSSValueList **dest = static_cast<nsCSSValueList**>(v_dest);
       if (!nsCSSValueList::Equal(*source, *dest))
         *aChanged = PR_TRUE;
       delete *dest;
@@ -4160,9 +4127,9 @@ CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
 
     case eCSSType_ValuePairList: {
       nsCSSValuePairList **source =
-        static_cast<nsCSSValuePairList**>(aSource);
+        static_cast<nsCSSValuePairList**>(v_source);
       nsCSSValuePairList **dest =
-        static_cast<nsCSSValuePairList**>(aDest);
+        static_cast<nsCSSValuePairList**>(v_dest);
       if (!nsCSSValuePairList::Equal(*source, *dest))
         *aChanged = PR_TRUE;
       delete *dest;

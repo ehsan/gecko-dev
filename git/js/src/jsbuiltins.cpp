@@ -48,7 +48,6 @@
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jsiter.h"
-#include "jsnum.h"
 #include "jslibmath.h"
 #include "jsmath.h"
 #include "jsnum.h"
@@ -58,8 +57,6 @@
 #include "jsstr.h"
 #include "jsbuiltins.h"
 #include "jstracer.h"
-
-#include "jsatominlines.h"
 
 using namespace avmplus;
 using namespace nanojit;
@@ -86,7 +83,15 @@ js_dmod(jsdouble a, jsdouble b)
         u.s.lo = 0xffffffff;
         return u.d;
     }
-    return js_fmod(a, b);
+    jsdouble r;
+#ifdef XP_WIN
+    /* Workaround MS fmod bug where 42 % (1/0) => NaN, not 42. */
+    if (JSDOUBLE_IS_FINITE(a) && JSDOUBLE_IS_INFINITE(b))
+        r = a;
+    else
+#endif
+        r = fmod(a, b);
+    return r;
 }
 JS_DEFINE_CALLINFO_2(extern, DOUBLE, js_dmod, DOUBLE, DOUBLE, 1, 1)
 
@@ -192,12 +197,8 @@ js_StringToInt32(JSContext* cx, JSString* str)
     jsdouble d;
 
     str->getCharsAndEnd(bp, end);
-    if ((!js_strtod(cx, bp, end, &ep, &d) ||
-         js_SkipWhiteSpace(ep, end) != end) &&
-        (!js_strtointeger(cx, bp, end, &ep, 0, &d) ||
-         js_SkipWhiteSpace(ep, end) != end)) {
+    if (!js_strtod(cx, bp, end, &ep, &d) || js_SkipWhiteSpace(ep, end) != end)
         return 0;
-    }
     return js_DoubleToECMAInt32(d);
 }
 JS_DEFINE_CALLINFO_2(extern, INT32, js_StringToInt32, CONTEXT, STRING, 1, 1)
@@ -249,8 +250,7 @@ js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
     JSScope* scope = OBJ_SCOPE(obj);
     uint32 slot;
     if (scope->object == obj) {
-        if (sprop == scope->lastProp || scope->has(sprop))
-            goto exit_trace;
+        JS_ASSERT(!SCOPE_HAS_PROPERTY(scope, sprop));
     } else {
         scope = js_GetMutableScope(cx, obj);
         if (!scope)
@@ -272,12 +272,17 @@ js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
             }
         }
 
-        scope->extend(cx, sprop);
+        js_ExtendScopeShape(cx, scope, sprop);
+        ++scope->entryCount;
+        scope->lastProp = sprop;
     } else {
-        JSScopeProperty *sprop2 = scope->add(cx, sprop->id,
-                                             sprop->getter, sprop->setter,
-                                             SPROP_INVALID_SLOT, sprop->attrs,
-                                             sprop->flags, sprop->shortid);
+        JSScopeProperty *sprop2 = js_AddScopeProperty(cx, scope, sprop->id,
+                                                      sprop->getter,
+                                                      sprop->setter,
+                                                      SPROP_INVALID_SLOT,
+                                                      sprop->attrs,
+                                                      sprop->flags,
+                                                      sprop->shortid);
         if (sprop2 != sprop)
             goto exit_trace;
     }
@@ -386,13 +391,11 @@ js_BooleanOrUndefinedToString(JSContext *cx, int32 unboxed)
 JS_DEFINE_CALLINFO_2(extern, STRING, js_BooleanOrUndefinedToString, CONTEXT, INT32, 1, 1)
 
 JSObject* FASTCALL
-js_Arguments(JSContext* cx, JSObject* parent, JSObject* cached)
+js_Arguments(JSContext* cx)
 {
-    if (cached)
-        return cached;
-    return js_NewObject(cx, &js_ArgumentsClass, NULL, NULL, 0);
+    return NULL;
 }
-JS_DEFINE_CALLINFO_3(extern, OBJECT, js_Arguments, CONTEXT, OBJECT, OBJECT, 0, 0)
+JS_DEFINE_CALLINFO_1(extern, OBJECT, js_Arguments, CONTEXT, 0, 0)
 
 JSObject* FASTCALL
 js_NewNullClosure(JSContext* cx, JSObject* funobj, JSObject* proto, JSObject* parent)
@@ -408,7 +411,7 @@ js_NewNullClosure(JSContext* cx, JSObject* funobj, JSObject* proto, JSObject* pa
     if (!closure)
         return NULL;
 
-    OBJ_SCOPE(proto)->hold();
+    js_HoldScope(OBJ_SCOPE(proto));
     closure->map = proto->map;
     closure->classword = jsuword(&js_FunctionClass);
     closure->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto);

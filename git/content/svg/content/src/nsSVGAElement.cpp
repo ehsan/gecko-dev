@@ -120,26 +120,32 @@ nsSVGAElement::GetTarget(nsIDOMSVGAnimatedString * *aTarget)
 
 
 //----------------------------------------------------------------------
-// nsIContent methods
+// nsILink methods
 
-nsLinkState
-nsSVGAElement::GetLinkState() const
+NS_IMETHODIMP
+nsSVGAElement::GetLinkState(nsLinkState &aState)
 {
-  return mLinkState;
+  aState = mLinkState;
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsSVGAElement::SetLinkState(nsLinkState aState)
 {
   mLinkState = aState;
+  return NS_OK;
 }
 
-already_AddRefed<nsIURI>
-nsSVGAElement::GetHrefURI() const
+NS_IMETHODIMP
+nsSVGAElement::GetHrefURI(nsIURI** aURI)
 {
-  return nsnull; // XXX GetHrefURIForAnchors();
+  *aURI = nsnull;
+  return NS_OK; // XXX GetHrefURIForAnchors(aURI);
 }
 
+
+//----------------------------------------------------------------------
+// nsIContent methods
 
 PRBool
 nsSVGAElement::IsFocusable(PRInt32 *aTabIndex)

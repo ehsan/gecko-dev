@@ -63,10 +63,12 @@ float nsCocoaUtils::MenuBarScreenHeight()
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0.0);
 }
 
+
 float nsCocoaUtils::FlippedScreenY(float y)
 {
   return MenuBarScreenHeight() - y;
 }
+
 
 NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsIntRect &geckoRect)
 {
@@ -82,6 +84,7 @@ NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsIntRect &geckoRect)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakeRect(0.0, 0.0, 0.0, 0.0));
 }
 
+
 nsIntRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
 {
   // We only need to change the Y coordinate by starting with the primary screen
@@ -95,6 +98,7 @@ nsIntRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
   return rect;
 }
 
+
 NSPoint nsCocoaUtils::ScreenLocationForEvent(NSEvent* anEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
@@ -103,6 +107,7 @@ NSPoint nsCocoaUtils::ScreenLocationForEvent(NSEvent* anEvent)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
 }
+
 
 BOOL nsCocoaUtils::IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow)
 {
@@ -113,6 +118,7 @@ BOOL nsCocoaUtils::IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
+
 NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
@@ -121,6 +127,7 @@ NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
 }
+
 
 NSWindow* nsCocoaUtils::FindWindowUnderPoint(NSPoint aPoint)
 {
@@ -147,6 +154,7 @@ NSWindow* nsCocoaUtils::FindWindowUnderPoint(NSPoint aPoint)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
+
 
 #define NS_APPSHELLSERVICE_CONTRACTID "@mozilla.org/appshell/appShellService;1"
 nsIWidget* nsCocoaUtils::GetHiddenWindowWidget()
@@ -179,6 +187,7 @@ nsIWidget* nsCocoaUtils::GetHiddenWindowWidget()
   
   return hiddenWindowWidget;
 }
+
 
 void nsCocoaUtils::PrepareForNativeAppModalDialog()
 {
@@ -215,6 +224,7 @@ void nsCocoaUtils::PrepareForNativeAppModalDialog()
   
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
 
 void nsCocoaUtils::CleanUpAfterNativeAppModalDialog()
 {
@@ -286,3 +296,4 @@ NSUInteger nsCocoaUtils::GetCocoaEventModifierFlags(NSEvent *theEvent)
   }
   return modifierFlags;
 }
+

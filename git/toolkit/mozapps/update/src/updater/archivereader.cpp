@@ -48,10 +48,6 @@
 # include <io.h>
 #endif
 
-#ifdef WINCE
-#include "updater_wince.h"
-#endif
-
 int
 #ifdef XP_WIN
 ArchiveReader::Open(const WCHAR *path)
@@ -90,14 +86,14 @@ ArchiveReader::ExtractFile(const char *name, const char *dest)
     return READ_ERROR;
 
 #ifdef XP_WIN
-  FILE* fp = fopen(dest, "wb+");
+  int fd = _open(dest, _O_BINARY|_O_CREAT|_O_TRUNC|_O_WRONLY, item->flags);
 #else
   int fd = creat(dest, item->flags);
+#endif
   if (fd == -1)
     return WRITE_ERROR;
 
   FILE *fp = fdopen(fd, "wb");
-#endif
   if (!fp)
     return WRITE_ERROR;
 

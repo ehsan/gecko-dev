@@ -85,7 +85,6 @@ SimpleTest.waitForExplicitFinish();
 let windowObserver = {
   observe: function(aSubject, aTopic, aData) {
     let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
-    win.focus();
 
     win.addEventListener("load", function onLoad(event) {
       win.removeEventListener("load", onLoad, false);

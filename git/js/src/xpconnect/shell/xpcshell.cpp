@@ -62,14 +62,10 @@
 #include "nsIDirectoryService.h"
 #include "nsILocalFile.h"
 #include "nsDirectoryServiceDefs.h"
-#include "nsAppDirectoryServiceDefs.h"
 #include "jsapi.h"
 #include "jsdbgapi.h"
 #include "jsprf.h"
 #include "nscore.h"
-#include "nsArrayEnumerator.h"
-#include "nsCOMArray.h"
-#include "nsDirectoryServiceUtils.h"
 #include "nsMemory.h"
 #include "nsIGenericFactory.h"
 #include "nsISupportsImpl.h"
@@ -101,12 +97,11 @@
 
 #include "nsIJSContextStack.h"
 
-class XPCShellDirProvider : public nsIDirectoryServiceProvider2
+class XPCShellDirProvider : public nsIDirectoryServiceProvider
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIDIRECTORYSERVICEPROVIDER
-    NS_DECL_NSIDIRECTORYSERVICEPROVIDER2
 
     XPCShellDirProvider() { }
     ~XPCShellDirProvider() { }
@@ -229,13 +224,6 @@ GetLocationProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_TRUE;
 #endif
 }
-
-#ifdef EDITLINE
-extern "C" {
-extern char     *readline(const char *prompt);
-extern void     add_history(char *line);
-}
-#endif
 
 static JSBool
 GetLine(JSContext *cx, char *bufp, FILE *file, const char *prompt) {
@@ -497,6 +485,10 @@ BuildDate(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 static JSBool
 Quit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+#ifdef LIVECONNECT
+    JSJ_SimpleShutdown();
+#endif
+
     gExitCode = 0;
     JS_ConvertArguments(cx, argc, argv,"/ i", &gExitCode);
 
@@ -817,6 +809,13 @@ my_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
         else
             return NULL;
 }
+
+#ifdef EDITLINE
+extern "C" {
+extern char     *readline(const char *prompt);
+extern void     add_history(char *line);
+}
+#endif
 
 static void
 ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
@@ -1808,9 +1807,7 @@ XPCShellDirProvider::Release()
     return 1;
 }
 
-NS_IMPL_QUERY_INTERFACE2(XPCShellDirProvider,
-                         nsIDirectoryServiceProvider,
-                         nsIDirectoryServiceProvider2)
+NS_IMPL_QUERY_INTERFACE1(XPCShellDirProvider, nsIDirectoryServiceProvider)
 
 NS_IMETHODIMP
 XPCShellDirProvider::GetFile(const char *prop, PRBool *persistent,
@@ -1822,26 +1819,5 @@ XPCShellDirProvider::GetFile(const char *prop, PRBool *persistent,
         return NS_OK;
     }
 
-    return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-XPCShellDirProvider::GetFiles(const char *prop, nsISimpleEnumerator* *result)
-{
-    if (mGREDir && !strcmp(prop, "ChromeML")) {
-        nsCOMArray<nsIFile> dirs;
-
-        nsCOMPtr<nsIFile> file;
-        mGREDir->Clone(getter_AddRefs(file));
-        file->AppendNative(NS_LITERAL_CSTRING("chrome"));
-        dirs.AppendObject(file);
-
-        nsresult rv = NS_GetSpecialDirectory(NS_APP_CHROME_DIR,
-                                             getter_AddRefs(file));
-        if (NS_SUCCEEDED(rv))
-            dirs.AppendObject(file);
-
-        return NS_NewArrayEnumerator(result, dirs);
-    }
     return NS_ERROR_FAILURE;
 }

@@ -83,7 +83,7 @@ endif
 
 DIRS += build
 
-ifdef MOZILLA_OFFICIAL
+ifneq (,$(BUILD_OFFICIAL)$(MOZILLA_OFFICIAL))
 DEFINES += -DOFFICIAL_BUILD=1
 endif
 

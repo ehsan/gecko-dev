@@ -40,25 +40,26 @@
 #ifndef nsDOMCSSAttributeDeclaration_h___
 #define nsDOMCSSAttributeDeclaration_h___
 
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsDOMCSSDeclaration.h"
 
 #include "nsString.h"
-#include "nsWrapperCache.h"
-#include "nsIContent.h"
 
+class nsIContent;
 class nsICSSLoader;
 class nsICSSParser;
 
-class nsDOMCSSAttributeDeclaration : public nsDOMCSSDeclaration,
-                                     public nsWrapperCache
+class nsDOMCSSAttributeDeclaration : public nsDOMCSSDeclaration
 {
 public:
   nsDOMCSSAttributeDeclaration(nsIContent *aContent);
   ~nsDOMCSSAttributeDeclaration();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMCSSAttributeDeclaration)
+  // impl AddRef/Release; QI is implemented by our parent class
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
 
+  virtual void DropReference();
   // If GetCSSDeclaration returns non-null, then the decl it returns
   // is owned by our current style rule.
   virtual nsresult GetCSSDeclaration(nsCSSDeclaration **aDecl,
@@ -70,15 +71,13 @@ public:
                                             nsICSSParser** aCSSParser);
   NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent);
 
-  virtual nsISupports *GetParentObject()
-  {
-    return mContent;
-  }
-
 protected:
   virtual nsresult DeclarationChanged();
   
-  nsCOMPtr<nsIContent> mContent;
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
+
+  nsIContent *mContent;
 };
 
 #endif /* nsDOMCSSAttributeDeclaration_h___ */

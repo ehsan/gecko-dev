@@ -68,7 +68,3 @@ CFLAGS += -F/System/Library/PrivateFrameworks
 CXXFLAGS += -F/System/Library/PrivateFrameworks
 LDFLAGS += -F/System/Library/PrivateFrameworks -framework CHUD
 endif
-
-check::
-	$(srcdir)/testlirc.sh
-
