@@ -15,6 +15,7 @@
 #include "js/Conversions.h"
 
 #include "jscntxtinlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;

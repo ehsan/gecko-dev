@@ -22,8 +22,7 @@
 #include "jsatominlines.h"
 #include "jscompartmentinlines.h"
 #include "jsgcinlines.h"
-
-#include "vm/TypeInference-inl.h"
+#include "jsinferinlines.h"
 
 inline void
 JSObject::finalize(js::FreeOp *fop)

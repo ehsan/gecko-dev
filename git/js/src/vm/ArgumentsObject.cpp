@@ -6,6 +6,8 @@
 
 #include "vm/ArgumentsObject-inl.h"
 
+#include "jsinfer.h"
+
 #include "jit/JitFrames.h"
 #include "vm/GlobalObject.h"
 #include "vm/Stack.h"

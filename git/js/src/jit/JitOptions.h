@@ -7,8 +7,6 @@
 #ifndef jit_JitOptions_h
 #define jit_JitOptions_h
 
-#include "mozilla/Maybe.h"
-
 #include "jit/IonTypes.h"
 #include "js/TypeDecls.h"
 

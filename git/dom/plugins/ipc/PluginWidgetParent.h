@@ -48,10 +48,9 @@ public:
   // Called by PBrowser when it receives a Destroy() call from the child.
   void ParentDestroy();
 
-  // Sets mWidget's parent
-  void SetParent(nsIWidget* aParent);
-
 private:
+  void ShutdownCommon(bool aParentInitiated);
+
   // The tab our connection is associated with.
   mozilla::dom::TabParent* GetTabParent();
   // The chrome side native widget.

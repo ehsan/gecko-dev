@@ -9,7 +9,7 @@
 
 #include "vm/ScopeObject.h"
 
-#include "vm/TypeInference-inl.h"
+#include "jsinferinlines.h"
 
 namespace js {
 
